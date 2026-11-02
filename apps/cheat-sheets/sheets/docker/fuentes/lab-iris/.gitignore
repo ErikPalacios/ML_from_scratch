@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+
+# El modelo pesa 1.3 KB y el model server lo necesita: sí se versiona (la raíz ignora *.onnx).
+!model_repository/**/*.onnx

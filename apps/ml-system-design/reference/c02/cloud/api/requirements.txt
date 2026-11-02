@@ -1,0 +1,30 @@
+# Dependencias de RUNTIME de la API de ingesta, todas fijadas con == (probadas con Python 3.13).
+# Transitivas incluidas: el mismo commit produce la misma imagen (genéralo con `uv pip compile`).
+# Las de tests van en requirements-dev.txt.
+
+# --- directas (las importa main.py o las usa el comando de arranque) ---
+fastapi==0.141.1  # validación de contratos (pydantic), dependencias inyectables, OpenAPI
+uvicorn==0.54.0  # servidor ASGI: uvicorn --factory main:app_from_env
+uvloop==0.22.1  # event loop más rápido; uvicorn lo detecta solo
+httptools==0.8.0  # parser HTTP en C; uvicorn lo prefiere a h11 si está instalado
+prometheus-client==0.26.0  # Counter/Histogram, el collector de heartbeats y /metrics
+boto3==1.43.104  # SQS (send_message) y S3 (URL prefirmada); con IRSA en EKS no hay llaves en el pod
+
+# --- transitivas (pip freeze de un venv limpio con las directas) ---
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+botocore==1.43.104
+click==8.5.0
+h11==0.16.0
+idna==3.20
+jmespath==1.1.0
+pydantic==2.13.5
+pydantic_core==2.46.5
+python-dateutil==2.9.0.post0
+s3transfer==0.19.2
+six==1.17.0
+starlette==1.7.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+urllib3==2.8.0

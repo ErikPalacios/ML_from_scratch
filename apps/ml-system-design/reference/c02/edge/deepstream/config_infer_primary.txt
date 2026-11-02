@@ -1,0 +1,82 @@
+# Configuración de nvinfer (Gst-nvinfer) para el detector primario del caso c02: un YOLO liviano
+# (≈ 10–30 M parámetros, entrada 640×640) fine-tuneado en imágenes de los centros de distribución con
+# 2 clases: person y vehicle (montacargas, camiones, autos). DeepStream 9.1 trae TensorRT 10.16.
+# Formato key file de GLib: comentarios SOLO en su propia línea.
+#
+# El engine NO se construye aquí. Lo produce el pipeline del modelo en una caja idéntica (misma L4,
+# misma imagen de DeepStream 9.1) con trtexec y viaja por OTA dentro del bundle /models/<versión>:
+#   trtexec --onnx=detector.onnx --fp16 --minShapes=images:1x3x640x640 \
+#           --optShapes=images:20x3x640x640 --maxShapes=images:40x3x640x640 \
+#           --saveEngine=detector_b40_fp16.engine
+# ("images" es el nombre del input en el export de Ultralytics; verifícalo en tu ONNX). No se corrió aquí.
+# Un engine de TensorRT está atado a la GPU y a la versión de TensorRT: si cambias la imagen de
+# DeepStream, reconstruyes el engine (es la misma regla del caso 1).
+
+[property]
+gpu-id=0
+# Preprocesamiento del training: píxel/255 en RGB (1/255 = 0.0039215…). Si tu training normalizó
+# distinto, esto es training-serving skew y el recall cae sin que nada falle.
+net-scale-factor=0.0039215697906911373
+# 0 = RGB (como entrena Ultralytics); 1 sería BGR
+model-color-format=0
+# Engine precompilado del bundle. Sin onnx-file a propósito: si el engine no deserializa (otra
+# versión de TensorRT), nvinfer falla al arrancar en vez de reconstruir en silencio un engine que
+# nadie validó. La caja queda con 0 fps, el canary lo detecta y el rollback es volver al bundle anterior.
+model-engine-file=/models/current/detector_b40_fp16.engine
+# Una clase por línea, en el MISMO orden que en el training. Viaja con la versión del modelo.
+labelfile-path=/config/labels.txt
+# Igual al batch-size del [streammux] y ≤ al máximo del perfil del engine (40)
+batch-size=40
+# 2 = FP16. INT8 (1) es una palanca, no el default: exige un ONNX cuantizado con nodos Q/DQ
+# (NVIDIA ModelOpt) calibrado con frames de ESTOS sitios, y un gate de recall por slice (noche con
+# IR, lluvia, contraluz): el recall de intrusiones reales debe quedar ≥ 95 %. Úsalo si FP16 no da
+# el throughput medido o para ganar margen, no por defecto.
+network-mode=2
+num-detected-classes=2
+gie-unique-id=1
+# 0 = detector; 1 = primario (opera sobre el frame completo, no sobre recortes de otro modelo)
+network-type=0
+process-mode=1
+# 2 = NMS de nvinfer después del parser (el parser de YOLO decodifica cajas, no suprime duplicados)
+cluster-mode=2
+# Letterbox como en el training: escala sin deformar y rellena simétrico. Sin esto, 1920×1080 → 640×640
+# aplasta a las personas y el modelo ve algo que nunca vio al entrenar.
+maintain-aspect-ratio=1
+symmetric-padding=1
+# 1 = interpolación bilineal al reescalar (la del training)
+scaling-filter=1
+# Parser de salida de YOLO11 de NVIDIA (tools/yolo_deepstream del repo DeepStream): se compila una
+# vez con su Makefile en la imagen de desarrollo (9.1-triton-multiarch) y viaja en el bundle. Espera la
+# salida del export que describe su README; si tu export difiere, el parser es C++ que adaptas.
+parse-bbox-func-name=NvDsInferParseYoloV11
+custom-lib-path=/models/current/libnvdsinfer_custom_impl_Yolo.so
+# Recorta cajas que se salen del frame (evita coordenadas negativas en el mensaje)
+crop-objects-to-roi-boundary=1
+
+[class-attrs-all]
+# Umbrales de ARRANQUE para calibrar con video de los sitios, no valores universales.
+# El edge es el filtro barato de una cascada: se sesga a recall (umbral bajo) porque un falso
+# positivo lo descarta el verificador en la nube, pero una intrusión perdida aquí ya no la ve nadie.
+pre-cluster-threshold=0.35
+nms-iou-threshold=0.5
+# Máximo de cajas por frame después de NMS: un andén lleno de gente no debe reventar el mensaje
+topk=100
+# Tamaño mínimo en px (coordenadas del muxer, 1920×1080). Referencia para elegirlo: con lente de ≈ 90°
+# la focal es ≈ 960 px, así que una persona de 1.7 m mide ≈ 1.7 × 960 / d px de alto: ≈ 16 px a
+# 100 m. Ajústalo a la distancia máxima de cada zona; más chico que eso es ruido.
+detected-min-w=8
+detected-min-h=16
+
+[class-attrs-0]
+# person (clase 0 en labels.txt): más sensible, es la que exige recall ≥ 95 %
+pre-cluster-threshold=0.30
+nms-iou-threshold=0.5
+detected-min-w=8
+detected-min-h=16
+
+[class-attrs-1]
+# vehicle: cajas grandes y claras; un umbral más alto corta reflejos y sombras de montacargas
+pre-cluster-threshold=0.40
+nms-iou-threshold=0.5
+detected-min-w=24
+detected-min-h=16

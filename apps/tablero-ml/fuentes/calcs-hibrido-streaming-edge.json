@@ -1,0 +1,2922 @@
+{
+ "patterns": {
+  "hibrido": {
+   "case": "c07",
+   "vars": [
+    {
+     "id": "n_searches_day",
+     "label": "Searches per day",
+     "unit": "searches/day",
+     "default": 50000000,
+     "kind": "requirement",
+     "source": "C07 · Facts (Escala): ≈ 50 M búsquedas al día"
+    },
+    {
+     "id": "peak_factor",
+     "label": "Peak / average",
+     "unit": "×",
+     "default": 3,
+     "kind": "requirement",
+     "source": "C07 · Facts (Escala): pico de la tarde ≈ 3× el promedio"
+    },
+    {
+     "id": "photo_share",
+     "label": "Photo-query share",
+     "unit": "fraction",
+     "default": 0.05,
+     "kind": "requirement",
+     "source": "C07 · Facts (Escala): ≈ 5 % son por foto"
+    },
+    {
+     "id": "n_items",
+     "label": "Active listings",
+     "unit": "items",
+     "default": 100000000,
+     "kind": "requirement",
+     "source": "C07 · Facts (Escala): ≈ 100 M listings activos"
+    },
+    {
+     "id": "emb_dim",
+     "label": "Embedding dimension",
+     "unit": "dims",
+     "default": 512,
+     "kind": "requirement",
+     "source": "C07 · Facts (Modelo actual): dual encoder tipo CLIP, d = 512"
+    },
+    {
+     "id": "hnsw_m",
+     "label": "HNSW M",
+     "unit": "neighbors",
+     "default": 32,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: grafo HNSW (capa 0), M = 32 → M × 2 × 4 B = 256 B por vector"
+    },
+    {
+     "id": "n_shards",
+     "label": "Shards",
+     "unit": "shards",
+     "default": 4,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: 4 shards de 25 M (por operación, no por memoria)"
+    },
+    {
+     "id": "n_copies",
+     "label": "Copies per shard",
+     "unit": "copies",
+     "default": 2,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: 4 shards × 2 copias, una por máquina, en 2 zonas"
+    },
+    {
+     "id": "target_util",
+     "label": "Planned GPU utilization",
+     "unit": "fraction",
+     "default": 0.7,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: encoder y reranker planeados al 70 %"
+    },
+    {
+     "id": "text_tput_l4",
+     "label": "Text tower max per L4 (short query)",
+     "unit": "queries/s",
+     "default": 5000,
+     "kind": "benchmark",
+     "source": "C07 · Estimaciones: torre de texto ≈ 5,000 consultas/s por L4 (perf_analyzer)"
+    },
+    {
+     "id": "img_tput_l4",
+     "label": "Image tower max per L4 (224×224)",
+     "unit": "img/s",
+     "default": 2000,
+     "kind": "benchmark",
+     "source": "C07 · Estimaciones: torre de imagen ≈ 2,000 img/s por L4"
+    },
+    {
+     "id": "rerank_tput_l4",
+     "label": "Cross-encoder max per L4 (≤ 64 tokens)",
+     "unit": "pairs/s",
+     "default": 10000,
+     "kind": "benchmark",
+     "source": "C07 · Estimaciones: reranker ≈ 10,000 pares/s por L4 (supuesto a medir)"
+    },
+    {
+     "id": "rerank_k",
+     "label": "Rerank depth (text only)",
+     "unit": "candidates",
+     "default": 30,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: reranker top-30 solo para texto"
+    },
+    {
+     "id": "gpu_embed",
+     "label": "embed-worker L4s",
+     "unit": "GPUs",
+     "default": 1,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: embed-worker 1 × L4 + autoscaling por lag"
+    },
+    {
+     "id": "price_r7i_h",
+     "label": "r7i.4xlarge on-demand",
+     "unit": "US$/h",
+     "default": 1.0584,
+     "kind": "assumption",
+     "source": "C07 · Costo: r7i.4xlarge × US$1.0584/h (us-east-1, verifica)"
+    },
+    {
+     "id": "price_l4_h",
+     "label": "g6.xlarge (1 L4) on-demand",
+     "unit": "US$/h",
+     "default": 0.805,
+     "kind": "assumption",
+     "source": "C07 · Costo: g6.xlarge × US$0.805/h"
+    },
+    {
+     "id": "budget_month",
+     "label": "New-infra budget",
+     "unit": "US$/month",
+     "default": 20000,
+     "kind": "requirement",
+     "source": "C07 · Facts (Restricciones): ≈ US$20k al mes de infraestructura nueva"
+    },
+    {
+     "id": "slo_avail",
+     "label": "Search availability SLO",
+     "unit": "fraction",
+     "default": 0.999,
+     "kind": "requirement",
+     "source": "C07 · Requisitos: disponibilidad 99.9 % (BM25-only cuenta como disponible)"
+    },
+    {
+     "id": "judged_queries",
+     "label": "Judged queries per round",
+     "unit": "queries",
+     "default": 3000,
+     "kind": "assumption",
+     "source": "C07 · Datos: 3,000 consultas × 20 resultados por ronda"
+    },
+    {
+     "id": "judged_per_query",
+     "label": "Judged results per query",
+     "unit": "results",
+     "default": 20,
+     "kind": "assumption",
+     "source": "C07 · Datos: 3,000 consultas × 20 resultados por ronda"
+    },
+    {
+     "id": "price_judgment",
+     "label": "Price per human judgment",
+     "unit": "US$",
+     "default": 0.05,
+     "kind": "assumption",
+     "source": "C07 · Datos: ≈ US$0.05 por juicio"
+    },
+    {
+     "id": "contact_rate",
+     "label": "Searches ending in contact",
+     "unit": "fraction",
+     "default": 0.05,
+     "kind": "assumption",
+     "source": "C07 · Datos: ≈ 5 % de las búsquedas termina en contacto; Evaluación: p ≈ 5 %"
+    },
+    {
+     "id": "price_s3_gb_month",
+     "label": "S3 Standard",
+     "unit": "US$/GB-month",
+     "default": 0.023,
+     "kind": "assumption",
+     "source": "Hoja de números (costos): S3 Standard ≈ US$0.023/GB-mes; C07 · Arquitectura: ≈ 205 GB FP32 ≈ US$5/mes"
+    },
+    {
+     "id": "text_tput_catalog_l4",
+     "label": "Text tower per L4 (title + attributes)",
+     "unit": "items/s",
+     "default": 3000,
+     "kind": "benchmark",
+     "source": "C07 · Estimaciones: re-embedding, torre de texto ≈ 3,000/s (más largo que una consulta)"
+    },
+    {
+     "id": "n_gpu_reembed",
+     "label": "L4s for the re-embedding job",
+     "unit": "GPUs",
+     "default": 8,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: re-embedding en 8 L4"
+    },
+    {
+     "id": "decode_cpu_ms",
+     "label": "JPEG decode CPU per thumbnail",
+     "unit": "ms",
+     "default": 1.5,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: 16,000 img/s × ≈ 1.5 ms de CPU"
+    },
+    {
+     "id": "heap_gb",
+     "label": "OpenSearch heap",
+     "unit": "GB",
+     "default": 16,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: heap de OpenSearch ≈ 16 GB (supuesto)"
+    },
+    {
+     "id": "engine_overhead",
+     "label": "Engine overhead on graph + int8",
+     "unit": "×",
+     "default": 1.1,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: + ≈ 10 % de overhead (OpenSearch estima ≈ 1.1×)"
+    },
+    {
+     "id": "node_ram_gb",
+     "label": "r7i.4xlarge RAM",
+     "unit": "GB",
+     "default": 137,
+     "kind": "benchmark",
+     "source": "C07 · Estimaciones: r7i.4xlarge 128 GiB ≈ 137 GB"
+    },
+    {
+     "id": "node_vcpu",
+     "label": "r7i.4xlarge vCPU",
+     "unit": "vCPU",
+     "default": 16,
+     "kind": "benchmark",
+     "source": "C07 · Estimaciones: 16 vCPU, 128 GiB"
+    },
+    {
+     "id": "ann_cpu_ms",
+     "label": "ANN CPU per query per shard",
+     "unit": "ms",
+     "default": 2,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: ≈ 2 ms por consulta en un shard de 25 M (HNSW int8 + rescoring)"
+    },
+    {
+     "id": "rescore_k",
+     "label": "FP32 rescoring candidates per shard",
+     "unit": "candidates",
+     "default": 200,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: rescorear el top-200 con FP32"
+    },
+    {
+     "id": "new_items_day",
+     "label": "New listings per day",
+     "unit": "items/day",
+     "default": 2500000,
+     "kind": "requirement",
+     "source": "C07 · Facts (Escala): ≈ 2.5 M listings nuevos al día"
+    },
+    {
+     "id": "edits_day",
+     "label": "Title / main-photo edits per day",
+     "unit": "items/day",
+     "default": 500000,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: ediciones de título o foto principal ≈ 0.5 M/día"
+    },
+    {
+     "id": "removals_day",
+     "label": "Sold / expired / removed per day",
+     "unit": "items/day",
+     "default": 2500000,
+     "kind": "requirement",
+     "source": "C07 · Facts (Escala): salen otros tantos (≈ 2.5 M/día)"
+    },
+    {
+     "id": "ab_rel_lift",
+     "label": "Minimum detectable lift (relative)",
+     "unit": "fraction",
+     "default": 0.02,
+     "kind": "assumption",
+     "source": "C07 · Evaluación: +2 % relativo en contactos por búsqueda"
+    },
+    {
+     "id": "ab_traffic_share",
+     "label": "Traffic per A/B arm",
+     "unit": "fraction",
+     "default": 0.1,
+     "kind": "assumption",
+     "source": "C07 · Evaluación: 10 % del tráfico por brazo"
+    },
+    {
+     "id": "rollback_days",
+     "label": "Blue kept for rollback",
+     "unit": "days",
+     "default": 7,
+     "kind": "assumption",
+     "source": "C07 · Serving: blue queda 7 días para rollback"
+    },
+    {
+     "id": "p_target",
+     "label": "Query latency percentile",
+     "unit": "quantile",
+     "default": 0.99,
+     "kind": "requirement",
+     "source": "C07 · Requisitos: latencia texto p99 ≤ 300 ms"
+    },
+    {
+     "id": "p99_text_ms",
+     "label": "Text p99 server-side",
+     "unit": "ms",
+     "default": 300,
+     "kind": "requirement",
+     "source": "C07 · Requisitos: p99 ≤ 300 ms del lado del servidor"
+    },
+    {
+     "id": "t_parse_ms",
+     "label": "Receive / validate / split filters",
+     "unit": "ms",
+     "default": 2,
+     "kind": "assumption",
+     "source": "C07 · Serving: presupuesto de una consulta de texto, ≈ 2 ms"
+    },
+    {
+     "id": "t_cache_ms",
+     "label": "Query cache lookup",
+     "unit": "ms",
+     "default": 2,
+     "kind": "assumption",
+     "source": "C07 · Serving: caché ≈ 1–2 ms (camino crítico usa 2)"
+    },
+    {
+     "id": "t_bm25_ms",
+     "label": "BM25 with filters",
+     "unit": "ms",
+     "default": 40,
+     "kind": "assumption",
+     "source": "C07 · Serving: BM25 con filtros ≈ 40 ms"
+    },
+    {
+     "id": "t_enc_ms",
+     "label": "Text encoder incl. network",
+     "unit": "ms",
+     "default": 15,
+     "kind": "assumption",
+     "source": "C07 · Serving: encoder 15 ms en el camino crítico"
+    },
+    {
+     "id": "t_ann_ms",
+     "label": "ANN scatter-gather",
+     "unit": "ms",
+     "default": 25,
+     "kind": "assumption",
+     "source": "C07 · Serving: ANN 25 ms en el camino crítico"
+    },
+    {
+     "id": "t_tomb_ms",
+     "label": "Tombstone check",
+     "unit": "ms",
+     "default": 2,
+     "kind": "assumption",
+     "source": "C07 · Serving: tombstones ≈ 1–2 ms"
+    },
+    {
+     "id": "t_rrf_ms",
+     "label": "RRF + rules",
+     "unit": "ms",
+     "default": 10,
+     "kind": "assumption",
+     "source": "C07 · Serving: RRF + reglas ≈ 10 ms"
+    },
+    {
+     "id": "t_rerank_ms",
+     "label": "Reranker top-30",
+     "unit": "ms",
+     "default": 25,
+     "kind": "assumption",
+     "source": "C07 · Serving: reranker top-30 ≈ 25 ms"
+    },
+    {
+     "id": "t_hydrate_ms",
+     "label": "Hydrate 48 results",
+     "unit": "ms",
+     "default": 10,
+     "kind": "assumption",
+     "source": "C07 · Serving: hidratar 48 resultados ≈ 10 ms"
+    },
+    {
+     "id": "photo_decode_ms",
+     "label": "Photo decode + resize CPU",
+     "unit": "ms",
+     "default": 15,
+     "kind": "assumption",
+     "source": "C07 · Estimaciones: ≈ 90 fotos/s × ≈ 15 ms"
+    },
+    {
+     "id": "burn_fast",
+     "label": "Fast-burn factor (1 h)",
+     "unit": "×",
+     "default": 14.4,
+     "kind": "assumption",
+     "source": "M12 · SLOs, error budget y burn rate: 2 % del presupuesto en 1 h → 14.4×"
+    },
+    {
+     "id": "backlog_thr_min",
+     "label": "EmbedWorkerBacklog threshold",
+     "unit": "min",
+     "default": 3,
+     "kind": "assumption",
+     "source": "C07 · Monitoreo: atraso del consumer group > 3 min"
+    },
+    {
+     "id": "backlog_for_min",
+     "label": "EmbedWorkerBacklog for",
+     "unit": "min",
+     "default": 10,
+     "kind": "assumption",
+     "source": "C07 · Monitoreo: … durante 10 min"
+    }
+   ],
+   "steps": {
+    "kickoff": [
+     {
+      "id": "qps-avg",
+      "label": "Average QPS",
+      "out": "qps_avg",
+      "expr": "n_searches_day / 86400",
+      "unit": "req/s",
+      "tol": 0.02,
+      "why": "Baseline load for the search-api and cache.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 579
+     },
+     {
+      "id": "qps-peak",
+      "label": "Peak QPS",
+      "out": "qps_peak",
+      "expr": "qps_avg * peak_factor",
+      "unit": "req/s",
+      "tol": 0.02,
+      "why": "The fleet is sized for the evening peak, not the average.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 1736
+     },
+     {
+      "id": "qps-design",
+      "label": "Design peak QPS",
+      "out": "qps_design",
+      "expr": "ceilto(qps_peak, 50)",
+      "unit": "req/s",
+      "tol": 0,
+      "why": "Single design point reused by ANN, encoder and reranker sizing.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 1750
+     },
+     {
+      "id": "qps-photo",
+      "label": "Photo QPS at peak",
+      "out": "qps_photo",
+      "expr": "ceilto(qps_design * photo_share, 10)",
+      "unit": "req/s",
+      "tol": 0.02,
+      "why": "Sizes the image tower and CPU decode; photo queries skip BM25 and rerank.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 90
+     },
+     {
+      "id": "qps-text",
+      "label": "Text QPS at peak",
+      "out": "qps_text",
+      "expr": "qps_design - qps_photo",
+      "unit": "req/s",
+      "tol": 0.02,
+      "why": "Drives the text tower and the cross-encoder, the cost driver.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 1660
+     },
+     {
+      "id": "index-fp32-gb",
+      "label": "Vectors in FP32",
+      "out": "index_fp32_gb",
+      "expr": "n_items * emb_dim * 4 / 1e9",
+      "unit": "GB",
+      "tol": 0.02,
+      "why": "Reference size: FP32 is kept only for rescoring, not for graph traversal.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 204.8
+     },
+     {
+      "id": "index-int8-hnsw-gb",
+      "label": "HNSW graph + int8 vectors",
+      "out": "index_hot_gb",
+      "expr": "n_items * (emb_dim + hnsw_m * 2 * 4) / 1e9",
+      "unit": "GB",
+      "tol": 0.02,
+      "why": "What must stay in RAM per copy: picks machine size and shard count.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 77
+     },
+     {
+      "id": "ann-nodes",
+      "label": "ANN data nodes",
+      "out": "ann_nodes",
+      "expr": "n_shards * n_copies",
+      "unit": "nodes",
+      "tol": 0,
+      "why": "One copy per machine across 2 zones: the second copy is availability, not throughput.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 8
+     },
+     {
+      "id": "gpu-encoder",
+      "label": "Query-encoder L4s (N+1)",
+      "out": "gpu_encoder",
+      "expr": "ceil(qps_text / (target_util * text_tput_l4) + qps_photo / (target_util * img_tput_l4)) + 1",
+      "unit": "GPUs",
+      "tol": 0,
+      "why": "One L4 covers both towers at peak; the second is redundancy, one per zone.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 2
+     },
+     {
+      "id": "gpu-reranker",
+      "label": "Reranker L4s (top-k text)",
+      "out": "gpu_reranker",
+      "expr": "ceil(qps_text * rerank_k / (target_util * rerank_tput_l4))",
+      "unit": "GPUs",
+      "tol": 0,
+      "why": "The cost driver: rerank depth decides whether the budget holds (top-100 needs 24).",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 8
+     },
+     {
+      "id": "cost-compute-month",
+      "label": "Monthly compute (ANN + L4s)",
+      "out": "cost_compute_month",
+      "expr": "(ann_nodes * price_r7i_h + (gpu_encoder + gpu_reranker + gpu_embed) * price_l4_h) * 730",
+      "unit": "US$/month",
+      "tol": 0.02,
+      "why": "Compute is ≈ 75 % of the ≈ US$16–18k total; the rest is Redis, storage and model changes.",
+      "check": {
+       "expr": "cost_compute_month <= budget_month",
+       "label": "Compute fits under the US$20k/month budget"
+      },
+      "ref": "#c07.costo",
+      "expected": 12700
+     },
+     {
+      "id": "error-budget-min",
+      "label": "Error budget (30 days)",
+      "out": "error_budget_min",
+      "expr": "(1 - slo_avail) * 43200",
+      "unit": "min/month",
+      "tol": 0.02,
+      "why": "Minutes of non-BM25-covered downtime the month allows.",
+      "check": null,
+      "ref": "#m12.prometheus-grafana",
+      "expected": 43.2
+     }
+    ],
+    "datos": [
+     {
+      "id": "judgments-round",
+      "label": "Judgments per round",
+      "out": "judgments_round",
+      "expr": "judged_queries * judged_per_query",
+      "unit": "judgments",
+      "tol": 0,
+      "why": "Graded labels behind NDCG@10; one round per quarter and per new model.",
+      "check": null,
+      "ref": "#c07.datos",
+      "expected": 60000
+     },
+     {
+      "id": "judgments-cost",
+      "label": "Cost per judgment round",
+      "out": "judgments_cost",
+      "expr": "judgments_round * price_judgment",
+      "unit": "US$",
+      "tol": 0.02,
+      "why": "Part of the ≈ US$6–7k each model change costs.",
+      "check": null,
+      "ref": "#c07.datos",
+      "expected": 3000
+     },
+     {
+      "id": "positive-pairs-day",
+      "label": "Query–contact pairs per day",
+      "out": "positive_pairs_day",
+      "expr": "n_searches_day * contact_rate",
+      "unit": "pairs/day",
+      "tol": 0.02,
+      "why": "Free fine-tuning signal, biased to what the old ranker showed.",
+      "check": null,
+      "ref": "#c07.datos",
+      "expected": 2500000
+     }
+    ],
+    "versionado": [
+     {
+      "id": "vectors-s3-cost",
+      "label": "FP32 vectors per version in S3",
+      "out": "vectors_s3_cost",
+      "expr": "index_fp32_gb * price_s3_gb_month",
+      "unit": "US$/month",
+      "tol": 0.02,
+      "why": "Keeping every version is negligible: rebuild an index without GPUs.",
+      "check": null,
+      "ref": "#c07.arquitectura",
+      "expected": 4.71
+     }
+    ],
+    "re-embedding": [
+     {
+      "id": "reembed-gpu-h",
+      "label": "Re-embedding GPU-hours (both towers)",
+      "out": "reembed_gpu_h",
+      "expr": "n_items / img_tput_l4 / 3600 + n_items / text_tput_catalog_l4 / 3600",
+      "unit": "GPU-h",
+      "tol": 0.02,
+      "why": "GPU time for a model change: ≈ 14 image + ≈ 9 text.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 23
+     },
+     {
+      "id": "reembed-wall-h",
+      "label": "Wall clock on the job fleet",
+      "out": "reembed_wall_h",
+      "expr": "reembed_gpu_h / n_gpu_reembed",
+      "unit": "h",
+      "tol": 0.02,
+      "why": "A planned event of hours, not minutes: no need for more GPUs.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 2.9
+     },
+     {
+      "id": "reembed-cost",
+      "label": "Re-embedding GPU cost (on-demand)",
+      "out": "reembed_cost",
+      "expr": "reembed_gpu_h * price_l4_h",
+      "unit": "US$",
+      "tol": 0.03,
+      "why": "Under US$20: spot does not justify interruptions on a 3 h job.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 19
+     },
+     {
+      "id": "decode-cores",
+      "label": "CPU cores to feed the job fleet",
+      "out": "decode_cores",
+      "expr": "n_gpu_reembed * img_tput_l4 * decode_cpu_ms / 1000",
+      "unit": "cores",
+      "tol": 0.02,
+      "why": "JPEG decode is the bottleneck (4 vCPU per g6.xlarge): plan CPU or DALI.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 24
+     }
+    ],
+    "indice-green": [
+     {
+      "id": "shard-hot-gb",
+      "label": "Graph + int8 per shard (with overhead)",
+      "out": "shard_hot_gb",
+      "expr": "n_items / n_shards * (emb_dim + hnsw_m * 2 * 4) * engine_overhead / 1e9",
+      "unit": "GB",
+      "tol": 0.02,
+      "why": "The traversed set must be in RAM: a page fault mid-graph is a disk read.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 21
+     },
+     {
+      "id": "shard-fp32-gb",
+      "label": "FP32 rescoring vectors per shard",
+      "out": "shard_fp32_gb",
+      "expr": "n_items / n_shards * emb_dim * 4 / 1e9",
+      "unit": "GB",
+      "tol": 0.02,
+      "why": "Served from page cache on gp3; a new copy must prewarm this before traffic.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 51.2
+     },
+     {
+      "id": "node-ram-used-gb",
+      "label": "RAM used per data node",
+      "out": "node_ram_used_gb",
+      "expr": "heap_gb + shard_hot_gb + shard_fp32_gb",
+      "unit": "GB",
+      "tol": 0.02,
+      "why": "Picks the r7i.4xlarge (128 GiB) over a bigger or smaller box.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 88
+     },
+     {
+      "id": "node-mem-util",
+      "label": "Node memory utilization",
+      "out": "node_mem_util",
+      "expr": "node_ram_used_gb / node_ram_gb",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "Headroom for merges that build new graphs and catalog growth.",
+      "check": {
+       "expr": "node_mem_util <= 0.85",
+       "label": "Stays under ShardMemoryHigh (85 %)"
+      },
+      "ref": "#c07.estimaciones",
+      "expected": 0.64
+     }
+    ],
+    "serving": [
+     {
+      "id": "ann-cores-peak",
+      "label": "ANN cores per node, one copy down",
+      "out": "ann_cores_peak",
+      "expr": "qps_design * ann_cpu_ms / 1000",
+      "unit": "cores",
+      "tol": 0.02,
+      "why": "ANN is memory-bound: if CPU were short, add copies, not shards.",
+      "check": {
+       "expr": "ann_cores_peak <= node_vcpu",
+       "label": "One copy carries the full peak on 16 vCPU"
+      },
+      "ref": "#c07.estimaciones",
+      "expected": 3.5
+     },
+     {
+      "id": "rescore-reads-node",
+      "label": "FP32 rescoring reads per node",
+      "out": "rescore_reads_node",
+      "expr": "qps_design / n_copies * rescore_k",
+      "unit": "reads/s",
+      "tol": 0.02,
+      "why": "Far above the 40k IOPS EBS ceiling: FP32 must sit in page cache.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 175000
+     },
+     {
+      "id": "rerank-util-n1",
+      "label": "Reranker utilization, one L4 down",
+      "out": "rerank_util_n1",
+      "expr": "qps_text * rerank_k / ((gpu_reranker - 1) * rerank_tput_l4)",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "At the edge of the 70 % plan: the query cache provides the margin, else a 9th L4.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 0.71
+     }
+    ],
+    "kubernetes": [
+     {
+      "id": "l4-total",
+      "label": "L4 nodes in the cluster",
+      "out": "l4_total",
+      "expr": "gpu_encoder + gpu_reranker + gpu_embed",
+      "unit": "GPUs",
+      "tol": 0,
+      "why": "GPU node pool size: encoder 2, reranker 8, embed-worker 1.",
+      "check": null,
+      "ref": "#c07.costo",
+      "expected": 11
+     },
+     {
+      "id": "rerank-util",
+      "label": "Reranker utilization, all up",
+      "out": "rerank_util",
+      "expr": "qps_text * rerank_k / (gpu_reranker * rerank_tput_l4)",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "Confirms the reranker Deployment replica count.",
+      "check": {
+       "expr": "rerank_util <= target_util",
+       "label": "Reranker fleet within the 70 % plan"
+      },
+      "ref": "#c07.estimaciones",
+      "expected": 0.62
+     }
+    ],
+    "rollout": [
+     {
+      "id": "ab-n-arm",
+      "label": "A/B searches per arm",
+      "out": "ab_n_arm",
+      "expr": "16 * contact_rate * (1 - contact_rate) / (contact_rate * ab_rel_lift) ^ 2",
+      "unit": "searches",
+      "tol": 0.02,
+      "why": "Sample for a +2 % contact lift; traffic is not what sets the duration.",
+      "check": null,
+      "ref": "#c07.evaluacion",
+      "expected": 760000
+     },
+     {
+      "id": "ab-days",
+      "label": "Days to reach the A/B sample",
+      "out": "ab_days",
+      "expr": "ab_n_arm / (n_searches_day * ab_traffic_share)",
+      "unit": "days",
+      "tol": 0.02,
+      "why": "Under a day: the weekly cycle and novelty effect set 1–2 weeks.",
+      "check": null,
+      "ref": "#c07.evaluacion",
+      "expected": 0.152
+     },
+     {
+      "id": "parallel-index-week",
+      "label": "Second index cost per week",
+      "out": "parallel_index_week",
+      "expr": "ann_nodes * price_r7i_h * 168",
+      "unit": "US$/week",
+      "tol": 0.02,
+      "why": "Each A/B and rollback week runs two full indexes.",
+      "check": null,
+      "ref": "#c07.datos",
+      "expected": 1400
+     },
+     {
+      "id": "blue-missing",
+      "label": "Listings a frozen blue would miss",
+      "out": "blue_missing",
+      "expr": "rollback_days * new_items_day",
+      "unit": "listings",
+      "tol": 0.02,
+      "why": "Why blue keeps receiving writes for its 7 rollback days.",
+      "check": null,
+      "ref": "#c07.serving",
+      "expected": 17500000
+     }
+    ],
+    "indexacion-streaming": [
+     {
+      "id": "new-items-peak",
+      "label": "New listings per second at peak",
+      "out": "new_items_peak",
+      "expr": "new_items_day / 86400 * peak_factor",
+      "unit": "items/s",
+      "tol": 0.05,
+      "why": "Arrival rate the embed-worker must keep within p95 ≤ 5 min.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 90
+     },
+     {
+      "id": "embed-items-peak",
+      "label": "Items to embed per second at peak",
+      "out": "embed_items_peak",
+      "expr": "(new_items_day + edits_day) / 86400 * peak_factor",
+      "unit": "items/s",
+      "tol": 0.05,
+      "why": "Load on the embed-worker: one photo + one text each.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 100
+     },
+     {
+      "id": "embed-gpu-util",
+      "label": "embed-worker L4 utilization",
+      "out": "embed_gpu_util",
+      "expr": "embed_items_peak / (target_util * img_tput_l4)",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "A nearly idle L4 is kept for vector parity, not throughput.",
+      "check": {
+       "expr": "embed_gpu_util <= 1",
+       "label": "One L4 covers the peak"
+      },
+      "ref": "#c07.estimaciones",
+      "expected": 0.0744
+     },
+     {
+      "id": "deleted-week-frac",
+      "label": "Graph nodes deleted in a week",
+      "out": "deleted_week_frac",
+      "expr": "7 * removals_day / n_items",
+      "unit": "fraction",
+      "tol": 0.05,
+      "why": "Uncompacted deletes cost RAM and recall: tombstones + rebuild cadence.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 0.17
+     }
+    ],
+    "request": [
+     {
+      "id": "query-tail-if-p99",
+      "label": "Query tail if each shard meets p99",
+      "out": "query_tail_p99",
+      "expr": "1 - p_target ^ n_shards",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "Shard p99 becomes query p96: fan-out widens the tail.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 0.04
+     },
+     {
+      "id": "shard-tail-budget",
+      "label": "Per-shard tail budget for query p99",
+      "out": "shard_tail_budget",
+      "expr": "1 - p_target ^ (1 / n_shards)",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "Each shard must hold its budget at p99.75: per-shard timeout + hedged request.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 0.0025
+     },
+     {
+      "id": "critical-path-ms",
+      "label": "Typical text critical path",
+      "out": "critical_path_ms",
+      "expr": "t_parse_ms + t_cache_ms + max(t_bm25_ms, t_enc_ms + t_ann_ms) + t_tomb_ms + t_rrf_ms + t_rerank_ms + t_hydrate_ms",
+      "unit": "ms",
+      "tol": 0.02,
+      "why": "Leaves the rest of 300 ms for queues, GC and the scatter-gather tail.",
+      "check": {
+       "expr": "critical_path_ms <= p99_text_ms",
+       "label": "Typical path inside the 300 ms p99"
+      },
+      "ref": "#c07.serving",
+      "expected": 91
+     },
+     {
+      "id": "photo-decode-cores",
+      "label": "Photo decode cores at peak",
+      "out": "photo_decode_cores",
+      "expr": "qps_photo * photo_decode_ms / 1000",
+      "unit": "cores",
+      "tol": 0.05,
+      "why": "Decode runs in Triton preprocessing on the encoder nodes, not in search-api.",
+      "check": null,
+      "ref": "#c07.estimaciones",
+      "expected": 1.4
+     }
+    ],
+    "monitoreo": [
+     {
+      "id": "burn-fast-ratio",
+      "label": "Fast-burn error ratio (1 h)",
+      "out": "burn_fast_ratio",
+      "expr": "burn_fast * (1 - slo_avail)",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "Error rate that pages: 2 % of the monthly budget in 1 h.",
+      "check": null,
+      "ref": "#m12.prometheus-grafana",
+      "expected": 0.0144
+     },
+     {
+      "id": "failed-search-budget",
+      "label": "Failed searches allowed per month",
+      "out": "failed_search_budget",
+      "expr": "n_searches_day * 30 * (1 - slo_avail)",
+      "unit": "searches/month",
+      "tol": 0.02,
+      "why": "Error budget in requests for the burn-rate rules.",
+      "check": null,
+      "ref": "#m12.prometheus-grafana",
+      "expected": 1500000
+     },
+     {
+      "id": "backlog-page-min",
+      "label": "Time from worker stop to page",
+      "out": "backlog_page_min",
+      "expr": "backlog_thr_min + backlog_for_min",
+      "unit": "min",
+      "tol": 0.02,
+      "why": "Gap where the ≤ 1 min sold-item promise breaks: split removals into their own consumer group if it repeats.",
+      "check": null,
+      "ref": "#c07.serving",
+      "expected": 13
+     }
+    ]
+   }
+  },
+  "streaming": {
+   "case": "c13",
+   "vars": [
+    {
+     "id": "meetings_day",
+     "label": "Meetings per day",
+     "unit": "meetings/day",
+     "default": 2000000,
+     "kind": "requirement",
+     "source": "C13 · Facts (Escala): ≈ 2 M de reuniones al día"
+    },
+    {
+     "id": "caption_share",
+     "label": "Meetings with captions",
+     "unit": "fraction",
+     "default": 0.3,
+     "kind": "requirement",
+     "source": "C13 · Facts (Escala): ≈ 30 % activa subtítulos"
+    },
+    {
+     "id": "meeting_min",
+     "label": "Average meeting length",
+     "unit": "min",
+     "default": 40,
+     "kind": "requirement",
+     "source": "C13 · Facts (Escala): 40 min en promedio"
+    },
+    {
+     "id": "participants",
+     "label": "Participants per meeting",
+     "unit": "tracks",
+     "default": 4,
+     "kind": "requirement",
+     "source": "C13 · Facts (Escala): ≈ 4 participantes"
+    },
+    {
+     "id": "peak_factor",
+     "label": "Peak / average",
+     "unit": "×",
+     "default": 3,
+     "kind": "requirement",
+     "source": "C13 · Facts (Escala): pico ≈ 3× el promedio"
+    },
+    {
+     "id": "speakers_per_meeting",
+     "label": "Concurrent speakers per meeting",
+     "unit": "speakers",
+     "default": 1.2,
+     "kind": "requirement",
+     "source": "C13 · Facts (Escala): hablan en promedio ≈ 1.2 personas por reunión"
+    },
+    {
+     "id": "streams_max_l4",
+     "label": "Max streams per L4 (160 ms chunks)",
+     "unit": "streams",
+     "default": 500,
+     "kind": "benchmark",
+     "source": "C13 · Estimaciones: máximo por L4 ≈ 500 streams (supuesto fuerte: lo primero que mides)"
+    },
+    {
+     "id": "target_util",
+     "label": "Planned GPU utilization",
+     "unit": "fraction",
+     "default": 0.7,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: planeado al 70 % de lo medido"
+    },
+    {
+     "id": "chunk_ms",
+     "label": "Chunk size",
+     "unit": "ms",
+     "default": 160,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones / Serving: fragmentos de 160 ms"
+    },
+    {
+     "id": "fleet_avg_l4",
+     "label": "Billed L4 fleet, average",
+     "unit": "GPUs",
+     "default": 100,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: la flota facturada promedia ≈ 94–100 L4 (costea con ≈ 100)"
+    },
+    {
+     "id": "price_l4_h",
+     "label": "g6.xlarge (1 L4) on-demand",
+     "unit": "US$/h",
+     "default": 0.805,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: g6.xlarge ≈ US$0.805/h on-demand"
+    },
+    {
+     "id": "api_price_min",
+     "label": "Managed streaming API, list",
+     "unit": "US$/min",
+     "default": 0.01,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: Amazon Transcribe streaming US$0.01/min (lista, oct. 2026)"
+    },
+    {
+     "id": "opus_kbps",
+     "label": "SFU → gateway per track",
+     "unit": "kb/s",
+     "default": 48,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: Opus ≈ 32 kb/s + RTP/gRPC ≈ 16 kb/s"
+    },
+    {
+     "id": "slo_avail",
+     "label": "Captioned-minute availability",
+     "unit": "fraction",
+     "default": 0.995,
+     "kind": "requirement",
+     "source": "C13 · Requisitos: ≥ 99.5 % de los minutos con subtítulos activados tienen subtítulos"
+    },
+    {
+     "id": "save_share",
+     "label": "Captioned minutes with \"save\" on",
+     "unit": "fraction",
+     "default": 0.4,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones (Almacenamiento): 40 % con “guardar” activado"
+    },
+    {
+     "id": "transcript_kb_min",
+     "label": "Transcript + metadata per minute",
+     "unit": "KB/min",
+     "default": 3,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones (Almacenamiento): ≈ 3 KB/min"
+    },
+    {
+     "id": "retention_days",
+     "label": "Transcript retention",
+     "unit": "days",
+     "default": 30,
+     "kind": "requirement",
+     "source": "C13 · Facts (Restricciones): se retienen ≈ 30 días"
+    },
+    {
+     "id": "words_per_min",
+     "label": "Speech rate",
+     "unit": "words/min",
+     "default": 140,
+     "kind": "assumption",
+     "source": "C13 · Datos: ≈ 140 palabras por minuto"
+    },
+    {
+     "id": "wer_ref",
+     "label": "Reference WER for a slice",
+     "unit": "fraction",
+     "default": 0.15,
+     "kind": "assumption",
+     "source": "C13 · Datos: con un WER de 15 %; Requisitos: ≤ 12–15 % (es, pt)"
+    },
+    {
+     "id": "slice_ceiling",
+     "label": "Worst slice vs language average",
+     "unit": "×",
+     "default": 1.5,
+     "kind": "requirement",
+     "source": "C13 · Requisitos: ningún slice peor que 1.5× el promedio de su idioma"
+    },
+    {
+     "id": "n_layers",
+     "label": "Encoder layers (FastConformer 0.6 B)",
+     "unit": "layers",
+     "default": 24,
+     "kind": "assumption",
+     "source": "C13 · Serving: 24 × 56 × 1,024 × 2 B ≈ 2.8 MB"
+    },
+    {
+     "id": "ctx_frames",
+     "label": "Left-context frames cached",
+     "unit": "frames",
+     "default": 56,
+     "kind": "assumption",
+     "source": "C13 · Serving: 24 × 56 × 1,024 × 2 B (att_context_size [56, 1])"
+    },
+    {
+     "id": "d_model",
+     "label": "Model width",
+     "unit": "dims",
+     "default": 1024,
+     "kind": "assumption",
+     "source": "C13 · Serving: 24 × 56 × 1,024 × 2 B"
+    },
+    {
+     "id": "l4_vram_gb",
+     "label": "L4 VRAM",
+     "unit": "GB",
+     "default": 24,
+     "kind": "benchmark",
+     "source": "C13 · Serving: poco frente a 24 GB de la L4"
+    },
+    {
+     "id": "sample_rate_hz",
+     "label": "PCM sample rate to workers",
+     "unit": "Hz",
+     "default": 16000,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones (Red): PCM 16 kHz, 16 bits"
+    },
+    {
+     "id": "bits_per_sample",
+     "label": "PCM bits per sample",
+     "unit": "bits",
+     "default": 16,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones (Red): PCM 16 kHz, 16 bits"
+    },
+    {
+     "id": "gw_cpu_ms_voice",
+     "label": "Gateway CPU per second of voiced audio",
+     "unit": "ms/s",
+     "default": 3,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones (CPU): ≈ 3 ms por segundo de audio"
+    },
+    {
+     "id": "gw_cpu_ms_idle",
+     "label": "Gateway CPU per second, silent track",
+     "unit": "ms/s",
+     "default": 0.3,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones (CPU): 130k × 0.3 ms (solo recibir paquetes)"
+    },
+    {
+     "id": "vad_hangover",
+     "label": "Extra decoded tracks (VAD hangover)",
+     "unit": "tracks",
+     "default": 10000,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones (CPU): ≈ 70k (60k + hangover)"
+    },
+    {
+     "id": "rho_cpu",
+     "label": "Gateway planned CPU utilization",
+     "unit": "fraction",
+     "default": 0.6,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones (CPU): planeadas al ≈ 60 %"
+    },
+    {
+     "id": "vcpu_node",
+     "label": "vCPU per c6i.xlarge",
+     "unit": "vCPU",
+     "default": 4,
+     "kind": "benchmark",
+     "source": "C13 · Estimaciones (CPU): ≈ 105 × c6i.xlarge para 420 vCPU"
+    },
+    {
+     "id": "session_kb",
+     "label": "Gateway memory per session",
+     "unit": "KB",
+     "default": 300,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones (CPU): ≈ 100–300 KB por sesión (200k × 300 KB ≈ 60 GB)"
+    },
+    {
+     "id": "max_streams_frac",
+     "label": "Hard stream cap / estimated max",
+     "unit": "fraction",
+     "default": 0.9,
+     "kind": "assumption",
+     "source": "C13 · Serving: MAX_STREAMS = 450, 90 % de los 500 estimados"
+    },
+    {
+     "id": "phrase_max_s",
+     "label": "Max phrase length",
+     "unit": "s",
+     "default": 20,
+     "kind": "assumption",
+     "source": "C13 · Serving: tope de 20 s por frase"
+    },
+    {
+     "id": "endpoint_s",
+     "label": "Endpointing silence",
+     "unit": "s",
+     "default": 0.6,
+     "kind": "assumption",
+     "source": "C13 · Serving: 600 ms de silencio"
+    },
+    {
+     "id": "prestop_s",
+     "label": "preStop drain wait",
+     "unit": "s",
+     "default": 60,
+     "kind": "assumption",
+     "source": "C13 · Serving: el preStop de la referencia espera hasta 60 s"
+    },
+    {
+     "id": "max_sessions",
+     "label": "Sessions cap per worker",
+     "unit": "sessions",
+     "default": 1500,
+     "kind": "assumption",
+     "source": "C13 · Serving: MAX_SESSIONS = 1,500 en la referencia"
+    },
+    {
+     "id": "cross_zone_share",
+     "label": "Sessions crossing zones without affinity",
+     "unit": "fraction",
+     "default": 0.6667,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones (quiz): con 2/3 de las sesiones cruzando"
+    },
+    {
+     "id": "price_xaz_gb",
+     "label": "Cross-AZ transfer (both directions)",
+     "unit": "US$/GB",
+     "default": 0.02,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones (Red): US$0.01/GB en cada sentido (M13)"
+    },
+    {
+     "id": "canary_share",
+     "label": "Canary share of new sessions",
+     "unit": "fraction",
+     "default": 0.05,
+     "kind": "assumption",
+     "source": "C13 · Arquitectura: el router le manda un 5 % de las sesiones nuevas (de español) al grupo canary"
+    },
+    {
+     "id": "t_capture_ms",
+     "label": "Capture + Opus encode",
+     "unit": "ms",
+     "default": 25,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: presupuesto de un parcial, típico ≈ 25 ms"
+    },
+    {
+     "id": "t_net_ms",
+     "label": "Network one way (client ↔ region)",
+     "unit": "ms",
+     "default": 60,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: red cliente → SFU ≈ 60 ms (y la vuelta igual)"
+    },
+    {
+     "id": "t_gw_ms",
+     "label": "SFU → gateway, decode, VAD",
+     "unit": "ms",
+     "default": 5,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: ≈ 5 ms"
+    },
+    {
+     "id": "t_queue_ms",
+     "label": "Queue + sequence batching",
+     "unit": "ms",
+     "default": 15,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: ≈ 15 ms"
+    },
+    {
+     "id": "t_step_ms",
+     "label": "Model step",
+     "unit": "ms",
+     "default": 25,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: cómputo del paso ≈ 25 ms"
+    },
+    {
+     "id": "t_bus_ms",
+     "label": "caption-bus + signaling",
+     "unit": "ms",
+     "default": 15,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: ≈ 15 ms"
+    },
+    {
+     "id": "t_render_ms",
+     "label": "Client render",
+     "unit": "ms",
+     "default": 16,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: un frame de la UI ≈ 16 ms"
+    },
+    {
+     "id": "p95_partial_ms",
+     "label": "Partials p95 end to end",
+     "unit": "ms",
+     "default": 500,
+     "kind": "requirement",
+     "source": "C13 · Requisitos: parciales p95 ≤ 500 ms"
+    },
+    {
+     "id": "partials_per_s",
+     "label": "Max partials per stream",
+     "unit": "msg/s",
+     "default": 5,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: ≤ 5 por segundo (solo si el texto cambió)"
+    },
+    {
+     "id": "partial_bytes",
+     "label": "Bytes per caption message",
+     "unit": "B",
+     "default": 200,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: 1.2 M × ≈ 200 B"
+    },
+    {
+     "id": "phrase_s",
+     "label": "Average phrase length",
+     "unit": "s",
+     "default": 4,
+     "kind": "assumption",
+     "source": "C13 · Estimaciones: 60k ÷ ≈ 4 s por frase"
+    },
+    {
+     "id": "burn_fast",
+     "label": "Fast-burn factor (1 h)",
+     "unit": "×",
+     "default": 14.4,
+     "kind": "assumption",
+     "source": "M12 · SLOs, error budget y burn rate: 2 % del presupuesto en 1 h → 14.4×"
+    },
+    {
+     "id": "step_alert_frac",
+     "label": "Step-time alert / chunk",
+     "unit": "fraction",
+     "default": 0.8,
+     "kind": "assumption",
+     "source": "C13 · Monitoreo: GPUStreamSaturation, paso > 128 ms (80 % del fragmento de 160 ms)"
+    },
+    {
+     "id": "canary_words",
+     "label": "Reference words for CanaryWERRegression",
+     "unit": "words",
+     "default": 5000,
+     "kind": "assumption",
+     "source": "C13 · Monitoreo: con ≥ 5,000 palabras de referencia, durante 30 min"
+    }
+   ],
+   "steps": {
+    "kickoff": [
+     {
+      "id": "caption-min-day",
+      "label": "Captioned meeting-minutes per day",
+      "out": "caption_min_day",
+      "expr": "meetings_day * caption_share * meeting_min",
+      "unit": "min/day",
+      "tol": 0.02,
+      "why": "Daily volume; concurrency comes from Little, not from ÷ 86,400 as requests.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 24000000
+     },
+     {
+      "id": "meetings-peak",
+      "label": "Concurrent captioned meetings, peak",
+      "out": "meetings_peak",
+      "expr": "caption_min_day / 1440 * peak_factor",
+      "unit": "meetings",
+      "tol": 0.02,
+      "why": "Little: concurrency = arrivals × duration, then × 3 for the peak.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 50000
+     },
+     {
+      "id": "tracks-peak",
+      "label": "Connected tracks at peak",
+      "out": "tracks_peak",
+      "expr": "meetings_peak * participants",
+      "unit": "sessions",
+      "tol": 0.02,
+      "why": "Open gRPC sessions on the gateways: CPU and memory, not GPU.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 200000
+     },
+     {
+      "id": "streams-peak",
+      "label": "Active streams at peak (with VAD)",
+      "out": "streams_peak",
+      "expr": "meetings_peak * speakers_per_meeting",
+      "unit": "streams",
+      "tol": 0.02,
+      "why": "The capacity unit: only voiced tracks reach the GPU.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 60000
+     },
+     {
+      "id": "streams-avg",
+      "label": "Active streams, average",
+      "out": "streams_avg",
+      "expr": "caption_min_day / 1440 * speakers_per_meeting",
+      "unit": "streams",
+      "tol": 0.02,
+      "why": "What a perfectly elastic fleet would use.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 20000
+     },
+     {
+      "id": "gpu-peak",
+      "label": "L4s for the peak",
+      "out": "gpu_peak",
+      "expr": "ceil(streams_peak / (streams_max_l4 * target_util))",
+      "unit": "GPUs",
+      "tol": 0,
+      "why": "Fleet at 09:00–11:00; the 30 % left absorbs the on-the-hour burst.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 172
+     },
+     {
+      "id": "gpu-avg-busy",
+      "label": "L4s busy on average",
+      "out": "gpu_avg_busy",
+      "expr": "streams_avg / (streams_max_l4 * target_util)",
+      "unit": "GPUs",
+      "tol": 0.02,
+      "why": "Lower bound only: billed fleet ≈ 100 with ramp headroom, draining and the night floor.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 57
+     },
+     {
+      "id": "gpu-cost-month",
+      "label": "GPU cost per month (billed fleet)",
+      "out": "gpu_cost_month",
+      "expr": "fleet_avg_l4 * price_l4_h * 730",
+      "unit": "US$/month",
+      "tol": 0.02,
+      "why": "Cost with the billed fleet, never with busy GPUs.",
+      "check": null,
+      "ref": "#c13.costo",
+      "expected": 58000
+     },
+     {
+      "id": "voice-min-month",
+      "label": "Voiced minutes per month",
+      "out": "voice_min_month",
+      "expr": "caption_min_day * speakers_per_meeting * 30",
+      "unit": "min/month",
+      "tol": 0.02,
+      "why": "The billing unit of a managed API.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 864000000
+     },
+     {
+      "id": "api-cost-month",
+      "label": "Managed API cost per month",
+      "out": "api_cost_month",
+      "expr": "voice_min_month * api_price_min",
+      "unit": "US$/month",
+      "tol": 0.02,
+      "why": "Build vs buy: at this scale self-hosting is 40–100× cheaper.",
+      "check": {
+       "expr": "gpu_cost_month < api_cost_month",
+       "label": "Self-hosting beats the API at this volume"
+      },
+      "ref": "#c13.estimaciones",
+      "expected": 8640000
+     },
+     {
+      "id": "ingress-gbps",
+      "label": "SFU → gateway bandwidth, peak",
+      "out": "ingress_gbps",
+      "expr": "tracks_peak * opus_kbps / 1e6",
+      "unit": "Gb/s",
+      "tol": 0.02,
+      "why": "In-zone only: SFU, gateway and worker of a session share a zone.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 9.6
+     },
+     {
+      "id": "error-budget-min",
+      "label": "Error budget (30 days)",
+      "out": "error_budget_min",
+      "expr": "(1 - slo_avail) * 43200",
+      "unit": "min/month",
+      "tol": 0.02,
+      "why": "Captioned minutes without captions the month allows (99.5 %, not 99.9 %).",
+      "check": null,
+      "ref": "#m12.prometheus-grafana",
+      "expected": 216
+     }
+    ],
+    "datos": [
+     {
+      "id": "saved-min-day",
+      "label": "Saved transcript minutes per day",
+      "out": "saved_min_day",
+      "expr": "caption_min_day * save_share",
+      "unit": "min/day",
+      "tol": 0.02,
+      "why": "Only host opt-in meetings are stored; audio never is.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 9600000
+     },
+     {
+      "id": "transcripts-gb-day",
+      "label": "Transcript storage per day",
+      "out": "transcripts_gb_day",
+      "expr": "saved_min_day * transcript_kb_min / 1e6",
+      "unit": "GB/day",
+      "tol": 0.02,
+      "why": "Storage is a privacy topic, not a cost topic.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 29
+     },
+     {
+      "id": "transcripts-tb-retained",
+      "label": "Transcripts retained (30 days)",
+      "out": "transcripts_tb",
+      "expr": "transcripts_gb_day * retention_days / 1000",
+      "unit": "TB",
+      "tol": 0.05,
+      "why": "Sizes the store and the deletion job.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 0.9
+     }
+    ],
+    "versionado": [
+     {
+      "id": "golden-words-hour",
+      "label": "Words in one golden hour",
+      "out": "golden_words_hour",
+      "expr": "60 * words_per_min",
+      "unit": "words",
+      "tol": 0.02,
+      "why": "Minimum audio per slice so a 1–2 point WER change is visible.",
+      "check": null,
+      "ref": "#c13.datos",
+      "expected": 8400
+     }
+    ],
+    "gate": [
+     {
+      "id": "wer-se-naive",
+      "label": "Naive WER standard error, 1 h slice",
+      "out": "wer_se_pts",
+      "expr": "sqrt(wer_ref * (1 - wer_ref) / golden_words_hour) * 100",
+      "unit": "WER points",
+      "tol": 0.05,
+      "why": "Real interval is 2–4× wider: bootstrap by speaker before claiming a 1-point gain.",
+      "check": null,
+      "ref": "#c13.datos",
+      "expected": 0.4
+     },
+     {
+      "id": "slice-wer-ceiling",
+      "label": "Worst-slice WER allowed",
+      "out": "slice_wer_max",
+      "expr": "slice_ceiling * wer_ref",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "Blocks a model whose average hides a failing accent or device.",
+      "check": null,
+      "ref": "#c13.requisitos",
+      "expected": 0.225
+     }
+    ],
+    "export": [
+     {
+      "id": "stream-state-mb",
+      "label": "Cached state per stream (FP16)",
+      "out": "stream_state_mb",
+      "expr": "n_layers * ctx_frames * d_model * 2 / 1e6",
+      "unit": "MB",
+      "tol": 0.02,
+      "why": "VRAM per live sequence in the L4 engine.",
+      "check": null,
+      "ref": "#c13.serving",
+      "expected": 2.8
+     },
+     {
+      "id": "stream-state-gb-max",
+      "label": "Stream state at max streams",
+      "out": "stream_state_gb",
+      "expr": "streams_max_l4 * stream_state_mb / 1000",
+      "unit": "GB",
+      "tol": 0.05,
+      "why": "VRAM is not the limit; compute per step is.",
+      "check": {
+       "expr": "stream_state_gb <= l4_vram_gb",
+       "label": "Fits in the L4's 24 GB"
+      },
+      "ref": "#c13.serving",
+      "expected": 1.376
+     }
+    ],
+    "serving": [
+     {
+      "id": "frags-per-s-gpu",
+      "label": "Chunks per second per L4 at max",
+      "out": "frags_per_s_gpu",
+      "expr": "streams_max_l4 * 1000 / chunk_ms",
+      "unit": "chunks/s",
+      "tol": 0.02,
+      "why": "Sequence-batcher load: ≈ 40 steps/s of ≈ 80 chunks.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 3125
+     },
+     {
+      "id": "pcm-kbps",
+      "label": "PCM bitrate per stream",
+      "out": "pcm_kbps",
+      "expr": "sample_rate_hz * bits_per_sample / 1000",
+      "unit": "kb/s",
+      "tol": 0.02,
+      "why": "Gateway sends PCM, not Opus: GPU does no codec work.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 256
+     },
+     {
+      "id": "pcm-gbps-peak",
+      "label": "Gateway → workers, peak",
+      "out": "pcm_gbps_peak",
+      "expr": "streams_peak * pcm_kbps / 1e6",
+      "unit": "Gb/s",
+      "tol": 0.02,
+      "why": "The flow that must never cross zones.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 15.4
+     },
+     {
+      "id": "pcm-mbps-worker",
+      "label": "PCM into one worker at target",
+      "out": "pcm_mbps_worker",
+      "expr": "streams_max_l4 * target_util * pcm_kbps / 1000",
+      "unit": "Mb/s",
+      "tol": 0.02,
+      "why": "Nothing for a g6.xlarge NIC: network is not the worker limit.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 90
+     }
+    ],
+    "sesion-por-pista-grpc-bidireccional": [
+     {
+      "id": "gw-vcpu-busy",
+      "label": "Gateway vCPU busy at peak",
+      "out": "gw_vcpu_busy",
+      "expr": "(streams_peak + vad_hangover) * gw_cpu_ms_voice / 1000 + (tracks_peak - streams_peak - vad_hangover) * gw_cpu_ms_idle / 1000",
+      "unit": "vCPU",
+      "tol": 0.02,
+      "why": "Decode only voiced tracks; decoding all 200k would be ≈ 600 vCPU.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 250
+     },
+     {
+      "id": "gw-vcpu-planned",
+      "label": "Gateway vCPU planned",
+      "out": "gw_vcpu_planned",
+      "expr": "ceilto(gw_vcpu_busy / rho_cpu, 10)",
+      "unit": "vCPU",
+      "tol": 0.02,
+      "why": "HPA target 60 % on CPU for the gateway pool.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 420
+     },
+     {
+      "id": "gw-nodes",
+      "label": "Gateway nodes (c6i.xlarge) at peak",
+      "out": "gw_nodes",
+      "expr": "ceil(gw_vcpu_planned / vcpu_node)",
+      "unit": "nodes",
+      "tol": 0,
+      "why": "Peak node count; the pool follows the day curve (≈ 160 vCPU average).",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 105
+     },
+     {
+      "id": "session-mem-gb",
+      "label": "Gateway memory for all sessions",
+      "out": "session_mem_gb",
+      "expr": "tracks_peak * session_kb / 1e6",
+      "unit": "GB",
+      "tol": 0.02,
+      "why": "Spread across pods: memory is not the gateway limit.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 60
+     }
+    ],
+    "kubernetes": [
+     {
+      "id": "keda-target",
+      "label": "KEDA target, active streams per pod",
+      "out": "keda_target",
+      "expr": "streams_max_l4 * target_util",
+      "unit": "streams",
+      "tol": 0,
+      "why": "Scale on the metric that saturates, never CPU.",
+      "check": null,
+      "ref": "#c13.serving",
+      "expected": 350
+     },
+     {
+      "id": "stream-hard-cap",
+      "label": "Hard cap, active streams per worker",
+      "out": "stream_hard_cap",
+      "expr": "streams_max_l4 * max_streams_frac",
+      "unit": "streams",
+      "tol": 0,
+      "why": "Router skips workers at the cap; ASRCapacityHeadroomLow watches it.",
+      "check": null,
+      "ref": "#c13.serving",
+      "expected": 450
+     },
+     {
+      "id": "burst-headroom",
+      "label": "On-the-hour burst headroom",
+      "out": "burst_headroom",
+      "expr": "(stream_hard_cap - keda_target) / keda_target",
+      "unit": "fraction",
+      "tol": 0.03,
+      "why": "Absorbs the 09:00 burst no autoscaler can follow; the cron floor does the rest.",
+      "check": null,
+      "ref": "#c13.serving",
+      "expected": 0.28
+     },
+     {
+      "id": "drain-max-s",
+      "label": "Worst-case drain per session",
+      "out": "drain_max_s",
+      "expr": "2 * (phrase_max_s + endpoint_s)",
+      "unit": "s",
+      "tol": 0.02,
+      "why": "Sets preStop (60 s) and terminationGracePeriodSeconds (90 s).",
+      "check": {
+       "expr": "drain_max_s <= prestop_s",
+       "label": "preStop covers two max-length phrases"
+      },
+      "ref": "#c13.serving",
+      "expected": 41.2
+     }
+    ],
+    "router-de-sesiones-con-afinidad": [
+     {
+      "id": "voice-share",
+      "label": "Voiced share of tracks",
+      "out": "voice_share",
+      "expr": "streams_peak / tracks_peak",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "Oversubscription ratio between sessions and GPU streams.",
+      "check": null,
+      "ref": "#c13.serving",
+      "expected": 0.3
+     },
+     {
+      "id": "sessions-per-worker",
+      "label": "Sessions assigned per worker",
+      "out": "sessions_per_worker",
+      "expr": "keda_target / voice_share",
+      "unit": "sessions",
+      "tol": 0.02,
+      "why": "Placement count the router tracks exactly in its table.",
+      "check": {
+       "expr": "sessions_per_worker <= max_sessions",
+       "label": "Under MAX_SESSIONS (1,500)"
+      },
+      "ref": "#c13.serving",
+      "expected": 1170
+     },
+     {
+      "id": "streams-sd-worker",
+      "label": "Std dev of active streams per worker",
+      "out": "streams_sd_worker",
+      "expr": "sqrt(sessions_per_worker * voice_share * (1 - voice_share))",
+      "unit": "streams",
+      "tol": 0.05,
+      "why": "Binomial spread stays far from the 500 max: oversubscription is safe.",
+      "check": null,
+      "ref": "#c13.serving",
+      "expected": 16
+     },
+     {
+      "id": "cross-zone-cost-month",
+      "label": "Cross-zone cost without affinity",
+      "out": "cross_zone_cost",
+      "expr": "pcm_gbps_peak / peak_factor * 730 * 3600 / 8 * cross_zone_share * price_xaz_gb",
+      "unit": "US$/month",
+      "tol": 0.02,
+      "why": "Why the router assigns in-zone and counts every cross-zone fallback.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 22000
+     }
+    ],
+    "rollout": [
+     {
+      "id": "canary-gpus",
+      "label": "Canary workers at 5 % of peak streams (upper bound)",
+      "out": "canary_gpus",
+      "expr": "ceil(canary_share * streams_peak / keda_target)",
+      "unit": "GPUs",
+      "tol": 0,
+      "why": "Upper bound for the canary worker group: the course canaries one language at a time.",
+      "check": null,
+      "ref": "#c13.arquitectura",
+      "expected": 9
+     }
+    ],
+    "request": [
+     {
+      "id": "chunk-wait-ms",
+      "label": "Average wait for the chunk",
+      "out": "chunk_wait_ms",
+      "expr": "chunk_ms / 2",
+      "unit": "ms",
+      "tol": 0.02,
+      "why": "A word ends mid-chunk on average; lookahead is inside the chunk.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 80
+     },
+     {
+      "id": "partial-typical-ms",
+      "label": "Typical partial latency end to end",
+      "out": "partial_typical_ms",
+      "expr": "t_capture_ms + 2 * t_net_ms + t_gw_ms + chunk_wait_ms + t_queue_ms + t_step_ms + t_bus_ms + t_render_ms",
+      "unit": "ms",
+      "tol": 0.02,
+      "why": "Splits the 500 ms across segments; server alerts use their own share.",
+      "check": {
+       "expr": "partial_typical_ms <= p95_partial_ms",
+       "label": "Typical path inside the 500 ms p95"
+      },
+      "ref": "#c13.estimaciones",
+      "expected": 300
+     },
+     {
+      "id": "network-share",
+      "label": "Network share of the partial latency",
+      "out": "network_share",
+      "expr": "2 * t_net_ms / partial_typical_ms",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "Latency levers are region and chunk size, not a faster GPU.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 0.4
+     }
+    ],
+    "caption-bus-por-reunion": [
+     {
+      "id": "partial-msgs-s",
+      "label": "Partials published per second, peak",
+      "out": "partial_msgs_s",
+      "expr": "streams_peak * partials_per_s",
+      "unit": "msg/s",
+      "tol": 0.02,
+      "why": "Publish rate into the per-meeting pub/sub.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 300000
+     },
+     {
+      "id": "fanout-msgs-s",
+      "label": "Messages to clients per second",
+      "out": "fanout_msgs_s",
+      "expr": "partial_msgs_s * participants",
+      "unit": "msg/s",
+      "tol": 0.02,
+      "why": "New load on the existing WebSocket signaling fleet.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 1200000
+     },
+     {
+      "id": "fanout-gbps",
+      "label": "Bytes to clients, peak",
+      "out": "fanout_gbps",
+      "expr": "fanout_msgs_s * partial_bytes * 8 / 1e9",
+      "unit": "Gb/s",
+      "tol": 0.02,
+      "why": "Why partials are batched and sent as diffs.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 1.9
+     },
+     {
+      "id": "finals-per-s",
+      "label": "Finals per second, peak",
+      "out": "finals_per_s",
+      "expr": "streams_peak / phrase_s",
+      "unit": "msg/s",
+      "tol": 0.02,
+      "why": "Rate of finals to buffer (60 s per meeting) and copy to Kafka when saved.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 15000
+     }
+    ],
+    "monitoreo": [
+     {
+      "id": "burn-fast-ratio",
+      "label": "Fast-burn missing-caption ratio (1 h)",
+      "out": "burn_fast_ratio",
+      "expr": "burn_fast * (1 - slo_avail)",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "Missing-caption rate that pages on the SLO dashboard.",
+      "check": null,
+      "ref": "#m12.prometheus-grafana",
+      "expected": 0.072
+     },
+     {
+      "id": "step-alert-ms",
+      "label": "GPUStreamSaturation step threshold",
+      "out": "step_alert_ms",
+      "expr": "step_alert_frac * chunk_ms",
+      "unit": "ms",
+      "tol": 0.02,
+      "why": "A step near 160 ms is no longer real time: lag grows without bound.",
+      "check": null,
+      "ref": "#c13.monitoreo",
+      "expected": 128
+     },
+     {
+      "id": "gpu-no-vad",
+      "label": "L4s at peak if VAD fails open",
+      "out": "gpu_no_vad",
+      "expr": "ceil(tracks_peak / keda_target)",
+      "unit": "GPUs",
+      "tol": 0,
+      "why": "Why VADActiveRatioShift exists: a VAD broken upward multiplies GPU by 3.3.",
+      "check": null,
+      "ref": "#c13.estimaciones",
+      "expected": 572
+     }
+    ],
+    "canary-golden-en-produccion": [
+     {
+      "id": "golden-min-canary",
+      "label": "Golden speech for one regression window",
+      "out": "golden_min_canary",
+      "expr": "canary_words / words_per_min",
+      "unit": "min",
+      "tol": 0.02,
+      "why": "Sets bot playback so each 30 min window holds ≥ 5,000 reference words.",
+      "check": null,
+      "ref": "#c13.monitoreo",
+      "expected": 35.7
+     }
+    ]
+   }
+  },
+  "edge": {
+   "case": "c03",
+   "vars": [
+    {
+     "id": "pieces_per_s",
+     "label": "Pieces per second per line",
+     "unit": "pieces/s",
+     "default": 2,
+     "kind": "requirement",
+     "source": "C03 · Facts (Escala): 2 piezas/s (120 por minuto)"
+    },
+    {
+     "id": "shift_h",
+     "label": "Shift length",
+     "unit": "h",
+     "default": 8,
+     "kind": "requirement",
+     "source": "C03 · Facts (Escala): 2 turnos de 8 h"
+    },
+    {
+     "id": "n_shifts",
+     "label": "Shifts per day",
+     "unit": "shifts",
+     "default": 2,
+     "kind": "requirement",
+     "source": "C03 · Facts (Escala): 2 turnos de 8 h; de noche no se produce"
+    },
+    {
+     "id": "n_lines",
+     "label": "Lines",
+     "unit": "lines",
+     "default": 4,
+     "kind": "requirement",
+     "source": "C03 · Facts (Escala): 4 líneas"
+    },
+    {
+     "id": "defect_rate",
+     "label": "Defect rate",
+     "unit": "fraction",
+     "default": 0.005,
+     "kind": "requirement",
+     "source": "C03 · Facts (Escala): tasa de defectos ≈ 0.5 %"
+    },
+    {
+     "id": "belt_mps",
+     "label": "Belt speed",
+     "unit": "m/s",
+     "default": 0.6,
+     "kind": "requirement",
+     "source": "C03 · Facts (Latencia): banda a 0.6 m/s"
+    },
+    {
+     "id": "cam_gate_m",
+     "label": "Camera → diverter distance",
+     "unit": "m",
+     "default": 0.3,
+     "kind": "requirement",
+     "source": "C03 · Facts (Latencia): la cámara puede ir 0.3 m antes del desviador"
+    },
+    {
+     "id": "plc_ms",
+     "label": "PLC + valve + diverter",
+     "unit": "ms",
+     "default": 150,
+     "kind": "requirement",
+     "source": "C03 · Facts (Latencia): decisión 150 ms antes de la compuerta"
+    },
+    {
+     "id": "t_acq_ms",
+     "label": "Trigger → image in memory",
+     "unit": "ms",
+     "default": 50,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones (deadline): ≈ 50 ms"
+    },
+    {
+     "id": "t_pre_ms",
+     "label": "Preprocessing (crop, normalize, tiles)",
+     "unit": "ms",
+     "default": 20,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones (deadline): ≈ 20 ms"
+    },
+    {
+     "id": "t_inf_ms",
+     "label": "TensorRT inference, 20 tiles",
+     "unit": "ms",
+     "default": 120,
+     "kind": "benchmark",
+     "source": "C03 · Estimaciones (deadline): ≤ 120 ms (presupuesto; mídelo con trtexec)"
+    },
+    {
+     "id": "t_plc_ms",
+     "label": "Decision + Modbus TCP write",
+     "unit": "ms",
+     "default": 10,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones (deadline): ≈ 10 ms"
+    },
+    {
+     "id": "write_reserve_ms",
+     "label": "Write reserve before deadline",
+     "unit": "ms",
+     "default": 50,
+     "kind": "assumption",
+     "source": "C03 · Serving: reserva de 50 ms (2 × 20 ms de timeout del PLC)"
+    },
+    {
+     "id": "inspect_s",
+     "label": "Inspector time per piece",
+     "unit": "s",
+     "default": 15,
+     "kind": "requirement",
+     "source": "C03 · Facts (Modelo actual): el inspector revisa ≈ 1 pieza cada 15 s"
+    },
+    {
+     "id": "fp_target",
+     "label": "False-positive target",
+     "unit": "fraction",
+     "default": 0.015,
+     "kind": "requirement",
+     "source": "C03 · Requisitos: FP ≤ 1.5 % de las piezas buenas"
+    },
+    {
+     "id": "recall_target",
+     "label": "Recall per defect type",
+     "unit": "fraction",
+     "default": 0.995,
+     "kind": "requirement",
+     "source": "C03 · Facts: recall ≥ 99.5 % por tipo de defecto"
+    },
+    {
+     "id": "img_w_px",
+     "label": "Image width",
+     "unit": "px",
+     "default": 2448,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones: cámara mono 5 MP, 2,448 × 2,048"
+    },
+    {
+     "id": "img_h_px",
+     "label": "Image height",
+     "unit": "px",
+     "default": 2048,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones: 2,448 × 2,048"
+    },
+    {
+     "id": "fov_mm",
+     "label": "Field of view, long side",
+     "unit": "mm",
+     "default": 150,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones: campo de visión de 150 mm (supuesto)"
+    },
+    {
+     "id": "crack_mm",
+     "label": "Finest crack that matters",
+     "unit": "mm",
+     "default": 0.2,
+     "kind": "requirement",
+     "source": "C03 · Facts (Entrada): fisuras de ≈ 0.2 mm"
+    },
+    {
+     "id": "downscale_px",
+     "label": "Downscaled width (rejected option)",
+     "unit": "px",
+     "default": 1024,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones: si reduces la imagen a 1,024 px de ancho"
+    },
+    {
+     "id": "tile_px",
+     "label": "Tile size",
+     "unit": "px",
+     "default": 512,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones: tiles de 512 × 512 sin reducir"
+    },
+    {
+     "id": "gige_mbyte_s",
+     "label": "Effective 1 GigE throughput",
+     "unit": "MB/s",
+     "default": 117,
+     "kind": "benchmark",
+     "source": "C03 · Estimaciones: ≈ 115–120 MB/s; transferencia 5.0 MB ÷ ≈ 117 MB/s"
+    },
+    {
+     "id": "record_bytes",
+     "label": "Decision record size",
+     "unit": "B",
+     "default": 300,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones (Almacenamiento): 115,200 × ≈ 300 B"
+    },
+    {
+     "id": "approved_share",
+     "label": "Approved-piece sample",
+     "unit": "fraction",
+     "default": 0.01,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones (Almacenamiento): muestra de aprobadas (1 %)"
+    },
+    {
+     "id": "label_s",
+     "label": "Inspector label time",
+     "unit": "s",
+     "default": 2,
+     "kind": "assumption",
+     "source": "C03 · Datos: el label cuesta ≈ 2 s"
+    },
+    {
+     "id": "offline_h",
+     "label": "Required offline operation",
+     "unit": "h",
+     "default": 72,
+     "kind": "requirement",
+     "source": "C03 · Facts (Latencia): ≥ 72 h sin nube"
+    },
+    {
+     "id": "link_free_mbps",
+     "label": "Free uplink for catch-up",
+     "unit": "Mb/s",
+     "default": 50,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones (Almacenamiento): ≈ 50 Mb/s libres"
+    },
+    {
+     "id": "hw_capex_usd",
+     "label": "Hardware (4 stations + PPE box + CI Jetson), high end",
+     "unit": "US$",
+     "default": 30500,
+     "kind": "assumption",
+     "source": "C03 · Costo: ≈ US$15–30.5k (se usa el extremo alto)"
+    },
+    {
+     "id": "amort_months",
+     "label": "Amortization period",
+     "unit": "months",
+     "default": 36,
+     "kind": "assumption",
+     "source": "C03 · Costo: amortizado en 36 meses"
+    },
+    {
+     "id": "cloud_month",
+     "label": "Cloud spend, high end",
+     "unit": "US$/month",
+     "default": 500,
+     "kind": "assumption",
+     "source": "C03 · Costo: nube ≈ US$200–500/mes (extremo alto)"
+    },
+    {
+     "id": "incident_min_usd",
+     "label": "Escape incident, low end",
+     "unit": "US$",
+     "default": 2000,
+     "kind": "requirement",
+     "source": "C03 · Facts (Modelo actual): incidente de ≈ US$2,000–10,000"
+    },
+    {
+     "id": "defects_pilot",
+     "label": "Defect images from the pilot",
+     "unit": "images",
+     "default": 300,
+     "kind": "requirement",
+     "source": "C03 · Facts (Datos): ≈ 300 de defectos"
+    },
+    {
+     "id": "n_defect_types",
+     "label": "Defect types",
+     "unit": "types",
+     "default": 4,
+     "kind": "requirement",
+     "source": "C03 · Facts (Entrada): fisura, rebaba, barreno faltante o deformación"
+    },
+    {
+     "id": "part_id_space",
+     "label": "part_id values (16 bits)",
+     "unit": "ids",
+     "default": 65536,
+     "kind": "assumption",
+     "source": "C03 · Archivos: el part_id es de 16 bits y se repite cada 65,536 piezas"
+    },
+    {
+     "id": "p_target",
+     "label": "Percentile a naive SLO would use",
+     "unit": "quantile",
+     "default": 0.99,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones (trampa): un p99 deja 1,152 piezas/día por encima"
+    },
+    {
+     "id": "divert_alert_frac",
+     "label": "Error-DIVERT alert share of pieces",
+     "unit": "fraction",
+     "default": 0.01,
+     "kind": "assumption",
+     "source": "C03 · Monitoreo: > 0.02 (≈ 1 % de las piezas a 2 por segundo)"
+    },
+    {
+     "id": "reject_spike",
+     "label": "Reject spike (dirty lens, light)",
+     "unit": "×",
+     "default": 2,
+     "kind": "assumption",
+     "source": "C03 · Estimaciones / Monitoreo: pico de rechazo 2×; RejectRateSpike > 2× base"
+    }
+   ],
+   "steps": {
+    "kickoff": [
+     {
+      "id": "pieces-day-line",
+      "label": "Pieces per line per day",
+      "out": "pieces_day_line",
+      "expr": "pieces_per_s * 3600 * shift_h * n_shifts",
+      "unit": "pieces/day",
+      "tol": 0.02,
+      "why": "The line is a clock: design per piece period, not for a QPS peak.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 115200
+     },
+     {
+      "id": "defects-day-line",
+      "label": "Defects per line per day",
+      "out": "defects_day_line",
+      "expr": "pieces_day_line * defect_rate",
+      "unit": "defects/day",
+      "tol": 0.02,
+      "why": "Bounds escapes and the label flow.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 576
+     },
+     {
+      "id": "decision-deadline-ms",
+      "label": "Decision deadline after trigger",
+      "out": "decision_deadline_ms",
+      "expr": "cam_gate_m / belt_mps * 1000 - plc_ms",
+      "unit": "ms",
+      "tol": 0.02,
+      "why": "Hard budget for camera + model + write; PLC owns the last 150 ms.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 350
+     },
+     {
+      "id": "path-typical-ms",
+      "label": "Typical loop path",
+      "out": "path_typical_ms",
+      "expr": "t_acq_ms + t_pre_ms + t_inf_ms + t_plc_ms",
+      "unit": "ms",
+      "tol": 0.02,
+      "why": "Typical case uses ≈ 60 % of the deadline; the rest is for the tail.",
+      "check": {
+       "expr": "path_typical_ms <= 0.6 * decision_deadline_ms",
+       "label": "Typical path within ≈ 60 % of the deadline"
+      },
+      "ref": "#c03.estimaciones",
+      "expected": 200
+     },
+     {
+      "id": "deadline-margin-ms",
+      "label": "Margin for the tail",
+      "out": "deadline_margin_ms",
+      "expr": "decision_deadline_ms - path_typical_ms",
+      "unit": "ms",
+      "tol": 0.02,
+      "why": "Absorbs thermal throttling, Python pauses and GigE resends.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 150
+     },
+     {
+      "id": "gpu-occupancy",
+      "label": "Jetson GPU occupancy per line",
+      "out": "gpu_occupancy",
+      "expr": "pieces_per_s * t_inf_ms / 1000",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "Sized for deterministic latency, not throughput: one device per line.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 0.24
+     },
+     {
+      "id": "inspector-capacity-day",
+      "label": "Inspector re-inspection capacity",
+      "out": "inspector_capacity_day",
+      "expr": "3600 / inspect_s * shift_h * n_shifts",
+      "unit": "pieces/day",
+      "tol": 0.02,
+      "why": "Capacity, not re-inspection cost, sets the FP budget.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 3840
+     },
+     {
+      "id": "fp-hard-budget",
+      "label": "Hard false-positive budget",
+      "out": "fp_hard_budget",
+      "expr": "(inspector_capacity_day - defects_day_line) / pieces_day_line",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "Ceiling the threshold tool may never cross.",
+      "check": {
+       "expr": "fp_target <= fp_hard_budget",
+       "label": "FP target under the inspector-capacity ceiling"
+      },
+      "ref": "#c03.estimaciones",
+      "expected": 0.028
+     },
+     {
+      "id": "diverted-day-line",
+      "label": "Diverted pieces per line per day",
+      "out": "diverted_day_line",
+      "expr": "fp_target * (pieces_day_line - defects_day_line) + defects_day_line * recall_target",
+      "unit": "pieces/day",
+      "tol": 0.02,
+      "why": "Bin load and the image volume to store.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 2292
+     },
+     {
+      "id": "inspector-load",
+      "label": "Inspector load at the FP target",
+      "out": "inspector_load",
+      "expr": "diverted_day_line / inspector_capacity_day",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "At ≈ 60 % the inspector absorbs variation; at 2.8 % FP it would be ≈ 100 %.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 0.6
+     },
+     {
+      "id": "uplink-if-cloud-mbps",
+      "label": "Uplink if the plant inferred in the cloud",
+      "out": "uplink_cloud_mbps",
+      "expr": "n_lines * pieces_per_s * img_w_px * img_h_px * 8 / 1e6",
+      "unit": "Mb/s",
+      "tol": 0.02,
+      "why": "Sustained 320 Mb/s on a link that drops rules out cloud inference.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 320
+     },
+     {
+      "id": "cost-month",
+      "label": "Hardware amortized + cloud",
+      "out": "cost_month",
+      "expr": "hw_capex_usd / amort_months + cloud_month",
+      "unit": "US$/month",
+      "tol": 0.02,
+      "why": "The business case is escapes avoided, not cost per prediction.",
+      "check": {
+       "expr": "cost_month <= incident_min_usd",
+       "label": "One avoided escape a month pays for it"
+      },
+      "ref": "#c03.costo",
+      "expected": 1350
+     }
+    ],
+    "datos": [
+     {
+      "id": "mm-per-px",
+      "label": "Resolution on the part",
+      "out": "mm_per_px",
+      "expr": "fov_mm / img_w_px",
+      "unit": "mm/px",
+      "tol": 0.02,
+      "why": "Picks camera and lens before any model choice.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 0.061
+     },
+     {
+      "id": "exposure-us",
+      "label": "Max exposure for ≤ 1 px motion blur",
+      "out": "exposure_us",
+      "expr": "mm_per_px / (belt_mps * 1000) * 1e6",
+      "unit": "µs",
+      "tol": 0.03,
+      "why": "Global shutter + synchronized strobe, not ambient light.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 100
+     },
+     {
+      "id": "approved-sample-day",
+      "label": "Approved-piece sample per line",
+      "out": "approved_sample_day",
+      "expr": "pieces_day_line * approved_share",
+      "unit": "images/day",
+      "tol": 0.02,
+      "why": "Escape-hunting sample and clean \"good\" data for the anomaly model.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 1152
+     },
+     {
+      "id": "label-min-day",
+      "label": "Inspector labeling time per line",
+      "out": "label_min_day",
+      "expr": "diverted_day_line * label_s / 60",
+      "unit": "min/day",
+      "tol": 0.02,
+      "why": "The cheapest label: one tap on a piece already being inspected.",
+      "check": null,
+      "ref": "#c03.datos",
+      "expected": 76.4
+     }
+    ],
+    "versionado": [
+     {
+      "id": "records-mb-day",
+      "label": "Decision records per line",
+      "out": "records_mb_day",
+      "expr": "pieces_day_line * record_bytes / 1e6",
+      "unit": "MB/day",
+      "tol": 0.02,
+      "why": "Immutable lineage for every piece is cheap; keep it all.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 35
+     }
+    ],
+    "gate": [
+     {
+      "id": "defects-needed-type",
+      "label": "Defects per type to claim the recall",
+      "out": "defects_needed_type",
+      "expr": "round(3 / (1 - recall_target))",
+      "unit": "defects",
+      "tol": 0,
+      "why": "Rule of three: 0 misses in n proves ≥ 1 − 3/n at 95 %.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 600
+     },
+     {
+      "id": "recall-one-miss",
+      "label": "Recall with one miss in today's set",
+      "out": "recall_one_miss",
+      "expr": "(defects_pilot / n_defect_types - 1) / (defects_pilot / n_defect_types)",
+      "unit": "fraction",
+      "tol": 0.02,
+      "why": "The pilot set cannot prove 99.5 %: collect in shadow first.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 0.987
+     },
+     {
+      "id": "escapes-day-line",
+      "label": "Escapes per line per day at target",
+      "out": "escapes_day_line",
+      "expr": "defects_day_line * (1 - recall_target)",
+      "unit": "escapes/day",
+      "tol": 0.02,
+      "why": "FN cost dominates at every operating point.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 2.9
+     },
+     {
+      "id": "ppm-shipped",
+      "label": "Defective PPM shipped",
+      "out": "ppm_shipped",
+      "expr": "defect_rate * (1 - recall_target) * 1e6",
+      "unit": "PPM",
+      "tol": 0.02,
+      "why": "The automaker's scorecard number.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 25
+     }
+    ],
+    "export": [
+     {
+      "id": "crack-px",
+      "label": "Crack width in pixels",
+      "out": "crack_px",
+      "expr": "crack_mm / mm_per_px",
+      "unit": "px",
+      "tol": 0.02,
+      "why": "Full resolution in tiles; if too thin, fix optics, not the model.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 3.3
+     },
+     {
+      "id": "crack-px-downscaled",
+      "label": "Crack width if downscaled to 1,024 px",
+      "out": "crack_px_down",
+      "expr": "crack_mm / (fov_mm / downscale_px)",
+      "unit": "px",
+      "tol": 0.03,
+      "why": "Why the image is never resized: the crack vanishes.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 1.4
+     },
+     {
+      "id": "tiles-per-image",
+      "label": "Tiles per image (fixed batch)",
+      "out": "tiles_per_image",
+      "expr": "ceil(img_w_px / tile_px) * ceil(img_h_px / tile_px)",
+      "unit": "tiles",
+      "tol": 0,
+      "why": "Fixed engine shape: one profile, batch = tiles.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 20
+     }
+    ],
+    "serving": [
+     {
+      "id": "image-mb",
+      "label": "Raw image size (mono 8-bit)",
+      "out": "image_mb",
+      "expr": "img_w_px * img_h_px / 1e6",
+      "unit": "MB",
+      "tol": 0.02,
+      "why": "Per-piece buffer and storage unit.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 5
+     },
+     {
+      "id": "gige-transfer-ms",
+      "label": "GigE transfer per image",
+      "out": "gige_transfer_ms",
+      "expr": "image_mb / gige_mbyte_s * 1000",
+      "unit": "ms",
+      "tol": 0.02,
+      "why": "Almost all of acquisition: dedicated NIC with jumbo frames.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 43
+     },
+     {
+      "id": "divert-cutoff-ms",
+      "label": "Latest frame arrival before an immediate DIVERT",
+      "out": "divert_cutoff_ms",
+      "expr": "decision_deadline_ms - t_pre_ms - t_inf_ms - write_reserve_ms",
+      "unit": "ms",
+      "tol": 0.02,
+      "why": "Deadline-guard threshold in app.py: skip inference, keep up with the next piece.",
+      "check": {
+       "expr": "t_acq_ms <= divert_cutoff_ms",
+       "label": "Normal acquisition lands before the cutoff"
+      },
+      "ref": "#c03.serving",
+      "expected": 160
+     },
+     {
+      "id": "shared-jetson-path-ms",
+      "label": "Typical path if two lines shared a Jetson",
+      "out": "shared_path_ms",
+      "expr": "path_typical_ms + t_inf_ms",
+      "unit": "ms",
+      "tol": 0.02,
+      "why": "Leaves ≈ 30 ms for the tail: one device per line.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 320
+     }
+    ],
+    "rollout": [
+     {
+      "id": "shadow-pieces-shift",
+      "label": "Pieces in one shadow shift (line 1)",
+      "out": "shadow_pieces_shift",
+      "expr": "pieces_per_s * 3600 * shift_h",
+      "unit": "pieces",
+      "tol": 0.02,
+      "why": "Sample the challenger logs before it may decide on line 1.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 57600
+     },
+     {
+      "id": "shadow-defects-shift",
+      "label": "Defects expected in one shadow shift",
+      "out": "shadow_defects_shift",
+      "expr": "shadow_pieces_shift * defect_rate",
+      "unit": "defects",
+      "tol": 0.02,
+      "why": "Defects the shadow shift compares: promotion needs none lost vs the champion.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 288
+     }
+    ],
+    "request": [
+     {
+      "id": "piece-period-ms",
+      "label": "Time between pieces",
+      "out": "piece_period_ms",
+      "expr": "1000 / pieces_per_s",
+      "unit": "ms",
+      "tol": 0.02,
+      "why": "No dynamic batching: batching two pieces means waiting 500 ms.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 500
+     },
+     {
+      "id": "camera-link-mbps",
+      "label": "Camera → Jetson average per line",
+      "out": "camera_link_mbps",
+      "expr": "pieces_per_s * image_mb * 8",
+      "unit": "Mb/s",
+      "tol": 0.02,
+      "why": "Dedicated camera port, separate from the PLC network.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 80
+     }
+    ],
+    "plc-con-default-seguro": [
+     {
+      "id": "part-id-wrap-h",
+      "label": "part_id wrap-around time",
+      "out": "part_id_wrap_h",
+      "expr": "part_id_space / pieces_per_s / 3600",
+      "unit": "h",
+      "tol": 0.02,
+      "why": "PLC clears the register after use so a stale PASS never matches.",
+      "check": null,
+      "ref": "#c03.archivos",
+      "expected": 9.1
+     },
+     {
+      "id": "divert-all-per-h",
+      "label": "Pieces diverted per hour with Jetson or PLC link down",
+      "out": "divert_all_per_h",
+      "expr": "pieces_per_s * 3600",
+      "unit": "pieces/h",
+      "tol": 0.02,
+      "why": "Fail-safe default means the line effectively stops: page immediately.",
+      "check": null,
+      "ref": "#c03.monitoreo",
+      "expected": 7200
+     },
+     {
+      "id": "inspector-per-h",
+      "label": "Inspector capacity per hour",
+      "out": "inspector_per_h",
+      "expr": "3600 / inspect_s",
+      "unit": "pieces/h",
+      "tol": 0.02,
+      "why": "What a divert-all can be compared against: 30× over.",
+      "check": null,
+      "ref": "#c03.serving",
+      "expected": 240
+     }
+    ],
+    "monitoreo": [
+     {
+      "id": "pieces-over-p99-day",
+      "label": "Pieces above a p99 per line-day",
+      "out": "pieces_over_p99",
+      "expr": "pieces_day_line * (1 - p_target)",
+      "unit": "pieces/day",
+      "tol": 0.02,
+      "why": "SLO is deadline misses ≈ 0 plus p99.9 and max per shift, not p99.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 1152
+     },
+     {
+      "id": "divert-alert-rate",
+      "label": "Error-DIVERT alert threshold",
+      "out": "divert_alert_rate",
+      "expr": "divert_alert_frac * pieces_per_s",
+      "unit": "pieces/s",
+      "tol": 0.02,
+      "why": "rate() threshold for camera, image and engine DIVERT reasons.",
+      "check": null,
+      "ref": "#c03.monitoreo",
+      "expected": 0.02
+     },
+     {
+      "id": "spike-load-per-h",
+      "label": "Inspector load per hour in a 2× reject spike",
+      "out": "spike_load_per_h",
+      "expr": "reject_spike * diverted_day_line / (shift_h * n_shifts)",
+      "unit": "pieces/h",
+      "tol": 0.02,
+      "why": "RejectRateSpike means light, lens or focus: the bin overflows.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 287
+     },
+     {
+      "id": "backlog-growth-per-h",
+      "label": "Bin backlog growth in the spike",
+      "out": "backlog_growth_per_h",
+      "expr": "spike_load_per_h - inspector_per_h",
+      "unit": "pieces/h",
+      "tol": 0.02,
+      "why": "Time to act before someone returns parts unchecked.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 47
+     }
+    ],
+    "store-and-forward-a-la-nube": [
+     {
+      "id": "store-gb-day-line",
+      "label": "Local data per line per day",
+      "out": "store_gb_day_line",
+      "expr": "(diverted_day_line + approved_sample_day) * image_mb / 1000 + records_mb_day / 1000",
+      "unit": "GB/day",
+      "tol": 0.02,
+      "why": "Rejected images + 1 % sample + records, uncompressed.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 17.3
+     },
+     {
+      "id": "buffer-72h-gb",
+      "label": "Buffer for 72 h offline per line",
+      "out": "buffer_72h_gb",
+      "expr": "store_gb_day_line * offline_h / 24",
+      "unit": "GB",
+      "tol": 0.02,
+      "why": "Fits the device NVMe; the plant server keeps weeks.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 52
+     },
+     {
+      "id": "plant-upload-mbps",
+      "label": "Plant upload, 24 h average",
+      "out": "plant_upload_mbps",
+      "expr": "n_lines * store_gb_day_line * 8000 / 86400",
+      "unit": "Mb/s",
+      "tol": 0.02,
+      "why": "Steady upload volume ≈ 69 GB/day: bandwidth-capped during shifts.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 6.4
+     },
+     {
+      "id": "catchup-h",
+      "label": "Catch-up after 72 h without link",
+      "out": "catchup_h",
+      "expr": "n_lines * buffer_72h_gb * 8000 / (link_free_mbps - plant_upload_mbps) / 3600",
+      "unit": "h",
+      "tol": 0.02,
+      "why": "How long the cloud lags after an outage; records upload first.",
+      "check": null,
+      "ref": "#c03.estimaciones",
+      "expected": 10.5
+     }
+    ]
+   }
+  }
+ }
+}

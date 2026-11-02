@@ -1,0 +1,17 @@
+{
+  "name": "ML Project Board",
+  "short_name": "ML Board",
+  "description": "ML project board: every project as a map from data to monitoring, with entry-gate sizing per step.",
+  "lang": "en",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F6F9",
+  "theme_color": "#1F5FAE",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

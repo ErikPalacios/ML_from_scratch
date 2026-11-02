@@ -1,0 +1,35 @@
+# Scrape con el Prometheus Operator (kube-prometheus-stack) (caso c01). Sin esto, Prometheus nunca
+# lee el gateway ni Triton: la consulta de KEDA vuelve vacía (k8s/keda-triton.yaml la marca como
+# error), Triton se queda en 2 réplicas y ninguna alerta evalúa. Falla en silencio.
+# Las reglas de monitoring/alerts.yml van aparte, como PrometheusRule (el Operator no lee archivos
+# de reglas): el comando está en el README.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gateway
+  namespace: classifier
+  labels:
+    release: kube-prometheus-stack  # = serviceMonitorSelector de tu Prometheus (nombre del release de Helm)
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway  # labels del Service de k8s/gateway.yaml
+  endpoints:
+    - port: http  # nombre del puerto del Service: 8080/metrics del gateway (no expuesto en el Ingress)
+      path: /metrics
+      interval: 15s  # igual que en local: suficiente para alertas de 5–30 min
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: triton
+  namespace: classifier
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: triton  # labels del Service de k8s/triton.yaml
+  endpoints:
+    - port: metrics  # 8002: métricas nv_* (las que consulta KEDA); la NetworkPolicy solo deja entrar a "monitoring"
+      interval: 15s

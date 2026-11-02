@@ -1,0 +1,72 @@
+# El inspector de UNA línea corriendo en su Jetson Orin NX (caso c03). Un Jetson por línea: este
+# archivo va en cada uno, con su config.yaml (line_id, IP del PLC). No hay orquestador: 4
+# dispositivos fijos no justifican Kubernetes; Docker + restart policy + watchdog alcanzan.
+# Requisitos en el host: JetPack 6.2.x, Docker con el runtime nvidia registrado (JetPack trae el
+# NVIDIA Container Toolkit; si falta: sudo nvidia-ctk runtime configure --runtime=docker), y el
+# engine en /opt/inspector/models (tools/build_engine_jetson.sh).
+# Uso: docker compose up -d --build   ·   docker compose logs -f inspector
+
+name: inspector-c03  # prefijo de contenedores: no choca con otros proyectos compose del host
+
+services:
+  inspector:
+    build: .  # edge/Dockerfile; en la planta la imagen llega por la DMZ desde el registry
+    # La etiqueta es la versión del CÓDIGO; la versión del MODELO va en config.yaml (engine montado)
+    image: registry.planta.local/c03/inspector:1.4.0
+    # Así se expone la GPU integrada del Jetson al contenedor (el runtime nvidia monta sus
+    # dispositivos y librerías de la plataforma). Es el mecanismo documentado para Jetson; el
+    # bloque deploy.resources.reservations.devices del c01 es para GPUs discretas.
+    runtime: nvidia
+    # Red del host, por la cámara GigE Vision: el descubrimiento usa broadcast UDP (GVCP, puerto
+    # 3956) y el stream de imágenes (GVSP) llega a puertos UDP que el host negocia en el momento.
+    # Con la red bridge de Docker (NAT) el broadcast no cruza y habría que mapear puertos que no
+    # conoces de antemano. Costo: el contenedor ve todas las interfaces del host (por eso /metrics
+    # se liga a la IP de la VLAN OT en config.yaml) y `ports:` no aplica.
+    network_mode: host
+    init: true  # un init mínimo como PID 1: reenvía SIGTERM y recoge procesos zombie
+    restart: unless-stopped  # si el proceso muere (o el watchdog lo mata), Docker lo levanta
+    # Docker (sin Swarm) NO reinicia un contenedor "unhealthy": el healthcheck de abajo solo
+    # informa. Lo que reinicia un loop colgado es el watchdog de app.py (sale con código 3).
+    stop_grace_period: 5s  # SIGTERM → termina la pieza en curso (< 1 s) y sale; luego SIGKILL
+    read_only: true  # filesystem del contenedor de solo lectura: nada escribe fuera de lo montado
+    volumes:
+      # Heartbeat del loop en RAM (tmpfs): no desgasta la memoria flash. /run/inspector no existe
+      # en la imagen, así que Docker lo crea con modo 1777 y el usuario no root puede escribir.
+      - type: tmpfs
+        target: /run/inspector
+        tmpfs:
+          size: 1048576  # 1 MiB: es un archivo vacío
+      - type: tmpfs
+        target: /tmp  # por si una librería necesita archivos temporales con el root en solo lectura
+        tmpfs:
+          size: 67108864  # 64 MiB
+      # Config de SOLO lectura: el proceso no puede cambiar sus propios umbrales
+      - ./inspector/config.yaml:/config/config.yaml:ro
+      # Engines TensorRT fuera de la imagen: la versión actual y la anterior conviven en disco.
+      # Rollback = apuntar config.yaml al engine anterior y `docker compose up -d`, sin red.
+      - /opt/inspector/models:/models:ro
+      # Zona horaria del host para golden.shift_starts (hora local de la planta): sin esto el
+      # contenedor vive en UTC y "06:00" serían las 00:00 en Monterrey. Montar el archivo no
+      # necesita tzdata dentro de la imagen, a diferencia de TZ=. El reloj del host, con NTP de la red OT.
+      - /etc/localtime:/etc/localtime:ro
+    cap_drop:
+      - ALL  # el inspector no necesita ninguna capability de Linux
+    security_opt:
+      - no-new-privileges:true  # ningún binario puede ganar privilegios (setuid) dentro
+    healthcheck:
+      # Healthy = el loop tocó el heartbeat hace menos de 10 s (lo hace cada 250 ms aunque la línea
+      # esté parada). Lo ve `docker ps` y lo puede exportar el monitoreo del host.
+      test: ["CMD", "python3", "-c", "import os, sys, time; sys.exit(0 if time.time() - os.path.getmtime('/run/inspector/heartbeat') < 10 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 60s  # cargar el engine TensorRT y conectar cámara y PLC tarda
+    logging:
+      # Rotación OBLIGATORIA en un dispositivo edge: sin max-size, json-file crece hasta llenar el
+      # disco. 115,200 líneas de decisión por día × ≈ 350 B, más el sobre JSON que agrega Docker,
+      # ≈ 40–60 MB/día: 5 × 50 MB guardan ≈ 4–6 días. El agente de la DMZ reenvía los logs; si la
+      # red cae 72 h, caben.
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"

@@ -1,0 +1,1729 @@
+{
+ "sections": [
+  {
+   "id": "tests",
+   "num": 10,
+   "title": "Tests: pytest, TestClient, el fake de Triton y las pruebas de carga",
+   "question": "¿Cómo pruebas el gateway sin GPU ni Triton, incluidos los timeouts, los 503 y la carga, antes de que llegue a producción?",
+   "templates": [
+    {
+     "code": "@pytest.fixture\ndef {fixture}(monkeypatch):\n    monkeypatch.setattr({modulo}, \"{nombre}\", {doble})\n    with TestClient({app}) as client:\n        yield client",
+     "note": "Una <b>fixture</b> prepara lo que el test necesita; lo que va después del <code>yield</code> es la limpieza. <code>monkeypatch</code> cambia un atributo solo durante ese test y lo restaura al final. <code>with TestClient(…)</code> corre el <b>lifespan</b> (el arranque y el cierre de la app); sin <code>with</code>, no corre."
+    },
+    {
+     "code": "@pytest.mark.parametrize(\"{param},{esperado}\", [(\"{valor}\", {codigo}), …])\ndef test_{caso}({fixture}, {param}, {esperado}):\n    {doble}.mode = {param}\n    assert {fixture}.get(\"{ruta}\").status_code == {esperado}",
+     "note": "<b>TestClient</b> llama a la app dentro del mismo proceso, sin red ni servidor: el test es un <code>def</code> normal, sin <code>await</code>. <b>parametrize</b> corre el mismo test con varias entradas, y cada una cuenta como un test aparte."
+    },
+    {
+     "code": "@pytest.mark.anyio\nasync def test_{caso}():\n    async with AsyncClient(transport=ASGITransport(app={app}), base_url=\"http://test\") as ac:\n        r = await ac.get(\"{ruta}\")\n    assert r.status_code == {codigo}",
+     "note": "Un test <code>async def</code>, para cuando el test también tiene que esperar con <code>await</code> otras llamadas async. <code>ASGITransport</code> conecta el cliente directo con la app, sin red (ASGI es la interfaz entre uvicorn y tu app). El marcador <code>anyio</code> viene con AnyIO, la librería async que FastAPI ya instala. Ojo: <code>AsyncClient</code> no corre el lifespan (para eso existe <code>LifespanManager</code>, del paquete asgi-lifespan). Se importa de <code>httpx</code>, como en la doc de FastAPI, o de <code>httpx2</code>, la continuación de httpx que mantiene Pydantic, con la misma API."
+    },
+    {
+     "code": "pytest\npytest -k \"{patron}\" -x\npytest --durations={n}\npytest --lf",
+     "note": "<code>-k</code> elige los tests cuyo nombre contiene el patrón; <code>-x</code> para en la primera falla; <code>--durations=N</code> lista los N más lentos; <code>--lf</code> repite solo los que fallaron la última vez."
+    },
+    {
+     "code": "locust -f {locustfile} --headless -u {usuarios} -r {rampa} --run-time {duracion} --host {url}",
+     "note": "Una <b>prueba de carga</b> (load test) manda muchos requests a la vez para medir el p99 (la latencia bajo la cual queda el 99 % de los requests) y encontrar dónde se satura el servicio. <b>Locust</b> simula usuarios escritos en Python; con <code>wait_time = constant_throughput(1)</code>, cada usuario intenta 1 request por segundo, como máximo: si sus respuestas tardan más de 1 s, manda menos."
+    }
+   ],
+   "formulas": [
+    "\\lambda = u \\cdot r \\qquad 500\\ \\tfrac{\\text{req}}{\\text{s}} = 500\\ \\text{usuarios} \\times 1\\ \\tfrac{\\text{req}}{\\text{s}} \\quad \\text{si } W < \\tfrac{1}{r}",
+    "t_{\\text{test}} \\approx \\min\\left(t_{\\text{fake}},\\ T_{\\text{timeout}}\\right) = \\min\\left(1\\ \\text{s},\\ 0.15\\ \\text{s}\\right) = 0.15\\ \\text{s}"
+   ],
+   "vars": [
+    [
+     "{fixture}",
+     "nombre de la fixture; cada test la recibe como argumento",
+     "api"
+    ],
+    [
+     "{modulo}",
+     "dónde vive lo que reemplazas, tal como lo usa la app",
+     "main.triton_http"
+    ],
+    [
+     "{nombre}",
+     "el atributo que cambias solo durante el test",
+     "InferenceServerClient"
+    ],
+    [
+     "{doble}",
+     "la clase falsa que toma su lugar",
+     "FakeTriton"
+    ],
+    [
+     "{app}",
+     "la app ASGI real, la misma que carga uvicorn",
+     "main.app"
+    ],
+    [
+     "{param}, {esperado}",
+     "los argumentos que cambian en cada vuelta",
+     "mode, expected"
+    ],
+    [
+     "{valor}, {codigo}",
+     "cada combinación de entrada y resultado",
+     "(\"down\", 503)"
+    ],
+    [
+     "{caso}, {ruta}",
+     "lo que prueba (sale en el reporte) y el endpoint",
+     "readyz_reflects_triton_model_readiness, /readyz"
+    ],
+    [
+     "{patron}",
+     "parte del nombre de los tests que quieres correr",
+     "triton"
+    ],
+    [
+     "{n}",
+     "cuántos tests lentos listar",
+     "3"
+    ],
+    [
+     "{locustfile}, {usuarios}, {rampa}, {duracion}, {url}",
+     "el archivo de Locust, usuarios simulados, usuarios nuevos por segundo, duración y destino",
+     "locustfile.py, 500, 20, 20m, https://classifier.internal (M03)"
+    ],
+    [
+     "λ",
+     "requests por segundo que genera la prueba",
+     "500, el pico de diseño de C01"
+    ],
+    [
+     "u",
+     "usuarios simulados",
+     "500"
+    ],
+    [
+     "r",
+     "veces por segundo que cada usuario intenta su tarea (constant_throughput)",
+     "1"
+    ],
+    [
+     "W",
+     "lo que tarda cada respuesta; si pasa de 1/r, la tasa real cae",
+     "≤ 0.3 s (el timeout del locustfile de M03)"
+    ],
+    [
+     "t_test",
+     "lo que dura el test de Triton lento",
+     "≈ 0.15 s (medido en el laboratorio)"
+    ],
+    [
+     "t_fake",
+     "lo que duerme el fake en modo slow",
+     "1 s"
+    ],
+    [
+     "T_timeout",
+     "el timeout del gateway hacia Triton",
+     "0.15 s (INFER_TIMEOUT_S)"
+    ]
+   ],
+   "pieces": [
+    [
+     "pytest",
+     "Busca funciones test_* en archivos test_*.py (o *_test.py) y las corre; si un assert falla, muestra los dos valores comparados.",
+     "pytest==9.1.1 en requirements-dev.txt"
+    ],
+    [
+     "pytest.ini",
+     "La configuración de pytest: dónde buscar tests y qué opciones usar siempre.",
+     "pythonpath = . · testpaths = tests · addopts = -q"
+    ],
+    [
+     "@pytest.fixture",
+     "Prepara lo que el test necesita; lo que va después del yield es la limpieza.",
+     "api: la app con el fake inyectado"
+    ],
+    [
+     "monkeypatch.setattr",
+     "Cambia un atributo solo durante un test y lo restaura al terminar, aunque el test falle.",
+     "MAX_INFLIGHT = 0 simula un pod saturado"
+    ],
+    [
+     "@pytest.mark.parametrize",
+     "El mismo test con varias entradas; cada combinación cuenta como un test.",
+     "21 funciones, 26 tests en C01"
+    ],
+    [
+     "TestClient",
+     "Llama a la app dentro del proceso, sin red ni servidor. Con with corre el lifespan; sin with, no lo corre, y cada request usa un event loop nuevo (el bucle que atiende el código async).",
+     "with TestClient(main.app) as client"
+    ],
+    [
+     "httpx2",
+     "El cliente HTTP que TestClient usa por debajo desde Starlette 1.2: la continuación de httpx que mantiene Pydantic, con la misma API. Con el httpx de siempre funciona, pero avisa que está deprecado; sin ninguno de los dos, falla.",
+     "httpx2==2.13.1 en C01"
+    ],
+    [
+     "AsyncClient + ASGITransport",
+     "Cliente async contra la app, sin red, para tests async def. No corre el lifespan.",
+     "@pytest.mark.anyio"
+    ],
+    [
+     "ASGI directo (scope, receive, send)",
+     "Llamar a la app como lo hace uvicorn, con los mensajes escritos a mano. Sirve para lo que TestClient no puede simular: un cliente que corta a mitad del body (el mensaje http.disconnect).",
+     "post_and_disconnect: el test del 499"
+    ],
+    [
+     "un handler de logging propio",
+     "Junta las líneas que escribe tu logger para revisarlas en el test. caplog no sirve si el logger no le pasa sus líneas al logger raíz (propagate = False), como el del C01.",
+     "LogLines y la fixture log_lines"
+    ],
+    [
+     "REGISTRY.get_sample_value",
+     "Lee el valor de una serie de prometheus_client sin parsear /metrics. El registro es de todo el proceso: compara antes y después del request.",
+     "classifier_inference_seconds_count sube 1 con el 504"
+    ],
+    [
+     "fake (doble de prueba)",
+     "Una clase falsa con los mismos métodos y las mismas excepciones que la real. Detecta errores de contrato que un mock genérico deja pasar.",
+     "FakeTriton: ok, down, slow, reject y nan"
+    ],
+    [
+     "MagicMock · AsyncMock",
+     "Objetos falsos (mocks) de unittest.mock que aceptan cualquier llamada. Lo que devuelve un MagicMock no se puede esperar con await; lo que devuelven los métodos de un AsyncMock, sí.",
+     "infer = AsyncMock(return_value=…)"
+    ],
+    [
+     "app.dependency_overrides",
+     "La forma de FastAPI de cambiar una dependencia (Depends) durante los tests. C01 no usa Depends: cambia el cliente con monkeypatch.",
+     "app.dependency_overrides[get_client] = fake"
+    ],
+    [
+     "@pytest.mark.filterwarnings",
+     "Silencia un warning esperado en ese test, para que no tape los demás.",
+     "ignore::PIL.Image.DecompressionBombWarning"
+    ],
+    [
+     "Locust",
+     "Prueba de carga en Python: usuarios simulados contra el gateway real; reporta el p99 por endpoint.",
+     "-u 500 -r 20 --run-time 20m"
+    ],
+    [
+     "carga abierta o cerrada",
+     "Abierta: los requests llegan a tasa fija, como los usuarios reales. Cerrada: cada usuario espera su respuesta; si el servidor se frena, la prueba también, y el p99 sale mejor que la realidad (coordinated omission).",
+     "abierta: k6 con constant-arrival-rate; Locust es cerrada (con un timeout corto, casi abierta)"
+    ]
+   ],
+   "example": {
+    "title": "C01: el fake de Triton, la fixture y el test del 504",
+    "lang": "python",
+    "code": "class FakeTriton:\n    \"\"\"Doble de tritonclient.http.aio.InferenceServerClient con cinco modos de comportamiento.\"\"\"\n\n    mode = \"ok\"  # ok | down (sin red) | slow (no responde a tiempo) | reject (Triton devuelve error) | nan\n\n    def __init__(self, url, conn_limit=100, conn_timeout=60.0, **kwargs):  # misma firma que el real\n        self.url = url\n        self.calls = []  # guardamos lo que el gateway envía para verificar el contrato del tensor\n\n    async def infer(self, model_name, inputs, outputs=None, request_id=\"\", **kwargs):\n        self.calls.append({\"model\": model_name, \"inputs\": inputs, \"outputs\": outputs})\n        if self.mode == \"down\":\n            raise aiohttp.ClientConnectionError(\"connection refused\")  # lo que se ve si el pod de Triton murió\n        if self.mode == \"slow\":\n            await asyncio.sleep(1.0)  # más que INFER_TIMEOUT_S (0.15 s): el gateway debe cortar antes\n        if self.mode == \"reject\":\n            raise InferenceServerException(\"Request for unknown model\", status=\"400\")\n        logits = np.linspace(-2, 2, 500, dtype=np.float32)[np.newaxis]  # [1,500], el shape real\n        logits[0, TOP_CLASS] = np.nan if self.mode == \"nan\" else 12.0  # top-1 claro, o un engine roto\n        return FakeResult(logits)\n\n    async def is_model_ready(self, model_name, model_version=\"\"):\n        if self.mode == \"down\":\n            raise aiohttp.ClientConnectionError(\"connection refused\")\n        return self.mode != \"reject\"  # \"reject\" simula un modelo que no cargó\n\n    async def close(self):\n        pass  # el real cierra el pool de aiohttp\n\n# …\n@pytest.fixture\ndef api(monkeypatch):\n    \"\"\"App con el fake inyectado. `with TestClient` ejecuta el lifespan (crea y cierra el cliente).\"\"\"\n    FakeTriton.mode = \"ok\"\n    monkeypatch.setattr(main.triton_http, \"InferenceServerClient\", FakeTriton)\n    with TestClient(main.app) as client:\n        yield client\n\n# …\ndef test_slow_triton_is_504(api, log_lines):\n    FakeTriton.mode = \"slow\"\n    observed = REGISTRY.get_sample_value(\"classifier_inference_seconds_count\")\n    r = post(api, image_bytes())\n    assert r.status_code == 504  # cortamos a los 0.15 s: el cliente cae a su fallback manual\n    assert \"X-Request-ID\" in r.headers  # los errores también son trazables\n    # El timeout entra al histograma de inferencia y a la línea: es la llamada más lenta, no una que falta\n    assert REGISTRY.get_sample_value(\"classifier_inference_seconds_count\") == observed + 1\n    assert log_lines[-1][\"inference_ms\"] >= 100  # ≈ 150 ms: lo que se esperó antes de cortar",
+    "source": "reference/c01/gateway/tests/test_api.py (líneas 38–65, 79–85 y 245–253; # … marca líneas omitidas)",
+    "notes": [
+     "<code>monkeypatch</code> reemplaza la <b>clase</b> <code>InferenceServerClient</code>, no un objeto: el lifespan del C01 sigue llamando <code>triton_http.InferenceServerClient(url=TRITON_URL, conn_limit=64, conn_timeout=1.0)</code> y recibe un FakeTriton. Por eso el fake copia la firma del real (<code>conn_limit=100, conn_timeout=60.0</code> son los defaults de <code>tritonclient.http.aio</code>).",
+     "Cada modo imita una falla real con la misma excepción que lanzaría el cliente: <code>down</code> → <code>aiohttp.ClientConnectionError</code> (503), <code>slow</code> → no responde a tiempo (504), <code>reject</code> → <code>InferenceServerException</code> (503), y <code>nan</code> → logits con NaN, como un engine roto (500). Así se prueba el mapeo de errores a códigos sin GPU.",
+     "<code>slow</code> duerme con <code>await asyncio.sleep(1.0)</code>, que cede el <b>event loop</b> (el único hilo que atiende todas las requests <code>async</code> por turnos): el <code>asyncio.wait_for</code> del gateway puede cortar a los 0.15 s. Con <code>time.sleep(1.0)</code> no podría: el request respondería 200 al segundo y el test fallaría (lo provocas en el laboratorio).",
+     "El test del 504 revisa también lo que queda escrito: <code>REGISTRY.get_sample_value</code> lee el conteo de <code>classifier_inference_seconds</code> (el timeout entra al histograma), y <code>log_lines</code>, una fixture con un handler de logging propio, junta las líneas JSON: el logger del C01 no propaga al raíz, así que <code>caplog</code> no las ve.",
+     "<code>mode</code> es un atributo de la <b>clase</b>, compartido por todos los tests: la fixture lo vuelve a <code>\"ok\"</code> antes de cada uno. Sin esa línea, el resultado dependería del orden de los tests.",
+     "<code>self.calls</code> guarda lo que el gateway mandó: el primer test revisa el nombre, la shape y el dtype del tensor (<code>input</code>, <code>[1, 3, 224, 224]</code>, <code>FP32</code>), el contrato de <code>config.pbtxt</code>. Un MagicMock aceptaría cualquier cosa y no lo notaría.",
+     "El 499 no se prueba con <code>TestClient</code>, que siempre entrega el body completo. <code>post_and_disconnect</code> llama a la app como uvicorn (ASGI directo: <code>scope</code>, <code>receive</code>, <code>send</code>): manda un trozo del body y después <code>http.disconnect</code>, el mismo mensaje que llega cuando el cliente cierra la conexión.",
+     "Lo que estos tests no ven: la red, uvicorn, el ALB y la carga. Para eso están un <b>smoke test</b> (una prueba corta de punta a punta) en staging, un entorno igual a producción, y una prueba de carga con fotos reales (M03)."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Los 26 tests del C01 y lo que simula cada uno. El fake y monkeypatch cubren cada código de error sin GPU; la carga se prueba aparte.",
+    "data": {
+     "head": [
+      "Qué simula",
+      "Cómo",
+      "Código",
+      "Test (×N = casos de parametrize)"
+     ],
+     "rows": [
+      [
+       "Camino feliz y contrato del tensor",
+       "FakeTriton.mode = \"ok\"",
+       "200",
+       "test_classify_ok_respects_top_k_and_contract"
+      ],
+      [
+       "PNG y WebP, top_k por defecto",
+       "parametrize por formato",
+       "200",
+       "test_other_formats_and_default_top_k ×2"
+      ],
+      [
+       "Request ID propagado",
+       "header X-Request-ID: abc123",
+       "200",
+       "test_request_id_is_propagated"
+      ],
+      [
+       "Tipo no permitido",
+       "image/gif y application/octet-stream",
+       "415",
+       "test_unsupported_content_type_is_415"
+      ],
+      [
+       "Más de 10 MB",
+       "por Content-Length y en 11 trozos de 1 MB",
+       "413",
+       "test_body_over_10mb_is_413_by_content_length · …_without_content_length"
+      ],
+      [
+       "Decompression bomb",
+       "PNG de 1 bit de 48 MP y de 81 MP",
+       "413",
+       "test_decompression_bomb_is_413 ×2"
+      ],
+      [
+       "Imagen rota, rara o vacía",
+       "basura, truncada, 1×4,000 px, body vacío",
+       "400",
+       "test_undecodable_image_is_400 ×2 · test_extreme_aspect_ratio_is_400 · test_empty_body_is_400"
+      ],
+      [
+       "top_k fuera de rango",
+       "top_k=0 y top_k=500; revisa la línea y el conteo",
+       "422",
+       "test_top_k_out_of_range_is_422"
+      ],
+      [
+       "Upload cortado",
+       "ASGI directo: un trozo del body y http.disconnect",
+       "499 (no cuenta como 5xx)",
+       "test_client_disconnect_mid_upload_is_499_not_500"
+      ],
+      [
+       "Triton caído",
+       "mode = \"down\"",
+       "503 + Retry-After: 1",
+       "test_triton_down_is_503_with_retry_after"
+      ],
+      [
+       "Triton rechaza",
+       "mode = \"reject\"",
+       "503",
+       "test_triton_error_is_503"
+      ],
+      [
+       "Triton lento",
+       "mode = \"slow\" (duerme 1 s); el timeout entra al histograma",
+       "504",
+       "test_slow_triton_is_504"
+      ],
+      [
+       "Logits con NaN",
+       "mode = \"nan\"",
+       "500 (también en la línea y la métrica)",
+       "test_non_finite_logits_are_500_in_the_log_and_the_metric_too"
+      ],
+      [
+       "Pod saturado",
+       "monkeypatch MAX_INFLIGHT = 0",
+       "503 + Retry-After: 1",
+       "test_overload_is_503_with_retry_after"
+      ],
+      [
+       "Presupuesto agotado",
+       "monkeypatch REQUEST_DEADLINE_S = 0.001",
+       "504",
+       "test_request_deadline_is_504"
+      ],
+      [
+       "Liveness sin Triton",
+       "mode = \"down\"",
+       "200",
+       "test_healthz_does_not_depend_on_triton"
+      ],
+      [
+       "Readiness",
+       "ok, down y reject",
+       "200 · 503 · 503",
+       "test_readyz_reflects_triton_model_readiness ×3"
+      ],
+      [
+       "Métricas",
+       "GET /metrics sin seguir redirects",
+       "200",
+       "test_metrics_exposes_contract_names"
+      ]
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>un fake por dependencia, un test por código</b>. El fake imita al cliente real (mismos métodos, mismas excepciones), <code>monkeypatch</code> lo mete, <code>with TestClient</code> arranca la app con su lifespan, y cada código de error (400, 413, 415, 422, 499, 500, 503, 504) tiene su test.",
+   "trap": "Trampa: <code>TestClient(app)</code> sin <code>with</code>. El lifespan no corre, <code>app.state</code> queda vacío y el primer request falla con <code>AttributeError: 'State' object has no attribute 'inflight'</code>. Además, cada request corre en un event loop nuevo: un cliente o un semáforo creado al importar el módulo puede terminar en <code>Event loop is closed</code> o en <code>… is bound to a different event loop</code>. La otra trampa: un fake que duerme con <code>time.sleep</code>. Bloquea el loop, el timeout no corta y el test del 504 falla, o pasa por el motivo equivocado.",
+   "lab": {
+    "goal": "Escribir un fake de Triton y probar 200, 503 y 504 sin red; medir con --durations que el timeout corta a los 0.15 s, y romperlo a propósito con un time.sleep.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway/tests && cd ~/lab-gateway && python3 -m venv .venv && source .venv/bin/activate && pip install -q pytest==9.1.1",
+      "expect": "Sin salida, o solo avisos de pip: un venv con pytest 9.1.1, el del C01. Necesitas Python 3.11 o más nuevo (desde 3.11, el timeout de asyncio lanza el TimeoutError que atrapa gw.py); si python3 es el 3.9 de las herramientas de Xcode, el pip falla: usa el de Homebrew. Los pasos siguientes van en ~/lab-gateway con el venv activo."
+     },
+     {
+      "cmd": "cat > pytest.ini <<'EOF'\n[pytest]\npythonpath = .\ntestpaths = tests\naddopts = -q\nEOF\ncat > gw.py <<'EOF'\nimport asyncio\n\nINFER_TIMEOUT_S = 0.15  # 150 ms, como el C01\n\n\nasync def classify(client):\n    \"\"\"Mini gateway: llama al \"Triton\" y traduce sus fallas a un código HTTP.\"\"\"\n    try:\n        await asyncio.wait_for(client.infer(), timeout=INFER_TIMEOUT_S)  # se lee al llamar\n    except TimeoutError:  # Triton vivo pero lento\n        return 504\n    except ConnectionError:  # Triton caído\n        return 503\n    return 200\nEOF",
+      "expect": "Sin salida. pytest.ini es el mismo del C01. gw.py es un gateway en miniatura que hace lo que _infer del C01: TimeoutError → 504, falla de conexión → 503."
+     },
+     {
+      "cmd": "cat > tests/test_gw.py <<'EOF'\nimport asyncio\nimport time\n\nimport pytest\n\nimport gw\n\n\nclass FakeTriton:\n    \"\"\"Doble del cliente async: mismos métodos y mismas excepciones que el real.\"\"\"\n\n    def __init__(self, mode=\"ok\", delay=1.0):\n        self.mode, self.delay = mode, delay\n\n    async def infer(self):\n        if self.mode == \"down\":\n            raise ConnectionRefusedError(\"connection refused\")\n        if self.mode == \"slow\":\n            await asyncio.sleep(self.delay)\n        return [0.1, 0.9]\n\n\n@pytest.mark.parametrize(\"mode,code\", [(\"ok\", 200), (\"down\", 503), (\"slow\", 504)])\ndef test_codigo_por_modo(mode, code):\n    assert asyncio.run(gw.classify(FakeTriton(mode))) == code\n\n\ndef test_lento_corta_a_tiempo():\n    t0 = time.perf_counter()\n    assert asyncio.run(gw.classify(FakeTriton(\"slow\"))) == 504\n    assert time.perf_counter() - t0 < 0.3  # cortó a ≈ 0.15 s; no esperó 1 s\n\n\ndef test_timeout_con_monkeypatch(monkeypatch):\n    monkeypatch.setattr(gw, \"INFER_TIMEOUT_S\", 0.001)  # solo dura este test\n    assert asyncio.run(gw.classify(FakeTriton(\"slow\", delay=0.01))) == 504\nEOF",
+      "expect": "Sin salida. El fake tiene tres modos, como el del C01 (ok, down y slow); parametrize los convierte en 3 tests, y hay 2 más: uno mide el tiempo y otro baja el timeout con monkeypatch."
+     },
+     {
+      "cmd": "pytest",
+      "expect": "..... [100%] y 5 passed in 0.32s (los tiempos cambian un poco). Ningún test usó red ni Triton."
+     },
+     {
+      "cmd": "pytest --durations=3",
+      "expect": "La sección slowest 3 durations muestra 0.15s call tests/test_gw.py::test_lento_corta_a_tiempo y 0.15s call tests/test_gw.py::test_codigo_por_modo[slow-504], más el aviso (1 durations < 0.005s hidden.  Use -vv to show these durations.). El fake duerme 1 s, pero el timeout corta a los 0.15 s."
+     },
+     {
+      "cmd": "sed -i '' 's/await asyncio\\.sleep(self\\.delay)/time.sleep(self.delay)/' tests/test_gw.py && pytest --durations=3",
+      "expect": "..FFF, tres AssertionError: assert 200 == 504, los dos lentos en 1.01s y al final 3 failed, 2 passed in 2.07s. Un time.sleep bloquea el event loop: el timeout no puede cortar y el “gateway” responde 200 un segundo después."
+     },
+     {
+      "cmd": "sed -i '' 's/time\\.sleep(self\\.delay)/await asyncio.sleep(self.delay)/' tests/test_gw.py && pytest --lf",
+      "expect": "... [100%] y 3 passed in 0.32s: --lf repitió solo los tres que habían fallado, y ya pasan."
+     },
+     {
+      "cmd": "deactivate; cd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida: se borra la carpeta, con el venv adentro."
+     }
+    ],
+    "fix": "Si el test del 504 tarda 1 s o recibe 200, busca código bloqueante (time.sleep, requests, un decode) dentro de un async def, en el fake o en la app. En C01: await para el I/O, run_in_threadpool para la CPU. Confírmalo con pytest --durations=3: el test lento debe tardar ≈ 0.15 s.",
+    "needs": "Python 3.11 o más nuevo (el de Homebrew) y conexión para el pip install de pytest; no necesitas FastAPI, Docker ni Triton.",
+    "verified": "executed",
+    "verified_note": "Ejecutado con Python 3.14.3 y pytest 9.1.1 (el del venv del repo, en lugar del pip install del paso 1) en una carpeta equivalente a ~/lab-gateway; las salidas son las de esas corridas."
+   },
+   "links": [
+    "#c01.archivos",
+    "#c01.serving",
+    "#m10.ci-cd",
+    "#m03.load-testing"
+   ]
+  },
+  {
+   "id": "rendimiento",
+   "num": 11,
+   "title": "Rendimiento: workers de uvicorn, CPU para el decode, keep-alive, perfilar y medir el p99",
+   "question": "¿Dónde se va el tiempo de tu gateway y qué perilla mueves: hilos, procesos, pods o keep-alive?",
+   "templates": [
+    {
+     "code": "uvicorn {modulo}:{app} --host 0.0.0.0 --port {puerto} --workers {n} \\\n  --timeout-keep-alive {seg_ka} --no-access-log --timeout-graceful-shutdown {seg_apagado}",
+     "note": "Así arranca el C01. <code>--workers</code> son <b>procesos</b> completos, cada uno con su event loop (el hilo que atiende los requests async por turnos), su memoria y sus métricas; en Kubernetes va 1 por pod y escalas con pods. <code>--host 0.0.0.0</code> escucha en todas las interfaces de red: con el default, 127.0.0.1, nadie de afuera del contenedor llega. <code>--timeout-keep-alive</code> dice cuántos segundos queda abierta una conexión sin requests, lista para reusarse."
+    },
+    {
+     "code": "await asyncio.wait_for({slots}.acquire(), timeout={espera})\ntry:\n    resultado = await run_in_threadpool({funcion_cpu}, {datos})\nfinally:\n    {slots}.release()",
+     "note": "El trabajo de CPU (decode, resize) va a un <b>threadpool</b> (hilos aparte del event loop). El <b>semáforo</b> (un contador de turnos, creado en el lifespan) deja pasar N a la vez: acota CPU y RAM. Si no hay turno en <code>{espera}</code>, C01 responde 503."
+    },
+    {
+     "code": "py-spy top --pid {pid}\npy-spy dump --pid {pid}\npy-spy record -o {archivo}.svg --pid {pid} --duration {seg}",
+     "note": "<b>py-spy</b> es un profiler por muestreo: mira la pila de llamadas (stack) del proceso muchas veces por segundo, sin tocar tu código. <code>top</code> muestra las funciones que más tiempo usan, en vivo; <code>dump</code>, dónde está cada hilo ahora mismo; <code>record</code>, un <b>flame graph</b> (un gráfico de dónde se fue el tiempo). En macOS pide <code>sudo</code>; en un contenedor, el permiso (capability) SYS_PTRACE, que deja leer la memoria de otro proceso."
+    },
+    {
+     "code": "PYTHONASYNCIODEBUG=1 uvicorn {modulo}:{app} --port {puerto} --loop asyncio",
+     "note": "Modo debug de asyncio: avisa cada vez que algo ocupa el event loop más de 100 ms, con la corrutina y la línea donde quedó pausada después (<code>Executing &lt;Task …&gt; took 0.182 seconds</code>): lo que bloqueó está justo antes de esa línea. <code>--loop asyncio</code> usa el loop estándar de Python en vez de uvloop. Solo en local o en staging: el modo debug hace todo más lento."
+    },
+    {
+     "code": "curl -s -o /dev/null -w '%{http_code} %{time_connect} %{time_starttransfer} %{time_total}\\n' \\\n  -H \"Content-Type: image/jpeg\" --data-binary @{foto} \"{url}/v1/classify\"",
+     "note": "Mide un request desde afuera, en segundos: la conexión, el primer byte de la respuesta (incluye la subida del body y lo que tardó el servidor) y el total. Un request no da un p99: para eso, el histograma o una prueba de carga."
+    },
+    {
+     "code": "histogram_quantile(0.99, sum by (le) (rate({histograma}_bucket[{ventana}])))",
+     "note": "El <b>p99</b> (la latencia bajo la cual queda el 99 % de los requests) de todo el servicio, en PromQL, el lenguaje de consultas de Prometheus: primero se suman los buckets (los conteos por rango de latencia) de todos los pods y después se calcula el cuantil. Nunca promedies el p99 de cada pod."
+    }
+   ],
+   "formulas": [
+    "\\text{cores} = \\lambda \\cdot t_{\\text{CPU}} = 500\\ \\tfrac{\\text{req}}{\\text{s}} \\times 6\\ \\text{ms} = 3",
+    "\\text{pods} = \\left\\lceil \\dfrac{\\lambda \\cdot t_{\\text{CPU}}}{c_{\\text{request}} \\cdot u_{\\text{HPA}}} \\right\\rceil = \\left\\lceil \\dfrac{3}{1 \\times 0.6} \\right\\rceil = 5",
+    "\\rho_{\\text{loop}} = \\lambda \\cdot \\bar{t}_{\\text{bloqueo}} = 40\\ \\tfrac{\\text{req}}{\\text{s}} \\times 20\\ \\text{ms} \\approx 0.8",
+    "t_{\\text{keep-alive}}^{\\text{uvicorn}} = 75\\ \\text{s} \\; > \\; t_{\\text{idle}}^{\\text{ALB}} = 60\\ \\text{s}"
+   ],
+   "vars": [
+    [
+     "{modulo}:{app}",
+     "el módulo y la variable de la app",
+     "app.main:app"
+    ],
+    [
+     "{puerto}",
+     "puerto donde escucha",
+     "8080"
+    ],
+    [
+     "{n}",
+     "procesos de uvicorn",
+     "1 (más capacidad = más pods)"
+    ],
+    [
+     "{seg_ka}",
+     "segundos que una conexión ociosa queda abierta",
+     "75 (default 5)"
+    ],
+    [
+     "{seg_apagado}",
+     "segundos de drenado tras el SIGTERM",
+     "20"
+    ],
+    [
+     "{slots}, {espera}",
+     "el semáforo del lifespan y cuánto esperar un turno",
+     "app.state.cpu_slots (2 turnos), SLOT_WAIT_S = 0.05"
+    ],
+    [
+     "{funcion_cpu}, {datos}",
+     "la función bloqueante y su entrada",
+     "_decode_and_hash, data"
+    ],
+    [
+     "{pid}",
+     "el proceso a mirar, por su número (PID)",
+     "el PID de uvicorn (1 dentro del contenedor)"
+    ],
+    [
+     "{archivo}, {seg}",
+     "dónde guardar el flame graph y cuánto muestrear",
+     "perfil, 30"
+    ],
+    [
+     "{foto}, {url}",
+     "una imagen de prueba y el gateway",
+     "foto.jpg, http://localhost:8080"
+    ],
+    [
+     "{histograma}, {ventana}",
+     "el histograma de latencia y la ventana del rate",
+     "classifier_request_latency_seconds, 5m"
+    ],
+    [
+     "λ",
+     "requests por segundo",
+     "500 en el pico de diseño (≈ 100 por pod con 5 pods)"
+    ],
+    [
+     "t_CPU",
+     "CPU por request: decode, resize, normalizar",
+     "≈ 6 ms en promedio"
+    ],
+    [
+     "c_request",
+     "CPU que pide cada pod (requests.cpu)",
+     "1"
+    ],
+    [
+     "u_HPA",
+     "utilización objetivo del HPA (el autoscaler de pods por CPU)",
+     "0.6"
+    ],
+    [
+     "ρ_loop",
+     "fracción del tiempo en que el event loop está ocupado con trabajo bloqueante",
+     "≈ 0.8 en el laboratorio, con el decode adentro"
+    ],
+    [
+     "t̄_bloqueo",
+     "trabajo bloqueante promedio por request dentro del loop",
+     "≈ 20 ms en el laboratorio (0.95 × 12 + 0.05 × 175)"
+    ],
+    [
+     "t_keep-alive, t_idle",
+     "cuánto espera cada lado (uvicorn y el ALB, el balanceador de AWS) antes de cerrar una conexión ociosa",
+     "75 s en uvicorn, 60 s en el ALB"
+    ]
+   ],
+   "pieces": [
+    [
+     "--workers N",
+     "N procesos con todo duplicado: memoria, conexiones, métricas. En Kubernetes, 1 por pod y más pods con el HPA.",
+     "--workers 1 en C01"
+    ],
+    [
+     "WEB_CONCURRENCY",
+     "Variable de entorno que uvicorn usa como --workers si no pasas el flag.",
+     "si una imagen base la define, tienes workers sin saberlo"
+    ],
+    [
+     "--timeout-keep-alive",
+     "Segundos que una conexión ociosa queda abierta (default 5). Debe ser mayor que el idle timeout del balanceador.",
+     "75 > 60 del ALB"
+    ],
+    [
+     "--limit-concurrency",
+     "Tope por proceso de conexiones abiertas o tareas; al pasarlo, 503 inmediato en texto plano y sin Retry-After. Cuenta también las conexiones keep-alive ociosas del ALB.",
+     "C01 usa su propio MAX_INFLIGHT"
+    ],
+    [
+     "--backlog",
+     "Conexiones que esperan a que el proceso las acepte (default 2048).",
+     "el default"
+    ],
+    [
+     "uvloop · httptools",
+     "Versiones más rápidas del event loop y del parser HTTP, escritas en C y Cython; uvicorn las usa solo si están instaladas (--loop auto, --http auto).",
+     "uvloop==0.22.1, httptools==0.8.0"
+    ],
+    [
+     "threadpool de anyio",
+     "Los hilos que comparten run_in_threadpool, los endpoints def y las dependencias def: 40 por proceso por defecto.",
+     "C01 deja pasar 2 decodes con un semáforo"
+    ],
+    [
+     "asyncio.to_thread",
+     "Corre una función en otro pool: el executor por defecto de asyncio, de min(32, CPUs + 4) hilos.",
+     "el laboratorio de abajo"
+    ],
+    [
+     "GIL",
+     "El candado de CPython: un solo hilo ejecuta bytecode de Python a la vez. Pillow y NumPy lo sueltan en el trabajo pesado; un bucle en Python puro, no.",
+     "medido: decode 3.4–3.7× con 4 hilos; Python puro 1.0×"
+    ],
+    [
+     "asyncio.Semaphore",
+     "Contador de turnos: limita cuántos decodes corren a la vez, y con ellos la RAM (≈ 320 MB por PNG de 40 MP).",
+     "PREPROCESS_CONCURRENCY=2"
+    ],
+    [
+     "py-spy",
+     "Profiler por muestreo: ve el stack del proceso sin modificarlo. top, dump y record.",
+     "py-spy dump --pid 1"
+    ],
+    [
+     "PYTHONASYNCIODEBUG=1",
+     "Modo debug de asyncio: avisa de los pasos (callbacks o tareas) que ocupan el loop más de 100 ms.",
+     "Executing <Task …> took 0.182 seconds"
+    ],
+    [
+     "histograma de latencia",
+     "Conteos por bucket que se suman entre pods; de ahí sale el p99. Buckets densos alrededor del SLO (la meta de latencia: p99 ≤ 200 ms en C01).",
+     "0.15, 0.2 y 0.3 s en C01"
+    ],
+    [
+     "CPU throttling",
+     "Con limits.cpu, el kernel frena al contenedor que gastó su cuota, en ventanas de 100 ms: picos de p99 con CPU promedio baja.",
+     "C01 no pone límite de CPU"
+    ]
+   ],
+   "example": {
+    "title": "C01: cómo arranca uvicorn en el contenedor, y por qué cada flag",
+    "lang": "dockerfile",
+    "code": "# 1 proceso por contenedor (--workers 1): en k8s escalas con réplicas (HPA), cada pod con su\n# request de CPU, su métrica de /metrics y su probe. Varios workers en un pod esconden fallas,\n# duplican memoria y rompen prometheus_client sin modo multiproceso.\n#   --timeout-keep-alive 75   mayor que el idle timeout del ALB (60 s): si el backend cierra primero,\n#                             el ALB reusa una conexión muerta y el cliente ve 502 esporádicos\n#   --no-access-log           el gateway ya escribe una línea JSON por request; el access log duplicaría\n#   --timeout-graceful-shutdown 20  en SIGTERM termina los requests en curso (< terminationGracePeriodSeconds)\nCMD [\"uvicorn\", \"app.main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\", \"--workers\", \"1\", \\\n     \"--timeout-keep-alive\", \"75\", \"--no-access-log\", \"--timeout-graceful-shutdown\", \"20\"]",
+    "source": "reference/c01/gateway/Dockerfile (líneas 44–52)",
+    "notes": [
+     "<code>--workers 1</code>: un proceso por pod. El HPA (el autoscaler que agrega o quita pods según la CPU) ve la CPU real de ese proceso, <code>/metrics</code> describe a ese proceso y la probe habla con él. Con 4 workers en un pod, cada scrape de Prometheus cae en un worker distinto y los contadores suben y bajan (sin el modo multiproceso de prometheus_client).",
+     "¿Y si un proceso no alcanza? Primero, que el event loop no haga CPU: el decode va al threadpool y Pillow suelta el GIL, así que un proceso usa más de un core. Después, más pods: a 500 req/s son ≈ 3 cores de decode, ≈ 5 pods de 1 CPU al 60 % (fórmula de arriba).",
+     "<code>--timeout-keep-alive 75</code>: una conexión <b>keep-alive</b> queda abierta entre requests para reusarla, y uvicorn la cierra si pasa 5 s ociosa (su default). Si el gateway la cierra justo cuando el ALB la reusa, el ALB responde <b>502</b>. Con 75 > 60, siempre cierra primero el ALB (su <code>idle_timeout.timeout_seconds=60</code> está en <code>k8s/gateway.yaml</code>).",
+     "<code>--no-access-log</code>: menos líneas y menos CPU; el registro de cada request es la línea JSON del gateway. El costo: lo que FastAPI responde antes de llegar a una función no deja línea. El C01 cubre el 422 con un exception handler; un 405 o un 404 no dejan rastro en el gateway.",
+     "<code>--timeout-graceful-shutdown 20</code>: tras el SIGTERM (la señal con que Kubernetes le pide al proceso que termine), uvicorn espera hasta 20 s los requests en curso y cancela lo que quede (esos terminan en 500). Cabe en los 45 s de gracia: 15 s de preStop (la espera antes del SIGTERM) + 20 s de drenado + 10 s de margen.",
+     "Lista JSON (forma exec): uvicorn es el PID 1 y le llega el SIGTERM directo. Con forma shell, el PID 1 sería <code>sh</code> y el apagado ordenado no ocurriría (detalle en la hoja de Docker)."
+    ]
+   },
+   "figure": {
+    "kind": "threads",
+    "caption": "Un pod del C01: un proceso uvicorn con un event loop y un threadpool. El loop atiende el I/O; el decode va a los hilos, de a 2. /metrics es un def: también corre en un hilo, sin semáforo. Para más capacidad, más pods, no más workers. Abajo, lo medido en el laboratorio.",
+    "data": {
+     "pod": {
+      "label": "pod del gateway",
+      "cpu_request": "1",
+      "memory_limit": "1Gi"
+     },
+     "process": {
+      "label": "uvicorn (PID 1)",
+      "workers": 1
+     },
+     "loop": {
+      "label": "event loop: 1 hilo",
+      "work": [
+       "leer el body",
+       "await Triton",
+       "/healthz y /readyz",
+       "softmax y top-k",
+       "armar la respuesta"
+      ]
+     },
+     "threadpool": {
+      "label": "threadpool de anyio",
+      "threads": 40,
+      "gate": {
+       "label": "asyncio.Semaphore",
+       "slots": 2,
+       "wait_s": 0.05,
+       "on_timeout": "503 gateway saturado (CPU)"
+      },
+      "work": [
+       "decode",
+       "resize",
+       "normalizar",
+       "sha256"
+      ]
+     },
+     "scale": {
+      "label": "más capacidad",
+      "yes": "más pods: HPA de 3 a 12, al 60 % de CPU",
+      "no": "--workers N en el mismo pod"
+     },
+     "measured": {
+      "label": "laboratorio: 40 req/s, 1 de cada 20 fotos de 12 MP",
+      "unit": "ms",
+      "rows": [
+       {
+        "mode": "decode en el event loop",
+        "p50": 80,
+        "p99": 216,
+        "healthz": 167
+       },
+       {
+        "mode": "decode en un hilo",
+        "p50": 24,
+        "p99": 189,
+        "healthz": 1
+       }
+      ]
+     }
+    }
+   },
+   "memo": "Cómo recordarla: <b>el loop para esperar, los hilos para calcular, los pods para crecer</b>. Mide antes de mover algo (histograma por tramo, py-spy) y la perilla sale sola: el decode al threadpool, el keep-alive mayor que el del ALB, y más pods antes que más workers.",
+   "trap": "Trampa: subir <code>--workers</code> o los hilos para bajar un p99 alto. Si el event loop está bloqueado, más hilos no lo destraban; si el código es Python puro, el GIL no deja usar más cores; y si el p99 son las fotos de 12 MP, cada una tarda lo mismo en cualquier hilo. En el laboratorio, sacar el decode del loop baja el p50 de ≈ 80 a 24 ms, pero el p99 casi no se mueve: para ese, draft mode (el decoder JPEG entrega directo una versión reducida) y fotos más chicas.",
+   "lab": {
+    "goal": "Medir el p50, el p99 y la espera de un health check en un proceso con el decode dentro del event loop y fuera de él; ver el aviso del modo debug de asyncio y comprobar que los hilos solo ayudan si el código suelta el GIL.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway && cd ~/lab-gateway && python3 -m venv .venv && source .venv/bin/activate && pip install -q pillow==12.3.0 numpy==2.5.3",
+      "expect": "Sin salida, o solo avisos de pip: Pillow y NumPy con las versiones del C01. NumPy 2.5 necesita Python 3.12 o más nuevo: con 3.11 o con el 3.9 de Xcode, el pip falla."
+     },
+     {
+      "cmd": "cat > carga.py <<'EOF'\nimport asyncio, io, statistics, sys, time\n\nimport numpy as np\nfrom PIL import Image\n\nMODO = sys.argv[1]  # bloqueante | hilo\nTASA, N = 40, 200  # 40 req/s durante 5 s, a tasa fija (carga abierta)\n\n\ndef foto(w, h):  # JPEG con ruido: el decoder trabaja de verdad\n    pix = np.random.default_rng(0).integers(0, 255, (h, w, 3), dtype=np.uint8)\n    buf = io.BytesIO()\n    Image.fromarray(pix).save(buf, \"JPEG\", quality=90)\n    return buf.getvalue()\n\n\nCHICA, GRANDE = foto(1024, 768), foto(4000, 3000)  # celular y web de 12 MP\n\n\ndef decode(data):  # CPU pura, como el preproceso del C01\n    return Image.open(io.BytesIO(data)).convert(\"RGB\").resize((256, 256))\n\n\nasync def request(i, llegada, lat):\n    data = GRANDE if i % 20 == 0 else CHICA  # 1 de cada 20: foto grande\n    if MODO == \"bloqueante\":\n        decode(data)  # dentro del event loop\n    else:\n        await asyncio.to_thread(decode, data)  # en un hilo aparte\n    await asyncio.sleep(0.010)  # \"Triton\": 10 ms de I/O\n    lat.append(time.perf_counter() - llegada)\n\n\nasync def healthz(esperas, fin):  # cada 50 ms: ¿cuánto tarda el loop en atenderla?\n    while not fin.is_set():\n        t = time.perf_counter()\n        await asyncio.sleep(0.05)\n        esperas.append(time.perf_counter() - t - 0.05)\n\n\nasync def main():\n    lat, esperas, fin = [], [], asyncio.Event()\n    sonda = asyncio.create_task(healthz(esperas, fin))\n    inicio, tareas = time.perf_counter(), []\n    for i in range(N):\n        llegada = inicio + i / TASA  # la hora de llegada no depende del loop\n        await asyncio.sleep(max(0, llegada - time.perf_counter()))\n        tareas.append(asyncio.create_task(request(i, llegada, lat)))\n    await asyncio.gather(*tareas)\n    fin.set()\n    await sonda\n    q = statistics.quantiles(lat, n=100)\n    print(f\"{MODO}: p50 {q[49] * 1000:.0f} ms · p99 {q[98] * 1000:.0f} ms\"\n          f\" · peor espera de /healthz {max(esperas) * 1000:.0f} ms\")\n\n\nasyncio.run(main())\nEOF",
+      "expect": "Sin salida. carga.py simula un proceso del gateway: 40 requests por segundo durante 5 s, a tasa fija; cada uno decodifica una foto de celular (≈ 12 ms de CPU) o, 1 de cada 20, una de 12 MP (≈ 175 ms), y espera 10 ms de “Triton”. Una sonda cada 50 ms mide cuánto tarda el loop en atenderla, como un /healthz."
+     },
+     {
+      "cmd": "python carga.py bloqueante; python carga.py hilo",
+      "expect": "bloqueante: p50 ≈ 80 ms · p99 ≈ 220 ms · peor espera de /healthz ≈ 160 ms, y hilo: p50 ≈ 24 ms · p99 ≈ 190 ms · peor espera ≈ 1–3 ms. Con el decode en el loop, cada foto espera a las de adelante, y el health check también. El p99 casi no baja: son las fotos grandes, que tardan lo mismo en cualquier hilo."
+     },
+     {
+      "cmd": "PYTHONASYNCIODEBUG=1 python carga.py bloqueante 2>&1 | grep -m 3 Executing",
+      "expect": "Tres líneas Executing <Task pending name='Task-3' coro=<request() running at …/carga.py:30> … took 0.182 seconds (y Task-23 y Task-43: las otras fotos grandes). La línea 30 es el await que sigue al decode: el bloqueo está justo antes. Las fotos chicas (≈ 12 ms) no pasan el umbral de 100 ms y no aparecen, aunque también bloquean."
+     },
+     {
+      "cmd": "cat > gil.py <<'EOF'\nimport io, time\nfrom concurrent.futures import ThreadPoolExecutor\n\nimport numpy as np\nfrom PIL import Image\n\npix = np.random.default_rng(0).integers(0, 255, (3000, 4000, 3), dtype=np.uint8)\nbuf = io.BytesIO()\nImage.fromarray(pix).save(buf, \"JPEG\", quality=90)\nFOTO = buf.getvalue()  # una foto de 12 MP\n\n\ndef decode():  # Pillow suelta el GIL mientras decodifica y redimensiona\n    Image.open(io.BytesIO(FOTO)).convert(\"RGB\").resize((341, 256))\n\n\ndef python_puro():  # bytecode de Python: necesita el GIL todo el tiempo\n    sum(i * i for i in range(2_000_000))\n\n\nfor nombre, f in [(\"pillow\", decode), (\"python puro\", python_puro)]:\n    t = time.perf_counter()\n    for _ in range(8):\n        f()\n    uno = time.perf_counter() - t\n    with ThreadPoolExecutor(4) as pool:\n        t = time.perf_counter()\n        list(pool.map(lambda _: f(), range(8)))\n        cuatro = time.perf_counter() - t\n    print(f\"{nombre}: 1 hilo {uno:.2f} s · 4 hilos {cuatro:.2f} s · {uno / cuatro:.1f}x\")\nEOF\npython gil.py",
+      "expect": "pillow: 1 hilo 1.41 s · 4 hilos 0.38 s · 3.7x y python puro: 1 hilo 0.85 s · 4 hilos 0.82 s · 1.0x (al repetirlo, Pillow da entre 3.4x y 3.7x). Pillow suelta el GIL mientras decodifica, así que 4 hilos usan 4 cores; el bucle de Python puro no lo suelta y tarda lo mismo con 1 que con 4."
+     },
+     {
+      "cmd": "python -c 'print(round(40 * (0.95 * 0.012 + 0.05 * 0.175), 2))'",
+      "expect": "0.81: con el decode adentro, el event loop está ocupado el 81 % del tiempo (tasa × trabajo bloqueante por request). Cerca de 1, la espera crece rápido: por eso el p50 pasó de 24 a ≈ 80 ms."
+     },
+     {
+      "cmd": "deactivate; cd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida: se borra la carpeta, con el venv adentro."
+     }
+    ],
+    "fix": "El decode a run_in_threadpool (o asyncio.to_thread) con un semáforo, como el C01; para el p99 de las fotos grandes, draft mode y downscale en el cliente. Confírmalo con la misma medición: la espera de /healthz vuelve a ≈ 1 ms.",
+    "needs": "Python 3.12 o más nuevo (el de Homebrew; lo pide NumPy 2.5) y conexión para el pip install de Pillow y NumPy. Las cifras cambian con tu máquina; la diferencia entre los dos modos, no.",
+    "verified": "executed",
+    "verified_note": "Ejecutado con Python 3.14.3, Pillow 12.3.0 y NumPy 2.5.3 (del venv del repo, en lugar del pip install del paso 1) en una Mac con chip M de 10 cores; las cifras son de esas corridas."
+   },
+   "links": [
+    "#c01.serving",
+    "#m03.little",
+    "#m03.percentiles",
+    "#m03.colas-utilizacion",
+    "#m07.fastapi",
+    "#m06.hpa"
+   ]
+  },
+  {
+   "id": "diagnostico",
+   "num": 12,
+   "title": "Diagnóstico: el método y la tabla de síntomas",
+   "question": "Tu gateway está lento, devuelve 503 o se traba: ¿qué miras primero, qué después, y cómo pasas del síntoma a la causa?",
+   "templates": [
+    {
+     "code": "kubectl logs deploy/{deploy} -n {ns} --all-pods=true --since={ventana} | grep -o '\"status\": [0-9]*' | sort | uniq -c\nkubectl logs deploy/{deploy} -n {ns} --all-pods=true --since={ventana} | grep -o '\"error\": \"[^\"]*\"' | sort | uniq -c",
+     "note": "<b>Código y detalle</b>: el número solo no basta. En C01 hay cuatro 503 distintos y dos 504 distintos, y el campo <code>error</code> de la línea JSON dice cuál es. <code>--all-pods=true</code> junta los logs de todos los pods del Deployment; cada línea llega con <code>[pod/NOMBRE/gateway]</code> delante."
+    },
+    {
+     "code": "histogram_quantile(0.99, sum by (le) (rate(classifier_preprocess_seconds_bucket[5m])))\nhistogram_quantile(0.99, sum by (le) (rate(classifier_inference_seconds_bucket[5m])))",
+     "note": "<b>Tramo</b> (cada parte del camino del request), en PromQL, las consultas de Prometheus: ¿creció el preproceso, que es CPU del gateway, o la llamada a Triton? Si es Triton, sus métricas separan la espera en cola del cómputo. Los timeouts también entran a <code>classifier_inference_seconds</code> (el C01 mide la llamada en un <code>finally</code>): un 504 cae entre 0.15 y 0.3 s, así que el p99 de inferencia sube justo cuando Triton está lento."
+    },
+    {
+     "code": "histogram_quantile(0.99, sum by (le, pod) (rate(classifier_request_latency_seconds_bucket[5m])))\nkubectl rollout history deploy/{deploy} -n {ns}",
+     "note": "<b>Alcance</b>: ¿todos los pods o uno? Uno solo apunta a su nodo (un vecino ruidoso: otro pod que le roba CPU); todos apuntan al código, a Triton o a la carga. Y ¿coincide con un deploy? Entonces el <b>rollback</b> (volver a la versión anterior) va primero."
+    },
+    {
+     "code": "kubectl logs deploy/{deploy} -n {ns} --all-pods=true --since={ventana} | grep {request_id}\npy-spy dump --pid {pid}",
+     "note": "<b>Un caso concreto</b>: el <code>X-Request-ID</code> que devolvió la respuesta lleva a su línea de log, con <code>preprocess_ms</code>, <code>inference_ms</code> y el error. Y si el proceso parece trabado, <code>py-spy dump</code> muestra qué hace cada hilo en este momento."
+    }
+   ],
+   "formulas": [
+    "\\text{tasa}_{\\text{5xx}} = \\dfrac{\\text{5xx}}{\\text{total} - \\text{4xx}} > 1\\,\\% \\text{ durante 5 min} \\;\\Rightarrow\\; \\text{page}",
+    "W = \\dfrac{L}{\\lambda} = \\dfrac{16}{100\\ \\text{req/s}} = 160\\ \\text{ms}",
+    "t_{\\text{gateway}\\to\\text{Triton}} \\approx t_{\\text{red}} + t_{\\text{cola}} + t_{\\text{cómputo}} + t_{\\text{espera del loop}}"
+   ],
+   "vars": [
+    [
+     "{deploy}, {ns}",
+     "el Deployment y su namespace",
+     "gateway, classifier"
+    ],
+    [
+     "{ventana}",
+     "cuánto hacia atrás mirar",
+     "10m"
+    ],
+    [
+     "{request_id}",
+     "el X-Request-ID de la respuesta",
+     "un hex de 32 caracteres"
+    ],
+    [
+     "{pid}",
+     "el proceso de uvicorn",
+     "1 dentro del contenedor"
+    ],
+    [
+     "5xx, 4xx, total",
+     "requests por familia de código en classifier_requests_total; page = la alerta despierta a quien está de guardia",
+     "la alerta ClassifierHigh5xxRate de C01"
+    ],
+    [
+     "L",
+     "requests en vuelo en un pod",
+     "16 = MAX_INFLIGHT: el pod empieza a rechazar"
+    ],
+    [
+     "λ",
+     "requests por segundo que recibe ese pod",
+     "100"
+    ],
+    [
+     "W",
+     "tiempo promedio de cada request, por la ley de Little (en vuelo = tasa × tiempo) despejada",
+     "160 ms: algo se frenó"
+    ],
+    [
+     "t_red",
+     "serializar el tensor (602 KB) y la ida y vuelta por la red hasta el Triton de la zona",
+     "2–4 ms"
+    ],
+    [
+     "t_cola, t_cómputo",
+     "lo que mide Triton: espera en su cola y trabajo en la GPU",
+     "≤ 2 ms y 3–6 ms en el p50"
+    ],
+    [
+     "t_espera del loop",
+     "lo que tarda el event loop del gateway en volver a atender la respuesta",
+     "≈ 0 si nada lo bloquea"
+    ]
+   ],
+   "pieces": [
+    [
+     "503 gateway saturado: reintenta más tarde",
+     "El pod ya tenía 16 requests en vuelo (MAX_INFLIGHT) y rechazó sin leer el body.",
+     "kubectl get hpa (el autoscaler de pods) y el p99"
+    ],
+    [
+     "503 gateway saturado (CPU)",
+     "Ningún turno de decode libre en 50 ms: CPU del pod saturada.",
+     "classifier_preprocess_seconds y classifier_image_bytes"
+    ],
+    [
+     "503 Triton no disponible",
+     "Falla de red hacia Triton: conexión rechazada o reseteada, o DNS.",
+     "pods de Triton y sus endpoints"
+    ],
+    [
+     "503 Triton rechazó la inferencia: …",
+     "Triton respondió un error: modelo no cargado, o su cola lo rechazó (Request timeout expired).",
+     "el texto después de los dos puntos"
+    ],
+    [
+     "503 el modelo no está listo en Triton",
+     "Lo devuelve /readyz: el pod sale del ALB hasta que Triton esté listo.",
+     "kubectl events --types=Warning"
+    ],
+    [
+     "504 timeout de inferencia",
+     "Triton no respondió en min(150 ms, lo que quedaba del presupuesto).",
+     "cola contra cómputo en Triton"
+    ],
+    [
+     "504 se agotó el presupuesto del request",
+     "Los 250 ms se gastaron antes de llegar a Triton: body lento o decode lento.",
+     "image_bytes y preprocess_ms de esos requests"
+    ],
+    [
+     "413 · 415 · 400",
+     "Rechazos del cliente: más de 10 MB o de 40 MP; tipo no permitido; imagen rota o vacía.",
+     "el campo error de la línea JSON"
+    ],
+    [
+     "405 sin línea de log",
+     "FastAPI lo respondió antes de cualquier función (un GET a /v1/classify): no hay log ni métrica del gateway. El 422 sí deja línea en el C01, por su exception handler.",
+     "HTTPCode_Target_4XX_Count del ALB (el balanceador de AWS)"
+    ],
+    [
+     "500 sin campo error",
+     "Una excepción que no es HTTPException: un bug, o un cliente que se fue a mitad del upload.",
+     "Exception in ASGI application en kubectl logs"
+    ],
+    [
+     "502 Bad Gateway (HTML del ALB)",
+     "El ALB no pudo usar la conexión: el pod la cerró con un request pendiente, por un keep-alive más corto que el del ALB o por apagarse sin drenar.",
+     "--timeout-keep-alive y el apagado"
+    ],
+    [
+     "503 Service Temporarily Unavailable (HTML del ALB)",
+     "El ALB no tiene a quién mandar el request: todos los gateways quedaron NotReady (no listos), casi siempre porque Triton cayó.",
+     "kubectl get endpointslices -n classifier"
+    ],
+    [
+     "460 en los access logs del ALB",
+     "El cliente cerró la conexión antes de la respuesta (nginx lo anota como 499): su timeout es más corto que tu latencia.",
+     "latency_ms > 300 en los logs"
+    ]
+   ],
+   "example": {
+    "title": "C01: el runbook de ClassifierHighP99Latency, paso por paso",
+    "lang": "text",
+    "code": "# Runbook de ClassifierHighP99Latency (p99 > 200 ms durante 10 min): mitigar primero, entender después\n# 1) ¿Qué tramo subió? CPU del gateway o la llamada a Triton (PromQL)\nhistogram_quantile(0.99, sum by (le) (rate(classifier_preprocess_seconds_bucket[5m])))\nhistogram_quantile(0.99, sum by (le) (rate(classifier_inference_seconds_bucket[5m])))\n# Si es Triton: ¿espera en la cola o cómputo? (ms promedio por request)\nsum(rate(nv_inference_queue_duration_us{model=\"classifier\"}[5m]))\n  / sum(rate(nv_inference_request_success{model=\"classifier\"}[5m])) / 1000\n\n# 2) ¿Hubo deploy? Si coincide, rollback\nkubectl rollout history deploy/gateway -n classifier\nkubectl rollout history deploy/triton -n classifier\nkubectl rollout undo deploy/gateway -n classifier\n\n# 3) ¿KEDA llegó a su máximo (4 Triton)? Falta GPU\nkubectl get hpa -n classifier\n\n# 4) ¿Un solo caller manda de más? Su cuota, no más pods\nsum by (source) (rate(classifier_requests_total[5m]))\n\n# 5) ¿Todos los pods o uno?\nhistogram_quantile(0.99, sum by (le, pod) (rate(classifier_request_latency_seconds_bucket[5m])))",
+    "source": "Pasos 1 a 4 del runbook de ClassifierHighP99Latency (M12, runbooks) como consultas con los nombres de reference/c01 (gateway, monitoring/alerts.yml), más un paso 5 de alcance que agrega esta hoja; sin salidas",
+    "notes": [
+     "El orden sale del <b>runbook</b> de C01 en M12 (la receta escrita de qué hacer ante una alerta): tramo, deploy, capacidad y caller, sus pasos 1 a 4. El paso 5 (¿todos los pods o uno?) lo agrega esta hoja. Cada paso descarta una familia de causas con un vistazo.",
+     "Los dos histogramas del gateway parten el problema en dos: <code>classifier_preprocess_seconds</code> es CPU del gateway; <code>classifier_inference_seconds</code> es red + cola + cómputo de Triton, más la espera del event loop si está bloqueado.",
+     "Si el p99 subió justo después de un deploy, <code>rollout undo</code> va antes que entender: es reversible y corta el impacto. La causa la buscas después, con calma.",
+     "<code>sum by (source)</code> separa a los callers (mobile, web, internal y other): si creció uno solo, la respuesta es su cuota, no más pods.",
+     "<code>by (le, pod)</code>: si un solo pod tiene el p99 alto, sospecha de su nodo (un vecino ruidoso) antes que del código.",
+     "Lo que este runbook no ve: un 405 (FastAPI lo responde sin pasar por ninguna función) y lo que responde el ALB por su cuenta. Los 504 sí están: entran al histograma de inferencia con lo que esperaron. Para lo demás está la tabla de síntomas de arriba."
+    ]
+   },
+   "figure": {
+    "kind": "chain",
+    "caption": "El método, de izquierda a derecha. Cada paso descarta una familia de causas; mitiga apenas sepas lo suficiente (rollback, escalar, sacar un pod) y entiende después.",
+    "data": {
+     "steps": [
+      {
+       "label": "Síntoma con números",
+       "ask": "¿Qué código o qué percentil, cuánto y desde cuándo?",
+       "look": "classifier_requests_total por status · el p99 del histograma"
+      },
+      {
+       "label": "Código + detalle",
+       "ask": "¿Cuál de los 503 o de los 504?",
+       "look": "el campo error de la línea JSON"
+      },
+      {
+       "label": "Tramo",
+       "ask": "¿Preproceso (CPU) o Triton (red, cola, cómputo)?",
+       "look": "classifier_preprocess_seconds contra classifier_inference_seconds"
+      },
+      {
+       "label": "Alcance",
+       "ask": "¿Todos los pods o uno? ¿Coincide con un deploy?",
+       "look": "by (pod) · kubectl rollout history"
+      },
+      {
+       "label": "Un request",
+       "ask": "¿Qué le pasó a este request_id?",
+       "look": "kubectl logs … | grep ID"
+      },
+      {
+       "label": "El proceso por dentro",
+       "ask": "¿Qué hace el event loop ahora mismo?",
+       "look": "py-spy dump · PYTHONASYNCIODEBUG=1"
+      }
+     ],
+     "rule": "Mitigar primero, entender después."
+    }
+   },
+   "memo": "Cómo recordarla: <b>código → detalle → tramo → alcance → request → proceso</b>. El código dice qué familia; el campo <code>error</code>, cuál; los histogramas por tramo, dónde; <code>by (pod)</code> y el historial de deploys, a quién; el <code>request_id</code>, un caso concreto; py-spy, qué hace el proceso ahora.",
+   "trap": "Trampa: diagnosticar con un solo número, o con el promedio. “503” en C01 son cuatro causas distintas, y “504” son dos: Triton no contestó a tiempo (la línea trae <code>inference_ms</code> ≈ 150) o el presupuesto se agotó antes de llamarlo (sin <code>inference_ms</code>). Y no escales a ciegas: más pods no arreglan un event loop bloqueado ni un Triton lento.",
+   "lab": {
+    "goal": "Encontrar dos fallas escondidas en 3,000 líneas de log con el formato del C01 (datos simulados): qué es cada una, de qué pod viene y en qué tramo está.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway && cd ~/lab-gateway && cat > logs.py <<'EOF'\n\"\"\"Logs SIMULADOS con el formato del gateway del C01: una línea JSON por request, en 3 pods.\"\"\"\nimport json\nimport random\n\nrandom.seed(7)\nPODS = {\"gateway-x2k4p\": 1.0, \"gateway-q8n7d\": 3.0, \"gateway-7tq2m\": 1.0}  # el 3.0: CPU lenta\n\n\ndef linea(lento):\n    r = {\"event\": \"classify\", \"request_id\": f\"{random.getrandbits(128):032x}\",\n         \"model_version\": \"2026-09-01-resnet50-fp16\",\n         \"source\": random.choice([\"mobile\"] * 8 + [\"web\", \"internal\"])}\n    if r[\"source\"] == \"web\" and random.random() < 0.05:  # un cliente web manda multipart\n        r.update(error=\"Content-Type debe ser image/jpeg, image/png o image/webp\",\n                 status=415, latency_ms=0.3)\n        return r\n    r[\"image_bytes\"] = random.randint(150_000, 260_000)\n    if lento > 1 and random.random() < 0.06:  # sin slot de CPU en 50 ms\n        r.update(error=\"gateway saturado (CPU)\", status=503, latency_ms=51.2)\n        return r\n    pre = round(random.lognormvariate(1.9, 0.35) * lento, 1)  # ≈ 7 ms; × 3 en el pod lento\n    r.update(preprocess_ms=pre, image_sha256=f\"{random.getrandbits(64):016x}\")\n    if random.random() < 0.03:  # Triton lento: vence el timeout de 150 ms (C01 anota igual lo que esperó)\n        r.update(inference_ms=150.4, error=\"timeout de inferencia\", status=504, latency_ms=round(pre + 152, 1))\n        return r\n    inf = round(random.lognormvariate(2.1, 0.3), 1)  # ≈ 8 ms\n    r.update(inference_ms=inf, top_k=[[412, 0.83], [87, 0.07], [3, 0.04], [250, 0.02], [9, 0.01]],\n             status=200, latency_ms=round(pre + inf + random.uniform(2, 6), 1))\n    return r\n\n\nfor pod, lento in PODS.items():\n    with open(f\"{pod}.log\", \"w\", encoding=\"utf-8\") as f:\n        for _ in range(1000):\n            f.write(json.dumps(linea(lento), ensure_ascii=False) + \"\\n\")\nprint(\"listo: 3 archivos, 1,000 líneas cada uno (datos simulados)\")\nEOF",
+      "expect": "Sin salida. logs.py escribe logs SIMULADOS con el formato de main.py: una línea JSON por request, en 3 pods, con dos problemas escondidos."
+     },
+     {
+      "cmd": "python3 logs.py && head -n 1 gateway-x2k4p.log",
+      "expect": "listo: 3 archivos, 1,000 líneas cada uno (datos simulados) y una línea como {\"event\": \"classify\", \"request_id\": \"6513270e…\", …, \"preprocess_ms\": 8.3, …, \"inference_ms\": 7.0, …, \"status\": 200, \"latency_ms\": 19.0}. No trae hora: en el cluster la agrega el runtime del contenedor."
+     },
+     {
+      "cmd": "cat gateway-*.log | grep -o '\"status\": [0-9]*' | sort | uniq -c",
+      "expect": "2826 \"status\": 200, 15 \"status\": 415, 68 \"status\": 503 y 91 \"status\": 504. Paso 1 del método: qué códigos y cuántos."
+     },
+     {
+      "cmd": "cat gateway-*.log | jq -r 'select(.status >= 500) | \"\\(.status) \\(.error)\"' | sort | uniq -c",
+      "expect": "68 503 gateway saturado (CPU) y 91 504 timeout de inferencia: dos problemas distintos, no uno."
+     },
+     {
+      "cmd": "grep -c '\"status\": 503' gateway-*.log; grep -c '\"status\": 504' gateway-*.log",
+      "expect": "Los 503 vienen todos de gateway-q8n7d.log (68; los otros, 0). Los 504 están repartidos: 31, 35 y 25. Un pod con problemas propios, y algo aguas abajo que afecta a todos."
+     },
+     {
+      "cmd": "for f in gateway-*.log; do echo \"$f $(jq -s '[.[].preprocess_ms | numbers] | sort | .[(length * 0.99 | floor)]' $f) $(jq -s '[.[].inference_ms | numbers] | sort | .[(length * 0.99 | floor)]' $f)\"; done",
+      "expect": "El p99 de preprocess_ms y de inference_ms por pod: gateway-7tq2m.log 16.0 150.4, gateway-q8n7d.log 43.5 150.4 y gateway-x2k4p.log 14.3 150.4. El pod de los 503 tarda ≈ 3× más en CPU. En la inferencia, los tres dan 150.4: los 504 entran con lo que esperaron y, como son más del 1 % en cada pod, se quedan con el p99. Si filtras solo los 200 (select(.status == 200)), vuelven a 15.9, 16.9 y 16.9: cuando Triton contesta, contesta rápido."
+     },
+     {
+      "cmd": "grep -h 0c1f76327efa51a2e18be6462acb4931 gateway-*.log | jq -c '{status, error, image_bytes, preprocess_ms, latency_ms}'",
+      "expect": "{\"status\":503,\"error\":\"gateway saturado (CPU)\",\"image_bytes\":233074,\"preprocess_ms\":null,\"latency_ms\":51.2}: un request concreto, encontrado por su ID. Esperó un turno de CPU 50 ms y se rindió; nunca llegó a decodificar."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Los 503 de un solo pod con el preproceso lento apuntan a su nodo: compara kubectl top pod, mira el nodo con kubectl describe node y, si es un vecino ruidoso, márcalo con kubectl cordon (no recibe pods nuevos) y borra ese pod: el Deployment lo recrea en otro nodo. Los 504 repartidos apuntan a Triton: cola contra cómputo. Y los 415 vienen todos de source web: un cliente que manda multipart.",
+    "needs": "Una terminal de macOS con python3 (sirve hasta el 3.9 del sistema) y jq (en macOS reciente ya viene en /usr/bin/jq; si no, brew install jq).",
+    "verified": "executed",
+    "verified_note": "Ejecutado con Python 3.14.3, 3.13.16 y 3.9.6 (los tres generan los mismos archivos, byte a byte) y jq 1.7.1 de macOS; los logs son simulados con el formato de main.py."
+   },
+   "links": [
+    "#c01.fallas",
+    "#c01.monitoreo",
+    "#m12.runbooks",
+    "#m12.prometheus-grafana",
+    "#m03.timeouts-reintentos",
+    "#ref-comandos.depurar"
+   ]
+  },
+  {
+   "id": "errores",
+   "num": 13,
+   "title": "Errores que debes reconocer rápido",
+   "question": "Lees el mensaje: ¿quién lo dijo (tu app, uvicorn, el cliente HTTP, asyncio, Kubernetes o el ALB), qué significa y qué corres primero?",
+   "templates": [
+    {
+     "code": "{\"detail\":[{\"type\":\"{tipo}\",\"loc\":[\"{lugar}\",\"{campo}\"],\"msg\":\"{mensaje}\",\"input\":{valor},\"ctx\":{\"{limite}\":{n}}}]}",
+     "note": "Un <b>422</b> de FastAPI: la validación rechazó el request y tu función ni corrió. <code>loc</code> dice dónde (query, path, header o body) y qué campo; <code>input</code>, lo que llegó; <code>ctx</code>, el límite que no se cumplió."
+    },
+    {
+     "code": "{\"detail\":\"{mensaje}\"}",
+     "note": "Un <code>HTTPException</code>: lo decidió tu código (o FastAPI, como <code>Not Found</code>). En C01, el mensaje dice cuál de los 503 o de los 504 es."
+    },
+    {
+     "code": "{N} validation error for {Modelo}\n{campo}\n  {mensaje} [type={tipo}, input_value={valor}, input_type={tipo_py}]",
+     "note": "Un <code>ValidationError</code> de Pydantic dentro de tu código, no en el request: el cliente recibe un 500, no un 422."
+    },
+    {
+     "code": "{NIVEL}:    {mensaje}",
+     "note": "Una línea de uvicorn (INFO, WARNING o ERROR): arranque, apagado, el puerto, <code>Exception in ASGI application</code>."
+    },
+    {
+     "code": "{modulo}.{Excepcion}: {mensaje}",
+     "note": "La última línea de un <b>traceback</b> (la lista de llamadas que llevó al error): la excepción y su texto. Así hablan aiohttp, tritonclient, httpx y asyncio; las líneas de arriba dicen en qué línea de tu código pasó."
+    }
+   ],
+   "vars": [
+    [
+     "{tipo}",
+     "el código del error de Pydantic",
+     "greater_than_equal, missing, int_parsing"
+    ],
+    [
+     "{lugar}",
+     "dónde venía el dato",
+     "query, path, header, body"
+    ],
+    [
+     "{campo}",
+     "el campo con problema",
+     "top_k"
+    ],
+    [
+     "{mensaje}",
+     "el texto del error",
+     "Input should be greater than or equal to 1"
+    ],
+    [
+     "{valor}",
+     "lo que llegó; en query y headers, siempre texto",
+     "\"0\""
+    ],
+    [
+     "{limite}, {n}",
+     "la regla que no se cumplió",
+     "ge, 1"
+    ],
+    [
+     "{N}, {Modelo}",
+     "cuántos errores (desde 2 dice errors) y en qué modelo de Pydantic",
+     "1, Prediccion"
+    ],
+    [
+     "{tipo_py}",
+     "el tipo de Python de lo que llegó",
+     "str"
+    ],
+    [
+     "{NIVEL}",
+     "la gravedad del log de uvicorn",
+     "INFO, WARNING, ERROR"
+    ],
+    [
+     "{modulo}.{Excepcion}",
+     "quién la lanzó",
+     "tritonclient.utils.InferenceServerException, httpx.ReadTimeout"
+    ]
+   ],
+   "pieces": [
+    [
+     "422 {\"detail\":[…]}",
+     "FastAPI validó el request y lo rechazó: tu función no corrió.",
+     "top_k=0"
+    ],
+    [
+     "{\"detail\":\"…\"}",
+     "Un HTTPException: tu código eligió el código y el texto.",
+     "gateway saturado (CPU)"
+    ],
+    [
+     "Internal Server Error (texto plano)",
+     "Una excepción que nadie atrapó; el detalle está en el log, no en la respuesta.",
+     "Exception in ASGI application"
+    ],
+    [
+     "… validation error for …",
+     "Pydantic rechazó datos al crear un modelo dentro de tu código: es un 500, no un 422. Si falla el response_model, FastAPI lo dice con otro texto: ResponseValidationError, también 500.",
+     "[type=float_parsing, …]"
+    ],
+    [
+     "ERROR: · WARNING: · INFO:",
+     "uvicorn hablando: arranque, apagado, el puerto, requests inválidos.",
+     "Error loading ASGI app."
+    ],
+    [
+     "aiohttp.ClientError",
+     "La familia de errores de red de aiohttp, que usa tritonclient.http.aio; C01 la traduce a 503.",
+     "ClientConnectorError"
+    ],
+    [
+     "InferenceServerException: [código] mensaje",
+     "Triton respondió un error; entre corchetes, el código HTTP que mandó Triton: 400 es tu request, 404 un modelo que no conoce, 503 capacidad o estado.",
+     "[404] Request for unknown model…"
+    ],
+    [
+     "httpx.TimeoutException",
+     "Si tu gateway usa httpx (C01 no): venció uno de sus cuatro timeouts (connect, read, write, pool), 5 s cada uno por defecto.",
+     "ReadTimeout, PoolTimeout"
+    ],
+    [
+     "httpx.NetworkError · ProtocolError",
+     "Si usas httpx: no hubo conexión (ConnectError) o el servidor cortó o violó el protocolo (RemoteProtocolError).",
+     "Server disconnected without sending a response."
+    ],
+    [
+     "RuntimeWarning · RuntimeError de asyncio",
+     "Uso incorrecto del event loop: una corrutina sin await, un loop cerrado o ajeno.",
+     "Event loop is closed"
+    ],
+    [
+     "Readiness probe failed",
+     "El kubelet (el agente de Kubernetes en cada nodo) no pudo confirmar que el pod está listo (readiness): el pod sale del ALB, el balanceador de AWS.",
+     "HTTP probe failed with statuscode: 503"
+    ],
+    [
+     "502 · 503 · 504 en HTML",
+     "Lo respondió el ALB, no tu app: no aparece en tus logs.",
+     "502 Bad Gateway"
+    ],
+    [
+     "FAILED … AssertionError",
+     "pytest: un assert no se cumplió; abajo muestra los valores comparados.",
+     "assert 200 == 504"
+    ]
+   ],
+   "example": {
+    "title": "Tres errores provocados con Python 3.13, la versión del contenedor del C01",
+    "lang": "text",
+    "code": "$ python3.13 -c 'import asyncio\nasync def infer(): return [0.1, 0.9]\nasync def main(): infer()\nasyncio.run(main())'\n<string>:3: RuntimeWarning: coroutine 'infer' was never awaited\nRuntimeWarning: Enable tracemalloc to get the object allocation traceback\n\n$ python3.13 -c 'import json; json.dumps({\"score\": float(\"nan\")}, allow_nan=False)'\nTraceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n  …\nValueError: Out of range float values are not JSON compliant: nan\n\n$ python3.13 -c 'import asyncio\nfrom unittest.mock import MagicMock\nasync def classify(client): return await client.infer()\nasyncio.run(classify(MagicMock()))'\nTraceback (most recent call last):\n  …\n  File \"<string>\", line 3, in classify\n    async def classify(client): return await client.infer()\n                                       ^^^^^^^^^^^^^^^^^^^^\nTypeError: object MagicMock can't be used in 'await' expression",
+    "source": "Salidas reales con Python 3.13.15 en macOS; … marca líneas omitidas del traceback",
+    "notes": [
+     "Lee de abajo hacia arriba: la última línea es la excepción y su texto; la primera línea con <code>File</code> que apunta a tu código dice dónde. Las de en medio suelen ser de librerías.",
+     "Un <code>RuntimeWarning</code> no detiene nada: la corrutina sin await simplemente no corre y el programa termina bien. Por eso es peligrosa: no hay 500, solo falta trabajo (una inferencia, un log, una métrica).",
+     "<code>: nan</code> al final aparece desde Python 3.12 (también en 3.13 y 3.14); en 3.11 o antes, el mensaje termina en <code>compliant</code>. Y el de MagicMock cambió en 3.14 a <code>'MagicMock' object can't be awaited</code>: busca por la parte estable del mensaje.",
+     "Quién habla: <code>{\"detail\": …}</code> en JSON es tu app (FastAPI); <code>Internal Server Error</code> en texto plano es un 500 que nadie atrapó; <code>ERROR:</code> o <code>INFO:</code> es uvicorn; <code>Readiness probe failed</code> es el kubelet; una página HTML de 502 o 503 es el ALB. En C01 traen <code>X-Request-ID</code> las respuestas que arma <code>classify</code> y los 422, que pasan por su exception handler; un 500 sin atrapar, no."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Quiz: el mensaje tal como lo ves; responde quién lo dijo, qué significa, qué corres primero y en qué sección está.",
+    "data": {}
+   },
+   "memo": "Cómo recordarla: <b>quién habla dice dónde mirar</b>. JSON con <code>detail</code> es tu app; <code>ERROR:</code> o <code>INFO:</code> es uvicorn; <code>aiohttp</code>, <code>InferenceServerException</code> o <code>httpx.</code> es la llamada al servidor de modelos; <code>RuntimeWarning</code> y <code>RuntimeError</code> de asyncio son el event loop; <code>Warning … probe failed</code> es el kubelet; HTML es el ALB.",
+   "trap": "Trampa: buscar el texto exacto sin mirar la versión. Python 3.13 cambió los nombres de los códigos (la línea de estado dice <code>413 Content Too Large</code> y <code>422 Unprocessable Content</code>; antes, <code>Request Entity Too Large</code> y <code>Unprocessable Entity</code>), 3.14 cambió el texto de MagicMock, Pydantic v2 cambió todos sus mensajes (<code>value is not a valid integer</code> pasó a <code>Input should be a valid integer…</code>) y pytest 8.4 convirtió el aviso de los tests async en una falla. Busca por la parte estable: el tipo de excepción y las palabras clave.",
+   "lab": {
+    "goal": "Reconocer los 26 mensajes en 5 minutos y provocar cinco de verdad con Python: una corrutina sin await, un loop cerrado, NaN en JSON, un MagicMock con await y un puerto ocupado.",
+    "steps": [
+     {
+      "cmd": "ronda() { printf '%s\\n' 'Error loading ASGI app. Could not import module \"app.main\".' \"AttributeError: 'State' object has no attribute 'inflight'\" \"RuntimeWarning: coroutine 'infer' was never awaited\" 'RuntimeError: Event loop is closed' '{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"top_k\"],\"msg\":\"Input should be greater than or equal to 1\",\"input\":\"0\",\"ctx\":{\"ge\":1}}]}' \"ValidationError: 1 validation error for Prediccion · score · Input should be a valid number, unable to parse string as a number [type=float_parsing, input_value='alto', input_type=str]\" 'Cannot connect to host triton.classifier.svc.cluster.local:8000 · httpx.ConnectError: All connection attempts failed' 'httpx.RemoteProtocolError: Server disconnected without sending a response.' \"tritonclient.utils.InferenceServerException: [404] Request for unknown model: 'classifier' is not found\" 'httpx.ReadTimeout' 'httpx.PoolTimeout' '503 {\"detail\":\"gateway saturado: reintenta más tarde\"} · Retry-After: 1' 'Triton rechazó la inferencia: Request timeout expired' 'ValueError: Out of range float values are not JSON compliant: nan' 'Internal Server Error · Exception in ASGI application' 'Readiness probe failed: HTTP probe failed with statuscode: 503' 'Shutting down · Waiting for connections to close. (CTRL+C to force quit)' 'TypeError: Object of type float32 is not JSON serializable' \"prometheus_client.registry.DuplicateTimeseries: Duplicated timeseries in CollectorRegistry: {'classifier_requests_total', …}\" \"TypeError: object MagicMock can't be used in 'await' expression\" 'async def functions are not natively supported.' 'RuntimeError: The starlette.testclient module requires the httpx2 package to be installed.' \"Executing <Task pending name='Task-3' coro=<request() running at carga.py:30> … took 0.182 seconds\" '502 Bad Gateway' \"[Errno 48] error while attempting to bind on address ('127.0.0.1', 8080): [errno 48] address already in use\" 'starlette.requests.ClientDisconnect' | sort -R | head -5; }; ronda",
+      "expect": "Cinco mensajes al azar. Para cada uno, en menos de 30 s y en voz alta: quién lo dijo (tu app, uvicorn, el cliente, asyncio, el kubelet o el ALB), la causa probable y el primer comando. Después compáralo con la lista."
+     },
+     {
+      "cmd": "ronda",
+      "expect": "Otra ronda de cinco. Repite hasta completar 5 minutos; la meta es 5 de 5 sin mirar."
+     },
+     {
+      "cmd": "python3 -c 'import asyncio\nasync def infer(): return [0.1, 0.9]\nasync def main(): infer()\nasyncio.run(main())'",
+      "expect": "<string>:3: RuntimeWarning: coroutine 'infer' was never awaited y RuntimeWarning: Enable tracemalloc to get the object allocation traceback. El programa termina bien: el aviso no frena nada, y la inferencia nunca corrió."
+     },
+     {
+      "cmd": "python3 -c 'import asyncio\nasync def crear(): return asyncio.get_running_loop()\nloop = asyncio.run(crear())\nloop.call_soon(print)'",
+      "expect": "Un traceback que termina en RuntimeError: Event loop is closed. asyncio.run cerró su loop al terminar, y algo lo quiso usar después: lo mismo le pasa a un cliente async creado en un loop y usado en otro."
+     },
+     {
+      "cmd": "python3 -c 'import json; json.dumps({\"score\": float(\"nan\")}, allow_nan=False)'",
+      "expect": "Un traceback que termina en ValueError: Out of range float values are not JSON compliant: nan (Python 3.14 agrega una línea más: when serializing dict item 'score'). JSONResponse de Starlette usa allow_nan=False: en una ruta sin response_model, como classify, un NaN en la respuesta es un 500. Por eso el C01 revisa los logits antes y responde su propio 500, que sí queda en la línea y en la métrica."
+     },
+     {
+      "cmd": "python3 -c 'import asyncio\nfrom unittest.mock import MagicMock\nasync def classify(client): return await client.infer()\nasyncio.run(classify(MagicMock()))'",
+      "expect": "Con Python 3.13: TypeError: object MagicMock can't be used in 'await' expression. Con 3.14: TypeError: 'MagicMock' object can't be awaited. Mismo error, otro texto."
+     },
+     {
+      "cmd": "python3 -c 'import asyncio\nasync def main():\n    await asyncio.start_server(lambda r, w: None, \"127.0.0.1\", 18080)\n    await asyncio.start_server(lambda r, w: None, \"127.0.0.1\", 18080)\nasyncio.run(main())'",
+      "expect": "OSError: [Errno 48] error while attempting to bind on address ('127.0.0.1', 18080): [errno 48] address already in use. Es lo que uvicorn imprime como ERROR al arrancar con el puerto ocupado y el loop de asyncio; con uvloop sale sin el [errno 48] del medio. En Linux, Errno 98."
+     }
+    ],
+    "fix": "Los que fallaste: abre la sección de su tema (el enlace de la lista) y haz su laboratorio. Repite la ronda otro día: la meta es 5 de 5 en menos de 2 minutos.",
+    "needs": "Una terminal de macOS con python3 3.13 o 3.14 (el de Homebrew): con versiones anteriores cambian algunos textos. Nada que instalar.",
+    "verified": "executed",
+    "verified_note": "Los pasos 3 a 7 se ejecutaron con Python 3.13.15 y 3.14.3 en macOS; donde el texto cambia entre versiones, el paso lo dice."
+   },
+   "links": [
+    "#c01.serving",
+    "#c01.fallas",
+    "#ref-comandos.depurar",
+    "#m15.degradacion"
+   ]
+  }
+ ],
+ "diagnosticador": [
+  {
+   "id": "p99-gpu-ociosa",
+   "symptom": "El p99 del gateway sube, pero la GPU trabaja poco y Triton responde rápido.",
+   "first": "histogram_quantile(0.99, sum by (le) (rate(classifier_preprocess_seconds_bucket[5m])))",
+   "causes": [
+    {
+     "cause": "Preproceso en CPU: llegaron fotos más grandes (la web empezó a mandar originales de 12 MP) o faltan pods. Sube classifier_preprocess_seconds; el cómputo de Triton no.",
+     "check": "histogram_quantile(0.99, sum by (le) (rate(classifier_image_bytes_bucket[5m]))) · kubectl top pod -n classifier -l app.kubernetes.io/name=gateway",
+     "fix": "Downscale a ≤ 1024 px en el cliente y draft mode (ya está en preprocess.py); si es volumen, más pods con el HPA, no más hilos."
+    },
+    {
+     "cause": "El event loop está bloqueado: CPU o I/O síncrono dentro de un async def. Todo se frena a la vez, incluso la medición: classifier_inference_seconds crece aunque Triton esté rápido, porque la respuesta espera a que el loop la atienda.",
+     "check": "py-spy dump --pid PID (en local; en el cluster necesita el permiso SYS_PTRACE) · PYTHONASYNCIODEBUG=1 uvicorn app.main:app --port 8080 --loop asyncio (en local: avisa Executing <Task …> took …)",
+     "fix": "await solo para el I/O; la CPU, a run_in_threadpool con un semáforo, como C01. Nada de requests ni time.sleep dentro de async def."
+    },
+    {
+     "cause": "CPU throttling: un limits.cpu en el pod lo frena en ventanas de 100 ms y mete picos de p99 aunque la CPU promedio sea baja. C01 no pone límite de CPU a propósito.",
+     "check": "rate(container_cpu_cfs_throttled_periods_total{namespace=\"classifier\", container=\"gateway\"}[5m]) / rate(container_cpu_cfs_periods_total{namespace=\"classifier\", container=\"gateway\"}[5m])",
+     "fix": "Sin límite de CPU en el gateway, solo el request (1 en C01), o un límite holgado."
+    },
+    {
+     "cause": "La espera está entre el gateway y Triton: el Triton de otra zona o el pool de conexiones lleno. Triton mide cola y cómputo bajos, pero el gateway ve la llamada lenta.",
+     "check": "histogram_quantile(0.99, sum by (le) (rate(classifier_inference_seconds_bucket[5m]))) · sum(rate(nv_inference_compute_infer_duration_us{model=\"classifier\"}[5m])) / sum(rate(nv_inference_request_success{model=\"classifier\"}[5m])) / 1000 contra la cola (la misma división con nv_inference_queue_duration_us)",
+     "fix": "Cada gateway al Triton de su zona (trafficDistribution: PreferSameZone) y los requests en vuelo por pod (16) por debajo de conn_limit (64)."
+    }
+   ]
+  },
+  {
+   "id": "rafagas-503",
+   "symptom": "Ráfagas de 503 en /v1/classify.",
+   "first": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=10m | grep -o '\"error\": \"[^\"]*\"' | sort | uniq -c",
+   "causes": [
+    {
+     "cause": "gateway saturado: reintenta más tarde: el pod llegó a 16 requests en vuelo (MAX_INFLIGHT). Por Little, 16 en vuelo a 100 req/s son 160 ms por request: algo se frenó, o llegó más tráfico del que el HPA (el autoscaler de pods) alcanzó a cubrir.",
+     "check": "kubectl get hpa gateway -n classifier (¿está en 12, su máximo?) · histogram_quantile(0.99, sum by (le) (rate(classifier_request_latency_seconds_bucket[5m])))",
+     "fix": "Si el HPA topó, sube el máximo; si creció la latencia, busca el tramo (preproceso o Triton) antes de tocar el límite."
+    },
+    {
+     "cause": "gateway saturado (CPU): ningún turno de decode libre en 50 ms. La CPU del pod está llena: fotos grandes o pocos pods.",
+     "check": "kubectl top pod -n classifier -l app.kubernetes.io/name=gateway · histogram_quantile(0.99, sum by (le) (rate(classifier_preprocess_seconds_bucket[5m])))",
+     "fix": "Más pods (HPA por CPU al 60 %) y fotos más chicas desde el cliente. No subas PREPROCESS_CONCURRENCY sin subir la memoria (≈ 320 MB por decode de 40 MP)."
+    },
+    {
+     "cause": "Triton no disponible o Triton rechazó la inferencia: …: Triton caído o reiniciando (error de red), el modelo no cargado, o su cola rechazó el request a los 100 ms (Request timeout expired: GPU saturada).",
+     "check": "kubectl get pods -n classifier -l app.kubernetes.io/name=triton · kubectl logs deploy/gateway -n classifier --all-pods=true --since=10m | grep -o 'Triton rechazó la inferencia: [^\"]*' | sort | uniq -c",
+     "fix": "Caído: mira por qué reinicia (kubectl logs --previous). Request timeout expired: falta GPU (KEDA en su máximo de 4) o un caller manda de más."
+    },
+    {
+     "cause": "503 Service Temporarily Unavailable en HTML: lo respondió el ALB (el balanceador de AWS) y no llegó a ningún gateway. Todos quedaron NotReady (no listos) porque su /readyz depende de Triton.",
+     "check": "kubectl get endpointslices -n classifier -l kubernetes.io/service-name=gateway · aws cloudwatch get-metric-statistics --namespace AWS/ApplicationELB --metric-name HTTPCode_ELB_5XX_Count --dimensions Name=LoadBalancer,Value=app/NOMBRE/ID --statistics Sum --period 300 --start-time INICIO --end-time FIN (o la misma métrica en la consola de CloudWatch)",
+     "fix": "Arregla Triton (la alerta TritonNotReady). Es la caída que C01 acepta a propósito: el caller cae al selector manual."
+    }
+   ]
+  },
+  {
+   "id": "lluvia-422",
+   "symptom": "Una lluvia de 422.",
+   "first": "curl -s -X POST \"localhost:8080/v1/classify?top_k=0\" -H \"Content-Type: image/jpeg\" --data-binary @foto.jpg (en local, o con kubectl port-forward -n classifier deploy/gateway 8080:8080)",
+   "causes": [
+    {
+     "cause": "El cliente manda top_k fuera de 1–20, o algo que no es un número. FastAPI lo rechaza antes de tu función: loc dice [\"query\",\"top_k\"] y msg, la regla.",
+     "check": "curl -s -X POST \"localhost:8080/v1/classify?top_k=0\" -H \"Content-Type: image/jpeg\" --data-binary @foto.jpg | jq -c '.detail[] | {type, loc, msg, input}' (con el top_k que manda el cliente)",
+     "fix": "Arregla el cliente; si cambió el contrato, versiona (/v2) en vez de romper /v1."
+    },
+    {
+     "cause": "Si no ves sus líneas, la app no tiene un handler para el 422: FastAPI lo responde antes de tu función y, con --no-access-log, no queda rastro. El C01 sí lo tiene: cada 422 deja su línea, con el error, y cuenta en classifier_requests_total{status=\"422\"}.",
+     "check": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=1h | sed 's/^[^{]*//' | jq -rR 'fromjson? | select(.status == 422) | .error' | sort | uniq -c · en una app sin handler: aws cloudwatch get-metric-statistics --namespace AWS/ApplicationELB --metric-name HTTPCode_Target_4XX_Count --dimensions Name=LoadBalancer,Value=app/NOMBRE/ID --statistics Sum --period 300 --start-time INICIO --end-time FIN · sum(increase(classifier_requests_total{status=~\"4..\"}[5m])) en Prometheus: si el ALB cuenta más 4xx de target, la diferencia son los 4xx sin línea",
+     "fix": "Un exception handler para RequestValidationError que escriba la línea (con request_id) y cuente el 422, y después llame al handler por defecto de FastAPI: es lo que hace validation_error en el main.py del C01."
+    },
+    {
+     "cause": "En endpoints con un modelo de Pydantic en el body (no es el caso de C01): JSON mal formado (json_invalid), un campo que falta (missing: Field required) o, desde FastAPI 0.132, un JSON enviado sin un Content-Type de JSON.",
+     "check": "curl -s -X POST localhost:8080/RUTA -H \"Content-Type: application/json\" -d @body.json | jq -c '.detail[] | {type, loc, msg}' · curl -s -X POST localhost:8080/RUTA -d @body.json (sin el -H: si solo así da 422, falta el Content-Type)",
+     "fix": "Arregla el cliente y agrega un test por cada 422 esperado, como test_top_k_out_of_range_is_422."
+    }
+   ]
+  },
+  {
+   "id": "loop-bloqueado",
+   "symptom": "Todos los requests se frenan a la vez, hasta /healthz, y la CPU no está llena.",
+   "first": "curl -s -o /dev/null -w '%{http_code} %{time_total}\\n' localhost:8080/healthz (con kubectl port-forward -n classifier deploy/gateway 8080:8080)",
+   "causes": [
+    {
+     "cause": "Trabajo de CPU dentro de un async def: decode, resize, model(x), un json.dumps enorme. Mientras corre, el loop no atiende a nadie.",
+     "check": "py-spy dump --pid PID (el hilo principal aparece dentro de Pillow o de tu función, no esperando I/O) · PYTHONASYNCIODEBUG=1 uvicorn app.main:app --port 8080 --loop asyncio (en local)",
+     "fix": "run_in_threadpool (o asyncio.to_thread) para la CPU, con un semáforo."
+    },
+    {
+     "cause": "I/O síncrono dentro de un async def: requests.get, time.sleep, un cliente síncrono de base de datos o de S3 (boto3), leer un archivo grande.",
+     "check": "py-spy dump --pid PID (el stack termina en requests, socket o time.sleep debajo de tu endpoint)",
+     "fix": "La versión async del cliente (aiohttp, httpx.AsyncClient), o declara el endpoint con def: FastAPI lo corre en el threadpool."
+    },
+    {
+     "cause": "Una espera síncrona dentro de un async def: future.result(), un threading.Lock o queue.get() que esperan a otro hilo. El loop queda parado sin gastar CPU. (Si solo se frenan los endpoints def y /healthz sigue rápido, es otra cosa: los 40 hilos del threadpool ocupados por endpoints def lentos.)",
+     "check": "py-spy dump --pid PID (MainThread, el hilo del loop, sale idle y parado en result, get o wait de threading.py: espera a otro hilo)",
+     "fix": "Espera con await: asyncio.wrap_future(fut), asyncio.Lock o asyncio.Queue. Para correr algo en un hilo, await run_in_threadpool(...) en vez de lanzarlo y esperar su .result()."
+    }
+   ]
+  },
+  {
+   "id": "memoria-crece",
+   "symptom": "La memoria del pod crece hasta OOMKilled (exit 137).",
+   "first": "kubectl top pod -n classifier -l app.kubernetes.io/name=gateway --containers",
+   "causes": [
+    {
+     "cause": "Demasiados decodes a la vez: sin semáforo, el threadpool (40 hilos) decodifica 40 fotos juntas, y un PNG de 40 MP ocupa ≈ 320 MB al decodificarse.",
+     "check": "grep -n -A1 PREPROCESS_CONCURRENCY k8s/gateway.yaml · grep -n \"memory:\" k8s/gateway.yaml (2 × 320 MB + ≈ 80 MB de Python < 1Gi)",
+     "fix": "Un semáforo por proceso (2 en C01) y el tope de 40 MP antes de decodificar."
+    },
+    {
+     "cause": "Bodies en vuelo: cada request guarda hasta 10 MB mientras espera. 16 en vuelo son 160 MB; sin un tope, una ráfaga junta cientos.",
+     "check": "grep -nE \"^(MAX_INFLIGHT|MAX_BYTES) \" app/main.py (16 × 10 MB = 160 MB contra 1Gi)",
+     "fix": "Un tope de requests en vuelo por pod y el tope de 10 MB por request."
+    },
+    {
+     "cause": "Clientes que no se cierran o caches sin límite: un cliente HTTP creado por request (aiohttp avisa Unclosed client session) o un dict o lru_cache(maxsize=None) por hash de imagen.",
+     "check": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=1h | grep -c 'Unclosed client session' · python -X tracemalloc -m uvicorn app.main:app --port 8080 (en local; en el código, dos tracemalloc.take_snapshot() y snapshot.compare_to(anterior, 'lineno'))",
+     "fix": "Un cliente por proceso, creado en el lifespan y cerrado al apagar, como el de Triton en C01; caches con maxsize."
+    },
+    {
+     "cause": "Labels de métricas sin límite: un label con request_id o con un header libre crea una serie nueva por valor, en el proceso y en Prometheus.",
+     "check": "curl -s localhost:8080/metrics | wc -l (¿crece sin parar?)",
+     "fix": "Labels con valores acotados: C01 convierte x-client-source a mobile, web, internal u other."
+    }
+   ]
+  },
+  {
+   "id": "timeouts-triton",
+   "symptom": "Muchos 504 timeout de inferencia.",
+   "first": "sum(rate(nv_inference_queue_duration_us{model=\"classifier\"}[5m])) / sum(rate(nv_inference_request_success{model=\"classifier\"}[5m])) / 1000",
+   "causes": [
+    {
+     "cause": "GPU saturada: la cola de Triton crece y KEDA (el autoscaler de Triton) ya está en su máximo (4 réplicas), o los pods nuevos tardan minutos en llegar.",
+     "check": "kubectl get hpa -n classifier (el HPA que crea KEDA: ¿REPLICAS en 4, su máximo?) · kubectl get scaledobject triton -n classifier",
+     "fix": "Más capacidad (el máximo de KEDA, cuota de GPU) o menos carga (cuota por caller). Mientras, el 504 rápido es la degradación esperada."
+    },
+    {
+     "cause": "El presupuesto se gastó antes: si el body o el preproceso tardaron, a Triton le queda menos de 150 ms (usa min(150 ms, lo que queda)). Las fotos grandes vencen más.",
+     "check": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=10m | grep 'timeout de inferencia' (mira image_bytes y preprocess_ms)",
+     "fix": "Fotos más chicas desde el cliente y draft mode. No subas el timeout por encima del presupuesto: el caller abandona a los 300 ms."
+    },
+    {
+     "cause": "Subió el cómputo: un engine nuevo, otro tamaño de batch, o la GPU bajando clocks por temperatura.",
+     "check": "sum(rate(nv_inference_compute_infer_duration_us{model=\"classifier\"}[5m])) / sum(rate(nv_inference_request_success{model=\"classifier\"}[5m])) / 1000 contra la semana pasada · kubectl rollout history deploy/triton -n classifier",
+     "fix": "Si coincide con un deploy de Triton, rollback; si son los clocks, revisa temperatura y tope de potencia (hoja de Triton)."
+    },
+    {
+     "cause": "El event loop del gateway bloqueado: la respuesta de Triton llega a tiempo, pero el loop la atiende tarde y vence el wait_for.",
+     "check": "py-spy dump --pid PID · curl -s -o /dev/null -w '%{time_total}\\n' localhost:8080/healthz (¿también lento?)",
+     "fix": "Saca la CPU del loop (run_in_threadpool)."
+    }
+   ]
+  },
+  {
+   "id": "desconexiones",
+   "symptom": "Clientes que cortan: 460 en el ALB y 499 en el gateway (en una app que no lo atrapa, 500 sin campo error en los uploads grandes).",
+   "first": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=1h | grep -c '\"status\": 499'",
+   "causes": [
+    {
+     "cause": "El caller se rindió antes: su timeout (300 ms en C01) es más corto que lo que tardas. El ALB lo anota como 460 en sus access logs, y el gateway sigue trabajando y loguea una respuesta que nadie recibió.",
+     "check": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=1h | sed 's/^[^{]*//' | jq -cR 'fromjson? | select(.latency_ms > 300) | {request_id, status, latency_ms}'",
+     "fix": "Deadline del gateway menor que el timeout del caller (250 < 300 en C01): si se agota entre etapas, el gateway corta con 504 en vez de seguir trabajando para nadie."
+    },
+    {
+     "cause": "El cliente cortó a mitad del upload (red móvil lenta, foto grande): request.stream() lanza ClientDisconnect. El C01 lo atrapa al leer el body y lo anota como 499: no cuenta para la tasa de 5xx ni deja traceback. Una app que no lo atrapa lo cuenta como 500 sin campo error, y uvicorn imprime Exception in ASGI application aunque el servidor esté sano.",
+     "check": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=1h | sed 's/^[^{]*//' | jq -cR 'fromjson? | select(.status == 499) | {request_id, source, latency_ms}' · en una app que no lo atrapa: kubectl logs deploy/gateway -n classifier --all-pods=true --since=1h | grep -c 'requests.ClientDisconnect$'",
+     "fix": "En el C01 ya está: el except ClientDisconnect de _read_body_limited. En tu app, atrápalo al leer el body y regístralo como 499 en la línea y en la métrica, fuera de la tasa de 5xx y sin traceback. Si son muchos, revisa el tamaño de los uploads."
+    },
+    {
+     "cause": "Uploads lentos: subir una foto grande por una red móvil puede tardar más que el timeout del caller (300 ms), y el cliente corta a mitad del upload (499 en el gateway; 400 en el ALB). El reloj de C01 arranca con los headers, así que la subida cuenta: si termina pero pasó de 250 ms, es un 504 se agotó el presupuesto del request.",
+     "check": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=1h | grep 'se agotó el presupuesto' | sed 's/^[^{]*//' | jq -c '{image_bytes, latency_ms}'",
+     "fix": "Downscale en el cliente (≤ 1024 px, ≈ 200 KB): menos bytes, menos tiempo de subida."
+    }
+   ]
+  },
+  {
+   "id": "lento-tras-deploy",
+   "symptom": "Las respuestas se pusieron lentas justo después de un deploy.",
+   "first": "kubectl rollout history deploy/gateway -n classifier",
+   "causes": [
+    {
+     "cause": "El código nuevo bloquea el event loop o hace más trabajo por request: un decode sin threadpool, un cliente creado por request, un log enorme.",
+     "check": "kubectl rollout history deploy/gateway -n classifier --revision=N (la imagen y su commit) · py-spy dump --pid PID en local con la imagen nueva",
+     "fix": "Rollback primero (kubectl rollout undo deploy/gateway -n classifier) y diagnóstico después; una prueba de carga corta antes del canary (la versión nueva con una parte chica del tráfico)."
+    },
+    {
+     "cause": "El manifest trae replicas: y el apply devolvió el Deployment a ese número, pisando al HPA (por eso C01 no lo pone).",
+     "check": "kubectl get hpa gateway -n classifier · kubectl get deploy gateway -n classifier -o jsonpath='{.spec.replicas}'",
+     "fix": "Quita replicas del manifest cuando hay HPA; el HPA vuelve a subir, pero tarda."
+    },
+    {
+     "cause": "Pods nuevos en frío: la primera conexión a Triton, imports y caches. Si la readiness pasa antes de tiempo, los primeros requests pagan el arranque.",
+     "check": "histogram_quantile(0.99, sum by (le, pod) (rate(classifier_request_latency_seconds_bucket[5m]))) en los minutos después del deploy",
+     "fix": "Warmup en el lifespan, antes del yield (un decode y una llamada a Triton de prueba, sin que una falla de Triton impida arrancar): el pod no recibe tráfico hasta que termina."
+    },
+    {
+     "cause": "Llegó a Triton un modelo más lento (otro engine u otro batching), aunque el gateway no cambió.",
+     "check": "kubectl rollout history deploy/triton -n classifier · sum(rate(nv_inference_compute_infer_duration_us{model=\"classifier\"}[5m])) / sum(rate(nv_inference_request_success{model=\"classifier\"}[5m])) / 1000 antes y después del deploy",
+     "fix": "Rollback de Triton, y una prueba de rendimiento del engine antes de promoverlo (canary)."
+    }
+   ]
+  },
+  {
+   "id": "readiness-parpadea",
+   "symptom": "La readiness del gateway parpadea: los pods entran y salen del ALB.",
+   "first": "kubectl events -n classifier --types=Warning",
+   "causes": [
+    {
+     "cause": "Triton lento o no listo: /readyz consulta is_model_ready con un tope de 0.5 s. Con Triton saturado falla de a ratos, en todos los gateways a la vez (Readiness probe failed: HTTP probe failed with statuscode: 503).",
+     "check": "kubectl events -n classifier --types=Warning (¿en todos los pods a la vez?) · sum(rate(nv_inference_queue_duration_us{model=\"classifier\"}[5m])) / sum(rate(nv_inference_request_success{model=\"classifier\"}[5m])) / 1000 (ms en la cola de Triton)",
+     "fix": "Arregla la capacidad de Triton. Si no quieres que una dependencia saque a todos los gateways, que la readiness revise solo lo propio y que el 503 lo dé el endpoint (el trade-off está en C01, fallas)."
+    },
+    {
+     "cause": "El event loop bloqueado: /readyz es async def y no alcanza a responder en timeoutSeconds (2 s): Readiness probe failed: Get …: context deadline exceeded.",
+     "check": "kubectl events -n classifier --types=Warning · py-spy dump --pid PID",
+     "fix": "Saca la CPU del loop; no subas el timeout de la probe para tapar el bloqueo."
+    },
+    {
+     "cause": "El pod sin CPU: con el nodo lleno, el pod solo tiene su request (1 core) y el loop compite con los hilos de decode; o hay throttling por un limits.cpu. La probe se atrasa.",
+     "check": "kubectl top pod -n classifier · kubectl describe node NODO (Allocated resources)",
+     "fix": "Un request de CPU realista (1 en C01) y más pods. Con failureThreshold 2 y periodSeconds 5, la readiness tolera ≈ 10 s."
+    }
+   ]
+  },
+  {
+   "id": "apagado-pierde",
+   "symptom": "En cada deploy o scale-down aparecen 502 o requests cortados.",
+   "first": "kubectl logs -f POD -n classifier (mientras el pod termina: busca Shutting down y Finished server process)",
+   "causes": [
+    {
+     "cause": "Sin preStop (la espera antes del SIGTERM), o muy corto: el SIGTERM llega mientras el ALB todavía manda tráfico; uvicorn cierra el puerto y esos requests reciben 502.",
+     "check": "kubectl get deploy gateway -n classifier -o jsonpath='{.spec.template.spec.containers[0].lifecycle.preStop}'",
+     "fix": "preStop con sleep 15, como C01: el ALB deja de mandar tráfico antes de que uvicorn cierre."
+    },
+    {
+     "cause": "El plazo de gracia no alcanza: preStop + drenado pasan de terminationGracePeriodSeconds y el kubelet manda SIGKILL con requests en curso (exit 137).",
+     "check": "kubectl get deploy gateway -n classifier -o jsonpath='{.spec.template.spec.terminationGracePeriodSeconds}'",
+     "fix": "45 s = 15 de preStop + 20 de drenado + 10 de margen, como C01: después del preStop, a la app le quedan 30 s."
+    },
+    {
+     "cause": "El SIGTERM no llega a uvicorn: CMD en forma shell, así que el PID 1 es sh. Nunca ves Shutting down y muere por SIGKILL al final del plazo.",
+     "check": "kubectl exec deploy/gateway -n classifier -- cat /proc/1/cmdline | tr '\\0' ' '",
+     "fix": "CMD en forma exec (lista JSON), como el Dockerfile del C01."
+    },
+    {
+     "cause": "El drenado se cortó: uvicorn esperó --timeout-graceful-shutdown y canceló lo que quedaba (Cancel N running task(s), timeout graceful shutdown exceeded); esos requests terminan en 500.",
+     "check": "kubectl logs -f POD -n classifier (durante el apagado)",
+     "fix": "Requests más cortos que el drenado: en C01 casi siempre terminan en menos de 1 s (el deadline de 250 ms corta antes de Triton, pero no acota la subida del body ni el decode), y los 20 s cubren el resto. Si tienes requests largos, sube el drenado y el plazo juntos."
+    }
+   ]
+  },
+  {
+   "id": "logs-sin-id",
+   "symptom": "Hay líneas de log sin request_id: no puedes unir un error con el request que lo causó.",
+   "first": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=10m | grep -v '\"request_id\"' | head",
+   "causes": [
+    {
+     "cause": "Tracebacks y avisos de uvicorn o de librerías: texto plano de varias líneas, sin request_id (Exception in ASGI application…).",
+     "check": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=10m | grep -v '\"request_id\"' | grep -E 'Traceback|INFO:|WARNING:|ERROR:' | head (tracebacks y avisos de uvicorn)",
+     "fix": "Un filtro de logging que agregue el request_id desde un contextvar a cada log, logs de uvicorn en JSON (--log-config) y tus excepciones atrapadas y logueadas con su request_id."
+    },
+    {
+     "cause": "Requests que no dejan ninguna línea: un 405 lo responde FastAPI antes de cualquier función y, con --no-access-log, no queda rastro (el 422 sí deja línea en el C01, por su exception handler); un 404 de una ruta que el Ingress no enruta ni llega al pod (lo da el ALB). El caller trae un error y no tienes con qué unirlo.",
+     "check": "aws cloudwatch get-metric-statistics --namespace AWS/ApplicationELB --metric-name HTTPCode_Target_4XX_Count --dimensions Name=LoadBalancer,Value=app/NOMBRE/ID --statistics Sum --period 300 --start-time INICIO --end-time FIN · sum(increase(classifier_requests_total{status=~\"4..\"}[5m])) en Prometheus: la diferencia son los 405 sin línea · aws cloudwatch get-metric-statistics --namespace AWS/ApplicationELB --metric-name HTTPCode_ELB_4XX_Count --dimensions Name=LoadBalancer,Value=app/NOMBRE/ID --statistics Sum --period 300 --start-time INICIO --end-time FIN (los 404 que da el propio ALB)",
+     "fix": "Un middleware (o un exception handler) que escriba la línea de todos los requests, no solo los de /v1/classify."
+    },
+    {
+     "cause": "Las líneas tienen request_id, pero no sirve para unir: el caller no manda X-Request-ID y el ALB solo agrega X-Amzn-Trace-Id, así que el gateway inventa uno que nadie más conoce.",
+     "check": "curl -s -D - -o /dev/null -X POST localhost:8080/v1/classify -H \"X-Request-ID: prueba-1\" -H \"Content-Type: image/jpeg\" --data-binary @foto.jpg | grep -i x-request-id (si el caller lo manda, vuelve el mismo)",
+     "fix": "Pide al caller un X-Request-ID; si no llega, registra también el X-Amzn-Trace-Id para unir con el ALB."
+    }
+   ]
+  },
+  {
+   "id": "metricas-sin-latencia",
+   "symptom": "Grafana no muestra latencia: el p99 sale vacío o NaN.",
+   "first": "curl -s localhost:8080/metrics | grep classifier_request_latency_seconds_count (con kubectl port-forward -n classifier deploy/gateway 8080:8080)",
+   "causes": [
+    {
+     "cause": "Prometheus no lee el pod: falta el ServiceMonitor, su label release no coincide con tu Prometheus, o el puerto del Service no se llama http.",
+     "check": "up{namespace=\"classifier\", service=\"gateway\"} en Prometheus (0 o vacío) · kubectl get servicemonitor -n classifier",
+     "fix": "El ServiceMonitor de k8s/monitoring.yaml, con release: kube-prometheus-stack y port: http."
+    },
+    {
+     "cause": "La consulta está mal: falta _bucket o sum by (le), o la ventana del rate es más corta que dos scrapes (rate necesita dos muestras; C01 hace scrape cada 15 s).",
+     "check": "histogram_quantile(0.99, sum by (le) (rate(classifier_request_latency_seconds_bucket[5m])))",
+     "fix": "Ventanas de 5m y siempre sum by (le) antes del cuantil."
+    },
+    {
+     "cause": "No hay observaciones: sin tráfico, o solo 4xx (C01 no los mete al histograma de latencia). Sin datos en la ventana, histogram_quantile da NaN.",
+     "check": "sum by (status) (rate(classifier_requests_total[5m]))",
+     "fix": "Es correcto por diseño; los rechazos se ven en classifier_requests_total por status."
+    },
+    {
+     "cause": "Cambió el nombre de la métrica en main.py (o el de un label por el que filtra la consulta): la consulta y la alerta buscan el nombre viejo y vuelven vacías, sin ningún error. En C01, los nombres son un contrato con monitoring/alerts.yml.",
+     "check": "curl -s localhost:8080/metrics | grep -c classifier_request_latency_seconds_bucket (0: el nombre cambió) · pytest -k metrics (corre test_metrics_exposes_contract_names)",
+     "fix": "Nombres como contrato: un test que los verifique, como el del C01, y la consulta y la alerta cambiadas en el mismo commit."
+    }
+   ]
+  },
+  {
+   "id": "local-no-contenedor",
+   "symptom": "Funciona en tu Mac, pero no en el contenedor.",
+   "first": "docker logs CONTENEDOR",
+   "causes": [
+    {
+     "cause": "uvicorn escucha en 127.0.0.1, su default: dentro del contenedor, nadie de afuera llega (curl: (52) Empty reply from server, o Connection reset by peer).",
+     "check": "docker logs CONTENEDOR (Uvicorn running on http://127.0.0.1:8080)",
+     "fix": "--host 0.0.0.0, como el CMD del C01."
+    },
+    {
+     "cause": "TRITON_URL quedó en su default, localhost:8000: dentro del contenedor, localhost es el contenedor mismo. /readyz da 503 y /v1/classify, 503 Triton no disponible.",
+     "check": "docker exec CONTENEDOR printenv TRITON_URL",
+     "fix": "El nombre del servicio: triton:8000 en compose, triton.classifier.svc.cluster.local:8000 en Kubernetes."
+    },
+    {
+     "cause": "Filesystem de solo lectura o un usuario que no es root: una librería que escribe un cache falla (OSError: [Errno 30] Read-only file system, o PermissionError: [Errno 13] Permission denied).",
+     "check": "docker logs CONTENEDOR (el traceback dice qué ruta quiso escribir)",
+     "fix": "Escribe solo en /tmp (un emptyDir en C01), o apunta el cache ahí con su variable de entorno."
+    },
+    {
+     "cause": "Falta una librería del sistema en la imagen slim: con OpenCV, ImportError: libGL.so.1: cannot open shared object file: No such file or directory.",
+     "check": "docker run --rm IMAGEN python -c 'import cv2'",
+     "fix": "opencv-python-headless (sin dependencias gráficas), o Pillow como el C01."
+    }
+   ]
+  },
+  {
+   "id": "uploads-rechazados",
+   "symptom": "Los uploads se rechazan: 413, 415 o 400.",
+   "first": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=1h | grep -o '\"error\": \"[^\"]*\"' | sort | uniq -c",
+   "causes": [
+    {
+     "cause": "415: el cliente manda multipart/form-data (un formulario, o files= en requests) o application/octet-stream. C01 espera los bytes crudos con Content-Type image/jpeg, image/png o image/webp.",
+     "check": "curl -s -X POST localhost:8080/v1/classify -F 'file=@foto.jpg' (así llega un multipart: 415 Content-Type debe ser image/jpeg, image/png o image/webp)",
+     "fix": "Bytes crudos con su Content-Type (curl --data-binary @foto.jpg -H \"Content-Type: image/jpeg\"). Si de verdad necesitas formularios, UploadFile con python-multipart."
+    },
+    {
+     "cause": "413: más de 10 MB, o más de 40 MP aunque pese poco (una decompression bomb: un PNG chico que declara millones de píxeles). El detalle dice cuál: la imagen supera 10 MB, 8000x6000 px excede el límite de 40000000 px, o el texto de Pillow (Image size (81000000 pixels) exceeds limit of 80000000 pixels…).",
+     "check": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=1h | grep '\"status\": 413' | grep -o '\"error\": \"[^\"]*\"' | sort | uniq -c",
+     "fix": "Downscale en el cliente (≤ 1024 px); los límites quedan como protección."
+    },
+    {
+     "cause": "400 no se pudo decodificar la imagen: archivo truncado (image file is truncated), un formato que Pillow no abre con formats=JPEG/PNG/WEBP (un HEIC de iPhone etiquetado como JPEG: cannot identify image file), o una relación de aspecto mayor que 1:8.",
+     "check": "file foto.jpg (¿qué es de verdad?) · python3 -c \"from PIL import Image; im = Image.open('foto.jpg'); print(im.format, im.size)\"",
+     "fix": "Que el cliente convierta a JPEG y reduzca antes de subir. El 400 es correcto: no lo reintentes."
+    }
+   ]
+  }
+ ],
+ "errores": [
+  {
+   "msg": "Error loading ASGI app. Could not import module \"app.main\".",
+   "meaning": "uvicorn encontró el paquete app, pero no el módulo app.main: un typo (app.mian:app), falta app/main.py, o Python encontró otra carpeta app/ antes que la tuya. Si arrancas desde una carpeta sin app/, el error es otro: ModuleNotFoundError: No module named 'app'. Y si el módulo existe pero le falta una dependencia, ves el ModuleNotFoundError de esa dependencia (No module named 'numpy'). C01 se arranca desde gateway/, donde está el paquete app/.",
+   "first": "python -c \"import app; print(app.__path__)\" (en la carpeta donde corres uvicorn: ¿qué app/ encontró y tiene main.py?)",
+   "topic": "fastapi",
+   "section": "fastapi"
+  },
+  {
+   "msg": "AttributeError: 'State' object has no attribute 'inflight'",
+   "meaning": "El lifespan no corrió, así que app.state no tiene lo que se crea al arrancar (inflight, cpu_slots, triton). Pasa si creas FastAPI() sin lifespan=lifespan, o en un test con TestClient(app) sin with. El request termina en 500.",
+   "first": "grep -n \"FastAPI(\" app/main.py",
+   "topic": "fastapi",
+   "section": "fastapi"
+  },
+  {
+   "msg": "RuntimeWarning: coroutine 'infer' was never awaited",
+   "meaning": "Llamaste a una función async sin await: se creó la corrutina, pero nunca corrió. No es un error: el request sigue sin esa parte (sin inferencia, sin log, sin métrica). Python avisa cuando la corrutina se descarta; con PYTHONASYNCIODEBUG=1 dice además dónde se creó.",
+   "first": "grep -n \"infer(\" app/*.py",
+   "topic": "async",
+   "section": "async"
+  },
+  {
+   "msg": "RuntimeError: Event loop is closed",
+   "meaning": "Algo quiso usar un event loop que ya terminó: un cliente async (aiohttp, httpx) u otro objeto de asyncio creado en un loop y usado en otro. Pasa al crearlos al importar el módulo, o entre tests (TestClient sin with usa un loop por request). Por eso C01 crea el cliente de Triton en el lifespan.",
+   "first": "grep -nE \"ClientSession|AsyncClient|InferenceServerClient\" app/*.py",
+   "topic": "async",
+   "section": "async"
+  },
+  {
+   "msg": "{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"top_k\"],\"msg\":\"Input should be greater than or equal to 1\",\"input\":\"0\",\"ctx\":{\"ge\":1}}]}",
+   "meaning": "Un 422 de FastAPI: el request no cumplió el contrato y tu función ni corrió. type es el código del error; loc, dónde (query) y qué campo; input, lo que llegó (en la query siempre es texto); ctx, el límite. FastAPI quita el campo url que agrega Pydantic.",
+   "first": "curl -s -X POST \"localhost:8080/v1/classify?top_k=0\" -H \"Content-Type: image/jpeg\" --data-binary @foto.jpg",
+   "topic": "validacion",
+   "section": "contrato"
+  },
+  {
+   "msg": "ValidationError: 1 validation error for Prediccion · score · Input should be a valid number, unable to parse string as a number [type=float_parsing, input_value='alto', input_type=str]",
+   "meaning": "Pydantic rechazó datos dentro de tu código (al armar un modelo con la respuesta de otro servicio, o con la config), no en el request: el cliente recibe un 500, no un 422. Debajo viene un enlace a errors.pydantic.dev con la versión (2.13 en C01). En Pydantic v1 el mismo error decía value is not a valid float.",
+   "first": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=10m | grep -B 5 \"validation error for\"",
+   "topic": "validacion",
+   "section": "contrato"
+  },
+  {
+   "msg": "Cannot connect to host triton.classifier.svc.cluster.local:8000 · httpx.ConnectError: All connection attempts failed",
+   "meaning": "No hubo conexión con el servidor de abajo: nada escucha en ese host y puerto (conexión rechazada) o el DNS no resuelve el nombre. Lo primero es el ClientConnectorError de aiohttp, que usa tritonclient.http.aio: C01 lo traduce a 503 Triton no disponible con Retry-After: 1. Lo segundo es lo que verías si tu gateway usara httpx async (con el cliente síncrono: [Errno 111] Connection refused). Si una NetworkPolicy descarta los paquetes, no ves ninguno de los dos: la conexión se cuelga y, en C01, vence el timeout (504).",
+   "first": "kubectl get endpointslices -n classifier -l kubernetes.io/service-name=triton",
+   "topic": "upstream",
+   "section": "upstream"
+  },
+  {
+   "msg": "httpx.RemoteProtocolError: Server disconnected without sending a response.",
+   "meaning": "Si usas httpx (C01 no): el servidor cerró la conexión sin responder. Lo típico: reusaste del pool una conexión keep-alive que el servidor acababa de cerrar por inactividad (uvicorn cierra a los 5 s por defecto, y httpx guarda las ociosas 5 s: empatan). La regla es la del ALB: el cliente suelta la conexión antes que el servidor (keepalive_expiry menor). También pasa si el servidor se reinició a mitad del request.",
+   "first": "grep -nE \"AsyncClient|Limits|keepalive_expiry\" app/*.py (¿keepalive_expiry menor que el keep-alive del servidor de abajo?)",
+   "topic": "upstream",
+   "section": "upstream"
+  },
+  {
+   "msg": "tritonclient.utils.InferenceServerException: [404] Request for unknown model: 'classifier' is not found",
+   "meaning": "Triton no conoce un modelo con ese nombre: un MODEL_NAME mal escrito, o un modelo que nunca se cargó. Entre corchetes va el código HTTP que mandó Triton: 404 en la 24.08 del C01 (hasta la 23.12, 400); .message() da el texto sin él. En C01 le llega al cliente como 503 Triton rechazó la inferencia: … con Retry-After: 1.",
+   "first": "curl -s -o /dev/null -w '%{http_code}\\n' localhost:8000/v2/models/classifier/ready (con kubectl port-forward -n classifier svc/triton 8000:8000)",
+   "topic": "upstream",
+   "section": "upstream"
+  },
+  {
+   "msg": "httpx.ReadTimeout",
+   "meaning": "Si usas httpx: esperó datos del servidor más que el timeout de lectura (5 s por defecto). Con el cliente async el texto suele venir vacío; con el síncrono, timed out. Los timeouts de httpx son por operación (connect, read, write, pool), no un total: para un presupuesto por request, envuelve la llamada con asyncio.timeout o asyncio.wait_for, como C01 con tritonclient.",
+   "first": "grep -nE \"Timeout|timeout=\" app/*.py",
+   "topic": "timeout",
+   "section": "upstream"
+  },
+  {
+   "msg": "httpx.PoolTimeout",
+   "meaning": "Si usas httpx: ninguna conexión del pool se liberó antes del timeout de pool (5 s por defecto). Tienes más requests en vuelo hacia ese servidor que max_connections (100 por defecto), y cada uno tarda. Casi nunca se arregla agrandando el pool: el servidor de abajo está lento, le mandas de más, o hay respuestas en streaming sin cerrar que retienen conexiones.",
+   "first": "histogram_quantile(0.99, sum by (le) (rate(classifier_inference_seconds_bucket[5m]))) para ver la latencia hacia el servidor de abajo, en C01 Triton",
+   "topic": "timeout",
+   "section": "upstream"
+  },
+  {
+   "msg": "503 {\"detail\":\"gateway saturado: reintenta más tarde\"} · Retry-After: 1",
+   "meaning": "Load shedding del C01: el pod ya tenía 16 requests en vuelo (MAX_INFLIGHT) y rechazó este en microsegundos, sin leer el body. Retry-After dice en cuántos segundos reintentar. Si se sostiene, algo se frenó (16 en vuelo a 100 req/s son 160 ms por request) o falta capacidad.",
+   "first": "kubectl get hpa gateway -n classifier",
+   "topic": "carga",
+   "section": "backpressure"
+  },
+  {
+   "msg": "Triton rechazó la inferencia: Request timeout expired",
+   "meaning": "La cola de Triton rechazó el request porque esperó más de 100 ms (default_queue_policy con REJECT): la GPU no da abasto. tritonclient lo muestra como [503] Request timeout expired, y C01 lo devuelve como 503 con Retry-After: 1.",
+   "first": "sum(rate(nv_inference_queue_duration_us{model=\"classifier\"}[5m])) / sum(rate(nv_inference_request_success{model=\"classifier\"}[5m])) / 1000",
+   "topic": "carga",
+   "section": "backpressure"
+  },
+  {
+   "msg": "ValueError: Out of range float values are not JSON compliant: nan",
+   "meaning": "Quisiste devolver NaN o infinito en un JSON. En una ruta sin response_model, como classify, FastAPI usa el JSONResponse de Starlette, con allow_nan=False: el cliente recibe un 500, y si tu finally ya anotó el request, la línea de log y la métrica dicen 200 (el finally corre antes de serializar). Por eso el C01 revisa los logits con np.isfinite apenas llegan de Triton y responde un 500 propio, que sí se cuenta: en sus logs no vas a ver este mensaje. Con un response_model, Pydantic lo escribe como null, sin error. En un clasificador, el NaN suele venir de logits rotos (un engine mal construido, un FP16 desbordado). Desde Python 3.12 el mensaje termina con el valor (: nan); en 3.11 o antes, sin él.",
+   "first": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=10m | grep -B 20 \"not JSON compliant\" · en el C01: kubectl logs deploy/gateway -n classifier --all-pods=true --since=10m | grep -c 'logits no finitos'",
+   "topic": "error",
+   "section": "degradacion"
+  },
+  {
+   "msg": "Internal Server Error · Exception in ASGI application",
+   "meaning": "Una excepción que nadie atrapó. El cliente recibe un 500 en texto plano, sin detalle (bien: no filtras nada); el detalle está en el log, donde uvicorn imprime Exception in ASGI application y el traceback. En C01, la línea JSON de ese request queda con status 500 y sin campo error.",
+   "first": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=10m | grep -A 30 \"Exception in ASGI application\"",
+   "topic": "error",
+   "section": "degradacion"
+  },
+  {
+   "msg": "Readiness probe failed: HTTP probe failed with statuscode: 503",
+   "meaning": "El /readyz del gateway respondió 503: el modelo no está listo en Triton, o Triton no contestó en 0.5 s. El pod sale del ALB sin reiniciarse. Si pasa en todos los gateways a la vez, el problema es Triton, no el gateway.",
+   "first": "kubectl events -n classifier --types=Warning",
+   "topic": "salud",
+   "section": "salud"
+  },
+  {
+   "msg": "Shutting down · Waiting for connections to close. (CTRL+C to force quit)",
+   "meaning": "uvicorn recibió SIGTERM (o Ctrl+C): cerró el puerto y espera los requests en curso, hasta --timeout-graceful-shutdown (20 s en C01; sin el flag, espera sin límite). Si se acaba el plazo, cancela lo que queda (Cancel N running task(s), timeout graceful shutdown exceeded) y esos requests terminan en 500. Después: Application shutdown complete y Finished server process.",
+   "first": "kubectl logs -f POD -n classifier",
+   "topic": "apagado",
+   "section": "salud"
+  },
+  {
+   "msg": "TypeError: Object of type float32 is not JSON serializable",
+   "meaning": "json.dumps no sabe escribir tipos de NumPy: float32 e int64 fallan (float64 pasa, porque es una subclase de float). En C01 la línea de log se escribe en un finally: si el record trae un np.float32, el error reemplaza la respuesta y el request termina en 500. Por eso el código convierte con float() e int(). Si lo devuelves desde una ruta sin response_model (como classify), FastAPI falla con otro texto: un ValueError que incluye 'numpy.float32' object is not iterable.",
+   "first": "grep -nE \"float\\(|int\\(\" app/main.py",
+   "topic": "logs",
+   "section": "observabilidad"
+  },
+  {
+   "msg": "prometheus_client.registry.DuplicateTimeseries: Duplicated timeseries in CollectorRegistry: {'classifier_requests_total', …}",
+   "meaning": "Registraste dos veces una métrica con el mismo nombre en el registro global de prometheus_client: el módulo se importó dos veces con nombres distintos, un test lo recargó, o en un notebook re-ejecutaste la celda que crea el Counter. Desde prometheus-client 0.26.0 (la del C01) la excepción es DuplicateTimeseries, una subclase de ValueError; antes salía ValueError: con el mismo texto. Las métricas se crean una vez, al nivel del módulo.",
+   "first": "grep -rnE \"Counter\\(|Histogram\\(\" app/",
+   "topic": "metricas",
+   "section": "observabilidad"
+  },
+  {
+   "msg": "TypeError: object MagicMock can't be used in 'await' expression",
+   "meaning": "Reemplazaste un cliente async con MagicMock: lo que devuelve su método es otro mock, y no se puede esperar con await. Usa AsyncMock o, mejor, un fake con los mismos métodos async y las mismas excepciones, como el FakeTriton del C01. En Python 3.14 el texto cambió a 'MagicMock' object can't be awaited.",
+   "first": "grep -n \"MagicMock\" tests/*.py",
+   "topic": "tests",
+   "section": "tests"
+  },
+  {
+   "msg": "async def functions are not natively supported.",
+   "meaning": "pytest no sabe correr solo un test async def: desde pytest 8.4 el test falla (antes se saltaba con un aviso). Márcalo con @pytest.mark.anyio (el plugin viene con anyio, que ya instala FastAPI), usa pytest-asyncio, o escribe el test con def y TestClient, como C01.",
+   "first": "grep -n \"async def test_\" tests/*.py",
+   "topic": "tests",
+   "section": "tests"
+  },
+  {
+   "msg": "RuntimeError: The starlette.testclient module requires the httpx2 package to be installed.",
+   "meaning": "TestClient necesita un cliente HTTP por debajo. Desde Starlette 1.2 busca httpx2 y, si solo encuentra httpx, funciona pero avisa que está deprecado; sin ninguno de los dos, falla con este error. C01 fija httpx2==2.13.1 en requirements-dev.txt.",
+   "first": "pip install -r requirements-dev.txt",
+   "topic": "tests",
+   "section": "tests"
+  },
+  {
+   "msg": "Executing <Task pending name='Task-3' coro=<request() running at carga.py:30> … took 0.182 seconds",
+   "meaning": "El modo debug de asyncio (PYTHONASYNCIODEBUG=1) avisa que una tarea ocupó el event loop 182 ms seguidos: en ese tiempo no avanzó ningún otro request. El umbral es 100 ms (loop.slow_callback_duration). Dice qué corrutina fue y la línea donde quedó pausada después, el siguiente await: el código bloqueante (CPU o I/O sin await) está justo antes de esa línea.",
+   "first": "PYTHONASYNCIODEBUG=1 uvicorn app.main:app --port 8080 --loop asyncio",
+   "topic": "rendimiento",
+   "section": "rendimiento"
+  },
+  {
+   "msg": "502 Bad Gateway",
+   "meaning": "Una página HTML del ALB: el pod cerró la conexión (TCP RST o FIN) con un request pendiente. Si son esporádicos, casi siempre es keep-alive: el backend cierra la conexión ociosa antes que el ALB (uvicorn, a los 5 s por defecto; el ALB, a los 60). En los deploys, un pod que se apagó sin drenar. No aparece en tus logs.",
+   "first": "grep -n \"timeout-keep-alive\" Dockerfile",
+   "topic": "rendimiento",
+   "section": "rendimiento"
+  },
+  {
+   "msg": "[Errno 48] error while attempting to bind on address ('127.0.0.1', 8080): [errno 48] address already in use",
+   "meaning": "Otro proceso ya usa ese puerto: otro uvicorn que quedó corriendo, o docker compose. uvicorn lo imprime como ERROR al arrancar y sale. Es el texto del loop de asyncio en Python 3.13 y 3.14; en 3.11 o antes, y con uvloop (instalado en C01), no repite el [errno …] del medio. Con --workers 2 o más, o con --reload, es más corto: [Errno 48] Address already in use. En Linux el número es 98.",
+   "first": "lsof -nP -iTCP:8080 -sTCP:LISTEN",
+   "topic": "otro",
+   "section": "diagnostico"
+  },
+  {
+   "msg": "starlette.requests.ClientDisconnect",
+   "meaning": "El cliente cerró la conexión mientras el gateway leía el body con request.stream(). La excepción no trae texto. Si nadie la atrapa, el request cuenta como 500 sin campo error y uvicorn imprime Exception in ASGI application, aunque el servidor esté sano. El C01 la atrapa al leer el body y la anota como 499, sin traceback: en sus logs vas a ver la línea JSON, no este mensaje. En el ALB, un cliente que corta aparece como 460 (o 400, si cortó antes de mandar todo el body); en nginx, como 499.",
+   "first": "kubectl logs deploy/gateway -n classifier --all-pods=true --since=1h | grep -c 'requests.ClientDisconnect$' · en el C01: kubectl logs deploy/gateway -n classifier --all-pods=true --since=1h | grep -c '\"status\": 499'",
+   "topic": "otro",
+   "section": "diagnostico"
+  }
+ ]
+}

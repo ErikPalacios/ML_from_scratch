@@ -1,0 +1,12 @@
+# Dependencias para correr TODOS los tests de c15 (pytest desde reference/c15). No entran a ninguna imagen.
+-r serving/requirements.txt  # los tests usan exactamente las versiones de producción
+-r training/requirements.txt
+pytest==9.1.1  # runner de tests
+httpx2==2.13.1  # cliente que usa fastapi.testclient (Starlette 1.x lo prefiere a httpx)
+# --- transitivas ---
+httpcore2==2.13.1
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.7.0
+pygments==2.21.0
+truststore==0.10.5

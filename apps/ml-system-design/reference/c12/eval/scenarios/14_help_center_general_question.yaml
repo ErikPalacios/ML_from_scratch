@@ -1,0 +1,15 @@
+# Pregunta general: la conversación solo tiene search_help_center y escalate_to_human (lista permitida).
+id: help_center_general_question
+conversation_type: general_question
+customer_id: cust-1
+orders: []
+model:
+  - tool_calls: [{name: search_help_center, arguments: {query: "reembolsos plazos tarjeta", language: es}}]
+  - content: "Los reembolsos a tarjeta tardan de 5 a 10 días hábiles en verse, según tu banco."
+turns:
+  - customer: "¿Cuánto tarda un reembolso en llegar a mi tarjeta?"
+expect:
+  outcome: answered
+  required_calls: [search_help_center]
+  allowed_calls: [search_help_center]
+  max_llm_calls: 2

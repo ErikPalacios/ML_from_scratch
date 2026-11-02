@@ -1,0 +1,87 @@
+# Configuración del llm-gateway del caso c10: tenants (productos internos), alias de modelo, upstreams y límites.
+# La lee llm_gateway.load_config() y la valida al arrancar: un error aquí debe tirar el deploy, no un request.
+# Números ILUSTRATIVOS, derivados del caso (60 rps de diseño, ≈ 2,250 tokens por request interactivo,
+# 2 M items de batch en 8 h). Se versiona con el código: cambiar una cuota es un cambio revisado.
+
+max_model_len: 8192  # = --max-model-len de vllm-70b: prompt + salida no pueden pasar de aquí
+
+limits:
+  gateway_replicas: 4  # las cuotas de abajo son TOTALES por tenant; cada réplica aplica cuota ÷ 4
+  # Tope de en vuelo = lo que la flota aguanta DENTRO del SLO, no la carga planeada: 16 réplicas de vLLM × 72 en
+  # vuelo (el último punto del barrido que cumple TTFT y TPOT, bench/pick_concurrency.py) ÷ 4 réplicas del gateway.
+  # En el pico de diseño se usan ≈ 40 de 72 por réplica (≈ 55 %): el 30 % de margen que se paga queda USABLE.
+  # Con el tope en lo planeado (≈ 40), un pico de 61 rps ya sería un muro de 503 con GPUs de sobra.
+  # Ideal: que escale con las réplicas listas (12 × 72 con un nodo caído); aquí es fijo (ver README).
+  max_inflight: 288  # por réplica del gateway: 16 × 72 ÷ 4
+  interactive_reserved: 72  # 1/4 de los lugares: batch nunca los ocupa (el primer usuario de la mañana no espera)
+  queue_max: {interactive: 64, batch: 256}  # colas acotadas: lo que no entra recibe 503 + Retry-After
+  max_wait_s: {interactive: 0.5, batch: 30}  # 0.5 s: el SLO de TTFT es 1 s; esperar más ya lo rompe
+  retry_after_s: {interactive: 2, batch: 60}  # lo que se sugiere en Retry-After cuando no hay lugar
+  connect_timeout_s: 2  # conectar con una réplica: si tarda más, está mal (no "lenta")
+  first_token_timeout_s: 10  # hasta el primer token con contenido (cola de vLLM + prefill de 8k tokens)
+  read_timeout_s: 30  # silencio máximo entre dos eventos del stream
+  total_timeout_s: 120  # request completo sin streaming: 1,024 tokens a ≈ 20 tokens/s ≈ 51 s, más cola y prefill
+
+upstreams:
+  vllm-70b:
+    base_url: http://vllm-70b.c10.svc.cluster.local:8000/v1  # Service de k8s/vllm-70b.yaml: SOLO pods track=stable
+    kind: self  # nuestra flota: recibe "priority" (vLLM con --scheduling-policy priority)
+  vllm-70b-canary:
+    # Service aparte para el Deployment canario (track=canary, otra revisión y otro --served-model-name). Cada
+    # pod de vLLM solo sirve SU modelo: si estable y canario compartieran Service, un request para la estable que
+    # cae en un pod canario recibiría 404 "model does not exist". Sin Deployment canario no tiene endpoints; solo
+    # lo usan los pins de abajo.
+    base_url: http://vllm-70b-canary.c10.svc.cluster.local:8000/v1
+    kind: self
+  vendor:
+    base_url: https://llm-vendor.example.com/v1  # placeholder: la URL real del proveedor contratado
+    kind: vendor  # la API key viene de la variable VENDOR_API_KEY (un Secret), nunca de este archivo
+
+aliases:
+  # Los clientes piden un ALIAS, nunca una revisión: cambiar de modelo es editar esta línea (con su eval
+  # report en el model registry), no coordinar un deploy de tres productos.
+  chat-default:
+    upstream: vllm-70b
+    model: chat-70b-fp8-2026-09-28  # = --served-model-name del Deployment (la revisión en el registry)
+    vendor_model: vendor-mid-tier  # placeholder: el modelo del vendor para el fallback gobernado
+  extract-default:
+    upstream: vllm-70b
+    model: chat-70b-fp8-2026-09-28  # el mismo modelo hoy; el alias permite moverlo a uno chico (≈ 8B) después
+    vendor_model: null  # extracción nocturna: sin fallback (puede esperar a mañana; la factura del vendor no)
+
+tenants:
+  # key_sha256: hash de la API key. Las keys en texto plano nunca se guardan: si este archivo se filtra, no
+  # sirve para llamar al gateway. Estos tres hashes son de keys de DEMO ("sk-c10-demo-support", etc.);
+  # en producción la lista viene de un secret store y se rota (#m15.secretos).
+  support-assistant:
+    key_sha256: [d8d5cd565a3a2400870bd630d9f6a33e6e77b194178b0cafb08c0cb0ba7b4307]
+    priority: interactive
+    tokens_per_minute: 5400000  # ≈ 2/3 del pico interactivo (60 rps × 2,250 tokens × 60 s ≈ 8.1 M/min)
+    allowed_aliases: [chat-default]
+    max_tokens_cap: 1024  # respuestas de chat: ≈ 250 en promedio; 1,024 deja margen sin abrir la puerta a 8k
+    max_prompt_tokens: 6000  # ≈ 2,000 en promedio; conversaciones largas hasta 6k (+ 1,024 de salida < 8,192)
+    vendor_fallback: false  # conversaciones con PII de compradores y vendedores: no salen (degrada a humanos)
+  listing-assistant:
+    key_sha256: [658fe3c88c81b72362873fb3958c5e9e7bf2b72358d2832b7e43765159d8ec94]
+    priority: interactive
+    tokens_per_minute: 3000000  # ≈ 1/3 del pico interactivo, con margen
+    allowed_aliases: [chat-default]
+    max_tokens_cap: 600  # un título y una descripción
+    max_prompt_tokens: 6000  # ≈ 2,000 de promedio como soporte; p99 ≈ 5,000 (+ 600 de salida < 8,192)
+    vendor_fallback: true  # notas del vendedor sobre un producto: se permite con redacción de PII
+  catalog-enrichment:
+    key_sha256: [7214e3fa56b5d1034ac098a3dded2303d9dd48c5c8f8299f96d9a9a4a4ee4dd3]
+    priority: batch
+    tokens_per_minute: 6000000  # 2 M items × 950 tokens ÷ 480 min ≈ 4 M/min, con margen para reintentos
+    allowed_aliases: [extract-default]
+    max_tokens_cap: 400  # JSON de atributos: ≈ 150 tokens en promedio
+    max_prompt_tokens: 2000  # ≈ 800 en promedio
+    vendor_fallback: false
+    # pins: mandar ESTE tenant (o un % de sus usuarios) a otro upstream y otra revisión: canary por tenant o
+    # rollback de uno solo. El upstream tiene que ser una flota propia; la revisión, la que sirve ese Service:
+    #   pins: {extract-default: {upstream: vllm-70b-canary, model: chat-70b-fp8-2026-10-12}}
+    # Con `percent` (1–100, default 100) entra solo ese % de los usuarios finales, por hash del campo `user` del
+    # request (el mismo usuario cae siempre del mismo lado: una conversación no cambia de modelo a mitad).
+    # Sin `user`, el request va a la estable; por eso un batch sin usuarios se mueve entero (percent 100, arriba).
+    # En listing-assistant, el 5 % de los vendedores:
+    #   pins: {chat-default: {upstream: vllm-70b-canary, model: chat-70b-fp8-2026-10-12, percent: 5}}

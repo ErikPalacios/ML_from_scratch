@@ -1,0 +1,14 @@
+# Dependencias del job diario de entrenamiento y calibración (training/ + eval/), fijadas con ==.
+# Generada con `uv pip compile` para Linux x86_64 (manylinux) y Python 3.13.
+# La imagen del job copia también serving/features.py y serving/model.py: una sola definición de las
+# features y del artefacto para los dos lados.
+# --- directas ---
+numpy==2.5.4  # MISMA versión que el serving: los pesos se escriben aquí y se leen allá
+scikit-learn==1.9.1  # solo la isotónica de calibration.py (el serving no la necesita)
+
+# --- transitivas (uv pip compile) ---
+cloudpickle==3.1.2
+joblib==1.6.0
+narwhals==2.27.1
+scipy==1.18.1
+threadpoolctl==3.7.0

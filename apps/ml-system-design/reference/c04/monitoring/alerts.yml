@@ -1,0 +1,325 @@
+# Alertas del caso c04 (Prometheus): 10 alertas en 3 grupos + las recording rules que usan.
+#   Sistema: SlideQueueBacklog, SlideDLQNotEmpty, TurnaroundSLOBurn, SegWorkerErrors,
+#            NightlyCoverageAtRisk
+#   Datos:   StainDriftPerScanner, StainPsiJobStale, BlurryTilesSpike, MissingMppMetadata
+#   Modelo:  MajorEditRateHigh
+# Severidades: page = alguien lo mira YA, pero solo en horario (07:00–22:00: desde que los patólogos
+# abren casos hasta que paran los escáneres; de noche se rutea como ticket). Excepción:
+# NightlyCoverageAtRisk tiene su propia ruta, que hace page desde las 05:30 (ver su comentario). La
+# disponibilidad NO es crítica (si esto se cae, los patólogos trabajan como hoy y el visor dice "sin
+# resultado de IA"). El ruteo por horario vive en Alertmanager (time_intervals, y active_time_intervals /
+# mute_time_intervals en las rutas), no aquí. ticket = se arregla en horario laboral, días hábiles.
+# De dónde sale cada métrica:
+#   seg_* → worker/worker.py (/metrics :9100; un test verifica que cada seg_* de aquí existe allá),
+#     salvo seg_stain_psi* y seg_pending_slides_before_cutoff
+#   seg_stain_psi* → monitoring/stain_psi.py (job diario → Pushgateway, que agrega push_time_seconds)
+#   seg_pending_slides_before_cutoff → results-api (ver NightlyCoverageAtRisk)
+#   results_reviews_total → results-api (una cuenta por slide firmado; ver MajorEditRateHigh)
+#   aws_sqs_* → CloudWatch vía exportador (ver SlideQueueBacklog)
+# Validación: `promtool check rules` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
+
+groups:
+  # ------------------------------------------------------------------ recording rules del SLO
+  # SLO: turnaround p95 ≤ 60 min → presupuesto de error = 5 % de slides con turnaround > 3600 s.
+  # SLI "malo" = slides que terminaron en más de 1 h = total − bucket{le="3600.0"} del histograma
+  # seg_turnaround_seconds (tiene un bucket exactamente en 3600: sin él, esto no se puede calcular).
+  # Se precalcula en 4 ventanas para el burn rate multiventana (Google SRE Workbook, cap. 5).
+  - name: c04-slo-recording
+    rules:
+      - record: seg:turnaround_bad:ratio_rate5m
+        expr: |
+          1 - sum(rate(seg_turnaround_seconds_bucket{le="3600.0"}[5m])) / sum(rate(seg_turnaround_seconds_count[5m]))
+      - record: seg:turnaround_bad:ratio_rate30m
+        expr: |
+          1 - sum(rate(seg_turnaround_seconds_bucket{le="3600.0"}[30m])) / sum(rate(seg_turnaround_seconds_count[30m]))
+      - record: seg:turnaround_bad:ratio_rate1h
+        expr: |
+          1 - sum(rate(seg_turnaround_seconds_bucket{le="3600.0"}[1h])) / sum(rate(seg_turnaround_seconds_count[1h]))
+      - record: seg:turnaround_bad:ratio_rate6h
+        expr: |
+          1 - sum(rate(seg_turnaround_seconds_bucket{le="3600.0"}[6h])) / sum(rate(seg_turnaround_seconds_count[6h]))
+
+  # ------------------------------------------------------------------ sistema
+  - name: c04-system
+    rules:
+      # Edad del mensaje más viejo de slide-jobs. Es la señal que ve lo que el SLI de turnaround NO ve:
+      # el histograma solo cuenta slides que TERMINARON; si nada termina (workers en crash-loop, KEDA
+      # sin permisos, nodos GPU que no llegan), el burn rate se queda callado y esta alerta no.
+      # Métrica: CloudWatch ApproximateAgeOfOldestMessage leída con prometheus/cloudwatch_exporter
+      # (v0.18.0). EL NOMBRE DEPENDE DEL EXPORTADOR: con este es aws_<namespace>_<métrica>_<estadística>
+      # en snake_case y la dimensión QueueName se vuelve el label queue_name. Su configuración:
+      #   - aws_namespace: AWS/SQS
+      #     aws_metric_name: ApproximateAgeOfOldestMessage
+      #     aws_dimensions: [QueueName]
+      #     aws_dimension_select: {QueueName: [slide-jobs]}
+      #     aws_statistics: [Maximum]
+      #     delay_seconds: 60     # el default es 600: con 10 min de retraso, una consulta "ahora" no ve nada
+      #     range_seconds: 180
+      #   - aws_namespace: AWS/SQS
+      #     aws_metric_name: ApproximateNumberOfMessagesVisible   # para SlideDLQNotEmpty
+      #     aws_dimensions: [QueueName]
+      #     aws_dimension_select: {QueueName: [slide-jobs-dlq]}
+      #     aws_statistics: [Maximum]
+      #     delay_seconds: 60
+      #     range_seconds: 180
+      # Con YACE (yet-another-cloudwatch-exporter) la dimensión llega como dimension_QueueName: revisa los
+      # nombres en su /metrics y ajusta el selector, no el umbral.
+      # Umbral: > 30 min sostenido 10 min → la alerta suena con el mensaje más viejo a ≈ 40 min de edad y
+      # deja ≈ 20 min (menos un cold start de 3–5 min, est., si hay que levantar workers) para actuar
+      # antes de los 60 del SLO. De noche (0 workers, KEDA escala desde 0) el primer slide espera el cold
+      # start: no alcanza el umbral.
+      # Un mensaje que falla siempre no la sostiene: tras 3 entregas se va a la DLQ (SlideDLQNotEmpty).
+      - alert: SlideQueueBacklog
+        expr: |
+          max by (queue_name) (aws_sqs_approximate_age_of_oldest_message_maximum{queue_name="slide-jobs"}) > 1800
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "slide-jobs tiene slides esperando más de 30 min"
+          description: "Mensaje más viejo: {{ $value | humanizeDuration }}. ¿Hay pods de seg-worker Running? (kubectl get pods,scaledobject -n c04) ¿KEDA en maxReplicaCount 4? ¿Nodos g6.2xlarge Pending por capacidad o spot? ¿SegWorkerErrors disparando?"
+          runbook_url: "https://runbooks.example.com/c04/slide-queue-backlog"
+
+      # Un slide que falló 3 veces: nadie lo va a procesar solo. Cada mensaje aquí es un caso que el
+      # patólogo verá "sin resultado de IA". Visible = los que están esperando en la DLQ (la métrica
+      # que AWS recomienda para DLQs; NumberOfMessagesSent no cuenta los que llegan por redrive).
+      # Runbook: leer el mensaje y los logs del worker (slide_failed con ese slide_id), arreglar la causa
+      # (archivo corrupto, sha distinto, bug) y devolverlos a slide-jobs con el redrive de la DLQ
+      # (consola o StartMessageMoveTask). Ojo: en colas estándar el vencimiento cuenta desde el envío
+      # ORIGINAL, así que la DLQ necesita más retención que la cola (14 días contra 4).
+      - alert: SlideDLQNotEmpty
+        expr: |
+          max by (queue_name) (aws_sqs_approximate_number_of_messages_visible_maximum{queue_name="slide-jobs-dlq"}) > 0
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "{{ $value }} slides en la DLQ de slide-jobs"
+          description: "Slides que fallaron 3 veces. Busca slide_failed en los logs del worker con esos slide_id, corrige la causa y haz redrive a slide-jobs. Si son muchos a la vez, probablemente es un deploy roto: revisa SegWorkerErrors y la versión del modelo."
+          runbook_url: "https://runbooks.example.com/c04/slide-dlq-not-empty"
+
+      # Burn rate multiventana del SLO de turnaround (presupuesto 5 %). Dos reglas con el mismo nombre:
+      #  - rápida: 14.4× el presupuesto en 1 h Y en 5 min (el 72 % de los slides tarda > 1 h: algo se rompió
+      #    ahora). La ventana corta hace que deje de disparar en cuanto se arregla.
+      #  - lenta: 6× en 6 h Y en 30 min (el 30 % tarda > 1 h: capacidad insuficiente, p. ej. un lab nuevo).
+      # Mínimo de 10 slides en la ventana larga: con ≈ 86 slides/h, 5 min son ≈ 7 slides y 1 lento es 14 %.
+      # Límite honesto: solo ve slides que terminaron (ver SlideQueueBacklog).
+      - alert: TurnaroundSLOBurn
+        expr: |
+          seg:turnaround_bad:ratio_rate1h > (14.4 * 0.05)
+            and
+          seg:turnaround_bad:ratio_rate5m > (14.4 * 0.05)
+            and
+          sum(increase(seg_turnaround_seconds_count[1h])) >= 10
+        labels:
+          severity: page
+          window: fast
+        annotations:
+          summary: "Turnaround: quemando el presupuesto del SLO 14× más rápido de lo sostenible"
+          description: "Fracción de slides con turnaround > 60 min en la última hora: {{ $value | humanizePercentage }}. Revisa la edad de slide-jobs, los workers y la etapa lenta en seg_stage_seconds (¿descarga? ¿inferencia?)."
+          runbook_url: "https://runbooks.example.com/c04/turnaround-slo-burn"
+      - alert: TurnaroundSLOBurn
+        expr: |
+          seg:turnaround_bad:ratio_rate6h > (6 * 0.05)
+            and
+          seg:turnaround_bad:ratio_rate30m > (6 * 0.05)
+            and
+          sum(increase(seg_turnaround_seconds_count[6h])) >= 10
+        labels:
+          severity: ticket
+          window: slow
+        annotations:
+          summary: "Turnaround: el 30 % o más de los slides tarda más de 60 min (6 h)"
+          description: "Fracción mala en 6 h: {{ $value | humanizePercentage }}. Suele ser capacidad: ¿maxReplicaCount alcanza para el volumen actual? ¿Un lab nuevo? ¿Slides más grandes (seg_tiles_total por slide)?"
+          runbook_url: "https://runbooks.example.com/c04/turnaround-slo-burn"
+
+      # Intentos fallidos del worker sobre el total. Cuenta INTENTOS: un slide que falla 3 veces suma 3.
+      # "interrupted" (SIGTERM) y "qc_blocked" no son errores: son decisiones. Mínimo de 3 errores en la
+      # ventana para que un solo slide corrupto (que ya irá a la DLQ) no despierte a nadie.
+      # Límite: si los pods mueren al arrancar (engine que no carga), no hay /metrics y esto no dispara;
+      # lo ve SlideQueueBacklog.
+      - alert: SegWorkerErrors
+        expr: |
+          (
+            sum(rate(seg_slides_processed_total{status="error"}[15m]))
+              /
+            sum(rate(seg_slides_processed_total[15m]))
+          ) > 0.05
+            and
+          sum(increase(seg_slides_processed_total{status="error"}[15m])) >= 3
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Más de 5 % de intentos fallidos en seg-worker"
+          description: "Tasa de error = {{ $value | humanizePercentage }}. Logs: event=slide_failed (campo error). ¿Un deploy nuevo (rollback: tag anterior)? ¿sha256_mismatch en seg_qc_flags_total (archivo)? ¿S3/SQS con permisos?"
+          runbook_url: "https://runbooks.example.com/c04/seg-worker-errors"
+
+      # El SLO de las 07:00 (99 % de lo escaneado antes de las 22:00, procesado antes de las 07:00). Sin
+      # esta regla nadie lo mira: de noche todo page se rutea como ticket, así que una falla después de
+      # las ≈ 21:20 (cuando SlideQueueBacklog ya no alcanza a sonar en horario) se ve por primera vez a las
+      # 07:00, que ya es el límite.
+      # Métrica: seg_pending_slides_before_cutoff, gauge de results-api (tiene el índice en Postgres),
+      # calculado en cada scrape (también puede publicarlo un job chico): slides que quedaron en el archivo
+      # antes del último corte de las 22:00 y todavía no tienen summary.json (ni ok ni qc_blocked).
+      # results-api lo publica solo mientras el SLO está abierto (22:00–07:00) y en 0 el resto del día:
+      # después de las 07:00 lo que falte ya no es de este SLO (lo ven SlideDLQNotEmpty y TurnaroundSLOBurn).
+      # > 0 y no "> 1 %": cada pendiente es un caso que el patólogo abrirá sin resultado de IA, y a las
+      # 05:30 todavía se puede arreglar (un slide en la DLQ se devuelve con un redrive).
+      # for 1h: pasadas las 22:00 la cola normal se vacía en menos de 1 h (p95 ≤ 60 min); una noche normal
+      # no la dispara.
+      # Ruteo: ruta propia en Alertmanager (active_time_intervals) que hace page desde las 05:30, todos
+      # los días, fines de semana incluidos; antes de las 05:30 no notifica (el backlog nocturno ya tiene
+      # SlideQueueBacklog como ticket). 90 min alcanzan para el peor caso: ≈ 500 slides se vacían en
+      # ≈ 52 min con 4 workers (500 × 25 s ÷ 4, est.) + 3–5 min de arranque.
+      - alert: NightlyCoverageAtRisk
+        expr: |
+          max(seg_pending_slides_before_cutoff) > 0
+        for: 1h
+        labels:
+          severity: page
+        annotations:
+          summary: "SLO de las 07:00 en riesgo: {{ $value }} slides de antes de las 22:00 sin resultado"
+          description: "Slides escaneados antes del corte siguen sin resultado. ¿Están en la DLQ (redrive)? Si no, mismo diagnóstico que SlideQueueBacklog (¿workers Running? ¿nodos GPU? ¿SegWorkerErrors?) y, si hace falta, subir maxReplicaCount o lanzar workers on-demand. Si no llega a las 07:00, avisar al jefe de turno qué casos no tendrán resultado de IA."
+          runbook_url: "https://runbooks.example.com/c04/nightly-coverage"
+
+  # ------------------------------------------------------------------ datos
+  - name: c04-data
+    rules:
+      # PSI del histograma de color del TEJIDO por lab/escáner/canal contra la referencia de training.
+      # Lo calcula monitoring/stain_psi.py una vez al día (sumando los color_hist de los summary.json del
+      # día) y lo empuja al Pushgateway: un cálculo diario sobre miles de slides no es un counter.
+      # 0.2 es la regla empírica usual para "cambio significativo", no una ley: calíbralo con días normales.
+      # Mínimo de 20 slides en el día: con 3 slides el PSI es ruido.
+      # Lab C: su referencia es la de training (labs A/B), así que su PSI sale alto desde el día 1. Es
+      # información ("el modelo nunca vio este color"), no un incidente: silencia lab C hasta validarlo.
+      # Después de validarlo NO basta con quitar el silencio: su color es distinto por diseño y la alerta
+      # sonaría todos los días, y un cambio real de color en C quedaría escondido dentro de una alerta
+      # permanente. Lab C (y cada escáner nuevo) recibe su propia referencia, construida con sus slides de
+      # silent mode o de validación (--write-reference de stain_psi.py), y esta alerta compara cada
+      # (lab, escáner) con la suya; el PSI contra training queda como panel informativo del dashboard.
+      # stain_psi.py, tal como está, usa una sola referencia para todos: es la versión del día 1.
+      # TRAMPA del Pushgateway: guarda el último valor PARA SIEMPRE. Si el job diario muere, esta alerta
+      # sigue mirando el PSI de hace una semana. Por eso existe StainPsiJobStale, justo abajo.
+      - alert: StainDriftPerScanner
+        expr: |
+          max by (lab, scanner) (seg_stain_psi) > 0.2
+            and on (lab, scanner)
+          max by (lab, scanner) (seg_stain_psi_slides) >= 20
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Cambio de color de tinción en {{ $labels.lab }}/{{ $labels.scanner }} (PSI {{ $value | printf \"%.2f\" }})"
+          description: "El color del tejido del día se alejó de la referencia de training. Preguntas al lab: ¿lote nuevo de hematoxilina/eosina? ¿cambio de protocolo? ¿mantenimiento o calibración del escáner? Mira en paralelo el % de tumor predicho y la major-edit rate de ese lab: si se mueven también, el modelo está sufriendo el cambio."
+          runbook_url: "https://runbooks.example.com/c04/stain-drift"
+
+      # Un monitor que no se monitorea a sí mismo falla en silencio. push_time_seconds lo agrega el
+      # Pushgateway a cada grupo en cada push exitoso; como stain_psi.py empuja una sola vez, al final y
+      # con todo calculado, es la hora de la última corrida exitosa. 26 h = un job diario + 2 h de margen.
+      # absent(): si el Pushgateway se reinicia sin persistencia (--persistence.file), la serie
+      # desaparece y la resta de arriba no devuelve nada; sin este "or", eso también sería silencio.
+      # El label job="stain-psi" llega solo si Prometheus scrapea el Pushgateway con honor_labels: true
+      # (el chart de Pushgateway lo configura así; verifícalo). Si no, se llama exported_job.
+      - alert: StainPsiJobStale
+        expr: |
+          time() - max(push_time_seconds{job="stain-psi"}) > 26 * 3600
+            or
+          absent(push_time_seconds{job="stain-psi"})
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "El job diario de PSI de tinción no publica hace más de 26 h (o nunca publicó)"
+          description: "StainDriftPerScanner está mirando un PSI viejo o ninguno. Revisa la última corrida de stain_psi.py (logs del CronJob: ¿permisos para leer los summary.json? ¿error de datos?) y que el Pushgateway esté arriba y con persistencia. Hasta que vuelva a correr, el drift de color no está vigilado."
+          runbook_url: "https://runbooks.example.com/c04/stain-psi-job-stale"
+
+      # Tiles fuera de foco por escáner: fracción de las últimas 2 h contra la de los últimos 7 días del
+      # MISMO escáner (cada escáner tiene su nivel normal). > 2× y > 5 %: un problema de foco o de
+      # mantenimiento, no un slide aislado. Mínimo ≈ 10,000 tiles evaluados (≈ 5 slides, est.).
+      # Qué NO es: el umbral del Laplaciano (blur_lapvar_min) se calibra por escáner; si nadie lo calibró,
+      # esta alerta mide el umbral, no el foco.
+      - alert: BlurryTilesSpike
+        expr: |
+          (
+            sum by (lab, scanner) (rate(seg_blurry_tiles_total[2h]))
+              /
+            sum by (lab, scanner) (rate(seg_blur_checked_tiles_total[2h]))
+          ) > 2 * (
+            sum by (lab, scanner) (rate(seg_blurry_tiles_total[7d]))
+              /
+            sum by (lab, scanner) (rate(seg_blur_checked_tiles_total[7d]))
+          )
+            and
+          (
+            sum by (lab, scanner) (rate(seg_blurry_tiles_total[2h]))
+              /
+            sum by (lab, scanner) (rate(seg_blur_checked_tiles_total[2h]))
+          ) > 0.05
+            and
+          sum by (lab, scanner) (increase(seg_blur_checked_tiles_total[2h])) >= 10000
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Tiles borrosos en {{ $labels.scanner }} ({{ $labels.lab }}): {{ $value | humanizePercentage }}"
+          description: "El doble de lo normal para ese escáner en las últimas 2 h. Avisa al laboratorio (foco, mantenimiento, platina sucia). Los slides afectados llevan el flag blurry en summary.json y el patólogo lo ve en el visor."
+          runbook_url: "https://runbooks.example.com/c04/blurry-tiles"
+
+      # Slides sin resultado por el METADATO de resolución (o un escáner sin registrar). Cada uno es un
+      # caso "sin resultado de IA". Casi siempre es de configuración: firmware nuevo del escáner, un
+      # conversor de formato que pierde el mpp, un escáner nuevo que nadie registró en worker.yaml.
+      # increase() > 0 ve el primer caso casi siempre, porque el worker crea estas series en 0 al arrancar.
+      # Casi: cada pod es su propia serie, y un pod recién escalado desde 0 podría terminar su primer slide
+      # antes del primer scrape (cada 15 s) y la serie nacería en 1. Por eso el worker levanta /metrics
+      # ANTES de cargar el engine, que tarda más que un scrape.
+      - alert: MissingMppMetadata
+        expr: |
+          sum by (lab, scanner, flag) (
+            increase(seg_qc_flags_total{flag=~"missing_mpp|odd_mpp|anisotropic_mpp|mpp_mismatch|unknown_scanner"}[1h])
+          ) > 0
+        labels:
+          severity: ticket
+        annotations:
+          summary: "{{ $value }} slides bloqueados por {{ $labels.flag }} en {{ $labels.lab }}/{{ $labels.scanner }} (1 h)"
+          description: "Sin resultado de IA para esos slides. Compara el mpp del archivo (summary.json → qc.mpp) con el registrado para el escáner (worker.yaml). Nunca 'arregles' el mpp en el worker: se corrige en el escáner o en el conversor, se re-escanea o se re-envía el evento."
+          runbook_url: "https://runbooks.example.com/c04/missing-mpp"
+
+  # ------------------------------------------------------------------ modelo
+  # La etiqueta fuerte pero tardía: cada slide firmado se registra en results-api como edit="none"
+  # (aceptado sin cambios), "minor" o "major" (el área de tumor cambió > 20 %). results-api expone
+  # results_reviews_total{lab, edit}. Evaluar ventanas de 28 d cada minuto es caro y no aporta: 1 h.
+  - name: c04-model
+    interval: 1h
+    rules:
+      # Baseline por lab: major-edit rate medida en las primeras 4 semanas de modo asistivo. Los valores
+      # de abajo son ILUSTRATIVOS: se reemplazan por los medidos. Lab C no tiene baseline hasta validarlo
+      # (silent mode + ≥ 30 slides anotados), así que la alerta no aplica a C todavía.
+      - record: seg:major_edit_rate:baseline
+        expr: vector(0.12)
+        labels:
+          lab: A
+      - record: seg:major_edit_rate:baseline
+        expr: vector(0.12)
+        labels:
+          lab: B
+      - record: seg:major_edit_rate:ratio_28d
+        expr: |
+          sum by (lab) (increase(results_reviews_total{edit="major"}[28d]))
+            /
+          sum by (lab) (increase(results_reviews_total[28d]))
+
+      # 1.5× la baseline en 4 semanas, con ≥ 200 slides firmados en la ventana. Lenta a propósito: es la
+      # señal más cercana a "el modelo se equivoca", pero llega con el ritmo de las firmas.
+      # Sesgo que hay que decir en voz alta: "aceptado sin edición" no es "correcto" (automation bias); por
+      # eso hay una auditoría mensual independiente. Si esta tasa BAJA mucho, también es sospechoso.
+      - alert: MajorEditRateHigh
+        expr: |
+          seg:major_edit_rate:ratio_28d > on (lab) (1.5 * seg:major_edit_rate:baseline)
+            and on (lab)
+          sum by (lab) (increase(results_reviews_total[28d])) >= 200
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Major-edit rate de lab {{ $labels.lab }} en {{ $value | humanizePercentage }} (28 d)"
+          description: "Los patólogos corrigen el área de tumor > 20 % en más slides que la baseline × 1.5. Cruza con StainDriftPerScanner y con el % de flags de QC de ese lab; revisa una muestra de los slides editados con un patólogo y dispara el reentrenamiento si el patrón es del modelo."
+          runbook_url: "https://runbooks.example.com/c04/major-edit-rate"

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ronda de Diseño ML</title>
+<meta name="description" content="Curso y simulador de ML System Design para entrevistas: serving, datos, evaluación, monitoreo y costo, con casos resueltos y práctica cronometrada.">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/practice.css">
+</head>
+<body>
+<a class="skip-link" href="#main" id="skip-link">Saltar al contenido</a>
+
+<!-- Barra superior (solo < 768 px): abre el índice como cajón -->
+<header class="topbar" id="topbar">
+  <button class="icon-btn" type="button" id="menu-btn" aria-controls="sidebar" aria-expanded="false" aria-label="Abrir el índice">
+    <svg class="ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg>
+  </button>
+  <a class="brand" href="#inicio">
+    <span class="brand__text"><span class="brand__name">Ronda de Diseño ML</span></span>
+  </a>
+  <span class="topbar__progress" id="topbar-progress"></span>
+</header>
+
+<!-- Índice del curso: columna fija (≥ 768 px) o cajón (< 768 px) -->
+<aside class="sidebar" id="sidebar" aria-label="Índice del curso">
+  <div class="sidebar__head">
+    <a class="brand" href="#inicio" aria-label="Ronda de Diseño ML: ir al inicio">
+      <svg class="brand__mark" viewBox="0 0 26 26" aria-hidden="true" focusable="false">
+        <rect class="bm-o" x="1" y="5" width="4" height="16" rx=".6"/>
+        <rect class="bm-o" x="6.5" y="5" width="4" height="16" rx=".6"/>
+        <rect class="bm-a" x="12" y="5" width="4" height="16" rx=".6" opacity=".35"/>
+        <rect class="bm-a" x="12" y="13" width="4" height="8" rx=".6"/>
+        <rect class="bm-r" x="18.1" y="5.6" width="3.3" height="14.8" rx=".5"/>
+        <rect class="bm-r" x="23" y="5.6" width="2.2" height="14.8" rx=".5" opacity=".6"/>
+      </svg>
+      <span class="brand__text">
+        <span class="brand__name">Ronda de Diseño ML</span>
+        <span class="brand__tag">ML System Design · MLE</span>
+      </span>
+    </a>
+    <button class="icon-btn sidebar__close" type="button" id="drawer-close" aria-label="Cerrar el índice">
+      <svg class="ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    </button>
+  </div>
+
+  <div class="search" id="search" role="search">
+    <label class="sr-only" for="search-input">Buscar en el curso</label>
+    <span class="search__icon" aria-hidden="true">
+      <svg class="ico" viewBox="0 0 16 16" width="16" height="16" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.3"/><path d="M10.2 10.2l3.3 3.3"/></svg>
+    </span>
+    <input class="search__input" id="search-input" type="search" placeholder="Buscar temas, términos…" autocomplete="off" spellcheck="false"
+           role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-results">
+    <kbd class="search__kbd" aria-hidden="true">/</kbd>
+    <div class="search__results" id="search-results" role="listbox" aria-label="Resultados de búsqueda" hidden></div>
+  </div>
+
+  <div class="side-uptime" id="side-uptime"></div>
+  <nav class="nav" id="nav" aria-label="Contenido del curso"></nav>
+  <div class="sidebar__foot" id="side-foot"></div>
+</aside>
+<div class="backdrop" id="backdrop" hidden></div>
+
+<div class="shell" id="shell">
+  <main class="main" id="main" tabindex="-1">
+    <div class="dev-banner" id="dev-banner" hidden></div>
+    <div class="page" id="page">
+      <noscript><p>Esta app necesita JavaScript activado.</p></noscript>
+    </div>
+  </main>
+  <aside class="toc" id="toc" aria-label="En esta página" hidden></aside>
+</div>
+
+<div class="modal" id="modal" hidden></div>
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<script src="js/core/registry.js"></script>
+<script src="js/core/store.js"></script>
+<script src="js/ui/dom.js"></script>
+<script src="js/ui/blocks.js"></script>
+<script src="js/ui/diagram.js"></script>
+<script src="js/ui/code.js"></script>
+<script src="js/ui/practice.js"></script>
+<script src="js/ui/flashcards.js"></script>
+<script src="js/ui/reference.js"></script>
+<script src="js/ui/notes.js"></script>
+<script src="js/ui/drill.js"></script>
+<script src="js/ui/bank.js"></script>
+<script src="js/content/catalog.js"></script>
+<script src="js/content/reference-files.js"></script>
+<script src="js/content/m01-mapa.js"></script>
+<script src="js/content/c01-clasificacion.js"></script>
+<script src="js/content/c01-archivos.js"></script>
+<script src="js/content/m02-patrones.js"></script>
+<script src="js/content/m03-latencia.js"></script>
+<script src="js/content/m04-hardware.js"></script>
+<script src="js/content/m05-contenedores.js"></script>
+<script src="js/content/m06-orquestacion.js"></script>
+<script src="js/content/ref-comandos.js"></script>
+<script src="js/content/m07-servidores.js"></script>
+<script src="js/content/m08-optimizacion.js"></script>
+<script src="js/content/ref-numeros.js"></script>
+<script src="js/content/c02-video.js"></script>
+<script src="js/content/c02-archivos.js"></script>
+<script src="js/content/c03-inspeccion.js"></script>
+<script src="js/content/c03-archivos.js"></script>
+<script src="js/content/m09-datos.js"></script>
+<script src="js/content/m10-mlops.js"></script>
+<script src="js/content/m11-despliegue.js"></script>
+<script src="js/content/m12-monitoreo.js"></script>
+<script src="js/content/c04-segmentacion.js"></script>
+<script src="js/content/c04-archivos.js"></script>
+<script src="js/content/c05-documentos.js"></script>
+<script src="js/content/c05-archivos.js"></script>
+<script src="js/content/c06-moderacion.js"></script>
+<script src="js/content/c06-archivos.js"></script>
+<script src="js/content/m13-nube.js"></script>
+<script src="js/content/m15-seguridad.js"></script>
+<script src="js/content/ref-herramientas.js"></script>
+<script src="js/content/c07-busqueda.js"></script>
+<script src="js/content/c07-archivos.js"></script>
+<script src="js/content/c08-recomendacion.js"></script>
+<script src="js/content/c08-archivos.js"></script>
+<script src="js/content/c09-fraude.js"></script>
+<script src="js/content/c09-archivos.js"></script>
+<script src="js/content/c13-transcripcion.js"></script>
+<script src="js/content/c13-archivos.js"></script>
+<script src="js/content/m14-llms.js"></script>
+<script src="js/content/c10-llm-propio.js"></script>
+<script src="js/content/c10-archivos.js"></script>
+<script src="js/content/c11-rag.js"></script>
+<script src="js/content/c11-archivos.js"></script>
+<script src="js/content/c12-agente.js"></script>
+<script src="js/content/c12-archivos.js"></script>
+<script src="js/content/c14-demanda.js"></script>
+<script src="js/content/c14-archivos.js"></script>
+<script src="js/content/c15-ctr.js"></script>
+<script src="js/content/c15-archivos.js"></script>
+<script src="js/content/m01-practica.js"></script>
+<script src="js/content/m01-practica-calc.js"></script>
+<script src="js/content/banco-estimaciones.js"></script>
+<script src="js/content/banco-proyectos.js"></script>
+<script src="js/content/banco-casos.js"></script>
+<script src="js/content/banco-casos-sincrono.js"></script>
+<script src="js/content/banco-casos-batch.js"></script>
+<script src="js/content/banco-casos-asincrono.js"></script>
+<script src="js/content/banco-casos-llm.js"></script>
+<script src="js/content/banco-casos-hibrido.js"></script>
+<script src="js/content/banco-casos-streaming.js"></script>
+<script src="js/content/banco-casos-edge.js"></script>
+<!-- contenido: añade aquí los módulos/casos nuevos -->
+<script src="js/app.js"></script>
+</body>
+</html>

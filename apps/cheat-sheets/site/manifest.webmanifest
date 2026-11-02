@@ -1,0 +1,17 @@
+{
+  "name": "Cheat sheets ML",
+  "short_name": "Cheat sheets",
+  "description": "Hojas de estudio para ML engineering, con versión web y PDF para imprimir.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F6F9",
+  "theme_color": "#1F5FAE",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

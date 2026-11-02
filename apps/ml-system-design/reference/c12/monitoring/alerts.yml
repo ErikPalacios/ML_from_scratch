@@ -1,0 +1,183 @@
+# Alertas del caso c12 (agente de soporte con herramientas), Prometheus: 8 alertas en 3 grupos + recording rules.
+#   Seguridad y dinero (page): AgentPolicyViolation, RefundAmountAnomaly
+#   Experiencia y operación: AgentTurnLatencyHigh (page), AgentToolErrorRateHigh (page),
+#                            ApprovalQueueBacklog (page, horario hábil), AgentStepLimitHit (ticket)
+#   Comportamiento y costo (ticket): EscalationRateShift, AgentCostPerConversationHigh
+# Severidades: page = alguien lo mira YA; ticket = horario laboral, con dueño (equipo del agente de soporte).
+# Umbrales ILUSTRATIVOS: salen de los SLOs del caso (primera respuesta p95 ≤ 4 s, turno completo p95 ≤ 12 s,
+# aprobaciones en ≤ 4 h hábiles, cero violaciones de política) y de una línea base que en producción se mide.
+#
+# De dónde sale cada métrica: agent_* → service/app.py (PrometheusObserver; un test exige que cada métrica usada
+# aquí exista en /metrics). Ninguna tiene customer_id ni conversation_id como label.
+#
+# Trampa que este archivo evita: un counter con labels no existe hasta su primer inc(), y increase()/rate() no ven
+# el salto de "no existe" a 1. Por eso app.py crea en 0 al arrancar las series de violaciones, límites y
+# reembolsos; sin eso, la PRIMERA violación de política no dispararía AgentPolicyViolation.
+# Horario: CDMX = UTC−6 todo el año (sin horario de verano desde 2022); hábil = lun–vie 9:00–18:00 CDMX =
+# 15:00–24:00 UTC. hour() y day_of_week() de PromQL trabajan en UTC.
+# Validación: `promtool check rules alerts.yml` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
+
+groups:
+  # ------------------------------------------------------------------ recording rules
+  - name: c12-recording
+    rules:
+      # Fracción de tool calls EJECUTADAS que fallaron, por herramienta. No cuentan las que la política negó, las
+      # que el modelo pidió mal (invalid_args) ni las prohibidas: esas son decisiones, no fallas del backend.
+      # "unknown" (escritura con estado desconocido) y "conflict" sí: son lo peor que le puede pasar a una escritura.
+      - record: agent:tool_error_ratio:rate10m
+        expr: |
+          sum by (tool) (rate(agent_tool_calls_total{outcome=~"error|timeout|unknown|conflict"}[10m]))
+            / sum by (tool) (rate(agent_tool_calls_total{outcome=~"ok|not_found|rejected|error|timeout|unknown|conflict"}[10m]))
+      # Límites tocados por turno (cada uno terminó en hand-off)
+      - record: agent:step_limit_ratio:rate15m
+        expr: |
+          sum(rate(agent_step_limit_hits_total[15m])) / sum(rate(agent_turns_total[15m]))
+      # p95 del turno completo y de la primera respuesta visible. Los histogramas tienen bordes EXACTOS en 12 s y 4 s.
+      - record: agent:turn_duration_p95:rate5m
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(agent_turn_duration_seconds_bucket[5m])))
+      - record: agent:first_response_p95:rate5m
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(agent_first_response_seconds_bucket[5m])))
+      # US$ reembolsados por el agente cada 1,000 conversaciones (la métrica de negocio del caso, contra la línea
+      # base humana y contra sí misma hace una semana)
+      - record: agent:refund_usd_per_1k_conversations:rate1h
+        expr: |
+          1000 * sum(rate(agent_refund_amount_usd_total[1h])) / sum(rate(agent_conversations_started_total[1h]))
+      # Costo interno promedio por conversación cerrada (US$, showback de la flota de c10)
+      - record: agent:cost_per_conversation:rate1h
+        expr: |
+          sum(rate(agent_conversation_cost_usd_sum[1h])) / sum(rate(agent_conversation_cost_usd_count[1h]))
+      # Hand-offs a personas por conversación iniciada
+      - record: agent:escalation_ratio:rate1h
+        expr: |
+          sum(rate(agent_handoffs_total[1h])) / sum(rate(agent_conversations_started_total[1h]))
+      # Volumen: conversaciones por segundo (para no alertar sobre ratios de 3 conversaciones a las 4:00)
+      - record: agent:conversations_started:rate1h
+        expr: |
+          sum(rate(agent_conversations_started_total[1h]))
+
+  # ------------------------------------------------------------------ seguridad y dinero
+  - name: c12-safety
+    rules:
+      # Tolerancia cero: UNA violación despierta a alguien (sin `for`). El tripwire del loop la cuenta cuando un
+      # reembolso por encima del límite automático salió sin aprobación: nunca debería pasar; si pasa, hay un bug
+      # en la política o en su configuración, y el primer paso del runbook es apagar la herramienta issue_refund
+      # (feature flag) mientras se investiga, no "mirar mañana".
+      - alert: AgentPolicyViolation
+        expr: |
+          sum by (check) (increase(agent_policy_violations_total[10m])) > 0
+        labels:
+          severity: page
+          team: support-agent
+        annotations:
+          summary: "Violación de política del agente ({{ $labels.check }})"
+          description: "Hubo {{ $value | humanize }} violación(es) de política en 10 min. Apaga issue_refund con el flag y revisa el step log de las conversaciones afectadas."
+      # Dinero que sale: US$ por 1,000 conversaciones 1.5× más que a la misma hora hace una semana, por 30 min, con
+      # volumen suficiente. Detecta una política mal configurada, un cambio de prompt que regala reembolsos o un
+      # abuso coordinado ("pidan reembolso al bot que se los da") aunque cada reembolso sea legal por separado.
+      - alert: RefundAmountAnomaly
+        expr: |
+          agent:refund_usd_per_1k_conversations:rate1h
+            > 1.5 * (agent:refund_usd_per_1k_conversations:rate1h offset 1w)
+          and on() agent:conversations_started:rate1h > 0.2
+        for: 30m
+        labels:
+          severity: page
+          team: support-agent
+        annotations:
+          summary: "Reembolsos del agente por 1,000 conversaciones muy por encima de la semana pasada"
+          description: "US${{ $value | humanize }} por 1,000 conversaciones (> 1.5× hace una semana)."
+
+  # ------------------------------------------------------------------ experiencia y operación
+  - name: c12-operations
+    rules:
+      # SLO: turno completo con herramientas p95 ≤ 12 s
+      - alert: AgentTurnLatencyHigh
+        expr: |
+          agent:turn_duration_p95:rate5m > 12
+        for: 10m
+        labels:
+          severity: page
+          team: support-agent
+          slo: turn
+        annotations:
+          summary: "Turnos del agente lentos: p95 {{ $value | humanizeDuration }} (SLO 12 s)"
+          description: "Mira agent_tool_latency_seconds por herramienta y el TTFT del llm-gateway (#c10) para saber si es el modelo o un backend."
+      # SLO: primera respuesta visible (estado o texto) p95 ≤ 4 s
+      - alert: AgentTurnLatencyHigh
+        expr: |
+          agent:first_response_p95:rate5m > 4
+        for: 10m
+        labels:
+          severity: page
+          team: support-agent
+          slo: first_response
+        annotations:
+          summary: "Primera respuesta del agente lenta: p95 {{ $value | humanizeDuration }} (SLO 4 s)"
+          description: "El cliente mira la pantalla vacía más de 4 s. Suele ser la cola del llm-gateway o el TTFT."
+      # Una herramienta falla en más del 5 % de sus llamadas (10 min) con volumen mínimo (≥ 12 por minuto).
+      - alert: AgentToolErrorRateHigh
+        expr: |
+          agent:tool_error_ratio:rate10m > 0.05
+          and on(tool) sum by (tool) (rate(agent_tool_calls_total[10m])) > 0.2
+        for: 10m
+        labels:
+          severity: page
+          team: support-agent
+        annotations:
+          summary: "{{ $labels.tool }} falla en {{ $value | humanizePercentage }} de las llamadas"
+          description: "Cada falla termina en reintento (lecturas) o en una persona (escrituras): sube el escalamiento. Un 'unknown' en issue_refund requiere conciliar por idempotency key."
+      # Aprobaciones: la más vieja lleva más de 3 h HÁBILES (75 % del SLA de 4 h hábiles) y es horario hábil.
+      - alert: ApprovalQueueBacklog
+        expr: |
+          max(agent_approval_oldest_pending_seconds) > 3 * 3600
+          and on() (hour() >= 15 and day_of_week() >= 1 and day_of_week() <= 5)
+        for: 10m
+        labels:
+          severity: page
+          team: support-ops
+        annotations:
+          summary: "Aprobación de reembolso esperando {{ $value | humanizeDuration }} hábiles (SLA 4 h)"
+          description: "Hay {{ with query \"max(agent_approvals_pending)\" }}{{ . | first | value }}{{ end }} pendientes. Clientes esperando su dinero: suma aprobadores o revisa si el webhook dejó de llegar."
+      # Más del 2 % de los turnos toca un límite (pasos, tokens, reloj, loop) durante 15 min.
+      - alert: AgentStepLimitHit
+        expr: |
+          agent:step_limit_ratio:rate15m > 0.02
+        for: 15m
+        labels:
+          severity: ticket
+          team: support-agent
+        annotations:
+          summary: "{{ $value | humanizePercentage }} de los turnos toca un límite del agente"
+          description: "Mira agent_step_limit_hits_total por limit. repeated_call sube con errores de herramientas que el modelo no entiende; token_budget, con resultados demasiado largos."
+
+  # ------------------------------------------------------------------ comportamiento y costo
+  - name: c12-behavior
+    rules:
+      # Escalamiento a personas ±10 puntos contra la misma hora hace una semana (1 h, por 30 min). En las DOS
+      # direcciones: si sube, el agente resuelve menos (o algo se rompió); si BAJA de golpe, el agente está
+      # "resolviendo" cosas que antes pasaban a una persona, o el hand-off dejó de funcionar.
+      - alert: EscalationRateShift
+        expr: |
+          abs(agent:escalation_ratio:rate1h - (agent:escalation_ratio:rate1h offset 1w)) > 0.10
+          and on() agent:conversations_started:rate1h > 0.2
+        for: 30m
+        labels:
+          severity: ticket
+          team: support-agent
+        annotations:
+          summary: "El escalamiento a personas cambió más de 10 puntos contra la semana pasada"
+          description: "Diferencia de {{ $value | humanizePercentage }}. Cruza con despliegues de modelo/prompt/schemas y con la tasa de reapertura a 7 días."
+      # Costo promedio por conversación > US$0.025 (≈ 1.8× la estimación de ≈ US$0.014 con 6 llamadas de 2,500
+      # tokens y el precio interno de c10). Sube con prompts más largos, más pasos por conversación o loops.
+      - alert: AgentCostPerConversationHigh
+        expr: |
+          agent:cost_per_conversation:rate1h > 0.025
+        for: 30m
+        labels:
+          severity: ticket
+          team: support-agent
+        annotations:
+          summary: "Costo por conversación US${{ $value | printf \"%.4f\" }} (umbral US$0.025)"
+          description: "Mira agent_llm_calls_total y agent_llm_tokens_total por conversación, y si cayó el prefix caching del gateway."

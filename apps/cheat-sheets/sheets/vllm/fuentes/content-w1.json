@@ -1,0 +1,2557 @@
+{
+  "sections": [
+    {
+      "id": "bolsillo",
+      "num": 0,
+      "title": "Números de bolsillo: tokens, bytes por parámetro, KV cache, TTFT y TPOT, puertos y endpoints",
+      "question": "¿Qué números de un LLM servido con vLLM conviene saberse de memoria para dimensionar una réplica y leer sus métricas en segundos?",
+      "templates": [
+        {
+          "code": "curl -s localhost:{puerto}/v1/models",
+          "note": "El primer chequeo: el servidor contesta y sirve el nombre que esperas, el de <code>--served-model-name</code>. Puerto de bolsillo: <code>8000</code>, el default de <code>vllm serve</code> y el del C10."
+        },
+        {
+          "code": "curl -s localhost:{puerto}/tokenize -H 'content-type: application/json' -d '{\"model\": \"{modelo}\", \"messages\": [{\"role\": \"user\", \"content\": \"{texto}\"}]}'",
+          "note": "Cuenta tokens con el <b>tokenizer</b> (el que parte el texto en tokens) y el <b>chat template</b> (la plantilla que envuelve tus mensajes con las marcas del modelo) del modelo servido. Devuelve <code>count</code>, <code>max_model_len</code> y la lista de <code>tokens</code>."
+        },
+        {
+          "code": "GPU KV cache size: {tokens} tokens, Maximum concurrency for {max_model_len} tokens per request: {x}x",
+          "note": "La línea del log de arranque con tu capacidad real: cuántos tokens de <b>KV cache</b> (lo que el modelo ya leyó de cada conversación, guardado en la GPU) caben, y cuántas secuencias del largo máximo a la vez. Con los números del C10, la cuenta da 208,736 tokens y 25.48x; vLLM no corrió en la referencia, así que el número real sale del log."
+        },
+        {
+          "code": "curl -s localhost:{puerto}/metrics | grep -E '^vllm:(num_requests_running|num_requests_waiting|kv_cache_usage_perc)'",
+          "note": "Los tres <b>gauges</b> (números que suben y bajan) de capacidad: requests en el batch, requests en la cola y fracción del KV cache ocupada (1 = 100 %). La utilización de la GPU no sirve para esto: el <b>decode</b> (generar la respuesta token por token) marca ≈ 100 % con 5 secuencias o con 90."
+        }
+      ],
+      "formulas": [
+        "\\text{KV}_{\\text{token}} = 2 \\times L \\times H_{kv} \\times d_{head} \\times b_{kv} = 2 \\times 80 \\times 8 \\times 128 \\times 2\\ \\text{B} = 327{,}680\\ \\text{B} = 320\\ \\text{KiB}",
+        "\\text{pesos} = P \\times b_w = 70.6\\ \\text{B} \\times 1\\ \\text{B} \\approx 70.6\\ \\text{GB} \\qquad (\\text{BF16: } 141.2\\ \\text{GB; INT4: } \\approx 35.3\\ \\text{GB})",
+        "\\text{KV}_{\\text{libre}} = N_{gpu} \\times M_{gpu} \\times u - \\text{pesos} - \\text{overhead} = 2 \\times 80 \\times 0.90 - 70.6 - 5 \\approx 68.4\\ \\text{GB}",
+        "N_{seq} = \\left\\lfloor \\frac{\\text{KV}_{\\text{libre}}}{T_{seq} \\times \\text{KV}_{\\text{token}}} \\right\\rfloor = \\left\\lfloor \\frac{68.4\\ \\text{GB}}{2{,}250 \\times 327{,}680\\ \\text{B}} \\right\\rfloor = \\lfloor 92.8 \\rfloor = 92",
+        "\\text{E2E} = \\text{TTFT} + (N_{out} - 1) \\times \\text{TPOT} \\approx 0.5\\ \\text{s} + 249 \\times 40\\ \\text{ms} \\approx 10.5\\ \\text{s}",
+        "C = \\lambda \\times W = 60\\ \\text{rps} \\times 10.5\\ \\text{s} = 630 \\;\\Rightarrow\\; 630 \\div 16 \\approx 39.4 \\text{ secuencias por réplica} \\;<\\; 92"
+      ],
+      "vars": [
+        [
+          "{puerto}",
+          "dónde escucha vllm serve",
+          "8000: el default y el del C10"
+        ],
+        [
+          "{modelo}",
+          "el nombre que pide el cliente: el de --served-model-name",
+          "chat-70b-fp8-2026-09-28"
+        ],
+        [
+          "{texto}",
+          "lo que quieres contar en tokens",
+          "Hola, ¿dónde está mi pedido?"
+        ],
+        [
+          "{tokens}, {max_model_len}, {x}",
+          "lo que imprime vLLM al arrancar: tokens de KV, el contexto máximo y cuántas secuencias de ese largo caben",
+          "208,736 · 8,192 · 25.48 con la cuenta del C10"
+        ],
+        [
+          "L",
+          "capas del modelo (num_hidden_layers en el config.json)",
+          "80"
+        ],
+        [
+          "H_kv",
+          "KV heads: cuántos pares de K y V tiene cada capa (num_key_value_heads)",
+          "8, de 64 heads de atención (GQA)"
+        ],
+        [
+          "d_head",
+          "tamaño de cada head (head_dim; si el config no lo trae, hidden_size ÷ num_attention_heads)",
+          "128 = 8,192 ÷ 64"
+        ],
+        [
+          "b_kv, b_w",
+          "bytes por número: en el KV cache y en los pesos",
+          "2 (BF16, --kv-cache-dtype auto) y 1 (pesos FP8)"
+        ],
+        [
+          "P",
+          "parámetros del modelo",
+          "70.6 B (miles de millones)"
+        ],
+        [
+          "N_gpu, M_gpu",
+          "GPUs por réplica y memoria de cada una",
+          "2 × 80 GB (TP=2)"
+        ],
+        [
+          "u",
+          "--gpu-memory-utilization: la fracción de la memoria de cada GPU que vLLM se permite usar",
+          "0.90 en el C10; 0.92 si no la escribes (desde v0.20)"
+        ],
+        [
+          "overhead",
+          "lo que no es pesos ni KV: activaciones, CUDA graphs y buffers de comunicación",
+          "≈ 5 GB en la réplica (estimación del C10)"
+        ],
+        [
+          "T_seq, N_out",
+          "tokens de una secuencia (prompt + salida) y tokens de salida",
+          "2,250 = 2,000 + 250; N_out = 250"
+        ],
+        [
+          "TTFT, TPOT",
+          "tiempo hasta el primer token; tiempo promedio por token después del primero",
+          "≈ 0.5 s y ≈ 40 ms (los SLOs, las metas en p95: 1 s y 50 ms)"
+        ],
+        [
+          "C, λ, W",
+          "secuencias vivas a la vez, llegadas por segundo y cuánto dura cada request (ley de Little)",
+          "630 = 60 × 10.5"
+        ]
+      ],
+      "pieces": [
+        [
+          "1 token ≈ ¾ de palabra en inglés",
+          "La unidad en que el modelo lee y escribe: un pedazo de palabra. La regla de ¾ es la de OpenAI; con el tokenizer de Llama 3.1 se midieron ≈ 1.23 tokens por palabra en inglés y ≈ 1.61 en español, en noticias.",
+          "2,000 tokens de prompt ≈ 1,240 palabras en español"
+        ],
+        [
+          "2 · 1 · 0.5 bytes por parámetro",
+          "BF16 (16 bits, como se entrenó), FP8 o INT8 (8 bits) e INT4 (4 bits). Los pesos pesan parámetros × bytes.",
+          "70.6 B: 141.2 · 70.6 · ≈ 35.3 GB; el C10 sirve FP8"
+        ],
+        [
+          "KV por token = 2 × capas × KV heads × head_dim × bytes",
+          "Lo que ocupa en la GPU guardar lo que el modelo ya leyó de un token: una K y una V por capa y por KV head. No depende de los parámetros.",
+          "320 KiB en BF16 y 160 KiB en FP8; Llama 3.1 8B: 128 KiB"
+        ],
+        [
+          "GQA (grouped-query attention)",
+          "Varios heads de atención comparten un mismo par de K y V: menos KV heads y un KV cache más chico. Se lee del config.json.",
+          "64 heads y 8 KV heads: 8× menos KV que con un par por head"
+        ],
+        [
+          "--gpu-memory-utilization 0.92",
+          "La fracción de la memoria TOTAL de cada GPU que vLLM se permite usar entre pesos, activaciones y KV. Es el default desde v0.20; hasta v0.19 era 0.9.",
+          "el C10 fija 0.90: 2 × 80 GB × 0.90 = 144 GB"
+        ],
+        [
+          "Bloque de 16 tokens",
+          "PagedAttention reparte el KV cache en bloques de 16 tokens (--block-size): cada secuencia desperdicia, como mucho, lo que le falta a su último bloque.",
+          "2,250 tokens = 141 bloques"
+        ],
+        [
+          "GPU KV cache size",
+          "La línea del arranque con la capacidad que midió vLLM con tu modelo, tu versión y tus GPUs. Manda sobre cualquier cuenta.",
+          "la cuenta del C10 da 208,736 tokens y 25.48x para 8,192"
+        ],
+        [
+          "TTFT · TPOT · ITL",
+          "TTFT (time to first token): lo que se espera hasta el primer token. TPOT (time per output token): el promedio entre tokens después del primero. ITL (inter-token latency): el hueco entre dos tokens seguidos.",
+          "SLOs del C10: TTFT p95 ≤ 1 s en el gateway y TPOT p95 ≤ 50 ms"
+        ],
+        [
+          "E2E = TTFT + (N − 1) × TPOT",
+          "El request completo: el primer token y después un paso de decode por cada uno de los demás.",
+          "0.5 + 249 × 0.040 ≈ 10.5 s"
+        ],
+        [
+          "Throughput · goodput",
+          "Throughput: tokens de salida, o requests, por segundo de la réplica. Goodput: requests por segundo que cumplen todos los SLOs, uno por uno. Se planea con el goodput.",
+          "≈ 6 rps por réplica (72 en vuelo, en el barrido sintético); planeado al 70 %: 4.2"
+        ],
+        [
+          "8000 · /v1/chat/completions · /v1/completions · /v1/models",
+          "El puerto por defecto y la API compatible con OpenAI que expone vllm serve.",
+          "el gateway llama a http://vllm-70b.c10.svc.cluster.local:8000/v1"
+        ],
+        [
+          "/health · /metrics · /tokenize",
+          "/health: responde 200 si el motor está vivo. /metrics: las métricas vllm: para Prometheus. /tokenize: cuenta tokens como los cuenta el modelo.",
+          "las tres probes del C10 llaman a /health"
+        ],
+        [
+          "vllm:num_requests_running · vllm:num_requests_waiting · vllm:kv_cache_usage_perc",
+          "Requests en el batch, requests en la cola y fracción del KV cache ocupada (1 = 100 %).",
+          "KVCacheSaturation: KV > 95 % y requests esperando, 15 min"
+        ],
+        [
+          "vllm:time_to_first_token_seconds · vllm:inter_token_latency_seconds",
+          "Los histogramas de TTFT y de ITL que mide el propio vLLM, del lado del servidor.",
+          "el TTFT del SLO se mide en el gateway, que además ve la red y los proxies"
+        ],
+        [
+          "H100 SXM: 80 GB · 3.35 TB/s · ≈ 1,979 TFLOPS en FP8",
+          "La GPU del C10. Su memoria decide cuántas secuencias caben; su ancho de banda, cuánto tarda cada token; sus TFLOPS (billones de operaciones por segundo), el prefill. La hoja de NVIDIA dice 3,958 TFLOPS «with sparsity» (con la mitad de los pesos en cero, algo que casi ningún modelo usa): el denso es la mitad.",
+          "una réplica = 2 H100 unidas por NVLink (el enlace rápido entre GPUs); 8 por p5.48xlarge, ≈ US$55/h"
+        ],
+        [
+          "US$2.50 y US$10 por millón de tokens",
+          "Precios de lista ilustrativos del C10 para el proveedor, de entrada y de salida: un token de salida cuesta 4×.",
+          "un request de soporte (2,000 + 250): US$0.0075"
+        ]
+      ],
+      "example": {
+        "title": "La cuenta de VRAM del C10, a mano",
+        "lang": "text",
+        "code": "La cuenta del caso, a mano, con la arquitectura de Llama 3.x 70B (la de #m04) y los números del caso:\n\n  KV por token  = 2 (K y V) × 80 capas × 8 KV heads × 128 dims × 2 B (BF16)  = 327,680 B = 320 KiB\n                  (en FP8: 1 B por elemento → 160 KiB)\n  pesos en FP8  = 70.6 B params × 1 B                                        ≈ 70.6 GB\n  una réplica   = 2 × H100 (80 GB cada una) con tensor parallelism 2 (TP=2)\n  lugar para KV = 0.90 × 160 GB − 70.6 GB − ≈ 5 GB (runtime, activaciones, CUDA graphs; est.) ≈ 68.4 GB\n  una secuencia = 2,000 tokens de prompt + 250 de salida = 2,250 tokens × 320 KiB ≈ 0.737 GB\n  secuencias    = 68.4 ÷ 0.737 ≈ 92.8 → 92 enteras (el caso dice \"≈ 93\": es el cociente redondeado)\n                  con KV en FP8, el doble: ≈ 185",
+        "source": "reference/c10/capacity/vram_calc.py (líneas 3–12, el docstring)",
+        "notes": [
+          "La primera línea es la fórmula del KV cache con el config de Llama 3.x 70B: <b>80 capas</b>, <b>8 KV heads</b> y <b>128 dims</b>. Los 2 B por número son BF16, lo que da <code>--kv-cache-dtype auto</code> con este modelo; en FP8, la mitad.",
+          "«70.6 B params × 1 B»: un checkpoint FP8 guarda un byte por peso. Uno real suele dejar en BF16 las dos tablas del vocabulario, embeddings (la de entrada) y lm_head (la de salida): ≈ 2.1 B parámetros, y entonces pesa ≈ 72.7 GB, no 70.6. Mide los safetensors (los archivos de pesos) que vas a servir.",
+          "«0.90 × 160 GB»: el 0.90 es el <code>--gpu-memory-utilization</code> que fija el manifest. Los ≈ 5 GB de overhead son una estimación; vLLM los mide al arrancar con un paso de prueba y los resta antes de armar el KV cache.",
+          "«92 enteras»: la cuenta supone todas las secuencias en su largo final. El «≈ 93» del curso es el cociente redondeado (92.77).",
+          "Lo que el docstring aclara después: «80 GB» es el nominal. <code>nvidia-smi</code> muestra 81,559 MiB (≈ 85.5 GB) en una H100 SXM, y la fracción se aplica sobre eso: en la práctica, ≈ 78 GB para KV y 106 secuencias. El número que vale es el del log de arranque."
+        ]
+      },
+      "figure": {
+        "kind": "table",
+        "caption": "Defaults de vLLM v0.30.0 (el pin del C10, 22 de septiembre de 2026) y v0.32.0 (la versión actual, 18 de octubre) contra lo que fija el C10. Leídos en el código de las dos versiones (vllm/config, vllm/engine/arg_utils.py y vllm/renderers/params.py) y en la referencia de vllm serve. Son iguales en las dos salvo donde se dice.",
+        "data": {
+          "head": [
+            "Flag",
+            "Default (v0.30.0 y v0.32.0)",
+            "En el C10",
+            "Por qué importa"
+          ],
+          "rows": [
+            [
+              "--port",
+              "8000",
+              "8000",
+              "el Service y el gateway apuntan ahí"
+            ],
+            [
+              "--gpu-memory-utilization",
+              "0.92 (0.9 hasta v0.19)",
+              "0.90",
+              "explícito: la capacidad no cambia con un upgrade"
+            ],
+            [
+              "--max-model-len",
+              "el del config.json del modelo (131,072 en Llama 3.3)",
+              "8192",
+              "prompt + salida; acepta auto (el máximo que cabe) y sufijos: 8k = 8,000 y 8K = 8,192"
+            ],
+            [
+              "--max-num-seqs",
+              "con vllm serve: 1,024 en GPUs de ≥ 70 GiB que no son A100 (H100, H200, B200); 256 en las demás",
+              "128",
+              "techo de secuencias por paso: el KV del C10 da para 92 de 2,250 tokens"
+            ],
+            [
+              "--max-num-batched-tokens",
+              "con vllm serve: 8,192 en la H100; 16,384 desde 160 GiB por GPU; 2,048 en la A100 y en las chicas",
+              "8192",
+              "tokens por paso: más mejora el TTFT; menos, el ITL"
+            ],
+            [
+              "--block-size",
+              "16",
+              "sin cambiar",
+              "una secuencia de 2,250 tokens ocupa 141 bloques"
+            ],
+            [
+              "--kv-cache-dtype",
+              "auto: el dtype del modelo (BF16)",
+              "auto",
+              "fp8 duplica las secuencias; entra solo si pasa el golden set"
+            ],
+            [
+              "--enable-prefix-caching · --enable-chunked-prefill",
+              "activados si el modelo los soporta",
+              "explícitos",
+              "el plan del C10 cuenta con los dos"
+            ],
+            [
+              "--tensor-parallel-size",
+              "1",
+              "2",
+              "70.6 GB de pesos FP8 más el KV no caben cómodos en 80 GB"
+            ],
+            [
+              "--scheduling-policy",
+              "fcfs",
+              "priority",
+              "la documentación dice que con fcfs un priority ≠ 0 da error, pero el código de v0.30.0 y v0.32.0 no lo valida (la cola fcfs lo ignora): no cuentes con el error, pon la flag. Con priority, las preemptions caen primero sobre el batch"
+            ],
+            [
+              "--watermark",
+              "0.0 (apagado)",
+              "sin cambiar",
+              "deja bloques libres al admitir, para no tener que desalojar después"
+            ],
+            [
+              "--max-num-active-seqs",
+              "no existe en v0.30; desde v0.31, None",
+              "—",
+              "tope de secuencias corriendo sin achicar max_num_seqs"
+            ],
+            [
+              "max_tokens del request",
+              "sin él, en chat: todo lo que queda de la ventana (en /v1/completions, 16)",
+              "el gateway pone el tope del tenant (1,024 en soporte)",
+              "una respuesta sin tope ocupa su KV hasta llenar la ventana"
+            ],
+            [
+              "prompt + max_tokens > max_model_len",
+              "v0.30: 400; desde v0.32: entra y la salida se recorta a lo que queda",
+              "el gateway lo frena antes, con un 400 propio: prompt estimado ≤ 6,000 y max_tokens ≤ 1,024 en soporte",
+              "el upgrade cambia el comportamiento sin avisar (sección 2)"
+            ]
+          ],
+          "note": "Para ver lo que usó tu servidor: el log de arranque imprime la configuración y la línea <code>GPU KV cache size</code>, y <code>/metrics</code> expone <code>vllm:cache_config_info</code>, con la configuración del cache en sus labels."
+        }
+      },
+      "memo": "<b>Puerto 8000, bloques de 16 y <code>--gpu-memory-utilization</code> 0.92 si no la fijas.</b> KV por token = 2 × capas × KV heads × head_dim × bytes: <b>320 KiB</b> en el 70B del C10. Una réplica de 2 × H100: 144 GB usables − 70.6 de pesos − ≈ 5 de overhead = <b>≈ 68 GB de KV ≈ 92 conversaciones de 2,250 tokens</b>. Y dos SLOs: <b>TTFT ≤ 1 s, TPOT ≤ 50 ms</b>.",
+      "trap": "Confundir parámetros con bytes, y la cuenta con la capacidad. «70B» son 70.6 mil millones de parámetros: 141 GB en BF16 y 70.6 en FP8, más ≈ 2 GB por las tablas del vocabulario que un checkpoint FP8 suele dejar en BF16. Y la cuenta de servilleta no es tu capacidad: la que vale es <code>GPU KV cache size: N tokens, Maximum concurrency for 8,192 tokens per request: Kx</code> en el log. Además, <code>--gpu-memory-utilization</code> se aplica sobre la memoria que reporta la GPU (81,559 MiB ≈ 85.5 GB en una H100 «de 80 GB»), así que vLLM suele dar más KV que la cuenta nominal: ≈ 78 GB en vez de 68.",
+      "lab": {
+        "goal": "Sacar tú los números de bolsillo del C10 desde el config.json del modelo: parámetros, pesos por dtype, KV por token, lugar para KV, secuencias, la línea que imprimiría vLLM y la ley de Little.",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-vllm && cd ~/lab-vllm\ncat > bolsillo.py <<'EOF'\n# bolsillo.py: los números de bolsillo del C10, desde el config.json del modelo (solo stdlib)\nimport math\n\n# config.json de Llama 3.3 70B Instruct: la arquitectura con que el C10 hace sus cuentas\nd, capas, heads, kv_heads, ffn, vocab = 8192, 80, 64, 8, 28672, 128256\nhead_dim = d // heads  # 8192 ÷ 64 = 128\npor_capa = (2 * d * d                      # q y o\n            + 2 * d * kv_heads * head_dim  # k y v: solo 8 KV heads (GQA)\n            + 3 * d * ffn                  # gate, up y down del MLP\n            + 2 * d)                       # las dos RMSNorm\nP = capas * por_capa + 2 * vocab * d + d   # + embeddings y lm_head (no comparten pesos) + la norma final\nprint(f\"parámetros: {P:,} ≈ {P / 1e9:.1f} B (embeddings + lm_head: {2 * vocab * d / 1e9:.1f} B)\")\nfor nombre, b in ((\"BF16\", 2), (\"FP8\", 1), (\"INT4\", 0.5)):\n    print(f\"  pesos en {nombre}: {P * b / 1e9:.1f} GB\")\n\nkv = 2 * capas * kv_heads * head_dim * 2   # K y V × capas × KV heads × head_dim × 2 B (BF16)\nprint(f\"KV por token: {kv:,} B = {kv // 1024} KiB en BF16, {kv // 2 // 1024} KiB en FP8; \"\n      f\"con un KV head por head ({heads}): {kv * heads // kv_heads / 2**20:.1f} MiB\")\n\n# Una réplica del C10 (los números redondos del caso): 2 × H100 de 80 GB, TP=2, pesos FP8\nlibre = 2 * 80e9 * 0.90 - 70.6e9 - 5e9     # gpu_memory_utilization 0.90, ≈ 5 GB de overhead (estimación)\nseq = 2_250 * kv                           # 2,000 de prompt + 250 de salida\nprint(f\"lugar para KV: {libre / 1e9:.1f} GB; una secuencia de 2,250 tokens: {seq / 1e9:.3f} GB; \"\n      f\"caben {libre / seq:.2f} → {math.floor(libre / seq)}\")\nbloques = math.floor((libre / 2) // (16 * kv / 2))  # por GPU: la mitad del lugar y la mitad de los KV heads\nprint(f\"como lo cuenta vLLM: {bloques:,} bloques de 16 → GPU KV cache size: {bloques * 16:,} tokens, \"\n      f\"Maximum concurrency for 8,192 tokens per request: {bloques / (8192 // 16):.2f}x\")\n\nttft, tpot, n = 0.5, 0.040, 250\ne2e = ttft + (n - 1) * tpot\nprint(f\"E2E = {ttft} + {n - 1} × {tpot} = {e2e:.2f} s; Little: 60 rps × 10.5 s = {60 * 10.5:.0f} vivas \"\n      f\"÷ 16 réplicas = {60 * 10.5 / 16:.1f} por réplica\")\nEOF",
+            "expect": "Sin salida: el archivo queda escrito. Los enteros del principio son los del config.json de Llama 3.3 70B Instruct (hidden_size, num_hidden_layers, num_attention_heads, num_key_value_heads, intermediate_size y vocab_size)."
+          },
+          {
+            "cmd": "python3 bolsillo.py",
+            "expect": "Ocho líneas: parámetros: 70,553,706,496 ≈ 70.6 B (embeddings + lm_head: 2.1 B); pesos en BF16 141.1 GB, en FP8 70.6 GB y en INT4 35.3 GB; KV por token: 327,680 B = 320 KiB en BF16, 160 KiB en FP8, y 2.5 MiB con un KV head por head (sin GQA); lugar para KV: 68.4 GB, una secuencia de 2,250 tokens 0.737 GB, caben 92.77 → 92; como lo cuenta vLLM: 13,046 bloques de 16 → GPU KV cache size: 208,736 tokens, Maximum concurrency for 8,192 tokens per request: 25.48x; y E2E = 0.5 + 249 × 0.04 = 10.46 s con Little: 630 vivas ÷ 16 réplicas = 39.4 por réplica. Los 141.1 GB salen de la cuenta exacta; el C10 redondea a 70.6 × 2 = 141.2."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-vllm",
+            "expect": "Nada: no queda rastro del lab."
+          }
+        ],
+        "fix": "Si un número no te da, revisa los enteros del config.json: head_dim es hidden_size ÷ num_attention_heads solo si el config no trae head_dim (Qwen3-32B trae 128 aunque 5,120 ÷ 64 = 80), y los KV heads son num_key_value_heads, no num_attention_heads. Si la diferencia está en los bloques, recuerda que vLLM cuenta bloques enteros por GPU: 208,736 tokens, no 208,740.",
+        "needs": "Python 3 de macOS (solo stdlib); sin GPU ni internet.",
+        "verified": "executed",
+        "verified_note": "Ejecutado con Python 3.14.3 y 3.9.6 en macOS (Apple M4): la misma salida, byte a byte. Los 70,553,706,496 parámetros son los 70.6 B del C10; los bloques y la línea de vLLM siguen vllm/v1/core/kv_cache_utils.py de v0.30.0 (bloques enteros por GPU; tokens = concurrencia × max_model_len)."
+      },
+      "links": [
+        "#m14.kv-cache",
+        "#m04.vram",
+        "#c10.estimaciones",
+        "#ref-numeros.formulas"
+      ]
+    },
+    {
+      "id": "cadena",
+      "num": null,
+      "title": "La cadena: de un prompt a un stream de tokens",
+      "question": "¿Qué le pasa a un request de chat, en orden, desde que llega a vLLM hasta que la última palabra sale por SSE, y qué parte de la latencia pone cada eslabón?",
+      "templates": [
+        {
+          "code": "curl -sN {url}/v1/chat/completions -H 'content-type: application/json' -d '{\"model\": \"{modelo}\", \"messages\": [{\"role\": \"user\", \"content\": \"{texto}\"}], \"stream\": true, \"max_tokens\": {n}}'",
+          "note": "El request entero. <code>-N</code> le quita el buffer a curl: ves cada evento <b>SSE</b> (Server-Sent Events: líneas <code>data: {…}</code> que el servidor manda sin cerrar la conexión) apenas llega, y al final <code>data: [DONE]</code>."
+        },
+        {
+          "code": "curl -s {url}/tokenize -H 'content-type: application/json' -d '{\"model\": \"{modelo}\", \"messages\": [{\"role\": \"user\", \"content\": \"{texto}\"}]}'",
+          "note": "El primer eslabón, solo: chat template y tokenizer. <code>count</code> es lo que entra de verdad, con las marcas de la plantilla y el encabezado del asistente."
+        },
+        {
+          "code": "Engine 000: Avg prompt throughput: {p} tokens/s, Avg generation throughput: {g} tokens/s, Running: {r} reqs, Waiting: {w} reqs, GPU KV cache usage: {k}%, Prefix cache hit rate: {h}%",
+          "note": "La línea que vLLM escribe en su log cada 10 s (<code>VLLM_LOG_STATS_INTERVAL</code>; en DEBUG si está ocioso): la cadena entera en una línea. Si en esos 10 s hubo preemptions, agrega <code>Preemptions: N</code> antes de <code>GPU KV cache usage</code>."
+        },
+        {
+          "code": "curl -s {url}/metrics | grep -E '^vllm:request_(queue|prefill|decode)_time_seconds_(sum|count)'",
+          "note": "Dónde se fue el tiempo, por fase: <b>cola</b> (waiting), <b>prefill</b> y <b>decode</b>. <code>_sum</code> ÷ <code>_count</code> da el promedio; para percentiles, <code>histogram_quantile</code> sobre los <code>_bucket</code>."
+        }
+      ],
+      "formulas": [
+        "\\text{TTFT} \\approx t_{\\text{cola}} + t_{\\text{prefill}}(T_{\\text{prompt}} - T_{\\text{caché}}) + t_{\\text{red}}",
+        "\\text{TPOT} = \\frac{\\text{E2E} - \\text{TTFT}}{N_{out} - 1} \\qquad (\\text{la de vllm bench serve; con } N_{out} = 1 \\text{ no se calcula})",
+        "\\text{E2E} = \\text{TTFT} + (N_{out} - 1) \\times \\text{TPOT} \\approx 0.5\\ \\text{s} + 249 \\times 40\\ \\text{ms} \\approx 10.5\\ \\text{s}",
+        "\\text{TTFT}_{\\text{cliente}} = \\text{E2E} \\qquad \\text{si un proxy junta toda la respuesta antes de reenviarla}"
+      ],
+      "vars": [
+        [
+          "{url}",
+          "la base del servidor, vista desde donde corres curl",
+          "localhost:8000 con kubectl port-forward a un pod"
+        ],
+        [
+          "{modelo}",
+          "el --served-model-name",
+          "chat-70b-fp8-2026-09-28"
+        ],
+        [
+          "{texto}",
+          "el mensaje del usuario",
+          "¿Dónde está mi pedido?"
+        ],
+        [
+          "{n}",
+          "tope de tokens de salida del request",
+          "512 en el ejemplo del README; el gateway corta en 1,024"
+        ],
+        [
+          "{p}, {g}, {r}, {w}, {k}, {h}",
+          "tokens por segundo de prompt y de salida, requests corriendo y esperando, KV usado y aciertos del prefix cache",
+          "una línea cada 10 s"
+        ],
+        [
+          "t_cola",
+          "lo que espera en waiting hasta entrar al batch",
+          "≈ 0 con lugar libre; lo primero que crece en sobrecarga"
+        ],
+        [
+          "t_prefill",
+          "lo que tarda en leer los tokens del prompt que no estaban en caché",
+          "≈ 1,000 de 2,000 con el system prompt en caché"
+        ],
+        [
+          "T_prompt, T_caché",
+          "tokens del prompt y tokens que ya estaban en el prefix cache",
+          "2,000 y ≈ 1,000"
+        ],
+        [
+          "t_red",
+          "red, gateway y proxies entre vLLM y quien mide",
+          "lo que separa el TTFT del servidor del que mide el gateway"
+        ],
+        [
+          "N_out",
+          "tokens de salida del request",
+          "250 en promedio en el C10"
+        ]
+      ],
+      "pieces": [
+        [
+          "POST /v1/chat/completions",
+          "Entra el request: messages, max_tokens y stream: true. En el C10, vLLM no autentica (con --api-key solo pediría una llave compartida, o varias, sin tenants ni cuotas): eso lo hace el gateway.",
+          "el gateway agrega priority 0 y stream_options.include_usage"
+        ],
+        [
+          "API server",
+          "El proceso que atiende HTTP: aplica el chat template, tokeniza, valida el largo y, al final, convierte los tokens en texto y manda el stream. No toca la GPU.",
+          "1 de los 4 procesos de una réplica TP=2: 1 API server, 1 engine core y 2 workers"
+        ],
+        [
+          "Chat template",
+          "Une los messages en un solo texto con las marcas del modelo: inicio, rol y fin de turno.",
+          "<|start_header_id|>user<|end_header_id|> … <|eot_id|> en Llama 3.3"
+        ],
+        [
+          "Tokenizer",
+          "Parte el texto en tokens del vocabulario del modelo y los convierte en números.",
+          "≈ 2,000 tokens de prompt"
+        ],
+        [
+          "Validación de largo",
+          "prompt + max_tokens contra --max-model-len. En v0.30, si se pasa, un 400 antes de la cola; desde v0.32 solo cuenta el prompt.",
+          "8,192 en el C10"
+        ],
+        [
+          "Engine core: scheduler",
+          "El proceso que decide, en cada paso, qué secuencias corren y cuántos tokens procesa cada una: primero los decodes y, con el presupuesto que sobra, trozos de prefill.",
+          "--max-num-batched-tokens 8192 y hasta 128 secuencias"
+        ],
+        [
+          "Cola (waiting)",
+          "Donde espera un request si no hay lugar en el batch o bloques de KV libres.",
+          "vllm:num_requests_waiting y vllm:request_queue_time_seconds"
+        ],
+        [
+          "Prefix cache",
+          "Si el prompt empieza con bloques que ya están en la GPU, los reusa: el prefill calcula solo lo nuevo.",
+          "≈ 1,000 tokens de system prompt por producto"
+        ],
+        [
+          "Prefill",
+          "Lee todos los tokens del prompt de una vez y escribe su KV. Termina con el primer token: marca el TTFT.",
+          "piso ≈ 71 ms para 2,000 tokens (≈ 36 con la mitad en caché); el README estima ≈ 0.3–1 s con la cola"
+        ],
+        [
+          "KV cache",
+          "Guarda la K y la V de cada token leído o generado, en bloques de 16; crece un token por paso.",
+          "2,250 tokens × 320 KiB ≈ 0.74 GB al final"
+        ],
+        [
+          "Workers, uno por GPU",
+          "Corren el modelo. Con TP=2, cada GPU tiene la mitad de cada capa y la mitad de los KV heads, y las dos se sincronizan por NVLink en cada capa.",
+          "2 H100 del mismo p5.48xlarge"
+        ],
+        [
+          "Decode",
+          "Un paso por token: lee los pesos y el KV de todo el batch y saca un token por secuencia. Marca el TPOT.",
+          "≈ 40 ms por paso en la estimación del C10"
+        ],
+        [
+          "Sampling y parada",
+          "Elige el token siguiente (temperature, top_p) y para con el fin de turno del modelo, con un stop o con max_tokens.",
+          "finish_reason stop; length si llegó a max_tokens"
+        ],
+        [
+          "Detokenizer y SSE",
+          "Convierte los tokens nuevos en texto y los manda como un evento data: por paso; al final, data: [DONE].",
+          "el gateway reenvía cada evento apenas llega"
+        ],
+        [
+          "Cancelación",
+          "Si el cliente cierra la conexión, vLLM aborta la secuencia y libera sus bloques.",
+          "el gateway la cierra y la cuenta como 499"
+        ]
+      ],
+      "example": {
+        "title": "Un request de soporte del C10, de punta a punta",
+        "lang": "text",
+        "code": "t = 0       soporte manda POST /v1/chat/completions {model: \"chat-default\", stream: true, max_tokens: 512}\n            con su API key al llm-gateway\n+ < 1 ms    key → sha256 → tenant support-assistant (interactive, 5.4 M tokens/min, tope 1,024, sin vendor)\n            validación: alias permitido, n = 1, max_tokens ≤ 1,024, prompt estimado ≤ 6,000\n            cuota: cobra ≈ 2,000 (prompt estimado) + 512 del token bucket de esta réplica (5.4 M ÷ 4 por minuto)\n+ ≤ 0.5 s   admisión: un lugar interactivo de los 288 de esta réplica, o cola (≤ 64, ≤ 0.5 s), o 503 + Retry-After\n            → upstream vllm-70b (Service de los pods estables) con model = chat-70b-fp8-2026-09-28,\n              priority = 0, stream_options.include_usage = true; conexión TCP nueva (sin keep-alive hacia vLLM)\n+ ≈ 0.3–1 s vLLM: prefix cache del system prompt, prefill troceado del resto, primer token\n            el gateway espera el primer evento con CONTENIDO (≤ 10 s): hasta acá una falla todavía es un 502/504\n            limpio, incluido un stream que termina sin texto (así llega un abort antes del primer token, como en\n            un drain: el rol, el usage y [DONE], sin chunk de abort)\n            TTFT = desde que el request llegó al gateway hasta el primer evento con contenido\ncada ≈ 40 ms un evento SSE por token, reenviado apenas llega (TPOT p95 ≤ 50 ms)\nfin         [DONE]; el chunk de usage que pidió el gateway no se reenvía (el cliente no lo pidió)\n            cierre: libera el lugar, concilia la cuota con usage (devuelve lo cobrado de más), métricas y una línea\n            de log sin prompt ni respuesta\nsi el cliente se va: se cierra la conexión con vLLM (vLLM aborta y libera el KV), status 499 en las métricas",
+        "source": "reference/c10/README.md (líneas 62–79, «Un request de punta a punta»)",
+        "notes": [
+          "Las primeras líneas pasan en el gateway (sección 11): la llave, la cuota en tokens y la admisión. vLLM recibe el request ya con <code>priority = 0</code>, el nombre de la revisión en <code>model</code> y <code>stream_options.include_usage = true</code>.",
+          "«prefix cache del system prompt, prefill troceado del resto, primer token»: los eslabones del prefix cache y del prefill. El «≈ 0.3–1 s» es una estimación del caso: suma la cola de vLLM y el prefill de los ≈ 1,000 tokens que no estaban en caché.",
+          "«TTFT = desde que el request llegó al gateway hasta el primer evento con contenido»: el C10 mide donde lo ve el producto. El primer evento de vLLM puede traer solo el rol, sin texto. <code>vllm bench serve</code>, en cambio, marca el TTFT en el primer evento con <code>choices</code>, tenga texto o no.",
+          "«cada ≈ 40 ms un evento SSE por token»: el decode. Con el SLO de TPOT p95 ≤ 50 ms son ≈ 20 tokens por segundo por usuario, más rápido de lo que se lee.",
+          "«si el cliente se va»: el gateway cierra la conexión con vLLM, vLLM aborta la secuencia y libera su KV; en las métricas del gateway queda un <code>499</code>."
+        ]
+      },
+      "figure": {
+        "kind": "chain",
+        "caption": "Un request de soporte del C10 dentro de una réplica de vLLM v0.30, con los números del README (estimaciones: vLLM no corrió en la referencia). El chat template, el tokenizer, el detokenizer y el SSE corren en el proceso del API server; la cola, el scheduler y el prefix cache, en el engine core; el prefill y el decode, en los dos workers de GPU. Si el cliente se va a mitad, vLLM aborta la secuencia y libera su KV.",
+        "data": {
+          "steps": [
+            {
+              "label": "Cliente",
+              "cmd": "POST /v1/chat/completions",
+              "note": "stream: true y max_tokens 512. Antes, el gateway ya autenticó, cobró la cuota y admitió el request."
+            },
+            {
+              "label": "Chat template + tokenizer",
+              "cmd": "POST /tokenize",
+              "note": "Los messages pasan a un texto con marcas y a ≈ 2,000 números. 2,000 + 512 ≤ 8,192: entra."
+            },
+            {
+              "label": "Cola",
+              "cmd": "vllm:num_requests_waiting",
+              "note": "Espera si no hay lugar ni bloques libres. En sobrecarga, este eslabón se come el TTFT antes que cualquier otro."
+            },
+            {
+              "label": "Scheduler",
+              "cmd": "--max-num-batched-tokens 8192",
+              "note": "En cada paso, primero los decodes de los que ya corren; con lo que sobra del presupuesto, trozos de prefill."
+            },
+            {
+              "label": "Prefix cache",
+              "cmd": "vllm:prefix_cache_hits_total",
+              "note": "Los ≈ 1,000 tokens del system prompt ya están en bloques: no se recalculan."
+            },
+            {
+              "label": "Prefill",
+              "cmd": "vllm:request_prefill_time_seconds",
+              "note": "Lee el resto del prompt de una vez, escribe su KV y saca el primer token. Es cómputo: marca el TTFT."
+            },
+            {
+              "label": "KV cache",
+              "cmd": "vllm:kv_cache_usage_perc",
+              "note": "Bloques de 16 tokens; al final, 2,250 × 320 KiB ≈ 0.74 GB para esta conversación."
+            },
+            {
+              "label": "Decode",
+              "cmd": "vllm:inter_token_latency_seconds",
+              "note": "Un token por paso para cada secuencia del batch, cada ≈ 40 ms. Es memoria: marca el TPOT."
+            },
+            {
+              "label": "Detokenizer + SSE",
+              "cmd": "data: {\"choices\": [{\"delta\": {\"content\": \"…\"}}]}",
+              "note": "En cada paso, el texto nuevo sale como un evento. Al final: un evento con finish_reason, el de usage si se pidió y data: [DONE]."
+            },
+            {
+              "label": "Fin",
+              "cmd": "finish_reason: \"stop\"",
+              "note": "El modelo cerró su turno. Sus bloques se liberan; los del prefijo pueden quedar en el prefix cache para el próximo request."
+            },
+            {
+              "label": "Métricas (aparte)",
+              "cmd": "vllm:e2e_request_latency_seconds",
+              "note": "Cada fase quedó en un histograma de /metrics; Prometheus lo lee cada 15 s con el PodMonitor del C10."
+            }
+          ]
+        }
+      },
+      "memo": "<b>Entra texto, se vuelve números, espera su turno, se lee de una vez (prefill), se escribe de a un token (decode) y vuelve a ser texto, evento por evento.</b> El TTFT es la cola más el prefill; el TPOT es un paso de decode; el KV cache une las dos fases. Si algo tarda, recorre la cadena con sus métricas: <code>num_requests_waiting</code> → <code>request_queue_time_seconds</code> → <code>request_prefill_time_seconds</code> → <code>inter_token_latency_seconds</code>.",
+      "trap": "Mirar el TTFT del servidor y creer que es el que ve la persona. Entre vLLM y el usuario hay un gateway, un load balancer y a veces un proxy: si alguno junta la respuesta antes de reenviarla (buffering), el primer token llega pegado al último. Un TTFT de 0.5 s se vuelve uno de ≈ 10 s, y <code>vllm:time_to_first_token_seconds</code> sigue en verde. Por eso el C10 mide el TTFT en el gateway, hasta el primer evento con contenido. El lab de esta sección lo muestra con un proxy de juguete.",
+      "lab": {
+        "goal": "Recorrer la cadena de un request con streaming en un motor de juguete: ver cada eslabón con su hora y los eventos SSE que llegan al cliente, y medir TTFT, TPOT, ITL y E2E con las fórmulas de vllm bench serve. Después, poner un proxy con buffer en el medio y ver qué le pasa al TTFT.",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-vllm && cd ~/lab-vllm\ncat > cadena.py <<'EOF'\n# cadena.py: un request de chat con streaming recorriendo la cadena, en miniatura (solo stdlib; tiempos simulados)\nimport json, queue, sys, threading, time\n\nCOLA_S, PREFILL_S, PASO_S, MAX_TOKENS = 0.10, 0.40, 0.040, 30  # TTFT ≈ 0.5 s y ≈ 40 ms por token, como el C10\nCON_PROXY = \"--proxy\" in sys.argv\nt0 = time.perf_counter()\n\n\ndef log(eslabon, texto):\n    print(f\"  [vLLM  +{time.perf_counter() - t0:5.2f} s] {eslabon:<10} {texto}\", flush=True)\n\n\ndef motor(salida):  # lo que pasa dentro de vLLM, simulado con sleeps\n    log(\"tokenizer\", \"chat template + tokenizer: 2,000 tokens de prompt (2,000 + 30 ≤ 8,192: entra)\")\n    time.sleep(COLA_S)\n    log(\"scheduler\", \"sale de waiting y entra al batch\")\n    time.sleep(PREFILL_S)\n    log(\"prefill\", \"los 2,000 tokens, de una vez: su KV queda en 125 bloques de 16; sale el token 1\")\n    reloj = time.perf_counter()\n    for i in range(1, MAX_TOKENS + 1):\n        if i > 1:  # un paso de decode: relee los pesos y el KV de todo el batch\n            reloj += PASO_S\n            time.sleep(max(0.0, reloj - time.perf_counter()))  # contra el reloj: sleep solo se pasa de largo\n        fin = \"length\" if i == MAX_TOKENS else None  # llegó a max_tokens\n        salida.put(\"data: \" + json.dumps({\"choices\": [{\"index\": 0, \"delta\": {\"content\": f\" t{i}\"}, \"finish_reason\": fin}]}))\n    salida.put(\"data: \" + json.dumps({\"choices\": [], \"usage\": {\"prompt_tokens\": 2000, \"completion_tokens\": MAX_TOKENS,\n                                                                \"total_tokens\": 2000 + MAX_TOKENS}}))\n    salida.put(\"data: [DONE]\")\n    log(\"fin\", f\"{MAX_TOKENS} tokens = max_tokens → finish_reason length; se liberan sus bloques\")\n\n\ndef proxy_con_buffer(entrada, salida):  # un proxy que junta toda la respuesta antes de reenviarla\n    eventos = []\n    while not eventos or eventos[-1] != \"data: [DONE]\":\n        eventos.append(entrada.get())\n    for e in eventos:\n        salida.put(e)\n\n\nhacia_motor, hacia_cliente = queue.Queue(), queue.Queue()\nst = time.perf_counter()  # como vllm bench serve: el reloj arranca al mandar el request\nif CON_PROXY:\n    threading.Thread(target=motor, args=(hacia_motor,)).start()\n    threading.Thread(target=proxy_con_buffer, args=(hacia_motor, hacia_cliente)).start()\nelse:\n    threading.Thread(target=motor, args=(hacia_cliente,)).start()\n\nttft, ultimo, itl, n = None, st, [], 0\nwhile True:\n    linea = hacia_cliente.get()\n    ahora = time.perf_counter()\n    if linea == \"data: [DONE]\":\n        print(f\"  [cliente +{ahora - st:5.2f} s] {linea}\")\n        break\n    evento = json.loads(linea[len(\"data: \"):])\n    if not evento[\"choices\"]:  # el chunk de usage (stream_options.include_usage)\n        usage = evento[\"usage\"]\n        print(f\"  [cliente +{ahora - st:5.2f} s] data: {{\\\"choices\\\": [], \\\"usage\\\": {json.dumps(usage)}}}\")\n        continue\n    if ttft is None:\n        ttft = ahora - st  # el primer chunk con choices\n    else:\n        itl.append(ahora - ultimo)  # el hueco desde el chunk anterior\n    ultimo, n = ahora, n + 1\n    if n <= 2 or n == MAX_TOKENS:\n        print(f\"  [cliente +{ahora - st:5.2f} s] {linea}\")\n    elif n == 3:\n        print(\"  [cliente   ...  ] (un evento cada ≈ 40 ms)\" if not CON_PROXY else \"  [cliente   ...  ] (todos juntos)\")\n\ne2e = ultimo - st\ntpot = (e2e - ttft) / (usage[\"completion_tokens\"] - 1)  # la fórmula de vllm bench serve\nitl.sort()\nprint(f\"TTFT {ttft:.2f} s · TPOT {tpot * 1e3:.1f} ms · ITL p50 {itl[len(itl) // 2] * 1e3:.1f} ms · E2E {e2e:.2f} s\"\n      f\" · {usage['completion_tokens'] / e2e:.1f} tokens/s{' (con proxy)' if CON_PROXY else ''}\")\nEOF",
+            "expect": "Sin salida: el archivo queda escrito. Es una simulación: no hay modelo ni GPU. vLLM de verdad manda antes un evento que solo trae el rol, sin texto (sección 5); aquí se omite. Los tiempos son los del C10 (cola 0.1 s y prefill 0.4 s, para un TTFT ≈ 0.5 s, y 40 ms por token), con una respuesta de 30 tokens para que dure menos de 2 s."
+          },
+          {
+            "cmd": "python3 cadena.py",
+            "expect": "Tres líneas [vLLM …] (tokenizer en +0.00 s, scheduler en ≈ +0.10 s y prefill en ≈ +0.50 s), los eventos data: con \" t1\", \" t2\"…, uno cada ≈ 40 ms, la línea [vLLM … fin] y el último evento con \" t30\" y \"finish_reason\": \"length\" en ≈ +1.67–1.69 s, el de usage (prompt_tokens 2000, completion_tokens 30) y data: [DONE]. Al final: TTFT 0.50–0.52 s · TPOT ≈ 40 ms · ITL p50 ≈ 40 ms · E2E ≈ 1.67–1.69 s · ≈ 18 tokens/s."
+          },
+          {
+            "cmd": "python3 cadena.py --proxy",
+            "expect": "El motor hace lo mismo, pero el cliente no ve nada hasta ≈ +1.67–1.69 s: entonces llegan todos los eventos juntos. Al final: TTFT ≈ 1.67–1.69 s · TPOT 0.0 ms · ITL p50 0.0 ms · E2E igual al TTFT. El servidor generó igual de rápido; la persona esperó toda la respuesta para ver la primera palabra."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-vllm",
+            "expect": "Nada: no queda rastro del lab."
+          }
+        ],
+        "fix": "Si los tiempos salen más largos (por ejemplo, un TPOT de ≈ 44 ms), la Mac está ocupada o el sleep se pasa de largo; el motor duerme contra un reloj para compensar, así que repite con la Mac quieta. Si ves el TTFT bien y el E2E mal, el problema es el decode; si ves el TTFT igual al E2E, hay un buffer en el camino.",
+        "needs": "Python 3 de macOS (solo stdlib); sin GPU ni internet.",
+        "verified": "executed",
+        "verified_note": "Ejecutado con Python 3.14.3 y 3.9.6 en macOS (Apple M4), varias veces (y 14 más en la revisión): directo, TTFT 0.50–0.52 s, TPOT 40.0–40.3 ms y E2E 1.67–1.69 s; con el proxy, TTFT = E2E = 1.67–1.69 s. Las fórmulas de TTFT, ITL, TPOT y E2E son las de vllm/benchmarks/serve.py y vllm/benchmarks/lib/endpoint_request_func.py de v0.30.0."
+      },
+      "links": [
+        "#m14.prefill-decode",
+        "#c10.serving",
+        "#c10.archivos",
+        "#m07.llm-servers"
+      ]
+    },
+    {
+      "id": "que-es",
+      "num": 1,
+      "title": "Por qué servir un LLM es distinto y qué hace vLLM",
+      "question": "¿Qué cambia cuando el modelo escribe su respuesta token por token, y qué piezas trae vLLM para que una GPU atienda muchas conversaciones a la vez?",
+      "templates": [
+        {
+          "code": "vllm serve {modelo} --tensor-parallel-size {tp}",
+          "note": "Un comando levanta el servidor compatible con OpenAI en el puerto 8000: carga los pesos, mide la memoria, arma el <b>KV cache</b> (la memoria de lo que el modelo ya leyó) y empieza a aceptar requests. Los flags están en la sección 4."
+        },
+        {
+          "code": "curl -sN localhost:8000/v1/chat/completions -H 'content-type: application/json' -d '{\"model\": \"{nombre}\", \"messages\": [{\"role\": \"user\", \"content\": \"{texto}\"}], \"stream\": true}'",
+          "note": "Con <code>stream: true</code> se ve que la respuesta es un loop: un evento por token. Sin streaming, esperas al último token para ver el primero."
+        },
+        {
+          "code": "curl -s localhost:8000/metrics | grep -E '^vllm:num_requests_(running|waiting)'",
+          "note": "El <b>continuous batching</b> (el batch se rearma en cada paso) a la vista: cuántas conversaciones comparten la GPU en este paso (<code>running</code>) y cuántas esperan lugar (<code>waiting</code>)."
+        }
+      ],
+      "formulas": [
+        "\\text{FLOPs}_{\\text{prefill}} \\approx 2 \\times P \\times T_{\\text{prompt}} = 2 \\times 70.6\\ \\text{B} \\times 2{,}000 \\approx 2.8 \\times 10^{14} \\;\\Rightarrow\\; t \\gtrsim \\frac{2.8 \\times 10^{14}}{2 \\times 1{,}979\\ \\text{TFLOPS}} \\approx 71\\ \\text{ms}",
+        "t_{\\text{paso}} \\gtrsim \\frac{\\text{pesos} + \\text{KV del batch}}{N_{gpu} \\times \\text{ancho de banda}} = \\frac{70.6\\ \\text{GB} + 0.74\\ \\text{GB}}{2 \\times 3.35\\ \\text{TB/s}} \\approx 10.6\\ \\text{ms} \\qquad (\\text{una secuencia})",
+        "\\text{throughput} \\lesssim \\frac{S}{t_{\\text{paso}}} = \\frac{40}{14.94\\ \\text{ms}} \\approx 2{,}678\\ \\text{tokens/s} \\qquad (\\text{y por usuario, } \\le 67)",
+        "I_{\\text{decode}} \\approx \\frac{2 \\times P \\times S}{P \\times b_w} = \\frac{2S}{b_w} \\;\\ll\\; \\frac{1{,}979\\ \\text{TFLOPS}}{3.35\\ \\text{TB/s}} \\approx 591\\ \\text{FLOPs/B}",
+        "\\text{útil}_{\\text{estático}} = \\frac{\\sum_i N_i}{S \\times \\max_i N_i} = \\frac{2{,}400}{8 \\times 1{,}000} = 30\\ \\%",
+        "\\text{reservando 8{,}192 por secuencia: } \\left\\lfloor \\frac{13{,}046}{512} \\right\\rfloor = 25 \\qquad \\text{en bloques de 16: } \\left\\lfloor \\frac{13{,}046}{141} \\right\\rfloor = 92"
+      ],
+      "vars": [
+        [
+          "{modelo}",
+          "ruta local o repo de Hugging Face del modelo",
+          "/models/chat-70b-fp8-2026-09-28 en el C10"
+        ],
+        [
+          "{tp}",
+          "cuántas GPUs reparten cada capa (tensor parallelism)",
+          "2"
+        ],
+        [
+          "{nombre}",
+          "el nombre servido",
+          "chat-70b-fp8-2026-09-28"
+        ],
+        [
+          "{texto}",
+          "el mensaje",
+          "Resume esta política en tres puntos"
+        ],
+        [
+          "P, T_prompt",
+          "parámetros del modelo y tokens del prompt",
+          "70.6 B y 2,000"
+        ],
+        [
+          "b_w",
+          "bytes por peso",
+          "1 (FP8)"
+        ],
+        [
+          "S",
+          "secuencias en el batch",
+          "1, 40 o 92"
+        ],
+        [
+          "t_paso",
+          "lo que tarda un paso de decode: leer los pesos y el KV de todo el batch",
+          "≥ 14.9 ms con 40 secuencias (el lab)"
+        ],
+        [
+          "I_decode",
+          "intensidad aritmética: operaciones por cada byte que se trae de la memoria",
+          "≈ 2 FLOPs/B con una secuencia, contra 591 que pide la H100 para estar ocupada"
+        ],
+        [
+          "N_i",
+          "largo de la respuesta i de un batch estático",
+          "de 50 a 1,000 tokens en el ejemplo de M7"
+        ]
+      ],
+      "pieces": [
+        [
+          "Autoregresivo",
+          "El modelo escribe un token por pasada, y cada token nuevo depende de todos los anteriores: la respuesta es un loop, no una llamada.",
+          "250 tokens de salida = 1 prefill + 249 pasos de decode"
+        ],
+        [
+          "Prefill",
+          "Leer todo el prompt de una vez: cada peso se usa para los 2,000 tokens, así que manda el cómputo (compute-bound).",
+          "piso ≈ 71 ms en 2 × H100 con FP8; ≈ 143 ms en BF16"
+        ],
+        [
+          "Decode",
+          "Escribir de a un token: cada paso relee todos los pesos para sacar un token por secuencia, así que manda el ancho de banda de la memoria (memory-bound).",
+          "piso ≈ 10.6 ms por paso con TP=2; el C10 estima ≈ 40 ms"
+        ],
+        [
+          "KV cache",
+          "Lo que el modelo ya leyó de cada conversación (las keys y values de cada capa), guardado en la GPU para no recalcularlo en cada token nuevo.",
+          "320 KiB por token: ≈ 0.74 GB por conversación de 2,250 tokens"
+        ],
+        [
+          "Static batching",
+          "Un batch fijo: no termina hasta su respuesta más larga, y los lugares de las que ya terminaron quedan vacíos.",
+          "30 % de lugares útiles en el ejemplo de M7"
+        ],
+        [
+          "Continuous batching",
+          "El batch se rearma en cada paso: una secuencia que termina deja su lugar y otra entra en el mismo paso. La idea viene de Orca (OSDI 2022).",
+          "hasta 128 secuencias por réplica en el C10 (--max-num-seqs)"
+        ],
+        [
+          "PagedAttention",
+          "Guarda el KV cache en bloques chicos, como las páginas de la memoria virtual, en vez de reservar por secuencia el largo máximo. Su paper (SOSP 2023) reporta 2–4× más throughput a igual latencia.",
+          "bloques de 16 tokens: 92 secuencias en vez de 25"
+        ],
+        [
+          "Chunked prefill",
+          "Parte un prompt largo en trozos que comparten cada paso con los decodes de los demás: un prompt de 8k no congela al resto.",
+          "activado por defecto en V1"
+        ],
+        [
+          "Prefix caching",
+          "Reusa los bloques de KV de un comienzo de prompt que ya calculó.",
+          "el system prompt de ≈ 1,000 tokens de cada producto"
+        ],
+        [
+          "Servidor compatible con OpenAI",
+          "vllm serve expone la API de OpenAI: el cliente oficial funciona cambiando la base_url.",
+          "base_url del gateway: http://vllm-70b.c10.svc.cluster.local:8000/v1"
+        ],
+        [
+          "Motor V1",
+          "La arquitectura actual de vLLM, la única desde v0.11: un proceso para HTTP y tokens, un engine core con el scheduler y un worker por GPU.",
+          "TP=2: 4 procesos"
+        ],
+        [
+          "SGLang",
+          "La alternativa más cercana. Su RadixAttention guarda los prefijos en un árbol y los reusa: rinde cuando muchos prompts comparten comienzo.",
+          "candidata a medir contra vLLM con la mezcla del C10"
+        ],
+        [
+          "TensorRT-LLM",
+          "El de NVIDIA: kernels propios, FP8 y FP4, y trtllm-serve compatible con OpenAI. Más atado a la GPU, el driver y el contenedor.",
+          "el C10 no lo elige para empezar"
+        ],
+        [
+          "TGI",
+          "El de Hugging Face. Está en modo mantenimiento y su repositorio está archivado (el último cambio es del 21 de marzo de 2026); su README recomienda vLLM o SGLang.",
+          "no para un sistema nuevo"
+        ],
+        [
+          "llama.cpp · MLX",
+          "Para correr modelos en local, en CPU o en Apple Silicon; el README de TGI los recomienda para eso.",
+          "tu laptop, no la flota del C10"
+        ],
+        [
+          "NVIDIA Dynamo · llm-d",
+          "No son motores: orquestan varios (prefill y decode en GPUs distintas, ruteo según el KV cache de cada réplica).",
+          "una palanca para después en el C10"
+        ]
+      ],
+      "example": {
+        "title": "Un request de LLM dura segundos y ocupa su lugar todo ese tiempo",
+        "lang": "python",
+        "code": "def request_seconds(ttft_s: float, output_tokens: float, tpot_s: float) -> float:\n    \"\"\"Duración de un request de streaming ≈ TTFT + tokens de salida × TPOT.\"\"\"\n    return ttft_s + output_tokens * tpot_s\n\n\ndef littles_law_concurrency(rps: float, seconds_per_request: float) -> float:\n    \"\"\"L = λ × W (#m03.little): secuencias vivas a la vez = llegadas por segundo × segundos que dura cada una.\"\"\"\n    return rps * seconds_per_request",
+        "source": "reference/c10/capacity/fleet_calc.py (líneas 136–143)",
+        "notes": [
+          "Un request de LLM no es un forward: es un TTFT y después un paso por token. Con los números del caso, 0.5 + 250 × 0.040 = <b>10.5 s</b>. El ResNet-50 del C01 usa ≈ 5 ms de GPU por imagen.",
+          "La función cuenta un paso de más: con la definición de <code>vllm bench serve</code> son 249 pasos después del primero (10.46 s). La diferencia no cambia ninguna decisión.",
+          "<code>littles_law_concurrency</code> es la ley de Little: 60 rps × 10.5 s = <b>630 secuencias vivas</b> en la flota, ≈ 39.4 por réplica. Cada una ocupa su lugar en el batch y su KV durante esos 10 segundos.",
+          "Por eso un servidor de LLMs vive del continuous batching: con secuencias que entran y salen en cada paso, las ≈ 40 de una réplica comparten cada lectura de los pesos. Y por eso la memoria del KV, no el cómputo, decide cuántas caben (sección 3)."
+        ]
+      },
+      "figure": {
+        "kind": "prefill-decode",
+        "caption": "Un request de soporte del C10, a escala: 2,000 tokens de prompt y 250 de salida, con TTFT ≈ 0.5 s y ≈ 40 ms por token (estimaciones del caso). El prefill es un bloque de cómputo; el decode, 249 pasos chicos de memoria. Los pisos teóricos en 2 × H100: ≈ 71 ms de prefill y ≈ 10.6 ms por paso.",
+        "data": {
+          "request": "un request de soporte del C10",
+          "prompt_tokens": 2000,
+          "output_tokens": 250,
+          "ttft_s": 0.5,
+          "tpot_ms": 40,
+          "e2e_s": 10.46,
+          "phases": [
+            {
+              "id": "prefill",
+              "label": "prefill: 2,000 tokens a la vez, más la cola",
+              "start_s": 0,
+              "end_s": 0.5,
+              "bound": "cómputo"
+            },
+            {
+              "id": "decode",
+              "label": "decode: 249 pasos de ≈ 40 ms, un token cada uno",
+              "start_s": 0.5,
+              "end_s": 10.46,
+              "bound": "memoria"
+            }
+          ],
+          "marks": [
+            {
+              "at_s": 0.5,
+              "label": "TTFT ≈ 0.5 s: la primera palabra"
+            },
+            {
+              "at_s": 10.46,
+              "label": "E2E ≈ 10.5 s: la última"
+            }
+          ],
+          "zoom": {
+            "window_s": [
+              0,
+              1
+            ],
+            "token_times_s": [
+              0.5,
+              0.54,
+              0.58,
+              0.62,
+              0.66,
+              0.7,
+              0.74,
+              0.78,
+              0.82,
+              0.86,
+              0.9,
+              0.94,
+              0.98
+            ],
+            "label": "el primer segundo: el prefill y los primeros 13 tokens, cada 40 ms"
+          },
+          "floors": {
+            "prefill_ms": 71,
+            "decode_step_ms": 10.6
+          },
+          "slo": {
+            "ttft_p95_s": 1,
+            "tpot_p95_ms": 50,
+            "worst_e2e_s": 13.45
+          },
+          "note": "Con los dos SLOs en su límite p95, el peor caso dentro del SLO es 1.0 + 249 × 0.050 ≈ 13.5 s. Con streaming no importa: la persona empieza a leer en el TTFT."
+        }
+      },
+      "memo": "<b>Prefill es leer la pregunta entera de una vez; decode es contestar palabra por palabra.</b> Leer es cómputo (TTFT); contestar es memoria (TPOT). Y el continuous batching es <b>un bus que deja subir y bajar pasajeros en cada parada</b>, en vez de esperar a que todos lleguen al final del recorrido.",
+      "trap": "Servir un LLM como una CNN: FastAPI con un <code>model.generate()</code> por batch. El batch es estático: no termina hasta la respuesta más larga, los lugares vacíos esperan (30 % útil en el ejemplo de M7), cada secuencia reserva su KV entero y no hay streaming si no lo escribes. Y medir la carga con <code>nvidia-smi</code>: un decode memory-bound marca ≈ 100 % de utilización con los tensor cores (las unidades que multiplican matrices) casi ociosos. La capacidad se lee en la cola y en el KV: <code>vllm:num_requests_waiting</code> y <code>vllm:kv_cache_usage_perc</code>.",
+      "lab": {
+        "goal": "Calcular, con la réplica del C10 y la hoja de datos de la H100, por qué el prefill es cómputo y el decode es memoria: operaciones por byte, el piso del prefill y el de cada paso de decode con 1, 40 y 92 secuencias.",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-vllm && cd ~/lab-vllm\ncat > roofline.py <<'EOF'\n# roofline.py: por qué el prefill es cómputo y el decode es memoria, en una réplica del C10 (solo stdlib)\nP, B_PESO, TP = 70.6e9, 1, 2   # parámetros, bytes por peso (FP8) y GPUs de la réplica\nFLOPS = 1_979e12               # H100 SXM, FP8 denso, por GPU (la hoja dice 3,958 \"with sparsity\")\nBW = 3.35e12                   # H100 SXM: 3.35 TB/s de memoria, por GPU\nKV = 327_680                   # bytes de KV por token en BF16 (sección 0)\nprint(f\"punto de quiebre de una H100 en FP8: {FLOPS / BW:.0f} FLOPs por byte leído\")\n\n# Prefill: 2 FLOPs por parámetro y por token; los pesos se leen UNA vez para todo el prompt\nT = 2_000\nflops, bytes_ = 2 * P * T, P * B_PESO + T * KV          # + escribir el KV del prompt\nprint(f\"prefill de {T:,} tokens: {flops / bytes_:,.0f} FLOPs/B → manda el cómputo; \"\n      f\"piso {flops / (TP * FLOPS) * 1e3:.0f} ms ({flops / (TP * FLOPS / 2) * 1e3:.0f} ms en BF16)\")\n\n# Decode: un token por secuencia por paso; cada paso relee TODOS los pesos y el KV de cada secuencia\nfor B in (1, 40, 92):\n    flops, bytes_ = 2 * P * B, P * B_PESO + B * 2_250 * KV  # KV de B secuencias de 2,250 tokens (peor caso)\n    paso = bytes_ / (TP * BW)\n    print(f\"decode, batch de {B:>2}: {flops / bytes_:5.1f} FLOPs/B → manda la memoria; paso ≥ {paso * 1e3:4.1f} ms\"\n          f\" → ≤ {1 / paso:3.0f} tokens/s por secuencia, ≤ {B / paso:5,.0f} en total\")\nEOF",
+            "expect": "Sin salida: el archivo queda escrito."
+          },
+          {
+            "cmd": "python3 roofline.py",
+            "expect": "punto de quiebre de una H100 en FP8: 591 FLOPs por byte leído; prefill de 2,000 tokens: 3,963 FLOPs/B → manda el cómputo; piso 71 ms (143 ms en BF16); y tres líneas de decode: batch de 1, 2.0 FLOPs/B y paso ≥ 10.6 ms (≤ 94 tokens/s); batch de 40, 56.4 FLOPs/B y paso ≥ 14.9 ms (≤ 67 tokens/s por secuencia, ≤ 2,678 en total); batch de 92, 93.8 FLOPs/B y paso ≥ 20.7 ms (≤ 48 por secuencia, ≤ 4,453 en total). Aun con 92 secuencias, el decode queda ≈ 6× por debajo del punto de quiebre: más batch sube el total, no la velocidad de cada usuario."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-vllm",
+            "expect": "Nada: no queda rastro del lab."
+          }
+        ],
+        "fix": "Son cotas teóricas, no promesas: el cómputo real no llega al pico y el paso real del C10 se estima en ≈ 40 ms, no en 15. El número medido sale del barrido de vllm bench serve (sección 7). Si tus cifras no coinciden, revisa los TFLOPS: la hoja de NVIDIA da 3,958 with sparsity, y el denso es la mitad.",
+        "needs": "Python 3 de macOS (solo stdlib); sin GPU ni internet.",
+        "verified": "executed",
+        "verified_note": "Ejecutado con Python 3.14.3 y 3.9.6 en macOS (Apple M4): la misma salida, byte a byte. Datos de la H100 SXM de la página de NVIDIA: 80 GB, 3.35 TB/s y 3,958 TFLOPS FP8 with sparsity."
+      },
+      "links": [
+        "#m07.llm-servers",
+        "#m14.por-que",
+        "#m04.roofline",
+        "#m14.batching-caching"
+      ]
+    },
+    {
+      "id": "tokens",
+      "num": 2,
+      "title": "Tokens y contexto: tokenizer, chat template, max_model_len, costo por token, español contra inglés",
+      "question": "¿Qué cuenta vLLM como token, qué entra en la ventana de contexto, qué pasa cuando un request no cabe y por qué el mismo texto cuesta más en español que en inglés?",
+      "templates": [
+        {
+          "code": "curl -s localhost:8000/tokenize -H 'content-type: application/json' -d '{\"model\": \"{modelo}\", \"messages\": [{\"role\": \"system\", \"content\": \"{system}\"}, {\"role\": \"user\", \"content\": \"{texto}\"}], \"return_token_strs\": true}'",
+          "note": "Cuenta como el modelo servido: su <b>tokenizer</b> (el que parte el texto en tokens) y su <b>chat template</b> (la plantilla que une los mensajes con las marcas del modelo). <code>count</code> incluye las marcas de la plantilla y el encabezado del asistente (<code>add_generation_prompt</code>, <code>true</code> por defecto); <code>token_strs</code> muestra cada pedazo."
+        },
+        {
+          "code": "curl -s localhost:8000/tokenize -H 'content-type: application/json' -d '{\"model\": \"{modelo}\", \"prompt\": \"{texto}\"}'",
+          "note": "Solo el texto, sin plantilla: la diferencia entre los dos <code>count</code> es lo que agrega el chat template. Con <code>prompt</code>, <code>add_special_tokens</code> es <code>true</code> por defecto: suma el token de inicio."
+        },
+        {
+          "code": "\"max_completion_tokens\": {n}",
+          "note": "El tope de salida de un request; <code>max_tokens</code> sigue funcionando, pero está deprecado a favor de este. Si no lo mandas, en chat vLLM puede generar hasta llenar la ventana: <code>max_model_len</code> − prompt; en <code>/v1/completions</code>, el default es 16."
+        },
+        {
+          "code": "vllm serve {modelo} --max-model-len {ctx}",
+          "note": "La <b>ventana de contexto</b>: cuántos tokens caben entre prompt y respuesta. Acepta <code>8192</code>, <code>8K</code> (= 8,192) u <code>8k</code> (= 8,000), y <code>auto</code>: el máximo que entra en la memoria."
+        }
+      ],
+      "formulas": [
+        "T_{\\text{prompt}} + \\texttt{max\\_tokens} \\le \\texttt{max\\_model\\_len}: \\quad 2{,}000 + 1{,}024 \\le 8{,}192 \\qquad (\\text{v0.30 responde 400 si no})",
+        "\\texttt{max\\_tokens}_{\\text{efectivo}} = \\min(\\texttt{max\\_model\\_len} - T_{\\text{prompt}},\\ \\texttt{max\\_tokens}) \\qquad (\\text{v0.32: } 7{,}500 + 1{,}024 \\to 692)",
+        "\\text{costo} = \\frac{T_{in} \\times p_{in} + T_{out} \\times p_{out}}{10^6} = \\frac{2{,}000 \\times 2.50 + 250 \\times 10}{10^6} = \\text{US}\\$0.0075",
+        "T \\approx \\text{palabras} \\times f: \\quad 200 \\times 1.61 \\approx 322 \\;(\\text{español}) \\quad \\text{contra} \\quad 200 \\times 1.23 \\approx 246 \\;(\\text{inglés})",
+        "\\hat{T}_{\\text{gateway}} = \\left\\lceil \\frac{\\text{caracteres}}{3} \\right\\rceil + 4 \\times \\text{mensajes}"
+      ],
+      "vars": [
+        [
+          "{modelo}",
+          "el nombre servido",
+          "chat-70b-fp8-2026-09-28"
+        ],
+        [
+          "{system}, {texto}",
+          "el system prompt y el mensaje del usuario",
+          "Eres el asistente de soporte del marketplace. · ¿Dónde está mi pedido?"
+        ],
+        [
+          "{n}",
+          "tope de tokens de salida",
+          "1,024 en soporte, 600 en listings y 400 en catálogo"
+        ],
+        [
+          "{ctx}",
+          "la ventana de contexto",
+          "8192"
+        ],
+        [
+          "T_prompt, T_in, T_out",
+          "tokens del prompt (los de entrada) y de la salida",
+          "2,000 y 250 en promedio"
+        ],
+        [
+          "p_in, p_out",
+          "precio por millón de tokens de entrada y de salida",
+          "US$2.50 y US$10 (lista ilustrativa del C10)"
+        ],
+        [
+          "f",
+          "fertilidad: tokens por palabra de un tokenizer en un idioma",
+          "Llama 3.1: 1.23 en inglés y 1.61 en español"
+        ],
+        [
+          "T̂_gateway",
+          "lo que estima el gateway del C10 antes de tokenizar, a propósito pesimista",
+          "66 tokens para un chat de 174 caracteres (el lab)"
+        ]
+      ],
+      "pieces": [
+        [
+          "Token",
+          "Un pedazo de texto del vocabulario del modelo (una palabra corta, parte de una palabra o un signo), con su número.",
+          "Llama 3: 128,256 entradas en el vocabulario"
+        ],
+        [
+          "Tokenizer",
+          "Parte el texto en tokens y los convierte en números, y al revés. Cada familia de modelos tiene el suyo: el mismo texto da cantidades distintas en cada una.",
+          "el de Llama 3.1: ≈ 1.23 tokens por palabra en inglés y ≈ 1.61 en español"
+        ],
+        [
+          "Tokens especiales",
+          "Marcas que no son texto: inicio, encabezado de rol y fin de turno. Cada una es un solo token.",
+          "<|begin_of_text|> · <|start_header_id|> · <|end_header_id|> · <|eot_id|>"
+        ],
+        [
+          "Chat template",
+          "La plantilla Jinja (un lenguaje de plantillas) del tokenizer_config.json que convierte la lista de messages en un solo texto con esas marcas. vLLM usa la del modelo y --chat-template la reemplaza; sin plantilla, los requests de chat fallan.",
+          "la de Llama 3.3 agrega siempre un bloque system con «Cutting Knowledge Date: December 2023» y «Today Date: 26 Jul 2024»"
+        ],
+        [
+          "add_generation_prompt",
+          "Agrega al final el encabezado del asistente, para que el modelo empiece a contestar ahí. /tokenize lo pone por defecto con messages.",
+          "<|start_header_id|>assistant<|end_header_id|> y un salto doble"
+        ],
+        [
+          "max_model_len",
+          "La ventana: cuántos tokens caben entre prompt y respuesta. Si no la fijas, vale la del config del modelo.",
+          "8,192 en el C10; 131,072 en el config de Llama 3.3"
+        ],
+        [
+          "max_tokens · max_completion_tokens",
+          "El tope de tokens de salida de un request. Sin él, en chat, vLLM puede generar hasta llenar la ventana; en /v1/completions el default es 16.",
+          "el gateway lo fija en 1,024 (soporte), 600 (listings) y 400 (catálogo)"
+        ],
+        [
+          "Prompt + salida > ventana",
+          "En v0.30, un 400 que empieza con «This model's maximum context length is». Desde v0.32, si el prompt cabe por sí solo, entra y la salida se recorta a lo que queda.",
+          "7,500 + 1,024: un 400 en v0.30; como mucho 692 tokens en v0.32"
+        ],
+        [
+          "usage",
+          "Lo que la respuesta dice que gastó: prompt_tokens, completion_tokens y total_tokens. En streaming llega al final si lo pides con stream_options.include_usage.",
+          "el gateway concilia la cuota con esto"
+        ],
+        [
+          "finish_reason",
+          "Por qué terminó: stop (el modelo cerró su turno o encontró un stop), length (llegó a max_tokens o a la ventana), tool_calls (pidió una herramienta) o abort (vLLM canceló la secuencia).",
+          "length en soporte = una respuesta cortada: mide cuántas hay"
+        ],
+        [
+          "Prompt contra salida",
+          "Los tokens de entrada se leen juntos en el prefill; cada token de salida es un paso de decode y agranda el KV.",
+          "≈ 8 de entrada por cada 1 de salida en el interactivo del C10"
+        ],
+        [
+          "Costo por token",
+          "Las APIs cobran aparte la entrada y la salida, y la salida suele costar varias veces más.",
+          "US$2.50 y US$10 por millón: un request de soporte cuesta US$0.0075, un tercio por la salida"
+        ],
+        [
+          "Español contra inglés",
+          "El mismo tokenizer parte el español en más pedazos por palabra: más tokens, más costo, más KV y más pasos de decode.",
+          "200 palabras: ≈ 246 tokens en inglés y ≈ 322 en español (Llama 3.1)"
+        ],
+        [
+          "Estimar sin tokenizer",
+          "Dividir los caracteres: rápido y aproximado. Sirve para cobrar una cuota por adelantado, no para facturar.",
+          "el gateway del C10: caracteres ÷ 3 + 4 por mensaje, y concilia con usage"
+        ],
+        [
+          "/tokenize",
+          "El endpoint de vLLM que cuenta con el tokenizer y el chat template del modelo servido.",
+          "devuelve count, max_model_len y tokens"
+        ]
+      ],
+      "example": {
+        "title": "Cómo estima los tokens el gateway del C10 antes de tokenizar",
+        "lang": "python",
+        "code": "# Caracteres por token para ESTIMAR sin tokenizer. ≈ 4 es la regla para inglés con tokenizers BPE; en\n# español suele haber más tokens por carácter. 3.0 sobrestima a propósito (el error se devuelve al conciliar).\n# Mídelo con tu tokenizer sobre una muestra de tus prompts: es una estimación, no un dato del modelo.\nCHARS_PER_TOKEN = 3.0\nTOKENS_PER_MESSAGE = 4  # overhead del chat template por mensaje (rol, separadores): estimación\n\n\ndef estimate_prompt_tokens(messages: list[dict]) -> int:\n    \"\"\"Tokens de entrada estimados a partir de los mensajes (texto y partes de texto; ignora imágenes).\"\"\"\n    chars = 0\n    for m in messages:\n        content = m.get(\"content\")\n        if isinstance(content, str):\n            chars += len(content)\n        elif isinstance(content, list):  # formato multi-parte: [{\"type\": \"text\", \"text\": \"...\"}, ...]\n            chars += sum(len(p.get(\"text\", \"\")) for p in content if isinstance(p, dict))\n    return math.ceil(chars / CHARS_PER_TOKEN) + TOKENS_PER_MESSAGE * len(messages)",
+        "source": "reference/c10/gateway/quota.py (líneas 32–48)",
+        "notes": [
+          "<code>CHARS_PER_TOKEN = 3.0</code>: la regla de ≈ 4 caracteres por token es para inglés, y en español salen más tokens. 3.0 sobrestima a propósito: el gateway cobra de más al entrar y devuelve la diferencia al terminar, con el <code>usage</code> real.",
+          "<code>TOKENS_PER_MESSAGE = 4</code> es lo que agrega la plantilla por mensaje, estimado. En Llama 3.3, cada mensaje lleva tres tokens especiales (<code><|start_header_id|></code>, <code><|end_header_id|></code> y <code><|eot_id|></code>) más el rol y un salto de línea doble, y la plantilla agrega un bloque system con dos líneas de fecha aunque no mandes ninguno. El número exacto lo da <code>/tokenize</code>.",
+          "Por qué estimar: la cuota se cobra al entrar (prompt estimado + <code>max_tokens</code>) y el costo real se conoce al final. Con ≈ 2,000 de prompt y <code>max_tokens</code> 1,024, el gateway cobra 3,024 y, si se generaron 250, devuelve 774 (el docstring de <code>quota.py</code>).",
+          "El gateway también pone los topes de la ventana: <code>max_prompt_tokens</code> 6,000 y <code>max_tokens_cap</code> 1,024 en soporte (<code>tenants.yaml</code>), porque 6,000 + 1,024 < 8,192. Así, mientras la estimación no se quede corta, ningún request de soporte llega a vLLM pidiendo más de lo que cabe; si se queda corta, vLLM responde el 400 y el gateway lo reenvía."
+        ]
+      },
+      "figure": {
+        "kind": "tokens",
+        "caption": "Arriba, cuántos tokens por palabra da cada tokenizer en inglés y en español (medido por Nayeem et al., 2025, en noticias): con el de Llama 3.1, la familia del modelo del C10, el español usa ≈ 31 % más. Al centro, el chat template de Llama 3.3 aplicado a dos mensajes cortos: 9 tokens especiales antes de que el modelo escriba nada. Abajo, la ventana de 8,192 tokens de un request de soporte del C10.",
+        "data": {
+          "fertility": {
+            "unit": "tokens por palabra",
+            "corpus": "texto formal: noticias de XL-Sum en cada idioma",
+            "source": "Nayeem et al., «Beyond Fertility: Analyzing STRR as a Metric for Multilingual Tokenization Evaluation», 2025, tabla 1 (https://arxiv.org/abs/2510.09947)",
+            "rows": [
+              {
+                "tokenizer": "Llama 3.1-70B",
+                "en": 1.23,
+                "es": 1.61,
+                "highlight": true
+              },
+              {
+                "tokenizer": "Qwen 2.5-72B",
+                "en": 1.25,
+                "es": 1.61
+              },
+              {
+                "tokenizer": "DeepSeek V3",
+                "en": 1.23,
+                "es": 1.55
+              },
+              {
+                "tokenizer": "Mistral Small 24B",
+                "en": 1.27,
+                "es": 1.42
+              },
+              {
+                "tokenizer": "GPT-4o",
+                "en": 1.22,
+                "es": 1.36
+              },
+              {
+                "tokenizer": "Aya Expanse 32B",
+                "en": 1.24,
+                "es": 1.33
+              }
+            ],
+            "example": {
+              "words": 200,
+              "en_tokens": 246,
+              "es_tokens": 322,
+              "label": "200 palabras de respuesta con el tokenizer de Llama 3.1"
+            }
+          },
+          "template": {
+            "model": "Llama 3.3 70B Instruct",
+            "source": "el chat_template del tokenizer_config.json (copia pública: https://huggingface.co/unsloth/Llama-3.3-70B-Instruct; el repo de Meta pide aceptar la licencia)",
+            "pieces": [
+              {
+                "text": "<|begin_of_text|>",
+                "kind": "especial"
+              },
+              {
+                "text": "<|start_header_id|>",
+                "kind": "especial"
+              },
+              {
+                "text": "system",
+                "kind": "rol"
+              },
+              {
+                "text": "<|end_header_id|>",
+                "kind": "especial"
+              },
+              {
+                "text": "\n\n",
+                "kind": "plantilla"
+              },
+              {
+                "text": "Cutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\n",
+                "kind": "plantilla"
+              },
+              {
+                "text": "Eres el asistente de soporte del marketplace.",
+                "kind": "tuyo"
+              },
+              {
+                "text": "<|eot_id|>",
+                "kind": "especial"
+              },
+              {
+                "text": "<|start_header_id|>",
+                "kind": "especial"
+              },
+              {
+                "text": "user",
+                "kind": "rol"
+              },
+              {
+                "text": "<|end_header_id|>",
+                "kind": "especial"
+              },
+              {
+                "text": "\n\n",
+                "kind": "plantilla"
+              },
+              {
+                "text": "¿Dónde está mi pedido?",
+                "kind": "tuyo"
+              },
+              {
+                "text": "<|eot_id|>",
+                "kind": "especial"
+              },
+              {
+                "text": "<|start_header_id|>",
+                "kind": "especial"
+              },
+              {
+                "text": "assistant",
+                "kind": "rol"
+              },
+              {
+                "text": "<|end_header_id|>",
+                "kind": "especial"
+              },
+              {
+                "text": "\n\n",
+                "kind": "plantilla"
+              }
+            ],
+            "special_tokens": 9,
+            "note": "Cada marca especial es un solo token: 9 en este prompt. El texto, tuyo o de la plantilla, lo cuenta el tokenizer: POST /tokenize da el total. Si no pasas date_string en chat_template_kwargs, la plantilla dice que hoy es 26 Jul 2024."
+          },
+          "window": {
+            "max_model_len": 8192,
+            "segments": [
+              {
+                "label": "system prompt del producto (prefijo compartido)",
+                "tokens": 1000,
+                "kind": "prompt"
+              },
+              {
+                "label": "historial y mensaje del usuario",
+                "tokens": 1000,
+                "kind": "prompt"
+              },
+              {
+                "label": "respuesta promedio",
+                "tokens": 250,
+                "kind": "salida"
+              },
+              {
+                "label": "resto del tope de salida de soporte (1,024)",
+                "tokens": 774,
+                "kind": "reservado"
+              },
+              {
+                "label": "libre hasta 8,192",
+                "tokens": 5168,
+                "kind": "libre"
+              }
+            ],
+            "marks": [
+              {
+                "at": 6000,
+                "label": "max_prompt_tokens de soporte en el gateway"
+              },
+              {
+                "at": 7024,
+                "label": "6,000 + 1,024: lo máximo que pide un request de soporte"
+              }
+            ]
+          }
+        }
+      },
+      "memo": "<b>Cuenta lo que cuenta el tokenizer del modelo, después del chat template.</b> Prompt + salida ≤ <code>max_model_len</code>. La salida es la parte cara (4× en la lista del C10) y la lenta (un paso por token). Y en español, con el tokenizer de Llama 3.1, ≈ 1.3× más tokens por palabra que en inglés.",
+      "trap": "Dejar <code>max_tokens</code> sin fijar. En chat, vLLM toma entonces todo lo que queda de la ventana (8,192 − prompt): una respuesta que no para ocupa su lugar y su KV hasta llenarla, y la cuota no sabe cuánto cobrar. El gateway del C10 lo fija en el tope del tenant. Y la trampa del upgrade: en v0.30, el pin del C10, un prompt de chat de 7,500 tokens con <code>max_tokens</code> 1,024 recibe un 400 («This model's maximum context length is 8192 tokens. However, you requested 1024 output tokens and your prompt contains at least 7169 input tokens, for a total of at least 8193 tokens. …»). Dice «at least 7169» y no 7,500 porque vLLM deja de tokenizar un token después del límite. Desde v0.32 el mismo request entra, y la respuesta se corta en 692 tokens como mucho, con <code>finish_reason: \"length\"</code> si llega. Si un cliente dependía del 400, el upgrade lo cambia sin avisar: valida en el gateway.",
+      "lab": {
+        "goal": "Ver cómo valida la ventana vLLM v0.30 y cómo lo hace v0.32 (con sus mensajes reales), cuánto cuesta un request del C10, cuánto más pesa una respuesta en español y qué estima el gateway antes de tokenizar.",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-vllm && cd ~/lab-vllm\ncat > presupuesto.py <<'EOF'\n# presupuesto.py: la ventana de contexto como la valida vLLM, lo que cuesta un token y cuánto pesa el español (solo stdlib)\nimport math\n\nCTX = 8192  # --max-model-len del C10\n\n\ndef v030(prompt, max_tokens):  # vllm/renderers/params.py en v0.30.0: max_tokens se RESERVA de la ventana\n    if max_tokens is not None and prompt > CTX - max_tokens:\n        return (f\"400 This model's maximum context length is {CTX} tokens. However, you requested {max_tokens} output \"\n                f\"tokens and your prompt contains {prompt} input tokens, for a total of {prompt + max_tokens} tokens. \"\n                \"Please reduce the length of the input prompt or the number of requested output tokens.\")\n    return f\"entra: genera hasta {min(x for x in (CTX - prompt, max_tokens) if x is not None):,} tokens\"\n\n\ndef v032(prompt, max_tokens):  # desde v0.32.0: max_tokens es un tope; solo el prompt tiene que caber\n    if prompt > CTX:\n        return (f\"400 This model's maximum context length is {CTX} tokens. However, your prompt contains {prompt} \"\n                \"input tokens, which exceeds this limit even without any output tokens. Please reduce the length of the input prompt.\")\n    return f\"entra: genera hasta {min(x for x in (CTX - prompt, max_tokens) if x is not None):,} tokens\"\n\n\nfor prompt, max_tokens in ((2_000, 1_024), (7_500, 1_024), (2_000, None), (8_300, 256)):\n    print(f\"prompt {prompt:,} + max_tokens {max_tokens}:\")\n    print(f\"  v0.30 → {v030(prompt, max_tokens)}\")\n    print(f\"  v0.32 → {v032(prompt, max_tokens)}\")\n\n# Precios de lista ILUSTRATIVOS del C10 (US$ por millón de tokens)\nP_IN, P_OUT = 2.50, 10.00\ncosto = (2_000 * P_IN + 250 * P_OUT) / 1e6\nprint(f\"un request de soporte (2,000 de entrada + 250 de salida): US${costo:.4f}; la salida es el \"\n      f\"{250 * P_OUT / 1e6 / costo:.0%} del costo con el {250 / 2_250:.0%} de los tokens\")\n\n# Fertilidad del tokenizer de Llama 3.1-70B en noticias (Nayeem et al., 2025): tokens por palabra\nfor idioma, f in ((\"inglés\", 1.23), (\"español\", 1.61)):\n    t = round(200 * f)\n    print(f\"una respuesta de 200 palabras en {idioma}: ≈ {t} tokens → US${t * P_OUT / 1e6:.5f}, \"\n          f\"≈ {t * 0.040:.1f} s de decode a 40 ms por token, {t * 327_680 / 1e6:.0f} MB de KV\")\n\n# La estimación del gateway del C10 (gateway/quota.py), copiada tal cual\nCHARS_PER_TOKEN = 3.0\nTOKENS_PER_MESSAGE = 4\n\n\ndef estimate_prompt_tokens(messages):\n    chars = sum(len(m[\"content\"]) for m in messages)\n    return math.ceil(chars / CHARS_PER_TOKEN) + TOKENS_PER_MESSAGE * len(messages)\n\n\nchats = {\n    \"español\": [{\"role\": \"system\", \"content\": \"Eres el asistente de soporte del marketplace. Responde breve y con amabilidad.\"},\n                {\"role\": \"user\", \"content\": \"Hola, compré unos audífonos hace diez días y todavía no llegan. ¿Me ayudas a rastrear mi pedido?\"}],\n    \"inglés\": [{\"role\": \"system\", \"content\": \"You are the marketplace's support assistant. Answer briefly and kindly.\"},\n               {\"role\": \"user\", \"content\": \"Hi, I bought some headphones ten days ago and they still haven't arrived. Can you help me track my order?\"}],\n}\nfor idioma, msgs in chats.items():\n    palabras = sum(len(m[\"content\"].split()) for m in msgs)\n    f = 1.61 if idioma == \"español\" else 1.23\n    print(f\"chat en {idioma}: {sum(len(m['content']) for m in msgs)} caracteres, {palabras} palabras → gateway \"\n          f\"{estimate_prompt_tokens(msgs)} tokens (caracteres ÷ 3 + 4 por mensaje); por palabra, ≈ {round(palabras * f)}\")\nEOF",
+            "expect": "Sin salida: el archivo queda escrito. Las dos funciones de validación siguen vllm/renderers/params.py de v0.30.0 y de v0.32.0, con sus mensajes; estimate_prompt_tokens es la de gateway/quota.py del C10 (la versión del lab solo acepta content de texto). Con un prompt de texto, el vLLM real deja de tokenizar un token después del límite y su mensaje dice «at least 7169 … at least 8193»; el lab muestra el largo completo, como cuando mandas token IDs a /v1/completions."
+          },
+          {
+            "cmd": "python3 presupuesto.py | head -n 12",
+            "expect": "Cuatro casos. 2,000 + 1,024: entra en las dos y genera hasta 1,024. 7,500 + 1,024: v0.30 → 400 This model's maximum context length is 8192 tokens. However, you requested 1024 output tokens and your prompt contains 7500 input tokens, for a total of 8524 tokens. Please reduce the length of the input prompt or the number of requested output tokens.; v0.32 → entra: genera hasta 692 tokens. 2,000 sin max_tokens: las dos generan hasta 6,192. 8,300 + 256: las dos dan 400, y el texto de v0.32 dice which exceeds this limit even without any output tokens."
+          },
+          {
+            "cmd": "python3 presupuesto.py | tail -n 5",
+            "expect": "un request de soporte (2,000 de entrada + 250 de salida): US$0.0075, y la salida es el 33% del costo con el 11% de los tokens; 200 palabras en inglés ≈ 246 tokens (US$0.00246, ≈ 9.8 s de decode, 81 MB de KV) y en español ≈ 322 (US$0.00322, ≈ 12.9 s, 106 MB); y los dos chats: en español, 174 caracteres y 29 palabras → gateway 66 tokens, ≈ 47 por palabra; en inglés, 176 caracteres y 30 palabras → gateway 67, ≈ 37 por palabra. Las dos son estimaciones: los tokens reales los da POST /tokenize con el modelo servido."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-vllm",
+            "expect": "Nada: no queda rastro del lab."
+          }
+        ],
+        "fix": "Si quieres contar tokens de verdad, levanta cualquier vLLM y usa POST /tokenize con messages (cuenta la plantilla) y con prompt (no la cuenta). Para el upgrade, el gateway del C10 ya topa el prompt estimado (6,000) y max_tokens (1,024), que suman menos de 8,192: mientras la estimación no se quede corta, su comportamiento no depende de la versión de vLLM.",
+        "needs": "Python 3 de macOS (solo stdlib); sin GPU ni internet.",
+        "verified": "executed",
+        "verified_note": "Ejecutado con Python 3.14.3 y 3.9.6 en macOS (Apple M4): la misma salida, byte a byte. Los mensajes de error son los de vllm/renderers/params.py en las etiquetas v0.30.0 y v0.32.0 (PR #57035), sin el «at least» que vLLM agrega cuando corta la tokenización; la fertilidad, la de la tabla 1 de Nayeem et al. (2025)."
+      },
+      "links": [
+        "#m14.costo-tokens",
+        "#c10.estimaciones",
+        "#ref-numeros.bytes-tamanos",
+        "#c10.serving"
+      ]
+    },
+    {
+      "id": "memoria",
+      "num": 3,
+      "title": "Memoria: pesos + KV cache, la fórmula con GQA, gpu_memory_utilization, bloques, max_num_seqs y preemption",
+      "question": "¿En qué se va la memoria de la GPU, cuántas conversaciones caben a la vez en una réplica y qué hace vLLM cuando se le acaban los bloques de KV?",
+      "templates": [
+        {
+          "code": "vllm serve {modelo} --tensor-parallel-size {tp} --gpu-memory-utilization {u} --max-model-len {ctx} --max-num-seqs {s} --kv-cache-dtype {dtype}",
+          "note": "Los cinco flags de la cuenta de memoria. <code>{u}</code> es la fracción de la memoria TOTAL de cada GPU que vLLM se permite usar (0.92 si no la escribes); <code>{dtype}</code> es <code>auto</code> (el del modelo) o <code>fp8</code>."
+        },
+        {
+          "code": "Available KV cache memory: {gib} GiB",
+          "note": "Lo que imprime después de cargar los pesos y de perfilar un paso de prueba: lo que quedó para KV, por GPU y en GiB. Ya descontó pesos, activaciones y <b>CUDA graphs</b> (los pasos de la GPU grabados para repetirlos rápido)."
+        },
+        {
+          "code": "GPU KV cache size: {tokens} tokens, Maximum concurrency for {ctx} tokens per request: {x}x",
+          "note": "La capacidad real de la réplica: los tokens de KV (los mismos en las dos GPUs con TP) y cuántas secuencias del largo máximo caben a la vez. Manda sobre cualquier cuenta."
+        },
+        {
+          "code": "curl -s localhost:8000/metrics | grep -E '^vllm:(kv_cache_usage_perc|num_preemptions_total|num_requests_waiting)'",
+          "note": "Las tres señales de que el KV se llenó: uso cerca de 1, <b>preemptions</b> (secuencias que vLLM saca del batch para hacer lugar) que suben y requests esperando. Con cola, lo primero que se rompe es el TTFT."
+        },
+        {
+          "code": "--kv-cache-memory-bytes {bytes}",
+          "note": "Fija el KV por GPU en bytes y se salta la medición de memoria: ignora <code>--gpu-memory-utilization</code>. Acepta los sufijos de <code>--max-model-len</code>: la minúscula es decimal y la mayúscula binaria (<code>30g</code> = 30 × 10⁹ bytes, <code>30G</code> = 30 × 2³⁰)."
+        }
+      ],
+      "formulas": [
+        "M_{\\text{vLLM}} = \\lceil M_{\\text{GPU}} \\times u \\rceil \\text{ por GPU} \\qquad \\text{KV}_{\\text{libre}} = M_{\\text{vLLM}} - \\text{pesos} - \\text{activaciones} - \\text{CUDA graphs}",
+        "\\text{KV}_{\\text{token}} = 2 \\times L \\times H_{kv} \\times d_{head} \\times b_{kv}, \\qquad H_{kv} = \\frac{H}{g} = \\frac{64}{8} = 8 \\;\\Rightarrow\\; 320\\ \\text{KiB en vez de } 2.5\\ \\text{MiB}",
+        "N_{\\text{bloques}} = \\left\\lfloor \\frac{\\text{KV}_{\\text{libre}} / \\text{TP}}{16 \\times \\text{KV}_{\\text{token}} / \\text{TP}} \\right\\rfloor = \\left\\lfloor \\frac{34.2\\ \\text{GB}}{16 \\times 163{,}840\\ \\text{B}} \\right\\rfloor = 13{,}046 \\;\\Rightarrow\\; 208{,}736 \\text{ tokens}",
+        "N_{seq} = \\left\\lfloor \\frac{N_{\\text{bloques}}}{\\lceil T_{seq} / 16 \\rceil} \\right\\rfloor = \\left\\lfloor \\frac{13{,}046}{141} \\right\\rfloor = 92 \\qquad \\text{concurrencia} = \\frac{13{,}046}{\\lceil 8{,}192 / 16 \\rceil} = 25.48",
+        "\\text{KV}_{\\text{vivo}} = N_{vivas} \\times (T_{seq} - T_{pref}) + N_{pref} \\times T_{pref} = 40 \\times 1{,}250 + 3 \\times 1{,}000 = 53{,}000 \\text{ tokens (en vez de } 90{,}000)"
+      ],
+      "vars": [
+        [
+          "{modelo}",
+          "ruta o repo del modelo",
+          "/models/chat-70b-fp8-2026-09-28"
+        ],
+        [
+          "{tp}",
+          "GPUs que reparten cada capa",
+          "2"
+        ],
+        [
+          "{u}",
+          "fracción de la memoria de cada GPU para vLLM",
+          "0.90"
+        ],
+        [
+          "{ctx}",
+          "contexto máximo por secuencia",
+          "8192"
+        ],
+        [
+          "{s}",
+          "techo de secuencias por paso",
+          "128"
+        ],
+        [
+          "{dtype}",
+          "tipo de número del KV cache",
+          "auto (BF16) o fp8"
+        ],
+        [
+          "{gib}, {tokens}, {x}",
+          "lo que imprime vLLM: GiB libres por GPU, tokens de KV y concurrencia para {ctx}",
+          "con la cuenta del C10: ≈ 31.9 GiB, 208,736 y 25.48"
+        ],
+        [
+          "{bytes}",
+          "tamaño fijo del KV por GPU",
+          "no lo usa el C10"
+        ],
+        [
+          "M_GPU, u",
+          "memoria total de una GPU (la que reporta el dispositivo) y la fracción",
+          "80 GB nominales, 81,559 MiB reportados; 0.90"
+        ],
+        [
+          "L, H, H_kv, g",
+          "capas, heads de atención, KV heads y cuántos heads comparten cada KV head",
+          "80, 64, 8 y 8"
+        ],
+        [
+          "d_head, b_kv",
+          "tamaño de cada head y bytes por número del KV",
+          "128 y 2"
+        ],
+        [
+          "N_bloques, T_seq",
+          "bloques de 16 tokens que caben y tokens por secuencia",
+          "13,046 y 2,250"
+        ],
+        [
+          "N_vivas, T_pref, N_pref",
+          "secuencias vivas, tokens del prefijo compartido y prefijos distintos",
+          "40, 1,000 y 3 (el mejor caso del C10)"
+        ]
+      ],
+      "pieces": [
+        [
+          "Pesos",
+          "Los números del modelo: parámetros × bytes. Con TP=2 se reparten entre las GPUs, no se copian.",
+          "70.6 GB en FP8: 35.3 por GPU"
+        ],
+        [
+          "Activaciones y CUDA graphs",
+          "Lo que ocupa calcular un paso (resultados intermedios) y los CUDA graphs (los pasos de la GPU grabados una vez, para repetirlos sin el costo de lanzarlos). vLLM los mide al arrancar con un paso de prueba.",
+          "≈ 5 GB en la réplica (estimación del C10)"
+        ],
+        [
+          "KV cache",
+          "Todo lo que queda dentro del presupuesto: se convierte en bloques para K y V.",
+          "68.4 GB por réplica"
+        ],
+        [
+          "Margen (1 − u)",
+          "Lo que vLLM no toca: picos, fragmentación, otros procesos.",
+          "10 % con 0.90: 16 GB en la réplica"
+        ],
+        [
+          "GQA",
+          "Ocho heads de atención comparten cada par de K y V: el KV es 8× más chico que con un par por head.",
+          "320 KiB por token en vez de 2.5 MiB"
+        ],
+        [
+          "--gpu-memory-utilization",
+          "La fracción de la memoria TOTAL de cada GPU (la que reporta el dispositivo) que vLLM se permite usar. Si al arrancar hay menos libre, falla con «Free memory on device … is less than desired GPU memory utilization».",
+          "0.90 explícito en el C10"
+        ],
+        [
+          "--kv-cache-memory-bytes",
+          "Fija el KV por GPU en bytes y se salta la medición de memoria: ignora gpu_memory_utilization.",
+          "no lo usa el C10"
+        ],
+        [
+          "Bloque (--block-size 16)",
+          "La unidad en que se reparte el KV: 16 tokens de una secuencia. Una secuencia pide bloques a medida que crece.",
+          "2,250 tokens = 141 bloques"
+        ],
+        [
+          "--max-model-len",
+          "El largo máximo de una secuencia. vLLM se niega a arrancar si no cabe ni una.",
+          "8,192: una sola secuencia de 8k ocupa 2.7 GB"
+        ],
+        [
+          "--max-num-seqs",
+          "Cuántas secuencias corren en el mismo paso, como máximo. No reserva KV cache: es un techo (sí dimensiona algunos buffers y los CUDA graphs).",
+          "128 en el C10; 1,024 por defecto en la H100"
+        ],
+        [
+          "Preemption",
+          "Si a una secuencia que corre le falta un bloque y no hay, vLLM saca a otra del batch: libera sus bloques y la devuelve a la cola (al frente, con fcfs). Al volver, recalcula su KV desde cero, salvo lo que siga en el prefix cache.",
+          "con priority sale primero la de menor prioridad: el batch nocturno"
+        ],
+        [
+          "vllm:num_preemptions_total",
+          "El counter de preemptions. También aparece «Preemptions: N» en la línea periódica del log cuando hubo; el scheduler de V1 no escribe un warning al desalojar.",
+          "LLMPreemptionsRising: > 0.05 por request terminado, 15 min, de día"
+        ],
+        [
+          "vllm:kv_cache_usage_perc",
+          "La fracción del KV ocupada (1 = 100 %).",
+          "KVCacheSaturation: > 95 % y requests esperando"
+        ],
+        [
+          "--kv-cache-dtype fp8",
+          "Guarda K y V en 1 byte: la mitad de KV por token y el doble de secuencias.",
+          "185 en vez de 92; el C10 lo deja en auto hasta pasar el golden set"
+        ],
+        [
+          "--watermark",
+          "La fracción de bloques que el scheduler deja libre al admitir requests, para no tener que sacar a nadie después. Por defecto 0.0: apagado.",
+          "existe en v0.30 y en v0.32; el C10 no lo usa"
+        ],
+        [
+          "Prefix caching y memoria",
+          "Las secuencias con el mismo comienzo comparten esos bloques: no se duplican.",
+          "40 × 1,250 + 3 × 1,000 = 53,000 tokens en vez de 90,000"
+        ]
+      ],
+      "example": {
+        "title": "Lugar para KV y secuencias por réplica, en vram_calc.py",
+        "lang": "python",
+        "code": "def kv_room_per_replica(\n    m: ModelConfig,\n    gpu: GPU,\n    tensor_parallel: int,\n    gpu_memory_utilization: float,\n    overhead_bytes: float,\n) -> float:\n    \"\"\"Bytes que quedan para KV cache en UNA réplica (tensor_parallel GPUs que sirven juntas un modelo).\n\n    gpu_memory_utilization: fracción de la VRAM que vLLM se permite usar (pesos + activaciones + KV). El\n      default es 0.92 desde vLLM v0.20 (0.9 hasta v0.19): el caso fija 0.90 explícito en el manifest para\n      que la capacidad no cambie con un upgrade.\n    overhead_bytes: activaciones del forward, workspace, CUDA graphs y buffers de NCCL, sumados en la\n      réplica. Es una estimación (≈ 5 GB en el caso); vLLM la mide al arrancar con un forward de prueba.\n    \"\"\"\n    if tensor_parallel < 1:\n        raise ValueError(\"tensor_parallel debe ser >= 1\")\n    if not 0 < gpu_memory_utilization <= 1:\n        raise ValueError(\"gpu_memory_utilization debe estar en (0, 1]\")\n    if m.kv_heads % tensor_parallel != 0:\n        # Con TP, cada GPU guarda los K/V de SUS KV heads. Si no se dividen exacto, el runtime replica heads\n        # y la cuenta de abajo (KV total repartido sin duplicar) deja de valer: mejor fallar que mentir.\n        raise ValueError(f\"{m.kv_heads} KV heads no se dividen entre TP={tensor_parallel}\")\n    budget = tensor_parallel * gpu.vram_bytes * gpu_memory_utilization  # lo que vLLM puede usar en total\n    room = budget - weight_bytes(m) - overhead_bytes  # los pesos se reparten entre las GPUs (TP), no se copian\n    if room <= 0:\n        raise ValueError(\n            f\"{m.name} no cabe: presupuesto {budget / GB:.1f} GB, pesos {weight_bytes(m) / GB:.1f} GB, \"\n            f\"overhead {overhead_bytes / GB:.1f} GB\"\n        )\n    return room\n\n\ndef max_concurrent_sequences(room_bytes: float, m: ModelConfig, tokens_per_sequence: int) -> int:\n    \"\"\"Cuántas secuencias de ese largo caben a la vez, todas en su largo máximo (peor caso, entero).\"\"\"\n    return math.floor(room_bytes / kv_bytes_per_sequence(m, tokens_per_sequence))\n\n\ndef max_kv_tokens(room_bytes: float, m: ModelConfig) -> int:\n    \"\"\"Tokens totales de KV que caben. Al arrancar vLLM imprime un poco menos como \"GPU KV cache size\": cuenta\n    bloques ENTEROS de 16 tokens por GPU (con TP=2 cada GPU guarda la mitad de los KV heads de cada token). En el\n    caso: 208,740 aquí; 13,046 bloques × 16 = 208,736 en el log de vLLM.\"\"\"\n    return math.floor(room_bytes / kv_bytes_per_token(m))",
+        "source": "reference/c10/capacity/vram_calc.py (líneas 110–152)",
+        "notes": [
+          "<code>budget = tensor_parallel × vram × utilización</code>: la memoria que vLLM se permite usar en la réplica. Los pesos se restan una sola vez porque TP los reparte entre las GPUs; con 2 × 80 GB y 0.90, 144 − 70.6 − 5 = <b>68.4 GB</b>.",
+          "Si <code>kv_heads % tensor_parallel</code> no da 0, la cuenta falla a propósito: con TP cada GPU guarda los K y V de sus propios KV heads, y si no se dividen exacto el runtime replica heads y el KV ya no se reparte sin duplicar. Con 8 KV heads, TP puede ser 1, 2, 4 u 8.",
+          "«no cabe»: con pesos BF16 en dos H100, 144 − 141.2 − 5 = −2.2 GB. vLLM fallaría al arrancar con un error de memoria; la cuenta lo dice antes de pedir las GPUs.",
+          "<code>max_concurrent_sequences</code> usa el <b>peor caso</b>: todas las secuencias en su largo final. <code>max_kv_tokens</code> da 208,740 tokens; vLLM cuenta bloques enteros de 16 por GPU y diría 208,736."
+        ]
+      },
+      "figure": {
+        "kind": "kv-cache",
+        "caption": "Una réplica del C10 (2 × H100 de 80 GB, TP=2, --gpu-memory-utilization 0.90), a escala: 70.6 GB de pesos FP8, ≈ 5 GB de overhead (estimación), 68.4 GB de KV y 16 GB que vLLM no toca. Sobre el KV, lo que ocupan 40 conversaciones (la ley de Little en el pico), el máximo de 92 de 2,250 tokens y 25 secuencias de 8,192. Abajo, tres variantes de la misma cuenta.",
+        "data": {
+          "replica": "una réplica del C10: 2 × H100 de 80 GB, TP=2, --gpu-memory-utilization 0.90",
+          "total_gb": 160,
+          "parts": [
+            {
+              "id": "pesos",
+              "label": "pesos FP8",
+              "gb": 70.6
+            },
+            {
+              "id": "overhead",
+              "label": "activaciones, CUDA graphs y buffers (estimación)",
+              "gb": 5
+            },
+            {
+              "id": "kv",
+              "label": "KV cache",
+              "gb": 68.4
+            },
+            {
+              "id": "libre",
+              "label": "margen que vLLM no toca (10 %)",
+              "gb": 16
+            }
+          ],
+          "per_gpu": {
+            "total_gb": 80,
+            "parts": [
+              {
+                "id": "pesos",
+                "gb": 35.3
+              },
+              {
+                "id": "overhead",
+                "gb": 2.5
+              },
+              {
+                "id": "kv",
+                "gb": 34.2
+              },
+              {
+                "id": "libre",
+                "gb": 8
+              }
+            ],
+            "blocks": 13046,
+            "block_tokens": 16
+          },
+          "kv_use": [
+            {
+              "label": "40 conversaciones vivas de 2,250 tokens (Little en el pico)",
+              "gb": 29.5
+            },
+            {
+              "label": "92 de 2,250 tokens: el máximo",
+              "gb": 67.8
+            },
+            {
+              "label": "25 de 8,192 tokens: el contexto máximo",
+              "gb": 67.1
+            }
+          ],
+          "variants": [
+            {
+              "label": "KV en FP8 (160 KiB por token)",
+              "kv_gb": 68.4,
+              "sequences_2250": 185
+            },
+            {
+              "label": "la memoria que reporta nvidia-smi: 81,559 MiB ≈ 85.52 GB por GPU",
+              "kv_gb": 78.3,
+              "sequences_2250": 106
+            },
+            {
+              "label": "pesos en BF16 (141.2 GB) en las mismas 2 GPUs",
+              "kv_gb": -2.2,
+              "sequences_2250": 0,
+              "fits": false
+            }
+          ],
+          "note": "Los números son los de <code>capacity/vram_calc.py</code> y sus tests. Con TP=2, cada GPU guarda la mitad de los KV heads de todas las capas: los 13,046 bloques son los mismos tokens en las dos GPUs."
+        }
+      },
+      "memo": "<b>Pesos fijos, KV variable: lo que queda después de los pesos decide cuántas conversaciones atiendes.</b> 144 GB usables − 70.6 − ≈ 5 = 68.4 GB = 13,046 bloques de 16 tokens = 92 conversaciones de 2,250. Cuando a una secuencia que corre le falta un bloque, vLLM saca a otra (preemption) y la recalcula después: trabajo tirado.",
+      "trap": "Subir <code>--max-num-seqs</code> creyendo que compra capacidad. No reserva KV cache: es un techo. Si dejas entrar más secuencias de las que el KV aguanta en su largo final (128 × 141 bloques = 18,048 > 13,046), vLLM admite mientras haya bloques para los prompts (104 en el lab) y, cuando crecen, empieza a sacar y recalcular: el lab cuenta 130 preemptions y 273,100 tokens recalculados para el mismo throughput que con 92. El scheduler de V1 no escribe un warning al desalojar: lo ves en <code>vllm:num_preemptions_total</code> y en <code>Preemptions: N</code> de la línea periódica. La documentación todavía muestra el warning de V0 («Sequence group 0 is preempted by PreemptionMode.RECOMPUTE mode…»).",
+      "lab": {
+        "goal": "Simular el pool de bloques de KV de una réplica del C10: cuántos bloques hay, cuántas secuencias caben y qué pasa con 72, 92 y 128 requests en vuelo, con el KV en BF16 y en FP8, y con fcfs (por orden de llegada) contra priority (por prioridad).",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-vllm && cd ~/lab-vllm\ncat > bloques.py <<'EOF'\n# bloques.py: el pool de bloques de KV de una réplica del C10 y la preemption, en miniatura (solo stdlib)\n# Modelo simplificado del scheduler de vLLM V1: bloques de 16 tokens, primero los que ya corren, después la cola;\n# si a uno que corre le falta un bloque, sale el último admitido (fcfs) o el de menor prioridad (priority) y\n# después recalcula todo su prefill. Sin chunked prefill ni prefix caching: el peor caso.\nimport math\n\nBLOQUE, TP = 16, 2\nLIBRE = 2 * 80e9 * 0.90 - 70.6e9 - 5e9  # 68.4 GB para KV en la réplica (sección 0)\n\n\ndef bloques_totales(kv_token):  # como vLLM: por GPU (la mitad del lugar y de los KV heads), bloques enteros\n    return math.floor((LIBRE / TP) // (BLOQUE * kv_token / TP))\n\n\ndef simular(en_vuelo, kv_token=327_680, max_num_seqs=128, politica=\"fcfs\", batch=0, prompt=2_000, salida=250, total=1_000):\n    \"\"\"Barrido cerrado, como vllm bench serve --max-concurrency: siempre hay `en_vuelo` requests vivos.\n    `batch` de ellos tienen priority 10 (el batch nocturno) y el resto 0 (interactivo), como manda el gateway.\"\"\"\n    libres = bloques_totales(kv_token)\n    nuevo = lambda i, prio: {\"gen\": 0, \"bloques\": 0, \"prio\": prio, \"llegada\": i}\n    waiting, running = [nuevo(i, 10 if i >= en_vuelo - batch else 0) for i in range(en_vuelo)], []\n    llegadas, hechos, preempt, por_prio, pasos, pico, recalc = en_vuelo, 0, 0, {0: 0, 10: 0}, 0, 0, 0\n    while hechos < total:\n        pasos += 1\n        i = 0\n        while i < len(running):  # 1) decode: cada secuencia que corre necesita lugar para su token nuevo\n            r = running[i]\n            falta = math.ceil((prompt + r[\"gen\"]) / BLOQUE) - r[\"bloques\"]\n            while falta > libres:  # sin bloque libre: preemption\n                v = max(running, key=lambda x: (x[\"prio\"], x[\"llegada\"])) if politica == \"priority\" else running[-1]\n                running.remove(v)\n                libres += v[\"bloques\"]\n                v[\"bloques\"] = 0  # vuelve al frente de la cola; al reentrar recalcula prompt + lo generado\n                waiting.insert(0, v)\n                preempt += 1\n                por_prio[v[\"prio\"]] += 1\n                if v is r:\n                    break\n            if r not in running:  # el que necesitaba lugar salió él mismo\n                continue\n            i = running.index(r)  # con priority, el desalojado pudo estar antes en la lista\n            libres -= falta\n            r[\"bloques\"] += falta\n            r[\"gen\"] += 1\n            if r[\"gen\"] == salida:  # terminó: libera sus bloques y entra otro request de la misma clase\n                running.remove(r)\n                libres += r[\"bloques\"]\n                hechos += 1\n                waiting.append(nuevo(llegadas, r[\"prio\"]))\n                llegadas += 1\n                continue\n            i += 1\n        if politica == \"priority\":\n            waiting.sort(key=lambda x: (x[\"prio\"], x[\"llegada\"]))\n        while waiting and len(running) < max_num_seqs:  # 2) admitir de la cola mientras haya bloques\n            w = waiting[0]\n            necesita = math.ceil((prompt + w[\"gen\"]) / BLOQUE)\n            if necesita > libres:\n                break\n            waiting.pop(0)\n            if w[\"gen\"]:  # volvía de una preemption: su prefill se repite entero\n                recalc += prompt + w[\"gen\"]\n            libres -= necesita\n            w[\"bloques\"] = necesita\n            w[\"gen\"] += 1  # el prefill termina con un token\n            running.append(w)\n        pico = max(pico, len(running))\n    return preempt, por_prio, pasos, pico, recalc\n\n\nB16 = bloques_totales(327_680)\nprint(f\"bloques de KV en la réplica: {B16:,} → GPU KV cache size: {B16 * BLOQUE:,} tokens, \"\n      f\"Maximum concurrency for 8,192 tokens per request: {B16 / (8192 // BLOQUE):.2f}x\")\nprint(f\"una secuencia de 2,250 tokens usa {math.ceil(2_250 / BLOQUE)} bloques → caben {B16 // math.ceil(2_250 / BLOQUE)}; \"\n      f\"si cada una reservara 8,192 contiguos (512 bloques), {B16 // 512}\")\ncasos = [(\"72 en vuelo (el tope del gateway: 4 × 288 ÷ 16 réplicas)\", dict(en_vuelo=72)),\n         (\"92 en vuelo\", dict(en_vuelo=92)),\n         (\"128 en vuelo (= --max-num-seqs)\", dict(en_vuelo=128)),\n         (\"128 en vuelo con KV en FP8\", dict(en_vuelo=128, kv_token=163_840)),\n         (\"128 en vuelo, fcfs: 72 chat + 56 batch\", dict(en_vuelo=128, batch=56)),\n         (\"128 en vuelo, priority: 72 chat + 56 batch\", dict(en_vuelo=128, politica=\"priority\", batch=56))]\nfor nombre, kw in casos:\n    p, prio, pasos, pico, recalc = simular(**kw)\n    extra = f\" (chat {prio[0]}, batch {prio[10]})\" if kw.get(\"batch\") else \"\"\n    print(f\"{nombre}: {p:,} preemptions{extra}, {recalc:,} tokens recalculados; {pasos:,} pasos para 1,000 requests;\"\n          f\" hasta {pico} a la vez\")\nEOF",
+            "expect": "Sin salida: el archivo queda escrito. Es un modelo simplificado del scheduler de V1: todos los prompts de 2,000 tokens, salidas de 250, sin chunked prefill ni prefix caching."
+          },
+          {
+            "cmd": "python3 bloques.py",
+            "expect": "bloques de KV en la réplica: 13,046 → GPU KV cache size: 208,736 tokens, Maximum concurrency for 8,192 tokens per request: 25.48x; una secuencia de 2,250 tokens usa 141 bloques → caben 92, y reservando 8,192 contiguos (512 bloques), 25. Después: con 72 en vuelo, 0 preemptions (3,487 pasos para 1,000 requests); con 92, 0 (2,740 pasos); con 128, 130 preemptions y 273,100 tokens recalculados, hasta 104 a la vez y los mismos 2,740 pasos; con 128 y el KV en FP8, 0 (1,993 pasos, 128 a la vez); con 72 chats y 56 batch en fcfs, 130 preemptions (chat 72, batch 58); y en priority, 130 (chat 0, batch 130)."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-vllm",
+            "expect": "Nada: no queda rastro del lab."
+          }
+        ],
+        "fix": "Las cifras exactas son las de un modelo simplificado, no las de un vLLM real; la forma sí vale: hasta 92 en vuelo no hay preemptions y con 128 sí, más en vuelo no da más throughput, y con priority el costo cae sobre el batch. Si quieres ver las de verdad, mira vllm:num_preemptions_total o la parte Preemptions: N del log de un vLLM con GPU.",
+        "needs": "Python 3 de macOS (solo stdlib); sin GPU ni internet.",
+        "verified": "executed",
+        "verified_note": "Ejecutado con Python 3.14.3 y 3.9.6 en macOS (Apple M4): la misma salida, byte a byte. Las reglas del scheduler (desalojar al último admitido en fcfs, o al de menor prioridad y llegada más tardía en priority; liberar sus bloques, volverlo al frente de la cola y recalcular desde 0) son las de vllm/v1/core/sched/scheduler.py en v0.30.0; la cuenta de bloques, la de vllm/v1/core/kv_cache_utils.py."
+      },
+      "links": [
+        "#m14.kv-cache",
+        "#m04.vram",
+        "#c10.estimaciones",
+        "#m04.bytes-dtype"
+      ]
+    }
+  ],
+  "calculadora": {
+    "title": "Calculadora de VRAM y KV cache",
+    "intro": "La cuenta de capacity/vram_calc.py del C10, en el navegador: pesos + KV por token → lugar para KV en una réplica → cuántas secuencias caben. Sirve para elegir el hardware antes de tenerlo y para detectar un error de órdenes de magnitud después; el número real es el que imprime vLLM al arrancar.",
+    "inputs": [
+      {
+        "id": "params_b",
+        "group": "modelo",
+        "label": "Parámetros del modelo",
+        "unit": "B (miles de millones)",
+        "default": 70.6,
+        "min": 0.1,
+        "max": 2000,
+        "step": 0.01
+      },
+      {
+        "id": "weight_bytes",
+        "group": "modelo",
+        "label": "Bytes por parámetro de los pesos (2 = BF16, 1 = FP8 o INT8, 0.5 = INT4)",
+        "unit": "B",
+        "default": 1,
+        "min": 0.25,
+        "max": 4,
+        "step": 0.25
+      },
+      {
+        "id": "high_precision_b",
+        "group": "modelo",
+        "label": "Parámetros que el checkpoint deja en BF16 (embeddings y lm_head)",
+        "unit": "B (miles de millones)",
+        "default": 0,
+        "min": 0,
+        "max": 100,
+        "step": 0.001
+      },
+      {
+        "id": "layers",
+        "group": "modelo",
+        "label": "Capas (num_hidden_layers)",
+        "unit": "capas",
+        "default": 80,
+        "min": 1,
+        "max": 256,
+        "step": 1
+      },
+      {
+        "id": "kv_heads",
+        "group": "modelo",
+        "label": "KV heads (num_key_value_heads)",
+        "unit": "heads",
+        "default": 8,
+        "min": 1,
+        "max": 256,
+        "step": 1
+      },
+      {
+        "id": "head_dim",
+        "group": "modelo",
+        "label": "Tamaño de cada head (head_dim)",
+        "unit": "dims",
+        "default": 128,
+        "min": 1,
+        "max": 1024,
+        "step": 1
+      },
+      {
+        "id": "kv_bytes",
+        "group": "modelo",
+        "label": "Bytes por número del KV cache (2 = auto con BF16, 1 = fp8)",
+        "unit": "B",
+        "default": 2,
+        "min": 0.5,
+        "max": 4,
+        "step": 0.5
+      },
+      {
+        "id": "gpu_gb",
+        "group": "réplica",
+        "label": "Memoria de cada GPU",
+        "unit": "GB (10⁹ B)",
+        "default": 80,
+        "min": 1,
+        "max": 400,
+        "step": 0.01
+      },
+      {
+        "id": "tp",
+        "group": "réplica",
+        "label": "GPUs por réplica (--tensor-parallel-size)",
+        "unit": "GPUs",
+        "default": 2,
+        "min": 1,
+        "max": 64,
+        "step": 1
+      },
+      {
+        "id": "util",
+        "group": "réplica",
+        "label": "--gpu-memory-utilization",
+        "unit": "fracción",
+        "default": 0.9,
+        "min": 0.01,
+        "max": 1,
+        "step": 0.01
+      },
+      {
+        "id": "overhead_gb",
+        "group": "réplica",
+        "label": "Overhead de la réplica: activaciones, CUDA graphs y buffers (estimación)",
+        "unit": "GB",
+        "default": 5,
+        "min": 0,
+        "max": 200,
+        "step": 0.1
+      },
+      {
+        "id": "block_size",
+        "group": "réplica",
+        "label": "Tokens por bloque (--block-size)",
+        "unit": "tokens",
+        "default": 16,
+        "min": 1,
+        "max": 256,
+        "step": 1
+      },
+      {
+        "id": "seq_tokens",
+        "group": "carga",
+        "label": "Tokens por secuencia (prompt + salida)",
+        "unit": "tokens",
+        "default": 2250,
+        "min": 1,
+        "max": 10000000,
+        "step": 1
+      },
+      {
+        "id": "max_model_len",
+        "group": "carga",
+        "label": "--max-model-len",
+        "unit": "tokens",
+        "default": 8192,
+        "min": 1,
+        "max": 10000000,
+        "step": 1
+      },
+      {
+        "id": "live_seqs",
+        "group": "carga",
+        "label": "Secuencias vivas en la réplica (Little: 60 rps × 10.5 s ÷ 16 ≈ 39.4)",
+        "unit": "secuencias",
+        "default": 40,
+        "min": 0,
+        "max": 100000,
+        "step": 1
+      },
+      {
+        "id": "shared_prefix",
+        "group": "carga",
+        "label": "Tokens de prefijo compartido por secuencia (prefix caching; el mejor caso del C10: 1,000)",
+        "unit": "tokens",
+        "default": 0,
+        "min": 0,
+        "max": 10000000,
+        "step": 1
+      },
+      {
+        "id": "distinct_prefixes",
+        "group": "carga",
+        "label": "Prefijos distintos (el C10: 3 productos)",
+        "unit": "prefijos",
+        "default": 0,
+        "min": 0,
+        "max": 100000,
+        "step": 1
+      }
+    ],
+    "presets": [
+      {
+        "name": "C10 · Llama 3.x 70B (pesos FP8, KV BF16) en 2 × H100",
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "source": "Arquitectura: config.json de Llama 3.3 70B Instruct (80 capas, 64 heads, 8 KV heads, hidden_size 8192 → head_dim 128), https://huggingface.co/unsloth/Llama-3.3-70B-Instruct/blob/main/config.json (copia pública; el repo de Meta pide aceptar la licencia) y https://github.com/meta-llama/llama-models/blob/main/models/sku_list.py · 70.6 B parámetros (70,553,706,496 contados desde la arquitectura; Hugging Face redondea a 71B) · réplica, utilización y overhead: reference/c10/capacity/vram_calc.py"
+      },
+      {
+        "name": "M04 · Llama 3.1 8B (BF16) en una L4 de 24 GB",
+        "values": {
+          "params_b": 8.03,
+          "weight_bytes": 2,
+          "high_precision_b": 0,
+          "layers": 32,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 24,
+          "tp": 1,
+          "util": 0.9,
+          "overhead_gb": 2,
+          "block_size": 16,
+          "seq_tokens": 8192,
+          "max_model_len": 8192,
+          "live_seqs": 3,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "source": "https://github.com/meta-llama/llama-models/blob/main/models/sku_list.py (Llama 3.1 8B: dim 4096, 32 capas, 32 heads, 8 KV heads → head_dim 128) · https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct (BF16) · 8.03 B parámetros (8,030,261,248 desde la arquitectura) · L4, 0.9 y 2 GB de overhead: el ejemplo C de #m04 y test_vram_calc.py"
+      },
+      {
+        "name": "Qwen3-32B (BF16) en 2 × H100, contexto de 32,768",
+        "values": {
+          "params_b": 32.76,
+          "weight_bytes": 2,
+          "high_precision_b": 0,
+          "layers": 64,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.92,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 32768,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "source": "https://huggingface.co/Qwen/Qwen3-32B/blob/main/config.json (64 capas, 64 heads de atención, 8 KV heads, head_dim 128 explícito: 5,120 ÷ 64 = 80 no sirve; BF16; 32,768 tokens nativos según la model card) · 32.76 B parámetros (32,762,123,264 desde la arquitectura; la model card dice 32.8B) · utilización: el default 0.92; overhead estimado como el del C10, ≈ 2.5 GB por GPU"
+      },
+      {
+        "name": "Mistral Small 24B Instruct 2501 (BF16) en 1 × H100, contexto de 32,768",
+        "values": {
+          "params_b": 23.57,
+          "weight_bytes": 2,
+          "high_precision_b": 0,
+          "layers": 40,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 1,
+          "util": 0.92,
+          "overhead_gb": 2.5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 32768,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "source": "https://huggingface.co/mistralai/Mistral-Small-24B-Instruct-2501/blob/main/config.json (40 capas, 32 heads, 8 KV heads, head_dim 128 explícito, hidden_size 5120; BF16; ventana de 32k según la model card) · 23.57 B parámetros (23,572,403,200 desde la arquitectura; Hugging Face redondea a 24B) · utilización: el default 0.92; overhead estimado, ≈ 2.5 GB por GPU"
+      }
+    ],
+    "formulas": [
+      {
+        "id": "weights_bytes",
+        "label": "Pesos",
+        "tex": "\\text{pesos} = (P - P_{16}) \\times b_w + P_{16} \\times 2\\ \\text{B}",
+        "js": "(params_b - high_precision_b) * 1e9 * weight_bytes + high_precision_b * 1e9 * 2"
+      },
+      {
+        "id": "kv_bytes_token",
+        "label": "KV por token",
+        "tex": "\\text{KV}_{\\text{token}} = 2 \\times L \\times H_{kv} \\times d_{head} \\times b_{kv}",
+        "js": "2 * layers * kv_heads * head_dim * kv_bytes"
+      },
+      {
+        "id": "budget_bytes",
+        "label": "Presupuesto de vLLM en la réplica",
+        "tex": "M_{\\text{vLLM}} = N_{gpu} \\times M_{gpu} \\times u",
+        "js": "tp * gpu_gb * 1e9 * util"
+      },
+      {
+        "id": "room_bytes",
+        "label": "Lugar para KV",
+        "tex": "\\text{KV}_{\\text{libre}} = M_{\\text{vLLM}} - \\text{pesos} - \\text{overhead}",
+        "js": "budget_bytes - weights_bytes - overhead_gb * 1e9"
+      },
+      {
+        "id": "kv_seq_bytes",
+        "label": "KV de una secuencia",
+        "tex": "\\text{KV}_{\\text{seq}} = T_{seq} \\times \\text{KV}_{\\text{token}}",
+        "js": "seq_tokens * kv_bytes_token"
+      },
+      {
+        "id": "blocks",
+        "label": "Bloques de KV, como los cuenta vLLM",
+        "tex": "N_{\\text{bloques}} = \\left\\lfloor \\frac{\\text{KV}_{\\text{libre}}}{B \\times \\text{KV}_{\\text{token}}} \\right\\rfloor",
+        "js": "room_bytes > 0 ? Math.floor(room_bytes / (block_size * kv_bytes_token)) : 0"
+      },
+      {
+        "id": "live_tokens",
+        "label": "Tokens de KV de las secuencias vivas",
+        "tex": "T_{\\text{vivos}} = N_{vivas} \\times (T_{seq} - T_{pref}) + N_{pref} \\times T_{pref}",
+        "js": "live_seqs * (seq_tokens - shared_prefix) + distinct_prefixes * shared_prefix"
+      }
+    ],
+    "outputs": [
+      {
+        "id": "weights_gb",
+        "label": "Pesos",
+        "js": "weights_bytes / 1e9",
+        "unit": "GB",
+        "decimals": 1
+      },
+      {
+        "id": "kv_token_kib",
+        "label": "KV por token",
+        "js": "kv_bytes_token / 1024",
+        "unit": "KiB",
+        "decimals": 0
+      },
+      {
+        "id": "kv_seq_gb",
+        "label": "KV de una secuencia de ese largo",
+        "js": "kv_seq_bytes / 1e9",
+        "unit": "GB",
+        "decimals": 3
+      },
+      {
+        "id": "budget_gb",
+        "label": "Memoria que vLLM se permite usar en la réplica",
+        "js": "budget_bytes / 1e9",
+        "unit": "GB",
+        "decimals": 1
+      },
+      {
+        "id": "room_gb",
+        "label": "Lugar para KV cache (negativo: no cabe)",
+        "js": "room_bytes / 1e9",
+        "unit": "GB",
+        "decimals": 1
+      },
+      {
+        "id": "fits",
+        "label": "¿Caben los pesos y el overhead?",
+        "js": "room_bytes > 0 ? 1 : 0",
+        "unit": "1 = sí, 0 = no",
+        "decimals": 0,
+        "kind": "bool"
+      },
+      {
+        "id": "tp_ok",
+        "label": "¿TP divide los KV heads?",
+        "js": "kv_heads % tp > 0 ? 0 : 1",
+        "unit": "1 = sí, 0 = no",
+        "decimals": 0,
+        "kind": "bool"
+      },
+      {
+        "id": "kv_tokens",
+        "label": "Tokens de KV que caben (la cuenta del C10)",
+        "js": "room_bytes > 0 ? Math.floor(room_bytes / kv_bytes_token) : 0",
+        "unit": "tokens",
+        "decimals": 0
+      },
+      {
+        "id": "seqs_frac",
+        "label": "Secuencias de ese largo (el cociente)",
+        "js": "room_bytes > 0 ? room_bytes / kv_seq_bytes : 0",
+        "unit": "secuencias",
+        "decimals": 2
+      },
+      {
+        "id": "seqs",
+        "label": "Secuencias de ese largo a la vez, enteras y en su largo final",
+        "js": "room_bytes > 0 ? Math.floor(room_bytes / kv_seq_bytes) : 0",
+        "unit": "secuencias",
+        "decimals": 0
+      },
+      {
+        "id": "seqs_ctx",
+        "label": "Secuencias de max_model_len a la vez",
+        "js": "room_bytes > 0 ? Math.floor(room_bytes / (max_model_len * kv_bytes_token)) : 0",
+        "unit": "secuencias",
+        "decimals": 0
+      },
+      {
+        "id": "vllm_blocks",
+        "label": "Bloques de KV (enteros, como vLLM)",
+        "js": "blocks",
+        "unit": "bloques",
+        "decimals": 0
+      },
+      {
+        "id": "vllm_tokens",
+        "label": "GPU KV cache size, como lo imprime vLLM",
+        "js": "Math.floor(blocks / Math.ceil(max_model_len / block_size) * max_model_len)",
+        "unit": "tokens",
+        "decimals": 0
+      },
+      {
+        "id": "vllm_max_conc",
+        "label": "Maximum concurrency for max_model_len tokens per request",
+        "js": "blocks / Math.ceil(max_model_len / block_size)",
+        "unit": "x",
+        "decimals": 2
+      },
+      {
+        "id": "seqs_paged",
+        "label": "Secuencias de ese largo en bloques enteros",
+        "js": "Math.floor(blocks / Math.ceil(seq_tokens / block_size))",
+        "unit": "secuencias",
+        "decimals": 0
+      },
+      {
+        "id": "live_tokens_out",
+        "label": "Tokens de KV de las secuencias vivas (con el prefijo compartido)",
+        "js": "live_tokens",
+        "unit": "tokens",
+        "decimals": 0
+      },
+      {
+        "id": "live_gb",
+        "label": "KV de las secuencias vivas",
+        "js": "live_tokens * kv_bytes_token / 1e9",
+        "unit": "GB",
+        "decimals": 1
+      },
+      {
+        "id": "live_pct",
+        "label": "Fracción del lugar para KV que ocupan",
+        "js": "room_bytes > 0 ? 100 * live_tokens * kv_bytes_token / room_bytes : 0",
+        "unit": "%",
+        "decimals": 0
+      }
+    ],
+    "validations": [
+      {
+        "when": "room_bytes > 0 ? 0 : 1",
+        "message": "No cabe: los pesos y el overhead pasan el presupuesto. Más GPUs (TP), menos bytes por peso o más memoria por GPU. vram_calc.py lanza «no cabe»."
+      },
+      {
+        "when": "kv_heads % tp > 0 ? 1 : 0",
+        "message": "TP no divide los KV heads: el runtime replicaría heads y esta cuenta dejaría de valer. vram_calc.py la rechaza."
+      },
+      {
+        "when": "high_precision_b < params_b ? 0 : 1",
+        "message": "Los parámetros en BF16 tienen que ser menos que el total."
+      },
+      {
+        "when": "shared_prefix > seq_tokens ? 1 : 0",
+        "message": "El prefijo compartido no puede ser más largo que la secuencia."
+      },
+      {
+        "when": "shared_prefix > 0 && distinct_prefixes < 1 ? 1 : 0",
+        "message": "Un prefijo compartido necesita al menos un prefijo distinto."
+      },
+      {
+        "when": "room_bytes > 0 && room_bytes < max_model_len * kv_bytes_token ? 1 : 0",
+        "message": "vLLM no arrancaría: no cabe ni una secuencia de max_model_len («To serve at least one request with the model's max seq len…»). Baja --max-model-len, usa auto o consigue más memoria."
+      }
+    ],
+    "notes": [
+      "La cuenta supone atención completa con GQA en todas las capas, como Llama, Qwen3 denso o Mistral. En modelos híbridos (capas de ventana o de atención lineal, como Qwen3.5, gpt-oss o Gemma 4) da números muy equivocados: confía en el KV que imprime vLLM.",
+      "vLLM aplica gpu_memory_utilization sobre la memoria que reporta cada GPU (81,559 MiB ≈ 85.52 GB en una H100 SXM) y redondea a bloques enteros por GPU. La línea GPU KV cache size: N tokens del arranque es el número que vale.",
+      "Unidades: GB = 10⁹ B y KiB = 2¹⁰ B, como en vram_calc.py. La tolerancia de cada check es absoluta, en la unidad del output."
+    ],
+    "tolerance_mode": "absolute",
+    "checks": [
+      {
+        "values": {
+          "params_b": 8.03,
+          "weight_bytes": 2,
+          "high_precision_b": 0,
+          "layers": 32,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 24,
+          "tp": 1,
+          "util": 0.9,
+          "overhead_gb": 2,
+          "block_size": 16,
+          "seq_tokens": 8192,
+          "max_model_len": 8192,
+          "live_seqs": 3,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "kv_token_kib": 128
+        },
+        "tolerance": 0,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_llama3_8b_kv_per_token_is_128_kib"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "kv_token_kib": 320
+        },
+        "tolerance": 0,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_llama3_70b_kv_per_token_is_320_kib_bf16_and_160_kib_fp8"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 1,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "kv_token_kib": 160
+        },
+        "tolerance": 0,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_llama3_70b_kv_per_token_is_320_kib_bf16_and_160_kib_fp8"
+      },
+      {
+        "values": {
+          "params_b": 8.03,
+          "weight_bytes": 2,
+          "high_precision_b": 0,
+          "layers": 32,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 24,
+          "tp": 1,
+          "util": 0.9,
+          "overhead_gb": 2,
+          "block_size": 16,
+          "seq_tokens": 8192,
+          "max_model_len": 8192,
+          "live_seqs": 3,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "weights_gb": 16.06
+        },
+        "tolerance": 0.005,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_weights_bf16_match_m04"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 2,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "weights_gb": 141.2
+        },
+        "tolerance": 0.005,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_weights_bf16_match_m04"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "weights_gb": 70.6
+        },
+        "tolerance": 0.005,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_weights_fp8_and_the_bf16_embeddings_caveat"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 2.101346304,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "weights_gb": 72.7
+        },
+        "tolerance": 0.05,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_weights_fp8_and_the_bf16_embeddings_caveat"
+      },
+      {
+        "values": {
+          "params_b": 8.03,
+          "weight_bytes": 2,
+          "high_precision_b": 0,
+          "layers": 32,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 24,
+          "tp": 1,
+          "util": 0.9,
+          "overhead_gb": 2,
+          "block_size": 16,
+          "seq_tokens": 8192,
+          "max_model_len": 8192,
+          "live_seqs": 3,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "kv_seq_gb": 1.073741824
+        },
+        "tolerance": 0.000001,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_one_8k_sequence_of_llama3_8b_is_one_gib"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "room_gb": 68.4
+        },
+        "tolerance": 0.005,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_case_kv_room_per_replica_is_about_68_gb"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "kv_seq_gb": 0.73728,
+          "seqs_frac": 92.77,
+          "seqs": 92
+        },
+        "tolerance": 0.01,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_case_sequences_of_2250_tokens_bf16_kv"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 1,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "seqs": 185
+        },
+        "tolerance": 0,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_fp8_kv_doubles_the_sequences"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "kv_tokens": 208740,
+          "seqs_ctx": 25
+        },
+        "tolerance": 0,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_max_context_8k_sequences"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 85.520809984,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "room_gb": 78.3,
+          "seqs": 106
+        },
+        "tolerance": 0.05,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_reported_h100_memory_gives_more_room"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 2,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 1,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "fits": 0
+        },
+        "tolerance": 0,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_bf16_70b_does_not_fit_in_one_h100"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 2,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "room_gb": -2.2,
+          "fits": 0
+        },
+        "tolerance": 0.005,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_bf16_70b_in_two_h100_leaves_no_room_and_four_do (el −2.2 GB del comentario)"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 2,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 4,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "room_gb": 141.8
+        },
+        "tolerance": 0.005,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_bf16_70b_in_two_h100_leaves_no_room_and_four_do"
+      },
+      {
+        "values": {
+          "params_b": 8.03,
+          "weight_bytes": 2,
+          "high_precision_b": 0,
+          "layers": 32,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 24,
+          "tp": 1,
+          "util": 0.9,
+          "overhead_gb": 2,
+          "block_size": 16,
+          "seq_tokens": 8192,
+          "max_model_len": 8192,
+          "live_seqs": 3,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "room_gb": 3.54,
+          "seqs": 3
+        },
+        "tolerance": 0.01,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_m04_l4_example_three_or_four_8k_conversations"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 1000,
+          "distinct_prefixes": 3
+        },
+        "expect": {
+          "live_tokens_out": 53000
+        },
+        "tolerance": 0,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_shared_prefix_saves_kv"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 2,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "live_tokens_out": 90000
+        },
+        "tolerance": 0,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_shared_prefix_saves_kv"
+      },
+      {
+        "values": {
+          "params_b": 70.6,
+          "weight_bytes": 1,
+          "high_precision_b": 0,
+          "layers": 80,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "kv_bytes": 2,
+          "gpu_gb": 80,
+          "tp": 3,
+          "util": 0.9,
+          "overhead_gb": 5,
+          "block_size": 16,
+          "seq_tokens": 2250,
+          "max_model_len": 8192,
+          "live_seqs": 40,
+          "shared_prefix": 0,
+          "distinct_prefixes": 0
+        },
+        "expect": {
+          "tp_ok": 0
+        },
+        "tolerance": 0,
+        "source": "reference/c10/capacity/tests/test_vram_calc.py::test_tp_must_divide_kv_heads"
+      }
+    ]
+  }
+}

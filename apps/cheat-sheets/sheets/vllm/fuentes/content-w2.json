@@ -1,0 +1,1742 @@
+{
+ "sections": [
+  {
+   "id": "arrancar",
+   "num": 4,
+   "title": "Arrancar vLLM: vllm serve y sus flags, la imagen de Docker, el manifest del C10 en Kubernetes (GPUs, shm, probes, caché del modelo, secreto de HF)",
+   "question": "¿Qué le pasas a vllm serve para que un 70B arranque en 2 H100, atienda solo lo que debe y se apague sin cortarle la respuesta a nadie?",
+   "templates": [
+    {
+     "code": "vllm serve {modelo} \\\n  --served-model-name {nombre} \\\n  --tensor-parallel-size {tp} \\\n  --gpu-memory-utilization {fracción} \\\n  --max-model-len {contexto} \\\n  --max-num-seqs {techo} \\\n  --port 8000",
+     "note": "El arranque mínimo que fijarías en producción. <code>{modelo}</code> es un repo de Hugging Face (<code>org/nombre</code>) o una carpeta local con <code>config.json</code>, el tokenizer y los pesos. Todo lo demás tiene default, pero los defaults cambian con la versión y con la GPU: fija lo que tu cuenta de capacidad supone. La lista completa de flags está en la página de <code>vllm serve</code> de docs.vllm.ai, que tiene una versión por release."
+    },
+    {
+     "code": "docker run --runtime nvidia --gpus all --ipc=host -p 8000:8000 \\\n  -v ~/.cache/huggingface:/root/.cache/huggingface \\\n  --env \"HF_TOKEN=$HF_TOKEN\" \\\n  vllm/vllm-openai:{versión} {modelo} {flags}",
+     "note": "La imagen oficial ya trae <code>ENTRYPOINT [\"vllm\", \"serve\"]</code>: después del nombre de la imagen van solo el modelo y los flags. <code>--ipc=host</code> (o <code>--shm-size</code>) le da memoria compartida de sobra: los procesos de cada GPU y <b>NCCL</b> (la librería de NVIDIA que comunica GPUs) se pasan datos por <code>/dev/shm</code>, y los 64 MB que Docker da por defecto no alcanzan con TP (el modelo partido entre varias GPUs). El volumen guarda la caché de Hugging Face entre arranques; <code>HF_TOKEN</code> solo hace falta para repos <b>gated</b> (con una licencia que aceptar antes de bajar)."
+    },
+    {
+     "code": "env:\n  - name: HF_TOKEN\n    valueFrom:\n      secretKeyRef: {name: {secreto}, key: token}\nvolumeMounts:\n  - {name: shm, mountPath: /dev/shm}\nvolumes:\n  - {name: shm, emptyDir: {medium: Memory, sizeLimit: {tamaño}}}",
+     "note": "En Kubernetes, el token de Hugging Face sale de un Secret, nunca del YAML, y <code>/dev/shm</code> es un <code>emptyDir</code> en RAM que cuenta contra el límite de memoria del contenedor. El C10 no usa token: sus pesos vienen de su propio S3 y vLLM corre con <code>HF_HUB_OFFLINE=1</code>."
+    },
+    {
+     "code": "curl -s -o /dev/null -w '%{http_code}\\n' {host}:8000/health\ncurl -s {host}:8000/v1/models\ncurl -s {host}:8000/version",
+     "note": "Tres preguntas a una réplica: ¿el motor vive? (<code>/health</code> da 200, o 503 si el engine murió), ¿qué nombre sirve y con qué contexto? (<code>/v1/models</code>: <code>id</code>, <code>root</code> y <code>max_model_len</code>) y ¿qué versión corre? (<code>/version</code>). A un pod se llega con <code>kubectl port-forward pod/{pod} 8000:8000</code> y <code>{host}</code> = localhost."
+    },
+    {
+     "code": "kubectl logs {pod} -c vllm | grep 'KV cache size'",
+     "note": "La capacidad real la imprime vLLM al arrancar, en una línea: <code>GPU KV cache size: N tokens, Maximum concurrency for M tokens per request: Kx</code>. Ese número manda; la cuenta de la sección 3 sirve para saber antes de comprar. Para el C10, la cuenta espera ≈ 208,736 tokens y 25.48× para 8,192."
+    },
+    {
+     "code": "--shutdown-timeout {s}                 # 0 (default) = abortar todo; > 0 = drenar hasta s segundos\nterminationGracePeriodSeconds: {t}     # ≥ preStop + s + margen",
+     "note": "El apagado en orden: corre el <code>preStop</code> (un paso que Kubernetes corre antes de apagar), llega el SIGTERM (la señal de «termina»), vLLM aborta lo que llega y deja terminar lo que está en vuelo hasta <code>{s}</code> segundos; al vencer ese plazo mata su engine (lo que quedaba termina con un error, no con un abort). Si al vencer <code>{t}</code> el pod sigue vivo, SIGKILL (muerte inmediata)."
+    }
+   ],
+   "formulas": [
+    "t_{\\text{arranque máx}} = \\texttt{failureThreshold} \\times \\texttt{periodSeconds} = 90 \\times 10\\ \\text{s} = 900\\ \\text{s} = 15\\ \\text{min}",
+    "t_{\\text{gracia}} \\ge t_{\\text{preStop}} + t_{\\text{drain}} + \\text{margen} \\qquad 15 + 60 + 15 = 90\\ \\text{s}",
+    "t_{\\text{drain}} \\ge t_{\\text{request más largo}} \\approx 1{,}024 \\times 50\\ \\text{ms} \\approx 51\\ \\text{s} < 60\\ \\text{s}",
+    "\\texttt{nvidia.com/gpu} = \\text{TP} \\times \\text{PP} = 2 \\times 1 = 2",
+    "\\text{memoria de vLLM} = 0.90 \\times 80\\ \\text{GB} \\times 2 = 144\\ \\text{GB} \\qquad (\\text{con el default } 0.92\\text{: } 147.2\\ \\text{GB})"
+   ],
+   "vars": [
+    [
+     "{modelo}",
+     "repo de Hugging Face o carpeta local con config.json, tokenizer y pesos",
+     "/models/chat-70b-fp8-2026-09-28"
+    ],
+    [
+     "{nombre}",
+     "el nombre que los clientes ponen en model",
+     "chat-70b-fp8-2026-09-28"
+    ],
+    [
+     "{tp}",
+     "en cuántas GPUs se parte cada capa",
+     "2"
+    ],
+    [
+     "{fracción}",
+     "parte de la memoria de cada GPU que vLLM puede usar",
+     "0.90"
+    ],
+    [
+     "{contexto}",
+     "tokens máximos de prompt + respuesta por request",
+     "8192"
+    ],
+    [
+     "{techo}",
+     "secuencias máximas en un paso",
+     "128"
+    ],
+    [
+     "{versión}",
+     "tag de la imagen; en producción, con su digest (la huella sha256 de la imagen, que no cambia)",
+     "v0.30.0@sha256:8a69ffad…"
+    ],
+    [
+     "{flags}",
+     "los mismos flags de vllm serve",
+     "los del manifest, abajo"
+    ],
+    [
+     "{secreto} · {tamaño}",
+     "Secret con el token de Hugging Face · tope de /dev/shm",
+     "el C10 no usa token · 16Gi"
+    ],
+    [
+     "{host} · {pod}",
+     "dónde escucha la réplica · el pod",
+     "localhost con port-forward · un pod de vllm-70b"
+    ],
+    [
+     "{s} · {t}",
+     "segundos de drain (vaciado: terminar lo que está en vuelo sin aceptar trabajo nuevo) · plazo de gracia del pod",
+     "60 · 90"
+    ],
+    [
+     "t_preStop",
+     "espera antes del SIGTERM para que el pod salga de los endpoints",
+     "15 s"
+    ],
+    [
+     "margen",
+     "lo que queda para cerrar procesos y soltar las GPUs",
+     "15 s"
+    ]
+   ],
+   "pieces": [
+    [
+     "vllm/vllm-openai:v0.30.0",
+     "La imagen que fija el C10 (22 de septiembre de 2026). Hoy la última es v0.32.0 (18 de octubre): defaults y mensajes cambian entre versiones, así que lee la página de vllm serve de la tuya.",
+     "por digest: sha256:8a69ffad…"
+    ],
+    [
+     "vllm serve {modelo}",
+     "Levanta el servidor HTTP compatible con OpenAI, el engine (el motor que arma los batches y corre el modelo) y un proceso por GPU. El modelo va primero.",
+     "/models/chat-70b-fp8-2026-09-28: la carpeta que dejó el init container"
+    ],
+    [
+     "--served-model-name",
+     "El nombre que vale en el campo model. El pod atiende solo ese: otro da 404 «The model `x` does not exist.»",
+     "chat-70b-fp8-2026-09-28 (el alias chat-default del gateway apunta aquí)"
+    ],
+    [
+     "--load-format safetensors",
+     "Solo safetensors. El default auto prueba safetensors y, si no hay, carga los .bin de PyTorch, que son pickle: un formato que puede ejecutar código al abrirse. vLLM v0.30 los abre con weights_only=True, que lo limita; safetensors son solo datos.",
+     "nunca un .bin"
+    ],
+    [
+     "cuantización",
+     "Sin flag: vLLM la lee del quantization_config del config.json. --quantization es para forzarla.",
+     "checkpoint FP8: ≈ 70.6 GB de pesos"
+    ],
+    [
+     "--tensor-parallel-size",
+     "En cuántas GPUs se parte cada capa (sección 8). El pod pide exactamente esas GPUs.",
+     "2: dos H100 del mismo nodo"
+    ],
+    [
+     "--gpu-memory-utilization",
+     "La fracción de cada GPU que vLLM toma para pesos, activaciones y KV cache. Default 0.92 desde v0.20 (0.9 hasta v0.19).",
+     "0.90 explícito: 144 GB entre las dos"
+    ],
+    [
+     "--max-model-len",
+     "Tope de prompt + respuesta. Sin el flag sale del config del modelo (131,072 en Llama 3.3 70B): un solo request podría pedir 40 GiB de KV.",
+     "8192"
+    ],
+    [
+     "--max-num-seqs",
+     "Techo de secuencias por paso. Con vllm serve, el default es 1,024 en GPUs de 70 GiB o más (salvo la A100) y 256 en las demás.",
+     "128: el KV da para ≈ 92 de 2,250 tokens"
+    ],
+    [
+     "--max-num-batched-tokens",
+     "Tokens por paso, sumando decodes y trozos de prefill (sección 6). Con vllm serve en una H100, el default ya es 8,192.",
+     "8192, explícito"
+    ],
+    [
+     "--kv-cache-dtype",
+     "Formato del KV cache. auto = el dtype del modelo; fp8 lo achica a la mitad (sección 9).",
+     "auto: KV en BF16"
+    ],
+    [
+     "--enable-prefix-caching · --enable-chunked-prefill",
+     "Reusar prefijos y partir prompts largos. En v0.30 ya son default para modelos decoder; explícitos porque el plan cuenta con ellos.",
+     "system prompts de ≈ 1,000 tokens"
+    ],
+    [
+     "--scheduling-policy priority",
+     "La cola se ordena por el priority de cada request (menor = antes; empate: el que llegó primero) y en una preemption (cuando falta KV y vLLM saca una secuencia del batch) sale primero el número más alto. Default fcfs: orden de llegada.",
+     "0 interactivo, 10 batch"
+    ],
+    [
+     "--generation-config vllm",
+     "Ignora el generation_config.json del modelo y usa los defaults de vLLM. Con auto (default), una revisión nueva puede cambiar la temperatura por defecto sin que nadie lo note.",
+     "los productos mandan su temperatura"
+    ],
+    [
+     "--shutdown-timeout",
+     "Con SIGTERM, cuántos segundos deja terminar lo que está en vuelo. Default 0: aborta todo de inmediato.",
+     "60 (un request de 1,024 tokens ≈ 51 s)"
+    ],
+    [
+     "--port",
+     "Puerto de la API, /health y /metrics. Default 8000.",
+     "8000, con nombre http en el pod"
+    ],
+    [
+     "sin --enable-log-requests",
+     "Default False. Encendido, en INFO anota el id y los parámetros de cada request; en DEBUG, también el prompt.",
+     "el log por request vive en el gateway, sin contenido"
+    ],
+    [
+     "HF_HUB_OFFLINE=1 · VLLM_NO_USAGE_STATS=1",
+     "Ninguna llamada a Hugging Face en runtime (si falta un archivo, error en vez de descarga) y sin telemetría de uso.",
+     "pesos solo desde el S3 propio"
+    ],
+    [
+     "HF_TOKEN",
+     "Token de Hugging Face para bajar modelos gated. En Kubernetes, de un Secret (secretKeyRef).",
+     "el C10 no lo necesita"
+    ],
+    [
+     "fetch-weights (initContainer)",
+     "Corre antes que vLLM: baja la revisión al NVMe y verifica cada archivo con sha256. Si algo no coincide, el pod no arranca.",
+     "aws s3 sync + sha256sum -c"
+    ],
+    [
+     "emptyDir de los pesos",
+     "Disco efímero del nodo: con Karpenter (el que crea los nodos) y su instanceStorePolicy RAID0, son los NVMe locales de la p5 sumados en un solo disco. Cada pod baja su copia; una caché por nodo ahorraría descargas a cambio de más piezas.",
+     "sizeLimit: 200Gi, cuenta en ephemeral-storage"
+    ],
+    [
+     "nvidia.com/gpu",
+     "GPUs enteras, iguales en requests y limits: no se comparten ni se sobreasignan.",
+     "2 = TP × PP"
+    ],
+    [
+     "/dev/shm",
+     "Memoria compartida en RAM (emptyDir medium: Memory). La usan los procesos de cada GPU y NCCL; cuenta contra el límite de memoria.",
+     "sizeLimit: 16Gi (el default de un contenedor es 64 MiB)"
+    ],
+    [
+     "startupProbe · readiness · liveness",
+     "Las tres a /health: 200 si el engine vive, 503 si murió. La de startup da tiempo de carga; readiness saca del Service; liveness reinicia.",
+     "90 × 10 s · 3 × 5 s · 6 × 10 s"
+    ],
+    [
+     "preStop + terminationGracePeriodSeconds",
+     "Esperar a salir de los endpoints (la lista de pods a los que el Service manda tráfico) antes del SIGTERM; el plazo total cubre preStop + drain + margen.",
+     "sleep de 15 s · 90 s"
+    ],
+    [
+     "runAsUser: 2000",
+     "La imagen corre como root por defecto, pero trae el usuario vllm (UID 2000, GID 0, home /home/vllm) para correr sin root.",
+     "HOME=/home/vllm"
+    ]
+   ],
+   "example": {
+    "title": "El contenedor vllm del C10: la imagen por digest, los args de vllm serve y su entorno",
+    "lang": "yaml",
+    "code": "        - name: vllm\n          # vLLM v0.30.0 (2026-09-22) por digest. ENTRYPOINT de la imagen: [\"vllm\", \"serve\"] → aquí van solo args.\n          image: vllm/vllm-openai:v0.30.0@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90\n          args:\n            - /models/chat-70b-fp8-2026-09-28  # los pesos locales (checkpoint FP8: la cuantización se lee de su config)\n            - --served-model-name\n            - chat-70b-fp8-2026-09-28  # el nombre que ve el gateway: el alias chat-default apunta aquí\n            - --load-format\n            - safetensors  # solo safetensors: un .bin es un pickle. vLLM v0.30 lo abre con weights_only=True (no\n                           # ejecuta código arbitrario), pero safetensors es solo tensores: no depende de esa guardia\n            - --tensor-parallel-size\n            - \"2\"  # 70.6 GB de pesos FP8 + KV no entran cómodos en 80 GB; en 2 GPUs quedan ≈ 68 GB para KV\n            - --gpu-memory-utilization\n            - \"0.90\"  # explícito: el default es 0.92 desde v0.20 (0.9 hasta v0.19); la capacidad no cambia con un upgrade\n            - --max-model-len\n            - \"8192\"  # contexto máximo del producto: más largo = menos secuencias a la vez (capacity/vram_calc.py)\n            - --max-num-seqs\n            - \"128\"  # techo de secuencias por réplica (el default en H100 es 1,024): el KV da ≈ 92 de 2,250 tokens\n            - --kv-cache-dtype\n            - auto  # KV en BF16. \"fp8\" duplica las secuencias; se activa solo si pasa el golden set\n            - --enable-prefix-caching  # default en v0.30; explícito porque el plan cuenta con él (system prompts)\n            - --enable-chunked-prefill  # default en v0.30: un prompt de 8k no frena el decode de los demás\n            - --max-num-batched-tokens\n            - \"8192\"  # tokens por paso (prefill troceado + decode): más = mejor TTFT y peor TPOT; se ajusta con el bench\n            - --scheduling-policy\n            - priority  # el gateway manda priority 0 (interactive) o 10 (batch). Sin este flag vLLM v0.30 NO falla\n                        # (su documentación dice que sí): la cola FCFS ignora priority y el batch compite con el chat\n            - --generation-config\n            - vllm  # defaults de muestreo de vLLM, no del generation_config.json del modelo: una revisión nueva no\n                    # cambia la temperatura por defecto en silencio (los productos mandan la suya)\n            - --shutdown-timeout\n            - \"60\"  # con SIGTERM, deja terminar lo que está en vuelo hasta 60 s (default 0 = abortar todo)\n            - --port\n            - \"8000\"\n            # NO se agrega --enable-log-requests. En INFO (el nivel por defecto) no loguea prompts: solo el id y los\n            # parámetros de muestreo de cada request (el prompt sale en DEBUG; la respuesta, con --enable-log-outputs).\n            # Es una línea por request que no hace falta, y con un VLLM_LOGGING_LEVEL=DEBUG puesto para depurar\n            # volcaría prompts con PII. El log por request vive en el gateway, sin contenido.\n            # Tampoco --sse-keep-alive-interval (default 0): el gateway corta un stream tras 30 s sin bytes\n            # (read_timeout_s); un \": keep-alive\" reiniciaría ese reloj y un vLLM trabado nunca cortaría.\n          env:\n            - name: HOME\n              value: /home/vllm  # caches de vLLM, torch.compile y Triton en un lugar escribible para UID 2000\n            - name: HF_HUB_OFFLINE\n              value: \"1\"  # nunca bajar nada de Hugging Face en runtime: los pesos vienen solo de nuestro S3\n            - name: VLLM_NO_USAGE_STATS\n              value: \"1\"  # sin telemetría de uso hacia afuera desde una VPC con PII",
+    "source": "reference/c10/k8s/vllm-70b.yaml (líneas 175–221)",
+    "notes": [
+     "<code>image:</code> fija <code>v0.30.0</code> por digest: es el del índice multi-arquitectura que Docker Hub publica para ese tag (22 de septiembre de 2026), y la variante amd64 pesa ≈ 8.7 GB comprimida. Como el ENTRYPOINT ya es <code>vllm serve</code>, <code>args</code> empieza por la ruta del modelo y no hay <code>command</code>.",
+     "Los pesos los trae el init container <code>fetch-weights</code> (líneas 121–149): <code>aws s3 sync</code> al NVMe local; <code>echo \"${MANIFEST_SHA256}  SHA256SUMS\" | sha256sum -c -</code> (el manifiesto de hashes es el que se revisó: su hash está fijado en el YAML); <code>sha256sum -c SHA256SUMS</code> (cada archivo) y un <code>comm -23</code> que rechaza archivos que no están en el manifiesto. Si algo falla, el pod no arranca: «mejor una réplica menos que un modelo corrupto respondiendo». El lab corre esos tres chequeos.",
+     "GPUs y memoria (líneas 225–233): <code>nvidia.com/gpu: 2</code> en requests y limits (TP=2: dos H100 del mismo nodo), <code>memory: 256Gi</code> igual en los dos (pasarse es un OOMKilled claro: el kernel mata el proceso por memoria) y <code>cpu: \"40\"</code>, porque tokenizar, el scheduler y el servidor HTTP son CPU. <code>/dev/shm</code> es un <code>emptyDir</code> con <code>medium: Memory</code> y <code>sizeLimit: 16Gi</code> (líneas 281–284) que cuenta dentro de esos 256Gi.",
+     "Las tres probes van a <code>/health</code> (líneas 238–261): la startupProbe da 90 × 10 s = 15 min para cargar ≈ 70 GB, perfilar la memoria y capturar CUDA graphs; la readiness (cada 5 s, 3 fallas) saca al pod del Service si el engine murió (503); la liveness (6 × 10 s) reinicia un engine colgado. Ninguna sabe si la réplica está llena: eso es la admisión del gateway.",
+     "El apagado (líneas 82–96 y 262–267): <code>preStop</code> con <code>sleep: seconds: 15</code> (acción nativa, estable desde Kubernetes 1.34) para salir de los endpoints; con el SIGTERM, <code>--shutdown-timeout 60</code> pone a vLLM en drain: el servidor HTTP sigue abierto, lo que está en vuelo termina y lo nuevo se aborta enseguida. Sin streaming, eso es un 200 con <code>finish_reason: \"abort\"</code> y sin texto; con streaming, un 200 con el chunk del rol, el usage (si lo pediste) y <code>[DONE]</code>, sin ningún <code>finish_reason</code>, porque vLLM no manda chunks vacíos. El gateway del C10 trata los dos como falla (502 o el vendor). A los 60 s, vLLM mata el proceso del engine: lo que quede termina con un evento de error o con la conexión cortada, no con un abort. <code>terminationGracePeriodSeconds: 90</code> = 15 + 60 + 15.",
+     "<code>HOME=/home/vllm</code> porque el pod corre como UID 2000 (el usuario <code>vllm</code> que trae la imagen, con GID 0): ahí escribe las cachés de torch.compile. <code>HF_HUB_OFFLINE=1</code>: ninguna llamada a Hugging Face en runtime. <code>VLLM_NO_USAGE_STATS=1</code>: nada de telemetría de uso hacia afuera.",
+     "Las líneas 200–201 lo dicen: sin <code>--scheduling-policy priority</code>, vLLM no rechaza un <code>priority</code> distinto de 0, aunque la documentación del campo diga que sí. En el código de v0.30.0 (y de v0.32.0) no hay esa validación: con <code>fcfs</code>, la cola es una fila por orden de llegada que no lee el campo. Sin la flag no hay error ni prioridad: el batch compite con el chat.",
+     "Las líneas 209–212 dejan apagado <code>--enable-log-requests</code>. Con el log en INFO (el default de <code>VLLM_LOGGING_LEVEL</code>) anotaría el id y los parámetros de cada request; el prompt aparece en DEBUG. No hace falta, porque el log por request vive en el gateway, y así subir el nivel de log para depurar no vuelca prompts. Las líneas 213–214 dejan apagado <code>--sse-keep-alive-interval</code>: un comentario keep-alive reiniciaría el read timeout con el que el gateway corta un stream trabado."
+    ]
+   },
+   "figure": {
+    "kind": "chain",
+    "caption": "La vida de un pod de vllm-70b, del scheduling al SIGKILL. Los tiempos son estimaciones del C10: vLLM no corrió (no hay GPU). La línea del KV cache la imprime vLLM al arrancar, y es la que manda.",
+    "data": {
+     "steps": [
+      {
+       "label": "1 · Scheduling",
+       "cmd": "nodeSelector p5.48xlarge · toleration nvidia.com/gpu · nvidia.com/gpu: 2",
+       "note": "El pod espera un nodo con 2 GPUs libres. Sin GPUs libres queda Pending; un nodo nuevo tarda ≈ 2–5 min, si hay capacidad."
+      },
+      {
+       "label": "2 · Init: los pesos",
+       "cmd": "aws s3 sync … && sha256sum -c SHA256SUMS",
+       "note": "≈ 70 GB de S3 al NVMe (≈ 1–3 min) y verificados (≈ 1 min de CPU). Un archivo cambiado o agregado: el pod no arranca."
+      },
+      {
+       "label": "3 · vllm serve",
+       "cmd": "vllm serve /models/chat-70b-fp8-2026-09-28 --tensor-parallel-size 2 …",
+       "note": "Arrancan el servidor HTTP, el engine y un worker por GPU. Lee el config.json y la cuantización FP8."
+      },
+      {
+       "label": "4 · Pesos a las GPUs",
+       "cmd": "≈ 35.3 GB por GPU",
+       "note": "Cada GPU carga su mitad de cada capa desde el NVMe local. Desde un disco de red, este paso se vuelve minutos."
+      },
+      {
+       "label": "5 · Perfil de memoria y KV cache",
+       "cmd": "GPU KV cache size: … tokens, Maximum concurrency for 8,192 tokens per request: …x",
+       "note": "Un paso de prueba mide las activaciones (y compila con torch.compile si no hay caché); el KV cache recibe lo que queda de 0.90 × 80 GB por GPU. Si no alcanza ni para una secuencia de 8,192, no arranca."
+      },
+      {
+       "label": "6 · CUDA graphs",
+       "cmd": "",
+       "note": "Graba las secuencias de kernels de varios tamaños de batch para repetirlas sin overhead. Pasos 4 a 6: ≈ 1–3 min (est.)."
+      },
+      {
+       "label": "7 · Listo",
+       "cmd": "GET /health → 200",
+       "note": "Pasa la startupProbe (tenía hasta 15 min) y la readiness lo agrega al Service."
+      },
+      {
+       "label": "8 · Apagado",
+       "cmd": "preStop sleep 15 s → SIGTERM → drain ≤ 60 s → salida",
+       "note": "Sale de los endpoints, termina lo que está en vuelo y aborta lo que llega. Si a los 90 s sigue vivo, SIGKILL."
+      }
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>modelo, nombre, GPUs, memoria y contexto</b>; después, el apagado. Arrancar vLLM es como abrir un restaurante: llega la mercadería y se revisa contra la factura (init container y sha256), se ordena la cocina (pesos, perfil de memoria, KV cache, CUDA graphs) y recién ahí se abre la puerta (<code>/health</code> en 200). Para cerrar: se apaga el letrero (preStop), se termina de atender a quien ya está sentado (drain de 60 s) y se cierra con llave (SIGKILL a los 90 s).",
+   "trap": "Trampa: llamar <code>vllm</code> al Service de Kubernetes. El kubelet (el agente de Kubernetes en cada nodo) inyecta en cada pod nuevo del namespace variables con el nombre de cada Service, como <code>VLLM_PORT=tcp://10.0.12.7:8000</code>, y vLLM lee <code>VLLM_PORT</code> como suya: al final del arranque, ya con los pesos cargados, lee todas sus variables y se cae con <code>VLLM_PORT 'tcp://…' appears to be a URI</code>, con cualquier TP. La documentación de vLLM lo advierte. El Service del C10 se llama <code>vllm-70b</code>: sus variables (<code>VLLM_70B_PORT</code> y compañía) solo dejan el aviso <code>Unknown vLLM environment variable detected</code>. La otra: dejar defaults que cambian solos. <code>--gpu-memory-utilization</code> pasó de 0.9 a 0.92 en v0.20, y <code>--max-num-seqs</code> vale 1,024 con <code>vllm serve</code> en una H100 pero 256 en una A100: el mismo YAML se comporta distinto.",
+   "lab": {
+    "goal": "Correr los pasos 2 a 4 del init container fetch-weights sobre una revisión falsa y ver qué atrapa cada uno: un archivo cambiado, un archivo agregado y un SHA256SUMS reescrito.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-vllm/models/rev-1 && cd ~/lab-vllm/models/rev-1\nprintf '{\"architectures\": [\"LlamaForCausalLM\"], \"num_hidden_layers\": 80}\\n' > config.json\nprintf '{\"version\": \"1.0\"}\\n' > tokenizer.json\nhead -c 1048576 /dev/urandom > model-00001-of-00002.safetensors\nhead -c 1048576 /dev/urandom > model-00002-of-00002.safetensors\nsha256sum config.json model-0000*.safetensors tokenizer.json > SHA256SUMS\nexport MANIFEST_SHA256=\"$(sha256sum SHA256SUMS | cut -c1-64)\"\nwc -l < SHA256SUMS; echo \"$MANIFEST_SHA256\" | cut -c1-12",
+      "expect": "4 (las líneas de SHA256SUMS: hash, dos espacios y nombre) y los primeros 12 caracteres del hash del manifiesto, distintos en cada corrida. En producción ese hash lo escribe el pipeline de release en el YAML. Los safetensors son 1 MB de bytes al azar: no hay modelo."
+     },
+     {
+      "cmd": "cat > ~/lab-vllm/verificar.sh <<'EOF'\n#!/bin/sh\n# Pasos 2 a 4 del init container fetch-weights (reference/c10/k8s/vllm-70b.yaml, líneas 133-149)\nset -eu\ncd \"$1\"\necho \"${MANIFEST_SHA256}  SHA256SUMS\" | sha256sum -c -\nsha256sum -c SHA256SUMS\nfind . -type f ! -name SHA256SUMS | sed 's|^\\./||' | sort > ~/lab-vllm/descargados  # el YAML: find -printf '%P\\n' (GNU)\ncut -c67- SHA256SUMS | sort > ~/lab-vllm/esperados\nextra=\"$(comm -23 ~/lab-vllm/descargados ~/lab-vllm/esperados)\"\nif [ -n \"$extra\" ]; then\n  echo \"archivos que no están en SHA256SUMS: $extra\" >&2\n  exit 1\nfi\necho \"listo: vllm serve puede arrancar\"\nEOF\nsh ~/lab-vllm/verificar.sh ~/lab-vllm/models/rev-1; echo \"exit=$?\"",
+      "expect": "SHA256SUMS: OK, después config.json, los dos safetensors y tokenizer.json: OK, y «listo: vllm serve puede arrancar» con exit=0."
+     },
+     {
+      "cmd": "cp model-00002-of-00002.safetensors ~/lab-vllm/respaldo.bin\nprintf 'x' >> model-00002-of-00002.safetensors\nsh ~/lab-vllm/verificar.sh ~/lab-vllm/models/rev-1; echo \"exit=$?\"\ncp ~/lab-vllm/respaldo.bin model-00002-of-00002.safetensors",
+      "expect": "SHA256SUMS: OK, pero model-00002-of-00002.safetensors: FAILED y el aviso sha256sum: WARNING: 1 computed checksum did NOT match (en macOS puede salir antes de la lista), con exit=1. Un byte de más alcanza. El último cp deja el archivo como estaba."
+     },
+     {
+      "cmd": "printf '{%% for m in messages %%}{{ m.content }}{%% endfor %%}\\n' > chat_template.jinja\nsh ~/lab-vllm/verificar.sh ~/lab-vllm/models/rev-1; echo \"exit=$?\"\nrm chat_template.jinja",
+      "expect": "Cinco OK (sha256sum -c solo revisa lo que está listado) y después archivos que no están en SHA256SUMS: chat_template.jinja, con exit=1. Un template de chat agregado podría cambiar cómo se arma cada prompt sin tocar un solo peso: para eso está el paso 4."
+     },
+     {
+      "cmd": "printf '{\"version\": \"1.0\", \"added_tokens\": [\"<|tool|>\"]}\\n' > tokenizer.json\nsha256sum config.json model-0000*.safetensors tokenizer.json > SHA256SUMS\nsh ~/lab-vllm/verificar.sh ~/lab-vllm/models/rev-1; echo \"exit=$?\"",
+      "expect": "SHA256SUMS: FAILED (con el WARNING) y exit=1, antes de mirar ningún archivo. Quien cambia un archivo y regenera el manifiesto no puede cambiar el hash fijado en el YAML: eso agrega el paso 2."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-vllm",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Si tu sistema no trae sha256sum, cambia cada sha256sum por shasum -a 256: mismo formato y mismos resultados (el aviso empieza con shasum:). Si el paso 2 no da OK en SHA256SUMS, la variable MANIFEST_SHA256 no está en esta terminal: repite el export del paso 1.",
+    "needs": "Una terminal de macOS o Linux con sh, sha256sum (o shasum), find, sed, sort, cut y comm. Nada que instalar, sin AWS ni GPU: el paso 1 del init container (aws s3 sync) se reemplaza por archivos falsos.",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS 26.6.2 con /bin/sh, el sha256sum de Darwin y el find de BSD; también se probó shasum -a 256. El YAML usa find -printf '%P\\n' (GNU findutils, el de la imagen de aws-cli); aquí va find | sed, que da la misma lista en BSD y en GNU."
+   },
+   "links": [
+    "#c10.serving",
+    "#c10.archivos",
+    "#m06.gpus-k8s",
+    "#m06.cold-starts",
+    "#m05.gpu-en-contenedor",
+    "#m15.supply-chain"
+   ]
+  },
+  {
+   "id": "api",
+   "num": 5,
+   "title": "La API compatible con OpenAI: chat completions, streaming SSE, parámetros de sampling, structured outputs, el cliente de openai",
+   "question": "¿Cómo le hablas a vLLM: qué endpoints tiene, cómo llega un stream token por token y qué parámetros son de OpenAI y cuáles solo de vLLM?",
+   "templates": [
+    {
+     "code": "curl -s {host}:8000/v1/chat/completions -H 'Content-Type: application/json' -d '{\n  \"model\": \"{nombre}\",\n  \"messages\": [{\"role\": \"system\", \"content\": \"{instrucciones}\"},\n               {\"role\": \"user\", \"content\": \"{pregunta}\"}],\n  \"max_completion_tokens\": {n}, \"temperature\": {t}\n}'",
+     "note": "Un request y una respuesta JSON: <code>choices[0].message.content</code>, <code>finish_reason</code> y <code>usage</code> (<code>prompt_tokens</code>, <code>completion_tokens</code>, <code>total_tokens</code>). <code>messages</code> es la conversación con roles; vLLM la convierte en texto con el <b>chat template</b> del modelo (la plantilla que marca dónde empieza y termina cada turno) antes de tokenizar. <code>/v1/completions</code> recibe un <code>prompt</code> crudo, sin template."
+    },
+    {
+     "code": "curl -sN {host}:8000/v1/chat/completions -H 'Content-Type: application/json' -d '{\n  \"model\": \"{nombre}\", \"messages\": [{\"role\": \"user\", \"content\": \"{pregunta}\"}],\n  \"stream\": true, \"stream_options\": {\"include_usage\": true}\n}'",
+     "note": "<b>Streaming</b> con Server-Sent Events (SSE): por cada evento, una línea <code>data: {chunk}</code> y una línea vacía. El primero trae solo el rol; después, un <code>delta.content</code> (el texto nuevo) por cada paso de decode, la vuelta del modelo que genera un token; el último chunk trae el <code>finish_reason</code> con el último texto (o con <code>content</code> vacío, si el modelo paró con su token de fin); con <code>include_usage</code>, un chunk más con <code>choices: []</code> y el <code>usage</code>; al final, <code>data: [DONE]</code>. <code>-N</code> le quita el buffer a curl para que veas cada evento al llegar."
+    },
+    {
+     "code": "client = OpenAI(base_url=\"http://{host}:8000/v1\", api_key=\"{llave}\")\nclient.chat.completions.create(model=\"{nombre}\", messages=[…], stream=True,\n    stream_options={\"include_usage\": True}, extra_body={\"top_k\": {k}, \"priority\": {p}})",
+     "note": "El cliente oficial de <code>openai</code> sirve tal cual: cambias <code>base_url</code>. Lo que no existe en OpenAI va en <code>extra_body</code>. Por defecto el cliente reintenta 2 veces ante 408, 409, 429 y 5xx (respetando <code>Retry-After</code>) y espera hasta 600 s: fija <code>timeout</code> y <code>max_retries</code>."
+    },
+    {
+     "code": "\"response_format\": {\"type\": \"json_schema\",\n                    \"json_schema\": {\"name\": \"{esquema}\", \"schema\": {json_schema}}}\n\"structured_outputs\": {\"choice\": [\"{a}\", \"{b}\"]}     # o \"regex\", \"json\", \"grammar\"",
+     "note": "<b>Structured outputs</b> (salidas con forma garantizada): el motor solo deja pasar tokens que mantienen la salida válida contra el schema. <code>response_format</code> es la forma de OpenAI; <code>structured_outputs</code> es la de vLLM, con una sola restricción por request. La librería que aplica la restricción (el backend) la elige vLLM: <code>--structured-outputs-config.backend</code>, default <code>auto</code>. Garantiza la forma, no que el contenido sea verdad."
+    },
+    {
+     "code": "curl -s {host}:8000/v1/models\ncurl -s -o /dev/null -w '%{http_code}\\n' {host}:8000/health",
+     "note": "<code>/v1/models</code> lista lo que sirve el pod: <code>id</code> (el <code>--served-model-name</code>), <code>root</code> (la ruta) y <code>max_model_len</code>. El mismo servidor expone también <code>/v1/completions</code>, <code>/v1/responses</code>, <code>/health</code>, <code>/metrics</code> y <code>/version</code>."
+    }
+   ],
+   "formulas": [
+    "\\text{eventos de un stream} \\approx 1_{\\text{rol}} + n_{\\text{out}} + 1_{\\text{usage}} + 1_{\\texttt{[DONE]}} \\qquad (\\texttt{--stream-interval 1}\\text{, el default})",
+    "\\texttt{total\\_tokens} = \\texttt{prompt\\_tokens} + \\texttt{completion\\_tokens}",
+    "\\text{v0.30: } \\texttt{prompt\\_tokens} + \\texttt{max\\_tokens} \\le \\texttt{max\\_model\\_len} \\text{ (si no, 400)} \\qquad \\text{v0.32: } \\texttt{max\\_tokens} \\leftarrow \\min(\\texttt{max\\_tokens},\\ \\texttt{max\\_model\\_len} - \\texttt{prompt\\_tokens})",
+    "\\text{C10, soporte: } 6{,}000 + 1{,}024 = 7{,}024 \\le 8{,}192 \\qquad (\\texttt{max\\_prompt\\_tokens} + \\texttt{max\\_tokens\\_cap})"
+   ],
+   "vars": [
+    [
+     "{host}",
+     "dónde escucha vLLM",
+     "vllm-70b.c10.svc.cluster.local (el Service), o localhost con port-forward"
+    ],
+    [
+     "{nombre}",
+     "el --served-model-name",
+     "chat-70b-fp8-2026-09-28 (el gateway traduce chat-default)"
+    ],
+    [
+     "{instrucciones} · {pregunta}",
+     "el mensaje system y el de la persona",
+     "≈ 1,000 tokens fijos por producto + ≈ 1,000 propios"
+    ],
+    [
+     "{n}",
+     "tope de tokens de la respuesta",
+     "1,024 para soporte (tenants.yaml)"
+    ],
+    [
+     "{t}",
+     "temperatura: 0 = siempre el token más probable; más alta = más variedad",
+     "la manda cada producto"
+    ],
+    [
+     "{llave}",
+     "la API key; sin --api-key en vLLM, cualquier texto",
+     "el gateway no le manda llave a vLLM: lo protege la NetworkPolicy"
+    ],
+    [
+     "{k} · {p}",
+     "top_k (elegir solo entre los k tokens más probables) · priority",
+     "— · 0 interactivo, 10 batch"
+    ],
+    [
+     "{esquema} · {json_schema}",
+     "nombre y JSON Schema de la salida",
+     "atributos del catálogo"
+    ],
+    [
+     "{a} · {b}",
+     "las únicas salidas permitidas",
+     "\"positivo\" · \"negativo\""
+    ],
+    [
+     "n_out",
+     "tokens de la respuesta (completion_tokens)",
+     "≈ 250 en promedio en el C10"
+    ]
+   ],
+   "pieces": [
+    [
+     "POST /v1/chat/completions",
+     "Conversación con roles → chat template → tokens. Es la que usa el C10.",
+     "casi siempre con stream: true"
+    ],
+    [
+     "POST /v1/completions",
+     "Texto crudo en prompt, sin chat template: tú pones las marcas de cada turno.",
+     "benchmarks y modelos base"
+    ],
+    [
+     "GET /v1/models",
+     "Lo que sirve el pod: id, root y max_model_len.",
+     "id = chat-70b-fp8-2026-09-28"
+    ],
+    [
+     "model",
+     "Tiene que ser el --served-model-name. Otro nombre: 404 «The model `x` does not exist.»",
+     "un pod canario sirve otro nombre"
+    ],
+    [
+     "max_completion_tokens (max_tokens)",
+     "Tope de la respuesta; OpenAI marcó max_tokens como obsoleto (deprecated) y vLLM acepta los dos. Sin tope, vLLM genera hasta llenar el contexto.",
+     "si no viene, el gateway pone el tope del tenant"
+    ],
+    [
+     "tope + prompt > max_model_len",
+     "En v0.30 el tope se reserva entero: si no entra, un 400 («This model's maximum context length is…»). Desde v0.32 entra y la salida se recorta a lo que queda.",
+     "7,500 + 1,024 > 8,192: 400 en v0.30; en v0.32, hasta 692 tokens"
+    ],
+    [
+     "temperature · top_p · seed",
+     "De OpenAI: el azar del sampling (el sorteo de cada token; de 0 a 2), el núcleo de probabilidad (solo los tokens más probables hasta sumar top_p) y la semilla. Si faltan, valen los defaults del motor: con --generation-config vllm, temperature 1.0 y top_p 1.0.",
+     "extracción: temperature 0"
+    ],
+    [
+     "top_k · min_p · repetition_penalty",
+     "Solo de vLLM (van en extra_body): los k más probables, un piso de probabilidad y un castigo por repetir.",
+     "—"
+    ],
+    [
+     "stop · stop_token_ids",
+     "Cortar al ver un texto o un token: finish_reason = stop.",
+     "—"
+    ],
+    [
+     "stream · stream_options",
+     "SSE; include_usage agrega el chunk final con usage (choices vacío). stream_options sin stream: error.",
+     "el gateway lo fuerza para conciliar la cuota"
+    ],
+    [
+     "finish_reason",
+     "stop: terminó solo o por stop; length: llegó al tope (respuesta cortada); tool_calls; abort (de vLLM): lo cortó el servidor, como un pod en drain.",
+     "length con texto cortado = tope chico"
+    ],
+    [
+     "usage",
+     "prompt_tokens, completion_tokens y total_tokens: lo que se cobra y lo que mide la cuota.",
+     "≈ 2,000 + 250 en el C10"
+    ],
+    [
+     "response_format json_schema",
+     "La forma de OpenAI de pedir JSON contra un schema.",
+     "atributos del catálogo"
+    ],
+    [
+     "structured_outputs",
+     "La de vLLM: choice, regex, json, json_object, grammar o structural_tag; una sola por request.",
+     "{\"choice\": [\"positivo\", \"negativo\"]}"
+    ],
+    [
+     "guided_json y compañía",
+     "Se quitaron en v0.12: hoy se ignoran y la respuesta sale sin restricción (desde v0.30, con un warning en el log del servidor, una sola vez por proceso).",
+     "tutoriales viejos"
+    ],
+    [
+     "priority · X-Vllm-Priority",
+     "Menor = antes. Solo hace algo con --scheduling-policy priority. El header pisa al campo del cuerpo.",
+     "0 interactivo, 10 batch"
+    ],
+    [
+     "--api-key (VLLM_API_KEY)",
+     "Una o varias llaves compartidas (sirve cualquiera) que protegen /v1, /v2, /inference y /cohere; el resto queda abierto, incluso /invocations, que también genera texto. No es autenticación por tenant.",
+     "el C10 usa NetworkPolicy + gateway"
+    ],
+    [
+     "user",
+     "vLLM lo ignora; en OpenAI lo están reemplazando safety_identifier y prompt_cache_key.",
+     "el gateway del C10 lo usa para elegir canario"
+    ],
+    [
+     "cache_salt",
+     "Solo de vLLM: requests con la misma sal comparten prefijos en caché; otra sal, otra caché.",
+     "una sal por tenant (pendiente en el C10)"
+    ]
+   ],
+   "example": {
+    "title": "Un cliente de openai contra vLLM: streaming, usage y parámetros propios de vLLM",
+    "lang": "python",
+    "code": "from openai import OpenAI\n\n# Sin --api-key en vLLM, cualquier texto sirve de llave; el cliente no arranca sin una.\nclient = OpenAI(base_url=\"http://localhost:8000/v1\", api_key=\"EMPTY\",\n                timeout=120.0)  # default: 600 s; en un stream es el silencio máximo entre chunks\n\nstream = client.chat.completions.create(\n    model=\"chat-70b-fp8-2026-09-28\",           # el --served-model-name, no el alias del gateway\n    messages=[{\"role\": \"system\", \"content\": \"Eres el asistente de soporte del marketplace.\"},\n              {\"role\": \"user\", \"content\": \"¿Cuándo llega mi pedido 4512?\"}],\n    max_completion_tokens=512,\n    temperature=0.3,\n    stream=True,\n    stream_options={\"include_usage\": True},    # un chunk final con usage y choices vacío\n    extra_body={\"top_k\": 20, \"priority\": 0},    # solo de vLLM: viajan en el JSON tal cual\n)\nfor chunk in stream:\n    if chunk.choices:                           # el chunk de usage trae choices = []\n        choice = chunk.choices[0]\n        if choice.delta.content:\n            print(choice.delta.content, end=\"\", flush=True)\n        if choice.finish_reason == \"length\":\n            print(\"\\n[cortada por max_completion_tokens]\")\n    if chunk.usage:\n        print(f\"\\n{chunk.usage.prompt_tokens} + {chunk.usage.completion_tokens} tokens\")",
+    "source": "ilustrativo, con los nombres del C10 (k8s/vllm-70b.yaml y gateway/tenants.yaml). Revisado contra el cliente openai-python v3.37.0 (OpenAI, chat.completions.create, stream_options, extra_body) y el protocolo de vLLM v0.30.0; no se ejecutó: el paquete openai no está instalado en esta máquina",
+    "notes": [
+     "<code>base_url</code> termina en <code>/v1</code>: el cliente le agrega <code>/chat/completions</code>. En el C10 los productos no llaman a vLLM: llaman al llm-gateway con <code>model=\"chat-default\"</code>, y el gateway pone la revisión, el <code>priority</code> y el <code>include_usage</code> (<code>_self_body</code>, en gateway/llm_gateway.py, líneas 574–578). Directo a vLLM es para probar una réplica con port-forward.",
+     "<code>extra_body</code> mezcla esas claves en el JSON y vLLM las lee como suyas (<code>top_k</code>, <code>priority</code>, <code>structured_outputs</code>, <code>cache_salt</code>). Un servidor que no las conoce puede rechazarlas: ahí el código deja de ser portable.",
+     "<code>priority</code> solo cambia algo si vLLM corre con <code>--scheduling-policy priority</code>. La documentación del campo dice que, sin esa política, un valor distinto de 0 da error; en el código de v0.30.0 no encontré esa validación (la cola <code>fcfs</code> no lo lee). No cuentes con el error: pon la flag.",
+     "El TTFT (el tiempo hasta el primer token) que siente la persona es el primer <code>delta.content</code> con texto: el primer chunk trae solo el rol (en vLLM sale junto con el primer token). Para medir con este cliente, toma la hora justo antes de <code>create</code> (sección 7).",
+     "<code>finish_reason == \"length\"</code> es una respuesta cortada por el tope, no un error del servidor. <code>\"abort\"</code>, propio de vLLM, es un request que cortó el servidor (por ejemplo, un pod que se está apagando): el gateway del C10 lo trata como una falla del servidor de atrás (el upstream). Si lo corta antes del primer token, un stream no trae ese <code>finish_reason</code>: solo el rol, el usage y <code>[DONE]</code> (vLLM v0.30 no manda chunks vacíos). Por eso el gateway del C10 trata un <code>[DONE]</code> sin texto como falla (502 o el vendor), no como una respuesta vacía."
+    ]
+   },
+   "figure": {
+    "kind": "chain",
+    "caption": "Un stream de 4 tokens con include_usage, evento por evento: la salida del mock del lab, con el orden de vLLM v0.30.0 (sin id, created ni model). Tiempos del mock: 0.3 s hasta el primer token y 40 ms entre tokens.",
+    "data": {
+     "steps": [
+      {
+       "label": "t ≈ 0.30 s · el rol",
+       "cmd": "data: {\"object\": \"chat.completion.chunk\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": \"\"}, \"finish_reason\": null}]}",
+       "note": "Sale cuando el prefill (la lectura del prompt entero) ya produjo el primer token. Trae choices, pero no texto."
+      },
+      {
+       "label": "mismo instante · 1.er token",
+       "cmd": "data: {… \"delta\": {\"content\": \"Tu\"}, \"finish_reason\": null}]}",
+       "note": "Aquí la persona empieza a leer: el TTFT que importa."
+      },
+      {
+       "label": "+40 ms por token",
+       "cmd": "data: {… \"delta\": {\"content\": \" pedido\"}, \"finish_reason\": null}]}",
+       "note": "Un evento por paso de decode (--stream-interval 1, el default). El espacio viaja pegado al token."
+      },
+      {
+       "label": "el último token",
+       "cmd": "data: {… \"delta\": {\"content\": \" mañana\"}, \"finish_reason\": \"length\"}]}",
+       "note": "El finish_reason viaja con el último texto. length: se cortó por max_completion_tokens (4)."
+      },
+      {
+       "label": "usage",
+       "cmd": "data: {… \"choices\": [], \"usage\": {\"prompt_tokens\": 4, \"completion_tokens\": 4, \"total_tokens\": 8}}",
+       "note": "Solo con include_usage. choices viene vacío: el código que lee choices[0] revienta aquí."
+      },
+      {
+       "label": "fin",
+       "cmd": "data: [DONE]",
+       "note": "No es JSON. Si la conexión se corta antes, no llegan ni el usage ni el [DONE]."
+      }
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>es la API de OpenAI con otra base_url</b>. Lo que existe en OpenAI va en el cuerpo tal cual; lo que es solo de vLLM (<code>top_k</code>, <code>priority</code>, <code>structured_outputs</code>, <code>cache_salt</code>) va en <code>extra_body</code>. Un stream es una fila de sobres <code>data: …</code>: el primero trae el rol, cada uno de los siguientes un pedazo de texto, el penúltimo (si lo pediste) la cuenta de tokens, y el último dice [DONE].",
+   "trap": "Trampa: copiar un tutorial viejo con <code>extra_body={\"guided_json\": schema}</code>. Los campos <code>guided_*</code> se quitaron en v0.12: vLLM contesta 200 con texto libre, y desde v0.30 solo deja un warning en su propio log, una sola vez. Usa <code>response_format</code> con <code>json_schema</code> o <code>structured_outputs</code>. La otra: leer <code>chunk.choices[0]</code> sin mirar. Con <code>include_usage</code>, el chunk de usage trae <code>choices: []</code> y el cliente revienta justo al final de una respuesta que salió bien.",
+   "lab": {
+    "goal": "Levantar un servidor falso con la forma de la API de vLLM y leerlo: con curl, un request normal, un stream con include_usage y un modelo equivocado; con un cliente de 30 líneas, el mismo stream parseado evento por evento.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-vllm && cd ~/lab-vllm\ncat > mock_vllm.py <<'EOF'\n# mock_vllm.py: un servidor con la forma de la API de vLLM (solo stdlib). NO es un modelo: responde\n# palabras fijas, una por \"token\", con 0.3 s hasta el primer token y 40 ms entre tokens.\nimport json, os, time, uuid\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nMODEL = \"chat-70b-fp8-2026-09-28\"           # el --served-model-name del C10\nRESPUESTA = \"Tu pedido sale mañana y llega en dos o tres días hábiles .\".split()\nTTFT_S, TPOT_S = 0.3, 0.04\n\nclass Handler(BaseHTTPRequestHandler):\n    def log_message(self, *args):            # sin una línea de log por request\n        pass\n\n    def _json(self, code, obj):\n        body = json.dumps(obj, ensure_ascii=False).encode()\n        self.send_response(code)\n        self.send_header(\"Content-Type\", \"application/json\")\n        self.send_header(\"Content-Length\", str(len(body)))\n        self.end_headers()\n        self.wfile.write(body)\n\n    def do_GET(self):\n        if self.path == \"/health\":            # 200 si el motor vive (vLLM: 503 si murió)\n            self.send_response(200); self.send_header(\"Content-Length\", \"0\"); self.end_headers()\n        elif self.path == \"/v1/models\":\n            self._json(200, {\"object\": \"list\", \"data\": [{\"id\": MODEL, \"object\": \"model\",\n                             \"root\": \"/models/\" + MODEL, \"max_model_len\": 8192}]})\n        else:\n            self._json(404, {\"error\": {\"message\": \"Not Found\", \"type\": \"NotFoundError\", \"code\": 404}})\n\n    def do_POST(self):\n        req = json.loads(self.rfile.read(int(self.headers[\"Content-Length\"])))\n        if req.get(\"model\") != MODEL:         # el mismo texto que devuelve vLLM v0.30.0\n            return self._json(404, {\"error\": {\"message\": f\"The model `{req.get('model')}` does not exist.\",\n                                              \"type\": \"NotFoundError\", \"param\": \"model\", \"code\": 404}})\n        tope = req.get(\"max_completion_tokens\") or req.get(\"max_tokens\") or len(RESPUESTA)\n        palabras = RESPUESTA[:tope]\n        fin = \"length\" if len(RESPUESTA) > tope else \"stop\"   # length: se cortó por el tope\n        prompt = sum(len(m[\"content\"].split()) for m in req[\"messages\"])   # palabras como tokens\n        usage = {\"prompt_tokens\": prompt, \"completion_tokens\": len(palabras),\n                 \"total_tokens\": prompt + len(palabras)}\n        base = {\"id\": \"chatcmpl-\" + uuid.uuid4().hex[:8], \"created\": int(time.time()), \"model\": MODEL}\n        if not req.get(\"stream\"):\n            time.sleep(TTFT_S + TPOT_S * (len(palabras) - 1))\n            return self._json(200, dict(base, object=\"chat.completion\", usage=usage, choices=[\n                {\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \" \".join(palabras)},\n                 \"finish_reason\": fin}]))\n        self.send_response(200)\n        self.send_header(\"Content-Type\", \"text/event-stream\")\n        self.send_header(\"Cache-Control\", \"no-cache\")\n        self.end_headers()\n        def evento(obj):                      # un evento SSE: \"data: {json}\" y una línea vacía\n            self.wfile.write(f\"data: {json.dumps(obj, ensure_ascii=False)}\\n\\n\".encode())\n            self.wfile.flush()\n        chunk = dict(base, object=\"chat.completion.chunk\")\n        try:\n            time.sleep(TTFT_S)                # cola + prefill\n            evento(dict(chunk, choices=[{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": \"\"},\n                                         \"finish_reason\": None}]))\n            for i, p in enumerate(palabras):\n                if i:\n                    time.sleep(TPOT_S)        # un paso de decode\n                ultimo = i == len(palabras) - 1\n                evento(dict(chunk, choices=[{\"index\": 0, \"delta\": {\"content\": (\" \" if i else \"\") + p},\n                                             \"finish_reason\": fin if ultimo else None}]))\n            if (req.get(\"stream_options\") or {}).get(\"include_usage\"):\n                evento(dict(chunk, choices=[], usage=usage))   # choices vacío: solo la cuenta\n            self.wfile.write(b\"data: [DONE]\\n\\n\")\n        except (BrokenPipeError, ConnectionResetError):\n            print(f\"[mock] el cliente cortó en el token {i + 1}: vLLM abortaría el request y liberaría su KV\",\n                  flush=True)\n\nif __name__ == \"__main__\":\n    puerto = int(os.environ.get(\"PORT\", \"18000\"))\n    print(f\"[mock] escuchando en http://localhost:{puerto}\", flush=True)\n    ThreadingHTTPServer((\"127.0.0.1\", puerto), Handler).serve_forever()\nEOF\npython3 mock_vllm.py & echo $! > ~/lab-vllm/mock.pid\nsleep 1\ncurl -s -o /dev/null -w '%{http_code}\\n' localhost:18000/health\ncurl -s localhost:18000/v1/models; echo",
+      "expect": "[mock] escuchando en http://localhost:18000, después 200 y la lista con id chat-70b-fp8-2026-09-28, su root y max_model_len 8192. El mock usa el puerto 18000 para no chocar con un Triton o un vLLM que tengas en el 8000."
+     },
+     {
+      "cmd": "curl -s localhost:18000/v1/chat/completions -H 'Content-Type: application/json' \\\n  -d '{\"model\": \"chat-70b-fp8-2026-09-28\", \"messages\": [{\"role\": \"user\", \"content\": \"¿Cuándo llega mi pedido?\"}], \"max_completion_tokens\": 5}'; echo",
+      "expect": "A los ≈ 0.46 s, un JSON con message.content \"Tu pedido sale mañana y\", finish_reason \"length\" (se cortó en 5) y usage con prompt_tokens 4, completion_tokens 5 y total_tokens 9. El mock cuenta palabras como si fueran tokens."
+     },
+     {
+      "cmd": "curl -sN localhost:18000/v1/chat/completions -H 'Content-Type: application/json' \\\n  -d '{\"model\": \"chat-70b-fp8-2026-09-28\", \"messages\": [{\"role\": \"user\", \"content\": \"¿Cuándo llega mi pedido?\"}], \"stream\": true, \"stream_options\": {\"include_usage\": true}, \"max_completion_tokens\": 4}'",
+      "expect": "Siete eventos data:, separados por líneas vacías: el rol (content vacío), Tu, pedido, sale, mañana (este con finish_reason length), el del usage con choices: [] y data: [DONE]. Los dos primeros (el rol y Tu) llegan juntos a los ≈ 0.3 s; cada token siguiente, ≈ 40 ms después; el usage y el [DONE], enseguida del último."
+     },
+     {
+      "cmd": "cat > leer_sse.py <<'EOF'\n# leer_sse.py: un cliente mínimo de SSE, como el lector del gateway del C10 (solo stdlib).\nimport http.client, json\n\ndef eventos(resp):                     # junta líneas data: hasta una línea vacía: eso es un evento\n    datos = []\n    for linea in resp:\n        linea = linea.decode().rstrip(\"\\r\\n\")\n        if linea == \"\":\n            if datos:\n                yield \"\\n\".join(datos)\n                datos = []\n        elif linea.startswith(\"data:\"):\n            datos.append(linea[5:].lstrip())   # \"data: {...}\" → \"{...}\"\n        # las líneas \": comentario\", \"event:\" e \"id:\" no las usa la API de OpenAI\n\nconn = http.client.HTTPConnection(\"localhost\", 18000)\nconn.request(\"POST\", \"/v1/chat/completions\", json.dumps({\n    \"model\": \"chat-70b-fp8-2026-09-28\", \"stream\": True, \"stream_options\": {\"include_usage\": True},\n    \"messages\": [{\"role\": \"user\", \"content\": \"¿Cuándo llega mi pedido?\"}]}),\n    {\"Content-Type\": \"application/json\"})\ntexto, fin, usage = [], None, None\nfor ev in eventos(conn.getresponse()):\n    if ev == \"[DONE]\":                 # no es JSON: el fin del stream\n        break\n    chunk = json.loads(ev)\n    if chunk.get(\"usage\"):\n        usage = chunk[\"usage\"]\n    for choice in chunk[\"choices\"]:     # en el chunk de usage, la lista viene vacía\n        texto.append(choice[\"delta\"].get(\"content\") or \"\")\n        fin = choice.get(\"finish_reason\") or fin\nprint(\"texto:\", \"\".join(texto))\nprint(\"finish_reason:\", fin, \"· usage:\", usage)\ntry:\n    chunk[\"choices\"][0]                 # lo que hace un cliente apurado con el último chunk\nexcept IndexError as e:\n    print(\"choices[0] en el chunk de usage:\", type(e).__name__ + \":\", e)\nEOF\npython3 leer_sse.py",
+      "expect": "texto: Tu pedido sale mañana y llega en dos o tres días hábiles . (el punto es un token aparte), finish_reason: stop · usage: {'prompt_tokens': 4, 'completion_tokens': 13, 'total_tokens': 17} y, al final, choices[0] en el chunk de usage: IndexError: list index out of range. El lector junta líneas data: hasta una línea vacía, corta en [DONE] y recorre choices sin suponer que trae algo."
+     },
+     {
+      "cmd": "curl -s -w '\\nHTTP %{http_code}\\n' localhost:18000/v1/chat/completions -H 'Content-Type: application/json' \\\n  -d '{\"model\": \"chat-default\", \"messages\": [{\"role\": \"user\", \"content\": \"hola\"}]}'",
+      "expect": "{\"error\": {\"message\": \"The model `chat-default` does not exist.\", \"type\": \"NotFoundError\", \"param\": \"model\", \"code\": 404}} y HTTP 404: chat-default es un alias del gateway, no un nombre que conozca vLLM. Es el mismo mensaje que devuelve vLLM v0.30.0."
+     },
+     {
+      "cmd": "kill \"$(cat ~/lab-vllm/mock.pid)\"\ncd ~ && rm -rf ~/lab-vllm",
+      "expect": "Sin salida, o un aviso de la terminal de que el proceso en segundo plano terminó. El puerto 18000 queda libre."
+     }
+    ],
+    "fix": "Si el puerto 18000 está ocupado, arranca el mock con PORT=18001 python3 mock_vllm.py & y cambia el puerto en cada curl y en leer_sse.py. Si un curl se queda esperando, el mock no está corriendo: mira la salida de su terminal. Para ver un corte del cliente, repite el paso 3 sin el max_completion_tokens (son 13 tokens, ≈ 0.8 s) y con curl --max-time 0.45: el mock avisa en qué token le falló la escritura (el 5 o el 6). vLLM, en ese caso, aborta el request y libera su KV.",
+    "needs": "Python 3 sin paquetes extra y curl, que vienen en macOS y en Linux. Ni vLLM ni GPU: el mock responde palabras fijas, no es un modelo.",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS 26.6.2 con Python 3.14.3 y curl 8.7.1 (leer_sse.py también con 3.13.16 y 3.9.6): las salidas son las de arriba. El texto del 404 y el orden de los eventos (rol, tokens, finish_reason en el último texto, usage con choices vacío y [DONE]) siguen el código de vLLM v0.30.0; los chunks reales traen más campos. El corte de la sección fix se probó 8 veces: el aviso sale siempre, en el token 5 o 6."
+   },
+   "links": [
+    "#m14.prefill-decode",
+    "#m14.guardrails",
+    "#c10.serving",
+    "#m07.protocolos",
+    "#m07.llm-servers"
+   ]
+  },
+  {
+   "id": "batching",
+   "num": 6,
+   "title": "Continuous batching y el scheduler: prefill contra decode en el mismo batch, chunked prefill, max_num_batched_tokens, latencia contra throughput",
+   "question": "¿Qué decide el scheduler de vLLM en cada paso, por qué un prompt largo frena a los que ya están generando y qué perilla mueve el TTFT contra el TPOT?",
+   "templates": [
+    {
+     "code": "--max-num-seqs {S} --max-num-batched-tokens {B}",
+     "note": "Los dos techos de cada <b>paso</b> (una pasada del modelo por la GPU): como mucho <code>{S}</code> secuencias corriendo y <code>{B}</code> tokens procesados, sumando el token de cada <b>decode</b> (una secuencia que ya genera: 1 token por paso) y los trozos de <b>prefill</b> (la lectura de un prompt nuevo). El <b>scheduler</b> (la parte de vLLM que decide quién entra en cada paso) arma el batch de nuevo en cada paso."
+    },
+    {
+     "code": "--enable-chunked-prefill --long-prefill-token-threshold {u}",
+     "note": "<b>Chunked prefill</b>: un prompt que no entra en el presupuesto del paso se parte en trozos. <code>{u}</code> limita el trozo de un prompt largo para que no se coma el paso entero; 0, el default, no pone límite. Trozos grandes le dan mejor TTFT (tiempo hasta el primer token) al prompt nuevo y más tirón a los demás; trozos chicos, al revés."
+    },
+    {
+     "code": "--scheduling-policy priority          # y en cada request: \"priority\": {p}",
+     "note": "Con <code>priority</code>, la cola de espera se ordena por número (menor = antes; empate: el que llegó primero) y, si faltan bloques de KV cache (la memoria de lo que cada secuencia ya leyó), se desaloja primero el número más alto. No saca a nadie del batch para que entre otro: eso lo resuelven los lugares reservados del gateway."
+    },
+    {
+     "code": "sum by (pod) (vllm:num_requests_running)\nsum by (pod) (vllm:num_requests_waiting)",
+     "note": "El batch de verdad (<code>running</code>) y la cola (<code>waiting</code>) de cada réplica. Si <code>waiting</code> sube con <code>running</code> pegado al techo, falta capacidad o sobra contexto."
+    },
+    {
+     "code": "histogram_quantile(0.5, sum by (le) (rate(vllm:iteration_tokens_total_bucket[5m])))",
+     "note": "Tokens por paso. Una mediana cerca del número de secuencias corriendo es decode puro; los pasos de miles de tokens son prefills. Ojo: vLLM anota el prompt entero (sin lo que estaba en caché) en el paso donde termina su prefill, aunque lo haya partido en trozos. Los bordes de este histograma van de 1 a 16,384, con 8,192 incluido."
+    }
+   ],
+   "formulas": [
+    "\\underbrace{n_{\\text{decode}}}_{1\\ \\text{token c/u}} + \\sum_j c_j \\le B \\qquad n_{\\text{decode}} + n_{\\text{prefill}} \\le S",
+    "\\text{C10 en el codo: } 72 + c \\le 8{,}192 \\;\\Rightarrow\\; c \\le 8{,}120 \\text{ tokens de prefill por paso}",
+    "\\text{pasos de un prefill} = \\left\\lceil \\frac{P}{B - n_{\\text{decode}}} \\right\\rceil \\qquad \\left\\lceil \\frac{6{,}000}{2{,}048 - 72} \\right\\rceil = 4",
+    "L = \\lambda \\times W \\qquad \\frac{60\\ \\text{rps} \\times 10.5\\ \\text{s}}{16} \\approx 39 \\text{ por réplica} \\qquad 6.06 \\times 11.89 \\approx 72",
+    "\\text{ocupación} = \\frac{\\sum_i n_i}{\\text{lugares} \\times \\text{pasos}} \\qquad \\text{estático: } \\frac{25}{4 \\times 12} \\approx 52\\,\\% \\qquad \\text{continuo: } \\frac{25}{4 \\times 8} \\approx 78\\,\\%"
+   ],
+   "vars": [
+    [
+     "{S}",
+     "máximo de secuencias corriendo en un paso",
+     "128 en el C10 (default 1,024 en una H100)"
+    ],
+    [
+     "{B}",
+     "máximo de tokens por paso: decodes + trozos de prefill",
+     "8,192"
+    ],
+    [
+     "{u}",
+     "tope del trozo de un prompt largo; 0 = sin tope",
+     "0 (default)"
+    ],
+    [
+     "{p}",
+     "prioridad del request: menor = antes",
+     "0 interactivo, 10 batch"
+    ],
+    [
+     "n_decode",
+     "secuencias que generan: 1 token cada una por paso",
+     "≈ 39 planeadas, 72 en el codo"
+    ],
+    [
+     "c_j · P",
+     "trozo de prefill del request j en este paso · tokens de su prompt que no están en caché",
+     "P ≈ 1,000 con el prefijo en caché"
+    ],
+    [
+     "L · λ · W",
+     "secuencias en vuelo · requests por segundo · segundos por request",
+     "≈ 39 · 3.75 · 10.5"
+    ],
+    [
+     "n_i",
+     "tokens que genera el request i",
+     "A = 3 … B = 8 en la figura"
+    ]
+   ],
+   "pieces": [
+    [
+     "continuous batching",
+     "El batch se rearma en cada paso: cuando una secuencia termina, otra entra en el paso siguiente. También se llama iteration-level scheduling.",
+     "cada réplica del C10"
+    ],
+    [
+     "dynamic batching (Triton)",
+     "Junta requests completos y los ejecuta juntos; para generar token a token, el grupo esperaría al más largo.",
+     "hoja de Triton: el bus que espera 2 ms"
+    ],
+    [
+     "paso (step)",
+     "Una pasada del modelo: cada secuencia en decode suma 1 token y cada prefill, su trozo.",
+     "≈ 45 ms con 72 secuencias en los fixtures"
+    ],
+    [
+     "scheduler de vLLM V1",
+     "V1 es el motor actual. No tiene fase de prefill ni de decode: en cada paso le da tokens a cada request para que lo calculado alcance a su prompt más lo generado.",
+     "num_computed_tokens alcanza a num_tokens"
+    ],
+    [
+     "primero los que corren",
+     "Primero entran los que ya están en el batch (decodes y prefills a medias); con el presupuesto que sobra, los que esperan.",
+     "por eso un decode no espera detrás de un prompt nuevo"
+    ],
+    [
+     "max_num_seqs",
+     "Techo de secuencias corriendo. Más alto = más throughput y más TPOT para cada una, hasta que se acaba el KV.",
+     "128 > las 92 que caben de 2,250 tokens"
+    ],
+    [
+     "max_num_batched_tokens",
+     "Presupuesto de tokens por paso. Chico (≈ 2,048) mejora el ITL; grande mejora el TTFT y el throughput (la doc sugiere más de 8,192 para throughput).",
+     "8,192 de partida; se ajusta con el barrido"
+    ],
+    [
+     "chunked prefill",
+     "Parte el prompt según el presupuesto que queda en el paso. Default en v0.30.",
+     "un prompt de 6,000 entra en un paso de 8,192"
+    ],
+    [
+     "long_prefill_token_threshold",
+     "Tope por request para el trozo de un prompt largo. 0 = sin tope.",
+     "0"
+    ],
+    [
+     "prefix caching",
+     "Los tokens del prefijo en caché no se recalculan: el prefill arranca donde termina el acierto.",
+     "≈ 1,000 de 2,000 tokens"
+    ],
+    [
+     "preemption",
+     "Si faltan bloques de KV para seguir, el scheduler saca una secuencia, libera sus bloques y la recalcula después (sección 3). Con fcfs sale la última que entró; con priority, el número más alto.",
+     "el batch, de noche"
+    ],
+    [
+     "max_num_queued_reqs",
+     "Tope propio de vLLM para esperando + corriendo: lo que pasa recibe 503. Default: sin tope.",
+     "el C10 hace la admisión en el gateway"
+    ],
+    [
+     "vllm:num_requests_running · waiting",
+     "Gauges (valores que suben y bajan) del batch y de la cola de cada réplica, ahora.",
+     "KVCacheSaturation mira waiting > 0"
+    ],
+    [
+     "vllm:iteration_tokens_total",
+     "Histograma de tokens por paso.",
+     "muestras de miles = prefills que terminan"
+    ],
+    [
+     "latencia contra throughput",
+     "Más secuencias por paso = más tokens/s de la réplica y cada persona más lenta: el decode lee pesos + KV de todas en cada paso.",
+     "72 → 1,514 tokens/s con TPOT p95 49.6 ms (fixtures)"
+    ]
+   ],
+   "example": {
+    "title": "Cuántas secuencias hay en el batch: la ley de Little en fleet_calc.py",
+    "lang": "python",
+    "code": "def request_seconds(ttft_s: float, output_tokens: float, tpot_s: float) -> float:\n    \"\"\"Duración de un request de streaming ≈ TTFT + tokens de salida × TPOT.\"\"\"\n    return ttft_s + output_tokens * tpot_s\n\n\ndef littles_law_concurrency(rps: float, seconds_per_request: float) -> float:\n    \"\"\"L = λ × W (#m03.little): secuencias vivas a la vez = llegadas por segundo × segundos que dura cada una.\"\"\"\n    return rps * seconds_per_request\n# …\n    secs = request_seconds(0.5, inter.output_tokens, 0.040)\n    conc = littles_law_concurrency(CASE_DESIGN_RPS, secs)\n    print(f\"Little: {CASE_DESIGN_RPS:.0f} rps × {secs:.1f} s = {conc:.0f} secuencias vivas ≈ {conc / fl.replicas_deployed:.1f} por réplica\")",
+    "source": "reference/c10/capacity/fleet_calc.py (líneas 136–143 y 214–216; # … marca líneas omitidas)",
+    "notes": [
+     "Con continuous batching no fijas el tamaño del batch: lo fija el tráfico. <code>request_seconds(0.5, 250, 0.040)</code> da 10.5 s por request, y 60 rps × 10.5 s = 630 secuencias vivas en la flota: ≈ 39.4 por réplica. <code>python3 capacity/fleet_calc.py</code> lo imprime así.",
+     "Cuatro números de batch del C10, de menor a mayor: ≈ 39 planeadas (Little); 72 en el codo del barrido (sección 7); ≈ 92 que caben en el KV con 2,250 tokens (sección 3); y 128 de <code>--max-num-seqs</code>. El que manda es un quinto: el tope del gateway, 288 en vuelo por cada una de sus 4 réplicas, o sea 288 × 4 ÷ 16 = 72 por réplica de vLLM, justo el codo. El techo de vLLM queda arriba como margen.",
+     "<code>--max-num-batched-tokens 8192</code> (manifest, línea 198): «más = mejor TTFT y peor TPOT; se ajusta con el bench». Con 72 decodes por paso sobran 8,120 tokens para prefill: un prompt de 6,000 sin caché entra en un solo paso, y ese paso tarda más para las 72 secuencias que esperaban su token.",
+     "La alerta <code>LLMTPOTHigh</code> lista las causas de batching que suben el TPOT (monitoring/alerts.yml, línea 107): «¿Subió la concurrencia por réplica (vllm:num_requests_running), hay preemptions (LLMPreemptionsRising) o prefills largos intercalados (max-num-batched-tokens)?».",
+     "Lo que no está aquí: el tiempo por request sale de un TTFT y un TPOT supuestos. Con los del barrido (sección 7), Little da justo la concurrencia del punto: 6.06 req/s × 11.89 s ≈ 72."
+    ]
+   },
+   "figure": {
+    "kind": "continuous",
+    "caption": "6 requests que llegan juntos, 4 lugares en el batch, un token por paso (el primero sale del paso de su prefill). Estático: el grupo espera al más largo (B, 8 tokens) y E y F recién empiezan en el paso 9. Continuo: en el lugar que libera C entra E en el paso 3, y todo termina en 8 pasos. Es la salida de bus.py, del lab.",
+    "data": {
+     "slots": 4,
+     "requests": [
+      {
+       "id": "A",
+       "tokens": 3
+      },
+      {
+       "id": "B",
+       "tokens": 8
+      },
+      {
+       "id": "C",
+       "tokens": 2
+      },
+      {
+       "id": "D",
+       "tokens": 5
+      },
+      {
+       "id": "E",
+       "tokens": 4
+      },
+      {
+       "id": "F",
+       "tokens": 3
+      }
+     ],
+     "legend": {
+      "X1": "el paso del prefill: sale el primer token",
+      "Xn": "un paso de decode: un token más",
+      "·": "lugar vacío: la GPU no tiene trabajo para él"
+     },
+     "static": {
+      "label": "Estático: el grupo sale junto y espera al más largo",
+      "steps": 12,
+      "busy": 25,
+      "occupancy": 0.52,
+      "grid": [
+       [
+        "A1",
+        "A2",
+        "A3",
+        "·",
+        "·",
+        "·",
+        "·",
+        "·",
+        "E1",
+        "E2",
+        "E3",
+        "E4"
+       ],
+       [
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7",
+        "B8",
+        "F1",
+        "F2",
+        "F3",
+        "·"
+       ],
+       [
+        "C1",
+        "C2",
+        "·",
+        "·",
+        "·",
+        "·",
+        "·",
+        "·",
+        "·",
+        "·",
+        "·",
+        "·"
+       ],
+       [
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "D5",
+        "·",
+        "·",
+        "·",
+        "·",
+        "·",
+        "·",
+        "·"
+       ]
+      ],
+      "first_token_step": {
+       "A": 1,
+       "B": 1,
+       "C": 1,
+       "D": 1,
+       "E": 9,
+       "F": 9
+      }
+     },
+     "continuous": {
+      "label": "Continuo: en cada paso sube el que espera",
+      "steps": 8,
+      "busy": 25,
+      "occupancy": 0.78,
+      "grid": [
+       [
+        "A1",
+        "A2",
+        "A3",
+        "F1",
+        "F2",
+        "F3",
+        "·",
+        "·"
+       ],
+       [
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7",
+        "B8"
+       ],
+       [
+        "C1",
+        "C2",
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "·",
+        "·"
+       ],
+       [
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "D5",
+        "·",
+        "·",
+        "·"
+       ]
+      ],
+      "first_token_step": {
+       "A": 1,
+       "B": 1,
+       "C": 1,
+       "D": 1,
+       "E": 3,
+       "F": 4
+      }
+     },
+     "rules": [
+      "cada paso, cada secuencia del batch saca un token",
+      "estático: el grupo siguiente entra cuando termina el más largo",
+      "continuo: un lugar que se libera se ocupa en el paso siguiente"
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>continuous batching es un bus que deja bajar y subir pasajeros en cada parada</b>, en vez de esperar a que todos lleguen al final. El de Triton espera 2 ms en la terminal y sale con todos; este no vuelve nunca a la terminal, pero cada parada tiene cupo: <code>max_num_seqs</code> asientos y <code>max_num_batched_tokens</code> de equipaje. Un prompt largo es equipaje grande: o sube entero y esa parada tarda (buen TTFT para él, tirón para los demás), o sube en partes (chunked prefill).",
+   "trap": "Trampa: subir <code>--max-num-batched-tokens</code> para que «vaya más rápido». El throughput sube, pero cada paso con un prefill grande frena a todas las secuencias que están generando: el TPOT promedio casi no cambia y el p99 del ITL se dispara (los tirones). En el modelo de juguete del lab, 8,192 da un TTFT de 495 ms y un hueco de 495 ms para los 72 que generaban; 2,048 da 630 ms y 193 ms. Decídelo con el barrido, mirando el p99 del ITL y no solo el promedio.",
+   "lab": {
+    "goal": "Ver paso a paso por qué continuous batching ocupa más la GPU que el batching estático, y cómo el presupuesto de tokens por paso mueve el TTFT de un prompt nuevo contra el hueco que sienten los demás.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-vllm && cd ~/lab-vllm\ncat > bus.py <<'EOF'\n# bus.py: batching estático contra continuous batching, paso a paso (solo stdlib).\n# 6 requests llegan juntos; cada una necesita n tokens de salida; hay 4 lugares en el batch.\n# En cada paso, cada secuencia del batch saca 1 token (el primero sale del paso de su prefill).\nPEDIDOS = {\"A\": 3, \"B\": 8, \"C\": 2, \"D\": 5, \"E\": 4, \"F\": 3}\nLUGARES = 4\n\ndef estatico():\n    filas, cola = [[] for _ in range(LUGARES)], list(PEDIDOS)\n    while cola:\n        grupo, cola = cola[:LUGARES], cola[LUGARES:]       # el bus sale lleno y vuelve vacío\n        largo = max(PEDIDOS[r] for r in grupo)            # espera al más lento del grupo\n        for lugar in range(LUGARES):\n            r = grupo[lugar] if lugar < len(grupo) else None\n            filas[lugar] += [f\"{r}{t + 1}\" if r and t < PEDIDOS[r] else \"·\" for t in range(largo)]\n    return filas\n\ndef continuo():\n    filas, cola = [[] for _ in range(LUGARES)], list(PEDIDOS)\n    activo, hecho = [None] * LUGARES, {}\n    while cola or any(activo):\n        for lugar in range(LUGARES):                     # en cada paso: sube el que espera\n            if activo[lugar] is None and cola:\n                r = cola.pop(0)\n                activo[lugar], hecho[r] = r, 0\n        for lugar, r in enumerate(activo):\n            if r is None:\n                filas[lugar].append(\"·\")\n                continue\n            hecho[r] += 1\n            filas[lugar].append(f\"{r}{hecho[r]}\")\n            if hecho[r] == PEDIDOS[r]:\n                activo[lugar] = None                     # baja al terminar: el lugar queda libre\n    return filas\n\nfor nombre, filas in ((\"estático\", estatico()), (\"continuo\", continuo())):\n    pasos = len(filas[0])\n    utiles = sum(c != \"·\" for f in filas for c in f)\n    print(f\"{nombre}: {pasos} pasos, {utiles} de {pasos * LUGARES} lugares-paso con trabajo ({utiles / (pasos * LUGARES):.0%})\")\n    for lugar, f in enumerate(filas):\n        print(f\"  lugar {lugar + 1}: \" + \" \".join(f\"{c:>2}\" for c in f))\n    primero = {c[0]: i + 1 for f in filas for i, c in enumerate(f) if c.endswith(\"1\") and len(c) == 2}\n    print(\"  primer token (paso):\", \" \".join(f\"{r}={primero[r]}\" for r in PEDIDOS))\nEOF\npython3 bus.py",
+      "expect": "estático: 12 pasos, 25 de 48 lugares-paso con trabajo (52%), con la grilla del lugar 1 A1 A2 A3 · · · · · E1 E2 E3 E4 y primer token E=9 F=9. continuo: 8 pasos, 25 de 32 (78%), lugar 1 A1 A2 A3 F1 F2 F3 · · y primer token E=3 F=4. Las mismas 25 unidades de trabajo, un tercio menos de pasos."
+     },
+     {
+      "cmd": "cat > trozos.py <<'EOF'\n# trozos.py: chunked prefill con un modelo de juguete del tiempo de un paso (ILUSTRATIVO, no medido):\n#   paso = 45 ms (72 decodes, ≈ el TPOT del codo del C10) + 0.075 ms por token de prefill\n#   (≈ 150 ms por 2,000 tokens, el número de ejemplo de M14).\n# Llega un prompt de 6,000 tokens sin caché mientras 72 secuencias generan.\nimport math\n\nDECODES, PROMPT = 72, 6000\n\ndef paso_ms(tokens_prefill):\n    return 45 + 0.075 * tokens_prefill\n\nprint(\" budget  pasos de prefill  TTFT del nuevo  peor hueco de los 72\")\nfor budget in (8192, 2048, 512):\n    trozo = budget - DECODES                    # primero entran los 72 decodes, el resto es prefill\n    pasos = math.ceil(PROMPT / trozo)\n    trozos = [trozo] * (pasos - 1) + [PROMPT - trozo * (pasos - 1)]\n    tiempos = [paso_ms(t) for t in trozos]\n    print(f\"{budget:>7} {pasos:>17} {sum(tiempos):>12.0f} ms {max(tiempos):>17.0f} ms\")\nprint(f\"sin el prompt nuevo: un paso de decode = {paso_ms(0):.0f} ms para los 72\")\nEOF\npython3 trozos.py",
+      "expect": "8192: 1 paso de prefill, TTFT del nuevo 495 ms y peor hueco de los 72 495 ms · 2048: 4 pasos, 630 ms y 193 ms · 512: 14 pasos, 1080 ms y 78 ms; sin el prompt nuevo, un paso de decode = 45 ms. Presupuesto chico: los que generan casi no lo sienten, el nuevo espera más."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-vllm",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Cambia PEDIDOS en bus.py (por ejemplo, B = 30) y mira cómo el estático desperdicia más mientras el continuo sigue ocupado. En trozos.py prueba DECODES = 39 (lo planeado) o PROMPT = 8000: el trade-off es el mismo y cambian los números. Los ms de trozos.py son de juguete; los de verdad salen del barrido de la sección 7.",
+    "needs": "Python 3, sin paquetes extra. Ni vLLM ni GPU.",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS 26.6.2 con Python 3.14.3, 3.13.16 y 3.9.6: salidas idénticas. bus.py simplifica (un token por paso y por secuencia, el primero en el paso del prefill); el orden de trozos.py, primero los decodes y después el prefill hasta llenar el presupuesto, es el del scheduler de vLLM V1 (v0.30.0)."
+   },
+   "links": [
+    "#m14.batching-caching",
+    "#m07.llm-servers",
+    "#m03.little",
+    "#m03.batching",
+    "#c10.serving"
+   ]
+  },
+  {
+   "id": "metricas",
+   "num": 7,
+   "title": "Medir: TTFT, TPOT/ITL, E2E, tokens/s, goodput; métricas vllm: en Prometheus; el barrido de concurrencia del C10",
+   "question": "¿Cuántos requests aguanta una réplica dentro del SLO, cómo se mide sin engañarse y qué métricas de vLLM miras en producción?",
+   "templates": [
+    {
+     "code": "vllm bench serve --backend openai-chat --endpoint /v1/chat/completions \\\n  --base-url {url} --model {nombre} --tokenizer {ruta} \\\n  --dataset-name {dataset} --num-prompts {N} --max-concurrency {c} --request-rate inf \\\n  --percentile-metrics ttft,tpot,itl,e2el --metric-percentiles 50,95,99 \\\n  --goodput ttft:{ms} tpot:{ms} --save-result --result-dir {dir} --result-filename {archivo}",
+     "note": "<b>Barrido cerrado</b>: como mucho <code>{c}</code> requests en vuelo; el siguiente sale cuando termina uno. Lo repites con varios <code>{c}</code> y te quedas con el último que cumple. Sin <code>--metric-percentiles</code> solo hay p99 (el tiempo bajo el que queda el 99 % de los requests; el default es <code>99</code>), y sin <code>--percentile-metrics</code> no hay E2E (el default es <code>ttft,tpot,itl</code>)."
+    },
+    {
+     "code": "vllm bench serve … --request-rate {λ} --burstiness 1.0",
+     "note": "<b>Barrido abierto</b>: llegadas de Poisson (al azar, con un promedio de <code>{λ}</code> por segundo), como el tráfico real. Sin <code>--max-concurrency</code>, la cola se forma en el servidor y se ve en el TTFT; el cerrado nunca deja que esa cola crezca (<b>coordinated omission</b>: el cliente deja de mandar justo cuando el servidor se frena, y esa espera nunca se mide)."
+    },
+    {
+     "code": "python3 bench/pick_concurrency.py results/sweep-c*.json --ttft-ms 1000 --tpot-ms 50 --percentile 95",
+     "note": "El lector del C10: ordena los puntos, anota las fallas de cada uno y elige el último bueno antes del primero malo. Sale con código 2 si a un JSON le falta el percentil pedido."
+    },
+    {
+     "code": "histogram_quantile(0.95, sum by (le) (rate(vllm:time_to_first_token_seconds_bucket[5m])))",
+     "note": "El p95 de toda la flota: <code>rate</code>, <code>sum by (le)</code> y recién ahí el cuantil, como en la hoja de Prometheus. Por pod: <code>sum by (le, pod)</code>. Nunca promedies los p95 de cada pod."
+    },
+    {
+     "code": "sum(rate(vllm:generation_tokens_total[5m]))                         # tokens de salida/s\nsum(rate(vllm:request_time_per_output_token_seconds_sum[5m]))\n  / sum(rate(vllm:request_time_per_output_token_seconds_count[5m]))  # TPOT medio",
+     "note": "Los counters (contadores que solo suben) llevan <code>_total</code> en Prometheus y se leen con <code>rate</code>. La media de un histograma es <code>_sum</code> ÷ <code>_count</code>; la cola (p95, p99) sale de los buckets."
+    },
+    {
+     "code": "curl -s {host}:8000/metrics | grep -E '^vllm:(num_requests_(running|waiting)|kv_cache_usage_perc|num_preemptions_total)'",
+     "note": "Lo que expone una réplica, sin Prometheus de por medio. Cada serie trae los labels <code>model_name</code> y <code>engine</code>; el PodMonitor del C10 agrega <code>pod</code> y <code>track</code>."
+    },
+    {
+     "code": "Engine 000: Avg prompt throughput: {x} tokens/s, Avg generation throughput: {y} tokens/s, Running: {r} reqs, Waiting: {w} reqs, GPU KV cache usage: {k}%, Prefix cache hit rate: {h}%",
+     "note": "La línea de estadísticas que vLLM escribe en su log cada 10 s (<code>VLLM_LOG_STATS_INTERVAL</code>; se apaga con <code>--disable-log-stats</code>). Si en ese intervalo hubo preemptions, agrega <code>Preemptions: N</code> antes del KV: en V1 es el único rastro en el log, porque el scheduler no escribe una línea por cada preemption. Con la réplica ociosa, la línea pasa a DEBUG y no aparece."
+    }
+   ],
+   "formulas": [
+    "\\text{TTFT} = t_{\\text{primer token}} - t_{\\text{llegada}} \\qquad \\text{E2E} = t_{\\text{último token}} - t_{\\text{llegada}}",
+    "\\text{TPOT} = \\frac{\\text{E2E} - \\text{TTFT}}{n_{\\text{out}} - 1} \\quad (n_{\\text{out}} > 1) \\qquad \\text{ITL}_k = t_{k+1} - t_k",
+    "\\text{E2E} \\approx \\text{TTFT} + (n_{\\text{out}} - 1) \\times \\text{TPOT} = 0.56 + 249 \\times 0.0455 = 11.89\\ \\text{s} \\quad (c = 72)",
+    "\\lambda = \\frac{c}{W} = \\frac{72}{11.89\\ \\text{s}} = 6.06\\ \\text{req/s} \\qquad \\text{tokens/s} = \\lambda \\times n_{\\text{out}} = 6.06 \\times 250 \\approx 1{,}514",
+    "\\text{goodput} = \\frac{\\#\\{\\text{requests con TTFT} \\le 1\\ \\text{s y TPOT} \\le 50\\ \\text{ms}\\}}{\\text{duración}} = 5.75\\ \\text{req/s} = 95\\,\\% \\text{ de } 6.06",
+    "\\text{planeado} = 0.70 \\times 6.06 = 4.24\\ \\text{req/s por réplica}"
+   ],
+   "vars": [
+    [
+     "TTFT",
+     "time to first token: de que llega el request al primer token",
+     "p95 ≤ 1 s (el SLO, la meta de servicio, medido en el gateway)"
+    ],
+    [
+     "TPOT",
+     "time per output token: el promedio entre tokens de un request, sin contar el primero",
+     "p95 ≤ 50 ms"
+    ],
+    [
+     "ITL",
+     "inter-token latency: el hueco entre dos tokens seguidos; el TPOT es su promedio dentro de un request",
+     "p99 109 ms a c = 72 (fixtures)"
+    ],
+    [
+     "E2E",
+     "end-to-end: el request completo",
+     "≈ 11.9 s a c = 72"
+    ],
+    [
+     "n_out",
+     "tokens de salida del request (usage.completion_tokens)",
+     "250, con --ignore-eos"
+    ],
+    [
+     "c",
+     "requests en vuelo (--max-concurrency)",
+     "16 … 96"
+    ],
+    [
+     "λ",
+     "requests por segundo completados (request_throughput)",
+     "6.06 a c = 72"
+    ],
+    [
+     "W",
+     "segundos que dura cada request",
+     "11.89"
+    ],
+    [
+     "goodput",
+     "requests por segundo que cumplen todos los SLOs, uno por uno (request_goodput)",
+     "5.75"
+    ],
+    [
+     "{url} · {nombre} · {ruta}",
+     "la réplica · su --served-model-name · el tokenizer local",
+     "http://localhost:8000 · chat-70b-fp8-2026-09-28 · /models/chat-70b-fp8-2026-09-28"
+    ],
+    [
+     "{dataset}",
+     "de dónde salen los prompts",
+     "prefix_repetition: 3 prefijos de 1,000 + 1,000 propios, 250 de salida"
+    ],
+    [
+     "{N}",
+     "requests por punto",
+     "1,000 (con menos de 500, el p95 es ruido)"
+    ],
+    [
+     "{ms}",
+     "umbrales del SLO para el goodput, en ms",
+     "ttft:1000 tpot:50"
+    ],
+    [
+     "{λ}",
+     "tasa del barrido abierto",
+     "4.2 (lo planeado)"
+    ],
+    [
+     "{dir} · {archivo}",
+     "dónde guardar cada JSON",
+     "results · sweep-c072.json"
+    ],
+    [
+     "{x} · {y} · {r} · {w} · {k} · {h}",
+     "tokens/s de prompt y de generación del intervalo · requests corriendo · esperando · % del KV ocupado · % de aciertos del prefix cache",
+     "Running: 72 reqs con el tope del gateway lleno"
+    ]
+   ],
+   "pieces": [
+    [
+     "vllm bench serve",
+     "El cliente de carga de vLLM: manda requests de verdad a la API y mide del lado del cliente.",
+     "viene con vLLM: corre donde lo tengas instalado"
+    ],
+    [
+     "--max-concurrency",
+     "Barrido cerrado: tope de requests en vuelo. Lo que un request espera turno en el cliente no entra en su TTFT: v0.30 lo guarda aparte (la lista queue_times del JSON; sus percentiles, solo si agregas client_queue_time a --percentile-metrics).",
+     "16, 32, 48, 64, 72, 80, 96"
+    ],
+    [
+     "--request-rate",
+     "inf (default): todos salen en t = 0 y los frena --max-concurrency. Un número: llegadas de Poisson (con --burstiness 1).",
+     "inf en el cerrado; 4.2 en el abierto"
+    ],
+    [
+     "--dataset-name prefix_repetition",
+     "Prompts sintéticos con prefijos compartidos, para que el prefix caching pese como en producción.",
+     "3 prefijos, 1,000 + 1,000 tokens, 250 de salida"
+    ],
+    [
+     "--ignore-eos",
+     "Que cada request genere sus 250 tokens aunque el modelo quiera parar.",
+     "sin esto, el texto al azar corta en largos raros"
+    ],
+    [
+     "--percentile-metrics · --metric-percentiles",
+     "Qué métricas y qué percentiles van al JSON. Defaults: ttft,tpot,itl y 99.",
+     "ttft,tpot,itl,e2el y 50,95,99"
+    ],
+    [
+     "--goodput ttft:1000 tpot:50",
+     "Cuenta los requests que cumplen todos los umbrales (en ms), uno por uno.",
+     "request_goodput = 5.75 a c = 72"
+    ],
+    [
+     "--save-result",
+     "Un JSON plano por corrida: request_throughput, output_throughput, request_goodput, mean_, median_, std_ y p<P>_ (uno por percentil pedido) de cada métrica, max_concurrency, request_rate…",
+     "sweep-c072.json"
+    ],
+    [
+     "TTFT de vllm bench",
+     "Desde antes del POST hasta el primer chunk con choices (cuenta el del rol).",
+     "incluye red, cola y prefill"
+    ],
+    [
+     "TPOT de vllm bench",
+     "(latencia − TTFT) ÷ (tokens − 1), por request; los de 1 token no entran. Los tokens salen de usage.",
+     "promedio por request"
+    ],
+    [
+     "ITL de vllm bench",
+     "Todos los huecos entre chunks de todos los requests, en una sola lista.",
+     "su p99 muestra los tirones"
+    ],
+    [
+     "vllm:time_to_first_token_seconds",
+     "Histograma: de que el request llega al motor hasta el primer token. No ve la cola del gateway ni la red.",
+     "llm:vllm_ttft_p95:rate5m, por pod"
+    ],
+    [
+     "vllm:inter_token_latency_seconds",
+     "Histograma del ITL. Antes se llamaba vllm:time_per_output_token_seconds: obsoleta desde v0.11, oculta en v0.12 y borrada en v0.15.",
+     "bordes 0.01, 0.025, 0.05, 0.075… s"
+    ],
+    [
+     "vllm:request_time_per_output_token_seconds",
+     "Histograma del TPOT de cada request: su tiempo de decode ÷ (tokens − 1).",
+     "la contraparte del SLO"
+    ],
+    [
+     "vllm:e2e_request_latency_seconds · vllm:request_queue_time_seconds",
+     "El request completo y lo que esperó turno dentro de vLLM. También hay request_prefill_time_seconds y request_decode_time_seconds.",
+     "¿la espera está en vLLM o antes?"
+    ],
+    [
+     "vllm:num_requests_running · vllm:num_requests_waiting",
+     "Gauges: el batch y la cola de la réplica, ahora.",
+     "KVCacheSaturation; absent() en LLMCapacityHeadroomLow"
+    ],
+    [
+     "vllm:kv_cache_usage_perc",
+     "Gauge de 0 a 1: el KV cache ocupado. Antes vllm:gpu_cache_usage_perc (oculto en v0.11, borrado en v0.12).",
+     "> 0.95 con waiting > 0: KVCacheSaturation"
+    ],
+    [
+     "vllm:num_preemptions_total · vllm:request_num_preemptions",
+     "Counter de preemptions (eventos) e histograma por request; su primer bucket es le=\"1\" y junta 0 y 1.",
+     "LLMPreemptionsRising: eventos ÷ requests > 0.05"
+    ],
+    [
+     "vllm:prompt_tokens_total · vllm:generation_tokens_total",
+     "Counters de tokens de entrada y de salida.",
+     "tokens/s de la réplica, con rate()"
+    ],
+    [
+     "vllm:prefix_cache_queries_total · vllm:prefix_cache_hits_total",
+     "Counters en tokens: hits ÷ queries = la tasa de aciertos del prefix caching.",
+     "cae cuando alguien cambia un system prompt"
+    ],
+    [
+     "vllm:request_success_total",
+     "Requests terminados, con el label finished_reason (stop, length, abort…).",
+     "el denominador de las preemptions por request"
+    ],
+    [
+     "vllm:admission_rejections_total",
+     "Nueva en v0.32: requests rechazados con 503 por un tope de cola de vLLM, con el label reason (max_num_queued_reqs o max_num_queued_tokens). En v0.30 los topes ya existen, pero esta métrica no.",
+     "el pin del C10 no la tiene"
+    ],
+    [
+     "la línea de estadísticas del log",
+     "Cada 10 s: tokens/s de prompt y de generación, Running, Waiting, % de KV y aciertos del prefix cache; Preemptions: N solo si hubo.",
+     "en V1, el scheduler no escribe una línea por preemption"
+    ]
+   ],
+   "example": {
+    "title": "El barrido del C10: run_sweep.sh y el lector que elige la concurrencia",
+    "lang": "bash",
+    "code": "for c in 16 32 48 64 72 80 96; do  # alrededor del codo esperado (≈ 40 planeado × 1/0.7 ≈ 57, y más allá)\n  vllm bench serve \\\n    --backend openai-chat \\\n    --endpoint /v1/chat/completions \\\n    --base-url \"$BASE_URL\" \\\n    --model \"$MODEL\" \\\n    --tokenizer \"$TOKENIZER\" \\\n    `# Mezcla sintética del caso: 3 productos (3 prefijos) × ≈ 1,000 tokens compartidos + ≈ 1,000 propios,` \\\n    `# 250 de salida. Los prompts se barajan (default). Mejor aún: reproducir prompts reales redactados.` \\\n    --dataset-name prefix_repetition \\\n    --prefix-repetition-num-prefixes 3 \\\n    --prefix-repetition-prefix-len 1000 \\\n    --prefix-repetition-suffix-len 1000 \\\n    --prefix-repetition-output-len 250 \\\n    `# ignore_eos: que cada request genere sus 250 tokens; sin esto, texto aleatorio corta en largos raros.` \\\n    --ignore-eos \\\n    --num-prompts \"$NUM_PROMPTS\" \\\n    `# Barrido CERRADO: hasta c requests en vuelo, el siguiente sale cuando termina uno.` \\\n    --max-concurrency \"$c\" \\\n    --request-rate inf \\\n    `# El default de --metric-percentiles es \"99\": sin esto no hay p95 en el JSON.` \\\n    --percentile-metrics ttft,tpot,itl,e2el \\\n    --metric-percentiles 50,95,99 \\\n    `# goodput: req/s que cumplen TTFT ≤ 1,000 ms Y TPOT ≤ 50 ms uno por uno (valores en ms).` \\\n    --goodput ttft:1000 tpot:50 \\\n    --save-result \\\n    --result-dir \"$OUT\" \\\n    --result-filename \"sweep-c$(printf '%03d' \"$c\").json\"\ndone\n\n# Elegir: el último punto que cumple antes del primero que no, y la capacidad planeada al 70 %.\npython \"$(dirname \"$0\")/pick_concurrency.py\" \"$OUT\"/sweep-c*.json --ttft-ms 1000 --tpot-ms 50 --percentile 95",
+    "source": "reference/c10/bench/run_sweep.sh (líneas 18–49)",
+    "notes": [
+     "Contra UNA réplica (port-forward a un pod), no contra el gateway: se mide la unidad que escala. Y con la mezcla del caso, 3 prefijos de 1,000 tokens + 1,000 propios y 250 de salida: con otra mezcla, el número no sirve.",
+     "Cada flag está en la página de <code>vllm bench serve</code> de v0.30.0. El script esquiva dos trampas: <code>--metric-percentiles</code> vale <code>99</code> por defecto (sin <code>50,95,99</code> no hay <code>p95_ttft_ms</code> y <code>pick_concurrency.py</code> se niega a adivinar) y, sin <code>--ignore-eos</code>, las respuestas cortan en largos al azar.",
+     "<code>pick_concurrency.py</code> elige el último punto bueno antes del primero malo: si 80 falla y 96 «cumple», 96 es ruido (pocos requests, un warmup, otro proceso en la GPU) y lo avisa. Con los fixtures elige 72: 6.06 req/s, planeado al 70 % = 4.24. De ahí sale el ≈ 4.2 del plan de flota.",
+     "Los fixtures (<code>bench/tests/fixtures/sweep-c*.json</code>) son SINTÉTICOS: claves reales de v0.30.0 (<code>request_throughput</code>, <code>output_throughput</code>, <code>request_goodput</code>, <code>p95_ttft_ms</code>…) con números inventados para que el codo caiga en ≈ 6 rps. Los 12 tests de <code>test_pick_concurrency.py</code> pasan.",
+     "Un JSON real de v0.30.0 con este comando trae más claves que los fixtures: las de E2E (<code>p95_e2el_ms</code> y compañía, que el script sí pide), <code>max_output_tokens_per_s</code>, <code>max_concurrent_requests</code>, <code>rtfx</code> (0 fuera de los benchmarks de audio) y dos listas por request que quedan aunque no pidas <code>--save-detailed</code>: <code>latencies</code> y <code>queue_times</code>. Los percentiles de <code>client_queue_time</code> solo salen si los pides en <code>--percentile-metrics</code>. El lector solo lee las que usa.",
+     "Las líneas 51–53 lo dicen: después se confirma con un barrido ABIERTO a la tasa planeada (<code>--request-rate 4.2</code>, sin <code>--max-concurrency</code>), porque el cerrado nunca deja que se forme la cola que en producción rompe el TTFT."
+    ]
+   },
+   "figure": {
+    "kind": "latency",
+    "caption": "El barrido de una réplica con los fixtures del C10: SINTÉTICOS (números inventados con la forma típica y las claves reales de vLLM v0.30.0), no una medición. Hasta 72 en vuelo se cumplen TTFT p95 ≤ 1 s y TPOT p95 ≤ 50 ms; en 80 se rompen los dos, y en 96 hay 5 % más de requests/s que en 72 con 2.5× el TTFT p95.",
+    "data": {
+     "source": "reference/c10/bench/tests/fixtures/sweep-c*.json (sintéticos)",
+     "x_label": "requests en vuelo (--max-concurrency)",
+     "points": [
+      {
+       "c": 16,
+       "rps": 2.5991,
+       "goodput_rps": 2.5991,
+       "output_tok_s": 649.77,
+       "ttft_p50_ms": 162.0,
+       "ttft_p95_ms": 310.0,
+       "ttft_p99_ms": 418.5,
+       "tpot_p50_ms": 23.76,
+       "tpot_p95_ms": 27.0,
+       "tpot_p99_ms": 29.16,
+       "itl_p95_ms": 31.05,
+       "itl_p99_ms": 59.4,
+       "ok": true
+      },
+      {
+       "c": 32,
+       "rps": 4.0105,
+       "goodput_rps": 4.0105,
+       "output_tok_s": 1002.63,
+       "ttft_p50_ms": 234.0,
+       "ttft_p95_ms": 450.0,
+       "ttft_p99_ms": 607.5,
+       "tpot_p50_ms": 30.69,
+       "tpot_p95_ms": 35.0,
+       "tpot_p99_ms": 37.8,
+       "itl_p95_ms": 40.25,
+       "itl_p99_ms": 77.0,
+       "ok": true
+      },
+      {
+       "c": 48,
+       "rps": 4.882,
+       "goodput_rps": 4.8332,
+       "output_tok_s": 1220.5,
+       "ttft_p50_ms": 333.0,
+       "ttft_p95_ms": 660.0,
+       "ttft_p99_ms": 891.0,
+       "tpot_p50_ms": 37.62,
+       "tpot_p95_ms": 42.0,
+       "tpot_p99_ms": 45.36,
+       "itl_p95_ms": 48.3,
+       "itl_p99_ms": 92.4,
+       "ok": true
+      },
+      {
+       "c": 64,
+       "rps": 5.7158,
+       "goodput_rps": 5.5443,
+       "output_tok_s": 1428.95,
+       "ttft_p50_ms": 441.0,
+       "ttft_p95_ms": 860.0,
+       "ttft_p99_ms": 1161.0,
+       "tpot_p50_ms": 42.57,
+       "tpot_p95_ms": 47.0,
+       "tpot_p99_ms": 50.76,
+       "itl_p95_ms": 54.05,
+       "itl_p99_ms": 103.4,
+       "ok": true
+      },
+      {
+       "c": 72,
+       "rps": 6.0558,
+       "goodput_rps": 5.753,
+       "output_tok_s": 1513.94,
+       "ttft_p50_ms": 504.0,
+       "ttft_p95_ms": 970.0,
+       "ttft_p99_ms": 1309.5,
+       "tpot_p50_ms": 45.05,
+       "tpot_p95_ms": 49.6,
+       "tpot_p99_ms": 53.57,
+       "itl_p95_ms": 57.04,
+       "itl_p99_ms": 109.12,
+       "ok": true
+      },
+      {
+       "c": 80,
+       "rps": 6.1915,
+       "goodput_rps": 5.0151,
+       "output_tok_s": 1547.87,
+       "ttft_p50_ms": 648.0,
+       "ttft_p95_ms": 1340.0,
+       "ttft_p99_ms": 1809.0,
+       "tpot_p50_ms": 48.51,
+       "tpot_p95_ms": 53.8,
+       "tpot_p99_ms": 58.1,
+       "itl_p95_ms": 61.87,
+       "itl_p99_ms": 118.36,
+       "ok": false
+      },
+      {
+       "c": 96,
+       "rps": 6.3813,
+       "goodput_rps": 2.6801,
+       "output_tok_s": 1595.32,
+       "ttft_p50_ms": 990.0,
+       "ttft_p95_ms": 2400.0,
+       "ttft_p99_ms": 3240.0,
+       "tpot_p50_ms": 55.44,
+       "tpot_p95_ms": 64.0,
+       "tpot_p99_ms": 69.12,
+       "itl_p95_ms": 73.6,
+       "itl_p99_ms": 140.8,
+       "ok": false
+      }
+     ],
+     "slo": {
+      "ttft_p95_ms": 1000,
+      "tpot_p95_ms": 50
+     },
+     "chosen": {
+      "c": 72,
+      "rps": 6.06,
+      "planned_rps": 4.24,
+      "planned_utilization": 0.7
+     },
+     "marks": [
+      {
+       "c": 72,
+       "label": "el codo: el último punto que cumple"
+      },
+      {
+       "c": 80,
+       "label": "TTFT y TPOT fuera"
+      }
+     ],
+     "note": "pasado el codo, más concurrencia casi no da throughput (6.06 → 6.38 req/s) y sí da cola (TTFT p95 970 → 2,400 ms)"
+    }
+   },
+   "memo": "Cómo recordarla: <b>TTFT es cuánto tardas en empezar a hablar; TPOT, a qué ritmo hablas; E2E, cuánto dura todo</b>. Para el plan de capacidad, sube la concurrencia de a poco hasta que el primer SLO se rompa: el punto anterior es la capacidad (el codo), y planeas al 70 % de eso. En producción, con los histogramas: <code>rate</code>, <code>sum by (le)</code> y recién ahí el cuantil.",
+   "trap": "Trampa: creerle al p99 de un barrido cerrado. Cuando la réplica se frena, el cliente también deja de mandar, y la cola que en producción rompe el TTFT nunca se forma (coordinated omission); además, lo que un request espera turno en el cliente no entra en su TTFT. Por eso el C10 confirma con un barrido abierto a 4.2 req/s. La otra: el TPOT p95 puede estar en 49.6 ms con el ITL p99 en 109 ms (c = 72, en los fixtures). El promedio por request esconde los tirones, y una alerta que solo mira el TPOT no los ve.",
+   "lab": {
+    "goal": "Leer el barrido del C10 como lo hace pick_concurrency.py (comprobar Little y el throughput, y elegir el codo) y ver por qué un TPOT que cumple el SLO puede esconder tirones que el ITL sí muestra.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-vllm/results\ncp apps/ml-system-design/reference/c10/bench/tests/fixtures/sweep-c*.json ~/lab-vllm/results/\ncp apps/ml-system-design/reference/c10/bench/tests/fixtures/p99-only.json apps/ml-system-design/reference/c10/bench/pick_concurrency.py ~/lab-vllm/\ncd ~/lab-vllm && ls results",
+      "expect": "sweep-c016.json, sweep-c032.json … sweep-c096.json: los siete puntos sintéticos del barrido. Este paso se corre desde la raíz del repo del curso."
+     },
+     {
+      "cmd": "cat > barrido.py <<'EOF'\n# barrido.py: lee los JSON de vllm bench serve --save-result (uno por concurrencia) y comprueba\n# Little, el throughput y el codo con los SLOs del C10 (solo stdlib).\nimport json, sys\n\nTTFT_SLO, TPOT_SLO = 1000, 50                    # ms, p95 (los del C10)\npuntos = sorted((json.load(open(f)) for f in sys.argv[1:]), key=lambda d: d[\"max_concurrency\"])\nprint(\"   c  req/s  W=c/λ (s)  TTFT+249·TPOT (s)  tok/s  λ·250  TTFT p95  TPOT p95  goodput\")\nelegido, roto = None, False\nfor d in puntos:\n    c, lam = d[\"max_concurrency\"], d[\"request_throughput\"]\n    n_out = d[\"total_output_tokens\"] / d[\"completed\"]                 # 250 tokens por request\n    w_little = c / lam                                                # Little: W = L / λ\n    w_medido = (d[\"mean_ttft_ms\"] + (n_out - 1) * d[\"mean_tpot_ms\"]) / 1000\n    ok = d[\"p95_ttft_ms\"] <= TTFT_SLO and d[\"p95_tpot_ms\"] <= TPOT_SLO\n    roto = roto or not ok             # después del primer punto malo no se elige otro: sería ruido\n    if ok and not roto:\n        elegido = d\n    print(f\"{c:>4} {lam:>6.2f} {w_little:>10.2f} {w_medido:>18.2f} {d['output_throughput']:>6.0f} \"\n          f\"{lam * n_out:>6.0f} {d['p95_ttft_ms']:>6.0f} ms {d['p95_tpot_ms']:>5.1f} ms \"\n          f\"{d['request_goodput'] / lam:>7.0%}  {'ok' if ok else 'fuera'}\")\nlam = elegido[\"request_throughput\"]\nprint(f\"codo: c = {elegido['max_concurrency']} → {lam:.2f} req/s; planeado al 70 %: {lam * 0.7:.2f} req/s por réplica\")\nEOF\npython3 barrido.py results/sweep-c*.json",
+      "expect": "Siete filas: W = c/λ y TTFT + 249 × TPOT dan lo mismo en cada una (6.16, 7.98 … 15.04 s: los fixtures se armaron con Little), tok/s = λ × 250, el goodput baja de 100 % a 95 % en 72 y a 42 % en 96, y 80 y 96 salen fuera. Al final: codo: c = 72 → 6.06 req/s; planeado al 70 %: 4.24 req/s por réplica."
+     },
+     {
+      "cmd": "python3 pick_concurrency.py results/sweep-c*.json --ttft-ms 1000 --tpot-ms 50 --percentile 95\npython3 pick_concurrency.py p99-only.json; echo \"exit=$?\"",
+      "expect": "La misma elección: ← elegida en 72, capacidad: 6.06 req/s a x=72; planeada al 70%: 4.24 req/s por réplica y goodput: 95% de los requests cumplen el SLO uno por uno. Con p99-only.json: error: p99-only.json: faltan ['p95_ttft_ms', 'p95_tpot_ms'] (hay ['p99_ttft_ms']) y la orden de correr vllm bench serve con --metric-percentiles 50,95,99, con exit=2. Es lo que pasa si olvidas --metric-percentiles."
+     },
+     {
+      "cmd": "cat > tirones.py <<'EOF'\n# tirones.py: por qué el TPOT puede cumplir el SLO mientras la persona siente tirones (solo stdlib).\n# 100 requests de 250 tokens = 249 huecos cada uno. Un hueco normal dura ≈ 43 ms; un paso que trae\n# un prefill grande, ≈ 150 ms. Las cuentas son las de vllm bench serve: TPOT por request (promedio de\n# sus huecos) e ITL con los huecos de todos los requests juntos. Números de juguete, no medidos.\nimport random, statistics\n\ndef pct(xs, q):                                  # percentil con interpolación lineal, como numpy\n    xs = sorted(xs)\n    k = (len(xs) - 1) * q / 100\n    i = int(k)\n    return xs[i] + (xs[min(i + 1, len(xs) - 1)] - xs[i]) * (k - i)\n\ndef barrido(frac_saltos, semilla=7):\n    rnd = random.Random(semilla)\n    tpots, itl = [], []\n    for _ in range(100):\n        huecos = [rnd.gauss(150, 20) if rnd.random() < frac_saltos else max(30.0, rnd.gauss(43, 3))\n                  for _ in range(249)]\n        tpots.append(statistics.fmean(huecos))  # = (E2E − TTFT) / (250 − 1)\n        itl += huecos\n    return tpots, itl\n\nfor frac in (0.02, 0.06):\n    tpots, itl = barrido(frac)\n    veredicto = \"cumple\" if pct(tpots, 95) <= 50 else \"no cumple\"\n    print(f\"{frac:.0%} de pasos con prefill: TPOT p50 {pct(tpots, 50):.1f} · p95 {pct(tpots, 95):.1f} ms ({veredicto} 50 ms)\"\n          f\" | ITL p50 {pct(itl, 50):.1f} · p95 {pct(itl, 95):.1f} · p99 {pct(itl, 99):.1f} ms\")\nEOF\npython3 tirones.py",
+      "expect": "Con 2 % de pasos con prefill: TPOT p50 45.0 · p95 47.0 ms (cumple 50 ms) e ITL p50 43.1 · p95 48.6 · p99 150.6 ms. Con 6 %: TPOT p95 51.9 ms (no cumple) e ITL p95 130.6 · p99 168.8 ms. El TPOT promedia los tirones dentro de cada request; el ITL junta los huecos de todos y su p99 los muestra, como en los fixtures (TPOT p95 49.6 ms con ITL p99 109 ms en c = 72)."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-vllm",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Si cp no encuentra los fixtures, corre el paso 1 desde la raíz del repo del curso. Para ver moverse el codo, prueba un SLO más exigente: python3 pick_concurrency.py results/sweep-c*.json --ttft-ms 700 --tpot-ms 45 elige 48 (3.42 req/s planeados). En tirones.py, cambia 150 por 300 (prefills más largos) y mira qué percentil se entera primero.",
+    "needs": "Python 3 sin paquetes extra y el repo del curso (el paso 1 copia los fixtures y pick_concurrency.py). Ni vLLM ni GPU.",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS 26.6.2 con Python 3.14.3, 3.13.16 y 3.9.6: salidas idénticas (tirones.py usa una semilla fija). Las cuentas de tirones.py son las de vllm/benchmarks/serve.py en v0.30.0: TPOT por request y la lista de ITL de todos los requests juntos, con percentiles interpolados. Los 12 tests de bench/tests también pasan (pytest 9.1.1, Python 3.14.3)."
+   },
+   "links": [
+    "#m14.prefill-decode",
+    "#m03.load-testing",
+    "#m03.percentiles",
+    "#m12.prometheus-grafana",
+    "#c10.monitoreo",
+    "#c10.archivos"
+   ]
+  },
+  {
+   "id": "paralelismo",
+   "num": 8,
+   "title": "Paralelismo: tensor, pipeline y réplicas; NVLink contra PCIe; cuándo un 70B necesita TP",
+   "question": "¿Cuándo hay que partir un modelo entre GPUs, de qué formas se parte y por qué el C10 usa TP=2 dentro de un nodo, y no una GPU por réplica ni un TP más grande?",
+   "templates": [
+    {
+     "code": "vllm serve {modelo} --tensor-parallel-size {tp}",
+     "note": "<b>Tensor parallelism</b> (TP): cada capa se parte entre <code>{tp}</code> GPUs; cada una tiene un pedazo de cada matriz y, al final de la atención y del MLP (las dos partes de cada capa), juntan resultados con un <b>all-reduce</b> (una suma entre todas las GPUs). Son dos por capa: con 80 capas, 160 por paso. Necesita una conexión muy rápida entre GPUs: <b>NVLink</b>, el enlace directo entre las GPUs de un mismo servidor."
+    },
+    {
+     "code": "vllm serve {modelo} --tensor-parallel-size {gpus_por_nodo} --pipeline-parallel-size {nodos} \\\n  --distributed-executor-backend ray",
+     "note": "<b>Pipeline parallelism</b> (PP): grupos de capas en GPUs distintas (etapas); entre etapas viajan las activaciones de cada token (en vLLM, dos vectores: hidden_states y residual), una vez por paso. Para un modelo que no cabe en un nodo, la regla de la documentación es TP = GPUs por nodo y PP = número de nodos. También sirve dentro de un nodo sin NVLink."
+    },
+    {
+     "code": "vllm serve {modelo} --data-parallel-size {dp} --tensor-parallel-size {tp}    # dp × tp GPUs",
+     "note": "<b>Data parallelism</b> (DP): copias completas e independientes, cada una con su KV cache. Con <code>--data-parallel-size</code>, un solo <code>vllm serve</code> reparte los requests entre las copias; para un modelo denso es lo mismo que N servidores separados. El C10 usa réplicas de Kubernetes: 16 pods de TP=2."
+    },
+    {
+     "code": "resources: {limits: {nvidia.com/gpu: {tp × pp}}}    # + nodeSelector a un nodo con NVLink",
+     "note": "Un pod pide TP × PP GPUs, y todas tienen que estar en el mismo nodo. En el C10: 2, en un p5.48xlarge (8 H100 unidas por NVSwitch: cualquier par sirve)."
+    },
+    {
+     "code": "nvidia-smi topo -m               # NV# = NVLink; PIX, PXB, PHB, NODE, SYS = caminos por PCIe\nNCCL_DEBUG=INFO vllm serve …     # por dónde va cada canal: P2P, SHM o NET",
+     "note": "Antes de culpar al modelo, mira el cable. En H100 SXM con NVSwitch, <code>topo -m</code> muestra <code>NV18</code> entre cada par (así sale en un DGX H100). Con <code>NCCL_DEBUG=INFO</code>, NCCL (la librería de NVIDIA que comunica GPUs) dice qué transporte usa: P2P es directo entre GPUs (por NVLink o PCIe), SHM pasa por la memoria de la CPU (el host) y <code>NET/Socket</code> es TCP, lento para TP entre nodos."
+    }
+   ],
+   "formulas": [
+    "\\text{pesos por GPU} = \\frac{70.6\\ \\text{GB}}{\\text{TP} \\times \\text{PP}} \\qquad \\text{TP} = 2:\\ 35.3\\ \\text{GB}",
+    "\\text{1 GPU: } 0.90 \\times 80 - 70.6 - 2.5 = -1.1\\ \\text{GB} \\Rightarrow \\text{no cabe} \\qquad \\text{TP} = 2:\\ 0.90 \\times 160 - 70.6 - 5 = 68.4\\ \\text{GB de KV}",
+    "\\text{KV heads por GPU} = \\max\\left(1, \\left\\lfloor \\frac{8}{\\text{TP}} \\right\\rfloor\\right) \\qquad 64 \\bmod \\text{TP} = 0 \\Rightarrow \\text{TP} \\in \\{1, 2, 4, 8\\} \\text{ en un nodo de 8}",
+    "\\text{all-reduce por paso (TP=2)} = 2 \\times 80 \\times n_{\\text{tokens}} \\times 8{,}192 \\times 2\\ \\text{B} \\qquad n = 72:\\ 189\\ \\text{MB} \\qquad n = 8{,}192:\\ 21.5\\ \\text{GB}",
+    "t \\approx \\frac{\\text{bytes}}{\\text{ancho de banda}} \\qquad 189\\ \\text{MB}:\\ 0.42\\ \\text{ms por NVLink (450 GB/s)} \\;\\text{contra}\\; 2.9\\ \\text{ms por PCIe Gen5 (64 GB/s)}",
+    "\\text{GPUs} = \\text{DP} \\times \\text{TP} \\times \\text{PP} \\qquad 16 \\times 2 \\times 1 = 32 = 4 \\text{ nodos de } 8"
+   ],
+   "vars": [
+    [
+     "{tp}",
+     "GPUs que se reparten cada capa",
+     "2"
+    ],
+    [
+     "{gpus_por_nodo} · {nodos}",
+     "para un modelo que no cabe en un nodo: TP y PP",
+     "no aplica al C10"
+    ],
+    [
+     "{dp}",
+     "copias completas dentro de un vllm serve",
+     "el C10 usa 16 pods en vez de --data-parallel-size"
+    ],
+    [
+     "TP · PP · DP",
+     "tensor, pipeline y data parallelism",
+     "2 · 1 · 16 réplicas"
+    ],
+    [
+     "n_tokens",
+     "tokens del paso",
+     "72 decodes, o un paso de 8,192"
+    ],
+    [
+     "8,192 · 2 B",
+     "hidden size del modelo (el largo del vector de cada token) · bytes por valor en BF16 (las activaciones)",
+     "config.json de Llama 3.3 70B"
+    ],
+    [
+     "450 GB/s · 64 GB/s",
+     "ancho de banda por sentido: el NVLink de la H100 SXM (900 sumando los dos) y PCIe Gen5 x16 (128)",
+     "hoja de datos de NVIDIA"
+    ],
+    [
+     "2.5 GB",
+     "runtime y activaciones por GPU",
+     "≈ 5 GB por réplica (estimación del C10)"
+    ]
+   ],
+   "pieces": [
+    [
+     "--tensor-parallel-size (-tp)",
+     "Parte cada capa entre GPUs. Default 1.",
+     "2"
+    ],
+    [
+     "--pipeline-parallel-size (-pp)",
+     "Parte el modelo por capas, en etapas. Default 1.",
+     "1"
+    ],
+    [
+     "--data-parallel-size (-dp)",
+     "Copias del modelo dentro de un mismo servidor. Default 1.",
+     "1 por pod; 16 pods"
+    ],
+    [
+     "regla de TP",
+     "Las heads de atención (64) tienen que dividirse por TP; si no: «Total number of attention heads (64) must be divisible by tensor parallel size (3).»",
+     "TP ∈ {1, 2, 4, 8} en un nodo"
+    ],
+    [
+     "KV heads por GPU",
+     "Con TP, cada GPU guarda max(1, 8 ÷ TP) KV heads: con TP=2, 4 de 8, o sea 160 KiB por token por GPU. Con más TP que KV heads, se replican.",
+     "320 KiB por token entre las dos"
+    ],
+    [
+     "all-reduce",
+     "La suma entre GPUs al final de la atención y del MLP de cada capa: 160 por paso. Cada paso espera a la GPU más lenta.",
+     "lo hace NCCL o, con mensajes chicos, un kernel más rápido (de vLLM, FlashInfer o PyTorch)"
+    ],
+    [
+     "--disable-custom-all-reduce",
+     "Apaga el kernel de all-reduce propio de vLLM. Default False. En v0.30 quedan los de FlashInfer y PyTorch: para que todo vaya por NCCL, también VLLM_ALLREDUCE_USE_FLASHINFER=0 y VLLM_ALLREDUCE_USE_SYMM_MEM=0.",
+     "útil para descartar un bug"
+    ],
+    [
+     "NCCL",
+     "La librería de NVIDIA para comunicar GPUs (all-reduce y demás). Dentro del nodo usa NVLink si lo hay y crea segmentos en /dev/shm.",
+     "sin espacio: failed to extend /dev/shm/nccl-…"
+    ],
+    [
+     "NVLink · NVSwitch",
+     "Conexión directa entre GPUs: 900 GB/s en la H100 SXM sumando los dos sentidos, ≈ 7× PCIe Gen5. NVSwitch une las 8 GPUs de un nodo.",
+     "p5.48xlarge: cualquier par sirve"
+    ],
+    [
+     "PCIe",
+     "El bus de la tarjeta: 128 GB/s en Gen5 x16, sumando sentidos. Con TP=2, el all-reduce de un paso de decode le suma ≈ 3 ms a un piso de ≈ 10.5; el de un prefill de 8,192, ≈ 0.34 s.",
+     "GPUs sin NVLink (L40S): la doc sugiere PP"
+    ],
+    [
+     "/dev/shm",
+     "Memoria compartida: NCCL crea ahí sus segmentos y vLLM la usa para repartir cada paso entre los procesos de la réplica.",
+     "emptyDir Memory de 16Gi"
+    ],
+    [
+     "--distributed-executor-backend",
+     "mp (procesos de Python) o ray. Por defecto, mp en un nodo; para varios nodos la doc usa ray, o mp con --nnodes y --node-rank.",
+     "mp: todo dentro de un pod"
+    ],
+    [
+     "PP y las burbujas",
+     "Las etapas van en serie para cada token; los ratos en que una etapa espera vacía son las burbujas. vLLM las tapa con tantos batches en vuelo como etapas.",
+     "piso del token ≈ 2 × 10.5 ms con PP=2"
+    ],
+    [
+     "TP entre nodos",
+     "Cada paso cruza la red 160 veces: por NET/Socket (TCP) es muy lento. TP dentro del nodo, PP entre nodos.",
+     "ninguna réplica del C10 cruza nodos"
+    ],
+    [
+     "expert parallelism (EP)",
+     "Para modelos MoE (mixture of experts: muchos expertos y pocos activos por token): reparte los expertos entre GPUs (--enable-expert-parallel). No aplica a un modelo denso.",
+     "gpt-oss, si algún día lo eligen"
+    ],
+    [
+     "H200 (141 GB)",
+     "Con más memoria por GPU, el 70B en FP8 cabe en una con ≈ 54 GB de KV: TP=1.",
+     "otra GPU, otra cuenta"
+    ]
+   ],
+   "example": {
+    "title": "El paralelismo del C10 en el manifest: un nodo con NVLink, TP=2, dos GPUs por pod y /dev/shm",
+    "lang": "yaml",
+    "code": "      nodeSelector:\n        node.kubernetes.io/instance-type: p5.48xlarge  # 8 × H100 SXM con NVLink: TP=2 dentro del nodo\n      tolerations:\n        - key: nvidia.com/gpu  # los nodos GPU tienen taint: nada que no use GPU ocupa una máquina de ≈ US$55/h\n          operator: Exists\n          effect: NoSchedule\n# …\n            - --tensor-parallel-size\n            - \"2\"  # 70.6 GB de pesos FP8 + KV no entran cómodos en 80 GB; en 2 GPUs quedan ≈ 68 GB para KV\n# …\n          resources:\n            requests:\n              cpu: \"40\"  # p5.48xlarge: 192 vCPU para 4 réplicas; tokenización, scheduler y el API server son CPU\n              memory: 256Gi  # 2 TiB en el nodo; page cache de los safetensors (mmap) + /dev/shm + buffers\n              ephemeral-storage: 200Gi  # el emptyDir de los pesos cuenta aquí\n              nvidia.com/gpu: 2  # TP=2: dos H100 del mismo nodo\n            limits:\n              memory: 256Gi  # = request: pasarse es un OOMKilled claro\n              nvidia.com/gpu: 2  # las GPUs no se sobreasignan\n# …\n            - name: shm\n              mountPath: /dev/shm  # NCCL y los procesos de TP comparten memoria por aquí\n# …\n        - name: shm\n          emptyDir:\n            medium: Memory  # el /dev/shm por defecto de un contenedor es 64 MiB: TP con NCCL necesita más\n            sizeLimit: 16Gi  # cuenta contra el límite de memoria del contenedor",
+    "source": "reference/c10/k8s/vllm-70b.yaml (líneas 97–102, 185–186, 225–233, 272–273 y 281–284; # … marca líneas omitidas)",
+    "notes": [
+     "<code>nodeSelector</code> fija el tipo de nodo: un p5.48xlarge trae 8 H100 SXM unidas por NVSwitch (900 GB/s por GPU, sumando sentidos), así que cualquier par sirve para TP=2 y ninguna réplica cruza nodos. El taint <code>nvidia.com/gpu</code> (una marca del nodo que rechaza a los pods sin la toleration) deja esas máquinas de ≈ US$55/h solo para pods de GPU.",
+     "<code>--tensor-parallel-size \"2\"</code>: con 0.90 de utilización, una H100 deja 72 GB para vLLM y los pesos FP8 ocupan 70.6: no queda lugar para el KV. En dos, quedan 68.4 GB de KV (≈ 92 secuencias de 2,250 tokens). Es el TP más chico que alcanza; después se agregan réplicas.",
+     "<code>nvidia.com/gpu: 2</code> en requests y limits = TP × PP. El device plugin (el agente de NVIDIA que le presenta las GPUs a Kubernetes) entrega dos GPUs enteras del mismo nodo, que no se comparten con otros pods.",
+     "<code>/dev/shm</code> en RAM, de 16Gi: NCCL crea ahí sus segmentos de memoria compartida y vLLM reparte cada paso entre sus procesos por ahí. Con los 64 MiB por defecto, NCCL puede fallar con <code>failed to extend /dev/shm/nccl-…</code>.",
+     "Por qué no TP=4 u 8: más TP baja el TPOT (el tiempo por token: cada GPU lee menos pesos por paso) y da más KV por réplica (207 y 485 GB), pero el all-reduce de cada capa no se achica (pesa más en cada paso) y deja menos réplicas: con TP=8, una réplica caída es 1/4 de la flota. El C10 se queda con TP=2 mientras el barrido no muestre una diferencia que pague eso.",
+     "Por qué no DP dentro de un pod (<code>--data-parallel-size 4</code> con las 8 GPUs): para un modelo denso da lo mismo que 4 réplicas, pero un pod caído se lleva las 4 y un rolling update baja de a 4. Con pods de 2 GPUs, todo pasa de a 1/16."
+    ]
+   },
+   "figure": {
+    "kind": "parallel",
+    "caption": "Tres formas de repartir el 70B en FP8 en un p5 de 8 H100. TP=2 es la del C10: cada GPU tiene la mitad de cada capa y las dos se sincronizan 160 veces por paso por NVLink. PP=2 ocupa la misma memoria, pero las etapas van en serie. Una copia entera no entra en una H100 con 0.90 de utilización. Bytes y tiempos: la cuenta de tp.py, del lab (cotas: solo ancho de banda).",
+    "data": {
+     "node": {
+      "name": "p5.48xlarge",
+      "gpus": 8,
+      "gpu": "H100 SXM 80 GB",
+      "link": "NVSwitch: 900 GB/s por GPU sumando sentidos (≈ 450 por sentido)"
+     },
+     "layouts": [
+      {
+       "name": "TP=2 (el C10)",
+       "gpus_per_replica": 2,
+       "replicas_per_node": 4,
+       "split": "cada capa partida en 2: 32 de las 64 heads de query y 4 de las 8 KV heads por GPU",
+       "weights_gb_per_gpu": 35.3,
+       "kv_gb_per_replica": 68.4,
+       "seqs_2250": 92,
+       "fits": true,
+       "per_gpu_gb": {
+        "weights": 35.3,
+        "kv": 34.2,
+        "overhead": 2.5,
+        "reserved": 8.0,
+        "total": 80
+       },
+       "comm": "2 all-reduce por capa: 160 por paso",
+       "comm_mb_per_step": {
+        "decode_72": 188.7,
+        "prefill_8192": 21474.8
+       },
+       "comm_ms": {
+        "nvlink": {
+         "decode_72": 0.42,
+         "prefill_8192": 47.7
+        },
+        "pcie_gen5": {
+         "decode_72": 2.9,
+         "prefill_8192": 335.5
+        }
+       },
+       "floor_ms": {
+        "decode_72": 10.5,
+        "prefill_8192": 292.2
+       },
+       "verdict": "elegido: el TP más chico donde caben los pesos y el KV"
+      },
+      {
+       "name": "PP=2",
+       "gpus_per_replica": 2,
+       "replicas_per_node": 4,
+       "split": "GPU 1: capas 1–40 · GPU 2: capas 41–80",
+       "weights_gb_per_gpu": 35.3,
+       "kv_gb_per_replica": 68.4,
+       "seqs_2250": 92,
+       "fits": true,
+       "per_gpu_gb": {
+        "weights": 35.3,
+        "kv": 34.2,
+        "overhead": 2.5,
+        "reserved": 8.0,
+        "total": 80
+       },
+       "comm": "un envío por paso entre etapas (hidden_states y residual de cada token): 2.36 MB con 72 tokens",
+       "latency": "las etapas van en serie: piso del token ≈ 2 × 10.5 = 21 ms, contra 10.5 con TP=2",
+       "verdict": "para nodos sin NVLink o modelos que no caben en un nodo"
+      },
+      {
+       "name": "TP=1 (réplica en 1 GPU)",
+       "gpus_per_replica": 1,
+       "replicas_per_node": 8,
+       "split": "el modelo entero en una GPU",
+       "weights_gb_per_gpu": 70.6,
+       "kv_gb_per_replica": 0,
+       "seqs_2250": 0,
+       "fits": false,
+       "per_gpu_gb": {
+        "weights": 70.6,
+        "kv": 0,
+        "overhead": 2.5,
+        "reserved": 8.0,
+        "total": 80,
+        "over_by": 1.1
+       },
+       "comm": "ninguna",
+       "verdict": "no cabe: 0.90 × 80 − 70.6 − 2.5 = −1.1 GB (en INT4 o en una H200, sí)"
+      }
+     ],
+     "more_tp": [
+      {
+       "tp": 4,
+       "kv_gb_per_replica": 207.4,
+       "seqs_2250": 281,
+       "replicas_per_node": 2
+      },
+      {
+       "tp": 8,
+       "kv_gb_per_replica": 485.4,
+       "seqs_2250": 658,
+       "replicas_per_node": 1
+      }
+     ],
+     "fleet": "DP × TP × PP = 16 × 2 × 1 = 32 GPUs = 4 nodos; las réplicas son pods de Kubernetes",
+     "per_gpu_legend": {
+      "weights": "pesos FP8",
+      "kv": "KV cache",
+      "overhead": "runtime y activaciones (≈ 2.5 GB, est.)",
+      "reserved": "lo que vLLM no toca: (1 − 0.90) × 80 GB"
+     }
+    }
+   },
+   "memo": "Cómo recordarla: <b>el TP más chico donde caben los pesos y el KV; después, réplicas</b>. TP es partir cada página de un libro entre dos lectores que leen a la vez y se pasan notas en cada renglón: tienen que estar sentados juntos (NVLink). PP es darle a cada lector la mitad de los capítulos: se pasan la posta una vez por paso, pero uno espera al otro. Las réplicas son libros completos, uno por mesa.",
+   "trap": "Trampa: partir con TP entre dos nodos «porque sobran GPUs en el otro». Cada paso hace 160 all-reduce; por la red (<code>NET/Socket</code> en el log de NCCL es TCP) cada uno cuesta mucho más que por NVLink, y el TPOT se multiplica. Entre nodos va PP; dentro del nodo, TP. La otra: TP=3 o TP=6 para «usar las GPUs que quedan». 64 heads no se dividen por 3 ni por 6, y vLLM no arranca: <code>Total number of attention heads (64) must be divisible by tensor parallel size (3).</code>",
+   "lab": {
+    "goal": "Calcular, para el 70B del C10 en un p5, qué TP vale, cuánta memoria queda para el KV, cuántas réplicas entran por nodo y cuánto pesa la comunicación de TP por NVLink contra PCIe.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-vllm && cd ~/lab-vllm\ncat > tp.py <<'EOF'\n# tp.py: opciones de paralelismo para el 70B del C10 en un p5.48xlarge (8 × H100 80 GB), solo stdlib.\n# Uso: python3 tp.py [utilización] [GB de pesos]   (por defecto 0.90 y 70.6, los del C10)\n# Constantes: config.json de Llama 3.3 70B; pesos FP8 de vram_calc.py; GPU de la hoja de datos de NVIDIA.\nimport sys\n\nCAPAS, HEADS, KV_HEADS, HEAD_DIM, HIDDEN = 80, 64, 8, 128, 8192\nUTIL = float(sys.argv[1]) if len(sys.argv) > 1 else 0.90       # --gpu-memory-utilization\nPESOS_GB = float(sys.argv[2]) if len(sys.argv) > 2 else 70.6   # 70.6 B parámetros × 1 B (FP8)\nVRAM_GB, RUNTIME_GB = 80, 2.5                                  # runtime ≈ 2.5 GB por GPU (C10)\nKV_TOKEN_B = 2 * CAPAS * KV_HEADS * HEAD_DIM * 2                 # K y V, BF16: 327,680 B\nNVLINK, PCIE = 450e9, 64e9      # B/s por sentido: 900 GB/s NVLink y 128 GB/s PCIe Gen5, sumando los dos sentidos\nHBM = 3.35e12                   # B/s de la HBM3 de una H100 SXM\n\nprint(\"TP  ¿vale?  KV heads/GPU  pesos/GPU  KV por réplica  secuencias de 2,250  réplicas por nodo\")\nfor tp in (1, 2, 3, 4, 8):\n    if HEADS % tp:\n        print(f\"{tp:>2}  no: Total number of attention heads ({HEADS}) must be divisible by tensor parallel size ({tp}).\")\n        continue\n    kv_gb = UTIL * VRAM_GB * tp - PESOS_GB - RUNTIME_GB * tp\n    seqs = int(kv_gb * 1e9 // (2250 * KV_TOKEN_B)) if kv_gb > 0 else 0\n    kv = f\"{kv_gb:6.1f} GB\" if kv_gb > 0 else \" no cabe\"\n    print(f\"{tp:>2}  sí     {max(1, KV_HEADS // tp):>8}      {PESOS_GB / tp:6.1f} GB  {kv:>14}  {seqs:>19}  {8 // tp:>17}\")\n\nprint(\"\\nTP=2: lo que cada GPU manda en all-reduces en un paso (2 por capa, anillo), sin contar latencias\")\nfor tokens, nombre, piso_ms in ((72, \"decode de 72\", PESOS_GB / 2 * 1e9 / HBM * 1e3),\n                                (8192, \"prefill de 8,192\", 2 * PESOS_GB * 1e9 * 8192 / (2 * 1.979e15) * 1e3)):\n    b = 2 * CAPAS * tokens * HIDDEN * 2                           # para TP=2, cada GPU manda S por all-reduce\n    print(f\"  {nombre:>16}: {b / 1e6:8.1f} MB → NVLink {b / NVLINK * 1e3:6.2f} ms · PCIe {b / PCIE * 1e3:6.1f} ms\"\n          f\"  (piso del paso ≈ {piso_ms:.1f} ms)\")\nprint(f\"\\nPP=2 (TP=1): pasa {2 * 72 * HIDDEN * 2 / 1e6:.2f} MB entre etapas por paso de 72 (hidden_states y residual); pero las dos etapas van\"\n      f\" en serie: piso del token ≈ 2 × {PESOS_GB / 2 * 1e9 / HBM * 1e3:.1f} ms\")\nEOF\npython3 tp.py",
+      "expect": "TP=1: no cabe (0 secuencias); TP=2: 4 KV heads por GPU, 35.3 GB de pesos, 68.4 GB de KV, 92 secuencias y 4 réplicas por nodo; TP=3: el error de vLLM; TP=4: 207.4 GB y 281; TP=8: 485.4 GB, 658 y 1 réplica. Después: decode de 72 → 188.7 MB, 0.42 ms por NVLink contra 2.9 ms por PCIe (piso del paso ≈ 10.5 ms); prefill de 8,192 → 21474.8 MB, 47.72 ms contra 335.5 ms (piso ≈ 292.2 ms). PP=2 mueve 2.36 MB por paso (dos vectores por token: hidden_states y residual), pero el piso del token se duplica."
+     },
+     {
+      "cmd": "python3 tp.py 0.92 | head -6",
+      "expect": "Con 0.92 (el default desde v0.20), TP=1 tendría 0.5 GB de KV y 0 secuencias de 2,250: ni una de 8,192 (2.5 GiB), así que vLLM no arrancaría («To serve at least one request with the model's max seq len (8192)…»). TP=2 sube a 71.6 GB y 97 secuencias: el C10 fija 0.90 para que un upgrade no le cambie la capacidad."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-vllm",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Prueba python3 tp.py 0.90 141.2, el mismo modelo en BF16: TP=2 ya no cabe y el primer TP que alcanza es 4 (136.8 GB de KV), como la réplica TP=4 que el C10 usa para evaluar la versión BF16. Para otro modelo, cambia CAPAS, HEADS, KV_HEADS, HEAD_DIM y HIDDEN con su config.json.",
+    "needs": "Python 3, sin paquetes extra. Ni vLLM ni GPU: es la cuenta, no una medición.",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS 26.6.2 con Python 3.14.3 y 3.9.6. Las memorias coinciden con la tabla de TP del C10 (≈ 68, 207 y 485 GB; ≈ 93, 281 y 658 secuencias) y con vram_calc.py (92 con TP=2); el mensaje de TP=3 es el de vllm/config/model.py en v0.30.0 y los anchos de banda, los de la hoja de datos de la H100 SXM. Los ms son cotas: solo ancho de banda, sin la latencia de cada all-reduce ni solapamientos. Lo que cruza entre etapas con PP sale de vllm/model_executor/models/llama.py en v0.30.0 (IntermediateTensors con hidden_states y residual)."
+   },
+   "links": [
+    "#m14.batching-caching",
+    "#c10.serving",
+    "#m04.vram",
+    "#m04.gpus-nvidia",
+    "#m06.gpus-k8s",
+    "#ref-numeros.gpus"
+   ]
+  }
+ ]
+}

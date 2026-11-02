@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{NAME}} — ML engineering para entrevistas y producción</title>
+<meta name="description" content="{{DESC}}">
+<link rel="canonical" href="{{URL}}/">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#F4F6F9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E131A" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="es_MX">
+<meta property="og:site_name" content="{{NAME}}">
+<meta property="og:title" content="{{NAME}} — ML engineering para entrevistas y producción">
+<meta property="og:description" content="{{DESC}}">
+<meta property="og:url" content="{{URL}}/">
+<meta property="og:image" content="{{URL}}/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{NAME}}">
+<meta name="twitter:description" content="{{TAGLINE}}">
+<meta name="twitter:image" content="{{URL}}/og.png">
+<script type="application/ld+json">{{JSONLD}}</script>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <p class="kicker">{{NAME}}</p>
+    <h1>{{TAGLINE}}</h1>
+    <p class="lead">Cinco herramientas para prepararte como ML Engineer: un curso de diseño de sistemas, hojas de estudio, un atlas de arquitecturas y un laboratorio donde un transformer se entrena paso a paso. Todo en español, gratis, sin cuenta y con la mayor parte funcionando sin conexión.</p>
+    <ul class="facts"><li>Gratis y sin registro</li><li>Funciona sin conexión</li><li>Hecho para celular, tablet y Mac</li><li>Código abierto</li></ul>
+  </header>
+
+  <main>
+    <h2>Las herramientas</h2>
+    <div class="grid">
+{{CARDS}}
+    </div>
+
+    <h2>Por dónde empezar</h2>
+    <div class="paths">
+      <div class="path"><strong>Tengo una entrevista de ML Engineer</strong><p>Empieza por el <a href="{{U_curso}}">curso</a> y repasa con las <a href="{{U_hojas}}">hojas</a> de estimaciones, Docker y Kubernetes.</p></div>
+      <div class="path"><strong>Quiero entender un modelo por dentro</strong><p>Entrena el <a href="{{U_transformer}}">transformer</a> paso a paso y sigue con el <a href="{{U_atlas}}">atlas</a> de arquitecturas.</p></div>
+      <div class="path"><strong>Quiero llevar un modelo a producción</strong><p>Sigue el recorrido «Del dato a producción» en las <a href="{{U_hojas}}">hojas</a>: Triton, FastAPI, Prometheus y vLLM.</p></div>
+    </div>
+
+    <h2>Cuéntame qué te sirvió y qué falló</h2>
+    <p>Esto lo hago una persona y mejora con lo que me cuentas. Si encuentras un error, algo confuso o una hoja que te falta, <a href="{{ISSUES}}">abre un comentario en GitHub</a> (necesitas una cuenta gratuita) y lo reviso.</p>
+  </main>
+
+  <footer>
+    <p>© {{YEAR}} {{AUTHOR}}. El contenido se comparte bajo <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es">CC BY-NC-ND 4.0</a> (puedes compartirlo con atribución, sin uso comercial ni cambios) y el código bajo licencia MIT.</p>
+    <p><a href="{{REPO}}">Código en GitHub</a> · <a href="/privacidad/">Aviso de privacidad</a></p>
+  </footer>
+</div>
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>

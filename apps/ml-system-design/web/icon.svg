@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Ícono de la app: un diagrama de sistema (tres nodos conectados) sobre el azul de acento. -->
+  <rect width="512" height="512" rx="112" fill="#2B5BD7"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M168 176 L344 176"/>
+    <path d="M168 176 L256 352"/>
+    <path d="M344 176 L256 352"/>
+  </g>
+  <g fill="#FFFFFF">
+    <circle cx="168" cy="176" r="56"/>
+    <circle cx="344" cy="176" r="56"/>
+    <circle cx="256" cy="352" r="56"/>
+  </g>
+  <g fill="#2B5BD7">
+    <circle cx="168" cy="176" r="22"/>
+    <circle cx="344" cy="176" r="22"/>
+    <circle cx="256" cy="352" r="22"/>
+  </g>
+</svg>

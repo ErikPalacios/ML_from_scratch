@@ -1,0 +1,1796 @@
+{
+ "sections": [
+  {
+   "id": "bolsillo",
+   "num": 0,
+   "title": "Números de bolsillo: puertos, intervalos, tipos de métrica y las funciones de PromQL que más usas",
+   "question": "¿Qué puertos, intervalos, defaults y funciones conviene saberse de memoria para leer un sistema con Prometheus en segundos?",
+   "templates": [
+    {
+     "code": "curl -s {host}:{puerto}/metrics | head -n 20",
+     "note": "Lo mismo que lee Prometheus en cada <b>scrape</b> (la visita periódica en que pide los números): texto plano, una línea por <b>muestra</b> (el valor de una <b>serie</b>, la historia de un número, en ese momento). Puertos de bolsillo: gateway <code>8080</code>, Triton <code>8002</code>, node_exporter <code>9100</code> y el propio Prometheus en <code>9090</code>."
+    },
+    {
+     "code": "up{job=\"{job}\"} == 0",
+     "note": "<code>up</code> la escribe Prometheus después de cada scrape: <b>1</b> si pudo leer al target (cada URL que visita), <b>0</b> si falló. Es la primera consulta cuando un panel dice «No data»: si ni siquiera existe <code>up</code> para ese job, Prometheus no sabe que el target existe."
+    },
+    {
+     "code": "sum by ({label}) (rate({contador}_total[{ventana}]))",
+     "note": "Un <b>counter</b> (contador que solo sube) se lee con <code>rate()</code>: cuánto sube por segundo, en promedio, dentro de la <b>ventana</b> (el tramo de tiempo hacia atrás, entre corchetes). Primero <code>rate</code> y después <code>sum</code>: así se corrige el reinicio de cada pod. A Prometheus le bastan 2 muestras en la ventana; la regla práctica (la de <code>$__rate_interval</code> en Grafana) pide al menos 4 scrapes: <code>[1m]</code> con 15 s. Las alertas de C01 usan <code>[5m]</code>."
+    },
+    {
+     "code": "histogram_quantile({q}, sum by (le) (rate({histograma}_bucket[{ventana}])))",
+     "note": "El <b>p99</b> (el tiempo bajo el que queda el 99 % de los requests) de todo el servicio: primero se suman los <b>buckets</b> (los cajones del histograma) de todos los pods y después se calcula el cuantil. Nunca promedies el p99 de cada pod. Es la expresión de <code>ClassifierHighP99Latency</code> en C01."
+    }
+   ],
+   "formulas": [
+    "\\text{rate}(x[w]) \\;\\approx\\; \\frac{x_{\\text{última}} - x_{\\text{primera}} + \\sum x_{\\text{antes de cada reinicio}}}{t_{\\text{última}} - t_{\\text{primera}}} \\qquad (\\text{y extrapola a los bordes de } w)",
+    "\\text{increase}(x[w]) \\;=\\; \\text{rate}(x[w]) \\times w",
+    "w \\;\\ge\\; 4 \\times \\Delta_{\\text{scrape}} \\;=\\; 4 \\times 15\\ \\text{s} \\;=\\; 1\\ \\text{min} \\qquad (\\text{regla práctica; Prometheus pide solo 2 muestras})",
+    "\\text{disco} \\;\\approx\\; t_{\\text{retención}} \\times \\frac{N_{\\text{series}}}{\\Delta_{\\text{scrape}}} \\times 1\\text{–}2\\ \\text{B} \\;=\\; 15\\ \\text{d} \\times \\frac{615}{15\\ \\text{s}} \\times 1\\text{–}2\\ \\text{B} \\;\\approx\\; 53\\text{–}106\\ \\text{MB}"
+   ],
+   "vars": [
+    [
+     "{host}",
+     "dónde corre el target, visto desde donde haces curl",
+     "localhost (con kubectl port-forward) o gateway dentro del compose"
+    ],
+    [
+     "{puerto}",
+     "puerto donde el target sirve /metrics",
+     "8080 gateway · 8002 Triton · 9100 node_exporter"
+    ],
+    [
+     "{job}",
+     "grupo de targets: el job_name de prometheus.yml",
+     "gateway"
+    ],
+    [
+     "{label}",
+     "label por el que partes el resultado",
+     "status, source o le"
+    ],
+    [
+     "{contador}",
+     "nombre del counter sin el _total",
+     "classifier_requests"
+    ],
+    [
+     "{ventana}",
+     "cuánto tiempo hacia atrás mira la función",
+     "5m en las alertas de C01; 1m como mínimo práctico con scrape de 15 s"
+    ],
+    [
+     "{q}",
+     "cuantil, entre 0 y 1",
+     "0.99"
+    ],
+    [
+     "{histograma}",
+     "nombre base del histograma",
+     "classifier_request_latency_seconds"
+    ],
+    [
+     "x, w, t",
+     "x: el valor del counter; w: la ventana; t: la hora de cada muestra",
+     "lab de la sección 2: 0.371/s en 2 min, con un reinicio adentro"
+    ],
+    [
+     "Δ_scrape",
+     "cada cuánto lee Prometheus (scrape_interval)",
+     "15 s en C01; 1 min si no lo escribes"
+    ],
+    [
+     "N_series",
+     "series que se guardan en cada ronda",
+     "≈ 205 por pod del gateway (sección 3): 615 con 3 pods"
+    ],
+    [
+     "t_retención",
+     "cuánto guarda el disco local",
+     "15 días si nadie la cambia"
+    ]
+   ],
+   "pieces": [
+    [
+     "9090",
+     "Prometheus: su web (consultas, alertas, targets), su API HTTP y sus propias métricas en /metrics.",
+     "localhost:9090/alerts en el compose de C01"
+    ],
+    [
+     "9093",
+     "Alertmanager: recibe las alertas que disparan y decide a quién avisar.",
+     "kube-prometheus-stack (el paquete de Helm con Prometheus, Alertmanager y Grafana) lo instala junto a Prometheus"
+    ],
+    [
+     "3000",
+     "Grafana: los dashboards. El primer login es admin / admin; cambia esa contraseña.",
+     "docker run -p 3000:3000 grafana/grafana:13.2.4"
+    ],
+    [
+     "9100 · 8080 · 9400 · 9091",
+     "Exporters (programas que leen otro sistema y lo publican como métricas) y un buzón: node_exporter (la máquina), kube-state-metrics (los objetos de Kubernetes), dcgm-exporter (GPUs NVIDIA) y el Pushgateway (para jobs batch, trabajos que corren y terminan).",
+     "C01 lee la GPU desde Triton, sin dcgm-exporter"
+    ],
+    [
+     "8002",
+     "Las métricas nv_* de Triton: counters de requests y tiempos, gauges (valores que suben y bajan) de GPU.",
+     "nv_inference_queue_duration_us, la señal de KEDA (el autoscaler de Triton)"
+    ],
+    [
+     "scrape_interval: 1m",
+     "Default de cada cuánto se lee cada target si no lo escribes. El archivo de ejemplo (el que trae la imagen de Docker) pone 15s.",
+     "C01: 15s en local y en los ServiceMonitors (su config de scrape en EKS)"
+    ],
+    [
+     "scrape_timeout: 10s",
+     "Cuánto espera cada scrape antes de darlo por fallido (up = 0). Nunca más que el intervalo.",
+     "un /metrics que tarda 12 s da up = 0 aunque el proceso viva"
+    ],
+    [
+     "evaluation_interval: 1m",
+     "Cada cuánto se evalúan las reglas (las consultas que Prometheus corre solo: alertas y grabaciones). Un grupo de reglas puede fijar su propio interval.",
+     "C01: 15s; su grupo de grabación, 1m"
+    ],
+    [
+     "Retención: 15d",
+     "Cuánto tiempo guarda el disco local. En 3.13 se cambia en prometheus.yml (storage: tsdb: retention: time); el flag --storage.tsdb.retention.time todavía funciona, pero está deprecado (se desaconseja y puede desaparecer).",
+     "ClassifierLowConfidenceSpike necesita 7 días de historia"
+    ],
+    [
+     "Counter → rate()",
+     "Solo sube y vuelve a 0 al reiniciar: se lee con rate() o increase(), nunca crudo.",
+     "rate(classifier_requests_total[5m])"
+    ],
+    [
+     "Gauge → directo",
+     "Sube y baja: se lee tal cual, o con avg_over_time / max_over_time (promedio o máximo de la ventana).",
+     "nv_gpu_utilization > 0.85 (GPUSaturated)"
+    ],
+    [
+     "Histogram → histogram_quantile",
+     "Cajones acumulados (_bucket con le, «hasta») más _sum y _count: se suman entre pods y después se saca el cuantil.",
+     "p99 > 0.2 s (ClassifierHighP99Latency)"
+    ],
+    [
+     "Summary",
+     "El cuantil ya viene calculado en cada proceso: no se puede sumar entre pods. El de Python ni siquiera lo calcula.",
+     "evítalo en servicios con réplicas"
+    ],
+    [
+     "for · group_wait",
+     "Una alerta espera en pending (pendiente) lo que dice for antes de pasar a firing (disparada); sin for (0s), dispara en la primera evaluación verdadera. Alertmanager espera group_wait (30 s por defecto) antes del primer aviso.",
+     "for: 5m en ClassifierHigh5xxRate"
+    ]
+   ],
+   "example": {
+    "title": "El Prometheus del compose de C01: versión, puerto y archivos",
+    "lang": "yaml",
+    "code": "  prometheus:\n    image: prom/prometheus:v3.13.3  # tag fijo (nunca latest): 3.13 es la LTS vigente (soporte hasta 2027-07-31); sube de parche dentro de 3.13.x\n    ports:\n      - \"9090:9090\"  # UI: http://localhost:9090/alerts muestra las 6 alertas y su estado\n    volumes:  # montados en la ruta que usa el CMD por defecto de la imagen: no hace falta `command`\n      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro\n      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro\n    depends_on:\n      - gateway\n      - triton",
+    "source": "reference/c01/docker-compose.yml (líneas 46–55, el servicio prometheus)",
+    "notes": [
+     "<code>v3.13.3</code> es de la línea <b>LTS</b> (soporte largo: un año de arreglos para fallas graves, hasta el 31 de julio de 2027). En octubre de 2026 la más nueva es la 3.15.1, y la 3.13 ya va en 3.13.5 (21 de octubre, con arreglos de seguridad): subir de parche es cambiar el tag, sin tocar la config.",
+     "<code>9090:9090</code>: la web y la API. <code>/alerts</code> muestra cada alerta en inactive, pending o firing; <code>/targets</code> (menú Status → Target health) dice si cada scrape funciona y, si no, con qué error.",
+     "Los dos archivos entran a <code>/etc/prometheus</code>, donde el <code>CMD</code> de la imagen (los flags con que arranca si no le pasas otros) ya busca la config (<code>--config.file=/etc/prometheus/prometheus.yml</code> y <code>--storage.tsdb.path=/prometheus</code>); <code>rule_files: - alerts.yml</code> se resuelve relativo a esa carpeta. Si agregas flags en <code>command:</code>, reemplazas ese CMD entero: repite los dos.",
+     "No hay servicio de Alertmanager ni bloque <code>alerting:</code> en <code>prometheus.yml</code>: en local las alertas se ven en <code>/alerts</code>, pero nadie recibe un aviso. En EKS lo trae kube-prometheus-stack.",
+     "La retención no se toca: 15 días, que alcanzan para los 7 que pide <code>ClassifierLowConfidenceSpike</code>. Pero la base vive en un volumen anónimo (lo cuenta el cheat sheet de Docker): tras un <code>down</code> + <code>up</code> empieza de cero, y el promedio «de 7 días» pasa a ser el de lo que haya."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Defaults de Prometheus 3.13 y Alertmanager 0.34 contra lo que fija C01. Verificados en la documentación oficial y en el código fuente, en octubre de 2026.",
+    "data": {
+     "head": [
+      "Campo",
+      "Default",
+      "En C01",
+      "Por qué importa"
+     ],
+     "rows": [
+      [
+       "scrape_interval",
+       "1m (Prometheus Operator: 30s)",
+       "15s en prometheus.yml y en los ServiceMonitors",
+       "la resolución: con 1m, la regla práctica pide rate(x[4m]) o más"
+      ],
+      [
+       "scrape_timeout",
+       "10s; si el intervalo es menor, el intervalo",
+       "sin cambiar (10s)",
+       "un /metrics lento da up = 0 aunque el proceso viva"
+      ],
+      [
+       "evaluation_interval",
+       "1m (Prometheus Operator: 30s)",
+       "15s; el grupo de grabación usa interval: 1m",
+       "cada cuánto puede cambiar de estado una alerta"
+      ],
+      [
+       "metrics_path · scheme",
+       "/metrics · http",
+       "/metrics en los dos jobs",
+       "otra ruta se escribe en el job, no en targets"
+      ],
+      [
+       "Retención (storage.tsdb.retention.time)",
+       "15d",
+       "sin cambiar",
+       "≥ 7 días para el promedio de ClassifierLowConfidenceSpike"
+      ],
+      [
+       "for",
+       "0s: firing en la primera evaluación verdadera",
+       "5m, 10m, 15m o 30m según la alerta",
+       "filtra picos cortos; la ventana del rate los estira, así que cuenta las dos"
+      ],
+      [
+       "query.lookback-delta",
+       "5m",
+       "—",
+       "una consulta instantánea toma la última muestra de hasta 5 min atrás"
+      ],
+      [
+       "rules.alert.resend-delay",
+       "1m",
+       "—",
+       "Prometheus reenvía a Alertmanager cada alerta que sigue en firing"
+      ],
+      [
+       "group_wait · group_interval · repeat_interval",
+       "30s · 5m · 4h",
+       "sin Alertmanager en local",
+       "cuándo llega el primer aviso, los siguientes del grupo y el recordatorio"
+      ],
+      [
+       "sample_limit · label_limit",
+       "0 (sin límite)",
+       "sin cambiar",
+       "con límite, un scrape que lo pasa se descarta entero: up = 0"
+      ],
+      [
+       "Ventana de rate()",
+       "no tiene default",
+       "[5m] en casi todas las alertas, [30m] en la grabación y en la de confianza, [2m] en KEDA",
+       "Prometheus pide solo 2 muestras; la regla práctica es al menos 4 scrapes (la de $__rate_interval en Grafana)"
+      ]
+     ],
+     "note": "Para ver los defaults de tu propio Prometheus: <code>/api/v1/status/config</code> devuelve la config cargada con los defaults ya escritos, y <code>/api/v1/status/flags</code>, los flags. Es el lab de esta sección."
+    }
+   },
+   "memo": "<b>9090 Prometheus, 9093 Alertmanager, 3000 Grafana, 9100 la máquina, 8002 Triton</b>. Un scrape cada 15 s (si no lo escribes, 1 min), 10 s para contestar, 15 días de memoria. Y el orden de lectura: <code>up</code> → <code>rate</code> → <code>sum by</code> → <code>histogram_quantile</code>.",
+   "trap": "Creer que 15 s es el default porque está en todos los ejemplos, incluido el <code>prometheus.yml</code> que trae la imagen de Docker, cuyo comentario dice «Default is every 1 minute». Si tu archivo no escribe <code>scrape_interval</code>, es <b>1m</b>, y un <code>rate(x[1m])</code> casi siempre encuentra una sola muestra: devuelve vacío y el panel dice «No data». Con 15 s, <code>[1m]</code> tiene 4 muestras; con 1 min, usa <code>[4m]</code> o más.",
+   "lab": {
+    "goal": "Levantar un Prometheus sin escribir config y leerle, por su API, los defaults de esta sección: intervalos, timeout, retención, lookback y el up de su único target.",
+    "steps": [
+     {
+      "cmd": "docker run -d --name prom-lab -p 9090:9090 prom/prometheus:v3.13.3",
+      "expect": "Un id largo; la primera vez baja la imagen. Sin -v ni command arranca con el prometheus.yml de ejemplo que trae la imagen, que se lee a sí mismo en localhost:9090."
+     },
+     {
+      "cmd": "sleep 5; curl -s localhost:9090/-/ready",
+      "expect": "Prometheus Server is Ready. Si todavía arranca, Service Unavailable (un 503): espera y repite."
+     },
+     {
+      "cmd": "sleep 15; curl -s localhost:9090/api/v1/targets | python3 -c \"import json, sys; t = json.load(sys.stdin)['data']['activeTargets'][0]; print(t['scrapeUrl'], t['scrapeInterval'], t['scrapeTimeout'], t['health'])\"",
+      "expect": "http://localhost:9090/metrics 15s 10s up. El esquema y la ruta son defaults (http y /metrics), los 15 s los escribe el archivo de ejemplo y los 10 s de timeout son el default: el archivo solo los nombra en un comentario. Si dice unknown, todavía no hubo scrape: repite."
+     },
+     {
+      "cmd": "curl -s localhost:9090/api/v1/status/config | python3 -c \"import json, sys; print(json.load(sys.stdin)['data']['yaml'])\" | grep -E 'evaluation_interval|scrape_timeout'",
+      "expect": "evaluation_interval: 15s (del archivo) y scrape_timeout: 10s dos veces, en global y copiado al job: la config cargada ya trae escritos los defaults."
+     },
+     {
+      "cmd": "curl -s localhost:9090/api/v1/status/runtimeinfo | python3 -m json.tool | grep storageRetention\ncurl -s localhost:9090/api/v1/status/flags | python3 -m json.tool | grep -E 'lookback-delta|for-grace-period|resend-delay'",
+      "expect": "\"storageRetention\": \"15d\" (nadie fijó retención), y después \"query.lookback-delta\": \"5m\", \"rules.alert.for-grace-period\": \"10m\" y \"rules.alert.resend-delay\": \"1m\", en orden alfabético."
+     },
+     {
+      "cmd": "curl -s 'localhost:9090/api/v1/query?query=up'",
+      "expect": "Un JSON con resultType vector y un resultado: metric con __name__ up, app prometheus, instance localhost:9090 y job prometheus, y value [la hora, \"1\"]. job e instance los agrega Prometheus; app viene del labels: del archivo de ejemplo."
+     },
+     {
+      "cmd": "docker rm -f -v prom-lab",
+      "expect": "prom-lab. Con -v se borra también el volumen anónimo donde quedó la base."
+     }
+    ],
+    "fix": "Si curl no conecta: docker ps (¿sigue corriendo?) y docker logs prom-lab (cuando ya atiende, el log dice msg=\"Server is ready to receive web requests.\"). Si el 9090 está ocupado, publica otro puerto del Mac: -p 9091:9090 y curl localhost:9091.",
+    "needs": "Docker Desktop corriendo e internet para bajar prom/prometheus:v3.13.3 (la imagen de C01, con versión para Apple Silicon). Python 3 de macOS para leer el JSON.",
+    "verified": "docs"
+   },
+   "links": [
+    "#m12.prometheus-grafana",
+    "#c01.monitoreo",
+    "#ref-herramientas.monitoreo",
+    "#ref-comandos.compose"
+   ]
+  },
+  {
+   "id": "cadena",
+   "num": null,
+   "title": "La cadena: de una línea de código a una alerta en tu teléfono",
+   "question": "¿Qué pasa, en orden, entre un REQUESTS.inc() en el gateway y el aviso que despierta a alguien, y cuánto tarda cada eslabón?",
+   "templates": [
+    {
+     "code": "{METRICA}.labels({label}={valor}).inc()",
+     "note": "El primer eslabón: un número que sube en la memoria del proceso. Cuesta microsegundos y todavía no sale nada por la red."
+    },
+    {
+     "code": "curl -s {host}:{puerto}/metrics | grep {metrica}",
+     "note": "El segundo: el valor acumulado, en texto, esperando a que alguien lo pida. Si aquí no sube, el problema está en tu código, no en Prometheus."
+    },
+    {
+     "code": "curl -s -G localhost:9090/api/v1/query --data-urlencode 'query={expresion}'",
+     "note": "Prometheus ya lo guardó como serie y lo consultas con <b>PromQL</b> (su lenguaje de consultas): la misma expresión que usan las reglas, Grafana y KEDA. <code>-G</code> con <code>--data-urlencode</code> codifica las llaves y comillas de la consulta."
+    },
+    {
+     "code": "curl -s localhost:9090/api/v1/alerts",
+     "note": "Las alertas activas: <b>pending</b> (la condición se cumple, pero todavía no durante todo el <code>for</code>) o <b>firing</b> (ya disparó y se manda a Alertmanager)."
+    },
+    {
+     "code": "curl -s localhost:9093/api/v2/alerts",
+     "note": "Lo que recibió Alertmanager. Desde aquí agrupa, silencia y avisa a un <b>receiver</b> (el destino: PagerDuty, Slack, email o un webhook)."
+    }
+   ],
+   "formulas": [
+    "t_{\\text{aviso}} \\;\\approx\\; t_{\\text{cruce}} + \\underbrace{\\Delta_{\\text{scrape}} + \\Delta_{\\text{eval}}}_{\\le\\, 30\\ \\text{s en C01}} + t_{\\text{for}} + t_{\\text{grupo}}",
+    "t_{\\text{cruce}} \\;=\\; w \\times \\frac{\\text{umbral}}{e} \\;=\\; 300\\ \\text{s} \\times \\frac{1\\ \\%}{10\\ \\%} \\;=\\; 30\\ \\text{s}",
+    "t_{\\text{aviso}} \\;\\approx\\; 30 + 30 + 300 + 30\\ \\text{s} \\;\\approx\\; 6.5\\ \\text{min} \\qquad (\\texttt{ClassifierHigh5xxRate}\\ \\text{con 10 \\% de errores})"
+   ],
+   "vars": [
+    [
+     "{METRICA}",
+     "variable de Python que guarda el counter",
+     "REQUESTS"
+    ],
+    [
+     "{label}={valor}",
+     "la serie que sube",
+     "status=\"503\""
+    ],
+    [
+     "{host}:{puerto}",
+     "el target",
+     "localhost:8080 con kubectl port-forward"
+    ],
+    [
+     "{metrica}",
+     "nombre expuesto de la métrica",
+     "classifier_requests_total"
+    ],
+    [
+     "{expresion}",
+     "la PromQL que quieres ver",
+     "la expr de ClassifierHigh5xxRate"
+    ],
+    [
+     "t_cruce",
+     "lo que tarda la expresión en pasar el umbral desde que empiezan los errores",
+     "30 s con 10 % de errores"
+    ],
+    [
+     "w",
+     "ventana del rate()",
+     "5 min"
+    ],
+    [
+     "e",
+     "fracción de errores que empezó de golpe",
+     "10 %: Triton rechaza 1 de cada 10"
+    ],
+    [
+     "Δ_scrape, Δ_eval",
+     "intervalos de scrape y de evaluación de reglas",
+     "15 s y 15 s en el compose de C01; en EKS, 15 s (ServiceMonitor) y 30 s (default del Prometheus Operator, si nadie lo cambia)"
+    ],
+    [
+     "t_for",
+     "lo que la alerta espera en pending",
+     "5 min en ClassifierHigh5xxRate"
+    ],
+    [
+     "t_grupo",
+     "group_wait: lo que Alertmanager espera antes del primer aviso de un grupo nuevo",
+     "30 s por defecto"
+    ]
+   ],
+   "pieces": [
+    [
+     "Instrumentación",
+     "Las llamadas en tu código que suben counters y observan histogramas, en memoria.",
+     "REQUESTS.labels(…).inc() en el finally de classify"
+    ],
+    [
+     "/metrics",
+     "La foto de esos números en texto, cada vez que alguien la pide.",
+     "gateway:8080/metrics"
+    ],
+    [
+     "Scrape",
+     "Prometheus lee cada target cada scrape_interval y escribe up (1 o 0).",
+     "cada 15 s en C01"
+    ],
+    [
+     "TSDB: head y WAL",
+     "La base de series de Prometheus (TSDB, time series database). Las muestras recientes viven en memoria (head) y en un registro en disco (WAL, write-ahead log) que se relee si Prometheus reinicia.",
+     "/prometheus/wal en la imagen de Docker"
+    ],
+    [
+     "Bloques de 2 h",
+     "Cada bloque de 2 h pasa de la memoria a un archivo en disco; después se junta con otros en bloques más grandes, y los más viejos que la retención se borran.",
+     "15 días por defecto"
+    ],
+    [
+     "PromQL",
+     "Calcula sobre las series: tasas, cocientes, sumas, cuantiles.",
+     "la fracción de 5xx sobre requests válidos"
+    ],
+    [
+     "Regla de grabación",
+     "Guarda el resultado de una expresión cara como una serie nueva, en cada evaluación.",
+     "classifier:low_confidence_share:rate30m"
+    ],
+    [
+     "Regla de alerta",
+     "Evalúa su expr cada evaluation_interval: cada serie que devuelve es una alerta activa.",
+     "ClassifierHigh5xxRate"
+    ],
+    [
+     "pending → firing",
+     "pending mientras la condición no cumple el for completo; firing cuando sí. Si deja de cumplirse, vuelve a inactive.",
+     "for: 5m"
+    ],
+    [
+     "ALERTS",
+     "Serie que escribe Prometheus por cada alerta activa, con alertstate pending o firing.",
+     "ALERTS{alertname=\"ClassifierHigh5xxRate\"}"
+    ],
+    [
+     "alerting: alertmanagers",
+     "A qué Alertmanager manda Prometheus las alertas en firing; las reenvía cada minuto mientras sigan.",
+     "no está en el prometheus.yml de C01"
+    ],
+    [
+     "Alertmanager",
+     "Agrupa, quita duplicados, silencia, inhibe (calla una alerta si otra más grave ya avisa) y elige el receiver según los labels (severity).",
+     "page a quien está de guardia, ticket al equipo de ML"
+    ],
+    [
+     "Receiver y runbook",
+     "El destino del aviso, y el link con los pasos a seguir (runbook), que viaja en las annotations de la alerta.",
+     "runbook_url en las 6 alertas de C01"
+    ],
+    [
+     "Grafana",
+     "Una rama aparte: consulta la misma base con PromQL para dibujar. En C01 no participa del aviso (Grafana también puede evaluar alertas, pero C01 las tiene en Prometheus).",
+     "dashboard de servicio de C01"
+    ]
+   ],
+   "example": {
+    "title": "La alerta de 5xx de C01: la expresión, el for y lo que viaja con el aviso",
+    "lang": "yaml",
+    "code": "      # Errores del servidor > 1 % de los requests válidos: los 4xx no cuentan ni en el numerador ni en el\n      # denominador (si no, una ráfaga de 4xx diluye los 5xx).\n      # Punto ciego: si TODOS los gateways quedan NotReady, el ALB responde 503 sin llegar al\n      # gateway y esta métrica no lo ve. Lo cubren TritonNotReady y el HTTPCode_ELB_5XX_Count del ALB.\n      - alert: ClassifierHigh5xxRate\n        expr: |\n          (\n            sum(rate(classifier_requests_total{status=~\"5..\"}[5m]))\n              /\n            sum(rate(classifier_requests_total{status!~\"4..\"}[5m]))\n          ) > 0.01\n          and sum(rate(classifier_requests_total[5m])) > 1\n        # La segunda condición exige ≥ 1 req/s: con tráfico casi nulo, 1 error de 20 dispararía un page falso\n        for: 5m\n        labels:\n          severity: page\n        annotations:\n          summary: \"Más de 1 % de 5xx en /v1/classify\"\n          description: \"Tasa de 5xx = {{ $value | humanizePercentage }}. 503 = Triton caído o rechazando; 504 = Triton lento (mira TritonQueueTimeHigh).\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-5xx-rate\"",
+    "source": "reference/c01/monitoring/alerts.yml (líneas 41–60)",
+    "notes": [
+     "Eslabón 1: cada request suma 1 en <code>REQUESTS.labels(status=str(status), source=source, model_version=MODEL_VERSION).inc()</code> (main.py, línea 244, en el <code>finally</code>); los 422 los cuenta aparte el handler de errores de validación (línea 329), porque FastAPI los rechaza antes de llamar a <code>classify</code>. Eslabones 2 y 3: Prometheus lee <code>gateway:8080/metrics</code> cada 15 s, según <code>prometheus.yml</code>.",
+     "La <code>expr</code> es PromQL sobre esas series: 5xx por segundo ÷ requests válidos por segundo (sin 4xx), en ventanas de 5 min. La segunda condición pide al menos 1 req/s: con 20 requests de madrugada, un solo error sería el 5 %.",
+     "<code>for: 5m</code>: la alerta pasa a <b>pending</b> en la primera evaluación en que la expr devuelve algo, y a <b>firing</b> cuando lleva 5 min así. Ojo: la ventana de 5 min estira cada pico. Un pico de 2 min con 10 % de errores deja la fracción sobre 1 % durante ≈ 6 min, así que dispara igual; uno de 2 min con 2 % nunca pasa el 1 %.",
+     "<code>severity: page</code> es solo un label: lo que lo convierte en «despertar a alguien» es la ruta de Alertmanager (sección 8). <code>{{ $value | humanizePercentage }}</code> escribe el valor de la expr en el texto del aviso, y <code>runbook_url</code> dice qué hacer.",
+     "En el compose de C01 la cadena se corta antes: <code>prometheus.yml</code> no tiene bloque <code>alerting:</code> ni hay Alertmanager, así que la alerta llega a firing en <code>/alerts</code> y ahí se queda. En EKS, kube-prometheus-stack conecta Prometheus con su Alertmanager; las rutas y los receivers los escribe tu equipo."
+    ]
+   },
+   "figure": {
+    "kind": "chain",
+    "caption": "De la línea 244 de main.py al aviso: diez eslabones, con los tiempos de C01 y una rama aparte para Grafana, que lee la misma base y no participa del aviso. En el compose local la cadena se corta en /alerts: no hay Alertmanager.",
+    "data": {
+     "steps": [
+      {
+       "label": "Código",
+       "cmd": "REQUESTS.labels(status=\"503\", …).inc()",
+       "note": "Suma 1 en la memoria del proceso: microsegundos, sin red."
+      },
+      {
+       "label": "/metrics",
+       "cmd": "curl -s localhost:8080/metrics | grep 'status=\"503\"'",
+       "note": "El valor acumulado, en texto, cuando alguien lo pide."
+      },
+      {
+       "label": "Scrape",
+       "cmd": "up{job=\"gateway\"}",
+       "note": "Cada 15 s Prometheus lee cada pod (10 s de timeout) y escribe up."
+      },
+      {
+       "label": "TSDB",
+       "cmd": "prometheus_tsdb_head_series",
+       "note": "La muestra entra a su serie: memoria (head) y WAL en disco; bloques de 2 h; 15 días de retención."
+      },
+      {
+       "label": "PromQL",
+       "cmd": "sum(rate(classifier_requests_total{status=~\"5..\"}[5m])) / sum(rate(classifier_requests_total{status!~\"4..\"}[5m]))",
+       "note": "Tasas en ventanas de 5 min: un salto a 10 % de errores cruza el 1 % en ≈ 30 s."
+      },
+      {
+       "label": "Regla",
+       "cmd": "ClassifierHigh5xxRate",
+       "note": "Se evalúa cada 15 s (evaluation_interval). La primera vez que la expr devuelve algo: pending."
+      },
+      {
+       "label": "for",
+       "cmd": "ALERTS{alertname=\"ClassifierHigh5xxRate\"}",
+       "note": "5 min seguidos en pending → firing. Si la condición se apaga antes, vuelve a inactive y no avisa."
+      },
+      {
+       "label": "Envío",
+       "cmd": "alerting: alertmanagers",
+       "note": "Prometheus manda las alertas en firing a Alertmanager y las reenvía cada 1 min mientras sigan. En el compose de C01, este eslabón no existe."
+      },
+      {
+       "label": "Alertmanager",
+       "cmd": "curl -s localhost:9093/api/v2/alerts",
+       "note": "Agrupa por labels, espera group_wait (30 s) por si llegan más alertas del mismo incidente, aplica silencios e inhibiciones y elige el receiver por severity."
+      },
+      {
+       "label": "Aviso",
+       "cmd": "severity: page → receiver de guardia",
+       "note": "PagerDuty, Slack o email, con summary, description y runbook_url. Con 10 % de errores, ≈ 6.5 min después del primer error en el peor caso."
+      },
+      {
+       "label": "Grafana (aparte)",
+       "cmd": "histogram_quantile(0.99, sum by (le) (rate(classifier_request_latency_seconds_bucket[5m])))",
+       "note": "Consulta la misma base cada vez que refresca un panel. Si Grafana se cae, las alertas de Prometheus siguen."
+      }
+     ]
+    }
+   },
+   "memo": "<b>El código cuenta, Prometheus pregunta y guarda, PromQL calcula, la regla espera (<code>for</code>) y Alertmanager decide a quién avisar</b>; Grafana solo mira. Si un aviso no llegó, recorre la cadena en orden: ¿sube el número en <code>/metrics</code>? ¿<code>up</code> = 1? ¿la expr devuelve algo? ¿pending o firing? ¿llegó a Alertmanager?",
+   "trap": "Esperar el aviso en el instante del primer error. Se suman la ventana del <code>rate</code>, el scrape, la evaluación, el <code>for</code> y el <code>group_wait</code>: con 10 % de errores, ≈ 6.5 min para la alerta de 5xx de C01. Y creer que <code>firing</code> en <code>/alerts</code> significa que alguien se enteró: sin bloque <code>alerting:</code> y sin una ruta en Alertmanager, la alerta dispara y nadie recibe nada. El compose de C01 está así.",
+   "lab": {
+    "goal": "Recorrer la cadena entera en tu Mac: un counter en un servicio de juguete, Prometheus que lo lee, una regla que pasa a pending y a firing, Alertmanager y un webhook que hace de tu teléfono.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-prom/config ~/lab-prom/am && cd ~/lab-prom\ncat > app.py <<'EOF'\n# app.py: un servicio de juguete con un counter por status (solo stdlib)\nimport os, threading, time\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\ncuenta = {\"200\": 0, \"500\": 0}\n\ndef trafico():  # 10 requests por segundo; si existe el archivo \"fallar\", 2 de cada 10 son 500\n    i = 0\n    while True:\n        i += 1\n        status = \"500\" if os.path.exists(\"fallar\") and i % 5 == 0 else \"200\"\n        cuenta[status] += 1  # la línea de código donde empieza la cadena\n        time.sleep(0.1)\n\nclass Metrics(BaseHTTPRequestHandler):\n    def do_GET(self):\n        lineas = [\"# TYPE demo_requests_total counter\"]\n        lineas += [f'demo_requests_total{{status=\"{s}\"}} {n}' for s, n in cuenta.items()]\n        cuerpo = (\"\\n\".join(lineas) + \"\\n\").encode()\n        self.send_response(200)\n        self.send_header(\"Content-Type\", \"text/plain; version=0.0.4; charset=utf-8\")\n        self.end_headers()\n        self.wfile.write(cuerpo)\n\n    def log_message(self, *args):\n        pass\n\nthreading.Thread(target=trafico, daemon=True).start()\nThreadingHTTPServer((\"\", 8000), Metrics).serve_forever()\nEOF\ncat > webhook.py <<'EOF'\n# webhook.py: hace de tu teléfono: imprime cada notificación que manda Alertmanager (solo stdlib)\nimport json\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\n\nclass Aviso(BaseHTTPRequestHandler):\n    def do_POST(self):\n        aviso = json.loads(self.rfile.read(int(self.headers[\"Content-Length\"])))\n        for a in aviso[\"alerts\"]:\n            print(f'{a[\"status\"].upper()} {a[\"labels\"][\"alertname\"]} severity={a[\"labels\"].get(\"severity\")}: '\n                  f'{a[\"annotations\"].get(\"summary\")} (desde {a[\"startsAt\"][11:19]} UTC)', flush=True)\n        self.send_response(200)\n        self.end_headers()\n\n    def log_message(self, *args):\n        pass\n\nHTTPServer((\"\", 5001), Aviso).serve_forever()\nEOF\npython3 app.py & echo $! > app.pid\npython3 webhook.py & echo $! > webhook.pid\nsleep 1; curl -s localhost:8000/metrics",
+      "expect": "# TYPE demo_requests_total counter y dos series: status=\"200\" subiendo (10 por segundo) y status=\"500\" en 0. webhook.py no imprime nada todavía: espera avisos en el puerto 5001. Si macOS pregunta si Python acepta conexiones entrantes, acepta: los contenedores llegan a tu Mac por la red."
+     },
+     {
+      "cmd": "cat > config/prometheus.yml <<'EOF'\nglobal:\n  scrape_interval: 5s\n  evaluation_interval: 5s\nrule_files:\n  - alerts.yml\nalerting:\n  alertmanagers:\n    - static_configs:\n        - targets: [\"am-lab:9093\"]\nscrape_configs:\n  - job_name: servicio\n    static_configs:\n      - targets: [\"host.docker.internal:8000\"]\nEOF\ncat > config/alerts.yml <<'EOF'\ngroups:\n  - name: lab\n    rules:\n      - alert: DemoHigh5xxRate\n        expr: |\n          sum(rate(demo_requests_total{status=~\"5..\"}[1m]))\n            / sum(rate(demo_requests_total[1m])) > 0.05\n        for: 1m\n        labels:\n          severity: page\n        annotations:\n          summary: \"Más de 5 % de 5xx en el servicio de juguete\"\nEOF\ncat > am/alertmanager.yml <<'EOF'\nroute:\n  receiver: webhook\n  group_by: [alertname]\n  group_wait: 10s\n  group_interval: 1m\n  repeat_interval: 1h\nreceivers:\n  - name: webhook\n    webhook_configs:\n      - url: http://host.docker.internal:5001/\nEOF\ndocker run --rm -v \"$HOME/lab-prom/config:/cfg:ro\" --entrypoint promtool prom/prometheus:v3.13.3 check config /cfg/prometheus.yml\ndocker run --rm -v \"$HOME/lab-prom/am:/cfg:ro\" --entrypoint amtool prom/alertmanager:v0.34.1 check-config /cfg/alertmanager.yml",
+      "expect": "promtool: Checking /cfg/prometheus.yml, SUCCESS: 1 rule files found y SUCCESS: /cfg/prometheus.yml is valid prometheus config file syntax; después Checking /cfg/alerts.yml con SUCCESS: 1 rules found. amtool: Checking '/cfg/alertmanager.yml'  SUCCESS y la lista de lo que encontró (route, 1 receivers). Los intervalos son de 5 s para no esperar tanto; C01 usa 15 s."
+     },
+     {
+      "cmd": "docker network create lab-prom\ndocker run -d --name am-lab --network lab-prom -p 9093:9093 -v \"$HOME/lab-prom/am:/etc/alertmanager:ro\" prom/alertmanager:v0.34.1\ndocker run -d --name prom-lab --network lab-prom -p 9090:9090 -v \"$HOME/lab-prom/config:/etc/prometheus:ro\" prom/prometheus:v3.13.3\nsleep 15; curl -s -G localhost:9090/api/v1/query --data-urlencode 'query=up' | python3 -c \"import json, sys; [print(r['metric']['job'], r['value'][1]) for r in json.load(sys.stdin)['data']['result']]\"",
+      "expect": "El id de la red y dos ids de contenedor; después, servicio 1: Prometheus (en Docker) ya lee app.py (en tu Mac) por host.docker.internal. En la red lab-prom, Prometheus encuentra a Alertmanager por su nombre, am-lab."
+     },
+     {
+      "cmd": "touch fallar\nfor i in $(seq 8); do sleep 15; curl -s localhost:9090/api/v1/alerts | python3 -c \"import json, sys; print([(a['labels']['alertname'], a['state']) for a in json.load(sys.stdin)['data']['alerts']] or 'sin alertas')\"; done",
+      "expect": "Con el archivo fallar, 2 de cada 10 requests son 500. Una línea cada 15 s: sin alertas al principio, [('DemoHigh5xxRate', 'pending')] cuando la fracción pasa del 5 % (a los ≈ 15–25 s) y [('DemoHigh5xxRate', 'firing')] un minuto después (for: 1m). Unos 10 s más tarde (group_wait) aparece en la misma terminal la línea de webhook.py: FIRING DemoHigh5xxRate severity=page: Más de 5 % de 5xx en el servicio de juguete, con la hora de inicio en UTC."
+     },
+     {
+      "cmd": "rm fallar\nsleep 150",
+      "expect": "Sin errores nuevos, la ventana de 1 min se vacía: la fracción baja del 5 % a los ≈ 45 s y la alerta vuelve a inactive (sale de /alerts sin pasar por pending). En uno o dos minutos, al siguiente group_interval, webhook.py imprime RESOLVED DemoHigh5xxRate …: el webhook recibe el resuelto porque send_resolved es true por defecto."
+     },
+     {
+      "cmd": "kill $(cat app.pid) $(cat webhook.pid)\ndocker rm -f -v prom-lab am-lab\ndocker network rm lab-prom\ncd ~ && rm -rf ~/lab-prom",
+      "expect": "prom-lab, am-lab y lab-prom: no queda nada."
+     }
+    ],
+    "fix": "Si up da 0: ¿corre app.py (curl localhost:8000/metrics)? ¿aceptaste el permiso de red de macOS? Si nunca llega FIRING al webhook, recorre la cadena: Status → Alertmanager discovery en localhost:9090 (¿aparece am-lab?), la web de Alertmanager en localhost:9093 (¿llegó la alerta?) y docker logs am-lab (¿errores al llamar al webhook?).",
+    "needs": "Docker Desktop con internet para bajar prom/prometheus:v3.13.3 y prom/alertmanager:v0.34.1, y Python 3 de macOS (solo stdlib). Usa los puertos 8000, 5001, 9090 y 9093.",
+    "verified": "docs"
+   },
+   "links": [
+    "#c01.monitoreo",
+    "#m12.prometheus-grafana",
+    "#m12.runbooks",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "que-es",
+   "num": 1,
+   "title": "Qué es el monitoreo y qué hacen Prometheus y Grafana",
+   "question": "¿Para qué se monitorea un sistema, qué diferencia hay entre métricas, logs y trazas, y quién hace qué entre Prometheus, Alertmanager y Grafana?",
+   "templates": [
+    {
+     "code": "curl -s {servicio}:{puerto}/metrics",
+     "note": "Lo que expone un servicio para Prometheus: un <b>endpoint</b> (una URL) con sus números en texto plano. El servicio no le manda nada a nadie: espera a que lo lean."
+    },
+    {
+     "code": "docker run -d --name prom-lab -p 9090:9090 prom/prometheus:{version}",
+     "note": "Prometheus en tu Mac en un comando. Sin config propia usa la de ejemplo que trae la imagen: se lee a sí mismo cada 15 s. Abre <code>http://localhost:9090</code> y consulta <code>up</code>."
+    },
+    {
+     "code": "rate(prometheus_http_requests_total[1m])",
+     "note": "Una primera consulta de <b>PromQL</b> (el lenguaje de consultas de Prometheus) sobre las métricas del propio Prometheus: cuántos requests por segundo recibe su servidor web (la UI, la API y su propio /metrics), por ruta (<code>handler</code>) y código (<code>code</code>)."
+    },
+    {
+     "code": "http://localhost:9090 · http://localhost:9093 · http://localhost:3000",
+     "note": "Las tres webs: Prometheus (consultas, alertas, targets), Alertmanager (avisos agrupados y silencios) y Grafana (dashboards). Grafana no guarda métricas: le pregunta a Prometheus con PromQL."
+    }
+   ],
+   "formulas": [
+    "\\text{logs por día} \\;=\\; \\lambda \\times B_{\\text{línea}} \\;=\\; 10\\ \\text{M} \\times 300\\ \\text{B} \\;\\approx\\; 3\\ \\text{GB}",
+    "\\text{muestras por día} \\;=\\; N_{\\text{series}} \\times \\frac{86{,}400\\ \\text{s}}{\\Delta_{\\text{scrape}}} \\;=\\; 615 \\times 5{,}760 \\;\\approx\\; 3.5\\ \\text{M} \\qquad (\\times\\, 1\\text{–}2\\ \\text{B} \\;\\approx\\; 3.5\\text{–}7\\ \\text{MB})"
+   ],
+   "vars": [
+    [
+     "{servicio}",
+     "dónde está el target",
+     "gateway en el compose de C01"
+    ],
+    [
+     "{puerto}",
+     "puerto donde sirve /metrics",
+     "8080"
+    ],
+    [
+     "{version}",
+     "tag fijo de la imagen",
+     "v3.13.3, la de C01"
+    ],
+    [
+     "λ",
+     "requests por día del servicio",
+     "10 M en C01"
+    ],
+    [
+     "B_línea",
+     "bytes de una línea de log",
+     "≈ 300 B en C01"
+    ],
+    [
+     "N_series",
+     "series que guarda Prometheus del gateway",
+     "≈ 615 con 3 pods (sección 3)"
+    ],
+    [
+     "Δ_scrape",
+     "intervalo de scrape",
+     "15 s → 5,760 rondas por día"
+    ]
+   ],
+   "pieces": [
+    [
+     "Monitoreo",
+     "Saber, sin estar mirando, si el sistema funciona, y que te avise cuando no.",
+     "page si el p99 pasa de 200 ms durante 10 min"
+    ],
+    [
+     "Métrica",
+     "Un número medido en el tiempo y agregado: cuántos, qué tan rápido, cuántos errores. Barata y fácil de alertar.",
+     "classifier_requests_total"
+    ],
+    [
+     "Log",
+     "Un evento con detalle, normalmente una línea por request. Responde qué le pasó a ese request.",
+     "la línea JSON del gateway, ≈ 300 B"
+    ],
+    [
+     "Traza (trace)",
+     "El viaje de un request por varios servicios, partido en tramos con inicio y fin (spans).",
+     "gateway → Triton, muestreada ≈ 1 % (propuesta del curso)"
+    ],
+    [
+     "Prometheus",
+     "El servidor que lee métricas (scrape), las guarda como series de tiempo y evalúa reglas. Un binario autónomo, con su disco local.",
+     "prom/prometheus:v3.13.3 en el compose de C01"
+    ],
+    [
+     "Pull (scrape)",
+     "Prometheus pregunta a cada target cada cierto tiempo; el target solo contesta.",
+     "GET /metrics cada 15 s"
+    ],
+    [
+     "Target · job · instance",
+     "Target: una URL que leer. Job: el grupo de targets con el mismo propósito. Instance: cuál de ellos.",
+     "job=\"gateway\", instance=\"10.0.3.17:8080\" (ilustrativo)"
+    ],
+    [
+     "Serie de tiempo (time series)",
+     "La historia de un solo número: un nombre más un juego de labels, con una muestra por scrape.",
+     "classifier_requests_total{status=\"503\", source=\"web\", …}"
+    ],
+    [
+     "TSDB",
+     "La base de datos de series de Prometheus (time series database), en el disco local: 15 días por defecto, sin réplica.",
+     "/prometheus en la imagen de Docker"
+    ],
+    [
+     "PromQL",
+     "El lenguaje para consultar series: tasas, sumas, cuantiles. Lo usan los dashboards, las reglas y KEDA.",
+     "sum(rate(classifier_requests_total[5m]))"
+    ],
+    [
+     "Reglas (rules)",
+     "Consultas que Prometheus evalúa solo, cada cierto tiempo: las de grabación guardan un resultado; las de alerta disparan.",
+     "1 de grabación y 6 alertas en alerts.yml"
+    ],
+    [
+     "Alertmanager",
+     "Recibe las alertas, las agrupa, silencia e inhibe, y decide a quién avisar y cómo (page o ticket).",
+     "lo trae kube-prometheus-stack"
+    ],
+    [
+     "Grafana",
+     "Dibuja dashboards consultando a Prometheus con PromQL. No guarda métricas.",
+     "servicio, Triton y GPU, modelo y negocio (el curso)"
+    ],
+    [
+     "Exporter · Pushgateway",
+     "Exporter: traduce las métricas de algo que no habla Prometheus. Pushgateway: un buzón donde un job batch (un trabajo que corre y termina) deja sus números para que Prometheus los lea.",
+     "node_exporter · el PSI del job diario de drift (M12)"
+    ]
+   ],
+   "example": {
+    "title": "Quién le pregunta a quién: el ServiceMonitor del gateway de C01",
+    "lang": "yaml",
+    "code": "# Scrape con el Prometheus Operator (kube-prometheus-stack) (caso c01). Sin esto, Prometheus nunca\n# lee el gateway ni Triton: la consulta de KEDA vuelve vacía (k8s/keda-triton.yaml la marca como\n# error), Triton se queda en 2 réplicas y ninguna alerta evalúa. Falla en silencio.\n# Las reglas de monitoring/alerts.yml van aparte, como PrometheusRule (el Operator no lee archivos\n# de reglas): el comando está en el README.\napiVersion: monitoring.coreos.com/v1\nkind: ServiceMonitor\nmetadata:\n  name: gateway\n  namespace: classifier\n  labels:\n    release: kube-prometheus-stack  # = serviceMonitorSelector de tu Prometheus (nombre del release de Helm)\nspec:\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: gateway  # labels del Service de k8s/gateway.yaml\n  endpoints:\n    - port: http  # nombre del puerto del Service: 8080/metrics del gateway (no expuesto en el Ingress)\n      path: /metrics\n      interval: 15s  # igual que en local: suficiente para alertas de 5–30 min",
+    "source": "reference/c01/k8s/monitoring.yaml (líneas 1–20: el encabezado y el ServiceMonitor del gateway)",
+    "notes": [
+     "Pull en una frase: el gateway no sabe que Prometheus existe. Solo atiende <code>GET /metrics</code> en su puerto 8080; quien decide qué leer y cada cuánto es Prometheus. Este objeto es la forma de decírselo en Kubernetes.",
+     "«Falla en silencio»: si nadie le dice a Prometheus que lea un servicio, no hay error en ningún lado. No hay series ni <code>up</code>, y una alerta sobre una serie que no existe no dispara: su expresión no devuelve nada.",
+     "Un <b>ServiceMonitor</b> es un objeto del Prometheus Operator (un programa que corre en el cluster, vigila estos objetos y con ellos arma la config de Prometheus): busca los Services con esas labels y lee el puerto llamado <code>http</code> de cada pod detrás. El label <code>release: kube-prometheus-stack</code> hace que tu Prometheus lo tome en cuenta. La sección 11 lo cuenta entero.",
+     "El pull también se ve en la red: la NetworkPolicy de Triton (la regla de red de Kubernetes que dice quién puede conectarse; <code>k8s/triton.yaml</code>) solo deja entrar al puerto 8002 desde el namespace <code>monitoring</code>, porque es Prometheus el que abre la conexión. Con push haría falta lo contrario: dejar salir a Triton hacia el receptor.",
+     "Lo que Prometheus no hace: guardar eventos uno por uno (para eso están los logs) ni dar números exactos al 100 %, como para cobrar por request; su documentación lo dice. Es un sistema de números agregados, pensado para ser lo que consultas durante una caída: cada servidor es independiente y no depende de otra base ni de otro servicio para guardar."
+    ]
+   },
+   "figure": {
+    "kind": "pull",
+    "caption": "Pull: Prometheus visita cada target cada 15 s y anota lo que encuentra, también el silencio (up = 0). Push: cada servicio manda sus números, y uno muerto simplemente deja de mandar. Pods y puertos de C01 en EKS; el gateway caído es ilustrativo.",
+    "data": {
+     "prometheus": {
+      "name": "Prometheus",
+      "port": 9090,
+      "interval_s": 15,
+      "timeout_s": 10
+     },
+     "ticks_s": [
+      0,
+      15,
+      30,
+      45,
+      60
+     ],
+     "targets": [
+      {
+       "name": "gateway · 3 pods",
+       "endpoint": ":8080/metrics",
+       "job": "gateway",
+       "up": 1
+      },
+      {
+       "name": "triton · 2 pods",
+       "endpoint": ":8002/metrics",
+       "job": "triton",
+       "up": 1
+      },
+      {
+       "name": "kube-state-metrics",
+       "endpoint": ":8080/metrics",
+       "up": 1
+      },
+      {
+       "name": "node_exporter · 1 por nodo",
+       "endpoint": ":9100/metrics",
+       "up": 1
+      },
+      {
+       "name": "un pod del gateway que acaba de morir",
+       "endpoint": ":8080/metrics",
+       "job": "gateway",
+       "up": 0
+      }
+     ],
+     "pull_note": "Prometheus abre la conexión y pregunta; el target solo contesta. Si no contesta en 10 s, Prometheus anota up = 0: el silencio también es un dato.",
+     "push": {
+      "name": "Push (Pushgateway u OTLP)",
+      "who": "cada proceso manda sus números a un receptor (OTLP es el protocolo de OpenTelemetry para eso)",
+      "when": "jobs batch que terminan antes del próximo scrape",
+      "weakness": "un servicio muerto solo deja de mandar: nadie distingue eso de «no hubo tráfico»"
+     },
+     "note": "En EKS, el label <code>job</code> de cada target del Operator es el nombre de su Service: <code>gateway</code> y <code>triton</code> en C01, igual que en el compose local."
+    }
+   },
+   "memo": "Prometheus es <b>una ronda de enfermería cada 15 s</b>: pasa por cada cuarto (target) y anota los signos vitales; si en un cuarto nadie contesta, anota eso también (<code>up = 0</code>). Alertmanager llama a quien está de guardia; Grafana es el tablero de la pared. <b>Métricas para saber que algo anda mal, logs para saber qué le pasó a un request, trazas para saber dónde se fue el tiempo.</b>",
+   "trap": "Pensar que tu servicio «manda» sus métricas a Prometheus. Con pull, si nadie le dice a Prometheus que lo lea (falta el ServiceMonitor, el puerto se llama distinto, el label <code>release</code> no coincide), no hay error en ningún lado: no hay series, ninguna alerta evalúa y KEDA no escala (en C01, Triton se queda en 2 réplicas). Lo primero que miras es si existe <code>up</code> para ese job.",
+   "lab": {
+    "goal": "Ver el pull con tus propios ojos: un servicio que solo contesta GETs, y una «ronda» que pregunta cada 2 s, anota up y nota cuando el servicio muere.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-prom && cd ~/lab-prom\ncat > objetivo.py <<'EOF'\n# objetivo.py: un \"servicio\" que expone /metrics en el formato de texto de Prometheus (solo stdlib)\nimport random, threading, time\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\natendidos = 0  # contador: solo sube\nen_vuelo = 0   # gauge: sube y baja\n\ndef trabajar():  # simula tráfico: cada 0.1 s llega un request que dura un rato\n    global atendidos, en_vuelo\n    while True:\n        en_vuelo = random.randint(0, 4)\n        atendidos += 1\n        time.sleep(0.1)\n\nclass Metrics(BaseHTTPRequestHandler):\n    def do_GET(self):\n        if self.path != \"/metrics\":\n            self.send_error(404)\n            return\n        cuerpo = (\n            \"# HELP demo_requests_total Requests atendidos desde que arrancó el proceso.\\n\"\n            \"# TYPE demo_requests_total counter\\n\"\n            f\"demo_requests_total {atendidos}\\n\"\n            \"# HELP demo_inflight_requests Requests en curso ahora mismo.\\n\"\n            \"# TYPE demo_inflight_requests gauge\\n\"\n            f\"demo_inflight_requests {en_vuelo}\\n\"\n        ).encode()\n        self.send_response(200)\n        self.send_header(\"Content-Type\", \"text/plain; version=0.0.4; charset=utf-8\")\n        self.send_header(\"Content-Length\", str(len(cuerpo)))\n        self.end_headers()\n        self.wfile.write(cuerpo)\n\n    def log_message(self, *args):  # sin una línea por request en la terminal\n        pass\n\nthreading.Thread(target=trabajar, daemon=True).start()\nprint(\"sirviendo /metrics en el puerto 8000\", flush=True)\nThreadingHTTPServer((\"\", 8000), Metrics).serve_forever()\nEOF",
+      "expect": "Sin salida: el archivo queda escrito."
+     },
+     {
+      "cmd": "python3 objetivo.py & echo $! > objetivo.pid\nsleep 1; curl -s -i localhost:8000/metrics",
+      "expect": "sirviendo /metrics en el puerto 8000, y la respuesta: HTTP/1.0 200 OK, Content-Type: text/plain; version=0.0.4; charset=utf-8 y seis líneas: un # HELP y un # TYPE por métrica, demo_requests_total (≈ 10 a esa altura) y demo_inflight_requests (entre 0 y 4)."
+     },
+     {
+      "cmd": "cat > ronda.py <<'EOF'\n# ronda.py: lo que hace Prometheus en cada scrape, en miniatura (solo stdlib)\nimport sys, time, urllib.request\n\nURL = \"http://localhost:8000/metrics\"\nINTERVALO, TIMEOUT = 2.0, 1.0  # scrape_interval y scrape_timeout de esta ronda\nvueltas = int(sys.argv[1]) if len(sys.argv) > 1 else 4\nantes = None\nfor _ in range(vueltas):\n    t = time.time()\n    try:  # PULL: el que pregunta es el scraper; el servicio solo contesta\n        texto = urllib.request.urlopen(URL, timeout=TIMEOUT).read().decode()\n        muestras = {}\n        for linea in texto.splitlines():\n            if linea and not linea.startswith(\"#\"):  # las líneas # HELP y # TYPE son metadatos\n                nombre, valor = linea.rsplit(\" \", 1)\n                muestras[nombre] = float(valor)\n        up = 1\n    except OSError as e:  # conexión rechazada, timeout, DNS: el scrape falló\n        muestras, up = {}, 0\n        print(f\"  scrape falló: {e.__class__.__name__}\")\n    linea = f\"up=1  demo_requests_total={muestras.get('demo_requests_total', 0):.0f}  demo_inflight_requests={muestras.get('demo_inflight_requests', 0):.0f}\" if up else \"up=0\"\n    if up and antes:\n        linea += f\"  rate≈{(muestras['demo_requests_total'] - antes[1]) / (t - antes[0]):.1f}/s\"\n    print(time.strftime(\"%H:%M:%S\"), linea, flush=True)\n    antes = (t, muestras[\"demo_requests_total\"]) if up else None\n    time.sleep(max(0.0, INTERVALO - (time.time() - t)))\nEOF\npython3 ronda.py 4",
+      "expect": "Cuatro líneas, una cada 2 s: up=1, el contador subiendo ≈ 19 por ronda y, desde la segunda, rate≈9.5–10/s (10 por segundo, menos lo que tarda cada vuelta). El servicio nunca supo de la ronda: solo contestó GETs."
+     },
+     {
+      "cmd": "kill $(cat objetivo.pid)\npython3 ronda.py 2",
+      "expect": "Dos veces scrape falló: URLError y una línea up=0. El servicio murió y la ronda lo anota. Con push, un servicio muerto solo deja de mandar, y nadie distingue eso de que no haya habido tráfico."
+     },
+     {
+      "cmd": "python3 objetivo.py & echo $! > objetivo.pid\nsleep 1; python3 ronda.py 2",
+      "expect": "up=1 otra vez, con demo_requests_total en ≈ 10–30: el proceso nuevo empezó de 0. Ese salto hacia abajo es un reinicio del counter; rate() lo corrige (sección 2)."
+     },
+     {
+      "cmd": "kill $(cat objetivo.pid); cd ~ && rm -rf ~/lab-prom",
+      "expect": "Sin salida (zsh avisa que el proceso terminó)."
+     }
+    ],
+    "fix": "Si el puerto 8000 está ocupado (Address already in use), cambia 8000 por otro número en los dos archivos. Los valores cambian en cada corrida; la forma (up=1 con el counter subiendo, up=0 al matar el proceso, un counter que vuelve a empezar) no.",
+    "needs": "Python 3 y curl, que ya vienen en macOS (solo stdlib). Ni Docker ni internet.",
+    "verified": "executed",
+    "verified_note": "Pasos corridos tal cual en zsh (con un HOME de prueba) en macOS, con Python 3.14.3 y con 3.9.6 (el python3 de Apple): mismas formas de salida (rate≈9.0–10.0/s; up=0 con URLError al matar el proceso; el counter vuelve a ≈ 10 al reiniciarlo)."
+   },
+   "links": [
+    "#m12.por-que",
+    "#m12.sistema",
+    "#m12.prometheus-grafana",
+    "#ref-herramientas.monitoreo"
+   ]
+  },
+  {
+   "id": "metricas",
+   "num": 2,
+   "title": "El modelo de datos: nombre, labels, series y muestras; counter, gauge, histogram y summary; nombres y cardinalidad",
+   "question": "¿Qué guarda Prometheus exactamente, qué tipo de métrica uso para cada cosa y cómo evito que la cantidad de series explote?",
+   "templates": [
+    {
+     "code": "{metrica}{{label}=\"{valor}\", {label2}=\"{valor2}\"} {numero}",
+     "note": "Una línea del formato de texto = una <b>muestra</b> (sample: un número en un instante) de una <b>serie</b> (time series: la historia de un número). La serie es el nombre más el juego exacto de <b>labels</b> (etiquetas clave=valor). Cambia, agrega o quita un label y es otra serie."
+    },
+    {
+     "code": "# TYPE {metrica} counter|gauge|histogram|summary",
+     "note": "El tipo viaja como comentario: lo usan la librería que mide y quien lee el texto. El servidor guarda todas las series igual, como números con hora (salvo los native histograms): eres tú quien elige <code>rate()</code> para un counter o la lectura directa para un gauge."
+    },
+    {
+     "code": "rate({contador}_total[{ventana}])                           # counter: cuánto sube por segundo\n{gauge}                                                    # gauge: lo que marca ahora\nmax_over_time({gauge}[{ventana}])                          # gauge: el pico de la ventana\nrate({hist}_sum[{ventana}]) / rate({hist}_count[{ventana}])  # histogram: el promedio",
+     "note": "Cada tipo se lee distinto. El promedio de un histograma sale de <code>_sum</code> ÷ <code>_count</code>; los percentiles, de los <code>_bucket</code> (sección 6)."
+    },
+    {
+     "code": "{prefijo}_{que_mide}_{unidad}_total    # counter\n{prefijo}_{que_mide}_{unidad}          # gauge o histogram",
+     "note": "Nombres: un prefijo del dominio, lo que mide, la unidad <b>base</b> en plural (<code>seconds</code>, <code>bytes</code>; las proporciones de 0 a 1, <code>ratio</code>) y <code>_total</code> si es un counter. Nunca milisegundos en una métrica y segundos en otra."
+    },
+    {
+     "code": "topk(10, count by (__name__) ({__name__=~\"{prefijo}_.*\"}))",
+     "note": "¿Qué métrica tiene más series? Cuenta series por nombre. En la web, Status → TSDB status (el estado de la base de series) muestra el ranking de todo Prometheus. Usa siempre un filtro: sin él recorre todas las series."
+    }
+   ],
+   "formulas": [
+    "N_{\\text{series}} \\;\\le\\; \\prod_i |L_i| \\qquad \\texttt{classifier\\_requests\\_total}:\\ 9 \\times 4 \\times 1 = 36\\ \\text{combinaciones (72 series con \\_created)}",
+    "\\text{series de un histograma} \\;=\\; (b + 4) \\times v \\;=\\; (11 + 4) \\times 4 \\;=\\; 60\\ \\text{por pod}",
+    "\\bar{x} \\;=\\; \\frac{\\texttt{rate(x\\_sum[5m])}}{\\texttt{rate(x\\_count[5m])}} \\qquad (\\text{promedio de lo observado en la ventana})"
+   ],
+   "vars": [
+    [
+     "{metrica}",
+     "nombre de la métrica",
+     "classifier_requests_total"
+    ],
+    [
+     "{label}, {valor} · {label2}, {valor2}",
+     "dimensiones y sus valores: la serie lleva todos sus labels",
+     "status=\"503\", source=\"web\""
+    ],
+    [
+     "{numero}",
+     "el valor: siempre un float de 64 bits",
+     "17.0"
+    ],
+    [
+     "{contador}, {gauge}, {hist}",
+     "nombres base de cada tipo",
+     "classifier_requests · nv_gpu_utilization · classifier_request_latency_seconds"
+    ],
+    [
+     "{ventana}",
+     "cuánto mira hacia atrás",
+     "5m"
+    ],
+    [
+     "{prefijo}, {que_mide}, {unidad}",
+     "las partes del nombre",
+     "classifier · request_latency · seconds"
+    ],
+    [
+     "N_series",
+     "series que puede tener una métrica",
+     "72 para classifier_requests_total por pod, como máximo"
+    ],
+    [
+     "L_i",
+     "el label i; |L_i| es cuántos valores distintos puede tomar",
+     "status 9, source 4, model_version 1 por pod"
+    ],
+    [
+     "b, v",
+     "buckets con borde finito y combinaciones de labels; el + 4 son +Inf, _sum, _count y _created",
+     "11 y 4 en la latencia de C01"
+    ],
+    [
+     "x̄",
+     "promedio de lo observado en la ventana",
+     "latencia media por request"
+    ]
+   ],
+   "pieces": [
+    [
+     "Muestra (sample)",
+     "Un número float64 (decimal de 64 bits) con su hora en milisegundos. Es lo que deja cada scrape en cada serie.",
+     "17.0 a las 14:03:15.123"
+    ],
+    [
+     "Serie (time series)",
+     "La historia de un número: nombre + juego exacto de labels. Cambiar un label crea otra serie.",
+     "classifier_requests_total{status=\"200\", source=\"web\", …}"
+    ],
+    [
+     "Nombre de métrica",
+     "Qué se mide. Letras, dígitos, _ y :, sin empezar con un dígito (los : quedan para las reglas de grabación). Desde Prometheus 3.0 acepta UTF-8, pero el formato clásico evita sorpresas.",
+     "classifier_request_latency_seconds"
+    ],
+    [
+     "Label",
+     "Una dimensión clave=valor para partir la métrica. Los que empiezan con __ son internos; un valor vacío equivale a no tener el label.",
+     "source=\"mobile\""
+    ],
+    [
+     "Counter",
+     "Solo sube; vuelve a 0 si el proceso reinicia. Nombre con _total. Se lee con rate() o increase().",
+     "classifier_requests_total; nv_inference_count (Triton no le pone _total)"
+    ],
+    [
+     "Gauge",
+     "Sube y baja: vale lo que marca ahora. Se lee directo o con *_over_time.",
+     "nv_gpu_utilization, kube_deployment_status_replicas_available"
+    ],
+    [
+     "Histogram",
+     "Cuenta observaciones en cajones acumulados (_bucket con le) y guarda _sum y _count. Se suma entre pods.",
+     "classifier_request_latency_seconds"
+    ],
+    [
+     "le (less or equal)",
+     "El borde de cada cajón: le=\"0.2\" cuenta todo lo que tardó 0.2 s o menos. El último, le=\"+Inf\", es igual a _count.",
+     "11 bordes de 0.01 a 2.5 s en C01"
+    ],
+    [
+     "Summary",
+     "Calcula cuantiles en el proceso (quantile=\"0.99\"). Esos cuantiles no se pueden sumar ni promediar entre pods. El de Python solo da _sum y _count.",
+     "C01 no usa ninguno"
+    ],
+    [
+     "Native histogram",
+     "Histograma con buckets automáticos, guardado en una sola serie por combinación de labels. Estable desde 3.8, pero hay que activar scrape_native_histograms y que el cliente lo emita: el Histogram de Python emite solo clásicos.",
+     "C01 usa histogramas clásicos"
+    ],
+    [
+     "_created",
+     "La hora en que nació la serie. prometheus_client la agrega a counters, histogramas y summaries como una serie más (se apaga con PROMETHEUS_DISABLE_CREATED_SERIES=True).",
+     "classifier_requests_created"
+    ],
+    [
+     "Unidades base",
+     "Segundos, bytes y proporciones de 0 a 1, con la unidad al final del nombre.",
+     "_seconds, _bytes; nv_inference_queue_duration_us (µs) es la excepción de Triton"
+    ],
+    [
+     "Métrica _info",
+     "Un gauge que siempre vale 1 y lleva datos en sus labels: versión, build.",
+     "python_info{implementation=\"CPython\", …, version=\"3.13.16\"} 1.0"
+    ],
+    [
+     "Cardinalidad",
+     "Cuántas series tiene una métrica: hasta el producto de los valores de cada label. Cada serie ocupa memoria e índice en Prometheus. La guía oficial: si puedes, menos de 10 series por métrica (y pocas métricas en todo el sistema que pasen de eso); nunca ids ni valores sin límite.",
+     "request_id como label: una serie nueva por request"
+    ]
+   ],
+   "example": {
+    "title": "Las seis métricas del gateway de C01: nombres, tipos, labels y buckets",
+    "lang": "python",
+    "code": "# ---------------------------------------------------------------------------- métricas\n# Nombres = contrato con monitoring/alerts.yml: si cambias uno aquí, rompes una alerta en silencio.\n# Labels acotados: status (≈ 10 códigos) × source (4) × model_version (1–2 durante un canary)\nREQUESTS = Counter(  # el cliente de Python agrega el sufijo _total; el nombre expuesto es este mismo\n    \"classifier_requests_total\", \"Requests a /v1/classify por código HTTP, caller y modelo\",\n    [\"status\", \"source\", \"model_version\"],  # status: \"200\", \"503\"… · source: mobile/web/internal/other\n)\nLATENCY = Histogram(  # latencia server-side; los buckets rodean al SLO (0.2 s) para que el p99 sea preciso\n    \"classifier_request_latency_seconds\", \"Latencia total de /v1/classify\", [\"source\"],\n    buckets=(0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 2.5),\n)\nPREPROCESS = Histogram(  # separar preprocess e inferencia dice a qué capa escalar cuando sube la latencia\n    \"classifier_preprocess_seconds\", \"Decode + resize + normalize (CPU)\",\n    buckets=(0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5),\n)\nINFERENCE = Histogram(  # ida y vuelta a Triton: red + cola de dynamic batching + cómputo en GPU\n    \"classifier_inference_seconds\", \"Llamada a Triton (round trip)\",\n    buckets=(0.005, 0.01, 0.02, 0.035, 0.05, 0.075, 0.1, 0.15, 0.3),\n)\nTOP1 = Histogram(  # distribución de confianza: la señal de drift más barata que existe (sin labels)\n    \"classifier_top1_score\", \"Score top-1 tras softmax\", [\"model_version\"],  # separa canary de estable\n    buckets=tuple(round(0.1 * i, 1) for i in range(1, 11)),  # 0.1 … 1.0 → el bucket le=\"0.3\" alimenta una alerta\n)\nIMAGE_BYTES = Histogram(  # tamaño de entrada: explica cambios de latencia (p. ej. la web empieza a subir 12 MP)\n    \"classifier_image_bytes\", \"Bytes de la imagen recibida\",\n    buckets=(1e4, 5e4, 1e5, 2.5e5, 5e5, 1e6, 2.5e6, 5e6, 1e7),\n)",
+    "source": "reference/c01/gateway/app/main.py (líneas 62–88)",
+    "notes": [
+     "Un counter y cinco histogramas, ningún gauge. Los nombres siguen la guía: prefijo <code>classifier_</code>, unidad base al final (<code>_seconds</code>, <code>_bytes</code>) y <code>_total</code> en el counter. <code>classifier_top1_score</code> no lleva unidad: es una proporción de 0 a 1.",
+     "«Contrato con alerts.yml» (línea 63): las alertas buscan estos nombres exactos. Si renombras uno, la alerta no falla: su expresión deja de encontrar series y nunca dispara.",
+     "La cardinalidad está en el comentario de la línea 64: status × source × model_version. Para la latencia, (11 + 4) × 4 = 60 series por pod; con el counter y los otros cuatro histogramas, hasta 184 series <code>classifier_*</code> por pod (sección 3).",
+     "El sufijo: <code>prometheus_client</code> quita <code>_total</code> del nombre que le das y lo vuelve a poner al exponer, así que la serie de nacimiento se llama <code>classifier_requests_created</code>, sin <code>_total</code> (verificado con prometheus-client 0.26.0, la que fija C01).",
+     "<code>TOP1</code> lleva <code>model_version</code> para comparar el canary (la versión nueva, que recibe una parte del tráfico) con el estable. Sus bordes salen de <code>round(0.1 * i, 1)</code>: 0.1 … 1.0 exactos, y <code>le=\"0.3\"</code> es el cajón que lee la regla de grabación de baja confianza."
+    ]
+   },
+   "figure": {
+    "kind": "types",
+    "caption": "Los tres tipos que usa C01, a escala. Counter: un pod que reinicia entre t = 157 y 172 s; rate() en 2 min da 0.371/s. Gauge: requests en vuelo, que suben y bajan. Histogram: 1,000 latencias simuladas en los buckets de C01, acumulados. El counter y el gauge son los del lab de esta sección.",
+    "data": {
+     "counter": {
+      "metric": "classifier_requests_total (un pod)",
+      "interval_s": 15,
+      "points": [
+       [
+        112,
+        1042
+       ],
+       [
+        127,
+        1048
+       ],
+       [
+        142,
+        1054
+       ],
+       [
+        157,
+        1060
+       ],
+       [
+        172,
+        3
+       ],
+       [
+        187,
+        9
+       ],
+       [
+        202,
+        15
+       ],
+       [
+        217,
+        21
+       ]
+      ],
+      "reset_between": [
+       157,
+       172
+      ],
+      "window": "2m: (97, 217]",
+      "rate_per_s": 0.371,
+      "increase": 44.6,
+      "naive_per_s": -9.72,
+      "note": "Como cambiar de auto a mitad de viaje: el odómetro nuevo empieza en 0. rate() suma lo que marcaba el viejo antes de caer (1,060) y no da negativo."
+     },
+     "gauge": {
+      "metric": "requests en vuelo (gauge)",
+      "points": [
+       [
+        112,
+        2
+       ],
+       [
+        127,
+        4
+       ],
+       [
+        142,
+        3
+       ],
+       [
+        157,
+        6
+       ],
+       [
+        172,
+        2
+       ],
+       [
+        187,
+        3
+       ],
+       [
+        202,
+        5
+       ],
+       [
+        217,
+        4
+       ]
+      ],
+      "avg_over_time": 3.62,
+      "max_over_time": 6,
+      "note": "Como el medidor de gasolina: se lee lo que marca. rate() sobre esto da 0.158/s, un número sin sentido."
+     },
+     "histogram": {
+      "metric": "classifier_request_latency_seconds (1,000 requests simulados, mediana ≈ 40 ms)",
+      "buckets": [
+       [
+        "0.01",
+        4
+       ],
+       [
+        "0.025",
+        175
+       ],
+       [
+        "0.05",
+        702
+       ],
+       [
+        "0.075",
+        897
+       ],
+       [
+        "0.1",
+        968
+       ],
+       [
+        "0.15",
+        995
+       ],
+       [
+        "0.2",
+        999
+       ],
+       [
+        "0.3",
+        1000
+       ],
+       [
+        "0.5",
+        1000
+       ],
+       [
+        "1.0",
+        1000
+       ],
+       [
+        "2.5",
+        1000
+       ],
+       [
+        "+Inf",
+        1000
+       ]
+      ],
+      "per_bucket": [
+       4,
+       171,
+       527,
+       195,
+       71,
+       27,
+       4,
+       1,
+       0,
+       0,
+       0,
+       0
+      ],
+      "sum_s": 44.7,
+      "count": 1000,
+      "note": "Cada cajón cuenta todo lo que cayó por debajo de su borde (le): por eso los números solo suben y +Inf = _count. El p99 cae entre 0.1 y 0.15 s (sección 6)."
+     },
+     "summary": {
+      "note": "No sale en C01: trae el cuantil ya calculado en cada pod (quantile=\"0.99\") y dos pods no se pueden mezclar."
+     }
+    }
+   },
+   "memo": "Un <b>counter es el odómetro</b> del auto: solo sube, y <code>rate()</code> lo convierte en velocidad. Un <b>gauge es el medidor de gasolina</b>: lo lees tal cual. Un <b>histogram son cajones acumulados</b> (<code>le</code> = «hasta»), y un <b>summary</b> es un p99 ya cocinado en cada pod, que no se mezcla con el de otro.",
+   "trap": "Pasar un gauge por <code>rate()</code> o mostrar un counter crudo. <code>rate()</code> toma cada bajada de un gauge por un reinicio y suma basura (en el lab, 0.158 «requests en vuelo por segundo»); un counter crudo en un panel solo sube y cae a 0 en cada deploy. Y un label con valores sin límite (<code>request_id</code>, <code>user_id</code>): cada valor nuevo es una serie nueva que Prometheus indexa y guarda.",
+   "lab": {
+    "goal": "Calcular rate() e increase() a mano con el algoritmo de Prometheus y ver tres cosas: cómo corrige un reinicio, por qué la ventana necesita varias muestras y por qué un gauge no se pasa por rate().",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-prom && cd ~/lab-prom\ncat > rate.py <<'EOF'\n# rate.py: rate() e increase() como los calcula Prometheus, a partir de muestras (solo stdlib)\n\ndef en_ventana(serie, t, w):\n    return [(ts, v) for ts, v in serie if t - w < ts <= t]  # (t - w, t]: abierta a la izquierda\n\ndef rate(serie, t, w, contador=True):\n    m = en_ventana(serie, t, w)\n    if len(m) < 2:\n        return None  # con menos de 2 muestras no hay resultado: el panel dice \"No data\"\n    (t0, v0), (t1, v1) = m[0], m[-1]\n    delta = v1 - v0\n    if contador:  # si el valor bajó, el proceso reinició: suma lo que valía antes de caer\n        delta += sum(antes for (_, antes), (_, ahora) in zip(m, m[1:]) if ahora < antes)\n    medido = t1 - t0\n    paso = medido / (len(m) - 1)\n    ini, fin = t0 - (t - w), t - t1  # lo que falta medir antes de la 1.a muestra y después de la última\n    if ini >= 1.1 * paso:\n        ini = paso / 2  # la serie empezó dentro de la ventana: extrapola solo medio paso\n    if contador and delta > 0 and v0 >= 0:\n        ini = min(ini, medido * v0 / delta)  # nunca extrapola un contador por debajo de 0\n    if fin >= 1.1 * paso:\n        fin = paso / 2\n    return delta * (medido + ini + fin) / medido / w  # por segundo; increase = rate * w\n\n# Un contador leído cada 15 s (t = 7, 22 … 217): sube 6 por scrape (0.4 req/s). El pod reinicia\n# entre t = 157 y t = 172: vuelve a 0 y para t = 172 ya atendió 3 requests.\nx, valor = [], 1000\nfor i in range(15):\n    t = 7 + 15 * i\n    valor = 3 if t == 172 else valor + (6 if i else 0)\n    x.append((t, valor))\nprint(\"muestras (t, valor):\", x[-8:])\n\nT = 217\nfor w in (15, 30, 60, 120):\n    r = rate(x, T, w)\n    print(f\"rate(x[{w}s]):\", \"sin datos (menos de 2 muestras)\" if r is None else f\"{r:.3f}/s\")\nm = en_ventana(x, T, 120)\nprint(f\"(último - primero) / tiempo en 2m: {(m[-1][1] - m[0][1]) / (m[-1][0] - m[0][0]):.2f}/s  <- el reinicio da negativo\")\nprint(f\"increase(x[2m]): {rate(x, T, 120) * 120:.1f} requests\")\n\nsin_202 = [p for p in x if p[0] != 202]  # se perdió un scrape (timeout, deploy)\nfor w in (30, 60):\n    r = rate(sin_202, T, w)\n    print(f\"sin el scrape de t=202, rate(x[{w}s]):\", \"sin datos\" if r is None else f\"{r:.3f}/s\")\n\n# Un gauge (requests en vuelo) que sube y baja: rate() toma cada bajada por un reinicio\ng = [(7 + 15 * i, v) for i, v in enumerate([3, 5, 2, 6, 4, 3, 5, 2, 4, 3, 6, 2, 3, 5, 4])]\nvals = [v for _, v in en_ventana(g, T, 120)]\nprint(f\"rate(gauge[2m]): {rate(g, T, 120):.3f}/s  <- no significa nada\")\nprint(f\"avg_over_time(gauge[2m]): {sum(vals) / len(vals):.2f}   max_over_time(gauge[2m]): {max(vals)}\")\nEOF",
+      "expect": "Sin salida: el archivo queda escrito."
+     },
+     {
+      "cmd": "python3 rate.py | head -n 5",
+      "expect": "Las últimas 8 muestras, con el reinicio entre (157, 1060) y (172, 3). rate(x[15s]): sin datos (una sola muestra en la ventana); [30s]: 0.400/s; [60s]: 0.350/s (la ventana empieza justo después del reinicio: Prometheus extrapola hasta el 0 del counter y da 21 / 60 s, lo que atendió el proceso nuevo); [120s]: 0.371/s."
+     },
+     {
+      "cmd": "python3 rate.py | sed -n '6,9p'",
+      "expect": "Restar la última menos la primera da -9.72/s: negativo, por el reinicio. increase(x[2m]) da 44.6 requests. Si se pierde el scrape de t = 202, [30s] queda sin datos y [60s] sigue dando 0.350/s. Por eso la regla práctica pide al menos 4 scrapes por ventana: a Prometheus le bastan 2 muestras, pero así aguanta scrapes perdidos."
+     },
+     {
+      "cmd": "python3 rate.py | tail -n 2",
+      "expect": "rate(gauge[2m]): 0.158/s, un número sin sentido. avg_over_time da 3.62 y max_over_time da 6: así se lee un gauge."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-prom",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "rate() necesita al menos 2 muestras en la ventana, y la ventana es abierta a la izquierda: con scrapes cada 15 s, [1m] tiene 4 y sigue dando resultado aunque se pierdan dos. Los números son exactos con cualquier Python 3: no hay azar.",
+    "needs": "Python 3 de macOS (solo stdlib). Ni Docker ni internet.",
+    "verified": "executed",
+    "verified_note": "Pasos corridos tal cual en zsh (con un HOME de prueba) en macOS, con Python 3.9.6, 3.13 y 3.14.3: salidas idénticas, byte a byte. El cálculo sigue extrapolatedRate de promql/functions.go (rama release-3.13): corrección de reinicios, ventana (t − w, t], extrapolación hasta el borde si la muestra está a menos de 1.1 × el paso medio (si no, medio paso) y tope en el 0 del counter."
+   },
+   "links": [
+    "#m12.prometheus-grafana",
+    "#m12.sistema",
+    "#m03.percentiles",
+    "#c01.monitoreo"
+   ]
+  },
+  {
+   "id": "instrumentar",
+   "num": 3,
+   "title": "Instrumentar tu código y usar exporters: prometheus_client, el gateway de C01, Triton, node_exporter, kube-state-metrics y cAdvisor",
+   "question": "¿Cómo hago que mi servicio exponga métricas, dónde van las llamadas en el código y qué métricas me dan otros sin escribir nada?",
+   "templates": [
+    {
+     "code": "from prometheus_client import Counter, Gauge, Histogram\n{CONTADOR} = Counter(\"{prefijo}_{cosa}_total\", \"{ayuda}\", [\"{label}\"])\n{HISTO} = Histogram(\"{prefijo}_{cosa}_seconds\", \"{ayuda}\", buckets=({bordes}))\n{GAUGE} = Gauge(\"{prefijo}_{cosa}\", \"{ayuda}\")",
+     "note": "Se definen <b>una vez</b>, al importar el módulo, y quedan en el registro global (<code>REGISTRY</code>); definirlas dos veces da <code>DuplicateTimeseries</code> («Duplicated timeseries in CollectorRegistry», un <code>ValueError</code>). Sin <code>buckets</code> (los bordes de los cajones), el histograma usa los default (de 5 ms a 10 s), pensados para «requests web típicos», no para tu <b>SLO</b> (el objetivo de servicio: p99 ≤ 200 ms en C01)."
+    },
+    {
+     "code": "t0 = time.perf_counter()\nstatus = \"500\"\ntry:\n    ...  # el trabajo\n    status = \"200\"\nfinally:\n    {CONTADOR}.labels({label}=status).inc()\n    {HISTO}.observe(time.perf_counter() - t0)",
+     "note": "Las llamadas van en el <code>finally</code>: así cuentan también los errores. <code>.labels()</code> elige la serie, <code>.inc()</code> suma 1 y <code>.observe()</code> mete el valor en su bucket. Un gauge usa <code>.set()</code>, <code>.inc()</code>/<code>.dec()</code> o el decorador <code>track_inprogress()</code>, que sube al entrar y baja al salir."
+    },
+    {
+     "code": "@app.get(\"/metrics\", include_in_schema=False)\ndef metrics() -> Response:\n    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)\n\nstart_http_server({puerto})  # en un script o un worker sin web",
+     "note": "Exponer: en FastAPI, una ruta propia como la de C01 (montar <code>make_asgi_app()</code> en <code>/metrics</code> responde 307, una redirección, hacia <code>/metrics/</code>). En un script, <code>start_http_server</code> abre un servidor de <code>/metrics</code> en un hilo aparte."
+    },
+    {
+     "code": "PROMETHEUS_MULTIPROC_DIR={carpeta} uvicorn {app} --workers {n}",
+     "note": "Con varios procesos por pod (uvicorn con <code>--workers N</code>, o gunicorn) cada uno tiene su propio registro: hace falta el <b>modo multiproceso</b> (una carpeta compartida, vaciada en cada arranque, y un <code>MultiProcessCollector</code> en la ruta de <code>/metrics</code>). C01 corre 1 worker por pod y escala con réplicas."
+    },
+    {
+     "code": "curl -s localhost:{puerto}/metrics | docker run --rm -i --entrypoint promtool prom/prometheus:{version} check metrics",
+     "note": "<code>promtool</code>, la herramienta de línea de comandos de Prometheus, revisa con <code>check metrics</code> el texto que le llega por stdin (por el <code>|</code>) y marca problemas de estilo, como <code>counter metrics should have \"_total\" suffix</code> o <code>no help text</code>. Viene dentro de la imagen de Prometheus: no instalas nada."
+    }
+   ],
+   "formulas": [
+    "N_{\\text{pod}} \\;=\\; \\underbrace{2 \\times 36}_{\\text{requests}} + \\underbrace{15 \\times 4}_{\\text{latencia}} + \\underbrace{12 + 13 + 14 + 13}_{\\text{preproceso, inferencia, top-1, bytes}} + \\underbrace{16}_{\\text{cliente}} \\;=\\; 200",
+    "N_{\\text{servicio}} \\;=\\; n_{\\text{pods}} \\times (N_{\\text{pod}} + 5) \\;=\\; 3 \\times 205 = 615 \\;\\;\\text{a}\\;\\; 12 \\times 205 = 2{,}460",
+    "\\texttt{request\\_id}\\ \\text{como label:}\\quad 15\\ \\tfrac{\\text{series}}{\\text{request}} \\times 10\\ \\text{M}\\ \\tfrac{\\text{requests}}{\\text{día}} \\;=\\; 150\\ \\text{M series nuevas al día}"
+   ],
+   "vars": [
+    [
+     "{CONTADOR}, {HISTO}, {GAUGE}",
+     "variables de Python con cada métrica",
+     "REQUESTS y LATENCY en C01 (no tiene gauges)"
+    ],
+    [
+     "{prefijo}, {cosa}",
+     "las partes del nombre",
+     "classifier · request_latency"
+    ],
+    [
+     "{ayuda}",
+     "texto de # HELP",
+     "Latencia total de /v1/classify"
+    ],
+    [
+     "{label}",
+     "dimensión con valores de una lista cerrada",
+     "status"
+    ],
+    [
+     "{bordes}",
+     "bordes de los buckets, varios cerca del SLO",
+     "0.01, 0.025 … 2.5 (11 en C01)"
+    ],
+    [
+     "{puerto}",
+     "puerto donde escucha /metrics",
+     "8080 en el gateway; 8000 en el lab"
+    ],
+    [
+     "{carpeta}",
+     "carpeta del modo multiproceso, vacía al arrancar",
+     "/tmp/prom-multiproc"
+    ],
+    [
+     "{n}, {app}",
+     "procesos del servidor y la app que corre",
+     "1 worker en C01 · app.main:app"
+    ],
+    [
+     "{version}",
+     "tag de la imagen de Prometheus",
+     "v3.13.3"
+    ],
+    [
+     "N_pod",
+     "series que expone un pod del gateway en régimen",
+     "200: 184 classifier_* + 16 del cliente, en Linux"
+    ],
+    [
+     "n_pods",
+     "réplicas del gateway (las mueve el HPA, el autoscaler de Kubernetes)",
+     "de 3 a 12"
+    ],
+    [
+     "+ 5",
+     "series que Prometheus agrega por target",
+     "up y las cuatro scrape_*"
+    ]
+   ],
+   "pieces": [
+    [
+     "prometheus_client",
+     "La librería oficial de Python: define métricas, las guarda en memoria y las escribe en el formato de texto.",
+     "0.26.0 en C01, la última en octubre de 2026"
+    ],
+    [
+     "REGISTRY · generate_latest()",
+     "El registro global donde vive cada métrica; generate_latest() lo vuelca entero como texto.",
+     "Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)"
+    ],
+    [
+     ".labels(…)",
+     "Elige (o crea) la serie de esa combinación. Una serie con labels no existe hasta su primer uso: llámala sin .inc() al arrancar si quieres verla en 0.",
+     "REQUESTS.labels(status=\"500\", …)"
+    ],
+    [
+     "Counter: .inc()",
+     "Suma 1, o lo que le pases. count_exceptions() cuenta las excepciones de un bloque.",
+     "REQUESTS…inc() en el finally de classify"
+    ],
+    [
+     "Histogram: .observe() · .time()",
+     "Mete una observación en su bucket y la suma a _sum y _count; .time() mide un bloque en segundos.",
+     "LATENCY.labels(source=source).observe(elapsed)"
+    ],
+    [
+     "Gauge: .set() · track_inprogress()",
+     "Fija o mueve un valor que sube y baja; track_inprogress() cuenta lo que está en curso.",
+     "C01 lleva state.inflight, pero no lo exporta"
+    ],
+    [
+     "Colectores por defecto",
+     "process_* (CPU, RAM, archivos abiertos; solo en Linux), python_gc_* y python_info, sin escribir nada.",
+     "16 series en un pod de C01; 10 en tu Mac"
+    ],
+    [
+     "start_http_server(puerto)",
+     "Un servidor de /metrics en un hilo aparte, para scripts y workers sin web propia.",
+     "start_http_server(8000) en el lab"
+    ],
+    [
+     "Modo multiproceso",
+     "Para varios procesos por pod: PROMETHEUS_MULTIPROC_DIR y MultiProcessCollector. Sin él, cada scrape cae en un proceso distinto.",
+     "C01 lo evita con --workers 1"
+    ],
+    [
+     "Exporter",
+     "Un programa aparte que lee algo que no habla Prometheus y lo traduce a /metrics.",
+     "node_exporter en :9100 lee /proc y /sys de cada nodo"
+    ],
+    [
+     "Métricas propias del software",
+     "Programas que ya exponen /metrics por su cuenta: no hace falta exporter.",
+     "Triton en :8002 (nv_*); el propio Prometheus en :9090"
+    ],
+    [
+     "kube-state-metrics",
+     "Lee la API de Kubernetes y publica el estado de los objetos: réplicas, fases, reinicios.",
+     "kube_deployment_status_replicas_available → TritonNotReady"
+    ],
+    [
+     "cAdvisor (dentro del kubelet)",
+     "El uso real de CPU, memoria y throttling (los frenos cuando un contenedor agota su cuota de CPU) de cada contenedor, que el kubelet (el agente de Kubernetes en cada nodo) sirve en /metrics/cadvisor.",
+     "container_memory_working_set_bytes"
+    ],
+    [
+     "Pushgateway",
+     "Un buzón para jobs batch que terminan antes del próximo scrape: empujan su resultado y Prometheus lee el buzón. No es para servicios.",
+     "el PSI del job diario de drift (M12)"
+    ]
+   ],
+   "example": {
+    "title": "main.py: la ruta /metrics y las dos llamadas del finally",
+    "lang": "python",
+    "code": "from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest  # métricas Prometheus\n# …\n@app.get(\"/metrics\", include_in_schema=False)\ndef metrics() -> Response:\n    \"\"\"Endpoint que scrapea Prometheus. Con 1 proceso por contenedor basta el registro por defecto.\n\n    Verificado: app.mount(\"/metrics\", make_asgi_app()) (lo que sugiere la doc) responde 307 →\n    /metrics/ en Starlette; Prometheus sigue el redirect, pero cada scrape serían dos requests.\n    Con gunicorn/uvicorn --workers N necesitarías el modo multiproceso de prometheus_client.\n    \"\"\"\n    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)  # formato de texto de Prometheus\n# …\n    finally:\n        elapsed = time.perf_counter() - t0\n        source = record[\"source\"] if record[\"source\"] in SOURCES else \"other\"  # cardinalidad acotada\n        # Alimenta la alerta de 5xx y los paneles por caller y por modelo (canary vs estable)\n        REQUESTS.labels(status=str(status), source=source, model_version=MODEL_VERSION).inc()\n        if not 400 <= status < 500:  # los 4xx son rechazos rápidos: incluirlos \"mejoraría\" el p99 falsamente\n            LATENCY.labels(source=source).observe(elapsed)",
+    "source": "reference/c01/gateway/app/main.py (líneas 30, 119–127 y 240–246; # … marca líneas omitidas)",
+    "notes": [
+     "La ruta es una función normal (<code>def</code>, no <code>async def</code>): FastAPI la corre en su threadpool (un grupo de hilos aparte, para no frenar al resto). Devuelve el registro entero con <code>CONTENT_TYPE_LATEST</code>, que en prometheus-client 0.26.0 es <code>text/plain; version=1.0.0; charset=utf-8</code>.",
+     "Por qué no <code>make_asgi_app()</code>: montado en <code>/metrics</code>, Starlette responde 307 hacia <code>/metrics/</code> y cada scrape serían dos requests. Lo dice el docstring y se repitió con Starlette 1.7.0 (la de C01, que es quien redirige) y FastAPI 0.143.0: <code>307</code> con <code>location: …/metrics/</code>.",
+     "El <code>finally</code> de <code>classify</code> corre siempre: el counter cuenta 200, 4xx y 5xx. Los 422 son la excepción: FastAPI los rechaza antes de llamar a <code>classify</code>, y los cuenta aparte el handler (la función que atiende ese error) de <code>RequestValidationError</code>, en la línea 329. <code>status</code> va como texto (<code>str(status)</code>): los valores de un label siempre son strings.",
+     "<code>source</code> pasa por una lista cerrada antes de ser label: un header libre (<code>x-client-source</code>) crearía una serie por cada valor que invente un cliente. Los 4xx no entran al histograma de latencia: un rechazo de 1 ms bajaría el p99 sin que nadie esté mejor.",
+     "Lo que el gateway no exporta: <code>state.inflight</code> (requests en vuelo) vive en la app pero no es un gauge, aunque el curso lo lista como señal de saturación del gateway. Para verlo en un panel haría falta un <code>Gauge</code> que se mueva junto con <code>state.inflight</code>."
+    ]
+   },
+   "figure": {
+    "kind": "series",
+    "caption": "Cuántas series expone un pod del gateway de C01, contadas con las definiciones exactas de main.py y prometheus-client 0.26.0. Cada métrica se abre en una serie por combinación de labels; un histograma, en 15 por combinación (11 buckets + +Inf + _sum + _count + _created).",
+    "data": {
+     "tree": {
+      "metric": "classifier_request_latency_seconds",
+      "type": "histogram",
+      "label": "source",
+      "values": [
+       "mobile",
+       "web",
+       "internal",
+       "other"
+      ],
+      "per_value": [
+       "_bucket{le=\"0.01\"} … _bucket{le=\"2.5\"} (11)",
+       "_bucket{le=\"+Inf\"}",
+       "_sum",
+       "_count",
+       "_created"
+      ],
+      "per_value_count": 15,
+      "total": 60
+     },
+     "rows": [
+      {
+       "metric": "classifier_requests_total",
+       "type": "counter",
+       "labels": "status (9) × source (4) × model_version (1)",
+       "per_combination": 2,
+       "max_series": 72
+      },
+      {
+       "metric": "classifier_request_latency_seconds",
+       "type": "histogram",
+       "labels": "source (4)",
+       "per_combination": 15,
+       "max_series": 60
+      },
+      {
+       "metric": "classifier_preprocess_seconds",
+       "type": "histogram",
+       "labels": "—",
+       "per_combination": 12,
+       "max_series": 12
+      },
+      {
+       "metric": "classifier_inference_seconds",
+       "type": "histogram",
+       "labels": "—",
+       "per_combination": 13,
+       "max_series": 13
+      },
+      {
+       "metric": "classifier_top1_score",
+       "type": "histogram",
+       "labels": "model_version (1)",
+       "per_combination": 14,
+       "max_series": 14
+      },
+      {
+       "metric": "classifier_image_bytes",
+       "type": "histogram",
+       "labels": "—",
+       "per_combination": 13,
+       "max_series": 13
+      },
+      {
+       "metric": "process_*, python_gc_*, python_info",
+       "type": "del cliente",
+       "labels": "—",
+       "per_combination": null,
+       "max_series": 16
+      }
+     ],
+     "total_pod": 200,
+     "per_target_extra": 5,
+     "service": "3 a 12 pods: de 615 a 2,460 series",
+     "measured": "lab: 144 series classifier_* con 4 status × 4 source; 154 en total en macOS (sin las 6 process_*)",
+     "bad": {
+      "label": "request_id",
+      "growth": "2 series por request en un counter (_total y _created), 15 en un histograma: ≈ 1,600 nuevas en los primeros 10 s del lab"
+     },
+     "note": "Los 9 status son los que <code>main.py</code> puede anotar: 200, 400, 413, 415, 422, 499, 500, 503 y 504. Un label de lista cerrada multiplica; un id no tiene techo."
+    }
+   },
+   "memo": "<b>Define al importar, cuenta en el finally, expón en /metrics.</b> Labels de una lista cerrada, buckets alrededor del SLO y un proceso por pod. Lo que no es tuyo (la máquina, Kubernetes, Triton) ya trae su exporter o su propio <code>/metrics</code>.",
+   "trap": "Correr el servicio con varios workers (<code>--workers 4</code>) sin el modo multiproceso. Cada worker tiene sus propios counters y cada scrape cae en uno distinto: la serie salta, por ejemplo, 1,200 → 310 → 1,215, y <code>rate()</code> lee cada bajada como un reinicio y suma de más. Por eso C01 corre <code>--workers 1</code> y escala con réplicas. La otra: buscar la serie de los 500 antes del primer 500; una serie con labels no existe hasta su primer uso, y el panel dice «No data» en vez de 0.",
+   "lab": {
+    "goal": "Correr las seis métricas del gateway de C01 con tráfico simulado, contar sus series contra la figura y ver qué hace un label sin límite.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-prom && cd ~/lab-prom\npython3.13 -m venv .venv\n.venv/bin/pip install prometheus-client==0.26.0",
+      "expect": "Termina con Successfully installed prometheus-client-0.26.0, la versión que fija C01 (no tiene dependencias)."
+     },
+     {
+      "cmd": "cat > metricas_c01.py <<'EOF'\n# metricas_c01.py: las seis métricas del gateway de C01 (copiadas de main.py) con tráfico simulado\nimport random, sys, time\nfrom prometheus_client import Counter, Histogram, start_http_server\n\nREQUESTS = Counter(\n    \"classifier_requests_total\", \"Requests a /v1/classify por código HTTP, caller y modelo\",\n    [\"status\", \"source\", \"model_version\"],\n)\nLATENCY = Histogram(\n    \"classifier_request_latency_seconds\", \"Latencia total de /v1/classify\", [\"source\"],\n    buckets=(0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 2.5),\n)\nPREPROCESS = Histogram(\n    \"classifier_preprocess_seconds\", \"Decode + resize + normalize (CPU)\",\n    buckets=(0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5),\n)\nINFERENCE = Histogram(\n    \"classifier_inference_seconds\", \"Llamada a Triton (round trip)\",\n    buckets=(0.005, 0.01, 0.02, 0.035, 0.05, 0.075, 0.1, 0.15, 0.3),\n)\nTOP1 = Histogram(\n    \"classifier_top1_score\", \"Score top-1 tras softmax\", [\"model_version\"],\n    buckets=tuple(round(0.1 * i, 1) for i in range(1, 11)),\n)\nIMAGE_BYTES = Histogram(\n    \"classifier_image_bytes\", \"Bytes de la imagen recibida\",\n    buckets=(1e4, 5e4, 1e5, 2.5e5, 5e5, 1e6, 2.5e6, 5e6, 1e7),\n)\nMODEL_VERSION = \"2026-09-01-resnet50-fp16\"\nMALO = \"--malo\" in sys.argv\nif MALO:  # lo que NO hay que hacer: un id como label\n    POR_REQUEST = Counter(\"classifier_requests_by_id_total\", \"Requests por id\", [\"request_id\"])\n\nstart_http_server(8000)  # /metrics en el puerto 8000, en un hilo aparte\nprint(\"sirviendo /metrics en el puerto 8000\", flush=True)\nn = 0\nwhile True:  # un request simulado cada 10 ms, con el mismo patrón que el finally de classify\n    n += 1\n    status = random.choices([\"200\", \"503\", \"504\", \"422\"], weights=[90, 4, 4, 2])[0]\n    source = random.choice([\"mobile\", \"web\", \"internal\", \"other\"])\n    elapsed = random.lognormvariate(-3.2, 0.5)  # ≈ 40 ms de mediana\n    if status == \"200\":\n        PREPROCESS.observe(elapsed * 0.4)\n        INFERENCE.observe(elapsed * 0.3)\n        TOP1.labels(model_version=MODEL_VERSION).observe(random.betavariate(5, 2))\n        IMAGE_BYTES.observe(random.randint(100_000, 300_000))\n    REQUESTS.labels(status=status, source=source, model_version=MODEL_VERSION).inc()\n    if not 400 <= int(status) < 500:  # como en C01: los 4xx no entran al histograma de latencia\n        LATENCY.labels(source=source).observe(elapsed)\n    if MALO:\n        POR_REQUEST.labels(request_id=f\"{n:08x}\").inc()  # una serie nueva por request\n    time.sleep(0.01)\nEOF",
+      "expect": "Sin salida: el archivo queda escrito. Las seis definiciones son copia exacta de main.py; el tráfico es simulado."
+     },
+     {
+      "cmd": ".venv/bin/python metricas_c01.py & echo $! > metricas.pid\nsleep 15; curl -s localhost:8000/metrics | grep 'source=\"web\",status=\"200\"'",
+      "expect": "sirviendo /metrics en el puerto 8000 y dos líneas: classifier_requests_total{model_version=\"2026-09-01-resnet50-fp16\",source=\"web\",status=\"200\"} con cientos, y su gemela classifier_requests_created con la hora de nacimiento en segundos (≈ 1.79e+09). Los labels salen en orden alfabético."
+     },
+     {
+      "cmd": "curl -s localhost:8000/metrics | grep -E 'latency_seconds_(bucket\\{le=\"(0.2|\\+Inf)\",source=\"web\"\\}|count\\{source=\"web\"\\})'",
+      "expect": "Tres líneas: el bucket le=\"0.2\" igual o casi igual al total (con ≈ 40 ms de mediana, casi todo cabe bajo 0.2 s), le=\"+Inf\" y _count con el mismo número: los buckets son acumulados."
+     },
+     {
+      "cmd": "curl -s localhost:8000/metrics | grep -c '^classifier_'\ncurl -s localhost:8000/metrics | grep -c '^[a-z]'",
+      "expect": "144 y 154. Las 144: 32 de requests (4 status × 4 source × 2), 60 de latencia y 52 de los otros cuatro histogramas (12 + 13 + 14 + 13). Las 10 de diferencia son python_gc_* y python_info; en un pod de Linux se suman las 6 process_*."
+     },
+     {
+      "cmd": "kill $(cat metricas.pid)\n.venv/bin/python metricas_c01.py --malo & echo $! > metricas.pid\nsleep 10; curl -s localhost:8000/metrics | grep -c '^classifier_requests_by_id'\nsleep 10; curl -s localhost:8000/metrics | grep -c '^classifier_requests_by_id'",
+      "expect": "Unas 1,600 y unas 3,200: dos series nuevas por request (_total y _created), sin techo. El /metrics pasa de ≈ 14 KB a ≈ 240 KB en 20 s; en Prometheus, cada una sería una serie más en memoria y en el índice."
+     },
+     {
+      "cmd": "kill $(cat metricas.pid); cd ~ && rm -rf ~/lab-prom",
+      "expect": "Sin salida (zsh avisa que el proceso terminó)."
+     }
+    ],
+    "fix": "Si en el paso 5 ves menos de 144, espera unos segundos más: alguna combinación rara (un 422 de internal) todavía no salió, y una serie con labels no existe hasta su primer uso. Los conteos de requests cambian en cada corrida; la cantidad de series no.",
+    "needs": "Python 3.13 e internet para el pip install (prometheus-client 0.26.0). Ni Docker ni GPU.",
+    "verified": "executed",
+    "verified_note": "Pasos 2 a 7 corridos tal cual en zsh (con un HOME de prueba) en macOS, con un venv que ya tenía prometheus-client 0.26.0 y Python 3.13.16; el paso 1 (venv y pip) no se corrió: 144 y 154 series a los 15 s; con --malo, 1,622 y 3,264 series a los 10 y 20 s, y el /metrics creció de 13.6 KB a 240 KB."
+   },
+   "links": [
+    "#m12.prometheus-grafana",
+    "#m12.sistema",
+    "#m07.fastapi",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "scrape",
+   "num": 4,
+   "title": "Configurar el scrape: prometheus.yml, jobs, targets, relabeling básico, up y la página de targets",
+   "question": "¿Cómo le dices a Prometheus qué leer, cada cuánto y con qué labels, y cómo sabes si lo está logrando?",
+   "templates": [
+    {
+     "code": "global:\n  scrape_interval: {intervalo}\n  evaluation_interval: {intervalo}\nrule_files:\n  - {reglas}.yml\nscrape_configs:\n  - job_name: {job}\n    metrics_path: {ruta}\n    static_configs:\n      - targets: [\"{host}:{puerto}\"]\n        labels:\n          {label}: {valor}",
+     "note": "<b>global</b> pone los valores por defecto de todos los jobs (cada job puede cambiarlos). Cada <b>job</b> (grupo de targets con el mismo propósito) lleva un nombre único, que termina como label <code>job</code> en cada serie. <code>targets</code> son <code>host:puerto</code>, sin <code>http://</code> ni ruta: la ruta va en <code>metrics_path</code> (default <code>/metrics</code>)."
+    },
+    {
+     "code": "    relabel_configs:\n      - source_labels: [{label_origen}]\n        regex: \"{regex}\"\n        action: drop\n      - target_label: {label}\n        replacement: {valor}",
+     "note": "<b>Relabeling</b>: reescribir los labels de cada target <b>antes</b> del scrape. <code>keep</code> y <code>drop</code> deciden si el target se lee; sin <code>action</code> es <code>replace</code>, que escribe <code>target_label</code>. El regex se ancla entero (default <code>(.*)</code>). Los labels que empiezan con <code>__</code> (<code>__address__</code>, los <code>__meta_*</code> del descubrimiento) se borran al terminar."
+    },
+    {
+     "code": "    metric_relabel_configs:\n      - source_labels: [__name__]\n        regex: \"{patron}\"\n        action: drop",
+     "note": "<code>metric_relabel_configs</code> corre <b>después</b> del scrape, sobre cada muestra y antes de guardarla: sirve para tirar series caras. No toca <code>up</code> ni las otras series que genera Prometheus."
+    },
+    {
+     "code": "docker run --rm -v \"$PWD\":/cfg:ro --entrypoint promtool prom/prometheus:{version} check config /cfg/prometheus.yml",
+     "note": "<b>promtool</b> (el validador que viene en la imagen) revisa la sintaxis, que existan los archivos que nombra y que las reglas de <code>rule_files</code> sean válidas. Úsalo antes de cada cambio: un error aquí es un Prometheus que no arranca o una recarga que falla."
+    },
+    {
+     "code": "docker kill -s HUP {contenedor}\ncurl -X POST localhost:9090/-/reload   # solo con --web.enable-lifecycle",
+     "note": "Recargar sin reiniciar: la señal SIGHUP (el aviso de «relee tu config»), o un POST a <code>/-/reload</code> si Prometheus arrancó con <code>--web.enable-lifecycle</code>. Si la config nueva tiene un error, sigue la anterior y <code>prometheus_config_last_reload_successful</code> queda en 0."
+    }
+   ],
+   "formulas": [
+    "\\Delta_{\\text{timeout}} \\;\\le\\; \\Delta_{\\text{scrape}} \\qquad \\text{si no lo escribes: } \\Delta_{\\text{timeout}} = \\min(10\\ \\text{s},\\ \\Delta_{\\text{scrape}})",
+    "\\frac{\\text{muestras}}{\\text{s}} \\;=\\; \\sum_{\\text{targets}} \\frac{N_{\\text{series}}}{\\Delta_{\\text{scrape}}} \\;=\\; \\frac{3 \\times 205}{15\\ \\text{s}} \\;=\\; 41\\ \\text{muestras/s}\\quad(\\text{el gateway de C01 con 3 pods})"
+   ],
+   "vars": [
+    [
+     "{intervalo}",
+     "cada cuánto lee y evalúa",
+     "15s en C01"
+    ],
+    [
+     "{reglas}",
+     "archivo de reglas, relativo a prometheus.yml",
+     "alerts"
+    ],
+    [
+     "{job}",
+     "nombre único del grupo de targets",
+     "gateway"
+    ],
+    [
+     "{ruta}",
+     "ruta de las métricas en el target",
+     "/metrics (el default)"
+    ],
+    [
+     "{host}:{puerto}",
+     "dónde está el target, visto desde Prometheus",
+     "gateway:8080 en el compose; host.docker.internal:8000 hacia tu Mac"
+    ],
+    [
+     "{label}: {valor}",
+     "label fijo para todas las series de esos targets",
+     "env: lab"
+    ],
+    [
+     "{label_origen}",
+     "label que miras para decidir; en Kubernetes, un __meta_*",
+     "__address__ · __meta_kubernetes_namespace"
+    ],
+    [
+     "{regex}",
+     "expresión regular, anclada al inicio y al final",
+     ".*:8001"
+    ],
+    [
+     "{patron}",
+     "nombres de métricas que no quieres guardar",
+     "go_.*"
+    ],
+    [
+     "{version}",
+     "tag de la imagen de Prometheus",
+     "v3.13.3 (la de C01)"
+    ],
+    [
+     "{contenedor}",
+     "nombre del contenedor de Prometheus",
+     "prom-lab"
+    ],
+    [
+     "Δ_timeout, Δ_scrape",
+     "scrape_timeout y scrape_interval",
+     "10 s y 15 s en C01"
+    ],
+    [
+     "N_series",
+     "series que expone cada target, más las 5 que agrega Prometheus",
+     "205 por pod del gateway"
+    ]
+   ],
+   "pieces": [
+    [
+     "global",
+     "Valores por defecto para todos los jobs (intervalos y timeout), más los external_labels de este Prometheus.",
+     "scrape_interval: 15s en C01"
+    ],
+    [
+     "external_labels",
+     "Labels que se pegan a lo que sale de este Prometheus: alertas, federación (otro Prometheus que lee de este) y remote write (copias a otra base). No aparecen en tus consultas locales.",
+     "env: local en C01"
+    ],
+    [
+     "job_name",
+     "Nombre único del job; termina como label job en cada serie.",
+     "job=\"gateway\""
+    ],
+    [
+     "static_configs.targets",
+     "Lista fija de host:puerto. Con http:// adelante, la config ni carga; si el job tiene relabel_configs, carga, pero ese target nunca se crea.",
+     "[\"gateway:8080\"]"
+    ],
+    [
+     "instance",
+     "Label que dice qué target fue: por defecto, el __address__ (host:puerto).",
+     "instance=\"gateway:8080\""
+    ],
+    [
+     "metrics_path · scheme",
+     "Ruta y protocolo del scrape: /metrics y http por defecto.",
+     "C01 escribe metrics_path: /metrics aunque es el default"
+    ],
+    [
+     "scrape_timeout",
+     "Cuánto espera cada scrape; no puede pasar el intervalo.",
+     "10 s por defecto"
+    ],
+    [
+     "Descubrimiento (service discovery)",
+     "Que Prometheus encuentre los targets solo, sin lista fija. En Kubernetes, kubernetes_sd_configs con role pod, service, endpoints, endpointslice, node o ingress.",
+     "en EKS lo arma el Prometheus Operator desde los ServiceMonitors (sección 11)"
+    ],
+    [
+     "relabel_configs",
+     "Reglas que reescriben los labels de cada target antes del scrape: keep, drop, replace, labelmap (copia labels con otro nombre)…",
+     "tirar un namespace entero, renombrar instance"
+    ],
+    [
+     "__address__ · __meta_*",
+     "Labels temporales del target: la dirección y lo que sabe el descubrimiento. Se borran después del relabeling.",
+     "__meta_kubernetes_pod_name"
+    ],
+    [
+     "metric_relabel_configs",
+     "Reglas que corren después del scrape, sobre cada muestra: tiran o renombran series antes de guardarlas.",
+     "drop de go_.* en el lab"
+    ],
+    [
+     "honor_labels",
+     "Si el target trae un label que Prometheus también pone (job, instance): con false (default) el del target pasa a llamarse exported_job; con true gana el del target.",
+     "true para el Pushgateway"
+    ],
+    [
+     "up y scrape_*",
+     "Series que escribe Prometheus en cada scrape: up, scrape_duration_seconds, scrape_samples_scraped, scrape_samples_post_metric_relabeling y scrape_series_added.",
+     "up{job=\"triton\"} == 0"
+    ],
+    [
+     "Status → Target health",
+     "La página /targets: cada target con su estado (UP o DOWN), labels, último scrape, duración y error. Status → Service discovery muestra los labels de antes del relabeling y los targets descartados.",
+     "connection refused · context deadline exceeded"
+    ]
+   ],
+   "example": {
+    "title": "El prometheus.yml de C01: dos jobs, cada 15 s",
+    "lang": "yaml",
+    "code": "# Configuración de Prometheus para correr el sistema en local con docker compose (caso c01).\n# En Kubernetes NO se escribe a mano: el Prometheus Operator descubre los pods con\n# ServiceMonitor/PodMonitor (o kubernetes_sd_configs), y en AWS puedes usar Amazon Managed\n# Prometheus. alerts.yml se reutiliza tal cual como spec de un PrometheusRule (ver README).\n\nglobal:\n  scrape_interval: 15s  # cada cuánto lee /metrics: suficiente para alertas de 5–30 min, barato en series\n  evaluation_interval: 15s  # cada cuánto evalúa reglas y alertas\n  external_labels:\n    env: local  # en producción, env/cluster distinguen de dónde viene cada alerta\n\nrule_files:\n  - alerts.yml  # ruta relativa a este archivo: reglas de grabación + las 6 alertas del caso\n\nscrape_configs:\n  - job_name: gateway  # el label job=\"gateway\" aparece en cada serie del gateway\n    metrics_path: /metrics  # endpoint propio (sin redirect; ver main.py)\n    static_configs:\n      - targets: [\"gateway:8080\"]  # nombre del servicio en docker-compose.yml, puerto del gateway\n\n  - job_name: triton  # métricas nv_* (cola, cómputo, batches, GPU) que expone Triton\n    static_configs:\n      - targets: [\"triton:8002\"]  # 8002 = --metrics-port de Triton",
+    "source": "reference/c01/monitoring/prometheus.yml (completo)",
+    "notes": [
+     "Un archivo para el compose local: cada target es <code>servicio:puerto</code> en la red de Docker (<code>gateway:8080</code>, <code>triton:8002</code>). Desde el contenedor de Prometheus, <code>localhost</code> sería el propio Prometheus.",
+     "Dos jobs, dos valores del label <code>job</code>: <code>gateway</code> y <code>triton</code>. El job de Triton no escribe <code>metrics_path</code> y usa el default, <code>/metrics</code>.",
+     "<code>external_labels</code> no aparece en tus consultas: se pega a lo que sale de este Prometheus (alertas a Alertmanager, federación, remote write). En producción, <code>env</code> y <code>cluster</code> dicen de dónde viene cada alerta.",
+     "En EKS este archivo no existe (lo dice su comentario): el Operator arma el scrape desde <code>k8s/monitoring.yaml</code>. Cada ServiceMonitor se vuelve un job (scrape pool) llamado <code>serviceMonitor/classifier/gateway/0</code>, pero el label <code>job</code> de las series es el nombre del Service: <code>gateway</code> y <code>triton</code>, los mismos que en local. El Operator agrega además <code>namespace</code>, <code>service</code>, <code>pod</code>, <code>container</code> y <code>endpoint</code> (el nombre del puerto).",
+     "Los ServiceMonitors repiten <code>interval: 15s</code>: sin él usarían el intervalo de su Prometheus, que en el Prometheus Operator es 30 s por defecto. Con 15 s, las ventanas de 2 a 30 min de KEDA y de las alertas tienen de 8 a 120 muestras."
+    ]
+   },
+   "figure": {
+    "kind": "chain",
+    "caption": "La vida de un target en cada ronda, del descubrimiento a la muestra guardada. Hay dos lugares para reescribir labels: relabel_configs, antes del scrape, y metric_relabel_configs, después.",
+    "data": {
+     "steps": [
+      {
+       "label": "Descubrimiento",
+       "cmd": "static_configs · kubernetes_sd_configs",
+       "note": "Una lista fija (local) o la API de Kubernetes (EKS). Cada target nace con __address__ (host:puerto), job y, con descubrimiento, labels __meta_*."
+      },
+      {
+       "label": "relabel_configs",
+       "cmd": "action: keep · drop · replace · labelmap",
+       "note": "Decide si el target se lee y con qué labels. Lo que empieza con __ se borra al terminar; instance = __address__ si nadie lo fijó."
+      },
+      {
+       "label": "Target listo",
+       "cmd": "curl -s localhost:9090/api/v1/targets",
+       "note": "discoveredLabels (antes) y labels (después del relabeling). Los descartados quedan como dropped en Status → Service discovery."
+      },
+      {
+       "label": "Scrape",
+       "cmd": "GET http://gateway:8080/metrics",
+       "note": "Cada scrape_interval (15 s en C01), con scrape_timeout (10 s). El formato se negocia con el header Accept."
+      },
+      {
+       "label": "metric_relabel_configs",
+       "cmd": "action: drop sobre __name__",
+       "note": "Corre sobre cada muestra leída: tira series caras antes de guardarlas. No toca up."
+      },
+      {
+       "label": "Límites",
+       "cmd": "sample_limit · label_limit",
+       "note": "Si una ronda los pasa, se descarta entera y up = 0. Default 0: sin límite."
+      },
+      {
+       "label": "up y scrape_*",
+       "cmd": "up{job=\"gateway\"}",
+       "note": "Al cerrar la ronda, Prometheus escribe up (1 si salió bien; 0 si el scrape falló o pasó un límite), scrape_duration_seconds, scrape_samples_scraped…"
+      },
+      {
+       "label": "TSDB",
+       "cmd": "prometheus_tsdb_head_series",
+       "note": "Cada muestra entra a su serie (nombre + labels). Una combinación nueva de labels es una serie nueva en memoria."
+      }
+     ]
+    }
+   },
+   "memo": "Un <b>job es una ronda con su lista de cuartos</b> (targets): <code>relabel_configs</code> decide en qué cuartos entrar y con qué nombre anotarlos, <code>metric_relabel_configs</code> qué anotar, y <code>up</code> es la línea que dice «entré y alguien contestó».",
+   "trap": "Prometheus en un contenedor con <code>targets: [\"localhost:8080\"]</code>: <code>localhost</code> es el propio contenedor de Prometheus, y el target queda DOWN con <code>connection refused</code>. Usa el nombre del servicio en compose (<code>gateway:8080</code>) o <code>host.docker.internal</code> para tu Mac. Y escribir <code>http://gateway:8080</code> en <code>targets</code>: la config ni carga (<code>\"http://gateway:8080\" is not a valid hostname</code>), y si el job tiene <code>relabel_configs</code>, carga pero ese target nunca se crea. El esquema va en <code>scheme</code> y la ruta en <code>metrics_path</code>.",
+   "lab": {
+    "goal": "Escribir un prometheus.yml propio: un job vivo con un label y un relabel, uno muerto, un metric_relabel que tira series, y dos recargas, una rota y una buena.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-prom/config && cd ~/lab-prom\ncat > mini.py <<'EOF'\n# mini.py: un target mínimo con /metrics (solo stdlib)\nimport time\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nT0 = time.time()\n\nclass Metrics(BaseHTTPRequestHandler):\n    def do_GET(self):\n        n = int((time.time() - T0) * 10)  # \"requests atendidos\": 10 por segundo\n        cuerpo = f\"# TYPE demo_requests_total counter\\ndemo_requests_total {n}\\n\".encode()\n        self.send_response(200 if self.path == \"/metrics\" else 404)\n        self.send_header(\"Content-Type\", \"text/plain; version=0.0.4; charset=utf-8\")\n        self.end_headers()\n        self.wfile.write(cuerpo)\n\n    def log_message(self, *args):\n        pass\n\nThreadingHTTPServer((\"\", 8000), Metrics).serve_forever()\nEOF\npython3 mini.py & echo $! > mini.pid\nsleep 1; curl -s localhost:8000/metrics",
+      "expect": "# TYPE demo_requests_total counter y demo_requests_total ≈ 10 (sube 10 por segundo). Si macOS pregunta si Python acepta conexiones entrantes, acepta: el contenedor llega a tu Mac por la red."
+     },
+     {
+      "cmd": "cat > config/prometheus.yml <<'EOF'\nglobal:\n  scrape_interval: 15s\nscrape_configs:\n  - job_name: servicio\n    static_configs:\n      - targets: [\"host.docker.internal:8000\"]\n        labels:\n          env: lab\n    relabel_configs:\n      - target_label: instance\n        replacement: mi-mac\n  - job_name: fantasma\n    static_configs:\n      - targets: [\"host.docker.internal:8001\"]\n  - job_name: prometheus\n    static_configs:\n      - targets: [\"localhost:9090\"]\n    metric_relabel_configs:\n      - source_labels: [__name__]\n        regex: \"go_.*\"\n        action: drop\nEOF\ndocker run --rm -v \"$HOME/lab-prom/config:/cfg:ro\" --entrypoint promtool prom/prometheus:v3.13.3 check config /cfg/prometheus.yml",
+      "expect": "Checking /cfg/prometheus.yml y SUCCESS: /cfg/prometheus.yml is valid prometheus config file syntax."
+     },
+     {
+      "cmd": "docker run -d --name prom-lab -p 9090:9090 -v \"$HOME/lab-prom/config:/etc/prometheus:ro\" prom/prometheus:v3.13.3\nsleep 20",
+      "expect": "Un id largo. Montas la carpeta, no el archivo suelto, en la ruta que usa el CMD de la imagen: así las ediciones de los pasos 6 y 7 se ven adentro."
+     },
+     {
+      "cmd": "curl -s -G localhost:9090/api/v1/query --data-urlencode 'query=up' | python3 -c \"import json, sys; [print(r['metric'], r['value'][1]) for r in json.load(sys.stdin)['data']['result']]\"",
+      "expect": "Tres líneas, en cualquier orden: servicio con instance mi-mac y env lab, en 1; fantasma con instance host.docker.internal:8001, en 0; prometheus con instance localhost:9090, en 1. En http://localhost:9090/targets, fantasma está DOWN con un error que termina en connect: connection refused."
+     },
+     {
+      "cmd": "curl -s -G localhost:9090/api/v1/query --data-urlencode 'query=scrape_samples_scraped{job=\"prometheus\"} - scrape_samples_post_metric_relabeling{job=\"prometheus\"}' | python3 -c \"import json, sys; print(json.load(sys.stdin)['data']['result'][0]['value'][1])\"",
+      "expect": "Un número de decenas: las series go_* que Prometheus leyó de sí mismo y metric_relabel_configs tiró antes de guardarlas. Una consulta a {__name__=~\"go_.*\"} vuelve vacía."
+     },
+     {
+      "cmd": "sed -i '' 's#\"host.docker.internal:8001\"#\"http://host.docker.internal:8001\"#' config/prometheus.yml\ndocker kill -s HUP prom-lab; sleep 2\ndocker logs prom-lab 2>&1 | grep 'Error reloading config' | tail -n 1\ncurl -s localhost:9090/metrics | grep '^prometheus_config_last_reload_successful'",
+      "expect": "Una línea con msg=\"Error reloading config\" cuyo err termina en is not a valid hostname (el target con http:// adelante), y prometheus_config_last_reload_successful 0, leído directo del /metrics del propio Prometheus. Los targets siguen como antes: una recarga fallida no tira la config vieja."
+     },
+     {
+      "cmd": "sed -i '' 's#\"http://host.docker.internal:8001\"#\"host.docker.internal:8001\"#; s/15s/5s/' config/prometheus.yml\ndocker kill -s HUP prom-lab; sleep 10\ncurl -s localhost:9090/api/v1/targets | python3 -c \"import json, sys; [print(t['labels']['job'], t['scrapeInterval'], t['health']) for t in json.load(sys.stdin)['data']['activeTargets']]\"",
+      "expect": "servicio 5s up, fantasma 5s down y prometheus 5s up: la recarga funcionó sin reiniciar el contenedor, y prometheus_config_last_reload_successful vuelve a 1. Si alguno dice unknown, todavía no hubo scrape con la config nueva: repite."
+     },
+     {
+      "cmd": "kill $(cat mini.pid); docker rm -f -v prom-lab; cd ~ && rm -rf ~/lab-prom",
+      "expect": "prom-lab, y la carpeta borrada."
+     }
+    ],
+    "fix": "Si servicio queda DOWN: ¿corre mini.py (curl localhost:8000/metrics)? ¿aceptaste el permiso de red de macOS? Si un cambio no se ve tras el HUP: mira prometheus_config_last_reload_successful y el log. Y valida con promtool antes de recargar.",
+    "needs": "Docker Desktop con internet para bajar prom/prometheus:v3.13.3, y Python 3 de macOS (solo stdlib). Los sed -i '' son la sintaxis de macOS.",
+    "verified": "docs"
+   },
+   "links": [
+    "#m12.prometheus-grafana",
+    "#c01.archivos",
+    "#m05.compose-local",
+    "#ref-comandos.compose"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,30 @@
+# Dependencias de RUNTIME de search-api, fijadas con == (incluye transitivas: esta lista ES el lock).
+# Generada con `uv pip compile` para Linux x86_64 (manylinux) y Python 3.13 (la imagen). Por qué fijar
+# las transitivas: sin lock, un rebuild del mismo commit puede traer otra starlette u otra pydantic y
+# cambiar el comportamiento sin que nadie toque el código.
+# Sin numpy, Pillow ni torch: la API pasa el vector de la consulta a los shards y los bytes de una foto a
+# Triton (que decodifica y redimensiona); los modelos viven en la GPU y el índice en los shards. Imagen
+# chica = arranque rápido al escalar. Ojo: el cliente oficial de Triton (tritonclient) depende de numpy;
+# al conectar el adaptador real, o lo agregas al lock o le hablas a Triton por HTTP/gRPC con lo que hay.
+# Tests: pip install -r ../requirements-dev.txt (no entra a la imagen).
+
+# --- directas ---
+fastapi==0.142.2  # framework ASGI: validación de filtros con pydantic, query params como modelo
+uvicorn==0.54.0  # servidor ASGI; 1 proceso por contenedor (escala con réplicas, no con workers)
+uvloop==0.23.0  # event loop más rápido; uvicorn lo usa solo si está instalado
+httptools==0.8.0  # parser HTTP en C; uvicorn lo prefiere a h11 si está instalado
+prometheus-client==0.26.0  # /metrics
+
+# --- transitivas (uv pip compile) ---
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+click==8.5.0
+h11==0.16.0
+idna==3.20
+opentelemetry-api==1.45.0
+pydantic==2.13.5
+pydantic-core==2.46.5
+starlette==1.7.0
+typing-extensions==4.16.0
+typing-inspection==0.4.4

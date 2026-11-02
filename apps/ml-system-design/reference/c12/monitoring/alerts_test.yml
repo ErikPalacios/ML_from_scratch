@@ -1,0 +1,210 @@
+# Tests unitarios de alerts.yml con promtool: series sintéticas → ¿dispara o no, y cuándo?
+#   promtool test rules alerts_test.yml
+# Los "sí dispara" consultan ALERTS{alertstate="firing"} con promql_expr_test (sin copiar las anotaciones); los
+# "no dispara" usan alert_rule_test con exp_alerts: []. AgentPolicyViolation y ApprovalQueueBacklog prueban además
+# el texto renderizado.
+# Notación: '0+60x30' = empieza en 0 y suma 60 por intervalo, 30 veces (31 valores); '_' = sin dato; segmentos
+# separados por espacio continúan la serie. El reloj de promtool empieza el jueves 1970-01-01 00:00 UTC: eval_time
+# 16h = jueves 16:00 UTC = 10:00 CDMX (hábil); 2d16h = sábado. Las alertas con `offset 1w` están en
+# alerts_weekly_test.yml (evaluación cada 10 min: una semana de series a 1 min tarda ≈ 1 min en promtool).
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+# Orden FIJO de los grupos en cada evaluación: primero las recording rules, después las alertas que las leen.
+# Sin esto promtool evalúa los grupos en orden aleatorio y una alerta puede leer el valor de la evaluación
+# anterior (o ninguno, si el intervalo supera los 5 min de lookback): tests que pasan o fallan al azar.
+group_eval_order: [c12-recording, c12-safety, c12-operations, c12-behavior]
+
+tests:
+  # ---------------------------------------------------------------- AgentPolicyViolation
+  # La serie existe en 0 desde el arranque (app.py la crea así) y en el minuto 11 pasa a 1. Dispara sin `for`.
+  - interval: 1m
+    input_series:
+      - series: 'agent_policy_violations_total{check="refund_over_limit_without_approval"}'
+        values: '0x10 1x30'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: AgentPolicyViolation
+        exp_alerts: []
+      - eval_time: 13m
+        alertname: AgentPolicyViolation
+        exp_alerts:
+          - exp_labels: {severity: page, team: support-agent, check: refund_over_limit_without_approval}
+            exp_annotations:
+              summary: "Violación de política del agente (refund_over_limit_without_approval)"
+              description: "Hubo 1 violación(es) de política en 10 min. Apaga issue_refund con el flag y revisa el step log de las conversaciones afectadas."
+      # La ventana de 10 min ya no ve el salto: la alerta se resuelve (la página ya salió)
+      - eval_time: 25m
+        alertname: AgentPolicyViolation
+        exp_alerts: []
+
+  # La TRAMPA, escrita como test: si la serie NO existía y aparece directamente en 1 (counter sin inicializar),
+  # increase() no ve ningún salto y la primera violación no despierta a nadie.
+  - interval: 1m
+    input_series:
+      - series: 'agent_policy_violations_total{check="refund_over_limit_without_approval"}'
+        values: '_x10 1x30'
+    alert_rule_test:
+      - eval_time: 13m
+        alertname: AgentPolicyViolation
+        exp_alerts: []
+
+  # ---------------------------------------------------------------- AgentTurnLatencyHigh
+  # 100 turnos/min. Turno completo: 90 % ≤ 12 s y 100 % ≤ 15 s → p95 = 12 + 3 × (95 − 90) / 10 = 13.5 s > 12.
+  # Primera respuesta: 90 % ≤ 2 s y 100 % ≤ 3 s → p95 = 2 + 1 × (95 − 90) / 10 = 2.5 s: sana. Solo dispara slo=turn.
+  - interval: 1m
+    input_series:
+      - series: 'agent_turn_duration_seconds_bucket{conversation_type="order_support",le="8"}'
+        values: '0+80x30'
+      - series: 'agent_turn_duration_seconds_bucket{conversation_type="order_support",le="10"}'
+        values: '0+85x30'
+      - series: 'agent_turn_duration_seconds_bucket{conversation_type="order_support",le="12"}'
+        values: '0+90x30'
+      - series: 'agent_turn_duration_seconds_bucket{conversation_type="order_support",le="15"}'
+        values: '0+100x30'
+      - series: 'agent_turn_duration_seconds_bucket{conversation_type="order_support",le="+Inf"}'
+        values: '0+100x30'
+      - series: 'agent_first_response_seconds_bucket{conversation_type="order_support",le="2"}'
+        values: '0+90x30'
+      - series: 'agent_first_response_seconds_bucket{conversation_type="order_support",le="3"}'
+        values: '0+100x30'
+      - series: 'agent_first_response_seconds_bucket{conversation_type="order_support",le="+Inf"}'
+        values: '0+100x30'
+    promql_expr_test:
+      - expr: agent:turn_duration_p95:rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'agent:turn_duration_p95:rate5m'
+            value: 13.5
+      - expr: agent:first_response_p95:rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'agent:first_response_p95:rate5m'
+            value: 2.5
+      - expr: ALERTS{alertname="AgentTurnLatencyHigh", alertstate="firing"}
+        eval_time: 20m
+        exp_samples:
+          - labels: 'ALERTS{alertname="AgentTurnLatencyHigh", alertstate="firing", severity="page", slo="turn", team="support-agent"}'
+            value: 1
+
+  # Primera respuesta lenta (90 % ≤ 4 s, el resto ≤ 6 s → p95 = 5 s) con turnos sanos (96 % ≤ 12 s → p95 = 11.8 s)
+  - interval: 1m
+    input_series:
+      - series: 'agent_turn_duration_seconds_bucket{conversation_type="order_support",le="10"}'
+        values: '0+85x30'
+      - series: 'agent_turn_duration_seconds_bucket{conversation_type="order_support",le="12"}'
+        values: '0+96x30'
+      - series: 'agent_turn_duration_seconds_bucket{conversation_type="order_support",le="+Inf"}'
+        values: '0+100x30'
+      - series: 'agent_first_response_seconds_bucket{conversation_type="order_support",le="4"}'
+        values: '0+90x30'
+      - series: 'agent_first_response_seconds_bucket{conversation_type="order_support",le="6"}'
+        values: '0+100x30'
+      - series: 'agent_first_response_seconds_bucket{conversation_type="order_support",le="+Inf"}'
+        values: '0+100x30'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AgentTurnLatencyHigh", alertstate="firing"}
+        eval_time: 20m
+        exp_samples:
+          - labels: 'ALERTS{alertname="AgentTurnLatencyHigh", alertstate="firing", severity="page", slo="first_response", team="support-agent"}'
+            value: 1
+
+  # ---------------------------------------------------------------- AgentToolErrorRateHigh
+  # get_order: 6 de 60 por minuto fallan (10 %) → dispara. issue_refund: 3 de 60 (5 %, no es "> 5 %") → no.
+  # get_shipment_tracking: 50 negadas por la política y 10 ok → 0 % de fallas (negar no es fallar) → no.
+  # search_help_center: 50 % de fallas pero 10 llamadas/min (< 12/min) → no.
+  - interval: 1m
+    input_series:
+      - series: 'agent_tool_calls_total{tool="get_order",outcome="ok"}'
+        values: '0+54x40'
+      - series: 'agent_tool_calls_total{tool="get_order",outcome="error"}'
+        values: '0+6x40'
+      - series: 'agent_tool_calls_total{tool="issue_refund",outcome="ok"}'
+        values: '0+57x40'
+      - series: 'agent_tool_calls_total{tool="issue_refund",outcome="timeout"}'
+        values: '0+3x40'
+      - series: 'agent_tool_calls_total{tool="get_shipment_tracking",outcome="ok"}'
+        values: '0+10x40'
+      - series: 'agent_tool_calls_total{tool="get_shipment_tracking",outcome="denied"}'
+        values: '0+50x40'
+      - series: 'agent_tool_calls_total{tool="search_help_center",outcome="ok"}'
+        values: '0+5x40'
+      - series: 'agent_tool_calls_total{tool="search_help_center",outcome="error"}'
+        values: '0+5x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AgentToolErrorRateHigh", alertstate="firing"}
+        eval_time: 30m
+        exp_samples:
+          - labels: 'ALERTS{alertname="AgentToolErrorRateHigh", alertstate="firing", severity="page", team="support-agent", tool="get_order"}'
+            value: 1
+
+  # ---------------------------------------------------------------- ApprovalQueueBacklog
+  # La aprobación más vieja suma 60 s hábiles por minuto (el gauge ya viene en segundos HÁBILES desde app.py).
+  # A las 14:50 UTC (08:50 CDMX) ya pasa de 3 h, pero no es horario hábil: no alerta. Desde las 15:00 UTC sí
+  # (firing a las 15:10). El caso del sábado está en alerts_weekly_test.yml (2 días de series).
+  - interval: 1m
+    input_series:
+      - series: 'agent_approval_oldest_pending_seconds'
+        values: '0+60x1000'
+      - series: 'agent_approvals_pending'
+        values: '7x1000'
+    alert_rule_test:
+      - eval_time: 14h50m
+        alertname: ApprovalQueueBacklog
+        exp_alerts: []
+      - eval_time: 16h
+        alertname: ApprovalQueueBacklog
+        exp_alerts:
+          - exp_labels: {severity: page, team: support-ops}
+            exp_annotations:
+              summary: "Aprobación de reembolso esperando 16h 0m 0s hábiles (SLA 4 h)"
+              description: "Hay 7 pendientes. Clientes esperando su dinero: suma aprobadores o revisa si el webhook dejó de llegar."
+  # ---------------------------------------------------------------- AgentStepLimitHit
+  # 3 límites por cada 100 turnos (3 %) → dispara; 1 por cada 100 (1 %) → no.
+  - interval: 1m
+    input_series:
+      - series: 'agent_step_limit_hits_total{limit="repeated_call"}'
+        values: '0+3x40'
+      - series: 'agent_turns_total{conversation_type="order_support",outcome="answered"}'
+        values: '0+100x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AgentStepLimitHit", alertstate="firing"}
+        eval_time: 35m
+        exp_samples:
+          - labels: 'ALERTS{alertname="AgentStepLimitHit", alertstate="firing", severity="ticket", team="support-agent"}'
+            value: 1
+  - interval: 1m
+    input_series:
+      - series: 'agent_step_limit_hits_total{limit="token_budget"}'
+        values: '0+1x40'
+      - series: 'agent_turns_total{conversation_type="order_support",outcome="answered"}'
+        values: '0+100x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: AgentStepLimitHit
+        exp_alerts: []
+
+  # ---------------------------------------------------------------- AgentCostPerConversationHigh
+  # 60 conversaciones cerradas por minuto. US$0.03 promedio → dispara; US$0.014 (la estimación del caso) → no.
+  - interval: 1m
+    input_series:
+      - series: 'agent_conversation_cost_usd_sum{conversation_type="order_support"}'
+        values: '0+1.8x120'
+      - series: 'agent_conversation_cost_usd_count{conversation_type="order_support"}'
+        values: '0+60x120'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AgentCostPerConversationHigh", alertstate="firing"}
+        eval_time: 100m
+        exp_samples:
+          - labels: 'ALERTS{alertname="AgentCostPerConversationHigh", alertstate="firing", severity="ticket", team="support-agent"}'
+            value: 1
+  - interval: 1m
+    input_series:
+      - series: 'agent_conversation_cost_usd_sum{conversation_type="order_support"}'
+        values: '0+0.84x120'
+      - series: 'agent_conversation_cost_usd_count{conversation_type="order_support"}'
+        values: '0+60x120'
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: AgentCostPerConversationHigh
+        exp_alerts: []

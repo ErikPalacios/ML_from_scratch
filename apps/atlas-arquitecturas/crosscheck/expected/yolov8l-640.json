@@ -1,0 +1,751 @@
+{
+  "config_id": "yolov8l-640",
+  "model": "yolov8",
+  "params_total": 43691520,
+  "params_by_module": {
+    "0:Conv": 1856,
+    "1:Conv": 73984,
+    "2:C2f": 279808,
+    "3:Conv": 295424,
+    "4:C2f": 2101248,
+    "5:Conv": 1180672,
+    "6:C2f": 8396800,
+    "7:Conv": 2360320,
+    "8:C2f": 4461568,
+    "9:SPPF": 656896,
+    "10:Upsample": 0,
+    "11:Concat": 0,
+    "12:C2f": 4723712,
+    "13:Upsample": 0,
+    "14:Concat": 0,
+    "15:C2f": 1247744,
+    "16:Conv": 590336,
+    "17:Concat": 0,
+    "18:C2f": 4592640,
+    "19:Conv": 2360320,
+    "20:Concat": 0,
+    "21:C2f": 4723712,
+    "22:Detect": 5644480
+  },
+  "params_by_node": {
+    "backbone": 19808576,
+    "neck": 18238464,
+    "head-box": 861136,
+    "head-cls": 4783344
+  },
+  "params_by_path": {
+    "backbone>sppf": 656896,
+    "backbone>stage3>c2f": 2101248,
+    "head-box>dfl": 16,
+    "neck>td-p4>c2f": 4723712,
+    "neck>td-p3>c2f": 1247744,
+    "neck>bu-p4>c2f": 4592640,
+    "neck>bu-p5>c2f": 4723712
+  },
+  "shapes": {
+    "x-img": [
+      640,
+      640,
+      3
+    ],
+    "stem-out": [
+      320,
+      320,
+      64
+    ],
+    "s2-down": [
+      160,
+      160,
+      128
+    ],
+    "s2-out": [
+      160,
+      160,
+      128
+    ],
+    "s3-down": [
+      80,
+      80,
+      256
+    ],
+    "c3": [
+      80,
+      80,
+      256
+    ],
+    "s4-down": [
+      40,
+      40,
+      512
+    ],
+    "c4": [
+      40,
+      40,
+      512
+    ],
+    "s5-down": [
+      20,
+      20,
+      512
+    ],
+    "s5-out": [
+      20,
+      20,
+      512
+    ],
+    "c5": [
+      20,
+      20,
+      512
+    ],
+    "td4-up": [
+      40,
+      40,
+      512
+    ],
+    "td4-cat": [
+      40,
+      40,
+      1024
+    ],
+    "p4-td": [
+      40,
+      40,
+      512
+    ],
+    "td3-up": [
+      80,
+      80,
+      512
+    ],
+    "td3-cat": [
+      80,
+      80,
+      768
+    ],
+    "p3": [
+      80,
+      80,
+      256
+    ],
+    "bu4-down": [
+      40,
+      40,
+      256
+    ],
+    "bu4-cat": [
+      40,
+      40,
+      768
+    ],
+    "p4": [
+      40,
+      40,
+      512
+    ],
+    "bu5-down": [
+      20,
+      20,
+      512
+    ],
+    "bu5-cat": [
+      20,
+      20,
+      1024
+    ],
+    "p5": [
+      20,
+      20,
+      512
+    ],
+    "hb-p3-h1": [
+      80,
+      80,
+      64
+    ],
+    "hb-p3-h2": [
+      80,
+      80,
+      64
+    ],
+    "boxes-p3": [
+      80,
+      80,
+      64
+    ],
+    "hc-p3-h1": [
+      80,
+      80,
+      256
+    ],
+    "hc-p3-h2": [
+      80,
+      80,
+      256
+    ],
+    "logits-p3": [
+      80,
+      80,
+      80
+    ],
+    "hb-p4-h1": [
+      40,
+      40,
+      64
+    ],
+    "hb-p4-h2": [
+      40,
+      40,
+      64
+    ],
+    "boxes-p4": [
+      40,
+      40,
+      64
+    ],
+    "hc-p4-h1": [
+      40,
+      40,
+      256
+    ],
+    "hc-p4-h2": [
+      40,
+      40,
+      256
+    ],
+    "logits-p4": [
+      40,
+      40,
+      80
+    ],
+    "hb-p5-h1": [
+      20,
+      20,
+      64
+    ],
+    "hb-p5-h2": [
+      20,
+      20,
+      64
+    ],
+    "boxes-p5": [
+      20,
+      20,
+      64
+    ],
+    "hc-p5-h1": [
+      20,
+      20,
+      256
+    ],
+    "hc-p5-h2": [
+      20,
+      20,
+      256
+    ],
+    "logits-p5": [
+      20,
+      20,
+      80
+    ],
+    "box-dist": [
+      8400,
+      4
+    ],
+    "boxes": [
+      8400,
+      4
+    ],
+    "scores": [
+      8400,
+      80
+    ]
+  },
+  "shapes_torch": {
+    "stem-out": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        320,
+        320
+      ]
+    },
+    "s2-down": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        128,
+        160,
+        160
+      ]
+    },
+    "s2-out": {
+      "module": "C2f",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        128,
+        160,
+        160
+      ]
+    },
+    "s3-down": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        80,
+        80
+      ]
+    },
+    "c3": {
+      "module": "C2f",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        80,
+        80
+      ]
+    },
+    "s4-down": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "c4": {
+      "module": "C2f",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "s5-down": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        20,
+        20
+      ]
+    },
+    "s5-out": {
+      "module": "C2f",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        20,
+        20
+      ]
+    },
+    "c5": {
+      "module": "SPPF",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        20,
+        20
+      ]
+    },
+    "td4-up": {
+      "module": "Upsample",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "td4-cat": {
+      "module": "Concat",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1024,
+        40,
+        40
+      ]
+    },
+    "p4-td": {
+      "module": "C2f",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "td3-up": {
+      "module": "Upsample",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        80,
+        80
+      ]
+    },
+    "td3-cat": {
+      "module": "Concat",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        768,
+        80,
+        80
+      ]
+    },
+    "p3": {
+      "module": "C2f",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        80,
+        80
+      ]
+    },
+    "bu4-down": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "bu4-cat": {
+      "module": "Concat",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        768,
+        40,
+        40
+      ]
+    },
+    "p4": {
+      "module": "C2f",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "bu5-down": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        20,
+        20
+      ]
+    },
+    "bu5-cat": {
+      "module": "Concat",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1024,
+        20,
+        20
+      ]
+    },
+    "p5": {
+      "module": "C2f",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        20,
+        20
+      ]
+    },
+    "hb-p3-h1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        80,
+        80
+      ]
+    },
+    "hb-p3-h2": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        80,
+        80
+      ]
+    },
+    "boxes-p3": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        80,
+        80
+      ]
+    },
+    "hc-p3-h1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        80,
+        80
+      ]
+    },
+    "hc-p3-h2": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        80,
+        80
+      ]
+    },
+    "logits-p3": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        80,
+        80
+      ]
+    },
+    "hb-p4-h1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        40,
+        40
+      ]
+    },
+    "hb-p4-h2": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        40,
+        40
+      ]
+    },
+    "boxes-p4": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        40,
+        40
+      ]
+    },
+    "hc-p4-h1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "hc-p4-h2": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "logits-p4": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        40,
+        40
+      ]
+    },
+    "hb-p5-h1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        20,
+        20
+      ]
+    },
+    "hb-p5-h2": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        20,
+        20
+      ]
+    },
+    "boxes-p5": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        20,
+        20
+      ]
+    },
+    "hc-p5-h1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        20,
+        20
+      ]
+    },
+    "hc-p5-h2": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        20,
+        20
+      ]
+    },
+    "logits-p5": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        20,
+        20
+      ]
+    },
+    "box-dist": {
+      "module": "DFL",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        4,
+        8400
+      ]
+    },
+    "boxes": {
+      "module": "Detect",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        84,
+        8400
+      ]
+    }
+  },
+  "not_hooked": {
+    "split / bottlenecks intermedios / gate / scale": "chunk, sigmoide y escalares sin módulo propio",
+    "prompts / txt-emb": "el codificador de texto no se construye (offline)",
+    "decode": "dist2bbox funcional (boxes = salida del Detect)"
+  },
+  "flops_total": 165148518400,
+  "flops_by_node": {
+    "backbone": 85603123200,
+    "neck": 53267660800,
+    "head-box": 3756288000,
+    "head-cls": 22521446400
+  },
+  "flops_by_op_torch": {
+    "aten.convolution": 165148518400
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.convolution"
+      ],
+      "prims": [
+        "conv2d",
+        "conv_bn_act",
+        "c2f",
+        "sppf",
+        "csp_bottleneck",
+        "dfl_decode"
+      ]
+    },
+    {
+      "ops": [
+        "aten.addmm",
+        "aten.mm"
+      ],
+      "prims": [
+        "linear"
+      ]
+    },
+    {
+      "ops": [
+        "aten.bmm"
+      ],
+      "prims": [
+        "text_guided_scores",
+        "region_text_similarity",
+        "attention_scores",
+        "attention_weighted_sum"
+      ]
+    }
+  ],
+  "source": {
+    "lib": "ultralytics",
+    "ctor": "DetectionModel('yolov8l.yaml', verbose=False)  # sin pesos",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "ultralytics": "8.4.174"
+    }
+  },
+  "notes": [
+    "Ultralytics 8.4.174 construido desde el YAML incluido en el paquete (yolov8l.yaml, escala l: depth 1.0, width 1.0, max_channels 512 → canales 64, 128, 256, 512, 512), sin pesos y sin red (verificado con un proxy inválido).",
+    "Parámetros = sum(p.numel()): incluye los 16 pesos FIJOS de la DFL (conv 1×1 0…15, requires_grad = False) y las BatchNorm (γ, β; la BN no se fusiona con la conv porque no se llama a fuse()).",
+    "FLOPs = FlopCounterMode en eval (2 por MAC de convs, Linear y einsum/bmm), incluida la conv de la DFL al decodificar; el NMS va fuera del modelo. Ultralytics reporta 'GFLOPs' con thop = 2 × MACs: 165.1 a 640 para YOLOv8-L.",
+    "Ultralytics 8.4: SPPF.cv1 sin activación (act=False); el YOLOv8 original (8.0) la tenía. No cambia parámetros ni MACs."
+  ]
+}

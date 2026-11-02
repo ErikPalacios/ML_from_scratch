@@ -1,0 +1,10 @@
+# Dependencias para correr TODOS los tests de c11 (pytest desde reference/c11). No entran a ninguna imagen.
+# ingest/, answer/ y eval/ usan solo la biblioteca estándar; retrieval/ usa numpy; service/ necesita su lock.
+-r service/requirements.txt  # los tests usan exactamente las versiones de producción
+pytest==9.1.1  # runner de tests (los tests async usan el plugin de anyio, que ya viene con anyio)
+pyyaml==6.0.3  # el test de contrato lee monitoring/alerts.yml
+# --- transitivas ---
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0

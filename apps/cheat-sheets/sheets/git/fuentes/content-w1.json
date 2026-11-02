@@ -1,0 +1,2702 @@
+{
+  "sections": [
+    {
+      "id": "bolsillo",
+      "num": 0,
+      "title": "Nombres y números de bolsillo",
+      "question": "¿Qué estados, nombres y números de git y de GitHub Actions conviene saberse de memoria para leer un repo o una ejecución de CI (las pruebas automáticas de cada cambio) en segundos?",
+      "templates": [
+        {
+          "code": "git status -sb",
+          "note": "La foto rápida del repo. Cada archivo lleva dos letras: la <b>izquierda</b> es el staging (lo que entra en el próximo commit, la próxima foto del proyecto que guardes) y la <b>derecha</b>, el working tree (tus archivos en disco). La primera línea dice tu rama (la etiqueta que avanza con tus commits), la rama del remoto a la que está conectada (su copia en GitHub) y cuántos commits tienes de más o de menos que ella: <code>[ahead 1, behind 1]</code>."
+        },
+        {
+          "code": "git log --oneline --graph --all -n {n}",
+          "note": "La historia, un commit por línea: el SHA corto (el nombre del commit), entre paréntesis las etiquetas que apuntan ahí y el mensaje. <code>HEAD -> main</code> es dónde estás; <code>origin/main</code> es lo último que viste del remoto (la copia del repo en GitHub)."
+        },
+        {
+          "code": "git rev-parse --short {ref}",
+          "note": "Traduce un nombre (<code>HEAD</code>, <code>main</code>, <code>origin/main</code>, <code>HEAD~1</code>) al SHA de su commit; sin <code>--short</code>, da los 40 caracteres. Con <code>--short</code> acepta un solo nombre por vez y da 7 caracteres en un repo chico, más cuando el repo crece. En el C01, el tag (el nombre de versión) de la imagen Docker del gateway son los primeros 7: <code>--short=7</code> los da aunque el repo crezca, como <code>${GITHUB_SHA::7}</code> en CI."
+        },
+        {
+          "code": "git reflog -n {n}",
+          "note": "El diario de HEAD en tu máquina: cada vez que HEAD se mueve (un commit, un cambio de rama, un reset que mueve la rama a otro commit, un merge o un rebase que juntan ramas) queda una línea <code>HEAD@{n}</code>. No viaja con push (subir al remoto) ni con clone (copiar el repo). Si un commit \"desapareció\", búscalo aquí."
+        }
+      ],
+      "formulas": [
+        "\\text{SHA del commit} \\;=\\; \\text{SHA-1}\\big(\\texttt{commit}\\ \\langle\\text{tamaño}\\rangle\\texttt{\\textbackslash 0} \\,\\Vert\\, \\text{árbol} \\,\\Vert\\, \\text{padres} \\,\\Vert\\, \\text{autor y committer (quién y cuándo)} \\,\\Vert\\, \\text{mensaje}\\big)",
+        "\\texttt{HEAD\\textasciitilde 3} \\;=\\; \\texttt{HEAD\\textasciicircum\\textasciicircum\\textasciicircum} \\qquad \\texttt{HEAD\\textasciicircum 2} = \\text{segundo padre (de un merge)}",
+        "40\\ \\text{hex} \\times 4\\ \\text{bits} = 160\\ \\text{bits (SHA-1)} \\qquad 64 \\times 4 = 256\\ \\text{bits (SHA-256)}",
+        "t_{\\text{reflog}} = 90\\ \\text{días} \\qquad t_{\\text{inalcanzable}} = 30\\ \\text{días} \\qquad (\\text{defaults de git gc})"
+      ],
+      "vars": [
+        [
+          "{n}",
+          "cuántas líneas mostrar",
+          "20"
+        ],
+        [
+          "{ref}",
+          "cualquier nombre de un commit: rama, HEAD, HEAD~1, origin/main o un SHA",
+          "HEAD"
+        ],
+        [
+          "tamaño",
+          "bytes del contenido del commit; git lo escribe en un encabezado antes de calcular el SHA",
+          "244: git cat-file -s HEAD"
+        ],
+        [
+          "árbol",
+          "la foto de los archivos (tree): nombre, permisos y SHA del contenido de cada uno",
+          "tree d6cd4c0…"
+        ],
+        [
+          "padres",
+          "SHA del commit anterior: ninguno en el primero, uno casi siempre, dos en un merge (el commit que junta dos ramas)",
+          "parent 9798182…"
+        ],
+        [
+          "{ref}~{n}",
+          "n pasos hacia atrás, siguiendo siempre el primer padre",
+          "HEAD~1 = el commit anterior"
+        ],
+        [
+          "{ref}^2",
+          "el segundo padre de un merge: la punta de la rama que entró",
+          "HEAD^2 en el merge de un PR (pull request) = el último commit de la rama"
+        ],
+        [
+          "t_reflog",
+          "cuánto vive una línea del reflog (gc.reflogExpire)",
+          "90 días"
+        ],
+        [
+          "t_inalcanzable",
+          "cuánto vive si su commit ya no está en ninguna rama, como tras un reset --hard (gc.reflogExpireUnreachable); después, git gc (la limpieza que git corre sola de vez en cuando) puede borrar el commit",
+          "30 días"
+        ]
+      ],
+      "pieces": [
+        [
+          "??",
+          "Untracked: un archivo nuevo que git todavía no sigue. No entra en ningún commit hasta que hagas git add.",
+          "?? .env (va al .gitignore, no a un commit)"
+        ],
+        [
+          "M a la derecha",
+          "Cambió en disco, pero está fuera del staging: el próximo commit no lo lleva.",
+          " M gateway/app/preprocess.py"
+        ],
+        [
+          "M a la izquierda",
+          "Cambió y está en staging: el próximo commit lo lleva.",
+          "M  gateway/app/main.py"
+        ],
+        [
+          "MM",
+          "Está en staging y lo volviste a cambiar después: el commit lleva la versión de tu git add, no la última.",
+          "MM gateway/app/main.py"
+        ],
+        [
+          "A · D · R",
+          "Nuevo, borrado o renombrado, ya en staging.",
+          "R  gateway/app/preprocess.py -> gateway/app/preproceso.py"
+        ],
+        [
+          "UU",
+          "Conflicto sin resolver: las dos ramas cambiaron las mismas líneas. Se resuelve editando el archivo y con git add.",
+          "UU gateway/app/main.py"
+        ],
+        [
+          "HEAD",
+          "El \"estás aquí\": casi siempre apunta a una rama, y la rama a un commit.",
+          "cat .git/HEAD → ref: refs/heads/main"
+        ],
+        [
+          "HEAD (no branch)",
+          "Detached HEAD: HEAD apunta directo a un commit, sin rama. Lo que commitees ahí no lo guarda ninguna etiqueta.",
+          "## HEAD (no branch)"
+        ],
+        [
+          "main = refs/heads/main",
+          "Una rama: un archivo con el SHA de su último commit. Avanza sola con cada commit que haces estando en ella.",
+          ".git/refs/heads/main (41 bytes)"
+        ],
+        [
+          "origin/main",
+          "Rama de seguimiento (remote-tracking): tu última foto del main del remoto. Solo se mueve con fetch, pull o push.",
+          "[behind 1] = el remoto tiene 1 commit que tú no"
+        ],
+        [
+          "upstream",
+          "La rama remota a la que está conectada la tuya: de ahí trae pull, ahí sube push y contra ella te compara status. En la sintaxis de git se escribe @{u}.",
+          "git log --oneline @{u}..  (tus commits sin subir)"
+        ],
+        [
+          "SHA",
+          "El nombre de un commit: 40 caracteres hexadecimales. Los primeros 7 bastan en un repo chico; git usa más si hace falta.",
+          "3f9c2ab = classifier-gateway:3f9c2ab"
+        ],
+        [
+          "HEAD~1 · HEAD^2 · HEAD@{2}",
+          "El commit anterior; el segundo padre de un merge; dónde estaba HEAD hace dos movimientos (reflog).",
+          "git show HEAD~1"
+        ],
+        [
+          "ORIG_HEAD · FETCH_HEAD",
+          "Notas que deja git: dónde estaba HEAD antes de un reset, merge o rebase; y lo último que trajo fetch.",
+          "git reset --hard ORIG_HEAD deshace un merge recién hecho"
+        ]
+      ],
+      "example": {
+        "title": "Leer tu rama de PR del gateway en dos comandos, a mitad de un cambio",
+        "lang": "text",
+        "code": "$ git status -sb\n## feat/gateway-timeout...origin/feat/gateway-timeout [ahead 1]\nM  gateway/app/main.py\n M gateway/app/preprocess.py\n?? .env\n\n$ git log --oneline --graph --all\n* 4f4fd71 (HEAD -> feat/gateway-timeout) gateway: deadline total de 250 ms\n* 3fb9f47 (origin/feat/gateway-timeout) gateway: bajar INFER_TIMEOUT_S a 120 ms\n* a469e77 (origin/main, main) gateway: primera versión",
+        "source": "sesión real con git 2.50.1 en un repo de práctica con la estructura de reference/c01/gateway (los SHAs cambian en cada máquina)",
+        "notes": [
+          "<code>[ahead 1]</code>: tienes 1 commit (<code>4f4fd71</code>) que el remoto no tiene; <code>git push</code> lo sube. <code>[behind 1]</code> sería lo contrario: te falta 1, y <code>git pull</code> lo trae.",
+          "main.py tiene la <b>M a la izquierda</b>: el cambio está en staging y entra en el próximo commit.",
+          "preprocess.py tiene la <b>M a la derecha</b>: cambió en disco, pero el próximo commit no lo lleva hasta que hagas <code>git add</code>.",
+          "<code>?? .env</code>: un archivo que git no sigue. Es un secreto local: va al <code>.gitignore</code> (la lista de lo que git ignora), nunca a un commit (sección Día a día).",
+          "En el log, <code>HEAD -> feat/gateway-timeout</code> es dónde estás y <code>origin/…</code> es tu última foto del remoto. <code>main</code> y <code>origin/main</code> están en el mismo commit: al día, según tu último fetch."
+        ]
+      },
+      "figure": {
+        "kind": "table",
+        "caption": "Los defaults y límites que más aparecen en el día a día. Verificados en octubre de 2026 contra git-scm.com (Git 2.56) y docs.github.com.",
+        "data": {
+          "head": [
+            "Qué",
+            "Default o límite",
+            "Qué hacer"
+          ],
+          "rows": [
+            [
+              "Rama inicial de git init",
+              "master (Git 3.0, todavía sin fecha, la cambiará a main). GitHub crea main, y el git de Apple (Command Line Tools de Xcode) ya trae main en su configuración",
+              "git init -b main: todo el equipo habla de la misma rama"
+            ],
+            [
+              "SHA de un commit",
+              "40 caracteres hex (SHA-1); git muestra 7 en un repo chico, más si el repo crece",
+              "El tag de la imagen son los primeros 7: git rev-parse --short=7 HEAD (en CI, ${GITHUB_SHA::7})"
+            ],
+            [
+              "Reflog",
+              "90 días; 30 si el commit ya no está en ninguna rama",
+              "Tu red tras un reset o un rebase. Es local: no viaja con push ni con clone"
+            ],
+            [
+              "git pull con ramas divergentes (cada una tiene commits que la otra no)",
+              "Sin pull.rebase ni pull.ff configurados, falla (desde Git 2.33.1): Need to specify how to reconcile divergent branches.",
+              "Decide una vez: git config --global pull.ff only (solo avanza; si divergieron, eliges tú) o pull.rebase true (tus commits van encima)"
+            ],
+            [
+              "Archivos grandes en GitHub",
+              "Aviso arriba de 50 MiB; bloqueo arriba de 100 MiB",
+              "Pesos (.pt, .onnx, .plan) fuera de git: registry de modelos (donde se guardan sus versiones), S3 o Git LFS (guarda el archivo aparte y deja en git solo un puntero)"
+            ],
+            [
+              "Contraseña de GitHub en git",
+              "No se acepta desde el 13 de agosto de 2021",
+              "Una llave SSH, un token (una clave que creas en GitHub) o gh auth login (sección GitHub)"
+            ],
+            [
+              "timeout-minutes de un job (un grupo de pasos que corre en una máquina)",
+              "360 min. En los runners de GitHub (las máquinas que presta), un job muere a las 6 h; en uno self-hosted (tuyo), a los 5 días",
+              "Pon el tuyo: un job colgado quema minutos hasta el tope"
+            ],
+            [
+              "Retención en Actions",
+              "90 días para artifacts (archivos que guarda un job) y logs; desde el 1 de octubre de 2026, también para checks, runs y statuses (cada ejecución y sus resultados). Se ajusta: repos públicos, 1–90 días; privados, 1–400",
+              "Lo que deba durar más (reportes, evidencia), guárdalo fuera de Actions"
+            ],
+            [
+              "Caché de dependencias",
+              "10 GB por repo (más, solo con un medio de pago); se borra lo que nadie usa en 7 días",
+              "Si la caché nunca se reusa, casi siempre su key (el nombre con que se guarda y se busca) está mal armada"
+            ],
+            [
+              "GITHUB_TOKEN (la credencial que GitHub le da a cada job)",
+              "En un repo personal o una organización nuevos: solo lectura de contents y packages, y sin permiso para crear o aprobar PRs (pull requests). Vence al terminar el job: 6 h como máximo en runners de GitHub; en self-hosted se renueva hasta 24 h",
+              "Pide en permissions: solo lo que el job necesita"
+            ],
+            [
+              "Eventos hechos con GITHUB_TOKEN",
+              "No disparan workflows (los procesos automáticos de Actions), salvo workflow_dispatch y repository_dispatch (los disparos a mano o por API). Si abre o actualiza un PR, los runs de ese PR esperan aprobación",
+              "Si un workflow abre el PR del manifest (el YAML de Kubernetes con el tag de la imagen) con GITHUB_TOKEN, su CI no arranca solo: alguien con permiso de escritura aprueba los runs (o el PR se abre con el token de una GitHub App)"
+            ],
+            [
+              "Secrets (claves guardadas en GitHub) en PRs desde forks (copias del repo en otra cuenta)",
+              "No llegan al runner (salvo GITHUB_TOKEN)",
+              "Un fork no puede usar tus llaves: no pongas deploys en esos PRs"
+            ]
+          ],
+          "note": "Verbos de bolsillo, en orden: <code>status</code> (qué hay) → <code>diff</code> (qué cambió) → <code>log</code> (de dónde viene) → <code>reflog</code> (dónde estuve). Y <code>git help {comando}</code> abre el manual de tu versión."
+        }
+      },
+      "memo": "Lee <code>git status -sb</code> en dos columnas: <b>izquierda = staging, derecha = disco</b>. <b>HEAD</b> es \"estás aquí\", una <b>rama</b> es una etiqueta con un SHA y <b>origin/main</b> es tu última foto del remoto. Números: SHA de <b>40</b> hex, reflog <b>90 / 30</b> días, job de Actions <b>360</b> min.",
+      "trap": "Leer <code>origin/main</code> como el remoto en vivo: es tu foto del último fetch y puede tener días. <code>git status</code> no le pregunta nada al remoto, así que \"up to date\" puede ser falso: corre <code>git fetch</code> antes de mirar. Y creer que push sube el reflog o el stash (los cambios que guardaste aparte con git stash): los dos viven solo en tu máquina.",
+      "lab": {
+        "goal": "Provocar los estados de git status, ver qué entra en un commit cuando el archivo cambió después del add, y traducir nombres a SHAs.",
+        "steps": [
+          {
+            "cmd": "mkdir ~/lab-git && cd ~/lab-git && git init -b main\nmkdir -p gateway/app\nprintf 'INFER_TIMEOUT_S = 0.15\\n' > gateway/app/main.py\nprintf 'RESIZE_SHORT = 256\\n' > gateway/app/preprocess.py\ngit add . && git commit -m \"gateway: primera versión\"",
+            "expect": "Initialized empty Git repository in /Users/<tú>/lab-git/.git/ y después [main (root-commit) <sha>] gateway: primera versión, con 2 files changed, 2 insertions(+). El <sha> cambia en cada máquina."
+          },
+          {
+            "cmd": "printf 'INFER_TIMEOUT_S = 0.12\\n' > gateway/app/main.py\ngit add gateway/app/main.py\nprintf 'RESIZE_SHORT = 224\\n' > gateway/app/preprocess.py\nprintf 'TOKEN=no-lo-subas\\n' > .env\ngit status -s",
+            "expect": "Tres líneas: M  gateway/app/main.py (la M a la izquierda: está en staging), luego gateway/app/preprocess.py con la M a la derecha (cambió solo en disco) y ?? .env (git no lo sigue)."
+          },
+          {
+            "cmd": "printf '# probar 100 ms\\n' >> gateway/app/main.py\ngit status -s",
+            "expect": "MM gateway/app/main.py: una M por columna. El staging tiene el 0.12 de tu add; el disco tiene además la línea nueva."
+          },
+          {
+            "cmd": "git diff --staged",
+            "expect": "Lo que entraría en el commit: -INFER_TIMEOUT_S = 0.15 y +INFER_TIMEOUT_S = 0.12. Nada de la línea # probar 100 ms."
+          },
+          {
+            "cmd": "git diff",
+            "expect": "Lo que está en disco y no en staging: +# probar 100 ms en main.py, y -RESIZE_SHORT = 256 / +RESIZE_SHORT = 224 en preprocess.py."
+          },
+          {
+            "cmd": "git commit -m \"gateway: bajar INFER_TIMEOUT_S a 120 ms\"\ngit status -s",
+            "expect": "[main <sha>] gateway: bajar INFER_TIMEOUT_S a 120 ms con 1 file changed, 1 insertion(+), 1 deletion(-). Después siguen tres líneas, ahora con la M a la derecha en main.py: la línea # probar 100 ms no entró al commit."
+          },
+          {
+            "cmd": "git log --oneline\ngit rev-parse --short HEAD\ngit rev-parse --short HEAD~1\ngit rev-parse HEAD\ncat .git/HEAD",
+            "expect": "Dos commits en el log, dos SHAs cortos de 7 caracteres (HEAD y HEAD~1), el SHA completo de 40 y ref: refs/heads/main: HEAD apunta a la rama, no al commit. Si le pasas dos nombres a rev-parse --short, responde fatal: Needed a single revision."
+          },
+          {
+            "cmd": "git reflog",
+            "expect": "Dos líneas, la más nueva arriba: HEAD@{0}: commit: gateway: bajar INFER_TIMEOUT_S a 120 ms y HEAD@{1}: commit (initial): gateway: primera versión. En la terminal, la primera lleva además (HEAD -> main)."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-git",
+            "expect": "No imprime nada. Va con -f porque git guarda sus objetos como solo lectura y rm -r te preguntaría por cada uno (override r--r--r--…?)."
+          }
+        ],
+        "fix": "Si un archivo entró (o no entró) al commit por sorpresa, lee git status -s antes de commitear: la columna izquierda es lo que entra. Para sacar algo del staging: git restore --staged {ruta}.",
+        "needs": "git 2.28 o más nuevo (git --version) y tu nombre y email configurados (git config --global user.name y user.email). Todo es local: no necesitas cuenta de GitHub.",
+        "verified": "executed",
+        "verified_note": "Ejecutado con git 2.50.1 (Apple Git-155) en macOS. Los SHAs y las rutas cambian en cada máquina."
+      },
+      "links": [
+        "#m10.reproducibilidad",
+        "#m05.registries",
+        "#m10.ci-cd",
+        "#ref-herramientas.infra-ci-seguridad"
+      ]
+    },
+    {
+      "id": "cadena",
+      "num": null,
+      "title": "La cadena: de tu cambio al deploy",
+      "question": "¿Qué pasa, en orden, desde que editas un archivo hasta que esa versión recibe tráfico en producción, y quién hace cada paso?",
+      "templates": [
+        {
+          "code": "git switch main && git pull\ngit switch -c {rama}",
+          "note": "Cada cambio va en su propia <b>rama</b> (una etiqueta que avanza con cada commit, cada foto del proyecto que guardas), creada desde la versión más nueva de main, la rama principal. Los nombres dicen qué es: <code>feat/…</code> para algo nuevo, <code>fix/…</code> para un arreglo."
+        },
+        {
+          "code": "git add {ruta}\ngit commit -m \"{mensaje}\"",
+          "note": "Eliges qué entra (<code>add</code>) y guardas la foto con un mensaje (<code>commit</code>). El commit vive solo en tu máquina hasta el push."
+        },
+        {
+          "code": "git push -u origin {rama}",
+          "note": "Sube la rama a GitHub (<code>origin</code> es el nombre corto del repo del equipo). <code>-u</code> la conecta con <code>origin/{rama}</code>, su copia en GitHub, la primera vez; después basta <code>git push</code>. GitHub responde con líneas <code>remote:</code> que traen el link para abrir el <b>pull request</b> (PR: la propuesta de juntar tu rama con main)."
+        },
+        {
+          "code": "git rev-parse --short=7 HEAD",
+          "note": "Después del merge (cuando el PR entra a main), parado en main: los primeros 7 caracteres del SHA (el nombre único) del commit que construye CD (la entrega continua). Son el tag de la imagen, <code>classifier-gateway:{sha}</code>, igual que <code>${GITHUB_SHA::7}</code> en CI (integración continua): de un pod (una copia del servicio corriendo en Kubernetes) llegas al código exacto. Sin <code>=7</code>, git da más caracteres cuando el repo crece."
+        }
+      ],
+      "formulas": [
+        "t_{\\text{total}} \\;\\approx\\; t_{\\text{CI}} + t_{\\text{review}} + t_{\\text{build+push}} + t_{\\text{rollout}}"
+      ],
+      "vars": [
+        [
+          "{rama}",
+          "nombre de la rama: tipo/qué-cambia",
+          "feat/gateway-timeout, fix/preprocess-resize"
+        ],
+        [
+          "{ruta}",
+          "archivo que cambiaste",
+          "gateway/app/main.py"
+        ],
+        [
+          "{mensaje}",
+          "qué cambió y dónde, en una línea",
+          "gateway: bajar INFER_TIMEOUT_S a 120 ms"
+        ],
+        [
+          "{sha}",
+          "los primeros 7 caracteres del SHA del commit de main",
+          "3f9c2ab, el tag del gateway en k8s/gateway.yaml del C01"
+        ],
+        [
+          "t_total",
+          "desde el git push hasta el primer request atendido por la versión nueva",
+          "la suma de abajo; con GitOps (el cluster copia lo que dicen los manifests, los YAML de Kubernetes guardados en git), más lo que tarde en sincronizar"
+        ],
+        [
+          "t_CI",
+          "CI (integración continua): instalar dependencias y correr los tests en el runner, la máquina limpia donde corre CI",
+          "los 24 tests del gateway, sin GPU"
+        ],
+        [
+          "t_review",
+          "lo que tarda una persona en leer y aprobar",
+          "depende del equipo, no de la máquina"
+        ],
+        [
+          "t_build+push",
+          "construir la imagen (el paquete con el código y sus dependencias) para linux/amd64, los nodos x86 del cluster, y subirla a ECR, el almacén de imágenes (registry) de AWS",
+          "con la caché de capas solo se rehace la del código (cheat sheet de Docker)"
+        ],
+        [
+          "t_rollout",
+          "Kubernetes cambia los pods (las copias del servicio que corren) de a poco hasta que todos pasan la readiness (el chequeo de \"listo para recibir tráfico\")",
+          "el cheat sheet de Kubernetes le da 5m a rollout status del gateway"
+        ]
+      ],
+      "pieces": [
+        [
+          "working tree",
+          "Tus archivos en disco: donde editas.",
+          "gateway/app/main.py abierto en tu editor"
+        ],
+        [
+          "staging (index)",
+          "La lista de lo que entra en el próximo commit.",
+          "git add gateway/app/main.py"
+        ],
+        [
+          "commit",
+          "Una foto de todo el proyecto, con autor, fecha, mensaje y el commit anterior (su padre).",
+          "3387071 gateway: bajar INFER_TIMEOUT_S a 120 ms"
+        ],
+        [
+          "rama de feature",
+          "Etiqueta propia para un cambio: sale de main y vuelve por un PR.",
+          "feat/gateway-timeout"
+        ],
+        [
+          "git push",
+          "Sube tus commits al remoto (origin, el repo del equipo en GitHub).",
+          "git push -u origin feat/gateway-timeout"
+        ],
+        [
+          "pull request (PR)",
+          "Propuesta de juntar tu rama con main: el diff (las líneas que cambian), la conversación, los checks y la review en un solo lugar.",
+          "PR #42: gateway: bajar INFER_TIMEOUT_S a 120 ms"
+        ],
+        [
+          "CI (integración continua)",
+          "Un workflow de GitHub Actions (un archivo YAML que dice qué correr y cuándo) corre los tests en cada push y en cada PR, en una máquina limpia.",
+          "pytest con los 24 tests del gateway"
+        ],
+        [
+          "check",
+          "El resultado de cada job de CI (un grupo de pasos del workflow), pegado al PR: verde (pasó), rojo (falló) o pendiente.",
+          "el job de tests del gateway en verde"
+        ],
+        [
+          "review",
+          "Otra persona lee el diff y aprueba (Approve) o pide cambios (Request changes).",
+          "un comentario sobre la línea de INFER_TIMEOUT_S"
+        ],
+        [
+          "protección de rama / ruleset",
+          "Reglas sobre main: nada de push directo; el merge espera checks verdes y aprobación.",
+          "Require status checks to pass before merging"
+        ],
+        [
+          "merge",
+          "Junta la rama con main. GitHub ofrece tres formas: merge commit (un commit que junta las dos), squash (todo en un solo commit nuevo) o rebase (tus commits copiados encima); más en la sección Ramas.",
+          "Merge pull request #42 from equipo/feat/gateway-timeout"
+        ],
+        [
+          "CD (entrega continua)",
+          "Otro workflow, en el push a main: construye la imagen, la sube y actualiza lo que corre en producción (el deploy).",
+          "buildx para linux/amd64 → ECR"
+        ],
+        [
+          "tag = SHA",
+          "La imagen se nombra con los primeros 7 caracteres del SHA del commit de main. El repo de ECR del C01 tiene tags inmutables: nadie puede reusar ese nombre para otra imagen.",
+          "classifier-gateway:3f9c2ab"
+        ],
+        [
+          "rollout · revert",
+          "Kubernetes reemplaza los pods de a poco por los de la imagen nueva. Si sale mal, un revert (commit que deshace otro) vuelve atrás dejando rastro.",
+          "kubectl rollout status deployment/gateway"
+        ]
+      ],
+      "example": {
+        "title": "Tu lado de la cadena en la terminal (gateway del C01)",
+        "lang": "text",
+        "code": "$ git switch main && git pull\nAlready on 'main'\nYour branch is up to date with 'origin/main'.\nAlready up to date.\n$ git switch -c feat/gateway-timeout\nSwitched to a new branch 'feat/gateway-timeout'\n# … editas gateway/app/main.py …\n$ git diff\n…\n-INFER_TIMEOUT_S = float(os.getenv(\"INFER_TIMEOUT_S\", \"0.15\"))  # 150 ms para Triton dentro del p99 ≤ 200 ms\n+INFER_TIMEOUT_S = float(os.getenv(\"INFER_TIMEOUT_S\", \"0.12\"))  # 120 ms para Triton dentro del p99 ≤ 200 ms\n…\n$ git add gateway/app/main.py\n$ git commit -m \"gateway: bajar INFER_TIMEOUT_S a 120 ms\"\n[feat/gateway-timeout 3387071] gateway: bajar INFER_TIMEOUT_S a 120 ms\n 1 file changed, 1 insertion(+), 1 deletion(-)\n$ git push -u origin feat/gateway-timeout\n…\n * [new branch]      feat/gateway-timeout -> feat/gateway-timeout\nbranch 'feat/gateway-timeout' set up to track 'origin/feat/gateway-timeout'.\n# En GitHub: abres el PR, CI corre los tests, alguien aprueba y se hace el merge\n$ git switch main && git pull\n…\nUpdating 9798182..27bd258\nFast-forward\n gateway/app/main.py | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n$ git rev-parse --short=7 HEAD\n27bd258",
+        "source": "sesión real con git 2.50.1 sobre una copia de reference/c01, con un remoto local en lugar de GitHub (… marca líneas omitidas)",
+        "notes": [
+          "<code>git switch main && git pull</code> antes de empezar: tu rama nace del main más nuevo. Ojo con <code>Your branch is up to date</code>: es según tu último fetch (la última vez que bajaste novedades del remoto); el <code>Already up to date.</code> de pull sí le preguntó al remoto.",
+          "El diff muestra la línea real de <code>gateway/app/main.py</code>: <code>-</code> lo que se va y <code>+</code> lo que entra. Es lo mismo que verá quien revise el PR.",
+          "El commit vive solo en tu máquina hasta el push. <code>-u</code> conecta tu rama con <code>origin/feat/gateway-timeout</code>: desde ahí, <code>git push</code> y <code>git pull</code> saben a dónde ir. Contra GitHub, el push imprime además líneas <code>remote:</code> con el link del PR.",
+          "El CI de un PR prueba un merge de prueba de tu rama con main (<code>refs/pull/N/merge</code>), no tu rama sola. Y si el PR tiene conflictos (cambios que chocan con los de main), los workflows de <code>pull_request</code> no corren.",
+          "Después del merge, <code>27bd258</code> es el commit de main que construye CD: la imagen queda como <code>classifier-gateway:27bd258</code>. En los archivos del C01, ese lugar lo ocupa <code>3f9c2ab</code>.",
+          "Esta cadena es la del gateway. La imagen de Triton (el servidor que corre el modelo en la GPU) llega por otro camino: el pipeline del modelo (los pasos que convierten el checkpoint en engine y lo empaquetan) la construye en un runner con GPU T4, prueba la paridad (que dé los mismos resultados que el modelo original) sobre esa misma imagen y la sube con la versión del modelo como tag, antes de registrar esa versión."
+        ]
+      },
+      "figure": {
+        "kind": "chain",
+        "caption": "Once pasos de tu editor al tráfico. Los cuatro primeros los haces tú; el PR y la review son entre personas; desde el merge todo es automático, y cada paso deja rastro con el SHA del commit de main.",
+        "data": {
+          "steps": [
+            {
+              "label": "Editar",
+              "cmd": "git switch -c feat/gateway-timeout",
+              "note": "Rama nueva desde el main al día. Editas gateway/app/main.py: el cambio vive en tu working tree (tus archivos en disco)."
+            },
+            {
+              "label": "Staging",
+              "cmd": "git add gateway/app/main.py",
+              "note": "Eliges qué entra en la foto. git diff --staged muestra exactamente eso."
+            },
+            {
+              "label": "Commit",
+              "cmd": "git commit -m \"gateway: bajar INFER_TIMEOUT_S a 120 ms\"",
+              "note": "La foto queda en tu repo local, con un SHA nuevo. Nadie más la ve todavía."
+            },
+            {
+              "label": "Push",
+              "cmd": "git push -u origin feat/gateway-timeout",
+              "note": "La rama sube a GitHub y queda conectada con origin/feat/gateway-timeout."
+            },
+            {
+              "label": "Pull request",
+              "cmd": "gh pr create --fill",
+              "note": "Con gh, la CLI de GitHub (su programa de terminal), o con el botón Compare & pull request en la web. El PR muestra el diff contra el punto donde nació la rama."
+            },
+            {
+              "label": "CI",
+              "cmd": "cd gateway && pip install -r requirements-dev.txt && pytest",
+              "note": "Un workflow de GitHub Actions corre los 24 tests del gateway, sin GPU, sobre un merge de prueba de tu rama con main. El resultado es un check del PR."
+            },
+            {
+              "label": "Review",
+              "cmd": "git diff main...feat/gateway-timeout",
+              "note": "Otra persona lee el mismo diff (con tres puntos, contra el punto donde nació la rama) y aprueba o pide cambios. Con protección de rama, el merge espera checks verdes y la aprobación."
+            },
+            {
+              "label": "Merge",
+              "cmd": "",
+              "note": "El botón del PR: merge commit (como git merge --no-ff), squash o rebase. main recibe commits nuevos (uno solo con merge commit o squash; con rebase, uno por cada commit de la rama), y el SHA de su punta es el que viaja a producción."
+            },
+            {
+              "label": "CD: imagen",
+              "cmd": "docker buildx build --platform linux/amd64 -t $REG/classifier-gateway:$SHA --push gateway/",
+              "note": "Otro workflow, en el push a main: entra a AWS por OIDC (GitHub le da al job un token de corta vida y AWS lo cambia por credenciales temporales: sin llaves guardadas), construye para los nodos amd64 y sube a ECR. El tag son los primeros 7 caracteres del commit de main y, con los tags inmutables del C01, no se puede pisar. $REG es el registry de ECR del C01 (123456789012.dkr.ecr.us-east-1.amazonaws.com). $SHA: en CI, ${GITHUB_SHA::7}; el release.sh del curso usa git rev-parse --short=7 HEAD, que da esos mismos 7 (o más, si otro objeto empieza igual)."
+            },
+            {
+              "label": "Manifest",
+              "cmd": "kubectl -n classifier set image deployment/gateway gateway=$REG/classifier-gateway:$SHA",
+              "note": "El Deployment (el objeto de Kubernetes que mantiene corriendo el gateway) pasa al tag nuevo. Con GitOps, en vez de este comando, un PR cambia la línea image: de k8s/gateway.yaml y Argo CD (el programa que aplica al cluster lo que dice git) la aplica."
+            },
+            {
+              "label": "Rollout",
+              "cmd": "kubectl -n classifier rollout status deployment/gateway --timeout=5m",
+              "note": "Kubernetes cambia los pods de a poco; los nuevos reciben tráfico cuando pasan la readiness. Si algo sale mal: revert (sección Deshacer) o volver al tag anterior."
+            }
+          ]
+        }
+      },
+      "memo": "<b>Git guarda, GitHub revisa, Actions prueba y construye, Kubernetes despliega.</b> Tu parte termina en el push y el PR; desde el merge, todo es automático y deja rastro: commit → check → imagen <code>:SHA</code> → rollout.",
+      "trap": "Creer que el merge es el deploy. El merge solo cambia main: a producción llega la imagen con el SHA de ese commit, cuando CD la construye, la sube y el manifest la apunta. Y abrir el PR con conflictos: los workflows de <code>pull_request</code> no corren hasta que los resuelvas, así que no hay checks que mirar.",
+      "lab": {
+        "goal": "Recorrer la cadena con un remoto local: rama, commit, push, revisión desde otra copia, merge, y el SHA que sería el tag de la imagen.",
+        "steps": [
+          {
+            "cmd": "git init --bare -b main ~/lab-git-remote.git\nmkdir ~/lab-git && cd ~/lab-git && git init -b main\nmkdir -p gateway/app\nprintf 'INFER_TIMEOUT_S = 0.15\\n' > gateway/app/main.py\ngit add . && git commit -m \"gateway: primera versión\"\ngit remote add origin ~/lab-git-remote.git\ngit push -u origin main",
+            "expect": "Dos Initialized empty Git repository (el remoto y tu repo), el commit [main (root-commit) <sha>] y el push: * [new branch] main -> main y branch 'main' set up to track 'origin/main'. La carpeta lab-git-remote.git hace el papel de GitHub: con --bare guarda solo la historia, sin archivos para editar, como un repo en GitHub."
+          },
+          {
+            "cmd": "git switch -c feat/gateway-timeout\nprintf 'INFER_TIMEOUT_S = 0.12\\n' > gateway/app/main.py\ngit add gateway/app/main.py\ngit diff --staged --stat\ngit commit -m \"gateway: bajar INFER_TIMEOUT_S a 120 ms\"",
+            "expect": "Switched to a new branch 'feat/gateway-timeout', el resumen gateway/app/main.py | 2 +- (lo que entra al commit) y [feat/gateway-timeout <sha>] gateway: bajar INFER_TIMEOUT_S a 120 ms."
+          },
+          {
+            "cmd": "git push -u origin feat/gateway-timeout",
+            "expect": "* [new branch] feat/gateway-timeout -> feat/gateway-timeout y branch 'feat/gateway-timeout' set up to track 'origin/feat/gateway-timeout'. Contra GitHub, aquí aparecerían líneas remote: con el link para abrir el PR."
+          },
+          {
+            "cmd": "git clone ~/lab-git-remote.git ~/lab-git-equipo\ncd ~/lab-git-equipo\ngit switch feat/gateway-timeout\ngit diff main...feat/gateway-timeout",
+            "expect": "Cloning into … y done. git switch encuentra la rama en el remoto y la crea conectada (set up to track). El diff muestra -INFER_TIMEOUT_S = 0.15 y +INFER_TIMEOUT_S = 0.12: lo mismo que la pestaña Files changed del PR, que también compara contra el punto donde nació la rama."
+          },
+          {
+            "cmd": "git switch main\ngit merge --no-ff --no-edit feat/gateway-timeout\ngit push",
+            "expect": "Merge made by the 'ort' strategy. y el push de main (<sha>..<sha> main -> main). --no-ff crea un commit de merge aunque bastara con mover la etiqueta, como el botón Create a merge commit de GitHub; --no-edit acepta el mensaje sin abrir el editor."
+          },
+          {
+            "cmd": "cd ~/lab-git\ngit switch main\ngit pull\ngit log --oneline --graph\ngit rev-parse --short=7 HEAD",
+            "expect": "Ojo: git switch main dice Your branch is up to date with 'origin/main'., y es falso: es según tu último fetch. git pull trae el merge (Updating <sha>..<sha>, Fast-forward: tu main solo avanza hasta el merge). El log dibuja el merge con sus dos padres, y rev-parse imprime 7 caracteres: el tag que tendría la imagen."
+          },
+          {
+            "cmd": "git branch -d feat/gateway-timeout\ngit push origin --delete feat/gateway-timeout",
+            "expect": "Deleted branch feat/gateway-timeout (was <sha>). y, en el remoto, - [deleted] feat/gateway-timeout. git branch -d solo borra una rama si sus commits ya están a salvo en la rama donde estás o en su rama remota; si no, se niega con not fully merged."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-git ~/lab-git-remote.git ~/lab-git-equipo",
+            "expect": "No imprime nada: borra tu repo, el \"GitHub\" local y la copia de la otra persona."
+          }
+        ],
+        "fix": "Si git push a secas falla con has no upstream branch, la rama todavía no está conectada: git push -u origin {rama}. Si git dice que estás al día pero no ves el merge, corre git pull (o git fetch): el \"up to date\" es según tu último fetch.",
+        "needs": "git 2.28 o más nuevo (git --version) y tu nombre y email configurados (git config --global user.name y user.email). Todo es local: no necesitas cuenta de GitHub.",
+        "verified": "executed",
+        "verified_note": "Ejecutado con git 2.50.1 (Apple Git-155) en macOS. Los SHAs y las rutas cambian en cada máquina."
+      },
+      "links": [
+        "#m10.ci-cd",
+        "#m10.gate",
+        "#m05.registries",
+        "#c01.archivos"
+      ]
+    },
+    {
+      "id": "modelo",
+      "num": 1,
+      "title": "Qué es Git: fotos, etiquetas y tres zonas",
+      "question": "¿Qué guarda git en realidad, qué es una rama, qué es HEAD y por qué hay un paso entre editar y commitear?",
+      "templates": [
+        {
+          "code": "git init -b {rama}",
+          "note": "Crea la carpeta <code>.git</code>: ahí vive el <b>repositorio</b>, con todos los commits (las fotos del proyecto), las ramas (etiquetas que avanzan con cada commit) y los tags (etiquetas fijas). <code>-b main</code> le pone nombre a la primera rama; sin eso, git usa <code>init.defaultBranch</code> y, si no está configurada, <code>master</code> (Git 3.0, todavía sin fecha, la cambiará a <code>main</code>). GitHub llama <code>main</code> a la rama por defecto."
+        },
+        {
+          "code": "git cat-file -p {ref}",
+          "note": "Muestra por dentro un objeto (cada cosa que git guarda: un commit, una carpeta o un archivo). Un commit tiene su <code>tree</code> (la foto de los archivos), su <code>parent</code> (el commit anterior), autor y committer (quién lo escribió y quién lo guardó, con sus fechas) y el mensaje."
+        },
+        {
+          "code": "git branch {rama}\ngit rev-parse {rama} main",
+          "note": "Crear una rama escribe un archivo con un SHA (el nombre de 40 caracteres de un commit): no copia ningún archivo del proyecto. Recién creada, apunta al commit donde estás (HEAD, el \"estás aquí\" de git); si estás en main, al mismo que main."
+        },
+        {
+          "code": "git switch --detach {ref}",
+          "note": "Pone en disco una foto vieja sin mover ninguna rama: quedas en <b>detached HEAD</b> (HEAD apunta a un commit, no a una rama). Sirve para mirar o probar; <code>git switch -</code> te devuelve a tu rama."
+        }
+      ],
+      "formulas": [
+        "\\text{rama} \\;=\\; \\text{SHA} + \\texttt{\\textbackslash n} \\;=\\; 40 + 1 = 41\\ \\text{bytes}"
+      ],
+      "vars": [
+        [
+          "{rama}",
+          "nombre de la rama",
+          "main, feat/gateway-timeout"
+        ],
+        [
+          "{ref}",
+          "cualquier nombre de un commit: HEAD, HEAD~1, una rama o un SHA",
+          "HEAD"
+        ],
+        [
+          "rama",
+          "archivo en .git/refs/heads con el SHA del commit al que apunta (formato files, el default)",
+          "wc -c .git/refs/heads/main → 41"
+        ]
+      ],
+      "pieces": [
+        [
+          "repositorio (.git)",
+          "La carpeta oculta donde git guarda commits, ramas y configuración. Si la borras, borras la historia.",
+          "~/lab-git/.git"
+        ],
+        [
+          "commit",
+          "Una foto de todos los archivos del proyecto en un momento, con un mensaje. Guarda la foto entera, no \"el diff\" (solo las líneas que cambiaron).",
+          "gateway: bajar INFER_TIMEOUT_S a 120 ms"
+        ],
+        [
+          "tree (árbol)",
+          "La lista de carpetas y archivos de la foto, con el SHA del contenido de cada uno.",
+          "040000 tree … gateway"
+        ],
+        [
+          "blob",
+          "El contenido de un archivo, guardado una sola vez. Si no cambia, el commit siguiente reusa el mismo.",
+          "preprocess.py: el mismo blob 6d75488 en los dos commits"
+        ],
+        [
+          "parent (padre)",
+          "El commit anterior. Por eso la historia es una cadena que va hacia atrás.",
+          "parent 9798182…"
+        ],
+        [
+          "SHA",
+          "El nombre del commit: un hash (una huella que git calcula) de su contenido. Si cambia cualquier cosa (un archivo, el mensaje, el padre), cambia el SHA.",
+          "3387071"
+        ],
+        [
+          "rama (branch)",
+          "Una etiqueta con el SHA de un commit. Cada commit que haces estando en ella la mueve hacia adelante. No es una copia del proyecto.",
+          ".git/refs/heads/feat/gateway-timeout"
+        ],
+        [
+          "HEAD",
+          "El \"estás aquí\": casi siempre apunta a una rama, y la rama a un commit.",
+          "ref: refs/heads/main"
+        ],
+        [
+          "detached HEAD",
+          "HEAD apunta directo a un commit. Si commiteas ahí, ninguna rama guarda esos commits.",
+          "HEAD detached at 315a4b2"
+        ],
+        [
+          "working tree",
+          "Tus archivos en disco, los que editas. Cambiar de rama los reescribe.",
+          "gateway/app/main.py"
+        ],
+        [
+          "staging (index)",
+          "La zona intermedia: la versión de cada archivo que entrará en el próximo commit. Te deja commitear solo una parte de lo que cambiaste.",
+          "git add gateway/app/main.py"
+        ],
+        [
+          "remoto (origin)",
+          "Otra copia del repo, casi siempre en GitHub. origin es su nombre corto.",
+          "git remote -v"
+        ],
+        [
+          "origin/main",
+          "Rama de seguimiento: tu copia local de dónde estaba main en el remoto la última vez que hablaste con él.",
+          "git log origin/main"
+        ],
+        [
+          "git switch · git restore",
+          "Desde Git 2.23 se reparten los dos trabajos del viejo git checkout: switch cambia de rama, restore recupera archivos.",
+          "git checkout main = git switch main"
+        ]
+      ],
+      "example": {
+        "title": "Un commit del gateway por dentro: foto, padre y etiqueta",
+        "lang": "text",
+        "code": "$ cat .git/HEAD\nref: refs/heads/feat/gateway-timeout\n$ cat .git/refs/heads/feat/gateway-timeout\n338707141fa107b7131a8c16626d6cc4e9ff1305\n$ git cat-file -p HEAD\ntree d6cd4c098b8ee7ac214109095879486b26e545e8\nparent 979818285678056fc3d1861d7d424c2a27aae823\nauthor Ana Torres <ana@example.com> 1792645892 -0600\ncommitter Ana Torres <ana@example.com> 1792645892 -0600\n\ngateway: bajar INFER_TIMEOUT_S a 120 ms\n$ git cat-file -p HEAD:gateway/app\n100644 blob 5123940f72bde62371315600b516f9e0efcff01c\t__init__.py\n100644 blob 97f6b302a8f484d4a308fa1895a73a498bc9ed63\tlabels.json\n100644 blob a3820d9939b821509addc20339c44b35dee89268\tmain.py\n100644 blob 6d75488cb6c744ecde54335cae4b411181ebd5bc\tpreprocess.py\n$ git cat-file -p HEAD~1:gateway/app\n100644 blob 5123940f72bde62371315600b516f9e0efcff01c\t__init__.py\n100644 blob 97f6b302a8f484d4a308fa1895a73a498bc9ed63\tlabels.json\n100644 blob e2709cc8a36ffc7b1ccd456f8fb2d857e646bbcb\tmain.py\n100644 blob 6d75488cb6c744ecde54335cae4b411181ebd5bc\tpreprocess.py",
+        "source": "sesión real con git 2.50.1 sobre una copia de reference/c01/gateway, en la rama del cambio de timeout",
+        "notes": [
+          "<code>.git/HEAD</code> no tiene un SHA: dice en qué rama estás. Y la rama es un archivo con un SHA (<code>3387071…</code>). Eso es todo lo que es una rama.",
+          "El commit apunta a un <code>tree</code> (la foto del proyecto) y a su <code>parent</code> (9798182, el commit anterior). El primer commit de un repo no tiene parent; un merge tiene dos.",
+          "Compara los dos listados: solo <code>main.py</code> tiene otro blob (a3820d9 contra e2709cc). <code>labels.json</code> y <code>preprocess.py</code> reusan el mismo: la foto es completa, pero lo que no cambió no se copia.",
+          "El SHA es el hash de todo esto, con un encabezado <code>commit 244</code> (el tamaño). Cambia el mensaje, la fecha o el padre y el SHA cambia: por eso amend (rehacer el último commit) y rebase (copiar commits sobre otra base) crean commits nuevos.",
+          "Si no encuentras el archivo de una rama, git la guardó en <code>.git/packed-refs</code> (pasa con las ramas remotas tras un clone, o tras un <code>git gc</code>, la limpieza que git corre de vez en cuando). <code>git rev-parse {rama}</code> funciona siempre."
+        ]
+      },
+      "figure": {
+        "kind": "areas",
+        "caption": "Las cuatro zonas y los comandos que mueven cambios entre ellas. add y commit van hacia la derecha; restore, hacia atrás; push, fetch y pull cruzan a la red. Las tres primeras viven en tu máquina.",
+        "data": {
+          "zones": [
+            {
+              "id": "wt",
+              "label": "Working tree",
+              "sub": "tus archivos en disco: donde editas",
+              "see": "git status · git diff"
+            },
+            {
+              "id": "idx",
+              "label": "Staging (index)",
+              "sub": "la versión de cada archivo que entra en el próximo commit",
+              "see": "git diff --staged"
+            },
+            {
+              "id": "repo",
+              "label": "Repositorio local (.git)",
+              "sub": "commits, ramas y tags en tu máquina",
+              "see": "git log"
+            },
+            {
+              "id": "remote",
+              "label": "Remoto (origin, en GitHub)",
+              "sub": "la copia que comparte el equipo",
+              "see": "git fetch y después git log origin/main"
+            }
+          ],
+          "moves": [
+            {
+              "from": "wt",
+              "to": "idx",
+              "cmd": "git add {ruta}",
+              "note": "copia la versión actual del archivo al staging"
+            },
+            {
+              "from": "idx",
+              "to": "repo",
+              "cmd": "git commit -m \"…\"",
+              "note": "guarda la foto del staging como commit nuevo y mueve la rama"
+            },
+            {
+              "from": "repo",
+              "to": "remote",
+              "cmd": "git push",
+              "note": "sube tus commits y mueve la rama del remoto; solo acepta avanzar"
+            },
+            {
+              "from": "remote",
+              "to": "repo",
+              "cmd": "git fetch",
+              "note": "trae commits y mueve solo origin/…; tus ramas y tus archivos no cambian"
+            },
+            {
+              "from": "remote",
+              "to": "wt",
+              "via": "repo",
+              "cmd": "git pull",
+              "note": "fetch y después junta lo que llegó (merge o rebase, sección Ramas): mueve tu rama y actualiza staging y archivos"
+            },
+            {
+              "from": "repo",
+              "to": "wt",
+              "via": "idx",
+              "cmd": "git switch {rama}",
+              "note": "pone en staging y en disco la foto de otra rama"
+            },
+            {
+              "from": "idx",
+              "to": "wt",
+              "cmd": "git restore {ruta}",
+              "note": "descarta lo que cambiaste en disco: vuelve a la versión del staging"
+            },
+            {
+              "from": "repo",
+              "to": "idx",
+              "cmd": "git restore --staged {ruta}",
+              "note": "saca la ruta del staging (vuelve a la versión de HEAD); tu archivo no cambia"
+            }
+          ],
+          "note": "Lo que no commiteaste no es de ninguna rama: <code>git switch</code> lo lleva contigo si no choca con la otra rama, y se niega si lo pisaría (<code>Your local changes to the following files would be overwritten by checkout</code>)."
+        }
+      },
+      "memo": "Un <b>commit es una foto</b> del proyecto, con su padre y un mensaje; una <b>rama es una etiqueta</b> que avanza sola con cada commit que haces en ella; <b>HEAD es el \"estás aquí\"</b>. Entre tu disco y la historia está el <b>staging</b>: ahí eliges qué entra en la foto.",
+      "trap": "Pensar que una rama es una copia del proyecto: crear una escribe 41 bytes, y cambiar de rama reescribe tus archivos en disco. Lo que no commiteaste no es de ninguna rama: viaja contigo al cambiar, y git se niega si lo pisaría. Y creer que un commit guarda \"el diff\": guarda la foto entera (lo que no cambió se reusa, no se copia).",
+      "lab": {
+        "goal": "Abrir .git y ver que un commit es una foto con padre, que una rama es un archivo de 41 bytes y que HEAD dice dónde estás.",
+        "steps": [
+          {
+            "cmd": "mkdir ~/lab-git && cd ~/lab-git && git init -b main\nmkdir -p gateway/app\nprintf 'INFER_TIMEOUT_S = 0.15\\n' > gateway/app/main.py\ngit add . && git commit -m \"gateway: primera versión\"",
+            "expect": "Initialized empty Git repository in /Users/<tú>/lab-git/.git/ y [main (root-commit) <sha>] gateway: primera versión."
+          },
+          {
+            "cmd": "cat .git/HEAD\ncat .git/refs/heads/main\ngit cat-file -p HEAD\ngit cat-file -p 'HEAD^{tree}'",
+            "expect": "ref: refs/heads/main; el SHA completo de 40 caracteres (la rama es solo eso); el commit por dentro: tree, author, committer y el mensaje, sin parent porque es el primero; y la foto: 040000 tree <sha> gateway (cada carpeta es otro tree y cada archivo, un blob)."
+          },
+          {
+            "cmd": "git branch feat/gateway-timeout\ngit branch -v\ncat .git/refs/heads/feat/gateway-timeout",
+            "expect": "Las dos ramas con el mismo SHA corto y el mismo mensaje, y el archivo de la rama nueva con el mismo SHA que main: crear una rama no copió nada."
+          },
+          {
+            "cmd": "git switch feat/gateway-timeout\nprintf 'INFER_TIMEOUT_S = 0.12\\n' > gateway/app/main.py\ngit commit -am \"gateway: bajar INFER_TIMEOUT_S a 120 ms\"\ngit branch -v",
+            "expect": "Switched to branch 'feat/gateway-timeout', el commit nuevo, y en branch -v la rama nueva en otro SHA mientras main sigue donde estaba: solo se movió la etiqueta donde está HEAD. (-a agrega los cambios de archivos que git ya seguía.)"
+          },
+          {
+            "cmd": "git cat-file -p HEAD",
+            "expect": "Ahora aparece parent <SHA de main>: el commit nuevo apunta al anterior."
+          },
+          {
+            "cmd": "git switch main\ncat gateway/app/main.py\ngit switch -\ncat gateway/app/main.py",
+            "expect": "INFER_TIMEOUT_S = 0.15 en main y INFER_TIMEOUT_S = 0.12 en la rama: cambiar de rama reescribió el archivo en disco. git switch - vuelve a la rama anterior."
+          },
+          {
+            "cmd": "git switch --detach HEAD~1\ncat .git/HEAD\ngit status",
+            "expect": "HEAD is now at <sha> gateway: primera versión; .git/HEAD ahora tiene un SHA en vez de ref: …; y git status dice HEAD detached at <sha>. Sin --detach, git switch <sha> se niega: fatal: a branch is expected, got commit '<sha>', con un hint que sugiere --detach."
+          },
+          {
+            "cmd": "git switch -\ngit status -sb",
+            "expect": "Previous HEAD position was <sha> gateway: primera versión y Switched to branch 'feat/gateway-timeout'; status -sb vuelve a mostrar ## feat/gateway-timeout."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-git",
+            "expect": "No imprime nada."
+          }
+        ],
+        "fix": "Si git switch se niega por cambios locales, commitéalos, guárdalos con git stash o descártalos con git restore (sección Deshacer). Si commiteaste en detached HEAD, git switch -c {rama} antes de irte los deja a salvo en una rama.",
+        "needs": "git 2.28 o más nuevo (git --version) y tu nombre y email configurados (git config --global user.name y user.email). Todo es local: no necesitas cuenta de GitHub.",
+        "verified": "executed",
+        "verified_note": "Ejecutado con git 2.50.1 (Apple Git-155) en macOS. Los SHAs y las rutas cambian en cada máquina."
+      },
+      "links": [
+        "#m10.reproducibilidad",
+        "#m09.versionado",
+        "#m05.registries"
+      ]
+    },
+    {
+      "id": "dia-a-dia",
+      "num": 2,
+      "title": "El día a día: clone, status, add, commit, diff, log, push, pull, fetch y .gitignore",
+      "question": "¿Qué comandos usas todos los días, qué toca cada uno (tus archivos, tu repo o el remoto) y qué haces cuando push o pull se niegan?",
+      "templates": [
+        {
+          "code": "git clone {url}\ncd {carpeta}",
+          "note": "Copia el repo con toda su historia a una carpeta nueva, registra el remoto (la copia en GitHub) como <code>origin</code> y te deja en la rama por defecto (casi siempre <code>main</code>), conectada con <code>origin/main</code>: tu copia local del main de GitHub. La URL puede ser SSH o HTTPS, dos formas de conectarte; cómo autenticarte está en la sección GitHub."
+        },
+        {
+          "code": "git status\ngit diff\ngit add {ruta}\ngit diff --staged\ngit commit -m \"{mensaje}\"",
+          "note": "El ciclo de cada commit (cada foto que guardas): mira qué cambió, revisa el diff (las líneas que cambiaron), elige con <code>add</code> y revisa lo elegido antes de guardar. <code>git add -p</code> te deja elegir pedazos de un archivo."
+        },
+        {
+          "code": "git fetch\ngit status -sb\ngit pull --rebase\ngit push",
+          "note": "Sincronizar. <code>fetch</code> baja lo nuevo y solo mueve <code>origin/…</code>: tus archivos no cambian. <code>pull</code> = fetch + juntar con tu rama; <code>--rebase</code> pone tus commits locales encima de los del remoto, sin un commit de merge (uno extra que junta las dos historias). <code>push</code> sube lo tuyo; la primera vez de una rama, <code>git push -u origin {rama}</code>."
+        },
+        {
+          "code": "git config --global pull.ff only",
+          "note": "Decide una vez qué hace <code>git pull</code> cuando las ramas <b>divergieron</b> (cada una tiene commits que la otra no). Con <code>pull.ff only</code> solo avanza si no hay nada que mezclar y, si divergieron, se niega y eliges tú con <code>git pull --rebase</code>. Sin ninguna config también se niega (desde Git 2.33.1): <code>fatal: Need to specify how to reconcile divergent branches.</code>"
+        },
+        {
+          "code": "git check-ignore -v {ruta}\ngit rm --cached {ruta}",
+          "note": "<code>check-ignore -v</code> dice qué línea del <code>.gitignore</code> (la lista de patrones que git ignora) ignora un archivo. El <code>.gitignore</code> no afecta archivos que git ya sigue: para dejar de seguir uno sin borrarlo del disco, <code>git rm --cached</code> y un commit."
+        }
+      ],
+      "formulas": [
+        "\\texttt{git log A..B} = \\{\\text{commits de B}\\} \\setminus \\{\\text{commits de A}\\} \\qquad \\texttt{git diff A...B} = \\text{diff}\\big(\\text{merge-base}(A, B),\\ B\\big)"
+      ],
+      "vars": [
+        [
+          "{url}",
+          "dirección del repo",
+          "git@github.com:equipo/classifier.git (ilustrativo)"
+        ],
+        [
+          "{carpeta}",
+          "la carpeta que crea clone: el nombre del repo sin .git",
+          "classifier"
+        ],
+        [
+          "{ruta}",
+          "archivo o carpeta",
+          "gateway/app/main.py"
+        ],
+        [
+          "{mensaje}",
+          "qué cambió, en una línea",
+          "preprocess: comentar RESIZE_SHORT"
+        ],
+        [
+          "{rama}",
+          "tu rama, la primera vez que la subes",
+          "feat/gateway-timeout"
+        ],
+        [
+          "A..B",
+          "los commits que están en B y no en A",
+          "HEAD..origin/main = lo del remoto que todavía no tienes (HEAD es donde estás)"
+        ],
+        [
+          "A...B",
+          "en diff: lo que cambió B desde su merge-base con A (el último commit que tienen en común)",
+          "git diff main...feat/gateway-timeout = el diff del PR (pull request)"
+        ]
+      ],
+      "pieces": [
+        [
+          "git clone",
+          "Copia el repo entero, con toda la historia, y crea origin.",
+          "git clone git@github.com:equipo/classifier.git"
+        ],
+        [
+          "git status",
+          "Qué cambió, qué está en staging y cómo vas contra tu foto del remoto. No le pregunta nada al remoto.",
+          "git status -sb → ## main...origin/main [behind 1]"
+        ],
+        [
+          "git add",
+          "Copia la versión actual de un archivo al staging. -p elige pedazos; un punto agrega todo lo de la carpeta (mira antes).",
+          "git add -p gateway/app/main.py"
+        ],
+        [
+          "git commit -m",
+          "Guarda la foto del staging con un mensaje. -a suma los cambios de archivos que git ya seguía, no los nuevos.",
+          "git commit -m \"gateway: tope de top_k\""
+        ],
+        [
+          "git diff",
+          "Lo que cambiaste en disco y todavía no está en staging.",
+          "-INFER_TIMEOUT_S = 0.15 / +INFER_TIMEOUT_S = 0.12"
+        ],
+        [
+          "git diff --staged",
+          "Lo que está en staging contra el último commit: exactamente lo que vas a commitear.",
+          "git diff --staged --stat"
+        ],
+        [
+          "git log",
+          "La historia. --oneline: una línea por commit; --graph: dibuja las ramas; -p: con el diff de cada uno.",
+          "git log --oneline --graph -n 10"
+        ],
+        [
+          "git fetch",
+          "Baja commits y ramas del remoto y actualiza origin/…; no toca tus ramas ni tus archivos.",
+          "main -> origin/main"
+        ],
+        [
+          "git pull",
+          "fetch + juntar con tu rama lo que llegó a su rama remota (upstream): merge, rebase o solo avanzar, según tu config.",
+          "Updating 9798182..27bd258 · Fast-forward"
+        ],
+        [
+          "fast-forward",
+          "Avanzar la etiqueta de tu rama hasta el commit del remoto, sin crear nada: no había nada que mezclar.",
+          "lo normal en main, si nunca commiteas ahí"
+        ],
+        [
+          "git push",
+          "Sube tus commits y mueve la rama del remoto. Solo acepta avanzar: si el remoto tiene algo que tú no, lo rechaza.",
+          "! [rejected] … (non-fast-forward)"
+        ],
+        [
+          "upstream (-u)",
+          "La rama remota a la que está conectada la tuya. La usan pull, push y status.",
+          "git push -u origin feat/gateway-timeout"
+        ],
+        [
+          ".gitignore",
+          "Patrones de archivos que git no ofrece agregar: venvs, caches, secretos, pesos.",
+          "*.onnx · .env · __pycache__/"
+        ],
+        [
+          "git rm --cached",
+          "Deja de seguir un archivo sin borrarlo del disco; el .gitignore evita que vuelva a entrar.",
+          "rm 'notas.log'"
+        ]
+      ],
+      "example": {
+        "title": "El .gitignore de un repo con la estructura del C01",
+        "lang": "text",
+        "code": "# .gitignore en la raíz del repo\n\n# Python: se regenera solo, y un venv de macOS no sirve en la máquina Linux de CI\n__pycache__/\n*.py[cod]\n.pytest_cache/\n.venv/\n\n# Secretos locales: nunca en git (el historial es para siempre)\n.env\n*.pem\n\n# Pesos y engines: los generan los scripts de model/ y viven fuera de git\n*.pt\n*.onnx\n*.plan",
+        "source": "ilustrativo: armado con las reglas de reference/c01/gateway/.dockerignore y del README del C01 (model.plan y classifier.onnx no se versionan)",
+        "notes": [
+          "Una barra al final (<code>__pycache__/</code>) solo ignora carpetas. Un patrón sin barra en medio vale en cualquier subcarpeta: <code>*.onnx</code> ignora también <code>model/classifier.onnx</code>.",
+          "<code>.env</code> y <code>*.pem</code>: un secreto commiteado queda en la historia aunque lo borres en el commit siguiente. Si pasó, rótalo primero: crea uno nuevo e invalida el viejo (M15).",
+          "Pesos y engines no van a git: GitHub avisa desde 50 MiB y bloquea archivos de más de 100 MiB. En el C01, el engine (el modelo compilado para la GPU) se construye en la T4 y viaja dentro de la imagen de Triton (el servidor del modelo); los datos se versionan con snapshots (M9) y los modelos, en el registry de modelos (M10).",
+          "El <code>.gitignore</code> no saca archivos que git ya sigue: para eso, <code>git rm --cached {ruta}</code> y un commit. Lo de tu máquina (<code>.DS_Store</code>, <code>.vscode/</code>) va mejor en tu ignore global, <code>~/.config/git/ignore</code>.",
+          "<code>git status -s --ignored</code> marca con <code>!!</code> lo que el .gitignore esconde (sin <code>-s</code>, lo lista bajo <code>Ignored files</code>), y <code>git check-ignore -v {ruta}</code> dice qué línea lo ignora."
+        ]
+      },
+      "figure": {
+        "kind": "graph",
+        "caption": "Tu repo antes y después de cada comando. Las etiquetas origin/… son tu foto del remoto: solo se mueven con fetch, pull o push. Los dos primeros pasos ocurren en main; los dos últimos, en tu rama de PR cuando alguien empujó una sugerencia de la review.",
+        "data": {
+          "op": "git fetch",
+          "label": "fetch: solo se mueve origin/main",
+          "before": {
+            "commits": [
+              {
+                "id": "C1",
+                "msg": "gateway: primera versión",
+                "parents": []
+              },
+              {
+                "id": "C2",
+                "msg": "preprocess: agregar preprocess.py",
+                "parents": [
+                  "C1"
+                ]
+              }
+            ],
+            "branches": [
+              {
+                "name": "main",
+                "at": "C2"
+              },
+              {
+                "name": "origin/main",
+                "at": "C2",
+                "remote": true
+              }
+            ],
+            "head": "main"
+          },
+          "after": {
+            "commits": [
+              {
+                "id": "C1",
+                "msg": "gateway: primera versión",
+                "parents": []
+              },
+              {
+                "id": "C2",
+                "msg": "preprocess: agregar preprocess.py",
+                "parents": [
+                  "C1"
+                ]
+              },
+              {
+                "id": "C3",
+                "msg": "gateway: tope de top_k",
+                "parents": [
+                  "C2"
+                ],
+                "new": true
+              }
+            ],
+            "branches": [
+              {
+                "name": "main",
+                "at": "C2"
+              },
+              {
+                "name": "origin/main",
+                "at": "C3",
+                "remote": true
+              }
+            ],
+            "head": "main"
+          },
+          "note": "C3 lo subió otra persona. fetch lo trae y mueve origin/main; main y tus archivos siguen en C2. git status -sb ahora dice [behind 1].",
+          "more": [
+            {
+              "op": "git pull",
+              "label": "pull sin divergencia: fast-forward",
+              "before": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "preprocess: agregar preprocess.py",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "gateway: tope de top_k",
+                    "parents": [
+                      "C2"
+                    ]
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C2"
+                  },
+                  {
+                    "name": "origin/main",
+                    "at": "C3",
+                    "remote": true
+                  }
+                ],
+                "head": "main"
+              },
+              "after": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "preprocess: agregar preprocess.py",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "gateway: tope de top_k",
+                    "parents": [
+                      "C2"
+                    ]
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C3"
+                  },
+                  {
+                    "name": "origin/main",
+                    "at": "C3",
+                    "remote": true
+                  }
+                ],
+                "head": "main"
+              },
+              "note": "No había nada que mezclar: la etiqueta main avanza hasta C3 y tus archivos se actualizan. Ningún commit nuevo."
+            },
+            {
+              "op": "git pull --rebase",
+              "label": "ramas divergentes en tu rama de PR",
+              "before": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "review: tope de top_k",
+                    "parents": [
+                      "C2"
+                    ]
+                  },
+                  {
+                    "id": "C4",
+                    "msg": "preprocess: comentar RESIZE_SHORT",
+                    "parents": [
+                      "C2"
+                    ]
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C1"
+                  },
+                  {
+                    "name": "feat/gateway-timeout",
+                    "at": "C4"
+                  },
+                  {
+                    "name": "origin/feat/gateway-timeout",
+                    "at": "C3",
+                    "remote": true
+                  }
+                ],
+                "head": "feat/gateway-timeout"
+              },
+              "after": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "review: tope de top_k",
+                    "parents": [
+                      "C2"
+                    ]
+                  },
+                  {
+                    "id": "C4",
+                    "msg": "preprocess: comentar RESIZE_SHORT",
+                    "parents": [
+                      "C2"
+                    ],
+                    "gone": true
+                  },
+                  {
+                    "id": "C4'",
+                    "msg": "preprocess: comentar RESIZE_SHORT",
+                    "parents": [
+                      "C3"
+                    ],
+                    "new": true
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C1"
+                  },
+                  {
+                    "name": "feat/gateway-timeout",
+                    "at": "C4'"
+                  },
+                  {
+                    "name": "origin/feat/gateway-timeout",
+                    "at": "C3",
+                    "remote": true
+                  }
+                ],
+                "head": "feat/gateway-timeout"
+              },
+              "note": "C3 (la sugerencia de la review) y tu C4 nacieron de C2: divergieron, y push se rechaza (non-fast-forward). --rebase copia C4 encima de C3 como C4', con otro SHA (otro nombre de commit); C4 queda solo en el reflog (el historial local de HEAD)."
+            },
+            {
+              "op": "git push",
+              "label": "ahora sí: el remoto avanza",
+              "before": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "review: tope de top_k",
+                    "parents": [
+                      "C2"
+                    ]
+                  },
+                  {
+                    "id": "C4'",
+                    "msg": "preprocess: comentar RESIZE_SHORT",
+                    "parents": [
+                      "C3"
+                    ]
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C1"
+                  },
+                  {
+                    "name": "feat/gateway-timeout",
+                    "at": "C4'"
+                  },
+                  {
+                    "name": "origin/feat/gateway-timeout",
+                    "at": "C3",
+                    "remote": true
+                  }
+                ],
+                "head": "feat/gateway-timeout"
+              },
+              "after": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "review: tope de top_k",
+                    "parents": [
+                      "C2"
+                    ]
+                  },
+                  {
+                    "id": "C4'",
+                    "msg": "preprocess: comentar RESIZE_SHORT",
+                    "parents": [
+                      "C3"
+                    ]
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C1"
+                  },
+                  {
+                    "name": "feat/gateway-timeout",
+                    "at": "C4'"
+                  },
+                  {
+                    "name": "origin/feat/gateway-timeout",
+                    "at": "C4'",
+                    "remote": true
+                  }
+                ],
+                "head": "feat/gateway-timeout"
+              },
+              "note": "C4' desciende de C3: para el remoto es avanzar, así que acepta el push."
+            }
+          ]
+        }
+      },
+      "memo": "<b>fetch mira, pull trae, push entrega.</b> fetch solo mueve <code>origin/…</code>; pull además mueve tu rama y tus archivos; push solo acepta avanzar. Antes de cada commit: <code>git status</code> y <code>git diff --staged</code>.",
+      "trap": "<code>git add .</code> sin mirar: entran el <code>.env</code>, un <code>classifier.onnx</code> de cientos de MB o un <code>__pycache__</code>. Revisa <code>git status</code> y <code>git diff --staged</code> antes de cada commit. Y cuando un push se rechaza, no fuerces: <code>git fetch</code>, mira qué llegó y junta con <code>git pull --rebase</code>.",
+      "lab": {
+        "goal": "Trabajar con otra persona sobre un remoto local: ver que fetch no toca tus archivos, provocar un push rechazado y un pull que se niega, resolverlo con pull --rebase y, al final, armar un .gitignore.",
+        "steps": [
+          {
+            "cmd": "git init --bare -b main ~/lab-git-remote.git\ngit clone ~/lab-git-remote.git ~/lab-git-equipo\ncd ~/lab-git-equipo\ngit config user.name \"Leo Ruiz\"\ngit config user.email \"leo@example.com\"\nmkdir -p gateway/app\nprintf 'INFER_TIMEOUT_S = 0.15\\n' > gateway/app/main.py\nprintf 'RESIZE_SHORT = 256\\n' > gateway/app/preprocess.py\ngit add . && git commit -m \"gateway: primera versión\" && git push -u origin main",
+            "expect": "Initialized empty Git repository in …/lab-git-remote.git/, el aviso warning: You appear to have cloned an empty repository. (el remoto todavía no tiene commits), el commit y * [new branch] main -> main. Leo Ruiz es la otra persona del equipo: user.name y user.email solo cambian dentro de esa copia. --bare crea un repo solo con la historia, sin archivos para editar, como el de GitHub."
+          },
+          {
+            "cmd": "git clone ~/lab-git-remote.git ~/lab-git\ncd ~/lab-git\ngit config pull.ff only\ngit switch -c feat/gateway-timeout\nprintf 'INFER_TIMEOUT_S = 0.12\\n' > gateway/app/main.py\ngit commit -am \"gateway: bajar INFER_TIMEOUT_S a 120 ms\"\ngit push -u origin feat/gateway-timeout",
+            "expect": "Cloning into … y done.; Switched to a new branch 'feat/gateway-timeout'; el commit; y el push con * [new branch] y set up to track. pull.ff only queda solo en este repo (sin --global)."
+          },
+          {
+            "cmd": "cd ~/lab-git-equipo\ngit fetch\ngit switch feat/gateway-timeout\nprintf 'MAX_TOP_K = 20\\n' >> gateway/app/main.py\ngit commit -am \"review: tope de top_k\" && git push",
+            "expect": "El fetch trae tu rama (* [new branch] feat/gateway-timeout -> origin/feat/gateway-timeout), git switch la crea conectada (set up to track), y el push sube review: tope de top_k. En GitHub pasa lo mismo cuando alguien aplica una sugerencia de la review con Commit suggestion: un commit nuevo en tu rama del remoto."
+          },
+          {
+            "cmd": "cd ~/lab-git\ngit status -sb\ngit fetch\ngit status -sb\ngit log --oneline HEAD..origin/feat/gateway-timeout",
+            "expect": "El primer status dice ## feat/gateway-timeout...origin/feat/gateway-timeout, sin behind: status no le pregunta al remoto. Después del fetch dice [behind 1] y el log muestra review: tope de top_k. Tus archivos no cambiaron."
+          },
+          {
+            "cmd": "printf 'RESIZE_SHORT = 256  # igual que en training\\n' > gateway/app/preprocess.py\ngit commit -am \"preprocess: comentar RESIZE_SHORT\"\ngit status -sb\ngit push",
+            "expect": "[ahead 1, behind 1]: divergieron. El push se rechaza: ! [rejected] feat/gateway-timeout -> feat/gateway-timeout (non-fast-forward), con un hint que sugiere git pull. Sin el fetch del paso anterior, diría (fetch first)."
+          },
+          {
+            "cmd": "git pull",
+            "expect": "Se niega: fatal: Not possible to fast-forward, aborting., después de un hint que sugiere merge o rebase. Tu rama y tus archivos no cambiaron. Sin ninguna config (desde Git 2.33.1), el mensaje sería fatal: Need to specify how to reconcile divergent branches."
+          },
+          {
+            "cmd": "git pull --rebase\ngit log --oneline --graph\ngit push",
+            "expect": "Successfully rebased and updated refs/heads/feat/gateway-timeout. El log queda en línea recta, con tu commit encima del de la review y con otro SHA. El push ahora se acepta: <sha>..<sha> feat/gateway-timeout -> feat/gateway-timeout."
+          },
+          {
+            "cmd": "printf '.env\\n__pycache__/\\n*.onnx\\n' > .gitignore\nprintf 'TOKEN=no-lo-subas\\n' > .env\nmkdir -p model && printf 'pesos' > model/classifier.onnx\ngit status -s\ngit check-ignore -v .env model/classifier.onnx",
+            "expect": "status -s muestra solo ?? .gitignore: .env y model/ ni aparecen. check-ignore -v dice qué línea ignora cada uno: .gitignore:1:.env y .gitignore:3:*.onnx."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-git ~/lab-git-remote.git ~/lab-git-equipo",
+            "expect": "No imprime nada."
+          }
+        ],
+        "fix": "Push rechazado: git fetch y git status -sb para ver qué llegó. Si divergieron en tu rama de PR, git pull --rebase y otra vez git push. Si un archivo que no querías está en tu último commit y no hiciste push: git rm --cached {ruta}, agrégalo al .gitignore y git commit --amend (rehace el último commit).",
+        "needs": "git 2.28 o más nuevo y tu nombre y email configurados. Todo es local: el \"GitHub\" es la carpeta ~/lab-git-remote.git y la otra persona del equipo trabaja en ~/lab-git-equipo.",
+        "verified": "executed",
+        "verified_note": "Ejecutado con git 2.50.1 (Apple Git-155) en macOS. Los SHAs y las rutas cambian en cada máquina."
+      },
+      "links": [
+        "#m09.versionado",
+        "#m15.secretos",
+        "#m10.ci-cd"
+      ]
+    },
+    {
+      "id": "ramas",
+      "num": 3,
+      "title": "Ramas, merge y rebase; conflictos y cómo resolverlos",
+      "question": "¿Cómo trabajas en paralelo sin pisarte con el equipo, cómo juntas las ramas y qué haces cuando git marca un conflicto?",
+      "templates": [
+        {
+          "code": "git switch -c {rama}\ngit switch {rama}\ngit branch -d {rama}",
+          "note": "Crear y cambiarte (<code>-c</code>), solo cambiarte, y borrar una rama ya mergeada (unida a otra). <code>-d</code> se niega si la rama tiene commits que no están ni en la rama donde estás ni en su rama remota (<code>is not fully merged</code>); <code>-D</code> la borra igual."
+        },
+        {
+          "code": "git merge {rama}\ngit merge --no-ff --no-edit {rama}",
+          "note": "Junta otra rama con la tuya. Si tu rama no avanzó, git solo mueve la etiqueta (<b>fast-forward</b>); si las dos avanzaron, crea un <b>merge commit</b> con dos padres. <code>--no-ff</code> fuerza el merge commit y <code>--no-edit</code> acepta el mensaje sin abrir el editor."
+        },
+        {
+          "code": "git rebase {base}\ngit push --force-with-lease",
+          "note": "Copia tus commits encima de la punta de <code>{base}</code>, con SHAs nuevos (otros nombres de commit): la historia queda en línea recta. Si la rama ya estaba en el remoto, el push normal se rechaza; <code>--force-with-lease</code> la reemplaza solo si nadie empujó desde tu último fetch. Nunca en main."
+        },
+        {
+          "code": "git status\ngit add {ruta}\ngit commit --no-edit\ngit merge --abort",
+          "note": "Un <b>conflicto</b>: las dos ramas cambiaron distinto las mismas líneas (o líneas vecinas) y git no elige. status los marca <code>both modified</code>; editas el archivo, quitas las marcas, <code>git add</code> y commit. <code>--abort</code> te deja como antes del merge."
+        },
+        {
+          "code": "git rebase --continue\ngit rebase --abort",
+          "note": "En un rebase, el conflicto se resuelve igual (editar y <code>git add</code>), pero sigues con <code>--continue</code>, que abre el editor con el mensaje del commit. <code>GIT_EDITOR=true git rebase --continue</code> lo acepta tal cual."
+        }
+      ],
+      "formulas": [
+        "\\text{resultado} \\;=\\; \\text{base} + \\text{cambio}_{\\text{tuyo}} + \\text{cambio}_{\\text{suyo}} \\qquad \\text{conflicto: los dos cambian distinto las mismas líneas (o vecinas)}"
+      ],
+      "vars": [
+        [
+          "{rama}",
+          "rama a crear, cambiar, juntar o borrar",
+          "feat/gateway-timeout"
+        ],
+        [
+          "{base}",
+          "la rama sobre la que pones tus commits",
+          "main (u origin/main, recién traída con fetch)"
+        ],
+        [
+          "{ruta}",
+          "archivo en conflicto",
+          "gateway/app/main.py"
+        ],
+        [
+          "base",
+          "el último commit que las dos ramas tienen en común (merge-base)",
+          "git merge-base main feat/gateway-timeout"
+        ],
+        [
+          "cambio_tuyo",
+          "lo que cambió tu rama desde la base",
+          "0.15 → 0.12 en INFER_TIMEOUT_S"
+        ],
+        [
+          "cambio_suyo",
+          "lo que cambió la otra rama desde la base",
+          "0.15 → 0.18: un hotfix (arreglo urgente) que ya entró a main"
+        ],
+        [
+          "resultado",
+          "el archivo combinado; si los cambios no chocan, git lo arma solo",
+          "el main.py del merge commit"
+        ]
+      ],
+      "pieces": [
+        [
+          "rama (branch)",
+          "Etiqueta que avanza con cada commit que haces en ella. Trabajar en una rama no toca a las demás.",
+          "feat/gateway-timeout"
+        ],
+        [
+          "fast-forward",
+          "Juntar sin commit nuevo: la etiqueta solo avanza, porque la otra rama ya contenía todo lo tuyo.",
+          "Updating be403cc..d73cbdd · Fast-forward"
+        ],
+        [
+          "merge commit",
+          "Commit con dos padres que junta dos historias que avanzaron por separado.",
+          "Merge made by the 'ort' strategy."
+        ],
+        [
+          "merge-base",
+          "El último commit en común. Git compara cada lado contra él (three-way merge).",
+          "git merge-base main HEAD"
+        ],
+        [
+          "rebase",
+          "Rehace tus commits, uno por uno, encima de otra base. Cada uno sale con un SHA nuevo.",
+          "Successfully rebased and updated refs/heads/feat/gateway-timeout."
+        ],
+        [
+          "conflicto (conflict)",
+          "Las dos ramas cambiaron distinto las mismas líneas, o líneas vecinas. Git para y te pide decidir.",
+          "CONFLICT (content): Merge conflict in gateway/app/main.py"
+        ],
+        [
+          "marcas de conflicto",
+          "<<<<<<< abre tu lado, ======= separa, >>>>>>> cierra el otro lado. Al resolver, las borras.",
+          "<<<<<<< HEAD … >>>>>>> main"
+        ],
+        [
+          "UU · both modified",
+          "Archivo en conflicto sin resolver. Pasa a resuelto cuando haces git add.",
+          "UU gateway/app/main.py"
+        ],
+        [
+          "git merge --abort · git rebase --abort",
+          "Cancelan y te dejan como antes de empezar.",
+          "cuando el conflicto es más grande de lo que esperabas"
+        ],
+        [
+          "ours / theirs",
+          "En un merge, ours es tu rama y theirs la que entra. En un rebase se invierten: ours es la base y theirs, tu commit.",
+          "git restore --theirs gateway/app/main.py"
+        ],
+        [
+          "git diff --check",
+          "Avisa si quedaron marcas de conflicto o espacios sobrantes. Pásalo antes del git add.",
+          "gateway/app/main.py:38: leftover conflict marker"
+        ],
+        [
+          "merge.conflictStyle zdiff3",
+          "Agrega a las marcas la versión de la base, tras |||||||: ves qué había antes de los dos cambios. Existe desde Git 2.35.",
+          "git config --global merge.conflictStyle zdiff3"
+        ],
+        [
+          "git push --force-with-lease",
+          "Reemplaza la rama remota solo si sigue donde la viste en tu último fetch. Para tu rama de PR (pull request), nunca para main.",
+          "+ 941be23...8707e88 feat/gateway-timeout -> feat/gateway-timeout (forced update)"
+        ],
+        [
+          "git branch -d · -D",
+          "Borra una rama local. -d solo si sus commits ya están en la rama donde estás o en su rama remota; -D, aunque no lo estén.",
+          "error: the branch 'feat/x' is not fully merged"
+        ]
+      ],
+      "example": {
+        "title": "Un conflicto real en gateway/app/main.py, con las marcas zdiff3",
+        "lang": "text",
+        "code": "$ git config --global merge.conflictStyle zdiff3\n$ git merge main\nAuto-merging gateway/app/main.py\nCONFLICT (content): Merge conflict in gateway/app/main.py\nAutomatic merge failed; fix conflicts and then commit the result.\n$ git status -s\nUU gateway/app/main.py\n$ sed -n 38,44p gateway/app/main.py\n<<<<<<< HEAD\nINFER_TIMEOUT_S = float(os.getenv(\"INFER_TIMEOUT_S\", \"0.12\"))  # 120 ms: el resto del p99 ≤ 200 ms queda para el preprocess\n||||||| 0c52e4b\nINFER_TIMEOUT_S = float(os.getenv(\"INFER_TIMEOUT_S\", \"0.15\"))  # 150 ms para Triton dentro del p99 ≤ 200 ms\n=======\nINFER_TIMEOUT_S = float(os.getenv(\"INFER_TIMEOUT_S\", \"0.18\"))  # hotfix: 504 en el pico con 150 ms\n>>>>>>> main\n# … dejas una sola línea y borras las marcas …\n$ git diff --check\n$ git add gateway/app/main.py\n$ git commit --no-edit\n[feat/gateway-timeout d7e8c0c] Merge branch 'main' into feat/gateway-timeout",
+        "source": "sesión real con git 2.50.1 sobre una copia de reference/c01/gateway: tu rama baja el timeout y un hotfix ya mergeado en main lo sube",
+        "notes": [
+          "Estás en <code>feat/gateway-timeout</code> y traes main a tu rama para resolver el conflicto antes de que lo vea la review. Git juntó solo todo lo demás; paró en la única línea que tocaron los dos.",
+          "Entre <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</code> y <code>|||||||</code> está tu lado; después de <code>|||||||</code>, la <b>base</b> (0c52e4b, el último commit en común); entre <code>=======</code> y <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt; main</code>, el otro lado. Sin zdiff3, la parte de la base no aparece.",
+          "Resolver no es elegir \"el mío\": aquí los dos cambios responden a problemas distintos (el p99 y los 504 del pico). Decide con quien hizo el hotfix y escribe la línea final, que puede no ser ninguna de las dos.",
+          "<code>git diff --check</code> sin salida significa que no quedaron marcas. Git acepta un <code>git add</code> con marcas adentro, así que este chequeo es tuyo.",
+          "El merge commit nuevo tiene dos padres. Con <code>git push</code>, el PR se actualiza y el CI (las pruebas automáticas) vuelve a correr sobre el resultado."
+        ]
+      },
+      "figure": {
+        "kind": "graph",
+        "caption": "Cuatro formas de juntar feat/gateway-timeout con main. Cada nodo es un commit y cada etiqueta, una rama; los commits que quedan fuera de toda rama solo siguen en el reflog (el historial local de HEAD).",
+        "data": {
+          "op": "git merge feat/gateway-timeout",
+          "label": "Fast-forward: main no tenía commits nuevos",
+          "before": {
+            "commits": [
+              {
+                "id": "C1",
+                "msg": "gateway: primera versión",
+                "parents": []
+              },
+              {
+                "id": "C2",
+                "msg": "preprocess: agregar preprocess.py",
+                "parents": [
+                  "C1"
+                ]
+              },
+              {
+                "id": "C3",
+                "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                "parents": [
+                  "C2"
+                ]
+              },
+              {
+                "id": "C4",
+                "msg": "tests: cubrir el timeout de 120 ms",
+                "parents": [
+                  "C3"
+                ]
+              }
+            ],
+            "branches": [
+              {
+                "name": "main",
+                "at": "C2"
+              },
+              {
+                "name": "feat/gateway-timeout",
+                "at": "C4"
+              }
+            ],
+            "head": "main"
+          },
+          "after": {
+            "commits": [
+              {
+                "id": "C1",
+                "msg": "gateway: primera versión",
+                "parents": []
+              },
+              {
+                "id": "C2",
+                "msg": "preprocess: agregar preprocess.py",
+                "parents": [
+                  "C1"
+                ]
+              },
+              {
+                "id": "C3",
+                "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                "parents": [
+                  "C2"
+                ]
+              },
+              {
+                "id": "C4",
+                "msg": "tests: cubrir el timeout de 120 ms",
+                "parents": [
+                  "C3"
+                ]
+              }
+            ],
+            "branches": [
+              {
+                "name": "main",
+                "at": "C4"
+              },
+              {
+                "name": "feat/gateway-timeout",
+                "at": "C4"
+              }
+            ],
+            "head": "main"
+          },
+          "note": "main es ancestro de la rama: git solo avanza la etiqueta. No hay commit nuevo y la historia queda en línea recta.",
+          "more": [
+            {
+              "op": "git merge feat/gateway-timeout",
+              "label": "Merge commit: las dos ramas avanzaron",
+              "before": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "preprocess: agregar preprocess.py",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C2"
+                    ]
+                  },
+                  {
+                    "id": "C4",
+                    "msg": "tests: cubrir el timeout de 120 ms",
+                    "parents": [
+                      "C3"
+                    ]
+                  },
+                  {
+                    "id": "C5",
+                    "msg": "hotfix: subir INFER_TIMEOUT_S a 180 ms",
+                    "parents": [
+                      "C2"
+                    ]
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C5"
+                  },
+                  {
+                    "name": "feat/gateway-timeout",
+                    "at": "C4"
+                  }
+                ],
+                "head": "main"
+              },
+              "after": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "preprocess: agregar preprocess.py",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C2"
+                    ]
+                  },
+                  {
+                    "id": "C4",
+                    "msg": "tests: cubrir el timeout de 120 ms",
+                    "parents": [
+                      "C3"
+                    ]
+                  },
+                  {
+                    "id": "C5",
+                    "msg": "hotfix: subir INFER_TIMEOUT_S a 180 ms",
+                    "parents": [
+                      "C2"
+                    ]
+                  },
+                  {
+                    "id": "M",
+                    "msg": "Merge branch 'feat/gateway-timeout'",
+                    "parents": [
+                      "C5",
+                      "C4"
+                    ],
+                    "new": true
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "M"
+                  },
+                  {
+                    "name": "feat/gateway-timeout",
+                    "at": "C4"
+                  }
+                ],
+                "head": "main"
+              },
+              "note": "M tiene dos padres: C5 (el primero, el main de antes) y C4 (la rama). Si C3 o C4 tocaron las mismas líneas que C5, aquí aparece el conflicto."
+            },
+            {
+              "op": "git rebase main",
+              "label": "Rebase, parado en la rama: tus commits, copiados encima",
+              "before": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "preprocess: agregar preprocess.py",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C2"
+                    ]
+                  },
+                  {
+                    "id": "C4",
+                    "msg": "tests: cubrir el timeout de 120 ms",
+                    "parents": [
+                      "C3"
+                    ]
+                  },
+                  {
+                    "id": "C5",
+                    "msg": "hotfix: subir INFER_TIMEOUT_S a 180 ms",
+                    "parents": [
+                      "C2"
+                    ]
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C5"
+                  },
+                  {
+                    "name": "feat/gateway-timeout",
+                    "at": "C4"
+                  }
+                ],
+                "head": "feat/gateway-timeout"
+              },
+              "after": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "preprocess: agregar preprocess.py",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C2"
+                    ],
+                    "gone": true
+                  },
+                  {
+                    "id": "C4",
+                    "msg": "tests: cubrir el timeout de 120 ms",
+                    "parents": [
+                      "C3"
+                    ],
+                    "gone": true
+                  },
+                  {
+                    "id": "C5",
+                    "msg": "hotfix: subir INFER_TIMEOUT_S a 180 ms",
+                    "parents": [
+                      "C2"
+                    ]
+                  },
+                  {
+                    "id": "C3'",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C5"
+                    ],
+                    "new": true
+                  },
+                  {
+                    "id": "C4'",
+                    "msg": "tests: cubrir el timeout de 120 ms",
+                    "parents": [
+                      "C3'"
+                    ],
+                    "new": true
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C5"
+                  },
+                  {
+                    "name": "feat/gateway-timeout",
+                    "at": "C4'"
+                  }
+                ],
+                "head": "feat/gateway-timeout"
+              },
+              "note": "C3' y C4' traen los mismos cambios con SHAs nuevos; C3 y C4 quedan solo en el reflog. Ahora juntar la rama con main es un fast-forward. Si la rama ya estaba en el remoto: git push --force-with-lease."
+            },
+            {
+              "op": "Squash and merge en GitHub (≈ git merge --squash y git commit)",
+              "label": "Squash: un solo commit nuevo en main",
+              "before": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "preprocess: agregar preprocess.py",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C2"
+                    ]
+                  },
+                  {
+                    "id": "C4",
+                    "msg": "tests: cubrir el timeout de 120 ms",
+                    "parents": [
+                      "C3"
+                    ]
+                  },
+                  {
+                    "id": "C5",
+                    "msg": "hotfix: subir INFER_TIMEOUT_S a 180 ms",
+                    "parents": [
+                      "C2"
+                    ]
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C5"
+                  },
+                  {
+                    "name": "feat/gateway-timeout",
+                    "at": "C4"
+                  }
+                ],
+                "head": "main"
+              },
+              "after": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "preprocess: agregar preprocess.py",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C2"
+                    ]
+                  },
+                  {
+                    "id": "C4",
+                    "msg": "tests: cubrir el timeout de 120 ms",
+                    "parents": [
+                      "C3"
+                    ]
+                  },
+                  {
+                    "id": "C5",
+                    "msg": "hotfix: subir INFER_TIMEOUT_S a 180 ms",
+                    "parents": [
+                      "C2"
+                    ]
+                  },
+                  {
+                    "id": "S",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms (#42)",
+                    "parents": [
+                      "C5"
+                    ],
+                    "new": true
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "S"
+                  },
+                  {
+                    "name": "feat/gateway-timeout",
+                    "at": "C4"
+                  }
+                ],
+                "head": "main"
+              },
+              "note": "S trae juntos los cambios de C3 y C4, con un solo padre. Los commits de la rama no entran a main: bórrala después del merge. El tag de la imagen sale del SHA de S."
+            }
+          ]
+        }
+      },
+      "memo": "<b>Merge junta, rebase reescribe.</b> Merge agrega un commit con dos padres (o solo avanza la etiqueta: fast-forward); rebase copia tus commits encima de otra base, con SHAs nuevos. Regla de oro: no hagas rebase de commits que otras personas ya tienen.",
+      "trap": "En un rebase, ours y theirs se invierten: <code>HEAD</code> (ours) es la base y el otro lado es <b>tu</b> commit, así que <code>git restore --theirs</code> en medio de un rebase se queda con lo tuyo. Y después de un rebase de tu rama ya subida, el push rechazado sugiere <code>git pull</code>: eso mezclaría la versión vieja. Lo que va es <code>git push --force-with-lease</code>.",
+      "lab": {
+        "goal": "Provocar un conflicto real en la misma línea, resolverlo con merge, repetirlo con rebase para ver las marcas invertidas, y terminar con un fast-forward.",
+        "steps": [
+          {
+            "cmd": "mkdir ~/lab-git && cd ~/lab-git && git init -b main\nmkdir -p gateway/app\nprintf 'INFER_TIMEOUT_S = 0.15  # 150 ms\\nMAX_TOP_K = 20\\n' > gateway/app/main.py\ngit add . && git commit -m \"gateway: primera versión\"",
+            "expect": "Initialized empty Git repository in /Users/<tú>/lab-git/.git/ y [main (root-commit) <sha>] gateway: primera versión, con 2 insertions(+)."
+          },
+          {
+            "cmd": "git switch -c feat/gateway-timeout\nprintf 'INFER_TIMEOUT_S = 0.12  # 120 ms: deja margen al preprocess\\nMAX_TOP_K = 20\\n' > gateway/app/main.py\ngit commit -am \"gateway: bajar INFER_TIMEOUT_S a 120 ms\"\ngit switch main\nprintf 'INFER_TIMEOUT_S = 0.18  # 180 ms: hotfix por 504 en el pico\\nMAX_TOP_K = 20\\n' > gateway/app/main.py\ngit commit -am \"hotfix: subir INFER_TIMEOUT_S a 180 ms\"\ngit log --oneline --graph --all",
+            "expect": "Dos commits, uno en cada rama, y el log dibuja la bifurcación: tu commit, el hotfix en otra columna (|) y la primera versión abajo, donde se separan."
+          },
+          {
+            "cmd": "git switch feat/gateway-timeout\ngit merge main",
+            "expect": "Auto-merging gateway/app/main.py, CONFLICT (content): Merge conflict in gateway/app/main.py y Automatic merge failed; fix conflicts and then commit the result."
+          },
+          {
+            "cmd": "git status -s\ncat gateway/app/main.py\ngit diff --check",
+            "expect": "UU gateway/app/main.py. El archivo tiene <<<<<<< HEAD, tu línea de 0.12, =======, la línea de 0.18 y >>>>>>> main; MAX_TOP_K = 20 quedó fuera de las marcas porque nadie la tocó. diff --check lista cada marca: gateway/app/main.py:1: leftover conflict marker, y lo mismo en las líneas 3 y 5. Si ya configuraste merge.conflictStyle zdiff3, verás además un bloque ||||||| con la línea de la base, y una marca más."
+          },
+          {
+            "cmd": "printf 'INFER_TIMEOUT_S = 0.12  # 120 ms: el deadline nuevo evita los 504\\nMAX_TOP_K = 20\\n' > gateway/app/main.py\ngit diff --check\ngit add gateway/app/main.py\ngit commit --no-edit\ngit log --oneline --graph",
+            "expect": "diff --check ya no imprime nada. El commit es [feat/gateway-timeout <sha>] Merge branch 'main' into feat/gateway-timeout y el log muestra el merge con sus dos padres."
+          },
+          {
+            "cmd": "git reset --hard ORIG_HEAD\ngit rebase main",
+            "expect": "HEAD is now at <sha> gateway: bajar INFER_TIMEOUT_S a 120 ms (ORIG_HEAD es donde estabas antes del merge: lo deshiciste). El rebase choca en la misma línea: CONFLICT (content), error: could not apply <sha>… y un hint con --continue, --skip y --abort."
+          },
+          {
+            "cmd": "cat gateway/app/main.py",
+            "expect": "Las marcas invertidas: después de <<<<<<< HEAD viene el 0.18 de main, y tu 0.12 va al final, junto a >>>>>>> <sha> (gateway: bajar INFER_TIMEOUT_S a 120 ms). En un rebase, HEAD es la base y \"el otro lado\" es tu commit. (Con zdiff3, la base aparece en medio, tras |||||||.)"
+          },
+          {
+            "cmd": "printf 'INFER_TIMEOUT_S = 0.12  # 120 ms: el deadline nuevo evita los 504\\nMAX_TOP_K = 20\\n' > gateway/app/main.py\ngit add gateway/app/main.py\nGIT_EDITOR=true git rebase --continue\ngit log --oneline --graph --all",
+            "expect": "Successfully rebased and updated refs/heads/feat/gateway-timeout. El log es una línea recta: tu commit (con otro SHA) encima del hotfix. Sin GIT_EDITOR=true se abriría tu editor con el mensaje; si es vim, sales con :wq y Enter."
+          },
+          {
+            "cmd": "git switch main\ngit merge feat/gateway-timeout\ngit branch -d feat/gateway-timeout",
+            "expect": "Updating <sha>..<sha>, Fast-forward: después del rebase, main solo avanza la etiqueta. Y Deleted branch feat/gateway-timeout (was <sha>)."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-git",
+            "expect": "No imprime nada."
+          }
+        ],
+        "fix": "Si un conflicto te supera: git merge --abort (o git rebase --abort) y vuelves a donde estabas. Para entenderlo mejor, git config --global merge.conflictStyle zdiff3 y repite: las marcas traen también la versión de la base.",
+        "needs": "git 2.28 o más nuevo (2.35 para zdiff3; git --version) y tu nombre y email configurados (git config --global user.name y user.email). Todo es local: no necesitas cuenta de GitHub.",
+        "verified": "executed",
+        "verified_note": "Ejecutado con git 2.50.1 (Apple Git-155) en macOS. Los SHAs y las rutas cambian en cada máquina."
+      },
+      "links": [
+        "#m10.ci-cd",
+        "#m10.gate",
+        "#c01.archivos"
+      ]
+    },
+    {
+      "id": "deshacer",
+      "num": 4,
+      "title": "Deshacer: restore, reset, revert, amend, stash y reflog",
+      "question": "¿Cómo deshaces cada tipo de error, de un archivo sin guardar a un commit que ya está en main, y cómo recuperas un commit que creías perdido?",
+      "templates": [
+        {
+          "code": "git restore {ruta}\ngit restore --staged {ruta}",
+          "note": "Para archivos. Sin opciones, descarta lo que cambiaste en disco (vuelve a la versión del staging: la de tu último <code>git add</code> o, si no hiciste add, la del último commit): <b>no tiene deshacer</b>. Con <code>--staged</code>, saca el archivo del staging y tu disco no cambia. Reemplazan a <code>git checkout -- {ruta}</code> y a <code>git reset {ruta}</code>."
+        },
+        {
+          "code": "git commit --amend --no-edit",
+          "note": "Rehace el último commit con lo que hay en staging (con <code>-m \"…\"</code>, también cambia el mensaje). Sale un commit nuevo, con otro SHA: úsalo solo si no hiciste push."
+        },
+        {
+          "code": "git reset {modo} HEAD~{n}",
+          "note": "Mueve la rama <code>{n}</code> commits atrás. <code>--soft</code>: los cambios quedan en staging; <code>--mixed</code> (el default): quedan en disco, fuera del staging; <code>--hard</code>: se borran de staging y disco, junto con lo que no habías commiteado. Los commits siguen en el reflog (el historial local de HEAD)."
+        },
+        {
+          "code": "git revert {sha}\ngit revert -m 1 {sha_merge}",
+          "note": "Crea un commit nuevo que deshace otro. No reescribe nada: es el camino después de un push, y el rollback (volver a la versión anterior) por PR en main. Para revertir un merge commit, <code>-m 1</code> dice que la línea principal es su primer padre."
+        },
+        {
+          "code": "git stash push -u -m \"{nota}\"\ngit stash list\ngit stash pop",
+          "note": "Guarda tus cambios sin commit en una pila (el <b>stash</b>) y deja tu disco limpio. <code>-u</code> incluye también los archivos nuevos que git todavía no sigue (untracked); sin él, quedan afuera. <code>pop</code> los devuelve y borra la entrada; si hay conflicto, la entrada se queda."
+        },
+        {
+          "code": "git reflog\ngit branch {rescate} HEAD@{n}",
+          "note": "El <b>reflog</b> lista dónde estuvo HEAD. Un commit \"perdido\" tras un reset o un rebase sigue ahí (al menos 30 días por defecto): ponle una rama encima y queda a salvo."
+        }
+      ],
+      "formulas": [
+        "t_{\\text{rescate}} \\;\\ge\\; 30\\ \\text{días} \\qquad (\\text{commit que quedó fuera de toda rama, con la config por defecto})"
+      ],
+      "vars": [
+        [
+          "{ruta}",
+          "archivo a recuperar o a sacar del staging",
+          "gateway/app/main.py"
+        ],
+        [
+          "{modo}",
+          "--soft, --mixed (el default) o --hard",
+          "--soft para rehacer el último commit"
+        ],
+        [
+          "{n}",
+          "cuántos commits atrás (HEAD~n) o cuántos movimientos atrás en el reflog (HEAD@{n})",
+          "1"
+        ],
+        [
+          "{sha}",
+          "SHA del commit a revertir; el corto alcanza",
+          "c5aa999"
+        ],
+        [
+          "{sha_merge}",
+          "SHA de un merge commit, como el que deja el botón de un PR",
+          "cd07ebf: Merge pull request #42"
+        ],
+        [
+          "{nota}",
+          "para qué guardaste esos cambios",
+          "probar 100 ms"
+        ],
+        [
+          "{rescate}",
+          "nombre de la rama nueva que apunta al commit recuperado",
+          "rescate"
+        ],
+        [
+          "t_rescate",
+          "tiempo mínimo para recuperar un commit que quedó fuera de toda rama: lo que dura su línea en el reflog (gc.reflogExpireUnreachable)",
+          "30 días por defecto; después, git gc (la limpieza automática de git) puede borrarlo"
+        ]
+      ],
+      "pieces": [
+        [
+          "git restore {ruta}",
+          "Descarta los cambios en disco de ese archivo. No queda copia en ningún lado.",
+          "volver main.py a la versión del staging"
+        ],
+        [
+          "git restore --staged {ruta}",
+          "Saca el archivo del staging; en disco no cambia nada.",
+          "deshacer un git add"
+        ],
+        [
+          "git restore --source={ref} {ruta}",
+          "Trae un archivo como estaba en otro commit, sin mover la rama.",
+          "git restore --source=HEAD~1 gateway/app/main.py"
+        ],
+        [
+          "git commit --amend",
+          "Reemplaza el último commit (mensaje o contenido) por uno nuevo, con otro SHA.",
+          "corregir un typo en el mensaje antes del push"
+        ],
+        [
+          "git reset --soft",
+          "Mueve la rama atrás; staging y disco quedan igual: el cambio queda listo para recommitear.",
+          "juntar los últimos 3 commits en uno"
+        ],
+        [
+          "git reset (--mixed)",
+          "Mueve la rama atrás y saca los cambios del staging; tus archivos no cambian.",
+          "Unstaged changes after reset:"
+        ],
+        [
+          "git reset --hard",
+          "Mueve la rama y pisa staging y disco. Borra también los archivos nuevos que estaban en staging.",
+          "HEAD is now at b029a14 gateway: primera versión"
+        ],
+        [
+          "ORIG_HEAD",
+          "Dónde estaba HEAD antes del último reset, merge o rebase.",
+          "git reset --hard ORIG_HEAD deshace un merge recién hecho"
+        ],
+        [
+          "git revert",
+          "Commit nuevo con el cambio inverso. La historia queda intacta: es seguro después de push.",
+          "Revert \"gateway: bajar INFER_TIMEOUT_S a 120 ms\""
+        ],
+        [
+          "git revert -m 1",
+          "Revierte un merge commit tomando como línea principal su primer padre (el main de antes del merge).",
+          "This reverts commit cd07ebf…, reversing changes made to 1380e71…"
+        ],
+        [
+          "git stash",
+          "Guarda cambios sin commit y limpia el disco. Los archivos untracked (nuevos y sin git add), solo con -u.",
+          "Saved working directory and index state On main: probar 100 ms"
+        ],
+        [
+          "git reflog",
+          "El diario local de HEAD: cada movimiento con su SHA. Ahí siguen los commits \"perdidos\".",
+          "HEAD@{1}: commit: gateway: bajar INFER_TIMEOUT_S a 120 ms"
+        ],
+        [
+          "git push --force-with-lease",
+          "Sube una rama reescrita (amend, reset, rebase) solo si nadie la cambió desde tu último fetch. Solo para tu rama de PR.",
+          "(forced update)"
+        ],
+        [
+          "git clean -n · -f",
+          "Lista (-n) o borra (-f) los archivos untracked. -f no tiene deshacer: mira primero con -n.",
+          "Would remove notas.txt"
+        ]
+      ],
+      "example": {
+        "title": "Revertir el PR #42 del gateway, que ya está en main",
+        "lang": "text",
+        "code": "$ git switch -c revert/gateway-timeout\nSwitched to a new branch 'revert/gateway-timeout'\n$ git log --oneline --graph -3\n*   cd07ebf Merge pull request #42 from equipo/feat/gateway-timeout\n|\\\n| * c5aa999 gateway: bajar INFER_TIMEOUT_S a 120 ms\n|/\n* 1380e71 c01: gateway y manifests\n$ git revert cd07ebf\nerror: commit cd07ebfa545a267cc125a8b5e05d7c53ec2910b9 is a merge but no -m option was given.\nfatal: revert failed\n$ git revert -m 1 --no-edit cd07ebf\n[revert/gateway-timeout 3a36915] Revert \"Merge pull request #42 from equipo/feat/gateway-timeout\"\n Date: Wed Oct 21 23:12:58 2026 -0600\n 1 file changed, 1 insertion(+), 1 deletion(-)\n$ git show -U0\n…\n    This reverts commit cd07ebfa545a267cc125a8b5e05d7c53ec2910b9, reversing\n    changes made to 1380e71e91f3dbc3460c8ca2a0f6581533705ff6.\n…\n-INFER_TIMEOUT_S = float(os.getenv(\"INFER_TIMEOUT_S\", \"0.12\"))  # 120 ms para Triton dentro del p99 ≤ 200 ms\n+INFER_TIMEOUT_S = float(os.getenv(\"INFER_TIMEOUT_S\", \"0.15\"))  # 150 ms para Triton dentro del p99 ≤ 200 ms\n$ git push -u origin revert/gateway-timeout",
+        "source": "sesión real con git 2.50.1 sobre una copia de reference/c01/gateway; el merge #42 imita el botón Create a merge commit de GitHub (… marca líneas omitidas)",
+        "notes": [
+          "El revert también entra por una rama y un PR, con CI y review: en main no se commitea directo. En GitHub, el botón <b>Revert</b> de un PR mergeado abre ese PR por ti.",
+          "Un merge commit tiene dos padres y git no sabe cuál es la línea principal: sin <code>-m</code> falla. <code>-m 1</code> elige el primer padre, el main de antes del merge (1380e71).",
+          "El revert es un commit nuevo (3a36915) con el cambio inverso: <code>INFER_TIMEOUT_S</code> vuelve a 0.15. La historia queda intacta, así que no hace falta forzar nada.",
+          "Cuando se mergee, CD (el workflow que construye y despliega) arma otra imagen, con otro tag y el código de antes. Si necesitas volver ya, el manifest (el YAML de Kubernetes) puede apuntar al tag anterior del gateway, que sigue en ECR, el registry de imágenes (sección CD).",
+          "Ojo al volver a intentar: revertir un merge deshace sus cambios, pero sus commits siguen en la historia de main. Si arreglas la rama y la mergeas otra vez, git solo trae los commits nuevos y los viejos no vuelven a entrar: primero revierte el revert (<code>git revert 3a36915</code>)."
+        ]
+      },
+      "figure": {
+        "kind": "undo",
+        "caption": "Qué mueve cada comando de deshacer y si sirve después de un push. Después de la tabla, los grafos de reset, revert, amend y el rescate con el reflog.",
+        "data": {
+          "cols": [
+            "Comando",
+            "HEAD y la rama",
+            "Staging",
+            "Working tree",
+            "¿Después de push?"
+          ],
+          "rows": [
+            {
+              "cmd": "git restore {ruta}",
+              "head": [
+                "no se mueve",
+                "keep"
+              ],
+              "index": [
+                "igual",
+                "keep"
+              ],
+              "worktree": [
+                "la ruta vuelve a la versión del staging: lo que cambiaste sin git add se pierde",
+                "lose"
+              ],
+              "pushed": [
+                "sí: no toca commits",
+                "ok"
+              ]
+            },
+            {
+              "cmd": "git restore --staged {ruta}",
+              "head": [
+                "no se mueve",
+                "keep"
+              ],
+              "index": [
+                "la ruta vuelve a la versión de HEAD",
+                "move"
+              ],
+              "worktree": [
+                "igual",
+                "keep"
+              ],
+              "pushed": [
+                "sí: no toca commits",
+                "ok"
+              ]
+            },
+            {
+              "cmd": "git commit --amend",
+              "head": [
+                "la rama pasa a un commit nuevo, con otro SHA",
+                "move"
+              ],
+              "index": [
+                "lo que había entra al commit nuevo",
+                "move"
+              ],
+              "worktree": [
+                "igual",
+                "keep"
+              ],
+              "pushed": [
+                "no: reescribe un commit publicado",
+                "rewrite"
+              ]
+            },
+            {
+              "cmd": "git reset --soft HEAD~1",
+              "head": [
+                "vuelve 1 commit",
+                "move"
+              ],
+              "index": [
+                "igual: queda con los cambios del commit deshecho",
+                "keep"
+              ],
+              "worktree": [
+                "igual",
+                "keep"
+              ],
+              "pushed": [
+                "no: reescribe",
+                "rewrite"
+              ]
+            },
+            {
+              "cmd": "git reset HEAD~1 (--mixed)",
+              "head": [
+                "vuelve 1 commit",
+                "move"
+              ],
+              "index": [
+                "como el nuevo HEAD: los cambios salen del staging",
+                "move"
+              ],
+              "worktree": [
+                "igual: los cambios quedan en disco",
+                "keep"
+              ],
+              "pushed": [
+                "no: reescribe",
+                "rewrite"
+              ]
+            },
+            {
+              "cmd": "git reset --hard HEAD~1",
+              "head": [
+                "vuelve 1 commit",
+                "move"
+              ],
+              "index": [
+                "como el nuevo HEAD: lo que estaba en staging se pierde",
+                "lose"
+              ],
+              "worktree": [
+                "como el nuevo HEAD: lo que no era commit se pierde",
+                "lose"
+              ],
+              "pushed": [
+                "no: reescribe",
+                "rewrite"
+              ]
+            },
+            {
+              "cmd": "git revert {sha}",
+              "head": [
+                "avanza: commit nuevo con el cambio inverso",
+                "move"
+              ],
+              "index": [
+                "como el nuevo HEAD (exige trabajo limpio antes)",
+                "move"
+              ],
+              "worktree": [
+                "como el nuevo HEAD",
+                "move"
+              ],
+              "pushed": [
+                "sí: es el camino en main",
+                "ok"
+              ]
+            },
+            {
+              "cmd": "git stash push -u",
+              "head": [
+                "no se mueve",
+                "keep"
+              ],
+              "index": [
+                "se guarda en el stash y queda limpio",
+                "move"
+              ],
+              "worktree": [
+                "se guarda en el stash y queda limpio",
+                "move"
+              ],
+              "pushed": [
+                "sí: no toca commits",
+                "ok"
+              ]
+            },
+            {
+              "cmd": "git branch {rescate} HEAD@{n}",
+              "head": [
+                "HEAD no se mueve; una rama nueva apunta al commit perdido",
+                "move"
+              ],
+              "index": [
+                "igual",
+                "keep"
+              ],
+              "worktree": [
+                "igual",
+                "keep"
+              ],
+              "pushed": [
+                "sí: solo agrega una etiqueta",
+                "ok"
+              ]
+            }
+          ],
+          "legend": {
+            "keep": "no cambia",
+            "move": "cambia sin perder trabajo: lo anterior sigue en disco, en el reflog o en el stash",
+            "lose": "se pierde: el reflog solo guarda commits",
+            "ok": "seguro aunque ya hayas hecho push",
+            "rewrite": "reescribe historia: solo en tu rama sin compartir, o en tu PR con push --force-with-lease"
+          },
+          "graphs": [
+            {
+              "op": "git reset {--soft | --mixed | --hard} HEAD~1",
+              "label": "reset: la rama vuelve atrás",
+              "before": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C1"
+                    ]
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C2"
+                  }
+                ],
+                "head": "main"
+              },
+              "after": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C1"
+                    ],
+                    "gone": true
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C1"
+                  }
+                ],
+                "head": "main"
+              },
+              "modes": [
+                {
+                  "mode": "--soft",
+                  "staging": "con los cambios de C2",
+                  "worktree": "con los cambios de C2"
+                },
+                {
+                  "mode": "--mixed",
+                  "staging": "igual a C1",
+                  "worktree": "con los cambios de C2"
+                },
+                {
+                  "mode": "--hard",
+                  "staging": "igual a C1",
+                  "worktree": "igual a C1: los cambios de C2 solo siguen en el commit C2"
+                }
+              ],
+              "note": "El grafo es el mismo en los tres modos; cambia qué pasa con staging y disco. C2 no se borra: queda fuera de toda rama, en el reflog."
+            },
+            {
+              "op": "git revert C2",
+              "label": "revert: un commit nuevo que deshace",
+              "before": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C1"
+                    ]
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C2"
+                  },
+                  {
+                    "name": "origin/main",
+                    "at": "C2",
+                    "remote": true
+                  }
+                ],
+                "head": "main"
+              },
+              "after": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C1"
+                    ]
+                  },
+                  {
+                    "id": "C3",
+                    "msg": "Revert \"gateway: bajar INFER_TIMEOUT_S a 120 ms\"",
+                    "parents": [
+                      "C2"
+                    ],
+                    "new": true
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C3"
+                  },
+                  {
+                    "name": "origin/main",
+                    "at": "C2",
+                    "remote": true
+                  }
+                ],
+                "head": "main"
+              },
+              "note": "Nada se reescribe: para el remoto es avanzar, y acepta el push como el de cualquier commit. Es el rollback que deja rastro."
+            },
+            {
+              "op": "git commit --amend",
+              "label": "amend: reemplaza el último commit",
+              "before": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "gateway: bajar el timout",
+                    "parents": [
+                      "C1"
+                    ]
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C2"
+                  }
+                ],
+                "head": "main"
+              },
+              "after": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "gateway: bajar el timout",
+                    "parents": [
+                      "C1"
+                    ],
+                    "gone": true
+                  },
+                  {
+                    "id": "C2'",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C1"
+                    ],
+                    "new": true
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C2'"
+                  }
+                ],
+                "head": "main"
+              },
+              "note": "C2' tiene el mismo padre y otro SHA. Si C2 ya estaba en el remoto, ahora tu rama y la remota divergen."
+            },
+            {
+              "op": "git branch rescate HEAD@{1}",
+              "label": "reflog: rescatar un commit",
+              "before": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C1"
+                    ],
+                    "gone": true
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C1"
+                  }
+                ],
+                "head": "main"
+              },
+              "after": {
+                "commits": [
+                  {
+                    "id": "C1",
+                    "msg": "gateway: primera versión",
+                    "parents": []
+                  },
+                  {
+                    "id": "C2",
+                    "msg": "gateway: bajar INFER_TIMEOUT_S a 120 ms",
+                    "parents": [
+                      "C1"
+                    ]
+                  }
+                ],
+                "branches": [
+                  {
+                    "name": "main",
+                    "at": "C1"
+                  },
+                  {
+                    "name": "rescate",
+                    "at": "C2"
+                  }
+                ],
+                "head": "main"
+              },
+              "note": "Después de un reset --hard, C2 solo estaba en el reflog. Con una etiqueta encima vuelve a estar a salvo; luego git merge --ff-only rescate lo trae a main."
+            }
+          ],
+          "note": "Antes de deshacer, pregunta: <b>¿ya hice push?</b> (sí → <code>revert</code>) y <b>¿esto fue commit alguna vez?</b> (no → el reflog no lo tiene). Lo que llegó a estar en staging deja un blob suelto (una copia de su contenido) que <code>git fsck --lost-found</code> encuentra, sin nombre de archivo, hasta que <code>git gc</code> lo borre; lo que solo estuvo en disco no deja nada."
+        }
+      },
+      "memo": "Antes de deshacer, pregunta: <b>¿ya hice push?</b> Si no: <code>restore</code>, <code>amend</code>, <code>reset</code>. Si sí: <code>revert</code>. Y si algo \"se perdió\": <code>git reflog</code>. Con la config por defecto, un commit no se pierde antes de 30 días; lo que nunca commiteaste, sí.",
+      "trap": "<code>git reset --hard</code> y <code>git restore</code> no tienen red: lo que no estaba en un commit (ni en el stash) se pierde, y <code>--hard</code> borra también los archivos nuevos que estaban en staging. Y un revert no borra un secreto de la historia: el commit viejo sigue ahí. Rota el secreto primero: crea uno nuevo e invalida el viejo (M15).",
+      "lab": {
+        "goal": "Probar amend, los tres modos de reset, el rescate de un commit \"perdido\" con el reflog, un revert y el stash, mirando qué queda en staging y en disco después de cada uno.",
+        "steps": [
+          {
+            "cmd": "mkdir ~/lab-git && cd ~/lab-git && git init -b main\nmkdir -p gateway/app\nprintf 'INFER_TIMEOUT_S = 0.15\\n' > gateway/app/main.py\ngit add . && git commit -m \"gateway: primera versión\"\nprintf 'INFER_TIMEOUT_S = 0.12\\n' > gateway/app/main.py\ngit commit -am \"gateway: bajar el timout\"",
+            "expect": "Initialized empty Git repository in /Users/<tú>/lab-git/.git/, el commit (root-commit) y [main <sha>] gateway: bajar el timout, con un typo en el mensaje."
+          },
+          {
+            "cmd": "printf 'MAX_TOP_K = 20\\n' > gateway/app/limits.py\ngit add gateway/app/limits.py\ngit commit --amend -m \"gateway: bajar INFER_TIMEOUT_S a 120 ms\"\ngit log --oneline",
+            "expect": "[main <sha nuevo>] gateway: bajar INFER_TIMEOUT_S a 120 ms, con una línea Date: (amend conserva la fecha del autor original) y 2 files changed. El log sigue teniendo dos commits: el viejo fue reemplazado, con otro SHA."
+          },
+          {
+            "cmd": "git reset --soft HEAD~1\ngit status -s\ngit commit -m \"gateway: bajar INFER_TIMEOUT_S a 120 ms\"",
+            "expect": "A  gateway/app/limits.py y M  gateway/app/main.py, con la letra a la izquierda: --soft dejó todo en staging. El commit lo rehace igual."
+          },
+          {
+            "cmd": "git reset HEAD~1\ngit status -s\ngit add . && git commit -m \"gateway: bajar INFER_TIMEOUT_S a 120 ms\"",
+            "expect": "Unstaged changes after reset: y, debajo, M y gateway/app/main.py. Después, status muestra main.py con la M a la derecha y ?? gateway/app/limits.py: --mixed sacó todo del staging, pero tus archivos siguen como estaban."
+          },
+          {
+            "cmd": "git reset --hard HEAD~1\ngit log --oneline\nls gateway/app",
+            "expect": "HEAD is now at <sha> gateway: primera versión. El log tiene un solo commit y ls muestra solo main.py: limits.py desapareció de disco. El commit no está perdido…"
+          },
+          {
+            "cmd": "git reflog -n 3",
+            "expect": "Tres líneas: HEAD@{0}: reset: moving to HEAD~1, HEAD@{1}: commit: gateway: bajar INFER_TIMEOUT_S a 120 ms (el commit \"perdido\", con su SHA) y HEAD@{2}: reset: moving to HEAD~1."
+          },
+          {
+            "cmd": "git branch rescate 'HEAD@{1}'\ngit merge --ff-only rescate\ngit branch -d rescate\ngit log --oneline\nls gateway/app",
+            "expect": "Updating <sha>..<sha>, Fast-forward (main solo avanza hasta el commit rescatado) y create mode 100644 gateway/app/limits.py; Deleted branch rescate (was <sha>). Otra vez dos commits, y limits.py volvió. Las comillas en 'HEAD@{1}' evitan que el shell toque las llaves."
+          },
+          {
+            "cmd": "git revert --no-edit HEAD\ngit log --oneline\ncat gateway/app/main.py",
+            "expect": "[main <sha>] Revert \"gateway: bajar INFER_TIMEOUT_S a 120 ms\" y delete mode 100644 gateway/app/limits.py. Tres commits: el revert se suma arriba, y main.py vuelve a INFER_TIMEOUT_S = 0.15. Nada se reescribió."
+          },
+          {
+            "cmd": "printf 'INFER_TIMEOUT_S = 0.10\\n' > gateway/app/main.py\nprintf 'probar con 100 ms\\n' > notas.txt\ngit stash push -u -m \"probar 100 ms\"\ngit status -s\ngit stash list",
+            "expect": "Saved working directory and index state On main: probar 100 ms. status -s no imprime nada (con -u también se guardó notas.txt) y la lista tiene stash@{0}: On main: probar 100 ms."
+          },
+          {
+            "cmd": "git stash pop\ngit status -s",
+            "expect": "El status largo con main.py modificado y notas.txt sin seguir, y al final Dropped refs/stash@{0} (<sha>). Después, status -s: main.py con la M a la derecha y ?? notas.txt."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-git",
+            "expect": "No imprime nada."
+          }
+        ],
+        "fix": "Si ya hiciste push de lo que quieres deshacer: git revert en una rama y un PR, nunca reset con force push sobre main. Si un commit desapareció: git reflog, una rama encima y después lo integras con un merge.",
+        "needs": "git 2.28 o más nuevo (git --version) y tu nombre y email configurados (git config --global user.name y user.email). Todo es local: no necesitas cuenta de GitHub.",
+        "verified": "executed",
+        "verified_note": "Ejecutado con git 2.50.1 (Apple Git-155) en macOS. Los SHAs y las rutas cambian en cada máquina."
+      },
+      "links": [
+        "#m11.rollback",
+        "#ref-comandos.rollouts",
+        "#m15.secretos",
+        "#m10.ci-cd"
+      ]
+    }
+  ]
+}

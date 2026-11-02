@@ -1,0 +1,171 @@
+[
+  {
+    "id": "estimaciones",
+    "title": "Formulario de estimaciones",
+    "topic": "ML System Design",
+    "summary": "Todas las cuentas de las estimaciones del C01 en notación matemática: tráfico, presupuesto de latencia, GPUs (y sin GPU), VRAM, CPU de preprocesamiento, red, almacenamiento, costo mensual y backfill, con ejemplos resueltos y gráficas.",
+    "sample": "<i>W</i> = <i>S</i> / (1 − <i>ρ</i>)",
+    "sample_kind": "math",
+    "facts": [
+      "11 secciones",
+      "Ejemplos resueltos del C01",
+      "Calculadora"
+    ],
+    "page": "formulario-estimaciones.html",
+    "pdf": "formulario-estimaciones.pdf",
+    "updated": "2026-10-25",
+    "seo": "Todas las cuentas de ML System Design en un formulario: tráfico, latencia, GPUs, VRAM, red, almacenamiento y costo mensual, con ejemplos resueltos."
+  },
+  {
+    "id": "docker",
+    "title": "Cheat sheet de Docker",
+    "topic": "Contenedores",
+    "summary": "Para escribir un Dockerfile desde cero con la documentación abierta y diagnosticar una falla en minutos: sintaxis con variables, ejemplos reales del C01, figuras, trampas típicas y laboratorios opcionales.",
+    "sample": "docker run --rm -p <var>puerto</var>:8000 <var>imagen</var>:<var>tag</var>",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "Laboratorio Iris completo",
+      "Generador de Dockerfile",
+      "Diagnosticador de síntomas",
+      "Revisor de Dockerfile",
+      "Quiz de errores"
+    ],
+    "page": "cheatsheet-docker.html",
+    "pdf": "cheatsheet-docker.pdf",
+    "updated": "2026-10-29",
+    "seo": "Cheat sheet de Docker para escribir un Dockerfile y diagnosticar una falla en minutos, con laboratorio completo, generador y revisor de Dockerfile."
+  },
+  {
+    "id": "kubernetes",
+    "title": "Cheat sheet de Kubernetes",
+    "topic": "Orquestación",
+    "summary": "Para escribir y leer manifests con la documentación abierta, operar con kubectl y diagnosticar un pod roto rápido: sintaxis con variables, ejemplos reales del C01, figuras de cada proceso (el lazo de control, el rollout, las probes, el scheduling), trampas típicas y laboratorios opcionales.",
+    "sample": "kubectl apply -f <var>manifest</var>.yaml -n <var>namespace</var>",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "Diagnosticador de 14 síntomas",
+      "Revisor de YAML con 18 reglas",
+      "Quiz de 26 errores"
+    ],
+    "page": "cheatsheet-kubernetes.html",
+    "pdf": "cheatsheet-kubernetes.pdf",
+    "updated": "2026-10-25",
+    "seo": "Cheat sheet de Kubernetes: manifests, kubectl y diagnóstico de pods rotos, con revisor de YAML que corre en tu navegador y quiz de errores."
+  },
+  {
+    "id": "recorrido",
+    "title": "Del dato a producción",
+    "topic": "MLOps de punta a punta",
+    "summary": "El C01 de punta a punta como un mapa de metro: del dato etiquetado al monitoreo que pide el siguiente modelo, con el artefacto que viaja entre estaciones, las 4 velocidades y, para cada herramienta, qué es y si se programa, se configura o se opera.",
+    "sample": "snapshot → checkpoint → engine → imagen → request → logs",
+    "sample_kind": "code",
+    "facts": [
+      "12 estaciones",
+      "4 velocidades",
+      "23 fichas de herramientas",
+      "14 mini-mapas",
+      "Quiz de 24 síntomas"
+    ],
+    "page": "recorrido.html",
+    "pdf": "recorrido.pdf",
+    "updated": "2026-10-25",
+    "seo": "Del dato a producción como un mapa de metro: cada estación de un servicio de ML, sus herramientas, patrones y un quiz de síntomas."
+  },
+  {
+    "id": "git",
+    "title": "Cheat sheet de Git y GitHub Actions",
+    "topic": "CI/CD",
+    "summary": "Para trabajar en el repo del equipo sin miedo, escribir un workflow de GitHub Actions con la documentación abierta y diagnosticar un CI en rojo rápido: sintaxis con variables, ejemplos reales del C01, grafos de commits antes y después (merge, rebase, squash, reset, revert y el rescate con el reflog), trampas típicas y laboratorios opcionales.",
+    "sample": "git switch -c <var>rama</var> &amp;&amp; git push -u origin <var>rama</var>",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "12 grafos antes y después",
+      "Diagnosticador de 14 síntomas",
+      "Revisor de workflows con 18 reglas",
+      "Quiz de 26 errores"
+    ],
+    "page": "cheatsheet-git.html",
+    "pdf": "cheatsheet-git.pdf",
+    "updated": "2026-10-25",
+    "seo": "Cheat sheet de Git y GitHub Actions: ramas, merge, rebase, deshacer cambios, workflows de CI/CD y diagnóstico de un CI en rojo."
+  },
+  {
+    "id": "triton",
+    "title": "De PyTorch a Triton",
+    "topic": "Serving de modelos",
+    "summary": "Para llevar un modelo de PyTorch a un servicio rápido y medido con la documentación abierta, y diagnosticar por qué va lento, predice distinto o no carga: export a ONNX, paridad, engine de TensorRT, model repository y config.pbtxt, dynamic batching, clientes y perf_analyzer, con ejemplos reales del C01, figuras a escala, trampas típicas y laboratorios opcionales sin GPU.",
+    "sample": "trtexec --onnx=<var>modelo</var>.onnx --saveEngine=<var>modelo</var>.plan",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "13 laboratorios sin GPU",
+      "Diagnosticador de 14 síntomas",
+      "Revisor de config.pbtxt con 18 reglas",
+      "Quiz de 26 errores"
+    ],
+    "page": "cheatsheet-triton.html",
+    "pdf": "cheatsheet-triton.pdf",
+    "updated": "2026-10-22",
+    "seo": "De PyTorch a Triton: ONNX, TensorRT, model repository, batching y perf_analyzer, con revisor de config.pbtxt y diagnóstico de lentitud."
+  },
+  {
+    "id": "gateway",
+    "title": "El gateway: FastAPI en producción",
+    "topic": "APIs de serving",
+    "summary": "Para escribir con la documentación abierta la API en FastAPI que está entre los clientes y Triton, y diagnosticar por qué va lenta, devuelve 503 o se traba: async contra hilos, validación y contrato, timeouts y reintentos, control de admisión, degradación, salud y apagado ordenado, observabilidad, tests y rendimiento, con el código real del C01, figuras de cada proceso, trampas típicas y laboratorios opcionales.",
+    "sample": "uvicorn app.main:app --host 0.0.0.0 --port 8080",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "15 laboratorios (10 probados)",
+      "Diagnosticador de 14 síntomas",
+      "Revisor de código con 18 reglas",
+      "Quiz de 26 errores"
+    ],
+    "page": "cheatsheet-gateway.html",
+    "pdf": "cheatsheet-gateway.pdf",
+    "updated": "2026-10-22",
+    "seo": "El gateway de FastAPI en producción: async, contrato, timeouts, reintentos, salud, observabilidad y pruebas, con revisor de código."
+  },
+  {
+    "id": "prometheus",
+    "title": "Prometheus y Grafana",
+    "topic": "Monitoreo",
+    "summary": "Para instrumentar un servicio, escribir con la documentación abierta las consultas de un dashboard y de una alerta, y diagnosticar «no data», «target down» o «la alerta nunca sonó»: tipos de métrica, scrape, PromQL, histogramas y percentiles, reglas de grabación y de alerta, Alertmanager, Grafana, SLOs con burn rate y Prometheus en Kubernetes, con los archivos reales del C01, figuras a escala de cada proceso, trampas típicas y laboratorios opcionales.",
+    "sample": "histogram_quantile(0.99, sum by (le) (rate(<var>metrica</var>_bucket[5m])))",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "15 laboratorios (6 probados)",
+      "Diagnosticador de 14 síntomas",
+      "Revisor de reglas con 18 reglas",
+      "Quiz de 26 errores"
+    ],
+    "page": "cheatsheet-prometheus.html",
+    "pdf": "cheatsheet-prometheus.pdf",
+    "updated": "2026-10-23",
+    "seo": "Prometheus y Grafana: métricas, PromQL, alertas, SLOs con burn rate y diagnóstico de «no data» o «la alerta nunca sonó»."
+  },
+  {
+    "id": "vllm",
+    "title": "Serving de LLMs con vLLM",
+    "topic": "Serving de LLMs",
+    "summary": "Para levantar un LLM con vLLM con la documentación abierta, saber cuántas conversaciones caben en tu GPU y diagnosticar por qué el primer token tarda, las respuestas se cortan o el servidor no arranca por memoria: tokens, prefill y decode, KV cache y VRAM, vllm serve y sus flags, la API compatible con OpenAI con streaming, continuous batching, TTFT y TPOT, paralelismo, cuantización, optimizaciones y el gateway de LLMs, con los archivos reales del C10, figuras a escala, trampas típicas y laboratorios opcionales sin GPU.",
+    "sample": "vllm serve <var>modelo</var> --tensor-parallel-size <var>2</var> --max-model-len <var>8192</var>",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "15 laboratorios (15 probados)",
+      "Diagnosticador de 14 síntomas",
+      "Calculadora de VRAM y KV cache",
+      "Quiz de 26 errores"
+    ],
+    "page": "cheatsheet-vllm.html",
+    "pdf": "cheatsheet-vllm.pdf",
+    "updated": "2026-10-25",
+    "seo": "Serving de LLMs con vLLM: KV cache, VRAM, continuous batching, TTFT y TPOT, con calculadora de VRAM y diagnóstico."
+  }
+]

@@ -1,0 +1,5 @@
+# Dependencias de TESTS (no entran a la imagen). pip install -r requirements-dev.txt && pytest
+-r requirements.txt
+pytest==9.1.1  # corre tests/
+moto[s3,sqs]==5.2.3  # emula S3 y SQS (incluida la redrive policy a la DLQ) en memoria: sin cuenta de AWS
+tifffile==2026.9.20  # escribe un SVS sintético (estructura Aperio, 3 niveles) para probar OpenSlide de verdad

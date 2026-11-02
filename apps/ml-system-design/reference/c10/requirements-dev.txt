@@ -1,0 +1,9 @@
+# Dependencias para correr TODOS los tests de c10 (pytest desde reference/c10). No entran a ninguna imagen.
+# capacity/, bench/ y eval/ usan solo la biblioteca estándar; gateway/ necesita su lock de producción.
+-r gateway/requirements.txt  # los tests usan exactamente las versiones de producción
+pytest==9.1.1  # runner de tests (los tests async usan el plugin de anyio, que ya viene con anyio)
+# --- transitivas ---
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0

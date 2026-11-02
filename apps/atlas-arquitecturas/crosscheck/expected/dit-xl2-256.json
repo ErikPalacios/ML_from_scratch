@@ -1,0 +1,212 @@
+{
+  "config_id": "dit-xl2-256",
+  "model": "dit",
+  "res": 256,
+  "latent": [
+    32,
+    32,
+    4
+  ],
+  "N": 256,
+  "params_total": 674834720,
+  "params_total_diffusers_raw": 749826464,
+  "params_duplicated_embedders": 74991744,
+  "pos_embed_values": 294912,
+  "params_by_node": {
+    "patchify": 19584,
+    "t-embed": 1624320,
+    "y-embed": 1153152,
+    "blocks": 669344256,
+    "adaln": 223147008,
+    "adaln-final": 2656512,
+    "attn": 148764672,
+    "mlp": 297432576,
+    "final-layer": 2693408
+  },
+  "params_by_path": {
+    "blocks>block>adaln": 223147008,
+    "final-layer>adaln-final": 2656512,
+    "final-layer>linear": 36896,
+    "blocks>block>attn": 148764672,
+    "blocks>block>mlp": 297432576
+  },
+  "shapes": {
+    "x-patch-grid": [
+      16,
+      16,
+      1152
+    ],
+    "h0": [
+      256,
+      1152
+    ],
+    "t-freq": [
+      256
+    ],
+    "t-emb": [
+      1152
+    ],
+    "y-emb": [
+      1152
+    ],
+    "h-mod1": [
+      256,
+      1152
+    ],
+    "attn": [
+      16,
+      256,
+      256
+    ],
+    "o": [
+      256,
+      1152
+    ],
+    "h-mod2": [
+      256,
+      1152
+    ],
+    "u": [
+      256,
+      4608
+    ],
+    "f": [
+      256,
+      1152
+    ],
+    "x-out": [
+      256,
+      1152
+    ],
+    "h-final": [
+      256,
+      32
+    ],
+    "out": [
+      32,
+      32,
+      8
+    ],
+    "eps-hat": [
+      32,
+      32,
+      4
+    ],
+    "sigma": [
+      32,
+      32,
+      4
+    ]
+  },
+  "flops_total": 237242843136,
+  "flops_total_diffusers_raw": 237333676032,
+  "flops_duplicated_embedders": 90832896,
+  "flops_by_node": {
+    "patchify": 9437184,
+    "t-embed": 3244032,
+    "final-layer": 24182784,
+    "attn": 84557168640,
+    "mlp": 152202903552,
+    "adaln": 445906944,
+    "adaln-final": 5308416
+  },
+  "flops_by_op_torch": {
+    "aten.convolution": 9437184,
+    "aten.addmm": 228777689088,
+    "aten.baddbmm": 4227858432,
+    "aten.bmm": 4227858432
+  },
+  "flops_by_op_torch_raw": {
+    "aten.convolution": 9437184,
+    "aten.addmm": 228868521984,
+    "aten.baddbmm": 4227858432,
+    "aten.bmm": 4227858432
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.convolution"
+      ],
+      "prims": [
+        "conv2d"
+      ]
+    },
+    {
+      "ops": [
+        "aten.addmm",
+        "aten.mm"
+      ],
+      "prims": [
+        "linear",
+        "adaln_zero"
+      ]
+    },
+    {
+      "ops": [
+        "aten.baddbmm",
+        "aten.bmm"
+      ],
+      "prims": [
+        "attention_scores",
+        "attention_weighted_sum"
+      ]
+    }
+  ],
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "res": 1024
+      },
+      "params_total": 674834720,
+      "flops_total": 5818440646656
+    },
+    {
+      "calc_overrides": {
+        "patch": 4
+      },
+      "params_total": 675000704,
+      "flops_total": 58087342080
+    }
+  ],
+  "metrics_checks": {
+    "ditParams": 674834720,
+    "ditMacs": 118621421568,
+    "diffusersParams": 749826464,
+    "diffusersMacs": 118666838016,
+    "officialParams": 675129632,
+    "embedderParams": 2777472,
+    "tEmbedMacs": 1622016,
+    "vaeDecoderMacs": 311093641216,
+    "vaeEncoderMacs": 136361082880,
+    "vaeDecoderParams": 49490199,
+    "latentTokens": 256
+  },
+  "not_hooked": {
+    "beta1…alpha2": "AdaLayerNormZero calcula el Linear D → 6D y lo parte con chunk (se verifica su forma 6D en params)",
+    "q, k, v": "diffusers separa to_q/to_k/to_v; el calculador sigue al qkv fusionado del oficial"
+  },
+  "hf_config_source": "facebook/DiT-XL-2-256",
+  "source": {
+    "lib": "diffusers",
+    "version": "0.41.0",
+    "ctor": "with torch.device('meta'): DiTTransformer2DModel(num_attention_heads=16, attention_head_dim=72, in_channels=4, out_channels=8, num_layers=28, sample_size=32, patch_size=2, activation_fn='gelu-approximate', num_embeds_ada_norm=1000, norm_type='ada_norm_zero', norm_elementwise_affine=False, attention_bias=True, norm_num_groups=32)",
+    "reference_architecture": "facebookresearch/DiT models.py (oficial) = diffusers − embedders duplicados",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "diffusers": "0.41.0"
+    }
+  },
+  "notes": [
+    "diffusers DiTTransformer2DModel construido en código en el dispositivo meta (sin pesos ni hub; config de facebook/DiT-XL-2-256): latente 32×32×4, patch 2 → N = 256 tokens de D = 1152, 28 bloques, out_channels 8.",
+    "diffusers DUPLICA el embedder de tiempo y clase en cada bloque (AdaLayerNormZero.emb = CombinedTimestepLabelEmbeddings, 2,777,472 parámetros) y lo corre 29 veces (una por bloque + la capa final, que usa el del bloque 0). El modelo oficial (facebookresearch/DiT, models.py) tiene UN t_embedder y UN y_embedder: params_total = 749,826,464 (diffusers) − 27·2,777,472 = 674,834,720; flops_total = 237,333,676,032 − 90,832,896 (las 28 llamadas extra, medidas por módulo) = 237,242,843,136.",
+    "Posición sin/cos 2-D: buffer en diffusers (y en el calculador); el oficial la guarda como nn.Parameter(requires_grad=False) de N·D = 294,912 valores, así que su conteo sum(p.numel()) da 675,129,632 (metrics_checks.officialParams) — los «675M» del paper.",
+    "Timesteps de diffusers en DiT usa downscale_freq_shift = 1 (frecuencias exp(−ln 10⁴·i/(127))); el oficial divide por 128: cambia los valores del embedding sinusoidal, no parámetros ni FLOPs.",
+    "Atención eager (AttnProcessor: baddbmm + softmax + bmm). diffusers separa to_q/to_k/to_v (con sesgo); el oficial (timm Attention) usa un qkv fusionado: mismos parámetros y MACs (el calculador sigue al oficial: op qkv).",
+    "LayerNorm sin parámetros (elementwise_affine = False): γ y β los pone adaLN-Zero (Linear D → 6D por bloque, inicializado en ceros).",
+    "Paper (Tabla 4): 118.6 «Gflops» para DiT-XL/2 a 256. FlopCounterMode da 237,242,843,136 FLOPs = 118.62 GMACs: los «Gflops» del paper son MACs (como la tabla de fvcore / DeiT / Swin), la mitad de los FLOPs reales."
+  ],
+  "paper_gflops": 118.6
+}

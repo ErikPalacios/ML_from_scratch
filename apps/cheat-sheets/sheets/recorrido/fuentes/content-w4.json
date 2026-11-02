@@ -1,0 +1,369 @@
+{
+  "intro": {
+    "lead": "Si sientes que tienes las piezas regadas, este es el dibujo que las junta: el C01 (sugerir la categoría de una foto con una ResNet-50 servida por Triton en EKS) de punta a punta, desde la foto etiquetada hasta el request que responde en milisegundos y el monitoreo que pide el siguiente modelo. Para cada herramienta verás qué es y cómo se trabaja con ella: si se programa, se configura, se opera o se renta como servicio administrado.",
+    "how_to_read": [
+      "Empieza por el mapa: 12 estaciones en 4 tramos y, entre cada par, el artefacto que viaja (snapshot, checkpoint, engine, imagen, request, logs).",
+      "Luego, las 4 velocidades: el mismo mapa partido en líneas que corren cada mes, en días, en milisegundos y sin parar. Buena parte de la confusión viene de mezclarlas.",
+      "Entra a cada estación cuando la necesites: proceso paso a paso, archivos reales del C01, comandos, qué falla ahí y cuándo está lista.",
+      "Cierra con el quiz: un síntoma real, y tú dices en qué estación falló y qué miras primero."
+    ]
+  },
+  "map": {
+    "caption": "Doce estaciones en cuatro tramos (Datos → Modelo → Release → Operación). Entre estación y estación viaja un artefacto concreto: si no puedes nombrarlo, esa flecha todavía es una caja negra.",
+    "loop_note": "Cada request deja una línea JSON (request_id, model_version, top-5, latencias) que Fluent Bit lleva a S3; ahí se une con la categoría final de cada publicación y las correcciones de moderación. Sobre eso, el job diario calcula PSI y aceptación, y de esos logs salen las ≈ 5k imágenes al mes que se etiquetan. El calendario mensual, o un ticket por drift, arranca el siguiente reentrenamiento, que vuelve a pasar por gate, shadow y canary."
+  },
+  "speeds": {
+    "intro": "El mapa junta cosas que corren a ritmos muy distintos: un modelo nuevo sale una vez al mes, una release tarda días y cada request se resuelve en milisegundos. Si lo separas en cuatro líneas, cada pregunta cae en la suya («¿por qué tarda el deploy?» es de la línea de días; «¿por qué subió el p99?», de la de milisegundos) y ves que solo se tocan en cuatro estaciones de transbordo. Es la distinción online/offline de M01 hecha mapa: los dos lados se conectan por logs → datos y por registry → deploy.",
+    "lines": [
+      {
+        "id": "semanas",
+        "name": "Línea del modelo",
+        "rhythm": "Mensual por calendario, y antes si un disparador lo adelanta. Cada ciclo junta ≈ 5k imágenes etiquetadas y el fine-tune dura ≈ 3–4 h en una GPU.",
+        "stations": [
+          "datos",
+          "versionado",
+          "entrenamiento",
+          "gate",
+          "export"
+        ],
+        "trigger": "El calendario mensual, o un ticket que lo adelanta: PSI > 0.2 sostenido 3 días, aceptación −3 pp semana contra semana o una categoría nueva en el árbol.",
+        "who": "El orquestador corre solo el DAG (snapshot → validación → fine-tune → evaluación → gate → engine e imagen de Triton → paridad y latencia → registro); las personas son el equipo de etiquetado y el equipo de ML, que revisa el reporte del gate.",
+        "note": "Termina en el registry con alias challenger: esta línea <b>nunca despliega</b>. El engine y la imagen de Triton que lo hornea se construyen en una T4 como pasos de este pipeline (después del gate), no en el release de código."
+      },
+      {
+        "id": "dias",
+        "name": "Línea del release",
+        "rhythm": "Un commit pasa CI en minutos y el gateway sale con un rolling update; un modelo nuevo tarda días: shadow (1–2 días), canary 5 → 25 → 100 % con horas por etapa y cubriendo un pico diurno, y la release anterior viva 24–48 h para volver. Un A/B de 1–2 semanas solo si el cambio es grande.",
+        "stations": [
+          "serving",
+          "empaquetado",
+          "cicd",
+          "kubernetes",
+          "rollout"
+        ],
+        "trigger": "Un merge a main del gateway, o una versión challenger nueva en el registry con su imagen de Triton ya construida y probada en la T4: el release cambia los tags de imagen en los manifests.",
+        "who": "CI/CD de forma automática (el curso propone GitHub Actions o GitLab CI); el análisis del canary revierte solo y una persona aprueba el paso final a 100 %.",
+        "note": "Una release es el par <b>gateway vN + Triton vN</b> con su propio Service: nunca dos modelos detrás del mismo nombre. Al terminar el canary, el alias champion pasa a la versión nueva."
+      },
+      {
+        "id": "ms",
+        "name": "Línea del request",
+        "rhythm": "Siempre encendida: ≈ 116 req/s en promedio y ≈ 350 en el pico (500 de diseño). Cada request tarda ≈ 20–45 ms de mediana dentro del servidor; el SLO es p99 ≤ 200 ms.",
+        "stations": [
+          "ALB: TLS y JWT · 1–3 ms",
+          "Gateway: validación y decode · 5–12 ms",
+          "Preprocesamiento compartido · ≈ 1 ms",
+          "Triton: batching + TensorRT FP16 · 5–10 ms",
+          "Softmax y top-5 · ≈ 1 ms",
+          "Log JSON asíncrono · 0 ms en el camino"
+        ],
+        "trigger": "Cada foto que se sube al publicar: el backend de publicación llama POST /v1/classify server-to-server, con timeout de 300 ms.",
+        "who": "Nadie en vivo: ALB, gateway y Triton responden solos. Las personas fijaron antes los timeouts (150 ms hacia Triton), las cuotas por caller y las réplicas mínimas.",
+        "note": "Si algo falla, degrada en vez de caerse: <code>503</code> o <code>504</code> rápidos y el formulario muestra el selector manual de categorías."
+      },
+      {
+        "id": "continuo",
+        "name": "Línea de operación",
+        "rhythm": "Nunca para: Prometheus scrapea gateway y Triton cada 15 s, las alertas miran ventanas de 5–30 min, el job de drift corre una vez al día y los labels llegan tarde (aceptación en minutos a horas, moderación en días).",
+        "stations": [
+          "monitoreo"
+        ],
+        "trigger": "Umbrales escritos de antemano: p99 > 200 ms por 10 min o 5xx > 1 % por 5 min (page); cola de Triton > 20 ms (warning); PSI > 0.2 sostenido 3 días o aceptación −3 pp (ticket).",
+        "who": "Prometheus, Alertmanager y el job diario, solos; el on-call atiende los pages y el equipo de ML (con producto) los tickets en horario laboral.",
+        "note": "Cierra el ciclo: un ticket de drift prioriza qué etiquetar y adelanta la línea del modelo, que vuelve a empezar en <b>Datos</b>."
+      }
+    ],
+    "transfers": [
+      {
+        "id": "registro-modelos",
+        "name": "Model registry (MLflow)",
+        "connects": [
+          "semanas",
+          "dias"
+        ],
+        "what_passes": "Una versión challenger que ya pasó gate, paridad y latencia: ONNX y engine, labels.json con su hash, versión del preprocesamiento, métricas y punteros a snapshot, commit y digest; su imagen de Triton ya está en ECR con la versión como tag. El release solo cambia tags en los manifests; al terminar el canary, champion apunta a ella.",
+        "where": "MLflow Model Registry, con aliases champion y challenger."
+      },
+      {
+        "id": "registro-imagenes",
+        "name": "Registro de imágenes (Amazon ECR)",
+        "connects": [
+          "semanas",
+          "dias",
+          "continuo"
+        ],
+        "what_passes": "Imágenes inmutables: classifier-gateway con el tag del commit (la sube CI) y classifier-triton con la versión del modelo y el engine horneado (la sube el pipeline del modelo, ya probada en la T4). El release las despliega cambiando el tag en los manifests, y el cluster las vuelve a bajar en cada scale-up y en cada rollback.",
+        "where": "Amazon ECR, con tags inmutables."
+      },
+      {
+        "id": "cluster",
+        "name": "El cluster (Amazon EKS)",
+        "connects": [
+          "dias",
+          "ms",
+          "continuo"
+        ],
+        "what_passes": "Entran los manifests del release (Deployments, Services, HPA, ScaledObject, Ingress); adentro corren los pods que atienden cada request; salen las métricas (/metrics del gateway, :8002 de Triton) y los logs que lee la operación.",
+        "where": "Amazon EKS en dos zonas, namespace classifier: node group de g4dn.xlarge (T4) para Triton y nodos c6i para el gateway."
+      },
+      {
+        "id": "datos",
+        "name": "Datos: de logs a etiquetas",
+        "connects": [
+          "continuo",
+          "semanas"
+        ],
+        "what_passes": "Los logs de predicción unidos con la categoría final de cada publicación y las correcciones de moderación, las ≈ 5k imágenes al mes elegidas para etiquetar (baja confianza, desacuerdos y una muestra aleatoria) y los tickets de drift que adelantan el reentrenamiento.",
+        "where": "S3 (data lake en Parquet, alimentado por Fluent Bit), la cola de etiquetado (Label Studio o un proveedor) y el ticket del job diario."
+      }
+    ]
+  },
+  "work_kinds": {
+    "programa": "Escribes código (Python, bash) con la lógica, y la herramienta lo ejecuta tal cual: si no lo escribes, no pasa. Ejemplo del C01: gateway/app/main.py (FastAPI) valida la foto, la decodifica y llama a Triton; model/parity_check.py decide si el engine pasa.",
+    "configura": "Escribes un archivo declarativo (YAML, pbtxt) que describe qué quieres, no cómo lograrlo, y la herramienta llega a ese estado y lo mantiene. Kubernetes es esto: no lo programas, le das k8s/triton.yaml (una GPU por pod, probes, repartido en dos zonas) y keda-triton.yaml (de 2 a 4 réplicas según la cola), y el cluster crea, reinicia y reparte los pods solo.",
+    "opera": "Le das órdenes o miras su estado en el momento, con comandos o una UI, sin cambiar lo que está escrito en git. Ejemplo del C01: kubectl describe pod para ver por qué un Triton está en Pending, kubectl rollout undo para volver atrás o Grafana durante un incidente.",
+    "administrado": "Un servicio que rentas en la nube: el proveedor lo instala, lo actualiza y lo mantiene vivo; tú lo configuras y pagas por uso. Ejemplo del C01: S3 y ECR guardan datos e imágenes sin que operes discos, y en EKS AWS opera el control plane, pero los manifests siguen siendo tuyos (casi ninguna herramienta es de un solo tipo)."
+  },
+  "quiz": [
+    {
+      "symptom": "Después de un merge a main, el manifest del gateway apunta al tag del commit nuevo y los pods nuevos quedan en ImagePullBackOff. kubectl describe pod muestra «Failed to pull image \"…/classifier-gateway:…\": … failed to resolve reference … not found». Los pods viejos siguen sirviendo.",
+      "station": "cicd",
+      "why": "El tag que pide el manifest no está en ECR: el build o el push de CI falló (o no corrió) y el manifest se actualizó igual. El cluster hace bien su trabajo; lo que falta es la imagen en el registro.",
+      "first_check": "aws ecr describe-images --repository-name classifier-gateway --image-ids imageTag={commit}; si no existe, revisa el job de CI de ese commit (build y push).",
+      "distractors": [
+        "kubernetes",
+        "empaquetado"
+      ]
+    },
+    {
+      "symptom": "Tras un PR que «limpió» el manifest de Triton, el pod nuevo queda en Pending: «0/5 nodes are available: 2 node(s) had untolerated taint {nvidia.com/gpu: present}, 3 node(s) didn't match Pod's node affinity/selector». El autoscaler de nodos no agrega ninguno y los pods viejos siguen sirviendo.",
+      "station": "kubernetes",
+      "why": "El scheduler solo pone un pod en un nodo cuyos taints tolera y cuyas labels coinciden con su <code>nodeSelector</code>. El PR borró la toleration de <code>nvidia.com/gpu</code>: los nodos GPU lo rechazan por el taint y los de CPU por la label <code>workload=gpu-t4</code>. Aunque hubiera una T4 libre, no cabría: es configuración, no capacidad.",
+      "first_check": "kubectl describe pod {pod_triton} -n classifier (evento FailedScheduling) y el diff del PR en tolerations y nodeSelector, contra kubectl describe node {nodo_gpu} (bloques Taints y Labels).",
+      "distractors": [
+        "export",
+        "empaquetado"
+      ]
+    },
+    {
+      "symptom": "Negocio agregó una categoría nueva al árbol hace dos semanas y el ticket de reentrenamiento se abrió ese mismo día. El modelo nunca la sugiere (siempre se elige a mano en el selector) y una categoría vecina empeora en las métricas sin que nadie haya desplegado nada.",
+      "station": "datos",
+      "why": "Sin labels no hay clase: el modelo tiene 500 salidas y ninguna es la nueva, por eso la vecina recibe sus fotos y empeora. Se siembra con búsquedas por título y etiquetado hasta ≈ 200–500 ejemplos revisados; recién ahí entra al reentrenamiento, con 501 salidas, <code>labels.json</code> nuevo y golden set versionado.",
+      "first_check": "Cuenta los ejemplos revisados de la categoría nueva en la cola de etiquetado y en el manifest del último snapshot (meta: ≈ 200–500 antes de reentrenar).",
+      "distractors": [
+        "entrenamiento",
+        "monitoreo"
+      ]
+    },
+    {
+      "symptom": "La imagen del gateway que construiste en tu Mac con Apple Silicon corre bien con docker run. En EKS, el pod queda en CrashLoopBackOff y kubectl logs --previous solo dice «exec format error».",
+      "station": "empaquetado",
+      "why": "La imagen salió <b>arm64</b>: sin <code>--platform linux/amd64</code>, Docker construye para la arquitectura de tu Mac y los nodos x86 (c6i, g4dn) no pueden ejecutarla. El cluster y el registro funcionan: la imagen está mal construida (por eso la de producción se construye en CI, para la arquitectura de los nodos).",
+      "first_check": "docker image inspect --format '{{.Os}}/{{.Architecture}}' {imagen} en tu Mac (o docker buildx imagetools inspect --format '{{json .Image}}' {imagen} en el registro): si dice arm64, reconstruye con --platform linux/amd64.",
+      "distractors": [
+        "kubernetes",
+        "serving"
+      ]
+    },
+    {
+      "symptom": "Sin ningún deploy en tres semanas, el job diario reporta PSI > 0.2 sostenido 3 días en las categorías predichas (suben mochilas y útiles escolares) y la aceptación cae más de 3 pp semana contra semana. Cero errores, p99 normal.",
+      "station": "monitoreo",
+      "why": "Nada de tu sistema se rompió: cambió el mundo (regreso a clases). Es <b>drift</b>, no skew, porque no coincide con ningún cambio tuyo; el ticket prioriza etiquetar lo nuevo y adelanta el reentrenamiento, que pasa por el mismo gate y canary.",
+      "first_check": "Confirma que no coincide con ningún deploy (modelo, gateway, app), mira en el job qué categorías se movieron y etiqueta una muestra reciente para medir el impacto antes de reentrenar.",
+      "distractors": [
+        "serving",
+        "entrenamiento"
+      ]
+    },
+    {
+      "symptom": "Un día después de un deploy del gateway (el modelo es el mismo) salta ClassifierLowConfidenceSpike: la fracción de predicciones con top-1 < 0.3 supera el doble de su promedio de 7 días, en móvil y en web por igual. Cero 5xx, latencia normal.",
+      "station": "serving",
+      "why": "Si la métrica se mueve justo después de un cambio de código, sospecha <b>training-serving skew</b>, no drift: el gateway ya no prepara la imagen como el entrenamiento (RGB vs BGR, otra interpolación, otro orden de resize) y el modelo duda de todo. Reentrenar no lo arregla: se corrige en <code>preprocess.py</code>.",
+      "first_check": "Corre el test de tensores de referencia (20 imágenes) contra el commit desplegado y revisa el diff de gateway/app/preprocess.py; si los tensores cambiaron, rollback del gateway.",
+      "distractors": [
+        "monitoreo",
+        "export"
+      ]
+    },
+    {
+      "symptom": "Desde la última versión de la app, el histograma classifier_image_bytes se corrió de ≈ 200 KB a varios MB, classifier_preprocess_seconds subió y el HPA agregó pods al gateway. El modelo y el gateway no cambiaron.",
+      "station": "request",
+      "why": "Cambió lo que entra en cada request: la app dejó de reducir las fotos a ≤ 1024 px antes de subirlas, y leer y decodificar varios MB en CPU cuesta mucho más que ≈ 200 KB. Se arregla en el cliente, no con más pods ni reentrenando.",
+      "first_check": "En los logs del gateway, image_bytes por source (mobile vs web) antes y después del release de la app; después confirma con el equipo de la app si cambió el downscale.",
+      "distractors": [
+        "serving",
+        "kubernetes"
+      ]
+    },
+    {
+      "symptom": "Tras un refactor de train.py, el fine-tune mensual corre sus ≈ 3–4 h sin errores, pero el gate lo bloquea: top-1 muy por debajo del champion. En MLflow, la loss de entrenamiento casi no bajó en ninguna época, y relanzarlo con el snapshot del mes pasado da lo mismo.",
+      "station": "entrenamiento",
+      "why": "El gate hizo su trabajo; lo roto es el código de entrenamiento. Un smoke test en cada commit lo atrapa en un minuto: sobreajustar un batch de 32 imágenes, donde la loss tiene que bajar a casi cero.",
+      "first_check": "Corre el smoke test sobre el commit del refactor (sobreajustar un batch de 32 imágenes en CPU o una GPU chica) y compara en MLflow los params de esta corrida con los del mes anterior.",
+      "distractors": [
+        "gate",
+        "versionado"
+      ]
+    },
+    {
+      "symptom": "En el deploy de un modelo nuevo, los pods nuevos de Triton quedan en CrashLoopBackOff sin llegar a Ready. kubectl logs --previous: «The engine plan file is generated on an incompatible device… please rebuild» y Triton se cierra. Los pods viejos siguen sirviendo.",
+      "station": "export",
+      "why": "Un engine de TensorRT queda atado a la GPU (T4 = sm_75) y a la versión de TensorRT con que se construyó, y este se compiló en otra GPU, fuera del pipeline que lo construye y lo prueba en una T4. Se reconstruye con <code>build_engine.sh</code> en una T4 y la misma release de NGC que Triton (24.08); con <code>maxUnavailable: 0</code> el rollout se frena sin cortar el servicio.",
+      "first_check": "kubectl logs {pod_triton} -n classifier --previous y, en los tags de la versión del registry, la GPU y la release de NGC con que se construyó el engine (deben ser T4 y 24.08, como triton/Dockerfile).",
+      "distractors": [
+        "empaquetado",
+        "rollout"
+      ]
+    },
+    {
+      "symptom": "El canary estuvo 3 horas al 5 % fuera del pico, todo verde, y alguien lo pasó directo a 100 %. En el pico diurno siguiente, la tasa de 5xx del modelo nuevo se duplica.",
+      "station": "rollout",
+      "why": "El verde no tenía evidencia: a 5 % con el tráfico promedio el canary junta ≈ 3,500 requests por ventana de 10 min (alcanza para errores groseros, no para un aumento chico) y hay fallas que solo salen con la carga del pico. Cada etapa necesita un n mínimo (≥ 10,000 requests), cubrir un pico diurno y pasar por 25 % antes de 100 %.",
+      "first_check": "Cuenta los requests del canary por ventana con sum(increase(classifier_requests_total{model_version=\"{version_canary}\"}[10m])) y verifica si alguna etapa cubrió el pico diurno.",
+      "distractors": [
+        "gate",
+        "monitoreo"
+      ]
+    },
+    {
+      "symptom": "Cada reentrenamiento mensual pasa el gate (no inferior al champion, margen −0.3 pp), pero al comparar el champion de hoy con el de hace un año sobre el mismo golden set, el top-1 bajó ≈ 2.4 pp.",
+      "station": "gate",
+      "why": "La no inferioridad deja pasar caídas chicas que se acumulan: −0.2 pp al mes durante un año son −2.4 pp. Por eso el gate del C01 compara también contra el champion de hace 3 meses.",
+      "first_check": "Evalúa el challenger contra el champion de hace 3 meses (y el de hace 12) en el mismo golden set, con test pareado; las versiones anteriores siguen en el registry de MLflow.",
+      "distractors": [
+        "entrenamiento",
+        "datos"
+      ]
+    },
+    {
+      "symptom": "Quieres reproducir el modelo de septiembre con ds-2026-09-01, pero el sha256 de su rows.parquet ya no coincide con el rows_sha256 de la tarjeta del snapshot, y el reentrenamiento da métricas que no se parecen a las registradas.",
+      "station": "versionado",
+      "why": "Un snapshot se escribe una vez y nunca se edita: un cambio es un snapshot nuevo. Si nada niega escribir en su prefijo (una política del bucket), es solo una convención y alguien la rompió. Object lock no alcanza: guarda la versión original, pero un PUT a la misma key crea otra versión encima.",
+      "first_check": "aws s3api list-object-versions --bucket {bucket} --prefix datasets/ds-2026-09-01/: más de una versión de rows.parquet, o un LastModified posterior al created_at de la tarjeta, confirma la reescritura; después, aws s3api get-bucket-policy --bucket {bucket} para ver qué la permitió.",
+      "distractors": [
+        "datos",
+        "entrenamiento"
+      ]
+    },
+    {
+      "symptom": "En el pico salta TritonQueueTimeHigh y KEDA pide una tercera réplica de Triton, pero el pod nuevo lleva 20 minutos en Pending y no aparece ningún nodo GPU nuevo.",
+      "station": "kubernetes",
+      "why": "El scheduler no encuentra una T4 libre (<code>Insufficient nvidia.com/gpu</code>: cada pod ocupa una GPU entera) y el autoscaler de nodos no agrega una g4dn: node group en su máximo, cuota de instancias G o sin capacidad en la AZ. Subir el máximo de KEDA solo crea más pods Pending.",
+      "first_check": "kubectl describe pod {pod_triton} -n classifier (eventos FailedScheduling) y el estado del autoscaler de nodos: kubectl -n kube-system get configmap cluster-autoscaler-status -o yaml, o kubectl get nodepools,nodeclaims con Karpenter.",
+      "distractors": [
+        "monitoreo",
+        "empaquetado"
+      ]
+    },
+    {
+      "symptom": "Dos pods del gateway del mismo Deployment, ambos con la imagen classifier-gateway:latest, se comportan distinto: solo uno escribe un campo nuevo en su línea de log. kubectl rollout undo no devuelve la versión anterior.",
+      "station": "cicd",
+      "why": "<code>:latest</code> es un tag móvil: los pods creados antes y después de un push corren imágenes distintas con el mismo nombre, y no hay versión anterior a la cual volver. En el C01 el tag es el commit y ECR no deja moverlo (tags inmutables); el curso recomienda además desplegar por digest.",
+      "first_check": "kubectl get pods -n classifier -l app.kubernetes.io/name=gateway -o custom-columns=POD:.metadata.name,DIGEST:.status.containerStatuses[0].imageID: dos digests distintos confirman que el tag se movió.",
+      "distractors": [
+        "serving",
+        "monitoreo"
+      ]
+    },
+    {
+      "symptom": "Para acelerar el fine-tune subiste el batch: el paso falla a los pocos segundos y su log termina en «CUDA out of memory. Tried to allocate …». Alguien propone subir limits.memory del pod.",
+      "station": "entrenamiento",
+      "why": "<b>CUDA out of memory</b> es la VRAM de la GPU (una excepción en el log), no la RAM del pod: subir <code>limits.memory</code> no cambia nada, y un OOMKilled se vería como exit 137 sin línea en el log. Se arregla con un batch más chico u otra GPU.",
+      "first_check": "kubectl logs {pod_finetune}: ¿termina en «CUDA out of memory»? → VRAM. kubectl describe pod {pod_finetune}: ¿Reason OOMKilled y Exit Code 137? → RAM del pod.",
+      "distractors": [
+        "kubernetes",
+        "export"
+      ]
+    },
+    {
+      "symptom": "Un martes a media mañana, sin deploys, suben el tiempo en cola de Triton y el p99; KEDA ya está en 4 réplicas. En el panel de tráfico por caller, source=internal se multiplicó y el resto sigue igual.",
+      "station": "request",
+      "why": "Un equipo interno mandó un batch por el camino online: un <b>vecino ruidoso</b>. La defensa vive en la request (cuota por identidad en el gateway o en WAF, gateway propio y prioridad 2 en Triton) y el batch va por el camino offline, no comprando más GPUs.",
+      "first_check": "sum by (source) (rate(classifier_requests_total[5m])) junto al tiempo en cola de Triton: si internal sube a la par de la cola, es el vecino; después, averigua qué equipo interno (moderación, búsqueda) lanzó un batch por la API.",
+      "distractors": [
+        "kubernetes",
+        "rollout"
+      ]
+    },
+    {
+      "symptom": "En el reporte del pipeline, el top-1 sobre la validación del snapshot (casi toda con labels débiles de la categoría final de cada publicación) sube mes a mes; en el golden set el challenger apenas empata con el champion y la re-categorización por moderación no baja.",
+      "station": "datos",
+      "why": "Es el <b>feedback loop</b>: quien publica tiende a aceptar la primera sugerencia, así que ese label premia al modelo por imitarse a sí mismo. Sirve filtrado para entrenar, nunca como única evaluación.",
+      "first_check": "Parte la métrica por label_source (humano, moderador, vendedor_filtrado) y compárala con el golden set y con el holdout de ≈ 1 % sin sugerencias.",
+      "distractors": [
+        "gate",
+        "monitoreo"
+      ]
+    },
+    {
+      "symptom": "En el pipeline, parity_check.py --backend triton termina con «[parity] NO PASA: no promuevas este artefacto»: el acuerdo top-1 entre el engine FP16 y PyTorch FP32 quedó bajo 99.5 %. El gate offline del modelo había pasado.",
+      "station": "export",
+      "why": "El modelo evaluado es bueno; lo que no coincide es el artefacto que se va a servir. Partir el problema en dos lo ubica: si ONNX Runtime (backend <code>ort</code>) pasa y TensorRT no, falla el build del engine; si ORT también falla, falla el export a ONNX.",
+      "first_check": "python model/parity_check.py --checkpoint {checkpoint} --onnx model/classifier.onnx --images {muestra_eval} --n 2000 (backend ort, en CPU) y compara con el resultado del backend triton.",
+      "distractors": [
+        "entrenamiento",
+        "empaquetado"
+      ]
+    },
+    {
+      "symptom": "El challenger le gana al champion en el golden set por mucho más que cualquier mes anterior. En shadow, su acuerdo con el champion y su distribución de predicciones son los de siempre, y en el A/B la aceptación no se mueve.",
+      "station": "versionado",
+      "why": "Una métrica offline sospechosamente buena es <b>leakage</b> hasta que se demuestre lo contrario: la misma foto aparece en varias publicaciones y quien vende fotografía todo sobre la misma mesa. Si el snapshot no deduplica por sha256 y pHash ni hace el split por seller_id, el golden set se cuela en train y mides memoria.",
+      "first_check": "Cruza los sha256 (y pHash) del golden set con el manifest de entrenamiento del snapshot y revisa el split por seller_id: debe haber cero coincidencias.",
+      "distractors": [
+        "serving",
+        "entrenamiento"
+      ]
+    },
+    {
+      "symptom": "Tras un release que solo cambió gateway/app/main.py (gateway.yaml sigue igual, sin limits.cpu), el p99 sube a medida que crece la concurrencia aunque la CPU de los pods no está llena; hasta /healthz tarda.",
+      "station": "serving",
+      "why": "Hay trabajo de CPU (decode o resize) dentro de una ruta <code>async def</code>: bloquea el event loop y ningún otro request avanza, ni los health checks. El I/O va con <code>await</code> y la CPU a <code>run_in_threadpool</code>, acotada por su semáforo.",
+      "first_check": "git diff {commit_anterior} {commit_nuevo} -- gateway/app/main.py: busca un decode o resize llamado directo en la ruta async def, fuera de run_in_threadpool.",
+      "distractors": [
+        "kubernetes",
+        "empaquetado"
+      ]
+    },
+    {
+      "symptom": "En cada rolling update del gateway, cada pod viejo se queda en Terminating los 45 s completos de terminationGracePeriodSeconds, aunque uvicorn tiene --timeout-graceful-shutdown 20. En local, docker stop gw tarda 10 s y docker ps -a muestra Exited (137).",
+      "station": "empaquetado",
+      "why": "El CMD quedó en <b>forma shell</b>: el PID 1 es <code>/bin/sh</code>, que no reenvía el SIGTERM, así que uvicorn nunca se entera y muere por SIGKILL al vencer el plazo. Aquí, un 137 sin OOMKilled es eso: SIGKILL porque no terminó a tiempo tras el SIGTERM.",
+      "first_check": "docker image inspect --format '{{json .Config.Cmd}}' {imagen}: si empieza con \"/bin/sh\",\"-c\", pásalo a forma exec (lista JSON), como el CMD de gateway/Dockerfile.",
+      "distractors": [
+        "kubernetes",
+        "serving"
+      ]
+    },
+    {
+      "symptom": "La corrida mensual quedó en verde en el orquestador y nadie recibió aviso, pero no apareció ninguna versión challenger en MLflow. En el historial, evaluación y gate figuran OK; engine, imagen de Triton, paridad y registro, como omitidos.",
+      "station": "gate",
+      "why": "El gate no pasó y lo dijo devolviendo <code>False</code> en vez de fallar: para el orquestador fue un paso exitoso, la condición saltó lo que seguía y la corrida quedó en verde. Un gate que no pasa tiene que lanzar una excepción: corrida en rojo, motivo en el tracking y alerta de pipeline fallido.",
+      "first_check": "Abre el log y la salida del paso de gate de esa corrida: si el veredicto es «no pasa» y el paso terminó con exit 0, ese es el hueco; después mira en el reporte qué criterio falló.",
+      "distractors": [
+        "export",
+        "entrenamiento"
+      ]
+    },
+    {
+      "symptom": "El análisis del canary revierte la release casi todas las madrugadas por el criterio «PSI de categorías contra el estable > 0.1»; de día nunca falla y en shadow el acuerdo con el champion era el de siempre.",
+      "station": "rollout",
+      "why": "Es ruido de muestreo, no un modelo malo: con 500 categorías el PSI tiene un piso ≈ (K−1)(1/n_canary + 1/n_estable), ≈ 0.14 con 3,600 predicciones por hora. El criterio del C01 exige ≥ 5,000 predicciones del canary en la ventana y calcula el PSI sobre las ≈ 30 categorías padre.",
+      "first_check": "Cuenta las predicciones del canary en la hora de cada rollback: sum(increase(classifier_top1_score_count{model_version=\"{version_canary}\"}[1h])); si son unos pocos miles, el criterio necesita un n mínimo y agrupar categorías.",
+      "distractors": [
+        "monitoreo",
+        "gate"
+      ]
+    },
+    {
+      "symptom": "En el Hot Sale, sin deploys recientes, salta ClassifierHighP99Latency y el tramo que crece es classifier_inference_seconds. Triton sigue en 2 réplicas, TritonQueueTimeHigh nunca se disparó y los paneles de Triton en Grafana están vacíos.",
+      "station": "monitoreo",
+      "why": "Prometheus no está leyendo a Triton (falta su ServiceMonitor de <code>k8s/monitoring.yaml</code> o su label release no coincide): sin <code>nv_inference_queue_duration_us</code>, la alerta de cola no tiene datos y la query de KEDA vuelve vacía. Con el default de KEDA (<code>ignoreNullValues: true</code>) eso pasaría como 0 sin aviso; el C01 lo pone en <code>\"false\"</code> para que sea un error visible del scaler.",
+      "first_check": "kubectl describe scaledobject triton -n classifier (eventos KEDAScalerFailed) y, en Prometheus, busca nv_inference_queue_duration_us{model=\"classifier\"}; si no hay serie, kubectl get servicemonitor -n classifier.",
+      "distractors": [
+        "export",
+        "request"
+      ]
+    }
+  ]
+}

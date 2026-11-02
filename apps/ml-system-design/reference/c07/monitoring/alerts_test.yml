@@ -1,0 +1,349 @@
+# Tests unitarios de alerts.yml con promtool: series sintéticas → ¿dispara o no, y cuándo?
+#   promtool test rules alerts_test.yml
+# Notación de promtool: '0+100x20' = empieza en 0 y suma 100 por intervalo, 20 veces (21 valores).
+# Segmentos separados por espacio continúan la serie: '0+100x20 2097+97x39'.
+# Ventanas: en Prometheus 3 el rango (t − 5m, t] es abierto a la izquierda: con muestras cada minuto,
+# rate[5m] ve 5 muestras (4 intervalos). Los momentos de "firing" de abajo salen de esa cuenta.
+# La mayoría de los tests consulta ALERTS{alertname="…", alertstate="firing"} para no copiar los textos
+# largos de las anotaciones; cuatro alertas sí las verifican completas (formato del summary).
+# OJO: los grupos de reglas se evalúan en paralelo, así que una alerta puede leer la recording rule de
+# OTRO grupo con una evaluación de atraso (en producción también). Por eso cada test deja ±1 min de margen
+# alrededor del momento de firing, y el $value del summary se verifica solo donde la serie ya no cambia.
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------- SearchLatencyHigh (texto, SLO 300 ms)
+  # 100 búsquedas/min. Hasta el minuto 20 todas ≤ 250 ms; después el 3 % tarda entre 300 y 400 ms.
+  # t = 22: 2 de 4 intervalos lentos → 6 de 400 sobre 0.3 → rango 396 cae en (0.3, 0.4] → p99 ≈ 0.333.
+  # Activa desde el 22 → firing en el 32. En el 33, ventana entera lenta:
+  # p99 = 0.3 + 0.1 × (396 − 388) / 12 = 0.3667.
+  - interval: 1m
+    input_series:
+      - series: 'search_request_duration_seconds_bucket{query_type="text",le="0.25"}'
+        values: '0+100x20 2097+97x39'
+      - series: 'search_request_duration_seconds_bucket{query_type="text",le="0.3"}'
+        values: '0+100x20 2097+97x39'
+      - series: 'search_request_duration_seconds_bucket{query_type="text",le="0.4"}'
+        values: '0+100x60'
+      - series: 'search_request_duration_seconds_bucket{query_type="text",le="+Inf"}'
+        values: '0+100x60'
+      # Foto: el 3 % entre 400 y 600 ms → p99 ≈ 0.53, DENTRO de su SLO de 600 ms: no debe disparar.
+      - series: 'search_request_duration_seconds_bucket{query_type="photo",le="0.4"}'
+        values: '0+97x60'
+      - series: 'search_request_duration_seconds_bucket{query_type="photo",le="0.6"}'
+        values: '0+100x60'
+      - series: 'search_request_duration_seconds_bucket{query_type="photo",le="+Inf"}'
+        values: '0+100x60'
+    promql_expr_test:
+      - expr: search:latency_p99:rate5m{query_type="photo"}
+        eval_time: 30m
+        exp_samples:
+          - labels: 'search:latency_p99:rate5m{query_type="photo"}'
+            value: 0.5333333333333333  # 0.4 + 0.2 × (396 − 388) / 12
+    alert_rule_test:
+      - eval_time: 31m
+        alertname: SearchLatencyHigh
+        exp_alerts: []
+      - eval_time: 33m
+        alertname: SearchLatencyHigh
+        exp_alerts:
+          - exp_labels: {severity: page, query_type: text}
+            exp_annotations:
+              summary: "search-api: p99 de text = 366.7ms"
+              description: "¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(search_stage_duration_seconds_bucket[5m]))). ann → un shard lento o sin memoria (ShardMemoryHigh); encode/rerank → GPU saturada (baja RERANK_TOP_N antes de que todo venza); bm25 → OpenSearch."
+              runbook_url: "https://runbooks.example.com/c07/search-latency"
+
+  # ---------------------------------------------------------------- EmbedWorkerBacklog
+  # Se producen 3,000 eventos/min (50/s). El worker de v7 se cae en el minuto 20: el lag crece 3,000/min
+  # hasta el 30 y ahí se estanca (34,000 = 680 s; un valor fijo para verificar el summary).
+  # lag en segundos = lag ÷ 50 > 180 → lag > 9,000 → desde el minuto 23 (10,000) → firing en el 33.
+  # Otro consumer group (otro servicio) con lag enorme no debe disparar.
+  - interval: 1m
+    input_series:
+      - series: 'kafka_topic_partition_current_offset{topic="listing-events",partition="0"}'
+        values: '0+3000x60'
+      - series: 'kafka_consumergroup_lag{consumergroup="embed-worker-v7",topic="listing-events",partition="0"}'
+        values: '1000x20 4000+3000x10 34000x30'
+      - series: 'kafka_consumergroup_lag{consumergroup="analytics",topic="listing-events",partition="0"}'
+        values: '500000x60'
+    promql_expr_test:
+      - expr: search:embed_worker_lag_seconds
+        eval_time: 10m
+        exp_samples:
+          - labels: 'search:embed_worker_lag_seconds{consumergroup="embed-worker-v7"}'
+            value: 20  # 1,000 mensajes ÷ 50/s
+    alert_rule_test:
+      - eval_time: 32m
+        alertname: EmbedWorkerBacklog
+        exp_alerts: []
+      - eval_time: 34m
+        alertname: EmbedWorkerBacklog
+        exp_alerts:
+          - exp_labels: {severity: page, consumergroup: embed-worker-v7}
+            exp_annotations:
+              summary: "embed-worker-v7 atrasado 11m 20s en listing-events"  # 34,000 ÷ 50 = 680 s
+              description: "Listings nuevos y vendidos no llegan a ese índice. ¿Pods en CrashLoopBackOff (ModelVersionMismatch: encoder e índice con modelos distintos)? ¿GPU saturada (embed_worker_embed_batch_seconds)? ¿DLQ creciendo (embed_worker_dead_letter_total)? Mientras tanto los vendidos tampoco se marcan: mira SoldItemsServed. ¿Es el catch-up planeado de green? Silencia solo ese grupo. ¿Es el grupo de una versión retirada? Borra el grupo (kafka-consumer-groups --delete)."
+              runbook_url: "https://runbooks.example.com/c07/embed-worker-backlog"
+
+  # ---------------------------------------------------------------- EmbedWorkerBacklog después de un swap
+  # El índice que sirve ya es el de v8 (otro consumer group). Su worker se cae en el minuto 10 y el de v7
+  # (blue, guardado para rollback) sigue sano: la alerta tiene que ver al grupo NUEVO, y solo a él.
+  # 50/s; lag v8 = 500 + 3,000/min desde el 10 → > 9,000 desde el minuto 13 (9,500) → firing en el 23.
+  - interval: 1m
+    input_series:
+      - series: 'kafka_topic_partition_current_offset{topic="listing-events",partition="0"}'
+        values: '0+3000x40'
+      - series: 'kafka_consumergroup_lag{consumergroup="embed-worker-v7",topic="listing-events",partition="0"}'
+        values: '500x40'
+      - series: 'kafka_consumergroup_lag{consumergroup="embed-worker-v8",topic="listing-events",partition="0"}'
+        values: '500x10 3500+3000x30'
+    promql_expr_test:
+      - expr: ALERTS{alertname="EmbedWorkerBacklog", alertstate="firing"}
+        eval_time: 22m
+        exp_samples: []
+      - expr: ALERTS{alertname="EmbedWorkerBacklog", alertstate="firing"}
+        eval_time: 24m
+        exp_samples:
+          - labels: 'ALERTS{alertname="EmbedWorkerBacklog", alertstate="firing", severity="page", consumergroup="embed-worker-v8"}'
+            value: 1
+
+  # ---------------------------------------------------------------- IndexFreshnessLag (SLO p95 ≤ 300 s)
+  # 100 upserts/min, todos ≤ 120 s hasta el minuto 30; después el 10 % tarda entre 300 y 600 s.
+  # rate[15m] = 14 intervalos: p95 > 300 cuando más del 5 % es lento → 8 intervalos lentos → minuto 38.
+  # Firing en el 53. Los tombstones lentos (op="tombstone") no son de esta alerta.
+  - interval: 1m
+    input_series:
+      - series: 'embed_worker_index_freshness_seconds_bucket{op="upsert",le="120.0"}'
+        values: '0+100x30 3090+90x60'
+      - series: 'embed_worker_index_freshness_seconds_bucket{op="upsert",le="300.0"}'
+        values: '0+100x30 3090+90x60'
+      - series: 'embed_worker_index_freshness_seconds_bucket{op="upsert",le="600.0"}'
+        values: '0+100x90'
+      - series: 'embed_worker_index_freshness_seconds_bucket{op="upsert",le="+Inf"}'
+        values: '0+100x90'
+    promql_expr_test:
+      - expr: search:index_freshness_p95:rate15m{op="upsert"}
+        eval_time: 60m
+        exp_samples:
+          - labels: 'search:index_freshness_p95:rate15m{op="upsert"}'
+            value: 449.99999999999994  # 300 + 300 × (1,330 − 1,260) / 140 = 450 (error de punto flotante)
+    alert_rule_test:
+      - eval_time: 52m
+        alertname: IndexFreshnessLag
+        exp_alerts: []
+      - eval_time: 54m
+        alertname: IndexFreshnessLag
+        exp_alerts:
+          - exp_labels: {severity: page, op: upsert}
+            exp_annotations:
+              summary: "Listings nuevos tardan 450 s (p95) en ser buscables (SLO 300 s)"
+              description: "El worker avanza pero tarde: GPU lenta (embed_worker_embed_batch_seconds), upserts lentos en los shards, o un backfill (re-embedding) compitiendo por la GPU. Un re-embedding del catálogo va en OTRO pool de GPU y escribe en el índice nuevo (blue/green), nunca en el que sirve."
+              runbook_url: "https://runbooks.example.com/c07/index-freshness"
+
+  # ---------------------------------------------------------------- SoldItemsServed: chequeo de tombstones
+  # 1,000 chequeos/min. Fallan 10/min (1 %: no es > 1 %) y desde el minuto 10, 20/min.
+  # t = 11: 50 fallas de 4,010 = 1.25 % → activa → firing en el 21.
+  - interval: 1m
+    input_series:
+      - series: 'search_tombstone_checks_total{outcome="ok"}'
+        values: '0+990x40'
+      - series: 'search_tombstone_checks_total{outcome="failed"}'
+        values: '0+10x10 120+20x30'
+    promql_expr_test:
+      - expr: ALERTS{alertname="SoldItemsServed", alertstate="firing"}
+        eval_time: 20m
+        exp_samples: []
+      - expr: ALERTS{alertname="SoldItemsServed", alertstate="firing"}
+        eval_time: 22m
+        exp_samples:
+          - labels: 'ALERTS{alertname="SoldItemsServed", alertstate="firing", severity="page", signal="tombstone_check_failures"}'
+            value: 1
+
+  # ---------------------------------------------------------------- SoldItemsServed: tombstones tarde
+  # Tombstones: todos ≤ 30 s; desde el minuto 30 el 10 % tarda entre 60 y 120 s → p95 = 90 s > 60.
+  # Misma cuenta que IndexFreshnessLag: activa en el 38, firing en el 48 (for: 10m).
+  - interval: 1m
+    input_series:
+      - series: 'embed_worker_index_freshness_seconds_bucket{op="tombstone",le="30.0"}'
+        values: '0+100x30 3090+90x40'
+      - series: 'embed_worker_index_freshness_seconds_bucket{op="tombstone",le="60.0"}'
+        values: '0+100x30 3090+90x40'
+      - series: 'embed_worker_index_freshness_seconds_bucket{op="tombstone",le="120.0"}'
+        values: '0+100x70'
+      - series: 'embed_worker_index_freshness_seconds_bucket{op="tombstone",le="+Inf"}'
+        values: '0+100x70'
+    promql_expr_test:
+      - expr: ALERTS{alertname="SoldItemsServed", alertstate="firing"}
+        eval_time: 47m
+        exp_samples: []
+      - expr: ALERTS{alertname="SoldItemsServed", alertstate="firing"}
+        eval_time: 49m
+        exp_samples:
+          - labels: 'ALERTS{alertname="SoldItemsServed", alertstate="firing", severity="page", signal="tombstone_lag", op="tombstone"}'
+            value: 1
+      # La de frescura de nuevos NO dispara: esto es un problema de vendidos, no de nuevos
+      - expr: ALERTS{alertname="IndexFreshnessLag"}
+        eval_time: 69m
+        exp_samples: []
+
+  # ---------------------------------------------------------------- SoldItemsServed: auditoría
+  # La auditoría revisa 10,000 resultados/min. Vendidos servidos: 0.05 % hasta el minuto 60, 0.2 % después.
+  # rate[1h] = 59 intervalos: > 0.1 % cuando 20·s + 5·(59 − s) > 590 → s > 19.7 → s = 20 → minuto 80.
+  # Firing en el 90.
+  - interval: 1m
+    input_series:
+      - series: 'sold_audit_results_checked_total'
+        values: '0+10000x150'
+      - series: 'sold_audit_sold_served_total'
+        values: '0+5x60 320+20x90'
+    promql_expr_test:
+      - expr: ALERTS{alertname="SoldItemsServed", alertstate="firing"}
+        eval_time: 89m
+        exp_samples: []
+      - expr: ALERTS{alertname="SoldItemsServed", alertstate="firing"}
+        eval_time: 91m
+        exp_samples:
+          - labels: 'ALERTS{alertname="SoldItemsServed", alertstate="firing", severity="page", signal="audit"}'
+            value: 1
+
+  # ---------------------------------------------------------------- ShardMemoryHigh
+  # Límite 25 GB. ann-shard-0-a crece 0.1 GB/min desde 20 GB hasta 22 GB (88 %) y ahí se queda:
+  # > 85 % (21.25 GB) desde el minuto 13 (21.3 GB) → firing en el 43. ann-shard-1-a al 50 % no dispara.
+  - interval: 1m
+    input_series:
+      - series: 'container_memory_working_set_bytes{namespace="search",pod="ann-shard-0-a",container="ann-shard"}'
+        values: '20000000000+100000000x20 22000000000x40'
+      - series: 'kube_pod_container_resource_limits{namespace="search",pod="ann-shard-0-a",container="ann-shard",resource="memory",unit="byte"}'
+        values: '25000000000x60'
+      - series: 'container_memory_working_set_bytes{namespace="search",pod="ann-shard-1-a",container="ann-shard"}'
+        values: '12500000000x60'
+      - series: 'kube_pod_container_resource_limits{namespace="search",pod="ann-shard-1-a",container="ann-shard",resource="memory",unit="byte"}'
+        values: '25000000000x60'
+    alert_rule_test:
+      - eval_time: 42m
+        alertname: ShardMemoryHigh
+        exp_alerts: []
+      - eval_time: 44m
+        alertname: ShardMemoryHigh
+        exp_alerts:
+          - exp_labels: {severity: ticket, namespace: search, pod: ann-shard-0-a}
+            exp_annotations:
+              summary: "ann-shard-0-a usa 88% de su límite de memoria"  # 22 GB ÷ 25 GB
+              description: "Causas típicas: el catálogo creció; los borrados marcados se acumulan desde el último rebuild del shard (el espacio solo se recupera al reconstruir); o un índice nuevo (blue/green) se cargó en los mismos pods. Opciones: rebuild del shard, más shards (re-particionar), o instancias con más RAM."
+              runbook_url: "https://runbooks.example.com/c07/shard-memory"
+
+  # ---------------------------------------------------------------- ANNRecallDrop: recall bajo
+  # El canary escribe cada minuto su timestamp (= time(), edad 0). shard-2 baja de 0.97 a 0.93 en el
+  # minuto 120 → firing en el 180 (for: 1h). shard-0 se queda en 0.97.
+  - interval: 1m
+    input_series:
+      - series: 'ann_canary_recall_at_100{shard="shard-2"}'
+        values: '0.97x119 0.93x100'
+      - series: 'ann_canary_recall_at_100{shard="shard-0"}'
+        values: '0.97x220'
+      - series: 'ann_canary_last_run_timestamp_seconds{shard="shard-2"}'
+        values: '0+60x220'
+      - series: 'ann_canary_last_run_timestamp_seconds{shard="shard-0"}'
+        values: '0+60x220'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ANNRecallDrop", alertstate="firing"}
+        eval_time: 179m
+        exp_samples: []
+      - expr: ALERTS{alertname="ANNRecallDrop", alertstate="firing"}
+        eval_time: 181m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ANNRecallDrop", alertstate="firing", severity="ticket", shard="shard-2"}'
+            value: 1
+
+  # ---------------------------------------------------------------- ANNRecallDrop: canary detenido
+  # El recall "se ve bien" (0.97) pero el canary dejó de correr en el minuto 10 (timestamp congelado en
+  # 600 s). Edad > 3 h (10,800 s) cuando 60·t − 600 > 10,800 → t > 190 → activa en el 191, firing en el 251.
+  - interval: 1m
+    input_series:
+      - series: 'ann_canary_recall_at_100{shard="shard-1"}'
+        values: '0.97x300'
+      - series: 'ann_canary_last_run_timestamp_seconds{shard="shard-1"}'
+        values: '0+60x10 600x290'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ANNRecallDrop", alertstate="firing"}
+        eval_time: 250m
+        exp_samples: []
+      - expr: ALERTS{alertname="ANNRecallDrop", alertstate="firing"}
+        eval_time: 252m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ANNRecallDrop", alertstate="firing", severity="ticket", shard="shard-1", signal="canary_stale"}'
+            value: 1
+
+  # ---------------------------------------------------------------- ANNRecallDrop: canary inexistente
+  # Ninguna serie del canary (el job nunca se desplegó, o se borró): absent() → firing a la hora.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="search-api"}'
+        values: '1x90'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ANNRecallDrop", alertstate="firing"}
+        eval_time: 61m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ANNRecallDrop", alertstate="firing", severity="ticket", signal="canary_missing"}'
+            value: 1
+
+  # ---------------------------------------------------------------- ZeroResultRateHigh
+  # Muestras cada 5 min durante 7.6 días (una semana = 2,016 muestras). 100 búsquedas/s (30,000 por
+  # muestra), 1 % sin resultados; desde la muestra 2,100 (minuto 10,500) sube a 3 % (p. ej. ANN caído).
+  # rate[15m] = 2 intervalos. Minuto 10,505: (300 + 900) ÷ 60,000 = 2 %, no es > 2 %. Minuto 10,510:
+  # 1,800 ÷ 60,000 = 3 % > 2 % y > 2 × 1 % de la semana pasada → activa → firing en el 10,525 (for: 15m).
+  # Con 3 % el test distingue los dos umbrales: con un piso de 4 % o con "> 4×" no dispararía.
+  - interval: 5m
+    input_series:
+      - series: 'search_requests_total{query_type="text",status="200"}'
+        values: '0+30000x2200'
+      - series: 'search_zero_results_total{query_type="text"}'
+        values: '0+300x2100 630900+900x100'
+    promql_expr_test:
+      - expr: search:zero_result_ratio:rate15m_1w_ago
+        eval_time: 10505m
+        exp_samples:
+          - labels: 'search:zero_result_ratio:rate15m_1w_ago{query_type="text"}'
+            value: 0.01
+      - expr: ALERTS{alertname="ZeroResultRateHigh", alertstate="firing"}
+        eval_time: 10520m
+        exp_samples: []
+      - expr: ALERTS{alertname="ZeroResultRateHigh", alertstate="firing"}
+        eval_time: 10530m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ZeroResultRateHigh", alertstate="firing", severity="page", query_type="text"}'
+            value: 1
+
+  # 3 % constante (más que el piso de 2 %) pero igual que la semana pasada: no es un cambio, no dispara.
+  - interval: 5m
+    input_series:
+      - series: 'search_requests_total{query_type="photo",status="200"}'
+        values: '0+30000x2200'
+      - series: 'search_zero_results_total{query_type="photo"}'
+        values: '0+900x2200'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ZeroResultRateHigh"}
+        eval_time: 10800m
+        exp_samples: []
+
+  # ---------------------------------------------------------------- SearchCTRDrop
+  # 100 búsquedas/s, CTR 30 % durante una semana; en la muestra 2,100 cae a 20 %.
+  # rate[1h] = 11 intervalos de 5 min: CTR < 0.8 × 30 % = 24 % cuando 6,000·s + 9,000·(11 − s) < 79,200
+  # → s > 6.6 → s = 7 → muestra 2,107 (minuto 10,535) → firing en el 10,595 (for: 1h).
+  - interval: 5m
+    input_series:
+      - series: 'clickstream_searches_total'
+        values: '0+30000x2250'
+      - series: 'clickstream_searches_with_click_total'
+        values: '0+9000x2100 18906000+6000x150'
+    promql_expr_test:
+      - expr: ALERTS{alertname="SearchCTRDrop", alertstate="firing"}
+        eval_time: 10590m
+        exp_samples: []
+      - expr: ALERTS{alertname="SearchCTRDrop", alertstate="firing"}
+        eval_time: 10600m
+        exp_samples:
+          - labels: 'ALERTS{alertname="SearchCTRDrop", alertstate="firing", severity="ticket"}'
+            value: 1

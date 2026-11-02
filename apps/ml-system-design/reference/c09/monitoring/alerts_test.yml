@@ -1,0 +1,340 @@
+# Tests unitarios de alerts.yml con promtool: series sintéticas → ¿dispara o no, y cuándo?
+#   promtool test rules alerts_test.yml
+# Se consulta ALERTS{alertstate="firing"} (no hay que copiar las anotaciones); FraudScoreLatencyHigh además
+# prueba el texto renderizado. Notación de promtool: '0+100x20' = empieza en 0 y suma 100 por intervalo,
+# 20 veces (21 valores). Segmentos separados por espacio continúan la serie: '0+100x20 2097+97x39'.
+# Los momentos de cada test dejan margen: rate() extrapola en los bordes de la ventana.
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------- FraudScoreLatencyHigh
+  # 100 req/min. Hasta el minuto 20 todo ≤ 60 ms; después el 3 % tarda entre 80 y 100 ms → p99 > 0.08
+  # desde el ≈ 22 → firing en el ≈ 27. p99 = 0.08 + 0.02 × (99 − 97) / 3 ≈ 0.0933 (interpolación lineal
+  # dentro del bucket (0.08, 0.1]).
+  - interval: 1m
+    input_series:
+      - series: 'fraud_score_duration_seconds_bucket{le="0.06"}'
+        values: '0+100x20 2097+97x39'
+      - series: 'fraud_score_duration_seconds_bucket{le="0.08"}'
+        values: '0+100x20 2097+97x39'
+      - series: 'fraud_score_duration_seconds_bucket{le="0.1"}'
+        values: '0+100x60'
+      - series: 'fraud_score_duration_seconds_bucket{le="+Inf"}'
+        values: '0+100x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: FraudScoreLatencyHigh
+        exp_alerts: []
+      - eval_time: 32m
+        alertname: FraudScoreLatencyHigh
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "fraud-scoring: p99 93.33ms (> 80 ms internos; SLO 100 ms)"
+              description: "¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(fraud_stage_duration_seconds_bucket[5m]))). Si ninguna: CPU throttling (container_cpu_cfs_throttled_periods_total) o event loop bloqueado; escala el Deployment."
+              runbook_url: "https://runbooks.example.com/c09/fraud-latency"
+
+  # 0.5 % entre 80 y 100 ms: el p99 sigue dentro del bucket de 80 ms.
+  - interval: 1m
+    input_series:
+      - series: 'fraud_score_duration_seconds_bucket{le="0.08"}'
+        values: '0+199x60'
+      - series: 'fraud_score_duration_seconds_bucket{le="0.1"}'
+        values: '0+200x60'
+      - series: 'fraud_score_duration_seconds_bucket{le="+Inf"}'
+        values: '0+200x60'
+    promql_expr_test:
+      - expr: ALERTS{alertname="FraudScoreLatencyHigh"}
+        eval_time: 60m
+        exp_samples: []
+
+  # ---------------------------------------------------------------- FraudFallbackActive
+  # 1,000 decisiones/min. Fallback por Redis: 0 hasta el minuto 10, 30/min (3 %) después → > 1 % desde el
+  # ≈ 11 → firing en el ≈ 16, con cause="service_fallback".
+  - interval: 1m
+    input_series:
+      - series: 'fraud_decisions_total{decision="approve",segment="retail_low"}'
+        values: '0+1000x40'
+      - series: 'fraud_fallback_total{reason="counters_timeout"}'
+        values: '0+0x10 30+30x29'
+    promql_expr_test:
+      - expr: ALERTS{alertname="FraudFallbackActive", alertstate="firing"}
+        eval_time: 12m
+        exp_samples: []
+      - expr: ALERTS{alertname="FraudFallbackActive", alertstate="firing"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'ALERTS{alertname="FraudFallbackActive", alertstate="firing", severity="page", cause="service_fallback"}'
+            value: 1
+      - expr: fraud:fallback_ratio:rate5m
+        eval_time: 30m
+        exp_samples:
+          - labels: 'fraud:fallback_ratio:rate5m'
+            value: 0.03
+
+  # El servicio no ve nada raro (0 fallbacks), pero el orquestador no recibe respuesta en el 1 % de los
+  # pagos (red, balanceador, pods saturados) → cause="caller_timeouts". Los primeros 10 min, 0.1 %: nada.
+  - interval: 1m
+    input_series:
+      - series: 'fraud_decisions_total{decision="approve",segment="retail_low"}'
+        values: '0+1000x40'
+      - series: 'fraud_fallback_total{reason="counters_timeout"}'
+        values: '0+0x40'
+      - series: 'payments_fraud_check_requests_total'
+        values: '0+1000x40'
+      - series: 'payments_fraud_check_timeouts_total'
+        values: '0+1x10 20+10x29'
+    promql_expr_test:
+      - expr: ALERTS{alertname="FraudFallbackActive", alertstate="firing"}
+        eval_time: 10m
+        exp_samples: []
+      - expr: ALERTS{alertname="FraudFallbackActive", alertstate="firing"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'ALERTS{alertname="FraudFallbackActive", alertstate="firing", severity="page", cause="caller_timeouts"}'
+            value: 1
+
+  # Sin ninguna serie de decisiones (servicio caído o sin scrape) → cause="no_metrics".
+  - interval: 1m
+    input_series:
+      - series: 'payments_fraud_check_requests_total'
+        values: '0+1000x20'
+    promql_expr_test:
+      - expr: ALERTS{alertname="FraudFallbackActive", alertstate="firing"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'ALERTS{alertname="FraudFallbackActive", alertstate="firing", severity="page", cause="no_metrics"}'
+            value: 1
+
+  # 0.5 % de fallback sostenido (un pod con Redis lento): no alcanza.
+  - interval: 1m
+    input_series:
+      - series: 'fraud_decisions_total{decision="approve",segment="retail_low"}'
+        values: '0+1000x60'
+      - series: 'fraud_fallback_total{reason="features_timeout"}'
+        values: '0+5x60'
+    promql_expr_test:
+      - expr: ALERTS{alertname="FraudFallbackActive"}
+        eval_time: 60m
+        exp_samples: []
+
+  # ---------------------------------------------------------------- FeatureFreshnessLag
+  # El job card-aggregates escribe su watermark (event time, en s) al día hasta el minuto 10 y se traba;
+  # merchant-aggregates sigue al día. Atraso de card-aggregates = 60·t − 600 > 300 desde el minuto 16 →
+  # firing en el ≈ 21, solo para ese job. Además el grupo stream pierde 8 % de lookups desde el minuto 10
+  # (cause="defaults"), mientras batch pierde 50 % y NO alerta (batch puede faltar: policy.yaml).
+  - interval: 1m
+    input_series:
+      - series: 'fraud_feature_watermark_timestamp_seconds{job="card-aggregates"}'
+        values: '0+60x10 600x30'
+      - series: 'fraud_feature_watermark_timestamp_seconds{job="merchant-aggregates"}'
+        values: '0+60x40'
+      - series: 'fraud_feature_lookups_total{group="stream"}'
+        values: '0+1000x40'
+      - series: 'fraud_feature_defaults_total{group="stream"}'
+        values: '0+0x10 80+80x29'
+      - series: 'fraud_feature_lookups_total{group="batch"}'
+        values: '0+1000x40'
+      - series: 'fraud_feature_defaults_total{group="batch"}'
+        values: '0+500x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="FeatureFreshnessLag", alertstate="firing"}
+        eval_time: 14m
+        exp_samples: []
+      - expr: ALERTS{alertname="FeatureFreshnessLag", alertstate="firing"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'ALERTS{alertname="FeatureFreshnessLag", alertstate="firing", severity="page", cause="watermark", job="card-aggregates"}'
+            value: 1
+          - labels: 'ALERTS{alertname="FeatureFreshnessLag", alertstate="firing", severity="page", cause="defaults", group="stream"}'
+            value: 1
+      - expr: fraud:feature_watermark_lag_seconds
+        eval_time: 25m
+        exp_samples:
+          - labels: 'fraud:feature_watermark_lag_seconds{job="card-aggregates"}'
+            value: 900
+          - labels: 'fraud:feature_watermark_lag_seconds{job="merchant-aggregates"}'
+            value: 0
+
+  # El job card-aggregates MUERE en el minuto 10: su serie deja de existir (no se traba: desaparece).
+  # merchant-aggregates sigue al día y el grupo stream no pierde lookups (el online store sirve los valores
+  # congelados). Sin la rama watermark_missing, nada dispara: el lag de card-aggregates ya no existe.
+  # Sin muestras en (t − 5m, t] desde el minuto 15 → firing en el 20, con el job en el label.
+  - interval: 1m
+    input_series:
+      - series: 'fraud_feature_watermark_timestamp_seconds{job="card-aggregates"}'
+        values: '0+60x10'
+      - series: 'fraud_feature_watermark_timestamp_seconds{job="merchant-aggregates"}'
+        values: '0+60x40'
+      - series: 'fraud_feature_lookups_total{group="stream"}'
+        values: '0+1000x40'
+      - series: 'fraud_feature_defaults_total{group="stream"}'
+        values: '0x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="FeatureFreshnessLag", alertstate="firing"}
+        eval_time: 14m
+        exp_samples: []
+      - expr: ALERTS{alertname="FeatureFreshnessLag", alertstate="firing"}
+        eval_time: 22m
+        exp_samples:
+          - labels: 'ALERTS{alertname="FeatureFreshnessLag", alertstate="firing", severity="page", cause="watermark_missing", job="card-aggregates"}'
+            value: 1
+      - expr: fraud:feature_watermark_lag_seconds
+        eval_time: 22m
+        exp_samples:
+          - labels: 'fraud:feature_watermark_lag_seconds{job="merchant-aggregates"}'
+            value: 0
+
+  # ---------------------------------------------------------------- RulesEngineErrors
+  # 1,000 evaluaciones/min; desde el minuto 10, la regla de ticket máximo falla en 5/min (0.5 %) → page.
+  - interval: 1m
+    input_series:
+      - series: 'fraud_rule_evaluations_total'
+        values: '0+1000x30'
+      - series: 'fraud_rule_errors_total{rule="merchant_max_ticket"}'
+        values: '0+0x10 5+5x19'
+    promql_expr_test:
+      - expr: ALERTS{alertname="RulesEngineErrors", alertstate="firing"}
+        eval_time: 12m
+        exp_samples: []
+      - expr: ALERTS{alertname="RulesEngineErrors", alertstate="firing"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'ALERTS{alertname="RulesEngineErrors", alertstate="firing", severity="page"}'
+            value: 1
+
+  # Lista negra generada en t = 0 y nunca actualizada: a las 30 h pasa el umbral, a las 30 h 15 min dispara
+  # el ticket (no el page: el motor no tiene errores). Cada pod exporta el gauge en CADA scrape (1 min).
+  - interval: 1m
+    input_series:
+      - series: 'fraud_blocklist_generated_timestamp_seconds{pod="fraud-score-a"}'
+        values: '0x2000'
+    promql_expr_test:
+      - expr: ALERTS{alertname="RulesEngineErrors", alertstate="firing"}
+        eval_time: 29h
+        exp_samples: []
+      - expr: ALERTS{alertname="RulesEngineErrors", alertstate="firing"}
+        eval_time: 31h
+        exp_samples:
+          - labels: 'ALERTS{alertname="RulesEngineErrors", alertstate="firing", severity="ticket", cause="blocklist_stale"}'
+            value: 1
+
+  # ---------------------------------------------------------------- DeclineRateSpike + StepUpRateSpike
+  # Ocho días de decisiones cada 5 min (2,249 intervalos). Cambio en el intervalo 2,200 (minuto 11,000,
+  # ≈ 7 d 15 h): todo lo de antes es "la semana pasada" para lo de después.
+  #   retail_low  (1,200 / 5 min = 4/s): decline 5 → 15 (0.42 % → 1.25 %), step-up 12 → 30 (1 % → 2.5 %)
+  #               → DeclineRateSpike cause=vs_last_week (> 2× y > 0.5 %, bajo el tope) y StepUpRateSpike (2.5×)
+  #   digital_high (1,000 / 5 min ≈ 3.3/s): decline 12 → 20 (1.2 % → 2 %): no es 2×, pero pasa el tope de
+  #               1.5 % → DeclineRateSpike cause=over_cap. Step-up estable: no dispara
+  #   travel_high (150 / 5 min = 0.5/s): decline 1 → 4 (0.67 % → 2.67 %): 4× y sobre el tope, pero con
+  #               menos de 1 decisión/s no alerta (de madrugada cualquier segmento chico "se duplica")
+  - interval: 5m
+    input_series:
+      - series: 'fraud_decisions_total{decision="approve",segment="retail_low"}'
+        values: '0+1183x2200 2603755+1155x49'
+      - series: 'fraud_decisions_total{decision="decline",segment="retail_low"}'
+        values: '0+5x2200 11015+15x49'
+      - series: 'fraud_decisions_total{decision="step_up",segment="retail_low"}'
+        values: '0+12x2200 26430+30x49'
+      - series: 'fraud_decisions_total{decision="approve",segment="digital_high"}'
+        values: '0+978x2200 2152570+970x49'
+      - series: 'fraud_decisions_total{decision="decline",segment="digital_high"}'
+        values: '0+12x2200 26420+20x49'
+      - series: 'fraud_decisions_total{decision="step_up",segment="digital_high"}'
+        values: '0+10x2249'
+      - series: 'fraud_decisions_total{decision="approve",segment="travel_high"}'
+        values: '0+149x2200 327946+146x49'
+      - series: 'fraud_decisions_total{decision="decline",segment="travel_high"}'
+        values: '0+1x2200 2204+4x49'
+    promql_expr_test:
+      - expr: ALERTS{alertname=~"DeclineRateSpike|StepUpRateSpike", alertstate="firing"}
+        eval_time: 10900m
+        exp_samples: []
+      # La ventana de 30 min pasa el umbral ≈ 10–15 min después del cambio; con `for: 15m`, a los 10 min
+      # no hay nada y a los 45 ya disparó. El step-up (2× desde ≈ 20 min, for: 30m) se mira a los 200.
+      - expr: ALERTS{alertname="DeclineRateSpike", alertstate="firing"}
+        eval_time: 11010m
+        exp_samples: []
+      - expr: ALERTS{alertname="DeclineRateSpike", alertstate="firing"}
+        eval_time: 11045m
+        exp_samples:
+          - labels: 'ALERTS{alertname="DeclineRateSpike", alertstate="firing", severity="page", segment="retail_low", cause="vs_last_week"}'
+            value: 1
+          - labels: 'ALERTS{alertname="DeclineRateSpike", alertstate="firing", severity="page", segment="digital_high", cause="over_cap"}'
+            value: 1
+      - expr: ALERTS{alertname="StepUpRateSpike", alertstate="firing"}
+        eval_time: 11200m
+        exp_samples:
+          - labels: 'ALERTS{alertname="StepUpRateSpike", alertstate="firing", severity="ticket", segment="retail_low"}'
+            value: 1
+      # 1.25 % en puntos básicos (round: la división deja 0.012499999…)
+      - expr: round(fraud:decline_ratio:rate30m{segment="retail_low"} * 10000)
+        eval_time: 11200m
+        exp_samples:
+          - labels: '{segment="retail_low"}'
+            value: 125
+
+  # ---------------------------------------------------------------- ScoreDistributionShift
+  # 1,200 scores / 10 min por segmento. retail_low: media 0.01 → 0.02 (2×) → dispara tras 1 h.
+  # digital_high: 0.05 → 0.06 (1.2×) → no.
+  - interval: 10m
+    input_series:
+      - series: 'fraud_model_score_sum{segment="retail_low"}'
+        values: '0+12x1100 13224+24x49'
+      - series: 'fraud_model_score_count{segment="retail_low"}'
+        values: '0+1200x1149'
+      - series: 'fraud_model_score_sum{segment="digital_high"}'
+        values: '0+60x1100 66072+72x49'
+      - series: 'fraud_model_score_count{segment="digital_high"}'
+        values: '0+1200x1149'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ScoreDistributionShift", alertstate="firing"}
+        eval_time: 10900m
+        exp_samples: []
+      - expr: ALERTS{alertname="ScoreDistributionShift", alertstate="firing"}
+        eval_time: 11400m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ScoreDistributionShift", alertstate="firing", severity="ticket", segment="retail_low"}'
+            value: 1
+      - expr: fraud:model_score_mean_wow_ratio:rate1h
+        eval_time: 11400m
+        exp_samples:
+          - labels: 'fraud:model_score_mean_wow_ratio:rate1h{segment="retail_low"}'
+            value: 2
+          - labels: 'fraud:model_score_mean_wow_ratio:rate1h{segment="digital_high"}'
+            value: 1.2
+
+  # ---------------------------------------------------------------- ChargebackRateRising
+  # Cohorte de hace 30 días: 7 bps (lo esperado ≈ 7.2) durante un día, después 10 bps → dispara 12 h
+  # después. Otra cohorte (60 días) en 10 bps no cuenta: la regla mira days_since_tx="30".
+  # Trampa: el job es diario, pero el valor se EXPONE en cada scrape (un exporter que sirve el último
+  # resultado). Si se empujara una muestra por día, a los 5 min (lookback de Prometheus) la serie
+  # desaparece de las consultas instantáneas y el `for: 12h` nunca se cumple. Este test, con una muestra
+  # por hora, fallaba exactamente así.
+  - interval: 1m
+    input_series:
+      - series: 'fraud_cohort_chargeback_bps{days_since_tx="30"}'
+        values: '7x1440 10x1800'
+      - series: 'fraud_cohort_chargeback_bps{days_since_tx="60"}'
+        values: '10x3240'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ChargebackRateRising", alertstate="firing"}
+        eval_time: 30h
+        exp_samples: []
+      - expr: ALERTS{alertname="ChargebackRateRising", alertstate="firing"}
+        eval_time: 40h
+        exp_samples:
+          - labels: 'ALERTS{alertname="ChargebackRateRising", alertstate="firing", severity="ticket", days_since_tx="30"}'
+            value: 1
+
+  # 8.5 bps (≈ 1.2× lo esperado): no dispara.
+  - interval: 1m
+    input_series:
+      - series: 'fraud_cohort_chargeback_bps{days_since_tx="30"}'
+        values: '8.5x2000'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ChargebackRateRising"}
+        eval_time: 30h
+        exp_samples: []

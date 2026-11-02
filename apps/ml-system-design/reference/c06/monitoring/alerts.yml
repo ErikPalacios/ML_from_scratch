@@ -1,0 +1,241 @@
+# Alertas del caso c06 (moderación de contenido), Prometheus: 8 alertas en 3 grupos + recording rules.
+#   Sistema: ModGatewayLatencyHigh, ModFailOpenRateHigh, DeepScorerBacklog, ReviewQueueAging, HashListStale
+#   Modelo:  PolicyScoreShift
+#   Calidad: AppealOverturnRateHigh, ProactiveRateDrop
+# Severidades: page = alguien lo mira YA (24/7: la moderación no tiene horario); ticket = se trabaja en
+# horario laboral, pero con dueño (Trust & Safety + ML). El ruteo vive en Alertmanager, no aquí.
+# De dónde sale cada métrica:
+#   mod_*                                → gateway/main.py (un test verifica que cada mod_* de aquí existe allá)
+#   kafka_consumergroup_lag, kafka_topic_partition_current_offset → kafka_exporter (danielqsj/kafka_exporter)
+#   review_queue_oldest_age_seconds{tier,source} → review-router (gauge calculado con review/priority.py: queue_stats)
+#   appeals_decided_total{policy,outcome}           → appeals-service (outcome = upheld · overturned)
+#   enforcement_actions_total{policy,detection}     → enforcement-service (detection = proactive · user_report)
+#   moderation_unchecked_publish_total{service,reason}, publish_requests_total{service}
+#                                        → post-service y comment-service: lo que publicaron SIN respuesta del
+#                                          gateway (reason = timeout · error · unavailable) y el total publicado
+#   up{job="mod-gateway"}                → Prometheus (supone que el job de scrape del gateway se llama así)
+# Validación: `promtool check rules alerts.yml` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
+
+groups:
+  # ------------------------------------------------------------------ recording rules rápidas
+  - name: c06-recording
+    rules:
+      # p99 server-side del gateway (todas las superficies). El histograma tiene un bucket EXACTO en
+      # 0.15: sin él, histogram_quantile interpolaría entre 0.12 y 0.2 y el p99 "cerca del SLO" sería ruido.
+      - record: mod:gateway_latency_p99:rate5m
+        expr: |
+          histogram_quantile(0.99, sum by (le) (rate(mod_gateway_request_duration_seconds_bucket[5m])))
+      # Fracción de requests que se publican sin la etapa 1, vista desde el gateway: los que decidió con
+      # fail-open (al menos un modelo faltó) MÁS los que terminaron en 500 (post-service publica igual,
+      # sin etapa 1 y sin el chequeo S0 del gateway). Numerador = requests, no etapas: un request con
+      # texto E imagen caídos cuenta 1, no 2. `or vector(0)`: sin 500s, la suma no debe quedar vacía.
+      - record: mod:fail_open_ratio:rate5m
+        expr: |
+          (
+            sum(rate(mod_fail_open_requests_total[5m]))
+              + (sum(rate(mod_gateway_requests_total{status="500"}[5m])) or vector(0))
+          ) / sum(rate(mod_gateway_requests_total[5m]))
+      # Lo mismo visto desde QUIEN LLAMA: si el gateway está caído o no se alcanza, sus métricas
+      # desaparecen y la fracción de arriba queda sin datos (no en 100 %). post-service y
+      # comment-service cuentan lo que publicaron sin respuesta del gateway.
+      - record: mod:unchecked_publish_ratio:rate5m
+        expr: |
+          sum by (service) (rate(moderation_unchecked_publish_total[5m]))
+            / sum by (service) (rate(publish_requests_total[5m]))
+      # Cuántos SEGUNDOS va atrasado deep-scorer: lag en mensajes ÷ ritmo al que se producen.
+      # Mide el atraso aunque deep-scorer no procese nada (consumer caído): un histograma de "tiempo
+      # hasta el score" solo ve los ítems que SÍ terminaron (la trampa del caso c04).
+      - record: mod:deep_scorer_lag_seconds
+        expr: |
+          sum(kafka_consumergroup_lag{consumergroup="deep-scorer", topic="mod-events"})
+            / sum(rate(kafka_topic_partition_current_offset{topic="mod-events"}[5m]))
+      # Por política: fracción de ítems con score de etapa 1 > 0.5 en la última hora.
+      # 1 − (bucket le="0.5") / count. Prometheus 3 normaliza `le` como float: "0.5" queda igual (un bucket
+      # "1" sería "1.0", como en el c04).
+      - record: mod:stage1_high_score_ratio:rate1h
+        expr: |
+          1 - sum by (policy) (rate(mod_stage1_score_bucket{le="0.5"}[1h]))
+                / sum by (policy) (rate(mod_stage1_score_count[1h]))
+
+  # ------------------------------------------------------------------ recording rules lentas
+  # Ventanas de días: evaluarlas cada minuto es caro y no aporta (el número cambia lento). Este grupo
+  # se evalúa cada hora.
+  - name: c06-recording-slow
+    interval: 1h
+    rules:
+      # Tasa de apelaciones que se REVIERTEN, por política: 7 días y 28 días.
+      # TRAMPA: [28d] (y el `offset 7d` de AppealOverturnRateHigh) necesita retención ≥ 35 días de los
+      # counters crudos; la de Prometheus es de 15 días por defecto (--storage.tsdb.retention.time), y con
+      # menos datos increase() calcula en silencio sobre lo que haya: la "línea base de 28 días" sería de
+      # ≈ 15. Sube la retención o calcula estas reglas en un almacenamiento de largo plazo (Thanos, Mimir).
+      - record: mod:appeal_overturn_ratio:rate7d
+        expr: |
+          sum by (policy) (increase(appeals_decided_total{outcome="overturned"}[7d]))
+            / sum by (policy) (increase(appeals_decided_total[7d]))
+      - record: mod:appeal_overturn_ratio:rate28d
+        expr: |
+          sum by (policy) (increase(appeals_decided_total{outcome="overturned"}[28d]))
+            / sum by (policy) (increase(appeals_decided_total[28d]))
+      # Proactive rate: de lo accionado, cuánto encontramos ANTES de que alguien lo reportara.
+      - record: mod:proactive_rate:rate1d
+        expr: |
+          sum by (policy) (increase(enforcement_actions_total{detection="proactive"}[1d]))
+            / sum by (policy) (increase(enforcement_actions_total[1d]))
+      - record: mod:proactive_rate:rate7d
+        expr: |
+          sum by (policy) (increase(enforcement_actions_total{detection="proactive"}[7d]))
+            / sum by (policy) (increase(enforcement_actions_total[7d]))
+
+  # ------------------------------------------------------------------ sistema
+  - name: c06-system
+    rules:
+      # SLO: p99 ≤ 150 ms. El gateway corta los modelos a los 120 ms (fail-open), así que un p99 > 150 ms
+      # casi nunca es "Triton lento": es el propio gateway (CPU saturada, event loop bloqueado, GC,
+      # demasiadas imágenes por post) o la red. Por eso mira mod_stage_duration_seconds por etapa.
+      - alert: ModGatewayLatencyHigh
+        expr: mod:gateway_latency_p99:rate5m > 0.15
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "mod-gateway: p99 {{ $value | humanizeDuration }} (> 150 ms)"
+          description: "Cada post y comentario espera esto antes de publicarse. ¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(mod_stage_duration_seconds_bucket[5m]))). Si ninguna: CPU throttling o event loop bloqueado (kubectl top pods -n c06); escala el Deployment."
+          runbook_url: "https://runbooks.example.com/c06/mod-gateway-latency"
+
+      # Fail-open > 1 % durante 10 min, de cualquiera de los dos lados, o el gateway sin métricas (caído
+      # entero: "un job muerto también es una alerta", M12). Es la alerta del SLO de disponibilidad: lo
+      # que importa es cuántos posts salen sin la etapa 1, no por qué. Cada ítem en fail-open va a la
+      # etapa 2 con prioridad alta: al pico (6,250 ítems/s), 1 % son ≈ 62 ítems/s extra sobre ≈ 190/s,
+      # ≈ 250 de los ≈ 280/s planeados: cabe, apenas. Por encima de ≈ 1.5 % sostenido, o con Triton caído
+      # (≈ 6,250/s), la etapa 2 se atrasa y suena DeepScorerBacklog (estimaciones del caso).
+      - alert: ModFailOpenRateHigh
+        expr: |
+          mod:fail_open_ratio:rate5m > 0.01
+            or
+          mod:unchecked_publish_ratio:rate5m > 0.01
+            or
+          absent_over_time(mod_gateway_requests_total[5m])
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $value | humanizePercentage }} de los ítems se publican con fail-open"
+          description: "Con label service: el gateway no contesta a ese servicio (pods caídos, red, timeout del caller). Sin labels y valor 1: no hay métricas del gateway. Si no: motivo por etapa, sum by (reason) (rate(mod_fail_open_total[5m])). timeout → Triton saturado (cola de dynamic batching, GPUs al máximo): escala stage-1. error → Triton caído o modelo no cargado. budget_exhausted → el gateway llega tarde a la etapa 1 (ver ModGatewayLatencyHigh). Y los 500: mod_engine_errors_total y los logs."
+          runbook_url: "https://runbooks.example.com/c06/fail-open"
+
+      # deep-scorer atrasado más de 4 min durante 10 min. SLO: p95 ≤ 5 min. Avisa con margen.
+      - alert: DeepScorerBacklog
+        expr: mod:deep_scorer_lag_seconds > 240
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "deep-scorer va {{ $value | humanizeDuration }} atrasado en mod-events"
+          description: "¿Consumers vivos y sin rebalanceos en bucle? ¿GPUs L4 al máximo (DCGM)? ¿Subió el fail-open (todo va a la etapa 2)? ¿Un evento viral re-dispara scoring? Si el atraso crece, prioriza el tópico de reportes y S0/S1 antes que el resto."
+          runbook_url: "https://runbooks.example.com/c06/deep-scorer-backlog"
+
+      # Edad del ítem más viejo SIN revisar, por carril. Reportes S1: SLO p90 ≤ 1 h → alerta a los 45 min.
+      # S0 (equipo especializado): 30 min de SLA → alerta a los 22.5 min. Gauge de edad, no histograma de
+      # tiempos de revisión: si nadie revisa, no hay revisiones que medir. El label de la severidad de
+      # la política se llama `tier`, no `severity`: `severity` es el label de la ALERTA (page/ticket) y
+      # lo pisaría.
+      - alert: ReviewQueueAging
+        expr: |
+          max by (tier, source) (review_queue_oldest_age_seconds{tier="S1", source="user_report"}) > 2700
+            or
+          max by (tier, source) (review_queue_oldest_age_seconds{tier="S0"}) > 1350
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Cola de revisión {{ $labels.tier }}/{{ $labels.source }}: el más viejo tiene {{ $value | humanizeDuration }}"
+          description: "¿Turno con menos personas de lo planeado? ¿Pico de reportes (evento en vivo, ataque coordinado)? ¿Llegadas por encima de la capacidad (sube review_queue_depth)? Acciones: mover personas de colas S2/S3, subir temporalmente el umbral de revisión de S3 (policies.yaml, versionado)."
+          runbook_url: "https://runbooks.example.com/c06/review-queue-aging"
+
+      # Watermark de las listas de hashes en el PEOR pod (min by list). own_removed: lo que removimos
+      # debe bloquear la re-subida en minutos → 30 min. Listas de la industria: llegan con otro ritmo
+      # (supuesto: diario; ajústalo al real) → 26 h. Sin heartbeats del productor, "no hay novedades" y
+      # "el stream está roto" se verían igual: por eso el watermark avanza también con heartbeats.
+      # Además, POR POD: un pod vivo (up == 1) sin la serie de una lista S0 no la cargó (la garantía S0
+      # depende de ella). absent() no sirve para esto: solo dispara si NINGÚN pod exporta la serie.
+      # Normalmente ese pod tampoco está ready (/readyz exige las listas S0), pero queda atascado.
+      - alert: HashListStale
+        expr: |
+          (time() - min by (list) (mod_hash_list_watermark_timestamp_seconds{list="own_removed"}) > 1800)
+            or
+          (time() - min by (list) (mod_hash_list_watermark_timestamp_seconds{list=~"industry_.*"}) > 93600)
+            or
+          label_replace(
+            (up{job="mod-gateway"} == 1)
+              unless on (instance) mod_hash_list_watermark_timestamp_seconds{list="industry_csam"},
+            "list", "industry_csam", "", "")
+            or
+          label_replace(
+            (up{job="mod-gateway"} == 1)
+              unless on (instance) mod_hash_list_watermark_timestamp_seconds{list="industry_terror"},
+            "list", "industry_terror", "", "")
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Lista de hashes {{ $labels.list }} desactualizada"
+          description: "Valor: segundos desde el último watermark aplicado (o 1 si un pod vivo no tiene la serie de una lista S0: mira su label instance). ¿El stream de novedades de hashes llega a los pods (logs hash_update_error)? ¿El productor de la lista sigue mandando heartbeats? ¿Cambió el acceso a la lista de la industria? Mientras tanto, la re-subida de contenido removido no se bloquea."
+          runbook_url: "https://runbooks.example.com/c06/hash-list-stale"
+
+  # ------------------------------------------------------------------ modelo
+  - name: c06-model
+    rules:
+      # La fracción de ítems con score > 0.5 de una política se duplicó (o cayó a la mitad) contra la
+      # MISMA hora de la semana pasada (offset 1w: absorbe el ciclo diario y semanal), con ≥ 1 ítem/s.
+      # No dice qué pasó, dice "mira": un ataque coordinado, un evento real (noticias), una campaña de
+      # evasión (cae: los atacantes aprendieron) o un modelo/preprocesamiento roto.
+      - alert: PolicyScoreShift
+        expr: |
+          (
+            mod:stage1_high_score_ratio:rate1h / (mod:stage1_high_score_ratio:rate1h offset 1w) > 2
+              or
+            mod:stage1_high_score_ratio:rate1h / (mod:stage1_high_score_ratio:rate1h offset 1w) < 0.5
+          )
+          and on (policy) sum by (policy) (rate(mod_stage1_score_count[1h])) > 1
+        for: 1h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "{{ $labels.policy }}: la fracción con score > 0.5 cambió {{ $value | printf \"%.1f\" }}× contra la semana pasada"
+          description: "Compara con la muestra aleatoria etiquetada (¿subió la prevalencia de verdad?) y con las decisiones de revisión de hoy. ¿Hubo deploy de modelo o de config? (model_versions y config_version en mod-events). Si es evasión: ejemplos nuevos a etiquetado, hashes del contenido removido y reentrenamiento."
+          runbook_url: "https://runbooks.example.com/c06/policy-score-shift"
+
+  # ------------------------------------------------------------------ calidad
+  - name: c06-quality
+    interval: 1h
+    rules:
+      # Apelaciones revertidas 1.5× por encima de su nivel de 28 días (medido hasta hace una semana),
+      # con ≥ 100 apelaciones decididas en 7 días. Señal de precision que cae (o de una definición de
+      # política que cambió sin recalibrar). Sesgada: solo apela quien cree tener razón; la precision
+      # de verdad sale de la muestra aleatoria de lo accionado (eval/prevalence.py).
+      - alert: AppealOverturnRateHigh
+        expr: |
+          mod:appeal_overturn_ratio:rate7d > 1.5 * (mod:appeal_overturn_ratio:rate28d offset 7d)
+          and on (policy) sum by (policy) (increase(appeals_decided_total[7d])) >= 100
+        for: 2h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "{{ $labels.policy }}: {{ $value | humanizePercentage }} de apelaciones revertidas en 7 días"
+          description: "¿Cambió el umbral o la definición de la política (config_version, policy_definitions_version)? ¿Un modelo nuevo? Revisa una muestra de lo revertido con el equipo de políticas antes de tocar umbrales."
+          runbook_url: "https://runbooks.example.com/c06/appeal-overturn"
+
+      # Proactive rate de ayer 5 puntos por debajo del promedio de los 7 días anteriores, con ≥ 200
+      # acciones en el día. Si baja, los usuarios están encontrando lo que el sistema no ve: evasión
+      # nueva, un idioma/dialecto mal cubierto, o una etapa caída que no alertó.
+      - alert: ProactiveRateDrop
+        expr: |
+          mod:proactive_rate:rate1d < (mod:proactive_rate:rate7d offset 1d) - 0.05
+          and on (policy) sum by (policy) (increase(enforcement_actions_total[1d])) >= 200
+        for: 2h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "{{ $labels.policy }}: proactive rate {{ $value | humanizePercentage }} (cayó > 5 puntos)"
+          description: "Mira los reportes de usuarios accionados de ayer: ¿qué tienen en común (idioma, texto en imagen, homoglifos, un formato nuevo)? Van directo a etiquetado y, si es una campaña, a las listas de hashes."
+          runbook_url: "https://runbooks.example.com/c06/proactive-rate-drop"

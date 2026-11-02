@@ -1,0 +1,4 @@
+# Dependencias de TESTS (no entran a la imagen). pip install -r requirements-dev.txt && pytest
+-r requirements.txt
+pytest==9.1.1  # corre tests/
+python-stdnum==2.2  # implementación INDEPENDIENTE de CURP y RFC: los tests comparan dígito por dígito

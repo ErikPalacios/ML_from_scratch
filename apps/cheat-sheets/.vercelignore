@@ -1,0 +1,6 @@
+# Vercel solo necesita sheets.json, site/, tools/build.mjs y, de cada hoja, su página y su PDF.
+# Rutas ancladas a esta carpeta con "/".
+/dist
+/.vercel
+/sheets/*/fuentes
+.env*

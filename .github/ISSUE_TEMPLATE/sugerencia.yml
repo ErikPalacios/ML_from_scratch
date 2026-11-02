@@ -1,0 +1,20 @@
+name: Sugerencia
+description: Una hoja, un caso o una función que te falta
+title: "[Sugerencia] "
+labels: ["sugerencia"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: ¿Qué te gustaría ver?
+    validations: { required: true }
+  - type: textarea
+    id: para
+    attributes:
+      label: ¿Para qué lo necesitas?
+      description: Por ejemplo, una entrevista, un proyecto o un tema que estás estudiando.
+  - type: dropdown
+    id: prioridad
+    attributes:
+      label: ¿Qué tan importante es para ti?
+      options: [Me ayudaría mucho, Estaría bien tenerlo, Solo una idea]

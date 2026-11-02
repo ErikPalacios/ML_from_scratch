@@ -1,0 +1,529 @@
+{
+  "id": "lab-iris",
+  "nav": "Lab · Iris",
+  "title": "Laboratorio completo: Iris con gateway y model server",
+  "question": "Tu laboratorio de punta a punta: cada archivo, cada comando, lo que salió y lo que falta probar.",
+  "intro": {
+    "n": 0,
+    "title": "Qué es el proyecto",
+    "what": "Un clasificador de Iris (3 especies, 4 medidas en cm) servido con <b>dos servicios</b>, para practicar el ciclo completo de Docker: dependencias fijadas → Dockerfiles → build → caché → push → run → Compose → romperlo → AWS.",
+    "arch": {
+      "label": "Arquitectura: el cliente manda JSON al gateway; el gateway habla HTTP v2 con el model server; el model server carga model.onnx.",
+      "nodes": [
+        { "k": "client", "name": "cliente", "tech": "curl o smoke.sh", "role": "" },
+        { "k": "gw", "name": "gateway", "tech": "FastAPI · :8080", "role": "valida, arma el tensor, traduce índice → etiqueta" },
+        { "k": "ms", "name": "model server", "tech": "FastAPI + onnxruntime · :8000 · KServe v2", "role": "carga el modelo una vez al arrancar, forward en CPU" },
+        { "k": "file", "name": "model.onnx", "tech": "1.3 KB", "role": "model_repository/iris/1/" }
+      ],
+      "edges": ["JSON", "HTTP v2", ""],
+      "caption": "El model server habla el protocolo KServe v2, el mismo de Triton. Por eso el gateway no cambia si luego lo reemplazas por Triton: solo cambian <code>MODEL_SERVER_URL</code> y la imagen."
+    },
+    "facts": [
+      { "k": "Por qué no Triton en local", "t": "La imagen arm64 pesa ~10 GB comprimida y ~30 GB en el pico del pull: llenó el disco de la Mac (trampa 12.1)." },
+      { "k": "Máquina", "t": "MacBook Air M4 (arm64), Docker Desktop. Todo corre local; nada en la nube todavía." },
+      { "k": "Puertos", "t": "El 8000 de tu Mac lo ocupa otro contenedor tuyo: por eso el model server se publica en el 9000." }
+    ],
+    "tree": [
+      { "name": "training/train.py", "path": "training/train.py", "c": "entrena el MLP y exporta ONNX" },
+      { "name": "model_repository/iris/1/model.onnx", "origin": "repo", "step": 1, "c": "1.3 KB (se versiona: .gitignore tiene excepción)" },
+      { "name": "model_server/", "kids": [
+        { "name": "server.py", "path": "model_server/server.py" },
+        { "name": "requirements.in / requirements.txt", "path": "model_server/requirements.in" },
+        { "name": "Dockerfile", "path": "model_server/Dockerfile", "c": "variante A: modelo DENTRO de la imagen (contexto = iris-lab/)" },
+        { "name": "Dockerfile.dockerignore", "path": "model_server/Dockerfile.dockerignore" },
+        { "name": "Dockerfile.volume", "path": "model_server/Dockerfile.volume", "c": "variante B: modelo FUERA (volumen) (contexto = model_server/)" },
+        { "name": ".dockerignore", "path": "model_server/.dockerignore", "c": "para la variante B" }
+      ] },
+      { "name": "gateway/", "kids": [
+        { "name": "app.py", "path": "gateway/app.py" },
+        { "name": "requirements.in / requirements.txt", "path": "gateway/requirements.in" },
+        { "name": "Dockerfile", "path": "gateway/Dockerfile" },
+        { "name": ".dockerignore", "path": "gateway/.dockerignore" }
+      ] },
+      { "name": "scripts/smoke.sh", "path": "scripts/smoke.sh", "c": "prueba end-to-end" }
+    ],
+    "tree_note": "Además: <code>.gitignore</code> de iris-lab (paso 1), <code>compose.yaml</code> (borrador, paso 7) y <code>model_repository/iris/config.pbtxt</code> (referencia para Triton, paso 9; se borró del repo).",
+    "marks": "<b>✅ probado</b>: lo corriste y anotaste lo que salió. <b>🟡</b> borrador, pendiente o plan: está en tus notas, pero no se ha corrido. Las salidas que ves son solo las que anotaste; donde no hay, no se inventa ninguna.",
+    "status": [
+      { "n": 1, "label": "Entrenar/exportar", "st": "ok", "text": "✅" },
+      { "n": 2, "label": "Correr sin Docker", "st": "ok", "text": "✅" },
+      { "n": 3, "label": "requirements fijados", "st": "ok", "text": "✅" },
+      { "n": 4, "label": "Dockerfile gateway + build + caché", "st": "ok", "text": "✅" },
+      { "n": 5, "label": "Usuario no-root", "st": "ok", "text": "✅" },
+      { "n": 6, "label": "Dockerfile model server (A y B)", "st": "ok", "text": "✅ probado en carpeta temporal", "more": "falta crearlo y construirlo en el repo" },
+      { "n": 7, "label": "Run/Compose", "st": "wip", "text": "🟡 pendiente" },
+      { "n": 8, "label": "Push", "st": "wip", "text": "🟡 pendiente" },
+      { "n": 9, "label": "Romperlo", "st": "wip", "text": "🟡 parcial" },
+      { "n": 10, "label": "AWS", "st": "wip", "text": "🟡 plan, no probado" }
+    ],
+    "trap": { "type": "trap", "real": [5], "why": "Tu iris-lab vive en <code>Caso1/.claude/worktrees/classification-docker-setup-1528ea/iris-lab/</code>: sin ver las carpetas ocultas, en Finder no llegas." }
+  },
+  "steps": [
+    {
+      "n": 1, "title": "Entrenar y exportar el modelo", "status": "ok",
+      "blocks": [
+        { "type": "what", "t": "Entrena un MLP chiquito (4 → 16 → 3) sobre Iris y lo exporta a ONNX en <code>model_repository/iris/1/model.onnx</code>, la carpeta que leerá el model server. Corre una vez, en tu Mac, fuera de cualquier imagen." },
+        { "type": "files", "items": [
+          { "path": "training/train.py" },
+          { "path": ".gitignore", "note": "El de <code>iris-lab/</code>, no el de la raíz: su excepción deja entrar al modelo en el commit (la trampa de este paso)." }
+        ] },
+        { "type": "cmds", "groups": [
+          { "where": "iris-lab", "cmds": [ { "cmd": "uv run --no-project --python 3.13 --with torch --with scikit-learn --with onnx python training/train.py" } ] }
+        ] },
+        { "type": "out", "items": [
+          "<code>accuracy test: 1.000 (n=30)</code>",
+          "<code>exportado: .../model_repository/iris/1/model.onnx</code>"
+        ] },
+        { "type": "why", "items": [
+          "<code>uv run --with …</code> arma un entorno temporal con <code>torch</code>, <code>scikit-learn</code> y <code>onnx</code> solo para esta corrida, y <code>--no-project</code> evita que uv use el <code>pyproject.toml</code> de Caso1 (iris-lab vive dentro de ese repo).",
+          "<code>register_buffer(\"mean\"/\"std\")</code>: la normalización vive <b>dentro</b> del modelo → anti training/serving skew; se exporta como constante al ONNX.",
+          "Softmax dentro del modelo → el server devuelve probabilidades. Por eso la loss es <code>NLLLoss</code> sobre <code>torch.log(probs + 1e-9)</code> (con logits se usaría <code>CrossEntropyLoss</code>). Nota: lo más estable en proyectos serios es entrenar con logits y añadir softmax solo al exportar.",
+          "<code>stratify=y</code> en <code>train_test_split</code>: conserva la proporción de clases.",
+          "<code>torch.onnx.export(model, (torch.zeros(1, 4),), ...)</code>: el segundo argumento es un <b>input de ejemplo</b> (tracing), no la forma de la salida. <code>dynamic_axes</code> marca el batch como variable.",
+          "<code>opset_version=17</code> es una elección conservadora (versión del «diccionario» de operaciones ONNX; debe soportarla el runtime). <code>dynamo=False</code> fuerza el exportador legacy (el nuevo usa <code>dynamic_shapes</code>).",
+          "Las dependencias de entrenamiento (<code>torch</code>, <code>scikit-learn</code>, <code>onnx</code>) <b>no</b> van en ninguna imagen: el servidor solo necesita <code>onnxruntime</code>. Esa es una razón para exportar a ONNX."
+        ] },
+        { "type": "trap", "real": [7] }
+      ]
+    },
+    {
+      "n": 2, "title": "Correr los dos servicios SIN Docker", "status": "ok",
+      "blocks": [
+        { "type": "what", "t": "Levanta el model server y el gateway como procesos normales en tu Mac, cada uno con su <code>.venv</code>, y los prueba de punta a punta con <code>smoke.sh</code>. Así, cuando algo falle dentro de Docker, ya sabes que el código sí funciona." },
+        { "type": "files", "items": [
+          { "path": "model_server/server.py" },
+          { "path": "gateway/app.py" },
+          { "path": "scripts/smoke.sh" }
+        ] },
+        { "type": "cmds", "title": "Entornos locales (la primera vez, sin versiones fijadas; luego se reemplaza por el paso 3)", "groups": [
+          { "where": "iris-lab/model_server", "cmds": [ { "cmd": "uv venv --python 3.13 && uv pip install fastapi \"uvicorn[standard]\" onnxruntime numpy" } ] },
+          { "where": "iris-lab/gateway", "cmds": [ { "cmd": "uv venv --python 3.13 && uv pip install fastapi \"uvicorn[standard]\" httpx" } ] }
+        ] },
+        { "type": "cmds", "title": "Arrancar (puerto 9000 porque el 8000 del host lo ocupa otro contenedor tuyo; cada server se queda corriendo en su terminal)", "groups": [
+          { "where": "iris-lab/model_server", "note": "terminal 1", "cmds": [ { "cmd": ".venv/bin/uvicorn server:app --port 9000" } ] },
+          { "where": "iris-lab/gateway", "note": "terminal 2 · la variable va en la MISMA línea que el comando", "cmds": [ { "cmd": "MODEL_SERVER_URL=http://localhost:9000 .venv/bin/uvicorn app:app --port 8080" } ] },
+          { "where": "iris-lab", "note": "terminal 3", "cmds": [ { "cmd": "./scripts/smoke.sh" } ] }
+        ] },
+        { "type": "cmds", "title": "Comprobaciones manuales con curl", "groups": [
+          { "where": "*", "cmds": [
+            { "cmd": "curl -s -m 3 -w ' [%{http_code}]\\n' localhost:8080/healthz" },
+            { "cmd": "curl -s -m 3 -w ' [%{http_code}]\\n' localhost:8080/readyz" },
+            { "cmd": "curl -s -m 3 -w ' [%{http_code}]\\n' localhost:9000/v2/health/ready" },
+            { "cmd": "lsof -nP -iTCP:8080 -iTCP:9000 -sTCP:LISTEN" }
+          ] }
+        ] },
+        { "type": "out", "items": [
+          "<code>smoke.sh</code>: model server <code>HTTP 200</code>, la metadata, la inferencia cruda, el gateway <code>{\"status\":\"ready\",...}</code> y la predicción de 3 flores (setosa 1.0, versicolor 0.9996, virginica 1.0).",
+          "Para los <code>curl</code> no anotaste salidas: el número entre corchetes es el código HTTP de cada respuesta."
+        ] },
+        { "type": "why", "items": [
+          "Cada servicio tiene su <code>.venv</code>, su alacena: así cada imagen llevará solo lo que usa (el gateway no necesita <code>onnxruntime</code> ni <code>numpy</code>).",
+          "Pydantic: <code>Flower</code> / <code>PredictRequest</code> / <code>PredictResponse</code> validan entrada y salida (422 si falla; <code>response_model</code> define el contrato de salida).",
+          "<code>lifespan</code> + <code>yield</code>: antes del <code>yield</code> = arranque (abrir <code>httpx.AsyncClient</code>, cargar el modelo); después = apagado (<code>aclose()</code>).",
+          "<code>/healthz</code> (liveness, no depende de nadie) vs <code>/readyz</code> (readiness, pregunta al model server <code>GET /v2/models/iris/ready</code>).",
+          "Protocolo v2: tensor aplanado + <code>shape</code> + <code>datatype</code>; <code>\"outputs\": [{\"name\": \"probs\"}]</code> pide qué salida devolver (el nombre viene de <code>output_names</code> en el export).",
+          "Decodificación en el gateway: <code>best = max(range(n_classes), key=probs.__getitem__)</code> es un argmax; <code>CLASSES</code> vive en el gateway (si cambia el orden en training, las etiquetas saldrían mal sin error).",
+          "<code>server.py</code> usa <code>def</code> (no <code>async def</code>) en <code>/infer</code> porque onnxruntime bloquea; FastAPI lo corre en su threadpool.",
+          "Config por variables de entorno: <code>MODEL_SERVER_URL</code> (default <code>http://localhost:8000</code>), <code>MODEL_NAME</code>, <code>MODEL_SERVER_TIMEOUT_S</code>, <code>MODEL_REPOSITORY</code>, <code>MODEL_VERSION</code>, <code>MAX_BATCH_SIZE</code>, <code>ORT_THREADS</code>.",
+          "<code>curl -s</code> no muestra la barra de progreso, <code>-m 3</code> se rinde a los 3 s y <code>-w ' [%{http_code}]\\n'</code> agrega el código HTTP al final. <code>lsof … -sTCP:LISTEN</code> dice quién escucha en esos puertos (<code>-n</code> y <code>-P</code>: IP y puerto en número, sin traducir a nombres)."
+        ] },
+        { "type": "trap", "real": [3, 2], "why": "Sin <code>export</code>, <code>MODEL_SERVER_URL=...</code> sola en su línea es una variable del shell: el proceso que arrancas después no la ve y usa el default <code>localhost:8000</code>, donde contestaba tu otro contenedor. Las dos trampas te pasaron juntas (paso 9, experimento 1)." }
+      ]
+    },
+    {
+      "n": 3, "title": "Dependencias fijadas: requirements.in → requirements.txt", "status": "ok",
+      "blocks": [
+        { "type": "what", "t": "Fija las versiones exactas, con un par de archivos por servicio (cada imagen lleva solo lo que usa). El <code>.in</code> es la lista del súper: lo que quieres. El <code>.txt</code> es el ticket: lo que te llevaste exactamente, con versión, y quién pidió cada cosa." },
+        { "type": "files", "items": [
+          { "path": "gateway/requirements.in" },
+          { "path": "model_server/requirements.in" },
+          { "path": "gateway/requirements.txt" },
+          { "path": "model_server/requirements.txt" }
+        ] },
+        { "type": "cmds", "title": "Generar el <code>.txt</code>", "groups": [
+          { "where": "iris-lab/gateway", "note": "y otra vez desde iris-lab/model_server", "cmds": [ { "cmd": "uv pip compile requirements.in -o requirements.txt --universal --python-version 3.13" } ] }
+        ] },
+        { "type": "cmds", "title": "Verificar que el <code>.txt</code> reproduce el entorno (detén los servidores primero)", "groups": [
+          { "where": "iris-lab/gateway", "note": "y otra vez desde iris-lab/model_server", "cmds": [ { "cmd": "rm -rf .venv && uv venv --python 3.13 && uv pip sync requirements.txt && uv pip freeze | wc -l", "out": "23 (gateway) y 25 (model_server)" } ] }
+        ] },
+        { "type": "out", "items": [
+          "Resultado: gateway 23 paquetes, model server 25. Versiones obtenidas: fastapi 0.162.0, uvicorn 0.54.0, httpx 0.28.1, onnxruntime 1.31.1, numpy 2.5.4.",
+          "El conteo con <code>wc -l</code>: 23 en gateway y 25 en model_server."
+        ] },
+        { "type": "why", "items": [
+          "<code>--universal</code>: el resultado sirve en Mac <b>y</b> Linux (el contenedor es Linux). <code>--python-version 3.13</code>: misma versión que <code>python:3.13-slim</code>.",
+          "Mira la línea de <code>uvloop</code> en los dos <code>.txt</code>: lleva un marcador (<code>; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'</code>). Así funciona <code>--universal</code>: un solo ticket, con condiciones por plataforma.",
+          "El <code>.txt</code> trae comentarios <code># via</code> que dicen quién pidió cada paquete.",
+          "Se commitean los dos archivos (<code>.in</code> y <code>.txt</code>); el <code>.txt</code> no se edita a mano.",
+          "Actualizar un paquete: <code>uv pip compile ... --upgrade-package fastapi</code>.",
+          "<code>sync</code> deja el entorno <b>exactamente</b> igual al archivo (instala lo que falta y quita lo que sobra); <code>install</code> solo agrega. Es vaciar la alacena y volver a llenarla solo con el ticket.",
+          "<code>uv pip freeze | wc -l</code>: <code>freeze</code> lista paquetes (uno por línea), el pipe <code>|</code> se los pasa a <code>wc -l</code>, que cuenta líneas → número de paquetes instalados."
+        ] },
+        { "type": "trap", "real": [8], "why": "Aquí pasa lo mismo: el ticket sale de la lista, nunca al revés. Si cambias el <code>.in</code>, vuelves a compilar el <code>.txt</code>." }
+      ]
+    },
+    {
+      "n": 4, "title": "Gateway: Dockerfile, build, caché", "status": "ok", "links": ["anatomia", "capas-cache"],
+      "blocks": [
+        { "type": "what", "t": "Empaqueta el gateway en una imagen: Python base, las dependencias del ticket, el código y un usuario sin privilegios. Después mide la imagen y prueba cuándo Docker reusa la caché y cuándo no." },
+        { "type": "files", "items": [
+          { "path": "gateway/Dockerfile" },
+          { "path": "gateway/.dockerignore", "note": "<b>Guárdalo con contenido</b>: una vez quedó vacío por no guardar y el build habría mandado el <code>.venv</code>." }
+        ] },
+        { "type": "cmds", "title": "Build (el <code>.</code> final es el build context)", "groups": [
+          { "where": "iris-lab/gateway", "cmds": [
+            { "cmd": "docker build --progress=plain -t iris-gateway:0.1 ." },
+            { "cmd": "docker images iris-gateway" },
+            { "cmd": "docker history iris-gateway:0.1" }
+          ] }
+        ] },
+        { "type": "cmds", "title": "Experimentos de caché (todos ✅)", "groups": [
+          { "where": "iris-lab/gateway", "cmds": [
+            { "cmd": "docker build --no-cache --progress=plain -t iris-gateway:0.1 .", "out": "todo se rehace" },
+            { "cmd": "docker build --progress=plain -t iris-gateway:0.1 .", "out": "todo CACHED (<1 s); mismo manifest sha256" }
+          ] }
+        ] },
+        { "type": "cmds", "title": "Después de los experimentos A y B (abajo)", "groups": [
+          { "where": "iris-lab", "note": "las rutas empiezan en gateway/", "cmds": [ { "cmd": "git restore gateway/app.py gateway/requirements.txt" } ] },
+          { "where": "*", "cmds": [ { "cmd": "docker rmi iris-gateway:0.2 iris-gateway:0.3" } ] }
+        ] },
+        { "type": "out", "items": [
+          "Números reales: contexto 5.6 kB (con <code>.dockerignore</code>), <code>pip install</code> ≈ 5.5 s, imagen 274 MB en disco / 59.6 MB comprimida (<code>DISK USAGE</code> vs <code>CONTENT SIZE</code>: lo comprimido es lo que viaja en push/pull).",
+          "Capas (<code>docker history</code>): <code>pip install</code> 56.3 MB, <code>COPY app.py</code> 16 kB; el resto es la imagen base.",
+          "<b>A.</b> Agregar un comentario a <code>app.py</code> y construir <code>:0.2</code> → <code>pip install</code> sale <code>CACHED</code>; se rehacen <code>COPY app.py</code> <b>y <code>useradd</code></b> (cuando una capa cambia, todas las de abajo se invalidan aunque su instrucción no cambie).",
+          "<b>B.</b> Agregar un comentario a <code>requirements.txt</code> y construir <code>:0.3</code> → <code>pip install</code> se rehace (5.7 s). Docker compara bytes, no significado."
+        ] },
+        { "type": "why", "title": "Por qué, línea por línea", "items": [
+          "<code>FROM python:3.13-slim</code>: la imagen base; ya trae Python 3.13.",
+          "<code>ENV PYTHONUNBUFFERED=1</code>: los logs salen al instante, sin quedarse en un buffer.",
+          "<code>WORKDIR /app</code>: la carpeta de trabajo; el <code>.</code> de cada <code>COPY</code> apunta ahí.",
+          "<code>COPY requirements.txt .</code> <b>antes</b> que el código, y luego <code>RUN pip install</code>: caché de capas. Si el ticket no cambió, Docker no vuelve al súper: reusa la capa de dependencias.",
+          "<code>--no-cache-dir</code>: pip no guarda su caché de descargas dentro de la capa.",
+          "<code>RUN useradd --create-home appuser</code> + <code>USER appuser</code>: el proceso no corre como root (paso 5).",
+          "<code>EXPOSE 8080</code>: solo documenta; no publica. Publicas con <code>-p</code> al correrlo.",
+          "<code>CMD [\"uvicorn\", …]</code> en forma exec y <b><code>--host 0.0.0.0</code></b>: con <code>127.0.0.1</code> nadie desde fuera del contenedor puede entrar.",
+          "<code>.dockerignore</code>: lo que no viaja en el build context (<code>.venv</code>, <code>__pycache__</code>, <code>*.pyc</code>). Con él, el contexto pesa 5.6 kB.",
+          "Mejora opcional: mover <code>useradd</code> antes de instalar dependencias para que solo se rehaga <code>COPY app.py</code>.",
+          "Nota: el warning <code>Running pip as the 'root' user</code> es normal en el build (los paquetes quedan de root y <code>appuser</code> solo puede leerlos, lo cual es bueno).",
+          "Nota: <code>WORKDIR</code> salió <code>CACHED</code> incluso con <code>--no-cache</code> (curiosidad, sin efecto).",
+          "Nota: los wheels se descargan <code>aarch64</code> porque Docker Desktop en M4 construye Linux arm64."
+        ] },
+        { "type": "trap", "real": [4, 6] }
+      ]
+    },
+    {
+      "n": 5, "title": "Usuario no-root: qué es y qué no es", "status": "ok", "links": ["imagenes-chicas", "anatomia"],
+      "blocks": [
+        { "type": "what", "t": "Comprueba con qué identidad corre el proceso dentro de la imagen del gateway y qué puede tocar, con y sin <code>--user root</code>." },
+        { "type": "cmds", "title": "Comprobación (usa la imagen del paso 4)", "groups": [
+          { "where": "*", "cmds": [
+            { "cmd": "docker run --rm iris-gateway:0.1 id", "out": "<code>uid=1000(appuser)</code>" },
+            { "cmd": "docker run --rm --user root iris-gateway:0.1 id", "out": "<code>uid=0(root)</code>" },
+            { "cmd": "docker run --rm iris-gateway:0.1 sh -c 'touch /etc/prueba && echo SI || echo NO'", "out": "<code>NO</code> (Permission denied)" },
+            { "cmd": "docker run --rm --user root iris-gateway:0.1 sh -c 'touch /etc/prueba && echo SI || echo NO'", "out": "<code>SI</code>" }
+          ] }
+        ] },
+        { "type": "out", "items": [
+          "Sin <code>--user</code>: <code>uid=1000(appuser)</code>, y no puede escribir en <code>/etc</code> (<code>NO</code>, Permission denied).",
+          "Con <code>--user root</code>: <code>uid=0(root)</code>, y sí puede (<code>SI</code>)."
+        ] },
+        { "type": "fragment", "title": "Versión endurecida (la usa el model server, paso 6)", "origin": "prompt-tested", "lang": "dockerfile", "code": "RUN groupadd --system --gid 10001 app && \\\n    useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app\nUSER 10001:10001" },
+        { "type": "why", "items": [
+          "<b>Nadie hace login en un contenedor.</b> <code>USER</code> es con qué identidad corre el proceso.",
+          { "t": "El riesgo no es un login, es una vulnerabilidad (en tu código o en una librería) que deja ejecutar comandos a través de un request; el atacante hereda los permisos del proceso. Por eso <code>USER</code> limita el daño. Solo es alcanzable lo que publicas con <code>-p</code>.",
+            "review": { "t": "Matiz: «solo es alcanzable lo que publicas con <code>-p</code>» vale desde fuera de Docker. La documentación de Docker dice que, en una red bridge, los contenedores conectados a la misma red se alcanzan en todos sus puertos, publicados o no; <code>-p</code> los abre hacia fuera del host y hacia otras redes. Por eso, en el paso 7, el gateway llega a <code>model-server:8000</code> aunque tu Mac solo vea el 9000.",
+              "src": [ { "label": "docs.docker.com/engine/network/port-publishing", "url": "https://docs.docker.com/engine/network/port-publishing/" } ] } },
+          "Versión endurecida: <code>--system</code> cuenta de servicio, <code>--no-create-home</code> sin carpeta personal, <code>--shell /usr/sbin/nologin</code> sin shell interactivo, <code>&& \\</code> una sola capa.",
+          "UID alto y numérico: Kubernetes <code>runAsNonRoot</code> necesita un UID numérico para verificarlo, y evita coincidir con usuarios reales del host. El número es convención, no regla.",
+          "<code>sh -c '… && echo SI || echo NO'</code>: si <code>touch</code> funciona imprime SI; si falla, NO. <code>--rm</code> borra cada contenedor de prueba al terminar."
+        ] },
+        { "type": "trap", "t": "Creer que <code>USER</code> blinda la imagen: <code>--user root</code> lo anula al correrla (lo viste: <code>SI</code>). <code>USER</code> limita lo que hereda quien entra por un request; quien controla <code>docker run</code> ya manda." }
+      ]
+    },
+    {
+      "n": 6, "title": "Model server: Dockerfile, DOS caminos para los pesos", "status": "ok-tmp", "status_note": "falta crearlo y construirlo en el repo", "links": ["volumenes", "capas-cache"],
+      "blocks": [
+        { "type": "what", "t": "Empaqueta el model server de dos maneras: con el modelo DENTRO de la imagen (variante A) o con el modelo FUERA, montado como volumen al arrancar (variante B). Las dos se probaron en una carpeta temporal; falta crearlas y construirlas en el repo." },
+        { "type": "sub", "title": "Variante A — pesos DENTRO de la imagen", "status": "ok-tmp", "blocks": [
+          { "type": "text", "items": [ "Problema: <code>model_repository/</code> está <b>fuera</b> de <code>model_server/</code> y Docker solo copia lo que está dentro del build context → el contexto es <code>iris-lab/</code> y se indica el Dockerfile con <code>-f</code>." ] },
+          { "type": "files", "items": [
+            { "path": "model_server/Dockerfile" },
+            { "path": "model_server/Dockerfile.dockerignore", "note": "BuildKit: aplica solo a ese Dockerfile; en <code>.dockerignore</code> los patrones son relativos a la raíz del contexto, por eso <code>**/</code>." }
+          ] },
+          { "type": "cmds", "groups": [
+            { "where": "iris-lab", "note": "el <code>.</code> es iris-lab/", "cmds": [ { "cmd": "docker build --progress=plain -f model_server/Dockerfile -t iris-model-server:0.1 ." } ] }
+          ] },
+          { "type": "out", "items": [
+            "Resultados de la prueba: contexto ≈ 8 kB, imagen 453 MB (≈180 MB más que el gateway por onnxruntime y sus dependencias), <code>id</code> → <code>uid=10001(app)</code>, <code>/v2/health/ready</code> → <code>{\"ready\":true}</code>, inferencia correcta."
+          ] },
+          { "type": "why", "items": [
+            "Orden de capas: usuario → dependencias → modelo → código (de lo que menos cambia a lo que más).",
+            "Las rutas de <code>COPY</code> son relativas al contexto (<code>iris-lab/</code>): por eso <code>COPY model_server/requirements.txt .</code> y <code>COPY model_repository/ /models/</code>.",
+            "<code>ENV MODEL_REPOSITORY=/models</code>: <code>server.py</code> busca el modelo en <code>/models/iris/1/model.onnx</code>, justo donde lo deja el <code>COPY</code>.",
+            "<code>Dockerfile.dockerignore</code>: <code>**/.venv</code> saca el <code>.venv</code> de cualquier carpeta, y fuera quedan <code>gateway</code>, <code>training</code>, <code>scripts</code> y <code>README.md</code>. Por eso el contexto baja a ≈ 8 kB.",
+            "<code>USER 10001:10001</code> al final: instalar y copiar se hace como root; el proceso corre como 10001 (paso 5)."
+          ] }
+        ] },
+        { "type": "sub", "title": "Variante B — pesos FUERA de la imagen (volumen)", "status": "ok-tmp", "blocks": [
+          { "type": "files", "items": [
+            { "path": "model_server/Dockerfile.volume", "note": "Igual, pero sin <code>COPY model_repository</code> y con contexto <code>model_server/</code>." },
+            { "path": "model_server/.dockerignore" }
+          ] },
+          { "type": "cmds", "groups": [
+            { "where": "iris-lab/model_server", "cmds": [ { "cmd": "docker build -f Dockerfile.volume -t iris-model-server:vol ." } ] },
+            { "where": "iris-lab", "note": "<code>-v origen:destino:ro</code> → solo lectura", "cmds": [ { "cmd": "docker run --rm -p 9000:8000 -v \"$PWD/model_repository:/models:ro\" iris-model-server:vol" } ] }
+          ] },
+          { "type": "out", "items": [
+            "Sin <code>-v</code> el contenedor <b>muere al arrancar</b>: <code>NoSuchFile: Load model from /models/iris/1/model.onnx failed</code> + <code>Application startup failed. Exiting.</code> → fail fast (el orquestador lo ve de inmediato).",
+            "Tamaño igual (453 MB) porque el modelo pesa 1.3 KB."
+          ] },
+          { "type": "why", "items": [
+            "<code>-v origen:destino:ro</code>: monta la carpeta de tu Mac en <code>/models</code>, solo lectura. <code>$PWD</code> vuelve completa la ruta de origen.",
+            "<code>Dockerfile*</code> en el <code>.dockerignore</code>: aunque algún día agregues <code>COPY . .</code>, los Dockerfiles no entran a la imagen.",
+            "Mismo usuario, mismo orden de capas y mismo <code>MODEL_REPOSITORY=/models</code> que la variante A: solo cambia de dónde llega el modelo."
+          ] }
+        ] },
+        { "type": "table", "title": "Cuándo cuál", "head": ["", "Pesos dentro", "Pesos fuera"], "rows": [
+          ["Qué es la imagen", "paquete cerrado código+modelo", "solo código; el modelo llega al arrancar"],
+          ["Versión del modelo", "= tag de la imagen", "se lleva aparte; riesgo de desincronizar código y modelo"],
+          ["Rollback", "cambias de tag", "revertir imagen <b>y</b> modelo"],
+          ["Modelos de varios GB", "cada versión = imagen enorme, push/pull lentos", "imagen chica, el modelo se actualiza sin rebuild"]
+        ] },
+        { "type": "text", "items": [
+          "<b>Regla:</b> modelo chico → dentro (reproducible); modelo pesado o que cambia seguido → fuera.",
+          "<b>Frase de entrevista:</b> «I copy the dependency manifest and install before copying the source, so code changes reuse the cached dependency layer.»"
+        ] },
+        { "type": "trap", "exp": 3, "t": "Correr la variante B sin <code>-v</code>: el contenedor muere al arrancar. Es a propósito: <code>server.py</code> carga el modelo en el <code>lifespan</code> y, si el archivo no está, el proceso se cae en seguida y el orquestador lo ve." }
+      ]
+    },
+    {
+      "n": 7, "title": "Correr los dos contenedores y conectarlos", "status": "draft", "status_note": "pendiente", "links": ["redes", "compose"],
+      "blocks": [
+        { "type": "what", "t": "Corre los dos contenedores y los conecta: primero a mano con <code>docker run</code>, luego con Docker Compose. Todavía no se ha probado." },
+        { "type": "text", "items": [ "<b>Idea clave:</b> dentro de un contenedor <code>localhost</code> es el propio contenedor. El gateway debe llegar al model server por <b>nombre</b> en una red de Docker, pasando <code>MODEL_SERVER_URL</code> con <code>-e</code>. El puerto 8000 del host está ocupado por tu contenedor <code>plant_pathology_zero_model-api-1</code> → el model server se publica como 9000." ] },
+        { "type": "sub", "title": "7a. Con <code>docker run</code> (variante A)", "status": "draft", "blocks": [
+          { "type": "cmds", "groups": [
+            { "where": "iris-lab", "note": "<code>smoke.sh</code> se llama con ruta relativa", "cmds": [
+              { "cmd": "docker network create iris-net" },
+              { "cmd": "docker run -d --rm --name model-server --network iris-net -p 9000:8000 iris-model-server:0.1" },
+              { "cmd": "docker run -d --rm --name gateway --network iris-net -p 8080:8080 \\\n  -e MODEL_SERVER_URL=http://model-server:8000 iris-gateway:0.1" },
+              { "cmd": "./scripts/smoke.sh" },
+              { "cmd": "docker logs gateway" },
+              { "cmd": "docker stop gateway model-server && docker network rm iris-net" }
+            ] }
+          ] },
+          { "type": "why", "items": [
+            "<code>docker network create iris-net</code>: una red propia; dentro, cada contenedor se encuentra por su <code>--name</code>.",
+            "<code>-p 9000:8000</code> es host:contenedor. El gateway, dentro de la red, usa el puerto del contenedor: <code>http://model-server:8000</code>.",
+            "<code>-e MODEL_SERVER_URL=…</code>: la misma imagen del paso 4, con otra configuración.",
+            "<code>-d</code> corre en segundo plano y <code>--rm</code> borra el contenedor al detenerlo: por eso al final basta <code>docker stop</code>."
+          ] }
+        ] },
+        { "type": "sub", "title": "7b. Con Docker Compose (variante A)", "status": "draft", "blocks": [
+          { "type": "files", "items": [ { "path": "compose.yaml", "name": "compose.yaml", "note": "Va en <code>iris-lab/compose.yaml</code>." } ] },
+          { "type": "cmds", "groups": [
+            { "where": "iris-lab", "note": "donde está <code>compose.yaml</code>; <code>up</code> se queda en primer plano, así que lo demás va en otra terminal", "cmds": [
+              { "cmd": "docker compose up --build" },
+              { "cmd": "docker compose ps" },
+              { "cmd": "./scripts/smoke.sh" },
+              { "cmd": "docker compose down" }
+            ] }
+          ] },
+          { "type": "why", "items": [
+            "<code>build</code> + <code>image</code>: construye con ese contexto y ese Dockerfile, y le pone ese nombre a la imagen.",
+            "<code>healthcheck</code>: <code>slim</code> no trae <code>curl</code>; por eso el healthcheck usa Python.",
+            "<code>depends_on</code> con <code>condition: service_healthy</code>: el gateway arranca cuando pasa el healthcheck del model server.",
+            "Compose crea por su cuenta la red del proyecto: los servicios se encuentran por su nombre (<code>model-server</code>), sin <code>docker network create</code>.",
+            "<code>docker compose down</code>: detiene y borra los contenedores y la red."
+          ] }
+        ] },
+        { "type": "sub", "title": "7c. Compose con pesos fuera (variante B)", "status": "draft", "blocks": [
+          { "type": "fragment", "title": "Cambia solo el servicio <code>model-server</code>:", "origin": "prompt-draft", "lang": "yaml", "code": "  model-server:\n    build:\n      context: ./model_server\n      dockerfile: Dockerfile.volume\n    image: iris-model-server:vol\n    volumes:\n      - ./model_repository:/models:ro\n    ports:\n      - \"9000:8000\"\n    healthcheck: # igual que arriba" },
+          { "type": "why", "items": [
+            "<code>volumes: - ./model_repository:/models:ro</code> es el <code>-v</code> del paso 6 escrito en Compose; aquí la ruta relativa vale, porque es relativa al <code>compose.yaml</code>.",
+            "<code># igual que arriba</code> es un comentario: en el archivo real va el bloque <code>healthcheck</code> completo de 7b."
+          ] }
+        ] },
+        { "type": "out", "items": [ "Sin salidas anotadas: es un borrador. La meta de 7a y de 7b es que <code>./scripts/smoke.sh</code> pase igual que en el paso 2." ] },
+        { "type": "trap", "t": "Darle al gateway en contenedor la URL que funcionaba sin Docker (<code>http://localhost:9000</code>) o ninguna (default <code>localhost:8000</code>): dentro del contenedor, <code>localhost</code> es el gateway mismo y <code>/readyz</code> da 503. Lo vas a provocar en el paso 9, experimento 4." }
+      ]
+    },
+    {
+      "n": 8, "title": "Subir las imágenes (push)", "status": "draft", "links": ["registries"],
+      "blocks": [
+        { "type": "what", "t": "Sube la imagen a un registry. Aún no se decidió a cuál, así que van las dos opciones: uno local (no sale de la Mac) o Docker Hub (requiere cuenta propia; sale de la Mac)." },
+        { "type": "cmds", "title": "Registry local (no sale de la Mac)", "groups": [
+          { "where": "*", "cmds": [
+            { "cmd": "docker run -d -p 5000:5000 --name registry registry:2" },
+            { "cmd": "docker tag iris-gateway:0.1 localhost:5000/iris-gateway:0.1" },
+            { "cmd": "docker push localhost:5000/iris-gateway:0.1" },
+            { "cmd": "docker rmi localhost:5000/iris-gateway:0.1 iris-gateway:0.1" },
+            { "cmd": "docker pull localhost:5000/iris-gateway:0.1" }
+          ] }
+        ] },
+        { "type": "cmds", "title": "Docker Hub (requiere cuenta propia; sale de la Mac)", "groups": [
+          { "where": "*", "note": "<code>TU_USUARIO</code> = tu usuario de Docker Hub", "cmds": [
+            { "cmd": "docker login" },
+            { "cmd": "docker tag iris-gateway:0.1 TU_USUARIO/iris-gateway:0.1" },
+            { "cmd": "docker push TU_USUARIO/iris-gateway:0.1" }
+          ] }
+        ] },
+        { "type": "out", "items": [ "Sin salidas anotadas: es un borrador. El dato que ya tienes: lo que viaja son las capas comprimidas (≈60 MB el gateway)." ] },
+        { "type": "why", "items": [
+          "Nombre completo de una imagen = <code>registry/usuario/repo:tag</code>. <code>docker tag</code> solo le pone otro nombre a la misma imagen; no copia nada.",
+          "Lo que viaja son las capas comprimidas (≈60 MB el gateway: el <code>CONTENT SIZE</code> del paso 4); las capas ya existentes en el registry no se vuelven a subir.",
+          "<code>registry:2</code> es un registry de verdad, corriendo en un contenedor de tu Mac, en el puerto 5000.",
+          "<code>docker rmi</code> y después <code>docker pull</code>: borras tus copias locales y la bajas del registry; así compruebas que de verdad quedó allá."
+        ] },
+        { "type": "trap", "t": "Hacer <code>docker push iris-gateway:0.1</code> sin el nombre completo: sin registry delante, el nombre apunta a Docker Hub, no a <code>localhost:5000</code>. Primero <code>docker tag</code> con el nombre completo y después el push de ese nombre." }
+      ]
+    },
+    {
+      "n": 9, "title": "Romperlo (experimentos)", "status": "partial", "status_note": "pendientes, salvo los marcados ✅", "links": ["errores", "pid1", "arquitecturas"],
+      "blocks": [
+        { "type": "what", "t": "Rompe el sistema a propósito para reconocer cada falla cuando te pase de verdad. Para cada uno: qué esperas → qué pasa → por qué → cómo se arregla. Tres ya los viviste; el resto está pendiente." },
+        { "type": "text", "title": "Comandos", "items": [ "No hay comandos nuevos: cada experimento reusa los de los pasos 2, 4, 6 y 7 con el cambio que dice." ] },
+        { "type": "experiments", "items": [
+          { "n": 1, "status": "ok", "title": "Arrancar el gateway con la variable en una <b>línea aparte</b>", "got": "<code>MODEL_SERVER_URL=...</code> en una línea y el comando en la siguiente: el gateway usó el default <code>localhost:8000</code> y <code>/readyz</code> dio 503 <code>RemoteProtocolError</code> (en ese puerto contestaba tu otro contenedor).", "fix": "La variable debe ir en la misma línea que el comando.", "traps": [3, 2] },
+          { "n": 2, "status": "ok", "title": "<code>.dockerignore</code> vacío", "got": "0 bytes, sin guardar: el build habría mandado el <code>.venv</code>.", "fix": "Guárdalo con contenido; <code>wc -c</code> lo delata.", "traps": [4] },
+          { "n": 3, "status": "ok", "title": "Correr la variante B sin <code>-v</code>", "got": "El contenedor muere al arrancar (fail fast).", "why": "<code>server.py</code> carga el modelo en el <code>lifespan</code>: sin archivo, no hay proceso.", "fix": "Montar el modelo con <code>-v</code> (paso 6)." },
+          { "n": 4, "status": "pending", "title": "Gateway en contenedor <b>sin</b> <code>-e MODEL_SERVER_URL</code>", "want": "Usa <code>localhost:8000</code> → 503 en <code>/readyz</code>.", "why": "Dentro del contenedor, <code>localhost</code> es el gateway mismo (paso 7).", "fix": "<code>-e MODEL_SERVER_URL=http://model-server:8000</code>." },
+          { "n": 5, "status": "pending", "title": "Cambiar <code>--host 0.0.0.0</code> por <code>127.0.0.1</code> en el <code>CMD</code>", "want": "El contenedor corre pero el <code>-p</code> no llega (connection reset/empty reply).", "why": "Con <code>127.0.0.1</code> nadie desde fuera del contenedor puede entrar (paso 4).", "fix": "Volver a <code>--host 0.0.0.0</code>.", "see": "redes" },
+          { "n": 6, "status": "pending", "title": "Puerto del host ocupado", "want": "<code>-p 8000:8000</code> con tu otro contenedor → error <code>port is already allocated</code>.", "fix": "Otro puerto del host, como el <code>-p 9000:8000</code> de este lab. Para ver quién lo ocupa: <code>lsof -nP -iTCP:8000 -sTCP:LISTEN</code> y <code>docker ps</code>.", "see": "redes" },
+          { "n": 7, "status": "pending", "title": "<code>docker stop</code> y SIGTERM", "want": "Ver en los logs el apagado limpio (código tras el <code>yield</code>) vs <code>docker kill</code>.", "why": "<code>docker stop</code> manda SIGTERM y espera; <code>docker kill</code> manda SIGKILL, que no deja correr nada después del <code>yield</code>.", "see": "pid1" },
+          { "n": 8, "status": "pending", "title": "<code>requirements.in</code> sin fijar versiones vs <code>.txt</code>", "want": "Mostrar la deriva.", "why": "La lista no dice versiones: cada instalación toma las más nuevas. El ticket sí: siempre las mismas (paso 3)." },
+          { "n": 9, "status": "ok-step5", "title": "Correr como root vs <code>appuser</code>", "got": "Ya en el paso 5: <code>uid=1000(appuser)</code> contra <code>uid=0(root)</code>, y <code>NO</code> contra <code>SI</code> al escribir en <code>/etc</code>." },
+          { "n": 10, "status": "pending", "title": "Plataforma", "want": "Construir con <code>--platform linux/amd64</code> y compararlo con arm64.", "see": "arquitecturas" },
+          { "n": 11, "status": "pending", "title": "Reemplazar el model server por Triton (solo cambiar la imagen/URL)", "want": "Requiere <code>config.pbtxt</code> (borrado del repo; aquí abajo, como referencia). Triton ya trae los endpoints v2 (<code>/v2/health/ready</code>, <code>/v2/models/iris/ready</code>, <code>/infer</code>) y métricas Prometheus en el puerto 8002; el model server propio los implementa a mano.",
+            "blocks": [ { "type": "files", "items": [ { "path": "model_repository/iris/config.pbtxt", "note": "El que se usó para Triton: guárdalo como referencia. <b>No se corrió</b> porque no cabía en el disco." } ] } ] }
+        ] },
+        { "type": "out", "items": [ "Solo los marcados ✅ tienen resultado anotado (en cada experimento). Los pendientes muestran lo que esperas, no lo que pasó." ] },
+        { "type": "why", "title": "Por qué, en el config.pbtxt", "items": [
+          "<code>name: \"iris\"</code> coincide con la carpeta <code>model_repository/iris/</code>, y <code>backend: \"onnxruntime\"</code> le dice a Triton con qué correr el <code>model.onnx</code>.",
+          "<code>max_batch_size: 64</code>: el mismo 64 del <code>MAX_BATCH_SIZE</code> del model server y del <code>max_length=64</code> del gateway.",
+          "<code>dims: [ 4 ]</code> y <code>dims: [ 3 ]</code> sin el batch: como <code>max_batch_size</code> es mayor que 0, Triton agrega esa dimensión.",
+          "<code>input</code> y <code>output</code> se llaman como en el export (<code>input_names=[\"input\"]</code>, <code>output_names=[\"probs\"]</code>).",
+          "<code>dynamic_batching { }</code> junta requests en un solo forward; <code>instance_group</code>: una copia del modelo, en CPU."
+        ] },
+        { "type": "trap", "real": [1], "why": "Ojo antes del experimento 11: los comandos para medir el disco y limpiar están en el paso 11." }
+      ]
+    },
+    {
+      "n": 10, "title": "AWS", "status": "plan", "status_note": "cada comando: verificar con la doc oficial", "links": ["arquitecturas", "registries"],
+      "blocks": [
+        { "type": "what", "t": "El plan para llevar los dos servicios a AWS: las imágenes a ECR y los contenedores a ECS con Fargate. No tienes cuenta todavía y nada de esto se ha corrido: cada comando lleva «verificar con la doc oficial»." },
+        { "type": "text", "title": "Contexto y costos", "items": [
+          { "t": "No tienes cuenta todavía. Las cuentas nuevas reciben créditos ($100 + hasta $100 por actividades) y un plan gratuito de máximo 6 meses; no se pudo confirmar si piden tarjeta al registrarse.",
+            "review": { "t": "Las páginas oficiales no coinciden. El anuncio de AWS del 16 de septiembre de 2026 dice que a la mayoría de las cuentas nuevas no se les pide tarjeta; las preguntas frecuentes del registro dicen que sí piden una tarjeta para verificar la cuenta y cobran 1 USD que después reembolsan. Lo vas a saber en la pantalla de registro.",
+              "src": [
+                { "label": "aws.amazon.com · anuncio del 16-sep-2026", "url": "https://aws.amazon.com/about-aws/whats-new/2026/09/New-AWS-Builder-Experience/" },
+                { "label": "aws.amazon.com/free/registration-faqs", "url": "https://aws.amazon.com/free/registration-faqs/" }
+              ] } },
+          { "t": "Costos aproximados: ECR centavos; Fargate ≈ $0.04 por vCPU-hora (un contenedor de 0.25 vCPU / 0.5 GB ≈ $9/mes encendido 24/7; no verificado contra la página oficial); el balanceador de carga (ALB) es probablemente lo más caro y <b>su precio no está verificado</b>.",
+            "review": { "t": "Revisado el 29 de octubre de 2026 en las páginas de precios de AWS (us-east-1). Fargate Linux/x86: $0.000011244 por vCPU-segundo y $0.000001235 por GB-segundo → 0.25 vCPU + 0.5 GB durante 730 h ≈ $9.0 al mes, como estimaste (en ARM64, ≈ $7.2). ALB: $0.0225 por hora (≈ $16.4 al mes) más $0.008 por LCU-hora: sí, es lo más caro. Y algo que falta en el plan: sin ALB, la task necesita una IP pública, y cada IPv4 pública cuesta $0.005 por hora (≈ $3.65 al mes).",
+              "src": [
+                { "label": "aws.amazon.com/fargate/pricing", "url": "https://aws.amazon.com/fargate/pricing/" },
+                { "label": "aws.amazon.com/elasticloadbalancing/pricing", "url": "https://aws.amazon.com/elasticloadbalancing/pricing/" },
+                { "label": "aws.amazon.com/vpc/pricing", "url": "https://aws.amazon.com/vpc/pricing/" }
+              ] } },
+          "Recomendaciones: alerta de presupuesto desde el inicio, no usar ALB al principio (exponer el gateway con un security group limitado a tu IP) y <b>borrar todo al terminar</b>."
+        ] },
+        { "type": "table", "title": "Qué cambia respecto a local", "head": ["Pieza", "En tu Mac", "En AWS"], "rows": [
+          ["requirements, Dockerfiles, caché, usuario, <code>0.0.0.0</code>, variables de entorno", "los de los pasos 3 a 6", "<b>no cambian</b>"],
+          ["Arquitectura", "M4 = arm64", "Fargate x86 (construir para amd64) o Fargate ARM64 (Graviton)"],
+          ["Registry", "local o Docker Hub (paso 8)", "ECR"],
+          ["Dónde corre", "Docker Desktop", "ECS con Fargate"],
+          ["Cómo se encuentran los servicios", "por nombre, en una red de Docker (paso 7)", "misma task: <code>localhost</code>; tasks separadas: service discovery / Service Connect"],
+          ["Cómo llega el modelo si va fuera de la imagen", "<code>-v</code> desde tu Mac (paso 6)", "S3 al arrancar, un volumen EFS o, en Kubernetes, un volumen persistente o un init container"]
+        ] },
+        { "type": "plan", "title": "Pasos (esqueleto)", "note": "La persona dueña de la cuenta crea las credenciales y configura el acceso: <b>no pegues claves en el chat</b>.", "items": [
+          { "t": "Crear cuenta, alerta de presupuesto, instalar la CLI, configurar acceso y comprobarlo.", "cmds": { "groups": [ { "where": "*", "cmds": [
+            { "cmd": "brew install awscli", "verify": true },
+            { "cmd": "aws configure sso", "verify": true, "note": "o, con claves de acceso:" },
+            { "cmd": "aws configure", "verify": true },
+            { "cmd": "aws sts get-caller-identity", "verify": true }
+          ] } ] } },
+          { "t": "Arquitectura. Opción 1: Fargate en x86 → construir para amd64 (en la Mac se emula y es más lento). Opción 2: Fargate en ARM64 (Graviton, más barato) → sirve la imagen arm64 tal cual; en la task definition se indica <code>cpuArchitecture: ARM64</code>. El <code>requirements.txt</code> universal sirve en ambas.", "cmds": { "groups": [ { "where": "la carpeta de cada imagen, como en los pasos 4 y 6", "note": "en lugar de <code>...</code> va el nombre de la imagen", "cmds": [
+            { "cmd": "docker buildx build --platform linux/amd64 -t ... --load .", "verify": true }
+          ] } ] } },
+          { "t": "ECR: un repositorio por imagen, el login de Docker contra ECR, tag y push (igual para <code>iris-model-server</code>).", "cmds": { "groups": [ { "where": "*", "note": "<code>ACCOUNT_ID</code> = el número de tu cuenta", "cmds": [
+            { "cmd": "aws ecr create-repository --repository-name iris-gateway --region us-east-1", "verify": true },
+            { "cmd": "aws ecr create-repository --repository-name iris-model-server --region us-east-1", "verify": true },
+            { "cmd": "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com", "verify": true },
+            { "cmd": "docker tag iris-gateway:0.1 ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/iris-gateway:0.1", "verify": true },
+            { "cmd": "docker push ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/iris-gateway:0.1", "verify": true }
+          ] } ] } },
+          { "t": "Correr en ECS con Fargate: cluster, task definition (los dos contenedores, <code>MODEL_SERVER_URL</code>, logs a CloudWatch), servicio. Cómo se encuentran: dos contenedores en la <b>misma task</b> se hablan por <code>localhost</code> (entonces <code>MODEL_SERVER_URL=http://localhost:8000</code>), o en tasks separadas con service discovery / Service Connect. La diferencia con tu Mac: ahí, <code>localhost</code> dentro de un contenedor es solo ese contenedor (paso 7); en una task de Fargate, los contenedores comparten la red de la task, y <code>localhost</code> llega al otro." },
+          { "t": "Health checks: <code>/readyz</code> del gateway se usa como health check del balanceador / del contenedor.",
+            "review": { "t": "En ECS no hay un «readiness» aparte: si una task de un servicio falla el health check del balanceador, ECS la detiene y la reinicia; si falla el de un contenedor esencial, la marca UNHEALTHY y la reemplaza. Con el gateway y el model server en tasks separadas, <code>/readyz</code> ahí reiniciaría al gateway cada vez que falle el model server, justo lo que tu <code>app.py</code> evita con <code>/healthz</code>.",
+              "src": [
+                { "label": "docs.aws.amazon.com · Use an Application Load Balancer for Amazon ECS", "url": "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/alb.html" },
+                { "label": "docs.aws.amazon.com · HealthCheck (API de ECS)", "url": "https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_HealthCheck.html" }
+              ] } },
+          { "t": "Red: el model server <b>privado</b>, solo el gateway accesible desde fuera." },
+          { "t": "Logs: stdout → CloudWatch (por eso <code>PYTHONUNBUFFERED=1</code>)." },
+          { "t": "<b>Limpieza obligatoria</b>: eliminar servicio, cluster, repositorios ECR y cualquier balanceador." }
+        ] },
+        { "type": "text", "title": "Los pesos en AWS", "items": [
+          "<b>Pesos dentro de la imagen:</b> no cambia nada. Se sube la imagen variante A a ECR y el modelo viaja con ella.",
+          "<b>Pesos fuera de la imagen</b> (el <code>-v</code> de la Mac no existe): (a) bajar el modelo de <b>S3</b> al arrancar, con un script de entrada o un contenedor init que copie a un volumen compartido (el rol de la task necesita permiso de lectura al bucket); (b) montar un volumen <b>EFS</b> en la task definition en <code>/models</code>; (c) en Kubernetes, un volumen persistente o un init container. <code>server.py</code> ya falla rápido si el modelo no está, lo cual es deseable.",
+          "<b>Argumento de diseño:</b> separar gateway y model server permite reemplazar el segundo por Triton (en una instancia con GPU o con disco suficiente) cambiando solo la imagen y <code>MODEL_SERVER_URL</code>."
+        ] },
+        { "type": "out", "items": [ "Ninguna todavía: es un plan, no se ha corrido nada." ] },
+        { "type": "why", "items": [
+          "<b>ECR</b> es el registry de AWS: como Docker Hub, pero dentro de tu cuenta. <b>ECS</b> es el servicio que corre contenedores, y <b>Fargate</b> es el modo en que AWS pone las máquinas: tú solo pides CPU y memoria por task.",
+          "La <b>task definition</b> es la receta de la task: imágenes, CPU, memoria, variables de entorno, health checks y a dónde van los logs.",
+          "<code>aws ecr get-login-password | docker login …</code>: la CLI de AWS saca una contraseña temporal y Docker la usa para entrar al registry, sin que la escribas."
+        ] },
+        { "type": "trap", "t": "Construir en tu Mac (arm64) y correr en Fargate x86 sin <code>--platform linux/amd64</code>: la imagen no arranca. O construyes para amd64, o pides ARM64 en la task definition. Y la otra: olvidar la limpieza; lo que dejas encendido sigue cobrando." }
+      ]
+    },
+    {
+      "n": 11, "title": "Comandos de inspección y limpieza", "status": "ok", "status_note": "referencia rápida", "links": ["diagnostico"],
+      "blocks": [
+        { "type": "what", "t": "Una referencia rápida para ver qué hay en tu Mac (imágenes, contenedores, capas, logs y disco) y para limpiar. Lo que va en mayúsculas lo cambias tú." },
+        { "type": "cmds", "groups": [
+          { "where": "*", "cmds": [
+            { "cmd": "docker images", "note": "tus imágenes, con su tamaño" },
+            { "cmd": "docker ps -a", "note": "los contenedores, también los detenidos" },
+            { "cmd": "docker history IMAGEN:TAG", "note": "las capas de una imagen y cuánto pesa cada una" },
+            { "cmd": "docker logs NOMBRE", "note": "lo que el contenedor escribió en stdout y stderr" },
+            { "cmd": "docker exec -it NOMBRE sh", "note": "una shell dentro de un contenedor que está corriendo" },
+            { "cmd": "docker system df", "note": "cuánto ocupa Docker: imágenes, contenedores, volúmenes y caché de build" },
+            { "cmd": "docker rmi IMAGEN:TAG", "note": "borra una imagen" },
+            { "cmd": "docker image prune -af", "note": "borra todas las imágenes que ningún contenedor usa, sin preguntar" },
+            { "cmd": "docker builder prune -af", "note": "borra la caché de build, sin preguntar" },
+            { "cmd": "df -h /", "note": "cuánto espacio le queda al disco de tu Mac" }
+          ] }
+        ] },
+        { "type": "out", "items": [ "Sin salidas anotadas: cada comando muestra el estado de tu Mac en ese momento." ] },
+        { "type": "why", "items": [
+          "En <code>prune</code>, <code>-a</code> quiere decir todas las imágenes sin uso, no solo las «colgadas» (las que perdieron su tag), y <code>-f</code>, sin pedir confirmación.",
+          "Antes de bajar una imagen grande: <code>df -h /</code> y <code>docker system df</code> (trampa 12.1)."
+        ] },
+        { "type": "trap", "t": "<code>docker image prune -af</code> también borra tus <code>iris-gateway:0.1</code> e <code>iris-model-server:0.1</code> si ningún contenedor las usa: después toca reconstruirlas." }
+      ]
+    },
+    {
+      "n": 12, "title": "Errores reales que te pasaron", "status": "real",
+      "blocks": [
+        { "type": "what", "t": "Los errores que de verdad te pasaron. Cada uno aparece como trampa en el paso donde ocurre; aquí están juntos." },
+        { "type": "traps" }
+      ]
+    }
+  ],
+  "traps": [
+    { "n": 1, "step": 9, "title": "Disco lleno al bajar Triton", "t": "(≈10 GB comprimida, ≈30 GB de pico con el containerd store): Docker Desktop se cayó (<code>Docker Desktop is unable to start</code>) y hasta Claude Code dejó de poder crear archivos temporales. Antes de bajar imágenes grandes: <code>df -h /</code> y <code>docker system df</code>. Recuperación: liberar espacio (<code>uv cache prune</code>), matar y reabrir Docker Desktop, <code>docker image prune -af</code>." },
+    { "n": 2, "step": 2, "title": "El puerto 8000 del host ocupado", "t": "por otro contenedor → el gateway «conectaba» ahí y daba <code>RemoteProtocolError</code>. Diagnóstico: <code>lsof -nP -iTCP:8000 -sTCP:LISTEN</code> y <code>docker ps</code>." },
+    { "n": 3, "step": 2, "title": "La variable de entorno en una línea aparte", "t": "no se la pasa al programa." },
+    { "n": 4, "step": 4, "title": "<code>.dockerignore</code> vacío por no guardar", "t": "el archivo (<code>wc -c</code> lo delata)." },
+    { "n": 5, "step": 0, "title": "Carpetas ocultas en macOS", "t": "<code>.claude</code> no se ve en Finder → <code>Cmd+Shift+.</code> o <code>Cmd+Shift+G</code> y pegar la ruta, o <code>code RUTA</code> desde la terminal." },
+    { "n": 6, "step": 4, "title": "Todo <code>CACHED</code> en el «primer» build", "t": "porque una prueba previa con los mismos archivos dejó el caché: el caché se basa en el <b>contenido</b>, no en el nombre de la imagen; usar <code>--no-cache</code> para ver el build real." },
+    { "n": 7, "step": 1, "title": "<code>.gitignore</code> raíz ignora <code>*.onnx</code>", "t": "el modelo no entraba al commit → excepción en <code>iris-lab/.gitignore</code> (<code>!model_repository/**/*.onnx</code>)." },
+    { "n": 8, "step": 3, "title": "Pegar una plantilla sobre <code>pyproject.toml</code>", "t": "(otro proyecto, Caso1) desincronizó el lock: el lock se deriva del archivo de dependencias, nunca al revés." }
+  ],
+  "checks": {
+    "pins": { "gateway/requirements.txt": 23, "model_server/requirements.txt": 25 },
+    "versions": [["fastapi", "0.162.0"], ["uvicorn", "0.54.0"], ["httpx", "0.28.1"], ["onnxruntime", "1.31.1"], ["numpy", "2.5.4"]]
+  }
+}

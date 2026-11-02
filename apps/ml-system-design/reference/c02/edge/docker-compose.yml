@@ -1,0 +1,125 @@
+# Todo lo que corre en UNA caja edge del caso c02 (1U con 1× NVIDIA L4, Ubuntu 24.04, driver ≥ 595.58.03
+# y NVIDIA Container Toolkit): DeepStream (GPU) + mosquitto (MQTT local) + forwarder (Python).
+# En los 25 sitios es el mismo archivo; cambian site.yaml, los secretos y la versión del modelo.
+# El rollout OTA por olas (canary primero) instala el bundle nuevo, mueve el symlink `current`, cambia
+# MODEL_VERSION / FORWARDER_TAG y hace `docker compose up -d`: solo se recrean los contenedores cuya
+# DEFINICIÓN cambió. Por eso MODEL_VERSION está también en deepstream: mover el symlink no cambia nada de
+# lo que Compose compara, y sin esa variable DeepStream seguiría con el engine viejo cargado en memoria
+# mientras el forwarder ya reporta la versión nueva.
+# Validado con `docker compose config`; levantarlo requiere la GPU, las cámaras y los secretos.
+
+name: c02-edge  # prefijo de contenedores, red y volúmenes
+
+services:
+  deepstream:
+    # Imagen de ejecución de DeepStream 9.1 (runtime + deepstream-app + plugins). El tag de NGC puede
+    # recibir parches: en producción fija el digest (@sha256:…) para que las 25 cajas corran lo mismo.
+    image: nvcr.io/nvidia/deepstream:9.1-samples-multiarch
+    command: ["deepstream-app", "-c", "/config/ds_app_config.txt"]
+    environment:
+      # deepstream-app NO la lee. Existe para que un cambio de modelo cambie la definición del servicio:
+      # `docker compose up -d` recrea el contenedor y el pipeline vuelve a abrir /models/current (el engine
+      # nuevo). Mismo valor que en el forwarder, que la manda en cada evento y heartbeat.
+      MODEL_VERSION: ${MODEL_VERSION:-det-2026-09-01-yolo-fp16}
+      # TRAMPA: sin la variable, el NVIDIA Container Toolkit expone solo "compute,utility"; sin "video" no hay
+      # NVDEC dentro del contenedor y el decode no funciona. La imagen de DeepStream ya declara "video" en su
+      # ENV (así está en su Dockerfile público, deepstream_dockers/ en el repo de NVIDIA); la escribimos igual
+      # para no depender de eso si mañana usas una imagen propia sobre otra base. REEMPLAZA la lista: completa.
+      NVIDIA_DRIVER_CAPABILITIES: "compute,utility,video"
+    deploy:
+      resources:
+        reservations:
+          devices:  # la L4 entera para DeepStream (equivale a `docker run --gpus 1`)
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      # ds_app_config.txt, nvinfer, tracker, msgconv y labels, RENDERIZADOS por el aprovisionamiento desde
+      # edge/deepstream/ (plantillas en git) con la clave de las cámaras dentro de las URIs RTSP: deepstream-app
+      # no tiene otra forma de recibirla. Por eso esta carpeta es un secreto (root, 0600) y no ./deepstream.
+      - /etc/c02/deepstream:/config:ro
+      # Bundle del modelo que entrega el OTA: /opt/c02/models/<versión>/ + symlink RELATIVO current → <versión>.
+      # Rollback = apuntar current a la versión anterior, volver MODEL_VERSION a la anterior y
+      # `docker compose up -d` (el engine viejo sigue en el disco). Un cambio solo en /config no recrea
+      # nada: ahí va `docker compose restart deepstream`.
+      - /opt/c02/models:/models:ro
+    depends_on:
+      mqtt:
+        condition: service_healthy  # el adaptador MQTT de DeepStream necesita el broker al arrancar
+        # Compose ≥ 2.17: si una operación de Compose reinicia o recrea mqtt (p. ej. un tag nuevo), reinicia
+        # también DeepStream. Si mosquitto se cae solo, lo cubre new-api=1 en [sink0] (reconexión).
+        restart: true
+    restart: unless-stopped  # si el pipeline muere (engine que no carga, bug), Docker lo relanza
+    logging: &logs
+      # El disco de la caja es finito y nadie lo limpia a mano: logs rotados, máximo 3 × 10 MB por servicio
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mqtt:
+    # Broker local: DeepStream publica, el forwarder consume. Nunca se expone fuera de la caja
+    # (sin `ports:`), por eso puede aceptar clientes anónimos. MQTT v5, que exige el adaptador de DeepStream.
+    image: eclipse-mosquitto:2.0.22
+    configs:
+      - source: mosquitto_conf
+        target: /mosquitto/config/mosquitto.conf  # la ruta que lee el CMD de la imagen
+    healthcheck:
+      # Publicar un mensaje prueba que el broker acepta conexiones (la imagen trae los clientes)
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "healthcheck", "-m", "ok"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    logging: *logs
+
+  forwarder:
+    build: ./forwarder
+    image: registry.example.com/c02/forwarder:${FORWARDER_TAG:-2026-09-29}  # el tag lo fija el OTA
+    environment:
+      SITE_CONFIG: /etc/forwarder/site.yaml
+      API_URL: https://events.c02.example.com  # API de ingesta (cloud/api/main.py) detrás de un ALB con TLS
+      API_TOKEN_FILE: /run/secrets/api_token  # token del SITIO: la nube deriva site_id de él
+      CAMERA_USER: forwarder  # usuario de solo lectura en las cámaras (snapshot + RTSP)
+      CAMERA_PASSWORD_FILE: /run/secrets/camera_password
+      MQTT_HOST: mqtt
+      MQTT_TOPIC: ds/detections  # = topic del [sink0] de ds_app_config.txt
+      MODEL_VERSION: ${MODEL_VERSION:-det-2026-09-01-yolo-fp16}  # viaja en cada evento y heartbeat
+      FORWARDER_VERSION: ${FORWARDER_TAG:-2026-09-29}
+    volumes:
+      # En producción es el site.yaml generado para ESTE sitio; aquí, el de ejemplo
+      - ./forwarder/site.example.yaml:/etc/forwarder/site.yaml:ro
+      # La cola SQLite y el spool de fotos/clips sobreviven a reinicios y a actualizaciones del contenedor
+      - forwarder-data:/var/lib/forwarder
+    secrets:
+      - api_token
+      - camera_password
+    depends_on:
+      mqtt:
+        condition: service_healthy
+    # SIGTERM → termina de guardar los eventos en curso en SQLite antes de salir (default: 10 s)
+    stop_grace_period: 30s
+    restart: unless-stopped
+    logging: *logs
+
+configs:
+  mosquitto_conf:
+    # Configuración en línea (`content`, Compose ≥ 2.23.1): un archivo menos que versionar y distribuir
+    content: |
+      # Escucha en todas las interfaces DEL CONTENEDOR (red interna de compose), puerto estándar
+      listener 1883
+      # Sin usuarios: el puerto no se publica en el host. Si algún día lo publicas, password_file + TLS
+      allow_anonymous true
+      # Detecciones efímeras a 5 fps (QoS 0): guardarlas en disco solo gastaría escrituras del SSD
+      persistence false
+      log_dest stdout
+
+secrets:
+  # Los instala el aprovisionamiento de la caja (no viven en git). Compose los monta en /run/secrets/
+  api_token:
+    file: /etc/c02/secrets/api_token
+  camera_password:
+    file: /etc/c02/secrets/camera_password
+
+volumes:
+  forwarder-data: {}  # volumen con nombre: Docker lo crea con los permisos del usuario 10001 de la imagen

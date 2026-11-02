@@ -1,0 +1,1630 @@
+{
+ "sections": [
+  {
+   "id": "probes",
+   "num": 5,
+   "title": "Probes y apagado ordenado",
+   "question": "¿Cómo sabe Kubernetes si tu contenedor ya arrancó, si puede recibir tráfico o si se colgó? ¿Y cómo lo apaga sin cortar requests a la mitad?",
+   "templates": [
+    {
+     "code": "startupProbe:\n  httpGet:\n    path: {ruta_listo}\n    port: {puerto}\n  periodSeconds: {periodo}\n  failureThreshold: {fallos}",
+     "note": "Una probe (sonda) es una pregunta periódica del kubelet, el agente de cada nodo, a tu contenedor. La de arranque da <b>fallos × periodo</b> segundos; mientras, las otras dos esperan."
+    },
+    {
+     "code": "readinessProbe:\n  httpGet:\n    path: {ruta_listo}\n    port: {puerto}\n  periodSeconds: {periodo}\n  timeoutSeconds: {timeout}\n  failureThreshold: {fallos}",
+     "note": "¿Le mando tráfico? Si falla, el pod sale de los endpoints del Service (la lista de pods que reciben tráfico), sin reiniciarse."
+    },
+    {
+     "code": "livenessProbe:\n  httpGet:\n    path: {ruta_vivo}\n    port: {puerto}\n  periodSeconds: {periodo}\n  timeoutSeconds: {timeout}\n  failureThreshold: {fallos}",
+     "note": "¿Se colgó? Si falla <code>failureThreshold</code> veces seguidas, el kubelet mata el contenedor y lo reinicia. Pregunta solo por el proceso, nunca por una dependencia."
+    },
+    {
+     "code": "spec:\n  terminationGracePeriodSeconds: {gracia}\n  containers:\n    - name: {contenedor}\n      lifecycle:\n        preStop:\n          sleep:\n            seconds: {espera}",
+     "note": "Apagado: primero el <code>preStop</code> (un paso que corre antes de apagar), luego SIGTERM (la señal de \"termina\") y, si sigue vivo al vencer <code>terminationGracePeriodSeconds</code> (el plazo de gracia), SIGKILL (muerte inmediata). La acción <code>sleep</code> es estable desde 1.34 y la corre el kubelet, así que la imagen no necesita un <code>sleep</code>; C01 usa <code>exec</code> con <code>sleep 10</code>."
+    }
+   ],
+   "formulas": [
+    "t_{\\text{arranque}} \\le f \\times p",
+    "t_{\\text{detectar}} \\approx f \\times p",
+    "t_{\\text{gracia}} \\ge t_{\\text{preStop}} + t_{\\text{drenado}} + \\text{margen}"
+   ],
+   "vars": [
+    [
+     "{ruta_listo}",
+     "ruta que da 200 solo cuando el modelo está cargado",
+     "/v2/health/ready (Triton), /readyz (gateway)"
+    ],
+    [
+     "{ruta_vivo}",
+     "ruta barata que solo dice si el proceso responde",
+     "/v2/health/live (Triton), /healthz (gateway)"
+    ],
+    [
+     "{puerto}",
+     "número o nombre del puerto del contenedor",
+     "http (= 8000 en Triton)"
+    ],
+    [
+     "{periodo}",
+     "cada cuántos segundos pregunta (periodSeconds; default 10, mínimo 1)",
+     "5"
+    ],
+    [
+     "{timeout}",
+     "segundos que espera la respuesta (timeoutSeconds; default 1)",
+     "2"
+    ],
+    [
+     "{fallos}",
+     "fallos seguidos para declarar la falla (failureThreshold; default 3)",
+     "60 en la startup de Triton; 2 en su readiness"
+    ],
+    [
+     "{gracia}",
+     "plazo total del apagado, preStop incluido (default 30)",
+     "60 (Triton), 45 (gateway)"
+    ],
+    [
+     "{contenedor}",
+     "nombre del contenedor dentro del pod",
+     "triton"
+    ],
+    [
+     "{espera}",
+     "segundos que el preStop retrasa el SIGTERM",
+     "10 (Triton), 15 (gateway)"
+    ],
+    [
+     "t_arranque",
+     "lo que tu app tarda en quedar lista; tiene que caber en f × p de la startup",
+     "carga del engine (el modelo compilado) + warmup (inferencias de calentamiento) ≤ 60 × 5 s = 300 s"
+    ],
+    [
+     "f",
+     "failureThreshold de esa probe",
+     "60 (startup), 2 (readiness), 3 (liveness) en Triton"
+    ],
+    [
+     "p",
+     "periodSeconds de esa probe",
+     "5, 5 y 10 s"
+    ],
+    [
+     "t_detectar",
+     "cuánto tarda en notarse una falla",
+     "readiness: 2 × 5 ≈ 10 s; liveness: 3 × 10 ≈ 30 s"
+    ],
+    [
+     "t_gracia",
+     "terminationGracePeriodSeconds",
+     "60 s en Triton"
+    ],
+    [
+     "t_preStop",
+     "duración del preStop; corre dentro del plazo",
+     "10 s"
+    ],
+    [
+     "t_drenado",
+     "lo que el servidor tarda en terminar lo que tiene en curso",
+     "hasta 30 s (--exit-timeout-secs=30)"
+    ],
+    [
+     "margen",
+     "colchón para el resto del apagado",
+     "20 s (60 − 10 − 30)"
+    ]
+   ],
+   "pieces": [
+    [
+     "startupProbe",
+     "¿Ya arrancó? Mientras no pasa, no corren liveness ni readiness. Si agota f × p, el kubelet reinicia el contenedor.",
+     "Triton: 60 × 5 s = 5 min"
+    ],
+    [
+     "readinessProbe",
+     "¿Le mando tráfico? Si falla, el pod sale de los endpoints del Service. Sigue vivo y sigue probando.",
+     "READY 0/1 con RESTARTS sin cambio"
+    ],
+    [
+     "livenessProbe",
+     "¿Se colgó? Si falla f veces seguidas, el kubelet corre el preStop, mata el contenedor y lo reinicia.",
+     "/v2/health/live cada 10 s"
+    ],
+    [
+     "httpGet · tcpSocket · grpc · exec",
+     "Cómo pregunta: GET con respuesta 200–399, puerto que acepta conexión, health check de gRPC que responde SERVING, o comando con exit 0.",
+     "exec: [\"cat\", \"/tmp/listo\"] (crea procesos en cada probe: en nodos llenos, mejor httpGet)"
+    ],
+    [
+     "periodSeconds · timeoutSeconds",
+     "Cada cuánto pregunta y cuánto espera la respuesta. Defaults: 10 s y 1 s.",
+     "Triton: 5 s y 2 s"
+    ],
+    [
+     "failureThreshold · successThreshold",
+     "Fallos seguidos para declarar la falla (default 3) y éxitos para volver (default 1; liveness y startup: siempre 1).",
+     "readiness de Triton: 2 fallos"
+    ],
+    [
+     "initialDelaySeconds",
+     "Espera antes de la primera probe (default 0). Con una startupProbe casi nunca hace falta.",
+     "liveness del gateway: 5"
+    ],
+    [
+     "Condición Ready",
+     "Pod listo: todos sus contenedores pasan la readiness y se cumplen los readinessGates. El Service solo manda tráfico a pods Ready.",
+     "kubectl get pods → READY 1/1"
+    ],
+    [
+     "readinessGates",
+     "Condiciones extra para estar Ready. El AWS Load Balancer Controller agrega una: que el ALB (el balanceador de AWS) ya vea sano al pod.",
+     "label elbv2.k8s.aws/pod-readiness-gate-inject=enabled en el namespace"
+    ],
+    [
+     "lifecycle.preStop",
+     "Corre antes del SIGTERM y dentro del plazo. Mantiene el proceso atendiendo mientras el pod sale de los endpoints.",
+     "sleep 10 (Triton), sleep 15 (gateway)"
+    ],
+    [
+     "terminationGracePeriodSeconds",
+     "Plazo total del apagado, preStop incluido. Al vencer, SIGKILL (exit 137); si el preStop sigue, recibe 2 s extra.",
+     "60 (Triton), 45 (gateway); default 30"
+    ],
+    [
+     "Eventos Unhealthy y Killing",
+     "Lo que deja cada falla en kubectl describe pod y kubectl events.",
+     "Readiness probe failed: HTTP probe failed with statuscode: 503"
+    ],
+    [
+     "HEALTHCHECK del Dockerfile",
+     "Kubernetes no lo usa: solo cuentan las probes del manifest.",
+     "el del gateway sirve en docker run y en Compose"
+    ]
+   ],
+   "tables": [
+    {
+     "caption": "Las tres probes de un vistazo",
+     "head": [
+      "Probe",
+      "Pregunta",
+      "Si falla",
+      "En Triton (C01)"
+     ],
+     "rows": [
+      [
+       "startupProbe",
+       "¿Ya terminó de arrancar?",
+       "Al agotar f × p, reinicia el contenedor. Mientras no pasa, las otras dos no corren.",
+       "/v2/health/ready cada 5 s, hasta 60 fallos = 5 min"
+      ],
+      [
+       "readinessProbe",
+       "¿Le mando tráfico?",
+       "El pod sale de los endpoints (READY 0/1). No se reinicia.",
+       "/v2/health/ready cada 5 s, 2 fallos ≈ 10 s"
+      ],
+      [
+       "livenessProbe",
+       "¿Se colgó el proceso?",
+       "Reinicia el contenedor (con preStop y plazo de gracia).",
+       "/v2/health/live cada 10 s, 3 fallos ≈ 30 s"
+      ]
+     ],
+     "note": "Defaults si no los escribes: periodSeconds 10, timeoutSeconds 1, failureThreshold 3, successThreshold 1, initialDelaySeconds 0. Readiness y liveness no se esperan entre sí: solo la startup frena a las otras dos."
+    }
+   ],
+   "example": {
+    "title": "Las probes y el preStop de Triton en C01",
+    "lang": "yaml",
+    "code": "startupProbe:\n  httpGet:\n    path: /v2/health/ready\n    port: http\n  periodSeconds: 5\n  failureThreshold: 60  # hasta 5 min para quedar listo\n# readiness: ¿recibe tráfico? ready = servidor + modelo cargado (--strict-readiness)\nreadinessProbe:\n  httpGet:\n    path: /v2/health/ready\n    port: http\n  periodSeconds: 5\n  timeoutSeconds: 2\n  failureThreshold: 2  # ~10 s sin estar listo → sale del Service\n# liveness: ¿el proceso está colgado? Solo \"live\", NO \"ready\": un modelo que se descarga\n# no se arregla reiniciando en bucle\nlivenessProbe:\n  httpGet:\n    path: /v2/health/live\n    port: http\n  periodSeconds: 10\n  timeoutSeconds: 2\n  failureThreshold: 3\nlifecycle:\n  preStop:\n    exec:\n      # Al borrar el pod, el Service tarda unos segundos en sacarlo de los endpoints.\n      # Seguimos sirviendo 10 s antes del SIGTERM para no cortar requests en vuelo.\n      command: [\"sleep\", \"10\"]",
+    "source": "reference/c01/k8s/triton.yaml (líneas 91–119, contenedor triton; sangría reducida)",
+    "notes": [
+     "La <code>startupProbe</code> le da a Triton hasta 60 × 5 s = 5 min para cargar el engine y hacer el warmup. Mientras no pasa, el kubelet no corre la liveness: no mata a un pod que solo está cargando.",
+     "Startup y readiness preguntan lo mismo, <code>/v2/health/ready</code>, que con <code>--strict-readiness=true</code> da 200 solo con el modelo cargado. Antes de eso Triton ni abre el puerto: la probe falla con connection refused, y es normal.",
+     "La readiness saca al pod del Service en ≈ 2 × 5 s = 10 s. <code>timeoutSeconds: 2</code> evita el default de 1 s, que bajo carga da falsos negativos.",
+     "La liveness pregunta <code>/v2/health/live</code> (el proceso responde), no <code>ready</code>: si el modelo no carga, reiniciar en bucle no lo arregla. Un cuelgue se detecta en ≈ 3 × 10 s = 30 s.",
+     "El preStop de 10 s corre dentro de <code>terminationGracePeriodSeconds: 60</code> (línea 32): 10 s de preStop + 30 s de <code>--exit-timeout-secs</code> + 20 s de margen. El gateway hace lo mismo con 15 + 20 (uvicorn) + 10 = 45, porque el ALB tarda más en dejar de mandarle tráfico que kube-proxy (el que reparte el tráfico de los Services en cada nodo)."
+    ]
+   },
+   "figure": {
+    "kind": "probes",
+    "caption": "Arriba, el arranque de un pod de Triton (t = 0 al arrancar el contenedor; en este ejemplo el engine tarda ≈ 40 s). Abajo, el apagado (t = 0 al borrar el pod), con el plazo de 60 s de C01.",
+    "data": {
+     "events": [
+      {
+       "t": 0,
+       "lane": "startup",
+       "label": "arranca el contenedor; startup cada 5 s: falla (connection refused)"
+      },
+      {
+       "t": 40,
+       "lane": "startup",
+       "label": "startup OK: cabía en 60 × 5 = 300 s"
+      },
+      {
+       "t": 40,
+       "lane": "readiness",
+       "label": "readiness OK: Ready, entra a los endpoints"
+      },
+      {
+       "t": 40,
+       "lane": "liveness",
+       "label": "liveness empieza: /v2/health/live cada 10 s"
+      },
+      {
+       "t": 0,
+       "lane": "shutdown",
+       "label": "borrado: Terminating; el endpoint pasa a no listo; corre el preStop (sleep 10)"
+      },
+      {
+       "t": 10,
+       "lane": "shutdown",
+       "label": "SIGTERM: Triton espera hasta 30 s a que terminen las inferencias en curso"
+      },
+      {
+       "t": 40,
+       "lane": "shutdown",
+       "label": "Triton sale a más tardar aquí"
+      },
+      {
+       "t": 60,
+       "lane": "shutdown",
+       "label": "vence el plazo: SIGKILL a lo que quede (exit 137)"
+      }
+     ],
+     "grace_s": 60,
+     "origins": {
+      "startup": "t = 0: arranca el contenedor",
+      "shutdown": "t = 0: kubectl delete, scale-down, rollout o drain"
+     }
+    }
+   },
+   "memo": "Cómo recordarla: <b>startup = ¿ya arrancó?, readiness = ¿le mando tráfico?, liveness = ¿lo reinicio?, y al apagar, preStop → SIGTERM → SIGKILL dentro de <code>terminationGracePeriodSeconds</code></b>. Como en un restaurante: la startup espera a que la cocina esté lista, la readiness es el letrero de abierto o cerrado (cerrar no despide a nadie) y la liveness reemplaza a quien cocina si se desmayó.",
+   "trap": "Trampa: poner una dependencia en la liveness (Triton en la del gateway, la base de datos en la de tu API): si la dependencia cae, el kubelet reinicia en cascada pods sanos que no arreglan nada, así que las dependencias van en la readiness. Sin <code>startupProbe</code>, un modelo que tarda 3 min en cargar muere a manos de la liveness (3 × 10 s con los defaults) antes de terminar, y el pod entra en CrashLoopBackOff (reinicios con esperas cada vez más largas). Y con el <code>timeoutSeconds</code> de 1 s por defecto, un proceso saturado falla la liveness justo en el pico: reinicias capacidad cuando más falta.",
+   "lab": {
+    "goal": "Ver a la startup frenar a las otras probes, a la readiness sacar un pod sin reiniciarlo, a la liveness reiniciarlo, y medir un apagado con preStop.",
+    "steps": [
+     {
+      "cmd": "kubectl config current-context\nkubectl create namespace lab-k8s\nkubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: v1\nkind: Pod\nmetadata:\n  name: probes\nspec:\n  terminationGracePeriodSeconds: 20\n  containers:\n    - name: app\n      image: busybox:1.38\n      command: [\"sh\", \"-c\", \"trap 'exit 0' TERM; touch /tmp/vivo; sleep 15; touch /tmp/listo; while true; do sleep 1; done\"]\n      startupProbe:\n        exec:\n          command: [\"cat\", \"/tmp/listo\"]\n        periodSeconds: 2\n        failureThreshold: 30\n      readinessProbe:\n        exec:\n          command: [\"cat\", \"/tmp/listo\"]\n        periodSeconds: 2\n      livenessProbe:\n        exec:\n          command: [\"cat\", \"/tmp/vivo\"]\n        periodSeconds: 2\n      lifecycle:\n        preStop:\n          exec:\n            command: [\"sleep\", \"5\"]\nEOF\nkubectl get pod probes -n lab-k8s -w",
+      "expect": "El contexto tiene que ser docker-desktop (o tu cluster kind), nunca uno de trabajo. El pod queda Running con READY 0/1 unos 15 s: la startup falla cada 2 s hasta que aparece /tmp/listo. Después pasa a 1/1. Sal con Ctrl+C."
+     },
+     {
+      "cmd": "kubectl exec -n lab-k8s probes -- rm /tmp/listo\nkubectl get pod probes -n lab-k8s -w",
+      "expect": "En ≈ 6 s (3 fallos × 2 s) READY pasa a 0/1 y RESTARTS sigue en 0: la readiness saca al pod del tráfico sin reiniciarlo. Ctrl+C, y devuélvele el archivo con kubectl exec -n lab-k8s probes -- touch /tmp/listo: en ≈ 2 s vuelve a 1/1."
+     },
+     {
+      "cmd": "kubectl exec -n lab-k8s probes -- rm /tmp/vivo\nkubectl get pod probes -n lab-k8s -w",
+      "expect": "En ≈ 6 s el kubelet declara la falla, corre el preStop (5 s) y reinicia el contenedor: RESTARTS pasa a 1. Es un contenedor nuevo, así que /tmp vuelve vacío: otra vez ≈ 15 s en 0/1 hasta que pasa la startup."
+     },
+     {
+      "cmd": "kubectl events -n lab-k8s --for pod/probes",
+      "expect": "Eventos Unhealthy con Startup probe failed, Readiness probe failed y Liveness probe failed (cada uno con el error de cat), y un Killing con Container app failed liveness probe, will be restarted."
+     },
+     {
+      "cmd": "time kubectl delete pod probes -n lab-k8s",
+      "expect": "Tarda ≈ 6 s: 5 s de preStop y, cuando llega el SIGTERM, el trap sale en menos de 1 s. Sin el trap, sh como PID 1 (el primer proceso del contenedor) ignora el SIGTERM y kubectl esperaría los 20 s del plazo hasta el SIGKILL (lo mismo que viste con docker stop en la hoja de Docker)."
+     }
+    ],
+    "fix": "Arranque lento: una startupProbe con failureThreshold × periodSeconds mayor que el peor arranque, no un initialDelaySeconds largo en la liveness. Readiness que va y viene: busca la dependencia caída o la saturación; no toques la liveness. Requests cortados al desplegar: un preStop que cubra la propagación de los endpoints y terminationGracePeriodSeconds ≥ preStop + drenado + margen. Limpia con kubectl delete namespace lab-k8s.",
+    "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster, con kubeadm o kind; contexto docker-desktop) o kind. La primera vez se baja busybox:1.38 (≈ 2 MB para arm64).",
+    "verified": "docs",
+    "verified_note": "No ejecutado aquí: no había cluster en la sesión. Campos, defaults y orden del apagado verificados en kubernetes.io (probes, ciclo de vida del pod, lifecycle hooks) para Kubernetes 1.37; los textos de los eventos (Startup probe failed, Container app failed liveness probe, will be restarted) salen del código del kubelet 1.37. busybox:1.38 es multi-arquitectura (verificado en Docker Hub)."
+   },
+   "links": [
+    "#m06.objetos-basicos",
+    "#m06.alta-disponibilidad",
+    "#ref-comandos.depurar",
+    "#c01.fallas",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "recursos",
+   "num": 6,
+   "title": "Requests, limits y QoS",
+   "question": "¿Cuánta CPU, memoria y GPU reserva tu pod, qué pasa si se pasa, y a quién saca Kubernetes primero cuando a un nodo le falta memoria?",
+   "templates": [
+    {
+     "code": "resources:\n  requests:\n    cpu: \"{cpu}\"\n    memory: {mem}\n  limits:\n    memory: {mem}",
+     "note": "El <b>request</b> es tu reserva: el scheduler, que elige el nodo, solo te pone donde cabe. El <b>limit</b> es el techo. C01: CPU sin limit; memoria con limit = request."
+    },
+    {
+     "code": "resources:\n  requests:\n    cpu: \"{cpu}\"\n    memory: {mem}\n    nvidia.com/gpu: {gpus}\n  limits:\n    memory: {mem}\n    nvidia.com/gpu: {gpus}",
+     "note": "La GPU es un recurso extendido (Kubernetes no la trae de fábrica): la anuncia el device plugin de NVIDIA, un pod que corre en cada nodo GPU. Se pide en <code>limits</code>, en números enteros; si también va en <code>requests</code>, tiene que ser el mismo número."
+    },
+    {
+     "code": "resources:\n  requests:\n    cpu: \"{cpu}\"\n    memory: {mem}\n  limits:\n    cpu: \"{cpu}\"\n    memory: {mem}",
+     "note": "Clase de QoS (calidad de servicio) Guaranteed: request = limit de CPU y de memoria en cada contenedor. Suele ser de lo último en salir si al nodo le falta memoria; a cambio, el limit de CPU trae throttling (la CPU se frena al llegar al tope)."
+    },
+    {
+     "code": "kubectl describe node {nodo}\nkubectl get pod {pod} -o jsonpath='{.status.qosClass}'\nkubectl top pod {pod} --containers",
+     "note": "Lo que ve el scheduler (Allocatable, Allocated resources), la clase de QoS (calidad de servicio) y el uso real, que requiere metrics-server (el medidor de CPU y memoria)."
+    }
+   ],
+   "formulas": [
+    "\\sum_{\\text{pods del nodo}} \\text{request} + \\text{request}_{\\text{nuevo}} \\le \\text{Allocatable}",
+    "t_{\\text{agota}} = \\frac{\\text{limit} \\times 100\\,\\text{ms}}{n_{\\text{hilos}}}",
+    "u = \\frac{\\text{uso de CPU}}{\\text{request de CPU}}"
+   ],
+   "vars": [
+    [
+     "{cpu}",
+     "cores: \"1\", \"2\" (las comillas son opcionales), o milicores con m (\"500m\" = medio core)",
+     "\"1\" (gateway), \"2\" (Triton)"
+    ],
+    [
+     "{mem}",
+     "bytes con sufijo: Mi y Gi son base 2; M y G, base 10",
+     "1Gi (gateway), 6Gi (Triton)"
+    ],
+    [
+     "{gpus}",
+     "GPUs enteras. Salvo que configures una forma de compartirla (time-slicing: los pods se turnan; MIG: la GPU partida en pedazos), cada pod se queda con una GPU completa",
+     "1 (una T4)"
+    ],
+    [
+     "{nodo}",
+     "nombre del nodo, de kubectl get nodes",
+     "docker-desktop en tu Mac"
+    ],
+    [
+     "{pod}",
+     "nombre del pod, de kubectl get pods",
+     "oom (en el lab)"
+    ],
+    [
+     "request_nuevo",
+     "request del pod que el scheduler quiere colocar; se compara por recurso: CPU, memoria y GPU",
+     "Triton: 2 CPU, 6Gi y 1 GPU"
+    ],
+    [
+     "Allocatable",
+     "lo que el nodo ofrece a los pods: su capacidad menos lo reservado para el sistema operativo, el kubelet (el agente del nodo) y el umbral de desalojo",
+     "una g4dn.xlarge tiene 4 vCPU, 16 GiB y 1 T4 de capacidad; Allocatable es algo menor en CPU y memoria"
+    ],
+    [
+     "t_agota",
+     "en qué momento de cada ventana de 100 ms se acaba la cuota de CPU",
+     "25 ms"
+    ],
+    [
+     "limit",
+     "limits.cpu en cores",
+     "1"
+    ],
+    [
+     "n_hilos",
+     "hilos usando CPU a la vez",
+     "4 decodes en paralelo"
+    ],
+    [
+     "u",
+     "utilización que mide el HPA (sección 9)",
+     "0.6 cores / 1 core = 60 %"
+    ]
+   ],
+   "pieces": [
+    [
+     "requests.cpu",
+     "Reserva para elegir nodo y peso cuando varios contenedores compiten por CPU. Es la base del % del HPA (el autoscaler de réplicas, sección 9).",
+     "\"1\" en el gateway: 60 % = 0.6 cores"
+    ],
+    [
+     "limits.cpu",
+     "Cuota por ventana de 100 ms. Al agotarla, el kernel congela el contenedor hasta la siguiente (throttling). No lo mata.",
+     "C01 no lo pone"
+    ],
+    [
+     "requests.memory",
+     "Reserva para elegir nodo. Si al nodo le falta memoria, salen primero los pods que usan más que su request.",
+     "6Gi (Triton)"
+    ],
+    [
+     "limits.memory",
+     "Techo duro. Si lo pasa, el kernel mata el proceso (OOMKilled, exit 137) y el kubelet reinicia el contenedor.",
+     "= request en C01"
+    ],
+    [
+     "Unidades",
+     "CPU en cores: 500m es medio core. Memoria en bytes: Mi y Gi base 2; M y G base 10.",
+     "cpu: 500m · memory: 512Mi (memory: 400m serían 0.4 bytes)"
+    ],
+    [
+     "Solo limits, sin requests",
+     "Kubernetes copia el limit como request, salvo que un LimitRange (defaults por namespace) ponga otro.",
+     "limits.memory: 1Gi → request 1Gi"
+    ],
+    [
+     "nvidia.com/gpu",
+     "Recurso extendido que anuncia el device plugin de NVIDIA. Enteros, sin sobreasignar, request = limit.",
+     "una T4 entera por pod de Triton"
+    ],
+    [
+     "Allocatable · Allocated resources",
+     "Lo que el nodo ofrece y lo que ya está reservado. El scheduler suma requests, no el uso real.",
+     "kubectl describe node"
+    ],
+    [
+     "Clase de QoS (calidad de servicio)",
+     "Guaranteed, Burstable o BestEffort según requests y limits de CPU y memoria. La GPU no cuenta.",
+     "gateway y Triton: Burstable"
+    ],
+    [
+     "ephemeral-storage",
+     "Disco local del nodo: lo que el contenedor escribe fuera de volúmenes, sus logs y los emptyDir (carpetas temporales del pod). Pasarse del limit desaloja el pod.",
+     "C04: request 10Gi, limit 30Gi"
+    ],
+    [
+     "emptyDir con medium: Memory",
+     "Carpeta en RAM (tmpfs). Lo que escribes ahí cuenta contra el limit de memoria del contenedor.",
+     "/dev/shm de Triton, sizeLimit 1Gi"
+    ],
+    [
+     "LimitRange · ResourceQuota",
+     "Defaults de requests y limits por namespace, y topes totales del namespace (también de GPUs).",
+     "requests.nvidia.com/gpu: 4"
+    ],
+    [
+     "Resize en el lugar (in-place)",
+     "Cambia CPU y memoria de un pod sin recrearlo (estable desde 1.35). No aplica a GPUs ni cambia la QoS.",
+     "kubectl patch pod … --subresource resize (kubectl ≥ 1.32)"
+    ],
+    [
+     "OOMKilled · Evicted",
+     "OOMKilled: el kernel lo mató por memoria (casi siempre, pasó su limit). Evicted: el kubelet sacó el pod porque al nodo le faltaba memoria o disco.",
+     "The node was low on resource: memory."
+    ]
+   ],
+   "tables": [
+    {
+     "caption": "Clases de QoS (solo CPU y memoria; la GPU no cuenta)",
+     "head": [
+      "Clase",
+      "Regla",
+      "Si al nodo le falta memoria",
+      "Ejemplo"
+     ],
+     "rows": [
+      [
+       "Guaranteed",
+       "Todos los contenedores con request = limit de CPU y de memoria",
+       "Al final: nunca usa más de lo que pidió. Si el kernel tiene que matar, va último (oom_score_adj −997, el ajuste con que el kernel elige)",
+       "un pod con cpu 2/2 y memory 6Gi/6Gi"
+      ],
+      [
+       "Burstable",
+       "Al menos un request o limit de CPU o memoria, sin llegar a Guaranteed",
+       "Si usa más de lo que pidió, compite con los BestEffort (decide la prioridad y cuánto se pasa); si no, sale al final",
+       "gateway y Triton de C01 (CPU sin limit)"
+      ],
+      [
+       "BestEffort",
+       "Ningún request ni limit de CPU ni de memoria",
+       "Entre los primeros: todo lo que usa pasa su request de 0 (oom_score_adj 1000: el kernel lo mata primero)",
+       "un pod que solo pide nvidia.com/gpu: 1"
+      ]
+     ],
+     "note": "El kubelet no mira la clase: saca primero a los pods que usan más memoria de la que pidieron y, entre ellos, decide por prioridad y por cuánto se pasan. La QoS solo sirve para predecir ese orden. Si el nodo se queda sin memoria antes de que el kubelet actúe, mata el kernel, y ahí sí pesa la clase."
+    }
+   ],
+   "example": {
+    "title": "Requests y limits del gateway y de Triton",
+    "lang": "yaml",
+    "code": "resources:\n  requests:\n    cpu: \"1\"  # base del HPA: 60 % de utilización = 0.6 cores por pod\n    memory: 1Gi  # ≈ 80 MB de Python + 2 decodes de peor caso (≈ 320 MB c/u) + bodies en vuelo; con PREPROCESS_CONCURRENCY=4 sube a 2Gi (4 × 320 MB ya pasa de 1Gi)\n  limits:\n    memory: 1Gi  # límite = request: si se pasa, OOMKilled claro en vez de afectar al nodo\n    # SIN límite de CPU a propósito: con límite, CFS reparte la CPU en ventanas de 100 ms;\n    # una ráfaga de decodes agota la cuota y el pod queda \"throttled\" el resto de la\n    # ventana → picos de p99 aunque el uso promedio sea bajo. El request ya garantiza su parte.\n\n# … y el contenedor de k8s/triton.yaml (líneas 76–84):\nresources:\n  requests:\n    cpu: \"2\"  # Triton usa CPU para red, deserializar y el scheduler de batching\n    memory: 6Gi  # librerías CUDA + buffers pinned; el modelo en sí vive en la GPU\n    nvidia.com/gpu: 1  # recurso extendido del NVIDIA device plugin: una T4 entera por pod\n  limits:\n    memory: 6Gi  # memoria: límite = request (sin sorpresas de OOM por vecinos)\n    nvidia.com/gpu: 1  # las GPUs no se comparten ni se sobre-asignan: request = limit\n    # Sin límite de CPU: el nodo es solo para Triton y el throttling de CFS mete latencia",
+    "source": "reference/c01/k8s/gateway.yaml (líneas 67–75) y reference/c01/k8s/triton.yaml (líneas 76–84); sangría reducida",
+    "notes": [
+     "Gateway: request de 1 CPU y ningún limit de CPU, a propósito. Con limit, una ráfaga de decodes agota la cuota a mitad de la ventana de 100 ms y el p99 (la latencia del 1 % de requests más lentos) sube aunque el promedio se vea bajo. El request ya le garantiza su parte.",
+     "Memoria del gateway: 1Gi de request y de limit, medido y no adivinado: ≈ 80 MB de Python + 2 decodes de ≈ 320 MB. La variable <code>PREPROCESS_CONCURRENCY=2</code> del Deployment acota la concurrencia para que el pico quepa.",
+     "Triton pide 2 CPU, 6Gi y una GPU, con <code>nvidia.com/gpu</code> igual en requests y limits. Una g4dn.xlarge tiene una sola T4: un segundo Triton no cabe en ese nodo (<code>Insufficient nvidia.com/gpu</code>, sección 8). Tampoco le alcanzaría la CPU: 2 + 2 cores contra un Allocatable de algo menos de 4.",
+     "El <code>/dev/shm</code> de Triton es un emptyDir en RAM de hasta 1Gi (líneas 120–127): cuenta dentro de los 6Gi del limit.",
+     "Los dos pods son Burstable (CPU sin limit). Como su memoria nunca pasa del request, si al nodo le falta memoria salen después que cualquier pod que se pasó del suyo."
+    ]
+   },
+   "figure": {
+    "kind": "resources",
+    "caption": "Requests y limits de los dos contenedores de C01 contra la capacidad de sus nodos, y qué pasa al pasarse. La última fila es un contraejemplo: lo que pasaría con un limit de CPU.",
+    "data": {
+     "nodes": [
+      {
+       "name": "g4dn.xlarge (nodo de Triton)",
+       "capacity": {
+        "cpu": 4,
+        "memory_gib": 16,
+        "nvidia.com/gpu": 1
+       },
+       "note": "Allocatable es algo menor en CPU y memoria: el sistema y el kubelet reservan una parte"
+      },
+      {
+       "name": "c6i.xlarge (nodo del gateway)",
+       "capacity": {
+        "cpu": 4,
+        "memory_gib": 8
+       }
+      }
+     ],
+     "rows": [
+      {
+       "container": "triton",
+       "node": "g4dn.xlarge",
+       "resource": "cpu",
+       "request": 2,
+       "limit": null,
+       "unit": "cores",
+       "over": "sin limit: usa la CPU libre del nodo; nada lo congela"
+      },
+      {
+       "container": "triton",
+       "node": "g4dn.xlarge",
+       "resource": "memory",
+       "request": 6,
+       "limit": 6,
+       "unit": "GiB",
+       "over": "pasar 6 GiB (el /dev/shm cuenta): OOMKilled, exit 137"
+      },
+      {
+       "container": "triton",
+       "node": "g4dn.xlarge",
+       "resource": "nvidia.com/gpu",
+       "request": 1,
+       "limit": 1,
+       "unit": "GPU",
+       "over": "no hay \"pasarse\": la T4 es entera de este pod; otro Triton no cabe en el nodo"
+      },
+      {
+       "container": "gateway",
+       "node": "c6i.xlarge",
+       "resource": "cpu",
+       "request": 1,
+       "limit": null,
+       "unit": "cores",
+       "over": "sin limit: sin throttling; el HPA mide contra este 1 core"
+      },
+      {
+       "container": "gateway",
+       "node": "c6i.xlarge",
+       "resource": "memory",
+       "request": 1,
+       "limit": 1,
+       "unit": "GiB",
+       "over": "pasar 1 GiB: OOMKilled, exit 137"
+      },
+      {
+       "container": "contraejemplo",
+       "node": "—",
+       "resource": "cpu",
+       "request": 1,
+       "limit": 1,
+       "unit": "cores",
+       "over": "con 4 hilos agota la cuota a los 25 ms y espera hasta el ms 100: throttling"
+      }
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>request = la reserva, limit = el techo</b>, y el scheduler solo mira reservas, nunca el uso real. Pasarte de CPU es esperar turno (throttling); pasarte de memoria es que te saquen (OOMKilled, 137).",
+   "trap": "Trampa: <code>CUDA out of memory</code> no es OOMKilled: OOMKilled es la RAM del contenedor contra <code>limits.memory</code> (exit 137, sin una línea en el log), mientras que el error de CUDA es la memoria de la GPU (VRAM) y aparece en el log, así que subir <code>limits.memory</code> no lo arregla. Un pod que solo pide <code>nvidia.com/gpu</code> es BestEffort: sin reserva de CPU ni de memoria, primero en salir y sin request contra el cual el HPA pueda medir. Y según el README del device plugin, un contenedor que corre en un nodo GPU sin pedir GPUs puede ver todas las del nodo.",
+   "lab": {
+    "goal": "Provocar un OOMKilled y un throttling de CPU en tu cluster local, leer la clase de QoS de cada pod y ver qué reserva el scheduler en el nodo.",
+    "steps": [
+     {
+      "cmd": "kubectl config current-context\nkubectl create namespace lab-k8s\nkubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: v1\nkind: Pod\nmetadata:\n  name: oom\nspec:\n  containers:\n    - name: app\n      image: python:3.12-slim\n      command: [\"python\", \"-c\", \"b = bytearray(300 * 1024 * 1024); print('cupo')\"]\n      resources:\n        requests:\n          memory: 64Mi\n        limits:\n          memory: 128Mi\nEOF\nkubectl get pod oom -n lab-k8s -w",
+      "expect": "STATUS pasa por OOMKilled y después CrashLoopBackOff, con RESTARTS creciendo: el kubelet lo reinicia enseguida la primera vez y después con esperas de 10 s, 20 s, 40 s… hasta 5 min. Python pidió 300 MiB contra un limit de 128 MiB y nunca imprime cupo. Sal con Ctrl+C."
+     },
+     {
+      "cmd": "kubectl describe pod oom -n lab-k8s\nkubectl get pod oom -n lab-k8s -o jsonpath='{.status.qosClass}'; echo",
+      "expect": "En el contenedor: Last State: Terminated, Reason: OOMKilled, Exit Code: 137, y Restart Count creciendo. La QoS es Burstable: tiene memoria, pero no cumple Guaranteed (request ≠ limit y sin CPU)."
+     },
+     {
+      "cmd": "kubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: v1\nkind: Pod\nmetadata:\n  name: cpu\nspec:\n  containers:\n    - name: app\n      image: python:3.12-slim\n      command: [\"python\", \"-c\", \"while True: pass\"]\n      resources:\n        requests:\n          cpu: 500m\n          memory: 64Mi\n        limits:\n          cpu: 500m\n          memory: 64Mi\nEOF\nsleep 20\nkubectl exec -n lab-k8s cpu -- cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat\nkubectl get pod cpu -n lab-k8s -o jsonpath='{.status.qosClass}'; echo",
+      "expect": "cpu.max dice 50000 100000: 50 ms de CPU por cada ventana de 100 ms, que es el limit de 500m. En cpu.stat, nr_throttled y throttled_usec ya son mayores que 0 y crecen si repites el comando: el bucle quiere un core entero y el kernel lo frena, no lo mata. Esta vez la QoS es Guaranteed (request = limit en CPU y memoria). Son archivos de cgroup v2 (el mecanismo del kernel que aplica los límites), el default de Docker Desktop."
+     },
+     {
+      "cmd": "NODE=$(kubectl get pod cpu -n lab-k8s -o jsonpath='{.spec.nodeName}')\nkubectl describe node \"$NODE\" | grep -A 12 \"Allocated resources\"",
+      "expect": "La tabla Allocated resources suma los requests de los pods del nodo (incluidos los 500m del pod cpu), no su uso real. Un pod nuevo entra solo si su request cabe en Allocatable menos esa suma."
+     }
+    ],
+    "fix": "OOMKilled: mide el pico real (container_memory_working_set_bytes en Prometheus; kubectl top solo ve el presente) y fija limit = request con margen; si el pico viene de cargar el modelo o de decodes en paralelo, acota la concurrencia. Throttling: en servicios sensibles a latencia quita el limit de CPU y deja el request. En EKS (el Kubernetes administrado de AWS) la GPU se pide con nvidia.com/gpu en limits; en tu Mac no hay device plugin, así que un pod que la pida queda Pending (sección 8). Limpia con kubectl delete namespace lab-k8s (tarda ≈ 30 s: python como PID 1, el primer proceso del contenedor, no atiende el SIGTERM y espera el SIGKILL).",
+    "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster, con kubeadm o kind; contexto docker-desktop) o kind. La primera vez se baja python:3.12-slim (≈ 44 MB para arm64), la misma imagen de los labs de la hoja de Docker.",
+    "verified": "docs",
+    "verified_note": "No ejecutado aquí. Requests, limits, QoS, orden de desalojo y oom_score_adj verificados en kubernetes.io (Kubernetes 1.37); cpu.max y cpu.stat según la documentación de cgroup v2 del kernel. bytearray(n) llena la memoria con ceros (memset en CPython), así que las páginas se usan de verdad."
+   },
+   "links": [
+    "#m06.objetos-basicos",
+    "#m06.gpus-k8s",
+    "#m04.compartir-gpu",
+    "#ref-comandos.depurar",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "config",
+   "num": 7,
+   "title": "ConfigMaps, Secrets, volúmenes y ServiceAccounts",
+   "question": "¿Cómo le das a un pod su configuración, sus secretos, un lugar donde escribir y permisos de AWS, sin meter nada de eso en la imagen?",
+   "templates": [
+    {
+     "code": "kubectl create configmap {cm} --from-literal={CLAVE}={valor}\nkubectl create secret generic {secreto} --from-literal={CLAVE}={valor}\nkubectl rollout restart deployment/{deploy}",
+     "note": "Un <b>ConfigMap</b> guarda config no secreta (clave–valor); un <b>Secret</b>, lo sensible, en base64: codificado, no cifrado. Tras cambiarlos, <code>rollout restart</code> recrea los pods para que las variables tomen el valor nuevo."
+    },
+    {
+     "code": "envFrom:\n  - configMapRef:\n      name: {cm}\nenv:\n  - name: {VAR}\n    valueFrom:\n      secretKeyRef:\n        name: {secreto}\n        key: {CLAVE}",
+     "note": "Como variables de entorno: todas las claves del ConfigMap, o una variable desde una clave puntual. Se leen una sola vez, al arrancar el contenedor."
+    },
+    {
+     "code": "volumeMounts:\n  - name: {vol}\n    mountPath: {ruta}\n    readOnly: true\nvolumes:\n  - name: {vol}\n    configMap:\n      name: {cm}\n  - name: {tmp}\n    emptyDir:\n      sizeLimit: {tamaño}",
+     "note": "Como archivos: un volumen (carpeta montada en el contenedor) con un archivo por clave; se actualiza solo, salvo con <code>subPath</code> (montar solo una parte del volumen). El emptyDir es temporal: vive lo que el pod."
+    },
+    {
+     "code": "# en el pod\nserviceAccountName: {sa}\n# IRSA: anotación en la ServiceAccount\nkubectl annotate serviceaccount {sa} -n {ns} eks.amazonaws.com/role-arn=arn:aws:iam::{cuenta}:role/{rol}\n# EKS Pod Identity: asociación en EKS, sin anotación\naws eks create-pod-identity-association --cluster-name {cluster} --namespace {ns} --service-account {sa} --role-arn arn:aws:iam::{cuenta}:role/{rol}",
+     "note": "Una <b>ServiceAccount</b> es la identidad del pod. En EKS (el Kubernetes administrado de AWS) hay dos formas de darle un rol de IAM (permisos de AWS) sin llaves: IRSA (roles de IAM para ServiceAccounts) y EKS Pod Identity. En las dos, los pods que ya corrían deben recrearse."
+    }
+   ],
+   "vars": [
+    [
+     "{cm}",
+     "nombre del ConfigMap",
+     "app-config (seg-worker-config en C04)"
+    ],
+    [
+     "{secreto}",
+     "nombre del Secret",
+     "app-secret"
+    ],
+    [
+     "{CLAVE}",
+     "clave dentro del ConfigMap o del Secret; con envFrom, también es el nombre de la variable",
+     "INFER_TIMEOUT_S"
+    ],
+    [
+     "{valor}",
+     "su valor; en un Secret, la API lo muestra en base64 (codificado, no cifrado)",
+     "0.15"
+    ],
+    [
+     "{VAR}",
+     "nombre de la variable de entorno en el contenedor",
+     "API_KEY"
+    ],
+    [
+     "{deploy}",
+     "Deployment cuyos pods hay que recrear",
+     "gateway"
+    ],
+    [
+     "{vol}",
+     "nombre del volumen; une volumes con volumeMounts",
+     "config"
+    ],
+    [
+     "{ruta}",
+     "carpeta donde aparecen los archivos",
+     "/config (C04)"
+    ],
+    [
+     "{tmp}",
+     "nombre del volumen temporal",
+     "tmp"
+    ],
+    [
+     "{tamaño}",
+     "tope del emptyDir; pasarlo desaloja el pod",
+     "64Mi (gateway), 20Gi (C04)"
+    ],
+    [
+     "{sa}",
+     "ServiceAccount: la identidad del pod",
+     "seg-worker (C04)"
+    ],
+    [
+     "{ns}",
+     "namespace de la ServiceAccount",
+     "c04"
+    ],
+    [
+     "{cuenta}",
+     "ID de la cuenta de AWS (12 dígitos)",
+     "123456789012"
+    ],
+    [
+     "{rol}",
+     "rol de IAM con solo los permisos que ese pod necesita",
+     "c04-seg-worker"
+    ],
+    [
+     "{cluster}",
+     "nombre del cluster de EKS",
+     "prod-ml (ejemplo)"
+    ]
+   ],
+   "pieces": [
+    [
+     "ConfigMap",
+     "Pares clave–valor no secretos, hasta 1 MiB. Llegan como variables de entorno o como archivos.",
+     "MODEL_NAME, INFER_TIMEOUT_S"
+    ],
+    [
+     "Secret",
+     "Como un ConfigMap, para datos sensibles. data va en base64 (codificado, no cifrado); stringData acepta texto plano. Tipo default: Opaque.",
+     "kubectl create secret generic"
+    ],
+    [
+     "envFrom · valueFrom",
+     "Todas las claves como variables, o una variable desde una clave (configMapKeyRef, secretKeyRef) o desde un campo del pod (fieldRef).",
+     "POD_NAME desde metadata.name (C04)"
+    ],
+    [
+     "Volumen configMap o secret",
+     "Cada clave es un archivo. Se actualiza solo (puede tardar hasta ≈ 90 s), salvo con subPath. Los de un Secret viven en RAM (tmpfs).",
+     "/config/worker.yaml (C04)"
+    ],
+    [
+     "kubectl rollout restart",
+     "Recrea los pods de un Deployment con rolling update (de a poco): así las variables de entorno toman el valor nuevo.",
+     "kubectl rollout restart deployment/gateway"
+    ],
+    [
+     "immutable · optional",
+     "immutable: true impide cambios (solo borrar y recrear). optional: true deja arrancar al pod aunque falte el objeto.",
+     "configMapRef con optional: true"
+    ],
+    [
+     "Cifrado en reposo",
+     "Cifra los Secrets dentro de etcd, la base de datos del cluster. En EKS viene activo desde 2025, con KMS (el servicio de llaves de AWS).",
+     "EKS 1.28+; quien puede leer Secrets o crear pods en el namespace igual los lee"
+    ],
+    [
+     "emptyDir",
+     "Carpeta temporal del pod: nace vacía, sobrevive a reinicios del contenedor y se borra con el pod. medium Memory: RAM.",
+     "/tmp 64Mi (gateway), /dev/shm 1Gi (Triton)"
+    ],
+    [
+     "PVC (PersistentVolumeClaim)",
+     "Pedido de disco que sobrevive al pod. En EBS (el disco de red de AWS): un nodo a la vez y una sola zona.",
+     "accessModes: [\"ReadWriteOnce\"]; la StorageClass (plantilla de disco) dice qué disco crear; EFS (archivos compartidos de AWS) sirve para ReadWriteMany"
+    ],
+    [
+     "ServiceAccount",
+     "Identidad del pod ante la API (permisos por roles, RBAC: sección 11) y, con IRSA o Pod Identity, ante AWS.",
+     "default si no la indicas · kubectl auth can-i get secrets --as=system:serviceaccount:c04:seg-worker -n c04"
+    ],
+    [
+     "automountServiceAccountToken: false",
+     "No monta el token de la API en /var/run/secrets/kubernetes.io/serviceaccount: para pods que no hablan con Kubernetes.",
+     "asr-worker (C13)"
+    ],
+    [
+     "IRSA (IAM roles for service accounts)",
+     "Anotas la ServiceAccount con el rol. Al crear el pod, un webhook le agrega un token; el SDK (la librería) de AWS lo canjea por credenciales temporales.",
+     "eks.amazonaws.com/role-arn (requiere registrar en IAM el proveedor OIDC del cluster, su emisor de tokens)"
+    ],
+    [
+     "EKS Pod Identity",
+     "Asociación rol ↔ ServiceAccount guardada en EKS, sin anotación ni OIDC; un agente por nodo entrega las credenciales.",
+     "aws eks create-pod-identity-association (AWS la recomienda cuando se puede; no funciona en Fargate, los nodos sin servidor de AWS)"
+    ],
+    [
+     "CreateContainerConfigError",
+     "Lo más común: una variable de entorno pide un ConfigMap, Secret o clave que no existe. El contenedor no se crea; el kubelet reintenta.",
+     "configmap \"app-config\" not found (si falta en un volumen: ContainerCreating con FailedMount)"
+    ]
+   ],
+   "example": {
+    "title": "ServiceAccount con IRSA, ConfigMap montado y dos emptyDir (worker de C04)",
+    "lang": "yaml",
+    "code": "apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: seg-worker\n  namespace: c04\n  annotations:\n    # … (comentarios: los permisos mínimos del rol, SQS y S3 sin DeleteObject)\n    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/c04-seg-worker\n# … el Deployment seg-worker usa serviceAccountName: seg-worker; en su contenedor:\n    volumeMounts:\n      - name: scratch\n        mountPath: /scratch  # el WSI descargado (0.5–3 GB) + el archivo de liveness\n      - name: tmp\n        mountPath: /tmp  # el root filesystem es de solo lectura\n      - name: config\n        mountPath: /config\n        readOnly: true\nvolumes:\n  # emptyDir vive en el disco del kubelet. Para que sea el NVMe local del g6.2xlarge (y no el EBS\n  # raíz), el nodo debe montar el instance store como almacenamiento efímero (en Karpenter:\n  # instanceStorePolicy: RAID0 en el EC2NodeClass). Un slide a la vez: 20 GiB sobran.\n  - name: scratch\n    emptyDir:\n      sizeLimit: 20Gi\n  - name: tmp\n    emptyDir:\n      sizeLimit: 1Gi\n  - name: config\n    configMap:\n      name: seg-worker-config",
+    "source": "reference/c04/k8s/seg-worker.yaml (líneas 15–20, 31 y 173–193; las líneas # … resumen lo omitido; sangría reducida en la parte del Deployment)",
+    "notes": [
+     "La ServiceAccount <code>seg-worker</code> lleva la anotación de IRSA. Cada pod que la usa recibe, por un webhook (un servicio que retoca cada pod al crearlo), <code>AWS_ROLE_ARN</code> y <code>AWS_WEB_IDENTITY_TOKEN_FILE</code>; el SDK de AWS cambia ese token por credenciales temporales del rol. No hay llaves de AWS en el YAML ni en un Secret.",
+     "Con EKS Pod Identity sería la misma ServiceAccount sin anotación: la asociación se crea en EKS (<code>aws eks create-pod-identity-association</code>) y el rol confía en <code>pods.eks.amazonaws.com</code>. AWS la recomienda cuando se puede; los manifests del curso usan IRSA, que también funciona fuera de EKS.",
+     "El ConfigMap <code>seg-worker-config</code> se monta de solo lectura en <code>/config</code> y el worker lee <code>/config/worker.yaml</code>. Si lo editas, el archivo cambia solo (puede tardar hasta ≈ 90 s), pero el worker tiene que volver a leerlo; una variable de entorno no cambiaría.",
+     "Dos emptyDir: <code>/scratch</code> (20Gi para el WSI, la imagen de microscopio que baja el worker) y <code>/tmp</code> (1Gi, porque la raíz es de solo lectura). Viven lo que vive el pod y cuentan como almacenamiento efímero (el pod pide 10Gi, con limit de 30Gi). Pasarse de <code>sizeLimit</code> desaloja el pod: <code>Usage of EmptyDir volume \"scratch\" exceeds the limit \"20Gi\".</code>",
+     "C01 no usa ConfigMaps: el gateway recibe su config como <code>env</code> literal en el Deployment (<code>TRITON_URL</code>, <code>INFER_TIMEOUT_S</code>). Cambiar un valor ahí cambia la plantilla del pod y dispara un rollout; cambiar un ConfigMap, no. Por eso Kustomize (la herramienta que arma manifests, la de kubectl apply -k) agrega un hash al nombre del ConfigMap que genera."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Cinco formas de darle algo a un pod: para qué sirve cada una, cómo llega y cuánto dura.",
+    "data": {
+     "head": [
+      "Pieza",
+      "Para qué",
+      "Cómo llega al contenedor",
+      "¿Cambia sin recrear el pod?",
+      "Dura hasta…"
+     ],
+     "rows": [
+      [
+       "ConfigMap",
+       "config no secreta: URLs, timeouts, nombre del modelo",
+       "variables de entorno o archivos",
+       "env: no (rollout restart); archivo: sí, en hasta ≈ 90 s; con subPath: no",
+       "que lo borres"
+      ],
+      [
+       "Secret",
+       "credenciales de terceros y contraseñas",
+       "variables de entorno o archivos en tmpfs (RAM)",
+       "igual que el ConfigMap",
+       "que lo borres"
+      ],
+      [
+       "emptyDir",
+       "scratch, /tmp, /dev/shm",
+       "volumen vacío al crear el pod",
+       "no aplica: lo escribe el pod",
+       "que el pod deje el nodo (sobrevive a reinicios del contenedor)"
+      ],
+      [
+       "PVC",
+       "datos que tienen que sobrevivir al pod",
+       "volumen de un disco (EBS: un nodo a la vez, una zona)",
+       "no aplica",
+       "que borres el PVC (con reclaimPolicy Delete, el default, se borra el disco)"
+      ],
+      [
+       "ServiceAccount",
+       "identidad ante la API de Kubernetes y, con IRSA o Pod Identity, ante AWS",
+       "token montado y variables AWS_*",
+       "el token se renueva solo; un rol nuevo exige recrear los pods",
+       "que la borres"
+      ]
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>ConfigMap = config, Secret = config sensible, volumen = disco, ServiceAccount = identidad</b>. Un Secret es una carta en un sobre sin sellar: base64 no es cifrado, y quien puede leerlo la lee.",
+   "trap": "Trampa: creer que un Secret está cifrado porque no se lee a simple vista: <code>data</code> es base64 y <code>base64 --decode</code> lo revela; lo protegen el cifrado en reposo (en EKS, activo por defecto desde 2025) y, sobre todo, quién puede leer Secrets o crear pods en el namespace. Y nada se recarga solo: cambiar un ConfigMap no reinicia los pods (sus variables de entorno siguen con el valor viejo hasta un <code>kubectl rollout restart</code>), y anotar la ServiceAccount con un rol tampoco toca a los que ya corren.",
+   "lab": {
+    "goal": "Pasarle config y un secreto a un pod como variables y como archivo, comprobar que base64 no esconde nada, cambiar el ConfigMap y ver qué se actualiza solo, y provocar un CreateContainerConfigError.",
+    "steps": [
+     {
+      "cmd": "kubectl config current-context\nkubectl create namespace lab-k8s\nkubectl create configmap app-config -n lab-k8s --from-literal=MODEL_NAME=classifier --from-literal=INFER_TIMEOUT_S=0.15\nkubectl create secret generic app-secret -n lab-k8s --from-literal=API_KEY=solo-para-el-lab\nkubectl get secret app-secret -n lab-k8s -o jsonpath='{.data.API_KEY}'; echo\nkubectl get secret app-secret -n lab-k8s -o jsonpath='{.data.API_KEY}' | base64 --decode; echo",
+      "expect": "configmap/app-config created y secret/app-secret created. El primer get imprime c29sby1wYXJhLWVsLWxhYg== y el segundo, solo-para-el-lab: base64 es una codificación, no un cifrado."
+     },
+     {
+      "cmd": "kubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: config-demo\nspec:\n  replicas: 1\n  selector:\n    matchLabels:\n      app: config-demo\n  template:\n    metadata:\n      labels:\n        app: config-demo\n    spec:\n      automountServiceAccountToken: false\n      containers:\n        - name: app\n          image: busybox:1.38\n          command: [\"sh\", \"-c\", \"trap 'exit 0' TERM; while true; do echo \\\"env=$INFER_TIMEOUT_S archivo=$(cat /etc/app/INFER_TIMEOUT_S) clave=${#API_KEY} caracteres\\\"; sleep 5; done\"]\n          envFrom:\n            - configMapRef:\n                name: app-config\n          env:\n            - name: API_KEY\n              valueFrom:\n                secretKeyRef:\n                  name: app-secret\n                  key: API_KEY\n          volumeMounts:\n            - name: config\n              mountPath: /etc/app\n              readOnly: true\n      volumes:\n        - name: config\n          configMap:\n            name: app-config\nEOF\nkubectl rollout status deployment/config-demo -n lab-k8s\nkubectl logs -n lab-k8s deploy/config-demo -f",
+      "expect": "Cada 5 s: env=0.15 archivo=0.15 clave=16 caracteres. El programa imprime el largo del secreto, nunca el secreto: no lo mandes a los logs. Ctrl+C deja de seguir."
+     },
+     {
+      "cmd": "kubectl patch configmap app-config -n lab-k8s --type merge -p '{\"data\":{\"INFER_TIMEOUT_S\":\"0.30\"}}'\nkubectl logs -n lab-k8s deploy/config-demo -f",
+      "expect": "configmap/app-config patched. En hasta ≈ 90 s el archivo pasa a 0.30 (el kubelet revisa cada pod cada 60–90 s y ahí actualiza el volumen), pero env sigue en 0.15: la variable se leyó al arrancar. Ctrl+C."
+     },
+     {
+      "cmd": "kubectl rollout restart deployment/config-demo -n lab-k8s\nkubectl rollout status deployment/config-demo -n lab-k8s\nkubectl logs -n lab-k8s -l app=config-demo --prefix --tail=2",
+      "expect": "El pod nuevo imprime env=0.30 archivo=0.30 (--prefix muestra de qué pod viene cada línea; si el viejo todavía no termina, verás sus líneas con 0.15). rollout restart recrea los pods con rolling update: con varias réplicas, de a poco y sin cortar el servicio."
+     },
+     {
+      "cmd": "kubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: v1\nkind: Pod\nmetadata:\n  name: sin-config\nspec:\n  containers:\n    - name: app\n      image: busybox:1.38\n      command: [\"sleep\", \"3600\"]\n      envFrom:\n        - configMapRef:\n            name: no-existe\nEOF\nkubectl get pod sin-config -n lab-k8s\nkubectl events -n lab-k8s --for pod/sin-config",
+      "expect": "STATUS CreateContainerConfigError (si todavía dice ContainerCreating, repite el get) y un evento Failed con Error: configmap \"no-existe\" not found. El kubelet reintenta solo: si creas ese ConfigMap (o marcas la referencia con optional: true en un pod nuevo), el contenedor arranca."
+     }
+    ],
+    "fix": "Config que no se aplica: si es una variable de entorno, kubectl rollout restart; si es un archivo, revisa que no uses subPath y que la app lo vuelva a leer. CreateContainerConfigError: crea el ConfigMap o el Secret (o la clave) que falta en ese namespace. En EKS, las credenciales de AWS por IRSA o Pod Identity, nunca llaves en un Secret. Limpia con kubectl delete namespace lab-k8s.",
+    "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster, con kubeadm o kind; contexto docker-desktop) o kind. La primera vez se baja busybox:1.38 (≈ 2 MB para arm64).",
+    "verified": "docs",
+    "verified_note": "No ejecutado aquí. Comportamiento verificado en kubernetes.io (ConfigMap, Secret, volúmenes, ServiceAccount) y en el código del kubelet 1.37 (configmap \"…\" not found, CreateContainerConfigError). Los ≈ 90 s salen del período de sync del kubelet (1 min por defecto, más hasta 50 % de variación al azar en pod_workers.go de 1.37) más la caché. El base64 se calculó localmente."
+   },
+   "links": [
+    "#m15.secretos",
+    "#m15.authn-authz",
+    "#m06.objetos-basicos",
+    "#m05.pesos-modelo",
+    "#c04.archivos"
+   ]
+  },
+  {
+   "id": "scheduling",
+   "num": 8,
+   "title": "Dónde cae cada pod: nodeSelector, affinity, taints/tolerations, GPUs y nodos que se crean solos",
+   "question": "¿Cómo decides en qué nodos puede correr cada pod, cómo apartas los nodos GPU para quien los usa, y qué pasa cuando un pod no cabe en ninguno?",
+   "templates": [
+    {
+     "code": "spec:\n  nodeSelector:\n    {label}: {valor}\n  tolerations:\n    - key: {clave_taint}\n      operator: Equal\n      value: {valor_taint}\n      effect: NoSchedule",
+     "note": "El <b>scheduler</b> elige nodo para cada pod nuevo: solo usa nodos con estas labels (etiquetas). Un <b>taint</b> (marca en el nodo) rechaza pods; la <b>toleration</b> es el permiso para entrar igual."
+    },
+    {
+     "code": "kubectl label nodes {nodo} {label}={valor}\nkubectl taint nodes {nodo} {clave_taint}={valor_taint}:NoSchedule\nkubectl taint nodes {nodo} {clave_taint}={valor_taint}:NoSchedule-\nkubectl get nodes -L {label},topology.kubernetes.io/zone",
+     "note": "Etiquetar, poner y quitar un taint (el guion final lo quita), y ver labels como columnas. En EKS los fija el node group (grupo de máquinas iguales) o el NodePool de Karpenter (un autoscaler de nodos)."
+    },
+    {
+     "code": "affinity:\n  nodeAffinity:\n    requiredDuringSchedulingIgnoredDuringExecution:\n      nodeSelectorTerms:\n        - matchExpressions:\n            - key: {label}\n              operator: In\n              values: [\"{valor}\", \"{otro_valor}\"]",
+     "note": "Node affinity (afinidad de nodo): como nodeSelector, con operadores (In, NotIn, Exists, DoesNotExist, Gt, Lt) y una versión suave, <code>preferredDuringSchedulingIgnoredDuringExecution</code>, con peso de 1 a 100."
+    },
+    {
+     "code": "topologySpreadConstraints:\n  - maxSkew: {sesgo}\n    topologyKey: topology.kubernetes.io/zone\n    whenUnsatisfiable: {si_no_cabe}\n    labelSelector:\n      matchLabels:\n        app.kubernetes.io/name: {app}",
+     "note": "Reparte las réplicas entre zonas (datacenters separados de una región) o entre nodos. Si no se puede, <code>DoNotSchedule</code> deja el pod Pending; <code>ScheduleAnyway</code> lo pone igual, con un reparto imperfecto."
+    }
+   ],
+   "formulas": [
+    "n_{\\text{destino}} + 1 - \\min_{z}\\, n_z \\le \\text{maxSkew}",
+    "\\text{pods por nodo} = \\left\\lfloor \\frac{\\text{GPUs del nodo}}{\\text{GPUs por pod}} \\right\\rfloor"
+   ],
+   "vars": [
+    [
+     "{label}",
+     "clave de la label del nodo",
+     "workload"
+    ],
+    [
+     "{valor}",
+     "valor de la label",
+     "gpu-t4"
+    ],
+    [
+     "{otro_valor}",
+     "otro valor aceptado: In acepta una lista",
+     "us-east-1b, si la clave es topology.kubernetes.io/zone y el primer valor us-east-1a"
+    ],
+    [
+     "{clave_taint}",
+     "clave del taint; para GPUs, el nombre del recurso",
+     "nvidia.com/gpu"
+    ],
+    [
+     "{valor_taint}",
+     "valor del taint",
+     "present"
+    ],
+    [
+     "{nodo}",
+     "nombre del nodo, de kubectl get nodes",
+     "docker-desktop en tu Mac"
+    ],
+    [
+     "{sesgo}",
+     "maxSkew: diferencia máxima de réplicas entre zonas",
+     "1"
+    ],
+    [
+     "{si_no_cabe}",
+     "DoNotSchedule (default: queda Pending) o ScheduleAnyway (lo pone igual)",
+     "DoNotSchedule (Triton), ScheduleAnyway (gateway)"
+    ],
+    [
+     "{app}",
+     "label de las réplicas que se cuentan",
+     "triton"
+    ],
+    [
+     "n_destino",
+     "réplicas que ya hay en la zona candidata",
+     "1 en us-east-1a"
+    ],
+    [
+     "n_z",
+     "réplicas en cada zona elegible; cuenta la menor",
+     "0 en us-east-1b"
+    ],
+    [
+     "maxSkew",
+     "desbalance permitido",
+     "1: la 2.ª réplica de Triton solo puede ir a 1b"
+    ],
+    [
+     "GPUs del nodo",
+     "nvidia.com/gpu en Allocatable (lo que el nodo ofrece a los pods)",
+     "1 en una g4dn.xlarge; 4 en una g4dn.12xlarge"
+    ],
+    [
+     "GPUs por pod",
+     "nvidia.com/gpu en limits",
+     "1 (Triton)"
+    ]
+   ],
+   "pieces": [
+    [
+     "Scheduler (kube-scheduler)",
+     "Elige nodo para cada pod nuevo: descarta los que no sirven y puntúa el resto. No mueve pods ya puestos.",
+     "evento Scheduled: Successfully assigned …"
+    ],
+    [
+     "Labels de nodo",
+     "Etiquetas clave=valor. Kubernetes y la nube ponen algunas; tú agregas las tuyas.",
+     "topology.kubernetes.io/zone, node.kubernetes.io/instance-type, workload=gpu-t4"
+    ],
+    [
+     "nodeSelector",
+     "Solo nodos con todas estas labels. Lo más simple para fijar un tipo de nodo.",
+     "workload: gpu-t4"
+    ],
+    [
+     "nodeAffinity",
+     "nodeSelector con operadores: required (obligatorio) o preferred (con peso). IgnoredDuringExecution: si la label cambia después, el pod sigue donde está.",
+     "operator: In"
+    ],
+    [
+     "podAffinity · podAntiAffinity",
+     "Reglas respecto de otros pods: juntos o separados por nodo o por zona (topologyKey).",
+     "no dos réplicas en el mismo nodo"
+    ],
+    [
+     "topologySpreadConstraints",
+     "Reparte réplicas entre zonas o nodos con un desbalance máximo (maxSkew).",
+     "Triton: una por zona"
+    ],
+    [
+     "Taint",
+     "Marca del nodo que rechaza pods sin toleration. NoSchedule; PreferNoSchedule, suave; NoExecute, además saca a los que corren.",
+     "nvidia.com/gpu=present:NoSchedule"
+    ],
+    [
+     "Toleration",
+     "Permiso del pod para entrar a un nodo con ese taint. No lo obliga a ir ahí.",
+     "key: nvidia.com/gpu, operator: Equal, value: present"
+    ],
+    [
+     "ExtendedResourceToleration",
+     "Admission controller (filtro del API server) activo en EKS: a los pods que piden GPU les agrega por su cuenta la toleration nvidia.com/gpu (Exists).",
+     "funciona porque el taint usa el nombre del recurso"
+    ],
+    [
+     "Taints automáticos",
+     "not-ready y unreachable (NoExecute): por defecto el pod los tolera 300 s y después se desaloja.",
+     "node.kubernetes.io/unreachable"
+    ],
+    [
+     "PriorityClass y preemption",
+     "Prioridad del pod. Si no cabe, el scheduler puede desalojar pods de menor prioridad para hacerle lugar.",
+     "placeholder de prioridad −10 que reserva un nodo GPU (M06)"
+    ],
+    [
+     "FailedScheduling",
+     "Evento con el motivo de cada nodo descartado. El pod queda Pending, con PodScheduled=False y reason Unschedulable.",
+     "0/6 nodes are available: …"
+    ],
+    [
+     "Karpenter · Cluster Autoscaler",
+     "Ven los pods Unschedulable y agregan un nodo que los satisfaga (label, taint, GPU, zona); lo quitan cuando sobra.",
+     "NodePool de T4 con la label workload: gpu-t4 y el taint"
+    ],
+    [
+     "nodeName",
+     "Asigna el nodo a mano y se salta el scheduler, incluidos los taints NoSchedule. Casi nunca lo quieres.",
+     "—"
+    ]
+   ],
+   "tables": [
+    {
+     "caption": "Pending: qué dice el FailedScheduling y qué haces",
+     "head": [
+      "Mensaje (parte central)",
+      "Qué significa",
+      "Qué haces"
+     ],
+     "rows": [
+      [
+       "Insufficient nvidia.com/gpu",
+       "Ningún nodo tiene una GPU libre, o ninguno la anuncia",
+       "Espera al autoscaler de nodos o revisa su límite, la cuota y la capacidad de la zona; si el nodo GPU existe y no la muestra en Allocatable, revisa el device plugin (el pod que anuncia las GPUs del nodo)"
+      ],
+      [
+       "node(s) didn't match Pod's node affinity/selector",
+       "Ningún nodo tiene la label que pide el pod",
+       "Corrige la label en el pod o en el NodePool o node group (un typo es lo más común)"
+      ],
+      [
+       "node(s) had untolerated taint(s)",
+       "Nodos con un taint que el pod no tolera. Desde 1.35 (y 1.34.2) el mensaje no dice cuál; antes: node(s) had untolerated taint {nvidia.com/gpu: present}",
+       "Agrega la toleration, o mira el taint con kubectl describe node (bloque Taints)"
+      ],
+      [
+       "node(s) didn't match pod topology spread constraints",
+       "Ponerlo ahí rompería el maxSkew",
+       "Capacidad en la otra zona, o ScheduleAnyway"
+      ],
+      [
+       "Insufficient cpu · Insufficient memory",
+       "Los requests ya llenan los nodos, aunque el uso real sea bajo",
+       "Requests realistas o más nodos"
+      ]
+     ],
+     "note": "Formato: 0/6 nodes are available: 2 Insufficient nvidia.com/gpu, 4 node(s) didn't match Pod's node affinity/selector. preemption: … El número delante de cada motivo es cuántos nodos lo dieron."
+    }
+   ],
+   "example": {
+    "title": "Cómo C01 lleva a Triton a sus nodos GPU y lo reparte entre zonas",
+    "lang": "yaml",
+    "code": "nodeSelector:\n  workload: gpu-t4  # solo el node group de g4dn.xlarge (T4, sm_75): el engine se compiló para esa GPU\ntolerations:\n  # Los nodos GPU tienen el taint nvidia.com/gpu=present:NoSchedule para que ningún pod CPU\n  # (gateway, sistema) ocupe una máquina cara; Triton lo tolera explícitamente.\n  - key: nvidia.com/gpu\n    operator: Equal\n    value: present\n    effect: NoSchedule\ntopologySpreadConstraints:\n  # Réplicas balanceadas entre zonas (con 2: una por zona). Si cae una AZ, la otra GPU sigue sirviendo (N+1).\n  # DoNotSchedule: preferimos un pod Pending (y una alerta) a dos GPUs en la misma AZ.\n  # Ojo: con nodeTaintsPolicy por defecto (Ignore), los nodos NotReady de una AZ caída siguen contando\n  # como dominio con 0 pods: la zona sana no pasa de 1 réplica y KEDA no puede escalar durante la caída.\n  # Aquí es aceptable (1 T4 aguanta el pico de diseño al ≈ 42 %). nodeTaintsPolicy: Honor lo evita, pero\n  # un taint transitorio (nodo arrancando o drenando) puede dejar las dos GPUs en la misma AZ: pruébalo en un game day.\n  - maxSkew: 1\n    topologyKey: topology.kubernetes.io/zone\n    whenUnsatisfiable: DoNotSchedule\n    labelSelector:\n      matchLabels:\n        app.kubernetes.io/name: triton",
+    "source": "reference/c01/k8s/triton.yaml (líneas 33–54, spec del template; sangría reducida)",
+    "notes": [
+     "<code>nodeSelector: workload: gpu-t4</code> fija el tipo de GPU: el engine de TensorRT se compiló para la T4 (su arquitectura, sm_75) y en otra GPU no carga. Pedir <code>nvidia.com/gpu</code> solo asegura un nodo con alguna GPU libre.",
+     "La toleration coincide con el taint <code>nvidia.com/gpu=present:NoSchedule</code> de los nodos GPU (<code>Equal</code> y el mismo valor). El taint aleja al gateway y a todo pod sin esa toleration (los DaemonSets del sistema, que ponen un pod en cada nodo, como el device plugin, suelen traerla): <code>gateway.yaml</code> no tiene toleration, así que nunca cae en una máquina cara.",
+     "En EKS está activo el admission controller (un paso del API server que revisa o modifica cada objeto al crearlo o cambiarlo) <code>ExtendedResourceToleration</code>: a cualquier pod que pida <code>nvidia.com/gpu</code> le agrega una toleration <code>nvidia.com/gpu</code> con <code>Exists</code>, porque el taint usa el nombre del recurso como clave. C01 la escribe igual: queda a la vista y funciona en clusters sin ese admission controller.",
+     "El spread con <code>maxSkew: 1</code> y <code>DoNotSchedule</code>: con 1 Triton en 1a y 0 en 1b, el segundo solo puede ir a 1b (1 + 1 − 0 = 2 en 1a no cumple; 0 + 1 − 0 = 1 en 1b sí). Si en 1b no hay GPU libre, espera Pending a que llegue un nodo ahí.",
+     "Los comentarios marcan la letra chica: con <code>nodeTaintsPolicy</code> por defecto (<code>Ignore</code>), los nodos caídos de una zona siguen contando con 0 réplicas, así que durante esa caída la zona sana no pasa de una."
+    ]
+   },
+   "figure": {
+    "kind": "scheduling",
+    "caption": "Cuatro nodos de C01 en dos zonas y tres pods. ✓ = el scheduler puede ponerlo ahí; ✗ = el motivo que verías en FailedScheduling. La 3.ª réplica de Triton no cabe en ningún nodo: es la que despierta a Karpenter.",
+    "data": {
+     "nodes": [
+      {
+       "name": "cpu-1a",
+       "type": "c6i.xlarge",
+       "zone": "us-east-1a",
+       "labels": "—",
+       "taints": "—",
+       "gpu_free": 0
+      },
+      {
+       "name": "cpu-1b",
+       "type": "c6i.xlarge",
+       "zone": "us-east-1b",
+       "labels": "—",
+       "taints": "—",
+       "gpu_free": 0
+      },
+      {
+       "name": "gpu-1a",
+       "type": "g4dn.xlarge",
+       "zone": "us-east-1a",
+       "labels": "workload=gpu-t4",
+       "taints": "nvidia.com/gpu=present:NoSchedule",
+       "gpu_free": 0,
+       "note": "ya corre la 1.ª réplica de Triton"
+      },
+      {
+       "name": "gpu-1b",
+       "type": "g4dn.xlarge",
+       "zone": "us-east-1b",
+       "labels": "workload=gpu-t4",
+       "taints": "nvidia.com/gpu=present:NoSchedule",
+       "gpu_free": 1
+      }
+     ],
+     "pods": [
+      {
+       "name": "gateway",
+       "selector": "—",
+       "tolerations": "—",
+       "requests": "cpu 1, memory 1Gi"
+      },
+      {
+       "name": "triton (2.ª réplica)",
+       "selector": "workload=gpu-t4",
+       "tolerations": "nvidia.com/gpu=present:NoSchedule",
+       "requests": "cpu 2, memory 6Gi, nvidia.com/gpu 1",
+       "spread": "maxSkew 1 por zona"
+      },
+      {
+       "name": "triton (3.ª réplica)",
+       "selector": "workload=gpu-t4",
+       "tolerations": "nvidia.com/gpu=present:NoSchedule",
+       "requests": "cpu 2, memory 6Gi, nvidia.com/gpu 1",
+       "spread": "maxSkew 1 por zona"
+      }
+     ],
+     "matrix": [
+      [
+       "✓",
+       "✓",
+       "✗ untolerated taint",
+       "✗ untolerated taint"
+      ],
+      [
+       "✗ no tiene la label",
+       "✗ no tiene la label",
+       "✗ Insufficient cpu y nvidia.com/gpu",
+       "✓"
+      ],
+      [
+       "✗ no tiene la label",
+       "✗ no tiene la label",
+       "✗ Insufficient cpu y nvidia.com/gpu",
+       "✗ Insufficient cpu y nvidia.com/gpu (ya está la 2.ª)"
+      ]
+     ],
+     "after": "La 3.ª réplica queda Pending. Karpenter lanza una g4dn.xlarge con la label y el taint de su NodePool; el spread la acepta en cualquiera de las dos zonas (1 + 1 − 1 = 1)."
+    }
+   },
+   "memo": "Cómo recordarla: <b>label + nodeSelector atrae; el taint repele y la toleration deja pasar</b>. El nodeSelector es buscar la puerta con cierto letrero; el taint es un control en la puerta que solo deja pasar con pase, y la toleration es el pase: te deja entrar, no te obliga a ir; en nodos GPU usas los dos.",
+   "trap": "Trampa: leer Pending como \"faltan nodos\" sin leer el mensaje. <code>node(s) didn't match Pod's node affinity/selector</code> suele ser un typo en la label, y si ningún NodePool o node group pone esa label, ningún autoscaler va a crear un nodo para ese pod: espera para siempre. Y desde 1.35 (y 1.34.2) el mensaje del taint ya no dice cuál es: míralo en el nodo con <code>kubectl describe node</code>.",
+   "lab": {
+    "goal": "Ver dos motivos de Pending (una GPU que no existe y una label que nadie tiene), arreglar uno con una label y comprobar que IgnoredDuringExecution es literal.",
+    "steps": [
+     {
+      "cmd": "kubectl config current-context\nkubectl create namespace lab-k8s\nkubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: v1\nkind: Pod\nmetadata:\n  name: quiere-gpu\nspec:\n  containers:\n    - name: app\n      image: busybox:1.38\n      command: [\"sleep\", \"3600\"]\n      resources:\n        limits:\n          nvidia.com/gpu: 1\n---\napiVersion: v1\nkind: Pod\nmetadata:\n  name: quiere-t4\nspec:\n  nodeSelector:\n    lab-k8s/workload: gpu-t4\n  containers:\n    - name: app\n      image: busybox:1.38\n      command: [\"sleep\", \"3600\"]\nEOF\nkubectl get pods -n lab-k8s",
+      "expect": "El contexto tiene que ser docker-desktop (o tu cluster kind): este lab etiqueta nodos. Los dos pods quedan Pending: ningún nodo los acepta y nada está creando nodos. La label es lab-k8s/workload y no la workload de C01, para no tocar labels reales si te equivocas de cluster."
+     },
+     {
+      "cmd": "kubectl events -n lab-k8s --for pod/quiere-gpu\nkubectl events -n lab-k8s --for pod/quiere-t4",
+      "expect": "FailedScheduling con 0/1 nodes are available: 1 Insufficient nvidia.com/gpu. para el primero y 0/1 nodes are available: 1 node(s) didn't match Pod's node affinity/selector. para el segundo, cada uno seguido de una parte preemption: … Con varios nodos (kind) cambian los números, y el nodo de control plane puede sumar node(s) had untolerated taint(s)."
+     },
+     {
+      "cmd": "kubectl describe nodes | grep -A 8 Allocatable\nkubectl label nodes --all lab-k8s/workload=gpu-t4\nkubectl get pod quiere-t4 -n lab-k8s -o wide",
+      "expect": "Allocatable muestra cpu, memory, ephemeral-storage y pods (y unas líneas hugepages-…), pero no nvidia.com/gpu: sin device plugin no hay GPUs que repartir. Con la label, quiere-t4 pasa a Running en segundos (si todavía dice Pending, repite el get; -o wide muestra el nodo). quiere-gpu sigue Pending: una label no crea una GPU."
+     },
+     {
+      "cmd": "kubectl label nodes --all lab-k8s/workload-\nkubectl get pod quiere-t4 -n lab-k8s -o wide",
+      "expect": "quiere-t4 sigue Running aunque ningún nodo tenga ya la label: IgnoredDuringExecution. El nodeSelector solo cuenta al elegir nodo."
+     }
+    ],
+    "fix": "Insufficient nvidia.com/gpu: en EKS, espera o destraba al autoscaler de nodos (límites del NodePool, cuota de vCPUs de instancias G, capacidad en la zona); si el nodo GPU existe y no muestra la GPU en Allocatable, revisa el DaemonSet del device plugin. didn't match … selector: corrige la label en el pod o en el NodePool. untolerated taint(s): agrega la toleration. Limpia con kubectl delete namespace lab-k8s (y kubectl label nodes --all lab-k8s/workload- si saltaste el paso 4).",
+    "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster, con kubeadm o kind; contexto docker-desktop) o kind. La primera vez se baja busybox:1.38 (≈ 2 MB para arm64).",
+    "verified": "docs",
+    "verified_note": "No ejecutado aquí. Los motivos y el formato de FailedScheduling (0/N nodes are available, Insufficient …, node(s) didn't match Pod's node affinity/selector, node(s) had untolerated taint(s)) salen del código del scheduler de Kubernetes 1.37; el cambio del mensaje del taint, de comparar 1.33.x, 1.34.1, 1.34.2 y 1.35.0. El resto, de kubernetes.io (asignar pods a nodos, taints y tolerations, topology spread, admission controllers) y de la lista de admission controllers de EKS."
+   },
+   "links": [
+    "#m06.gpus-k8s",
+    "#m06.nodos",
+    "#m06.alta-disponibilidad",
+    "#ref-comandos.depurar",
+    "#ref-comandos.autoscaling-cmds"
+   ]
+  },
+  {
+   "id": "autoscaling",
+   "num": 9,
+   "title": "Autoscaling: HPA y KEDA",
+   "question": "¿Quién decide cuántas réplicas corren, con qué métrica, y qué pasa cuando las réplicas nuevas no tienen nodo donde caer?",
+   "templates": [
+    {
+     "code": "apiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: {nombre}\nspec:\n  scaleTargetRef:\n    apiVersion: apps/v1\n    kind: Deployment\n    name: {deployment}\n  minReplicas: {min}\n  maxReplicas: {max}\n  metrics:\n    - type: Resource\n      resource:\n        name: cpu\n        target:\n          type: Utilization\n          averageUtilization: {porcentaje}",
+     "note": "Un <b>HPA</b> (HorizontalPodAutoscaler) revisa una métrica cada 15 s y ajusta cuántas réplicas tiene el Deployment. Con <code>Utilization</code>, el objetivo es un % del request de CPU: sin request, no escala."
+    },
+    {
+     "code": "behavior:\n  scaleUp:\n    stabilizationWindowSeconds: 0\n    policies:\n      - type: Pods\n        value: {pods_por_periodo}\n        periodSeconds: {periodo}\n  scaleDown:\n    stabilizationWindowSeconds: {ventana}",
+     "note": "La velocidad: cuánto puede subir por período y cuánto espera antes de bajar. Si escribes <code>policies</code>, reemplazan a las del default."
+    },
+    {
+     "code": "apiVersion: keda.sh/v1alpha1\nkind: ScaledObject\nmetadata:\n  name: {nombre}\nspec:\n  scaleTargetRef:\n    name: {deployment}\n  minReplicaCount: {min}\n  maxReplicaCount: {max}\n  triggers:\n    - type: prometheus\n      metricType: Value\n      metadata:\n        serverAddress: {url_prometheus}\n        query: {query}\n        threshold: \"{umbral}\"",
+     "note": "<b>KEDA</b> (Kubernetes Event-driven Autoscaling) es un operador (un controlador que instalas). Con este ScaledObject crea el HPA <code>keda-hpa-</code> + nombre y le sirve la métrica. Escribe <code>minReplicaCount</code>: su default es 0."
+    },
+    {
+     "code": "kubectl get hpa -n {ns} -w\nkubectl describe hpa {nombre} -n {ns}\nkubectl get scaledobject -n {ns}\nkubectl get hpa keda-hpa-{nombre} -n {ns}",
+     "note": "TARGETS es actual/objetivo, como <code>cpu: 45%/60%</code>; si donde va el número dice unknown, no llega la métrica. <code>describe</code> muestra las condiciones (<code>ScalingActive</code>, <code>ScalingLimited</code>) y los eventos."
+    }
+   ],
+   "formulas": [
+    "\\text{deseadas} = \\left\\lceil \\text{actuales} \\times \\frac{\\text{métrica}}{\\text{objetivo}} \\right\\rceil",
+    "\\left| \\frac{\\text{métrica}}{\\text{objetivo}} - 1 \\right| \\le 0.1 \\;\\Rightarrow\\; \\text{no cambia}",
+    "\\text{deseadas} = \\left\\lceil \\frac{\\text{métrica total}}{\\text{objetivo por pod}} \\right\\rceil \\quad (\\text{AverageValue})",
+    "t_{\\text{servir}} \\approx t_{\\text{detectar}} + t_{\\text{nodo}} + t_{\\text{imagen}} + t_{\\text{modelo}}"
+   ],
+   "vars": [
+    [
+     "{nombre}",
+     "nombre del HPA o del ScaledObject",
+     "gateway · triton"
+    ],
+    [
+     "{deployment}",
+     "Deployment que escala",
+     "gateway · triton"
+    ],
+    [
+     "{min}",
+     "piso de réplicas",
+     "3 (gateway), 2 (Triton)"
+    ],
+    [
+     "{max}",
+     "techo de réplicas",
+     "12 (gateway), 4 (Triton)"
+    ],
+    [
+     "{porcentaje}",
+     "objetivo: % del request de CPU, promedio de los pods",
+     "60"
+    ],
+    [
+     "{pods_por_periodo}",
+     "pods que puede agregar como mucho en cada período",
+     "1 (Triton)"
+    ],
+    [
+     "{periodo}",
+     "largo del período de la política, en s (máximo 1800)",
+     "60"
+    ],
+    [
+     "{ventana}",
+     "ventana de estabilización al bajar, en s (default 300)",
+     "300 (gateway), 600 (Triton)"
+    ],
+    [
+     "{url_prometheus}",
+     "dirección del Prometheus (la base de métricas) del cluster",
+     "http://prometheus-operated.monitoring.svc.cluster.local:9090"
+    ],
+    [
+     "{query}",
+     "consulta en PromQL (el lenguaje de Prometheus) que devuelve un solo número",
+     "espera media en la cola de Triton, en ms"
+    ],
+    [
+     "{umbral}",
+     "objetivo de la métrica; en KEDA va como texto",
+     "10"
+    ],
+    [
+     "{ns}",
+     "namespace",
+     "classifier"
+    ],
+    [
+     "deseadas",
+     "réplicas que pide el HPA; después las recortan min, max y behavior",
+     "8 (gateway); 5 → 4 (Triton)"
+    ],
+    [
+     "actuales",
+     "réplicas actuales; con métricas Value de KEDA (External), las Ready",
+     "5 (gateway); 2 (Triton)"
+    ],
+    [
+     "métrica",
+     "valor actual: % de CPU promedio o lo que devuelve la query",
+     "90 %; 25 ms"
+    ],
+    [
+     "objetivo",
+     "el target del HPA o el threshold de KEDA",
+     "60 %; 10 ms"
+    ],
+    [
+     "métrica total",
+     "suma de la métrica en todos los pods (mensajes en cola, req/s)",
+     "120 mensajes en una cola de SQS (M06)"
+    ],
+    [
+     "objetivo por pod",
+     "cuánto de esa métrica le toca a cada réplica",
+     "15 → ⌈120 / 15⌉ = 8 workers"
+    ],
+    [
+     "t_servir",
+     "de que la carga sube a que el pod nuevo atiende",
+     "≈ 5–13 min en C01 (M06)"
+    ],
+    [
+     "t_detectar",
+     "Prometheus lee la métrica (scrape) + ventana de la query + ciclo del HPA",
+     "≈ 0.5–1.5 min"
+    ],
+    [
+     "t_nodo",
+     "lanzar la instancia, unirse al cluster y que el device plugin (el pod que anuncia las GPUs del nodo) anuncie la GPU",
+     "≈ 2–5 min"
+    ],
+    [
+     "t_imagen",
+     "descargar la imagen de Triton (≈ 9 GB)",
+     "≈ 2–5 min"
+    ],
+    [
+     "t_modelo",
+     "arrancar Triton, cargar el engine y pasar la readiness",
+     "≈ 15–75 s"
+    ]
+   ],
+   "pieces": [
+    [
+     "HPA (HorizontalPodAutoscaler)",
+     "Controlador que cada 15 s calcula réplicas con una métrica y cambia replicas del Deployment.",
+     "kubectl autoscale deployment gateway --min=3 --max=12 --cpu=60% (kubectl ≥ 1.34; antes, --cpu-percent=60)"
+    ],
+    [
+     "minReplicas · maxReplicas",
+     "Piso y techo. El HPA los impone aunque no consiga la métrica.",
+     "3–12 (gateway), 2–4 (Triton)"
+    ],
+    [
+     "Resource + Utilization",
+     "Uso de CPU como % del request, promedio de los pods. Sin request, el HPA no puede medir ni actuar.",
+     "averageUtilization: 60"
+    ],
+    [
+     "Pods · Object · External",
+     "Métricas que no son CPU ni memoria: por pod, de un objeto del cluster o de afuera (colas, queries).",
+     "KEDA publica External"
+    ],
+    [
+     "metrics-server",
+     "Publica CPU y memoria (la API metrics.k8s.io). Sin él: TARGETS cpu: <unknown>/60% y kubectl top no funciona.",
+     "Docker Desktop no lo trae"
+    ],
+    [
+     "behavior: policies",
+     "Cuánto puede cambiar por período, en pods o en %. Si hay varias, gana la que permite más (selectPolicy: Max).",
+     "Triton: +1 pod cada 60 s"
+    ],
+    [
+     "stabilizationWindowSeconds",
+     "Al bajar, usa la recomendación más alta de la ventana (default 300 s): baja despacio, sin oscilar. Al subir: 0.",
+     "600 en Triton"
+    ],
+    [
+     "Tolerancia",
+     "Si métrica / objetivo queda entre 0.9 y 1.1, no hace nada. Por HPA: behavior.scaleUp.tolerance y scaleDown.tolerance (estable desde 1.37).",
+     "64 % contra 60 %: sin cambio"
+    ],
+    [
+     "ScaledObject (KEDA)",
+     "Le dices a KEDA qué escalar y con qué evento; KEDA crea y alimenta un HPA. No agregues otro.",
+     "keda-hpa-triton (keda-hpa- + el nombre)"
+    ],
+    [
+     "metricType: Value · AverageValue",
+     "Value: proporcional a las réplicas Ready (tiempos). AverageValue: total ÷ objetivo por pod (colas, req/s).",
+     "Triton: Value, umbral 10 ms"
+    ],
+    [
+     "minReplicaCount · cooldownPeriod · pollingInterval",
+     "Defaults 0, 300 s y 30 s. KEDA decide 0 ↔ 1; el HPA, 1 ↔ N. Escribe el mínimo.",
+     "2 en Triton: nunca baja a 0"
+    ],
+    [
+     "ignoreNullValues",
+     "Con \"false\", una query vacía es un error visible; con el default (true), un 0 silencioso.",
+     "\"false\" en C01"
+    ],
+    [
+     "Karpenter · Cluster Autoscaler",
+     "Ven pods Pending por falta de lugar y agregan nodos; los quitan cuando sobran.",
+     "NodePool (grupo de nodos de Karpenter) de T4; Cluster Autoscaler quita un nodo tras 10 min sin hacer falta"
+    ],
+    [
+     "kubectl scale con autoscaler",
+     "Dura poco: el HPA vuelve a su número (si subiste, al ritmo de su scaleDown). Cambia min/max en git.",
+     "--replicas=6 con máximo 4 → vuelve a 4 en ≈ 15 s"
+    ]
+   ],
+   "tables": [
+    {
+     "caption": "Quién decide qué, y cuánto tarda en C01",
+     "head": [
+      "Pieza",
+      "Decide",
+      "Con qué",
+      "Tiempo en C01"
+     ],
+     "rows": [
+      [
+       "KEDA (operador)",
+       "Crear el HPA; pasar de 0 a 1 y de 1 a 0 réplicas",
+       "Los triggers del ScaledObject",
+       "No aplica: el mínimo es 2"
+      ],
+      [
+       "HPA keda-hpa-triton",
+       "Cuántas réplicas entre el mínimo y el máximo (2–4)",
+       "⌈Ready × métrica / umbral⌉ y el behavior",
+       "Cada 15 s; +1 pod por minuto"
+      ],
+      [
+       "Scheduler",
+       "En qué nodo cae cada pod nuevo",
+       "Requests, labels, taints y el reparto entre zonas",
+       "Segundos; si no cabe, Pending"
+      ],
+      [
+       "Karpenter (o Cluster Autoscaler)",
+       "Cuántos nodos",
+       "Pods Unschedulable y las reglas del NodePool",
+       "≈ 2–5 min por nodo GPU"
+      ],
+      [
+       "kubelet, device plugin y Triton",
+       "Cuándo sirve el pod nuevo",
+       "Pull de la imagen, carga del engine, readiness",
+       "≈ 2–5 min + ≈ 15–75 s"
+      ]
+     ],
+     "note": "Del primer síntoma al primer request del pod nuevo: ≈ 5–13 min. Por eso C01 nunca baja de 2 réplicas (una por zona, y cada una aguanta sola el pico de diseño), y los picos cortos los absorben ese margen y el load shedding (rechazar rápido, con un 503, lo que no cabe), no el autoscaling."
+    }
+   ],
+   "example": {
+    "title": "El ScaledObject de Triton: KEDA alimenta un HPA con el tiempo en cola",
+    "lang": "yaml",
+    "code": "# … ScaledObject \"triton\" (namespace classifier) → Deployment triton\n  minReplicaCount: 2  # nunca menos de 2: una GPU por AZ (N+1), aunque 1 sola cubra el pico\n  maxReplicaCount: 4  # techo de costo: 4 × g4dn.xlarge; si no alcanza, TritonQueueTimeHigh avisa\n  # … pollingInterval, cooldownPeriod y el behavior del HPA (ver notas)\n  triggers:\n    - type: prometheus\n      # Value (no AverageValue): réplicas deseadas = ceil(actuales × valor / umbral). Proporcional,\n      # como corresponde a una latencia; AverageValue dividiría el valor entre réplicas, lo que tiene\n      # sentido para un caudal (req/s), no para un tiempo.\n      metricType: Value\n      metadata:\n        # Prometheus del cluster (kube-prometheus-stack). Con Amazon Managed Prometheus se agrega\n        # autenticación SigV4 vía TriggerAuthentication.\n        serverAddress: http://prometheus-operated.monitoring.svc.cluster.local:9090\n        # Si la query vuelve vacía (Prometheus no scrapea Triton: falta el ServiceMonitor de\n        # k8s/monitoring.yaml), \"false\" la vuelve un error visible del scaler (eventos del ScaledObject).\n        # Con el default (true) KEDA la toma como 0 y Triton se queda en 2 réplicas sin que nada avise.\n        ignoreNullValues: \"false\"\n        # Espera media en cola en ms (misma fórmula que la alerta TritonQueueTimeHigh).\n        # clamp_min evita 0/0 = NaN sin tráfico; si todo falla (0 éxitos) el valor se dispara y escala.\n        query: |\n          sum(rate(nv_inference_queue_duration_us{model=\"classifier\"}[2m]))\n            /\n          clamp_min(sum(rate(nv_inference_request_success{model=\"classifier\"}[2m])), 1e-9)\n            / 1000\n        # Objetivo: 10 ms en cola. Normal con max_queue_delay de 2 ms es ≈ 1–3 ms; > 10 ms es saturación.\n        # Ojo: la cola es no lineal (casi 0 hasta que la GPU se satura). Alternativa más estable:\n        # AverageValue sobre sum(rate(nv_inference_count[1m])) con umbral ≈ 400 img/s por réplica.\n        threshold: \"10\"",
+    "source": "reference/c01/k8s/keda-triton.yaml (líneas 15–16 y 36–60; las líneas # … resumen lo omitido)",
+    "notes": [
+     "Con este ScaledObject, KEDA crea el HPA <code>keda-hpa-triton</code> (mín. 2, máx. 4) con una métrica External. Cada 15 s el HPA le pide el número al servidor de métricas de KEDA, que corre la query en Prometheus; con mínimo ≥ 1, <code>pollingInterval</code> solo refresca el estado del ScaledObject.",
+     "<code>metricType: Value</code>: deseadas = ⌈Ready × ms / 10⌉. Normal, ≈ 2 ms: ⌈2 × 0.2⌉ = 1, y se queda en 2 (el mínimo). Saturada, 25 ms: ⌈2 × 2.5⌉ = 5, y se queda en 4 (el máximo). <code>AverageValue</code> dividiría la métrica entre las réplicas: sirve para colas y req/s, no para un tiempo.",
+     "El behavior omitido (<code>advanced.horizontalPodAutoscalerConfig</code>) sube +1 pod cada 60 s y baja −1 cada 300 s, después de 600 s de estabilización: de 2 a 4 réplicas pasa al menos un minuto, más el nodo de cada una. <code>cooldownPeriod</code> solo aplica al bajar a 0, que aquí nunca pasa.",
+     "<code>ignoreNullValues: \"false\"</code>: si falta el ServiceMonitor (el objeto que le dice a Prometheus qué leer) y la query vuelve vacía, el scaler da error (<code>prometheus metrics 'prometheus' target may be lost, the result is empty</code>) y lo ves en los eventos del ScaledObject. Con el default (<code>true</code>) sería un 0 silencioso y Triton nunca pasaría de 2.",
+     "El gateway usa un HPA normal (<code>gateway.yaml</code>): CPU al 60 % de su request de 1 core. 5 pods al 90 % → ⌈5 × 90 / 60⌉ = ⌈7.5⌉ = 8. Sube hasta +100 % cada 30 s y baja de a 1 pod por minuto después de 300 s.",
+     "Los dos lazos se encadenan así: el HPA pide la 3.ª réplica, no hay T4 libre y el pod queda Pending (<code>Insufficient nvidia.com/gpu</code>). Karpenter lo ve Unschedulable y lanza una g4dn.xlarge con la label y el taint de su NodePool; el device plugin anuncia la GPU y recién ahí el scheduler pone el pod. De Pending a Ready, ≈ 4–11 min según el comentario de <code>progressDeadlineSeconds</code> en <code>triton.yaml</code>."
+    ]
+   },
+   "figure": {
+    "kind": "autoscale",
+    "caption": "KEDA y el HPA deciden en segundos; el nodo GPU, la imagen y el modelo tardan minutos. Tiempos de M06 para C01, sin nodo libre, con el inicio y el fin de cada rango.",
+    "data": {
+     "current": 2,
+     "metric": 25,
+     "target": 10,
+     "desired": 5,
+     "max": 4,
+     "metric_name": "espera media en la cola de Triton (ms)",
+     "metric_type": "Value",
+     "steps": [
+      "⌈2 × 25 / 10⌉ = 5",
+      "recortado al máximo: 4",
+      "behavior: +1 pod cada 60 s → 3, después 4"
+     ],
+     "timeline": [
+      {
+       "t_min": 0,
+       "t_max": 0,
+       "lane": "pods",
+       "label": "la cola pasa de ≈ 2 a 25 ms"
+      },
+      {
+       "t_min": 0.5,
+       "t_max": 1.5,
+       "lane": "pods",
+       "label": "keda-hpa-triton: 2 → 3; el pod 3 queda Pending (Insufficient nvidia.com/gpu)"
+      },
+      {
+       "t_min": 0.5,
+       "t_max": 1.5,
+       "lane": "nodos",
+       "label": "Karpenter ve el pod Unschedulable y lanza una g4dn.xlarge"
+      },
+      {
+       "t_min": 1.5,
+       "t_max": 2.5,
+       "lane": "pods",
+       "label": "si la cola sigue alta: 3 → 4 (otro Pending, otro nodo)"
+      },
+      {
+       "t_min": 2.5,
+       "t_max": 6.5,
+       "lane": "nodos",
+       "label": "nodo Ready; el device plugin anuncia nvidia.com/gpu: 1; el scheduler pone el pod"
+      },
+      {
+       "t_min": 4.5,
+       "t_max": 11.5,
+       "lane": "pods",
+       "label": "imagen de Triton descargada"
+      },
+      {
+       "t_min": 4.75,
+       "t_max": 12.75,
+       "lane": "pods",
+       "label": "engine cargado y readiness OK: entra al Service"
+      }
+     ],
+     "down": "Al bajar: el HPA espera 600 s y quita 1 pod cada 300 s (borrar réplicas no pasa por el PodDisruptionBudget); el nodo que queda vacío lo retira Karpenter (consolidación: quita o cambia nodos que sobran) o Cluster Autoscaler (tras 10 min sin hacer falta)."
+    }
+   },
+   "memo": "Cómo recordarla: <b>el Deployment es un termostato (mantiene N copias); el HPA mueve la perilla N con una regla proporcional; KEDA le acerca métricas de afuera; Karpenter agrega nodos cuando las copias no caben</b>. Pods en segundos, nodos en minutos.",
+   "trap": "Trampa: fijar réplicas a mano con un autoscaler activo: un <code>kubectl scale</code> no dura (el HPA vuelve a su número) y, si dejas <code>replicas:</code> en el YAML, cada <code>kubectl apply</code> resetea la escala y pelea con el autoscaler; por eso los Deployments de C01 no lo tienen. Para cambiar capacidad, cambia <code>minReplicas</code> o <code>minReplicaCount</code> en git. Y <code>maxReplicaCount: 20</code> no te da 20 GPUs: cada réplica necesita un nodo, cuota y capacidad en la zona.",
+   "lab": {
+    "goal": "Ver al HPA imponer su mínimo y su máximo, ganarle a kubectl scale y a un replicas en el YAML, y leer por qué no escala sin metrics-server.",
+    "steps": [
+     {
+      "cmd": "kubectl config current-context\nkubectl create namespace lab-k8s\nmkdir -p ~/lab-k8s-hpa && cd ~/lab-k8s-hpa\ncat > web.yaml <<'EOF'\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 1\n  selector:\n    matchLabels:\n      app: web\n  template:\n    metadata:\n      labels:\n        app: web\n    spec:\n      containers:\n        - name: web\n          image: nginx:1.30-alpine\n          resources:\n            requests:\n              cpu: 50m\n              memory: 32Mi\n            limits:\n              memory: 128Mi\nEOF\ncat > hpa.yaml <<'EOF'\napiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: web\nspec:\n  scaleTargetRef:\n    apiVersion: apps/v1\n    kind: Deployment\n    name: web\n  minReplicas: 2\n  maxReplicas: 4\n  metrics:\n    - type: Resource\n      resource:\n        name: cpu\n        target:\n          type: Utilization\n          averageUtilization: 60\nEOF\nkubectl apply -n lab-k8s -f web.yaml -f hpa.yaml\nkubectl get deploy web -n lab-k8s -w",
+      "expect": "READY empieza en 1/1 y en ≈ 15 s pasa a 2/2: el HPA impone su mínimo aunque el YAML diga replicas: 1. Sal con Ctrl+C."
+     },
+     {
+      "cmd": "kubectl get hpa web -n lab-k8s\nkubectl describe hpa web -n lab-k8s",
+      "expect": "Sin metrics-server, TARGETS dice cpu: <unknown>/60%. En Conditions, ScalingActive False con FailedGetResourceMetric (failed to get cpu utilization); en Events, SuccessfulRescale con New size: 2; reason: Current number of replicas below Spec.MinReplicas. Si instalaste metrics-server, verás un porcentaje y ScalingActive True."
+     },
+     {
+      "cmd": "kubectl scale deploy web -n lab-k8s --replicas=6\nkubectl get deploy web -n lab-k8s -w",
+      "expect": "Sube a 6 y en ≈ 15 s el HPA lo baja a 4: New size: 4; reason: Current number of replicas above Spec.MaxReplicas. Un kubectl scale no le gana al autoscaler. Ctrl+C."
+     },
+     {
+      "cmd": "kubectl apply -n lab-k8s -f web.yaml\nkubectl get deploy web -n lab-k8s -w",
+      "expect": "kubectl responde deployment.apps/web configured y las réplicas caen a 1, lo que dice el YAML; en ≈ 15 s el HPA las vuelve a subir a 2. Por eso, con HPA o KEDA, el Deployment no lleva replicas (como en C01). Ctrl+C."
+     }
+    ],
+    "fix": "Para escalar de verdad por CPU en tu Mac necesitas metrics-server, que no viene con Docker Desktop. En EKS (el Kubernetes administrado de AWS), si el HPA no escala, sigue la cadena: ¿llega la métrica? (TARGETS y ScalingActive), ¿pide más réplicas? (ScalingLimited), ¿los pods nuevos quedan Pending? (FailedScheduling), ¿llega un nodo? (Karpenter o Cluster Autoscaler). Si quitas replicas de un Deployment ya aplicado, ese primer apply lo baja a 1 (el default) hasta el siguiente ciclo del HPA; la doc de HPA lo evita borrando antes el campo con kubectl apply edit-last-applied deployment/NOMBRE. Limpia con kubectl delete namespace lab-k8s y cd ~ && rm -r ~/lab-k8s-hpa.",
+    "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster, con kubeadm o kind; contexto docker-desktop) o kind. La primera vez se baja nginx:1.30-alpine (≈ 29 MB para arm64). No necesitas KEDA ni metrics-server.",
+    "verified": "docs",
+    "verified_note": "No ejecutado aquí. Verificado en el código del controlador de HPA de Kubernetes 1.37: impone min y max sin calcular métricas, eventos SuccessfulRescale con New size y reason, condición ScalingActive con FailedGetResourceMetric, y el formato cpu: <unknown>/60% de TARGETS. El reset de replicas sale del merge de tres vías de kubectl apply (la diferencia va del estado actual al YAML) y de la doc de HPA."
+   },
+   "links": [
+    "#m06.hpa",
+    "#m06.keda",
+    "#m06.nodos",
+    "#m06.cold-starts",
+    "#ref-comandos.autoscaling-cmds",
+    "#c01.serving"
+   ]
+  }
+ ]
+}

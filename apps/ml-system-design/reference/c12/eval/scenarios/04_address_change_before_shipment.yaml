@@ -1,0 +1,24 @@
+# Cambio de dirección con el pedido todavía en preparación: escritura con idempotency key, sin confirmación
+# (es reversible), y queda aplicada.
+id: address_change_before_shipment
+customer_id: cust-1
+orders:
+  - order_id: A-1030
+    customer_id: cust-1
+    status: preparing
+    currency: MXN
+    items: [{item_id: I-1, title: Licuadora, price: "1299.00"}]
+    created_days_ago: 1
+model:
+  - tool_calls: [{name: update_shipping_address, arguments: {order_id: A-1030, address: {
+      street: "Av. Juárez 100", interior: null, city: Monterrey, state: NL, postal_code: "64000", country: MX}}}]
+  - content: "Listo, tu pedido A-1030 se enviará a Av. Juárez 100, Monterrey."
+turns:
+  - customer: "Cambia la dirección de A-1030 a Av. Juárez 100, Monterrey, NL, 64000 por favor"
+expect:
+  outcome: answered
+  state:
+    address_city: {A-1030: Monterrey}
+  required_calls: [update_shipping_address]
+  allowed_calls: [update_shipping_address, get_order]
+  max_llm_calls: 2

@@ -1,0 +1,1938 @@
+{
+ "sections": [
+  {
+   "id": "cuantizacion",
+   "num": 9,
+   "title": "Cuantización: FP8, INT8, INT4 (AWQ y GPTQ), KV cache en FP8 y la calidad",
+   "question": "¿Cuántos bytes por parámetro necesita el 70B del C10, qué formato corre en qué GPU, cómo se lo dices a vLLM y cómo sabes que la calidad no se rompió?",
+   "templates": [
+    {
+     "code": "vllm serve {checkpoint} --served-model-name {nombre} --tensor-parallel-size {tp}",
+     "note": "<b>Cuantizar</b> es guardar los pesos con menos bits: cada número se vuelve un número chico (8 o 4 bits) multiplicado por una <b>escala</b> que comparten muchos pesos. Un checkpoint (la carpeta con los pesos y su config) ya cuantizado (<b>pre-quantized</b>) trae su receta en <code>config.json</code>, bajo <code>quantization_config</code>, y vLLM la lee sola: no pasas <code>--quantization</code>. Si lo pasas y no coincide con la del checkpoint, no arranca. Así sirve el C10 sus pesos FP8."
+    },
+    {
+     "code": "python3 -c \"import json; print(json.load(open('{carpeta}/config.json')).get('quantization_config'))\"",
+     "note": "Lee la receta antes de servir: <code>quant_method</code> (<code>compressed-tensors</code>, <code>fp8</code>, <code>awq</code>, <code>gptq</code>…), los bits y el tipo, si las activaciones se cuantizan al vuelo (<code>dynamic: true</code>), qué capas quedaron en 16 bits (<code>ignore</code>, casi siempre <code>lm_head</code>, la última capa, la que elige el token) y si trae escalas para el KV (<code>kv_cache_scheme</code>; <code>null</code> = no trae)."
+    },
+    {
+     "code": "vllm serve {checkpoint_bf16} --quantization fp8",
+     "note": "Cuantización <b>online</b> (al cargar): vLLM baja un checkpoint BF16 a FP8 sin datos de calibración, con una escala por tensor. Sirve para probar rápido; la doc actual avisa que así la latencia mejora poco. Para producción, un checkpoint hecho con llm-compressor (la librería de vLLM para cuantizar; escalas por canal en los pesos y por token en las activaciones). Desde v0.31, <code>fp8</code> redirige a <code>fp8_per_tensor</code>, el nombre que usa la doc actual."
+    },
+    {
+     "code": "vllm serve {checkpoint} --kv-cache-dtype {tipo_kv}",
+     "note": "El <b>KV cache</b> (lo que el modelo ya leyó de cada conversación, guardado en la GPU para no recalcularlo) pasa de 2 bytes a 1 por valor: caben ≈ el doble de tokens. <code>auto</code>, el default y el del C10, usa el dtype del modelo (BF16). <code>fp8</code> es <code>fp8_e4m3</code>. Si un checkpoint cuantizado, como el del C10, no trae escalas para K y V, vLLM usa 1.0 y lo avisa en el log; con uno sin cuantizar usa 1.0 sin avisar."
+    }
+   ],
+   "formulas": [
+    "\\text{pesos} = P \\times b \\qquad 70.6\\ \\text{B} \\times \\{2,\\ 1,\\ 0.5\\}\\ \\text{B} = 141.2,\\ 70.6,\\ 35.3\\ \\text{GB}",
+    "\\text{KV libre} = 2 \\times 80 \\times 0.90 - \\text{pesos} - 5 \\;\\Rightarrow\\; \\text{BF16: } -2.2 \\quad \\text{FP8: } 68.4 \\quad \\text{INT4: } 103.7\\ \\text{GB}",
+    "\\text{secuencias} = \\left\\lfloor \\frac{68.4\\ \\text{GB}}{2{,}250 \\times 320\\ \\text{KiB}} \\right\\rfloor = 92 \\qquad \\text{con KV en FP8 (160 KiB): } 185",
+    "x \\approx s \\cdot q \\qquad s_{\\text{INT8}} = \\frac{\\max|x|}{127} \\qquad s_{\\text{FP8 E4M3}} = \\frac{\\max|x|}{448}"
+   ],
+   "vars": [
+    [
+     "{checkpoint}",
+     "carpeta o repo con los pesos ya cuantizados y su config.json",
+     "/models/chat-70b-fp8-2026-09-28"
+    ],
+    [
+     "{nombre}",
+     "el nombre del modelo que ven los clientes",
+     "chat-70b-fp8-2026-09-28"
+    ],
+    [
+     "{tp}",
+     "entre cuántas GPUs se reparte cada capa",
+     "2"
+    ],
+    [
+     "{carpeta}",
+     "dónde quedaron los safetensors",
+     "/models/chat-70b-fp8-2026-09-28"
+    ],
+    [
+     "{checkpoint_bf16}",
+     "los pesos originales, en 16 bits",
+     "meta-llama/Llama-3.3-70B-Instruct (≈ 141 GB)"
+    ],
+    [
+     "{tipo_kv}",
+     "en qué tipo se guarda el KV cache",
+     "auto en el C10; fp8 solo si pasa el golden set"
+    ],
+    [
+     "P",
+     "parámetros del modelo",
+     "70.6 B"
+    ],
+    [
+     "b",
+     "bytes por parámetro del formato",
+     "2 en BF16 · 1 en FP8 o INT8 · 0.5 en INT4"
+    ],
+    [
+     "KV libre",
+     "memoria para KV en una réplica: GPUs × 80 GB × gpu_memory_utilization − pesos − runtime (≈ 2.5 GB por GPU, estimado)",
+     "68.4 GB con pesos FP8"
+    ],
+    [
+     "s",
+     "la escala que comparten muchos pesos",
+     "max|x| ÷ 448 en FP8 E4M3"
+    ],
+    [
+     "q",
+     "el número chico que se guarda en lugar de x",
+     "un entero de −127 a 127, o un float de 8 bits"
+    ]
+   ],
+   "pieces": [
+    [
+     "BF16",
+     "16 bits con el rango de FP32. Es el formato en que se entrenan y se publican los LLMs, y la referencia de calidad.",
+     "141.2 GB de pesos: en 2 × H100 casi no deja KV"
+    ],
+    [
+     "FP8 W8A8",
+     "Pesos y activaciones en 8 bits de punto flotante (W8A8: weights y activations en 8 bits). La mitad de memoria que BF16 y tensor cores (las unidades que multiplican matrices) FP8 para el cómputo.",
+     "los pesos del C10: ≈ 70.6 GB"
+    ],
+    [
+     "E4M3 · E5M2",
+     "Los dos FP8: 4 bits de exponente y 3 de mantisa (más precisión, máximo 448) o 5 y 2 (más rango). Como es punto flotante, un valor atípico casi no le quita resolución a los chicos.",
+     "--kv-cache-dtype fp8 = fp8_e4m3"
+    ],
+    [
+     "FP8 weight-only (W8A16)",
+     "Solo los pesos en FP8; el cómputo sigue en 16 bits. vLLM lo usa en GPUs sin FP8 nativo (Turing y Ampere) con los kernels Marlin: ahorra memoria, no cómputo.",
+     "el mismo checkpoint en una A100"
+    ],
+    [
+     "INT8 W8A8",
+     "Enteros de 8 bits con escala, en pesos y activaciones (hechos con llm-compressor). Corre desde Turing.",
+     "una salida para A100 y A10G, que no tienen FP8"
+    ],
+    [
+     "INT4 W4A16 (AWQ, GPTQ)",
+     "Pesos de 4 bits con una escala por grupo de pesos (por ejemplo, cada 128); se descuantizan al vuelo y el cómputo va en 16 bits. AWQ y GPTQ son dos formas de elegir esos 4 bits perdiendo poco.",
+     "el 70B en ≈ 39.5 GB: cabe en una sola H100"
+    ],
+    [
+     "GPTQ con act-order (desc_act)",
+     "Una variante de GPTQ que cuantiza las columnas en otro orden y guarda un índice (g_idx) para deshacerlo. vLLM v0.30.0 dejó de soportarla: un checkpoint así ni arranca (GPTQ group activation ordering (desc_act=True) is no longer supported).",
+     "usa GPTQ sin act-order de grupo (llm-compressor usa static por defecto) o AWQ"
+    ],
+    [
+     "Marlin",
+     "Kernels rápidos (los programas que corren en la GPU) para pesos de 4 u 8 bits con activaciones de 16: GPTQ, AWQ y FP8 weight-only. Con FP8 en una GPU sin soporte nativo, vLLM los elige solo.",
+     "la A100 con el checkpoint FP8 del C10"
+    ],
+    [
+     "quantization_config",
+     "La receta dentro del config.json: método, bits, grupos y capas que no se tocaron. vLLM la lee y elige el método.",
+     "quant_method: compressed-tensors · ignore: [lm_head]"
+    ],
+    [
+     "--quantization (-q)",
+     "Fuerza un método. Con un checkpoint ya cuantizado no hace falta; con uno BF16 y fp8, cuantiza al cargar.",
+     "el C10 no lo pasa"
+    ],
+    [
+     "--kv-cache-dtype",
+     "El tipo del KV cache, aparte de los pesos: auto (el del modelo), fp8 (= fp8_e4m3), fp8_e5m2 y otros más nuevos.",
+     "auto en el C10: KV en BF16"
+    ],
+    [
+     "k_scale · v_scale",
+     "Las escalas del KV en FP8 que la calibración guarda en el checkpoint. Sin ellas, vLLM usa 1.0 (y lo avisa solo si el checkpoint está cuantizado).",
+     "kv_cache_scheme: null en un checkpoint FP8-dynamic"
+    ],
+    [
+     "Calibración (PTQ)",
+     "Pasar unos cientos de ejemplos reales para medir rangos y fijar escalas, después del entrenamiento (post-training quantization).",
+     "FP8_DYNAMIC no la necesita; INT4 y el KV sí"
+    ],
+    [
+     "Compute capability",
+     "La generación de la GPU como número: 7.5 Turing (T4), 8.0 Ampere (A100), 8.9 Ada (L4, L40S), 9.0 Hopper (H100). FP8 nativo desde 8.9.",
+     "H100 = 9.0"
+    ],
+    [
+     "Golden set y gate",
+     "El examen fijo de cada producto y la regla que decide si una revisión pasa. Ninguna cuantización entra sin él.",
+     "eval/golden_eval.py del C10"
+    ]
+   ],
+   "example": {
+    "title": "C10: el gate que decide si una cuantización (o el KV en FP8) entra",
+    "lang": "python",
+    "code": "@dataclass(frozen=True)\nclass GateThresholds:\n    \"\"\"Umbrales ILUSTRATIVOS: los fija cada producto con su dueño. Se versionan con el código.\"\"\"\n\n    min_json_validity: float = 0.99  # extracción: 1 % de JSON roto ya es 20k items por noche (de 2 M)\n    min_field_f1: float = 0.90  # extracción: piso absoluto\n    max_f1_drop: float = 0.01  # extracción: contra la revisión actual (si se da baseline)\n    min_win_rate_lower: float = 0.45  # chat: no-inferioridad con margen de 5 puntos (borde inferior de Wilson)\n    min_position_consistency: float = 0.80  # chat: debajo de esto el juez decide por posición, no por calidad\n    min_judge_kappa: float = 0.60  # chat: acuerdo juez-humano medido en la muestra de calibración\n    min_pairs: int = 300  # chat: con menos, el intervalo es demasiado ancho para decidir\n\n\ndef gate_extraction(rep: ExtractionReport, t: GateThresholds, baseline_f1: float | None = None) -> GateResult:\n    reasons = []\n    if rep.json_validity < t.min_json_validity:\n        reasons.append(f\"JSON válido {rep.json_validity:.3f} < {t.min_json_validity}\")\n    if rep.f1 < t.min_field_f1:\n        reasons.append(f\"F1 por campo {rep.f1:.3f} < {t.min_field_f1}\")\n    if baseline_f1 is not None and baseline_f1 - rep.f1 > t.max_f1_drop:\n        reasons.append(f\"F1 cae {baseline_f1 - rep.f1:.3f} contra la revisión actual (> {t.max_f1_drop})\")\n    # … return GateResult(not reasons, reasons, {…})\n\n\ndef gate_pairwise(rep: PairwiseReport, t: GateThresholds, judge_kappa: float) -> GateResult:\n    lo, hi = wilson_interval(rep.wins + 0.5 * rep.ties, rep.pairs)\n    reasons = []\n    if rep.pairs < t.min_pairs:\n        reasons.append(f\"solo {rep.pairs} pares (< {t.min_pairs})\")\n    if judge_kappa < t.min_judge_kappa:\n        reasons.append(f\"kappa juez-humano {judge_kappa:.2f} < {t.min_judge_kappa}: recalibra el juez antes de decidir\")\n    if rep.position_consistency < t.min_position_consistency:\n        reasons.append(f\"consistencia de posición {rep.position_consistency:.2f} < {t.min_position_consistency}\")\n    if lo < t.min_win_rate_lower:\n        reasons.append(f\"win rate {rep.win_rate:.3f}, IC95 [{lo:.3f}, {hi:.3f}]: el borde inferior no pasa {t.min_win_rate_lower}\")\n    # … return GateResult(not reasons, reasons, {…})",
+    "source": "reference/c10/eval/golden_eval.py (líneas 218–228, 238–245 y 251–261; las líneas # … resumen lo omitido)",
+    "notes": [
+     "En el C10 los pesos FP8 son una revisión del modelo más: <code>chat-70b-fp8-2026-09-28</code>. Pasa el mismo gate que un modelo distinto, por producto, y el reporte va al model registry. Para comparar FP8 contra el original, el caso corre la versión BF16 en una réplica TP=4 temporal: en 2 H100 no cabe con KV.",
+     "Chat: <code>gate_pairwise</code> compara contra la revisión actual con un juez calibrado. El borde inferior del intervalo de Wilson tiene que pasar 0.45: con 1,000 pares, un win rate de 0.50 da [0.469, 0.531] y pasa; con 100, [0.404, 0.596] y no pasa (es la salida de <code>python eval/golden_eval.py</code>).",
+     "Extracción: JSON válido ≥ 0.99, F1 por campo ≥ 0.90 y no más de 1 punto debajo de la revisión actual. Con 2 M items por noche, 1 % de JSON roto son 20,000 items.",
+     "El KV en FP8 espera este gate. El manifest lo dice al lado del flag: <code>auto  # KV en BF16. \"fp8\" duplica las secuencias; se activa solo si pasa el golden set</code>. Córrelo también con los prompts largos del set: M14 avisa que el riesgo del KV en FP8 crece con el contexto.",
+     "Lo que el gate no mide es la velocidad. Una revisión cuantizada vuelve al barrido de <code>vllm bench serve</code> (<code>bench/run_sweep.sh</code>), porque el «≈ 6 rps por réplica» cambia con el formato."
+    ]
+   },
+   "figure": {
+    "kind": "quant",
+    "caption": "Bytes por parámetro y memoria del 70B del C10 en una réplica de 2 × H100 (0.90 × 160 GB = 144 GB) y en una sola H100: pesos, KV libre y secuencias de 2,250 tokens que caben. Los pesos son la cuenta del caso (70.6 B × bytes); los checkpoints reales en FP8 e INT4 pesan algo más porque dejan embeddings y lm_head en BF16 (el BF16 real pesa algo menos: 70.55 B de parámetros). Números del lab de esta sección.",
+    "data": {
+     "modelo": "el 70B del C10 (arquitectura de Llama 3.x 70B: 70.6 B de parámetros, 80 capas, 8 KV heads × 128)",
+     "replica": {
+      "gpus": 2,
+      "gb_por_gpu": 80,
+      "gpu_memory_utilization": 0.9,
+      "presupuesto_gb": 144,
+      "runtime_gb_por_gpu": 2.5
+     },
+     "kv_por_token_kib": {
+      "BF16": 320,
+      "FP8": 160
+     },
+     "formatos": [
+      {
+       "formato": "BF16",
+       "bytes_por_param": 2,
+       "pesos_gb": 141.2,
+       "checkpoint_real_gb": 141.1,
+       "kv_libre_2xH100_gb": -2.2,
+       "secuencias_2250_kv_bf16": 0,
+       "secuencias_2250_kv_fp8": 0,
+       "kv_libre_1xH100_gb": null,
+       "nota": "no cabe con KV útil en 2 × H100: la cuenta nominal da −2.2 GB y, con la memoria que reporta la GPU (≈ 85.5 GB), quedan ≈ 7.7 GB (≈ 10 secuencias). Pide TP=4"
+      },
+      {
+       "formato": "FP8 (W8A8)",
+       "bytes_por_param": 1,
+       "pesos_gb": 70.6,
+       "checkpoint_real_gb": 72.7,
+       "kv_libre_2xH100_gb": 68.4,
+       "secuencias_2250_kv_bf16": 92,
+       "secuencias_2250_kv_fp8": 185,
+       "kv_libre_1xH100_gb": -1.1,
+       "nota": "el C10; en 1 H100 no deja KV útil (nominal −1.1 GB; con la memoria reportada, ≈ 2–4 GB)"
+      },
+      {
+       "formato": "INT4 (W4A16)",
+       "bytes_por_param": 0.5,
+       "pesos_gb": 35.3,
+       "checkpoint_real_gb": 39.5,
+       "kv_libre_2xH100_gb": 103.7,
+       "secuencias_2250_kv_bf16": 140,
+       "secuencias_2250_kv_fp8": 281,
+       "kv_libre_1xH100_gb": 34.2,
+       "nota": "cabe en 1 H100; más riesgo de calidad"
+      }
+     ],
+     "checkpoints_reales": [
+      {
+       "repo": "meta-llama/Llama-3.3-70B-Instruct",
+       "dtype": "BF16",
+       "parametros": 70553706496,
+       "gb": 141.1
+      },
+      {
+       "repo": "RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic",
+       "dtype": "68.45 B en FP8 E4M3 + 2.11 B en BF16",
+       "gb": 72.7
+      },
+      {
+       "repo": "RedHatAI/Llama-3.3-70B-Instruct-quantized.w4a16",
+       "dtype": "INT4 con escalas por grupo + embeddings en BF16",
+       "gb": 39.5
+      }
+     ],
+     "redondeo": {
+      "valor": 0.1,
+      "sin_atipico": {
+       "INT8": 0.0984,
+       "FP8": 0.1004,
+       "error_INT8": 0.016,
+       "error_FP8": 0.004
+      },
+      "con_atipico_25": {
+       "INT8": 0.1969,
+       "FP8": 0.0977,
+       "error_INT8": 0.969,
+       "error_FP8": 0.023
+      },
+      "mediana_4096_pesos_con_atipico": {
+       "INT8 por tensor": 0.068,
+       "FP8 por tensor": 0.022,
+       "INT4 por grupo de 128": 0.143
+      }
+     }
+    }
+   },
+   "memo": "Cómo recordarla: <b>2, 1, ½</b>: bytes por parámetro en BF16, FP8 e INT4, o sea <b>141, 71 y 35 GB</b> para el 70B. FP8 nativo desde la generación <b>8.9</b> (Ada, Hopper, Blackwell); en Turing y Ampere vLLM lo corre solo como pesos (W8A16). Y el orden del C10: <b>pesos en FP8 primero; KV en FP8 solo si pasa el golden set</b>.",
+   "trap": "Trampa: tratar la cuantización como un cambio de memoria y no de modelo. Cambia los números que el modelo calcula: se mide con el golden set de cada producto, en sus casos difíciles (prompts largos, español de México, JSON), no con un benchmark público ni con el promedio. Y dos de configuración: pasar <code>--quantization</code> a un checkpoint que ya trae la suya (si no coincide, vLLM no arranca), y activar <code>--kv-cache-dtype fp8</code> sin escalas calibradas: corre con 1.0 y, como mucho, te avisa en el log.",
+   "lab": {
+    "goal": "Calcular cuánto pesa el 70B del C10 en BF16, FP8 e INT4, qué cabe en 2 H100 y en 1, y ver con números por qué FP8 aguanta mejor un peso atípico que INT8 (y cuándo INT8 gana).",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-vllm && cd ~/lab-vllm\ncat > quant.py <<'EOF'\n# quant.py: bytes por parámetro del 70B del C10, qué cabe en 2 × H100 y en 1, y el error de redondeo de INT8, FP8 e INT4 (solo stdlib)\nimport math, random, statistics\n\nGB = 10**9\nP = 70.6e9                                         # parámetros (capacity/vram_calc.py del C10)\nKV = {\"BF16\": 2 * 80 * 8 * 128 * 2, \"FP8\": 2 * 80 * 8 * 128 * 1}   # bytes de KV por token: 320 y 160 KiB\nSEQ = 2_250                                        # 2,000 de prompt + 250 de salida\n\ndef libre(pesos_gb, gpus):                         # 0.90 × 80 GB por GPU − pesos − ≈ 2.5 GB por GPU (runtime, activaciones)\n    return gpus * 80 * 0.90 - pesos_gb - gpus * 2.5\n\nprint(\"formato  B/param   pesos   KV libre 2×H100   secuencias de 2,250 (KV BF16 · KV FP8)   KV libre 1×H100\")\nfor nombre, b in ((\"BF16\", 2), (\"FP8\", 1), (\"INT4\", 0.5)):\n    pesos = P * b / GB\n    l2, l1 = libre(pesos, 2), libre(pesos, 1)\n    seqs = lambda l, kv: math.floor(l * GB / (SEQ * kv)) if l > 0 else 0\n    txt2 = f\"{l2:6.1f} GB\" if l2 > 0 else \" no cabe\"\n    txt1 = f\"{l1:5.1f} GB\" if l1 > 0 else \"no cabe\"\n    print(f\"{nombre:7}  {b:>6}  {pesos:6.1f} GB  {txt2:>14}   {seqs(l2, KV['BF16']):>12} · {seqs(l2, KV['FP8']):<4}               {txt1}\")\n\n# Lo que pesan los checkpoints reales de Llama 3.3 70B (API de Hugging Face: safetensors.parameters y usedStorage)\nreales = ((\"BF16   meta-llama/Llama-3.3-70B-Instruct\", 70_553_706_496 * 2),\n          (\"FP8    RedHatAI/Llama-3.3-70B-Instruct-FP8-dynamic\", 68_451_041_280 * 1 + 2_109_382_656 * 2),\n          (\"INT4   RedHatAI/Llama-3.3-70B-Instruct-quantized.w4a16\", 39_542_797_099))\nfor nombre, b in reales:\n    print(f\"real: {nombre:52} {b / GB:6.1f} GB\")\n\n# Redondeo: x ≈ escala × q. INT8 guarda un entero; FP8 E4M3 guarda un float de 8 bits (máx. 448)\ndef int_q(x, s, qmax):\n    return max(-qmax, min(qmax, round(x / s))) * s\ndef e4m3(v):                                       # al valor FP8 E4M3 más cercano (empates al par)\n    if v == 0:\n        return 0.0\n    a = min(abs(v), 448.0)\n    e = max(math.floor(math.log2(a)), -6)          # bajo 2^-6, subnormales: el paso queda en 2^-9\n    paso = 2.0 ** (e - 3)                          # 3 bits de mantisa: 8 pasos por potencia de 2\n    return math.copysign(min(round(a / paso) * paso, 448.0), v)\n\nfor titulo, pesos in ((\"sin atípico\", [-2.5, 2.5]), (\"con un peso atípico de 25\", [-2.5, 2.5, 25.0])):\n    m = max(abs(w) for w in pesos)\n    i8 = int_q(0.1, m / 127, 127)\n    f8 = e4m3(0.1 / (m / 448)) * (m / 448)\n    print(f\"0.1 {titulo:26} INT8 → {i8:.4f} (error {abs(i8 - 0.1) / 0.1:6.1%})   FP8 → {f8:.4f} (error {abs(f8 - 0.1) / 0.1:6.1%})\")\n\nrandom.seed(7)\nw = [random.gauss(0, 1) for _ in range(4095)] + [25.0]     # 4,096 pesos y un atípico, como en una capa real\nm = max(abs(x) for x in w)\ndef err(q):\n    return statistics.median(abs(q(x) - x) / abs(x) for x in w[:-1])\nprint(f\"mediana del error relativo en 4,096 pesos (el más grande vale {m:g}): \"\n      f\"INT8 por tensor {err(lambda x: int_q(x, m / 127, 127)):.1%} · \"\n      f\"FP8 por tensor {err(lambda x: e4m3(x / (m / 448)) * (m / 448)):.1%} · \"\n      f\"INT4 con escala cada 128 pesos {statistics.median(abs(int_q(x, max(abs(y) for y in w[i // 128 * 128:i // 128 * 128 + 128]) / 7, 7) - x) / abs(x) for i, x in enumerate(w[:-1])):.1%}\")\nEOF\npython3 quant.py",
+      "expect": "La tabla, con los 80 GB nominales de la cuenta del caso: BF16 141.2 GB y no cabe ni en 2 ni en 1 H100; FP8 70.6 GB, 68.4 GB de KV libre, 92 · 185 secuencias de 2,250 (KV en BF16 · en FP8) y no cabe en 1 H100; INT4 35.3 GB, 103.7 GB, 140 · 281 y 34.2 GB en 1 H100. Los checkpoints reales: 141.1, 72.7 y 39.5 GB. El 0.1 sin atípico: INT8 0.0984 (error 1.6 %), FP8 0.1004 (0.4 %); con un peso atípico de 25: INT8 0.1969 (96.9 %), FP8 0.0977 (2.3 %). La mediana en 4,096 pesos: INT8 por tensor 6.8 %, FP8 2.2 %, INT4 con escala cada 128 pesos 14.3 %."
+     },
+     {
+      "cmd": "sed -i '' 's/\\[25\\.0\\]/[2.5]/' quant.py && python3 quant.py | tail -1",
+      "expect": "Sin el atípico (el más grande vale 3.47177): INT8 por tensor 0.9 %, FP8 2.2 %, INT4 13.7 %. INT8 tiene pasos parejos y gana cuando el rango es chico; FP8 tiene un error relativo casi fijo (≈ 2–3 %) y por eso aguanta los atípicos de los LLMs."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-vllm",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Prueba otras GPUs cambiando los números de libre(): una H200 (141 GB) o TP=4. Si tu cuenta no coincide con lo que imprime vLLM al arrancar (GPU KV cache size: N tokens), gana vLLM: midió activaciones y CUDA graphs, y aplica gpu_memory_utilization a la memoria que reporta la GPU (≈ 85.5 GB en una H100), no a los 80 nominales.",
+    "needs": "Python 3 sin paquetes extra (el python3 de macOS sirve). Ni GPU ni Docker.",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS con Python 3.14.3, 3.13.16 y 3.9.6: salidas idénticas. El redondeo a E4M3 del script coincide con torch.float8_e4m3fn (PyTorch 2.14.1 de un venv existente) en 60,401 valores. 68.4 GB, 92 y 185 son los de capacity/vram_calc.py; los tamaños reales salen de la API de Hugging Face (safetensors.parameters y usedStorage, octubre de 2026); la tabla de formatos por GPU, de la doc de cuantización de vLLM v0.30.0."
+   },
+   "links": [
+    "#m08.cuantizacion",
+    "#m04.bytes-dtype",
+    "#m04.gpus-nvidia",
+    "#m14.kv-cache",
+    "#c10.serving",
+    "#c10.tradeoffs",
+    "#c10.evaluacion"
+   ]
+  },
+  {
+   "id": "optimizar",
+   "num": 10,
+   "title": "Optimizaciones: prefix caching, speculative decoding, LoRA múltiple, autoscaling por cola y cold start",
+   "question": "Ya cabe y ya cumple: ¿qué palanca baja el TTFT, cuál el TPOT, cuál sirve varios fine-tunings con una sola flota, cuál acorta el arranque, y por qué el C10 no escala con KEDA?",
+   "templates": [
+    {
+     "code": "sum(rate(vllm:prefix_cache_hits_total[{ventana}])) / sum(rate(vllm:prefix_cache_queries_total[{ventana}]))",
+     "note": "<b>Prefix caching</b> (reusar el KV de un comienzo de prompt que ya se calculó) viene activado en v0.30 (<code>--enable-prefix-caching</code>; lo apaga <code>--no-enable-prefix-caching</code>). Guarda bloques completos de 16 tokens, cada uno identificado por un hash (una huella numérica) de todo lo anterior: solo acierta lo idéntico desde el primer token. Ahorra prefill (TTFT y GPU), no decode. Esta query da la fracción de tokens de prompt que salieron del caché."
+    },
+    {
+     "code": "vllm serve {modelo} --speculative-config '{\"method\": \"ngram\", \"num_speculative_tokens\": {k}, \"prompt_lookup_max\": {n_max}}'\nvllm serve {modelo} --speculative-config '{\"method\": \"{metodo}\", \"model\": \"{draft}\", \"num_speculative_tokens\": {k}}'",
+     "note": "<b>Speculative decoding</b> (algo barato propone k tokens y el modelo grande los verifica todos en una sola pasada). <code>method</code> dice de dónde salen las propuestas: <code>ngram</code> (copia trozos del prompt), <code>draft_model</code> (un modelo chico con el mismo tokenizer), <code>eagle3</code>, <code>mtp</code> o <code>suffix</code>. La doc de vLLM lo recomienda para bajar el tiempo entre tokens con QPS medio o bajo, cuando el decode es <b>memory-bound</b> (lo limita leer los pesos, no calcular). En teoría la salida es la misma: cambia la velocidad, no la calidad."
+    },
+    {
+     "code": "vllm serve {modelo_base} --enable-lora --max-loras {n} --max-lora-rank {r} \\\n  --lora-modules {nombre}={ruta}\n# el cliente lo pide como cualquier modelo: \"model\": \"{nombre}\"",
+     "note": "<b>LoRA</b> (un adaptador chico entrenado encima del modelo base): un solo vLLM sirve el base y varios adaptadores. <code>--max-loras</code> = cuántos adaptadores distintos entran en un mismo batch (default 1); <code>--max-lora-rank</code> = el rank (el ancho de las matrices del adaptador) más grande que aceptas (default 16): uno mayor no carga. En <code>/v1/models</code> aparecen con el modelo base como <code>parent</code>."
+    },
+    {
+     "code": "triggers:\n  - type: prometheus\n    metadata:\n      serverAddress: {url_prometheus}\n      query: sum(vllm:num_requests_waiting{namespace=\"{ns}\"})\n      threshold: \"{umbral}\"",
+     "note": "Con <b>KEDA</b> (el autoscaler de Kubernetes que escala con métricas de afuera, como una query de Prometheus), escala por <b>cola</b> (requests esperando adentro de vLLM), no por utilización de GPU, que está cerca de 100 % con 5 secuencias o con 90. Con el <code>metricType</code> por defecto (<code>AverageValue</code>), el HPA (el autoscaler de pods de Kubernetes) que crea KEDA pide ceil(cola total ÷ umbral) réplicas. Escribe <code>minReplicaCount</code>: su default es 0, y un LLM que baja a cero paga minutos de arranque en el primer request."
+    },
+    {
+     "code": "vllm serve {modelo} --enforce-eager\n# en el log de arranque, sin --enforce-eager:\n#   Model loading took {gib} GiB memory and {seg} seconds\n#   torch.compile took {seg} s in total\n#   Graph capturing finished in {seg} secs, took {gib} GiB",
+     "note": "<b>CUDA graphs</b> graba la secuencia de kernels de un paso y la repite sin el costo de lanzarlos uno por uno: decode más rápido, a cambio de segundos de captura y algo de memoria al arrancar. <code>--enforce-eager</code> apaga torch.compile y CUDA graphs: arranca antes y genera más lento. La caché de <b>torch.compile</b> (el grafo del modelo compilado a kernels propios) vive en <code>~/.cache/vllm/torch_compile_cache</code> (<code>VLLM_CACHE_ROOT</code>); con ella, el segundo arranque no recompila."
+    }
+   ],
+   "formulas": [
+    "\\text{prefill} = \\lambda \\times (n_{\\text{prompt}} - n_{\\text{caché}}) = 3.75 \\times (2{,}000 - 992) \\approx 3{,}780\\ \\text{tokens/s por réplica} \\quad (\\text{sin caché: } 7{,}500)",
+    "E[\\text{tokens por paso}] = \\frac{1 - \\alpha^{k+1}}{1 - \\alpha} \\qquad \\alpha = 0.7,\\ k = 4 \\;\\Rightarrow\\; 2.77",
+    "\\text{mean acceptance length} = 1 + \\frac{\\text{aceptados}}{\\text{drafts}} \\qquad \\text{acceptance rate} = \\frac{\\text{aceptados}}{\\text{propuestos}} = \\frac{2.77 - 1}{4} \\approx 44\\ \\%",
+    "\\text{réplicas} = \\left\\lceil \\frac{\\sum \\text{num\\_requests\\_waiting}}{\\text{umbral}} \\right\\rceil \\qquad t_{\\text{arranque}} \\approx \\underbrace{2\\text{–}5}_{\\text{nodo}} + \\underbrace{1\\text{–}3}_{\\text{imagen}} + \\underbrace{1\\text{–}3}_{\\text{pesos}} + \\underbrace{1\\text{–}3}_{\\text{carga y graphs}}\\ \\text{min}"
+   ],
+   "vars": [
+    [
+     "{ventana}",
+     "ventana de rate()",
+     "5m"
+    ],
+    [
+     "{modelo}",
+     "el modelo que sirves",
+     "/models/chat-70b-fp8-2026-09-28"
+    ],
+    [
+     "{k}",
+     "cuántos tokens propone el método por paso",
+     "4"
+    ],
+    [
+     "{n_max}",
+     "el trozo más largo que ngram busca en el prompt",
+     "5 (si no fijas ni el mínimo ni el máximo, los dos quedan en 5)"
+    ],
+    [
+     "{metodo}",
+     "de dónde salen las propuestas",
+     "draft_model · eagle3 · mtp"
+    ],
+    [
+     "{draft}",
+     "el modelo chico o la cabeza entrenada para tu modelo",
+     "uno de la misma familia, con el mismo tokenizer"
+    ],
+    [
+     "{modelo_base}",
+     "el modelo sobre el que se entrenaron los adaptadores",
+     "el 70B del C10 (el caso no usa LoRA)"
+    ],
+    [
+     "{n}",
+     "adaptadores distintos en un mismo batch",
+     "1 por defecto"
+    ],
+    [
+     "{r}",
+     "el rank más grande que aceptas",
+     "16 por defecto; hasta 512"
+    ],
+    [
+     "{nombre}={ruta}",
+     "el nombre que piden los clientes y dónde está el adaptador",
+     "listings-lora=/models/adapters/listings (ilustrativo)"
+    ],
+    [
+     "{url_prometheus}",
+     "el Prometheus que lee KEDA",
+     "http://prometheus-operated.monitoring.svc:9090"
+    ],
+    [
+     "{ns}",
+     "namespace de vLLM",
+     "c10"
+    ],
+    [
+     "{umbral}",
+     "requests esperando por réplica que aceptas",
+     "5 (el tutorial de KEDA del production-stack de vLLM)"
+    ],
+    [
+     "{gib}, {seg}",
+     "memoria y segundos que vLLM informa al arrancar",
+     "los del log de tu pod"
+    ],
+    [
+     "λ",
+     "requests por segundo que recibe una réplica",
+     "60 ÷ 16 = 3.75"
+    ],
+    [
+     "α",
+     "probabilidad de que se acepte cada token propuesto",
+     "0.5–0.8 según la tarea"
+    ]
+   ],
+   "pieces": [
+    [
+     "Prefix caching (APC)",
+     "Reusa los bloques de KV de un comienzo de prompt idéntico. Ahorra prefill: baja el TTFT y libera GPU; no acelera el decode.",
+     "≈ 1,000 tokens de instrucciones por producto: ≈ la mitad de cada prompt"
+    ],
+    [
+     "Bloque completo de 16 tokens",
+     "Solo se cachean bloques llenos, encadenados por hash desde el primer token. Si todo el prompt acierta, vLLM recalcula igual el último token para tener los logits (en la práctica, su bloque completo).",
+     "un prefijo de 1,000 tokens deja 62 bloques (992 tokens) en caché"
+    ],
+    [
+     "Lo fijo primero",
+     "El nombre de la persona, la hora exacta o un id al comienzo cambian el hash de todos los bloques que siguen: la tasa de aciertos cae a ≈ 0.",
+     "la regla de prompts del C10"
+    ],
+    [
+     "cache_salt",
+     "Un texto por request que entra en el hash del primer bloque: solo comparten caché los requests con la misma sal. Evita que un tenant adivine por tiempos lo que mandó otro.",
+     "una sal por tenant (pendiente en la referencia)"
+    ],
+    [
+     "Speculative decoding",
+     "Algo barato propone k tokens y el modelo grande los verifica juntos. Baja el TPOT con poca concurrencia; con la GPU llena, lo rechazado es trabajo tirado.",
+     "fuera del diseño base del C10 (≈ 40 secuencias por réplica)"
+    ],
+    [
+     "ngram · draft_model · eagle3 · mtp · suffix",
+     "De dónde salen las propuestas: copiar del prompt, un modelo chico, una cabeza entrenada para tu modelo, capas de predicción del propio modelo o un árbol de sufijos.",
+     "ngram para extracción: la salida copia trozos del input"
+    ],
+    [
+     "Mean acceptance length",
+     "Tokens por paso del modelo grande: 1 + aceptados ÷ drafts. La acceptance rate de vLLM es otra cosa: aceptados ÷ propuestos.",
+     "2.77 tokens por paso con α = 0.7 y k = 4"
+    ],
+    [
+     "Multi-LoRA",
+     "Un modelo base con varios adaptadores encima; cada request elige el suyo por nombre. Cuesta memoria y algo de latencia por adaptador.",
+     "una opción para el C10 si cada producto tuviera su fine-tuning"
+    ],
+    [
+     "--max-loras · --max-lora-rank · --max-cpu-loras",
+     "Cuántos adaptadores distintos por batch (default 1), el rank máximo (default 16) y cuántos quedan en memoria de CPU (al menos max-loras).",
+     "rank 32 con el default: LoRA rank 32 is greater than max_lora_rank 16."
+    ],
+    [
+     "Autoscaling por cola",
+     "Escalar con vllm:num_requests_waiting (o el tiempo en cola), no con la utilización de GPU, que está cerca de 100 % con 5 o con 90 secuencias.",
+     "el C10 tiene réplicas fijas: el porqué está en la trampa"
+    ],
+    [
+     "Cold start",
+     "El tiempo hasta servir: nodo, imagen, pesos, carga a la GPU, torch.compile y CUDA graphs.",
+     "≈ 5–10 min según el C10 (la suma de sus tramos, estimados: mídelo)"
+    ],
+    [
+     "Pesos en NVMe local",
+     "Copiar los safetensors a un disco del nodo antes de arrancar: vLLM los lee por mmap y un disco de red convierte la carga en minutos.",
+     "init container: aws s3 sync + sha256sum -c"
+    ],
+    [
+     "Caché de torch.compile",
+     "Lo compilado se guarda en ~/.cache/vllm/torch_compile_cache; con caché, el arranque siguiente no recompila. VLLM_DISABLE_COMPILE_CACHE=1 la apaga.",
+     "con HOME=/home/vllm, en el sistema de archivos del contenedor"
+    ],
+    [
+     "CUDA graphs · --enforce-eager",
+     "Graphs: el decode repite pasos grabados sin lanzar kernels uno por uno. --enforce-eager apaga graphs y torch.compile: arranca antes y genera más lento.",
+     "el C10 deja los graphs (sin --enforce-eager)"
+    ]
+   ],
+   "example": {
+    "title": "C10: por qué la flota es fija y qué se hizo para que arranque rápido",
+    "lang": "yaml",
+    "code": "# Por qué réplicas FIJAS (sin HPA/KEDA): un nodo p5 nuevo + la imagen (≈ 8.7 GB comprimida) + ≈ 70 GB de pesos +\n# CUDA graphs ≈ 5–10 min (est., mídelo). Un autoscaler no sigue un pico de 1 minuto con eso; y de noche la\n# flota no queda ociosa, porque la usa el batch de catálogo. Se mantiene la flota del pico prendida y los picos\n# los absorbe la admisión del gateway (gateway/admission.py). Los nodos los da la capacidad reservada\n# (On-Demand Capacity Reservation o Capacity Blocks for ML; verifica disponibilidad de p5 en tu región), no\n# \"on-demand cuando haga falta\": la H100 es el recurso escaso, no el dinero.\n# …\n            - --enable-prefix-caching  # default en v0.30; explícito porque el plan cuenta con él (system prompts)\n# …\n          env:\n            - name: HOME\n              value: /home/vllm  # caches de vLLM, torch.compile y Triton en un lugar escribible para UID 2000\n# …\n          startupProbe:\n            # Cargar ≈ 70 GB desde NVMe, perfilar memoria, capturar CUDA graphs y (sin caché) torch.compile: minutos.\n            # 90 × 10 s = 15 min antes de que cuente la liveness. Si se pasa, el pod reinicia (y lo ves).\n            httpGet:\n              path: /health\n              port: http\n            periodSeconds: 10\n            failureThreshold: 90",
+    "source": "reference/c10/k8s/vllm-70b.yaml (líneas 12–17, 195, 215–217 y 238–245; las líneas # … resumen lo omitido)",
+    "notes": [
+     "Sin autoscaling: el arranque de una réplica (≈ 5–10 min estimados) es más largo que cualquier pico de minutos, y las H100 son el recurso escaso. La flota del pico queda prendida, el 30 % de margen y la admisión del gateway absorben los picos, y de noche la usa el batch.",
+     "Prefix caching ya viene activado en v0.30; el flag explícito documenta que el plan cuenta con él. Con 1,000 tokens de instrucciones por producto, cada réplica baja de 7,500 a ≈ 3,780 tokens/s de prefill en el pico, y 40 secuencias ocupan 53,000 tokens de KV en vez de 90,000 (<code>kv_tokens_with_shared_prefix</code> en <code>capacity/vram_calc.py</code>).",
+     "<code>HOME=/home/vllm</code> pone las cachés de vLLM y de torch.compile en el sistema de archivos del contenedor: un contenedor nuevo empieza sin caché y vuelve a compilar. Un volumen montado en <code>~/.cache/vllm</code> (o en <code>VLLM_CACHE_ROOT</code>) la conservaría entre reinicios del contenedor dentro del mismo pod; el C10 no lo hace.",
+     "La startupProbe da 15 min y, en el C10, es el único límite: con un solo API server, vLLM v0.30 espera al engine sin plazo. <code>VLLM_ENGINE_READY_TIMEOUT_S</code> (600 s por defecto) solo corta cuando el API corre en procesos aparte (<code>--api-server-count</code> mayor que 1, o data parallel), con <code>Timed out waiting for engine core processes to start</code>; si un día los usas y el arranque puede pasar de 10 min, sube esa variable.",
+     "Para reiniciar más rápido hay piezas nuevas. Desde v0.30, un daemon por GPU guarda los pesos ya cuantizados y repartidos, y un engine que reinicia los toma por CUDA IPC (memoria de la GPU compartida entre procesos) con <code>--load-format ipc_cache</code>; en v0.30 el daemon se lanza con <code>python -m vllm.model_executor.model_loader.weight_cache.daemon</code> y desde v0.31 con <code>vllm preload</code>. En v0.32, <code>vllm download-kernels</code> instala antes los kernels precompilados de FlashInfer que se bajarían o compilarían al arrancar. El C10 no usa ninguna."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Las palancas de vLLM una vez que el modelo cabe: qué baja cada una, qué cuesta y qué decidió el C10.",
+    "data": {
+     "head": [
+      "Palanca",
+      "Qué baja",
+      "Qué cuesta",
+      "En el C10"
+     ],
+     "rows": [
+      [
+       "--enable-prefix-caching",
+       "prefill: TTFT y GPU (≈ 50 % del prompt en el C10)",
+       "nada si los prompts empiezan igual; no ayuda si empiezan distinto",
+       "activado (default en v0.30)"
+      ],
+      [
+       "--speculative-config",
+       "TPOT con poca concurrencia",
+       "GPU en lo rechazado; memoria si hay un draft model",
+       "no: ≈ 40 secuencias por réplica"
+      ],
+      [
+       "--enable-lora",
+       "flotas: un modelo base para varios productos",
+       "memoria y algo de latencia por adaptador",
+       "no (sin fine-tunings)"
+      ],
+      [
+       "KEDA con num_requests_waiting",
+       "GPUs ociosas en el valle",
+       "arranques de minutos y H100 que quizá no existan",
+       "no: flota fija; la admisión absorbe los picos"
+      ],
+      [
+       "Pesos en NVMe y caché de compile",
+       "minutos de arranque",
+       "disco local y más piezas",
+       "pesos sí (init container); caché de compile no"
+      ],
+      [
+       "CUDA graphs (default) · --enforce-eager",
+       "graphs: tiempo por paso de decode; eager: tiempo de arranque",
+       "graphs: memoria y segundos al arrancar; eager: TPOT",
+       "graphs (sin --enforce-eager)"
+      ]
+     ],
+     "note": "Ninguna se deja prendida sin medirla con el barrido de goodput y la mezcla real (bench/run_sweep.sh)."
+    }
+   },
+   "memo": "Cómo recordarla: <b>prefix caching baja el TTFT, speculative decoding baja el TPOT, LoRA ahorra flotas, KEDA ahorra GPUs ociosas y la caché ahorra arranques</b>. Cada una se paga: aciertos que dependen de cómo armas el prompt, GPU tirada en lo rechazado, memoria, minutos de arranque.",
+   "trap": "Trampa: copiar el autoscaling del C01. Una réplica del C10 tarda ≈ 5–10 min en servir (nodo p5, imagen, 70 GB de pesos, CUDA graphs) y la H100 puede no existir en ese momento: un pico de un minuto termina antes de que llegue la réplica nueva. Por eso hay 16 réplicas fijas y la admisión del gateway absorbe los picos. La otra: un prompt que empieza con el nombre de la persona o la hora exacta cambia el hash de todos sus bloques, y la tasa de aciertos cae a 0 aunque el resto sea idéntico.",
+   "lab": {
+    "goal": "Medir la tasa de aciertos del prefix cache con bloques de 16 tokens en la mezcla del C10, ver cómo la rompe un dato variable al principio y cómo baja con más texto propio, y calcular cuántos tokens por paso da speculative decoding.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-vllm && cd ~/lab-vllm\ncat > prefijos.py <<'EOF'\n# prefijos.py: la tasa de aciertos del prefix cache con bloques de 16 tokens y los tokens por paso de speculative decoding (solo stdlib)\nimport hashlib, random, sys\n\nBLOQUE = 16                                    # tokens por bloque de KV (default de vLLM)\n\ndef hashes(tokens, sal=\"\"):\n    \"\"\"Un hash por bloque COMPLETO, encadenado con el anterior: el bloque 5 solo coincide si los bloques 0–4 coinciden.\"\"\"\n    h, out = sal, []\n    for i in range(0, len(tokens) // BLOQUE * BLOQUE, BLOQUE):\n        h = hashlib.sha256(f\"{h}|{tokens[i:i + BLOQUE]}\".encode()).hexdigest()\n        out.append(h)\n    return out\n\ndef simular(n, armar, sal=lambda i: \"\"):\n    cache, consultados, acertados = set(), 0, 0\n    for i in range(n):\n        tokens = armar(i)\n        hs = hashes(tokens, sal(i))\n        tope = (len(tokens) - 1) // BLOQUE     # si todo acierta, vLLM recalcula el último token para tener los logits\n        aciertos = 0\n        for h in hs[:tope]:\n            if h not in cache:\n                break                           # el primer bloque distinto corta la cadena\n            aciertos += 1\n        cache.update(hs)\n        consultados += len(tokens)\n        acertados += aciertos * BLOQUE\n    return acertados / consultados\n\nrandom.seed(3)\nproductos = [[random.randrange(128_000) for _ in range(1_000)] for _ in range(3)]   # instrucciones fijas por producto\nPROPIO = int(sys.argv[1]) if len(sys.argv) > 1 else 1_000                          # tokens propios de cada request\npropio = lambda: [random.randrange(128_000) for _ in range(PROPIO)]                 # historial, contexto y pregunta\nusuario = lambda i: [95_000 + i, 96_000 + i]                                          # \"Hola, Ana\": otro usuario en cada request\n\ncasos = {\n    \"fijo primero (C10)\": lambda i: productos[i % 3] + propio(),\n    \"el nombre del usuario al principio\": lambda i: usuario(i) + productos[i % 3] + propio(),\n    \"el nombre después de las instrucciones\": lambda i: productos[i % 3] + usuario(i) + propio(),\n}\nfor nombre, armar in casos.items():\n    print(f\"{nombre:40} tasa de aciertos {simular(300, armar):6.1%}\")\nprint(f\"{'una sal por tenant (2 tenants)':40} tasa de aciertos {simular(300, casos['fijo primero (C10)'], sal=lambda i: 'tenant-' + str(i % 2)):6.1%}\")\nprint(f\"un prefijo de 1,000 tokens deja {1_000 // BLOQUE} bloques completos = {1_000 // BLOQUE * BLOQUE} tokens en caché\")\n\nprint(\"\\nspeculative decoding: tokens por paso del modelo grande = (1 − α^(k+1)) ÷ (1 − α)\")\nprint(\"  α     k=2    k=4    k=8    acceptance rate de vLLM con k=4 = (tokens por paso − 1) ÷ 4\")\nfor a in (0.5, 0.7, 0.8):\n    t = {k: (1 - a ** (k + 1)) / (1 - a) for k in (2, 4, 8)}\n    print(f\"  {a}   {t[2]:.2f}   {t[4]:.2f}   {t[8]:.2f}   {(t[4] - 1) / 4:.0%}\")\nEOF\npython3 prefijos.py",
+      "expect": "fijo primero (C10) 49.1 %; el nombre del usuario al principio 0.0 %; el nombre después de las instrucciones 49.1 %; una sal por tenant (2 tenants) 48.6 % (cada tenant paga su primer request de cada producto). Un prefijo de 1,000 tokens deja 62 bloques = 992 tokens en caché. La tabla de speculative decoding: con α = 0.7 y k = 4, 2.77 tokens por paso y una acceptance rate de 44 %; con α = 0.5 y k = 8, apenas 2.00."
+     },
+     {
+      "cmd": "python3 prefijos.py 3000 | head -1\npython3 prefijos.py 200 | head -1",
+      "expect": "24.6 % con 3,000 tokens propios por request (un historial largo) y 81.8 % con 200: el ahorro es la tasa de aciertos por la fracción del prompt que es prefijo."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-vllm",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Prueba un prefijo de 1,008 tokens (múltiplo de 16) en lugar de 1,000, o tres tenants con sal. La tasa real la da la query de la plantilla con los counters de vLLM, no esta simulación.",
+    "needs": "Python 3 sin paquetes extra (el python3 de macOS sirve). Ni GPU ni Docker.",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS con Python 3.14.3, 3.13.16 y 3.9.6: salidas idénticas. El modelo del caché sigue el diseño de vLLM v0.30.0: solo bloques completos, hash encadenado desde el primer bloque, la sal en el hash del primero y el último token recalculado si todo acierta (vllm/v1/core/kv_cache_manager.py). La fórmula de speculative decoding es la de M14 (Leviathan et al.); las métricas de aceptación, las de vllm/v1/spec_decode/metrics.py."
+   },
+   "links": [
+    "#m14.batching-caching",
+    "#c10.serving",
+    "#m06.keda",
+    "#m06.cold-starts",
+    "#c10.fallas",
+    "#m07.llm-servers",
+    "#ref-numeros.optimizacion-serving"
+   ]
+  },
+  {
+   "id": "gateway-llm",
+   "num": 11,
+   "title": "El gateway de LLMs del C10: cuotas en tokens, admisión por prioridad, streaming detrás de proxies, cancelación y PII",
+   "question": "¿Qué le pasa a un request en el llm-gateway antes de llegar a vLLM, qué código recibe el producto cuando no hay lugar, y cómo evitas que un proxy trabe el stream o que la GPU siga generando para alguien que ya se fue?",
+   "templates": [
+    {
+     "code": "cobro = min(prompt_estimado + max_tokens, max_model_len)   # prompt_estimado = caracteres ÷ 3 + 4 por mensaje\nok, espera_s = balde[{tenant}].try_take(cobro)\nif not ok:\n    return 429, {\"Retry-After\": str(max(1, math.ceil(espera_s)))}\n# … al terminar, con el usage del último chunk:\nbalde[{tenant}].settle(cobro, usage[\"prompt_tokens\"] + usage[\"completion_tokens\"])",
+     "note": "Un <b>token bucket</b> (un balde de fichas que se recarga a ritmo fijo) contado en <b>tokens</b>, no en requests: un prompt de 8,000 tokens cuesta ≈ 27 veces uno de 300. El costo real se sabe al final (<code>usage</code>), así que al entrar se cobra una estimación pesimista y al salir se <b>concilia</b>: se devuelve lo que no se usó. Cada réplica del gateway tiene su propio balde con la cuota ÷ 4."
+    },
+    {
+     "code": "try:\n    await admision.acquire({clase})       # interactive o batch: un lugar libre, o esperar en una cola con tope\nexcept Overloaded as e:                   # cola llena o se esperó demasiado\n    return 503, {\"Retry-After\": str(math.ceil(e.retry_after_s))}   # o el vendor, si el tenant puede\ntry:\n    …                                     # el request a vLLM\nfinally:\n    admision.release({clase})",
+     "note": "El <b>control de admisión</b> (decidir en la puerta quién entra a la flota) limita los requests en vuelo: 288 por réplica del gateway, de los cuales 72 nunca los ocupa el batch. Cuando se libera un lugar, pasa primero un interactivo. La espera tiene tope de tamaño y de tiempo: 64 y 0.5 s el interactivo, 256 y 30 s el batch. <b>429</b> = te pasaste de tu cuota; <b>503</b> = la plataforma está llena."
+    },
+    {
+     "code": "location /v1/ {\n    proxy_pass         http://{gateway};\n    proxy_buffering    off;              # o que la respuesta traiga el header X-Accel-Buffering: no\n    proxy_read_timeout {silencio_max}s;  # default 60s: lo máximo sin bytes entre dos lecturas\n}",
+     "note": "Con <b>SSE</b> (Server-Sent Events: líneas <code>data: …</code> que llegan una por una en la misma respuesta HTTP), cada proxy del camino tiene que reenviar al instante. nginx guarda la respuesta en buffers (memoria intermedia) por defecto (<code>proxy_buffering on</code>): el texto llega a ráfagas o todo al final, y el TTFT que ve la persona se vuelve el tiempo total (la cadena lo muestra con un proxy de prueba). Además un proxy corta una conexión callada: nginx a los 60 s (<code>proxy_read_timeout</code>) y el ALB a los 60 s (idle timeout). vLLM puede mandar comentarios <code>: keep-alive</code> con <code>--sse-keep-alive-interval</code> (0 = apagado). El gateway del C10 no los reenvía ni los necesita: su silencio hacia el cliente ya queda debajo de 60 s (≤ 30 s entre eventos; antes del primer byte, la cola + conectar + 10 s), y en vLLM los deja apagados porque un comentario reiniciaría el read timeout con el que corta un stream trabado."
+    },
+    {
+     "code": "from openai import OpenAI\nclient = OpenAI(base_url=\"{url_gateway}/v1\", api_key=\"{key}\", max_retries={reintentos}, timeout={timeout_s})\nstream = client.chat.completions.create(model=\"{alias}\", messages=mensajes, stream=True, max_tokens={max_tokens})\nfor chunk in stream:\n    if chunk.choices and chunk.choices[0].delta.content:   # el chunk de usage trae choices vacío\n        print(chunk.choices[0].delta.content, end=\"\", flush=True)",
+     "note": "Los productos usan el cliente de openai contra el gateway, con el <b>alias</b> en <code>model</code>. Ojo con sus defaults (openai-python 3.37): reintenta 2 veces los 408, 409, 429 y 5xx, respeta <code>Retry-After</code> hasta 2 min y espera hasta 600 s (5 s para conectar). En el camino interactivo usa <code>max_retries=0</code> o 1: si no, un 503 de admisión vuelve solo, dos veces, justo cuando la flota está llena."
+    }
+   ],
+   "formulas": [
+    "B = \\frac{Q}{N} \\qquad r = \\frac{Q}{60\\,N} \\qquad \\frac{5.4\\ \\text{M}}{4} = 1.35\\ \\text{M tokens},\\quad r = 22{,}500\\ \\text{tokens/s}",
+    "\\text{cobro} = \\min(\\hat{p} + m,\\ L) = 2{,}000 + 1{,}024 = 3{,}024 \\qquad \\text{devolución} = 3{,}024 - 2{,}250 = 774",
+    "\\text{Retry-After} = \\left\\lceil \\frac{\\text{cobro} - \\text{saldo}}{r} \\right\\rceil \\qquad \\left\\lfloor \\frac{1{,}350{,}000}{3{,}024} \\right\\rfloor = 446\\ \\text{en una ráfaga} \\qquad \\left\\lfloor \\frac{1{,}350{,}000}{2{,}250} \\right\\rfloor = 600\\ \\text{conciliando}",
+    "\\text{tope} = \\frac{16 \\times 72}{4} = 288 \\qquad L = \\lambda W = 60 \\times 10.5 \\approx 630 \\;\\Rightarrow\\; \\frac{630}{4 \\times 288} \\approx 55\\ \\%"
+   ],
+   "vars": [
+    [
+     "{tenant}",
+     "el producto que llama, sacado de su API key",
+     "support-assistant"
+    ],
+    [
+     "{clase}",
+     "la prioridad del tenant (la decide la plataforma, no el cliente)",
+     "interactive · batch"
+    ],
+    [
+     "{gateway}",
+     "a dónde reenvía el proxy",
+     "las réplicas del llm-gateway"
+    ],
+    [
+     "{silencio_max}",
+     "segundos sin bytes que el proxy tolera",
+     "más que el primer token más lento (10 s en el C10) y que cualquier pausa"
+    ],
+    [
+     "{url_gateway}",
+     "la URL del gateway, nunca la de vLLM",
+     "http://llm-gateway.c10.svc:8080 (ilustrativa: el C10 no trae el manifest del gateway)"
+    ],
+    [
+     "{key}",
+     "la API key del tenant; el gateway guarda solo su sha256",
+     "sk-c10-demo-support (solo en la demo)"
+    ],
+    [
+     "{alias}",
+     "el nombre estable del modelo",
+     "chat-default"
+    ],
+    [
+     "{reintentos}",
+     "reintentos automáticos del cliente de openai",
+     "0 o 1 en interactivo (el default es 2)"
+    ],
+    [
+     "{timeout_s}",
+     "espera máxima del cliente entre bytes",
+     "lo que acepte tu producto (el default es 600)"
+    ],
+    [
+     "{max_tokens}",
+     "tope de salida de este request",
+     "≤ 1,024 en soporte; si no lo mandas, el gateway pone el tope"
+    ],
+    [
+     "Q",
+     "cuota total del tenant en tokens por minuto",
+     "5.4 M (soporte)"
+    ],
+    [
+     "N",
+     "réplicas del gateway",
+     "4"
+    ],
+    [
+     "B, r",
+     "capacidad del balde y recarga por segundo, en una réplica",
+     "1.35 M y 22,500"
+    ],
+    [
+     "p̂",
+     "prompt estimado: caracteres ÷ 3 + 4 por mensaje",
+     "≈ 2,000"
+    ],
+    [
+     "m",
+     "max_tokens del request",
+     "1,024"
+    ],
+    [
+     "L",
+     "max_model_len",
+     "8,192"
+    ]
+   ],
+   "pieces": [
+    [
+     "API key → sha256 → tenant",
+     "El gateway no guarda las keys: guarda su hash y busca al tenant con él. Sin tenant, 401, que igual se cuenta (tenant unknown) y deja su línea de log.",
+     "sk-c10-demo-support → support-assistant"
+    ],
+    [
+     "Alias",
+     "El nombre estable que piden los productos; el gateway lo cambia por la revisión servida. Cambiar de modelo es editar tenants.yaml.",
+     "chat-default → chat-70b-fp8-2026-09-28"
+    ],
+    [
+     "Pin por tenant (canario)",
+     "Manda a un tenant, o a un % de sus usuarios finales por hash del campo user, a otro Service y otra revisión.",
+     "{upstream: vllm-70b-canary, model: chat-70b-fp8-2026-10-12, percent: 5}"
+    ],
+    [
+     "Cuota en tokens/min",
+     "Un balde por tenant y por réplica del gateway: capacidad = 1 min de cuota; recarga = cuota ÷ 60 por segundo.",
+     "soporte: 5.4 M ÷ 4 = 1.35 M por réplica"
+    ],
+    [
+     "Cobro estimado y conciliación",
+     "Al entrar cobra prompt estimado + max_tokens; al final devuelve lo que no se usó según usage, o cobra lo que faltó.",
+     "cobra 3,024, usa 2,250, devuelve 774"
+    ],
+    [
+     "max_tokens obligatorio",
+     "Si el cliente no lo manda, el gateway pone el tope del tenant: sin tope, vLLM genera hasta llenar el contexto.",
+     "1,024 soporte · 600 publicaciones · 400 catálogo"
+    ],
+    [
+     "Admisión por prioridad",
+     "Un tope de requests en vuelo hacia la flota, con lugares que el batch nunca ocupa. Al liberarse uno, pasa primero un interactivo; dentro de cada clase, el que llegó antes.",
+     "288 por réplica del gateway (16 × 72 ÷ 4), 72 reservados"
+    ],
+    [
+     "Cola acotada",
+     "Esperar un lugar con tope de tamaño y de tiempo. Lo que no entra recibe 503 con Retry-After.",
+     "interactivo: 64 y 0.5 s · batch: 256 y 30 s"
+    ],
+    [
+     "priority hacia vLLM",
+     "El gateway manda 0 (interactive) o 10 (batch). Con --scheduling-policy priority, vLLM atiende antes el número menor y, si falta KV, desaloja primero al mayor; nunca saca a uno que corre para meter a uno que espera.",
+     "la documentación dice que sin el flag da error; en el código de v0.30.0 no se encontró esa validación (la cola fcfs no lo lee): no cuentes con el error, pon el flag"
+    ],
+    [
+     "Primer evento con contenido",
+     "Hasta leer el primer token con texto (o un fin normal), el gateway no le manda nada al cliente: una falla todavía puede ser un 502/504 limpio o ir al vendor, también un stream que llega a [DONE] sin texto (un abort antes del primer token).",
+     "first_token_timeout_s: 10"
+    ],
+    [
+     "[DONE] e include_usage",
+     "El stream termina con data: [DONE]. El gateway pide stream_options.include_usage para conciliar, y esconde ese chunk si el cliente no lo pidió.",
+     "el chunk de usage trae choices: []"
+    ],
+    [
+     "Cancelación y 499",
+     "Si el cliente se va, el gateway cierra su conexión con vLLM, y vLLM aborta el request y libera su KV. Cuenta como 499 (la convención de nginx), fuera de la tasa de errores.",
+     "curl --max-time 0.5 → 499 e inflight vuelve a 0"
+    ],
+    [
+     "stream_error",
+     "El upstream falló con el stream ya empezado: el cliente vio un 200 incompleto y un evento de error. Sí cuenta como error.",
+     "un nodo que muere a mitad de 4 streams"
+    ],
+    [
+     "Sin keep-alive hacia vLLM",
+     "Cada request abre su conexión TCP: kube-proxy reparte conexiones, no requests, y una reusada seguiría yendo a un pod que ya salió.",
+     "max_keepalive_connections=0 · max_connections=None"
+    ],
+    [
+     "Fallback gobernado",
+     "Solo tenants con vendor_fallback, solo campos de una lista permitida y con la PII redactada. Un 429 del vendor se vuelve nuestro 503; un 401/403, un 502.",
+     "listing-assistant sí; support-assistant no"
+    ],
+    [
+     "Redacción de PII",
+     "Regex para correos, teléfonos, tarjetas, CLABE, CURP y RFC (tarjetas y CLABE, además, con su dígito verificador), con marcadores estables. No ve nombres ni direcciones.",
+     "ana.p@mail.com → [EMAIL_1]"
+    ]
+   ],
+   "example": {
+    "title": "C10: el camino de un request en llm_gateway.py, de la key a vLLM",
+    "lang": "python",
+    "code": "    async def chat_completions(self, request: Request) -> Response:\n        t0 = self.clock()\n        rid = uuid.uuid4().hex\n        auth = request.headers.get(\"authorization\", \"\")\n        key = auth[7:] if auth.lower().startswith(\"bearer \") else \"\"\n        tenant = self.cfg.by_key.get(hashlib.sha256(key.encode()).hexdigest()) if key else None\n        if tenant is None:\n            # También cuenta y deja su línea (tenant \"unknown\"): una key rotada en un producto es una ola de 401\n            return self._reject(rid, t0, \"unknown\", \"unknown\", 401, \"API key inválida\", \"authentication_error\",\n                                \"invalid_api_key\")\n        # … el cuerpo tiene que ser un objeto JSON (si no, 400; si el cliente corta a mitad de mandarlo, 499)\n        alias_name = body.get(\"model\")\n        alias = self.cfg.aliases.get(alias_name) if isinstance(alias_name, str) else None\n        if alias is None:\n            return self._reject(rid, t0, tenant.name, \"unknown\", 404, f\"el modelo {alias_name!r} no existe\",\n                                \"invalid_request_error\", \"model_not_found\")\n        if alias.name not in tenant.allowed_aliases:\n            return self._reject(rid, t0, tenant.name, alias.name, 403, f\"el tenant no puede usar {alias.name}\",\n                                \"permission_error\", \"model_not_allowed\")\n        # … messages no vacío y n = 1 (si no, 400)\n        max_tokens = body.get(\"max_completion_tokens\", body.get(\"max_tokens\"))\n        if max_tokens is None:\n            max_tokens = tenant.max_tokens_cap\n            body[\"max_completion_tokens\"] = max_tokens  # sin tope, vLLM genera hasta llenar el contexto\n        if not isinstance(max_tokens, int) or isinstance(max_tokens, bool) or not 1 <= max_tokens <= tenant.max_tokens_cap:\n            return self._reject(rid, t0, tenant.name, alias.name, 400,\n                                f\"max_tokens debe estar entre 1 y {tenant.max_tokens_cap}\", \"invalid_request_error\",\n                                \"max_tokens_exceeded\")\n        stream = bool(body.get(\"stream\", False))\n\n        # ---- cuota: prompt estimado + max_tokens, sin pasar del contexto (un request no puede usar más que eso)\n        est_prompt = estimate_prompt_tokens(messages)\n        if est_prompt > tenant.max_prompt_tokens:\n            return self._reject(rid, t0, tenant.name, alias.name, 400,\n                                f\"prompt de ≈ {est_prompt} tokens (tope {tenant.max_prompt_tokens})\",\n                                \"invalid_request_error\", \"prompt_too_long\")\n        charged = min(est_prompt + max_tokens, self.cfg.max_model_len)\n        ok, wait_s = self.buckets[tenant.name].try_take(charged)\n        if not ok:\n            return self._reject(rid, t0, tenant.name, alias.name, 429, \"cuota de tokens por minuto agotada\",\n                                \"rate_limit_error\", \"rate_limit_exceeded\",\n                                {\"Retry-After\": str(max(1, math.ceil(wait_s)))})\n\n        # ---- admisión a la flota\n        priority = tenant.priority\n        try:\n            await self.admission.acquire(priority)\n        except Overloaded as e:\n            if self._can_fallback(tenant, alias):\n                self.metrics.vendor.labels(tenant.name, \"overloaded\").inc()\n                return await self._to_vendor(request, tenant, alias, body, stream, charged, est_prompt, t0, rid)\n            self.buckets[tenant.name].settle(charged, 0)  # no se usó nada: se devuelve la cuota\n            return self._reject(rid, t0, tenant.name, alias.name, 503, f\"plataforma sin capacidad ({e.reason})\",\n                                \"overloaded_error\", \"overloaded\", {\"Retry-After\": str(math.ceil(e.retry_after_s))})\n        # … si el cliente se va mientras espera lugar, también se devuelve la cuota\n        up_name, model = tenant.route_for(alias, body.get(\"user\"))\n        upstream = self.upstreams[up_name]\n        self_body = self._self_body(body, model, priority)\n        if stream:\n            return await self._stream_self(request, tenant, alias, body, upstream, self_body, charged, est_prompt, t0, rid)\n        return await self._complete_self(request, tenant, alias, body, upstream, self_body, charged, est_prompt, t0, rid)",
+    "source": "reference/c10/gateway/llm_gateway.py (Gateway.chat_completions, líneas 597–606, 619–626, 635–668 y 673–678; las líneas # … resumen lo omitido)",
+    "notes": [
+     "<b>Quién eres</b>: la key se convierte en sha256 y se busca en <code>by_key</code>. tenants.yaml solo guarda hashes: si se filtra, no sirve para llamar al gateway. Sin tenant, 401: también se cuenta (con tenant <code>unknown</code>) y deja su línea, así una key rotada en un producto se ve como una ola de 401.",
+     "<b>Cuánto te queda</b>: <code>charged</code> es pesimista (caracteres ÷ 3 + 4 por mensaje + max_tokens, sin pasar de 8,192) y se ajusta al final en <code>finish()</code> con el usage real. Si el cliente se fue o el stream falló sin usage, se cobra el prompt estimado: el prefill ya se pagó en la GPU.",
+     "<b>Hay lugar</b>: si no, publicaciones va al vendor (<code>overloaded</code>) y soporte recibe 503 con <code>Retry-After: 2</code>; la cuota se devuelve entera, porque no se usó nada.",
+     "<b>A qué modelo</b>: <code>route_for</code> cambia el Service y la revisión juntos, porque cada pod de vLLM sirve solo su <code>--served-model-name</code> y otro nombre da 404.",
+     "<b>El stream</b> (en <code>_stream_self</code>): <code>_open_and_first</code> espera el primer evento con contenido hasta 10 s, y un <code>[DONE]</code> o un corte antes de ese evento también es falla (502 o el vendor): así llega un abort antes del primer token, sin ningún chunk de abort. Después no hay fallback, porque no se pegan dos streams de dos modelos. <code>race_disconnect</code> y <code>GuardedStream</code> cierran la conexión con vLLM si el cliente se va: vLLM v0.30 atrapa la cancelación y aborta el request (<code>vllm/v1/engine/async_llm.py</code>), y el gateway anota 499.",
+     "Toda respuesta deja su conteo en <code>llm_gateway_requests_total</code> y una línea JSON sin contenido (<code>_account</code>): los 200, los rechazos (el 401 con tenant <code>unknown</code>), las fallas antes del primer byte (502, 504), los 4xx reenviados de vLLM, los 499 y los <code>stream_error</code>. La línea lleva el código del error, nunca su mensaje, y el mismo <code>request_id</code> que el header <code>x-request-id</code> de la respuesta. <code>finish()</code> concilia la cuota de lo que llegó a un upstream y después llama a <code>_account</code>."
+    ]
+   },
+   "figure": {
+    "kind": "gateway",
+    "caption": "Un request de soporte por el llm-gateway del C10: cada etapa con su tiempo y el código que devuelve si falla; el stream vuelve por el mismo camino. Números del README del C10 y de tenants.yaml.",
+    "data": {
+     "cliente": "soporte: POST /v1/chat/completions {model: chat-default, stream: true, max_tokens: 512}",
+     "etapas": [
+      {
+       "etapa": "Auth",
+       "hace": "Bearer key → sha256 → tenant support-assistant (interactive, 5.4 M tokens/min, tope 1,024, sin vendor)",
+       "tiempo": "< 1 ms",
+       "si_falla": "401"
+      },
+      {
+       "etapa": "Validación",
+       "hace": "alias permitido, n = 1, max_tokens ≤ 1,024, prompt estimado ≤ 6,000",
+       "tiempo": "≈ 1–5 ms",
+       "si_falla": "400 · 403 · 404"
+      },
+      {
+       "etapa": "Cuota en tokens",
+       "hace": "cobra ≈ 2,000 + 512 del balde de esta réplica (5.4 M ÷ 4 por minuto)",
+       "tiempo": "< 1 ms",
+       "si_falla": "429 + Retry-After"
+      },
+      {
+       "etapa": "Admisión",
+       "hace": "un lugar interactivo de los 288, o cola (≤ 64, ≤ 0.5 s)",
+       "tiempo": "≤ 0.5 s",
+       "si_falla": "503 + Retry-After (publicaciones: vendor con la PII redactada)"
+      },
+      {
+       "etapa": "vLLM",
+       "hace": "Service vllm-70b, model = chat-70b-fp8-2026-09-28, priority 0, include_usage; conexión TCP nueva",
+       "tiempo": "≈ 0.3–1 s al primer token",
+       "si_falla": "502 / 504 (antes del primer byte)"
+      },
+      {
+       "etapa": "Stream SSE",
+       "hace": "cada evento se reenvía al llegar; el TTFT se mide en el primer evento con contenido",
+       "tiempo": "≈ 40 ms por token",
+       "si_falla": "evento de error (stream_error) · 499 si el cliente se va"
+      },
+      {
+       "etapa": "Cierre",
+       "hace": "[DONE]; libera el lugar, concilia la cuota con usage, métricas y una línea de log sin prompt",
+       "tiempo": "",
+       "si_falla": ""
+      }
+     ],
+     "topes": {
+      "en_vuelo_por_replica_del_gateway": 288,
+      "reservados_interactive": 72,
+      "cola_interactive": "64 · 0.5 s",
+      "cola_batch": "256 · 30 s",
+      "retry_after_s": {
+       "interactive": 2,
+       "batch": 60
+      }
+     },
+     "timeouts_s": {
+      "conectar": 2,
+      "primer_token": 10,
+      "silencio_entre_eventos": 30,
+      "request_sin_stream": 120
+     },
+     "tenants": [
+      {
+       "tenant": "support-assistant",
+       "clase": "interactive",
+       "tokens_por_min": 5400000,
+       "max_tokens": 1024,
+       "max_prompt": 6000,
+       "vendor": false
+      },
+      {
+       "tenant": "listing-assistant",
+       "clase": "interactive",
+       "tokens_por_min": 3000000,
+       "max_tokens": 600,
+       "max_prompt": 6000,
+       "vendor": true
+      },
+      {
+       "tenant": "catalog-enrichment",
+       "clase": "batch",
+       "tokens_por_min": 6000000,
+       "max_tokens": 400,
+       "max_prompt": 2000,
+       "vendor": false
+      }
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>quién eres → cuánto te queda → hay lugar → a qué modelo → stream → cuenta final</b>, o sea 401 · 429 · 503 · alias · SSE · conciliación. Y tres códigos: <b>429 = tu cuota; 503 = la plataforma llena; 499 = te fuiste y vLLM abortó</b>.",
+   "trap": "Trampa: algo en el camino que bufferea, reintenta o no avisa. Un proxy con buffer convierte el stream en una respuesta al final: el TTFT se vuelve el tiempo total sin que cambie nada en vLLM. El cliente de openai con sus defaults reintenta por su cuenta los 429 y los 503, dos veces: el gateway ve el triple de intentos justo cuando está lleno. Y si un proxy intermedio no cierra la conexión con vLLM cuando el cliente se va, la GPU genera hasta max_tokens para nadie: suben los 499 y no bajan los tokens generados.",
+   "lab": {
+    "goal": "Correr el TokenBucket y la PriorityAdmission reales del C10 con números chicos, y ver con un stream SSE local que la GPU solo deja de generar si la desconexión llega hasta ella.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-vllm\ncat > ~/lab-vllm/cuota.py <<'EOF'\n# cuota.py: el TokenBucket real del C10 (gateway/quota.py) con un reloj falso: cobro, conciliación, ráfaga y Retry-After\nimport math\nfrom quota import TokenBucket, estimate_prompt_tokens\n\nclass Reloj:                                       # el tiempo lo movemos a mano: nada duerme\n    t = 0.0\n    def __call__(self):\n        return self.t\nreloj = Reloj()\nmensajes = [{\"role\": \"system\", \"content\": \"x\" * 3_000}, {\"role\": \"user\", \"content\": \"y\" * 2_976}]\nest = estimate_prompt_tokens(mensajes)             # caracteres ÷ 3 + 4 por mensaje\ncobro = est + 1_024                                # + max_tokens de soporte\nb = TokenBucket(5_400_000 / 4, 5_400_000 / 4 / 60, reloj)   # soporte en 1 de 4 réplicas: 1.35 M y 22,500 tokens/s\nprint(f\"prompt estimado {est:,} → cobra {cobro:,}: {b.try_take(cobro)}\")\nb.settle(cobro, est + 250)                         # usage: el prompt y 250 generados\nprint(f\"concilia con usage: devuelve {cobro - est - 250:,}; saldo {b.tokens:,.0f} de {b.capacity:,.0f}\")\nb = TokenBucket(1_350_000, 22_500, reloj)          # lleno otra vez: llega una ráfaga en el mismo instante\npasan = 0\nwhile b.try_take(cobro)[0]:\n    pasan += 1\nok, espera = b.try_take(cobro)\nprint(f\"ráfaga: pasan {pasan}; el siguiente → ok={ok}, 429 con Retry-After: {max(1, math.ceil(espera))} s\")\nreloj.t += 1.0\nprint(f\"1 s después vuelve a pasar: {b.try_take(cobro)[0]}\")\ntry:\n    b.try_take(1_400_000)\nexcept ValueError as e:\n    print(f\"ValueError: {e}\")\nEOF\n# desde la raíz del repo del curso (la carpeta que contiene apps/)\nPYTHONDONTWRITEBYTECODE=1 PYTHONPATH=apps/ml-system-design/reference/c10/gateway python3 ~/lab-vllm/cuota.py",
+      "expect": "prompt estimado 2,000 → cobra 3,024: (True, 0.0); concilia con usage: devuelve 774; saldo 1,347,750 de 1,350,000. Ráfaga: pasan 446; el siguiente → ok=False, 429 con Retry-After: 1 s; 1 s después vuelve a pasar: True. Y ValueError: un request de 1400000 tokens no entra en un bucket de 1350000: un request más grande que el balde es un 400, no una espera."
+     },
+     {
+      "cmd": "cat > ~/lab-vllm/admision.py <<'EOF'\n# admision.py: la PriorityAdmission real del C10 (gateway/admission.py) en chico: 4 lugares, 1 reservado para interactive\nimport asyncio\nfrom admission import AdmissionConfig, Overloaded, PriorityAdmission\n\nasync def main():\n    adm = PriorityAdmission(AdmissionConfig(\n        max_inflight=4, interactive_reserved=1,\n        queue_max=((\"interactive\", 1), (\"batch\", 2)), max_wait_s=((\"interactive\", 0.5), (\"batch\", 0.5)),\n        retry_after_s=((\"interactive\", 2.0), (\"batch\", 60.0))))\n    for _ in range(3):\n        await adm.acquire(\"batch\")                 # el batch toma todo lo que puede: 4 − 1 reservado\n    try:\n        await adm.acquire(\"batch\")                 # espera 0.5 s en la cola y se rinde\n    except Overloaded as e:\n        print(f\"4.º batch: {e.reason} → 503 con Retry-After {e.retry_after_s:g} s\")\n    await adm.acquire(\"interactive\")               # el lugar reservado sigue libre para un chat\n    print(f\"en vuelo: {adm.inflight('batch')} batch + {adm.inflight('interactive')} interactive (tope 4)\")\n    orden = []\n    async def esperar(clase):\n        try:\n            await adm.acquire(clase)\n            orden.append(clase)\n        except Overloaded as e:\n            orden.append(f\"{clase} {e.reason}\")\n    tb = asyncio.create_task(esperar(\"batch\"))     # llega primero\n    await asyncio.sleep(0.01)\n    ti = asyncio.create_task(esperar(\"interactive\"))\n    await asyncio.sleep(0.01)\n    try:\n        await adm.acquire(\"interactive\")           # la cola interactiva (tope 1) ya está llena\n    except Overloaded as e:\n        print(f\"otro interactive: {e.reason}, sin esperar → 503 con Retry-After {e.retry_after_s:g} s\")\n    adm.release(\"batch\")                           # se libera un lugar: ¿quién pasa?\n    await asyncio.gather(tb, ti)\n    print(f\"se liberó un lugar y pasó: {orden[0]}; el batch que esperaba: {orden[1]}\")\n\nasyncio.run(main())\nEOF\nPYTHONDONTWRITEBYTECODE=1 PYTHONPATH=apps/ml-system-design/reference/c10/gateway python3 ~/lab-vllm/admision.py",
+      "expect": "4.º batch: queue_timeout → 503 con Retry-After 60 s (el batch no entra en el lugar reservado); en vuelo: 3 batch + 1 interactive (tope 4); otro interactive: queue_full, sin esperar → 503 con Retry-After 2 s; se liberó un lugar y pasó: interactive; el batch que esperaba: batch queue_timeout. El batch llegó primero y aun así pasó el chat."
+     },
+     {
+      "cmd": "cd ~/lab-vllm\ncat > desconexion.py <<'EOF'\n# desconexion.py: un cliente que se va a mitad del stream, directo y detrás de dos proxies (solo stdlib)\nimport http.client, http.server, json, threading, time\n\ngenerados = []                                     # cuántos tokens escribió el \"vLLM\" en cada request\n\nclass VLLM(http.server.BaseHTTPRequestHandler):    # un \"vLLM\" falso: 60 tokens por SSE, uno cada 50 ms\n    def do_POST(self):\n        self.rfile.read(int(self.headers.get(\"content-length\", 0)))\n        self.send_response(200)\n        self.send_header(\"content-type\", \"text/event-stream\")\n        self.end_headers()\n        n = 0\n        try:\n            for i in range(60):\n                chunk = {\"choices\": [{\"index\": 0, \"delta\": {\"content\": f\" palabra{i}\"}}]}\n                self.wfile.write(f\"data: {json.dumps(chunk)}\\n\\n\".encode())\n                self.wfile.flush()\n                n += 1\n                time.sleep(0.05)\n            self.wfile.write(b\"data: [DONE]\\n\\n\")\n        except (BrokenPipeError, ConnectionResetError):\n            pass                                   # vLLM real: aborta el request y libera su KV\n        generados.append(n)\n    def log_message(self, *a):\n        pass\n\nclass Proxy(http.server.BaseHTTPRequestHandler):   # reenvía cada trozo apenas llega\n    def do_POST(self):\n        propaga = self.path.endswith(\"?propaga\")\n        body = self.rfile.read(int(self.headers.get(\"content-length\", 0)))\n        up = http.client.HTTPConnection(\"127.0.0.1\", vllm.server_port)\n        up.request(\"POST\", \"/v1/chat/completions\", body, {\"content-type\": \"application/json\"})\n        r = up.getresponse()\n        self.send_response(r.status)\n        self.send_header(\"content-type\", r.getheader(\"content-type\"))\n        self.end_headers()\n        while chunk := r.read1(65536):\n            try:\n                self.wfile.write(chunk)\n                self.wfile.flush()\n            except (BrokenPipeError, ConnectionResetError):\n                if propaga:                        # el cliente se fue: cerrar también la conexión con vLLM\n                    r.close()\n                    up.close()\n                    return\n                # el proxy que no propaga se traga el error y sigue leyendo hasta el final\n    def log_message(self, *a):\n        pass\n\ndef servir(handler):\n    s = http.server.ThreadingHTTPServer((\"127.0.0.1\", 0), handler)\n    threading.Thread(target=s.serve_forever, daemon=True).start()\n    return s\nvllm, proxy = servir(VLLM), servir(Proxy)\n\ndef cliente_que_se_va(puerto, ruta, tras=5):\n    c = http.client.HTTPConnection(\"127.0.0.1\", puerto)\n    c.request(\"POST\", ruta, json.dumps({\"model\": \"chat-default\", \"stream\": True}), {\"content-type\": \"application/json\"})\n    r = c.getresponse()\n    vistos = 0\n    for linea in r:\n        if linea.startswith(b\"data: \"):\n            vistos += 1\n            if vistos == tras:\n                r.close()                          # quien chatea cierra la pestaña\n                break\n    time.sleep(3.5)                                # tiempo de sobra para que el \"vLLM\" termine o aborte\n    return vistos\n\nfor nombre, puerto, ruta in ((\"directo a vLLM\", vllm.server_port, \"/v1/chat/completions\"),\n                             (\"proxy que no propaga\", proxy.server_port, \"/v1/chat/completions\"),\n                             (\"proxy que propaga (como el C10)\", proxy.server_port, \"/v1/chat/completions?propaga\")):\n    vistos = cliente_que_se_va(puerto, ruta)\n    n = generados[-1]\n    print(f\"{nombre:32} el cliente vio {vistos} y se fue; vLLM generó {n} de 60\" + (\" y abortó\" if n < 60 else f\": {60 - vistos} para nadie\"))\nEOF\npython3 desconexion.py",
+      "expect": "directo a vLLM: el cliente vio 5 y se fue; vLLM generó 6 de 60 y abortó. proxy que no propaga: vLLM generó 60 de 60, 55 para nadie. proxy que propaga (como el C10): vLLM generó 8 de 60 y abortó. Tarda ≈ 12 s (espera a que cada caso termine); los números pueden moverse ±1."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-vllm",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Para ver el gateway completo (con 499 en /metrics), la demo del README del C10: un venv con requirements-dev.txt, DEMO_WORDS=200 uvicorn --factory llm_gateway:demo_app --port 8080 y un curl --max-time 0.5 que corta el stream. Con el venv, también corren sus tests de desconexión: pytest gateway/tests -k disconnect.",
+    "needs": "El repo del curso (cuota.py y admision.py importan quota.py y admission.py del C10, que son solo biblioteca estándar) y Python 3 (el python3 de macOS sirve). Ni GPU ni Docker.",
+    "verified": "executed",
+    "verified_note": "Ejecutado con Python 3.14.3, 3.13.16 y 3.9.6 contra los archivos del repo: salidas idénticas. Aparte, los tests de gateway/tests corrieron en un venv existente (FastAPI 0.143.0, Starlette 1.7.0, uvicorn 0.54.0) con httpx 0.28.1 detrás de un alias httpx2, porque httpx2 no estaba instalado. Con el gateway corregido (un stream que termina sin texto es una falla; cada respuesta, 401 incluido, con su conteo y su línea) son 59 y pasaron los 59 en seis corridas, también el del pool real con sus 288 streams; en una corrida anterior, con 56, ese abrió 256 y el resto dio ConnectTimeout. La demo con uvicorn dio el stream, [DONE], el 499 y inflight en 0. Que vLLM aborta al desconectarse se leyó en vllm/v1/engine/async_llm.py de v0.30.0."
+   },
+   "links": [
+    "#c10.serving",
+    "#c10.archivos",
+    "#m15.rate-limiting",
+    "#m15.pii-privacidad",
+    "#m03.timeouts-reintentos",
+    "#m14.guardrails",
+    "#m15.degradacion",
+    "#c10.fallas"
+   ]
+  },
+  {
+   "id": "diagnostico",
+   "num": 12,
+   "title": "Diagnóstico: el método y la tabla de síntomas",
+   "question": "Alguien dice «tarda» o «se cortó la respuesta», o el pod no arranca: ¿qué miras primero, qué después y qué te dice cada número?",
+   "templates": [
+    {
+     "code": "curl -si http://{host}:{puerto}/health | head -1\nkubectl get pods -n {ns} -l app.kubernetes.io/name=vllm-70b -o wide",
+     "note": "<b>¿Está vivo?</b> <code>/health</code> responde 200 con el cuerpo vacío si el <b>engine</b> (el proceso que corre el modelo) está vivo, y 503 si murió (<code>EngineDeadError</code>): eso no se cura solo, se reinicia. No dice si está lleno: un pod sano puede tener 50 requests esperando. Llegas al puerto con <code>kubectl port-forward</code>; la NetworkPolicy del C10 solo deja entrar al gateway y a Prometheus."
+    },
+    {
+     "code": "curl -s http://{host}:{puerto}/metrics | grep -E '^vllm:(num_requests_(running|waiting)|kv_cache_usage_perc|num_preemptions_total)'",
+     "note": "<b>¿Hay cola adentro y alcanza la memoria?</b> Tres gauges (números que suben y bajan) y un counter (uno que solo sube): corriendo, esperando, la fracción del KV ocupada (1 = 100 %) y las <b>preemptions</b> (secuencias que vLLM sacó de la GPU por falta de KV y va a recalcular) desde que arrancó el pod; para la tasa, <code>rate()</code> en Prometheus. Las series traen <code>model_name</code> y <code>engine</code>; Prometheus les suma <code>pod</code>, <code>namespace</code> y <code>track</code>."
+    },
+    {
+     "code": "kubectl logs -n {ns} {pod} -c vllm | grep -E 'Model loading took|KV cache size|Graph capturing finished'\nkubectl logs -n {ns} {pod} -c vllm --since={ventana} | grep 'Engine 000' | tail -1",
+     "note": "<b>¿Qué midió al arrancar y qué hace ahora?</b> Al arrancar, vLLM escribe cuánto pesó el modelo, <code>GPU KV cache size: N tokens, Maximum concurrency for 8,192 tokens per request: X.XXx</code> (tu capacidad real) y la captura de CUDA graphs. Después, cada 10 s (<code>VLLM_LOG_STATS_INTERVAL</code>), una línea con el throughput de prompt y de generación, corriendo, esperando, <code>Preemptions: N</code> (solo si hubo), el uso del KV y la tasa de aciertos del prefix cache. V1 no escribe una línea por cada preemption."
+    },
+    {
+     "code": "kubectl describe pod -n {ns} {pod} | sed -n '/^Events:/,$p'\nkubectl logs -n {ns} {pod} -c vllm --previous | tail -50\nkubectl exec -n {ns} {pod} -c vllm -- nvidia-smi --query-gpu=index,memory.used,memory.total,utilization.gpu --format=csv",
+     "note": "<b>¿Qué le pasó al pod?</b> Los eventos dicen Pending (<code>Insufficient nvidia.com/gpu</code>), probes que fallan, <code>OOMKilled</code> (la RAM del contenedor, no la GPU) o reinicios; <code>--previous</code> trae el log del intento que murió. <code>nvidia-smi</code> muestra ≈ 90 % de memoria ocupada desde el arranque: vLLM la reserva entera para pesos y KV."
+    }
+   ],
+   "formulas": [
+    "\\text{concurrencia máx.} = \\frac{\\text{GPU KV cache size}}{\\text{max\\_model\\_len}} = \\frac{208{,}736}{8{,}192} \\approx 25.48\\text{x} \\qquad \\frac{208{,}736}{2{,}250} \\approx 92\\ \\text{secuencias típicas}",
+    "\\text{TTFT}_{\\text{gateway}} \\approx W_{\\text{admisión}} + W_{\\text{cola}} + t_{\\text{prefill}} \\qquad \\text{TTFT}_{\\text{vLLM}} \\approx W_{\\text{cola}} + t_{\\text{prefill}}",
+    "\\frac{\\Delta\\,\\text{vllm:num\\_preemptions\\_total}}{\\Delta\\,\\text{vllm:request\\_success\\_total}} = \\frac{24}{207} \\approx 0.12 > 0.05 \\;\\Rightarrow\\; \\text{LLMPreemptionsRising}",
+    "\\text{KV de una secuencia} = (n_{\\text{prompt}} + n_{\\text{salida}}) \\times 320\\ \\text{KiB} = 5{,}300 \\times 320\\ \\text{KiB} \\approx 1.74\\ \\text{GB} \\;\\Rightarrow\\; 40 \\times 1.74 \\approx 69.5 > 68.4\\ \\text{GB}"
+   ],
+   "vars": [
+    [
+     "{host}, {puerto}",
+     "la réplica vista desde donde corres curl",
+     "localhost:8000 (kubectl port-forward a un pod)"
+    ],
+    [
+     "{ns}",
+     "namespace de vLLM",
+     "c10"
+    ],
+    [
+     "{pod}",
+     "un pod de vllm-70b (o deploy/vllm-70b, que toma uno)",
+     "vllm-70b-6c9f7d8b4-q7k2m (ilustrativo)"
+    ],
+    [
+     "{ventana}",
+     "cuánto log reciente lees",
+     "1m"
+    ],
+    [
+     "GPU KV cache size",
+     "tokens de KV que caben en la réplica, según vLLM al arrancar",
+     "208,736 en la cuenta del C10"
+    ],
+    [
+     "max_model_len",
+     "el contexto máximo configurado",
+     "8,192"
+    ],
+    [
+     "W_admisión",
+     "espera en la cola del gateway",
+     "≤ 0.5 s en interactivo"
+    ],
+    [
+     "W_cola",
+     "espera adentro de vLLM: vllm:request_queue_time_seconds",
+     "≈ 0 si num_requests_waiting = 0"
+    ],
+    [
+     "t_prefill",
+     "procesar el prompt hasta el primer token",
+     "≈ 0.3–1 s en el C10, con prefix cache"
+    ],
+    [
+     "Δ",
+     "lo que creció un counter entre dos lecturas",
+     "en 60 s"
+    ]
+   ],
+   "pieces": [
+    [
+     "/health 200",
+     "El engine responde. No dice nada de cola ni de KV.",
+     "la readinessProbe del C10"
+    ],
+    [
+     "/health 503",
+     "EngineDeadError: el engine murió y no se recupera solo. Reiniciar es lo correcto.",
+     "la liveness reinicia tras 6 × 10 s"
+    ],
+    [
+     "GPU KV cache size: N tokens",
+     "Cuántos tokens de KV caben en la réplica: tu capacidad real, medida por vLLM al arrancar.",
+     "208,736 en la cuenta del C10"
+    ],
+    [
+     "Maximum concurrency for 8,192 tokens per request: X.XXx",
+     "Cuántas secuencias de largo máximo caben a la vez. Las más cortas caben más.",
+     "25.48x (≈ 92 de 2,250 tokens)"
+    ],
+    [
+     "vllm:num_requests_waiting > 0",
+     "Requests dentro de vLLM esperando lugar: falta KV o se llegó a max_num_seqs.",
+     "KVCacheSaturation lo pide junto con KV > 95 %"
+    ],
+    [
+     "vllm:kv_cache_usage_perc",
+     "Fracción del KV ocupada (1 = 100 %). Cerca de 1 de día y con cola: la memoria limita.",
+     "de noche, 100 % es el batch: normal"
+    ],
+    [
+     "Preemptions: N",
+     "En la línea de stats, solo si hubo: vLLM sacó secuencias de la GPU por falta de KV y las va a recalcular.",
+     "LLMPreemptionsRising: > 0.05 por request terminado"
+    ],
+    [
+     "finish_reason length",
+     "La respuesta paró en max_tokens o en el contexto. No es un error HTTP: es un 200 corto.",
+     "max_completion_tokens = 1,024 en soporte"
+    ],
+    [
+     "finish_reason abort",
+     "vLLM abortó: el pod entró en drain o el cliente se fue.",
+     "antes del primer token, el gateway lo convierte en 502 o en el vendor: sin streaming lo ve en el finish_reason; con streaming, v0.30 no manda ese chunk y lo delata un [DONE] sin texto"
+    ],
+    [
+     "TTFT alto en el gateway, normal en vLLM",
+     "La espera está antes de vLLM: admisión, red, el propio gateway.",
+     "llm_gateway_queue_depth"
+    ],
+    [
+     "TTFT alto también en vLLM",
+     "Cola dentro de la réplica o prefill largo.",
+     "vllm:request_queue_time_seconds · vllm:request_prompt_tokens"
+    ],
+    [
+     "nvidia-smi con ≈ 90 % de memoria sin tráfico",
+     "Normal: vLLM reserva gpu_memory_utilization al arrancar. La ocupación real es kv_cache_usage_perc.",
+     "≈ 72 de 80 GB por GPU con 0.90"
+    ],
+    [
+     "EngineCore encountered an issue",
+     "El engine murió con el servidor corriendo; la causa está más arriba en el log.",
+     "kubectl logs --previous"
+    ],
+    [
+     "Timed out waiting for engine core processes to start",
+     "El engine tardó más de 600 s (VLLM_ENGINE_READY_TIMEOUT_S) en estar listo. En v0.30 solo pasa con varios procesos de API (--api-server-count > 1); con uno solo, como el C10, el tope es la startupProbe.",
+     "pesos lentos o torch.compile sin caché"
+    ]
+   ],
+   "example": {
+    "title": "C10: un TTFT alto que era memoria (y la memoria, prompts más largos)",
+    "lang": "bash",
+    "code": "# 12:10 suena LLMTTFTHigh para chat-default (TTFT p95 interactivo en el gateway > 1 s durante 10 min).\n# 1) ¿La espera está antes de vLLM o adentro? El Prometheus del cluster:\nkubectl port-forward -n monitoring svc/prometheus-operated 9090 &\ncurl -s localhost:9090/api/v1/query --data-urlencode 'query=llm:gateway_ttft_p95:rate5m' | jq -r '.data.result[].value[1]'\n# 1.62\ncurl -s localhost:9090/api/v1/query --data-urlencode 'query=max(llm:vllm_ttft_p95:rate5m)' | jq -r '.data.result[].value[1]'\n# 1.48        ← vLLM también subió: es la réplica, no la cola del gateway\n\n# 2) Adentro de una réplica: cola, KV y la línea de stats\nkubectl port-forward -n c10 pod/vllm-70b-6c9f7d8b4-q7k2m 8000 &\ncurl -s localhost:8000/metrics | grep -E '^vllm:(num_requests_(running|waiting)|kv_cache_usage_perc)\\{'\n# vllm:num_requests_running{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 38.0\n# vllm:num_requests_waiting{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 7.0\n# vllm:kv_cache_usage_perc{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 0.98\nkubectl logs -n c10 vllm-70b-6c9f7d8b4-q7k2m -c vllm --since=1m | grep 'Engine 000' | tail -1\n# … Engine 000: Avg prompt throughput: 15108.4 tokens/s, Avg generation throughput: 702.3 tokens/s, Running: 38 reqs, Waiting: 7 reqs, Preemptions: 4, GPU KV cache usage: 98.0%, Prefix cache hit rate: 21.4%\n\n# 3) ¿Por qué se llenó? El largo de los prompts, en toda la flota:\ncurl -s localhost:9090/api/v1/query --data-urlencode 'query=sum(rate(vllm:request_prompt_tokens_sum[30m])) / sum(rate(vllm:request_prompt_tokens_count[30m]))' | jq -r '.data.result[].value[1]'\n# 5050        ← el plan supone ≈ 2,000",
+    "source": "Comandos reales con los nombres de reference/c10 (namespace c10, PodMonitor de k8s/vllm-70b.yaml, recording rules de monitoring/alerts.yml); las salidas son ilustrativas, con los nombres y el formato de vLLM v0.30.0 (vllm/v1/metrics/loggers.py)",
+    "notes": [
+     "El orden importa: primero la comparación entre el TTFT del gateway y el de vLLM, que alerts.yml ya graba (<code>llm:gateway_ttft_p95:rate5m</code> y <code>llm:vllm_ttft_p95:rate5m</code>). Si solo subiera el del gateway, la espera estaría en la admisión o en la red, y la réplica estaría sana.",
+     "Los gauges dicen memoria: 7 esperando con el KV al 98 %. La línea de stats lo confirma con <code>Preemptions: 4</code> en 10 s y una tasa de aciertos del prefix cache de 21 % (lo normal es ≈ 50 %).",
+     "La causa: prompts de ≈ 5,050 tokens contra ≈ 2,000 del plan. Cada secuencia pide (5,050 + 250) × 320 KiB ≈ 1.74 GB de KV; las ≈ 40 en vuelo que da la ley de Little (3.75 req/s × ≈ 10.5 s) piden ≈ 69.5 GB y la réplica tiene 68.4. Con ese largo, los 208,736 tokens alcanzan para 39 secuencias, no para 92.",
+     "El arreglo va en orden: que el tenant que alargó los prompts los recorte (un <code>max_prompt_tokens</code> más bajo en tenants.yaml es un cambio revisado), bajar el tope en vuelo mientras tanto, KV en FP8 si ya pasó su golden set, y réplicas al final. Reiniciar no sirve: el mismo tráfico vuelve a llenar el KV.",
+     "Las salidas son de ejemplo. El formato de la línea de stats sale de <code>vllm/v1/metrics/loggers.py</code> de v0.30.0; el número de línea de cada log y el prefijo del proceso dependen de la versión."
+    ]
+   },
+   "figure": {
+    "kind": "chain",
+    "caption": "El método: recorre la cadena en orden, del cliente al nodo. El primer eslabón que falla es la causa; lo que viene después son consecuencias.",
+    "data": {
+     "steps": [
+      {
+       "label": "Cliente",
+       "tipo": "shell",
+       "ask": "¿Qué recibió: un código, una demora o un texto cortado?",
+       "cmd": "curl -sN \"$URL/v1/chat/completions\" -H \"Authorization: Bearer $KEY\" -H 'content-type: application/json' -d @req.json | tail -3",
+       "note": "429 = la cuota del tenant; 503 = la admisión llena; 502/504 = vLLM no contestó o terminó sin texto (un abort antes del primer token, como en un drain); un 200 sin [DONE], o con finish_reason length, = cortado."
+      },
+      {
+       "label": "Gateway",
+       "tipo": "promql",
+       "ask": "¿La espera está antes de vLLM o adentro?",
+       "cmd": "llm:gateway_ttft_p95:rate5m",
+       "note": "Compáralo con max(llm:vllm_ttft_p95:rate5m): si solo sube el del gateway, la espera es la admisión o la red."
+      },
+      {
+       "label": "Admisión",
+       "tipo": "promql",
+       "ask": "¿Quedan lugares en vuelo?",
+       "cmd": "sum(llm_gateway_inflight) / sum(llm_gateway_max_inflight)",
+       "note": "Más de 0.85 = LLMCapacityHeadroomLow. Mira también llm_gateway_queue_depth por clase."
+      },
+      {
+       "label": "vLLM: /health",
+       "tipo": "shell",
+       "ask": "¿El engine está vivo?",
+       "cmd": "curl -si localhost:8000/health | head -1",
+       "note": "200 = vivo; 503 = EngineDeadError: lee kubectl logs --previous."
+      },
+      {
+       "label": "vLLM: cola y KV",
+       "tipo": "shell",
+       "ask": "¿Hay cola adentro y alcanza la memoria?",
+       "cmd": "curl -s localhost:8000/metrics | grep -E '^vllm:(num_requests_waiting|kv_cache_usage_perc)'",
+       "note": "Esperando > 0 con KV > 0.95 = la memoria limita; esperando > 0 con KV bajo = mira max-num-seqs y el tope del gateway."
+      },
+      {
+       "label": "vLLM: log",
+       "tipo": "shell",
+       "ask": "¿Hay preemptions? ¿Acierta el prefix cache?",
+       "cmd": "kubectl logs -n c10 deploy/vllm-70b -c vllm --since=1m | grep 'Engine 000' | tail -1",
+       "note": "Preemptions: N aparece solo si hubo. Si la tasa de aciertos cae a la mitad, alguien cambió un prompt."
+      },
+      {
+       "label": "GPU",
+       "tipo": "shell",
+       "ask": "¿La GPU tiene errores o la ocupa otro proceso?",
+       "cmd": "kubectl exec -n c10 deploy/vllm-70b -c vllm -- nvidia-smi --query-gpu=index,memory.used,memory.total,utilization.gpu --format=csv",
+       "note": "≈ 90 % de memoria siempre (vLLM la reserva); los errores XID (fallas de la GPU que reporta el driver) salen en el DCGM exporter, el que pasa las métricas de la GPU a Prometheus."
+      },
+      {
+       "label": "Pod y nodo",
+       "tipo": "shell",
+       "ask": "¿Kubernetes lo dejó correr?",
+       "cmd": "kubectl describe pod -n c10 -l app.kubernetes.io/name=vllm-70b | grep -A12 '^Events:'",
+       "note": "Pending sin GPU, probes que fallan, OOMKilled (la RAM, no la VRAM) o reinicios."
+      }
+     ],
+     "rule": "El primer eslabón que falla es la causa."
+    }
+   },
+   "memo": "Cómo recordarla: <b>cliente → gateway → admisión → /health → cola y KV → log → GPU → pod</b>. Tres números cuentan casi todo: <code>num_requests_waiting</code> (¿hay cola adentro?), <code>kv_cache_usage_perc</code> (¿falta memoria?) y <code>Preemptions: N</code> en el log (¿ya se está recalculando trabajo?).",
+   "trap": "Trampa: mirar <code>nvidia-smi</code> y concluir. Muestra ≈ 90 % de memoria ocupada desde el arranque (vLLM la reserva) y una utilización cerca de 100 % con 5 secuencias o con 90: ninguno de los dos dice si la réplica está llena. La otra: reiniciar el pod por preemptions o por un TTFT alto. El reinicio tarda minutos, se lleva el log del intento (usa <code>--previous</code>) y el problema vuelve con el mismo tráfico: se arregla con más KV por réplica o con menos secuencias.",
+   "lab": {
+    "goal": "Leer dos fotos de /metrics de una réplica, tomadas con 60 s de diferencia, y su log de arranque, y sacar el diagnóstico: cola, KV, preemptions por request, aciertos del prefix cache y el largo real de los prompts.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-vllm && cd ~/lab-vllm\ncat > antes.txt <<'EOF'\nvllm:num_requests_running{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 36.0\nvllm:num_requests_waiting{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 5.0\nvllm:kv_cache_usage_perc{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 0.97\nvllm:num_preemptions_total{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 1520.0\nvllm:request_success_total{engine=\"0\",finished_reason=\"stop\",model_name=\"chat-70b-fp8-2026-09-28\"} 40100.0\nvllm:request_success_total{engine=\"0\",finished_reason=\"length\",model_name=\"chat-70b-fp8-2026-09-28\"} 2200.0\nvllm:request_success_total{engine=\"0\",finished_reason=\"abort\",model_name=\"chat-70b-fp8-2026-09-28\"} 310.0\nvllm:prefix_cache_queries_total{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 9.1e+07\nvllm:prefix_cache_hits_total{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 4.3e+07\nvllm:request_prompt_tokens_sum{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 9.6e+07\nvllm:request_prompt_tokens_count{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 42610.0\nEOF\ncat > despues.txt <<'EOF'\nvllm:num_requests_running{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 38.0\nvllm:num_requests_waiting{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 7.0\nvllm:kv_cache_usage_perc{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 0.98\nvllm:num_preemptions_total{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 1544.0\nvllm:request_success_total{engine=\"0\",finished_reason=\"stop\",model_name=\"chat-70b-fp8-2026-09-28\"} 40283.0\nvllm:request_success_total{engine=\"0\",finished_reason=\"length\",model_name=\"chat-70b-fp8-2026-09-28\"} 2222.0\nvllm:request_success_total{engine=\"0\",finished_reason=\"abort\",model_name=\"chat-70b-fp8-2026-09-28\"} 312.0\nvllm:prefix_cache_queries_total{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 9.20454e+07\nvllm:prefix_cache_hits_total{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 4.321954e+07\nvllm:request_prompt_tokens_sum{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 9.704535e+07\nvllm:request_prompt_tokens_count{engine=\"0\",model_name=\"chat-70b-fp8-2026-09-28\"} 42817.0\nEOF\ncat > log.txt <<'EOF'\n(EngineCore pid=271) INFO 10-24 06:41:12 [kv_cache_utils.py:2395] GPU KV cache size: 208,736 tokens, Maximum concurrency for 8,192 tokens per request: 25.48x\nINFO 10-24 12:10:08 [loggers.py:315] Engine 000: Avg prompt throughput: 15108.4 tokens/s, Avg generation throughput: 702.3 tokens/s, Running: 38 reqs, Waiting: 7 reqs, Preemptions: 4, GPU KV cache usage: 98.0%, Prefix cache hit rate: 21.4%\nEOF\ncat > triage.py <<'EOF'\n# triage.py: lee dos fotos de /metrics de una réplica de vLLM tomadas con 60 s de diferencia y dice dónde está el problema (solo stdlib)\nimport re, sys\n\ndef leer(ruta):\n    m = {}\n    for linea in open(ruta):\n        if linea.startswith(\"#\") or not linea.strip():\n            continue\n        nombre, valor = linea.rsplit(\" \", 1)\n        base, _, labels = nombre.partition(\"{\")\n        razon = re.search(r'finished_reason=\"(\\w+)\"', labels)\n        clave = base + (\":\" + razon.group(1) if razon else \"\")\n        m[clave] = m.get(clave, 0.0) + float(valor)\n    return m\n\na, b, dt = leer(sys.argv[1]), leer(sys.argv[2]), 60.0\nd = lambda k: b[k] - a[k]                                     # lo que creció un counter entre las dos fotos\nterminados = sum(d(k) for k in b if k.startswith(\"vllm:request_success_total\"))\nprint(f\"gauges ahora: corriendo {b['vllm:num_requests_running']:.0f} · esperando {b['vllm:num_requests_waiting']:.0f} · \"\n      f\"KV {b['vllm:kv_cache_usage_perc']:.0%}\")\nprint(f\"terminados: {terminados / dt:.2f} req/s · por motivo: \" +\n      \", \".join(f\"{k.split(':')[-1]} {d(k):.0f}\" for k in b if k.startswith(\"vllm:request_success_total\")))\npre = d(\"vllm:num_preemptions_total\") / terminados\nprint(f\"preemptions por request terminado: {pre:.2f} (LLMPreemptionsRising suena sobre 0.05)\")\nprint(f\"aciertos del prefix cache: {d('vllm:prefix_cache_hits_total') / d('vllm:prefix_cache_queries_total'):.0%} (el plan del C10: ≈ 50 %)\")\nprompt = d(\"vllm:request_prompt_tokens_sum\") / d(\"vllm:request_prompt_tokens_count\")\nkv_seq = (prompt + 250) * 327_680                              # bytes de KV de una secuencia promedio (320 KiB por token)\nprint(f\"prompt promedio: {prompt:,.0f} tokens (el plan: ≈ 2,000) → una secuencia ocupa {kv_seq / 1e9:.2f} GB de KV; \"\n      f\"40 en vuelo piden {40 * kv_seq / 1e9:.1f} GB y la réplica tiene 68.4\")\nif len(sys.argv) > 3:                                          # el log del pod: la capacidad que midió vLLM al arrancar\n    log = open(sys.argv[3]).read()\n    kv = int(re.search(r\"KV cache size: ([\\d,]+) tokens\", log).group(1).replace(\",\", \"\"))\n    pre_log = re.findall(r\"Preemptions: (\\d+)\", log)\n    print(f\"log: {kv:,} tokens de KV = {kv // 2_250} secuencias de 2,250 tokens, pero solo {kv // int(prompt + 250)} de {prompt + 250:,.0f}\"\n          + (f\"; Preemptions: {pre_log[-1]} en la última línea de stats\" if pre_log else \"\"))\nif b[\"vllm:num_requests_waiting\"] > 0 and b[\"vllm:kv_cache_usage_perc\"] > 0.95:\n    print(\"diagnóstico: la memoria limita (KV lleno con cola adentro de vLLM). Busca quién alargó los prompts antes de tocar la flota\")\nEOF\npython3 triage.py antes.txt despues.txt log.txt",
+      "expect": "gauges ahora: corriendo 38 · esperando 7 · KV 98 %; terminados: 3.45 req/s · por motivo: stop 183, length 22, abort 2; preemptions por request terminado: 0.12; aciertos del prefix cache: 21 %; prompt promedio: 5,050 tokens → una secuencia ocupa 1.74 GB de KV; 40 en vuelo piden 69.5 GB y la réplica tiene 68.4; log: 208,736 tokens de KV = 92 secuencias de 2,250 tokens, pero solo 39 de 5,300; Preemptions: 4 en la última línea de stats; y el diagnóstico: la memoria limita."
+     },
+     {
+      "cmd": "grep -oE 'KV cache size: [0-9,]+ tokens|Maximum concurrency for [0-9,]+ tokens per request: [0-9.]+x|Preemptions: [0-9]+' log.txt",
+      "expect": "Tres líneas: KV cache size: 208,736 tokens, Maximum concurrency for 8,192 tokens per request: 25.48x y Preemptions: 4. Son las tres frases que buscas en un log real (grep -o muestra solo lo que coincide; en el log dice GPU KV cache size)."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-vllm",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Con un pod de verdad, cambia los archivos por dos curl -s localhost:8000/metrics separados 60 s (grep '^vllm:') y por kubectl logs -c vllm. Si triage.py dice memoria, sigue la tabla de síntomas: KV saturado y preemptions.",
+    "needs": "Python 3 sin paquetes extra (el python3 de macOS sirve). Ni GPU ni cluster: las fotos de /metrics y el log son sintéticos.",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS con Python 3.14.3, 3.13.16 y 3.9.6: salidas idénticas. Las fotos de /metrics y el log son sintéticos, con los nombres, las labels (model_name, engine, finished_reason) y los formatos de vLLM v0.30.0 (vllm/v1/metrics/loggers.py, vllm/v1/core/kv_cache_utils.py, el formato de vllm/logger.py con los números de línea de esa versión y el prefijo que vLLM le pone al proceso del engine); los 208,736 tokens y el 25.48x son los de la cuenta del C10."
+   },
+   "links": [
+    "#c10.monitoreo",
+    "#c10.fallas",
+    "#m14.kv-cache",
+    "#m04.vram",
+    "#m12.runbooks",
+    "#ref-comandos.depurar"
+   ]
+  },
+  {
+   "id": "errores",
+   "num": 13,
+   "title": "Errores que debes reconocer rápido",
+   "question": "Lees el mensaje: ¿quién lo dijo (vLLM al arrancar, vLLM al atender, CUDA o PyTorch, NCCL, Hugging Face, el cliente de openai o el gateway), qué significa, qué corres primero y dónde está la explicación?",
+   "formulas": [],
+   "templates": [
+    {
+     "code": "{NIVEL} {mm-dd hh:mm:ss} [{archivo}.py:{linea}] {mensaje}",
+     "note": "Una línea del log de vLLM (<code>kubectl logs … -c vllm</code>): el nivel, la fecha sin año y el archivo de vLLM que la escribió. Las del engine y de los workers llevan adelante el proceso, como <code>(EngineCore pid=271)</code>. Al arrancar (<code>kv_cache_utils.py</code>, <code>gpu_model_runner.py</code>) te dice capacidad y tiempos; después, cada 10 s, viene la línea <code>Engine 000: …</code> (<code>loggers.py</code>)."
+    },
+    {
+     "code": "{modulo}.{Excepcion}: {mensaje}\n…\nRuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {procesos}",
+     "note": "Un traceback de Python (el rastro de llamadas que se imprime con un error). El engine de vLLM corre en otro proceso, así que el error del final es un envoltorio: la causa es la primera excepción más arriba, casi siempre un <code>ValueError</code> de configuración o un <code>OutOfMemoryError</code>."
+    },
+    {
+     "code": "{\"error\": {\"message\": \"{mensaje}\", \"type\": \"{Tipo}Error\", \"param\": {param}, \"code\": {status}}}",
+     "note": "El cuerpo de un error HTTP de vLLM, con la forma de OpenAI: <code>message</code>, <code>type</code> (<code>BadRequestError</code> para un 400, <code>NotFoundError</code> para un 404), <code>param</code> y <code>code</code> (el status). El gateway del C10 contesta con la misma forma, sin <code>param</code> y con <code>code</code> en texto (<code>rate_limit_exceeded</code>, <code>overloaded</code>)."
+    },
+    {
+     "code": "openai.{Clase}: Error code: {status} - {cuerpo}",
+     "note": "Lo que ve el producto: el cliente de openai convierte el status en una clase (400 <code>BadRequestError</code>, 404 <code>NotFoundError</code>, 429 <code>RateLimitError</code>, 5xx <code>InternalServerError</code>) y le pega el cuerpo JSON entero, escrito como dict de Python: <code>{'error': {'message': …}}</code>. El texto suelto queda en <code>e.body['message']</code> y el code en <code>e.code</code>. Sin respuesta, <code>APIConnectionError</code> o <code>APITimeoutError</code>. Antes de lanzarla ya reintentó 2 veces los 429 y 5xx."
+    },
+    {
+     "code": "NCCL WARN {detalle}\nhuggingface_hub.errors.{Error}: {status} Client Error. … {url}",
+     "note": "Dos fuentes de afuera de vLLM: <b>NCCL</b> (la librería de NVIDIA que comunica las GPUs de una réplica) escribe <code>NCCL WARN</code>, y cuenta más con <code>NCCL_DEBUG=INFO</code> o <code>TRACE</code>; <b>huggingface_hub</b> dice qué pasó al buscar el modelo en el Hub."
+    }
+   ],
+   "vars": [
+    [
+     "{NIVEL}",
+     "qué tan grave",
+     "INFO, WARNING o ERROR"
+    ],
+    [
+     "{archivo}.py:{linea}",
+     "de qué parte de vLLM salió",
+     "kv_cache_utils.py · loggers.py"
+    ],
+    [
+     "{mensaje}",
+     "qué pasó",
+     "GPU KV cache size: 208,736 tokens"
+    ],
+    [
+     "{modulo}.{Excepcion}",
+     "la clase del error",
+     "torch.OutOfMemoryError · ValueError"
+    ],
+    [
+     "{procesos}",
+     "los procesos del engine que murieron y su código de salida",
+     "un diccionario con el nombre del proceso y su código"
+    ],
+    [
+     "{Tipo}Error, {status}",
+     "la clase del error HTTP y su código",
+     "BadRequestError, 400 · NotFoundError, 404"
+    ],
+    [
+     "{param}",
+     "el campo culpable, si se sabe",
+     "\"input_tokens\" o null"
+    ],
+    [
+     "{Clase}",
+     "la excepción del cliente de openai",
+     "RateLimitError (429) · InternalServerError (5xx)"
+    ],
+    [
+     "{Error}, {url}",
+     "el error de Hugging Face y la URL que pidió",
+     "GatedRepoError · …/resolve/main/config.json"
+    ]
+   ],
+   "pieces": [
+    [
+     "Log de arranque de vLLM",
+     "Lo que midió al cargar: pesos, KV, CUDA graphs. Si el arranque falla, la causa está aquí.",
+     "GPU KV cache size: 208,736 tokens"
+    ],
+    [
+     "Línea de stats (Engine 000)",
+     "Cada 10 s: throughput, corriendo, esperando, Preemptions (si hubo), KV y prefix cache.",
+     "Preemptions: 4, GPU KV cache usage: 98.0%"
+    ],
+    [
+     "ValueError al arrancar",
+     "vLLM revisó la configuración contra el modelo y la GPU y algo no cierra: memoria, contexto, TP, cuantización. Los que salen de revisar la configuración llegan envueltos por pydantic: 1 validation error for ModelConfig (o VllmConfig) y, abajo, Value error, con el texto.",
+     "Total number of attention heads (64) must be divisible by tensor parallel size (3)."
+    ],
+    [
+     "Envoltorios del EngineCore",
+     "El engine corre en otro proceso; si muere, ves un mensaje genérico y la causa queda más arriba.",
+     "Engine core initialization failed. See root cause above."
+    ],
+    [
+     "torch.OutOfMemoryError",
+     "PyTorch no consiguió memoria de GPU: otro proceso, gpu_memory_utilization alto o un modelo que no cabe.",
+     "CUDA out of memory. Tried to allocate …"
+    ],
+    [
+     "NCCL WARN",
+     "La comunicación entre las GPUs de la réplica (TP=2) falló: /dev/shm, P2P o NVLink, o una GPU que murió.",
+     "failed to extend /dev/shm/nccl-… to … bytes"
+    ],
+    [
+     "400 de vLLM (BadRequestError)",
+     "El request no entra: el contexto, un parámetro o un campo inválido. Repetirlo igual falla igual.",
+     "This model's maximum context length is 8192 tokens…"
+    ],
+    [
+     "404 de vLLM (NotFoundError)",
+     "El model del request no es el --served-model-name de ese pod (ni un LoRA cargado).",
+     "The model `chat-default` does not exist."
+    ],
+    [
+     "Errores del cliente de openai",
+     "La clase dice el status; sin respuesta, APIConnectionError o APITimeoutError. Ya reintentó 2 veces.",
+     "openai.RateLimitError: Error code: 429 - …"
+    ],
+    [
+     "Errores del llm-gateway",
+     "La forma de OpenAI con su code: invalid_api_key, model_not_allowed, rate_limit_exceeded, overloaded, upstream_timeout.",
+     "429: cuota de tokens por minuto agotada"
+    ],
+    [
+     "huggingface_hub",
+     "La descarga o la búsqueda del modelo en el Hub: repo gated, token, nombre o modo offline.",
+     "GatedRepoError · LocalEntryNotFoundError"
+    ],
+    [
+     "finish_reason",
+     "No es un error HTTP: dice por qué terminó la respuesta: stop, length, abort, error o repetition.",
+     "length = max_tokens o max_model_len"
+    ],
+    [
+     "Eventos del pod",
+     "Kubernetes: Pending sin GPU, probes que fallan, OOMKilled de la RAM del contenedor.",
+     "Insufficient nvidia.com/gpu"
+    ]
+   ],
+   "example": {
+    "title": "Cómo leer un 400 de contexto, del producto hasta vLLM",
+    "lang": "text",
+    "code": "$ python3 producto.py          # el asistente de soporte, con el cliente de openai contra el llm-gateway\nTraceback (most recent call last):\n  …\nopenai.BadRequestError: Error code: 400 - {'error': {'message': \"This model's maximum context length is 8192 tokens. However, you requested 1024 output tokens and your prompt contains at least 7169 input tokens, for a total of at least 8193 tokens. Please reduce the length of the input prompt or the number of requested output tokens.\", 'type': 'BadRequestError', 'param': 'input_tokens', 'code': 400}}\n\n# El cuerpo que devolvió vLLM v0.30.0 y que el gateway reenvió sin tocar (es un 4xx: no hay fallback):\n{\"error\":{\"message\":\"This model's maximum context length is 8192 tokens. However, you requested 1024 output tokens and your prompt contains at least 7169 input tokens, for a total of at least 8193 tokens. Please reduce the length of the input prompt or the number of requested output tokens.\",\"type\":\"BadRequestError\",\"param\":\"input_tokens\",\"code\":400}}\n\n# Lo que quedó en el gateway: la muestra del counter y una línea de log, sin el prompt ni el mensaje\nllm_gateway_requests_total{alias=\"chat-default\",status=\"400\",tenant=\"support-assistant\"} 1.0\n{\"request_id\": \"9f2c41d07b8e4a6d8c13e5b2a7f06d91\", \"tenant\": \"support-assistant\", \"alias\": \"chat-default\", \"backend\": \"self\", \"status\": \"400\", \"error\": \"upstream_rejected\", \"prompt_tokens\": null, \"completion_tokens\": null, \"ttft_s\": null, \"duration_s\": 0.0412}",
+    "source": "Formatos reales de vLLM v0.30.0 (vllm/renderers/params.py y el cuerpo de error de vllm/entrypoints/serve/exception_handling) y de openai-python 3.37.0 (_base_client.py); la conversación y los números son ilustrativos",
+    "notes": [
+     "Léelo por partes: <code>you requested 1024 output tokens</code> es el max_tokens (aquí, el tope de soporte que puso el gateway porque el cliente no mandó uno); <code>at least 7169 input tokens</code>: vLLM deja de tokenizar un token después del límite (8,192 − 1,024 + 1 = 7,169), así que el prompt real, ya con la plantilla de chat, puede ser más largo (aquí, 7,500); <code>at least 8193</code> ya no entra en 8,192.",
+     "¿Por qué pasó la puerta del gateway? Estima caracteres ÷ 3 + 4 por mensaje: una conversación que pega una tabla de pedidos de ≈ 17,500 caracteres da ≈ 5,860 estimados (bajo el tope de 6,000), pero el tokenizer de Llama 3 cuenta los números de a 3 dígitos o menos y son 7,500 reales. La estimación pesimista falla justo con texto raro.",
+     "Quién lo dijo: vLLM (<code>type</code> <code>BadRequestError</code>, <code>param</code> <code>input_tokens</code>). El gateway reenvía los 4xx tal cual y no prueba el vendor: un request inválido no se arregla mandándolo afuera. El cliente de openai no lo reintenta: solo reintenta 408, 409, 429 y 5xx.",
+     "En vLLM v0.32 este mismo request ya no falla: max_tokens deja de reservarse y la salida se corta en 692 tokens (8,192 − 7,500), con finish_reason length. Un upgrade convierte un 400 claro en una respuesta corta, en silencio.",
+     "El gateway lo cuenta y deja su línea JSON: status 400, error <code>upstream_rejected</code>, backend <code>self</code>, sin el texto del error. Su <code>request_id</code> es el header <code>x-request-id</code> de la respuesta que recibió el producto: con él se cruzan el log del producto y el del gateway."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Quiz: el mensaje tal como lo ves; responde quién lo dijo, qué significa, qué corres primero y en qué sección está.",
+    "data": {}
+   },
+   "memo": "Cómo recordarla: <b>quién habla dice dónde mirar</b>. Una línea <code>INFO … [archivo.py:N]</code>: el log de vLLM. Un <code>ValueError</code> al arrancar (o un <code>Value error, …</code> de pydantic): tu configuración contra el modelo y la GPU. <code>Engine core initialization failed</code> o <code>EngineCore encountered an issue</code>: la causa está más arriba. <code>openai.…Error: Error code: N</code>: el status que devolvió el gateway o vLLM. <code>NCCL WARN</code>: las GPUs entre sí. <code>GatedRepoError</code>: el Hub.",
+   "trap": "Trampa: quedarte con la última línea del traceback. En vLLM el engine corre en otro proceso, y <code>Engine core initialization failed. See root cause above</code> no es la causa: es el aviso de que la causa está arriba. La otra: confiar en textos de versiones viejas. En V1 no existe la línea <code>Sequence group … is preempted</code> de V0 (las preemptions solo salen en el counter y en <code>Preemptions: N</code>), y el 400 por max_tokens de v0.30 desaparece en v0.32.",
+   "lab": {
+    "goal": "Reconocer los 26 mensajes en 5 minutos y provocar dos de verdad: el de pick_concurrency.py del C10 y el 401 de un repo gated.",
+    "steps": [
+     {
+      "cmd": "ronda() { printf '%s\\n' 'Value error, Model architectures ['\"'\"'…ForCausalLM'\"'\"'] are not supported for now. Supported architectures: … [type=value_error, …]' 'This model'\"'\"'s maximum context length is 8192 tokens. However, you requested 1024 output tokens and your prompt contains at least 7169 input tokens, for a total of at least 8193 tokens. Please reduce the length of the input prompt or the number of requested output tokens.' 'As of transformers v4.44, default chat template is no longer allowed, so you must provide a chat template if the tokenizer does not define one.' 'torch.OutOfMemoryError: CUDA out of memory. Tried to allocate … GiB. GPU 0 has a total capacity of … GiB of which … MiB is free. …' 'ValueError: Free memory on device … (…/… GiB) on startup is less than desired GPU memory utilization (0.9, … GiB). Decrease GPU memory utilization or reduce GPU memory used by other processes.' 'ValueError: To serve at least one request with the model'\"'\"'s max seq len (131072), (… GiB KV cache is needed, which is larger than the available KV cache memory (… GiB). Based on the available memory, the estimated maximum model length is …. Try increasing `gpu_memory_utilization` (which also controls CPU memory on the CPU backend) or decreasing `max_model_len` when initializing the engine. See https://docs.vllm.ai/en/latest/configuration/conserving_memory/ for more details.' 'TimeoutError: Timed out waiting for engine core processes to start. This is often caused by slow weight loading for large models. Waited 600s (configured by VLLM_ENGINE_READY_TIMEOUT_S). To increase the timeout, set the environment variable: VLLM_ENGINE_READY_TIMEOUT_S=<seconds>' 'RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {…}' 'Value error, User-specified max_model_len (262144) is greater than the derived max_model_len (max_position_embeddings=131072 or model_max_length=… in model'\"'\"'s config.json). To allow overriding this maximum, set the env var VLLM_ALLOW_LONG_MAX_MODEL_LEN=1. … [type=value_error, …]' 'The model `chat-default` does not exist.' 'openai.APIConnectionError: Connection error.' 'openai.APITimeoutError: Request timed out.' 'The engine is currently busy and cannot accept new requests. Please try again later or on a different instance.' 'error: bench/tests/fixtures/p99-only.json: faltan ['\"'\"'p95_ttft_ms'\"'\"', '\"'\"'p95_tpot_ms'\"'\"'] (hay ['\"'\"'p99_ttft_ms'\"'\"']). Corre vllm bench serve con --percentile-metrics ttft,tpot,itl,e2el --metric-percentiles 50,95,99' 'Value error, Total number of attention heads (64) must be divisible by tensor parallel size (3). [type=value_error, …]' 'NCCL WARN Error: failed to extend /dev/shm/nccl-03v824 to 4194660 bytes' 'Value error, The quantization method fp8 is not supported for the current GPU. Minimum capability: 75. Current capability: 70. [type=value_error, …]' 'Using KV cache scaling factor 1.0 for fp8_e4m3. If this is unintended, verify that k/v_scale scaling factors are properly set in the checkpoint.' 'LoRA rank 32 is greater than max_lora_rank 16.' 'Skipping CUDA graph capture. To turn on CUDA graph capture, ensure `cudagraph_mode` was not manually set to `NONE`' 'openai.RateLimitError: Error code: 429 - {'\"'\"'error'\"'\"': {'\"'\"'message'\"'\"': '\"'\"'cuota de tokens por minuto agotada'\"'\"', '\"'\"'type'\"'\"': '\"'\"'rate_limit_error'\"'\"', '\"'\"'code'\"'\"': '\"'\"'rate_limit_exceeded'\"'\"'}}' '{\"error\":{\"message\":\"plataforma sin capacidad (queue_timeout)\",\"type\":\"overloaded_error\",\"code\":\"overloaded\"}}' '{\"error\":{\"message\":\"el modelo no respondió a tiempo\",\"type\":\"api_error\",\"code\":\"upstream_timeout\"}}' 'GatedRepoError: 401 Client Error. … Cannot access gated repo for url https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/resolve/main/config.json.' 'LocalEntryNotFoundError: An error happened while trying to locate the file on the Hub and we cannot find the requested files in the local cache. Please check your connection and try again or make sure your Internet connection is on.' 'EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.' | sort -R | head -5; }; ronda",
+      "expect": "Cinco mensajes al azar. Para cada uno, en menos de 30 s y en voz alta: quién lo dijo (vLLM al arrancar o al atender, PyTorch, NCCL, Hugging Face, el cliente de openai o el gateway), la causa probable y el primer comando. Después compáralo con la lista."
+     },
+     {
+      "cmd": "ronda",
+      "expect": "Otra ronda de cinco. Repite hasta completar 5 minutos; la meta es 5 de 5 sin mirar."
+     },
+     {
+      "cmd": "cd apps/ml-system-design/reference/c10   # desde la raíz del repo del curso\nPYTHONDONTWRITEBYTECODE=1 python3 bench/pick_concurrency.py bench/tests/fixtures/p99-only.json; echo \"exit=$?\"",
+      "expect": "error: bench/tests/fixtures/p99-only.json: faltan ['p95_ttft_ms', 'p95_tpot_ms'] (hay ['p99_ttft_ms']). Corre vllm bench serve con --percentile-metrics ttft,tpot,itl,e2el --metric-percentiles 50,95,99 y exit=2: entrada inválida, distinto de «ningún punto cumple» (exit=1)."
+     },
+     {
+      "cmd": "curl -s -o /dev/null -w '%{http_code}\\n' https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/resolve/main/config.json",
+      "expect": "401: el repo es gated y no mandaste token. Con un token sin acceso aprobado sería 403; huggingface_hub convierte esas respuestas en GatedRepoError."
+     }
+    ],
+    "fix": "Los que fallaste en la ronda: abre la sección de su tema (el enlace de la lista) y haz su laboratorio.",
+    "needs": "Una terminal de macOS (la ronda usa sort -R), el repo del curso para pick_concurrency.py (solo biblioteca estándar) y conexión para el curl a Hugging Face. Ni GPU ni cuenta en el Hub.",
+    "verified": "executed",
+    "verified_note": "Ejecutado aquí tal como está escrito: la ronda en zsh (los 26 mensajes salen idénticos a la lista), pick_concurrency.py con Python 3.14.3 (sale con código 2) y el curl, que dio 401. Los textos salen del código de vLLM v0.30.0 (y de v0.32.0 donde cambia), de PyTorch (c10/cuda/CUDACachingAllocator.cpp), huggingface_hub, openai-python 3.37.0, la doc de NCCL 2.32.3 y los archivos del C10."
+   },
+   "links": [
+    "#c10.archivos",
+    "#c10.fallas",
+    "#m14.kv-cache",
+    "#ref-comandos.depurar",
+    "#ref-herramientas.stack-llm"
+   ]
+  }
+ ],
+ "diagnosticador": [
+  {
+   "id": "oom-arranque",
+   "symptom": "El pod de vLLM muere al arrancar con CUDA out of memory, o con Free memory on device … is less than desired GPU memory utilization.",
+   "first": "kubectl logs -n c10 deploy/vllm-70b -c vllm --previous | grep -E 'OutOfMemoryError|Free memory on device|Model loading took|Graph capturing'",
+   "causes": [
+    {
+     "cause": "Otro proceso ya ocupa la GPU (un pod viejo que no terminó, otro vLLM, un notebook). vLLM pide su fracción de la memoria total y, si no está libre al arrancar, se niega.",
+     "check": "kubectl exec -n c10 deploy/vllm-70b -c vllm -- nvidia-smi --query-compute-apps=pid,used_memory --format=csv",
+     "fix": "Una GPU, un proceso: requests y limits de nvidia.com/gpu (el C10 pide 2) y sin compartir GPUs entre pods. Si a propósito corren dos vLLM en una GPU, a cada uno le toca su fracción (por ejemplo 0.45 y 0.45)."
+    },
+    {
+     "cause": "Los pesos no caben en las GPUs de la réplica: un 70B en BF16 con TP=1 son 141 GB en una H100 de 80, y revienta al cargar. Si caben pero casi no queda lugar para KV, el error es otro: To serve at least one request… o No available memory for the cache blocks.",
+     "check": "--tensor-parallel-size y el formato del checkpoint (quantization_config) contra la cuenta de la sección 9",
+     "fix": "Pesos en FP8 (los del C10), más TP o una GPU con más memoria."
+    },
+    {
+     "cause": "La captura de CUDA graphs pide memoria al final del arranque. Si el perfilado de esa memoria está apagado (VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=0), no se descuenta del KV y falta justo ahí.",
+     "check": "kubectl logs -n c10 deploy/vllm-70b -c vllm --previous | grep -E 'Graph capturing|CUDA graph'",
+     "fix": "Deja el perfilado prendido (es el default) y baja un poco --gpu-memory-utilization o --max-cudagraph-capture-size. --enforce-eager sirve para confirmar el diagnóstico, no para producción."
+    },
+    {
+     "cause": "OOMKilled no es la GPU: es la RAM del contenedor. El /dev/shm en memoria (hasta 16Gi en el C10) cuenta contra el límite de memoria del contenedor (256Gi), igual que lo que el proceso reserva en RAM.",
+     "check": "kubectl describe pod -n c10 -l app.kubernetes.io/name=vllm-70b | grep -B2 -A3 OOMKilled",
+     "fix": "Sube el límite de memoria del contenedor o baja el sizeLimit de /dev/shm; gpu_memory_utilization no tiene que ver con esto."
+    }
+   ]
+  },
+  {
+   "id": "kv-chico",
+   "symptom": "vLLM no arranca: To serve at least one request with the model's max seq len (…) … is larger than the available KV cache memory (… GiB), o No available memory for the cache blocks.",
+   "first": "kubectl logs -n c10 deploy/vllm-70b -c vllm --previous | grep -E 'max seq len|Available KV cache memory|estimated maximum model length'",
+   "causes": [
+    {
+     "cause": "No fijaste --max-model-len y vLLM tomó el del config.json: 131,072 tokens en los Llama 3.x. Una secuencia de ese largo pide 16 GiB de KV en un 8B y 40 GiB en el 70B.",
+     "check": "los args del Deployment (¿está --max-model-len?) y max_position_embeddings en el config.json del checkpoint",
+     "fix": "--max-model-len con el contexto que el producto necesita (8192 en el C10). El mensaje trae el largo estimado que sí cabe."
+    },
+    {
+     "cause": "Los pesos ocupan más de lo planeado (un checkpoint BF16 en lugar de FP8, o un FP8 con embeddings y lm_head en 16 bits) y queda poco o nada para KV. Sin nada de lugar, el mensaje es No available memory for the cache blocks.",
+     "check": "Model loading took N GiB memory y Available KV cache memory: N GiB en el log",
+     "fix": "El checkpoint correcto (la cuenta de la sección 9), más GPUs por réplica o el KV en FP8 si ya pasó el golden set."
+    },
+    {
+     "cause": "gpu_memory_utilization quedó bajo para ese modelo, o el overhead es mayor que lo estimado: CUDA graphs y las activaciones del perfilado, que crecen con --max-num-batched-tokens.",
+     "check": "Model loading took … y Available KV cache memory: … en el log, contra 0.90 × la memoria de la GPU: la diferencia es el overhead (la línea Free memory on device … Desired GPU memory utilization is … solo sale cuando el arranque termina)",
+     "fix": "Súbelo de a poco (0.90 → 0.92) si la GPU es solo de vLLM, o baja --max-num-batched-tokens y mide el TTFT que pierdes."
+    }
+   ]
+  },
+  {
+   "id": "ttft-alto",
+   "symptom": "El primer token tarda: suena LLMTTFTHigh (TTFT p95 interactivo en el gateway > 1 s).",
+   "first": "max(llm:vllm_ttft_p95:rate5m) comparado con llm:gateway_ttft_p95:rate5m (en Prometheus)",
+   "causes": [
+    {
+     "cause": "La espera está antes de vLLM: la admisión del gateway está llena (réplicas caídas, batch fuera de su ventana) y los requests hacen cola en la puerta.",
+     "check": "sum(llm_gateway_inflight) / sum(llm_gateway_max_inflight) · llm_gateway_queue_depth{priority=\"interactive\"}",
+     "fix": "Recuperar capacidad (nodo caído: LLMCapacityHeadroomLow), pausar el batch y, si sigue, la escalera de degradación del C10."
+    },
+    {
+     "cause": "Cola dentro de vLLM porque el KV está lleno: prompts o salidas más largos que el plan.",
+     "check": "vllm:num_requests_waiting > 0 con vllm:kv_cache_usage_perc > 0.95 · sum(rate(vllm:request_prompt_tokens_sum[30m])) / sum(rate(vllm:request_prompt_tokens_count[30m]))",
+     "fix": "Que el tenant recorte (max_prompt_tokens en tenants.yaml), bajar el tope en vuelo del gateway, KV en FP8 tras el golden set o más réplicas."
+    },
+    {
+     "cause": "El prefix cache dejó de acertar: alguien puso algo variable al principio del prompt y cada request recalcula todo su prefill.",
+     "check": "sum(rate(vllm:prefix_cache_hits_total[5m])) / sum(rate(vllm:prefix_cache_queries_total[5m])) contra el ≈ 50 % de siempre",
+     "fix": "Lo fijo primero, lo variable al final; un cambio de prompt pasa por el barrido de carga."
+    },
+    {
+     "cause": "Con prompts largos, el prefill troceado avanza de a --max-num-batched-tokens por paso y tarda varios pasos.",
+     "check": "vllm:request_prefill_time_seconds y un barrido con otro valor",
+     "fix": "Subir --max-num-batched-tokens mejora el TTFT y empeora el TPOT: decídelo con bench/run_sweep.sh."
+    }
+   ]
+  },
+  {
+   "id": "tpot-alto",
+   "symptom": "El texto sale lento: suena LLMTPOTHigh (TPOT p95 > 50 ms).",
+   "first": "curl -s localhost:8000/metrics | grep '^vllm:num_requests_running'",
+   "causes": [
+    {
+     "cause": "Demasiadas secuencias por réplica: el decode lee los pesos una vez por paso para todas, y cada paso tarda más. El barrido del C10 cumple hasta 72 en vuelo.",
+     "check": "vllm:num_requests_running por pod contra 72 (bench/pick_concurrency.py)",
+     "fix": "Bajar el tope en vuelo del gateway o --max-num-seqs; agregar réplicas si el tráfico es real."
+    },
+    {
+     "cause": "Preemptions: las secuencias desalojadas vuelven a hacer prefill y alargan los pasos de todas.",
+     "check": "sum by (pod) (rate(vllm:num_preemptions_total[15m])) / sum by (pod) (rate(vllm:request_success_total[15m])) · Preemptions: N en el log",
+     "fix": "Más KV por réplica o menos secuencias (el síntoma de preemptions)."
+    },
+    {
+     "cause": "Prefills largos metidos en cada paso: con --max-num-batched-tokens alto, un prompt de 6k frena a los demás durante su paso.",
+     "check": "el p99 de vllm:inter_token_latency_seconds salta aunque el promedio esté bien",
+     "fix": "Bajar --max-num-batched-tokens (≈ 2,048 favorece el tiempo entre tokens) y medir el TTFT que pierdes."
+    },
+    {
+     "cause": "Corre sin CUDA graphs (--enforce-eager o cudagraph_mode NONE): cada paso de decode paga el lanzamiento de cada kernel.",
+     "check": "kubectl logs -n c10 deploy/vllm-70b -c vllm | grep -E 'Enforce eager set|Skipping CUDA graph capture'",
+     "fix": "Quitar --enforce-eager; si estaba por un error de captura, arréglalo con la versión o el tamaño de captura, no apagando los graphs."
+    }
+   ]
+  },
+  {
+   "id": "preemption",
+   "symptom": "La línea de stats del log muestra Preemptions: N, o suena LLMPreemptionsRising.",
+   "first": "kubectl logs -n c10 deploy/vllm-70b -c vllm --since=5m | grep -oE 'Preemptions: [0-9]+' | sort | uniq -c",
+   "causes": [
+    {
+     "cause": "El KV no alcanza para lo que entró: prompts o salidas más largos que el plan. vLLM V1 no escribe una línea por preemption: la ves en vllm:num_preemptions_total y en esa línea de stats.",
+     "check": "vllm:kv_cache_usage_perc cerca de 1 · el prompt promedio (vllm:request_prompt_tokens_sum ÷ _count)",
+     "fix": "Topes por tenant (max_prompt_tokens, max_tokens) o más KV: KV en FP8 tras el golden set, más réplicas."
+    },
+    {
+     "cause": "--max-num-seqs y el tope del gateway dejan entrar más secuencias de las que caben con la mezcla real. En el lab de la sección 3, 128 en vuelo dan 130 preemptions y 92, ninguna.",
+     "check": "vllm:num_requests_running contra GPU KV cache size ÷ el largo típico de una secuencia",
+     "fix": "Bajar el tope en vuelo hacia lo que el KV aguanta (el barrido del C10: 72)."
+    },
+    {
+     "cause": "Es de noche y el batch llena la flota a propósito: con --scheduling-policy priority, vLLM desaloja primero al batch (priority 10). Por eso la alerta solo mira de 06:00 a 22:00.",
+     "check": "la hora y llm_gateway_inflight{priority=\"batch\"}",
+     "fix": "Nada, si el batch termina antes de las 06:00; si no, LLMQueueBacklog lo avisa."
+    },
+    {
+     "cause": "Algo nuevo le quitó memoria al KV: un draft model de speculative decoding, adaptadores LoRA o un gpu_memory_utilization más bajo.",
+     "check": "GPU KV cache size: N tokens del arranque, antes y después del cambio",
+     "fix": "Revertir, o pagar esa memoria con otra GPU; mídelo con el barrido."
+    }
+   ]
+  },
+  {
+   "id": "respuesta-cortada",
+   "symptom": "La respuesta llega cortada: termina a mitad de frase o sin [DONE].",
+   "first": "sum by (finished_reason) (rate(vllm:request_success_total[5m]))",
+   "causes": [
+    {
+     "cause": "finish_reason length: llegó a max_tokens. Si el cliente no lo manda, el gateway pone el tope del tenant (1,024 soporte, 600 publicaciones, 400 catálogo).",
+     "check": "el finish_reason del último chunk y completion_tokens en usage",
+     "fix": "Subir el tope del tenant en tenants.yaml (es cuota y es KV) o pedir respuestas más cortas en el prompt."
+    },
+    {
+     "cause": "finish_reason length porque el prompt más la salida llenaron el contexto. En v0.30 eso es un 400 de entrada; desde v0.32 vLLM lo acepta y corta la salida en lo que quede: un prompt de 7,500 con max_tokens 1,024 sale con 692.",
+     "check": "prompt_tokens + completion_tokens en usage contra max_model_len (8,192) y la versión de la imagen",
+     "fix": "Prompts más cortos o un pool con más contexto. Antes de subir de versión, decide si quieres el 400 o el corte, y ponlo en el gateway."
+    },
+    {
+     "cause": "finish_reason abort, o un evento de error del gateway (stream_error): el pod murió a mitad o no terminó su drain (a los 60 s de --shutdown-timeout, vLLM mata el engine y lo que quedaba termina con un evento de error). Un abort antes del primer token no llega cortado: el gateway del C10 lo convierte en 502 o en el vendor.",
+     "check": "llm_gateway_requests_total{status=\"stream_error\"} · kubectl get events -n c10 --field-selector involvedObject.kind=Pod · el campo error de las líneas stream_error del gateway (upstream_aborted, upstream_error, upstream_timeout)",
+     "fix": "Despliegues fuera del pico y el presupuesto de apagado del manifest (preStop 15 s + drain 60 s + margen); el producto ofrece regenerar."
+    },
+    {
+     "cause": "Un proxy o el cliente cortó por silencio: el ALB a los 60 s sin bytes, nginx con proxy_read_timeout 60s o el timeout del cliente. El texto se corta sin [DONE] ni error.",
+     "check": "¿llegó data: [DONE]? · 499 en llm_gateway_requests_total si el que cerró fue el cliente",
+     "fix": "Timeouts de los proxies mayores que la pausa más larga. El gateway del C10 ya la acota (≤ 30 s entre eventos; después corta con un evento de error), debajo de los 60 s del ALB; sin un gateway así, keep-alives: --sse-keep-alive-interval en vLLM."
+    }
+   ]
+  },
+  {
+   "id": "contexto-excedido",
+   "symptom": "400 con This model's maximum context length is 8192 tokens…, o el 400 prompt_too_long del gateway.",
+   "first": "curl -s localhost:8000/tokenize -H 'content-type: application/json' -d '{\"model\": \"chat-70b-fp8-2026-09-28\", \"messages\": [{\"role\": \"user\", \"content\": \"…\"}]}' | jq '.count, .max_model_len'",
+   "causes": [
+    {
+     "cause": "En v0.30, vLLM reserva max_tokens dentro del contexto: prompt + max_tokens > 8,192 es un 400 (7,500 + 1,024 = 8,524).",
+     "check": "el count de /tokenize más el max_tokens que mandó el cliente",
+     "fix": "Recortar historial (turnos viejos enteros) o pedir menos max_tokens; nunca truncar el prompt a ciegas."
+    },
+    {
+     "cause": "El gateway estima caracteres ÷ 3 y dejó pasar un texto con más tokens de los estimados (números, tablas, código): el 400 llega desde vLLM y el gateway lo reenvía tal cual.",
+     "check": "usage.prompt_tokens contra la estimación del gateway (caracteres ÷ 3 + 4 por mensaje)",
+     "fix": "En producción, contar con el tokenizer del modelo en el gateway; mientras, que el cliente recorte antes (como el prompt builder del C11)."
+    },
+    {
+     "cause": "El 400 es del gateway: prompt de ≈ N tokens (tope M), el max_prompt_tokens del tenant.",
+     "check": "el code prompt_too_long en el cuerpo del error",
+     "fix": "El tenant arma prompts más cortos o pide otro tope (un cambio revisado en tenants.yaml)."
+    },
+    {
+     "cause": "Desde v0.32 ya no ves el 400 por max_tokens: solo falla un prompt más largo que el contexto, sin contar la salida.",
+     "check": "la versión de la imagen y el finish_reason de las respuestas largas",
+     "fix": "Decídelo en el gateway: rechazar prompt + max_tokens > max_model_len (lo que promete el curso) o aceptar el corte."
+    }
+   ]
+  },
+  {
+   "id": "arranque-lento",
+   "symptom": "Una réplica nueva tarda más de 10 minutos en servir, o se reinicia antes de quedar lista.",
+   "first": "kubectl get events -n c10 --sort-by=.lastTimestamp | grep vllm-70b | tail -20",
+   "causes": [
+    {
+     "cause": "No hay nodo: el pod queda Pending (Insufficient nvidia.com/gpu) mientras se consigue una p5, si hay capacidad.",
+     "check": "kubectl describe pod -n c10 -l app.kubernetes.io/name=vllm-70b | grep -A5 '^Events:'",
+     "fix": "Capacidad reservada para la base y Capacity Blocks para los eventos; por eso el C10 no escala en caliente."
+    },
+    {
+     "cause": "La imagen (≈ 9 GB comprimida) se baja en cada nodo nuevo.",
+     "check": "los eventos Pulling y Pulled, con su duración",
+     "fix": "Prebajarla en la AMI del nodo."
+    },
+    {
+     "cause": "Los pesos: el init container copia ≈ 70 GB de S3 al NVMe y verifica cada sha256.",
+     "check": "kubectl logs -n c10 deploy/vllm-70b -c fetch-weights y la hora en que arrancó el contenedor vllm",
+     "fix": "Más ancho de banda o un caché de pesos por nodo (hostPath o un DaemonSet), a cambio de más piezas."
+    },
+    {
+     "cause": "El engine: carga, perfilado, torch.compile sin caché y CUDA graphs. Con un solo API server, como el C10, vLLM lo espera sin límite y lo corta la startupProbe a los 15 min; con varios (--api-server-count > 1), vLLM corta a los 600 s con Timed out waiting for engine core processes to start.",
+     "check": "kubectl logs -n c10 deploy/vllm-70b -c vllm | grep -E 'Model loading took|torch.compile took|Graph capturing finished'",
+     "fix": "La caché de torch.compile en un volumen (VLLM_CACHE_ROOT). Si un arranque legítimo es más largo, sube la startupProbe (hoy 90 × 10 s) y, con varios API servers, VLLM_ENGINE_READY_TIMEOUT_S."
+    }
+   ]
+  },
+  {
+   "id": "stream-trabado",
+   "symptom": "El stream se traba detrás de un proxy: llega todo junto al final, llega a ráfagas o se corta a los 60 s.",
+   "first": "curl -sN \"$URL/v1/chat/completions\" -H \"Authorization: Bearer $KEY\" -H 'content-type: application/json' -d @req.json | python3 -c \"import sys, time; t = time.time(); [print(f'{time.time() - t:6.2f}', l[:60].rstrip()) for l in sys.stdin]\"",
+   "causes": [
+    {
+     "cause": "Un proxy guarda la respuesta en buffers (nginx: proxy_buffering on por defecto): el primer token llega cuando se llena el buffer o al final, y el TTFT parece el total.",
+     "check": "el mismo curl directo al gateway (port-forward) y a través del proxy: compara cuándo llega cada línea",
+     "fix": "proxy_buffering off en esa ruta, o el header de respuesta X-Accel-Buffering: no."
+    },
+    {
+     "cause": "Un timeout por silencio: el ALB corta a los 60 s sin bytes (idle timeout) y nginx a los 60 s (proxy_read_timeout). Pasa con colas o prefills largos, o con tool calls lentas.",
+     "check": "¿se corta siempre cerca de los 60 s?",
+     "fix": "Timeouts mayores que la pausa más larga, y keep-alives donde nadie acote esa pausa: --sse-keep-alive-interval en vLLM (0 = apagado). El gateway del C10 no los reenvía ni los necesita: corta tras 30 s sin bytes de vLLM, así que hacia el cliente no llega a callar 60 s."
+    },
+    {
+     "cause": "El cliente no lee en streaming: curl sin -N guarda la salida, y el cliente de openai sin stream=True espera la respuesta entera.",
+     "check": "curl -N y stream=True",
+     "fix": "Leer evento por evento; el gateway del C10 ya manda Cache-Control: no-cache."
+    }
+   ]
+  },
+  {
+   "id": "salida-basura",
+   "symptom": "La salida es repetitiva o basura: frases que se repiten, un idioma raro, tokens especiales a la vista.",
+   "first": "curl -s localhost:8000/v1/models | jq -r '.data[].id'   # ¿es la revisión que crees?",
+   "causes": [
+    {
+     "cause": "Plantilla de chat equivocada o ausente: el tokenizer no trae chat template, o el modelo es base y no instruct. Sin plantilla, vLLM falla con As of transformers v4.44, default chat template is no longer allowed…; con la equivocada, responde mal sin error.",
+     "check": "jq 'has(\"chat_template\")' tokenizer_config.json en la carpeta del modelo, o un chat_template.jinja; prueba /v1/completions con el prompt armado a mano",
+     "fix": "Un checkpoint instruct con su plantilla, o --chat-template con la del modelo."
+    },
+    {
+     "cause": "Sampling: con --generation-config auto (el default) vLLM toma los defaults del generation_config.json del modelo; con vllm (el C10), los suyos. Una temperature de más, o una que no le sirve a ese modelo, da basura o repeticiones.",
+     "check": "los parámetros del request y --generation-config en los args",
+     "fix": "Que cada producto mande su temperature y top_p. Si la calidad cambió tras un upgrade, prueba --generation-config vllm, como sugiere la doc de troubleshooting."
+    },
+    {
+     "cause": "Cuantización que pierde calidad: escalas del KV en 1.0 sin calibrar, o un checkpoint cuantizado con ejemplos de calibración que no se parecen a tu tráfico (otro idioma, sin JSON).",
+     "check": "grep 'Using KV cache scaling factor 1.0' en el log · el golden set con el modelo en BF16 contra el cuantizado, por slice",
+     "fix": "Escalas del KV calibradas o un checkpoint recalibrado con ejemplos de tu tráfico; si no pasa el golden set, vuelve a la revisión anterior."
+    },
+    {
+     "cause": "No para: falta el fin de secuencia (ignore_eos activado, stop mal puesto) y genera hasta max_tokens repitiendo.",
+     "check": "finish_reason length en respuestas que deberían ser cortas · ignore_eos en el request",
+     "fix": "Quitar ignore_eos (es para benchmarks) y revisar stop."
+    }
+   ]
+  },
+  {
+   "id": "gpu-ociosa",
+   "symptom": "Throughput bajo con la GPU ociosa: pocos tokens/s y nvidia-smi con utilización baja.",
+   "first": "curl -s localhost:8000/metrics | grep -E '^vllm:num_requests_(running|waiting)'",
+   "causes": [
+    {
+     "cause": "No llega concurrencia: el cliente manda de a uno, el tope en vuelo del gateway quedó bajo, o el pool HTTP del gateway tiene tope (el default de httpx2: 100 conexiones; PoolTimeout a los 2 s).",
+     "check": "num_requests_running bajo y waiting en 0 · llm_gateway_inflight contra llm_gateway_max_inflight · 504 upstream_timeout en el gateway",
+     "fix": "Concurrencia en el cliente (el batch-runner); en el gateway, max_connections=None y el tope en la admisión, como en el C10."
+    },
+    {
+     "cause": "--max-num-seqs muy bajo: corriendo queda clavado en ese número, con cola y con KV de sobra.",
+     "check": "num_requests_running igual a --max-num-seqs, waiting > 0 y kv_cache_usage_perc bajo",
+     "fix": "Subirlo hasta lo que el barrido aguanta dentro del SLO."
+    },
+    {
+     "cause": "CPU: tokenizar, detokenizar y el API server corren en CPU, y con pocos cores la GPU espera.",
+     "check": "kubectl top pod -n c10 -l app.kubernetes.io/name=vllm-70b",
+     "fix": "Más CPU por réplica (el C10 pide 40 de las 192 vCPU de la p5)."
+    },
+    {
+     "cause": "Sin CUDA graphs (--enforce-eager): cada paso de decode lanza los kernels de a uno y la GPU espera a la CPU.",
+     "check": "grep -E 'Enforce eager set|Skipping CUDA graph capture' en el log",
+     "fix": "Quitar --enforce-eager."
+    }
+   ]
+  },
+  {
+   "id": "nccl-cuelga",
+   "symptom": "Con TP=2 el pod se cuelga al arrancar o a mitad, sin un error claro, o el log muestra NCCL WARN.",
+   "first": "kubectl logs -n c10 deploy/vllm-70b -c vllm | grep -iE 'nccl'",
+   "causes": [
+    {
+     "cause": "/dev/shm chico: el de un contenedor es de 64 MiB y NCCL necesita más (NCCL WARN Error: failed to extend /dev/shm/nccl-… to … bytes).",
+     "check": "kubectl exec -n c10 deploy/vllm-70b -c vllm -- df -h /dev/shm",
+     "fix": "Un emptyDir con medium Memory montado en /dev/shm (16Gi en el C10); en Docker, --shm-size=1g --ulimit memlock=-1."
+    },
+    {
+     "cause": "La comunicación entre GPUs (P2P o NVLink) está rota o mal detectada: driver, topología o una GPU con errores.",
+     "check": "kubectl exec -n c10 deploy/vllm-70b -c vllm -- nvidia-smi topo -m · el script de prueba de la doc de troubleshooting de vLLM: NCCL_DEBUG=TRACE torchrun --nproc-per-node=2 test.py (espera sanity check is successful!)",
+     "fix": "Arreglar el nodo (driver, la GPU con errores XID); NCCL_P2P_DISABLE=1 solo como prueba temporal, como dice la doc."
+    },
+    {
+     "cause": "Las dos GPUs no están en el mismo nodo o no tienen NVLink: TP sincroniza en cada capa, y por red se vuelve lentísimo o se cuelga.",
+     "check": "kubectl get pod -n c10 -l app.kubernetes.io/name=vllm-70b -o wide y el nodeSelector (p5.48xlarge)",
+     "fix": "TP solo dentro del nodo; entre nodos, pipeline parallelism o réplicas."
+    },
+    {
+     "cause": "Un proceso de TP murió (OOM, XID) y el otro espera para siempre en el all-reduce.",
+     "check": "el log completo y kubectl describe pod (reinicios); /health en 503 si el engine murió",
+     "fix": "La causa del proceso caído; la liveness del C10 reinicia un engine colgado tras 6 × 10 s."
+    }
+   ]
+  },
+  {
+   "id": "429-gateway",
+   "symptom": "El gateway devuelve 429 (rate_limit_exceeded) a un tenant.",
+   "first": "sum by (tenant) (rate(llm_gateway_requests_total{status=\"429\"}[5m]))",
+   "causes": [
+    {
+     "cause": "El tenant llegó a su cuota de tokens/min en su propio pico: es lo pactado, no una falla (no cuenta en LLMGatewayErrorRate).",
+     "check": "sum by (tenant) (rate(llm_gateway_tokens_total[5m])) * 60 contra tokens_per_minute en tenants.yaml",
+     "fix": "Subir la cuota ≈ 1.5× su pico medido (un cambio revisado), como recomienda el curso."
+    },
+    {
+     "cause": "El cobro pesimista retiene saldo: cada request cobra prompt + max_tokens hasta terminar, y un max_tokens alto que casi no se usa agota el balde en las ráfagas (446 requests de 3,024 contra 600 de 2,250 en un minuto).",
+     "check": "completion_tokens reales contra el max_tokens pedido",
+     "fix": "Pedir en cada llamada el max_tokens que de verdad se necesita."
+    },
+    {
+     "cause": "Las 4 réplicas del gateway no reciben lo mismo: cada una tiene cuota ÷ 4, y una se agota mientras otra tiene saldo.",
+     "check": "sum by (pod) (rate(llm_gateway_requests_total{status=\"429\"}[5m]))",
+     "fix": "Un store compartido (Redis con un script atómico), que la referencia no incluye; mientras, balanceo parejo."
+    },
+    {
+     "cause": "Un loop de reintentos: el cliente de openai reintenta 2 veces los 429 por defecto, más lo que reintente la app.",
+     "check": "los requests por segundo del tenant contra su tráfico normal",
+     "fix": "max_retries bajo en interactivo y backoff con jitter en el batch-runner; si es un bug, bajarle la cuota hasta el arreglo."
+    }
+   ]
+  },
+  {
+   "id": "descarga-falla",
+   "symptom": "vLLM no puede conseguir el modelo: GatedRepoError, un 401 o 403 del Hub, o LocalEntryNotFoundError.",
+   "first": "kubectl logs -n c10 deploy/vllm-70b -c vllm --previous | grep -E 'GatedRepoError|RepositoryNotFoundError|LocalEntryNotFoundError'",
+   "causes": [
+    {
+     "cause": "Repo gated (hay que pedir acceso, como en meta-llama): sin token, 401; con un token sin acceso aprobado, 403.",
+     "check": "curl -s -o /dev/null -w '%{http_code}\\n' -H \"Authorization: Bearer $HF_TOKEN\" https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/resolve/main/config.json",
+     "fix": "Pedir acceso en la página del modelo y usar un token de lectura en HF_TOKEN, desde un Secret."
+    },
+    {
+     "cause": "Modo offline: con HF_HUB_OFFLINE=1 (como el C10) y un nombre de repo en vez de una carpeta, huggingface_hub no sale a internet y no encuentra nada local.",
+     "check": "el primer argumento de vllm serve: ¿/models/… u org/modelo?",
+     "fix": "La ruta local que dejó el init container (/models/chat-70b-fp8-2026-09-28), o quitar HF_HUB_OFFLINE donde sí se baje del Hub."
+    },
+    {
+     "cause": "Nombre o revisión mal escritos: RepositoryNotFoundError (Repository Not Found for url: …) o RevisionNotFoundError.",
+     "check": "hf download org/modelo config.json con el mismo token",
+     "fix": "Copiar el repo id y la revisión exactos de la página del modelo."
+    },
+    {
+     "cause": "En el C10 los pesos vienen de S3: el init container falla si un archivo no coincide con SHA256SUMS o si sobra uno, y el pod queda en Init:Error.",
+     "check": "kubectl logs -n c10 deploy/vllm-70b -c fetch-weights | tail",
+     "fix": "Republicar la revisión completa en S3 (nunca sobrescribir un prefijo) o corregir el manifiesto de hashes."
+    }
+   ]
+  }
+ ],
+ "errores": [
+  {
+   "msg": "Value error, Model architectures ['…ForCausalLM'] are not supported for now. Supported architectures: … [type=value_error, …]",
+   "meaning": "vLLM no tiene implementación para la arquitectura que pide el config.json del modelo (el campo architectures), ni propia ni de respaldo. Pasa con modelos muy nuevos. Llega envuelto por pydantic (la librería con la que vLLM valida su configuración): la línea de arriba dice pydantic_core._pydantic_core.ValidationError: 1 validation error for ModelConfig. No es tu configuración: necesitas una versión de vLLM que la soporte, otro motor (SGLang, TensorRT-LLM) u otro modelo.",
+   "first": "jq '.architectures, .model_type' config.json",
+   "topic": "conceptos",
+   "section": "que-es"
+  },
+  {
+   "msg": "This model's maximum context length is 8192 tokens. However, you requested 1024 output tokens and your prompt contains at least 7169 input tokens, for a total of at least 8193 tokens. Please reduce the length of the input prompt or the number of requested output tokens.",
+   "meaning": "Un 400 de vLLM v0.30: reserva max_tokens dentro del contexto, y 7,500 + 1,024 no entran en 8,192. El gateway del C10 lo reenvía tal cual (es un 4xx: sin fallback). Desde v0.32 el mismo request se acepta y la salida se corta en 692 tokens, con finish_reason length.",
+   "first": "curl -s localhost:8000/tokenize -H 'content-type: application/json' -d '{\"model\": \"chat-70b-fp8-2026-09-28\", \"messages\": [{\"role\": \"user\", \"content\": \"…\"}]}' | jq '.count, .max_model_len'",
+   "topic": "tokens",
+   "section": "tokens"
+  },
+  {
+   "msg": "As of transformers v4.44, default chat template is no longer allowed, so you must provide a chat template if the tokenizer does not define one.",
+   "meaning": "El tokenizer del modelo no trae plantilla de chat (el chat template: cómo se juntan system, user y assistant en un solo texto), y /v1/chat/completions no sabe armar el prompt. Típico de un modelo base, no instruct.",
+   "first": "jq 'has(\"chat_template\")' tokenizer_config.json; ls chat_template.jinja",
+   "topic": "tokens",
+   "section": "tokens"
+  },
+  {
+   "msg": "torch.OutOfMemoryError: CUDA out of memory. Tried to allocate … GiB. GPU 0 has a total capacity of … GiB of which … MiB is free. …",
+   "meaning": "PyTorch no consiguió memoria de GPU. Al arrancar: otro proceso usa la GPU, los pesos no caben con ese TP o la captura de CUDA graphs no entró. Con tráfico casi nunca es el KV: vLLM lo reservó entero al arrancar.",
+   "first": "nvidia-smi --query-compute-apps=pid,used_memory --format=csv",
+   "topic": "memoria",
+   "section": "memoria"
+  },
+  {
+   "msg": "ValueError: Free memory on device … (…/… GiB) on startup is less than desired GPU memory utilization (0.9, … GiB). Decrease GPU memory utilization or reduce GPU memory used by other processes.",
+   "meaning": "Al arrancar, vLLM mide la memoria libre de cada GPU y exige que alcance para su fracción (0.90 × el total en el C10). Algo más ya la ocupa: un pod viejo, otro vLLM, un proceso colgado.",
+   "first": "nvidia-smi --query-compute-apps=pid,used_memory --format=csv",
+   "topic": "memoria",
+   "section": "memoria"
+  },
+  {
+   "msg": "ValueError: To serve at least one request with the model's max seq len (131072), (… GiB KV cache is needed, which is larger than the available KV cache memory (… GiB). Based on the available memory, the estimated maximum model length is …. Try increasing `gpu_memory_utilization` (which also controls CPU memory on the CPU backend) or decreasing `max_model_len` when initializing the engine. See https://docs.vllm.ai/en/latest/configuration/conserving_memory/ for more details.",
+   "meaning": "El KV libre no alcanza para una sola secuencia del largo máximo. Casi siempre es no haber fijado --max-model-len: vLLM toma el del config.json (131,072 en los Llama 3.x), y un 8B en una L4 necesitaría 16 GiB de KV para una sola. El mensaje trae el largo que sí cabe. En el 70B del C10 una de 131,072 sí cabe (40 GiB), pero apenas ≈ 1.6 a la vez.",
+   "first": "kubectl logs -n c10 deploy/vllm-70b -c vllm --previous | grep -E 'max seq len|Available KV cache memory'",
+   "topic": "memoria",
+   "section": "memoria"
+  },
+  {
+   "msg": "TimeoutError: Timed out waiting for engine core processes to start. This is often caused by slow weight loading for large models. Waited 600s (configured by VLLM_ENGINE_READY_TIMEOUT_S). To increase the timeout, set the environment variable: VLLM_ENGINE_READY_TIMEOUT_S=<seconds>",
+   "meaning": "Un proceso del API esperó 10 minutos a que el engine terminara de arrancar (cargar pesos, perfilar, compilar, capturar CUDA graphs) y se rindió. En v0.30 solo pasa cuando el API corre en procesos aparte (--api-server-count mayor que 1, o data parallel, que lo sube solo): con un único API server, como en el C10, vLLM espera al engine sin límite y el tope es la startupProbe (15 min). Causas típicas: pesos en un disco lento o torch.compile sin caché.",
+   "first": "kubectl logs -n c10 deploy/vllm-70b -c vllm --previous | grep -E 'Model loading took|torch.compile took|Graph capturing'",
+   "topic": "arranque",
+   "section": "arrancar"
+  },
+  {
+   "msg": "RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {…}",
+   "meaning": "Un envoltorio: el engine corre en otro proceso y murió al arrancar. La causa real es la primera excepción más arriba en el log: un ValueError de configuración, un OutOfMemoryError, un error de NCCL.",
+   "first": "kubectl logs -n c10 deploy/vllm-70b -c vllm --previous | grep -m1 -B2 -A8 -E 'Error|Exception'",
+   "topic": "arranque",
+   "section": "arrancar"
+  },
+  {
+   "msg": "Value error, User-specified max_model_len (262144) is greater than the derived max_model_len (max_position_embeddings=131072 or model_max_length=… in model's config.json). To allow overriding this maximum, set the env var VLLM_ALLOW_LONG_MAX_MODEL_LEN=1. … [type=value_error, …]",
+   "meaning": "Pediste un contexto más largo que el que el modelo dice soportar. vLLM se niega porque las posiciones de más dan salidas malas o errores de CUDA; VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 lo permite, bajo tu riesgo. Llega envuelto por pydantic: arriba dice 1 validation error for ModelConfig.",
+   "first": "jq '.max_position_embeddings, .rope_scaling' config.json",
+   "topic": "config",
+   "section": "arrancar"
+  },
+  {
+   "msg": "The model `chat-default` does not exist.",
+   "meaning": "Un 404 de vLLM: el model del request no es el --served-model-name de ese pod (ni un LoRA cargado). Pasa si alguien llama a vLLM con el alias en vez de la revisión, o si un Service mezcla pods de dos revisiones (por eso el canario va en su propio Service).",
+   "first": "curl -s localhost:8000/v1/models | jq -r '.data[].id'",
+   "topic": "api",
+   "section": "api"
+  },
+  {
+   "msg": "openai.APIConnectionError: Connection error.",
+   "meaning": "El cliente de openai no pudo hablar con el servidor: nadie escucha en ese puerto, el nombre no resuelve o falló TLS. No hubo respuesta HTTP, así que no hay status. Antes de lanzarla ya reintentó 2 veces.",
+   "first": "curl -sv \"$OPENAI_BASE_URL/models\" -H \"Authorization: Bearer $OPENAI_API_KEY\" 2>&1 | head -20",
+   "topic": "cliente",
+   "section": "api"
+  },
+  {
+   "msg": "openai.APITimeoutError: Request timed out.",
+   "meaning": "No llegó nada a tiempo: el default es 600 s entre bytes y 5 s para conectar. Si el destino descarta paquetes en silencio (una NetworkPolicy), también sale timeout y no Connection error. El gateway del C10 corta antes: 504 si vLLM no da el primer token en 10 s.",
+   "first": "curl -s -o /dev/null -w 'conecta %{time_connect} s · primer byte %{time_starttransfer} s\\n' \"$OPENAI_BASE_URL/models\"",
+   "topic": "cliente",
+   "section": "api"
+  },
+  {
+   "msg": "The engine is currently busy and cannot accept new requests. Please try again later or on a different instance.",
+   "meaning": "Un 503 de vLLM por su propio tope: solo pasa si alguien puso --max-num-queued-reqs (cuántos requests puede tener a la vez, esperando o corriendo; sin límite por defecto). El C10 no lo usa: la admisión vive en el gateway, que trataría este 503 como una falla del upstream (502 o el vendor).",
+   "first": "kubectl get deploy vllm-70b -n c10 -o jsonpath='{.spec.template.spec.containers[0].args}'",
+   "topic": "batching",
+   "section": "batching"
+  },
+  {
+   "msg": "error: bench/tests/fixtures/p99-only.json: faltan ['p95_ttft_ms', 'p95_tpot_ms'] (hay ['p99_ttft_ms']). Corre vllm bench serve con --percentile-metrics ttft,tpot,itl,e2el --metric-percentiles 50,95,99",
+   "meaning": "Lo dice bench/pick_concurrency.py del C10 (sale con código 2): el JSON de vllm bench serve no tiene p95 porque el default de --metric-percentiles es solo 99. El script no reemplaza p95 por p99 en silencio.",
+   "first": "jq -r 'keys[] | select(test(\"^p[0-9]+_(ttft|tpot)_ms$\"))' results/sweep-c072.json",
+   "topic": "metricas",
+   "section": "metricas"
+  },
+  {
+   "msg": "Value error, Total number of attention heads (64) must be divisible by tensor parallel size (3). [type=value_error, …]",
+   "meaning": "Con TP, cada GPU se queda con una parte de los heads de atención: los 64 heads (y 8 KV heads) del 70B se reparten parejo entre 1, 2, 4 u 8 GPUs de un nodo. Llega envuelto por pydantic: arriba dice 1 validation error for VllmConfig.",
+   "first": "jq '.num_attention_heads, .num_key_value_heads' config.json",
+   "topic": "paralelismo",
+   "section": "paralelismo"
+  },
+  {
+   "msg": "NCCL WARN Error: failed to extend /dev/shm/nccl-03v824 to 4194660 bytes",
+   "meaning": "NCCL (la librería que comunica las GPUs de una réplica con TP=2) usa memoria compartida en /dev/shm y no le alcanzó: el /dev/shm de un contenedor es de 64 MiB por defecto. Según la doc de NCCL, así no logra inicializarse: vLLM falla al arrancar o se queda colgado esperando a la otra GPU.",
+   "first": "kubectl exec -n c10 deploy/vllm-70b -c vllm -- df -h /dev/shm",
+   "topic": "nccl",
+   "section": "paralelismo"
+  },
+  {
+   "msg": "Value error, The quantization method fp8 is not supported for the current GPU. Minimum capability: 75. Current capability: 70. [type=value_error, …]",
+   "meaning": "La GPU es más vieja de lo que pide el método. En vLLM v0.30, FP8 corre desde Turing (7.5) como pesos (W8A16) y nativo desde 8.9 (Ada, Hopper, Blackwell); una V100 (7.0) no puede. Llega envuelto por pydantic: arriba dice 1 validation error for VllmConfig.",
+   "first": "nvidia-smi --query-gpu=name,compute_cap --format=csv",
+   "topic": "cuantizacion",
+   "section": "cuantizacion"
+  },
+  {
+   "msg": "Using KV cache scaling factor 1.0 for fp8_e4m3. If this is unintended, verify that k/v_scale scaling factors are properly set in the checkpoint.",
+   "meaning": "Un warning al arrancar con --kv-cache-dtype fp8: el checkpoint cuantizado (como el FP8 del C10) no trae escalas para K y V (kv_cache_scheme: null) y vLLM usa 1.0. Corre, pero sin calibrar: mide la calidad con el golden set antes de dejarlo. Con un checkpoint sin cuantizar también usa 1.0, pero sin avisar.",
+   "first": "jq '.quantization_config.kv_cache_scheme' config.json",
+   "topic": "cuantizacion",
+   "section": "cuantizacion"
+  },
+  {
+   "msg": "LoRA rank 32 is greater than max_lora_rank 16.",
+   "meaning": "El adaptador tiene rank 32 y vLLM arrancó con el default de --max-lora-rank (16). vLLM reserva memoria para el rank máximo, así que no lo carga.",
+   "first": "jq .r adapter_config.json",
+   "topic": "optimizacion",
+   "section": "optimizar"
+  },
+  {
+   "msg": "Skipping CUDA graph capture. To turn on CUDA graph capture, ensure `cudagraph_mode` was not manually set to `NONE`",
+   "meaning": "Un warning: vLLM arrancó sin CUDA graphs porque cudagraph_mode quedó en NONE, casi siempre a mano (-cc.cudagraph_mode=none) o con -O0. Con --enforce-eager no sale este aviso sino Enforce eager set, disabling torch.compile and CUDAGraphs. En los dos casos arranca antes y decodifica más lento: en cada paso de decode la GPU espera a que la CPU lance los kernels.",
+   "first": "kubectl get deploy vllm-70b -n c10 -o jsonpath='{.spec.template.spec.containers[0].args}' | tr ',' '\\n' | grep -E 'eager|compilation|optimization|-O|-cc'",
+   "topic": "optimizacion",
+   "section": "optimizar"
+  },
+  {
+   "msg": "openai.RateLimitError: Error code: 429 - {'error': {'message': 'cuota de tokens por minuto agotada', 'type': 'rate_limit_error', 'code': 'rate_limit_exceeded'}}",
+   "meaning": "Lo dice el llm-gateway del C10 (code rate_limit_exceeded): el balde de tokens del tenant en esa réplica no alcanza para el prompt estimado + max_tokens. Trae Retry-After; el cliente de openai ya reintentó 2 veces respetándolo.",
+   "first": "sum by (tenant) (rate(llm_gateway_requests_total{status=\"429\"}[5m]))",
+   "topic": "gateway",
+   "section": "gateway-llm"
+  },
+  {
+   "msg": "{\"error\":{\"message\":\"plataforma sin capacidad (queue_timeout)\",\"type\":\"overloaded_error\",\"code\":\"overloaded\"}}",
+   "meaning": "Un 503 del gateway: no hubo lugar en vuelo y el request esperó más de 0.5 s (queue_timeout; queue_full = la cola ya estaba llena). Es la plataforma, no el tenant: cuenta en LLMGatewayErrorRate. Publicaciones iría al vendor; soporte recibe esto con Retry-After: 2.",
+   "first": "sum(llm_gateway_inflight) / sum(llm_gateway_max_inflight)",
+   "topic": "gateway",
+   "section": "gateway-llm"
+  },
+  {
+   "msg": "{\"error\":{\"message\":\"el modelo no respondió a tiempo\",\"type\":\"api_error\",\"code\":\"upstream_timeout\"}}",
+   "meaning": "Un 504 del gateway antes del primer byte: vLLM no dio el primer token en 10 s, no se pudo conectar en 2 s, o el pool HTTP no tuvo una conexión libre (PoolTimeout). Con el default de httpx2 (100 conexiones) pasaría desde el request 101 en vuelo de una réplica; el C10 usa max_connections=None.",
+   "first": "max(llm:vllm_ttft_p95:rate5m) · sum(vllm:num_requests_waiting)",
+   "topic": "gateway",
+   "section": "gateway-llm"
+  },
+  {
+   "msg": "GatedRepoError: 401 Client Error. … Cannot access gated repo for url https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/resolve/main/config.json.",
+   "meaning": "huggingface_hub: el repo es gated (hay que pedir acceso y que lo aprueben). 401 = sin token; 403 = un token sin acceso aprobado o sin permiso de lectura.",
+   "first": "curl -s -o /dev/null -w '%{http_code}\\n' -H \"Authorization: Bearer $HF_TOKEN\" https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct/resolve/main/config.json",
+   "topic": "otro",
+   "section": "diagnostico"
+  },
+  {
+   "msg": "LocalEntryNotFoundError: An error happened while trying to locate the file on the Hub and we cannot find the requested files in the local cache. Please check your connection and try again or make sure your Internet connection is on.",
+   "meaning": "huggingface_hub no pudo preguntarle al Hub (sin red, o con HF_HUB_OFFLINE=1 como en el C10) y el archivo no está en la caché local. En el C10 quiere decir que vLLM recibió un nombre de repo en vez de la carpeta /models/….",
+   "first": "kubectl get deploy vllm-70b -n c10 -o jsonpath='{.spec.template.spec.containers[0].args[0]}'",
+   "topic": "otro",
+   "section": "diagnostico"
+  },
+  {
+   "msg": "EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.",
+   "meaning": "El engine murió con el servidor ya corriendo (un XID, o sea una falla de la GPU que reporta el driver; un error de CUDA; un bug). No se recupera: /health pasa a 503, la liveness reinicia el pod y los streams en curso se cortan (stream_error en el gateway).",
+   "first": "kubectl logs -n c10 deploy/vllm-70b -c vllm --previous | grep -m1 -B5 -A20 Traceback",
+   "topic": "otro",
+   "section": "diagnostico"
+  }
+ ]
+}

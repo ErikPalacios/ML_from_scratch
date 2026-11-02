@@ -1,0 +1,10 @@
+# Dependencias de RUNTIME del inspector, fijadas con == y probadas con Python 3.10 (el de
+# Ubuntu 22.04 en JetPack 6.2.x y en la imagen base l4t-tensorrt) y con Python 3.13.
+# Ninguna tiene dependencias transitivas: esta lista ES el lock completo.
+# TensorRT (python3-libnvinfer) NO va aquí: viene de apt en la imagen base, atado a JetPack.
+# Para los tests: pip install -r requirements.txt pytest==9.1.1 (pytest no entra a la imagen).
+
+numpy==1.26.4  # la imagen como ndarray. Línea 1.x a propósito: los samples de TensorRT 10.3 fijan NumPy 1.x
+PyYAML==6.0.3  # config.yaml (yaml.safe_load)
+prometheus-client==0.26.0  # Counter/Gauge/Histogram y el endpoint /metrics
+pymodbus==3.15.0  # cliente Modbus TCP hacia el PLC. Fijado: su API cambia dentro de 3.x (en 3.10, slave= pasó a device_id=)

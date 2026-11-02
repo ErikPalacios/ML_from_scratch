@@ -1,0 +1,55 @@
+# El sistema completo en UNA máquina: gateway (CPU) + Triton (GPU) + Prometheus (caso c01).
+# Sirve para desarrollo y pruebas de integración; producción corre en Kubernetes (k8s/).
+# Requisitos: GPU NVIDIA + driver + NVIDIA Container Toolkit, y el engine ya construido con
+# model/build_engine.sh (triton/Dockerfile falla el build si falta model.plan).
+# Uso: docker compose up --build   →   curl -H "Content-Type: image/jpeg" --data-binary @foto.jpg localhost:8080/v1/classify
+
+name: classifier-c01  # prefijo de contenedores y red: no choca con otros proyectos compose
+
+services:
+  triton:
+    build: ./triton  # imagen con el modelo horneado (misma que se sube al registry para k8s)
+    ports:
+      - "8000:8000"  # HTTP/REST KServe v2 (el gateway) y /v2/health/*
+      - "8001:8001"  # gRPC (perf_analyzer, clientes que lo prefieran)
+      - "8002:8002"  # métricas Prometheus nv_*
+    shm_size: 1g  # Triton usa /dev/shm; los 64 MB por defecto de Docker se quedan cortos
+    deploy:
+      resources:
+        reservations:
+          devices:  # así pide compose una GPU (equivale a `docker run --gpus 1`)
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      # ready = servidor arriba Y modelo cargado (con --strict-readiness); la imagen de Triton trae curl
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/v2/health/ready"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+      start_period: 60s  # cargar el engine + warmup tarda; no marcar unhealthy mientras tanto
+
+  gateway:
+    build: ./gateway  # imagen multi-stage de gateway/Dockerfile
+    ports:
+      - "8080:8080"  # la API pública: POST /v1/classify
+    environment:  # misma configuración que en k8s, solo cambian los valores
+      TRITON_URL: "triton:8000"  # nombre del servicio en la red de compose, sin http://
+      MODEL_NAME: "classifier"
+      MODEL_VERSION: "2026-09-01-resnet50-fp16"  # lo devuelve la API y queda en cada línea de log
+      INFER_TIMEOUT_S: "0.15"
+    depends_on:
+      triton:
+        condition: service_healthy  # no arranca hasta que el modelo esté listo (evita 503 al inicio)
+    restart: unless-stopped  # si el proceso muere, Docker lo levanta (en k8s lo hace el kubelet)
+
+  prometheus:
+    image: prom/prometheus:v3.13.3  # tag fijo (nunca latest): 3.13 es la LTS vigente (soporte hasta 2027-07-31); sube de parche dentro de 3.13.x
+    ports:
+      - "9090:9090"  # UI: http://localhost:9090/alerts muestra las 6 alertas y su estado
+    volumes:  # montados en la ruta que usa el CMD por defecto de la imagen: no hace falta `command`
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+    depends_on:
+      - gateway
+      - triton

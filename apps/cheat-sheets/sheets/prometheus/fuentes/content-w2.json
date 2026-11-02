@@ -1,0 +1,2160 @@
+{
+  "sections": [
+    {
+      "id": "promql",
+      "num": 5,
+      "title": "PromQL básico: selectores, rangos, rate y agregaciones",
+      "question": "¿Cómo le preguntas a Prometheus «cuántos requests por segundo», «qué fracción falla» o «qué pod va peor», sin que la respuesta te engañe?",
+      "templates": [
+        {
+          "code": "{métrica}{source=\"{valor}\", status=~\"{regex}\"}",
+          "note": "Un <b>selector</b> elige <b>series</b> (cada serie es la historia de un número en el tiempo, con sus labels): el nombre de la métrica y, entre llaves, <b>matchers</b> (filtros por label, las etiquetas clave-valor de cada serie). <code>=</code> igual, <code>!=</code> distinto, <code>=~</code> cumple la regex (expresión regular), <code>!~</code> no la cumple. La regex tiene que calzar con el valor completo: <code>status=~\"5..\"</code> toma 500 y 503, no 1500. El resultado es un <b>instant vector</b> (vector instantáneo): el último valor de cada serie."
+        },
+        {
+          "code": "{métrica}{…}[{ventana}]",
+          "note": "Con <code>[5m]</code> pides todas las <b>muestras</b> (cada lectura guardada: una hora y un valor) de los últimos 5 minutos de cada serie: un <b>range vector</b> (vector de rango). No se grafica directo: es lo que reciben <code>rate()</code> y las funciones <code>*_over_time</code>. La ventana deja afuera el borde viejo e incluye el de ahora."
+        },
+        {
+          "code": "rate({counter}[{ventana}])\nincrease({counter}[{ventana}])\nirate({counter}[{ventana}])",
+          "note": "Para <b>counters</b> (contadores que solo suben, como el odómetro de un auto). <code>rate</code> da la velocidad: cuánto sube por segundo, en promedio, dentro de la ventana. <code>increase</code> da cuánto subió en toda la ventana. <code>irate</code> mira solo las dos últimas muestras. Los tres corrigen los <b>reinicios</b> (el proceso arranca de nuevo y el contador vuelve a 0). Prometheus solo exige 2 muestras dentro de la ventana; la regla práctica es una ventana de al menos 4 scrapes (4 lecturas de Prometheus): 1m con los 15 s de C01. Es la regla que usa Grafana en su ventana automática, <code>$__rate_interval</code>."
+        },
+        {
+          "code": "sum by ({label}) (rate({counter}[{ventana}]))\ntopk({k}, sum by ({label}) (rate({counter}[{ventana}])))",
+          "note": "<b>Agregar</b> junta muchas series en una. <code>sum by (source)</code> suma y deja solo el label <code>source</code>; <code>without (pod)</code> quita los labels que nombras y deja el resto. <code>topk(3, …)</code> se queda con las 3 series más altas, con sus labels. Siempre <code>rate</code> primero y <code>sum</code> después: si sumas los counters crudos, el reinicio de un pod hace bajar la suma y <code>rate</code> lo toma como un reinicio del total: sale un pico falso."
+        },
+        {
+          "code": "sum(rate({errores}[{ventana}])) / sum(rate({total}[{ventana}]))",
+          "note": "Una <b>proporción</b> (ratio). Al dividir, Prometheus empareja las series que tienen exactamente los mismos labels; las que no tienen pareja desaparecen, sin error. Por eso se agrega igual de los dos lados. <code>on(…)</code> o <code>ignoring(…)</code> eligen con qué labels emparejar, y <code>group_left</code> deja que varias series de la izquierda usen la misma de la derecha."
+        },
+        {
+          "code": "{expresión} > {umbral}\n{expresión} > bool {umbral}\nrate({counter}[{ventana}] offset {duración})",
+          "note": "Una comparación <b>filtra</b>: quedan solo las series que la cumplen; en una regla de alerta, cada serie que queda es una alerta. Con <code>bool</code> devuelve 1 o 0 para todas, sin filtrar. <code>offset 1w</code> corre la consulta una semana hacia atrás (para comparar con el mismo día de la semana pasada) y va pegado al selector, dentro del <code>rate(…)</code>."
+        }
+      ],
+      "formulas": [
+        "\\Delta x = x_n - x_1 + \\sum_{\\text{reinicios}} x_{\\text{antes del reinicio}}",
+        "\\texttt{rate}(x[w]) \\approx \\frac{\\Delta x}{t_n - t_1} \\qquad \\texttt{increase}(x[w]) = \\texttt{rate}(x[w]) \\times w",
+        "\\texttt{irate}(x[w]) = \\frac{x_n - x_{n-1}}{t_n - t_{n-1}}",
+        "w \\ge 4 \\times 15\\,\\text{s} = 1\\,\\text{min}\\ (\\text{regla práctica}) \\qquad \\text{figura: } \\frac{480 - 1320 + 1680}{150\\,\\text{s} - 45\\,\\text{s}} = \\frac{840}{105\\,\\text{s}} = 8\\ \\text{req/s}"
+      ],
+      "vars": [
+        [
+          "{métrica}",
+          "nombre de la métrica",
+          "classifier_requests_total"
+        ],
+        [
+          "{valor}",
+          "valor exacto de un label (los valores son texto)",
+          "\"mobile\""
+        ],
+        [
+          "{regex}",
+          "expresión regular que tiene que calzar con todo el valor",
+          "\"5..\" (de 500 a 599)"
+        ],
+        [
+          "{ventana}",
+          "largo del rango: número y unidad (ms, s, m, h, d, w, y)",
+          "5m en las alertas de C01; 2m en la query de KEDA (el que escala Triton)"
+        ],
+        [
+          "{counter}",
+          "un contador: suele terminar en _total, _count, _sum o _bucket (varios de Triton no llevan sufijo)",
+          "classifier_requests_total, nv_inference_request_success"
+        ],
+        [
+          "{label}",
+          "label que queda después de agregar",
+          "source, model_version, le"
+        ],
+        [
+          "{k}",
+          "cuántas series dejar",
+          "3"
+        ],
+        [
+          "{errores}, {total}",
+          "selectores del numerador y del denominador",
+          "classifier_requests_total{status=~\"5..\"} y classifier_requests_total{status!~\"4..\"}"
+        ],
+        [
+          "{expresión}, {umbral}",
+          "lo que comparas y el número contra el que comparas",
+          "… > 0.01 (1 %)"
+        ],
+        [
+          "{duración}",
+          "cuánto hacia atrás",
+          "1d, 1w"
+        ],
+        [
+          "x_1, x_n",
+          "primer y último valor del counter dentro de la ventana",
+          "figura: 1,320 y 480"
+        ],
+        [
+          "t_1, t_n",
+          "segundo de la primera y de la última muestra",
+          "figura: 45 y 150"
+        ],
+        [
+          "Σ reinicios",
+          "lo que llevaba el contador justo antes de cada reinicio",
+          "figura: 1,680"
+        ],
+        [
+          "w",
+          "la ventana, en segundos",
+          "120 con [2m]"
+        ],
+        [
+          "≈",
+          "Prometheus extrapola hasta los bordes de la ventana; si las muestras son regulares y la cubren, da exactamente Δx / (t_n − t_1)",
+          "figura: 8.0"
+        ]
+      ],
+      "pieces": [
+        [
+          "Selector y matchers",
+          "Elige series por nombre y labels: = igual, != distinto, =~ cumple la regex, !~ no la cumple. La regex se ancla a todo el valor.",
+          "classifier_requests_total{status!~\"4..\"}"
+        ],
+        [
+          "Label vacío",
+          "Un matcher que acepta \"\" también elige las series que no tienen ese label. Un selector sin nombre necesita al menos un matcher que no acepte \"\".",
+          "classifier_requests_total{model_version=\"\"}: las que no lo tienen"
+        ],
+        [
+          "Instant vector",
+          "Un valor por serie: el último que hay hasta 5 min atrás (el lookback). Una serie sin muestras en esos 5 min no aparece.",
+          "nv_gpu_utilization"
+        ],
+        [
+          "Range vector",
+          "Todas las muestras de la ventana, por serie. No se grafica: va dentro de una función.",
+          "classifier_requests_total[5m]: unas 20 muestras a 15 s"
+        ],
+        [
+          "rate()",
+          "Velocidad media de un counter en la ventana, por segundo. Corrige reinicios y estira la cuenta hasta los bordes de la ventana (extrapola). La de las alertas y los paneles.",
+          "rate(classifier_requests_total[5m]) → req/s"
+        ],
+        [
+          "increase()",
+          "Cuánto subió en la ventana: rate × segundos de la ventana. Puede dar decimales aunque cuentes de a uno.",
+          "increase(classifier_requests_total[1h])"
+        ],
+        [
+          "irate()",
+          "Velocidad entre las dos últimas muestras. Nerviosa: para graficar counters muy rápidos, no para alertas.",
+          "irate(nv_inference_count[1m])"
+        ],
+        [
+          "*_over_time()",
+          "Resumen de un gauge (un valor que sube y baja) dentro de la ventana: promedio, máximo, mínimo.",
+          "max_over_time(nv_gpu_utilization[10m])"
+        ],
+        [
+          "sum · avg · max · min · count",
+          "Agregan muchas series en una (o en una por grupo). Promediar proporciones o percentiles no sirve: suma numeradores y denominadores.",
+          "sum by (source) (rate(classifier_requests_total[5m]))"
+        ],
+        [
+          "by (…) · without (…)",
+          "by deja solo esos labels; without quita esos y deja el resto. Se puede escribir antes o después del paréntesis.",
+          "sum by (le) (…) en un histograma"
+        ],
+        [
+          "topk(k, …) · bottomk",
+          "Las k series más altas o más bajas, con sus labels intactos.",
+          "topk(3, sum by (source) (rate(classifier_requests_total[5m])))"
+        ],
+        [
+          "+ − * / (aritmética)",
+          "Con un número, operan sobre cada serie. Entre dos vectores, emparejan series con exactamente los mismos labels y lo que no tiene pareja se cae; on (…) e ignoring (…) eligen los labels y group_left permite muchos a uno. El resultado pierde el nombre de la métrica.",
+          "… / 1000: de µs a ms · errores / total: una proporción"
+        ],
+        [
+          "> < == != >= <=",
+          "Filtran: queda lo que cumple. Con bool devuelven 0 o 1 para todo.",
+          "… > 0.01: la condición de una alerta"
+        ],
+        [
+          "and · or · unless",
+          "Operan con conjuntos de series: and deja lo de la izquierda que tiene pareja a la derecha; unless, lo de la izquierda que no la tiene; or deja todo lo de la izquierda y suma lo de la derecha que no tiene pareja.",
+          "… > 0.01 and sum(rate(…[5m])) > 1 (C01)"
+        ],
+        [
+          "offset",
+          "Corre una consulta hacia el pasado. Va pegado al selector.",
+          "rate(classifier_requests_total[5m] offset 1w)"
+        ],
+        [
+          "clamp_min(v, m)",
+          "Ningún valor queda por debajo de m: evita dividir por 0.",
+          "clamp_min(…, 1e-9) en la query de KEDA"
+        ],
+        [
+          "absent(v)",
+          "Devuelve 1 cuando v no tiene ninguna serie, y nada cuando existe: avisa si una métrica desaparece.",
+          "absent(up{job=\"gateway\"})"
+        ]
+      ],
+      "example": {
+        "title": "La query de KEDA: espera media en la cola de Triton, en ms",
+        "lang": "yaml",
+        "code": "        # Espera media en cola en ms (misma fórmula que la alerta TritonQueueTimeHigh).\n        # clamp_min evita 0/0 = NaN sin tráfico; si todo falla (0 éxitos) el valor se dispara y escala.\n        query: |\n          sum(rate(nv_inference_queue_duration_us{model=\"classifier\"}[2m]))\n            /\n          clamp_min(sum(rate(nv_inference_request_success{model=\"classifier\"}[2m])), 1e-9)\n            / 1000",
+        "source": "reference/c01/k8s/keda-triton.yaml (líneas 53–59)",
+        "notes": [
+          "Se lee de adentro hacia afuera. <code>nv_inference_queue_duration_us{model=\"classifier\"}</code> es un counter: los µs acumulados en la cola desde que arrancó Triton. Triton no le pone <code>_total</code>, pero sube como un odómetro (la hoja de Triton separa sus counters de sus gauges). Por el nombre, Prometheus 3 muestra un aviso de nivel info al hacerle <code>rate</code> (<code>metric might not be a counter…</code>): aquí no importa.",
+          "<code>rate(…[2m])</code>: cuántos µs de cola se acumulan por segundo en los últimos 2 minutos (8 muestras a 15 s). <code>sum(…)</code> junta los pods de Triton en un solo número. Primero rate, después sum.",
+          "Dividir dos rates da un promedio: µs de cola por segundo ÷ requests exitosos por segundo = µs de espera por request, y <code>/ 1000</code> lo pasa a ms. Es la cuenta de la alerta <code>TritonQueueTimeHigh</code>, que usa <code>[5m]</code> y avisa sobre 20 ms; KEDA usa 2 minutos para reaccionar antes, con objetivo de 10 ms.",
+          "<code>clamp_min(…, 1e-9)</code>: sin tráfico el denominador es 0 y 0/0 da NaN (not a number). Con el piso, 0 / 1e-9 = 0: sin cola, no escala. Y si todo falla (0 éxitos pero tiempo en cola), el valor se dispara y KEDA escala.",
+          "Si la query vuelve vacía (Prometheus no lee Triton), no hay número: con <code>ignoreNullValues: \"false\"</code> KEDA lo marca como error en vez de tomarlo como 0 (hoja de Kubernetes, autoscaling). En C01, la señal de tráfico del gateway es la misma cuenta sobre un counter: <code>rate(classifier_requests_total[5m])</code>, por caller (quién llama: el label <code>source</code>)."
+        ]
+      },
+      "figure": {
+        "kind": "rate",
+        "caption": "Un pod atiende 8 req/s y Prometheus lo lee cada 15 s. Justo después de la lectura de t = 90 s el pod se reinicia y su counter vuelve a 0. Restar el primer valor de la ventana al último da −8 req/s; rate() suma lo que el contador llevaba antes del reinicio y da 8. Cifras calculadas con la regla de Prometheus, la misma que el lab de la sección 2 hace a mano.",
+        "data": {
+          "metric": "classifier_requests_total de un pod",
+          "scrape_s": 15,
+          "x_label": "segundos",
+          "y_label": "valor del counter",
+          "samples": [
+            [
+              0,
+              960
+            ],
+            [
+              15,
+              1080
+            ],
+            [
+              30,
+              1200
+            ],
+            [
+              45,
+              1320
+            ],
+            [
+              60,
+              1440
+            ],
+            [
+              75,
+              1560
+            ],
+            [
+              90,
+              1680
+            ],
+            [
+              105,
+              120
+            ],
+            [
+              120,
+              240
+            ],
+            [
+              135,
+              360
+            ],
+            [
+              150,
+              480
+            ],
+            [
+              165,
+              600
+            ],
+            [
+              180,
+              720
+            ]
+          ],
+          "reset_between_s": [
+            90,
+            105
+          ],
+          "eval_s": 150,
+          "window": {
+            "selector": "[2m]",
+            "from_s_exclusive": 30,
+            "to_s": 150,
+            "samples_in": 8
+          },
+          "naive": {
+            "value": -8,
+            "calc": "(480 − 1320) / (150 − 45)"
+          },
+          "rate": {
+            "value": 8,
+            "calc": "(480 − 1320 + 1680) / (150 − 45) = 840 / 105"
+          },
+          "increase": {
+            "value": 960,
+            "calc": "8 req/s × 120 s"
+          },
+          "irate_at_105": {
+            "value": 8,
+            "calc": "120 / 15: bajó, así que toma el último valor solo"
+          }
+        }
+      },
+      "memo": "Cómo recordarla: <b>selector → [ventana] → rate → sum by → comparación</b>, de adentro hacia afuera. Un counter es el odómetro del auto: el número suelto no dice nada, su velocidad (<code>rate</code>) sí. Un gauge es el indicador de gasolina: se lee directo, o con <code>avg_over_time</code>. Ventana de al menos 4 scrapes (la regla práctica de Grafana; Prometheus solo exige 2 muestras); <code>rate</code> antes de <code>sum</code>.",
+      "trap": "Trampa: escribir <code>status=\"5..\"</code> con <code>=</code>. Busca el texto literal «5..»: no hay error, la consulta vuelve vacía y una alerta así nunca dispara. Para una regex va <code>=~</code>. Otra que tampoco avisa: dividir dos lados con labels distintos, como <code>sum by (source) (…) / sum(…)</code>. Sin pareja, el resultado es vacío; usa <code>/ ignoring(source) group_left sum(…)</code> o agrega igual en los dos lados.",
+      "lab": {
+        "goal": "Hacerle a un Prometheus de verdad las consultas de esta sección, sobre sus propias métricas, y ver tres errores: = con una regex, rate sin ventana y una división sin pareja.",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-prom && cd ~/lab-prom\ndocker run -d --name prom-lab -p 9090:9090 prom/prometheus:v3.13.3\ncat > q.py <<'EOF'\n# q.py: manda una consulta PromQL a la API de Prometheus y resume la respuesta (solo stdlib)\nimport json, sys, urllib.error, urllib.parse, urllib.request\n\ndef tamano(s):                                   # para ordenar: el valor, o cuántas muestras si es un rango\n    return float(s[\"value\"][1]) if \"value\" in s else len(s[\"values\"])\n\nurl = \"http://localhost:9090/api/v1/query?\" + urllib.parse.urlencode({\"query\": sys.argv[1]})\ntry:\n    r = json.load(urllib.request.urlopen(url))\nexcept urllib.error.HTTPError as e:              # 400: Prometheus no pudo leer la consulta\n    r = json.load(e)\nif r[\"status\"] != \"success\":\n    sys.exit(\"error: \" + r[\"error\"])\nd = r[\"data\"]\nprint(d[\"resultType\"], \"·\", len(d[\"result\"]), \"serie(s)\")\nfor s in sorted(d[\"result\"], key=tamano, reverse=True)[:4]:   # solo las 4 de valor más alto\n    labels = {k: v for k, v in s[\"metric\"].items() if k != \"__name__\"}\n    valor = s[\"value\"][1] if \"value\" in s else f'{len(s[\"values\"])} muestras'\n    print(\" \", s[\"metric\"].get(\"__name__\", \"\"), labels, \"=\", valor)\nEOF\nsleep 20; python3 q.py up",
+            "expect": "Un id largo y después vector · 1 serie(s): up con app prometheus, instance localhost:9090 y job prometheus, = 1. La imagen trae una config de ejemplo que se lee a sí misma cada 15 s; q.py manda la consulta a /api/v1/query, cuenta las series y muestra las 4 de valor más alto."
+          },
+          {
+            "cmd": "sleep 15\npython3 q.py 'prometheus_http_requests_total{handler=\"/api/v1/query\"}'\npython3 q.py 'prometheus_http_requests_total{handler=\"/api/v1/.*\"}'\npython3 q.py 'prometheus_http_requests_total{handler=~\"/api/v1/.*\"}'",
+            "expect": "El sleep le da tiempo a Prometheus de leerse a sí mismo y ver tus consultas. La primera encuentra una serie, con code 200: cuenta tus propias consultas a /api/v1/query. La segunda da vector · 0 serie(s), sin ningún error: = busca el texto literal «/api/v1/.*». La tercera encuentra decenas de series, una por cada ruta de /api/v1/ (Prometheus crea en 0 la serie de cada ruta al arrancar), con /api/v1/query arriba: =~ toma la regex, anclada a todo el valor."
+          },
+          {
+            "cmd": "python3 q.py 'rate(prometheus_http_requests_total)'\npython3 q.py 'prometheus_http_requests_total{handler=\"/metrics\"}[1m]'\npython3 q.py 'sum by (handler) (rate(prometheus_http_requests_total[1m]))'",
+            "expect": "La primera sale con un error que termina en expected type range vector in call to function \"rate\", got instant vector: rate necesita una [ventana]. La segunda es un range vector: matrix · 1 serie(s) con unas 4 muestras (un scrape cada 15 s en una ventana de 1 min; menos si Prometheus lleva menos de un minuto arriba). La tercera da una serie por handler (decenas, casi todas en 0), ya sin code ni instance. Arriba sale /metrics, cerca de 0.0667 (un scrape cada 15 s), junto a /api/v1/query si hiciste consultas en el último minuto."
+          },
+          {
+            "cmd": "python3 q.py 'topk(2, sum by (handler) (rate(prometheus_http_requests_total[5m])))'\npython3 q.py 'sum by (handler) (rate(prometheus_http_requests_total[5m])) / sum(rate(prometheus_http_requests_total[5m]))'\npython3 q.py 'sum by (handler) (rate(prometheus_http_requests_total[5m])) / ignoring(handler) group_left sum(rate(prometheus_http_requests_total[5m]))'\npython3 q.py 'sum(rate(prometheus_http_requests_total[1m] offset 1m))'",
+            "expect": "topk(2, …): las dos rutas con más tráfico, con su label handler. La división sin pareja da vector · 0 serie(s), otra vez sin error: a la izquierda cada serie tiene handler y a la derecha no hay labels. Con ignoring(handler) group_left sale la fracción del tráfico de cada handler (todas juntas suman 1). La última es la tasa total de hace un minuto: offset va pegado al selector, dentro del rate. Si sale vacía, Prometheus lleva menos de 2 minutos arriba y esa ventana todavía no tiene 2 muestras: repítela en un minuto."
+          },
+          {
+            "cmd": "docker rm -f -v prom-lab\ncd ~ && rm -rf ~/lab-prom",
+            "expect": "prom-lab, y la carpeta borrada."
+          }
+        ],
+        "fix": "Si q.py dice Connection refused, Prometheus todavía está arrancando: espera unos segundos. Las mismas consultas se pueden pegar en http://localhost:9090/query; en Prometheus 3, la pestaña Explain de esa página muestra cada parte de la consulta por separado y cómo se emparejan los dos lados de una división.",
+        "needs": "Docker Desktop corriendo, Python 3 (solo stdlib) e internet para bajar prom/prometheus:v3.13.3 (una vez).",
+        "verified": "docs"
+      },
+      "links": [
+        "#m12.prometheus-grafana",
+        "#c01.monitoreo",
+        "#m06.keda",
+        "#m12.sistema"
+      ]
+    },
+    {
+      "id": "histogramas",
+      "num": 6,
+      "title": "Histogramas y percentiles: buckets, le y histogram_quantile",
+      "question": "¿Cómo sacas el p99 de todos los pods juntos, qué tan exacto sale y por qué nunca se promedian los p99?",
+      "templates": [
+        {
+          "code": "{nombre}_bucket{le=\"{borde}\"}   # observaciones ≤ borde, acumuladas desde que arrancó el proceso\n{nombre}_bucket{le=\"+Inf\"}      # todas\n{nombre}_count                  # cuántas (igual al bucket +Inf)\n{nombre}_sum                    # la suma de los valores observados",
+          "note": "Un <b>histograma</b> (histogram) no guarda cada latencia: cuenta cuántas cayeron bajo cada <b>borde</b> (bucket). El label <code>le</code> significa «menor o igual». Los buckets son <b>acumulados</b>: <code>le=\"0.2\"</code> incluye todo lo de <code>le=\"0.1\"</code>. Cada línea es un counter."
+        },
+        {
+          "code": "histogram_quantile({φ}, sum by (le) (rate({nombre}_bucket[{ventana}])))",
+          "note": "El percentil de todo el servicio, en tres pasos: <code>rate</code> (solo lo de la ventana, no desde que arrancó cada pod), <code>sum by (le)</code> (junta los pods y conserva <code>le</code>) y recién ahí el cuantil. Con φ = 0.99 sale el <b>p99</b>: el tiempo bajo el que queda el 99 % de los requests."
+        },
+        {
+          "code": "histogram_quantile({φ}, sum by (le, {label}) (rate({nombre}_bucket[{ventana}])))",
+          "note": "Un p99 por grupo: agrega el label al <code>by</code>, sin quitar <code>le</code>. En C01, la latencia se parte por <code>source</code>; el score top-1 (otro histograma) se parte por <code>model_version</code> durante un canary, cuando una versión nueva recibe una parte del tráfico."
+        },
+        {
+          "code": "sum(rate({nombre}_sum[{ventana}])) / sum(rate({nombre}_count[{ventana}]))",
+          "note": "La <b>media</b>: suma de los valores ÷ cantidad. Sirve, pero esconde la cola (los requests más lentos); el p99 la muestra."
+        },
+        {
+          "code": "sum(rate({nombre}_bucket{le=\"{borde}\"}[{ventana}])) / sum(rate({nombre}_count[{ventana}]))",
+          "note": "La <b>fracción</b> de observaciones ≤ borde, sin interpolar: exacta si el borde es uno de tus buckets. Así cuenta C01 las predicciones con score ≤ 0.3, y así se mide un SLO de latencia (la meta de servicio: qué fracción queda bajo 0.2 s)."
+        },
+        {
+          "code": "histogram_quantile({φ}, sum(rate({nombre}[{ventana}])))   # native histogram: sin _bucket ni le",
+          "note": "Los <b>native histograms</b> (buckets exponenciales automáticos, todo en una sola serie) no tienen <code>_bucket</code> ni <code>le</code>. Son estables desde Prometheus 3.8, pero Prometheus solo los lee si lo activas (<code>scrape_native_histograms: true</code>) y el cliente tiene que emitirlos: lo hacen las librerías oficiales de Go, Java y Rust. C01 (Python) usa histogramas clásicos."
+        }
+      ],
+      "formulas": [
+        "\\hat{q} = \\ell + (u - \\ell)\\,\\frac{r - c_{\\ell}}{c_{u} - c_{\\ell}} \\qquad r = \\varphi \\times N",
+        "\\text{lab: } r = 0.99 \\times 100 = 99 \\;\\Rightarrow\\; \\hat{q} = 0.2 + 0.1 \\times \\frac{99 - 96}{100 - 96} = 0.275\\ \\text{s}",
+        "\\ell < q_{\\text{real}} \\le u \\qquad (\\text{lab: } 0.2 < 0.26 \\le 0.3)",
+        "\\bar{x} = \\frac{\\Delta\\,\\texttt{\\_sum}}{\\Delta\\,\\texttt{\\_count}}",
+        "\\text{series} = (b + 4) \\times v = (11 + 4) \\times 4 = 60\\ \\text{por pod}"
+      ],
+      "vars": [
+        [
+          "{nombre}",
+          "nombre base del histograma",
+          "classifier_request_latency_seconds"
+        ],
+        [
+          "{borde}",
+          "un borde de bucket, en la unidad de la métrica",
+          "\"0.2\" (200 ms)"
+        ],
+        [
+          "{φ}",
+          "el cuantil, entre 0 y 1",
+          "0.99 (p99), 0.5 (mediana)"
+        ],
+        [
+          "{ventana}",
+          "ventana del rate",
+          "5m"
+        ],
+        [
+          "{label}",
+          "label que quieres conservar además de le",
+          "source"
+        ],
+        [
+          "q̂",
+          "cuantil estimado por histogram_quantile",
+          "lab: 275 ms"
+        ],
+        [
+          "r, N",
+          "posición buscada y total de observaciones (el bucket +Inf)",
+          "lab: 99 de 100"
+        ],
+        [
+          "ℓ, u",
+          "bordes inferior y superior del bucket donde cae r",
+          "0.2 y 0.3 s"
+        ],
+        [
+          "c_ℓ, c_u",
+          "conteos acumulados en esos dos bordes",
+          "lab: 96 y 100"
+        ],
+        [
+          "q_real",
+          "el percentil exacto, que Prometheus no conoce: siempre dentro del bucket",
+          "lab: 260 ms"
+        ],
+        [
+          "x̄",
+          "la media: crecimiento de _sum ÷ crecimiento de _count en la ventana",
+          "con los datos del lab: 3.16 s / 50 = 63 ms en pod-b"
+        ],
+        [
+          "b, v",
+          "buckets finitos y combinaciones de labels; el + 4 son +Inf, _sum, _count y _created",
+          "11 y 4 (los valores de source)"
+        ]
+      ],
+      "pieces": [
+        [
+          "_bucket{le=\"…\"}",
+          "Un counter por borde: cuántas observaciones fueron ≤ ese borde. Acumulado.",
+          "classifier_request_latency_seconds_bucket{le=\"0.2\"}"
+        ],
+        [
+          "le=\"+Inf\"",
+          "El último bucket: cuenta todo, igual que _count. Sin él, histogram_quantile da NaN.",
+          "el cliente lo agrega solo"
+        ],
+        [
+          "_sum · _count",
+          "La suma de los valores y la cantidad de observaciones: su cociente es la media.",
+          "rate(_sum) / rate(_count)"
+        ],
+        [
+          "_created",
+          "La hora en que nació cada serie; prometheus_client la agrega por cada combinación de labels.",
+          "se apaga con PROMETHEUS_DISABLE_CREATED_SERIES=True"
+        ],
+        [
+          "buckets=(…)",
+          "Los bordes los decides en el código: densos cerca del SLO. Cambiarlos después rompe la comparación con la historia.",
+          "C01: 0.15, 0.2 y 0.3 s alrededor de 200 ms"
+        ],
+        [
+          "Buckets por defecto",
+          "Sin buckets=, prometheus_client usa .005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5 y 10 s: de 0.1 salta a 0.25.",
+          "un p99 cerca de 200 ms queda en un bucket de 150 ms de ancho"
+        ],
+        [
+          "histogram_quantile(φ, v)",
+          "Estima el cuantil φ con una línea recta dentro del bucket donde cae: supone que las observaciones están repartidas parejo dentro del bucket.",
+          "0.99 → p99"
+        ],
+        [
+          "sum by (le)",
+          "Junta los buckets de todos los pods conservando le. Agregues como agregues (by o without), le tiene que sobrevivir.",
+          "obligatorio antes de histogram_quantile"
+        ],
+        [
+          "Cae en +Inf",
+          "Si el cuantil cae en el último bucket, devuelve el borde finito más alto: no sabe cuánto más.",
+          "C01 nunca dirá más de 2.5 s"
+        ],
+        [
+          "Sin tráfico",
+          "Con 0 observaciones en la ventana sale NaN (not a number): la comparación da falso y la alerta calla.",
+          "rate = 0 en todos los buckets"
+        ],
+        [
+          "Summary",
+          "Calcula cuantiles en el cliente: no se pueden sumar entre pods. El de Python ni los calcula: solo _sum y _count.",
+          "avg(x{quantile=\"0.99\"}) no significa nada"
+        ],
+        [
+          "Native histogram",
+          "Buckets exponenciales automáticos en una sola serie: más precisos y baratos. Estables desde Prometheus 3.8, pero hay que activar su lectura.",
+          "scrape_native_histograms: true"
+        ],
+        [
+          "Heatmap de Grafana",
+          "Dibuja los buckets en el tiempo: ves toda la distribución, no un solo percentil.",
+          "sección 9"
+        ]
+      ],
+      "example": {
+        "title": "La alerta de p99 de C01: buckets sumados entre pods, después el cuantil",
+        "lang": "yaml",
+        "code": "      # SLO de latencia: p99 server-side ≤ 200 ms. Histograma agregado entre pods ANTES del quantile\n      # (sum by le): promediar p99 de cada pod da un número matemáticamente sin sentido.\n      - alert: ClassifierHighP99Latency\n        expr: |\n          histogram_quantile(0.99,\n            sum by (le) (rate(classifier_request_latency_seconds_bucket[5m]))\n          ) > 0.2\n        for: 10m  # 10 min sostenido: ignora picos de un GC o de un deploy\n        labels:\n          severity: page\n        annotations:\n          summary: \"p99 del clasificador sobre 200 ms\"\n          description: \"p99 = {{ $value | humanizeDuration }} (SLO 200 ms). Revisa classifier_preprocess_seconds vs classifier_inference_seconds para saber si es CPU o GPU.\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-p99-latency\"",
+        "source": "reference/c01/monitoring/alerts.yml (líneas 26–39)",
+        "notes": [
+          "Los bordes salen de <code>main.py</code>: <code>buckets=(0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 2.5)</code>. Hay bordes en 0.15, 0.2 y 0.3 s: si el p99 anda cerca del SLO (200 ms), cae en un bucket de 50 o 100 ms de ancho y la estimación es fina.",
+          "<code>rate(…_bucket[5m])</code>: cada bucket es un counter, y rate deja solo lo de los últimos 5 minutos. Sin rate, el p99 sería el de todo lo que pasó desde que arrancó cada pod (en el lab, 497.8 ms contra 49.8 ms de los últimos 5 minutos).",
+          "<code>sum by (le)</code> suma el mismo bucket de todos los pods (y de todos los valores de <code>source</code>) y conserva <code>le</code>. El comentario lo dice: promediar el p99 de cada pod «da un número matemáticamente sin sentido». En el lab, dos pods con p99 de 68.8 y 287.5 ms promedian 178 ms («cumplimos»), pero sumando buckets el p99 es 275 ms (el real, 260 ms).",
+          "<code>> 0.2</code> está en segundos: las métricas de Prometheus van en unidades base. Si el p99 pasa de 2.5 s, histogram_quantile devuelve 2.5 (el último borde finito): la alerta igual dispara, pero el número no dice cuánto más. <code>humanizeDuration</code> lo escribe legible: 0.2134 → 213.4ms.",
+          "Sin tráfico en la ventana, el p99 es NaN y la alerta no dispara: una caída del tráfico se detecta con otra señal (por ejemplo, la tasa de requests contra la de la semana pasada, con <code>offset 1w</code>)."
+        ]
+      },
+      "figure": {
+        "kind": "buckets",
+        "caption": "100 requests de dos pods (los del lab): las barras son los buckets acumulados después de sum by (le). r = 0.99 × 100 = 99 cae entre le=\"0.2\" (96) y le=\"0.3\" (100); la línea recta da 275 ms. El p99 real es 260 ms: siempre dentro de ese bucket. Promediar el p99 de cada pod (68.8 y 287.5 ms) daría 178 ms, bajo el SLO de 200 ms.",
+        "data": {
+          "metric": "classifier_request_latency_seconds_bucket, sum by (le)",
+          "unit": "s",
+          "bounds": [
+            "0.01",
+            "0.025",
+            "0.05",
+            "0.075",
+            "0.1",
+            "0.15",
+            "0.2",
+            "0.3",
+            "0.5",
+            "1.0",
+            "2.5",
+            "+Inf"
+          ],
+          "pods": {
+            "pod-a": [
+              0,
+              0,
+              48,
+              50,
+              50,
+              50,
+              50,
+              50,
+              50,
+              50,
+              50,
+              50
+            ],
+            "pod-b": [
+              0,
+              0,
+              44,
+              44,
+              44,
+              44,
+              46,
+              50,
+              50,
+              50,
+              50,
+              50
+            ]
+          },
+          "sum": [
+            0,
+            0,
+            92,
+            94,
+            94,
+            94,
+            96,
+            100,
+            100,
+            100,
+            100,
+            100
+          ],
+          "q": 0.99,
+          "N": 100,
+          "r": 99,
+          "bucket": {
+            "l": 0.2,
+            "u": 0.3,
+            "c_l": 96,
+            "c_u": 100
+          },
+          "estimate_s": 0.275,
+          "real_s": 0.26,
+          "per_pod_p99_s": {
+            "pod-a": 0.06875,
+            "pod-b": 0.2875
+          },
+          "avg_of_p99_s": 0.178125,
+          "slo_s": 0.2
+        }
+      },
+      "memo": "Cómo recordarla: <b>rate, sum by (le), histogram_quantile</b>, en ese orden y sin saltarte ninguno. Un histograma es como medir la estatura de un grupo con marcas en la puerta: «¿cuántos miden hasta 1.50 m, hasta 1.60, hasta 1.70?». Para el p99 buscas la marca donde ya pasaste el 99 % y estimas con una regla recta entre esa marca y la anterior: el resultado siempre queda entre las dos.",
+      "trap": "Trampa: agregar sin <code>le</code>. <code>histogram_quantile(0.99, sum(rate(x_bucket[5m])))</code> junta todos los bordes en una sola serie sin <code>le</code>, histogram_quantile la descarta y el resultado sale vacío. En la UI de Prometheus 3 ves un aviso (<code>bucket label \"le\" is missing or has a malformed value</code>), pero una regla no muestra avisos: la alerta calla para siempre. La otra ya la viste en la hoja del gateway: promediar los p99 de cada pod (en el lab, 178 ms «cumple» y el real es 260 ms).",
+      "lab": {
+        "goal": "Sacar el p99 de dos pods a mano, como histogram_quantile, ver por qué el promedio de los p99 engaña y los cuatro casos en que el número le miente a una alerta.",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-prom && cd ~/lab-prom\ncat > hq.py <<'EOF'\n# hq.py: el p99 de dos pods con histogram_quantile, como lo calcula Prometheus (solo stdlib)\nimport math\n\nBORDES = (0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 2.5, math.inf)  # los de main.py, más +Inf\nPODS = {\"pod-a\": [0.03] * 48 + [0.06] * 2,                # 50 requests, todos rápidos\n        \"pod-b\": [0.04] * 44 + [0.18] * 2 + [0.26] * 4}   # 50 requests, 4 lentos\n\ndef acumulado(latencias):                        # lo que exporta /metrics: _bucket{le} cuenta las <= le\n    return {b: float(sum(1 for x in latencias if x <= b)) for b in BORDES}\n\ndef histogram_quantile(q, acum):                 # la regla de Prometheus para histogramas clásicos\n    bordes = sorted(acum)\n    if len(bordes) < 2 or bordes[-1] != math.inf or acum[math.inf] == 0:\n        return math.nan                          # sin +Inf o sin observaciones: NaN\n    r = q * acum[math.inf]                       # la posición buscada: 0.99 × total\n    for i, b in enumerate(bordes):\n        if acum[b] >= r:                         # el primer bucket que llega a r\n            if b == math.inf:\n                return bordes[-2]                # cayó en +Inf: devuelve el último borde finito\n            ini, antes = (bordes[i - 1], acum[bordes[i - 1]]) if i else (0.0, 0.0)\n            return ini + (b - ini) * (r - antes) / (acum[b] - antes)  # línea recta dentro del bucket\n\nif __name__ == \"__main__\":\n    pods = {p: acumulado(lat) for p, lat in PODS.items()}\n    for p, acum in pods.items():\n        print(f\"{p}: \" + \" \".join(f\"{'+Inf' if b == math.inf else b}:{c:.0f}\" for b, c in acum.items()))\n    p99 = {p: histogram_quantile(0.99, a) for p, a in pods.items()}\n    print(\"p99 de cada pod:\", \", \".join(f\"{p} {v * 1000:.1f} ms\" for p, v in p99.items()))\n    print(f\"promedio de los dos p99: {sum(p99.values()) / 2 * 1000:.1f} ms   <- no significa nada\")\n    suma = {b: pods[\"pod-a\"][b] + pods[\"pod-b\"][b] for b in BORDES}   # sum by (le)\n    print(\"sum by (le):\", \" \".join(f\"{'+Inf' if b == math.inf else b}:{c:.0f}\" for b, c in suma.items()))\n    print(f\"r = 0.99 x {suma[math.inf]:.0f} = {0.99 * suma[math.inf]:.0f}: cae entre le=0.2 ({suma[0.2]:.0f}) y le=0.3 ({suma[0.3]:.0f})\")\n    for q in (0.5, 0.9, 0.99):\n        print(f\"histogram_quantile({q}, sum by (le)) = {histogram_quantile(q, suma) * 1000:.1f} ms\")\n    reales = sorted(PODS[\"pod-a\"] + PODS[\"pod-b\"])\n    print(f\"p99 real (el request 99 de 100, ordenados): {reales[98] * 1000:.0f} ms\")\nEOF\npython3 hq.py",
+            "expect": "Los buckets acumulados de cada pod (pod-b: 0, 0, 44, 44, 44, 44, 46, 50…: le=0.3 ya incluye todo). p99 de pod-a: 68.8 ms; de pod-b: 287.5 ms; su promedio, 178.1 ms. sum by (le) suma bucket por bucket (… 0.2:96 0.3:100 …) y r = 99 cae entre esos dos. histogram_quantile da 38.6 ms (p50), 49.5 ms (p90) y 275.0 ms (p99); el p99 real es 260 ms, dentro del bucket (0.2, 0.3]. El promedio de los p99 lo escondía."
+          },
+          {
+            "cmd": "cat > casos.py <<'EOF'\n# casos.py: cuatro casos en los que histogram_quantile engaña a una alerta (solo stdlib)\nimport math\nfrom hq import BORDES, acumulado, histogram_quantile\n\ndef ms(v):\n    return \"NaN\" if math.isnan(v) else f\"{v * 1000:.1f} ms\"\n\n# 1. Cuatro requests tardan 4 s: el p99 real es 4000 ms\nlentos = acumulado([0.03] * 96 + [4.0] * 4)\nprint(\"1. cae en +Inf:\", ms(histogram_quantile(0.99, lentos)), \"(el real es 4000 ms)\")\n# 2. Sin tráfico en la ventana: rate() da 0 en todos los buckets\nprint(\"2. sin tráfico:\", ms(histogram_quantile(0.99, {b: 0.0 for b in BORDES})), \"-> NaN > 0.2 es falso: no dispara\")\n# 3. sum(...) sin by (le): queda una sola serie, sin label le; histogram_quantile la\n#    descarta, así que no le queda nada que calcular\nseries = [({}, sum(lentos.values()))]             # sum(rate(..._bucket[5m])): {} = sin labels\ncon_le = [s for s in series if \"le\" in s[0]]\nprint(\"3. sin le:\", con_le, \"(vacío): la alerta nunca dispara\")\n# 4. Sin rate(): los buckets cuentan desde que arrancó el pod\nhora_lenta = acumulado([0.4] * 3600)              # la primera hora: 3,600 requests de 400 ms\nultimos_5m = acumulado([0.03] * 300)              # los últimos 5 minutos: 300 requests de 30 ms\ndesde_inicio = {b: hora_lenta[b] + ultimos_5m[b] for b in BORDES}\nprint(\"4. sin rate(), desde que arrancó:\", ms(histogram_quantile(0.99, desde_inicio)))\nprint(\"   con rate(...[5m]), lo de ahora:\", ms(histogram_quantile(0.99, ultimos_5m)))\nEOF\npython3 casos.py",
+            "expect": "1. cae en +Inf: 2500.0 ms (el real es 4000 ms). 2. sin tráfico: NaN. 3. sin le: [] (vacío). 4. sin rate(), desde que arrancó: 497.8 ms; con rate(...[5m]), lo de ahora: 49.8 ms. Los cuatro dejan una alerta callada o equivocada sin dar ningún error."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-prom",
+            "expect": "Sin salida."
+          }
+        ],
+        "fix": "Cambia PODS en hq.py (por ejemplo, 6 requests de 0.26 s en pod-b) y vuelve a correrlo: el p99 estimado se mueve dentro de su bucket y el promedio de los p99 sigue sin significar nada. Para verlo con un Prometheus de verdad, el lab de Grafana (sección 9) consulta el histograma del propio Prometheus.",
+        "needs": "Python 3, sin paquetes extra. Ni Docker ni Prometheus.",
+        "verified": "executed",
+        "verified_note": "Ejecutado en macOS con Python 3.9.6, 3.13.15 y 3.14.3: salidas idénticas. histogram_quantile sigue la regla documentada para histogramas clásicos: interpolación lineal dentro del bucket, 0 como borde inferior del primero, el último borde finito si cae en +Inf y NaN sin observaciones."
+      },
+      "links": [
+        "#m12.sistema",
+        "#m03.percentiles",
+        "#c01.monitoreo",
+        "#m12.prometheus-grafana"
+      ]
+    },
+    {
+      "id": "reglas",
+      "num": 7,
+      "title": "Recording rules y alerting rules: expr, for, labels y annotations",
+      "question": "¿Cómo conviertes una consulta en una alerta que avisa a tiempo y sin falsas alarmas, y en una serie precalculada que se consulta barato?",
+      "templates": [
+        {
+          "code": "groups:\n  - name: {grupo}\n    interval: {intervalo}\n    rules:\n      - record: {nivel}:{métrica}:{operaciones}\n        expr: {consulta}",
+          "note": "Una <b>regla de grabación</b> (recording rule) corre la consulta cada <code>interval</code> y guarda el resultado como una serie nueva con ese nombre: las alertas y los paneles leen esa serie, que sale barata. Sin <code>interval</code> usa el <code>evaluation_interval</code> global: 1m si nadie lo fija, 15 s en el prometheus.yml local de C01 y 30 s en EKS (el Kubernetes de AWS donde corre C01), porque es el default del Prometheus Operator, el programa que instala y configura Prometheus en el cluster. Las reglas de un grupo corren en orden, una tras otra."
+        },
+        {
+          "code": "      - alert: {NombreDeAlerta}\n        expr: {consulta} > {umbral}\n        for: {espera}\n        keep_firing_for: {retención}\n        labels:\n          severity: {severidad}\n        annotations:\n          summary: \"{resumen}\"\n          description: \"{detalle}: {{ $value }}\"\n          runbook_url: \"{url}\"",
+          "note": "Una <b>regla de alerta</b> (alerting rule) crea una alerta por cada serie que devuelve la expr. <code>for</code>: cuánto tiene que sostenerse antes de disparar; mientras, la alerta está <b>pending</b> (pendiente). Sin <code>for</code>, dispara en la primera evaluación en que la expr devuelve algo. <code>keep_firing_for</code>: cuánto sigue <b>firing</b> (disparada) después de que la condición se apaga, para que no parpadee; sin él, se resuelve en la primera evaluación que ya no cumple. <code>labels</code> deciden a quién le llega en Alertmanager (el que reparte los avisos, sección 8); <code>annotations</code> son el texto para la persona."
+        },
+        {
+          "code": "promtool check rules {archivo}.yml\npromtool test rules {pruebas}.yml",
+          "note": "<code>check</code> valida el YAML, el PromQL y las plantillas; sale con código 0 si todo está bien. <code>test</code> corre <b>pruebas unitarias</b>: series inventadas y las alertas que esperas a cierta hora. promtool viene en la imagen <code>prom/prometheus</code>."
+        },
+        {
+          "code": "apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: {nombre}\n  namespace: {namespace}\n  labels:\n    release: {release}\nspec:\n  groups:\n    - name: {grupo}\n      rules: […]",
+          "note": "En Kubernetes con el Prometheus Operator (el controlador que configura Prometheus a partir de objetos del cluster), el mismo YAML va bajo <code>spec</code> de un <b>PrometheusRule</b>. La label <code>release</code> tiene que coincidir con el <code>ruleSelector</code> (el filtro de labels con que tu Prometheus elige sus reglas); en kube-prometheus-stack es el nombre con que instalaste el chart de Helm. Si no coincide, el Operator no lo carga y nadie avisa."
+        },
+        {
+          "code": "ALERTS{alertname=\"{NombreDeAlerta}\", alertstate=\"{estado}\"}",
+          "note": "Prometheus escribe una serie <code>ALERTS</code> (vale 1) por cada alerta pending o firing: la puedes consultar y graficar. La página <code>/alerts</code> (puerto 9090) muestra cada regla como inactive, pending o firing."
+        }
+      ],
+      "formulas": [
+        "t_{\\text{page}} \\approx t_{\\text{cruce}} + \\texttt{for} + \\Delta t_{\\text{eval}} + \\texttt{group\\_wait} = t_{\\text{cruce}} + 10\\,\\text{min} + 30\\,\\text{s} + 30\\,\\text{s}\\ (\\text{EKS})",
+        "\\text{apagón total: presupuesto gastado antes del page} \\approx \\frac{\\texttt{for}}{43.2\\ \\text{min}} = \\frac{5\\ \\text{min}}{43.2\\ \\text{min}} \\approx 11.6\\,\\%",
+        "\\frac{0}{0} = \\text{NaN} \\;\\Rightarrow\\; \\texttt{avg\\_over\\_time}(\\ldots[7d]) = \\text{NaN durante 7 días}",
+        "7\\,\\text{d} \\div 1\\,\\text{min} = 10{,}080\\ \\text{muestras de la serie grabada por evaluación}"
+      ],
+      "vars": [
+        [
+          "{grupo}",
+          "nombre del grupo, único en el archivo",
+          "classifier-recording"
+        ],
+        [
+          "{intervalo}",
+          "cada cuánto corre el grupo",
+          "1m"
+        ],
+        [
+          "{nivel}:{métrica}:{operaciones}",
+          "los labels que quedan, la métrica de origen y lo que se le hizo (la última operación primero)",
+          "classifier:low_confidence_share:rate30m"
+        ],
+        [
+          "{consulta}",
+          "la expresión PromQL",
+          "histogram_quantile(0.99, sum by (le) (rate(…[5m])))"
+        ],
+        [
+          "{NombreDeAlerta}",
+          "en CamelCase; nombra el síntoma",
+          "ClassifierHighP99Latency"
+        ],
+        [
+          "{umbral}",
+          "en la unidad base de la métrica",
+          "0.2 (segundos)"
+        ],
+        [
+          "{espera}",
+          "el for",
+          "10m"
+        ],
+        [
+          "{retención}",
+          "el keep_firing_for",
+          "5m (C01 no lo usa)"
+        ],
+        [
+          "{severidad}",
+          "el valor con el que rutea tu Alertmanager. En C01: page despierta a alguien, warning se mira en horario laboral, ticket se investiga esa semana",
+          "page, warning o ticket"
+        ],
+        [
+          "{estado}",
+          "estado de la alerta en la serie ALERTS",
+          "pending o firing"
+        ],
+        [
+          "{resumen}, {detalle}, {url}",
+          "qué pasa, el valor y por dónde empezar, y los pasos",
+          "summary, description y runbook_url de C01"
+        ],
+        [
+          "{archivo}, {pruebas}",
+          "el archivo de reglas y el de pruebas",
+          "alerts.yml, prueba.yml"
+        ],
+        [
+          "{nombre}, {namespace}, {release}",
+          "nombre, namespace y label release del PrometheusRule",
+          "classifier, classifier, kube-prometheus-stack"
+        ],
+        [
+          "t_cruce",
+          "cuándo la expr pasa el umbral; depende también de la ventana del rate",
+          "unos minutos después de que empieza el problema"
+        ],
+        [
+          "Δt_eval",
+          "cada cuánto se evalúa el grupo",
+          "15 s en el compose de C01; 30 s en EKS (default del Operator)"
+        ],
+        [
+          "group_wait",
+          "espera de Alertmanager antes de la primera notificación de un grupo (sección 8)",
+          "30 s por defecto"
+        ],
+        [
+          "43.2 min",
+          "presupuesto de errores: lo que puede fallar en un mes sin romper el SLO (la meta) de 99.9 % a 30 días",
+          "(1 − 0.999) × 43,200 min"
+        ]
+      ],
+      "pieces": [
+        [
+          "groups[].name",
+          "Nombre del grupo, único en el archivo. Sus reglas corren en orden, con la misma hora de evaluación.",
+          "classifier-recording y classifier-alerts"
+        ],
+        [
+          "interval",
+          "Cada cuánto corre el grupo. Si falta, el evaluation_interval global: 1m si nadie lo fija, 30 s con el Prometheus Operator.",
+          "1m en classifier-recording"
+        ],
+        [
+          "record",
+          "Nombre de la serie que se graba: nivel:métrica:operaciones (con rate, la métrica pierde su _total). Se graba rate y no increase: la documentación lo pide para que todo quede por segundo.",
+          "classifier:low_confidence_share:rate30m"
+        ],
+        [
+          "alert",
+          "Nombre de la alerta: llega a Alertmanager como el label alertname.",
+          "ClassifierHighP99Latency"
+        ],
+        [
+          "expr",
+          "La consulta. En una alerta, cada serie del resultado es una alerta: por eso termina en una comparación que filtra.",
+          "histogram_quantile(…) > 0.2"
+        ],
+        [
+          "for",
+          "Cuánto tiene que sostenerse; mientras, pending. Si una evaluación sale bajo el umbral, vuelve a inactive y el conteo empieza de cero. Sin for, dispara en la primera evaluación.",
+          "for: 10m"
+        ],
+        [
+          "for + ventana del rate",
+          "La ventana y el for se suman: la ventana estira cada pico. Con [5m], un pico de 2 min al 10 % de 5xx deja la proporción sobre 1 % unos 6 min, así que una alerta con for: 5m dispara igual.",
+          "ClassifierHigh5xxRate: [5m] y for: 5m"
+        ],
+        [
+          "keep_firing_for",
+          "Cuánto sigue firing después de que la condición se apaga: evita resolver y redisparar en el borde.",
+          "keep_firing_for: 5m"
+        ],
+        [
+          "labels",
+          "Labels que se agregan a la alerta; Alertmanager rutea con ellos.",
+          "severity: page"
+        ],
+        [
+          "annotations",
+          "Texto para quien recibe la alerta: summary corto, description con valores y runbook_url, el link al runbook (la guía de pasos para resolverla).",
+          "las tres en cada alerta de C01"
+        ],
+        [
+          "$value · $labels",
+          "En las plantillas: el valor de la expr y los labels de la serie que disparó. Después de un sum sin by, $labels ya no trae pod ni instance.",
+          "{{ $labels.gpu_uuid }} en GPUSaturated"
+        ],
+        [
+          "humanize*",
+          "Funciones que formatean en las plantillas: humanizeDuration (0.2134 → 213.4ms), humanizePercentage (0.0123 → 1.23%).",
+          "description de ClassifierHighP99Latency"
+        ],
+        [
+          "Guarda de tráfico",
+          "Una condición extra con and que exige tráfico mínimo: con 20 requests de madrugada, un error ya es el 5 %.",
+          "and sum(rate(classifier_requests_total[5m])) > 1"
+        ],
+        [
+          "ALERTS",
+          "Serie que Prometheus crea por cada alerta pending o firing.",
+          "ALERTS{alertstate=\"firing\"}"
+        ],
+        [
+          "promtool",
+          "check rules valida; test rules prueba con series inventadas antes del deploy.",
+          "promtool check rules alerts.yml"
+        ],
+        [
+          "PrometheusRule",
+          "El mismo YAML como objeto de Kubernetes; el Operator lo carga si su label calza con el ruleSelector.",
+          "release: kube-prometheus-stack"
+        ],
+        [
+          "Recarga",
+          "Prometheus vuelve a leer las reglas cuando recibe la señal SIGHUP (un aviso del sistema operativo) o un POST a /-/reload, si arrancó con --web.enable-lifecycle. Si un archivo tiene un error, se queda con las reglas anteriores.",
+          "kill -HUP al proceso de Prometheus"
+        ]
+      ],
+      "example": {
+        "title": "Una regla de grabación y la alerta que la lee: la señal de calidad de C01",
+        "lang": "yaml",
+        "code": "groups:\n  # ------------------------------------------------------------------ reglas de grabación\n  - name: classifier-recording\n    interval: 1m  # precalcula cada minuto: la alerta de confianza compara contra 7 días de esta serie\n    rules:\n      # Fracción de predicciones con score top-1 < 0.3 (el bucket le=\"0.3\" del histograma).\n      # Se graba porque avg_over_time(...[7d]) sobre una expresión cruda sería carísimo en cada evaluación.\n      # `> 0` en el denominador: sin tráfico en 30 min no se graba nada. Sin él, 0/0 = NaN quedaría grabado\n      # y avg_over_time(...[7d]) daría NaN durante 7 días: la alerta de abajo nunca dispararía.\n      - record: classifier:low_confidence_share:rate30m\n        expr: |\n          sum(rate(classifier_top1_score_bucket{le=\"0.3\"}[30m]))\n            /\n          (sum(rate(classifier_top1_score_count[30m])) > 0)\n  # …\n      # Señal de calidad SIN labels: si se duplica la fracción de predicciones de baja confianza,\n      # algo cambió en la entrada (nueva cámara, nuevo tipo de producto, bug de preprocesamiento).\n      - alert: ClassifierLowConfidenceSpike\n        expr: |\n          classifier:low_confidence_share:rate30m\n            > 2 * avg_over_time(classifier:low_confidence_share:rate30m[7d])\n          and sum(rate(classifier_top1_score_count[30m])) > 1\n        # Necesita 7 días de historia de la regla de grabación (retención de Prometheus ≥ 7 d)\n        for: 30m\n        labels:\n          severity: ticket\n        annotations:\n          summary: \"Se duplicó la fracción de predicciones con score top-1 < 0.3\"\n          description: \"Fracción actual = {{ $value | humanizePercentage }} (> 2× su promedio de 7 días). Compara por source (mobile/web) en los logs y revisa deploys recientes del gateway.\"\n          runbook_url: \"https://runbooks.example.com/classifier/low-confidence-spike\"",
+        "source": "reference/c01/monitoring/alerts.yml (líneas 8–21 y 62–76; # … marca las omitidas)",
+        "notes": [
+          "El grupo <code>classifier-recording</code> corre cada minuto (<code>interval: 1m</code>) y graba <code>classifier:low_confidence_share:rate30m</code>: de las predicciones de los últimos 30 minutos, la fracción con score top-1 ≤ 0.3 (el bucket <code>le=\"0.3\"</code> ÷ el total). El nombre dice el nivel (<code>classifier</code>), la métrica y la operación con su ventana.",
+          "<code>(… > 0)</code> en el denominador: sin tráfico, la comparación descarta el 0 y no se graba nada. Sin ese filtro, 0/0 = NaN quedaría grabado y el <code>avg_over_time(…[7d])</code> de la alerta daría NaN durante 7 días: nunca dispararía.",
+          "La alerta compara la fracción actual con el doble de su promedio de 7 días. Sobre la serie grabada son 10,080 muestras (una por minuto); sobre la expresión cruda habría que recalcular dos rates de 30 minutos en cada punto de esos 7 días, en cada evaluación. Necesita 7 días de historia: la retención por defecto de Prometheus es 15 d, y la de kube-prometheus-stack, 10 d.",
+          "<code>and sum(rate(classifier_top1_score_count[30m])) > 1</code> es la guarda de tráfico: de madrugada, con pocas predicciones, la fracción salta sola. <code>for: 30m</code> y <code>severity: ticket</code>: la calidad del modelo se revisa en horario laboral; nadie se despierta por esto.",
+          "Las annotations llevan el valor (<code>humanizePercentage</code>: 0.065 → 6.5%), qué mirar primero y el runbook. En el compose, Prometheus lee este archivo por <code>rule_files</code> de prometheus.yml; en EKS, el README lo envuelve en un PrometheusRule con <code>release: kube-prometheus-stack</code>. C01 lo validó con un parser de PromQL, no con promtool: el lab lo hace."
+        ]
+      },
+      "figure": {
+        "kind": "alert-states",
+        "caption": "ClassifierHighP99Latency (for: 10m) durante un deploy que sube el p99. Un punto por minuto, valores ilustrativos; Prometheus evalúa cada 15 s en el compose de C01 y cada 30 s en EKS. Una sola evaluación bajo 0.2 s reinicia el for; el page sale 10 min después de la última entrada a pending, más los 30 s de group_wait de Alertmanager.",
+        "data": {
+          "alert": "ClassifierHighP99Latency",
+          "expr_label": "p99 (s): histogram_quantile(0.99, sum by (le) (rate(…[5m])))",
+          "threshold": 0.2,
+          "for_min": 10,
+          "eval_interval_s": {
+            "compose": 15,
+            "eks": 30
+          },
+          "x_label": "minutos",
+          "series": [
+            [
+              0,
+              0.12
+            ],
+            [
+              1,
+              0.12
+            ],
+            [
+              2,
+              0.13
+            ],
+            [
+              3,
+              0.21
+            ],
+            [
+              4,
+              0.19
+            ],
+            [
+              5,
+              0.23
+            ],
+            [
+              6,
+              0.26
+            ],
+            [
+              7,
+              0.27
+            ],
+            [
+              8,
+              0.27
+            ],
+            [
+              9,
+              0.28
+            ],
+            [
+              10,
+              0.27
+            ],
+            [
+              11,
+              0.28
+            ],
+            [
+              12,
+              0.27
+            ],
+            [
+              13,
+              0.26
+            ],
+            [
+              14,
+              0.27
+            ],
+            [
+              15,
+              0.27
+            ],
+            [
+              16,
+              0.28
+            ],
+            [
+              17,
+              0.27
+            ],
+            [
+              18,
+              0.28
+            ],
+            [
+              19,
+              0.27
+            ],
+            [
+              20,
+              0.27
+            ],
+            [
+              21,
+              0.28
+            ],
+            [
+              22,
+              0.27
+            ],
+            [
+              23,
+              0.27
+            ],
+            [
+              24,
+              0.26
+            ],
+            [
+              25,
+              0.25
+            ],
+            [
+              26,
+              0.22
+            ],
+            [
+              27,
+              0.18
+            ],
+            [
+              28,
+              0.14
+            ],
+            [
+              29,
+              0.13
+            ],
+            [
+              30,
+              0.12
+            ]
+          ],
+          "states": [
+            {
+              "from": 0,
+              "to": 3,
+              "state": "inactive"
+            },
+            {
+              "from": 3,
+              "to": 4,
+              "state": "pending",
+              "note": "primera evaluación sobre 0.2 s"
+            },
+            {
+              "from": 4,
+              "to": 5,
+              "state": "inactive",
+              "note": "una evaluación bajo 0.2 s: el for empieza de cero"
+            },
+            {
+              "from": 5,
+              "to": 15,
+              "state": "pending",
+              "note": "10 min seguidos sobre 0.2 s"
+            },
+            {
+              "from": 15,
+              "to": 27,
+              "state": "firing",
+              "note": "Prometheus la manda a Alertmanager y la reenvía cada 1 min"
+            },
+            {
+              "from": 27,
+              "to": 30,
+              "state": "inactive",
+              "note": "resolved: Alertmanager avisa la resolución si el receiver tiene send_resolved"
+            }
+          ],
+          "events": [
+            {
+              "t": 2,
+              "label": "deploy"
+            },
+            {
+              "t": 15.5,
+              "label": "page: firing + group_wait de 30 s"
+            },
+            {
+              "t": 25,
+              "label": "rollback"
+            },
+            {
+              "t": 27,
+              "label": "resolved (con keep_firing_for: 5m seguiría firing hasta el minuto 32)"
+            }
+          ]
+        }
+      },
+      "memo": "Cómo recordarla: <b>expr dice qué, for dice cuánto tiempo, labels dicen a quién, annotations dicen qué hacer</b>. Es la indicación médica junto a la cama: «si la temperatura pasa de 38 °C durante 10 minutos, llama a quien esté de guardia». La ronda de enfermería (el scrape) anota cada 15 s; una sola medición alta no basta (for), y la gravedad (severity) decide si es una llamada urgente (page) o una nota para la mañana (ticket).",
+      "trap": "Trampa: una alerta sobre una serie que no existe nunca dispara. Si Prometheus deja de leer el gateway, o alguien renombra una métrica en main.py, <code>histogram_quantile(…) > 0.2</code> devuelve vacío: ni pending ni error, solo silencio. Por eso main.py dice que sus nombres son un contrato con alerts.yml, y por eso existen <code>absent()</code> y las alertas sobre <code>up</code>. Prueba las reglas con <code>promtool test rules</code>, que falla si la alerta esperada no sale.",
+      "lab": {
+        "goal": "Validar las reglas reales de C01 con promtool y escribir una prueba unitaria que demuestre el for de TritonNotReady: pending a los 8 minutos, firing a los 10.",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-prom\ncp apps/ml-system-design/reference/c01/monitoring/alerts.yml ~/lab-prom/\ncd ~/lab-prom\ndocker run --rm -v \"$PWD\":/w -w /w --entrypoint promtool prom/prometheus:v3.13.3 check rules alerts.yml",
+            "expect": "Checking alerts.yml y debajo SUCCESS: 7 rules found (1 de grabación y 6 alertas). El cp se corre desde la raíz del repo del curso. El README de C01 dice que nunca se corrió promtool: este es ese chequeo."
+          },
+          {
+            "cmd": "cat > prueba.yml <<'EOF'\n# prueba.yml: TritonNotReady (for: 5m) con una réplica menos desde el minuto 4\nrule_files:\n  - alerts.yml\nevaluation_interval: 1m\ntests:\n  - interval: 1m\n    input_series:\n      # 2 réplicas de 0 a 3 min; 1 réplica de 4 a 14 min\n      - series: 'kube_deployment_status_replicas_available{namespace=\"classifier\", deployment=\"triton\"}'\n        values: '2x3 1x10'\n    alert_rule_test:\n      - eval_time: 8m  # 4 min abajo: pending, todavía no firing\n        alertname: TritonNotReady\n        exp_alerts: []\n      - eval_time: 10m  # ya pasó el for de 5 min (desde el minuto 4)\n        alertname: TritonNotReady\n        exp_alerts:\n          - exp_labels:\n              severity: page\n              namespace: classifier\n              deployment: triton\n            exp_annotations:\n              summary: \"Menos de 2 pods de Triton listos\"\n              description: \"Réplicas disponibles = 1. Causas típicas: engine que no carga (versión de TensorRT), nodo GPU que no escala, OOM de GPU.\"\n              runbook_url: \"https://runbooks.example.com/classifier/triton-not-ready\"\nEOF\ndocker run --rm -v \"$PWD\":/w -w /w --entrypoint promtool prom/prometheus:v3.13.3 test rules prueba.yml",
+            "expect": "SUCCESS. A los 8 minutos la serie lleva 4 minutos con menos de 2 réplicas: la alerta está pending, y una pending no cuenta en exp_alerts. A los 10 ya pasaron los 5 minutos del for (desde el minuto 4): firing, con los labels de la serie (namespace, deployment), severity: page y la description con $value = 1."
+          },
+          {
+            "cmd": "sed -i '' '101s/for: 5m/for: 10m/' alerts.yml\ndocker run --rm -v \"$PWD\":/w -w /w --entrypoint promtool prom/prometheus:v3.13.3 test rules prueba.yml",
+            "expect": "FAILED, con alertname: TritonNotReady, time: 10m, la alerta que esperabas en exp y got:[] (ninguna): con for: 10m, a esa hora sigue pending. La línea 101 es el for de TritonNotReady. promtool sale con código 1: en CI, el PR no pasa."
+          },
+          {
+            "cmd": "cd ~ && rm -rf ~/lab-prom",
+            "expect": "Sin salida."
+          }
+        ],
+        "fix": "Si check rules dice FAILED, el mensaje trae la línea y lo que no pudo leer (YAML, PromQL o plantilla). Antes de cambiar un umbral o un for, agrega su prueba; en input_series también puedes escribir los buckets de un histograma, uno por le.",
+        "needs": "Docker Desktop corriendo, internet para bajar prom/prometheus:v3.13.3 (una vez) y el repo del curso (el paso 1 copia alerts.yml desde su raíz). Usa el sed de macOS (BSD): en Linux es sed -i sin las comillas vacías.",
+        "verified": "docs"
+      },
+      "links": [
+        "#c01.monitoreo",
+        "#c01.archivos",
+        "#m12.prometheus-grafana",
+        "#m12.runbooks"
+      ]
+    },
+    {
+      "id": "alertmanager",
+      "num": 8,
+      "title": "Alertmanager: ruteo, agrupación, inhibición, silencios y receivers",
+      "question": "Cuando una regla pasa a firing, ¿cómo llega a la persona correcta, una sola vez, y no a las 3 a. m. por algo que puede esperar?",
+      "templates": [
+        {
+          "code": "route:\n  receiver: {receiver_por_defecto}\n  group_by: [{label}, …]\n  group_wait: {espera}\n  group_interval: {intervalo}\n  repeat_interval: {repetición}\n  routes:\n    - matchers: ['{label}=\"{valor}\"']\n      receiver: {receiver}\n      continue: false",
+          "note": "El <b>árbol de ruteo</b>: cada alerta entra por la raíz, que acepta todas, y baja al primer hijo cuyos <b>matchers</b> (filtros por label: <code>=</code>, <code>!=</code>, <code>=~</code>, <code>!~</code>) cumple. Con <code>continue: true</code> sigue probando los hermanos. Si no calza ningún hijo, la maneja el nodo donde está. Los hijos heredan lo que no definen. Por defecto: group_wait 30s, group_interval 5m, repeat_interval 4h."
+        },
+        {
+          "code": "receivers:\n  - name: {receiver}\n    pagerduty_configs:\n      - routing_key_file: {archivo}\n  - name: {otro_receiver}\n    slack_configs:\n      - api_url_file: {archivo}\n        channel: '{canal}'\n        send_resolved: true",
+          "note": "Un <b>receiver</b> es un destino con nombre: PagerDuty u Opsgenie (servicios que hacen sonar el teléfono de quien está de guardia, el on-call: eso es un <b>page</b>), Slack, Teams, email, un webhook (un POST a una URL tuya) y otros. Los secretos van en archivos (<code>*_file</code>), no en el YAML. <code>send_resolved</code> avisa también cuando la alerta se resuelve: true por defecto en PagerDuty y webhook, false en Slack y email."
+        },
+        {
+          "code": "inhibit_rules:\n  - source_matchers: ['{label}=\"{valor}\"']\n    target_matchers: ['{label}=~\"{regex}\"']\n    equal: [{label}, …]",
+          "note": "<b>Inhibición</b> (inhibition): mientras haya una alerta activa que cumple <code>source_matchers</code>, se callan las que cumplen <code>target_matchers</code> y tienen los mismos valores en los labels de <code>equal</code>. Un label que falta cuenta como vacío: si falta en las dos, son iguales."
+        },
+        {
+          "code": "amtool silence add {label}={valor} --duration={duración} --comment=\"{motivo}\" --alertmanager.url=http://localhost:9093\namtool silence query --alertmanager.url=http://localhost:9093\namtool silence expire {id} --alertmanager.url=http://localhost:9093",
+          "note": "Un <b>silencio</b> (silence) calla por un tiempo las alertas que calzan con unos matchers: un mantenimiento, un falso positivo ya conocido. La alerta sigue firing en Prometheus; solo no se notifica. amtool exige un comentario y la duración por defecto es 1h. También se crean en la UI, en el puerto 9093."
+        },
+        {
+          "code": "amtool check-config {alertmanager.yml}\namtool config routes test --config.file={alertmanager.yml} --tree {label}={valor} …",
+          "note": "Valida el archivo y te dice a qué receiver iría una alerta con esos labels, sin mandar nada: la prueba unitaria del ruteo."
+        },
+        {
+          "code": "alerting:\n  alertmanagers:\n    - static_configs:\n        - targets: ['{host}:9093']",
+          "note": "Esto va en el prometheus.yml y conecta Prometheus con Alertmanager. El prometheus.yml local de C01 no lo trae: en el compose las alertas se ven en <code>:9090/alerts</code>, pero no le llegan a nadie. En kube-prometheus-stack (el chart de Helm que instala todo esto en Kubernetes) lo configura el Operator."
+        }
+      ],
+      "formulas": [
+        "t_{\\text{primera notificación}} = t_{\\text{llega la primera alerta del grupo}} + \\texttt{group\\_wait}\\ (30\\,\\text{s})",
+        "\\Delta t_{\\text{entre avisos de un grupo}} \\ge \\texttt{group\\_interval} = 5\\,\\text{min} \\qquad \\Delta t_{\\text{recordatorio}} = \\texttt{repeat\\_interval} = 4\\,\\text{h}",
+        "N_{\\text{notificaciones}} = N_{\\text{grupos}} \\ne N_{\\text{alertas}}: \\quad 4\\ \\text{GPUs saturadas con } \\texttt{group\\_by: [alertname, env]} \\Rightarrow 1"
+      ],
+      "vars": [
+        [
+          "{receiver_por_defecto}",
+          "receiver de la raíz: lo que no calce con ningún hijo",
+          "equipo-slack"
+        ],
+        [
+          "{label}, {valor}, {regex}",
+          "label de la alerta y el valor o la regex que pide el matcher",
+          "severity, \"page\", \"TritonQueueTimeHigh|GPUSaturated\""
+        ],
+        [
+          "{espera}",
+          "el group_wait",
+          "30s"
+        ],
+        [
+          "{intervalo}",
+          "el group_interval",
+          "5m"
+        ],
+        [
+          "{repetición}",
+          "el repeat_interval",
+          "4h (1h en la ruta de page)"
+        ],
+        [
+          "{receiver}, {otro_receiver}",
+          "nombres de destinos definidos en receivers",
+          "oncall-pagerduty, equipo-slack"
+        ],
+        [
+          "{archivo}",
+          "archivo con el secreto, montado desde un Secret",
+          "/etc/alertmanager/secrets/pagerduty-routing-key"
+        ],
+        [
+          "{canal}",
+          "canal de Slack",
+          "#classifier"
+        ],
+        [
+          "{duración}, {motivo}",
+          "cuánto dura el silencio y por qué",
+          "2h, \"mantenimiento del nodo GPU\""
+        ],
+        [
+          "{id}",
+          "el id que devuelve silence add",
+          "un UUID"
+        ],
+        [
+          "{alertmanager.yml}",
+          "el archivo de configuración",
+          "alertmanager.yml"
+        ],
+        [
+          "{host}",
+          "dónde escucha Alertmanager",
+          "alertmanager (compose) o el Service del Operator"
+        ]
+      ],
+      "pieces": [
+        [
+          "route (raíz)",
+          "Entrada de todas las alertas: no lleva matchers y tiene el receiver de reserva.",
+          "receiver: equipo-slack"
+        ],
+        [
+          "routes · matchers",
+          "Hijos que eligen alertas por labels. Gana el primero que calza.",
+          "severity=\"page\" → oncall-pagerduty"
+        ],
+        [
+          "continue",
+          "Si es true, la alerta sigue por los hermanos y puede llegar a varios receivers. Default false.",
+          "page al on-call y copia a Slack"
+        ],
+        [
+          "group_by",
+          "Labels que definen un grupo: las alertas con los mismos valores salen en una sola notificación. ['...'] agrupa por todos los labels (cada alerta va sola).",
+          "[alertname, env]"
+        ],
+        [
+          "group_wait",
+          "Espera antes de la primera notificación de un grupo nuevo, para juntar las que llegan casi a la vez. Default 30s.",
+          "30s"
+        ],
+        [
+          "group_interval",
+          "Espera antes de avisar cambios en un grupo ya notificado (alertas nuevas o resueltas). Default 5m.",
+          "5m"
+        ],
+        [
+          "repeat_interval",
+          "Cada cuánto se repite el aviso si nada cambió. Default 4h; kube-prometheus-stack trae 12h.",
+          "1h en la ruta de page"
+        ],
+        [
+          "receivers",
+          "Destinos con nombre: pagerduty_configs, slack_configs, email_configs, webhook_configs, opsgenie_configs, msteams_configs y más.",
+          "oncall-pagerduty"
+        ],
+        [
+          "send_resolved",
+          "Avisa también cuando la alerta se resuelve. Default true en PagerDuty y webhook, false en Slack y email.",
+          "send_resolved: true en Slack"
+        ],
+        [
+          "inhibit_rules",
+          "Mientras una alerta fuente esté activa, calla a las objetivo que coinciden en los labels de equal.",
+          "TritonNotReady calla a TritonQueueTimeHigh"
+        ],
+        [
+          "Silencio",
+          "Calla por un tiempo las alertas que calzan con unos matchers, con autor y comentario. Se crea en la UI (:9093) o con amtool.",
+          "amtool silence add alertname=GPUSaturated --duration=2h --comment=\"nodo en mantenimiento\""
+        ],
+        [
+          "time_intervals",
+          "Horarios con nombre. Una ruta con active_time_intervals solo notifica en ese horario; con mute_time_intervals, calla en él.",
+          "warnings de lunes a viernes, 9 a 18"
+        ],
+        [
+          "Deduplicación y HA",
+          "Alertas idénticas (mismos labels) se notifican una vez. En alta disponibilidad, Prometheus manda a todos los Alertmanagers, sin balanceador, y ellos se coordinan (puerto 9094).",
+          "2 réplicas de Prometheus, 1 solo page"
+        ],
+        [
+          "external_labels",
+          "Labels que Prometheus pega a cada alerta que manda: dicen de qué entorno o cluster viene.",
+          "env: local en el prometheus.yml de C01"
+        ],
+        [
+          "Watchdog",
+          "Alerta que siempre está firing (expr: vector(1)) para probar que toda la cadena funciona. kube-prometheus-stack la trae y la manda al receiver 'null'; si la mandas a un servicio externo, ese servicio avisa cuando deja de llegar.",
+          "severity: none"
+        ],
+        [
+          "Webhook",
+          "Un POST con JSON (version \"4\": receiver, status, alerts…) a tu URL: el receiver más fácil de probar.",
+          "webhook_configs: - url: http://host.docker.internal:5001/page"
+        ]
+      ],
+      "example": {
+        "title": "Las severidades de C01 convertidas en rutas, una inhibición y un horario",
+        "lang": "yaml",
+        "code": "# alertmanager.yml ILUSTRATIVO: la columna «quién la recibe» de C01, en YAML (C01 no trae este archivo)\nroute:\n  receiver: equipo-slack  # lo que no calce con ningún hijo va al canal del equipo\n  group_by: [alertname, env]  # una notificación por alerta y entorno, no una por pod o por GPU\n  group_wait: 30s\n  group_interval: 5m\n  repeat_interval: 4h\n  routes:\n    - matchers: ['severity=\"page\"']  # p99, 5xx, Triton no listo: quien usa el servicio ya lo nota\n      receiver: oncall-pagerduty\n      repeat_interval: 1h\n    - matchers: ['severity=\"warning\"']  # cola de Triton, GPU: anticipan un page\n      receiver: equipo-slack\n      active_time_intervals: [horario-laboral]\n    - matchers: ['severity=\"ticket\"']  # calidad del modelo: se analiza con datos, no a las 3 a. m.\n      receiver: ml-tickets\ninhibit_rules:\n  - source_matchers: ['alertname=\"TritonNotReady\"']  # con Triton caído, la cola y la GPU son consecuencia\n    target_matchers: ['alertname=~\"TritonQueueTimeHigh|GPUSaturated\"']\n    equal: [env]\ntime_intervals:\n  - name: horario-laboral\n    time_intervals:\n      - weekdays: ['monday:friday']\n        times:\n          - start_time: '09:00'\n            end_time: '18:00'\n        location: America/Mexico_City\nreceivers:\n  - name: oncall-pagerduty\n    pagerduty_configs:\n      - routing_key_file: /etc/alertmanager/secrets/pagerduty-routing-key\n  - name: equipo-slack\n    slack_configs:\n      - api_url_file: /etc/alertmanager/secrets/slack-webhook-url\n        channel: '#classifier'\n        send_resolved: true\n  - name: ml-tickets\n    webhook_configs:\n      - url: http://ticket-bridge.monitoring.svc:8080/alertmanager",
+        "source": "ilustrativo: arma en YAML la columna «quién la recibe» de C01 monitoreo y la tabla de severidades de M12; C01 no trae alertmanager.yml",
+        "notes": [
+          "Las tres rutas salen de C01: page al on-call del servicio (quien está de guardia), warning al canal del equipo y ticket al equipo de ML. La raíz no tiene matchers (acepta todas) y su receiver es el de reserva para lo que no calce.",
+          "<code>group_by: [alertname, env]</code>: si se saturan las 4 GPUs a la vez, llega una notificación con las cuatro, no cuatro. <code>group_wait: 30s</code> espera a las hermanas antes del primer aviso; <code>group_interval: 5m</code> espacia los avisos de cambios; <code>repeat_interval</code> repite si nada cambió (4 h, 1 h en la ruta de page).",
+          "La inhibición: mientras <code>TritonNotReady</code> esté activa, se callan <code>TritonQueueTimeHigh</code> y <code>GPUSaturated</code> del mismo <code>env</code>. Con un pod de Triton caído, la cola y la GPU son consecuencia, y el on-call ya tiene el page de la causa. <code>env</code> sale de <code>external_labels</code> del prometheus.yml (<code>env: local</code>). No pongas en <code>equal</code> un label que la expr pierde al agregar: TritonQueueTimeHigh hace <code>sum</code> sin <code>by</code> y no tiene <code>namespace</code>, así que con <code>equal: [namespace]</code> nunca se inhibiría.",
+          "<code>active_time_intervals</code> deja que la ruta de warning avise solo de lunes a viernes, de 9 a 18 (hora de Ciudad de México). Los secretos van en archivos (<code>routing_key_file</code>, <code>api_url_file</code>), montados desde un Secret: nunca en el YAML que va a git.",
+          "Para que algo llegue, Prometheus necesita el bloque <code>alerting.alertmanagers</code>. El Alertmanager de kube-prometheus-stack viene con <code>group_by: ['namespace']</code>, <code>repeat_interval: 12h</code>, todo al receiver <code>'null'</code> (que descarta) e inhibiciones por severidad: una critical calla a las warning e info con el mismo alertname y namespace, y una warning, a las info. Hay que agregarle tus receivers y tus rutas."
+        ]
+      },
+      "figure": {
+        "kind": "routing",
+        "caption": "El árbol de la configuración de ejemplo, y lo que pasa cuando se cae el nodo de una de las dos GPUs en hora pico (horas ilustrativas): disparan tres alertas, pero llega un solo page. La cola y la GPU quedan inhibidas por TritonNotReady.",
+        "data": {
+          "root": {
+            "receiver": "equipo-slack",
+            "group_by": [
+              "alertname",
+              "env"
+            ],
+            "group_wait": "30s",
+            "group_interval": "5m",
+            "repeat_interval": "4h"
+          },
+          "routes": [
+            {
+              "matchers": "severity=\"page\"",
+              "receiver": "oncall-pagerduty",
+              "extra": "repeat_interval: 1h",
+              "alerts": [
+                "ClassifierHighP99Latency",
+                "ClassifierHigh5xxRate",
+                "TritonNotReady"
+              ]
+            },
+            {
+              "matchers": "severity=\"warning\"",
+              "receiver": "equipo-slack",
+              "extra": "active_time_intervals: horario-laboral",
+              "alerts": [
+                "TritonQueueTimeHigh",
+                "GPUSaturated"
+              ]
+            },
+            {
+              "matchers": "severity=\"ticket\"",
+              "receiver": "ml-tickets",
+              "extra": "",
+              "alerts": [
+                "ClassifierLowConfidenceSpike"
+              ]
+            }
+          ],
+          "inhibit": {
+            "source": "alertname=\"TritonNotReady\"",
+            "targets": "alertname=~\"TritonQueueTimeHigh|GPUSaturated\"",
+            "equal": [
+              "env"
+            ]
+          },
+          "incident": {
+            "start": "15:10",
+            "story": "se cae el nodo de una de las 2 GPUs: queda 1 pod de Triton con todo el tráfico de la hora pico",
+            "alerts": [
+              {
+                "alert": "TritonNotReady",
+                "severity": "page",
+                "firing_at": "15:15",
+                "why": "for: 5m",
+                "result": "page a oncall-pagerduty a las 15:15:30 (group_wait 30 s)"
+              },
+              {
+                "alert": "TritonQueueTimeHigh",
+                "severity": "warning",
+                "firing_at": "15:20",
+                "why": "for: 10m",
+                "result": "inhibida: no se notifica"
+              },
+              {
+                "alert": "GPUSaturated",
+                "severity": "warning",
+                "firing_at": "15:25",
+                "why": "for: 15m",
+                "result": "inhibida: no se notifica"
+              }
+            ],
+            "notifications": 1
+          }
+        }
+      },
+      "memo": "Cómo recordarla: <b>Prometheus decide que algo está mal; Alertmanager decide a quién, cuándo y cuántas veces avisar</b>. Es la central de enfermería de un hospital: junta los avisos de un mismo paciente en una sola llamada (agrupar), no llama por la presión si ya llamó por el paro (inhibir), no llama por la cama en mantenimiento (silenciar) y elige a quién llamar según la gravedad (rutear).",
+      "trap": "Trampa: creer que un silencio o una inhibición apaga la alerta. Prometheus la sigue evaluando y la ves firing en <code>:9090/alerts</code>; Alertmanager solo no la notifica. Un silencio largo «por si acaso» tapa la próxima falla real: dale una duración corta y un comentario. Y en Slack <code>send_resolved</code> es false por defecto: nadie se entera de que se resolvió.",
+      "lab": {
+        "goal": "Correr Alertmanager con un webhook propio, mandarle alertas a mano como lo haría Prometheus y ver el ruteo, la inhibición y un silencio.",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-prom && cd ~/lab-prom\ncat > webhook.py <<'EOF'\n# webhook.py: un receiver de Alertmanager que solo imprime lo que le llega (solo stdlib)\nimport json\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\n\nclass Receptor(BaseHTTPRequestHandler):\n    def do_POST(self):\n        cuerpo = json.loads(self.rfile.read(int(self.headers[\"Content-Length\"])))\n        nombres = \", \".join(a[\"labels\"][\"alertname\"] for a in cuerpo[\"alerts\"])\n        print(f\"{self.path} receiver={cuerpo['receiver']} status={cuerpo['status']} alertas=[{nombres}]\", flush=True)\n        self.send_response(200)\n        self.end_headers()\n\n    def log_message(self, *args):                 # sin el log de acceso de http.server\n        pass\n\nprint(\"escuchando en :5001\", flush=True)\nHTTPServer((\"0.0.0.0\", 5001), Receptor).serve_forever()\nEOF\npython3 webhook.py &",
+            "expect": "escuchando en :5001. Queda corriendo en segundo plano en esta terminal: lo que reciba se imprime aquí."
+          },
+          {
+            "cmd": "cat > alertmanager.yml <<'EOF'\n# alertmanager.yml del lab: los tres receivers son el mismo webhook.py, con rutas distintas\nroute:\n  receiver: equipo          # lo que no calce con ningún hijo (aquí, las warning)\n  group_by: [alertname, env]\n  group_wait: 10s           # corto para el lab (default 30s)\n  group_interval: 30s       # (default 5m)\n  repeat_interval: 1h\n  routes:\n    - matchers: ['severity=\"page\"']\n      receiver: oncall\n    - matchers: ['severity=\"ticket\"']\n      receiver: ml-tickets\ninhibit_rules:\n  - source_matchers: ['alertname=\"TritonNotReady\"']\n    target_matchers: ['alertname=~\"TritonQueueTimeHigh|GPUSaturated\"']\n    equal: [env]\nreceivers:\n  - name: oncall\n    webhook_configs:\n      - url: http://host.docker.internal:5001/page\n  - name: equipo\n    webhook_configs:\n      - url: http://host.docker.internal:5001/equipo\n  - name: ml-tickets\n    webhook_configs:\n      - url: http://host.docker.internal:5001/ticket\nEOF\ndocker run --rm -v \"$PWD\":/w --entrypoint amtool prom/alertmanager:v0.34.1 check-config /w/alertmanager.yml",
+            "expect": "Checking '/w/alertmanager.yml' con SUCCESS y, debajo de Found:, route, 1 inhibit rules y 3 receivers."
+          },
+          {
+            "cmd": "docker run --rm -v \"$PWD\":/w --entrypoint amtool prom/alertmanager:v0.34.1 config routes test --config.file=/w/alertmanager.yml severity=page alertname=TritonNotReady\ndocker run --rm -v \"$PWD\":/w --entrypoint amtool prom/alertmanager:v0.34.1 config routes test --config.file=/w/alertmanager.yml severity=warning alertname=GPUSaturated",
+            "expect": "oncall y después equipo: la de warning no calza con ningún hijo y la maneja la raíz. Con --tree, además, el camino que siguió."
+          },
+          {
+            "cmd": "docker run -d --name am-lab -p 9093:9093 -v \"$PWD\":/etc/alertmanager prom/alertmanager:v0.34.1\nsleep 3\ncurl -s -XPOST localhost:9093/api/v2/alerts -H 'Content-Type: application/json' -d '[\n  {\"labels\": {\"alertname\": \"TritonNotReady\", \"severity\": \"page\", \"env\": \"local\"}},\n  {\"labels\": {\"alertname\": \"TritonQueueTimeHigh\", \"severity\": \"warning\", \"env\": \"local\"}}]'",
+            "expect": "A los ≈ 10 s (el group_wait del lab) webhook.py imprime una sola línea: /page receiver=oncall status=firing alertas=[TritonNotReady]. La de la cola no llega a /equipo: está inhibida."
+          },
+          {
+            "cmd": "docker exec am-lab amtool alert query --inhibited --alertmanager.url=http://localhost:9093",
+            "expect": "Una tabla con TritonQueueTimeHigh: sigue activa en Alertmanager, solo que inhibida."
+          },
+          {
+            "cmd": "docker exec am-lab amtool silence add alertname=ClassifierLowConfidenceSpike --duration=15m --author=lab --comment=\"lab: probar silencios\" --alertmanager.url=http://localhost:9093\ncurl -s -XPOST localhost:9093/api/v2/alerts -H 'Content-Type: application/json' -d '[\n  {\"labels\": {\"alertname\": \"ClassifierLowConfidenceSpike\", \"severity\": \"ticket\", \"env\": \"local\"}}]'\nsleep 15\ndocker exec am-lab amtool alert query --silenced --alertmanager.url=http://localhost:9093",
+            "expect": "silence add imprime el id del silencio (un UUID). Después de 15 s no llegó nada a /ticket y la consulta --silenced muestra la alerta. Unos 5 minutos después del primer curl llega /page receiver=oncall status=resolved: una alerta mandada sin endsAt se resuelve sola a los 5 min (resolve_timeout), y el webhook avisa la resolución porque su send_resolved es true por defecto."
+          },
+          {
+            "cmd": "docker rm -f -v am-lab\nkill %1\ncd ~ && rm -rf ~/lab-prom",
+            "expect": "am-lab, y zsh avisa que terminó el job de webhook.py."
+          }
+        ],
+        "fix": "Si webhook.py no imprime nada, docker logs am-lab muestra el error de la notificación (connection refused si webhook.py no está corriendo). Si en el paso 4 llegan dos líneas, revisa que las dos alertas tengan el mismo env: equal compara ese label.",
+        "needs": "Docker Desktop corriendo (host.docker.internal lleva del contenedor a tu Mac), Python 3 e internet para bajar prom/alertmanager:v0.34.1 (una vez). Sin Prometheus: las alertas se mandan con curl, en el formato en que las manda Prometheus.",
+        "verified": "docs"
+      },
+      "links": [
+        "#m12.prometheus-grafana",
+        "#m12.runbooks",
+        "#c01.monitoreo",
+        "#ref-herramientas.monitoreo"
+      ]
+    },
+    {
+      "id": "grafana",
+      "num": 9,
+      "title": "Grafana: data sources, dashboards, paneles, variables y dashboards como código",
+      "question": "¿Cómo conviertes las consultas en un tablero que quien está de guardia entiende en 10 segundos, y cómo evitas que ese tablero se pierda o se rompa?",
+      "templates": [
+        {
+          "code": "apiVersion: 1\ndatasources:\n  - name: {nombre}\n    type: prometheus\n    uid: {uid}\n    access: proxy\n    url: http://{host}:9090\n    isDefault: true\n    jsonData:\n      timeInterval: {scrape_interval}",
+          "note": "Un <b>data source</b> (fuente de datos) le dice a Grafana dónde está Prometheus. Grafana no guarda métricas: le manda PromQL a Prometheus y dibuja la respuesta. Este archivo va en <code>/etc/grafana/provisioning/datasources</code> y se carga al arrancar. <code>timeInterval</code> es el «Scrape interval» del data source: ponle el de tu Prometheus (15s en C01) para que <code>$__rate_interval</code> salga bien."
+        },
+        {
+          "code": "rate({counter}[$__rate_interval])\nhistogram_quantile(0.99, sum by (le) (rate({nombre}_bucket[$__rate_interval])))",
+          "note": "<code>$__rate_interval</code> es una variable de Grafana: una ventana que se ajusta al zoom y que nunca baja de 4 scrapes, así <code>rate</code> siempre tiene muestras. En las reglas de Prometheus (alertas y grabaciones) no existe: ahí va una ventana fija, como <code>[5m]</code>."
+        },
+        {
+          "code": "Variable: {variable} · Query type: Label values · Label: {label} · Metric: {métrica}\nsum by (model_version) (rate(classifier_requests_total{model_version=~\"$model_version\"}[$__rate_interval]))",
+          "note": "Una <b>variable</b> es un menú arriba del dashboard (model_version, source) que se reemplaza en todas las consultas. Con selección múltiple o «All», Grafana une los valores con <code>|</code>: usa <code>=~</code>, no <code>=</code>."
+        },
+        {
+          "code": "Visualización: {Time series | Stat | Gauge | Heatmap | Table}\nUnit: {s | ms | percentunit | reqps}\nThresholds: Base verde · {valor} rojo",
+          "note": "Cada <b>panel</b> es una o más consultas, una visualización, una <b>unidad</b> (con Unit <code>s</code>, Grafana muestra 0.2134 como 213 ms) y <b>umbrales</b> (thresholds: colores a partir de un valor). Los umbrales pintan; no le avisan a nadie. En Legend, <code>{{source}}</code> pone el valor de ese label como nombre de cada línea."
+        },
+        {
+          "code": "apiVersion: 1\nproviders:\n  - name: {nombre}\n    type: file\n    folder: {carpeta}\n    allowUiUpdates: false\n    options:\n      path: {ruta_de_los_json}",
+          "note": "<b>Dashboards como código</b>: el JSON del dashboard (su modelo completo: paneles, consultas, variables) vive en git y Grafana lo carga de una carpeta. Con <code>allowUiUpdates: false</code> no se puede guardar un cambio desde la UI: el cambio entra por git. En kube-prometheus-stack (el chart de Helm que instala Prometheus, Alertmanager y Grafana en Kubernetes), un ConfigMap con la label <code>grafana_dashboard: \"1\"</code> hace lo mismo: Grafana lo encuentra y lo carga."
+        }
+      ],
+      "formulas": [
+        "\\texttt{\\$\\_\\_rate\\_interval} = \\max(\\texttt{\\$\\_\\_interval} + s,\\; 4s)",
+        "s = 15\\,\\text{s}: \\quad \\texttt{\\$\\_\\_interval} = 30\\,\\text{s} \\Rightarrow 60\\,\\text{s} \\qquad \\texttt{\\$\\_\\_interval} = 2\\,\\text{min} \\Rightarrow 135\\,\\text{s}",
+        "\\texttt{\\$\\_\\_interval} \\approx \\frac{\\text{rango de tiempo del dashboard}}{\\text{puntos del panel}} \\quad (\\text{redondeado y nunca menor que } s)"
+      ],
+      "vars": [
+        [
+          "{nombre}",
+          "nombre del data source o del provider",
+          "Prometheus"
+        ],
+        [
+          "{uid}",
+          "id fijo del data source: los dashboards lo referencian",
+          "prom-lab"
+        ],
+        [
+          "{host}",
+          "dónde escucha Prometheus, visto desde Grafana",
+          "prometheus (compose), prometheus-operated.monitoring.svc (EKS)"
+        ],
+        [
+          "{scrape_interval}",
+          "el intervalo de scrape real de tu Prometheus",
+          "15s"
+        ],
+        [
+          "{counter}, {nombre}_bucket",
+          "un counter y los buckets de un histograma",
+          "classifier_requests_total, classifier_request_latency_seconds_bucket"
+        ],
+        [
+          "{variable}, {label}, {métrica}",
+          "nombre de la variable, label cuyos valores ofrece y métrica de donde los saca",
+          "model_version, model_version, classifier_requests_total"
+        ],
+        [
+          "{valor}",
+          "valor donde empieza el color del umbral",
+          "0.2 (s) en el p99, 0.01 en la tasa de 5xx"
+        ],
+        [
+          "{carpeta}",
+          "carpeta de Grafana donde aparece el dashboard",
+          "Clasificador"
+        ],
+        [
+          "{ruta_de_los_json}",
+          "carpeta del contenedor con los archivos JSON",
+          "/var/lib/grafana/dashboards"
+        ],
+        [
+          "s",
+          "el Scrape interval configurado en el data source",
+          "15 s"
+        ],
+        [
+          "$__interval",
+          "el paso entre puntos de un panel: crece con el rango de tiempo y baja con el ancho del panel",
+          "más grande con 7 días que con 1 hora"
+        ],
+        [
+          "$__rate_interval",
+          "la ventana para rate en un panel",
+          "nunca menos de 4s = 60 s"
+        ]
+      ],
+      "pieces": [
+        [
+          "Data source",
+          "La conexión a Prometheus: tipo y URL. Grafana consulta; no guarda métricas.",
+          "http://prometheus-operated.monitoring.svc:9090"
+        ],
+        [
+          "Dashboard",
+          "Una página de paneles con un rango de tiempo y un refresco comunes. Por dentro es un JSON.",
+          "Servicio, Triton y GPU, Modelo, Negocio (C01)"
+        ],
+        [
+          "Row",
+          "Una fila plegable que agrupa paneles.",
+          "Ahora · Latencia · Triton y GPU · Modelo"
+        ],
+        [
+          "Time series",
+          "Líneas en el tiempo: tasas, latencias, cola. La visualización por defecto.",
+          "p50 y p99 del gateway"
+        ],
+        [
+          "Stat",
+          "Un número grande con color por umbral (por defecto, el último valor).",
+          "tasa de 5xx de ahora"
+        ],
+        [
+          "Gauge · Bar gauge",
+          "El valor contra un mínimo y un máximo que fijas.",
+          "pods de Triton listos, de 0 a 4"
+        ],
+        [
+          "Heatmap",
+          "La distribución en el tiempo: cada columna son los buckets de un histograma. La consulta va con Format: Heatmap.",
+          "buckets de classifier_request_latency_seconds"
+        ],
+        [
+          "Table",
+          "Una fila por serie, con sus valores y labels.",
+          "top 5 de callers (quién llama: el label source) por req/s"
+        ],
+        [
+          "Variable",
+          "Un menú del dashboard que se reemplaza en las consultas; tipo Query → Label values.",
+          "$model_version: estable contra canary (la versión nueva a prueba)"
+        ],
+        [
+          "$__rate_interval",
+          "La ventana para rate que se ajusta al zoom y nunca baja de 4 scrapes.",
+          "rate(classifier_requests_total[$__rate_interval])"
+        ],
+        [
+          "Unit",
+          "Cómo se muestra el número: s, ms, percentunit (0.0–1.0 como %), reqps.",
+          "percentunit en la tasa de 5xx"
+        ],
+        [
+          "Thresholds",
+          "Colores a partir de un valor; por defecto, base verde y 80 rojo. En Time series se pueden dibujar como líneas. No mandan alertas.",
+          "línea roja en 0.2 s"
+        ],
+        [
+          "Legend",
+          "El nombre de cada serie; {{label}} usa el valor de ese label.",
+          "{{gpu_uuid}} en la utilización por GPU"
+        ],
+        [
+          "Annotations",
+          "Marcas verticales que salen de una consulta: deploys, reinicios, alertas.",
+          "changes(process_start_time_seconds{job=\"gateway\"}[5m]) > 0"
+        ],
+        [
+          "Provisioning",
+          "Data sources y dashboards desde archivos al arrancar: viven en git, no en un clic.",
+          "/etc/grafana/provisioning"
+        ],
+        [
+          "Explore",
+          "Pantalla para consultas sueltas, sin armar un panel: el lugar para probar una query.",
+          "Builder o Code"
+        ],
+        [
+          "Alertas de Grafana",
+          "Grafana también puede evaluar alertas. Elige un solo lugar para las reglas (en C01, Prometheus), versionado en git.",
+          "alerts.yml de C01"
+        ]
+      ],
+      "example": {
+        "title": "Las tres consultas de M12 que se vuelven paneles de C01",
+        "lang": "promql",
+        "code": "# p99 del servicio en ventanas de 5 min: primero sumar buckets entre pods, después el cuantil\nhistogram_quantile(0.99,\n  sum by (le) (rate(classifier_request_latency_seconds_bucket[5m])))\n\n# Fracción de 5xx sobre requests válidos (los 4xx no cuentan en ningún lado)\nsum(rate(classifier_requests_total{status=~\"5..\"}[5m]))\n  / sum(rate(classifier_requests_total{status!~\"4..\"}[5m]))\n\n# Batch promedio en Triton: inferencias por ejecución (cerca de max_batch_size = sin margen)\nsum(rate(nv_inference_count{model=\"classifier\"}[5m]))\n  / sum(rate(nv_inference_exec_count{model=\"classifier\"}[5m]))",
+        "source": "js/content/m12-monitoreo.js, sección «Prometheus, Grafana y alertas por SLO»: p99.promql, error-ratio.promql y batch-promedio.promql, tal cual",
+        "notes": [
+          "C01 describe cuatro dashboards: <b>Servicio</b> (tasa, errores y latencia por tier, la capa: ALB, gateway y Triton, y por caller, con el desglose preprocess / cola / cómputo y marcadores de deploy), <b>Triton y GPU</b> (cola contra cómputo, batch promedio, utilización y memoria por GPU, réplicas contra el máximo de KEDA), <b>Modelo</b> (score top-1, baja confianza, top-20 de categorías, todo partido por <code>model_version</code>) y <b>Negocio</b> (diario). El repo no trae sus JSON: estas consultas son el punto de partida.",
+          "p99 → un <b>Time series</b> del dashboard Servicio, con Unit <code>s</code> y el umbral 0.2 dibujado como línea. En un panel conviene <code>[$__rate_interval]</code> en vez de <code>[5m]</code>: se ajusta al zoom. Para el valor de ahora, un <b>Stat</b> con la misma consulta.",
+          "Fracción de 5xx → Unit <code>percentunit</code> (0.012 se ve como 1.20%) y un umbral rojo en 0.01, el de la alerta. Partida por caller: <code>sum by (source)</code> arriba y abajo de la división.",
+          "Batch promedio → dashboard Triton y GPU. Si se acerca a <code>max_batch_size</code>, el dynamic batching (Triton juntando requests en un solo batch) ya no tiene margen (hoja de Triton). Va junto a la cola (la query de KEDA de la sección 5) y a <code>nv_gpu_utilization</code> con Legend <code>{{gpu_uuid}}</code>: una línea por GPU.",
+          "El top-20 de categorías no sale de Prometheus: el gateway no tiene un label de categoría (serían 500 valores, cada uno con sus propias series: demasiada cardinalidad). Sale de los logs de predicción, en otro data source; un mismo dashboard puede mezclar paneles de los dos."
+        ]
+      },
+      "figure": {
+        "kind": "dashboard",
+        "caption": "Un dashboard de servicio para el on-call de C01 (quien está de guardia), en la grilla de 24 columnas de Grafana (x, y, w y h en celdas): lo que importa ahora arriba, después la latencia por tramo, Triton y el modelo. Las consultas son reales sobre las métricas de C01; el layout es una propuesta, porque el repo no trae dashboards.",
+        "data": {
+          "title": "Clasificador · servicio",
+          "grid_columns": 24,
+          "variables": [
+            {
+              "name": "source",
+              "query": "Label values: source de classifier_requests_total",
+              "multi": true,
+              "all": true
+            },
+            {
+              "name": "model_version",
+              "query": "Label values: model_version de classifier_requests_total",
+              "multi": true,
+              "all": true
+            }
+          ],
+          "annotations": [
+            {
+              "name": "Reinicios del gateway",
+              "query": "changes(process_start_time_seconds{job=\"gateway\"}[5m]) > 0"
+            },
+            {
+              "name": "Alertas firing",
+              "query": "ALERTS{alertstate=\"firing\"}"
+            }
+          ],
+          "rows": [
+            {
+              "title": "Ahora",
+              "y": 0
+            },
+            {
+              "title": "Latencia",
+              "y": 4
+            },
+            {
+              "title": "Triton y GPU",
+              "y": 20
+            },
+            {
+              "title": "Modelo",
+              "y": 28
+            }
+          ],
+          "panels": [
+            {
+              "row": "Ahora",
+              "title": "Requests/s",
+              "type": "stat",
+              "x": 0,
+              "y": 0,
+              "w": 6,
+              "h": 4,
+              "unit": "reqps",
+              "queries": [
+                "sum(rate(classifier_requests_total{source=~\"$source\"}[$__rate_interval]))"
+              ]
+            },
+            {
+              "row": "Ahora",
+              "title": "5xx sobre válidos",
+              "type": "stat",
+              "x": 6,
+              "y": 0,
+              "w": 6,
+              "h": 4,
+              "unit": "percentunit",
+              "thresholds": [
+                [
+                  "base",
+                  "verde"
+                ],
+                [
+                  0.01,
+                  "rojo"
+                ]
+              ],
+              "queries": [
+                "sum(rate(classifier_requests_total{status=~\"5..\", source=~\"$source\"}[$__rate_interval])) / sum(rate(classifier_requests_total{status!~\"4..\", source=~\"$source\"}[$__rate_interval]))"
+              ]
+            },
+            {
+              "row": "Ahora",
+              "title": "p99",
+              "type": "stat",
+              "x": 12,
+              "y": 0,
+              "w": 6,
+              "h": 4,
+              "unit": "s",
+              "thresholds": [
+                [
+                  "base",
+                  "verde"
+                ],
+                [
+                  0.2,
+                  "rojo"
+                ]
+              ],
+              "queries": [
+                "histogram_quantile(0.99, sum by (le) (rate(classifier_request_latency_seconds_bucket{source=~\"$source\"}[$__rate_interval])))"
+              ]
+            },
+            {
+              "row": "Ahora",
+              "title": "Pods de Triton listos",
+              "type": "gauge",
+              "x": 18,
+              "y": 0,
+              "w": 6,
+              "h": 4,
+              "min": 0,
+              "max": 4,
+              "thresholds": [
+                [
+                  "base",
+                  "rojo"
+                ],
+                [
+                  2,
+                  "verde"
+                ]
+              ],
+              "queries": [
+                "kube_deployment_status_replicas_available{namespace=\"classifier\", deployment=\"triton\"}"
+              ]
+            },
+            {
+              "row": "Latencia",
+              "title": "p50 y p99 del gateway",
+              "type": "timeseries",
+              "x": 0,
+              "y": 4,
+              "w": 12,
+              "h": 8,
+              "unit": "s",
+              "thresholds": [
+                [
+                  0.2,
+                  "rojo, como línea"
+                ]
+              ],
+              "queries": [
+                "histogram_quantile(0.5, sum by (le) (rate(classifier_request_latency_seconds_bucket{source=~\"$source\"}[$__rate_interval])))",
+                "histogram_quantile(0.99, sum by (le) (rate(classifier_request_latency_seconds_bucket{source=~\"$source\"}[$__rate_interval])))"
+              ]
+            },
+            {
+              "row": "Latencia",
+              "title": "p99 por tramo: preprocess contra inferencia",
+              "type": "timeseries",
+              "x": 12,
+              "y": 4,
+              "w": 12,
+              "h": 8,
+              "unit": "s",
+              "queries": [
+                "histogram_quantile(0.99, sum by (le) (rate(classifier_preprocess_seconds_bucket[$__rate_interval])))",
+                "histogram_quantile(0.99, sum by (le) (rate(classifier_inference_seconds_bucket[$__rate_interval])))"
+              ]
+            },
+            {
+              "row": "Latencia",
+              "title": "Distribución de la latencia",
+              "type": "heatmap",
+              "x": 0,
+              "y": 12,
+              "w": 24,
+              "h": 8,
+              "format": "Heatmap",
+              "queries": [
+                "sum by (le) (rate(classifier_request_latency_seconds_bucket{source=~\"$source\"}[$__rate_interval]))"
+              ]
+            },
+            {
+              "row": "Triton y GPU",
+              "title": "Cola contra cómputo (ms)",
+              "type": "timeseries",
+              "x": 0,
+              "y": 20,
+              "w": 8,
+              "h": 8,
+              "unit": "ms",
+              "thresholds": [
+                [
+                  20,
+                  "rojo, como línea"
+                ]
+              ],
+              "queries": [
+                "sum(rate(nv_inference_queue_duration_us{model=\"classifier\"}[$__rate_interval])) / sum(rate(nv_inference_request_success{model=\"classifier\"}[$__rate_interval])) / 1000",
+                "sum(rate(nv_inference_compute_infer_duration_us{model=\"classifier\"}[$__rate_interval])) / sum(rate(nv_inference_request_success{model=\"classifier\"}[$__rate_interval])) / 1000"
+              ]
+            },
+            {
+              "row": "Triton y GPU",
+              "title": "Batch promedio",
+              "type": "stat",
+              "x": 8,
+              "y": 20,
+              "w": 4,
+              "h": 8,
+              "queries": [
+                "sum(rate(nv_inference_count{model=\"classifier\"}[$__rate_interval])) / sum(rate(nv_inference_exec_count{model=\"classifier\"}[$__rate_interval]))"
+              ]
+            },
+            {
+              "row": "Triton y GPU",
+              "title": "Réplicas de Triton contra el máximo de KEDA",
+              "type": "timeseries",
+              "x": 12,
+              "y": 20,
+              "w": 6,
+              "h": 8,
+              "queries": [
+                "kube_horizontalpodautoscaler_status_current_replicas{horizontalpodautoscaler=\"keda-hpa-triton\"}",
+                "kube_horizontalpodautoscaler_spec_max_replicas{horizontalpodautoscaler=\"keda-hpa-triton\"}"
+              ]
+            },
+            {
+              "row": "Triton y GPU",
+              "title": "Utilización por GPU",
+              "type": "timeseries",
+              "x": 18,
+              "y": 20,
+              "w": 6,
+              "h": 8,
+              "unit": "percentunit",
+              "legend": "{{gpu_uuid}}",
+              "thresholds": [
+                [
+                  0.85,
+                  "rojo, como línea"
+                ]
+              ],
+              "queries": [
+                "nv_gpu_utilization"
+              ]
+            },
+            {
+              "row": "Modelo",
+              "title": "Baja confianza por model_version",
+              "type": "timeseries",
+              "x": 0,
+              "y": 28,
+              "w": 12,
+              "h": 8,
+              "unit": "percentunit",
+              "legend": "{{model_version}}",
+              "queries": [
+                "sum by (model_version) (rate(classifier_top1_score_bucket{le=\"0.3\", model_version=~\"$model_version\"}[$__rate_interval])) / sum by (model_version) (rate(classifier_top1_score_count{model_version=~\"$model_version\"}[$__rate_interval]))"
+              ]
+            },
+            {
+              "row": "Modelo",
+              "title": "Score top-1",
+              "type": "heatmap",
+              "x": 12,
+              "y": 28,
+              "w": 12,
+              "h": 8,
+              "format": "Heatmap",
+              "queries": [
+                "sum by (le) (rate(classifier_top1_score_bucket{model_version=~\"$model_version\"}[$__rate_interval]))"
+              ]
+            }
+          ]
+        }
+      },
+      "memo": "Cómo recordarla: <b>Grafana no mide nada: pregunta y dibuja</b>. Es el tablero del auto: muestra lo que miden los sensores (Prometheus guarda, Grafana pinta). Cada panel es una consulta, una visualización, una unidad y unos umbrales; las variables cambian el filtro de todo el tablero a la vez, y el JSON del dashboard va a git como cualquier código.",
+      "trap": "Trampa: dejar <code>rate(x[1m])</code> fijo en un panel. Con un rango de 7 días, Grafana pide un punto cada varios minutos, pero cada punto mira solo el último minuto: lo que pasó entre punto y punto no se ve. <code>$__rate_interval</code> crece con el paso, pero depende del Scrape interval del data source: si dice 15s y tu Prometheus lee cada 60 s, la ventana sale corta y el panel queda vacío. Y un umbral rojo no avisa a nadie: las alertas viven en las reglas de Prometheus.",
+      "lab": {
+        "goal": "Levantar Prometheus y Grafana con el data source por provisioning, armar un dashboard con un p99, un Stat y un Heatmap sobre las métricas del propio Prometheus, y agregar una variable.",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-prom/datasources && cd ~/lab-prom\ndocker network create lab-prom\ndocker run -d --name prom-lab --network lab-prom -p 9090:9090 prom/prometheus:v3.13.3",
+            "expect": "Un id de red y uno de contenedor. En http://localhost:9090/targets el job prometheus aparece UP: la configuración de ejemplo de esa imagen se lee a sí misma cada 15 s."
+          },
+          {
+            "cmd": "cat > datasources/prometheus.yml <<'EOF'\napiVersion: 1\ndatasources:\n  - name: Prometheus\n    type: prometheus\n    uid: prom-lab\n    access: proxy\n    url: http://prom-lab:9090\n    isDefault: true\n    jsonData:\n      timeInterval: 15s\nEOF\ndocker run -d --name grafana-lab --network lab-prom -p 3000:3000 \\\n  -v \"$PWD/datasources\":/etc/grafana/provisioning/datasources grafana/grafana:13.2.4",
+            "expect": "Abre http://localhost:3000 con admin / admin (te pide cambiar la contraseña). En Connections → Data sources está Prometheus, marcado como provisionado; su botón de prueba da un aviso verde de que pudo consultar la API de Prometheus. La URL usa el nombre del contenedor (prom-lab): desde Grafana, localhost sería Grafana mismo."
+          },
+          {
+            "cmd": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=sum by (handler) (rate(prometheus_http_requests_total[1m]))' | head -c 400; echo",
+            "expect": "Un JSON con status success y un resultado por handler: Prometheus contesta la misma PromQL que Grafana le va a mandar. Ahora, en Grafana, abre Explore en modo Code y pega sum by (handler) (rate(prometheus_http_requests_total[$__rate_interval])) y después histogram_quantile(0.99, sum by (le) (rate(prometheus_http_request_duration_seconds_bucket[$__rate_interval]))): una línea por handler (decenas, casi todas planas en 0: Prometheus crea la serie de cada ruta al arrancar; recarga su UI unas veces para crear tráfico) y el p99 de la API de Prometheus en segundos, el mismo patrón que la alerta de C01."
+          },
+          {
+            "cmd": "open http://localhost:3000/dashboard/new",
+            "expect": "Un dashboard nuevo en el navegador. Agrega tres visualizaciones: un Time series con el p99 del paso anterior (Unit: seconds (s); Thresholds: 0.2 en rojo, mostrado como línea), un Stat con sum(rate(prometheus_http_requests_total[$__rate_interval])) (Unit: requests/sec (rps)) y un Heatmap con sum by (le) (rate(prometheus_http_request_duration_seconds_bucket[$__rate_interval])), con Format: Heatmap en las opciones de la consulta. Guárdalo."
+          },
+          {
+            "cmd": "curl -s localhost:9090/api/v1/label/handler/values | head -c 300; echo",
+            "expect": "La lista de valores de handler: es lo que Grafana le pide a Prometheus para llenar una variable de tipo Label values. En el dashboard, agrega la variable handler (Query type: Label values, Label: handler, Metric: prometheus_http_requests_total, con Multi-value e Include All) y cambia la consulta del Stat a sum(rate(prometheus_http_requests_total{handler=~\"$handler\"}[$__rate_interval])). Al elegir dos handlers, el panel suma solo esos; con = en vez de =~, elegir dos lo deja vacío, porque Grafana los une con |."
+          },
+          {
+            "cmd": "pbpaste > ~/lab-prom/dashboard.json\nhead -c 300 ~/lab-prom/dashboard.json",
+            "expect": "Antes, en la configuración del dashboard, abre JSON Model y copia todo. El archivo es el dashboard entero (paneles, consultas, variables): versionado en git, se carga por provisioning o por la API, y deja de depender de un clic."
+          },
+          {
+            "cmd": "docker rm -f -v prom-lab grafana-lab && docker network rm lab-prom\ncd ~ && rm -rf ~/lab-prom",
+            "expect": "prom-lab, grafana-lab y lab-prom: lo que borró."
+          }
+        ],
+        "fix": "Si la prueba del data source falla con connection refused, revisa que los dos contenedores estén en la red lab-prom y que la URL diga prom-lab, no localhost. Si el p99 sale vacío con una imagen de Prometheus más nueva: desde v3.14 su configuración de ejemplo activa scrape_native_histograms y la serie _bucket ya no existe; usa histogram_quantile(0.99, sum(rate(prometheus_http_request_duration_seconds[$__rate_interval]))).",
+        "needs": "Docker Desktop corriendo, un navegador e internet para bajar prom/prometheus:v3.13.3 y grafana/grafana:13.2.4 (una vez).",
+        "verified": "docs"
+      },
+      "links": [
+        "#m12.prometheus-grafana",
+        "#m12.runbooks",
+        "#c01.monitoreo",
+        "#ref-herramientas.monitoreo"
+      ]
+    }
+  ],
+  "revisor": [
+    {
+      "id": "estructura",
+      "severity": "error",
+      "kinds": [
+        "alert",
+        "record"
+      ],
+      "check": "Flag a YAML document (not null) that has no groups array (or, for kind: PrometheusRule, no spec.groups array). For every group: flag a missing or empty name, a name already used by an earlier group of the same document, and a rules value that is not an array. rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. For every rule (object): flag when neither alert nor record is a non-empty string (\"falta alert o record\"), when both are (\"alert y record a la vez\"), when expr is missing or only whitespace (\"falta expr\"), and, in a recording rule (record set, alert not), when any of for, keep_firing_for or annotations is present (\"campo de alerta en una regla de grabación\"). One finding per problem.",
+      "message": "Regla o grupo mal armado: Prometheus no carga el archivo.",
+      "why": "promtool check rules y Prometheus rechazan el archivo entero: una regla sin expr, con alert y record a la vez o con for en una regla de grabación. Si Prometheus ya corría, sigue con las reglas viejas y las nuevas nunca existen.",
+      "fix": "Cada regla lleva alert o record (uno solo) y expr; for, keep_firing_for y annotations van solo en las alertas.",
+      "example_bad": "groups:\n  - name: classifier-recording\n    rules:\n      - record: classifier:low_confidence_share:rate30m\n        expr: |\n          sum(rate(classifier_top1_score_bucket{le=\"0.3\"}[30m]))\n            /\n          (sum(rate(classifier_top1_score_count[30m])) > 0)\n        for: 10m",
+      "example_good": "groups:\n  - name: classifier-recording\n    rules:\n      - record: classifier:low_confidence_share:rate30m\n        expr: |\n          sum(rate(classifier_top1_score_bucket{le=\"0.3\"}[30m]))\n            /\n          (sum(rate(classifier_top1_score_count[30m])) > 0)"
+    },
+    {
+      "id": "alerta-sin-comparacion",
+      "severity": "error",
+      "kinds": [
+        "alert"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. For every alerting rule: E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed. Skip when E is empty (estructura reports it), when E trimmed starts with vector( (a Watchdog that must always fire), or when E contains absent( or absent_over_time(, or the word and or unless (they filter). Remove every {…} matcher block from E and find the comparison operators ==, !=, >=, <=, > and <. Flag when there is none, or when every one is followed by the bool modifier (only spaces in between).",
+      "message": "La alerta no compara contra nada: va a disparar siempre.",
+      "why": "Cada serie que devuelve la expr es una alerta activa. Sin una comparación que filtre (> 0.85), la expr devuelve todas las series todo el tiempo: una alerta por GPU, firing para siempre. Con bool pasa lo mismo, porque devuelve 0 o 1 para todas.",
+      "fix": "Termina la expr en una comparación sin bool: nv_gpu_utilization > 0.85.",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: GPUSaturated\n        expr: nv_gpu_utilization\n        for: 15m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"GPU {{ $labels.gpu_uuid }} sobre 85 % de utilización\"\n          description: \"Utilización = {{ $value | humanizePercentage }}.\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: GPUSaturated\n        expr: nv_gpu_utilization > 0.85\n        for: 15m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"GPU {{ $labels.gpu_uuid }} sobre 85 % de utilización\"\n          description: \"Utilización = {{ $value | humanizePercentage }}.\""
+    },
+    {
+      "id": "alerta-sin-for",
+      "severity": "warn",
+      "kinds": [
+        "alert"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. Flag every alerting rule whose for is missing, empty or a zero duration (0, 0s, 0m). A duration is one or more <int><unit> pairs (units ms, s, m, h, d, w, y; ms before m) or a plain number (seconds); anything else (e.g. 5m * 2) is not parsed and is skipped. Do not flag it when E trimmed starts with vector( (Watchdog), nor when E contains the word and together with at least two different durations, counting both range selectors [d] (the part before : in a subquery) and the trailing <int><unit> of the last :-separated part of recorded-series names in E (classifier:error_ratio:rate1h gives 1h): that is a multi-window burn-rate alert, where the short window does the job of for. E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed.",
+      "message": "Alerta sin for: dispara en la primera evaluación que cumple.",
+      "why": "Sin for, la alerta dispara en la primera evaluación en que la expr devuelve algo: un solo pico (una pausa del recolector de basura, un deploy, un scrape raro) ya manda el page. Con for, la condición tiene que sostenerse ese tiempo; mientras, la alerta queda pending. La ventana del rate ya suaviza algo, pero no reemplaza al for.",
+      "fix": "Agrega un for acorde a la alerta: 5–10 min en las de page de C01, 30 min en la de ticket.",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: TritonQueueTimeHigh\n        expr: |\n          sum(rate(nv_inference_queue_duration_us{model=\"classifier\"}[5m]))\n            / sum(rate(nv_inference_request_success{model=\"classifier\"}[5m]))\n            / 1000 > 20\n        labels:\n          severity: warning\n        annotations:\n          summary: \"Cola de Triton sobre 20 ms en promedio\"\n          description: \"Espera media en cola = {{ $value | printf \\\"%.1f\\\" }} ms.\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: TritonQueueTimeHigh\n        expr: |\n          sum(rate(nv_inference_queue_duration_us{model=\"classifier\"}[5m]))\n            / sum(rate(nv_inference_request_success{model=\"classifier\"}[5m]))\n            / 1000 > 20\n        for: 10m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"Cola de Triton sobre 20 ms en promedio\"\n          description: \"Espera media en cola = {{ $value | printf \\\"%.1f\\\" }} ms.\""
+    },
+    {
+      "id": "sin-severity",
+      "severity": "error",
+      "kinds": [
+        "alert"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. Flag every alerting rule whose labels.severity is missing, null or an empty string.",
+      "message": "Alerta sin label severity.",
+      "why": "Alertmanager rutea por labels: sin severity, la alerta no calza con la ruta de page ni con la de ticket y cae en el receiver por defecto. Puede despertar a alguien por nada o perderse en un canal que nadie mira.",
+      "fix": "Agrega labels.severity con un valor que tu Alertmanager rutee (page, warning o ticket en C01).",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: TritonNotReady\n        expr: |\n          kube_deployment_status_replicas_available{namespace=\"classifier\", deployment=\"triton\"} < 2\n        for: 5m\n        annotations:\n          summary: \"Menos de 2 pods de Triton listos\"\n          description: \"Réplicas disponibles = {{ $value }}.\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: TritonNotReady\n        expr: |\n          kube_deployment_status_replicas_available{namespace=\"classifier\", deployment=\"triton\"} < 2\n        for: 5m\n        labels:\n          severity: page\n        annotations:\n          summary: \"Menos de 2 pods de Triton listos\"\n          description: \"Réplicas disponibles = {{ $value }}.\"\n          runbook_url: \"https://runbooks.example.com/classifier/triton-not-ready\""
+    },
+    {
+      "id": "sin-anotaciones",
+      "severity": "warn",
+      "kinds": [
+        "alert"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. For every alerting rule, list as missing: annotations.summary and annotations.description when absent or empty, and annotations.runbook_url when labels.severity is page or critical (case-insensitive) and runbook_url is absent or empty. One finding per rule naming everything missing.",
+      "message": "Alerta sin summary, description o (si es de page) runbook_url.",
+      "why": "A las 3 a. m. el page es todo lo que ve quien está de guardia. summary dice qué pasa, description da el valor y por dónde empezar, y runbook_url lleva a los pasos. Sin eso, el primer cuarto de hora se va en entender la alerta.",
+      "fix": "Agrega summary, description con {{ $value }} y, en las de page, runbook_url, como cada alerta de C01.",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHighP99Latency\n        expr: |\n          histogram_quantile(0.99,\n            sum by (le) (rate(classifier_request_latency_seconds_bucket[5m]))\n          ) > 0.2\n        for: 10m\n        labels:\n          severity: page",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHighP99Latency\n        expr: |\n          histogram_quantile(0.99,\n            sum by (le) (rate(classifier_request_latency_seconds_bucket[5m]))\n          ) > 0.2\n        for: 10m\n        labels:\n          severity: page\n        annotations:\n          summary: \"p99 del clasificador sobre 200 ms\"\n          description: \"p99 = {{ $value | humanizeDuration }} (SLO 200 ms).\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-p99-latency\""
+    },
+    {
+      "id": "etiqueta-perdida",
+      "severity": "warn",
+      "kinds": [
+        "alert"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. For every alerting rule, collect the label names referenced as $labels.<name> or index $labels \"<name>\" in the values of annotations and labels; skip the rule if there are none. E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed. Find the aggregations in E: the operators sum, avg, min, max, count, group, stddev, stdvar, topk, bottomk, quantile, count_values, limitk, limit_ratio followed by an optional by/without (…) clause and (, plus an optional by/without (…) right after the matching ). Keep the outermost ones. Skip the rule if E has no aggregation, if any outermost one uses without or is topk, bottomk, count_values, limitk or limit_ratio (they keep or add labels), or if E, after cutting out the outermost aggregations and removing {…} blocks, […] ranges and the label lists of by, without, on, ignoring, group_left and group_right, still contains a metric name (an identifier not followed by ( and not a keyword such as and, or, unless, bool, offset, by, on, ignoring). Available labels = union of the by lists of the outermost aggregations, minus le when E contains histogram_quantile. Flag every referenced name that is not available.",
+      "message": "La plantilla usa un label que la expr ya no tiene.",
+      "why": "Después de sum (o de sum by sin ese label), la serie que dispara la alerta ya no trae pod ni instance: {{ $labels.pod }} sale vacío y el page dice «en el pod » sin decir cuál. No da error: el texto simplemente sale incompleto.",
+      "fix": "Agrega el label al by de cada agregación (sum by (pod)) o sácalo del texto.",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHigh5xxRate\n        expr: |\n          sum(rate(classifier_requests_total{status=~\"5..\"}[5m]))\n            / sum(rate(classifier_requests_total{status!~\"4..\"}[5m])) > 0.01\n        for: 5m\n        labels:\n          severity: page\n        annotations:\n          summary: \"Más de 1 % de 5xx en el pod {{ $labels.pod }}\"\n          description: \"Tasa de 5xx = {{ $value | humanizePercentage }}.\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-5xx-rate\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHigh5xxRate\n        expr: |\n          sum by (pod) (rate(classifier_requests_total{status=~\"5..\"}[5m]))\n            / sum by (pod) (rate(classifier_requests_total{status!~\"4..\"}[5m])) > 0.01\n        for: 5m\n        labels:\n          severity: page\n        annotations:\n          summary: \"Más de 1 % de 5xx en el pod {{ $labels.pod }}\"\n          description: \"Tasa de 5xx = {{ $value | humanizePercentage }}.\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-5xx-rate\""
+    },
+    {
+      "id": "rate-sobre-gauge",
+      "severity": "info",
+      "kinds": [
+        "alert",
+        "record"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed. For every match of rate(, irate( or increase( followed (spaces allowed) by a metric name, an optional {…} block and [ (a plain range selector; subqueries are skipped): flag the name if it is nv_inference_pending_request_count (a gauge that ends in _count), or if it does not end in _total, _count, _sum or _bucket and is not a known counter without suffix: names starting with nv_inference_ (Triton) or nv_cache_, and nv_energy_consumption. Do not flag it when E also calls histogram_quantile(, histogram_count(, histogram_sum(, histogram_avg(, histogram_fraction(, histogram_stddev( or histogram_stdvar( and the name does not end in _bucket (a native histogram).",
+      "message": "rate() o increase() sobre algo que parece un gauge.",
+      "why": "rate() supone un counter: si el valor baja, lo toma como un reinicio y suma lo que había. Un gauge (pendientes en cola, GPU en uso, réplicas) baja todo el tiempo, así que el resultado sale inflado y sin sentido. La pista es el nombre: los counters terminan en _total, _count, _sum o _bucket, y Prometheus 3 muestra un aviso de nivel info (metric might not be a counter…) con rate o increase sobre otros nombres. Es info y no error porque hay counters que rompen la convención: los nv_inference_* de Triton, que C01 usa con rate, son counters de verdad, y el revisor los deja pasar.",
+      "fix": "Para un gauge usa el valor directo o avg_over_time / max_over_time; rate solo sobre counters.",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: TritonPendingHigh\n        expr: rate(nv_inference_pending_request_count{model=\"classifier\"}[5m]) > 10\n        for: 10m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"Muchos requests esperando en Triton\"\n          description: \"Pendientes = {{ $value }}.\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: TritonPendingHigh\n        expr: avg_over_time(nv_inference_pending_request_count{model=\"classifier\"}[5m]) > 10\n        for: 10m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"Muchos requests esperando en Triton\"\n          description: \"Pendientes = {{ $value }}.\""
+    },
+    {
+      "id": "ventana-corta",
+      "severity": "warn",
+      "kinds": [
+        "alert",
+        "record"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed. For every […] in E take its content; in a subquery (it has :) keep the part before :. A duration is one or more <int><unit> pairs (units ms, s, m, h, d, w, y; ms before m) or a plain number (seconds); anything else (e.g. 5m * 2) is not parsed and is skipped. Flag every distinct parsed range shorter than 60 s (4 × the 15 s scrape interval of C01: the practical rule behind Grafana's $__rate_interval; Prometheus itself only needs 2 samples).",
+      "message": "Ventana de rango menor a 1 min: menos de 4 scrapes de 15 s.",
+      "why": "Prometheus solo exige 2 muestras dentro de la ventana para calcular rate(). Con scrape cada 15 s, [30s] tiene 2 en el mejor caso: si un scrape falla o llega tarde, queda 1 y la serie desaparece de ese punto, así que la alerta parpadea o no evalúa. La regla práctica, la que usa $__rate_interval en Grafana, es una ventana de al menos 4 scrapes: 1m con 15 s.",
+      "fix": "Usa [1m] o más ([5m] en las alertas de C01); si tu scrape no es de 15 s, ajusta el mínimo a 4 veces el tuyo.",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHigh5xxRate\n        expr: |\n          sum(rate(classifier_requests_total{status=~\"5..\"}[30s]))\n            / sum(rate(classifier_requests_total{status!~\"4..\"}[30s])) > 0.01\n        for: 5m\n        labels:\n          severity: page\n        annotations:\n          summary: \"Más de 1 % de 5xx en /v1/classify\"\n          description: \"Tasa de 5xx = {{ $value | humanizePercentage }}.\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-5xx-rate\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHigh5xxRate\n        expr: |\n          sum(rate(classifier_requests_total{status=~\"5..\"}[5m]))\n            / sum(rate(classifier_requests_total{status!~\"4..\"}[5m])) > 0.01\n        for: 5m\n        labels:\n          severity: page\n        annotations:\n          summary: \"Más de 1 % de 5xx en /v1/classify\"\n          description: \"Tasa de 5xx = {{ $value | humanizePercentage }}.\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-5xx-rate\""
+    },
+    {
+      "id": "quantile-sin-le",
+      "severity": "error",
+      "kinds": [
+        "alert",
+        "record"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed. For every histogram_quantile( in E, take its argument up to the matching ) and the part after the first top-level comma (the vector). Skip it if that part has no name ending in _bucket (a native histogram has no le). In that part, find every aggregation (sum, avg, min, max, count, group, stddev, stdvar, quantile; topk, bottomk, limitk and limit_ratio keep labels and are ignored) with its by/without (…) clause, written before the ( or right after the matching ). Flag when an aggregation has no clause, has by without le, or has without with le.",
+      "message": "histogram_quantile sobre buckets agregados sin le.",
+      "why": "histogram_quantile necesita el label le para saber el borde de cada bucket. sum(...) sin by (le) junta todos los buckets en una sola serie sin le, y histogram_quantile la descarta: el resultado sale vacío. En la UI de Prometheus 3 la consulta muestra un aviso (bucket label \"le\" is missing or has a malformed value), pero una regla no muestra avisos: la alerta nunca dispara.",
+      "fix": "Agrega le al by de cada agregación: sum by (le) (rate(..._bucket[5m])), o sum by (le, source) para un p99 por source.",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHighP99Latency\n        expr: |\n          histogram_quantile(0.99,\n            sum(rate(classifier_request_latency_seconds_bucket[5m]))\n          ) > 0.2\n        for: 10m\n        labels:\n          severity: page\n        annotations:\n          summary: \"p99 del clasificador sobre 200 ms\"\n          description: \"p99 = {{ $value | humanizeDuration }} (SLO 200 ms).\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-p99-latency\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHighP99Latency\n        expr: |\n          histogram_quantile(0.99,\n            sum by (le) (rate(classifier_request_latency_seconds_bucket[5m]))\n          ) > 0.2\n        for: 10m\n        labels:\n          severity: page\n        annotations:\n          summary: \"p99 del clasificador sobre 200 ms\"\n          description: \"p99 = {{ $value | humanizeDuration }} (SLO 200 ms).\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-p99-latency\""
+    },
+    {
+      "id": "promedio-de-percentiles",
+      "severity": "error",
+      "kinds": [
+        "alert",
+        "record"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed. Flag when the argument of an avg aggregation (from its ( to the matching ), with an optional by/without clause before the () or of an avg_over_time( call contains histogram_quantile( or a {…} block with a quantile= or quantile=~ matcher (the quantiles of a Summary).",
+      "message": "Promedio de percentiles: el número no significa nada.",
+      "why": "El promedio de los p99 de cada pod no es el p99 del servicio: cada pod pesa igual aunque atienda distinto tráfico, y la cola lenta de uno se diluye. En el lab de histogramas, dos pods con p99 de 68.8 y 287.5 ms promedian 178 ms («cumplimos 200 ms») y el p99 real es 260 ms. Con los quantiles de un Summary no hay arreglo: no se pueden agregar.",
+      "fix": "Suma los buckets de todos los pods y saca el cuantil una vez: histogram_quantile(0.99, sum by (le) (rate(..._bucket[5m]))).",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHighP99Latency\n        expr: |\n          avg(histogram_quantile(0.99,\n            sum by (le, pod) (rate(classifier_request_latency_seconds_bucket[5m]))\n          )) > 0.2\n        for: 10m\n        labels:\n          severity: page\n        annotations:\n          summary: \"p99 del clasificador sobre 200 ms\"\n          description: \"p99 = {{ $value | humanizeDuration }} (SLO 200 ms).\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-p99-latency\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHighP99Latency\n        expr: |\n          histogram_quantile(0.99,\n            sum by (le) (rate(classifier_request_latency_seconds_bucket[5m]))\n          ) > 0.2\n        for: 10m\n        labels:\n          severity: page\n        annotations:\n          summary: \"p99 del clasificador sobre 200 ms\"\n          description: \"p99 = {{ $value | humanizeDuration }} (SLO 200 ms).\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-p99-latency\""
+    },
+    {
+      "id": "irate-en-alerta",
+      "severity": "warn",
+      "kinds": [
+        "alert"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed. Flag every alerting rule whose E contains irate( (word boundary before irate).",
+      "message": "irate en una alerta.",
+      "why": "irate usa solo las dos últimas muestras: sube y baja con cada pico. La documentación de Prometheus lo deja para graficar contadores muy rápidos y pide rate para alertas, porque un cambio breve reinicia el for y la alerta no llega a firing (o parpadea).",
+      "fix": "Usa rate con una ventana de varios minutos ([5m]).",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierErrorBurst\n        expr: sum(irate(classifier_requests_total{status=~\"5..\"}[1m])) > 5\n        for: 5m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"Más de 5 errores 5xx por segundo\"\n          description: \"5xx/s = {{ $value }}.\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierErrorBurst\n        expr: sum(rate(classifier_requests_total{status=~\"5..\"}[5m])) > 5\n        for: 5m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"Más de 5 errores 5xx por segundo\"\n          description: \"5xx/s = {{ $value }}.\""
+    },
+    {
+      "id": "division-sin-proteccion",
+      "severity": "warn",
+      "kinds": [
+        "record"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. For every recording rule: E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed. Replace the content of every […] with nothing. For every / in E that is not part of </ or >/: skip spaces and any bool, on(…), ignoring(…), group_left or group_right (with optional (…)) after it, then take the right operand: a balanced (…) group if it starts with (; otherwise the text up to the next top-level +, -, *, /, %, ^, comparison or and/or/unless. The operand is protected when it is a number literal, contains clamp_min( or clamp(, or contains a comparison >, >= or != followed by a number (as in (… > 0)). Flag the rule once if some / has an unprotected operand.",
+      "message": "Regla de grabación que divide sin proteger el denominador.",
+      "why": "Sin tráfico, 0/0 da NaN y la regla lo graba. En una alerta no pasa nada grave (NaN > x es falso y la alerta no dispara), pero en una serie grabada el NaN se queda: un avg_over_time(...[7d]) encima da NaN durante 7 días, como avisa el comentario de C01.",
+      "fix": "Filtra el denominador con > 0 (no se graba nada sin tráfico) o usa clamp_min(…, 1e-9), como la query de KEDA.",
+      "example_bad": "groups:\n  - name: classifier-slo-recording\n    rules:\n      - record: classifier:error_ratio:rate5m\n        expr: |\n          sum(rate(classifier_requests_total{status=~\"5..\"}[5m]))\n            / sum(rate(classifier_requests_total{status!~\"4..\"}[5m]))",
+      "example_good": "groups:\n  - name: classifier-slo-recording\n    rules:\n      - record: classifier:error_ratio:rate5m\n        expr: |\n          sum(rate(classifier_requests_total{status=~\"5..\"}[5m]))\n            / (sum(rate(classifier_requests_total{status!~\"4..\"}[5m])) > 0)"
+    },
+    {
+      "id": "nombre-recording",
+      "severity": "warn",
+      "kinds": [
+        "record"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. For every recording rule, flag record unless it matches ^[a-zA-Z_][a-zA-Z0-9_]*:[a-zA-Z_][a-zA-Z0-9_]*:[a-zA-Z0-9_]+$ (level:metric:operations, three non-empty parts). If it matches and the operations part ends in <int><unit> (rate5m, ratio_rate30m, mean5m), also flag when E has at least one parsed […] range and none of them equals that duration (in a subquery, the part before :). E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed. A duration is one or more <int><unit> pairs (units ms, s, m, h, d, w, y; ms before m) or a plain number (seconds); anything else (e.g. 5m * 2) is not parsed and is skipped.",
+      "message": "Nombre de regla de grabación fuera de la convención nivel:métrica:operaciones.",
+      "why": "La convención de Prometheus dice en el nombre qué labels quedan (nivel), de qué métrica sale y qué se le hizo (operaciones): classifier:low_confidence_share:rate30m se lee sin abrir la regla. Si el nombre dice rate5m y la expr usa [30m], quien la use en una alerta va a razonar con la ventana equivocada.",
+      "fix": "Nómbrala nivel:métrica:operaciones, con la ventana real en las operaciones (rate30m si usa [30m]).",
+      "example_bad": "groups:\n  - name: classifier-recording\n    rules:\n      - record: classifier_low_confidence_share\n        expr: |\n          sum(rate(classifier_top1_score_bucket{le=\"0.3\"}[30m]))\n            /\n          (sum(rate(classifier_top1_score_count[30m])) > 0)",
+      "example_good": "groups:\n  - name: classifier-recording\n    rules:\n      - record: classifier:low_confidence_share:rate30m\n        expr: |\n          sum(rate(classifier_top1_score_bucket{le=\"0.3\"}[30m]))\n            /\n          (sum(rate(classifier_top1_score_count[30m])) > 0)"
+    },
+    {
+      "id": "umbral-en-ms",
+      "severity": "warn",
+      "kinds": [
+        "alert"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed. For every histogram_quantile( in E whose argument contains a name ending in _seconds_bucket: if the text right after its matching ) is a comparison >, >=, < or <= followed by a number literal of 50 or more, flag the rule.",
+      "message": "¿Umbral en milisegundos sobre una métrica en segundos?",
+      "why": "Las métricas de Prometheus van en unidades base: classifier_request_latency_seconds está en segundos. «p99 > 200» significa más de 200 segundos, que nunca pasa: la alerta nunca dispara y nadie se entera. 200 ms es 0.2.",
+      "fix": "Escribe el umbral en segundos (> 0.2) o convierte la expr (* 1000) antes de comparar.",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHighP99Latency\n        expr: |\n          histogram_quantile(0.99,\n            sum by (le) (rate(classifier_request_latency_seconds_bucket[5m]))\n          ) > 200\n        for: 10m\n        labels:\n          severity: page\n        annotations:\n          summary: \"p99 del clasificador sobre 200 ms\"\n          description: \"p99 = {{ $value | humanizeDuration }} (SLO 200 ms).\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-p99-latency\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHighP99Latency\n        expr: |\n          histogram_quantile(0.99,\n            sum by (le) (rate(classifier_request_latency_seconds_bucket[5m]))\n          ) > 0.2\n        for: 10m\n        labels:\n          severity: page\n        annotations:\n          summary: \"p99 del clasificador sobre 200 ms\"\n          description: \"p99 = {{ $value | humanizeDuration }} (SLO 200 ms).\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-p99-latency\""
+    },
+    {
+      "id": "for-largo-en-page",
+      "severity": "warn",
+      "kinds": [
+        "alert"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. Flag an alerting rule whose labels.severity is page or critical (case-insensitive) and whose for parses to more than 1800 s (30 min). A duration is one or more <int><unit> pairs (units ms, s, m, h, d, w, y; ms before m) or a plain number (seconds); anything else (e.g. 5m * 2) is not parsed and is skipped.",
+      "message": "Alerta de page con for de más de 30 min.",
+      "why": "El for no crece con la gravedad: con for: 1h, un apagón total avisa recién a la hora. Con el SLO de 99.9 % a 30 días de C01 el presupuesto de errores del mes es 43.2 min: el apagón se lo come entero antes del primer page. El SRE Workbook de Google lo usa como contraejemplo: esa hora de apagón gasta el 140 % del presupuesto del mes.",
+      "fix": "Baja el for (5–10 min en las de page de C01) o usa alertas por burn rate con dos ventanas (sección 10).",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHigh5xxRate\n        expr: |\n          sum(rate(classifier_requests_total{status=~\"5..\"}[5m]))\n            / sum(rate(classifier_requests_total{status!~\"4..\"}[5m])) > 0.01\n        for: 1h\n        labels:\n          severity: page\n        annotations:\n          summary: \"Más de 1 % de 5xx en /v1/classify\"\n          description: \"Tasa de 5xx = {{ $value | humanizePercentage }}.\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-5xx-rate\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: ClassifierHigh5xxRate\n        expr: |\n          sum(rate(classifier_requests_total{status=~\"5..\"}[5m]))\n            / sum(rate(classifier_requests_total{status!~\"4..\"}[5m])) > 0.01\n        for: 5m\n        labels:\n          severity: page\n        annotations:\n          summary: \"Más de 1 % de 5xx en /v1/classify\"\n          description: \"Tasa de 5xx = {{ $value | humanizePercentage }}.\"\n          runbook_url: \"https://runbooks.example.com/classifier/high-5xx-rate\""
+    },
+    {
+      "id": "instancia-fija",
+      "severity": "warn",
+      "kinds": [
+        "alert"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. On the raw expr with # comments removed (strings kept), flag every exact-equality matcher (=, not =~, != or !~) on the label instance, pod or node with a non-empty value: the label name must start the matcher (preceded by {, a comma, a space or the start of the text) and be followed only by spaces, = and a quote.",
+      "message": "Alerta atada a una instancia, un pod o un nodo con nombre fijo.",
+      "why": "En Kubernetes los pods cambian de nombre y de IP en cada deploy o reinicio: la alerta queda mirando una serie que ya no existe y nunca dispara, sin ningún error. Y no cubre a las otras réplicas.",
+      "fix": "Quita el matcher y deja que la alerta salga por cada serie (los labels dicen cuál), o filtra por algo estable: job, namespace, deployment.",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: GPUSaturated\n        expr: nv_gpu_utilization{instance=\"10.0.3.17:8002\"} > 0.85\n        for: 15m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"GPU {{ $labels.gpu_uuid }} sobre 85 % de utilización\"\n          description: \"Utilización = {{ $value | humanizePercentage }}.\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: GPUSaturated\n        expr: nv_gpu_utilization > 0.85\n        for: 15m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"GPU {{ $labels.gpu_uuid }} sobre 85 % de utilización\"\n          description: \"Utilización = {{ $value | humanizePercentage }}.\""
+    },
+    {
+      "id": "up-sin-absent",
+      "severity": "info",
+      "kinds": [
+        "alert"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed. Flag an alerting rule whose E matches up, an optional {…} block, and == 0 or < 1 (not followed by a digit or .), unless some alerting rule of the input has absent( or absent_over_time( followed (spaces allowed) by up in its E.",
+      "message": "Alerta sobre up == 0 sin su absent().",
+      "why": "up vale 0 cuando el scrape falla, pero si el target desaparece del todo (borraron el ServiceMonitor, el Deployment quedó en 0 réplicas, el service discovery ya no lo lista), up ni existe: up == 0 devuelve vacío y no avisa. Es el mismo problema de cualquier alerta sobre una serie crítica: si la serie se va, la alerta calla.",
+      "fix": "Agrega una alerta con absent(up{job=\"gateway\"}) (con su for) junto a la de up == 0.",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: GatewayScrapeDown\n        expr: up{job=\"gateway\"} == 0\n        for: 5m\n        labels:\n          severity: page\n        annotations:\n          summary: \"Prometheus no puede leer un pod del gateway\"\n          description: \"{{ $labels.instance }} no responde al scrape.\"\n          runbook_url: \"https://runbooks.example.com/classifier/gateway-scrape-down\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: GatewayScrapeDown\n        expr: up{job=\"gateway\"} == 0\n        for: 5m\n        labels:\n          severity: page\n        annotations:\n          summary: \"Prometheus no puede leer un pod del gateway\"\n          description: \"{{ $labels.instance }} no responde al scrape.\"\n          runbook_url: \"https://runbooks.example.com/classifier/gateway-scrape-down\"\n      - alert: GatewayAbsent\n        expr: absent(up{job=\"gateway\"})\n        for: 5m\n        labels:\n          severity: page\n        annotations:\n          summary: \"Prometheus no encuentra ningún target del gateway\"\n          description: \"No existe ninguna serie up del job gateway: revisa el ServiceMonitor y el Deployment.\"\n          runbook_url: \"https://runbooks.example.com/classifier/gateway-absent\""
+    },
+    {
+      "id": "causa-no-sintoma",
+      "severity": "info",
+      "kinds": [
+        "alert"
+      ],
+      "check": "rules = every item of groups[].rules[] in every YAML document (for a document with kind: PrometheusRule, use spec.groups[]); an alerting rule has a non-empty alert, a recording rule a non-empty record. For every alerting rule whose labels.severity is page or critical (case-insensitive): E = String(expr) with every string literal (\"…\", '…', `…`) replaced by \"\" and # comments removed. Take the metric names of E (identifiers not followed by ( and not keywords, after removing {…} blocks, […] ranges and the label lists of by, without, on, ignoring, group_left and group_right). Flag when there is at least one and every one is a resource metric: node_cpu_seconds_total, node_load1/5/15, or a name starting with node_memory_, node_filesystem_, node_disk_, container_cpu_, container_memory_, container_fs_, nv_gpu_, nv_cpu_ or DCGM_FI_, or exactly process_cpu_seconds_total, process_resident_memory_bytes, machine_cpu_cores or machine_memory_bytes. Heuristic.",
+      "message": "Page por una causa (CPU, memoria, GPU), no por un síntoma.",
+      "why": "Una CPU al 90 % puede no afectar a nadie, y alguien puede sufrir con la CPU al 30 %. Los pages van para lo que nota quien usa el servicio (latencia, errores, capacidad caída); las causas van a dashboards y a warnings. Es la regla de Prometheus y del libro de SRE de Google, y la que sigue C01: GPUSaturated es warning, no page.",
+      "fix": "Baja la severidad a warning (o a dashboard) y pon el page en el síntoma: p99, tasa de 5xx.",
+      "example_bad": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: GatewayCPUHigh\n        expr: |\n          sum(rate(container_cpu_usage_seconds_total{namespace=\"classifier\", container=\"gateway\"}[5m])) > 10\n        for: 10m\n        labels:\n          severity: page\n        annotations:\n          summary: \"El gateway usa más de 10 cores\"\n          description: \"CPU = {{ $value }} cores.\"\n          runbook_url: \"https://runbooks.example.com/classifier/gateway-cpu\"",
+      "example_good": "groups:\n  - name: classifier-alerts\n    rules:\n      - alert: GatewayCPUHigh\n        expr: |\n          sum(rate(container_cpu_usage_seconds_total{namespace=\"classifier\", container=\"gateway\"}[5m])) > 10\n        for: 10m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"El gateway usa más de 10 cores\"\n          description: \"CPU = {{ $value }} cores.\""
+    }
+  ]
+}

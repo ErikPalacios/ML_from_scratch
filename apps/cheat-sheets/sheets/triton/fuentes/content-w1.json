@@ -1,0 +1,1553 @@
+{
+ "sections": [
+  {
+   "id": "bolsillo",
+   "num": 0,
+   "title": "Números de bolsillo: bytes, VRAM, la T4 y las rutas de Triton",
+   "question": "¿Qué números, puertos y rutas conviene saberse de memoria para servir un modelo, medirlo y leer sus métricas sin abrir la documentación?",
+   "templates": [
+    {
+     "code": "curl -i localhost:{puerto_http}/v2/health/ready",
+     "note": "¿Triton puede recibir tráfico? Si sí, la primera línea dice <code>HTTP/1.1 200 OK</code>; si no, <code>400 Bad Request</code>. Con <code>--strict-readiness=true</code> (el default, que el C01 igual escribe explícito), solo da 200 si el servidor responde <b>y</b> todos sus modelos cargaron. <code>/v2/health/live</code> pregunta algo más simple: si el proceso responde."
+    },
+    {
+     "code": "curl -s localhost:{puerto_http}/v2/models/{modelo}",
+     "note": "La metadata del modelo según el protocolo KServe v2 (el contrato estándar que habla Triton por HTTP y por gRPC, un protocolo binario sobre HTTP/2): nombre, versiones, plataforma y, por cada tensor, <code>name</code>, <code>datatype</code> (como <code>FP32</code>) y <code>shape</code>. El eje de batch sale como <code>-1</code>. Con <code>/config</code> al final ves la configuración que Triton usa de verdad, en JSON."
+    },
+    {
+     "code": "curl -s localhost:{puerto_metricas}/metrics | grep {metrica}",
+     "note": "Las métricas de Triton, en el formato de texto de Prometheus (el sistema que las junta y las guarda). Las de requests y tiempos (<code>nv_inference_request_success</code>, <code>nv_inference_queue_duration_us</code>…) son contadores: acumulan desde que arrancó Triton, como un odómetro, y lo útil es cuánto suben por segundo, que en Prometheus se calcula con <code>rate()</code>. Las de la GPU (<code>nv_gpu_utilization</code>, <code>nv_gpu_memory_used_bytes</code>) y <code>nv_inference_pending_request_count</code> son gauges: marcan el valor de ahora, como un velocímetro."
+    },
+    {
+     "code": "nvidia-smi --query-gpu=name,compute_cap,memory.used,memory.total,utilization.gpu --format=csv",
+     "note": "En la máquina con GPU, no en tu Mac: qué GPU es, su compute capability (la generación de su arquitectura: 7.5 en la T4, y el engine queda atado a ella), cuánta memoria de GPU usa y qué fracción del tiempo tuvo algún kernel (una función que corre en la GPU) en marcha. Ojo: 100 % no quiere decir que esté llena."
+    }
+   ],
+   "formulas": [
+    "\\text{VRAM} \\;\\approx\\; \\underbrace{P \\times b}_{\\text{pesos}} \\;+\\; \\text{activaciones} \\;+\\; \\text{contexto CUDA} \\;+\\; \\text{margen} \\qquad P \\times b = 24.5\\,\\text{M} \\times 2\\,\\text{B} \\approx 49\\,\\text{MB (FP16)}",
+    "\\text{tensor} = 3 \\times 224 \\times 224 \\times 4\\,\\text{B} = 602{,}112\\,\\text{B} \\approx 602\\,\\text{KB} \\qquad \\text{logits} = 500 \\times 4\\,\\text{B} = 2\\,\\text{KB}",
+    "X = \\frac{B}{t_{\\text{exec}}(B)} \\qquad \\rho = \\frac{\\lambda}{X_{\\max}} = \\frac{250}{1{,}200} \\approx 21\\,\\%",
+    "L = \\lambda\\,W \\qquad 250\\ \\tfrac{\\text{req}}{\\text{s}} \\times (0.005\\text{–}0.010)\\ \\text{s} \\approx 1\\text{–}3\\ \\text{requests dentro de cada Triton}",
+    "\\bar{B} = \\frac{\\Delta\\,\\texttt{nv\\_inference\\_count}}{\\Delta\\,\\texttt{nv\\_inference\\_exec\\_count}} \\qquad \\bar{B} \\gtrsim 1 + \\lambda\\,\\Delta t = 1 + 250 \\times 0.002 = 1.5"
+   ],
+   "vars": [
+    [
+     "{puerto_http}",
+     "puerto HTTP de Triton (protocolo KServe v2)",
+     "8000"
+    ],
+    [
+     "{puerto_metricas}",
+     "puerto de métricas para Prometheus",
+     "8002"
+    ],
+    [
+     "{modelo}",
+     "nombre del modelo: su carpeta en el model repository",
+     "classifier"
+    ],
+    [
+     "{metrica}",
+     "nombre de una métrica de Triton",
+     "nv_inference_queue_duration_us"
+    ],
+    [
+     "P",
+     "parámetros del modelo: los números que aprendió",
+     "24,532,532 ≈ 24.5 M (ResNet-50 con su capa final, fc, de 500 clases)"
+    ],
+    [
+     "b",
+     "bytes por valor según la precisión",
+     "FP32 4 · FP16 2 · INT8 1"
+    ],
+    [
+     "B",
+     "batch: cuántas imágenes van juntas en una ejecución",
+     "1 a 32 (max_batch_size: 32)"
+    ],
+    [
+     "t_exec(B)",
+     "lo que tarda una ejecución del modelo con ese batch",
+     "≈ 3–6 ms (p50) con batch 1–8 en la T4 (presupuesto del curso)"
+    ],
+    [
+     "X, X_max",
+     "throughput: imágenes por segundo; X_max es el máximo medido",
+     "≈ 1,200 img/s por T4 (supuesto del C01: se mide con perf_analyzer)"
+    ],
+    [
+     "λ",
+     "tasa de llegada: requests por segundo",
+     "250 req/s por GPU en el pico de diseño (500 entre 2 GPUs)"
+    ],
+    [
+     "ρ",
+     "utilización: qué fracción de la capacidad usas",
+     "≈ 21 % por T4 en el pico; se planifica hasta ≈ 50 %"
+    ],
+    [
+     "W, L",
+     "W: tiempo que pasa un request adentro (cola + cómputo). L: cuántos requests hay adentro a la vez",
+     "W ≈ 5–10 ms dentro de Triton (estimación) → L ≈ 1–3"
+    ],
+    [
+     "Δt, B̄",
+     "Δt: la ventana del dynamic batching, lo que Triton espera para juntar requests en un batch (max_queue_delay_microseconds). B̄: el batch promedio real",
+     "Δt = 2,000 µs = 2 ms; B̄ ≈ 1–3 en el pico y ≈ 2–4 si una GPU absorbe todo (failover)"
+    ]
+   ],
+   "pieces": [
+    [
+     "FP32 · 4 B",
+     "Precisión completa. Es la referencia: el checkpoint guarda los pesos en FP32 (aunque el C01 entrena con AMP, en precisión mixta), y así se evalúa y se exporta.",
+     "98 MB de pesos; en la T4 corre en los CUDA cores: 8.1 TFLOPS"
+    ],
+    [
+     "FP16 · 2 B",
+     "Media precisión: la mitad de bytes y acceso a los tensor cores (las unidades que multiplican matrices). Tope 65,504; cerca de 10, los valores van de a 0.008.",
+     "el engine del C01: 49 MB de pesos; 65 TFLOPS en la T4"
+    ],
+    [
+     "INT8 · 1 B",
+     "Enteros de 8 bits con una escala. Pide calibración (fijar las escalas con imágenes reales) y un gate por slices: medir la accuracy en cada subgrupo de datos antes de aprobarlo.",
+     "25 MB; 130 TOPS en la T4; el C01 no lo usa porque la GPU le sobra"
+    ],
+    [
+     "BF16 · FP8",
+     "Formatos de 2 y 1 byte, comunes en LLMs (modelos de lenguaje grandes). La T4 no los tiene: BF16 pide una GPU Ampere o más nueva, y FP8, una Ada, Hopper o más nueva.",
+     "en una T4, un modelo entrenado en BF16 se sirve en FP32, o en FP16 si pasa la paridad: FP16 tiene menos rango (tope 65,504)"
+    ],
+    [
+     "NVIDIA T4",
+     "La GPU del C01, de la generación Turing (2018): 16 GB de memoria GDDR6 que se lee a ≈ 320 GB/s, 70 W, conectada por PCIe Gen3 x16 (el bus del servidor) y con compute capability 7.5 (sm_75).",
+     "g4dn.xlarge (la máquina de AWS con una T4) ≈ US$0.526/h; nvidia-smi muestra 15,360 MiB porque el ECC (corrección de errores) reserva 1/16 de la memoria"
+    ],
+    [
+     "Tensores de entrada y salida",
+     "Lo que viaja entre el gateway (el servicio en CPU que recibe la foto y llama a Triton) y Triton: la imagen preprocesada, y de vuelta un logit (puntaje antes del softmax) por clase.",
+     "entrada: 602 KB en FP32 (150 KB en UINT8; un batch de 32 dentro de Triton, 19 MB); salida: 2 KB"
+    ],
+    [
+     "VRAM ocupada",
+     "La memoria de la GPU en uso. Por proceso, el contexto CUDA (lo que reservan el driver y las librerías de NVIDIA al arrancar); por cada instancia del modelo, su copia del engine con los pesos y sus activaciones (los resultados intermedios de cada capa).",
+     "≈ 1–3 GB de 16 con 2 instancias (estimación del curso)"
+    ],
+    [
+     "8000 · 8001 · 8002",
+     "Puertos por defecto de Triton: HTTP/REST, gRPC y métricas.",
+     "el gateway llama al 8000; Prometheus lee el 8002"
+    ],
+    [
+     "/v2/health/live · /v2/health/ready",
+     "live: ¿el proceso responde? Sirve para la liveness (¿lo reinicio?). ready: ¿puede recibir tráfico? Sirve para la readiness (¿le mando requests?).",
+     "livenessProbe en /live; startupProbe y readinessProbe en /ready"
+    ],
+    [
+     "/v2/models/{modelo}/ready",
+     "¿Ese modelo está listo? Mira uno solo, no el servidor entero.",
+     "lo consulta el /readyz del gateway"
+    ],
+    [
+     "/v2/models/{modelo} · /v2/models/{modelo}/config",
+     "La metadata (nombres, datatypes, shapes) y la configuración efectiva del modelo, en JSON.",
+     "input FP32 [-1, 3, 224, 224] → logits FP32 [-1, 500]"
+    ],
+    [
+     "/v2/models/{modelo}/infer",
+     "La inferencia por HTTP (POST). Con la extensión binaria, los tensores viajan como bytes crudos detrás de un JSON corto.",
+     "el cliente async (tritonclient.http.aio) del gateway manda 602 KB binarios por request"
+    ],
+    [
+     "nv_inference_queue_duration_us · nv_inference_compute_infer_duration_us",
+     "Microsegundos acumulados en cola y en cómputo, por modelo. Divide cuánto suben por cuánto sube nv_inference_request_success y tienes el promedio por request.",
+     "la espera en cola es la señal con la que KEDA (el autoscaler por métricas) escala Triton"
+    ],
+    [
+     "2 · 100 · 150 · 200 ms",
+     "La ventana del batching, el rechazo en la cola, el timeout del gateway hacia Triton y el SLO (el objetivo de latencia) del servicio.",
+     "max_queue_delay 2000 µs · REJECT a los 100 ms · INFER_TIMEOUT_S=0.15 · p99 ≤ 200 ms"
+    ]
+   ],
+   "example": {
+    "title": "El contrato de entrada del C01: los números del preprocesamiento compartido",
+    "lang": "python",
+    "code": "RESIZE_SHORT = 256  # lado corto tras el resize: el mismo número que Resize(256) en training\nCROP = 224  # tamaño del center crop: el input del ResNet-50 (y del engine TensorRT)\n# mean/std de ImageNet con forma (3,1,1) para hacer broadcasting sobre CHW sin copiar\nMEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)\nSTD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)",
+    "source": "reference/c01/gateway/app/preprocess.py (extracto)",
+    "notes": [
+     "<code>CROP = 224</code> y los 3 canales RGB dan la forma de cada imagen: <code>[3, 224, 224]</code>. Es la misma de <code>dims: [ 3, 224, 224 ]</code> en el <code>config.pbtxt</code> y la de <code>--minShapes=input:1x3x224x224</code> en trtexec (la herramienta que compila el engine).",
+     "En FP32 son 3 × 224 × 224 × 4 B = 602,112 B: los ≈ 602 KB que el gateway manda a Triton en cada request (≈ 2.4 Gb/s a 500 req/s).",
+     "<code>MEAN</code> y <code>STD</code> son las estadísticas de ImageNet por canal. Si un lado normaliza y el otro no, el modelo recibe otra distribución y pierde accuracy sin lanzar ningún error.",
+     "<code>RESIZE_SHORT = 256</code> copia el <code>Resize(256)</code> del training. El training, la evaluación y el gateway importan este mismo archivo: es la única fuente de estos números.",
+     "Del lado del modelo, <code>export_onnx.py</code> fija el resto del contrato: <code>NUM_CLASSES = 500</code> (la salida <code>[500]</code>), los nombres <code>input</code> y <code>logits</code>, y <code>MAX_BATCH = 32</code>, que es el <code>max_batch_size</code> de Triton y el <code>--maxShapes</code> de trtexec."
+    ]
+   },
+   "figure": {
+    "kind": "precision",
+    "caption": "Bytes por parámetro y peso de los pesos del modelo del C01 (24,532,532 parámetros), a escala. Al lado, la T4: los pesos son una rebanada mínima de sus 16 GB; lo que ocupa memoria es el runtime y las activaciones.",
+    "data": {
+     "model": "ResNet-50 del C01 (capa final de 500 clases)",
+     "params": 24532532,
+     "rows": [
+      {
+       "dtype": "FP32",
+       "bytes": 4,
+       "weights_mb": 98.1,
+       "role": "referencia: checkpoint y ONNX",
+       "t4": "CUDA cores · 8.1 TFLOPS"
+      },
+      {
+       "dtype": "FP16",
+       "bytes": 2,
+       "weights_mb": 49.1,
+       "role": "el engine TensorRT del C01",
+       "t4": "tensor cores · 65 TFLOPS"
+      },
+      {
+       "dtype": "INT8",
+       "bytes": 1,
+       "weights_mb": 24.5,
+       "role": "opcional: pide calibración",
+       "t4": "tensor cores · 130 TOPS"
+      }
+     ],
+     "vram": {
+      "gpu": "NVIDIA T4",
+      "total_gb": 16,
+      "visible": "15,360 MiB en nvidia-smi",
+      "parts": [
+       {
+        "label": "engine (pesos FP16 + kernels elegidos)",
+        "gb": [
+         0.05,
+         0.15
+        ]
+       },
+       {
+        "label": "activaciones a batch 32",
+        "gb": [
+         0.2,
+         0.5
+        ]
+       },
+       {
+        "label": "contexto CUDA + librerías",
+        "gb": [
+         0.3,
+         0.8
+        ]
+       }
+      ],
+      "instances": 2,
+      "total_used_gb": [
+       1,
+       3
+      ],
+      "note": "Con 2 instancias del engine (instance_group count 2), ≈ 1–3 GB en total. Es una estimación del curso: se confirma con nv_gpu_memory_used_bytes."
+     }
+    }
+   },
+   "memo": "<b>4 · 2 · 1</b> bytes por valor en FP32, FP16 e INT8: el modelo del C01 pesa <b>98 · 49 · 25 MB</b>. Puertos <b>8000 · 8001 · 8002</b>: HTTP, gRPC y métricas. <b>live</b> = ¿lo reinicio?; <b>ready</b> = ¿le mando tráfico?",
+   "trap": "Creer que la VRAM la llenan los pesos: en el C01 son 49 MB de 16 GB, y lo que ocupa es el contexto CUDA, las activaciones y cada instancia extra (≈ 1–3 GB en total). Y poner <code>/v2/health/ready</code> en la livenessProbe (el chequeo de ¿lo reinicio?): si un modelo deja de estar listo, por ejemplo porque se descargó, el kubelet (el agente de Kubernetes en cada nodo) reinicia Triton en bucle, y reiniciar no lo arregla. Liveness va con <code>/live</code>; readiness, con <code>/ready</code>.",
+   "lab": {
+    "goal": "Medir tú mismo los bytes de bolsillo: parámetros, MB por precisión, tamaño en disco, el tensor que viaja a Triton y los límites de FP16.",
+    "steps": [
+     {
+      "cmd": "python3.13 -m venv ~/venvs/lab-triton\nsource ~/venvs/lab-triton/bin/activate\npip install torch==2.14.0 torchvision==0.29.0",
+      "expect": "La última línea empieza con Successfully installed e incluye torch-2.14.0 y torchvision-0.29.0, junto con sus dependencias (numpy, pillow, sympy y otras). Son las versiones del C01; no necesitas GPU."
+     },
+     {
+      "cmd": "python -c \"\nimport torchvision\nm = torchvision.models.resnet50(weights=None, num_classes=500)\nP = sum(p.numel() for p in m.parameters())\nprint(P, [round(P * b / 1e6, 1) for b in (4, 2, 1)])\n\"",
+      "expect": "24532532 [98.1, 49.1, 24.5]: los parámetros del modelo del C01 y sus MB de pesos en FP32, FP16 e INT8."
+     },
+     {
+      "cmd": "python -c \"\nimport os, torch, torchvision\nm = torchvision.models.resnet50(weights=None, num_classes=500)\ntorch.save(m.state_dict(), '/tmp/r50_fp32.pt'); torch.save(m.half().state_dict(), '/tmp/r50_fp16.pt')\nprint([round(os.path.getsize(f) / 1e6, 1) for f in ('/tmp/r50_fp32.pt', '/tmp/r50_fp16.pt')])\n\"",
+      "expect": "[98.4, 49.3]: un poco más que 98.1 y 49.1, porque el archivo guarda también las estadísticas del BatchNorm y los nombres de cada tensor."
+     },
+     {
+      "cmd": "python -c \"\nimport json, numpy as np\nx = np.random.default_rng(0).standard_normal((1, 3, 224, 224)).astype(np.float32)\nprint(x.nbytes, x.astype(np.uint8).nbytes, len(json.dumps(x.ravel().tolist())))\n\"",
+      "expect": "602112 150528 3105734: el tensor pesa 602 KB en FP32 y 150 KB en UINT8, pero como JSON (números en texto) son ≈ 3.1 MB, unas 5 veces más. Por eso el gateway lo manda en binario."
+     },
+     {
+      "cmd": "python -c \"import numpy as np; print(np.finfo(np.float16).max, np.spacing(np.float16(10)), np.spacing(np.float32(10)), np.float16(70000))\"",
+      "expect": "6.55e+04 0.007812 9.536743e-07 inf, con un aviso RuntimeWarning: overflow encountered in cast. FP16 llega hasta 65,504; cerca de 10 solo puede moverse de a 0.0078 (FP32, de a 0.00000095), y 70,000 ya no cabe: inf. Por eso un engine FP16 mueve los logits ≈ 1e-2."
+     },
+     {
+      "cmd": "rm /tmp/r50_fp32.pt /tmp/r50_fp16.pt",
+      "expect": "Nada: borra los dos archivos de prueba. El venv queda para los labs de las secciones siguientes."
+     }
+    ],
+    "fix": "Si un número no te da, revisa num_classes (con 1000 clases son 25.6 M parámetros y 102 MB), el dtype del array (np.random.rand da float64: 8 bytes por valor) y que estés en el venv correcto: python -c \"import torch; print(torch.__version__)\" debe decir 2.14.0.",
+    "needs": "un venv con Python 3.13, torch 2.14.0 y torchvision 0.29.0 (las versiones del C01) e internet para instalarlos; sin GPU",
+    "verified": "executed"
+   },
+   "links": [
+    "#ref-numeros.bytes-tamanos",
+    "#m04.gpus-nvidia",
+    "#m04.vram",
+    "#m03.little",
+    "#m07.triton"
+   ]
+  },
+  {
+   "id": "cadena",
+   "num": null,
+   "title": "La cadena: del checkpoint a una respuesta medida",
+   "question": "¿Qué pasa, en orden, entre el checkpoint que evaluaste y una respuesta de Triton con su latencia medida, y qué revisa cada paso?",
+   "templates": [
+    {
+     "code": "python model/export_onnx.py --checkpoint {checkpoint} --out {onnx}",
+     "note": "Exporta a ONNX (un formato de archivo estándar para redes, que no depende de PyTorch) y lo verifica: <code>onnx.checker</code>, el opset real (la versión de los operadores que quedó escrita) y ONNX Runtime (un motor que ejecuta ONNX en CPU) con batch 1 y 32 contra PyTorch. Exit 0 = la cadena sigue."
+    },
+    {
+     "code": "python model/parity_check.py --checkpoint {checkpoint} --onnx {onnx} --images {muestra} --n 2000",
+     "note": "Primer gate de paridad (¿predice lo mismo que PyTorch?), en CPU con ONNX Runtime. Sin <code>--checkpoint</code>, la referencia de PyTorch tendría pesos aleatorios y compararías contra otro modelo."
+    },
+    {
+     "code": "NGC_RELEASE={release} EXPECTED_GPU={gpu} bash model/build_engine.sh",
+     "note": "En la máquina con la GPU de producción: TensorRT (el compilador de NVIDIA) convierte el ONNX en <code>model.plan</code>, el engine (el modelo compilado para un tipo de GPU y una versión de TensorRT). Las dos variables valen <code>24.08</code> y <code>T4</code> por defecto, y el script aborta si la GPU no coincide."
+    },
+    {
+     "code": "python model/parity_check.py --backend triton --triton-url {host}:8000 --checkpoint {checkpoint} --images {muestra} --n 2000",
+     "note": "Segundo gate: el engine FP16 servido por Triton contra PyTorch FP32, de a una imagen como en producción. Después viene el gate de latencia con perf_analyzer (la herramienta de Triton que genera carga y mide la latencia)."
+    }
+   ],
+   "formulas": [
+    "\\text{registrar como challenger} \\iff \\underbrace{\\text{top1} \\ge 0.995 \\;\\wedge\\; \\text{top5} \\ge 0.99 \\;\\wedge\\; \\max|\\Delta\\text{logit}| \\le 0.5}_{\\text{paridad, en CPU y en la T4}} \\;\\wedge\\; \\underbrace{p99_{\\text{nuevo}} \\le 1.1 \\cdot p99_{\\text{champion}}}_{\\text{latencia}}"
+   ],
+   "vars": [
+    [
+     "{checkpoint}",
+     "el state_dict entrenado y aprobado (.pt)",
+     "resnet50_500.pt"
+    ],
+    [
+     "{onnx}",
+     "el archivo ONNX que sale del export",
+     "model/classifier.onnx"
+    ],
+    [
+     "{muestra}",
+     "carpeta con imágenes reales del set de evaluación",
+     "≥ 2,000 imágenes (lo que recomienda parity_check.py)"
+    ],
+    [
+     "{release}",
+     "release de NGC (las imágenes de contenedor de NVIDIA): la misma de la imagen de Triton",
+     "24.08 (TensorRT 10.3)"
+    ],
+    [
+     "{gpu}",
+     "la GPU donde correrá el engine",
+     "T4"
+    ],
+    [
+     "{host}",
+     "dónde corre Triton",
+     "localhost, en el runner de CI con la T4"
+    ],
+    [
+     "top1, top5",
+     "acuerdo del 1.º lugar y solapamiento del top-5 contra PyTorch FP32",
+     "≥ 99.5 % y ≥ 99 % (defaults de parity_check.py)"
+    ],
+    [
+     "max|Δlogit|",
+     "la mayor diferencia entre los logits de los dos modelos",
+     "≤ 0.5: atrapa exports rotos"
+    ],
+    [
+     "p99",
+     "la latencia que solo el 1 % de los requests supera",
+     "perf_analyzer a 250 y 500 req/s contra el champion (el modelo en producción); el challenger es el candidato"
+    ]
+   ],
+   "pieces": [
+    [
+     "checkpoint (.pt)",
+     "Los pesos entrenados, guardados con torch.save como un state_dict: un diccionario con el nombre de cada tensor de pesos (como fc.weight) y sus valores.",
+     "resnet50_500.pt: 24.5 M parámetros en FP32"
+    ],
+    [
+     "build_model() + eval()",
+     "Rearma la arquitectura del training, carga los pesos y deja el modelo en modo inferencia.",
+     "export_onnx.py y parity_check.py usan la misma función"
+    ],
+    [
+     "torch.onnx.export",
+     "Recorre el modelo con una entrada de ejemplo y escribe el grafo ONNX con sus pesos.",
+     "exportador TorchScript, opset 17, batch dinámico"
+    ],
+    [
+     "classifier.onnx",
+     "El punto de entrega entre training y serving: grafo + pesos + firma de entradas y salidas.",
+     "≈ 98 MB; input [batch, 3, 224, 224] → logits [batch, 500]"
+    ],
+    [
+     "onnx.checker",
+     "Revisa que el archivo sea ONNX válido; con full_check también deduce la forma de cada tensor.",
+     "dentro de verify() de export_onnx.py"
+    ],
+    [
+     "ONNX Runtime (ORT)",
+     "Un runtime (el motor que ejecuta el grafo). Aquí corre el ONNX en CPU, sin GPU.",
+     "verify() con batch 1 y 32, y el gate de paridad en CPU"
+    ],
+    [
+     "parity_check.py",
+     "El gate de paridad: compara top-1, top-5 y |Δlogit| contra PyTorch FP32. Exit 1 frena todo.",
+     "--backend ort en CPU; --backend triton en la T4"
+    ],
+    [
+     "trtexec",
+     "La herramienta de línea de comandos de TensorRT: compila el ONNX a un engine y hace un benchmark rápido.",
+     "--fp16 con perfil 1/16/32, dentro de tensorrt:24.08-py3 (TensorRT 10.3; TensorRT 11 ya no tiene --fp16)"
+    ],
+    [
+     "model.plan (engine)",
+     "El modelo compilado para un tipo de GPU y una versión de TensorRT: corre rápido, pero solo ahí.",
+     "T4 (sm_75) + TensorRT 10.3; ≈ 50–150 MB (estimación del curso)"
+    ],
+    [
+     "model repository",
+     "La carpeta que lee Triton: una subcarpeta por modelo con su config.pbtxt, y dentro una por versión.",
+     "classifier/config.pbtxt + classifier/1/model.plan"
+    ],
+    [
+     "imagen de Triton",
+     "El servidor con el model repository horneado adentro: el tag de la imagen es la versión del modelo.",
+     "tritonserver:24.08-py3 + engine; tag 2026-09-01-resnet50-fp16"
+    ],
+    [
+     "Triton (tritonserver)",
+     "El servidor de modelos: carga el engine, encola los requests, arma batches y responde por HTTP y por gRPC (otro protocolo, binario).",
+     "READY recién después del warmup: 3 ejecuciones de prueba a batch 32"
+    ],
+    [
+     "gateway (el cliente)",
+     "El servicio FastAPI en CPU que preprocesa la imagen y llama a Triton con tritonclient.",
+     "POST /v1/classify → infer en :8000 con 150 ms de timeout"
+    ],
+    [
+     "perf_analyzer",
+     "Genera carga contra Triton y mide throughput y latencias por percentil.",
+     "gate: p99 a 250 y 500 req/s ≤ champion + 10 %"
+    ]
+   ],
+   "example": {
+    "title": "La cadena tal como la dibuja el README del C01",
+    "lang": "text",
+    "code": "checkpoint .pt ──export_onnx.py──▶ classifier.onnx ──parity_check.py (ORT, CPU)──▶ ¿pasa?\n      └─ en la máquina con T4: build_engine.sh ──▶ model.plan ──docker build triton/──▶ imagen\n         └─ Triton arriba ──parity_check.py --backend triton (FP16 vs FP32)──▶ ¿pasa? ──▶ registry / canary",
+    "source": "reference/c01/README.md (Flujo: del checkpoint a producción)",
+    "notes": [
+     "La primera línea corre en cualquier máquina, también en tu Mac: export y paridad en CPU con ONNX Runtime. Valida el export sin tocar una GPU.",
+     "La segunda corre en la máquina con la T4 (una g4dn.xlarge): el engine se compila donde va a correr, con la misma release de NGC (24.08) que la imagen de Triton.",
+     "<code>docker build triton/</code> hornea el engine en la imagen. Su <code>RUN test -f /models/classifier/1/model.plan</code> hace fallar el build si falta el engine: mejor ahí que un pod reiniciándose en bucle (CrashLoopBackOff).",
+     "La tercera es el gate final: Triton arriba con ese engine, y <code>parity_check.py --backend triton</code> compara FP16 contra FP32. Si pasa, y la latencia también, va al registry (el catálogo de versiones de modelos) como challenger, el candidato, y después a un canary: una parte chica del tráfico real.",
+     "Cada <code>¿pasa?</code> es un exit code: 0 sigue, 1 frena. El CI no lee los números; lee ese código."
+    ]
+   },
+   "figure": {
+    "kind": "pipeline",
+    "caption": "Seis eslabones del checkpoint a una respuesta medida. Los dos primeros corren en cualquier CPU; desde el engine, todo corre en una T4 con la release 24.08 de NGC. Cada eslabón tiene su chequeo, y un exit code distinto de 0 frena la cadena.",
+    "data": {
+     "steps": [
+      {
+       "label": "Checkpoint",
+       "artifact": "resnet50_500.pt · ≈ 98 MB en FP32",
+       "where": "registry · cualquier máquina",
+       "cmd": "torch.load(\"resnet50_500.pt\", map_location=\"cpu\", weights_only=True)",
+       "check": "load_state_dict estricto: las llaves y shapes calzan con la arquitectura"
+      },
+      {
+       "label": "ONNX",
+       "artifact": "classifier.onnx · ≈ 98 MB · opset 17",
+       "where": "CI · CPU",
+       "cmd": "python model/export_onnx.py --checkpoint resnet50_500.pt --out model/classifier.onnx",
+       "check": "onnx.checker, opset real = 17, ORT con batch 1 y 32 ≈ PyTorch; después, paridad en CPU"
+      },
+      {
+       "label": "Engine",
+       "artifact": "model.plan · FP16 · batch 1 a 32",
+       "where": "runner con T4 · tensorrt:24.08-py3",
+       "cmd": "bash model/build_engine.sh",
+       "check": "la GPU es una T4; imprime GPU, NGC_RELEASE y sha256 para el registry"
+      },
+      {
+       "label": "Repository",
+       "artifact": "classifier/config.pbtxt + 1/model.plan, horneados en la imagen",
+       "where": "docker build · tritonserver:24.08-py3",
+       "cmd": "docker build -t classifier-triton:2026-09-01-resnet50-fp16 triton/",
+       "check": "RUN test -f /models/classifier/1/model.plan"
+      },
+      {
+       "label": "Servidor",
+       "artifact": "Triton con el modelo READY",
+       "where": "la misma T4",
+       "cmd": "curl -i localhost:8000/v2/health/ready",
+       "check": "carga el engine, corre el warmup y recién ahí responde 200"
+      },
+      {
+       "label": "Cliente",
+       "artifact": "logits [500] por request y el p99 medido",
+       "where": "la misma T4 en CI; en producción, el gateway",
+       "cmd": "python model/parity_check.py --backend triton --triton-url localhost:8000 --checkpoint resnet50_500.pt --images /data/eval_sample --n 2000",
+       "check": "paridad FP16 vs FP32 (top-1 ≥ 99.5 %) y perf_analyzer: p99 ≤ champion + 10 %"
+      }
+     ],
+     "split": {
+      "after": 2,
+      "label": "desde aquí, en una T4 con NGC 24.08"
+     }
+    }
+   },
+   "memo": "<b>Exportas una vez, compilas donde corre y comparas dos veces</b>: el ONNX en CPU (paridad con ONNX Runtime), el engine en la T4, y otra paridad ya servido por Triton antes de medir la latencia.",
+   "trap": "Correr <code>parity_check.py</code> sin <code>--checkpoint</code>: la referencia de PyTorch nace con pesos aleatorios. Contra el ONNX del checkpoint real, el gate falla siempre; si el ONNX también salió sin checkpoint, pasa y no prueba nada. Y compilar el engine en otra máquina por comodidad: por defecto, solo carga en el tipo de GPU y la versión de TensorRT con que se construyó.",
+   "lab": {
+    "goal": "Correr en tu Mac la mitad CPU de la cadena del C01 con sus scripts reales, ver un gate que frena y ver dónde se corta sin GPU.",
+    "steps": [
+     {
+      "cmd": "cd apps/ml-system-design/reference/c01\npython3.13 -m venv .venv && source .venv/bin/activate\npip install -r model/requirements.txt",
+      "expect": "Desde la raíz del repo del curso. Instala las versiones fijas del C01: torch 2.14.0, torchvision 0.29.0, onnx 1.23.0, onnxscript 0.7.2, onnxruntime 1.30.0, entre otras. Sin GPU."
+     },
+     {
+      "cmd": "python model/export_onnx.py --out /tmp/c01.onnx",
+      "expect": "Primero [model] AVISO: sin --checkpoint → pesos aleatorios… y un DeprecationWarning del exportador TorchScript. Después [export] opset=17 input=input['batch', 3, 224, 224] output=logits, una línea por batch (1 y 32) con shape (1, 500) y (32, 500), max|Δlogit| del orden de 1e-5 a 1e-4 y top1_igual=100%, y al final [export] OK."
+     },
+     {
+      "cmd": "python model/parity_check.py --onnx /tmp/c01.onnx --n 64",
+      "expect": "[parity] backend=ort n=64 top1_agreement=100.00% top5_overlap=100.00%, un max|Δlogit| del orden de 1e-5 a 1e-4, y [parity] PASA. Pasa porque los dos lados usan los mismos pesos aleatorios (semilla 0): prueba el pipeline, no un modelo."
+     },
+     {
+      "cmd": "python -c \"import torch, torchvision; torch.manual_seed(1); torch.save(torchvision.models.resnet50(weights=None, num_classes=500).state_dict(), '/tmp/otro.pt')\"\npython model/parity_check.py --onnx /tmp/c01.onnx --checkpoint /tmp/otro.pt --n 64; echo \"exit=$?\"",
+      "expect": "top1_agreement y top5_overlap en 0 % o casi, un max|Δlogit| del orden de 100 y [parity] NO PASA: no promuevas este artefacto, con exit=1. Es lo que pasa cuando el artefacto no viene del modelo que evaluaste."
+     },
+     {
+      "cmd": "bash model/build_engine.sh; echo \"exit=$?\"",
+      "expect": "model/build_engine.sh: line 19: nvidia-smi: command not found y exit=127 (127 = comando no encontrado). Es el borde de la cadena: desde aquí todo corre en una máquina con T4 y su driver de NVIDIA."
+     },
+     {
+      "cmd": "deactivate\nrm /tmp/c01.onnx /tmp/otro.pt",
+      "expect": "Sale del venv y borra los archivos de prueba."
+     }
+    ],
+    "fix": "Si export_onnx.py falla con ModuleNotFoundError: No module named 'onnx' (o 'onnxruntime'), el venv no tiene los requirements: actívalo y repite el pip install. Si el paso 4 pasa, revisa que la semilla sea 1 y no 0 (con 0 creas el mismo modelo del export).",
+    "needs": "el repo del curso (apps/ml-system-design), Python 3.13 e internet para instalar model/requirements.txt; sin GPU. El engine y Triton necesitan una máquina con T4.",
+    "verified": "docs"
+   },
+   "links": [
+    "#c01.archivos",
+    "#m10.ci-cd",
+    "#m08.validar",
+    "#m07.que-hace"
+   ]
+  },
+  {
+   "id": "serving",
+   "num": 1,
+   "title": "Qué es servir un modelo (y por qué model(x) dentro de FastAPI no basta)",
+   "question": "¿Qué tiene que hacer un servicio alrededor de model(x) para aguantar tráfico real, y qué te da un servidor de modelos como Triton?",
+   "templates": [
+    {
+     "code": "uvicorn {modulo}:app --host 0.0.0.0 --port {puerto} --workers {n}",
+     "note": "Levanta una app FastAPI (un framework web de Python) con uvicorn (el servidor que atiende las conexiones). Con <code>--workers</code> mayor que 1 son varios procesos, cada uno con <b>su copia</b> del modelo y sin batches entre ellos. El C01 usa 1 proceso por contenedor y agrega pods."
+    },
+    {
+     "code": "{resultado} = await run_in_threadpool({funcion}, {datos})",
+     "note": "Dentro de un <code>async def</code>, el trabajo de CPU (decodificar el JPEG, correr el modelo) va a un hilo aparte. Si no, bloquea el event loop (el bucle que atiende todas las requests del proceso): nadie más avanza, ni los health checks."
+    },
+    {
+     "code": "result = await client.infer(\"{modelo}\", [{entrada}], outputs=[{salida}])",
+     "note": "Con Triton, el gateway (el servicio delante del modelo) ya no corre el modelo: manda el tensor por HTTP con el cliente async <code>tritonclient.http.aio</code> y espera. El <code>await</code> libera el loop mientras la GPU trabaja."
+    },
+    {
+     "code": "tritonserver --model-repository={repo}",
+     "note": "Arranca el servidor de modelos: lee la carpeta, carga cada modelo con su backend (el motor que lo ejecuta: TensorRT, ONNX Runtime, Python…) y abre los puertos 8000 (HTTP), 8001 (gRPC, un protocolo binario) y 8002 (métricas)."
+    }
+   ],
+   "formulas": [
+    "\\text{VRAM}_{\\text{workers}} \\approx n \\times (\\text{pesos} + \\text{contexto CUDA}) = 4 \\times (0.1 + 0.3\\text{–}1\\ \\text{GB}) \\approx 1.6\\text{–}4.4\\ \\text{GB}",
+    "N_{\\text{GPU}} = \\left\\lceil \\frac{\\lambda_{\\text{diseño}}}{X} \\right\\rceil \\qquad \\text{eager, batch 1: } \\left\\lceil \\tfrac{500}{100} \\right\\rceil = 5 \\qquad \\text{Triton + TensorRT: } \\left\\lceil \\tfrac{500}{600} \\right\\rceil = 1\\ (+1\\ \\text{de repuesto: N+1})"
+   ],
+   "vars": [
+    [
+     "{modulo}",
+     "módulo de Python con la app FastAPI",
+     "app.main (el gateway del C01)"
+    ],
+    [
+     "{puerto}",
+     "puerto donde escucha uvicorn",
+     "8080"
+    ],
+    [
+     "{n}",
+     "procesos de uvicorn; cada uno carga su propia copia del modelo",
+     "1 en el C01: se escala con pods"
+    ],
+    [
+     "{resultado}, {funcion}, {datos}",
+     "lo que devuelve, la función bloqueante y sus argumentos",
+     "batch, digest = …(_decode_and_hash, data)"
+    ],
+    [
+     "{modelo}",
+     "nombre del modelo en Triton",
+     "classifier"
+    ],
+    [
+     "{entrada}, {salida}",
+     "el InferInput (nombre, shape, dtype y datos) y el InferRequestedOutput",
+     "input FP32 [1, 3, 224, 224] y logits"
+    ],
+    [
+     "{repo}",
+     "carpeta del model repository",
+     "/models (horneada en la imagen)"
+    ],
+    [
+     "n",
+     "procesos con su copia del modelo en la misma GPU; cada uno paga además su contexto CUDA (la memoria fija que CUDA reserva por proceso)",
+     "4 workers en una T4"
+    ],
+    [
+     "λ_diseño",
+     "el tráfico a aguantar en el pico",
+     "500 req/s"
+    ],
+    [
+     "X",
+     "capacidad planificada por GPU",
+     "eager a batch 1 ≈ 100 img/s; Triton + TensorRT FP16 ≈ 600 (el 50 % de 1,200)"
+    ]
+   ],
+   "pieces": [
+    [
+     "servir (serving)",
+     "Poner el modelo detrás de una API para que otros sistemas le pidan predicciones, con latencia, errores y costo bajo control.",
+     "POST /v1/classify con p99 ≤ 200 ms"
+    ],
+    [
+     "online síncrono",
+     "Quien llama espera la respuesta en la misma conexión. Lo opuesto: batch (offline) o una cola asíncrona.",
+     "la persona sigue en el formulario de publicación"
+    ],
+    [
+     "latencia p50 / p99",
+     "La mediana y el valor que solo el 1 % de los requests supera. En el C01, el SLO (el objetivo pactado) se fija en el p99.",
+     "SLO: p99 ≤ 200 ms medido en el servidor"
+    ],
+    [
+     "throughput",
+     "Cuántas predicciones por segundo completa el servicio.",
+     "pico de diseño: 500 req/s"
+    ],
+    [
+     "event loop",
+     "El bucle de asyncio que atiende todas las requests de un proceso; entre un await y el siguiente, solo corre una cosa.",
+     "decodificar una foto de 12 MP sin draft mode (el decode reducido de JPEG), ≈ 40–80 ms de CPU, dentro de un async def lo frena todo ese tiempo"
+    ],
+    [
+     "threadpool",
+     "Hilos aparte para el trabajo de CPU. PyTorch, Pillow y NumPy sueltan el GIL (el candado que deja correr un solo hilo de Python a la vez) en su parte pesada.",
+     "run_in_threadpool, con 2 decodes a la vez por proceso"
+    ],
+    [
+     "batch 1",
+     "Cada request corre sola. En GPU deja el acelerador casi ocioso; en CPU casi da lo mismo.",
+     "≈ 100 img/s por proceso con PyTorch eager en una T4 (estimación del C01)"
+    ],
+    [
+     "dynamic batching",
+     "El servidor junta requests de clientes distintos durante una ventana corta y las corre juntas. Como un bus que espera unos milisegundos a llenarse antes de salir.",
+     "ventana de 2 ms, hasta 32 imágenes"
+    ],
+    [
+     "instancia del modelo",
+     "Una copia del modelo en ejecución dentro del servidor. Dos en la misma GPU se turnan: mientras una copia datos, la otra calcula.",
+     "instance_group count 2 en la T4"
+    ],
+    [
+     "servidor de modelos (model server)",
+     "Un proceso dedicado a convertir tensores en tensores: carga modelos y versiones, encola, arma batches y expone salud y métricas.",
+     "Triton (NVIDIA hoy lo llama Dynamo-Triton); no es el paquete triton de pip, el lenguaje de kernels que usa torch.compile"
+    ],
+    [
+     "backend",
+     "El motor que ejecuta cada modelo dentro de Triton.",
+     "backend tensorrt (platform: tensorrt_plan) para el engine; onnxruntime (platform: onnxruntime_onnx) para un .onnx"
+    ],
+    [
+     "gateway",
+     "El servicio delante del servidor de modelos. Sabe del producto: quién llama, qué bytes acepta, el top-k y qué error devolver.",
+     "FastAPI en CPU: valida, preprocesa, llama a Triton y arma el top-5"
+    ],
+    [
+     "readiness / liveness",
+     "¿Le mando tráfico? / ¿Lo reinicio? Son dos preguntas distintas con dos endpoints distintos.",
+     "/readyz del gateway depende de Triton; /healthz no"
+    ],
+    [
+     "timeout y load shedding",
+     "Cortar lo que ya no llega a tiempo y rechazar rápido lo que no cabe, en vez de encolarlo.",
+     "150 ms a Triton → 504; más de 16 en vuelo → 503 con Retry-After"
+    ]
+   ],
+   "example": {
+    "title": "El corte del C01: el gateway prepara una imagen y Triton hace el resto",
+    "lang": "python",
+    "code": "\"\"\"Gateway HTTP del clasificador de categorías (caso c01).\n\nPor qué existe un gateway en CPU delante de Triton: validar, decodificar y redimensionar imágenes es\ntrabajo de CPU; si lo hiciera Triton (python backend o DALI) competiría con la GPU cara. Así cada\ncapa escala por separado: gateway por CPU (HPA) y Triton por cola de GPU (KEDA).\n\nEndpoints: POST /v1/classify?top_k=5 · GET /healthz (liveness) · GET /readyz (readiness) · GET /metrics\n\"\"\"\n# …\ndef _decode_and_hash(data: bytes) -> tuple[np.ndarray, str]:\n    \"\"\"CPU pura (bloqueante): corre en el threadpool. Pillow y numpy sueltan el GIL en decode y resize.\"\"\"\n    digest = hashlib.sha256(data).hexdigest()  # huella de la imagen: deduplicar y cruzar con labels\n    tensor = preprocess(data, max_pixels=MAX_PIXELS)  # float32 [3,224,224], idéntico a training/eval\n    return tensor[np.newaxis], digest  # batch de 1: Triton junta requests con dynamic batching\n# …\n        batch, digest = await run_in_threadpool(_decode_and_hash, data)",
+    "source": "reference/c01/gateway/app/main.py (extractos; # … marca líneas omitidas)",
+    "notes": [
+     "El gateway (FastAPI, en nodos de CPU) hace lo que depende del producto y de la imagen; Triton (en la T4) solo convierte tensores en tensores. Cada uno escala con su propia señal: CPU para el gateway, tiempo en cola para Triton.",
+     "<code>_decode_and_hash</code> es CPU pura y bloqueante: por eso se llama con <code>run_in_threadpool</code>. Llamada directo dentro de un <code>async def</code>, congelaría el event loop mientras dura (el lab lo mide).",
+     "<code>tensor[np.newaxis]</code> agrega el eje de batch: <code>[3, 224, 224]</code> → <code>[1, 3, 224, 224]</code>. El gateway manda <b>una</b> imagen por request; juntar requests es trabajo de Triton (dynamic batching), no del cliente.",
+     "En el MVP del C01 (una VM g4dn y un solo proceso con PyTorch eager), todo esto vive en el mismo proceso. Se rompe primero por throughput (cada request es un batch de 1) y después por los deploys con reinicio: ahí la inferencia pasa a Triton y FastAPI se queda como gateway.",
+     "Pillow y NumPy sueltan el GIL en el decode y el resize: por eso los 2 hilos de decode pueden usar 2 cores a la vez (el pod pide 1 core y no tiene límite de CPU, así que aprovecha ráfagas)."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Lo que tienes que construir tú si sirves con model(x) dentro de FastAPI, contra lo que Triton ya trae, y cómo lo usa el C01.",
+    "data": {
+     "head": [
+      "Necesidad",
+      "model(x) en FastAPI",
+      "Triton",
+      "En el C01"
+     ],
+     "rows": [
+      [
+       "Batching",
+       "batch 1, o una cola propia (asyncio.Queue, futures, timeouts, límites)",
+       "dynamic_batching: dos líneas de config",
+       "ventana de 2 ms, hasta 32"
+      ],
+      [
+       "Varias copias en la GPU",
+       "un proceso por copia (--workers), sin batches entre ellas",
+       "instance_group",
+       "2 instancias en la T4"
+      ],
+      [
+       "Cola con plazo",
+       "lo que escribas",
+       "default_queue_policy (rechaza lo que vence)",
+       "REJECT a los 100 ms en cola"
+      ],
+      [
+       "Versiones y recarga",
+       "reiniciar el proceso, o una recarga en caliente propia",
+       "version_policy y modos de control del repository",
+       "latest 1; una versión por imagen"
+      ],
+      [
+       "Salud por modelo",
+       "un /readyz propio",
+       "/v2/health/ready y /v2/models/{modelo}/ready",
+       "readinessProbe en /v2/health/ready"
+      ],
+      [
+       "Cola vs cómputo",
+       "histogramas propios",
+       "métricas por modelo en el puerto 8002",
+       "KEDA (el autoscaler) escala con la espera en cola"
+      ],
+      [
+       "Protocolo de tensores",
+       "el JSON que diseñes",
+       "KServe v2 por HTTP y gRPC, con tensores binarios",
+       "602 KB binarios por request"
+      ],
+      [
+       "Engine optimizado",
+       "torch.compile, o TensorRT integrado a mano",
+       "backends tensorrt, onnxruntime, python…",
+       "TensorRT FP16 en la T4"
+      ]
+     ],
+     "note": "Contra el MVP: ≈ 100 img/s por proceso con PyTorch eager a batch 1, contra ≈ 1,200 img/s por T4 con TensorRT FP16 y dynamic batching. Son estimaciones del C01, a medir con perf_analyzer; el salto mezcla el engine y el batching."
+    }
+   },
+   "memo": "<b>El gateway sabe del producto; el servidor de modelos, solo de tensores.</b> FastAPI con model(x) alcanza para un MVP; se rompe primero por el batch 1 (throughput) y después por los reinicios en cada deploy.",
+   "trap": "Subir <code>--workers</code> para ganar throughput en GPU: cada worker es otro proceso con su copia de los pesos y su contexto CUDA, y siguen corriendo batches de 1 que se turnan la GPU. Y llamar a <code>model(x)</code> dentro de un <code>async def</code>: el p99 sube con la concurrencia sin que la CPU esté llena, y hasta <code>/healthz</code> tarda.",
+   "lab": {
+    "goal": "Medir en tu Mac los dos límites de model(x) dentro de un proceso: el batch de 1 y el event loop bloqueado.",
+    "steps": [
+     {
+      "cmd": "source ~/venvs/lab-triton/bin/activate\npython - <<'EOF'\nimport time, torch, torchvision\nm = torchvision.models.resnet50(weights=None, num_classes=500).eval()\nx = torch.randn(8, 3, 224, 224)\nwith torch.inference_mode():\n    for bs in (1, 8):\n        m(x[:bs])                      # warmup de esta shape\n        t = time.perf_counter()\n        for _ in range(10):\n            m(x[:bs])\n        dt = (time.perf_counter() - t) / 10\n        print(f\"batch {bs:d}: {dt * 1000:.0f} ms por llamada, {bs / dt:.0f} img/s\")\nEOF",
+      "expect": "Algo como batch 1: 13 ms por llamada, 76 img/s y batch 8: 94 ms por llamada, 85 img/s (Mac con chip Apple, 4 hilos de PyTorch). En CPU, juntar 8 imágenes casi no rinde más: no hay un acelerador que llenar. En una T4, el C01 estima ≈ 100 img/s con batch 1 y ≈ 1,200 con TensorRT y batching."
+     },
+     {
+      "cmd": "python - <<'EOF'\nimport asyncio, time, torch, torchvision\nm = torchvision.models.resnet50(weights=None, num_classes=500).eval()\nx = torch.randn(8, 3, 224, 224)\ndef inferir():\n    with torch.inference_mode():   # dentro de la función: el modo es por hilo\n        return m(x)\nasync def latido(huecos, fin):\n    antes = time.perf_counter()\n    while not fin.is_set():\n        await asyncio.sleep(0.01)\n        ahora = time.perf_counter(); huecos.append(ahora - antes); antes = ahora\nasync def probar(en_hilo):\n    huecos, fin = [], asyncio.Event()\n    tarea = asyncio.create_task(latido(huecos, fin))\n    await asyncio.sleep(0.05)\n    if en_hilo:\n        await asyncio.to_thread(inferir)   # como run_in_threadpool de FastAPI\n    else:\n        inferir()                          # CPU dentro de la corrutina: bloquea el loop\n    await asyncio.sleep(0.05); fin.set(); await tarea\n    print(\"en un hilo:\" if en_hilo else \"en el loop:\", f\"mayor hueco del latido {max(huecos) * 1000:.0f} ms\")\ninferir()  # warmup\nasyncio.run(probar(False)); asyncio.run(probar(True))\nEOF",
+      "expect": "en el loop: mayor hueco del latido ≈ 100 ms (lo que dura la inferencia: el loop no atendió nada) y en un hilo: ≈ 10–15 ms (el latido de 10 ms siguió). Medido: 96 ms contra 12 ms. asyncio.to_thread hace lo mismo que run_in_threadpool en FastAPI."
+     }
+    ],
+    "fix": "Si el hueco con hilo también es grande, revisa que inferir() corra entera dentro de asyncio.to_thread. Si batch 8 rinde mucho menos que batch 1, quédate con batches chicos: en CPU no conviene subirlos.",
+    "needs": "el venv del lab de Números de bolsillo (Python 3.13, torch 2.14.0, torchvision 0.29.0); sin GPU",
+    "verified": "executed"
+   },
+   "links": [
+    "#m07.que-hace",
+    "#m07.fastapi",
+    "#m07.triton",
+    "#c01.serving"
+   ]
+  },
+  {
+   "id": "pytorch",
+   "num": 2,
+   "title": "Preparar el modelo en PyTorch: eval, inference_mode, preprocesamiento idéntico y determinismo",
+   "question": "¿Qué tienes que dejar fijo en PyTorch antes de exportar, para que el modelo servido se comporte como el que evaluaste?",
+   "templates": [
+    {
+     "code": "model.load_state_dict(torch.load(\"{checkpoint}\", map_location=\"cpu\", weights_only=True))",
+     "note": "Carga solo tensores y tipos simples: un .pt es un pickle (el formato de Python para guardar objetos) y podría ejecutar código al cargarse (<code>weights_only=True</code> ya es el default en torch 2.14, y el C01 lo escribe explícito). <code>load_state_dict</code> es estricto por defecto: si una llave o una shape no calza, falla aquí y no en producción."
+    },
+    {
+     "code": "model.eval()",
+     "note": "Modo evaluación: BatchNorm usa sus estadísticas guardadas (running stats) y Dropout se apaga. Equivale a <code>model.train(False)</code>. No apaga los gradientes: eso es otro interruptor."
+    },
+    {
+     "code": "with torch.inference_mode():\n    {salida} = model({entrada})",
+     "note": "Sin autograd (el registro de operaciones para calcular gradientes): no guarda activaciones (los resultados intermedios de cada capa) para un backward que nunca llega, y es algo más rápido que <code>torch.no_grad()</code>. Vale solo en el hilo donde lo activas: en un servidor, va dentro de la función que corre el modelo."
+    },
+    {
+     "code": "torch.manual_seed({semilla})",
+     "note": "Fija los números aleatorios de CPU y GPU. El C01 la usa para que el export y la paridad creen el mismo modelo cuando no hay checkpoint. No garantiza resultados idénticos entre versiones de PyTorch, plataformas, ni entre CPU y GPU."
+    }
+   ],
+   "formulas": [
+    "\\text{eval: } y = \\gamma\\,\\frac{x - \\hat\\mu}{\\sqrt{\\hat\\sigma^2 + \\varepsilon}} + \\beta \\qquad \\text{train: } y = \\gamma\\,\\frac{x - \\mu_B}{\\sqrt{\\sigma_B^2 + \\varepsilon}} + \\beta, \\quad \\hat\\mu \\leftarrow (1 - m)\\,\\hat\\mu + m\\,\\mu_B",
+    "x_c = \\frac{p / 255 - \\text{mean}_c}{\\text{std}_c} \\qquad \\text{mean} = (0.485,\\ 0.456,\\ 0.406) \\qquad \\text{std} = (0.229,\\ 0.224,\\ 0.225)"
+   ],
+   "vars": [
+    [
+     "{checkpoint}",
+     "archivo con el state_dict entrenado",
+     "resnet50_500.pt"
+    ],
+    [
+     "{entrada}, {salida}",
+     "el tensor de entrada y los logits",
+     "x [N, 3, 224, 224] FP32 → [N, 500]"
+    ],
+    [
+     "{semilla}",
+     "el número que fija lo aleatorio",
+     "0 en export_onnx.py y parity_check.py"
+    ],
+    [
+     "γ, β",
+     "escala y corrimiento que BatchNorm aprende, uno por canal",
+     "53 BatchNorm2d en el ResNet-50"
+    ],
+    [
+     "μ̂, σ̂²",
+     "running stats: media y varianza que BatchNorm guardó durante el training",
+     "las usa eval()"
+    ],
+    [
+     "μ_B, σ²_B",
+     "media y varianza del batch actual",
+     "las usa train(): la salida depende de las otras imágenes"
+    ],
+    [
+     "m, ε",
+     "momentum de la actualización y un épsilon numérico",
+     "0.1 y 1e-5 (defaults de BatchNorm2d)"
+    ],
+    [
+     "p, c",
+     "valor de un píxel (0–255) y canal de color RGB",
+     "mean y std de ImageNet, en preprocess.py"
+    ]
+   ],
+   "pieces": [
+    [
+     "model.eval()",
+     "Pone el modelo en modo inferencia. Solo afecta capas como BatchNorm y Dropout; equivale a train(False).",
+     "build_model() termina en return model.eval()"
+    ],
+    [
+     "model.train()",
+     "Modo entrenamiento: BatchNorm normaliza con el batch y actualiza sus running stats; Dropout apaga neuronas al azar.",
+     "un forward en train() cambia el modelo aunque estés en no_grad"
+    ],
+    [
+     "torch.no_grad()",
+     "No registra operaciones para el backward. Los tensores que salen se pueden usar después con autograd.",
+     "el loop de validación dentro del training"
+    ],
+    [
+     "torch.inference_mode()",
+     "Como no_grad pero más estricto: tampoco lleva la cuenta de las vistas (tensores que comparten memoria) ni de las versiones (cuántas veces se modificó cada tensor). Lo que sale no puede entrar después a autograd.",
+     "run_torch() y verify() del C01"
+    ],
+    [
+     "el modo vale por hilo",
+     "inference_mode (y no_grad) solo valen en el hilo donde los activaste.",
+     "alrededor de un await run_in_threadpool no hacen nada en el hilo del pool"
+    ],
+    [
+     "torch.load(…, weights_only=True)",
+     "Carga solo tensores y tipos simples; rechaza objetos arbitrarios del pickle.",
+     "default en torch 2.14; el C01 lo escribe explícito"
+    ],
+    [
+     "load_state_dict (estricto)",
+     "Exige que las llaves y las shapes calcen exacto con la arquitectura.",
+     "size mismatch for fc.weight: copying a param with shape torch.Size([1000, 2048]) from checkpoint, … torch.Size([500, 2048])"
+    ],
+    [
+     "prefijo module.",
+     "Un checkpoint guardado desde DataParallel o DDP (entrenamiento en varias GPUs) trae module. delante de cada llave.",
+     "Missing key(s) in state_dict: \"conv1.weight\"…: quita el prefijo antes de cargar"
+    ],
+    [
+     "preprocess.py compartido",
+     "Una sola función de preprocesamiento que importan el training, la evaluación y el serving.",
+     "bytes → float32 [3, 224, 224], RGB, normalizado"
+    ],
+    [
+     "Resize(256) + CenterCrop(224)",
+     "Lado corto a 256 con interpolación bilinear, con antialias al reducir (un suavizado que evita bordes dentados), y recorte central de 224 × 224.",
+     "medido contra torchvision 0.29: diferencia 0.0 sin draft mode (el decode reducido de JPEG)"
+    ],
+    [
+     "RGB, no BGR",
+     "El orden de canales del training. OpenCV lee en BGR; Pillow, en RGB.",
+     "convert(\"RGB\") en decode()"
+    ],
+    [
+     "EXIF",
+     "Metadatos de la foto; las de celular guardan ahí la rotación.",
+     "ImageOps.exif_transpose: sin esto el modelo ve la foto de lado"
+    ],
+    [
+     "semillas",
+     "Fijan lo aleatorio: pesos iniciales, datos de ejemplo, augmentations.",
+     "torch.manual_seed(0): export y paridad crean el mismo modelo sin checkpoint"
+    ],
+    [
+     "determinismo",
+     "Mismos números en cada corrida. Otro batch, otra versión u otro hardware cambian el orden de las sumas: diferencias de ≈ 1e-4 en los logits.",
+     "batch 8 contra batch 1 en CPU: 1.5e-4 con logits de hasta 85 (medido)"
+    ]
+   ],
+   "example": {
+    "title": "build_model(): el modelo que todo el pipeline usa como referencia",
+    "lang": "python",
+    "code": "def build_model(checkpoint: str | None) -> torch.nn.Module:\n    \"\"\"Reconstruye la arquitectura del training y carga los pesos.\"\"\"\n    if not checkpoint:\n        print(\"[model] AVISO: sin --checkpoint → pesos aleatorios (sirve para probar el pipeline, no para servir)\")\n        torch.manual_seed(0)  # aleatorios pero reproducibles: export y parity_check crean el MISMO modelo\n    # weights=None: nada de descargar pesos de ImageNet; num_classes=500 crea la fc correcta\n    model = torchvision.models.resnet50(weights=None, num_classes=NUM_CLASSES)\n    if checkpoint:\n        # weights_only=True: carga solo tensores, no ejecuta pickle arbitrario (un .pt es código)\n        state = torch.load(checkpoint, map_location=\"cpu\", weights_only=True)\n        # strict (por defecto): si una llave no coincide, falla AQUÍ y no en producción con pesos al azar\n        model.load_state_dict(state)\n    # eval(): BatchNorm usa sus running stats y Dropout se apaga. torch.onnx.export (2.14) ya exporta\n    # en eval aunque lo olvides, pero este modelo es también la referencia PyTorch de verify() y del\n    # gate de paridad: en modo train daría otros logits y el gate compararía contra una referencia rota.\n    return model.eval()",
+    "source": "reference/c01/model/export_onnx.py (build_model completo)",
+    "notes": [
+     "<code>weights=None</code> evita bajar pesos de ImageNet y <code>num_classes=500</code> crea la capa final con 500 salidas. Tiene que ser la misma arquitectura del training, o las llaves no calzan.",
+     "<code>weights_only=True</code>: un .pt es un pickle, y un pickle puede ejecutar código al cargarse. Así solo entran tensores.",
+     "<code>load_state_dict</code> es estricto por defecto: un checkpoint de 1000 clases falla con <code>size mismatch for fc.weight</code>. Mejor ese error aquí que un modelo a medio cargar en producción.",
+     "Sin checkpoint, <code>torch.manual_seed(0)</code> hace que el export y la paridad creen el mismo modelo aleatorio: sirve para probar el pipeline, no para servir.",
+     "<code>return model.eval()</code>, y el comentario dice por qué importa aunque el exportador TorchScript ya exporte en eval: este mismo objeto es la referencia de PyTorch en <code>verify()</code> y en el gate de paridad. En modo train daría otros logits, y el gate compararía contra una referencia rota. El exportador dynamo (el default) ni siquiera cambia el modo: exporta el modelo como esté y solo avisa con un <code>UserWarning</code>."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Los dos interruptores de PyTorch: el modo del modelo (train/eval) y el de los gradientes (no_grad/inference_mode). Son independientes, y para servir van los dos.",
+    "data": {
+     "head": [
+      "Modo",
+      "Qué cambia",
+      "La salida",
+      "Úsalo para"
+     ],
+     "rows": [
+      [
+       "model.train()",
+       "BatchNorm usa la media y la varianza del batch y actualiza sus running stats; Dropout activo",
+       "depende de las otras imágenes del batch",
+       "entrenar"
+      ],
+      [
+       "model.eval()",
+       "BatchNorm usa sus running stats; Dropout apagado. No toca los gradientes",
+       "la misma para cada imagen, con cualquier batch",
+       "evaluar, exportar y servir"
+      ],
+      [
+       "torch.no_grad()",
+       "no registra operaciones para el backward",
+       "requires_grad=False; se puede usar después con autograd",
+       "la validación dentro del training"
+      ],
+      [
+       "torch.inference_mode()",
+       "lo de no_grad, y además sin seguimiento de vistas ni de versiones",
+       "requires_grad=False e is_inference()=True; no entra a autograd",
+       "inferencia pura: servir y la referencia de la paridad"
+      ],
+      [
+       "eval() + inference_mode()",
+       "las dos cosas: no se pisan",
+       "la misma por imagen y sin memoria de autograd",
+       "lo que hacen verify() y run_torch() en el C01"
+      ]
+     ],
+     "note": "La documentación de PyTorch lo dice así: el modo de evaluación no es un mecanismo para apagar gradientes; es ortogonal a no_grad y a inference_mode."
+    }
+   },
+   "memo": "<b>eval() cambia las capas; inference_mode() apaga el autograd.</b> Son dos interruptores distintos y para servir van los dos prendidos. Y un solo <code>preprocess.py</code> para training, evaluación y serving.",
+   "trap": "Un forward en <code>model.train()</code>, aunque sea dentro de <code>torch.no_grad()</code>, actualiza las running stats del BatchNorm: el modelo cambia en silencio y deja de ser el que evaluaste. Y reescribir el preprocesamiento \"parecido\" en el servicio (BGR, otro resize, sin normalizar): no da ningún error, solo menos accuracy.",
+   "lab": {
+    "goal": "Ver en números qué cambia con train(), eval(), no_grad() e inference_mode(), y cuánto ruido normal tiene FP32.",
+    "steps": [
+     {
+      "cmd": "source ~/venvs/lab-triton/bin/activate\npython - <<'EOF'\nimport torch, torchvision\ntorch.manual_seed(0)\nm = torchvision.models.resnet50(weights=None, num_classes=500)\nx = torch.randn(8, 3, 224, 224)\nm.eval()\nwith torch.inference_mode():\n    ref = m(x)\nm.train()\nwith torch.no_grad():\n    tr = m(x)\nprint(\"max|Δ| train vs eval:\", round((tr - ref).abs().max().item(), 1))\nprint(\"top-1 igual:\", (tr.argmax(1) == ref.argmax(1)).float().mean().item())\nEOF",
+      "expect": "max|Δ| train vs eval: 83.4 y top-1 igual: 0.0. Con pesos aleatorios, las running stats todavía valen 0 y 1, así que la diferencia es enorme; con un modelo entrenado es menor, pero existe."
+     },
+     {
+      "cmd": "python - <<'EOF'\nimport torch, torchvision\ntorch.manual_seed(0)\nm = torchvision.models.resnet50(weights=None, num_classes=500).train()\nantes = m.bn1.running_mean.clone()\nwith torch.no_grad():\n    m(torch.randn(8, 3, 224, 224))\nprint(\"running_mean cambió:\", not torch.equal(antes, m.bn1.running_mean), \"| batches vistos:\", m.bn1.num_batches_tracked.item())\nEOF",
+      "expect": "running_mean cambió: True | batches vistos: 1. Un solo forward en train(), sin gradientes, ya modificó el modelo."
+     },
+     {
+      "cmd": "python - <<'EOF'\nimport torch, torchvision\nm = torchvision.models.resnet50(weights=None, num_classes=500).eval()\nx = torch.randn(1, 3, 224, 224)\ny0 = m(x)\nwith torch.no_grad():\n    y1 = m(x)\nwith torch.inference_mode():\n    y2 = m(x)\nprint(y0.requires_grad, y1.requires_grad, y2.requires_grad, y2.is_inference())\ntry:\n    (y2 * torch.ones(500, requires_grad=True)).sum().backward()\nexcept RuntimeError as e:\n    print(str(e).split(\".\")[0])\nEOF",
+      "expect": "True False False True: sin nada, la salida arrastra el grafo para el backward; con no_grad e inference_mode, no. Después: Inference tensors cannot be saved for backward. Un tensor creado en inference_mode no puede entrar a autograd."
+     },
+     {
+      "cmd": "python - <<'EOF'\nimport threading, torch\nwith torch.inference_mode():\n    t = threading.Thread(target=lambda: print(\"hilo nuevo:\", torch.is_inference_mode_enabled()))\n    t.start(); t.join()\n    print(\"hilo actual:\", torch.is_inference_mode_enabled())\nEOF",
+      "expect": "hilo nuevo: False y hilo actual: True. El modo vale por hilo: en FastAPI, el with va dentro de la función que corre en el threadpool."
+     },
+     {
+      "cmd": "python - <<'EOF'\nimport torch, torchvision\ntorch.manual_seed(0)\nm = torchvision.models.resnet50(weights=None, num_classes=500).eval()\nx = torch.randn(8, 3, 224, 224)\nwith torch.inference_mode():\n    juntos = m(x)\n    de_a_uno = torch.cat([m(x[i:i + 1]) for i in range(8)])\nprint(f\"max|Δ| batch 8 vs batch 1: {(juntos - de_a_uno).abs().max().item():.1e} | max|logit|: {de_a_uno.abs().max().item():.0f}\")\nEOF",
+      "expect": "max|Δ| batch 8 vs batch 1: 1.5e-04 | max|logit|: 85. Las mismas imágenes en otro batch cambian el orden de las sumas: ese ≈ 1e-4 es el ruido normal de FP32, el que verás también entre PyTorch y ONNX Runtime."
+     }
+    ],
+    "fix": "Si el paso 1 da 0.0 de diferencia, revisa que llamaste m.train() antes del segundo forward. Si el paso 3 no lanza el error, el tensor no salió de inference_mode.",
+    "needs": "el venv del lab de Números de bolsillo (Python 3.13, torch 2.14.0, torchvision 0.29.0); sin GPU",
+    "verified": "executed"
+   },
+   "links": [
+    "#m07.fastapi",
+    "#m09.skew",
+    "#m10.reproducibilidad",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "onnx",
+   "num": 3,
+   "title": "Exportar a ONNX: dynamo, opset, ejes dinámicos, checker y ONNX Runtime",
+   "question": "¿Cómo pasas el modelo de PyTorch a un archivo ONNX que TensorRT (el compilador de NVIDIA) y ONNX Runtime entiendan, y cómo sabes que salió bien?",
+   "templates": [
+    {
+     "code": "torch.onnx.export(model, ({ejemplo},), \"{archivo}\", dynamo=False, opset_version={opset}, input_names=[\"{entrada}\"], output_names=[\"{salida}\"], dynamic_axes={\"{entrada}\": {0: \"batch\"}, \"{salida}\": {0: \"batch\"}})",
+     "note": "El exportador TorchScript, el que usa el C01: ejecuta el modelo con la entrada de ejemplo y registra lo que pasó (tracing). En torch 2.14 hay que pedirlo con <code>dynamo=False</code>, avisa con un <code>DeprecationWarning</code> y necesita el paquete <code>onnx</code>."
+    },
+    {
+     "code": "torch.onnx.export(model, ({ejemplo},), \"{archivo}\", dynamo=True, opset_version=18, input_names=[\"{entrada}\"], output_names=[\"{salida}\"], dynamic_shapes={\"{argumento}\": {0: torch.export.Dim(\"batch\", min=1, max={max_batch})}}, external_data=False)",
+     "note": "El exportador nuevo, default desde torch 2.9: captura el programa entero con <code>torch.export</code>. No pone el modelo en eval (solo avisa): llama tú a <code>model.eval()</code> antes. El eje dinámico va en <code>dynamic_shapes</code>, con el nombre del argumento de <code>forward</code>. Necesita <code>onnx</code> y <code>onnxscript</code>. Sin <code>external_data=False</code>, los pesos salen en un <code>.onnx.data</code> aparte."
+    },
+    {
+     "code": "onnx.checker.check_model(onnx.load(\"{archivo}\"), full_check=True)",
+     "note": "Revisa que el archivo sea ONNX válido; con <code>full_check=True</code> además infiere las shapes (deduce la forma de cada tensor). Si todo está bien no imprime nada; si algo falla, lanza una excepción."
+    },
+    {
+     "code": "ort.InferenceSession(\"{archivo}\", providers=[\"CPUExecutionProvider\"]).run([\"{salida}\"], {\"{entrada}\": {x_float32}})",
+     "note": "ONNX Runtime (un motor que ejecuta grafos ONNX) en CPU. Si corre con batch 1 y con el máximo, el eje dinámico funciona de verdad. La entrada tiene que ser un array de numpy <code>float32</code>: con <code>float64</code> falla."
+    }
+   ],
+   "formulas": [
+    "W' = W \\cdot \\frac{\\gamma}{\\sqrt{\\hat\\sigma^2 + \\varepsilon}} \\qquad b' = \\beta + (b - \\hat\\mu)\\,\\frac{\\gamma}{\\sqrt{\\hat\\sigma^2 + \\varepsilon}} \\qquad (\\text{Conv} + \\text{BatchNorm} \\;\\to\\; \\text{un Conv})",
+    "\\text{un solo .onnx} \\le 2\\ \\text{GB} \\;\\Rightarrow\\; P_{\\max} \\approx \\frac{2\\ \\text{GB}}{4\\ \\text{B}} \\approx 500\\,\\text{M parámetros en FP32} \\qquad \\text{C01: } 24.5\\,\\text{M} \\times 4\\,\\text{B} \\approx 98\\,\\text{MB}"
+   ],
+   "vars": [
+    [
+     "{ejemplo}",
+     "tensor de entrada de ejemplo, con la forma real",
+     "torch.randn(2, 3, 224, 224): batch 2, no 1"
+    ],
+    [
+     "{archivo}",
+     "el archivo ONNX",
+     "classifier.onnx"
+    ],
+    [
+     "{opset}",
+     "versión del conjunto de operadores ONNX",
+     "17 con el exportador TorchScript; 18 con dynamo"
+    ],
+    [
+     "{entrada}, {salida}",
+     "nombres de los tensores: el contrato con Triton y el gateway",
+     "input y logits"
+    ],
+    [
+     "{argumento}",
+     "nombre del argumento de forward() que lleva el eje dinámico",
+     "x, porque ResNet.forward(self, x)"
+    ],
+    [
+     "{max_batch}",
+     "batch máximo del eje dinámico",
+     "32 = max_batch_size de Triton"
+    ],
+    [
+     "{x_float32}",
+     "array de numpy float32 con la forma de la entrada",
+     "torch.randn(7, 3, 224, 224).numpy()"
+    ],
+    [
+     "W, b",
+     "pesos y bias de una convolución",
+     "las convoluciones de ResNet no tienen bias: b = 0"
+    ],
+    [
+     "γ, β, μ̂, σ̂², ε",
+     "lo que aprendió y guardó el BatchNorm que sigue a esa convolución",
+     "53 pares Conv + BatchNorm en el ResNet-50"
+    ],
+    [
+     "P_max",
+     "parámetros que caben en un .onnx de un solo archivo (el límite de protobuf, el formato de serialización)",
+     "≈ 500 M en FP32; el C01 usa 24.5 M"
+    ]
+   ],
+   "pieces": [
+    [
+     "ONNX",
+     "Un formato de archivo estándar para redes: grafo de operadores + pesos + firma de entradas y salidas, sin depender de PyTorch.",
+     "classifier.onnx ≈ 98 MB"
+    ],
+    [
+     "opset",
+     "La versión del conjunto de operadores. \"Opset 17\" = cada operador con la semántica de esa versión del estándar; quien lo lee tiene que conocerla.",
+     "el C01 usa 17; torch 2.14 escribe el 20 si no pides otro"
+    ],
+    [
+     "dynamo=",
+     "Qué exportador usar. True (default desde 2.9): torch.export. False: TorchScript, deprecado.",
+     "export_onnx.py usa False; con --dynamo, True"
+    ],
+    [
+     "opset_version=",
+     "El opset que se escribe. Con dynamo, si pides menos de 18 intenta convertir hacia abajo y puede fallar: el archivo queda en 18.",
+     "el C01 pide 17 con TorchScript, y 18 con --dynamo"
+    ],
+    [
+     "input_names= / output_names=",
+     "Los nombres de los tensores dentro del grafo. Triton y el gateway los usan tal cual.",
+     "[\"input\"] y [\"logits\"]"
+    ],
+    [
+     "dynamic_axes=",
+     "Qué ejes quedan variables, en el exportador TorchScript. Sin esto, el batch queda fijo en el del ejemplo.",
+     "{\"input\": {0: \"batch\"}, \"logits\": {0: \"batch\"}}"
+    ],
+    [
+     "dynamic_shapes=",
+     "Lo mismo para dynamo, con torch.export.Dim; la llave es el nombre del argumento de forward.",
+     "{\"x\": {0: Dim(\"batch\", min=1, max=32)}}"
+    ],
+    [
+     "external_data=",
+     "Solo dynamo; default True: los pesos van a un .onnx.data aparte. Hace falta por encima de 2 GB.",
+     "el C01 pasa False: un solo archivo para trtexec y el registry"
+    ],
+    [
+     "do_constant_folding=",
+     "Precalcula lo que no depende de la entrada. Es del exportador TorchScript (True por defecto); la documentación de torch 2.14 lo marca como deprecado.",
+     "el C01 lo escribe explícito"
+    ],
+    [
+     "optimize= / verify=",
+     "Solo dynamo. optimize (True por defecto) pliega constantes y quita redundancias; verify (False por defecto) corre el modelo en ONNX Runtime al exportar.",
+     "el C01 verifica aparte, en verify()"
+    ],
+    [
+     "la entrada de ejemplo",
+     "El tensor con que se recorre el modelo. Con batch 1, algunos tracers (lo que registra cada operación) vuelven constante ese eje.",
+     "torch.randn(2, 3, 224, 224)"
+    ],
+    [
+     "onnx.checker.check_model",
+     "Valida la estructura, la versión del formato (IR) y el opset; full_check=True agrega la inferencia de shapes.",
+     "el primer chequeo de verify()"
+    ],
+    [
+     "ONNX Runtime (ORT)",
+     "Un runtime de Microsoft que ejecuta el grafo con execution providers (bibliotecas por hardware). Fuera de CPU, los providers se piden explícitos.",
+     "onnxruntime 1.30.0 en el C01; la más nueva es 1.31.0 (octubre de 2026)"
+    ],
+    [
+     "optimización de grafo de ORT",
+     "Al crear la sesión, ORT pliega constantes, quita Dropout y fusiona Conv + BatchNorm. Todo viene activado por defecto (ORT_ENABLE_ALL).",
+     "por eso el ONNX corre bien en CPU sin tocarlo"
+    ]
+   ],
+   "example": {
+    "title": "export(): los dos exportadores, con sus trampas anotadas",
+    "lang": "python",
+    "code": "def export(model: torch.nn.Module, out: str, opset: int, dynamo: bool) -> None:\n    \"\"\"PyTorch → ONNX con eje de batch dinámico (Triton junta requests en batches de 1 a 32).\"\"\"\n    # Ejemplo con batch 2 y no 1: con 1 algunos tracers especializan el eje y lo vuelven constante\n    example = torch.randn(2, 3, 224, 224)\n    if dynamo:\n        # Exportador nuevo (torch.export). Verificado con torch 2.14: el eje dinámico se declara con\n        # dynamic_shapes (la clave \"x\" es el nombre del argumento de ResNet.forward). OJO: si le\n        # pides opset 17, intenta convertir hacia abajo, esa conversión falla con ReduceMean y el\n        # archivo queda en opset 18 (solo imprime el error). Úsalo con --opset 18.\n        batch = torch.export.Dim(\"batch\", min=1, max=MAX_BATCH)\n        torch.onnx.export(\n            model, (example,), out, dynamo=True, opset_version=opset,\n            input_names=[INPUT_NAME], output_names=[OUTPUT_NAME],\n            dynamic_shapes={\"x\": {0: batch}},\n            external_data=False,  # un solo archivo (~98 MB): trtexec y el registry no pierden el .data aparte\n        )\n    else:\n        # Exportador TorchScript (legacy). torch ≥ 2.9 usa dynamo=True POR DEFECTO, así que hay que\n        # pedirlo explícito: es el que produce opset 17 limpio (GlobalAveragePool) y respeta\n        # dynamic_axes tal cual. Está deprecado (\"will be removed\"): fija la versión de torch del\n        # job de export y planea migrar a --dynamo --opset 18.\n        torch.onnx.export(\n            model, (example,), out, dynamo=False, opset_version=opset,\n            input_names=[INPUT_NAME], output_names=[OUTPUT_NAME],\n            dynamic_axes={INPUT_NAME: {0: \"batch\"}, OUTPUT_NAME: {0: \"batch\"}},  # eje 0 = batch variable\n            do_constant_folding=True,  # precalcula lo constante: grafo más simple para TensorRT\n        )",
+    "source": "reference/c01/model/export_onnx.py (export completo)",
+    "notes": [
+     "El ejemplo es de batch 2 a propósito: con batch 1, algunos tracers (lo que registra cada operación) fijan el eje como constante.",
+     "Rama dynamo: el eje se declara con <code>torch.export.Dim</code>, y la llave <code>\"x\"</code> es el nombre del argumento de <code>ResNet.forward</code>. Si le pides opset 17, intenta convertir hacia abajo, falla con ReduceMean y el archivo queda en 18: por eso el script dice que se use con <code>--opset 18</code>.",
+     "<code>external_data=False</code> deja un solo archivo de ≈ 98 MB. Con el default (<code>True</code>), dynamo escribe los pesos en un <code>.onnx.data</code> aparte; si alguien copia solo el <code>.onnx</code>, trtexec no encuentra los pesos.",
+     "Rama TorchScript, la que corre el script por defecto: <code>dynamo=False</code> explícito, opset 17 y <code>dynamic_axes</code> por nombre de tensor, para la entrada y para la salida.",
+     "Exportado con torch 2.14 y los pesos aleatorios del script (sin <code>--checkpoint</code>): ≈ 98 MB (97,959,677 bytes), opset 17, <code>input['batch', 3, 224, 224]</code> → <code>logits['batch', 500]</code>, y ningún nodo BatchNormalization: el export los plegó dentro de cada Conv."
+    ]
+   },
+   "figure": {
+    "kind": "graph",
+    "caption": "Qué hay dentro del classifier.onnx del C01, contado en un export real con torch 2.14 (exportador TorchScript, opset 17, en eval, con estadísticas de BatchNorm como las de un modelo entrenado). Los 53 BatchNorm desaparecen: el export los plegó en cada Conv. TensorRT fusiona más todavía (sección de TensorRT).",
+    "data": {
+     "before": {
+      "label": "PyTorch: ResNet-50 con capa final (fc) de 500 clases",
+      "nodes": [
+       {
+        "op": "Conv2d",
+        "n": 53
+       },
+       {
+        "op": "BatchNorm2d",
+        "n": 53
+       },
+       {
+        "op": "ReLU",
+        "n": 49,
+        "note": "17 módulos, 49 llamadas"
+       },
+       {
+        "op": "suma residual (out += identity)",
+        "n": 16,
+        "note": "en forward, no es un módulo"
+       },
+       {
+        "op": "MaxPool2d",
+        "n": 1
+       },
+       {
+        "op": "AdaptiveAvgPool2d",
+        "n": 1
+       },
+       {
+        "op": "torch.flatten",
+        "n": 1
+       },
+       {
+        "op": "Linear",
+        "n": 1,
+        "note": "la capa fc"
+       }
+      ]
+     },
+     "after": {
+      "label": "ONNX: 122 nodos",
+      "nodes": [
+       {
+        "op": "Conv",
+        "n": 53,
+        "note": "con el BatchNorm plegado adentro"
+       },
+       {
+        "op": "Relu",
+        "n": 49
+       },
+       {
+        "op": "Add",
+        "n": 16
+       },
+       {
+        "op": "MaxPool",
+        "n": 1
+       },
+       {
+        "op": "GlobalAveragePool",
+        "n": 1
+       },
+       {
+        "op": "Flatten",
+        "n": 1
+       },
+       {
+        "op": "Gemm",
+        "n": 1,
+        "note": "la capa fc"
+       }
+      ],
+      "total": 122
+     },
+     "fusions": [
+      {
+       "from": [
+        "Conv2d",
+        "BatchNorm2d"
+       ],
+       "to": "Conv",
+       "where": "export en eval (TorchScript, plegado de constantes)"
+      }
+     ],
+     "io": {
+      "input": "input · FP32 · [batch, 3, 224, 224]",
+      "output": "logits · FP32 · [batch, 500]"
+     },
+     "weights_mb": 98,
+     "note": "Con pesos aleatorios aparecen además nodos Identity: muchos bias plegados salen iguales y el exportador los comparte. Con un checkpoint entrenado no aparecen."
+    }
+   },
+   "memo": "<b>Modelo en eval, nombres fijos, eje de batch dinámico, opset fijo, y verificar el archivo, no la llamada</b>: lee el opset real y las dims del .onnx, y córrelo en ONNX Runtime con batch 1 y con el máximo.",
+   "trap": "Confiar en que el export salió como lo pediste. Con dynamo y opset 17, el archivo queda en 18 (solo imprime el error, no falla); y sin <code>dynamic_axes</code>, el batch queda fijo en el del ejemplo y ONNX Runtime responde <code>Got invalid dimensions for input: input … index: 0 Got: 7 Expected: 2</code>. Las dos cosas se atrapan leyendo el archivo exportado, como hace <code>verify()</code>.",
+   "lab": {
+    "goal": "Exportar un ResNet-18 a ONNX a mano, revisarlo, correrlo en ONNX Runtime con dos tamaños de batch y provocar los dos errores más comunes.",
+    "steps": [
+     {
+      "cmd": "source ~/venvs/lab-triton/bin/activate\npip install onnx==1.23.0 onnxruntime==1.30.0\nmkdir -p ~/lab-onnx && cd ~/lab-onnx",
+      "expect": "Instala las versiones del C01 en el venv de los labs anteriores, que ya tiene torch 2.14.0 y torchvision 0.29.0."
+     },
+     {
+      "cmd": "python - <<'EOF'\nimport torch, torchvision\ntorch.manual_seed(0)\nm = torchvision.models.resnet18(weights=None, num_classes=500).eval()\ntorch.onnx.export(m, (torch.randn(2, 3, 224, 224),), \"r18.onnx\", dynamo=False, opset_version=17,\n                  input_names=[\"input\"], output_names=[\"logits\"],\n                  dynamic_axes={\"input\": {0: \"batch\"}, \"logits\": {0: \"batch\"}})\nEOF\nls -lh r18.onnx",
+      "expect": "Un DeprecationWarning que empieza con You are using the legacy TorchScript-based ONNX export (es el exportador viejo, pedido a propósito) y un archivo de 44M: 11.4 M parámetros × 4 B ≈ 45.7 MB, que ls -h muestra en MiB."
+     },
+     {
+      "cmd": "python - <<'EOF'\nimport onnx\np = onnx.load(\"r18.onnx\")\nonnx.checker.check_model(p, full_check=True)\nprint(\"opset\", [o.version for o in p.opset_import if o.domain in (\"\", \"ai.onnx\")])\nprint(p.graph.input[0].name, [d.dim_param or d.dim_value for d in p.graph.input[0].type.tensor_type.shape.dim])\nprint(sorted({n.op_type for n in p.graph.node}))\nEOF",
+      "expect": "opset [17], input ['batch', 3, 224, 224] y los tipos de nodo ['Add', 'Conv', 'Flatten', 'Gemm', 'GlobalAveragePool', 'Identity', 'MaxPool', 'Relu']. No hay BatchNormalization: quedó plegado en cada Conv. Los Identity salen solo con pesos aleatorios (bias plegados iguales que el exportador comparte)."
+     },
+     {
+      "cmd": "python - <<'EOF'\nimport numpy as np, onnxruntime as ort, torch, torchvision\ntorch.manual_seed(0)\nm = torchvision.models.resnet18(weights=None, num_classes=500).eval()\ns = ort.InferenceSession(\"r18.onnx\", providers=[\"CPUExecutionProvider\"])\nfor bs in (1, 7):\n    x = torch.randn(bs, 3, 224, 224)\n    with torch.inference_mode():\n        ref = m(x).numpy()\n    got = s.run([\"logits\"], {\"input\": x.numpy()})[0]\n    print(bs, got.shape, f\"max|Δ| {np.abs(ref - got).max():.1e}\")\nEOF",
+      "expect": "1 (1, 500) y 7 (7, 500), cada una con un max|Δ| chico, entre 1e-6 y 1e-4: el ruido normal de FP32. El eje dinámico funciona: el batch 7 nunca se vio en el export."
+     },
+     {
+      "cmd": "python - <<'EOF'\nimport onnxruntime as ort, torch, torchvision\ntorch.manual_seed(0)\nm = torchvision.models.resnet18(weights=None, num_classes=500).eval()\ntorch.onnx.export(m, (torch.randn(2, 3, 224, 224),), \"r18_fijo.onnx\", dynamo=False, opset_version=17,\n                  input_names=[\"input\"], output_names=[\"logits\"])\ns = ort.InferenceSession(\"r18_fijo.onnx\", providers=[\"CPUExecutionProvider\"])\nprint(s.get_inputs()[0].shape)\ns.run([\"logits\"], {\"input\": torch.randn(7, 3, 224, 224).numpy()})\nEOF",
+      "expect": "[2, 3, 224, 224]: sin dynamic_axes, el batch quedó fijo en el del ejemplo. Después, un error de tres líneas (cada / es un salto de línea): [ONNXRuntimeError] : 2 : INVALID_ARGUMENT : Got invalid dimensions for input: input for the following indices / index: 0 Got: 7 Expected: 2 / Please fix either the inputs/outputs or the model."
+     },
+     {
+      "cmd": "python -c \"\nimport numpy as np, onnxruntime as ort\ns = ort.InferenceSession('r18.onnx', providers=['CPUExecutionProvider'])\ns.run(['logits'], {'input': np.random.rand(1, 3, 224, 224)})\n\"",
+      "expect": "INVALID_ARGUMENT : Unexpected input data type. Actual: (tensor(double)) , expected: (tensor(float)). numpy crea float64 por defecto y el modelo pide float32: se arregla con .astype(np.float32)."
+     },
+     {
+      "cmd": "cd ~ && rm -r ~/lab-onnx",
+      "expect": "Borra los archivos del lab."
+     }
+    ],
+    "fix": "Si el export falla con Module onnx is not installed!, te falta pip install onnx: en torch 2.14 el exportador TorchScript lo necesita. Con dynamo=True, el error es No module named 'onnxscript'. Si ONNX Runtime se queja de dimensiones o de tipo, compara tu array con s.get_inputs()[0].",
+    "needs": "el venv de los labs anteriores (torch 2.14.0 y torchvision 0.29.0) más onnx 1.23.0 y onnxruntime 1.30.0, las versiones del C01; sin GPU",
+    "verified": "docs"
+   },
+   "links": [
+    "#m08.onnx",
+    "#c01.archivos",
+    "#m08.tensorrt"
+   ]
+  },
+  {
+   "id": "paridad",
+   "num": 4,
+   "title": "Paridad: el modelo servido no es el evaluado (top-1, Δlogit, FP16)",
+   "question": "¿Cómo pruebas que el ONNX y el engine FP16 predicen lo mismo que el PyTorch FP32 que evaluaste, y qué diferencia es normal?",
+   "templates": [
+    {
+     "code": "python model/parity_check.py --checkpoint {checkpoint} --onnx {onnx} --images {muestra} --n {n}",
+     "note": "Gate 1 (una prueba que frena la cadena si falla), en CPU: ONNX Runtime contra PyTorch FP32, las dos ramas con el mismo <code>preprocess.py</code> del gateway (el servicio que prepara las imágenes en producción). Atrapa exports rotos sin tocar una GPU."
+    },
+    {
+     "code": "python model/parity_check.py --backend triton --triton-url {host}:8000 --checkpoint {checkpoint} --images {muestra} --n {n}",
+     "note": "Gate 2, en la T4: el engine TensorRT FP16 (el modelo ya compilado para esa GPU) servido por Triton, llamado de a una imagen como en producción. Exit 1 = no se registra."
+    },
+    {
+     "code": "python model/parity_check.py --checkpoint {checkpoint} --onnx {onnx} --min-top1 0.995 --min-top5 0.99 --max-abs-diff 0.5",
+     "note": "Los tres umbrales, escritos con sus defaults. Se ajustan con datos cuando cambia el backend; nunca se bajan para que un candidato pase."
+    },
+    {
+     "code": "polygraphy run {onnx} --trt --fp16 --onnxrt",
+     "note": "Sin Triton, en la máquina con GPU: Polygraphy (la herramienta de NVIDIA para depurar TensorRT) construye un engine FP16 y compara sus salidas con ONNX Runtime; también puede comparar capa por capa. Sus tolerancias por defecto (1e-5) son para FP32: con FP16, sube <code>--atol</code> y <code>--rtol</code>, o fallará aunque el engine esté bien. Es la alternativa que da el propio <code>parity_check.py</code> para el TensorRT 10 del C01."
+    }
+   ],
+   "formulas": [
+    "\\text{top1} = \\frac{1}{N}\\sum_{i=1}^{N} \\mathbf{1}\\!\\left[\\arg\\max \\text{ref}_i = \\arg\\max \\text{got}_i\\right] \\qquad \\text{top5} = \\frac{1}{N}\\sum_{i=1}^{N} \\frac{|T_5(\\text{ref}_i) \\cap T_5(\\text{got}_i)|}{5}",
+    "\\max|\\Delta| = \\max_{i,k}\\, |\\text{ref}_{ik} - \\text{got}_{ik}| \\qquad \\text{FP32: } \\approx 10^{-4} \\qquad \\text{FP16: } 10^{-2}\\text{–}10^{-1} \\qquad \\text{bug: } \\gtrsim 1",
+    "\\text{cambios de top-1 tolerados} = \\lfloor (1 - 0.995)\\,N \\rfloor \\qquad N = 256 \\Rightarrow 1 \\qquad N = 2{,}000 \\Rightarrow 10",
+    "\\varepsilon_{\\text{FP16}} = 2^{-10} \\approx 9.8 \\times 10^{-4} \\qquad \\varepsilon_{\\text{FP32}} = 2^{-23} \\approx 1.2 \\times 10^{-7} \\qquad \\text{paso de FP16 entre 8 y 16} = 2^{-7} \\approx 0.008"
+   ],
+   "vars": [
+    [
+     "{checkpoint}",
+     "el state_dict evaluado: la referencia",
+     "resnet50_500.pt"
+    ],
+    [
+     "{onnx}",
+     "el ONNX candidato",
+     "model/classifier.onnx"
+    ],
+    [
+     "{muestra}",
+     "carpeta con imágenes reales del set de evaluación",
+     "una muestra del golden set (el set fijo de evaluación)"
+    ],
+    [
+     "{n}",
+     "máximo de imágenes a comparar",
+     "default 256; el script recomienda ≥ 2,000"
+    ],
+    [
+     "{host}",
+     "dónde corre Triton",
+     "localhost, en el runner con la T4"
+    ],
+    [
+     "N",
+     "imágenes comparadas",
+     "2,000 → el gate tolera 10 cambios de top-1"
+    ],
+    [
+     "ref, got",
+     "logits de PyTorch FP32 y del candidato, de forma [N, 500]",
+     "got: ONNX Runtime en CPU, o el engine vía Triton"
+    ],
+    [
+     "T₅",
+     "las 5 clases con el logit más alto: lo que ve quien publica",
+     "el orden dentro del top-5 no importa"
+    ],
+    [
+     "ε",
+     "épsilon de máquina: la distancia de 1 al siguiente número que el formato puede guardar",
+     "FP16 2⁻¹⁰; FP32 2⁻²³"
+    ]
+   ],
+   "pieces": [
+    [
+     "paridad (parity)",
+     "Probar que el artefacto servido predice lo mismo que el modelo que evaluaste.",
+     "PyTorch FP32 contra ONNX Runtime, y contra el engine FP16 en Triton"
+    ],
+    [
+     "la referencia",
+     "PyTorch FP32 en eval() y con inference_mode(): el modelo tal como se evaluó.",
+     "run_torch(), con batches de 32"
+    ],
+    [
+     "acuerdo top-1",
+     "La fracción de imágenes donde el 1.º lugar coincide: ¿cambia la sugerencia principal?",
+     "≥ 99.5 % (--min-top1 0.995)"
+    ],
+    [
+     "solapamiento top-5",
+     "Cuántas de las 5 sugerencias coinciden, en promedio, sin importar el orden.",
+     "≥ 99 % (--min-top5 0.99)"
+    ],
+    [
+     "max|Δlogit|",
+     "La mayor diferencia entre logits. Un salto de órdenes de magnitud es un bug, no redondeo.",
+     "≤ 0.5 (--max-abs-diff): atrapa exports rotos"
+    ],
+    [
+     "ruido de FP32",
+     "Cambiar el orden de las sumas (otro runtime, otro batch) mueve los logits ≈ 1e-4.",
+     "8.0e-05 en la paridad con ORT del README (512 imágenes)"
+    ],
+    [
+     "redondeo de FP16",
+     "FP16 guarda 10 bits de mantisa: cerca de 10, los valores van de a 0.008.",
+     "FP16 mueve los logits ≈ 1e-2 en promedio (1.3e-2 en el lab)"
+    ],
+    [
+     "overflow de FP16",
+     "Por encima de 65,504, FP16 da inf, y después aparecen NaN.",
+     "raro en una CNN; más común en transformers"
+    ],
+    [
+     "margen del top-1",
+     "La distancia entre el 1.º y el 2.º logit. Si es menor que el ruido, ese top-1 puede cambiar.",
+     "por eso el umbral es 99.5 % y no 100 %"
+    ],
+    [
+     "el mismo tensor",
+     "Las dos ramas reciben exactamente la misma entrada, hecha con el preprocess.py del gateway.",
+     "load_images() lo importa desde gateway/app"
+    ],
+    [
+     "imágenes reales",
+     "Una muestra del set de evaluación. Las sintéticas solo prueban que el script corre.",
+     "sin --images, gradientes + ruido codificados como JPEG"
+    ],
+    [
+     "exit code",
+     "0 = pasa; 1 = no pasa. Es lo que lee el CI para frenar la cadena.",
+     "[parity] NO PASA: no promuevas este artefacto"
+    ],
+    [
+     "paridad de punta a punta",
+     "Imágenes de referencia por el gateway real, contra las predicciones del pipeline de evaluación.",
+     "atrapa el skew de preprocesamiento (preparar la imagen distinto que en training) y los labels en otro orden"
+    ],
+    [
+     "Polygraphy",
+     "Herramienta de NVIDIA que compara TensorRT contra ONNX Runtime, también capa por capa.",
+     "para encontrar la capa que diverge y dejarla en FP32"
+    ]
+   ],
+   "example": {
+    "title": "compare() y el gate: las métricas, los umbrales y el exit code",
+    "lang": "python",
+    "code": "def compare(ref: np.ndarray, got: np.ndarray) -> dict:\n    \"\"\"Métricas de paridad que importan para el producto (top-k), no solo diferencias numéricas.\"\"\"\n    top1 = float((ref.argmax(1) == got.argmax(1)).mean())  # ¿cambia la sugerencia principal?\n    ref5 = np.argsort(-ref, 1)[:, :5]  # las 5 sugerencias que ve el vendedor\n    got5 = np.argsort(-got, 1)[:, :5]\n    overlap5 = float(np.mean([len(set(a) & set(b)) / 5 for a, b in zip(ref5, got5)]))  # orden dentro del top-5 no importa\n    diff = np.abs(ref - got)\n    return {\"n\": len(ref), \"top1_agreement\": top1, \"top5_overlap\": overlap5,\n            \"max_abs_diff\": float(diff.max()), \"mean_abs_diff\": float(diff.mean())}\n# …\n    p.add_argument(\"--n\", type=int, default=256, help=\"máximo de imágenes a comparar\")\n    p.add_argument(\"--min-top1\", type=float, default=0.995, help=\"umbral del gate: acuerdo top-1 ≥ 99.5 %%\")\n    p.add_argument(\"--min-top5\", type=float, default=0.99, help=\"solapamiento medio del top-5\")\n    # FP32 vs FP32 da ~1e-4; TensorRT FP16 da ~1e-2: el umbral depende del backend (ajústalo con datos)\n    p.add_argument(\"--max-abs-diff\", type=float, default=0.5, help=\"tope de |Δlogit| (atrapa exports rotos)\")\n# …\n    ok = (m[\"top1_agreement\"] >= args.min_top1 and m[\"top5_overlap\"] >= args.min_top5\n          and m[\"max_abs_diff\"] <= args.max_abs_diff)\n    print(\"[parity] PASA\" if ok else \"[parity] NO PASA: no promuevas este artefacto\")\n    return 0 if ok else 1  # CI lee el exit code",
+    "source": "reference/c01/model/parity_check.py (extractos; # … marca líneas omitidas)",
+    "notes": [
+     "El acuerdo top-1 y el solapamiento del top-5 miden lo que ve el producto: la sugerencia principal y las 5 que se muestran. El top-5 se compara como conjunto: el orden de adentro no importa.",
+     "<code>max_abs_diff</code> se reporta y tiene tope. FP32 contra FP32 da ≈ 1e-4 y TensorRT FP16 ≈ 1e-2; el tope de 0.5 queda muy arriba del redondeo y muy abajo de un export roto (los logits de otro modelo difieren en decenas).",
+     "Un mismo script para los dos gates: <code>--backend ort</code> compara el ONNX en CPU; <code>--backend triton</code>, el engine servido. Si un backend cambia la escala del ruido, los umbrales se ajustan con datos.",
+     "El default de <code>--n</code> es 256: con 99.5 % eso tolera un solo cambio de top-1. El script recomienda ≥ 2,000 imágenes (10 cambios): más resolución para decidir.",
+     "El exit code es la interfaz con el CI: 1 frena la cadena antes del registry. Un 97 % en FP16 no se arregla bajando el umbral: en una CNN es un bug, no redondeo."
+    ]
+   },
+   "figure": {
+    "kind": "chain",
+    "caption": "Tres pruebas en orden, de la más barata a la más completa; cada una atrapa algo que la anterior no ve. La escala de |Δlogit| dice qué pasó: ≈ 1e-4 es aritmética, ≈ 1e-2 es FP16 y ≳ 1 es un bug.",
+    "data": {
+     "steps": [
+      {
+       "label": "1 · ONNX Runtime FP32 contra PyTorch FP32",
+       "cmd": "python model/parity_check.py --checkpoint resnet50_500.pt --onnx model/classifier.onnx --images /data/eval_sample --n 2000",
+       "note": "En CPU, en cualquier máquina. Esperas top-1 ≈ 100 % y max|Δlogit| ≈ 1e-4. Atrapa: un export roto, un opset mal convertido, un eje de batch fijo."
+      },
+      {
+       "label": "2 · TensorRT FP16 en Triton contra PyTorch FP32",
+       "cmd": "python model/parity_check.py --backend triton --triton-url localhost:8000 --checkpoint resnet50_500.pt --images /data/eval_sample --n 2000",
+       "note": "En la T4, de a una imagen. Esperas top-1 ≥ 99.5 %, un |Δlogit| medio ≈ 1e-2 y un máximo muy por debajo de 0.5. Atrapa: una capa que diverge o desborda en FP16, un engine construido mal."
+      },
+      {
+       "label": "3 · De punta a punta por el gateway",
+       "cmd": "curl -s -H \"Content-Type: image/jpeg\" --data-binary @foto.jpg \"localhost:8080/v1/classify?top_k=5\"",
+       "note": "En staging: imágenes de referencia por el gateway real, contra las predicciones del pipeline de evaluación. Atrapa: skew de preprocesamiento, labels en otro orden, otro dtype."
+      }
+     ]
+    }
+   },
+   "memo": "<b>1e-4 · 1e-2 · ≥ 1</b>: aritmética, FP16, bug. La paridad dice si es <b>el mismo modelo</b>; el golden set por slices dice si es <b>un buen modelo</b>. Son dos preguntas distintas.",
+   "trap": "Bajar el umbral cuando el engine FP16 da 97 % de acuerdo. En una CNN, FP16 suele pasar el 99.5 % con holgura: 97 % es un bug, no redondeo. Corre primero <code>--backend ort</code>: si el ONNX en FP32 ya falla, el problema está en el export; si pasa, busca la capa que diverge en el engine. Y no tomes como gate una corrida sin <code>--checkpoint</code> o con imágenes sintéticas: solo prueba que el script corre.",
+   "lab": {
+    "goal": "Ver la escala de |Δlogit| que separa el ruido, FP16 y un bug, y por qué el gate necesita el modelo entrenado.",
+    "steps": [
+     {
+      "cmd": "source ~/venvs/lab-triton/bin/activate\npython - <<'EOF'\nimport copy, numpy as np, torch, torchvision\ntorch.manual_seed(0)\nm = torchvision.models.resnet50(weights=None, num_classes=500).eval()\nx = torch.randn(16, 3, 224, 224)\ndef delta(nombre, got):\n    d = np.abs(ref - got.float().numpy())\n    print(f\"{nombre:<24} max|Δ| {d.max():.1e} · media|Δ| {d.mean():.1e}\")\nwith torch.inference_mode():\n    ref = m(x).numpy()\n    delta(\"FP32, de a una imagen\", torch.cat([m(x[i:i + 1]) for i in range(16)]))\n    delta(\"FP16 (pesos y cálculo)\", copy.deepcopy(m).half()(x.half()))\n    delta(\"BGR en vez de RGB\", m(x.flip(1)))\nEOF",
+      "expect": "Tres líneas, una por caso: FP32, de a una imagen → max|Δ| 1.7e-04 · media|Δ| 1.9e-05; FP16 (pesos y cálculo) → max|Δ| 6.6e-02 · media|Δ| 1.3e-02; BGR en vez de RGB → max|Δ| 1.7e+00 · media|Δ| 3.3e-01. Tres escalas: aritmética, redondeo de FP16 y un error de preprocesamiento. El tope del gate (0.5) queda entre las dos últimas. Tarda unos segundos: FP16 en CPU es lento."
+     },
+     {
+      "cmd": "python - <<'EOF'\nimport numpy as np, torch, torchvision\ntorch.manual_seed(0)\nm = torchvision.models.resnet50(weights=None, num_classes=500).eval()\nwith torch.inference_mode():\n    z = np.sort(m(torch.randn(64, 3, 224, 224)).numpy(), 1)\nmargen = z[:, -1] - z[:, -2]\nprint(f\"1.º menos 2.º logit: mediana {np.median(margen):.2f}, mínimo {margen.min():.3f}\")\nEOF",
+      "expect": "1.º menos 2.º logit: mediana 0.49, mínimo 0.001. Con pesos aleatorios hay imágenes donde el 1.º y el 2.º lugar están a milésimas, y cualquier redondeo cambia el top-1. Por eso el gate de verdad corre con --checkpoint e imágenes reales, donde casi todas las imágenes tienen márgenes amplios."
+     },
+     {
+      "cmd": "python -c \"print([int((1 - 0.995) * n) for n in (256, 2000)])\"",
+      "expect": "[1, 10]: con el default --n 256, el gate tolera un solo cambio de top-1; con 2,000 imágenes, diez."
+     }
+    ],
+    "fix": "Si FP32 de a una imagen da más de 1e-3, algo cambió entre las dos llamadas (¿el modelo quedó en train()?). Si BGR da casi 0, revisa que flip(1) invierta el eje de canales y no otro.",
+    "needs": "el venv del lab de Números de bolsillo (torch 2.14.0 y torchvision 0.29.0); sin GPU. La paridad real con parity_check.py necesita además onnxruntime y el checkpoint.",
+    "verified": "executed"
+   },
+   "links": [
+    "#m08.validar",
+    "#c01.evaluacion",
+    "#m10.gate",
+    "#m09.skew"
+   ]
+  }
+ ]
+}

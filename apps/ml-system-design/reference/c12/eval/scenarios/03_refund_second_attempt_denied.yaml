@@ -1,0 +1,26 @@
+# El pedido ya tuvo un reembolso del asistente: el segundo lo decide una persona (máximo 1 por pedido).
+# El modelo lo intenta igual; la política lo niega; el modelo escala con un resumen.
+id: refund_second_attempt_denied
+customer_id: cust-1
+orders:
+  - order_id: A-1029
+    customer_id: cust-1
+    status: delivered
+    currency: MXN
+    items: [{item_id: I-1, title: Audífonos inalámbricos, price: "450.00"}]
+    delivered_days_ago: 3
+    shipment: {status: delivered, expected_in_days: -4}
+existing_refunds: [{order_id: A-1029, amount: "100.00", by: agent}]
+model:
+  - tool_calls: [{name: get_order, arguments: {order_id: A-1029}}]
+  - tool_calls: [{name: issue_refund, arguments: {order_id: A-1029, amount: 300.0, currency: MXN, reason: damaged}}]
+  - tool_calls: [{name: escalate_to_human, arguments: {reason: policy_exception,
+                  summary: "Cliente pide un segundo reembolso de 300 MXN en A-1029; ya hubo uno de 100 MXN."}}]
+turns:
+  - customer: "Me devolvieron solo 100 pesos de A-1029, quiero otros 300"
+expect:
+  outcome: handoff
+  handoff_reason: model_escalation
+  state:
+    refunds: []
+  required_calls: [escalate_to_human]

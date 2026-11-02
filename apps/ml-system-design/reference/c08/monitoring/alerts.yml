@@ -1,0 +1,226 @@
+# Alertas del caso c08 (home personalizado), Prometheus: 8 alertas en 3 grupos + recording rules.
+#   Sistema: HomeLatencyHigh, HomeFallbackRateHigh, CandidateSourceTimeouts, FeatureStoreStale, ImpressionLogLag
+#   Modelo:  RankerScoreShift, ExplorationTrafficOff
+#   Negocio: ContactsPerDAUDrop
+# Severidades: page = alguien lo mira YA (el home es la pantalla principal de la app); ticket = se trabaja
+# en horario laboral, con dueño (equipo de recomendaciones). El ruteo vive en Alertmanager, no aquí.
+# Umbrales ILUSTRATIVOS: salen del SLO (200 ms) y de la línea base de cada métrica; ajústalos con datos.
+# De dónde sale cada métrica:
+#   home_*                               → serving/home_api.py (un test verifica que cada home_* de aquí existe allá)
+#   kafka_consumergroup_lag, kafka_topic_partition_current_offset → kafka_exporter (danielqsj/kafka_exporter)
+#   feature_pipeline_watermark_timestamp_seconds{feature_group} → el job de streaming (Flink-class) que
+#                                          escribe las features en tiempo real: gauge propio con el event time
+#                                          hasta el que ya escribió en el online store (no es una métrica de Flink)
+#   marketplace_contacts_total{surface}  → messaging-service: contactos con vendedores (surface = home · search · other)
+#   marketplace_active_users{window}     → job de analytics en streaming: usuarios DISTINTOS activos en la
+#                                          ventana (HyperLogLog). Un counter de Prometheus no cuenta distintos.
+#   up{job="home-api"}                   → Prometheus (supone que el job de scrape se llama así); no entra en
+#                                          ninguna expr: la descripción de HomeFallbackRateHigh lo cita para el diagnóstico
+# Validación: `promtool check rules alerts.yml` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
+
+groups:
+  # ------------------------------------------------------------------ recording rules
+  - name: c08-recording
+    rules:
+      # p99 server-side del home. El histograma tiene un bucket EXACTO en 0.2: sin él, histogram_quantile
+      # interpolaría entre 0.175 y 0.25 y el p99 "cerca del SLO" sería ruido.
+      - record: home:latency_p99:rate5m
+        expr: |
+          histogram_quantile(0.99, sum by (le) (rate(home_request_duration_seconds_bucket[5m])))
+      # Fracción de respuestas que NO salieron del ranker: heurístico, populares o 503. Se calcula con
+      # home_requests_total{path} (un request = un camino) y no con home_fallback_total (que es para
+      # diagnosticar el motivo).
+      - record: home:degraded_ratio:rate5m
+        expr: |
+          sum(rate(home_requests_total{path!="ranked"}[5m])) / sum(rate(home_requests_total[5m]))
+      # Por fuente: timeouts ÷ llamadas.
+      - record: home:source_timeout_ratio:rate5m
+        expr: |
+          sum by (source) (rate(home_source_timeouts_total[5m]))
+            / sum by (source) (rate(home_source_requests_total[5m]))
+      # Por entidad (user, item): fracción servida con features por defecto.
+      - record: home:feature_default_ratio:rate5m
+        expr: |
+          sum by (entity) (rate(home_feature_defaults_total[5m]))
+            / sum by (entity) (rate(home_feature_lookups_total[5m]))
+      # Cuántos SEGUNDOS va atrasado el job que une impresiones con etiquetas: lag en mensajes ÷ ritmo de
+      # producción. Mide el atraso aunque el consumer no procese nada (consumer caído).
+      - record: home:impression_log_lag_seconds
+        expr: |
+          sum(kafka_consumergroup_lag{consumergroup="impression-joiner", topic="home-impressions"})
+            / sum(rate(kafka_topic_partition_current_offset{topic="home-impressions"}[5m]))
+      # Registros de impresión perdidos en el home-api (buffer lleno o Kafka rechazó tras reintentos),
+      # por request servido (un request = un registro). `or vector(0)`: si una de las dos series falta,
+      # la suma no debe quedar vacía.
+      - record: home:impression_log_loss_ratio:rate5m
+        expr: |
+          (
+            (sum(rate(home_impression_log_dropped_total[5m])) or vector(0))
+              + (sum(rate(home_impression_log_failures_total[5m])) or vector(0))
+          ) / sum(rate(home_requests_total[5m]))
+      # Fracción de posiciones de exploración sobre lo servido por el ranker (objetivo: 5 %).
+      - record: home:exploration_share:rate30m
+        expr: |
+          sum(rate(home_exploration_items_total[30m])) / sum(rate(home_items_served_total{path="ranked"}[30m]))
+      # Score medio del ranker en la primera pantalla, por cabeza (click, contact_given_click).
+      - record: home:ranker_mean_score:rate1h
+        expr: |
+          sum by (head) (rate(home_ranker_score_sum[1h])) / sum by (head) (rate(home_ranker_score_count[1h]))
+      # La misma cuenta, hace una semana. Con `offset` sobre las series CRUDAS y no sobre la recording rule
+      # de arriba: una regla recién creada no tiene historia, y la alerta quedaría ciega una semana después
+      # de cada cambio de reglas. Requiere retención ≥ 8 días de los crudos (Prometheus: 15 por defecto).
+      - record: home:ranker_mean_score_1w_ago:rate1h
+        expr: |
+          sum by (head) (rate(home_ranker_score_sum[1h] offset 1w))
+            / sum by (head) (rate(home_ranker_score_count[1h] offset 1w))
+      # Ahora ÷ hace una semana: 1.0 = igual; la alerta mira este cociente.
+      - record: home:ranker_mean_score_wow_ratio:rate1h
+        expr: home:ranker_mean_score:rate1h / home:ranker_mean_score_1w_ago:rate1h
+      # Contactos por usuario activo en la última hora. El KPI oficial (contactos por DAU, diario) se
+      # calcula en el warehouse; esta es su versión horaria para alertar en horas, no al día siguiente.
+      - record: marketplace:contacts_per_active_user:1h
+        expr: |
+          sum(increase(marketplace_contacts_total[1h])) / max(marketplace_active_users{window="1h"})
+      # Ahora ÷ la misma hora de la semana pasada (crudos con offset, por lo mismo que arriba).
+      - record: marketplace:contacts_per_active_user_wow_ratio:1h
+        expr: |
+          marketplace:contacts_per_active_user:1h
+            / (sum(increase(marketplace_contacts_total[1h] offset 1w))
+                 / max(marketplace_active_users{window="1h"} offset 1w))
+
+  # ------------------------------------------------------------------ sistema
+  - name: c08-system
+    rules:
+      # SLO: p99 ≤ 200 ms. Cada etapa tiene timeout, así que un p99 > 200 ms casi nunca es "una fuente
+      # lenta": es el propio home-api (CPU saturada, event loop bloqueado por el re-rank o por la
+      # serialización del registro de impresión: ≈ 13.5 KB en la demo; decenas de KB en JSON con las
+      # features reales, est.) o la red.
+      - alert: HomeLatencyHigh
+        expr: home:latency_p99:rate5m > 0.2
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "home-api: p99 {{ $value | humanizeDuration }} (> 200 ms)"
+          description: "¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(home_stage_duration_seconds_bucket[5m]))). Si ninguna: CPU throttling o event loop bloqueado (kubectl top pods -n c08); escala el Deployment."
+          runbook_url: "https://runbooks.example.com/c08/home-latency"
+
+      # Más de 2 % de las respuestas degradadas durante 10 min (en condiciones normales, < 1 %), o el
+      # home-api sin métricas (caído entero: la app muestra "recientes en tu ciudad" a todo el mundo).
+      # Un fallback no es un error HTTP: sin esta alerta, una caída del ranker se ve como "todo 200".
+      # Las dos ramas darían una serie sin labels y valor 1 cuando TODO sale degradado (ranker o feature
+      # store caídos del todo): el label cause="no_metrics" separa "home-api caído" de "100 % degradado".
+      - alert: HomeFallbackRateHigh
+        expr: |
+          home:degraded_ratio:rate5m > 0.02
+            or
+          label_replace(absent_over_time(home_requests_total[5m]), "cause", "no_metrics", "", "")
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $value | humanizePercentage }} del home sale degradado (> 2 %)"
+          description: "Con cause=\"no_metrics\": el home-api no expone métricas (mira up{job=\"home-api\"}: ¿pods caídos o el scrape roto?). Si no, el valor es la fracción degradada (1 = todo degradado, no caído) y el motivo: sum by (reason) (rate(home_fallback_total[5m])). ranker_timeout/ranker_error → Triton (GPUs, cola de batching, modelo no cargado). features_unavailable → feature store (latencia, versión del esquema). no_candidates → todas las fuentes caídas (ver CandidateSourceTimeouts). user_context_unavailable → Redis de usuarios. internal_error → logs."
+          runbook_url: "https://runbooks.example.com/c08/home-fallback"
+
+      # Una fuente que vence su timeout > 5 % de las veces durante 15 min. El home sigue saliendo con las
+      # otras fuentes (por eso es ticket): el costo es calidad, y lo termina mostrando ContactsPerDAUDrop.
+      - alert: CandidateSourceTimeouts
+        expr: home:source_timeout_ratio:rate5m > 0.05
+        for: 15m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Fuente {{ $labels.source }}: {{ $value | humanizePercentage }} de timeouts (> 5 %)"
+          description: "two_tower → el índice ANN (shards, memoria, reindexado blue/green en curso). covisitation/followed → KV store. trending_city → job de populares. Mira también home_source_errors_total y si el timeout de la fuente (SOURCE_TIMEOUTS_MS) cambió."
+          runbook_url: "https://runbooks.example.com/c08/candidate-sources"
+
+      # Features en tiempo real atrasadas (SLO de frescura ≤ 1 min; alerta a 5 min), o más de 5 % de
+      # los ítems servidos con features por defecto. Las dos son skew silencioso: el ranker recibe
+      # valores que no se parecen a los de entrenamiento y nadie ve un error.
+      - alert: FeatureStoreStale
+        expr: |
+          (time() - min by (feature_group) (feature_pipeline_watermark_timestamp_seconds)) > 300
+            or
+          home:feature_default_ratio:rate5m{entity="item"} > 0.05
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Features del home atrasadas o faltantes ({{ $labels.feature_group }}{{ $labels.entity }}: {{ $value | humanize }})"
+          description: "Con feature_group: segundos de atraso del job de streaming (¿consumer lag en Kafka? ¿checkpoint fallando? ¿job reiniciando?). Con entity=\"item\": fracción servida con defaults (¿escrituras al online store fallando? ¿TTL vencido? ¿ítems nuevos sin features?)."
+          runbook_url: "https://runbooks.example.com/c08/feature-store"
+
+      # El log de impresiones es el set de entrenamiento de mañana. Atraso > 15 min durante 15 min, o
+      # pérdida > 0.1 % de los registros. Perder registros en el pico sesga los datos hacia las horas
+      # tranquilas; un log atrasado retrasa (o vacía) el entrenamiento diario.
+      - alert: ImpressionLogLag
+        expr: |
+          home:impression_log_lag_seconds > 900
+            or
+          home:impression_log_loss_ratio:rate5m > 0.001
+        for: 15m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Log de impresiones atrasado o con pérdida ({{ $value | humanize }})"
+          description: "Valor > 1: segundos de atraso del consumer impression-joiner (¿caído? ¿rebalanceando?). Valor < 1: fracción perdida en el home-api (home_impression_log_dropped_total: buffer lleno; home_impression_log_failures_total: Kafka rechaza). Si el entrenamiento diario corre con datos incompletos, frénalo."
+          runbook_url: "https://runbooks.example.com/c08/impression-log"
+
+  # ------------------------------------------------------------------ modelo
+  - name: c08-model
+    rules:
+      # Score medio de la primera pantalla vs la misma hora de la semana pasada: > +30 % o < −30 %
+      # durante 1 h. La hora del día y el día de la semana cambian mucho el CTR: comparar con "hace una
+      # hora" daría falsas alarmas cada mañana (y la madrugada se compara con la madrugada). Volumen
+      # mínimo: evita alertar sobre un cociente sin tráfico (home caído o entorno sin usuarios).
+      - alert: RankerScoreShift
+        expr: |
+          (home:ranker_mean_score_wow_ratio:rate1h > 1.3 or home:ranker_mean_score_wow_ratio:rate1h < 0.7)
+            and on (head)
+          sum by (head) (rate(home_ranker_score_count[1h])) > 10
+        for: 1h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Ranker: score medio de {{ $labels.head }} a {{ $value | humanize }}× la semana pasada"
+          description: "¿Hubo deploy de modelo o de features? (un modelo nuevo puede mover la escala; ¿está calibrado?). Si no: drift de entrada (feature_default_ratio, frescura) o un cambio de producto. Compara el score medio con el CTR observado de la misma hora: si se separan, el modelo está descalibrado."
+          runbook_url: "https://runbooks.example.com/c08/ranker-score-shift"
+
+      # Exploración bajo 2 % (objetivo 5 %) durante 30 min con tráfico real. Si se apaga, nada se rompe
+      # hoy: lo que se pierde son los datos sin sesgo para corregir el position bias y evaluar off-policy,
+      # y el sistema empieza a aprender solo de lo que ya muestra (feedback loop). Nadie lo notaría en semanas.
+      - alert: ExplorationTrafficOff
+        expr: |
+          home:exploration_share:rate30m < 0.02
+            and
+          sum(rate(home_items_served_total{path="ranked"}[30m])) > 1
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Exploración en {{ $value | humanizePercentage }} de las posiciones (objetivo 5 %)"
+          description: "¿EXPLORATION_RATE cambió en un deploy? ¿Un feature flag la apagó? ¿El pool de exploración quedó vacío (filtros demasiado agresivos)? Mira home_exploration_items_total por pod."
+          runbook_url: "https://runbooks.example.com/c08/exploration"
+
+  # ------------------------------------------------------------------ negocio
+  # Ventana de 1 h vs la misma hora de la semana pasada: se evalúa cada 5 min (cambia lento).
+  - name: c08-business
+    interval: 5m
+    rules:
+      # Contactos por usuario activo > 15 % por debajo de la misma hora de la semana pasada, durante 2 h.
+      # Es la métrica que importa y la única que ve problemas que el sistema no ve: un modelo que
+      # devuelve 200 en 80 ms con un ranking malo. Ticket, porque las causas técnicas ya tienen page
+      # (latencia, fallback, features) y lo que queda suele necesitar análisis (deploy, A/B, feriado).
+      - alert: ContactsPerDAUDrop
+        expr: |
+          marketplace:contacts_per_active_user_wow_ratio:1h < 0.85
+            and
+          max(marketplace_active_users{window="1h"}) > 10000
+        for: 2h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Contactos por usuario activo: {{ $value | humanizePercentage }} de la misma hora de la semana pasada (< 85 %)"
+          description: "¿Solo desde el home? sum by (surface) (increase(marketplace_contacts_total[1h])). ¿Coincide con un deploy del ranker, un cambio de EXPLORATION_RATE o el arranque de un A/B grande? ¿Feriado o campaña la semana pasada? Revisa también HomeFallbackRateHigh y FeatureStoreStale."
+          runbook_url: "https://runbooks.example.com/c08/contacts-drop"

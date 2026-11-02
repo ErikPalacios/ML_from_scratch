@@ -1,0 +1,5 @@
+# Dependencias de RUNTIME del decision-engine (engine.py), fijadas con ==.
+# El motor es puro: solo necesita leer el YAML. Lo usan el mod-gateway (camino síncrono) y el
+# deep-scorer (camino asíncrono), así que las dos imágenes deben traer la MISMA versión del motor y
+# de esta dependencia: una regla que se interpreta distinto en los dos caminos es un bug silencioso.
+PyYAML==6.0.3  # safe_load de policies.yaml (nunca yaml.load: un YAML no debe instanciar objetos)

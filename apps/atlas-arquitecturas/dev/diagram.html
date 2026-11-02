@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagramas · demo aislada · Atlas de Arquitecturas</title>
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<link rel="stylesheet" href="../css/app.css">
+<link rel="stylesheet" href="../css/diagram.css">
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+                     svg: { fontCache: 'global' }, startup: { typeset: false },
+                     options: { menuOptions: { settings: { inTabOrder: false } } } };
+</script>
+<script async id="MathJax-script" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<style>
+  /* Solo para esta página de demo (los tokens viven en css/app.css). */
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.6 var(--font-body); }
+  .dv { max-width: 1140px; margin: 0 auto; padding: 16px; }
+  .dv-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 8px; }
+  .dv-head h1 { margin: 0; font: 700 24px/1.2 var(--font-display); }
+  .dv-sec { margin: 28px 0; padding-top: 12px; border-top: 1px solid var(--rule); }
+  .dv-sec h2 { margin: 0 0 4px; font: 700 18px/1.3 var(--font-display); }
+  .dv-sec p { margin: 0 0 8px; color: var(--muted); font-size: 14px; }
+  .dv-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .dv-log { font: 12px/1.4 var(--font-mono); color: var(--muted); min-height: 1.4em; }
+  .dv-mini { max-width: 420px; }
+</style>
+</head>
+<body>
+<main class="dv" id="main">
+  <div class="dv-head">
+    <h1>Diagramas — demo aislada</h1>
+    <div class="dv-row">
+      <button type="button" class="ad-btn" id="t-light">Claro</button>
+      <button type="button" class="ad-btn" id="t-dark">Oscuro</button>
+      <button type="button" class="ad-btn" id="t-sys">Sistema</button>
+    </div>
+  </div>
+  <p class="dv-log" id="log"></p>
+  <div id="out"></div>
+</main>
+
+<script src="../js/core/registry.js"></script>
+<script src="../js/core/store.js"></script>
+<script src="../js/arch/primitives.js"></script>
+<script src="../js/arch/transformer.js"></script>
+<script src="../js/arch/vit.js"></script>
+<script src="../js/arch/resnet.js"></script>
+<script src="../js/arch/swin.js"></script>
+<script src="../js/arch/clip.js"></script>
+<script src="../js/arch/detr.js"></script>
+<script src="../js/arch/grounding-dino.js"></script>
+<script src="../js/arch/yolo-world.js"></script>
+<script src="../js/arch/sam.js"></script>
+<script src="../js/arch/llm.js"></script>
+<script src="../js/arch/vlm.js"></script>
+<script src="../js/arch/diffusion.js"></script>
+<script src="../js/arch/vla.js"></script>
+<script src="../js/arch/finetune.js"></script>
+<script src="../js/arch/retrieval.js"></script>
+<script src="../js/arch/encdec.js"></script>
+<script src="../js/arch/recsys.js"></script>
+<script src="../js/arch/trees.js"></script>
+<script src="../js/arch/perception.js"></script>
+<script src="../js/arch/robotlearn.js"></script>
+<script src="../js/core/quantities.js"></script>
+<script src="../js/ui/dom.js"></script>
+<script src="../js/ui/math.js"></script>
+<script src="../js/ui/archdiagram.js"></script>
+<script src="../js/ui/viz/patchify.js"></script>
+<script src="../js/ui/viz/attention-map.js"></script>
+<script src="../js/ui/viz/attention-masks.js"></script>
+<script src="../js/ui/viz/shifted-windows.js"></script>
+<script src="../js/ui/viz/similarity-matrix.js"></script>
+<script src="../js/ui/viz/zero-shot.js"></script>
+<script src="../js/ui/viz/hungarian.js"></script>
+<script src="../js/ui/viz/set-vs-nms.js"></script>
+<script src="../js/ui/viz/deformable-attention.js"></script>
+<script src="../js/ui/viz/open-vocab-head.js"></script>
+<script src="../js/ui/viz/query-selection.js"></script>
+<script src="../js/ui/viz/prompt-then-detect.js"></script>
+<script src="../js/ui/viz/prompt-to-mask.js"></script>
+<script src="../js/ui/viz/windowed-global.js"></script>
+<script src="../js/ui/viz/memory-bank.js"></script>
+<script src="../js/ui/viz/kv-cache.js"></script>
+<script src="../js/ui/viz/rope.js"></script>
+<script src="../js/ui/viz/roofline.js"></script>
+<script src="../js/ui/viz/moe-router.js"></script>
+<script src="../js/ui/viz/visual-tokens.js"></script>
+<script src="../js/ui/viz/mrope.js"></script>
+<script src="../js/ui/viz/vlm-token-cost.js"></script>
+<script src="../js/ui/viz/noise-schedule.js"></script>
+<script src="../js/ui/viz/denoise-steps.js"></script>
+<script src="../js/ui/viz/cfg-guidance.js"></script>
+<script src="../js/ui/viz/flow-vs-diffusion.js"></script>
+<script src="../js/ui/viz/action-tokenizer.js"></script>
+<script src="../js/ui/viz/action-chunking.js"></script>
+<script src="../js/ui/viz/vla-latency.js"></script>
+<script src="../js/ui/viz/pi0-mask.js"></script>
+<script src="../js/ui/viz/lora-rank.js"></script>
+<script src="../js/ui/viz/train-memory.js"></script>
+<script src="../js/ui/viz/bradley-terry.js"></script>
+<script src="../js/ui/viz/dpo-vs-ppo.js"></script>
+<script src="../js/ui/viz/mlm-masking.js"></script>
+<script src="../js/ui/viz/embedding-space.js"></script>
+<script src="../js/ui/viz/hnsw-search.js"></script>
+<script src="../js/ui/viz/ivfpq-quantize.js"></script>
+<script src="../js/ui/viz/span-corruption.js"></script>
+<script src="../js/ui/viz/cross-attention-map.js"></script>
+<script src="../js/ui/viz/mel-spectrogram.js"></script>
+<script src="../js/ui/viz/encdec-cost.js"></script>
+<script src="../js/ui/viz/inbatch-softmax.js"></script>
+<script src="../js/ui/viz/feature-interaction.js"></script>
+<script src="../js/ui/viz/boosting-residuals.js"></script>
+<script src="../js/ui/viz/histogram-split.js"></script>
+<script src="../js/ui/viz/kalman-track.js"></script>
+<script src="../js/ui/viz/hungarian-iou.js"></script>
+<script src="../js/ui/viz/depth-scale.js"></script>
+<script src="../js/ui/viz/pointnet-maxpool.js"></script>
+<script src="../js/ui/viz/ppo-clip.js"></script>
+<script src="../js/ui/viz/gae.js"></script>
+<script src="../js/ui/viz/covariate-shift.js"></script>
+<script src="../js/ui/viz/multimodal-actions.js"></script>
+<script src="../js/content/catalog.js"></script>
+<script src="../js/content/diagrams/repaso.js"></script>
+<script src="../js/content/diagrams/vit.js"></script>
+<script src="../js/content/diagrams/mapa.js"></script>
+<script src="../js/content/diagrams/swin.js"></script>
+<script src="../js/content/diagrams/clip.js"></script>
+<script src="../js/content/diagrams/detr.js"></script>
+<script src="../js/content/diagrams/grounding-dino.js"></script>
+<script src="../js/content/diagrams/yolo-world.js"></script>
+<script src="../js/content/diagrams/sam.js"></script>
+<script src="../js/content/diagrams/sam2.js"></script>
+<script src="../js/content/diagrams/llm-decoder.js"></script>
+<script src="../js/content/diagrams/llm-inferencia.js"></script>
+<script src="../js/content/diagrams/llava.js"></script>
+<script src="../js/content/diagrams/qwen2-vl.js"></script>
+<script src="../js/content/diagrams/stable-diffusion.js"></script>
+<script src="../js/content/diagrams/dit.js"></script>
+<script src="../js/content/diagrams/rt2.js"></script>
+<script src="../js/content/diagrams/openvla.js"></script>
+<script src="../js/content/diagrams/pi0.js"></script>
+<script src="../js/content/diagrams/lora.js"></script>
+<script src="../js/content/diagrams/rlhf-dpo.js"></script>
+<script src="../js/content/diagrams/bert.js"></script>
+<script src="../js/content/diagrams/retrieval.js"></script>
+<script src="../js/content/diagrams/ann.js"></script>
+<script src="../js/content/diagrams/t5.js"></script>
+<script src="../js/content/diagrams/whisper.js"></script>
+<script src="../js/content/diagrams/two-tower.js"></script>
+<script src="../js/content/diagrams/dlrm.js"></script>
+<script src="../js/content/diagrams/gbdt.js"></script>
+<script src="../js/content/diagrams/bytetrack.js"></script>
+<script src="../js/content/diagrams/depth.js"></script>
+<script src="../js/content/diagrams/pointnet.js"></script>
+<script src="../js/content/diagrams/rl-ppo.js"></script>
+<script src="../js/content/diagrams/imitation.js"></script>
+<script>
+(function () {
+  'use strict';
+  // Parámetros de la URL para capturas: ?only=<diagrama>&expand=<id>&walk=<paso>&panel=<nodo>&mode=mini|blank&viz=<nombre>&vp=<json params de la viz>&theme=dark
+  const P = new URLSearchParams(location.search);
+  const theme = P.get('theme');
+  const setTheme = (t) => { if (t) document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme'); };
+  setTheme(theme);
+  document.getElementById('t-light').onclick = () => setTheme('light');
+  document.getElementById('t-dark').onclick = () => setTheme('dark');
+  document.getElementById('t-sys').onclick = () => setTheme(null);
+  const out = document.getElementById('out');
+  const log = (s) => { document.getElementById('log').textContent = s; };
+  const ctl = (window.DG = {});
+
+  function sec(title, desc) {
+    const s = document.createElement('section'); s.className = 'dv-sec';
+    s.innerHTML = '<h2>' + title + '</h2>' + (desc ? '<p>' + desc + '</p>' : '');
+    out.appendChild(s); return s;
+  }
+  function btn(parent, label, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ad-btn'; b.textContent = label; b.onclick = fn; parent.appendChild(b); return b; }
+
+  const only = P.get('only'), vizOnly = P.get('viz');
+  const ids = ['vit-overview', 'swin-overview', 'clip-overview', 'detr-overview', 'grounding-dino-overview', 'yolo-world-overview', 'sam-overview', 'sam2-overview', 'llm-decoder-overview', 'llm-inference-overview', 'llava-overview', 'llava-training', 'qwen2vl-overview', 'sd-overview', 'sd-training', 'dit-overview', 'flow-matching', 'rt2-overview', 'openvla-overview', 'pi0-overview', 'lora-overview', 'rlhf-pipeline', 'bert-overview', 'retrieval-overview', 'ann-overview', 't5-overview', 'whisper-overview', 'two-tower-overview', 'dlrm-overview', 'gbdt-overview', 'bytetrack-overview', 'depth-overview', 'pointnet-overview', 'ppo-overview', 'act-overview', 'diffusion-policy', 'repaso-block', 'mapa-overview'];
+
+  async function full(id, opts) {
+    const s = sec(id, (ATLAS.diagram(id) || {}).title || '');
+    const row = document.createElement('div'); row.className = 'dv-row'; s.appendChild(row);
+    const host = document.createElement('div'); s.appendChild(host);
+    const dg = ATLAS.ArchDiagram.render(id, host, Object.assign({ mode: 'full', wide: true, onSelect: (n) => log('onSelect: ' + n), onExpand: (d) => log('onExpand: ' + d) }, opts || {}));
+    ctl[id] = dg;
+    const kids = Object.values(ATLAS.diagrams()).filter((d) => d.parent);
+    for (const k of kids) { let p = k; while (p.parent) p = ATLAS.diagram(p.parent); if (p.id === id) btn(row, 'Abrir ' + k.id, () => dg.expand(k.id)); }
+    if ((ATLAS.diagram(id).walks || []).length) btn(row, 'Recorrido', () => dg.startWalk());
+    btn(row, 'Resaltar (demo)', () => dg.highlight({ nodes: [(ATLAS.diagram(id).nodes[1] || {}).id], tensors: [] }));
+    btn(row, 'Quitar resaltado', () => dg.clearHighlight());
+    return dg;
+  }
+
+  async function main() {
+    if (vizOnly) {
+      const s = sec('Visualización: ' + vizOnly);
+      const host = document.createElement('div'); s.appendChild(host);
+      const vp = Object.assign(P.get('vp') ? JSON.parse(P.get('vp')) : {}, P.get('cfg') ? { config: P.get('cfg') } : {});
+      ctl.viz = ATLAS.Viz.render(vizOnly, host, vp, {});
+      return;
+    }
+    if (only) {
+      const mode = P.get('mode') || 'full';
+      const s = sec(only);
+      const host = document.createElement('div'); if (mode === 'mini') host.className = 'dv-mini'; s.appendChild(host);
+      const opts = { mode, wide: true };
+      if (P.get('cfg')) opts.config = P.get('cfg');
+      if (mode === 'blank') {
+        opts.blank = { slots: JSON.parse(P.get('slots') || '[{"id":"patch-embed","ask":"label"},{"id":"add-pos","ask":"op"},{"id":"cls>add-pos","ask":"shape"}]'), onSlot: (id, el) => { log('onSlot ' + id); dg.setSlot(id, '197×768', 'filled'); } };
+      }
+      const dg = ATLAS.ArchDiagram.render(only, host, opts);
+      ctl[only] = dg;
+      if (P.get('expand')) await dg.expand(P.get('expand'));
+      if (P.get('walk')) { await dg.startWalk(); await dg.walkStep(+P.get('walk')); }
+      if (P.get('panel')) await dg.focusNode(P.get('panel'), { open: true });
+      if (P.get('hl')) dg.highlight({ nodes: P.get('hl').split(','), edges: [], tensors: [] });
+      return;
+    }
+    for (const id of ids) if (ATLAS.diagram(id)) await full(id, (ATLAS.diagram(id).walks || []).length ? { walk: 'forward' } : {});
+    // modo mini (drills) y modo blank (práctica)
+    let s = sec('Modo mini', 'Sin barra ni panel; resaltado de un tensor (como en los drills).');
+    let host = document.createElement('div'); host.className = 'dv-mini'; s.appendChild(host);
+    ctl.mini = ATLAS.ArchDiagram.render('vit-mhsa', host, { mode: 'mini', showNumbers: false });
+    ctl.mini.highlight({ tensors: ['scores'], nodes: ['scores'] });
+    s = sec('Modo blank', 'Huecos: nombre de bloque, tipo de op y forma de una arista. Toca un hueco.');
+    host = document.createElement('div'); s.appendChild(host);
+    const slots = [{ id: 'patch-embed', ask: 'label' }, { id: 'add-pos', ask: 'op' }, { id: 'cls>add-pos', ask: 'shape' }, { id: 'head', ask: 'label' }];
+    const fills = { 'patch-embed': ['Patch embedding', 'ok'], 'add-pos': ['tensorop', 'bad'], 'cls>add-pos': ['197×768', 'filled'], head: ['Clasificador', 'filled'] };
+    ctl.blank = ATLAS.ArchDiagram.render('vit-overview', host, { mode: 'blank', blank: { slots, onSlot: (id) => { log('onSlot: ' + id); ctl.blank.setSlot(id, fills[id][0], fills[id][1]); } } });
+    s = sec('Leyenda sola', 'ATLAS.ArchDiagram.legend(id)');
+    s.appendChild(ATLAS.ArchDiagram.legend('vit-mhsa'));
+    for (const name of ATLAS.Viz.names()) {
+      s = sec('Visualización: ' + name);
+      host = document.createElement('div'); s.appendChild(host);
+      ctl['viz-' + name] = ATLAS.Viz.render(name, host, {}, {});
+    }
+  }
+  main().catch((e) => { console.error(e); log('Error: ' + e.message); });
+})();
+</script>
+</body>
+</html>

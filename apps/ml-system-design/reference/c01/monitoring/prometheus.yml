@@ -1,0 +1,23 @@
+# Configuración de Prometheus para correr el sistema en local con docker compose (caso c01).
+# En Kubernetes NO se escribe a mano: el Prometheus Operator descubre los pods con
+# ServiceMonitor/PodMonitor (o kubernetes_sd_configs), y en AWS puedes usar Amazon Managed
+# Prometheus. alerts.yml se reutiliza tal cual como spec de un PrometheusRule (ver README).
+
+global:
+  scrape_interval: 15s  # cada cuánto lee /metrics: suficiente para alertas de 5–30 min, barato en series
+  evaluation_interval: 15s  # cada cuánto evalúa reglas y alertas
+  external_labels:
+    env: local  # en producción, env/cluster distinguen de dónde viene cada alerta
+
+rule_files:
+  - alerts.yml  # ruta relativa a este archivo: reglas de grabación + las 6 alertas del caso
+
+scrape_configs:
+  - job_name: gateway  # el label job="gateway" aparece en cada serie del gateway
+    metrics_path: /metrics  # endpoint propio (sin redirect; ver main.py)
+    static_configs:
+      - targets: ["gateway:8080"]  # nombre del servicio en docker-compose.yml, puerto del gateway
+
+  - job_name: triton  # métricas nv_* (cola, cómputo, batches, GPU) que expone Triton
+    static_configs:
+      - targets: ["triton:8002"]  # 8002 = --metrics-port de Triton

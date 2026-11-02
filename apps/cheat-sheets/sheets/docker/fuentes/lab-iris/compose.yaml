@@ -1,0 +1,24 @@
+services:
+  model-server:
+    build:
+      context: .
+      dockerfile: model_server/Dockerfile
+    image: iris-model-server:0.1
+    ports:
+      - "9000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v2/health/ready')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  gateway:
+    build: ./gateway
+    image: iris-gateway:0.1
+    ports:
+      - "8080:8080"
+    environment:
+      MODEL_SERVER_URL: http://model-server:8000
+    depends_on:
+      model-server:
+        condition: service_healthy

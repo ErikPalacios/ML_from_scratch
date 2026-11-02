@@ -103,6 +103,9 @@ inicialización y descripción), **mapa de dimensiones** con cada tensor del for
 | `Tab` | recorrer los controles; en el esquema, `↑` `↓` siguen el flujo y `←` `→` cambian de cabeza |
 | `Esc` | cerrar la guía, una derivación o un tooltip |
 
+Enlaces directos: `index.html#paso-23` abre el paso 23 de la iteración (contando desde 1);
+`#entrenamiento`, `#generacion` y `#datos` abren esas pestañas. El Atlas de Arquitecturas los usa.
+
 Los atajos nunca actúan mientras escribes en un campo de texto. El botón **Guía** abre un recorrido
 de introducción, la notación y un glosario. El botón de tema alterna Sistema, Claro y Oscuro.
 

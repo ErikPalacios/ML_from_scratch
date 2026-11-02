@@ -1,0 +1,192 @@
+{
+  "config_id": "diffusion-policy-cnn",
+  "model": "imitation",
+  "params_total": 89102530,
+  "params_by_node": {
+    "obs-encoder": 22394176,
+    "backbone": 22353024,
+    "kp-conv": 32832,
+    "kp-linear": 8320,
+    "unet": 66708354,
+    "time-embed": 131712,
+    "down-1": 1584640,
+    "down-2": 6308864,
+    "down-3": 20481024,
+    "mid": 22577152,
+    "up-1": 12076032,
+    "up-2": 3219968,
+    "final": 328962
+  },
+  "shapes": {
+    "img": [
+      216,
+      288,
+      3
+    ],
+    "noisy-actions": [
+      16,
+      2
+    ],
+    "eps": [
+      16,
+      2
+    ],
+    "denoised": [
+      16,
+      2
+    ],
+    "action-exec": [
+      8,
+      2
+    ],
+    "eef-pose": [
+      2
+    ],
+    "bb-stem-conv": [
+      108,
+      144,
+      64
+    ],
+    "bb-pool": [
+      54,
+      72,
+      64
+    ],
+    "c2": [
+      54,
+      72,
+      64
+    ],
+    "c3": [
+      27,
+      36,
+      128
+    ],
+    "c4": [
+      14,
+      18,
+      256
+    ],
+    "c5": [
+      7,
+      9,
+      512
+    ],
+    "kp-logits": [
+      7,
+      9,
+      32
+    ],
+    "keypoints": [
+      32,
+      2
+    ],
+    "cam-feat-pre": [
+      64
+    ],
+    "t-emb": [
+      128
+    ],
+    "d1-r1-film-lin": [
+      512
+    ],
+    "d1-r1-add": [
+      16,
+      256
+    ],
+    "d1-out": [
+      16,
+      256
+    ],
+    "d1-down": [
+      8,
+      256
+    ],
+    "d2-out": [
+      8,
+      512
+    ],
+    "d2-down": [
+      4,
+      512
+    ],
+    "d3-out": [
+      4,
+      1024
+    ],
+    "m-out": [
+      4,
+      1024
+    ],
+    "u1-r1-add": [
+      4,
+      512
+    ],
+    "u1-out": [
+      8,
+      512
+    ],
+    "u2-r1-add": [
+      8,
+      256
+    ],
+    "u2-out": [
+      16,
+      256
+    ],
+    "final-conv": [
+      16,
+      256
+    ],
+    "cam-feat": [
+      64
+    ],
+    "obs-cond": [
+      260
+    ],
+    "cond": [
+      388
+    ]
+  },
+  "flops_total": 23037149184,
+  "flops_by_op": {
+    "aten.convolution": 22946021376,
+    "aten.addmm": 91127808
+  },
+  "flops_by_node": {
+    "obs-encoder": 18297847808,
+    "unet": 4739301376
+  },
+  "ddim_timesteps": [
+    84,
+    72,
+    60,
+    48,
+    36,
+    24,
+    12,
+    0
+  ],
+  "source": {
+    "lib": "torch + torchvision + diffusers (transcrito de real-stanford/diffusion_policy 5ba07ac y robomimic 0.2.0)",
+    "ctor": "ConditionalUnet1D(2, global_cond_dim=260, diffusion_step_embed_dim=128, down_dims=[256, 512, 1024], kernel_size=5, n_groups=8, cond_predict_scale=True) + ObservationEncoder(2 × VisualCore(ResNet18Conv con GroupNorm, SpatialSoftmax 32, Linear 64 → 64))",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "torchvision": "0.29.1",
+      "gymnasium": "1.4.0",
+      "mujoco": "3.15.0",
+      "ale-py": "0.12.1",
+      "diffusers": "0.41.0",
+      "numpy": "2.5.3"
+    }
+  },
+  "notes": [
+    "Una inferencia (predict_action): el encoder corre sobre T_o = 2 pasos × 2 cámaras (4 ResNet-18 a 216×288) y la red de ruido 8 veces (DDIM, timesteps 84, 72, 60, 48, 36, 24, 12, 0).",
+    "Cada cámara tiene su propio ResNet-18 (robomimic no comparte obs_nets entre claves rgb); BatchNorm → GroupNorm(C/16, C): γ y β = 2C parámetros, como la BN.",
+    "SpatialSoftmax: la conv 1×1 a 32 mapas cuenta; el softmax y los promedios de posición no (FlopCounterMode).",
+    "ConditionalUnet1D: el skip del nivel 1 (256 canales a 16) se guarda y nunca se usa (h tiene 3 entradas y solo se sacan 2)."
+  ]
+}

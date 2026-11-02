@@ -1,0 +1,544 @@
+{
+  "config_id": "ppo-llama3-8b-lora",
+  "model": "rlhf-dpo",
+  "T": 1024,
+  "sequences": 1,
+  "params_total": 23124004864,
+  "params_by_node": {
+    "policy": 8072204288,
+    "reference": 0,
+    "reward": 7504928768,
+    "critic": 7546871808
+  },
+  "shapes": {
+    "pol-x0": [
+      1024,
+      4096
+    ],
+    "pol-h-norm1": [
+      1024,
+      4096
+    ],
+    "pol-q-base": [
+      1024,
+      4096
+    ],
+    "pol-q-drop": [
+      1024,
+      4096
+    ],
+    "pol-q-lora-a": [
+      1024,
+      16
+    ],
+    "pol-q-lora-b": [
+      1024,
+      4096
+    ],
+    "pol-q": [
+      1024,
+      4096
+    ],
+    "pol-k-base": [
+      1024,
+      1024
+    ],
+    "pol-k-drop": [
+      1024,
+      4096
+    ],
+    "pol-k-lora-a": [
+      1024,
+      16
+    ],
+    "pol-k-lora-b": [
+      1024,
+      1024
+    ],
+    "pol-k": [
+      1024,
+      1024
+    ],
+    "pol-v-base": [
+      1024,
+      1024
+    ],
+    "pol-v-drop": [
+      1024,
+      4096
+    ],
+    "pol-v-lora-a": [
+      1024,
+      16
+    ],
+    "pol-v-lora-b": [
+      1024,
+      1024
+    ],
+    "pol-v": [
+      1024,
+      1024
+    ],
+    "pol-z": [
+      1024,
+      4096
+    ],
+    "pol-o-base": [
+      1024,
+      4096
+    ],
+    "pol-o-drop": [
+      1024,
+      4096
+    ],
+    "pol-o-lora-a": [
+      1024,
+      16
+    ],
+    "pol-o-lora-b": [
+      1024,
+      4096
+    ],
+    "pol-o": [
+      1024,
+      4096
+    ],
+    "pol-r1": [
+      1024,
+      4096
+    ],
+    "pol-h-norm2": [
+      1024,
+      4096
+    ],
+    "pol-gate-base": [
+      1024,
+      14336
+    ],
+    "pol-gate-drop": [
+      1024,
+      4096
+    ],
+    "pol-gate-lora-a": [
+      1024,
+      16
+    ],
+    "pol-gate-lora-b": [
+      1024,
+      14336
+    ],
+    "pol-gate": [
+      1024,
+      14336
+    ],
+    "pol-up-base": [
+      1024,
+      14336
+    ],
+    "pol-up-drop": [
+      1024,
+      4096
+    ],
+    "pol-up-lora-a": [
+      1024,
+      16
+    ],
+    "pol-up-lora-b": [
+      1024,
+      14336
+    ],
+    "pol-up": [
+      1024,
+      14336
+    ],
+    "pol-prod": [
+      1024,
+      14336
+    ],
+    "pol-down-base": [
+      1024,
+      4096
+    ],
+    "pol-down-drop": [
+      1024,
+      14336
+    ],
+    "pol-down-lora-a": [
+      1024,
+      16
+    ],
+    "pol-down-lora-b": [
+      1024,
+      4096
+    ],
+    "pol-f": [
+      1024,
+      4096
+    ],
+    "pol-x-out": [
+      1024,
+      4096
+    ],
+    "pol-x-norm": [
+      1024,
+      4096
+    ],
+    "pol-logits": [
+      1024,
+      128256
+    ],
+    "ref-x0": [
+      1024,
+      4096
+    ],
+    "ref-h-norm1": [
+      1024,
+      4096
+    ],
+    "ref-q": [
+      1024,
+      4096
+    ],
+    "ref-k": [
+      1024,
+      1024
+    ],
+    "ref-v": [
+      1024,
+      1024
+    ],
+    "ref-z": [
+      1024,
+      4096
+    ],
+    "ref-o": [
+      1024,
+      4096
+    ],
+    "ref-r1": [
+      1024,
+      4096
+    ],
+    "ref-h-norm2": [
+      1024,
+      4096
+    ],
+    "ref-gate": [
+      1024,
+      14336
+    ],
+    "ref-up": [
+      1024,
+      14336
+    ],
+    "ref-prod": [
+      1024,
+      14336
+    ],
+    "ref-f": [
+      1024,
+      4096
+    ],
+    "ref-x-out": [
+      1024,
+      4096
+    ],
+    "ref-x-norm": [
+      1024,
+      4096
+    ],
+    "ref-logits": [
+      1024,
+      128256
+    ],
+    "rm-x0": [
+      1024,
+      4096
+    ],
+    "rm-h-norm1": [
+      1024,
+      4096
+    ],
+    "rm-q": [
+      1024,
+      4096
+    ],
+    "rm-k": [
+      1024,
+      1024
+    ],
+    "rm-v": [
+      1024,
+      1024
+    ],
+    "rm-z": [
+      1024,
+      4096
+    ],
+    "rm-o": [
+      1024,
+      4096
+    ],
+    "rm-r1": [
+      1024,
+      4096
+    ],
+    "rm-h-norm2": [
+      1024,
+      4096
+    ],
+    "rm-gate": [
+      1024,
+      14336
+    ],
+    "rm-up": [
+      1024,
+      14336
+    ],
+    "rm-prod": [
+      1024,
+      14336
+    ],
+    "rm-f": [
+      1024,
+      4096
+    ],
+    "rm-x-out": [
+      1024,
+      4096
+    ],
+    "rm-x-norm": [
+      1024,
+      4096
+    ],
+    "reward-scores": [
+      1024,
+      1
+    ],
+    "reward": [
+      1
+    ],
+    "cr-x0": [
+      1024,
+      4096
+    ],
+    "cr-h-norm1": [
+      1024,
+      4096
+    ],
+    "cr-q-base": [
+      1024,
+      4096
+    ],
+    "cr-q-drop": [
+      1024,
+      4096
+    ],
+    "cr-q-lora-a": [
+      1024,
+      16
+    ],
+    "cr-q-lora-b": [
+      1024,
+      4096
+    ],
+    "cr-q": [
+      1024,
+      4096
+    ],
+    "cr-k-base": [
+      1024,
+      1024
+    ],
+    "cr-k-drop": [
+      1024,
+      4096
+    ],
+    "cr-k-lora-a": [
+      1024,
+      16
+    ],
+    "cr-k-lora-b": [
+      1024,
+      1024
+    ],
+    "cr-k": [
+      1024,
+      1024
+    ],
+    "cr-v-base": [
+      1024,
+      1024
+    ],
+    "cr-v-drop": [
+      1024,
+      4096
+    ],
+    "cr-v-lora-a": [
+      1024,
+      16
+    ],
+    "cr-v-lora-b": [
+      1024,
+      1024
+    ],
+    "cr-v": [
+      1024,
+      1024
+    ],
+    "cr-z": [
+      1024,
+      4096
+    ],
+    "cr-o-base": [
+      1024,
+      4096
+    ],
+    "cr-o-drop": [
+      1024,
+      4096
+    ],
+    "cr-o-lora-a": [
+      1024,
+      16
+    ],
+    "cr-o-lora-b": [
+      1024,
+      4096
+    ],
+    "cr-o": [
+      1024,
+      4096
+    ],
+    "cr-r1": [
+      1024,
+      4096
+    ],
+    "cr-h-norm2": [
+      1024,
+      4096
+    ],
+    "cr-gate-base": [
+      1024,
+      14336
+    ],
+    "cr-gate-drop": [
+      1024,
+      4096
+    ],
+    "cr-gate-lora-a": [
+      1024,
+      16
+    ],
+    "cr-gate-lora-b": [
+      1024,
+      14336
+    ],
+    "cr-gate": [
+      1024,
+      14336
+    ],
+    "cr-up-base": [
+      1024,
+      14336
+    ],
+    "cr-up-drop": [
+      1024,
+      4096
+    ],
+    "cr-up-lora-a": [
+      1024,
+      16
+    ],
+    "cr-up-lora-b": [
+      1024,
+      14336
+    ],
+    "cr-up": [
+      1024,
+      14336
+    ],
+    "cr-prod": [
+      1024,
+      14336
+    ],
+    "cr-down-base": [
+      1024,
+      4096
+    ],
+    "cr-down-drop": [
+      1024,
+      14336
+    ],
+    "cr-down-lora-a": [
+      1024,
+      16
+    ],
+    "cr-down-lora-b": [
+      1024,
+      4096
+    ],
+    "cr-f": [
+      1024,
+      4096
+    ],
+    "cr-x-out": [
+      1024,
+      4096
+    ],
+    "cr-x-norm": [
+      1024,
+      4096
+    ],
+    "critic-values": [
+      1024,
+      1
+    ],
+    "ids": [
+      1024
+    ]
+  },
+  "flops_total": 61697221984256,
+  "flops_by_node": {
+    "policy": 16005195628544,
+    "reference": 15919296282624,
+    "reward": 14843415363584,
+    "critic": 14929314709504
+  },
+  "flops_by_op_torch": {
+    "aten.bmm": 2199023255552,
+    "aten.mm": 59498198728704
+  },
+  "metrics_checks": {
+    "policyTrainStepMacsPerSeq": 23787676368896,
+    "policyForwardMacsPerSeq": 8002597814272,
+    "totalParams": 23124004864,
+    "criticTrainStepMacsPerSeq": 22711799644160,
+    "rewardParams": 7504928768,
+    "criticParams": 7546871808,
+    "trainableParams": 83890176
+  },
+  "source": {
+    "lib": "transformers + peft",
+    "version": "5.19.0",
+    "peft": "0.21.2",
+    "ctor": "with torch.device('meta'): LlamaForCausalLM(LlamaConfig(vocab_size=128256, hidden_size=4096, intermediate_size=14336, num_hidden_layers=32, num_attention_heads=32, num_key_value_heads=8, head_dim=128, max_position_embeddings=8192, rms_norm_eps=1e-05, tie_word_embeddings=False, attention_bias=False, mlp_bias=False, rope_theta=500000.0)); with torch.device('meta'): LlamaForSequenceClassification(LlamaConfig(vocab_size=128256, hidden_size=4096, intermediate_size=14336, num_hidden_layers=32, num_attention_heads=32, num_key_value_heads=8, head_dim=128, max_position_embeddings=8192, rms_norm_eps=1e-05, tie_word_embeddings=False, attention_bias=False, mlp_bias=False, rope_theta=500000.0, num_labels=1)); get_peft_model(model, LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05, target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'], bias='none'))",
+    "attn_implementation": "eager",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "peft": "0.21.2"
+    }
+  },
+  "notes": [
+    "Un modelo HF por rol, construido en código en el dispositivo meta (sin pesos ni hub): política y referencia LlamaForCausalLM; reward model y crítico LlamaForSequenceClassification(num_labels = 1) = el decoder sin lm_head + score (Linear D → 1 sin sesgo), como TRL.",
+    "FLOPs = la suma de los forwards de cada rol sobre la secuencia prompt + respuesta con T = 1024 (FlopCounterMode, todas las capas, atención eager).",
+    "El rollout (generación) no está en el grafo: el calculador lo cuenta con llm.js (prefill + decode, verificados en crosscheck/llm.py).",
+    "metrics_checks: costo de UN update de la política (y del crítico en PPO) por secuencia con gradient checkpointing reentrante (forward + backward + recomputación), medido con loss.backward().",
+    "Con LoRA la referencia es el mismo PeftModel dentro de disable_adapter(): no suma parámetros (paramRepeat 0 en el calculador) y su forward no pasa por los adaptadores.",
+    "PPO + LoRA: política y crítico con adaptadores r 16 en las 7 lineales; la cabeza de valor (score) también se entrena (requires_grad; en TRL / PEFT, modules_to_save, que además guarda una copia de sus 4,096 pesos: no contada); el reward model queda congelado aparte.",
+    "Crítico: TRL llama value_model.score(hidden) sobre TODAS las posiciones (valores T×1); el reward model usa el score del último token (pooled_logits de HF)."
+  ]
+}

@@ -1,0 +1,8 @@
+# Para correr los tests (CI y tu máquina); NO se instala en la imagen de la caja.
+-r requirements.txt  # los tests usan exactamente las versiones de producción
+pytest==9.1.1  # runner de tests
+# --- transitivas ---
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0

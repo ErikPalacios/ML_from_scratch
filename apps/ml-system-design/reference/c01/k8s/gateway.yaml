@@ -1,0 +1,192 @@
+# Gateway en EKS (caso c01): Deployment (CPU) + Service + HPA por CPU + Ingress del AWS Load Balancer Controller.
+# Recomendado: etiqueta el namespace con elbv2.k8s.aws/pod-readiness-gate-inject=enabled para que
+# un rolling update espere a que el ALB vea sano al pod nuevo antes de matar el viejo.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: classifier
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: classifier
+spec:
+  # Sin "replicas": las decide el HPA de abajo (3–12)
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%  # pods nuevos antes de bajar viejos
+      maxUnavailable: 0  # capacidad completa durante todo el deploy
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gateway
+        app.kubernetes.io/part-of: classifier
+    spec:
+      # preStop (15 s) + --timeout-graceful-shutdown de uvicorn (20 s) + margen
+      terminationGracePeriodSeconds: 45
+      # Sin nodeSelector ni tolerations: el taint de los nodos GPU impide que el gateway caiga en una
+      # máquina con GPU (cara y reservada para Triton)
+      topologySpreadConstraints:
+        # Repartido entre zonas; ScheduleAnyway: preferible un reparto imperfecto a pods Pending
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: gateway
+      securityContext:
+        runAsNonRoot: true  # el kubelet se niega a arrancar el contenedor si corre como root
+        runAsUser: 10001  # = USER 10001 del Dockerfile (UID numérico: verificable)
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          # Tag = commit de git (inmutable); nunca :latest (no sabrías qué versión corre ni cómo volver)
+          image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway:3f9c2ab
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: TRITON_URL
+              value: "triton.classifier.svc.cluster.local:8000"  # Service de k8s/triton.yaml
+            - name: MODEL_NAME
+              value: "classifier"
+            - name: MODEL_VERSION
+              value: "2026-09-01-resnet50-fp16"  # = tag de la imagen de Triton de ESTA release; la referencia no lo verifica (en producción, /readyz lo compara con la config del modelo)
+            - name: INFER_TIMEOUT_S
+              value: "0.15"
+            - name: PREPROCESS_CONCURRENCY
+              value: "2"  # 2 × ≈ 320 MB (pico medido de un PNG de 40 MP) + ≈ 80 MB de Python ≈ 720 MB < 1Gi. Es CPU pura, no I/O; sin límite de CPU, 2 hilos aprovechan ráfagas
+            - name: MAX_INFLIGHT
+              value: "16"  # load shedding: más requests en vuelo por pod → 503 inmediato; 16 bodies de ≤ 10 MB = 160 MB de RAM
+          resources:
+            requests:
+              cpu: "1"  # base del HPA: 60 % de utilización = 0.6 cores por pod
+              memory: 1Gi  # ≈ 80 MB de Python + 2 decodes de peor caso (≈ 320 MB c/u) + bodies en vuelo; con PREPROCESS_CONCURRENCY=4 sube a 2Gi (4 × 320 MB ya pasa de 1Gi)
+            limits:
+              memory: 1Gi  # límite = request: si se pasa, OOMKilled claro en vez de afectar al nodo
+              # SIN límite de CPU a propósito: con límite, CFS reparte la CPU en ventanas de 100 ms;
+              # una ráfaga de decodes agota la cuota y el pod queda "throttled" el resto de la
+              # ventana → picos de p99 aunque el uso promedio sea bajo. El request ya garantiza su parte.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true  # el gateway no escribe a disco; si alguien lo compromete, tampoco
+            capabilities:
+              drop: ["ALL"]
+          # readiness: ¿mandarle tráfico? /readyz = modelo listo en Triton (ver main.py)
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          # liveness: ¿reiniciar? /healthz NO depende de Triton: si Triton cae, reiniciar gateways no ayuda
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                # El ALB tarda en desregistrar el target: seguimos atendiendo 15 s antes del SIGTERM
+                command: ["sleep", "15"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp  # único lugar escribible (por si una librería necesita temporales)
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: classifier
+  labels:
+    app.kubernetes.io/name: gateway
+spec:
+  type: ClusterIP  # el ALB (target-type ip) apunta directo a las IPs de los pods; el Service da los endpoints
+  selector:
+    app.kubernetes.io/name: gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway
+  namespace: classifier
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gateway
+  minReplicas: 3  # ≥ 1 por AZ y margen para perder un pod sin notar
+  maxReplicas: 12  # techo de costo; al pico (500 req/s ≈ 3 cores) bastan ~5 pods
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60  # % del REQUEST de CPU; 40 % libre absorbe picos mientras llegan pods nuevos
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0  # subir rápido: la latencia sufre ya
+      policies:
+        - type: Percent
+          value: 100  # hasta duplicar réplicas…
+          periodSeconds: 30  # …cada 30 s
+    scaleDown:
+      stabilizationWindowSeconds: 300  # bajar despacio: evita oscilar con el tráfico diurno
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway
+  namespace: classifier
+  annotations:
+    # "internal": lo llaman el backend del marketplace y otros equipos desde la VPC. Si lo expones a
+    # internet: internet-facing + WAF + autenticación.
+    alb.ingress.kubernetes.io/scheme: internal
+    # ip: el ALB manda directo a la IP del pod (sin NodePort ni salto extra de kube-proxy)
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000
+    # El health check del ALB usa la misma señal que la readiness de k8s
+    alb.ingress.kubernetes.io/healthcheck-path: /readyz
+    alb.ingress.kubernetes.io/success-codes: "200"
+    # Drenado al sacar un pod: 30 s (el default de 300 s hace eternos los deploys)
+    alb.ingress.kubernetes.io/target-group-attributes: deregistration_delay.timeout_seconds=30
+    # Idle timeout 60 s < --timeout-keep-alive 75 de uvicorn: el ALB siempre cierra primero (sin 502)
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
+spec:
+  ingressClassName: alb  # lo atiende el AWS Load Balancer Controller
+  rules:
+    - http:
+        paths:
+          # Solo la API: /metrics, /healthz y /readyz NO quedan expuestos fuera del cluster
+          - path: /v1/classify
+            pathType: Exact
+            backend:
+              service:
+                name: gateway
+                port:
+                  name: http

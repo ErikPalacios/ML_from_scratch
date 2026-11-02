@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CFDI 4.0 SINTÉTICO para tests. No es una factura real: el sello, el certificado y el UUID son
+     inventados (no validan contra el SAT). El emisor usa el RFC de pruebas que el SAT publica para
+     desarrollo (EKU9003173C9); el receptor y el PAC son RFC inventados con dígito verificador válido.
+     Montos: 10,000.00 − 500.00 + 1,520.00 (IVA 16 % de 9,500) − 118.75 (retención ISR) = 10,901.25 -->
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4"
+    xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    Version="4.0" Serie="A" Folio="1001" Fecha="2026-09-15T10:30:00"
+    Sello="U0VMTE9fRklDVElDSU9fUEFSQV9URVNUU19TSU5URVRJQw=="
+    NoCertificado="00000000000000000000" Certificado="Q0VSVElGSUNBRE9fRklDVElDSU8="
+    FormaPago="03" MetodoPago="PUE" SubTotal="10000.00" Descuento="500.00" Moneda="MXN"
+    Total="10901.25" TipoDeComprobante="I" Exportacion="01" LugarExpedicion="06000">
+  <cfdi:Emisor Rfc="EKU9003173C9" Nombre="ESCUELA KEMPER URGATE" RegimenFiscal="601"/>
+  <cfdi:Receptor Rfc="PSI200101AB3" Nombre="PYME SINTETICA" DomicilioFiscalReceptor="06000"
+      RegimenFiscalReceptor="601" UsoCFDI="G03"/>
+  <cfdi:Conceptos>
+    <cfdi:Concepto ClaveProdServ="84111506" Cantidad="1" ClaveUnidad="E48" Descripcion="Servicio de prueba"
+        ValorUnitario="10000.00" Importe="10000.00" Descuento="500.00" ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado Base="9500.00" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="1520.00"/>
+        </cfdi:Traslados>
+        <cfdi:Retenciones>
+          <cfdi:Retencion Base="9500.00" Impuesto="001" TipoFactor="Tasa" TasaOCuota="0.012500" Importe="118.75"/>
+        </cfdi:Retenciones>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+  </cfdi:Conceptos>
+  <cfdi:Impuestos TotalImpuestosRetenidos="118.75" TotalImpuestosTrasladados="1520.00">
+    <cfdi:Retenciones>
+      <cfdi:Retencion Impuesto="001" Importe="118.75"/>
+    </cfdi:Retenciones>
+    <cfdi:Traslados>
+      <cfdi:Traslado Base="9500.00" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="1520.00"/>
+    </cfdi:Traslados>
+  </cfdi:Impuestos>
+  <cfdi:Complemento>
+    <tfd:TimbreFiscalDigital Version="1.1" UUID="6F1D1A3C-0B5E-4C7A-9E2B-1A2B3C4D5E6F"
+        FechaTimbrado="2026-09-15T10:31:12" RfcProvCertif="PAC2001011A4"
+        SelloCFD="U0VMTE9fRklDVElDSU9fUEFSQV9URVNUU19TSU5URVRJQw==" NoCertificadoSAT="00000000000000000000"
+        SelloSAT="U0VMTE9fU0FUX0ZJQ1RJQ0lP"/>
+  </cfdi:Complemento>
+</cfdi:Comprobante>

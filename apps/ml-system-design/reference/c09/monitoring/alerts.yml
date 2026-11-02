@@ -1,0 +1,251 @@
+# Alertas del caso c09 (scoring de fraude en la autorización), Prometheus: 8 alertas en 3 grupos + recording rules.
+#   Sistema: FraudScoreLatencyHigh, FraudFallbackActive, FeatureFreshnessLag, RulesEngineErrors (2 reglas)
+#   Modelo:  DeclineRateSpike, StepUpRateSpike, ScoreDistributionShift
+#   Negocio: ChargebackRateRising (señal REZAGADA: llega semanas después)
+# Severidades: page = alguien lo mira YA (el fraude o los declines de gente buena cuestan dinero por minuto);
+# ticket = horario laboral, con dueño (equipo de riesgo). El ruteo vive en Alertmanager, no aquí.
+# Umbrales ILUSTRATIVOS: salen del SLO (100 ms), de policy.yaml (tope de declines 1.5 %) y de la curva de
+# llegada de chargebacks (eval/label_maturity.py); ajústalos con tu línea base.
+# De dónde sale cada métrica:
+#   fraud_* (salvo las dos de abajo)       → scoring/service.py (un test exige que cada fraud_* de aquí exista allá)
+#   fraud_feature_watermark_timestamp_seconds{job} → los jobs de Flink que escriben las features stream: gauge
+#                                          PROPIO con el event time hasta el que ya escribieron en el online
+#                                          store (no es una métrica que Flink exporte con ese nombre)
+#   fraud_cohort_chargeback_bps{days_since_tx} → job diario de etiquetas: chargebacks por fraude de la cohorte
+#                                          de pagos de hace N días, en puntos básicos del valor aprobado
+#   payments_fraud_check_requests_total, payments_fraud_check_timeouts_total → el orquestador de pagos (el
+#                                          caller): cuántas veces NO recibió respuesta a tiempo y usó su rules-only
+# Validación: `promtool check rules alerts.yml` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
+
+groups:
+  # ------------------------------------------------------------------ recording rules
+  - name: c09-recording
+    rules:
+      # p99 server-side. El histograma tiene buckets EXACTOS en 0.08 y 0.1: sin ellos histogram_quantile
+      # interpola entre buckets vecinos y el p99 "cerca del umbral" es ruido.
+      - record: fraud:score_latency_p99:rate5m
+        expr: |
+          histogram_quantile(0.99, sum by (le) (rate(fraud_score_duration_seconds_bucket[5m])))
+      # Fracción de decisiones tomadas SIN modelo (rules-only), dentro del servicio.
+      - record: fraud:fallback_ratio:rate5m
+        expr: |
+          sum(rate(fraud_fallback_total[5m])) / sum(rate(fraud_decisions_total[5m]))
+      # Fracción de pagos en los que el ORQUESTADOR no recibió respuesta en 100 ms. El servicio no la ve:
+      # para él esos requests pueden haber salido "bien" en 70 ms y perderse en la red o el balanceador.
+      - record: payments:fraud_check_timeout_ratio:rate5m
+        expr: |
+          sum(rate(payments_fraud_check_timeouts_total[5m])) / sum(rate(payments_fraud_check_requests_total[5m]))
+      # Cuántos segundos va atrasada cada feature stream: ahora − watermark. min por job: el watermark de un
+      # job es el de su subtarea más atrasada, y una sola partición trabada atrasa sus tarjetas.
+      - record: fraud:feature_watermark_lag_seconds
+        expr: |
+          time() - min by (job) (fraud_feature_watermark_timestamp_seconds)
+      # Por grupo de features (sync, stream, batch): fracción de lookups que no llegaron.
+      - record: fraud:feature_default_ratio:rate5m
+        expr: |
+          sum by (group) (rate(fraud_feature_defaults_total[5m]))
+            / sum by (group) (rate(fraud_feature_lookups_total[5m]))
+      # Tasa de declines y de step-up por segmento (30 min: suficiente volumen por segmento).
+      - record: fraud:decline_ratio:rate30m
+        expr: |
+          sum by (segment) (rate(fraud_decisions_total{decision="decline"}[30m]))
+            / sum by (segment) (rate(fraud_decisions_total[30m]))
+      - record: fraud:step_up_ratio:rate30m
+        expr: |
+          sum by (segment) (rate(fraud_decisions_total{decision="step_up"}[30m]))
+            / sum by (segment) (rate(fraud_decisions_total[30m]))
+      # Las mismas, hace una semana. `offset` sobre las series CRUDAS y no sobre la recording rule: una regla
+      # recién creada no tiene historia y la alerta quedaría ciega una semana. Requiere retención ≥ 8 días
+      # de los crudos (Prometheus guarda 15 por defecto).
+      - record: fraud:decline_ratio_1w_ago:rate30m
+        expr: |
+          sum by (segment) (rate(fraud_decisions_total{decision="decline"}[30m] offset 1w))
+            / sum by (segment) (rate(fraud_decisions_total[30m] offset 1w))
+      - record: fraud:step_up_ratio_1w_ago:rate30m
+        expr: |
+          sum by (segment) (rate(fraud_decisions_total{decision="step_up"}[30m] offset 1w))
+            / sum by (segment) (rate(fraud_decisions_total[30m] offset 1w))
+      # Score medio del modelo por segmento, ahora y hace una semana, y su cociente (1.0 = igual).
+      - record: fraud:model_score_mean:rate1h
+        expr: |
+          sum by (segment) (rate(fraud_model_score_sum[1h])) / sum by (segment) (rate(fraud_model_score_count[1h]))
+      - record: fraud:model_score_mean_wow_ratio:rate1h
+        expr: |
+          fraud:model_score_mean:rate1h
+            / (sum by (segment) (rate(fraud_model_score_sum[1h] offset 1w))
+                 / sum by (segment) (rate(fraud_model_score_count[1h] offset 1w)))
+      # Reglas que fallaron ÷ evaluaciones del motor.
+      - record: fraud:rule_error_ratio:rate5m
+        expr: |
+          sum(rate(fraud_rule_errors_total[5m])) / sum(rate(fraud_rule_evaluations_total[5m]))
+
+  # ------------------------------------------------------------------ sistema
+  - name: c09-system
+    rules:
+      # SLO: p99 ≤ 100 ms visto por el orquestador. El servicio se da 80 ms internos; si su propio p99 pasa
+      # de 80 ms, el del orquestador ya está en riesgo. Cada etapa tiene timeout, así que un p99 alto casi
+      # nunca es "Redis lento" (eso termina en fallback): es CPU del pod (throttling, OpenMP mal limitado,
+      # GC) o el event loop bloqueado.
+      - alert: FraudScoreLatencyHigh
+        expr: fraud:score_latency_p99:rate5m > 0.08
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "fraud-scoring: p99 {{ $value | humanizeDuration }} (> 80 ms internos; SLO 100 ms)"
+          description: "¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(fraud_stage_duration_seconds_bucket[5m]))). Si ninguna: CPU throttling (container_cpu_cfs_throttled_periods_total) o event loop bloqueado; escala el Deployment."
+          runbook_url: "https://runbooks.example.com/c09/fraud-latency"
+
+      # Más de 1 % de las decisiones sin modelo durante 5 min (en condiciones normales, ≈ 0), o el
+      # orquestador sin respuesta en > 0.5 % de los pagos, o el servicio sin métricas. Tres causas con
+      # label `cause`, porque el runbook es distinto: Redis/online store/modelo, red/capacidad, o caído.
+      # Un fallback NO es un error HTTP: sin esta alerta, perder el modelo se ve como "todo 200 OK".
+      - alert: FraudFallbackActive
+        expr: |
+          label_replace(fraud:fallback_ratio:rate5m > 0.01, "cause", "service_fallback", "", "")
+            or
+          label_replace(payments:fraud_check_timeout_ratio:rate5m > 0.005, "cause", "caller_timeouts", "", "")
+            or
+          label_replace(absent_over_time(fraud_decisions_total[5m]), "cause", "no_metrics", "", "")
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Scoring de fraude degradado ({{ $labels.cause }})"
+          description: "service_fallback: sum by (reason) (rate(fraud_fallback_total[5m])) dice si es Redis (counters_*), el online store (features_*) o el modelo (model_*). caller_timeouts: red o capacidad (p99 del servicio vs el del caller). no_metrics: el servicio no reporta (up{job=\"fraud-scoring\"}). Mientras dure, se decide con reglas: revisa DeclineRateSpike y el fraude aprobado."
+          runbook_url: "https://runbooks.example.com/c09/fraud-fallback"
+
+      # Features stream atrasadas más de 5 min (en condiciones normales, ≈ 2–5 s; est.), o > 5 % de lookups
+      # del grupo stream sin respuesta, o un job de Flink que dejó de reportar su watermark. Con el stream
+      # atrasado, el modelo ve "24 h de historia" que en realidad termina hace 20 min: no falla nada, decide
+      # peor. Los contadores sync (60 s) no dependen de esto.
+      # Trampa: un job MUERTO (crash, crash-loop) no tiene watermark atrasado: no tiene watermark. La serie
+      # deja de existir, el lag de ese job desaparece de la recording rule y la rama `watermark` queda
+      # ciega; el online store sigue sirviendo los valores congelados, así que `defaults` también da 0 %.
+      # Por eso la rama `watermark_missing`: un absent_over_time POR JOB ESPERADO (absent no puede adivinar
+      # qué jobs deberían existir). Aquí, los dos jobs del ejemplo; un job de features nuevo se agrega aquí.
+      - alert: FeatureFreshnessLag
+        expr: |
+          label_replace(fraud:feature_watermark_lag_seconds > 300, "cause", "watermark", "", "")
+            or
+          label_replace(fraud:feature_default_ratio:rate5m{group="stream"} > 0.05, "cause", "defaults", "", "")
+            or
+          label_replace(absent_over_time(fraud_feature_watermark_timestamp_seconds{job="card-aggregates"}[5m]),
+                        "cause", "watermark_missing", "", "")
+            or
+          label_replace(absent_over_time(fraud_feature_watermark_timestamp_seconds{job="merchant-aggregates"}[5m]),
+                        "cause", "watermark_missing", "", "")
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Features stream atrasadas ({{ $labels.cause }}: {{ $value | humanize }})"
+          description: "watermark: el job de Flink está vivo pero atrasado (consumer lag del tópico txn-events, checkpoints fallidos, backpressure). watermark_missing: el job {{ $labels.job }} no reporta hace más de 5 min (¿murió o está en crash-loop? estado del job en Flink, reinicios de los pods); el online store sirve valores congelados. defaults: el online store no contesta a tiempo (latencia de Redis, conexiones)."
+          runbook_url: "https://runbooks.example.com/c09/feature-freshness"
+
+      # Una regla que falla se salta (fail-open por regla): sin esta alerta, una lista negra rota deja pasar
+      # tarjetas robadas en silencio. > 0.1 % de las evaluaciones durante 5 min (un error suelto de un request
+      # malformado no despierta a nadie). Y la lista negra vieja (> 30 h: el job nocturno no corrió) es la
+      # misma falla en cámara lenta, con otra urgencia.
+      - alert: RulesEngineErrors
+        expr: fraud:rule_error_ratio:rate5m > 0.001
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Motor de reglas: {{ $value | humanizePercentage }} de evaluaciones con reglas rotas"
+          description: "¿Qué regla? sum by (rule) (rate(fraud_rule_errors_total[5m])). Casi siempre un campo del request que cambió de tipo o una config de comercio mal formada. Esa regla se está saltando. Revierte la última versión de reglas o de policy.yaml."
+          runbook_url: "https://runbooks.example.com/c09/rules-errors"
+      - alert: RulesEngineErrors
+        expr: time() - min(fraud_blocklist_generated_timestamp_seconds) > 30 * 3600
+        for: 15m
+        labels:
+          severity: ticket
+          cause: blocklist_stale
+        annotations:
+          summary: "Lista negra con {{ $value | humanizeDuration }} de antigüedad (> 30 h)"
+          description: "El job nocturno de la lista negra no publicó (o algún pod no recargó). Las tarjetas confirmadas como robadas ayer siguen pasando."
+          runbook_url: "https://runbooks.example.com/c09/blocklist-stale"
+
+  # ------------------------------------------------------------------ modelo
+  - name: c09-model
+    rules:
+      # Declines de un segmento (30 min) al doble que la misma hora de la semana pasada (y > 0.5 % para no
+      # alertar por 0.1 % → 0.2 %), o por encima del tope de policy.yaml (1.5 %). Con ≥ 1 decisión/s: un
+      # segmento chico de madrugada hace saltar cualquier cociente. Puede ser un ataque (declines correctos)
+      # o un modelo/umbral mal desplegado (gente buena declinada): las dos cosas cuestan, por eso es page.
+      - alert: DeclineRateSpike
+        # Paréntesis obligatorios: en PromQL `and` se evalúa antes que `or`.
+        expr: |
+          (
+            label_replace(
+              (fraud:decline_ratio:rate30m > 2 * fraud:decline_ratio_1w_ago:rate30m and fraud:decline_ratio:rate30m > 0.005),
+              "cause", "vs_last_week", "", "")
+              or
+            label_replace(fraud:decline_ratio:rate30m > 0.015, "cause", "over_cap", "", "")
+          )
+            and on (segment)
+          sum by (segment) (rate(fraud_decisions_total[30m])) >= 1
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: "Declines en {{ $labels.segment }}: {{ $value | humanizePercentage }} ({{ $labels.cause }})"
+          description: "¿Ataque o despliegue? sum by (reason) (rate(fraud_rule_hits_total[30m])) sube con un ataque (VELOCITY_*, BLOCKLIST_*); MODEL_HIGH_RISK solo, sin cambio de tráfico, apunta a un modelo o policy nuevo (compara model_version y policy_version del log de decisiones). Rollback de policy.yaml es el primer paso si coincide con un deploy."
+          runbook_url: "https://runbooks.example.com/c09/decline-spike"
+
+      # Step-up al doble que la misma hora de la semana pasada y > 2 %, durante 30 min: fricción para gente
+      # buena (≈ 10–20 % abandona el desafío, estimación del caso) o un emisor/3DS server con problemas.
+      # Ticket: el pago no se pierde de inmediato.
+      - alert: StepUpRateSpike
+        expr: |
+          (fraud:step_up_ratio:rate30m > 2 * fraud:step_up_ratio_1w_ago:rate30m and fraud:step_up_ratio:rate30m > 0.02)
+            and on (segment)
+          sum by (segment) (rate(fraud_decisions_total[30m])) >= 1
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Step-up en {{ $labels.segment }}: {{ $value | humanizePercentage }} (2× la semana pasada)"
+          description: "Revisa MODEL_MEDIUM_RISK vs VELOCITY_IP_60S en fraud_rule_hits_total y el abandono del desafío en el orquestador."
+          runbook_url: "https://runbooks.example.com/c09/stepup-spike"
+
+      # Score medio de un segmento 1.5× arriba o abajo de la misma hora de la semana pasada, durante 1 h y con
+      # ≥ 1 score/s. Detecta drift de features o un modelo nuevo con otra calibración ANTES de que lleguen
+      # los chargebacks (semanas). No dice si el modelo es peor: dice que algo cambió y hay que mirar.
+      # Por qué la media y no el PSI: el PSI necesita la fracción por bucket, y restar buckets vecinos de un
+      # histograma en PromQL es incómodo. El PSI por feature lo calcula el job de drift sobre el log.
+      - alert: ScoreDistributionShift
+        expr: |
+          (fraud:model_score_mean_wow_ratio:rate1h > 1.5 or fraud:model_score_mean_wow_ratio:rate1h < 0.67)
+            and on (segment)
+          sum by (segment) (rate(fraud_model_score_count[1h])) >= 1
+        for: 1h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Score medio en {{ $labels.segment }}: {{ $value | humanize }}× la semana pasada"
+          description: "¿Cambió model_version? ¿Algún grupo de features con defaults (fraud:feature_default_ratio:rate5m)? Compara las distribuciones de features del log de decisiones (PSI por feature) entre las dos semanas."
+          runbook_url: "https://runbooks.example.com/c09/score-shift"
+
+  # ------------------------------------------------------------------ negocio
+  - name: c09-business
+    rules:
+      # Señal REZAGADA: chargebacks de la cohorte de hace 30 días, en bps del valor aprobado, contra lo
+      # esperado A ESA EDAD. Con la curva de llegada del caso (≈ 60 % a 30 días, est.; eval/label_maturity.py
+      # la mide) y ≈ 12 bps finales, a los 30 días se esperan ≈ 12 × 0.6 ≈ 7.2 bps; 9 bps es ≈ 1.25×.
+      # Comparar edades distintas es la trampa: una cohorte joven siempre "parece" mejor. Cuando el modelo
+      # baje el fraude (meta: −40 %), re-baseline. Para esto ya pasaron 30 días: el resto de las alertas
+      # existe para no depender de esta.
+      # El job es diario, pero su valor se EXPONE en cada scrape (un exporter que sirve el último
+      # resultado): una muestra por día desaparece de las consultas a los 5 min (lookback) y el `for` nunca
+      # se cumple. Lo mismo vale para fraud_blocklist_generated_timestamp_seconds.
+      - alert: ChargebackRateRising
+        expr: fraud_cohort_chargeback_bps{days_since_tx="30"} > 9
+        for: 12h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Chargebacks de la cohorte de hace 30 días: {{ $value | humanize }} bps (esperado ≈ 7.2)"
+          description: "Por segmento y por motivo de chargeback en el warehouse. Si coincide con un cambio de modelo o de policy de hace 30–40 días, ese es el sospechoso; si no, un patrón nuevo de fraude (re-entrenar con etiquetas tempranas: fraude confirmado, revisiones manuales)."
+          runbook_url: "https://runbooks.example.com/c09/chargebacks"

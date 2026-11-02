@@ -1,0 +1,593 @@
+{
+  "config_id": "qwen2-vl-7b",
+  "model": "qwen2-vl",
+  "T": 64,
+  "H": 812,
+  "W": 812,
+  "params_total": 8291375616,
+  "params_by_node": {
+    "patchify": 1505280,
+    "vision-encoder": 629678080,
+    "merger": 44575744,
+    "embed": 544997376,
+    "llm": 6525621760,
+    "lm-head": 544997376,
+    "block": 6525618176,
+    "attn": 822212608,
+    "ffn": 5703204864,
+    "q-proj": 359761920,
+    "k-proj": 51394560,
+    "v-proj": 51394560,
+    "o-proj": 359661568,
+    "final-norm": 3584
+  },
+  "params_by_path": {
+    "merger>fc1": 26219520,
+    "merger>fc2": 18353664,
+    "merger>ln": 2560
+  },
+  "shapes": {
+    "v-patches": [
+      3364,
+      1280
+    ],
+    "v-h-ln1": [
+      3364,
+      1280
+    ],
+    "v-qkv": [
+      3364,
+      3840
+    ],
+    "v-q-rope": [
+      16,
+      3364,
+      80
+    ],
+    "v-k-rope": [
+      16,
+      3364,
+      80
+    ],
+    "v-z": [
+      3364,
+      1280
+    ],
+    "v-o": [
+      3364,
+      1280
+    ],
+    "v-r1": [
+      3364,
+      1280
+    ],
+    "v-u": [
+      3364,
+      5120
+    ],
+    "v-f": [
+      3364,
+      1280
+    ],
+    "vis-feats": [
+      3364,
+      1280
+    ],
+    "v-merge-ln": [
+      3364,
+      1280
+    ],
+    "v-grouped": [
+      841,
+      5120
+    ],
+    "merger-h": [
+      841,
+      5120
+    ],
+    "merger-act": [
+      841,
+      5120
+    ],
+    "vis-tokens": [
+      841,
+      3584
+    ],
+    "pos-ids": [
+      3,
+      905
+    ],
+    "prompt": [
+      905,
+      3584
+    ],
+    "h-norm1": [
+      905,
+      3584
+    ],
+    "q": [
+      905,
+      3584
+    ],
+    "k": [
+      905,
+      512
+    ],
+    "v": [
+      905,
+      512
+    ],
+    "q-heads": [
+      28,
+      905,
+      128
+    ],
+    "k-heads": [
+      4,
+      905,
+      128
+    ],
+    "q-rope": [
+      28,
+      905,
+      128
+    ],
+    "k-rope": [
+      4,
+      905,
+      128
+    ],
+    "z": [
+      905,
+      3584
+    ],
+    "o": [
+      905,
+      3584
+    ],
+    "r1": [
+      905,
+      3584
+    ],
+    "h-norm2": [
+      905,
+      3584
+    ],
+    "gate": [
+      905,
+      18944
+    ],
+    "up": [
+      905,
+      18944
+    ],
+    "prod": [
+      905,
+      18944
+    ],
+    "f": [
+      905,
+      3584
+    ],
+    "x-out": [
+      905,
+      3584
+    ],
+    "x-norm": [
+      905,
+      3584
+    ],
+    "logits": [
+      905,
+      152064
+    ],
+    "attn": [
+      28,
+      905,
+      905
+    ],
+    "v-heads": [
+      4,
+      905,
+      128
+    ],
+    "pixels": [
+      812,
+      812,
+      3
+    ],
+    "text-ids": [
+      64
+    ]
+  },
+  "flops_total": 19298051809280,
+  "flops_by_node": {
+    "patchify": 10127523840,
+    "merger": 74957455360,
+    "vision-encoder": 6086986301440,
+    "llm": 12139535278080,
+    "lm-head": 986445250560
+  },
+  "flops_by_op_torch": {
+    "aten.addmm": 5144832901120,
+    "aten.bmm": 2182857891840,
+    "aten.convolution": 10127523840,
+    "aten.mm": 11960233492480
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.convolution"
+      ],
+      "prims": [
+        "patch_embed_3d"
+      ]
+    },
+    {
+      "ops": [
+        "aten.addmm",
+        "aten.mm"
+      ],
+      "prims": [
+        "linear",
+        "lm_head"
+      ]
+    },
+    {
+      "ops": [
+        "aten.bmm"
+      ],
+      "prims": [
+        "attention_scores",
+        "attention_weighted_sum"
+      ]
+    }
+  ],
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "H": 448,
+        "W": 672
+      },
+      "params_total": 8291375616,
+      "flops_total": 8773672370176,
+      "shapes": {
+        "v-patches": [
+          1536,
+          1280
+        ],
+        "vis-feats": [
+          1536,
+          1280
+        ],
+        "v-grouped": [
+          384,
+          5120
+        ],
+        "vis-tokens": [
+          384,
+          3584
+        ],
+        "prompt": [
+          448,
+          3584
+        ],
+        "pos-ids": [
+          3,
+          448
+        ],
+        "logits": [
+          448,
+          152064
+        ],
+        "v-q-rope": [
+          16,
+          1536,
+          80
+        ]
+      }
+    },
+    {
+      "calc_overrides": {
+        "frames": 4
+      },
+      "params_total": 8291375616,
+      "flops_total": 38257279369216,
+      "shapes": {
+        "v-patches": [
+          6728,
+          1280
+        ],
+        "vis-feats": [
+          6728,
+          1280
+        ],
+        "v-grouped": [
+          1682,
+          5120
+        ],
+        "vis-tokens": [
+          1682,
+          3584
+        ],
+        "prompt": [
+          1746,
+          3584
+        ],
+        "pos-ids": [
+          3,
+          1746
+        ],
+        "logits": [
+          1746,
+          152064
+        ],
+        "v-q-rope": [
+          2,
+          16,
+          3364,
+          80
+        ]
+      }
+    },
+    {
+      "calc_overrides": {
+        "T": 256
+      },
+      "params_total": 8291375616,
+      "flops_total": 22167336378368,
+      "shapes": {
+        "v-patches": [
+          3364,
+          1280
+        ],
+        "vis-feats": [
+          3364,
+          1280
+        ],
+        "v-grouped": [
+          841,
+          5120
+        ],
+        "vis-tokens": [
+          841,
+          3584
+        ],
+        "prompt": [
+          1097,
+          3584
+        ],
+        "pos-ids": [
+          3,
+          1097
+        ],
+        "logits": [
+          1097,
+          152064
+        ],
+        "v-q-rope": [
+          16,
+          3364,
+          80
+        ]
+      }
+    },
+    {
+      "calc_overrides": {
+        "H": 1344,
+        "W": 1344
+      },
+      "params_total": 8291375616,
+      "flops_total": 61480942698496,
+      "shapes": {
+        "v-patches": [
+          9216,
+          1280
+        ],
+        "vis-feats": [
+          9216,
+          1280
+        ],
+        "v-grouped": [
+          2304,
+          5120
+        ],
+        "vis-tokens": [
+          2304,
+          3584
+        ],
+        "prompt": [
+          2368,
+          3584
+        ],
+        "pos-ids": [
+          3,
+          2368
+        ],
+        "logits": [
+          2368,
+          152064
+        ],
+        "v-q-rope": [
+          16,
+          9216,
+          80
+        ]
+      }
+    }
+  ],
+  "metrics_checks": {
+    "kvBytesPerToken": 57344,
+    "visualTokens": 841,
+    "projectorParams": 44575744,
+    "visualModuleParams": 675759104,
+    "totalParams": 8291375616
+  },
+  "smart_resize_checks": [
+    {
+      "h": 812,
+      "w": 812,
+      "H": 812,
+      "W": 812
+    },
+    {
+      "h": 480,
+      "w": 640,
+      "H": 476,
+      "W": 644
+    },
+    {
+      "h": 1080,
+      "w": 1920,
+      "H": 1092,
+      "W": 1932
+    },
+    {
+      "h": 300,
+      "w": 400,
+      "H": 308,
+      "W": 392
+    },
+    {
+      "h": 2000,
+      "w": 3000,
+      "H": 1988,
+      "W": 2996
+    },
+    {
+      "h": 37,
+      "w": 50,
+      "H": 56,
+      "W": 84
+    },
+    {
+      "h": 1024,
+      "w": 768,
+      "H": 1036,
+      "W": 756
+    },
+    {
+      "h": 4000,
+      "w": 3000,
+      "H": 4004,
+      "W": 2996
+    },
+    {
+      "h": 1023,
+      "w": 1023,
+      "H": 1036,
+      "W": 1036
+    },
+    {
+      "h": 70,
+      "w": 70,
+      "H": 56,
+      "W": 56
+    },
+    {
+      "h": 42,
+      "w": 42,
+      "H": 56,
+      "W": 56
+    },
+    {
+      "h": 720,
+      "w": 1280,
+      "H": 728,
+      "W": 1288
+    },
+    {
+      "h": 1080,
+      "w": 1920,
+      "H": 1092,
+      "W": 1932
+    },
+    {
+      "h": 1080,
+      "w": 1920,
+      "H": 728,
+      "W": 1316,
+      "min_pixels": 200704,
+      "max_pixels": 1003520
+    },
+    {
+      "h": 2160,
+      "w": 3840,
+      "H": 2156,
+      "W": 3836
+    },
+    {
+      "h": 2160,
+      "w": 3840,
+      "H": 728,
+      "W": 1316,
+      "min_pixels": 200704,
+      "max_pixels": 1003520
+    },
+    {
+      "h": 3508,
+      "w": 2480,
+      "H": 3500,
+      "W": 2492
+    },
+    {
+      "h": 3508,
+      "w": 2480,
+      "H": 1176,
+      "W": 840,
+      "min_pixels": 200704,
+      "max_pixels": 1003520
+    },
+    {
+      "h": 3508,
+      "w": 2480,
+      "H": 532,
+      "W": 364,
+      "min_pixels": 200704,
+      "max_pixels": 200704
+    },
+    {
+      "h": 480,
+      "w": 640,
+      "H": 476,
+      "W": 644
+    },
+    {
+      "h": 5600,
+      "w": 28,
+      "H": 1232,
+      "W": 28,
+      "min_pixels": 784,
+      "max_pixels": 7840
+    }
+  ],
+  "not_hooked": {
+    "text-emb": "HF embebe N + T ids y reemplaza las filas de la imagen (masked_scatter)",
+    "v-patch-grid": "HF aplana antes de la Conv3d (salida N_p×D_v×1×1×1)",
+    "next-token": "el muestreo no es parte del forward de HF"
+  },
+  "hf_config_source": "Qwen/Qwen2-VL-7B-Instruct",
+  "source": {
+    "lib": "transformers",
+    "version": "5.19.0",
+    "ctor": "with torch.device('meta'): Qwen2VLForConditionalGeneration(Qwen2VLConfig(text_config={'vocab_size': 152064, 'hidden_size': 3584, 'intermediate_size': 18944, 'num_hidden_layers': 28, 'num_attention_heads': 28, 'num_key_value_heads': 4, 'max_position_embeddings': 32768, 'rms_norm_eps': 1e-06, 'rope_theta': 1000000.0, 'rope_scaling': {'type': 'mrope', 'mrope_section': [16, 24, 24], 'rope_theta': 1000000.0, 'rope_type': 'default'}, 'use_sliding_window': False, 'tie_word_embeddings': False}, vision_config={'depth': 32, 'embed_dim': 1280, 'hidden_size': 3584, 'mlp_ratio': 4, 'num_heads': 16, 'in_channels': 3, 'patch_size': 14, 'spatial_merge_size': 2, 'temporal_patch_size': 2, 'hidden_act': 'quick_gelu'}, tie_word_embeddings=False))",
+    "attn_implementation": "eager",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Modelo construido en código en el dispositivo meta (sin pesos ni hub; dimensiones del config.json de Qwen/Qwen2-VL-7B-Instruct): parámetros exactos con sum(p.numel()).",
+    "FLOPs = FlopCounterMode sobre tensores meta con todas las capas: imagen de 812×812 → 3,364 parches (Conv3d 2×14×14 sobre la imagen duplicada) → 841 tokens visuales tras el merge 2×2; + T = 64 tokens de texto = 905 filas en el LLM; logits sobre todas las filas.",
+    "Visual de HF (675.8M en los tres tamaños salvo el merger, que termina en D) = patchify + 32 bloques + merger: el calculador separa patchify, vision-encoder y merger.",
+    "Merger de HF: ln_q (LayerNorm de 1280 POR parche) → view a (N_p/4)×5120 → Linear 5120→5120 → GELU → Linear 5120→D: la LayerNorm va antes de agrupar 2×2.",
+    "Qwen2: W_Q, W_K, W_V con sesgo; W_O, la FFN y el LM head sin sesgo; RMSNorm ε 1e-6; RoPE θ 1e6 con M-RoPE (mrope_section [16, 24, 24]).",
+    "Parches para meta (no cambian FLOPs): torch_compilable_check → no-op; get_vision_position_ids calculado en CPU y movido a meta; cu_seqlens en CPU (la atención del ViT se parte por par de frames); máscara 4-D de ceros; position_ids 3×1×S de ceros (la forma 3×S es la que recibe rotary_emb).",
+    "Video (override frames = 4): pixel_values_videos con video_grid_thw = [2, H/14, W/14]: 2 parches temporales; la atención del ViT es por par de frames (cu_seqlens = repeat_interleave(h·w, t)) y el LLM ve 2·(H/28)(W/28) tokens.",
+    "smart_resize_checks: smart_resize de Qwen2VLImageProcessor (factor 28, min_pixels 3,136, max_pixels 12,845,056 del preprocessor_config.json, o el presupuesto min_pixels/max_pixels de la entrada) ↔ ATLAS.Arch.vlm.smartResize (redondeo de Python: mitad al par; max(factor, …) en la rama de max_pixels).",
+    "M-RoPE: con la imagen en el prompt, el texto siguiente continúa desde el máximo id + 1; el código original de Qwen2-VL usa max(t, h, w) de la rejilla y HF 5.19 max(h, w) (iguales para una imagen). No cambia FLOPs."
+  ]
+}

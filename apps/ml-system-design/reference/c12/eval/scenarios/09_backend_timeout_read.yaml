@@ -1,0 +1,22 @@
+# El servicio de envíos no contesta a tiempo la primera vez: una LECTURA se reintenta una vez con backoff.
+id: backend_timeout_read
+customer_id: cust-1
+orders:
+  - order_id: A-1040
+    customer_id: cust-1
+    status: shipped
+    currency: MXN
+    items: [{item_id: I-1, title: Cafetera, price: "899.00"}]
+    shipment: {status: in_transit, expected_in_days: 2}
+faults:
+  get_shipment_tracking: [timeout_before_commit]
+model:
+  - tool_calls: [{name: get_shipment_tracking, arguments: {order_id: A-1040}}]
+  - content: "Tu pedido va en camino y debería llegar en 2 días."
+turns:
+  - customer: "¿Dónde viene mi pedido A-1040?"
+expect:
+  outcome: answered
+  required_calls: [get_shipment_tracking]
+  allowed_calls: [get_shipment_tracking, get_order]
+  max_llm_calls: 2

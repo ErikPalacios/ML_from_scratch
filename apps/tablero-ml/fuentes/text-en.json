@@ -1,0 +1,1817 @@
+{
+  "patterns": {
+    "sincrono": {
+      "name": "Online synchronous",
+      "summary": "A caller waits for the answer in milliseconds: load balancer, CPU gateway and GPU model server, with timeouts and fallback. This is the full C01 path, all 12 stations from data to monitoring.",
+      "removed": [],
+      "steps": {
+        "kickoff": {
+          "title": "Requirements & Capacity Plan",
+          "scope": "Fix traffic, the p99 ≤ 200 ms server-side SLO, 99.9 % availability and the US$3k/month budget, and size QPS, GPUs and cost from them.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Average, peak and design QPS are computed from 10 M images/day: ≈ 116 req/s average, ≈ 350 peak (3×) and a 500 req/s design point.",
+            "The p99 ≤ 200 ms SLO is split into a per-hop latency budget: ≈ 20–45 ms at p50 and ≈ 150 ms in a pessimistic p99.",
+            "GPUs are sized for availability, not throughput: 2 × T4 (N+1, one per AZ) planned at ≈ 50 % of the measured max, autoscaling up to 4.",
+            "Monthly infra is ≈ US$1.75k, under the US$3k budget, and the 99.9 % error budget is ≈ 300,000 failed requests per month."
+          ],
+          "commandNotes": []
+        },
+        "datos": {
+          "title": "Data & Labels",
+          "scope": "Turn production traffic into a new monthly label set from four sources: the category chosen at listing time, moderation corrections, a ≈ 5k-image human queue and a frozen ≈ 50k golden set used only for evaluation.",
+          "inputs": [
+            "prediction logs in S3 (Parquet, one row per request)",
+            "final category of each listing and moderation corrections",
+            "monitoring signals: low confidence, drift, new categories"
+          ],
+          "outputs": [
+            "monthly labels (≈ 5k human + filtered weak)",
+            "labeled photos, EXIF-stripped, in a restricted bucket",
+            "frozen golden set (≈ 50k, evaluation only)"
+          ],
+          "dod": [
+            "The monthly queue holds its ≈ 5k images in the agreed mix: uncertainty, disagreements and 20–30 % random.",
+            "Double annotation has its per-class kappa and disagreements are adjudicated.",
+            "Only the photos being labeled were copied, without EXIF; the rest are referenced by `request_id` and sha256.",
+            "Weak labels enter filtered and are never the only evaluation source."
+          ],
+          "commandNotes": [
+            "Label Studio Community on your machine: UI at `localhost:8080`. C01 also allows a managed provider."
+          ]
+        },
+        "versionado": {
+          "title": "Dataset Versioning & Lineage",
+          "scope": "Publish each dataset as an immutable snapshot (`ds-2026-09-01`) with a Parquet manifest that references images by hash, and link every registered model to its snapshot, commit and training-container digest.",
+          "inputs": [
+            "monthly labels + image references (key + sha256)",
+            "previous snapshot (parent)"
+          ],
+          "outputs": [
+            "snapshot ds-2026-09-01 (immutable manifest)",
+            "snapshot validation report"
+          ],
+          "dod": [
+            "The snapshot has an id, a manifest and a card, and its prefix cannot be overwritten.",
+            "Validation passed: 500 categories, zero duplicates with the golden set, per-source counts in range.",
+            "The pipeline takes the snapshot id as a parameter, never a “latest” folder.",
+            "From a sha256 you reach the snapshots and the models that use it."
+          ],
+          "commandNotes": [
+            "List what is under a snapshot prefix (read-only).",
+            "If the team already uses DVC: hashes the folder, leaves `{carpeta_datos}.dvc` for git and pushes the data to the S3 remote.",
+            "If you use lakeFS: an isolated branch over the bucket, no data copied; then `lakectl commit` and `lakectl merge`."
+          ]
+        },
+        "entrenamiento": {
+          "title": "Training Pipeline",
+          "scope": "Run the ResNet-50 fine-tune as an orchestrated monthly job (earlier if a monitoring trigger fires) on an on-demand GPU, warm-started from the champion with AMP and the gateway's `preprocess.py`, with everything tracked in MLflow.",
+          "inputs": [
+            "snapshot id (as a parameter)",
+            "champion checkpoint (warm start)",
+            "training image by digest"
+          ],
+          "outputs": [
+            "candidate checkpoint (MLflow run)",
+            "val_top1 curve and final metrics",
+            "intermediate checkpoints in S3"
+          ],
+          "dod": [
+            "The run came from the pipeline at a clean commit, not from a laptop.",
+            "MLflow has the parameters, the val_top1 curve, artifacts, snapshot id, commit and digest.",
+            "Training used the same `preprocess.py` and the same Pillow version as the gateway.",
+            "The GPU shut down at the end and the checkpoints are in S3."
+          ],
+          "commandNotes": [
+            "Platform starts it once, not per run: UI and API on port 5000, metadata in Postgres, artifacts in S3. Without `--host 0.0.0.0` it only answers on that machine; if jobs call it by name, add `--allowed-hosts {nombre}` (MLflow ≥ 3.5)."
+          ]
+        },
+        "gate": {
+          "title": "Evaluation Gate & Registry",
+          "scope": "Compare challenger against champion on the same golden set with an automatic gate written before training (paired non-inferiority ≥ −0.3 pp on top-1 and top-5, recall of the 100 highest-traffic categories, ECE ≤ 0.05, slices), and register the version as `challenger` only after station 5 parity and latency pass.",
+          "inputs": [
+            "candidate checkpoint (MLflow run)",
+            "current champion (pinned version, as a parameter)",
+            "frozen golden set (≈ 50k)"
+          ],
+          "outputs": [
+            "gate-approved checkpoint",
+            "gate report (verdict, slices, per-category recall)",
+            "challenger version in MLflow (after station 5)"
+          ],
+          "dod": [
+            "The candidate is non-inferior to the champion (≥ −0.3 pp paired) and to the model from 3 months ago.",
+            "None of the 100 large categories drops > 5 pp with a significant drop (McNemar + Holm), no slice drops more than its interval, and ECE ≤ 0.05.",
+            "Parity and latency (station 5) passed and the version is registered as challenger with all its artifacts.",
+            "The current champion and the version to roll back to if something fails are known."
+          ],
+          "commandNotes": [
+            "Which version is `champion` now? With `MLFLOW_TRACKING_URI` pointing at the server."
+          ]
+        },
+        "export": {
+          "title": "Export, Engine & Parity",
+          "scope": "Export the approved checkpoint to ONNX opset 17, compile a TensorRT FP16 engine on a T4 with the same NGC release as Triton (24.08), bake it into the Triton image and pass the parity (top-1 agreement ≥ 99.5 %) and latency (p99 ≤ champion + 10 %) gates on a T4 CI runner.",
+          "inputs": [
+            "gate-approved checkpoint (.pt)",
+            "sample of evaluation-set images"
+          ],
+          "outputs": [
+            "model.plan engine (challenger version)",
+            "Triton image with the engine baked in (tag = model version)",
+            "ONNX, parity and latency reports, and fingerprints (sha256, GPU, NGC) for the registry"
+          ],
+          "dod": [
+            "`export_onnx.py` prints opset=17 and “[export] OK”.",
+            "The engine was built on a T4 with tensorrt:24.08, the same release as tritonserver:24.08.",
+            "`parity_check.py --backend triton` gives top-1 agreement ≥ 99.5 % and exit 0.",
+            "`perf_analyzer` at 250 and 500 req/s: p99 ≤ champion + 10 %.",
+            "The sha256 of the ONNX and of the plan, the GPU and the release are recorded on the registry version."
+          ],
+          "commandNotes": [
+            "Exports and verifies. Without `--checkpoint` it uses random weights: pipeline test only.",
+            "CPU parity with ONNX Runtime; exit 1 = fail. Without `--checkpoint`, the PyTorch reference would have random weights.",
+            "On the T4, with Docker and NVIDIA Container Toolkit: produces `triton/model_repository/classifier/1/model.plan`.",
+            "FP16 engine served by Triton vs PyTorch FP32 from the same checkpoint; exit 1 = not registered.",
+            "Fixed-rate load (250 and 500 req/s) for the latency gate: compare p99 with the champion's."
+          ]
+        },
+        "serving": {
+          "title": "Serving Code",
+          "scope": "Ship the FastAPI CPU gateway (validate, decode in a threadpool, preprocess with the shared `preprocess.py`, call Triton, build the top-k) and the Triton `config.pbtxt` for the T4 (2 ms dynamic batching, 2 instances, queue rejection at 100 ms), covered by 24 GPU-free pytest tests.",
+          "inputs": [
+            "model.plan (engine) of the challenger version",
+            "labels.json (500 categories)",
+            "preprocess.py shared with training"
+          ],
+          "outputs": [
+            "gateway code + Triton model repository",
+            "24 passing tests",
+            "POST /v1/classify contract"
+          ],
+          "dod": [
+            "pytest passes all 24 tests without a GPU: 200, 400, 413, 415, 422, 503, 504, health checks and metrics.",
+            "`/healthz` does not depend on Triton; `/readyz` returns 200 only with the model ready.",
+            "Gateway names, shapes and dtypes match `config.pbtxt`.",
+            "No CPU work runs on the event loop; 150 ms timeout to Triton and 250 ms in total.",
+            "`config.pbtxt` has a 2 ms window, REJECT at 100 ms, 2 instances and warmup."
+          ],
+          "commandNotes": [
+            "The 24 tests against a fake Triton, in a Python 3.13 venv (the version it was tested with); no GPU needed.",
+            "Standalone gateway from `gateway/`, no Triton: `/healthz` returns 200, `/readyz` 503 and `/v1/classify` 503 with Retry-After.",
+            "Is Triton ready with its model loaded? (starts with `--strict-readiness`).",
+            "One end-to-end request against the gateway, with Triton up."
+          ]
+        },
+        "empaquetado": {
+          "title": "Packaging (Docker)",
+          "scope": "Package each tier in its own image — the gateway (FastAPI, multi-stage on `python:3.13-slim`, ≈ 0.1 GB compressed) and Triton with `config.pbtxt` and `model.plan` baked in (≈ 9.2 GB compressed) — and test both together with `docker compose` on a GPU machine.",
+          "inputs": [
+            "gateway code and pinned requirements.txt",
+            "model.plan (station 5) + config.pbtxt (station 6)"
+          ],
+          "outputs": [
+            "tested Dockerfiles (gateway and Triton)",
+            "docker-compose.yml that brings everything up on one GPU machine"
+          ],
+          "dod": [
+            "Both images build for linux/amd64, and the gateway image carries no tests, secrets or models.",
+            "The gateway runs as UID 10001 with a single uvicorn process and `/healthz` returns 200.",
+            "The Triton image includes `config.pbtxt` and `model.plan`, and its tag is the model version.",
+            "`docker compose up --build` returns a top-5 on `/v1/classify` and `localhost:9090/alerts` shows the 6 alerts.",
+            "The compressed size of each image is known: ≈ 0.1 GB for the gateway and ≈ 9.2 GB for Triton."
+          ],
+          "commandNotes": [
+            "On an Apple Silicon Mac `--platform` is mandatory: c6i and g4dn nodes are x86. The tag is the commit.",
+            "Fails on purpose if `model.plan` is missing: run `build_engine.sh` on the T4 first.",
+            "From `reference/c01`: gateway, Triton with GPU and Prometheus on one machine.",
+            "The end-to-end check: top-5 with `model_version`.",
+            "One row per layer: find the one that bloated the image.",
+            "Before deploying: the config must say `\"architecture\": \"amd64\"`. Without `--format`, a single-platform image does not show its own."
+          ]
+        },
+        "cicd": {
+          "title": "CI/CD & Image Registry",
+          "scope": "Run the 24 gateway tests on every commit, build each image once for `linux/amd64` into tag-immutable ECR repos (gateway in CI, Triton in the model pipeline on the T4), then scan, sign and deploy the same digest to staging and production.",
+          "inputs": [
+            "commit with code, Dockerfiles and manifests",
+            "Triton image from the model pipeline (station 5)"
+          ],
+          "outputs": [
+            "image in ECR (immutable tag + digest)",
+            "signed digest ready to deploy"
+          ],
+          "dod": [
+            "pytest passes the 24 gateway tests on every commit, without a GPU.",
+            "Each image was built only once (the gateway in CI, Triton in the model pipeline), with tag = commit or model version, in ECR repos with immutable tags.",
+            "The Triton image came from the model pipeline, built on the T4, with FP16-vs-PyTorch parity approved on that same image.",
+            "The digest is scanned and signed, and staging and production point to that same digest.",
+            "The lifecycle policy keeps the latest releases: rollback always has a target."
+          ],
+          "commandNotes": [
+            "24 tests with no GPU or Triton: the first thing CI runs.",
+            "ECR login; the token lasts 12 h. In CI, via an OIDC-assumed role, no stored keys.",
+            "Single build for the node architecture; `{sha}` is the first 7 characters of the commit: `git rev-parse --short=7 HEAD` (in CI, `${GITHUB_SHA::7}`).",
+            "The digest is the identity: it is what gets signed and deployed.",
+            "Keyless signing with the CI's OIDC identity.",
+            "Deploy by digest; with GitOps that value goes in a PR to the manifests repo."
+          ]
+        },
+        "kubernetes": {
+          "title": "Kubernetes",
+          "scope": "Run two Deployments on EKS spread across two zones — the gateway on CPU nodes (3–12 pods, HPA on CPU) and Triton on `g4dn.xlarge` nodes with one T4 per pod (2–4 pods, KEDA on queue time) — behind an internal ALB created from the Ingress by the AWS Load Balancer Controller.",
+          "inputs": [
+            "image in ECR (tag + digest)",
+            "k8s/*.yaml manifests"
+          ],
+          "outputs": [
+            "ready pods behind the internal ALB",
+            "HPA and ScaledObject scaling on their own"
+          ],
+          "dod": [
+            "`kubectl get pods -o wide` shows 2 Triton pods READY on nodes in different zones and at least 3 gateways.",
+            "GPU nodes advertise `nvidia.com/gpu: 1`, carry the taint, and no gateway runs on them.",
+            "`kubectl get hpa` shows the gateway HPA and `keda-hpa-triton` with real metrics, no `unknown`.",
+            "The Ingress has the internal ALB address and its targets pass the health check on `/readyz`.",
+            "The ServiceMonitors exist and the alerts are loaded as a PrometheusRule."
+          ],
+          "commandNotes": [
+            "Once per cluster.",
+            "ALB readiness gate: the rolling update does not kill an old pod until the ALB sees the new one healthy.",
+            "Declarative: you store the desired state and the controllers do the rest.",
+            "Phase, READY, restarts and node: one Triton per zone?",
+            "First stop when something does not start: the Events at the bottom say why.",
+            "Type, zone and `workload=gpu-t4` label of each node.",
+            "The gateway HPA and `keda-hpa-triton`, with the current metric against the target."
+          ]
+        },
+        "rollout": {
+          "title": "Safe Rollout",
+          "scope": "Release each model as a gateway vN + Triton vN pair with its own Service through shadow (1–2 days), canary 5 % → 25 % → 100 % with automatic rollback and, for large changes, a per-seller A/B, moving the champion alias on promotion and keeping the previous release live for 24–48 h.",
+          "inputs": [
+            "challenger in MLflow (alias challenger)",
+            "Triton vN image in ECR"
+          ],
+          "outputs": [
+            "new version at 100 % (alias champion)",
+            "previous release live for 24–48 h for rollback"
+          ],
+          "dod": [
+            "The new release (gateway vN + Triton vN with its Service) is ready before it receives traffic.",
+            "The criteria to roll back (5xx, p99, low confidence, PSI) and to advance are written before starting.",
+            "Each canary stage collected at least 10,000 requests and covered a daytime peak.",
+            "A person approved 100 %, the champion alias points to the new version and the previous one stays live for 24–48 h.",
+            "Rollback is rehearsed: weight back to stable in seconds; redeploy of the previous tag in ≈ 5–20 min."
+          ],
+          "commandNotes": [
+            "What would change before applying (exit 1 = there are differences).",
+            "Waits for the rollout: each Triton pod can take minutes (node, image, engine).",
+            "With Argo Rollouts: leaves the canary's manual pause.",
+            "Sends traffic back to stable; the Rollout stays `Degraded` until the template returns to the previous version (with GitOps, a revert).",
+            "Back to the previous ReplicaSet: the previous tag is the previous model. With GitOps, a git revert.",
+            "Revisions kept for rollback: C01 keeps 5."
+          ]
+        },
+        "request": {
+          "title": "Live Request Path",
+          "scope": "Serve each photo through the internal ALB → gateway (validate, decode, 602 KB tensor on CPU) → Triton (≤ 2 ms batching) → TensorRT FP16 on the T4 within p99 ≤ 200 ms server-side, with cascading timeouts (`300 → 250 → 150 → 100 ms`) and the caller's manual selector as fallback.",
+          "inputs": [
+            "photo (≈ 200 KB) from the listing backend"
+          ],
+          "outputs": [
+            "one JSON log line and metrics per request",
+            "top-5 with model_version and X-Request-ID for the caller"
+          ],
+          "dod": [
+            "Every response carries `model_version` and `X-Request-ID`, and every log line carries `preprocess_ms` and `inference_ms`.",
+            "The p99 of the gateway histogram, summed across pods, stays under 200 ms at the design peak (500 req/s).",
+            "Timeouts are chained: 300 ms the caller, 250 ms the deadline, 150 ms to Triton and 100 ms in the queue.",
+            "Under overload you see fast 503s and 504s (and the manual selector), not hung requests.",
+            "Each gateway calls the Triton in its own zone."
+          ],
+          "commandNotes": [
+            "Locally (compose): the response carries `model_version` and `latency_ms`, plus the `X-Request-ID` header.",
+            "200 only if the model is ready in Triton; on EKS, a 503 takes the pod out of the ALB.",
+            "One JSON line per request: `request_id`, `preprocess_ms`, `inference_ms`, `status`.",
+            "Tunnel to a Triton pod without exposing it: for inspection, not for load tests.",
+            "Cumulative time in Triton's queue: the signal KEDA scales on."
+          ]
+        },
+        "monitoreo": {
+          "title": "Monitoring & Retraining",
+          "scope": "Catch loud failures (errors, latency, pods down) in Prometheus within minutes and page on them, ticket silent ones (confidence, PSI, acceptance), and feed prediction logs and a retraining trigger back into labeling at station 1.",
+          "inputs": [
+            "metrics on /metrics (gateway :8080, Triton :8002)",
+            "prediction logs and caller events"
+          ],
+          "outputs": [
+            "retraining trigger and samples to label",
+            "alerts (page, warning, ticket) and dashboards"
+          ],
+          "dod": [
+            "The 6 alerts evaluate with their severity (page, warning or ticket) and each one has a runbook.",
+            "There are dashboards for service, Triton and GPU, model (split by `model_version`) and business.",
+            "100 % of predictions reach S3 without PII and the daily job publishes PSI and acceptance.",
+            "A trigger (monthly, PSI above 0.2 for 3 days, −3 pp acceptance or a new category) opens a ticket and brings the pipeline forward; nothing is promoted without gate and canary.",
+            "Low confidence, disagreements and a random sample reach the labeling queue (station 1)."
+          ],
+          "commandNotes": [
+            "Gateway and Triton ServiceMonitors; the `alerts.yml` rules are loaded separately as a PrometheusRule (command in the README).",
+            "p99 PromQL: sum buckets across pods first, then take the quantile.",
+            "5xx fraction over valid requests: 4xx do not count.",
+            "Triton's real average batch size: measure it, do not assume it.",
+            "If Prometheus cannot see Triton, the scaler error shows up here, not a silent 0."
+          ]
+        }
+      }
+    },
+    "batch": {
+      "name": "Batch",
+      "summary": "Sales, calendar and promotions are known ahead of time and nobody waits online: a scheduled job forecasts all 4.8 M series every night and the ERP reads an already-published table at 04:00. Versus C01, export, the live request and autoscaling drop out, and what protects a fixed window is added: cutoff sensors, an output gate, atomic publishing and a fallback that never leaves the ERP without a forecast.",
+      "removed": [
+        {
+          "id": "export",
+          "why": "The GBDT predicts on CPU with the same image that trains it: no ONNX or TensorRT."
+        },
+        {
+          "id": "request",
+          "why": "No online caller: the ERP reads the `forecast_current` view at 04:00, by target date."
+        }
+      ],
+      "steps": {
+        "kickoff": {
+          "title": "Requirements & Capacity Plan",
+          "scope": "Fix the nightly deadline (published by 03:30, ERP reads at 04:00), the series volume, the accuracy targets and the ≈ US$3–5k/month budget, and size the window, compute and cost from them.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Series and nightly rows are computed from the assortment: 400 stores × ≈ 12,000 products ≈ 4.8 M series, × 14 horizons ≈ 67.2 M rows per night.",
+            "The window is budgeted: data cutoff at 01:30, published by 03:30, ERP reads at 04:00; ≤ 60 min per attempt leaves room for one full retry.",
+            "Compute is sized: prediction ≈ 67 core-min (2–5 min on 32 vCPU), feature build on ≈ 16 × r7i.4xlarge spot in ≈ 20–40 min, weekly training on ≈ 490 M rows on an r7i.24xlarge spot in ≈ 2–3 h.",
+            "Monthly infra is ≈ US$3–5k, and 100 % of nights have a published forecast (fresh or fallback), with full fallback ≤ 1 night per month."
+          ],
+          "commandNotes": []
+        },
+        "datos": {
+          "title": "POS Sales & Stockouts",
+          "scope": "Land nightly POS sales (`sales_daily`, the label, at 00:30) with no human labeling, and drop stockout days (`oos_flag`) from the targets because their sales are not demand.",
+          "inputs": [
+            "POS sales `sales_daily` (00:30)",
+            "stockout flag `oos_flag`"
+          ],
+          "outputs": [],
+          "dod": [
+            "`sales_daily` and `stock_daily` (with `oos_flag`) land every night: sales at 00:30 (stores with poor connectivity, until 01:30) and closing stock at 01:00.",
+            "Days with `oos_flag` are excluded from targets and enter lags and means as NaN; `oos_days_7` and `oos_days_28` count how many there were.",
+            "Each series is densified against the assortment: true zero, stockout and missing data stay distinct, and a store that uploaded nothing never counts as sales of 0.",
+            "`price_promo` enters with the plan as known at the origin, and `retail_events.yaml` has the Buen Fin and Hot Sale dates for the year the features look at.",
+            "The `features/` tests pass, including the leakage test: with everything after `run_date` poisoned, the features come out identical."
+          ],
+          "commandNotes": []
+        },
+        "sensores-con-hora-de-corte": {
+          "title": "Cutoff Sensors",
+          "scope": "Wait for each store's sales and stock until all stores report or 01:30, and impute the missing ones with the same weekday of last week, flagged `imputed_input`.",
+          "inputs": [
+            "per-store sales and stock"
+          ],
+          "outputs": [
+            "imputed rows flagged `imputed_input`"
+          ],
+          "dod": [
+            "`wait_sales` and `wait_stock` run in reschedule mode, poking every 5 min, and finish when all stores have reported or at 01:30, whichever comes first.",
+            "No sensor fails on incomplete data; its backstop timeout is 2 h and, if it expires, the job does not run and the fallback goes out.",
+            "Stores missing at cutoff are imputed with their same weekday of last week (sales and stockout flag), and their rows carry `imputed_input`.",
+            "`InputDataIncomplete` opens a ticket above 2 % imputed stores, and above 5 % the gate blocks the night."
+          ],
+          "commandNotes": []
+        },
+        "versionado": {
+          "title": "Snapshots & Immutable Partitions",
+          "scope": "Pin a table snapshot for every training run (Iceberg or Delta time travel, or a dated copy) and keep every published night as an immutable, hash-named partition: the archive of what the ERP used.",
+          "inputs": [],
+          "outputs": [
+            "pinned training snapshot",
+            "immutable hash-named nightly partition"
+          ],
+          "dod": [
+            "Each training run uses a pinned table snapshot (Iceberg or Delta time travel, or a dated copy) recorded with the model.",
+            "Each model stores its snapshot, the feature-code commit, the sampling config and the library versions.",
+            "Each night writes an immutable version of the `run_date` partition of `forecast_daily`, named by the hash of its content: re-running it with the same data returns `already_published`.",
+            "Every `forecast_daily` row carries `run_date` and `model_version`, and old versions are never deleted: they are the forecast archive."
+          ],
+          "commandNotes": []
+        },
+        "entrenamiento": {
+          "title": "Weekly Quantile Training",
+          "scope": "Train two quantile GBDTs (P50 and P90) every Sunday on ≈ 490 M point-in-time rows on a 96-vCPU spot node in ≈ 2–3 h, with no GPU.",
+          "inputs": [
+            "≈ 490 M point-in-time rows"
+          ],
+          "outputs": [
+            "P50 and P90 quantile GBDTs"
+          ],
+          "dod": [
+            "Every Sunday a point-in-time training set of ≈ 490 M rows is built: top series with 52 full weeks, 10 % of the rest at weight 10 and one sampled horizon per row, with the seed recorded.",
+            "Two quantile models (α = 0.5 and 0.9) come out of a 96-vCPU spot node in ≈ 2–3 h; if spot interrupts it, it is retried.",
+            "P50 for fast movers does not come out at 0 (in the reference, with count jittering) and random early stopping is off.",
+            "The model stores its scikit-learn version, and `train_quantile.load` refuses to load it under a different one."
+          ],
+          "commandNotes": []
+        },
+        "gate": {
+          "title": "8-Origin Backtest Gate",
+          "scope": "Gate every recipe change on a rolling-origin backtest with 8 weekly origins: better WAPE than the champion and no major segment worse by more than 2 points.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "A recipe change runs the rolling-origin backtest with 8 weekly origins; each origin trains only on rows whose `target_date` has already passed.",
+            "The candidate has better WAPE than the champion, and no large segment (fresh, grocery, fast, slow, with and without promotion) worsens by more than 2 points.",
+            "WAPE, bias, pinball and P90 coverage are computed without stockout days, by segment and horizon, and against seasonal naive.",
+            "The weekly retrain of the same recipe passes the artifact gate: expected rows and features, loss in its range, few quantile crossings and one night in shadow.",
+            "The version enters the registry as `challenger` with its lineage: snapshot, commit, config and backtest results."
+          ],
+          "commandNotes": []
+        },
+        "serving": {
+          "title": "Nightly Forecast Job",
+          "scope": "Run `run_forecast.py` as the serving layer — impute, build features, predict ≈ 67 M rows and write a new partition — with no endpoint.",
+          "inputs": [],
+          "outputs": [
+            "new `forecast_daily` partition"
+          ],
+          "dod": [
+            "`run_forecast.py nightly` runs the night in 7 steps: completeness and imputation, calendar check, features, prediction, write, gate and compare-and-swap.",
+            "Features come from the same function that builds the training set, and the job first checks that `retail_events.yaml` covers the horizon and the 30 days that `days_to_` looks at; otherwise it fails loudly.",
+            "It predicts P50 and P90 for ≈ 67 M rows on CPU with the version pinned at startup: whole pieces, sorted per row, clipped at 0 and with crossings counted.",
+            "Each attempt fits in ≤ 60 min (01:30 to 03:30 leaves room for one retry) and pushes only that attempt's metrics with `pushadd`.",
+            "`pytest` in `reference/c14` passes the 73 tests (the DAG test is skipped without Airflow)."
+          ],
+          "commandNotes": []
+        },
+        "gate-de-salida-y-swap-atomico": {
+          "title": "Output Gate & Atomic Swap",
+          "scope": "Write–audit–publish: the gate re-reads what was written (rows = series × 14, p90 ≥ p50, per-category bands) and publishing is a compare-and-swap of the `forecast_current` pointer, so the ERP never sees a half-written table.",
+          "inputs": [
+            "written nightly partition"
+          ],
+          "outputs": [
+            "`forecast_current` pointer swapped to the new partition"
+          ],
+          "dod": [
+            "The gate reads back the already-written partition: rows = series × 14 (± 0.5 %), no duplicate keys, nulls or negatives, p90 ≥ p50 and imputed stores ≤ 5 %.",
+            "The per-category band compares 7-day Σ P50 against Σ of the medians of the last 4 same weekdays, fast movers only, within ±30 %; with a promotion or holiday it widens to [1/3×, 3×].",
+            "Publishing is a compare-and-swap of the `forecast_current` pointer (`UPDATE … WHERE partition = :esperado`): if it affects 0 rows, it fails instead of overwriting.",
+            "The pointer follows its rules: never backwards, a fallback never replaces the same night's model forecast, and after 03:55 it does not move.",
+            "If the gate blocks, the fallback goes out and `ForecastValidationBlocked` pages."
+          ],
+          "commandNotes": []
+        },
+        "fallback-y-guardian-de-las-03-45": {
+          "title": "Fallback & 03:45 Guard",
+          "scope": "Publish yesterday's forecast shifted one day when the job fails or the gate blocks, with a separate DAG that publishes it at 03:45 if nothing went out.",
+          "inputs": [
+            "yesterday's published forecast"
+          ],
+          "outputs": [
+            "fallback forecast shifted one day"
+          ],
+          "dod": [
+            "The fallback runs on the last published forecast: yesterday's horizons 2..14 become 1..13 and day 14 comes from seasonal naive, with `fallback` = true and its `reason`.",
+            "Three paths publish it: the job if the model or the gate fails, `publish_fallback` (trigger rule `all_failed`, always on-demand) if the job fails twice, and `forecast_fallback_guard` at 03:45 if nothing from the night is published.",
+            "The fallback builds no features (its naive reads 28 days of sales and stock) and passes the gate's structure rules.",
+            "`FallbackForecastServed` opens a ticket on every fallback night, and two nights in a row are escalated."
+          ],
+          "commandNotes": []
+        },
+        "empaquetado": {
+          "title": "Single Job Image",
+          "scope": "Build one image (`forecast-job`, pinned by digest) that both trains and predicts, because a model saved with scikit-learn's pickle is not portable across versions.",
+          "inputs": [],
+          "outputs": [
+            "`forecast-job` image (pinned by digest)"
+          ],
+          "dod": [
+            "A single image (`forecast-job`) trains and predicts, and the DAG uses it by digest, not by tag.",
+            "The image installs the `train/requirements.txt` lock (14 packages) and the code in `features/`, `train/` and `batch/`.",
+            "The entrypoint is `python run_forecast.py`, and `OMP_NUM_THREADS` equals the cores the pod requests.",
+            "A model saved with a different scikit-learn version does not load: the job rejects it instead of predicting with it."
+          ],
+          "commandNotes": []
+        },
+        "cicd": {
+          "title": "CI/CD, Image & DAG",
+          "scope": "Test and build the image as in C01, and also deploy the `forecast_nightly` DAG to Airflow.",
+          "inputs": [],
+          "outputs": [
+            "`forecast_nightly` DAG deployed to Airflow"
+          ],
+          "dod": [
+            "`pytest` passes the 73 tests in the four folders on every commit, without warehouse, Spark or Airflow.",
+            "`promtool check rules` and `promtool test rules` pass on `monitoring/alerts.yml`.",
+            "In a venv with Airflow 3.3.2 and the Kubernetes provider, the 10 DAG tests pass (import, timetable, templates and serialization).",
+            "`forecast_nightly_dag.py` and `nightly_rules.py` are deployed to the DAG bundle and wherever the triggerer imports them, with the `warehouse` connection created.",
+            "The job image is published once, and the DAG points to that same digest."
+          ],
+          "commandNotes": [
+            "24 tests with no GPU or Triton: the first thing CI runs.",
+            "ECR login; the token lasts 12 h. In CI, via an OIDC-assumed role, no stored keys.",
+            "Single build for the node architecture; `{sha}` is the first 7 characters of the commit: `git rev-parse --short=7 HEAD` (in CI, `${GITHUB_SHA::7}`).",
+            "The digest is the identity: it is what gets signed and deployed.",
+            "Keyless signing with the CI's OIDC identity.",
+            "Deploy by digest; with GitOps that value goes in a PR to the manifests repo."
+          ]
+        },
+        "kubernetes": {
+          "title": "Job Pod, No Deployment",
+          "scope": "Launch the job as a pod from Airflow (`KubernetesPodOperator`), with the first attempt on a Karpenter spot node and the retry on on-demand, and no Deployment, HPA or ALB.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "There is no Deployment, HPA or ALB: `run_forecast` runs with `KubernetesPodOperator` in the `forecasting` namespace.",
+            "The first attempt goes to a spot node and the retry to on-demand, via the `karpenter.sh/capacity-type` `node_selector`; `publish_fallback` and the guard always run on-demand.",
+            "The job pod has a 90 min `execution_timeout`, a memory limit and no CPU limit.",
+            "Karpenter has both capacity types, and a failed pod is kept so its logs can be read."
+          ],
+          "commandNotes": []
+        },
+        "job-programado-dag-forecast-nightly": {
+          "title": "Scheduled DAG (forecast_nightly)",
+          "scope": "Trigger the run from Airflow at 00:30 with `catchup=False` and `max_active_runs=1`, because a past night's forecast is useless for today's order and two nights at once would fight over the pointer.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "`forecast_nightly` runs on cron `30 0 * * *` in America/Mexico_City, with `catchup=False` and `max_active_runs=1`.",
+            "`run_date_for` converts the logical date to store time (it does not use `ds`, which is UTC), and a test covers it with a manual run at 19:00.",
+            "The DAG has a Deadline Alert at 03:30 (logical date + 3 h) whose callback notifies Alertmanager.",
+            "Tasks run `[wait_sales, wait_stock] >> run_forecast >> publish_fallback`, and `forecast_fallback_guard` is a separate DAG with cron `45 3 * * *`."
+          ],
+          "commandNotes": []
+        },
+        "rollout": {
+          "title": "Shadow, Alias & Pilot",
+          "scope": "Run the challenger one night in shadow through the same gate and promote it by moving the `champion` alias, with no traffic canary, and measure business value with 40 pilot stores against 40 control stores.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The challenger runs one night in shadow alongside the champion, and its output goes through the same gate.",
+            "Promoting means moving the `champion` alias; each run resolves it to a version at startup, and the previous one stays ready for a one-minute rollback.",
+            "The pilot matches 40 store pairs (format, DC, sales) and randomizes within each pair: 8 weeks, difference-in-differences on stockouts and shrink.",
+            "The first 2 pilot weeks are burn-in and do not count, and management overrides are logged and measured with FVA.",
+            "Rolling back an already-published night means re-running it with the previous champion before 03:55, never pointing the view at an old night."
+          ],
+          "commandNotes": []
+        },
+        "monitoreo": {
+          "title": "Two-Clock Monitoring",
+          "scope": "Watch two clocks: the night (`ForecastRunLate`, `ForecastRunFailed`: page), from metrics the job pushes to the Pushgateway, and accuracy (`WAPEDegraded`: ticket), which arrives days later with the sales.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The 8 alerts in `alerts.yml` pass their promtool tests: `ForecastRunLate`, `ForecastRunFailed` and `ForecastValidationBlocked` page; the other five open tickets.",
+            "`ForecastRunLate` watches the age of the published `run_date` (over 51.5 h, or the metric absent), so it does not depend on Airflow.",
+            "Each attempt pushes publish time, rows, imputed stores, gate result and fallback to the Pushgateway.",
+            "The daily accuracy job publishes 7-day WAPE and bias by segment (horizons 1–2, no stockout days) against the backtest's: `WAPEDegraded` fires above 5 points and `ForecastBiasDrift` above 10.",
+            "The model retrains every Sunday; two weeks of `WAPEDegraded` lead to a per-segment diagnosis before retraining."
+          ],
+          "commandNotes": []
+        }
+      }
+    },
+    "asincrono": {
+      "name": "Async (queue)",
+      "summary": "A slide takes ≈ 20–30 s of GPU and the result waits for the pathologist, so the archive publishes an event, an SQS queue absorbs scanner bursts and KEDA scales GPU workers from 0 to 4 against a turnaround p95 ≤ 60 min SLO. The ms request is replaced by a queue with a DLQ, versioned results read by the viewer and expert review that feeds labels; C05 applies the same pattern on CPU, with `docs-api` (202 after a synchronous quality gate) and one Step Functions execution per document.",
+      "removed": [
+        {
+          "id": "request",
+          "why": "Nobody waits for a ms response: a slide takes ≈ 20–30 s and the pathologist opens the case later, so the synchronous request becomes event → queue → worker → results the viewer reads."
+        }
+      ],
+      "steps": {
+        "kickoff": {
+          "title": "Requirements & Capacity Plan",
+          "scope": "Size GPU work, workers, burst drain time and storage from 1,200 slides/day against the turnaround p95 ≤ 60 min and nightly-coverage SLOs and the ≤ US$2k/month infra + 20 h/month pathologist budget.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Daily GPU work is computed: 1,200 slides × ≈ 3,000 tiles ≈ 3.6 M tiles ≈ 5 GPU-h/day at 200 tiles/s per L4 (≈ 70 % of the ≈ 300 tiles/s measured max).",
+            "One L4 worker covers the peak (≈ 170 slides/h ≈ 142 tiles/s); a 200-slide burst drains in ≈ 25 min with 4 workers including cold start, against the 60 min SLO.",
+            "Result storage is sized at ≈ 5 MB per slide: ≈ 180 GB/month, ≈ 2.2 TB/year.",
+            "Monthly cost is ≈ US$1.2k of infra (under the US$2k cap) + ≈ US$4k for 20 h of pathologist time, ≈ US$5.2k in total."
+          ],
+          "commandNotes": []
+        },
+        "datos": {
+          "title": "Data & Labels",
+          "scope": "Split the 20 pathologist hours per month (≈ US$4k, the system's dominant cost) across audit, temporal set and active-learning regions, treating sign-out corrections as free but biased labels.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The monthly split is done: ≈ 2 h of random audit, ≈ 2.5 h of temporal set and ≈ 15.5 h of active learning (≈ 620 regions at 1.5 min).",
+            "`select_for_labeling.py` selected by uncertainty and diversity: at most 5 regions per slide, strata by lab and scanner, lab C first and no golden-set slides.",
+            "QC ran before selection: marker ink, folds, bubbles and out-of-focus areas do not consume pathologist hours.",
+            "Labeling copies are de-identified: no label image or macro, metadata cleaned against an allowlist of fields, and pseudonymized ids.",
+            "The golden set and the audit are annotated independently, without seeing the overlay: residents pre-annotate and a pathologist approves."
+          ],
+          "commandNotes": []
+        },
+        "versionado": {
+          "title": "Dataset Versioning & Lineage",
+          "scope": "Publish each snapshot as an immutable manifest that records where every label came from, and keep the 100-slide golden set as a separate, frozen artifact.",
+          "inputs": [],
+          "outputs": [
+            "immutable snapshot manifest",
+            "frozen golden set (100 slides)"
+          ],
+          "dod": [
+            "The manifest has each slide's sha256, the annotation version, the guideline version, the label source (independent annotation, correction or active-learning region) and the split.",
+            "The split is by patient (at minimum by slide), never by tile; the monthly temporal set also splits by date.",
+            "The snapshot excludes, by pseudonymized patient id, everything in the golden set or the temporal sets.",
+            "The golden set (100 slides, 2 pathologists + consensus) is versioned as a separate artifact and changes only through controlled additions."
+          ],
+          "commandNotes": []
+        },
+        "entrenamiento": {
+          "title": "Tile-Based Training",
+          "scope": "Train on tiles sampled from annotated regions in an on-demand GPU job, monthly or on trigger (drift, new lab or scanner), reading and downsampling exactly as the worker does.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The run is reproducible: data snapshot, commit and container by digest.",
+            "Tiles come from the same read-and-downsample code as the worker (the 2× from level 0).",
+            "With partial annotations, the loss is computed only where there is a label.",
+            "If color is normalized at inference, the normalization goes into the config hash; color augmentation lives only in training."
+          ],
+          "commandNotes": []
+        },
+        "gate": {
+          "title": "Per-Slice Gate",
+          "scope": "Measure criteria written before training on the golden set per slice (lab, scanner, specimen type), with intervals and against the inter-pathologist agreement ceiling (Dice ≈ 0.75–0.85).",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "No slice is worse than production by more than its interval (e.g. Dice −0.02, paired comparison with per-slide bootstrap).",
+            "Per-lesion sensitivity (foci ≥ 1 mm) is ≥ 95 % with ≤ 1 false region per slide, and the tumor % error is ≤ 5 points.",
+            "Per-slice calibration is measured and the decision threshold is recorded as part of the artifact.",
+            "The registry stores the lineage (dataset, commit, digest, preprocessing config, engine and threshold); a candidate that fails is not registered."
+          ],
+          "commandNotes": []
+        },
+        "export": {
+          "title": "TensorRT Engine on L4",
+          "scope": "Export to ONNX and build a TensorRT FP16 engine as in C01, but on an L4 and for the worker itself to load, baked into its image.",
+          "inputs": [],
+          "outputs": [
+            "TensorRT FP16 engine baked into the worker image"
+          ],
+          "dod": [
+            "The engine was built with `trtexec --fp16` on an L4, inside `tensorrt:26.08-py3`, the worker's own base image.",
+            "The engine-vs-PyTorch parity test passed on real tiles.",
+            "`trtexec` measured the max per L4 (case assumption: ≈ 300 tiles/s) and the plan sits at ≈ 70 %: 200 tiles/s per worker.",
+            "The engine is tied to the GPU (L4 = Ada, sm_89) and to the exact TensorRT version: changing the base or the GPU forces a rebuild and another pass through the gate."
+          ],
+          "commandNotes": []
+        },
+        "serving": {
+          "title": "Per-Slide Worker",
+          "scope": "Run `seg-worker` to take a message, download the slide to NVMe, validate, tile only the tissue with overlap, infer in batches and stitch the map, with no endpoint, since ≈ 20–30 s of GPU per slide would break any reasonable HTTP timeout.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The idempotency key is sha256 + model_version + config hash: a redelivery with an ok result already written does not touch the GPU.",
+            "A missing, odd or different (± 10 %) mpp versus the scanner's calibration, or less than 1 mm² of tissue, writes `qc_blocked` with the reason and no numbers.",
+            "Tiles are 512 with 64 px overlap (stride 448) and are stitched with ramps that sum to 1 into a 4 µm/px map: no seams and within the pod's RAM.",
+            "On SIGTERM it stops pulling messages, aborts at the next batch and returns the slide with visibility 0.",
+            "`pytest` passes the worker's 65 tests without AWS or GPU."
+          ],
+          "commandNotes": []
+        },
+        "empaquetado": {
+          "title": "Image with Baked Engine",
+          "scope": "Ship a single GPU image for the worker with the engine inside, whose digest identifies code + TensorRT + model and is recorded in every `summary.json`; its size matters because it is paid on every start from zero replicas.",
+          "inputs": [],
+          "outputs": [
+            "worker GPU image with the engine baked in"
+          ],
+          "dod": [
+            "The base is `nvcr.io/nvidia/tensorrt:26.08-py3` and `model.plan` is in `worker/model/` before `docker build`.",
+            "OpenSlide comes as a wheel (`openslide-bin`), without `apt-get`; the lock has 14 packages and the image runs as a non-root user.",
+            "pytest, moto and tifffile (`requirements-dev.txt`) are not in the image.",
+            "The image size is known: ≈ 6.8 GB compressed, part of the ≈ 3–5 min cold start."
+          ],
+          "commandNotes": []
+        },
+        "cicd": {
+          "title": "CI/CD with L4 Runner",
+          "scope": "Run tests without a GPU, build the engine in the pipeline on an L4 runner inside the same base image, and promote by having CD resolve the production alias, build or pull that version's image and roll out `seg-worker`.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The worker's 65 tests, the selection's 13 and the PSI job's 6 pass.",
+            "`promtool test rules` passes: the 10 alerts fire (or not) on synthetic series.",
+            "Each Deployment pins its `MODEL_VERSION` (= image tag) and the digest is recorded; the worker does not query the registry.",
+            "A base-image or GPU change goes through the gate again."
+          ],
+          "commandNotes": []
+        },
+        "kubernetes": {
+          "title": "GPU Workers with KEDA",
+          "scope": "Run one Deployment on g6.2xlarge nodes (1 × L4, 8 vCPU) that KEDA scales from 0 to 4 on the queue, so no GPU runs at night; the ≈ 3–5 min cold start is acceptable against a 60 min SLO.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The SQS ScaledObject has 0–4 replicas, `queueLength: \"20\"`, `scaleOnInFlight` and a 15 min `cooldownPeriod` before scaling to 0.",
+            "The pod requests 1 GPU, has no CPU limit, uses `emptyDir` on the local NVMe, and its liveness checks a file the loop touches.",
+            "Least-privilege IRSA: the archive is read-only and results have only GetObject, PutObject and ListBucket, no DeleteObject.",
+            "A spot notice drains the node (Karpenter with its interruption queue or the Node Termination Handler) and the 90 s grace is enough; no PodDisruptionBudget, on purpose.",
+            "`seg-worker.yaml` passes `kubernetes-validate --strict` and the KEDA CRD schemas."
+          ],
+          "commandNotes": []
+        },
+        "rollout": {
+          "title": "Silent Mode & Promotion",
+          "scope": "Run a new model or a new lab first in silent mode, with results hidden from the viewer, and promote only with clinical governance approval; no traffic canary or A/B on patients.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The candidate ran in a separate Deployment pinned to its version, fed by the `slide-jobs-backfill` queue, at night and outside the turnaround SLI.",
+            "Its results, under their own version prefix, were compared against production and against the pathologists' corrections.",
+            "A new lab spent 2–4 weeks in silent with ≥ 30 slides annotated without the overlay before assisted mode.",
+            "With approval, the production alias changes, CD deploys the image, results-api approves that version and the lab's flag switches to assisted.",
+            "Rollback is defined: `kubectl rollout undo` (minutes) and removing the bad version from results-api's approved versions."
+          ],
+          "commandNotes": []
+        },
+        "evento-cola": {
+          "title": "Event & Queue with DLQ",
+          "scope": "Start work automatically: when an upload finishes the archive emits an event (key + sha256), a rule filters what is in scope against the LIS and publishes the job to the `slide-jobs` SQS queue, which absorbs bursts and isolates persistent failures in `slide-jobs-dlq`.",
+          "inputs": [
+            "archive upload event (key + sha256)"
+          ],
+          "outputs": [
+            "job message in `slide-jobs`"
+          ],
+          "dod": [
+            "The message carries slide_id, key, sha256, lab and scanner; never the file.",
+            "The visibility timeout is 300 s, comfortably above the per-slide p99, and the worker extends it with `ChangeMessageVisibility` every 60 s.",
+            "`maxReceiveCount` 3 lives in the redrive policy: on the 4th receive the message moves to `slide-jobs-dlq`; after an error, visibility is set to 60 s × attempt.",
+            "Known data problems (`qc_blocked`) are not retried: the DLQ holds only what you genuinely do not understand.",
+            "For DICOM (lab C), one job is published per Series Instance UID once all its instances have arrived, with the manifest of keys."
+          ],
+          "commandNotes": []
+        },
+        "resultados": {
+          "title": "Versioned Results & Viewer",
+          "scope": "Store results outside the worker — S3 plus an index row in Postgres — served by `results-api`, an always-on CPU service, so the viewer never depends on a running GPU.",
+          "inputs": [],
+          "outputs": [
+            "results in S3 + Postgres index row",
+            "`results-api` responses for the viewer"
+          ],
+          "dod": [
+            "Write order is respected: GeoJSON and heatmap in the run folder, then `summary.json` (the commit), then the index row and the `slide_done` log; only then is the message deleted.",
+            "`summary.json` carries tumor mm², tissue %, QC flags, model_version, container digest, config hash and input sha256.",
+            "results-api returns, among the versions approved for that lab, the newest result for that sha256; in silent mode it returns nothing.",
+            "The viewer draws only if the result's sha256 matches the file it is showing; otherwise it says “no AI result”.",
+            "Every result, access and correction goes to an append-only audit log, in a bucket with Object Lock."
+          ],
+          "commandNotes": []
+        },
+        "revision": {
+          "title": "Pathologist Review",
+          "scope": "Have the pathologist accept or correct before signing, with sign-out always human, and turn each correction into a label and a metric that flow back to station 1.",
+          "inputs": [],
+          "outputs": [
+            "new annotation versions (labels)",
+            "major-edit rate"
+          ],
+          "dod": [
+            "Each acceptance or correction is a new annotation version, with author, time, review time and the model version that produced it; it never overwrites the model output.",
+            "The major-edit rate is computed: symmetric difference between proposal and final mask ÷ proposed area > 20 %.",
+            "Large corrections enter as high-priority candidates; what was accepted unchanged does not enter training as ground truth.",
+            "The monthly random audit (8 independently annotated slides) measures automation bias and is read quarterly, not monthly."
+          ],
+          "commandNotes": []
+        },
+        "monitoreo": {
+          "title": "Monitoring & Retraining",
+          "scope": "Write the SLO on job age — turnaround p95 ≤ 60 min and 99 % of what is scanned before 22:00 processed by 07:00 — alert on the age of the oldest message rather than queue depth, and expect quality signals to arrive weeks late and biased.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The 10 alerts in `alerts.yml` evaluate with their tests; only what breaks turnaround during hours (07:00–22:00) pages, plus `NightlyCoverageAtRisk` from 05:30.",
+            "`SlideQueueBacklog` watches age (> 30 min sustained for 10 min) and `SlideDLQNotEmpty` exists separately, because a poison message stops counting toward age.",
+            "The daily `stain_psi.py` job pushes color PSI per lab × scanner to the Pushgateway, and `StainPsiJobStale` warns after more than 26 h without data.",
+            "No metric uses slide_id as a label.",
+            "Retraining is monthly or on trigger (new lab or scanner, confirmed drift, `MajorEditRateHigh` confirmed by a blind review of 20–30 slides) and always goes through gate and silent/backfill."
+          ],
+          "commandNotes": []
+        }
+      }
+    },
+    "llm": {
+      "name": "LLM & RAG",
+      "summary": "Almost nothing is trained: the LLM already exists and the C10 platform serves it (`llm-gateway` → vLLM), with C11 as one more tenant. The work moves to ingestion (connectors, chunking, embeddings and permissions) and to golden-set evaluation, and the request goes from milliseconds to seconds, with token streaming and citations.",
+      "removed": [
+        {
+          "id": "entrenamiento",
+          "why": "The LLM (C10's `chat-default`) and the embedding model come ready-made; instead, ≈ 12 M chunks are embedded (≈ 44 L4-hours)."
+        },
+        {
+          "id": "export",
+          "why": "No in-house ONNX or TensorRT: on the C10 platform, vLLM loads FP8 weights from a pinned revision, copied from S3 to NVMe and verified with sha256."
+        }
+      ],
+      "steps": {
+        "kickoff": {
+          "title": "Requirements & Capacity Plan",
+          "scope": "Size the corpus, index, traffic and 8k prompt against the permission, freshness and latency SLOs (retrieval p95 ≤ 700 ms, first token p95 ≤ 2.5 s) and the monthly cost per question.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The corpus is sized: ≈ 1.5 M documents → ≈ 12 M chunks of 400 tokens ≈ 4.8 B tokens; a full embed is ≈ 44 L4-hours (≈ US$36).",
+            "The index fits on 3 × r7i.2xlarge with 2 copies in FP16: ≈ 18.4 GB of vectors per node, ≈ 78 % of RAM in use.",
+            "Traffic and prompt are budgeted: ≈ 0.7 qps average and ≈ 2 qps peak; prompt ≈ 5,300 + 600 output = 5,900 of 8,192 tokens; gateway quota ≈ 1 M tokens/min.",
+            "The reranker fits the retrieval budget (≈ 0.24 s for 50 pairs on an L4, ≈ 0.45 s with the rest, within 700 ms), and infra is ≈ US$7.6k/month, ≈ US$0.014 per question."
+          ],
+          "commandNotes": []
+        },
+        "datos": {
+          "title": "Documents, ACLs & Golden Set",
+          "scope": "Scope the ≈ 1.5 M Confluence, Drive, Jira and policy documents with their ACLs, plus a golden set of ≈ 600 questions written with each area's domain experts; there is no training dataset.",
+          "inputs": [],
+          "outputs": [
+            "≈ 1.5 M documents with ACLs",
+            "golden set (≈ 600 questions)"
+          ],
+          "dod": [
+            "Sources are scoped: Confluence, Drive, Jira (last 2 years only) and the policy repository, ≈ 1.5 M documents after filtering, with HR and legal excluded by default.",
+            "Each document carries its ACL normalized to principals (`user:`, `group:`, `role:`, `domain:`), and a shared link counts as not shared.",
+            "The golden set has ≈ 600 questions written with each area's experts, with expected documents and a reference answer, and includes permission pairs, unanswerable questions, tables, versions and multi-turn.",
+            "≈ 200 answers are graded by experts with the rubric, to calibrate the judge.",
+            "Before Drive was opened, Security reviewed the over-sharing scan."
+          ],
+          "commandNotes": []
+        },
+        "ingestion-con-conectores": {
+          "title": "Connector Ingestion",
+          "scope": "Detect changes per source with one connector each (webhook or polling), then parse and OCR into ≈ 400-token chunks that carry their heading path and ACL.",
+          "inputs": [],
+          "outputs": [
+            "≈ 400-token chunks with heading path and ACL"
+          ],
+          "dod": [
+            "Each source has its connector: events (webhook or change feed), modified-date polling as a safety net, and a reconciliation sweep that compares ids and versions against the index.",
+            "Parsing preserves structure: OCR on pages without a text layer, tables as rows with their header, and parsed text stored in S3 by version and hash.",
+            "Chunks are ≈ 400 tokens (hard cap 512), follow sections, carry the heading path, ACL fields and hash, and never split table rows.",
+            "Processing the same event twice changes nothing, deletes are kept as tombstones, and a pass that would delete more than 2 % of a source halts.",
+            "An edited page is answerable at p95 ≤ 15 min, and `IngestionLagHigh` watches lag per source."
+          ],
+          "commandNotes": []
+        },
+        "carril-rapido-de-permisos": {
+          "title": "Permissions Fast Lane",
+          "scope": "Have ACL sync rewrite only the `acl_0…acl_2` fields of the affected chunks, so a revocation applies in ≤ 5 min without re-embedding or waiting behind a PDF.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Permission changes go to their own queue: ACL sync rewrites only `acl_0`…`acl_2` of the affected chunks, without re-embedding.",
+            "A revocation applies in ≤ 5 min, measured end to end by the permissions probe.",
+            "Anything the service account can no longer read is deleted from the index (fail-closed).",
+            "The IdP snapshot refreshes every ≈ 60 s; `ACLSyncStale` fires with a snapshot older than 2 min, a source that has not synced permissions in 5 min, or a p95 lag above 5 min.",
+            "`test_acl_only_change_updates_metadata_without_embedding` passes with the same document version."
+          ],
+          "commandNotes": []
+        },
+        "versionado": {
+          "title": "Versioned Text, Chunks & Index",
+          "scope": "Version the parsed text (in S3, by hash), each chunk with its hash and the embedding `model_version`, the index behind an alias, and the golden set as a dataset.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The parsed text of every version of every document lives in S3, addressed by hash, so re-chunking needs neither the APIs nor OCR again.",
+            "Each chunk stores its hash and the embedding `model_version`, and only chunks whose hash changed are re-embedded.",
+            "The index sits behind an alias, and the query encoder refuses to answer if its version is not that of the aliased index.",
+            "The golden set is versioned as a dataset and grows every month with cases from feedback."
+          ],
+          "commandNotes": []
+        },
+        "indice-hibrido-en-opensearch": {
+          "title": "Hybrid OpenSearch Index",
+          "scope": "Keep BM25 and HNSW in the same OpenSearch index behind an alias, fed by an L4 embed-worker (d = 1024) that upserts only chunks whose hash changed.",
+          "inputs": [],
+          "outputs": [
+            "hybrid index (BM25 + HNSW) behind an alias"
+          ],
+          "dod": [
+            "The dedicated OpenSearch cluster has 3 r7i.2xlarge nodes in 3 zones with 1 replica, separate from the marketplace search cluster.",
+            "Each chunk carries text for BM25, an FP16 d = 1024 vector (HNSW on faiss), metadata and ACL fields.",
+            "The L4 embed-worker upserts only chunks whose hash changed, with their `model_version`.",
+            "A full backfill or re-embed (≈ 44 L4-hours, ≈ US$36) goes to a new index, on temporary spot L4s.",
+            "ANN recall against exact search is measured on a canary set."
+          ],
+          "commandNotes": []
+        },
+        "gate": {
+          "title": "Golden-Set Gate",
+          "scope": "Run the golden set against the full system — recall@8, faithfulness and citation precision with a calibrated judge, and permissions at 100 % — for any change to chunker, embeddings, reranker, prompt or LLM.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The golden set runs against the full system as test users: recall@8 and MRR by source, area and language, plus faithfulness and citation precision from the judge.",
+            "The permissions suite passes at 100 %: no chunk from a restricted document appears in the 50 candidates or in the prompt, and a single leak blocks.",
+            "Against the current revision: paired recall@8 with no significant loss and no slice drop above 5 pp, faithfulness and citation precision within 2 points, and correct abstention does not drop.",
+            "The judge has kappa ≥ 0.6 and false pass ≤ 10 % against expert answers (starting points), and is recalibrated when the judge or the rubric changes.",
+            "Any change to parser, chunker, embeddings, reranker, abstention threshold, prompt or LLM revision goes through this same gate."
+          ],
+          "commandNotes": []
+        },
+        "serving": {
+          "title": "rag-api Hybrid Retrieval",
+          "scope": "Serve `POST /v1/ask` over SSE from `rag-api` (FastAPI): principals → BM25 ∥ k-NN fused with RRF (k = 60) → reranker 50 → 8 → 8k prompt → `llm-gateway` → validated citations.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "`POST /v1/ask` validates the token, resolves the principals and runs BM25 and k-NN in parallel (300 ms timeout each), with the permission filter inside both queries and never as `post_filter`.",
+            "RRF (k = 60) fuses, the ACL rule is re-applied to the 50 (it must remove zero) and the reranker keeps 8, with at most 3 chunks per document; if it does not answer in 400 ms, the RRF order stands.",
+            "The prompt fits in 8k: fixed instructions, history trimmed first and 8 numbered, dated sources, ≤ 7,336 tokens and ≤ 7,500 by the gateway's estimate.",
+            "With no candidates or below the abstention threshold the LLM is not called, and when the stream closes each citation is validated against the prompt's sources and the permissions.",
+            "`pytest` in `reference/c11` passes the 128 tests."
+          ],
+          "commandNotes": []
+        },
+        "plataforma-llm-del-c10": {
+          "title": "C10 LLM Platform",
+          "scope": "Call the LLM through `llm-gateway` with the `employee-assistant` tenant key, a tokens/min quota and the `chat-default` alias → vLLM replicas (≈ 70B, 8k context).",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The `employee-assistant` tenant has its key in `llm-gateway`, a ≈ 1 M tokens/min quota, interactive priority and the `chat-default` alias, with no fallback to the external provider.",
+            "Every call uses `stream: true` and `max_tokens` 600, and cancellation propagates if the person closes the chat.",
+            "A gateway 429 or 503 is not retried in a loop: the response falls back to search results only, same as when the first token does not arrive within 8 s.",
+            "The tenant can pin its LLM revision until its golden set approves the new one."
+          ],
+          "commandNotes": []
+        },
+        "empaquetado": {
+          "title": "rag-api Containers",
+          "scope": "Containerize `rag-api`, the encoder and the reranker as in C01; vLLM runs its official image on the C10 platform.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The `rag-api` image installs the `service/requirements.txt` lock (via `uv pip compile`, for Linux x86_64 and Python 3.13), without the test dependencies.",
+            "Each container runs a single uvicorn process: scale with replicas, not workers.",
+            "The query encoder runs in a different Deployment from the embed-worker, on the reranker's L4s.",
+            "vLLM uses the official `vllm/vllm-openai` image, pinned by version and digest in the C10 manifest."
+          ],
+          "commandNotes": [
+            "On an Apple Silicon Mac `--platform` is mandatory: c6i and g4dn nodes are x86. The tag is the commit.",
+            "Fails on purpose if `model.plan` is missing: run `build_engine.sh` on the T4 first.",
+            "From `reference/c01`: gateway, Triton with GPU and Prometheus on one machine.",
+            "The end-to-end check: top-5 with `model_version`.",
+            "One row per layer: find the one that bloated the image.",
+            "Before deploying: the config must say `\"architecture\": \"amd64\"`. Without `--format`, a single-platform image does not show its own."
+          ]
+        },
+        "cicd": {
+          "title": "CI/CD & Golden-Set Gate",
+          "scope": "Test and build images as in C01, with the golden-set gate deciding whether a change ships.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "`pytest` passes the 128 tests in the five folders on every commit, without OpenSearch, GPU or gateway.",
+            "`promtool check rules` and both `promtool test rules` pass on `monitoring/alerts.yml`.",
+            "A chunker, embeddings, reranker, prompt or LLM-revision change does not ship without an approved golden-set gate.",
+            "A permission leak in the golden set blocks the release even if recall is perfect."
+          ],
+          "commandNotes": [
+            "24 tests with no GPU or Triton: the first thing CI runs.",
+            "ECR login; the token lasts 12 h. In CI, via an OIDC-assumed role, no stored keys.",
+            "Single build for the node architecture; `{sha}` is the first 7 characters of the commit: `git rev-parse --short=7 HEAD` (in CI, `${GITHUB_SHA::7}`).",
+            "The digest is the identity: it is what gets signed and deployed.",
+            "Keyless signing with the CI's OIDC identity.",
+            "Deploy by digest; with GitOps that value goes in a PR to the manifests repo."
+          ]
+        },
+        "kubernetes": {
+          "title": "C10 EKS & L4 Nodes",
+          "scope": "Run the LLM on the C10 EKS (vLLM pods with 2 × H100), and add L4s for the encoder and reranker plus a dedicated 3-node OpenSearch cluster for C11.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The LLM runs on C10's `vllm-70b` pods: 2 × H100 per pod, with TP=2.",
+            "C11 adds L4s for the query encoder and the reranker (≈ 0.24 s for 50 pairs).",
+            "OpenSearch runs on its own 3-node cluster, separate from the marketplace search cluster.",
+            "Backfills use temporary spot L4s and never make a question wait."
+          ],
+          "commandNotes": []
+        },
+        "rollout": {
+          "title": "Blue/Green Index via Alias",
+          "scope": "Ship a new embedding model as a new index (blue/green), shadow-compared on real questions and switched by alias together with the encoder, keeping the old index a few days for rollback.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "A new embedding model is embedded into a new index: vectors from two models are never mixed.",
+            "It passes the gate and is shadow-compared on real questions, reviewing where the top-8 changes.",
+            "The index alias switches together with the query-encoder version, and the old index stays a few days for rollback.",
+            "While the switch lasts, the permissions lane writes to both indexes.",
+            "When C10 moves `chat-default`, `employee-assistant` stays on the previous revision until its golden set approves the new one."
+          ],
+          "commandNotes": []
+        },
+        "request": {
+          "title": "Streaming Answer in Seconds",
+          "scope": "Answer in seconds instead of milliseconds — retrieval + rerank p95 ≤ 700 ms, first token p95 ≤ 2.5 s, streamed answer ≤ 10 s — and return 503 when the IdP group snapshot is older than 5 min.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Retrieval + rerank p95 ≤ 700 ms, first token p95 ≤ 2.5 s and full streamed answer ≤ 10 s.",
+            "With an IdP snapshot older than 5 min, `rag-api` returns 503; a person who is not in the IdP gets 403.",
+            "The `meta` event goes out with the sources before calling the gateway, and the final event carries an `outcome` that separates `no_sources` from `no_answer`.",
+            "The trace stores retrieved and cited chunk ids, scores and latencies, without the question or answer text, for 30 days."
+          ],
+          "commandNotes": []
+        },
+        "monitoreo": {
+          "title": "Age & Count Monitoring",
+          "scope": "Add ingestion and permission lag (`ACLSyncStale`), the zero-result retrieval rate and a groundedness canary every 4 h; there is no retraining, and the loop closes with chunking, prompt or index changes that pass the same gate.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The 8 alerts in `alerts.yml` pass their promtool tests, and the latency alerts only evaluate at ≥ 0.05 questions/s.",
+            "`IngestionLagHigh` watches p95 lag per source (over 15 min) and a source with no events for 1 h during business hours; `IndexDocCountDrop`, documents per source against 24 h ago.",
+            "The groundedness canary runs ≈ 100 fixed questions every 4 h, and `GroundednessCanaryRegression` fires below 85 %, more than 5 points under its 7-day average, or if it has not run in 8 h.",
+            "The judge scores ≈ 1 % of real answers and only the score, chunk ids and area are stored.",
+            "No retraining: every chunking, prompt or index change passes the same gate."
+          ],
+          "commandNotes": []
+        },
+        "probe-de-permisos": {
+          "title": "Permissions Probe",
+          "scope": "Have synthetic accounts with and without access query canary documents every few minutes, and treat any retrieval without access as a security incident, not a ticket.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Every source has canary documents with unique phrases, and synthetic accounts with and without access query them every few minutes.",
+            "The no-access account never retrieves a canary document.",
+            "The probe revokes an access and times how long it takes to disappear, against the ≤ 5 min target.",
+            "A failure is a security incident with its runbook (disable the source, audit traces by document id, notify Security), not a ticket."
+          ],
+          "commandNotes": []
+        }
+      }
+    },
+    "hibrido": {
+      "name": "Hybrid",
+      "summary": "Embedding search combines two patterns: the expensive part is precomputed (vectors for 100 M listings, in batch when the model changes and streamed through Kafka for new items) and the query is encoded and searched online, at p99 ≤ 300 ms for text. Versus C01 a stateful index appears (re-embed, build green, stream-index) and rollout becomes an index blue/green; C06 instead pairs a synchronous check with an async cascade and people, and C08 adds a per-request funnel with streaming features.",
+      "removed": [],
+      "steps": {
+        "kickoff": {
+          "title": "Requirements & Capacity Plan",
+          "scope": "Size QPS, the vector index, GPUs and re-embed cost from daily search volume against the text and photo p99, 99.9 % availability, freshness targets and the ≤ US$20k/month budget.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "QPS is computed from 50 M searches/day: ≈ 579 average and ≈ 1,750 peak (3×), of which ≈ 90 by photo and ≈ 1,660 by text.",
+            "The vector index is sized: 100 M × 512 as HNSW on int8 ≈ 77 GB, in 4 shards × 2 copies on 8 × r7i.4xlarge (≈ 64 % memory), with each copy able to hold the peak alone.",
+            "GPUs are sized: 2 × L4 for the query encoder (N+1, one per zone) and 8 L4 for the reranker on the top-30; a full re-embed is ≈ 23 GPU-h (≈ 2.9 h on 8 L4).",
+            "Monthly infra is ≈ US$16–18k, within the ≈ US$20k budget, for text p99 ≤ 300 ms, photo p99 ≤ 600 ms and 99.9 % availability."
+          ],
+          "commandNotes": []
+        },
+        "datos": {
+          "title": "Pairs, Clicks & Judgments",
+          "scope": "Collect cheap but biased training signal — (title, photo) pairs from 100 M listings, (query, contacted listing) pairs and clicks — and graded 0–3 human judgments on head, torso and tail queries as the yardstick.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "There is a written guideline with per-category examples, and a fraction of pairs is judged by two people to measure weighted kappa.",
+            "A judgment round (3,000 queries × 20 results ≈ 60k, ≈ US$3k) runs every quarter and before each new model.",
+            "Negatives are skip-above and random same-category, never “shown without click”, and without near-duplicates of the positive.",
+            "Query logs have no PII, the user id is pseudonymized and query photos are not stored: only the vector and a hash.",
+            "Photo search is evaluated with another photo of the same listing as the query, without storing user photos."
+          ],
+          "commandNotes": []
+        },
+        "versionado": {
+          "title": "Versions Down to the Vector",
+          "scope": "Version everything, including each vector: a whole index belongs to a single model_version (named `listings-vec-v7`), and a Parquet copy of every vector per version stays in S3 to rebuild without GPU and to measure drift.",
+          "inputs": [],
+          "outputs": [
+            "per-version vectors in S3 (Parquet)"
+          ],
+          "dod": [
+            "The training-pairs snapshot is versioned and the retention rule was applied before copying.",
+            "Evaluation sets are frozen with their date and judgments carry the guideline version.",
+            "Each index document stores model_version and the listing version; an old version never overwrites a newer one.",
+            "Each version's vectors are in S3 (≈ 205 GB in FP32, ≈ US$5 per month)."
+          ],
+          "commandNotes": []
+        },
+        "entrenamiento": {
+          "title": "Encoder Fine-Tuning",
+          "scope": "Fine-tune a CLIP-style dual encoder (d = 512) on (title, photo) and (query, contacted listing) pairs, run by the models team quarterly rather than weekly, because each new version forces a catalog re-embed and a two-index A/B.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Pairs were filtered: titles that do not describe the photo (“vendo urgente”, “ver fotos”) are out.",
+            "The same item listed twice is never in both train and test.",
+            "The version is in the registry with its lineage and the gate metrics.",
+            "There is a written trigger to bring it forward: query drift together with NDCG or CTR dropping in a slice."
+          ],
+          "commandNotes": []
+        },
+        "gate": {
+          "title": "Ranking Gate",
+          "scope": "Gate on ranking quality (NDCG@10 and recall@k against human judgments), not accuracy, and require an improvement worth the cost of a re-embed and two live indexes, not just “no worse”.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "NDCG@10 on head, torso and tail is no worse than production within its interval (paired bootstrap over queries), and no country or category drops more than its margin.",
+            "“Same item” recall@k on photo search is measured.",
+            "judged@10 is reported alongside NDCG, and gaps are judged before concluding.",
+            "The final evaluation runs on the real (green) index, not only with exact search."
+          ],
+          "commandNotes": []
+        },
+        "export": {
+          "title": "One Artifact, Three Consumers",
+          "scope": "Ship a single encoder artifact from the registry to the three pieces that use it — the query encoder in Triton, the embed-worker and the re-embedding job — producing the same vectors up to numerical noise.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "All three use the same artifact, the same runtime and the same precision.",
+            "The parity test on a sample gives cosine ≥ 0.999 between the embed-worker's vector and the bulk job's.",
+            "Triton serves both towers (text and image) as separate models, each with dynamic batching.",
+            "There is no CPU path with another precision: it would be training-serving skew applied to vectors."
+          ],
+          "commandNotes": []
+        },
+        "re-embedding": {
+          "title": "Catalog Re-Embedding",
+          "scope": "Re-embed all 100 M listings on every model change with a sharded, checkpointed batch job that reads a catalog snapshot and writes the vectors to S3.",
+          "inputs": [
+            "catalog snapshot"
+          ],
+          "outputs": [
+            "new-version vectors in S3"
+          ],
+          "dod": [
+            "The catalog snapshot recorded the Kafka offset at that moment.",
+            "≈ 23 GPU-h ran across both towers (image ≈ 14, text ≈ 9): ≈ 3 h on 8 L4, ≈ US$19 on-demand.",
+            "There was CPU to decode the thumbnails (≈ 24 cores), or decoding ran on GPU.",
+            "The new version's vectors are in S3 and are never mixed with another version's in an index."
+          ],
+          "commandNotes": []
+        },
+        "indice-green": {
+          "title": "Build the Green Index",
+          "scope": "Build the stateful vector index side by side (`listings-vec-v8`) — HNSW on int8, 4 shards × 25 M with 2 copies, in an OpenSearch k-NN index separate from BM25 — while a second embed-worker brings it up to date.",
+          "inputs": [],
+          "outputs": [
+            "green index `listings-vec-v8`"
+          ],
+          "dod": [
+            "Each shard has ≈ 19–21 GB of graph + int8 in RAM, and the rescoring FP32 vectors (51.2 GB) on EBS gp3, served from the page cache.",
+            "It was built without replicas or refresh and the second copy was added afterwards; a new copy is warmed up before it takes traffic.",
+            "The graph parameters (M = 32) are pinned in the mapping, not left at the defaults.",
+            "A v8 embed-worker, with its own consumer group, processed events from the snapshot offset and green caught up to the present.",
+            "Green's recall canary gives ANN recall@100 ≥ 0.95 against exact search, with and without filters."
+          ],
+          "commandNotes": []
+        },
+        "serving": {
+          "title": "Hybrid search-api",
+          "scope": "Orchestrate instead of infer: fire BM25 immediately and, in parallel, the encoder and ANN; fuse with RRF (k = 60), drop tombstones, rerank the text top-30 and degrade step by step down to BM25 only.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The 46 tests in `search/` pass (≈ 2 s): each one is a failure mode, from a slow encoder to a shard with a different model.",
+            "The version is not configured: search-api reads which index the `listings-vec-live` alias points to and asks the encoder for that version; a shard response with a different model_version is discarded.",
+            "Filters go inside the search and are re-checked after RRF.",
+            "`/readyz` does not check versions, and the log writes [tel] and [email] in place of phone and email.",
+            "RRF ties are ordered deterministically (score, best position, number of lists, id)."
+          ],
+          "commandNotes": []
+        },
+        "empaquetado": {
+          "title": "search-api Image",
+          "scope": "Keep the API image small and model-free as in C01, since the heavy parts sit behind the network (Triton, OpenSearch, Redis) and it needs no numpy, Pillow or torch.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The base is `python:3.13.15-slim-trixie` (≈ 43 MB compressed).",
+            "The full lock (17 packages) was generated with `uv pip compile` for Linux x86_64 and Python 3.13, without numpy or Pillow.",
+            "`fakes.py` and the tests are not in the image.",
+            "One uvicorn process runs per container."
+          ],
+          "commandNotes": [
+            "On an Apple Silicon Mac `--platform` is mandatory: c6i and g4dn nodes are x86. The tag is the commit.",
+            "Fails on purpose if `model.plan` is missing: run `build_engine.sh` on the T4 first.",
+            "From `reference/c01`: gateway, Triton with GPU and Prometheus on one machine.",
+            "The end-to-end check: top-5 with `model_version`.",
+            "One row per layer: find the one that bloated the image.",
+            "Before deploying: the config must say `\"architecture\": \"amd64\"`. Without `--format`, a single-platform image does not show its own."
+          ]
+        },
+        "cicd": {
+          "title": "CI/CD & Image Registry",
+          "scope": "Test without GPU and build images once as in C01, with tests that cover the fallback ladder and check that every metric the alerts use exists.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The 88 tests in search, indexing and eval pass without GPU, Kafka, OpenSearch or Redis.",
+            "`promtool test rules` passes the 14 scenarios, and changing any of the 12 thresholds makes its test fail.",
+            "A test reads `alerts.yml` and requires every `search_*` metric to exist on `/metrics`.",
+            "As in C01: each image is built once, with an immutable tag, and staging and production use the same digest."
+          ],
+          "commandNotes": [
+            "24 tests with no GPU or Triton: the first thing CI runs.",
+            "ECR login; the token lasts 12 h. In CI, via an OIDC-assumed role, no stored keys.",
+            "Single build for the node architecture; `{sha}` is the first 7 characters of the commit: `git rev-parse --short=7 HEAD` (in CI, `${GITHUB_SHA::7}`).",
+            "The digest is the identity: it is what gets signed and deployed.",
+            "Keyless signing with the CI's OIDC identity.",
+            "Deploy by digest; with GitOps that value goes in a PR to the manifests repo."
+          ]
+        },
+        "kubernetes": {
+          "title": "Nodes, GPUs & Scaling",
+          "scope": "Run the RAM-resident index on 8 dedicated r7i.4xlarge nodes in the OpenSearch cluster next to the stateless services, and split GPUs between the query encoder (2 L4), the reranker (8 L4) and the embed-worker (1 L4, scaled on lag).",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Vector-index shards live on dedicated data nodes (node attributes), separate from BM25: 4 shards × 2 copies across 2 zones, with ≈ 64 % of memory used.",
+            "The encoder has 2 L4 in two zones: one covers the peak and the second is redundancy.",
+            "The reranker over the top-30 fits in 8 L4 (≈ 62 %), and its throughput was measured with perf_analyzer before committing to the design.",
+            "The embed-worker scales on lag with KEDA, and search-api runs stateless across several zones."
+          ],
+          "commandNotes": []
+        },
+        "rollout": {
+          "title": "Index Blue/Green",
+          "scope": "Change models by building the index side by side and moving an alias, never re-indexing in place, with each A/B arm a complete (encoder, index) pair and never a mix.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Shadow sent a copy of the queries to green: p99 within budget and differences against blue explainable.",
+            "The per-user A/B ran 1–2 weeks: contacts per search no worse, some significant improvement and healthy guardrails.",
+            "The swap is a single atomic alias change (`_aliases` with remove + add in the same request).",
+            "Blue stays 7 days for rollback and up to date: the v7 worker keeps writing to it and the encoder keeps v7 loaded."
+          ],
+          "commandNotes": []
+        },
+        "indexacion-streaming": {
+          "title": "Streaming Indexing",
+          "scope": "Consume new and sold listings from Kafka (`listing-events`, key = listing_id) in the embed-worker — deletions first, as Redis tombstones with no GPU, then embeddings and upsert — to meet “new searchable at p95 ≤ 5 min” and “sold removed in ≤ 1 min”.",
+          "inputs": [
+            "`listing-events` (Kafka, key = listing_id)"
+          ],
+          "outputs": [
+            "Redis tombstones",
+            "upserted vectors in the index"
+          ],
+          "dod": [
+            "The worker is idempotent by (listing_id, event version): a late `updated` never resurrects a `sold`.",
+            "It refuses to write if its encoder and the index do not share the same model_version, and crashes without committing offsets.",
+            "A price or city change updates only the filter attributes, without re-embedding.",
+            "A photo that fails to download or decode goes to a dead-letter queue with its reason, without blocking the partition.",
+            "The 18 tests in `test_embed_worker.py` pass."
+          ],
+          "commandNotes": []
+        },
+        "request": {
+          "title": "Live Search Request",
+          "scope": "Serve each query as a scatter-gather — BM25 ∥ (encoder → 4 shards), RRF, tombstones, reranker and hydration — at ≈ 100 ms typical against p99 ≤ 300 ms for text and ≤ 600 ms for photo.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Every call has its cap (encoder 50 ms, each shard 80, BM25 120, tombstones 20, rerank 100) and timeouts derive from a propagated deadline.",
+            "Tombstones for the ≤ 400 candidates are checked in a single round trip, also for what comes from the cache.",
+            "If the encoder or all shards fail, text is served with BM25 only; a photo returns 503 with Retry-After.",
+            "The query cache carries the index version in the key and a 5 min TTL; photo searches are not cached.",
+            "A slow shard gets a hedged request to its other copy; if that does not arrive, the response goes out partial and is not cached."
+          ],
+          "commandNotes": []
+        },
+        "monitoreo": {
+          "title": "Index Monitoring",
+          "scope": "Monitor an index that can degrade without any service failing, measure freshness end to end in both directions, and treat query drift as a retraining trigger, not a paging alert.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The 8 alerts are loaded: SearchLatencyHigh, ZeroResultRateHigh, IndexFreshnessLag, SoldItemsServed, ANNRecallDrop, EmbedWorkerBacklog, SearchCTRDrop and ShardMemoryHigh.",
+            "The canary runs every hour and `ANNRecallDrop` fires if recall@100 drops below 0.95 on any shard or if the canary has not run for more than 3 h.",
+            "A synthetic listing published every minute measures when a search finds it, alongside the worker's freshness histogram and each consumer group's lag.",
+            "Retraining is quarterly (fine-tuning → gate → re-embedding → blue/green → A/B), and a degraded index is rebuilt from the S3 vectors, without GPU."
+          ],
+          "commandNotes": []
+        }
+      }
+    },
+    "streaming": {
+      "name": "Streaming",
+      "summary": "This is streaming inference over a long-lived connection, not stream processing over Kafka: each participant opens a session and sends audio in 160 ms chunks while a stateful model advances on a GPU. Balancing (by active streams, with affinity), autoscaling (up on sessions, down by draining) and monitoring (partial latency and a canary that speaks in production, since customer audio is not stored) change accordingly.",
+      "removed": [],
+      "steps": {
+        "kickoff": {
+          "title": "Requirements & Capacity Plan",
+          "scope": "Size concurrency, GPUs, gateway CPU and network from daily meetings against the partial and final latency SLOs and ≥ 99.5 % availability, and settle in-house vs managed API on cost.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Concurrency is computed from 2 M meetings/day × 30 % with captions × 40 min: ≈ 16.7k simultaneous meetings on average, ≈ 50k at peak (3×), ≈ 200k connected tracks and ≈ 60k active streams with VAD.",
+            "GPUs are sized by active streams: 350 per L4 (70 % of ≈ 500 measured) → ≈ 172 L4 at peak, with the fleet following the daily curve (≈ 100 L4 on average).",
+            "The partials p95 ≤ 500 ms budget is split by hop: ≈ 300 ms typical, ≈ 510 ms if all the bad hops coincide.",
+            "Monthly cost is ≈ US$58k of GPUs + ≈ US$23–37k for everything else, against ≈ US$3.5–8.6 M/month for a managed streaming API."
+          ],
+          "commandNotes": []
+        },
+        "datos": {
+          "title": "Licensed & Consented Audio",
+          "scope": "Source labeled audio only from licensed corpora, consented per-accent recordings and opt-in customers, transcribed by people against a guide; customer audio is not stored.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Each file enters with its manifest (transcript, speaker, slice, license and consent); without traceable license or consent, it does not enter.",
+            "Audio comes from corpora with verified commercial licenses, consented per-accent recordings and opt-in organizations; never from customers without consent.",
+            "Transcripts follow a written, versioned guide (numbers, fillers, code-switching, overlapping speech), with a double pass on the golden set.",
+            "Agreement between transcribers is measured as WER between two independent transcripts.",
+            "Opt-in audio lives in a separate, encrypted bucket, with role-based access and deletion on request."
+          ],
+          "commandNotes": []
+        },
+        "versionado": {
+          "title": "Frozen Per-Slice Golden Sets",
+          "scope": "Freeze golden sets per language and slice (accent, noise, device), separated from training data by speaker.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "There is one golden set per language (Spanish, English and Portuguese), with slices by accent or region, noise, device, overlapping speech, code-switching and telephone.",
+            "The golden set is separated from training by speaker and by session, deduplicated by audio and text fingerprint, and never enters training.",
+            "WER normalization is written and versioned, and its version is reported with every number.",
+            "Per-slice intervals come from a per-speaker bootstrap, not per-word."
+          ],
+          "commandNotes": [
+            "List what is under a snapshot prefix (read-only).",
+            "If the team already uses DVC: hashes the folder, leaves `{carpeta_datos}.dvc` for git and pushes the data to the S3 remote.",
+            "If you use lakeFS: an isolated branch over the bucket, no data copied; then `lakectl commit` and `lakectl merge`."
+          ]
+        },
+        "entrenamiento": {
+          "title": "Streaming ASR Fine-Tune",
+          "scope": "Start from a pretrained streaming ASR (transducer/CTC) and fine-tune per language only when needed; nothing is trained from scratch.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Start from a pretrained streaming ASR (transducer or CTC); nothing is trained from scratch.",
+            "Per-language fine-tuning starts from the base model or the production one, on rented GPUs (spot with checkpoints).",
+            "A slice that falls behind triggers it, and there is a quarterly review."
+          ],
+          "commandNotes": []
+        },
+        "gate": {
+          "title": "WER & Streams Gate",
+          "scope": "Gate on WER per language and slice with fixed normalization, plus latency and streams per GPU measured on an L4, against the production model.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Each slice's WER is no worse than production plus its interval, with the fixed normalization, and the target slice improves.",
+            "No slice is worse than 1.5× its language's average.",
+            "Partial latency and streams per L4 are measured on a real L4 with 160 ms chunks, together with the partial revision rate.",
+            "If the model is quantized, the gate runs on the engine, not on the checkpoint."
+          ],
+          "commandNotes": []
+        },
+        "export": {
+          "title": "L4 Engine & Config",
+          "scope": "Compile the engine for the serving GPU (L4) as in C01, and store the streaming config (chunk, lookahead, endpointing) in the registry alongside it.",
+          "inputs": [],
+          "outputs": [
+            "L4 engine",
+            "streaming config (chunk, lookahead, endpointing) in the registry"
+          ],
+          "dod": [
+            "The engine is compiled for L4, the serving GPU: TensorRT is not portable across GPUs.",
+            "Per language, the registry stores the model, its L4 engine, the streaming config (chunk, lookahead and endpointing), the gate metrics and the golden-set version.",
+            "FP16 or INT8 with TensorRT is validated with per-slice WER on the engine."
+          ],
+          "commandNotes": [
+            "Exports and verifies. Without `--checkpoint` it uses random weights: pipeline test only.",
+            "CPU parity with ONNX Runtime; exit 1 = fail. Without `--checkpoint`, the PyTorch reference would have random weights.",
+            "On the T4, with Docker and NVIDIA Container Toolkit: produces `triton/model_repository/classifier/1/model.plan`.",
+            "FP16 engine served by Triton vs PyTorch FP32 from the same checkpoint; exit 1 = not registered.",
+            "Fixed-rate load (250 and 500 req/s) for the latency gate: compare p99 with the champion's."
+          ]
+        },
+        "serving": {
+          "title": "CPU Gateway & GPU Worker",
+          "scope": "Run `asr-gateway` on CPU (Opus → 16 kHz, VAD, 160 ms chunks) and `asr-worker` on L4 with Triton's sequence batcher: per-stream state, partials and finals.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "`asr-gateway` decodes Opus, resamples to 16 kHz mono, applies VAD and builds 160 ms chunks with 100 ms of pre-roll; the final goes out after 600 ms of silence or at the 20 s cap.",
+            "`asr-worker` uses Triton's sequence batcher with one sequence per utterance, closed at the endpoint, and `max_sequence_idle_microseconds` (1 s by default) is set against the VAD pauses.",
+            "A word freezes once it ended more than 800 ms of audio ago, tentative text is shown separately and corrections at the final are counted.",
+            "Each session's queues are bounded: if the model falls ≈ 2 s behind, the worker closes with 1013, and a client that does not read loses partials but never finals.",
+            "`pytest` in `reference/c13` passes the 95 tests."
+          ],
+          "commandNotes": []
+        },
+        "sesion-por-pista-grpc-bidireccional": {
+          "title": "Per-Track Bidirectional gRPC Session",
+          "scope": "Have the SFU open one stream per participant to the `asr-gateway` (≈ 200k connected at peak), with VAD so that only tracks with speech use GPU.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The SFU opens one gRPC stream per track to an `asr-gateway` in its own zone, identified by `meeting_id` + `participant_id`, with language and organization.",
+            "The fork is fire-and-forget: if the gateway is not receiving, the SFU drops packets and the meeting carries on unchanged.",
+            "The keepalive interval is shorter than the shortest idle timeout on the path, and the client ping and the server ping policy are configured together.",
+            "Only utterances with speech open a sequence on the worker: a silent track uses no GPU.",
+            "The gateway keeps the current utterance (up to 20 s) to replay it if the worker dies."
+          ],
+          "commandNotes": []
+        },
+        "empaquetado": {
+          "title": "Gateway & Worker Containers",
+          "scope": "Containerize the gateway and the worker as in C01; the worker runs as a GPU Deployment.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The `asr-worker` image is tagged with the model version and the manifest also pins it by digest.",
+            "Its dependencies come from the `server/requirements.txt` lock (via `uv pip compile`), without the tests.",
+            "uvicorn runs with `--ws-max-size 65536`, `--timeout-graceful-shutdown 10` and WebSocket pings every 20 s."
+          ],
+          "commandNotes": [
+            "On an Apple Silicon Mac `--platform` is mandatory: c6i and g4dn nodes are x86. The tag is the commit.",
+            "Fails on purpose if `model.plan` is missing: run `build_engine.sh` on the T4 first.",
+            "From `reference/c01`: gateway, Triton with GPU and Prometheus on one machine.",
+            "The end-to-end check: top-5 with `model_version`.",
+            "One row per layer: find the one that bloated the image.",
+            "Before deploying: the config must say `\"architecture\": \"amd64\"`. Without `--format`, a single-platform image does not show its own."
+          ]
+        },
+        "cicd": {
+          "title": "CI/CD & Tests",
+          "scope": "Test and build images as in C01.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "`pytest` passes the 95 tests in the four folders on every commit, without GPU, model or SFU.",
+            "`promtool check rules` and `promtool test rules` pass on the 8 alerts.",
+            "The manifest passes `kubernetes-validate --strict` on its core resources, and the ScaledObject and PodMonitor pass their CRD schemas.",
+            "CD deploys only versions approved by the gate and registered with their L4 engine."
+          ],
+          "commandNotes": [
+            "24 tests with no GPU or Triton: the first thing CI runs.",
+            "ECR login; the token lasts 12 h. In CI, via an OIDC-assumed role, no stored keys.",
+            "Single build for the node architecture; `{sha}` is the first 7 characters of the commit: `git rev-parse --short=7 HEAD` (in CI, `${GITHUB_SHA::7}`).",
+            "The digest is the identity: it is what gets signed and deployed.",
+            "Keyless signing with the CI's OIDC identity.",
+            "Deploy by digest; with GitOps that value goes in a PR to the manifests repo."
+          ]
+        },
+        "kubernetes": {
+          "title": "KEDA on Active Streams",
+          "scope": "Scale `asr-worker` with KEDA on active streams per GPU (target 350), with a cron that raises the floor before the morning; an L4 node takes 5–13 min, and scaling down means draining (`preStop`).",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "KEDA scales `asr-worker` between 20 and 220 replicas on `sum(asr_active_streams)` (target 350 per pod) and `asr_sessions` (target 1,200), and each pod requests a whole L4.",
+            "A cron trigger holds at least 120 pods Monday to Friday from 7:30 to 11:00 (central Mexico time), and if Prometheus does not answer, KEDA's fallback requests 120.",
+            "It scales up fast and down by 5 pods every 5 min, with a 20 min window.",
+            "`preStop` drains for up to 60 s, `terminationGracePeriodSeconds` is 90 and the PDB allows at most 5 % voluntary disruptions."
+          ],
+          "commandNotes": []
+        },
+        "router-de-sesiones-con-afinidad": {
+          "title": "Session Router with Affinity",
+          "scope": "Assign each session to an `asr-worker` in its zone by counting active streams, not requests or CPU, and keep it there (sticky).",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Each session goes to the worker in its zone that has the language and the most free session slots, skipping those whose active streams are at the cap (450).",
+            "Assignment is sticky, and three missed heartbeats (one per second) mark the worker dead: its sessions are redistributed within the zone.",
+            "It never assigns to draining workers and rebalances only at end of utterance.",
+            "Crossing zones is only a degradation, and it is counted in a metric."
+          ],
+          "commandNotes": []
+        },
+        "rollout": {
+          "title": "Canary on New Sessions",
+          "scope": "Canary by percentage of new sessions, not requests, because each session stays pinned to its worker (sticky).",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The approved model is loaded on a group of workers and the router sends it 5 % of its language's new sessions; existing sessions do not move.",
+            "It moves to 25 %, 50 % and 100 % over days, only if `CanaryWERRegression` does not fire and usage signals do not worsen.",
+            "A model A/B is randomized by meeting or organization, not by participant.",
+            "Rollback returns to the previous registry version, and workers are replaced by draining."
+          ],
+          "commandNotes": []
+        },
+        "request": {
+          "title": "Live Partials & Finals",
+          "scope": "Replace the request with one long-lived gRPC session per track: partials at p95 ≤ 500 ms and finals at p95 ≤ 1.5 s after end of utterance.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Partials p95 ≤ 500 ms from spoken word to screen, and finals p95 ≤ 1.5 s after end of utterance.",
+            "The 500 ms are split by hop: network, chunk wait, queue, compute and delivery.",
+            "If a worker dies, the gateway notices within 1 s, reopens the session on another one and replays the current utterance: ≈ 1–2 s without partials and no final lost.",
+            "Partials are coalesced to at most 5 per second per stream, and only if the text changed; finals always go out."
+          ],
+          "commandNotes": []
+        },
+        "caption-bus-por-reunion": {
+          "title": "Per-Meeting Caption Bus",
+          "scope": "Publish partials and finals from the workers to an in-memory pub/sub (NATS or Redis Pub/Sub), from which the existing WebSocket signaling pushes them to each client.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "There is one topic per meeting in an in-memory pub/sub (NATS or Redis Pub/Sub): workers publish and signaling servers consume.",
+            "Each message carries `meeting_id`, speaker, `utterance_id`, sequence number, type, and frozen and tentative text; the client replaces by `utterance_id` and drops stale sequences.",
+            "The bus keeps each meeting's finals from the last 60 s for clients that reconnect.",
+            "`CaptionDeliveryLag` fires when p95 delivery to signaling stays above 250 ms for 10 min.",
+            "Only finals from meetings with saving enabled are copied to Kafka; otherwise the text exists only in memory."
+          ],
+          "commandNotes": []
+        },
+        "monitoreo": {
+          "title": "Per-Hop & Stream Monitoring",
+          "scope": "Monitor per-hop latency, active streams (also the autoscaling signal), reconnects and voice ratio, with the golden canary measuring WER in production, and retrain on triggers with a quarterly review.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The 8 alerts pass their promtool tests, with a per-hop server budget: `CaptionPartialLatencyHigh` at 200 ms, `CaptionFinalLatencyHigh` at 1.2 s and `GPUStreamSaturation` with the model step above 128 ms.",
+            "`SessionReconnectRateHigh` counts only unplanned reconnects (more than 2 % in 15 min), excluding `migrate` and the max duration.",
+            "`VADActiveRatioShift` compares the voice ratio with the same hour last week (below 0.7× or above 1.3× for 1 h).",
+            "Logs contain no audio or text: only ids, timings and counters.",
+            "Retraining is trigger-based (a slice falling behind, a change in input audio, a better model), with a quarterly review."
+          ],
+          "commandNotes": []
+        },
+        "canary-golden-en-produccion": {
+          "title": "Production Golden Canary",
+          "scope": "Have a bot join an internal meeting and play golden-set audio to measure end-to-end WER and latency without touching customer audio.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Every few minutes, per region and language, a bot joins an internal meeting and plays golden-set audio as a participant.",
+            "It goes through the real path (SFU, gateway, router, worker and bus) and measures end-to-end WER and latency without touching customer audio.",
+            "`CanaryWERRegression` fires if the canary version's WER exceeds the stable one's + 1 point, with ≥ 5,000 reference words over 30 min, and the rollout stops."
+          ],
+          "commandNotes": []
+        }
+      }
+    },
+    "edge": {
+      "name": "Edge / on-device",
+      "summary": "The model runs next to the line on a Jetson, because the line cannot wait on the network or stop when the internet drops; the cloud trains and monitors. Nothing in the cloud sits on a part's path: Kubernetes and autoscaling drop out (4 fixed devices on Docker), release becomes OTA to a fleet through the DMZ, and monitoring works without internet.",
+      "removed": [
+        {
+          "id": "kubernetes",
+          "why": "4 fixed devices do not justify Kubernetes: Docker with a restart policy and a watchdog, and no autoscaling either, since sizing is per device."
+        }
+      ],
+      "steps": {
+        "kickoff": {
+          "title": "Requirements & Capacity Plan",
+          "scope": "Fix part volume, the 350 ms hard decision deadline, the recall and FP targets and ≥ 72 h offline operation, and size the deadline budget, the per-line device and the FP budget from them.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Production is computed: 2 parts/s × 3,600 s × 16 h = 115,200 parts/day per line (≈ 576 defects at 0.5 %), 460,800/day across the 4 lines.",
+            "The 350 ms deadline is split by stage: ≈ 50 ms acquisition, ≈ 20 ms preprocessing, ≤ 120 ms inference, ≈ 10 ms PLC write; ≈ 200 ms expected path with 150 ms of margin.",
+            "One Jetson Orin NX 16 GB per line, sized for the deterministic latency of a single inference (≈ 24 % GPU occupancy), not for throughput.",
+            "The FP budget comes from inspector capacity: hard cap ≈ 2.8 %, target ≤ 1.5 % (inspector at ≈ 60 %), with recall ≥ 99.5 % per defect type."
+          ],
+          "commandNotes": []
+        },
+        "datos": {
+          "title": "Line Images & Verdicts",
+          "scope": "Collect images from the line camera and label them with the inspector's tablet verdict, the cheapest label, starting from ≈ 2,000 good parts and ≈ 300 defects.",
+          "inputs": [
+            "line camera images",
+            "inspector tablet verdicts"
+          ],
+          "outputs": [],
+          "dod": [
+            "Line 1 shadow collects images with the production camera and strobe; at the start there are ≈ 2,000 good parts and ≈ 300 defects.",
+            "The inspector labels each diverted part on the tablet with one tap: good, one of the 4 types, or other.",
+            "Quality reviews all disagreements and ≈ 5 % of verdicts, and on ≈ 10 % the tablet hides the reason to measure anchoring.",
+            "Line images are filtered (high-score ones removed, with an audited sample) before entering the good-parts set.",
+            "1 % of passed parts, near-rejects and every escape the OEM reports are also collected."
+          ],
+          "commandNotes": []
+        },
+        "versionado": {
+          "title": "Snapshots, Golden Sets & Lineage",
+          "scope": "Keep immutable snapshots in S3, frozen golden sets per defect type, and part ↔ image ↔ model ↔ decision lineage.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Each label batch produces a snapshot with a manifest (image hash, label, label source and version) and an immutable id in S3.",
+            "Per-defect-type golden sets are frozen, never enter training, and are built from defects that did not pass through the model's filter.",
+            "Each decision is an immutable record with `decision` and `model_decision`, model version and thresholds, scores, latency and PLC ack.",
+            "Labels are events with author and time: never overwritten, corrected with a new one."
+          ],
+          "commandNotes": [
+            "List what is under a snapshot prefix (read-only).",
+            "If the team already uses DVC: hashes the folder, leaves `{carpeta_datos}.dvc` for git and pushes the data to the S3 remote.",
+            "If you use lakeFS: an isolated branch over the bucket, no data copied; then `lakectl commit` and `lakectl merge`."
+          ]
+        },
+        "entrenamiento": {
+          "title": "Cloud Training",
+          "scope": "Train in an on-demand cloud GPU job — anomaly detection on good parts and, once there are enough defects, a per-type classifier — monthly or on trigger.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "An on-demand cloud GPU job trains the anomaly model on good parts and, once there are hundreds of defects per type, the classifier.",
+            "The run is reproducible: data snapshot, commit and container by digest.",
+            "It uses the same preprocessing (crop, normalization and tiles) that runs on the Jetson.",
+            "The split is by time or by lot, never random."
+          ],
+          "commandNotes": []
+        },
+        "gate": {
+          "title": "Per-Type Recall & Threshold",
+          "scope": "Gate on per-defect-type recall at fixed FP on the golden sets, and pick the threshold by expected cost with recall ≥ 99.5 % (`choose_threshold.py`).",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Per-defect-type recall is measured at fixed FP on the golden sets, with slices by part variant, line and camera, shift and lot.",
+            "`choose_threshold.py` picks the threshold with recall ≥ 99.5 % per type, a 1.5 % FP target and a hard cap of ≈ 2.85 %; if no threshold qualifies, it exits with an error.",
+            "With the classifier, each head gets its share of the FP budget (`--target-fp-rate 0.003 --max-fp-rate 0.0057`), and the combination is verified ≤ 1.5 % before writing `config.yaml`.",
+            "Recall is reported with its Clopper-Pearson bound: claiming 99.5 % requires ≈ 600 real defects per type with no misses.",
+            "If any type does not reach 99.5 %, nothing is built."
+          ],
+          "commandNotes": []
+        },
+        "export": {
+          "title": "Engine on Identical Jetson",
+          "scope": "Build the engine on a CI Jetson identical to the line devices (same module, JetPack and power mode), with parity against the ONNX and fixed-batch latency.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The TensorRT FP16 engine is built with `build_engine_jetson.sh` on an Orin NX with the same module, JetPack and power mode as the line.",
+            "The script checks the mode with `EXPECTED_POWER_MODE` and outputs the `.plan`, the trtexec log and a JSON with the sha256 of the ONNX and of the plan.",
+            "The shape is fixed: a batch of 20 tiles of 512 × 512 and a single profile.",
+            "Parity against the ONNX passes, and fixed-batch inference fits in ≤ 120 ms measured with trtexec.",
+            "Start with FP16; INT8 only if FP16 does not fit, calibrating with defects included."
+          ],
+          "commandNotes": []
+        },
+        "serving": {
+          "title": "Jetson Inspection Loop",
+          "scope": "Run a single process on the Jetson Orin NX that acquires the image, builds 20 tiles, runs TensorRT FP16 and writes to the PLC over Modbus TCP, with a deadline guard that writes `DIVERT` when time runs out.",
+          "inputs": [],
+          "outputs": [
+            "PASS / REJECT / DIVERT decision written to the PLC"
+          ],
+          "dod": [
+            "`app.py` measures the deadline from the trigger (trigger + 350 ms) and consumes each trigger's frame even if it arrives late.",
+            "`decide()` returns REJECT if any score is ≥ its threshold; a NaN, a score outside [0, 1] or a missing type is DIVERT, never PASS.",
+            "If less than ≈ 140 ms remain after the capture, immediate DIVERT; if the 50 ms write does not fit, nothing is written.",
+            "A dark image yields `bad_image` (DIVERT), and the watchdog kills the process after 30 s without progress.",
+            "The inspector's 62 tests and the threshold tool's 20 pass."
+          ],
+          "commandNotes": []
+        },
+        "empaquetado": {
+          "title": "arm64 Image with Compose",
+          "scope": "Build an arm64 image on `l4t-tensorrt` run with `docker compose` (`runtime: nvidia`, host network), with engines mounted separately so the previous one can be restored without network.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The image starts from `nvcr.io/nvidia/l4t-tensorrt:r10.3.0-runtime`, with the same TensorRT as JetPack 6.2.x, and runs as a non-root user.",
+            "`docker-compose.yml` uses `runtime: nvidia`, `network_mode: host`, `restart: unless-stopped`, `read_only: true` and `cap_drop: ALL`.",
+            "`config.yaml` and `/opt/inspector/models` are mounted read-only: the engine is not inside the image.",
+            "The healthcheck reads the heartbeat (reports, does not restart) and logs rotate at 50 MB × 5 files."
+          ],
+          "commandNotes": []
+        },
+        "cicd": {
+          "title": "Signed Release with Plan",
+          "scope": "Register every version signed (ONNX, engine per module and JetPack, thresholds and container) together with its per-line rollout plan.",
+          "inputs": [],
+          "outputs": [
+            "signed release with its rollout plan"
+          ],
+          "dod": [
+            "Each version is registered signed: ONNX, engine per module and JetPack, per-type thresholds, container by digest and gate metrics.",
+            "It carries its rollout plan: line 1 in shadow for one shift, line 1 canary, the 4 lines and then the other plants.",
+            "`choose_threshold.py` works as a CI gate: without a threshold that meets recall and cap, the pipeline fails.",
+            "The inspector and threshold-tool tests pass on Python 3.10, JetPack 6's version."
+          ],
+          "commandNotes": []
+        },
+        "ota-por-la-dmz": {
+          "title": "OTA via the DMZ",
+          "scope": "Have the DMZ pull signed artifacts over outbound connections, verify the signature and copy them to a local registry on the OT network, so devices never reach the internet.",
+          "inputs": [
+            "signed artifacts"
+          ],
+          "outputs": [
+            "artifacts in the local OT registry"
+          ],
+          "dod": [
+            "The DMZ gateway downloads over outbound connections, verifies the signature and copies the artifacts to the local registry on the OT network.",
+            "Devices download only from the local registry and never reach the internet.",
+            "Updates go in during the nightly window and, if there is no link, they wait."
+          ],
+          "commandNotes": []
+        },
+        "rollout": {
+          "title": "Per-Line Shadow & Canary",
+          "scope": "Roll out per line: overnight the engine lands in slot B with a smoke test, line 1 runs one shift in shadow, then canary and all 4 lines, with local rollback and no network needed.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Overnight the new engine lands in slot B, next to the current one, and passes a smoke test with golden-part images.",
+            "Line 1 runs a full shift in shadow: the challenger only logs, after the champion has written to the PLC.",
+            "It advances only if it misses no defect the champion caught, does not raise FPs and has zero deadline misses; quality reviews all disagreements.",
+            "Then line 1 decides for several shifts (canary), followed by one wave per line.",
+            "Rollback is local and takes minutes: `config.yaml` points back to the previous engine and the container restarts, without network."
+          ],
+          "commandNotes": []
+        },
+        "request": {
+          "title": "Part Decided in 350 ms",
+          "scope": "Decide each part within a 350 ms deadline from a hardware photocell trigger (2 parts per second per line), with no HTTP in the path.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The photocell triggers the camera in hardware and the PLC assigns the sequence number; within ≈ 50 ms the image is in Jetson memory.",
+            "Loop p99.9 stays ≤ 350 ms over full shifts, with the enclosure closed.",
+            "The decision goes out as `[part_id, código]` in a single Modbus TCP write, with no retries.",
+            "The shape is fixed, there is no dynamic batching, the power mode is fixed and `jetson_clocks` is applied on every boot.",
+            "`inspection_latency_seconds` has a bucket at 0.35 s, and `inspection_deadline_miss_total` stays ≈ 0."
+          ],
+          "commandNotes": []
+        },
+        "plc-con-default-seguro": {
+          "title": "PLC Safe Default",
+          "scope": "Have the PLC pass a part only if a PASS with its number arrived before the deadline, so a dead Jetson, a dead network or a late decision all end the same way: diverted.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "The PLC diverts every part without a valid PASS for its `part_id` before the deadline: code 0, no decision, means divert.",
+            "The PLC resets the register to 0 after using a decision, because the 16-bit `part_id` repeats every 65,536 parts.",
+            "A chute sensor confirms each diverted part; without confirmation, with low air pressure or with the bin full, the PLC stops the line and lights the andon.",
+            "Jetson down, network down or a late decision all end the same: the part is diverted."
+          ],
+          "commandNotes": []
+        },
+        "monitoreo": {
+          "title": "Local Prometheus & Andon",
+          "scope": "Run Prometheus and the andon in the plant because there may be no internet, shipping heartbeats and aggregates to the cloud; a reject rate above 2× its baseline for 30 min most likely means light, lens or focus, not defects.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "`app.py` exports its 7 metrics with series at 0 from startup, and DIVERTs are counted by their 10 reasons.",
+            "Paging alerts are evaluated in the plant's Prometheus and Alertmanager, and reach the andon and the maintenance tablet.",
+            "`RejectRateSpike` fires with REJECTs above 2× their 7-day baseline for 30 min, without mixing in DIVERTs.",
+            "`AnomalyScoreDrift` compares the last hour's median against the 7-day one + 0.1, for 2 h.",
+            "Cloud `DeviceOffline` alerts only during shift hours and if the plant gateway is reporting; if the gateway is missing, it is a single link ticket."
+          ],
+          "commandNotes": []
+        },
+        "store-and-forward-a-la-nube": {
+          "title": "Store-and-Forward to Cloud",
+          "scope": "Hold decisions, reject images and verdicts in the plant store and upload them when the link is up, so the line runs ≥ 72 h without internet.",
+          "inputs": [
+            "decision records, reject images and verdicts"
+          ],
+          "outputs": [
+            "data synced to the cloud"
+          ],
+          "dod": [
+            "The plant store keeps decision records, reject images, the passed-part sample and verdicts, and the line runs ≥ 72 h without internet.",
+            "Upload is idempotent (each record with an id, each image named by its hash) and resumes where it left off.",
+            "Records and verdicts upload first, then rejects and finally the sample, with a bandwidth cap during shifts.",
+            "The store holds weeks (≈ 69 GB/day) and sync lag is measured.",
+            "With the disk full, what is already synced is dropped first; decision records never."
+          ],
+          "commandNotes": []
+        },
+        "piezas-patron-en-cada-turno": {
+          "title": "Golden Parts Every Shift",
+          "scope": "Start every shift with known good and defective parts and give no part a PASS until that check passes, catching a dirty lens, a shifted focus or degraded light before production.",
+          "inputs": [],
+          "outputs": [],
+          "dod": [
+            "Each shift starts with the station's golden parts (2 good and 1 of each defect type), with the line in golden mode.",
+            "Defective parts are rejected and good ones pass at least 0.15 below the anomaly threshold.",
+            "Until the check passes in that process, no part gets PASS, and the approval expires at the start of the next shift.",
+            "`GoldenPartCheckFailed` fires with `golden_part_check_ok == 0` for 10 min during shift hours.",
+            "Each bad golden part must be confirmed in the bin: this also tests the chute sensor."
+          ],
+          "commandNotes": []
+        }
+      }
+    }
+  }
+}

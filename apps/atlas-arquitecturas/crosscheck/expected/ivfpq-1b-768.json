@@ -1,0 +1,581 @@
+{
+  "config_id": "ivfpq-1b-768",
+  "model": "ann",
+  "params_total": 914394624,
+  "params_by_node": {
+    "encode": 108891648
+  },
+  "shapes": {
+    "q-ids": [
+      32
+    ],
+    "q-type-ids": [
+      32
+    ],
+    "q-pos-ids": [
+      32
+    ],
+    "q-e-tok": [
+      32,
+      768
+    ],
+    "q-e-type": [
+      32,
+      768
+    ],
+    "q-e-pos": [
+      32,
+      768
+    ],
+    "q-e-sum": [
+      32,
+      768
+    ],
+    "q-x0": [
+      32,
+      768
+    ],
+    "q-qkv": [
+      32,
+      2304
+    ],
+    "q-q": [
+      12,
+      32,
+      64
+    ],
+    "q-k": [
+      12,
+      32,
+      64
+    ],
+    "q-v": [
+      12,
+      32,
+      64
+    ],
+    "q-scores": [
+      12,
+      32,
+      32
+    ],
+    "q-scores-scaled": [
+      12,
+      32,
+      32
+    ],
+    "q-attn": [
+      12,
+      32,
+      32
+    ],
+    "q-z-heads": [
+      12,
+      32,
+      64
+    ],
+    "q-z": [
+      32,
+      768
+    ],
+    "q-o": [
+      32,
+      768
+    ],
+    "q-r1": [
+      32,
+      768
+    ],
+    "q-h-ln1": [
+      32,
+      768
+    ],
+    "q-u": [
+      32,
+      3072
+    ],
+    "q-g": [
+      32,
+      3072
+    ],
+    "q-f": [
+      32,
+      768
+    ],
+    "q-r2": [
+      32,
+      768
+    ],
+    "q-x-out": [
+      32,
+      768
+    ],
+    "query": [
+      768
+    ],
+    "coarse-dists": [
+      64
+    ],
+    "probe-ids": [
+      16
+    ],
+    "residuals": [
+      16,
+      768
+    ],
+    "lut": [
+      16,
+      96,
+      256
+    ],
+    "codes": [
+      1000000000,
+      96
+    ],
+    "list-ids": [
+      1000000000
+    ],
+    "adc-dists": [
+      15259
+    ],
+    "ids": [
+      10
+    ]
+  },
+  "flops_total": 5486346240,
+  "flops_search": 12779520,
+  "flops_by_node": {
+    "encode": 5473566720
+  },
+  "metrics_checks": {
+    "encodeMacs": 2736783360,
+    "encodeParams": 108891648,
+    "codebookBytes": 786432,
+    "bytesPerVector": 104,
+    "precomputedTableBytes": 0,
+    "scannedVectors": 15259
+  },
+  "ann_checks": [
+    {
+      "what": "IVFPQ n_list 64, m 8, 8 bits: códigos (code_size = 8 B)",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "m": 8,
+        "nbits": 8
+      },
+      "key": "codes",
+      "ref": 160000,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 8 bits: ids int64 en las listas",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "m": 8,
+        "nbits": 8
+      },
+      "key": "ids",
+      "ref": 160000,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 8 bits: centroides del cuantizador",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "m": 8,
+        "nbits": 8
+      },
+      "key": "centroids",
+      "ref": 16384,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 8 bits: codebooks de PQ",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "m": 8,
+        "nbits": 8
+      },
+      "key": "codebooks",
+      "ref": 65536,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 8 bits: tabla precalculada (RAM)",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "m": 8,
+        "nbits": 8
+      },
+      "key": "precomputedTable",
+      "ref": 524288,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 8 bits: serialize_index (con cabecera)",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "m": 8,
+        "nbits": 8
+      },
+      "key": "total",
+      "ref": 402612,
+      "tol": 0.005
+    },
+    {
+      "what": "IVFPQ n_list 128, m 16, 8 bits: códigos (code_size = 16 B)",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 128,
+        "m": 16,
+        "nbits": 8
+      },
+      "key": "codes",
+      "ref": 320000,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 128, m 16, 8 bits: ids int64 en las listas",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 128,
+        "m": 16,
+        "nbits": 8
+      },
+      "key": "ids",
+      "ref": 160000,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 128, m 16, 8 bits: centroides del cuantizador",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 128,
+        "m": 16,
+        "nbits": 8
+      },
+      "key": "centroids",
+      "ref": 32768,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 128, m 16, 8 bits: codebooks de PQ",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 128,
+        "m": 16,
+        "nbits": 8
+      },
+      "key": "codebooks",
+      "ref": 65536,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 128, m 16, 8 bits: tabla precalculada (RAM)",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 128,
+        "m": 16,
+        "nbits": 8
+      },
+      "key": "precomputedTable",
+      "ref": 2097152,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 128, m 16, 8 bits: serialize_index (con cabecera)",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 128,
+        "m": 16,
+        "nbits": 8
+      },
+      "key": "total",
+      "ref": 579508,
+      "tol": 0.005
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 4 bits: códigos (code_size = 4 B)",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "m": 8,
+        "nbits": 4
+      },
+      "key": "codes",
+      "ref": 80000,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 4 bits: ids int64 en las listas",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "m": 8,
+        "nbits": 4
+      },
+      "key": "ids",
+      "ref": 160000,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 4 bits: centroides del cuantizador",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "m": 8,
+        "nbits": 4
+      },
+      "key": "centroids",
+      "ref": 16384,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 4 bits: codebooks de PQ",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "m": 8,
+        "nbits": 4
+      },
+      "key": "codebooks",
+      "ref": 4096,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 4 bits: tabla precalculada (RAM)",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "m": 8,
+        "nbits": 4
+      },
+      "key": "precomputedTable",
+      "ref": 32768,
+      "tol": 0
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 4 bits: serialize_index (con cabecera)",
+      "fn": "ivfpq_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "m": 8,
+        "nbits": 4
+      },
+      "key": "total",
+      "ref": 261172,
+      "tol": 0.005
+    }
+  ],
+  "range_checks": [
+    {
+      "what": "IVFPQ n_list 64, m 8, 8 bits, n_probe 1: vectores recorridos por query medidos / n_probe·N/n_list",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "nprobe": 1,
+        "m": 8,
+        "nbits": 8,
+        "encode": 0
+      },
+      "metric": "scannedVectors",
+      "ref": 317.255,
+      "min_ratio": 0.7,
+      "max_ratio": 1.3
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 8 bits, n_probe 4: vectores recorridos por query medidos / n_probe·N/n_list",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "nprobe": 4,
+        "m": 8,
+        "nbits": 8,
+        "encode": 0
+      },
+      "metric": "scannedVectors",
+      "ref": 1269.585,
+      "min_ratio": 0.7,
+      "max_ratio": 1.3
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 8 bits, n_probe 16: vectores recorridos por query medidos / n_probe·N/n_list",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "nprobe": 16,
+        "m": 8,
+        "nbits": 8,
+        "encode": 0
+      },
+      "metric": "scannedVectors",
+      "ref": 5082.76,
+      "min_ratio": 0.7,
+      "max_ratio": 1.3
+    },
+    {
+      "what": "IVFPQ n_list 128, m 16, 8 bits, n_probe 1: vectores recorridos por query medidos / n_probe·N/n_list",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 128,
+        "nprobe": 1,
+        "m": 16,
+        "nbits": 8,
+        "encode": 0
+      },
+      "metric": "scannedVectors",
+      "ref": 159.175,
+      "min_ratio": 0.7,
+      "max_ratio": 1.3
+    },
+    {
+      "what": "IVFPQ n_list 128, m 16, 8 bits, n_probe 4: vectores recorridos por query medidos / n_probe·N/n_list",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 128,
+        "nprobe": 4,
+        "m": 16,
+        "nbits": 8,
+        "encode": 0
+      },
+      "metric": "scannedVectors",
+      "ref": 645.33,
+      "min_ratio": 0.7,
+      "max_ratio": 1.3
+    },
+    {
+      "what": "IVFPQ n_list 128, m 16, 8 bits, n_probe 16: vectores recorridos por query medidos / n_probe·N/n_list",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 128,
+        "nprobe": 16,
+        "m": 16,
+        "nbits": 8,
+        "encode": 0
+      },
+      "metric": "scannedVectors",
+      "ref": 2582.05,
+      "min_ratio": 0.7,
+      "max_ratio": 1.3
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 4 bits, n_probe 1: vectores recorridos por query medidos / n_probe·N/n_list",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "nprobe": 1,
+        "m": 8,
+        "nbits": 4,
+        "encode": 0
+      },
+      "metric": "scannedVectors",
+      "ref": 317.255,
+      "min_ratio": 0.7,
+      "max_ratio": 1.3
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 4 bits, n_probe 4: vectores recorridos por query medidos / n_probe·N/n_list",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "nprobe": 4,
+        "m": 8,
+        "nbits": 4,
+        "encode": 0
+      },
+      "metric": "scannedVectors",
+      "ref": 1269.585,
+      "min_ratio": 0.7,
+      "max_ratio": 1.3
+    },
+    {
+      "what": "IVFPQ n_list 64, m 8, 4 bits, n_probe 16: vectores recorridos por query medidos / n_probe·N/n_list",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "nlist": 64,
+        "nprobe": 16,
+        "m": 8,
+        "nbits": 4,
+        "encode": 0
+      },
+      "metric": "scannedVectors",
+      "ref": 5082.76,
+      "min_ratio": 0.7,
+      "max_ratio": 1.3
+    }
+  ],
+  "faiss_measured": {
+    "faiss_defaults": {
+      "ivf_cp_niter": 10,
+      "pq_cp_niter": 25,
+      "max_points_per_centroid": 256,
+      "precomputed_table_max_bytes": 2147483648
+    }
+  },
+  "notes": [
+    "Encode = el encoder de queries de DPR (BertModel sin pooler, [CLS], T_q = 32) en meta; FLOPs por FlopCounterMode.",
+    "Cuantizador grueso HNSW32 sobre los 1,048,576 centroides (IVF1048576_HNSW32 del wiki): ≈ 4224 distancias (estimación del calculador); salen los ef = 64 centroides candidatos (forma de coarse-dists), no 1,048,576 distancias.",
+    "IVF-PQ: IndexIVFPQ(IndexFlatL2, d, 1048576, 96, 8) a tamaño real sin entrenar: code_size = 96 B, pq.centroids = 196608 floats (k_s·d); centroides gruesos n_list·d (parámetros de k-means). FLOPs de búsqueda en meta: q·Cᵀ (cuantizador grueso) + las tablas ADC q·codebooks (einsum, k_s·d MACs con la tabla precalculada, × n_probe sin ella); recorrer códigos = lecturas de tabla y sumas, 0 FLOPs de matmul.",
+    "ann_checks / range_checks: índices FAISS reales con N = 20,000 y d = 64 (datos gaussianos, semilla 0): las fórmulas de bytes del calculador (A.flat_bytes / hnsw_bytes / ivfpq_bytes) con esos mismos N, d, M, n_list, m, nbits = los arreglos de FAISS."
+  ],
+  "source": {
+    "lib": "faiss-cpu + transformers",
+    "faiss": "1.15.1",
+    "ctor": "DPRQuestionEncoder(DPRConfig()) en meta + FAISS ivfpq",
+    "python": "3.13.15",
+    "torch": "2.14.1",
+    "timm": "1.0.30",
+    "transformers": "5.19.0"
+  }
+}

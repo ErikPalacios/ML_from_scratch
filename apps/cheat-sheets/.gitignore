@@ -1,0 +1,4 @@
+dist/
+sheets/*/fuentes/out/
+.vercel
+.env*

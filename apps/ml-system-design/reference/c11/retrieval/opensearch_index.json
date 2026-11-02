@@ -1,0 +1,50 @@
+{
+  "settings": {
+    "index": {
+      "knn": true,
+      "number_of_shards": 4,
+      "number_of_replicas": 1,
+      "refresh_interval": "1s"
+    },
+    "analysis": {
+      "analyzer": {
+        "folded": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "asciifolding"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "chunk_id": {"type": "keyword"},
+      "doc_id": {"type": "keyword"},
+      "source": {"type": "keyword"},
+      "title": {"type": "text", "analyzer": "folded"},
+      "url": {"type": "keyword", "index": false},
+      "updated_at": {"type": "date"},
+      "heading_path": {"type": "text", "analyzer": "folded"},
+      "text": {"type": "text", "analyzer": "folded"},
+      "acl_0": {"type": "keyword"},
+      "acl_1": {"type": "keyword"},
+      "acl_2": {"type": "keyword"},
+      "embed_model": {"type": "keyword"},
+      "embedding": {
+        "type": "knn_vector",
+        "dimension": 1024,
+        "space_type": "innerproduct",
+        "method": {
+          "name": "hnsw",
+          "engine": "faiss",
+          "parameters": {
+            "m": 32,
+            "ef_construction": 256,
+            "encoder": {"name": "sq", "parameters": {"bits": 16, "type": "fp16"}}
+          }
+        }
+      }
+    }
+  }
+}

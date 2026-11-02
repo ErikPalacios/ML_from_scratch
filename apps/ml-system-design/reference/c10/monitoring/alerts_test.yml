@@ -1,0 +1,407 @@
+# Tests unitarios de alerts.yml con promtool: series sintéticas → ¿dispara o no, y cuándo?
+#   promtool test rules alerts_test.yml
+# Los "sí dispara" consultan ALERTS{alertstate="firing"} con promql_expr_test (así no hay que copiar todas las
+# anotaciones); los "no dispara" usan alert_rule_test con exp_alerts: []. LLMTTFTHigh, el batch, KVCacheSaturation
+# y la rama sin métricas prueban además el texto renderizado (unidades de humanize*, que es donde aparecen bugs).
+# Notación: '0+1000x60' = empieza en 0 y suma 1000 por intervalo, 60 veces (61 valores); '_' = sin dato;
+# segmentos separados por espacio continúan la serie. El reloj de promtool empieza en 1970-01-01 00:00 UTC:
+# eval_time 14h = las 14:00 UTC (08:00 en CDMX). Eso es lo que permite probar las reglas con hour().
+# Los momentos de cada test dejan margen: rate() extrapola en los bordes de la ventana.
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------- LLMTTFTHigh
+  # 1,000 primeros tokens/min de chat-default. Hasta el minuto 20, la mitad ≤ 0.5 s y el resto ≤ 0.75 s; después,
+  # el 10 % tarda entre 1.0 y 1.5 s → p95 = 1.0 + 0.5 × (950 − 900) / 100 = 1.25 s. La condición se cumple desde
+  # el ≈ 23 y la alerta pasa a firing en el ≈ 33. El vendor, con TTFT de 3 s, no cuenta (backend="vendor").
+  - interval: 1m
+    input_series:
+      - series: 'llm_gateway_ttft_seconds_bucket{alias="chat-default",priority="interactive",backend="self",le="0.5"}'
+        values: '0+500x60'
+      - series: 'llm_gateway_ttft_seconds_bucket{alias="chat-default",priority="interactive",backend="self",le="0.75"}'
+        values: '0+1000x20 20900+900x39'
+      - series: 'llm_gateway_ttft_seconds_bucket{alias="chat-default",priority="interactive",backend="self",le="1"}'
+        values: '0+1000x20 20900+900x39'
+      - series: 'llm_gateway_ttft_seconds_bucket{alias="chat-default",priority="interactive",backend="self",le="1.5"}'
+        values: '0+1000x60'
+      - series: 'llm_gateway_ttft_seconds_bucket{alias="chat-default",priority="interactive",backend="self",le="+Inf"}'
+        values: '0+1000x60'
+      - series: 'llm_gateway_ttft_seconds_bucket{alias="chat-default",priority="interactive",backend="vendor",le="1"}'
+        values: '0x60'
+      - series: 'llm_gateway_ttft_seconds_bucket{alias="chat-default",priority="interactive",backend="vendor",le="+Inf"}'
+        values: '0+100x60'
+    promql_expr_test:
+      # Antes del cambio: el rango 950 cae en (0.5, 0.75] con 500 adentro → 0.5 + 0.25 × 450 / 500 = 0.725
+      - expr: llm:gateway_ttft_p95:rate5m
+        eval_time: 15m
+        exp_samples:
+          - labels: 'llm:gateway_ttft_p95:rate5m{alias="chat-default"}'
+            value: 0.725
+      - expr: llm:gateway_ttft_p95:rate5m
+        eval_time: 40m
+        exp_samples:
+          - labels: 'llm:gateway_ttft_p95:rate5m{alias="chat-default"}'
+            value: 1.25
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: LLMTTFTHigh
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: LLMTTFTHigh
+        exp_alerts:
+          - exp_labels: {alias: chat-default, severity: page}
+            exp_annotations:
+              summary: "chat-default: TTFT p95 1.25s en el gateway (SLO 1 s)"
+              description: "Compara con llm:vllm_ttft_p95:rate5m por pod: si vLLM está bien, la espera es la cola del gateway (llm_gateway_queue_depth); si no, mira KVCacheSaturation, prompts más largos (vllm:request_prompt_tokens) o una réplica lenta."
+              runbook_url: "https://runbooks.example.com/c10/ttft"
+
+  # Un 3 % lento no alcanza: el rango 950 cae dentro del bucket de 1.0 s (p95 ≤ 1.0, y la regla es "> 1").
+  - interval: 1m
+    input_series:
+      - series: 'llm_gateway_ttft_seconds_bucket{alias="chat-default",priority="interactive",backend="self",le="1"}'
+        values: '0+970x60'
+      - series: 'llm_gateway_ttft_seconds_bucket{alias="chat-default",priority="interactive",backend="self",le="+Inf"}'
+        values: '0+1000x60'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: LLMTTFTHigh
+        exp_alerts: []
+
+  # ---------------------------------------------------------------- LLMTPOTHigh
+  # 1,000 requests/min: hasta el 20, todos ≤ 40 ms; después el 20 % entre 50 y 75 ms → p95 = 0.05 + 0.025 × 150/200
+  # = 0.06875 s. Batch lento (priority="batch") no cuenta: nadie lee esos tokens en vivo.
+  - interval: 1m
+    input_series:
+      - series: 'llm_gateway_tpot_seconds_bucket{alias="chat-default",priority="interactive",backend="self",le="0.04"}'
+        values: '0+1000x20 20800+800x39'
+      - series: 'llm_gateway_tpot_seconds_bucket{alias="chat-default",priority="interactive",backend="self",le="0.05"}'
+        values: '0+1000x20 20800+800x39'
+      - series: 'llm_gateway_tpot_seconds_bucket{alias="chat-default",priority="interactive",backend="self",le="0.075"}'
+        values: '0+1000x60'
+      - series: 'llm_gateway_tpot_seconds_bucket{alias="chat-default",priority="interactive",backend="self",le="+Inf"}'
+        values: '0+1000x60'
+      - series: 'llm_gateway_tpot_seconds_bucket{alias="extract-default",priority="batch",backend="self",le="0.05"}'
+        values: '0x60'
+      - series: 'llm_gateway_tpot_seconds_bucket{alias="extract-default",priority="batch",backend="self",le="+Inf"}'
+        values: '0+500x60'
+    promql_expr_test:
+      # 0.06875 con el error de redondeo de punto flotante que promtool compara exacto
+      - expr: llm:gateway_tpot_p95:rate5m
+        eval_time: 40m
+        exp_samples:
+          - labels: 'llm:gateway_tpot_p95:rate5m{alias="chat-default"}'
+            value: 0.06874999999999999
+      - expr: ALERTS{alertname="LLMTPOTHigh",alertstate="firing"}
+        eval_time: 40m
+        exp_samples:
+          - labels: 'ALERTS{alertname="LLMTPOTHigh",alertstate="firing",alias="chat-default",severity="page"}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: LLMTPOTHigh
+        exp_alerts: []
+
+  # ---------------------------------------------------------------- LLMGatewayErrorRate
+  # 1,000 OK/min, 100 × 429/min (cuota de un tenant: no es falla) y 50 × 499/min (clientes que se van: tampoco).
+  # Desde el minuto 10, 20 × 503/min → 20 ÷ (1,000 + 100 + 20) ≈ 1.8 % > 1 %.
+  - interval: 1m
+    input_series:
+      - series: 'llm_gateway_requests_total{tenant="support-assistant",alias="chat-default",status="200"}'
+        values: '0+1000x40'
+      - series: 'llm_gateway_requests_total{tenant="listing-assistant",alias="chat-default",status="429"}'
+        values: '0+100x40'
+      - series: 'llm_gateway_requests_total{tenant="support-assistant",alias="chat-default",status="499"}'
+        values: '0+50x40'
+      - series: 'llm_gateway_requests_total{tenant="support-assistant",alias="chat-default",status="503"}'
+        values: '0x10 0+20x30'
+    promql_expr_test:
+      - expr: llm:gateway_error_ratio:rate5m
+        eval_time: 30m
+        exp_samples:
+          - labels: 'llm:gateway_error_ratio:rate5m'
+            value: 0.017857142857142856
+      - expr: ALERTS{alertname="LLMGatewayErrorRate",alertstate="firing"}
+        eval_time: 30m
+        exp_samples:
+          - labels: 'ALERTS{alertname="LLMGatewayErrorRate",alertstate="firing",severity="page"}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: LLMGatewayErrorRate
+        exp_alerts: []
+
+  # Muchos 429 y 499, ningún 5xx: no es una falla de la plataforma (el ratio es 0, no "sin datos")
+  - interval: 1m
+    input_series:
+      - series: 'llm_gateway_requests_total{tenant="support-assistant",alias="chat-default",status="200"}'
+        values: '0+100x40'
+      - series: 'llm_gateway_requests_total{tenant="support-assistant",alias="chat-default",status="429"}'
+        values: '0+900x40'
+      - series: 'llm_gateway_requests_total{tenant="support-assistant",alias="chat-default",status="499"}'
+        values: '0+900x40'
+    promql_expr_test:
+      - expr: llm:gateway_error_ratio:rate5m
+        eval_time: 30m
+        exp_samples:
+          - labels: 'llm:gateway_error_ratio:rate5m'
+            value: 0
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: LLMGatewayErrorRate
+        exp_alerts: []
+
+  # ---------------------------------------------------------------- LLMQueueBacklog (cola interactiva)
+  # gw-0 con 40 interactivos esperando desde el minuto 5 (firing en el 10); la cola batch de 200 no despierta a nadie.
+  - interval: 1m
+    input_series:
+      - series: 'llm_gateway_queue_depth{pod="gw-0",priority="interactive"}'
+        values: '0x4 40x30'
+      - series: 'llm_gateway_queue_depth{pod="gw-1",priority="interactive"}'
+        values: '3x34'
+      - series: 'llm_gateway_queue_depth{pod="gw-1",priority="batch"}'
+        values: '200x34'
+    promql_expr_test:
+      - expr: ALERTS{alertname="LLMQueueBacklog",alertstate="firing"}
+        eval_time: 12m
+        exp_samples:
+          - labels: 'ALERTS{alertname="LLMQueueBacklog",alertstate="firing",cause="interactive_queue",pod="gw-0",severity="page"}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: LLMQueueBacklog
+        exp_alerts: []
+
+  # ---------------------------------------------------------------- LLMQueueBacklog (batch que no llega a las 06:00)
+  # El batch arranca a las 04:00 UTC (22:00 CDMX) con 2 M items y avanza a 3,000/min = 50/s.
+  # A las 05:00 quedan 1.82 M → ETA 36,400 s; faltan 25,200 s para las 12:00 UTC → no llega.
+  # Antes de las 04:00 no se evalúa (hour() < 4), aunque haya items pendientes.
+  - interval: 1m
+    input_series:
+      - series: 'batch_runner_items_remaining'
+        values: '2000000x239 2000000-3000x400'
+      - series: 'batch_runner_items_completed_total'
+        values: '0x239 0+3000x400'
+    promql_expr_test:
+      - expr: batch:seconds_to_deadline
+        eval_time: 5h
+        exp_samples:
+          - labels: 'batch:seconds_to_deadline'
+            value: 25200
+      - expr: batch:eta_seconds
+        eval_time: 5h
+        exp_samples:
+          - labels: 'batch:eta_seconds'
+            value: 36400
+    alert_rule_test:
+      - eval_time: 230m
+        alertname: LLMQueueBacklog
+        exp_alerts: []
+      - eval_time: 5h
+        alertname: LLMQueueBacklog
+        exp_alerts:
+          - exp_labels: {severity: ticket, cause: batch_deadline}
+            exp_annotations:
+              summary: "El batch de catálogo no termina antes de las 06:00: al ritmo actual le faltan 10h 6m 40s"
+              description: "¿El batch recibe 503 (admisión) o 429 (cuota de catalog-enrichment)? ¿Hay tráfico interactivo nocturno inusual? Lo que no termine se procesa el día siguiente con prioridad batch: no se manda al vendor."
+              runbook_url: "https://runbooks.example.com/c10/batch"
+
+  # El mismo batch a 6,000/min = 100/s: a las 05:00 quedan 1.64 M → ETA 16,400 s < 25,200: llega.
+  - interval: 1m
+    input_series:
+      - series: 'batch_runner_items_remaining'
+        values: '2000000x239 2000000-6000x330'
+      - series: 'batch_runner_items_completed_total'
+        values: '0x239 0+6000x330'
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: LLMQueueBacklog
+        exp_alerts: []
+
+  # ---------------------------------------------------------------- KVCacheSaturation
+  # Pod a: KV al 97 % con 5 requests esperando. Pod b: KV al 97 % sin nadie esperando (lleno pero sin cola: bien
+  # usado). A las 14:30 UTC (08:30 CDMX) dispara para a; con las mismas series a las 05:00 UTC (batch) no.
+  - interval: 1m
+    input_series:
+      - series: 'vllm:kv_cache_usage_perc{pod="vllm-70b-a",model_name="chat-70b-fp8-2026-09-28",engine="0"}'
+        values: '0.97x900'
+      - series: 'vllm:num_requests_waiting{pod="vllm-70b-a",model_name="chat-70b-fp8-2026-09-28",engine="0"}'
+        values: '5x900'
+      - series: 'vllm:kv_cache_usage_perc{pod="vllm-70b-b",model_name="chat-70b-fp8-2026-09-28",engine="0"}'
+        values: '0.97x900'
+      - series: 'vllm:num_requests_waiting{pod="vllm-70b-b",model_name="chat-70b-fp8-2026-09-28",engine="0"}'
+        values: '0x900'
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: KVCacheSaturation
+        exp_alerts: []
+      - eval_time: 870m
+        alertname: KVCacheSaturation
+        exp_alerts:
+          - exp_labels: {pod: vllm-70b-a, severity: ticket}
+            exp_annotations:
+              summary: "vllm-70b-a: KV cache al 97% con requests esperando"
+              description: "La concurrencia de esta réplica la limita la memoria. Causa probable de LLMTTFTHigh. Opciones: más réplicas, --kv-cache-dtype fp8 (≈ 2× secuencias; requiere pasar el golden set), max-model-len menor, o prompts más cortos del tenant que más creció."
+              runbook_url: "https://runbooks.example.com/c10/kv-cache"
+
+  # ---------------------------------------------------------------- LLMPreemptionsRising
+  # 100 requests terminados/min y 6 preemptions/min (0.06 por request) en horario interactivo → dispara; 3/min (0.03) no.
+  - interval: 1m
+    input_series:
+      - series: 'vllm:num_preemptions_total{pod="vllm-70b-a",model_name="m",engine="0"}'
+        values: '0+6x900'
+      - series: 'vllm:request_success_total{pod="vllm-70b-a",model_name="m",engine="0",finished_reason="stop"}'
+        values: '0+100x900'
+    promql_expr_test:
+      - expr: llm:preemption_ratio:rate15m
+        eval_time: 13h
+        exp_samples:
+          - labels: 'llm:preemption_ratio:rate15m'
+            value: 0.06
+      - expr: ALERTS{alertname="LLMPreemptionsRising",alertstate="firing"}
+        eval_time: 13h
+        exp_samples:
+          - labels: 'ALERTS{alertname="LLMPreemptionsRising",alertstate="firing",severity="ticket"}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: LLMPreemptionsRising
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'vllm:num_preemptions_total{pod="vllm-70b-a",model_name="m",engine="0"}'
+        values: '0+3x900'
+      - series: 'vllm:request_success_total{pod="vllm-70b-a",model_name="m",engine="0",finished_reason="stop"}'
+        values: '0+100x900'
+    alert_rule_test:
+      - eval_time: 13h
+        alertname: LLMPreemptionsRising
+        exp_alerts: []
+
+  # ---------------------------------------------------------------- LLMCapacityHeadroomLow
+  # Rama inflight: 2 réplicas del gateway, 252 + 252 de 288 + 288 en vuelo = 87.5 % desde el minuto 5
+  # (≈ 63 por réplica de vLLM de 72: cerca del codo). En el pico planeado serían ≈ 160 de 288 (≈ 55 %).
+  # Rama replicas: 16 pods estables, 2 caen en el minuto 10 → 14 < 15. El canario no cuenta (track="canary").
+  - interval: 1m
+    input_series:
+      - series: 'llm_gateway_inflight{pod="gw-0",priority="interactive"}'
+        values: '120x4 212x40'
+      - series: 'llm_gateway_inflight{pod="gw-0",priority="batch"}'
+        values: '0x4 40x40'
+      - series: 'llm_gateway_inflight{pod="gw-1",priority="interactive"}'
+        values: '120x4 252x40'
+      - series: 'llm_gateway_max_inflight{pod="gw-0"}'
+        values: '288x44'
+      - series: 'llm_gateway_max_inflight{pod="gw-1"}'
+        values: '288x44'
+      - series: 'vllm:num_requests_running{pod="vllm-70b-0",model_name="m",engine="0"}'
+        values: '30x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-0",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-1",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-2",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-3",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-4",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-5",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-6",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-7",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-8",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-9",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-10",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-11",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-12",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-13",track="stable"}'
+        values: '1x44'
+      - series: 'up{namespace="c10",pod="vllm-70b-14",track="stable"}'
+        values: '1x9 0x34'
+      - series: 'up{namespace="c10",pod="vllm-70b-15",track="stable"}'
+        values: '1x9 0x34'
+      - series: 'up{namespace="c10",pod="vllm-70b-canary-0",track="canary"}'
+        values: '1x44'
+    promql_expr_test:
+      - expr: llm:gateway_inflight_utilization
+        eval_time: 30m
+        exp_samples:
+          - labels: 'llm:gateway_inflight_utilization'
+            value: 0.875
+      - expr: ALERTS{alertname="LLMCapacityHeadroomLow",alertstate="firing"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'ALERTS{alertname="LLMCapacityHeadroomLow",alertstate="firing",cause="inflight",severity="page"}'
+            value: 1
+          - labels: 'ALERTS{alertname="LLMCapacityHeadroomLow",alertstate="firing",cause="replicas",severity="page"}'
+            value: 1
+      # El texto de la rama replicas dice cuántas quedan (14), no un porcentaje
+      - expr: count(up{namespace="c10", pod=~"vllm-70b-.*", track="stable"} == 1)
+        eval_time: 25m
+        exp_samples:
+          - labels: '{}'
+            value: 14
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: LLMCapacityHeadroomLow
+        exp_alerts: []
+
+  # Rama sin métricas: no hay ninguna serie de vLLM → dispara a los 10 min con su propio texto
+  - interval: 1m
+    input_series:
+      - series: 'llm_gateway_inflight{pod="gw-0",priority="interactive"}'
+        values: '10x20'
+      - series: 'llm_gateway_max_inflight{pod="gw-0"}'
+        values: '288x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: LLMCapacityHeadroomLow
+        exp_alerts:
+          - exp_labels: {severity: page, cause: no_metrics}
+            exp_annotations:
+              summary: "No hay métricas de vllm-70b: las alertas de la flota están ciegas"
+              description: "¿Cambió el PodMonitor, el puerto o el nombre de las métricas en un upgrade de vLLM? Revisa los targets en Prometheus."
+              runbook_url: "https://runbooks.example.com/c10/capacity"
+
+  # ---------------------------------------------------------------- CanaryEvalRegression
+  # catalog-enrichment: canario 0.90 contra estable 0.93 (−3 puntos) con 1,000 items → dispara a los 30 min.
+  # support-assistant: −5 puntos pero con solo 200 items → no decide. listing-assistant: −1 punto → dentro del margen.
+  - interval: 1m
+    input_series:
+      - series: 'llm_golden_score{tenant="catalog-enrichment",track="stable"}'
+        values: '0.93x60'
+      - series: 'llm_golden_score{tenant="catalog-enrichment",track="canary"}'
+        values: '0.90x60'
+      - series: 'llm_golden_items{tenant="catalog-enrichment",track="canary"}'
+        values: '1000x60'
+      - series: 'llm_golden_score{tenant="support-assistant",track="stable"}'
+        values: '0.80x60'
+      - series: 'llm_golden_score{tenant="support-assistant",track="canary"}'
+        values: '0.75x60'
+      - series: 'llm_golden_items{tenant="support-assistant",track="canary"}'
+        values: '200x60'
+      - series: 'llm_golden_score{tenant="listing-assistant",track="stable"}'
+        values: '0.70x60'
+      - series: 'llm_golden_score{tenant="listing-assistant",track="canary"}'
+        values: '0.69x60'
+      - series: 'llm_golden_items{tenant="listing-assistant",track="canary"}'
+        values: '800x60'
+    promql_expr_test:
+      - expr: ALERTS{alertname="CanaryEvalRegression",alertstate="firing"}
+        eval_time: 40m
+        exp_samples:
+          - labels: 'ALERTS{alertname="CanaryEvalRegression",alertstate="firing",severity="ticket",tenant="catalog-enrichment"}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: CanaryEvalRegression
+        exp_alerts: []

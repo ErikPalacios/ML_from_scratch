@@ -1,0 +1,14 @@
+{"qid": "s-01", "question": "¿Hasta cuántos días después de la entrega puede un comprador pedir reembolso?", "user": "ana@acme.com", "slice": "soporte", "kind": "answerable", "expected_doc_ids": ["confluence:2001"]}
+{"qid": "s-02", "question": "¿Cuál es el monto máximo sin aprobación para un producto dañado?", "user": "ana@acme.com", "slice": "soporte", "kind": "answerable", "expected_doc_ids": ["confluence:2001"]}
+{"qid": "s-03", "question": "Texto de la macro para reembolso por paquete no recibido", "user": "ana@acme.com", "slice": "soporte", "kind": "answerable", "expected_doc_ids": ["policies:macro-15"]}
+{"qid": "s-04", "question": "¿En cuántos días hábiles llega el reembolso al medio de pago?", "user": "ana@acme.com", "slice": "soporte", "kind": "answerable", "expected_doc_ids": ["confluence:2001", "policies:macro-15"]}
+{"qid": "v-01", "question": "¿Cuál es el viático diario en Colombia?", "user": "ana@acme.com", "slice": "viajes", "kind": "answerable", "expected_doc_ids": ["drive:3002"]}
+{"qid": "v-02", "question": "¿Cuál es el hotel máximo por noche en Brasil?", "user": "carlos@consultora.com", "slice": "viajes", "kind": "permission", "forbidden_doc_ids": ["drive:3002"]}
+{"qid": "f-01", "question": "¿Cómo se calcula el bono trimestral del equipo de Finanzas?", "user": "luis@acme.com", "slice": "finanzas", "kind": "answerable", "expected_doc_ids": ["drive:3001"]}
+{"qid": "f-02", "question": "¿Cómo se calcula el bono trimestral del equipo de Finanzas?", "user": "ana@acme.com", "slice": "finanzas", "kind": "permission", "forbidden_doc_ids": ["drive:3001"]}
+{"qid": "e-01", "question": "¿Por qué los pagos con OXXO quedaban pendientes?", "user": "marta@acme.com", "slice": "ingenieria", "kind": "answerable", "expected_doc_ids": ["jira:PAG-1234"]}
+{"qid": "e-02", "question": "¿Por qué los pagos con OXXO quedaban pendientes?", "user": "ana@acme.com", "slice": "ingenieria", "kind": "permission", "forbidden_doc_ids": ["jira:PAG-1234"]}
+{"qid": "e-03", "question": "¿Cada cuánto se rotan las llaves del proveedor de pagos?", "user": "marta@acme.com", "slice": "ingenieria", "kind": "answerable", "expected_doc_ids": ["jira:SEC-77"]}
+{"qid": "e-04", "question": "¿Cada cuánto se rotan las llaves del proveedor de pagos?", "user": "luis@acme.com", "slice": "ingenieria", "kind": "permission", "forbidden_doc_ids": ["jira:SEC-77"]}
+{"qid": "x-01", "question": "¿Qué se discutió sobre la comisión de vendedores en electrónica?", "user": "luis@acme.com", "slice": "general", "kind": "permission", "forbidden_doc_ids": ["drive:3003"]}
+{"qid": "x-02", "question": "¿Cuál es el código de vestimenta para las oficinas?", "user": "ana@acme.com", "slice": "general", "kind": "unanswerable"}

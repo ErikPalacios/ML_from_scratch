@@ -1,0 +1,63 @@
+# Autoscaling de Triton con KEDA (caso c01): escala por el TIEMPO EN COLA de Triton, no por CPU.
+# Por qué no el HPA por CPU: en un pod de GPU la CPU no dice nada de la carga real; la señal de
+# saturación es cuánto esperan los requests antes de entrar a la GPU (nv_inference_queue_duration_us).
+# KEDA crea y administra el HPA (keda-hpa-triton): no definas otro HPA para el mismo Deployment.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: triton
+  namespace: classifier
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: triton  # el Deployment de k8s/triton.yaml
+  minReplicaCount: 2  # nunca menos de 2: una GPU por AZ (N+1), aunque 1 sola cubra el pico
+  maxReplicaCount: 4  # techo de costo: 4 × g4dn.xlarge; si no alcanza, TritonQueueTimeHigh avisa
+  # Con minReplicaCount ≥ 1 no marca el ritmo del escalado: el HPA le pide la métrica a KEDA cada
+  # 15 s y KEDA corre la query en Prometheus en cada pedido. pollingInterval solo refresca el estado
+  # y los eventos del ScaledObject.
+  pollingInterval: 15
+  # cooldownPeriod solo aplica al bajar de 1 a 0 réplicas (subir desde 0 es inmediato al activarse el
+  # trigger); con minReplicaCount 2 no se usa. El ritmo de bajada lo define el behavior del HPA de abajo.
+  cooldownPeriod: 300
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0  # subir en cuanto la cola crece (un nodo GPU tarda minutos en llegar)
+          policies:
+            - type: Pods
+              value: 1  # de a una GPU: cada una es cara y el pico lo cubre 1
+              periodSeconds: 60
+        scaleDown:
+          stabilizationWindowSeconds: 600  # bajar muy despacio: la cola es una señal que "salta"
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 300
+  triggers:
+    - type: prometheus
+      # Value (no AverageValue): réplicas deseadas = ceil(actuales × valor / umbral). Proporcional,
+      # como corresponde a una latencia; AverageValue dividiría el valor entre réplicas, lo que tiene
+      # sentido para un caudal (req/s), no para un tiempo.
+      metricType: Value
+      metadata:
+        # Prometheus del cluster (kube-prometheus-stack). Con Amazon Managed Prometheus se agrega
+        # autenticación SigV4 vía TriggerAuthentication.
+        serverAddress: http://prometheus-operated.monitoring.svc.cluster.local:9090
+        # Si la query vuelve vacía (Prometheus no scrapea Triton: falta el ServiceMonitor de
+        # k8s/monitoring.yaml), "false" la vuelve un error visible del scaler (eventos del ScaledObject).
+        # Con el default (true) KEDA la toma como 0 y Triton se queda en 2 réplicas sin que nada avise.
+        ignoreNullValues: "false"
+        # Espera media en cola en ms (misma fórmula que la alerta TritonQueueTimeHigh).
+        # clamp_min evita 0/0 = NaN sin tráfico; si todo falla (0 éxitos) el valor se dispara y escala.
+        query: |
+          sum(rate(nv_inference_queue_duration_us{model="classifier"}[2m]))
+            /
+          clamp_min(sum(rate(nv_inference_request_success{model="classifier"}[2m])), 1e-9)
+            / 1000
+        # Objetivo: 10 ms en cola. Normal con max_queue_delay de 2 ms es ≈ 1–3 ms; > 10 ms es saturación.
+        # Ojo: la cola es no lineal (casi 0 hasta que la GPU se satura). Alternativa más estable:
+        # AverageValue sobre sum(rate(nv_inference_count[1m])) con umbral ≈ 400 img/s por réplica.
+        threshold: "10"

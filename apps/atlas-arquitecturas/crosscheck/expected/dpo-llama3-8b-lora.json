@@ -1,0 +1,292 @@
+{
+  "config_id": "dpo-llama3-8b-lora",
+  "model": "rlhf-dpo",
+  "T": 1024,
+  "sequences": 2,
+  "params_total": 8072204288,
+  "params_by_node": {
+    "policy": 8072204288,
+    "reference": 0
+  },
+  "shapes": {
+    "pol-x0": [
+      1024,
+      4096
+    ],
+    "pol-h-norm1": [
+      1024,
+      4096
+    ],
+    "pol-q-base": [
+      1024,
+      4096
+    ],
+    "pol-q-drop": [
+      1024,
+      4096
+    ],
+    "pol-q-lora-a": [
+      1024,
+      16
+    ],
+    "pol-q-lora-b": [
+      1024,
+      4096
+    ],
+    "pol-q": [
+      1024,
+      4096
+    ],
+    "pol-k-base": [
+      1024,
+      1024
+    ],
+    "pol-k-drop": [
+      1024,
+      4096
+    ],
+    "pol-k-lora-a": [
+      1024,
+      16
+    ],
+    "pol-k-lora-b": [
+      1024,
+      1024
+    ],
+    "pol-k": [
+      1024,
+      1024
+    ],
+    "pol-v-base": [
+      1024,
+      1024
+    ],
+    "pol-v-drop": [
+      1024,
+      4096
+    ],
+    "pol-v-lora-a": [
+      1024,
+      16
+    ],
+    "pol-v-lora-b": [
+      1024,
+      1024
+    ],
+    "pol-v": [
+      1024,
+      1024
+    ],
+    "pol-z": [
+      1024,
+      4096
+    ],
+    "pol-o-base": [
+      1024,
+      4096
+    ],
+    "pol-o-drop": [
+      1024,
+      4096
+    ],
+    "pol-o-lora-a": [
+      1024,
+      16
+    ],
+    "pol-o-lora-b": [
+      1024,
+      4096
+    ],
+    "pol-o": [
+      1024,
+      4096
+    ],
+    "pol-r1": [
+      1024,
+      4096
+    ],
+    "pol-h-norm2": [
+      1024,
+      4096
+    ],
+    "pol-gate-base": [
+      1024,
+      14336
+    ],
+    "pol-gate-drop": [
+      1024,
+      4096
+    ],
+    "pol-gate-lora-a": [
+      1024,
+      16
+    ],
+    "pol-gate-lora-b": [
+      1024,
+      14336
+    ],
+    "pol-gate": [
+      1024,
+      14336
+    ],
+    "pol-up-base": [
+      1024,
+      14336
+    ],
+    "pol-up-drop": [
+      1024,
+      4096
+    ],
+    "pol-up-lora-a": [
+      1024,
+      16
+    ],
+    "pol-up-lora-b": [
+      1024,
+      14336
+    ],
+    "pol-up": [
+      1024,
+      14336
+    ],
+    "pol-prod": [
+      1024,
+      14336
+    ],
+    "pol-down-base": [
+      1024,
+      4096
+    ],
+    "pol-down-drop": [
+      1024,
+      14336
+    ],
+    "pol-down-lora-a": [
+      1024,
+      16
+    ],
+    "pol-down-lora-b": [
+      1024,
+      4096
+    ],
+    "pol-f": [
+      1024,
+      4096
+    ],
+    "pol-x-out": [
+      1024,
+      4096
+    ],
+    "pol-x-norm": [
+      1024,
+      4096
+    ],
+    "pol-logits": [
+      1024,
+      128256
+    ],
+    "ref-x0": [
+      1024,
+      4096
+    ],
+    "ref-h-norm1": [
+      1024,
+      4096
+    ],
+    "ref-q": [
+      1024,
+      4096
+    ],
+    "ref-k": [
+      1024,
+      1024
+    ],
+    "ref-v": [
+      1024,
+      1024
+    ],
+    "ref-z": [
+      1024,
+      4096
+    ],
+    "ref-o": [
+      1024,
+      4096
+    ],
+    "ref-r1": [
+      1024,
+      4096
+    ],
+    "ref-h-norm2": [
+      1024,
+      4096
+    ],
+    "ref-gate": [
+      1024,
+      14336
+    ],
+    "ref-up": [
+      1024,
+      14336
+    ],
+    "ref-prod": [
+      1024,
+      14336
+    ],
+    "ref-f": [
+      1024,
+      4096
+    ],
+    "ref-x-out": [
+      1024,
+      4096
+    ],
+    "ref-x-norm": [
+      1024,
+      4096
+    ],
+    "ref-logits": [
+      1024,
+      128256
+    ],
+    "ids": [
+      1024
+    ]
+  },
+  "flops_total": 63848983822336,
+  "flops_by_node": {
+    "policy": 32010391257088,
+    "reference": 31838592565248
+  },
+  "flops_by_op_torch": {
+    "aten.bmm": 2199023255552,
+    "aten.mm": 61649960566784
+  },
+  "metrics_checks": {
+    "policyTrainStepMacsPerSeq": 23787676368896,
+    "policyForwardMacsPerSeq": 8002597814272,
+    "totalParams": 8072204288,
+    "trainableParams": 41943040
+  },
+  "source": {
+    "lib": "transformers + peft",
+    "version": "5.19.0",
+    "peft": "0.21.2",
+    "ctor": "with torch.device('meta'): LlamaForCausalLM(LlamaConfig(vocab_size=128256, hidden_size=4096, intermediate_size=14336, num_hidden_layers=32, num_attention_heads=32, num_key_value_heads=8, head_dim=128, max_position_embeddings=8192, rms_norm_eps=1e-05, tie_word_embeddings=False, attention_bias=False, mlp_bias=False, rope_theta=500000.0)); with torch.device('meta'): LlamaForSequenceClassification(LlamaConfig(vocab_size=128256, hidden_size=4096, intermediate_size=14336, num_hidden_layers=32, num_attention_heads=32, num_key_value_heads=8, head_dim=128, max_position_embeddings=8192, rms_norm_eps=1e-05, tie_word_embeddings=False, attention_bias=False, mlp_bias=False, rope_theta=500000.0, num_labels=1)); get_peft_model(model, LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05, target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'], bias='none'))",
+    "attn_implementation": "eager",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "peft": "0.21.2"
+    }
+  },
+  "notes": [
+    "Un modelo HF por rol, construido en código en el dispositivo meta (sin pesos ni hub): política y referencia LlamaForCausalLM; reward model y crítico LlamaForSequenceClassification(num_labels = 1) = el decoder sin lm_head + score (Linear D → 1 sin sesgo), como TRL.",
+    "FLOPs = la suma de los forwards de cada rol sobre el par (batch 2: elegida + rechazada, como concatenated_forward de TRL) con T = 1024 (FlopCounterMode, todas las capas, atención eager).",
+    "El rollout (generación) no está en el grafo: el calculador lo cuenta con llm.js (prefill + decode, verificados en crosscheck/llm.py).",
+    "metrics_checks: costo de UN update de la política (y del crítico en PPO) por secuencia con gradient checkpointing reentrante (forward + backward + recomputación), medido con loss.backward().",
+    "Con LoRA la referencia es el mismo PeftModel dentro de disable_adapter(): no suma parámetros (paramRepeat 0 en el calculador) y su forward no pasa por los adaptadores."
+  ]
+}

@@ -1,0 +1,38 @@
+name: Comentarios de la beta
+description: Cuéntame cómo te fue probando las herramientas
+title: "[Beta] "
+labels: ["beta"]
+body:
+  - type: markdown
+    attributes:
+      value: Gracias por probarlo. Contesta lo que puedas; con dos líneas ya ayuda.
+  - type: checkboxes
+    id: probe
+    attributes:
+      label: ¿Qué probaste?
+      options:
+        - label: Ronda de Diseño ML
+        - label: Cheat sheets ML
+        - label: Atlas de Arquitecturas
+        - label: Laboratorio Transformer
+        - label: ML Board (demo)
+  - type: textarea
+    id: sirvio
+    attributes:
+      label: ¿Qué te sirvió?
+    validations: { required: true }
+  - type: textarea
+    id: falto
+    attributes:
+      label: ¿Qué te confundió, qué falló o qué te faltó?
+    validations: { required: true }
+  - type: dropdown
+    id: recomendarias
+    attributes:
+      label: ¿Se lo recomendarías a alguien que prepara una entrevista de ML?
+      options: [Sí, sin dudarlo, Sí, con reservas, No todavía]
+  - type: input
+    id: dispositivo
+    attributes:
+      label: Dispositivo y navegador
+      placeholder: Mac · Safari   /   iPad · Safari   /   Android · Chrome

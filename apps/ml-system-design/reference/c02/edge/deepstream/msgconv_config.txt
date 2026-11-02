@@ -1,0 +1,22 @@
+# Configuración de nvmsgconv (caso c02): traduce el índice de la fuente (source_id = N de [sourceN]
+# en ds_app_config.txt) al id de cámara que viaja en cada mensaje como "sensorId".
+# Por qué existe: en el esquema minimal, nvmsgconv busca [sensor<source_id>] aquí; si no lo encuentra,
+# manda sensorId "0" para TODAS las cámaras (así está en dsmeta_payload.cpp de DS 9.1) y el forwarder
+# no podría saber a qué zona pertenece cada caja.
+# Se GENERA desde el inventario del sitio junto con las [sourceN]: mismo N, misma cámara.
+# Formato key file de GLib: comentarios en su propia línea.
+
+[sensor0]
+enable=1
+type=Camera
+# Debe coincidir con la llave de la cámara en forwarder/site.yaml (ahí están sus zonas)
+id=cam-01
+description=Anden 1 - perimetro norte
+
+[sensor1]
+enable=1
+type=Camera
+id=cam-02
+description=Pasillo de montacargas 3
+
+# … [sensor2] a [sensor39]: cam-03 … cam-40 (generados)

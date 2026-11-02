@@ -1,0 +1,1808 @@
+{
+  "config_id": "swin-b-384",
+  "model": "swin",
+  "params_total": 87903584,
+  "params_by_module": {
+    "patch_embed": 6528,
+    "layers": 86870008,
+    "norm": 2048,
+    "head": 1025000
+  },
+  "params_by_node": {
+    "patch-embed": 6528,
+    "conv": 6272,
+    "norm": 256,
+    "final-ln": 2048,
+    "head": 1025000,
+    "w-ln1": 256,
+    "w-msa": 68164,
+    "w-ln2": 256,
+    "w-mlp": 131712,
+    "sw-ln1": 256,
+    "sw-msa": 68164,
+    "sw-ln2": 256,
+    "sw-mlp": 131712,
+    "qkv": 99072,
+    "proj": 33024,
+    "bias": 4232,
+    "fc1": 132096,
+    "fc2": 131328,
+    "ln": 1024,
+    "reduce": 131072,
+    "stage1": 400776,
+    "stage2": 1587984,
+    "merge1": 132096,
+    "stage3": 56895264,
+    "merge2": 526336,
+    "stage4": 25226304,
+    "merge3": 2101248
+  },
+  "shapes": {
+    "x-img": [
+      384,
+      384,
+      3
+    ],
+    "x-patch-grid": [
+      96,
+      96,
+      128
+    ],
+    "x-embed": [
+      96,
+      96,
+      128
+    ],
+    "s1-b1-ln1": [
+      96,
+      96,
+      128
+    ],
+    "s1-b1-win": [
+      64,
+      144,
+      128
+    ],
+    "s1-b1-qkv": [
+      64,
+      144,
+      384
+    ],
+    "s1-b1-attn": [
+      64,
+      4,
+      144,
+      144
+    ],
+    "s1-b1-z": [
+      64,
+      144,
+      128
+    ],
+    "s1-b1-proj": [
+      64,
+      144,
+      128
+    ],
+    "s1-b1-r1": [
+      96,
+      96,
+      128
+    ],
+    "s1-b1-ln2": [
+      96,
+      96,
+      128
+    ],
+    "s1-b1-u": [
+      96,
+      96,
+      512
+    ],
+    "s1-b1-g": [
+      96,
+      96,
+      512
+    ],
+    "s1-b1-f": [
+      96,
+      96,
+      128
+    ],
+    "s1-b2-ln1": [
+      96,
+      96,
+      128
+    ],
+    "s1-b2-win": [
+      64,
+      144,
+      128
+    ],
+    "s1-b2-qkv": [
+      64,
+      144,
+      384
+    ],
+    "s1-b2-attn": [
+      64,
+      4,
+      144,
+      144
+    ],
+    "s1-b2-z": [
+      64,
+      144,
+      128
+    ],
+    "s1-b2-proj": [
+      64,
+      144,
+      128
+    ],
+    "s1-b2-r1": [
+      96,
+      96,
+      128
+    ],
+    "s1-b2-ln2": [
+      96,
+      96,
+      128
+    ],
+    "s1-b2-u": [
+      96,
+      96,
+      512
+    ],
+    "s1-b2-g": [
+      96,
+      96,
+      512
+    ],
+    "s1-b2-f": [
+      96,
+      96,
+      128
+    ],
+    "s1-b1-out": [
+      96,
+      96,
+      128
+    ],
+    "s1-out": [
+      96,
+      96,
+      128
+    ],
+    "m1-concat": [
+      48,
+      48,
+      512
+    ],
+    "m1-ln": [
+      48,
+      48,
+      512
+    ],
+    "m1-out": [
+      48,
+      48,
+      256
+    ],
+    "s2-b1-ln1": [
+      48,
+      48,
+      256
+    ],
+    "s2-b1-win": [
+      16,
+      144,
+      256
+    ],
+    "s2-b1-qkv": [
+      16,
+      144,
+      768
+    ],
+    "s2-b1-attn": [
+      16,
+      8,
+      144,
+      144
+    ],
+    "s2-b1-z": [
+      16,
+      144,
+      256
+    ],
+    "s2-b1-proj": [
+      16,
+      144,
+      256
+    ],
+    "s2-b1-r1": [
+      48,
+      48,
+      256
+    ],
+    "s2-b1-ln2": [
+      48,
+      48,
+      256
+    ],
+    "s2-b1-u": [
+      48,
+      48,
+      1024
+    ],
+    "s2-b1-g": [
+      48,
+      48,
+      1024
+    ],
+    "s2-b1-f": [
+      48,
+      48,
+      256
+    ],
+    "s2-b2-ln1": [
+      48,
+      48,
+      256
+    ],
+    "s2-b2-win": [
+      16,
+      144,
+      256
+    ],
+    "s2-b2-qkv": [
+      16,
+      144,
+      768
+    ],
+    "s2-b2-attn": [
+      16,
+      8,
+      144,
+      144
+    ],
+    "s2-b2-z": [
+      16,
+      144,
+      256
+    ],
+    "s2-b2-proj": [
+      16,
+      144,
+      256
+    ],
+    "s2-b2-r1": [
+      48,
+      48,
+      256
+    ],
+    "s2-b2-ln2": [
+      48,
+      48,
+      256
+    ],
+    "s2-b2-u": [
+      48,
+      48,
+      1024
+    ],
+    "s2-b2-g": [
+      48,
+      48,
+      1024
+    ],
+    "s2-b2-f": [
+      48,
+      48,
+      256
+    ],
+    "s2-b1-out": [
+      48,
+      48,
+      256
+    ],
+    "s2-out": [
+      48,
+      48,
+      256
+    ],
+    "m2-concat": [
+      24,
+      24,
+      1024
+    ],
+    "m2-ln": [
+      24,
+      24,
+      1024
+    ],
+    "m2-out": [
+      24,
+      24,
+      512
+    ],
+    "s3-b1-ln1": [
+      24,
+      24,
+      512
+    ],
+    "s3-b1-win": [
+      4,
+      144,
+      512
+    ],
+    "s3-b1-qkv": [
+      4,
+      144,
+      1536
+    ],
+    "s3-b1-attn": [
+      4,
+      16,
+      144,
+      144
+    ],
+    "s3-b1-z": [
+      4,
+      144,
+      512
+    ],
+    "s3-b1-proj": [
+      4,
+      144,
+      512
+    ],
+    "s3-b1-r1": [
+      24,
+      24,
+      512
+    ],
+    "s3-b1-ln2": [
+      24,
+      24,
+      512
+    ],
+    "s3-b1-u": [
+      24,
+      24,
+      2048
+    ],
+    "s3-b1-g": [
+      24,
+      24,
+      2048
+    ],
+    "s3-b1-f": [
+      24,
+      24,
+      512
+    ],
+    "s3-b2-ln1": [
+      24,
+      24,
+      512
+    ],
+    "s3-b2-win": [
+      4,
+      144,
+      512
+    ],
+    "s3-b2-qkv": [
+      4,
+      144,
+      1536
+    ],
+    "s3-b2-attn": [
+      4,
+      16,
+      144,
+      144
+    ],
+    "s3-b2-z": [
+      4,
+      144,
+      512
+    ],
+    "s3-b2-proj": [
+      4,
+      144,
+      512
+    ],
+    "s3-b2-r1": [
+      24,
+      24,
+      512
+    ],
+    "s3-b2-ln2": [
+      24,
+      24,
+      512
+    ],
+    "s3-b2-u": [
+      24,
+      24,
+      2048
+    ],
+    "s3-b2-g": [
+      24,
+      24,
+      2048
+    ],
+    "s3-b2-f": [
+      24,
+      24,
+      512
+    ],
+    "s3-b1-out": [
+      24,
+      24,
+      512
+    ],
+    "s3-out": [
+      24,
+      24,
+      512
+    ],
+    "m3-concat": [
+      12,
+      12,
+      2048
+    ],
+    "m3-ln": [
+      12,
+      12,
+      2048
+    ],
+    "m3-out": [
+      12,
+      12,
+      1024
+    ],
+    "s4-b1-ln1": [
+      12,
+      12,
+      1024
+    ],
+    "s4-b1-win": [
+      1,
+      144,
+      1024
+    ],
+    "s4-b1-qkv": [
+      1,
+      144,
+      3072
+    ],
+    "s4-b1-attn": [
+      1,
+      32,
+      144,
+      144
+    ],
+    "s4-b1-z": [
+      1,
+      144,
+      1024
+    ],
+    "s4-b1-proj": [
+      1,
+      144,
+      1024
+    ],
+    "s4-b1-r1": [
+      12,
+      12,
+      1024
+    ],
+    "s4-b1-ln2": [
+      12,
+      12,
+      1024
+    ],
+    "s4-b1-u": [
+      12,
+      12,
+      4096
+    ],
+    "s4-b1-g": [
+      12,
+      12,
+      4096
+    ],
+    "s4-b1-f": [
+      12,
+      12,
+      1024
+    ],
+    "s4-b2-ln1": [
+      12,
+      12,
+      1024
+    ],
+    "s4-b2-win": [
+      1,
+      144,
+      1024
+    ],
+    "s4-b2-qkv": [
+      1,
+      144,
+      3072
+    ],
+    "s4-b2-attn": [
+      1,
+      32,
+      144,
+      144
+    ],
+    "s4-b2-z": [
+      1,
+      144,
+      1024
+    ],
+    "s4-b2-proj": [
+      1,
+      144,
+      1024
+    ],
+    "s4-b2-r1": [
+      12,
+      12,
+      1024
+    ],
+    "s4-b2-ln2": [
+      12,
+      12,
+      1024
+    ],
+    "s4-b2-u": [
+      12,
+      12,
+      4096
+    ],
+    "s4-b2-g": [
+      12,
+      12,
+      4096
+    ],
+    "s4-b2-f": [
+      12,
+      12,
+      1024
+    ],
+    "s4-b1-out": [
+      12,
+      12,
+      1024
+    ],
+    "s4-out": [
+      12,
+      12,
+      1024
+    ],
+    "x-ln": [
+      12,
+      12,
+      1024
+    ],
+    "pooled": [
+      1024
+    ],
+    "logits": [
+      1000
+    ]
+  },
+  "shapes_torch": {
+    "x-patch-grid": {
+      "module": "patch_embed.proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        128,
+        96,
+        96
+      ]
+    },
+    "x-embed": {
+      "module": "patch_embed.norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        96,
+        96,
+        128
+      ]
+    },
+    "s1-b1-ln1": {
+      "module": "layers.0.blocks.0.norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        96,
+        96,
+        128
+      ]
+    },
+    "s1-b1-win": {
+      "module": "layers.0.blocks.0.attn",
+      "hook": "in",
+      "torch_shape": [
+        64,
+        144,
+        128
+      ]
+    },
+    "s1-b1-qkv": {
+      "module": "layers.0.blocks.0.attn.qkv",
+      "hook": "out",
+      "torch_shape": [
+        64,
+        144,
+        384
+      ]
+    },
+    "s1-b1-attn": {
+      "module": "layers.0.blocks.0.attn.softmax",
+      "hook": "out",
+      "torch_shape": [
+        64,
+        4,
+        144,
+        144
+      ]
+    },
+    "s1-b1-z": {
+      "module": "layers.0.blocks.0.attn.proj",
+      "hook": "in",
+      "torch_shape": [
+        64,
+        144,
+        128
+      ]
+    },
+    "s1-b1-proj": {
+      "module": "layers.0.blocks.0.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        64,
+        144,
+        128
+      ]
+    },
+    "s1-b1-r1": {
+      "module": "layers.0.blocks.0.norm2",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        9216,
+        128
+      ]
+    },
+    "s1-b1-ln2": {
+      "module": "layers.0.blocks.0.norm2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9216,
+        128
+      ]
+    },
+    "s1-b1-u": {
+      "module": "layers.0.blocks.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9216,
+        512
+      ]
+    },
+    "s1-b1-g": {
+      "module": "layers.0.blocks.0.mlp.act",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9216,
+        512
+      ]
+    },
+    "s1-b1-f": {
+      "module": "layers.0.blocks.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9216,
+        128
+      ]
+    },
+    "s1-b2-ln1": {
+      "module": "layers.0.blocks.1.norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        96,
+        96,
+        128
+      ]
+    },
+    "s1-b2-win": {
+      "module": "layers.0.blocks.1.attn",
+      "hook": "in",
+      "torch_shape": [
+        64,
+        144,
+        128
+      ]
+    },
+    "s1-b2-qkv": {
+      "module": "layers.0.blocks.1.attn.qkv",
+      "hook": "out",
+      "torch_shape": [
+        64,
+        144,
+        384
+      ]
+    },
+    "s1-b2-attn": {
+      "module": "layers.0.blocks.1.attn.softmax",
+      "hook": "out",
+      "torch_shape": [
+        64,
+        4,
+        144,
+        144
+      ]
+    },
+    "s1-b2-z": {
+      "module": "layers.0.blocks.1.attn.proj",
+      "hook": "in",
+      "torch_shape": [
+        64,
+        144,
+        128
+      ]
+    },
+    "s1-b2-proj": {
+      "module": "layers.0.blocks.1.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        64,
+        144,
+        128
+      ]
+    },
+    "s1-b2-r1": {
+      "module": "layers.0.blocks.1.norm2",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        9216,
+        128
+      ]
+    },
+    "s1-b2-ln2": {
+      "module": "layers.0.blocks.1.norm2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9216,
+        128
+      ]
+    },
+    "s1-b2-u": {
+      "module": "layers.0.blocks.1.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9216,
+        512
+      ]
+    },
+    "s1-b2-g": {
+      "module": "layers.0.blocks.1.mlp.act",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9216,
+        512
+      ]
+    },
+    "s1-b2-f": {
+      "module": "layers.0.blocks.1.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9216,
+        128
+      ]
+    },
+    "s1-b1-out": {
+      "module": "layers.0.blocks.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        96,
+        96,
+        128
+      ]
+    },
+    "s1-out": {
+      "module": "layers.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        96,
+        96,
+        128
+      ]
+    },
+    "m1-concat": {
+      "module": "layers.1.downsample.norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        48,
+        48,
+        512
+      ]
+    },
+    "m1-ln": {
+      "module": "layers.1.downsample.norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        48,
+        48,
+        512
+      ]
+    },
+    "m1-out": {
+      "module": "layers.1.downsample.reduction",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        48,
+        48,
+        256
+      ]
+    },
+    "s2-b1-ln1": {
+      "module": "layers.1.blocks.0.norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        48,
+        48,
+        256
+      ]
+    },
+    "s2-b1-win": {
+      "module": "layers.1.blocks.0.attn",
+      "hook": "in",
+      "torch_shape": [
+        16,
+        144,
+        256
+      ]
+    },
+    "s2-b1-qkv": {
+      "module": "layers.1.blocks.0.attn.qkv",
+      "hook": "out",
+      "torch_shape": [
+        16,
+        144,
+        768
+      ]
+    },
+    "s2-b1-attn": {
+      "module": "layers.1.blocks.0.attn.softmax",
+      "hook": "out",
+      "torch_shape": [
+        16,
+        8,
+        144,
+        144
+      ]
+    },
+    "s2-b1-z": {
+      "module": "layers.1.blocks.0.attn.proj",
+      "hook": "in",
+      "torch_shape": [
+        16,
+        144,
+        256
+      ]
+    },
+    "s2-b1-proj": {
+      "module": "layers.1.blocks.0.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        16,
+        144,
+        256
+      ]
+    },
+    "s2-b1-r1": {
+      "module": "layers.1.blocks.0.norm2",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        2304,
+        256
+      ]
+    },
+    "s2-b1-ln2": {
+      "module": "layers.1.blocks.0.norm2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        2304,
+        256
+      ]
+    },
+    "s2-b1-u": {
+      "module": "layers.1.blocks.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        2304,
+        1024
+      ]
+    },
+    "s2-b1-g": {
+      "module": "layers.1.blocks.0.mlp.act",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        2304,
+        1024
+      ]
+    },
+    "s2-b1-f": {
+      "module": "layers.1.blocks.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        2304,
+        256
+      ]
+    },
+    "s2-b2-ln1": {
+      "module": "layers.1.blocks.1.norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        48,
+        48,
+        256
+      ]
+    },
+    "s2-b2-win": {
+      "module": "layers.1.blocks.1.attn",
+      "hook": "in",
+      "torch_shape": [
+        16,
+        144,
+        256
+      ]
+    },
+    "s2-b2-qkv": {
+      "module": "layers.1.blocks.1.attn.qkv",
+      "hook": "out",
+      "torch_shape": [
+        16,
+        144,
+        768
+      ]
+    },
+    "s2-b2-attn": {
+      "module": "layers.1.blocks.1.attn.softmax",
+      "hook": "out",
+      "torch_shape": [
+        16,
+        8,
+        144,
+        144
+      ]
+    },
+    "s2-b2-z": {
+      "module": "layers.1.blocks.1.attn.proj",
+      "hook": "in",
+      "torch_shape": [
+        16,
+        144,
+        256
+      ]
+    },
+    "s2-b2-proj": {
+      "module": "layers.1.blocks.1.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        16,
+        144,
+        256
+      ]
+    },
+    "s2-b2-r1": {
+      "module": "layers.1.blocks.1.norm2",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        2304,
+        256
+      ]
+    },
+    "s2-b2-ln2": {
+      "module": "layers.1.blocks.1.norm2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        2304,
+        256
+      ]
+    },
+    "s2-b2-u": {
+      "module": "layers.1.blocks.1.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        2304,
+        1024
+      ]
+    },
+    "s2-b2-g": {
+      "module": "layers.1.blocks.1.mlp.act",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        2304,
+        1024
+      ]
+    },
+    "s2-b2-f": {
+      "module": "layers.1.blocks.1.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        2304,
+        256
+      ]
+    },
+    "s2-b1-out": {
+      "module": "layers.1.blocks.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        48,
+        48,
+        256
+      ]
+    },
+    "s2-out": {
+      "module": "layers.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        48,
+        48,
+        256
+      ]
+    },
+    "m2-concat": {
+      "module": "layers.2.downsample.norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        24,
+        24,
+        1024
+      ]
+    },
+    "m2-ln": {
+      "module": "layers.2.downsample.norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        24,
+        24,
+        1024
+      ]
+    },
+    "m2-out": {
+      "module": "layers.2.downsample.reduction",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        24,
+        24,
+        512
+      ]
+    },
+    "s3-b1-ln1": {
+      "module": "layers.2.blocks.0.norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        24,
+        24,
+        512
+      ]
+    },
+    "s3-b1-win": {
+      "module": "layers.2.blocks.0.attn",
+      "hook": "in",
+      "torch_shape": [
+        4,
+        144,
+        512
+      ]
+    },
+    "s3-b1-qkv": {
+      "module": "layers.2.blocks.0.attn.qkv",
+      "hook": "out",
+      "torch_shape": [
+        4,
+        144,
+        1536
+      ]
+    },
+    "s3-b1-attn": {
+      "module": "layers.2.blocks.0.attn.softmax",
+      "hook": "out",
+      "torch_shape": [
+        4,
+        16,
+        144,
+        144
+      ]
+    },
+    "s3-b1-z": {
+      "module": "layers.2.blocks.0.attn.proj",
+      "hook": "in",
+      "torch_shape": [
+        4,
+        144,
+        512
+      ]
+    },
+    "s3-b1-proj": {
+      "module": "layers.2.blocks.0.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        4,
+        144,
+        512
+      ]
+    },
+    "s3-b1-r1": {
+      "module": "layers.2.blocks.0.norm2",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        576,
+        512
+      ]
+    },
+    "s3-b1-ln2": {
+      "module": "layers.2.blocks.0.norm2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        576,
+        512
+      ]
+    },
+    "s3-b1-u": {
+      "module": "layers.2.blocks.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        576,
+        2048
+      ]
+    },
+    "s3-b1-g": {
+      "module": "layers.2.blocks.0.mlp.act",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        576,
+        2048
+      ]
+    },
+    "s3-b1-f": {
+      "module": "layers.2.blocks.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        576,
+        512
+      ]
+    },
+    "s3-b2-ln1": {
+      "module": "layers.2.blocks.1.norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        24,
+        24,
+        512
+      ]
+    },
+    "s3-b2-win": {
+      "module": "layers.2.blocks.1.attn",
+      "hook": "in",
+      "torch_shape": [
+        4,
+        144,
+        512
+      ]
+    },
+    "s3-b2-qkv": {
+      "module": "layers.2.blocks.1.attn.qkv",
+      "hook": "out",
+      "torch_shape": [
+        4,
+        144,
+        1536
+      ]
+    },
+    "s3-b2-attn": {
+      "module": "layers.2.blocks.1.attn.softmax",
+      "hook": "out",
+      "torch_shape": [
+        4,
+        16,
+        144,
+        144
+      ]
+    },
+    "s3-b2-z": {
+      "module": "layers.2.blocks.1.attn.proj",
+      "hook": "in",
+      "torch_shape": [
+        4,
+        144,
+        512
+      ]
+    },
+    "s3-b2-proj": {
+      "module": "layers.2.blocks.1.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        4,
+        144,
+        512
+      ]
+    },
+    "s3-b2-r1": {
+      "module": "layers.2.blocks.1.norm2",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        576,
+        512
+      ]
+    },
+    "s3-b2-ln2": {
+      "module": "layers.2.blocks.1.norm2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        576,
+        512
+      ]
+    },
+    "s3-b2-u": {
+      "module": "layers.2.blocks.1.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        576,
+        2048
+      ]
+    },
+    "s3-b2-g": {
+      "module": "layers.2.blocks.1.mlp.act",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        576,
+        2048
+      ]
+    },
+    "s3-b2-f": {
+      "module": "layers.2.blocks.1.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        576,
+        512
+      ]
+    },
+    "s3-b1-out": {
+      "module": "layers.2.blocks.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        24,
+        24,
+        512
+      ]
+    },
+    "s3-out": {
+      "module": "layers.2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        24,
+        24,
+        512
+      ]
+    },
+    "m3-concat": {
+      "module": "layers.3.downsample.norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        12,
+        12,
+        2048
+      ]
+    },
+    "m3-ln": {
+      "module": "layers.3.downsample.norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        12,
+        12,
+        2048
+      ]
+    },
+    "m3-out": {
+      "module": "layers.3.downsample.reduction",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        12,
+        12,
+        1024
+      ]
+    },
+    "s4-b1-ln1": {
+      "module": "layers.3.blocks.0.norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        12,
+        12,
+        1024
+      ]
+    },
+    "s4-b1-win": {
+      "module": "layers.3.blocks.0.attn",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        144,
+        1024
+      ]
+    },
+    "s4-b1-qkv": {
+      "module": "layers.3.blocks.0.attn.qkv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        144,
+        3072
+      ]
+    },
+    "s4-b1-attn": {
+      "module": "layers.3.blocks.0.attn.softmax",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        32,
+        144,
+        144
+      ]
+    },
+    "s4-b1-z": {
+      "module": "layers.3.blocks.0.attn.proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        144,
+        1024
+      ]
+    },
+    "s4-b1-proj": {
+      "module": "layers.3.blocks.0.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        144,
+        1024
+      ]
+    },
+    "s4-b1-r1": {
+      "module": "layers.3.blocks.0.norm2",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        144,
+        1024
+      ]
+    },
+    "s4-b1-ln2": {
+      "module": "layers.3.blocks.0.norm2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        144,
+        1024
+      ]
+    },
+    "s4-b1-u": {
+      "module": "layers.3.blocks.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        144,
+        4096
+      ]
+    },
+    "s4-b1-g": {
+      "module": "layers.3.blocks.0.mlp.act",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        144,
+        4096
+      ]
+    },
+    "s4-b1-f": {
+      "module": "layers.3.blocks.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        144,
+        1024
+      ]
+    },
+    "s4-b2-ln1": {
+      "module": "layers.3.blocks.1.norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        12,
+        12,
+        1024
+      ]
+    },
+    "s4-b2-win": {
+      "module": "layers.3.blocks.1.attn",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        144,
+        1024
+      ]
+    },
+    "s4-b2-qkv": {
+      "module": "layers.3.blocks.1.attn.qkv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        144,
+        3072
+      ]
+    },
+    "s4-b2-attn": {
+      "module": "layers.3.blocks.1.attn.softmax",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        32,
+        144,
+        144
+      ]
+    },
+    "s4-b2-z": {
+      "module": "layers.3.blocks.1.attn.proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        144,
+        1024
+      ]
+    },
+    "s4-b2-proj": {
+      "module": "layers.3.blocks.1.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        144,
+        1024
+      ]
+    },
+    "s4-b2-r1": {
+      "module": "layers.3.blocks.1.norm2",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        144,
+        1024
+      ]
+    },
+    "s4-b2-ln2": {
+      "module": "layers.3.blocks.1.norm2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        144,
+        1024
+      ]
+    },
+    "s4-b2-u": {
+      "module": "layers.3.blocks.1.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        144,
+        4096
+      ]
+    },
+    "s4-b2-g": {
+      "module": "layers.3.blocks.1.mlp.act",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        144,
+        4096
+      ]
+    },
+    "s4-b2-f": {
+      "module": "layers.3.blocks.1.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        144,
+        1024
+      ]
+    },
+    "s4-b1-out": {
+      "module": "layers.3.blocks.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        12,
+        12,
+        1024
+      ]
+    },
+    "s4-out": {
+      "module": "layers.3",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        12,
+        12,
+        1024
+      ]
+    },
+    "x-ln": {
+      "module": "norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        12,
+        12,
+        1024
+      ]
+    },
+    "pooled": {
+      "module": "head.global_pool",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1024
+      ]
+    },
+    "logits": {
+      "module": "head.fc",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1000
+      ]
+    }
+  },
+  "not_hooked": {
+    "s{k}-b{j}-shift / -unshift": "torch.roll dentro de SwinTransformerBlock._attn (sin módulo)",
+    "s{k}-b{j}-q / -k / -v": "qkv.reshape(...).unbind(0) dentro de WindowAttention.forward",
+    "s{k}-b{j}-scores / -scaled / -biased / -masked": "q @ kᵀ, + sesgo relativo y + máscara dentro de WindowAttention.forward; timm escala q antes del producto (q * scale), no los scores: mismo resultado",
+    "s{k}-b{j}-z-heads": "attn @ v dentro de WindowAttention.forward",
+    "s{k}-b{j}-unwin": "window_reverse(...) es una función, no un módulo"
+  },
+  "windows": [
+    {
+      "stage": 1,
+      "block": 1,
+      "window_size": [
+        12,
+        12
+      ],
+      "shift_size": [
+        0,
+        0
+      ],
+      "bias_table": [
+        529,
+        4
+      ],
+      "attn_mask": null
+    },
+    {
+      "stage": 1,
+      "block": 2,
+      "window_size": [
+        12,
+        12
+      ],
+      "shift_size": [
+        6,
+        6
+      ],
+      "bias_table": [
+        529,
+        4
+      ],
+      "attn_mask": [
+        64,
+        144,
+        144
+      ]
+    },
+    {
+      "stage": 2,
+      "block": 1,
+      "window_size": [
+        12,
+        12
+      ],
+      "shift_size": [
+        0,
+        0
+      ],
+      "bias_table": [
+        529,
+        8
+      ],
+      "attn_mask": null
+    },
+    {
+      "stage": 2,
+      "block": 2,
+      "window_size": [
+        12,
+        12
+      ],
+      "shift_size": [
+        6,
+        6
+      ],
+      "bias_table": [
+        529,
+        8
+      ],
+      "attn_mask": [
+        16,
+        144,
+        144
+      ]
+    },
+    {
+      "stage": 3,
+      "block": 1,
+      "window_size": [
+        12,
+        12
+      ],
+      "shift_size": [
+        0,
+        0
+      ],
+      "bias_table": [
+        529,
+        16
+      ],
+      "attn_mask": null
+    },
+    {
+      "stage": 3,
+      "block": 2,
+      "window_size": [
+        12,
+        12
+      ],
+      "shift_size": [
+        6,
+        6
+      ],
+      "bias_table": [
+        529,
+        16
+      ],
+      "attn_mask": [
+        4,
+        144,
+        144
+      ]
+    },
+    {
+      "stage": 4,
+      "block": 1,
+      "window_size": [
+        12,
+        12
+      ],
+      "shift_size": [
+        0,
+        0
+      ],
+      "bias_table": [
+        529,
+        32
+      ],
+      "attn_mask": null
+    },
+    {
+      "stage": 4,
+      "block": 2,
+      "window_size": [
+        12,
+        12
+      ],
+      "shift_size": [
+        0,
+        0
+      ],
+      "bias_table": [
+        529,
+        32
+      ],
+      "attn_mask": null
+    }
+  ],
+  "flops_total": 94166269952,
+  "flops_by_op": {
+    "aten.addmm": 86975135744,
+    "aten.bmm": 5265948672,
+    "aten.convolution": 113246208,
+    "aten.mm": 1811939328
+  },
+  "source": {
+    "lib": "timm",
+    "ctor": "timm.create_model('swin_base_patch4_window12_384', pretrained=False, num_classes=1000)",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Paper (Tabla 1): Swin-T 28M / 4.5G, Swin-S 50M / 8.7G, Swin-B 88M / 15.4G, Swin-B@384 88M / 47.0G. Esos 'FLOPs' del paper son MACs (convención fvcore): FlopCounterMode da 2 × MACs.",
+    "Regla de timm (_calc_window_shift): si el lado del mapa de un stage es ≤ M, la ventana pasa a ser el mapa entero y el shift es 0 (stage 4 de Swin-T @224: 7×7 con M = 7; 'windows' lo muestra).",
+    "La tabla de sesgo relativo ((2M−1)²×h por bloque) es parámetro; relative_position_index y attn_mask son buffers (no cuentan).",
+    "FlopCounterMode cuenta solo matmuls/convs a 2 FLOPs por MAC; la suma del sesgo relativo, la máscara de SW-MSA, LayerNorm, softmax, GELU y los roll no cuentan (el calculador los pone en 'otros').",
+    "Formas sin batch; rejillas H×W×C (timm ya usa NHWC); ventanas nW×M²×C."
+  ]
+}

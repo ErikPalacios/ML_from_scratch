@@ -1,0 +1,389 @@
+{
+  "config_id": "flan-t5-base",
+  "model": "t5",
+  "Tin": 512,
+  "Tout": 114,
+  "params_total": 247577856,
+  "params_by_node": {
+    "embed": 24674304,
+    "encoder": 84953472,
+    "enc-out": 768,
+    "decoder": 113274240,
+    "dec-norm": 768,
+    "lm-head": 24674304,
+    "enc-attn": 28321152,
+    "enc-ffn": 56632320,
+    "self-attn": 28321152,
+    "cross-attn": 28320768,
+    "ffn": 56632320
+  },
+  "shapes": {
+    "e-x0": [
+      512,
+      768
+    ],
+    "e-h1": [
+      512,
+      768
+    ],
+    "e-q": [
+      512,
+      768
+    ],
+    "e-k": [
+      512,
+      768
+    ],
+    "e-v": [
+      512,
+      768
+    ],
+    "e-q-heads": [
+      12,
+      512,
+      64
+    ],
+    "e-k-heads": [
+      12,
+      512,
+      64
+    ],
+    "e-v-heads": [
+      12,
+      512,
+      64
+    ],
+    "e-scores": [
+      12,
+      512,
+      512
+    ],
+    "e-attn": [
+      12,
+      512,
+      512
+    ],
+    "e-z-heads": [
+      12,
+      512,
+      64
+    ],
+    "e-bias": [
+      12,
+      512,
+      512
+    ],
+    "e-z": [
+      512,
+      768
+    ],
+    "e-o": [
+      512,
+      768
+    ],
+    "e-r1": [
+      512,
+      768
+    ],
+    "e-h2": [
+      512,
+      768
+    ],
+    "e-gate": [
+      512,
+      2048
+    ],
+    "e-g": [
+      512,
+      2048
+    ],
+    "e-u": [
+      512,
+      2048
+    ],
+    "e-prod": [
+      512,
+      2048
+    ],
+    "e-f": [
+      512,
+      768
+    ],
+    "e-x-out": [
+      512,
+      768
+    ],
+    "enc-out": [
+      512,
+      768
+    ],
+    "d-x0": [
+      114,
+      768
+    ],
+    "d-h1": [
+      114,
+      768
+    ],
+    "d-q": [
+      114,
+      768
+    ],
+    "d-k": [
+      114,
+      768
+    ],
+    "d-v": [
+      114,
+      768
+    ],
+    "d-q-heads": [
+      12,
+      114,
+      64
+    ],
+    "d-k-heads": [
+      12,
+      114,
+      64
+    ],
+    "d-v-heads": [
+      12,
+      114,
+      64
+    ],
+    "d-scores": [
+      12,
+      114,
+      114
+    ],
+    "d-attn": [
+      12,
+      114,
+      114
+    ],
+    "d-z-heads": [
+      12,
+      114,
+      64
+    ],
+    "d-bias": [
+      12,
+      114,
+      114
+    ],
+    "d-z": [
+      114,
+      768
+    ],
+    "d-o": [
+      114,
+      768
+    ],
+    "d-r1": [
+      114,
+      768
+    ],
+    "c-h": [
+      114,
+      768
+    ],
+    "c-q": [
+      114,
+      768
+    ],
+    "c-k": [
+      512,
+      768
+    ],
+    "c-v": [
+      512,
+      768
+    ],
+    "c-q-heads": [
+      12,
+      114,
+      64
+    ],
+    "c-k-heads": [
+      12,
+      512,
+      64
+    ],
+    "c-v-heads": [
+      12,
+      512,
+      64
+    ],
+    "c-scores": [
+      12,
+      114,
+      512
+    ],
+    "c-attn": [
+      12,
+      114,
+      512
+    ],
+    "c-z-heads": [
+      12,
+      114,
+      64
+    ],
+    "c-z": [
+      114,
+      768
+    ],
+    "c-o": [
+      114,
+      768
+    ],
+    "d-r2": [
+      114,
+      768
+    ],
+    "d-h3": [
+      114,
+      768
+    ],
+    "d-gate": [
+      114,
+      2048
+    ],
+    "d-g": [
+      114,
+      2048
+    ],
+    "d-u": [
+      114,
+      2048
+    ],
+    "d-prod": [
+      114,
+      2048
+    ],
+    "d-f": [
+      114,
+      768
+    ],
+    "d-x-out": [
+      114,
+      768
+    ],
+    "dec-out": [
+      114,
+      768
+    ],
+    "logits": [
+      114,
+      32128
+    ]
+  },
+  "flops_total": 141981401088,
+  "flops_by_node": {
+    "encoder": 96636764160,
+    "decoder": 39718895616,
+    "lm-head": 5625741312,
+    "cross-attn": 19874709504
+  },
+  "flops_by_op_torch": {
+    "aten.bmm": 12294438912,
+    "aten.mm": 129686962176
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.mm",
+        "aten.addmm"
+      ],
+      "prims": [
+        "linear",
+        "lm_head"
+      ]
+    },
+    {
+      "ops": [
+        "aten.bmm"
+      ],
+      "prims": [
+        "attention_scores",
+        "attention_weighted_sum"
+      ]
+    }
+  ],
+  "metrics_checks": {
+    "crossKvBytes": 18874368,
+    "selfKvCacheBytes": 4202496,
+    "totalParams": 247577856
+  },
+  "rel_bias_params": 768,
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "Tin": 128,
+        "Tout": 32
+      },
+      "flops_total": 34080817152,
+      "params_total": 247577856,
+      "shapes": {
+        "e-x0": [
+          128,
+          768
+        ],
+        "e-scores": [
+          12,
+          128,
+          128
+        ],
+        "e-bias": [
+          12,
+          128,
+          128
+        ],
+        "d-scores": [
+          12,
+          32,
+          32
+        ],
+        "d-bias": [
+          12,
+          32,
+          32
+        ],
+        "c-scores": [
+          12,
+          32,
+          128
+        ],
+        "c-k-heads": [
+          12,
+          128,
+          64
+        ],
+        "logits": [
+          32,
+          32128
+        ]
+      }
+    }
+  ],
+  "notes": [
+    "FlopCounterMode = 2 × MACs de matmuls (mm, bmm) y convoluciones; sesgos, normas, softmax, GELU / ReLU, el sesgo relativo de T5 y la máscara no cuentan.",
+    "Teacher forcing: decoder_input_ids de T_out tokens en paralelo (QKᵀ y A·V de la self-attention causal cuentan las T_out² entradas, como el calculador).",
+    "Sin escalado 1/√d_h en QKᵀ (T5Attention.scaling = 1.0); el sesgo relativo (tabla 32 × h) solo existe en la capa 0 de cada stack y se reusa.",
+    "flan-t5-base: T5Config de transformers 5.x fuerza tie_word_embeddings = True; lm_head se desata a mano (como queda al cargar el checkpoint, donde lm_head ≠ shared). scale_decoder_outputs = False (sin d^-0.5)."
+  ],
+  "hf_config_source": "google/flan-t5-base",
+  "source": {
+    "lib": "transformers",
+    "version": "5.19.0",
+    "ctor": "with torch.device('meta'): T5ForConditionalGeneration(T5Config(vocab_size=32128, d_model=768, d_kv=64, d_ff=2048, num_layers=12, num_decoder_layers=12, num_heads=12, relative_attention_num_buckets=32, relative_attention_max_distance=128, feed_forward_proj='gated-gelu', layer_norm_epsilon=1e-06, scale_decoder_outputs=False)); lm_head.weight = Parameter nuevo (desatado, como el checkpoint)",
+    "attn_implementation": "eager",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  }
+}

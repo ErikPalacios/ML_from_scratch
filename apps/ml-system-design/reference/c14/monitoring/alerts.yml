@@ -1,0 +1,166 @@
+# Alertas del caso c14 (pronóstico nocturno de demanda), Prometheus: 8 alertas en 3 grupos + recording rules.
+#   Pipeline: ForecastRunLate, ForecastRunFailed, InputDataIncomplete, ForecastValidationBlocked,
+#             FallbackForecastServed
+#   Modelo:   WAPEDegraded, ForecastBiasDrift
+#   Negocio:  StockoutRateUp (señal REZAGADA: el agotado llega días después del pronóstico)
+# Severidades: page = alguien lo mira YA (el ERP pide a las 04:00: hay minutos, no horas); ticket = horario
+# laboral, con dueño (planeación de la demanda o el equipo de datos). El ruteo vive en Alertmanager.
+# Umbrales ILUSTRATIVOS salvo los del caso (03:30, 5 % de tiendas imputadas en el gate); ajústalos con tu
+# línea base.
+# De dónde sale cada métrica:
+#   forecast_* (salvo forecast_eval_*) → batch/run_forecast.py: el job es un batch, así que empuja sus
+#       métricas al Pushgateway al final de CADA intento (pushadd: solo reemplaza las métricas del mismo
+#       nombre). El Pushgateway las sirve en cada scrape hasta el siguiente push: justo lo que hace falta
+#       para "¿qué noche está publicada?". Un test exige que cada una exista en el registro del job.
+#       Scrape del Pushgateway con honor_labels: true (si no, el label job del push queda renombrado como
+#       exported_job y el de la serie es el del scrape del Pushgateway).
+#   forecast_eval_* → job diario de evaluación (no está en esta carpeta): cruza forecast_daily con las
+#       ventas que llegaron (horizontes 1–2, los que usa el pedido; sin días agotados) y publica WAPE y
+#       sesgo de 7 días por segmento, junto al WAPE y sesgo del backtest del modelo en producción.
+#   retail_oos_rate_7d → job diario de inventario: fracción de series top con oos_flag al cierre, 7 días.
+# Validación: `promtool check rules alerts.yml` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
+
+groups:
+  # ------------------------------------------------------------------ recording rules
+  - name: c14-recording
+    rules:
+      # Edad del run_date publicado: ahora − medianoche local de ese run_date. La noche de run_date R se
+      # publica antes de las 03:30 del día R + 1, o sea ≈ 27.5 h después de la medianoche de R. El SIGUIENTE
+      # run_date (R + 1) vence 24 h después: si a las 51.5 h sigue publicado R, la noche de R + 1 no llegó.
+      # (America/Mexico_City es UTC−6 todo el año: las 51.5 h no se mueven con un cambio de horario.)
+      - record: forecast:published_age_seconds
+        expr: time() - forecast_published_run_date_seconds
+      - record: forecast:input_imputed_ratio
+        expr: forecast_input_stores_imputed / forecast_input_stores_expected
+      # Degradación contra lo que el modelo prometió en su backtest (el gate lo aprobó con ese número).
+      # Comparar contra el backtest y no contra un umbral fijo: el WAPE "normal" de los frescos no es el
+      # de los abarrotes, y el sesgo del P50 no es 0 por diseño (ver ForecastBiasDrift).
+      - record: forecast:eval_wape_delta
+        expr: forecast_eval_wape_7d - forecast_eval_wape_backtest
+      - record: forecast:eval_bias_delta
+        expr: forecast_eval_bias_7d - forecast_eval_bias_backtest
+
+  # ------------------------------------------------------------------ pipeline
+  - name: c14-pipeline
+    rules:
+      # La noche no publicó NADA (ni modelo ni fallback) a las 03:30. Es independiente de Airflow a
+      # propósito: el Deadline Alert del DAG avisa a la misma hora, pero si el scheduler o el triggerer
+      # están caídos, su callback tampoco corre. Esta regla solo necesita Prometheus y el Pushgateway.
+      # Sin la métrica (Pushgateway reiniciado sin persistencia, job que nunca empujó): también es tarde.
+      - alert: ForecastRunLate
+        expr: |
+          label_replace(forecast:published_age_seconds > 51.5 * 3600, "cause", "not_published", "", "")
+            or
+          label_replace(absent(forecast_published_run_date_seconds), "cause", "no_metric", "", "")
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "Pronóstico de esta noche sin publicar a las 03:30 ({{ $labels.cause }})"
+          description: "El ERP lee a las 04:00. ¿Corre el DAG forecast_nightly? (estado en Airflow, sensores esperando datos). El guardia forecast_fallback_guard publica el fallback a las 03:45; si tampoco corre: python run_forecast.py fallback --run-date <ayer> a mano. Después de las 03:55 el job ya no cambia lo que el ERP leyó."
+          runbook_url: "https://runbooks.example.com/c14/forecast-late"
+
+      # El último intento terminó con error y nada salió bien después (o nunca hubo un éxito). Airflow
+      # reintenta solo (1 vez, en on-demand); esta alerta es para que alguien vigile que el reintento llegue a
+      # las 03:30. Se resuelve sola con el siguiente éxito: el reintento, el fallback del DAG o el guardia (los
+      # tres empujan al mismo grupo del Pushgateway).
+      - alert: ForecastRunFailed
+        expr: |
+          forecast_last_failure_timestamp_seconds > forecast_last_success_timestamp_seconds
+            or
+          (forecast_last_failure_timestamp_seconds unless forecast_last_success_timestamp_seconds)
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "El job de pronóstico falló y todavía no hay un intento exitoso después"
+          description: "Logs del pod (KubernetesPodOperator run_forecast). Causas típicas: faltan fechas en retail_events.yaml (MissingEventDates: agrega el Buen Fin/Hot Sale del año), warehouse caído, spot interrumpido (el reintento va en on-demand), OOM en features. Si falla el reintento, el DAG publica el fallback."
+          runbook_url: "https://runbooks.example.com/c14/forecast-failed"
+
+      # Más de 2 % de las tiendas (≈ 8 de 400) sin ventas de anoche al corte de la 01:30: se imputaron con su
+      # mismo día de la semana pasada. Con > 5 % el gate bloquea (ForecastValidationBlocked). Ticket para el
+      # equipo de datos/POS: el pronóstico salió, pero con tiendas a ciegas.
+      - alert: InputDataIncomplete
+        expr: forecast:input_imputed_ratio > 0.02
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "{{ $value | humanizePercentage }} de las tiendas sin datos de anoche (imputadas)"
+          description: "Las tiendas imputadas están en el log del job y en forecast_daily (imputed_input). ¿Conectividad de esas tiendas, la carga del POS, o el sensor que corta a la 01:30 cuando la carga viene tarde para todas?"
+          runbook_url: "https://runbooks.example.com/c14/input-incomplete"
+
+      # El gate bloqueó la publicación del modelo (y el job publicó el fallback). Page: antes de las 03:55
+      # alguien puede ver si fue un falso positivo (una promo que el gate no conocía) y forzar la publicación
+      # con auditoría; después, el ERP ya pidió con el fallback.
+      - alert: ForecastValidationBlocked
+        expr: forecast_validation_blocked == 1
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "El gate bloqueó el pronóstico de esta noche (se publicó el fallback)"
+          description: "Qué regla: forecast_validation_failed_checks > 0 (row_count, unique_keys, nulls, negatives, quantile_order, category_band, imputed_stores). category_band casi siempre es escala (piezas vs cajas) o una feature que llegó en 0; row_count, un join que perdió series."
+          runbook_url: "https://runbooks.example.com/c14/validation-blocked"
+
+      # Lo que lee el ERP es el fallback (el pronóstico de ayer corrido, o el seasonal naive). Ticket: una
+      # noche es tolerable; dos seguidas ya son dos días de corrimiento y conviene escalar.
+      - alert: FallbackForecastServed
+        expr: forecast_published_fallback == 1
+        for: 1m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "forecast_current es un fallback (motivo: {{ $labels.reason }})"
+          description: "prediction_error: el modelo no cargó o el predict falló (¿versión de scikit-learn distinta a la del entrenamiento?). validation_blocked: ver ForecastValidationBlocked. job_failed o guard: el job no terminó. Revisa también cuántas noches seguidas lleva."
+          runbook_url: "https://runbooks.example.com/c14/fallback-served"
+
+  # ------------------------------------------------------------------ modelo
+  - name: c14-model
+    rules:
+      # WAPE de 7 días (horizontes 1–2, días sin agotado) más de 5 puntos arriba del WAPE del backtest con
+      # el que se aprobó el modelo, por segmento. Las ventas llegan al día siguiente: en este caso el
+      # "label" tarda horas, no meses, así que la métrica de modelo se mide de verdad, no con proxies.
+      - alert: WAPEDegraded
+        expr: forecast:eval_wape_delta > 0.05
+        for: 1h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "WAPE de {{ $labels.segment }}: {{ $value | humanize }} arriba del backtest (7 días)"
+          description: "¿Un segmento o todos? Uno (frescos, promo): cambio de surtido, promos fuera del plan, un proveedor. Todos: datos (precios o calendario mal cargados), un modelo nuevo, o un cambio de régimen (feriado no configurado). Compara con el seasonal naive: si también empeoró, es la demanda, no el modelo."
+          runbook_url: "https://runbooks.example.com/c14/wape-degraded"
+
+      # El sesgo del P50 se mueve más de 10 puntos contra el del backtest. Contra el backtest y no contra 0:
+      # con demanda asimétrica (intermitente, promos) la mediana queda abajo de la media, así que el P50
+      # tiene sesgo negativo por construcción (≈ −21 % en el backtest sintético; ≈ −70 % en series lentas).
+      # Negativo = pide de menos → agotados; positivo = pide de más → merma en frescos.
+      - alert: ForecastBiasDrift
+        expr: abs(forecast:eval_bias_delta) > 0.10
+        for: 1h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Sesgo de {{ $labels.segment }} se movió {{ $value | humanize }} contra el backtest"
+          description: "Signo: forecast_eval_bias_7d − forecast_eval_bias_backtest < 0 → pronostica de menos (agotados), > 0 → de más (merma). Un sesgo que aparece de golpe suele ser un dato (precio o promo); uno que crece semana a semana, drift (reentrena antes del domingo)."
+          runbook_url: "https://runbooks.example.com/c14/bias-drift"
+
+  # ------------------------------------------------------------------ negocio
+  - name: c14-business
+    rules:
+      # Señal REZAGADA y del negocio, no del modelo: la tasa de agotados (series top, 7 días) sube 25 % contra
+      # la semana anterior y está arriba de la meta del caso (8 % hoy, −25 % → 6 %). La causa puede ser el
+      # pronóstico (sesgo negativo), el centro de distribución, un proveedor o los overrides de los gerentes.
+      # `offset 7d` necesita ≥ 8 días de retención (Prometheus guarda 15 por defecto).
+      - alert: StockoutRateUp
+        expr: |
+          retail_oos_rate_7d > 1.25 * (retail_oos_rate_7d offset 7d)
+            and
+          retail_oos_rate_7d > 0.06
+        for: 6h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Agotados en {{ $labels.segment }}: {{ $value | humanizePercentage }} (+25 % vs la semana pasada)"
+          description: "¿Coincide con ForecastBiasDrift negativo o con un modelo nuevo? Si no: fill rate del centro de distribución, proveedores, y forecast value added de los overrides de los gerentes."
+          runbook_url: "https://runbooks.example.com/c14/stockouts"

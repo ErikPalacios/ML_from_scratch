@@ -1,0 +1,17 @@
+# Dependencias de RUNTIME del forwarder, todas fijadas con == (probadas con Python 3.13).
+# Fijar también las transitivas: 25 cajas que se reconstruyen en semanas distintas deben correr
+# exactamente el mismo código. En un repo real se genera con `uv pip compile` o `pip-compile`.
+# Las de tests van en requirements-dev.txt: no entran a la imagen.
+
+# --- directas (las importa app.py) ---
+paho-mqtt==2.1.0  # cliente MQTT (2.x exige declarar CallbackAPIVersion; ver main())
+httpx2==2.13.1  # HTTP a la API y a S3; MockTransport permite probar sin red
+PyYAML==6.0.3  # site.yaml (zonas y horarios)
+
+# --- transitivas (pip freeze de un venv limpio con las directas) ---
+anyio==4.15.1
+h11==0.16.0
+httpcore2==2.13.1
+idna==3.20
+truststore==0.10.4
+typing_extensions==4.16.0

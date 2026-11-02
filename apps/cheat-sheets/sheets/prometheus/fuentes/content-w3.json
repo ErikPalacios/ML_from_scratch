@@ -1,0 +1,1788 @@
+{
+ "sections": [
+  {
+   "id": "slos",
+   "num": 10,
+   "title": "SLOs: golden signals, RED y USE, error budget y alertas por burn rate",
+   "question": "¿Qué mides para saber si el servicio cumple, cuánto puede fallar en un mes y cuándo una alerta tiene que despertar a alguien?",
+   "templates": [
+    {
+     "code": "- record: {servicio}:error_ratio:rate{ventana}\n  expr: |\n    sum(rate({contador}{status=~\"5..\"}[{ventana}]))\n      /\n    sum(rate({contador}{status!~\"4..\"}[{ventana}]))",
+     "note": "El <b>SLI</b> (service level indicator: la fracción de eventos buenos sobre los válidos) se alerta al revés, por la fracción mala. Aquí, 5xx (errores del servidor) sobre los requests sin 4xx (errores del cliente, como una imagen inválida): los 4xx no cuentan ni arriba ni abajo. Va en una <b>recording rule</b> (una regla que corre la query en cada evaluación, cada 15 s en el compose del C01, y guarda el resultado como una serie nueva), una por ventana."
+    },
+    {
+     "code": "- record: {servicio}:slow_ratio:rate{ventana}\n  expr: |\n    1 - (\n      sum(rate({histograma}_bucket{le=\"{umbral}\"}[{ventana}]))\n        /\n      sum(rate({histograma}_count[{ventana}]))\n    )",
+     "note": "El SLI de latencia sale de un solo <b>bucket</b> (el cajón del histograma que cuenta los requests que tardaron hasta ese borde): lo que no cayó en <code>le=\"{umbral}\"</code> tardó más. El umbral tiene que ser un borde exacto del histograma; el gateway del C01 tiene 0.2 y 0.3."
+    },
+    {
+     "code": "- alert: {Alerta}\n  expr: |\n    {servicio}:error_ratio:rate{larga} > ({factor} * {presupuesto})\n    and\n    {servicio}:error_ratio:rate{corta} > ({factor} * {presupuesto})\n  labels:\n    severity: {severidad}",
+     "note": "Suena si el <b>error budget</b> (el presupuesto de errores: lo que el SLO deja fallar) se quema {factor} veces más rápido de lo permitido en la ventana larga <b>y</b> en la corta. Las reglas multi-ventana del SRE Workbook (el libro de Google sobre cómo operar servicios confiables) no llevan <code>for</code> (la espera antes de disparar): las dos ventanas ya filtran los picos, y el libro desaconseja sumar esperas."
+    },
+    {
+     "code": "1 - (\n  sum(increase({contador}{status=~\"5..\"}[30d]))\n    /\n  sum(increase({contador}{status!~\"4..\"}[30d]))\n) / {presupuesto}",
+     "note": "Cuánto queda del presupuesto del mes: 1 = intacto, 0 = gastado, negativo = SLO roto. Va arriba en el dashboard de quien está de guardia (el on-call). Necesita 30 días guardados: con la retención por defecto (15 días; 10 en kube-prometheus-stack) mide solo los que hay. Es cara: con scrape cada 15 s, cada serie aporta 172,800 muestras. Igual corre (tarda, pero corre), porque Prometheus las carga de a una serie; una subquery de 30 días (<code>rate(…[5m])[30d:15s]</code>: la query de adentro, recalculada cada 15 s) las junta todas a la vez y, con unas 300 series, pasa el tope de 50 millones (<code>--query.max-samples</code>): <code>query processing would load too many samples</code>. Lo barato: grabar la fracción con recording rules."
+    }
+   ],
+   "formulas": [
+    "\\text{presupuesto} = 1 - \\text{SLO} = 1 - 0.999 = 0.001 \\;\\Rightarrow\\; 0.001 \\times 300\\ \\text{M} = 300{,}000\\ \\text{requests al mes}",
+    "\\text{burn rate} = \\frac{\\text{tasa de error en la ventana}}{1 - \\text{SLO}} \\qquad t_{\\text{agotar}} = \\frac{720\\ \\text{h}}{\\text{burn rate}}",
+    "\\text{factor} = \\frac{g \\times P}{L} = \\frac{0.02 \\times 720\\ \\text{h}}{1\\ \\text{h}} = 14.4 \\qquad \\text{umbral} = 14.4 \\times 0.001 = 1.44\\,\\%",
+    "t_{\\text{detectar}} = \\frac{1 - \\text{SLO}}{e} \\times L \\times \\text{factor} = \\frac{0.001}{0.05} \\times 60\\ \\text{min} \\times 14.4 \\approx 17\\ \\text{min}"
+   ],
+   "vars": [
+    [
+     "{servicio}",
+     "prefijo de las series grabadas: el nivel del nombre nivel:métrica:operaciones",
+     "classifier"
+    ],
+    [
+     "{contador}",
+     "el counter de requests, con el label status",
+     "classifier_requests_total"
+    ],
+    [
+     "{ventana}, {larga}, {corta}",
+     "ventanas de rate(); la larga confirma, la corta se apaga rápido",
+     "5m, 30m, 1h, 6h · larga 1h con corta 5m"
+    ],
+    [
+     "{histograma}",
+     "nombre base del histograma de latencia",
+     "classifier_request_latency_seconds"
+    ],
+    [
+     "{umbral}",
+     "borde del bucket que separa rápido de lento, en segundos",
+     "0.2 (p99 ≤ 200 ms) · 0.3 (el SLI de requisitos)"
+    ],
+    [
+     "{factor}",
+     "burn rate que dispara la alerta",
+     "14.4, 6 o 1"
+    ],
+    [
+     "{presupuesto}",
+     "1 − SLO, como fracción",
+     "0.001 (errores) · 0.01 (latencia: 99 % bajo 200 ms)"
+    ],
+    [
+     "{Alerta}, {severidad}",
+     "nombre de la alerta y a quién le llega: page despierta a quien está de guardia; ticket se revisa en horario laboral",
+     "ClassifierErrorBudgetFastBurn · page"
+    ],
+    [
+     "SLO",
+     "la meta del SLI en una ventana de tiempo",
+     "99.9 % en 30 días"
+    ],
+    [
+     "burn rate",
+     "qué tan rápido gastas el presupuesto; 1 = se acaba justo al final del mes",
+     "5 % de errores = 50×"
+    ],
+    [
+     "g",
+     "fracción del presupuesto del mes que aceptas gastar antes del aviso",
+     "2 %, 5 % o 10 %"
+    ],
+    [
+     "P",
+     "el período del SLO",
+     "720 h (30 días)"
+    ],
+    [
+     "L",
+     "la ventana larga de la alerta",
+     "1 h, 6 h o 3 días"
+    ],
+    [
+     "e",
+     "la tasa de error real durante el incidente",
+     "5 % (el deploy malo de M15)"
+    ],
+    [
+     "t_agotar",
+     "en cuánto se acaba el presupuesto a ese ritmo",
+     "50 h a 14.4×"
+    ],
+    [
+     "t_detectar",
+     "cuánto tarda la ventana larga en cruzar el umbral",
+     "≈ 17 min con 5 % de errores"
+    ]
+   ],
+   "pieces": [
+    [
+     "Golden signals",
+     "Las cuatro señales del libro de SRE de Google: latencia, tráfico, errores y saturación (qué tan lleno está el servicio).",
+     "un panel por señal y por tier"
+    ],
+    [
+     "RED",
+     "Rate, Errors, Duration: requests por segundo, errores y latencia. La versión corta para servicios que responden requests.",
+     "gateway: req/s, 5xx, p99"
+    ],
+    [
+     "USE",
+     "Utilization, Saturation, Errors: cuánto se usa, cuánto trabajo queda esperando y cuánto falla cada recurso (CPU, memoria, GPU, disco).",
+     "GPU: utilización y cola de Triton"
+    ],
+    [
+     "SLI",
+     "La medida: eventos buenos sobre eventos válidos. Para alertar se usa la fracción mala.",
+     "requests sin 5xx y en ≤ 300 ms ÷ requests sin 4xx"
+    ],
+    [
+     "SLO",
+     "La meta interna del SLI en una ventana. Sale de requisitos, no de lo que el sistema logra hoy.",
+     "99.9 % en 30 días · p99 ≤ 200 ms"
+    ],
+    [
+     "SLA",
+     "Un contrato con créditos o multas si no se cumple. Más laxo que el SLO, para tener margen.",
+     "el C01 no tiene: sus callers son internos"
+    ],
+    [
+     "Error budget",
+     "Lo que el SLO deja fallar: 1 − SLO. Se gasta en deploys y experimentos; si se acaba, se congelan los lanzamientos riesgosos.",
+     "0.1 % = 300,000 requests al mes"
+    ],
+    [
+     "Burn rate",
+     "Tasa de error ÷ presupuesto. A 1× el presupuesto dura justo el mes; a 14.4×, 50 h.",
+     "5 % de errores = 50×"
+    ],
+    [
+     "Ventana larga y corta",
+     "La larga confirma que el gasto es real; la corta (1/12 de la larga) hace que la alerta se apague minutos después del arreglo.",
+     "1 h y 5 min · 6 h y 30 min · 3 días y 6 h"
+    ],
+    [
+     "14.4× · 6× · 1×",
+     "Los tres pares del SRE Workbook para 99.9 %: 2 % del presupuesto en 1 h (page), 5 % en 6 h (page) y 10 % en 3 días (ticket).",
+     "el C01 manda el de 6× a ticket: existe el selector manual"
+    ],
+    [
+     "Recording rule por ventana",
+     "Una serie grabada por ventana: cada alerta compara dos números ya calculados en vez de recalcular horas de datos.",
+     "classifier:error_ratio:rate1h"
+    ],
+    [
+     "Mínimo de tráfico",
+     "Con pocos requests, un solo error es un porcentaje enorme. Exige un caudal mínimo antes de alertar.",
+     "and sum(rate(classifier_requests_total[5m])) > 1"
+    ],
+    [
+     "Política de error budget",
+     "Un acuerdo previo con producto: qué se hace con más de 50 %, entre 10 y 50 % y con menos de 10 % de presupuesto.",
+     "bajo 10 %: solo cambios de confiabilidad"
+    ],
+    [
+     "Sloth · Pyrra",
+     "Herramientas que generan todas estas reglas desde una definición corta del SLO.",
+     "un YAML con el objetivo y el SLI"
+    ]
+   ],
+   "example": {
+    "title": "C01: las alertas por burn rate del curso para el SLO de 99.9 %",
+    "lang": "yaml",
+    "code": "# Parte de errores del SLO de c01: 99.9 % a 30 días (su SLI también exige ≤ 300 ms) → presupuesto 0.1 %\ngroups:\n  - name: classifier-slo-recording\n    rules:\n      # Una regla por ventana: la alerta compara ventanas ya calculadas (barato y legible)\n      - record: classifier:error_ratio:rate5m\n        expr: |\n          sum(rate(classifier_requests_total{status=~\"5..\"}[5m]))\n            / sum(rate(classifier_requests_total{status!~\"4..\"}[5m]))\n      # … classifier:error_ratio:rate30m, :rate1h y :rate6h: la misma expr con [30m], [1h] y [6h]\n  - name: classifier-slo-alerts\n    rules:\n      # 14.4× durante 1 h = 2 % del presupuesto mensual; la ventana de 5 min hace que se apague rápido\n      - alert: ClassifierErrorBudgetFastBurn\n        expr: |\n          classifier:error_ratio:rate1h > (14.4 * 0.001)\n          and classifier:error_ratio:rate5m > (14.4 * 0.001)\n        labels:\n          severity: page\n        annotations:\n          summary: \"Quemando el presupuesto de errores 14.4× más rápido de lo permitido\"\n          description: \"Error ratio 1 h = {{ $value | humanizePercentage }} (umbral 1.44 %).\"\n          runbook_url: \"https://runbooks.example.com/classifier/error-budget-burn\"\n      # 6× durante 6 h = 5 % del presupuesto; el SRE Workbook lo manda a page, c01 a ticket (hay fallback)\n      - alert: ClassifierErrorBudgetSlowBurn\n        expr: |\n          classifier:error_ratio:rate6h > (6 * 0.001)\n          and classifier:error_ratio:rate30m > (6 * 0.001)\n        labels:\n          severity: ticket\n        annotations:\n          summary: \"Quemando el presupuesto de errores 6× más rápido de lo permitido\"\n          runbook_url: \"https://runbooks.example.com/classifier/error-budget-burn\"",
+    "source": "M12 · Prometheus, Grafana y alertas por SLO (slo-rules.yml del curso, extracto; la línea # … resume las tres reglas omitidas)",
+    "notes": [
+     "Una regla de grabación por ventana (5m, 30m, 1h y 6h): cada alerta compara dos series ya calculadas. Sin ellas, cada evaluación recalcularía <code>rate()</code> sobre 6 h de datos crudos de todos los pods.",
+     "<code>14.4 * 0.001</code> es 1.44 %: más de 1.44 % de 5xx en la última hora <b>y</b> en los últimos 5 min. Con el deploy malo de M15 (5 % de errores) suena a los 17–18 min, con ≈ 2 % del presupuesto gastado, y se apaga 4 min después del arreglo. Lo calculas en el lab.",
+     "La de 6× va a <code>ticket</code> y no a page: el C01 no está en el camino crítico (quien publica puede elegir la categoría a mano). El SRE Workbook la manda a page.",
+     "Es solo la parte de errores. El SLI de requisitos también exige ≤ 300 ms: la fracción lenta sale del bucket <code>le=\"0.3\"</code> con la segunda plantilla. Sumar las dos fracciones puede contar dos veces un 5xx que además tardó más de 300 ms; como el gateway se da 250 ms por request (su deadline: el tiempo máximo que se permite), casi no pasa.",
+     "Comparada con <code>ClassifierHigh5xxRate</code> de <code>alerts.yml</code> (más de 1 % durante 5 min): ese umbral fijo es un burn rate de 10×. Con 5 % de errores suena antes (a los 7 min, contra 18); en una caída total, no: la de 14.4× suena al primer minuto y el <code>for: 5m</code> retrasa la fija hasta el minuto 6. Y la fija nunca suena con un 0.8 % sostenido, que agota el mes en 90 h; la de 6× lo atrapa a las 4.5 h.",
+     "Sin tráfico, la fracción es 0/0 = NaN y la comparación da falso: no dispara. Con muy poco tráfico, en cambio, un error mueve mucho la fracción; el extracto del curso no trae el mínimo de requests que sí usa <code>ClassifierHigh5xxRate</code>."
+    ]
+   },
+   "figure": {
+    "kind": "burn",
+    "caption": "El presupuesto del mes del C01 (300,000 requests fallidos) gastado a tres ritmos, y un deploy malo con 5 % de errores durante 2 h: la alerta de 14.4× suena a los 18 min y se apaga 4 min después del arreglo gracias a la ventana corta; solo con la de 1 h, se apagaría 43 min después del arreglo. Números del lab de esta sección.",
+    "data": {
+     "slo": 0.999,
+     "presupuesto": 0.001,
+     "periodo_h": 720,
+     "requests_mes": 300000000,
+     "presupuesto_requests": 300000,
+     "ritmos": [
+      {
+       "burn": 1,
+       "agota_h": 720,
+       "label": "1×: dura justo los 30 días"
+      },
+      {
+       "burn": 6,
+       "agota_h": 120,
+       "label": "6×: se acaba en 5 días"
+      },
+      {
+       "burn": 14.4,
+       "agota_h": 50,
+       "label": "14.4×: se acaba en 50 h"
+      }
+     ],
+     "alertas": [
+      {
+       "severidad": "page",
+       "burn": 14.4,
+       "larga": "1h",
+       "corta": "5m",
+       "gasta": 0.02,
+       "umbral": 0.0144
+      },
+      {
+       "severidad": "page (ticket en el C01)",
+       "burn": 6,
+       "larga": "6h",
+       "corta": "30m",
+       "gasta": 0.05,
+       "umbral": 0.006
+      },
+      {
+       "severidad": "ticket",
+       "burn": 1,
+       "larga": "3d",
+       "corta": "6h",
+       "gasta": 0.1,
+       "umbral": 0.001
+      }
+     ],
+     "incidente": {
+      "tasa_error": 0.05,
+      "burn": 50,
+      "dura_min": 120,
+      "dispara_min": [
+       {
+        "alerta": "14.4× (1 h y 5 min)",
+        "min": 18,
+        "gastado": 0.021
+       },
+       {
+        "alerta": "6× (6 h y 30 min)",
+        "min": 44,
+        "gastado": 0.051
+       },
+       {
+        "alerta": "1× (3 d y 6 h)",
+        "min": 87,
+        "gastado": 0.101
+       },
+       {
+        "alerta": "umbral del C01 (1 % durante 5 min)",
+        "min": 7
+       }
+      ],
+      "apaga_tras_arreglo_min": {
+       "con ventana corta": 4,
+       "solo con 1 h": 43
+      },
+      "gastado_total": 0.139
+     }
+    }
+   },
+   "memo": "Cómo recordarla: <b>14.4 en 1 h, 6 en 6 h, 1 en 3 días</b>: el 2 %, el 5 % y el 10 % del presupuesto del mes. Cada ventana larga lleva una corta de 1/12 (5 min, 30 min, 6 h): la larga dice que el gasto es real; la corta, que sigue pasando.",
+   "trap": "Trampa: creer que una alerta de umbral fijo ya es el SLO. <code>ClassifierHigh5xxRate</code> (más de 1 % durante 5 min) es un burn rate de 10×: un 0.8 % sostenido nunca la dispara y se come el presupuesto del mes en menos de 4 días. Y con poco tráfico pasa lo contrario: un solo error ya es un porcentaje enorme, así que exige un mínimo de requests.",
+   "lab": {
+    "goal": "Calcular el presupuesto del C01 y los tres factores del SRE Workbook, y ver minuto a minuto cuándo dispara y cuándo se apaga cada alerta en tres incidentes distintos.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-prom && cd ~/lab-prom\ncat > burn.py <<'EOF'\n# burn.py: el presupuesto de errores del C01 y las alertas por burn rate del SRE Workbook (solo stdlib)\nimport sys\n\nSLO = 0.999                  # 99.9 % de requests válidos sin 5xx, en 30 días (requisitos del C01)\nPRESUPUESTO = 1 - SLO        # la fracción que puede fallar: 0.1 %\nPERIODO_H = 30 * 24          # 720 h\nREQ_MIN = 10_000_000 / 1440  # 10 M requests por día, parejos: ≈ 6,944 por minuto\nMES = REQ_MIN * 60 * PERIODO_H * PRESUPUESTO   # requests que pueden fallar en el mes\n\nif len(sys.argv) == 1:  # sin argumentos: la tabla del SRE Workbook\n    print(f\"presupuesto: {PRESUPUESTO:.1%} → {MES:,.0f} requests fallidos al mes\")\n    print(\"severidad  gasta  larga  corta  factor  umbral  se acaba en\")\n    for sev, gasto, larga_h, corta in ((\"page\", 0.02, 1, \"5m\"), (\"page\", 0.05, 6, \"30m\"), (\"ticket\", 0.10, 72, \"6h\")):\n        factor = gasto * PERIODO_H / larga_h   # qué tan rápido hay que quemar para gastar eso en la ventana larga\n        print(f\"{sev:9}  {gasto:4.0%}  {larga_h:4}h  {corta:>5}  {factor:6.1f}  {factor * PRESUPUESTO:6.2%}  {PERIODO_H / factor:6.0f} h\")\n    sys.exit()\n\ntasa, dura = float(sys.argv[1]), int(sys.argv[2])   # tasa de error constante durante \"dura\" minutos; después, 0\nfin = dura + 3 * 1440\nmalo = [tasa if m < dura else 0.0 for m in range(fin)]          # una fracción de error por minuto\nacum = [0.0]\nfor x in malo:\n    acum.append(acum[-1] + x)\ndef frac(t, ventana):  # fracción de error de los últimos \"ventana\" minutos hasta el minuto t (como rate(...[ventana]))\n    ini = max(0, t + 1 - ventana)\n    return (acum[t + 1] - acum[ini]) / ventana   # antes del minuto 0 no hubo errores\ndef primero(cond, desde=0):\n    return next((t for t in range(desde, fin) if cond(t)), None)\ndef gastado(t):  # fracción del presupuesto del mes gastada hasta el minuto t\n    return REQ_MIN * acum[t + 1] / MES\n\nprint(f\"incidente: {tasa:.1%} de errores durante {dura} min = burn rate {tasa / PRESUPUESTO:g}×; \"\n      f\"a ese ritmo el mes se acaba en {PERIODO_H / (tasa / PRESUPUESTO):g} h\")\nreglas = ((\"14.4× (1 h y 5 min)\", 60, 5, 14.4), (\"6× (6 h y 30 min)\", 360, 30, 6), (\"1× (3 d y 6 h)\", 4320, 360, 1))\nfor nombre, larga, corta, f in reglas:\n    u = f * PRESUPUESTO\n    t = primero(lambda t: frac(t, larga) > u and frac(t, corta) > u)\n    print(f\"  {nombre:20} \" + (\"nunca dispara\" if t is None or t >= dura else f\"dispara a los {t + 1} min, con {gastado(t):.1%} del mes gastado\"))\n# La alerta de umbral del C01: 5xx > 1 % en rate(...[5m]) sostenido 5 min (for: 5m)\nt = primero(lambda t: t >= 5 and all(frac(s, 5) > 0.01 for s in range(t - 5, t + 1)))\nprint(f\"  {'umbral C01 (1 %, 5m)':20} \" + (\"nunca dispara\" if t is None or t >= dura else f\"dispara a los {t + 1} min\"))\nif tasa / PRESUPUESTO > 14.4:  # cuándo se apaga la de 14.4× después del arreglo\n    u = 14.4 * PRESUPUESTO\n    y = primero(lambda t: not (frac(t, 60) > u and frac(t, 5) > u), dura)\n    solo = primero(lambda t: not frac(t, 60) > u, dura)\n    print(f\"  tras el arreglo (minuto {dura}): se apaga a los {y - dura + 1} min gracias a la ventana corta; solo con la de 1 h, a los {solo - dura + 1}\")\nEOF\npython3 burn.py",
+      "expect": "presupuesto: 0.1% → 300,000 requests fallidos al mes, y la tabla: page 2% 1h 5m 14.4 1.44% 50 h; page 5% 6h 30m 6.0 0.60% 120 h; ticket 10% 72h 6h 1.0 0.10% 720 h. El factor es el gasto aceptado × 720 h ÷ la ventana larga."
+     },
+     {
+      "cmd": "python3 burn.py 0.05 120",
+      "expect": "Un deploy malo: 5% de errores durante 120 min = burn rate 50×. La de 14.4× dispara a los 18 min con 2.1% del mes gastado; la de 6×, a los 44 min; la de 1×, a los 87 min; el umbral del C01, a los 7 min. Tras el arreglo, la de 14.4× se apaga a los 4 min gracias a la ventana corta; solo con la de 1 h, a los 43."
+     },
+     {
+      "cmd": "python3 burn.py 0.008 2880",
+      "expect": "0.8% de errores durante 2 días = 8×: el mes se acaba en 90 h. La de 14.4× y el umbral del C01 nunca disparan; la de 6× dispara a los 271 min (4.5 h) con 5.0% gastado y la de 1×, a los 541 min."
+     },
+     {
+      "cmd": "python3 burn.py 1 30",
+      "expect": "Una caída total de 30 min (1000×): la de 14.4× dispara al primer minuto con 2.3% gastado, el umbral del C01 a los 6 min, y la de 14.4× se apaga 5 min después del arreglo (solo con la de 1 h, a los 60)."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-prom",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Prueba otros incidentes, por ejemplo python3 burn.py 0.02 60 (20×) o python3 burn.py 0.003 4320 (3×). El modelo supone tráfico parejo y una evaluación por minuto; Prometheus evalúa cada 15 s, así que en la realidad los minutos se corren un poco.",
+    "needs": "Python 3 sin paquetes extra (el python3 de macOS sirve). Ni Docker ni cluster.",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS con Python 3.14.3, 3.13.16 y 3.9.6: salidas idénticas. Los factores, las ventanas cortas de 1/12 y la fórmula de detección salen del capítulo Alerting on SLOs del SRE Workbook (tabla de parámetros para 99.9 %); el umbral de 1 % durante 5 min es el de ClassifierHigh5xxRate en monitoring/alerts.yml."
+   },
+   "links": [
+    "#m12.prometheus-grafana",
+    "#m15.disponibilidad",
+    "#c01.requisitos",
+    "#c01.monitoreo",
+    "#m12.sistema",
+    "#m12.runbooks"
+   ]
+  },
+  {
+   "id": "kubernetes",
+   "num": 11,
+   "title": "En Kubernetes: kube-prometheus-stack, el Operator, ServiceMonitor, PrometheusRule y KEDA",
+   "question": "En un cluster, ¿cómo encuentra Prometheus tus pods, quién mide los nodos, los contenedores y los objetos, y cómo lee KEDA una query para escalar?",
+   "templates": [
+    {
+     "code": "helm install {release} oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \\\n  --version {version} -n {ns} --create-namespace",
+     "note": "<b>kube-prometheus-stack</b> es un chart de Helm (un paquete de manifests con valores por defecto) que instala el <b>Prometheus Operator</b> (un controlador que convierte objetos de Kubernetes en configuración de Prometheus) con sus CRDs (las definiciones de los tipos nuevos: ServiceMonitor, PodMonitor, PrometheusRule…), Prometheus, Alertmanager, Grafana, kube-state-metrics, node_exporter, reglas y dashboards. Fija <code>--version</code>."
+    },
+    {
+     "code": "apiVersion: monitoring.coreos.com/v1\nkind: ServiceMonitor\nmetadata:\n  name: {nombre}\n  namespace: {ns_app}\n  labels:\n    release: {release}\nspec:\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: {app}\n  endpoints:\n    - port: {puerto}\n      path: /metrics\n      interval: {intervalo}",
+     "note": "Un <b>ServiceMonitor</b> le dice al Operator: lee <code>/metrics</code> de los pods que están detrás de los Services con estas labels, en el puerto con este nombre. La label <code>release</code> tiene que coincidir con el <code>serviceMonitorSelector</code> de tu Prometheus (el filtro con el que elige ServiceMonitors); si no, se ignora sin avisar."
+    },
+    {
+     "code": "apiVersion: monitoring.coreos.com/v1\nkind: PodMonitor\nmetadata:\n  name: {nombre}\n  namespace: {ns_app}\n  labels:\n    release: {release}\nspec:\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: {app}\n  podMetricsEndpoints:\n    - port: {puerto_pod}\n      interval: {intervalo}",
+     "note": "Un <b>PodMonitor</b> elige pods directo, sin Service: sirve para workers o jobs que nadie llama. <code>port</code> es el nombre del puerto del contenedor; si el pod no declara ese nombre, no aparece ningún target."
+    },
+    {
+     "code": "apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: {nombre}\n  namespace: {ns_app}\n  labels:\n    release: {release}\nspec:\n  groups:\n    - name: {grupo}\n      rules:\n        - alert: {Alerta}\n          expr: {expr}\n          for: {for}\n          labels:\n            severity: {severidad}",
+     "note": "Las reglas van como <b>PrometheusRule</b>: el Operator no lee archivos sueltos. El <code>spec</code> es el mismo YAML de <code>groups</code> de <code>alerts.yml</code>, también con la label <code>release</code> (para el <code>ruleSelector</code>, el filtro de reglas). Un webhook del chart (un chequeo que el API server hace antes de guardar el objeto) rechaza las reglas que no parsean: Helm muestra <code>Rules are not valid</code>; <code>kubectl apply</code>, <code>\"prometheusrules\" is invalid</code> y la regla que falló."
+    },
+    {
+     "code": "kubectl get servicemonitors,podmonitors,prometheusrules -A --show-labels\nkubectl get prometheus -n {ns} -o jsonpath='{.items[0].spec.serviceMonitorSelector}'\nkubectl port-forward -n {ns} svc/prometheus-operated 9090",
+     "note": "Primero, ¿existe el objeto y trae la label? Después, ¿qué selector usa tu Prometheus? <code>prometheus-operated</code> es el Service que crea el Operator: el mismo que consulta KEDA en el C01."
+    }
+   ],
+   "formulas": [
+    "\\text{deseadas} = \\left\\lceil \\text{Ready} \\times \\frac{\\text{valor de la query}}{\\text{threshold}} \\right\\rceil = \\left\\lceil 2 \\times \\frac{25}{10} \\right\\rceil = 5 \\;\\rightarrow\\; 4\\ (\\text{maxReplicaCount})",
+    "\\text{muestras} \\approx \\frac{\\text{ventana}}{\\text{interval}} \\ge 2\\ (\\text{mínimo de Prometheus}) \\qquad \\text{ventana} \\ge 4 \\times \\text{interval}\\ (\\text{regla de Grafana}) \\qquad [2\\text{m}] \\ge 4 \\times 15\\ \\text{s} = 1\\ \\text{min}"
+   ],
+   "vars": [
+    [
+     "{release}",
+     "nombre del release de Helm; el chart lo usa como label para elegir objetos",
+     "kube-prometheus-stack"
+    ],
+    [
+     "{version}",
+     "versión fija del chart",
+     "92.11.0 (trae el Operator v0.94.1)"
+    ],
+    [
+     "{ns}",
+     "namespace de Prometheus",
+     "monitoring (el C01 lo da por hecho)"
+    ],
+    [
+     "{nombre}, {ns_app}",
+     "nombre y namespace del ServiceMonitor, PodMonitor o PrometheusRule",
+     "gateway, triton · classifier"
+    ],
+    [
+     "{app}",
+     "label que comparten el Service (o los pods) que quieres medir",
+     "gateway"
+    ],
+    [
+     "{puerto}",
+     "el NOMBRE del puerto del Service, no el número",
+     "http (8080) · metrics (8002)"
+    ],
+    [
+     "{puerto_pod}",
+     "el nombre del puerto del contenedor",
+     "metrics"
+    ],
+    [
+     "{intervalo}",
+     "cada cuánto se lee; sin él, el de Prometheus (30 s con el Operator)",
+     "15s"
+    ],
+    [
+     "{grupo}, {Alerta}, {expr}, {for}, {severidad}",
+     "lo mismo que en alerts.yml",
+     "classifier-alerts · TritonNotReady · … · 5m · page"
+    ],
+    [
+     "Ready",
+     "réplicas listas del Deployment",
+     "2"
+    ],
+    [
+     "valor de la query",
+     "lo que devuelve la query de KEDA: un solo número",
+     "25 (ms de espera en la cola)"
+    ],
+    [
+     "threshold",
+     "el objetivo del trigger",
+     "10 (ms)"
+    ],
+    [
+     "ventana",
+     "el rango de rate() dentro de la query: Prometheus necesita 2 muestras adentro; la regla práctica de Grafana ($__rate_interval) pide 4 intervalos",
+     "[2m] en KEDA (8 muestras), [5m] en las alertas (20)"
+    ],
+    [
+     "interval",
+     "intervalo de scrape del target",
+     "15 s (los ServiceMonitors del C01)"
+    ]
+   ],
+   "pieces": [
+    [
+     "kube-prometheus-stack",
+     "Chart de Helm con el Operator, Prometheus, Alertmanager, Grafana, kube-state-metrics y node_exporter, más reglas y dashboards por defecto.",
+     "chart 92.11.0 (Operator v0.94.1)"
+    ],
+    [
+     "Prometheus Operator",
+     "Controlador que vigila ServiceMonitors, PodMonitors y PrometheusRules y reescribe la config de Prometheus. No le escribes prometheus.yml a mano.",
+     "deploy kube-prometheus-stack-operator"
+    ],
+    [
+     "Prometheus (el objeto)",
+     "Recurso que describe tu Prometheus: réplicas, retención y selectores (qué objetos toma). El Operator crea el StatefulSet (el objeto que mantiene pods con nombre fijo y disco propio) y el Service prometheus-operated. En el chart, la retención es de 10 días (sin el chart, Prometheus guarda 15): alcanza para los 7 días que pide ClassifierLowConfidenceSpike, pero no para un presupuesto de 30 días.",
+     "pod prometheus-kube-prometheus-stack-prometheus-0"
+    ],
+    [
+     "serviceMonitorSelector",
+     "Qué ServiceMonitors toma ese Prometheus. El chart pone release con el nombre del release: un ServiceMonitor sin esa label no existe para él.",
+     "{\"matchLabels\":{\"release\":\"kube-prometheus-stack\"}}"
+    ],
+    [
+     "serviceMonitorNamespaceSelector",
+     "En qué namespaces los busca. Vacío ({}) = todos, el default del chart; sin definir = solo el namespace de Prometheus.",
+     "{} en kube-prometheus-stack"
+    ],
+    [
+     "ServiceMonitor",
+     "Elige Services por label y lee los pods que tienen detrás. El job queda con el nombre del Service; el scrape pool, serviceMonitor/namespace/nombre/número de endpoint.",
+     "serviceMonitor/classifier/gateway/0"
+    ],
+    [
+     "PodMonitor",
+     "Elige pods sin pasar por un Service.",
+     "workers que leen de una cola"
+    ],
+    [
+     "PrometheusRule",
+     "Reglas de grabación y alertas como objeto. El Operator las monta en Prometheus; el webhook del chart rechaza las que no parsean.",
+     "classifier: 1 regla de grabación + 6 alertas"
+    ],
+    [
+     "config-reloader",
+     "Contenedor al lado de Prometheus que lo recarga cuando cambia la config generada, sin reiniciar el pod.",
+     "un ServiceMonitor nuevo aparece en uno o dos minutos"
+    ],
+    [
+     "kube-state-metrics",
+     "Lee el API server y publica el estado de los objetos: réplicas, fases, reinicios y motivos.",
+     "kube_deployment_status_replicas_available → TritonNotReady"
+    ],
+    [
+     "cAdvisor (dentro del kubelet)",
+     "El uso real de cada contenedor: CPU y memoria, y throttling (las pausas que impone un límite de CPU) solo si el contenedor tiene ese límite. El chart lo lee en /metrics/cadvisor de cada nodo. El gateway del C01 corre sin límite de CPU: no tiene serie de throttling.",
+     "container_cpu_usage_seconds_total del gateway"
+    ],
+    [
+     "node_exporter",
+     "Un pod por nodo (un DaemonSet) en el puerto 9100 con la máquina: CPU, memoria, disco y red.",
+     "node_memory_MemAvailable_bytes"
+    ],
+    [
+     "metrics-server",
+     "No es Prometheus: publica CPU y memoria para kubectl top y para el HPA por CPU.",
+     "el HPA del gateway"
+    ],
+    [
+     "KEDA (trigger prometheus)",
+     "Corre tu query en Prometheus y le pasa el número al HPA que crea (keda-hpa- más el nombre). La query tiene que devolver una sola serie.",
+     "serverAddress: http://prometheus-operated.monitoring.svc.cluster.local:9090"
+    ],
+    [
+     "ignoreNullValues",
+     "Con true (el default), una query vacía, NaN o +Inf vale 0 en silencio; con \"false\", es un error visible en los eventos del ScaledObject.",
+     "\"false\" en el C01"
+    ],
+    [
+     "TargetDown · Watchdog",
+     "Dos alertas que trae el chart: TargetDown (más del 10 % de los targets de un job caídos durante 10 min) y Watchdog (siempre encendida, para probar que la cadena de alertas funciona).",
+     "Watchdog va al receiver null (descarta todo) por defecto"
+    ]
+   ],
+   "tables": [
+    {
+     "caption": "Quién mide qué en un cluster",
+     "head": [
+      "Fuente",
+      "Qué mide",
+      "Ejemplo",
+      "En el C01"
+     ],
+     "rows": [
+      [
+       "Tu app (prometheus_client)",
+       "lo que solo tu código sabe: requests, latencia por tramo, scores",
+       "classifier_requests_total",
+       "el gateway, en :8080/metrics; los requests en vuelo que el curso cuenta como saturación no salen ahí: main.py no los exporta como gauge"
+      ],
+      [
+       "Triton",
+       "cola, cómputo y batches por modelo, y la GPU",
+       "nv_inference_queue_duration_us",
+       "puerto 8002; la query de KEDA y TritonQueueTimeHigh"
+      ],
+      [
+       "kube-state-metrics",
+       "el estado de los objetos de Kubernetes, leído del API server",
+       "kube_deployment_status_replicas_available",
+       "TritonNotReady (no existe en el compose local)"
+      ],
+      [
+       "cAdvisor (kubelet)",
+       "cuánto usa de verdad cada contenedor",
+       "container_memory_working_set_bytes",
+       "la CPU del gateway: hoy, su única señal de saturación exportada (sin límite de CPU no hay throttling)"
+      ],
+      [
+       "node_exporter",
+       "la máquina: CPU, memoria, disco y red del nodo",
+       "node_filesystem_avail_bytes",
+       "sin alerta propia en el C01"
+      ],
+      [
+       "DCGM exporter",
+       "la GPU vista por NVIDIA: utilización, memoria, temperatura, errores",
+       "DCGM_FI_DEV_GPU_UTIL",
+       "lo instala el GPU Operator; el C01 usa nv_gpu_utilization de Triton"
+      ],
+      [
+       "metrics-server",
+       "CPU y memoria al instante para kubectl top y el HPA; no guarda historia",
+       "—",
+       "el HPA del gateway al 60 % de su request"
+      ]
+     ],
+     "note": "La pregunta elige la fuente: ¿el Deployment tiene sus réplicas listas? kube-state-metrics. ¿El contenedor se acerca a su límite de memoria? cAdvisor. ¿Se llena el disco del nodo? node_exporter. ¿Fallan los requests? Tu app."
+    }
+   ],
+   "example": {
+    "title": "C01: los dos ServiceMonitors que conectan el gateway y Triton con Prometheus",
+    "lang": "yaml",
+    "code": "# Scrape con el Prometheus Operator (kube-prometheus-stack) (caso c01). Sin esto, Prometheus nunca\n# lee el gateway ni Triton: la consulta de KEDA vuelve vacía (k8s/keda-triton.yaml la marca como\n# error), Triton se queda en 2 réplicas y ninguna alerta evalúa. Falla en silencio.\n# Las reglas de monitoring/alerts.yml van aparte, como PrometheusRule (el Operator no lee archivos\n# de reglas): el comando está en el README.\napiVersion: monitoring.coreos.com/v1\nkind: ServiceMonitor\nmetadata:\n  name: gateway\n  namespace: classifier\n  labels:\n    release: kube-prometheus-stack  # = serviceMonitorSelector de tu Prometheus (nombre del release de Helm)\nspec:\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: gateway  # labels del Service de k8s/gateway.yaml\n  endpoints:\n    - port: http  # nombre del puerto del Service: 8080/metrics del gateway (no expuesto en el Ingress)\n      path: /metrics\n      interval: 15s  # igual que en local: suficiente para alertas de 5–30 min\n---\napiVersion: monitoring.coreos.com/v1\nkind: ServiceMonitor\nmetadata:\n  name: triton\n  namespace: classifier\n  labels:\n    release: kube-prometheus-stack\nspec:\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: triton  # labels del Service de k8s/triton.yaml\n  endpoints:\n    - port: metrics  # 8002: métricas nv_* (las que consulta KEDA); la NetworkPolicy solo deja entrar a \"monitoring\"\n      interval: 15s",
+    "source": "reference/c01/k8s/monitoring.yaml (completo)",
+    "notes": [
+     "<code>release: kube-prometheus-stack</code> es la label que busca el <code>serviceMonitorSelector</code> que arma el chart (release igual al nombre del release de Helm). Si instalas el chart con otro nombre, cambia esta label: si no, el ServiceMonitor no existe para Prometheus, ni UP ni DOWN.",
+     "<code>port: http</code> y <code>port: metrics</code> son <b>nombres</b> de puertos de los Services de <code>gateway.yaml</code> y <code>triton.yaml</code>, no números. El job queda con el nombre del Service, así que <code>up{job=\"gateway\"}</code> funciona igual que en el compose local.",
+     "<code>interval: 15s</code> pisa el default del Operator (30 s) y queda igual que <code>prometheus.yml</code> en local: la ventana de 2 min de KEDA y las de 5 min de las alertas tienen 8 y 20 muestras por serie. Ojo: las reglas sin <code>interval</code> propio se evalúan cada 30 s en el cluster (el default del Operator), no cada 15 s como en local.",
+     "La NetworkPolicy de <code>triton.yaml</code> solo deja leer el puerto 8002 desde el namespace <code>monitoring</code> (si el plugin de red del cluster, el CNI, aplica NetworkPolicies, como pide ese archivo). Si Prometheus vive en otro namespace, Triton sale DOWN con <code>context deadline exceeded</code>: el ejemplo de la sección 12.",
+     "Las reglas no van aquí: el README del C01 envuelve <code>alerts.yml</code> en un PrometheusRule con la misma label <code>release</code>. Sin ese paso, las 6 alertas no existen en el cluster.",
+     "KEDA lee este mismo Prometheus por <code>prometheus-operated.monitoring.svc.cluster.local:9090</code>. Si falta el ServiceMonitor de Triton, su query vuelve vacía y, con <code>ignoreNullValues: \"false\"</code>, el ScaledObject muestra <code>prometheus metrics 'prometheus' target may be lost, the result is empty</code> en sus eventos."
+    ]
+   },
+   "figure": {
+    "kind": "operator",
+    "caption": "El Operator convierte objetos en config: toma los ServiceMonitors y PrometheusRules con la label release, genera un job por endpoint y el config-reloader recarga Prometheus. Los targets son los pods detrás de cada Service. IPs ilustrativas.",
+    "data": {
+     "objetos": [
+      {
+       "kind": "ServiceMonitor",
+       "nombre": "classifier/gateway",
+       "label": "release: kube-prometheus-stack",
+       "elige": "Service gateway · puerto http (8080) · /metrics cada 15 s"
+      },
+      {
+       "kind": "ServiceMonitor",
+       "nombre": "classifier/triton",
+       "label": "release: kube-prometheus-stack",
+       "elige": "Service triton · puerto metrics (8002) cada 15 s"
+      },
+      {
+       "kind": "PrometheusRule",
+       "nombre": "classifier/classifier",
+       "label": "release: kube-prometheus-stack",
+       "elige": "1 regla de grabación + 6 alertas (alerts.yml)"
+      },
+      {
+       "kind": "ServiceMonitor",
+       "nombre": "classifier/sin-label",
+       "label": "(sin release)",
+       "elige": "ignorado: no genera ningún job",
+       "ignorado": true
+      }
+     ],
+     "operator": {
+      "vigila": "ServiceMonitor, PodMonitor, PrometheusRule",
+      "filtro": "serviceMonitorSelector: release=kube-prometheus-stack · serviceMonitorNamespaceSelector: {} (todos)",
+      "escribe": [
+       "un Secret con prometheus.yaml.gz (la config generada)",
+       "un ConfigMap …-rulefiles-0 con las reglas"
+      ]
+     },
+     "jobs": [
+      "serviceMonitor/classifier/gateway/0",
+      "serviceMonitor/classifier/triton/0"
+     ],
+     "prometheus": {
+      "pod": "prometheus-kube-prometheus-stack-prometheus-0",
+      "recarga": "config-reloader, sin reiniciar",
+      "service": "prometheus-operated:9090"
+     },
+     "targets": [
+      {
+       "job": "gateway",
+       "instance": "10.0.1.21:8080",
+       "health": "up"
+      },
+      {
+       "job": "gateway",
+       "instance": "10.0.2.14:8080",
+       "health": "up"
+      },
+      {
+       "job": "gateway",
+       "instance": "10.0.1.33:8080",
+       "health": "up"
+      },
+      {
+       "job": "triton",
+       "instance": "10.0.1.12:8002",
+       "health": "up"
+      },
+      {
+       "job": "triton",
+       "instance": "10.0.2.40:8002",
+       "health": "up"
+      }
+     ],
+     "consumidores": [
+      "Alertmanager: recibe las alertas que disparan",
+      "Grafana: dibuja los dashboards",
+      "KEDA: corre la query de la cola cada 15 s para keda-hpa-triton"
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>no escribes prometheus.yml: escribes objetos</b>. ServiceMonitor = qué leer (por Service), PodMonitor = qué leer (por pod), PrometheusRule = qué evaluar; la label <code>release</code> es la llave. kube-state-metrics dice cómo están los objetos; cAdvisor, cuánto gasta cada contenedor; node_exporter, cómo está la máquina.",
+   "trap": "Trampa: un ServiceMonitor que nadie elige no da error. Sin la label <code>release</code>, con un <code>selector</code> que copia las labels del pod en vez de las del Service, o con un <code>port</code> que el Service no tiene, el target simplemente no aparece: ni UP ni DOWN. En el C01 eso rompe dos cosas a la vez: las alertas se quedan sin datos y KEDA no ve la cola.",
+   "lab": {
+    "goal": "Instalar kube-prometheus-stack en un cluster local, ver cómo un ServiceMonitor sin la label release se ignora en silencio, cargar una alerta como PrometheusRule y comprobar que una alerta sobre up == 0 se apaga cuando el servicio desaparece del todo.",
+    "steps": [
+     {
+      "cmd": "kubectl config current-context\nhelm install kube-prometheus-stack oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack \\\n  --version 92.11.0 -n monitoring --create-namespace \\\n  --set prometheus-node-exporter.hostRootFsMount.enabled=false --wait --timeout 15m\nkubectl get pods -n monitoring",
+      "expect": "El contexto de tu cluster local (docker-desktop o kind-…), STATUS: deployed y pods Running: kube-prometheus-stack-operator, prometheus-kube-prometheus-stack-prometheus-0, alertmanager-kube-prometheus-stack-alertmanager-0, kube-prometheus-stack-grafana, kube-prometheus-stack-kube-state-metrics y un kube-prometheus-stack-prometheus-node-exporter por nodo. La opción de node_exporter evita un error al montar el disco raíz que puede aparecer en Docker Desktop."
+     },
+     {
+      "cmd": "kubectl get prometheus -n monitoring -o jsonpath='{.items[0].spec.serviceMonitorSelector}{\"\\n\"}{.items[0].spec.serviceMonitorNamespaceSelector}{\"\\n\"}'",
+      "expect": "{\"matchLabels\":{\"release\":\"kube-prometheus-stack\"}} y {}: este Prometheus toma los ServiceMonitors que traen esa label, en cualquier namespace."
+     },
+     {
+      "cmd": "kubectl create namespace lab-prom\nkubectl apply -n lab-prom -f - <<'EOF'\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: web\n  template:\n    metadata:\n      labels:\n        app.kubernetes.io/name: web\n    spec:\n      containers:\n        - name: web\n          image: quay.io/brancz/prometheus-example-app:v0.6.0\n          ports:\n            - name: http\n              containerPort: 8080\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: web\n  labels:\n    app.kubernetes.io/name: web\nspec:\n  selector:\n    app.kubernetes.io/name: web\n  ports:\n    - name: http\n      port: 8080\n      targetPort: http\n---\napiVersion: monitoring.coreos.com/v1\nkind: ServiceMonitor\nmetadata:\n  name: web\nspec:\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: web\n  endpoints:\n    - port: http\n      interval: 15s\nEOF",
+      "expect": "namespace/lab-prom created, deployment.apps/web created, service/web created y servicemonitor.monitoring.coreos.com/web created. La app de ejemplo del Prometheus Operator sirve / y expone /metrics en el 8080. El ServiceMonitor no trae la label release."
+     },
+     {
+      "cmd": "kubectl port-forward -n monitoring svc/prometheus-operated 9090 >/dev/null 2>&1 & PF=$!\nsleep 5; curl -s 'localhost:9090/api/v1/targets?state=active' | jq -r '.data.activeTargets[].scrapePool' | sort -u",
+      "expect": "Una lista de pools serviceMonitor/monitoring/… (los del chart) y ninguno serviceMonitor/lab-prom/web/0. Tu ServiceMonitor existe, pero nadie lo elige: no hay error en ningún lado."
+     },
+     {
+      "cmd": "curl -s 'localhost:9090/api/v1/targets?state=active' | jq -r '.data.activeTargets[] | select(.health==\"down\") | [.scrapePool, .lastError] | @tsv'",
+      "expect": "En un cluster local suelen salir DOWN los de kube-controller-manager, kube-scheduler, kube-etcd y kube-proxy, con connection refused: esos componentes escuchan sus métricas solo en 127.0.0.1 de su nodo. No es tu app; el chart permite apagar esos ServiceMonitors (kubeControllerManager.enabled=false y similares)."
+     },
+     {
+      "cmd": "kubectl label servicemonitor web -n lab-prom release=kube-prometheus-stack\nsleep 90; curl -s 'localhost:9090/api/v1/targets?state=active' | jq -r '.data.activeTargets[] | select(.scrapePool==\"serviceMonitor/lab-prom/web/0\") | [.labels.job, .labels.instance, .health] | @tsv'",
+      "expect": "servicemonitor.monitoring.coreos.com/web labeled y, después, dos líneas: web, la IP de cada pod con :8080, up. El Operator regeneró la config y el config-reloader recargó Prometheus. Si sale vacío, espera otro minuto y repite el curl."
+     },
+     {
+      "cmd": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=http_requests_total{job=\"web\"}' | jq '.data.result | length'\nkubectl run carga -n lab-prom --rm -i --restart=Never --image=busybox:1.38 -- sh -c 'for i in $(seq 50); do wget -q -O /dev/null http://web:8080/; done; echo listo'\nsleep 30; curl -s localhost:9090/api/v1/query --data-urlencode 'query=sum by (code) (http_requests_total{job=\"web\"})' | jq -r '.data.result[] | [.metric.code, .value[1]] | @tsv'",
+      "expect": "Primero 0: el counter tiene labels y todavía no recibió ningún request, así que no existe ni una serie (vacío, no cero). Después, listo y el pod carga se borra solo. Al final, 200 y 50: los 50 requests, sumados entre los dos pods."
+     },
+     {
+      "cmd": "kubectl apply -n lab-prom -f - <<'EOF'\napiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: web\n  labels:\n    release: kube-prometheus-stack\nspec:\n  groups:\n    - name: lab-web\n      rules:\n        - alert: WebCaido\n          expr: up{job=\"web\"} == 0\n          for: 1m\n          labels:\n            severity: page\n          annotations:\n            summary: \"{{ $labels.instance }} no responde\"\nEOF\nsleep 90; curl -s 'localhost:9090/api/v1/rules?type=alert' | jq -r '.data.groups[] | select(.name==\"lab-web\") | .rules[] | [.name, .state, .health] | @tsv'",
+      "expect": "prometheusrule.monitoring.coreos.com/web created y, en Rule health, WebCaido inactive ok: la regla está cargada y sana, y no hay nada caído."
+     },
+     {
+      "cmd": "kubectl patch service web -n lab-prom --type=json -p '[{\"op\":\"replace\",\"path\":\"/spec/ports/0/targetPort\",\"value\":9999}]'\nsleep 150; curl -s localhost:9090/api/v1/alerts | jq -r '.data.alerts[] | select(.labels.alertname==\"WebCaido\") | [.labels.instance, .state] | @tsv'",
+      "expect": "service/web patched y, después, dos alertas WebCaido firing, una por pod, con instance en el puerto 9999: el Service ahora apunta a un puerto donde nadie escucha, el scrape falla con connection refused y up vale 0 durante más de 1 min (el for)."
+     },
+     {
+      "cmd": "kubectl scale deploy web -n lab-prom --replicas=0\nsleep 60; curl -s localhost:9090/api/v1/alerts | jq '[.data.alerts[] | select(.labels.alertname==\"WebCaido\")] | length'\ncurl -s localhost:9090/api/v1/query --data-urlencode 'query=absent(up{job=\"web\"})' | jq -r '.data.result[].value[1]'",
+      "expect": "deployment.apps/web scaled, 0 alertas y después 1. Sin pods no hay targets ni serie up: la alerta up == 0 se apagó justo cuando el servicio está caído del todo. absent(up{job=\"web\"}) devuelve 1: esa es la expresión que sí avisaría."
+     },
+     {
+      "cmd": "kill $PF\nkubectl delete namespace lab-prom\nhelm uninstall kube-prometheus-stack -n monitoring\nkubectl delete namespace monitoring\nkubectl get crd -o name | grep monitoring.coreos.com",
+      "expect": "release \"kube-prometheus-stack\" uninstalled y los namespaces borrados. La última lista sigue mostrando los CRDs (servicemonitors, prometheusrules…): Helm no los borra. Si no vas a volver a instalar el chart: kubectl get crd -o name | grep monitoring.coreos.com | xargs kubectl delete."
+     }
+    ],
+    "fix": "Un ServiceMonitor que no aparece: compara sus labels con el serviceMonitorSelector del paso 2 y su selector con las labels del Service. Una alerta que se apaga cuando todo cae: agrega una con absent() o alerta del lado de quien espera la señal. En el C01, k8s/monitoring.yaml ya trae la label correcta.",
+    "needs": "Un cluster local (Kubernetes de Docker Desktop o kind) con memoria de sobra en la VM de Docker, helm 3 o 4 (brew install helm) y jq (los macOS recientes lo traen en /usr/bin/jq; si no, brew install jq). La primera vez baja las imágenes del Operator, Prometheus, Alertmanager, Grafana y la app de ejemplo.",
+    "verified": "docs",
+    "verified_note": "No ejecutado aquí (no se corrieron kubectl, helm ni docker). Verificado contra el chart kube-prometheus-stack 92.11.0 (values.yaml y plantillas: serviceMonitorSelector con release, namespaceSelector {}, nombres de los recursos, hostRootFsMount de node_exporter), la API del Prometheus Operator v0.94.2 (ServiceMonitor, PodMonitor, PrometheusRule, el Service prometheus-operated y el scrape pool serviceMonitor/namespace/nombre/índice), el README del chart (los CRDs no se borran al desinstalar) y el código de prometheus-example-app (puerto 8080, http_requests_total con code y method); la imagen v0.6.0 es multi-arquitectura."
+   },
+   "links": [
+    "#m12.prometheus-grafana",
+    "#m06.keda",
+    "#m06.hpa",
+    "#ref-comandos.autoscaling-cmds",
+    "#c01.monitoreo",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "diagnostico",
+   "num": 12,
+   "title": "Diagnóstico: el método y la tabla de estados",
+   "question": "No hay datos, un target está DOWN o la alerta nunca sonó: ¿qué miras primero, qué después y qué te dice cada estado?",
+   "templates": [
+    {
+     "code": "curl -s 'http://{prometheus}/api/v1/targets?state=active' \\\n  | jq -r '.data.activeTargets[] | [.labels.job, .labels.instance, .health, .lastError] | @tsv'",
+     "note": "<b>¿Prometheus lee el target?</b> <code>health</code> es up, down o unknown (todavía no lo leyó) y <code>lastError</code> dice por qué falló. Es lo mismo que Status → Target health en la UI. Si el target ni aparece, el problema está antes: la config o el ServiceMonitor."
+    },
+    {
+     "code": "curl -s http://{host}:{puerto}/metrics | grep '^{metrica}'",
+     "note": "<b>¿El proceso emite la métrica?</b> Lo que no está aquí no puede estar en Prometheus. Una serie con labels nace con su primera observación: si nadie recibió un 503, no hay línea de 503. En Kubernetes, llega con <code>kubectl port-forward</code>."
+    },
+    {
+     "code": "curl -s http://{prometheus}/api/v1/query --data-urlencode 'query={consulta}' | jq '.data.result, .warnings, .infos'",
+     "note": "<b>¿La query devuelve algo?</b> Una lista vacía no es un 0: no hay serie con ese nombre y esas labels en los últimos 5 min (el <b>lookback</b>: cuánto mira hacia atrás una query para encontrar la última muestra). Y lee <code>warnings</code> e <code>infos</code>: la query pudo correr con una sospecha."
+    },
+    {
+     "code": "curl -s 'http://{prometheus}/api/v1/rules?type=alert' \\\n  | jq -r '.data.groups[].rules[] | [.name, .state, .health, .lastError] | @tsv'\namtool --alertmanager.url=http://{alertmanager} alert query alertname={alerta}",
+     "note": "<b>¿La regla evalúa y en qué estado está?</b> <code>health</code> ok o err (con <code>lastError</code>) y <code>state</code> inactive, pending o firing. Después, <b>¿la recibió Alertmanager?</b> Sin flags, <code>amtool</code> lista solo las activas (las que sí notifica); <code>-s</code> e <code>-i</code> muestran solo las silenciadas y las inhibidas, y <code>-a -s -i</code>, todas, con su estado."
+    }
+   ],
+   "formulas": [
+    "t_{\\text{aviso}} \\approx t_{\\text{cruce}} + t_{\\text{for}} + t_{\\text{eval}} + t_{\\text{grupo}} \\approx 15\\ \\text{s} + 5\\ \\text{min} + 15\\ \\text{s} + 30\\ \\text{s} \\approx 6\\ \\text{min}",
+    "\\text{\\$\\_\\_rate\\_interval} = \\max\\left(\\text{\\$\\_\\_interval} + s,\\; 4s\\right)",
+    "\\frac{0}{0} = \\text{NaN} \\qquad \\frac{x}{0} = +\\infty \\qquad \\text{NaN} > u \\;\\Rightarrow\\; \\text{falso: la alerta no dispara}"
+   ],
+   "vars": [
+    [
+     "{prometheus}",
+     "host y puerto de Prometheus",
+     "localhost:9090 (compose o port-forward)"
+    ],
+    [
+     "{host}, {puerto}",
+     "el target, visto desde donde corres curl (Prometheus lo lee como gateway:8080 o triton:8002)",
+     "localhost:8080 · localhost:8002 (puertos publicados del compose o port-forward)"
+    ],
+    [
+     "{metrica}",
+     "nombre de la métrica (o su comienzo)",
+     "classifier_requests_total"
+    ],
+    [
+     "{consulta}",
+     "la query que no devuelve lo esperado",
+     "up{job=\"triton\"}"
+    ],
+    [
+     "{alertmanager}",
+     "host y puerto de Alertmanager",
+     "localhost:9093"
+    ],
+    [
+     "{alerta}",
+     "nombre de la alerta",
+     "ClassifierHigh5xxRate"
+    ],
+    [
+     "t_aviso",
+     "del primer error a la notificación",
+     "≈ 6 min para ClassifierHigh5xxRate en una caída total"
+    ],
+    [
+     "t_cruce",
+     "hasta que la expresión es verdadera: un scrape y la ventana",
+     "≈ 15–30 s con 100 % de errores (rate necesita dos muestras de la serie de 5xx); ≈ 17 min con 5 % en la de 14.4×"
+    ],
+    [
+     "t_for",
+     "el for de la regla: el tiempo en pending",
+     "5 min"
+    ],
+    [
+     "t_eval",
+     "hasta la siguiente evaluación de la regla (evaluation_interval: 1 min si no lo fijas)",
+     "≤ 15 s con el prometheus.yml del C01; ≤ 30 s con el Operator (EKS)"
+    ],
+    [
+     "t_grupo",
+     "group_wait de Alertmanager: espera antes de la primera notificación de un grupo",
+     "30 s (default)"
+    ],
+    [
+     "s",
+     "intervalo de scrape que Grafana supone para el data source",
+     "15 s (el default de Grafana y el del C01)"
+    ],
+    [
+     "u",
+     "el umbral de la alerta",
+     "0.01 (1 % de 5xx)"
+    ]
+   ],
+   "pieces": [
+    [
+     "up = 1",
+     "El último scrape funcionó: Prometheus leyó /metrics completo.",
+     "up{job=\"gateway\"} 1"
+    ],
+    [
+     "up = 0 (DOWN)",
+     "El scrape falló. La causa está en lastError: red, puerto, path, timeout o Content-Type.",
+     "context deadline exceeded"
+    ],
+    [
+     "sin serie up",
+     "No hay target: la config, el ServiceMonitor, su selector o el nombre del puerto no lo generan.",
+     "un ServiceMonitor sin la label release"
+    ],
+    [
+     "health: unknown",
+     "Target recién descubierto, todavía sin scrape.",
+     "los primeros segundos"
+    ],
+    [
+     "resultado vacío",
+     "No hay serie con ese nombre y esas labels en los últimos 5 min. No es lo mismo que 0.",
+     "la serie de 503 cuando no hubo ningún 503"
+    ],
+    [
+     "NaN",
+     "Dividiste 0 entre 0, o histogram_quantile no tuvo observaciones en la ventana.",
+     "la fracción de 5xx sin tráfico"
+    ],
+    [
+     "+Inf",
+     "Dividiste algo positivo entre 0.",
+     "espera en cola ÷ 0 éxitos, sin clamp_min"
+    ],
+    [
+     "caída en un counter",
+     "El proceso reinició y el counter volvió a 0 (un counter reset). rate() lo corrige si va antes del sum.",
+     "un pod reemplazado en un deploy"
+    ],
+    [
+     "hueco en la gráfica",
+     "Scrapes que fallaron: Prometheus marca la serie como stale (vencida) y no inventa valores.",
+     "un /metrics que tardó más que scrape_timeout"
+    ],
+    [
+     "regla con health err",
+     "La regla no se puede evaluar; lastError trae el mensaje. Mientras falle, no dispara.",
+     "many-to-many matching not allowed"
+    ],
+    [
+     "alerta pending",
+     "La condición es verdadera, pero no cumplió el for. Si se apaga un instante, el for empieza de cero.",
+     "for: 10m en ClassifierHighP99Latency"
+    ],
+    [
+     "alerta firing",
+     "Cumplió el for: Prometheus la manda a Alertmanager y la reenvía mientras siga activa.",
+     "ALERTS{alertstate=\"firing\"}"
+    ],
+    [
+     "silenciada · inhibida",
+     "Alertmanager la tiene, pero no notifica: un silencio la tapa u otra alerta la inhibe.",
+     "amtool alert query -s -i"
+    ],
+    [
+     "No data (Grafana)",
+     "La query del panel no devolvió series: nombre, labels, rango de tiempo, variables o data source.",
+     "Inspect → Query del panel"
+    ]
+   ],
+   "example": {
+    "title": "C01: Triton DOWN por la red, no por Triton",
+    "lang": "bash",
+    "code": "# Síntoma: el panel de la cola de Triton dice No data y KEDA no pasa de 2 réplicas.\n# Este Prometheus (kube-prometheus-stack) quedó instalado en el namespace \"observability\".\nkubectl port-forward -n observability svc/prometheus-operated 9090 &\ncurl -s 'localhost:9090/api/v1/targets?state=active' \\\n  | jq -r '.data.activeTargets[] | select(.labels.namespace==\"classifier\") | [.labels.job, .health, .lastError] | @tsv'\n# gateway  up\n# gateway  up\n# gateway  up\n# triton   down  Get \"http://10.0.1.12:8002/metrics\": context deadline exceeded\n# triton   down  Get \"http://10.0.2.40:8002/metrics\": context deadline exceeded\n\n# El target existe (el ServiceMonitor está bien), pero no contesta a tiempo: ¿el proceso o la red?\nkubectl port-forward -n classifier svc/triton 8002 &\ncurl -s localhost:8002/metrics | grep -c '^nv_inference_queue_duration_us'\n# 1          ← por el port-forward sí contesta: el proceso está bien\nkubectl get networkpolicy triton-ingress -n classifier -o jsonpath='{.spec.ingress[1].from}'\n# [{\"namespaceSelector\":{\"matchLabels\":{\"kubernetes.io/metadata.name\":\"monitoring\"}}}]\n\n# Causa: solo el namespace \"monitoring\" puede leer el 8002. KEDA tampoco llega a Prometheus:\nkubectl describe scaledobject triton -n classifier | grep KEDAScalerFailed\n# Warning  KEDAScalerFailed  …  …: lookup prometheus-operated.monitoring.svc.cluster.local …: no such host",
+    "source": "Comandos reales con los nombres de reference/c01/k8s/triton.yaml (NetworkPolicy triton-ingress), monitoring.yaml y keda-triton.yaml; las salidas son ilustrativas, con la forma de Prometheus 3.13 y KEDA 2.21",
+    "notes": [
+     "Lee los tres estados: el gateway sale UP (se lee bien), Triton sale DOWN con un error (el target existe y el scrape falla) y ningún target falta. Si faltara, el problema sería de selección (sección 11); aquí el ServiceMonitor está bien.",
+     "<code>context deadline exceeded</code> = nadie contestó antes de <code>scrape_timeout</code> (10 s por defecto). Una NetworkPolicy descarta los paquetes sin responder: por eso es un timeout y no un <code>connection refused</code>.",
+     "El <code>port-forward</code> entra al pod a través del kubelet y no pasa por la NetworkPolicy: si así contesta y Prometheus no, el problema es la red, no el proceso.",
+     "El namespace <code>monitoring</code> es parte del contrato del C01: lo usan la NetworkPolicy de <code>triton.yaml</code> y el <code>serverAddress</code> de <code>keda-triton.yaml</code>. O instalas Prometheus ahí, o cambias los dos archivos en git.",
+     "Mientras tanto, <code>TritonQueueTimeHigh</code> y <code>GPUSaturated</code> no pueden disparar (sus series de Triton no existen: la expresión vuelve vacía) y KEDA no escala: un error de monitoreo deja ciegos a la vez a las alertas y al autoscaling. Una alerta sobre <code>up == 0</code> (o la TargetDown del chart, a los 10 min) lo habría avisado, si Alertmanager tiene a quién mandarla."
+    ]
+   },
+   "figure": {
+    "kind": "chain",
+    "caption": "El método: recorre la cadena en orden, de tu código al receptor. El primer eslabón que falla es la causa; lo que viene después son consecuencias. Grafana es una rama aparte: lee de Prometheus como tú.",
+    "data": {
+     "steps": [
+      {
+       "label": "Tu código",
+       "tipo": "shell",
+       "ask": "¿El proceso emite la métrica, con esos labels?",
+       "cmd": "curl -s localhost:8080/metrics | grep '^classifier_requests_total'",
+       "note": "Sin línea: el nombre es otro, o esa combinación de labels todavía no tuvo ninguna observación."
+      },
+      {
+       "label": "Scrape",
+       "tipo": "promql",
+       "ask": "¿Prometheus lo lee?",
+       "cmd": "up{job=\"gateway\"}",
+       "note": "1 = bien; 0 = DOWN, lee lastError; nada = no hay target (config o ServiceMonitor)."
+      },
+      {
+       "label": "TSDB",
+       "tipo": "promql",
+       "ask": "¿La serie llegó y sigue viva?",
+       "cmd": "count by (job) (classifier_requests_total)",
+       "note": "Si un deploy cambió el nombre o el target cayó, la serie quedó stale y desaparece de las queries."
+      },
+      {
+       "label": "PromQL",
+       "tipo": "promql",
+       "ask": "¿La query hace lo que crees?",
+       "cmd": "sum(rate(classifier_requests_total{status=~\"5..\"}[5m]))",
+       "note": "Vacío no es 0; NaN es 0/0; lee warnings e infos."
+      },
+      {
+       "label": "Regla",
+       "tipo": "promql",
+       "ask": "¿Está cargada, sana y en qué estado?",
+       "cmd": "ALERTS{alertname=\"ClassifierHigh5xxRate\"}",
+       "note": "Rule health: ok o err. Pending espera el for; firing ya salió hacia Alertmanager."
+      },
+      {
+       "label": "Envío",
+       "tipo": "promql",
+       "ask": "¿Prometheus conoce y alcanza un Alertmanager?",
+       "cmd": "prometheus_notifications_alertmanagers_discovered",
+       "note": "0 = no hay a quién mandar (el compose del C01). Los fallos suman en prometheus_notifications_errors_total."
+      },
+      {
+       "label": "Alertmanager",
+       "tipo": "shell",
+       "ask": "¿La recibió, la silenció, a qué receiver la mandó?",
+       "cmd": "amtool --alertmanager.url=http://localhost:9093 alert query -a -s -i",
+       "note": "Estado active = notifica; suppressed = silenciada o inhibida, no notifica. La ruta decide el receiver."
+      },
+      {
+       "label": "Receptor",
+       "tipo": "shell",
+       "ask": "¿El envío final funcionó?",
+       "cmd": "kubectl logs -n monitoring alertmanager-kube-prometheus-stack-alertmanager-0 -c alertmanager | grep 'Notify for alerts failed'",
+       "note": "Un webhook vencido o sin red de salida: Alertmanager reintenta y lo deja en el log."
+      }
+     ],
+     "branch": {
+      "label": "Grafana",
+      "tipo": "ui",
+      "ask": "¿El panel pregunta lo mismo que tú?",
+      "cmd": "Inspect → Query",
+      "note": "Data source, variables, rango de tiempo y $__rate_interval."
+     },
+     "rule": "El primer eslabón que falla es la causa."
+    }
+   },
+   "memo": "Cómo recordarla: <b>código → scrape → serie → query → regla → envío → Alertmanager → receptor</b>. Sigue la cadena en orden y lee el estado exacto: DOWN (falla el scrape), ausente (no hay target), vacío (no hay serie), NaN (dividiste 0 entre 0), pending (esperando el for).",
+   "trap": "Trampa: leer <b>vacío</b> como <b>cero</b> y <b>sin alerta</b> como <b>todo bien</b>. Cuando un target cae, Prometheus marca sus series como stale (vencidas) en el scrape siguiente: una consulta directa vuelve vacía enseguida, y una con <code>rate(…[5m])</code>, cuando su ventana se queda sin muestras. Las alertas sobre esas series se apagan justo cuando todo está caído. Por eso hacen falta <code>up == 0</code>, <code>absent()</code> y una alerta que siempre suene (el Watchdog del chart) mandada a un servicio de afuera que avise cuando deja de llegar.",
+   "lab": {
+    "goal": "Provocar en un Prometheus local tres targets DOWN con tres errores distintos, una alerta que dispara y otra que nunca puede disparar (un typo en el nombre de la métrica), y arreglarla con un reload.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-prom && cd ~/lab-prom\ncat > prometheus.yml <<'EOF'\nglobal:\n  scrape_interval: 15s\n  evaluation_interval: 15s\nrule_files:\n  - reglas.yml\nscrape_configs:\n  - job_name: prometheus      # Prometheus se lee a sí mismo: UP\n    static_configs:\n      - targets: [\"localhost:9090\"]\n  - job_name: puerto-cerrado  # nadie escucha en el 9999\n    static_configs:\n      - targets: [\"localhost:9999\"]\n  - job_name: ruta-mal        # el puerto contesta, pero no hay nada en /metricas\n    metrics_path: /metricas\n    static_configs:\n      - targets: [\"localhost:9090\"]\n  - job_name: nombre-mal      # este nombre no existe en la red del contenedor\n    static_configs:\n      - targets: [\"gateway:8080\"]\nEOF\ncat > reglas.yml <<'EOF'\ngroups:\n  - name: lab\n    rules:\n      - alert: TargetCaido\n        expr: up == 0\n        for: 1m\n        labels:\n          severity: page\n        annotations:\n          summary: \"{{ $labels.job }} ({{ $labels.instance }}) no responde\"\n      - alert: NuncaDispara\n        expr: sum(rate(prometheus_http_requests_totl[5m])) > 0\n        for: 1m\n        labels:\n          severity: ticket\n        annotations:\n          summary: \"el nombre de la métrica tiene un typo: nunca hay datos\"\nEOF\ndocker run --rm --entrypoint promtool -v \"$PWD\":/etc/prometheus:ro prom/prometheus:v3.13.3 check config /etc/prometheus/prometheus.yml",
+      "expect": "Checking /etc/prometheus/prometheus.yml, SUCCESS: 1 rule files found, SUCCESS: … is valid prometheus config file syntax y, para reglas.yml, SUCCESS: 2 rules found. promtool no ve el typo: prometheus_http_requests_totl es un nombre válido que simplemente no existe."
+     },
+     {
+      "cmd": "docker run -d --name lab-prom -p 9090:9090 -v \"$PWD\":/etc/prometheus:ro prom/prometheus:v3.13.3\nsleep 20; curl -s localhost:9090/-/ready",
+      "expect": "El id del contenedor y Prometheus Server is Ready. Monta la carpeta entera (no los archivos sueltos) para que los cambios del paso 6 se vean adentro."
+     },
+     {
+      "cmd": "curl -s 'localhost:9090/api/v1/targets?state=active' | jq -r '.data.activeTargets[] | [.labels.job, .health, .lastError] | @tsv'",
+      "expect": "prometheus up; puerto-cerrado down con Get \"http://localhost:9999/metrics\": dial tcp …:9999: connect: connection refused; ruta-mal down con server returned HTTP status 404 Not Found; nombre-mal down con lookup gateway on …: no such host (la IP del DNS depende de tu Docker). Si alguno dice unknown, espera 15 s y repite."
+     },
+     {
+      "cmd": "sleep 60; curl -s localhost:9090/api/v1/alerts | jq -r '.data.alerts[] | [.labels.alertname, .labels.job, .state] | @tsv'",
+      "expect": "Tres líneas TargetCaido, una por target caído, en firing (o pending si todavía no cumplió 1 min: espera y repite). NuncaDispara no aparece: su expresión no devuelve nada, así que no hay nada que comparar."
+     },
+     {
+      "cmd": "curl -s 'localhost:9090/api/v1/rules?type=alert' | jq -r '.data.groups[].rules[] | [.name, .state, .health] | @tsv'\ncurl -s localhost:9090/api/v1/query --data-urlencode 'query=absent(prometheus_http_requests_totl)' | jq -r '.data.result[].value[1]'\ncurl -s localhost:9090/api/v1/query --data-urlencode 'query=count by (__name__) ({__name__=~\"prometheus_http_requests.*\"})' | jq -r '.data.result[].metric.__name__'",
+      "expect": "TargetCaido firing ok y NuncaDispara inactive ok: la regla está sana, el problema no es de sintaxis. absent() devuelve 1 (esa serie no existe) y la búsqueda muestra el nombre real, prometheus_http_requests_total."
+     },
+     {
+      "cmd": "sed -i '' 's/_totl\\[/_total[/' reglas.yml\ncurl -s -X POST localhost:9090/-/reload; echo\ndocker kill --signal=HUP lab-prom && sleep 2 && docker logs lab-prom 2>&1 | grep 'Completed loading of configuration file' | tail -1",
+      "expect": "Lifecycle API is not enabled.: el reload por HTTP necesita --web.enable-lifecycle. La señal SIGHUP sí recarga: la última línea del log dice Completed loading of configuration file."
+     },
+     {
+      "cmd": "sleep 90; curl -s localhost:9090/api/v1/alerts | jq -r '.data.alerts[] | [.labels.alertname, .state] | @tsv' | sort | uniq -c",
+      "expect": "3 TargetCaido firing y 1 NuncaDispara firing: con el nombre correcto, la expresión ve los requests HTTP que recibe el propio Prometheus (cada scrape a sí mismo cuenta) y la alerta cumple su for. Si sigue pending, espera 15 s y repite."
+     },
+     {
+      "cmd": "docker rm -f -v lab-prom && cd ~ && rm -rf ~/lab-prom",
+      "expect": "lab-prom: se borran el contenedor y su volumen de datos, y después la carpeta."
+     }
+    ],
+    "fix": "Cada target DOWN se arregla donde dice su error: el puerto correcto, el metrics_path correcto, un nombre que resuelva en esa red. Una alerta que no puede disparar se detecta probando su expr en Query antes de subirla (o con absent()), y se recarga con SIGHUP, reiniciando o, si lo activaste, con POST /-/reload.",
+    "needs": "Docker Desktop y jq (los macOS recientes lo traen en /usr/bin/jq; si no, brew install jq). Baja prom/prometheus:v3.13.3, la versión del compose del C01.",
+    "verified": "docs",
+    "verified_note": "No ejecutado aquí (sin Docker). Las salidas salen del código de Prometheus v3.13.3: el Dockerfile (usuario nobody, promtool en la imagen, CMD con /etc/prometheus/prometheus.yml), promtool check config, el error server returned HTTP status del scrape, Prometheus Server is Ready., Lifecycle API is not enabled. y el log Completed loading of configuration file; los errores de red son los de Go."
+   },
+   "links": [
+    "#m12.prometheus-grafana",
+    "#m12.runbooks",
+    "#c01.monitoreo",
+    "#c01.fallas",
+    "#ref-comandos.depurar",
+    "#ref-comandos.autoscaling-cmds"
+   ]
+  },
+  {
+   "id": "errores",
+   "num": 13,
+   "title": "Errores que debes reconocer rápido",
+   "question": "Lees el mensaje: ¿quién lo dijo (el scrape, PromQL, Alertmanager, Grafana, tu código o el cluster), qué significa, qué corres primero y dónde está la explicación?",
+   "templates": [
+    {
+     "code": "Get \"{url}\": {error_de_red}",
+     "note": "Lo dijo el <b>scrape</b>: Prometheus como cliente HTTP de tu target. Aparece en Status → Target health y en <code>lastError</code>, y <code>up</code> vale 0."
+    },
+    {
+     "code": "invalid parameter \"query\": {fila}:{columna}: parse error: {detalle}",
+     "note": "Lo dijo el <b>parser</b> de PromQL (la parte que lee la query antes de correrla; errorType <code>bad_data</code>): tu query no llegó a correr. Fila y columna señalan dónde se perdió. Un error del motor, en cambio, sale con errorType <code>execution</code>."
+    },
+    {
+     "code": "PromQL info: {detalle}\nPromQL warning: {detalle}",
+     "note": "Una <b>anotación</b> (desde Prometheus 2.48): la query sí corrió, pero algo es sospechoso. La UI la muestra sobre el resultado; la API, en los campos <code>infos</code> y <code>warnings</code>."
+    },
+    {
+     "code": "time={hora} level={nivel} source={archivo}.go:{linea} msg=\"{mensaje}\" err=\"{detalle}\"",
+     "note": "Una línea de log de Prometheus 3 o de Alertmanager: la escribe el servidor (config, disco, envío de alertas). Léela con <code>docker logs</code> o <code>kubectl logs</code>."
+    },
+    {
+     "code": "{modulo}.{Excepcion}: {mensaje}",
+     "note": "Un traceback de Python: lo dijo <b>prometheus_client</b>, dentro de tu proceso, al crear o usar una métrica. Pasa en cada arranque o en cada request que toca esa línea."
+    }
+   ],
+   "vars": [
+    [
+     "{url}",
+     "lo que Prometheus intentó leer",
+     "http://10.0.1.12:8002/metrics"
+    ],
+    [
+     "{error_de_red}",
+     "el error de red de Go",
+     "context deadline exceeded · connect: connection refused · no such host"
+    ],
+    [
+     "{fila}:{columna}",
+     "dónde se trabó el parser, contando desde 1",
+     "1:6"
+    ],
+    [
+     "{detalle}",
+     "el porqué, en una frase",
+     "unclosed left parenthesis"
+    ],
+    [
+     "{hora}, {nivel}",
+     "cuándo y qué tan grave",
+     "2026-10-23T10:00:00.000Z · ERROR, WARN o INFO"
+    ],
+    [
+     "{archivo}.go:{linea}",
+     "de qué parte del código salió",
+     "main.go:745"
+    ],
+    [
+     "{mensaje}",
+     "qué pasó",
+     "Error loading config (--config.file=/etc/prometheus/prometheus.yml)"
+    ],
+    [
+     "{modulo}.{Excepcion}",
+     "la clase de la excepción",
+     "prometheus_client.registry.DuplicateTimeseries"
+    ]
+   ],
+   "pieces": [
+    [
+     "Target health · lastError",
+     "El scrape: Prometheus no pudo leer /metrics. up vale 0 para ese target.",
+     "server returned HTTP status 404 Not Found"
+    ],
+    [
+     "parse error · bad_data",
+     "El parser de PromQL: la query no corrió.",
+     "expected type range vector in call to function \"rate\""
+    ],
+    [
+     "errorType execution",
+     "El motor: la query parseó, pero no se pudo calcular.",
+     "many-to-many matching not allowed"
+    ],
+    [
+     "errorType timeout",
+     "La query pasó --query.timeout (2 min por defecto).",
+     "query timed out in expression evaluation"
+    ],
+    [
+     "PromQL info · PromQL warning",
+     "Anotaciones: corrió, pero algo es sospechoso.",
+     "metric might not be a counter"
+    ],
+    [
+     "promtool check config · check rules",
+     "El validador: encuentra YAML, campos y PromQL inválidos antes de cargarlos.",
+     "could not parse expression"
+    ],
+    [
+     "Log de Prometheus",
+     "El servidor: config, almacenamiento, reglas y envío a Alertmanager.",
+     "msg=\"Error sending alerts\""
+    ],
+    [
+     "amtool · log de Alertmanager",
+     "La config de Alertmanager y las notificaciones que fallan.",
+     "undefined receiver \"pagerduty-ml\" used in route"
+    ],
+    [
+     "Panel o data source de Grafana",
+     "La query del panel o la conexión; el error de Prometheus llega tal cual.",
+     "There was an error returned querying the Prometheus API"
+    ],
+    [
+     "Traceback de Python",
+     "prometheus_client en tu proceso.",
+     "Duplicated timeseries in CollectorRegistry"
+    ],
+    [
+     "kubectl · API server",
+     "El cluster no conoce el tipo (faltan los CRDs) o un webhook rechazó el objeto.",
+     "no matches for kind \"ServiceMonitor\""
+    ],
+    [
+     "Eventos del ScaledObject",
+     "KEDA no pudo leer su métrica (KEDAScalerFailed).",
+     "target may be lost, the result is empty"
+    ],
+    [
+     "Eventos del ServiceMonitor",
+     "El Operator rechazó el objeto (InvalidConfiguration): no genera config para él.",
+     "was rejected due to invalid configuration"
+    ]
+   ],
+   "example": {
+    "title": "Cómo leer un many-to-many: la fracción de 5xx por pod",
+    "lang": "text",
+    "code": "$ curl -s localhost:9090/api/v1/query --data-urlencode 'query=\n    sum by (pod) (rate(classifier_requests_total{status=~\"5..\"}[5m]))\n      / on (pod)\n    rate(classifier_requests_total[5m])' | jq -r '.errorType, .error'\nexecution\nfound duplicate series for the match group {pod=\"gateway-5f6b9c7d48-7tq2m\"} on the right hand-side of the operation: [{container=\"gateway\", endpoint=\"http\", instance=\"10.0.1.21:8080\", job=\"gateway\", model_version=\"2026-09-01-resnet50-fp16\", namespace=\"classifier\", pod=\"gateway-5f6b9c7d48-7tq2m\", service=\"gateway\", source=\"web\", status=\"200\"}, {container=\"gateway\", endpoint=\"http\", instance=\"10.0.1.21:8080\", job=\"gateway\", model_version=\"2026-09-01-resnet50-fp16\", namespace=\"classifier\", pod=\"gateway-5f6b9c7d48-7tq2m\", service=\"gateway\", source=\"mobile\", status=\"200\"}];many-to-many matching not allowed: matching labels must be unique on one side",
+    "source": "Forma exacta del mensaje en Prometheus 3.13 (promql/engine.go); las labels son las que agrega un ServiceMonitor del C01; el pod y la IP son ilustrativos",
+    "notes": [
+     "Léelo por partes: <code>match group {pod=…}</code> son las labels de tu <code>on (pod)</code>; <code>right hand-side</code> dice de qué lado están los repetidos; la lista muestra dos series de ese lado que solo difieren en <code>source</code>.",
+     "La causa: el lado derecho no está agregado. Para cada pod hay una serie por cada combinación de status, source y model_version, y PromQL no sabe con cuál dividir.",
+     "Arreglo: agrega los dos lados igual, <code>sum by (pod) (…) / sum by (pod) (…)</code>. <code>group_left</code> es para otra cosa: unir muchas series con una sola, por ejemplo para copiar labels de <code>kube_pod_info</code>.",
+     "Sale con errorType <code>execution</code>: la query parseó bien y falló al calcularse. Un error de sintaxis habría sido <code>bad_data</code>.",
+     "En una regla, el mismo error no se ve en la página de alertas: la regla queda con <code>health</code> <code>err</code> y el texto en <code>lastError</code> (Status → Rule health), y la alerta nunca dispara."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Quiz: el mensaje tal como lo ves; responde quién lo dijo, qué significa, qué corres primero y en qué sección está.",
+    "data": {}
+   },
+   "memo": "Cómo recordarla: <b>quién habla dice dónde mirar</b>. <code>Get \"…\"</code> en lastError: el scrape (red, puerto, path). <code>parse error</code> o <code>bad_data</code>: tu PromQL no corrió. <code>PromQL info</code> o <code>warning</code>: corrió, pero es sospechosa. Un log <code>level=ERROR</code>: el servidor. Un traceback: tu instrumentación.",
+   "trap": "Trampa: buscar el error donde no está. El de un target no sale en tu app ni en la query: está en Target health. El de una regla que no evalúa tampoco grita: queda en Rule health. Y algunos textos dependen de la versión: en Prometheus 2.x un Content-Type raro se toleraba; desde 3.0 el scrape falla con <code>received unsupported Content-Type</code>, y un <code>le=\"1\"</code> se guarda como <code>le=\"1.0\"</code>.",
+   "lab": {
+    "goal": "Reconocer los 26 mensajes en 5 minutos y provocar con prometheus_client los tres errores de instrumentación más comunes, más una serie que todavía no existe.",
+    "steps": [
+     {
+      "cmd": "ronda() { printf '%s\\n' 'server returned HTTP status 404 Not Found' 'Get \"http://10.0.1.12:8002/metrics\": context deadline exceeded' 'dial tcp 10.0.1.21:8080: connect: connection refused' 'dial tcp: lookup gateway on 127.0.0.11:53: no such host' 'received unsupported Content-Type \"application/json\" and no fallback_scrape_protocol specified for target' 'field scrape_config not found in type config.plain' 'Lifecycle API is not enabled.' 'many-to-many matching not allowed: matching labels must be unique on one side' 'vector cannot contain metrics with the same labelset' 'expected type range vector in call to function \"rate\", got instant vector' 'PromQL info: metric might not be a counter, name does not end in _total/_sum/_count/_bucket' 'query processing would load too many samples into memory in query execution' 'PromQL warning: bucket label \"le\" is missing or has a malformed value' 'group \"classifier-alerts\", rule 1, \"ClassifierHighP99Latency\": could not parse expression' 'undefined receiver \"pagerduty-ml\" used in route' 'msg=\"Notify for alerts failed\" … notify retry canceled after 4 attempts' 'msg=\"Error sending alerts\" … /api/v2/alerts: connect: connection refused' 'There was an error returned querying the Prometheus API' 'Datasource ${DS_PROMETHEUS} was not found' 'Duplicated timeseries in CollectorRegistry' 'ValueError: counter metric is missing label values' 'no matches for kind \"ServiceMonitor\" in version \"monitoring.coreos.com/v1\"' \"prometheus metrics 'prometheus' target may be lost, the result is empty\" 'prometheus query … returned multiple elements' 'admission webhook \"prometheusrulevalidate.monitoring.coreos.com\" denied the request: Rules are not valid' 'nv_inference_queue_duration_us metric names should not contain abbreviated units' | sort -R | head -5; }; ronda",
+      "expect": "Cinco mensajes al azar. Para cada uno, en menos de 30 s y en voz alta: quién lo dijo (el scrape, PromQL, Alertmanager, Grafana, tu código, kubectl o KEDA), la causa probable y el primer comando. Después compáralo con la lista."
+     },
+     {
+      "cmd": "ronda",
+      "expect": "Otra ronda de cinco. Repite hasta completar 5 minutos; la meta es 5 de 5 sin mirar."
+     },
+     {
+      "cmd": "mkdir -p ~/lab-prom && cd ~/lab-prom\npython3 -m venv .venv && .venv/bin/pip install -q prometheus-client==0.26.0\ncat > cliente.py <<'EOF'\n# cliente.py: los errores de prometheus_client que vas a ver al instrumentar (y una serie que todavía no existe)\nfrom prometheus_client import CollectorRegistry, Counter, generate_latest\n\nreg = CollectorRegistry()  # un registro propio: así el script se puede correr las veces que quieras\nREQUESTS = Counter(\"classifier_requests_total\", \"Requests por código\", [\"status\", \"source\"], registry=reg)\n\ndef prueba(nombre, f):\n    try:\n        f()\n        print(f\"{nombre}: sin error\")\n    except ValueError as e:  # DuplicateTimeseries también es un ValueError\n        clase = type(e).__name__ if type(e) is ValueError else f\"{type(e).__module__}.{type(e).__name__}\"\n        print(f\"{nombre}: {clase}: {e}\")\n\nprueba(\"1 crear dos veces\", lambda: Counter(\"classifier_requests_total\", \"otra vez\", registry=reg))\nprueba(\"2 inc sin labels\", lambda: REQUESTS.inc())\nprueba(\"3 label mal escrito\", lambda: REQUESTS.labels(estado=\"200\", source=\"web\").inc())\nprint(\"4 /metrics antes del primer request:\")\nprint(generate_latest(reg).decode().strip())\nREQUESTS.labels(status=\"200\", source=\"web\").inc()\nprint(\"5 /metrics después de uno:\")\nprint(generate_latest(reg).decode().strip())\nEOF\n.venv/bin/python cliente.py",
+      "expect": "1 crear dos veces: prometheus_client.registry.DuplicateTimeseries: Duplicated timeseries in CollectorRegistry: con los tres nombres que reserva el counter; 2 inc sin labels: ValueError: counter metric is missing label values; 3 label mal escrito: ValueError: Incorrect label names. En 4, /metrics solo trae # HELP y # TYPE: sin requests no hay serie. En 5 aparecen classifier_requests_total{source=\"web\",status=\"200\"} 1.0 y su _created (la hora en que nació la serie)."
+     },
+     {
+      "cmd": ".venv/bin/python cliente.py | head -1",
+      "expect": "La misma línea 1 con los tres nombres en otro orden: Python muestra el conjunto en un orden que cambia de corrida en corrida. Busca el nombre, no la posición."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-prom",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Los que fallaste en la ronda: abre la sección de su tema (el enlace de la lista) y haz su laboratorio. Para no repetir los errores del cliente: métricas creadas una vez al nivel del módulo, siempre .labels(...) antes de .inc() y un test que pase por cada camino que las usa.",
+    "needs": "Una terminal de macOS (la ronda usa sort -R) y Python 3 para el venv. Ni Docker ni cluster.",
+    "verified": "executed",
+    "verified_note": "Ejecutado aquí: la ronda en zsh y cliente.py con prometheus-client 0.26.0 y Python 3.13.16 de un venv que ya existía (el pip install no se corrió). Los textos de los demás mensajes salen del código de Prometheus v3.13.3, Alertmanager v0.34.1, KEDA v2.21.0, prometheus-operator v0.94.2, Grafana v13.2.4 (y su guía de troubleshooting) y la API de Kubernetes."
+   },
+   "links": [
+    "#m12.prometheus-grafana",
+    "#m12.sistema",
+    "#c01.monitoreo",
+    "#ref-comandos.depurar",
+    "#ref-herramientas.monitoreo"
+   ]
+  }
+ ],
+ "diagnosticador": [
+  {
+   "id": "target-down",
+   "symptom": "Un target sale DOWN (up = 0) en Status → Target health.",
+   "first": "curl -s 'localhost:9090/api/v1/targets?state=active' | jq -r '.data.activeTargets[] | select(.health==\"down\") | [.labels.job, .scrapeUrl, .lastError] | @tsv'",
+   "causes": [
+    {
+     "cause": "Nadie escucha en ese host y puerto: el proceso no corre, o el puerto del target es otro (connection refused). Ojo con el 9100: es el de node_exporter, y el ejemplo de M12 abre ahí su /metrics; en una máquina con los dos, el segundo en arrancar falla con Address already in use.",
+     "check": "kubectl get svc gateway -n classifier -o jsonpath='{.spec.ports}' · docker compose ps · lsof -nP -iTCP:9100 -sTCP:LISTEN",
+     "fix": "Apunta al puerto correcto: en Kubernetes, el port del ServiceMonitor es el nombre de un puerto del Service; en compose, el puerto interno del contenedor (gateway:8080), no el publicado en tu Mac. A tu app, dale un puerto propio, no el 9100."
+    },
+    {
+     "cause": "La red descarta los paquetes o el target tarda más que scrape_timeout (context deadline exceeded). En el C01, la NetworkPolicy de Triton solo deja leer el 8002 desde el namespace monitoring.",
+     "check": "kubectl get networkpolicy -n classifier -o yaml · curl -s localhost:9090/api/v1/query --data-urlencode 'query=scrape_duration_seconds{job=\"triton\"}' | jq -r '.data.result[].value[1]'",
+     "fix": "Prometheus en el namespace que permite la policy (o la policy apuntando al suyo). Si /metrics tarda de verdad, baja la cardinalidad o sube scrape_timeout sin pasar el intervalo."
+    },
+    {
+     "cause": "El path o el formato no sirven: 404 (metrics_path), o un Content-Type que Prometheus 3 no acepta (una ruta que devuelve JSON o HTML).",
+     "check": "curl -si localhost:8080/metrics | head -5",
+     "fix": "El metrics_path correcto y la respuesta con CONTENT_TYPE_LATEST, como el gateway del C01: Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)."
+    },
+    {
+     "cause": "El nombre no resuelve (no such host): Prometheus no está en la misma red de compose, o el Service o el namespace están mal escritos.",
+     "check": "docker network inspect classifier-c01_default --format '{{range .Containers}}{{.Name}} {{end}}'",
+     "fix": "Corre Prometheus dentro del mismo compose (como el C01) o usa el nombre DNS completo del Service en Kubernetes."
+    }
+   ]
+  },
+  {
+   "id": "target-ausente",
+   "symptom": "Mi servicio no aparece en Target health: ni UP ni DOWN.",
+   "first": "kubectl get servicemonitors -A --show-labels",
+   "causes": [
+    {
+     "cause": "El ServiceMonitor no trae la label que pide el serviceMonitorSelector (release: kube-prometheus-stack en el chart): el Operator lo ignora sin avisar.",
+     "check": "kubectl get prometheus -n monitoring -o jsonpath='{.items[0].spec.serviceMonitorSelector}'",
+     "fix": "Agrega la label (en git: k8s/monitoring.yaml ya la trae) y espera uno o dos minutos a que el config-reloader recargue."
+    },
+    {
+     "cause": "El selector del ServiceMonitor apunta a labels que el Service no tiene (por ejemplo, las del pod), o endpoints[].port nombra un puerto que el Service no tiene.",
+     "check": "kubectl get svc -n classifier --show-labels · kubectl get svc gateway -n classifier -o jsonpath='{.spec.ports[*].name}'",
+     "fix": "matchLabels con las labels del Service y port con el nombre de su puerto (http, metrics)."
+    },
+    {
+     "cause": "El namespace del ServiceMonitor queda fuera del serviceMonitorNamespaceSelector (sin definir = solo el namespace de Prometheus), o el Operator lo rechazó por un campo inválido.",
+     "check": "kubectl get prometheus -n monitoring -o jsonpath='{.items[0].spec.serviceMonitorNamespaceSelector}' · kubectl describe servicemonitor gateway -n classifier",
+     "fix": "serviceMonitorNamespaceSelector: {} para todos los namespaces (el default del chart); si hay un evento InvalidConfiguration, corrige el campo que nombra."
+    },
+    {
+     "cause": "Fuera de Kubernetes: el job no está en la config cargada (YAML mal indentado o faltó el reload).",
+     "check": "curl -s localhost:9090/api/v1/status/config | jq -r .data.yaml | grep job_name",
+     "fix": "promtool check config antes de cargar; recarga con SIGHUP o reinicia el contenedor."
+    }
+   ]
+  },
+  {
+   "id": "query-vacia",
+   "symptom": "La query no devuelve nada (Empty query result), aunque el target está UP.",
+   "first": "curl -s localhost:8080/metrics | grep '^classifier_requests_total'",
+   "causes": [
+    {
+     "cause": "La serie todavía no existe: una métrica con labels nace con su primera observación. Sin ningún 503 no hay serie de 503, y un vacío no es un 0.",
+     "check": "curl -s localhost:8080/metrics | grep 'status=\"503\"'",
+     "fix": "Para paneles y cocientes, completa con or vector(0) después de agregar; para avisar que algo falta, absent()."
+    },
+    {
+     "cause": "El nombre o un label no coinciden: un typo, = con un patrón (status=\"5..\" busca ese texto literal; el patrón va con =~) o un le entero (desde Prometheus 3, le=\"1\" se guarda como le=\"1.0\").",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=count by (__name__) ({__name__=~\"classifier_.*\"})' | jq -r '.data.result[].metric.__name__'",
+     "fix": "Copia el nombre y los valores exactos de /metrics; =~ para patrones; le=\"1.0\" en Prometheus 3."
+    },
+    {
+     "cause": "La ventana es muy corta para rate(): necesita al menos dos muestras adentro. Con scrape cada 15 s, [15s] casi nunca las tiene (vacío casi siempre) y [20s] las tiene a ratos.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=count_over_time(up{job=\"gateway\"}[1m])' | jq -r '.data.result[].value[1]'",
+     "fix": "Prometheus solo pide dos muestras, pero un scrape fallido te deja con una: usa la regla práctica de Grafana ($__rate_interval), al menos 4 veces el intervalo de scrape (1 min con 15 s)."
+    },
+    {
+     "cause": "La serie dejó de llegar: el target cayó (sus series quedaron stale), un deploy cambió el nombre o el pod se reemplazó y hoy la serie tiene otras labels.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=last_over_time(classifier_requests_total[1h])' | jq '.data.result | length'",
+     "fix": "Si last_over_time encuentra series y la query instantánea no, la serie murió: busca qué cambió a esa hora (deploy, target DOWN) y filtra por labels estables (job, namespace), no por pod."
+    }
+   ]
+  },
+  {
+   "id": "grafana-no-data",
+   "symptom": "Un panel de Grafana dice No data, pero en Prometheus la query funciona.",
+   "first": "Inspect → Query del panel: la query ya interpolada y el rango que Grafana mandó de verdad",
+   "causes": [
+    {
+     "cause": "El data source apunta a otro lado: dentro de un contenedor, http://localhost:9090 es el propio Grafana.",
+     "check": "Connections → Data sources → Prometheus → Save & test",
+     "fix": "La URL con el nombre del servicio (http://prometheus:9090 en compose) o el Service del cluster."
+    },
+    {
+     "cause": "Una variable del dashboard ($pod, $source) quedó en un valor que ya no existe (un pod reemplazado) o vacía.",
+     "check": "Inspect → Query (la query con las variables ya reemplazadas)",
+     "fix": "Refresca las variables al cargar el dashboard, ofrece All y filtra por labels estables (job, namespace), no por nombre de pod."
+    },
+    {
+     "cause": "La ventana del rate quedó más corta que dos scrapes: el data source supone otro intervalo (Grafana usa 15 s por defecto) o pusiste una ventana fija chica.",
+     "check": "Connections → Data sources → Prometheus → Interval behavior → Scrape interval",
+     "fix": "El scrape interval del data source igual al de Prometheus y $__rate_interval en los paneles; en alertas y reglas, ventanas fijas como [5m]."
+    },
+    {
+     "cause": "El rango de tiempo del dashboard no tiene datos (antes del deploy, o en el futuro) o el panel usa otro data source que el que probaste.",
+     "check": "Explore con la misma query, el mismo data source y el mismo rango",
+     "fix": "Ajusta el rango o el data source del panel."
+    }
+   ]
+  },
+  {
+   "id": "nan",
+   "symptom": "Un panel o una regla da NaN (o +Inf).",
+   "first": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=sum(rate(classifier_requests_total[5m]))' | jq -r '.data.result[].value[1]'",
+   "causes": [
+    {
+     "cause": "Dividiste 0 entre 0: una fracción de errores en un rato sin tráfico. Una comparación con NaN da falso, así que la alerta tampoco dispara.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=sum(rate(classifier_requests_total{status!~\"4..\"}[5m]))' | jq -r '.data.result[].value[1]'",
+     "fix": "Protege el denominador con > 0 (como la regla de grabación del C01) o con clamp_min(…, 1e-9) si necesitas un número (como la query de KEDA)."
+    },
+    {
+     "cause": "histogram_quantile sin observaciones en la ventana: con todos los buckets en 0 devuelve NaN.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=sum(rate(classifier_request_latency_seconds_count[5m]))' | jq -r '.data.result[].value[1]'",
+     "fix": "Es normal sin tráfico. En un panel, muéstralo como sin datos; en una alerta, exige un mínimo de requests."
+    },
+    {
+     "cause": "Un NaN grabado contamina un promedio largo: avg_over_time(…[7d]) da NaN mientras ese NaN siga en la ventana (la trampa que el C01 evita con el > 0).",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=classifier:low_confidence_share:rate30m != classifier:low_confidence_share:rate30m' | jq '.data.result | length'",
+     "fix": "Arregla la regla de grabación (> 0 en el denominador) y espera a que el NaN salga de la ventana de 7 días. NaN es la única cosa distinta de sí misma: por eso esa query la encuentra."
+    },
+    {
+     "cause": "+Inf: dividiste algo positivo entre 0, por ejemplo la espera acumulada en cola entre 0 éxitos.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=sum(rate(nv_inference_request_success{model=\"classifier\"}[2m]))' | jq -r '.data.result[].value[1]'",
+     "fix": "clamp_min en el denominador, como la query de KEDA del C01: un valor enorme escala. Un +Inf, con ignoreNullValues en false, es un error visible; con el default (true), vale 0 y no escala."
+    }
+   ]
+  },
+  {
+   "id": "rate-raro",
+   "symptom": "rate() o increase() dan picos, saltos imposibles o decimales raros.",
+   "first": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=resets(classifier_requests_total[1h])' | jq -r '.data.result[] | [.metric.pod, .value[1]] | @tsv'",
+   "causes": [
+    {
+     "cause": "Agregaste antes del rate: rate(sum(x)[5m:]) es una subquery (la suma, recalculada paso a paso y pasada a rate como ventana). Cuando un pod reinicia, la suma baja, rate lo toma como un reinicio del total y sale un pico falso.",
+     "check": "Inspect → Query del panel, o la expr de la regla",
+     "fix": "Primero rate por serie y después sum: sum(rate(x[5m]))."
+    },
+    {
+     "cause": "Varios procesos (--workers N de uvicorn o gunicorn) exponen cada uno su counter sin el modo multiproceso: cada scrape lee a un proceso distinto y el counter sube y baja.",
+     "check": "curl -s localhost:8080/metrics | grep '^classifier_requests_total' (repítelo: si un número baja entre lecturas, son procesos distintos)",
+     "fix": "Un proceso por contenedor (como el C01) o el modo multiproceso de prometheus_client (PROMETHEUS_MULTIPROC_DIR)."
+    },
+    {
+     "cause": "rate() sobre un gauge: el resultado no significa nada. Prometheus lo avisa con PromQL info: metric might not be a counter.",
+     "check": "curl -s localhost:8002/metrics | grep '^# TYPE nv_gpu_utilization'",
+     "fix": "Los gauges se leen directo o con avg_over_time; rate e increase, solo con counters."
+    },
+    {
+     "cause": "Decimales en increase() (2.9 requests): es la extrapolación a los bordes de la ventana, no un bug.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=increase(classifier_requests_total[5m])' | jq -r '.data.result[0].value[1]'",
+     "fix": "Normal. Para conteos de un período largo, ventanas largas o recording rules; nunca esperes enteros exactos."
+    }
+   ]
+  },
+  {
+   "id": "cardinalidad",
+   "symptom": "Prometheus usa cada vez más memoria, se pone lento o lo mata OOMKilled.",
+   "first": "curl -s localhost:9090/api/v1/status/tsdb | jq '.data.seriesCountByMetricName[:5], .data.labelValueCountByLabelName[:5]'",
+   "causes": [
+    {
+     "cause": "Un label sin límite (request_id, user_id, una ruta con ids, el texto de un error): cada valor distinto es una serie nueva.",
+     "check": "curl -s localhost:8080/metrics | docker run --rm -i --entrypoint promtool prom/prometheus:v3.13.3 check metrics --extended --lint=none",
+     "fix": "Labels de lista cerrada (como source en el C01: mobile, web, internal u other); los ids van a los logs y a los exemplars (un id de traza pegado a algunas observaciones del histograma). Mientras arreglas el código, descarta esa métrica con metric_relabel_configs."
+    },
+    {
+     "cause": "Histogramas con muchas combinaciones de labels: cada combinación son (buckets + 4) series.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=count by (__name__) ({__name__=~\".+_bucket\"})' | jq -r '.data.result[] | [.metric.__name__, .value[1]] | @tsv'",
+     "fix": "Pocos labels en los histogramas (el de latencia del C01 solo lleva source) y los buckets justos alrededor del SLO."
+    },
+    {
+     "cause": "Rotación de series (churn): cada deploy crea pods con nombres nuevos y todas sus series nacen de nuevo; las viejas siguen un rato en memoria.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=rate(prometheus_tsdb_head_series_created_total[1h])' | jq -r '.data.result[].value[1]'",
+     "fix": "Dimensiona la memoria para el pico que deja un deploy y agrega por job en las reglas, para no arrastrar el label pod donde no hace falta."
+    },
+    {
+     "cause": "Un exporter que expone demasiado: miles de series por target (cAdvisor o kube-state-metrics con todo encendido, un exporter de terceros).",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=topk(5, sum by (job) (scrape_samples_scraped))' | jq -r '.data.result[] | [.metric.job, .value[1]] | @tsv'",
+     "fix": "metric_relabel_configs (metricRelabelings en un ServiceMonitor) para descartar lo que nadie usa, y sample_limit como freno."
+    }
+   ]
+  },
+  {
+   "id": "alerta-no-dispara",
+   "symptom": "La alerta nunca disparó, aunque el problema existió.",
+   "first": "curl -s 'localhost:9090/api/v1/rules?type=alert' | jq -r '.data.groups[].rules[] | [.name, .state, .health, .lastError] | @tsv'",
+   "causes": [
+    {
+     "cause": "La regla no está cargada: rule_files apunta a un archivo que no existe (Prometheus arranca igual, sin esas reglas) o, en Kubernetes, el PrometheusRule no trae la label release.",
+     "check": "Status → Rule health · kubectl get prometheusrules -A --show-labels",
+     "fix": "promtool check config (avisa si un archivo de rule_files no existe) y la label release en el PrometheusRule."
+    },
+    {
+     "cause": "La expresión no devuelve nada: un nombre o un label que no existe (en el compose no hay kube_deployment_status_replicas_available, así que TritonNotReady nunca evalúa) o el target estaba caído y sus series desaparecieron.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=absent(kube_deployment_status_replicas_available{deployment=\"triton\"})' | jq -r '.data.result[].value[1]'",
+     "fix": "Prueba cada expr en Query antes de subirla; para lo que puede desaparecer, una alerta aparte con absent() o up == 0."
+    },
+    {
+     "cause": "La condición nunca se sostuvo el for completo: un instante en falso (un hueco, un rate ruidoso) devuelve la alerta de pending a inactive y el for empieza de cero.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=ALERTS{alertname=\"ClassifierHighP99Latency\"}' | jq '.data.result' (y grafícalo en el rango del incidente)",
+     "fix": "Una ventana más larga o una recording rule que suavice, y un for acorde. En alertas, rate y no irate."
+    },
+    {
+     "cause": "La regla falla al evaluarse (health err): many-to-many, labels duplicadas o un timeout. Mientras falle, no dispara.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=increase(prometheus_rule_evaluation_failures_total[1h]) > 0' | jq -r '.data.result[].metric.rule_group'",
+     "fix": "Lee lastError en Rule health, corrige la expr y pruébala con promtool test rules antes de volver a subirla."
+    }
+   ]
+  },
+  {
+   "id": "alerta-ruido",
+   "symptom": "La alerta dispara de más: pages que se cierran con un no era nada.",
+   "first": "curl -s 'localhost:9090/api/v1/rules?type=alert' | jq -r '.data.groups[].rules[] | [.name, .duration, .labels.severity, .query] | @tsv'",
+   "causes": [
+    {
+     "cause": "Sin for (no tiene default: sin él, la alerta dispara en la primera evaluación en que la condición es verdadera) o con uno muy corto: un pico de segundos, un GC o un deploy, ya es un page.",
+     "check": "La columna duration del primer comando (el for, en segundos)",
+     "fix": "Un for de varios minutos (el C01 usa de 5 a 30 min) o, mejor, burn rate con dos ventanas."
+    },
+    {
+     "cause": "Poco tráfico: de madrugada, 1 error en 20 requests ya es un 5 %.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=sum(rate(classifier_requests_total[5m]))' | jq -r '.data.result[].value[1]'",
+     "fix": "Un caudal mínimo dentro de la expr (el C01: and sum(rate(classifier_requests_total[5m])) > 1)."
+    },
+    {
+     "cause": "Alertas por causa y no por síntoma (CPU al 90 %, una GPU ocupada) mandadas a page: suenan sin que nadie que use el servicio note nada.",
+     "check": "La columna severity del primer comando",
+     "fix": "Page solo para síntomas (latencia, errores, réplicas listas); las causas, a warning o ticket, como GPUSaturated en el C01."
+    },
+    {
+     "cause": "Una alerta por cada pod o instancia del mismo problema: diez pages por un solo incidente.",
+     "check": "curl -s localhost:9090/api/v1/alerts | jq -r '.data.alerts[].labels.alertname' | sort | uniq -c",
+     "fix": "Agrega en la expr (sum by …) y agrupa en Alertmanager con group_by: [alertname, namespace]."
+    }
+   ]
+  },
+  {
+   "id": "sin-notificacion",
+   "symptom": "La alerta está firing en Prometheus, pero no llega nada al teléfono ni al canal.",
+   "first": "curl -s localhost:9090/api/v1/alertmanagers | jq '.data.activeAlertmanagers'",
+   "causes": [
+    {
+     "cause": "Prometheus no conoce ningún Alertmanager: falta alerting.alertmanagers. Es el caso del compose del C01: las 6 alertas se ven en /alerts y no avisan a nadie.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=prometheus_notifications_alertmanagers_discovered' | jq -r '.data.result[].value[1]'",
+     "fix": "Agrega alerting.alertmanagers con el host y el puerto 9093 de tu Alertmanager; kube-prometheus-stack ya lo trae conectado."
+    },
+    {
+     "cause": "Prometheus no logra entregarlas (Error sending alerts en su log): la dirección, el puerto o la red.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=rate(prometheus_notifications_errors_total[5m])' | jq -r '.data.result[] | [.metric.alertmanager, .value[1]] | @tsv'",
+     "fix": "Corrige la dirección y confirma que Alertmanager responde: curl -s localhost:9093/-/ready."
+    },
+    {
+     "cause": "Alertmanager la recibió pero la manda a un receiver sin destino (la config por defecto de kube-prometheus-stack enruta todo a null), o un silencio o una inhibición la tapan.",
+     "check": "amtool --alertmanager.url=http://localhost:9093 alert query -a -s -i alertname=ClassifierHighP99Latency · amtool config routes test --config.file=alertmanager.yml alertname=ClassifierHighP99Latency severity=page",
+     "fix": "Rutas por severity hacia receivers reales (page al on-call, ticket al equipo de ML); revisa los silencios con amtool silence query."
+    },
+    {
+     "cause": "El envío al receptor falla (Notify for alerts failed en el log de Alertmanager): una URL de webhook (la dirección que recibe el aviso) que ya no sirve, un token vencido o la red de salida.",
+     "check": "kubectl logs -n monitoring alertmanager-kube-prometheus-stack-alertmanager-0 -c alertmanager | grep 'Notify for alerts failed'",
+     "fix": "Corrige el receiver y prueba la cadena entera con una alerta que siempre suena (el Watchdog del chart) mandada a un receptor real."
+    }
+   ]
+  },
+  {
+   "id": "notificaciones-repetidas",
+   "symptom": "Llegan notificaciones duplicadas, demasiado seguidas o una por pod.",
+   "first": "amtool --alertmanager.url=http://localhost:9093 config show",
+   "causes": [
+    {
+     "cause": "La ruta no agrupa lo que debería: con un group_by muy fino (o que incluye pod o instance), cada pod es un grupo y una notificación.",
+     "check": "amtool --alertmanager.url=http://localhost:9093 config show | grep -B2 -A6 'group_by'",
+     "fix": "group_by: [alertname, namespace] (o por servicio): un mensaje por incidente."
+    },
+    {
+     "cause": "repeat_interval corto: Alertmanager reenvía mientras la alerta siga activa (4 h por defecto; 12 h en la config del chart).",
+     "check": "amtool --alertmanager.url=http://localhost:9093 config show | grep repeat_interval",
+     "fix": "Súbelo y arregla la causa; para algo pendiente, un ticket, no un page cada hora."
+    },
+    {
+     "cause": "Dos Prometheus en alta disponibilidad mandan la misma alerta con labels distintas (por ejemplo, una label de réplica): para Alertmanager son dos alertas y no las deduplica.",
+     "check": "curl -s localhost:9090/api/v1/status/config | jq -r .data.yaml | grep -A4 external_labels",
+     "fix": "Las mismas labels en las alertas de las dos réplicas (quita la de réplica con alert_relabel_configs; el Operator ya lo hace) y las dos apuntando a todos los Alertmanagers."
+    },
+    {
+     "cause": "La alerta se apaga y se prende (flapping): cada vuelta es un resolved y un firing nuevos.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=ALERTS{alertname=\"ClassifierHigh5xxRate\"}' | jq '.data.result' (grafícalo en las últimas horas)",
+     "fix": "keep_firing_for (sigue firing un rato después de que la condición se apaga), ventanas más largas o burn rate con dos ventanas."
+    }
+   ]
+  },
+  {
+   "id": "keda",
+   "symptom": "KEDA no escala Triton: el ScaledObject sale READY False o se queda en 2 réplicas con la cola alta.",
+   "first": "kubectl describe scaledobject triton -n classifier",
+   "causes": [
+    {
+     "cause": "La query vuelve vacía: Prometheus no scrapea a Triton (falta el ServiceMonitor o su label release). Con ignoreNullValues: \"false\" sale target may be lost, the result is empty; con el default, un 0 silencioso.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=up{job=\"triton\"}' | jq '.data.result'",
+     "fix": "kubectl apply -f k8s/monitoring.yaml y espera a que el target de Triton salga UP."
+    },
+    {
+     "cause": "KEDA no llega a Prometheus: el serverAddress apunta a prometheus-operated.monitoring y Prometheus vive en otro namespace (no such host), o algo corta la red.",
+     "check": "kubectl get svc -A | grep prometheus-operated · kubectl logs -n keda deploy/keda-operator | grep -i prometheus",
+     "fix": "El serverAddress con el namespace real, o Prometheus en monitoring, como espera el C01."
+    },
+    {
+     "cause": "La query devuelve varias series (returned multiple elements): falta el sum() de afuera.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=rate(nv_inference_queue_duration_us{model=\"classifier\"}[2m])' | jq '.data.result | length'",
+     "fix": "Envuelve la query en sum() (o max()) hasta que devuelva una sola serie."
+    },
+    {
+     "cause": "La métrica llega, pero el HPA no puede subir: ya está en maxReplicaCount (4) o el pod nuevo queda Pending sin GPU.",
+     "check": "kubectl get hpa keda-hpa-triton -n classifier · kubectl get pods -n classifier --field-selector=status.phase=Pending",
+     "fix": "Eso ya no es monitoreo: sigue la cadena de autoscaling de la hoja de Kubernetes (cuota, nodos GPU, Karpenter)."
+    }
+   ]
+  },
+  {
+   "id": "query-lenta",
+   "symptom": "El dashboard tarda, o la query falla por timeout o por demasiadas muestras.",
+   "first": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=sum(increase(classifier_requests_total[30d]))' --data-urlencode 'stats=all' | jq '.data.stats.timings.evalTotalTime, .data.stats.samples.totalQueryableSamples, .data.stats.samples.peakSamples'",
+   "causes": [
+    {
+     "cause": "Una query que junta demasiadas muestras a la vez: una subquery larga (rate(…[5m])[30d:15s] guarda cada paso de cada serie) o una ventana cruda pedida entera (x[30d] en la API). Pasa --query.max-samples (50 millones) y falla. Una ventana larga dentro de rate() sola no llega al tope, porque se carga de a una serie, pero tarda: con scrape cada 15 s, [30d] son 172,800 muestras por serie.",
+     "check": "El primer comando: peakSamples contra 50,000,000; totalQueryableSamples y evalTotalTime dicen cuántas muestras leyó y cuántos segundos tardó",
+     "fix": "Recording rules que precalculen cada minuto, y consulta la serie grabada: sum_over_time de la serie grabada en vez de una subquery larga."
+    },
+    {
+     "cause": "Un selector muy amplio: regex sobre __name__ o sin filtrar por job o namespace, así que la query toca miles de series.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=count({__name__=~\"classifier_.*\"})' | jq -r '.data.result[0].value[1]'",
+     "fix": "Filtra por el nombre exacto y por job antes de agregar."
+    },
+    {
+     "cause": "Un panel de rango con un paso muy chico: demasiados puntos por serie (el límite es 11,000).",
+     "check": "Inspect → Query del panel (mira el step y el intervalo)",
+     "fix": "Un Min interval en el panel o un rango más corto; Grafana ajusta el paso solo si no lo fijas."
+    },
+    {
+     "cause": "Prometheus mismo está saturado: demasiadas series en memoria o muchas reglas pesadas.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=prometheus_tsdb_head_series' | jq -r '.data.result[].value[1]'",
+     "fix": "Baja la cardinalidad y reparte las reglas pesadas en grupos con un interval más largo."
+    }
+   ]
+  },
+  {
+   "id": "prometheus-no-arranca",
+   "symptom": "Prometheus no arranca, se reinicia en bucle o ignora el cambio de config.",
+   "first": "docker compose logs prometheus | grep -E 'level=(ERROR|WARN)' | tail -5",
+   "causes": [
+    {
+     "cause": "La config no parsea: un campo mal escrito (field … not found in type config.plain), la sangría, o un rule_files que no existe.",
+     "check": "docker run --rm --entrypoint promtool -v \"$PWD/monitoring\":/etc/prometheus:ro prom/prometheus:v3.13.3 check config /etc/prometheus/prometheus.yml",
+     "fix": "Corrige lo que dice promtool y vuelve a arrancar o recargar."
+    },
+    {
+     "cause": "El reload falló y Prometheus siguió con la config vieja: lo pediste por HTTP sin --web.enable-lifecycle (Lifecycle API is not enabled.) o la config nueva tenía errores.",
+     "check": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=prometheus_config_last_reload_successful' | jq -r '.data.result[].value[1]' · curl -s localhost:9090/api/v1/query --data-urlencode 'query=time() - prometheus_config_last_reload_success_timestamp_seconds' | jq -r '.data.result[].value[1]'",
+     "fix": "SIGHUP (docker compose kill -s SIGHUP prometheus) o un reinicio. Un 0 en la primera dice que la config nueva tenía errores; si la segunda (segundos desde la última carga buena) es mayor que el tiempo desde tu cambio, la config nueva nunca se cargó."
+    },
+    {
+     "cause": "No puede escribir en su directorio de datos: un volumen del host sin permisos para el usuario nobody de la imagen (failed to initialize active query tracker … permission denied).",
+     "check": "docker compose logs prometheus | grep 'permission denied'",
+     "fix": "Un volumen con nombre de Docker, o el directorio con un dueño que el usuario de la imagen pueda escribir."
+    },
+    {
+     "cause": "En Kubernetes lo mata OOMKilled: demasiadas series para su límite de memoria. Al reiniciar relee el WAL (el registro de lo recién escrito) y tarda en estar Ready.",
+     "check": "kubectl describe pod prometheus-kube-prometheus-stack-prometheus-0 -n monitoring | grep -A3 'Last State'",
+     "fix": "Baja la cardinalidad (el síntoma de memoria) y sube el límite con margen para el pico."
+    }
+   ]
+  }
+ ],
+ "errores": [
+  {
+   "msg": "server returned HTTP status 404 Not Found",
+   "meaning": "Prometheus llegó al target, pero en ese path no hay métricas: metrics_path (por defecto /metrics) no coincide con la ruta de tu app. La red y el proceso están bien; up vale 0 igual. Un redirect (un 307 a /metrics/) no da este error, porque Prometheus lo sigue, pero cada scrape son dos requests: por eso el gateway del C01 sirve /metrics directo.",
+   "first": "curl -s -o /dev/null -w '%{http_code}\\n' localhost:8080/metrics",
+   "topic": "scrape",
+   "section": "scrape"
+  },
+  {
+   "msg": "Get \"http://10.0.1.12:8002/metrics\": context deadline exceeded",
+   "meaning": "Nadie terminó de contestar antes de scrape_timeout (10 s por defecto, nunca mayor que el intervalo). O la red descarta los paquetes (una NetworkPolicy o un security group, el firewall de AWS; Triton en el C01 si Prometheus no vive en el namespace monitoring), o el proceso está tan cargado que /metrics tarda más que eso.",
+   "first": "kubectl get networkpolicy -n classifier · curl -s localhost:9090/api/v1/query --data-urlencode 'query=scrape_duration_seconds{job=\"triton\"}' | jq -r '.data.result[].value[1]'",
+   "topic": "scrape",
+   "section": "scrape"
+  },
+  {
+   "msg": "dial tcp 10.0.1.21:8080: connect: connection refused",
+   "meaning": "La máquina existe, pero nadie escucha en ese puerto: el proceso no arrancó, se cayó, o el puerto del target es otro. El rechazo es inmediato: a diferencia del timeout, no hay nada que esperar. En Kubernetes, revisa el puerto del Service que nombra el ServiceMonitor.",
+   "first": "kubectl get svc gateway -n classifier -o jsonpath='{.spec.ports}'",
+   "topic": "scrape",
+   "section": "scrape"
+  },
+  {
+   "msg": "dial tcp: lookup gateway on 127.0.0.11:53: no such host",
+   "meaning": "El nombre del target no resuelve en el DNS de donde corre Prometheus. 127.0.0.11 es el DNS interno de Docker en las redes de compose: Prometheus está en una, pero gateway no (otro proyecto de compose, o el servicio se llama distinto). Desde tu Mac o desde un contenedor lanzado aparte tampoco resuelve. En Kubernetes: un Service o un namespace mal escrito.",
+   "first": "docker network inspect classifier-c01_default --format '{{range .Containers}}{{.Name}} {{end}}'",
+   "topic": "scrape",
+   "section": "scrape"
+  },
+  {
+   "msg": "received unsupported Content-Type \"application/json\" and no fallback_scrape_protocol specified for target",
+   "meaning": "Desde Prometheus 3.0 el scrape falla si el Content-Type no es de métricas (en 2.x se leía como texto igual). El caso típico en FastAPI: una ruta /metrics que hace return generate_latest() sin Response, y FastAPI lo manda como JSON. Sírvelo con Response(generate_latest(), media_type=CONTENT_TYPE_LATEST), como main.py del C01. fallback_scrape_protocol es para exporters viejos con un header malo, no para esto.",
+   "first": "curl -sI localhost:8080/metrics | grep -i content-type",
+   "topic": "scrape",
+   "section": "scrape"
+  },
+  {
+   "msg": "line 12: field scrape_config not found in type config.plain",
+   "meaning": "El YAML trae un campo que Prometheus no conoce: aquí falta la s de scrape_configs (config.plain es el tipo interno de la config). En la línea de arriba viene parsing YAML file …: yaml: unmarshal errors. Al arrancar, Prometheus sale con Error loading config; en un reload, se queda con la config anterior y prometheus_config_last_reload_successful vale 0.",
+   "first": "docker run --rm --entrypoint promtool -v \"$PWD/monitoring\":/etc/prometheus:ro prom/prometheus:v3.13.3 check config /etc/prometheus/prometheus.yml",
+   "topic": "config",
+   "section": "scrape"
+  },
+  {
+   "msg": "Lifecycle API is not enabled.",
+   "meaning": "Pediste un reload por HTTP (POST /-/reload) y Prometheus corre sin --web.enable-lifecycle, que viene apagado. La config nueva no se cargó. Mándale SIGHUP, reinícialo o arráncalo con esa flag. Con el Operator no hace falta: el config-reloader recarga solo.",
+   "first": "docker compose kill -s SIGHUP prometheus · docker compose logs prometheus | grep 'Completed loading of configuration file'",
+   "topic": "config",
+   "section": "scrape"
+  },
+  {
+   "msg": "found duplicate series for the match group {pod=\"…\"} on the right hand-side of the operation: […];many-to-many matching not allowed: matching labels must be unique on one side",
+   "meaning": "Una operación entre dos vectores (una división, una suma) encontró varias series del mismo lado para la misma combinación de labels del on(...). Casi siempre falta agregar un lado: sum by (pod) arriba y abajo. El mensaje dice qué lado tiene los repetidos y muestra dos de ellos.",
+   "first": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=count by (pod) (rate(classifier_requests_total[5m]))' | jq -r '.data.result[] | [.metric.pod, .value[1]] | @tsv'",
+   "topic": "promql",
+   "section": "promql"
+  },
+  {
+   "msg": "vector cannot contain metrics with the same labelset",
+   "meaning": "El resultado quedó con dos series de labels idénticas. El caso típico: rate() sobre varias métricas a la vez ({__name__=~\"…\"}) borra el nombre, y dos series que solo se distinguían por él chocan. Consulta cada métrica por separado, o agrega por un label que las distinga.",
+   "first": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=count by (__name__) ({__name__=~\"nv_inference_(count|exec_count)\"})' | jq -r '.data.result[].metric.__name__'",
+   "topic": "promql",
+   "section": "promql"
+  },
+  {
+   "msg": "invalid parameter \"query\": 1:6: parse error: expected type range vector in call to function \"rate\", got instant vector",
+   "meaning": "rate(), increase() y las funciones _over_time necesitan una ventana: rate(x[5m]), no rate(x). Es un error de sintaxis (errorType bad_data): la query no llegó a correr. 1:6 es fila y columna dentro de la query.",
+   "first": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=rate(classifier_requests_total[5m])' | jq -r .status",
+   "topic": "promql",
+   "section": "promql"
+  },
+  {
+   "msg": "PromQL info: metric might not be a counter, name does not end in _total/_sum/_count/_bucket: \"nv_inference_queue_duration_us\"",
+   "meaning": "Una anotación, no un error: la query corrió. Prometheus avisa que hiciste rate() o increase() sobre algo cuyo nombre no parece de counter. Sobre un gauge (nv_gpu_utilization) es un bug: el rate de un gauge no significa nada. Con Triton es una falsa alarma: sus counters no terminan en _total. Existe desde Prometheus 2.48.",
+   "first": "curl -s localhost:8002/metrics | grep '^# TYPE nv_inference_queue_duration_us'",
+   "topic": "promql",
+   "section": "promql"
+  },
+  {
+   "msg": "query processing would load too many samples into memory in query execution",
+   "meaning": "La query tuvo que tener en memoria, a la vez, más muestras que --query.max-samples (50 millones por defecto). Una ventana larga dentro de rate() o increase() no llega sola: Prometheus la carga de a una serie (172,800 muestras para [30d] con scrape cada 15 s), así que tarda pero corre. Lo que choca es juntarlo todo: una subquery de 30 días (rate(…[5m])[30d:15s] guarda cada paso de cada serie: con unas 300 series ya pasa el tope), una ventana cruda pedida entera a la API (x[30d]) o un rango largo con miles de series. Para el presupuesto del mes, graba sum(rate(…[5m])) del numerador y del denominador y divide sus sum_over_time(…[30d]).",
+   "first": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=count(last_over_time(classifier_requests_total[30d]))' | jq -r '.data.result[0].value[1]'",
+   "topic": "slo",
+   "section": "slos"
+  },
+  {
+   "msg": "PromQL warning: bucket label \"le\" is missing or has a malformed value of \"\"",
+   "meaning": "histogram_quantile recibió series sin le: lo perdiste al agregar (sum by (source) sin le) o le pasaste _sum o _count en vez de _bucket. El resultado sale vacío. El le tiene que sobrevivir a la agregación: sum by (le), o sum by (le, source) si quieres un p99 por source. Es una anotación desde Prometheus 2.48.",
+   "first": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=histogram_quantile(0.99, sum by (le) (rate(classifier_request_latency_seconds_bucket[5m])))' | jq '.data.result, .warnings'",
+   "topic": "histograma",
+   "section": "histogramas"
+  },
+  {
+   "msg": "group \"classifier-alerts\", rule 1, \"ClassifierHighP99Latency\": could not parse expression: …",
+   "meaning": "promtool (o Prometheus al cargar las reglas) no pudo parsear la expr de esa regla. Antes de group vienen la línea y la columna del expr en el YAML; después de could not parse expression, el error de PromQL con fila y columna dentro de la expr. Prometheus no carga ese archivo: al arrancar sale con error y en un reload sigue con las reglas anteriores.",
+   "first": "docker run --rm --entrypoint promtool -v \"$PWD/monitoring\":/etc/prometheus:ro prom/prometheus:v3.13.3 check rules /etc/prometheus/alerts.yml",
+   "topic": "reglas",
+   "section": "reglas"
+  },
+  {
+   "msg": "undefined receiver \"pagerduty-ml\" used in route",
+   "meaning": "Una ruta de Alertmanager manda a un receiver que no está en la lista receivers: un typo, o lo borraste. Alertmanager no arranca con esa config, y en un reload sigue con la anterior. amtool check-config lo atrapa antes de aplicar.",
+   "first": "amtool check-config alertmanager.yml",
+   "topic": "alertmanager",
+   "section": "alertmanager"
+  },
+  {
+   "msg": "msg=\"Notify for alerts failed\" … err=\"slack-ml/slack[0]: notify retry canceled after 4 attempts: …\"",
+   "meaning": "Alertmanager tiene la alerta y la ruteó, pero el envío al receptor falló: la URL o el token del webhook (la dirección que recibe el aviso), la red de salida o un rechazo del servicio. Reintenta hasta que vence el plazo y lo deja en su log; alertmanager_notifications_failed_total sube. Lo que sigue a attempts: es el último error (la respuesta del receptor o el de la red). Si el receptor contesta con un error que reintentar no arregla (por ejemplo un 4xx), el texto es notify retry canceled due to unrecoverable error after 1 attempts.",
+   "first": "kubectl logs -n monitoring alertmanager-kube-prometheus-stack-alertmanager-0 -c alertmanager | grep 'Notify for alerts failed'",
+   "topic": "alertmanager",
+   "section": "alertmanager"
+  },
+  {
+   "msg": "msg=\"Error sending alerts\" … err=\"Post \\\"http://alertmanager:9093/api/v2/alerts\\\": dial tcp …: connect: connection refused\"",
+   "meaning": "Lo dice Prometheus: no pudo entregar las alertas a Alertmanager (la dirección o el puerto de alerting.alertmanagers están mal, o Alertmanager está caído). Las alertas salen firing en /alerts, pero nadie las recibe; prometheus_notifications_errors_total sube. Hasta Prometheus 3.0 el texto era Error sending alert, en singular.",
+   "first": "curl -s localhost:9090/api/v1/alertmanagers | jq '.data.activeAlertmanagers'",
+   "topic": "alertmanager",
+   "section": "alertmanager"
+  },
+  {
+   "msg": "There was an error returned querying the Prometheus API",
+   "meaning": "Grafana no pudo hablar con Prometheus: la URL, el protocolo o el puerto del data source, o Prometheus no se alcanza desde donde corre Grafana. El clásico: Grafana en un contenedor con http://localhost:9090, y ahí localhost es el propio Grafana. Usa el nombre del servicio (http://prometheus:9090 en compose) o el Service del cluster.",
+   "first": "curl -s localhost:9090/-/ready · Connections → Data sources → Prometheus → Save & test",
+   "topic": "grafana",
+   "section": "grafana"
+  },
+  {
+   "msg": "Datasource ${DS_PROMETHEUS} was not found",
+   "meaning": "El dashboard viene de un JSON exportado para compartir afuera: trae la entrada ${DS_PROMETHEUS}, que solo se llena al importarlo a mano. Por provisioning (dashboards como código) nadie la llena. Exporta sin esa opción, o reemplaza la referencia por el uid (el id fijo) de tu data source.",
+   "first": "grep -rn 'DS_PROMETHEUS' dashboards/",
+   "topic": "grafana",
+   "section": "grafana"
+  },
+  {
+   "msg": "prometheus_client.registry.DuplicateTimeseries: Duplicated timeseries in CollectorRegistry: {'classifier_requests_total', …}",
+   "meaning": "Registraste dos veces una métrica con el mismo nombre en el registro global de prometheus_client: el módulo se importó dos veces (con nombres distintos, o un test que lo recarga) o re-ejecutaste la celda del notebook. Un counter reserva tres nombres (sin sufijo, _total y _created). Desde prometheus-client 0.26.0 (la del C01) la excepción es DuplicateTimeseries, una subclase de ValueError; antes salía ValueError: con el mismo texto. Las métricas se crean una vez, al nivel del módulo.",
+   "first": "grep -rnE \"Counter\\(|Histogram\\(\" app/",
+   "topic": "cliente",
+   "section": "instrumentar"
+  },
+  {
+   "msg": "ValueError: counter metric is missing label values",
+   "meaning": "Llamaste .inc() directo sobre una métrica que declaró labels: primero va .labels(status=…, source=…). Si los nombres de .labels() no son los declarados, el error es Incorrect label names. Revienta en el request, no al arrancar: un test que pase por ese camino lo atrapa.",
+   "first": "grep -rnE \"\\.(inc|observe)\\(\" app/",
+   "topic": "cliente",
+   "section": "instrumentar"
+  },
+  {
+   "msg": "no matches for kind \"ServiceMonitor\" in version \"monitoring.coreos.com/v1\"",
+   "meaning": "El cluster no conoce el tipo ServiceMonitor: faltan los CRDs (las definiciones de tipos nuevos) del Prometheus Operator, porque kube-prometheus-stack no está instalado o se instaló después. kubectl termina con ensure CRDs are installed first. Aplica monitoring.yaml después del chart.",
+   "first": "kubectl get crd servicemonitors.monitoring.coreos.com",
+   "topic": "kubernetes",
+   "section": "kubernetes"
+  },
+  {
+   "msg": "prometheus metrics 'prometheus' target may be lost, the result is empty",
+   "meaning": "Lo dice KEDA con ignoreNullValues: \"false\", como en el C01: la query de su trigger no devolvió ninguna serie. Casi siempre Prometheus no scrapea a Triton (falta el ServiceMonitor o su label release) o la query pide un label que no existe. Con el default (true), KEDA lo tomaría como 0 y nada avisaría. Sale como evento KEDAScalerFailed del ScaledObject.",
+   "first": "kubectl describe scaledobject triton -n classifier",
+   "topic": "kubernetes",
+   "section": "kubernetes"
+  },
+  {
+   "msg": "prometheus query rate(nv_inference_queue_duration_us{model=\"classifier\"}[2m]) returned multiple elements",
+   "meaning": "La query de KEDA devolvió más de una serie, y KEDA necesita un solo número. Pasa al quitar el sum() de afuera: queda una serie por pod de Triton. Agrega con sum() (o max()) hasta que devuelva una sola serie.",
+   "first": "curl -s localhost:9090/api/v1/query --data-urlencode 'query=rate(nv_inference_queue_duration_us{model=\"classifier\"}[2m])' | jq '.data.result | length'",
+   "topic": "kubernetes",
+   "section": "kubernetes"
+  },
+  {
+   "msg": "admission webhook \"prometheusrulevalidate.monitoring.coreos.com\" denied the request: Rules are not valid",
+   "meaning": "El webhook de validación (un chequeo que el API server consulta antes de guardar el objeto) que instala kube-prometheus-stack rechazó tu PrometheusRule: alguna regla no parsea. Así lo muestra Helm; kubectl apply muestra en cambio \"prometheusrules\" is invalid y debajo la regla que falló (group …, rule …: could not parse expression). El objeto no se creó ni cambió y siguen las reglas anteriores; el log del Operator repite el detalle (Invalid rule).",
+   "first": "docker run --rm --entrypoint promtool -v \"$PWD/monitoring\":/etc/prometheus:ro prom/prometheus:v3.13.3 check rules /etc/prometheus/alerts.yml · kubectl logs -n monitoring deploy/kube-prometheus-stack-operator | grep 'Invalid rule'",
+   "topic": "operator",
+   "section": "kubernetes"
+  },
+  {
+   "msg": "nv_inference_queue_duration_us metric names should not contain abbreviated units",
+   "meaning": "promtool check metrics revisa los nombres contra las convenciones de Prometheus: la unidad va completa y en base (_seconds, no _us ni _ms). Para la misma métrica marca también counter metrics should have \"_total\" suffix: los counters terminan en _total. Triton no sigue ninguna de las dos y funciona igual; en tu código, síguelas: con _seconds nadie confunde µs con ms, y _total dice counter de un vistazo.",
+   "first": "curl -s localhost:8002/metrics | docker run --rm -i --entrypoint promtool prom/prometheus:v3.13.3 check metrics",
+   "topic": "modelo",
+   "section": "metricas"
+  }
+ ]
+}

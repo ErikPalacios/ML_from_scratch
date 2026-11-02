@@ -1,0 +1,376 @@
+{
+  "config_id": "t5-large",
+  "model": "t5",
+  "Tin": 512,
+  "Tout": 114,
+  "params_total": 737668096,
+  "params_by_node": {
+    "embed": 32899072,
+    "encoder": 302039552,
+    "enc-out": 1024,
+    "decoder": 402727424,
+    "dec-norm": 1024,
+    "lm-head": 0,
+    "enc-attn": 100688384,
+    "enc-ffn": 201351168,
+    "self-attn": 100688384,
+    "cross-attn": 100687872,
+    "ffn": 201351168
+  },
+  "shapes": {
+    "e-x0": [
+      512,
+      1024
+    ],
+    "e-h1": [
+      512,
+      1024
+    ],
+    "e-q": [
+      512,
+      1024
+    ],
+    "e-k": [
+      512,
+      1024
+    ],
+    "e-v": [
+      512,
+      1024
+    ],
+    "e-q-heads": [
+      16,
+      512,
+      64
+    ],
+    "e-k-heads": [
+      16,
+      512,
+      64
+    ],
+    "e-v-heads": [
+      16,
+      512,
+      64
+    ],
+    "e-scores": [
+      16,
+      512,
+      512
+    ],
+    "e-attn": [
+      16,
+      512,
+      512
+    ],
+    "e-z-heads": [
+      16,
+      512,
+      64
+    ],
+    "e-bias": [
+      16,
+      512,
+      512
+    ],
+    "e-z": [
+      512,
+      1024
+    ],
+    "e-o": [
+      512,
+      1024
+    ],
+    "e-r1": [
+      512,
+      1024
+    ],
+    "e-h2": [
+      512,
+      1024
+    ],
+    "e-u": [
+      512,
+      4096
+    ],
+    "e-g": [
+      512,
+      4096
+    ],
+    "e-f": [
+      512,
+      1024
+    ],
+    "e-x-out": [
+      512,
+      1024
+    ],
+    "enc-out": [
+      512,
+      1024
+    ],
+    "d-x0": [
+      114,
+      1024
+    ],
+    "d-h1": [
+      114,
+      1024
+    ],
+    "d-q": [
+      114,
+      1024
+    ],
+    "d-k": [
+      114,
+      1024
+    ],
+    "d-v": [
+      114,
+      1024
+    ],
+    "d-q-heads": [
+      16,
+      114,
+      64
+    ],
+    "d-k-heads": [
+      16,
+      114,
+      64
+    ],
+    "d-v-heads": [
+      16,
+      114,
+      64
+    ],
+    "d-scores": [
+      16,
+      114,
+      114
+    ],
+    "d-attn": [
+      16,
+      114,
+      114
+    ],
+    "d-z-heads": [
+      16,
+      114,
+      64
+    ],
+    "d-bias": [
+      16,
+      114,
+      114
+    ],
+    "d-z": [
+      114,
+      1024
+    ],
+    "d-o": [
+      114,
+      1024
+    ],
+    "d-r1": [
+      114,
+      1024
+    ],
+    "c-h": [
+      114,
+      1024
+    ],
+    "c-q": [
+      114,
+      1024
+    ],
+    "c-k": [
+      512,
+      1024
+    ],
+    "c-v": [
+      512,
+      1024
+    ],
+    "c-q-heads": [
+      16,
+      114,
+      64
+    ],
+    "c-k-heads": [
+      16,
+      512,
+      64
+    ],
+    "c-v-heads": [
+      16,
+      512,
+      64
+    ],
+    "c-scores": [
+      16,
+      114,
+      512
+    ],
+    "c-attn": [
+      16,
+      114,
+      512
+    ],
+    "c-z-heads": [
+      16,
+      114,
+      64
+    ],
+    "c-z": [
+      114,
+      1024
+    ],
+    "c-o": [
+      114,
+      1024
+    ],
+    "d-r2": [
+      114,
+      1024
+    ],
+    "d-h3": [
+      114,
+      1024
+    ],
+    "d-u": [
+      114,
+      4096
+    ],
+    "d-g": [
+      114,
+      4096
+    ],
+    "d-f": [
+      114,
+      1024
+    ],
+    "d-x-out": [
+      114,
+      1024
+    ],
+    "dec-out": [
+      114,
+      1024
+    ],
+    "dec-out-scaled": [
+      114,
+      1024
+    ],
+    "logits": [
+      114,
+      32128
+    ]
+  },
+  "flops_total": 481392721920,
+  "flops_by_node": {
+    "encoder": 335007449088,
+    "decoder": 138884284416,
+    "lm-head": 7500988416,
+    "cross-attn": 68753031168
+  },
+  "flops_by_op_torch": {
+    "aten.bmm": 32785170432,
+    "aten.mm": 448607551488
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.mm",
+        "aten.addmm"
+      ],
+      "prims": [
+        "linear",
+        "lm_head"
+      ]
+    },
+    {
+      "ops": [
+        "aten.bmm"
+      ],
+      "prims": [
+        "attention_scores",
+        "attention_weighted_sum"
+      ]
+    }
+  ],
+  "metrics_checks": {
+    "crossKvBytes": 50331648,
+    "selfKvCacheBytes": 11206656,
+    "totalParams": 737668096
+  },
+  "rel_bias_params": 1024,
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "Tin": 128,
+        "Tout": 32
+      },
+      "flops_total": 116962361344,
+      "params_total": 737668096,
+      "shapes": {
+        "e-x0": [
+          128,
+          1024
+        ],
+        "e-scores": [
+          16,
+          128,
+          128
+        ],
+        "e-bias": [
+          16,
+          128,
+          128
+        ],
+        "d-scores": [
+          16,
+          32,
+          32
+        ],
+        "d-bias": [
+          16,
+          32,
+          32
+        ],
+        "c-scores": [
+          16,
+          32,
+          128
+        ],
+        "c-k-heads": [
+          16,
+          128,
+          64
+        ],
+        "logits": [
+          32,
+          32128
+        ]
+      }
+    }
+  ],
+  "notes": [
+    "FlopCounterMode = 2 × MACs de matmuls (mm, bmm) y convoluciones; sesgos, normas, softmax, GELU / ReLU, el sesgo relativo de T5 y la máscara no cuentan.",
+    "Teacher forcing: decoder_input_ids de T_out tokens en paralelo (QKᵀ y A·V de la self-attention causal cuentan las T_out² entradas, como el calculador).",
+    "Sin escalado 1/√d_h en QKᵀ (T5Attention.scaling = 1.0); el sesgo relativo (tabla 32 × h) solo existe en la capa 0 de cada stack y se reusa."
+  ],
+  "hf_config_source": "google-t5/t5-large",
+  "source": {
+    "lib": "transformers",
+    "version": "5.19.0",
+    "ctor": "with torch.device('meta'): T5ForConditionalGeneration(T5Config(vocab_size=32128, d_model=1024, d_kv=64, d_ff=4096, num_layers=24, num_decoder_layers=24, num_heads=16, relative_attention_num_buckets=32, relative_attention_max_distance=128, feed_forward_proj='relu', layer_norm_epsilon=1e-06, scale_decoder_outputs=True))",
+    "attn_implementation": "eager",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  }
+}

@@ -1,0 +1,178 @@
+{
+  "config_id": "grpo-llama3-8b",
+  "model": "rlhf-dpo",
+  "T": 1024,
+  "sequences": 8,
+  "params_total": 16060522496,
+  "params_by_node": {
+    "policy": 8030261248,
+    "reference": 8030261248
+  },
+  "shapes": {
+    "pol-x0": [
+      1024,
+      4096
+    ],
+    "pol-h-norm1": [
+      1024,
+      4096
+    ],
+    "pol-q": [
+      1024,
+      4096
+    ],
+    "pol-k": [
+      1024,
+      1024
+    ],
+    "pol-v": [
+      1024,
+      1024
+    ],
+    "pol-z": [
+      1024,
+      4096
+    ],
+    "pol-o": [
+      1024,
+      4096
+    ],
+    "pol-r1": [
+      1024,
+      4096
+    ],
+    "pol-h-norm2": [
+      1024,
+      4096
+    ],
+    "pol-gate": [
+      1024,
+      14336
+    ],
+    "pol-up": [
+      1024,
+      14336
+    ],
+    "pol-prod": [
+      1024,
+      14336
+    ],
+    "pol-f": [
+      1024,
+      4096
+    ],
+    "pol-x-out": [
+      1024,
+      4096
+    ],
+    "pol-x-norm": [
+      1024,
+      4096
+    ],
+    "pol-logits": [
+      1024,
+      128256
+    ],
+    "ref-x0": [
+      1024,
+      4096
+    ],
+    "ref-h-norm1": [
+      1024,
+      4096
+    ],
+    "ref-q": [
+      1024,
+      4096
+    ],
+    "ref-k": [
+      1024,
+      1024
+    ],
+    "ref-v": [
+      1024,
+      1024
+    ],
+    "ref-z": [
+      1024,
+      4096
+    ],
+    "ref-o": [
+      1024,
+      4096
+    ],
+    "ref-r1": [
+      1024,
+      4096
+    ],
+    "ref-h-norm2": [
+      1024,
+      4096
+    ],
+    "ref-gate": [
+      1024,
+      14336
+    ],
+    "ref-up": [
+      1024,
+      14336
+    ],
+    "ref-prod": [
+      1024,
+      14336
+    ],
+    "ref-f": [
+      1024,
+      4096
+    ],
+    "ref-x-out": [
+      1024,
+      4096
+    ],
+    "ref-x-norm": [
+      1024,
+      4096
+    ],
+    "ref-logits": [
+      1024,
+      128256
+    ],
+    "ids": [
+      1024
+    ]
+  },
+  "flops_total": 254708740521984,
+  "flops_by_node": {
+    "policy": 127354370260992,
+    "reference": 127354370260992
+  },
+  "flops_by_op_torch": {
+    "aten.bmm": 8796093022208,
+    "aten.mm": 245912647499776
+  },
+  "metrics_checks": {
+    "policyTrainStepMacsPerSeq": 31300647911424,
+    "policyForwardMacsPerSeq": 7959648141312,
+    "totalParams": 16060522496
+  },
+  "source": {
+    "lib": "transformers + peft",
+    "version": "5.19.0",
+    "peft": "0.21.2",
+    "ctor": "with torch.device('meta'): LlamaForCausalLM(LlamaConfig(vocab_size=128256, hidden_size=4096, intermediate_size=14336, num_hidden_layers=32, num_attention_heads=32, num_key_value_heads=8, head_dim=128, max_position_embeddings=8192, rms_norm_eps=1e-05, tie_word_embeddings=False, attention_bias=False, mlp_bias=False, rope_theta=500000.0)); with torch.device('meta'): LlamaForSequenceClassification(LlamaConfig(vocab_size=128256, hidden_size=4096, intermediate_size=14336, num_hidden_layers=32, num_attention_heads=32, num_key_value_heads=8, head_dim=128, max_position_embeddings=8192, rms_norm_eps=1e-05, tie_word_embeddings=False, attention_bias=False, mlp_bias=False, rope_theta=500000.0, num_labels=1))",
+    "attn_implementation": "eager",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "peft": "0.21.2"
+    }
+  },
+  "notes": [
+    "Un modelo HF por rol, construido en código en el dispositivo meta (sin pesos ni hub): política y referencia LlamaForCausalLM; reward model y crítico LlamaForSequenceClassification(num_labels = 1) = el decoder sin lm_head + score (Linear D → 1 sin sesgo), como TRL.",
+    "FLOPs = la suma de los forwards de cada rol sobre las G = 8 respuestas del prompt (batch G) con T = 1024 (FlopCounterMode, todas las capas, atención eager).",
+    "El rollout (generación) no está en el grafo: el calculador lo cuenta con llm.js (prefill + decode, verificados en crosscheck/llm.py).",
+    "metrics_checks: costo de UN update de la política (y del crítico en PPO) por secuencia con gradient checkpointing reentrante (forward + backward + recomputación), medido con loss.backward()."
+  ]
+}

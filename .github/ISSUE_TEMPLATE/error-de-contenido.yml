@@ -1,0 +1,28 @@
+name: Error de contenido
+description: Una cifra, fórmula, comando o explicación que está mal o confusa
+title: "[Contenido] "
+labels: ["contenido"]
+body:
+  - type: dropdown
+    id: app
+    attributes:
+      label: ¿En cuál herramienta?
+      options: [Ronda de Diseño ML, Cheat sheets ML, Atlas de Arquitecturas, Laboratorio Transformer, ML Board (demo), Portada]
+    validations: { required: true }
+  - type: input
+    id: donde
+    attributes:
+      label: Dirección o nombre de la página/hoja/sección
+      placeholder: https://cheat-sheets-ml.vercel.app/docker/ · sección «Healthcheck»
+    validations: { required: true }
+  - type: textarea
+    id: que
+    attributes:
+      label: ¿Qué está mal o confuso?
+      description: Si puedes, cita el texto y di qué esperabas ver.
+    validations: { required: true }
+  - type: textarea
+    id: fuente
+    attributes:
+      label: Fuente (opcional)
+      description: Documentación oficial o referencia que lo respalda.

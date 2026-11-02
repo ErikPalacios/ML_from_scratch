@@ -1,0 +1,50 @@
+# Cross-check del calculador (solo desarrollo; nunca se distribuye). SPEC §9.3.
+# python3.13 -m venv .venv && .venv/bin/pip install -r crosscheck/requirements.txt
+torch==2.14.1
+torchvision==0.29.1
+timm==1.0.30
+transformers==5.19.0
+# (fase 5: SamModel y Sam2VideoModel vienen en transformers 5.19.0; sin dependencias nuevas)
+# (fase 6: LlamaForCausalLM, MixtralForCausalLM y DynamicCache vienen en transformers 5.19.0; sin dependencias nuevas)
+numpy==2.5.3
+# scipy: linear_sum_assignment de los ejercicios de DETR (matching húngaro) y su solución de referencia.
+scipy==1.18.1
+# ultralytics (fase 4): YOLOv8-L y YOLO-World-L desde los YAML del paquete, sin pesos ni CLIP (crosscheck/yolo_world.py).
+# Trae opencv-python, matplotlib, polars, psutil, requests y ultralytics-thop (versiones con que se generaron los JSON).
+ultralytics==8.4.174
+ultralytics-thop==2.2.2
+opencv-python==5.0.0.93
+matplotlib==3.11.2
+polars==2.0.0
+# diffusers (fase 8): UNet2DConditionModel, AutoencoderKL, DiTTransformer2DModel y los schedulers DDIM / PNDM, construidos en código sin
+# pesos (crosscheck/diffusion.py). Trae importlib_metadata y zipp.
+diffusers==0.41.0
+importlib_metadata==9.0.1
+zipp==4.1.1
+# peft (fase 10): LoraConfig + get_peft_model sobre LlamaForCausalLM / LlamaForSequenceClassification en meta (crosscheck/finetune.py).
+# Trae accelerate. Sin bitsandbytes (no corre en macOS sin CUDA: la contabilidad NF4 se hace en finetune.py) ni trl (las pérdidas
+# se verifican contra una referencia en torch float64 escrita desde los papers).
+peft==0.21.2
+accelerate==1.15.0
+# faiss-cpu (fase 11): índices FAISS reales chicos para verificar las fórmulas de bytes y de distancias del modelo `ann`
+# (crosscheck/faiss_ann.py, en un proceso aparte de torch: cada uno trae su libomp). Sin dependencias nuevas (usa numpy y packaging).
+faiss-cpu==1.15.1
+# fase 13: modelos REALES de árboles para el GBDT (crosscheck/trees.py, en un proceso aparte de torch). xgboost y lightgbm necesitan
+# libomp: sin el de Homebrew, crosscheck-compare.mjs pasa DYLD_FALLBACK_LIBRARY_PATH=.venv/…/torch/lib (el libomp.dylib de torch).
+# catboost trae graphviz, plotly, pandas y narwhals (versiones con que se generaron los JSON). recsys.py solo usa torch.
+xgboost==3.4.1
+lightgbm==4.7.0
+catboost==1.2.10
+graphviz==0.21
+plotly==7.1.0
+pandas==3.0.6
+narwhals==2.26.0
+# fase 14 (crosscheck/perception.py): lap (lapjv de Jonker-Volgenant, el que usan ByteTrack, SORT y el BYTETracker de ultralytics) y
+# filterpy (el KalmanFilter de SORT). Sin dependencias nuevas (usan numpy y scipy).
+lap==0.5.12
+filterpy==1.4.5
+# fase 15 (crosscheck/robotlearn.py): dimensiones de obs/acción leídas de los entornos reales (HalfCheetah-v4 con MuJoCo, Breakout con
+# ALE). Solo se construye el entorno; no se simula ni se entrena.
+gymnasium==1.4.0
+mujoco==3.15.0
+ale-py==0.12.1

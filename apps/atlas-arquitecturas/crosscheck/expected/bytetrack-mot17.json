@@ -1,0 +1,325 @@
+{
+  "config_id": "bytetrack-mot17",
+  "model": "bytetrack",
+  "params_total": 98995378,
+  "params_by_node": {
+    "detector": 98995378,
+    "tracker": 0
+  },
+  "flops_total": 790270788200,
+  "flops_by_node": {
+    "detector": 790270560000,
+    "tracker": 228200
+  },
+  "metrics_checks": {
+    "kalmanPredictMacs": 1088,
+    "kalmanUpdateMacs": 1194,
+    "stateDim": 8,
+    "measDim": 4,
+    "detectorParams": 98995378,
+    "detectorMacs": 395135280000,
+    "assignN1": 90,
+    "assignN2": 20,
+    "trackHigh": 0.6,
+    "trackLow": 0.1,
+    "newTrackThresh": 0.7,
+    "matchThresh": 0.9,
+    "matchThresh2": 0.5,
+    "unconfirmedThresh": 0.7,
+    "trackBuffer": 30
+  },
+  "shapes": {
+    "track-mean": [
+      50,
+      8
+    ],
+    "track-cov": [
+      50,
+      8,
+      8
+    ],
+    "frame": [
+      800,
+      1440,
+      3
+    ],
+    "dets": [
+      50,
+      5
+    ],
+    "dets-high": [
+      40,
+      5
+    ],
+    "dets-low": [
+      10,
+      5
+    ],
+    "pred-mean": [
+      50,
+      8
+    ],
+    "pred-cov": [
+      50,
+      8,
+      8
+    ],
+    "iou-1": [
+      50,
+      40
+    ],
+    "cost-1": [
+      50,
+      40
+    ],
+    "matches-1": [
+      40,
+      2
+    ],
+    "iou-2": [
+      10,
+      10
+    ],
+    "cost-2": [
+      10,
+      10
+    ],
+    "matches-2": [
+      10,
+      2
+    ],
+    "track-mean-new": [
+      50,
+      8
+    ]
+  },
+  "kalman": {
+    "official": {
+      "predict": 1088,
+      "update": 1194,
+      "F": [
+        8,
+        8
+      ],
+      "H": [
+        4,
+        8
+      ],
+      "calls": [
+        [
+          "dot",
+          [
+            [
+              8
+            ],
+            [
+              8,
+              8
+            ]
+          ],
+          64
+        ],
+        [
+          "multi_dot",
+          [
+            [
+              8,
+              8
+            ],
+            [
+              8,
+              8
+            ],
+            [
+              8,
+              8
+            ]
+          ],
+          1024
+        ],
+        [
+          "dot",
+          [
+            [
+              4,
+              8
+            ],
+            [
+              8
+            ]
+          ],
+          32
+        ],
+        [
+          "multi_dot",
+          [
+            [
+              4,
+              8
+            ],
+            [
+              8,
+              8
+            ],
+            [
+              8,
+              4
+            ]
+          ],
+          384
+        ],
+        [
+          "cho_factor",
+          [
+            [
+              4,
+              4
+            ]
+          ],
+          10
+        ],
+        [
+          "dot",
+          [
+            [
+              8,
+              8
+            ],
+            [
+              8,
+              4
+            ]
+          ],
+          256
+        ],
+        [
+          "cho_solve",
+          [
+            [
+              4,
+              4
+            ],
+            [
+              4,
+              8
+            ]
+          ],
+          96
+        ],
+        [
+          "dot",
+          [
+            [
+              4
+            ],
+            [
+              4,
+              8
+            ]
+          ],
+          32
+        ],
+        [
+          "multi_dot",
+          [
+            [
+              8,
+              4
+            ],
+            [
+              4,
+              4
+            ],
+            [
+              4,
+              8
+            ]
+          ],
+          384
+        ]
+      ]
+    }
+  },
+  "detector": {
+    "what": "YOLOX-X (num_classes 1) a 800×1440",
+    "params": 98995378,
+    "flops": 790270560000,
+    "sanity_coco_640": {
+      "params": 99071455,
+      "flops": 281409792000,
+      "readme": "YOLOX README: YOLOX-x 99.1 M parámetros, 281.9 GFLOPs a 640"
+    }
+  },
+  "frame_port": {
+    "dets": [
+      50,
+      5
+    ],
+    "dets-high": [
+      40,
+      5
+    ],
+    "dets-low": [
+      10,
+      5
+    ],
+    "pred-mean": [
+      50,
+      8
+    ],
+    "pred-cov": [
+      50,
+      8,
+      8
+    ],
+    "iou-1": [
+      50,
+      40
+    ],
+    "cost-1": [
+      50,
+      40
+    ],
+    "matches-1": [
+      40,
+      2
+    ],
+    "iou-2": [
+      10,
+      10
+    ],
+    "cost-2": [
+      10,
+      10
+    ],
+    "matches-2": [
+      10,
+      2
+    ],
+    "track-mean-new": [
+      50,
+      8
+    ],
+    "lapjv_n": [
+      90,
+      20
+    ]
+  },
+  "source": {
+    "lib": "numpy+scipy (filtro oficial transcrito) / torch (YOLOX-X transcrito)",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    },
+    "repo": "ifzhang/ByteTrack (main)"
+  },
+  "notes": [
+    "Carga de referencia del calculador (knobs por defecto): nDet 50 (40 altas + 10 bajas, lowPct 20), nTracks 50, fps 30.",
+    "MACs del tracker = productos de matrices del Kalman contados en las llamadas reales con sus formas (np.dot, multi_dot, solve, inv, cho_factor, cho_solve; factorizaciones con las fórmulas de libro). IoU y asignación no son MACs (el calculador las pone en 'otros' ≈).",
+    "Kalman oficial (yolox/tracker/kalman_filter.py, transcrito): predict = 64 + 1,024; update = H·x 32 + H·P·Hᵀ 384 + P·Hᵀ 256 + Cholesky 10 + cho_solve con 8 lados 96 + y·Kᵀ 32 + K·S·Kᵀ 384.",
+    "match_thresh = 0.9: default de tools/track.py (el comando del README para MOT17 no lo cambia). El paper rechaza IoU < 0.2 (costo 0.8) y tools/demo_track.py usa 0.8. El evaluador cambia track_buffer (14 / 25) y track_thresh en algunas secuencias.",
+    "lapjv con cost_limit extiende la matriz a (filas + columnas) en cuadrado (lap 0.5.12 _lapjv.pyx: n = n_rows + n_cols); assignN1 = 50 + 40, assignN2 = 10 + 10 con el modelo de asociación del calculador."
+  ]
+}

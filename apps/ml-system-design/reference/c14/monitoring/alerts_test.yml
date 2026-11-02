@@ -1,0 +1,217 @@
+# Tests unitarios de alerts.yml con promtool: series sintéticas → ¿dispara o no, y cuándo?
+#   promtool test rules alerts_test.yml
+# Notación de promtool: '0+100x20' = empieza en 0 y suma 100 por intervalo, 20 veces (21 valores);
+# '1000x59 3000x30' = 60 valores de 1000 y luego 31 de 3000; '_x29' = 29 muestras faltantes (minutos 0–28).
+# El reloj de promtool empieza en 0 (epoch): time() en el minuto m vale 60·m.
+# Todas las series van cada 1 min aunque el job empuje una vez por noche: el Pushgateway las sirve en cada
+# scrape. Con una muestra por hora, el lookback de 5 min deja la serie "ausente" casi todo el tiempo y el
+# `for` nunca se cumple (y la rama absent de ForecastRunLate dispararía por error).
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------- ForecastRunLate
+  # Publicado el run_date R (medianoche local = epoch 0 en el reloj del test) y nada después. La noche de
+  # R + 1 vence a las 51.5 h (3,090 min): a las 51 h todavía no; a las 52 h, firing.
+  - interval: 1m
+    input_series:
+      - series: 'forecast_published_run_date_seconds{job="forecast_nightly"}'
+        values: '0x3200'
+    alert_rule_test:
+      - eval_time: 3060m
+        alertname: ForecastRunLate
+        exp_alerts: []
+      - eval_time: 3120m
+        alertname: ForecastRunLate
+        exp_alerts:
+          - exp_labels: {severity: page, cause: not_published, job: forecast_nightly}
+            exp_annotations:
+              summary: "Pronóstico de esta noche sin publicar a las 03:30 (not_published)"
+              description: "El ERP lee a las 04:00. ¿Corre el DAG forecast_nightly? (estado en Airflow, sensores esperando datos). El guardia forecast_fallback_guard publica el fallback a las 03:45; si tampoco corre: python run_forecast.py fallback --run-date <ayer> a mano. Después de las 03:55 el job ya no cambia lo que el ERP leyó."
+              runbook_url: "https://runbooks.example.com/c14/forecast-late"
+
+  # La noche siguiente sí publicó a tiempo (R + 1 a las 27 h = 1,620 min): no hay alerta a las 52 h.
+  - interval: 1m
+    input_series:
+      - series: 'forecast_published_run_date_seconds{job="forecast_nightly"}'
+        values: '0x1620 86400x1600'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ForecastRunLate"}
+        eval_time: 3120m
+        exp_samples: []
+      - expr: forecast:published_age_seconds
+        eval_time: 3120m
+        exp_samples:
+          - labels: 'forecast:published_age_seconds{job="forecast_nightly"}'
+            value: 100800  # 52 h − 24 h = 28 h: R + 1 tiene hasta las 51.5 h desde SU medianoche
+
+  # Sin la métrica (Pushgateway reiniciado sin persistencia, o el job nunca empujó): también es "tarde".
+  - interval: 1m
+    input_series:
+      - series: 'forecast_rows_published{job="forecast_nightly"}'
+        values: '67200000x20'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ForecastRunLate", alertstate="firing"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ForecastRunLate", alertstate="firing", severity="page", cause="no_metric"}'
+            value: 1
+
+  # ---------------------------------------------------------------- ForecastRunFailed
+  # Último éxito en t = 1000 s. En el minuto 29 un intento falla (t = 2000 s) → firing en el minuto 34 (for:
+  # 5m). En el minuto 60 el reintento termina bien (t = 3000 s) → se resuelve sola.
+  - interval: 1m
+    input_series:
+      - series: 'forecast_last_success_timestamp_seconds{job="forecast_nightly"}'
+        values: '1000x59 3000x30'
+      - series: 'forecast_last_failure_timestamp_seconds{job="forecast_nightly"}'
+        values: '_x29 2000x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ForecastRunFailed
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: ForecastRunFailed
+        exp_alerts:
+          - exp_labels: {severity: page, job: forecast_nightly}
+            exp_annotations:
+              summary: "El job de pronóstico falló y todavía no hay un intento exitoso después"
+              description: "Logs del pod (KubernetesPodOperator run_forecast). Causas típicas: faltan fechas en retail_events.yaml (MissingEventDates: agrega el Buen Fin/Hot Sale del año), warehouse caído, spot interrumpido (el reintento va en on-demand), OOM en features. Si falla el reintento, el DAG publica el fallback."
+              runbook_url: "https://runbooks.example.com/c14/forecast-failed"
+      - eval_time: 75m
+        alertname: ForecastRunFailed
+        exp_alerts: []
+
+  # Primer despliegue: nunca hubo un éxito y el primer intento falla → la rama `unless` lo atrapa.
+  - interval: 1m
+    input_series:
+      - series: 'forecast_last_failure_timestamp_seconds{job="forecast_nightly"}'
+        values: '500x30'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ForecastRunFailed", alertstate="firing"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ForecastRunFailed", alertstate="firing", severity="page", job="forecast_nightly"}'
+            value: 1
+
+  # ---------------------------------------------------------------- InputDataIncomplete
+  # 400 tiendas: 4 imputadas (1 %) no alertan; 12 (3 %) desde el minuto 11 → firing a partir del 16.
+  - interval: 1m
+    input_series:
+      - series: 'forecast_input_stores_expected{job="forecast_nightly"}'
+        values: '400x30'
+      - series: 'forecast_input_stores_imputed{job="forecast_nightly"}'
+        values: '4x10 12x20'
+    promql_expr_test:
+      - expr: ALERTS{alertname="InputDataIncomplete", alertstate="firing"}
+        eval_time: 10m
+        exp_samples: []
+      - expr: ALERTS{alertname="InputDataIncomplete", alertstate="firing"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'ALERTS{alertname="InputDataIncomplete", alertstate="firing", severity="ticket", job="forecast_nightly"}'
+            value: 1
+      - expr: forecast:input_imputed_ratio
+        eval_time: 25m
+        exp_samples:
+          - labels: 'forecast:input_imputed_ratio{job="forecast_nightly"}'
+            value: 0.03
+
+  # ---------------------------------------------------------------- ForecastValidationBlocked
+  - interval: 1m
+    input_series:
+      - series: 'forecast_validation_blocked{job="forecast_nightly"}'
+        values: '0x10 1x20'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ForecastValidationBlocked", alertstate="firing"}
+        eval_time: 10m
+        exp_samples: []
+      - expr: ALERTS{alertname="ForecastValidationBlocked", alertstate="firing"}
+        eval_time: 15m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ForecastValidationBlocked", alertstate="firing", severity="page", job="forecast_nightly"}'
+            value: 1
+
+  # ---------------------------------------------------------------- FallbackForecastServed
+  # El motivo viaja como label. Una noche con el modelo publicado (reason="none", valor 0) no alerta.
+  - interval: 1m
+    input_series:
+      - series: 'forecast_published_fallback{job="forecast_nightly", reason="validation_blocked"}'
+        values: '1x20'
+      - series: 'forecast_published_fallback{job="forecast_nightly", reason="none"}'
+        values: '0x20'
+    promql_expr_test:
+      - expr: ALERTS{alertname="FallbackForecastServed", alertstate="firing"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'ALERTS{alertname="FallbackForecastServed", alertstate="firing", severity="ticket", job="forecast_nightly", reason="validation_blocked"}'
+            value: 1
+
+  # ---------------------------------------------------------------- WAPEDegraded
+  # Frescos: 0.45 contra 0.38 del backtest (7 puntos) → firing después de 1 h. Abarrotes: 1 punto, nada.
+  - interval: 1m
+    input_series:
+      - series: 'forecast_eval_wape_7d{segment="fresh"}'
+        values: '0.45x90'
+      - series: 'forecast_eval_wape_backtest{segment="fresh"}'
+        values: '0.38x90'
+      - series: 'forecast_eval_wape_7d{segment="dry"}'
+        values: '0.36x90'
+      - series: 'forecast_eval_wape_backtest{segment="dry"}'
+        values: '0.35x90'
+    promql_expr_test:
+      - expr: ALERTS{alertname="WAPEDegraded", alertstate="firing"}
+        eval_time: 50m
+        exp_samples: []
+      - expr: ALERTS{alertname="WAPEDegraded", alertstate="firing"}
+        eval_time: 70m
+        exp_samples:
+          - labels: 'ALERTS{alertname="WAPEDegraded", alertstate="firing", severity="ticket", segment="fresh"}'
+            value: 1
+
+  # ---------------------------------------------------------------- ForecastBiasDrift
+  # Lentas: −0.75 contra −0.60 del backtest (−15 puntos: pide de menos) → firing. Rápidas: −0.20 contra −0.15
+  # (−5 puntos) → nada, aunque el sesgo sea negativo: el P50 tiene sesgo negativo por diseño. Promo: +0.05
+  # contra −0.10 (+15 puntos: pide de más) → firing.
+  - interval: 1m
+    input_series:
+      - series: 'forecast_eval_bias_7d{segment="slow"}'
+        values: '-0.75x90'
+      - series: 'forecast_eval_bias_backtest{segment="slow"}'
+        values: '-0.60x90'
+      - series: 'forecast_eval_bias_7d{segment="fast"}'
+        values: '-0.20x90'
+      - series: 'forecast_eval_bias_backtest{segment="fast"}'
+        values: '-0.15x90'
+      - series: 'forecast_eval_bias_7d{segment="promo"}'
+        values: '0.05x90'
+      - series: 'forecast_eval_bias_backtest{segment="promo"}'
+        values: '-0.10x90'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ForecastBiasDrift", alertstate="firing"}
+        eval_time: 70m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ForecastBiasDrift", alertstate="firing", severity="ticket", segment="slow"}'
+            value: 1
+          - labels: 'ALERTS{alertname="ForecastBiasDrift", alertstate="firing", severity="ticket", segment="promo"}'
+            value: 1
+
+  # ---------------------------------------------------------------- StockoutRateUp
+  # Una semana (10,080 min) en 6 % y después 8 % (1.33×): pending desde el minuto 10,081 y firing 6 h
+  # después. Los frescos pasan de 8 % a 9 % (1.125×): no alcanza el 1.25×.
+  - interval: 1m
+    input_series:
+      - series: 'retail_oos_rate_7d{segment="top"}'
+        values: '0.06x10080 0.08x700'
+      - series: 'retail_oos_rate_7d{segment="fresh"}'
+        values: '0.08x10080 0.09x700'
+    promql_expr_test:
+      - expr: ALERTS{alertname="StockoutRateUp", alertstate="firing"}
+        eval_time: 10200m
+        exp_samples: []
+      - expr: ALERTS{alertname="StockoutRateUp", alertstate="firing"}
+        eval_time: 10500m
+        exp_samples:
+          - labels: 'ALERTS{alertname="StockoutRateUp", alertstate="firing", severity="ticket", segment="top"}'
+            value: 1

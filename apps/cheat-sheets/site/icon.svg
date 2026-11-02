@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Ícono del sitio: una hoja con la esquina doblada y una línea marcada con resaltador, sobre la tinta azul. -->
+  <rect width="512" height="512" rx="112" fill="#1F5FAE"/>
+  <path d="M150 100 H310 L370 160 V412 H150 Z" fill="#FFFFFF"/>
+  <path d="M310 100 V160 H370 Z" fill="#C9D6E6"/>
+  <rect x="178" y="236" width="166" height="40" rx="6" fill="#F2C14E"/>
+  <g fill="#1F5FAE">
+    <rect x="186" y="190" width="104" height="16" rx="8"/>
+    <rect x="186" y="248" width="150" height="16" rx="8"/>
+    <rect x="186" y="306" width="128" height="16" rx="8"/>
+    <rect x="186" y="358" width="84" height="16" rx="8"/>
+  </g>
+</svg>

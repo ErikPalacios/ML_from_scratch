@@ -1,0 +1,1813 @@
+{
+ "sections": [
+  {
+   "id": "upstream",
+   "num": 5,
+   "title": "Llamar al servidor de modelos: cliente, pool, timeouts, reintentos y deadline",
+   "question": "¿Cómo llama tu gateway a Triton (o a cualquier servidor de modelos) sin quedarse colgado cuando el otro lado se pone lento, y cuándo vale la pena reintentar?",
+   "templates": [
+    {
+     "code": "@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    app.state.{cliente} = triton_http.InferenceServerClient(\n        url=\"{host}:{puerto}\", conn_limit={max_conexiones}, conn_timeout={respaldo_s})\n    yield\n    await app.state.{cliente}.close()",
+     "note": "Un solo cliente por proceso, creado en el <code>lifespan</code> (el bloque que corre al arrancar y al apagar la app) y cerrado al final. Reutiliza conexiones <b>keep-alive</b> (conexiones TCP que quedan abiertas entre requests), así no paga el handshake (el saludo para abrir una conexión) en cada request. El <b>pool</b> es ese grupo de conexiones abiertas y <code>conn_limit</code> es su tope. La URL va sin <code>http://</code>."
+    },
+    {
+     "code": "client = httpx.AsyncClient(\n    base_url=\"http://{host}:{puerto}\",\n    timeout=httpx.Timeout({por_operacion_s}, connect={conectar_s}),\n    limits=httpx.Limits(max_connections={max_conexiones}, max_keepalive_connections={ociosas}),\n)\nr = await client.post(\"{ruta}\", content={cuerpo})\nr.raise_for_status()\n# al apagar, en el lifespan: await client.aclose()",
+     "note": "Si tu servidor de modelos no trae cliente propio (la API HTTP de otro equipo, un servidor de modelos de lenguaje), usas <b>httpx</b>. Sus timeouts son <b>por operación</b>, de 5 s de inactividad por defecto: <code>connect</code> (abrir la conexión), <code>read</code> (esperar cada trozo de la respuesta), <code>write</code> (mandar cada trozo) y <code>pool</code> (esperar una conexión libre). No hay un tope total: ese lo pones tú, como en la plantilla siguiente. <b>httpx2</b> es su continuación, mantenida por Pydantic: la misma API con <code>import httpx2</code>."
+    },
+    {
+     "code": "deadline = t0 + {presupuesto_s}  # una sola vez, al entrar\nrestante = deadline - time.perf_counter()\ntry:\n    async with asyncio.timeout(min({tope_s}, restante)):\n        resultado = await {llamada}\nexcept TimeoutError:\n    raise HTTPException(504, \"{mensaje}\") from None",
+     "note": "El <b>deadline</b> es la hora límite del request: se fija una vez, al entrar. Cada salto usa lo que queda (<b>deadline propagation</b>: propagar el plazo hacia adentro). <code>asyncio.timeout</code> (Python 3.11+) y <code>asyncio.wait_for</code> cancelan la llamada al vencer y lanzan <code>TimeoutError</code>. C01 usa <code>wait_for</code>."
+    },
+    {
+     "code": "for intento in range({intentos}):\n    try:\n        return await {llamada}\n    except {errores_transitorios}:\n        espera = random.uniform(0, min({tope_espera_s}, {base_s} * 2 ** intento))\n        if intento == {intentos} - 1 or time.perf_counter() + espera >= deadline:\n            raise\n        await asyncio.sleep(espera)",
+     "note": "Reintenta solo si la operación es <b>idempotente</b> (repetirla deja el mismo efecto que hacerla una vez) y el error es <b>transitorio</b> (puede salir bien después: conexión rechazada, 503, 429). <b>Backoff exponencial</b>: la espera máxima se duplica en cada intento. <b>Full jitter</b>: la espera real cae al azar entre 0 y ese máximo, para que los clientes no vuelvan todos juntos. Si el error trae <code>Retry-After</code> (el header que dice cuántos segundos esperar), espera al menos eso; si la espera ya no cabe en el deadline, no reintentes. En el camino interactivo de C01 (una persona esperando en el formulario) nadie reintenta."
+    }
+   ],
+   "formulas": [
+    "t_{\\text{Triton}} = \\min\\big(150\\ \\text{ms},\\ \\text{deadline} - \\text{ahora}\\big)",
+    "300\\ \\text{ms (caller)} \\;>\\; 250\\ \\text{ms (deadline)} \\;>\\; 150\\ \\text{ms (Triton)} \\;>\\; 100\\ \\text{ms (cola de Triton)}",
+    "L = \\lambda \\cdot W \\qquad 100\\ \\text{req/s} \\times 0.15\\ \\text{s} = 15\\ \\text{llamadas abiertas por pod con Triton colgado}",
+    "\\text{espera}_n \\sim U\\big(0,\\ \\min(\\text{tope},\\ \\text{base} \\cdot 2^{n})\\big) \\qquad \\text{base} = 100\\ \\text{ms}:\\ 100,\\ 200,\\ 400\\ \\text{ms}",
+    "A = (1 + r)^{c} \\qquad (1 + 3)^{3} = 64 \\qquad (1 + 2)^{5} = 243"
+   ],
+   "vars": [
+    [
+     "{cliente}",
+     "nombre del cliente en app.state",
+     "triton"
+    ],
+    [
+     "{host}:{puerto}",
+     "dónde escucha el servidor de modelos; tritonclient lo quiere sin http://",
+     "triton.classifier.svc.cluster.local:8000"
+    ],
+    [
+     "{max_conexiones}",
+     "tope de conexiones abiertas a la vez en el pool",
+     "64 en C01; el default es 100 en tritonclient aio, aiohttp y httpx"
+    ],
+    [
+     "{respaldo_s}",
+     "tope total por llamada, para toda la sesión del cliente",
+     "1.0 en C01; el default es 60.0"
+    ],
+    [
+     "{por_operacion_s}",
+     "tope de httpx para cada espera de read, write y pool",
+     "1.0 (ilustrativo); el default es 5.0"
+    ],
+    [
+     "{conectar_s}",
+     "tope de httpx para abrir la conexión TCP",
+     "0.2 (ilustrativo)"
+    ],
+    [
+     "{ociosas}",
+     "conexiones sin uso que el pool deja abiertas",
+     "20 (default de httpx; las cierra tras 5 s sin uso)"
+    ],
+    [
+     "{ruta}, {cuerpo}",
+     "endpoint del servidor de modelos y los bytes que mandas",
+     "\"/v1/predict\" y el JSON del request (ilustrativo)"
+    ],
+    [
+     "{presupuesto_s}",
+     "presupuesto total del request dentro del gateway",
+     "0.25 (REQUEST_DEADLINE_S)"
+    ],
+    [
+     "{tope_s}",
+     "tope de este salto",
+     "0.15 (INFER_TIMEOUT_S)"
+    ],
+    [
+     "{llamada}",
+     "la corrutina (la llamada async que esperas con await) al upstream, el servicio al que llamas",
+     "client.infer(MODEL_NAME, [inp], outputs=[out], request_id=request_id)"
+    ],
+    [
+     "{mensaje}",
+     "el detail (el texto del error) que lee el caller, quien llama al gateway",
+     "timeout de inferencia"
+    ],
+    [
+     "{intentos}",
+     "intentos en total, contando el primero",
+     "2 (un reintento), solo para callers batch (scripts sin una persona esperando)"
+    ],
+    [
+     "{errores_transitorios}",
+     "excepciones que valen otro intento",
+     "con tritonclient aio (el cliente de C01): aiohttp.ClientConnectorError (no pudo conectar) o un InferenceServerException con status() \"503\"; con httpx: httpx.ConnectError, httpx.ConnectTimeout o un 503 o 429 convertido en excepción"
+    ],
+    [
+     "{base_s}, {tope_espera_s}",
+     "espera base del backoff y su techo",
+     "0.1 y 2.0 (los del lab)"
+    ],
+    [
+     "deadline",
+     "hora límite del request en el reloj time.perf_counter(): llegada + 250 ms",
+     "t0 + 0.25"
+    ],
+    [
+     "ahora",
+     "time.perf_counter() en ese momento",
+     "t0 + 0.20 si el decode tardó 200 ms: a Triton le quedan 50 ms"
+    ],
+    [
+     "L, λ, W",
+     "llamadas abiertas a la vez, llamadas por segundo en un pod, cuánto dura cada una",
+     "15 = 100 × 0.15"
+    ],
+    [
+     "n",
+     "número de reintento, desde 0",
+     "0, 1, 2"
+    ],
+    [
+     "U(a, b)",
+     "un número al azar entre a y b, todos igual de probables",
+     "random.uniform(0, 0.4)"
+    ],
+    [
+     "A, r, c",
+     "intentos que llegan al fondo por cada request de arriba, reintentos por capa, capas que reintentan",
+     "64 = (1 + 3)³"
+    ]
+   ],
+   "pieces": [
+    [
+     "Cliente reutilizado",
+     "Uno por proceso: se crea en el lifespan y se cierra al apagar. Uno por request abre una conexión nueva cada vez; si además no lo cierras, aiohttp avisa Unclosed client session.",
+     "app.state.triton en C01"
+    ],
+    [
+     "Pool de conexiones y keep-alive",
+     "Las conexiones abiertas que el cliente reutiliza. Si están todas ocupadas, la llamada espera una libre, y esa espera cuenta en el timeout.",
+     "conn_limit=64 → aiohttp.TCPConnector(limit=64); aiohttp cierra una ociosa a los 15 s"
+    ],
+    [
+     "HTTP o gRPC hacia Triton",
+     "C01 usa HTTP con un pool: el Service de Kubernetes (la dirección fija delante de los pods de Triton) reparte conexiones, no requests, y el pool abre varias. gRPC (el otro protocolo de Triton, con mensajes binarios) lleva todo por una sola conexión HTTP/2 de larga vida: el tráfico de un gateway quedaría pegado a un solo pod de Triton.",
+     "con gRPC, el timeout por llamada es client_timeout, en segundos"
+    ],
+    [
+     "Timeouts por operación (httpx)",
+     "connect, read, write y pool: cada uno mide una sola espera, no el request completo. 5 s por defecto.",
+     "ConnectTimeout, ReadTimeout, PoolTimeout"
+    ],
+    [
+     "Timeout total (aiohttp)",
+     "ClientTimeout(total=…) cubre la llamada entera, incluida la espera por una conexión del pool. Default de aiohttp: 300 s.",
+     "conn_timeout=1.0 → ClientTimeout(total=1.0)"
+    ],
+    [
+     "Deadline y deadline propagation",
+     "Una sola hora límite por request. Cada etapa usa lo que queda y, si ya no alcanza, corta sin hacer el trabajo.",
+     "_budget_left(deadline) → 504"
+    ],
+    [
+     "asyncio.wait_for y asyncio.timeout",
+     "Cortan cualquier await al vencer: cancelan la llamada y lanzan el TimeoutError normal de Python (desde 3.11; antes, asyncio.TimeoutError era otra clase).",
+     "wait_for(client.infer(…), timeout=min(0.15, left))"
+    ],
+    [
+     "timeout= de infer()",
+     "No es del cliente: son microsegundos que Triton aplica en su propia cola, y solo si el modelo tiene dynamic batching (Triton junta requests en lotes).",
+     "C01 no lo usa"
+    ],
+    [
+     "Cancelación que no llega",
+     "Cortar en el gateway libera tu conexión y tu lugar. La doc de Triton describe la cancelación de requests para su endpoint gRPC y su API de C; de HTTP no dice nada: cuenta con que el request sigue en su cola o en la GPU.",
+     "por eso la cola de Triton rechaza a los 100 ms (REJECT)"
+    ],
+    [
+     "Idempotente",
+     "Repetirla deja el mismo efecto que hacerla una vez. POST no lo es por definición, pero clasificar una foto sí, por diseño.",
+     "cobrar o crear un registro no lo es, salvo con una idempotency key (un id por operación con el que el servidor detecta el repetido)"
+    ],
+    [
+     "Transitorio contra permanente",
+     "Transitorio: puede salir bien después (conexión rechazada, 503, 429). Permanente: va a fallar igual (400, 413, 415, 422).",
+     "solo los transitorios se reintentan"
+    ],
+    [
+     "Backoff exponencial con full jitter",
+     "Esperar cada vez más (el doble) y al azar dentro de ese máximo, para no volver todos en el mismo instante.",
+     "al azar entre 0 y 100, 200 y 400 ms"
+    ],
+    [
+     "Retry budget",
+     "Un tope a la fracción de requests que pueden ser reintentos; pasado el tope, no se reintenta.",
+     "≈ 10 % (capítulo Handling Overload del libro Site Reliability Engineering de Google)"
+    ],
+    [
+     "Amplificación de reintentos",
+     "Si cada capa reintenta por su cuenta, los intentos se multiplican: (1 + reintentos) elevado al número de capas.",
+     "3 reintentos en 3 capas = 64 intentos al fondo; AWS cita 243 con 5 capas de 3 intentos cada una (3⁵)"
+    ],
+    [
+     "httpx y httpx2",
+     "httpx sigue en 0.28.1 (diciembre de 2024). httpx2, de Pydantic desde mayo de 2026, es un fork (una copia que sigue por su cuenta) de esa versión: la misma API, renombrada.",
+     "httpx2==2.13.1 en requirements-dev.txt de C01 (lo pide el TestClient, el cliente de pruebas de Starlette); hoy va en 2.16.0"
+    ]
+   ],
+   "tables": [
+    {
+     "caption": "Los timeouts de C01, de afuera hacia adentro",
+     "head": [
+      "Tramo",
+      "Tope",
+      "Dónde se fija",
+      "Al vencer"
+     ],
+     "rows": [
+      [
+       "Caller → gateway",
+       "300 ms",
+       "backend de publicación (fuera del repo)",
+       "la interfaz muestra el selector manual de categorías"
+      ],
+      [
+       "Deadline del gateway",
+       "250 ms",
+       "REQUEST_DEADLINE_S en main.py",
+       "504 se agotó el presupuesto del request"
+      ],
+      [
+       "Gateway → Triton",
+       "min(150 ms, lo que queda)",
+       "INFER_TIMEOUT_S y asyncio.wait_for en _infer",
+       "504 timeout de inferencia"
+      ],
+      [
+       "Cola de Triton",
+       "100 ms",
+       "default_queue_policy en config.pbtxt",
+       "Triton rechaza con Request timeout expired → el gateway responde 503"
+      ],
+      [
+       "Respaldo de aiohttp",
+       "1.0 s en total",
+       "conn_timeout=1.0 en el lifespan",
+       "no debería pasar: wait_for corta antes"
+      ],
+      [
+       "/readyz → Triton",
+       "0.5 s",
+       "asyncio.wait_for en readyz()",
+       "no listo → 503; con 2 fallos seguidos (≈ 10 s), el pod sale del tráfico"
+      ]
+     ],
+     "note": "Cada tope es menor que el de afuera: así falla primero el de más adentro, rápido y con un código claro. El de 0.5 s de <code>/readyz</code> queda debajo del <code>timeoutSeconds: 2</code> de la probe (la pregunta periódica del kubelet)."
+    }
+   ],
+   "example": {
+    "title": "main.py: un cliente por proceso y un deadline por request",
+    "lang": "python",
+    "code": "INFER_TIMEOUT_S = float(os.getenv(\"INFER_TIMEOUT_S\", \"0.15\"))  # 150 ms para Triton dentro del p99 ≤ 200 ms\n# …\n# Presupuesto total server-side (< 300 ms del caller). Cada etapa usa lo que queda: deadline propagation\nREQUEST_DEADLINE_S = float(os.getenv(\"REQUEST_DEADLINE_S\", \"0.25\"))\n# …\n    # UN cliente por proceso: reutiliza conexiones keep-alive (sin handshake TCP por request).\n    # conn_limit = máximo de requests en vuelo hacia Triton (backpressure); conn_timeout es un\n    # timeout total de aiohttp para CUALQUIER llamada: queda de respaldo (el fino va en _infer).\n    # Se crea aquí y no al importar: aiohttp necesita un event loop corriendo.\n    app.state.triton = triton_http.InferenceServerClient(url=TRITON_URL, conn_limit=64, conn_timeout=1.0)\n    yield  # aquí la app atiende tráfico\n    await app.state.triton.close()  # cierra el pool de conexiones limpiamente en el SIGTERM\n# …\ndef _budget_left(deadline: float) -> float:\n    \"\"\"Segundos que quedan del presupuesto. Agotado → 504: no gastes CPU ni GPU en un request abandonado.\"\"\"\n    left = deadline - time.perf_counter()\n    if left <= 0:\n        raise HTTPException(504, \"se agotó el presupuesto del request\")\n    return left\n# …\n    left = _budget_left(deadline)  # no mandes a la GPU un request que el caller ya abandonó\n    t = time.perf_counter()\n    try:\n        logits = await _infer(  # I/O: aquí el await sí cede el loop\n            request.app.state.triton, batch, record[\"request_id\"], timeout=min(INFER_TIMEOUT_S, left)\n        )\n    finally:\n        # También si Triton falla (503) o no contesta a tiempo (504): un timeout es la llamada MÁS lenta,\n        # no una que falta. Si no entrara, el p99 de inferencia se vería sano justo cuando Triton está\n        # lento, y el desglose no cuadraría con la latencia total, que sí cuenta los 5xx.\n        inf_s = time.perf_counter() - t\n        INFERENCE.observe(inf_s)\n        record[\"inference_ms\"] = round(inf_s * 1000, 1)\n# …\n        result = await asyncio.wait_for(\n            client.infer(MODEL_NAME, [inp], outputs=[out], request_id=request_id),\n            timeout=timeout,  # ≤ INFER_TIMEOUT_S: lo que quede del presupuesto del request\n        )",
+    "source": "reference/c01/gateway/app/main.py (líneas 41, 51–52, 107–113, 191–196, 294–306 y 169–172; # … marca líneas omitidas)",
+    "notes": [
+     "Un cliente por proceso, creado en el <code>lifespan</code> con el event loop (el hilo que atiende las corrutinas por turnos) ya corriendo (aiohttp lo exige: fuera de un loop, su constructor falla) y cerrado con <code>await …close()</code> al apagar. <code>conn_limit=64</code> pasa a <code>aiohttp.TCPConnector(limit=64)</code>. Como el gateway acepta como mucho 16 requests a la vez, el pool nunca es el cuello.",
+     "<code>conn_timeout=1.0</code> se vuelve <code>aiohttp.ClientTimeout(total=1.0)</code> para toda la sesión: un tope total por llamada, incluida la espera por una conexión libre. Queda de respaldo; el tope fino de cada request lo pone <code>asyncio.wait_for</code>.",
+     "El deadline se fija una vez (<code>t0 + REQUEST_DEADLINE_S</code>). Antes del decode y antes de Triton, <code>_budget_left</code> revisa cuánto queda; si no queda nada, 504 sin gastar CPU ni GPU. A Triton le toca <code>min(0.15, lo que queda)</code>: si el decode tardó 200 ms, Triton tiene ≈ 50 ms, no 150 (el lab lo muestra).",
+     "<code>asyncio.wait_for</code> cancela la llamada al vencer y lanza <code>TimeoutError</code> → 504. Esa cancelación corta tu lado; Triton no documenta cancelación por HTTP, así que el request puede seguir en su cola. Por eso su cola rechaza lo que lleva más de 100 ms esperando.",
+     "La llamada se mide en un <code>finally</code>: también los 503 y los 504 dejan su tiempo en <code>classifier_inference_seconds</code> y en <code>inference_ms</code>. Un timeout es la llamada más lenta, no una que falta: si no entrara, el p99 de inferencia se vería sano justo cuando Triton está lento.",
+     "Sin reintentos: si Triton tarda o cae, el gateway responde enseguida 504 o 503 y el caller muestra el selector manual. Los callers batch (scripts que procesan lotes, sin una persona esperando) reintentan una vez, respetando <code>Retry-After</code>, con jitter y dentro de un presupuesto de ≈ 10 %. Versiones: C01 fija tritonclient 2.72.0 y aiohttp 3.14.3; en octubre de 2026 van en 2.73.0 y 3.14.5, con la misma firma de <code>infer</code> y los mismos <code>conn_limit</code> y <code>conn_timeout</code>."
+    ]
+   },
+   "figure": {
+    "kind": "timeouts",
+    "caption": "Arriba, los topes anidados de C01 a escala, en ms: cada uno cabe dentro del de afuera. En medio, un request del lab con decode lento: a Triton solo le quedan ≈ 49 ms. Abajo, 3 reintentos con backoff exponencial y full jitter: la espera máxima se duplica (100, 200 y 400 ms) y la real cae al azar dentro de ella; sin jitter, 1,000 clientes vuelven en el mismo instante.",
+    "data": {
+     "unit": "ms",
+     "budgets": [
+      {
+       "name": "caller (backend de publicación)",
+       "ms": 300,
+       "where": "fuera del repo",
+       "expires": "la interfaz muestra el selector manual"
+      },
+      {
+       "name": "deadline del gateway",
+       "ms": 250,
+       "where": "REQUEST_DEADLINE_S",
+       "expires": "504 se agotó el presupuesto del request"
+      },
+      {
+       "name": "gateway → Triton",
+       "ms": 150,
+       "where": "INFER_TIMEOUT_S, o lo que quede si es menos",
+       "expires": "504 timeout de inferencia"
+      },
+      {
+       "name": "cola de Triton",
+       "ms": 100,
+       "where": "default_queue_policy con REJECT",
+       "expires": "Triton rechaza → 503"
+      }
+     ],
+     "example_request": {
+      "label": "decode lento (lab de esta sección)",
+      "steps": [
+       {
+        "name": "decode",
+        "start_ms": 0,
+        "ms": 200
+       },
+       {
+        "name": "Triton: le quedaban ≈ 49 ms",
+        "start_ms": 201,
+        "ms": 49
+       }
+      ],
+      "result": "504 timeout de inferencia a los ≈ 250 ms: Triton tuvo ≈ 49 ms, no 150"
+     },
+     "retries": {
+      "base_ms": 100,
+      "max_wait_ms": [
+       100,
+       200,
+       400
+      ],
+      "no_jitter_at_ms": [
+       100,
+       300,
+       700
+      ],
+      "clients_full_jitter_at_ms": [
+       {
+        "name": "cliente 1",
+        "at_ms": [
+         32.4,
+         62.6,
+         322.9
+        ]
+       },
+       {
+        "name": "cliente 2",
+        "at_ms": [
+         7.2,
+         114.4,
+         260.7
+        ]
+       },
+       {
+        "name": "cliente 3",
+        "at_ms": [
+         5.8,
+         107.3,
+         122.3
+        ]
+       }
+      ],
+      "storm": {
+       "clients": 1000,
+       "window_ms": 10,
+       "peak_no_jitter": 1000,
+       "peak_full_jitter": 154,
+       "windows_no_jitter": 3,
+       "windows_full_jitter": 66
+      }
+     },
+     "amplification": {
+      "retries_per_layer": 3,
+      "layers": 3,
+      "attempts_at_bottom": 64
+     }
+    }
+   },
+   "memo": "Cómo recordarla: <b>un cliente, un pool, un deadline</b>. El cliente se crea una vez; el pool reusa las conexiones; cada salto usa lo que queda del plazo (<code>300 → 250 → 150 → 100 ms</code>). Reintentar es pedir prestados tiempo y carga: solo si es idempotente y transitorio, con jitter, dentro del deadline y en una sola capa.",
+   "trap": "Trampa: confiar en los defaults. <code>requests</code> (la librería) no tiene timeout por defecto: sin <code>timeout</code>, puede esperar minutos o para siempre; httpx corta tras 5 s de inactividad en cada operación (no en total); aiohttp, a los 300 s; tritonclient aio, a los 60 s. Con un caller que se va a los 300 ms, cada llamada colgada ocupa una conexión y un lugar para una respuesta que nadie lee. Y la segunda: reintentar un timeout en el camino interactivo. Un timeout suele significar «Triton está lento por carga»: el reintento le suma carga justo ahí y tiene menos tiempo que el primer intento.",
+   "lab": {
+    "goal": "Ver, con un Triton falso hecho solo con Python estándar, cómo el deadline recorta el tiempo de cada salto, cuántas llamadas quedan abiertas con y sin timeout (Little) y qué hace el jitter con una tormenta de reintentos.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway && cd ~/lab-gateway\ncat > deadline.py <<'EOF'\n# deadline.py: un \"Triton\" falso y un gateway con deadline, como en C01 (solo stdlib)\nimport asyncio, time\n\nINFER_TIMEOUT_S = 0.15  # tope del salto a Triton (C01)\nDEADLINE_S = 0.25       # presupuesto total del request (C01)\n\nasync def triton_falso(demora_s):\n    await asyncio.sleep(demora_s)  # cola + GPU, simuladas\n    return \"logits\"\n\nasync def gateway(decode_s, triton_s):\n    t0 = time.perf_counter()\n    deadline = t0 + DEADLINE_S                  # se fija una vez, al entrar\n    await asyncio.sleep(decode_s)               # el decode (en C01 va al threadpool)\n    left = deadline - time.perf_counter()       # lo que queda del presupuesto\n    if left <= 0:\n        return 504, \"se agotó el presupuesto\", t0\n    try:\n        await asyncio.wait_for(triton_falso(triton_s), timeout=min(INFER_TIMEOUT_S, left))\n        return 200, f\"ok (Triton tenía {min(INFER_TIMEOUT_S, left) * 1000:.0f} ms)\", t0\n    except TimeoutError:\n        return 504, f\"timeout de inferencia (tenía {min(INFER_TIMEOUT_S, left) * 1000:.0f} ms)\", t0\n\nasync def main():\n    casos = [(\"normal\", 0.010, 0.008), (\"Triton lento\", 0.010, 1.0),\n             (\"decode lento\", 0.200, 0.080), (\"decode eterno\", 0.300, 0.008)]\n    for nombre, dec, tri in casos:\n        codigo, detalle, t0 = await gateway(dec, tri)\n        dt = (time.perf_counter() - t0) * 1000\n        print(f\"{nombre:13} -> {codigo} {detalle:38} respondió en {dt:4.0f} ms\")\n\nasyncio.run(main())\nEOF\npython3.13 deadline.py",
+      "expect": "Cuatro líneas. normal → 200 en ≈ 20 ms (Triton tenía 150 ms). Triton lento → 504 timeout de inferencia en ≈ 160 ms: el gateway no espera el segundo entero. decode lento → 504 en ≈ 250 ms, y Triton tenía solo ≈ 49 ms: lo que quedaba del presupuesto. decode eterno → 504 se agotó el presupuesto en ≈ 300 ms: ni se llamó a Triton, pero el decode no se corta, así que el caller (300 ms) ya se fue. Los ms exactos varían 1 o 2 entre corridas."
+     },
+     {
+      "cmd": "cat > envuelo.py <<'EOF'\n# envuelo.py: 100 req/s durante 3 s contra un Triton colgado 1 s; ¿cuántas llamadas abiertas a la vez?\nimport asyncio\n\nasync def llamada(timeout_s, estado):\n    estado[\"abiertas\"] += 1\n    estado[\"max\"] = max(estado[\"max\"], estado[\"abiertas\"])\n    try:\n        await asyncio.wait_for(asyncio.sleep(1.0), timeout=timeout_s)  # Triton no contesta en 1 s\n    except TimeoutError:\n        pass  # el gateway respondería 504\n    finally:\n        estado[\"abiertas\"] -= 1\n\nasync def carga(timeout_s, tasa=100, segundos=3):\n    estado = {\"abiertas\": 0, \"max\": 0}\n    loop = asyncio.get_running_loop()\n    inicio, tareas = loop.time(), []\n    for i in range(tasa * segundos):\n        await asyncio.sleep(max(0.0, inicio + i / tasa - loop.time()))  # una llamada cada 10 ms\n        tareas.append(asyncio.create_task(llamada(timeout_s, estado)))\n    await asyncio.gather(*tareas)\n    return estado[\"max\"]\n\nasync def main():\n    for t in (None, 0.15):\n        w = 1.0 if t is None else t\n        print(f\"timeout {str(t):4}: máximo de llamadas abiertas = {await carga(t):3}   (Little: 100 req/s × {w} s = {100 * w:.0f})\")\n\nasyncio.run(main())\nEOF\npython3.13 envuelo.py",
+      "expect": "Tarda ≈ 7 s. timeout None: máximo de llamadas abiertas = 101 (Little: 100). timeout 0.15: máximo = 16 (Little: 15). El timeout no hace más rápido a Triton: acota cuánto se acumula en el gateway mientras Triton está mal (16 coincide con el MAX_INFLIGHT de C01)."
+     },
+     {
+      "cmd": "cat > reintentos.py <<'EOF'\n# reintentos.py: 1,000 clientes fallan juntos en t = 0 y reintentan 3 veces; ¿cuántos golpean a la vez?\nimport random\nfrom collections import Counter\n\ndef llegadas(jitter, clientes=1000, reintentos=3, base_ms=100, tope_ms=2000):\n    random.seed(7)  # misma semilla = mismos números en cualquier Python 3\n    tiempos = []\n    for _ in range(clientes):\n        t = 0.0\n        for n in range(reintentos):\n            maximo = min(tope_ms, base_ms * 2 ** n)              # backoff exponencial: 100, 200, 400 ms\n            t += random.uniform(0, maximo) if jitter else maximo  # full jitter: al azar entre 0 y el máximo\n            tiempos.append(t)\n    return tiempos\n\nfor jitter in (False, True):\n    ventanas = Counter(int(t // 10) for t in llegadas(jitter))  # reintentos por ventana de 10 ms\n    nombre = \"full jitter\" if jitter else \"sin jitter \"\n    print(f\"{nombre}: pico = {max(ventanas.values()):4} reintentos en 10 ms; ventanas de 10 ms con tráfico = {len(ventanas)}\")\n\nprint(\"amplificación con 3 reintentos por capa y 3 capas:\", (1 + 3) ** 3)\nprint(\"amplificación con 2 reintentos por capa y 5 capas:\", (1 + 2) ** 5)\nEOF\npython3.13 reintentos.py",
+      "expect": "sin jitter: pico = 1000 reintentos en 10 ms y solo 3 ventanas con tráfico (a los 100, 300 y 700 ms): los 1,000 clientes vuelven juntos, tres veces. full jitter: pico = 154, repartidos en 66 ventanas. Y las amplificaciones: 64 con 3 reintentos en 3 capas, 243 con 2 reintentos en 5 capas."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Si ves asyncio.exceptions.TimeoutError sin atrapar, corriste un Python anterior a 3.11 (ahí wait_for lanza asyncio.TimeoutError, que todavía no era el TimeoutError normal de Python): usa python3.13. Los tiempos de deadline.py y envuelo.py pueden variar 1 o 2 ms o en una llamada; los de reintentos.py son exactos porque la semilla es fija. Para jugar: cambia INFER_TIMEOUT_S, la demora de Triton o la base del backoff.",
+    "needs": "Python 3.11 o más nuevo (los comandos usan python3.13, la versión de C01), sin paquetes extra. Ni Docker ni GPU.",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS (Apple Silicon) con Python 3.13.15, 3.13.16 y 3.14.3, y repetido copiando los pasos tal cual en zsh: las salidas de arriba son las de esas corridas (en deadline.py, ±2 ms entre corridas). reintentos.py da exactamente lo mismo también con Python 3.9.6. Solo usa la biblioteca estándar (asyncio.wait_for, asyncio.sleep, random, collections)."
+   },
+   "links": [
+    "#c01.serving",
+    "#m03.timeouts-reintentos",
+    "#m03.little",
+    "#m07.protocolos",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "backpressure",
+   "num": 6,
+   "title": "Backpressure y control de admisión: límite en vuelo, 429 contra 503, load shedding",
+   "question": "Si llegan más requests de los que tu pod puede terminar a tiempo, ¿los encolas, los rechazas o dejas que todo se caiga?",
+   "templates": [
+    {
+     "code": "if request.app.state.inflight >= {max_en_vuelo}:\n    raise HTTPException(503, \"{mensaje}\", headers={\"Retry-After\": \"{segundos}\"})\nrequest.app.state.inflight += 1\ntry:\n    resultado = await {trabajo}\nfinally:\n    request.app.state.inflight -= 1",
+     "note": "<b>Control de admisión</b> (admission control): decidir en la puerta si un request entra, antes de gastar CPU o GPU en él. Entre el <code>if</code> y el <code>+= 1</code> no hay <code>await</code>, y el event loop (un solo hilo que atiende las corrutinas por turnos) no deja que otra se meta en medio: no hace falta lock (un candado para que dos hilos no pisen el mismo dato). El <code>finally</code> devuelve el lugar aunque el trabajo falle."
+    },
+    {
+     "code": "try:\n    await asyncio.wait_for({semaforo}.acquire(), timeout={espera_max_s})\nexcept TimeoutError:\n    raise HTTPException(503, \"{mensaje}\", headers={\"Retry-After\": \"{segundos}\"}) from None\ntry:\n    resultado = await run_in_threadpool({funcion}, {datos})\nfinally:\n    {semaforo}.release()",
+     "note": "Un <b>semáforo</b> (<code>asyncio.Semaphore(n)</code>: un contador de n lugares; <code>acquire</code> toma uno o espera, <code>release</code> lo devuelve) acota el trabajo caro. <code>run_in_threadpool</code> corre la función en un hilo del threadpool (el grupo de hilos para trabajo bloqueante). La espera con tope es una <b>cola acotada</b>: si no hay lugar en 50 ms, ya no llegas a la meta de latencia y es mejor rechazar."
+    },
+    {
+     "code": "cuota = {baldes}[{identidad_verificada}]\nif not cuota.tomar():\n    raise HTTPException(429, \"{mensaje}\", headers={\"Retry-After\": \"{segundos}\"})",
+     "note": "Cuota por caller (quien llama al gateway) con un <b>token bucket</b> (un balde de fichas que se recarga a ritmo fijo; cada request gasta una). <b>429</b> = tú te pasaste de tu cuota; <b>503</b> = yo estoy lleno. La identidad sale de algo verificado (el token de servicio que valida el ALB, el balanceador de AWS, o mTLS: TLS con certificado también del lado del cliente), nunca de un header que escribe el caller. C01 lo propone, pero su <code>main.py</code> no lo trae."
+    },
+    {
+     "code": "uvicorn {modulo}:app --limit-concurrency {n} --backlog {cola_tcp}",
+     "note": "Tope de todo el proceso de uvicorn, no de tu ruta: con n conexiones abiertas (cuentan también las keep-alive ociosas, abiertas a la espera de otro request) o n tareas, uvicorn responde 503 con el texto <code>Service Unavailable</code>, sin <code>Retry-After</code> (el header que dice cuándo volver), también a <code>/healthz</code> y <code>/readyz</code>. <code>--backlog</code> (2048 por defecto) es la cola de conexiones TCP que el sistema operativo guarda antes de que uvicorn las acepte."
+    }
+   ],
+   "formulas": [
+    "L = \\lambda \\cdot W \\qquad 100\\ \\text{req/s} \\times 0.2\\ \\text{s} = 20 \\;\\rightarrow\\; \\texttt{MAX\\_INFLIGHT} = 16\\ \\text{(tope por RAM)}",
+    "80\\ \\text{MB (Python)} + 2 \\times 320\\ \\text{MB (decodes)} + 16 \\times 10\\ \\text{MB (bodies)} = 880\\ \\text{MB} < 1\\ \\text{GiB}",
+    "W_{\\text{cola}} = \\frac{n_{\\text{cola}}}{\\mu} \\qquad \\frac{100\\ \\text{requests}}{100\\ \\text{req/s}} = 1\\ \\text{s} \\gg 250\\ \\text{ms}",
+    "\\rho = \\frac{\\lambda}{\\mu} = \\frac{250}{167} \\approx 1.5 \\;\\Rightarrow\\; \\text{a tiempo} \\approx \\frac{\\mu}{\\lambda} \\approx 67\\ \\%\\ \\text{(el lab da 68.6 \\%)}"
+   ],
+   "vars": [
+    [
+     "{max_en_vuelo}",
+     "requests aceptados a la vez por proceso",
+     "16 (MAX_INFLIGHT)"
+    ],
+    [
+     "{mensaje}",
+     "texto del detail",
+     "gateway saturado: reintenta más tarde"
+    ],
+    [
+     "{segundos}",
+     "Retry-After en segundos enteros",
+     "1"
+    ],
+    [
+     "{trabajo}",
+     "la corrutina que hace el trabajo del request",
+     "_classify(request, top_k, record, deadline=t0 + REQUEST_DEADLINE_S)"
+    ],
+    [
+     "{semaforo}",
+     "asyncio.Semaphore creado en el lifespan",
+     "request.app.state.cpu_slots (asyncio.Semaphore(2))"
+    ],
+    [
+     "{espera_max_s}",
+     "cuánto se puede esperar un lugar",
+     "0.05 (SLOT_WAIT_S)"
+    ],
+    [
+     "{funcion}, {datos}",
+     "lo que corre en el threadpool y sus datos",
+     "_decode_and_hash, data"
+    ],
+    [
+     "{baldes}, {identidad_verificada}",
+     "un token bucket por caller, buscado por su identidad verificada",
+     "client_id del token de servicio (propuesta; no está en C01)"
+    ],
+    [
+     "{modulo}, {n}, {cola_tcp}",
+     "la app de uvicorn, el tope de conexiones o tareas y la cola TCP",
+     "app.main; C01 no usa --limit-concurrency; backlog 2048 (default)"
+    ],
+    [
+     "L, λ, W",
+     "requests en vuelo, llegadas por segundo a un pod, tiempo promedio adentro",
+     "20 = 100 × 0.2"
+    ],
+    [
+     "n_cola, μ",
+     "requests esperando, requests que el pod termina por segundo",
+     "100 esperando con μ = 100 req/s → 1 s de espera"
+    ],
+    [
+     "ρ",
+     "utilización: llegadas ÷ capacidad",
+     "250 ÷ 167 ≈ 1.5 en el lab"
+    ]
+   ],
+   "pieces": [
+    [
+     "Backpressure (contrapresión)",
+     "Avisar hacia atrás que estás lleno, para que quien manda baje el ritmo: colas con tope, y 503 o 429 con Retry-After.",
+     "503 + Retry-After: 1"
+    ],
+    [
+     "Control de admisión",
+     "Decidir en la puerta si un request entra, antes de gastar CPU o GPU en él.",
+     "inflight >= 16 → 503, sin leer el body"
+    ],
+    [
+     "Load shedding",
+     "Descartar carga a propósito: rechazar barato lo que no vas a poder terminar a tiempo.",
+     "40 fotos a la vez: 14 × 200 y 26 × 503 rápidos (README de C01)"
+    ],
+    [
+     "Requests en vuelo (in-flight)",
+     "Los que ya entraron y todavía no terminan. Little: L = λ × W.",
+     "≈ 3–5 por pod en el pico normal"
+    ],
+    [
+     "asyncio.Semaphore",
+     "Un contador de lugares para un recurso caro: acquire toma uno o espera; release lo devuelve.",
+     "2 decodes a la vez por proceso"
+    ],
+    [
+     "Cola acotada",
+     "Esperar con tope de tiempo o de tamaño. Sin tope, la cola solo agrega espera hasta que todo vence.",
+     "≤ 50 ms por un slot de CPU; ≤ 100 ms en la cola de Triton"
+    ],
+    [
+     "503 Service Unavailable",
+     "Yo, el servidor, estoy saturado o sin una dependencia, y es temporal. Puede llevar Retry-After.",
+     "gateway saturado; Triton no disponible"
+    ],
+    [
+     "429 Too Many Requests",
+     "Tú, el caller, pasaste tu cuota de ritmo. Puede llevar Retry-After. La RFC 6585, que lo define, no dice cómo contar.",
+     "C01 lo propone por caller; no está en main.py"
+    ],
+    [
+     "Retry-After",
+     "Cuánto esperar antes de volver: segundos enteros o una fecha HTTP.",
+     "Retry-After: 1"
+    ],
+    [
+     "Token bucket",
+     "Un balde de B fichas que se recarga a r por segundo; cada request gasta una. Permite ráfagas de hasta B.",
+     "r = 50/s y B = 100 (ejemplo de M15)"
+    ],
+    [
+     "--limit-concurrency (uvicorn)",
+     "Tope de todo el proceso de uvicorn: con n conexiones o tareas → 503 sin Retry-After, también a los health checks.",
+     "C01 limita dentro de la ruta, no aquí"
+    ],
+    [
+     "Bulkhead y prioridad",
+     "Separar cargas para que una no agote la capacidad de otra: un gateway aparte para los scripts y prioridades en la cola de Triton.",
+     "propuesta del serving de C01"
+    ],
+    [
+     "Medir la saturación",
+     "C01 cuenta los 503 por código, pero no exporta cuántos requests hay en vuelo. Un Gauge (una métrica que sube y baja) con set_function(lambda: app.state.inflight) lo daría en cada lectura de Prometheus (scrape).",
+     "mejora posible; no está en C01"
+    ],
+    [
+     "Fallback del caller",
+     "Lo que hace quien llama cuando no hay respuesta útil.",
+     "C01: el selector manual; con 300 ms de presupuesto no espera un Retry-After de 1 s"
+    ]
+   ],
+   "tables": [
+    {
+     "caption": "Las tres puertas de C01 (y la cuarta que propone)",
+     "head": [
+      "Puerta",
+      "Dónde",
+      "Tope",
+      "Si está llena",
+      "Qué ya se gastó"
+     ],
+     "rows": [
+      [
+       "Requests en vuelo",
+       "classify(), antes de leer el body",
+       "16 por proceso",
+       "503 gateway saturado: reintenta más tarde, con Retry-After: 1",
+       "nada: microsegundos"
+      ],
+      [
+       "Slots de CPU",
+       "_classify(), después de validar y leer el body",
+       "2 decodes; espera ≤ 50 ms",
+       "503 gateway saturado (CPU), con Retry-After: 1",
+       "leer el body (hasta 10 MB)"
+      ],
+      [
+       "Cola de Triton",
+       "config.pbtxt (default_queue_policy)",
+       "espera ≤ 100 ms",
+       "Triton responde Request timeout expired; el gateway devuelve 503 Triton rechazó la inferencia: …, con Retry-After: 1",
+       "el decode en CPU"
+      ],
+      [
+       "Cuota por caller (propuesta)",
+       "el gateway (token bucket) o una regla rate-based de AWS WAF (el firewall de aplicaciones de AWS) en el ALB",
+       "r y B por identidad (con WAF: N requests por ventana de 1, 2, 5 o 10 min)",
+       "429 con Retry-After (el WAF bloquea con 403 si no le configuras una respuesta propia con 429)",
+       "nada"
+      ]
+     ],
+     "note": "La puerta más barata va primero. Todas responden rápido, con un código que el caller entiende; ninguna deja requests colgados."
+    }
+   ],
+   "example": {
+    "title": "main.py: las dos puertas del gateway",
+    "lang": "python",
+    "code": "# Load shedding: requests aceptados a la vez por proceso; el resto → 503 inmediato con Retry-After.\n# ≈ lo que un pod completa en ≈ 200 ms (≈ 100 req/s × 0.2 s ≈ 20) y acotado por RAM: 16 bodies de\n# hasta 10 MB = 160 MB, que caben en 1Gi junto a los decodes. Al pico hay ≈ 3–5 en vuelo por pod.\nMAX_INFLIGHT = int(os.getenv(\"MAX_INFLIGHT\", \"16\"))\nSLOT_WAIT_S = 0.05  # espera máxima por un slot de CPU: si hay que esperar más, ya no cumple el SLO → 503\n# …\n    # Sin este límite el threadpool (40 hilos por defecto) decodificaría 40 imágenes a la vez en un\n    # pod de 1 CPU: más latencia para todas y riesgo de OOMKilled. Los demás esperan como mucho\n    # SLOT_WAIT_S; si no, 503.\n    app.state.cpu_slots = asyncio.Semaphore(PREPROCESS_CONCURRENCY)\n    app.state.inflight = 0  # requests aceptados en este proceso; sin lock: el event loop es un solo hilo\n# …\n    try:\n        state = request.app.state\n        if state.inflight >= MAX_INFLIGHT:  # fallar rápido (µs) > encolar lo que va a vencer de todos modos\n            raise HTTPException(503, \"gateway saturado: reintenta más tarde\", headers={\"Retry-After\": \"1\"})\n        state.inflight += 1\n        try:\n            result = await _classify(request, top_k, record, deadline=t0 + REQUEST_DEADLINE_S)\n        finally:\n            state.inflight -= 1  # siempre, también si _classify lanza\n# …\n    slots = request.app.state.cpu_slots\n    try:\n        await asyncio.wait_for(slots.acquire(), timeout=SLOT_WAIT_S)\n    except TimeoutError:\n        raise HTTPException(503, \"gateway saturado (CPU)\", headers={\"Retry-After\": \"1\"}) from None",
+    "source": "reference/c01/gateway/app/main.py (líneas 46–50, 102–106, 221–229 y 273–277; # … marca líneas omitidas)",
+    "notes": [
+     "La primera puerta está antes de leer el body: un 503 de aquí cuesta microsegundos y no toca CPU ni GPU. El test <code>test_overload_is_503_with_retry_after</code> lo comprueba con <code>MAX_INFLIGHT = 0</code>: 503, <code>Retry-After: 1</code> y el Triton falso sin llamadas.",
+     "<code>app.state.inflight</code> es un entero sin lock: entre el <code>if</code> y el <code>+= 1</code> no hay <code>await</code>, y el event loop corre una corrutina a la vez. Con <code>--workers 2</code> serían dos contadores, uno por proceso; C01 corre un proceso por contenedor.",
+     "16 sale de Little y de la RAM: ≈ 100 req/s × 0.2 s ≈ 20 en vuelo si cada request tardara 200 ms (la meta del p99), recortado a 16 porque 16 bodies de hasta 10 MB son 160 MB dentro del 1 GiB del pod. En el pico normal hay ≈ 3–5: llegar a 16 ya dice que algo va lento.",
+     "La segunda puerta es una cola acotada: hasta 50 ms esperando uno de los 2 slots de decode (<code>PREPROCESS_CONCURRENCY</code>). Sin ella, solo frenaría la primera puerta: hasta 16 decodes a la vez en un pod de 1 CPU (el comentario habla de los 40 hilos del threadpool, el tope si tampoco hubiera primera puerta). Todas irían más lento, y en el peor caso 16 decodes de 40 MP (≈ 320 MB cada uno) no caben en 1 GiB: OOMKilled (el kernel mata el contenedor por pasarse de memoria).",
+     "Medido en el README de C01 contra un Triton falso (un servidor que habla el mismo protocolo, KServe v2): 16 fotos a la vez → 16 × 200 (p50 ≈ 40 ms); 40 a la vez → 14 × 200 y 26 × 503 rápidos (p50 ≈ 7 ms), y ninguna pasa de 300 ms. Mientras tanto, el HPA (el autoscaler de pods de Kubernetes, que aquí escala por CPU al 60 %) agrega pods: el shedding compra ese tiempo."
+    ]
+   },
+   "figure": {
+    "kind": "admission",
+    "caption": "Las puertas de un pod del gateway de C01: 16 lugares en vuelo, 2 slots de decode con 50 ms de espera y la cola de Triton con 100 ms. Lo que no entra recibe un 503 con Retry-After: al instante en la primera puerta, tras ≤ 50 ms en la segunda y tras ≤ 100 ms en la cola de Triton. Abajo, el lab: el mismo pod con 1.5 veces su capacidad, con cola sin tope contra con puertas.",
+    "data": {
+     "gates": [
+      {
+       "name": "requests en vuelo",
+       "slots": 16,
+       "where": "classify(), antes de leer el body",
+       "full": "503 gateway saturado: reintenta más tarde",
+       "header": "Retry-After: 1",
+       "cost": "microsegundos"
+      },
+      {
+       "name": "slots de CPU (decode)",
+       "slots": 2,
+       "wait_ms": 50,
+       "where": "_classify(), antes del decode",
+       "full": "503 gateway saturado (CPU)",
+       "header": "Retry-After: 1",
+       "cost": "leer el body"
+      },
+      {
+       "name": "cola de Triton",
+       "wait_ms": 100,
+       "where": "config.pbtxt",
+       "full": "Triton: Request timeout expired → gateway: 503 Triton rechazó la inferencia",
+       "header": "Retry-After: 1",
+       "cost": "el decode"
+      }
+     ],
+     "measured": [
+      {
+       "label": "16 fotos a la vez (README de C01)",
+       "arrivals": 16,
+       "ok_200": 16,
+       "fast_503": 0,
+       "p50_ms": 40
+      },
+      {
+       "label": "40 fotos a la vez (README de C01)",
+       "arrivals": 40,
+       "ok_200": 14,
+       "fast_503": 26,
+       "p50_ms": 7
+      }
+     ],
+     "simulation": {
+      "label": "lab: 250 req/s contra un pod que termina ≈ 167 req/s, 20 s",
+      "rows": [
+       {
+        "strategy": "cola sin tope",
+        "on_time_pct": 2.8,
+        "rejected_pct": 0.0,
+        "late_pct": 97.2,
+        "p99_on_time_ms": 249.5,
+        "peak_in_flight": 1554,
+        "cpu_wasted_pct": 97.4
+       },
+       {
+        "strategy": "puertas de C01",
+        "on_time_pct": 68.6,
+        "rejected_pct": 31.4,
+        "late_pct": 0.0,
+        "p99_on_time_ms": 90.2,
+        "peak_in_flight": 16,
+        "cpu_wasted_pct": 0.0
+       }
+      ]
+     }
+    }
+   },
+   "memo": "Cómo recordarla: <b>el portero dice «lleno, vuelve en un momento»</b> (503 + <code>Retry-After</code>) en vez de dejar entrar a todos hasta que el local colapsa. Tres puertas en C01: 16 en vuelo, 2 decodes con 50 ms de espera y 100 ms en la cola de Triton. Y dos códigos: <b>429 = te pasaste tú</b>, <b>503 = estoy lleno yo</b>.",
+   "trap": "Trampa: «mejor encolar que rechazar». Una cola sin tope no agrega capacidad, solo espera: con 250 req/s contra un pod que termina ≈ 167, la cola crece sin parar, y en el lab el 97 % de los requests termina después del deadline, con el 97 % de la CPU gastada en respuestas que nadie espera. Con las puertas, el 69 % sale a tiempo y el resto recibe un 503 rápido. Otras dos: devolver 503 por una cuota (va 429) dispara tu alerta de disponibilidad por culpa de un caller; y usar solo <code>--limit-concurrency</code> le responde 503 también a <code>/healthz</code>, y el kubelet (el agente de Kubernetes en cada nodo) puede reiniciar el pod justo en el pico.",
+   "lab": {
+    "goal": "Comparar, con una simulación determinista hecha solo con Python estándar, un pod sin límite contra uno con las puertas de C01, a tres ritmos de llegada: cuántos salen a tiempo, cuántos reciben 503 y el p99 (el tiempo bajo el que queda el 99 % de los que salen a tiempo).",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway && cd ~/lab-gateway\ncat > admision.py <<'EOF'\n# admision.py: un pod del gateway con 2 slots de CPU, con y sin control de admisión (simulación, solo stdlib)\nimport heapq, random, sys\n\nSLOTS, MAX_EN_VUELO, ESPERA_SLOT, DEADLINE, TRITON = 2, 16, 0.050, 0.250, 0.008  # números de C01\n\ndef simular(tasa, con_admision, segundos=20):\n    random.seed(1)  # misma semilla = mismos números en cualquier Python 3\n    t, llegadas = 0.0, []\n    while t < segundos:                       # llegadas al azar (Poisson): `tasa` requests por segundo\n        t += random.expovariate(tasa)\n        llegadas.append((t, 0.004 + random.expovariate(1 / 0.008)))  # decode: 4 ms + exponencial de 8 ms\n    libres = [0.0] * SLOTS                    # cuándo queda libre cada slot de CPU\n    en_vuelo = []                             # cuándo termina cada request aceptado\n    a_tiempo, rechazos, tarde, cpu_total, cpu_tirada, lat, pico = 0, 0, 0, 0.0, 0.0, [], 0\n    for llega, decode in llegadas:\n        while en_vuelo and en_vuelo[0] <= llega:\n            heapq.heappop(en_vuelo)\n        if con_admision and len(en_vuelo) >= MAX_EN_VUELO:\n            rechazos += 1                     # puerta 1: 503 en microsegundos\n            continue\n        inicio = max(llega, libres[0])        # espera un slot (FIFO)\n        if con_admision and inicio - llega > ESPERA_SLOT:\n            rechazos += 1                     # puerta 2: sin slot en 50 ms → 503\n            heapq.heappush(en_vuelo, llega + ESPERA_SLOT)\n            continue\n        heapq.heapreplace(libres, inicio + decode)\n        fin = inicio + decode + TRITON\n        heapq.heappush(en_vuelo, fin)\n        pico = max(pico, len(en_vuelo))\n        cpu_total += decode\n        if fin - llega <= DEADLINE:\n            a_tiempo += 1\n            lat.append(fin - llega)\n        else:\n            tarde += 1                        # el caller ya se fue: CPU tirada\n            cpu_tirada += decode\n    n = len(llegadas)\n    lat.sort()\n    p99 = lat[int(0.99 * len(lat))] * 1000 if lat else float(\"nan\")\n    print(f\"{'con admisión' if con_admision else 'sin límite  '}  a tiempo {100 * a_tiempo / n:5.1f} %  \"\n          f\"503 {100 * rechazos / n:5.1f} %  tarde {100 * tarde / n:5.1f} %  \"\n          f\"p99 a tiempo {p99:6.1f} ms  pico en vuelo {pico:5}  CPU tirada {100 * cpu_tirada / max(cpu_total, 1e-9):5.1f} %\")\n\ntasa = float(sys.argv[1]) if len(sys.argv) > 1 else 100\nprint(f\"{tasa:.0f} req/s contra un pod que termina ≈ 167 req/s (2 slots ÷ 12 ms de decode promedio)\")\nfor con_admision in (False, True):\n    simular(tasa, con_admision)\nEOF\npython3.13 admision.py 100",
+      "expect": "Dos líneas con los mismos números: a tiempo 100.0 %, 503 0.0 %, p99 a tiempo 55.7 ms, pico en vuelo 9. Con ρ ≈ 0.6 (100 ÷ 167) las puertas no hacen nada: así debe verse el día a día."
+     },
+     {
+      "cmd": "python3.13 admision.py 150",
+      "expect": "ρ ≈ 0.9. sin límite: todo a tiempo, pero el p99 sube a 111.6 ms y hay hasta 22 en vuelo. con admisión: 97.7 % a tiempo, 2.3 % de 503 y p99 de 73.8 ms, nunca más de 16. Cerca del límite, las puertas cambian un poco de rechazo por un p99 más bajo; los números finos (16, 50 ms) se ajustan con una prueba de carga (load test)."
+     },
+     {
+      "cmd": "python3.13 admision.py 250",
+      "expect": "1.5 veces la capacidad. sin límite: a tiempo 2.8 %, tarde 97.2 %, pico en vuelo 1554 y CPU tirada 97.4 %: el pod trabaja al máximo para nadie y llega a guardar 1554 bodies a la vez: con fotos web de varios MB, eso termina en OOMKilled. con admisión: a tiempo 68.6 % (≈ 167 ÷ 250), 503 31.4 %, p99 de 90.2 ms, 16 en vuelo y nada de CPU tirada."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Los números son exactos con cualquier Python 3 porque la semilla es fija; si no coinciden, revisa que copiaste el script entero. Para jugar, cambia SLOTS, MAX_EN_VUELO o ESPERA_SLOT en la línea de constantes. Es un modelo: no incluye leer el body, la red ni a Triton bajo carga.",
+    "needs": "Python 3, sin paquetes extra (los comandos usan python3.13, la versión de C01). Ni Docker ni GPU.",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS con Python 3.9.6, 3.13.16 y 3.14.3, y repetido copiando los pasos tal cual en zsh: salidas idénticas, con las cifras de arriba. Es una simulación de eventos, sin esperas reales: llegadas al azar (Poisson), decode de 4 ms más una exponencial de 8 ms (≈ 12 ms en promedio, ≈ 167 req/s con 2 slots), 8 ms de Triton y las puertas de main.py (16 en vuelo, 2 slots, 50 ms, deadline de 250 ms)."
+   },
+   "links": [
+    "#m03.timeouts-reintentos",
+    "#m03.colas-utilizacion",
+    "#m03.little",
+    "#m15.rate-limiting",
+    "#c01.serving"
+   ]
+  },
+  {
+   "id": "degradacion",
+   "num": 7,
+   "title": "Errores y degradación: un código por falla, la escalera de C01 y nada de detalles internos",
+   "question": "Cuando algo falla, ¿qué código devuelves, qué texto ve el caller, qué queda en el log y qué sigue funcionando?",
+   "templates": [
+    {
+     "code": "try:\n    resultado = await asyncio.wait_for({llamada}, timeout={tope_s})\nexcept TimeoutError:\n    raise HTTPException(504, \"{msg_lento}\") from None\nexcept {error_de_red}:\n    raise HTTPException(503, \"{msg_caido}\", headers={\"Retry-After\": \"{s}\"}) from None\nexcept {error_del_upstream}:\n    raise HTTPException(503, \"{msg_rechazo}\", headers={\"Retry-After\": \"{s}\"}) from None",
+     "note": "Traduce en la frontera, con excepciones específicas: lento → 504; caído → 503 con <code>Retry-After</code> (cuántos segundos esperar); el upstream (el servicio al que llamas) respondió con un error → 503, como C01. Sirve para «cola llena» o «modelo cargando»; un error de contrato (el request no cumple lo que el upstream espera, como un shape equivocado) no se arregla reintentando. <code>from None</code> esconde la excepción original en el traceback (el reporte del error en el log). Lo que ve el caller (quien llama al gateway) es el <code>detail</code>, el texto del error: corto y estable."
+    },
+    {
+     "code": "@app.exception_handler({MiError})\nasync def {manejador}(request: Request, exc: {MiError}):\n    log.warning(\"{evento}: %r\", exc)\n    return JSONResponse({\"detail\": \"{mensaje_publico}\"}, status_code={codigo})",
+     "note": "Un solo lugar que convierte una excepción tuya en respuesta. El mensaje público es fijo; el detalle técnico (<code>repr(exc)</code>) va al log. Para cambiar cómo sale cualquier <code>HTTPException</code>, registra el handler para el de Starlette (<code>starlette.exceptions.HTTPException</code>), como indica la doc de FastAPI."
+    },
+    {
+     "code": "HTTP/1.1 {codigo} {frase}\nretry-after: {s}\nx-request-id: {request_id}\ncontent-type: application/json\n\n{\"detail\":\"{mensaje_publico}\"}",
+     "note": "Así le llega un error de C01 al caller: el código, <code>Retry-After</code> si es temporal, el id para reportar el caso y un texto corto. Starlette manda los nombres de los headers en minúsculas; HTTP no distingue. Un bug (una excepción que nadie atrapó) sale como 500 con el texto plano <code>Internal Server Error</code>: Starlette no manda el traceback mientras <code>debug</code> sea False, que es el default."
+    }
+   ],
+   "formulas": [
+    "\\text{tasa de 5xx} = \\frac{\\sum \\text{rate}(\\text{5xx})}{\\sum \\text{rate}(\\text{todos}) - \\sum \\text{rate}(\\text{4xx})} \\qquad \\text{alerta urgente (page) si} > 1\\ \\%\\ \\text{durante 5 min}",
+    "\\text{presupuesto de error} = (1 - 0.999) \\times 10\\ \\text{M/día} \\times 30\\ \\text{días} = 300{,}000\\ \\text{requests al mes}",
+    "\\text{sin breaker: } L = 500\\ \\text{req/s} \\times 0.15\\ \\text{s} = 75\\ \\text{colgados} \\qquad \\text{breaker abierto: } 500 \\times 0.001\\ \\text{s} \\approx 0.5"
+   ],
+   "vars": [
+    [
+     "{llamada}, {tope_s}",
+     "la llamada al upstream y su tope",
+     "client.infer(…), min(0.15, lo que queda)"
+    ],
+    [
+     "{error_de_red}",
+     "excepción de red del cliente HTTP",
+     "aiohttp.ClientError (tritonclient aio); httpx.TransportError (httpx; ojo: también incluye sus timeouts, httpx.TimeoutException, que no son TimeoutError: atrápalos antes, con su propio except, para responder 504)"
+    ],
+    [
+     "{error_del_upstream}",
+     "excepción cuando el upstream responde con un error",
+     "InferenceServerException; httpx.HTTPStatusError después de raise_for_status()"
+    ],
+    [
+     "{msg_lento}, {msg_caido}, {msg_rechazo}",
+     "textos fijos para el caller",
+     "timeout de inferencia · Triton no disponible · Triton rechazó la inferencia"
+    ],
+    [
+     "{s}",
+     "segundos de Retry-After",
+     "1"
+    ],
+    [
+     "{MiError}, {manejador}, {evento}",
+     "tu excepción, su handler y el nombre del evento en el log",
+     "UpstreamRechazo, manejar_rechazo, upstream_rechazo (ilustrativo)"
+    ],
+    [
+     "{mensaje_publico}, {codigo}, {frase}",
+     "texto para el caller, código HTTP y su frase",
+     "gateway saturado: reintenta más tarde · 503 · Service Unavailable"
+    ],
+    [
+     "{request_id}",
+     "el id del request",
+     "abc123"
+    ],
+    [
+     "5xx, 4xx, todos",
+     "requests por segundo según su código, sumados entre pods",
+     "classifier_requests_total{status=~\"5..\"}"
+    ],
+    [
+     "presupuesto de error",
+     "lo que una meta de 99.9 % deja fallar en 30 días",
+     "300,000 requests a 10 M por día"
+    ],
+    [
+     "L",
+     "requests colgados esperando a un Triton caído (Little)",
+     "75 sin breaker; ≈ 0.5 con el breaker abierto (cálculo de M15)"
+    ]
+   ],
+   "pieces": [
+    [
+     "4xx",
+     "Culpa del request: repetirlo igual falla igual, y no cuenta contra el SLO (la meta de servicio). La excepción es 429: se reintenta después del Retry-After.",
+     "400, 413, 415, 422; 429 sí se reintenta"
+    ],
+    [
+     "5xx",
+     "Culpa nuestra o de una dependencia: cuenta contra el SLO y gasta presupuesto de error.",
+     "500, 503, 504"
+    ],
+    [
+     "500 Internal Server Error",
+     "Un bug: algo que nadie atrapó. Starlette responde texto plano y uvicorn loguea el traceback (Exception in ASGI application).",
+     "C01 lo cuenta como status 500 en su línea de log"
+    ],
+    [
+     "502 Bad Gateway",
+     "Soy un gateway y el upstream me dio una respuesta inválida: rota o cortada.",
+     "el ALB (el balanceador de AWS) lo da si uvicorn cierra una conexión ociosa que el ALB iba a reusar: --timeout-keep-alive (5 s por defecto) debe ser mayor que los 60 s del ALB; C01 usa 75"
+    ],
+    [
+     "503 Service Unavailable",
+     "Ahora no puedo, y es temporal: sobrecarga o una dependencia caída. Con Retry-After.",
+     "gateway saturado; Triton caído o rechazando"
+    ],
+    [
+     "504 Gateway Timeout",
+     "Soy un gateway y el upstream no respondió a tiempo.",
+     "Triton lento; presupuesto agotado"
+    ],
+    [
+     "HTTPException",
+     "La excepción de FastAPI que se vuelve respuesta: status_code, detail (lo que ve el caller) y headers.",
+     "HTTPException(503, …, headers={\"Retry-After\": \"1\"})"
+    ],
+    [
+     "exception_handler",
+     "Una función que convierte una excepción tuya en respuesta, en un solo lugar.",
+     "@app.exception_handler(MiError)"
+    ],
+    [
+     "debug=False",
+     "El default: un 500 no muestra el traceback. Con debug=True, Starlette lo manda en la respuesta.",
+     "nunca debug=True en producción"
+    ],
+    [
+     "No filtrar detalles internos",
+     "Al caller, un texto corto y estable; rutas, hosts, versiones y trazas, al log.",
+     "C01: el 413 cita las dimensiones de la imagen; el 503 de Triton lleva el texto de Triton"
+    ],
+    [
+     "Escalera de degradación",
+     "Lo que sacrificas primero, decidido antes del incidente: cada escalón conserva lo más valioso.",
+     "6 escalones en C01"
+    ],
+    [
+     "Fallback",
+     "El camino sin el modelo: más barato y sin depender de lo que falló.",
+     "C01: el selector manual en la interfaz del caller"
+    ],
+    [
+     "Circuit breaker",
+     "Dejar de llamar un rato a una dependencia que falla y responder el fallback al instante. Tres estados: closed (llama normal), open (no llama) y half-open (deja pasar unas llamadas de prueba).",
+     "propuesta de M15; C01 sale del ALB con la readiness"
+    ],
+    [
+     "Falla silenciosa",
+     "Todo responde 200 y rápido, pero mal. Ningún código de error la ve.",
+     "labels.json desalineado con el modelo"
+    ]
+   ],
+   "tables": [
+    {
+     "caption": "Qué devuelve el gateway de C01 en cada falla (main.py)",
+     "head": [
+      "Falla",
+      "Código",
+      "detail que ve el caller",
+      "Headers",
+      "¿Reintentar?"
+     ],
+     "rows": [
+      [
+       "Body vacío",
+       "400",
+       "body vacío: envía los bytes de la imagen",
+       "X-Request-ID",
+       "No: arregla el request"
+      ],
+      [
+       "Imagen corrupta o truncada, o relación de aspecto mayor a 1:8",
+       "400",
+       "no se pudo decodificar la imagen",
+       "X-Request-ID",
+       "No"
+      ],
+      [
+       "Más de 10 MB (por Content-Length o contando los bytes)",
+       "413",
+       "la imagen supera 10 MB",
+       "X-Request-ID",
+       "No"
+      ],
+      [
+       "Más de 40 MP (megapíxeles)",
+       "413",
+       "el texto de la excepción: dimensiones y límite",
+       "X-Request-ID",
+       "No"
+      ],
+      [
+       "Content-Type que no es JPEG, PNG ni WebP",
+       "415",
+       "Content-Type debe ser image/jpeg, image/png o image/webp",
+       "X-Request-ID",
+       "No"
+      ],
+      [
+       "top_k fuera de 1–20",
+       "422",
+       "la lista de errores de validación de FastAPI",
+       "X-Request-ID (lo agrega su exception handler: FastAPI responde antes de llamar a classify)",
+       "No"
+      ],
+      [
+       "El cliente corta a mitad del upload (ClientDisconnect)",
+       "499",
+       "el cliente cerró la conexión antes de terminar el upload (nadie lo recibe)",
+       "X-Request-ID",
+       "Lo decide el cliente: ya se fue"
+      ],
+      [
+       "16 requests en vuelo",
+       "503",
+       "gateway saturado: reintenta más tarde",
+       "Retry-After: 1, X-Request-ID",
+       "Sí, después de 1 s (callers batch)"
+      ],
+      [
+       "Sin slot de CPU en 50 ms",
+       "503",
+       "gateway saturado (CPU)",
+       "Retry-After: 1, X-Request-ID",
+       "Sí, después de 1 s"
+      ],
+      [
+       "Triton caído (aiohttp.ClientError)",
+       "503",
+       "Triton no disponible",
+       "Retry-After: 1, X-Request-ID",
+       "Sí, después de 1 s"
+      ],
+      [
+       "Triton responde con error (InferenceServerException)",
+       "503",
+       "Triton rechazó la inferencia: … y el texto de Triton",
+       "Retry-After: 1, X-Request-ID",
+       "Sí, después de 1 s"
+      ],
+      [
+       "Triton no responde a tiempo (TimeoutError)",
+       "504",
+       "timeout de inferencia",
+       "X-Request-ID",
+       "No en el camino interactivo"
+      ],
+      [
+       "Se agotó el presupuesto de 250 ms",
+       "504",
+       "se agotó el presupuesto del request",
+       "X-Request-ID",
+       "No"
+      ],
+      [
+       "Triton devuelve logits con NaN o inf",
+       "500",
+       "Triton devolvió logits no finitos (NaN o inf)",
+       "X-Request-ID",
+       "No: hay que revisar el engine"
+      ],
+      [
+       "Un bug (cualquier otra excepción)",
+       "500",
+       "Internal Server Error, en texto plano (Starlette)",
+       "ninguno",
+       "No: hay que arreglarlo"
+      ]
+     ],
+     "note": "Ni 429 ni 502: C01 no limita por caller en el código, y trata cualquier error de Triton como «ahora no» (503). Los 4xx no entran en la tasa de error ni en el histograma de latencia; los 5xx sí."
+    }
+   ],
+   "example": {
+    "title": "main.py: cada falla con su código, y todos los errores con su X-Request-ID",
+    "lang": "python",
+    "code": "    except TimeoutError:  # asyncio.TimeoutError es alias de TimeoutError desde Python 3.11\n        # 504: Triton está vivo pero lento (cola llena, GPU saturada); el cliente cae a su fallback\n        raise HTTPException(504, \"timeout de inferencia\") from None\n    except aiohttp.ClientError:  # conexión rechazada/reseteada, DNS: Triton caído o reiniciando\n        raise HTTPException(503, \"Triton no disponible\", headers={\"Retry-After\": \"1\"}) from None\n    except InferenceServerException as exc:  # Triton respondió error: modelo no cargado, request rechazado\n        detail = f\"Triton rechazó la inferencia: {exc.message()}\"\n        raise HTTPException(503, detail, headers={\"Retry-After\": \"1\"}) from None\n# …\n    try:\n        # Aquí no hay timeout a propósito: un hilo no se puede cancelar. Si cortáramos el await, el\n        # slot se liberaría con el hilo todavía decodificando y el tope de RAM dejaría de valer.\n        batch, digest = await run_in_threadpool(_decode_and_hash, data)\n    except (ImageTooLarge, Image.DecompressionBombError) as exc:  # ImageTooLarge antes que ValueError\n        raise HTTPException(413, str(exc)) from None\n    except (OSError, ValueError, SyntaxError):  # lo que lanza Pillow con archivos corruptos o truncados\n        raise HTTPException(400, \"no se pudo decodificar la imagen\") from None\n    finally:\n        slots.release()  # siempre: también en 400/413\n# …\n    except HTTPException as exc:\n        status = exc.status_code\n        record[\"error\"] = exc.detail\n        # Re-lanzamos con el X-Request-ID para que también los errores sean trazables\n        headers = {**(exc.headers or {}), \"X-Request-ID\": request_id}\n        raise HTTPException(exc.status_code, exc.detail, headers=headers) from None",
+    "source": "reference/c01/gateway/app/main.py (líneas 173–180, 279–288 y 234–239; # … marca líneas omitidas)",
+    "notes": [
+     "Cada falla de Triton tiene su código: lento (<code>TimeoutError</code>) → 504; caído (<code>aiohttp.ClientError</code>: conexión rechazada o cortada, o un nombre que no resuelve) → 503 con <code>Retry-After</code>; responde con un error (<code>InferenceServerException</code>, como el <code>Request timeout expired</code> de su cola) → 503. No usa 502: Triton contestó bien, con un error, no con una respuesta rota. Ojo: C01 manda cualquier error de Triton como 503 «ahora no», aunque algunos (un modelo que no existe, un shape equivocado) no se arreglan reintentando.",
+     "Un engine roto (un FP16 desbordado, pesos corruptos) puede devolver NaN o inf. <code>_infer</code> lo revisa con <code>np.isfinite</code> y responde un 500 propio, con su <code>X-Request-ID</code>. Sin esa revisión, FastAPI fallaría al escribir el JSON después del <code>finally</code>: el cliente vería un 500 y la línea y la métrica dirían 200.",
+     "Las excepciones de la imagen van de la más específica a la más general: <code>ImageTooLarge</code> hereda de <code>ValueError</code>, así que tiene que ir antes, o caería en el 400. <code>str(exc)</code> en el 413 está bien: es nuestro texto (<code>ImageTooLarge</code>) o el de Pillow (<code>DecompressionBombError</code>, sobre 80 MP), y los dos solo citan los píxeles de la imagen del caller y el límite.",
+     "El 503 de Triton incluye <code>exc.message()</code>, el texto de Triton. Entre equipos internos, detrás de un ALB internal (un balanceador que solo se alcanza desde la red interna), ayuda a depurar; en una API pública, ese texto iría al log y el caller recibiría un mensaje fijo.",
+     "El <code>except HTTPException</code> de <code>classify</code> anota el error en la línea de log y relanza el mismo código y <code>detail</code> con <code>X-Request-ID</code>: el caller puede reportar «el request abc123 dio 504». Un bug no pasa por aquí: sale como el 500 de Starlette, sin X-Request-ID, aunque su línea de log sí queda con status 500.",
+     "El decode no tiene timeout, a propósito: un hilo no se puede cancelar, y cortar el <code>await</code> liberaría el slot con el hilo todavía decodificando. Por eso los límites van antes (10 MB, 40 MP, 1:8) y el <code>finally</code> devuelve el slot también en 400 y 413."
+    ]
+   },
+   "figure": {
+    "kind": "degradation",
+    "caption": "La escalera de degradación de C01, de arriba abajo: qué se sacrifica primero cuando algo falla. Cada escalón conserva lo más valioso con lo que queda; el último sigue siendo útil porque existe un camino sin el modelo.",
+    "data": {
+     "steps": [
+      {
+       "name": "Normal",
+       "trigger": "todo sano",
+       "action": "top-5 del modelo en producción con p99 ≤ 200 ms; todos los callers atendidos",
+       "user_sees": "sugerencias de categoría",
+       "gateway": "200"
+      },
+      {
+       "name": "Se pierde una GPU o una zona",
+       "trigger": "un nodo GPU o una zona caídos",
+       "action": "la otra zona absorbe el 100 % del tráfico al ≈ 42 % de su máximo medido; el autoscaler repone",
+       "user_sees": "nada",
+       "gateway": "200"
+      },
+      {
+       "name": "Saturación",
+       "trigger": "cola de Triton alta, CPU del gateway al tope",
+       "action": "load shedding por prioridad: primero los callers no interactivos (su propio gateway y prioridad 2 en Triton), después cuotas estrictas",
+       "user_sees": "la app conserva su capacidad",
+       "gateway": "503 + Retry-After a los scripts; 429 por cuota (propuesta)"
+      },
+      {
+       "name": "Latencia degradada",
+       "trigger": "Triton lento",
+       "action": "fallar rápido: 504 a los 150 ms, sin reintentos en el camino interactivo",
+       "user_sees": "el selector manual en esos requests",
+       "gateway": "504"
+      },
+      {
+       "name": "Modelo nuevo sospechoso",
+       "trigger": "el canary (la versión nueva con poco tráfico) empeora la confianza, la mezcla de categorías o la aceptación",
+       "action": "rollback (volver a la versión anterior): segundos si sigue viva; ≈ 5–20 min si hay que volver a desplegar su imagen",
+       "user_sees": "sugerencias del modelo anterior",
+       "gateway": "200 con otro model_version"
+      },
+      {
+       "name": "Servicio caído",
+       "trigger": "Triton caído en las dos zonas",
+       "action": "la interfaz muestra el selector manual; la publicación se crea igual y el camino batch la clasifica después",
+       "user_sees": "elige la categoría a mano, como antes del modelo",
+       "gateway": "503 rápido, o el ALB responde 503 sin targets"
+      }
+     ],
+     "rule": "Los escalones se deciden antes del incidente, no durante."
+    }
+   },
+   "memo": "Cómo recordarla: <b>4xx = culpa del request, no lo repitas igual (salvo 429: espera el <code>Retry-After</code>); 503 = ahora no, vuelve después; 504 = no llegó a tiempo; 500 = algo nuestro se rompió (un bug, o logits con NaN)</b>. Al caller, un texto corto y el <code>X-Request-ID</code>; el detalle, al log. Y la escalera: decide antes qué sacrificas primero, para que el último escalón siga siendo útil (en C01, elegir la categoría a mano).",
+   "trap": "Trampa: <code>detail=str(e)</code> dentro de un <code>except Exception</code>. El texto de una excepción cualquiera puede traer rutas, hosts internos, versiones o pedazos de datos, y además cambia de una versión a otra, así que nadie puede depender de él. Y su gemela: atrapar todo y devolver 200 con una respuesta vacía. Para el caller parece éxito, las métricas no ven ningún error y nadie se entera: una falla silenciosa hecha a mano.",
+   "lab": {
+    "goal": "Ver, con un gateway mínimo y un upstream falso, qué código, qué headers y qué texto recibe el caller en cada falla, y qué deja ver debug=True.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway && cd ~/lab-gateway\n[ -d .venv ] || python3.13 -m venv .venv\n. .venv/bin/activate\npip install \"fastapi==0.141.1\" \"uvicorn==0.54.0\"\ncat > errores.py <<'EOF'\n# errores.py: un gateway mínimo con un upstream falso, para ver qué recibe el caller en cada falla\nimport asyncio, os, uuid\nfrom fastapi import FastAPI, HTTPException, Request\n\nclass Rechazo(Exception):  # hace el papel de InferenceServerException\n    pass\n\nasync def upstream(modo):  # un Triton falso\n    if modo == \"lento\":\n        await asyncio.sleep(1.0)\n    if modo == \"caido\":\n        raise ConnectionRefusedError(\"connect ECONNREFUSED 10.0.3.7:8000\")\n    if modo == \"rechazo\":\n        raise Rechazo(\"Request timeout expired\")\n    if modo == \"bug\":\n        return {}[\"logits\"]  # un bug nuestro: KeyError\n    return [0.83, 0.07, 0.04]\n\napp = FastAPI(debug=os.getenv(\"DEBUG\") == \"1\")\n\n@app.post(\"/v1/classify\")\nasync def classify(request: Request, modo: str = \"ok\"):\n    request_id = request.headers.get(\"x-request-id\") or uuid.uuid4().hex\n    try:\n        try:\n            scores = await asyncio.wait_for(upstream(modo), timeout=0.15)\n        except TimeoutError:\n            raise HTTPException(504, \"timeout de inferencia\") from None\n        except ConnectionError:\n            raise HTTPException(503, \"upstream no disponible\", headers={\"Retry-After\": \"1\"}) from None\n        except Rechazo:\n            raise HTTPException(503, \"upstream rechazó la inferencia\", headers={\"Retry-After\": \"1\"}) from None\n        return {\"scores\": scores}\n    except HTTPException as exc:\n        headers = {**(exc.headers or {}), \"X-Request-ID\": request_id}\n        raise HTTPException(exc.status_code, exc.detail, headers=headers) from None\nEOF",
+      "expect": "Successfully installed, con fastapi-0.141.1 y uvicorn-0.54.0 en la lista (Requirement already satisfied si ya los tenías). Son las versiones de C01; FastAPI saca versiones casi a diario (0.160.0 el 22 de octubre de 2026) y lo que se ve aquí no cambia."
+     },
+     {
+      "cmd": "# en una segunda terminal\ncd ~/lab-gateway && . .venv/bin/activate\nuvicorn errores:app --port 8080",
+      "expect": "Uvicorn running on http://127.0.0.1:8080 (Press CTRL+C to quit). Déjala abierta: ahí salen los logs del servidor."
+     },
+     {
+      "cmd": "for m in ok lento caido rechazo bug; do\n  curl -s -o /dev/null -w \"$m %{http_code} %{time_total}s\\n\" -X POST \"localhost:8080/v1/classify?modo=$m\"\ndone",
+      "expect": "ok 200; lento 504 en ≈ 0.15 s, no en 1 s; caido 503; rechazo 503; bug 500. En la segunda terminal, cada uno deja su línea de access log (el bug, con 500 Internal Server Error) y el bug, además, ERROR: Exception in ASGI application y un traceback que termina en KeyError: 'logits'."
+     },
+     {
+      "cmd": "curl -i -X POST \"localhost:8080/v1/classify?modo=caido\" -H \"X-Request-ID: abc123\"",
+      "expect": "HTTP/1.1 503 Service Unavailable, con retry-after: 1, x-request-id: abc123 y content-type: application/json; el body es {\"detail\":\"upstream no disponible\"}. El texto original (connect ECONNREFUSED 10.0.3.7:8000, con una IP interna) no llegó al caller."
+     },
+     {
+      "cmd": "curl -s -X POST \"localhost:8080/v1/classify?modo=bug\"; echo",
+      "expect": "Internal Server Error, en texto plano: ni el KeyError, ni el archivo, ni la línea."
+     },
+     {
+      "cmd": "# segunda terminal: Ctrl+C y vuelve a arrancar con debug\nDEBUG=1 uvicorn errores:app --port 8080\n# primera terminal\ncurl -s -X POST \"localhost:8080/v1/classify?modo=bug\" | tail -4",
+      "expect": "Ahora la respuesta es el traceback completo, en texto porque curl no pide HTML: rutas de tus archivos, la línea return {}[\"logits\"] y KeyError: 'logits' al final. Eso le regala debug=True a cualquiera que llame."
+     },
+     {
+      "cmd": "# segunda terminal: Ctrl+C\ndeactivate\ncd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Si curl dice Failed to connect, el servidor de la segunda terminal no está corriendo o activaste otro venv. Si lento da 500 en vez de 504, corriste un Python anterior a 3.11, donde except TimeoutError no atrapa el de asyncio: usa python3.13.",
+    "needs": "Python 3.13 e internet para pip (fastapi, uvicorn y sus dependencias). Dos terminales. Ni Docker ni GPU.",
+    "verified": "docs",
+    "verified_note": "Sin instalar nada: errores.py se corrió en macOS con FastAPI 0.143.0, Starlette 1.7.0 y uvicorn 0.54.0 (Python 3.13.16), en otro puerto, y dio estas salidas: lento respondió en 0.154 s; con DEBUG=1, tail -4 termina en KeyError: 'logits', y con Accept: text/html el traceback sale en HTML. Para la versión del C01 se verificó en el código: el http_exception_handler de FastAPI responde {\"detail\": …} con los headers del HTTPException; Starlette pasa los nombres de header a minúsculas y su ServerErrorMiddleware responde Internal Server Error en texto plano con debug=False, o el traceback con debug=True, y relanza la excepción para que uvicorn la loguee como Exception in ASGI application."
+   },
+   "links": [
+    "#c01.fallas",
+    "#m15.degradacion",
+    "#m15.disponibilidad",
+    "#c01.serving"
+   ]
+  },
+  {
+   "id": "salud",
+   "num": 8,
+   "title": "Health, readiness y apagado ordenado",
+   "question": "¿Cómo sabe Kubernetes que tu gateway está vivo y listo para recibir tráfico, y cómo se apaga sin cortar requests a la mitad?",
+   "templates": [
+    {
+     "code": "@app.get(\"/healthz\")\nasync def healthz():\n    return {\"status\": \"ok\"}",
+     "note": "<b>Liveness</b> (¿lo reinicio?): responde mientras el proceso y su event loop (el único hilo que atiende las corrutinas por turnos) respondan. Sin dependencias: si Triton cae, reiniciar el gateway no arregla nada. Si el loop se bloquea, tampoco responde a tiempo, y la probe (la pregunta periódica del kubelet, el agente de Kubernetes en cada nodo) lo nota."
+    },
+    {
+     "code": "@app.get(\"/readyz\")\nasync def readyz(request: Request):\n    try:\n        listo = await asyncio.wait_for({chequeo}, timeout={tope_s})\n    except ({errores}):\n        listo = False\n    if not listo:\n        raise HTTPException(503, \"{mensaje}\")\n    return {\"status\": \"ready\"}",
+     "note": "<b>Readiness</b> (¿le mando tráfico?): 200 solo si puedes atender de verdad. Si falla, el pod sale del Service (la lista de pods que reciben tráfico) y del ALB (el balanceador de AWS), sin reiniciarse. El tope va debajo del <code>timeoutSeconds</code> de la probe, para que siempre llegue una respuesta."
+    },
+    {
+     "code": "@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    app.state.{recurso} = {crear_recurso}\n    {calentar}\n    yield  # aquí atiende requests\n    await app.state.{recurso}.close()",
+     "note": "En el <code>lifespan</code> (el bloque que corre al arrancar y al apagar), lo que va antes del <code>yield</code> corre antes de abrir el puerto: mientras tanto, las probes ven connection refused. El <b>warmup</b> (una pasada en vacío para que el primer request real no pague la inicialización) va ahí. Lo de después corre al apagar, cuando uvicorn ya terminó (o canceló) los requests en curso."
+    },
+    {
+     "code": "# Dockerfile\nCMD [\"uvicorn\", \"app.main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\", \"--timeout-graceful-shutdown\", \"{drenado_s}\"]\n# Deployment\nterminationGracePeriodSeconds: {gracia_s}\nlifecycle:\n  preStop:\n    exec:\n      command: [\"sleep\", \"{prestop_s}\"]",
+     "note": "El orden del apagado: <b>preStop</b> (un paso antes de apagar: el pod sigue atendiendo mientras el ALB lo saca), <b>SIGTERM</b> (la señal de «termina») a uvicorn, <b>drenado</b> (terminar los requests en curso sin aceptar nuevos) de hasta <code>--timeout-graceful-shutdown</code> segundos, el shutdown del lifespan y la salida. Si al vencer la gracia sigue vivo, <b>SIGKILL</b> (muerte inmediata)."
+    }
+   ],
+   "formulas": [
+    "t_{\\text{gracia}} \\ge t_{\\text{preStop}} + t_{\\text{drenado}} + \\text{margen} \\qquad 45 = 15 + 20 + 10",
+    "t_{\\text{app}} = t_{\\text{gracia}} - t_{\\text{preStop}} = 45 - 15 = 30\\ \\text{s} \\;\\ge\\; 20\\ \\text{s de drenado}",
+    "t_{\\text{detectar}} \\approx f \\times p \\qquad \\text{readiness: } 2 \\times 5 = 10\\ \\text{s} \\qquad \\text{liveness: } 3 \\times 10 = 30\\ \\text{s}",
+    "t_{\\text{arranque}} < d + (f - 1) \\times p = 5 + 2 \\times 10 = 25\\ \\text{s} \\qquad (\\text{si no cabe: startupProbe})"
+   ],
+   "vars": [
+    [
+     "{chequeo}",
+     "la pregunta a la dependencia",
+     "request.app.state.triton.is_model_ready(MODEL_NAME)"
+    ],
+    [
+     "{tope_s}",
+     "tope de esa pregunta, menor que el timeoutSeconds de la probe",
+     "0.5 (la probe espera 2 s)"
+    ],
+    [
+     "{errores}",
+     "fallas que cuentan como no listo",
+     "TimeoutError, aiohttp.ClientError, InferenceServerException"
+    ],
+    [
+     "{mensaje}",
+     "detail del 503",
+     "el modelo no está listo en Triton"
+    ],
+    [
+     "{recurso}, {crear_recurso}",
+     "lo que compartes entre requests y cómo se crea",
+     "triton · triton_http.InferenceServerClient(url=TRITON_URL, conn_limit=64, conn_timeout=1.0)"
+    ],
+    [
+     "{calentar}",
+     "una pasada en vacío antes de aceptar tráfico (opcional)",
+     "C01 no calienta nada en el gateway: el warmup del modelo lo hace Triton (model_warmup)"
+    ],
+    [
+     "{drenado_s}",
+     "cuánto espera uvicorn los requests en curso",
+     "20"
+    ],
+    [
+     "{gracia_s}",
+     "plazo total del apagado, preStop incluido",
+     "45"
+    ],
+    [
+     "{prestop_s}",
+     "segundos que el preStop retrasa el SIGTERM",
+     "15"
+    ],
+    [
+     "t_gracia, t_preStop, t_drenado, margen",
+     "terminationGracePeriodSeconds, el preStop, el drenado máximo de uvicorn y el colchón",
+     "45, 15, 20 y 10 s"
+    ],
+    [
+     "t_app",
+     "lo que le queda a la app después del preStop",
+     "30 s"
+    ],
+    [
+     "f, p, d",
+     "failureThreshold, periodSeconds e initialDelaySeconds de una probe",
+     "readiness: 2 y 5 s; liveness: 3, 10 s y 5 s"
+    ],
+    [
+     "t_detectar",
+     "cuánto tarda en notarse una falla",
+     "≈ 10 s para salir del tráfico; ≈ 30 s para un reinicio"
+    ],
+    [
+     "t_arranque",
+     "lo que tarda el lifespan en abrir el puerto",
+     "en C01, solo leer labels.json y crear el cliente"
+    ]
+   ],
+   "pieces": [
+    [
+     "Liveness: /healthz",
+     "¿El proceso responde? Si falla 3 veces seguidas, el kubelet (el agente de Kubernetes en cada nodo) reinicia el contenedor. Corre en el event loop: si el loop está bloqueado, también falla.",
+     "cada 10 s, timeout 2 s, 3 fallos"
+    ],
+    [
+     "Readiness: /readyz",
+     "¿Le mando tráfico? Si falla, el pod sale del Service y del ALB, sin reiniciarse.",
+     "cada 5 s, timeout 2 s, 2 fallos"
+    ],
+    [
+     "Health check del ALB",
+     "El ALB pregunta la misma ruta y solo le manda tráfico a los pods que dan 200. Si todos fallan y siguen registrados, AWS se lo manda igual a todos (fail open); en C01 no pasa, porque los pods NotReady salen de su lista de destinos (target group).",
+     "healthcheck-path: /readyz"
+    ],
+    [
+     "Dependencias en la readiness, nunca en la liveness",
+     "Si Triton cae, todos los gateways quedan NotReady (fuera del tráfico) y el ALB responde 503, pero nadie se reinicia en cascada.",
+     "test_healthz_does_not_depend_on_triton"
+    ],
+    [
+     "Lifespan al arrancar",
+     "Lo que va antes del yield corre antes de abrir el puerto: las probes ven connection refused hasta que termina.",
+     "C01: leer labels.json, el semáforo y el cliente de Triton"
+    ],
+    [
+     "Warmup",
+     "Una pasada en vacío para que el primer request real no pague la inicialización. En C01 la hace Triton (model_warmup) antes de marcar el modelo como listo.",
+     "is_model_ready() da True después del warmup"
+    ],
+    [
+     "startupProbe",
+     "Una probe que frena a las otras dos hasta que el arranque termina. Hace falta si el arranque tarda más de lo que la liveness tolera.",
+     "el gateway de C01 no la tiene: su lifespan no espera a nadie"
+    ],
+    [
+     "preStop",
+     "Un paso antes del SIGTERM: el gateway sigue atendiendo mientras el ALB lo saca de sus destinos (targets).",
+     "sleep 15"
+    ],
+    [
+     "SIGTERM a uvicorn",
+     "Deja de aceptar conexiones, cierra las ociosas y espera las que tienen un request en curso.",
+     "Shutting down"
+    ],
+    [
+     "--timeout-graceful-shutdown",
+     "Cuánto espera uvicorn a que terminen los requests en curso. Al vencer, los cancela (cada uno recibe un 500) y corre igual el shutdown del lifespan. Sin el flag, espera sin límite.",
+     "20 s en el Dockerfile de C01"
+    ],
+    [
+     "terminationGracePeriodSeconds",
+     "Plazo total del apagado, preStop incluido. Al vencer, SIGKILL (exit 137).",
+     "45 s en k8s/gateway.yaml"
+    ],
+    [
+     "deregistration_delay del ALB",
+     "Cuánto espera el ALB a que terminen los requests de un target que está sacando.",
+     "30 s (el default de AWS es 300 s)"
+    ],
+    [
+     "Lifespan al apagar",
+     "Lo que va después del yield: cerrar clientes y pools. Corre después de drenar.",
+     "await app.state.triton.close()"
+    ]
+   ],
+   "tables": [
+    {
+     "caption": "El apagado de un pod del gateway de C01, segundo a segundo",
+     "head": [
+      "t",
+      "Qué pasa",
+      "Quién"
+     ],
+     "rows": [
+      [
+       "0 s",
+       "Borras el pod (o llega un rollout, el cambio a una versión nueva, o un scale-down, cuando sobran pods): queda Terminating, su endpoint pasa a no listo y empieza el preStop (sleep 15).",
+       "kubelet y control plane (los componentes que manejan el cluster)"
+      ],
+      [
+       "0–15 s",
+       "El AWS Load Balancer Controller saca la IP del pod del target group (la lista de destinos del ALB): el ALB deja de mandarle requests nuevos y espera los que van en curso (deregistration_delay de 30 s). uvicorn sigue atendiendo: todavía no recibió nada.",
+       "controller, ALB y uvicorn"
+      ],
+      [
+       "15 s",
+       "SIGTERM a uvicorn, que es el PID 1 (el primer proceso del contenedor): Shutting down. Cierra el puerto y las conexiones ociosas; las que tienen un request en curso se cierran al responder (Waiting for connections to close).",
+       "kubelet → uvicorn"
+      ],
+      [
+       "15 s + < 1 s (casi siempre)",
+       "Los requests en curso terminan: casi todos duran menos que el deadline de 250 ms, así que el drenado real suele durar menos de un segundo. Un upload lento o un decode enorme pueden tardar más (el deadline no los corta): para eso están los 20 s.",
+       "uvicorn"
+      ],
+      [
+       "enseguida",
+       "Waiting for application shutdown → el lifespan cierra el cliente de Triton → Application shutdown complete → Finished server process → sale con código 0.",
+       "uvicorn y lifespan"
+      ],
+      [
+       "35 s",
+       "Peor caso: vence --timeout-graceful-shutdown 20. uvicorn cancela lo que quede (Cancel N running task(s), timeout graceful shutdown exceeded): cada request cancelado recibe un 500. Después corre igual el lifespan.",
+       "uvicorn"
+      ],
+      [
+       "45 s",
+       "Vence terminationGracePeriodSeconds: SIGKILL a lo que quede (exit 137).",
+       "kubelet"
+      ]
+     ],
+     "note": "Igual que en las hojas de Docker y de Kubernetes: 15 s de preStop + 20 s de drenado + 10 s de margen = 45 s. Después del preStop le quedan 30 s a la app."
+    }
+   ],
+   "example": {
+    "title": "main.py y gateway.yaml: las dos rutas de salud y las probes que las llaman",
+    "lang": "python",
+    "code": "@app.get(\"/healthz\")\nasync def healthz():\n    \"\"\"Liveness: ¿el proceso responde? SIN dependencias: si Triton cae, reiniciar el gateway no ayuda.\"\"\"\n    return {\"status\": \"ok\"}\n\n\n@app.get(\"/readyz\")\nasync def readyz(request: Request):\n    \"\"\"Readiness: ¿puedo recibir tráfico? Sí solo si el modelo está listo en Triton.\n\n    Si Triton cae, TODOS los gateways quedan NotReady, el ALB se queda sin targets y responde 503: aceptable,\n    porque sin Triton el gateway no sirve de nada. Lo que nunca debes hacer es poner esta dependencia\n    en liveness: el kubelet reiniciaría en cascada pods sanos.\n    \"\"\"\n    try:\n        # 0.5 s máximo: el probe del kubelet tiene su propio timeout y no queremos colgarlo\n        ready = await asyncio.wait_for(request.app.state.triton.is_model_ready(MODEL_NAME), timeout=0.5)\n    except (TimeoutError, aiohttp.ClientError, InferenceServerException):\n        ready = False  # cualquier falla hablando con Triton = no listo\n    if not ready:\n        raise HTTPException(503, \"el modelo no está listo en Triton\")\n    return {\"status\": \"ready\", \"model\": MODEL_NAME, \"model_version\": MODEL_VERSION}\n# … reference/c01/k8s/gateway.yaml (líneas 29–30 y 81–102, sangría reducida):\n# preStop (15 s) + --timeout-graceful-shutdown de uvicorn (20 s) + margen\nterminationGracePeriodSeconds: 45\n# …\n# readiness: ¿mandarle tráfico? /readyz = modelo listo en Triton (ver main.py)\nreadinessProbe:\n  httpGet:\n    path: /readyz\n    port: http\n  periodSeconds: 5\n  timeoutSeconds: 2\n  failureThreshold: 2\n# liveness: ¿reiniciar? /healthz NO depende de Triton: si Triton cae, reiniciar gateways no ayuda\nlivenessProbe:\n  httpGet:\n    path: /healthz\n    port: http\n  initialDelaySeconds: 5\n  periodSeconds: 10\n  timeoutSeconds: 2\n  failureThreshold: 3\nlifecycle:\n  preStop:\n    exec:\n      # El ALB tarda en desregistrar el target: seguimos atendiendo 15 s antes del SIGTERM\n      command: [\"sleep\", \"15\"]",
+    "source": "reference/c01/gateway/app/main.py (líneas 342–363) y reference/c01/k8s/gateway.yaml (líneas 29–30 y 81–102, sangría reducida; # … marca líneas omitidas)",
+    "notes": [
+     "<code>/healthz</code> no toca a Triton: responde mientras el proceso y su event loop respondan. Si Triton cae, ningún gateway se reinicia (lo prueba <code>test_healthz_does_not_depend_on_triton</code>). Si el loop se bloquea, <code>/healthz</code> tampoco responde a tiempo y la liveness lo nota en ≈ 3 × 10 s.",
+     "<code>/readyz</code> pregunta <code>is_model_ready()</code>, que da True solo si <code>/v2/models/classifier/ready</code> responde 200; Triton marca el modelo listo después de su <code>model_warmup</code>. Cualquier falla (timeout, red, error de Triton) cuenta como no listo → 503: el pod sale del Service y del ALB, que usa la misma ruta como health check.",
+     "El tope de 0.5 s queda debajo del <code>timeoutSeconds: 2</code> de la probe: siempre llega una respuesta, aunque sea un 503, y no se cuenta como timeout.",
+     "Las probes de abajo: readiness cada 5 s con 2 fallos (sale del tráfico en ≈ 10 s); liveness cada 10 s, con 3 fallos y 5 s de espera inicial. No hay startupProbe: el lifespan solo lee labels.json y crea el cliente, sin hablar con Triton, así que el puerto abre enseguida aunque Triton esté caído.",
+     "Al apagar: preStop <code>sleep 15</code>, SIGTERM, hasta 20 s de drenado (<code>--timeout-graceful-shutdown 20</code> en el Dockerfile), el lifespan cierra el cliente de Triton y el proceso sale. 15 + 20 + 10 de margen = los 45 s de <code>terminationGracePeriodSeconds</code>. Versiones: uvicorn 0.54.0 en C01, que es también la actual."
+    ]
+   },
+   "figure": {
+    "kind": "shutdown",
+    "caption": "El apagado de un pod del gateway de C01, con t = 0 al borrar el pod. Arriba, los plazos a escala: 15 s de preStop, hasta 20 s de drenado y 10 s de margen dentro de los 45 s de gracia. Abajo, qué hace cada actor en cada momento.",
+    "data": {
+     "grace_s": 45,
+     "prestop_s": 15,
+     "drain_max_s": 20,
+     "spans": [
+      {
+       "from": 0,
+       "to": 15,
+       "label": "preStop: sigue atendiendo"
+      },
+      {
+       "from": 15,
+       "to": 35,
+       "label": "drenado máximo de uvicorn"
+      },
+      {
+       "from": 35,
+       "to": 45,
+       "label": "margen"
+      }
+     ],
+     "lanes": [
+      "kubelet",
+      "ALB y endpoints",
+      "uvicorn",
+      "lifespan"
+     ],
+     "events": [
+      {
+       "t": 0,
+       "lane": "kubelet",
+       "label": "pod borrado: Terminating; corre el preStop (sleep 15)"
+      },
+      {
+       "t": 0,
+       "lane": "ALB y endpoints",
+       "label": "el endpoint pasa a no listo; el controller saca al pod del ALB, que espera hasta 30 s a lo que va en curso"
+      },
+      {
+       "t": 0,
+       "lane": "uvicorn",
+       "label": "sigue atendiendo: todavía no recibió nada"
+      },
+      {
+       "t": 15,
+       "lane": "kubelet",
+       "label": "SIGTERM al PID 1 (uvicorn)"
+      },
+      {
+       "t": 15,
+       "lane": "uvicorn",
+       "label": "Shutting down: cierra el puerto y las conexiones ociosas; las que están en curso terminan"
+      },
+      {
+       "t": 15.25,
+       "lane": "uvicorn",
+       "label": "en C01 el drenado suele durar < 1 s: casi todo request termina antes de su deadline de 250 ms"
+      },
+      {
+       "t": 15.3,
+       "lane": "lifespan",
+       "label": "cierra el cliente de Triton; Application shutdown complete; sale con 0"
+      },
+      {
+       "t": 35,
+       "lane": "uvicorn",
+       "label": "peor caso: vence --timeout-graceful-shutdown 20 y cancela lo que quede (cada uno, un 500)"
+      },
+      {
+       "t": 45,
+       "lane": "kubelet",
+       "label": "vence la gracia: SIGKILL (exit 137)"
+      }
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>liveness = ¿lo reinicio?, readiness = ¿le mando tráfico?</b> Las dependencias van en la readiness, nunca en la liveness. Al apagar: <b>preStop (15 s) → SIGTERM → drenado (≤ 20 s) → el lifespan cierra → sale</b>, todo dentro de los 45 s de gracia. Como cerrar un restaurante: apagas el letrero y sigues atendiendo mientras deja de llegar gente (preStop), atiendes a quien ya está sentado (drenado) y al final apagas la cocina (lifespan).",
+   "trap": "Trampa: poner a Triton en <code>/healthz</code>. Si Triton cae, el kubelet reinicia todos los gateways en cascada y ninguno arregla nada: la dependencia va en <code>/readyz</code>. Otras dos: un <code>lifespan</code> que tarda más de lo que la liveness tolera (≈ 25 s en C01) muere en bucle antes de abrir el puerto, y eso se arregla con una startupProbe, no con un initialDelaySeconds enorme; y un drenado más largo que lo que queda de gracia (<code>--timeout-graceful-shutdown</code> mayor que gracia − preStop) termina en SIGKILL con requests a la mitad.",
+   "lab": {
+    "goal": "Ver con uvicorn de verdad que el lifespan corre antes de abrir el puerto, que liveness y readiness responden cosas distintas, y cómo drena (o corta) un request en curso al recibir SIGTERM.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway && cd ~/lab-gateway\n[ -d .venv ] || python3.13 -m venv .venv\n. .venv/bin/activate\npip install \"fastapi==0.141.1\" \"uvicorn==0.54.0\"\ncat > salud.py <<'EOF'\n# salud.py: lifespan con warmup, liveness, readiness y un request largo para ver el apagado\nimport asyncio, os\nfrom contextlib import asynccontextmanager\nfrom fastapi import FastAPI, HTTPException\n\nDEP = os.path.expanduser(\"~/lab-gateway/dependencia_lista\")  # hace de «el modelo está listo en Triton»\n\n@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    print(\"lifespan: creo los clientes y caliento\", flush=True)\n    await asyncio.sleep(float(os.getenv(\"WARMUP_S\", \"10\")))  # carga y warmup simulados\n    print(\"lifespan: listo\", flush=True)\n    yield\n    print(\"lifespan: cierro el cliente del upstream\", flush=True)\n\napp = FastAPI(lifespan=lifespan)\n\n@app.get(\"/healthz\")\nasync def healthz():\n    return {\"status\": \"ok\"}  # liveness: sin dependencias\n\n@app.get(\"/readyz\")\nasync def readyz():\n    if not os.path.exists(DEP):  # readiness: depende de la dependencia\n        raise HTTPException(503, \"la dependencia no está lista\")\n    return {\"status\": \"ready\"}\n\n@app.get(\"/lento\")\nasync def lento(s: float = 2.0):\n    await asyncio.sleep(s)  # un request que tarda s segundos\n    return {\"durmio_s\": s}\nEOF",
+      "expect": "Successfully installed, con fastapi-0.141.1 y uvicorn-0.54.0 en la lista (o Requirement already satisfied si ya estaban)."
+     },
+     {
+      "cmd": "# segunda terminal: el servidor\ncd ~/lab-gateway && . .venv/bin/activate\nuvicorn salud:app --port 8080 --timeout-graceful-shutdown 5\n# primera terminal, enseguida\nfor i in $(seq 1 14); do curl -s -o /dev/null -w \"%{http_code} \" localhost:8080/healthz; sleep 1; done; echo",
+      "expect": "Primero varios 000 (connection refused: todavía nadie escucha en el puerto) y después 200. En la segunda terminal: Waiting for application startup., lifespan: creo los clientes y caliento, 10 s después lifespan: listo, Application startup complete. y recién entonces Uvicorn running on http://127.0.0.1:8080. Es lo que ve una probe durante el arranque."
+     },
+     {
+      "cmd": "curl -s -w \" %{http_code}\\n\" localhost:8080/readyz\ncurl -s -w \" %{http_code}\\n\" localhost:8080/healthz\ntouch ~/lab-gateway/dependencia_lista\ncurl -s -w \" %{http_code}\\n\" localhost:8080/readyz",
+      "expect": "{\"detail\":\"la dependencia no está lista\"} 503, después {\"status\":\"ok\"} 200 y, con el archivo creado, {\"status\":\"ready\"} 200. Sin la dependencia, el proceso sigue vivo pero no recibiría tráfico: es lo que pasa con todos los gateways de C01 cuando Triton cae."
+     },
+     {
+      "cmd": "curl -s -w \" %{http_code}\\n\" \"localhost:8080/lento?s=2\" & sleep 0.5; pkill -TERM -f \"uvicorn salud:app\"; wait\n# en la segunda terminal, cuando uvicorn termine\necho $?",
+      "expect": "≈ 2 s después llega {\"durmio_s\":2.0} 200: el request en curso terminó aunque el SIGTERM llegó en medio. En la segunda terminal: Shutting down, Waiting for connections to close. (CTRL+C to force quit), la línea del GET /lento?s=2 con 200 OK, Waiting for application shutdown., lifespan: cierro el cliente del upstream, Application shutdown complete. y Finished server process [PID]. Luego zsh: terminated y echo $? da 143: uvicorn relanza el SIGTERM al terminar. Como PID 1 de un contenedor, ese relanzamiento se ignora y sale con 0 (hoja de Docker)."
+     },
+     {
+      "cmd": "# segunda terminal: sin warmup y con solo 3 s de drenado\nWARMUP_S=0 uvicorn salud:app --port 8080 --timeout-graceful-shutdown 3\n# primera terminal\ncurl -s -w \" %{http_code}\\n\" \"localhost:8080/lento?s=10\" & sleep 0.5; pkill -TERM -f \"uvicorn salud:app\"; wait",
+      "expect": "≈ 3 s después del SIGTERM llega Internal Server Error 500. En la segunda terminal: ERROR: Cancel 1 running task(s), timeout graceful shutdown exceeded y un ERROR: Exception in ASGI application con un CancelledError, y la línea del GET /lento?s=10 con 500: uvicorn cancela el request, le manda un 500 y sigue con el apagado. En Kubernetes, lo que siga vivo al vencer la gracia muere con SIGKILL, sin siquiera ese 500."
+     },
+     {
+      "cmd": "deactivate\ncd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Si /healthz da 000 todo el tiempo, el servidor no arrancó: mira la segunda terminal. Si pkill no hace nada, revisa que el comando de uvicorn diga salud:app. Si los 000 no alcanzan a verse, corre el bucle de curl antes de arrancar uvicorn.",
+    "needs": "Python 3.13 e internet para pip (fastapi y uvicorn). Dos terminales con zsh; curl y pkill vienen con macOS. Ni Docker ni GPU.",
+    "verified": "docs",
+    "verified_note": "Sin instalar nada: salud.py se corrió en macOS con FastAPI 0.143.0, Starlette 1.7.0 y uvicorn 0.54.0 (Python 3.13.16), en otro puerto y con dependencia_lista en otra carpeta, y dio estas salidas: 11 veces 000 y después 200; 503, 200 y 200; {\"durmio_s\":2.0} 200 con el SIGTERM en medio, los mensajes en el orden de arriba y salida 143; con --timeout-graceful-shutdown 3, Internal Server Error 500 ≈ 3.2 s después del SIGTERM. En el código de uvicorn 0.54.0: el lifespan corre antes de abrir el socket; una tarea cancelada antes de empezar su respuesta recibe un 500 (send_500_response); y al salir relanza la señal capturada con signal.raise_signal."
+   },
+   "links": [
+    "#m06.objetos-basicos",
+    "#m06.alta-disponibilidad",
+    "#c01.fallas",
+    "#c01.archivos",
+    "#ref-comandos.depurar"
+   ]
+  },
+  {
+   "id": "observabilidad",
+   "num": 9,
+   "title": "Observabilidad: una línea JSON por request, request ID, métricas y trazas",
+   "question": "Cuando un request sale mal o lento, ¿cómo lo encuentras, cómo sabes en qué tramo se fue el tiempo y qué no debes guardar nunca?",
+   "templates": [
+    {
+     "code": "record = {\"event\": \"{evento}\", \"request_id\": {request_id}, \"model_version\": {version}}\nstatus = 500\ntry:\n    resultado = await {trabajo}\n    status = 200\nexcept HTTPException as exc:\n    status = exc.status_code\n    record[\"error\"] = exc.detail\n    raise\nfinally:\n    record.update(status=status, latency_ms=round((time.perf_counter() - t0) * 1000, 1))\n    log.info(json.dumps(record, ensure_ascii=False))",
+     "note": "Una línea JSON por request, escrita en el <code>finally</code>: sale también en los errores. Campos con valores, nunca la imagen ni datos personales. A stdout: en un contenedor, el log es un stream (un flujo de líneas) que guarda el runtime del contenedor (el programa que lo corre: containerd en EKS)."
+    },
+    {
+     "code": "request_id = request.headers.get(\"x-request-id\") or uuid.uuid4().hex\nresponse.headers[\"X-Request-ID\"] = request_id\nawait client.infer({modelo}, [inp], outputs=[out], request_id=request_id)",
+     "note": "Respeta el id que trae el caller (quien llama al gateway); si no trae, crea uno. Devuélvelo en la respuesta (también en los errores) y pásalo al siguiente salto: el mismo id queda en la línea de log, en la respuesta y en el request a Triton."
+    },
+    {
+     "code": "REQUESTS = Counter(\"{prefijo}_requests_total\", \"{ayuda}\", [\"status\", \"source\", \"model_version\"])\nLATENCY = Histogram(\"{prefijo}_request_latency_seconds\", \"{ayuda}\", [\"source\"], buckets={bordes})\n# en el finally de cada request:\nREQUESTS.labels(status=str(status), source=source, model_version=MODEL_VERSION).inc()\nLATENCY.labels(source=source).observe(elapsed)",
+     "note": "<b>Counter</b>: un número que solo sube (cuántos requests, con qué código). <b>Histogram</b>: cuenta cuántas observaciones caen bajo cada borde (<b>bucket</b>: le=\"0.2\" cuenta todas las de hasta 0.2 s) y guarda la suma y la cantidad. Pocos <b>labels</b> (etiquetas que parten la métrica) y con valores de una lista cerrada: nunca un id. Bordes de buckets alrededor del SLO (la meta de latencia)."
+    },
+    {
+     "code": "histogram_quantile(0.99, sum by (le) (rate({prefijo}_request_latency_seconds_bucket[5m])))\nsum(rate({prefijo}_requests_total{status=~\"5..\"}[5m])) / sum(rate({prefijo}_requests_total{status!~\"4..\"}[5m]))",
+     "note": "El <b>p99</b> (el tiempo bajo el que queda el 99 % de los requests) se calcula en Prometheus: primero se suman los buckets de todos los pods (<code>sum by (le)</code>) y después se saca el cuantil. La tasa de 5xx se mide sobre los requests válidos: los 4xx no entran ni arriba ni abajo."
+    },
+    {
+     "code": "pip install opentelemetry-distro opentelemetry-exporter-otlp\nopentelemetry-bootstrap -a install\nOTEL_SERVICE_NAME={servicio} \\\nOTEL_TRACES_SAMPLER=parentbased_traceidratio OTEL_TRACES_SAMPLER_ARG={fraccion} \\\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf OTEL_EXPORTER_OTLP_ENDPOINT={collector} \\\nOTEL_PYTHON_FASTAPI_EXCLUDED_URLS=\"{rutas}\" \\\nopentelemetry-instrument uvicorn app.main:app --host 0.0.0.0 --port {puerto}",
+     "note": "<b>Trazas</b> (el recorrido de un request por los servicios) sin tocar el código: <code>opentelemetry-bootstrap</code> instala las instrumentaciones de lo que tienes (FastAPI, aiohttp) y <code>opentelemetry-instrument</code> las activa. Sale un <b>span</b> (un tramo con inicio, fin y atributos) por request, con otros chicos por cada envío y lectura (<code>http send</code>, <code>http receive</code>), y otro por la llamada a Triton; el contexto viaja en el header <code>traceparent</code>. Hace exec de uvicorn (se reemplaza por él), que sigue siendo el PID 1: el proceso que recibe el SIGTERM. C01 no lo trae: el curso propone muestrear ≈ 1 % (guardar 1 de cada 100 trazas nuevas). Desde FastAPI 0.142 (C01 fija 0.141.1), FastAPI ya crea sus spans y métricas; para mandarlos al Collector (el servicio que recibe las trazas) pide <code>fastapi[standard]</code> y <code>FASTAPI_OTEL_AUTO_CONFIGURE=true</code>."
+    }
+   ],
+   "formulas": [
+    "\\hat{q} = \\ell + (u - \\ell)\\,\\frac{r - c_{\\ell}}{c_{u} - c_{\\ell}} \\qquad r = 0.99 \\times N",
+    "\\text{series} = (b + 4) \\times v = (11 + 4) \\times 4 = 60\\ \\text{por pod}",
+    "10\\ \\text{M requests/día} \\times \\approx 300\\ \\text{B} \\approx 3\\ \\text{GB/día}",
+    "\\text{trazas nuevas/s} = \\lambda \\times 0.01 = 500 \\times 0.01 = 5"
+   ],
+   "vars": [
+    [
+     "{evento}, {request_id}, {version}",
+     "campos fijos de la línea",
+     "classify · el x-request-id o uuid4().hex · MODEL_VERSION"
+    ],
+    [
+     "{trabajo}",
+     "la corrutina que hace el request",
+     "_classify(request, top_k, record, deadline=…)"
+    ],
+    [
+     "{modelo}",
+     "nombre del modelo en Triton",
+     "MODEL_NAME = \"classifier\""
+    ],
+    [
+     "{prefijo}, {ayuda}",
+     "prefijo de las métricas y su texto de ayuda",
+     "classifier · Latencia total de /v1/classify"
+    ],
+    [
+     "{bordes}",
+     "bordes de los buckets, varios cerca del SLO",
+     "(0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 2.5)"
+    ],
+    [
+     "{servicio}",
+     "service.name de las trazas",
+     "classifier-gateway"
+    ],
+    [
+     "{fraccion}",
+     "fracción de trazas nuevas que se guardan",
+     "0.01"
+    ],
+    [
+     "{collector}",
+     "URL base del OpenTelemetry Collector (el servicio que recibe y reenvía las trazas)",
+     "http://otel-collector:4318"
+    ],
+    [
+     "{rutas}",
+     "rutas que no se trazan (expresiones regulares separadas por comas)",
+     "healthz,readyz,metrics"
+    ],
+    [
+     "{puerto}",
+     "puerto del gateway",
+     "8080"
+    ],
+    [
+     "q̂, r, N",
+     "cuantil estimado, posición buscada y total de observaciones",
+     "lab: 212.8 ms con los buckets de C01"
+    ],
+    [
+     "ℓ, u, c_ℓ, c_u",
+     "bordes inferior y superior del bucket donde cae r, y los conteos acumulados en esos bordes",
+     "0.2 y 0.3 s si el p99 está entre 200 y 300 ms"
+    ],
+    [
+     "b, v",
+     "buckets finitos del histograma y combinaciones de labels; el + 4 son el bucket +Inf, _sum, _count y _created",
+     "11 y 4 (los valores de source)"
+    ],
+    [
+     "λ",
+     "requests por segundo",
+     "500 en el pico de diseño"
+    ]
+   ],
+   "pieces": [
+    [
+     "Línea JSON por request",
+     "Un evento por request con lo necesario para investigar. Una línea = un JSON: cualquier herramienta la lee sin un parser propio.",
+     "≈ 300–350 bytes: request_id, preprocess_ms, inference_ms, status"
+    ],
+    [
+     "stdout",
+     "En un contenedor el log es un stream: el runtime lo guarda con la hora de cada línea y un agente (Fluent Bit) lo lleva a S3, el almacenamiento de AWS.",
+     "PYTHONUNBUFFERED=1 en el Dockerfile: cada línea sale al instante"
+    ],
+    [
+     "request_id",
+     "El id que une la línea de log, la respuesta y el request a Triton. Respeta el del caller; si no trae, uuid4.",
+     "X-Request-ID. El ALB (el balanceador de AWS) no lo manda: agrega su propio X-Amzn-Trace-Id"
+    ],
+    [
+     "Counter",
+     "Un número que solo sube y vuelve a 0 si el proceso reinicia. Se consulta con rate(), que da cuánto sube por segundo.",
+     "classifier_requests_total{status, source, model_version}"
+    ],
+    [
+     "Histogram",
+     "Cuenta observaciones por bucket, más _sum y _count. El p99 se calcula en Prometheus sumando los buckets de todos los pods.",
+     "classifier_request_latency_seconds"
+    ],
+    [
+     "Buckets alrededor del SLO",
+     "Los bordes deciden la precisión: con 0.15, 0.2 y 0.3 s, un p99 cerca de 200 ms sale bien; con los default, que saltan de 0.1 a 0.25 s, no.",
+     "lab de esta sección"
+    ],
+    [
+     "Labels acotados (cardinalidad)",
+     "Cada combinación de valores de labels es una serie que Prometheus guarda en memoria (cuántas hay es la cardinalidad): solo valores de una lista cerrada.",
+     "source: mobile, web, internal u other; nunca request_id"
+    ],
+    [
+     "Desglose por tramo",
+     "Un histograma por etapa dice dónde se fue el tiempo: CPU (preproceso) o Triton (red, cola y GPU).",
+     "classifier_preprocess_seconds y classifier_inference_seconds"
+    ],
+    [
+     "/metrics",
+     "La ruta que Prometheus lee cada 15 s. Con 1 proceso basta el registro por defecto; con --workers N hace falta el modo multiproceso (PROMETHEUS_MULTIPROC_DIR).",
+     "generate_latest() con CONTENT_TYPE_LATEST"
+    ],
+    [
+     "Traza y span",
+     "Una traza es el viaje de un request entre servicios; cada span es un tramo con inicio, fin y atributos.",
+     "span del gateway → span de la llamada → spans de Triton"
+    ],
+    [
+     "traceparent y muestreo",
+     "El header estándar traceparent (especificación W3C Trace Context) lleva el id de la traza al siguiente servicio. parentbased_traceidratio guarda una fracción de las trazas nuevas y respeta la decisión de quien llama.",
+     "OTEL_TRACES_SAMPLER_ARG=0.01"
+    ],
+    [
+     "Exemplar",
+     "Un trace_id pegado a una observación del histograma: del p99 saltas a un request concreto. Solo sale en el formato OpenMetrics (la variante del formato de texto que sí los lleva; C01 expone el otro), y Prometheus lo guarda con --enable-feature=exemplar-storage.",
+     "LATENCY.labels(source=source).observe(t, {\"trace_id\": …})"
+    ],
+    [
+     "Qué no loguear",
+     "Ni la imagen, ni el EXIF (los metadatos de la foto, que pueden traer la ubicación), ni la IP, ni ids de usuario, ni tokens o el header Authorization.",
+     "C01: solo los primeros 16 caracteres del sha256 de la imagen"
+    ]
+   ],
+   "tables": [
+    {
+     "caption": "Logs, métricas y trazas: qué pregunta responde cada una",
+     "head": [
+      "Señal",
+      "Responde",
+      "Cuesta",
+      "En C01"
+     ],
+     "rows": [
+      [
+       "Línea de log por request",
+       "¿Qué le pasó a este request?",
+       "bytes por request: ≈ 3 GB por día a 10 M requests",
+       "el 100 % de los requests, sin datos personales, va a S3"
+      ],
+      [
+       "Métricas",
+       "¿Cuántos, qué tan rápido y cuántos errores, en total y por tramo?",
+       "series de tiempo: no crecen con el tráfico, sí con los labels",
+       "Prometheus lee /metrics cada 15 s"
+      ],
+      [
+       "Trazas",
+       "¿En qué servicio y en qué tramo se fue el tiempo de este request?",
+       "spans por request: por eso se muestrean",
+       "propuesta del curso: ≈ 1 %, con el mismo request_id; el código no la trae"
+      ]
+     ],
+     "note": "Se unen por ids que viajan entre ellas, pero hay que ponerlos: el <code>trace_id</code> en la línea de log y en el exemplar del histograma, o el <code>request_id</code> como atributo del span. C01 hoy solo tiene el <code>request_id</code>, que une el log, la respuesta y el request a Triton. Las alertas salen de las métricas; la investigación, de los logs y las trazas."
+    }
+   ],
+   "example": {
+    "title": "main.py: las métricas, el request_id y la línea que se escribe siempre",
+    "lang": "python",
+    "code": "# Nombres = contrato con monitoring/alerts.yml: si cambias uno aquí, rompes una alerta en silencio.\n# Labels acotados: status (≈ 10 códigos) × source (4) × model_version (1–2 durante un canary)\nREQUESTS = Counter(  # el cliente de Python agrega el sufijo _total; el nombre expuesto es este mismo\n    \"classifier_requests_total\", \"Requests a /v1/classify por código HTTP, caller y modelo\",\n    [\"status\", \"source\", \"model_version\"],  # status: \"200\", \"503\"… · source: mobile/web/internal/other\n)\nLATENCY = Histogram(  # latencia server-side; los buckets rodean al SLO (0.2 s) para que el p99 sea preciso\n    \"classifier_request_latency_seconds\", \"Latencia total de /v1/classify\", [\"source\"],\n    buckets=(0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 2.5),\n)\n# …\n    # Si el cliente (o un proxy) ya trae un id lo respetamos: así se traza el request de punta a punta\n    request_id = request.headers.get(\"x-request-id\") or uuid.uuid4().hex\n    record = {  # la línea de log que se escribe SIEMPRE, también en errores\n        \"event\": \"classify\",\n        \"request_id\": request_id,\n        \"model_version\": MODEL_VERSION,\n        # Autodeclarado: solo sirve para partir el monitoreo (mobile/web/interno), NO es identidad.\n        # Cuotas y prioridad se basan en la identidad verificada en el borde (JWT de servicio o mTLS).\n        \"source\": request.headers.get(\"x-client-source\", \"unknown\"),\n    }\n    status = 500  # si algo inesperado explota, se cuenta como 500\n# …\n    finally:\n        elapsed = time.perf_counter() - t0\n        source = record[\"source\"] if record[\"source\"] in SOURCES else \"other\"  # cardinalidad acotada\n        # Alimenta la alerta de 5xx y los paneles por caller y por modelo (canary vs estable)\n        REQUESTS.labels(status=str(status), source=source, model_version=MODEL_VERSION).inc()\n        if not 400 <= status < 500:  # los 4xx son rechazos rápidos: incluirlos \"mejoraría\" el p99 falsamente\n            LATENCY.labels(source=source).observe(elapsed)\n        record.update(status=status, latency_ms=round(elapsed * 1000, 1))\n        # Sin imagen cruda ni PII (ni IP ni user id): solo lo necesario para monitorear y etiquetar\n        log.info(json.dumps(record, ensure_ascii=False))",
+    "source": "reference/c01/gateway/app/main.py (líneas 63–72, 210–220 y 240–249; # … marca líneas omitidas)",
+    "notes": [
+     "Los nombres de las métricas son un contrato con <code>monitoring/alerts.yml</code> (lo dice el comentario de la línea 63 de main.py): si cambias uno, una alerta se queda sin datos sin avisar. <code>prometheus_client</code> expone el contador como <code>classifier_requests_total</code> y agrega una serie <code>_created</code> (la hora en que nació cada serie) por combinación de labels (se apaga con <code>PROMETHEUS_DISABLE_CREATED_SERIES=True</code>).",
+     "El <code>record</code> se arma al entrar y se escribe en el <code>finally</code>: sale una línea por request, también en 4xx, 503 y 504. <code>status = 500</code> por defecto: si explota algo inesperado, la línea y el contador dicen 500 aunque la excepción siga su camino.",
+     "<code>source</code> viene de un header que escribe el caller: sirve para partir los paneles, no como identidad. Antes de usarse como label se mapea a una lista cerrada (<code>SOURCES</code>; si no, <code>other</code>): un texto libre crearía una serie nueva por cada valor distinto.",
+     "La latencia no observa los 4xx: un rechazo de 1 ms bajaría el p99 sin que nadie esté mejor; los 503 y 504 sí entran. Con <code>top_k = 5</code> la línea pesa unos 350 bytes (355 en el ejemplo de la figura; el curso redondea a ≈ 300) y no lleva la hora: la agrega el runtime del contenedor al guardarla (<code>kubectl logs --timestamps</code> la muestra).",
+     "El 422 de <code>top_k</code> no entra a esta función (FastAPI valida antes de llamar a <code>classify</code>): lo anota un exception handler, con su línea, su conteo y su <code>X-Request-ID</code>. Lo que no pasa por ninguna función no deja línea ni métrica: con <code>--no-access-log</code>, solo lo ve el ALB, en CloudWatch (las métricas de AWS): <code>HTTPCode_Target_4XX_Count</code> si lo respondió el gateway (un 405, por usar GET) y <code>HTTPCode_ELB_4XX_Count</code> si lo respondió el propio ALB, como el 404 de una ruta que el Ingress no enruta. Versiones: prometheus-client 0.26.0 en C01, que es también la actual; OpenTelemetry Python va en 1.45.1 (la librería base) y 0.66b1 (las instrumentaciones)."
+    ]
+   },
+   "figure": {
+    "kind": "observability",
+    "caption": "Un request de 17.9 ms y lo que deja: una línea de log, seis métricas que suben en 1 (un contador y cinco histogramas) y, si activas las trazas, un árbol de spans. Valores ilustrativos con la forma real de main.py; las trazas son la propuesta del curso.",
+    "data": {
+     "request": {
+      "method": "POST",
+      "path": "/v1/classify?top_k=5",
+      "request_id": "6f1d0c2b9a8e4f7d8c3b2a1908f7e6d5",
+      "status": 200,
+      "latency_ms": 17.9
+     },
+     "log_line": "{\"event\": \"classify\", \"request_id\": \"6f1d0c2b9a8e4f7d8c3b2a1908f7e6d5\", \"model_version\": \"2026-09-01-resnet50-fp16\", \"source\": \"mobile\", \"image_bytes\": 183204, \"preprocess_ms\": 8.4, \"image_sha256\": \"9c1e5a0b7d3f2e84\", \"inference_ms\": 6.1, \"top_k\": [[311, 0.8312], [54, 0.0721], [57, 0.0394], [62, 0.0188], [60, 0.0093]], \"status\": 200, \"latency_ms\": 17.9}",
+     "log_bytes": 355,
+     "metrics": [
+      {
+       "name": "classifier_requests_total",
+       "labels": "model_version=\"2026-09-01-resnet50-fp16\",source=\"mobile\",status=\"200\"",
+       "change": "+1"
+      },
+      {
+       "name": "classifier_request_latency_seconds_bucket",
+       "labels": "le=\"0.025\",source=\"mobile\"",
+       "change": "+1 en este bucket y en todos los mayores (17.9 ms)"
+      },
+      {
+       "name": "classifier_preprocess_seconds_bucket",
+       "labels": "le=\"0.01\"",
+       "change": "+1 (8.4 ms)"
+      },
+      {
+       "name": "classifier_inference_seconds_bucket",
+       "labels": "le=\"0.01\"",
+       "change": "+1 (6.1 ms)"
+      },
+      {
+       "name": "classifier_top1_score_bucket",
+       "labels": "le=\"0.9\",model_version=\"2026-09-01-resnet50-fp16\"",
+       "change": "+1 (0.8312)"
+      },
+      {
+       "name": "classifier_image_bytes_bucket",
+       "labels": "le=\"250000.0\"",
+       "change": "+1 (183,204 bytes)"
+      }
+     ],
+     "spans": [
+      {
+       "name": "POST /v1/classify",
+       "kind": "server",
+       "start_ms": 0,
+       "ms": 17.9,
+       "who": "instrumentación de FastAPI"
+      },
+      {
+       "name": "decode + preproceso",
+       "kind": "internal",
+       "start_ms": 1.2,
+       "ms": 8.4,
+       "who": "span manual (opcional)"
+      },
+      {
+       "name": "POST",
+       "kind": "client",
+       "start_ms": 10.0,
+       "ms": 6.1,
+       "who": "instrumentación de aiohttp (la URL /v2/models/classifier/infer va como atributo); lleva traceparent"
+      },
+      {
+       "name": "cola + cómputo en Triton",
+       "kind": "server",
+       "start_ms": 10.6,
+       "ms": 4.9,
+       "who": "Triton, si exporta trazas OpenTelemetry"
+      }
+     ],
+     "join": "el mismo request_id en la línea de log, el header X-Request-ID y el request a Triton"
+    }
+   },
+   "memo": "Cómo recordarla: <b>logs para un request, métricas para todos, trazas para ver dónde se fue el tiempo</b>, unidos por un id que pones en los tres. Una línea JSON por request, escrita en el <code>finally</code>; histogramas con buckets alrededor del SLO y labels de lista cerrada; el p99 se calcula sumando buckets, nunca promediando p99.",
+   "trap": "Trampa: promediar el p99 de cada pod. En el lab de esta sección, tres pods con p99 de 117, 114 y 263 ms promedian 164 ms («cumplimos 200 ms»), pero el p99 real del servicio es 206 ms: no cumple. Prometheus lo calcula bien sumando buckets (<code>sum by (le)</code>) y después el cuantil. Otras dos: poner <code>request_id</code> (o cualquier valor sin límite) como label, que crea una serie por request hasta que Prometheus se queda sin memoria; y loguear la imagen, el header <code>Authorization</code> o la IP «por si acaso».",
+   "lab": {
+    "goal": "Ver el patrón de una línea JSON por request (también en los errores) y comprobar con números por qué el p99 se calcula sumando buckets y por qué importan sus bordes.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway && cd ~/lab-gateway\ncat > logs.py <<'EOF'\n# logs.py: una línea JSON por request con el patrón try/except/finally de C01 (simulación, solo stdlib)\nimport json, time\n\nclass HTTPError(Exception):  # hace el papel de HTTPException\n    def __init__(self, status, detail):\n        self.status, self.detail = status, detail\n\ndef trabajo(modo):\n    if modo == \"saturado\":\n        raise HTTPError(503, \"gateway saturado: reintenta más tarde\")\n    if modo == \"lento\":\n        raise HTTPError(504, \"timeout de inferencia\")\n    if modo == \"bug\":\n        return {}[\"logits\"]  # un bug: KeyError\n    return {\"predictions\": []}\n\ndef classify(modo, request_id):\n    t0 = time.perf_counter()\n    record = {\"event\": \"classify\", \"request_id\": request_id, \"model_version\": \"2026-09-01-resnet50-fp16\"}\n    status = 500  # si algo inesperado explota, se cuenta como 500\n    try:\n        resultado = trabajo(modo)\n        status = 200\n        return resultado\n    except HTTPError as exc:\n        status = exc.status\n        record[\"error\"] = exc.detail\n        raise\n    finally:  # corre SIEMPRE: con éxito, con HTTPError y con el bug\n        record.update(status=status, latency_ms=round((time.perf_counter() - t0) * 1000, 1))\n        print(json.dumps(record, ensure_ascii=False), flush=True)\n\nfor i, modo in enumerate([\"ok\", \"ok\", \"saturado\", \"lento\", \"bug\"]):\n    try:\n        classify(modo, f\"req-{i}\")\n    except Exception as exc:\n        pass  # en el gateway real, el cliente recibe el error (y el bug, un 500)\nEOF\npython3.13 logs.py",
+      "expect": "Cinco líneas JSON: req-0 y req-1 con status 200; req-2 con error gateway saturado: reintenta más tarde y status 503; req-3 con timeout de inferencia y 504; req-4 con status 500 y sin campo error. El finally escribió las cinco, también la del bug: ese 500 sale del valor por defecto status = 500."
+     },
+     {
+      "cmd": "python3.13 logs.py | python3.13 -c \"import json, sys; [print(l, end='') for l in sys.stdin if json.loads(l)['status'] >= 500]\"",
+      "expect": "Solo req-2, req-3 y req-4. Una línea = un JSON: filtrar por cualquier campo no necesita un parser propio; en producción lo hace tu herramienta de logs."
+     },
+     {
+      "cmd": "cat > p99.py <<'EOF'\n# p99.py: el p99 de 3 pods como lo calcula Prometheus (sumando buckets) y como NO se calcula (promediando p99)\nimport math, random, sys\n\nC01 = [0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 2.5]                  # buckets de main.py\nDEFAULT = [0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0]  # default de prometheus_client\n\ndef pod(n, mediana_s, sigma):  # latencias al azar con cola larga (lognormal)\n    return [random.lognormvariate(math.log(mediana_s), sigma) for _ in range(n)]\n\ndef p99_exacto(xs):\n    xs = sorted(xs)\n    return xs[math.ceil(0.99 * len(xs)) - 1]\n\ndef acumulado(xs, bordes):  # lo que exporta /metrics: _bucket{le=\"…\"} cuenta las observaciones <= le\n    return [sum(1 for x in xs if x <= b) for b in bordes] + [len(xs)]  # el último es le=\"+Inf\"\n\ndef histogram_quantile(q, bordes, acum):  # la regla de Prometheus: interpolación lineal dentro del bucket\n    rango = q * acum[-1]\n    for i, c in enumerate(acum):\n        if c >= rango:\n            if i == len(bordes):\n                return bordes[-1]  # cayó en +Inf: devuelve el último borde finito\n            ini, antes = (bordes[i - 1], acum[i - 1]) if i else (0.0, 0)\n            return ini + (bordes[i] - ini) * (rango - antes) / (c - antes)\n\nlento_ms = float(sys.argv[1]) if len(sys.argv) > 1 else 75\nrandom.seed(3)\npods = [pod(10000, 0.040, 0.45), pod(10000, 0.040, 0.45), pod(10000, lento_ms / 1000, 0.55)]\nms = lambda s: f\"{s * 1000:6.1f} ms\"\nprint(\"p99 de cada pod:          \", \", \".join(ms(p99_exacto(p)).strip() for p in pods))\nprint(\"promedio de esos p99:     \", ms(sum(p99_exacto(p) for p in pods) / 3), \"  <- no significa nada\")\nprint(\"p99 exacto (30,000 reqs): \", ms(p99_exacto(sum(pods, []))))\nfor nombre, bordes in ((\"de C01\", C01), (\"default\", DEFAULT)):\n    suma = [sum(col) for col in zip(*(acumulado(p, bordes) for p in pods))]  # sum by (le)\n    print(f\"histogram_quantile {nombre:8}\", ms(histogram_quantile(0.99, bordes, suma)))\nEOF\npython3.13 p99.py 70",
+      "expect": "p99 de cada pod: 116.6, 113.5 y 245.7 ms; su promedio, 158.6 ms. El p99 exacto de los 30,000 requests es 192.3 ms. histogram_quantile con los buckets de C01: 196.8 ms, cerca y del lado correcto de 200. Con los default de prometheus_client: 238.9 ms, una falsa alarma."
+     },
+     {
+      "cmd": "python3.13 p99.py 75",
+      "expect": "Ahora el p99 exacto es 205.5 ms: el servicio no cumple 200 ms. Los buckets de C01 dicen 212.8 ms y lo detectan; el promedio de los p99 dice 164.4 ms y lo esconde; los default dicen 242.2 ms, casi lo mismo que antes: con un bucket que va de 100 a 250 ms no se distingue 192 de 206."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Los números son exactos con cualquier Python 3 (semilla fija). Prueba con 50, 60, 80 o 90: los buckets de C01 siguen al p99 exacto con 4 a 25 ms de error, mientras los default dan entre 219 y 249 ms aunque el exacto vaya de 144 a 246 ms.",
+    "needs": "Python 3, sin paquetes extra (los comandos usan python3.13). Ni Docker ni GPU.",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS con Python 3.9.6, 3.13.15, 3.13.16 y 3.14.3, y repetido copiando los pasos tal cual en zsh: salidas idénticas. histogram_quantile sigue la regla documentada de Prometheus para histogramas clásicos (interpolación lineal dentro del bucket, 0 como límite inferior del primero, el último borde finito si cae en +Inf); los buckets default son los de prometheus_client (Histogram.DEFAULT_BUCKETS)."
+   },
+   "links": [
+    "#c01.monitoreo",
+    "#m12.sistema",
+    "#m12.prometheus-grafana",
+    "#m12.logging-predicciones",
+    "#ref-herramientas.monitoreo"
+   ]
+  }
+ ]
+}

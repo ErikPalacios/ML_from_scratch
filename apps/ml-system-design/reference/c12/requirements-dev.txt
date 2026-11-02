@@ -1,0 +1,10 @@
+# Dependencias para correr TODOS los tests y la suite de escenarios de c12 (pytest desde reference/c12).
+# No entran a ninguna imagen.
+-r service/requirements.txt  # los tests usan exactamente las versiones de producción
+pytest==9.1.1  # runner de tests (los tests async usan asyncio.run: sin plugins)
+pyyaml==6.0.3  # escenarios de eval/scenarios/*.yaml y lectura de monitoring/alerts.yml en un test
+# --- transitivas ---
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0

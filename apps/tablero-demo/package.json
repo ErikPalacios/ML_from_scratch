@@ -1,0 +1,10 @@
+{
+  "name": "tablero-demo",
+  "private": true,
+  "description": "Public demo of the ML board: same app, sample project, no backend (data stays in the visitor's browser).",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test \"tests/*.test.mjs\"",
+    "deploy": "node tools/build.mjs && node tools/deploy.mjs"
+  }
+}

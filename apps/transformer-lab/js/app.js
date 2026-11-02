@@ -389,6 +389,7 @@
     root.addEventListener('hashchange', () => {
       const id = (root.location.hash || '').slice(1);
       if (TABS.indexOf(id) >= 0) setTab(id, { noHash: true });
+      else goToHashStep(id);
     });
   }
 
@@ -478,6 +479,15 @@
     const st = S.trace.steps[i];
     return { index: i, total: S.trace.steps.length, id: st.id, tpl: st.tpl, phase: st.phase, kind: st.kind, block: st.block,
       layer: st.layer, head: st.head, title: st.title, dims: st.dims, ms: +S.perf.lastStepMs.toFixed(2) };
+  }
+
+  // Enlace directo #paso-<n> (n desde 1): lo usa el Atlas de Arquitecturas para abrir un paso concreto.
+  function goToHashStep(id) {
+    const m = /^paso-(\d+)$/.exec(id || '');
+    if (!m || !S.trace) return;
+    setTab('paso', { noHash: true });
+    stopPlay();
+    goTo(parseInt(m[1], 10) - 1);   // goTo acota al rango de la traza
   }
 
   function goTo(i, o) {
@@ -2690,6 +2700,7 @@
     });
     const hash = (root.location.hash || '').slice(1);
     setTab(TABS.indexOf(hash) >= 0 ? hash : 'paso', { force: true, noHash: true, keepScroll: true });
+    goToHashStep(hash);
     // fórmulas estáticas de las pestañas
     for (const el of doc.querySelectorAll('.panel-note, .gen-note, .gc-intro')) Tex.typeset(el);
     S.ready = true;

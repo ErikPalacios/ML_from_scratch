@@ -1,0 +1,338 @@
+{
+  "config_id": "vit-s16-224",
+  "model": "vit",
+  "params_total": 22050664,
+  "params_by_module": {
+    "patch_embed": 295296,
+    "blocks": 21293568,
+    "norm": 768,
+    "head": 385000,
+    "cls_token": 384,
+    "pos_embed": 75648
+  },
+  "params_by_node": {
+    "patch-embed": 295296,
+    "cls": 384,
+    "pos-embed": 75648,
+    "encoder": 21293568,
+    "enc-layer": 21293568,
+    "ln1": 9216,
+    "mhsa": 7096320,
+    "qkv": 5322240,
+    "proj": 1774080,
+    "ln2": 9216,
+    "mlp": 14178816,
+    "fc1": 7096320,
+    "fc2": 7082496,
+    "final-ln": 768,
+    "head": 385000
+  },
+  "shapes": {
+    "x-img": [
+      224,
+      224,
+      3
+    ],
+    "x-patch-grid": [
+      14,
+      14,
+      384
+    ],
+    "x-patches": [
+      196,
+      384
+    ],
+    "x0": [
+      197,
+      384
+    ],
+    "h-ln1": [
+      197,
+      384
+    ],
+    "qkv": [
+      197,
+      1152
+    ],
+    "q": [
+      6,
+      197,
+      64
+    ],
+    "k": [
+      6,
+      197,
+      64
+    ],
+    "attn": [
+      6,
+      197,
+      197
+    ],
+    "z": [
+      197,
+      384
+    ],
+    "o": [
+      197,
+      384
+    ],
+    "r1": [
+      197,
+      384
+    ],
+    "h-ln2": [
+      197,
+      384
+    ],
+    "u": [
+      197,
+      1536
+    ],
+    "g": [
+      197,
+      1536
+    ],
+    "f": [
+      197,
+      384
+    ],
+    "x-out": [
+      197,
+      384
+    ],
+    "x-ln": [
+      197,
+      384
+    ],
+    "cls-out": [
+      384
+    ],
+    "logits": [
+      1000
+    ],
+    "e-pos": [
+      197,
+      384
+    ]
+  },
+  "shapes_torch": {
+    "x-patch-grid": {
+      "module": "patch_embed.proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        384,
+        14,
+        14
+      ]
+    },
+    "x-patches": {
+      "module": "patch_embed",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        196,
+        384
+      ]
+    },
+    "x0": {
+      "module": "pos_drop",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        197,
+        384
+      ]
+    },
+    "h-ln1": {
+      "module": "blocks.0.norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        197,
+        384
+      ]
+    },
+    "qkv": {
+      "module": "blocks.0.attn.qkv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        197,
+        1152
+      ]
+    },
+    "q": {
+      "module": "blocks.0.attn.q_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        6,
+        197,
+        64
+      ]
+    },
+    "k": {
+      "module": "blocks.0.attn.k_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        6,
+        197,
+        64
+      ]
+    },
+    "attn": {
+      "module": "blocks.0.attn.attn_drop",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        6,
+        197,
+        197
+      ]
+    },
+    "z": {
+      "module": "blocks.0.attn.norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        197,
+        384
+      ]
+    },
+    "o": {
+      "module": "blocks.0.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        197,
+        384
+      ]
+    },
+    "r1": {
+      "module": "blocks.0.norm2",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        197,
+        384
+      ]
+    },
+    "h-ln2": {
+      "module": "blocks.0.norm2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        197,
+        384
+      ]
+    },
+    "u": {
+      "module": "blocks.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        197,
+        1536
+      ]
+    },
+    "g": {
+      "module": "blocks.0.mlp.act",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        197,
+        1536
+      ]
+    },
+    "f": {
+      "module": "blocks.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        197,
+        384
+      ]
+    },
+    "x-out": {
+      "module": "blocks.11",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        197,
+        384
+      ]
+    },
+    "x-ln": {
+      "module": "norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        197,
+        384
+      ]
+    },
+    "cls-out": {
+      "module": "fc_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        384
+      ]
+    },
+    "logits": {
+      "module": "head",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1000
+      ]
+    }
+  },
+  "not_hooked": {
+    "x-cls-cat": "se forma dentro de VisionTransformer._pos_embed (torch.cat), sin módulo propio",
+    "v": "sale de qkv.unbind dentro de Attention.forward; solo q y k pasan por un módulo (q_norm/k_norm)",
+    "scores": "q @ k^T dentro de Attention.forward (sin módulo)",
+    "scores-scaled": "timm escala q antes del producto (q * scale), no los scores; mismo resultado",
+    "z-heads": "attn @ v dentro de Attention.forward (sin módulo)"
+  },
+  "flops_total": 9197764608,
+  "flops_total_fused_sdpa": 9197764608,
+  "flops_by_op": {
+    "aten.addmm": 8366831616,
+    "aten.bmm": 715327488,
+    "aten.convolution": 115605504
+  },
+  "flops_by_op_fused_sdpa": {
+    "aten._scaled_dot_product_flash_attention_for_cpu": 715327488,
+    "aten.addmm": 8366831616,
+    "aten.convolution": 115605504
+  },
+  "alt": {
+    "hf": {
+      "lib": "transformers",
+      "ctor": "ViTForImageClassification(ViTConfig(hidden_size=384, num_hidden_layers=12, num_attention_heads=6, intermediate_size=1536, image_size=224, patch_size=16, num_labels=1000, qkv_bias=True))",
+      "params_total": 22050664,
+      "flops_total": 9197764608
+    }
+  },
+  "source": {
+    "lib": "timm",
+    "ctor": "timm.create_model('vit_small_patch16_224', pretrained=False, num_classes=1000)",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "timm (como la cabeza de fine-tuning del paper) clasifica con LayerNorm final → token CLS → Linear(D, 1000); NO tiene la capa oculta 'pre-logits' (representation layer, tanh) de la cabeza de pre-entrenamiento del paper. El calculador sigue a timm.",
+    "Formas sin batch (B=1); la rejilla x-patch-grid se reporta H×W×C (PyTorch: C×H×W).",
+    "FlopCounterMode cuenta solo matmuls/convs/sdpa a 2 FLOPs por MAC; sesgos, LayerNorm, softmax, GELU y sumas no cuentan (el calculador los pone en 'otros').",
+    "e-pos es la forma del parámetro model.pos_embed (sin batch).",
+    "En CPU, sdpa despacha a aten._scaled_dot_product_flash_attention_for_cpu, que FlopCounterMode no registra (contaría 0): common.py lo registra con torch.utils.flop_counter.sdpa_flop_count."
+  ]
+}

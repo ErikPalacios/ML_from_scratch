@@ -1,0 +1,200 @@
+{
+  "note": "Copia de los archivos del laboratorio Iris que lee gen-docker.mjs, para que el build no dependa del otro repo. No se editan a mano: node lab-iris.mjs snapshot los vuelve a copiar desde iris-lab y actualiza sha256, bytes, líneas, commit y fecha. Los orígenes, las etiquetas y los bloques del prompt sí se editan aquí.",
+  "source_dir": "~/Documents/ProyectosPortafolio/Caso1/.claude/worktrees/classification-docker-setup-1528ea/iris-lab",
+  "branch": "claude/classification-docker-setup-1528ea",
+  "commit": "0f14740",
+  "date": "2026-10-29",
+  "origins": {
+    "repo": {
+      "short": "repo · {commit}",
+      "long": "En el repo: copiado byte por byte de iris-lab, igual al commit {commit} de la rama {branch}."
+    },
+    "untracked": {
+      "short": "repo · sin commit",
+      "long": "En la carpeta iris-lab, todavía sin commit: copiado byte por byte."
+    },
+    "prompt-tested": {
+      "short": "prompt · probado en carpeta temporal",
+      "long": "Solo existe en CHEATSHEET_PROMPT.md: se probó en una carpeta temporal y falta crearlo en el repo. Es el bloque de código del prompt, tal cual."
+    },
+    "prompt-draft": {
+      "short": "prompt · borrador",
+      "long": "Solo existe en CHEATSHEET_PROMPT.md: borrador sin probar. Es el bloque de código del prompt, tal cual."
+    }
+  },
+  "files": [
+    {
+      "path": "CHEATSHEET_PROMPT.md",
+      "origin": "untracked",
+      "lang": "text",
+      "role": "La especificación de la sección (tu prompt) y la fuente de los archivos «prompt».",
+      "sha256": "67b9fd64a636d796cd0c76d23d76edec43f264ddd142c866e5c74c0e508b1dce",
+      "bytes": 26901,
+      "lines": 553
+    },
+    {
+      "path": ".gitignore",
+      "origin": "repo",
+      "lang": "text",
+      "sha256": "282bfc81ff01a8de3573996cb735c5ac54fe3d8788ed8e4fcc83f4e6527b3730",
+      "bytes": 146,
+      "lines": 5
+    },
+    {
+      "path": "training/train.py",
+      "origin": "repo",
+      "lang": "python",
+      "sha256": "48e6d0cdc7c9bc45fb0547e1026dab10591d762d76f13cbbabb9d21bcc06eb54",
+      "bytes": 2587,
+      "lines": 78
+    },
+    {
+      "path": "model_server/server.py",
+      "origin": "repo",
+      "lang": "python",
+      "sha256": "d28c94ae3432acded1a0179f433b503e377fd0264b2ccbeae345239990fb7de9",
+      "bytes": 4971,
+      "lines": 140
+    },
+    {
+      "path": "model_server/requirements.in",
+      "origin": "repo",
+      "lang": "text",
+      "also_prompt": {
+        "label": "`model_server/requirements.in`",
+        "fence": ""
+      },
+      "sha256": "4160c68994353e3bcda6802593ba4e01fc689c305962991cdabd1fe7560cb40c",
+      "bytes": 43,
+      "lines": 4
+    },
+    {
+      "path": "model_server/requirements.txt",
+      "origin": "repo",
+      "lang": "text",
+      "sha256": "9fbedf564418f574dfc797784012d7bbced6caddecee1c0bd6588b02ceaf085d",
+      "bytes": 1405,
+      "lines": 64
+    },
+    {
+      "path": "model_server/Dockerfile",
+      "origin": "prompt-tested",
+      "lang": "dockerfile",
+      "label": "`model_server/Dockerfile`",
+      "fence": "dockerfile",
+      "sha256": "0f9597b3d33dc1b014ad7d7721124ae9bbaf0ca8d4e626e33ce379cb50f2d438",
+      "bytes": 477,
+      "lines": 20
+    },
+    {
+      "path": "model_server/Dockerfile.dockerignore",
+      "origin": "prompt-tested",
+      "lang": "text",
+      "label": "`model_server/Dockerfile.dockerignore`",
+      "fence": "",
+      "sha256": "22cc377e04b4a493317acc15dc255b513fc9b5cbc7eb9f51cde257b1d6e26dac",
+      "bytes": 68,
+      "lines": 7
+    },
+    {
+      "path": "model_server/Dockerfile.volume",
+      "origin": "prompt-tested",
+      "lang": "dockerfile",
+      "label": "`model_server/Dockerfile.volume`",
+      "fence": "dockerfile",
+      "sha256": "1135048bc134616716b76590598193bacd7d0e5663ded2bdf01d6575f38afc9b",
+      "bytes": 419,
+      "lines": 19
+    },
+    {
+      "path": "model_server/.dockerignore",
+      "origin": "prompt-tested",
+      "lang": "text",
+      "label": "`model_server/.dockerignore`",
+      "fence": "",
+      "sha256": "1743fba5693d76214cb6e7adc7a8b70f652f001c8603e9624885fa7c3b155e83",
+      "bytes": 36,
+      "lines": 4
+    },
+    {
+      "path": "gateway/app.py",
+      "origin": "repo",
+      "lang": "python",
+      "sha256": "8b6cfa81864e1347c38991d7ca191f6306400dcf0246b8ad8ad47cd6aef2e4e3",
+      "bytes": 4155,
+      "lines": 117
+    },
+    {
+      "path": "gateway/requirements.in",
+      "origin": "repo",
+      "lang": "text",
+      "also_prompt": {
+        "label": "`gateway/requirements.in`",
+        "fence": ""
+      },
+      "sha256": "4e2cf3e8c9b3b4f84e1bcec567c9507a8b2721225d0360cdef35a96c8fa973ce",
+      "bytes": 31,
+      "lines": 3
+    },
+    {
+      "path": "gateway/requirements.txt",
+      "origin": "repo",
+      "lang": "text",
+      "sha256": "b9b2d9b9026f69d0ec6aa6d4ef99f52415acc86bf74498bbae1a983d1a9b93d7",
+      "bytes": 1362,
+      "lines": 65
+    },
+    {
+      "path": "gateway/Dockerfile",
+      "origin": "untracked",
+      "lang": "dockerfile",
+      "also_prompt": {
+        "label": "`gateway/Dockerfile`",
+        "fence": "dockerfile"
+      },
+      "sha256": "d2fe71a0b373af3e54d4be77412c9ccb0c411eb1f374b6ef45f3dcf5ae0d9906",
+      "bytes": 277,
+      "lines": 16
+    },
+    {
+      "path": "gateway/.dockerignore",
+      "origin": "untracked",
+      "lang": "text",
+      "also_prompt": {
+        "label": "`gateway/.dockerignore`",
+        "fence": ""
+      },
+      "sha256": "b2e508767a09d340ac07e48c6a41d48690b90a9e5b6b7740ee9ba8695c4c30ea",
+      "bytes": 23,
+      "lines": 3
+    },
+    {
+      "path": "scripts/smoke.sh",
+      "origin": "repo",
+      "lang": "bash",
+      "sha256": "8313daffeaeb97db03e1f01ab5bd59b5caa9b67335a1b8bec2933feb3956b263",
+      "bytes": 1176,
+      "lines": 33
+    },
+    {
+      "path": "compose.yaml",
+      "origin": "prompt-draft",
+      "lang": "yaml",
+      "label": "### 7b. Con Docker Compose",
+      "fence": "yaml",
+      "sha256": "e570cb645def01dd6ce309c634c2e0bcd1d09c5d4a1e310a075e21dc2dfcffb0",
+      "bytes": 587,
+      "lines": 24
+    },
+    {
+      "path": "model_repository/iris/config.pbtxt",
+      "origin": "prompt-draft",
+      "lang": "text",
+      "label": "`config.pbtxt` que se usó para Triton",
+      "fence": "",
+      "sha256": "e262e4e0adf38b1ff74970936ccffdb834fa9140fea7a38cec2c1294333da122",
+      "bytes": 251,
+      "lines": 7
+    }
+  ]
+}

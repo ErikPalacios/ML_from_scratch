@@ -1,0 +1,310 @@
+{
+  "config_id": "llama2-7b",
+  "model": "llm",
+  "T": 2048,
+  "ctx": 4096,
+  "params_total": 6738415616,
+  "params_by_node": {
+    "embed": 131072000,
+    "lm-head": 131072000,
+    "final-norm": 4096,
+    "blocks": 6476267520,
+    "attn": 2147483648,
+    "ffn": 4328521728,
+    "norm1": 131072,
+    "norm2": 131072,
+    "q-proj": 536870912,
+    "k-proj": 536870912,
+    "v-proj": 536870912,
+    "o-proj": 536870912,
+    "gate-proj": 1442840576,
+    "up-proj": 1442840576,
+    "down-proj": 1442840576
+  },
+  "shapes": {
+    "x0": [
+      2048,
+      4096
+    ],
+    "h-norm1": [
+      2048,
+      4096
+    ],
+    "q": [
+      2048,
+      4096
+    ],
+    "k": [
+      2048,
+      4096
+    ],
+    "v": [
+      2048,
+      4096
+    ],
+    "q-heads": [
+      32,
+      2048,
+      128
+    ],
+    "k-heads": [
+      32,
+      2048,
+      128
+    ],
+    "q-rope": [
+      32,
+      2048,
+      128
+    ],
+    "k-rope": [
+      32,
+      2048,
+      128
+    ],
+    "z": [
+      2048,
+      4096
+    ],
+    "o": [
+      2048,
+      4096
+    ],
+    "r1": [
+      2048,
+      4096
+    ],
+    "h-norm2": [
+      2048,
+      4096
+    ],
+    "gate": [
+      2048,
+      11008
+    ],
+    "act": [
+      2048,
+      11008
+    ],
+    "up": [
+      2048,
+      11008
+    ],
+    "prod": [
+      2048,
+      11008
+    ],
+    "f": [
+      2048,
+      4096
+    ],
+    "x-out": [
+      2048,
+      4096
+    ],
+    "x-norm": [
+      2048,
+      4096
+    ],
+    "logits": [
+      2048,
+      32000
+    ],
+    "attn": [
+      32,
+      2048,
+      2048
+    ],
+    "v-heads": [
+      32,
+      2048,
+      128
+    ],
+    "ids": [
+      2048
+    ]
+  },
+  "flops_total": 29261612187648,
+  "flops_by_node": {
+    "attn": 10995116277760,
+    "ffn": 17729624997888,
+    "lm-head": 536870912000
+  },
+  "flops_by_op_torch": {
+    "aten.bmm": 2199023255552,
+    "aten.mm": 27062588932096
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.mm"
+      ],
+      "prims": [
+        "linear",
+        "lm_head"
+      ]
+    },
+    {
+      "ops": [
+        "aten.bmm"
+      ],
+      "prims": [
+        "attention_scores",
+        "attention_weighted_sum"
+      ]
+    }
+  ],
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "T": 64
+      },
+      "flops_total": 847853387776,
+      "flops_total_sdpa": 847853387776,
+      "shapes": {
+        "x0": [
+          64,
+          4096
+        ],
+        "q-rope": [
+          32,
+          64,
+          128
+        ],
+        "k-rope": [
+          32,
+          64,
+          128
+        ],
+        "attn": [
+          32,
+          64,
+          64
+        ],
+        "logits": [
+          64,
+          32000
+        ]
+      }
+    },
+    {
+      "calc_overrides": {
+        "decode": 1,
+        "ctx": 4096
+      },
+      "params_total": 6738415616,
+      "flops_total": 15361638400,
+      "flops_by_op_torch": {
+        "aten.bmm": 2147483648,
+        "aten.mm": 13214154752
+      },
+      "shapes": {
+        "x0": [
+          1,
+          4096
+        ],
+        "q": [
+          1,
+          4096
+        ],
+        "k": [
+          1,
+          4096
+        ],
+        "q-rope": [
+          32,
+          1,
+          128
+        ],
+        "k-rope": [
+          32,
+          1,
+          128
+        ],
+        "k-ctx": [
+          32,
+          4096,
+          128
+        ],
+        "v-ctx": [
+          32,
+          4096,
+          128
+        ],
+        "attn": [
+          32,
+          1,
+          4096
+        ],
+        "z": [
+          1,
+          4096
+        ],
+        "o": [
+          1,
+          4096
+        ],
+        "h-norm2": [
+          1,
+          4096
+        ],
+        "f": [
+          1,
+          4096
+        ],
+        "x-out": [
+          1,
+          4096
+        ],
+        "logits": [
+          1,
+          32000
+        ],
+        "gate": [
+          1,
+          11008
+        ],
+        "prod": [
+          1,
+          11008
+        ]
+      }
+    }
+  ],
+  "metrics_checks": {
+    "kvBytesPerToken": 524288,
+    "activeParams": 6738415616,
+    "totalParams": 6738415616
+  },
+  "not_hooked": {
+    "ids": "entrada (input_ids)",
+    "scores": "dentro de eager_attention_forward (matmul funcional); la forma es la de attn",
+    "scores-scaled": "dentro de eager_attention_forward",
+    "masked": "dentro de eager_attention_forward (suma de la máscara)",
+    "z-heads": "dentro de eager_attention_forward (HF la devuelve ya transpuesta, T×h×d_h)",
+    "next-token": "el muestreo no es parte del forward de HF (generate lo hace afuera)"
+  },
+  "hf_config_source": "meta-llama/Llama-2-7b-hf",
+  "source": {
+    "lib": "transformers",
+    "version": "5.19.0",
+    "ctor": "with torch.device('meta'): LlamaForCausalLM(LlamaConfig(vocab_size=32000, hidden_size=4096, intermediate_size=11008, num_hidden_layers=32, num_attention_heads=32, num_key_value_heads=32, head_dim=128, max_position_embeddings=4096, rms_norm_eps=1e-05, tie_word_embeddings=False, attention_bias=False, mlp_bias=False, rope_theta=10000.0))",
+    "attn_implementation": "eager",
+    "experts_implementation": null,
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Modelo construido en código en el dispositivo meta (sin pesos ni memoria, sin hub): parámetros exactos con sum(p.numel()).",
+    "FLOPs = FlopCounterMode sobre tensores meta con las 32 capas (no se extrapola desde un modelo chico); prefill de T = 2048 tokens, decode con ctx = 4096 (ctx − 1 filas en la caché + el token nuevo).",
+    "Los tensores meta no permiten construir la máscara causal (HF llama .item()): se pasa una máscara 4-D de ceros ya armada; la máscara es una suma y no cambia los FLOPs.",
+    "La máscara causal NO divide el conteo: eager calcula QKᵀ y A·V con las T² entradas y la fórmula de sdpa de FlopCounterMode no tiene término causal (flops_total_sdpa = eager). El trabajo útil es T(T+1)/2 por cabeza (metrics().prefillScoreMacsCausal).",
+    "El LM head corre sobre las T posiciones (logits T×V, logits_to_keep = 0); al servir solo hace falta la última fila (metrics().prefillMacsLastLogits).",
+    "Sin sesgos (attention_bias = mlp_bias = False); RMSNorm solo con γ; embedding y LM head sin atar (tie_word_embeddings = False).",
+    "Llama 2 7B usa MHA (num_key_value_heads = 32): el paper aplica GQA solo a 34B y 70B (Tabla 1)."
+  ]
+}
