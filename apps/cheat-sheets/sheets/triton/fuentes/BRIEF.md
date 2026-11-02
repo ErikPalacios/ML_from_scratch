@@ -22,7 +22,7 @@ The learner asked for "lenguaje simple pero mencionando los mismos conceptos".
 - **Tables:** in `pieces` and `vars`, the "qué hace" column is plain Spanish; the command, flag or field stays exact.
 
 ## Sources
-App root: `/Users/erikpalacios/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`. Cheat sheets: `…/apps/cheat-sheets`.
+App root: `~/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`. Cheat sheets: `…/apps/cheat-sheets`.
 
 - **C01 real files (the running example):**
   - `reference/c01/model/export_onnx.py`, `parity_check.py`, `build_engine.sh`, `requirements.txt`;
@@ -160,7 +160,7 @@ The Mac has no NVIDIA GPU, so TensorRT and GPU Triton can't run on it.
 - **CPU-only labs are fine:** export a small torchvision model to ONNX and compare with ONNX Runtime on CPU in a venv (the learner installs torch, onnx and onnxruntime themselves), or run Triton's ONNX Runtime backend on CPU in Docker, only if the image really supports the Mac's arm64 and you can verify it.
 - **Omit labs that need a GPU:** set `"lab": null` with `"lab_omitted": "<reason>"`.
 - Mark `"verified": "docs"`, or `"executed"` if you actually ran it.
-- **Using an existing Python environment:** if one with torch, onnx and onnxruntime already exists on this Mac (for example the repo's own `.venv` under `/Users/erikpalacios/Documents/ML_from_scratch`), you may use it to check outputs. Never install anything.
+- **Using an existing Python environment:** if one with torch, onnx and onnxruntime already exists on this Mac (for example the repo's own `.venv` under `~/Documents/ML_from_scratch`), you may use it to check outputs. Never install anything.
 
 ## Quality bar, output, report
 - **Quality:** correct first, then short. Exact excerpts from the real files.
@@ -168,7 +168,7 @@ The Mac has no NVIDIA GPU, so TensorRT and GPU Triton can't run on it.
   - run docker, kubectl or aws;
   - install anything;
   - log in anywhere.
-- **Output:** one JSON file per writer at `/private/tmp/claude-501/-Users-erikpalacios-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/triton/content-<writer>.json`, validated with node.
+- **Output:** one JSON file per writer at `/private/tmp/claude-501/-Users-USER-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/triton/content-<writer>.json`, validated with node.
 - **Report:** in English, briefly:
   - what you wrote;
   - the URLs you checked;

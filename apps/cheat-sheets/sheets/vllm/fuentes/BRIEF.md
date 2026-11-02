@@ -41,7 +41,7 @@ The learner asked for "lenguaje simple pero mencionando los mismos conceptos".
 - **Tables:** in `pieces` and `vars`, the "qué hace" column is plain Spanish; the flag, field or code stays exact.
 
 ## Sources
-- **App root:** `/Users/erikpalacios/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`. Cheat sheets: `…/apps/cheat-sheets`.
+- **App root:** `~/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`. Cheat sheets: `…/apps/cheat-sheets`.
 - **C10 real files (the running example), under `reference/c10/`:**
   - `README.md`
   - `k8s/vllm-70b.yaml`: the vLLM deployment, its flags, GPUs and probes
@@ -192,14 +192,14 @@ This is a spec for an interactive VRAM / KV-cache calculator, ported from `refer
 - **The Mac has no NVIDIA GPU.** Labs that need vLLM on a GPU get `"lab": null` with `lab_omitted`.
 - **You may run (never install anything):**
   - stdlib-only Python labs, such as KV-cache math, a continuous-batching simulation, or an OpenAI-compatible mock server that streams SSE with `http.server`, read with curl;
-  - C10's own pure-Python tools and tests (`capacity/`, `bench/`, `gateway/`), if an existing venv has what they need. Check `/Users/erikpalacios/Documents/ML_from_scratch/.venv` and `/Users/erikpalacios/Documents/ProyectosPortafolio/Caso1/.venv`, and use them read-only.
+  - C10's own pure-Python tools and tests (`capacity/`, `bench/`, `gateway/`), if an existing venv has what they need. Check `~/Documents/ML_from_scratch/.venv` and `~/Documents/ProyectosPortafolio/Caso1/.venv`, and use them read-only.
 - **Marking:** mark what you ran `"executed"` with a `verified_note`.
 - **Paths:** labs use `~/lab-vllm` and clean up with `rm -rf ~/lab-vllm`.
 
 ## Quality bar, output, report
 - **Quality bar:** correct first, then short. Excerpts must match the real files exactly.
 - **Do NOT:** run docker, kubectl or aws; install anything; log in anywhere; download models.
-- **Output:** one JSON per writer at `/private/tmp/claude-501/-Users-erikpalacios-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/vllm/content-<writer>.json`, validated with node.
+- **Output:** one JSON per writer at `/private/tmp/claude-501/-Users-USER-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/vllm/content-<writer>.json`, validated with node.
 - **Report** (English, brief):
   - what you wrote;
   - the URLs you checked;

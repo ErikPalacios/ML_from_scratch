@@ -119,11 +119,11 @@ Crear la base de datos y aceptar los términos lo haces tú en el dashboard de V
 
 1. **Crear y enlazar el proyecto.** Desde `apps/tablero-ml` en el checkout principal:
    ```bash
-   npx vercel link --yes --project tablero-ml --scope erikpalacios-projects
+   npx vercel link --yes --project tablero-ml --scope <tu-equipo>
    ```
    Si el proyecto no existe, lo crea. `vercel link` puede escribir un `.env.local` con un token de OIDC; git y `.vercelignore` lo ignoran.
 2. **Crear la base de datos (en el dashboard):**
-   1. Abre vercel.com → equipo **erikpalacios-projects** → proyecto **tablero-ml** → pestaña **Storage**.
+   1. Abre vercel.com → equipo **<tu-equipo>** → proyecto **tablero-ml** → pestaña **Storage**.
    2. Elige **Create Database**, después **Upstash** y luego **Upstash for Redis**.
    3. Acepta los términos de Upstash. Elige el plan **Free** y la región más cercana a la de tus Functions (por defecto, Washington D.C., `iad1`, en us-east-1).
    4. En **Connect Project**, conecta `tablero-ml` en los tres ambientes.

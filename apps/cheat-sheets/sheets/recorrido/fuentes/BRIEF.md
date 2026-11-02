@@ -33,7 +33,7 @@
 8. **Quiz "¿En qué estación falló?":** a symptom, then the station and the first check.
 
 ## Sources
-App root: `/Users/erikpalacios/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`
+App root: `~/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`
 
 Course content is in `js/content/*.js`, as `MSD.register` calls with sections and blocks. You can grep the files or load them in node with `vm`, the way `tools/validate-content.mjs` does.
 
@@ -119,7 +119,7 @@ Suggest one per step or chip from this list:
 `data`, `image`, `label`, `version`, `pipeline`, `train`, `gpu`, `chart`, `gate`, `registry`, `export`, `engine`, `code`, `test`, `container`, `build`, `push`, `image-registry`, `cluster`, `pod`, `autoscale`, `balancer`, `rollout`, `request`, `user`, `server`, `monitor`, `alert`, `log`, `drift`, `retrain`, `cloud`, `file`, `database`, `queue`, `stream`, `device`, `llm`, `search`, `clock`, `lock`
 
 ## Output
-Write ONE JSON file (UTF-8) per writer at `/private/tmp/claude-501/-Users-erikpalacios-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/pipeline/content-<writer>.json`. Validate it with `node -e "JSON.parse(require('fs').readFileSync('<file>','utf8'))"`.
+Write ONE JSON file (UTF-8) per writer at `/private/tmp/claude-501/-Users-USER-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/pipeline/content-<writer>.json`. Validate it with `node -e "JSON.parse(require('fs').readFileSync('<file>','utf8'))"`.
 
 ### W1 and W2: `{ "stations": [Station…], "platforms": [Platform…] }`
 ```

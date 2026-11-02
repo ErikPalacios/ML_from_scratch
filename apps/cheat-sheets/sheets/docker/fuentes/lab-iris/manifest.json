@@ -1,6 +1,6 @@
 {
   "note": "Copia de los archivos del laboratorio Iris que lee gen-docker.mjs, para que el build no dependa del otro repo. No se editan a mano: node lab-iris.mjs snapshot los vuelve a copiar desde iris-lab y actualiza sha256, bytes, líneas, commit y fecha. Los orígenes, las etiquetas y los bloques del prompt sí se editan aquí.",
-  "source_dir": "/Users/erikpalacios/Documents/ProyectosPortafolio/Caso1/.claude/worktrees/classification-docker-setup-1528ea/iris-lab",
+  "source_dir": "~/Documents/ProyectosPortafolio/Caso1/.claude/worktrees/classification-docker-setup-1528ea/iris-lab",
   "branch": "claude/classification-docker-setup-1528ea",
   "commit": "0f14740",
   "date": "2026-10-29",
@@ -28,8 +28,8 @@
       "origin": "untracked",
       "lang": "text",
       "role": "La especificación de la sección (tu prompt) y la fuente de los archivos «prompt».",
-      "sha256": "8f48e521e64f7a9c3c00ed37588315ea994c361cc578e417aed3cb693662c8b8",
-      "bytes": 26919,
+      "sha256": "67b9fd64a636d796cd0c76d23d76edec43f264ddd142c866e5c74c0e508b1dce",
+      "bytes": 26901,
       "lines": 553
     },
     {

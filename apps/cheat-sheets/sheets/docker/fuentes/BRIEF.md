@@ -10,7 +10,7 @@
 - **Examples:** come from the course's reference files, not from the learner's own project (they write their own Dockerfiles). The learner wants variables they can see, so syntax is written as templates with named placeholders.
 
 ## Sources
-App root: `/Users/erikpalacios/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`
+App root: `~/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`
 
 Read these first:
 - Module 5 (`js/content/m05-contenedores.js`). Its sections are why containers, image/container/layers, an ML Dockerfile decision by decision, CUDA runtime vs devel images, the NVIDIA Container Toolkit, reducing size, model weights, registries and immutable tags, and docker compose for development.
@@ -31,7 +31,7 @@ Read these first:
 Never invent flags, defaults, error strings or exit codes; if unsure, say so in the text. Exact error strings must be real; quote the core part that users actually see.
 
 ## Output
-Write ONE JSON file (UTF-8) per writer at `/private/tmp/claude-501/-Users-erikpalacios-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/docker/content-<writer>.json`. Validate it with `node -e "JSON.parse(require('fs').readFileSync(...))"`.
+Write ONE JSON file (UTF-8) per writer at `/private/tmp/claude-501/-Users-USER-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/docker/content-<writer>.json`. Validate it with `node -e "JSON.parse(require('fs').readFileSync(...))"`.
 
 Shape: `{ "sections": [Section…], ...extra keys your assignment asks for }`, where a Section is:
 

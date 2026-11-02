@@ -30,7 +30,7 @@ The learner asked for "lenguaje simple pero mencionando los mismos conceptos", a
 - **Tables:** in `pieces` and `vars`, the "qué hace" column is plain Spanish; the code, field or query stays exact.
 
 ## Sources
-- **Paths.** App root: `/Users/erikpalacios/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`. Cheat sheets: `…/apps/cheat-sheets`.
+- **Paths.** App root: `~/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`. Cheat sheets: `…/apps/cheat-sheets`.
 - **C01 real files (the running example):**
   - `reference/c01/monitoring/prometheus.yml`
   - `reference/c01/monitoring/alerts.yml`
@@ -168,7 +168,7 @@ Verify them; if one is wrong, report it and use the verified value.
   - Mark labs `"verified": "docs"` unless you really ran them.
 - **What you may run (never install anything):**
   - stdlib-only Python: compute `rate` from samples, the `histogram_quantile` linear interpolation, a burn-rate calculation;
-  - any existing venv that already has `prometheus_client`. Check `/Users/erikpalacios/Documents/ML_from_scratch/.venv` and other existing venvs; use them read-only.
+  - any existing venv that already has `prometheus_client`. Check `~/Documents/ML_from_scratch/.venv` and other existing venvs; use them read-only.
   - Mark what you ran `"executed"` with a `verified_note`.
 - **Folder:** labs use `~/lab-prom` and clean up with `rm -rf ~/lab-prom` plus `docker rm -f …`.
 
@@ -178,7 +178,7 @@ Verify them; if one is wrong, report it and use the verified value.
   - run docker, kubectl or aws;
   - install anything;
   - log in anywhere.
-- **Output:** one JSON per writer at `/private/tmp/claude-501/-Users-erikpalacios-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/prom/content-<writer>.json`, validated with node.
+- **Output:** one JSON per writer at `/private/tmp/claude-501/-Users-USER-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/prom/content-<writer>.json`, validated with node.
 - **Report** (English, brief):
   - what you wrote;
   - the URLs you checked;

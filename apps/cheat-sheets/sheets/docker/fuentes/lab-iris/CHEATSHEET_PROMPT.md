@@ -11,7 +11,7 @@ Estoy armando una cheat sheet de Docker para ML serving. Quiero que **agregues a
 - Cada paso debe tener: **qué hace**, **el código/archivo completo**, **el comando exacto**, **qué salida esperar** y **un error típico** (los que realmente me pasaron están en la sección 12).
 - Marca claramente cada paso como `✅ probado` o `🟡 borrador sin probar`. **No inventes salidas de comandos que no estén aquí.**
 - El código fuente está en el repo; **léelo y cópialo tal cual, no lo reescribas**:
-  `/Users/erikpalacios/Documents/ProyectosPortafolio/Caso1/.claude/worktrees/classification-docker-setup-1528ea/iris-lab/`
+  `~/Documents/ProyectosPortafolio/Caso1/.claude/worktrees/classification-docker-setup-1528ea/iris-lab/`
   (commit `b706a8d` en la rama `claude/classification-docker-setup-1528ea`). Si no puedes leer esa ruta, dímelo y te pego los archivos.
 
 ---

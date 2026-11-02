@@ -23,7 +23,7 @@ The learner asked for "lenguaje simple pero mencionando los mismos conceptos".
 - **Tables:** in `pieces` and `vars`, the "qué hace" column is plain Spanish; the command or field stays exact.
 
 ## Sources
-App root: `/Users/erikpalacios/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`. Cheat sheets: `…/apps/cheat-sheets`.
+App root: `~/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`. Cheat sheets: `…/apps/cheat-sheets`.
 
 - **Course modules:**
   - M10 (`js/content/m10-mlops.js`): sections `ci-cd`, `gate`, `pipelines-entrenamiento`, `reproducibilidad`;
@@ -182,7 +182,7 @@ The schema is the same as the Docker and Kubernetes sheets: `{ id, num, title, q
   - Local git commands in a temp folder under your own scratch subfolder are fine, to check outputs and messages.
 
 ## Output and report
-- **Output:** one JSON file per writer at `/private/tmp/claude-501/-Users-erikpalacios-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/git/content-<writer>.json`, validated with `node -e "JSON.parse(...)"`.
+- **Output:** one JSON file per writer at `/private/tmp/claude-501/-Users-USER-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/git/content-<writer>.json`, validated with `node -e "JSON.parse(...)"`.
 - **Report** briefly, in English:
   - what you wrote;
   - the URLs you checked;

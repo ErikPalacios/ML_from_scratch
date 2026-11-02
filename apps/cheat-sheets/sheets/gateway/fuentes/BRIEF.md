@@ -21,7 +21,7 @@ The learner asked for "lenguaje simple pero mencionando los mismos conceptos".
 - **Tables:** in `pieces` and `vars`, the "qué hace" column is plain Spanish; the code or field stays exact.
 
 ## Sources
-- **App root:** `/Users/erikpalacios/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`. Cheat sheets: `…/apps/cheat-sheets`.
+- **App root:** `~/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`. Cheat sheets: `…/apps/cheat-sheets`.
 - **C01 gateway real files (the running example):** `reference/c01/gateway/app/main.py`, `app/preprocess.py`, `app/labels.json`, `tests/test_api.py`, `pytest.ini`, `requirements.txt`, `requirements-dev.txt`, `Dockerfile`, `.dockerignore`. Also `reference/c01/k8s/gateway.yaml` (probes, preStop, resources) and `reference/c01/README.md`.
   - Quote exact short excerpts.
   - Use the versions pinned in `requirements.txt`, and say when the current version differs.
@@ -167,7 +167,7 @@ Verify them. If one is wrong, report it and use the verified value.
 - **Python on the Mac:** the learner can create a venv and `pip install` FastAPI/uvicorn/httpx themselves, so labs may use them. Mark these `"verified": "docs"` unless you really ran them.
 - **No installs for you:**
   - You must NOT install anything.
-  - You may run stdlib-only Python (asyncio demos of a blocking call vs await, Little's law math) with the system `python3`, or with the repo's `.venv` at `/Users/erikpalacios/Documents/ML_from_scratch/.venv` if it has what you need.
+  - You may run stdlib-only Python (asyncio demos of a blocking call vs await, Little's law math) with the system `python3`, or with the repo's `.venv` at `~/Documents/ML_from_scratch/.venv` if it has what you need.
   - If you ran it, mark it `"executed"` with a `verified_note`.
 - **Cleanup:** labs use `~/lab-gateway` and clean up with `rm -rf ~/lab-gateway`.
 
@@ -177,7 +177,7 @@ Verify them. If one is wrong, report it and use the verified value.
   - run docker, kubectl or aws;
   - install anything;
   - log in anywhere.
-- **Output:** one JSON per writer at `/private/tmp/claude-501/-Users-erikpalacios-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/gateway/content-<writer>.json`, validated with node.
+- **Output:** one JSON per writer at `/private/tmp/claude-501/-Users-USER-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/gateway/content-<writer>.json`, validated with node.
 - **Report** (English, brief):
   - what you wrote;
   - the URLs you checked;

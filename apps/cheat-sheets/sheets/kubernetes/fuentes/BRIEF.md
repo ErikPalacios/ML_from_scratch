@@ -23,7 +23,7 @@ The learner asked explicitly: "lenguaje simple pero mencionando los mismos conce
 - **In tables** (`pieces`, `vars`), the "qué hace" column is plain Spanish; the field or command stays exact.
 
 ## Sources
-App root: `/Users/erikpalacios/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`
+App root: `~/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design`
 
 - **C01 manifests (the running example), all in `reference/c01/k8s/`:**
   - `gateway.yaml`: Deployment, Service, Ingress (ALB), HPA, PodDisruptionBudget, NetworkPolicy;
@@ -163,7 +163,7 @@ Topics map to sections:
 | manifest (validation errors) | `manifest` |
 
 ## Output
-Write ONE JSON file (UTF-8) per writer at `/private/tmp/claude-501/-Users-erikpalacios-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/k8s/content-<writer>.json`. Validate it with `node -e "JSON.parse(require('fs').readFileSync('<file>','utf8'))"`.
+Write ONE JSON file (UTF-8) per writer at `/private/tmp/claude-501/-Users-USER-Documents-ML-from-scratch-ClaudeApss--claude-worktrees-fase-7-ronda-diseno-ml-7020fd/a9dccf86-c43d-47db-95d2-7a59cbb85db1/scratchpad/k8s/content-<writer>.json`. Validate it with `node -e "JSON.parse(require('fs').readFileSync('<file>','utf8'))"`.
 
 Shape: `{ "sections": [Section…], ...extra keys your assignment asks for }`. A Section uses the same schema as the Docker sheet:
 ```
