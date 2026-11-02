@@ -69,6 +69,8 @@ function setStatus(s, error = null) {
 export class AuthError extends Error {}
 export class NetError extends Error {}
 async function api(method, path, body) {
+  // Demo build (apps/tablero-demo): window.TABLERO_API replaces the network with an in-browser store.
+  if (typeof window !== 'undefined' && typeof window.TABLERO_API === 'function') return window.TABLERO_API(method, path, body);
   let res;
   try {
     res = await fetch('/api/' + path, {

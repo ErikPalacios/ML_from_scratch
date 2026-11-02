@@ -10,7 +10,7 @@ import { evaluateProject, fmtNum, parse, varsOf } from './shared/calc.mjs';
 import { T } from './shared/templates.mjs';
 import { projectFromTemplate, addableSteps, stepFromTemplate, uniqueStepId, slugify } from './shared/factory.mjs';
 import { buildSummary, gateText } from './shared/summary.mjs';
-import { seedC01 } from './shared/seed-c01.mjs';
+import { seedC01, SEED_C01_INFO } from './shared/seed-c01.mjs';
 
 const app = document.getElementById('app');
 const ui = { editing: null, editSteps: false, newPattern: 'sincrono', fx: new Set() };
@@ -148,8 +148,8 @@ function viewHome() {
       <button class="btn" data-act="import">${icon('upload')} Import JSON</button>
       <button class="btn" data-act="export-all" ${list.length ? '' : 'disabled'}>${icon('download')} Export all</button></div></div>
     ${s.status === 'offline' ? '<div class="banner">Offline: showing the last copy saved on this device.</div>' : ''}
-    ${list.length ? `<div class="cards">${cards}</div>` : !ui.listLoaded ? '<div class="card empty"><p class="muted">Loading…</p></div>' : '<div class="card empty"><h2>No projects yet</h2><p class="muted">Create one from a design pattern, or load C01 as it stands in Caso1.</p></div>'}
-    ${hasC01 || !ui.listLoaded ? '' : `<div class="card" style="margin-top:12px"><h2>Load C01 (Caso1)</h2><p>Creates <b>C01 · Image Classification API (Caso1)</b> with its current state: PLAN milestones 0–10 mapped to the 13 steps, LAB_LOG measurements, decisions, work log and the sizing inputs from DESIGN.md.</p>
+    ${list.length ? `<div class="cards">${cards}</div>` : !ui.listLoaded ? '<div class="card empty"><p class="muted">Loading…</p></div>' : `<div class="card empty"><h2>No projects yet</h2><p class="muted">Create one from a design pattern${SEED_C01_INFO ? SEED_C01_INFO.emptyHint : ''}.</p></div>`}
+    ${!SEED_C01_INFO || hasC01 || !ui.listLoaded ? '' : `<div class="card" style="margin-top:12px"><h2>${SEED_C01_INFO.title}</h2><p>${SEED_C01_INFO.html}</p>
       <button class="btn btn--primary" data-act="seed-c01">${icon('play')} Load C01</button></div>`}
     <input type="file" id="import-file" accept="application/json,.json" hidden>`;
 }
@@ -174,7 +174,7 @@ function viewNew() {
     <div class="card"><div class="grid2">
       <label class="f span2">Name<input type="text" name="name" required maxlength="160" placeholder="C14 · Demand forecasting" data-autofocus data-slug-src></label>
       <label class="f">ID (URL and API)<input type="text" name="id" maxlength="40" pattern="[a-z0-9][a-z0-9-]{0,39}" placeholder="derived from the name" data-slug-dst class="mono"></label>
-      <label class="f">Repo or folder<input type="text" name="repo" maxlength="400" placeholder="~/Documents/ProyectosPortafolio/Caso14" class="mono"></label>
+      <label class="f">Repo or folder<input type="text" name="repo" maxlength="400" placeholder="~/projects/receipt-api" class="mono"></label>
       <label class="f span2">Goal (one line)<input type="text" name="goal" maxlength="400"></label>
     </div></div>
     <div><h2>Design pattern</h2><p class="muted">Sets the mandatory steps and their entry-gate sizing. You can add, remove and reorder steps later.</p>

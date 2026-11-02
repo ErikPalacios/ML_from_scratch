@@ -208,3 +208,16 @@ Pendiente de la Fase 1: chequeos de celular y modo oscuro del Atlas y del labora
 - Marcas ocultas por hoja (la prueba de copia del plan, sección 4.5).
 - Atribución en el curso, el atlas y el laboratorio (son aplicaciones de una sola página).
 - Cuando haya dominio propio: cambiar `SITE_URL` en los cinco builds y las URLs de `site.json`.
+
+## 13. Resultado de la Fase 3 (2026-11-02)
+
+**Demo del tablero en producción:** https://tablero-ml-demo.vercel.app (`apps/tablero-demo`, proyecto de Vercel `tablero-ml-demo`). Enlazada desde la portada.
+
+Cambio respecto al plan: en vez de «solo lectura», la demo es **editable pero privada para cada visitante**. Corre el mismo tablero contra un «servidor» dentro del navegador (localStorage), con un proyecto de ejemplo inventado; lo que se edita no sale del navegador y hay un botón «Reset demo». Es más convincente para quien la prueba y no necesita backend ni base de datos (costo cero).
+
+- **Tus datos no viajan:** el build reemplaza `seed-c01.mjs` (el estado real de Caso1) por un módulo vacío y no copia `seed-c01-v1.mjs`. Una prueba revisa que nada de Caso1, rutas, secretos ni tu nombre (salvo el enlace al repositorio) aparezca en `dist/`. En producción se verificó en vivo: 0 coincidencias y `/api/*` responde 404.
+- **Pruebas:** 7 de la demo (proyecto válido y coherente, API del navegador con el entry gate, crear/duplicar/borrar, SEO y orden de scripts) y 22 del tablero (se agregó una de sintaxis de todos los módulos del navegador). Se probó a mano en navegador real: lista, mapa, edición, reinicio, celular y consola sin errores.
+- **Error evitado:** al mover los textos de la tarjeta «Load C01» a `seed-c01.mjs` se me coló un `''` dentro de una cadena y rompió `app.js`. Lo encontré probando en el navegador, lo corregí y agregué la prueba de sintaxis (las pruebas de la API nunca cargaban `app.js`). Producción no se había desplegado con ese error.
+- **Placeholder personal quitado:** el campo «Repo» de «New project» sugería `~/Documents/ProyectosPortafolio/Caso14`; ahora dice `~/projects/receipt-api`.
+
+**Pendiente de tu decisión (sigue igual):** el tablero real (`apps/tablero-ml`) y su README siguen mencionando Caso1 y el código fuente trae `seed-c01.mjs` con tus mediciones. Como el repositorio ya es público, eso ya está visible en GitHub; decide si lo dejas o lo sacas del repositorio.

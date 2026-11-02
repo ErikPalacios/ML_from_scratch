@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Genera las imágenes para redes (1200×630) con Chrome sin ventana. Salidas:
 //   apps/portada/src/og.png, apps/ml-system-design/web/og.png, apps/atlas-arquitecturas/web/og.png,
-//   apps/transformer-lab/public/og.png, apps/cheat-sheets/site/og.png
+//   apps/transformer-lab/public/og.png, apps/cheat-sheets/site/og.png, apps/tablero-demo/web/og.png
 // Uso: node tools/og.mjs   (necesita Google Chrome en /Applications)
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -17,6 +17,7 @@ const IMAGES = [
   { out: 'ml-system-design/web/og.png', kicker: 'Curso y simulador', title: 'Ronda de Diseño ML', sub: 'Todo lo que rodea al modelo en producción, como lo evalúa un entrevistador', foot: 'ML desde cero · ronda-diseno-ml.vercel.app' },
   { out: 'cheat-sheets/site/og.png', kicker: 'Hojas de estudio', title: 'Cheat sheets ML', sub: 'Docker, Kubernetes, Git, Triton, FastAPI, Prometheus y vLLM, con PDF y revisores', foot: 'ML desde cero · cheat-sheets-ml.vercel.app' },
   { out: 'atlas-arquitecturas/web/og.png', kicker: 'Arquitecturas a nivel 2', title: 'Atlas de Arquitecturas', sub: 'Diagramas, matemáticas y dimensiones de los modelos que preguntan en entrevistas', foot: 'ML desde cero · atlas-arquitecturas.vercel.app' },
+  { out: 'tablero-demo/web/og.png', kicker: 'Demo en vivo', title: 'ML Board', sub: 'Cada proyecto como un mapa del dato al monitoreo, con cálculos de entrada que se verifican', foot: 'ML desde cero · tablero-ml-demo.vercel.app' },
   { out: 'transformer-lab/public/og.png', kicker: 'Laboratorio', title: 'Laboratorio Transformer', sub: 'Un transformer pequeño entrenándose paso a paso: cada matriz, fórmula y gradiente', foot: 'ML desde cero · laboratorio-transformer.vercel.app' },
 ];
 const page = (i) => `<!doctype html><meta charset="utf-8"><style>

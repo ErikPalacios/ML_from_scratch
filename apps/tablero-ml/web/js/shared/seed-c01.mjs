@@ -159,6 +159,13 @@ const SESSIONS = [
   },
 ];
 
+// Texts of the home screen's «Load C01» card (app.js). The public demo replaces this module with a stub where it is null.
+export const SEED_C01_INFO = {
+  emptyHint: ', or load C01 as it stands in Caso1',
+  title: 'Load C01 (Caso1)',
+  html: 'Creates <b>C01 · Image Classification API (Caso1)</b> with its current state: PLAN milestones 0–10 mapped to the 13 steps, LAB_LOG measurements, decisions, work log and the sizing inputs from DESIGN.md.',
+};
+
 export function seedC01() {
   const p = projectFromTemplate({
     id: 'c01',

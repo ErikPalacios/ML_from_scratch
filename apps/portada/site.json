@@ -41,11 +41,11 @@
     },
     {
       "id": "tablero",
-      "tag": "Próximamente",
+      "tag": "Demo en vivo",
       "title": "Tablero de proyectos ML",
-      "text": "Un mapa de metro por proyecto, del dato al monitoreo, con criterios de entrada y cálculos que se verifican. Habrá una demo de solo lectura.",
-      "url": null,
-      "cta": null
+      "text": "Un mapa de metro por proyecto, del dato al monitoreo, con criterios de entrada y cálculos que se verifican. Prueba la demo con un proyecto de ejemplo: lo que edites se queda en tu navegador.",
+      "url": "https://tablero-ml-demo.vercel.app",
+      "cta": "Probar la demo"
     }
   ]
 }

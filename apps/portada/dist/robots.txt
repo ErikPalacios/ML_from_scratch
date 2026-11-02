@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://ml-desde-cero.vercel.app/sitemap.xml
