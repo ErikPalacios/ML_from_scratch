@@ -7,6 +7,7 @@
 // MathJax (CDN) y Google Fonts se mantienen como recursos externos.
 // Uso: node build.mjs [--allow-missing]   (con --allow-missing, un archivo local ausente solo avisa)
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -76,9 +77,35 @@ const styles = head.trim();
 const markup = body.trim();
 const artifact = [title, styles, markup, headScripts.concat(bodyScripts).join('\n')].join('\n') + '\n';
 
+// --web (Vercel): service worker para abrir sin conexión. El HTML que lleva el registro es el de la web; el que se
+// copia al Atlas (npm run vendor:lab) y el artifact se arman sin --web y no registran nada.
+const web = process.argv.includes('--web');
+let outHtml = out;
+if (web) {
+  if (!/<\/body>/i.test(outHtml)) { console.error('[build] ERROR: el HTML no tiene </body>.'); process.exit(1); }
+  const register = `<script>
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
+}
+</script>`;
+  const i = outHtml.lastIndexOf('</body>');
+  outHtml = outHtml.slice(0, i) + register + '\n' + outHtml.slice(i);
+}
 mkdirSync(DIST, { recursive: true });
-writeFileSync(join(DIST, 'transformer-lab.html'), out);
+writeFileSync(join(DIST, 'transformer-lab.html'), outHtml);
 writeFileSync(join(DIST, 'artifact.html'), artifact);
+if (web) {
+  const runtimeUrls = Array.from(new Set([
+    ...Array.from(outHtml.matchAll(/<script\b[^>]*\bsrc="(https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/mathjax\/[^"]+)"/gi), (m) => m[1]),
+    ...Array.from(outHtml.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="(https:\/\/fonts\.googleapis\.com\/[^"]+)"/gi), (m) => m[1].replace(/&amp;/g, '&')),
+  ]));
+  if (!runtimeUrls.some((u) => /mathjax/.test(u))) console.warn('[build] AVISO: no encontré el <script> de MathJax: el service worker no lo precargará.');
+  const swSrc = readFileSync(join(ROOT, 'web', 'sw.template.js'), 'utf8');
+  if ((swSrc.match(/__BUILD__/g) || []).length !== 1 || (swSrc.match(/\/\*__RUNTIME__\*\//g) || []).length !== 1) { console.error('[build] ERROR: web/sw.template.js debe tener un __BUILD__ y un /*__RUNTIME__*/.'); process.exit(1); }
+  const buildId = createHash('sha256').update(outHtml).digest('hex').slice(0, 12);
+  writeFileSync(join(DIST, 'sw.js'), swSrc.replace('__BUILD__', buildId).replace('/*__RUNTIME__*/', runtimeUrls.map((u) => JSON.stringify(u)).join(', ')));
+  console.log('[build] dist/sw.js (build ' + buildId + ', ' + runtimeUrls.length + ' recursos externos precargados)');
+}
 // Archivos públicos (imagen para redes, etc.): public/ se copia tal cual a dist/. Más robots.txt y sitemap.xml.
 const SITE_URL = 'https://laboratorio-transformer.vercel.app';
 if (existsSync(join(ROOT, 'public'))) for (const f of readdirSync(join(ROOT, 'public'))) copyFileSync(join(ROOT, 'public', f), join(DIST, f));

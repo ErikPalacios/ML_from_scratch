@@ -19,14 +19,14 @@
       </ol>` },
     { id: 'q-numeros', title: 'Números que decides en voz alta', html: `
       <ul>
-        <li>1 día ≈ 10<sup>5</sup> s · 1 M/día ≈ 12 req/s · 10 M/día ≈ 116 req/s.</li>
+        <li>1 día ≈ 10<sup>5</sup> s · 1 M/día ≈ 12 req/s (11.6 exacto) · 10 M/día ≈ 116 req/s.</li>
         <li>Pico ≈ 2–5× (caso 1: ×3 → 350) · <b>diseño 500 req/s</b>.</li>
         <li><code>GPUs = ceil(pico / (capacidad medida × utilización)) + redundancia</code></li>
         <li>Capacidad medida = máximo que <i>cumple el SLO</i> (load test). Utilización ≈ 50–70 %. N+1 mínimo.</li>
         <li>Caso 1: ceil(500 / 600) + 1 = <b>2 GPUs</b>: una por throughput, otra por disponibilidad.</li>
         <li>Log ≈ 300 B → 3 GB/día (100 %); imágenes ≈ 2 TB/día → solo hash + muestra.</li>
         <li>Little: 500 × 0.05 s = 25 en vuelo; a 200 ms, 100.</li>
-        <li>99.9 % ≈ 43 min/mes · 99.99 % ≈ 4.4 min · 99 % ≈ 7.3 h.</li>
+        <li>99.9 % ≈ 43 min/mes · 99.99 % ≈ 4.3 min · 99 % ≈ 7.2 h (mes de 30 días).</li>
       </ul>` },
     { id: 'q-patrones', title: 'Los 5 patrones de inferencia', html: `
       <p>Pregunta que decide: <b>¿alguien espera la predicción antes de continuar?</b></p>
@@ -131,8 +131,8 @@
       id: 'm01-p04', section: 'de-modelo-a-sistema',
       q: `Sirves con un solo nodo GPU y un SLO de 99.9 % de disponibilidad mensual. Un parche reinicia el nodo y tarda 15 minutos en bajar la imagen de contenedor y cargar los pesos. ¿Qué conclusión es la correcta?`,
       options: [
-        { html: `No pasa nada: 15 minutos está muy por debajo de las ≈ 7 h al mes que permite 99.9 %.`, ok: false, why: `≈ 7.3 h al mes corresponde a 99 %, no a 99.9 %.` },
-        { html: `Rompiste el SLO en un solo evento: 99.9 % permite ≈ 4 minutos de caída al mes.`, ok: false, why: `≈ 4.4 min al mes es 99.99 %. Con 99.9 % tienes ≈ 43 min.` },
+        { html: `No pasa nada: 15 minutos está muy por debajo de las ≈ 7 h al mes que permite 99.9 %.`, ok: false, why: `≈ 7.2 h al mes corresponde a 99 %, no a 99.9 %.` },
+        { html: `Rompiste el SLO en un solo evento: 99.9 % permite ≈ 4 minutos de caída al mes.`, ok: false, why: `≈ 4.3 min al mes es 99.99 %. Con 99.9 % tienes ≈ 43 min.` },
         { html: `Lo resuelve el autoscaling: cuando el health check marca el nodo como caído, el autoscaler levanta otro igual y el servicio sigue sin intervención humana.`, ok: false, why: `El nodo nuevo tiene el mismo cold start de minutos (provisionar, bajar la imagen, cargar pesos). El autoscaling no reemplaza capacidad caliente.` },
         { html: `Gastaste ≈ un tercio del margen mensual (≈ 43 min) en un evento de rutina: necesitas N+1 y fallback.`, ok: true, why: `15 de ≈ 43 minutos en un parche rutinario: la redundancia N+1 hace que la caída de una réplica no se note.` },
       ],

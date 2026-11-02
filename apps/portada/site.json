@@ -19,7 +19,7 @@
       "id": "hojas",
       "tag": "Hojas de estudio",
       "title": "Cheat sheets ML",
-      "text": "Nueve hojas con PDF y versión web: estimaciones, Docker (con laboratorio completo), Kubernetes, Git y Actions, Triton, FastAPI, Prometheus y vLLM. Con diagnosticadores y revisores que corren en tu navegador.",
+      "text": "Nueve hojas con PDF y versión web: estimaciones, Docker (con laboratorio completo), Kubernetes, Git y Actions, Triton, FastAPI, Prometheus, vLLM y el recorrido «Del dato a producción». Con diagnosticadores y revisores que corren en tu navegador.",
       "url": "https://cheat-sheets-ml.vercel.app",
       "cta": "Ver las hojas"
     },
@@ -43,7 +43,7 @@
       "id": "tablero",
       "tag": "Demo en vivo",
       "title": "Tablero de proyectos ML",
-      "text": "Un mapa de metro por proyecto, del dato al monitoreo, con criterios de entrada y cálculos que se verifican. Prueba la demo con un proyecto de ejemplo: lo que edites se queda en tu navegador.",
+      "text": "Un mapa de metro por proyecto, del dato al monitoreo, con criterios de entrada y cálculos que se verifican. Prueba la demo (en inglés) con un proyecto de ejemplo: lo que edites se queda en tu navegador.",
       "url": "https://tablero-ml-demo.vercel.app",
       "cta": "Probar la demo"
     }

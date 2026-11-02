@@ -153,7 +153,7 @@
         rows: [
           ['Latencia', 'p99 ≤ 200 ms · p50 ≈ 30–50 ms', 'Server-side: del request completo en el ALB (Application Load Balancer de AWS) a la respuesta enviada. Se mide con el histograma del gateway (<code>classifier_request_latency_seconds</code>) y se contrasta con la métrica de respuesta del ALB.'],
           ['Throughput', 'promedio ≈ 116 · pico ≈ 350 · diseño 500 req/s', 'Pico diurno 3× y margen de ≈ 1.4× para spikes y crecimiento.'],
-          ['Disponibilidad', '99.9 % mensual (≈ 43 min/mes)', 'SLI = requests no-5xx y dentro de 300 ms ÷ requests válidos. Error budget ≈ 300,000 requests fallidos al mes con 10 M/día.'],
+          ['Disponibilidad', '99.9 % mensual (≈ 43 min/mes)', 'SLI = requests no-5xx y dentro de 300 ms (el timeout del caller; el p99 ≤ 200 ms es el objetivo de latencia, aparte) ÷ requests válidos. Error budget ≈ 300,000 requests fallidos al mes con 10 M/día.'],
           ['Frescura del modelo', 'reentrenamiento mensual + disparadores por drift; categoría nueva soportada en ≤ 4 semanas', 'El catálogo cambia con temporadas y productos nuevos; un modelo congelado se degrada.'],
           ['Costo', '≤ US$3k/mes infra; meta ≈ US$1.75k', 'Se reporta como costo por 1,000 predicciones.'],
           ['Seguridad y privacidad', 'auth service-to-service · Triton sin exposición externa · sin PII en logs · imágenes: solo las que se etiquetan (≈ 5k/mes), sin EXIF, retención ≤ 90 días salvo el golden set y los snapshots de entrenamiento (retención del dataset)', 'Las fotos pueden contener personas y ubicación; el borrado debe ser posible.'],
@@ -213,7 +213,7 @@
           ['<b>Total</b>', E('<b>≈ 20–45 ms</b>'), E('<b>≈ 150 ms (estimación pesimista)</b>'), 'SLO: 200 ms'],
         ],
         note: 'Los percentiles <b>no se suman</b> (tampoco las medianas). Con colas “normales” la suma de los p99 suele sobrestimar el p99 total, porque es raro que todos los tramos tengan su peor caso en el mismo request, pero no es una cota garantizada: si varios tramos tienen eventos raros justo por debajo de su propio 1 % (pausas de GC, una foto gigante), el p99 total puede superar la suma. Úsala como guía para repartir el presupuesto y mide el p99 end-to-end con el histograma del gateway.' },
-      { t: 'p', html: 'Decisión: con un p50 esperado de ≈ 30–50 ms y una estimación pesimista de ≈ 150 ms queda margen (≈ 50 ms) para lo que no está en la tabla: <b>imágenes web gigantes</b>, pausas de GC y <b>CPU throttling</b> si pones límites de CPU apretados en el pod. Por eso el timeout gateway → Triton es 150 ms: por encima de eso, el request ya no va a cumplir el SLO y es mejor fallar rápido.' },
+      { t: 'p', html: 'Decisión: con un p50 esperado de ≈ 30–50 ms (la tabla suma ≈ 20–45 ms de lo que cuenta; el resto es holgura para lo que no mide) y una estimación pesimista de ≈ 150 ms queda margen (≈ 50 ms) para lo que no está en la tabla: <b>imágenes web gigantes</b>, pausas de GC y <b>CPU throttling</b> si pones límites de CPU apretados en el pod. Por eso el timeout gateway → Triton es 150 ms: por encima de eso, el request ya no va a cumplir el SLO y es mejor fallar rápido.' },
       { t: 'callout', kind: 'trap', html: 'Si el entrevistador pregunta “¿y la subida de la foto?”, no la metas en tu presupuesto: el SLO se definió server-side precisamente porque la red móvil del vendedor no la controlas. Lo que sí controlas es cuánto pesa lo que se sube: por eso la app reduce a ≤ 1024 px antes de enviar.' },
 
       { t: 'h3', text: 'GPUs' },
@@ -312,7 +312,7 @@
           { label: 'Total', expr: '', value: E('≈ US$2.0–2.3k/mes') },
           { label: 'Costo por 1,000 predicciones (infra)', expr: 'US$1,750 / 304 M × 1,000', value: E('≈ US$0.006') },
         ],
-        result: 'Bajo el presupuesto de US$3k con ≈ 25–35 % de margen. Las GPUs son ≈ 45 % de la infra y el ALB ≈ 30 %: el balanceador cobra por cada GB de imagen que lo cruza.' },
+        result: 'Bajo el presupuesto de US$3k con ≈ 23–33 % de margen. Las GPUs son ≈ 45 % de la infra y el ALB ≈ 30 %: el balanceador cobra por cada GB de imagen que lo cruza.' },
       { t: 'p', html: 'Decisión: el diseño cabe en el presupuesto, con menos margen del que parece: el ALB, que en muchos diseños es un redondeo, aquí es la segunda línea de costo. Las palancas (Savings Plans, consolidar modelos en las GPUs ociosas, mandar la key de S3 en vez de los bytes, medir ResNet-50 INT8 en CPU) se guardan para cuando el volumen crezca o el presupuesto se apriete; están en la sección de costo.' },
 
       { t: 'h3', text: 'Backfill de 200 M imágenes existentes' },
