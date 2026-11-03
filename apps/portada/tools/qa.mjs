@@ -9,6 +9,7 @@ const SITES = process.argv.slice(2).length ? process.argv.slice(2) : [
   'https://atlas-arquitecturas.vercel.app',
   'https://laboratorio-transformer.vercel.app',
   'https://tablero-ml-demo.vercel.app',
+  'https://taller-ai-engineer.vercel.app',
 ];
 const UA = { 'user-agent': 'ml-desde-cero-qa/1.0' };
 const problems = [];

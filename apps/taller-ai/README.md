@@ -12,7 +12,7 @@ Proyectos chicos de ML engineering que corren en una Mac, uno por cada estación
 | `content/mapa-c01.json` | El mapa del C01 de la portada, copiado de la cheat sheet «Del dato a producción» con `node tools/importar-mapa.mjs` (córrelo cuando cambie la hoja). |
 | `kits/<caso>-<id>/` | El kit que se descarga: el mundo simulado, `verificar.py`, `romper.py`, `CLAUDE.md`. El esqueleto del pipeline vive en `mundo/esqueleto/`. |
 | `kits/<caso>-<id>-solucion/` | La solución de referencia (no se publica). Sirve para probar el kit y es el código que muestra el Guiado. |
-| `site/` | Estilos, script, service worker e ícono. |
+| `site/` | Estilos, script, service worker, ícono e imagen para redes. |
 | `tools/` | `validate.mjs`, `build.mjs`, `check.mjs`, `zip.mjs` e `importar-mapa.mjs`. |
 
 ## Comandos
@@ -35,4 +35,6 @@ npm run check      # build + Chrome headless: 375/768/1024 px, oscuro, tema y mo
 
 ## Despliegue
 
-Pendiente: todavía no existe el proyecto de Vercel. `vercel.json` ya está listo (build sin instalar nada, salida en `dist/`). Al crearlo con `vercel link`, desconecta Git de inmediato (`vercel git disconnect`), como en las otras apps.
+En producción en https://taller-ai-engineer.vercel.app (proyecto de Vercel `taller-ai-engineer`, sin Git conectado, como las otras apps). Se despliega desde esta carpeta con `vercel deploy --prod`; `vercel.json` hace el build sin instalar nada y publica `dist/`. Para comprobar que subió lo que construiste, compara el `BUILD` de `/sw.js` en producción con el de `dist/sw.js`.
+
+La imagen para redes (`site/og.png`) sale de `apps/portada/tools/og.mjs`: `node tools/og.mjs taller-ai` desde `apps/portada`. Si cambia la dirección, cambia también `SITE_URL` en `tools/build.mjs`.

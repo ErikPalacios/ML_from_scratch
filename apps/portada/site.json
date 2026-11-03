@@ -2,7 +2,7 @@
   "name": "ML desde cero",
   "url": "https://ml-desde-cero.vercel.app",
   "tagline": "Estudia ML engineering con herramientas que se usan, no solo se leen.",
-  "description": "Curso de ML System Design, hojas de Docker, Kubernetes y vLLM, un atlas de arquitecturas y un transformer paso a paso. En español, gratis y sin cuenta.",
+  "description": "Curso de ML System Design, hojas de Docker, Kubernetes y vLLM, un atlas de arquitecturas, un transformer paso a paso y un taller práctico. En español, gratis y sin cuenta.",
   "author": "Erik Palacios",
   "repo": "https://github.com/ErikPalacios/ML_from_scratch",
   "issues": "https://github.com/ErikPalacios/ML_from_scratch/issues/new",
@@ -19,9 +19,17 @@
       "id": "hojas",
       "tag": "Hojas de estudio",
       "title": "Cheat sheets ML",
-      "text": "Nueve hojas con PDF y versión web: estimaciones, Docker (con laboratorio completo), Kubernetes, Git y Actions, Triton, FastAPI, Prometheus y vLLM. Con diagnosticadores y revisores que corren en tu navegador.",
+      "text": "Nueve hojas con PDF y versión web: estimaciones, Docker (con laboratorio completo), Kubernetes, Git y Actions, Triton, FastAPI, Prometheus, vLLM y el recorrido «Del dato a producción». Con diagnosticadores y revisores que corren en tu navegador.",
       "url": "https://cheat-sheets-ml.vercel.app",
       "cta": "Ver las hojas"
+    },
+    {
+      "id": "taller",
+      "tag": "Práctica",
+      "title": "Taller de AI Engineer",
+      "text": "Mini-proyectos que corren en tu Mac, uno por estación del camino del dato a producción. Cada uno lo construyes con Claude Code, lo rehaces solo y lo arreglas cuando se rompe. Ya está la estación 1: datos y etiquetas.",
+      "url": "https://taller-ai-engineer.vercel.app",
+      "cta": "Entrar al taller"
     },
     {
       "id": "atlas",
@@ -43,7 +51,7 @@
       "id": "tablero",
       "tag": "Demo en vivo",
       "title": "Tablero de proyectos ML",
-      "text": "Un mapa de metro por proyecto, del dato al monitoreo, con criterios de entrada y cálculos que se verifican. Prueba la demo con un proyecto de ejemplo: lo que edites se queda en tu navegador.",
+      "text": "Un mapa de metro por proyecto, del dato al monitoreo, con criterios de entrada y cálculos que se verifican. Prueba la demo (en inglés) con un proyecto de ejemplo: lo que edites se queda en tu navegador.",
       "url": "https://tablero-ml-demo.vercel.app",
       "cta": "Probar la demo"
     }

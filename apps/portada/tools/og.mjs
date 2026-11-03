@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Genera las imágenes para redes (1200×630) con Chrome sin ventana. Salidas:
 //   apps/portada/src/og.png, apps/ml-system-design/web/og.png, apps/atlas-arquitecturas/web/og.png,
-//   apps/transformer-lab/public/og.png, apps/cheat-sheets/site/og.png, apps/tablero-demo/web/og.png
-// Uso: node tools/og.mjs   (necesita Google Chrome en /Applications)
+//   apps/transformer-lab/public/og.png, apps/cheat-sheets/site/og.png, apps/tablero-demo/web/og.png, apps/taller-ai/site/og.png
+// Uso: node tools/og.mjs              (todas; necesita Google Chrome en /Applications)
+//      node tools/og.mjs taller-ai    (solo las salidas que contienen ese texto)
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
@@ -18,6 +19,7 @@ const IMAGES = [
   { out: 'cheat-sheets/site/og.png', kicker: 'Hojas de estudio', title: 'Cheat sheets ML', sub: 'Docker, Kubernetes, Git, Triton, FastAPI, Prometheus y vLLM, con PDF y revisores', foot: 'ML desde cero · cheat-sheets-ml.vercel.app' },
   { out: 'atlas-arquitecturas/web/og.png', kicker: 'Arquitecturas a nivel 2', title: 'Atlas de Arquitecturas', sub: 'Diagramas, matemáticas y dimensiones de los modelos que preguntan en entrevistas', foot: 'ML desde cero · atlas-arquitecturas.vercel.app' },
   { out: 'tablero-demo/web/og.png', kicker: 'Demo en vivo', title: 'ML Board', sub: 'Cada proyecto como un mapa del dato al monitoreo, con cálculos de entrada que se verifican', foot: 'ML desde cero · tablero-ml-demo.vercel.app' },
+  { out: 'taller-ai/site/og.png', kicker: 'Entrenamiento práctico', title: 'Taller de AI Engineer', sub: 'Mini-proyectos en tu Mac: los construyes, los rehaces y los arreglas cuando se rompen', foot: 'ML desde cero · taller-ai-engineer.vercel.app' },
   { out: 'transformer-lab/public/og.png', kicker: 'Laboratorio', title: 'Laboratorio Transformer', sub: 'Un transformer pequeño entrenándose paso a paso: cada matriz, fórmula y gradiente', foot: 'ML desde cero · laboratorio-transformer.vercel.app' },
 ];
 const page = (i) => `<!doctype html><meta charset="utf-8"><style>
@@ -30,7 +32,9 @@ p{font-size:32px;line-height:1.35;color:#9aa7b7;margin:0;max-width:980px}
 .f{font-size:26px;color:#f2c14e;font-weight:600}
 </style><div><div class="k">${esc(i.kicker)}</div><h1>${esc(i.title)}</h1><p>${esc(i.sub)}</p></div><div class="f">${esc(i.foot)}</div>`;
 const tmp = join(tmpdir(), 'og-' + process.pid); mkdirSync(tmp, { recursive: true });
+const solo = process.argv[2];
 for (const [n, img] of IMAGES.entries()) {
+  if (solo && !img.out.includes(solo)) continue;
   const html = join(tmp, n + '.html'); writeFileSync(html, page(img));
   const out = join(APPS, img.out); mkdirSync(dirname(out), { recursive: true });
   execFileSync(CHROME, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--force-device-scale-factor=1', '--window-size=1200,630', '--screenshot=' + out, 'file://' + html], { stdio: 'ignore' });

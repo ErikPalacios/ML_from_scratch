@@ -157,7 +157,7 @@ La fase 5 va antes de seguir con el tronco a propósito: probar el molde contigo
 
 ## 12. Estado (3 de noviembre de 2026)
 
-La estación 1, «Datos y etiquetas», cubre las fases 1 a 3 en `apps/taller-ai` y todavía no está desplegada.
+La estación 1, «Datos y etiquetas», cubre las fases 1 a 3 en `apps/taller-ai`. Está en producción desde el 3 de noviembre en https://taller-ai-engineer.vercel.app (proyecto `taller-ai-engineer`, sin Git conectado) y la portada ml-desde-cero la enlaza.
 
 - **Contenido:** 16 conceptos, 8 pasos del Guiado con salidas reales, 12 objetivos para la ronda Solo, 10 fallas, 4 preguntas de entrevista y los 4 prompts. Una revisión contra la documentación oficial encontró 12 correcciones y ya están aplicadas.
 - **Kit:** usa RustFS en lugar de MinIO, porque MinIO archivó su repositorio y ya no publica imágenes. Se probó de punta a punta desde el .zip. Cada falla se detecta, su arreglo documentado pasa `romper.py --verificar` y `--restaurar` deja todo en verde. Las salidas se reproducen igual en dos corridas limpias.

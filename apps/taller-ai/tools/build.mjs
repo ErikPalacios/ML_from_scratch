@@ -60,6 +60,8 @@ function pagina({ path, title, desc, body }) {
 <link rel="canonical" href="${url}">
 <meta property="og:type" content="website"><meta property="og:locale" content="es_MX"><meta property="og:site_name" content="${SITE_NAME}">
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${url}">
+<meta property="og:image" content="${SITE_URL}/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${esc(title)}"><meta name="twitter:image" content="${SITE_URL}/og.png">
 <meta name="theme-color" content="#F4F6F9" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E131A" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -423,7 +425,7 @@ for (const e of ESTACIONES) {
 }
 pages['/'] = portada();
 writeFileSync(join(OUT, 'index.html'), pages['/']);
-for (const f of ['style.css', 'app.js', 'icon.svg', 'manifest.webmanifest']) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
+for (const f of ['style.css', 'app.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
 
 const core = ['/', ...ESTACIONES.map((e) => e.url), '/style.css', '/app.js', '/icon.svg', '/manifest.webmanifest'];
 const hash = createHash('sha256');
