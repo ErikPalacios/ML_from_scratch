@@ -1,0 +1,17 @@
+<!-- Configuración de la interfaz de Label Studio para adjudicar (Settings → Labeling Interface → Code). -->
+<View>
+  <Header value="A dijo: $anotador_a · B dijo: $anotador_b · guía: $guia_version"/>
+  <Image name="imagen" value="$image" zoom="true"/>
+  <Choices name="categoria" toName="imagen" choice="single" showInline="true" required="true">
+    <Choice value="playeras"/>
+    <Choice value="pantalones"/>
+    <Choice value="sueteres"/>
+    <Choice value="vestidos"/>
+    <Choice value="abrigos"/>
+    <Choice value="sandalias"/>
+    <Choice value="camisas"/>
+    <Choice value="tenis"/>
+    <Choice value="bolsas"/>
+    <Choice value="botines"/>
+  </Choices>
+</View>

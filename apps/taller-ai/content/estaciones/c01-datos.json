@@ -1,0 +1,956 @@
+{
+  "id": "datos",
+  "patron": "sincrono",
+  "caso": "c01",
+  "num": 1,
+  "titulo": "Datos y etiquetas",
+  "nav": "1 · Datos y etiquetas",
+  "pregunta": "¿De dónde salen los labels con los que el modelo aprende y se evalúa, y cuánto vale cada uno?",
+  "version": "2026-11-03",
+  "mapa": {
+    "resumen": "En C01 el clasificador de categorías ya está en producción, pero el catálogo cambia y un modelo congelado se degrada. Esta estación convierte lo que pasa en producción en los <b>labels del mes</b>: junta lo que registró el gateway con lo que hicieron quienes venden y moderación, decide qué labels gratis sirven, elige qué fotos vale la pena pagar por etiquetar, las etiqueta con una guía y mide si las personas están de acuerdo. Todo sin tocar el golden set ni el holdout, que son los únicos que miden sin sesgo.",
+    "entra": [
+      "logs de predicción del gateway (Parquet, una fila por request)",
+      "la categoría que eligió quien vende y cómo la eligió",
+      "las correcciones de moderación",
+      "las fotos originales, con EXIF"
+    ],
+    "sale": [
+      "labels débiles filtrados (gratis, con su fuente)",
+      "labels del mes, etiquetados por personas y adjudicados",
+      "fotos de la cola sin metadatos, en un bucket restringido que vence solo",
+      "kappa por clase y un reporte de exactitud por fuente"
+    ],
+    "escala": [
+      {
+        "que": "Tráfico",
+        "c01": "≈ 2.5 M publicaciones al día",
+        "taller": "400 al día durante 60 días: 24 000 requests"
+      },
+      {
+        "que": "Modelo en producción",
+        "c01": "CNN de 500 categorías servida con Triton",
+        "taller": "regresión logística sobre Fashion-MNIST, 9 categorías (no conoce «bolsas»)"
+      },
+      {
+        "que": "Cola de etiquetado",
+        "c01": "≈ 5k imágenes al mes",
+        "taller": "800"
+      },
+      {
+        "que": "Doble anotación",
+        "c01": "10 % ≈ 500 al mes",
+        "taller": "20 % = 160: con 10 % serían 80, muy pocas para un kappa por clase estable"
+      },
+      {
+        "que": "Umbral de incertidumbre",
+        "c01": "top-1 < 0.3 o margen chico",
+        "taller": "top-1 < 0.5 o margen < 0.15: los umbrales se calibran con la distribución de scores de tu modelo"
+      },
+      {
+        "que": "Golden set",
+        "c01": "≈ 50k, piso de ≈ 50 por categoría",
+        "taller": "500: 50 por categoría"
+      },
+      {
+        "que": "Holdout sin sugerencias",
+        "c01": "≈ 1 % de las cuentas",
+        "taller": "1 % de las cuentas: 253 publicaciones"
+      },
+      {
+        "que": "Almacenamiento y etiquetado",
+        "c01": "Amazon S3; Label Studio o un proveedor gestionado",
+        "taller": "RustFS (S3 local en Docker); un proveedor simulado y tú adjudicando en Label Studio"
+      }
+    ],
+    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-datos"
+  },
+  "conceptos": [
+    {
+      "id": "label-debil",
+      "termino": "Label débil",
+      "en": "weak label / weak supervision",
+      "def": "Un label que sale gratis de lo que hace la gente (elegir, buscar, corregir), no de alguien que etiqueta a propósito. Es abundante pero ruidoso.",
+      "analogia": "Las reseñas de una app: hay millones y casi siempre dicen algo útil, pero no son un examen controlado.",
+      "importa": "En C01 son millones al mes contra ≈ 5k humanos. Con un buen filtro dan volumen para entrenar casi sin costo.",
+      "trampa": "Usarlos sin filtro, o peor, para evaluar: heredan los sesgos de cómo se generaron."
+    },
+    {
+      "id": "feedback-loop",
+      "termino": "Bucle de retroalimentación",
+      "en": "feedback loop",
+      "def": "Cuando las predicciones del modelo influyen en los datos con los que lo vuelves a entrenar y a medir.",
+      "analogia": "Un maestro que dicta la respuesta y luego califica el examen con lo que escribieron los alumnos: todos sacan 10.",
+      "importa": "La categoría elegida casi siempre es tu primera sugerencia. Si la tratas como verdad, el modelo aprende a imitarse y la métrica offline sube sin que el producto mejore.",
+      "trampa": "Celebrar que la exactitud contra los labels débiles subió. Mírala siempre junto al holdout y al golden set."
+    },
+    {
+      "id": "holdout",
+      "termino": "Holdout sin sugerencias",
+      "en": "holdout / control group",
+      "def": "Una porción fija de cuentas (≈ 1 %) que nunca ve sugerencias: elige la categoría a mano.",
+      "analogia": "El grupo de control de un experimento médico: no recibe el tratamiento, por eso sirve de comparación.",
+      "importa": "Da labels que tu modelo no influyó. Es el termómetro del feedback loop y mide cuánto aporta el sistema.",
+      "trampa": "Mezclarlo con el entrenamiento o etiquetarlo en la cola: deja de ser un control."
+    },
+    {
+      "id": "log-prediccion",
+      "termino": "Log de predicción y llave de unión",
+      "en": "prediction log / join key",
+      "def": "El registro que deja el gateway por cada request: qué modelo respondió, el top-k con scores y un hash de la imagen. El request_id lo une con todo lo demás.",
+      "analogia": "El número de guía de un paquete: con él juntas lo que pasó en cada oficina por la que pasó.",
+      "importa": "Sin log de predicción no hay muestreo por incertidumbre, ni monitoreo, ni forma de saber qué vio el modelo.",
+      "trampa": "Que dos sistemas escriban la llave distinto (mayúsculas, prefijos): el join no falla, solo pierde filas en silencio."
+    },
+    {
+      "id": "parquet",
+      "termino": "Parquet particionado",
+      "en": "Parquet / Hive partitioning",
+      "def": "Formato de archivo por columnas, comprimido y con esquema. Partirlo en carpetas como fecha=2026-10-01/ deja leer solo los días que necesitas.",
+      "analogia": "Un archivero con un cajón por día y, dentro, una carpeta por columna: sacas solo lo que vas a leer.",
+      "importa": "Es el formato estándar de los logs en S3. DuckDB, pandas, Spark y Athena lo leen directo.",
+      "trampa": "Dar por hecho el tipo de una columna. El esquema viaja con el archivo: revísalo con DESCRIBE cuando algo no cuadre."
+    },
+    {
+      "id": "join-cardinalidad",
+      "termino": "Join y cardinalidad",
+      "en": "join / cardinality",
+      "def": "Cuántas filas de un lado corresponden a cuántas del otro (1 a 1, 1 a muchos). Define si el join conserva, pierde o multiplica filas.",
+      "analogia": "Pegar dos listas de asistencia por nombre: si alguien aparece dos veces en una, también sale dos veces en la unión.",
+      "importa": "Moderación puede corregir dos veces el mismo anuncio. Si no te quedas con la última corrección, duplicas requests y cuentas doble.",
+      "trampa": "Usar JOIN (inner) donde querías LEFT JOIN, o al revés, y no contar filas antes y después."
+    },
+    {
+      "id": "zona-horaria",
+      "termino": "Zona horaria y ventanas de tiempo",
+      "en": "TIMESTAMP vs TIMESTAMPTZ / UTC",
+      "def": "TIMESTAMPTZ es un instante (se guarda en UTC). TIMESTAMP sin zona es solo una hora de reloj: no dice de dónde.",
+      "analogia": "«Nos vemos a las 3» sin decir en qué ciudad: en CDMX y en Madrid son momentos distintos.",
+      "importa": "La regla «no corregida en 30 días» depende de restar fechas. Una hora local leída como UTC corre la ventana 6 horas y mete o saca labels en el borde.",
+      "trampa": "Que el resultado dependa de la zona de tu laptop. Fija la sesión en UTC y convierte explícitamente lo que venga sin zona."
+    },
+    {
+      "id": "active-learning",
+      "termino": "Muestreo por incertidumbre",
+      "en": "active learning / uncertainty sampling",
+      "def": "Elegir para etiquetar los ejemplos donde el modelo duda: top-1 bajo o margen chico entre el top-1 y el top-2.",
+      "analogia": "Estudiar para el examen los temas que más fallas, no los que ya dominas.",
+      "importa": "Cada label humano cuesta. Uno donde el modelo ya acierta con 0.99 enseña poco; uno donde duda enseña mucho.",
+      "trampa": "Copiar umbrales de otro modelo. «top-1 < 0.3» tiene sentido con 500 clases; con 9 casi nunca pasa. Calíbralos con tu distribución de scores."
+    },
+    {
+      "id": "muestra-aleatoria",
+      "termino": "Muestra aleatoria",
+      "en": "random sample",
+      "def": "Una parte de la cola (20–30 %) elegida al azar de todo el tráfico, sin ningún criterio.",
+      "analogia": "En una encuesta, además de entrevistar a quienes se quejaron, preguntas a gente al azar: si no, solo oyes quejas.",
+      "importa": "Es la única parte de la cola que se parece a la realidad: con ella mides sin sesgo y detectas errores que el modelo no sabe que comete.",
+      "trampa": "Recortarla para «ahorrar». La cola queda llena de casos difíciles y la exactitud medida ahí sale baja y engaña."
+    },
+    {
+      "id": "categoria-nueva",
+      "termino": "Categoría nueva",
+      "en": "new class / class cold start",
+      "def": "Una clase que negocio agrega cuando el modelo ya está entrenado. El modelo no la puede predecir porque nunca la vio.",
+      "analogia": "Un cartero al que le agregan una colonia nueva al mapa: no le va a llegar correo para ella hasta que alguien le enseñe dónde queda.",
+      "importa": "Sin ejemplos no hay forma de aprenderla, y la incertidumbre no los encuentra: el modelo suele equivocarse con seguridad.",
+      "trampa": "Esperar a que aparezcan solos. Hay que sembrarlos a propósito (por búsqueda de texto en el título) hasta tener ≈ 200–500."
+    },
+    {
+      "id": "pii-exif",
+      "termino": "Metadatos y datos personales",
+      "en": "EXIF / PII / data minimization",
+      "def": "EXIF es la información que el teléfono guarda dentro de la foto: modelo, fecha y a veces la ubicación GPS. Es dato personal (PII).",
+      "analogia": "Mandar una carta con tu dirección escrita por dentro del sobre sin darte cuenta.",
+      "importa": "Las fotos salen del producto hacia gente que etiqueta. Solo copias las que se etiquetan, sin metadatos, y el resto se referencia por request_id y hash.",
+      "trampa": "Confiar en que «guardar de nuevo» borra todo. Reconstruye la imagen desde los píxeles y verifica que no quede EXIF."
+    },
+    {
+      "id": "bucket-seguro",
+      "termino": "Bucket restringido",
+      "en": "S3 bucket / Block Public Access / bucket policy / lifecycle rule",
+      "def": "Un bucket privado con el bloqueo de acceso público completo y una regla de ciclo de vida que borra las copias a los 90 días.",
+      "analogia": "Un archivero con llave en el que cada carpeta se tritura sola a los tres meses.",
+      "importa": "Las copias para etiquetar son datos personales fuera de su lugar original: deben ser privadas y temporales por diseño, no por disciplina.",
+      "trampa": "Abrirlo «un momento» con una política Principal: * para una demo. Para compartir una foto existen las URL prefirmadas, que vencen."
+    },
+    {
+      "id": "guia-etiquetado",
+      "termino": "Guía de etiquetado versionada",
+      "en": "labeling guidelines",
+      "def": "El documento que define cada categoría y decide por escrito los casos límite. Cada label guarda con qué versión se hizo.",
+      "analogia": "El reglamento de un deporte: sin él, cada árbitro marca distinto la misma jugada.",
+      "importa": "La mayoría de los desacuerdos no son descuidos: son preguntas que la guía no contesta. Una regla escrita sube el acuerdo más que cualquier otra cosa.",
+      "trampa": "Mandar al proveedor una guía vieja (sin la categoría nueva ni los casos límite) y no notarlo porque los labels llegan a tiempo."
+    },
+    {
+      "id": "kappa",
+      "termino": "Acuerdo entre anotadores y kappa",
+      "en": "inter-annotator agreement / Cohen's kappa",
+      "def": "Kappa mide cuánto coinciden dos personas por encima de lo que coincidirían por azar: 1 es acuerdo perfecto y 0, lo mismo que el azar.",
+      "analogia": "Dos jueces que siempre dicen «aprobado» coinciden 95 %, pero no demuestran que sepan juzgar.",
+      "importa": "Por clase te dice dónde la guía falla. Con muy pocos ejemplos por clase es ruidoso: por eso se mide sobre suficientes dobles.",
+      "trampa": "Mirar solo el acuerdo bruto: cuando una clase domina, sale alto aunque la frontera difícil esté mal. Los cortes tipo «0.6 = sustancial» son convención, no ley."
+    },
+    {
+      "id": "adjudicacion",
+      "termino": "Adjudicación",
+      "en": "adjudication",
+      "def": "Una persona experta decide los casos donde los anotadores no coincidieron, y cada decisión difícil vuelve a la guía.",
+      "analogia": "El VAR del fútbol: solo revisa las jugadas dudosas, y sus decisiones se vuelven criterio para el resto.",
+      "importa": "Convierte el desacuerdo en un label confiable y en una regla nueva para el mes que viene.",
+      "trampa": "Leer el export de la herramienta sin fijar el formato: JSON y JSON_MIN de Label Studio tienen formas distintas."
+    },
+    {
+      "id": "golden-set",
+      "termino": "Golden set",
+      "en": "golden set / evaluation set / data leakage",
+      "def": "Un conjunto etiquetado y revisado por personas, estratificado por categoría y congelado. Solo sirve para evaluar, nunca para entrenar.",
+      "analogia": "El examen final que el profesor guarda bajo llave: si los alumnos lo ven antes, la calificación ya no mide nada.",
+      "importa": "Es la única medida estable mes a mes. Se identifica por hash del contenido (los píxeles), así una copia sin EXIF sigue siendo «la misma foto».",
+      "trampa": "Que se cuele al entrenamiento (fuga, leakage). Y cambiarlo sin versionarlo: un golden nuevo es una versión nueva."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae una empresa ficticia funcionando: un marketplace que lleva 60 días con el clasificador en producción. Tú no escribes el mundo; lo corres y construyes encima el pipeline de la estación.",
+    "trae": [
+      {
+        "que": "Simulador del marketplace (mundo/simular.py)",
+        "detalle": "24 000 requests en 60 días con logs del gateway, publicaciones, correcciones de moderación y fotos con EXIF. Trae el feedback loop a propósito y la categoría «bolsas», que negocio agrega el 1 de octubre."
+      },
+      {
+        "que": "El modelo en producción (mundo/modelo.py)",
+        "detalle": "Una regresión logística entrenada con 9 de las 10 categorías de Fashion-MNIST. Acierta ≈ 81 % en el holdout."
+      },
+      {
+        "que": "S3 local y Label Studio (compose.yaml)",
+        "detalle": "RustFS en http://localhost:9100 (consola en :9101) y Label Studio 1.23.2 en http://localhost:8090 con un usuario de prueba."
+      },
+      {
+        "que": "Proveedor de etiquetado (mundo/anotar.py)",
+        "detalle": "Dos equipos simulados que etiquetan según tu guía: se equivocan poco en lo obvio y mucho donde la guía no decide."
+      },
+      {
+        "que": "El job del mes (mundo/correr.py)",
+        "detalle": "Corre los 7 pasos en orden, como el orquestador en producción, y deja el registro en data/pipeline/corrida.log."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "12 checks con los criterios de «listo» y 10 fallas que se meten en el mundo, la configuración o la infraestructura, nunca en tu código."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "pipeline/1_senales.py",
+        "hace": "Une logs, publicaciones y la última corrección por request_id."
+      },
+      {
+        "archivo": "pipeline/2_debil.py",
+        "hace": "Filtra los labels débiles y separa el holdout."
+      },
+      {
+        "archivo": "pipeline/3_cola.py",
+        "hace": "Elige las 800 fotos del mes: nuevas, desacuerdos, incertidumbre y 25 % al azar."
+      },
+      {
+        "archivo": "pipeline/4_copiar.py",
+        "hace": "Copia solo esas fotos, sin EXIF, a un bucket privado que vence a los 90 días."
+      },
+      {
+        "archivo": "pipeline/5_proveedor.py + guia/guia-v2.md",
+        "hace": "Escribe la guía con los casos límite y manda las tareas al proveedor."
+      },
+      {
+        "archivo": "pipeline/6_acuerdo.py",
+        "hace": "Calcula el kappa por clase y prepara los desacuerdos para Label Studio."
+      },
+      {
+        "archivo": "pipeline/7_cierre.py",
+        "hace": "Junta los labels del mes, protege el golden set y escribe el reporte."
+      }
+    ],
+    "requisitos": [
+      "Docker Desktop con ≈ 3 GB libres para las dos imágenes",
+      "Python 3.11 o más nuevo (probado con 3.13)",
+      "≈ 300 MB para los datos que genera el simulador",
+      "Los puertos 9100, 9101 y 8090 libres en tu Mac"
+    ],
+    "sustituciones": [
+      {
+        "nube": "Amazon S3",
+        "local": "RustFS 1.0.4",
+        "diferencia": "Misma API de S3 (boto3 y aws-cli con --endpoint-url). En AWS los permisos son de IAM y el bucket cifra por defecto; aquí hay un solo usuario."
+      },
+      {
+        "nube": "Logs en s3://…/logs/",
+        "local": "data/logs/ en tu disco",
+        "diferencia": "Mismo Parquet particionado por fecha; DuckDB leería igual desde S3 con su extensión httpfs."
+      },
+      {
+        "nube": "Etiquetadores o proveedor gestionado",
+        "local": "mundo/anotar.py",
+        "diferencia": "Un proveedor real tarda días y cobra; el simulado responde al instante y se equivoca según tu guía."
+      },
+      {
+        "nube": "Orquestador (Argo Workflows, Airflow)",
+        "local": "mundo/correr.py",
+        "diferencia": "Corre los pasos en orden y se detiene en el primer error, sin reintentos ni calendario."
+      }
+    ]
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "preparar",
+      "titulo": "Levantar el mundo",
+      "objetivo": "Tener corriendo el S3 local, Label Studio y los 60 días de datos del marketplace.",
+      "conceptos": [
+        "log-prediccion",
+        "parquet"
+      ],
+      "explica": "Antes de escribir una línea del pipeline necesitas lo que en C01 ya existe: el gateway lleva semanas escribiendo logs y las fotos viven en S3. <code>compose.yaml</code> levanta dos contenedores (el S3 local y Label Studio) y <code>mundo/reiniciar.py --todo</code> crea el esqueleto de tu pipeline, tu <code>config.yaml</code> y genera el mundo: descarga Fashion-MNIST, entrena el modelo en producción y sube 24 500 fotos.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
+          "nota": "Un entorno aislado con las versiones fijadas del taller.",
+          "donde": "mac",
+          "salida": null
+        },
+        {
+          "code": "docker compose up -d",
+          "nota": "Si un puerto está ocupado, cámbialo en compose.yaml (lado izquierdo de «9100:9000») y en config.yaml.",
+          "donde": "mac",
+          "salida": null
+        },
+        {
+          "code": "python mundo/reiniciar.py --todo",
+          "nota": "≈ 1–2 min. Crea pipeline/, config.yaml y el mundo.",
+          "donde": "mac",
+          "salida": "  pipeline/: esqueleto de los 7 pasos\n  config.yaml: valores originales\n  data/pipeline y data/etiquetado: borrados\n  descargando train-images-idx3-ubyte…   (solo la primera vez; también las otras 3 partes)\n  entrenando el modelo en producción (9 categorías, sin Bolsas)…\n  subiendo 24,500 fotos a S3 local…\n✓ mundo listo: 24,000 requests en 60 días, 407 correcciones, golden set de 500\n✓ listo"
+        },
+        {
+          "code": "python verificar.py mundo",
+          "nota": "El primer check: los servicios y los datos están arriba.",
+          "donde": "mac",
+          "salida": "✓ mundo          S3, Label Studio y los datos del mundo están arriba\n\n1/1 en verde"
+        },
+        {
+          "code": "python -c \"import duckdb; print(duckdb.sql(\\\"DESCRIBE SELECT * FROM read_parquet('data/logs/*/*.parquet', hive_partitioning = true)\\\"))\"",
+          "nota": "Mira el esquema del log antes de usarlo: top_k es una lista de structs {clase, score} y fecha sale de la carpeta.",
+          "donde": "mac",
+          "salida": "┌────────────────────┬──────────────────────────────────────┬─────────┬─────────┬─────────┬─────────┐\n│    column_name     │             column_type              │  null   │   key   │ default │  extra  │\n│      varchar       │               varchar                │ varchar │ varchar │ varchar │ varchar │\n├────────────────────┼──────────────────────────────────────┼─────────┼─────────┼─────────┼─────────┤\n│ request_id         │ VARCHAR                              │ YES     │ NULL    │ NULL    │ NULL    │\n│ ts                 │ TIMESTAMP WITH TIME ZONE             │ YES     │ NULL    │ NULL    │ NULL    │\n│ model_version      │ VARCHAR                              │ YES     │ NULL    │ NULL    │ NULL    │\n│ cuenta_id          │ INTEGER                              │ YES     │ NULL    │ NULL    │ NULL    │\n│ top_k              │ STRUCT(clase TINYINT, score FLOAT)[] │ YES     │ NULL    │ NULL    │ NULL    │\n│ img_sha256_prefijo │ VARCHAR                              │ YES     │ NULL    │ NULL    │ NULL    │\n│ foto_key           │ VARCHAR                              │ YES     │ NULL    │ NULL    │ NULL    │\n│ latencia_ms        │ FLOAT                                │ YES     │ NULL    │ NULL    │ NULL    │\n│ fecha              │ DATE                                 │ YES     │ NULL    │ NULL    │ NULL    │\n└────────────────────┴──────────────────────────────────────┴─────────┴─────────┴─────────┴─────────┘"
+        }
+      ],
+      "verifica": "python verificar.py mundo en verde.",
+      "ojo": "En la consola de RustFS (http://localhost:9101, usuario taller / taller-secreto) puedes ver los buckets producto-fotos y golden-set. No toques nada de mundo/: es la empresa, no tu código."
+    },
+    {
+      "n": 1,
+      "id": "senales",
+      "titulo": "Juntar señales",
+      "objetivo": "Una tabla con una fila por request: lo que predijo el modelo, lo que eligió quien vende y la última corrección de moderación.",
+      "conceptos": [
+        "log-prediccion",
+        "parquet",
+        "join-cardinalidad",
+        "zona-horaria"
+      ],
+      "explica": "Tres fuentes, una llave: <code>request_id</code>. Con DuckDB lees los Parquet directo, sin cargarlos antes. Del log sacas el top-1, su score y el <b>margen</b> (top-1 menos top-2). Las correcciones pueden ser varias por anuncio: con <code>QUALIFY row_number() … = 1</code> te quedas con la más reciente <b>antes</b> de unir, para no multiplicar filas. Logs con publicaciones van con JOIN (todo request publicado tiene log); las correcciones van con LEFT JOIN (la mayoría no tiene). Al final cuentas filas: un pipeline de datos que no cuenta, pierde datos sin enterarse.",
+      "codigo": [
+        {
+          "lang": "sql",
+          "path": "pipeline/1_senales.py",
+          "code": "WITH logs AS (\n  SELECT request_id, ts, cuenta_id, img_sha256_prefijo, foto_key,\n         top_k[1].clase AS top1,\n         top_k[1].score AS top1_score,\n         top_k[2].clase AS top2,\n         top_k[1].score - top_k[2].score AS margen\n  FROM read_parquet('data/logs/*/*.parquet', hive_partitioning = true)\n),\nultima_correccion AS (   -- puede haber varias por request: cuenta solo la más reciente\n  SELECT request_id, categoria_corregida, ts_correccion\n  FROM read_parquet('data/producto/correcciones.parquet')\n  QUALIFY row_number() OVER (PARTITION BY request_id ORDER BY ts_correccion DESC) = 1\n)\nSELECT l.*, p.ts_publicacion, p.categoria_final, p.eleccion, p.titulo,\n       c.categoria_corregida, c.ts_correccion\nFROM logs l\nJOIN read_parquet('data/producto/publicaciones.parquet') p USING (request_id)\nLEFT JOIN ultima_correccion c USING (request_id)",
+          "nota": "Va dentro de un COPY (…) TO 'data/pipeline/senales.parquet' (FORMAT parquet). Las listas de DuckDB empiezan en 1."
+        },
+        {
+          "lang": "python",
+          "path": "pipeline/1_senales.py",
+          "code": "n_pub = con.execute(\"SELECT count(*) FROM 'data/producto/publicaciones.parquet'\").fetchone()[0]\nn, unicos = con.execute(\"SELECT count(*), count(DISTINCT request_id) FROM 'data/pipeline/senales.parquet'\").fetchone()\nprint(f\"señales: {n:,} ({unicos:,} únicos) · se unió el {n / n_pub:.1%}\")",
+          "nota": "En DuckDB 2.0 las relaciones ya no tienen fetchone(): usa con.execute(…).fetchone()."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/1_senales.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "logs: 24,000 · publicaciones: 24,000 · señales: 24,000 (24,000 request_id únicos)\nse unió el 100.0% de las publicaciones"
+        },
+        {
+          "code": "python verificar.py senales",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ senales        24,000 requests, una fila cada uno, con la última corrección\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "24 000 filas, request_id único y la corrección más reciente en cada una.",
+      "ojo": "<code>_comun.duck()</code> fija la sesión en UTC. No lo quites: así el resultado no depende de la zona de tu laptop."
+    },
+    {
+      "n": 2,
+      "id": "debil",
+      "titulo": "Filtrar el label débil",
+      "objetivo": "Quedarte solo con los labels gratis que tienen una señal de confianza, y apartar el holdout.",
+      "conceptos": [
+        "label-debil",
+        "feedback-loop",
+        "holdout",
+        "zona-horaria"
+      ],
+      "explica": "No todo lo que eligió quien vende sirve. Entra con su <b>fuente</b>: <b>correccion</b> si moderación la corrigió (la última manda); <b>busqueda</b> si quien vende buscó la categoría en vez de aceptar la sugerencia (señal fuerte: el modelo no la convenció); <b>sugerencia_madura</b> si aceptó una sugerencia y pasaron 30 días sin corrección. Las sugerencias aceptadas de los últimos 30 días todavía no cuentan: aún pueden corregirse. Las cuentas del holdout (<code>eleccion = 'manual'</code>) se van a otro archivo: nunca se mezclan con el entrenamiento.",
+      "codigo": [
+        {
+          "lang": "sql",
+          "path": "pipeline/2_debil.py",
+          "code": "SELECT request_id, img_sha256_prefijo,\n       coalesce(categoria_corregida, categoria_final) AS label,\n       CASE WHEN categoria_corregida IS NOT NULL THEN 'correccion'\n            WHEN eleccion = 'busqueda' THEN 'busqueda'\n            ELSE 'sugerencia_madura' END AS fuente\nFROM 'data/pipeline/senales.parquet'\nWHERE eleccion <> 'manual'\n  AND (categoria_corregida IS NOT NULL\n       OR eleccion = 'busqueda'\n       OR (eleccion LIKE 'sugerencia_%'\n           AND ts_publicacion <= TIMESTAMPTZ '2026-10-31T00:00:00Z' - INTERVAL 30 DAY))",
+          "nota": "El corte y los 30 días salen de config.yaml (corte, debil.dias_maduracion); aquí están escritos para leerlo fácil."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/2_debil.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "┌───────────────────┬───────┐\n│      fuente       │   n   │\n│      varchar      │ int64 │\n├───────────────────┼───────┤\n│ sugerencia_madura │ 10586 │\n│ busqueda          │  2537 │\n│ correccion        │   383 │\n└───────────────────┴───────┘\n\nholdout: 253 labels"
+        },
+        {
+          "code": "python verificar.py debil",
+          "nota": "La auditoría usa la verdad del simulador: en una empresa sería una muestra revisada a mano.",
+          "donde": "mac",
+          "salida": "✓ debil          13,506 labels débiles, 2.0% mal según la auditoría\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "Los labels coinciden con las reglas de la estación y la auditoría encuentra ≤ 3 % mal.",
+      "ojo": "Fíjate en el 2.0 %: es bajo porque el filtro funciona. Sin la regla de los 30 días entrarían sugerencias equivocadas que moderación todavía no alcanza a corregir."
+    },
+    {
+      "n": 3,
+      "id": "cola",
+      "titulo": "Elegir qué etiquetar",
+      "objetivo": "Las 800 fotos del mes, cada una con su motivo: nueva, desacuerdo, incertidumbre o al azar.",
+      "conceptos": [
+        "active-learning",
+        "muestra-aleatoria",
+        "categoria-nueva",
+        "holdout"
+      ],
+      "explica": "El presupuesto es fijo, así que cada foto tiene que valer. Se llenan cupos en orden: primero <b>nuevas</b> (categorías que negocio acaba de agregar: 10 %), luego <b>desacuerdos</b> (una persona eligió otra cosa que el top-1: 15 %), luego <b>incertidumbre</b> (top-1 &lt; 0.5 o margen &lt; 0.15) y al final un <b>25 % al azar</b> de todo el tráfico. Lo que no alcance en un cupo se llena con incertidumbre. El holdout no se toca.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/3_cola.py",
+          "code": "s = s.sort_values(\"request_id\")                  # DuckDB no garantiza el orden: así la muestra es reproducible\ns = s[s.eleccion != \"manual\"]                    # el holdout no se toca\nhumano = s.categoria_corregida.fillna(s.categoria_final.where(s.eleccion == \"busqueda\"))\n\ngrupos = {\n    \"nueva\": s.categoria_final.isin(c[\"nuevas\"][\"clases\"]) | s.categoria_corregida.isin(c[\"nuevas\"][\"clases\"]),\n    \"desacuerdo\": humano.notna() & (humano != s.top1),\n    \"incertidumbre\": (s.top1_score < k[\"umbral_top1\"]) | (s.margen < k[\"umbral_margen\"]),\n}",
+          "nota": "humano = lo que dijo una persona sin influencia de la sugerencia: la corrección o, si no hay, la búsqueda."
+        },
+        {
+          "lang": "python",
+          "path": "pipeline/3_cola.py",
+          "code": "elegidos = {}\nfor motivo in [\"nueva\", \"desacuerdo\", \"incertidumbre\"]:\n    candidatos = s.request_id[grupos[motivo] & ~s.request_id.isin(elegidos)]\n    n = min(cupo[motivo], len(candidatos))\n    if motivo == \"incertidumbre\":                # lo que no alcanzó en los otros cupos se va a incertidumbre\n        n = min(len(candidatos), k[\"tamano\"] - cupo[\"aleatoria\"] - len(elegidos))\n    elegidos |= dict.fromkeys(rng.choice(candidatos.to_numpy(), n, replace=False), motivo)\nresto = s.request_id[~s.request_id.isin(elegidos)].to_numpy()\nelegidos |= dict.fromkeys(rng.choice(resto, k[\"tamano\"] - len(elegidos), replace=False), \"aleatoria\")",
+          "nota": "La aleatoria se elige al final, de todo lo que queda: así no hereda ningún criterio."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/3_cola.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "motivo\nincertidumbre    400\naleatoria        200\ndesacuerdo       120\nnueva             80\ntotal: 800"
+        },
+        {
+          "code": "python verificar.py cola-mezcla cola-nuevas",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ cola-mezcla    incertidumbre 400 · aleatoria 200 · desacuerdo 120 · nueva 80\n✓ cola-nuevas    79 ejemplos de bolsas (cupo 80)\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "800 fotos, 20–30 % al azar, sin holdout, y al menos el 90 % del cupo de categorías nuevas son de verdad bolsas.",
+      "ojo": "Los umbrales de C01 (top-1 &lt; 0.3) aquí casi no seleccionarían nada: este modelo tiene 9 clases y es más seguro de sí. Antes de fijar un umbral, mira los cuantiles de top1_score y margen. Y ordena antes de muestrear: DuckDB no garantiza el orden de las filas, y sin orden la misma semilla da otra cola."
+    },
+    {
+      "n": 4,
+      "id": "copiar",
+      "titulo": "Copiar solo esas fotos",
+      "objetivo": "Las 800 fotos de la cola, sin metadatos, en un bucket privado que se borra solo a los 90 días.",
+      "conceptos": [
+        "pii-exif",
+        "bucket-seguro"
+      ],
+      "explica": "Primero el bucket: se crea, se le pone el <b>bloqueo de acceso público</b> completo (los cuatro interruptores) y una <b>regla de ciclo de vida</b> que vence lo que esté bajo <code>cola/</code> a los 90 días. Luego cada foto: se baja del bucket del producto, se le quita todo metadato y se sube con el request_id como nombre. Para quitar el EXIF: <code>ImageOps.exif_transpose</code> aplica la rotación antes de perder el tag de orientación, y <code>Image.frombytes</code> crea una imagen nueva solo con los píxeles. Al final se borra lo que sobre de otras corridas: el bucket solo tiene la cola de este mes.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/4_copiar.py",
+          "code": "cli.put_public_access_block(Bucket=B, PublicAccessBlockConfiguration={\n    \"BlockPublicAcls\": True, \"IgnorePublicAcls\": True, \"BlockPublicPolicy\": True, \"RestrictPublicBuckets\": True})\ncli.put_bucket_lifecycle_configuration(Bucket=B, LifecycleConfiguration={\"Rules\": [{\n    \"ID\": \"cola-vence\", \"Status\": \"Enabled\", \"Filter\": {\"Prefix\": \"cola/\"},\n    \"Expiration\": {\"Days\": 90}}]})",
+          "nota": "Los 90 días salen de config.yaml (s3.dias_vencimiento)."
+        },
+        {
+          "lang": "python",
+          "path": "pipeline/4_copiar.py",
+          "code": "def limpiar(jpg: bytes) -> bytes:\n    im = ImageOps.exif_transpose(Image.open(io.BytesIO(jpg)))   # aplica la rotación antes de perder el tag\n    limpio = Image.frombytes(im.mode, im.size, im.tobytes())   # una imagen nueva: solo píxeles, cero metadatos\n    out = io.BytesIO()\n    limpio.save(out, \"JPEG\", quality=92)\n    return out.getvalue()",
+          "nota": "En Pillow 13, save() de un JPEG ya no copia el EXIF por defecto, pero sí el comentario del archivo: reconstruir desde los píxeles no deja nada."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/4_copiar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "copiadas: 800 · borradas de corridas anteriores: 0"
+        },
+        {
+          "code": "curl -s -o /dev/null -w '%{http_code}\\n' http://localhost:9100/etiquetado-restringido/cola/$(python -c \"import pandas as pd; print(pd.read_parquet('data/pipeline/cola.parquet').request_id.iloc[0])\").jpg",
+          "nota": "Pedir una foto sin credenciales: tiene que dar 403.",
+          "donde": "mac",
+          "salida": "403"
+        },
+        {
+          "code": "python verificar.py copia-exif bucket-seguro",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ copia-exif     800 fotos, todas sin metadatos\n✓ bucket-seguro  privado, sin acceso público y con vencimiento de 90 días\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "El bucket tiene exactamente la cola, ninguna foto trae EXIF, el GET anónimo da 403 y la regla de 90 días está activa.",
+      "ojo": "Los objetos guardan el request_id y el prefijo del hash como metadatos de S3 (x-amz-meta-*). Eso no es EXIF: es tu forma de rastrear cada copia."
+    },
+    {
+      "n": 5,
+      "id": "proveedor",
+      "titulo": "Escribir la guía y mandar al proveedor",
+      "objetivo": "Una guía v2 con la categoría nueva y los casos límite, y las 800 tareas en manos del proveedor (20 % dobles).",
+      "conceptos": [
+        "guia-etiquetado",
+        "kappa"
+      ],
+      "explica": "La guía v1 se escribió antes de que existiera «bolsas» y no dice nada de los casos límite. Escribe <code>guia/guia-v2.md</code>: copia la v1, agrega <code>## bolsas</code> y una sección de casos límite con una regla para cada par que se confunde, con este formato: <code>- regla: camisas-vs-playeras — …</code> (también <code>camisas-vs-sueteres</code> y <code>sueteres-vs-abrigos</code>). Cambia <code>etiquetado.guia_version</code> en config.yaml. Después, el paso 5 escribe una tarea por foto con la versión de la guía y marca al azar el 20 % como doble. Para ver el efecto de la guía, corre primero con la v1 y luego con la v2.",
+      "codigo": [
+        {
+          "lang": "markdown",
+          "path": "guia/guia-v2.md",
+          "code": "## bolsas\nBolsas de mano, bolsos, mochilas pequeñas y bolsas tote. No es ropa: si la foto muestra una prenda y una bolsa, manda la prenda.\n\n## Casos límite\n\n- regla: camisas-vs-playeras — Si se ven cuello y botones al frente, es camisa. Manga corta sin botones es playera, aunque tenga cuello.\n- regla: camisas-vs-sueteres — Botones al frente = camisa. Tejido grueso sin abertura al frente = suéter.\n- regla: sueteres-vs-abrigos — Si se abre al frente de arriba abajo, es abrigo. Si se pone por la cabeza, es suéter.",
+          "nota": "Lo que la v2 agrega a la v1. El proveedor simulado busca exactamente «## bolsas» y «regla: <par>»."
+        },
+        {
+          "lang": "python",
+          "path": "pipeline/5_proveedor.py",
+          "code": "t = pd.read_parquet(SAL / \"copiadas.parquet\")\nt[\"guia_version\"] = c[\"guia_version\"]      # cada label recuerda con qué versión de la guía se hizo\nt[\"doble\"] = False\nt.loc[rng.choice(t.index, round(len(t) * c[\"frac_doble\"]), replace=False), \"doble\"] = True\nt.to_parquet(ETQ / \"tareas-proveedor.parquet\", index=False)",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/5_proveedor.py && python mundo/anotar.py",
+          "nota": "Con la guía v2 en config.yaml.",
+          "donde": "mac",
+          "salida": "tareas: 800 · dobles: 160 · guía: guia-v2\n✓ el proveedor devolvió 960 anotaciones (160 dobles) con guia-v2"
+        },
+        {
+          "code": "python verificar.py guia",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ guia           guia-v2: las 10 categorías y los 3 casos límite\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "La guía vigente define las 10 categorías y los 3 casos límite, y cada tarea lleva su guia_version.",
+      "ojo": "En C01 la doble anotación es el 10 %. Aquí es el 20 % porque la cola es chica: con 80 dobles, cada categoría tendría 5–15 casos y el kappa por clase saltaría de un mes a otro por puro azar."
+    },
+    {
+      "n": 6,
+      "id": "acuerdo",
+      "titulo": "Medir el acuerdo y adjudicar",
+      "objetivo": "El kappa por clase de la doble anotación y cada desacuerdo decidido por ti en Label Studio.",
+      "conceptos": [
+        "kappa",
+        "adjudicacion",
+        "guia-etiquetado",
+        "bucket-seguro"
+      ],
+      "explica": "Sobre las 160 dobles calculas el <b>acuerdo bruto</b> y el <b>kappa</b>, global y por clase. scikit-learn no trae kappa por clase: se calcula «uno contra el resto», preguntando para cada categoría si A y B coinciden en «es esta / no es esta». Los desacuerdos van a Label Studio como tareas: la imagen viaja como <b>URL prefirmada</b> del bucket restringido (vence en 7 días; el bucket sigue privado). En Label Studio (http://localhost:8090, usuario taller@ejemplo.com / taller-etiquetas): crea un proyecto, pega <code>guia/labelstudio-config.xml</code> en Settings → Labeling Interface → Code, importa <code>data/etiquetado/adjudicar-tareas.json</code>, decide cada caso y exporta en <b>JSON_MIN</b> a <code>data/etiquetado/adjudicacion-export.json</code>. Con la guía v1 el kappa se cae justo donde la guía no decide: en la prueba del taller, suéteres 0.19, camisas 0.31, abrigos 0.44, bolsas 0.52 y playeras 0.56 (con la v2, todas arriba de 0.85).",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/6_acuerdo.py",
+          "code": "dobles = a.pivot(index=\"request_id\", columns=\"anotador\", values=\"clase\").dropna().astype(int)\npor_clase = {}\nfor i, nombre in enumerate(CLASES):\n    k = cohen_kappa_score(dobles.A == i, dobles.B == i)   # uno contra el resto\n    por_clase[nombre] = None if np.isnan(k) else round(float(k), 3)",
+          "nota": ""
+        },
+        {
+          "lang": "python",
+          "path": "pipeline/6_acuerdo.py",
+          "code": "tareas = [{\"data\": {\n    \"image\": cli.generate_presigned_url(\"get_object\", Params={\"Bucket\": B, \"Key\": f\"cola/{rid}.jpg\"}, ExpiresIn=7 * 24 * 3600),\n    \"request_id\": rid, \"anotador_a\": CLASES[f.A], \"anotador_b\": CLASES[f.B], \"guia_version\": version,\n}} for rid, f in desacuerdos.iterrows()]",
+          "nota": "Todo lo que va en data se ve en la interfaz ($anotador_a, $anotador_b) y regresa tal cual en el export."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/6_acuerdo.py",
+          "nota": "Corre primero con la guía v1 y luego con la v2: compara camisas, suéteres y bolsas.",
+          "donde": "mac",
+          "salida": "{\n  \"guia_version\": \"guia-v2\",\n  \"n_dobles\": 160,\n  \"acuerdo_bruto\": 0.944,\n  \"kappa\": 0.936,\n  \"kappa_por_clase\": {\n    \"playeras\": 0.875,\n    \"pantalones\": 0.938,\n    \"sueteres\": 0.953,\n    \"vestidos\": 1.0,\n    \"abrigos\": 0.945,\n    \"sandalias\": 0.893,\n    \"camisas\": 0.88,\n    \"tenis\": 0.869,\n    \"bolsas\": 1.0,\n    \"botines\": 1.0\n  }\n}\ndesacuerdos para adjudicar: 9"
+        },
+        {
+          "code": "python verificar.py acuerdo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ acuerdo        kappa global 0.936 con 160 dobles · guía guia-v2\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "kappa.json coincide con las anotaciones y toda categoría con ≥ 10 casos dobles tiene kappa ≥ 0.6.",
+      "ojo": "Export en JSON_MIN: cada tarea queda plana, con los campos de data y tu elección en «categoria». En JSON (completo) la elección está en annotations[0].result[0].value.choices[0]. El paso 7 espera JSON_MIN."
+    },
+    {
+      "n": 7,
+      "id": "cierre",
+      "titulo": "Cerrar el mes",
+      "objetivo": "Los labels del mes, el golden set intacto y un reporte que muestra el feedback loop con números.",
+      "conceptos": [
+        "golden-set",
+        "feedback-loop",
+        "holdout",
+        "muestra-aleatoria",
+        "adjudicacion"
+      ],
+      "explica": "Los labels del mes: lo que dijo A en las sencillas y, en las dobles, el acuerdo o tu adjudicación. Antes de guardarlos, se cruzan los hashes de contenido contra el manifest del golden set: si alguna foto del golden aparece, el paso se detiene, porque entrenar con ella haría que el golden deje de medir. Por último, el reporte: la exactitud del modelo en producción medida contra cada fuente. Ahí ves el feedback loop: contra las sugerencias aceptadas sale ≈ 0.89; contra el holdout, ≈ 0.81.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/7_cierre.py",
+          "code": "golden = pd.read_parquet(DATA / \"golden\" / \"manifest.parquet\")\nfuga = set(labels.img_sha256_prefijo) & set(golden.img_sha256.str[:16])\nif fuga:\n    sys.exit(f\"✗ {len(fuga)} imágenes del golden set están en los labels del mes: el golden dejaría de medir\")",
+          "nota": "El hash es de los píxeles, no del archivo: quitar el EXIF no cambia la identidad de la foto."
+        },
+        {
+          "lang": "python",
+          "path": "pipeline/7_cierre.py",
+          "code": "reporte = {\"exactitud\": {\n    \"vs_labels_debiles\": {f: exactitud(g) for f, g in debil.groupby(\"fuente\")},\n    \"vs_holdout\": exactitud(pd.read_parquet(SAL / \"holdout.parquet\").merge(s)),\n    \"vs_labels_mes\": exactitud(labels.merge(s)),\n    \"vs_golden\": exactitud(golden),\n}}",
+          "nota": "Para el golden se baja cada foto de s3://golden-set y se predice con mundo/modelo.py, como bajarías el modelo del registry."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/7_cierre.py",
+          "nota": "Tus números de labels del mes y de adjudicados pueden variar un poco según cómo adjudiques. Esta salida es con el experto simulado.",
+          "donde": "mac",
+          "salida": "{\n  \"exactitud\": {\n    \"vs_labels_debiles\": {\n      \"busqueda\": 0.575,\n      \"correccion\": 0.055,\n      \"sugerencia_madura\": 0.89\n    },\n    \"vs_holdout\": 0.81,\n    \"vs_labels_mes\": 0.395,\n    \"vs_golden\": 0.732\n  },\n  \"n\": {\n    \"labels_mes\": 800,\n    \"adjudicados\": 9,\n    \"golden\": 500\n  },\n  \"guia_version\": \"guia-v2\"\n}"
+        },
+        {
+          "code": "python verificar.py",
+          "nota": "Los 12 checks.",
+          "donde": "mac",
+          "salida": "✓ mundo          S3, Label Studio y los datos del mundo están arriba\n✓ senales        24,000 requests, una fila cada uno, con la última corrección\n✓ debil          13,506 labels débiles, 2.0% mal según la auditoría\n✓ cola-mezcla    incertidumbre 400 · aleatoria 200 · desacuerdo 120 · nueva 80\n✓ cola-nuevas    79 ejemplos de bolsas (cupo 80)\n✓ copia-exif     800 fotos, todas sin metadatos\n✓ bucket-seguro  privado, sin acceso público y con vencimiento de 90 días\n✓ guia           guia-v2: las 10 categorías y los 3 casos límite\n✓ acuerdo        kappa global 0.936 con 160 dobles · guía guia-v2\n✓ labels-mes     800 labels (9 adjudicados) con guia-v2\n✓ golden         500 imágenes congeladas, ninguna en la cola ni en los labels del mes\n✓ reporte        holdout 0.81 · golden 0.732 · labels del mes 0.395\n\n12/12 en verde"
+        }
+      ],
+      "verifica": "12/12 en verde.",
+      "ojo": "El golden sale más bajo que el holdout y no es que esté «peor»: pesa igual cada categoría e incluye 50 bolsas que el modelo nunca vio. Y los labels del mes salen bajísimos a propósito: la cola es difícil por diseño."
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Antes de empezar, python mundo/reiniciar.py --pipeline: respalda tu versión anterior en .respaldo/ y deja el esqueleto vacío. El mundo no cambia.",
+      "Solo tienes OBJETIVOS.md, los contratos al inicio de cada archivo de pipeline/ y python verificar.py. Nada de GUION.md.",
+      "Claude no te da código: te dice qué check falla y te contesta con preguntas.",
+      "Mide tu tiempo por objetivo y anota en la bitácora dónde te atoraste."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "Levanta el mundo y confirma que los servicios y los datos están arriba.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "Una fila por request con el top-1, su score, el margen, lo que eligió quien vende y la corrección más reciente.",
+        "check": "senales",
+        "pista": "Cuenta filas antes y después de cada join."
+      },
+      {
+        "n": 3,
+        "objetivo": "Labels débiles con su fuente (corrección, búsqueda o sugerencia sin corregir en 30 días) y el holdout aparte.",
+        "check": "debil"
+      },
+      {
+        "n": 4,
+        "objetivo": "Una cola de 800 con 20–30 % al azar y sin tocar el holdout.",
+        "check": "cola-mezcla"
+      },
+      {
+        "n": 5,
+        "objetivo": "Que la categoría nueva llegue a la cola con su cupo.",
+        "check": "cola-nuevas"
+      },
+      {
+        "n": 6,
+        "objetivo": "Solo las fotos de la cola en el bucket restringido, sin EXIF.",
+        "check": "copia-exif"
+      },
+      {
+        "n": 7,
+        "objetivo": "El bucket restringido privado, sin acceso público y con vencimiento a 90 días.",
+        "check": "bucket-seguro"
+      },
+      {
+        "n": 8,
+        "objetivo": "Una guía que define las 10 categorías y decide los 3 casos límite.",
+        "check": "guia"
+      },
+      {
+        "n": 9,
+        "objetivo": "Kappa por clase de la doble anotación, ≥ 0.6 donde hay suficientes casos.",
+        "check": "acuerdo"
+      },
+      {
+        "n": 10,
+        "objetivo": "Labels del mes completos, con los desacuerdos adjudicados y la versión de la guía.",
+        "check": "labels-mes"
+      },
+      {
+        "n": 11,
+        "objetivo": "El golden set congelado y fuera de la cola y de los labels.",
+        "check": "golden"
+      },
+      {
+        "n": 12,
+        "objetivo": "Un reporte con la exactitud del modelo contra cada fuente de labels.",
+        "check": "reporte"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "feedback-loop",
+      "titulo": "La sugerencia viene preseleccionada",
+      "tipo": "mundo",
+      "historia": "Producto lanzó a mediados de septiembre un rediseño del formulario de publicación. Este mes la exactitud offline del modelo subió y todos celebran, pero la tasa de aceptación en producción no se movió.",
+      "sintoma": "verificar.py: la auditoría encuentra ≈ 4.7 % de labels débiles mal (máximo 3 %), casi todos de sugerencia_madura. En el reporte, la exactitud contra las sugerencias sube y contra el holdout no.",
+      "hipotesis": [
+        "Quien vende acepta más la sugerencia, aunque esté mal (cambió el producto).",
+        "Moderación dejó de corregir.",
+        "El modelo mejoró de verdad."
+      ],
+      "confirma": {
+        "code": "python -c \"import duckdb; print(duckdb.sql(\\\"SELECT date_trunc('week', ts_publicacion) AS semana, round(avg((eleccion = 'sugerencia_1')::INT), 3) AS acepta_top1 FROM 'data/producto/publicaciones.parquet' GROUP BY ALL ORDER BY semana\\\"))\"",
+        "nota": "La tasa de aceptación de la primera sugerencia, por semana: si salta de golpe en una fecha, cambió el producto, no el modelo.",
+        "salida": null
+      },
+      "arreglo": "Pon en config.yaml debil.excluir_sugerencias_desde con la fecha del cambio (2026-09-16T00:00:00Z) para que esas sugerencias no cuenten como label, corre desde el paso 2 y avisa a producto. El holdout y el golden no se movieron: el modelo no mejoró.",
+      "concepto": "feedback-loop",
+      "check": "debil"
+    },
+    {
+      "id": "llave-cambiada",
+      "titulo": "El request_id cambió de formato",
+      "tipo": "mundo",
+      "historia": "El equipo del gateway desplegó una versión nueva a mediados de octubre. Nadie avisó de nada raro, pero este mes hay menos labels nuevos que de costumbre.",
+      "sintoma": "verificar.py: se unieron 20 000 de 24 000 publicaciones (83.3 %). El job terminó sin errores.",
+      "hipotesis": [
+        "Faltan días de logs.",
+        "La llave cambió de formato en una de las fuentes.",
+        "Hay publicaciones sin request en el gateway."
+      ],
+      "confirma": {
+        "code": "python -c \"import duckdb; print(duckdb.sql(\\\"SELECT fecha, count(*) FILTER (WHERE request_id <> lower(request_id)) AS raros, count(*) AS total FROM read_parquet('data/logs/*/*.parquet', hive_partitioning = true) GROUP BY ALL ORDER BY fecha DESC LIMIT 12\\\"))\"",
+        "nota": "Cuenta por día los request_id que no están en minúsculas.",
+        "salida": null
+      },
+      "arreglo": "Normaliza la llave antes del join (lower(request_id)) y deja en el paso 1 una alarma: si se une menos del 99 %, que falle en vez de seguir.",
+      "concepto": "log-prediccion",
+      "check": "senales"
+    },
+    {
+      "id": "zona-horaria",
+      "titulo": "Hora local sin zona",
+      "tipo": "mundo",
+      "historia": "El equipo de producto migró el export de publicaciones a un sistema nuevo. El job del mes corrió, pero los números de labels débiles no cuadran con la auditoría.",
+      "sintoma": "verificar.py: ≈ 76 labels de más contra las reglas de la estación. Todo lo demás pasa.",
+      "hipotesis": [
+        "Cambió el tipo o la zona de alguna columna de fecha.",
+        "Cambió la regla de 30 días en config.yaml.",
+        "Hay correcciones duplicadas nuevas."
+      ],
+      "confirma": {
+        "code": "python -c \"import duckdb; print(duckdb.sql(\\\"DESCRIBE SELECT * FROM 'data/producto/publicaciones.parquet'\\\"))\"",
+        "nota": "Compara el tipo de ts_publicacion: TIMESTAMP WITH TIME ZONE es un instante; TIMESTAMP a secas es una hora de reloj sin lugar.",
+        "salida": null
+      },
+      "arreglo": "En el paso 1, si ts_publicacion llega como TIMESTAMP, interprétala como hora de America/Mexico_City y pásala a UTC (en DuckDB: timezone('America/Mexico_City', ts_publicacion)). Así funciona con el export viejo y con el nuevo.",
+      "concepto": "zona-horaria",
+      "check": "debil"
+    },
+    {
+      "id": "categoria-nueva",
+      "titulo": "La categoría nueva no se puede elegir",
+      "tipo": "mundo",
+      "historia": "Negocio agregó «bolsas» al árbol de categorías en octubre y pregunta por qué el modelo todavía no las sugiere.",
+      "sintoma": "verificar.py: la cola trae 0 ejemplos reales de bolsas (cupo 80).",
+      "hipotesis": [
+        "No hay bolsas en el tráfico.",
+        "Hay bolsas, pero nadie las puede etiquetar como «bolsas».",
+        "El cupo de nuevas está en 0."
+      ],
+      "confirma": {
+        "code": "python -c \"import duckdb; print(duckdb.sql(\\\"SELECT count(*) FILTER (WHERE categoria_final = 8) AS con_label_8, count(*) FILTER (WHERE lower(titulo) SIMILAR TO '.*(bolsa|bolso|mochila).*') AS titulo_de_bolsa FROM 'data/pipeline/senales.parquet'\\\"))\"",
+        "nota": "Cero labels 8, pero cientos de títulos que dicen bolsa: la categoría existe en el tráfico, no en los datos.",
+        "salida": null
+      },
+      "arreglo": "Siembra la categoría por texto: agrega nuevas.palabras (bolsa, bolso, mochila) en config.yaml y en el paso 3 marca como «nueva» lo que tenga esas palabras en el título.",
+      "concepto": "categoria-nueva",
+      "check": "cola-nuevas"
+    },
+    {
+      "id": "golden-filtrado",
+      "titulo": "Fotos del golden set en el tráfico",
+      "tipo": "mundo",
+      "historia": "Alguien de QA usó fotos de prueba para un test de carga en producción a mediados de octubre. El job del mes corrió con normalidad… o eso parece.",
+      "sintoma": "El paso 7 se detiene: imágenes del golden set en los labels del mes. verificar.py marca golden, labels-mes y reporte.",
+      "hipotesis": [
+        "Alguien cambió el manifest del golden.",
+        "Fotos del golden llegaron al tráfico y la cola las eligió.",
+        "Colisión de hashes."
+      ],
+      "confirma": {
+        "code": "python -c \"import pandas as pd; g = set(pd.read_parquet('data/golden/manifest.parquet').img_sha256.str[:16]); q = pd.read_parquet('data/pipeline/cola.parquet'); print(q[q.img_sha256_prefijo.isin(g)].motivo.value_counts())\"",
+        "nota": "Cuáles y por qué motivo entraron a la cola.",
+        "salida": null
+      },
+      "arreglo": "En el paso 3, excluye de los candidatos todo img_sha256_prefijo que esté en el manifest del golden. El 7 se queda como segunda barrera.",
+      "concepto": "golden-set",
+      "check": "golden"
+    },
+    {
+      "id": "sin-aleatoria",
+      "titulo": "Se recortó la muestra aleatoria",
+      "tipo": "config",
+      "historia": "Para ahorrar presupuesto de etiquetado, alguien del equipo «optimizó» la cola de este mes. Ahora la exactitud medida en los labels nuevos se ve muy baja y preocupa a todos.",
+      "sintoma": "verificar.py: la parte aleatoria de la cola es 0 %. En el reporte, vs_labels_mes cae todavía más.",
+      "hipotesis": [
+        "El modelo empeoró.",
+        "Cambió la mezcla de la cola.",
+        "El proveedor etiquetó mal."
+      ],
+      "confirma": {
+        "code": "git diff config.yaml || grep -n frac_ config.yaml",
+        "nota": "Si tu carpeta es un repositorio de git, el diff muestra quién cambió qué. Si no, revisa los cupos.",
+        "salida": null
+      },
+      "arreglo": "Regresa cola.frac_aleatoria a 0.25 y corre desde el paso 3. Explícale al equipo por qué no se recorta: es lo único de la cola que mide sin sesgo.",
+      "concepto": "muestra-aleatoria",
+      "check": "cola-mezcla"
+    },
+    {
+      "id": "guia-ambigua",
+      "titulo": "El proveedor recibió la guía vieja",
+      "tipo": "config",
+      "historia": "El proveedor de etiquetado cambió de equipo este mes. Los labels llegaron a tiempo, pero algo en el acuerdo se ve raro.",
+      "sintoma": "verificar.py: kappa < 0.6 en suéteres, camisas, abrigos, bolsas y playeras; la guía usada es guia-v1.",
+      "hipotesis": [
+        "El equipo nuevo del proveedor es peor.",
+        "Recibió otra versión de la guía.",
+        "La cola trae más casos difíciles."
+      ],
+      "confirma": {
+        "code": "python -c \"import json; print(json.load(open('data/etiquetado/kappa.json'))['guia_version'])\" && grep guia_version config.yaml",
+        "nota": "Cada label recuerda con qué guía se hizo: por eso se versiona.",
+        "salida": null
+      },
+      "arreglo": "Regresa etiquetado.guia_version a guia-v2, vuelve a mandar las tareas (desde el paso 5) y deja el kappa por clase como alarma mensual.",
+      "concepto": "guia-etiquetado",
+      "check": "acuerdo"
+    },
+    {
+      "id": "export-esquema",
+      "titulo": "El export de Label Studio cambió de formato",
+      "tipo": "entorno",
+      "historia": "Alguien re-exportó la adjudicación desde Label Studio para revisarla y la dejó en su lugar. El cierre del mes ya no termina.",
+      "sintoma": "El paso 7 truena con KeyError: 'categoria'. verificar.py: labels_mes es más viejo que el export.",
+      "hipotesis": [
+        "Falta adjudicar algún caso.",
+        "El archivo de export tiene otra forma.",
+        "Cambiaron los nombres de las categorías."
+      ],
+      "confirma": {
+        "code": "head -c 600 data/etiquetado/adjudicacion-export.json",
+        "nota": "¿Las tareas son planas con «categoria», o traen annotations → result → value → choices?",
+        "salida": null
+      },
+      "arreglo": "Vuelve a exportar en JSON_MIN (en las rondas de romper: python mundo/adjudicar.py) y corre el paso 7. Mejor todavía: que el 7 reconozca los dos formatos o falle con un mensaje que diga cuál espera.",
+      "concepto": "adjudicacion",
+      "check": "labels-mes"
+    },
+    {
+      "id": "exif-de-vuelta",
+      "titulo": "Fotos con EXIF en el bucket restringido",
+      "tipo": "infra",
+      "historia": "Un compañero corrió «rápido» un script viejo para recuperar unas fotos que faltaban en el bucket restringido.",
+      "sintoma": "verificar.py: 40 fotos del bucket restringido traen EXIF.",
+      "hipotesis": [
+        "Tu paso 4 dejó de limpiar.",
+        "Alguien subió fotos por fuera del pipeline.",
+        "verificar.py lee las fotos del bucket equivocado."
+      ],
+      "confirma": {
+        "code": "python -c \"from pipeline._comun import s3; c = s3(); print(c.head_object(Bucket='etiquetado-restringido', Key='cola/<request_id>.jpg')['Metadata'])\"",
+        "nota": "Usa el request_id que muestra verificar.py. El metadato copiado-por delata de dónde vino.",
+        "salida": null
+      },
+      "arreglo": "Corre de nuevo el paso 4 (sobrescribe con fotos limpias) y prohíbe los scripts que se saltan el pipeline: el bucket solo se escribe desde el paso 4.",
+      "concepto": "pii-exif",
+      "check": "copia-exif"
+    },
+    {
+      "id": "bucket-publico",
+      "titulo": "El bucket restringido quedó público",
+      "tipo": "infra",
+      "historia": "Para una demo con el proveedor, alguien «abrió un momento» el bucket restringido. La demo fue hace una semana.",
+      "sintoma": "verificar.py: no existe el bloqueo de acceso público. Un GET sin credenciales a una foto da 200.",
+      "hipotesis": [
+        "Se quitó el bloqueo de acceso público.",
+        "Hay una política que deja leer a cualquiera.",
+        "Se borró la regla de vencimiento."
+      ],
+      "confirma": {
+        "code": "python -c \"from pipeline._comun import s3; c = s3(); print(c.get_bucket_policy(Bucket='etiquetado-restringido')['Policy'])\"",
+        "nota": "Busca \"Principal\": \"*\". Revisa también la regla de vencimiento.",
+        "salida": null
+      },
+      "arreglo": "Borra la política (delete_bucket_policy) y corre el paso 4, que vuelve a poner el bloqueo completo y la regla de 90 días. Para compartir fotos con el proveedor existen las URL prefirmadas, que vencen solas.",
+      "concepto": "bucket-seguro",
+      "check": "bucket-seguro"
+    }
+  ],
+  "listo": [
+    "La cola del mes tiene sus 800 imágenes con la mezcla acordada: nuevas, desacuerdos, incertidumbre y 20–30 % al azar.",
+    "La doble anotación tiene su kappa por clase y los desacuerdos están adjudicados.",
+    "Solo se copiaron las fotos que se etiquetan, sin EXIF, a un bucket privado que vence solo; el resto se referencia por request_id y hash.",
+    "Los labels débiles entran filtrados, con su fuente, y nunca como única evaluación: el reporte los compara con el holdout y el golden.",
+    "El golden set sigue congelado y fuera de todo lo que se entrena."
+  ],
+  "repaso": {
+    "memo": "<b>El label es el dato más caro.</b> En C01, etiquetar ≈ 5k imágenes cuesta ≈ US$250–500 al mes y entrenar ≈ US$10–50: el dinero y la calidad están en qué imágenes eliges y en qué tan clara es la guía, no en la GPU.",
+    "trampa": "Tratar la categoría elegida al publicar como la verdad. Está sesgada por tu propia sugerencia: sirve para entrenar (filtrada) y como métrica online, nunca como única evaluación. Para eso están el golden set y el holdout sin sugerencias.",
+    "entrevista": [
+      {
+        "q": "Tienes millones de categorías elegidas por los usuarios. ¿Las usas como labels?",
+        "a": "Para entrenar sí, filtradas por una señal de confianza: corrección de moderación, búsqueda en vez de aceptar la sugerencia, o 30 días sin corrección. Para evaluar no, porque están contaminadas por el propio modelo (feedback loop). Evalúo con un golden set congelado y con un holdout de ≈ 1 % de cuentas que no ven sugerencias."
+      },
+      {
+        "q": "Tienes presupuesto para etiquetar 5 000 imágenes al mes. ¿Cuáles eliges?",
+        "a": "Una mezcla: categorías nuevas que hay que sembrar, desacuerdos entre el modelo y las personas, incertidumbre (top-1 bajo o margen chico, con umbrales calibrados para mi modelo) y 20–30 % al azar. El azar es lo que me deja medir sin sesgo y encontrar errores de los que el modelo está seguro."
+      },
+      {
+        "q": "¿Cómo sabes si tus etiquetadores son confiables?",
+        "a": "Doble anotación en ≈ 10 % y kappa por clase, no solo el acuerdo bruto, que engaña cuando una clase domina. Donde el kappa es bajo casi siempre falta una regla en la guía: los desacuerdos van a adjudicación y la decisión se escribe en una versión nueva de la guía."
+      },
+      {
+        "q": "¿Qué cuidas al mandar fotos de usuarios a un proveedor de etiquetado?",
+        "a": "Minimizar: copio solo las que se van a etiquetar, sin EXIF (puede traer GPS), a un bucket privado con bloqueo de acceso público y vencimiento a 90 días. El resto se referencia por request_id y hash. Si hay que compartir, URL prefirmadas que vencen."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/c01-datos/CLAUDE.md",
+    "guiado": "content/estaciones/c01-datos/prompts/guiado.md",
+    "solo": "content/estaciones/c01-datos/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/c01-datos/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/c01-datos/prompts/romper-solo.md"
+  }
+}

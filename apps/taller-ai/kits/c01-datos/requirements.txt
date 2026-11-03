@@ -1,0 +1,10 @@
+# Versiones fijadas: así el taller corre igual en tu Mac hoy y dentro de seis meses.
+numpy==2.5.4
+pandas==3.1.0
+pyarrow==26.0.0
+duckdb==2.0.0
+pillow==13.0.0
+boto3==1.43.123
+scikit-learn==1.9.1
+pyyaml==6.0.3
+pytz==2026.6          # DuckDB lo necesita para devolver TIMESTAMPTZ a Python

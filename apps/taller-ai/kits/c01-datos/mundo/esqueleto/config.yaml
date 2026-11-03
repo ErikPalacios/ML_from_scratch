@@ -1,0 +1,25 @@
+# Parámetros del pipeline de la estación 1. Tu código los lee de aquí; no los copies dentro de los scripts.
+corte: '2026-10-31T00:00:00Z'      # «hoy» en el taller: el pipeline del mes corre con los datos hasta aquí (UTC)
+debil:
+  dias_maduracion: 30              # una sugerencia aceptada cuenta como label solo si moderación no la corrigió en 30 días
+  excluir_sugerencias_desde: null  # fecha UTC desde la que las sugerencias aceptadas no cuentan (null = ninguna)
+cola:
+  tamano: 800                      # imágenes a etiquetar este mes (en C01 son ≈ 5k)
+  umbral_top1: 0.5                 # incertidumbre: score del top-1 por debajo de esto…
+  umbral_margen: 0.15              # …o diferencia top-1 − top-2 por debajo de esto
+  frac_aleatoria: 0.25             # 20–30 % al azar: lo que hace que la cola se parezca al tráfico
+  frac_nuevas: 0.10                # cupo para categorías nuevas
+  frac_desacuerdo: 0.15            # cupo para desacuerdos modelo vs persona; el resto es incertidumbre
+nuevas:
+  clases: [8]                      # categorías que negocio agregó al árbol (8 = bolsas)
+etiquetado:
+  guia_version: guia-v1            # el archivo guia/<guia_version>.md que recibe el proveedor
+  frac_doble: 0.20                 # en C01 es 10 % de ≈ 5k = 500 dobles; aquí 10 % serían 80, muy pocos para un kappa por clase
+  adjudicacion: manual             # manual = tú en Label Studio; experto_simulado = mundo/adjudicar.py
+s3:
+  endpoint: http://localhost:9100
+  access_key: taller
+  secret_key: taller-secreto
+  region: us-east-1
+  bucket_restringido: etiquetado-restringido
+  dias_vencimiento: 90             # las copias de la cola vencen a los 90 días

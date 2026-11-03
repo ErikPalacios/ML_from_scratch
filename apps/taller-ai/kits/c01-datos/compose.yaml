@@ -1,0 +1,31 @@
+# La infraestructura del mundo: un S3 local (RustFS) y Label Studio. `docker compose up -d` y listo.
+# En C01 real: S3 es Amazon S3 y Label Studio puede ser el mismo o un proveedor gestionado.
+name: taller-c01-datos
+services:
+  s3:
+    image: rustfs/rustfs:1.0.4
+    ports: ["9100:9000", "9101:9001"]       # en tu Mac: 9100 = API S3 · 9101 = consola web
+    environment:
+      RUSTFS_ACCESS_KEY: taller
+      RUSTFS_SECRET_KEY: taller-secreto
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes: ["s3-datos:/data"]             # volumen con nombre: evita líos de permisos con carpetas de tu Mac
+    command: ["/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:9000/health || exit 1"]
+      interval: 5s
+      retries: 20
+  labelstudio:
+    image: heartexlabs/label-studio:1.23.2
+    ports: ["8090:8080"]                    # en tu Mac: http://localhost:8090
+    environment:                            # usuario de prueba del taller (solo existe en tu Mac)
+      LABEL_STUDIO_USERNAME: taller@ejemplo.com
+      LABEL_STUDIO_PASSWORD: taller-etiquetas
+      LABEL_STUDIO_USER_TOKEN: taller-token-local-0001
+      LABEL_STUDIO_ENABLE_LEGACY_API_TOKEN: "true"
+    volumes: ["ls-datos:/label-studio/data"]
+volumes:
+  s3-datos: {}
+  ls-datos: {}

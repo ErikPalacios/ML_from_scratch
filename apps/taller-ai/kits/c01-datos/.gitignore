@@ -1,0 +1,6 @@
+data/
+.taller/
+.venv/
+__pycache__/
+*.pyc
+.respaldo/
