@@ -23,6 +23,9 @@ const kb = (n) => (n / 1024).toFixed(0) + ' KB';
 
 // ---------------------------------------------------------------- contenido
 const TRONCO = JSON.parse(readFileSync(join(ROOT, 'content', 'tronco.json'), 'utf8'));
+// El mapa del C01, copiado de la cheat sheet «Del dato a producción» con tools/importar-mapa.mjs.
+const MAPA = JSON.parse(readFileSync(join(ROOT, 'content', 'mapa-c01.json'), 'utf8'));
+const HOJA_RECORRIDO = 'https://cheat-sheets-ml.vercel.app/recorrido/';
 const ESTACIONES = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) => f.endsWith('.json')).sort().map((f) => {
   const e = JSON.parse(readFileSync(join(ROOT, 'content', 'estaciones', f), 'utf8'));
   const errs = molde(e, f);
@@ -101,36 +104,90 @@ function promptBox(titulo, texto, { primario = false } = {}) {
 const barra = (volver) => `<nav class="bar" aria-label="Navegación">${volver ? `<a href="/">← Taller de AI Engineer</a>` : '<span></span>'}${TEMA}</nav>`;
 
 // ---------------------------------------------------------------- portada
+// Las estaciones del mapa que ya tienen taller abren su página (y llevan el aro punteado); las demás,
+// su sección en la cheat sheet.
+function mapaC01(lista) {
+  const enlaces = (svg) => svg.replace(/<a class="stn" href="#est-([a-z]+)" aria-label="([^"]*)">/g, (m, id, lab) => lista.has(id)
+    ? `<a class="stn lista" href="${lista.get(id).url}" aria-label="${lab}. Abrir su taller">`
+    : `<a class="stn" href="${HOJA_RECORRIDO}#est-${id}" aria-label="${lab}. Su explicación en la cheat sheet">`);
+  const lineas = [['semanas', 'semanas', 'el modelo'], ['dias', 'días', 'el código'], ['ms', 'milisegundos', 'una request'], ['continuo', 'continuo', 'la operación']]
+    .map(([c, t, d]) => `<span class="lg ln-${c}"><i class="lg-line"></i><b>${t}</b> ${d}</span>`).join('');
+  return `<svg class="sprite" width="0" height="0" aria-hidden="true" focusable="false"><defs>${MAPA.simbolos}</defs></svg>
+  <figure class="mapa">
+    <div class="maplg">${lineas}<span class="lg"><svg class="lg-x" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11.5" class="g-o"/><circle cx="14" cy="14" r="7" class="g-i"/></svg>transbordo</span><span class="lg"><i class="lg-loop"></i>reentrenamiento</span><span class="lg"><svg class="lg-x" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11" class="g-fr"/><circle cx="14" cy="14" r="6.5" class="g-i"/></svg>ya tiene taller</span></div>
+    ${enlaces(MAPA.map2d)}
+    ${enlaces(MAPA.mapv)}
+    <figcaption>Toca una estación: las que ya tienen taller abren su página; las demás, su explicación en la cheat sheet <a href="${HOJA_RECORRIDO}">«Del dato a producción»</a>, de donde sale este mapa.</figcaption>
+  </figure>`;
+}
+
 function portada() {
   const lista = new Map(ESTACIONES.filter((e) => e.caso === TRONCO.caso).map((e) => [e.id, e]));
   const lineas = TRONCO.estaciones.map((s) => lista.has(s.id)
     ? `<li class="lista"><span class="num">${s.num}</span><a href="${lista.get(s.id).url}">${esc(s.titulo)}</a></li>`
     : `<li><span class="num">${s.num}</span><span class="t">${esc(s.titulo)}</span><span class="pronto">próximamente</span></li>`).join('\n      ');
+  const primera = ESTACIONES.find((e) => e.caso === TRONCO.caso);
   const body = `${barra(false)}
 <header class="hero">
   <p class="kicker">ML desde cero · Entrenamiento práctico</p>
   <h1>Taller de <mark>AI Engineer</mark></h1>
   <p class="lead">Proyectos chicos que corren en tu Mac, uno por cada estación del camino del dato a producción. Cada uno lo construyes cuatro veces: con ayuda, solo, roto con ayuda y roto solo. Con una explicación rápida de cada concepto en el momento en que lo usas.</p>
 </header>
+<nav class="indice" aria-label="En esta página">
+  <a href="#c01">Qué es C01</a><a href="#mapa">El mapa</a><a href="#como">Cómo se usa</a><a href="#estaciones">Estaciones</a>
+</nav>
 <main>
-  <ol class="ciclo" aria-label="Las cuatro rondas">
-    <li><h3>Guiado</h3><p>Construyes el proyecto con Claude Code paso a paso. Cada paso explica el concepto que usa.</p></li>
-    <li><h3>Solo</h3><p>Lo rehaces desde cero con los objetivos y un verificador. Claude no te da código.</p></li>
-    <li class="rompe"><h3>Romper con ayuda</h3><p>Un script mete una falla real. La diagnostican juntos: síntoma, hipótesis, prueba, arreglo.</p></li>
-    <li class="rompe"><h3>Romper solo</h3><p>El script esconde la falla, ni Claude la sabe. Tú la encuentras y la arreglas.</p></li>
+<section class="blk" id="c01">
+  <h2>Qué es C01 <small>el caso del tronco</small></h2>
+  <p>C01 es el primer caso del curso: un <b>marketplace de segunda mano</b> donde quien vende sube fotos al crear una publicación y el sistema le <b>sugiere la categoría</b>. Por dentro es un clasificador de imágenes (una ResNet-50 con 500 categorías) servido con Triton en Kubernetes, que responde unas 10 millones de fotos al día y tiene que contestar el 99 % de las veces en menos de 200 ms.</p>
+  <ul class="chips datos-c01"><li>500 categorías</li><li>≈ 10 M fotos al día</li><li>p99 ≤ 200 ms</li><li>top-5 por foto</li><li>un modelo nuevo cada mes</li></ul>
+  <p>Es el tronco del taller porque recorre las 12 estaciones completas: de las fotos etiquetadas al entrenamiento, del modelo aprobado a la imagen de Docker en el clúster, y de la request en vivo al monitoreo que pide el siguiente modelo. Los otros patrones (batch, LLM y RAG, streaming, edge…) cambian solo algunas estaciones, así que llegan después, como ramas.</p>
+  <p>En el taller, cada estación es una versión chica de C01 que corre en tu Mac: los mismos conceptos y las mismas fallas, con otros tamaños. La estación 1, por ejemplo, usa fotos de Fashion-MNIST, 24,000 requests y un S3 local en Docker.</p>
+</section>
+
+<section class="blk" id="mapa">
+  <h2>El mapa del C01 <small>12 estaciones</small></h2>
+  <p class="intro">Doce estaciones en cuatro tramos: Datos, Modelo, Release y Operación. Entre una estación y la siguiente viaja un artefacto concreto (el snapshot del dataset, el checkpoint, el engine, la imagen de Docker…), y el reentrenamiento cierra el ciclo. Los colores son las cuatro velocidades: el modelo cambia en semanas, el código en días, una request dura milisegundos y el monitoreo no para.</p>
+  ${mapaC01(lista)}
+</section>
+
+<section class="blk" id="como">
+  <h2>Cómo se usa el taller <small>de la lectura a romper</small></h2>
+  <p class="intro">Cada estación es un mini-proyecto con su kit. Esta app es la guía y no corre nada: el trabajo pasa en tu Mac, en la carpeta del kit, con una sesión de Claude Code abierta ahí.</p>
+  <ol class="uso">
+    <li><h3>Lee antes de tocar</h3><p>En la página de la estación: <b>el mapa</b> (dónde estás, qué entra y qué sale), <b>los precálculos</b> (las cuentas de servilleta, en C01 y en el taller) y <b>los conceptos exprés</b>. Se lee en el celular, en un rato libre.</p></li>
+    <li><h3>Baja el kit y levanta el mundo</h3><p>Un .zip con una empresa ficticia que ya tiene el problema: sus datos, sus servicios en Docker, un <code>verificar.py</code> que revisa tu trabajo y un <code>romper.py</code> que mete fallas. Cinco comandos y queda arriba.</p></li>
+    <li><h3>Haz las cuatro rondas</h3><p>Copia el prompt de la ronda en la página de la estación y pégalo en Claude Code. El <code>CLAUDE.md</code> del kit pone las reglas de fondo, así que Claude sabe cuánto ayudarte en cada una.</p>
+      <ol class="ciclo" aria-label="Las cuatro rondas">
+        <li><h4>Guiado</h4><p>Construyes el proyecto con Claude Code paso a paso. Cada paso explica el concepto que usa.</p></li>
+        <li><h4>Solo</h4><p>Lo rehaces desde el esqueleto con los objetivos y el verificador. Claude no te da código.</p></li>
+        <li class="rompe"><h4>Romper con ayuda</h4><p>Un script mete una falla real. La diagnostican juntos: síntoma, hipótesis, prueba, arreglo.</p></li>
+        <li class="rompe"><h4>Romper solo</h4><p>El script esconde la falla, ni Claude la sabe. Tú la encuentras y la arreglas.</p></li>
+      </ol>
+    </li>
+    <li><h3>Repasa</h3><p>Al final de cada página: el memo de la estación, su trampa, la lista de «listo cuando…» y cómo te lo pueden preguntar en una entrevista.</p></li>
+    <li><h3>Lleva tu registro</h3><p>Claude anota cada ronda en <code>BITACORA.md</code> (qué hiciste, cuánto tardaste, qué pistas usaste) y en <code>taller/progreso.json</code>. Pronto vas a poder subirlo a tu tablero aquí mismo.</p></li>
   </ol>
-  <section class="linea" aria-labelledby="t-tronco">
-    <h2 id="t-tronco">${esc(TRONCO.titulo)}</h2>
+  <div class="dos">
+    <div class="card"><h3>Qué necesitas</h3><ul><li>Una Mac con Docker Desktop y unos GB libres</li><li>Python 3.11 o más nuevo</li><li>Claude Code</li></ul><p class="cmd-nota">Cada estación dice lo suyo en «El kit».</p></div>
+    <div class="card"><h3>En qué orden</h3><p>Del 1 al 12, que es el orden en que el dato viaja en C01. Cada kit trae su propio mundo, así que una estación corre aunque no hayas terminado la anterior.</p></div>
+  </div>
+  ${primera ? `<div class="acciones"><a class="btn btn--primary" href="${primera.url}">Empezar por la estación ${primera.num}: ${esc(primera.titulo)}</a></div>` : ''}
+</section>
+
+<section class="blk" id="estaciones">
+  <h2>Las estaciones <small>${lista.size} de ${TRONCO.estaciones.length} listas</small></h2>
+  <div class="linea">
+    <h3>${esc(TRONCO.titulo)}</h3>
     <p>${esc(TRONCO.resumen)}</p>
     <ol class="estaciones">
       ${lineas}
     </ol>
-  </section>
-  <div class="notas">
-    <div class="nota"><h3>Cómo empezar</h3><p>Abre una estación, baja su kit, corre los cuatro comandos de arranque y pega en Claude Code el prompt de la ronda Guiado.</p></div>
-    <div class="nota"><h3>Los otros patrones</h3><p>Después del tronco vienen las ramas: batch, LLM y RAG, streaming, edge, asíncrono e híbrido, cada una con su mini-proyecto y solo las estaciones que cambian.</p></div>
-    <div class="nota"><h3>Tu progreso</h3><p>Claude anota cada ronda en el BITACORA.md del kit y en un progreso.json. Pronto vas a poder importarlo a tu tablero aquí mismo.</p></div>
   </div>
+  <div class="notas">
+    <div class="nota"><h3>Los otros patrones</h3><p>Después del tronco vienen las ramas: batch, LLM y RAG, streaming, edge, asíncrono e híbrido, cada una con su mini-proyecto y solo las estaciones que cambian.</p></div>
+  </div>
+</section>
 </main>`;
   return pagina({ path: '/', title: `${SITE_NAME} — construir, rehacer y romper`, desc: 'Proyectos chicos de ML engineering que construyes, rehaces y rompes en tu Mac, estación por estación del camino del dato a producción. En español, gratis.', body });
 }
@@ -172,6 +229,21 @@ function paginaEstacion(e, kitBytes) {
         <details class="mas"><summary>El arreglo</summary><p>${f.arreglo}</p><p>Concepto: <a href="#k-${f.concepto}">${esc(nombre[f.concepto])}</a> · check: <code>${esc(f.check)}</code></p></details>
       </article>`).join('\n      ');
 
+  const precalculos = e.precalculos.cuentas.map((x, i) => `<article class="card precalc" id="pc-${x.id}">
+      <h3><span class="n">${i + 1}</span>${esc(x.pregunta)}</h3>
+      <p class="formula">${esc(x.formula)}</p>
+      ${chipsC(x.conceptos)}
+      <details class="mas"><summary>Ver la cuenta</summary>
+        <div class="escalas">
+          <div><b>En C01</b><p>${x.c01.cuenta}</p><p class="valor">${x.c01.valor}</p></div>
+          <div><b>En el taller</b><p>${x.taller.cuenta}</p><p class="valor">${x.taller.valor}</p></div>
+        </div>
+        <p class="decide"><b>Qué decides con esto</b>${x.decide}</p>
+        ${x.comprueba ? `<p class="compruebalo"><b>Compruébalo en el kit</b> después de levantar el mundo (paso 0):</p>${comando(x.comprueba)}` : ''}
+        ${x.confirma ? `<p class="compruebalo"><b>Lo confirmas en</b> ${x.confirma}</p>` : ''}
+      </details>
+    </article>`).join('\n    ');
+
   const escala = e.mapa.escala.map((r) => `<tr><td data-k="">${esc(r.que)}</td><td data-k="En C01">${r.c01}</td><td data-k="En el taller">${r.taller}</td></tr>`).join('');
   const subs = e.mundo.sustituciones.map((r) => `<tr><td data-k="">${esc(r.nube)}</td><td data-k="En el taller">${esc(r.local)}</td><td data-k="Qué cambia">${r.diferencia}</td></tr>`).join('');
 
@@ -180,10 +252,10 @@ function paginaEstacion(e, kitBytes) {
   <p class="kicker">${e.caso.toUpperCase()} · Estación ${e.num} de ${total}</p>
   <h1>${esc(e.titulo)}</h1>
   <p class="pregunta">${esc(e.pregunta)}</p>
-  <ul class="chips"><li>${e.conceptos.length} conceptos</li><li>${e.guiado.length} pasos</li><li>${e.solo.objetivos.length} checks</li><li>${e.fallas.length} fallas</li></ul>
+  <ul class="chips"><li>${e.precalculos.cuentas.length} precálculos</li><li>${e.conceptos.length} conceptos</li><li>${e.guiado.length} pasos</li><li>${e.solo.objetivos.length} checks</li><li>${e.fallas.length} fallas</li></ul>
 </header>
 <nav class="indice" aria-label="En esta estación">
-  <a href="#mapa">Mapa</a><a href="#rondas">Rondas</a><a href="#conceptos">Conceptos</a><a href="#kit">Kit</a><a href="#guiado">Guiado</a><a href="#solo">Solo</a><a href="#romper">Romper</a><a href="#repaso">Repaso</a>
+  <a href="#mapa">Mapa</a><a href="#rondas">Rondas</a><a href="#conceptos">Conceptos</a><a href="#precalculos">Precálculos</a><a href="#kit">Kit</a><a href="#guiado">Guiado</a><a href="#solo">Solo</a><a href="#romper">Romper</a><a href="#repaso">Repaso</a>
 </nav>
 <main>
 <section class="blk" id="mapa">
@@ -213,6 +285,14 @@ function paginaEstacion(e, kitBytes) {
   <p class="intro">Una línea para entenderlo; abre la tarjeta para la analogía, por qué importa y la trampa.</p>
   <div class="conceptos">
     ${conceptos}
+  </div>
+</section>
+
+<section class="blk" id="precalculos">
+  <h2>Precálculos <small>${e.precalculos.cuentas.length} cuentas</small></h2>
+  <p class="intro">${e.precalculos.intro}</p>
+  <div class="precalcs">
+    ${precalculos}
   </div>
 </section>
 
@@ -278,7 +358,18 @@ const sinHtml = (s) => s.replace(/<b>(.*?)<\/b>/g, '**$1**').replace(/<code>(.*?
 
 function guion(e) {
   const out = [`# Guion · ${e.caso.toUpperCase()} · ${e.titulo}`, '', `Ronda Guiado. ${sinHtml(e.pregunta)}`, ''];
+  const precalculos = () => {
+    out.push('## Precálculos', '', sinHtml(e.precalculos.intro), '');
+    e.precalculos.cuentas.forEach((x, i) => {
+      out.push(`### ${i + 1}. ${sinHtml(x.pregunta)}`, '', `**Fórmula:** ${x.formula}`, '',
+        `- **En C01:** ${sinHtml(x.c01.cuenta)} → ${sinHtml(x.c01.valor)}`, `- **En el taller:** ${sinHtml(x.taller.cuenta)} → ${sinHtml(x.taller.valor)}`, '',
+        `**Qué decides:** ${sinHtml(x.decide)}`, '');
+      if (x.comprueba) out.push('```bash', x.comprueba.code, '```', ...(x.comprueba.nota ? ['', sinHtml(x.comprueba.nota)] : []), '');
+      if (x.confirma) out.push(`**Lo confirmas en:** ${sinHtml(x.confirma)}`, '');
+    });
+  };
   for (const p of e.guiado) {
+    if (p.n === 1) precalculos();
     out.push(`## Paso ${p.n} · ${p.titulo}`, '', `**Objetivo:** ${sinHtml(p.objetivo)}`, '', sinHtml(p.explica), '');
     for (const c of p.codigo) out.push(`\`${c.path || c.lang}\``, '', '```' + c.lang, c.code, '```', ...(c.nota ? ['', sinHtml(c.nota)] : []), '');
     for (const c of p.comandos) out.push('```bash', c.code, '```', ...(c.nota ? ['', sinHtml(c.nota)] : []), '');

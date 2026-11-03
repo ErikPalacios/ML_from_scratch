@@ -1,7 +1,7 @@
 // El molde de una estación del Taller: qué piezas tiene y de qué forma. Lo usan validate.mjs y build.mjs.
 // Sin dependencias: cada forma es una función que devuelve la lista de errores con su ruta.
 //
-// Una estación = mapa + conceptos exprés + mundo (el kit) + Guiado + Solo + fallas + listo + repaso + prompts.
+// Una estación = mapa + precálculos + conceptos exprés + mundo (el kit) + Guiado + Solo + fallas + listo + repaso + prompts.
 // Las salidas de los comandos solo pueden ser reales: `salida` es null hasta que el kit se corre (fase 2), y
 // entonces se llena con lo que salió, nunca con lo que «debería» salir.
 
@@ -67,6 +67,22 @@ export const estacion = obj({
     sale: arr(txt, { min: 1 }),
     escala: arr(obj({ que: txt, c01: txt, taller: txt }), { min: 3 }),
     'hoja?': txt,                                   // enlace a la estación en la cheat sheet del recorrido
+  }),
+  // Las cuentas de servilleta de la estación, antes de escribir código: la misma cuenta en C01 y en el taller.
+  // Cada una se comprueba con un comando sobre el mundo recién creado (salida real) o apunta al paso que la confirma.
+  precalculos: obj({
+    intro: txt,
+    cuentas: arr(obj({
+      id,
+      pregunta: txt,
+      formula: txt,                                 // la fórmula con palabras, sin números
+      c01: obj({ cuenta: txt, valor: txt }),
+      taller: obj({ cuenta: txt, valor: txt }),
+      decide: txt,                                  // qué decides con el número
+      conceptos: arr(id, { min: 1 }),
+      'comprueba?': comando,
+      'confirma?': txt,
+    }), { min: 3, max: 10 }),
   }),
   conceptos: arr(obj({
     id,
@@ -138,6 +154,12 @@ export function cruzadas(e) {
     if (!conceptos.has(f.concepto)) errs.push(`fallas.${f.id}: concepto desconocido «${f.concepto}»`);
     if (!checks.has(f.check)) errs.push(`fallas.${f.id}: el check «${f.check}» no está en solo.objetivos`);
   });
+  e.precalculos.cuentas.forEach((x) => {
+    x.conceptos.forEach((c) => conceptos.has(c) || errs.push(`precalculos.${x.id}: concepto desconocido «${c}»`));
+    if (!x.comprueba && !x.confirma) errs.push(`precalculos.${x.id}: necesita «comprueba» (un comando) o «confirma» (el paso que la confirma)`);
+    if (x.comprueba && typeof x.comprueba.salida !== 'string') errs.push(`precalculos.${x.id}: la salida de «comprueba» tiene que ser la real`);
+  });
+  dup(e.precalculos.cuentas.map((x) => x.id), 'precálculo');
   const usados = new Set([...e.guiado.flatMap((g) => g.conceptos), ...e.fallas.map((f) => f.concepto)]);
   conceptos.forEach((c) => usados.has(c) || errs.push(`concepto «${c}» no lo usa ningún paso ni falla`));
   return errs;

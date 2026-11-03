@@ -65,6 +65,159 @@
     ],
     "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-datos"
   },
+  "precalculos": {
+    "intro": "Antes de escribir código, las cuentas de servilleta de la estación: cuánto entra, cuántos labels te quedan, cuánto cuesta etiquetar y qué tan fino puedes medir. Cada cuenta va en las dos escalas, C01 y el taller, con lo que decides con ella. Haz la cuenta tú primero y luego ábrela. Las del taller se comprueban con un comando sobre el mundo recién creado o con la salida de un paso del Guiado.",
+    "cuentas": [
+      {
+        "id": "volumen",
+        "pregunta": "¿Cuánto pesa guardar el log de todas las predicciones?",
+        "formula": "bytes al día = requests al día × bytes por fila ÷ compresión de Parquet",
+        "c01": {
+          "cuenta": "10 M requests/día × ≈ 300 B ≈ 3 GB/día en crudo; Parquet lo comprime 5–10 veces",
+          "valor": "≈ 0.3–0.6 GB al día"
+        },
+        "taller": {
+          "cuenta": "24,000 filas en 60 particiones, una por día",
+          "valor": "≈ 2.1 MB: ≈ 90 B por fila ya comprimida"
+        },
+        "decide": "Guardar el 100 % de las predicciones cuesta casi nada, y lo necesitas para unir con la publicación y medir drift. Partes por fecha (<code>fecha=…/</code>) para que cada consulta lea solo sus días. Lo que sí se cuida es <b>qué</b> guardas: <code>request_id</code> y hash, nunca los bytes de la foto ni datos personales.",
+        "conceptos": [
+          "log-prediccion",
+          "parquet"
+        ],
+        "comprueba": {
+          "code": "du -sh data/logs && ls data/logs | wc -l",
+          "nota": "",
+          "salida": "2.1M\tdata/logs\n      60"
+        }
+      },
+      {
+        "id": "maduracion",
+        "pregunta": "¿Cuántas sugerencias aceptadas te deja la regla de maduración?",
+        "formula": "maduras ≈ publicaciones × (días del periodo − días de maduración) ÷ días del periodo × tasa de aceptación",
+        "c01": {
+          "cuenta": "≈ 2.5 M publicaciones/día; cada día que cumple 30 días se suma a la ventana",
+          "valor": "≈ 75 M publicaciones maduras por mes: sobran"
+        },
+        "taller": {
+          "cuenta": "24,000 × (60 − 30) ÷ 60 × 0.88",
+          "valor": "≈ 10.6k (el paso 2 da 10,586)"
+        },
+        "decide": "Con 30 días de maduración solo cuenta la primera mitad del periodo: todo octubre queda fuera, incluida la llegada de «bolsas». Los labels débiles sobran; lo escaso son los que no dependen de tu modelo (holdout, golden set y la cola humana). Por eso esos se cuidan y se pagan.",
+        "conceptos": [
+          "label-debil",
+          "feedback-loop"
+        ],
+        "comprueba": {
+          "code": "python -c \"import duckdb; print(duckdb.sql(\\\"SELECT count(*) AS total, count(*) FILTER (ts_publicacion <= TIMESTAMPTZ '2026-10-01 00:00:00+00') AS maduras, round(avg((eleccion LIKE 'sugerencia_%')::INT), 3) AS acepta FROM 'data/producto/publicaciones.parquet'\\\"))\"",
+          "nota": "<code>2026-10-01</code> es el corte (<code>2026-10-31</code>) menos los 30 días de <code>config.yaml</code>, en UTC.",
+          "salida": "┌───────┬─────────┬────────┐\n│ total │ maduras │ acepta │\n│ int64 │  int64  │ double │\n├───────┼─────────┼────────┤\n│ 24000 │   11996 │  0.883 │\n└───────┴─────────┴────────┘"
+        }
+      },
+      {
+        "id": "holdout",
+        "pregunta": "¿Cuántos labels sin sesgo te da el holdout, y con cuánto error mide?",
+        "formula": "labels ≈ publicaciones × fracción de cuentas · error al 95 % ≈ ± 1.96 × √(p × (1 − p) ÷ n)",
+        "c01": {
+          "cuenta": "1 % de ≈ 2.5 M publicaciones/día",
+          "valor": "≈ 25k al día, ≈ 750k al mes"
+        },
+        "taller": {
+          "cuenta": "20 cuentas de 2,000; esperas 1 % de 24,000 = 240. Con p ≈ 0.81 y n = 253",
+          "valor": "253 labels, exactitud con ± 4.8 pp"
+        },
+        "decide": "El holdout mide sin sesgo, pero cuesta producto: esas cuentas no ven sugerencias. Por eso se queda en 1 %. En C01 sobra volumen; en el taller, 253 alcanzan para ver un cambio grande, no uno de 2 pp. Salieron 253 y no 240 porque unas cuentas publican más que otras.",
+        "conceptos": [
+          "holdout",
+          "feedback-loop"
+        ],
+        "comprueba": {
+          "code": "python -c \"import duckdb; print(duckdb.sql(\\\"SELECT count(DISTINCT cuenta_id) AS cuentas, count(*) AS publicaciones FROM 'data/producto/publicaciones.parquet' WHERE eleccion = 'manual'\\\"))\"",
+          "nota": "",
+          "salida": "┌─────────┬───────────────┐\n│ cuentas │ publicaciones │\n│  int64  │     int64     │\n├─────────┼───────────────┤\n│      20 │           253 │\n└─────────┴───────────────┘"
+        }
+      },
+      {
+        "id": "presupuesto",
+        "pregunta": "¿Cuánto cuesta la cola humana del mes?",
+        "formula": "anotaciones = tamaño de la cola × (1 + fracción doble) · costo = anotaciones × precio por etiqueta",
+        "c01": {
+          "cuenta": "5k × US$0.05–0.10 ≈ US$250–500, más 500 dobles × el mismo precio ≈ US$25–50",
+          "valor": "≈ US$275–550 al mes"
+        },
+        "taller": {
+          "cuenta": "800 × (1 + 0.20) = 960 anotaciones",
+          "valor": "960; gratis porque el proveedor es simulado (al precio de C01 serían ≈ US$48–96)"
+        },
+        "decide": "El presupuesto fija el tamaño de la cola, no al revés: primero cuántas puedes pagar, después cómo repartirlas. Cada doble anotación cuesta una etiqueta completa; es el precio de saber si tu guía funciona.",
+        "conceptos": [
+          "active-learning",
+          "kappa"
+        ],
+        "confirma": "Paso 5 · Escribir la guía y mandar al proveedor: <code>tareas: 800 · dobles: 160</code> y <code>960 anotaciones</code>."
+      },
+      {
+        "id": "reparto",
+        "pregunta": "¿Cómo se reparte la cola, y qué tan bien mide la parte aleatoria?",
+        "formula": "cupo = tamaño de la cola × fracción · error de la parte aleatoria ≈ ± 1.96 × √(p × (1 − p) ÷ n)",
+        "c01": {
+          "cuenta": "5k × 25 % = 1,250 al azar; con p ≈ 0.85",
+          "valor": "± 2 pp sobre la exactitud en tráfico real"
+        },
+        "taller": {
+          "cuenta": "800 × 0.25 = 200 al azar, × 0.10 = 80 nuevas, × 0.15 = 120 desacuerdos; el resto, 400, por incertidumbre. Con p ≈ 0.8 y n = 200",
+          "valor": "± 5.5 pp"
+        },
+        "decide": "La parte aleatoria es la única que se parece al tráfico, así que es la que te dice la exactitud real; el resto apunta a donde el modelo duda y sale peor a propósito. Si necesitas medir con ± 2 pp, el tamaño de la parte aleatoria sale de la fórmula, no del gusto.",
+        "conceptos": [
+          "muestra-aleatoria",
+          "active-learning",
+          "categoria-nueva"
+        ],
+        "confirma": "Paso 3 · Elegir qué etiquetar: <code>incertidumbre 400 · aleatoria 200 · desacuerdo 120 · nueva 80</code>."
+      },
+      {
+        "id": "dobles",
+        "pregunta": "¿Alcanzan las dobles anotaciones para un kappa por clase?",
+        "formula": "dobles = tamaño de la cola × fracción doble · por clase ≈ dobles ÷ número de clases",
+        "c01": {
+          "cuenta": "5k × 10 % = 500 dobles ÷ 500 categorías",
+          "valor": "≈ 1 por categoría al mes"
+        },
+        "taller": {
+          "cuenta": "800 × 20 % = 160 ÷ 10 clases; con 10 % serían 80 ÷ 10 = 8",
+          "valor": "≈ 16 por clase (en la corrida de referencia, entre 7 y 28)"
+        },
+        "decide": "Un kappa por clase con 1 u 8 ejemplos es ruido. En el taller se subió la doble anotación a 20 %, y <code>verificar.py</code> solo exige kappa ≥ 0.6 en las clases con al menos 10 positivos. La cola se carga hacia las clases que se confunden, por eso camisas y suéteres juntan más. En C01, con ≈ 1 por categoría al mes, el kappa por clase se acumula varios meses o se mide en las categorías grandes y en los pares que se confunden.",
+        "conceptos": [
+          "kappa"
+        ],
+        "confirma": "Paso 5 (<code>dobles: 160</code>) y paso 6 (<code>kappa_por_clase</code>)."
+      },
+      {
+        "id": "golden",
+        "pregunta": "¿Qué tan fino mide el golden set?",
+        "formula": "error al 95 % ≈ ± 1.96 × √(p × (1 − p) ÷ n), global y por clase",
+        "c01": {
+          "cuenta": "50k con p ≈ 0.85; piso de 50 por categoría",
+          "valor": "± 0.3 pp global; ≈ ± 10 pp en una categoría con 50"
+        },
+        "taller": {
+          "cuenta": "500 con p ≈ 0.73; 50 por clase",
+          "valor": "± 3.9 pp global; ≈ ± 12 pp por clase"
+        },
+        "decide": "El golden set decide si un modelo pasa, así que su tamaño fija la diferencia más chica que puedes ver: en C01, 0.3 pp; en el taller, solo cambios grandes. Por clase el ruido es enorme, por eso el gate por clase pide caídas grandes y un test pareado. Y como vale tanto, nunca entra a entrenamiento ni a la cola.",
+        "conceptos": [
+          "golden-set"
+        ],
+        "comprueba": {
+          "code": "python -c \"import duckdb; print(duckdb.sql(\\\"SELECT count(*) AS n, count(DISTINCT clase) AS clases FROM 'data/golden/manifest.parquet'\\\"))\"",
+          "nota": "",
+          "salida": "┌───────┬────────┐\n│   n   │ clases │\n│ int64 │ int64  │\n├───────┼────────┤\n│   500 │     10 │\n└───────┴────────┘"
+        }
+      }
+    ]
+  },
   "conceptos": [
     {
       "id": "label-debil",

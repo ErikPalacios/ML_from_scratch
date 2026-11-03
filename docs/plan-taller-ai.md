@@ -168,4 +168,8 @@ Cambios contra el plan:
 - Los umbrales de incertidumbre son 0.5 y 0.15 y no los de C01: se calibraron con este modelo.
 - Los puertos son 9100, 9101 y 8090, porque el 9000 y el 8080 ya los ocupan otros procesos de Python tuyos (probablemente el lab de Iris).
 
+Agregado después:
+- **Precálculos en cada estación:** las cuentas de servilleta antes de escribir código, en las dos escalas (C01 y el taller), con lo que decides con cada una. Cada cuenta se comprueba con un comando sobre el mundo recién creado (salida real) o apunta al paso del Guiado que la confirma. Están en el molde (`precalculos`), en la página, en el `GUION.md` del kit (entre el paso 0 y el 1) y en el prompt del Guiado. La estación 1 trae 7.
+- **Portada:** qué es C01, el mapa de 12 estaciones copiado de la cheat sheet «Del dato a producción» (`tools/importar-mapa.mjs` → `content/mapa-c01.json`; las estaciones con taller abren su página y las demás su sección de la hoja) y cómo se usa el taller, paso a paso.
+
 Siguiente: la fase 4 (tu tablero) y la fase 5 (tú haces las 4 rondas).
