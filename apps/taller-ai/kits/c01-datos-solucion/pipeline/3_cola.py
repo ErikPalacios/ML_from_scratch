@@ -33,15 +33,14 @@ cupo = {
 }
 cupo["incertidumbre"] = k["tamano"] - sum(cupo.values())
 
-elegidos: dict[str, str] = {}
+# La aleatoria primero, de todo el tráfico: si se sorteara al final, ya sin los casos difíciles, saldría optimista.
+elegidos: dict[str, str] = dict.fromkeys(rng.choice(s.request_id.to_numpy(), cupo["aleatoria"], replace=False), "aleatoria")
 for motivo in ["nueva", "desacuerdo", "incertidumbre"]:
-    candidatos = s.request_id[grupos[motivo] & ~s.request_id.isin(elegidos)]
+    candidatos = s.request_id[grupos[motivo] & ~s.request_id.isin(list(elegidos))]
     n = min(cupo[motivo], len(candidatos))
     if motivo == "incertidumbre":                # lo que no alcanzó en los otros cupos se va a incertidumbre
-        n = min(len(candidatos), k["tamano"] - cupo["aleatoria"] - len(elegidos))
+        n = min(len(candidatos), k["tamano"] - len(elegidos))
     elegidos |= dict.fromkeys(rng.choice(candidatos.to_numpy(), n, replace=False), motivo)
-resto = s.request_id[~s.request_id.isin(elegidos)].to_numpy()
-elegidos |= dict.fromkeys(rng.choice(resto, k["tamano"] - len(elegidos), replace=False), "aleatoria")
 
 cola = s[s.request_id.isin(elegidos)][["request_id", "foto_key", "img_sha256_prefijo"]].copy()
 cola["motivo"] = cola.request_id.map(elegidos)

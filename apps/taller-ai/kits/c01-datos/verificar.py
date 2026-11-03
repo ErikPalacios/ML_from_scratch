@@ -65,10 +65,11 @@ def check_mundo() -> str:
         urllib.request.urlopen(c["s3"]["endpoint"] + "/health", timeout=5)
     except Exception:
         raise Falla(f"el S3 local no responde en {c['s3']['endpoint']}: ¿corriste docker compose up -d?")
+    ls = c.get("labelstudio", {}).get("url", "http://localhost:8090")
     try:
-        urllib.request.urlopen("http://localhost:8090/health", timeout=5)
+        urllib.request.urlopen(ls + "/health", timeout=5)
     except Exception:
-        raise Falla("Label Studio no responde en http://localhost:8090: ¿corriste docker compose up -d?")
+        raise Falla(f"Label Studio no responde en {ls}: ¿corriste docker compose up -d?")
     for p in ["producto/publicaciones.parquet", "producto/correcciones.parquet", "golden/manifest.parquet"]:
         exige((DATA / p).exists(), f"falta data/{p}: corre python mundo/simular.py")
     exige(s3().list_objects_v2(Bucket="producto-fotos", MaxKeys=1).get("KeyCount", 0) > 0, "s3://producto-fotos está vacío")

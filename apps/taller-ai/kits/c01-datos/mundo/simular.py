@@ -104,7 +104,8 @@ def probas(m, X: np.ndarray) -> np.ndarray:
 
 
 def sha(img: np.ndarray) -> str:
-    # El hash es del contenido (los píxeles), no del archivo: así quitar el EXIF o recomprimir no cambia la identidad.
+    # El hash es del contenido (los píxeles originales), no del archivo, y se calcula una sola vez, al entrar: viaja
+    # como columna y en los metadatos de cada copia. Recomprimir cambia algunos píxeles, así que no se recalcula.
     return hashlib.sha256(img.tobytes()).hexdigest()
 
 

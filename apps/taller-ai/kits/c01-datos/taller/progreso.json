@@ -1,0 +1,10 @@
+{
+  "estacion": "c01-datos",
+  "rondas": {
+    "guiado": { "estado": "pendiente", "inicio": null, "fin": null },
+    "solo": { "estado": "pendiente", "inicio": null, "fin": null, "pistas": 0 },
+    "romper_ayuda": { "estado": "pendiente", "fallas": [] },
+    "romper_solo": { "estado": "pendiente", "fallas": [] }
+  },
+  "bitacora": []
+}

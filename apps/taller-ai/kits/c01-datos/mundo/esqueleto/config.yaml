@@ -16,6 +16,8 @@ etiquetado:
   guia_version: guia-v1            # el archivo guia/<guia_version>.md que recibe el proveedor
   frac_doble: 0.20                 # en C01 es 10 % de ≈ 5k = 500 dobles; aquí 10 % serían 80, muy pocos para un kappa por clase
   adjudicacion: manual             # manual = tú en Label Studio; experto_simulado = mundo/adjudicar.py
+labelstudio:
+  url: http://localhost:8090       # si cambias el puerto en compose.yaml, cámbialo aquí también
 s3:
   endpoint: http://localhost:9100
   access_key: taller

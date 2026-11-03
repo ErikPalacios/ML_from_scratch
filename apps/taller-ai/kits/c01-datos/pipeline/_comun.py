@@ -32,5 +32,5 @@ def s3():
     return boto3.client(
         "s3", endpoint_url=c["endpoint"], aws_access_key_id=c["access_key"],
         aws_secret_access_key=c["secret_key"], region_name=c["region"],
-        config=Config(s3={"addressing_style": "path"}),
+        config=Config(s3={"addressing_style": "path"}, signature_version="s3v4"),   # SigV4: la firma vigente en S3
     )

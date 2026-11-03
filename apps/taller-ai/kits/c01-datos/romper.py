@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from mundo.comun import DATA, RAIZ, TALLER, config, guardar_config, leer_json, escribir_json, s3  # noqa: E402
+from mundo.comun import DATA, RAIZ, TALLER, config, editar_config, leer_json, escribir_json, s3  # noqa: E402
 
 ESTADO = TALLER / "romper.json"
 
@@ -36,19 +36,14 @@ def mundo(falla: str | None, fotos: bool = False) -> None:
 
 
 def config_set(ruta: str, valor, estado: dict) -> None:
-    c = config()
     a, b = ruta.split(".")
-    estado.setdefault("config_original", {})[ruta] = c[a][b]
-    c[a][b] = valor
-    guardar_config(c)
+    estado.setdefault("config_original", {})[ruta] = config()[a][b]
+    editar_config(ruta, valor)
 
 
 def config_restaurar(estado: dict) -> None:
-    c = config()
     for ruta, valor in estado.get("config_original", {}).items():
-        a, b = ruta.split(".")
-        c[a][b] = valor
-    guardar_config(c)
+        editar_config(ruta, valor)
 
 
 def export_a_json_completo(estado: dict) -> None:
@@ -122,7 +117,7 @@ FALLAS = {
         aplicar=lambda e: mundo("feedback-loop"), deshacer=lambda e: mundo(None), job=1),
     "llave-cambiada": dict(
         tipo="mundo", titulo="El request_id cambió de formato",
-        historia="El equipo del gateway desplegó una versión nueva a mediados de octubre. Nadie avisó de nada raro, pero este mes hay menos labels nuevos que de costumbre.",
+        historia="El equipo del gateway desplegó una versión nueva a finales de octubre. Nadie avisó de nada raro, pero este mes hay menos labels nuevos que de costumbre.",
         explica="Desde el 21 de octubre el gateway escribe el request_id en mayúsculas (R-…) y publicaciones lo sigue escribiendo en minúsculas. El JOIN interno descarta esas filas sin error: perder datos en silencio. Arreglo: normalizar la llave (lower) y vigilar la tasa de unión.",
         aplicar=lambda e: mundo("llave-cambiada"), deshacer=lambda e: mundo(None), job=1),
     "zona-horaria": dict(
@@ -206,10 +201,8 @@ def romper(mostrar: bool, cual: str | None) -> None:
     falla = cual or secrets.choice(list(FALLAS))
     e = {"sal": secrets.token_hex(8), "inicio": datetime.now(timezone.utc).isoformat(), "mostrada": mostrar}
     e["hash"] = h(e["sal"], falla)
-    c = config()
-    if c["etiquetado"]["adjudicacion"] != "experto_simulado":
-        c["etiquetado"]["adjudicacion"] = "experto_simulado"
-        guardar_config(c)
+    if config()["etiquetado"]["adjudicacion"] != "experto_simulado":
+        editar_config("etiquetado.adjudicacion", "experto_simulado")
         print("  (en las rondas de romper adjudica el experto simulado: config etiquetado.adjudicacion = experto_simulado)")
     f = FALLAS[falla]
     f["aplicar"](e)

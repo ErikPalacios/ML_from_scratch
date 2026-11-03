@@ -23,8 +23,21 @@ def config() -> dict:
     return yaml.safe_load((RAIZ / "config.yaml").read_text())
 
 
-def guardar_config(c: dict) -> None:
-    (RAIZ / "config.yaml").write_text(yaml.safe_dump(c, sort_keys=False, allow_unicode=True))
+def editar_config(ruta: str, valor) -> None:
+    """Cambia una sola línea de config.yaml (ruta = "seccion.llave") y conserva los comentarios."""
+    import re
+
+    a, b = ruta.split(".")
+    p = RAIZ / "config.yaml"
+    texto = p.read_text()
+    m = re.search(rf"^{a}:[ \t]*\n((?:[ \t]+.*\n?)*)", texto, re.M)
+    if not m:
+        raise KeyError(ruta)
+    nuevo = yaml.safe_dump(valor, default_flow_style=True).strip().removesuffix("...").strip()
+    bloque = re.sub(rf"^([ \t]+{b}:[ \t]*)([^#\n]*?)([ \t]*(#.*)?)$", lambda x: x.group(1) + nuevo + x.group(3), m.group(1), count=1, flags=re.M)
+    if bloque == m.group(1) and config()[a][b] != valor:
+        raise KeyError(ruta)
+    p.write_text(texto[: m.start(1)] + bloque + texto[m.end(1):])
 
 
 def s3():
@@ -35,7 +48,7 @@ def s3():
     return boto3.client(
         "s3", endpoint_url=c["endpoint"], aws_access_key_id=c["access_key"],
         aws_secret_access_key=c["secret_key"], region_name=c.get("region", "us-east-1"),
-        config=Config(s3={"addressing_style": "path"}, retries={"max_attempts": 3}),
+        config=Config(s3={"addressing_style": "path"}, signature_version="s3v4", retries={"max_attempts": 3}),
     )
 
 

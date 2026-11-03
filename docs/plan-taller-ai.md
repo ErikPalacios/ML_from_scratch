@@ -154,3 +154,18 @@ La fase 5 va antes de seguir con el tronco a propósito: probar el molde contigo
 
 - El nombre de la app.
 - Si el Taller sale en la portada pública desde la fase 3 o espera a tener más estaciones.
+
+## 12. Estado (3 de noviembre de 2026)
+
+La estación 1, «Datos y etiquetas», cubre las fases 1 a 3 en `apps/taller-ai` y todavía no está desplegada.
+
+- **Contenido:** 16 conceptos, 8 pasos del Guiado con salidas reales, 12 objetivos para la ronda Solo, 10 fallas, 4 preguntas de entrevista y los 4 prompts. Una revisión contra la documentación oficial encontró 12 correcciones y ya están aplicadas.
+- **Kit:** usa RustFS en lugar de MinIO, porque MinIO archivó su repositorio y ya no publica imágenes. Se probó de punta a punta desde el .zip. Cada falla se detecta, su arreglo documentado pasa `romper.py --verificar` y `--restaurar` deja todo en verde. Las salidas se reproducen igual en dos corridas limpias.
+- **App:** tiene portada y página de estación, y la descarga del kit. Pasa los chequeos de 375/768/1024 px, modo oscuro, tema y modo sin conexión.
+
+Cambios contra el plan:
+- La doble anotación es del 20 % en el taller y no del 10 %: con una cola de 800, el 10 % da un kappa por clase demasiado ruidoso.
+- Los umbrales de incertidumbre son 0.5 y 0.15 y no los de C01: se calibraron con este modelo.
+- Los puertos son 9100, 9101 y 8090, porque el 9000 y el 8080 ya los ocupan otros procesos de Python tuyos (probablemente el lab de Iris).
+
+Siguiente: la fase 4 (tu tablero) y la fase 5 (tú haces las 4 rondas).

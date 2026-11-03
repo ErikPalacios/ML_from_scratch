@@ -1,0 +1,10 @@
+{
+  "name": "taller-ai",
+  "private": true,
+  "description": "Taller de AI Engineer: proyectos chicos para construir, rehacer y romper, estación por estación.",
+  "scripts": {
+    "validate": "node tools/validate.mjs",
+    "build": "node tools/build.mjs",
+    "check": "node tools/build.mjs && node tools/check.mjs"
+  }
+}

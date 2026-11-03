@@ -1,0 +1,20 @@
+{
+  "caso": "c01",
+  "titulo": "C01 · Clasificador de categorías para un marketplace",
+  "patron": "Síncrono (online)",
+  "resumen": "El tronco del Taller: las 12 estaciones del mapa «Del dato a producción», en el orden en que el caso C01 las recorre. Lo que aprendes aquí lo comparten todos los patrones.",
+  "estaciones": [
+    { "num": 1, "id": "datos", "titulo": "Datos y etiquetas" },
+    { "num": 2, "id": "versionado", "titulo": "Versionado y linaje" },
+    { "num": 3, "id": "entrenamiento", "titulo": "Entrenamiento" },
+    { "num": 4, "id": "gate", "titulo": "Gate de evaluación y registry" },
+    { "num": 5, "id": "export", "titulo": "Export, engine y paridad" },
+    { "num": 6, "id": "serving", "titulo": "Código de serving" },
+    { "num": 7, "id": "empaquetado", "titulo": "Empaquetado (Docker)" },
+    { "num": 8, "id": "cicd", "titulo": "CI/CD y registro de imágenes" },
+    { "num": 9, "id": "kubernetes", "titulo": "Kubernetes" },
+    { "num": 10, "id": "rollout", "titulo": "Rollout seguro" },
+    { "num": 11, "id": "request", "titulo": "La request en vivo" },
+    { "num": 12, "id": "monitoreo", "titulo": "Monitoreo y reentrenamiento" }
+  ]
+}
