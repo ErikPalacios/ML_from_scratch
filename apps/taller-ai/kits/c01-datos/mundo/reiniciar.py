@@ -1,4 +1,4 @@
-"""Deja el taller como nuevo.
+"""Deja el kit como nuevo.
 
     python mundo/reiniciar.py --pipeline   # para la ronda Solo: esqueleto vacío en pipeline/, config.yaml y guía
                                            # originales, sin salidas del pipeline ni bucket restringido.

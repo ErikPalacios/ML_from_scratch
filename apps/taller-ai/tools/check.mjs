@@ -134,7 +134,7 @@ PAGES.forEach((p, i) => {
   console.log(`${ok ? 'ok ' : 'MAL'} ${p.padEnd(16)} tema       ${v ? (v.error || `sistema ${v.sys} · claro ${v.light} · oscuro ${v.dark} · auto ${v.auto}`) : 'sin resultado'}`);
 });
 const s = await run(['--url', BASE + '/', '--wait', '2500', '--width', '1024', '--height', '800', '--light'], SW);
-const swOk = s && s.controller && PAGES.every((p) => s.cached.includes(p)) && PAGES.slice(1).every((p) => s.offline[p] && s.offline[p].includes('Taller de AI Engineer'));
+const swOk = s && s.controller && PAGES.every((p) => s.cached.includes(p)) && PAGES.slice(1).every((p) => s.offline[p] && s.offline[p].includes("Dojo de entrenamiento ML engineer's"));
 if (!swOk) bad++;
 console.log(`${swOk ? 'ok ' : 'MAL'} service worker: ${JSON.stringify(s)}`);
 server.close();

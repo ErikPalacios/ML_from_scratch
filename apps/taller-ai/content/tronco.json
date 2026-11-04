@@ -2,19 +2,19 @@
   "caso": "c01",
   "titulo": "C01 · Clasificador de categorías para un marketplace",
   "patron": "Síncrono (online)",
-  "resumen": "El tronco del Taller: las 12 estaciones del mapa «Del dato a producción», en el orden en que el caso C01 las recorre. Lo que aprendes aquí lo comparten todos los patrones.",
+  "resumen": "El tronco del Dojo: las 12 estaciones del mapa «Del dato a producción», en el orden en que el caso C01 las recorre. Lo que aprendes aquí lo comparten todos los patrones.",
   "estaciones": [
-    { "num": 1, "id": "datos", "titulo": "Datos y etiquetas" },
-    { "num": 2, "id": "versionado", "titulo": "Versionado y linaje" },
-    { "num": 3, "id": "entrenamiento", "titulo": "Entrenamiento" },
-    { "num": 4, "id": "gate", "titulo": "Gate de evaluación y registry" },
-    { "num": 5, "id": "export", "titulo": "Export, engine y paridad" },
-    { "num": 6, "id": "serving", "titulo": "Código de serving" },
-    { "num": 7, "id": "empaquetado", "titulo": "Empaquetado (Docker)" },
-    { "num": 8, "id": "cicd", "titulo": "CI/CD y registro de imágenes" },
-    { "num": 9, "id": "kubernetes", "titulo": "Kubernetes" },
-    { "num": 10, "id": "rollout", "titulo": "Rollout seguro" },
-    { "num": 11, "id": "request", "titulo": "La request en vivo" },
-    { "num": 12, "id": "monitoreo", "titulo": "Monitoreo y reentrenamiento" }
+    { "num": 1, "id": "datos", "titulo": "Datos y etiquetas", "sale": "labels del mes (≈ 5k humanos + débiles filtrados)" },
+    { "num": 2, "id": "versionado", "titulo": "Versionado y linaje", "sale": "snapshot ds-2026-09-01 (manifest inmutable)" },
+    { "num": 3, "id": "entrenamiento", "titulo": "Entrenamiento", "sale": "checkpoint candidato (corrida en MLflow)" },
+    { "num": 4, "id": "gate", "titulo": "Gate de evaluación y registry", "sale": "checkpoint aprobado por el gate" },
+    { "num": 5, "id": "export", "titulo": "Export, engine y paridad", "sale": "engine model.plan (versión challenger)" },
+    { "num": 6, "id": "serving", "titulo": "Código de serving", "sale": "código del gateway + model repository de Triton" },
+    { "num": 7, "id": "empaquetado", "titulo": "Empaquetado (Docker)", "sale": "Dockerfiles probados (gateway y Triton)" },
+    { "num": 8, "id": "cicd", "titulo": "CI/CD y registro de imágenes", "sale": "imagen en ECR (tag inmutable + digest)" },
+    { "num": 9, "id": "kubernetes", "titulo": "Kubernetes", "sale": "pods listos detrás del ALB interno" },
+    { "num": 10, "id": "rollout", "titulo": "Rollout seguro", "sale": "versión nueva al 100 % (alias champion)" },
+    { "num": 11, "id": "request", "titulo": "La request en vivo", "sale": "una línea de log JSON y métricas por request" },
+    { "num": 12, "id": "monitoreo", "titulo": "Monitoreo y reentrenamiento", "sale": "disparador de reentrenamiento y muestras para etiquetar" }
   ]
 }

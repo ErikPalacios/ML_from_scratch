@@ -20,7 +20,7 @@ services:
   labelstudio:
     image: heartexlabs/label-studio:1.23.2
     ports: ["8090:8080"]                    # en tu Mac: http://localhost:8090
-    environment:                            # usuario de prueba del taller (solo existe en tu Mac)
+    environment:                            # usuario de prueba del dojo (solo existe en tu Mac)
       LABEL_STUDIO_USERNAME: taller@ejemplo.com
       LABEL_STUDIO_PASSWORD: taller-etiquetas
       LABEL_STUDIO_USER_TOKEN: taller-token-local-0001

@@ -1,4 +1,4 @@
-# Taller de AI Engineer · C01 · Estación 1: Datos y etiquetas
+# Dojo de entrenamiento ML engineer's · C01 · Estación 1: Datos y etiquetas
 
 Este es un mini-proyecto de práctica. Reproduce en pequeño, en una Mac sin GPU ni nube, la estación «Datos y etiquetas» del caso C01: un clasificador de categorías para las fotos de un marketplace. La persona con la que trabajas está aprendiendo; tu trabajo es que **entienda**, no que termine rápido.
 
@@ -19,7 +19,7 @@ Este es un mini-proyecto de práctica. Reproduce en pequeño, en una Mac sin GPU
 ## Cómo se trabaja
 
 - Responde en español neutro, de tú, directo y sin relleno. Términos técnicos en inglés la primera vez, con su explicación.
-- Explica siempre el **por qué**. Cuando algo en el taller es distinto de C01 real (escala, servicio local en vez de AWS), dilo en una línea.
+- Explica siempre el **por qué**. Cuando algo en el dojo es distinto de C01 real (escala, servicio local en vez de AWS), dilo en una línea.
 - Nunca inventes salidas: si no corriste algo, di que no lo corriste.
 - Antes de correr algo que cambia el mundo (`mundo/*.py`, `docker compose`, `romper.py`), dilo. Lo que solo lee (`verificar.py`, consultas a `data/`) se puede correr directo.
 - Sigue el prompt de la ronda que te pegaron: en Solo y en Romper solo **no das código ni pistas** salvo que la persona se rinda.

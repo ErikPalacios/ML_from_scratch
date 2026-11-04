@@ -1,6 +1,6 @@
 // Copia el mapa del C01 de la cheat sheet «Del dato a producción» a content/mapa-c01.json.
 // Se corre a mano cuando cambia la hoja (node tools/importar-mapa.mjs); el build lee solo el JSON,
-// así que el Taller se despliega sin depender de otras carpetas.
+// así que el Dojo se despliega sin depender de otras carpetas.
 //
 // Toma las dos figuras ya dibujadas (la del anillo, para tablet y escritorio, y la vertical, para celular)
 // y los íconos que usan. Los enlaces #est-<id> se quedan así: el build decide a dónde apunta cada estación.

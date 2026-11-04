@@ -1,4 +1,4 @@
-/* Service worker del Taller: la portada y las estaciones abren sin conexión después de la primera visita.
+/* Service worker del Dojo: la portada y las estaciones abren sin conexión después de la primera visita.
    tools/build.mjs reemplaza __BUILD__ por el hash del contenido y __PAGES__ por la lista de archivos: cada deploy
    nuevo instala un service worker nuevo, guarda lo nuevo y borra la caché anterior. Los kits (.zip) no se
    guardan por adelantado: se bajan de la red cuando los pides. */

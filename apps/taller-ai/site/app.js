@@ -1,6 +1,6 @@
 /* Lo poco que la app hace en el navegador: el selector de tema, los botones de copiar, la animación de la T
    en las páginas Dojo y el modo sin conexión.
-   La app no corre nada del taller: eso pasa en tu Mac. */
+   La app no corre nada del dojo: eso pasa en tu Mac. */
 (function () {
   'use strict';
   var KEY = 'taller-tema', root = document.documentElement;
@@ -65,15 +65,48 @@
   }
 
   // La T de vidrio del Dojo entra etapa por etapa (como TrueMLMark.play). Sin animación si así lo pide el sistema.
-  var t3 = document.querySelector('.d-hero-mark svg');
-  if (t3 && t3.animate && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
-    ['datos', 'modelo', 'api', 'contenedor', 'orquestacion', 'monitoreo'].forEach(function (sk, i) {
+  var quieto = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var ETAPAS = ['datos', 'modelo', 'api', 'contenedor', 'orquestacion', 'monitoreo'];
+  [].forEach.call(document.querySelectorAll('.d-hero-mark svg'), function (t3) {
+    if (!t3.animate || quieto) return;
+    ETAPAS.forEach(function (sk, i) {
       [].forEach.call(t3.querySelectorAll('[data-stage="' + sk + '"]'), function (g) {
         var lb = g.getAttribute('data-kind') === 'label', o = g.style.opacity || '1';
         g.animate(lb ? [{ opacity: 0 }, { opacity: o }] : [{ opacity: 0, transform: 'translate(0px,-28px)' }, { opacity: o, transform: 'translate(0px,0px)' }],
           { duration: lb ? 420 : 640, delay: 150 + i * 140 + (lb ? 320 : 0), easing: 'cubic-bezier(.2,.85,.25,1)', fill: 'backwards' });
       });
     });
+  });
+
+  // Portada: pasar por una etapa de la lista la enciende en la T (como TrueMLMark.sync) y lo dice abajo.
+  var lista = document.querySelector('.d-etapas'), cap = document.querySelector('.d-t-cap');
+  function encender(sk) {
+    [].forEach.call(document.querySelectorAll('.d-home-t [data-stage]'), function (g) {
+      var lit = !sk || g.getAttribute('data-stage') === sk;
+      g.style.transition = 'opacity .3s ease';
+      g.style.opacity = lit ? '1' : g.getAttribute('data-dim');
+    });
+    if (cap) {
+      var et = sk && lista.querySelector('[data-etapa="' + sk + '"] .d-etapa-h');
+      cap.textContent = et ? et.querySelector('b').textContent + ' · ' + et.querySelector('span').textContent : cap.getAttribute('data-def');
+    }
+  }
+  if (lista) {
+    [].forEach.call(lista.querySelectorAll('[data-etapa]'), function (el) {
+      el.addEventListener('mouseenter', function () { encender(el.getAttribute('data-etapa')); });
+    });
+    lista.addEventListener('mouseleave', function () { encender(null); });
+  }
+
+  // El anillo del mapa: la estación bajo el cursor se queda y las demás se apagan.
+  var anillo = document.querySelector('.d-anillo');
+  if (anillo) {
+    if (quieto && anillo.pauseAnimations) anillo.pauseAnimations();
+    var resaltar = function (a) {
+      [].forEach.call(anillo.querySelectorAll('[data-st]'), function (g) { g.style.transition = 'opacity .25s ease'; g.style.opacity = !a || g === a ? '1' : '.3'; });
+    };
+    anillo.addEventListener('mouseover', function (e) { resaltar(e.target.closest ? e.target.closest('[data-st]') : null); });
+    anillo.addEventListener('mouseleave', function () { resaltar(null); });
   }
 
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {

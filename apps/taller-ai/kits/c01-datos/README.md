@@ -1,8 +1,8 @@
-# Taller · C01 · Estación 1: Datos y etiquetas
+# Dojo · C01 · Estación 1: Datos y etiquetas
 
 Un mini-proyecto para practicar la primera estación del caso C01 en tu Mac: de los logs de producción a los labels del mes. Lo construyes con Claude, lo rehaces tú solo, lo rompes con ayuda y lo rompes solo.
 
-La guía completa (conceptos, paso a paso, fallas y los prompts de cada ronda) está en la app del Taller, en «C01 · Datos y etiquetas».
+La guía completa (conceptos, paso a paso, fallas y los prompts de cada ronda) está en la app del Dojo, en «C01 · Datos y etiquetas».
 
 ## Arranque
 

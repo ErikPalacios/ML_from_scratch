@@ -39,8 +39,8 @@ function barra({ ruta, volver, indice }) {
   <div class="d-brand">
     <a class="d-logo" href="${PORTADA}"><span class="d-logo-mark">${marcaNav}</span><span class="d-word">True<span>ML</span></span></a>
     <span class="d-sep" aria-hidden="true"></span>
-    <a class="d-dojo" href="${volver}">Dojo</a>
-    <span class="d-ruta">${esc(ruta)}</span>
+    ${volver ? `<a class="d-dojo" href="${volver}">Dojo</a>` : '<span class="d-dojo">Dojo</span>'}
+    ${ruta ? `<span class="d-ruta">${esc(ruta)}</span>` : ''}
   </div>
   ${TEMA}
 </header>
@@ -135,7 +135,7 @@ export function cuerpoEstacion(e, { total, kitBytes, kb }) {
       <details class="d-ver"><summary>Ver la cuenta</summary><div class="d-ver-body">
         <div class="d-escalas">
           <div class="d-esc"><span class="d-lbl">En C01</span><span>${x.c01.cuenta}</span><strong>${x.c01.valor}</strong></div>
-          <div class="d-esc d-esc-dojo"><span class="d-lbl">En el taller</span><span>${x.taller.cuenta}</span><strong>${x.taller.valor}</strong></div>
+          <div class="d-esc d-esc-dojo"><span class="d-lbl">En el dojo</span><span>${x.taller.cuenta}</span><strong>${x.taller.valor}</strong></div>
         </div>
         <p class="d-decide"><b>Qué decides con esto. </b>${x.decide}</p>
         ${x.comprueba ? comando(x.comprueba, 'terminal · compruébalo en el kit') : ''}
@@ -173,7 +173,7 @@ export function cuerpoEstacion(e, { total, kitBytes, kb }) {
   const memo = e.repaso.memo.match(/^<b>(.*?)<\/b>\s*([\s\S]*)$/);
 
   return `${barra({ ruta: `/ ${e.caso.toUpperCase()} · ${e.num}`, volver: '/', indice })}
-${hero({ volver: '/', volverTxt: 'Taller de AI Engineer', pill: `${e.caso.toUpperCase()} · Estación ${e.num} de ${total}`, h1: e.titulo, lead: e.pregunta, num: e.num, tituloEstacion: e.titulo,
+${hero({ volver: '/', volverTxt: "Dojo de entrenamiento ML engineer's", pill: `${e.caso.toUpperCase()} · Estación ${e.num} de ${total}`, h1: e.titulo, lead: e.pregunta, num: e.num, tituloEstacion: e.titulo,
     tiles: [[e.precalculos.cuentas.length, 'precálculos', 'precalculos'], [e.conceptos.length, 'conceptos', 'conceptos'], [e.guiado.length, 'pasos', 'guiado'], [e.solo.objetivos.length, 'checks', 'solo'], [e.fallas.length, 'fallas', 'romper'], ...(e.practicas.length ? [[e.practicas.length, 'desde cero', 'desde-cero']] : [])],
     botones: `${kitBtn}<a class="d-btn d-btn2" href="#guiado">Ir al guiado</a>` })}
 <main class="d-wrap d-main">
@@ -185,7 +185,7 @@ ${hero({ volver: '/', volverTxt: 'Taller de AI Engineer', pill: `${e.caso.toUppe
     <div class="d-io-n" aria-hidden="true"><span>→</span><b>${e.num}</b><span>→</span></div>
     <div class="d-card"><span class="d-lbl">Sale</span><ul>${e.mapa.sale.map((x) => `<li>${x}</li>`).join('')}</ul></div>
   </div>
-  <div class="d-tabla"><table><thead><tr><th></th><th>En C01</th><th class="d-th-dojo">En el taller</th></tr></thead><tbody>${e.mapa.escala.map((r) => `<tr><th scope="row">${esc(r.que)}</th><td>${r.c01}</td><td>${r.taller}</td></tr>`).join('')}</tbody></table></div>
+  <div class="d-tabla"><table><thead><tr><th></th><th>En C01</th><th class="d-th-dojo">En el dojo</th></tr></thead><tbody>${e.mapa.escala.map((r) => `<tr><th scope="row">${esc(r.que)}</th><td>${r.c01}</td><td>${r.taller}</td></tr>`).join('')}</tbody></table></div>
   ${e.mapa.hoja ? `<p class="d-nota">La estación completa, con su lugar en el mapa: <a href="${esc(e.mapa.hoja)}">cheat sheet «Del dato a producción»</a>.</p>` : ''}
 </section>
 
@@ -230,7 +230,7 @@ ${desdeCero}
     <div class="d-card"><h3>Tu pipeline <small>lo escribes tú</small></h3><ol class="d-linea">${e.mundo.tu_pipeline.map((t) => `<li><code>${esc(t.archivo)}</code><span>${t.hace}</span></li>`).join('')}</ol></div>
   </div>
   <div class="d-card"><h3>Necesitas</h3><ul class="d-ul">${e.mundo.requisitos.map((r) => `<li>${r}</li>`).join('')}</ul></div>
-  <div class="d-tabla"><table><thead><tr><th>En la nube</th><th class="d-th-dojo">En el taller</th><th>Qué cambia</th></tr></thead><tbody>${e.mundo.sustituciones.map((r) => `<tr><th scope="row">${esc(r.nube)}</th><td>${esc(r.local)}</td><td>${r.diferencia}</td></tr>`).join('')}</tbody></table></div>
+  <div class="d-tabla"><table><thead><tr><th>En la nube</th><th class="d-th-dojo">En el dojo</th><th>Qué cambia</th></tr></thead><tbody>${e.mundo.sustituciones.map((r) => `<tr><th scope="row">${esc(r.nube)}</th><td>${esc(r.local)}</td><td>${r.diferencia}</td></tr>`).join('')}</tbody></table></div>
   <div class="d-card d-ronda"><span class="d-ronda-t">El CLAUDE.md del kit</span><span class="d-txt">Las reglas de fondo para Claude Code en la carpeta del kit. Ya viene en el .zip.</span>${prompt(e.prompt.claude_md, { boton: 'Copiar', ver: 'Ver el CLAUDE.md' })}</div>
 </section>
 
@@ -351,5 +351,154 @@ ${p.conceptos.length ? `
   <div class="d-btns">${otra.map((q) => `<a class="d-btn${q.orden > p.orden ? '' : ' d-btn2'}" href="${q.url}">${q.orden > p.orden ? 'Sigue' : 'Antes'}: ${esc(q.titulo)}</a>`).join('')}<a class="d-btn d-btn2" href="${e.url}#desde-cero">Volver a la estación</a></div>
 </section>
 </main>
+${pie}`;
+}
+
+// ---------------------------------------------------------------- portada
+// Colores de las 6 etapas de la T (los de trueml-mark.js) y de las 4 velocidades del mapa (los del diseño).
+const COLOR_ETAPA = ['#E8AE36', '#EC6A3F', '#17B386', '#3D5AFE', '#7A69EE', '#5A6699'];
+const NOMBRE_ETAPA = ['Datos', 'Modelo', 'API', 'Contenedor', 'Orquestación', 'Monitoreo'];
+const VEL = { sem: '#EC6A3F', dia: '#3D5AFE', ms: '#17B386', cont: '#6B78B3' };
+const rango = (i) => { const [a, b] = ETAPAS[i]; const n = Array.from({ length: b - a + 1 }, (_, k) => a + k); return `${n.length > 1 ? 'estaciones' : 'estación'} ${n.join(' · ')}`; };
+
+// El mapa del C01 en anillo (del diseño): 5 estaciones arriba, 7 abajo, y el reentrenamiento que vuelve a 1.
+// Las que ya tienen dojo abren su página; las demás, su sección en la cheat sheet.
+function anillo(estaciones, enlace, lista) {
+  const H = 640, xL = 170, xR = 990, yT = 214, yB = 454, R = (yB - yT) / 2, yM = (yT + yB) / 2;
+  const top = [0, 1, 2, 3, 4].map((i) => xL + i * (xR - xL) / 4);
+  const bot = [0, 1, 2, 3, 4, 5, 6].map((i) => xR - i * (xR - xL) / 6);
+  const P = top.map((x) => [x, yT]).concat(bot.map((x) => [x, yB]));
+  const f = (n) => Math.round(n * 10) / 10;
+  const wrap = (t, n) => { const out = []; let cur = ''; t.split(' ').forEach((w) => { if (cur && (cur + ' ' + w).length > n) { out.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w; }); if (cur) out.push(cur); return out; };
+  const SANS = 'system-ui,-apple-system,Segoe UI,sans-serif', MONO = 'ui-monospace,Menlo,monospace';
+  const INK = 'class="r-ink"', INK3 = 'class="r-ink3"';
+  let o = '';
+  const band = (x0, x1, y, label, below) => `<path d="M${f(x0)} ${y}H${f(x1)}M${f(x0)} ${y - 5}V${y + 5}M${f(x1)} ${y - 5}V${y + 5}" fill="none" stroke-width="1.5" opacity=".5" class="r-band"/><text x="${f(x0)}" y="${below ? y + 20 : y - 10}" font-family="${MONO}" font-size="11" font-weight="700" letter-spacing="1.4" ${INK3}>${label}</text>`;
+  o += band(top[0] - 60, top[1] + 60, 64, 'DATOS') + band(top[2] - 60, top[4] + 60, 64, 'MODELO');
+  o += band(bot[4] - 55, bot[0] + 60, H - 46, 'RELEASE', 1) + band(bot[6] - 60, bot[5] + 50, H - 46, 'OPERACIÓN', 1);
+  const dSem = `M${xL} ${yT}H${xR}A${R} ${R} 0 0 1 ${xR} ${yB}`, dDia = `M${xR} ${yB}H${f(bot[5])}`, dMs = `M${f(bot[5])} ${yB}H${xL}`, dRe = `M${xL} ${yB}A${R} ${R} 0 0 1 ${xL} ${yT}`;
+  const tr = (d, c, dash) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="8" stroke-linecap="round"${dash ? ' stroke-dasharray="0.1 15"' : ''}/>`;
+  const fl = (d) => `<path d="${d}" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="0.1 18" opacity=".9" class="r-flow"><animate attributeName="stroke-dashoffset" from="0" to="-18.1" dur="1.2s" repeatCount="indefinite"/></path>`;
+  o += tr(dRe, VEL.cont, 1) + tr(dSem, VEL.sem) + tr(dDia, VEL.dia) + tr(dMs, VEL.ms) + fl(dSem) + fl(dDia) + fl(dMs);
+  o += `<path d="M${xL - 36} ${yT - 8}L${xL - 21} ${yT}L${xL - 36} ${yT + 8}Z" fill="${VEL.cont}"/>`;
+  o += `<text transform="translate(28 ${yM}) rotate(-90)" text-anchor="middle" font-family="${MONO}" font-size="11" font-weight="700" letter-spacing="1" fill="${VEL.cont}">reentrenamiento</text>`;
+  estaciones.forEach((s, i) => {
+    const [x, y] = P[i], isTop = i < 5, listo = lista.has(s.id), k = listo ? 'dojo' : (i === 5 || i === 10 || i === 11) ? 'tb' : 'st';
+    const nl = wrap(s.titulo, isTop ? 24 : 17), al = wrap('→ ' + s.sale, isTop ? 28 : 20);
+    const pill = listo ? 26 : 0, h = pill + nl.length * 17 + 5 + al.length * 14, w = isTop ? 196 : 132;
+    const y0 = isTop ? y - 30 - h : y + 32;
+    const ry = isTop ? y0 - 4 : y - 18, rh = isTop ? y + 18 - ry : y0 + h + 4 - ry;
+    let g = `<rect x="${f(x - w / 2)}" y="${f(ry)}" width="${w}" height="${f(rh)}" fill="transparent"/>`;
+    if (pill) g += `<rect x="${f(x - 56)}" y="${f(y0)}" width="112" height="20" rx="10" fill="#FFC857"/><text x="${f(x)}" y="${f(y0 + 14)}" text-anchor="middle" font-family="${SANS}" font-size="11" font-weight="700" fill="#0E1530">ya tiene dojo →</text>`;
+    nl.forEach((t, j) => { g += `<text x="${f(x)}" y="${f(y0 + pill + 13 + j * 17)}" text-anchor="middle" font-family="${SANS}" font-size="${isTop ? 14 : 13}" font-weight="700" ${INK}>${esc(t)}</text>`; });
+    al.forEach((t, j) => { g += `<text x="${f(x)}" y="${f(y0 + pill + nl.length * 17 + 16 + j * 14)}" text-anchor="middle" font-family="${MONO}" font-size="10.5" ${INK3}>${esc(t)}</text>`; });
+    if (k === 'dojo') {
+      g += `<circle cx="${x}" cy="${y}" r="17" fill="none" stroke="#E8AE36" stroke-width="3" class="r-pulso"><animate attributeName="r" values="17;32" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values=".9;0" dur="1.8s" repeatCount="indefinite"/></circle>`;
+      g += `<circle cx="${x}" cy="${y}" r="17" fill="#FFC857" stroke="#0E1530" stroke-width="4"/>`;
+    } else if (k === 'tb') g += `<circle cx="${f(x)}" cy="${y}" r="15" stroke-width="4" class="r-tb"/>`;
+    else g += `<circle cx="${f(x)}" cy="${y}" r="12" stroke="${i <= 4 ? VEL.sem : VEL.dia}" stroke-width="4" class="r-st"/>`;
+    g += `<text x="${f(x)}" y="${f(y + 4)}" text-anchor="middle" font-family="${MONO}" font-size="11" font-weight="700" ${k === 'dojo' ? 'fill="#0E1530"' : INK}>${s.num}</text>`;
+    o += `<a href="${enlace(s)}" data-st="${i}"><title>${s.num} · ${esc(s.titulo)} · sale: ${esc(s.sale)}</title>${g}</a>`;
+  });
+  const L1 = [[VEL.sem, 'semanas', 'el modelo'], [VEL.dia, 'días', 'el código'], [VEL.ms, 'milisegundos', 'una request'], [VEL.cont, 'continuo', 'la operación']];
+  o += `<text x="580" y="${yT + 62}" text-anchor="middle" font-family="${MONO}" font-size="11" font-weight="700" letter-spacing="1.4" ${INK3}>LAS CUATRO VELOCIDADES</text>`;
+  L1.forEach(([c, a, b], j) => { const x = 292 + j * 150, y = yT + 100; o += `<path d="M${x} ${y - 4}H${x + 26}" stroke="${c}" stroke-width="7" stroke-linecap="round"/><text x="${x + 38}" y="${y}" font-family="${SANS}" font-size="13" font-weight="700" ${INK}>${a}</text><text x="${x + 38}" y="${y + 16}" font-family="${SANS}" font-size="12" ${INK3}>${b}</text>`; });
+  const y2 = yT + 158;
+  o += `<circle cx="345" cy="${y2 - 4}" r="8" stroke-width="3.5" class="r-tb"/><text x="363" y="${y2}" font-family="${SANS}" font-size="13" font-weight="700" ${INK}>transbordo</text>`;
+  o += `<path d="M502 ${y2 - 4}H534" stroke="${VEL.cont}" stroke-width="7" stroke-linecap="round" stroke-dasharray="0.1 12"/><text x="546" y="${y2}" font-family="${SANS}" font-size="13" font-weight="700" ${INK}>reentrenamiento</text><text x="546" y="${y2 + 16}" font-family="${SANS}" font-size="12" ${INK3}>vuelve a 1 · Datos</text>`;
+  o += `<circle cx="712" cy="${y2 - 4}" r="9" fill="#FFC857" stroke="#0E1530" stroke-width="3"/><text x="730" y="${y2}" font-family="${SANS}" font-size="13" font-weight="700" ${INK}>ya tiene dojo</text>`;
+  return `<svg class="d-anillo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 ${H}" width="100%" role="group" aria-label="Mapa del C01: 12 estaciones en un anillo, de Datos a Monitoreo, y el reentrenamiento que vuelve a Datos">${o}</svg>`;
+}
+
+// tronco: content/tronco.json · lista: Map id → estación lista (con url y prácticas) · mapa: content/mapa-c01.json
+export function cuerpoPortada({ tronco, lista, mapa, hoja }) {
+  const enlace = (s) => (lista.has(s.id) ? lista.get(s.id).url : `${hoja}#est-${s.id}`);
+  const primera = tronco.estaciones.find((s) => lista.has(s.id));
+  const listas = tronco.estaciones.filter((s) => lista.has(s.id)).length;
+  const indice = [['c01', 'Qué es C01'], ['estaciones', 'Estaciones'], ['mapa', 'El mapa'], ['como', 'Cómo se usa']];
+  const LB = NOMBRE_ETAPA.map((n, i) => [n, rango(i)]);
+  const pips = tronco.estaciones.map((s) => `<span style="background:${COLOR_ETAPA[etapa(s.num)]}${lista.has(s.id) ? '' : ';opacity:.3'}"></span>`).join('');
+
+  const grupos = ETAPAS.map(([a, b], i) => {
+    const filas = tronco.estaciones.filter((s) => s.num >= a && s.num <= b).map((s) => {
+      const e = lista.get(s.id);
+      return `<a class="d-est${e ? ' lista' : ''}" href="${enlace(s)}"><span class="d-est-n">${s.num}</span><span class="d-est-t"><span>${esc(s.titulo)}</span><span>sale: ${esc(s.sale)}</span>${e && e.practicas.length ? `<span class="d-est-x">+ ${e.practicas.length} prácticas desde cero</span>` : ''}</span>${e ? '<span class="d-est-b">Entrar →</span>' : '<span class="d-est-p">próximamente <br>hoja ↗</span>'}</a>`;
+    }).join('');
+    return `<div class="d-etapa" data-etapa="${TM.ST[i][0]}" style="--c:${COLOR_ETAPA[i]}"><div class="d-etapa-h"><i></i><b>${NOMBRE_ETAPA[i]}</b><span>${rango(i)}</span></div>${filas}</div>`;
+  }).join('\n    ');
+
+  // el mapa vertical de la cheat sheet, para el celular: el anillo necesita 780 px
+  const mapv = mapa.mapv.replace(/<a class="stn" href="#est-([a-z]+)" aria-label="([^"]*)">/g, (m, id, lab) => lista.has(id)
+    ? `<a class="stn lista" href="${lista.get(id).url}" aria-label="${lab}. Abrir su página en el dojo">`
+    : `<a class="stn" href="${hoja}#est-${id}" aria-label="${lab}. Su explicación en la cheat sheet">`);
+
+  const paso = (n, t, txt, extra = '') => `<div class="d-card d-uso${extra ? ' d-uso-full' : ''}"><span class="d-uso-n">${n}</span><h3>${t}</h3><p class="d-txt">${txt}</p>${extra}</div>`;
+  const ronda = (n, t, d) => `<div class="d-uso-r"><span><i>${n} </i>${t}</span><span>${d}</span></div>`;
+
+  return `${barra({ ruta: '', volver: '', indice })}
+<div class="d-wrap d-home">
+<section class="d-home-hero">
+  <span class="d-kick">TrueML · Entrenamiento práctico</span>
+  <h1>Dojo de entrenamiento <span>ML engineer's</span></h1>
+  <p class="d-lead">Proyectos chicos que corren en tu Mac, uno por cada estación del camino del dato a producción. Cada uno lo construyes cuatro veces: con ayuda, solo, roto con ayuda y roto solo. Con una explicación rápida de cada concepto en el momento en que lo usas.</p>
+  <div class="d-pips"><div>${pips}</div><span>${listas} de ${tronco.estaciones.length} estaciones listas</span></div>
+  <div class="d-btns">${primera ? `<a class="d-btn" href="${lista.get(primera.id).url}">Empezar por la estación ${primera.num} →</a>` : ''}<a class="d-btn d-btn2" href="#mapa">Ver el mapa</a></div>
+</section>
+
+<div class="d-home-t">
+  <div class="d-hero-mark d-t-grande">${TM.mark(true, LB, 'dojo', 'min(calc(100vh - 150px), 820px)')}</div>
+  <div class="d-hero-mark d-t-chica">${TM.mark(true, null, '', '420px')}</div>
+  <span class="d-t-cap" data-def="Pasa el cursor por una etapa de la lista para verla en la T.">Pasa el cursor por una etapa de la lista para verla en la T.</span>
+</div>
+
+<section class="d-sec" id="c01">
+  ${titulo('Qué es C01', 'el caso del tronco')}
+  <p class="d-p">C01 es el primer caso del curso: un <strong>marketplace de segunda mano</strong> donde quien vende sube fotos al crear una publicación y el sistema le <strong>sugiere la categoría</strong>. Por dentro es un clasificador de imágenes (una ResNet-50 con 500 categorías) servido con Triton en Kubernetes, que responde unas 10 millones de fotos al día y tiene que contestar el 99 % de las veces en menos de 200 ms.</p>
+  <div class="d-c01">${[['500', 'categorías'], ['≈ 10 M', 'fotos al día'], ['≤ 200 ms', 'p99'], ['top-5', 'por foto'], ['1 al mes', 'modelo nuevo']].map(([n, t]) => `<div><b>${n}</b><span>${t}</span></div>`).join('')}</div>
+  <p class="d-p">Es el tronco del dojo porque recorre las 12 estaciones completas: de las fotos etiquetadas al entrenamiento, del modelo aprobado a la imagen de Docker en el clúster, y de la request en vivo al monitoreo que pide el siguiente modelo. Los otros patrones (batch, LLM y RAG, streaming, edge…) cambian solo algunas estaciones, así que llegan después, como ramas.</p>
+  <p class="d-p">En el dojo, cada estación es una versión chica de C01 que corre en tu Mac: los mismos conceptos y las mismas fallas, con otros tamaños. La estación 1, por ejemplo, usa fotos de Fashion-MNIST, 24,000 requests y un S3 local en Docker.</p>
+</section>
+
+<section class="d-sec" id="estaciones">
+  ${titulo(`Las ${tronco.estaciones.length} estaciones`, `agrupadas en la T · ${listas} ${listas === 1 ? 'lista' : 'listas'}`)}
+  <p class="d-p">Doce estaciones, agrupadas en las seis etapas de la T. Entre una estación y la siguiente viaja un artefacto concreto (el snapshot del dataset, el checkpoint, el engine, la imagen de Docker…), y el reentrenamiento cierra el ciclo.</p>
+  <div class="d-etapas">
+    ${grupos}
+  </div>
+  <div class="d-reent"><span>↺</span>Reentrenamiento: vuelve a 1 · Datos</div>
+</section>
+</div>
+
+<section class="d-wrap d-sec d-sec-sola" id="mapa">
+  ${titulo('El mapa del C01', '12 estaciones · 4 tramos')}
+  <p class="d-p">Doce estaciones en cuatro tramos: Datos, Modelo, Release y Operación. Entre una estación y la siguiente viaja un artefacto concreto (el snapshot del dataset, el checkpoint, el engine, la imagen de Docker…), y el reentrenamiento cierra el ciclo. Los colores son las cuatro velocidades: el modelo cambia en semanas, el código en días, una request dura milisegundos y el monitoreo no para.</p>
+  <div class="d-mapa">
+    ${anillo(tronco.estaciones, enlace, lista)}
+    <svg class="sprite" width="0" height="0" aria-hidden="true" focusable="false"><defs>${mapa.simbolos}</defs></svg>
+    <div class="d-mapv">
+      <div class="maplg">${[['semanas', 'semanas', 'el modelo'], ['dias', 'días', 'el código'], ['ms', 'milisegundos', 'una request'], ['continuo', 'continuo', 'la operación']].map(([c, t, d]) => `<span class="lg ln-${c}"><i class="lg-line"></i><b>${t}</b> ${d}</span>`).join('')}<span class="lg"><svg class="lg-x" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11" class="g-fr"/><circle cx="14" cy="14" r="6.5" class="g-i"/></svg>ya tiene dojo</span></div>
+      ${mapv}
+    </div>
+  </div>
+  <p class="d-nota">Toca una estación: la que ya tiene dojo abre su página; las demás, su explicación en la cheat sheet <a href="${hoja}">«Del dato a producción»</a>, de donde sale este mapa.</p>
+</section>
+
+<section class="d-wrap d-sec d-sec-sola" id="como">
+  ${titulo('Cómo se usa el dojo', 'de la lectura a romper')}
+  <p class="d-p">Cada estación es un mini-proyecto con su kit. Esta app es la guía y no corre nada: el trabajo pasa en tu Mac, en la carpeta del kit, con una sesión de Claude Code abierta ahí.</p>
+  <div class="d-usos">
+    ${paso('01', 'Lee antes de tocar', 'En la página de la estación: <strong>el mapa</strong> (dónde estás, qué entra y qué sale), <strong>los precálculos</strong> (las cuentas de servilleta, en C01 y en el dojo) y <strong>los conceptos exprés</strong>. Se lee en el celular, en un rato libre.')}
+    ${paso('02', 'Baja el kit y levanta el mundo', 'Un .zip con una empresa ficticia que ya tiene el problema: sus datos, sus servicios en Docker, un <code>verificar.py</code> que revisa tu trabajo y un <code>romper.py</code> que mete fallas. Cinco comandos y queda arriba.')}
+    ${paso('03', 'Haz las cuatro rondas', 'Copia el prompt de la ronda en la página de la estación y pégalo en Claude Code. El <code>CLAUDE.md</code> del kit pone las reglas de fondo, así que Claude sabe cuánto ayudarte en cada una.',
+      `<div class="d-rondas d-rondas-uso"><span></span><span class="d-eje">Construir</span><span class="d-eje">Romper</span><span class="d-eje d-eje-v">Con ayuda</span>${ronda(1, 'Guiado', 'Construyes el proyecto con Claude Code paso a paso. Cada paso explica el concepto que usa.')}${ronda(3, 'Romper con ayuda', 'Un script mete una falla real. La diagnostican juntos: síntoma, hipótesis, prueba, arreglo.')}<span class="d-eje d-eje-v">Solo</span>${ronda(2, 'Solo', 'Lo rehaces desde el esqueleto con los objetivos y el verificador. Claude no te da código.')}${ronda(4, 'Romper solo', 'El script esconde la falla, ni Claude la sabe. Tú la encuentras y la arreglas.')}</div>`)}
+    ${paso('04', 'Repasa', 'Al final de cada página: el memo de la estación, su trampa, la lista de «listo cuando…» y cómo te lo pueden preguntar en una entrevista.')}
+    ${paso('05', 'Lleva tu registro', 'Claude anota cada ronda en <code>BITACORA.md</code> (qué hiciste, cuánto tardaste, qué pistas usaste) y en <code>taller/progreso.json</code>. Pronto vas a poder subirlo a tu tablero aquí mismo.')}
+  </div>
+  <div class="d-grid2">
+    <div class="d-card"><h3>Qué necesitas</h3><ul class="d-ok-lista"><li>Una Mac con Docker Desktop y unos GB libres</li><li>Python 3.11 o más nuevo</li><li>Claude Code</li></ul><p class="d-nota">Cada estación dice lo suyo en «El kit».</p></div>
+    <div class="d-orden"><h3>En qué orden</h3><p>Del 1 al 12, que es el orden en que el dato viaja en C01. Cada kit trae su propio mundo, así que una estación corre aunque no hayas terminado la anterior.</p>${primera ? `<a class="d-btn" href="${lista.get(primera.id).url}">Empezar por la estación ${primera.num}: ${esc(primera.titulo)}</a>` : ''}</div>
+  </div>
+  <div class="d-card"><h3>Los otros patrones</h3><p class="d-txt">Después del tronco vienen las ramas: batch, LLM y RAG, streaming, edge, asíncrono e híbrido, cada una con su mini-proyecto y solo las estaciones que cambian.</p><div class="d-mini">${['batch', 'LLM y RAG', 'streaming', 'edge', 'asíncrono', 'híbrido'].map((x) => `<span>${x}</span>`).join('')}</div></div>
+</section>
 ${pie}`;
 }

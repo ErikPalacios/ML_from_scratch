@@ -1,4 +1,4 @@
-# Versiones fijadas: así el taller corre igual en tu Mac hoy y dentro de seis meses.
+# Versiones fijadas: así el kit corre igual en tu Mac hoy y dentro de seis meses.
 numpy==2.5.4
 pandas==3.1.0
 pyarrow==26.0.0

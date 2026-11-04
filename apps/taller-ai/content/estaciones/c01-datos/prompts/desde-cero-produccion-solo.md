@@ -1,4 +1,4 @@
-Estoy en el Taller de AI Engineer, estación 1 de C01, ronda **Hazlo solo** de la práctica **En producción: el reentrenamiento**. Ya la hice guiada; ahora la rehago sin ver la guía, en la carpeta de mi «Hazlo solo» anterior (`~/taller/c01-desde-cero-2`, con `dataset-v1` y `modelo-v1`). Puedo copiar `mundo/llegan.py` y `mundo/cuantas_bolsas.py` de la guía: son el mundo.
+Estoy en el Dojo de entrenamiento ML engineer's, estación 1 de C01, ronda **Hazlo solo** de la práctica **En producción: el reentrenamiento**. Ya la hice guiada; ahora la rehago sin ver la guía, en la carpeta de mi «Hazlo solo» anterior (`~/dojo/c01-desde-cero-2`, con `dataset-v1` y `modelo-v1`). Puedo copiar `mundo/llegan.py` y `mundo/cuantas_bolsas.py` de la guía: son el mundo.
 
 Reglas:
 - **No me des código ni me digas qué escribir.** Si te pregunto, contéstame con una pregunta que me haga pensar o con el nombre del concepto.

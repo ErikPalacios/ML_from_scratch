@@ -1,4 +1,4 @@
-Estoy en el Taller de AI Engineer, estación 1 de C01 («Datos y etiquetas»), haciendo la práctica **Antes de producción: tu primer dataset**, desde cero. Trabajo en `~/taller/c01-desde-cero`, que empieza vacía: no hay kit ni `CLAUDE.md`. La guía de la práctica está en la app del Taller, en esa estación.
+Estoy en el Dojo de entrenamiento ML engineer's, estación 1 de C01 («Datos y etiquetas»), haciendo la práctica **Antes de producción: tu primer dataset**, desde cero. Trabajo en `~/dojo/c01-desde-cero`, que empieza vacía: no hay kit ni `CLAUDE.md`. La guía de la práctica está en la app del Dojo, en esa estación.
 
 Vamos paso por paso, del 1 al 11: carpeta y servicios, recolectar, guía, etiquetar en Label Studio, `labels.csv`, dividir, contrato, ficha, versionar con DVC, recuperar y entrenar.
 

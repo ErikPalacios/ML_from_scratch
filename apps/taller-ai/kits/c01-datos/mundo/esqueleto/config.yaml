@@ -1,5 +1,5 @@
 # Parámetros del pipeline de la estación 1. Tu código los lee de aquí; no los copies dentro de los scripts.
-corte: '2026-10-31T00:00:00Z'      # «hoy» en el taller: el pipeline del mes corre con los datos hasta aquí (UTC)
+corte: '2026-10-31T00:00:00Z'      # «hoy» en el dojo: el pipeline del mes corre con los datos hasta aquí (UTC)
 debil:
   dias_maduracion: 30              # una sugerencia aceptada cuenta como label solo si moderación no la corrigió en 30 días
   excluir_sugerencias_desde: null  # fecha UTC desde la que las sugerencias aceptadas no cuentan (null = ninguna)

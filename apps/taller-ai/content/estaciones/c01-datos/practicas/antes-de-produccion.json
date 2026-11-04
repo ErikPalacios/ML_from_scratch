@@ -149,7 +149,7 @@
       ],
       "comandos": [
         {
-          "code": "mkdir -p ~/taller/c01-desde-cero && cd ~/taller/c01-desde-cero\ngit init -b main\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
+          "code": "mkdir -p ~/dojo/c01-desde-cero && cd ~/dojo/c01-desde-cero\ngit init -b main\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
           "nota": "Escribe compose.yaml, requirements.txt y .gitignore antes del pip install.",
           "donde": "mac",
           "salida": null
@@ -506,7 +506,7 @@
     }
   ],
   "solo": [
-    "Una carpeta nueva (<code>~/taller/c01-desde-cero-2</code>), sin abrir esta página: solo con el prompt de «Hazlo solo».",
+    "Una carpeta nueva (<code>~/dojo/c01-desde-cero-2</code>), sin abrir esta página: solo con el prompt de «Hazlo solo».",
     "10 fotos en <code>data/crudo/</code> con nombres que no delatan la clase.",
     "La guía v1 con una regla para cada caso límite que veas en las fotos.",
     "<code>labels.csv</code> con el sha256 como llave, la clase, la guía y el lote.",

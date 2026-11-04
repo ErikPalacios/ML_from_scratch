@@ -1,4 +1,4 @@
-// El molde de una estación del Taller: qué piezas tiene y de qué forma. Lo usan validate.mjs y build.mjs.
+// El molde de una estación del Dojo: qué piezas tiene y de qué forma. Lo usan validate.mjs y build.mjs.
 // Sin dependencias: cada forma es una función que devuelve la lista de errores con su ruta.
 //
 // Una estación = mapa + precálculos + conceptos exprés + mundo (el kit) + Guiado + Solo + fallas + listo + repaso + prompts.
@@ -68,7 +68,7 @@ export const estacion = obj({
     escala: arr(obj({ que: txt, c01: txt, taller: txt }), { min: 3 }),
     'hoja?': txt,                                   // enlace a la estación en la cheat sheet del recorrido
   }),
-  // Las cuentas de servilleta de la estación, antes de escribir código: la misma cuenta en C01 y en el taller.
+  // Las cuentas de servilleta de la estación, antes de escribir código: la misma cuenta en C01 y en el dojo.
   // Cada una se comprueba con un comando sobre el mundo recién creado (salida real) o apunta al paso que la confirma.
   precalculos: obj({
     intro: txt,

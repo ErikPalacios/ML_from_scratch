@@ -1,4 +1,4 @@
-Estoy en el Taller de AI Engineer, estación 1 de C01 («Datos y etiquetas»), haciendo la práctica **En producción: el reentrenamiento**. Sigo en `~/taller/c01-desde-cero`, donde ya terminé «Antes de producción»: tengo `dataset-v1` con tag, `modelo-v1` y los servicios (`docker compose up -d`). La guía de la práctica está en la app del Taller, en esa estación.
+Estoy en el Dojo de entrenamiento ML engineer's, estación 1 de C01 («Datos y etiquetas»), haciendo la práctica **En producción: el reentrenamiento**. Sigo en `~/dojo/c01-desde-cero`, donde ya terminé «Antes de producción»: tengo `dataset-v1` con tag, `modelo-v1` y los servicios (`docker compose up -d`). La guía de la práctica está en la app del Dojo, en esa estación.
 
 Vamos paso por paso, del 1 al 9: llega el mes, atender y dejar el log, elegir qué etiquetar, la guía v2, etiquetar el lote, juntar y dividir, versionar `dataset-v2`, reentrenar y comparar, y reproducir v1.
 

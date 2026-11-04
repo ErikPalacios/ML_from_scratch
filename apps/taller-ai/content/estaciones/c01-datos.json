@@ -66,7 +66,7 @@
     "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-datos"
   },
   "precalculos": {
-    "intro": "Antes de escribir código, las cuentas de servilleta de la estación: cuánto entra, cuántos labels te quedan, cuánto cuesta etiquetar y qué tan fino puedes medir. Cada cuenta va en las dos escalas, C01 y el taller, con lo que decides con ella. Haz la cuenta tú primero y luego ábrela. Las del taller se comprueban con un comando sobre el mundo recién creado o con la salida de un paso del Guiado.",
+    "intro": "Antes de escribir código, las cuentas de servilleta de la estación: cuánto entra, cuántos labels te quedan, cuánto cuesta etiquetar y qué tan fino puedes medir. Cada cuenta va en las dos escalas, C01 y el dojo, con lo que decides con ella. Haz la cuenta tú primero y luego ábrela. Las del dojo se comprueban con un comando sobre el mundo recién creado o con la salida de un paso del Guiado.",
     "cuentas": [
       {
         "id": "volumen",
@@ -126,7 +126,7 @@
           "cuenta": "20 cuentas de 2,000; esperas 1 % de 24,000 = 240. Con p ≈ 0.81 y n = 253",
           "valor": "253 labels, exactitud con ± 4.8 pp"
         },
-        "decide": "El holdout mide sin sesgo, pero cuesta producto: esas cuentas no ven sugerencias. Por eso se queda en 1 %. En C01 sobra volumen; en el taller, 253 alcanzan para ver un cambio grande, no uno de 2 pp. Salieron 253 y no 240 porque unas cuentas publican más que otras.",
+        "decide": "El holdout mide sin sesgo, pero cuesta producto: esas cuentas no ven sugerencias. Por eso se queda en 1 %. En C01 sobra volumen; en el dojo, 253 alcanzan para ver un cambio grande, no uno de 2 pp. Salieron 253 y no 240 porque unas cuentas publican más que otras.",
         "conceptos": [
           "holdout",
           "feedback-loop"
@@ -188,7 +188,7 @@
           "cuenta": "800 × 20 % = 160 ÷ 10 clases; con 10 % serían 80 ÷ 10 = 8",
           "valor": "≈ 16 por clase (en la corrida de referencia, entre 7 y 28)"
         },
-        "decide": "Un kappa por clase con 1 u 8 ejemplos es ruido. En el taller se subió la doble anotación a 20 %, y <code>verificar.py</code> solo exige kappa ≥ 0.6 en las clases con al menos 10 positivos. La cola se carga hacia las clases que se confunden, por eso camisas y suéteres juntan más. En C01, con ≈ 1 por categoría al mes, el kappa por clase se acumula varios meses o se mide en las categorías grandes y en los pares que se confunden.",
+        "decide": "Un kappa por clase con 1 u 8 ejemplos es ruido. En el dojo se subió la doble anotación a 20 %, y <code>verificar.py</code> solo exige kappa ≥ 0.6 en las clases con al menos 10 positivos. La cola se carga hacia las clases que se confunden, por eso camisas y suéteres juntan más. En C01, con ≈ 1 por categoría al mes, el kappa por clase se acumula varios meses o se mide en las categorías grandes y en los pares que se confunden.",
         "conceptos": [
           "kappa"
         ],
@@ -206,7 +206,7 @@
           "cuenta": "500 con p ≈ 0.73; 50 por clase",
           "valor": "± 3.9 pp global; ≈ ± 12 pp por clase"
         },
-        "decide": "El golden set decide si un modelo pasa, así que su tamaño fija la diferencia más chica que puedes ver: en C01, 0.3 pp; en el taller, solo cambios grandes. Por clase el ruido es enorme, por eso el gate por clase pide caídas grandes y un test pareado. Y como vale tanto, nunca entra a entrenamiento ni a la cola.",
+        "decide": "El golden set decide si un modelo pasa, así que su tamaño fija la diferencia más chica que puedes ver: en C01, 0.3 pp; en el dojo, solo cambios grandes. Por clase el ruido es enorme, por eso el gate por clase pide caídas grandes y un test pareado. Y como vale tanto, nunca entra a entrenamiento ni a la cola.",
         "conceptos": [
           "golden-set"
         ],
@@ -466,7 +466,7 @@
       "comandos": [
         {
           "code": "python3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
-          "nota": "Un entorno aislado con las versiones fijadas del taller.",
+          "nota": "Un entorno aislado con las versiones fijadas del dojo.",
           "donde": "mac",
           "salida": null
         },
@@ -720,7 +720,7 @@
         "guia-etiquetado",
         "bucket-seguro"
       ],
-      "explica": "Sobre las 160 dobles calculas el <b>acuerdo bruto</b> y el <b>kappa</b>, global y por clase. scikit-learn no trae kappa por clase: se calcula «uno contra el resto», preguntando para cada categoría si A y B coinciden en «es esta / no es esta». Los desacuerdos van a Label Studio como tareas: la imagen viaja como <b>URL prefirmada</b> (presigned URL) del bucket restringido: vence en 7 días, el máximo con la firma SigV4, y el bucket sigue privado. En AWS, si firmas con credenciales temporales de un rol, la URL muere cuando mueren esas credenciales. En Label Studio (http://localhost:8090, usuario taller@ejemplo.com / taller-etiquetas): crea un proyecto, pega <code>guia/labelstudio-config.xml</code> en Settings → Labeling Interface → Code, importa <code>data/etiquetado/adjudicar-tareas.json</code>, decide cada caso y exporta en <b>JSON_MIN</b> a <code>data/etiquetado/adjudicacion-export.json</code>. Con la guía v1 el kappa se cae justo donde la guía no decide: en la prueba del taller, camisas 0.09, suéteres 0.09, playeras 0.29 y bolsas 0.54; con la v2, la más baja es camisas con 0.82.",
+      "explica": "Sobre las 160 dobles calculas el <b>acuerdo bruto</b> y el <b>kappa</b>, global y por clase. scikit-learn no trae kappa por clase: se calcula «uno contra el resto», preguntando para cada categoría si A y B coinciden en «es esta / no es esta». Los desacuerdos van a Label Studio como tareas: la imagen viaja como <b>URL prefirmada</b> (presigned URL) del bucket restringido: vence en 7 días, el máximo con la firma SigV4, y el bucket sigue privado. En AWS, si firmas con credenciales temporales de un rol, la URL muere cuando mueren esas credenciales. En Label Studio (http://localhost:8090, usuario taller@ejemplo.com / taller-etiquetas): crea un proyecto, pega <code>guia/labelstudio-config.xml</code> en Settings → Labeling Interface → Code, importa <code>data/etiquetado/adjudicar-tareas.json</code>, decide cada caso y exporta en <b>JSON_MIN</b> a <code>data/etiquetado/adjudicacion-export.json</code>. Con la guía v1 el kappa se cae justo donde la guía no decide: en la prueba del dojo, camisas 0.09, suéteres 0.09, playeras 0.29 y bolsas 0.54; con la v2, la más baja es camisas con 0.82.",
       "codigo": [
         {
           "lang": "python",
