@@ -424,9 +424,9 @@
     let themed = 0;
     const off = A.App.onTheme(() => { themed++; });
     tb('dark').click();
-    ok('tema: Oscuro', de.getAttribute('data-theme') === 'dark' && getComputedStyle(document.body).backgroundColor === 'rgb(16, 21, 27)');
+    ok('tema: Oscuro', de.getAttribute('data-theme') === 'dark' && getComputedStyle(document.body).backgroundColor === 'rgb(10, 15, 34)');
     tb('light').click();
-    ok('tema: Claro', de.getAttribute('data-theme') === 'light' && getComputedStyle(document.body).backgroundColor === 'rgb(238, 241, 243)');
+    ok('tema: Claro', de.getAttribute('data-theme') === 'light' && getComputedStyle(document.body).backgroundColor === 'rgb(237, 239, 247)');
     ok('tema: avisa a onTheme', themed >= 1, themed);
     off();
     tb('system').click();

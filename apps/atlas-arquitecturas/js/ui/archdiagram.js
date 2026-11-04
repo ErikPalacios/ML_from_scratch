@@ -1009,18 +1009,18 @@
       const gg = S('g', { class: 'ad-group' + (g.region ? ' ad-region' : '') + (g.repeat ? ' ad-group--repeat' : '') + (g.style === 'batch' ? ' ad-group--batch' : '') + (g.style === 'train' ? ' ad-group--train' : '') + (g.style === 'offline' ? ' ad-group--offline' : '') + (lane ? ' ad-group--lane ad-tone--' + (g.tone || 'muted') : '') + (lane && g.config && g.config === ((ctl.opts && ctl.opts.config) || spec.config) ? ' is-curcfg' : ''), 'data-group': g.id }, L.groups);
       if (g.repeat) {
         used.repeat = true;
-        S('rect', { x: r.x + 10, y: r.y + 10, width: r.w, height: r.h, rx: 6, class: 'ad-stack' }, gg);
-        S('rect', { x: r.x + 5, y: r.y + 5, width: r.w, height: r.h, rx: 6, class: 'ad-stack' }, gg);
+        S('rect', { x: r.x + 10, y: r.y + 10, width: r.w, height: r.h, rx: FRAME_RX, class: 'ad-stack' }, gg);
+        S('rect', { x: r.x + 5, y: r.y + 5, width: r.w, height: r.h, rx: FRAME_RX, class: 'ad-stack' }, gg);
       }
       if (g.heads) {
         used.heads = true;
         const hv = (run && cfgPath(run.config, g.heads)) || 0;
         const n = Math.min(Math.max(hv, 1), 8);
-        for (let i = n - 1; i >= 1; i--) S('rect', { x: r.x + i * 3, y: r.y - i * 3, width: r.w, height: r.h, rx: 6, class: 'ad-deck' }, gg);
+        for (let i = n - 1; i >= 1; i--) S('rect', { x: r.x + i * 3, y: r.y - i * 3, width: r.w, height: r.h, rx: FRAME_RX, class: 'ad-deck' }, gg);
         txt(gg, r.x + r.w + (n - 1) * 3 - 4, r.y - (n - 1) * 3 - 6, (g.headsSym || g.heads) + ' = ' + hv, 'ad-group-tag', 'end');
       }
-      S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: 6, class: 'ad-frame' }, gg);
-      if (g.modality) { used.mods.add(g.modality); S('rect', { x: r.x, y: r.y + 6, width: 4, height: r.h - 12, class: 'ad-stripe ad-mod--' + g.modality }, gg); }
+      S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: FRAME_RX, class: 'ad-frame' }, gg);
+      if (g.modality) { used.mods.add(g.modality); { const ins = Math.min(FRAME_RX, r.h / 4); S('rect', { x: r.x, y: r.y + ins, width: 4, height: r.h - 2 * ins, rx: 2, class: 'ad-stripe ad-mod--' + g.modality }, gg); } }
       if (g.label && !hideTitle) {
         const right = /right$/.test(g.labelPos || '');
         // títulos de región: encima de las aristas (capa de etiquetas) y con halo
@@ -1184,6 +1184,11 @@
     return lg;
   }
 
+  // Esquinas (diseño TrueML): marcos de grupo y carriles con 12; bloques con 8, o un tercio del alto en los
+  // bloques bajitos (que no se vuelvan píldoras). Solo cambia el dibujo, nunca la geometría que valida el layout.
+  const FRAME_RX = 12;
+  function boxRx(r) { return Math.min(8, r.h / 3); }
+
   function blueprint(w, h) {
     // grilla de plano cada 4 u, extendida más allá del área para que el zoom/pan no muestre bordes
     let d = '';
@@ -1238,13 +1243,13 @@
       if (hv > 1) {
         used.heads = true;
         const k = Math.min(hv, 8);
-        for (let i = k - 1; i >= 1; i--) S('rect', { x: r.x + i * 3, y: r.y - i * 3, width: r.w, height: r.h, rx: 4, class: 'ad-box ad-box--deck' }, g);
+        for (let i = k - 1; i >= 1; i--) S('rect', { x: r.x + i * 3, y: r.y - i * 3, width: r.w, height: r.h, rx: boxRx(r), class: 'ad-box ad-box--deck' }, g);
         txt(g, r.x + r.w + (k - 1) * 3 + 4, r.y - (k - 1) * 3 + 4, (n.headsSym || n.heads) + ' = ' + hv, 'ad-heads-tag');
       }
       // fase 9: parallel puede ser una clave del calculador ('cfg.cams': una carta por cámara de π0)
       const par = typeof n.parallel === 'string' ? numKey(run, n.parallel) : n.parallel;
       if (par > 1) {
-        for (let i = Math.min(par, 4) - 1; i >= 1; i--) S('rect', { x: r.x + i * 4, y: r.y + i * 4, width: r.w, height: r.h, rx: 4, class: 'ad-box ad-box--deck' }, g);
+        for (let i = Math.min(par, 4) - 1; i >= 1; i--) S('rect', { x: r.x + i * 4, y: r.y + i * 4, width: r.w, height: r.h, rx: boxRx(r), class: 'ad-box ad-box--deck' }, g);
       }
       // style:'store' = almacén (cilindro): guarda tensores entre pasos (el banco de memoria de SAM 2); no es una
       // operación. Su color sigue siendo el de su op (p. ej. embed: sus únicos parámetros son una tabla).
@@ -1258,8 +1263,8 @@
         // fase 13: node.taper = trapecio (el embudo de recomendación): el borde de abajo mide taper × el de arriba
         const dx = r.w * (1 - n.taper) / 2;
         S('path', { d: 'M' + P([r.x, r.y]) + 'H' + r1(r.x + r.w) + 'L' + P([r.x + r.w - dx, r.y + r.h]) + 'H' + r1(r.x + dx) + 'Z', class: 'ad-box', 'stroke-linejoin': 'round' }, g);
-      } else S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: shape === 'pill' ? Math.min(r.h / 2, 12) : 4, class: 'ad-box' }, g);
-      if (n.modality) S('rect', { x: r.x + 1, y: r.y + 4, width: 3.5, height: r.h - 8, class: 'ad-stripe ad-mod--' + n.modality }, g);
+      } else S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: shape === 'pill' ? Math.min(r.h / 2, 12) : boxRx(r), class: 'ad-box' }, g);
+      if (n.modality) S('rect', { x: r.x + 1.5, y: r.y + Math.min(6, r.h / 4), width: 3.5, height: r.h - 2 * Math.min(6, r.h / 4), rx: 1.75, class: 'ad-stripe ad-mod--' + n.modality }, g);
       if (n.image && ((run && run.config) || nocalc)) {
         const pad = 6, side = Math.min(r.w - 2 * pad, r.h - 2 * pad - (label ? 16 : 0));
         const grid = n.imageGrid != null ? n.imageGrid : run && run.config.P ? Math.round(run.config.H / run.config.P) : 0;
@@ -1347,7 +1352,7 @@
         // marca corta arriba a la derecha (p. ej. "≠ ViT"): diferencias de un modelo frente a su base
         const fw = textW(flag, 10, true) + 10;
         const fl = S('g', { class: 'ad-flag' }, g);
-        S('rect', { x: r1(r.x + r.w - fw - 4), y: r.y - 8, width: r1(fw), height: 14, rx: 3, class: 'ad-flag-bg' }, fl);
+        S('rect', { x: r1(r.x + r.w - fw - 4), y: r.y - 8, width: r1(fw), height: 14, rx: 7, class: 'ad-flag-bg' }, fl);
         txt(fl, r.x + r.w - 4 - fw / 2, r.y + 2.6, flag, 'ad-flag-txt', 'middle');
       }
       if (n.expand && ctl.mode === 'full') {
@@ -1391,7 +1396,7 @@
       } else {
         const c = S('g', { class: 'ad-op--' + it.op }, mg);
         if (it.op) used.ops.add(it.op);
-        S('rect', { x: r1(x), y, width: r1(w), height: hgt, rx: 3, class: 'ad-box' }, c);
+        S('rect', { x: r1(x), y, width: r1(w), height: hgt, rx: 5, class: 'ad-box' }, c);
         txt(c, x + w / 2, y + 11.5, it.label, 'ad-mini-txt', 'middle');
       }
       x += w + gap;
@@ -1674,7 +1679,7 @@
   // fase 10: trainPill:false = solo el rayado (sin la píldora): las 7 lineales congeladas del bloque de LoRA no llevan 7 píldoras
   function drawTrain(g, n, r, used, ctl) {
     const fz = n.train === 'frozen';
-    if (fz) S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: 4, class: 'ad-frozen-hatch', fill: 'url(#' + ctl.id + '-tx-frozen)' }, g);
+    if (fz) S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: boxRx(r), class: 'ad-frozen-hatch', fill: 'url(#' + ctl.id + '-tx-frozen)' }, g);
     if (n.trainPill === false) { used[fz ? 'frozenHatch' : 'trained'] = true; return; }
     used[fz ? 'frozen' : 'trained'] = true;
     const label = fz ? 'congelado' : 'entrena';
@@ -2421,7 +2426,7 @@
     const state = anchor ? 'anchor' : (page && page.ready) ? 'ready' : (it && it.kind === 'card') ? 'card' : 'soon';
     used.map.add('state-' + state);
     const g = S('g', { class: 'ad-node ad-mapnode ad-mapnode--' + state, 'data-node': n.id, 'data-href': '#' + n.id, tabindex: 0, role: 'link' }, parent);
-    S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: r.h / 2 > 10 ? 6 : r.h / 2, class: 'ad-box' }, g);
+    S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: r.h / 2 > 10 ? 9 : r.h / 2, class: 'ad-box' }, g);
     const label = n.label || (it && (it.short || it.title)) || n.id;
     txt(g, r.x + r.w / 2, r.y + r.h / 2 + 4.5, label, 'ad-map-label', 'middle');
     g.setAttribute('aria-label', label + (state === 'ready' ? ' — listo' : state === 'anchor' ? ' — lo que ya sabes' : state === 'card' ? ' — tarjeta de nivel 1' : ' — próximamente' + (it && it.phase ? ' (fase ' + it.phase + ')' : '')));
@@ -2522,7 +2527,7 @@
   function slotBox(ctl, parent, sid, slot, ax, y, align) {
     const st = ctl.slotState[sid] || { text: '?', state: 'empty' };
     const s = S('g', { class: 'ad-slot ad-slot--' + st.state, 'data-slot': sid, 'data-align': align, 'data-ax': r1(ax), 'data-y': r1(y), tabindex: 0, role: 'button', 'aria-label': slotAria(slot, st) }, parent);
-    S('rect', { class: 'ad-slot-box', height: 20, rx: 4 }, s);
+    S('rect', { class: 'ad-slot-box', height: 20, rx: 7 }, s);
     S('text', { class: 'ad-slot-txt', 'text-anchor': 'middle' }, s);
     if (slot.n != null) { const nb = S('g', { class: 'ad-slot-n' }, s); S('circle', { r: 7.5 }, nb); S('text', { 'text-anchor': 'middle' }, nb).textContent = String(slot.n); }
     layoutSlot(s, slot, st);
@@ -2686,7 +2691,7 @@
         const tw = textW(s, e.tagStyle === 'plain' ? 11.5 : 10.5, true) + 8 + li;   // plain = 11.5 px en CSS
         // tagSide:'on' = la etiqueta va sobre la línea (nombra la arista); si no, al costado
         const off = e.tagSide === 'on' ? [0, 0] : la.vertical ? [-(tw / 2) - 8, 0] : [0, 12];
-        S('rect', { x: r1(la.x + off[0] - tw / 2), y: r1(la.y + off[1] - 8), width: r1(tw), height: 15, rx: 3, class: 'ad-tag-bg' }, tg);
+        S('rect', { x: r1(la.x + off[0] - tw / 2), y: r1(la.y + off[1] - 8), width: r1(tw), height: 15, rx: 7.5, class: 'ad-tag-bg' }, tg);
         if (e.loop) loopIcon(tg, la.x + off[0] - tw / 2 + 9, la.y + off[1] - 0.5, 4);
         txt(tg, la.x + off[0] + li / 2, la.y + off[1] + 3.5, s, 'ad-tag-txt', 'middle');
       }
@@ -2753,7 +2758,7 @@
       item((s) => {
         const g = S('g', { class: 'ad-op--' + o.id }, s);
         if (o.id === 'tensorop') { S('circle', { cx: 13, cy: 8, r: 6.5, class: 'ad-box' }, g); drawSymbol(g, 'add', 13, 8, 6.5); }
-        else S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-box' }, g);
+        else S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 4, class: 'ad-box' }, g);
       }, ((view.spec && view.spec.opLegend) || {})[o.id] || o.title);   // fase 13: spec.opLegend = rótulo propio por op (GBDT)
     }
     const mods = ATLAS.MODALITIES || [];
@@ -2817,17 +2822,17 @@
     if (used.layers) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-layer' + (i === 2 ? ' is-tap' : i === 3 ? ' is-off' : '') }, s)); }, 'Capas del encoder: resaltada = de la que se toman las features; atenuada = no se usa');
     if (used.frozen) item((s) => { const g = S('g', { class: 'ad-train ad-train--frozen' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-train-bg' }, g); trainIcon(g, true, 13, 8); }, 'Congelado: sus pesos no se actualizan en esta etapa');
     // fase 10: congelado solo con el rayado (trainPill:false) o en un tramo de barra: la muestra es el rayado
-    if (used.frozenHatch && !used.frozen) item((s) => { const g = S('g', { class: 'ad-op--embed' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-box' }, g); defs(s, lid + '-lfz'); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frozen-hatch', fill: 'url(#' + lid + '-lfz-tx-frozen)' }, g); }, ((view.spec && view.spec.legendText) || {}).frozenHatch || 'Rayado: congelado (sus pesos no se actualizan)');
+    if (used.frozenHatch && !used.frozen) item((s) => { const g = S('g', { class: 'ad-op--embed' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 4, class: 'ad-box' }, g); defs(s, lid + '-lfz'); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 4, class: 'ad-frozen-hatch', fill: 'url(#' + lid + '-lfz-tx-frozen)' }, g); }, ((view.spec && view.spec.legendText) || {}).frozenHatch || 'Rayado: congelado (sus pesos no se actualizan)');
     // fase 10 (revisión): solo tramos de barra rayados (las vistas de memoria): la muestra es un tramo gris rayado, como en la barra
     if (used.frozenBarHatch && !used.frozen && !used.frozenHatch) item((s) => { S('rect', { x: 2, y: 3, width: 22, height: 10, class: 'ad-bar-seg ad-op--norm' }, s); defs(s, lid + '-lfb'); S('rect', { x: 2, y: 3, width: 22, height: 10, class: 'ad-frozen-hatch', fill: 'url(#' + lid + '-lfb-tx-frozen)' }, s); }, ((view.spec && view.spec.legendText) || {}).frozenHatch || 'Rayado: congelado (sus pesos no se actualizan)');
     // fase 10 (revisión): contorno punteado = no es otro modelo en memoria (la referencia de DPO con LoRA: la base sin adaptadores)
-    if (used.ghost) item((s) => { const g = S('g', { class: 'ad-node--ghost ad-op--attn' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-box' }, g); }, ((view.spec && view.spec.legendText) || {}).ghost || 'Contorno punteado: no es otro modelo en memoria');
+    if (used.ghost) item((s) => { const g = S('g', { class: 'ad-node--ghost ad-op--attn' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 4, class: 'ad-box' }, g); }, ((view.spec && view.spec.legendText) || {}).ghost || 'Contorno punteado: no es otro modelo en memoria');
     if (used.trained) item((s) => { const g = S('g', { class: 'ad-train ad-train--on' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-train-bg' }, g); trainIcon(g, false, 13, 8); }, 'Entrena: sus pesos se actualizan en esta etapa');
     if (used.xref) item((s) => { S('path', { d: 'M8 13l9,-9M11 4h6v6', class: 'ad-expand-ico', style: 'stroke:var(--ink)' }, s); }, 'Enlace: se ve por dentro en otra página');
     // fase 8: bucle de muestreo, veces que corre cada red y la barra del costo por imagen
     // fase 9: spec.legendText = textos propios de estas entradas (VLA: "por acción" / "por chunk", no "por imagen")
     const LT = (view.spec && view.spec.legendText) || {};
-    if (used.loop) item((s) => { const g = S('g', { class: 'ad-tag' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 3, class: 'ad-tag-bg' }, g); loopIcon(g, 13, 8, 4.2); }, LT.loop || 'Bucle: se repite en cada paso de muestreo');
+    if (used.loop) item((s) => { const g = S('g', { class: 'ad-tag' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-tag-bg' }, g); loopIcon(g, 13, 8, 4.2); }, LT.loop || 'Bucle: se repite en cada paso de muestreo');
     if (used.runs) item((s) => { const g = S('g', { class: 'ad-runs' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-runs-bg' }, g); loopIcon(g, 13, 8, 3.6); }, LT.runs || 'Veces que corre por imagen (en el bucle)');
     if (used.runsOnce) item((s) => { const g = S('g', { class: 'ad-runs ad-runs--once' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-runs-bg' }, g); loopIcon(g, 13, 8, 3.6); }, LT.runsOnce || 'Veces que corre por imagen (fuera del bucle)');
     // fase 10 (revisión): la muestra usa las clases de los dos primeros tramos de la barra dibujada (en PPO no hay tono "loop")
@@ -2853,15 +2858,15 @@
     if (used.cellsRows) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [2, 6, 10].forEach((y, i) => S('rect', { x: 2, y, width: 22, height: 3, class: 'ad-cell-row' + (i === 1 ? ' is-lit' : '') }, g)); }, LT.cellsRows || 'Filas: listas del índice; resaltadas = las que se recorren');
     if (used.layered) item((s) => { const g = S('g', { class: 'ad-layered' }, s); S('path', { d: 'M4 3H24L21 7H1Z', class: 'ad-lay-plane' }, g); S('path', { d: 'M4 9H24L21 13H1Z', class: 'ad-lay-plane' }, g); S('path', { d: 'M8 5L8 11', class: 'ad-lay-drop' }, g); S('path', { d: 'M8 11L16 11', class: 'ad-lay-path' }, g); S('circle', { cx: 8, cy: 5, r: 2.6, class: 'ad-lay-ep' }, g); S('path', { d: 'M19 11L21 9L23 11L21 13Z', class: 'ad-lay-q' }, g); }, LT.layered || 'Grafo por capas (ilustrativo): la ruta resaltada es la búsqueda codiciosa');
     if (used.matrix) item((s) => { const g = S('g', { class: 'ad-op--embed' }, s); S('rect', { x: 3, y: 2, width: 12, height: 12, class: 'ad-mat-box' }, g); S('rect', { x: 18, y: 2, width: 3, height: 12, class: 'ad-mat-box' + (used.matrixClamped ? ' is-clamped' : '') }, g); }, LT.matrix || 'Matriz de pesos a escala (lineal): filas × columnas');
-    if (used.closed) item((s) => { const g = S('g', { class: 'ad-node--closed' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-box' }, g); }, 'Caja negra: pesos cerrados (no se ve por dentro)');
+    if (used.closed) item((s) => { const g = S('g', { class: 'ad-node--closed' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 4, class: 'ad-box' }, g); }, 'Caja negra: pesos cerrados (no se ve por dentro)');
     if (used.bins) item((s) => { const g = S('g', { class: 'ad-bins' }, s); S('rect', { x: 2, y: 4, width: 22, height: 8, class: 'ad-bins-track' }, g); S('path', { d: 'M5 4V12M8 4V12M11 4V12M14 4V12M17 4V12M20 4V12', class: 'ad-bins-tick' }, g); S('rect', { x: 13, y: 3, width: 4, height: 10, class: 'ad-bins-on' }, g); }, 'Bins de una dimensión de la acción (resaltado: el del ejemplo, ilustrativo)');
     if (used.maskGrid) item((s) => { [[3, 3, 1], [9, 3, 0], [15, 3, 0], [3, 9, 1], [9, 9, 1], [15, 9, 0]].forEach(([x, y, on]) => S('rect', { x, y, width: 5, height: 5, class: on ? 'ad-mask-on ad-mod--img' : 'ad-mask-off' }, s)); }, 'Máscara de atención: fila = query, columna = key; llena = permitido, vacía = bloqueado (−∞)' + (used.maskRun ? '; filas atenuadas = no corren en el paso' : ''));
     if (used.repeat) item((s) => { S('rect', { x: 7, y: 6, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 4.5, y: 3.5, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 2, y: 1, width: 16, height: 9, rx: 2, class: 'ad-frame' }, s); }, LT.repeat || 'Bloque repetido × L');
     if (used.heads) item((s) => { const g = S('g', { class: 'ad-op--attn' }, s); for (let i = 3; i >= 0; i--) S('rect', { x: 2 + i * 2.5, y: 5 - i * 1.5, width: 14, height: 9, rx: 2, class: 'ad-box' + (i ? ' ad-box--deck' : '') }, g); }, 'Una carta por cabeza (h)');
-    if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
-    if (used.train) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--train' }, s); }, 'Marco gris discontinuo: solo en entrenamiento');
-    if (used.offline) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--offline' }, s); }, 'Marco ámbar: offline (una vez, antes de la inferencia)');
-    if (used.lanes) for (const [label, tone] of used.lanes) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--lane ad-tone--' + tone }, s); }, label);
+    if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 4, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
+    if (used.train) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 4, class: 'ad-frame ad-frame--train' }, s); }, 'Marco gris discontinuo: solo en entrenamiento');
+    if (used.offline) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 4, class: 'ad-frame ad-frame--offline' }, s); }, 'Marco ámbar: offline (una vez, antes de la inferencia)');
+    if (used.lanes) for (const [label, tone] of used.lanes) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 4, class: 'ad-frame ad-frame--lane ad-tone--' + tone }, s); }, label);
     if (used.badge) item((s) => { S('rect', { x: 1, y: 3, width: 24, height: 10, rx: 5, class: 'ad-badge-bg' }, s); S('path', { d: 'M5,8m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M7,8h3.5M9.5,8v2', class: 'ad-key' }, s); }, 'Parámetros aprendibles');
     // antes "opts && …": nunca se mostraba. Fase 9: sin calculador (calc:false) no hay formas, y una vista sin aristas (la
     // máscara de π0) no lleva el ejemplo fijo de ViT

@@ -16,6 +16,8 @@
   const { h, icon } = D;
   const store = ATLAS.store;
   const APP_NAME = 'Atlas de Arquitecturas';
+  // La T de vidrio de TrueML (vendor/trueml/trueml-mark.js). El atlas cubre una sola etapa de la T: Modelo.
+  const tmMark = (labels, key, maxH) => (root.TrueMLMark ? root.TrueMLMark.mark(true, labels, key, maxH) : '');
 
   const MODEL_TEMPLATE = ATLAS.MODEL_TEMPLATE || [];
 
@@ -441,6 +443,8 @@
     f.appendChild(h('div', { class: 'foot-row' }, h('span', { class: 'foot-row__label', 'aria-hidden': 'true' }, 'Tema'), seg));
     f.appendChild(h('button', { type: 'button', class: 'btn btn--sm', id: 'btn-portability', on: { click: openPortability } },
       h('span', { html: icon('database') }), 'Exportar / importar progreso'));
+    f.appendChild(h('a', { class: 'foot-tm', href: 'https://ml-desde-cero.vercel.app' },
+      h('span', { class: 'foot-tm__mark', html: tmMark(null) }), h('span', null, 'Todas las herramientas de ', h('b', null, 'True', h('span', null, 'ML')))));
     renderStatus();
   }
 
@@ -1007,10 +1011,19 @@
     const m = meta('inicio');
     const summary = m.purpose ? m.purpose :
       'Atlas de arquitecturas a <b>nivel 2</b> para entrevistas de ML/AI Engineer: diagrama de bloques, matemáticas y la forma de cada tensor —con parámetros y FLOPs calculados, no copiados— de los modelos que combinan atención y visión, y después LLMs, retrieval y robótica.';
+    // La T con etiquetas y solo la etapa Modelo encendida: el atlas es lo que pasa dentro del modelo.
+    const scene = h('figure', { class: 'home-t', 'aria-hidden': 'true' },
+      h('div', { class: 'home-t__mark', html: tmMark(1, 'atlas', '360px') }),
+      h('figcaption', { class: 'home-t__cap' }, 'Etapa ', h('b', null, 'Modelo'), ': el modelo por dentro, bloque por bloque'));
     c.appendChild(h('header', { class: 'phead home-hero' },
-      h('p', { class: 'eyebrow' }, 'Panel de estudio'),
-      h('h1', { class: 'phead__title', id: 'page-title', tabindex: '-1' }, APP_NAME),
-      h('p', { class: 'phead__summary', html: summary })));
+      h('div', { class: 'home-hero__txt' },
+        h('p', { class: 'eyebrow' }, 'Panel de estudio'),
+        h('h1', { class: 'phead__title', id: 'page-title', tabindex: '-1' }, APP_NAME),
+        h('p', { class: 'phead__summary', html: summary }),
+        h('p', { class: 'home-hero__note' }, 'De las seis etapas de la T de TrueML, el atlas cubre ', h('b', null, 'Modelo'), ': la arquitectura, sus fórmulas y la forma de cada tensor.')),
+      scene));
+    const tEl = scene.querySelector('.home-t__mark');
+    if (root.TrueMLMark) { root.TrueMLMark.sync(tEl, ['modelo']); if (root.TrueMLMark.play) root.TrueMLMark.play(tEl); }
 
     const row = (k, small, ...body) => h('section', { class: 'drow', 'aria-label': k },
       h('h2', { class: 'drow__label' }, k, small ? h('small', null, small) : null), h('div', { class: 'drow__body' }, body));
@@ -1399,6 +1412,7 @@
     if (!els.page || !els.nav) { if (root.console) root.console.error('[app] index.html no tiene los contenedores esperados'); return; }
 
     applyTheme(store.pref('theme'));
+    document.querySelectorAll('[data-tm-mark]').forEach((el) => { el.innerHTML = tmMark(null); });
     if (darkMq) {
       const onScheme = () => emitTheme();
       if (darkMq.addEventListener) darkMq.addEventListener('change', onScheme); else if (darkMq.addListener) darkMq.addListener(onScheme);

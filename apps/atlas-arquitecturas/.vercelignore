@@ -1,4 +1,4 @@
-# Vercel solo necesita index.html, css/, js/, build.mjs, tools/build-web.mjs, web/, vendor/lab/ y
+# Vercel solo necesita index.html, css/, js/, build.mjs, tools/build-web.mjs, web/, vendor/ (lab y trueml) y
 # package.json (Root Directory = apps/atlas-arquitecturas). Rutas ancladas a esta carpeta con "/".
 # Nada del build depende de un archivo que empiece con punto (Vercel no sube dotfiles).
 /dist

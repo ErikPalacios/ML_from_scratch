@@ -94,6 +94,7 @@ function load(f) {
 const rawPages = {};       // páginas tal como las registra cada archivo (antes de reordenar secciones)
 for (const f of scripts) {
   if (f === 'js/app.js') continue;     // arranca la app: necesita el DOM
+  if (/^vendor\//.test(f)) continue;   // copia del sistema de diseño TrueML (la T): no es contenido y necesita window
   load(f);
   const A = ctx.ATLAS;
   if (f === 'js/core/registry.js' && A && typeof A.register === 'function' && !A.__wrapped) {

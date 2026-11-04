@@ -7,7 +7,7 @@
 //                               como Artifact de claude.ai; declara capabilities {db:{}, user:{}}
 //                               para que el progreso se guarde en la cuenta)
 // Se incrustan todos los <link rel="stylesheet" href="css/…"> y <script src="js/…"> locales;
-// Google Fonts y MathJax (cdnjs) se mantienen como recursos externos.
+// MathJax (cdnjs) se mantiene como recurso externo (la app usa las fuentes del sistema).
 // Cada salida lleva window.ATLAS_ENV ('single' | 'artifact'; build-web.mjs lo cambia a 'web'):
 // ATLAS.labLink lo usa para decidir a dónde apunta el enlace al Laboratorio Transformer (SPEC §10.3).
 // Uso: node build.mjs [--allow-missing]   (con --allow-missing, un archivo local ausente solo avisa)
@@ -45,7 +45,7 @@ let out = html;
 // hojas de estilo locales → <style>
 out = out.replace(/<link\b[^>]*\brel=["']stylesheet["'][^>]*>/gi, (tag) => {
   const m = /\bhref=["']([^"']+)["']/i.exec(tag);
-  if (!m || /^(https?:)?\/\//i.test(m[1])) return tag; // externo (Google Fonts): se deja
+  if (!m || /^(https?:)?\/\//i.test(m[1])) return tag; // externo: se deja
   const css = readLocal(m[1]);
   if (css === null) return allowMissing ? '<!-- falta ' + m[1] + ' -->' : tag;
   return '<style data-src="' + m[1] + '">\n' + escStyle(css) + '\n</style>';

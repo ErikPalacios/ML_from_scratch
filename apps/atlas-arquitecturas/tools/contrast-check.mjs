@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Atlas de Arquitecturas — tools/contrast-check.mjs (SPEC §3.2)
-// Lee los tokens de css/app.css (claro = bloques `:root {…}`, oscuro = `:root[data-theme="dark"] {…}`
-// sobre el claro), resuelve var(--x) y comprueba cada par de colores que usan los diagramas y las
+// Lee los tokens de vendor/trueml/tokens.css (los --tm-* del sistema TrueML) y de css/app.css (claro = bloques
+// `:root {…}`, oscuro = `:root[data-theme="dark"] {…}` sobre el claro), resuelve var(--x) y comprueba cada par de colores que usan los diagramas y las
 // visualizaciones (css/diagram.css), en ambos temas:
 //   gráficos (trazos de bloques, aristas, glifos)  ≥ 3:1 contra su fondo
 //   texto (etiquetas, formas, insignias)           ≥ 4.5:1 contra su fondo
@@ -12,7 +12,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const css = readFileSync(join(here, '..', 'css', 'app.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+const css = ['vendor/trueml/tokens.css', 'css/app.css'].map((f) => readFileSync(join(here, '..', f), 'utf8')).join('\n')
+  .replace(/\/\*[\s\S]*?\*\//g, '');
 const verbose = process.argv.includes('--verbose');
 
 function blocks(selectorRe) {

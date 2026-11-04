@@ -29,8 +29,9 @@ Además, el Mapa, el Repaso de atención y la hoja de formas y fórmulas.
   `apps/atlas-arquitecturas`; el resto lo toma de `vercel.json`. Después de abrirla una vez con
   internet funciona sin conexión, fórmulas incluidas.
 
-Recursos externos: MathJax 3 (cdnjs) y las fuentes IBM Plex. Sin conexión, las fórmulas se muestran
-como LaTeX legible y se usan las fuentes del sistema.
+Diseño TrueML (el mismo del Dojo y la Ronda): `vendor/trueml/` (copia del sistema de diseño: tokens y la T) y
+`css/trueml.css` encima del CSS del atlas, con las fuentes del sistema. Único recurso externo: MathJax 3 (cdnjs).
+Sin conexión, las fórmulas se muestran como LaTeX legible.
 
 ## De dónde salen los números
 

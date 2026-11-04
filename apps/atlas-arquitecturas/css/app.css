@@ -18,49 +18,53 @@
    ========================================================================== */
 
 /* ---------------------------------------------------------------------------
-   1. TOKENS — claro (bare :root)
+   1. TOKENS — conectados al sistema de diseño TrueML (vendor/trueml/tokens.css va antes que este archivo).
+      Los --tm-* cambian solos entre claro y oscuro; aquí quedan los nombres de siempre (los consumen
+      diagram.css y practice.css) y las paletas propias del atlas: operaciones y modalidades.
+      tools/contrast-check.mjs lee este bloque (y tokens.css para resolver los --tm-*).
    ------------------------------------------------------------------------ */
 :root {
-  --bg:#EEF1F3; --surface:#FBFCFC; --surface-2:#F3F5F7;
-  --ink:#141B22; --muted:#5B6672; --rule:#D3D9DF; --rule-strong:#A9B3BD;
-  --accent:#2B5BD7; --accent-ink:#1E46B0; --accent-soft:#E3EAFB;
-  --ok:#25734A; --ok-soft:#DDF0E4;
-  --bad:#B3261E; --bad-soft:#F8E0DE;
-  --warn:#9A5A06; --warn-soft:#F6E9D5;
-  --focus:#2B5BD7;
-  --grid:#DCE2E8;            /* grilla de plano detrás de los diagramas */
-  --shadow-1:0 1px 2px rgba(20,27,34,.06);
-  --shadow-pop:0 8px 28px rgba(20,27,34,.16);
+  --bg:var(--tm-bg); --surface:var(--tm-card); --surface-2:#F4F6FC;
+  --ink:var(--tm-ink); --ink-2:var(--tm-ink2); --muted:var(--tm-ink3); --rule:var(--tm-line); --rule-strong:#C3C9DD;
+  --accent:var(--tm-acc); --accent-ink:#2C45D6; --accent-soft:var(--tm-chip);
+  --ok:var(--tm-okink); --ok-soft:var(--tm-ok);
+  --bad:#C42B22; --bad-soft:#FBE7E5;
+  --warn:#8F6108; --warn-soft:#FBF0D8;   /* ámbar de la T (--tm-dojo), un poco más oscuro: se usa como texto */
+  --focus:var(--tm-acc);
+  --grid:#EDEFF6;            /* grilla de plano detrás de los diagramas */
+  --shadow-1:var(--tm-sh);
+  --shadow-pop:0 18px 44px -14px rgba(14,21,48,.32), 0 0 0 1px rgba(14,21,48,.06);
   /* extensiones (derivadas): texto sobre acento, velo de cajón/modal, trama "próximamente" */
   --on-accent:#FFFFFF;
-  --scrim:rgba(20,27,34,.42);
-  --hatch:#B7C0C9;
+  --scrim:rgba(10,15,34,.46);
+  --hatch:#B9C0D6;
 
-  /* §3.1 paleta de operaciones: trazo / relleno suave */
-  --op-embed:#2B5BD7;  --op-embed-soft:#E3EAFB;
-  --op-attn:#B4307A;   --op-attn-soft:#F7E1EE;
-  --op-norm:#5B6672;   --op-norm-soft:#E7EBEE;
-  --op-mlp:#25734A;    --op-mlp-soft:#DDF0E4;
-  --op-conv:#9A5A06;   --op-conv-soft:#F6E9D5;
-  --op-fuse:#7445A8;   --op-fuse-soft:#EEE6F7;
-  --op-head:#0E7C74;   --op-head-soft:#D5ECE9;
+  /* §3.1 paleta de operaciones: trazo / relleno suave. Mismos tonos de siempre (los textos los nombran:
+     «marco azul», «violeta», «verde azulado», «ámbar»); la norma pasa al pizarra de la T (--n). */
+  --op-embed:#2B5BD7;  --op-embed-soft:#E1E8F9;
+  --op-attn:#B4307A;   --op-attn-soft:#F4E2EC;
+  --op-norm:#5A6699;   --op-norm-soft:#E8EAF1;
+  --op-mlp:#25734A;    --op-mlp-soft:#E0EBE6;
+  --op-conv:#9A5A06;   --op-conv-soft:#F1E8DC;
+  --op-fuse:#7445A8;   --op-fuse-soft:#ECE5F3;
+  --op-head:#0E7C74;   --op-head-soft:#DDEDEC;
   --op-tensorop:var(--muted); --op-tensorop-soft:var(--surface);
   --op-io:var(--ink);  --op-io-soft:var(--surface-2);
   /* §3.2 paleta de modalidades (glifos de tensor y franja de encoders) */
-  --mod-img:#0B7FA6; --mod-txt:#A4501B; --mod-act:#5C7A12; --mod-aud:#8A6D00; --mod-lat:#6B6F76; --mod-qry:#3D4FAE;
+  --mod-img:#0B7FA6; --mod-txt:#A4501B; --mod-act:#5C7A12; --mod-aud:#8A6D00; --mod-lat:#6B6F80; --mod-qry:#3D4FAE;
 
-  --font-display:'IBM Plex Sans Condensed', 'Arial Narrow', system-ui, sans-serif;
-  --font-body:'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono:'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --fs-xs:12px; --fs-sm:13.5px; --fs-md:16px; --fs-lg:19px; --fs-xl:24px; --fs-2xl:32px;
-  --r-1:3px; --r-2:6px;
+  --font-display:var(--sans);
+  --font-body:var(--sans);
+  --font-mono:var(--mono);
+  --fs-xs:12px; --fs-sm:13.5px; --fs-md:16px; --fs-lg:19px; --fs-xl:26px; --fs-2xl:40px;
+  --r-1:6px; --r-2:12px; --r-3:20px;
   --gap:12px; --gutter:16px;
   --ease:cubic-bezier(.2,.7,.2,1); --dur:160ms;
-  --sidebar-w:288px; --content-max:820px; --toc-w:220px;
+  --sidebar-w:296px; --content-max:820px; --toc-w:220px;
   --toc-gap:56px;
   --content-wide:1040px;   /* páginas sin TOC (inicio, práctica, referencias) */
   --figure-max:1100px;     /* diagramas .wide en pantallas anchas */
-  --topbar-h:52px;
+  --topbar-h:56px;
   color-scheme: light;
 }
 /* rellenos de modalidad al 18 % (derivados: siguen al tema solos) */
@@ -73,56 +77,48 @@
   --mod-qry-soft:color-mix(in srgb, var(--mod-qry) 18%, transparent);
 }
 
-/* 1b. oscuro por preferencia del sistema (salvo que se fuerce claro) */
+/* 1b. oscuro: por preferencia del sistema (salvo que se fuerce claro) o forzado por el conmutador.
+   Los dos bloques son iguales (contrast-check.mjs lee el de data-theme). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:#10151B; --surface:#151B22; --surface-2:#1B232C;
-    --ink:#E6EBF0; --muted:#95A1AD; --rule:#27313B; --rule-strong:#3C4854;
-    --accent:#7CA2FF; --accent-ink:#9DB9FF; --accent-soft:#1A2544;
-    --ok:#5CC98A; --ok-soft:#133022;
-    --bad:#F07A70; --bad-soft:#3A1A18;
-    --warn:#E3A34B; --warn-soft:#35270F;
-    --focus:#7CA2FF;
-    --grid:#18222C;
-    --shadow-1:0 1px 2px rgba(0,0,0,.4);
-    --shadow-pop:0 8px 28px rgba(0,0,0,.5);
-    --on-accent:#0B1016;
-    --scrim:rgba(0,0,0,.55);
-    --hatch:#3C4854;
-    --op-embed:#7CA2FF;  --op-embed-soft:#1A2544;
-    --op-attn:#F07BBE;   --op-attn-soft:#3A1630;
-    --op-norm:#A3AFBB;   --op-norm-soft:#232C35;
-    --op-mlp:#5CC98A;    --op-mlp-soft:#133022;
+    --surface-2:#182148; --rule-strong:#36437A;
+    --accent-ink:#A9B7FF;
+    --bad:#FF7B6E; --bad-soft:#3A1C1E;
+    --warn:var(--tm-dojo); --warn-soft:#352A12;
+    --grid:#18213F;
+    --shadow-pop:0 18px 44px -14px rgba(0,0,0,.7), 0 0 0 1px #232C52;
+    --on-accent:#0A0F22;
+    --scrim:rgba(0,0,0,.6);
+    --hatch:#3A4672;
+    --op-embed:#7CA2FF;  --op-embed-soft:#1C2858;
+    --op-attn:#F07BBE;   --op-attn-soft:#3A1636;
+    --op-norm:#A3ACD0;   --op-norm-soft:#232C4E;
+    --op-mlp:#5CC98A;    --op-mlp-soft:#123227;
     --op-conv:#E3A34B;   --op-conv-soft:#35270F;
-    --op-fuse:#B794F0;   --op-fuse-soft:#2A1F3D;
-    --op-head:#3CC2B4;   --op-head-soft:#12302E;
-    --mod-img:#4CC3EA; --mod-txt:#F0955A; --mod-act:#A9CF4F; --mod-aud:#E5C443; --mod-lat:#B4B9C0; --mod-qry:#97A6FF;
+    --op-fuse:#B794F0;   --op-fuse-soft:#2A2050;
+    --op-head:#3CC2B4;   --op-head-soft:#0F3236;
+    --mod-img:#4CC3EA; --mod-txt:#F0955A; --mod-act:#A9CF4F; --mod-aud:#E5C443; --mod-lat:#B4B9C8; --mod-qry:#97A6FF;
     color-scheme: dark;
   }
 }
-/* 1c. oscuro forzado por el conmutador de tema */
 :root[data-theme="dark"] {
-  --bg:#10151B; --surface:#151B22; --surface-2:#1B232C;
-  --ink:#E6EBF0; --muted:#95A1AD; --rule:#27313B; --rule-strong:#3C4854;
-  --accent:#7CA2FF; --accent-ink:#9DB9FF; --accent-soft:#1A2544;
-  --ok:#5CC98A; --ok-soft:#133022;
-  --bad:#F07A70; --bad-soft:#3A1A18;
-  --warn:#E3A34B; --warn-soft:#35270F;
-  --focus:#7CA2FF;
-  --grid:#18222C;
-  --shadow-1:0 1px 2px rgba(0,0,0,.4);
-  --shadow-pop:0 8px 28px rgba(0,0,0,.5);
-  --on-accent:#0B1016;
-  --scrim:rgba(0,0,0,.55);
-  --hatch:#3C4854;
-  --op-embed:#7CA2FF;  --op-embed-soft:#1A2544;
-  --op-attn:#F07BBE;   --op-attn-soft:#3A1630;
-  --op-norm:#A3AFBB;   --op-norm-soft:#232C35;
-  --op-mlp:#5CC98A;    --op-mlp-soft:#133022;
+  --surface-2:#182148; --rule-strong:#36437A;
+  --accent-ink:#A9B7FF;
+  --bad:#FF7B6E; --bad-soft:#3A1C1E;
+  --warn:var(--tm-dojo); --warn-soft:#352A12;
+  --grid:#18213F;
+  --shadow-pop:0 18px 44px -14px rgba(0,0,0,.7), 0 0 0 1px #232C52;
+  --on-accent:#0A0F22;
+  --scrim:rgba(0,0,0,.6);
+  --hatch:#3A4672;
+  --op-embed:#7CA2FF;  --op-embed-soft:#1C2858;
+  --op-attn:#F07BBE;   --op-attn-soft:#3A1636;
+  --op-norm:#A3ACD0;   --op-norm-soft:#232C4E;
+  --op-mlp:#5CC98A;    --op-mlp-soft:#123227;
   --op-conv:#E3A34B;   --op-conv-soft:#35270F;
-  --op-fuse:#B794F0;   --op-fuse-soft:#2A1F3D;
-  --op-head:#3CC2B4;   --op-head-soft:#12302E;
-  --mod-img:#4CC3EA; --mod-txt:#F0955A; --mod-act:#A9CF4F; --mod-aud:#E5C443; --mod-lat:#B4B9C0; --mod-qry:#97A6FF;
+  --op-fuse:#B794F0;   --op-fuse-soft:#2A2050;
+  --op-head:#3CC2B4;   --op-head-soft:#0F3236;
+  --mod-img:#4CC3EA; --mod-txt:#F0955A; --mod-act:#A9CF4F; --mod-aud:#E5C443; --mod-lat:#B4B9C8; --mod-qry:#97A6FF;
   color-scheme: dark;
 }
 
