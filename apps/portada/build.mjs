@@ -62,7 +62,7 @@ const vars = {
   REPO: site.repo, ISSUES: site.issues, YEAR: new Date().getFullYear(), DATE: today,
   JSONLD: JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebSite', name: site.name, url: site.url + '/', inLanguage: 'es',
     description: site.description, author: { '@type': 'Person', name: site.author }, license: 'https://creativecommons.org/licenses/by-nc-nd/4.0/' }).replace(/</g, '\\u003c'),
-  NAVMARK: marca(), TEMA: selectorTema(), KICKER: esc(site.kicker), BOTONES: site.botones.map(boton).join(''),
+  NAVMARK: marca(), TEMA: selectorTema(), KICKER: esc(site.kicker), BOTONES: site.botones?.length ? `    <div class="p-btns">${site.botones.map(boton).join('')}</div>\n` : '',
   T, CAPTION: esc(site.caption), DESTACADA: destacada, HERRAMIENTAS: site.apps.map(herramienta).join('\n      '),
   RUTAS: site.rutas.map(ruta).join('\n    '),
   GARANTIAS: site.garantias.map((g, i) => `<li><span class="p-check p-check-${i % 4}">✓</span>${esc(g)}</li>`).join(''),
