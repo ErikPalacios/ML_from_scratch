@@ -1,0 +1,222 @@
+/* =============================================================================
+   Ronda de Diseño ML — css/trueml.css
+   El diseño TrueML (el mismo del Dojo y la portada) encima de la Ronda: fondo cuadriculado, el contenido como
+   una hoja con esquinas de 24 px, la franja de 6 colores, la T de vidrio, botones amarillos en relieve y
+   tarjetas redondeadas. Los colores salen de vendor/trueml/tokens.css a través de los tokens de css/app.css.
+   Va al final: solo cambia la forma, nunca la estructura.
+   ========================================================================== */
+
+/* Colores de las etapas de la T (para diagramas y marcadores). Más oscuros en claro para que el texto se lea. */
+:root {
+  --st-datos: #A86F00; --st-datos-soft: #FCF1D9;
+  --st-modelo: #C9461C; --st-modelo-soft: #FDECE4;
+  --st-api: #0C7A5B; --st-api-soft: #E3F7EF;
+  --card-sh: 0 1px 0 rgba(14,21,48,.07), 0 0 0 1px rgba(14,21,48,.06);
+  --sheet-sh: 0 1px 0 rgba(14,21,48,.06), 0 0 0 1px rgba(14,21,48,.05), 0 24px 48px -32px rgba(14,21,48,.28);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --st-datos: #FFC857; --st-datos-soft: #33280F;
+    --st-modelo: #FF8A5C; --st-modelo-soft: #3A1E14;
+    --st-api: #5BE0B5; --st-api-soft: #0F3B30;
+    --card-sh: 0 0 0 1px #232C52;
+    --sheet-sh: 0 0 0 1px #1E2750, 0 24px 48px -28px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"] {
+  --st-datos: #FFC857; --st-datos-soft: #33280F;
+  --st-modelo: #FF8A5C; --st-modelo-soft: #3A1E14;
+  --st-api: #5BE0B5; --st-api-soft: #0F3B30;
+  --card-sh: 0 0 0 1px #232C52;
+  --sheet-sh: 0 0 0 1px #1E2750, 0 24px 48px -28px rgba(0,0,0,.7);
+}
+
+/* ------------------------------------------------------------------ fondo y hoja */
+body {
+  background-color: var(--tm-bg);
+  background-image: linear-gradient(var(--tm-grid) 1px, transparent 1px), linear-gradient(90deg, var(--tm-grid) 1px, transparent 1px);
+  background-size: 32px 32px; background-attachment: fixed;
+  line-height: 1.65;
+}
+::selection { background: rgba(255,200,87,.45); color: var(--ink); }
+a { color: var(--accent-ink); text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
+.shell { background: transparent; }
+/* la hoja suma su relleno al ancho de lectura, para que el texto y los diagramas sigan teniendo ~780 px */
+:root { --content-max: 860px; --content-wide: 1120px; }
+@media (min-width: 768px) {
+  .main {
+    background: var(--surface); border-radius: 24px; box-shadow: var(--sheet-sh);
+    margin: 24px 0 48px; padding: 44px clamp(24px, 3.4vw, 40px) 72px;
+  }
+  .toc { padding-top: 40px; }
+}
+@media (max-width: 767px) {
+  .main { background: var(--surface); margin: 0 calc(-1 * var(--gutter)); padding: 24px var(--gutter) 88px; }
+}
+code { background: var(--tm-chip); border: 0; border-radius: 6px; padding: .1em .38em; }
+kbd { border-radius: 6px; border-color: var(--rule-strong); }
+
+/* ------------------------------------------------------------------ barra lateral y barra de arriba */
+.sidebar { background: var(--surface); border-right: 0; box-shadow: 1px 0 0 var(--rule); }
+.sidebar__stripe { flex: none; height: 5px; }
+.sidebar__head { padding: 16px 16px 14px; }
+.brand { gap: 11px; }
+.brand__mark { width: 30px; height: auto; display: block; flex: none; }
+.brand__mark svg { display: block; width: 100%; height: auto; }
+.brand__name { font: 800 17px/1.15 var(--sans); letter-spacing: -.025em; }
+.brand__tag { font: 600 10.5px/1.3 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-top: 3px; }
+.search__input { height: 40px; border-radius: 12px; border-color: var(--rule); background: var(--surface-2); }
+.search__input:focus { background: var(--surface); border-color: var(--accent); }
+.search__icon { top: 12px; }
+.search__kbd { top: 10px; }
+.search__results { border-radius: 16px; border-color: var(--rule); padding: 6px; }
+.sres { border-radius: 10px; }
+.nav__label, .side-uptime__label, .foot-row__label {
+  font: 700 10.5px/1.35 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.nav__item { border-radius: 10px; min-height: 33px; }
+.nav__item:hover { background: var(--tm-chip); }
+.nav__item[aria-current="page"] { background: var(--tm-chip); box-shadow: none; font-weight: 700; }
+.nav__item[aria-current="page"]::before { left: -8px; width: 4px; border-radius: 0 4px 4px 0; background: var(--yt); }
+.nav__sub { font: 600 11px/1.35 var(--mono); letter-spacing: .02em; }
+.sidebar__foot { border-top: 1px solid var(--rule); }
+.foot-tm {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 0 -6px;
+  border-radius: 12px; color: var(--muted); text-decoration: none; font-size: 13px; line-height: 1.3;
+}
+.foot-tm:hover { background: var(--tm-chip); color: var(--ink); }
+.foot-tm__mark { width: 18px; flex: none; display: block; }
+.foot-tm__mark svg { display: block; width: 100%; height: auto; }
+.foot-tm b { font-weight: 800; letter-spacing: -.03em; color: var(--ink); }
+.foot-tm b span { color: var(--tm-acc); }
+@media (max-width: 767px) {
+  .topbar {
+    position: sticky; height: calc(var(--topbar-h) + 4px); padding-top: 4px;
+    background: var(--tm-nav); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    border-bottom: 0; box-shadow: 0 1px 0 var(--rule);
+  }
+  .topbar__stripe { position: absolute; left: 0; right: 0; top: 0; height: 4px; }
+  .topbar .brand__mark { width: 24px; }
+  .topbar .brand__name { font-size: 16px; }
+}
+
+/* ------------------------------------------------------------------ tipografía */
+.eyebrow { font: 700 11.5px/1.3 var(--mono); letter-spacing: .1em; color: var(--muted); }
+.phead .eyebrow { color: var(--accent-ink); }
+.phead__title { font-weight: 800; letter-spacing: -.035em; line-height: 1.04; }
+.phead__en { font-size: 13.5px; }
+.phead__summary { color: var(--ink-2); }
+.sec__title, .h-display { font-weight: 800; letter-spacing: -.022em; }
+.b-h3, .h3 { font-weight: 800; letter-spacing: -.012em; }
+.sec__num { font-family: var(--mono); }
+.phead__connects-k, .b-table__cap, .dtable thead th, .mini-table th, .drow__label, .now-card__k, .pager__dir, .callout__head,
+.dg__eyebrow, .cx__eyebrow, .dg__group-title, .dg__step-flow, .toc__title {
+  font-family: var(--mono); font-weight: 700; letter-spacing: .08em;
+}
+.drow__label { font-size: 11.5px; }
+.callout__head { font-size: 11.5px; }
+.b-table__cap, .dtable thead th, .mini-table th { font-size: 11px; }
+.home-status__big, .drill__score, .rub__h, .fc-sum__t, .now-card__title, .dg__title, .cx__title { font-weight: 800; letter-spacing: -.02em; }
+.home-status__big { font-size: 34px; }
+
+/* la T chica con las etapas de un módulo, en su encabezado */
+.phead__stages { margin-top: 18px; flex-direction: row-reverse; justify-content: flex-end; }
+.phead__stages .tm-mini-txt { text-align: left; font: 700 11px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+/* ------------------------------------------------------------------ botones, chips y campos */
+.btn {
+  min-height: 40px; padding: 0 16px; border: 0; border-radius: 12px;
+  font-weight: 700; color: var(--ink);
+  background: var(--tm-btn2); box-shadow: 0 0 0 1px var(--rule) inset, 0 3px 0 var(--tm-btn2sh);
+  transition: transform .08s ease, box-shadow .08s ease, background-color var(--dur) var(--ease);
+}
+.btn:hover { background: var(--tm-btn2); border-color: transparent; transform: translateY(-1px); }
+.btn:active { transform: translateY(2px); box-shadow: 0 0 0 1px var(--rule) inset, 0 1px 0 var(--tm-btn2sh); }
+.btn--primary, .btn--primary:hover { background: var(--yt); color: var(--navy); box-shadow: 0 4px 0 var(--yd); }
+.btn--primary:active { box-shadow: 0 1px 0 var(--yd); }
+.btn--ghost, .btn--text { box-shadow: none; background: transparent; }
+.btn--ghost:hover { background: var(--tm-chip); transform: none; }
+.btn--text:hover { background: none; transform: none; }
+.btn--ghost:active, .btn--text:active { transform: none; box-shadow: none; }
+.btn--sm { min-height: 32px; padding: 0 12px; border-radius: 10px; }
+.btn--lg { min-height: 48px; padding: 0 22px; font-size: 16px; border-radius: 14px; }
+.btn[aria-pressed="true"], .btn[aria-pressed="true"]:hover { background: var(--ok-soft); color: var(--ok); box-shadow: 0 0 0 1px var(--ok) inset, 0 3px 0 color-mix(in srgb, var(--ok) 45%, transparent); }
+.btn:disabled, .btn[aria-disabled="true"] { transform: none; }
+.icon-btn { border-radius: 12px; }
+.icon-btn:hover { background: var(--tm-chip); border-color: transparent; }
+.chip { border-radius: 999px; padding: 3px 10px; }
+.prio { border-radius: 999px; }
+.input, .textarea { border-radius: 12px; border-color: var(--rule-strong); }
+.seg { border-radius: 999px; padding: 3px; border: 0; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--rule); }
+.seg button { border-radius: 999px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); box-shadow: none; font-weight: 700; }
+
+/* ------------------------------------------------------------------ tarjetas y bloques */
+.panel, .gate, .now-card, .page-toc, .pager__link { border: 0; border-radius: 20px; box-shadow: var(--card-sh); }
+.gate__head { border-radius: 20px 20px 0 0; }
+.now-card { padding: 20px; gap: 10px; }
+.now-grid .now-card:first-child { box-shadow: var(--card-sh), inset 0 4px 0 var(--yt); }
+.pager__link:hover { box-shadow: 0 0 0 2px var(--yt); background: var(--surface); }
+.notice { border-radius: 14px; }
+.drill-cta { border: 0; border-radius: 16px; background: var(--tm-chip); box-shadow: inset 4px 0 0 var(--accent); }
+.callout { border: 0; border-radius: 16px; box-shadow: var(--card-sh), inset 4px 0 0 var(--c); overflow: hidden; }
+.callout__head { border-radius: 0; padding: 8px 16px 8px 18px; }
+.callout__body { padding: 12px 18px 14px 18px; }
+.b-table .scroll-x { border-top: 0; border-bottom: 0; border-radius: 16px; box-shadow: var(--card-sh); padding: 2px 16px 4px; }
+.kv { border-top: 0; }
+.specstrip { border-radius: 16px; }
+.dtable thead th { border-bottom-color: var(--rule); }
+.ucell { border-radius: 3px; }
+.ucell--done { background: var(--g); }
+
+/* ------------------------------------------------------------------ inicio: la T de las etapas */
+.home-hero {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 12px 40px; align-items: center;
+  padding-bottom: 32px;
+}
+.home-hero__txt { min-width: 0; }
+.home-hero .phead__title { font-size: clamp(38px, 4.6vw, 56px); }
+.home-hero__note { margin-top: 14px; font: 600 12.5px/1.5 var(--mono); color: var(--muted); max-width: 52ch; }
+.home-t { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.home-t__mark { width: 100%; }
+.home-t__mark svg { display: block; width: 100%; height: auto; }
+.home-t__cap { min-height: 2.9em; font: 600 11.5px/1.45 var(--mono); color: var(--muted); text-align: center; max-width: 34ch; transition: color .2s; }
+.home-t.is-on .home-t__cap { color: var(--ink); }
+@media (max-width: 900px) {
+  .home-hero { grid-template-columns: minmax(0, 1fr); }
+  .home-t { max-width: 220px; margin: 8px auto 0; }
+  .home-t__cap { display: none; }
+}
+
+/* ------------------------------------------------------------------ diagramas */
+.dg__canvas { border: 0; border-radius: 20px; box-shadow: var(--card-sh); background: var(--surface); overflow: hidden; }
+.dg__scroll { padding: 10px; }
+.dg-grid { fill: var(--rule-strong); fill-opacity: .55; }
+.dg { --dg-lane-a: .06; }
+.dg-node__shape { stroke-width: 1.6; }
+.dg-node__label { font-weight: 700; }
+.dg-elabel__bg { stroke-opacity: .45; }
+.dg__flowbtn { border-radius: 999px; }
+.dg__btn { border-radius: 12px; font-weight: 700; }
+.dg__btn--primary, .dg__btn--primary:hover:not(:disabled) { background: var(--yt); border-color: var(--yt); color: var(--navy); box-shadow: 0 3px 0 var(--yd); }
+.dg__step, .dg__note { border: 0; border-radius: 16px; box-shadow: var(--card-sh), inset 4px 0 0 var(--dg-c, var(--accent)); }
+.dg__step { --dg-c: var(--accent); }
+.dg__item-sw { border-radius: 3px; }
+.dg__item-kind { border-radius: 999px; padding: 0 8px; }
+.dg__expand { border-radius: 10px; }
+/* el camino online fluye siempre, despacio (como el mapa del Dojo); al recorrer un flujo, más rápido */
+.dg-e-online .dg-edge__flow { opacity: .55; animation: dg-flow 1.8s linear infinite; }
+.dg.is-focusing .dg-edge:not(.is-hl) .dg-edge__flow { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .dg-e-online .dg-edge__flow { animation: none; opacity: 0; } }
+
+/* ------------------------------------------------------------------ código: siempre sobre azul marino, como en el Dojo */
+.cx__box {
+  --surface: #141C3A; --surface-2: var(--tm-code); --ink: var(--tm-codeink); --muted: var(--tm-codeink2);
+  --rule: rgba(255,255,255,.08); --rule-strong: rgba(255,255,255,.18);
+  --accent: #8FA2FF; --accent-ink: #A9B7FF; --accent-soft: rgba(143,162,255,.16);
+  --ok: #5BE0B5; --ok-soft: rgba(91,224,181,.14); --bad: #FF8A5C;
+  --store: #6FD3AE; --offline: #FFC857; --monitor: #B3A8FF;
+  color: var(--ink); border: 0; border-radius: 16px; box-shadow: 0 0 0 1px var(--rule);
+}
+.cx__tab[aria-selected="true"]::before { background: var(--yt); }
+.cx__btn { border-radius: 8px; }

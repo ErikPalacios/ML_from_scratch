@@ -115,7 +115,7 @@ html:has(.dg.is-expanded) { overflow: hidden; }
 .dg-l-neutral { --dg-lc: var(--muted);   --dg-lt: var(--muted); }
 .dg-lane__band { fill: var(--dg-lc); fill-opacity: var(--dg-lane-a); stroke: var(--dg-lc); stroke-opacity: .38; stroke-width: 1; }
 .dg-lane__label {
-  font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: .1em;
+  font-family: var(--font-mono); font-weight: 700; font-size: 11.5px; letter-spacing: .12em;
   fill: var(--dg-lt);
 }
 
@@ -142,18 +142,21 @@ html:has(.dg.is-expanded) { overflow: hidden; }
 .dg-elabel__tx { font-family: var(--font-body); font-weight: 500; fill: var(--dg-t); }
 .dg-elabel.is-hl .dg-elabel__bg { stroke-opacity: 1; stroke-width: 1.5; }
 
-/* Nodos: colores por tipo (también colorean la lista de componentes y el panel de nota) */
-.dg-k-client   { --dg-c: var(--muted);   --dg-f: var(--surface); }
-.dg-k-external { --dg-c: var(--muted);   --dg-f: var(--surface-2); }
-.dg-k-edge     { --dg-c: var(--accent);  --dg-f: var(--surface); }
-.dg-k-service  { --dg-c: var(--muted);   --dg-f: var(--surface); }
-.dg-k-model    { --dg-c: var(--accent);  --dg-f: var(--accent-soft); }
-.dg-k-gpu      { --dg-c: var(--ink);     --dg-f: var(--surface-2); }
-.dg-k-store    { --dg-c: var(--store);   --dg-f: var(--store-soft); }
-.dg-k-queue    { --dg-c: var(--store);   --dg-f: var(--store-soft); }
-.dg-k-job      { --dg-c: var(--offline); --dg-f: var(--offline-soft); }
-.dg-k-monitor  { --dg-c: var(--monitor); --dg-f: var(--monitor-soft); }
-.dg-k-human    { --dg-c: var(--muted);   --dg-f: var(--surface-2); }
+/* Nodos: colores por tipo, con los de las etapas de la T de TrueML (también colorean la lista de componentes
+   y el panel de nota): Datos (amarillo) = almacenamiento · Modelo (naranja) = modelo y GPU · API (verde) =
+   servicios y colas · azul = la entrada. Los jobs van en ámbar y la observabilidad en violeta, como sus carriles
+   y aristas, porque los textos de los casos nombran esos colores («Ámbar: datos», «Violeta: monitoreo»). */
+.dg-k-client   { --dg-c: var(--muted);    --dg-f: var(--surface); }
+.dg-k-external { --dg-c: var(--muted);    --dg-f: var(--surface-2); }
+.dg-k-edge     { --dg-c: var(--accent);   --dg-f: var(--accent-soft); }
+.dg-k-service  { --dg-c: var(--st-api);   --dg-f: var(--st-api-soft); }
+.dg-k-model    { --dg-c: var(--st-modelo); --dg-f: var(--st-modelo-soft); }
+.dg-k-gpu      { --dg-c: var(--st-modelo); --dg-f: var(--surface-2); }
+.dg-k-store    { --dg-c: var(--st-datos); --dg-f: var(--st-datos-soft); }
+.dg-k-queue    { --dg-c: var(--st-api);   --dg-f: var(--st-api-soft); }
+.dg-k-job      { --dg-c: var(--offline);  --dg-f: var(--offline-soft); }
+.dg-k-monitor  { --dg-c: var(--monitor);  --dg-f: var(--monitor-soft); }
+.dg-k-human    { --dg-c: var(--muted);    --dg-f: var(--surface-2); }
 
 .dg-node { cursor: pointer; outline: none; }
 .dg-node__shape { fill: var(--dg-f); stroke: var(--dg-c); stroke-width: 1.4; transition: stroke-width var(--dur) var(--ease); }

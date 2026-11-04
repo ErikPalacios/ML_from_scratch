@@ -20,7 +20,7 @@ node apps/trueml/sync.mjs           # copia a cada app y regenera los datos comp
 node apps/trueml/sync.mjs --check   # solo revisa que nada se haya desfasado
 ```
 
-Hoy lo usan `taller-ai` (el Dojo: su `dojo.css` lleva primero `tokens.css`) y `portada` (su `style.css` también). `sync.mjs` además escribe `apps/portada/data/dojo.json`, el avance del Dojo leído de su contenido: cuando el Dojo suma una estación, se corre el sync y la portada la marca como lista sin tocar nada más.
+Lo usan todas las apps: `taller-ai` (el Dojo), `portada`, `ml-system-design` (la Ronda), `atlas-arquitecturas`, `transformer-lab`, `tablero-ml` (en `web/vendor/`, que el demo copia tal cual) y `cheat-sheets`. Cada una pone `tokens.css` antes de su propio CSS y conecta sus variables a los `--tm-*`. `sync.mjs` además escribe `apps/portada/data/dojo.json`, el avance del Dojo leído de su contenido: cuando el Dojo suma una estación, se corre el sync y la portada la marca como lista sin tocar nada más.
 
 - **Para sumar una app:** agrégala a `APPS` en `sync.mjs`, corre el sync, y en su build usa `vendor/trueml/lib.mjs` y `tokens.css`.
 - **Para sumar una herramienta a la portada:** una entrada en `apps/portada/site.json` con sus `etapas` (ids de `etapas.json` o `"todas"`).

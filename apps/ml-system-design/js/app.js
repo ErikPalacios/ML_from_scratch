@@ -31,6 +31,33 @@
     'ref-comandos': { title: 'Docker y kubectl', short: 'Docker y kubectl', ico: 'ref', part: 4 },
     glosario: { title: 'Glosario ES–EN', short: 'Glosario ES–EN', ico: 'book', part: 4 },
   };
+  // Las 6 etapas de la T de TrueML (vendor/trueml) y las que cubre cada módulo: la T del inicio las enciende al
+  // pasar por el índice, y cada módulo las muestra en su encabezado con la T chica.
+  const STAGES = [['datos', 'Datos'], ['modelo', 'Modelo'], ['api', 'API'], ['contenedor', 'Contenedor'], ['orquestacion', 'Orquestación'], ['monitoreo', 'Monitoreo']];
+  const ALL_STAGES = STAGES.map((x) => x[0]);
+  const MODULE_STAGES = {
+    m01: ALL_STAGES, m02: ['api', 'orquestacion'], m03: ['api', 'orquestacion'], m04: ['modelo'], m05: ['contenedor'],
+    m06: ['orquestacion'], m07: ['modelo', 'api'], m08: ['modelo'], m09: ['datos'], m10: ['datos', 'modelo', 'contenedor'],
+    m11: ['contenedor', 'orquestacion'], m12: ['monitoreo'], m13: ['contenedor', 'orquestacion'], m14: ['modelo', 'api'],
+    m15: ['datos', 'api', 'contenedor'],
+  };
+  // Los casos son de punta a punta: cruzan las seis etapas.
+  const stagesOf = (id) => MODULE_STAGES[id] || (/^c\d\d$/.test(id) ? ALL_STAGES : null);
+  function stagesText(list, cap) {
+    if (list.length === STAGES.length) return cap ? 'Las seis etapas' : 'las seis etapas';
+    const n = STAGES.filter((x) => list.includes(x[0])).map((x) => x[1]);
+    return n.length === 1 ? n[0] : n.slice(0, -1).join(', ') + ' y ' + n[n.length - 1];
+  }
+  // La T chica de 6 cuadritos (como el logo): barra de arriba (contenedor, orquestación, monitoreo) y tronco (API, modelo, datos).
+  function miniT(list) {
+    const on = new Set(list);
+    return h('span', { class: 'tm-mini-wrap phead__stages' },
+      h('span', { class: 'tm-mini', role: 'img', 'aria-label': 'Etapas: ' + stagesText(list) },
+        ['contenedor', 'orquestacion', 'monitoreo', 'api', 'modelo', 'datos'].map((id) => h('i', { class: 'tm-mini-' + id + (on.has(id) ? '' : ' tm-off') }))),
+      h('span', { class: 'tm-mini-txt' }, stagesText(list, true)));
+  }
+  const tmMark = (labels, key, maxH) => (root.TrueMLMark ? root.TrueMLMark.mark(true, labels, key, maxH) : '');
+
   const NAV_GROUPS = [
     { id: 'home', label: null, ids: ['inicio'] },
     { id: 'p1', label: 'Parte 1 — Fundamentos', ids: MODULE_IDS },
@@ -201,6 +228,7 @@
       m.titleEn ? h('p', { class: 'phead__en', lang: 'en' }, m.titleEn) : null,
       m.summary ? h('p', { class: 'phead__summary', html: String(m.summary) }) : null,
       metaRow.childNodes.length ? metaRow : null,
+      o.stages ? miniT(o.stages) : null,
       o.after || null);
   }
 
@@ -353,6 +381,8 @@
     f.appendChild(h('div', { class: 'foot-row' }, h('span', { class: 'foot-row__label', 'aria-hidden': 'true' }, 'Tema'), seg));
     f.appendChild(h('button', { type: 'button', class: 'btn btn--sm', id: 'btn-portability', on: { click: openPortability } },
       h('span', { html: icon('database') }), 'Exportar / importar progreso'));
+    f.appendChild(h('a', { class: 'foot-tm', href: 'https://ml-desde-cero.vercel.app' },
+      h('span', { class: 'foot-tm__mark', html: tmMark(null) }), h('span', null, 'Todas las herramientas de ', h('b', null, 'True', h('span', null, 'ML')))));
     renderStatus();
   }
 
@@ -765,7 +795,7 @@
   function renderModule(c, p) {
     const m = Object.assign({}, meta(p.id), p);
     S.page = { id: p.id, kind: 'module', sections: p.sections };
-    c.appendChild(pageHeader(m, { eyebrow: ['Parte 1', 'Módulo ' + pad2(m.num || +p.id.slice(1))], after: progressLine() }));
+    c.appendChild(pageHeader(m, { eyebrow: ['Parte 1', 'Módulo ' + pad2(m.num || +p.id.slice(1))], stages: stagesOf(p.id), after: progressLine() }));
     const drill = MSD.Drill && safe(() => MSD.Drill.hasDrill(p.id), false);
     const drillCta = () => h('div', { class: 'drill-cta' },
       h('span', { class: 'drill-cta__ico', html: icon('practice') }),
@@ -909,10 +939,19 @@
     const m = meta('inicio');
     const summary = m.summary && m.summary !== m.title ? m.summary :
       'Curso y simulador para la ronda de <i>ML System Design</i> de las entrevistas de ML Engineer: todo lo que rodea al modelo en producción —serving, datos, evaluación, monitoreo y costo— explicado como lo evalúa un entrevistador.';
+    const rest = 'Pasa el cursor por un módulo del índice para ver qué etapas cubre.';
+    const scene = h('figure', { class: 'home-t', 'aria-hidden': 'true' },
+      h('div', { class: 'home-t__mark', html: tmMark(1, 'inicio', '420px') }),
+      h('figcaption', { class: 'home-t__cap' }, rest));
     c.appendChild(h('header', { class: 'phead home-hero' },
-      h('p', { class: 'eyebrow' }, 'Panel de estudio'),
-      h('h1', { class: 'phead__title', id: 'page-title', tabindex: '-1' }, APP_NAME),
-      h('p', { class: 'phead__summary', html: summary })));
+      h('div', { class: 'home-hero__txt' },
+        h('p', { class: 'eyebrow' }, 'Panel de estudio'),
+        h('h1', { class: 'phead__title', id: 'page-title', tabindex: '-1' }, APP_NAME),
+        h('p', { class: 'phead__summary', html: summary }),
+        h('p', { class: 'home-hero__note' }, 'Del dato al monitoreo: cada módulo del curso cae en una o más etapas de la T, y cada caso las cruza todas.')),
+      scene));
+    S.homeT = { el: scene.querySelector('.home-t__mark'), cap: scene.querySelector('.home-t__cap'), rest };
+    if (root.TrueMLMark && root.TrueMLMark.play) root.TrueMLMark.play(S.homeT.el);
 
     const row = (k, small, ...body) => h('section', { class: 'drow', 'aria-label': k },
       h('h2', { class: 'drow__label' }, k, small ? h('small', null, small) : null), h('div', { class: 'drow__body' }, body));
@@ -1229,7 +1268,9 @@
     if (!els.page || !els.nav) { if (root.console) root.console.error('[app] index.html no tiene los contenedores esperados'); return; }
 
     applyTheme(store.pref('theme'));
+    document.querySelectorAll('[data-tm-mark]').forEach((el) => { el.innerHTML = tmMark(null); });
     buildNav();
+    bindNavStages();
     renderSideUptime();
     renderFoot();
     renderDevBanner();
@@ -1257,6 +1298,27 @@
     store.subscribe(onStoreChange);
     store.onStatus(() => renderStatus());
     onRoute(true);
+  }
+
+  // En el inicio, pasar por un módulo o caso del índice enciende sus etapas en la T.
+  function bindNavStages() {
+    let cur = null;
+    const light = (a) => {
+      const t = S.homeT;
+      if (!t || !t.el.isConnected || !root.TrueMLMark) return;
+      const id = a ? (a.getAttribute('href') || '').slice(1) : null;
+      const list = id ? stagesOf(id) : null;
+      if (id === cur) return;
+      cur = list ? id : null;
+      root.TrueMLMark.sync(t.el, list || null);
+      t.cap.textContent = list ? label(id) + ' · ' + pageTitle(id) + ' → ' + stagesText(list) : t.rest;
+      t.el.parentElement.classList.toggle('is-on', !!list);
+    };
+    const pick = (e) => light(e.target.closest && e.target.closest('a.nav__item'));
+    els.nav.addEventListener('mouseover', pick);
+    els.nav.addEventListener('focusin', pick);
+    els.nav.addEventListener('mouseleave', () => light(null));
+    els.nav.addEventListener('focusout', (e) => { if (!els.nav.contains(e.relatedTarget)) light(null); });
   }
 
   // Mantiene visible en la barra lateral el ítem actual (sin mover la ventana).

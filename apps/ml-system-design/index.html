@@ -6,22 +6,23 @@
 <title>Ronda de Diseño ML</title>
 <meta name="description" content="Curso y simulador de ML System Design para entrevistas: serving, datos, evaluación, monitoreo y costo, con casos resueltos y práctica cronometrada.">
 <meta name="color-scheme" content="light dark">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<link rel="stylesheet" href="vendor/trueml/tokens.css">
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/components.css">
 <link rel="stylesheet" href="css/practice.css">
+<link rel="stylesheet" href="css/trueml.css">
 </head>
 <body>
 <a class="skip-link" href="#main" id="skip-link">Saltar al contenido</a>
 
 <!-- Barra superior (solo < 768 px): abre el índice como cajón -->
 <header class="topbar" id="topbar">
+  <div class="tm-stripe topbar__stripe" aria-hidden="true"><span class="tm-c-datos"></span><span class="tm-c-modelo"></span><span class="tm-c-api"></span><span class="tm-c-contenedor"></span><span class="tm-c-orquestacion"></span><span class="tm-c-monitoreo"></span></div>
   <button class="icon-btn" type="button" id="menu-btn" aria-controls="sidebar" aria-expanded="false" aria-label="Abrir el índice">
     <svg class="ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg>
   </button>
   <a class="brand" href="#inicio">
+    <span class="brand__mark" data-tm-mark aria-hidden="true"></span>
     <span class="brand__text"><span class="brand__name">Ronda de Diseño ML</span></span>
   </a>
   <span class="topbar__progress" id="topbar-progress"></span>
@@ -29,19 +30,13 @@
 
 <!-- Índice del curso: columna fija (≥ 768 px) o cajón (< 768 px) -->
 <aside class="sidebar" id="sidebar" aria-label="Índice del curso">
+  <div class="tm-stripe sidebar__stripe" aria-hidden="true"><span class="tm-c-datos"></span><span class="tm-c-modelo"></span><span class="tm-c-api"></span><span class="tm-c-contenedor"></span><span class="tm-c-orquestacion"></span><span class="tm-c-monitoreo"></span></div>
   <div class="sidebar__head">
     <a class="brand" href="#inicio" aria-label="Ronda de Diseño ML: ir al inicio">
-      <svg class="brand__mark" viewBox="0 0 26 26" aria-hidden="true" focusable="false">
-        <rect class="bm-o" x="1" y="5" width="4" height="16" rx=".6"/>
-        <rect class="bm-o" x="6.5" y="5" width="4" height="16" rx=".6"/>
-        <rect class="bm-a" x="12" y="5" width="4" height="16" rx=".6" opacity=".35"/>
-        <rect class="bm-a" x="12" y="13" width="4" height="8" rx=".6"/>
-        <rect class="bm-r" x="18.1" y="5.6" width="3.3" height="14.8" rx=".5"/>
-        <rect class="bm-r" x="23" y="5.6" width="2.2" height="14.8" rx=".5" opacity=".6"/>
-      </svg>
+      <span class="brand__mark" data-tm-mark></span>
       <span class="brand__text">
         <span class="brand__name">Ronda de Diseño ML</span>
-        <span class="brand__tag">ML System Design · MLE</span>
+        <span class="brand__tag">TrueML · ML System Design</span>
       </span>
     </a>
     <button class="icon-btn sidebar__close" type="button" id="drawer-close" aria-label="Cerrar el índice">
@@ -79,6 +74,7 @@
 <div class="modal" id="modal" hidden></div>
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
+<script src="vendor/trueml/trueml-mark.js"></script>
 <script src="js/core/registry.js"></script>
 <script src="js/core/store.js"></script>
 <script src="js/ui/dom.js"></script>

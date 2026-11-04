@@ -497,7 +497,7 @@
     const { x, y, w } = n.b, hh = n.b.h;
     const pad = { l: 10, r: 10, t: 7, b: 7 };
     const els = [];
-    const rect = (cls, extra) => s('rect', Object.assign({ class: cls, x, y, width: w, height: hh, rx: 5 }, extra || {}));
+    const rect = (cls, extra) => s('rect', Object.assign({ class: cls, x, y, width: w, height: hh, rx: 9 }, extra || {}));
     switch (n.kind) {
       case 'store': {
         const ry = Math.max(4, Math.min(7, hh * 0.12));
@@ -507,13 +507,13 @@
         break;
       }
       case 'queue': {
-        els.push(rect('dg-node__shape', { rx: 3 }));
+        els.push(rect('dg-node__shape', { rx: 7 }));
         [7, 13, 19].forEach((d) => els.push(s('line', { class: 'dg-node__detail', x1: x + w - d, y1: y + 1, x2: x + w - d, y2: y + hh - 1 })));
         pad.r = 26;
         break;
       }
       case 'gpu': {
-        els.push(rect('dg-node__shape', { rx: 3 }));
+        els.push(rect('dg-node__shape', { rx: 7 }));
         const pins = [];
         const px = [10, 16], py = [9, 15];
         px.forEach((d) => { [x + d, x + w - d].forEach((xx) => { pins.push(`M${xx},${y - 4}V${y}`, `M${xx},${y + hh}V${y + hh + 4}`); }); });
@@ -536,11 +536,11 @@
       }
       case 'model':
         els.push(rect('dg-node__shape'));
-        els.push(s('rect', { class: 'dg-node__detail', x: x + 3, y: y + 3, width: w - 6, height: hh - 6, rx: 3 }));
+        els.push(s('rect', { class: 'dg-node__detail', x: x + 3, y: y + 3, width: w - 6, height: hh - 6, rx: 6 }));
         pad.l = pad.r = 13; pad.t = pad.b = 9;
         break;
       case 'job': {
-        const f = 11, r = 5;
+        const f = 11, r = 9;
         els.push(s('path', { class: 'dg-node__shape', d: `M${x + r},${y} H${x + w - f} L${x + w},${y + f} V${y + hh - r} Q${x + w},${y + hh} ${x + w - r},${y + hh} H${x + r} Q${x},${y + hh} ${x},${y + hh - r} V${y + r} Q${x},${y} ${x + r},${y} Z` }));
         els.push(s('path', { class: 'dg-node__fold', d: `M${x + w - f},${y} V${y + f} H${x + w} Z` }));
         break;
@@ -630,8 +630,8 @@
     const gLanes = s('g', { class: 'dg-lanes', 'aria-hidden': 'true' });
     lanes.forEach((l) => {
       const g = s('g', { class: 'dg-lane dg-l-' + l.kind });
-      g.appendChild(s('rect', { class: 'dg-lane__band', x: l.x * U, y: l.y * U, width: l.w * U, height: l.h * U, rx: 6 }));
-      if (l.label) g.appendChild(s('text', { class: 'dg-lane__label', x: l.x * U + 10, y: l.y * U + 18, text: l.label.toUpperCase() }));
+      g.appendChild(s('rect', { class: 'dg-lane__band', x: l.x * U, y: l.y * U, width: l.w * U, height: l.h * U, rx: 14 }));
+      if (l.label) g.appendChild(s('text', { class: 'dg-lane__label', x: l.x * U + 12, y: l.y * U + 19, text: l.label.toUpperCase() }));
       gLanes.appendChild(g);
     });
     svg.appendChild(gLanes);
@@ -661,8 +661,8 @@
       const aria = n.label + (n.sub ? ', ' + n.sub : '') + '. ' + (KIND_NAMES[n.kind] || '');
       const g = s('g', { class: 'dg-node dg-k-' + n.kind, tabindex: 0, role: 'button', 'aria-pressed': 'false', 'aria-label': aria, 'data-node': n.id });
       const b = n.b;
-      g.appendChild(s('rect', { class: 'dg-node__ring', x: b.x - 4, y: b.y - 4, width: b.w + 8, height: b.h + 8, rx: n.kind === 'human' ? (b.h + 8) / 2 : 8 }));
-      g.appendChild(s('rect', { class: 'dg-node__focus', x: b.x - 6, y: b.y - 6, width: b.w + 12, height: b.h + 12, rx: n.kind === 'human' ? (b.h + 12) / 2 : 9 }));
+      g.appendChild(s('rect', { class: 'dg-node__ring', x: b.x - 4, y: b.y - 4, width: b.w + 8, height: b.h + 8, rx: n.kind === 'human' ? (b.h + 8) / 2 : 12 }));
+      g.appendChild(s('rect', { class: 'dg-node__focus', x: b.x - 6, y: b.y - 6, width: b.w + 12, height: b.h + 12, rx: n.kind === 'human' ? (b.h + 12) / 2 : 14 }));
       const shape = nodeShape(n);
       shape.els.forEach((el) => g.appendChild(el));
       n.pad = shape.pad;

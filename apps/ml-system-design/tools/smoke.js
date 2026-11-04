@@ -508,10 +508,10 @@
     const tb = (t) => $('#side-foot button[data-theme="' + t + '"]');
     tb('dark').click();
     ok('tema: Oscuro fija data-theme="dark"', de.getAttribute('data-theme') === 'dark' && store.pref('theme') === 'dark' && tb('dark').getAttribute('aria-pressed') === 'true');
-    ok('tema: fondo oscuro aplicado', getComputedStyle(document.body).backgroundColor === 'rgb(16, 21, 27)', getComputedStyle(document.body).backgroundColor);
+    ok('tema: fondo oscuro aplicado', getComputedStyle(document.body).backgroundColor === 'rgb(10, 15, 34)', getComputedStyle(document.body).backgroundColor);
     tb('light').click();
     ok('tema: Claro fija data-theme="light"', de.getAttribute('data-theme') === 'light');
-    ok('tema: fondo claro aplicado', getComputedStyle(document.body).backgroundColor === 'rgb(238, 241, 243)', getComputedStyle(document.body).backgroundColor);
+    ok('tema: fondo claro aplicado', getComputedStyle(document.body).backgroundColor === 'rgb(237, 239, 247)', getComputedStyle(document.body).backgroundColor);
     tb('system').click();
     ok('tema: Sistema quita data-theme', !de.hasAttribute('data-theme') && store.pref('theme') === 'system');
 

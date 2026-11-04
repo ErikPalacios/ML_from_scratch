@@ -16,77 +16,64 @@
    ========================================================================== */
 
 /* ---------------------------------------------------------------------------
-   1. TOKENS — claro (bare :root)
+   1. TOKENS — conectados al sistema de diseño TrueML (vendor/trueml/tokens.css va antes que este archivo).
+      Los --tm-* cambian solos entre claro y oscuro; aquí solo van los que TrueML no tiene.
    ------------------------------------------------------------------------ */
 :root {
-  --bg:#EEF1F3; --surface:#FBFCFC; --surface-2:#F3F5F7;
-  --ink:#141B22; --muted:#5B6672; --rule:#D3D9DF; --rule-strong:#A9B3BD;
-  --accent:#2B5BD7; --accent-ink:#1E46B0; --accent-soft:#E3EAFB;
-  --offline:#9A5A06; --offline-soft:#F6E9D5;
-  --monitor:#7445A8; --monitor-soft:#EEE6F7;
-  --store:#2F6B57; --store-soft:#E0EFE8;
-  --ok:#25734A; --ok-soft:#DDF0E4;
-  --bad:#B3261E; --bad-soft:#F8E0DE;
-  --warn:#9A5A06; --warn-soft:#F6E9D5;
-  --focus:#2B5BD7;
-  --shadow-1:0 1px 2px rgba(20,27,34,.06);
-  --shadow-pop:0 8px 28px rgba(20,27,34,.16);
-  /* extensiones (derivadas): texto sobre acento, velo de cajón/modal, trama "próximamente" */
+  --bg:var(--tm-bg); --surface:var(--tm-card); --surface-2:#F4F6FC;
+  --ink:var(--tm-ink); --ink-2:var(--tm-ink2); --muted:var(--tm-ink3); --rule:var(--tm-line); --rule-strong:#C9CEE0;
+  --accent:var(--tm-acc); --accent-ink:#2C45D6; --accent-soft:var(--tm-chip);
+  --offline:var(--tm-dojo); --offline-soft:#FBF0D8;
+  --monitor:#6150D9; --monitor-soft:#EEEBFF;
+  --store:var(--tm-okink); --store-soft:var(--tm-ok);
+  --ok:var(--tm-okink); --ok-soft:var(--tm-ok);
+  --bad:#C2441D; --bad-soft:#FCE9E1;
+  --warn:var(--tm-dojo); --warn-soft:#FBF0D8;
+  --focus:var(--tm-acc);
+  --shadow-1:var(--tm-sh);
+  --shadow-pop:0 18px 44px -14px rgba(14,21,48,.32), 0 0 0 1px rgba(14,21,48,.06);
   --on-accent:#FFFFFF;
-  --scrim:rgba(20,27,34,.42);
-  --hatch:#B7C0C9;
+  --scrim:rgba(10,15,34,.46);
+  --hatch:var(--tm-off);
 
-  --font-display:'IBM Plex Sans Condensed', 'Arial Narrow', system-ui, sans-serif;
-  --font-body:'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono:'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --fs-xs:12px; --fs-sm:13.5px; --fs-md:16px; --fs-lg:19px; --fs-xl:24px; --fs-2xl:32px;
-  --r-1:3px; --r-2:6px;
+  --font-display:var(--sans);
+  --font-body:var(--sans);
+  --font-mono:var(--mono);
+  --fs-xs:12px; --fs-sm:13.5px; --fs-md:16px; --fs-lg:19px; --fs-xl:26px; --fs-2xl:40px;
+  --r-1:6px; --r-2:12px; --r-3:20px;
   --gap:12px; --gutter:16px;
   --ease:cubic-bezier(.2,.7,.2,1); --dur:160ms;
-  --sidebar-w:288px; --content-max:780px; --toc-w:220px;
+  --sidebar-w:296px; --content-max:780px; --toc-w:220px;
   --content-wide:1040px;   /* páginas sin TOC (inicio, práctica, referencias) */
-  --topbar-h:52px;
+  --topbar-h:56px;
   color-scheme: light;
 }
 
-/* 1b. oscuro por preferencia del sistema (salvo que se fuerce claro) */
+/* 1b. oscuro: por preferencia del sistema (salvo que se fuerce claro) o forzado por el conmutador */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:#10151B; --surface:#151B22; --surface-2:#1B232C;
-    --ink:#E6EBF0; --muted:#95A1AD; --rule:#27313B; --rule-strong:#3C4854;
-    --accent:#7CA2FF; --accent-ink:#9DB9FF; --accent-soft:#1A2544;
-    --offline:#E3A34B; --offline-soft:#35270F;
-    --monitor:#B794F0; --monitor-soft:#2A1F3D;
-    --store:#6FC3A5; --store-soft:#16302A;
-    --ok:#5CC98A; --ok-soft:#133022;
-    --bad:#F07A70; --bad-soft:#3A1A18;
-    --warn:#E3A34B; --warn-soft:#35270F;
-    --focus:#7CA2FF;
-    --shadow-1:0 1px 2px rgba(0,0,0,.4);
-    --shadow-pop:0 8px 28px rgba(0,0,0,.5);
-    --on-accent:#0B1016;
-    --scrim:rgba(0,0,0,.55);
-    --hatch:#3C4854;
+    --surface-2:#182148; --rule-strong:#33406E;
+    --accent-ink:#A9B7FF;
+    --offline-soft:#352A12;
+    --monitor:#A99CFF; --monitor-soft:#221E4A;
+    --bad:#FF8A5C; --bad-soft:#3A1F1A;
+    --warn-soft:#352A12;
+    --shadow-pop:0 18px 44px -14px rgba(0,0,0,.7), 0 0 0 1px #232C52;
+    --on-accent:#0A0F22;
+    --scrim:rgba(0,0,0,.6);
     color-scheme: dark;
   }
 }
-/* 1c. oscuro forzado por el conmutador de tema */
 :root[data-theme="dark"] {
-  --bg:#10151B; --surface:#151B22; --surface-2:#1B232C;
-  --ink:#E6EBF0; --muted:#95A1AD; --rule:#27313B; --rule-strong:#3C4854;
-  --accent:#7CA2FF; --accent-ink:#9DB9FF; --accent-soft:#1A2544;
-  --offline:#E3A34B; --offline-soft:#35270F;
-  --monitor:#B794F0; --monitor-soft:#2A1F3D;
-  --store:#6FC3A5; --store-soft:#16302A;
-  --ok:#5CC98A; --ok-soft:#133022;
-  --bad:#F07A70; --bad-soft:#3A1A18;
-  --warn:#E3A34B; --warn-soft:#35270F;
-  --focus:#7CA2FF;
-  --shadow-1:0 1px 2px rgba(0,0,0,.4);
-  --shadow-pop:0 8px 28px rgba(0,0,0,.5);
-  --on-accent:#0B1016;
-  --scrim:rgba(0,0,0,.55);
-  --hatch:#3C4854;
+  --surface-2:#182148; --rule-strong:#33406E;
+  --accent-ink:#A9B7FF;
+  --offline-soft:#352A12;
+  --monitor:#A99CFF; --monitor-soft:#221E4A;
+  --bad:#FF8A5C; --bad-soft:#3A1F1A;
+  --warn-soft:#352A12;
+  --shadow-pop:0 18px 44px -14px rgba(0,0,0,.7), 0 0 0 1px #232C52;
+  --on-accent:#0A0F22;
+  --scrim:rgba(0,0,0,.6);
   color-scheme: dark;
 }
 
