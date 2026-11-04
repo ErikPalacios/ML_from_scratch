@@ -19,17 +19,18 @@
    ========================================================================== */
 
 /* ---------------------------------------------------------------------------
-   0. Colores de cabeza (bandas de división/concatenación) — derivados de los tokens
+   0. Colores de cabeza (bandas de división/concatenación): los de las etapas de la T de TrueML,
+      en un orden que deja juntas las cabezas de tono más distinto
    ------------------------------------------------------------------------ */
 :root {
-  --head-1: var(--fwd);
-  --head-2: var(--upd);
-  --head-3: var(--prob-1);
-  --head-4: var(--neg);
-  --head-5: color-mix(in srgb, var(--fwd) 55%, var(--prob-1));
-  --head-6: color-mix(in srgb, var(--upd) 55%, var(--bwd));
-  --head-7: color-mix(in srgb, var(--neg) 55%, var(--fwd));
-  --head-8: var(--data);
+  --head-1: var(--g);
+  --head-2: var(--y);
+  --head-3: var(--p);
+  --head-4: var(--o);
+  --head-5: var(--b);
+  --head-6: var(--bwd);
+  --head-7: var(--n);
+  --head-8: var(--tm-ink3);
 }
 
 /* ---------------------------------------------------------------------------
@@ -207,6 +208,11 @@
 }
 .hm-legend__bar--diverging { background: linear-gradient(90deg, var(--neg), var(--zero), var(--pos)); }
 .hm-legend__bar--sequential { background: linear-gradient(90deg, var(--prob-0), var(--prob-1)); }
+/* la misma interpolación que las celdas (OKLab): la leyenda se ve igual que la matriz */
+@supports (background: linear-gradient(in oklab 90deg, red, blue)) {
+  .hm-legend__bar--diverging { background: linear-gradient(in oklab 90deg, var(--neg), var(--zero), var(--pos)); }
+  .hm-legend__bar--sequential { background: linear-gradient(in oklab 90deg, var(--prob-0), var(--prob-1)); }
+}
 .hm-legend__sw { flex: none; width: 14px; height: 12px; border: 1px solid var(--rule); }
 .hm-legend__sw.is-ninf { background: repeating-linear-gradient(135deg, var(--masked) 0 1.5px, transparent 1.5px 5px), var(--surface-2); }
 .hm-legend__nums { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }

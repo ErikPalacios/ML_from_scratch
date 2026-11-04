@@ -19,9 +19,10 @@
 <meta name="twitter:title" content="Laboratorio Transformer">
 <meta name="twitter:description" content="Entrenamiento completo de un transformer pequeño, paso a paso: tokens, embeddings, atención, FFN, pérdida, retropropagación y actualización, con cada matriz y sus dimensiones.">
 <meta name="twitter:image" content="https://laboratorio-transformer.vercel.app/og.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:wght@600&display=swap">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#EDEFF7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0A0F22" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="public/icon.svg" type="image/svg+xml">
 <script>
   // menú de MathJax sin paradas de tabulación: las fórmulas no son controles (el MathML accesible se conserva)
   window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
@@ -29,22 +30,20 @@
                      options: { menuOptions: { settings: { inTabOrder: false } } } };
 </script>
 <script async id="MathJax-script" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<link rel="stylesheet" href="vendor/trueml/tokens.css">
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/viz.css">
+<link rel="stylesheet" href="css/trueml.css">
 </head>
 <body>
 <a class="skip-link" href="#main">Saltar al contenido</a>
 
 <!-- ============================ CABECERA ============================ -->
 <header class="app-head" id="app-head">
+  <div class="tm-stripe app-head__stripe" aria-hidden="true"><span class="tm-c-datos"></span><span class="tm-c-modelo"></span><span class="tm-c-api"></span><span class="tm-c-contenedor"></span><span class="tm-c-orquestacion"></span><span class="tm-c-monitoreo"></span></div>
   <div class="app-head__row">
     <a class="brand" href="#paso" aria-label="Laboratorio Transformer: ir a Paso a paso">
-      <svg class="brand__mark" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-        <rect x="1" y="1" width="4" height="4" class="bm bm--d"/>
-        <rect x="1" y="6" width="4" height="4" class="bm bm--a"/><rect x="6" y="6" width="4" height="4" class="bm bm--d"/>
-        <rect x="1" y="11" width="4" height="4" class="bm bm--b"/><rect x="6" y="11" width="4" height="4" class="bm bm--a"/><rect x="11" y="11" width="4" height="4" class="bm bm--d"/>
-        <rect x="1" y="16" width="4" height="3" class="bm bm--a"/><rect x="6" y="16" width="4" height="3" class="bm bm--b"/><rect x="11" y="16" width="4" height="3" class="bm bm--a"/><rect x="16" y="16" width="3" height="3" class="bm bm--d"/>
-      </svg>
+      <span class="brand__mark" data-tm-mark aria-hidden="true"></span>
       <span class="brand__name">Laboratorio Transformer</span>
     </a>
 
@@ -442,6 +441,13 @@
   </div>
 </section>
 
+<footer class="tm-foot">
+  <a class="tm-foot__link" href="https://ml-desde-cero.vercel.app">
+    <span class="tm-foot__mark" data-tm-mark aria-hidden="true"></span>
+    <span>Todas las herramientas de <b>True<span>ML</span></b></span>
+  </a>
+</footer>
+
 </main>
 
 <!-- ============================ LÍNEA DE TIEMPO ============================ -->
@@ -501,6 +507,7 @@
   </div>
 </div>
 
+<script src="vendor/trueml/trueml-mark.js"></script>
 <script src="js/core/tensor.js"></script>
 <script src="js/core/tokenizer.js"></script>
 <script src="js/core/model.js"></script>

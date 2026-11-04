@@ -3,8 +3,9 @@
 //   dist/transformer-lab.html  documento completo e independiente (doble clic y listo)
 //   dist/artifact.html         el mismo contenido SIN <!doctype>, <html>, <head> ni <body>:
 //                              <title> primero, luego estilos, marcado y scripts (para publicar)
-// Se incrustan todos los <link rel="stylesheet" href="css/…"> y <script src="js/…"> locales;
-// MathJax (CDN) y Google Fonts se mantienen como recursos externos.
+// Se incrustan todos los <link rel="stylesheet" href="css/…|vendor/…"> y <script src="js/…|vendor/…"> locales;
+// MathJax (CDN) se mantiene como recurso externo. Los enlaces a public/ (icono) apuntan a la raíz de dist/,
+// adonde se copia esa carpeta.
 // Uso: node build.mjs [--allow-missing]   (con --allow-missing, un archivo local ausente solo avisa)
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
@@ -33,15 +34,18 @@ function readLocal(rel) {
 // Dentro de <script>, '</script' cerraría la etiqueta y '<!--' activa el modo de escape: se neutralizan.
 const escScript = (s) => s.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--');
 const escStyle = (s) => s.replace(/<\/style/gi, '<\\/style');
+// Dentro de los comentarios de CSS, «<» se cambia por «‹»: un comentario que nombra <html> (como el de
+// vendor/trueml/tokens.css) no debe parecer una etiqueta de documento en dist/artifact.html.
+const escCssComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/</g, '‹'));
 
 let out = html;
 // hojas de estilo locales → <style>
 out = out.replace(/<link\b[^>]*\brel=["']stylesheet["'][^>]*>/gi, (tag) => {
   const m = /\bhref=["']([^"']+)["']/i.exec(tag);
-  if (!m || /^(https?:)?\/\//i.test(m[1])) return tag; // externo (Google Fonts): se deja
+  if (!m || /^(https?:)?\/\//i.test(m[1])) return tag; // externo: se deja
   const css = readLocal(m[1]);
   if (css === null) return allowMissing ? '<!-- falta ' + m[1] + ' -->' : tag;
-  return '<style data-src="' + m[1] + '">\n' + escStyle(css) + '\n</style>';
+  return '<style data-src="' + m[1] + '">\n' + escStyle(escCssComments(css)) + '\n</style>';
 });
 // scripts locales → <script> en línea
 out = out.replace(/<script\b([^>]*)\bsrc=["']([^"']+)["']([^>]*)><\/script>/gi, (tag, a, src, b) => {
@@ -50,6 +54,9 @@ out = out.replace(/<script\b([^>]*)\bsrc=["']([^"']+)["']([^>]*)><\/script>/gi, 
   if (js === null) return allowMissing ? '<!-- falta ' + src + ' -->' : tag;
   return '<script data-src="' + src + '">\n' + escScript(js) + '\n</script>';
 });
+
+// public/ se copia a la raíz de dist/: «public/icon.svg» → «icon.svg»
+out = out.replace(/(\b(?:href|src)=["'])public\//gi, '$1');
 
 if (missing.length) {
   const msg = 'Archivos locales no encontrados: ' + missing.join(', ');
@@ -87,7 +94,8 @@ writeFileSync(join(DIST, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>
 
 // ---------- comprobaciones e informe
 const kb = (n) => (n / 1024).toFixed(1) + ' KB';
-const leftovers = (out.match(/<(link|script)\b[^>]*\s(href|src)=["'](?!https?:|\/\/)[^"']+["']/gi) || []);
+// (el icono no se incrusta: es un archivo de dist/, copiado desde public/)
+const leftovers = (out.match(/<(link|script)\b[^>]*\s(href|src)=["'](?!https?:|\/\/)[^"']+["'][^>]*>/gi) || []).filter((t) => !/\brel=["']icon["']/i.test(t));
 if (leftovers.length && !allowMissing) { console.error('[build] ERROR: quedan referencias locales sin incrustar:\n  ' + leftovers.join('\n  ')); process.exit(1); }
 if (/<!doctype|<html\b|<\/?head\b|<\/?body\b/i.test(artifact)) { console.error('[build] ERROR: artifact.html contiene etiquetas de documento.'); process.exit(1); }
 const tpos = artifact.indexOf('<title');

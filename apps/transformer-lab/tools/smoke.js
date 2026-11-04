@@ -411,8 +411,8 @@
     A.setTheme('light');
     await frame(); await frame();
     const bgL = getComputedStyle(document.body).backgroundColor, cL = cellBg();
-    check(bgD === 'rgb(14, 20, 26)', W, 'fondo oscuro inesperado: ' + bgD);
-    check(bgL === 'rgb(236, 239, 242)', W, 'fondo claro inesperado: ' + bgL);
+    check(bgD === 'rgb(10, 15, 34)', W, 'fondo oscuro inesperado: ' + bgD);
+    check(bgL === 'rgb(237, 239, 247)', W, 'fondo claro inesperado: ' + bgL);
     check(cD && cL && cD !== cL, W, 'los mapas de calor no se recolorean con el tema');
     A.setTheme(initial);
     summary.theme = { dark: bgD, light: bgL };

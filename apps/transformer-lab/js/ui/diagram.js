@@ -429,10 +429,10 @@
       // marcos de capa
       for (const f of lay.frames) {
         const g = svgEl('g', { class: 'dg-frame-g', 'data-layer': f.layer, 'aria-hidden': 'true' }, gFrames);
-        svgEl('rect', { class: 'dg-frame', x: f.x, y: f.y, width: f.w, height: f.h, rx: 6 }, g);
+        svgEl('rect', { class: 'dg-frame', x: f.x, y: f.y, width: f.w, height: f.h, rx: 14 }, g);
         const tg = svgEl('g', { class: 'dg-tab' }, g);
         const tw = Math.ceil(textWidth(f.tab.text, 10.5, true) + 6.5 * 0.84 + 14);
-        svgEl('rect', { x: f.tab.x, y: f.tab.y, width: tw, height: f.tab.h, rx: 3 }, tg);
+        svgEl('rect', { x: f.tab.x, y: f.tab.y, width: tw, height: f.tab.h, rx: f.tab.h / 2 }, tg);
         const t = svgEl('text', { x: f.tab.x + 7, y: f.tab.y + 11.5 }, tg);
         t.textContent = f.tab.text;
         f.el = g;
@@ -443,9 +443,9 @@
         const g = svgEl('g', { class: 'dg-lane-g', 'data-layer': ln.layer, 'data-lane': ln.lane, 'aria-hidden': 'true' }, gLanes);
         if (ln.rest) {
           // efecto de "pila" para las cabezas agrupadas
-          svgEl('rect', { class: 'dg-lane-stack', x: ln.x + 3, y: ln.y - 3, width: ln.w, height: ln.h, rx: 4 }, g);
+          svgEl('rect', { class: 'dg-lane-stack', x: ln.x + 3, y: ln.y - 3, width: ln.w, height: ln.h, rx: 10 }, g);
         }
-        const r = svgEl('rect', { class: 'dg-lane', x: ln.x, y: ln.y, width: ln.w, height: ln.h, rx: 4 }, g);
+        const r = svgEl('rect', { class: 'dg-lane', x: ln.x, y: ln.y, width: ln.w, height: ln.h, rx: 10 }, g);
         const t = svgEl('text', { class: 'dg-lane-head', x: ln.cx, y: ln.y + 12.5, 'text-anchor': 'middle' }, g);
         const cand = ln.headCands.find((c) => textWidth(c, 10, true) <= ln.w - 8) || ln.headCands[ln.headCands.length - 1];
         t.textContent = cand;
@@ -491,6 +491,9 @@
       return parts.join(' · ');
     }
 
+    // marca de «parámetro entrenable»: un punto ocre en la esquina (el optimizador lo actualiza)
+    function pmark(g, right, top) { svgEl('circle', { class: 'dg-pmark', cx: right - 7.5, cy: top + 7.5, r: 2.6 }, g); }
+
     function renderNode(n, lay) {
       const g = svgEl('g', {
         class: 'dg-node dg-node--' + (n.cls || 'op').split(' ').join(' dg-node--'),
@@ -516,9 +519,9 @@
           richText(t2, n.sub, 10.5);
           t1.dataset.maxw = t2.dataset.maxw = String(lx - 4);
           const s = n.side;
-          svgEl('rect', { class: 'dg-halo', x: s.x - 3, y: s.y - 3, width: s.w + 6, height: s.h + 6, rx: 6 }, g);
-          svgEl('rect', { class: 'dg-shape', x: s.x, y: s.y, width: s.w, height: s.h, rx: 3 }, g);
-          if (/param/.test(n.cls)) svgEl('rect', { class: 'dg-pmark', x: s.x + s.w - 8, y: s.y + 3, width: 5, height: 5 }, g);
+          svgEl('rect', { class: 'dg-halo', x: s.x - 3, y: s.y - 3, width: s.w + 6, height: s.h + 6, rx: 11 }, g);
+          svgEl('rect', { class: 'dg-shape', x: s.x, y: s.y, width: s.w, height: s.h, rx: 8 }, g);
+          if (/param/.test(n.cls)) pmark(g, s.x + s.w, s.y);
           const scx = s.x + s.w / 2;
           const a = svgEl('text', { class: 'dg-label', x: scx, y: s.y + 13, 'text-anchor': 'middle' }, g);
           richText(a, s.label, 12);
@@ -535,10 +538,11 @@
           t1.dataset.maxw = t2.dataset.maxw = String(maxw);
         }
       } else {
-        const rx = n.cls === 'op' ? Math.min(n.h / 2, 11) : 3;
+        // con parámetros: esquinas redondeadas; operación sin parámetros: píldora
+        const rx = n.cls === 'op' ? Math.min(n.h / 2, 11) : Math.min(8, n.h / 4);
         svgEl('rect', { class: 'dg-halo', x: n.x - 3, y: n.y - 3, width: n.w + 6, height: n.h + 6, rx: rx + 3 }, g);
         svgEl('rect', { class: 'dg-shape', x: n.x, y: n.y, width: n.w, height: n.h, rx }, g);
-        if (n.cls === 'param') svgEl('rect', { class: 'dg-pmark', x: n.x + n.w - 8, y: n.y + 3, width: 5, height: 5 }, g);
+        if (n.cls === 'param') pmark(g, n.x + n.w, n.y);
         const cx = n.x + n.w / 2;
         const maxw = n.w - (n.cls === 'op' ? 12 : 16);
         if (n.kind === 'lane') {
@@ -571,8 +575,8 @@
         y += 17;
       };
       row((yy) => {
-        svgEl('rect', { class: 'dg-shape', x, y: yy - 6, width: 22, height: 12, rx: 2 }, g);
-        svgEl('rect', { class: 'dg-pmark', x: x + 16, y: yy - 4, width: 4, height: 4 }, g);
+        svgEl('rect', { class: 'dg-shape', x, y: yy - 6, width: 22, height: 12, rx: 3.5 }, g);
+        svgEl('circle', { class: 'dg-pmark', cx: x + 17.5, cy: yy - 1.5, r: 2 }, g);
       }, ['bloque con parámetros entrenables', 'con parámetros entrenables']);
       row((yy) => svgEl('rect', { class: 'dg-shape', x, y: yy - 6, width: 22, height: 12, rx: 6 }, g), ['operación sin parámetros', 'operación sin parámetros']);
       row((yy) => {

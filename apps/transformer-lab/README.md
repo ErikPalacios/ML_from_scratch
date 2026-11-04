@@ -17,9 +17,13 @@ modelo real, escrito a mano en JavaScript (sin librerías de ML).
   todo el CSS y el JavaScript incrustados. También crea `dist/artifact.html`, el mismo contenido sin
   las etiquetas `<html>`, `<head>` y `<body>`, para publicarlo dentro de otra página.
 
-Solo hay dos recursos externos: **MathJax 3** (para componer las fórmulas) y las fuentes de Google
-Fonts. Sin conexión la aplicación funciona igual: las fórmulas se muestran como código LaTeX y se
-usan las fuentes del sistema.
+El único recurso externo es **MathJax 3** (para componer las fórmulas); las fuentes son las del
+sistema. Sin conexión la aplicación funciona igual: las fórmulas se muestran como código LaTeX.
+
+El diseño es el de **TrueML** (el mismo de las demás herramientas de ML desde cero): fondo
+cuadriculado, la T de vidrio como marca, tarjetas redondeadas y botones amarillos en relieve, en
+claro y oscuro. Los mapas de calor interpolan sus escalas en OKLab, un espacio de color uniforme a
+la vista: pasos iguales de valor se ven como pasos iguales de color.
 
 ## Las cuatro pestañas
 
@@ -173,8 +177,11 @@ pendientes) y `state`.
 ```
 index.html              documento principal (carga los CSS y JS de abajo, en orden)
 build.mjs               empaquetador sin dependencias → dist/
-css/app.css             tokens de diseño, primitivas y maquetación de la app
+css/app.css             tokens de diseño (apuntan a los de TrueML), primitivas y maquetación de la app
 css/viz.css             estilos de matrices, mapas de calor y vistas de operaciones
+css/trueml.css          la piel TrueML (fondo, tarjetas, botones, diagrama); va al final
+vendor/trueml/          copia del sistema de diseño TrueML (tokens.css, trueml-mark.js); no se edita aquí
+public/                 archivos que se copian a dist/ tal cual (icono, imagen para redes)
 js/core/tensor.js       TL.Mat: matrices Float64Array y generador aleatorio con semilla
 js/core/tokenizer.js    TL.Tokenizer: vocabulario, codificación, pares entrada → objetivo
 js/core/model.js        TL.Model: forward y backward escritos a mano, con traza paso a paso

@@ -26,6 +26,7 @@ const APPS = [
   ['tablero-ml/web', null],
   ['atlas-arquitecturas/web', ['modelo']],
   ['cheat-sheets/site', ['api', 'contenedor', 'orquestacion', 'monitoreo']],
+  ['transformer-lab/public', ['datos', 'modelo']],
 ];
 
 // La T dentro de un cuadrado de 512: `escala` es la fracción del alto que ocupa.

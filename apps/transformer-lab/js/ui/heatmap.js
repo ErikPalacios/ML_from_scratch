@@ -127,6 +127,10 @@
       muted: g('--muted', '#5A6774'),
     };
     theme.mono = (cs && cs.getPropertyValue('--font-mono').trim()) || 'ui-monospace, monospace';
+    // rampas precalculadas (OKLab): cero → positivo, cero → negativo y 0 → 1 para la secuencial
+    theme.rampPos = ramp(theme.zero, theme.pos);
+    theme.rampNeg = ramp(theme.zero, theme.neg);
+    theme.rampSeq = ramp(theme.p0, theme.p1);
     const lum = (c) => {
       const f = (v) => LIN[Math.max(0, Math.min(255, Math.round(v)))];
       return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
@@ -145,6 +149,35 @@
   const hex = (c) => '#' + HEX2[Math.max(0, Math.min(255, Math.round(c[0])))] + HEX2[Math.max(0, Math.min(255, Math.round(c[1])))] + HEX2[Math.max(0, Math.min(255, Math.round(c[2])))];
   const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
+  // Interpolación en OKLab (espacio perceptualmente uniforme): pasos iguales de valor se ven como pasos
+  // iguales de color, y los tonos intermedios no se agrisan como al mezclar en sRGB. Se precalcula una
+  // rampa de RAMP_N + 1 colores por escala (al leer el tema), así cada celda es solo una consulta.
+  const RAMP_N = 256;
+  const toLin = (c) => LIN[Math.max(0, Math.min(255, Math.round(c)))];
+  const fromLin = (l) => { l = Math.max(0, Math.min(1, l)); return 255 * (l <= 0.0031308 ? 12.92 * l : 1.055 * Math.pow(l, 1 / 2.4) - 0.055); };
+  function oklab(c) {
+    const r = toLin(c[0]), g = toLin(c[1]), b = toLin(c[2]);
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s];
+  }
+  function rgbFromOklab(q) {
+    const l = Math.pow(q[0] + 0.3963377774 * q[1] + 0.2158037573 * q[2], 3);
+    const m = Math.pow(q[0] - 0.1055613458 * q[1] - 0.0638541728 * q[2], 3);
+    const s = Math.pow(q[0] - 0.0894841775 * q[1] - 1.2914855480 * q[2], 3);
+    return [fromLin(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s), fromLin(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s), fromLin(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)];
+  }
+  function ramp(a, b) {
+    const A = oklab(a), B = oklab(b), out = new Array(RAMP_N + 1);
+    for (let i = 0; i <= RAMP_N; i++) {
+      const t = i / RAMP_N;
+      out[i] = i === 0 ? a.slice() : i === RAMP_N ? b.slice() : rgbFromOklab(mix(A, B, t));
+    }
+    return out;
+  }
+  const rampAt = (r, t) => r[Math.round(Math.max(0, Math.min(1, t)) * RAMP_N)];
+
   // color de fondo [r,g,b] de un valor según la escala
   function rgbOf(v, sc) {
     const th = readTheme();
@@ -152,10 +185,10 @@
     if (Number.isNaN(v)) return th.masked;
     if (sc.type === 'sequential') {
       const t = sc.hi > sc.lo ? Math.max(0, Math.min(1, (v - sc.lo) / (sc.hi - sc.lo))) : 0;
-      return mix(th.p0, th.p1, t);
+      return rampAt(th.rampSeq, t);
     }
     const t = Math.max(-1, Math.min(1, v / (sc.maxAbs || 1)));
-    return t >= 0 ? mix(th.zero, th.pos, t) : mix(th.zero, th.neg, -t);
+    return t >= 0 ? rampAt(th.rampPos, t) : rampAt(th.rampNeg, -t);
   }
   function colorOf(v, sc) { return hex(rgbOf(v, sc)); }
   // texto: tinta o superficie, la que más contraste; si ninguna llega a 4.5:1 (celdas de tono

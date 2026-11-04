@@ -1483,6 +1483,16 @@
       foot: h('button', { type: 'button', class: 'btn', 'data-close': '' }, 'Cerrar'),
     });
   }
+  // La T de vidrio de TrueML (vacía si el generador no se cargó: la app funciona igual sin ella)
+  const tmMark = (labels, key, maxH) => (root.TrueMLMark ? root.TrueMLMark.mark(true, labels, key, maxH) : '');
+  // Las etapas de la T que cubre este laboratorio: del texto a los tokens (Datos) y el modelo que se entrena (Modelo)
+  const TM_STAGES = ['datos', 'modelo'];
+  function tourHero() {
+    const mark = h('div', { class: 'tour-hero__mark', html: tmMark(1, 'lab', '300px') });
+    if (root.TrueMLMark) { root.TrueMLMark.sync(mark, TM_STAGES); root.TrueMLMark.play(mark); }
+    return h('figure', { class: 'tour-hero', 'aria-hidden': 'true' }, mark,
+      h('figcaption', { class: 'tour-hero__cap', text: 'En la T de TrueML, este laboratorio cubre Datos y Modelo' }));
+  }
   function openGuide(section, card) {
     const C = TL.Content;
     const tour = C.tour || [];
@@ -1515,8 +1525,10 @@
       let body, foot = null;
       if (sec === 'tour') {
         const c = tour[k] || { title: '', html: '' };
-        body = h('div', { class: 'tour' }, h('div', { class: 'tour__num', text: 'Tarjeta ' + (k + 1) + ' de ' + tour.length }),
-          h('h3', { class: 'tour__title', text: c.title }), h('div', { class: 'prose', html: c.html }));
+        body = h('div', { class: 'tour' + (k === 0 && root.TrueMLMark ? ' tour--hero' : '') },
+          h('div', { class: 'tour__txt' }, h('div', { class: 'tour__num', text: 'Tarjeta ' + (k + 1) + ' de ' + tour.length }),
+            h('h3', { class: 'tour__title', text: c.title }), h('div', { class: 'prose', html: c.html })),
+          k === 0 && root.TrueMLMark ? tourHero() : null);
         const dots = h('div', { class: 'tour__dots', 'aria-hidden': 'true' });
         tour.forEach((_, j) => dots.append(h('span', { class: 'tour__dot' + (j === k ? ' is-on' : '') })));
         const prevB = h('button', { type: 'button', class: 'btn', disabled: k === 0 }, 'Anterior');
@@ -2673,6 +2685,8 @@
     const missing = ['Mat', 'Tokenizer', 'Model', 'Optim', 'Trainer', 'Content', 'MathTex', 'Heatmap', 'OpViews', 'Diagram', 'Charts'].filter((k) => !TL[k]);
     if (missing.length) { showFatal('Faltan módulos: ' + missing.map((k) => 'TL.' + k).join(', ') + '. Comprueba que todos los archivos js/ se cargaron.'); return; }
     applyTheme(S.theme, true);
+    // la T de TrueML (vendor/trueml/trueml-mark.js): la marca de la cabecera y del pie, sin etiquetas
+    doc.querySelectorAll('[data-tm-mark]').forEach((el) => { el.innerHTML = tmMark(null); });
     $('btn-theme').addEventListener('click', () => applyTheme(THEME_ORDER[(THEME_ORDER.indexOf(S.theme) + 1) % THEME_ORDER.length]));
     $('btn-guide').addEventListener('click', () => openGuide('tour', 0));
     initTabs();

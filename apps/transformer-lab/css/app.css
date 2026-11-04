@@ -1,6 +1,7 @@
 /* =============================================================================
    Transformer Lab — css/app.css
-   Kit de diseño: tokens (§11) · base · primitivas · diagrama · gráficos.
+   Kit de diseño: tokens (apuntan a los --tm-* de TrueML) · base · primitivas · diagrama · gráficos.
+   La piel TrueML (fondo cuadriculado, tarjetas, botones en relieve…) va en css/trueml.css, al final.
    (Las secciones de layout de la app se AÑADEN al final de este archivo.)
 
    REFERENCIA RÁPIDA DE CLASES ------------------------------------------------
@@ -39,27 +40,32 @@
    ========================================================================== */
 
 /* ---------------------------------------------------------------------------
-   1. TOKENS
+   1. TOKENS — conectados al sistema de diseño TrueML (vendor/trueml/tokens.css va antes que este archivo).
+      Los --tm-* cambian solos entre claro y oscuro; aquí van los colores propios del laboratorio:
+      fases (datos gris pizarra, forward verde azulado, backward magenta, actualización ocre) y escalas
+      de los mapas de calor (azul = negativo, naranja = positivo, violeta = probabilidad).
+      Los colores que lee JavaScript (mapas de calor, gráficos) son hexadecimales o var() a uno de ellos.
    ------------------------------------------------------------------------ */
 :root {
-  /* claro: "papel técnico" (§11, valores exactos) */
-  --bg:#ECEFF2; --grid:#DCE2E8; --surface:#F8FAFB; --surface-2:#F1F4F7; --ink:#15202B; --muted:#5A6774;
-  --rule:#C9D2DB; --focus:#2B6CB0;
-  --fwd:#0E7C74; --fwd-soft:#D5ECE9; --bwd:#B42F6B; --bwd-soft:#F4DCE7; --upd:#A86B0C; --upd-soft:#F3E6CC;
-  --data:#4A5B6C; --data-soft:#DDE3E9;
-  --neg:#2F64B5; --zero:#F8FAFB; --pos:#C8502A; --prob-0:#F8FAFB; --prob-1:#4B2E83; --masked:#9AA6B2;
-  --font-display:'Spectral', Georgia, 'Times New Roman', serif;
-  --font-body:'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono:'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --bg:var(--tm-bg); --grid:var(--tm-grid); --surface:var(--tm-card); --surface-2:#F4F6FC;
+  --ink:var(--tm-ink); --ink-2:var(--tm-ink2); --muted:var(--tm-ink3);
+  --rule:var(--tm-line); --focus:var(--tm-acc);
+  --fwd:#0E9F77; --fwd-soft:#E1F6EE; --bwd:#C8337B; --bwd-soft:#FBE6F0; --upd:#B07A0C; --upd-soft:#FBF0D8;
+  --data:#5A6699; --data-soft:#E7EAF5;
+  /* escalas: divergente (azul ↔ neutro ↔ naranja) y secuencial (neutro → violeta); se interpolan en OKLab */
+  --neg:#2D62E0; --zero:#F2F4FA; --pos:#E0582C; --prob-0:#F2F4FA; --prob-1:#6537C4; --masked:#9AA2C0;
+  --font-display:var(--sans);
+  --font-body:var(--sans);
+  --font-mono:var(--mono);
 
   /* extensiones del kit (derivadas) */
-  --rule-strong:#95A4B2;           /* filetes con énfasis, flechas del diagrama */
-  --field:#7A8A99;                 /* borde de campos de formulario (≥ 3:1 sobre --surface) */
-  --fwd-ink:#0B6660; --bwd-ink:#96245A; --upd-ink:#8A5608; --data-ink:#3B4A59; /* texto sobre *-soft (≥ 4.5:1) */
-  --ok:#29704A; --ok-soft:#DCEFE3; --bad:#AE3232; --bad-soft:#F6DEDC; /* ≥ 4.5:1 sobre *-soft */
-  --hover:rgba(21,32,43,.05);
-  --shadow-1:0 1px 0 rgba(21,32,43,.04), 0 1px 3px rgba(21,32,43,.06);
-  --shadow-pop:0 2px 4px rgba(21,32,43,.08), 0 10px 28px rgba(21,32,43,.14);
+  --rule-strong:#B9BFD6;           /* filetes con énfasis */
+  --field:#858DB0;                 /* borde de campos de formulario (≥ 3:1 sobre --surface) */
+  --fwd-ink:#0B6E53; --bwd-ink:#A11F5E; --upd-ink:#855A00; --data-ink:#3F4A7A; /* texto sobre *-soft (≥ 4.5:1) */
+  --ok:var(--tm-okink); --ok-soft:var(--tm-ok); --bad:#C2441D; --bad-soft:#FCE9E1; /* ≥ 4.5:1 sobre *-soft */
+  --hover:rgba(14,21,48,.05);
+  --shadow-1:0 1px 0 rgba(14,21,48,.06);
+  --shadow-pop:0 18px 44px -14px rgba(14,21,48,.32), 0 0 0 1px rgba(14,21,48,.06);
 
   /* fase actual (lo sobrescribe [data-phase]) */
   --ph:var(--ink); --ph-soft:var(--surface-2); --ph-ink:var(--ink);
@@ -68,45 +74,40 @@
   --fs-xs:12px; --fs-sm:13px; --fs-md:15px; --fs-lg:18px; --fs-xl:24px; --fs-2xl:32px;
   --lh:1.5;
   /* radios, espacios, movimiento */
-  --r-1:2px; --r-2:4px; --r-3:6px;
+  --r-1:6px; --r-2:12px; --r-3:20px;
   --gap:12px; --gutter:16px;
   --ease:cubic-bezier(.2,.7,.2,1); --dur:160ms;
-  /* tamaño de la cuadrícula de fondo */
-  --grid-minor:24px; --grid-major:120px;
+  /* tamaño de la cuadrícula de fondo (la de TrueML: 32 px) */
+  --grid-minor:32px; --grid-major:32px;
 
   color-scheme: light;
 }
 
-/* oscuro: "pizarra" — por preferencia del sistema salvo que se fuerce claro */
+/* oscuro: por preferencia del sistema (salvo que se fuerce claro) o forzado por el conmutador */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:#0E141A; --grid:#18222C; --surface:#131B23; --surface-2:#18222C; --ink:#E4EBF1; --muted:#93A1AE;
-    --rule:#2A3643; --focus:#6FA8E8;
-    --fwd:#3CC2B4; --fwd-soft:#12302E; --bwd:#F0679F; --bwd-soft:#3A1628; --upd:#F0B24A; --upd-soft:#3A2A10;
-    --data:#9FB0C1; --data-soft:#1E2A36;
-    --neg:#5B93E6; --zero:#131B23; --pos:#F07B4C; --prob-0:#131B23; --prob-1:#B89BFF; --masked:#4A5663;
-    --rule-strong:#46566A; --field:#56687A;
-    --fwd-ink:#3CC2B4; --bwd-ink:#F0679F; --upd-ink:#F0B24A; --data-ink:#9FB0C1;
-    --ok:#5CC98A; --ok-soft:#133022; --bad:#E57373; --bad-soft:#3A1818;
-    --hover:rgba(228,235,241,.06);
-    --shadow-1:0 1px 0 rgba(0,0,0,.25), 0 1px 3px rgba(0,0,0,.3);
-    --shadow-pop:0 2px 6px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.45);
+    --surface-2:#182148; --rule-strong:#36427A; --field:#56629A;
+    --fwd:#3FD3A6; --fwd-soft:#0F3B30; --bwd:#FF6FAE; --bwd-soft:#3B1631; --upd:#FFC857; --upd-soft:#352A12;
+    --data:#9AA6D6; --data-soft:#1F2850;
+    --neg:#5C8DFF; --zero:#1A2346; --pos:#FF8A5C; --prob-0:#1A2346; --prob-1:#C3A6FF; --masked:#4A5480;
+    --fwd-ink:#5BE0B5; --bwd-ink:#FF8FC0; --upd-ink:#FFC857; --data-ink:#B4BEE6;
+    --bad:#FF8A5C; --bad-soft:#3A1F1A;
+    --hover:rgba(238,241,251,.06);
+    --shadow-1:0 1px 0 rgba(0,0,0,.3);
+    --shadow-pop:0 18px 44px -14px rgba(0,0,0,.7), 0 0 0 1px #232C52;
     color-scheme: dark;
   }
 }
-/* oscuro forzado por el conmutador de tema */
 :root[data-theme="dark"] {
-  --bg:#0E141A; --grid:#18222C; --surface:#131B23; --surface-2:#18222C; --ink:#E4EBF1; --muted:#93A1AE;
-  --rule:#2A3643; --focus:#6FA8E8;
-  --fwd:#3CC2B4; --fwd-soft:#12302E; --bwd:#F0679F; --bwd-soft:#3A1628; --upd:#F0B24A; --upd-soft:#3A2A10;
-  --data:#9FB0C1; --data-soft:#1E2A36;
-  --neg:#5B93E6; --zero:#131B23; --pos:#F07B4C; --prob-0:#131B23; --prob-1:#B89BFF; --masked:#4A5663;
-  --rule-strong:#46566A; --field:#56687A;
-  --fwd-ink:#3CC2B4; --bwd-ink:#F0679F; --upd-ink:#F0B24A; --data-ink:#9FB0C1;
-  --ok:#5CC98A; --ok-soft:#133022; --bad:#E57373; --bad-soft:#3A1818;
-  --hover:rgba(228,235,241,.06);
-  --shadow-1:0 1px 0 rgba(0,0,0,.25), 0 1px 3px rgba(0,0,0,.3);
-  --shadow-pop:0 2px 6px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.45);
+  --surface-2:#182148; --rule-strong:#36427A; --field:#56629A;
+  --fwd:#3FD3A6; --fwd-soft:#0F3B30; --bwd:#FF6FAE; --bwd-soft:#3B1631; --upd:#FFC857; --upd-soft:#352A12;
+  --data:#9AA6D6; --data-soft:#1F2850;
+  --neg:#5C8DFF; --zero:#1A2346; --pos:#FF8A5C; --prob-0:#1A2346; --prob-1:#C3A6FF; --masked:#4A5480;
+  --fwd-ink:#5BE0B5; --bwd-ink:#FF8FC0; --upd-ink:#FFC857; --data-ink:#B4BEE6;
+  --bad:#FF8A5C; --bad-soft:#3A1F1A;
+  --hover:rgba(238,241,251,.06);
+  --shadow-1:0 1px 0 rgba(0,0,0,.3);
+  --shadow-pop:0 18px 44px -14px rgba(0,0,0,.7), 0 0 0 1px #232C52;
   color-scheme: dark;
 }
 
