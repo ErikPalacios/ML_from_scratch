@@ -16,7 +16,8 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from mundo.comun import (ESPERADO, FLORES, GATEWAY, IMG_GW, IMG_MS, MODELO, MODELO_SHA, RAIZ, REGISTRY,  # noqa: E402
+from mundo.comun import (ESPERADO, FLORES, GATEWAY, GATEWAY_SERVIDOR, IMG_GW, IMG_MS, IMG_MS_SIN,  # noqa: E402
+                         MODEL_SERVER_VOLUMEN, MODELO, MODELO_SHA, RAIZ, REGISTRY, SERVIDOR, VOLUMEN,
                          compose_json, contexto, humano, imagen, sh, sha256)
 
 MAX_CONTEXTO = 1_000_000   # 1 MB: con lo que copian los Dockerfiles alcanza de sobra
@@ -208,10 +209,89 @@ def check_registry() -> str:
     return "en el registry y con tu digest: " + " · ".join(out)
 
 
+def digest_remoto(ref: str) -> str:
+    repo, tag = ref.split(":")
+    try:
+        st, _, h = http(f"http://{REGISTRY}/v2/{repo}/manifests/{tag}", metodo="HEAD", headers={"Accept": ", ".join([
+            "application/vnd.oci.image.index.v1+json", "application/vnd.docker.distribution.manifest.list.v2+json",
+            "application/vnd.oci.image.manifest.v1+json", "application/vnd.docker.distribution.manifest.v2+json"])})
+    except Exception as e:
+        raise Falla(f"el registry no responde en {REGISTRY} ({type(e).__name__}): sin registry, el servidor no puede comparar ni bajar")
+    exige(st == 200, f"{REGISTRY}/{ref} no está en el registry")
+    return {k.lower(): v for k, v in h.items()}.get("docker-content-digest", "")
+
+
+def esperar_200(url: str, quien: str) -> None:
+    for intento in range(10):   # si acaba de arrancar, dale unos segundos
+        try:
+            st, body, _ = http(url)
+            if st == 200:
+                return
+        except Exception as e:
+            st, body = 0, type(e).__name__
+        time.sleep(1)
+    raise Falla(f"{quien} no contesta 200 en {url} ({st}: {body[:120]})")
+
+
+def check_pull() -> str:
+    archivo = SERVIDOR / "compose.yaml"
+    exige(archivo.exists(), "falta servidor/compose.yaml: el «servidor» que solo baja imágenes del registry")
+    exige((SERVIDOR / "config.env").exists(), "falta servidor/config.env: el servidor necesita su propia copia de la configuración")
+    r = sh("docker", "compose", "config", "--format", "json", cwd=SERVIDOR)
+    exige(r.returncode == 0, f"servidor/compose.yaml no es válido: {r.stderr.strip()[:200]}")
+    cfg = json.loads(r.stdout).get("services", {})
+    for s, ref in (("model-server", IMG_MS), ("gateway", IMG_GW)):
+        exige(s in cfg, f"servidor/compose.yaml no tiene el servicio {s}")
+        exige("build" not in cfg[s], f"servidor/compose.yaml: {s} tiene build; el servidor no construye, solo baja del registry")
+        exige(cfg[s].get("image") == f"{REGISTRY}/{ref}", f"servidor/compose.yaml: {s} debe usar image: {REGISTRY}/{ref} (tiene {cfg[s].get('image')})")
+    exige(not cfg["model-server"].get("ports"), "en el servidor el model server no se publica: solo el gateway da la cara")
+    corriendo = {c.get("Service"): c for c in compose_json(SERVIDOR)}
+    exige(corriendo, "el servidor no está arriba: cd servidor && docker compose up -d")
+    out = []
+    for s, ref in (("model-server", IMG_MS), ("gateway", IMG_GW)):
+        c = corriendo.get(s)
+        exige(c and c.get("State") == "running", f"en el servidor, {s} no está corriendo: cd servidor && docker compose ps")
+        remoto = digest_remoto(ref)
+        local = imagen(f"{REGISTRY}/{ref}")
+        exige(local, f"no está la imagen {REGISTRY}/{ref}: docker pull {REGISTRY}/{ref}")
+        exige(any(d.endswith("@" + remoto) for d in local.get("RepoDigests", [])),
+              f"{REGISTRY}/{ref} local no es la del registry (digest {remoto[:19]}…): docker pull {REGISTRY}/{ref}")
+        usa = json.loads(sh("docker", "inspect", c["ID"]).stdout)[0]["Image"]
+        exige(usa == local["Id"], f"el contenedor {s} del servidor no corre la imagen que bajaste: docker compose up -d --force-recreate")
+        out.append(f"{ref.split(':')[0]} {remoto[:19]}…")
+    esperar_200(GATEWAY_SERVIDOR + "/readyz", "el gateway del servidor")
+    st, body, _ = http(GATEWAY_SERVIDOR + "/v1/predict", FLORES)
+    exige(st == 200 and [p["label"] for p in json.loads(body)["predictions"]] == ESPERADO, f"el servidor no predice bien las 3 flores ({st}: {body[:120]})")
+    return "el servidor corre lo que bajó del registry (" + " · ".join(out) + ") y predice bien en :8081"
+
+
+def check_volumen() -> str:
+    L = dockerfile(RAIZ / "model_server" / "Dockerfile.volumen")
+    exige(not any(re.match(r"(COPY|ADD) .*model_repository", l, re.I) for l in L),
+          "Dockerfile.volumen copia el modelo: la idea es que el modelo llegue por el volumen")
+    con, sin = imagen(IMG_MS), imagen(IMG_MS_SIN)
+    exige(con, f"no existe {IMG_MS} (la del paso 5) para comparar")
+    exige(sin, f"no existe {IMG_MS_SIN}: docker build -f model_server/Dockerfile.volumen -t {IMG_MS_SIN} model_server")
+    r = sh("docker", "run", "--rm", "--entrypoint", "ls", IMG_MS_SIN, "/models")
+    exige(r.returncode != 0 or not r.stdout.strip(), f"{IMG_MS_SIN} trae algo en /models: {r.stdout.split()[:3]}")
+    i = sh("docker", "inspect", VOLUMEN)
+    exige(i.returncode == 0, f"no existe el contenedor {VOLUMEN}: docker run -d --name {VOLUMEN} -p 9001:8000 -v \"$PWD/model_repository:/models:ro\" {IMG_MS_SIN}")
+    c = json.loads(i.stdout)[0]
+    exige(c["Image"] == sin["Id"], f"{VOLUMEN} no corre {IMG_MS_SIN}")
+    exige(c["State"]["Running"], f"{VOLUMEN} no está corriendo ({c['State']['Status']}): docker logs {VOLUMEN}")
+    m = [x for x in c.get("Mounts", []) if x.get("Destination") == "/models"]
+    exige(m, f"{VOLUMEN} no tiene nada montado en /models")
+    exige(not m[0].get("RW", True), f"el volumen de /models está en lectura y escritura: agrega :ro, el model server solo lee")
+    esperar_200(MODEL_SERVER_VOLUMEN + "/v2/models/iris/ready", f"{VOLUMEN}")
+    dif = con["Size"] - sin["Size"]
+    return (f"comprimida: con el modelo {humano(con['Size'])} · sin modelo {humano(sin['Size'])} (diferencia {humano(abs(dif))}); "
+            f"{VOLUMEN} lee el modelo del volumen, solo lectura, y está listo en :9001")
+
+
 CHECKS = {
     "mundo": check_mundo, "deps": check_deps, "contexto": check_contexto, "gateway": check_gateway,
     "model-server": check_model_server, "exec": check_exec, "red": check_red, "salud": check_salud,
-    "registry": check_registry,
+    "registry": check_registry, "pull": check_pull, "volumen": check_volumen,
 }
 
 

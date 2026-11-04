@@ -1,6 +1,6 @@
 Estoy en el Dojo de entrenamiento ML engineer's, en la estación 7 de C01, «Empaquetado (Docker)», ronda **Guiado**.
 
-Lee primero `CLAUDE.md` y `GUION.md` de esta carpeta. Vamos a escribir juntos, siguiendo los pasos 0 a 8 de `GUION.md`, todo lo que convierte el servicio de Iris en imágenes: dependencias fijadas, `.dockerignore`, los dos Dockerfiles, `compose.yaml` y el push al registry local.
+Lee primero `CLAUDE.md` y `GUION.md` de esta carpeta. Vamos a escribir juntos, siguiendo los pasos 0 a 10 de `GUION.md`, todo lo que convierte el servicio de Iris en imágenes: dependencias fijadas, `.dockerignore`, los dos Dockerfiles, `compose.yaml`, el push al registry local, el pull desde un «servidor» sin código y la comparación del modelo dentro y fuera de la imagen.
 
 Entre el paso 0 y el 1, `GUION.md` trae los «Precálculos»: las cuentas de servilleta de la estación. Pídeme que haga cada cuenta yo primero, corrígeme y después corre el comando que la comprueba (o dime en qué paso se va a confirmar).
 

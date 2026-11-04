@@ -18,6 +18,9 @@ MODELO_SHA = "8b9afbe09d0d405b12a6a14e670146765f90a58b9c928d11be4e653dbd9ca53e" 
 
 GATEWAY, MODEL_SERVER, REGISTRY = "http://localhost:8080", "http://localhost:9000", "localhost:5050"
 IMG_GW, IMG_MS = "iris-gateway:0.1", "iris-model-server:0.1"
+SERVIDOR = RAIZ / "servidor"               # el paso del pull: otra «máquina» que solo baja imágenes
+GATEWAY_SERVIDOR = "http://localhost:8081"
+IMG_MS_SIN, VOLUMEN, MODEL_SERVER_VOLUMEN = "iris-model-server:0.1-sin-modelo", "iris-volumen", "http://localhost:9001"
 FLORES = {"flowers": [
     {"sepal_length": 5.1, "sepal_width": 3.5, "petal_length": 1.4, "petal_width": 0.2},
     {"sepal_length": 5.9, "sepal_width": 3.0, "petal_length": 4.2, "petal_width": 1.5},
@@ -26,8 +29,8 @@ FLORES = {"flowers": [
 ESPERADO = ["setosa", "versicolor", "virginica"]
 
 
-def sh(*cmd: str, check: bool = False, timeout: float = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=RAIZ, capture_output=True, text=True, check=check, timeout=timeout)
+def sh(*cmd: str, check: bool = False, timeout: float = 120, cwd: Path = RAIZ) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=check, timeout=timeout)
 
 
 def sha256(p: Path) -> str:
@@ -48,9 +51,9 @@ def imagen(ref: str) -> dict | None:
     return json.loads(r.stdout)[0] if r.returncode == 0 else None
 
 
-def compose_json() -> list[dict]:
+def compose_json(cwd: Path = RAIZ) -> list[dict]:
     """Los contenedores del proyecto de compose (docker compose ps), uno por servicio."""
-    r = sh("docker", "compose", "ps", "--all", "--format", "json")
+    r = sh("docker", "compose", "ps", "--all", "--format", "json", cwd=cwd)
     if r.returncode != 0:
         return []
     t = r.stdout.strip()

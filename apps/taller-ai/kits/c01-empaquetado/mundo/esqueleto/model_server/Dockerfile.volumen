@@ -1,0 +1,5 @@
+# Contrato · imagen iris-model-server:0.1-sin-modelo (el modelo fuera de la imagen)
+#   contexto:  solo la carpeta model_server   (docker build -f model_server/Dockerfile.volumen -t iris-model-server:0.1-sin-modelo model_server)
+#   base:      python:3.13-slim
+#   lleva:     las dependencias y server.py; el modelo NO (llega al correr con -v "$PWD/model_repository:/models:ro")
+#   corre:     igual que el Dockerfile con el modelo dentro: uvicorn en 0.0.0.0:8000, UID 10001, forma exec

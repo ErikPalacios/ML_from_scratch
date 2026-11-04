@@ -13,8 +13,8 @@ paso() { echo "### $1" >> "$LOG"; shift; { "$@" 2>&1; c=$?; [ $c -ne 0 ] && echo
 (cd "$KIT" && tar --exclude .taller --exclude __pycache__ -cf - .) | (cd "$D" && tar -xf -)
 (cd "$KIT/mundo/esqueleto" && tar -cf - .) | (cd "$D" && tar -xf -)
 cd "$D"
-docker compose down -v >/dev/null 2>&1; docker rm -f registry >/dev/null 2>&1
-docker rmi -f iris-gateway:0.1 iris-gateway:0.2 iris-model-server:0.1 localhost:5050/iris-gateway:0.1 localhost:5050/iris-model-server:0.1 >/dev/null 2>&1
+docker compose down -v >/dev/null 2>&1; docker compose -p iris-servidor down >/dev/null 2>&1; docker rm -f registry iris-volumen >/dev/null 2>&1
+docker rmi -f iris-gateway:0.1 iris-gateway:0.2 iris-model-server:0.1 iris-model-server:0.1-sin-modelo localhost:5050/iris-gateway:0.1 localhost:5050/iris-model-server:0.1 >/dev/null 2>&1
 
 paso "p0 versiones" sh -c 'docker version --format "Docker {{.Server.Version}} · {{.Server.Os}}/{{.Server.Arch}}" && uv --version && python3 --version'
 paso "p0 verificar" python3 verificar.py mundo
@@ -67,6 +67,28 @@ paso "p8 push gw" sh -c 'docker tag iris-gateway:0.1 localhost:5050/iris-gateway
 paso "p8 push ms" sh -c 'docker tag iris-model-server:0.1 localhost:5050/iris-model-server:0.1 && docker push localhost:5050/iris-model-server:0.1'
 paso "p8 catalog" curl -s localhost:5050/v2/_catalog
 paso "p8 verificar" python3 verificar.py registry
+
+paso "p9 untag" docker rmi localhost:5050/iris-gateway:0.1 localhost:5050/iris-model-server:0.1
+paso "p9 pull gw" docker pull localhost:5050/iris-gateway:0.1
+paso "p9 pull ms" docker pull localhost:5050/iris-model-server:0.1
+paso "p9 amd64" docker pull --platform linux/amd64 localhost:5050/iris-gateway:0.1
+mkdir -p servidor && cp config.env servidor/ && cp "$SOL/servidor/compose.yaml" servidor/
+paso "p9 ls" ls servidor
+paso "p9 up" sh -c 'cd servidor && docker compose up -d 2>&1'
+paso "p9 ps" sh -c "cd servidor && docker compose ps --format 'table {{.Service}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'"
+paso "p9 predict" sh -c "sleep 3; curl -s localhost:8081/readyz; echo; curl -s localhost:8081/v1/predict -H 'Content-Type: application/json' -d '{\"flowers\": [{\"sepal_length\": 6.7, \"sepal_width\": 3.0, \"petal_length\": 5.2, \"petal_width\": 2.3}]}'"
+paso "p9 verificar" python3 verificar.py pull
+
+cp "$SOL/model_server/Dockerfile.volumen" model_server/
+paso "p10 build" sh -c 'docker build --progress=plain -f model_server/Dockerfile.volumen -t iris-model-server:0.1-sin-modelo model_server 2>&1 | grep -E "transferring context|naming to"'
+paso "p10 images" docker images iris-model-server
+paso "p10 history con" sh -c "docker history iris-model-server:0.1 --format '{{.Size}}\t{{.CreatedBy}}' | grep COPY"
+paso "p10 history sin" sh -c "docker history iris-model-server:0.1-sin-modelo --format '{{.Size}}\t{{.CreatedBy}}' | grep COPY"
+paso "p10 modelo" ls -l model_repository/iris/1/model.onnx
+paso "p10 sin volumen" sh -c 'docker run --rm iris-model-server:0.1-sin-modelo 2>&1 | grep -E "Error|error|Exiting" | tail -3'
+paso "p10 con volumen" sh -c 'docker run -d --name iris-volumen -p 9001:8000 -v "$PWD/model_repository:/models:ro" iris-model-server:0.1-sin-modelo >/dev/null && sleep 3 && curl -s -o /dev/null -w "HTTP %{http_code}\n" localhost:9001/v2/models/iris/ready'
+paso "p10 mount" docker inspect iris-volumen --format '{{range .Mounts}}{{.Destination}} (rw={{.RW}}){{end}}'
+paso "p10 verificar" python3 verificar.py volumen
 
 paso "fin verificar" python3 verificar.py
 paso "pc df" df -h /

@@ -1,0 +1,20 @@
+# El servidor: baja las imágenes del registry y las corre. No trae código ni Dockerfiles, solo esto y config.env.
+name: iris-servidor
+services:
+  model-server:
+    image: localhost:5050/iris-model-server:0.1
+    # sin ports: al model server solo le habla el gateway, por la red de compose
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v2/health/ready')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  gateway:
+    image: localhost:5050/iris-gateway:0.1
+    ports:
+      - "8081:8080"
+    env_file: config.env
+    depends_on:
+      model-server:
+        condition: service_healthy

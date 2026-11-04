@@ -125,6 +125,24 @@
         "confirma": "el paso 8, en la salida del segundo <code>docker push</code>."
       },
       {
+        "id": "pesos",
+        "pregunta": "¿Cuánto pesa el modelo frente a la imagen? ¿Va dentro o fuera?",
+        "formula": "peso del modelo ≈ parámetros × bytes por parámetro; compáralo con lo que ya pesa la imagen y con cada cuánto cambia",
+        "c01": {
+          "cuenta": "Un clasificador de imágenes del tamaño de ResNet-50: 25.6 M parámetros × 2 bytes (FP16) ≈ 51 MB, contra ≈ 10 GB de Triton. Un LLM de 7 B en FP16: 7 B × 2 bytes = 14 GB",
+          "valor": "decenas de MB: dentro · GB: fuera"
+        },
+        "taller": {
+          "cuenta": "model.onnx de 1.3 kB contra 103.8 MB comprimida de la imagen del model server",
+          "valor": "1.6 kB de diferencia (≈ 0.002 %)"
+        },
+        "decide": "Si el modelo es chico frente a la imagen y cambia al ritmo del código, va dentro: una sola versión y rollback de un tag. Si pesa GB o cambia más seguido que el código, va fuera: se monta o se baja de S3 al arrancar.",
+        "conceptos": [
+          "pesos-dentro"
+        ],
+        "confirma": "el paso 10: <code>docker images iris-model-server</code> y <code>python3 verificar.py volumen</code>."
+      },
+      {
         "id": "disco",
         "pregunta": "¿Te cabe la imagen en el disco?",
         "formula": "espacio libre > pico del pull (capas comprimidas + descomprimidas a la vez)",
@@ -275,6 +293,24 @@
       "analogia": "El despertador que suena solo cada mañana contra acordarte de ponerlo.",
       "importa": "Un servicio de infraestructura (como un registry) sin política no vuelve después de un reinicio de Docker.",
       "trampa": "Confiar en que «siempre ha estado ahí»: hasta el primer reinicio."
+    },
+    {
+      "id": "pull-servidor",
+      "termino": "Pull: lo que hace el servidor",
+      "en": "docker pull / deploy from registry",
+      "def": "Cada máquina que corre tu servicio baja la imagen del registry, por tag o por digest, y la corre. No construye nada: solo necesita la imagen y su configuración.",
+      "analogia": "La tienda no hornea el pan: lo recibe ya hecho de la panadería, con su número de lote.",
+      "importa": "Lo que corre en producción es lo que bajó del registry, no lo que hay en tu Mac. Si el digest coincide con el del push, es byte a byte lo que probaste.",
+      "trampa": "Probar con la imagen local y dar por probada la del registry: si el tag se movió, el pull baja otra cosa."
+    },
+    {
+      "id": "plataforma",
+      "termino": "Plataforma de la imagen (arm64 o amd64)",
+      "en": "image platform / multi-arch",
+      "def": "Una imagen se construye para una arquitectura de CPU. Tu Mac construye linux/arm64; la mayoría de los servidores son linux/amd64. Una imagen multiplataforma lleva las dos bajo el mismo tag.",
+      "analogia": "Un enchufe americano frente a un contacto europeo: el aparato sirve, pero no entra.",
+      "importa": "Si el registry solo tiene arm64, un servidor amd64 no la puede bajar. Se construye con <code>docker buildx build --platform linux/amd64,linux/arm64</code> o se usan servidores arm (Graviton en AWS).",
+      "trampa": "Creer que si corre en tu Mac corre en el servidor. Revisa las plataformas con <code>docker buildx imagetools inspect</code> antes de desplegar."
     }
   ],
   "mundo": {
@@ -294,7 +330,7 @@
       },
       {
         "que": "verificar.py y romper.py",
-        "detalle": "9 checks con los criterios de «listo» y 6 fallas en el mundo, la configuración o la infraestructura, nunca en lo que escribes."
+        "detalle": "11 checks con los criterios de «listo» y 6 fallas en el mundo, la configuración o la infraestructura, nunca en lo que escribes."
       }
     ],
     "tu_pipeline": [
@@ -317,6 +353,14 @@
       {
         "archivo": "compose.yaml",
         "hace": "Los dos servicios en una red, con healthcheck, depends_on y config.env."
+      },
+      {
+        "archivo": "servidor/compose.yaml",
+        "hace": "El «servidor»: solo baja las dos imágenes del registry y las corre, sin código ni Dockerfiles."
+      },
+      {
+        "archivo": "model_server/Dockerfile.volumen",
+        "hace": "El model server sin el modelo dentro: el modelo llega por un volumen de solo lectura."
       }
     ],
     "requisitos": [
@@ -577,7 +621,7 @@
           "code": "docker images iris-model-server",
           "nota": "≈ 180 MB más que el gateway: onnxruntime y numpy.",
           "donde": "mac",
-          "salida": "WARNING: This output is designed for human readability. For machine-readable output, please use --format.\nIMAGE                   ID             DISK USAGE   CONTENT SIZE   EXTRA\niris-model-server:0.1   f5c81b8681d1        453MB          104MB        "
+          "salida": "WARNING: This output is designed for human readability. For machine-readable output, please use --format.\nIMAGE                   ID             DISK USAGE   CONTENT SIZE   EXTRA\niris-model-server:0.1   5b0b7201be89        453MB          104MB   U    "
         },
         {
           "code": "python3 verificar.py model-server exec",
@@ -693,34 +737,183 @@
           "code": "docker tag iris-gateway:0.1 localhost:5050/iris-gateway:0.1\ndocker push localhost:5050/iris-gateway:0.1",
           "nota": "",
           "donde": "mac",
-          "salida": "The push refers to repository [localhost:5050/iris-gateway]\nb09e3727000c: Pushed\n98537322d54f: Pushed\n1a7a9679a00a: Pushed\n740b040e844f: Pushed\n3a038b6d1fa1: Pushed\neb84c7172e7d: Pushed\n0f2a3670451b: Pushed\n483ff55bca63: Pushed\n2b70e040f7d1: Pushed\n3ebe763086bb: Pushed\n0.1: digest: sha256:7c78ad9807a30616e1606857c0d1c5afe021458ab628d9447f44f0b095329d8d size: 856"
+          "salida": "The push refers to repository [localhost:5050/iris-gateway]\n31dd3a2401f8: Pushed\nd56babdb2320: Pushed\nd906cdc5648d: Pushed\n0f2a3670451b: Pushed\n38e7f57abdf5: Pushed\n3a038b6d1fa1: Pushed\n2591e67291ff: Pushed\n3ebe763086bb: Pushed\nb09e3727000c: Pushed\n2b70e040f7d1: Pushed\n0.1: digest: sha256:98785c7202ad6ebc57766e129b73f4b168cb5cf23bcaa5f304a6fa061011da07 size: 856"
         },
         {
           "code": "docker tag iris-model-server:0.1 localhost:5050/iris-model-server:0.1\ndocker push localhost:5050/iris-model-server:0.1",
           "nota": "«Mounted from iris-gateway»: la base ya estaba en el registry y no se vuelve a subir.",
           "donde": "mac",
-          "salida": "The push refers to repository [localhost:5050/iris-model-server]\n88c9270ad8a3: Pushed\nb09e3727000c: Mounted from iris-gateway\n0f2a3670451b: Mounted from iris-gateway\nb56186c8f371: Pushed\n0b27dd84b815: Pushed\n21423ada9291: Pushed\n3ebe763086bb: Mounted from iris-gateway\n3a038b6d1fa1: Mounted from iris-gateway\n2b70e040f7d1: Mounted from iris-gateway\nb756a7c67f1f: Pushed\n9c47e8b9116e: Pushed\n0.1: digest: sha256:f5c81b8681d160860b8ce9e10153af6ae99a94a18557568189ca34f93ee338cd size: 856"
+          "salida": "The push refers to repository [localhost:5050/iris-model-server]\n0f2a3670451b: Mounted from iris-gateway\nb56186c8f371: Pushed\nb09e3727000c: Mounted from iris-gateway\n0b27dd84b815: Pushed\nbd40a97bb8c0: Pushed\na0b281459f53: Pushed\n3a038b6d1fa1: Mounted from iris-gateway\n7b05e33e11f3: Pushed\n2b70e040f7d1: Mounted from iris-gateway\n3ebe763086bb: Mounted from iris-gateway\n9fa7e7837a4d: Pushed\n0.1: digest: sha256:5b0b7201be89ac5e753142fa73617b4a0daa7502fb1c0e0cdca338eaaf52ec28 size: 856"
         },
         {
           "code": "python3 verificar.py registry",
           "nota": "",
           "donde": "mac",
-          "salida": "✓ registry      en el registry y con tu digest: iris-gateway sha256:7c78ad9807a3… · iris-model-server sha256:f5c81b8681d1…\n\n1/1 en verde"
+          "salida": "✓ registry      en el registry y con tu digest: iris-gateway sha256:98785c7202ad… · iris-model-server sha256:5b0b7201be89…\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>python3 verificar.py registry</code> en verde: el registry tiene tus dos imágenes con tu digest.",
+      "ojo": "Tus digests van a ser otros. En C01 el registry es ECR, con autenticación y tags inmutables. Y al registry local ponle <code>--restart unless-stopped</code> si lo vas a dejar para siempre."
+    },
+    {
+      "n": 9,
+      "id": "pull",
+      "titulo": "Bajar del registry",
+      "objetivo": "Un «servidor» que no tiene ni código ni Dockerfiles baja las dos imágenes del registry y las corre.",
+      "conceptos": [
+        "pull-servidor",
+        "registry-digest",
+        "plataforma"
+      ],
+      "explica": "Subir es la mitad. La otra mitad es lo que hace cada máquina que corre tu servicio: <b>pull</b>. El servidor no construye nada; solo necesita un compose que apunte al registry y su configuración. Lo simulas en la carpeta <code>servidor/</code>, que solo lleva <code>compose.yaml</code> y una copia de <code>config.env</code>. Primero borra tus etiquetas <code>localhost:5050/…</code> y bájalas: el digest que llega tiene que ser el mismo que te dio el push. En el servidor solo el gateway se publica (en 8081, porque tu pila del paso 6 sigue en 8080); al model server solo le habla el gateway, por la red de compose.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "servidor/compose.yaml",
+          "code": "# El servidor: baja las imágenes del registry y las corre. No trae código ni Dockerfiles, solo esto y config.env.\nname: iris-servidor\nservices:\n  model-server:\n    image: localhost:5050/iris-model-server:0.1\n    # sin ports: al model server solo le habla el gateway, por la red de compose\n    healthcheck:\n      test: [\"CMD\", \"python\", \"-c\", \"import urllib.request; urllib.request.urlopen('http://localhost:8000/v2/health/ready')\"]\n      interval: 5s\n      timeout: 3s\n      retries: 10\n\n  gateway:\n    image: localhost:5050/iris-gateway:0.1\n    ports:\n      - \"8081:8080\"\n    env_file: config.env\n    depends_on:\n      model-server:\n        condition: service_healthy",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "docker rmi localhost:5050/iris-gateway:0.1 localhost:5050/iris-model-server:0.1",
+          "nota": "Solo quitas las etiquetas del registry: tus imágenes iris-*:0.1 siguen ahí, porque la pila del paso 6 las usa.",
+          "donde": "mac",
+          "salida": "Untagged: localhost:5050/iris-gateway:0.1\nUntagged: localhost:5050/iris-model-server:0.1"
+        },
+        {
+          "code": "docker pull localhost:5050/iris-gateway:0.1",
+          "nota": "El digest es el mismo que te dio el push del paso 8. No aparecen capas porque tu Mac ya las tiene: en una máquina limpia verías cada capa bajando.",
+          "donde": "mac",
+          "salida": "0.1: Pulling from iris-gateway\nDigest: sha256:98785c7202ad6ebc57766e129b73f4b168cb5cf23bcaa5f304a6fa061011da07\nStatus: Downloaded newer image for localhost:5050/iris-gateway:0.1\nlocalhost:5050/iris-gateway:0.1"
+        },
+        {
+          "code": "docker pull localhost:5050/iris-model-server:0.1",
+          "nota": "",
+          "donde": "mac",
+          "salida": "0.1: Pulling from iris-model-server\nDigest: sha256:5b0b7201be89ac5e753142fa73617b4a0daa7502fb1c0e0cdca338eaaf52ec28\nStatus: Downloaded newer image for localhost:5050/iris-model-server:0.1\nlocalhost:5050/iris-model-server:0.1"
+        },
+        {
+          "code": "docker pull --platform linux/amd64 localhost:5050/iris-gateway:0.1",
+          "nota": "Lo que le pasaría a un servidor x86 (amd64): tu Mac construyó solo arm64 y en el registry no hay otra plataforma. Lo arreglas en la estación 7.1.",
+          "donde": "mac",
+          "salida": "Error response from daemon: no matching manifest for linux/amd64 in the manifest list entries: no match for platform in manifest: not found"
+        },
+        {
+          "code": "mkdir -p servidor\ncp config.env servidor/\n# escribe servidor/compose.yaml\nls servidor",
+          "nota": "",
+          "donde": "mac",
+          "salida": "compose.yaml\nconfig.env"
+        },
+        {
+          "code": "cd servidor\ndocker compose up -d",
+          "nota": "El gateway espera a que el model server esté <code>Healthy</code>, igual que en el paso 6.",
+          "donde": "mac",
+          "salida": " Network iris-servidor_default Creating \n Network iris-servidor_default Created \n Container iris-servidor-model-server-1 Creating \n Container iris-servidor-model-server-1 Created \n Container iris-servidor-gateway-1 Creating \n Container iris-servidor-gateway-1 Created \n Container iris-servidor-model-server-1 Starting \n Container iris-servidor-model-server-1 Started \n Container iris-servidor-model-server-1 Waiting \n Container iris-servidor-model-server-1 Healthy \n Container iris-servidor-gateway-1 Starting \n Container iris-servidor-gateway-1 Started "
+        },
+        {
+          "code": "docker compose ps --format 'table {{.Service}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}'",
+          "nota": "Las imágenes vienen del registry, y el model server no tiene puerto publicado: solo <code>8000/tcp</code> dentro de la red.",
+          "donde": "mac",
+          "salida": "SERVICE        IMAGE                                  STATUS                   PORTS\ngateway        localhost:5050/iris-gateway:0.1        Up Less than a second    0.0.0.0:8081->8080/tcp, [::]:8081->8080/tcp\nmodel-server   localhost:5050/iris-model-server:0.1   Up 7 seconds (healthy)   8000/tcp"
+        },
+        {
+          "code": "sleep 3\ncurl -s localhost:8081/readyz; echo\ncurl -s localhost:8081/v1/predict -H 'Content-Type: application/json' \\\n  -d '{\"flowers\": [{\"sepal_length\": 6.7, \"sepal_width\": 3.0, \"petal_length\": 5.2, \"petal_width\": 2.3}]}'",
+          "nota": "El gateway recién arrancado tarda un par de segundos en aceptar conexiones: sin el <code>sleep</code>, el curl puede llegar antes.",
+          "donde": "mac",
+          "salida": "{\"status\":\"ready\",\"model_server\":\"http://model-server:8000\",\"model\":\"iris\"}\n{\"model\":\"iris\",\"predictions\":[{\"label\":\"virginica\",\"score\":1.0,\"probabilities\":{\"setosa\":0.0,\"versicolor\":0.0,\"virginica\":1.0}}]}"
+        },
+        {
+          "code": "cd ..\npython3 verificar.py pull",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ pull          el servidor corre lo que bajó del registry (iris-model-server sha256:5b0b7201be89… · iris-gateway sha256:98785c7202ad…) y predice bien en :8081\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>python3 verificar.py pull</code>: el servidor corre exactamente lo que bajó del registry (mismo digest) y predice bien en :8081.",
+      "ojo": "El tag <code>0.1</code> se puede mover: si alguien sube otra imagen con el mismo tag, el siguiente pull baja otra cosa. Para fijarlo de verdad se despliega por digest (<code>image: localhost:5050/iris-gateway@sha256:…</code>). En C01 los tags de ECR son inmutables y Kubernetes hace este mismo pull en cada nodo."
+    },
+    {
+      "n": 10,
+      "id": "volumen",
+      "titulo": "Pesos dentro o fuera: la comparación",
+      "objetivo": "La misma imagen del model server sin el modelo, corriendo con el modelo montado por un volumen, y los números de las dos opciones.",
+      "conceptos": [
+        "pesos-dentro",
+        "contexto-build"
+      ],
+      "explica": "En el paso 5 metiste el modelo en la imagen. Ahora construye la otra opción: el mismo Dockerfile sin <code>COPY model_repository</code>. Como ya no copia nada de fuera de <code>model_server/</code>, el contexto es solo esa carpeta. Luego compara: cuánto pesan las dos imágenes, qué pasa si arrancas sin modelo y cómo llega el modelo por un volumen de solo lectura (<code>:ro</code>). <b>Dentro</b>, el tag de la imagen es la versión del modelo y el rollback es volver al tag anterior; un modelo nuevo es rebuild y push de su capa. <b>Fuera</b>, un modelo nuevo es cambiar el archivo y reiniciar, sin rebuild, pero la versión del modelo la llevas aparte de la imagen, y si falta, el contenedor muere al arrancar.",
+      "codigo": [
+        {
+          "lang": "text",
+          "path": "model_server/Dockerfile.volumen",
+          "code": "FROM python:3.13-slim\n\nENV PYTHONUNBUFFERED=1 \\\n    MODEL_REPOSITORY=/models\n\nWORKDIR /app\n\nRUN groupadd --system --gid 10001 app && \\\n    useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app\n\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\n\n# sin COPY model_repository: el modelo llega al correr, con -v …/model_repository:/models:ro\nCOPY server.py .\n\nUSER 10001:10001\n\nEXPOSE 8000\nCMD [\"uvicorn\", \"server:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "docker build --progress=plain -f model_server/Dockerfile.volumen -t iris-model-server:0.1-sin-modelo model_server",
+          "nota": "Recortada. El contexto ahora es solo <code>model_server/</code>: 1.5 kB.",
+          "donde": "mac",
+          "salida": "#3 transferring context: 2B done\n#4 transferring context: 1.48kB done\n#11 naming to docker.io/library/iris-model-server:0.1-sin-modelo done"
+        },
+        {
+          "code": "docker images iris-model-server",
+          "nota": "Las dos pesan lo mismo a la vista: el modelo de Iris pesa 1.3 kB contra más de 100 MB de base y dependencias.",
+          "donde": "mac",
+          "salida": "WARNING: This output is designed for human readability. For machine-readable output, please use --format.\nIMAGE                              ID             DISK USAGE   CONTENT SIZE   EXTRA\niris-model-server:0.1              5b0b7201be89        453MB          104MB   U    \niris-model-server:0.1-sin-modelo   39b93fca3036        453MB          104MB        "
+        },
+        {
+          "code": "docker history iris-model-server:0.1 --format '{{.Size}}\\t{{.CreatedBy}}' | grep COPY\ndocker history iris-model-server:0.1-sin-modelo --format '{{.Size}}\\t{{.CreatedBy}}' | grep COPY",
+          "nota": "La única diferencia es la capa <code>COPY model_repository/</code>: 20.5 kB en disco por 1.3 kB de modelo (el sistema de archivos guarda en bloques).",
+          "donde": "mac",
+          "salida": "16.4kB\tCOPY model_server/server.py . # buildkit\n20.5kB\tCOPY model_repository/ /models/ # buildkit\n12.3kB\tCOPY model_server/requirements.txt . # build…\n16.4kB\tCOPY server.py . # buildkit\n12.3kB\tCOPY requirements.txt . # buildkit"
+        },
+        {
+          "code": "ls -l model_repository/iris/1/model.onnx",
+          "nota": "",
+          "donde": "mac",
+          "salida": "-rw-r--r--@ 1 erikpalacios  wheel  1299 Nov  4 00:22 model_repository/iris/1/model.onnx"
+        },
+        {
+          "code": "docker run --rm iris-model-server:0.1-sin-modelo 2>&1 | grep -E 'Error|Exiting' | tail -3",
+          "nota": "Sin volumen no hay modelo y el proceso muere al arrancar: fail fast. Mejor eso que un servicio arriba que falla en cada request.",
+          "donde": "mac",
+          "salida": "onnxruntime.capi.onnxruntime_pybind11_state.NoSuchFile: [ONNXRuntimeError] : 3 : NO_SUCHFILE : Load model from /models/iris/1/model.onnx failed:Load model /models/iris/1/model.onnx failed. File doesn't exist\nERROR:    Application startup failed. Exiting."
+        },
+        {
+          "code": "docker run -d --name iris-volumen -p 9001:8000 \\\n  -v \"$PWD/model_repository:/models:ro\" iris-model-server:0.1-sin-modelo\nsleep 3\ncurl -s -o /dev/null -w \"HTTP %{http_code}\\n\" localhost:9001/v2/models/iris/ready",
+          "nota": "",
+          "donde": "mac",
+          "salida": "HTTP 200"
+        },
+        {
+          "code": "docker inspect iris-volumen --format '{{range .Mounts}}{{.Destination}} (rw={{.RW}}){{end}}'",
+          "nota": "<code>rw=false</code>: el contenedor lee el modelo pero no lo puede cambiar.",
+          "donde": "mac",
+          "salida": "/models (rw=false)"
+        },
+        {
+          "code": "python3 verificar.py volumen",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ volumen       comprimida: con el modelo 103.8 MB · sin modelo 103.8 MB (diferencia 1.6 kB); iris-volumen lee el modelo del volumen, solo lectura, y está listo en :9001\n\n1/1 en verde"
         },
         {
           "code": "python3 verificar.py",
           "nota": "",
           "donde": "mac",
-          "salida": "✓ mundo         Docker 29.2.0, uv y el modelo en su lugar\n✓ deps          gateway 23 paquetes · model server 25, todos fijados\n✓ contexto      gateway 5 archivos, 5.8 kB · model server 3 archivos, 7.7 kB\n✓ gateway       iris-gateway:0.1: uid 1000, CMD en forma exec en 0.0.0.0, caché bien ordenada · 60 MB comprimida\n✓ model-server  iris-model-server:0.1: modelo bueno dentro (/models), uid 10001 · 104 MB comprimida\n✓ exec          iris-gateway PID 1 = uvicorn · iris-model-server PID 1 = uvicorn\n✓ red           gateway → model-server por nombre: /readyz 200 y las 3 flores bien (setosa, versicolor, virginica)\n✓ salud         model server healthy y el gateway espera a service_healthy\n✓ registry      en el registry y con tu digest: iris-gateway sha256:7c78ad9807a3… · iris-model-server sha256:f5c81b8681d1…\n\n9/9 en verde"
+          "salida": "✓ mundo         Docker 29.2.0, uv y el modelo en su lugar\n✓ deps          gateway 23 paquetes · model server 25, todos fijados\n✓ contexto      gateway 5 archivos, 5.8 kB · model server 3 archivos, 7.7 kB\n✓ gateway       iris-gateway:0.1: uid 1000, CMD en forma exec en 0.0.0.0, caché bien ordenada · 60 MB comprimida\n✓ model-server  iris-model-server:0.1: modelo bueno dentro (/models), uid 10001 · 104 MB comprimida\n✓ exec          iris-gateway PID 1 = uvicorn · iris-model-server PID 1 = uvicorn\n✓ red           gateway → model-server por nombre: /readyz 200 y las 3 flores bien (setosa, versicolor, virginica)\n✓ salud         model server healthy y el gateway espera a service_healthy\n✓ registry      en el registry y con tu digest: iris-gateway sha256:98785c7202ad… · iris-model-server sha256:5b0b7201be89…\n✓ pull          el servidor corre lo que bajó del registry (iris-model-server sha256:5b0b7201be89… · iris-gateway sha256:98785c7202ad…) y predice bien en :8081\n✓ volumen       comprimida: con el modelo 103.8 MB · sin modelo 103.8 MB (diferencia 1.6 kB); iris-volumen lee el modelo del volumen, solo lectura, y está listo en :9001\n\n11/11 en verde"
         }
       ],
-      "verifica": "<code>python3 verificar.py</code> completo en verde.",
-      "ojo": "Tus digests van a ser otros. En C01 el registry es ECR, con autenticación y tags inmutables. Y al registry local ponle <code>--restart unless-stopped</code> si lo vas a dejar para siempre."
+      "verifica": "<code>python3 verificar.py</code> completo en verde: 11 de 11.",
+      "ojo": "Con Iris la diferencia es de 1.6 kB, así que aquí dentro gana sin discusión. La cuenta cambia cuando el modelo pesa GB: cada versión nueva es una imagen de GB que viaja a cada nodo. Ahí se saca el modelo de la imagen y se baja de S3 al arrancar, o se monta. En Kubernetes el volumen no es una carpeta de tu Mac: es un PersistentVolume o un init container que baja el modelo (estación 9)."
     }
   ],
   "solo": {
     "reglas": [
-      "Antes de empezar, <code>python3 mundo/reiniciar.py</code>: respalda tus archivos en .respaldo/, pone el esqueleto, baja la pila y borra las imágenes iris-* y el registry. La base python:3.13-slim se queda.",
+      "Antes de empezar, <code>python3 mundo/reiniciar.py</code>: respalda tus archivos en .respaldo/, pone el esqueleto, baja las dos pilas (la del kit y la del servidor) y borra las imágenes iris-*, el registry e iris-volumen. La base python:3.13-slim se queda.",
       "Solo tienes OBJETIVOS.md, los contratos al inicio de cada archivo y <code>python3 verificar.py</code>. Nada de GUION.md.",
       "Claude no te da código: te dice qué check falla y te contesta con preguntas.",
       "Mide tu tiempo por objetivo y anota en la bitácora dónde te atoraste."
@@ -774,6 +967,18 @@
         "n": 9,
         "objetivo": "Las dos imágenes en el registry de localhost:5050 con tu digest.",
         "check": "registry"
+      },
+      {
+        "n": 10,
+        "objetivo": "Un servidor (servidor/compose.yaml, sin build) que corre las dos imágenes bajadas del registry y predice en 8081, con el model server sin publicar.",
+        "check": "pull",
+        "pista": "El servidor no tiene el código: solo image:, el healthcheck y su copia de config.env."
+      },
+      {
+        "n": 11,
+        "objetivo": "El model server sin el modelo dentro (iris-model-server:0.1-sin-modelo), corriendo como iris-volumen en 9001 con el modelo montado en solo lectura.",
+        "check": "volumen",
+        "pista": "Si ya no copia nada de fuera de model_server/, el contexto puede ser solo esa carpeta."
       }
     ]
   },
@@ -910,7 +1115,9 @@
     "Las dos imágenes corren sin root, con uvicorn como PID 1 escuchando en 0.0.0.0, y con build contexts chicos.",
     "El model server lleva el modelo bueno dentro, y su tag es la versión del modelo.",
     "compose levanta la pila sana: el gateway llega al model server por nombre y espera su healthcheck.",
-    "Las dos imágenes están en el registry, y sabes qué digest es cada una."
+    "Las dos imágenes están en el registry, y sabes qué digest es cada una.",
+    "Un servidor sin código baja las imágenes del registry, con el mismo digest del push, y las corre.",
+    "Sabes cuándo el modelo va dentro de la imagen y cuándo fuera, con los números de las dos opciones."
   ],
   "repaso": {
     "memo": "<b>La imagen es la unidad de despliegue.</b> Lo que probaste en tu Mac, en CI y en staging tiene que ser byte a byte lo que corre en producción: por eso las dependencias van fijadas, el orden de capas cuida la caché, la configuración llega por variables de entorno y en el registry manda el digest, no el tag.",
@@ -931,6 +1138,10 @@
       {
         "q": "¿Por qué un tag no basta para saber qué corre en producción?",
         "a": "Porque un tag es una etiqueta que se puede mover: alguien puede subir otra imagen con el mismo nombre. El digest es el hash del manifiesto y cambia si cambia un solo byte. Por eso en C01 los tags de ECR son inmutables y los manifests de Kubernetes pueden fijar la imagen por digest."
+      },
+      {
+        "q": "Tu imagen corre en tu Mac, pero en el servidor el pull falla con «no matching manifest for linux/amd64». ¿Qué pasó?",
+        "a": "La imagen se construyó solo para arm64 (la Mac) y el servidor es amd64. Se construye multiplataforma con <code>docker buildx build --platform linux/amd64,linux/arm64 --push</code>, o solo amd64 si es lo único que se despliega, y se revisa con <code>docker buildx imagetools inspect</code> antes de desplegar."
       }
     ]
   },

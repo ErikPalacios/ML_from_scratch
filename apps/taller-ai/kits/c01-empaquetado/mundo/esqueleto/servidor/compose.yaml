@@ -1,0 +1,6 @@
+# Contrato · el servidor (cd servidor && docker compose up -d)
+#   Simula otra máquina: solo tiene este archivo y una copia de config.env. Ni código ni Dockerfiles.
+#   proyecto      iris-servidor
+#   model-server  localhost:5050/iris-model-server:0.1, sin puertos publicados, con el mismo healthcheck
+#   gateway       localhost:5050/iris-gateway:0.1, publicado en 8081, configurado con config.env,
+#                 y que arranca solo cuando el model server está sano
