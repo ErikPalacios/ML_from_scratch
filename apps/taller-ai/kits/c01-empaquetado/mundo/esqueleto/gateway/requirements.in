@@ -1,0 +1,2 @@
+# Lo que importa gateway/app.py, sin versiones (la lista del súper).
+# De aquí sale requirements.txt con: uv pip compile requirements.in -o requirements.txt --universal --python-version 3.13

@@ -119,7 +119,7 @@ function guion(e) {
 function objetivos(e) {
   return [`# Objetivos · ${e.caso.toUpperCase()} · ${e.titulo}`, '', 'Ronda Solo. Sin código: cada objetivo tiene su check en verificar.py.', '',
     ...e.solo.reglas.map((r) => `- ${sinHtml(r)}`), '',
-    ...e.solo.objetivos.map((o) => `${o.n}. ${sinHtml(o.objetivo)} → \`python verificar.py ${o.check}\``), ''].join('\n');
+    ...e.solo.objetivos.map((o) => `${o.n}. ${sinHtml(o.objetivo)} → \`${e.mundo.python || 'python'} verificar.py ${o.check}\``), ''].join('\n');
 }
 
 function archivosKit(e) {
@@ -135,10 +135,10 @@ function archivosKit(e) {
     }
   };
   recorrer(base);
-  // el esqueleto de pipeline/ y config.yaml en su lugar: el kit abre listo para el paso 0
+  // el esqueleto en su lugar (lo que escribe la persona, con su contrato): el kit abre listo para el paso 0
   const esq = join(base, 'mundo', 'esqueleto');
-  for (const n of readdirSync(join(esq, 'pipeline')).sort()) archivos.push({ rel: `pipeline/${n}`, data: readFileSync(join(esq, 'pipeline', n)) });
-  archivos.push({ rel: 'config.yaml', data: readFileSync(join(esq, 'config.yaml')) });
+  const enEsq = (dir) => readdirSync(dir).sort().flatMap((n) => statSync(join(dir, n)).isDirectory() ? enEsq(join(dir, n)) : [join(dir, n)]);
+  if (existsSync(esq)) for (const f of enEsq(esq)) archivos.push({ rel: relative(esq, f), data: readFileSync(f) });
   archivos.push({ rel: 'GUION.md', data: Buffer.from(guion(e)) });
   archivos.push({ rel: 'OBJETIVOS.md', data: Buffer.from(objetivos(e)) });
   archivos.sort((a, b) => a.rel.localeCompare(b.rel));

@@ -1,0 +1,5 @@
+# El contexto es la raíz del kit: ignora todo y deja pasar solo lo que el Dockerfile copia.
+*
+!model_server/requirements.txt
+!model_server/server.py
+!model_repository/

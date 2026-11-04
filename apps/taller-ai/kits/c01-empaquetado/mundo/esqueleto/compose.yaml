@@ -1,0 +1,4 @@
+# Contrato · los dos servicios de Iris (docker compose up -d)
+#   model-server  iris-model-server:0.1, publicado en 9000, con un healthcheck de /v2/health/ready
+#   gateway       iris-gateway:0.1, publicado en 8080, configurado con config.env,
+#                 y que arranca solo cuando el model server está sano

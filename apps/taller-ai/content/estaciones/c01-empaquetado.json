@@ -1,0 +1,944 @@
+{
+  "id": "empaquetado",
+  "patron": "sincrono",
+  "caso": "c01",
+  "num": 7,
+  "titulo": "Empaquetado (Docker)",
+  "nav": "Empaquetado",
+  "pregunta": "¿Cómo conviertes el código de serving y el modelo en imágenes que corren igual en tu Mac, en CI y en el clúster?",
+  "version": "2026-11-04",
+  "mapa": {
+    "resumen": "En C01, la estación 6 deja listo el código del gateway y el model repository de Triton. Esta estación los convierte en <b>imágenes</b>: un archivo inmutable con el sistema base, las dependencias, el código y (si así lo decides) el modelo. Esa imagen es lo que viaja por CI (estación 8) y lo que corre Kubernetes (estación 9). Aquí la practicas con el servicio de Iris, el de tu laboratorio de Docker: un gateway que valida y etiqueta, y un model server que habla el mismo protocolo v2 que Triton.",
+    "entra": [
+      "el código de serving: <code>gateway/app.py</code> y <code>model_server/server.py</code>",
+      "el modelo exportado: <code>model_repository/iris/1/model.onnx</code>",
+      "la lista de lo que importa cada servicio (aún sin versiones)"
+    ],
+    "sale": [
+      "dependencias fijadas, un <code>requirements.txt</code> por servicio",
+      "dos imágenes con usuario sin privilegios, caché bien ordenada y forma exec",
+      "un <code>compose.yaml</code> que levanta los dos servicios sanos y conectados",
+      "las imágenes en un registry, identificadas por su digest"
+    ],
+    "escala": [
+      {
+        "que": "Imagen del model server",
+        "c01": "Triton <code>tritonserver:24.08-py3</code> de NGC con el engine horneado: del orden de 10 GB comprimida (lo midió tu lab de Iris en arm64)",
+        "taller": "model server propio (FastAPI + onnxruntime): 453 MB en disco, 104 MB comprimida"
+      },
+      {
+        "que": "Imagen del gateway",
+        "c01": "multi-stage, 37 paquetes con wheels, UID 10001",
+        "taller": "una etapa, 23 paquetes: 275 MB en disco, 59.7 MB comprimida"
+      },
+      {
+        "que": "Registry",
+        "c01": "Amazon ECR: tag inmutable + digest",
+        "taller": "<code>registry:2</code> en <code>localhost:5050</code>"
+      },
+      {
+        "que": "Dónde corre",
+        "c01": "Kubernetes con GPU (estación 9); compose solo en desarrollo",
+        "taller": "docker compose en tu Mac, con healthcheck"
+      },
+      {
+        "que": "Arquitectura",
+        "c01": "nodos Linux amd64",
+        "taller": "tu Mac construye Linux arm64: la misma imagen no corre tal cual en un nodo amd64"
+      }
+    ],
+    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-empaquetado"
+  },
+  "precalculos": {
+    "intro": "Antes de escribir el primer Dockerfile, las cuentas de servilleta del empaquetado: cuánto pesa lo que construyes, cuánto viaja, cuánto te ahorra la caché y si te cabe en el disco. Cada cuenta va en las dos escalas, C01 y el dojo. Haz la cuenta tú primero y luego ábrela.",
+    "cuentas": [
+      {
+        "id": "peso",
+        "pregunta": "¿Cuánto pesa la imagen del gateway y cuánto viaja?",
+        "formula": "imagen = base + dependencias + código; lo que viaja en push y pull es la versión comprimida",
+        "c01": {
+          "cuenta": "Triton de NGC: del orden de 10 GB comprimida, y unos 30 GB en el pico del pull (lo que tu lab de Iris no pudo bajar)",
+          "valor": "GB por imagen: la base manda"
+        },
+        "taller": {
+          "cuenta": "python:3.13-slim (≈ 160 MB de capas) + pip install (56 MB) + app.py (16 kB)",
+          "valor": "275 MB en disco · 59.7 MB comprimida"
+        },
+        "decide": "Lo que más pesa es la base y las dependencias, no tu código. Por eso se elige una base <code>slim</code>, se instala con <code>--no-cache-dir</code> y el código va en su propia capa al final.",
+        "conceptos": [
+          "imagen-capas"
+        ],
+        "confirma": "el paso 3: <code>docker images iris-gateway</code> y <code>docker history</code>."
+      },
+      {
+        "id": "cache",
+        "pregunta": "¿Cuánto te ahorra la caché de capas?",
+        "formula": "tiempo de build ≈ suma de las capas que se rehacen; si cambia una capa, se rehacen ella y todas las de abajo",
+        "c01": {
+          "cuenta": "El gateway instala 37 paquetes (numpy, Pillow…). Si el código fuera antes que requirements.txt, cada commit los reinstalaría en CI",
+          "valor": "cada commit = reinstalar todo"
+        },
+        "taller": {
+          "cuenta": "sin caché: 9 s, de los que pip install son 5.3 s; con caché y app.py cambiado solo se rehacen COPY app.py y useradd (0.2 s)",
+          "valor": "9 s → menos de 1 s"
+        },
+        "decide": "Copia el manifiesto de dependencias e instala antes de copiar el código: así un cambio de código reusa la capa cara.",
+        "conceptos": [
+          "cache-capas"
+        ],
+        "confirma": "el paso 4, cuando cambias app.py y <code>pip install</code> sale <code>CACHED</code>."
+      },
+      {
+        "id": "salud",
+        "pregunta": "¿Cuánto espera el gateway, como máximo, a que el model server esté sano?",
+        "formula": "espera máxima ≈ start_period + retries × interval",
+        "c01": {
+          "cuenta": "Triton carga el engine en la GPU antes de estar listo: el healthcheck y la readiness tienen que tolerar ese arranque o el orquestador lo reinicia en ciclo",
+          "valor": "el start_period a la medida del arranque"
+        },
+        "taller": {
+          "cuenta": "retries 10 × interval 5 s, sin start_period",
+          "valor": "≈ 50 s de margen; real: sano en ≈ 5 s"
+        },
+        "decide": "Si tu modelo tarda más en cargar que ese margen, compose marca el servicio unhealthy y el gateway no arranca. Con modelos grandes se sube start_period, no retries a lo loco.",
+        "conceptos": [
+          "healthcheck"
+        ],
+        "confirma": "el paso 6: <code>docker compose ps</code> muestra <code>Up 5 seconds (healthy)</code>."
+      },
+      {
+        "id": "push",
+        "pregunta": "¿Qué viaja cuando subes la segunda imagen?",
+        "formula": "bytes del push = capas que el registry todavía no tiene",
+        "c01": {
+          "cuenta": "Una release es gateway vN + Triton vN. Si la base de Triton no cambia, un modelo nuevo sube solo su capa con el engine",
+          "valor": "solo lo que cambió"
+        },
+        "taller": {
+          "cuenta": "el model server comparte con el gateway la base python:3.13-slim: esas capas ya están en el registry",
+          "valor": "4 capas «Mounted from iris-gateway», 5 nuevas"
+        },
+        "decide": "Bases comunes entre servicios hacen pushes y pulls más baratos. Cambiar de base en un servicio rompe ese ahorro.",
+        "conceptos": [
+          "registry-digest"
+        ],
+        "confirma": "el paso 8, en la salida del segundo <code>docker push</code>."
+      },
+      {
+        "id": "disco",
+        "pregunta": "¿Te cabe la imagen en el disco?",
+        "formula": "espacio libre > pico del pull (capas comprimidas + descomprimidas a la vez)",
+        "c01": {
+          "cuenta": "Triton: ≈ 10 GB comprimida y ≈ 30 GB de pico. En tu lab de Iris llenó la Mac y tumbó Docker Desktop",
+          "valor": "revisa antes de bajar"
+        },
+        "taller": {
+          "cuenta": "base + gateway + model server ≈ 0.7 GB en disco",
+          "valor": "de sobra con 20 GB libres"
+        },
+        "decide": "Antes de bajar una imagen grande: <code>df -h /</code> y <code>docker system df</code>. Si no cabe, se limpia antes (<code>docker image prune</code>) o se usa otra máquina.",
+        "conceptos": [
+          "imagen-capas"
+        ],
+        "comprueba": {
+          "code": "df -h /\ndocker system df",
+          "nota": "Tus números van a ser otros: es tu disco.",
+          "donde": "mac",
+          "salida": "Filesystem        Size    Used   Avail Capacity iused ifree %iused  Mounted on\n/dev/disk3s1s1   228Gi    12Gi    20Gi    38%    459k  206M    0%   /\n\nTYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\nImages          14        7         11.31GB   6.923GB (61%)\nContainers      9         5         175.2MB   175.2MB (99%)\nLocal Volumes   11        2         1.224GB   994.5MB (81%)\nBuild Cache     93        0         3.034GB   1.871GB"
+        }
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "imagen-capas",
+      "termino": "Imagen y capas",
+      "en": "image / layers",
+      "def": "Una imagen es una pila de capas de solo lectura: cada instrucción del Dockerfile que cambia archivos agrega una. Un contenedor es esa imagen corriendo, con una capa escribible encima.",
+      "analogia": "Un pastel de capas: no puedes cambiar la de en medio sin rehacer las de arriba.",
+      "importa": "Lo que pesa, lo que se cachea y lo que viaja al registry se cuenta en capas.",
+      "trampa": "Borrar un archivo en una capa posterior no lo quita de la imagen: sigue pesando en la capa donde se creó."
+    },
+    {
+      "id": "contexto-build",
+      "termino": "Build context y .dockerignore",
+      "en": "build context",
+      "def": "La carpeta que el cliente de Docker manda al builder en cada build. Todo lo que no excluye el .dockerignore viaja, aunque el Dockerfile no lo copie.",
+      "analogia": "La maleta que llevas a la cocina: si metes todo el clóset, tardas en llegar aunque solo vayas a cocinar.",
+      "importa": "Un .venv o un volcado en el contexto hace lento cada build y puede meter secretos o basura en la imagen con un COPY . descuidado.",
+      "trampa": "Un .dockerignore vacío (o sin guardar) no avisa nada: el build simplemente se vuelve lento."
+    },
+    {
+      "id": "cache-capas",
+      "termino": "Caché de capas",
+      "en": "layer cache",
+      "def": "Si una instrucción y lo que copia no cambiaron, Docker reusa la capa (CACHED). Si una capa cambia, se rehacen ella y todas las de abajo.",
+      "analogia": "Un recetario donde solo rehaces los pasos a partir del ingrediente que cambiaste.",
+      "importa": "Ordenar de lo que menos cambia a lo que más cambia (dependencias antes que código) convierte builds de minutos en segundos.",
+      "trampa": "Docker compara bytes, no significado: un comentario en requirements.txt invalida la instalación."
+    },
+    {
+      "id": "deps-fijadas",
+      "termino": "Dependencias fijadas",
+      "en": "pinned dependencies / lock file",
+      "def": "Un requirements.txt con cada paquete y su versión exacta (==), generado desde la lista corta requirements.in. El build de hoy y el de dentro de seis meses instalan lo mismo.",
+      "analogia": "La lista del súper (requirements.in) contra el ticket con marca y precio (requirements.txt).",
+      "importa": "Sin fijar, un paquete que publica una versión nueva rompe tu imagen sin que hayas cambiado nada.",
+      "trampa": "Editar el .txt a mano. Se regenera desde el .in con uv pip compile; si no, el lock deja de reflejar lo que pediste."
+    },
+    {
+      "id": "no-root",
+      "termino": "Usuario sin privilegios",
+      "en": "non-root user",
+      "def": "USER define con qué identidad corre el proceso. Nadie hace login en un contenedor: el riesgo es una vulnerabilidad que deja ejecutar comandos con los permisos del proceso.",
+      "analogia": "El empleado de mostrador no trae las llaves de la bóveda: si lo engañan, el daño es chico.",
+      "importa": "Kubernetes puede exigir runAsNonRoot, y para verificarlo necesita un UID numérico (USER 10001:10001).",
+      "trampa": "Crear el usuario pero olvidar la línea USER: la imagen sigue corriendo como root."
+    },
+    {
+      "id": "escuchar-0000",
+      "termino": "Escuchar en 0.0.0.0",
+      "en": "bind address",
+      "def": "Dentro del contenedor, 127.0.0.1 solo acepta conexiones del propio contenedor. Para que llegue lo que publicas con -p, el servidor escucha en 0.0.0.0.",
+      "analogia": "Atender el teléfono de tu escritorio contra atender el conmutador de la oficina.",
+      "importa": "Es el error clásico de «el contenedor corre pero no contesta».",
+      "trampa": "Probar con curl desde dentro del contenedor: ahí sí funciona y te hace creer que está bien."
+    },
+    {
+      "id": "forma-exec",
+      "termino": "Forma exec y señales",
+      "en": "exec form / PID 1 / SIGTERM",
+      "def": "CMD [\"uvicorn\", …] (con corchetes) hace a uvicorn el PID 1 y recibe SIGTERM. En forma shell, PID 1 es /bin/sh, que no reenvía la señal.",
+      "analogia": "Avisarle directo a quien tiene que cerrar la tienda, en vez de dejarle el recado al guardia.",
+      "importa": "docker stop y Kubernetes mandan SIGTERM y esperan (10 s y 30 s por defecto); si nadie la atiende, matan el proceso a media request.",
+      "trampa": "Un script de entrada sin exec al final: el proceso real queda como hijo y no se entera."
+    },
+    {
+      "id": "pesos-dentro",
+      "termino": "Pesos dentro o fuera de la imagen",
+      "en": "baked-in model vs volume",
+      "def": "Dentro: la imagen es código + modelo y su tag es la versión del modelo. Fuera: la imagen solo trae código y el modelo llega por un volumen o se baja al arrancar.",
+      "analogia": "Un platillo empacado al vacío contra uno que armas con ingredientes que llegan aparte.",
+      "importa": "Dentro: reproducible y rollback de un tag. Fuera: imágenes chicas y cambiar el modelo sin reconstruir.",
+      "trampa": "Con el modelo dentro, arreglar el archivo no basta: hay que reconstruir la imagen."
+    },
+    {
+      "id": "red-compose",
+      "termino": "Red de compose y nombres de servicio",
+      "en": "service discovery",
+      "def": "compose crea una red donde cada servicio se encuentra por su nombre: el gateway llega a http://model-server:8000.",
+      "analogia": "Las extensiones de un conmutador: marcas «model-server», no el número de la calle.",
+      "importa": "Dentro de un contenedor, localhost es el propio contenedor. Es la diferencia entre tu laptop y la red de contenedores.",
+      "trampa": "Copiar la configuración de la laptop (localhost:8000) a un contenedor."
+    },
+    {
+      "id": "healthcheck",
+      "termino": "Healthcheck y depends_on",
+      "en": "healthcheck / readiness gating",
+      "def": "El healthcheck pregunta periódicamente si el servicio está listo; depends_on con condition: service_healthy hace que el gateway arranque solo cuando el model server está sano.",
+      "analogia": "No abrir la caja hasta que la cocina diga que el horno ya está caliente.",
+      "importa": "Sin él, el gateway arranca antes que el modelo y los primeros requests fallan. En Kubernetes es la readinessProbe.",
+      "trampa": "Usar curl en una imagen slim que no lo trae: el healthcheck nunca pasa y parece que el servicio está roto."
+    },
+    {
+      "id": "config-entorno",
+      "termino": "Configuración por variables de entorno",
+      "en": "12-factor config",
+      "def": "La misma imagen sirve en cualquier lado; lo que cambia (URLs, timeouts) llega en variables de entorno, aquí desde config.env.",
+      "analogia": "El mismo auto con otro destino en el GPS.",
+      "importa": "Promover la imagen exacta que probaste, de dev a staging a producción, cambiando solo la configuración.",
+      "trampa": "Definir la variable en una línea aparte en la terminal: no le llega al programa."
+    },
+    {
+      "id": "puertos-publicados",
+      "termino": "Publicar puertos",
+      "en": "port publishing (-p)",
+      "def": "EXPOSE solo documenta. -p host:contenedor (o ports: en compose) abre el puerto en tu Mac. Un puerto del host lo puede usar un solo proceso.",
+      "analogia": "Tener una ventanilla dentro del edificio no sirve si no la conectas con la calle.",
+      "importa": "«port is already allocated» es de los primeros errores que verás en una máquina compartida.",
+      "trampa": "Si compose creó el contenedor cuando el puerto estaba ocupado, un up -d solo lo arranca sin puerto: hay que recrearlo."
+    },
+    {
+      "id": "registry-digest",
+      "termino": "Registry, tags y digest",
+      "en": "registry / immutable tags / digest",
+      "def": "El registry guarda imágenes por nombre:tag. El tag es una etiqueta que se puede mover; el digest (sha256 del manifiesto) identifica exactamente un contenido.",
+      "analogia": "El nombre de un archivo contra su huella digital.",
+      "importa": "En C01 los tags de ECR son inmutables y se despliega por digest: lo que probaste es byte a byte lo que corre.",
+      "trampa": "Reusar el mismo tag (latest, 0.1) para contenidos distintos: nadie sabe qué corre dónde."
+    },
+    {
+      "id": "reinicio",
+      "termino": "Política de reinicio",
+      "en": "restart policy",
+      "def": "Dice qué hace Docker con un contenedor cuando se detiene o cuando el daemon arranca: no, on-failure, always, unless-stopped.",
+      "analogia": "El despertador que suena solo cada mañana contra acordarte de ponerlo.",
+      "importa": "Un servicio de infraestructura (como un registry) sin política no vuelve después de un reinicio de Docker.",
+      "trampa": "Confiar en que «siempre ha estado ahí»: hasta el primer reinicio."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae el servicio de Iris funcionando sin Docker: el código del gateway y del model server, el modelo exportado y una prueba de humo. Tú escribes todo lo que lo empaqueta. No hace falta entorno virtual: <code>verificar.py</code> y <code>romper.py</code> solo usan Python y el CLI de Docker.",
+    "trae": [
+      {
+        "que": "El servicio de Iris (gateway/app.py, model_server/server.py)",
+        "detalle": "El de tu laboratorio de Docker, tal cual: el gateway valida y etiqueta; el model server carga model.onnx con onnxruntime y habla el protocolo v2 de Triton."
+      },
+      {
+        "que": "El modelo (model_repository/iris/1/model.onnx)",
+        "detalle": "Un MLP de 1.3 KB con la normalización dentro. training/train.py es cómo se hizo; no hace falta correrlo."
+      },
+      {
+        "que": "config.env y scripts/smoke.sh",
+        "detalle": "La configuración del gateway y la prueba de punta a punta (model server directo y luego a través del gateway)."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "9 checks con los criterios de «listo» y 6 fallas en el mundo, la configuración o la infraestructura, nunca en lo que escribes."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "gateway/requirements.in y model_server/requirements.in",
+        "hace": "Lo que importa cada servicio; de ahí sale su requirements.txt fijado."
+      },
+      {
+        "archivo": "gateway/.dockerignore y model_server/Dockerfile.dockerignore",
+        "hace": "Qué no viaja al build context de cada imagen."
+      },
+      {
+        "archivo": "gateway/Dockerfile",
+        "hace": "La imagen del gateway: caché ordenada, usuario sin privilegios, 0.0.0.0 y forma exec."
+      },
+      {
+        "archivo": "model_server/Dockerfile",
+        "hace": "La imagen del model server con el modelo dentro, construida desde la raíz del kit."
+      },
+      {
+        "archivo": "compose.yaml",
+        "hace": "Los dos servicios en una red, con healthcheck, depends_on y config.env."
+      }
+    ],
+    "requisitos": [
+      "Docker Desktop corriendo, con ≈ 1 GB libre para la base y las dos imágenes",
+      "Python 3.11 o más nuevo (solo para verificar.py y romper.py)",
+      "uv para fijar dependencias (brew install uv)",
+      "Los puertos 8080, 9000 y 5050 libres en tu Mac"
+    ],
+    "sustituciones": [
+      {
+        "nube": "Amazon ECR",
+        "local": "registry:2 en localhost:5050",
+        "diferencia": "La misma API de registry. En ECR se autentica con aws ecr get-login-password, los tags pueden ser inmutables por configuración y se escanean las imágenes; aquí no hay autenticación ni escaneo."
+      },
+      {
+        "nube": "Triton Inference Server",
+        "local": "model server propio (FastAPI + onnxruntime)",
+        "diferencia": "Habla el mismo protocolo v2, así que el gateway no cambia. Triton trae batching, métricas y GPU; la imagen de Triton no cabía en la Mac del lab."
+      },
+      {
+        "nube": "Kubernetes con nodos amd64",
+        "local": "docker compose en una Mac arm64",
+        "diferencia": "compose es para desarrollo: un host, sin réplicas. Y tu Mac construye arm64: para un nodo amd64 hay que construir con --platform linux/amd64."
+      }
+    ],
+    "arranque": "unzip c01-empaquetado.zip && cd c01-empaquetado\ndocker pull python:3.13-slim\npython3 verificar.py mundo",
+    "python": "python3"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "Docker, uv y el modelo en su lugar.",
+      "conceptos": [
+        "imagen-capas"
+      ],
+      "explica": "Aquí no hay datos que generar: el mundo es el servicio de Iris y Docker Desktop. Baja una vez la imagen base <code>python:3.13-slim</code> (las dos imágenes la usan) y revisa que todo esté.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "docker version --format 'Docker {{.Server.Version}} · {{.Server.Os}}/{{.Server.Arch}}'\nuv --version\npython3 --version",
+          "nota": "linux/arm64: tu Mac construye imágenes de Linux para ARM. Tu versión de Python puede ser otra.",
+          "donde": "mac",
+          "salida": "Docker 29.2.0 · linux/arm64\nuv 0.13.0 (Homebrew 2026-10-09 aarch64-apple-darwin)\nPython 3.14.3"
+        },
+        {
+          "code": "python3 verificar.py mundo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo         Docker 29.2.0, uv y el modelo en su lugar\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py mundo</code> en verde.",
+      "ojo": "Si un puerto está ocupado (8080, 9000 o 5050), <code>lsof -nP -iTCP:8080 -sTCP:LISTEN</code> te dice quién. El 5000 de macOS lo usa AirPlay: por eso el registry va en el 5050."
+    },
+    {
+      "n": 1,
+      "id": "deps",
+      "titulo": "Fijar las dependencias",
+      "objetivo": "Un requirements.txt fijado por servicio: cada imagen lleva solo lo que usa.",
+      "conceptos": [
+        "deps-fijadas"
+      ],
+      "explica": "En <code>requirements.in</code> va lo que importa cada servicio, sin versiones. <code>uv pip compile</code> resuelve el árbol completo y escribe el <code>.txt</code> con cada versión exacta y un comentario <code># via</code> que dice quién pidió cada paquete. <code>--universal</code> hace que el resultado sirva en tu Mac y en Linux (el contenedor). El gateway no carga el modelo: no necesita onnxruntime ni numpy.",
+      "codigo": [
+        {
+          "lang": "text",
+          "path": "gateway/requirements.in",
+          "code": "fastapi\nuvicorn[standard]\nhttpx",
+          "nota": ""
+        },
+        {
+          "lang": "text",
+          "path": "model_server/requirements.in",
+          "code": "fastapi\nuvicorn[standard]\nonnxruntime\nnumpy",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "cd gateway && uv pip compile requirements.in -o requirements.txt --universal --python-version 3.13 && cd ..\ncd model_server && uv pip compile requirements.in -o requirements.txt --universal --python-version 3.13 && cd ..",
+          "nota": "Las versiones dependen del día en que lo corras; aquí abajo están las que salieron.",
+          "donde": "mac",
+          "salida": null
+        },
+        {
+          "code": "grep -E '^(fastapi|uvicorn|httpx|onnxruntime|numpy)==' gateway/requirements.txt model_server/requirements.txt",
+          "nota": "",
+          "donde": "mac",
+          "salida": "gateway/requirements.txt:fastapi==0.162.0\ngateway/requirements.txt:httpx==0.28.1\ngateway/requirements.txt:uvicorn==0.54.0\nmodel_server/requirements.txt:fastapi==0.162.0\nmodel_server/requirements.txt:numpy==2.5.4\nmodel_server/requirements.txt:onnxruntime==1.31.1\nmodel_server/requirements.txt:uvicorn==0.54.0"
+        },
+        {
+          "code": "python3 verificar.py deps",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ deps          gateway 23 paquetes · model server 25, todos fijados\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "Todos los paquetes con <code>==</code>, y onnxruntime solo en el model server.",
+      "ojo": "Se versionan los dos archivos (.in y .txt) y el .txt no se edita a mano. Para subir un paquete: <code>uv pip compile … --upgrade-package fastapi</code>."
+    },
+    {
+      "n": 2,
+      "id": "contexto",
+      "titulo": "Lo que no viaja: .dockerignore",
+      "objetivo": "Un build context chico para cada imagen.",
+      "conceptos": [
+        "contexto-build"
+      ],
+      "explica": "El contexto del gateway es <code>gateway/</code>; el del model server es la raíz del kit (porque necesita <code>model_repository/</code>, que está fuera de su carpeta). Con BuildKit, <code>model_server/Dockerfile.dockerignore</code> aplica solo a ese Dockerfile. Para la raíz conviene la lista al revés: ignorar todo con <code>*</code> y dejar pasar con <code>!</code> solo lo que el Dockerfile copia. Tu lab de Iris listaba exclusiones; aquí la raíz tiene más cosas (verificar.py, mundo/…) y la lista blanca no se queda atrás cuando agregas archivos.",
+      "codigo": [
+        {
+          "lang": "text",
+          "path": "gateway/.dockerignore",
+          "code": ".venv\n__pycache__\n*.pyc",
+          "nota": ""
+        },
+        {
+          "lang": "text",
+          "path": "model_server/Dockerfile.dockerignore",
+          "code": "# El contexto es la raíz del kit: ignora todo y deja pasar solo lo que el Dockerfile copia.\n*\n!model_server/requirements.txt\n!model_server/server.py\n!model_repository/",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python3 verificar.py contexto",
+          "nota": "Antes de escribirlos: el del model server se lleva 24 archivos.",
+          "donde": "mac",
+          "salida": "✓ contexto      gateway 5 archivos, 5.9 kB · model server 31 archivos, 58.1 kB\n\n1/1 en verde"
+        },
+        {
+          "code": "python3 verificar.py contexto",
+          "nota": "Después: 3 archivos, justo lo que copia el Dockerfile.",
+          "donde": "mac",
+          "salida": "✓ contexto      gateway 5 archivos, 5.9 kB · model server 3 archivos, 7.7 kB\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "Los dos contextos debajo de 1 MB.",
+      "ojo": "Guarda el archivo con contenido y con salto de línea al final. Un .dockerignore vacío no avisa nada, y uno sin salto final hace que <code>echo patrón >></code> se pegue a la última línea."
+    },
+    {
+      "n": 3,
+      "id": "gateway",
+      "titulo": "El Dockerfile del gateway",
+      "objetivo": "La imagen iris-gateway:0.1, sin root y con la caché bien ordenada.",
+      "conceptos": [
+        "imagen-capas",
+        "no-root",
+        "escuchar-0000",
+        "forma-exec"
+      ],
+      "explica": "Línea por línea: <code>FROM</code> la base slim; <code>PYTHONUNBUFFERED=1</code> para que los logs salgan al instante; <b>primero</b> <code>requirements.txt</code> y el <code>pip install</code>, <b>después</b> <code>app.py</code> (caché); <code>useradd</code> + <code>USER</code> para no correr como root; <code>EXPOSE</code> solo documenta; <code>CMD</code> en forma exec y con <code>--host 0.0.0.0</code>. El <code>.</code> final del build es el contexto.",
+      "codigo": [
+        {
+          "lang": "text",
+          "path": "gateway/Dockerfile",
+          "code": "FROM python:3.13-slim\n\nENV PYTHONUNBUFFERED=1\n\nWORKDIR /app\n\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\n\nCOPY app.py .\n\nRUN useradd --create-home appuser\nUSER appuser\n\nEXPOSE 8080\nCMD [\"uvicorn\", \"app:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\"]",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "docker build --no-cache --progress=plain -t iris-gateway:0.1 gateway",
+          "nota": "Recortada a las líneas que importan: el contexto (5.6 kB) y el pip install (5.3 s).",
+          "donde": "mac",
+          "salida": "#3 transferring context: 63B done\n#6 transferring context: 5.60kB done\n#8 [4/6] RUN pip install --no-cache-dir -r requirements.txt\n#8 DONE 5.8s\n#11 naming to docker.io/library/iris-gateway:0.1 done\n#11 DONE 2.6s\n"
+        },
+        {
+          "code": "docker images iris-gateway",
+          "nota": "DISK USAGE es lo que ocupa en tu disco; CONTENT SIZE, lo comprimido: lo que viaja en push y pull.",
+          "donde": "mac",
+          "salida": "WARNING: This output is designed for human readability. For machine-readable output, please use --format.\nIMAGE              ID             DISK USAGE   CONTENT SIZE   EXTRA\niris-gateway:0.1   4346a0abd333        275MB         59.7MB        "
+        },
+        {
+          "code": "docker history iris-gateway:0.1 --format '{{.Size}}\\t{{.CreatedBy}}'",
+          "nota": "",
+          "donde": "mac",
+          "salida": "0B\tCMD [\"uvicorn\" \"app:app\" \"--host\" \"0.0.0.0\" …\n0B\tEXPOSE [8080/tcp]\n0B\tUSER appuser\n69.6kB\tRUN /bin/sh -c useradd --create-home appuser…\n16.4kB\tCOPY app.py . # buildkit\n56.4MB\tRUN /bin/sh -c pip install --no-cache-dir -r…\n12.3kB\tCOPY requirements.txt . # buildkit\n8.19kB\tWORKDIR /app\n0B\tENV PYTHONUNBUFFERED=1\n0B\tCMD [\"python3\"]\n16.4kB\tRUN /bin/sh -c set -eux;  for src in idle3 p…\n43.8MB\tRUN /bin/sh -c set -eux;   savedAptMark=\"$(a…\n0B\tENV PYTHON_SHA256=abb0102e6d4ae027509bcb8232…\n0B\tENV PYTHON_VERSION=3.13.18\n0B\tENV GPG_KEY=7169605F62C751356D054A26A821E680…\n4.97MB\tRUN /bin/sh -c set -eux;  apt-get update;  a…\n0B\tENV LANG=C.UTF-8\n0B\tENV PATH=/usr/local/bin:/usr/local/sbin:/usr…\n110MB\t# debian.sh --arch 'arm64' out/ 'trixie' '@1…"
+        },
+        {
+          "code": "python3 verificar.py gateway",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ gateway       iris-gateway:0.1: uid 1000, CMD en forma exec en 0.0.0.0, caché bien ordenada · 60 MB comprimida\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "uid distinto de 0, CMD en forma exec en 0.0.0.0 y requirements antes que app.py.",
+      "ojo": "El aviso «Running pip as the 'root' user» en el build es normal: los paquetes quedan de root y appuser solo los puede leer, que es lo que quieres."
+    },
+    {
+      "n": 4,
+      "id": "cache",
+      "titulo": "La caché de capas",
+      "objetivo": "Ver qué se rehace cuando cambias el código.",
+      "conceptos": [
+        "cache-capas"
+      ],
+      "explica": "Construye otra vez sin cambiar nada: todo sale <code>CACHED</code>. Luego agrega un comentario a <code>app.py</code> y construye <code>:0.2</code>. El <code>pip install</code> sale <code>CACHED</code>: solo se rehacen <code>COPY app.py</code> y <code>useradd</code>, porque cuando una capa cambia, todas las de abajo se invalidan aunque su instrucción sea igual.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "docker build --progress=plain -t iris-gateway:0.1 gateway",
+          "nota": "Recortada a las líneas CACHED: menos de 1 s.",
+          "donde": "mac",
+          "salida": "#6 CACHED\n#7 CACHED\n#8 CACHED\n#9 CACHED\n#10 CACHED\n#11 naming to docker.io/library/iris-gateway:0.1 done\n"
+        },
+        {
+          "code": "cp gateway/app.py /tmp/app.py.respaldo && echo '# prueba de caché' >> gateway/app.py\ndocker build --progress=plain -t iris-gateway:0.2 gateway",
+          "nota": "Recortada a los pasos: el [4/6] pip install sale CACHED.",
+          "donde": "mac",
+          "salida": "#4 [1/6] FROM docker.io/library/python:3.13-slim@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1\n#6 [3/6] COPY requirements.txt .\n#6 CACHED\n#7 [4/6] RUN pip install --no-cache-dir -r requirements.txt\n#7 CACHED\n#8 [5/6] COPY app.py .\n#8 CACHED\n#9 [2/6] WORKDIR /app\n#9 CACHED\n#10 [6/6] RUN useradd --create-home appuser\n#10 CACHED\n#11 DONE 0.1s"
+        },
+        {
+          "code": "cp /tmp/app.py.respaldo gateway/app.py && docker rmi iris-gateway:0.2\ndocker build -t iris-gateway:0.1 gateway",
+          "nota": "Deja todo como estaba.",
+          "donde": "mac",
+          "salida": null
+        }
+      ],
+      "verifica": "Con app.py cambiado, el pip install sale CACHED.",
+      "ojo": "Mejora opcional: pon el <code>useradd</code> antes de instalar dependencias y así, con un cambio de código, solo se rehace <code>COPY app.py</code>."
+    },
+    {
+      "n": 5,
+      "id": "model-server",
+      "titulo": "El Dockerfile del model server",
+      "objetivo": "La imagen iris-model-server:0.1 con el modelo dentro.",
+      "conceptos": [
+        "pesos-dentro",
+        "no-root",
+        "contexto-build"
+      ],
+      "explica": "El modelo va dentro de la imagen (<code>COPY model_repository/ /models/</code>): el tag de la imagen es la versión del modelo. Por eso el contexto es la raíz y el Dockerfile se indica con <code>-f</code>. El usuario es de sistema, con UID numérico (<code>USER 10001:10001</code>), sin carpeta personal ni shell. Orden de capas: usuario → dependencias → modelo → código.",
+      "codigo": [
+        {
+          "lang": "text",
+          "path": "model_server/Dockerfile",
+          "code": "FROM python:3.13-slim\n\nENV PYTHONUNBUFFERED=1 \\\n    MODEL_REPOSITORY=/models\n\nWORKDIR /app\n\nRUN groupadd --system --gid 10001 app && \\\n    useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app\n\nCOPY model_server/requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\n\nCOPY model_repository/ /models/\nCOPY model_server/server.py .\n\nUSER 10001:10001\n\nEXPOSE 8000\nCMD [\"uvicorn\", \"server:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "docker build --progress=plain -f model_server/Dockerfile -t iris-model-server:0.1 .",
+          "nota": "Recortada: el contexto pesa 8 kB gracias a la lista blanca.",
+          "donde": "mac",
+          "salida": "#3 transferring context: 3.02kB done\n#11 naming to docker.io/library/iris-model-server:0.1 done"
+        },
+        {
+          "code": "docker run --rm iris-model-server:0.1 id",
+          "nota": "",
+          "donde": "mac",
+          "salida": "uid=10001(app) gid=10001(app) groups=10001(app)"
+        },
+        {
+          "code": "docker images iris-model-server",
+          "nota": "≈ 180 MB más que el gateway: onnxruntime y numpy.",
+          "donde": "mac",
+          "salida": "WARNING: This output is designed for human readability. For machine-readable output, please use --format.\nIMAGE                   ID             DISK USAGE   CONTENT SIZE   EXTRA\niris-model-server:0.1   f5c81b8681d1        453MB          104MB        "
+        },
+        {
+          "code": "python3 verificar.py model-server exec",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ model-server  iris-model-server:0.1: modelo bueno dentro (/models), uid 10001 · 104 MB comprimida\n✓ exec          iris-gateway PID 1 = uvicorn · iris-model-server PID 1 = uvicorn\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "El modelo bueno dentro de /models, UID 10001 y PID 1 = uvicorn.",
+      "ojo": "La otra opción es el modelo fuera: una imagen sin <code>COPY model_repository</code> y <code>-v \"$PWD/model_repository:/models:ro\"</code> al correr. Sin el volumen el contenedor muere al arrancar (fail fast). Para modelos de GB que cambian seguido, fuera; para modelos chicos y reproducibles, dentro."
+    },
+    {
+      "n": 6,
+      "id": "compose",
+      "titulo": "Los dos servicios con compose",
+      "objetivo": "La pila arriba, sana y conectada por nombre.",
+      "conceptos": [
+        "red-compose",
+        "healthcheck",
+        "config-entorno",
+        "puertos-publicados"
+      ],
+      "explica": "compose crea una red donde el gateway llega al model server por su nombre (<code>model-server:8000</code>): dentro de un contenedor, <code>localhost</code> es el propio contenedor. La URL llega en <code>config.env</code>. El healthcheck usa el Python de la imagen porque slim no trae curl, y <code>depends_on … service_healthy</code> hace que el gateway espere. El model server se publica en el 9000 de tu Mac solo para que <code>smoke.sh</code> lo pruebe directo; en producción quedaría privado.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "compose.yaml",
+          "code": "# Los dos servicios de Iris en una red: el model server (con el modelo dentro de la imagen) y el gateway.\nname: iris\nservices:\n  model-server:\n    build:\n      context: .\n      dockerfile: model_server/Dockerfile\n    image: iris-model-server:0.1\n    ports:\n      - \"9000:8000\"\n    healthcheck:\n      # slim no trae curl: el healthcheck usa el Python de la imagen\n      test: [\"CMD\", \"python\", \"-c\", \"import urllib.request; urllib.request.urlopen('http://localhost:8000/v2/health/ready')\"]\n      interval: 5s\n      timeout: 3s\n      retries: 10\n\n  gateway:\n    build: ./gateway\n    image: iris-gateway:0.1\n    ports:\n      - \"8080:8080\"\n    env_file: config.env\n    depends_on:\n      model-server:\n        condition: service_healthy",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "docker compose up -d",
+          "nota": "Fíjate en el orden: el gateway espera a que el model server esté Healthy.",
+          "donde": "mac",
+          "salida": " Container iris-model-server-1 Recreate \n Container iris-model-server-1 Recreated \n Container iris-gateway-1 Recreate \n Container iris-gateway-1 Recreated \n Container iris-model-server-1 Starting \n Container iris-model-server-1 Started \n Container iris-model-server-1 Waiting \n Container iris-model-server-1 Healthy \n Container iris-gateway-1 Starting \n Container iris-gateway-1 Started "
+        },
+        {
+          "code": "docker compose ps --format 'table {{.Service}}\\t{{.Status}}\\t{{.Ports}}'",
+          "nota": "",
+          "donde": "mac",
+          "salida": "SERVICE        STATUS                   PORTS\ngateway        Up Less than a second    0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp\nmodel-server   Up 5 seconds (healthy)   0.0.0.0:9000->8000/tcp, [::]:9000->8000/tcp"
+        },
+        {
+          "code": "./scripts/smoke.sh",
+          "nota": "",
+          "donde": "mac",
+          "salida": "== Model server: ¿modelo listo?\nHTTP 200\n== Model server: metadata (qué espera el modelo)\n{\"name\":\"iris\",\"versions\":[\"1\"],\"platform\":\"onnxruntime_onnx\",\"inputs\":[{\"name\":\"input\",\"datatype\":\"FP32\",\"shape\":[-1,4]}],\"outputs\":[{\"name\":\"probs\",\"datatype\":\"FP32\",\"shape\":[-1,3]}]}\n== Model server: inferencia cruda (protocolo v2)\n{\"model_name\":\"iris\",\"model_version\":\"1\",\"outputs\":[{\"name\":\"probs\",\"datatype\":\"FP32\",\"shape\":[1,3],\"data\":[0.9999985694885254,1.3998552503835526e-06,3.174513129038277e-14]}]}\n== Gateway: readiness\n[código 56]"
+        },
+        {
+          "code": "python3 verificar.py red salud",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ red           gateway → model-server por nombre: /readyz 200 y las 3 flores bien (setosa, versicolor, virginica)\n✓ salud         model server healthy y el gateway espera a service_healthy\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "/readyz 200 y las tres flores bien: setosa, versicolor y virginica.",
+      "ojo": "Si cambias config.env, <code>docker compose up -d</code> recrea el gateway con las variables nuevas; un <code>restart</code> no las vuelve a leer."
+    },
+    {
+      "n": 7,
+      "id": "apagado",
+      "titulo": "Apagar limpio",
+      "objetivo": "Ver que el proceso recibe SIGTERM y cierra en menos de un segundo.",
+      "conceptos": [
+        "forma-exec"
+      ],
+      "explica": "<code>docker compose stop</code> manda SIGTERM al PID 1 y espera 10 s antes de matarlo. Con la forma exec, uvicorn recibe la señal, termina lo que está atendiendo y corre el código después del <code>yield</code> del lifespan (cerrar el cliente HTTP).",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "/usr/bin/time -p docker compose stop gateway",
+          "nota": "0.47 s. En forma shell tardaría los 10 s completos: docker stop espera y luego mata.",
+          "donde": "mac",
+          "salida": " Container iris-gateway-1 Stopping \n Container iris-gateway-1 Stopped \nreal 0.63\nuser 0.05\nsys 0.03"
+        },
+        {
+          "code": "docker compose logs gateway --no-log-prefix | tail -4",
+          "nota": "",
+          "donde": "mac",
+          "salida": "INFO:     Shutting down\nINFO:     Waiting for application shutdown.\nINFO:     Application shutdown complete.\nINFO:     Finished server process [1]"
+        },
+        {
+          "code": "docker compose start gateway && sleep 2 && curl -s localhost:8080/readyz",
+          "nota": "",
+          "donde": "mac",
+          "salida": " Container iris-model-server-1 Waiting \n Container iris-model-server-1 Healthy \n Container iris-gateway-1 Starting \n Container iris-gateway-1 Started \n{\"status\":\"ready\",\"model_server\":\"http://model-server:8000\",\"model\":\"iris\"}"
+        }
+      ],
+      "verifica": "El stop tarda menos de un segundo y el log dice «Application shutdown complete».",
+      "ojo": "Kubernetes hace lo mismo con terminationGracePeriodSeconds (30 s por defecto). Un proceso que ignora SIGTERM corta requests a media respuesta en cada despliegue."
+    },
+    {
+      "n": 8,
+      "id": "registry",
+      "titulo": "Subir al registry",
+      "objetivo": "Las dos imágenes en un registry local, identificadas por su digest.",
+      "conceptos": [
+        "registry-digest",
+        "reinicio"
+      ],
+      "explica": "El nombre completo de una imagen es <code>registry/repositorio:tag</code>. Levanta un registry local, etiqueta tus imágenes con su dirección y súbelas. Lo que viaja son las capas comprimidas, y las que el registry ya tiene no se vuelven a subir. Cada push devuelve un <b>digest</b>: la huella del contenido.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "docker run -d -p 5050:5000 --name registry registry:2\ncurl -s localhost:5050/v2/_catalog",
+          "nota": "",
+          "donde": "mac",
+          "salida": "{\"repositories\":[]}"
+        },
+        {
+          "code": "docker tag iris-gateway:0.1 localhost:5050/iris-gateway:0.1\ndocker push localhost:5050/iris-gateway:0.1",
+          "nota": "",
+          "donde": "mac",
+          "salida": "The push refers to repository [localhost:5050/iris-gateway]\nb09e3727000c: Pushed\n98537322d54f: Pushed\n1a7a9679a00a: Pushed\n740b040e844f: Pushed\n3a038b6d1fa1: Pushed\neb84c7172e7d: Pushed\n0f2a3670451b: Pushed\n483ff55bca63: Pushed\n2b70e040f7d1: Pushed\n3ebe763086bb: Pushed\n0.1: digest: sha256:7c78ad9807a30616e1606857c0d1c5afe021458ab628d9447f44f0b095329d8d size: 856"
+        },
+        {
+          "code": "docker tag iris-model-server:0.1 localhost:5050/iris-model-server:0.1\ndocker push localhost:5050/iris-model-server:0.1",
+          "nota": "«Mounted from iris-gateway»: la base ya estaba en el registry y no se vuelve a subir.",
+          "donde": "mac",
+          "salida": "The push refers to repository [localhost:5050/iris-model-server]\n88c9270ad8a3: Pushed\nb09e3727000c: Mounted from iris-gateway\n0f2a3670451b: Mounted from iris-gateway\nb56186c8f371: Pushed\n0b27dd84b815: Pushed\n21423ada9291: Pushed\n3ebe763086bb: Mounted from iris-gateway\n3a038b6d1fa1: Mounted from iris-gateway\n2b70e040f7d1: Mounted from iris-gateway\nb756a7c67f1f: Pushed\n9c47e8b9116e: Pushed\n0.1: digest: sha256:f5c81b8681d160860b8ce9e10153af6ae99a94a18557568189ca34f93ee338cd size: 856"
+        },
+        {
+          "code": "python3 verificar.py registry",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ registry      en el registry y con tu digest: iris-gateway sha256:7c78ad9807a3… · iris-model-server sha256:f5c81b8681d1…\n\n1/1 en verde"
+        },
+        {
+          "code": "python3 verificar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo         Docker 29.2.0, uv y el modelo en su lugar\n✓ deps          gateway 23 paquetes · model server 25, todos fijados\n✓ contexto      gateway 5 archivos, 5.8 kB · model server 3 archivos, 7.7 kB\n✓ gateway       iris-gateway:0.1: uid 1000, CMD en forma exec en 0.0.0.0, caché bien ordenada · 60 MB comprimida\n✓ model-server  iris-model-server:0.1: modelo bueno dentro (/models), uid 10001 · 104 MB comprimida\n✓ exec          iris-gateway PID 1 = uvicorn · iris-model-server PID 1 = uvicorn\n✓ red           gateway → model-server por nombre: /readyz 200 y las 3 flores bien (setosa, versicolor, virginica)\n✓ salud         model server healthy y el gateway espera a service_healthy\n✓ registry      en el registry y con tu digest: iris-gateway sha256:7c78ad9807a3… · iris-model-server sha256:f5c81b8681d1…\n\n9/9 en verde"
+        }
+      ],
+      "verifica": "<code>python3 verificar.py</code> completo en verde.",
+      "ojo": "Tus digests van a ser otros. En C01 el registry es ECR, con autenticación y tags inmutables. Y al registry local ponle <code>--restart unless-stopped</code> si lo vas a dejar para siempre."
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Antes de empezar, <code>python3 mundo/reiniciar.py</code>: respalda tus archivos en .respaldo/, pone el esqueleto, baja la pila y borra las imágenes iris-* y el registry. La base python:3.13-slim se queda.",
+      "Solo tienes OBJETIVOS.md, los contratos al inicio de cada archivo y <code>python3 verificar.py</code>. Nada de GUION.md.",
+      "Claude no te da código: te dice qué check falla y te contesta con preguntas.",
+      "Mide tu tiempo por objetivo y anota en la bitácora dónde te atoraste."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "Docker, uv y el modelo en su lugar.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "Un requirements.txt fijado por servicio; el gateway sin onnxruntime ni numpy.",
+        "check": "deps",
+        "pista": "La lista corta va en el .in; el .txt sale de uv pip compile."
+      },
+      {
+        "n": 3,
+        "objetivo": "Los dos build contexts debajo de 1 MB.",
+        "check": "contexto",
+        "pista": "El contexto del model server es la raíz: ¿qué copia de verdad su Dockerfile?"
+      },
+      {
+        "n": 4,
+        "objetivo": "La imagen del gateway sin root, con la caché ordenada y escuchando en 0.0.0.0.",
+        "check": "gateway"
+      },
+      {
+        "n": 5,
+        "objetivo": "La imagen del model server con el modelo bueno dentro y un UID numérico.",
+        "check": "model-server"
+      },
+      {
+        "n": 6,
+        "objetivo": "Las dos imágenes con uvicorn como PID 1.",
+        "check": "exec",
+        "pista": "Corchetes en el CMD."
+      },
+      {
+        "n": 7,
+        "objetivo": "El gateway llega al model server por nombre y responde bien las tres flores.",
+        "check": "red"
+      },
+      {
+        "n": 8,
+        "objetivo": "El model server healthy y el gateway que espera a que lo esté.",
+        "check": "salud",
+        "pista": "slim no trae curl."
+      },
+      {
+        "n": 9,
+        "objetivo": "Las dos imágenes en el registry de localhost:5050 con tu digest.",
+        "check": "registry"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "puerto-ocupado",
+      "titulo": "La pila no levanta después del reinicio",
+      "tipo": "infra",
+      "historia": "Anoche reiniciaron la máquina compartida del equipo. Hoy en la mañana alguien dejó corriendo «un momento» la demo de pagos, y desde entonces Iris no responde.",
+      "sintoma": "<code>verificar.py</code>: red y salud fallan, no hay contenedores corriendo. <code>docker compose up -d</code> termina con un error.",
+      "hipotesis": [
+        "El gateway truena al arrancar (un error en su código o en su configuración).",
+        "Otro proceso tiene el puerto 8080 de tu Mac.",
+        "El model server no está sano y el gateway no arranca por depends_on."
+      ],
+      "confirma": {
+        "code": "docker compose up -d 2>&1 | tail -1\ndocker ps --format '{{.Names}}\\t{{.Ports}}' | grep 8080\ndocker compose ps --format '{{.Service}}\\t{{.Status}}\\t{{.Ports}}'",
+        "nota": "",
+        "donde": "mac",
+        "salida": "Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint iris-gateway-1 (2eca062f6ff190d0fb410822cdc2094affefdd425c8f74cb1f4798633e38acae): Bind for 0.0.0.0:8080 failed: port is already allocated\ndemo-pagos\t0.0.0.0:8080->5000/tcp, [::]:8080->5000/tcp\nmodel-server\tUp 5 seconds (healthy)\t0.0.0.0:9000->8000/tcp, [::]:9000->8000/tcp"
+      },
+      "arreglo": "Quita el contenedor ajeno (<code>docker rm -f demo-pagos</code>) o publica el gateway en otro puerto del host, y <b>recrea</b> el gateway: <code>docker compose up -d --force-recreate gateway</code>. Un <code>up -d</code> a secas solo arranca el contenedor que ya se creó sin su puerto (<code>docker compose ps</code> lo muestra como <code>8080/tcp</code>, sin <code>0.0.0.0:8080-></code>).",
+      "concepto": "puertos-publicados",
+      "check": "red"
+    },
+    {
+      "id": "url-localhost",
+      "titulo": "El gateway dice que el modelo no está listo",
+      "tipo": "config",
+      "historia": "Operaciones «limpió» la configuración del gateway para que fuera igual a la de las laptops del equipo. El despliegue salió sin errores.",
+      "sintoma": "<code>verificar.py</code>: red falla con <code>/readyz</code> en 503. Los dos contenedores están arriba y el model server está healthy.",
+      "hipotesis": [
+        "El model server se cayó o no cargó el modelo.",
+        "El gateway apunta a otra dirección.",
+        "Hay un problema de red entre contenedores."
+      ],
+      "confirma": {
+        "code": "curl -s localhost:8080/readyz; echo\ndocker compose exec gateway env | grep MODEL_SERVER_URL",
+        "nota": "",
+        "donde": "mac",
+        "salida": "{\"detail\":\"model server no responde en http://localhost:8000: ConnectError\"}\nMODEL_SERVER_URL=http://localhost:8000"
+      },
+      "arreglo": "Dentro del contenedor del gateway, <code>localhost</code> es el propio gateway. Regresa <code>MODEL_SERVER_URL=http://model-server:8000</code> en <code>config.env</code> y corre <code>docker compose up -d</code>, que recrea el gateway con la variable nueva.",
+      "concepto": "red-compose",
+      "check": "red"
+    },
+    {
+      "id": "basura-contexto",
+      "titulo": "El build del gateway se volvió lento",
+      "tipo": "mundo",
+      "historia": "Un compañero depuró una fuga de memoria del gateway la semana pasada. Desde entonces el build tarda y el CI se queja del tamaño del contexto.",
+      "sintoma": "<code>verificar.py</code>: contexto falla, el del gateway pesa 200 MB. Las imágenes y la pila siguen bien.",
+      "hipotesis": [
+        "Alguien cambió el Dockerfile para copiar más cosas.",
+        "Hay un archivo grande en la carpeta del gateway que no está en el .dockerignore.",
+        "El .dockerignore se vació."
+      ],
+      "confirma": {
+        "code": "du -sh gateway/* | sort -h | tail -3",
+        "nota": "",
+        "donde": "mac",
+        "salida": "4.0K\tgateway/requirements.txt\n8.0K\tgateway/app.py\n200M\tgateway/volcado-debug.bin"
+      },
+      "arreglo": "Agrega el patrón al <code>.dockerignore</code> del gateway (o saca el archivo de ahí). Ojo con el salto de línea: si el archivo no termina en uno, <code>echo '*.bin' >></code> lo pega a la última línea (<code>*.pyc*.bin</code>) y no ignora nada. <code>tail -2 gateway/.dockerignore</code> lo delata.",
+      "concepto": "contexto-build",
+      "check": "contexto"
+    },
+    {
+      "id": "modelo-roto",
+      "titulo": "El model server no arranca después del CI",
+      "tipo": "mundo",
+      "historia": "El pipeline de entrenamiento publicó anoche «la versión nueva» del modelo en model_repository/ y el CI reconstruyó la imagen del model server. Hoy la pila no está sana.",
+      "sintoma": "<code>verificar.py</code>: model-server, red y salud fallan. El model server sale con código 3 y el gateway no llega a él.",
+      "hipotesis": [
+        "Una dependencia nueva rompió el model server.",
+        "El modelo que llegó no se puede cargar.",
+        "El healthcheck está mal escrito."
+      ],
+      "confirma": {
+        "code": "docker compose ps -a --format '{{.Service}}\\t{{.Status}}'\ndocker compose logs model-server --no-log-prefix 2>&1 | grep -iE 'error|fail|invalid' | tail -3",
+        "nota": "",
+        "donde": "mac",
+        "salida": "gateway\tUp 24 seconds\nmodel-server\tExited (3) 2 seconds ago\nERROR:    Traceback (most recent call last):\nonnxruntime.capi.onnxruntime_pybind11_state.InvalidProtobuf: [ONNXRuntimeError] : 7 : INVALID_PROTOBUF : Load model from /models/iris/1/model.onnx failed:Protobuf parsing failed.\nERROR:    Application startup failed. Exiting."
+      },
+      "arreglo": "El model.onnx que llegó está truncado: onnxruntime no lo puede abrir y el proceso muere al arrancar (fail fast). Recupera el modelo bueno del registro de modelos del mundo (<code>cp mundo/modelos/iris-1.onnx model_repository/iris/1/model.onnx</code>) y, como el modelo va <b>dentro</b> de la imagen, reconstruye: <code>docker compose build model-server && docker compose up -d</code>.",
+      "concepto": "pesos-dentro",
+      "check": "model-server"
+    },
+    {
+      "id": "registry-caido",
+      "titulo": "El push dice que no hay conexión",
+      "tipo": "infra",
+      "historia": "Docker Desktop se actualizó y se reinició solo durante la noche. Todo lo demás volvió a levantar.",
+      "sintoma": "<code>verificar.py</code>: registry falla, no responde en localhost:5050. La pila corre bien.",
+      "hipotesis": [
+        "Docker Desktop cambió de puerto o de red.",
+        "El contenedor del registry no está corriendo.",
+        "Las imágenes se borraron del registry."
+      ],
+      "confirma": {
+        "code": "docker push localhost:5050/iris-gateway:0.1 2>&1 | tail -1\ndocker ps -a --filter name=registry --format '{{.Names}}\\t{{.Status}}'",
+        "nota": "",
+        "donde": "mac",
+        "salida": "failed to do request: Head \"https://localhost:5050/v2/iris-gateway/blobs/sha256:a1a8541a419e1fb416f4baec97f0fbfdbe6501a1ecd1cfbd0a6379ffe109bf2f\": dial tcp [::1]:5050: i/o timeout\nregistry\tExited (2) 33 seconds ago"
+      },
+      "arreglo": "El registry se creó sin política de reinicio y no volvió después del reinicio de Docker. <code>docker start registry</code> y, para que no se repita, <code>docker update --restart unless-stopped registry</code>. Las imágenes siguen ahí: el contenedor solo estaba detenido.",
+      "concepto": "reinicio",
+      "check": "registry"
+    },
+    {
+      "id": "tag-pisado",
+      "titulo": "El tag 0.1 ya no es tu gateway",
+      "tipo": "infra",
+      "historia": "Alguien del equipo subió un «hotfix» urgente anoche. En staging el gateway responde cosas raras, aunque nadie cambió la versión: sigue siendo 0.1.",
+      "sintoma": "<code>verificar.py</code>: registry falla; el digest del tag 0.1 del gateway en el registry ya no es el de tu imagen.",
+      "hipotesis": [
+        "Tu imagen local cambió.",
+        "Alguien subió otra imagen con el mismo tag.",
+        "El registry perdió la imagen."
+      ],
+      "confirma": {
+        "code": "docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' localhost:5050/iris-gateway:0.1\ncurl -sI -H 'Accept: application/vnd.oci.image.index.v1+json' localhost:5050/v2/iris-gateway/manifests/0.1 | grep -i docker-content-digest",
+        "nota": "",
+        "donde": "mac",
+        "salida": "iris-gateway@sha256:0d9d5a1b7ce098798e8f8fe6fbe18668c1dde4427a83c9a1679ad152973a8970\nlocalhost:5050/iris-gateway@sha256:0d9d5a1b7ce098798e8f8fe6fbe18668c1dde4427a83c9a1679ad152973a8970\nDocker-Content-Digest: sha256:05547fa1fa8f12d8352f53cf0da8fdd00c752e1aa8d5258fb57a984712cb326e"
+      },
+      "arreglo": "Alguien subió otra imagen (el model server) con <code>localhost:5050/iris-gateway:0.1</code>: los tags se pueden mover y quien haga pull de :0.1 recibe otra cosa. Vuelve a subir tu imagen (<code>docker tag iris-gateway:0.1 localhost:5050/iris-gateway:0.1 && docker push localhost:5050/iris-gateway:0.1</code>) y, de aquí en adelante, una versión nueva para cada cambio y desplegar por digest.",
+      "concepto": "registry-digest",
+      "check": "registry"
+    }
+  ],
+  "listo": [
+    "Cada servicio tiene su requirements.txt fijado, generado desde su requirements.in.",
+    "Las dos imágenes corren sin root, con uvicorn como PID 1 escuchando en 0.0.0.0, y con build contexts chicos.",
+    "El model server lleva el modelo bueno dentro, y su tag es la versión del modelo.",
+    "compose levanta la pila sana: el gateway llega al model server por nombre y espera su healthcheck.",
+    "Las dos imágenes están en el registry, y sabes qué digest es cada una."
+  ],
+  "repaso": {
+    "memo": "<b>La imagen es la unidad de despliegue.</b> Lo que probaste en tu Mac, en CI y en staging tiene que ser byte a byte lo que corre en producción: por eso las dependencias van fijadas, el orden de capas cuida la caché, la configuración llega por variables de entorno y en el registry manda el digest, no el tag.",
+    "trampa": "Pensar que «si corre en mi Mac, corre en el clúster». Tu Mac construye arm64, publica puertos que en el clúster no existen y te deja ser root sin que nadie se queje. Revisa la plataforma, el usuario, el 0.0.0.0 y el healthcheck antes de subir.",
+    "entrevista": [
+      {
+        "q": "¿Por qué copias requirements.txt antes que el código en el Dockerfile?",
+        "a": "Por la caché de capas: si cambia una capa, se rehacen ella y todas las de abajo. Las dependencias cambian poco y tardan en instalarse; el código cambia en cada commit. Con ese orden, un cambio de código reusa la capa de dependencias y el build baja de minutos a segundos."
+      },
+      {
+        "q": "¿El modelo va dentro de la imagen o fuera?",
+        "a": "Depende del tamaño y de qué tan seguido cambia. Dentro: la imagen es reproducible, el tag es la versión del modelo y el rollback es cambiar de tag. Fuera (volumen, S3 al arrancar): imágenes chicas y cambiar el modelo sin reconstruir, a cambio de llevar la versión del modelo aparte. En C01, Triton lleva el engine horneado."
+      },
+      {
+        "q": "Tu contenedor corre pero no contesta en el puerto publicado. ¿Qué revisas?",
+        "a": "Que el proceso escuche en 0.0.0.0 y no en 127.0.0.1, que el puerto publicado (-p host:contenedor) apunte al que escucha el proceso, que nadie más tenga ese puerto del host y, en compose, que el contenedor no se haya creado sin su puerto. docker ps, docker logs y un curl desde dentro y desde fuera lo separan rápido."
+      },
+      {
+        "q": "¿Por qué un tag no basta para saber qué corre en producción?",
+        "a": "Porque un tag es una etiqueta que se puede mover: alguien puede subir otra imagen con el mismo nombre. El digest es el hash del manifiesto y cambia si cambia un solo byte. Por eso en C01 los tags de ECR son inmutables y los manifests de Kubernetes pueden fijar la imagen por digest."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/c01-empaquetado/CLAUDE.md",
+    "guiado": "content/estaciones/c01-empaquetado/prompts/guiado.md",
+    "solo": "content/estaciones/c01-empaquetado/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/c01-empaquetado/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/c01-empaquetado/prompts/romper-solo.md"
+  }
+}

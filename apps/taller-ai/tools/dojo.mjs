@@ -123,6 +123,7 @@ const TIPO = { mundo: 'd-t-mundo', config: 'd-t-config', infra: 'd-t-infra', ent
 // ---------------------------------------------------------------- estación
 export function cuerpoEstacion(e, { total, kitBytes, kb }) {
   const idx = indiceConceptos(e, e.url);
+  const py = e.mundo.python || 'python';   // cómo se llama Python en el kit (con venv: python; sin venv: python3)
   const indice = [['mapa', 'Mapa'], ['rondas', 'Rondas'], ...(e.practicas.length ? [['desde-cero', 'Desde cero']] : []), ['conceptos', 'Conceptos'], ['precalculos', 'Precálculos'], ['kit', 'Kit'], ['guiado', 'Guiado'], ['solo', 'Solo'], ['romper', 'Romper'], ['repaso', 'Repaso']];
   const kitBtn = `<a class="d-btn" href="/kits/${e.slug}.zip" download>Bajar el kit .zip · ${kb(kitBytes)}</a>`;
 
@@ -223,11 +224,11 @@ ${desdeCero}
   ${titulo('El kit', 'el mundo')}
   <div class="d-grid2">
     <div class="d-kit-txt"><p class="d-p">${e.mundo.resumen}</p>${kitBtn}</div>
-    ${codigo(`unzip ${e.slug}.zip && cd ${e.slug}\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\ndocker compose up -d\npython mundo/reiniciar.py --todo`, 'arranque')}
+    ${codigo(e.mundo.arranque || `unzip ${e.slug}.zip && cd ${e.slug}\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\ndocker compose up -d\npython mundo/reiniciar.py --todo`, 'arranque')}
   </div>
   <div class="d-grid2">
     <div class="d-card"><h3>Lo que trae <small>no lo escribes</small></h3><div class="d-lista">${e.mundo.trae.map((t) => `<p><b>${esc(t.que)}.</b> ${t.detalle}</p>`).join('')}</div></div>
-    <div class="d-card"><h3>Tu pipeline <small>lo escribes tú</small></h3><ol class="d-linea">${e.mundo.tu_pipeline.map((t) => `<li><code>${esc(t.archivo)}</code><span>${t.hace}</span></li>`).join('')}</ol></div>
+    <div class="d-card"><h3>${e.id === 'datos' ? 'Tu pipeline' : 'Lo que escribes'} <small>lo escribes tú</small></h3><ol class="d-linea">${e.mundo.tu_pipeline.map((t) => `<li><code>${esc(t.archivo)}</code><span>${t.hace}</span></li>`).join('')}</ol></div>
   </div>
   <div class="d-card"><h3>Necesitas</h3><ul class="d-ul">${e.mundo.requisitos.map((r) => `<li>${r}</li>`).join('')}</ul></div>
   <div class="d-tabla"><table><thead><tr><th>En la nube</th><th class="d-th-dojo">En el dojo</th><th>Qué cambia</th></tr></thead><tbody>${e.mundo.sustituciones.map((r) => `<tr><th scope="row">${esc(r.nube)}</th><td>${esc(r.local)}</td><td>${r.diferencia}</td></tr>`).join('')}</tbody></table></div>
@@ -246,15 +247,16 @@ ${desdeCero}
   ${titulo('Solo', `${e.solo.objetivos.length} objetivos`)}
   <div class="d-reglas">${e.solo.reglas.map((r) => `<p>${r}</p>`).join('')}</div>
   <div class="d-objs">
-    ${e.solo.objetivos.map((o) => `<div class="d-obj"><span>${String(o.n).padStart(2, '0')}</span><span>${o.objetivo}<code>verificar.py ${esc(o.check)}</code>${o.pista ? `<small><b>Pista:</b> ${o.pista}</small>` : ''}</span></div>`).join('\n    ')}
+    ${e.solo.objetivos.map((o) => `<div class="d-obj"><span>${String(o.n).padStart(2, '0')}</span><span>${o.objetivo}<code>${py} verificar.py ${esc(o.check)}</code>${o.pista ? `<small><b>Pista:</b> ${o.pista}</small>` : ''}</span></div>`).join('\n    ')}
   </div>
 </section>
 
 <section class="d-sec" id="romper">
   ${titulo('Romper', `${e.fallas.length} fallas`)}
   <div class="d-grid2">
-    <p class="d-p">Con tu pipeline en verde, <code>python romper.py</code> mete una falla en el mundo, la configuración o la infraestructura (nunca en tu código) y, si hace falta, corre el job del mes como si hubiera corrido anoche. Tú empiezas por <code>python verificar.py</code>.</p>
-    ${codigo('python romper.py --mostrar      # con ayuda: Claude sabe cuál es\npython romper.py                # solo: escondida, ni Claude la sabe\npython romper.py --verificar    # ¿ya quedó?\npython romper.py --revelar      # me rindo\npython romper.py --restaurar    # deshacer', 'romper.py')}
+    <p class="d-p">Con todo en verde, <code>romper.py</code> mete una falla en el mundo, la configuración o la infraestructura (nunca en lo que escribiste) y, si hace falta, deja corriendo lo que «pasó anoche». Tú empiezas por <code>verificar.py</code>.</p>
+    ${codigo([['--mostrar', 'con ayuda: Claude sabe cuál es'], ['', 'solo: escondida, ni Claude la sabe'], ['--verificar', '¿ya quedó?'], ['--revelar', 'me rindo'], ['--restaurar', 'deshacer']]
+      .map(([a, c]) => `${`${py} romper.py ${a}`.padEnd(py.length + 23)}# ${c}`).join('\n'), 'romper.py')}
   </div>
   <details class="d-catalogo"><summary><span><span class="d-cat-t">Catálogo de fallas <em>(spoilers)</em></span><span class="d-txt">El catálogo de abajo trae las respuestas. Ábrelo después de romper, para repasar.</span></span><span class="d-cat-b">Abrir el catálogo</span></summary>
     <div class="d-fallas">

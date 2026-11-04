@@ -99,6 +99,8 @@ export const estacion = obj({
     tu_pipeline: arr(obj({ archivo: txt, hace: txt }), { min: 3 }),
     requisitos: arr(txt, { min: 1 }),
     sustituciones: arr(obj({ nube: txt, local: txt, diferencia: txt }), { min: 1 }),
+    'arranque?': txt,                              // los comandos para levantar el kit recién descomprimido
+    'python?': oneOf('python', 'python3'),          // cómo se llama Python en el kit: python con venv, python3 sin venv
   }),
   guiado: arr(obj({
     n: int(0, 30),

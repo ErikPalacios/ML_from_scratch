@@ -1,0 +1,2 @@
+# Lo que importa model_server/server.py, sin versiones.
+# De aquí sale requirements.txt con: uv pip compile requirements.in -o requirements.txt --universal --python-version 3.13
