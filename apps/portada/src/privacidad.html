@@ -1,10 +1,11 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-tema-clave="trueml-tema">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Aviso de privacidad — {{NAME}}</title>
 <meta name="description" content="Qué datos guardan estas apps (casi ninguno), dónde y cómo borrarlos.">
+<script>try { var t = localStorage.getItem('trueml-tema'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}</script>
 <link rel="canonical" href="{{URL}}/privacidad/">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <meta property="og:type" content="website">
@@ -17,12 +18,18 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/style.css">
 </head>
-<body>
-<div class="wrap">
-  <a class="back" href="/">← {{NAME}}</a>
-  <article>
-    <h1 style="font-size:clamp(28px,5vw,40px);margin-top:16px">Aviso de privacidad</h1>
-    <p class="lead">Resumen: estas apps no piden cuenta, no usan cookies de publicidad y no venden datos. Lo que haces en ellas se queda en tu navegador.</p>
+<body class="tm-pagina">
+<div class="p-nav" data-tm-nav>
+  <header class="p-wrap p-head">
+    <a class="p-logo" href="/"><span class="p-logo-mark">{{NAVMARK}}</span><span class="p-word">True<span>ML</span></span></a>
+    <div class="p-head-r">{{TEMA}}</div>
+  </header>
+</div>
+<div class="p-wrap p-legal">
+  <a class="p-back" href="/">← {{NAME}}</a>
+  <article class="p-card">
+    <h1>Aviso de privacidad</h1>
+    <p class="p-lead">Resumen: estas apps no piden cuenta, no usan cookies de publicidad y no venden datos. Lo que haces en ellas se queda en tu navegador.</p>
 
     <h2>Qué guardan en tu dispositivo</h2>
     <ul>
@@ -50,8 +57,9 @@
 
     <h2>Cambios y contacto</h2>
     <p>Si en el futuro agregamos cuentas o cobros, este aviso se actualizará antes y te lo diremos. Para dudas, <a href="{{ISSUES}}">abre un comentario en GitHub</a>.</p>
-    <p style="color:var(--muted);font-size:14.5px">Última actualización: {{DATE}}. Este texto es un resumen en lenguaje sencillo y puede ajustarse conforme crezca el proyecto.</p>
+    <p class="p-nota">Última actualización: {{DATE}}. Este texto es un resumen en lenguaje sencillo y puede ajustarse conforme crezca el proyecto.</p>
   </article>
 </div>
+<script src="/trueml.js" defer></script>
 </body>
 </html>

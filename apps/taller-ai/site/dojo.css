@@ -1,34 +1,6 @@
 /* Diseño «Dojo» de TrueML para las páginas de estación (Claude Design: «Dojo Estacion 01»).
-   Los tokens --tm-* son los de tools/trueml-mark.js (THEMES.claro y THEMES.oscuro). El tema lo elige el
-   mismo selector de la app (data-theme en <html>, clave taller-tema). */
-:root {
-  --tm-bg: #EDEFF7; --tm-grid: rgba(14,21,48,.055); --tm-card: #FFFFFF; --tm-ink: #0E1530; --tm-ink2: #3A4364; --tm-ink3: #5A6385;
-  --tm-line: #E3E6F0; --tm-chip: #EEF1FF; --tm-acc: #3D5AFE; --tm-nav: rgba(237,239,247,.86); --tm-sh: 0 1px 0 rgba(14,21,48,.08);
-  --tm-btn2: #FFFFFF; --tm-btn2sh: #C9CEE0; --tm-code: #0E1530; --tm-codeink: #E6EAFB; --tm-codeink2: #8F9BC9;
-  --tm-ok: #E3F7EF; --tm-okink: #0C7A5B; --tm-lead: #9AA2C0;
-  --tm-dojo: #B07A0C; --tm-warn: #D9532A;
-  --y: #E8AE36; --yt: #FFC857; --yd: #D99A1E; --o: #EC6A3F; --g: #17B386; --b: #3D5AFE; --p: #7A69EE; --n: #5A6699; --navy: #0E1530;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --tm-bg: #0A0F22; --tm-grid: rgba(255,255,255,.045); --tm-card: #121A36; --tm-ink: #EEF1FB; --tm-ink2: #B4BCDD; --tm-ink3: #8C95BD;
-    --tm-line: #232C52; --tm-chip: #1B2450; --tm-acc: #8FA2FF; --tm-nav: rgba(10,15,34,.82); --tm-sh: 0 0 0 1px #1E2750;
-    --tm-btn2: #1B2450; --tm-btn2sh: #070B1A; --tm-code: #070B1A; --tm-codeink: #DDE3FA; --tm-codeink2: #7F8AB8;
-    --tm-ok: #0F3B30; --tm-okink: #5BE0B5; --tm-lead: #4A5480; --tm-dojo: #FFC857; --tm-warn: #FF8A5C;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --tm-bg: #0A0F22; --tm-grid: rgba(255,255,255,.045); --tm-card: #121A36; --tm-ink: #EEF1FB; --tm-ink2: #B4BCDD; --tm-ink3: #8C95BD;
-  --tm-line: #232C52; --tm-chip: #1B2450; --tm-acc: #8FA2FF; --tm-nav: rgba(10,15,34,.82); --tm-sh: 0 0 0 1px #1E2750;
-  --tm-btn2: #1B2450; --tm-btn2sh: #070B1A; --tm-code: #070B1A; --tm-codeink: #DDE3FA; --tm-codeink2: #7F8AB8;
-  --tm-ok: #0F3B30; --tm-okink: #5BE0B5; --tm-lead: #4A5480; --tm-dojo: #FFC857; --tm-warn: #FF8A5C;
-  color-scheme: dark;
-}
-
+   Los tokens --tm-* vienen de vendor/trueml/tokens.css (el build los pone antes de este archivo). El tema lo
+   elige el selector de la app (data-theme en <html>, clave taller-tema). */
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-padding-top: 130px; }
 body.dojo {

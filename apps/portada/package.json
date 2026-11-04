@@ -1,9 +1,11 @@
 {
   "name": "portada",
   "private": true,
-  "description": "Portada común de las apps de estudio de ML: tarjetas, SEO, aviso de privacidad.",
+  "description": "Portada de TrueML: el Dojo destacado y las herramientas, todo desde site.json y el sistema de diseño TrueML.",
   "scripts": {
     "build": "node build.mjs",
-    "og": "node tools/og.mjs"
+    "og": "node tools/og.mjs",
+    "check": "node build.mjs && node tools/check.mjs",
+    "sync": "node ../trueml/sync.mjs"
   }
 }

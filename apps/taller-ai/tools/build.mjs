@@ -169,13 +169,16 @@ for (const e of ESTACIONES) {
 }
 pages['/'] = portada();
 writeFileSync(join(OUT, 'index.html'), pages['/']);
-for (const f of ['dojo.css', 'app.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
+for (const f of ['app.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
+// dojo.css = los tokens de TrueML (vendor/trueml/tokens.css, del sistema compartido) + los componentes del Dojo
+const DOJO_CSS = readFileSync(join(ROOT, 'vendor', 'trueml', 'tokens.css'), 'utf8') + '\n' + readFileSync(join(ROOT, 'site', 'dojo.css'), 'utf8');
+writeFileSync(join(OUT, 'dojo.css'), DOJO_CSS);
 
 const urls = ['/', ...ESTACIONES.flatMap((e) => [e.url, ...e.practicas.map((p) => p.url)])];
 const core = [...urls, '/dojo.css', '/app.js', '/icon.svg', '/manifest.webmanifest'];
 const hash = createHash('sha256');
 for (const p of Object.keys(pages).sort()) hash.update(p).update(pages[p]);
-for (const f of ['dojo.css', 'app.js']) hash.update(readFileSync(join(ROOT, 'site', f)));
+hash.update(DOJO_CSS).update(readFileSync(join(ROOT, 'site', 'app.js')));
 const BUILD = hash.digest('hex').slice(0, 12);
 writeFileSync(join(OUT, 'sw.js'), readFileSync(join(ROOT, 'site', 'sw.js'), 'utf8').replace("'__BUILD__';", `'${BUILD}';`).replace('= __PAGES__;', `= ${JSON.stringify(core)};`));
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);

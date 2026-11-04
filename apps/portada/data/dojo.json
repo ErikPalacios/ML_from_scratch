@@ -1,0 +1,104 @@
+{
+  "nota": "Generado por apps/trueml/sync.mjs desde apps/taller-ai/content. No se edita a mano.",
+  "url": "https://taller-ai-engineer.vercel.app",
+  "caso": "c01",
+  "total": 12,
+  "estaciones": [
+    {
+      "num": 1,
+      "id": "datos",
+      "titulo": "Datos y etiquetas",
+      "etapa": "datos",
+      "lista": true,
+      "url": "https://taller-ai-engineer.vercel.app/c01/datos/"
+    },
+    {
+      "num": 2,
+      "id": "versionado",
+      "titulo": "Versionado y linaje",
+      "etapa": "datos",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 3,
+      "id": "entrenamiento",
+      "titulo": "Entrenamiento",
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 4,
+      "id": "gate",
+      "titulo": "Gate de evaluación y registry",
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 5,
+      "id": "export",
+      "titulo": "Export, engine y paridad",
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 6,
+      "id": "serving",
+      "titulo": "Código de serving",
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 7,
+      "id": "empaquetado",
+      "titulo": "Empaquetado (Docker)",
+      "etapa": "contenedor",
+      "lista": true,
+      "url": "https://taller-ai-engineer.vercel.app/c01/empaquetado/"
+    },
+    {
+      "num": 8,
+      "id": "cicd",
+      "titulo": "CI/CD y registro de imágenes",
+      "etapa": "contenedor",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 9,
+      "id": "kubernetes",
+      "titulo": "Kubernetes",
+      "etapa": "orquestacion",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 10,
+      "id": "rollout",
+      "titulo": "Rollout seguro",
+      "etapa": "orquestacion",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 11,
+      "id": "request",
+      "titulo": "La request en vivo",
+      "etapa": "monitoreo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "num": 12,
+      "id": "monitoreo",
+      "titulo": "Monitoreo y reentrenamiento",
+      "etapa": "monitoreo",
+      "lista": false,
+      "url": null
+    }
+  ]
+}

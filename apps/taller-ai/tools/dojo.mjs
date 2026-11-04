@@ -1,21 +1,13 @@
 // Las páginas de estación con el diseño «Dojo» de TrueML (Claude Design: «Dojo Estacion 01»).
-// La T de vidrio sale de tools/trueml-mark.js, el mismo generador del diseño, y se dibuja aquí, al construir:
-// la página no necesita React ni JavaScript para verse, y abre sin conexión.
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import vm from 'node:vm';
-
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const ctx = { window: {} };
-vm.runInNewContext(readFileSync(join(ROOT, 'tools', 'trueml-mark.js'), 'utf8'), ctx);
-const TM = ctx.window.TrueMLMark;
+// La T de vidrio y las etapas salen del sistema de diseño compartido (apps/trueml, copiado en vendor/trueml con
+// node apps/trueml/sync.mjs). Se dibuja al construir: la página no necesita JavaScript para verse y abre sin conexión.
+import { TrueMLMark as TM, RANGOS_C01 } from '../vendor/trueml/lib.mjs';
 
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const PORTADA = 'https://ml-desde-cero.vercel.app';
 
 // Las 12 estaciones del C01 en las 6 etapas de la T (la agrupación del diseño).
-const ETAPAS = [[1, 2], [3, 5], [6, 6], [7, 8], [9, 10], [11, 12]];
+const ETAPAS = RANGOS_C01;   // [[1, 2], [3, 5], [6, 6], [7, 8], [9, 10], [11, 12]], de etapas.json
 const etapa = (num) => ETAPAS.findIndex(([a, b]) => num >= a && num <= b);
 
 const marcaNav = TM.mark(true, null);

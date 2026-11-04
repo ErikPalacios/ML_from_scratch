@@ -1,0 +1,19 @@
+{
+  "nota": "Las 6 etapas de la T de TrueML y cómo se agrupan en ellas las 12 estaciones del C01. Lo leen el Dojo y la portada.",
+  "etapas": [
+    { "id": "datos",        "nombre": "Datos",        "tech": "dataset",              "color": "#E8AE36" },
+    { "id": "modelo",       "nombre": "Modelo",       "tech": "PyTorch",              "color": "#EC6A3F" },
+    { "id": "api",          "nombre": "API",          "tech": "FastAPI",              "color": "#17B386" },
+    { "id": "contenedor",   "nombre": "Contenedor",   "tech": "Docker",               "color": "#3D5AFE" },
+    { "id": "orquestacion", "nombre": "Orquestación", "tech": "Kubernetes",           "color": "#7A69EE" },
+    { "id": "monitoreo",    "nombre": "Monitoreo",    "tech": "Prometheus · Grafana", "color": "#5A6699" }
+  ],
+  "estaciones_c01": {
+    "datos": [1, 2],
+    "modelo": [3, 5],
+    "api": [6, 6],
+    "contenedor": [7, 8],
+    "orquestacion": [9, 10],
+    "monitoreo": [11, 12]
+  }
+}

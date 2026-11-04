@@ -1,45 +1,88 @@
 #!/usr/bin/env node
-// Arma dist/ (lo que sube a Vercel) a partir de site.json y src/. Sin dependencias.
-//   index.html, privacidad/index.html, style.css, icon.svg, og.png, robots.txt, sitemap.xml
+// Arma dist/ (lo que sube a Vercel) a partir de site.json, data/dojo.json, src/ y el sistema de diseño TrueML
+// (vendor/trueml, copiado con node apps/trueml/sync.mjs). Sin dependencias.
+//   index.html, privacidad/index.html, style.css (tokens + portada), trueml.js, icon.svg, og.png, robots.txt, sitemap.xml
+// Todo lo que se ve sale de los datos: agregar una herramienta es agregar una entrada en site.json.
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { etapas, franja, marca, miniT, resumen, selectorTema } from './vendor/trueml/lib.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SRC = join(ROOT, 'src');
 const OUT = join(ROOT, 'dist');
-const site = JSON.parse(readFileSync(join(ROOT, 'site.json'), 'utf8'));
 const fail = (m) => { console.error('[build] ERROR: ' + m); process.exit(1); };
+const site = JSON.parse(readFileSync(join(ROOT, 'site.json'), 'utf8'));
+const dojo = JSON.parse(readFileSync(join(ROOT, 'data', 'dojo.json'), 'utf8'));
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const today = new Date().toISOString().slice(0, 10);
 
-const card = (a) => a.url
-  ? `      <a class="card" href="${esc(a.url)}"><span class="tag">${esc(a.tag)}</span><h3>${esc(a.title)}</h3><p>${esc(a.text)}</p><span class="go">${esc(a.cta)} →</span></a>`
-  : `      <div class="card soon"><span class="tag">${esc(a.tag)}</span><h3>${esc(a.title)}</h3><p>${esc(a.text)}</p></div>`;
+// {{id}} en los textos de los datos: la URL de esa herramienta (o repo, issues)
+const URLS = { repo: site.repo, issues: site.issues, [site.destacada.id]: site.destacada.url, ...Object.fromEntries(site.apps.map((a) => [a.id, a.url])) };
+const enlaces = (t) => t.replace(/\{\{(\w+)\}\}/g, (_, k) => { if (!(k in URLS)) fail(`no hay URL para {{${k}}}`); return URLS[k]; });
+try { [site.destacada, ...site.apps, ...site.rutas].forEach((x) => etapas(x.etapas)); } catch (e) { fail(e.message); }
 
-const jsonld = JSON.stringify({
-  '@context': 'https://schema.org', '@type': 'WebSite', name: site.name, url: site.url + '/', inLanguage: 'es',
-  description: site.description, author: { '@type': 'Person', name: site.author },
-  license: 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
-}).replace(/</g, '\\u003c');
+// ---------------------------------------------------------------- piezas
+const herramienta = (a) => `<article class="p-tool" data-etapas="${etapas(a.etapas).join(' ')}" data-nombre="${esc(a.title)}" data-resumen="${esc(resumen(a.etapas))}">
+        <div class="p-tool-h"><span class="p-num">${esc(a.num)} · ${esc(a.tag)}</span>${miniT(a.etapas)}</div>
+        <h3>${esc(a.title)}</h3>
+        <p>${esc(a.text)}</p>
+        <a class="p-btn-dark" href="${esc(a.url)}">${esc(a.cta)} →</a>
+      </article>`;
+
+const d = site.destacada;
+const listas = dojo.estaciones.filter((s) => s.lista);
+const pips = dojo.estaciones.map((s) => `<i class="tm-c-${s.etapa}${s.lista ? '' : ' p-off'}" title="${esc(`${s.num} · ${s.titulo}${s.lista ? '' : ' (próximamente)'}`)}"></i>`).join('');
+const avance = listas.length === 1 ? `Estación ${listas[0].num} de ${dojo.total} lista · ${listas[0].titulo}`
+  : `${listas.length} de ${dojo.total} estaciones listas · ${listas.map((s) => `${s.num} ${s.titulo}`).join(' · ')}`;
+const destacada = `<article class="p-dojo" id="dojo" data-etapas="${etapas(d.etapas).join(' ')}" data-nombre="${esc(d.title)}" data-resumen="${esc(resumen(d.etapas))}">
+      ${franja('tm-stripe p-dojo-stripe')}
+      <div class="p-dojo-body">
+        <div class="p-tool-h"><span class="p-num p-num-y">00 · ${esc(d.tag)}</span>${miniT(d.etapas)}</div>
+        <h2>${esc(d.title)}</h2>
+        <p>${esc(d.text)}</p>
+        <div class="p-avance"><div class="p-pips" style="--n:${dojo.total}">${pips}</div><span>${esc(avance)}</span></div>
+        <a class="p-btn p-btn-y" href="${esc(d.url)}">${esc(d.cta)} →</a>
+      </div>
+    </article>`;
+
+const ruta = (r, i) => `<div class="p-card p-ruta" data-etapas="${etapas(r.etapas).join(' ')}" data-nombre="${esc(r.titulo)}" data-resumen="${esc(resumen(r.etapas))}">
+      <div class="p-tool-h"><span class="p-num">${String(i + 1).padStart(2, '0')}</span>${miniT(r.etapas, { etiqueta: false })}</div>
+      <h3>${esc(r.titulo)}</h3>
+      <p>${enlaces(r.texto)}</p>
+    </div>`;
+
+const boton = (b) => `<a class="p-btn ${b.estilo === 'primario' ? 'p-btn-b' : 'p-btn-w'}" href="${esc(enlaces(b.href))}">${esc(b.texto)}${b.estilo === 'primario' ? ' →' : ''}</a>`;
+
+// La T: con etiquetas si hay espacio, sin ellas en pantallas angostas (lo decide el CSS con un container query)
+const T = `<div class="p-t-con">${marca({ etiquetas: true, maxAltura: 'min(calc(100vh - 150px), 860px)' })}</div><div class="p-t-sin">${marca({ maxAltura: '520px' })}</div>`;
 
 const vars = {
   NAME: esc(site.name), URL: site.url, TAGLINE: esc(site.tagline), DESC: esc(site.description), AUTHOR: esc(site.author),
-  REPO: site.repo, ISSUES: site.issues, YEAR: new Date().getFullYear(), DATE: today, JSONLD: jsonld,
-  CARDS: site.apps.map(card).join('\n'),
-  ...Object.fromEntries(site.apps.map((a) => ['U_' + a.id, a.url || '#'])),
+  REPO: site.repo, ISSUES: site.issues, YEAR: new Date().getFullYear(), DATE: today,
+  JSONLD: JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebSite', name: site.name, url: site.url + '/', inLanguage: 'es',
+    description: site.description, author: { '@type': 'Person', name: site.author }, license: 'https://creativecommons.org/licenses/by-nc-nd/4.0/' }).replace(/</g, '\\u003c'),
+  NAVMARK: marca(), TEMA: selectorTema(), KICKER: esc(site.kicker), BOTONES: site.botones.map(boton).join(''),
+  T, CAPTION: esc(site.caption), DESTACADA: destacada, HERRAMIENTAS: site.apps.map(herramienta).join('\n      '),
+  RUTAS: site.rutas.map(ruta).join('\n    '),
+  GARANTIAS: site.garantias.map((g, i) => `<li><span class="p-check p-check-${i % 4}">✓</span>${esc(g)}</li>`).join(''),
+  FEEDBACK_T: esc(site.feedback.titulo), FEEDBACK: enlaces(site.feedback.texto),
 };
 const fill = (t) => t.replace(/\{\{(\w+)\}\}/g, (_, k) => { if (!(k in vars)) fail('falta la variable {{' + k + '}}'); return vars[k]; });
 
+// ---------------------------------------------------------------- escribir
+for (const f of ['tokens.css', 'cliente.js', 'lib.mjs']) if (!existsSync(join(ROOT, 'vendor', 'trueml', f))) fail(`falta vendor/trueml/${f}: corre node apps/trueml/sync.mjs`);
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(join(OUT, 'privacidad'), { recursive: true });
 writeFileSync(join(OUT, 'index.html'), fill(readFileSync(join(SRC, 'index.html'), 'utf8')));
 writeFileSync(join(OUT, 'privacidad', 'index.html'), fill(readFileSync(join(SRC, 'privacidad.html'), 'utf8')));
-for (const f of ['style.css', 'icon.svg', 'og.png']) {
+writeFileSync(join(OUT, 'style.css'), readFileSync(join(ROOT, 'vendor', 'trueml', 'tokens.css'), 'utf8') + '\n' + readFileSync(join(SRC, 'style.css'), 'utf8'));
+copyFileSync(join(ROOT, 'vendor', 'trueml', 'cliente.js'), join(OUT, 'trueml.js'));
+for (const f of ['icon.svg', 'og.png']) {
   if (!existsSync(join(SRC, f))) fail('falta src/' + f + (f === 'og.png' ? ' (corre npm run og)' : ''));
   copyFileSync(join(SRC, f), join(OUT, f));
 }
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${site.url}/sitemap.xml\n`);
-const urls = [site.url + '/', site.url + '/privacidad/', ...site.apps.filter((a) => a.url).map((a) => a.url + '/')];
+const urls = [site.url + '/', site.url + '/privacidad/', ...[site.destacada, ...site.apps].filter((a) => a.url).map((a) => a.url + '/')];
 writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u}</loc><lastmod>${today}</lastmod></url>`).join('\n')}\n</urlset>\n`);
-console.log(`[build] dist/ listo · ${site.apps.length} tarjetas · ${urls.length} URLs en el sitemap`);
+console.log(`[build] dist/ listo · Dojo + ${site.apps.length} herramientas · ${site.rutas.length} rutas · Dojo ${listas.length}/${dojo.total} · ${urls.length} URLs en el sitemap`);
