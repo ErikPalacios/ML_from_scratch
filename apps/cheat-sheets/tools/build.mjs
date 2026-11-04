@@ -170,6 +170,18 @@ body { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area
 @media print { .hub-bar { display: none !important; } }
 `;
 
+// Los bloques `@media print { … }` de una hoja de estilos, completos (con sus llaves anidadas).
+function bloquesPrint(css) {
+  css = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const out = [];
+  for (const m of css.matchAll(/@media\s+print\s*\{/g)) {
+    let d = 1, j = m.index + m[0].length;
+    while (d && j < css.length) { if (css[j] === '{') d++; else if (css[j] === '}') d--; j++; }
+    out.push(css.slice(m.index, j));
+  }
+  return out.join('\n');
+}
+
 function inject(html, where, { head = '', css = '', afterWrap = '', beforeBody = '' }) {
   if (!/<\/title>/i.test(html) || !/<\/style>/i.test(html) || !/<\/body>/i.test(html)) fail(where + ': falta </title>, </style> o </body>');
   html = html.replace(/<\/title>/i, (m) => m + '\n' + head);
@@ -205,7 +217,11 @@ for (const s of SHEETS) {
   src = src.replace(/<p class="kicker">[\s\S]*?<\/p>/, (m) => `<div class="hero__top">${m}${miniT(s.etapas)}</div>`);
   src = src.replace(/<body[^>]*>/i, (m) => m + STRIPE);
   src = src.replace(/<html([^>]*)>/i, (m, a) => `<html${a} data-hoja="${esc(s.id)}">`); // para los ajustes de una sola hoja en trueml-hojas.css
-  const css = '\n' + TOKENS + '\n' + HOJAS_CSS + tonoCss(s.tono) + BAR_CSS;
+  // Al imprimir mandan las medidas de la hoja: sus bloques @media print van otra vez después de la capa (que en
+  // pantalla agranda rellenos y letras), y detrás los de la capa, para que los colores de TrueML sigan ganando.
+  const estilos = [...src.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]).join('\n');
+  const css = '\n' + TOKENS + '\n' + HOJAS_CSS + tonoCss(s.tono) + BAR_CSS
+    + '\n/* imprimir: las medidas de la hoja y después los colores de TrueML */\n' + bloquesPrint(estilos) + '\n' + bloquesPrint(HOJAS_CSS) + '\n';
   const html = inject(src, s.id, { head: seo(`/${s.id}/`, `${s.title} — ${SITE_NAME}`, s.seo || s.summary, src), css, afterWrap: bar, beforeBody: FOOT + REGISTER + THEME_JS });
   mkdirSync(join(OUT, s.id), { recursive: true });
   writeFileSync(join(OUT, s.id, 'index.html'), html);

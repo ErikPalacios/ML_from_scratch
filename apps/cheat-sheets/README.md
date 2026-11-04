@@ -39,7 +39,15 @@ El build viste cada hoja con TrueML sin tocar su archivo:
 
 En `sheets.json`, cada hoja dice sus `etapas` de la T (ids de `vendor/trueml/etapas.json` o `"todas"`) y su `tono`: la etapa cuyo color lleva el número de cada sección (`datos`, `modelo`, `api`, `contenedor`, `orquestacion`, `monitoreo`, o `tinta` para una hoja que cruza varias). La portada enciende en la T las etapas de la hoja por la que pasa el cursor (`vendor/trueml/cliente.js`).
 
-Los PDF son los impresos antes del rediseño: para que salgan con el diseño nuevo, imprímelos desde `dist/` servido (por ejemplo `http://localhost:<puerto>/<id>/`) con el mismo comando de Chrome de «Agregar una hoja».
+Los PDF se imprimen desde `dist/` servido, para que salgan con el diseño TrueML (impresos así el 2026-11-04):
+
+```bash
+npm run build && (cd dist && python3 -m http.server 4399) &
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --no-pdf-header-footer --virtual-time-budget=10000 --print-to-pdf=sheets/<id>/<pdf> --user-data-dir=$(mktemp -d) http://localhost:4399/<id>/
+npm run build   # otra vez: el tamaño del PDF nuevo va en la barra y en la portada
+```
+
+Al imprimir mandan las medidas de cada hoja: el build vuelve a poner sus bloques `@media print` después de la capa TrueML (que en pantalla agranda rellenos y letras) y detrás los de la capa, para que los colores sigan siendo los de TrueML. Sin eso, las tarjetas se salían a páginas casi vacías.
 
 ## Comandos
 

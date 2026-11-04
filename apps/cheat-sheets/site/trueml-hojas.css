@@ -400,4 +400,9 @@ figure.fig.map svg .seg { stroke-linecap: round; }
   .code var.ph, pre.term var.ph { color: #3D5AFE; }
   .code__bar { color: #5A6385; border-bottom-color: #DDE1EE; }
   nav.toc { position: static; }
+  .sec { padding-block: 0 4px; }
+  .sec__n { min-width: 34px; height: 34px; font-size: 15px; border-radius: 10px; }
+  .sec__q { font-size: 12.5px; }
+  .memo, .trap { border-radius: 12px; }
+  .pad { --grid: rgba(14, 21, 48, .028); }
 }
