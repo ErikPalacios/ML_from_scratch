@@ -424,5 +424,7 @@
   "prompts": {
     "guiado": "content/estaciones/c01-datos/prompts/desde-cero-produccion.md",
     "solo": "content/estaciones/c01-datos/prompts/desde-cero-produccion-solo.md"
-  }
+  },
+  "momento": "En producción",
+  "carpeta": "la carpeta de la práctica 1"
 }

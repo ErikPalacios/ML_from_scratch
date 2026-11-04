@@ -1,7 +1,7 @@
 // Las páginas de estación con el diseño «Dojo» de TrueML (Claude Design: «Dojo Estacion 01»).
 // La T de vidrio y las etapas salen del sistema de diseño compartido (apps/trueml, copiado en vendor/trueml con
 // node apps/trueml/sync.mjs). Se dibuja al construir: la página no necesita JavaScript para verse y abre sin conexión.
-import { TrueMLMark as TM, RANGOS_C01, miniT, franja } from '../vendor/trueml/lib.mjs';
+import { TrueMLMark as TM, RANGOS_C01, franja } from '../vendor/trueml/lib.mjs';
 
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const PORTADA = 'https://ml-desde-cero.vercel.app';
@@ -112,11 +112,15 @@ function indiceConceptos(e, aqui) {
 
 const TIPO = { mundo: 'd-t-mundo', config: 'd-t-config', infra: 'd-t-infra', entorno: 'd-t-entorno' };
 
+// Etiquetas de un camino: en qué momento pasa (antes o en producción) y si usa el kit.
+const etiquetas = (momento, kit, conKit) => `<span class="d-etqs">${momento ? `<span class="d-etq d-etq-${/antes/i.test(momento) ? 'antes' : 'prod'}">${esc(momento)}</span>` : ''}<span class="d-etq ${conKit ? 'd-etq-kit' : 'd-etq-sin'}">${esc(kit)}</span></span>`;
+
 // ---------------------------------------------------------------- estación
 export function cuerpoEstacion(e, { total, kitBytes, kb }) {
   const idx = indiceConceptos(e, e.url);
   const py = e.mundo.python || 'python';   // cómo se llama Python en el kit (con venv: python; sin venv: python3)
-  const indice = [['mapa', 'Mapa'], ['rondas', 'Rondas'], ...(e.practicas.length ? [['desde-cero', 'Desde cero']] : []), ['conceptos', 'Conceptos'], ['precalculos', 'Precálculos'], ['kit', 'Kit'], ['guiado', 'Guiado'], ['solo', 'Solo'], ['romper', 'Romper'], ['repaso', 'Repaso']];
+  const conPracticas = e.practicas.length > 0;
+  const indice = [['mapa', 'Mapa'], ...(conPracticas ? [['ruta', 'Por dónde ir']] : []), ['conceptos', 'Conceptos'], ['proyecto', 'Proyecto con kit'], ['precalculos', 'Precálculos'], ['kit', 'Kit'], ['rondas', 'Rondas'], ['guiado', 'Guiado'], ['solo', 'Solo'], ['romper', 'Romper'], ['repaso', 'Repaso']];
   const kitBtn = `<a class="d-btn" href="/kits/${e.slug}.zip" download>Bajar el kit .zip · ${kb(kitBytes)}</a>`;
 
   const ronda = (n, t, d, p) => `<div class="d-card d-ronda"><span class="d-ronda-t"><i>${n} · </i>${esc(t)}</span><span class="d-txt">${esc(d)}</span>${prompt(p)}</div>`;
@@ -136,18 +140,17 @@ export function cuerpoEstacion(e, { total, kitBytes, kb }) {
       </div></details>
     </article>`).join('\n    ');
 
-  const desdeCero = e.practicas.length ? `<section class="d-sec" id="desde-cero">
-  ${titulo('Desde cero', `${e.practicas.length} prácticas`)}
-  <p class="d-p">Sin kit ni mundo armado: una carpeta vacía y un dataset tan chico que se etiqueta a mano en minutos, para hacer el proceso completo con tus propias manos. La primera arma el dataset antes de que exista el modelo; la segunda, el ciclo de cada mes con el modelo ya en producción. Hazlas en orden: la segunda sigue en la misma carpeta.</p>
-  <div class="d-grid2">
-    ${e.practicas.map((p) => `<a class="d-card d-practica" href="${p.url}">
-      <span class="d-lbl">Práctica ${p.orden} de ${e.practicas.length}</span>
-      <h3>${esc(p.titulo)}</h3>
-      <span class="d-txt">${esc(p.subtitulo)}</span>
-      <span class="d-mini">${p.chips.map((c) => `<span>${esc(c)}</span>`).join('')}</span>
-      <span class="d-ir">Abrir la práctica →</span>
-    </a>`).join('\n    ')}
-  </div>
+  // Por dónde ir: las prácticas desde cero y el proyecto con kit, en orden, cada uno con su momento y si usa kit.
+  const proy = e.proyecto || {};
+  const paso3 = (n, href, cls, etqs, t, txt, mini, ir) => `<li><a class="d-card d-camino-p ${cls}" href="${href}"><span class="d-camino-n">${n}</span>${etqs}<h3>${t}</h3><span class="d-txt">${txt}</span>${mini ? `<span class="d-mini">${mini.map((c) => `<span>${esc(c)}</span>`).join('')}</span>` : ''}<span class="d-ir">${ir}</span></a></li>`;
+  const ruta = conPracticas ? `<section class="d-sec" id="ruta">
+  ${titulo('Por dónde ir', `${e.practicas.length + 1} caminos, en orden`)}
+  <p class="d-p">Esta estación pasa en dos momentos: <b>antes de producción</b>, cuando se arma el primer dataset, y <b>en producción</b>, el ciclo de cada mes con el modelo ya atendiendo. Las prácticas desde cero los recorren con tus propias manos y sin kit; el proyecto con kit repite el mes en producción a más escala, en las cuatro rondas.</p>
+  <ol class="d-camino">
+    ${e.practicas.map((q) => paso3(q.orden, q.url, 'd-practica', etiquetas(q.momento, q.carpeta ? `Sin kit · ${q.carpeta}` : 'Sin kit', false), `Práctica ${q.orden} · ${esc(q.titulo)}`, esc(q.subtitulo), q.chips, 'Abrir la práctica →')).join('\n    ')}
+    ${paso3(e.practicas.length + 1, '#proyecto', 'd-camino-kit', etiquetas(proy.momento, 'Con kit · 4 rondas', true), 'El proyecto con kit', esc(e.mundo.resumen), [`${e.guiado.length} pasos`, `${e.solo.objetivos.length} checks`, `${e.fallas.length} fallas`, `kit ${kb(kitBytes)}`], 'Ver el proyecto ↓')}
+  </ol>
+  ${proy.relacion ? `<p class="d-nota">${proy.relacion}</p>` : ''}
 </section>` : '';
 
   const fallas = e.fallas.map((f) => `<div class="d-card d-falla" id="falla-${f.id}">
@@ -167,8 +170,8 @@ export function cuerpoEstacion(e, { total, kitBytes, kb }) {
 
   return `${barra({ ruta: `/ ${e.caso.toUpperCase()} · ${e.num}`, volver: '/', indice })}
 ${hero({ volver: '/', volverTxt: "Dojo de entrenamiento ML engineer's", pill: `${e.caso.toUpperCase()} · Estación ${e.num} de ${total}`, h1: e.titulo, lead: e.pregunta, num: e.num, tituloEstacion: e.titulo,
-    tiles: [[e.precalculos.cuentas.length, 'precálculos', 'precalculos'], [e.conceptos.length, 'conceptos', 'conceptos'], [e.guiado.length, 'pasos', 'guiado'], [e.solo.objetivos.length, 'checks', 'solo'], [e.fallas.length, 'fallas', 'romper'], ...(e.practicas.length ? [[e.practicas.length, 'desde cero', 'desde-cero']] : [])],
-    botones: `${kitBtn}<a class="d-btn d-btn2" href="#guiado">Ir al guiado</a>` })}
+    tiles: [[e.precalculos.cuentas.length, 'precálculos', 'precalculos'], [e.conceptos.length, 'conceptos', 'conceptos'], [e.guiado.length, 'pasos', 'guiado'], [e.solo.objetivos.length, 'checks', 'solo'], [e.fallas.length, 'fallas', 'romper'], ...(conPracticas ? [[e.practicas.length, 'desde cero', 'ruta']] : [])],
+    botones: conPracticas ? `<a class="d-btn" href="#ruta">Por dónde empiezo ↓</a>${kitBtn.replace('d-btn"', 'd-btn d-btn2"')}` : `${kitBtn}<a class="d-btn d-btn2" href="#guiado">Ir al guiado</a>` })}
 <main class="d-wrap d-main">
 <section class="d-sec" id="mapa">
   ${titulo('Dónde estás', 'el mapa')}
@@ -182,21 +185,7 @@ ${hero({ volver: '/', volverTxt: "Dojo de entrenamiento ML engineer's", pill: `$
   ${e.mapa.hoja ? `<p class="d-nota">La estación completa, con su lugar en el mapa: <a href="${esc(e.mapa.hoja)}">cheat sheet «Del dato a producción»</a>.</p>` : ''}
 </section>
 
-<section class="d-sec" id="rondas">
-  ${titulo('Las cuatro rondas', 'los prompts')}
-  <p class="d-p">Cada ronda se trabaja en una sesión de Claude Code abierta en la carpeta del kit. Copia el prompt de la ronda y pégalo; el <code>CLAUDE.md</code> del kit pone las reglas de fondo.</p>
-  <div class="d-rondas">
-    <span></span><span class="d-eje">Construir</span><span class="d-eje">Romper</span>
-    <span class="d-eje d-eje-v">Con ayuda</span>
-    ${ronda(1, 'Guiado', `Construyen juntos los pasos 0 a ${e.guiado.length - 1}.`, e.prompt.guiado)}
-    ${ronda(3, 'Romper con ayuda', 'Una falla real; Claude te guía con preguntas.', e.prompt.romper_ayuda)}
-    <span class="d-eje d-eje-v">Solo</span>
-    ${ronda(2, 'Solo', 'Rehaces todo desde el esqueleto, solo con los objetivos.', e.prompt.solo)}
-    ${ronda(4, 'Romper solo', 'Una falla escondida; nadie te da pistas.', e.prompt.romper_solo)}
-  </div>
-</section>
-
-${desdeCero}
+${ruta}
 
 <section class="d-sec" id="conceptos">
   ${titulo('Conceptos exprés', String(e.conceptos.length))}
@@ -206,8 +195,17 @@ ${desdeCero}
   </div>
 </section>
 
+<div class="d-proy">
+<section class="d-sec d-proy-h" id="proyecto">
+  <span class="d-lbl">${conPracticas ? `Camino ${e.practicas.length + 1} de ${e.practicas.length + 1} · ` : ''}de aquí a Romper</span>
+  <div class="d-h2"><h2>El proyecto con kit</h2></div>
+  ${etiquetas(proy.momento, 'Con kit · 4 rondas', true)}
+  <p class="d-p">${proy.resumen || e.mundo.resumen}</p>
+  <p class="d-nota">Todo lo que sigue, hasta Romper, es de este proyecto: sus precálculos, el kit, los prompts de las cuatro rondas, el paso a paso del Guiado, los objetivos de Solo y las fallas.${conPracticas ? ' Las prácticas desde cero traen sus propios precálculos y pasos en su página.' : ''}</p>
+</section>
+
 <section class="d-sec" id="precalculos">
-  ${titulo('Precálculos', `${e.precalculos.cuentas.length} cuentas`)}
+  ${titulo('Precálculos', `${e.precalculos.cuentas.length} cuentas${conPracticas ? ' · del proyecto con kit' : ''}`)}
   <p class="d-p">${e.precalculos.intro}</p>
   ${precalc}
 </section>
@@ -225,6 +223,20 @@ ${desdeCero}
   <div class="d-card"><h3>Necesitas</h3><ul class="d-ul">${e.mundo.requisitos.map((r) => `<li>${r}</li>`).join('')}</ul></div>
   <div class="d-tabla"><table><thead><tr><th>En la nube</th><th class="d-th-dojo">En el dojo</th><th>Qué cambia</th></tr></thead><tbody>${e.mundo.sustituciones.map((r) => `<tr><th scope="row">${esc(r.nube)}</th><td>${esc(r.local)}</td><td>${r.diferencia}</td></tr>`).join('')}</tbody></table></div>
   <div class="d-card d-ronda"><span class="d-ronda-t">El CLAUDE.md del kit</span><span class="d-txt">Las reglas de fondo para Claude Code en la carpeta del kit. Ya viene en el .zip.</span>${prompt(e.prompt.claude_md, { boton: 'Copiar', ver: 'Ver el CLAUDE.md' })}</div>
+</section>
+
+<section class="d-sec" id="rondas">
+  ${titulo('Las cuatro rondas', 'los prompts')}
+  <p class="d-p">Cada ronda se trabaja en una sesión de Claude Code abierta en la carpeta del kit. Copia el prompt de la ronda y pégalo; el <code>CLAUDE.md</code> del kit pone las reglas de fondo.</p>
+  <div class="d-rondas">
+    <span></span><span class="d-eje">Construir</span><span class="d-eje">Romper</span>
+    <span class="d-eje d-eje-v">Con ayuda</span>
+    ${ronda(1, 'Guiado', `Construyen juntos los pasos 0 a ${e.guiado.length - 1}.`, e.prompt.guiado)}
+    ${ronda(3, 'Romper con ayuda', 'Una falla real; Claude te guía con preguntas.', e.prompt.romper_ayuda)}
+    <span class="d-eje d-eje-v">Solo</span>
+    ${ronda(2, 'Solo', 'Rehaces todo desde el esqueleto, solo con los objetivos.', e.prompt.solo)}
+    ${ronda(4, 'Romper solo', 'Una falla escondida; nadie te da pistas.', e.prompt.romper_solo)}
+  </div>
 </section>
 
 <section class="d-sec" id="guiado">
@@ -256,6 +268,8 @@ ${desdeCero}
     </div>
   </details>
 </section>
+
+</div>
 
 <section class="d-sec" id="repaso">
   ${titulo('Repaso', 'para el celular')}
@@ -299,12 +313,13 @@ export function cuerpoPractica(e, p) {
     </article>`).join('\n    ');
 
   return `${barra({ ruta: `/ ${e.caso.toUpperCase()} · ${e.num} · desde cero`, volver: '/', indice })}
-${hero({ volver: e.url + '#desde-cero', volverTxt: e.titulo, pill: `${e.caso.toUpperCase()} · Estación ${e.num} · Desde cero ${p.orden} de ${e.practicas.length}`, h1: p.titulo, lead: p.subtitulo, num: e.num, tituloEstacion: e.titulo,
+${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${e.caso.toUpperCase()} · Estación ${e.num} · Desde cero ${p.orden} de ${e.practicas.length}`, h1: p.titulo, lead: p.subtitulo, num: e.num, tituloEstacion: e.titulo,
     tiles: [[p.precalculos.length, 'precálculos', 'precalculos'], ...(p.conceptos.length ? [[p.conceptos.length, 'conceptos', 'conceptos']] : []), [p.pasos.length, 'pasos', 'pasos'], [p.solo.length - 1, 'objetivos', 'solo']],
     botones: `<a class="d-btn" href="#pasos">Ir a los pasos</a><a class="d-btn d-btn2" href="#escena">Ver la escena</a>` })}
 <main class="d-wrap d-main">
 <section class="d-sec" id="escena">
   ${titulo('La escena', p.chips.join(' · '))}
+  ${etiquetas(p.momento, p.carpeta ? `Sin kit · ${p.carpeta}` : 'Sin kit', false)}
   <p class="d-p">${p.escena}</p>
   <div class="d-ojo d-cuando"><b>Cuándo pasa esto: </b>${p.cuando}</div>
   <div class="d-grid2">
@@ -342,7 +357,7 @@ ${p.conceptos.length ? `
     ${p.solo.slice(1).map((o, i) => `<div class="d-obj"><span>${String(i + 1).padStart(2, '0')}</span><span>${o}</span></div>`).join('\n    ')}
   </div>
   <div class="d-card d-ronda"><span class="d-ronda-t"><i>Solo · </i>El prompt</span>${prompt(p.prompt.solo)}</div>
-  <div class="d-btns">${otra.map((q) => `<a class="d-btn${q.orden > p.orden ? '' : ' d-btn2'}" href="${q.url}">${q.orden > p.orden ? 'Sigue' : 'Antes'}: ${esc(q.titulo)}</a>`).join('')}<a class="d-btn d-btn2" href="${e.url}#desde-cero">Volver a la estación</a></div>
+  <div class="d-btns">${otra.map((q) => `<a class="d-btn${q.orden > p.orden ? '' : ' d-btn2'}" href="${q.url}">${q.orden > p.orden ? 'Sigue' : 'Antes'}: ${esc(q.titulo)}</a>`).join('')}${p.orden === e.practicas.length ? `<a class="d-btn" href="${e.url}#proyecto">Sigue: el proyecto con kit</a>` : ''}<a class="d-btn d-btn2" href="${e.url}#ruta">Volver a la estación</a></div>
 </section>
 </main>
 ${pie}`;
@@ -432,7 +447,7 @@ export function cuerpoPortada({ tronco, lista, mapa, hoja }) {
       const e = lista.get(s.id);
       return `<a class="d-est${e ? ' lista' : ''}" href="${enlace(s)}"><span class="d-est-n">${s.num}</span><span class="d-est-t"><span>${esc(s.titulo)}</span><span>sale: ${esc(s.sale)}</span>${e && e.practicas.length ? `<span class="d-est-x">+ ${e.practicas.length} prácticas desde cero</span>` : ''}</span>${e ? '<span class="d-est-b">Entrar →</span>' : '<span class="d-est-p">próximamente <br>hoja ↗</span>'}</a>`;
     }).join('');
-    return `<div class="d-etapa" data-etapa="${TM.ST[i][0]}" style="--c:${COLOR_ETAPA[i]}"><div class="d-etapa-h">${miniT([TM.ST[i][0]], { etiqueta: false })}<b>${NOMBRE_ETAPA[i]}</b><span>${rango(i)}</span></div>${filas}</div>`;
+    return `<div class="d-etapa" data-etapa="${TM.ST[i][0]}" style="--c:${COLOR_ETAPA[i]}"><div class="d-etapa-h"><i></i><b>${NOMBRE_ETAPA[i]}</b><span>${rango(i)}</span></div>${filas}</div>`;
   }).join('\n    ');
 
   const paso = (n, t, txt, extra = '') => `<div class="d-card d-uso${extra ? ' d-uso-full' : ''}"><span class="d-uso-n">${n}</span><h3>${t}</h3><p class="d-txt">${txt}</p>${extra}</div>`;
@@ -473,7 +488,8 @@ export function cuerpoPortada({ tronco, lista, mapa, hoja }) {
   <p class="d-nota">Toca una estación: la que ya tiene dojo abre su página; las demás, su explicación en la cheat sheet <a href="${hoja}">«Del dato a producción»</a>, de donde sale este mapa.</p>
 </section>
 
-<section class="d-wrap d-sec d-sec-sola" id="estaciones">
+<div class="d-wrap d-home d-home-est">
+<section class="d-sec" id="estaciones">
   ${titulo(`Las ${tronco.estaciones.length} estaciones`, `agrupadas en la T · ${listas} ${listas === 1 ? 'lista' : 'listas'}`)}
   <p class="d-p">Las mismas doce, agrupadas en las seis etapas de la T. Las que ya tienen dojo se abren aquí; las demás llevan a su explicación en la cheat sheet mientras llega su mini-proyecto.</p>
   <div class="d-etapas">
@@ -481,6 +497,12 @@ export function cuerpoPortada({ tronco, lista, mapa, hoja }) {
   </div>
   <div class="d-reent"><span>↺</span>Reentrenamiento: vuelve a 1 · Datos</div>
 </section>
+
+<div class="d-home-t">
+  <div class="d-hero-mark d-t-grande">${TM.mark(true, LB, 'dojo-est', 'min(calc(100vh - 150px), 820px)')}</div>
+  <span class="d-t-cap" data-def="Pasa el cursor por una etapa de la lista para verla en la T.">Pasa el cursor por una etapa de la lista para verla en la T.</span>
+</div>
+</div>
 
 <section class="d-wrap d-sec d-sec-sola" id="como">
   ${titulo('Cómo se usa el dojo', 'de la lectura a romper')}

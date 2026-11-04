@@ -138,6 +138,7 @@ export const estacion = obj({
   }),
   prompts: obj({ claude_md: txt, guiado: txt, solo: txt, romper_ayuda: txt, romper_solo: txt }),
   'practicas?': arr(txt, { min: 1 }),             // rutas a las prácticas desde cero de la estación (forma: `practica`)
+  'proyecto?': obj({ momento: str({ max: 40 }), resumen: txt, relacion: txt }),   // el proyecto con kit: en qué momento pasa y cómo se relaciona con las prácticas
 });
 
 // Una práctica desde cero: sin kit, en una carpeta vacía, con su propia página. El código de cada paso
@@ -150,6 +151,8 @@ export const practica = obj({
   nav: str({ max: 30 }),
   subtitulo: txt,
   cuando: txt,                                      // en qué momento del ciclo de vida pasa esto
+  'momento?': str({ max: 40 }),                     // la etiqueta corta: «Antes de producción», «En producción»
+  'carpeta?': str({ max: 60 }),                     // dónde se hace: «carpeta vacía», «la carpeta de la práctica 1»
   escena: txt,
   chips: arr(str({ max: 40 }), { min: 2, max: 6 }),
   requisitos: arr(txt, { min: 1 }),

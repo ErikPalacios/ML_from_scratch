@@ -9,8 +9,7 @@
   "chips": [
     "10 fotos",
     "2 clases",
-    "≈ 2 horas",
-    "carpeta vacía, sin kit"
+    "≈ 2 horas"
   ],
   "requisitos": [
     "Docker Desktop con las imágenes de RustFS y Label Studio (si ya bajaste el kit de la estación 1, ya las tienes; si no, ≈ 3 GB).",
@@ -518,5 +517,7 @@
   "prompts": {
     "guiado": "content/estaciones/c01-datos/prompts/desde-cero-antes.md",
     "solo": "content/estaciones/c01-datos/prompts/desde-cero-antes-solo.md"
-  }
+  },
+  "momento": "Antes de producción",
+  "carpeta": "carpeta vacía"
 }

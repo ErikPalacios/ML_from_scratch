@@ -78,6 +78,26 @@
     });
   });
 
+  // Portada: pasar por una etapa de la lista la enciende en la T de al lado (como TrueMLMark.sync) y lo dice abajo.
+  var lista = document.querySelector('.d-etapas'), bloque = lista && lista.closest('.d-home'), cap = bloque && bloque.querySelector('.d-t-cap');
+  function encender(sk) {
+    [].forEach.call(bloque.querySelectorAll('.d-home-t [data-stage]'), function (g) {
+      var lit = !sk || g.getAttribute('data-stage') === sk;
+      g.style.transition = 'opacity .3s ease';
+      g.style.opacity = lit ? '1' : g.getAttribute('data-dim');
+    });
+    if (cap) {
+      var et = sk && lista.querySelector('[data-etapa="' + sk + '"] .d-etapa-h');
+      cap.textContent = et ? et.querySelector('b').textContent + ' · ' + et.querySelector('span').textContent : cap.getAttribute('data-def');
+    }
+  }
+  if (lista && bloque) {
+    [].forEach.call(lista.querySelectorAll('[data-etapa]'), function (el) {
+      el.addEventListener('mouseenter', function () { encender(el.getAttribute('data-etapa')); });
+    });
+    lista.addEventListener('mouseleave', function () { encender(null); });
+  }
+
   // El mapa de la portada: la estación bajo el cursor (o con el foco) se queda, las demás se apagan, y el centro
   // dice cuál es y qué sale de ella. Al salir, el centro vuelve a su texto (data-def).
   var metro = document.querySelector('.d-metro');

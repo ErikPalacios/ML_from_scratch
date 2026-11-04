@@ -1109,5 +1109,10 @@
   "practicas": [
     "content/estaciones/c01-datos/practicas/antes-de-produccion.json",
     "content/estaciones/c01-datos/practicas/en-produccion.json"
-  ]
+  ],
+  "proyecto": {
+    "momento": "En producción",
+    "resumen": "Una empresa ficticia que lleva 60 días con el clasificador en producción: tráfico de verdad (24,000 requests), quienes venden, moderación, un proveedor de etiquetado y un golden set. Tú construyes encima el pipeline del mes: juntar señales, filtrar el label débil, elegir qué etiquetar con un presupuesto, mandar al proveedor, medir el acuerdo y cerrar el mes. Y lo practicas en las cuatro rondas: con ayuda, solo y con fallas.",
+    "relacion": "La práctica 2 y este proyecto son el mismo momento: el mes con el modelo ya en producción. En la práctica 2 lo escribes todo tú con 11 publicaciones y sin nada armado; aquí el mundo ya existe, es más grande y además se rompe."
+  }
 }
