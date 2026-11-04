@@ -1,0 +1,4 @@
+# Vercel no sube .dockerignore ni .gitignore (están en su lista fija). Los kits sí los llevan: sin esto, el build
+# en Vercel arma los .zip sin el .dockerignore del esqueleto de la estación 7 ni el .gitignore de la estación 1.
+!.dockerignore
+!.gitignore
