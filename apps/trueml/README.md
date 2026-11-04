@@ -10,6 +10,7 @@ La fuente única de la marca TrueML: la T de vidrio, sus 6 etapas, los colores e
 | `tokens.css` | Los colores `--tm-*` en claro y oscuro, más la franja, la T chica y el selector de tema. |
 | `cliente.js` | Lo que hace la marca en el navegador, todo con atributos `data-*`: el tema, encender etapas al pasar el cursor por una herramienta, la animación de entrada y la T fija. |
 | `sync.mjs` | Copia todo a cada app y genera los datos que una app toma de otra. |
+| `iconos.mjs` | Los íconos de cada app: la T sobre azul marino con sus etapas encendidas (`icon.svg` y los PNG que la app ya tenga). Necesita Google Chrome. |
 
 ## Cómo se usa
 
