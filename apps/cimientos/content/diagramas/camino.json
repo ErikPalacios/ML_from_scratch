@@ -1,0 +1,13 @@
+{
+  "titulo": "El camino completo de un modelo: Datos, Modelo, API, Contenedor, Orquestación y Monitoreo, y de vuelta a Datos para reentrenar",
+  "numerar": true,
+  "nodos": [
+    { "t": "Datos", "sub": "juntar fotos y ponerles su categoría correcta", "etapa": "datos", "flecha": "dataset" },
+    { "t": "Modelo", "sub": "entrenarlo, examinarlo y aprobarlo", "etapa": "modelo", "flecha": "modelo aprobado" },
+    { "t": "API", "sub": "un programa que lo pone a responder", "etapa": "api", "flecha": "el programa" },
+    { "t": "Contenedor", "sub": "empacarlo con todo lo que necesita", "etapa": "contenedor", "flecha": "el paquete" },
+    { "t": "Orquestación", "sub": "muchas copias en muchas máquinas, que no se caen", "etapa": "orquestacion", "flecha": "servicio en vivo" },
+    { "t": "Monitoreo", "sub": "medir que siga rápido y acertando", "etapa": "monitoreo" }
+  ],
+  "regreso": "**Reentrenar:** cuando el modelo se queda atrás, se juntan datos nuevos y se vuelve a la etapa 1"
+}

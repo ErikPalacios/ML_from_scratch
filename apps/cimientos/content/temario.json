@@ -1,0 +1,83 @@
+{
+  "nota": "Los módulos y sus lecciones, en el orden en que se leen. Una lección existe cuando está su archivo content/lecciones/<id>.md; mientras no, la portada la muestra como «próximamente» con su fase. «estacion» es el número de la estación de C01 que la lección explica (para el enlace al Dojo). «etapas» son ids de etapas.json o \"todas\".",
+  "modulos": [
+    {
+      "id": "mapa", "titulo": "El mapa", "fase": 1, "etapas": "todas",
+      "resumen": "El camino completo de un modelo, de principio a fin, para ubicar todo lo demás.",
+      "lecciones": [
+        { "id": "camino-completo", "titulo": "El camino completo", "etapas": "todas" }
+      ]
+    },
+    {
+      "id": "basico-ml", "titulo": "Lo básico de ML", "fase": 2, "etapas": ["datos", "modelo"],
+      "resumen": "Qué es un modelo por dentro, con qué aprende, cómo aprende y cómo saber si aprendió de verdad.",
+      "lecciones": [
+        { "id": "modelo", "titulo": "Qué es un modelo", "etapas": ["modelo"] },
+        { "id": "ejemplos", "titulo": "Datos, ejemplos, features y etiquetas", "etapas": ["datos"] },
+        { "id": "aprender", "titulo": "Cómo aprende un modelo", "etapas": ["modelo"] },
+        { "id": "aprendio", "titulo": "¿Aprendió de verdad?", "etapas": ["modelo"] }
+      ]
+    },
+    {
+      "id": "basico-computo", "titulo": "Lo básico de la computadora y la red", "fase": 3, "etapas": ["api", "contenedor", "orquestacion"],
+      "resumen": "Lo que hay debajo de todo sistema en producción: procesos, memoria, GPU, archivos, la red, las APIs y la nube.",
+      "lecciones": [
+        { "id": "programa-proceso", "titulo": "Programa, proceso, memoria y disco", "etapas": ["api"] },
+        { "id": "cpu-gpu", "titulo": "CPU y GPU", "etapas": ["modelo"] },
+        { "id": "archivos", "titulo": "Archivos y formatos", "etapas": ["datos"] },
+        { "id": "red", "titulo": "La red: IP y puertos", "etapas": ["api"] },
+        { "id": "cliente-servidor", "titulo": "Cliente, servidor, HTTP, JSON y API", "etapas": ["api"] },
+        { "id": "latencia", "titulo": "Latencia y throughput", "etapas": ["api", "monitoreo"] },
+        { "id": "nube", "titulo": "Qué es la nube", "etapas": ["contenedor", "orquestacion"] }
+      ]
+    },
+    {
+      "id": "datos", "titulo": "Etapa Datos", "fase": 4, "etapas": ["datos"],
+      "resumen": "De dónde salen los ejemplos con los que aprende el modelo y cómo se guardan para saber siempre con cuáles entrenaste.",
+      "lecciones": [
+        { "id": "e01-datos", "titulo": "Datos y etiquetas", "estacion": 1, "etapas": ["datos"] },
+        { "id": "e02-versionado", "titulo": "Versionado y linaje", "estacion": 2, "etapas": ["datos"] }
+      ]
+    },
+    {
+      "id": "modelo-etapa", "titulo": "Etapa Modelo", "fase": 5, "etapas": ["modelo"],
+      "resumen": "Entrenar sin perder el rastro, decidir si el modelo nuevo es mejor y convertirlo a un formato rápido sin que cambie lo que responde.",
+      "lecciones": [
+        { "id": "e03-entrenamiento", "titulo": "Entrenamiento y experimentos", "estacion": 3, "etapas": ["modelo"] },
+        { "id": "e04-gate", "titulo": "Gate de evaluación y registry", "estacion": 4, "etapas": ["modelo"] },
+        { "id": "e05-export", "titulo": "Export, engine y paridad", "estacion": 5, "etapas": ["modelo"] }
+      ]
+    },
+    {
+      "id": "api-etapa", "titulo": "Etapa API", "fase": 6, "etapas": ["api"],
+      "resumen": "El programa que carga el modelo y responde por la red, rápido y sin caerse.",
+      "lecciones": [
+        { "id": "e06-serving", "titulo": "Código de serving", "estacion": 6, "etapas": ["api"] }
+      ]
+    },
+    {
+      "id": "contenedor-etapa", "titulo": "Etapa Contenedor", "fase": 7, "etapas": ["contenedor"],
+      "resumen": "Empacar el programa para que corra igual en cualquier máquina, y armarlo y probarlo solo en cada cambio.",
+      "lecciones": [
+        { "id": "e07-empaquetado", "titulo": "Empaquetado con Docker", "estacion": 7, "etapas": ["contenedor"] },
+        { "id": "e08-cicd", "titulo": "CI/CD y registro de imágenes", "estacion": 8, "etapas": ["contenedor"] }
+      ]
+    },
+    {
+      "id": "orquestacion-etapa", "titulo": "Etapa Orquestación", "fase": 8, "etapas": ["orquestacion"],
+      "resumen": "Muchas copias en muchas máquinas, que se reparten el trabajo, se reemplazan solas y cambian de versión sin apagar nada.",
+      "lecciones": [
+        { "id": "e09-kubernetes", "titulo": "Kubernetes", "estacion": 9, "etapas": ["orquestacion"] },
+        { "id": "e10-rollout", "titulo": "Rollout seguro", "estacion": 10, "etapas": ["orquestacion"] }
+      ]
+    },
+    {
+      "id": "monitoreo-etapa", "titulo": "Etapa Monitoreo", "fase": 9, "etapas": ["monitoreo"],
+      "resumen": "Medir cada respuesta, notar cuándo el modelo se queda atrás y cerrar el ciclo con el reentrenamiento.",
+      "lecciones": [
+        { "id": "e11-request", "titulo": "La request en vivo", "estacion": 11, "etapas": ["api", "monitoreo"] },
+        { "id": "e12-monitoreo", "titulo": "Monitoreo, drift y reentrenamiento", "estacion": 12, "etapas": ["monitoreo"] }
+      ]
+    }
+  ]
+}

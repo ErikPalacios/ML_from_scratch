@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 546" role="img" aria-labelledby="f-mf-t" class="f-svg" style="max-width:420px">
+<title id="f-mf-t">Un modelo como función: entra la foto de unos tenis (unos 150 mil números), el modelo con sus perillas calcula, y sale la probabilidad de cada categoría: Calzado › Tenis 94 %, Calzado › Botas 4 %, Ropa deportiva 1 % y las otras 497 casi en 0 %</title>
+<rect class="f-card" x="10" y="10" width="340" height="140" rx="16"/>
+<text class="f-l" x="28" y="36">ENTRA</text>
+<rect class="f-chip" x="28" y="48" width="110" height="80" rx="10"/>
+<path class="f-o" d="M39.0,110.0 L39.0,94.0 Q41.0,82.0 53.0,80.0 L73.0,77.0 Q79.0,66.0 89.0,68.0 L99.0,72.0 Q103.0,86.0 115.0,90.0 Q127.0,93.0 127.0,102.0 L127.0,110.0 Z"/><rect class="f-ink" x="37.0" y="108.0" width="92.0" height="8.0" rx="4.0"/><line class="f-cord" x1="77.0" y1="74.0" x2="83.0" y2="80.0"/><line class="f-cord" x1="83.0" y1="77.0" x2="89.0" y2="83.0"/><line class="f-cord" x1="89.0" y1="80.0" x2="95.0" y2="86.0"/>
+<text class="f-t" x="154" y="72">La foto de la</text><text class="f-t" x="154" y="92">publicación</text>
+<text class="f-s" x="154" y="114">para el modelo son unos</text><text class="f-s" x="154" y="132">150 mil números (píxeles)</text>
+<line class="f-flecha" x1="180" y1="156" x2="180" y2="182"/><path class="f-punta" d="M172,180 L188,180 L180,190 Z"/>
+<rect class="f-dark" x="10" y="196" width="340" height="132" rx="16"/>
+<text class="f-dark-l" x="28" y="222">MODELO</text>
+<circle cx="48" cy="262" r="14" class="f-knob"/><line x1="48" y1="262" x2="39.3" y2="257.0" class="f-knob-i"/>
+<circle cx="92" cy="262" r="14" class="f-knob"/><line x1="92" y1="262" x2="95.4" y2="252.6" class="f-knob-i"/>
+<circle cx="136" cy="262" r="14" class="f-knob"/><line x1="136" y1="262" x2="145.7" y2="259.4" class="f-knob-i"/>
+<circle cx="180" cy="262" r="14" class="f-knob"/><line x1="180" y1="262" x2="176.6" y2="252.6" class="f-knob-i"/>
+<circle cx="224" cy="262" r="14" class="f-knob"/><line x1="224" y1="262" x2="233.4" y2="265.4" class="f-knob-i"/>
+<circle cx="268" cy="262" r="14" class="f-knob"/><line x1="268" y1="262" x2="258.0" y2="262.9" class="f-knob-i"/>
+<circle cx="312" cy="262" r="14" class="f-knob"/><line x1="312" y1="262" x2="318.4" y2="254.3" class="f-knob-i"/>
+<text class="f-dark-t" x="28" y="306">≈ 25 millones de perillas: sus parámetros</text>
+<line class="f-flecha" x1="180" y1="334" x2="180" y2="370"/><path class="f-punta" d="M172,368 L188,368 L180,378 Z"/>
+<rect class="f-card" x="10" y="384" width="340" height="150" rx="16"/>
+<text class="f-l" x="28" y="410">SALE</text>
+<text class="f-t" x="28" y="438" style="font-size:13px">Calzado › Tenis</text>
+<rect class="f-off" x="152" y="427" width="140" height="14" rx="7"/>
+<rect class="f-b" x="152" y="427" width="132" height="14" rx="7"/>
+<text class="f-t" x="334" y="438" text-anchor="end" style="font-size:13px">94 %</text>
+<text class="f-s" x="28" y="468" style="font-size:13px">Calzado › Botas</text>
+<rect class="f-off" x="152" y="457" width="140" height="14" rx="7"/>
+<rect class="f-b2" x="152" y="457" width="6" height="14" rx="7"/>
+<text class="f-s" x="334" y="468" text-anchor="end" style="font-size:13px">4 %</text>
+<text class="f-s" x="28" y="498" style="font-size:13px">Ropa deportiva</text>
+<rect class="f-off" x="152" y="487" width="140" height="14" rx="7"/>
+<rect class="f-b2" x="152" y="487" width="3" height="14" rx="7"/>
+<text class="f-s" x="334" y="498" text-anchor="end" style="font-size:13px">1 %</text>
+<text class="f-s" x="28" y="518">…y las otras 497 categorías, casi en 0 %</text>
+</svg>

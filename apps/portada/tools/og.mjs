@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Genera las imágenes para redes (1200×630) con Chrome sin ventana. Salidas:
 //   apps/portada/src/og.png, apps/ml-system-design/web/og.png, apps/atlas-arquitecturas/web/og.png,
-//   apps/transformer-lab/public/og.png, apps/cheat-sheets/site/og.png, apps/tablero-demo/web/og.png, apps/taller-ai/site/og.png
+//   apps/transformer-lab/public/og.png, apps/cheat-sheets/site/og.png, apps/tablero-demo/web/og.png, apps/taller-ai/site/og.png,
+//   apps/cimientos/site/og.png
 // Uso: node tools/og.mjs              (todas; necesita Google Chrome en /Applications)
 //      node tools/og.mjs taller-ai    (solo las salidas que contienen ese texto)
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
@@ -20,6 +21,7 @@ const IMAGES = [
   { out: 'atlas-arquitecturas/web/og.png', etapas: ['modelo'], kicker: 'Arquitecturas a nivel 2', title: 'Atlas de Arquitecturas', sub: 'Diagramas, matemáticas y dimensiones de los modelos que preguntan en entrevistas', foot: 'TrueML · atlas-arquitecturas.vercel.app' },
   { out: 'tablero-demo/web/og.png', etapas: 'todas', kicker: 'Demo en vivo', title: 'ML Board', sub: 'Cada proyecto como un mapa del dato al monitoreo, con cálculos de entrada que se verifican', foot: 'TrueML · tablero-ml-demo.vercel.app' },
   { out: 'taller-ai/site/og.png', etapas: 'todas', kicker: 'Entrenamiento práctico', title: 'Dojo de entrenamiento ML engineer\'s', sub: 'Mini-proyectos en tu Mac: los construyes, los rehaces y los arreglas cuando se rompen', foot: 'TrueML · taller-ai-engineer.vercel.app' },
+  { out: 'cimientos/site/og.png', etapas: 'todas', kicker: 'Teoría desde cero', title: 'Cimientos', sub: 'Lo que hay detrás de poner un modelo en producción, explicado desde cero, con diagramas y el mismo caso del Dojo', foot: 'TrueML · cimientos-ml.vercel.app' },
   { out: 'transformer-lab/public/og.png', etapas: ['datos', 'modelo'], kicker: 'Laboratorio', title: 'Laboratorio Transformer', sub: 'Un transformer pequeño entrenándose paso a paso: cada matriz, fórmula y gradiente', foot: 'TrueML · laboratorio-transformer.vercel.app' },
 ];
 // La portada usa la marca TrueML: fondo claro de cuadrícula y la T de vidrio del sistema de diseño compartido.

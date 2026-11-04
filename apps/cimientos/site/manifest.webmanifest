@@ -1,0 +1,12 @@
+{
+  "name": "Cimientos · TrueML",
+  "short_name": "Cimientos",
+  "description": "La teoría de cada paso para llevar un modelo de ML a producción, explicada desde cero.",
+  "lang": "es-MX",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#EDEFF7",
+  "theme_color": "#0E1530",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 560" role="img" aria-labelledby="f-dm-t" class="f-svg" style="max-width:420px">
+<title id="f-dm-t">Los dos momentos de un modelo. Entrenar: muchas fotos con su categoría entran al modelo y sus perillas se mueven, pocas veces y durante horas. Usar o inferencia: una foto nueva sin respuesta entra al modelo con las perillas fijas y sale «Tenis, 94 %», millones de veces y en milisegundos</title>
+<defs><marker id="fm-g" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-giro-p"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="262" rx="18"/>
+<text class="f-t" x="28" y="40">1 · Entrenar</text><text class="f-s" x="28" y="60">pocas veces · cada una tarda horas</text>
+<rect class="f-chip" x="28" y="80" width="104" height="40" rx="8"/>
+<rect class="f-o" x="36" y="88" width="24" height="24" rx="6"/>
+<text class="f-t" x="68" y="105" style="font-size:13px">Tenis</text>
+<rect class="f-chip" x="28" y="128" width="104" height="40" rx="8"/>
+<rect class="f-y" x="36" y="136" width="24" height="24" rx="6"/>
+<text class="f-t" x="68" y="153" style="font-size:13px">Botas</text>
+<rect class="f-chip" x="28" y="176" width="104" height="40" rx="8"/>
+<rect class="f-g" x="36" y="184" width="24" height="24" rx="6"/>
+<text class="f-t" x="68" y="201" style="font-size:13px">Playera</text>
+<line class="f-flecha" x1="138" y1="152" x2="156" y2="152"/><path class="f-punta" d="M154,144 L154,160 L164,152 Z"/>
+<rect class="f-dark" x="168" y="84" width="164" height="128" rx="14"/>
+<text class="f-dark-l" x="182" y="106">MODELO</text>
+<circle cx="204" cy="144" r="15" class="f-knob"/><line x1="204" y1="144" x2="196.9" y2="135.6" class="f-knob-i"/>
+<path d="M187.9,130.5 A21,21 0 0 1 217.5,127.9" class="f-giro" marker-end="url(#fm-g)"/>
+<circle cx="250" cy="144" r="15" class="f-knob"/><line x1="250" y1="144" x2="255.5" y2="134.5" class="f-knob-i"/>
+<path d="M233.9,130.5 A21,21 0 0 1 263.5,127.9" class="f-giro" marker-end="url(#fm-g)"/>
+<circle cx="296" cy="144" r="15" class="f-knob"/><line x1="296" y1="144" x2="306.8" y2="145.9" class="f-knob-i"/>
+<path d="M279.9,130.5 A21,21 0 0 1 309.5,127.9" class="f-giro" marker-end="url(#fm-g)"/>
+<text class="f-dark-t" x="182" y="196" style="font-size:12.5px">las perillas se mueven</text>
+<text class="f-s" x="28" y="238">Adivina, se compara con la respuesta correcta</text>
+<text class="f-s" x="28" y="256">y ajusta las perillas. Millones de veces.</text>
+<rect class="f-card" x="10" y="288" width="340" height="262" rx="18"/>
+<text class="f-t" x="28" y="318">2 · Usar (inferencia)</text><text class="f-s" x="28" y="338">millones de veces al día · milisegundos</text>
+<rect class="f-chip" x="28" y="364" width="104" height="80" rx="10"/>
+<path class="f-o" d="M35.8,424.5 L35.8,409.8 Q37.7,398.7 48.7,396.9 L67.1,394.1 Q72.6,384.0 81.8,385.8 L91.0,389.5 Q94.7,402.4 105.8,406.1 Q116.8,408.8 116.8,417.1 L116.8,424.5 Z"/><rect class="f-ink" x="34.0" y="422.6" width="84.6" height="7.4" rx="3.7"/><line class="f-cord" x1="70.8" y1="391.4" x2="76.3" y2="396.9"/><line class="f-cord" x1="76.3" y1="394.1" x2="81.8" y2="399.6"/><line class="f-cord" x1="81.8" y1="396.9" x2="87.4" y2="402.4"/>
+<circle class="f-acc" cx="124" cy="370" r="13"/><text class="f-acc-t" x="124" y="375" text-anchor="middle">?</text>
+<text class="f-s" x="28" y="466" style="font-size:12px">foto nueva,</text><text class="f-s" x="28" y="482" style="font-size:12px">sin respuesta</text>
+<line class="f-flecha" x1="138" y1="410" x2="156" y2="410"/><path class="f-punta" d="M154,402 L154,418 L164,410 Z"/>
+<rect class="f-dark" x="168" y="358" width="164" height="112" rx="14"/>
+<text class="f-dark-l" x="182" y="380">MODELO</text>
+<circle cx="204" cy="414" r="15" class="f-knob"/><line x1="204" y1="414" x2="196.9" y2="405.6" class="f-knob-i"/>
+<circle cx="250" cy="414" r="15" class="f-knob"/><line x1="250" y1="414" x2="255.5" y2="404.5" class="f-knob-i"/>
+<circle cx="296" cy="414" r="15" class="f-knob"/><line x1="296" y1="414" x2="306.8" y2="415.9" class="f-knob-i"/>
+<text class="f-dark-t" x="182" y="456" style="font-size:12.5px">perillas fijas: solo calcula</text>
+<line class="f-flecha" x1="250" y1="474" x2="250" y2="490"/><path class="f-punta" d="M242,488 L258,488 L250,498 Z"/>
+<rect class="f-b" x="168" y="502" width="164" height="36" rx="18"/>
+<text class="f-pill-t" x="250" y="525" text-anchor="middle">Tenis · 94 %</text>
+</svg>

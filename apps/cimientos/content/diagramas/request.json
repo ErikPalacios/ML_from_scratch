@@ -1,0 +1,10 @@
+{
+  "titulo": "El viaje de una foto: Ana la sube, los servidores del marketplace le piden la categoría a la API, el modelo calcula y la sugerencia regresa a la app de Ana",
+  "nodos": [
+    { "t": "Ana", "sub": "toma la foto y la sube", "tono": "fuera", "flecha": "la foto" },
+    { "t": "Servidores del marketplace", "sub": "reciben la publicación y piden la categoría", "flecha": "una request" },
+    { "t": "API del modelo", "sub": "revisa la petición y le pasa la foto al modelo", "etapa": "api", "flecha": "la foto" },
+    { "t": "Modelo", "sub": "calcula: hace una inferencia", "etapa": "modelo", "tono": "clave", "flecha": "la respuesta" },
+    { "t": "La app de Ana", "sub": "muestra «Calzado › Tenis, 94 %». La respuesta regresó por el mismo camino, y queda un registro para el monitoreo", "tono": "fuera" }
+  ]
+}
