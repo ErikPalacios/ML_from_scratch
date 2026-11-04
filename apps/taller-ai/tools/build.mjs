@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { estacion as molde, cruzadas, practica as moldePractica, cruzadasPractica } from './schema.mjs';
 import { zip } from './zip.mjs';
-import { cuerpoEstacion, cuerpoPractica, cuerpoPortada } from './dojo.mjs';
+import { cuerpoEstacion, cuerpoPractica, cuerpoPortada, cuerpoProyecto } from './dojo.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'dist');
@@ -49,6 +49,8 @@ const ESTACIONES = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) =
   if (perrs.length) fail(`${f}: ${perrs.join('\n  ')}`);
   // el código que viene de la solución probada se lee aquí, ya validado
   e.practicas.forEach((p) => p.pasos.forEach((x) => x.codigo.forEach((c) => { if (c.desde) c.code = readFileSync(join(ROOT, c.desde), 'utf8').replace(/\n$/, ''); })));
+  // con prácticas, el proyecto con kit tiene su propia página; sin prácticas, vive en la de la estación
+  e.kitUrl = e.practicas.length ? `${e.url}proyecto-con-kit/` : e.url;
   return e;
 });
 
@@ -159,6 +161,13 @@ for (const e of ESTACIONES) {
   mkdirSync(join(OUT, e.caso, e.id), { recursive: true });
   writeFileSync(join(OUT, e.caso, e.id, 'index.html'), pages[e.url]);
   console.log(`[build] ${e.url} · kit ${kb(z.length)}`);
+  if (e.kitUrl !== e.url) {
+    pages[e.kitUrl] = pagina({ path: e.kitUrl, title: `Proyecto con kit · ${e.titulo} · ${SITE_NAME}`, desc: `${e.mundo.resumen.replace(/<[^>]+>/g, '')} Las cuatro rondas de la estación ${e.num} de C01.`,
+      body: cuerpoProyecto(e, { total: TRONCO.estaciones.length, kitBytes: z.length, kb }) });
+    mkdirSync(join(OUT, e.caso, e.id, 'proyecto-con-kit'), { recursive: true });
+    writeFileSync(join(OUT, e.caso, e.id, 'proyecto-con-kit', 'index.html'), pages[e.kitUrl]);
+    console.log(`[build] ${e.kitUrl}`);
+  }
   for (const p of e.practicas) {
     pages[p.url] = pagina({ path: p.url, title: `${p.titulo} · ${e.titulo} · ${SITE_NAME}`, desc: `${p.subtitulo} Práctica desde cero de la estación ${e.num} de C01.`,
       body: cuerpoPractica(e, p) });
@@ -174,7 +183,7 @@ for (const f of ['app.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) copyFi
 const DOJO_CSS = readFileSync(join(ROOT, 'vendor', 'trueml', 'tokens.css'), 'utf8') + '\n' + readFileSync(join(ROOT, 'site', 'dojo.css'), 'utf8');
 writeFileSync(join(OUT, 'dojo.css'), DOJO_CSS);
 
-const urls = ['/', ...ESTACIONES.flatMap((e) => [e.url, ...e.practicas.map((p) => p.url)])];
+const urls = ['/', ...ESTACIONES.flatMap((e) => [e.url, ...(e.kitUrl !== e.url ? [e.kitUrl] : []), ...e.practicas.map((p) => p.url)])];
 const core = [...urls, '/dojo.css', '/app.js', '/icon.svg', '/manifest.webmanifest'];
 const hash = createHash('sha256');
 for (const p of Object.keys(pages).sort()) hash.update(p).update(pages[p]);

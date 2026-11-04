@@ -81,7 +81,7 @@ function paso(p, idx, abierto) {
 }
 
 function stats(items) {
-  return `<div class="d-stats" style="--n:${items.length}">${items.map(([n, t, href]) => `<a href="#${href}"><b>${n}</b><span>${esc(t)}</span></a>`).join('')}</div>`;
+  return `<div class="d-stats" style="--n:${items.length}">${items.map(([n, t, href]) => `<a href="${href.includes('/') ? href : '#' + href}"><b>${n}</b><span>${esc(t)}</span></a>`).join('')}</div>`;
 }
 
 function hero({ volver, volverTxt, pill, h1, lead, tiles, botones, num, tituloEstacion }) {
@@ -116,11 +116,16 @@ const TIPO = { mundo: 'd-t-mundo', config: 'd-t-config', infra: 'd-t-infra', ent
 const etiquetas = (momento, kit, conKit) => `<span class="d-etqs">${momento ? `<span class="d-etq d-etq-${/antes/i.test(momento) ? 'antes' : 'prod'}">${esc(momento)}</span>` : ''}<span class="d-etq ${conKit ? 'd-etq-kit' : 'd-etq-sin'}">${esc(kit)}</span></span>`;
 
 // ---------------------------------------------------------------- estación
-export function cuerpoEstacion(e, { total, kitBytes, kb }) {
-  const idx = indiceConceptos(e, e.url);
+// modo: 'completa' (estación sin prácticas: todo en una página), 'estacion' (con prácticas: mapa, por dónde ir,
+// conceptos y repaso) o 'proyecto' (la página del proyecto con kit: precálculos, kit, rondas, guiado, solo, romper).
+function paginaEstacion(e, { total, kitBytes, kb }, modo) {
+  const idx = indiceConceptos(e, modo === 'proyecto' ? e.kitUrl : e.url);
   const py = e.mundo.python || 'python';   // cómo se llama Python en el kit (con venv: python; sin venv: python3)
   const conPracticas = e.practicas.length > 0;
-  const indice = [['mapa', 'Mapa'], ...(conPracticas ? [['ruta', 'Por dónde ir']] : []), ['conceptos', 'Conceptos'], ['proyecto', 'Proyecto con kit'], ['precalculos', 'Precálculos'], ['kit', 'Kit'], ['rondas', 'Rondas'], ['guiado', 'Guiado'], ['solo', 'Solo'], ['romper', 'Romper'], ['repaso', 'Repaso']];
+  const PROY = [['precalculos', 'Precálculos'], ['kit', 'Kit'], ['rondas', 'Rondas'], ['guiado', 'Guiado'], ['solo', 'Solo'], ['romper', 'Romper']];
+  const indice = modo === 'estacion' ? [['mapa', 'Mapa'], ['ruta', 'Por dónde ir'], ['conceptos', 'Conceptos'], ['repaso', 'Repaso']]
+    : modo === 'proyecto' ? [['proyecto', 'Qué es'], ...PROY]
+    : [['mapa', 'Mapa'], ['conceptos', 'Conceptos'], ['proyecto', 'Proyecto con kit'], ...PROY, ['repaso', 'Repaso']];
   const kitBtn = `<a class="d-btn" href="/kits/${e.slug}.zip" download>Bajar el kit .zip · ${kb(kitBytes)}</a>`;
 
   const ronda = (n, t, d, p) => `<div class="d-card d-ronda"><span class="d-ronda-t"><i>${n} · </i>${esc(t)}</span><span class="d-txt">${esc(d)}</span>${prompt(p)}</div>`;
@@ -148,7 +153,7 @@ export function cuerpoEstacion(e, { total, kitBytes, kb }) {
   <p class="d-p">Esta estación pasa en dos momentos: <b>antes de producción</b>, cuando se arma el primer dataset, y <b>en producción</b>, el ciclo de cada mes con el modelo ya atendiendo. Las prácticas desde cero los recorren con tus propias manos y sin kit; el proyecto con kit repite el mes en producción a más escala, en las cuatro rondas.</p>
   <ol class="d-camino">
     ${e.practicas.map((q) => paso3(q.orden, q.url, 'd-practica', etiquetas(q.momento, q.carpeta ? `Sin kit · ${q.carpeta}` : 'Sin kit', false), `Práctica ${q.orden} · ${esc(q.titulo)}`, esc(q.subtitulo), q.chips, 'Abrir la práctica →')).join('\n    ')}
-    ${paso3(e.practicas.length + 1, '#proyecto', 'd-camino-kit', etiquetas(proy.momento, 'Con kit · 4 rondas', true), 'El proyecto con kit', esc(e.mundo.resumen), [`${e.guiado.length} pasos`, `${e.solo.objetivos.length} checks`, `${e.fallas.length} fallas`, `kit ${kb(kitBytes)}`], 'Ver el proyecto ↓')}
+    ${paso3(e.practicas.length + 1, e.kitUrl, 'd-camino-kit', etiquetas(proy.momento, 'Con kit · 4 rondas', true), 'El proyecto con kit', esc(e.mundo.resumen), [`${e.guiado.length} pasos`, `${e.solo.objetivos.length} checks`, `${e.fallas.length} fallas`, `kit ${kb(kitBytes)}`], 'Abrir el proyecto →')}
   </ol>
   ${proy.relacion ? `<p class="d-nota">${proy.relacion}</p>` : ''}
 </section>` : '';
@@ -163,17 +168,13 @@ export function cuerpoEstacion(e, { total, kitBytes, kb }) {
           ${comando(f.confirma, 'cómo confirmar')}
           <p class="d-txt"><b>El arreglo. </b>${f.arreglo}</p>
         </div></details>
-        <span class="d-meta">Concepto: <a href="#k-${f.concepto}">${esc(idx.get(f.concepto).termino)}</a> · check: ${esc(f.check)}</span>
+        <span class="d-meta">Concepto: <a href="${idx.get(f.concepto).url}">${esc(idx.get(f.concepto).termino)}</a> · check: ${esc(f.check)}</span>
       </div>`).join('\n      ');
 
   const memo = e.repaso.memo.match(/^<b>(.*?)<\/b>\s*([\s\S]*)$/);
 
-  return `${barra({ ruta: `/ ${e.caso.toUpperCase()} · ${e.num}`, volver: '/', indice })}
-${hero({ volver: '/', volverTxt: "Dojo de entrenamiento ML engineer's", pill: `${e.caso.toUpperCase()} · Estación ${e.num} de ${total}`, h1: e.titulo, lead: e.pregunta, num: e.num, tituloEstacion: e.titulo,
-    tiles: [[e.precalculos.cuentas.length, 'precálculos', 'precalculos'], [e.conceptos.length, 'conceptos', 'conceptos'], [e.guiado.length, 'pasos', 'guiado'], [e.solo.objetivos.length, 'checks', 'solo'], [e.fallas.length, 'fallas', 'romper'], ...(conPracticas ? [[e.practicas.length, 'desde cero', 'ruta']] : [])],
-    botones: conPracticas ? `<a class="d-btn" href="#ruta">Por dónde empiezo ↓</a>${kitBtn.replace('d-btn"', 'd-btn d-btn2"')}` : `${kitBtn}<a class="d-btn d-btn2" href="#guiado">Ir al guiado</a>` })}
-<main class="d-wrap d-main">
-<section class="d-sec" id="mapa">
+  const S = {
+    mapa: `<section class="d-sec" id="mapa">
   ${titulo('Dónde estás', 'el mapa')}
   <p class="d-p">${e.mapa.resumen}</p>
   <div class="d-io">
@@ -183,34 +184,27 @@ ${hero({ volver: '/', volverTxt: "Dojo de entrenamiento ML engineer's", pill: `$
   </div>
   <div class="d-tabla"><table><thead><tr><th></th><th>En C01</th><th class="d-th-dojo">En el dojo</th></tr></thead><tbody>${e.mapa.escala.map((r) => `<tr><th scope="row">${esc(r.que)}</th><td>${r.c01}</td><td>${r.taller}</td></tr>`).join('')}</tbody></table></div>
   ${e.mapa.hoja ? `<p class="d-nota">La estación completa, con su lugar en el mapa: <a href="${esc(e.mapa.hoja)}">cheat sheet «Del dato a producción»</a>.</p>` : ''}
-</section>
-
-${ruta}
-
-<section class="d-sec" id="conceptos">
+</section>`,
+    conceptos: `<section class="d-sec" id="conceptos">
   ${titulo('Conceptos exprés', String(e.conceptos.length))}
   <p class="d-p">Una línea para entenderlo; abre la tarjeta para la analogía, por qué importa y la trampa.</p>
   <div class="d-kgrid">
     ${e.conceptos.map(concepto).join('\n    ')}
   </div>
-</section>
-
-<div class="d-proy">
-<section class="d-sec d-proy-h" id="proyecto">
-  <span class="d-lbl">${conPracticas ? `Camino ${e.practicas.length + 1} de ${e.practicas.length + 1} · ` : ''}de aquí a Romper</span>
-  <div class="d-h2"><h2>El proyecto con kit</h2></div>
+</section>`,
+    proyecto: `<section class="d-sec d-proy-h" id="proyecto">
+  <span class="d-lbl">${modo === 'proyecto' ? `Camino ${e.practicas.length + 1} de ${e.practicas.length + 1} · después de las prácticas` : 'de aquí a Romper'}</span>
+  <div class="d-h2"><h2>${modo === 'proyecto' ? 'Qué es' : 'El proyecto con kit'}</h2></div>
   ${etiquetas(proy.momento, 'Con kit · 4 rondas', true)}
   <p class="d-p">${proy.resumen || e.mundo.resumen}</p>
-  <p class="d-nota">Todo lo que sigue, hasta Romper, es de este proyecto: sus precálculos, el kit, los prompts de las cuatro rondas, el paso a paso del Guiado, los objetivos de Solo y las fallas.${conPracticas ? ' Las prácticas desde cero traen sus propios precálculos y pasos en su página.' : ''}</p>
-</section>
-
-<section class="d-sec" id="precalculos">
+  <p class="d-nota">${modo === 'proyecto' ? `${proy.relacion || ''} Los conceptos y el repaso son de toda la estación: están en <a href="${e.url}#conceptos">su página</a>.` : 'Todo lo que sigue, hasta Romper, es de este proyecto: sus precálculos, el kit, los prompts de las cuatro rondas, el paso a paso del Guiado, los objetivos de Solo y las fallas.'}</p>
+</section>`,
+    precalculos: `<section class="d-sec" id="precalculos">
   ${titulo('Precálculos', `${e.precalculos.cuentas.length} cuentas${conPracticas ? ' · del proyecto con kit' : ''}`)}
   <p class="d-p">${e.precalculos.intro}</p>
   ${precalc}
-</section>
-
-<section class="d-sec" id="kit">
+</section>`,
+    kit: `<section class="d-sec" id="kit">
   ${titulo('El kit', 'el mundo')}
   <div class="d-grid2">
     <div class="d-kit-txt"><p class="d-p">${e.mundo.resumen}</p>${kitBtn}</div>
@@ -223,9 +217,8 @@ ${ruta}
   <div class="d-card"><h3>Necesitas</h3><ul class="d-ul">${e.mundo.requisitos.map((r) => `<li>${r}</li>`).join('')}</ul></div>
   <div class="d-tabla"><table><thead><tr><th>En la nube</th><th class="d-th-dojo">En el dojo</th><th>Qué cambia</th></tr></thead><tbody>${e.mundo.sustituciones.map((r) => `<tr><th scope="row">${esc(r.nube)}</th><td>${esc(r.local)}</td><td>${r.diferencia}</td></tr>`).join('')}</tbody></table></div>
   <div class="d-card d-ronda"><span class="d-ronda-t">El CLAUDE.md del kit</span><span class="d-txt">Las reglas de fondo para Claude Code en la carpeta del kit. Ya viene en el .zip.</span>${prompt(e.prompt.claude_md, { boton: 'Copiar', ver: 'Ver el CLAUDE.md' })}</div>
-</section>
-
-<section class="d-sec" id="rondas">
+</section>`,
+    rondas: `<section class="d-sec" id="rondas">
   ${titulo('Las cuatro rondas', 'los prompts')}
   <p class="d-p">Cada ronda se trabaja en una sesión de Claude Code abierta en la carpeta del kit. Copia el prompt de la ronda y pégalo; el <code>CLAUDE.md</code> del kit pone las reglas de fondo.</p>
   <div class="d-rondas">
@@ -237,25 +230,22 @@ ${ruta}
     ${ronda(2, 'Solo', 'Rehaces todo desde el esqueleto, solo con los objetivos.', e.prompt.solo)}
     ${ronda(4, 'Romper solo', 'Una falla escondida; nadie te da pistas.', e.prompt.romper_solo)}
   </div>
-</section>
-
-<section class="d-sec" id="guiado">
+</section>`,
+    guiado: `<section class="d-sec" id="guiado">
   ${titulo('Guiado', 'paso a paso')}
   <p class="d-p">El código que ves es el de la solución de referencia, y cada salida es la que salió al correr el kit en una carpeta limpia.</p>
   <div class="d-pasos">
     ${e.guiado.map((p, i) => paso(p, idx, i === 1)).join('\n    ')}
   </div>
-</section>
-
-<section class="d-sec" id="solo">
+</section>`,
+    solo: `<section class="d-sec" id="solo">
   ${titulo('Solo', `${e.solo.objetivos.length} objetivos`)}
   <div class="d-reglas">${e.solo.reglas.map((r) => `<p>${r}</p>`).join('')}</div>
   <div class="d-objs">
     ${e.solo.objetivos.map((o) => `<div class="d-obj"><span>${String(o.n).padStart(2, '0')}</span><span>${o.objetivo}<code>${py} verificar.py ${esc(o.check)}</code>${o.pista ? `<small><b>Pista:</b> ${o.pista}</small>` : ''}</span></div>`).join('\n    ')}
   </div>
-</section>
-
-<section class="d-sec" id="romper">
+</section>`,
+    romper: `<section class="d-sec" id="romper">
   ${titulo('Romper', `${e.fallas.length} fallas`)}
   <div class="d-grid2">
     <p class="d-p">Con todo en verde, <code>romper.py</code> mete una falla en el mundo, la configuración o la infraestructura (nunca en lo que escribiste) y, si hace falta, deja corriendo lo que «pasó anoche». Tú empiezas por <code>verificar.py</code>.</p>
@@ -267,11 +257,8 @@ ${ruta}
       ${fallas}
     </div>
   </details>
-</section>
-
-</div>
-
-<section class="d-sec" id="repaso">
+</section>`,
+    repaso: `<section class="d-sec" id="repaso">
   ${titulo('Repaso', 'para el celular')}
   <div class="d-grid2">
     <div class="d-memo">
@@ -287,10 +274,32 @@ ${ruta}
     </div>
   </div>
   <p class="d-nota">Versión del contenido: ${esc(e.versionTxt)}.</p>
-</section>
+</section>`,
+    sigue: `<section class="d-sec" id="sigue">
+  <div class="d-btns"><a class="d-btn" href="${e.url}#repaso">El repaso de la estación</a><a class="d-btn d-btn2" href="${e.url}#ruta">Volver a la estación</a></div>
+</section>`,
+  };
+  const proyecto = [S.precalculos, S.kit, S.rondas, S.guiado, S.solo, S.romper].join('\n\n');
+  const main = modo === 'estacion' ? [S.mapa, ruta, S.conceptos, S.repaso]
+    : modo === 'proyecto' ? [S.proyecto, proyecto, S.sigue]
+    : [S.mapa, S.conceptos, `<div class="d-proy">\n${S.proyecto}\n\n${proyecto}\n</div>`, S.repaso];
+  return `${modo === 'proyecto' ? `${barra({ ruta: `/ ${e.caso.toUpperCase()} · ${e.num} · proyecto con kit`, volver: '/', indice })}
+${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${e.caso.toUpperCase()} · Estación ${e.num} · Proyecto con kit`, h1: 'El proyecto con kit', lead: e.mundo.resumen, num: e.num, tituloEstacion: e.titulo,
+    tiles: [[e.precalculos.cuentas.length, 'precálculos', 'precalculos'], [e.guiado.length, 'pasos', 'guiado'], [e.solo.objetivos.length, 'checks', 'solo'], [e.fallas.length, 'fallas', 'romper']],
+    botones: `${kitBtn}<a class="d-btn d-btn2" href="#guiado">Ir al guiado</a>` })}
+` : `${barra({ ruta: `/ ${e.caso.toUpperCase()} · ${e.num}`, volver: '/', indice })}
+${hero({ volver: '/', volverTxt: "Dojo de entrenamiento ML engineer's", pill: `${e.caso.toUpperCase()} · Estación ${e.num} de ${total}`, h1: e.titulo, lead: e.pregunta, num: e.num, tituloEstacion: e.titulo,
+    tiles: conPracticas ? [[e.practicas.length, 'desde cero', 'ruta'], [e.conceptos.length, 'conceptos', 'conceptos'], [e.precalculos.cuentas.length, 'precálculos', e.kitUrl + '#precalculos'], [e.guiado.length, 'pasos', e.kitUrl + '#guiado'], [e.fallas.length, 'fallas', e.kitUrl + '#romper']]
+      : [[e.precalculos.cuentas.length, 'precálculos', 'precalculos'], [e.conceptos.length, 'conceptos', 'conceptos'], [e.guiado.length, 'pasos', 'guiado'], [e.solo.objetivos.length, 'checks', 'solo'], [e.fallas.length, 'fallas', 'romper']],
+    botones: conPracticas ? `<a class="d-btn" href="#ruta">Por dónde empiezo ↓</a><a class="d-btn d-btn2" href="${e.kitUrl}">El proyecto con kit →</a>` : `${kitBtn}<a class="d-btn d-btn2" href="#guiado">Ir al guiado</a>` })}
+`}<main class="d-wrap d-main">
+${main.join('\n\n')}
 </main>
 ${pie}`;
 }
+
+export const cuerpoEstacion = (e, opts) => paginaEstacion(e, opts, e.practicas.length ? 'estacion' : 'completa');
+export const cuerpoProyecto = (e, opts) => paginaEstacion(e, opts, 'proyecto');
 
 // ---------------------------------------------------------------- práctica desde cero
 export function cuerpoPractica(e, p) {
@@ -357,7 +366,7 @@ ${p.conceptos.length ? `
     ${p.solo.slice(1).map((o, i) => `<div class="d-obj"><span>${String(i + 1).padStart(2, '0')}</span><span>${o}</span></div>`).join('\n    ')}
   </div>
   <div class="d-card d-ronda"><span class="d-ronda-t"><i>Solo · </i>El prompt</span>${prompt(p.prompt.solo)}</div>
-  <div class="d-btns">${otra.map((q) => `<a class="d-btn${q.orden > p.orden ? '' : ' d-btn2'}" href="${q.url}">${q.orden > p.orden ? 'Sigue' : 'Antes'}: ${esc(q.titulo)}</a>`).join('')}${p.orden === e.practicas.length ? `<a class="d-btn" href="${e.url}#proyecto">Sigue: el proyecto con kit</a>` : ''}<a class="d-btn d-btn2" href="${e.url}#ruta">Volver a la estación</a></div>
+  <div class="d-btns">${otra.map((q) => `<a class="d-btn${q.orden > p.orden ? '' : ' d-btn2'}" href="${q.url}">${q.orden > p.orden ? 'Sigue' : 'Antes'}: ${esc(q.titulo)}</a>`).join('')}${p.orden === e.practicas.length ? `<a class="d-btn" href="${e.kitUrl}">Sigue: el proyecto con kit</a>` : ''}<a class="d-btn d-btn2" href="${e.url}#ruta">Volver a la estación</a></div>
 </section>
 </main>
 ${pie}`;
