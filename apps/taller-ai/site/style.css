@@ -282,3 +282,7 @@ details.catalogo > summary { cursor: pointer; font: 800 16px/1.3 var(--f-display
   .bar, .indice, .copiar, .acciones { display: none !important; }
   details > *:not(summary) { display: block !important; }
 }
+
+/* Portada: la estación que trae prácticas desde cero */
+.estaciones .extra { flex: none; font: 600 12px/1 var(--f-display); color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 4px 8px; }
+@media (max-width: 420px) { .estaciones li.lista { flex-wrap: wrap; padding-top: 6px; padding-bottom: 6px; } .estaciones .extra { margin-left: 34px; } }

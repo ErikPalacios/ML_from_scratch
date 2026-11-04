@@ -1,0 +1,27 @@
+# Dos servicios para la práctica: un S3 local (RustFS) para guardar las versiones del dataset
+# y Label Studio para etiquetar. En C01 real: Amazon S3 y Label Studio o un proveedor.
+name: c01-desde-cero
+services:
+  s3:
+    image: rustfs/rustfs:1.0.4
+    ports: ["9200:9000", "9201:9001"]   # 9200 = API S3 · 9201 = consola web
+    environment:
+      RUSTFS_ACCESS_KEY: practica
+      RUSTFS_SECRET_KEY: practica-secreto
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes: ["s3:/data"]
+    command: ["/data"]
+  labelstudio:
+    image: heartexlabs/label-studio:1.23.2
+    ports: ["8091:8080"]                 # http://localhost:8091
+    environment:
+      LABEL_STUDIO_USERNAME: practica@ejemplo.com
+      LABEL_STUDIO_PASSWORD: practica-etiquetas
+      LABEL_STUDIO_USER_TOKEN: practica-token-local-0001
+      LABEL_STUDIO_ENABLE_LEGACY_API_TOKEN: "true"
+    volumes: ["ls:/label-studio/data"]
+volumes:
+  s3: {}
+  ls: {}

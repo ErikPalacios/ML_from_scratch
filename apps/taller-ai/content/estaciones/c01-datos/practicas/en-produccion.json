@@ -1,0 +1,428 @@
+{
+  "id": "en-produccion",
+  "orden": 2,
+  "titulo": "En producción: el reentrenamiento",
+  "nav": "En producción",
+  "subtitulo": "Un mes de publicaciones reales: qué etiquetar con un presupuesto, una clase nueva, dataset-v2 sin mover el test y modelo-v2 comparado con el mismo examen.",
+  "cuando": "Es el ciclo que se repite cada mes con el modelo ya en producción: la flecha de reentrenamiento del mapa. En C01 es la estación 1 completa, la que practicas con el kit, aquí en miniatura y escrita por ti desde cero.",
+  "escena": "<code>modelo-v1</code> ya atiende el marketplace. Pasa un mes y llegan 11 publicaciones con la categoría que eligió quien vende. Negocio agregó <b>bolsa</b>, que el modelo no conoce; alguien volvió a subir una foto vieja y alguien eligió mal su categoría. Con un presupuesto de 8 labels armas <code>dataset-v2</code> sin romper lo que ya tenías y demuestras que <code>modelo-v2</code> es mejor con el mismo test.",
+  "chips": [
+    "11 publicaciones",
+    "8 labels",
+    "1 clase nueva",
+    "≈ 2 horas"
+  ],
+  "requisitos": [
+    "Haber terminado «Antes de producción»: sigues en la misma carpeta, con <code>dataset-v1</code> y <code>modelo-v1</code>.",
+    "Los servicios arriba: <code>docker compose up -d</code> en esa carpeta."
+  ],
+  "resultado": [
+    "Un log de predicciones de producción y una cola del mes con el motivo de cada foto.",
+    "La guía v2 con la clase nueva y <code>dataset-v2</code> con tag, sin que se mueva ninguna foto del test de v1.",
+    "<code>modelo-v2</code> comparado con <code>modelo-v1</code> clase por clase, en el mismo test.",
+    "La prueba de que reproduces <code>modelo-v1</code> aunque tu carpeta ya esté en v2."
+  ],
+  "precalculos": [
+    {
+      "id": "presupuesto",
+      "pregunta": "¿Te alcanzan 8 labels?",
+      "cuenta": "Llegan 11. Una ya está en el dataset (mismo sha256): quedan 10. Las 6 bolsas son obligatorias, porque sin ellas la clase no existe; luego 1 desacuerdo con quien vende y 1 al azar con cupo propio: 6 + 1 + 1 = 8. La foto incierta que sobra se queda fuera.",
+      "valor": "8 justos; 1 incierta sin lugar",
+      "c01": "En la estación 1 del kit es la misma cuenta con 800 fotos al mes y una cuarta parte al azar.",
+      "decide": "El orden de prioridad decide qué se recorta: primero se va lo incierto, nunca la clase nueva ni el azar.",
+      "conceptos": [
+        "active-learning",
+        "muestra-aleatoria"
+      ],
+      "confirma": "el paso 3, cuando <code>seleccionar.py</code> deja fuera a <code>req_007</code> por presupuesto."
+    },
+    {
+      "id": "cuantas-bolsas",
+      "pregunta": "¿Cuántas bolsas necesita el modelo para reconocerlas?",
+      "cuenta": "Se mide, no se adivina: entrenar 200 veces con 4 playeras, 4 tenis y N bolsas al azar, y ver qué parte de 50 bolsas que nunca vio reconoce.",
+      "valor": "2 → 57 % · 4 → 78 % · 6 → 86 %",
+      "c01": "En C01 la pregunta es la misma para cada categoría nueva, y por eso la cola tiene un cupo fijo para ellas.",
+      "decide": "Con 6 bolsas en la cola, 1 va a val y 1 a test: quedan 4 para train, ≈ 78 %. Si negocio necesita 90 %, el mes que entra la cola necesita más bolsas, no un modelo más grande.",
+      "conceptos": [
+        "categoria-nueva"
+      ],
+      "comprueba": {
+        "code": "python mundo/cuantas_bolsas.py",
+        "nota": "Tarda unos segundos: son 800 entrenamientos chicos. Cópialo del paso 1.",
+        "donde": "mac",
+        "salida": "2 bolsas en train → reconoce 57% de las bolsas nuevas\n3 bolsas en train → reconoce 70% de las bolsas nuevas\n4 bolsas en train → reconoce 78% de las bolsas nuevas\n6 bolsas en train → reconoce 86% de las bolsas nuevas"
+      }
+    },
+    {
+      "id": "test-quieto",
+      "pregunta": "¿Cuántas fotos del test de v1 pueden moverse en v2?",
+      "cuenta": "Ninguna. Si una sola foto de test cambia de split o de label, modelo-v1 y modelo-v2 ya no se miden con el mismo examen.",
+      "valor": "0",
+      "c01": "En C01 el golden set se protege igual: nunca entra a entrenamiento ni se reetiqueta sin una versión nueva y explícita.",
+      "decide": "La comparación v1 contra v2 vale en las clases que ya existían; bolsa se mide aparte, con su propia foto de test.",
+      "conceptos": [
+        "split-estable",
+        "golden-set"
+      ],
+      "confirma": "el paso 7, cuando <code>git diff</code> entre las dos versiones cuenta 0 líneas cambiadas en <code>splits.csv</code>."
+    }
+  ],
+  "conceptos": [],
+  "pasos": [
+    {
+      "n": 1,
+      "id": "llegan",
+      "titulo": "Llega el mes",
+      "objetivo": "11 publicaciones nuevas en <code>prod/</code>, con lo que eligió quien vende.",
+      "conceptos": [
+        "categoria-nueva"
+      ],
+      "explica": "<code>mundo/llegan.py</code> es el mundo, no lo que practicas: cópialo tal cual. Escribe las fotos en <code>prod/entrantes/</code> y en <code>prod/publicaciones.jsonl</code> lo que eligió cada quien. <code>prod/</code> está en <code>.gitignore</code>: son datos de producción, no del dataset. Al dataset solo entra lo que elijas etiquetar. Copia también <code>mundo/cuantas_bolsas.py</code>, el experimento del precálculo 2.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "mundo/llegan.py",
+          "desde": "kits/c01-desde-cero-solucion/mundo/llegan.py",
+          "nota": ""
+        },
+        {
+          "lang": "python",
+          "path": "mundo/cuantas_bolsas.py",
+          "desde": "kits/c01-desde-cero-solucion/mundo/cuantas_bolsas.py",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python mundo/llegan.py && head -3 prod/publicaciones.jsonl",
+          "nota": "",
+          "donde": "mac",
+          "salida": "11 publicaciones en prod/\n{\"request_id\": \"req_004\", \"archivo\": \"req_004.png\", \"categoria_vendedor\": \"bolsa\"}\n{\"request_id\": \"req_001\", \"archivo\": \"req_001.png\", \"categoria_vendedor\": \"bolsa\"}\n{\"request_id\": \"req_005\", \"archivo\": \"req_005.png\", \"categoria_vendedor\": \"bolsa\"}"
+        }
+      ],
+      "verifica": "11 publicaciones, 11 PNG en <code>prod/entrantes/</code>.",
+      "ojo": "Las líneas salen revueltas a propósito: en producción nada llega en orden."
+    },
+    {
+      "n": 2,
+      "id": "predecir",
+      "titulo": "Atender y dejar el log",
+      "objetivo": "<code>modelo-v1</code> atiende cada publicación y deja una línea de log con el hash, la predicción, la confianza y la versión del modelo.",
+      "conceptos": [
+        "log-prediccion"
+      ],
+      "explica": "En C01 esto es el servicio en línea y su log de predicción. Sin ese log no hay de dónde sacar qué etiquetar: es la materia prima del mes siguiente. Fíjate en las bolsas: el modelo no tiene esa clase, así que les pone playera o tenis, a veces con mucha confianza.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "scripts/predecir.py",
+          "desde": "kits/c01-desde-cero-solucion/scripts/predecir.py",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python scripts/predecir.py modelo-v1",
+          "nota": "",
+          "donde": "mac",
+          "salida": "req_001  tenis    0.764\nreq_002  playera  0.879\nreq_003  tenis    0.677\nreq_004  playera  0.764\nreq_005  playera  0.800\nreq_006  playera  0.833\nreq_007  playera  0.766\nreq_008  playera  0.984\nreq_009  tenis    0.968\nreq_010  tenis    0.805\nreq_011  tenis    0.981"
+        }
+      ],
+      "verifica": "11 líneas en <code>prod/predicciones.jsonl</code>, cada una con <code>\"modelo\": \"modelo-v1\"</code>.",
+      "ojo": "Confianza alta no es acierto: <code>req_002</code> es una bolsa y sale playera con 0.879. Por eso la clase nueva no se detecta solo con incertidumbre."
+    },
+    {
+      "n": 3,
+      "id": "seleccionar",
+      "titulo": "Elegir qué etiquetar",
+      "objetivo": "La cola del mes: 8 fotos con su motivo, copiadas a <code>data/crudo/</code>.",
+      "conceptos": [
+        "duplicados",
+        "categoria-nueva",
+        "active-learning",
+        "muestra-aleatoria"
+      ],
+      "explica": "Por prioridad: fuera lo que ya está en el dataset (mismo sha256); luego la categoría nueva (quien vende eligió bolsa), los desacuerdos (el modelo dice una cosa y quien vende otra), lo incierto (confianza menor a 0.8) y un cupo al azar que nunca se recorta. Lo elegido se copia a <code>data/crudo/</code>; lo demás se queda en <code>prod/</code>. Agrega a <code>config.json</code> la sección <code>seleccion</code>.",
+      "codigo": [
+        {
+          "lang": "json",
+          "path": "config.json",
+          "code": "{\"clases\": [\"playera\", \"tenis\"], \"cupo\": {\"train\": 3, \"val\": 1, \"test\": 1}, \"seleccion\": {\"presupuesto\": 8, \"umbral\": 0.8, \"azar\": 1}}",
+          "nota": ""
+        },
+        {
+          "lang": "python",
+          "path": "scripts/seleccionar.py",
+          "desde": "kits/c01-desde-cero-solucion/scripts/seleccionar.py",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python scripts/seleccionar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "req_011  fuera: ya está en el dataset\nreq_007  incierta, pero no alcanza el presupuesto\nreq_001  nueva\nreq_002  nueva\nreq_003  nueva\nreq_004  nueva\nreq_005  nueva\nreq_006  nueva\nreq_010  desacuerdo\nreq_009  azar\n\n8 a etiquetar (presupuesto 8) · copiadas a data/crudo/"
+        },
+        {
+          "code": "python scripts/validar.py",
+          "nota": "El contrato ya no pasa: hay 8 fotos sin label. Es lo correcto: no se versiona nada hasta etiquetar.",
+          "donde": "mac",
+          "salida": "✓ una fila por foto         10 filas, 10 fotos distintas\n✓ cada label tiene foto     todas en data/crudo/\n✗ cada foto tiene label     sin label: ['req_001.png', 'req_002.png', 'req_003.png', 'req_004.png', 'req_005.png', 'req_006.png', 'req_009.png', 'req_010.png']\n✓ clases conocidas          playera, tenis\n✓ cada foto en un split     train, val o test\n✓ cada clase en cada split  sí\n\ntrain 6 · val 2 · test 2"
+        }
+      ],
+      "verifica": "8 a etiquetar: 6 nuevas, 1 desacuerdo y 1 al azar; <code>req_011</code> fuera por repetida y <code>req_007</code> fuera por presupuesto.",
+      "ojo": "<code>req_011</code> es una foto de tu test que alguien volvió a subir con otro nombre. Si la etiquetas y cae en train, el modelo ve el examen. El hash la atrapa."
+    },
+    {
+      "n": 4,
+      "id": "guia-v2",
+      "titulo": "La guía v2",
+      "objetivo": "La clase nueva en la guía, con sus casos límite, y en la interfaz.",
+      "conceptos": [
+        "guia-etiquetado",
+        "categoria-nueva"
+      ],
+      "explica": "La clase nueva entra primero a la guía y luego a la interfaz. <code>guia-v1.md</code> se queda como está: los labels del lote inicial siguen diciendo v1. La sección «Cambios» explica qué cambió y por qué.",
+      "codigo": [
+        {
+          "lang": "markdown",
+          "path": "guia/guia-v2.md",
+          "desde": "kits/c01-desde-cero-solucion/guia/guia-v2.md",
+          "nota": ""
+        },
+        {
+          "lang": "text",
+          "path": "guia/interfaz-v2.xml",
+          "desde": "kits/c01-desde-cero-solucion/guia/interfaz-v2.xml",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "diff guia/interfaz-v1.xml guia/interfaz-v2.xml",
+          "nota": "<code>diff</code> sale con código 1 cuando encuentra diferencias: aquí es lo esperado.",
+          "donde": "mac",
+          "salida": "5a6\n>     <Choice value=\"bolsa\"/>"
+        }
+      ],
+      "verifica": "La guía v2 dice qué es bolsa y qué no, y su sección de cambios lo explica.",
+      "ojo": "«Etiqueta lo que ves, no lo que eligió quien vende» parece obvio. Sin esa regla, quien etiqueta copia el error de <code>req_010</code>."
+    },
+    {
+      "n": 5,
+      "id": "etiquetar-lote",
+      "titulo": "Etiquetar el lote del mes",
+      "objetivo": "Las 8 fotos de la cola etiquetadas y exportadas a <code>data/etiquetado/export-v2.json</code>.",
+      "conceptos": [
+        "guia-etiquetado"
+      ],
+      "explica": "Un proyecto nuevo en Label Studio, <code>c01-v2</code>, igual que en v1 pero con <code>interfaz-v2.xml</code>. En <b>Data Import</b> sube solo las 8 fotos de la cola: están en <code>prod/cola.csv</code> y ya copiadas en <code>data/crudo/</code>. Tecla <b>3</b> para bolsa. Exportas igual que en v1, ahora del proyecto 2.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "curl -s \"http://localhost:8091/api/projects/2/export?exportType=JSON_MIN\" \\\n  -H \"Authorization: Token practica-token-local-0001\" -o data/etiquetado/export-v2.json\npython -c 'import json; [print(t[\"image\"], t[\"clase\"]) for t in json.load(open(\"data/etiquetado/export-v2.json\"))]'",
+          "nota": "",
+          "donde": "mac",
+          "salida": "/data/upload/2/5b40a97a-req_001.png bolsa\n/data/upload/2/f02a54b9-req_002.png bolsa\n/data/upload/2/19d04c8a-req_003.png bolsa\n/data/upload/2/7cd19e17-req_004.png bolsa\n/data/upload/2/31c83039-req_005.png bolsa\n/data/upload/2/9fe362d9-req_006.png bolsa\n/data/upload/2/27b0bb0f-req_010.png tenis\n/data/upload/2/ba7555db-req_009.png tenis"
+        }
+      ],
+      "verifica": "8 filas: 6 bolsas, y <code>req_009</code> y <code>req_010</code> como tenis.",
+      "ojo": "<code>req_010</code>: quien vende eligió playera y el modelo dijo tenis. Ganó el modelo, y ahora un label humano lo confirma."
+    },
+    {
+      "n": 6,
+      "id": "juntar",
+      "titulo": "Juntar, dividir y validar",
+      "objetivo": "El lote del mes dentro de <code>labels.csv</code> y <code>splits.csv</code>, con el contrato en verde.",
+      "conceptos": [
+        "split-estable",
+        "contrato-datos"
+      ],
+      "explica": "Agrega <code>\"bolsa\"</code> a <code>clases</code> en <code>config.json</code> y corre los mismos tres scripts de la práctica anterior, sin cambiarles nada. <code>etiquetas.py</code> suma el lote <code>2026-11</code> con la guía v2, <code>dividir.py</code> respeta los splits viejos y reparte las nuevas, y el contrato vuelve a verde.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python scripts/etiquetas.py data/etiquetado/export-v2.json v2 2026-11",
+          "nota": "",
+          "donde": "mac",
+          "salida": "8 labels nuevos · 18 en total"
+        },
+        {
+          "code": "python scripts/dividir.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "bolsa    train 4 · val 1 · test 1\nplayera  train 3 · val 1 · test 1\ntenis    train 5 · val 1 · test 1"
+        },
+        {
+          "code": "python scripts/validar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ una fila por foto         18 filas, 18 fotos distintas\n✓ cada label tiene foto     todas en data/crudo/\n✓ cada foto tiene label     ninguna sin etiquetar\n✓ clases conocidas          playera, tenis, bolsa\n✓ cada foto en un split     train, val o test\n✓ cada clase en cada split  sí\n\ntrain 12 · val 3 · test 3"
+        }
+      ],
+      "verifica": "18 fotos, seis ✓, y bolsa con <code>train 4 · val 1 · test 1</code>.",
+      "ojo": "Mira <code>dividir</code>: playera y tenis tienen las mismas val y test que en v1, y todas sus fotos nuevas fueron a train. Bolsa estrena su foto de val y su foto de test."
+    },
+    {
+      "n": 7,
+      "id": "versionar-v2",
+      "titulo": "Versionar dataset-v2",
+      "objetivo": "<code>dataset-v2</code> con tag y en el remoto, y la diferencia exacta con v1.",
+      "conceptos": [
+        "version-dataset",
+        "split-estable",
+        "ficha-dataset"
+      ],
+      "explica": "Igual que v1: actualiza la ficha, <code>dvc add</code>, commit, tag y push. Luego mira qué cambió entre versiones: <code>dvc diff</code> para las fotos y <code>git diff</code> para todo lo demás.",
+      "codigo": [
+        {
+          "lang": "markdown",
+          "path": "DATASET.md",
+          "desde": "kits/c01-desde-cero-solucion/DATASET-v2.md",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "dvc add data/crudo -q && git add -A && git status --short",
+          "nota": "",
+          "donde": "mac",
+          "salida": "M  DATASET.md\nM  config.json\nM  data/crudo.dvc\nA  data/etiquetado/export-v2.json\nM  data/labels.csv\nM  data/splits.csv\nA  guia/guia-v2.md\nA  guia/interfaz-v2.xml\nA  mundo/cuantas_bolsas.py\nA  mundo/llegan.py\nA  scripts/predecir.py\nA  scripts/seleccionar.py"
+        },
+        {
+          "code": "git commit -m \"dataset v2: +8 fotos de noviembre, clase bolsa, guía v2\"\ngit tag -a dataset-v2 -m \"18 fotos · 3 clases\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": null
+        },
+        {
+          "code": "dvc push",
+          "nota": "",
+          "donde": "mac",
+          "salida": "9 files pushed"
+        },
+        {
+          "code": "dvc diff dataset-v1 dataset-v2",
+          "nota": "",
+          "donde": "mac",
+          "salida": "Added:\n    data/crudo/req_001.png\n    data/crudo/req_002.png\n    data/crudo/req_003.png\n    data/crudo/req_004.png\n    data/crudo/req_005.png\n    data/crudo/req_006.png\n    data/crudo/req_009.png\n    data/crudo/req_010.png\n\nModified:\n    data/crudo/\n\nfiles summary: 8 added"
+        },
+        {
+          "code": "git diff --stat dataset-v1 dataset-v2 -- data guia config.json DATASET.md",
+          "nota": "",
+          "donde": "mac",
+          "salida": " DATASET.md                     | 19 +++++-----\n config.json                    |  2 +-\n data/crudo.dvc                 |  6 ++--\n data/etiquetado/export-v2.json | 82 ++++++++++++++++++++++++++++++++++++++++++\n data/labels.csv                |  8 +++++\n data/splits.csv                |  8 +++++\n guia/guia-v2.md                | 24 +++++++++++++\n guia/interfaz-v2.xml           |  8 +++++\n 8 files changed, 144 insertions(+), 13 deletions(-)"
+        },
+        {
+          "code": "git diff dataset-v1 dataset-v2 -- data/splits.csv | grep -c \"^-[0-9a-f]\"",
+          "nota": "Cuenta las líneas de <code>splits.csv</code> que se borraron o cambiaron entre las dos versiones.",
+          "donde": "mac",
+          "salida": "0"
+        }
+      ],
+      "verifica": "<code>dvc diff</code> muestra 8 fotos agregadas y 0 líneas cambiadas en los splits.",
+      "ojo": "<code>dvc push</code> subió 9 archivos: las 8 fotos nuevas y el índice nuevo de la carpeta. Las 10 de v1 ya estaban en el remoto y no se vuelven a subir."
+    },
+    {
+      "n": 8,
+      "id": "reentrenar",
+      "titulo": "Reentrenar y comparar",
+      "objetivo": "<code>modelo-v2</code> con <code>dataset-v2</code>, y los dos modelos frente al mismo test.",
+      "conceptos": [
+        "linaje",
+        "split-estable"
+      ],
+      "explica": "<code>entrenar.py</code> sin cambios, ahora con <code>dataset-v2</code>. Luego <code>evaluar.py</code> pone a los dos modelos frente al test de una versión, clase por clase. Versiona <code>evaluar.py</code> antes de usarlo y la ficha de <code>modelo-v2</code> al final.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "scripts/evaluar.py",
+          "desde": "kits/c01-desde-cero-solucion/scripts/evaluar.py",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "git add scripts/evaluar.py && git commit -m \"scripts para evaluar\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": null
+        },
+        {
+          "code": "python scripts/entrenar.py modelo-v2 dataset-v2",
+          "nota": "",
+          "donde": "mac",
+          "salida": "{\n  \"modelo\": \"modelo-v2\",\n  \"dataset\": \"dataset-v2\",\n  \"commit\": \"6c4356f\",\n  \"clases\": [\n    \"bolsa\",\n    \"playera\",\n    \"tenis\"\n  ],\n  \"n\": {\n    \"train\": 12,\n    \"val\": 3,\n    \"test\": 3\n  },\n  \"aciertos\": {\n    \"val\": \"3/3\",\n    \"test\": \"3/3\"\n  }\n}"
+        },
+        {
+          "code": "python scripts/evaluar.py dataset-v2 modelo-v1 modelo-v2",
+          "nota": "",
+          "donde": "mac",
+          "salida": "test de dataset-v2      bolsa  playera    tenis\nmodelo-v1                 0/1      1/1      1/1\nmodelo-v2                 1/1      1/1      1/1"
+        },
+        {
+          "code": "git add -A && git commit -m \"modelo-v2 entrenado con dataset-v2\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": null
+        }
+      ],
+      "verifica": "<code>modelo-v2</code> acierta la bolsa de test y no pierde nada en playera ni en tenis.",
+      "ojo": "1/1 en bolsa es una foto: puede ser suerte, y el precálculo dice ≈ 78 %. Lo sólido es que en playera y tenis el examen fue el mismo."
+    },
+    {
+      "n": 9,
+      "id": "reproducir",
+      "titulo": "Reproducir v1",
+      "objetivo": "Volver a entrenar <code>modelo-v1</code> con tu carpeta en v2, y ver la carpeta como estaba en v1.",
+      "conceptos": [
+        "linaje",
+        "version-dataset"
+      ],
+      "explica": "La prueba final del versionado. Tu carpeta ya está en v2 y aun así reproduces <code>modelo-v1</code>, porque <code>entrenar.py</code> lee <code>dataset-v1</code> por su tag. Y si quieres ver la carpeta como estaba, <code>git checkout</code> + <code>dvc checkout</code> la regresan y la traen de vuelta.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python scripts/entrenar.py modelo-v1-repro dataset-v1 | tail -9",
+          "nota": "",
+          "donde": "mac",
+          "salida": "    \"train\": 6,\n    \"val\": 2,\n    \"test\": 2\n  },\n  \"aciertos\": {\n    \"val\": \"2/2\",\n    \"test\": \"2/2\"\n  }\n}"
+        },
+        {
+          "code": "python scripts/evaluar.py dataset-v1 modelo-v1 modelo-v1-repro modelo-v2",
+          "nota": "",
+          "donde": "mac",
+          "salida": "test de dataset-v1    playera    tenis\nmodelo-v1                 1/1      1/1\nmodelo-v1-repro           1/1      1/1\nmodelo-v2                 1/1      1/1"
+        },
+        {
+          "code": "git checkout -q dataset-v1 && dvc checkout && ls data/crudo | wc -l",
+          "nota": "Quedas en «detached HEAD»: estás mirando un tag, no una rama. Es normal.",
+          "donde": "mac",
+          "salida": "M       data/crudo/\n      10"
+        },
+        {
+          "code": "git checkout -q main && dvc checkout && ls data/crudo | wc -l",
+          "nota": "",
+          "donde": "mac",
+          "salida": "M       data/crudo/\n      18"
+        }
+      ],
+      "verifica": "<code>modelo-v1-repro</code> saca lo mismo que <code>modelo-v1</code>, y la carpeta pasa de 18 a 10 fotos y de regreso.",
+      "ojo": "Es lo que te van a preguntar cuando un modelo falle en producción: «¿con qué datos se entrenó y puedes reproducirlo?». Con linaje, la respuesta es un comando."
+    }
+  ],
+  "solo": [
+    "Desde tu carpeta de «Antes de producción» con <code>dataset-v1</code> y <code>modelo-v1</code>, sin abrir esta página.",
+    "Un log de predicción con hash, clase, confianza y versión del modelo.",
+    "Una cola con presupuesto 8 que saca la foto repetida, prioriza la clase nueva y guarda un cupo al azar.",
+    "La guía v2 con la clase nueva y su sección de cambios.",
+    "<code>dataset-v2</code> con tag, sin mover ninguna foto del test de v1 (compruébalo con <code>git diff</code>).",
+    "<code>modelo-v2</code> comparado con <code>modelo-v1</code> clase por clase en el mismo test.",
+    "<code>modelo-v1</code> reproducido desde su tag con tu carpeta en v2."
+  ],
+  "prompts": {
+    "guiado": "content/estaciones/c01-datos/prompts/desde-cero-produccion.md",
+    "solo": "content/estaciones/c01-datos/prompts/desde-cero-produccion-solo.md"
+  }
+}

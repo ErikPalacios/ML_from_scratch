@@ -8,8 +8,9 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync, 
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { estacion as molde, cruzadas } from './schema.mjs';
+import { estacion as molde, cruzadas, practica as moldePractica, cruzadasPractica } from './schema.mjs';
 import { zip } from './zip.mjs';
+import { cuerpoEstacion, cuerpoPractica } from './dojo.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'dist');
@@ -34,11 +35,24 @@ const ESTACIONES = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) =
   e.prompt = Object.fromEntries(Object.entries(e.prompts).map(([k, p]) => [k, readFileSync(join(ROOT, p), 'utf8').trim()]));
   e.slug = `${e.caso}-${e.id}`;
   e.url = `/${e.caso}/${e.id}/`;
+  // Las prácticas desde cero: cada una con su página, debajo de la de la estación.
+  e.practicas = (e.practicas || []).map((rel) => {
+    const p = JSON.parse(readFileSync(join(ROOT, rel), 'utf8'));
+    const perrs = moldePractica(p, rel);
+    if (perrs.length) fail(`${rel} no cumple el molde (corre node tools/validate.mjs):\n  ${perrs.join('\n  ')}`);
+    p.url = `${e.url}${p.id}/`;
+    p.prompt = Object.fromEntries(Object.entries(p.prompts).map(([k, r]) => [k, readFileSync(join(ROOT, r), 'utf8').trim()]));
+    return p;
+  }).sort((a, b) => a.orden - b.orden);
+  const conocidos = new Set([...e.conceptos.map((c) => c.id), ...e.practicas.flatMap((p) => p.conceptos.map((c) => c.id))]);
+  const perrs = e.practicas.flatMap((p) => cruzadasPractica(p, conocidos, (r) => existsSync(join(ROOT, r))));
+  if (perrs.length) fail(`${f}: ${perrs.join('\n  ')}`);
+  // el código que viene de la solución probada se lee aquí, ya validado
+  e.practicas.forEach((p) => p.pasos.forEach((x) => x.codigo.forEach((c) => { if (c.desde) c.code = readFileSync(join(ROOT, c.desde), 'utf8').replace(/\n$/, ''); })));
   return e;
 });
 
 // ---------------------------------------------------------------- piezas de HTML
-let uid = 0;
 const ICON = {
   light: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg>',
   dark: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 14.6A8.2 8.2 0 0 1 9.4 4a8.2 8.2 0 1 0 10.6 10.6z"/></svg>',
@@ -47,7 +61,7 @@ const ICON = {
 const TEMA = `<div class="tema" role="group" aria-label="Tema">${[['light', 'Claro'], ['dark', 'Oscuro'], ['auto', 'Auto']]
   .map(([t, l]) => `<button type="button" data-tema="${t}" aria-pressed="false" title="${l}">${ICON[t]}<span>${l}</span></button>`).join('')}</div>`;
 
-function pagina({ path, title, desc, body }) {
+function pagina({ path, title, desc, body, dojo = false }) {
   const url = SITE_URL + path;
   return `<!doctype html>
 <html lang="es">
@@ -62,15 +76,20 @@ function pagina({ path, title, desc, body }) {
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${url}">
 <meta property="og:image" content="${SITE_URL}/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${esc(title)}"><meta name="twitter:image" content="${SITE_URL}/og.png">
-<meta name="theme-color" content="#F4F6F9" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0E131A" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="${dojo ? '#EDEFF7' : '#F4F6F9'}" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="${dojo ? '#0A0F22' : '#0E131A'}" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+${dojo ? '<link rel="stylesheet" href="/dojo.css">' : `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=JetBrains+Mono:wght@400;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..700&display=swap">
-<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/style.css">`}
 </head>
-<body>
+${dojo ? `<body class="dojo">
+${body}
+<script src="/app.js" defer></script>
+</body>
+</html>
+` : `<body>
 <div class="wrap">
 ${body}
 <footer class="foot">
@@ -81,26 +100,7 @@ ${body}
 <script src="/app.js" defer></script>
 </body>
 </html>
-`;
-}
-
-function bloqueCodigo(code, { lbl = '', lang = '' } = {}) {
-  const id = `c${++uid}`;
-  return `<div class="code"><div class="lbl"><span>${esc(lbl || lang)}</span><button type="button" class="copiar" data-copiar="${id}">Copiar</button></div><pre id="${id}"><code>${esc(code)}</code></pre></div>`;
-}
-
-function comando(c) {
-  const salida = c.salida === null || c.salida === undefined
-    ? `<p class="sin-salida">La salida depende de tu corrida.</p>`
-    : `<details class="salida"><summary>Salida real</summary><pre><code>${esc(c.salida)}</code></pre></details>`;
-  return bloqueCodigo(c.code, { lbl: c.donde === 'mac' || !c.donde ? 'terminal' : c.donde })
-    + (c.nota ? `<p class="cmd-nota">${c.nota}</p>` : '') + salida;
-}
-
-function promptBox(titulo, texto, { primario = false } = {}) {
-  const id = `p${++uid}`;
-  return `<details class="mas prompt"><summary>${esc(titulo)}</summary><div class="code"><div class="lbl"><span>prompt</span><button type="button" class="copiar" data-copiar="${id}">Copiar</button></div><pre id="${id}">${esc(texto)}</pre></div></details>`
-    + `<div class="acciones"><button type="button" class="btn${primario ? ' btn--primary' : ''}" data-copiar="${id}">Copiar el prompt</button></div>`;
+`}`;
 }
 
 const barra = (volver) => `<nav class="bar" aria-label="Navegación">${volver ? `<a href="/">← Taller de AI Engineer</a>` : '<span></span>'}${TEMA}</nav>`;
@@ -126,7 +126,7 @@ function mapaC01(lista) {
 function portada() {
   const lista = new Map(ESTACIONES.filter((e) => e.caso === TRONCO.caso).map((e) => [e.id, e]));
   const lineas = TRONCO.estaciones.map((s) => lista.has(s.id)
-    ? `<li class="lista"><span class="num">${s.num}</span><a href="${lista.get(s.id).url}">${esc(s.titulo)}</a></li>`
+    ? `<li class="lista"><span class="num">${s.num}</span><a href="${lista.get(s.id).url}">${esc(s.titulo)}</a>${lista.get(s.id).practicas.length ? `<span class="extra">+ ${lista.get(s.id).practicas.length} prácticas desde cero</span>` : ''}</li>`
     : `<li><span class="num">${s.num}</span><span class="t">${esc(s.titulo)}</span><span class="pronto">próximamente</span></li>`).join('\n      ');
   const primera = ESTACIONES.find((e) => e.caso === TRONCO.caso);
   const body = `${barra(false)}
@@ -194,166 +194,6 @@ function portada() {
   return pagina({ path: '/', title: `${SITE_NAME} — construir, rehacer y romper`, desc: 'Proyectos chicos de ML engineering que construyes, rehaces y rompes en tu Mac, estación por estación del camino del dato a producción. En español, gratis.', body });
 }
 
-// ---------------------------------------------------------------- estación
-function paginaEstacion(e, kitBytes) {
-  const nombre = Object.fromEntries(e.conceptos.map((c) => [c.id, c.termino]));
-  const chipsC = (ids) => `<div class="cs">${ids.map((i) => `<a href="#k-${i}">${esc(nombre[i])}</a>`).join('')}</div>`;
-  const total = TRONCO.estaciones.length;
-
-  const conceptos = e.conceptos.map((c) => `<article class="card concepto" id="k-${c.id}">
-      <h3>${esc(c.termino)}</h3><p class="en">${esc(c.en)}</p>
-      <p class="def">${c.def}</p>
-      <details class="mas"><summary>Analogía, por qué importa y la trampa</summary><div class="kv">
-        <div><b>Analogía</b>${c.analogia}</div><div><b>Por qué importa</b>${c.importa}</div><div class="trampa"><b>Trampa</b>${c.trampa}</div>
-      </div></details>
-    </article>`).join('\n    ');
-
-  const pasos = e.guiado.map((p) => `<li class="card paso" id="paso-${p.id}">
-      <h3><span class="n">${p.n}</span>${esc(p.titulo)}</h3>
-      <p class="objetivo">${p.objetivo}</p>
-      ${chipsC(p.conceptos)}
-      <p>${p.explica}</p>
-      ${p.codigo.map((c) => bloqueCodigo(c.code, { lbl: c.path || c.lang }) + (c.nota ? `<p class="cmd-nota">${c.nota}</p>` : '')).join('\n      ')}
-      ${p.comandos.map(comando).join('\n      ')}
-      <div class="verifica"><b>Listo cuando:</b> ${p.verifica}</div>
-      ${p.ojo ? `<div class="ojo"><b>Ojo:</b> ${p.ojo}</div>` : ''}
-    </li>`).join('\n    ');
-
-  const objetivos = e.solo.objetivos.map((o) => `<li><span class="n">${o.n}</span><div>${o.objetivo} <code>verificar.py ${esc(o.check)}</code>${o.pista ? `<details class="mas"><summary>Pista</summary><p>${o.pista}</p></details>` : ''}</div></li>`).join('\n      ');
-
-  const fallas = e.fallas.map((f) => `<article class="card falla" id="falla-${f.id}">
-        <span class="tipo">${esc(f.tipo)}</span>
-        <h3>${esc(f.titulo)}</h3>
-        <p class="historia">${f.historia}</p>
-        <div class="kv"><div><b>Síntoma</b>${f.sintoma}</div><div><b>Hipótesis para descartar</b><ul>${f.hipotesis.map((h) => `<li>${h}</li>`).join('')}</ul></div></div>
-        <p><b>Cómo confirmar</b></p>
-        ${comando(f.confirma)}
-        <details class="mas"><summary>El arreglo</summary><p>${f.arreglo}</p><p>Concepto: <a href="#k-${f.concepto}">${esc(nombre[f.concepto])}</a> · check: <code>${esc(f.check)}</code></p></details>
-      </article>`).join('\n      ');
-
-  const precalculos = e.precalculos.cuentas.map((x, i) => `<article class="card precalc" id="pc-${x.id}">
-      <h3><span class="n">${i + 1}</span>${esc(x.pregunta)}</h3>
-      <p class="formula">${esc(x.formula)}</p>
-      ${chipsC(x.conceptos)}
-      <details class="mas"><summary>Ver la cuenta</summary>
-        <div class="escalas">
-          <div><b>En C01</b><p>${x.c01.cuenta}</p><p class="valor">${x.c01.valor}</p></div>
-          <div><b>En el taller</b><p>${x.taller.cuenta}</p><p class="valor">${x.taller.valor}</p></div>
-        </div>
-        <p class="decide"><b>Qué decides con esto</b>${x.decide}</p>
-        ${x.comprueba ? `<p class="compruebalo"><b>Compruébalo en el kit</b> después de levantar el mundo (paso 0):</p>${comando(x.comprueba)}` : ''}
-        ${x.confirma ? `<p class="compruebalo"><b>Lo confirmas en</b> ${x.confirma}</p>` : ''}
-      </details>
-    </article>`).join('\n    ');
-
-  const escala = e.mapa.escala.map((r) => `<tr><td data-k="">${esc(r.que)}</td><td data-k="En C01">${r.c01}</td><td data-k="En el taller">${r.taller}</td></tr>`).join('');
-  const subs = e.mundo.sustituciones.map((r) => `<tr><td data-k="">${esc(r.nube)}</td><td data-k="En el taller">${esc(r.local)}</td><td data-k="Qué cambia">${r.diferencia}</td></tr>`).join('');
-
-  const body = `${barra(true)}
-<header class="st-head">
-  <p class="kicker">${e.caso.toUpperCase()} · Estación ${e.num} de ${total}</p>
-  <h1>${esc(e.titulo)}</h1>
-  <p class="pregunta">${esc(e.pregunta)}</p>
-  <ul class="chips"><li>${e.precalculos.cuentas.length} precálculos</li><li>${e.conceptos.length} conceptos</li><li>${e.guiado.length} pasos</li><li>${e.solo.objetivos.length} checks</li><li>${e.fallas.length} fallas</li></ul>
-</header>
-<nav class="indice" aria-label="En esta estación">
-  <a href="#mapa">Mapa</a><a href="#rondas">Rondas</a><a href="#conceptos">Conceptos</a><a href="#precalculos">Precálculos</a><a href="#kit">Kit</a><a href="#guiado">Guiado</a><a href="#solo">Solo</a><a href="#romper">Romper</a><a href="#repaso">Repaso</a>
-</nav>
-<main>
-<section class="blk" id="mapa">
-  <h2>Dónde estás <small>el mapa</small></h2>
-  <p>${e.mapa.resumen}</p>
-  <div class="dos">
-    <div class="card"><h3>Entra</h3><ul>${e.mapa.entra.map((x) => `<li>${x}</li>`).join('')}</ul></div>
-    <div class="card"><h3>Sale</h3><ul>${e.mapa.sale.map((x) => `<li>${x}</li>`).join('')}</ul></div>
-  </div>
-  <table class="tabla"><thead><tr><th></th><th>En C01</th><th>En el taller</th></tr></thead><tbody>${escala}</tbody></table>
-  ${e.mapa.hoja ? `<p>La estación completa, con su lugar en el mapa: <a href="${esc(e.mapa.hoja)}">cheat sheet «Del dato a producción»</a>.</p>` : ''}
-</section>
-
-<section class="blk" id="rondas">
-  <h2>Las cuatro rondas <small>los prompts</small></h2>
-  <p class="intro">Cada ronda se trabaja en una sesión de Claude Code abierta en la carpeta del kit. Copia el prompt de la ronda y pégalo; el <code>CLAUDE.md</code> del kit pone las reglas de fondo.</p>
-  <div class="rondas">
-    <div class="card ronda"><h3>1 · Guiado</h3><p>Construyen juntos los pasos 0 a 7.</p>${promptBox('Ver el prompt', e.prompt.guiado, { primario: true })}</div>
-    <div class="card ronda"><h3>2 · Solo</h3><p>Rehaces todo desde el esqueleto, solo con los objetivos.</p>${promptBox('Ver el prompt', e.prompt.solo)}</div>
-    <div class="card ronda"><h3>3 · Romper con ayuda</h3><p>Una falla real; Claude te guía con preguntas.</p>${promptBox('Ver el prompt', e.prompt.romper_ayuda)}</div>
-    <div class="card ronda"><h3>4 · Romper solo</h3><p>Una falla escondida; nadie te da pistas.</p>${promptBox('Ver el prompt', e.prompt.romper_solo)}</div>
-  </div>
-</section>
-
-<section class="blk" id="conceptos">
-  <h2>Conceptos exprés <small>${e.conceptos.length}</small></h2>
-  <p class="intro">Una línea para entenderlo; abre la tarjeta para la analogía, por qué importa y la trampa.</p>
-  <div class="conceptos">
-    ${conceptos}
-  </div>
-</section>
-
-<section class="blk" id="precalculos">
-  <h2>Precálculos <small>${e.precalculos.cuentas.length} cuentas</small></h2>
-  <p class="intro">${e.precalculos.intro}</p>
-  <div class="precalcs">
-    ${precalculos}
-  </div>
-</section>
-
-<section class="blk" id="kit">
-  <h2>El kit <small>el mundo</small></h2>
-  <p>${e.mundo.resumen}</p>
-  <div class="acciones"><a class="btn btn--primary" href="/kits/${e.slug}.zip" download>Bajar el kit <small>.zip · ${kb(kitBytes)}</small></a></div>
-  ${bloqueCodigo('unzip ' + e.slug + '.zip && cd ' + e.slug + '\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\ndocker compose up -d\npython mundo/reiniciar.py --todo', { lbl: 'arranque' })}
-  <div class="dos">
-    <div class="card"><h3>Lo que trae (no lo escribes)</h3><ul>${e.mundo.trae.map((t) => `<li><b>${esc(t.que)}.</b> ${t.detalle}</li>`).join('')}</ul></div>
-    <div class="card"><h3>Tu pipeline (lo escribes tú)</h3><ul>${e.mundo.tu_pipeline.map((t) => `<li><code>${esc(t.archivo)}</code> ${t.hace}</li>`).join('')}</ul></div>
-  </div>
-  <div class="card"><h3>Necesitas</h3><ul>${e.mundo.requisitos.map((r) => `<li>${r}</li>`).join('')}</ul></div>
-  <table class="tabla"><thead><tr><th>En la nube</th><th>En el taller</th><th>Qué cambia</th></tr></thead><tbody>${subs}</tbody></table>
-  ${promptBox('El CLAUDE.md del kit', e.prompt.claude_md)}
-</section>
-
-<section class="blk" id="guiado">
-  <h2>Guiado <small>paso a paso</small></h2>
-  <p class="intro">El código que ves es el de la solución de referencia, y cada salida es la que salió al correr el kit en una carpeta limpia.</p>
-  <ol class="pasos">
-    ${pasos}
-  </ol>
-</section>
-
-<section class="blk" id="solo">
-  <h2>Solo <small>${e.solo.objetivos.length} objetivos</small></h2>
-  <ul>${e.solo.reglas.map((r) => `<li>${r}</li>`).join('')}</ul>
-  <ol class="objetivos">
-      ${objetivos}
-  </ol>
-</section>
-
-<section class="blk" id="romper">
-  <h2>Romper <small>${e.fallas.length} fallas</small></h2>
-  <p>Con tu pipeline en verde, <code>python romper.py</code> mete una falla en el mundo, la configuración o la infraestructura (nunca en tu código) y, si hace falta, corre el job del mes como si hubiera corrido anoche. Tú empiezas por <code>python verificar.py</code>.</p>
-  ${bloqueCodigo('python romper.py --mostrar      # con ayuda: Claude sabe cuál es\npython romper.py                # solo: escondida, ni Claude la sabe\npython romper.py --verificar    # ¿ya quedó?\npython romper.py --revelar      # me rindo\npython romper.py --restaurar    # deshacer', { lbl: 'romper.py' })}
-  <div class="aviso">El catálogo de abajo trae las respuestas. Ábrelo después de romper, para repasar.</div>
-  <details class="catalogo"><summary>Catálogo de fallas (spoilers)</summary>
-    <div class="fallas">
-      ${fallas}
-    </div>
-  </details>
-</section>
-
-<section class="blk" id="repaso">
-  <h2>Repaso <small>para el celular</small></h2>
-  <p class="memo">${e.repaso.memo}</p>
-  <div class="ojo"><b>Trampa:</b> ${e.repaso.trampa}</div>
-  <h3>Listo cuando</h3>
-  <ul class="listo">${e.listo.map((l) => `<li>${l}</li>`).join('')}</ul>
-  <h3>Así te lo pueden preguntar en una entrevista</h3>
-  ${e.repaso.entrevista.map((x) => `<details class="mas qa"><summary>${esc(x.q)}</summary><p>${x.a}</p></details>`).join('\n  ')}
-  <p class="cmd-nota">Versión del contenido: ${fecha(e.version)}.</p>
-</section>
-</main>`;
-  return pagina({ path: e.url, title: `${e.titulo} · ${e.caso.toUpperCase()} — ${SITE_NAME}`, desc: `${e.pregunta} Un mini-proyecto para construir, rehacer y romper en tu Mac.`, body });
-}
-
 // ---------------------------------------------------------------- kit
 const sinHtml = (s) => s.replace(/<b>(.*?)<\/b>/g, '**$1**').replace(/<code>(.*?)<\/code>/g, '`$1`').replace(/<[^>]+>/g, '')
   .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
@@ -418,21 +258,31 @@ for (const e of ESTACIONES) {
   if (!existsSync(join(ROOT, 'kits', e.slug))) fail(`falta kits/${e.slug}`);
   const z = zip(archivosKit(e));
   writeFileSync(join(OUT, 'kits', `${e.slug}.zip`), z);
-  pages[e.url] = paginaEstacion(e, z.length);
+  e.versionTxt = fecha(e.version);
+  pages[e.url] = pagina({ path: e.url, title: `${e.titulo} · ${e.caso.toUpperCase()} — ${SITE_NAME}`, desc: `${e.pregunta} Un mini-proyecto para construir, rehacer y romper en tu Mac.`,
+    body: cuerpoEstacion(e, { total: TRONCO.estaciones.length, kitBytes: z.length, kb }), dojo: true });
   mkdirSync(join(OUT, e.caso, e.id), { recursive: true });
   writeFileSync(join(OUT, e.caso, e.id, 'index.html'), pages[e.url]);
   console.log(`[build] ${e.url} · kit ${kb(z.length)}`);
+  for (const p of e.practicas) {
+    pages[p.url] = pagina({ path: p.url, title: `${p.titulo} · ${e.titulo} — ${SITE_NAME}`, desc: `${p.subtitulo} Práctica desde cero de la estación ${e.num} de C01.`,
+      body: cuerpoPractica(e, p), dojo: true });
+    mkdirSync(join(OUT, e.caso, e.id, p.id), { recursive: true });
+    writeFileSync(join(OUT, e.caso, e.id, p.id, 'index.html'), pages[p.url]);
+    console.log(`[build] ${p.url}`);
+  }
 }
 pages['/'] = portada();
 writeFileSync(join(OUT, 'index.html'), pages['/']);
-for (const f of ['style.css', 'app.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
+for (const f of ['style.css', 'dojo.css', 'app.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
 
-const core = ['/', ...ESTACIONES.map((e) => e.url), '/style.css', '/app.js', '/icon.svg', '/manifest.webmanifest'];
+const urls = ['/', ...ESTACIONES.flatMap((e) => [e.url, ...e.practicas.map((p) => p.url)])];
+const core = [...urls, '/style.css', '/dojo.css', '/app.js', '/icon.svg', '/manifest.webmanifest'];
 const hash = createHash('sha256');
 for (const p of Object.keys(pages).sort()) hash.update(p).update(pages[p]);
-for (const f of ['style.css', 'app.js']) hash.update(readFileSync(join(ROOT, 'site', f)));
+for (const f of ['style.css', 'dojo.css', 'app.js']) hash.update(readFileSync(join(ROOT, 'site', f)));
 const BUILD = hash.digest('hex').slice(0, 12);
 writeFileSync(join(OUT, 'sw.js'), readFileSync(join(ROOT, 'site', 'sw.js'), 'utf8').replace("'__BUILD__';", `'${BUILD}';`).replace('= __PAGES__;', `= ${JSON.stringify(core)};`));
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);
-writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${['/', ...ESTACIONES.map((e) => e.url)].map((p) => `  <url><loc>${SITE_URL}${p}</loc></url>`).join('\n')}\n</urlset>\n`);
+writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((p) => `  <url><loc>${SITE_URL}${p}</loc></url>`).join('\n')}\n</urlset>\n`);
 console.log(`[build] listo: ${Object.keys(pages).length} páginas · BUILD ${BUILD}`);

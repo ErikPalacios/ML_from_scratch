@@ -135,7 +135,73 @@ export const estacion = obj({
     entrevista: arr(obj({ q: txt, a: txt }), { min: 3 }),
   }),
   prompts: obj({ claude_md: txt, guiado: txt, solo: txt, romper_ayuda: txt, romper_solo: txt }),
+  'practicas?': arr(txt, { min: 1 }),             // rutas a las prácticas desde cero de la estación (forma: `practica`)
 });
+
+// Una práctica desde cero: sin kit, en una carpeta vacía, con su propia página. El código de cada paso
+// puede venir escrito (`code`) o de un archivo de la solución probada (`desde`), para que no se desfasen.
+const codigoP = obj({ lang: oneOf('python', 'sql', 'bash', 'yaml', 'json', 'markdown', 'text'), 'path?': txt, 'code?': txt, 'desde?': txt, nota });
+export const practica = obj({
+  id,
+  orden: int(1, 9),
+  titulo: txt,
+  nav: str({ max: 30 }),
+  subtitulo: txt,
+  cuando: txt,                                      // en qué momento del ciclo de vida pasa esto
+  escena: txt,
+  chips: arr(str({ max: 40 }), { min: 2, max: 6 }),
+  requisitos: arr(txt, { min: 1 }),
+  resultado: arr(txt, { min: 2 }),
+  precalculos: arr(obj({
+    id,
+    pregunta: txt,
+    cuenta: txt,
+    valor: txt,
+    'c01?': txt,
+    decide: txt,
+    conceptos: arr(id, { min: 1 }),
+    'comprueba?': comando,
+    'confirma?': txt,
+  }), { min: 2, max: 6 }),
+  conceptos: arr(obj({ id, termino: txt, en: txt, def: corto, analogia: txt, importa: txt, trampa: txt }), { max: 10 }),
+  pasos: arr(obj({
+    n: int(1, 30),
+    id,
+    titulo: txt,
+    objetivo: txt,
+    conceptos: arr(id, { min: 1 }),
+    explica: txt,
+    codigo: arr(codigoP),
+    comandos: arr(comando),
+    verifica: txt,
+    'ojo?': txt,
+  }), { min: 4 }),
+  solo: arr(txt, { min: 3 }),
+  prompts: obj({ guiado: txt, solo: txt }),
+});
+
+// `conocidos`: los ids de conceptos que una práctica puede usar (los de su estación y los de todas sus prácticas).
+export function cruzadasPractica(p, conocidos, existe) {
+  const errs = [];
+  const dup = (xs, what) => xs.filter((x, i) => xs.indexOf(x) !== i).forEach((x) => errs.push(`${p.id}: ${what} repetido: ${x}`));
+  dup(p.pasos.map((x) => x.id), 'paso');
+  dup(p.precalculos.map((x) => x.id), 'precálculo');
+  p.pasos.forEach((x, i) => {
+    if (x.n !== i + 1) errs.push(`${p.id}.pasos[${i}].n = ${x.n}; los pasos van numerados 1, 2, 3…`);
+    x.conceptos.forEach((c) => conocidos.has(c) || errs.push(`${p.id}.${x.id}: concepto desconocido «${c}»`));
+    x.codigo.forEach((c, j) => {
+      if (!!c.code === !!c.desde) errs.push(`${p.id}.${x.id}.codigo[${j}]: lleva «code» o «desde», uno de los dos`);
+      if (c.desde && !existe(c.desde)) errs.push(`${p.id}.${x.id}.codigo[${j}]: no existe ${c.desde}`);
+    });
+  });
+  p.precalculos.forEach((x) => {
+    x.conceptos.forEach((c) => conocidos.has(c) || errs.push(`${p.id}.precalculos.${x.id}: concepto desconocido «${c}»`));
+    if (!x.comprueba && !x.confirma) errs.push(`${p.id}.precalculos.${x.id}: necesita «comprueba» o «confirma»`);
+    if (x.comprueba && typeof x.comprueba.salida !== 'string') errs.push(`${p.id}.precalculos.${x.id}: la salida de «comprueba» tiene que ser la real`);
+  });
+  for (const rel of Object.values(p.prompts)) if (!existe(rel)) errs.push(`${p.id}.prompts: no existe ${rel}`);
+  return errs;
+}
 
 // Reglas entre piezas que el molde solo no puede ver.
 export function cruzadas(e) {

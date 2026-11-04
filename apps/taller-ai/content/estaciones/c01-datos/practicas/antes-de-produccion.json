@@ -1,0 +1,522 @@
+{
+  "id": "antes-de-produccion",
+  "orden": 1,
+  "titulo": "Antes de producción: tu primer dataset",
+  "nav": "Antes de producción",
+  "subtitulo": "De 10 fotos sueltas a un dataset versionado, con un contrato que lo protege y un primer modelo que sabe con qué datos se entrenó.",
+  "cuando": "Es lo que pasa antes del primer modelo: todavía no hay usuarios ni logs, solo fotos y una pregunta de negocio. En C01 es el arranque de la estación 1, cuando se arma el primer set etiquetado y el test que se va a usar en todas las versiones.",
+  "escena": "El marketplace todavía no tiene clasificador. Negocio quiere empezar con dos categorías, <b>playera</b> y <b>tenis</b>. Tú armas el dataset desde una carpeta vacía: recolectas las fotos, escribes la guía, etiquetas en Label Studio, divides, validas, versionas con DVC y entrenas un primer modelo.",
+  "chips": [
+    "10 fotos",
+    "2 clases",
+    "≈ 2 horas",
+    "carpeta vacía, sin kit"
+  ],
+  "requisitos": [
+    "Docker Desktop con las imágenes de RustFS y Label Studio (si ya bajaste el kit de la estación 1, ya las tienes; si no, ≈ 3 GB).",
+    "Python 3.11 o más nuevo y Claude Code.",
+    "Internet la primera vez: <code>recolectar.py</code> baja el set de prueba de Fashion-MNIST (≈ 4.5 MB) y lo guarda en <code>~/.cache/fashion-mnist</code>."
+  ],
+  "resultado": [
+    "Un repo de git con tus scripts, la guía v1, la ficha del dataset y el tag <code>dataset-v1</code>.",
+    "Las 10 fotos en un S3 local, versionadas con DVC: las borras y vuelven con un comando.",
+    "<code>labels.csv</code> y <code>splits.csv</code> legibles en un diff, y un contrato que no deja pasar datos rotos.",
+    "<code>modelo-v1</code> con su ficha: qué versión del dataset y qué commit lo produjeron."
+  ],
+  "precalculos": [
+    {
+      "id": "minimo",
+      "pregunta": "¿Cuántas fotos necesitas como mínimo?",
+      "cuenta": "Cada clase tiene que aparecer en train, val y test, o no la puedes medir. Con 3 de train, 1 de val y 1 de test por clase: 2 clases × (3 + 1 + 1) = 10.",
+      "valor": "10 fotos, 5 por clase",
+      "c01": "Con las 500 categorías de C01, el mismo piso da 500 × 5 = 2,500 fotos, y eso antes de pensar en qué tan fino quieres medir.",
+      "decide": "Con 5 fotos en total no alcanza: alguna clase se queda sin val o sin test. El mínimo sale del número de clases y del reparto, no de las ganas.",
+      "conceptos": [
+        "split-estable"
+      ],
+      "confirma": "el paso 6, cuando <code>dividir.py</code> imprime train 3 · val 1 · test 1 por clase."
+    },
+    {
+      "id": "resolucion",
+      "pregunta": "¿Qué tan fino mide un test de 2 fotos?",
+      "cuenta": "Cada foto de test es 1 de 2: vale 50 puntos de exactitud. Solo hay tres resultados posibles: 0 %, 50 % o 100 %.",
+      "valor": "saltos de 50 puntos",
+      "c01": "Para medir con ± 2 puntos hacen falta miles de fotos de test; por eso C01 tiene un golden set grande y fijo.",
+      "decide": "Este test solo dice si el camino completo funciona, no qué tan bueno es el modelo. Lo vas a ver en el paso 11: 2/2 no es para celebrar.",
+      "conceptos": [
+        "ficha-dataset"
+      ],
+      "confirma": "el paso 11, en la ficha de <code>modelo-v1</code>."
+    },
+    {
+      "id": "peso",
+      "pregunta": "¿Por qué las fotos no van en git y los labels sí?",
+      "cuenta": "Las 10 fotos pesan 8,341 bytes; <code>labels.csv</code> y <code>splits.csv</code>, unos cientos de bytes cada uno. Git guarda cada versión de cada archivo para siempre y no sabe comparar imágenes.",
+      "valor": "8.3 KB aquí; millones de fotos en C01",
+      "c01": "En C01 entran miles de fotos nuevas cada mes. En git, el repo crecería sin fin y cada clon bajaría todo el historial.",
+      "decide": "Fotos a DVC + S3: git solo guarda un puntero de 5 líneas con su hash. Labels, splits, guía y ficha a git: son texto chico y quieres verlos en un diff.",
+      "conceptos": [
+        "version-dataset"
+      ],
+      "confirma": "el paso 9: <code>data/crudo.dvc</code> dice <code>size: 8341</code> y <code>nfiles: 10</code>."
+    }
+  ],
+  "conceptos": [
+    {
+      "id": "version-dataset",
+      "termino": "Versión de dataset",
+      "en": "dataset versioning (DVC)",
+      "def": "Un nombre fijo, un tag, que apunta a exactamente qué fotos, qué labels y qué splits había. Git guarda el texto; DVC guarda las fotos en S3 y deja en git un puntero con su hash.",
+      "analogia": "El ticket del guardarropa: en git queda el ticket chico, el abrigo pesado está en S3, y con el ticket siempre te dan el mismo abrigo.",
+      "importa": "Sin versión no puedes reproducir un modelo, ni comparar dos, ni explicar qué cambió entre un mes y el siguiente.",
+      "trampa": "Versionar solo las fotos y no los labels, o al revés. La versión es el conjunto: fotos + labels + splits + guía."
+    },
+    {
+      "id": "split-estable",
+      "termino": "Split estable",
+      "en": "stable split / frozen test set",
+      "def": "Cada foto cae en train, val o test una vez y ahí se queda en todas las versiones. Las nuevas se reparten sin mover las viejas.",
+      "analogia": "Las preguntas de un examen de certificación: si cambian cada año, no puedes comparar a una generación con otra.",
+      "importa": "Es lo que permite comparar modelo-v1 con modelo-v2 en el mismo examen.",
+      "trampa": "Volver a barajar todo con una semilla en cada versión: fotos de test pasan a train y la comparación ya no vale."
+    },
+    {
+      "id": "contrato-datos",
+      "termino": "Contrato de datos",
+      "en": "data contract / data validation",
+      "def": "Reglas que el dataset tiene que cumplir antes de versionarse o entrenarse. Si una falla, el proceso se detiene con código de salida 1.",
+      "analogia": "La revisión antes de despegar: no es opcional aunque el avión se vea bien.",
+      "importa": "Atrapa fotos sin label, clases mal escritas y splits vacíos antes de que lleguen al modelo, donde se ven como «el modelo empeoró».",
+      "trampa": "Que solo avise y siga. Si no detiene el proceso, nadie lo lee."
+    },
+    {
+      "id": "duplicados",
+      "termino": "Duplicados y fuga",
+      "en": "deduplication / data leakage",
+      "def": "La misma foto dos veces. Si una copia cae en train y otra en test, el modelo ya vio el examen y su métrica se infla.",
+      "analogia": "Que el examen traiga una pregunta que venía resuelta en la tarea.",
+      "importa": "En producción la gente vuelve a subir fotos. Sin deduplicar por el hash del contenido, el test se contamina sin que nadie lo note.",
+      "trampa": "Deduplicar por nombre de archivo: la misma foto con otro nombre pasa. La llave es el sha256 del contenido."
+    },
+    {
+      "id": "ficha-dataset",
+      "termino": "Ficha del dataset",
+      "en": "datasheet / data card",
+      "def": "Una página que dice qué hay en el dataset, de dónde salió, cómo se etiquetó, cómo se dividió y qué no sirve medir con él.",
+      "analogia": "La etiqueta nutrimental: no cambia lo que hay adentro, pero te dice si te sirve.",
+      "importa": "Quien entrena dentro de seis meses (o tú) no estuvo cuando se armó. Los límites conocidos evitan conclusiones falsas.",
+      "trampa": "Escribirla una vez y no actualizarla. Cada versión cambia la ficha y su sección de cambios."
+    },
+    {
+      "id": "linaje",
+      "termino": "Linaje",
+      "en": "lineage",
+      "def": "La cadena que une un modelo con el dataset y el código que lo produjeron: modelo-v1 → dataset-v1 → commit 7fa27d9.",
+      "analogia": "El número de lote de un medicamento: si algo sale mal, sabes de qué lote viene y qué más salió de ahí.",
+      "importa": "Cuando un modelo falla en producción, la primera pregunta es con qué datos se entrenó. Con linaje, la respuesta es un archivo.",
+      "trampa": "Entrenar con lo que haya en la carpeta en ese momento, con cambios sin commit: la ficha dice una versión y los datos eran otros."
+    }
+  ],
+  "pasos": [
+    {
+      "n": 1,
+      "id": "carpeta",
+      "titulo": "Carpeta, entorno y servicios",
+      "objetivo": "Una carpeta vacía con git, un entorno de Python y los dos servicios arriba: un S3 local y Label Studio.",
+      "conceptos": [
+        "version-dataset"
+      ],
+      "explica": "Empiezas sin kit. <code>compose.yaml</code> levanta RustFS (un S3 que corre en tu Mac, donde DVC va a guardar las fotos) y Label Studio (donde las etiquetas). Usan los puertos 9200, 9201 y 8091 para no chocar con el kit de la estación. Las credenciales son de prueba y solo existen en tu Mac. En <code>.gitignore</code> van desde ya <code>prod/</code> y los modelos: lo que llegue de producción y los binarios no son parte del repo.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "compose.yaml",
+          "desde": "kits/c01-desde-cero-solucion/compose.yaml",
+          "nota": ""
+        },
+        {
+          "lang": "text",
+          "path": "requirements.txt",
+          "desde": "kits/c01-desde-cero-solucion/requirements.txt",
+          "nota": ""
+        },
+        {
+          "lang": "text",
+          "path": ".gitignore",
+          "code": ".venv\n__pycache__/\nprod/\nmodelos/*.joblib",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "mkdir -p ~/taller/c01-desde-cero && cd ~/taller/c01-desde-cero\ngit init -b main\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
+          "nota": "Escribe compose.yaml, requirements.txt y .gitignore antes del pip install.",
+          "donde": "mac",
+          "salida": null
+        },
+        {
+          "code": "docker compose up -d\ndocker compose ps --format '{{.Service}}  {{.Status}}  {{.Ports}}'",
+          "nota": "",
+          "donde": "mac",
+          "salida": "labelstudio  Up 18 seconds  0.0.0.0:8091->8080/tcp, [::]:8091->8080/tcp\ns3  Up 18 seconds  0.0.0.0:9200->9000/tcp, [::]:9200->9000/tcp, 0.0.0.0:9201->9001/tcp, [::]:9201->9001/tcp"
+        }
+      ],
+      "verifica": "Los dos servicios dicen <code>Up</code> y http://localhost:8091 abre el login de Label Studio.",
+      "ojo": "Si tienes arriba el kit de la estación 1, no pasa nada: esta práctica usa otros puertos y otros volúmenes."
+    },
+    {
+      "n": 2,
+      "id": "recolectar",
+      "titulo": "Recolectar las fotos",
+      "objetivo": "10 fotos sin etiqueta en <code>data/crudo/</code>, con nombres que no delatan la clase.",
+      "conceptos": [
+        "duplicados"
+      ],
+      "explica": "En un proyecto real las fotos llegan de un catálogo, de un proveedor o de tu teléfono. Aquí salen de Fashion-MNIST: 5 playeras y 5 tenis del set de prueba, agrandadas a 112 px para verlas bien. El script las revuelve y las llama <code>foto_01</code>…<code>foto_10</code> a propósito: quien etiqueta no debe adivinar por el nombre.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "scripts/recolectar.py",
+          "desde": "kits/c01-desde-cero-solucion/scripts/recolectar.py",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python scripts/recolectar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "10 fotos en data/crudo/"
+        },
+        {
+          "code": "shasum -a 256 data/crudo/foto_01.png data/crudo/foto_02.png",
+          "nota": "El sha256 es la huella del contenido: si cambia un pixel, cambia todo. Va a ser la llave de cada foto, no su nombre.",
+          "donde": "mac",
+          "salida": "77cf97fb3f30d472404d96a20b93db33d544a739f5448798a2be9730d7728c1c  data/crudo/foto_01.png\n8a4fd378d8fb33c8ecadc3527530a09f3473c2ad892e700004c78162da90eb1f  data/crudo/foto_02.png"
+        }
+      ],
+      "verifica": "Hay 10 PNG y tus dos primeros sha256 empiezan con <code>77cf97fb</code> y <code>8a4fd378</code>: el script usa una semilla fija.",
+      "ojo": "¿Quieres usar fotos tuyas? Sirve igual: 5 y 5 en <code>data/crudo/</code> como PNG. Tus hashes y algunas salidas van a ser otras."
+    },
+    {
+      "n": 3,
+      "id": "guia",
+      "titulo": "Escribir la guía y la interfaz",
+      "objetivo": "La guía v1, con qué es cada clase y sus casos límite, y la interfaz de Label Studio que la refleja.",
+      "conceptos": [
+        "guia-etiquetado"
+      ],
+      "explica": "Mira las 10 fotos antes de escribir. Vas a encontrar dos dudas reales: una playera de manga larga (<code>foto_01</code>) y un tenis que cubre el tobillo (<code>foto_08</code>). La guía decide esos casos antes de etiquetar, no después. La interfaz es un XML de Label Studio: una imagen y una sola elección entre las clases.",
+      "codigo": [
+        {
+          "lang": "markdown",
+          "path": "guia/guia-v1.md",
+          "desde": "kits/c01-desde-cero-solucion/guia/guia-v1.md",
+          "nota": ""
+        },
+        {
+          "lang": "text",
+          "path": "guia/interfaz-v1.xml",
+          "desde": "kits/c01-desde-cero-solucion/guia/interfaz-v1.xml",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "open data/crudo",
+          "nota": "Abre la carpeta en Finder para ver las fotos.",
+          "donde": "mac",
+          "salida": ""
+        }
+      ],
+      "verifica": "Cada caso límite que viste en las fotos tiene una regla escrita.",
+      "ojo": "Versiona la guía como el código (<code>guia-v1.md</code>, luego <code>guia-v2.md</code>): cada label va a decir con qué guía se hizo."
+    },
+    {
+      "n": 4,
+      "id": "etiquetar",
+      "titulo": "Etiquetar en Label Studio",
+      "objetivo": "Las 10 fotos etiquetadas a mano y exportadas a <code>data/etiquetado/export-v1.json</code>.",
+      "conceptos": [
+        "guia-etiquetado"
+      ],
+      "explica": "Entra a http://localhost:8091 con <code>practica@ejemplo.com</code> / <code>practica-etiquetas</code>. <b>Create Project</b> y, en esa misma ventana: en <b>Project Name</b> escribe <code>c01-v1</code>; en <b>Data Import</b> arrastra las 10 fotos de <code>data/crudo/</code>; en <b>Labeling Setup</b> elige <b>Custom template</b> y pega <code>guia/interfaz-v1.xml</code> en el editor de código. <b>Save</b>. Luego <b>Label All Tasks</b> y vas una por una: tecla <b>1</b> para playera, <b>2</b> para tenis, y el botón <b>Submit</b>. La exportación la haces por la API, como lo haría un job.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "mkdir -p data/etiquetado\ncurl -s \"http://localhost:8091/api/projects/1/export?exportType=JSON_MIN\" \\\n  -H \"Authorization: Token practica-token-local-0001\" -o data/etiquetado/export-v1.json\npython -m json.tool data/etiquetado/export-v1.json | head -11",
+          "nota": "JSON_MIN trae una fila por foto con su clase. Label Studio le pone un prefijo al nombre (<code>14852f68-foto_01.png</code>); el tuyo va a ser otro.",
+          "donde": "mac",
+          "salida": "[\n    {\n        \"image\": \"/data/upload/1/345ef53e-foto_01.png\",\n        \"id\": 1,\n        \"clase\": \"playera\",\n        \"annotator\": 1,\n        \"annotation_id\": 1,\n        \"created_at\": \"2026-11-04T05:20:30.886982Z\",\n        \"updated_at\": \"2026-11-04T05:20:30.886991Z\",\n        \"lead_time\": null\n    },"
+        }
+      ],
+      "verifica": "<code>export-v1.json</code> tiene 10 filas y cada una trae <code>clase</code>.",
+      "ojo": "El usuario y el token salen de <code>compose.yaml</code>: son de prueba, solo para tu Mac. En una empresa el token vive en un gestor de secretos, nunca en el repo."
+    },
+    {
+      "n": 5,
+      "id": "labels",
+      "titulo": "De la exportación a labels.csv",
+      "objetivo": "Una tabla de labels con la foto por su hash, la clase, quién la etiquetó, con qué guía y en qué lote.",
+      "conceptos": [
+        "duplicados",
+        "guia-etiquetado"
+      ],
+      "explica": "La exportación es un formato de Label Studio; tu dataset no debe depender de él. <code>etiquetas.py</code> le quita el prefijo al nombre, calcula el sha256 de la foto y escribe <code>data/labels.csv</code>. Si una foto ya tenía label no la pisa: cambiar un label tiene que ser a propósito y quedar en el diff.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "scripts/etiquetas.py",
+          "desde": "kits/c01-desde-cero-solucion/scripts/etiquetas.py",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python scripts/etiquetas.py data/etiquetado/export-v1.json v1 inicial",
+          "nota": "",
+          "donde": "mac",
+          "salida": "10 labels nuevos · 10 en total"
+        },
+        {
+          "code": "cut -d, -f2- data/labels.csv | head -4",
+          "nota": "Sin la columna sha256, para que quepa en pantalla.",
+          "donde": "mac",
+          "salida": "archivo,clase,anotador,guia,lote\nfoto_01.png,playera,1,v1,inicial\nfoto_02.png,playera,1,v1,inicial\nfoto_03.png,tenis,1,v1,inicial"
+        }
+      ],
+      "verifica": "<code>10 labels nuevos · 10 en total</code>, y cada fila dice guía <code>v1</code> y lote <code>inicial</code>.",
+      "ojo": "Guarda también la exportación cruda en el repo: si mañana dudas de un label, ahí está quién y cuándo."
+    },
+    {
+      "n": 6,
+      "id": "dividir",
+      "titulo": "Dividir en train, val y test",
+      "objetivo": "Cada foto en un split: 3, 1 y 1 por clase.",
+      "conceptos": [
+        "split-estable"
+      ],
+      "explica": "El cupo vive en <code>config.json</code>. <code>dividir.py</code> reparte por clase y en orden de hash, no de nombre: el resultado no depende de cómo se llamen ni de en qué orden lleguen. Y la regla que más importa: una foto que ya tiene split lo conserva. Hoy no se nota; en la práctica de producción es lo que mantiene quieto el test.",
+      "codigo": [
+        {
+          "lang": "json",
+          "path": "config.json",
+          "code": "{\"clases\": [\"playera\", \"tenis\"], \"cupo\": {\"train\": 3, \"val\": 1, \"test\": 1}}",
+          "nota": ""
+        },
+        {
+          "lang": "python",
+          "path": "scripts/dividir.py",
+          "desde": "kits/c01-desde-cero-solucion/scripts/dividir.py",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python scripts/dividir.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "playera  train 3 · val 1 · test 1\ntenis    train 3 · val 1 · test 1"
+        }
+      ],
+      "verifica": "playera y tenis con <code>train 3 · val 1 · test 1</code>.",
+      "ojo": "¿Por qué no un split al azar con semilla? Porque en la siguiente versión, con más fotos, la misma semilla baraja distinto y fotos de test terminan en train."
+    },
+    {
+      "n": 7,
+      "id": "validar",
+      "titulo": "El contrato del dataset",
+      "objetivo": "Un script que revisa el dataset y detiene todo si algo está mal.",
+      "conceptos": [
+        "contrato-datos",
+        "duplicados"
+      ],
+      "explica": "Seis reglas: una fila por foto, cada label con su foto, cada foto con su label, solo clases conocidas, cada foto en un split y cada clase en cada split. Sale con código 1 si alguna falla, así un CI o un orquestador se detiene solo.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "scripts/validar.py",
+          "desde": "kits/c01-desde-cero-solucion/scripts/validar.py",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python scripts/validar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ una fila por foto         10 filas, 10 fotos distintas\n✓ cada label tiene foto     todas en data/crudo/\n✓ cada foto tiene label     ninguna sin etiquetar\n✓ clases conocidas          playera, tenis\n✓ cada foto en un split     train, val o test\n✓ cada clase en cada split  sí\n\ntrain 6 · val 2 · test 2"
+        }
+      ],
+      "verifica": "Seis ✓ y <code>train 6 · val 2 · test 2</code>.",
+      "ojo": "Rómpelo a propósito: borra una línea de <code>labels.csv</code> y córrelo. Tiene que salir ✗ y <code>echo $?</code> tiene que dar 1. Luego regresa la línea con <code>git checkout data/labels.csv</code> (o rehaz el paso 5 si todavía no hay commit)."
+    },
+    {
+      "n": 8,
+      "id": "ficha",
+      "titulo": "La ficha del dataset",
+      "objetivo": "<code>DATASET.md</code>: qué hay, de dónde salió, cómo se etiquetó y qué no sirve medir con él.",
+      "conceptos": [
+        "ficha-dataset"
+      ],
+      "explica": "Se escribe antes de versionar porque es parte de la versión: el tag <code>dataset-v1</code> va a incluir la ficha que lo describe. Los números salen de los pasos anteriores; los límites, de los precálculos.",
+      "codigo": [
+        {
+          "lang": "markdown",
+          "path": "DATASET.md",
+          "desde": "kits/c01-desde-cero-solucion/DATASET-v1.md",
+          "nota": ""
+        }
+      ],
+      "comandos": [],
+      "verifica": "Alguien que no estuvo aquí entiende el dataset sin preguntarte.",
+      "ojo": "Los límites conocidos son la parte más útil: dicen qué no hacer con estos datos."
+    },
+    {
+      "n": 9,
+      "id": "versionar",
+      "titulo": "Versionar con DVC",
+      "objetivo": "La versión <code>dataset-v1</code>: fotos en S3 con DVC, todo lo demás en git, amarrado con un tag.",
+      "conceptos": [
+        "version-dataset"
+      ],
+      "explica": "Primero el bucket. Luego DVC: guarda las fotos en el S3 local y deja en git <code>data/crudo.dvc</code>, un archivo chico con el hash de la carpeta. Git guarda labels, splits, guía, ficha y código. El tag <code>dataset-v1</code> amarra todo: ese nombre siempre va a significar exactamente esto. Las llaves del S3 van con <code>--local</code> a <code>.dvc/config.local</code>, que no se sube a git.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python -c \"\nimport boto3\ns3 = boto3.client('s3', endpoint_url='http://localhost:9200', aws_access_key_id='practica', aws_secret_access_key='practica-secreto', region_name='us-east-1')\ns3.create_bucket(Bucket='datasets')\nprint([b['Name'] for b in s3.list_buckets()['Buckets']])\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "['datasets']"
+        },
+        {
+          "code": "dvc init -q\ndvc remote add -d s3 s3://datasets/c01\ndvc remote modify s3 endpointurl http://localhost:9200\ndvc remote modify --local s3 access_key_id practica\ndvc remote modify --local s3 secret_access_key practica-secreto\ncat .dvc/config",
+          "nota": "Sin llaves: esas quedaron en <code>.dvc/config.local</code>.",
+          "donde": "mac",
+          "salida": "Setting 's3' as a default remote.\n[core]\n    remote = s3\n['remote \"s3\"']\n    url = s3://datasets/c01\n    endpointurl = http://localhost:9200"
+        },
+        {
+          "code": "dvc add data/crudo\ncat data/crudo.dvc",
+          "nota": "DVC también agrega <code>/crudo</code> a <code>data/.gitignore</code>: git ya no ve las fotos.",
+          "donde": "mac",
+          "salida": "\nTo track the changes with git, run:\n\n\tgit add data/crudo.dvc data/.gitignore\n\nTo enable auto staging, run:\n\n\tdvc config core.autostage true\nouts:\n- md5: 7cffdd0acb7ed96ad9325bf9618e449f.dir\n  size: 8341\n  nfiles: 10\n  hash: md5\n  path: crudo"
+        },
+        {
+          "code": "git add -A && git status --short",
+          "nota": "",
+          "donde": "mac",
+          "salida": "A  .dvc/.gitignore\nA  .dvc/config\nA  .dvcignore\nA  .gitignore\nA  DATASET.md\nA  compose.yaml\nA  config.json\nA  data/.gitignore\nA  data/crudo.dvc\nA  data/etiquetado/export-v1.json\nA  data/labels.csv\nA  data/splits.csv\nA  guia/guia-v1.md\nA  guia/interfaz-v1.xml\nA  requirements.txt\nA  scripts/dividir.py\nA  scripts/etiquetas.py\nA  scripts/recolectar.py\nA  scripts/validar.py"
+        },
+        {
+          "code": "git commit -m \"dataset v1: 10 fotos, playera/tenis, guía v1\"\ngit tag -a dataset-v1 -m \"10 fotos · 2 clases · 6/2/2\"",
+          "nota": "El hash del commit va a ser otro en tu corrida.",
+          "donde": "mac",
+          "salida": null
+        },
+        {
+          "code": "dvc push",
+          "nota": "",
+          "donde": "mac",
+          "salida": "11 files pushed"
+        },
+        {
+          "code": "git log --oneline --decorate",
+          "nota": "",
+          "donde": "mac",
+          "salida": "7fa27d9 (HEAD -> main, tag: dataset-v1) dataset v1: 10 fotos, playera/tenis, guía v1"
+        }
+      ],
+      "verifica": "<code>dvc push</code> sube 11 archivos (las 10 fotos y el índice de la carpeta) y <code>git log</code> muestra el tag <code>dataset-v1</code>.",
+      "ojo": "Nunca pongas las llaves sin <code>--local</code>: terminarían en <code>.dvc/config</code>, que sí va a git."
+    },
+    {
+      "n": 10,
+      "id": "recuperar",
+      "titulo": "Comprobar que se recupera",
+      "objetivo": "Borrar las fotos y el caché de DVC, y que vuelvan del remoto.",
+      "conceptos": [
+        "version-dataset",
+        "contrato-datos"
+      ],
+      "explica": "Una versión que solo existe en tu disco no es una versión. Así llega el dataset a una máquina de entrenamiento: <code>git clone</code> + <code>dvc pull</code>. Ninguna foto viaja por git.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "rm -rf data/crudo .dvc/cache && ls data",
+          "nota": "",
+          "donde": "mac",
+          "salida": "crudo.dvc\netiquetado\nlabels.csv\nsplits.csv"
+        },
+        {
+          "code": "dvc pull",
+          "nota": "",
+          "donde": "mac",
+          "salida": "A       data/crudo/\n11 files fetched and 10 files added"
+        },
+        {
+          "code": "dvc status && python scripts/validar.py | tail -1",
+          "nota": "",
+          "donde": "mac",
+          "salida": "Data and pipelines are up to date.\ntrain 6 · val 2 · test 2"
+        }
+      ],
+      "verifica": "<code>dvc pull</code> trae las 10 fotos, <code>dvc status</code> dice que todo está al día y el contrato sigue en verde.",
+      "ojo": "Si <code>dvc pull</code> falla con un error de acceso, revisa <code>.dvc/config.local</code>: es lo único que no viene en el repo."
+    },
+    {
+      "n": 11,
+      "id": "entrenar",
+      "titulo": "Entrenar con linaje",
+      "objetivo": "<code>modelo-v1</code> entrenado con <code>dataset-v1</code> y una ficha que lo dice.",
+      "conceptos": [
+        "linaje",
+        "version-dataset"
+      ],
+      "explica": "El modelo es una regresión logística sobre los 784 pixeles de cada foto; lo importante no es el modelo sino de dónde lee. <code>entrenar.py</code> no lee tu carpeta: lee la versión por su tag con <code>dvc.api</code>, y la ficha anota el tag y el commit al que apunta. Así cualquiera puede reproducirlo aunque tu carpeta ya haya cambiado. <code>comun.py</code> tiene las dos piezas que también va a usar producción: leer una versión y convertir una foto en números.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "scripts/comun.py",
+          "desde": "kits/c01-desde-cero-solucion/scripts/comun.py",
+          "nota": ""
+        },
+        {
+          "lang": "python",
+          "path": "scripts/entrenar.py",
+          "desde": "kits/c01-desde-cero-solucion/scripts/entrenar.py",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python scripts/entrenar.py modelo-v1 dataset-v1",
+          "nota": "El commit va a ser el de tu tag.",
+          "donde": "mac",
+          "salida": "{\n  \"modelo\": \"modelo-v1\",\n  \"dataset\": \"dataset-v1\",\n  \"commit\": \"7fa27d9\",\n  \"clases\": [\n    \"playera\",\n    \"tenis\"\n  ],\n  \"n\": {\n    \"train\": 6,\n    \"val\": 2,\n    \"test\": 2\n  },\n  \"aciertos\": {\n    \"val\": \"2/2\",\n    \"test\": \"2/2\"\n  }\n}"
+        },
+        {
+          "code": "git add -A && git commit -m \"modelo-v1 entrenado con dataset-v1\"",
+          "nota": "Se versiona la ficha (<code>modelos/modelo-v1.json</code>); el binario se queda fuera por <code>.gitignore</code>.",
+          "donde": "mac",
+          "salida": null
+        }
+      ],
+      "verifica": "La ficha dice <code>dataset-v1</code>, el commit del tag y <code>2/2</code> en val y en test.",
+      "ojo": "2/2 no es un buen modelo: es un test de 2 fotos (precálculo 2). Lo que sí demuestra es que el camino completo funciona: fotos → labels → splits → contrato → versión → modelo con linaje."
+    }
+  ],
+  "solo": [
+    "Una carpeta nueva (<code>~/taller/c01-desde-cero-2</code>), sin abrir esta página: solo con el prompt de «Hazlo solo».",
+    "10 fotos en <code>data/crudo/</code> con nombres que no delatan la clase.",
+    "La guía v1 con una regla para cada caso límite que veas en las fotos.",
+    "<code>labels.csv</code> con el sha256 como llave, la clase, la guía y el lote.",
+    "Splits 3/1/1 por clase que no dependen del nombre ni del orden.",
+    "Un contrato que sale con código 1 si quitas un label.",
+    "<code>dataset-v1</code> con tag y en el remoto: <code>dvc pull</code> la recupera después de borrarla.",
+    "<code>modelo-v1</code> con una ficha que nombra su dataset y su commit."
+  ],
+  "prompts": {
+    "guiado": "content/estaciones/c01-datos/prompts/desde-cero-antes.md",
+    "solo": "content/estaciones/c01-datos/prompts/desde-cero-antes-solo.md"
+  }
+}

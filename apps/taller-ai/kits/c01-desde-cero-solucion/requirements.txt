@@ -1,0 +1,6 @@
+dvc[s3]==3.67.1
+boto3==1.43.117
+pillow==13.0.0
+numpy==2.5.4
+scikit-learn==1.9.1
+pyyaml==6.0.3

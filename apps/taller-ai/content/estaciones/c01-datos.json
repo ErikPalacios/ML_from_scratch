@@ -1105,5 +1105,9 @@
     "solo": "content/estaciones/c01-datos/prompts/solo.md",
     "romper_ayuda": "content/estaciones/c01-datos/prompts/romper-ayuda.md",
     "romper_solo": "content/estaciones/c01-datos/prompts/romper-solo.md"
-  }
+  },
+  "practicas": [
+    "content/estaciones/c01-datos/practicas/antes-de-produccion.json",
+    "content/estaciones/c01-datos/practicas/en-produccion.json"
+  ]
 }

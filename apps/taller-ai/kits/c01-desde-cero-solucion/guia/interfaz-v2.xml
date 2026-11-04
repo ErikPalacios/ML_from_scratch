@@ -1,0 +1,8 @@
+<View>
+  <Image name="foto" value="$image" zoom="true"/>
+  <Choices name="clase" toName="foto" choice="single" showInline="true" required="true">
+    <Choice value="playera"/>
+    <Choice value="tenis"/>
+    <Choice value="bolsa"/>
+  </Choices>
+</View>
