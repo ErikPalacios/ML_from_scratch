@@ -1,11 +1,11 @@
 /* Service worker del tablero: la página abre sin conexión después de la primera visita.
    tools/build.mjs reemplaza el marcador de BUILD por un hash del contenido y el de ASSETS por la lista de archivos:
    cada deploy nuevo instala un service worker nuevo y borra la caché anterior.
+   Las letras son las del sistema (TrueML): no hay fuentes externas que guardar.
    Los datos NO pasan por aquí: /api/* va siempre a la red y la copia de los proyectos vive en localStorage (js/sync.js). */
 'use strict';
 const BUILD = '__BUILD__';
 const CACHE = 'tablero-' + BUILD;
-const FONTS = 'tablero-fonts'; // las fuentes no cambian entre deploys
 const ASSETS = __ASSETS__;
 const NAV_TIMEOUT_MS = 4000;
 
@@ -16,7 +16,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('tablero-') && k !== CACHE && k !== FONTS).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('tablero-') && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -38,18 +38,10 @@ async function page(request) {
   }
 }
 
-async function swr(request) {
-  const cache = await caches.open(FONTS);
-  const hit = await cache.match(request);
-  const net = fetch(request).then((res) => { if (res.ok || res.type === 'opaque') cache.put(request, res.clone()); return res; }).catch(() => null);
-  return hit || (await net) || Response.error();
-}
-
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') { event.respondWith(swr(req)); return; }
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/')) return; // datos: siempre a la red
   if (req.mode === 'navigate') { event.respondWith(page(req)); return; }

@@ -4,7 +4,7 @@
    Every change goes through sync.commit(ops): it shows at once, is kept in the browser and is sent to the server. */
 import * as sync from './sync.js';
 import { esc, rich, icon, safeHref, isExternal, days, daysText, daysLevel, fmtDate, toast, dialog, confirmDlg, copyText, download, todayLocal } from './lib.js';
-import { mapHtml, layoutMap } from './map.js';
+import { mapHtml, layoutMap, initMap, stagesOf, STAGE_LABEL, tMark, T_LABELS, miniT } from './map.js';
 import { STATUS, STATUS_LABEL, VUELTA_STATUS, TRAMOS, TRAMO_LABEL, SPEED_LABEL, VAR_KINDS, progress, validateProject, isId, isVarId, nowIso } from './shared/model.mjs';
 import { evaluateProject, fmtNum, parse, varsOf } from './shared/calc.mjs';
 import { T } from './shared/templates.mjs';
@@ -75,12 +75,14 @@ function render() {
   else if (route.name === 'step') html = viewStep();
   else html = viewHome();
   app.innerHTML = html;
+  resetMapFocus();
   const map = app.querySelector('.map');
   if (map) { layoutMap(app); mapObserver.observe(map); }
   const focus = app.querySelector('[data-autofocus]');
   if (focus) focus.focus();
 }
 const mapObserver = new ResizeObserver(() => layoutMap(app));
+const resetMapFocus = initMap(app);
 if (document.fonts) document.fonts.ready.then(() => layoutMap(app));
 app.addEventListener('focusout', () => { setTimeout(() => { if (deferredRender) render(); }, 0); });
 
@@ -114,7 +116,8 @@ sync.onChange((what) => {
 function viewLogin() {
   const problems = ui.problems || [];
   return `<section class="login card">
-    <img src="/icon.svg" alt="">
+    <div class="login__mark" aria-hidden="true">${tMark('login', null, '120px')}</div>
+    <span class="kick">TrueML · ML Board</span>
     <h1>ML Project Board</h1>
     <p class="muted">Private. Sign in with the password stored in Vercel as <code>APP_PASSWORD</code>.</p>
     ${problems.length ? `<div class="banner banner--error"><b>Configuration missing:</b><ul>${problems.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
@@ -138,15 +141,22 @@ function viewHome() {
     return `<a class="card pcard" href="#/p/${esc(p.id)}">
       <div class="row"><span class="chip">${esc(pat ? pat.name : p.pattern)}</span>${p.bloqueado ? `<span class="chip chip--bloqueado">${p.bloqueado} blocked</span>` : ''}</div>
       <h2>${esc(p.name)}</h2>
-      <div class="pbar" aria-label="${p.hecho} of ${p.total} steps done"><i style="width:${pct}%"></i></div>
+      <div class="pbar" role="img" aria-label="${p.hecho} of ${p.total} steps done"><i style="width:${pct}%"></i></div>
       <div class="row small"><span>${p.hecho}/${p.total} steps done</span><span class="grow"></span><span class="days" data-l="${daysLevel(d)}">${icon('clock')} ${daysText(d)}</span></div>
       ${p.next ? `<p class="small"><b>Next:</b> ${esc(p.next)}</p>` : ''}
     </a>`;
   }).join('');
-  return `<div class="phead"><div><h1>Projects</h1></div>
-    <div class="row"><a class="btn btn--primary" href="#/new">${icon('plus')} New project</a>
-      <button class="btn" data-act="import">${icon('upload')} Import JSON</button>
-      <button class="btn" data-act="export-all" ${list.length ? '' : 'disabled'}>${icon('download')} Export all</button></div></div>
+  return `<section class="hero">
+    <div class="hero__txt">
+      <span class="kick">TrueML · ML Board</span>
+      <h1>Projects</h1>
+      <p class="hero__lead">Every project is a map from data to monitoring, with entry-gate sizing per step.</p>
+      <div class="row"><a class="btn btn--primary" href="#/new">${icon('plus')} New project</a>
+        <button class="btn" data-act="import">${icon('upload')} Import JSON</button>
+        <button class="btn" data-act="export-all" ${list.length ? '' : 'disabled'}>${icon('download')} Export all</button></div>
+    </div>
+    <figure class="hero__t" aria-hidden="true">${tMark('home', T_LABELS, '300px')}</figure>
+  </section>
     ${s.status === 'offline' ? '<div class="banner">Offline: showing the last copy saved on this device.</div>' : ''}
     ${list.length ? `<div class="cards">${cards}</div>` : !ui.listLoaded ? '<div class="card empty"><p class="muted">Loading…</p></div>' : `<div class="card empty"><h2>No projects yet</h2><p class="muted">Create one from a design pattern${SEED_C01_INFO ? SEED_C01_INFO.emptyHint : ''}.</p></div>`}
     ${!SEED_C01_INFO || hasC01 || !ui.listLoaded ? '' : `<div class="card" style="margin-top:12px"><h2>${SEED_C01_INFO.title}</h2><p>${SEED_C01_INFO.html}</p>
@@ -168,6 +178,7 @@ function viewNew() {
   }).join('');
   const sel = T.PATTERNS[ui.newPattern];
   const steps = T.STEPS[ui.newPattern];
+  const selStages = stagesOf(steps.map((s) => ({ ...s, base: s.id })));
   return `<div class="crumbs"><a href="#/">${icon('back')} Projects</a></div>
   <h1>New project</h1>
   <form data-form="new" class="stack">
@@ -181,7 +192,7 @@ function viewNew() {
       <div class="patterns">${pats}</div></div>
     <div class="card"><h2>${esc(sel.name)} · ${steps.length} steps</h2>
       ${sel.removed.length ? `<p class="small"><b>Not in this pattern (vs C01):</b> ${sel.removed.map((r) => `${esc(T.STATIONS.find((s) => s.id === r.id)?.title || r.id)} — ${esc(r.why)}`).join(' · ')}</p>` : ''}
-      <ol class="pat">${steps.map((s) => `<li class="ln-${s.speed}"><b>${esc(s.title)}</b>${(s.calcs || []).length ? ` <span class="chip chip--gate">${s.calcs.length} calcs</span>` : ''}${s.status === 'nuevo' ? ' <span class="chip chip--line">pattern-specific</span>' : s.status === 'cambia' ? ' <span class="chip">differs from C01</span>' : ''}</li>`).join('')}</ol>
+      <ol class="patline">${steps.map((s, i) => `<li class="stg-${selStages[i]}"><b>${esc(s.title)}</b>${(s.calcs || []).length ? ` <span class="chip chip--gate">${s.calcs.length} calcs</span>` : ''}${s.status === 'nuevo' ? ' <span class="chip chip--own">+ pattern-specific</span>' : s.status === 'cambia' ? ' <span class="chip">differs from C01</span>' : ''}</li>`).join('')}</ol>
       <div class="links">${sel.links.map(linkHtml).join('')}</div>
     </div>
     <div class="row row--end"><a class="btn" href="#/">Cancel</a><button class="btn btn--primary" type="submit">${icon('plus')} Create project</button></div>
@@ -258,14 +269,15 @@ function statusPanel(p, ev) {
 
 function tabMap(p, ev) {
   if (ui.editSteps) {
+    const stages = stagesOf(p.steps);
     return `<div class="row" style="margin-bottom:10px"><h2 class="grow" style="margin:0">Edit steps</h2><button class="btn btn--primary" data-act="edit-steps-done">${icon('check')} Done</button></div>
-    <div class="edit-steps">${p.steps.map((s, i) => `<div class="erow ln-${s.speed}"><span class="dotmini"></span><span class="grow">${i + 1}. ${esc(s.title)} <span class="small">· ${TRAMO_LABEL[s.tramo]}</span></span>
+    <div class="edit-steps">${p.steps.map((s, i) => `<div class="erow stg-${stages[i]}"><span class="dotmini" title="${esc(STAGE_LABEL[stages[i]])}"></span><span class="grow">${i + 1}. ${esc(s.title)} <span class="small">· ${TRAMO_LABEL[s.tramo]}</span></span>
       <button class="btn btn--sm btn--icon" data-act="step-move" data-id="${esc(s.id)}" data-d="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">${icon('up')}</button>
       <button class="btn btn--sm btn--icon" data-act="step-move" data-id="${esc(s.id)}" data-d="1" ${i === p.steps.length - 1 ? 'disabled' : ''} aria-label="Move down">${icon('down')}</button>
       <button class="btn btn--sm btn--icon btn--danger" data-act="step-remove" data-id="${esc(s.id)}" aria-label="Remove">${icon('trash')}</button></div>`).join('')}</div>
     <div class="row" style="margin-top:12px"><button class="btn" data-act="step-add">${icon('plus')} Add step</button></div>`;
   }
-  return `${mapHtml(p, ev)}
+  return `${mapHtml(p, ev, T.PATTERNS[p.pattern] ? T.PATTERNS[p.pattern].name : p.pattern)}
   <div class="row" style="margin-top:12px"><button class="btn" data-act="edit-steps">${icon('edit')} Add, remove or reorder steps</button></div>`;
 }
 
@@ -506,6 +518,7 @@ function viewStep() {
   if (i < 0) return `<div class="card empty"><h2>This step no longer exists</h2><a class="btn" href="#/p/${esc(p.id)}">Back to the map</a></div>`;
   const ev = evaluateProject(p);
   const s = p.steps[i];
+  const stage = stagesOf(p.steps)[i];
   const prev = p.steps[i - 1], next = p.steps[i + 1];
   const P = (...k) => esc(JSON.stringify(['steps', `#${s.id}`, ...k]));
   const decisions = p.decisions.filter((d) => d.stepId === s.id);
@@ -514,8 +527,8 @@ function viewStep() {
   const PASS = { pendiente: 'To do', en_curso: 'In progress', hecho: 'Done' };
   const locked = (st) => open && (st === 'en_curso' || st === 'hecho') && s.status !== st;
   return `<div class="crumbs"><a href="#/p/${esc(p.id)}">${icon('back')} ${esc(p.name)}</a></div>
-  <header class="shead ln-${s.speed}">
-    <div class="row small"><span class="k">Step ${i + 1} of ${p.steps.length}</span><span class="chip chip--line">${TRAMO_LABEL[s.tramo]} · ${SPEED_LABEL[s.speed]}</span>${isNext ? '<span class="chip chip--next">Next action</span>' : ''}</div>
+  <header class="shead stg-${stage}">
+    <div class="row small"><span class="k">Step ${i + 1} of ${p.steps.length}</span><span class="shead__stage" title="Stage of the T">${miniT(stage)}${esc(STAGE_LABEL[stage])}${stage === 'diseno' ? '' : ' stage'}</span><span class="chip chip--line">${TRAMO_LABEL[s.tramo]} · ${SPEED_LABEL[s.speed]}</span>${isNext ? '<span class="chip chip--next">Next action</span>' : ''}</div>
     <h1>${esc(s.title)}</h1>
     ${s.note ? `<p>${rich(s.note)}</p>` : ''}
   </header>
@@ -546,8 +559,8 @@ function viewStep() {
   ${listSection(p, s, 'links')}
   <section class="sec card"><h2>Title and placement</h2><div class="grid2">
     <label class="f span2">Title<input type="text" maxlength="160" value="${esc(s.title)}" data-bind='${P('title')}'></label>
-    <label class="f">Stage<select data-act-change="set" data-path='${P('tramo')}'>${TRAMOS.map((t) => `<option value="${t}" ${t === s.tramo ? 'selected' : ''}>${TRAMO_LABEL[t]}</option>`).join('')}</select></label>
-    <label class="f">Line (cadence)<select data-act-change="set" data-path='${P('speed')}'>${Object.keys(SPEED_LABEL).map((t) => `<option value="${t}" ${t === s.speed ? 'selected' : ''}>${SPEED_LABEL[t]}</option>`).join('')}</select></label>
+    <label class="f">Section<select data-act-change="set" data-path='${P('tramo')}'>${TRAMOS.map((t) => `<option value="${t}" ${t === s.tramo ? 'selected' : ''}>${TRAMO_LABEL[t]}</option>`).join('')}</select></label>
+    <label class="f">Cadence<select data-act-change="set" data-path='${P('speed')}'>${Object.keys(SPEED_LABEL).map((t) => `<option value="${t}" ${t === s.speed ? 'selected' : ''}>${SPEED_LABEL[t]}</option>`).join('')}</select></label>
   </div></section>
   <nav class="stepnav">${prev ? `<a class="btn" href="${stepHref(p, prev)}">${icon('back')} ${esc(prev.title)}</a>` : '<span></span>'}${next ? `<a class="btn" href="${stepHref(p, next)}">${esc(next.title)} ${icon('next')}</a>` : ''}</nav>`;
 }
@@ -849,7 +862,7 @@ async function addStepDialog() {
     body: `${groups.map((g) => `<h3 style="margin-top:6px">${esc(g.label)}</h3><div class="pick">${g.items.map((t) => `<button value="v:${all.indexOf(t)}">${esc(t.title)}<small>${esc((t.note || '').slice(0, 140))}${(t.note || '').length > 140 ? '…' : ''}</small></button>`).join('')}</div>`).join('')}
       <h3 style="margin-top:14px">Custom step</h3>
       <div class="grid2"><label class="f span2">Title<input type="text" name="title" maxlength="160"></label>
-      <label class="f">Stage<select name="tramo">${TRAMOS.map((t) => `<option value="${t}">${TRAMO_LABEL[t]}</option>`).join('')}</select></label>
+      <label class="f">Section<select name="tramo">${TRAMOS.map((t) => `<option value="${t}">${TRAMO_LABEL[t]}</option>`).join('')}</select></label>
       <label class="f">After<select name="after">${p.steps.map((s, i) => `<option value="${i}" ${i === p.steps.length - 1 ? 'selected' : ''}>${i + 1}. ${esc(s.title)}</option>`).join('')}</select></label></div>`,
     actions: [{ label: 'Cancel', value: false }, { label: 'Add custom step', value: 'own', primary: true }],
   });
@@ -931,6 +944,10 @@ function applyTheme() {
   let t = 'auto';
   try { t = localStorage.getItem('tml:theme') || 'auto'; } catch {}
   if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme = t;
+  // la barra del navegador sigue al tema elegido (con «auto», cada meta usa su media query)
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+    m.content = t === 'auto' ? m.dataset.color : t === 'dark' ? '#0A0F22' : '#EDEFF7';
+  });
   const btn = document.getElementById('theme');
   btn.title = btn.ariaLabel = `Theme: ${{ auto: 'system', light: 'light', dark: 'dark' }[t]}`;
 }
@@ -949,6 +966,7 @@ document.getElementById('logout').addEventListener('click', async () => {
 
 async function boot() {
   applyTheme();
+  document.querySelectorAll('[data-tm-mark]').forEach((el) => { el.innerHTML = tMark('brand'); });
   if ('serviceWorker' in navigator) {
     // A new deploy installs a new service worker; when it takes control the page reloads to use the new files
     // (if you are typing, it waits until you leave the field; pending changes are already in the browser).

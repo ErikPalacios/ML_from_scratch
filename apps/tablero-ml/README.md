@@ -6,7 +6,7 @@
 
 Un tablero en **modo producción**: en inglés y sin explicaciones didácticas, como el de un equipo de ML engineering. Lo didáctico vive en el curso y en las cheat sheets.
 
-Cada proyecto es un **mapa de metro** del dato al monitoreo, con el estilo de la hoja «Del dato a producción». Cada paso trae:
+Cada proyecto es un **mapa de metro** del dato al monitoreo, con el diseño TrueML (el del mapa del C01 en el Dojo): un panel azul marino donde el color de la línea es la etapa de la T en la que cae cada paso (datos, modelo, API, contenedor, orquestación, monitoreo) y la T de vidrio se enciende con lo hecho en cada etapa. La cadencia de cada tramo (semanas, días, milisegundos, continuo) va escrita en el mapa. Cada paso trae:
 - **Status:** To do, In progress, Done, Blocked, o N/A con su razón;
 - **Entry gate:** los cálculos previos que el paso exige antes de empezarlo;
 - **Definition of Done:** los criterios del curso;

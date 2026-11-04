@@ -67,9 +67,10 @@ writeFileSync(join(DIST, 'index.html'), html);
 const css = readFileSync(join(DIST, 'app.css'), 'utf8') + `
 /* demo */
 #logout { display: none !important; }
-.demo-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; padding: 8px 16px; background: var(--accent-soft, rgba(31, 95, 174, .12)); border-bottom: 1px solid var(--rule, rgba(128, 138, 152, .35)); font-size: 14px; }
+.demo-banner { max-width: 1120px; margin: 14px auto 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; padding: 10px 10px 10px 18px; background: var(--tm-card, #fff); border-radius: 16px; box-shadow: var(--shadow, 0 0 0 1px rgba(14, 21, 48, .08)), inset 4px 0 0 var(--yt, #FFC857); font: 14px/1.45 var(--sans, system-ui, sans-serif); color: var(--ink2, #3A4364); }
+.demo-banner strong { color: var(--ink, #0E1530); }
 .demo-banner p { margin: 0; }
-.demo-banner__links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.demo-banner__links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-weight: 600; }
 `;
 writeFileSync(join(DIST, 'app.css'), css);
 
