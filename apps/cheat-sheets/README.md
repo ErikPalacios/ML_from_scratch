@@ -4,7 +4,8 @@ Hojas de estudio para el trabajo de ML engineering, con versión web y PDF para 
 
 - **Sitio:** portada con una tarjeta por hoja; cada hoja en `/<id>/` con su PDF al lado.
 - **Tema:** claro, oscuro o como el sistema. Se elige en la barra de arriba (portada y cada hoja), vale para todo el sitio y se recuerda en el navegador; imprimir siempre sale en claro.
-- **Sin conexión:** después de la primera visita, la portada y las hojas abren sin internet (service worker). Un PDF queda guardado cuando lo abres.
+- **Sin conexión:** después de la primera visita, la portada y las hojas abren sin internet (service worker). Un PDF queda guardado cuando lo abres. Las fuentes son las del sistema: no se pide nada a Google Fonts.
+- **Diseño TrueML:** el de la Ronda y el Dojo (fondo cuadriculado, tarjetas redondeadas, código sobre azul marino, botones amarillos en relieve, la franja de 6 colores y la T de vidrio). Las hojas no lo traen: lo pega el build (ver «Diseño» abajo), así que se siguen generando igual.
 - **Hojas actuales:**
   - `estimaciones`: formulario de las estimaciones del C01;
   - `docker`: cheat sheet de Docker, con el laboratorio Iris completo (gateway y model server, paso a paso), generador de Dockerfile, diagnosticador, revisor de Dockerfile y quiz de errores;
@@ -19,13 +20,26 @@ Hojas de estudio para el trabajo de ML engineering, con versión web y PDF para 
 ## Estructura
 
 ```
-sheets.json              una entrada por hoja: id, título, tema, resumen, línea de muestra, datos, archivos, fecha
+sheets.json              una entrada por hoja: id, título, tema, etapas de la T y tono, resumen, línea de muestra, datos, archivos, fecha
 sheets/<id>/             la página de la hoja (HTML con las fórmulas ya en MathML) y su PDF
 sheets/<id>/fuentes/     lo que genera esa página: contenido y generador
-site/                    portada (hub.html), service worker, manifest e íconos
+site/                    portada (hub.html), trueml-hojas.css (el diseño TrueML de las hojas), service worker, manifest e íconos
+vendor/trueml/           copia del sistema de diseño TrueML (la fuente es apps/trueml; se actualiza con su sync.mjs)
 tools/build.mjs          arma dist/: portada + una carpeta por hoja + sw.js con el hash del build
 tools/check.mjs          revisa dist/ en Chrome: ancho en celular, tablet y oscuro; páginas sin conexión
 ```
+
+## Diseño
+
+El build viste cada hoja con TrueML sin tocar su archivo:
+
+- pega en su `<style>` `vendor/trueml/tokens.css` y `site/trueml-hojas.css`. Esta capa pasa los nombres de color de las hojas (`--accent`, `--hi`, `--cpu`, `--kv`, `--ln-semanas`…) a los colores de TrueML con el mismo significado («azul = CPU», «ámbar = espera»…), en claro y en oscuro, y les da la forma del Dojo. Imprimir sale siempre en claro, con el código sobre blanco;
+- agrega la franja de 6 colores, la barra (la T de vidrio, TrueML, volver a todas las hojas, el tema y el PDF) y, junto al kicker del hero, la T chica con las etapas de la hoja;
+- quita los enlaces a Google Fonts y pone `data-hoja="<id>"` en `<html>` para los ajustes de una sola hoja (las gráficas de estimaciones en el celular, el mapa del recorrido sobre azul marino).
+
+En `sheets.json`, cada hoja dice sus `etapas` de la T (ids de `vendor/trueml/etapas.json` o `"todas"`) y su `tono`: la etapa cuyo color lleva el número de cada sección (`datos`, `modelo`, `api`, `contenedor`, `orquestacion`, `monitoreo`, o `tinta` para una hoja que cruza varias). La portada enciende en la T las etapas de la hoja por la que pasa el cursor (`vendor/trueml/cliente.js`).
+
+Los PDF son los impresos antes del rediseño: para que salgan con el diseño nuevo, imprímelos desde `dist/` servido (por ejemplo `http://localhost:<puerto>/<id>/`) con el mismo comando de Chrome de «Agregar una hoja».
 
 ## Comandos
 

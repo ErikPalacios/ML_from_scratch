@@ -6,10 +6,13 @@
 //   sw.js               = site/sw.js con el hash del build y la lista de páginas (abre sin conexión)
 //   manifest e íconos   = copiados de site/
 // Las páginas de las hojas ya vienen con las fórmulas en MathML: se generan con sheets/<id>/fuentes/.
+// El diseño es el de TrueML: el build pega en cada hoja vendor/trueml/tokens.css y site/trueml-hojas.css (que pasa su
+// paleta a los colores de TrueML), la franja de 6 colores, la barra con la T y la T chica con las etapas de la hoja.
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, rmSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { etapas, franja, marca, miniT, resumen, IDS, TrueMLMark } from '../vendor/trueml/lib.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = join(ROOT, 'site');
@@ -23,6 +26,28 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
 const fecha = (iso) => { const [y, m, d] = iso.split('-').map(Number); return `${d} de ${MESES[m - 1]} de ${y}`; };
 const mb = (bytes) => (bytes / 1e6).toFixed(1) + ' MB';
 
+// ---------------------------------------------------------------- TrueML
+// Los colores de la marca (vendor/trueml/tokens.css) y la capa que viste a cada hoja con ellos (site/trueml-hojas.css).
+const TOKENS = readFileSync(join(ROOT, 'vendor', 'trueml', 'tokens.css'), 'utf8');
+const HOJAS_CSS = readFileSync(join(SITE, 'trueml-hojas.css'), 'utf8');
+// El tono de cada hoja: el color de su etapa en el número de sección, el kicker y los títulos de las tarjetas.
+// --st es el relleno, --st-on el texto encima y --st-ink el color para texto sobre la tarjeta (contraste AA).
+const TONOS = {
+  datos: ['var(--y)', '#0E1530', 'var(--hj-amber-ink)'],
+  modelo: ['var(--o)', '#0E1530', 'var(--hj-orange-ink)'],
+  api: ['var(--g)', '#0E1530', 'var(--hj-teal)'],
+  contenedor: ['var(--b)', '#FFFFFF', 'var(--hj-blue)'],
+  orquestacion: ['var(--p)', '#FFFFFF', 'var(--hj-violet)'],
+  monitoreo: ['var(--n)', '#FFFFFF', 'var(--hj-slate-ink)'],
+  tinta: ['var(--tm-ink)', 'var(--tm-bg)', 'var(--tm-ink)'],
+};
+const tonoCss = (t) => { const [st, on, ink] = TONOS[t]; return `\n:root { --st: ${st}; --st-on: ${on}; --st-ink: ${ink}; }\n`; };
+// La T de vidrio de la barra (sin etiquetas). Cada copia lleva su clave: los degradados del SVG no repiten id.
+const marcaBarra = (clave) => TrueMLMark.mark(true, null, clave);
+const STRIPE = franja('tm-stripe hub-stripe');
+// Sin Google Fonts: las hojas usan las fuentes del sistema y abren sin conexión desde la primera visita.
+const sinFuentes = (html) => html.replace(/<link rel="preconnect" href="https:\/\/fonts\.(googleapis|gstatic)\.com"[^>]*>\s*/g, '').replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com\/[^"]*">\s*/g, '');
+
 // Tema elegido a mano (claro u oscuro): se aplica antes de pintar, para que no parpadee. Sin elección, la página sigue
 // al sistema. Cada hoja ya trae sus dos paletas: la oscura vive en @media (prefers-color-scheme: dark) con el guardia
 // :root:not([data-theme="light"]) y otra vez en :root[data-theme="dark"], así que basta con poner data-theme en <html>.
@@ -32,8 +57,8 @@ const HEAD = [
   '<link rel="manifest" href="/manifest.webmanifest">',
   '<link rel="icon" href="/icon.svg" type="image/svg+xml">',
   '<link rel="apple-touch-icon" href="/apple-touch-icon.png">',
-  '<meta name="theme-color" content="#F4F6F9" media="(prefers-color-scheme: light)">',
-  '<meta name="theme-color" content="#0E131A" media="(prefers-color-scheme: dark)">',
+  '<meta name="theme-color" content="#EDEFF7" media="(prefers-color-scheme: light)">',
+  '<meta name="theme-color" content="#0A0F22" media="(prefers-color-scheme: dark)">',
   '<meta name="mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-title" content="Cheat sheets">',
@@ -89,7 +114,7 @@ const THEME_JS = `<script>
   function apply(t) {
     if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
     // la barra del navegador en el celular, del mismo color que la página
-    metas.forEach(function (m, i) { m.setAttribute('content', t === 'auto' ? orig[i] : (t === 'dark' ? '#0E131A' : '#F4F6F9')); });
+    metas.forEach(function (m, i) { m.setAttribute('content', t === 'auto' ? orig[i] : (t === 'dark' ? '#0A0F22' : '#EDEFF7')); });
     [].forEach.call(document.querySelectorAll('.tema [data-tema]'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-tema') === t)); });
   }
   apply(get());
@@ -106,30 +131,42 @@ const THEME_JS = `<script>
   window.addEventListener('afterprint', function () { if (before) root.setAttribute('data-theme', before); else root.removeAttribute('data-theme'); before = null; });
 })();
 </script>`;
-// Barra de cada hoja: volver a la portada y bajar el PDF. Usa los tokens de color de la hoja.
+// Barra de arriba (portada y hojas), con los colores de TrueML: la marca (la T y TrueML, a la portada de TrueML), volver
+// a todas las cheat sheets, el tema y el PDF. En la portada, la marca va sola.
 const BAR_CSS = `
-body { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
-.hub-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; padding-top: 14px; font: 600 14.5px/1.3 var(--f-display); }
-.hub-bar a { color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; min-height: 40px; }
-.hub-bar a:hover { text-decoration: underline; }
-.hub-bar a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
-.hub-bar .hub-pdf { border: 1px solid var(--rule); background: var(--paper); border-radius: 999px; padding: 0 14px; color: var(--ink); }
-.hub-bar .hub-pdf:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
-.hub-bar + .hero { padding-top: 22px; }
-.hub-bar--home { justify-content: flex-end; }
+body { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); position: relative; }
+.hub-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 16px; padding-top: 18px; font: 600 14px/1.3 var(--sans); }
+.hub-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.hub-logo { display: inline-flex; align-items: center; gap: 9px; min-height: 40px; color: var(--tm-ink) !important; text-decoration: none; }
+.hub-mark { width: 22px; flex: none; display: block; }
+.hub-mark svg { display: block; width: 100%; height: auto; }
+.hub-word { font: 800 19px/1 var(--sans); letter-spacing: -.04em; }
+.hub-word span { color: var(--tm-acc); }
+.hub-sep { width: 1px; height: 22px; background: var(--tm-line); flex: none; }
+.hub-home { display: inline-flex; align-items: center; min-height: 40px; color: var(--tm-ink) !important; text-decoration: none; font: 700 14.5px/1.2 var(--sans); }
+.hub-home:hover { color: var(--tm-acc) !important; }
+.hub-bar a:focus-visible { outline: 2px solid var(--tm-acc); outline-offset: 3px; border-radius: 8px; }
 .hub-acc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
-.tema { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper); }
-.tema button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 600 13.5px/1 var(--f-display); cursor: pointer; }
-.tema button svg { width: 16px; height: 16px; flex: none; }
-.tema button:hover { color: var(--ink); }
-.tema button[aria-pressed="true"] { background: var(--accent); color: var(--paper); }
-.tema button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hub-pdf { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 15px; border-radius: 12px; background: var(--tm-btn2); color: var(--tm-ink) !important; text-decoration: none; font: 700 13.5px/1 var(--sans); box-shadow: inset 0 0 0 1px var(--tm-line), 0 3px 0 var(--tm-btn2sh); transition: transform .08s ease, box-shadow .08s ease; }
+.hub-pdf small { font: 600 12px/1 var(--sans); color: var(--tm-ink3); font-variant-numeric: tabular-nums; }
+.hub-pdf:hover { transform: translateY(-1px); }
+.hub-pdf:active { transform: translateY(2px); box-shadow: inset 0 0 0 1px var(--tm-line), 0 1px 0 var(--tm-btn2sh); }
+.hub-bar + .hero { padding-top: 22px; }
+.tema { display: inline-flex; gap: 2px; padding: 4px; border: 0; border-radius: 999px; background: var(--tm-card); box-shadow: 0 1px 0 rgba(14, 21, 48, .07), 0 0 0 1px rgba(14, 21, 48, .06); }
+.tema button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--tm-ink2); font: 600 13px/1 var(--sans); cursor: pointer; }
+.tema button svg { width: 15px; height: 15px; flex: none; }
+.tema button:hover { color: var(--tm-ink); }
+.tema button[aria-pressed="true"] { background: var(--tm-ink); color: var(--tm-bg); }
+.tema button:focus-visible { outline: 2px solid var(--tm-acc); outline-offset: 2px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tema { box-shadow: 0 0 0 1px #232C52; } }
+:root[data-theme="dark"] .tema { box-shadow: 0 0 0 1px #232C52; }
 @media (max-width: 480px) {
   .tema button { padding: 0 10px; }
   .tema button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
-.hub-credit { max-width: 960px; margin: 40px auto 0; padding: 20px 16px 36px; border-top: 1px solid rgba(128, 138, 152, .3); text-align: center; font: 13.5px/1.5 var(--f-body, system-ui, sans-serif); opacity: .8; }
+.hub-credit { max-width: 1120px; margin: 48px auto 0; padding: 22px 16px 40px; border-top: 1px solid var(--tm-line); text-align: center; font: 13.5px/1.55 var(--sans); color: var(--tm-ink3); }
 .hub-credit p { margin: 0; }
+.hub-credit a { color: var(--tm-acc); }
 @media print { .hub-bar { display: none !important; } }
 `;
 
@@ -152,43 +189,56 @@ const pages = {};
 // 1 · una carpeta por hoja
 const ids = new Set();
 for (const s of SHEETS) {
-  for (const k of ['id', 'title', 'topic', 'summary', 'sample', 'sample_kind', 'facts', 'page', 'pdf', 'updated']) if (!(k in s)) fail(`la hoja ${s.id || '?'} no tiene "${k}" en sheets.json`);
+  for (const k of ['id', 'title', 'topic', 'etapas', 'tono', 'summary', 'sample', 'sample_kind', 'facts', 'page', 'pdf', 'updated']) if (!(k in s)) fail(`la hoja ${s.id || '?'} no tiene "${k}" en sheets.json`);
   if (!/^[a-z0-9-]+$/.test(s.id) || ids.has(s.id)) fail(`id inválido o repetido: ${s.id}`);
+  try { etapas(s.etapas); } catch (e) { fail(`${s.id}: ${e.message}`); }
+  if (!(s.tono in TONOS)) fail(`${s.id}: tono "${s.tono}" no existe (${Object.keys(TONOS).join(', ')})`);
   ids.add(s.id);
   const dir = join(ROOT, 'sheets', s.id);
   for (const f of [s.page, s.pdf]) if (!existsSync(join(dir, f))) fail(`falta sheets/${s.id}/${f}`);
   s.pdfSize = statSync(join(dir, s.pdf)).size;
-  const bar = `<nav class="hub-bar" aria-label="Cheat sheets"><a href="/">← Todas las cheat sheets</a><div class="hub-acc">${THEME_UI}<a class="hub-pdf" href="${esc(s.pdf)}">PDF · ${mb(s.pdfSize)}</a></div></nav>`;
-  let src = readFileSync(join(dir, s.page), 'utf8');
+  const bar = `<nav class="hub-bar" aria-label="Cheat sheets"><div class="hub-brand"><a class="hub-logo" href="https://ml-desde-cero.vercel.app" aria-label="TrueML: todas las herramientas"><span class="hub-mark" aria-hidden="true">${marcaBarra('barra')}</span><span class="hub-word">True<span>ML</span></span></a><span class="hub-sep" aria-hidden="true"></span><a class="hub-home" href="/">← Todas las cheat sheets</a></div><div class="hub-acc">${THEME_UI}<a class="hub-pdf" href="${esc(s.pdf)}">PDF <small>${mb(s.pdfSize)}</small></a></div></nav>`;
+  let src = sinFuentes(readFileSync(join(dir, s.page), 'utf8'));
   if (s.seo) src = src.replace(/<meta name="description"[^>]*>\s*/i, ''); // la descripción corta de sheets.json manda sobre la de la página
-  const html = inject(src, s.id, { head: seo(`/${s.id}/`, `${s.title} — ${SITE_NAME}`, s.seo || s.summary, src), css: BAR_CSS, afterWrap: bar, beforeBody: FOOT + REGISTER + THEME_JS });
+  // la T chica con las etapas de la hoja, junto al kicker del hero: el marcador de etapa
+  if (!/<p class="kicker">[\s\S]*?<\/p>/.test(src)) fail(`${s.id}: el hero no tiene <p class="kicker">`);
+  src = src.replace(/<p class="kicker">[\s\S]*?<\/p>/, (m) => `<div class="hero__top">${m}${miniT(s.etapas)}</div>`);
+  src = src.replace(/<body[^>]*>/i, (m) => m + STRIPE);
+  src = src.replace(/<html([^>]*)>/i, (m, a) => `<html${a} data-hoja="${esc(s.id)}">`); // para los ajustes de una sola hoja en trueml-hojas.css
+  const css = '\n' + TOKENS + '\n' + HOJAS_CSS + tonoCss(s.tono) + BAR_CSS;
+  const html = inject(src, s.id, { head: seo(`/${s.id}/`, `${s.title} — ${SITE_NAME}`, s.seo || s.summary, src), css, afterWrap: bar, beforeBody: FOOT + REGISTER + THEME_JS });
   mkdirSync(join(OUT, s.id), { recursive: true });
   writeFileSync(join(OUT, s.id, 'index.html'), html);
   copyFileSync(join(dir, s.pdf), join(OUT, s.id, s.pdf));
   pages[`/${s.id}/`] = html;
 }
 
-// 2 · portada
-const card = (s) => `    <article class="sheet" id="${esc(s.id)}">
-      <div class="strip"><span class="${s.sample_kind === 'math' ? 'math' : 'code'}">${s.sample}</span></div>
-      <div class="sheet__body">
-        <p class="topic">${esc(s.topic)}</p>
-        <h2><a href="${esc(s.id)}/">${esc(s.title)}</a></h2>
-        <p class="sum">${esc(s.summary)}</p>
-        <ul class="facts">${s.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
-        <div class="actions">
-          <a class="btn btn--primary" href="${esc(s.id)}/">Abrir la hoja</a>
-          <a class="btn" href="${esc(s.id)}/${esc(s.pdf)}">PDF <small>${mb(s.pdfSize)}</small></a>
+// 2 · portada: la T de vidrio con sus etapas (las enciende vendor/trueml/cliente.js al pasar por una hoja) y una tarjeta por hoja
+const card = (s) => `      <article class="sheet t-${esc(s.tono)}" id="${esc(s.id)}" data-etapas="${etapas(s.etapas).join(' ')}" data-nombre="${esc(s.title)}" data-resumen="${esc(resumen(s.etapas))}">
+        <div class="strip"><span class="${s.sample_kind === 'math' ? 'math' : 'code'}">${s.sample}</span></div>
+        <div class="sheet__body">
+          <div class="sheet__h"><p class="topic">${esc(s.topic)}</p>${miniT(s.etapas)}</div>
+          <h2><a href="${esc(s.id)}/">${esc(s.title)}</a></h2>
+          <p class="sum">${esc(s.summary)}</p>
+          <ul class="facts">${s.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
+          <div class="actions">
+            <a class="btn btn--primary" href="${esc(s.id)}/">Abrir la hoja →</a>
+            <a class="btn" href="${esc(s.id)}/${esc(s.pdf)}">PDF <small>${mb(s.pdfSize)}</small></a>
+          </div>
+          <p class="updated">Actualizada el ${fecha(s.updated)}</p>
         </div>
-        <p class="updated">Actualizada el ${fecha(s.updated)}</p>
-      </div>
-    </article>`;
+      </article>`;
 let hub = readFileSync(join(SITE, 'hub.html'), 'utf8');
-if (!hub.includes('<!--HOJAS-->')) fail('site/hub.html no tiene el marcador <!--HOJAS-->');
+for (const m of ['<!--HOJAS-->', '<!--MARCA-->']) if (!hub.includes(m)) fail(`site/hub.html no tiene el marcador ${m}`);
 hub = hub.replace('<!--HOJAS-->', SHEETS.map(card).join('\n'));
+// la T con etiquetas si hay espacio; sin ellas en pantallas angostas (lo decide un container query del CSS)
+hub = hub.replace('<!--MARCA-->', `<div class="t-con">${marca({ etiquetas: true, clave: 'hub', maxAltura: 'min(calc(100vh - 120px), 760px)' })}</div><div class="t-sin">${TrueMLMark.mark(true, null, 'hub-sin', '420px')}</div>`);
+const CLIENTE = readFileSync(join(ROOT, 'vendor', 'trueml', 'cliente.js'), 'utf8');
+const homeBar = `<nav class="hub-bar" aria-label="Cheat sheets"><div class="hub-brand"><a class="hub-logo" href="https://ml-desde-cero.vercel.app" aria-label="TrueML: todas las herramientas"><span class="hub-mark" aria-hidden="true">${marcaBarra('barra')}</span><span class="hub-word">True<span>ML</span></span></a><span class="hub-sep" aria-hidden="true"></span><span class="hub-home">Cheat sheets</span></div><div class="hub-acc">${THEME_UI}</div></nav>`;
+hub = hub.replace(/<body[^>]*>/i, (m) => m + STRIPE);
 hub = inject(hub, 'portada', {
   head: seo('/', SITE_NAME + ' — hojas de estudio para ML engineering', 'Hojas de estudio con PDF: estimaciones, Docker, Kubernetes, Git, Triton, FastAPI, Prometheus y vLLM, con diagnosticadores y revisores en tu navegador.', hub),
-  css: BAR_CSS, afterWrap: `<nav class="hub-bar hub-bar--home" aria-label="Preferencias">${THEME_UI}</nav>`, beforeBody: FOOT + REGISTER + THEME_JS,
+  css: '\n' + TOKENS + BAR_CSS + '\n.hub-stripe { position: absolute; top: 0; left: 0; right: 0; height: 4px; z-index: 30; }\n', afterWrap: homeBar, beforeBody: FOOT + REGISTER + THEME_JS + `<script>\n${CLIENTE}</script>`,
 });
 writeFileSync(join(OUT, 'index.html'), hub);
 pages['/'] = hub;

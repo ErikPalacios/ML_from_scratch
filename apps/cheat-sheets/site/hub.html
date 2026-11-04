@@ -1,107 +1,139 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-tema-clave="hojas-tema">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cheat sheets ML</title>
 <meta name="description" content="Hojas de estudio para el trabajo de ML engineering, con versión web y PDF para imprimir.">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=JetBrains+Mono:wght@400;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..700&display=swap">
 <style>
-/* Portada de las hojas: el mismo papel, tinta azul y resaltador ámbar que las hojas.
-   Una tarjeta por hoja; la franja cuadriculada muestra una línea típica de esa hoja. */
-:root {
-  --bg: #f4f6f9; --paper: #ffffff; --ink: #18212d; --muted: #5a6575; --rule: #d6dde6; --grid: rgba(31, 95, 174, 0.075);
-  --accent: #1f5fae; --accent-soft: rgba(31, 95, 174, 0.14); --hi: #d99a12; --hi-soft: #fff1cc; --var-bg: rgba(31, 95, 174, 0.09);
-  --onbar: #ffffff; --shadow: 0 1px 2px rgba(24, 33, 45, 0.06), 0 8px 24px -16px rgba(24, 33, 45, 0.25);
-  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif; --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
-  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace; --f-math: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Source Serif 4", Georgia, serif;
+/* Portada de las hojas, con el diseño de TrueML (como la portada de TrueML): fondo cuadriculado, la T de vidrio con sus
+   etapas a la derecha y una tarjeta por hoja. Al pasar por una hoja, la T enciende las etapas que cubre.
+   Los tokens --tm-* (vendor/trueml/tokens.css) y la barra de arriba los pega el build. */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 24px; }
+body {
+  margin: 0; color: var(--tm-ink); font: 16px/1.55 var(--sans); overflow-wrap: break-word;
+  background-color: var(--tm-bg);
+  background-image: linear-gradient(var(--tm-grid) 1px, transparent 1px), linear-gradient(90deg, var(--tm-grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
+::selection { background: rgba(255, 200, 87, .45); color: var(--tm-ink); }
+.wrap { max-width: 1240px; margin: 0 auto; }
+a { color: var(--tm-acc); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--tm-acc); outline-offset: 3px; border-radius: 8px; }
+h1, h2, h3, p { margin: 0; }
+:root { --card-sh: 0 1px 0 rgba(14, 21, 48, .07), 0 0 0 1px rgba(14, 21, 48, .06); --stv: #3D5AFE; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --card-sh: 0 0 0 1px #232C52; } }
+:root[data-theme="dark"] { --card-sh: 0 0 0 1px #232C52; }
+
+/* hero + la T fija + las hojas (como la portada de TrueML) */
+.main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px 48px; align-items: start; padding-top: 12px; }
+.main > * { min-width: 0; }
+.hero { display: flex; flex-direction: column; align-items: flex-start; gap: 20px; padding-top: clamp(12px, 4vw, 44px); }
+.kicker { font: 600 12px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--tm-acc); background: var(--tm-card); padding: 9px 14px; border-radius: 999px; box-shadow: var(--card-sh); }
+.hero h1 { font: 800 clamp(56px, 9vw, 112px)/.9 var(--sans); letter-spacing: -.055em; }
+.hero h1 span { color: var(--tm-acc); }
+.lead { max-width: 54ch; font: 19px/1.55 var(--sans); color: var(--tm-ink2); text-wrap: pretty; }
+.note { max-width: 56ch; font: 500 12.5px/1.55 var(--mono); color: var(--tm-ink3); }
+.tscene { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.tscene__mark { width: 100%; max-width: 560px; container-type: inline-size; }
+.t-sin { display: none; }
+@container (max-width: 439px) { .t-con { display: none; } .t-sin { display: block; } }
+.tscene__cap { min-height: 2.9em; max-width: 40ch; font: 500 12px/1.45 var(--mono); color: var(--tm-ink3); text-align: center; }
+@media (max-width: 899px) { .tscene { width: 100%; max-width: 190px; margin: 0 auto; } .tscene__cap { display: none; } }
+@media (min-width: 900px) {
+  .main { grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); }
+  .tscene { grid-column: 2; grid-row: 1 / span 2; position: sticky; top: 24px; }
+  .hero, .sheets { grid-column: 1; }
+}
+
+.sheets { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 14px; padding-bottom: 12px; }
+.sheets > h2 { grid-column: 1 / -1; font: 800 28px/1.2 var(--sans); letter-spacing: -.02em; margin-top: 12px; }
+.sheet { position: relative; min-width: 0; display: flex; flex-direction: column; background: var(--tm-card); border-radius: 20px; overflow: hidden; box-shadow: var(--card-sh); }
+@media (prefers-reduced-motion: no-preference) {
+  .sheet { transition: box-shadow .2s ease, transform .2s ease; }
+  .sheet:hover, .sheet:focus-within { transform: translateY(-2px); }
+}
+.sheet:hover, .sheet:focus-within { box-shadow: 0 0 0 2px var(--tm-ink); }
+/* la franja de muestra: una línea típica de la hoja, sobre azul marino, con el color de su etapa abajo */
+.strip {
+  min-width: 0; padding: 20px 20px 18px; overflow-x: auto; color: var(--tm-codeink);
+  background-color: var(--tm-code);
+  background-image: linear-gradient(rgba(255, 255, 255, .05) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .05) 1px, transparent 1px);
+  background-size: 18px 18px; box-shadow: inset 0 -4px 0 var(--stv);
+}
+.strip .code { font: 500 14.5px/1.55 var(--mono); white-space: nowrap; }
+.strip .math { font: 400 26px/1.3 "STIX Two Math", "Cambria Math", "Latin Modern Math", math, serif; white-space: nowrap; color: #FFFFFF; }
+.strip .math i { font-style: italic; }
+.strip var { font-family: var(--sans); font-style: italic; font-weight: 600; color: #C3CDFF; background: rgba(143, 162, 255, .18); border-radius: 6px; padding: 0 4px; }
+.sheet__body { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px 20px; flex: 1; }
+.sheet__h { display: flex; justify-content: space-between; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
+.topic { font: 700 11.5px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--sti); }
+.sheet h2 { font: 800 24px/1.15 var(--sans); letter-spacing: -.025em; text-wrap: balance; }
+.sheet h2 a { color: var(--tm-ink); text-decoration: none; }
+.sheet h2 a::after { content: ""; position: absolute; inset: 0; z-index: 0; }
+.sheet h2 a:hover { color: var(--tm-acc); }
+.sum { font-size: 15.5px; line-height: 1.55; color: var(--tm-ink2); text-wrap: pretty; }
+.facts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.facts li { font: 600 12.5px/1.3 var(--sans); color: var(--tm-ink2); border-radius: 999px; padding: 6px 10px; background: var(--tm-chip); }
+.actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px; margin-top: auto; padding-top: 8px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 14px; font: 700 15px/1.2 var(--sans); text-decoration: none; background: var(--tm-btn2); color: var(--tm-ink) !important; box-shadow: inset 0 0 0 1px var(--tm-line), 0 4px 0 var(--tm-btn2sh); transition: transform .08s ease, box-shadow .08s ease; }
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(3px); box-shadow: inset 0 0 0 1px var(--tm-line), 0 1px 0 var(--tm-btn2sh); }
+.btn--primary { background: var(--yt); color: var(--navy) !important; box-shadow: 0 4px 0 var(--yd); }
+.btn--primary:active { box-shadow: 0 1px 0 var(--yd); }
+.btn small { font: 600 12px/1 var(--sans); color: var(--tm-ink3); font-variant-numeric: tabular-nums; }
+.updated { font: 500 12px/1.3 var(--mono); color: var(--tm-ink3); }
+/* el tono de cada hoja: la etapa de su T (relleno abajo de la franja y color del tema) */
+.t-datos { --stv: var(--y); --sti: #8F6210; } .t-modelo { --stv: var(--o); --sti: #C9461C; } .t-api { --stv: var(--g); --sti: #0C7A5B; }
+.t-contenedor { --stv: var(--b); --sti: #3D5AFE; } .t-orquestacion { --stv: var(--p); --sti: #6150D9; } .t-monitoreo { --stv: var(--n); --sti: #5A6699; }
+.t-tinta { --stv: linear-gradient(90deg, var(--g), var(--b), var(--p)); --sti: var(--tm-ink2); }
+.t-tinta .strip { box-shadow: none; border-bottom: 4px solid; border-image: linear-gradient(90deg, var(--g), var(--b), var(--p)) 1; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #0e131a; --paper: #151c26; --ink: #e5ecf4; --muted: #9aa7b7; --rule: #2a3544; --grid: rgba(125, 175, 240, 0.085);
-  --accent: #7db1ff; --accent-soft: rgba(125, 177, 255, 0.18); --hi: #f2c14e; --hi-soft: #3a2e10; --var-bg: rgba(125, 177, 255, 0.13);
-  --onbar: #0e131a; --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -16px rgba(0, 0, 0, 0.6); color-scheme: dark;
+  .t-datos { --sti: #FFC857; } .t-modelo { --sti: #FF8A5C; } .t-api { --sti: #5BE0B5; } .t-contenedor { --sti: #8FA2FF; } .t-orquestacion { --sti: #A99CFF; } .t-monitoreo { --sti: #A3ADD6; }
 } }
 :root[data-theme="dark"] {
-  --bg: #0e131a; --paper: #151c26; --ink: #e5ecf4; --muted: #9aa7b7; --rule: #2a3544; --grid: rgba(125, 175, 240, 0.085);
-  --accent: #7db1ff; --accent-soft: rgba(125, 177, 255, 0.18); --hi: #f2c14e; --hi-soft: #3a2e10; --var-bg: rgba(125, 177, 255, 0.13);
-  --onbar: #0e131a; --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -16px rgba(0, 0, 0, 0.6); color-scheme: dark;
+  .t-datos { --sti: #FFC857; } .t-modelo { --sti: #FF8A5C; } .t-api { --sti: #5BE0B5; } .t-contenedor { --sti: #8FA2FF; } .t-orquestacion { --sti: #A99CFF; } .t-monitoreo { --sti: #A3ADD6; }
 }
-* { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body {
-  margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 var(--f-body); overflow-wrap: break-word;
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px);
-}
-.wrap { max-width: 1120px; margin: 0 auto; }
-a { color: var(--accent); }
-a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
 
-.hero { padding-block: 44px 28px; display: grid; gap: 12px; }
-.kicker { font: 600 12.5px/1.3 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0; }
-.hero h1 { font: 800 clamp(40px, 8vw, 72px)/1 var(--f-display); font-stretch: 112%; letter-spacing: -0.015em; margin: 0; text-wrap: balance; }
-.hero h1 mark { background: linear-gradient(transparent 58%, var(--hi-soft) 58%, var(--hi-soft) 92%, transparent 92%); color: inherit; padding: 0 .04em; }
-.lead { max-width: 64ch; margin: 0; color: var(--muted); font-size: 18px; }
-
-.sheets { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 20px; padding-block: 8px 12px; }
-.sheet { min-width: 0; display: flex; flex-direction: column; background: var(--paper); border: 1px solid var(--rule); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
-.strip {
-  min-width: 0; padding: 22px 20px 20px; border-bottom: 1px solid var(--rule); overflow-x: auto;
-  background-color: var(--paper);
-  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 18px 18px;
-}
-.strip .code { font: 500 15px/1.5 var(--f-mono); white-space: nowrap; color: var(--ink); }
-.strip .math { font: 400 26px/1.3 var(--f-math); white-space: nowrap; color: var(--ink); }
-.strip .math i { font-style: italic; }
-var { font-family: var(--f-body); font-style: italic; font-weight: 600; font-size: 1.08em; color: var(--accent); background: var(--var-bg); border-radius: 4px; padding: 0 3px; }
-.sheet__body { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px 20px; flex: 1; }
-.topic { font: 700 12px/1.3 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0; }
-.sheet h2 { font: 800 26px/1.15 var(--f-display); font-stretch: 106%; margin: 0; text-wrap: balance; }
-.sheet h2 a { color: var(--ink); text-decoration: none; }
-.sheet h2 a:hover { color: var(--accent); }
-.sum { margin: 0; font-size: 16.5px; }
-.facts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; }
-.facts li { font: 600 13px/1.3 var(--f-display); color: var(--ink); border: 1px solid var(--rule); border-radius: 999px; padding: 4px 10px; background: var(--bg); }
-.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: auto; padding-top: 6px; }
-.btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 10px 16px; border-radius: 10px; font: 700 15px/1.2 var(--f-display); text-decoration: none; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); }
-.btn:hover { border-color: var(--accent); color: var(--accent); }
-.btn--primary { background: var(--accent); border-color: var(--accent); color: var(--onbar); }
-.btn--primary:hover { color: var(--onbar); filter: brightness(1.08); }
-.btn small { font: 500 12.5px/1 var(--f-display); opacity: .8; font-variant-numeric: tabular-nums; }
-.updated { margin: 0; font: 500 13px/1.3 var(--f-display); color: var(--muted); font-variant-numeric: tabular-nums; }
-
-.foot { border-top: 1px solid var(--rule); margin-top: 28px; padding-block: 18px 36px; color: var(--muted); font-size: 15px; display: grid; gap: 6px; }
-.foot p { margin: 0; max-width: 70ch; }
+.foot { margin-top: 40px; padding: 26px 28px; border-radius: 20px; background: var(--navy); color: #C9D0EE; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px 32px; font-size: 15px; line-height: 1.6; }
+.foot p { max-width: 62ch; }
+.foot a { color: #AFC0FF; }
+.foot b { color: #FFFFFF; }
 
 @media (max-width: 480px) {
-  .hero { padding-block: 28px 20px; }
-  .lead { font-size: 17px; }
-  .strip { padding: 18px 16px 16px; }
+  .lead { font-size: 17.5px; }
+  .strip { padding: 16px; }
   .strip .code { white-space: normal; }
   .sheet__body { padding: 16px; }
-  .sheet h2 { font-size: 23px; }
-  .actions .btn { flex: 1 1 auto; justify-content: center; }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .sheet { transition: transform .15s ease, border-color .15s ease; }
-  .sheet:hover { transform: translateY(-2px); border-color: var(--accent-soft); }
+  .sheet h2 { font-size: 22px; }
+  .actions .btn { flex: 1 1 auto; }
 }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header class="hero">
-    <p class="kicker">Ronda de Diseño ML · Hojas de estudio</p>
-    <h1>Cheat <mark>sheets</mark></h1>
-    <p class="lead">Para tenerlas abiertas mientras escribes o diagnosticas, y para repasar en el celular. Cada hoja trae la sintaxis o la fórmula con sus variables, ejemplos reales del curso, figuras y la trampa típica. Ábrela aquí o baja el PDF para imprimirla.</p>
-  </header>
-  <main class="sheets" aria-label="Hojas">
+  <div class="main">
+    <header class="hero">
+      <span class="kicker">TrueML · Hojas de estudio</span>
+      <h1>Cheat <span>sheets</span></h1>
+      <p class="lead">Para tenerlas abiertas mientras escribes o diagnosticas, y para repasar en el celular. Cada hoja trae la sintaxis o la fórmula con sus variables, ejemplos reales del curso, figuras y la trampa típica. Ábrela aquí o baja el PDF para imprimirla.</p>
+      <p class="note">Del contenedor al monitoreo: cada hoja cae en una o más etapas de la T, y las de punta a punta las cruzan todas.</p>
+    </header>
+    <div class="tscene">
+      <div class="tscene__mark" data-tm-escena data-caption="Pasa el cursor por una hoja para ver qué etapas cubre.">
+<!--MARCA-->
+      </div>
+      <span class="tscene__cap" data-tm-caption aria-live="polite">Pasa el cursor por una hoja para ver qué etapas cubre.</span>
+    </div>
+    <main class="sheets" aria-label="Hojas">
+      <h2>Las hojas</h2>
 <!--HOJAS-->
-  </main>
+    </main>
+  </div>
   <footer class="foot">
-    <p>Las hojas salen del curso <a href="https://ronda-diseno-ml.vercel.app/">Ronda de Diseño ML</a>, y sus ejemplos son los del C01.</p>
+    <p>Las hojas salen del curso <a href="https://ronda-diseno-ml.vercel.app/">Ronda de Diseño ML</a>, y sus ejemplos son los del <b>C01</b>.</p>
     <p>Después de la primera visita, la portada y las hojas abren sin conexión. Los PDF quedan guardados cuando los abres.</p>
   </footer>
 </div>

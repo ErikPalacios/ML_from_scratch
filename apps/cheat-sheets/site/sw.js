@@ -4,7 +4,6 @@
 'use strict';
 const BUILD = '__BUILD__';
 const CACHE = 'hojas-' + BUILD;
-const FONTS = 'hojas-fonts'; // las fuentes no cambian entre deploys: caché aparte que sobrevive
 const CDN = 'hojas-cdn'; // scripts de cdnjs (js-yaml del revisor de Kubernetes): la versión va en la URL, también sobrevive
 const PAGES = __PAGES__;
 const CORE = PAGES.concat(['/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']);
@@ -17,7 +16,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('hojas-') && k !== CACHE && k !== FONTS && k !== CDN).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('hojas-') && k !== CACHE && k !== CDN).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -41,7 +40,9 @@ async function networkFirst(request, timeoutMs) {
   }
 }
 
-// Fuentes de Google y scripts de cdnjs: la copia guardada al instante y se actualiza por detrás (stale-while-revalidate).
+// Scripts de cdnjs: la copia guardada al instante y se actualiza por detrás (stale-while-revalidate).
+// Las páginas usan las fuentes del sistema (diseño TrueML): ya no se piden fuentes de Google, y la caché vieja
+// de fuentes (hojas-fonts) se borra al activar este service worker.
 async function swr(request, name) {
   const cache = await caches.open(name);
   const hit = await cache.match(request);
@@ -53,7 +54,6 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') { event.respondWith(swr(req, FONTS)); return; }
   if (url.hostname === 'cdnjs.cloudflare.com' && req.destination === 'script') { event.respondWith(swr(req, CDN)); return; }
   if (url.origin !== self.location.origin) return; // enlaces externos del contenido: directo a la red
   if (url.pathname.endsWith('.pdf')) { event.respondWith(networkFirst(req, 0)); return; } // sin tope: pesan MB

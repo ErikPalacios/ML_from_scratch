@@ -1,0 +1,403 @@
+/* =============================================================================
+   Cheat sheets ML — site/trueml-hojas.css
+   El diseño TrueML (el del Dojo y la Ronda) encima de cada hoja. tools/build.mjs lo pega al final del <style> de
+   cada página, después de vendor/trueml/tokens.css, así que gana sobre la paleta propia de la hoja sin tocarla:
+   las hojas se siguen generando igual con sheets/<id>/fuentes/.
+
+   1. Paleta: los nombres de color de las hojas (--accent, --hi, --cpu, --kv…) pasan a los colores de TrueML con el
+      mismo significado («azul = CPU», «ámbar = espera», «verde azulado = GPU»…), en claro y en oscuro. Dos excepciones
+      a propósito, porque las figuras distinguen ideas por color: el violeta de las figuras es más morado que el --p de
+      TrueML (junto al azul #3D5AFE se confundían: counter contra histogram, pesos contra KV cache, tú contra GitHub) y
+      «verde = ok» es un verde de hoja, aparte del verde azulado de la GPU.
+   2. Forma: fondo cuadriculado, tarjetas de radio 20, barra de secciones de vidrio, etiquetas mono en mayúsculas,
+      código sobre azul marino, botones en relieve y fuentes del sistema (sin Google Fonts: abre sin conexión).
+   3. Etapa: cada hoja trae --st (su etapa de la T, la pone el build): el número de sección, el kicker y la T chica.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- 1 · colores de apoyo (claro / oscuro) */
+:root {
+  --hj-rule: #DDE1EE; --hj-rule2: #C9CEE0;
+  --hj-blue: #3D5AFE; --hj-blue-soft: rgba(61, 90, 254, .12); --hj-blue-var: rgba(61, 90, 254, .09);
+  --hj-teal: #0C7A5B; --hj-teal-fill: #17B386; --hj-teal-line: rgba(12, 122, 91, .34); --hj-teal-soft: rgba(23, 179, 134, .14);
+  --hj-amber: #E8AE36; --hj-amber-soft: #FCF1D9; --hj-amber-ink: #8F6210; --hj-amber-tint: rgba(232, 174, 54, .18);
+  --hj-red: #C2441D; --hj-red-soft: #FCE9E1;
+  --hj-orange: #EC6A3F; --hj-orange-ink: #C9461C;
+  --hj-violet: #7A45CF; --hj-violet-fill: #8E5BE6; --hj-violet-soft: rgba(142, 91, 230, .13);
+  --hj-green: #2C8A3E; --hj-green-soft: rgba(44, 138, 62, .12);
+  --hj-gray: #6B7396; --hj-gray-soft: rgba(90, 99, 133, .16);
+  --hj-slate-ink: #5A6699;
+  --hj-on: #FFFFFF; --hj-code-bg: #F4F6FC;
+  --hj-card-sh: 0 1px 0 rgba(14, 21, 48, .07), 0 0 0 1px rgba(14, 21, 48, .06);
+  --hj-pop-sh: 0 1px 0 rgba(14, 21, 48, .06), 0 0 0 1px rgba(14, 21, 48, .05), 0 14px 32px -20px rgba(14, 21, 48, .35);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --hj-rule: #2A3360; --hj-rule2: #3A4579;
+    --hj-blue: #8FA2FF; --hj-blue-soft: rgba(143, 162, 255, .18); --hj-blue-var: rgba(143, 162, 255, .14);
+    --hj-teal: #5BE0B5; --hj-teal-fill: #3FD3A6; --hj-teal-line: rgba(91, 224, 181, .34); --hj-teal-soft: rgba(91, 224, 181, .14);
+    --hj-amber: #FFC857; --hj-amber-soft: #33280F; --hj-amber-ink: #FFC857; --hj-amber-tint: rgba(255, 200, 87, .16);
+    --hj-red: #FF8A5C; --hj-red-soft: #3A1F1A;
+    --hj-orange: #FF8A5C; --hj-orange-ink: #FF8A5C;
+    --hj-violet: #C6A6FF; --hj-violet-fill: #B08CFF; --hj-violet-soft: rgba(176, 140, 255, .17);
+    --hj-green: #7FD18B; --hj-green-soft: rgba(127, 209, 139, .15);
+    --hj-gray: #8C95BD; --hj-gray-soft: rgba(140, 149, 189, .22);
+    --hj-slate-ink: #A3ADD6;
+    --hj-on: #0A0F22; --hj-code-bg: #0E1530;
+    --hj-card-sh: 0 0 0 1px #232C52;
+    --hj-pop-sh: 0 0 0 1px #232C52, 0 18px 36px -20px rgba(0, 0, 0, .7);
+  }
+}
+:root[data-theme="dark"] {
+  --hj-rule: #2A3360; --hj-rule2: #3A4579;
+  --hj-blue: #8FA2FF; --hj-blue-soft: rgba(143, 162, 255, .18); --hj-blue-var: rgba(143, 162, 255, .14);
+  --hj-teal: #5BE0B5; --hj-teal-fill: #3FD3A6; --hj-teal-line: rgba(91, 224, 181, .34); --hj-teal-soft: rgba(91, 224, 181, .14);
+  --hj-amber: #FFC857; --hj-amber-soft: #33280F; --hj-amber-ink: #FFC857; --hj-amber-tint: rgba(255, 200, 87, .16);
+  --hj-red: #FF8A5C; --hj-red-soft: #3A1F1A;
+  --hj-orange: #FF8A5C; --hj-orange-ink: #FF8A5C;
+  --hj-violet: #C6A6FF; --hj-violet-fill: #B08CFF; --hj-violet-soft: rgba(176, 140, 255, .17);
+  --hj-green: #7FD18B; --hj-green-soft: rgba(127, 209, 139, .15);
+  --hj-gray: #8C95BD; --hj-gray-soft: rgba(140, 149, 189, .22);
+  --hj-slate-ink: #A3ADD6;
+  --hj-on: #0A0F22; --hj-code-bg: #0E1530;
+  --hj-card-sh: 0 0 0 1px #232C52;
+  --hj-pop-sh: 0 0 0 1px #232C52, 0 18px 36px -20px rgba(0, 0, 0, .7);
+}
+
+/* Los nombres de las hojas → TrueML. El selector vale siempre (claro u oscuro) y pesa lo mismo que los de la hoja
+   (:root:not(…) y :root[data-theme]); como va después, gana. Los valores cambian solos con el tema. */
+:root:not([data-hj]) {
+  --bg: var(--tm-bg); --paper: var(--tm-card); --ink: var(--tm-ink); --ink2: var(--tm-ink2); --muted: var(--tm-ink3);
+  --rule: var(--hj-rule); --grid: var(--tm-grid); --free: var(--tm-chip); --code-bg: var(--hj-code-bg);
+  --accent: var(--hj-blue); --accent-soft: var(--hj-blue-soft); --var-bg: var(--hj-blue-var);
+  --accent2: var(--hj-teal); --accent2-soft: var(--hj-teal-line); --ok-soft: var(--hj-teal-soft);
+  --hi: var(--hj-amber); --hi-soft: var(--hj-amber-soft); --hi-ink: var(--hj-amber-ink);
+  --warn: var(--hj-red); --warn-soft: var(--hj-red-soft);
+  --onbar: var(--hj-on); --on-hi: #0E1530;
+  --pu: var(--hj-violet); --pu-soft: var(--hj-violet-soft);
+  --syn-kw: var(--hj-blue); --syn-str: var(--hj-violet); --syn-com: var(--tm-ink3); --syn-dec: var(--hj-teal); --syn-num: var(--hj-amber-ink);
+  /* categorías de las figuras de estimaciones y Docker */
+  --c1: var(--b); --c2: var(--hj-teal-fill); --c3: var(--hj-amber); --c4: var(--hj-violet-fill); --c5: var(--hj-orange);
+  /* gateway y Triton: azul = CPU, verde azulado = GPU, ámbar = espera, verde = ok, violeta = rechazado, gris = afuera */
+  --cpu: var(--hj-blue); --cpu-soft: var(--hj-blue-soft); --gpu: var(--hj-teal); --gpu-soft: var(--hj-teal-soft); --io: var(--hj-amber);
+  --okc: var(--hj-green); --okc-soft: var(--hj-green-soft); --rej: var(--hj-violet); --rej-soft: var(--hj-violet-soft); --edge: var(--hj-gray);
+  /* Prometheus: counter azul, gauge verde azulado, histogram violeta, pending ámbar, firing rojo, gris = silenciada */
+  --cnt: var(--hj-blue); --cnt-soft: var(--hj-blue-soft); --gau: var(--hj-teal); --gau-soft: var(--hj-teal-soft); --his: var(--hj-violet); --his-soft: var(--hj-violet-soft);
+  --pen: var(--hj-amber); --pen-soft: var(--hj-amber-soft); --pen-ink: var(--hj-amber-ink); --fire: var(--hj-red); --fire-soft: var(--hj-red-soft); --off: var(--hj-gray); --off-soft: var(--hj-gray-soft);
+  /* vLLM: pesos azul, KV cache violeta, prefill ámbar, decode verde azulado */
+  --wt: var(--hj-blue); --kv: var(--hj-violet); --pre: var(--hj-amber); --pre-soft: var(--hj-amber-soft); --pre-ink: var(--hj-amber-ink); --dec: var(--hj-teal); --dec-soft: var(--hj-teal-soft);
+  /* Triton: precisión en violeta, más oscuro = más bytes */
+  --fp32: var(--hj-fp32); --fp16: var(--hj-fp16); --int8: var(--hj-int8); --on32: var(--hj-on32); --on16: var(--hj-on16); --on8: var(--hj-on8);
+  /* recorrido: las 4 líneas del metro (semanas violeta, días azul, milisegundos ámbar, continuo verde azulado) */
+  --ln-semanas: var(--hj-violet-fill); --ln-dias: var(--b); --ln-ms: var(--hj-amber); --ln-continuo: var(--hj-teal-fill);
+  --ln-semanas-soft: var(--hj-violet-soft); --ln-dias-soft: var(--hj-blue-soft); --ln-ms-soft: var(--hj-amber-tint); --ln-continuo-soft: var(--hj-teal-soft);
+  --ln-semanas-ink: var(--hj-violet); --ln-dias-ink: var(--hj-blue); --ln-ms-ink: var(--hj-amber-ink); --ln-continuo-ink: var(--hj-teal);
+  --ln-semanas-on: #FFFFFF; --ln-dias-on: #FFFFFF; --ln-ms-on: #0E1530; --ln-continuo-on: #0E1530;
+  --new: var(--hj-orange-ink); --new-soft: rgba(236, 106, 63, .12);
+  --wk-programa: var(--hj-orange-ink); --wk-configura: var(--hj-green); --wk-opera: var(--hj-amber-ink); --wk-administrado: var(--hj-slate-ink); --wk-on: #FFFFFF;
+  --band: var(--tm-grid); --shadow: var(--hj-card-sh);
+  /* fuentes del sistema; las fórmulas siguen con la fuente matemática del sistema */
+  --f-display: var(--sans); --f-body: var(--sans); --f-mono: var(--mono);
+  --f-math: "STIX Two Math", "Cambria Math", "Latin Modern Math", math, serif;
+}
+:root {
+  --hj-fp32: #4C2A99; --hj-fp16: #A383EE; --hj-int8: #EADFFC; --hj-on32: #FFFFFF; --hj-on16: #0E1530; --hj-on8: #0E1530;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --hj-fp32: #D2BDFF; --hj-fp16: #8E5BE6; --hj-int8: #35245E; --hj-on32: #0A0F22; --hj-on16: #FFFFFF; --hj-on8: #EEF1FB; }
+}
+:root[data-theme="dark"] { --hj-fp32: #D2BDFF; --hj-fp16: #8E5BE6; --hj-int8: #35245E; --hj-on32: #0A0F22; --hj-on16: #FFFFFF; --hj-on8: #EEF1FB; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-hj]) { --ln-semanas-on: #0A0F22; --ln-dias-on: #0A0F22; --wk-on: #0A0F22; }
+}
+:root[data-theme="dark"]:not([data-hj]) { --ln-semanas-on: #0A0F22; --ln-dias-on: #0A0F22; --wk-on: #0A0F22; }
+
+/* ---------------------------------------------------------------- 2 · página */
+html { scroll-padding-top: 76px; }
+body {
+  background-color: var(--tm-bg);
+  background-image: linear-gradient(var(--tm-grid) 1px, transparent 1px), linear-gradient(90deg, var(--tm-grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+  font-family: var(--sans); color: var(--tm-ink);
+}
+::selection { background: rgba(255, 200, 87, .45); color: var(--tm-ink); }
+a { color: var(--hj-blue); text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 2px; }
+b, strong { color: var(--tm-ink); }
+h1, h2, h3, h4, legend { font-family: var(--sans); }
+:focus-visible { outline-color: var(--hj-blue); }
+
+/* la franja de 6 colores arriba de todo (la pone el build) */
+.hub-stripe { position: absolute; top: 0; left: 0; right: 0; height: 4px; z-index: 30; }
+
+/* hero: kicker mono en el color de la etapa, la T chica con las etapas de la hoja, título grueso */
+.hero { padding-block: 26px 22px; gap: 14px; }
+.hero__top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; }
+.hero .kicker, .kicker {
+  font: 700 11.5px/1.45 var(--mono) !important; letter-spacing: .08em !important; text-transform: uppercase; color: var(--st-ink) !important;
+}
+.hero__top .kicker { flex: 1 1 240px; min-width: 0; }
+.hero__top .tm-mini-wrap { flex-direction: row-reverse; gap: 9px; }
+.hero__top .tm-mini { grid-template-columns: repeat(3, 7px); grid-auto-rows: 7px; }
+.hero__top .tm-mini-txt { font: 700 10.5px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--tm-ink2); text-align: left; }
+.hero h1 { font-family: var(--sans); font-weight: 800; font-stretch: normal; letter-spacing: -.04em; line-height: 1.02; font-size: clamp(34px, 6.4vw, 60px); }
+.hero h1 mark { background: linear-gradient(transparent 60%, var(--hj-amber-tint) 60%, var(--hj-amber-tint) 92%, transparent 92%); color: inherit; }
+.hero p.lead, .hero .lead { font: 18px/1.6 var(--sans); color: var(--tm-ink2); max-width: 66ch; text-wrap: pretty; }
+.legendrow { font: 500 13px/1.4 var(--sans); color: var(--tm-ink2); gap: 8px 16px; }
+.legendrow .lgk { font: 700 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--tm-ink3); }
+.dot { border-radius: 4px; }
+
+/* la barra de secciones: una píldora de vidrio pegada arriba */
+nav.toc {
+  top: max(8px, env(safe-area-inset-top, 0px)); margin: 4px 0 8px; border: 0; border-radius: 18px;
+  background: var(--tm-nav); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  box-shadow: var(--hj-card-sh), 0 10px 24px -18px rgba(14, 21, 48, .45);
+}
+nav.toc ul { gap: 4px; padding: 7px; scrollbar-width: none; }
+nav.toc ul::-webkit-scrollbar { display: none; }
+nav.toc a { border: 0; background: transparent; color: var(--tm-ink2); font: 600 13px/1 var(--sans); padding: 9px 12px; border-radius: 999px; }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--tm-chip); color: var(--tm-ink); outline: none; }
+nav.toc a:focus-visible { box-shadow: inset 0 0 0 2px var(--hj-blue); }
+nav.toc a[aria-current="true"] { background: var(--tm-ink); color: var(--tm-bg); border: 0; }
+
+/* secciones */
+.sec { border-top: 0; padding-block: 44px 6px; scroll-margin-top: 76px; }
+.sec__head { gap: 14px; align-items: flex-start; }
+.sec__head > div, .sec__head > hgroup { padding-top: 2px; }
+.sec__n {
+  min-width: 44px; height: 44px; border-radius: 13px; background: var(--st); color: var(--st-on);
+  font: 800 19px/1 var(--mono); box-shadow: inset 0 -3px 0 rgba(14, 21, 48, .16);
+}
+.sec h2 { font-weight: 800; font-stretch: normal; letter-spacing: -.028em; line-height: 1.1; }
+.sec__q { color: var(--tm-ink2); font-size: 16px; }
+
+/* tarjetas: sin borde, radio 20 y la sombra de anillo de TrueML */
+.pad, .card, figure.fig, details.lab, .li-step, fieldset.gn-g {
+  border: 0; border-radius: 20px; box-shadow: var(--hj-card-sh);
+}
+.pad { padding: 18px 20px; background-color: var(--tm-card); background-size: 24px 24px; }
+.card { padding: 16px 18px; }
+figure.fig { padding: 16px; }
+.card > h3, .example > h3, .gn-g > legend {
+  font: 700 11.5px/1.35 var(--mono) !important; letter-spacing: .08em !important; text-transform: uppercase; color: var(--st-ink) !important;
+}
+.example > h3 { font-size: 12px !important; }
+.tag { font: 700 11px/1.35 var(--mono) !important; letter-spacing: .08em !important; }
+figure.fig figcaption, .fig__note, .fig__notes { color: var(--tm-ink2); }
+.pad__fx { border-top: 1px dashed var(--hj-rule2); }
+.li-fig { border: 0; border-radius: 16px; background: var(--tm-bg); }
+
+/* recordarla y la trampa */
+.memo, .trap { border-radius: 16px; padding: 14px 18px; }
+.memo { background: var(--hj-amber-soft); box-shadow: inset 4px 0 0 var(--hj-amber); }
+.trap { background: var(--hj-red-soft); box-shadow: inset 4px 0 0 var(--hj-red); }
+.li-trap.is-typ { box-shadow: none; }
+
+/* tablas */
+.vars, .dt { background: transparent; }
+.vars th, .dt th { font: 700 10.5px/1.35 var(--mono); letter-spacing: .08em; color: var(--tm-ink3); border-bottom-color: var(--hj-rule); }
+.vars td, .vars th.rh, .dt td, .dt th.rh { border-bottom-color: var(--hj-rule); }
+.vars td.c { color: var(--hj-teal); }
+
+/* variables, código en línea y bloques de código (estos sobre azul marino, como en el Dojo) */
+var.ph { font-family: var(--sans); border-radius: 6px; padding: 0 4px; }
+code, code.cmd { background: var(--tm-chip); border-radius: 6px; padding: .08em .38em; font-family: var(--mono); }
+.code, pre.term, .gn-code, #rv-text {
+  --ink: var(--tm-codeink); --muted: var(--tm-codeink2); --rule: rgba(255, 255, 255, .1); --paper: rgba(255, 255, 255, .06); --bg: rgba(255, 255, 255, .05);
+  --accent: #A9B7FF; --accent-soft: rgba(143, 162, 255, .2); --var-bg: rgba(143, 162, 255, .18); --accent2: #5BE0B5; --ok-soft: rgba(91, 224, 181, .16);
+  --hi: #FFC857; --hi-soft: rgba(255, 200, 87, .2); --hi-ink: #FFC857; --warn: #FF8A5C; --warn-soft: rgba(255, 138, 92, .18); --pu: #B3A8FF; --free: rgba(255, 255, 255, .08);
+  --syn-kw: #A9B7FF; --syn-str: #FFC857; --syn-com: #8F9BC9; --syn-dec: #5BE0B5; --syn-num: #FF8A5C; --onbar: #0A0F22;
+  background: var(--tm-code); color: var(--tm-codeink); border: 0; border-radius: 14px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .04);
+  color-scheme: dark;
+}
+.code__bar { border-bottom: 1px solid rgba(255, 255, 255, .08); font: 600 11px/1.3 var(--mono); color: var(--tm-codeink2); }
+.code__lang { letter-spacing: .1em; }
+.code pre, pre.term { color: var(--tm-codeink); }
+.code code, pre.term code { background: none; }
+.code button.cp, .code .cp { background: rgba(255, 255, 255, .1); border: 0; color: var(--tm-codeink); border-radius: 8px; padding: 6px 9px; }
+.code button.cp:hover, .code button.cp:focus-visible { background: var(--yt); color: var(--navy); }
+.code var.ph, pre.term var.ph { color: #C3CDFF; }
+#rv-text { border: 0; }
+#rv-text::placeholder { color: var(--tm-codeink2); }
+.li-out { background: transparent; border: 0; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--hj-rule); }
+.gn-peek-in { background: var(--tm-chip); border: 0; border-left: 3px solid var(--hj-blue); border-radius: 12px; }
+
+/* chips y enlaces de «ver también» */
+.links .chip { border: 0; box-shadow: inset 0 0 0 1px var(--hj-rule); background: var(--tm-card); }
+.links a.chip:hover, .links a.chip:focus-visible { box-shadow: inset 0 0 0 1.5px var(--hj-blue); }
+.links__k, .k { font-family: var(--mono); }
+.k { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; }
+
+/* laboratorios */
+details.lab { background: var(--tm-card); }
+details.lab > summary { min-height: 48px; padding: 12px 16px; font: 700 15px/1.3 var(--sans); }
+details.lab > summary::before { color: var(--st-ink); }
+.lab__n { font: 500 12px/1 var(--mono); }
+.lab__body { border-top: 1px solid var(--hj-rule); padding: 0 16px 16px; }
+.lab__fix { background: var(--hj-teal-soft); border-radius: 14px; }
+.verified { font-family: var(--sans); color: var(--tm-ink3); }
+
+/* botones: en relieve, como en el Dojo */
+.btn {
+  font: 700 14px/1.2 var(--sans); color: var(--tm-ink); background: var(--tm-btn2); border: 0; border-radius: 12px;
+  padding: 10px 14px; min-height: 42px; box-shadow: inset 0 0 0 1px var(--hj-rule), 0 3px 0 var(--tm-btn2sh);
+  transition: transform .08s ease, box-shadow .08s ease;
+}
+.btn:hover, .btn:focus-visible { color: var(--tm-ink); transform: translateY(-1px); border: 0; }
+.btn:focus-visible { outline: 2px solid var(--hj-blue); outline-offset: 2px; }
+.btn:active { transform: translateY(2px); box-shadow: inset 0 0 0 1px var(--hj-rule), 0 1px 0 var(--tm-btn2sh); }
+.btn.primary, .btn.primary:hover, .btn.primary:focus-visible { background: var(--yt); color: var(--navy); box-shadow: 0 4px 0 var(--yd); }
+.btn.primary:active { box-shadow: 0 1px 0 var(--yd); }
+.btn:disabled { transform: none; }
+button.cp { border-radius: 8px; border: 0; box-shadow: inset 0 0 0 1px var(--hj-rule); font-family: var(--sans); }
+
+/* herramientas: diagnosticador, revisor, quiz */
+.search input, .dg-pick select, .gn-in { border: 0; border-radius: 12px; background: var(--tm-card); box-shadow: inset 0 0 0 1px var(--hj-rule2); font-family: var(--sans); }
+.gn-in { font-family: var(--mono); }
+.dg-chip { border: 0; border-radius: 12px; background: var(--tm-card); box-shadow: inset 0 0 0 1px var(--hj-rule); }
+.dg-chip:hover, .dg-chip:focus-visible { box-shadow: inset 0 0 0 1.5px var(--hj-blue); }
+.dg-chip[aria-pressed="true"], .gn-p[aria-pressed="true"], .gn-r:checked + .gn-ob, .gn-sv[aria-pressed="true"] {
+  background: var(--tm-ink); border-color: var(--tm-ink); color: var(--tm-bg); box-shadow: none;
+}
+.dg-panel, .quiz__ans { border-top-color: var(--hj-rule); }
+ol.rv-list li, .gn-finds li, ol.li-exp > li { border: 0; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--hj-rule), inset 4px 0 0 var(--hj-rule2); }
+ol.rv-list li.sev-error, .gn-finds li.sev-error { box-shadow: inset 0 0 0 1px var(--hj-rule), inset 4px 0 0 var(--hj-red); }
+ol.rv-list li.sev-warn, .gn-finds li.sev-warn { box-shadow: inset 0 0 0 1px var(--hj-rule), inset 4px 0 0 var(--hj-amber); }
+ol.rv-list li.sev-info, .gn-finds li.sev-info { box-shadow: inset 0 0 0 1px var(--hj-rule), inset 4px 0 0 var(--hj-blue); }
+ol.li-exp > li.is-ok { box-shadow: inset 0 0 0 1px var(--hj-rule), inset 4px 0 0 var(--hj-teal-fill); }
+ol.li-exp > li.is-wip { box-shadow: inset 0 0 0 1px var(--hj-rule), inset 4px 0 0 var(--hj-amber); }
+.sev, span.st, .li-og, .rv-label { font-family: var(--mono) !important; }
+.sev { letter-spacing: .06em; }
+span.st { font-size: 11.5px; }
+.gn-p, .gn-ob, .gn-btn, .gn-zbtn, .gn-close, .gn-goto { border-radius: 12px; }
+.gn-panel { border: 0; border-radius: 20px; box-shadow: var(--hj-pop-sh); }
+.gn-tabs { border-radius: 12px; }
+.gn-tab[aria-selected="true"] { box-shadow: var(--hj-card-sh); }
+.gn-full, .gn-delta, .gn-chip { font-family: var(--sans); }
+
+/* laboratorio Iris */
+.li-n { background: var(--st); color: var(--st-on); border-radius: 11px; font-family: var(--mono); }
+.li-step { padding: 18px 20px 20px; background: var(--tm-card); }
+.li-node { border: 0; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--hj-rule); }
+.li-node--gw { box-shadow: inset 0 0 0 1.5px var(--hj-blue), inset 0 4px 0 var(--hj-blue); }
+.li-node--ms { box-shadow: inset 0 0 0 1.5px var(--hj-teal-fill), inset 0 4px 0 var(--hj-teal-fill); }
+.li-node--file { box-shadow: inset 0 0 0 1.5px var(--hj-amber); border: 0; }
+.li-rev { border-radius: 0 12px 12px 0; }
+.li-k, .li-facts dt { font-family: var(--mono); letter-spacing: .08em; }
+
+/* SVG: las figuras con la tipografía del sistema y trazos redondeados */
+svg .t, svg .tl { font-family: var(--sans); }
+svg.chart line, svg.chart path, svg.chart polyline { stroke-linecap: round; stroke-linejoin: round; }
+svg .halo { stroke: var(--tm-card); }
+
+footer { border-top-color: var(--hj-rule); color: var(--tm-ink3); }
+
+/* ---------------------------------------------------------------- estimaciones: las gráficas en el celular
+   Son de 560 a 620 de ancho y en 375 px se encogían a la mitad (letras de 6 px). En pantallas angostas se quedan a un
+   tamaño legible (≈ 10 px de letra) y se deslizan de lado dentro de su tarjeta, como las figuras de Docker. */
+@media (max-width: 560px) {
+  [data-hoja="estimaciones"] figure.fig:has(> svg.chart) { overflow-x: auto; overscroll-behavior-x: contain; }
+  [data-hoja="estimaciones"] figure.fig > svg.chart { min-width: 520px; }
+  [data-hoja="estimaciones"] figure.fig:has(> svg.chart)::before {
+    content: "desliza para ver toda la figura →"; display: block; margin: 0 0 8px; position: sticky; left: 0;
+    font: 600 11px/1.3 var(--mono); letter-spacing: .04em; color: var(--tm-ink3);
+  }
+  [data-hoja="estimaciones"] figure.fig:has(> svg.chart) > figcaption { position: sticky; left: 0; max-width: calc(100vw - 58px); }
+}
+
+/* ---------------------------------------------------------------- recorrido: el mapa del C01, sobre azul marino
+   Como el mapa del Dojo (.d-mapa): fondo marino con cuadrícula, la franja de 6 colores arriba y las líneas brillantes.
+   Las 4 líneas siguen siendo las 4 velocidades de la hoja (semanas violeta, días azul, milisegundos ámbar, continuo
+   verde azulado), en sus versiones claras para el marino. El SVG no cambia: lo lee tools/importar-mapa.mjs del Dojo. */
+figure.fig.map {
+  --ink: #EEF1FB; --muted: #AAB3D6; --paper: #141C3D; --band: rgba(255, 255, 255, .045); --rule: rgba(255, 255, 255, .14);
+  --ln-semanas: #B08CFF; --ln-dias: #6F86FF; --ln-ms: #FFC857; --ln-continuo: #3FD3A6;
+  --ln-semanas-ink: #C6A6FF; --ln-dias-ink: #A9B7FF; --ln-ms-ink: #FFC857; --ln-continuo-ink: #5BE0B5;
+  --accent: #FFC857; --ok-soft: rgba(91, 224, 181, .14);
+  position: relative; overflow: hidden; color: #EEF1FB; border-radius: 24px; padding: 26px 14px 14px;
+  background-color: var(--navy);
+  background-image: linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px);
+  background-size: 24px 24px; box-shadow: 0 18px 40px -18px rgba(14, 21, 48, .55);
+  color-scheme: dark;
+}
+figure.fig.map::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 6px;
+  background: linear-gradient(90deg, var(--y) 0 16.67%, var(--o) 0 33.33%, var(--g) 0 50%, var(--b) 0 66.67%, var(--p) 0 83.33%, var(--n) 0);
+}
+figure.fig.map figcaption { color: #C9D0EE; padding: 0 6px; }
+figure.fig.map .maplg { color: #C9D0EE; }
+figure.fig.map .maplg b { color: #FFFFFF; }
+figure.fig.map svg .band { fill: rgba(255, 255, 255, .05); }
+figure.fig.map svg .bandl { fill: #8C95BD; font-family: var(--mono); font-weight: 700; }
+figure.fig.map svg .rdo { stroke: #FFFFFF; }
+figure.fig.map svg .tkb { fill: #18214A; stroke-width: 1.2; }
+figure.fig.map svg .tkt { fill: #DDE3FA; font-size: 12px; letter-spacing: -.01em; }
+figure.fig.map svg .nm { fill: #FFFFFF; letter-spacing: -.01em; }
+figure.fig.map svg .seg { stroke-linecap: round; }
+@media print {
+  figure.fig.map { background: #FFFFFF; box-shadow: 0 0 0 1px #DDE1EE; color: #0E1530;
+    --ink: #0E1530; --muted: #5A6385; --paper: #FFFFFF; --band: rgba(14, 21, 48, .045);
+    --ln-semanas: #8E5BE6; --ln-dias: #3D5AFE; --ln-ms: #E8AE36; --ln-continuo: #17B386;
+    --ln-semanas-ink: #7A45CF; --ln-dias-ink: #3D5AFE; --ln-ms-ink: #8F6210; --ln-continuo-ink: #0C7A5B; color-scheme: light; }
+  figure.fig.map figcaption, figure.fig.map .maplg { color: #3A4364; }
+  figure.fig.map .maplg b { color: #0E1530; }
+  figure.fig.map svg .rdo { stroke: #0E1530; }
+  figure.fig.map svg .tkb { fill: #FFFFFF; }
+  figure.fig.map svg .tkt { fill: #0E1530; }
+  figure.fig.map svg .nm { fill: #0E1530; }
+  figure.fig.map svg .bandl { fill: #5A6385; }
+}
+
+@media (max-width: 640px) {
+  .hero { padding-block: 18px 16px; }
+  .hero p.lead, .hero .lead { font-size: 17px; }
+  .pad { padding: 16px; border-radius: 18px; }
+  figure.fig { padding: 12px; border-radius: 18px; }
+  .sec { padding-top: 36px; }
+  .sec__n { min-width: 40px; height: 40px; font-size: 17px; border-radius: 12px; }
+  .li-step { padding: 14px 12px 16px; border-radius: 18px; }
+}
+
+/* imprimir siempre en claro, aunque el sistema esté en oscuro (el build además pone data-theme="light" al imprimir) */
+@media print {
+  :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
+  --tm-bg: #EDEFF7; --tm-grid: rgba(14,21,48,.055); --tm-card: #FFFFFF; --tm-ink: #0E1530; --tm-ink2: #3A4364; --tm-ink3: #5A6385;
+  --tm-line: #E3E6F0; --tm-chip: #EEF1FF; --tm-acc: #3D5AFE; --tm-nav: rgba(237,239,247,.86); --tm-sh: 0 1px 0 rgba(14,21,48,.08);
+  --tm-btn2: #FFFFFF; --tm-btn2sh: #C9CEE0; --tm-code: #0E1530; --tm-codeink: #E6EAFB; --tm-codeink2: #8F9BC9;
+  --tm-ok: #E3F7EF; --tm-okink: #0C7A5B; --tm-lead: #9AA2C0;
+  --tm-dojo: #B07A0C; --tm-warn: #D9532A; --tm-mon: #1B2550; --tm-off: #DCE0EC;
+  --y: #E8AE36; --yt: #FFC857; --yd: #D99A1E; --o: #EC6A3F; --g: #17B386; --b: #3D5AFE; --p: #7A69EE; --n: #5A6699; --navy: #0E1530;
+
+  --hj-rule: #DDE1EE; --hj-rule2: #C9CEE0;
+  --hj-blue: #3D5AFE; --hj-blue-soft: rgba(61, 90, 254, .12); --hj-blue-var: rgba(61, 90, 254, .09);
+  --hj-teal: #0C7A5B; --hj-teal-fill: #17B386; --hj-teal-line: rgba(12, 122, 91, .34); --hj-teal-soft: rgba(23, 179, 134, .14);
+  --hj-amber: #E8AE36; --hj-amber-soft: #FCF1D9; --hj-amber-ink: #8F6210; --hj-amber-tint: rgba(232, 174, 54, .18);
+  --hj-red: #C2441D; --hj-red-soft: #FCE9E1;
+  --hj-orange: #EC6A3F; --hj-orange-ink: #C9461C;
+  --hj-violet: #7A45CF; --hj-violet-fill: #8E5BE6; --hj-violet-soft: rgba(142, 91, 230, .13);
+  --hj-green: #2C8A3E; --hj-green-soft: rgba(44, 138, 62, .12);
+  --hj-gray: #6B7396; --hj-gray-soft: rgba(90, 99, 133, .16);
+  --hj-slate-ink: #5A6699;
+  --hj-on: #FFFFFF; --hj-code-bg: #F4F6FC;
+  --hj-card-sh: 0 1px 0 rgba(14, 21, 48, .07), 0 0 0 1px rgba(14, 21, 48, .06);
+  --hj-pop-sh: 0 1px 0 rgba(14, 21, 48, .06), 0 0 0 1px rgba(14, 21, 48, .05), 0 14px 32px -20px rgba(14, 21, 48, .35);
+    --hj-fp32: #4C2A99; --hj-fp16: #A383EE; --hj-int8: #EADFFC; --hj-on32: #FFFFFF; --hj-on16: #0E1530; --hj-on8: #0E1530;
+    color-scheme: light;
+  }
+  :root:not([data-theme="light"]):not([data-hj]), :root[data-theme="dark"]:not([data-hj]) { --ln-semanas-on: #FFFFFF; --ln-dias-on: #FFFFFF; --wk-on: #FFFFFF; }
+}
+
+/* imprimir: papel blanco, sin cuadrícula ni barras, el código en claro */
+@media print {
+  :root:not([data-hj]) { --bg: #FFFFFF; --paper: #FFFFFF; }
+  body { background: #FFFFFF !important; background-image: none !important; }
+  .hub-stripe { display: none !important; }
+  .pad, .card, figure.fig, details.lab, .li-step, fieldset.gn-g { box-shadow: 0 0 0 1px #DDE1EE; }
+  .code, pre.term {
+    --ink: #0E1530; --muted: #5A6385; --rule: #DDE1EE; --paper: #FFFFFF; --accent: #3D5AFE; --var-bg: rgba(61, 90, 254, .09);
+    --syn-kw: #3D5AFE; --syn-str: #6150D9; --syn-com: #5A6385; --syn-dec: #0C7A5B; --syn-num: #8F6210; --accent2: #0C7A5B; --hi-ink: #8F6210; --warn: #C2441D;
+    background: #F4F6FC; color: #0E1530; box-shadow: 0 0 0 1px #DDE1EE; color-scheme: light;
+  }
+  .code pre, pre.term { color: #0E1530; }
+  .code var.ph, pre.term var.ph { color: #3D5AFE; }
+  .code__bar { color: #5A6385; border-bottom-color: #DDE1EE; }
+  nav.toc { position: static; }
+}

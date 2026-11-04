@@ -3,6 +3,8 @@
     "id": "estimaciones",
     "title": "Formulario de estimaciones",
     "topic": "ML System Design",
+    "etapas": "todas",
+    "tono": "datos",
     "summary": "Todas las cuentas de las estimaciones del C01 en notación matemática: tráfico, presupuesto de latencia, GPUs (y sin GPU), VRAM, CPU de preprocesamiento, red, almacenamiento, costo mensual y backfill, con ejemplos resueltos y gráficas.",
     "sample": "<i>W</i> = <i>S</i> / (1 − <i>ρ</i>)",
     "sample_kind": "math",
@@ -20,6 +22,10 @@
     "id": "docker",
     "title": "Cheat sheet de Docker",
     "topic": "Contenedores",
+    "etapas": [
+      "contenedor"
+    ],
+    "tono": "contenedor",
     "summary": "Para escribir un Dockerfile desde cero con la documentación abierta y diagnosticar una falla en minutos: sintaxis con variables, ejemplos reales del C01, figuras, trampas típicas y laboratorios opcionales.",
     "sample": "docker run --rm -p <var>puerto</var>:8000 <var>imagen</var>:<var>tag</var>",
     "sample_kind": "code",
@@ -40,6 +46,10 @@
     "id": "kubernetes",
     "title": "Cheat sheet de Kubernetes",
     "topic": "Orquestación",
+    "etapas": [
+      "orquestacion"
+    ],
+    "tono": "orquestacion",
     "summary": "Para escribir y leer manifests con la documentación abierta, operar con kubectl y diagnosticar un pod roto rápido: sintaxis con variables, ejemplos reales del C01, figuras de cada proceso (el lazo de control, el rollout, las probes, el scheduling), trampas típicas y laboratorios opcionales.",
     "sample": "kubectl apply -f <var>manifest</var>.yaml -n <var>namespace</var>",
     "sample_kind": "code",
@@ -58,6 +68,8 @@
     "id": "recorrido",
     "title": "Del dato a producción",
     "topic": "MLOps de punta a punta",
+    "etapas": "todas",
+    "tono": "datos",
     "summary": "El C01 de punta a punta como un mapa de metro: del dato etiquetado al monitoreo que pide el siguiente modelo, con el artefacto que viaja entre estaciones, las 4 velocidades y, para cada herramienta, qué es y si se programa, se configura o se opera.",
     "sample": "snapshot → checkpoint → engine → imagen → request → logs",
     "sample_kind": "code",
@@ -77,6 +89,12 @@
     "id": "git",
     "title": "Cheat sheet de Git y GitHub Actions",
     "topic": "CI/CD",
+    "etapas": [
+      "api",
+      "contenedor",
+      "orquestacion"
+    ],
+    "tono": "tinta",
     "summary": "Para trabajar en el repo del equipo sin miedo, escribir un workflow de GitHub Actions con la documentación abierta y diagnosticar un CI en rojo rápido: sintaxis con variables, ejemplos reales del C01, grafos de commits antes y después (merge, rebase, squash, reset, revert y el rescate con el reflog), trampas típicas y laboratorios opcionales.",
     "sample": "git switch -c <var>rama</var> &amp;&amp; git push -u origin <var>rama</var>",
     "sample_kind": "code",
@@ -96,6 +114,11 @@
     "id": "triton",
     "title": "De PyTorch a Triton",
     "topic": "Serving de modelos",
+    "etapas": [
+      "modelo",
+      "api"
+    ],
+    "tono": "modelo",
     "summary": "Para llevar un modelo de PyTorch a un servicio rápido y medido con la documentación abierta, y diagnosticar por qué va lento, predice distinto o no carga: export a ONNX, paridad, engine de TensorRT, model repository y config.pbtxt, dynamic batching, clientes y perf_analyzer, con ejemplos reales del C01, figuras a escala, trampas típicas y laboratorios opcionales sin GPU.",
     "sample": "trtexec --onnx=<var>modelo</var>.onnx --saveEngine=<var>modelo</var>.plan",
     "sample_kind": "code",
@@ -115,6 +138,10 @@
     "id": "gateway",
     "title": "El gateway: FastAPI en producción",
     "topic": "APIs de serving",
+    "etapas": [
+      "api"
+    ],
+    "tono": "api",
     "summary": "Para escribir con la documentación abierta la API en FastAPI que está entre los clientes y Triton, y diagnosticar por qué va lenta, devuelve 503 o se traba: async contra hilos, validación y contrato, timeouts y reintentos, control de admisión, degradación, salud y apagado ordenado, observabilidad, tests y rendimiento, con el código real del C01, figuras de cada proceso, trampas típicas y laboratorios opcionales.",
     "sample": "uvicorn app.main:app --host 0.0.0.0 --port 8080",
     "sample_kind": "code",
@@ -134,6 +161,10 @@
     "id": "prometheus",
     "title": "Prometheus y Grafana",
     "topic": "Monitoreo",
+    "etapas": [
+      "monitoreo"
+    ],
+    "tono": "monitoreo",
     "summary": "Para instrumentar un servicio, escribir con la documentación abierta las consultas de un dashboard y de una alerta, y diagnosticar «no data», «target down» o «la alerta nunca sonó»: tipos de métrica, scrape, PromQL, histogramas y percentiles, reglas de grabación y de alerta, Alertmanager, Grafana, SLOs con burn rate y Prometheus en Kubernetes, con los archivos reales del C01, figuras a escala de cada proceso, trampas típicas y laboratorios opcionales.",
     "sample": "histogram_quantile(0.99, sum by (le) (rate(<var>metrica</var>_bucket[5m])))",
     "sample_kind": "code",
@@ -153,6 +184,11 @@
     "id": "vllm",
     "title": "Serving de LLMs con vLLM",
     "topic": "Serving de LLMs",
+    "etapas": [
+      "modelo",
+      "api"
+    ],
+    "tono": "api",
     "summary": "Para levantar un LLM con vLLM con la documentación abierta, saber cuántas conversaciones caben en tu GPU y diagnosticar por qué el primer token tarda, las respuestas se cortan o el servidor no arranca por memoria: tokens, prefill y decode, KV cache y VRAM, vllm serve y sus flags, la API compatible con OpenAI con streaming, continuous batching, TTFT y TPOT, paralelismo, cuantización, optimizaciones y el gateway de LLMs, con los archivos reales del C10, figuras a escala, trampas típicas y laboratorios opcionales sin GPU.",
     "sample": "vllm serve <var>modelo</var> --tensor-parallel-size <var>2</var> --max-model-len <var>8192</var>",
     "sample_kind": "code",
