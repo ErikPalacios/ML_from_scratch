@@ -237,7 +237,7 @@ El tiempo de mandar algo es **su tamaño entre el ancho de banda**, con las unid
 :::ejemplo La imagen de Triton y los pesos del modelo
 La imagen de Docker del servidor Triton (el paquete de su [[contenedor]]) pesa del orden de 10 GB comprimida, que es como viaja (el Dojo la menciona en la estación 7). Por una red de 1 Gb/s: 10 GB × 8 = 80 Gb, y 80 Gb ÷ 1 Gb/s = **80 s**. Por una de 10 Gb/s, 8 s. Es parte de por qué una máquina nueva tarda en estar lista: antes de responder la primera foto tiene que bajar esos bytes.
 
-Los pesos de la ResNet-50 de C01 en float32 son ≈ 98 MB. Por la red de 1 Gb/s tardan ≈ 0.8 s; por [[pcie|PCIe]], el bus que une el CPU con la GPU (≈ 16 GB/s), ≈ 6 ms; leídos de la [[vram|VRAM]] de una T4 (320 GB/s), ≈ 0.3 ms.
+Los pesos de la ResNet-50 de C01 en float32 son ≈ 98 MB. Por la red de 1 Gb/s tardan ≈ 0.8 s; por [[pcie|PCIe]], el bus que une la CPU con la GPU (≈ 16 GB/s), ≈ 6 ms; leídos de la [[vram|VRAM]] de una T4 (320 GB/s), ≈ 0.3 ms.
 :::
 
 Cada canal vive en otro orden de magnitud. En la tabla hay dos máquinas de AWS: la c6i.xlarge, sin GPU, es la del gateway de C01, y la g4dn.xlarge trae la T4. «Sostenida» es lo que aguantan todo el tiempo; el «hasta» del catálogo es varias veces más, pero solo dura un rato (de 5 a 60 minutos, según la Ronda). El tensor de 602 KB de C01, por cada canal:
@@ -557,7 +557,7 @@ El disco «al que le faltan 69 GB» es el caso inofensivo. El caro es sumar los 
 
 ### 3. Diseñar para el promedio
 
-Con el promedio todo cabe. En C01, el gateway a 116 req/s ocupa ≈ 0.7 [[nucleo|núcleos]] de CPU (116 × ≈ 6 ms; un núcleo es uno de los procesadores que trae el CPU); si le das uno «porque sobra», a las 8 de la noche llegan 350 req/s, que piden ≈ 2.1, y la latencia explota.
+Con el promedio todo cabe. En C01, el gateway a 116 req/s ocupa ≈ 0.7 [[vcpu|vCPU]] (116 × ≈ 6 ms; un vCPU es la unidad de CPU que renta la nube); si le das uno «porque sobra», a las 8 de la noche llegan 350 req/s, que piden ≈ 2.1, y la latencia explota.
 
 **Cómo evitarlo:** promedio, pico y pico de diseño, siempre los tres. Y pregunta por los eventos (un Buen Fin, una campaña), además del pico de cada día.
 

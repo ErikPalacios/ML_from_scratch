@@ -67,7 +67,7 @@ Suman de 18 a 20 ms: son los números de una request típica (M03 y C01). El pro
 
 ## CPU-bound contra I/O-bound {CPU-bound vs I/O-bound}
 
-Un trabajo tarda por una de dos razones: tiene mucho que calcular o mucho que esperar. Las dos tienen nombre en inglés:
+Un trabajo tarda por una de dos razones: mucho que calcular o mucho que esperar. Las dos tienen nombre en inglés:
 
 - **[[cpu-bound|CPU-bound]]**, limitado por la CPU: tarda por las cuentas. Mientras corre, un núcleo está al 100 %. Decodificar una foto, tokenizar texto, correr un modelo en CPU.
 - **[[io-bound|I/O-bound]]**, limitado por el I/O: tarda por las esperas. Mientras tanto, la CPU casi no trabaja. Llamar a otro servicio, descargar archivos, escribir *logs* (el registro de lo que va pasando).
@@ -376,7 +376,7 @@ if __name__ == "__main__":
 2 procesos que calculan, núcleos: 2
 ```
 
-El programa mide 5 veces y se queda con la mejor, para que no cuente lo que la máquina hacía en otra cosa. Si la tuya tiene al menos dos núcleos y usas el Python de siempre, el que tiene GIL, deberían salirte los mismos números. El `if __name__ == "__main__":` hace falta por los procesos, como en «Programa, proceso e hilo»: para arrancar cada uno, Python vuelve a leer tu archivo (en macOS, en Windows y, desde la 3.14, en Linux), y sin esa línea cada proceso nuevo arrancaría más.
+El programa mide 5 veces y se queda con la mejor, para que no cuente lo que la máquina hacía en otra cosa. Si la tuya tiene al menos dos núcleos y usas el Python de siempre, el que tiene GIL, deberían salirte los mismos números. El `if __name__ == "__main__":` hace falta por los procesos, como en «Programa, proceso e hilo»: para arrancar cada uno, Python vuelve a leer tu archivo (en macOS, en Windows y, desde la 3.14, en Linux), y sin esa línea cada hijo volvería a correr todo el archivo e intentaría arrancar sus propios procesos: Python lo impide con un error (RuntimeError) y el programa falla.
 
 :::analogia Una reunión con un solo micrófono
 En la reunión, muchos pueden estar leyendo, pensando o esperando un correo al mismo tiempo, pero solo habla quien tiene el micrófono. Los hilos que esperan son los que leen: no necesitan el micrófono. Los que calculan Python son los que hablan: se lo pasan, y en cada momento habla uno.
@@ -421,7 +421,7 @@ Un **[[worker]]** es un proceso, a veces un hilo, que toma trabajo de una fila y
 - **Workers de un servidor.** `uvicorn --workers 4` arranca 4 procesos iguales, cada uno con su event loop, que se reparten las requests. Un proceso padre los vigila: si uno muere o se queda colgado, arranca otro. gunicorn, muy usado en Python, hace lo mismo, y puede arrancar workers de uvicorn.
 - **Workers de una cola**, los del *patrón asíncrono* de M02 (asíncrono en la arquitectura, no en el código): procesos que sacan trabajos (*jobs*) de una cola y los procesan a su ritmo.
 
-Los workers de un servidor tienen una trampa cuando hay un modelo adentro: **cada proceso carga el suyo**. Con una [[cnn|CNN]] chica como la ResNet-50 caben, pero se turnan la GPU sin armar [[batch|batches]] entre ellos. Con Llama 3 8B, que pesa ≈ 16 GB en BF16, dos workers ya no caben en una GPU L4 de 24 GB. La cuenta completa, con la memoria que pide [[cuda|CUDA]] en cada proceso, está en la sección extra de «Programa, proceso e hilo». Para un modelo grande, la salida es un servidor con una sola copia que arme batches adentro.
+Los workers de un servidor tienen una trampa cuando hay un modelo adentro: **cada proceso carga el suyo**. Con una [[cnn|CNN]] chica como la ResNet-50 caben, pero se turnan la GPU sin armar [[batch|batches]] entre ellos. Con Llama 3 8B, que pesa ≈ 16 GB en BF16 (8 mil millones de parámetros × 2 bytes), dos workers ya no caben en una GPU L4 de 24 GB. La cuenta completa, con la memoria que pide [[cuda|CUDA]] en cada proceso, está en la sección extra de «Programa, proceso e hilo». Para un modelo grande, la salida es un servidor con una sola copia que arme batches adentro.
 
 ### Por qué C01 corre un solo proceso por pod
 
@@ -459,15 +459,15 @@ Vale para cualquier cosa con entradas y salidas. En C01 sirve para cuatro cosas:
 Requests en vuelo en todo el servicio // 500 por segundo, 50 ms cada una | 500 × 0.05 s | 25
 Por pod // con 5 pods | 25 ÷ 5 | 5
 Llamadas a Triton abiertas a la vez // ≈ 10 ms de ida y vuelta | 500 × 0.010 s | 5
-Núcleos ocupados en el preproceso // Little aplicado a la CPU: cada request que calcula ocupa un núcleo ≈ 6 ms | 500 × 0.006 s | 3
-= 25 requests en vuelo, 5 por pod, que entre todas ocupan 3 núcleos: el resto de su vida esperan. Es la primera mitad de la respuesta de la lección.
+vCPU ocupados en el preproceso // Little aplicado a la CPU: cada request que calcula ocupa un vCPU ≈ 6 ms | 500 × 0.006 s | 3
+= 25 requests en vuelo, 5 por pod, que entre todas ocupan 3 vCPU: el resto de su vida esperan. Es la primera mitad de la respuesta de la lección.
 :::
 
 ### Dónde se pone el límite
 
 Cada request en vuelo ocupa algo: memoria para su foto, una conexión, un lugar en el loop. Por eso el gateway de C01 tiene un tope, `MAX_INFLIGHT = 16` por pod: la request 17 recibe al instante un 503, un error que dice «estoy saturado, reintenta», y rechazarla cuesta microsegundos. ¿Por qué 16? Por Little al revés: a 100 por segundo, con 20 en vuelo cada request tardaría en promedio 20 ÷ 100 = 0.2 s, justo la promesa de 200 ms de C01, y con más, ni el promedio la cumpliría. Se baja a 16 por memoria: 16 fotos de hasta 10 MB son 160 MB, que caben en el 1 GiB del pod junto con los 2 decodes.
 
-Little también dice qué pasa cuando algo se frena. El gateway espera a Triton como máximo 150 ms: es su [[timeout]], su tiempo máximo de espera. Si Triton tarda hasta ese límite, las llamadas abiertas pasan de 5 a 500 × 0.15 = **75**, ≈ 15 por pod. Con un timeout de 5 s serían 500 × 5 = **2,500** colgadas, ≈ 500 por pod, cada una con su memoria y su conexión, para respuestas que nadie espera: quien llamó, el programa del marketplace que pidió la categoría (su *backend*), se va a los 300 ms. Los timeouts acotan W y, con W, la concurrencia.
+Little también dice qué pasa cuando algo se frena. El gateway espera a Triton como máximo 150 ms: es su [[timeout]], su tiempo máximo de espera. Si Triton tarda hasta ese límite, las llamadas abiertas pasan de 5 a 500 × 0.15 = **75**, ≈ 15 por pod. Con un timeout de 5 s serían 500 × 5 = **2,500** colgadas, ≈ 500 por pod, cada una con su memoria y su conexión, para respuestas que nadie espera: quien llamó, el *backend* del marketplace (el programa que pidió la categoría), se va a los 300 ms. Los timeouts acotan W y, con W, la concurrencia.
 
 ### La trampa: Little habla de promedios
 
@@ -520,7 +520,7 @@ Aplicada a la CPU, Little da los núcleos ocupados: tasa × CPU por request. Ese
 
 Pasa más fácil de lo que parece: basta con que suba el tráfico o la CPU de cada request. Una foto web de 12 MP sin draft mode cuesta de 40 a 80 ms de CPU, no 6, y el ejercicio 6 calcula con cuántas así ya no alcanza.
 
-Con esto ya tienes la respuesta completa. Un pod de C01 atiende 100 requests por segundo porque cada una pasa casi toda su vida esperando y el loop las encima: 5 en vuelo con 0.6 núcleos. Deja de funcionar de tres maneras:
+Con esto ya tienes la respuesta completa. Un pod de C01 atiende 100 requests por segundo porque cada una pasa casi toda su vida esperando y el loop las encima: 5 en vuelo con 0.6 vCPU. Deja de funcionar de tres maneras:
 
 1. **Algo bloquea el loop**, y nadie avanza.
 2. **La CPU no alcanza**: tasa × CPU por request llega a los núcleos.
@@ -590,7 +590,7 @@ Cancelar en async es barato: la corrutina recibe un aviso en el await donde est�
 
 ### Acotar cuántas a la vez
 
-`asyncio.Semaphore(n)` es un contador de lugares: deja pasar a n corrutinas a la vez y pone a esperar a las demás, con await, sin bloquear el loop. El gateway de C01 pone uno de 2 lugares frente al threadpool, aunque el pool de FastAPI tiene 40 hilos. ¿Por qué tan pocos? Por memoria. Un PNG de 40 MP ocupa ≈ 320 MB al decodificarse, y el pod tiene 1 GiB. Con 2 lugares, el peor caso es 2 × 320 MB más ≈ 80 MB de Python: ≈ 720 MB. Con 40 serían 12.8 GB, y el pod moriría por falta de memoria ([[oom|OOM]]).
+`asyncio.Semaphore(n)` es un contador de lugares: deja pasar a n corrutinas a la vez y pone a esperar a las demás, con await, sin bloquear el loop. El gateway de C01 pone uno de 2 lugares frente al threadpool, aunque el pool de FastAPI tiene 40 hilos. ¿Por qué tan pocos? Por memoria. Un PNG de 40 MP ocupa ≈ 320 MB al decodificarse, y el pod tiene 1 GiB. Con 2 lugares, el peor caso es 2 × 320 MB, más ≈ 80 MB de Python y ≈ 160 MB de requests en vuelo: ≈ 880 MB, el 82 % del límite (la cuenta completa está en «Programa, proceso e hilo»). Con 40 serían 12.8 GB, y el pod moriría por falta de memoria ([[oom|OOM]]).
 
 Esperar un lugar tiene además un tiempo máximo: si una request espera más de 50 ms, recibe un 503, un error que dice «estoy saturado, reintenta». Esperar más ya no cumpliría la promesa de 200 ms, y rechazar cuesta microsegundos.
 
@@ -652,7 +652,7 @@ El primer servicio de C01, el MVP (la versión mínima para probar la idea), era
 
 El diseño final separa el trabajo según su tipo. El gateway, en máquinas sin GPU, encima las esperas con su loop y hace el decode en 2 hilos, en 3 a 12 pods. Triton, en la GPU, junta las fotos en batches desde C++; con TensorRT en FP16, la Ronda cuenta con ≈ 1,200 imágenes por segundo por T4, un número que se mide antes de producción.
 
-Aun con ese diseño, los núcleos se cuentan con el pico. La Ronda (M03) cuenta qué pasa si se dimensiona con el tráfico promedio del día: a 116 requests por segundo, el gateway ocupa 116 × 6 ms ≈ 0.7 núcleos, y le dan 1. A las 8 de la noche llegan 350 por segundo, que piden ≈ 2.1: «el threadpool se satura y el p99 explota».
+Aun con ese diseño, los vCPU se cuentan con el pico. La Ronda (M03) cuenta qué pasa si se dimensiona con el tráfico promedio del día: a 116 requests por segundo, el gateway ocupa 116 × 6 ms ≈ 0.7 vCPU, y le dan 1. A las 8 de la noche llegan 350 por segundo, que piden ≈ 2.1: «el threadpool se satura y el p99 explota».
 
 ### C10: cientos de conversaciones abiertas
 
@@ -763,7 +763,7 @@ Intenta responder en tu cabeza antes de abrir cada respuesta.
 
 :::chequeo
 ? ¿Por qué una request del gateway de C01 pasa casi todo su tiempo esperando?
-Porque casi todo lo que hace es I/O: recibir la foto y esperar ≈ 10 ms a Triton, además de su turno. La CPU trabaja ≈ 6 a 7 ms, casi todo en el decode.
+Porque casi todo lo que hace es I/O: recibir la foto y esperar ≈ 10 ms a Triton, además de esperar su turno. La CPU trabaja ≈ 6 a 7 ms, casi todo en el decode.
 ? ¿Qué hace `await`, y por qué un `await` solo no encima nada?
 Marca un punto de espera y le regresa el turno al event loop, que corre otra tarea lista. Para encimar hacen falta varias tareas: `asyncio.gather` o, en un servidor, una por request.
 ? ¿Qué pasa si decodificas un JPEG dentro de una ruta `async def`?

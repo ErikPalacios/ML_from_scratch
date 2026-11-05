@@ -25,7 +25,7 @@
       "note": "Un [[proceso]] del binario `python`. Ejecuta el bytecode de `app.py` y de uvicorn, instrucción por instrucción, en los [[nucleo|núcleos]] de la CPU. Lo pesado, como decodificar la foto, lo hacen librerías compiladas, como Pillow." },
     { "id": "kernel", "label": "Kernel", "sub": "crea los procesos", "kind": "edge",
       "x": 31, "y": 21, "w": 16, "h": 8,
-      "note": "El [[kernel]], el corazón del sistema operativo. Carga el programa en la memoria y crea el proceso: le da su [[pid|PID]], su memoria propia y un primer [[hilo]]. Después lo turna en la CPU con todos los demás." },
+      "note": "El [[kernel]], el corazón del sistema operativo. Carga el programa en la memoria y crea el proceso: le da su [[pid|PID]], su memoria propia y un primer [[hilo]]. Después lo turna en la CPU con todos los demás. Aquí va uno solo para simplificar: en C01, el gateway y Triton corren en máquinas distintas, y cada máquina tiene su propio kernel." },
     { "id": "ptri", "label": "Proceso de Triton", "sub": "PID, memoria, hilos", "kind": "service",
       "x": 61, "y": 21, "w": 16, "h": 8,
       "note": "El [[proceso]] de Triton: el binario `tritonserver` corriendo, con su PID, su memoria y muchos hilos, que reciben requests, arman los batches y corren el modelo." },

@@ -70,7 +70,7 @@
       "id": "ancho-banda",
       "termino": "Ancho de banda",
       "en": "bandwidth",
-      "corto": "Cuántos datos puede mover un canal por segundo: una red, un disco, el bus entre el CPU y la GPU. La red se mide en bits por segundo (Gb/s); la memoria y los discos, en bytes por segundo (GB/s).",
+      "corto": "Cuántos datos puede mover un canal por segundo: una red, un disco, el bus entre la CPU y la GPU. La red se mide en bits por segundo (Gb/s); la memoria y los discos, en bytes por segundo (GB/s).",
       "largo": "El tiempo de mandar algo grande es su tamaño entre el ancho de banda, con las unidades parejas (× 8 entre bytes y bits). No es lo mismo que la [[latencia]]: el ancho de banda dice cuánto cabe por segundo; la latencia, cuánto tarda en llegar lo primero. El de la memoria de la GPU tiene su propia lección: [[ancho-banda-memoria]].",
       "analogia": "Una camioneta con 2 PB de discos que maneja 10 horas tiene un ancho de banda enorme (≈ 440 Gb/s) y una latencia pésima: el primer byte llega a las 10 horas. Se rompe en que una red manda un flujo continuo y la camioneta, todo de golpe.",
       "ejemplo": "En el pico de diseño de C01 viajan 500 × 602 KB ≈ 301 MB/s del gateway a las GPUs: ≈ 2.4 Gb/s. Por PCIe, a ≈ 16 GB/s, copiar una foto tarda ≈ 40 µs.",

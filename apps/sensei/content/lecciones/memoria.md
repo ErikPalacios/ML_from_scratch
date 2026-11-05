@@ -73,7 +73,7 @@ Dentro del chip de la CPU hay memorias diminutas y muy rápidas que guardan copi
 | L2 | 1 a 16 MiB | ≈ 3 a 5 ns | de cada núcleo o de un grupo |
 | L3 | decenas a cientos de MiB | ≈ 10 a 30 ns | de un grupo o de todos |
 
-Son valores de CPUs de 2022 a 2025. En Linux, `lscpu` te dice las de tu máquina.
+Son valores de CPUs de 2022 a 2025. En [[linux|Linux]], `lscpu` te dice las de tu máquina.
 
 :::profundo Las cachés de dos máquinas de verdad
 En la Mac con chip M4 donde se escribió esta lección, cada núcleo rápido tiene 128 KiB de L1 para datos, y los 4 núcleos rápidos comparten 16 MiB de L2; Apple no tiene una L3 como tal, sino otra caché que comparte con la GPU. Un Ryzen 9 9950X (AMD, 2024) trae por núcleo 48 KiB de L1 para datos y 1 MiB de L2, y 32 MiB de L3 por cada 8 núcleos.
@@ -474,7 +474,7 @@ En un servidor que responde requests es al revés. Un servidor lento es peor que
 
 ### El límite de un contenedor
 
-En la lección anterior viste que un [[contenedor]] tiene su propio tope de memoria, que el sistema operativo hace cumplir con un [[cgroup]]: si sus procesos lo pasan, mata a uno aunque a la máquina le sobre RAM, y Kubernetes lo reporta como **OOMKilled**, con [[codigo-salida|código de salida]] 137, el de la [[senal|señal]] SIGKILL. En C01, el contenedor de Triton pide 6 GiB y tiene ese mismo límite: si se pasa, muere de golpe y se reinicia, en vez de ponerse lento.
+En la lección anterior viste que un [[contenedor]] tiene su propio tope de memoria, que el sistema operativo hace cumplir con un [[cgroup]]: si sus procesos lo pasan, los mata aunque a la máquina le sobre RAM, y Kubernetes lo reporta como **OOMKilled**, con [[codigo-salida|código de salida]] 137, el de la [[senal|señal]] SIGKILL. En C01, el contenedor de Triton pide 6 GiB y tiene ese mismo límite: si se pasa, muere de golpe y se reinicia, en vez de ponerse lento.
 
 Con lo de esta lección ya puedes decir qué cuenta contra ese tope: la memoria propia de sus procesos y las páginas de archivos que usan activamente, como unos pesos abiertos con mmap. La page cache que nadie usa se puede soltar, y no lo mata.
 
@@ -519,7 +519,7 @@ Para pasarse datos grandes sin copiarlos, los procesos usan **memoria compartida
 
 Docker le da a cada contenedor un `/dev/shm` de 64 MiB (≈ 67 MB). Un batch de 64 fotos de 3 × 224 × 224 en float32 pesa 38.5 MB, y con 4 workers que preparan 2 batches por adelantado cada uno, el DataLoader necesita del orden de 300 MB. Con 64 MiB truena con un mensaje famoso: «Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm)».
 
-La salida es agrandarlo: `--shm-size=1g` en Docker, `shm_size: 1g` en Docker Compose o, en Kubernetes, un volumen en memoria (`emptyDir` con `medium: Memory`) [[montaje|montado]] en `/dev/shm`. Ojo: lo que se escribe ahí es RAM y cuenta contra el límite del contenedor.
+La salida es agrandarlo: `--shm-size=1g` en Docker, `shm_size: 1g` en Docker Compose o, en Kubernetes, un volumen en memoria (`emptyDir` con `medium: Memory`) [[montaje|montado]] en `/dev/shm`, es decir, puesto en esa carpeta. Ojo: lo que se escribe ahí es RAM y cuenta contra el límite del contenedor.
 
 ## Errores comunes {Common mistakes}
 
@@ -533,7 +533,7 @@ La salida es agrandarlo: `--shm-size=1g` en Docker, `shm_size: 1g` en Docker Com
 
 Reinicias el servidor en tu máquina y carga en 5 segundos. En producción, un nodo nuevo tarda minutos: su page cache está vacía y su disco es otro.
 
-**Cómo evitarlo:** mide el arranque en un nodo nuevo, o vacía antes la page cache. En Linux, como [[root]], el usuario con todos los permisos: `sync; echo 3 > /proc/sys/vm/drop_caches` (`sync` escribe lo pendiente y el `echo` suelta la page cache). Anota siempre de qué disco se leyó.
+**Cómo evitarlo:** mide el arranque en un nodo nuevo, o vacía antes la page cache. En Linux, como [[root]], el usuario con permiso para casi todo: `sync; echo 3 > /proc/sys/vm/drop_caches` (`sync` escribe lo pendiente y el `echo` suelta la page cache). Anota siempre de qué disco se leyó.
 
 ### 3. Dejar el swap encendido en un servidor de inferencia
 
@@ -563,7 +563,7 @@ Los pesos de un LLM en el gp3 de base con el que arranca la máquina, a 125 MiB/
 
 ### C01: el servidor de la T4
 
-El servidor de GPU de C01 es una g4dn.xlarge: 4 [[vcpu|vCPU]] (núcleos virtuales de la nube), 16 GiB de RAM, una T4 con 16 GB de VRAM y ≈ 125 GB de NVMe local. El engine de la ResNet-50, de ≈ 50 a 150 MB, va dentro de la imagen de Triton, y cargarlo de cualquier disco toma ≈ 1 s. Lo que tarda es bajar la imagen, de varios GB: ≈ 2 a 5 minutos, según la Ronda. El contenedor de Triton tiene 6 GiB de RAM, que se van sobre todo en las librerías de CUDA y los *buffers* (la memoria donde se acomodan los datos que van y vienen); el modelo vive en la GPU.
+El servidor de GPU de C01 es una g4dn.xlarge: 4 [[vcpu|vCPU]] (la unidad de CPU que renta la nube; en estas máquinas de Intel, cada uno es medio núcleo), 16 GiB de RAM, una T4 con 16 GB de VRAM y ≈ 125 GB de NVMe local. El engine de la ResNet-50, de ≈ 50 a 150 MB, va dentro de la imagen de Triton, y cargarlo de cualquier disco toma ≈ 1 s. Lo que tarda es bajar la imagen, de varios GB: ≈ 2 a 5 minutos, según la Ronda. El contenedor de Triton tiene 6 GiB de RAM, que se van sobre todo en las librerías de CUDA y los *buffers* (la memoria donde se acomodan los datos que van y vienen); el modelo vive en la GPU.
 
 Y la foto de Ana nunca toca un disco. El gateway la decodifica en su RAM, pero antes de abrirla revisa su tamaño y rechaza las de más de 40 MP: una de 40 millones de píxeles abierta en RGB ocupa 40 M × 3 bytes = 120 MB.
 
@@ -655,7 +655,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de aciertos, carga y wo
 
 **En la Ronda:**
 
-- **M04 · Hardware para inferencia** separa la RAM del *host*, la máquina donde va la GPU (mucha, barata y con poco ancho de banda), de la VRAM, y explica la memoria fijada para copiar a la GPU, la memoria unificada del Jetson y la memoria rápida dentro del chip.
+- **M04 · Hardware para inferencia** separa la RAM del *host*, la máquina donde va la GPU, de la VRAM: la primera es mucha, barata y con poco ancho de banda. También explica la memoria fijada para copiar a la GPU, la memoria unificada del Jetson y la memoria rápida dentro del chip.
 - **M05 · Contenedores** trae los 125 MiB/s del gp3 como cuello de botella, el NVMe local, la decisión de meter los pesos en la imagen o bajarlos al arrancar, el `/dev/shm` de 64 MiB y los workers que duplican la memoria.
 - **M06 · Orquestación** pone el límite de memoria de cada contenedor y explica el OOMKilled; **M07 · Servidores de modelos** cuenta las copias que hace `uvicorn --workers`.
 - **Los casos.** C01 (el engine en la imagen y el límite de 6 GiB), C07 (la page cache y el precalentamiento) y C10 (de S3 al NVMe, con mmap).

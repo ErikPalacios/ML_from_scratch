@@ -1,49 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 512" role="img" aria-labelledby="f-programa-proceso-anatomia-t" class="f-svg" style="max-width:420px">
-<title id="f-programa-proceso-anatomia-t">El proceso del gateway de C01, por dentro. Arriba, su nombre: python, el intérprete, corriendo uvicorn y app.py, con PID 1 dentro de su contenedor. En medio, su memoria, que es solo suya: el código (python, uvicorn, app.py y Pillow), los datos que comparten sus hilos (las fotos a medio decodificar y el cliente de Triton) y tres pilas, una por hilo. Debajo, sus tres hilos: uno atiende las requests y dos decodifican fotos; cada uno usa su propia pila y comparte todo lo demás. Al final, sus archivos abiertos (la entrada, la salida y los errores, el puerto 8080 y la conexión con Triton) y su entorno (PREPROCESS_CONCURRENCY=2 y el usuario 10001).</title>
-<rect class="f-card" x="10" y="10" width="340" height="492" rx="16"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 528" role="img" aria-labelledby="f-programa-proceso-anatomia-t" class="f-svg" style="max-width:420px">
+<title id="f-programa-proceso-anatomia-t">El proceso del gateway de C01, por dentro. Arriba, su nombre: python, el intérprete, corriendo uvicorn y app.py, con PID 1 porque es el programa principal de su contenedor. En medio, su memoria, que es solo suya: el código (python, uvicorn, app.py y Pillow), los datos que comparten sus hilos (las fotos a medio decodificar y el cliente de Triton) y tres pilas, una por hilo. Debajo, tres de sus hilos: uno atiende las requests y dos decodifican fotos; cada uno usa su propia pila y comparte todo lo demás. Al final, sus archivos abiertos (la entrada, la salida y los errores, el puerto 8080 y la conexión con Triton) y su entorno (PREPROCESS_CONCURRENCY=2 y el usuario número 10001).</title>
+<rect class="f-card" x="10" y="10" width="340" height="508" rx="16"/>
 <text class="f-l" x="26" y="36">UN PROCESO POR DENTRO</text>
 <text class="f-t" x="26" y="60">python: el gateway de C01</text>
 <rect class="f-b" x="272" y="44" width="62" height="24" rx="12"/>
 <text class="f-pill-t" x="303" y="61" text-anchor="middle" style="font:800 13px var(--sans)">PID 1</text>
 <text class="f-s" x="26" y="80" style="font-size:12px">el intérprete, corriendo uvicorn y app.py</text>
-<rect class="f-chip" x="22" y="92" width="316" height="188" rx="12"/>
-<text class="f-l" x="34" y="112">MEMORIA: SOLO DE ESTE PROCESO</text>
-<rect class="f-card" x="34" y="122" width="292" height="34" rx="8"/>
-<text class="f-s" x="46" y="144" style="font-size:12px"><tspan style="font-weight:700">Código:</tspan> python, uvicorn, app.py, Pillow</text>
-<rect class="f-card" x="34" y="164" width="292" height="44" rx="8"/>
-<text class="f-s" x="46" y="182" style="font-size:12px;font-weight:700">Datos que comparten los hilos</text>
-<text class="f-s" x="46" y="199" style="font-size:12px">fotos a medio decodificar, cliente de Triton</text>
-<rect class="f-card" x="34" y="216" width="92" height="52" rx="8"/>
-<text class="f-t" x="80" y="238" text-anchor="middle" style="font-size:13px">Pila 1</text>
-<text class="f-s" x="80" y="256" text-anchor="middle" style="font-size:12px">en qué va</text>
-<rect class="f-card" x="134" y="216" width="92" height="52" rx="8"/>
-<text class="f-t" x="180" y="238" text-anchor="middle" style="font-size:13px">Pila 2</text>
-<text class="f-s" x="180" y="256" text-anchor="middle" style="font-size:12px">en qué va</text>
-<rect class="f-card" x="234" y="216" width="92" height="52" rx="8"/>
-<text class="f-t" x="280" y="238" text-anchor="middle" style="font-size:13px">Pila 3</text>
-<text class="f-s" x="280" y="256" text-anchor="middle" style="font-size:12px">en qué va</text>
-<line class="f-flecha" x1="80" y1="300" x2="80" y2="277"/>
-<polygon class="f-punta" points="80,269 75,278 85,278"/>
-<line class="f-flecha" x1="180" y1="300" x2="180" y2="277"/>
-<polygon class="f-punta" points="180,269 175,278 185,278"/>
-<line class="f-flecha" x1="280" y1="300" x2="280" y2="277"/>
-<polygon class="f-punta" points="280,269 275,278 285,278"/>
-<rect class="f-b" x="34" y="300" width="92" height="40" rx="10"/>
-<text class="f-pill-t" x="80" y="317" text-anchor="middle" style="font:800 13px var(--sans)">Hilo 1</text>
-<text class="f-pill-t" x="80" y="333" text-anchor="middle" style="font:600 12px var(--sans)">requests</text>
-<rect class="f-b" x="134" y="300" width="92" height="40" rx="10"/>
-<text class="f-pill-t" x="180" y="317" text-anchor="middle" style="font:800 13px var(--sans)">Hilo 2</text>
-<text class="f-pill-t" x="180" y="333" text-anchor="middle" style="font:600 12px var(--sans)">decodifica</text>
-<rect class="f-b" x="234" y="300" width="92" height="40" rx="10"/>
-<text class="f-pill-t" x="280" y="317" text-anchor="middle" style="font:800 13px var(--sans)">Hilo 3</text>
-<text class="f-pill-t" x="280" y="333" text-anchor="middle" style="font:600 12px var(--sans)">decodifica</text>
-<text class="f-s" x="26" y="364" style="font-size:12px">Cada hilo tiene su pila; todo lo demás es de los tres.</text>
-<line class="f-linea" x1="26" y1="378" x2="334" y2="378"/>
-<text class="f-l" x="26" y="400">ARCHIVOS ABIERTOS</text>
-<text class="f-s" x="26" y="420" style="font-size:12px">0, 1 y 2: entrada, salida y errores (los logs)</text>
-<text class="f-s" x="26" y="438" style="font-size:12px">el puerto 8080, por donde llegan las requests</text>
-<text class="f-s" x="26" y="456" style="font-size:12px">la conexión con Triton</text>
-<text class="f-l" x="26" y="478">ENTORNO</text>
-<text class="f-s" x="100" y="478" style="font-size:12px">PREPROCESS_CONCURRENCY=2</text>
-<text class="f-s" x="100" y="494" style="font-size:12px">usuario 10001</text>
+<text class="f-s" x="26" y="96" style="font-size:12px">PID 1 porque es el principal de su contenedor</text>
+<rect class="f-chip" x="22" y="108" width="316" height="188" rx="12"/>
+<text class="f-l" x="34" y="128">MEMORIA: SOLO DE ESTE PROCESO</text>
+<rect class="f-card" x="34" y="138" width="292" height="34" rx="8"/>
+<text class="f-s" x="46" y="160" style="font-size:12px"><tspan style="font-weight:700">Código:</tspan> python, uvicorn, app.py, Pillow</text>
+<rect class="f-card" x="34" y="180" width="292" height="44" rx="8"/>
+<text class="f-s" x="46" y="198" style="font-size:12px;font-weight:700">Datos que comparten los hilos</text>
+<text class="f-s" x="46" y="215" style="font-size:12px">fotos a medio decodificar, cliente de Triton</text>
+<rect class="f-card" x="34" y="232" width="92" height="52" rx="8"/>
+<text class="f-t" x="80" y="254" text-anchor="middle" style="font-size:13px">Pila 1</text>
+<text class="f-s" x="80" y="272" text-anchor="middle" style="font-size:12px">en qué va</text>
+<rect class="f-card" x="134" y="232" width="92" height="52" rx="8"/>
+<text class="f-t" x="180" y="254" text-anchor="middle" style="font-size:13px">Pila 2</text>
+<text class="f-s" x="180" y="272" text-anchor="middle" style="font-size:12px">en qué va</text>
+<rect class="f-card" x="234" y="232" width="92" height="52" rx="8"/>
+<text class="f-t" x="280" y="254" text-anchor="middle" style="font-size:13px">Pila 3</text>
+<text class="f-s" x="280" y="272" text-anchor="middle" style="font-size:12px">en qué va</text>
+<line class="f-flecha" x1="80" y1="316" x2="80" y2="293"/>
+<polygon class="f-punta" points="80,285 75,294 85,294"/>
+<line class="f-flecha" x1="180" y1="316" x2="180" y2="293"/>
+<polygon class="f-punta" points="180,285 175,294 185,294"/>
+<line class="f-flecha" x1="280" y1="316" x2="280" y2="293"/>
+<polygon class="f-punta" points="280,285 275,294 285,294"/>
+<rect class="f-b" x="34" y="316" width="92" height="40" rx="10"/>
+<text class="f-pill-t" x="80" y="333" text-anchor="middle" style="font:800 13px var(--sans)">Hilo 1</text>
+<text class="f-pill-t" x="80" y="349" text-anchor="middle" style="font:600 12px var(--sans)">requests</text>
+<rect class="f-b" x="134" y="316" width="92" height="40" rx="10"/>
+<text class="f-pill-t" x="180" y="333" text-anchor="middle" style="font:800 13px var(--sans)">Hilo 2</text>
+<text class="f-pill-t" x="180" y="349" text-anchor="middle" style="font:600 12px var(--sans)">decodifica</text>
+<rect class="f-b" x="234" y="316" width="92" height="40" rx="10"/>
+<text class="f-pill-t" x="280" y="333" text-anchor="middle" style="font:800 13px var(--sans)">Hilo 3</text>
+<text class="f-pill-t" x="280" y="349" text-anchor="middle" style="font:600 12px var(--sans)">decodifica</text>
+<text class="f-s" x="26" y="380" style="font-size:12px">Cada hilo tiene su pila; todo lo demás lo comparten.</text>
+<line class="f-linea" x1="26" y1="394" x2="334" y2="394"/>
+<text class="f-l" x="26" y="416">ARCHIVOS ABIERTOS</text>
+<text class="f-s" x="26" y="436" style="font-size:12px">la entrada, la salida y los errores (los logs)</text>
+<text class="f-s" x="26" y="454" style="font-size:12px">el puerto 8080, por donde llegan las requests</text>
+<text class="f-s" x="26" y="472" style="font-size:12px">la conexión con Triton</text>
+<text class="f-l" x="26" y="494">ENTORNO</text>
+<text class="f-s" x="100" y="494" style="font-size:12px">PREPROCESS_CONCURRENCY=2</text>
+<text class="f-s" x="100" y="510" style="font-size:12px">usuario número 10001</text>
 </svg>

@@ -268,7 +268,7 @@ Casi nunca escribes CUDA: cuando PyTorch multiplica dos tensores en la GPU, llam
 Un [[kernel-gpu|kernel]] es la función que corren los hilos de la GPU: miles de copias a la vez, y cada una calcula un pedacito del resultado. Para sumar dos vectores de un millón de números, el kernel dice «suma el número i de los dos», y lo corren un millón de hilos, cada uno con su i. Cada capa del modelo es uno o más kernels: una convolución, sumar el sesgo, una [[relu|ReLU]].
 
 :::ojo
-«Kernel» quiere decir tres cosas en este oficio. Aquí es una función de la GPU. En «El sistema operativo» vas a ver el [[kernel]] de Linux, el programa que manda sobre el hardware de la máquina. Y en inglés, el [[filtro]] de una convolución también se llama *kernel*. No tienen nada que ver entre sí: fíjate en el contexto.
+«Kernel» quiere decir al menos tres cosas en este oficio. Aquí es una función de la GPU. En «El sistema operativo» vas a ver el [[kernel]] de Linux, el programa que manda sobre el hardware de la máquina. Y en inglés, el [[filtro]] de una convolución también se llama *kernel*. No tienen nada que ver entre sí: fíjate en el contexto.
 :::
 
 ### Lanzar: la CPU deja el trabajo en una fila
@@ -419,7 +419,7 @@ Toca cada caja para ver qué hace y cuánto tarda. Sigue «La foto de Ana», lue
 Cuando un modelo no cabe en una GPU, se parte entre varias, que en cada capa se pasan resultados parciales: por PCIe, cada paso se alargaría. [[nvlink|NVLink]] es una conexión directa entre GPUs de NVIDIA, que no pasa por PCIe: en una H100 SXM da 450 GB/s en cada sentido (900 sumados), unas 7 veces PCIe Gen5. En las máquinas de 8 GPUs, como la p5.48xlarge de AWS, unos chips llamados NVSwitch conectan las 8 entre sí a esa velocidad. La T4, la L4 y la A10G no tienen NVLink. Cómo lo usa C10 está en «En la vida real».
 
 :::profundo Memoria fijada y DMA
-La CPU no copia el tensor byte por byte: lo copia un circuito que lee directo de la RAM (DMA, *direct memory access*) mientras la CPU sigue con otra cosa. Para eso, el tensor tiene que estar en memoria **fijada** (*pinned*): RAM que el sistema operativo promete no mover ni mandar al disco, cosa que la [[memoria-virtual|memoria virtual]] sí podría hacer. Si no está fijada, el driver primero la copia a un búfer fijado, y tarda más: por eso los servidores de modelos usan búferes fijados, y PyTorch tiene `pin_memory=True`. La GPU tiene además sus propios motores de copia, así que puede copiar el siguiente batch mientras calcula el actual. C01 lo aprovecha con dos instancias del modelo, dos copias cargadas en la misma T4: mientras una copia datos, la otra calcula.
+La CPU no copia el tensor byte por byte: lo copia un circuito que lee directo de la RAM (DMA, *direct memory access*) mientras la CPU sigue con otra cosa. Para eso, el tensor tiene que estar en memoria **fijada** (*pinned*): RAM que el sistema operativo promete no mover ni mandar al disco, cosa que la [[memoria-virtual|memoria virtual]] sí podría hacer. Si no está fijada, el driver primero la copia a un *buffer* fijado, y tarda más: por eso los servidores de modelos usan *buffers* fijados, y PyTorch tiene `pin_memory=True`. La GPU tiene además sus propios motores de copia, así que puede copiar el siguiente batch mientras calcula el actual. C01 lo aprovecha con dos instancias del modelo, dos copias cargadas en la misma T4: mientras una copia datos, la otra calcula.
 :::
 
 ## Qué mide de verdad la utilización de GPU {What GPU utilization really measures}

@@ -59,16 +59,27 @@ En la fase 3 cada lección costó ≈ 1.75 % del límite semanal del plan Max, y
 
 Al terminar cada fase se compara el porcentaje semanal por lección contra el 1.75 % de la fase 3.
 
+**Fase 4 (2026-11-05): ≈ 4 % por lección, más del doble.** El límite semanal pasó de 32 % a 52 %: 1 punto para los paquetes y 19 para escribir y revisar las 5 lecciones. La ventana de 5 horas tampoco alcanzó: la tanda empezó con 67 % libre en una ventana y se terminó en la siguiente, al 94 %. Lo que más pesó:
+
+- Escritores y revisores heredaron el esfuerzo de la sesión, que era el máximo. Los escritores solos gastaron ≈ 2 puntos por lección, con verificaciones que tocaban a la revisión de hechos (uno probó señales en contenedores de Docker).
+- Las dos pasadas de fondo son agentes aparte, y cada uno vuelve a leer la lección, el glosario, las piezas y decenas de capturas.
+
+Para la fase 5, sin tocar las dos pasadas de fondo ni las figuras a mano:
+
+- Fijar el esfuerzo de escritores y revisores en «alto», en vez de heredarlo.
+- Que el escritor verifique solo lo que corre (el Python y las cuentas) y le deje los hechos a su revisión.
+- Que la pasada de claridad mire solo las capturas de 780 px en claro y en oscuro.
+
 ## 5. Las fases
 
-Las fases 2 (profundizada al estándar nuevo) y 3 están publicadas desde el 2026-11-05: 16 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
+Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05: 21 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
 
 | Fase | Módulo | Lecciones | Prepara para la Ronda |
 |---|---|---|---|
 | 1 ✓ | El mapa | El camino completo | M01 |
 | 2 ✓ (profundizada) | Lo básico de ML | Qué es un modelo · Una foto, vista por un modelo · Datos, ejemplos, features y etiquetas · Cómo aprende un modelo · ¿Aprendió de verdad? · Redes neuronales y CNNs · Embeddings · Transformers y LLMs | M01, M04, M07–M12, M14 |
 | 3 ✓ | Números y estadística para producción | Unidades y estimaciones · Percentiles · Probabilidad para sistemas que fallan · Ruido, muestras y pruebas A/B · Comparar distribuciones · Cómo guarda números una computadora · Matrices y FLOPs | M01, M03, M04, M08, M10–M13, M15 |
-| 4 | La computadora por dentro | Programa, proceso e hilo · Memoria, caché y disco · CPU y GPU · El sistema operativo · async, event loop y GIL | M02–M08, M15 |
+| 4 ✓ | La computadora por dentro | Programa, proceso e hilo · Memoria, caché y disco · CPU y GPU · El sistema operativo · async, event loop y GIL | M02–M08, M15 |
 | 5 | La red y la web | IP, puertos y DNS · HTTP · APIs: REST, JSON, gRPC y streaming · Balanceadores y gateways · Timeouts, reintentos e idempotencia · Latencia y throughput | M02, M03, M06, M07, M11, M13–M15 |
 | 6 | Datos y almacenamiento | Formatos · Bases de datos · Object storage, data lakes y warehouses · Colas y streams · Tiempo, hashes e identificadores | M01, M02, M06, M09, M12, M13, M15 |
 | 7 | Herramientas del oficio | La terminal · Python y sus paquetes · PyTorch para producción · Git · Pruebas y CI/CD · Configuración y secretos | M05–M11, M15 |

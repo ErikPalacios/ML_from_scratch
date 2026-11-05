@@ -153,8 +153,8 @@
       "modulo": "3 · La computadora por dentro",
       "fase": 4,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/programa-proceso/"
     },
     {
       "id": "memoria",
@@ -162,8 +162,8 @@
       "modulo": "3 · La computadora por dentro",
       "fase": 4,
       "etapa": "modelo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/memoria/"
     },
     {
       "id": "cpu-gpu",
@@ -171,8 +171,8 @@
       "modulo": "3 · La computadora por dentro",
       "fase": 4,
       "etapa": "modelo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/cpu-gpu/"
     },
     {
       "id": "sistema-operativo",
@@ -180,8 +180,8 @@
       "modulo": "3 · La computadora por dentro",
       "fase": 4,
       "etapa": "contenedor",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/sistema-operativo/"
     },
     {
       "id": "async",
@@ -189,8 +189,8 @@
       "modulo": "3 · La computadora por dentro",
       "fase": 4,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/async/"
     },
     {
       "id": "red",

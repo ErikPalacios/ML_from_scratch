@@ -517,7 +517,7 @@ Cada revisión puede rechazar la foto antes de abrirla. Usa los recorridos para 
 2. **El tipo.** Los primeros bytes dicen qué formato es de verdad, sin importar cómo se llame el archivo: un JPEG empieza con `FF D8`; un PNG, con `89 50 4E 47`. Si no es JPEG, PNG ni WebP, responde **415** («tipo no soportado»).
 3. **Los píxeles.** El ancho y el alto del encabezado. Si pasan de 40 MP, otro **413**.
 
-¿Por qué 40 MP? Porque cada decodificación vive en la memoria del servidor, y el costo crece con los píxeles, no con el peso del archivo. Una foto de 40 MP en RGB ocupa 40 M × 3 = 120 MB, y un PNG de 40 MP con transparencia y 16 bits por canal (PNG lo permite) llega a 40 M × 4 canales × 2 bytes = 320 MB. Cada copia del gateway de C01 tiene 1 GiB de memoria, así que decodifica como máximo 2 fotos a la vez, con un tiempo límite.
+¿Por qué 40 MP? Porque cada decodificación vive en la memoria del servidor, y el costo crece con los píxeles, no con el peso del archivo. Una foto de 40 MP en RGB ocupa 40 M × 3 = 120 MB, y un PNG de 40 MP con transparencia, 40 M × 4 canales = 160 MB; en el gateway de C01 llega a ≈ 320 MB medidos, por las copias que se hacen al procesarla (lo verás en «Programa, proceso e hilo»). Cada copia del gateway de C01 tiene 1 GiB de memoria, así que decodifica como máximo 2 fotos a la vez, con un tiempo límite.
 
 Con la CPU pasa lo mismo. Una foto de la app, de 1024 × 768, tiene 786,432 píxeles: unas 15 veces menos que una de 12 MP. En la Ronda, decodificar una de 12 MP tardó ≈ 40 ms en una laptop, contra los ≈ 6 ms del promedio. Por eso las fotos grandes que se suben desde la computadora pueden comerse una buena parte de la CPU, aunque sean pocas.
 

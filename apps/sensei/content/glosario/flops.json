@@ -64,9 +64,9 @@
     "leccion": "flops" },
 
   { "id": "ancho-banda-memoria", "termino": "Ancho de banda de memoria", "en": "memory bandwidth",
-    "corto": "Cuántos bytes por segundo puede mover la memoria de un chip hacia sus núcleos y de regreso. En una GPU se mide en GB/s: 320 en una T4, 300 en una L4 y 3,350 en una H100.",
-    "largo": "Es la velocidad de la [[vram|VRAM]], no su tamaño: la capacidad dice qué cabe; el ancho de banda, qué tan rápido se lee. Ojo con las unidades: GB/s son giga**bytes** por segundo, mientras que el [[ancho-banda|ancho de banda]] de una red se suele dar en Gb/s, giga**bits**, 8 veces menos. El tiempo mínimo para leer algo es bytes ÷ ancho de banda, y en un cálculo [[memory-bound]] ese es el tiempo que manda. Las memorias [[hbm|HBM]] de las GPUs grandes dan de ≈ 1,555 GB/s (A100 de 40 GB) a 3,350 GB/s (H100); las GDDR6 de la T4 y la L4, ≈ 300.",
-    "ejemplo": "Llama 3 8B en BF16 pesa ≈ 16 GB, y para generar cada token hay que leerlo entero. A 300 GB/s (L4) son ≈ 54 ms por token, un techo de ≈ 19 tokens por segundo; a 3,350 GB/s (H100), ≈ 210.",
+    "corto": "Cuántos bytes por segundo puede mover la memoria de un chip hacia sus núcleos y de regreso. En una GPU se mide en GB/s: 320 en una T4, 300 en una L4 y 3,350 en una H100 SXM.",
+    "largo": "Es la velocidad de la [[vram|VRAM]], no su tamaño: la capacidad dice qué cabe; el ancho de banda, qué tan rápido se lee. Ojo con las unidades: GB/s son giga**bytes** por segundo, mientras que el [[ancho-banda|ancho de banda]] de una red se suele dar en Gb/s, giga**bits**, 8 veces menos. El tiempo mínimo para leer algo es bytes ÷ ancho de banda, y en un cálculo [[memory-bound]] ese es el tiempo que manda. Las memorias [[hbm|HBM]] de las GPUs grandes dan de ≈ 1,555 GB/s (A100 de 40 GB) a 3,350 GB/s (H100 SXM); las GDDR6 de la T4 y la L4, ≈ 300.",
+    "ejemplo": "Llama 3 8B en BF16 pesa ≈ 16 GB, y para generar cada token hay que leerlo entero. A 300 GB/s (L4) son ≈ 54 ms por token, un techo de ≈ 19 tokens por segundo; a 3,350 GB/s (H100 SXM), ≈ 210.",
     "ver": ["vram", "ancho-banda", "memory-bound", "roofline"],
     "leccion": "flops" }
 ]}
