@@ -18,7 +18,7 @@ Sensei es **el curso de teoría de TrueML** y, junto con el Dojo, su app princip
 | Dojo | Construir, rehacer y romper un mini-proyecto de cada paso. |
 | Ronda de Diseño | Defender el diseño completo en una entrevista. |
 
-**Por qué se subió el estándar (2026-11-04).** La primera versión de la fase 2 dejaba cada lección en introducción: ≈ 4,300 palabras, 1 diagrama, sin calculadoras ni ejercicios. Un módulo de la Ronda trae ≈ 14,000 palabras, ≈ 7 calculadoras, ≈ 18 tablas y ≈ 31 recuadros. El estándar nuevo de una lección es de 7,000 a 10,000 palabras, en dos pasadas (lo esencial y lo extra). Trae al menos 2 diagramas, 3 figuras, 2 calculadoras interactivas, 3 cuentas paso a paso, código con su salida real, errores comunes, el concepto en otros casos además de C01, y de 8 a 12 ejercicios con solución. Está en [apps/sensei/GUIA-CONTENIDO.md](../apps/sensei/GUIA-CONTENIDO.md), sección 3.
+**Por qué se subió el estándar (2026-11-04).** La primera versión de la fase 2 dejaba cada lección en introducción: ≈ 4,300 palabras, 1 diagrama, sin calculadoras ni ejercicios. Un módulo de la Ronda trae ≈ 14,000 palabras, ≈ 7 calculadoras, ≈ 18 tablas y ≈ 31 recuadros. El estándar nuevo de una lección es de 8,000 a 11,000 palabras (al principio se fijó en 7,000 a 10,000), en dos pasadas (lo esencial y lo extra). Trae al menos 2 diagramas, 3 figuras, 2 calculadoras interactivas, 3 cuentas paso a paso, código con su salida real, errores comunes, el concepto en otros casos además de C01, y de 8 a 12 ejercicios con solución. Está en [apps/sensei/GUIA-CONTENIDO.md](../apps/sensei/GUIA-CONTENIDO.md), sección 3.
 
 ## 2. Las reglas del contenido
 
@@ -44,7 +44,22 @@ Las reglas completas, los formatos y la lista de revisión están en [apps/sense
 - **El cierre de cada lección:** marcar como leída, la siguiente lección, la estación del Dojo y el módulo de la Ronda.
 - **La regla de las dudas:** cuando surja una duda en el Dojo o en la Ronda, la respuesta se agrega o se mejora en el glosario.
 
-## 4. Las fases
+## 4. Cómo se trabaja cada fase (proceso ahorrador, desde la fase 4)
+
+En la fase 3 cada lección costó ≈ 1.75 % del límite semanal del plan Max, y una ventana de 5 horas alcanzó para ≈ 5 lecciones. Este proceso baja el gasto sin tocar lo que da la calidad.
+
+1. **Una sesión nueva por fase**, que parte del plan, la guía y los commits, no de una conversación larga.
+2. **Tandas del tamaño de una ventana:** unas 5 lecciones. Cada escritor lleva un **presupuesto de palabras por sección** desde el principio (8,000 a 11,000 en total), para no escribir de más y recortar después.
+3. **Paquetes de datos de la Ronda:** al empezar la fase, un paso barato extrae por lección los números, definiciones y frases de la Ronda que necesita. Escritores y revisores leen el paquete en lugar de módulos enteros, y pueden buscar en la Ronda lo que falte.
+4. **Cada modelo en su trabajo:**
+   - El modelo grande escribe y hace la **revisión de fondo**: hechos, claridad y conocimiento supuesto. Esa es la prioridad y no se recorta.
+   - Un modelo chico, con esfuerzo bajo, hace lo mecánico: correr los scripts que recalculan cada número, comparar cada bloque de código con su salida y revisar las capturas. Reporta lo que encuentra.
+   - La revisión de fondo va al final, con el reporte mecánico a la mano, y corrige todo.
+5. **Las figuras se siguen haciendo a mano**, una por una, en SVG con las clases del tema. Nada de plantillas: son parte de lo que hace geniales las lecciones.
+
+Al terminar cada fase se compara el porcentaje semanal por lección contra el 1.75 % de la fase 3.
+
+## 5. Las fases
 
 Las fases 2 (profundizada al estándar nuevo) y 3 están publicadas desde el 2026-11-05: 16 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
 
