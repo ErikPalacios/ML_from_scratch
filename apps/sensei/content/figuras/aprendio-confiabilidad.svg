@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 474" role="img" aria-labelledby="f-aprendio-confiabilidad-t" class="f-svg" style="max-width:420px">
+<title id="f-aprendio-confiabilidad-t">Diagrama de confiabilidad de las 1,000 fotos. A lo ancho, la confianza que dio el modelo; a lo alto, la fracción de aciertos. La diagonal es un modelo perfectamente calibrado. Cuatro grupos: dijo 50 % y acertó 45 % (100 fotos), dijo 70 % y acertó 64 % (100 fotos), dijo 90 % y acertó 82 % (300 fotos), dijo 99 % y acertó 99 % (500 fotos). Los tres primeros quedan debajo de la diagonal: el modelo exagera su seguridad. El ECE, el promedio de las distancias pesado por la cantidad de fotos, es 0.035.</title>
+<rect class="f-card" x="10" y="10" width="340" height="454" rx="16"/>
+<text class="f-l" x="28" y="36">¿ACIERTA LO QUE DICE? · 1,000 FOTOS</text>
+<rect x="74" y="64" width="236" height="236" style="fill:none;stroke:var(--tm-line);stroke-width:1.5"/>
+<line x1="133.0" y1="64" x2="133.0" y2="300" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="74" y1="241.0" x2="310" y2="241.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="192.0" y1="64" x2="192.0" y2="300" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="74" y1="182.0" x2="310" y2="182.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="251.0" y1="64" x2="251.0" y2="300" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="74" y1="123.0" x2="310" y2="123.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="74.0" y1="300.0" x2="310.0" y2="64.0" style="stroke:var(--tm-ink3);stroke-width:1.5;stroke-dasharray:5 5"/>
+<text class="f-s" x="145" y="215" text-anchor="middle" style="font-size:12px" transform="rotate(-45 145 215)">dice = acierta</text>
+<line x1="192.0" y1="182.0" x2="192.0" y2="193.8" style="stroke:var(--o);stroke-width:3;stroke-linecap:round"/>
+<text class="f-t" x="182.0" y="192.9" text-anchor="end" style="font-size:12px">−5</text>
+<circle class="f-acc" cx="192.0" cy="193.8" r="4.0"/>
+<line x1="239.2" y1="134.8" x2="239.2" y2="149.0" style="stroke:var(--o);stroke-width:3;stroke-linecap:round"/>
+<text class="f-t" x="229.2" y="146.9" text-anchor="end" style="font-size:12px">−6</text>
+<circle class="f-acc" cx="239.2" cy="149.0" r="4.0"/>
+<line x1="286.4" y1="87.6" x2="286.4" y2="106.5" style="stroke:var(--o);stroke-width:3;stroke-linecap:round"/>
+<text class="f-t" x="273.5" y="102.0" text-anchor="end" style="font-size:12px">−8</text>
+<circle class="f-acc" cx="286.4" cy="106.5" r="6.9"/>
+<circle class="f-acc" cx="307.6" cy="66.4" r="8.9"/>
+<text class="f-s" x="66" y="304" text-anchor="end" style="font-size:12px">0 %</text>
+<text class="f-s" x="74" y="317" text-anchor="start" style="font-size:12px">0 %</text>
+<text class="f-s" x="66" y="186" text-anchor="end" style="font-size:12px">50 %</text>
+<text class="f-s" x="192" y="317" text-anchor="middle" style="font-size:12px">50 %</text>
+<text class="f-s" x="66" y="68" text-anchor="end" style="font-size:12px">100 %</text>
+<text class="f-s" x="310" y="317" text-anchor="end" style="font-size:12px">100 %</text>
+<text class="f-s" x="192" y="335" text-anchor="middle" style="font-size:12px">a lo ancho: lo que dijo · a lo alto: lo que acertó</text>
+<line x1="28" y1="350" x2="332" y2="350" style="stroke:var(--tm-line);stroke-width:1.5"/>
+<text class="f-t" x="28" y="376" style="font-size:13px">ECE</text><text class="f-t" x="332" y="376" text-anchor="end" style="font-size:13px">0.035</text>
+<text class="f-s" x="28" y="396" style="font-size:12px">0.1·0.05 + 0.1·0.06 + 0.3·0.08 + 0.5·0</text>
+<rect class="f-chip" x="28" y="410" width="304" height="40" rx="10"/>
+<text class="f-s" x="40" y="435" style="font-size:12px">Abajo de la diagonal: dice más de lo que acierta.</text>
+</svg>

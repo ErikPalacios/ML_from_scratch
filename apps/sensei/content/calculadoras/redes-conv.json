@@ -1,0 +1,26 @@
+{
+  "titulo": "Una capa convolucional por dentro",
+  "intro": "Empieza en la primera capa de la ResNet-50: 64 filtros de 7 × 7 con padding 3 y stride 2 sobre la foto de 224 × 224 × 3. El lado de la salida es (n + 2p − k) ÷ s + 1, con la división redondeada hacia abajo.",
+  "entradas": [
+    { "id": "n", "label": "Lado de la entrada (n)", "min": 3, "max": 512, "paso": 1, "valor": 224 },
+    { "id": "k", "label": "Lado del filtro (k)", "min": 1, "max": 11, "paso": 1, "valor": 7 },
+    { "id": "p", "label": "Padding (p)", "min": 0, "max": 5, "paso": 1, "valor": 3 },
+    { "id": "s", "label": "Stride (s)", "min": 1, "max": 4, "paso": 1, "valor": 2 },
+    { "id": "ci", "label": "Canales de entrada", "min": 1, "max": 2048, "paso": 1, "valor": 3, "tipo": "numero" },
+    { "id": "co", "label": "Filtros (canales de salida)", "min": 1, "max": 2048, "paso": 1, "valor": 64, "tipo": "numero" },
+    { "id": "b", "label": "¿Lleva sesgo? (0 = no, 1 = sí)", "min": 0, "max": 1, "paso": 1, "valor": 0 }
+  ],
+  "calculos": [
+    { "id": "t", "formula": "n + 2 * p - k" },
+    { "id": "m", "formula": "t >= 0 ? floor(t / s) + 1 : 0" }
+  ],
+  "salidas": [
+    { "label": "Lado de la salida", "formula": "m", "formato": "int", "nota": "(n + 2p − k) ÷ s + 1, hacia abajo" },
+    { "label": "Columnas que se quedan sin visitar", "formula": "t >= 0 ? t % s : 0", "formato": "int", "nota": "cuando la división no es exacta" },
+    { "label": "Parámetros", "formula": "k * k * ci * co + b * co", "formato": "int", "nota": "k × k × canales × filtros, más los sesgos" },
+    { "label": "MACs por foto", "formula": "m * m * co * k * k * ci", "formato": "int", "nota": "posiciones × filtros × pesos por filtro" },
+    { "label": "Veces que se usa cada peso", "formula": "m * m", "formato": "int", "nota": "una por posición de la salida" },
+    { "label": "Salida de una foto en float32", "formula": "m * m * co * 4", "formato": "bytes", "nota": "lado × lado × filtros × 4 bytes" }
+  ],
+  "nota": "Con k = 3, p = 1 y s = 1 la salida mide lo mismo que la entrada. Cada stride de 2 deja la cuarta parte de las posiciones, y con ellas, la cuarta parte de las MACs."
+}

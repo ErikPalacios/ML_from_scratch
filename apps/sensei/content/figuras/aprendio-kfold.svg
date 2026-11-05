@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 408" role="img" aria-labelledby="f-aprendio-kfold-t" class="f-svg" style="max-width:420px">
+<title id="f-aprendio-kfold-t">Validación cruzada con 5 grupos. 250 fotos se parten en 5 grupos de 50. En la vuelta 1 el grupo 1 es la validación y los grupos 2 a 5 son el entrenamiento; en la vuelta 2, el grupo 2 es la validación, y así hasta la vuelta 5. Cada foto sirve de examen exactamente una vez. Las cinco vueltas aciertan 86, 92, 80, 84 y 88 %: el promedio es 86 % y el rango va de 80 a 92 %.</title>
+<rect class="f-card" x="10" y="10" width="340" height="388" rx="16"/>
+<text class="f-l" x="28" y="36">250 FOTOS · 5 GRUPOS DE 50</text>
+<rect class="f-b2" x="28" y="50" width="16" height="12" rx="3"/><text class="f-s" x="50" y="61" style="font-size:12px">entrenamiento (200)</text>
+<rect class="f-o" x="196" y="50" width="16" height="12" rx="3"/><text class="f-s" x="218" y="61" style="font-size:12px">validación (50)</text>
+<text class="f-l" x="114" y="90" text-anchor="middle">G1</text>
+<text class="f-l" x="154" y="90" text-anchor="middle">G2</text>
+<text class="f-l" x="194" y="90" text-anchor="middle">G3</text>
+<text class="f-l" x="234" y="90" text-anchor="middle">G4</text>
+<text class="f-l" x="274" y="90" text-anchor="middle">G5</text>
+<text class="f-s" x="28" y="116" style="font-size:12px">Vuelta 1</text>
+<rect class="f-o" x="96" y="100" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="136" y="100" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="176" y="100" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="216" y="100" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="256" y="100" width="36" height="24" rx="5"/>
+<text class="f-t" x="332" y="117" text-anchor="end" style="font-size:14px">86 %</text>
+<text class="f-s" x="28" y="150" style="font-size:12px">Vuelta 2</text>
+<rect class="f-b2" x="96" y="134" width="36" height="24" rx="5"/>
+<rect class="f-o" x="136" y="134" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="176" y="134" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="216" y="134" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="256" y="134" width="36" height="24" rx="5"/>
+<text class="f-t" x="332" y="151" text-anchor="end" style="font-size:14px">92 %</text>
+<text class="f-s" x="28" y="184" style="font-size:12px">Vuelta 3</text>
+<rect class="f-b2" x="96" y="168" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="136" y="168" width="36" height="24" rx="5"/>
+<rect class="f-o" x="176" y="168" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="216" y="168" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="256" y="168" width="36" height="24" rx="5"/>
+<text class="f-t" x="332" y="185" text-anchor="end" style="font-size:14px">80 %</text>
+<text class="f-s" x="28" y="218" style="font-size:12px">Vuelta 4</text>
+<rect class="f-b2" x="96" y="202" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="136" y="202" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="176" y="202" width="36" height="24" rx="5"/>
+<rect class="f-o" x="216" y="202" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="256" y="202" width="36" height="24" rx="5"/>
+<text class="f-t" x="332" y="219" text-anchor="end" style="font-size:14px">84 %</text>
+<text class="f-s" x="28" y="252" style="font-size:12px">Vuelta 5</text>
+<rect class="f-b2" x="96" y="236" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="136" y="236" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="176" y="236" width="36" height="24" rx="5"/>
+<rect class="f-b2" x="216" y="236" width="36" height="24" rx="5"/>
+<rect class="f-o" x="256" y="236" width="36" height="24" rx="5"/>
+<text class="f-t" x="332" y="253" text-anchor="end" style="font-size:14px">88 %</text>
+<line x1="28" y1="276" x2="332" y2="276" style="stroke:var(--tm-line);stroke-width:1.5"/>
+<text class="f-t" x="28" y="302" style="font-size:13px">Promedio</text><text class="f-s" x="104" y="302" style="font-size:12px">(86 + 92 + 80 + 84 + 88) / 5</text><text class="f-t" x="332" y="302" text-anchor="end" style="font-size:14px">86 %</text>
+<text class="f-t" x="28" y="328" style="font-size:13px">Rango</text><text class="f-s" x="104" y="328" style="font-size:12px">de la peor a la mejor vuelta</text><text class="f-t" x="332" y="328" text-anchor="end" style="font-size:14px">80–92 %</text>
+<rect class="f-chip" x="28" y="344" width="304" height="40" rx="10"/>
+<text class="f-s" x="40" y="369" style="font-size:12px">Cada foto fue examen una vez y entrenamiento cuatro.</text>
+</svg>

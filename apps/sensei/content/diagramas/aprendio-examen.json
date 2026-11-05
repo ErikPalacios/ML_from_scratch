@@ -52,7 +52,7 @@
       "y": 5,
       "w": 22,
       "h": 9,
-      "note": "Fotos revisadas a mano y congeladas: el mismo examen cada mes. Ninguna puede estar en el entrenamiento, o el examen mediría memoria ([[leakage]])."
+      "note": "Fotos revisadas a mano y congeladas: el mismo examen cada mes. Ninguna puede estar en el entrenamiento, o el examen mediría memoria ([[leakage]]). Con 50,000 fotos, el ruido de la medición es de unos ±0.3 puntos."
     },
     {
       "id": "predecir",
@@ -63,40 +63,51 @@
       "y": 22,
       "w": 20,
       "h": 8,
-      "note": "El modelo nuevo responde las 50,000 fotos, y el modelo actual también. Así los dos se califican con exactamente las mismas preguntas."
+      "note": "El modelo nuevo responde las 50,000 fotos, y el modelo actual también. Así los dos se califican con exactamente las mismas preguntas, y se pueden comparar foto por foto."
     },
     {
       "id": "topk",
       "label": "Top-1 y top-5",
       "sub": "¿cuánto acierta?",
       "kind": "monitor",
-      "x": 2,
+      "x": 1,
       "y": 35,
-      "w": 21,
+      "w": 17.5,
       "h": 8,
-      "note": "La métrica principal de C01 es la [[top-k-accuracy|top-5]], porque la app muestra 5 sugerencias. El modelo actual saca ≈ 85 % de top-1 y ≈ 96 % de top-5."
+      "note": "La métrica principal de C01 es la [[top-k-accuracy|top-5]], porque la app muestra 5 sugerencias. El modelo actual saca ≈ 85 % de top-1 y ≈ 96 % de top-5. El nuevo no puede quedar más de 0.3 puntos abajo."
     },
     {
       "id": "clases",
       "label": "Recall por clase",
       "sub": "y macro-recall",
       "kind": "monitor",
-      "x": 28.5,
+      "x": 20.5,
       "y": 35,
-      "w": 21,
+      "w": 17.5,
       "h": 8,
       "note": "El [[recall]] de las 100 categorías que más publicaciones reciben no puede caerse, y el [[macro-promedio|macro-recall]] de las categorías chicas no puede empeorar, aunque la accuracy suba."
+    },
+    {
+      "id": "slices",
+      "label": "Slices",
+      "sub": "móvil, web, poca luz",
+      "kind": "monitor",
+      "x": 40,
+      "y": 35,
+      "w": 17.5,
+      "h": 8,
+      "note": "Pedazos del golden set que se miden aparte: fotos de celular y de web, con poca luz, imágenes chicas. Ninguno puede caer más que su margen de ruido (≈ 1–2 puntos). Si el modelo decidiera sobre personas, aquí iría la [[equidad]]: las mismas métricas por grupo de personas."
     },
     {
       "id": "calib",
       "label": "Calibración",
       "sub": "ECE ≤ 0.05",
       "kind": "monitor",
-      "x": 55,
+      "x": 59.5,
       "y": 35,
-      "w": 21,
+      "w": 17.5,
       "h": 8,
-      "note": "Que «90 %» quiera decir 90 %. En C01 el número ordena las sugerencias y podría decidir una preselección, así que tiene que significar algo. Ver [[calibracion]]."
+      "note": "Que «90 %» quiera decir 90 %. En C01 el número ordena las sugerencias y podría decidir una preselección, así que tiene que significar algo. Se mide con el [[ece|ECE]], después de [[temperature-scaling]]."
     },
     {
       "id": "actual",
@@ -152,6 +163,13 @@
     },
     {
       "from": "predecir",
+      "to": "slices",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "predecir",
       "to": "calib",
       "kind": "neutral",
       "fromSide": "b",
@@ -166,6 +184,13 @@
     },
     {
       "from": "clases",
+      "to": "gate",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "slices",
       "to": "gate",
       "kind": "monitor",
       "fromSide": "b",
@@ -231,7 +256,17 @@
           "edges": [
             "predecir>clases"
           ],
-          "text": "**¿A quién le falla?** Recall de cada categoría y macro-recall: una accuracy que sube puede esconder 300 categorías chicas que empeoraron."
+          "text": "**¿A qué categorías les falla?** Recall de cada categoría y macro-recall: una accuracy que sube puede esconder 300 categorías chicas que empeoraron."
+        },
+        {
+          "nodes": [
+            "predecir",
+            "slices"
+          ],
+          "edges": [
+            "predecir>slices"
+          ],
+          "text": "**¿A qué fotos les falla?** Slices: celular contra web, poca luz, imágenes chicas. El promedio puede subir mientras un grupo empeora."
         },
         {
           "nodes": [
@@ -247,6 +282,7 @@
           "nodes": [
             "topk",
             "clases",
+            "slices",
             "calib",
             "actual",
             "gate"
@@ -254,10 +290,11 @@
           "edges": [
             "topk>gate",
             "clases>gate",
+            "slices>gate",
             "calib>gate",
             "actual>gate"
           ],
-          "text": "**¿Pasa?** Todo se compara contra el modelo actual con reglas escritas antes. Si falla una, no avanza; si pasa, sigue a la prueba con fotos reales de la gente."
+          "text": "**¿Pasa?** Todo se compara contra el modelo actual con reglas escritas antes. Si falla una, no avanza; si pasa, sigue a la prueba con gente real."
         }
       ]
     }

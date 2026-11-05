@@ -61,12 +61,13 @@
       "termino": "Predicción",
       "en": "prediction",
       "corto": "La respuesta que da un modelo para un caso. No es una certeza: suele venir con qué tan seguro está, como una probabilidad.",
-      "ejemplo": "«Calzado › Tenis, 94 %» es una predicción: el modelo cree que es eso, con una confianza de 94 %. Se lee como una probabilidad, aunque no siempre es exacta.",
+      "ejemplo": "«Calzado › Tenis, 94 %» es una predicción: el modelo cree que es eso, con una confianza de 94 %. Se lee como una probabilidad, aunque no siempre es exacta.",
       "ver": [
         "inferencia",
         "modelo"
       ],
-      "leccion": "modelo"
+      "leccion": "modelo",
+      "largo": "Sale de la [[inferencia]]: el modelo calcula un número para cada respuesta posible y los convierte en probabilidades. La predicción es la respuesta más probable, o las primeras de la lista. Que diga 94 % no garantiza que acierte: qué tanto se le puede creer a ese número se ve en la lección «Qué es un modelo»."
     },
     {
       "id": "dataset",
@@ -91,19 +92,36 @@
         "dataset",
         "entrenamiento"
       ],
-      "leccion": "ejemplos"
+      "leccion": "ejemplos",
+      "ejemplo": "Una foto de unos tenis con la etiqueta «Calzado › Tenis». En C01 las etiquetas salen de tres lugares: la categoría que eligió quien vende, las correcciones de moderadores y unas 5 mil fotos al mes revisadas a mano."
     },
     {
       "id": "produccion",
       "termino": "Producción",
       "en": "production · prod",
       "corto": "Cuando el sistema ya lo usa gente real, todos los días, y si falla alguien lo nota.",
-      "largo": "Lo contrario es desarrollo: tu laptop o un [[notebook]], donde puedes romper cosas sin que nadie se entere. «Poner en producción» (*deploy*) es pasar de uno a otro.",
+      "largo": "Lo contrario es desarrollo: tu laptop o un [[notebook]], donde puedes romper cosas sin que nadie se entere. Pasar algo de uno a otro, o cambiar la versión que responde por una nueva, es un [[deploy]].",
       "ver": [
         "ml-engineer",
         "monitoreo"
       ],
-      "leccion": "camino-completo"
+      "leccion": "camino-completo",
+      "ejemplo": "El modelo de C01 está en producción: cada foto que alguien sube al marketplace pasa por él, de día y de noche. Si deja de responder, miles de personas tienen que buscar la categoría a mano."
+    },
+    {
+      "id": "deploy",
+      "termino": "Deploy",
+      "en": "deployment · desplegar",
+      "corto": "Poner a responder a la gente de verdad una versión nueva de un modelo o de un programa, en lugar de la anterior.",
+      "largo": "Es el puente del [[camino-offline]] al [[camino-online]]: la única forma en que lo que se entrenó le llega a alguien. Casi nunca se hace de golpe: primero la versión nueva atiende una fracción chica del tráfico, se vigila y, si todo va bien, recibe más. Si algo empeora, se regresa a la versión anterior (*rollback*).",
+      "ejemplo": "En C01, un modelo aprobado responde primero 5 de cada 100 fotos, luego 25 y luego todas. Si suben la latencia o los errores, se regresa solo a la versión anterior.",
+      "ver": [
+        "produccion",
+        "camino-offline",
+        "camino-online",
+        "orquestacion"
+      ],
+      "leccion": "e10-rollout"
     },
     {
       "id": "notebook",
@@ -114,7 +132,8 @@
       "ver": [
         "produccion"
       ],
-      "leccion": "camino-completo"
+      "leccion": "camino-completo",
+      "ejemplo": "Entrenaste una primera versión en un notebook y funciona porque corriste la celda 3 antes que la 5. Si alguien lo corre de arriba abajo, falla. Para producción, ese código pasa a un archivo de Python que corre siempre igual."
     },
     {
       "id": "ml-engineer",
@@ -126,7 +145,8 @@
         "produccion",
         "pipeline"
       ],
-      "leccion": "camino-completo"
+      "leccion": "camino-completo",
+      "ejemplo": "En C01, el ML engineer no inventa la ResNet-50: se encarga de que las fotos le lleguen bien preparadas, de que responda en menos de 200 ms, de que una versión nueva salga sin romper nada y de notar cuando empieza a fallar."
     },
     {
       "id": "pipeline",
@@ -138,7 +158,8 @@
       "ver": [
         "ml-engineer"
       ],
-      "leccion": "camino-completo"
+      "leccion": "camino-completo",
+      "largo": "Lo importante es que se pueda volver a correr igual: si cada paso lee una versión fija de lo que le entra y guarda lo que sale, cualquiera puede repetir el resultado o encontrar en qué paso se rompió. En producción casi todo es un pipeline: el de datos, el de entrenamiento y el de despliegue."
     },
     {
       "id": "servidor",
@@ -150,7 +171,8 @@
         "request",
         "api"
       ],
-      "leccion": "http"
+      "leccion": "http",
+      "ejemplo": "La API de C01 corre en varios servidores en la nube que responden millones de fotos al día. Si uno se apaga, los demás siguen respondiendo."
     },
     {
       "id": "request",
@@ -163,7 +185,8 @@
         "servidor",
         "latencia"
       ],
-      "leccion": "http"
+      "leccion": "http",
+      "largo": "Viaja por la red con un formato acordado: a qué dirección va, qué se pide y qué datos lleva (aquí, la foto). Cada request recibe su response, aunque sea un mensaje de error. Contar cuántas llegan por segundo es la forma de medir cuánto trabajo tiene un servicio."
     },
     {
       "id": "api",
@@ -177,7 +200,8 @@
         "servidor",
         "serving"
       ],
-      "leccion": "http"
+      "leccion": "http",
+      "ejemplo": "La API de C01 recibe una foto y regresa las 5 categorías más probables, cada una con su porcentaje. El marketplace no necesita saber que adentro hay una ResNet-50."
     },
     {
       "id": "serving",
@@ -188,7 +212,9 @@
         "api",
         "inferencia"
       ],
-      "leccion": "e06-serving"
+      "leccion": "e06-serving",
+      "largo": "Es la etapa 3 del camino: un programa carga el modelo una vez, al arrancar, y desde ahí responde cada [[request]]. Lo difícil no es que responda una vez, sino que responda rápido y sin caerse, muchas veces por segundo, con la foto preparada igual que cuando se entrenó.",
+      "ejemplo": "En C01, el serving es la API que recibe la foto de Ana, la prepara y se la pasa al modelo, que vive en un servidor con GPU (Triton, en la Ronda)."
     },
     {
       "id": "contenedor",
@@ -200,7 +226,8 @@
       "ver": [
         "orquestacion"
       ],
-      "leccion": "e07-empaquetado"
+      "leccion": "e07-empaquetado",
+      "ejemplo": "El contenedor de la API de C01 lleva la versión exacta de Python, las librerías y el código. El mismo contenedor que se probó es el que corre en cada servidor."
     },
     {
       "id": "orquestacion",
@@ -212,7 +239,8 @@
         "contenedor",
         "servidor"
       ],
-      "leccion": "e09-kubernetes"
+      "leccion": "e09-kubernetes",
+      "ejemplo": "En C01, Kubernetes mantiene varias copias de la API encendidas, agrega copias cuando sube el tráfico de la hora pico y, si una copia falla, levanta otra sola."
     },
     {
       "id": "monitoreo",
@@ -225,7 +253,8 @@
         "latencia",
         "reentrenamiento"
       ],
-      "leccion": "e12-monitoreo"
+      "leccion": "e12-monitoreo",
+      "ejemplo": "En C01 se vigila que 99 de cada 100 respuestas tarden menos de 200 ms, cuántas fallan y si cambia cuáles categorías predice más seguido el modelo, que es una señal temprana de drift."
     },
     {
       "id": "drift",
@@ -251,7 +280,8 @@
         "monitoreo",
         "entrenamiento"
       ],
-      "leccion": "e12-monitoreo"
+      "leccion": "e12-monitoreo",
+      "ejemplo": "C01 reentrena cada mes con las fotos nuevas, y antes si el monitoreo detecta drift o si el negocio agrega una categoría, como «bolsas» en el Dojo."
     },
     {
       "id": "latencia",
@@ -274,7 +304,55 @@
       "ver": [
         "latencia"
       ],
-      "leccion": "unidades"
+      "leccion": "unidades",
+      "largo": "Un segundo tiene 1,000 milisegundos. Es la unidad natural del [[camino-online|camino online]]: la respuesta de un modelo se mide en decenas o cientos de ms.",
+      "ejemplo": "La promesa de C01 es de 200 ms, un quinto de segundo. El marketplace espera como máximo 300 ms, tres décimas de segundo."
+    },
+    {
+      "id": "camino-online",
+      "termino": "Camino online",
+      "en": "online path · serving path",
+      "corto": "Todo lo que pasa mientras alguien espera una respuesta: llega la request, se prepara la entrada, el modelo calcula y sale la respuesta. Su reloj son los milisegundos.",
+      "largo": "Corre por cada [[request]], a cualquier hora, y si falla se nota al instante. Por eso vive con un presupuesto de [[latencia]], un tiempo máximo de espera y un [[fallback]]. Crece con el tráfico: más requests por segundo piden más copias encendidas. La pregunta que lo define: ¿alguien está esperando la respuesta?",
+      "ejemplo": "En C01: la foto de Ana entra a la API, se prepara, el modelo hace la inferencia y regresa las 5 categorías más probables. 99 de cada 100 veces, en menos de 200 ms.",
+      "ver": [
+        "camino-offline",
+        "inferencia",
+        "latencia",
+        "fallback",
+        "request"
+      ],
+      "leccion": "camino-completo"
+    },
+    {
+      "id": "camino-offline",
+      "termino": "Camino offline",
+      "en": "offline path · training path",
+      "corto": "Todo lo que prepara la siguiente versión del modelo sin que nadie esté esperando: juntar y etiquetar datos, entrenar, examinar y aprobar. Su reloj son las horas, los días y las semanas.",
+      "largo": "Corre por calendario o cuando algo lo dispara, como el [[drift]] o una categoría nueva. Si falla, nadie lo nota ese día: el modelo actual sigue respondiendo, solo que envejece. Se une al [[camino-online]] por dos puentes: el registro de cada predicción (de online a offline) y el [[deploy]] (de offline a online).",
+      "ejemplo": "En C01, cada mes: se guarda una muestra de las fotos, se juntan sus categorías (unas 5 mil revisadas a mano), se reentrena en unas horas de GPU, se examina contra el modelo actual y, si no es peor, se despliega.",
+      "ver": [
+        "camino-online",
+        "entrenamiento",
+        "reentrenamiento",
+        "dataset",
+        "deploy"
+      ],
+      "leccion": "camino-completo"
+    },
+    {
+      "id": "fallback",
+      "termino": "Fallback",
+      "en": "fallback · plan B",
+      "corto": "Lo que hace el sistema cuando el modelo no responde a tiempo o falla: una respuesta más simple que no depende de él, para que la persona pueda seguir.",
+      "largo": "Todo lo que está en el [[camino-online]] falla alguna vez. El fallback convierte esa falla en una molestia chica en vez de una pantalla trabada: el sistema se degrada, pero no se cae. Va junto con un tiempo máximo de espera (*timeout*): pasado ese tiempo, se deja de esperar y se usa el plan B.",
+      "ejemplo": "En C01, si la API no contesta en 300 ms, el marketplace le muestra a Ana el selector de categorías para elegirla a mano. En el caso de fraude de la Ronda, si el modelo no responde, deciden reglas fijas.",
+      "ver": [
+        "camino-online",
+        "latencia",
+        "request"
+      ],
+      "leccion": "fallas-red"
     }
   ]
 }

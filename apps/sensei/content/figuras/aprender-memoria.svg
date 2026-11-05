@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 478" role="img" aria-labelledby="f-aprender-memoria-t" class="f-svg" style="max-width:420px">
+<title id="f-aprender-memoria-t">Bytes que ocupa cada parámetro en la memoria de la GPU. Para servir en FP16: 2 bytes, solo el peso. Para entrenar con SGD en float32: 8 bytes, el peso y su gradiente. Con Adam en float32: 16 bytes, el peso, su gradiente y los dos promedios m y v de 4 bytes cada uno. Con Adam en precisión mixta también 16: peso y gradiente en 16 bits, 2 bytes cada uno, más una copia exacta del peso, m y v en float32, 4 bytes cada uno. Para C01, 24.5 millones de parámetros por 16 bytes son unos 392 MB, contra 49 MB para servir. Para un LLM de 8,000 millones, 128 GB contra 16 GB. A eso se suman las activaciones, que crecen con el batch.</title>
+<rect class="f-card" x="10" y="10" width="340" height="458" rx="16"/>
+<text class="f-l" x="28" y="36">BYTES POR PARÁMETRO EN LA GPU</text>
+<rect class="f-b" x="28" y="48" width="12" height="12" rx="3"/>
+<text class="f-s" x="46" y="58" style="font-size:12px">peso</text>
+<rect class="f-o" x="96" y="48" width="12" height="12" rx="3"/>
+<text class="f-s" x="114" y="58" style="font-size:12px">gradiente</text>
+<rect class="f-p" x="192" y="48" width="12" height="12" rx="3"/>
+<text class="f-s" x="210" y="58" style="font-size:12px">m y v de Adam</text>
+<rect class="f-b2" x="28" y="70" width="12" height="12" rx="3"/>
+<text class="f-s" x="46" y="80" style="font-size:12px">copia float32</text>
+<text class="f-s" x="28" y="112" style="font-size:13px;font-weight:600">Servir en FP16</text>
+<rect class="f-b" x="28.5" y="120" width="31.0" height="24" rx="4"/>
+<text x="44.0" y="137" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">2</text>
+<text class="f-t" x="68.0" y="138" style="font-size:14px">2 B</text>
+<text class="f-s" x="28" y="174" style="font-size:13px;font-weight:600">Entrenar con SGD, en float32</text>
+<rect class="f-b" x="28.5" y="182" width="63.0" height="24" rx="4"/>
+<text x="60.0" y="199" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">4</text>
+<rect class="f-o" x="92.5" y="182" width="63.0" height="24" rx="4"/>
+<text x="124.0" y="199" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">4</text>
+<text class="f-t" x="164.0" y="200" style="font-size:14px">8 B</text>
+<text class="f-s" x="28" y="236" style="font-size:13px;font-weight:600">Entrenar con Adam, en float32</text>
+<rect class="f-b" x="28.5" y="244" width="63.0" height="24" rx="4"/>
+<text x="60.0" y="261" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">4</text>
+<rect class="f-o" x="92.5" y="244" width="63.0" height="24" rx="4"/>
+<text x="124.0" y="261" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">4</text>
+<rect class="f-p" x="156.5" y="244" width="63.0" height="24" rx="4"/>
+<text x="188.0" y="261" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">4</text>
+<rect class="f-p" x="220.5" y="244" width="63.0" height="24" rx="4"/>
+<text x="252.0" y="261" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">4</text>
+<text class="f-t" x="292.0" y="262" style="font-size:14px">16 B</text>
+<text class="f-s" x="28" y="298" style="font-size:13px;font-weight:600">Adam en precisión mixta</text>
+<rect class="f-b" x="28.5" y="306" width="31.0" height="24" rx="4"/>
+<text x="44.0" y="323" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">2</text>
+<rect class="f-o" x="60.5" y="306" width="31.0" height="24" rx="4"/>
+<text x="76.0" y="323" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">2</text>
+<rect class="f-b2" x="92.5" y="306" width="63.0" height="24" rx="4"/>
+<text x="124.0" y="323" text-anchor="middle" style="fill:var(--navy);font:700 12px var(--sans)">4</text>
+<rect class="f-p" x="156.5" y="306" width="63.0" height="24" rx="4"/>
+<text x="188.0" y="323" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">4</text>
+<rect class="f-p" x="220.5" y="306" width="63.0" height="24" rx="4"/>
+<text x="252.0" y="323" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">4</text>
+<text class="f-t" x="292.0" y="324" style="font-size:14px">16 B</text>
+<rect class="f-chip" x="24" y="362" width="312" height="96" rx="10"/>
+<text class="f-t" x="38" y="386" style="font-size:13px">C01: 24.5 M × 16 B ≈ 392 MB</text>
+<text class="f-s" x="38" y="404" style="font-size:12px">para servir en FP16, ≈ 49 MB</text>
+<text class="f-t" x="38" y="428" style="font-size:13px">Un LLM de 8,000 M: 128 GB</text>
+<text class="f-s" x="38" y="446" style="font-size:12px">para servir, 16 GB · y faltan las activaciones</text>
+</svg>

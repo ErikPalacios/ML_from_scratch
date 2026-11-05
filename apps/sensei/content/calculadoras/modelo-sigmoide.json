@@ -1,0 +1,19 @@
+{
+  "titulo": "Sigmoide y umbral",
+  "intro": "Un clasificador binario da un solo [[logit]]. La [[sigmoide]] lo vuelve la probabilidad del «sí», y el [[umbral]] decide.",
+  "entradas": [
+    { "id": "z", "label": "Logit **z** del modelo", "min": -8, "max": 8, "paso": 0.1, "valor": 2 },
+    { "id": "u", "label": "Umbral para decir «sí»", "min": 0.05, "max": 0.95, "paso": 0.01, "valor": 0.5 }
+  ],
+  "calculos": [
+    { "id": "e", "formula": "exp(-z)" },
+    { "id": "p", "formula": "1 / (1 + e)" }
+  ],
+  "salidas": [
+    { "label": "e elevado a −z", "formula": "e", "nota": "el paso de en medio" },
+    { "label": "Probabilidad del «sí»", "formula": "p", "formato": "pct", "barra": true, "nota": "1 ÷ (1 + e elevado a −z)" },
+    { "label": "Decisión · 1 = «sí», 0 = «no»", "formula": "p >= u ? 1 : 0", "formato": "int" },
+    { "label": "Logit mínimo para decir «sí»", "formula": "log(u / (1 - u))", "decimales": 2, "nota": "ln(umbral ÷ (1 − umbral))" }
+  ],
+  "nota": "Con umbral 0.5, la decisión es «sí» justo cuando z es 0 o más. Subir el umbral es pedirle al modelo un logit más alto: con 0.9 hace falta 2.2."
+}

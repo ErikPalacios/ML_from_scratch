@@ -1,0 +1,22 @@
+{
+  "titulo": "Memoria para entrenar",
+  "intro": "Lo fijo es **parámetros × bytes por parámetro**: ≈ 16 con [[adam|Adam]], con o sin precisión mixta. Súmale las activaciones, que crecen con el batch y se miden. Arranca con los números de C01.",
+  "entradas": [
+    { "id": "p", "label": "Parámetros, en millones", "min": 1, "max": 1000000, "paso": 0.1, "valor": 24.5, "tipo": "numero" },
+    { "id": "b", "label": "Bytes por parámetro (16 = Adam · 12 = SGD con momentum · 2 = solo pesos en FP16)", "min": 2, "max": 20, "paso": 1, "valor": 16 },
+    { "id": "a", "label": "Activaciones medidas, en GB", "min": 0, "max": 500, "paso": 0.1, "valor": 3, "tipo": "numero" },
+    { "id": "g", "label": "VRAM de la GPU, en GB (16 = T4 · 24 = L4 · 80 = H100)", "min": 8, "max": 192, "paso": 8, "valor": 16 }
+  ],
+  "calculos": [
+    { "id": "fijo", "formula": "p * 1e6 * b" },
+    { "id": "total", "formula": "fijo + a * 1e9" }
+  ],
+  "salidas": [
+    { "label": "Lo fijo: perillas, gradientes y optimizador", "formula": "fijo", "formato": "bytes", "nota": "parámetros × bytes" },
+    { "label": "Total para entrenar", "formula": "total", "formato": "bytes", "nota": "sin el runtime, ≈ 0.3 a 1 GB más" },
+    { "label": "Lo que ocupa de una GPU", "formula": "total / (g * 1e9)", "formato": "pct", "barra": true, "nota": "más de 100 %: no cabe en una" },
+    { "label": "GPUs de ese tamaño, repartiendo la memoria", "formula": "ceil(total / (g * 1e9))", "formato": "int", "nota": "repartirla pide técnicas como ZeRO" },
+    { "label": "Solo los pesos en FP16, para servir", "formula": "p * 1e6 * 2", "formato": "bytes", "nota": "2 bytes por parámetro" }
+  ],
+  "nota": "Escribe 8000 millones de parámetros y 0 de activaciones: lo fijo son 128 GB, más que una H100 de 80 GB. Con 70600 (el LLM de C10) son ≈ 1.13 TB."
+}

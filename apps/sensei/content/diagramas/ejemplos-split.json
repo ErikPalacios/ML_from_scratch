@@ -32,7 +32,7 @@
       "y": 5,
       "w": 23,
       "h": 9,
-      "note": "Es el material de partida: todas las fotos con su [[etiqueta]]. Antes de repartir se quitan las copias repetidas, porque si la misma foto queda en dos partes el examen se filtra ([[leakage]])."
+      "note": "Es el material de partida: todas las fotos con su [[etiqueta]]. Antes de repartir se quitan las copias exactas y los [[duplicado-cercano|casi duplicados]], porque si la misma foto queda en dos partes el examen se filtra ([[leakage]])."
     },
     {
       "id": "split",
@@ -43,7 +43,7 @@
       "y": 18,
       "w": 23,
       "h": 8,
-      "note": "Está aquí para que el examen sea honesto: el [[split]] reparte las fotos en tres partes que no se mezclan. Las fotos de un mismo vendedor van juntas a un solo lado, y cada categoría se reparte en la misma proporción ([[estratificado]])."
+      "note": "Está aquí para que el examen sea honesto: el [[split]] reparte las fotos en tres partes que no se mezclan. Las fotos de un mismo vendedor van juntas a un solo lado ([[split-por-grupo]]), y cada categoría se reparte en la misma proporción ([[estratificado]])."
     },
     {
       "id": "train",

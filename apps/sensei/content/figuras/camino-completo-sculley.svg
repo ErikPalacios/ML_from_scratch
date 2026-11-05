@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 312" role="img" aria-labelledby="f-camino-completo-sculley-t" class="f-svg" style="max-width:420px">
+<title id="f-camino-completo-sculley-t">El código del modelo es la caja chica. En el centro, una caja oscura y pequeña dice «código de ML». A su alrededor hay nueve cajas más grandes: configuración, recolección de datos, extracción de features, verificación de datos, recursos de máquina, herramientas de análisis, gestión de procesos, infraestructura de serving y monitoreo. Inspirada en la figura de Sculley y otros, 2015; los tamaños no son medidas.</title>
+<rect class="f-card" x="10" y="10" width="340" height="292" rx="16"/>
+<text class="f-l" x="28" y="36">TODO LO QUE RODEA AL MODELO</text>
+<rect class="f-chip" x="24" y="50" width="96" height="54" rx="10"/>
+<text class="f-s" x="72" y="81" text-anchor="middle">Configuración</text>
+<rect class="f-chip" x="132" y="50" width="96" height="54" rx="10"/>
+<text class="f-s" x="180" y="73" text-anchor="middle">Recolección</text><text class="f-s" x="180" y="89" text-anchor="middle">de datos</text>
+<rect class="f-chip" x="240" y="50" width="96" height="54" rx="10"/>
+<text class="f-s" x="288" y="73" text-anchor="middle">Extracción</text><text class="f-s" x="288" y="89" text-anchor="middle">de features</text>
+<rect class="f-chip" x="24" y="112" width="96" height="54" rx="10"/>
+<text class="f-s" x="72" y="135" text-anchor="middle">Verificación</text><text class="f-s" x="72" y="151" text-anchor="middle">de datos</text>
+<rect class="f-chip" x="240" y="112" width="96" height="54" rx="10"/>
+<text class="f-s" x="288" y="135" text-anchor="middle">Recursos</text><text class="f-s" x="288" y="151" text-anchor="middle">de máquina</text>
+<rect class="f-chip" x="24" y="174" width="96" height="54" rx="10"/>
+<text class="f-s" x="72" y="197" text-anchor="middle">Herramientas</text><text class="f-s" x="72" y="213" text-anchor="middle">de análisis</text>
+<rect class="f-chip" x="240" y="174" width="96" height="54" rx="10"/>
+<text class="f-s" x="288" y="197" text-anchor="middle">Gestión</text><text class="f-s" x="288" y="213" text-anchor="middle">de procesos</text>
+<rect class="f-chip" x="24" y="236" width="204" height="54" rx="10"/>
+<text class="f-s" x="126" y="267" text-anchor="middle">Infraestructura de serving</text>
+<rect class="f-chip" x="240" y="236" width="96" height="54" rx="10"/>
+<text class="f-s" x="288" y="267" text-anchor="middle">Monitoreo</text>
+<rect x="134" y="114" width="92" height="112" rx="10" style="fill:none;stroke:var(--rule);stroke-width:1.5;stroke-dasharray:4 4"/>
+<rect class="f-dark" x="147" y="151" width="66" height="38" rx="8"/>
+<text class="f-dark-t" x="180" y="167" text-anchor="middle" style="font-size:12px">código</text><text class="f-dark-t" x="180" y="182" text-anchor="middle" style="font-size:12px">de ML</text>
+</svg>

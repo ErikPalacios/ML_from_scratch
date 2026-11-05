@@ -1,0 +1,24 @@
+{
+  "titulo": "Coseno de dos vectores",
+  "intro": "Mueve las dos flechas. Empiezan en los tenis, **a** = (4, 3), y las botas, **b** = (3, 4).",
+  "entradas": [
+    { "id": "ax", "label": "Flecha **a** · pasos a la derecha", "min": -5, "max": 5, "paso": 0.5, "valor": 4 },
+    { "id": "ay", "label": "Flecha **a** · pasos hacia arriba", "min": -5, "max": 5, "paso": 0.5, "valor": 3 },
+    { "id": "bx", "label": "Flecha **b** · pasos a la derecha", "min": -5, "max": 5, "paso": 0.5, "valor": 3 },
+    { "id": "by", "label": "Flecha **b** · pasos hacia arriba", "min": -5, "max": 5, "paso": 0.5, "valor": 4 }
+  ],
+  "calculos": [
+    { "id": "p", "formula": "ax * bx + ay * by" },
+    { "id": "la", "formula": "sqrt(ax * ax + ay * ay)" },
+    { "id": "lb", "formula": "sqrt(bx * bx + by * by)" },
+    { "id": "c", "formula": "p / (la * lb)" }
+  ],
+  "salidas": [
+    { "label": "Producto punto a · b", "formula": "p", "decimales": 2, "nota": "multiplica y suma" },
+    { "label": "Largo de a × largo de b", "formula": "la * lb", "decimales": 2 },
+    { "label": "Similitud coseno", "formula": "c", "decimales": 3, "nota": "producto punto ÷ largos" },
+    { "label": "Ángulo entre las flechas", "formula": "Math.acos(min(1, max(-1, c))) * 180 / PI", "decimales": 1, "nota": "en grados" },
+    { "label": "Distancia euclidiana", "formula": "sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by))", "decimales": 2, "nota": "la de la regla" }
+  ],
+  "nota": "Pon **b** = (1.5, 2), la mitad de las botas: el producto punto baja a la mitad y la distancia cambia, pero el coseno sigue en 0.96, porque la dirección es la misma. Con una flecha en (0, 0) no hay dirección, y el coseno sale «—»."
+}

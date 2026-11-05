@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 554" role="img" aria-labelledby="f-aprender-cadena-t" class="f-svg" style="max-width:420px">
+<title id="f-aprender-cadena-t">Backpropagation a mano en la red y igual a w2 por ReLU de w1 por x, con x igual a 2, respuesta correcta 6, w1 igual a 0.5 y w2 igual a 2. Forward, de arriba abajo por la izquierda: z igual a w1 por x igual a 1; h igual a ReLU de z igual a 1; y igual a w2 por h igual a 2; la pérdida, y menos 6 al cuadrado, igual a 16. Backward, de abajo arriba por la derecha: la derivada de la pérdida respecto a y es 2 por y menos 6, menos 8; respecto a h, menos 8 por w2, menos 16; respecto a z, menos 16 por 1 porque z es positivo, menos 16. Cada perilla toma su gradiente en el renglón donde se usa: para w2, menos 8 por h, menos 8; para w1, menos 16 por x, menos 32. Con learning rate 0.01, w1 pasa a 0.82, w2 a 2.08 y la pérdida baja de 16 a 6.70.</title>
+<defs><marker id="fac-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker><marker id="fac-p" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--p)"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="534" rx="16"/>
+<text class="f-t" x="28" y="40">y = w2 × ReLU(w1 × x)</text>
+<text class="f-s" x="28" y="60" style="font-size:12px">x = 2 · respuesta 6 · w1 = 0.5 · w2 = 2</text>
+<text class="f-l" x="28" y="90">FORWARD ↓</text>
+<text class="f-l" x="332" y="90" text-anchor="end">BACKWARD ↑</text>
+<rect class="f-chip" x="28" y="104" width="80" height="36" rx="10"/>
+<text class="f-t" x="68.0" y="127" text-anchor="middle">x = 2</text>
+<rect class="f-chip" x="28" y="180" width="80" height="36" rx="10"/>
+<text class="f-t" x="68.0" y="203" text-anchor="middle">z = 1</text>
+<rect x="236" y="180" width="96" height="36" rx="10" style="fill:none;stroke:var(--p);stroke-width:2"/>
+<text class="f-t" x="284.0" y="203" text-anchor="middle" style="font-size:13px">∂L/∂z = −16</text>
+<rect class="f-chip" x="28" y="256" width="80" height="36" rx="10"/>
+<text class="f-t" x="68.0" y="279" text-anchor="middle">h = 1</text>
+<rect x="236" y="256" width="96" height="36" rx="10" style="fill:none;stroke:var(--p);stroke-width:2"/>
+<text class="f-t" x="284.0" y="279" text-anchor="middle" style="font-size:13px">∂L/∂h = −16</text>
+<rect class="f-chip" x="28" y="332" width="80" height="36" rx="10"/>
+<text class="f-t" x="68.0" y="355" text-anchor="middle">y = 2</text>
+<rect x="236" y="332" width="96" height="36" rx="10" style="fill:none;stroke:var(--p);stroke-width:2"/>
+<text class="f-t" x="284.0" y="355" text-anchor="middle" style="font-size:13px">∂L/∂y = −8</text>
+<rect class="f-dark" x="28" y="408" width="80" height="36" rx="10"/>
+<text class="f-dark-t" x="68.0" y="431" text-anchor="middle" style="font-size:15px;font-weight:700">L = 16</text>
+<line class="f-flecha" x1="68.0" y1="143" x2="68.0" y2="175" marker-end="url(#fac-a)"/>
+<text class="f-s" x="78.0" y="164" style="font-size:12px">× w1</text>
+<line class="f-flecha" x1="68.0" y1="219" x2="68.0" y2="251" marker-end="url(#fac-a)"/>
+<text class="f-s" x="78.0" y="240" style="font-size:12px">ReLU</text>
+<line class="f-flecha" x1="68.0" y1="295" x2="68.0" y2="327" marker-end="url(#fac-a)"/>
+<text class="f-s" x="78.0" y="316" style="font-size:12px">× w2</text>
+<line class="f-flecha" x1="68.0" y1="371" x2="68.0" y2="403" marker-end="url(#fac-a)"/>
+<text class="f-s" x="78.0" y="392" style="font-size:12px">(y − 6)²</text>
+<line x1="284.0" y1="329" x2="284.0" y2="297" style="stroke:var(--p);stroke-width:2" marker-end="url(#fac-p)"/>
+<text class="f-s" x="274.0" y="318" text-anchor="end" style="font-size:12px">× w2 = 2</text>
+<line x1="284.0" y1="253" x2="284.0" y2="221" style="stroke:var(--p);stroke-width:2" marker-end="url(#fac-p)"/>
+<text class="f-s" x="274.0" y="242" text-anchor="end" style="font-size:12px">× 1, porque z > 0</text>
+<path d="M114,426.0 H284.0 V373" style="fill:none;stroke:var(--p);stroke-width:2" marker-end="url(#fac-p)"/>
+<text class="f-s" x="196" y="418" text-anchor="middle" style="font-size:12px">× 2 × (y − 6) = −8</text>
+<rect class="f-y" x="116" y="180" width="112" height="36" rx="9"/>
+<text x="172.0" y="194" text-anchor="middle" style="fill:var(--navy);font:700 11px var(--mono);letter-spacing:.04em">∂L/∂w1 = × x</text>
+<text x="172.0" y="210" text-anchor="middle" style="fill:var(--navy);font:800 13px var(--sans)">−16 × 2 = −32</text>
+<line x1="235" y1="198.0" x2="233" y2="198.0" style="stroke:var(--p);stroke-width:2" marker-end="url(#fac-p)"/>
+<rect class="f-y" x="116" y="332" width="112" height="36" rx="9"/>
+<text x="172.0" y="346" text-anchor="middle" style="fill:var(--navy);font:700 11px var(--mono);letter-spacing:.04em">∂L/∂w2 = × h</text>
+<text x="172.0" y="362" text-anchor="middle" style="fill:var(--navy);font:800 13px var(--sans)">−8 × 1 = −8</text>
+<line x1="235" y1="350.0" x2="233" y2="350.0" style="stroke:var(--p);stroke-width:2" marker-end="url(#fac-p)"/>
+<rect class="f-chip" x="24" y="468" width="312" height="62" rx="10"/>
+<text class="f-t" x="38" y="492" style="font-size:13px">Un paso con lr = 0.01</text>
+<text class="f-s" x="38" y="514" style="font-size:12px">w1: 0.5 → 0.82 · w2: 2 → 2.08 · L: 16 → 6.70</text>
+</svg>

@@ -58,9 +58,12 @@ for (const g of TERMINOS) {
   for (const k of ['termino', 'corto']) if (!g[k]) problema(g.archivo, `glosario ${g.id}: falta «${k}»`);
   GLOS.set(g.id, { ver: [], ...g });
 }
-// En --solo, los conceptos planeados que otra lección todavía no escribe cuentan como existentes (con aviso).
+// Los conceptos planeados (content/conceptos-plan.json) que su lección todavía no escribe cuentan como existentes:
+// así se publica por tandas. Su globo dice en qué lección se ven y que llega después; no salen en el glosario.
 const PLAN = existsSync(join(C, 'conceptos-plan.json')) ? json(join(C, 'conceptos-plan.json')).lecciones : {};
-if (SOLO) for (const [lec, ids] of Object.entries(PLAN)) for (const id of ids) if (!GLOS.has(id)) GLOS.set(id, { id, termino: id, corto: `(planeado para la lección ${lec})`, ver: [], plan: lec, archivo: '(plan)' });
+const nombrePlan = (id) => (id.length <= 4 ? id.toUpperCase() : id.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase()));
+for (const [lec, ids] of Object.entries(PLAN)) for (const id of ids) if (!GLOS.has(id)) GLOS.set(id, { id, termino: nombrePlan(id), corto: 'Este concepto todavía no tiene su lección escrita.', ver: [], plan: lec, leccion: lec, archivo: '(plan)' });
+const REALES = () => [...GLOS.values()].filter((g) => !g.plan);
 for (const g of GLOS.values()) for (const v of g.ver) if (!GLOS.has(v)) problema(g.archivo, `glosario ${g.id}: «ver» menciona «${v}», que no existe`);
 
 // ---------------------------------------------------------------- temario y lecciones
@@ -181,7 +184,7 @@ function sidebar(actual) {
     return `<details class="nav__group"${abierto ? ' open' : ''}><summary><span class="nav__label">${m.num} · ${esc(m.titulo)}</span><span class="nav__fase${listas === m.lecciones.length ? ' is-lista' : ''}">${listas === m.lecciones.length ? 'Listo' : listas ? `${listas}/${m.lecciones.length}` : `Fase ${m.fase}`}</span></summary><ol class="nav__list">${items}</ol></details>`;
   }).join('');
   const top = [['/', ICO.casa, 'Inicio', 'inicio'], ['/ronda/', ICO.ronda, 'Para leer la Ronda', 'ronda'], ['/glosario/', ICO.libro, `Glosario`, 'glosario']]
-    .map(([href, ico, t, id]) => `<a class="nav__item" href="${href}"${id === actual ? ' aria-current="page"' : ''}>${ico}<span>${t}</span>${id === 'glosario' ? `<span class="nav__count">${GLOS.size}</span>` : '<span></span>'}</a>`).join('');
+    .map(([href, ico, t, id]) => `<a class="nav__item" href="${href}"${id === actual ? ' aria-current="page"' : ''}>${ico}<span>${t}</span>${id === 'glosario' ? `<span class="nav__count">${REALES().length}</span>` : '<span></span>'}</a>`).join('');
   return `<aside class="sidebar" id="sidebar" aria-label="Índice">
   <div class="sidebar__head">${marcaLink('TrueML · teoría desde cero')}<button type="button" class="btn-ico sidebar__close" aria-label="Cerrar el índice" data-cajon="cerrar">${ICO.x}</button></div>
   <div class="side-search" role="search"><input type="search" placeholder="Buscar lecciones y conceptos…" aria-label="Buscar lecciones y conceptos" autocomplete="off" data-buscar-nav><kbd aria-hidden="true">/</kbd><ul class="side-res" hidden></ul></div>
@@ -366,8 +369,8 @@ function portada() {
 
 // ================================================================ glosario
 function paginaGlosario() {
-  const usan = new Map([...GLOS.keys()].map((id) => [id, LISTAS.filter((l) => l.terminos.has(id))]));
-  const lista = [...GLOS.values()].sort((a, b) => a.termino.localeCompare(b.termino, 'es'));
+  const usan = new Map(REALES().map((g) => [g.id, LISTAS.filter((l) => l.terminos.has(g.id))]));
+  const lista = REALES().sort((a, b) => a.termino.localeCompare(b.termino, 'es'));
   const letra = (g) => g.termino.normalize('NFD')[0].toUpperCase();
   const letras = [...new Set(lista.map(letra))];
   const entrada = (g) => {
@@ -387,14 +390,14 @@ function paginaGlosario() {
   <p class="eyebrow">Referencia</p>
   <h1 class="phead__title" id="titulo">Glosario</h1>
   <p class="phead__en">Glossary · español–English</p>
-  <p class="phead__summary">${GLOS.size} conceptos, cada uno en un solo lugar, con su nombre en inglés y las lecciones que lo usan. Cuando te surja una duda en el Dojo o en la Ronda, la respuesta se agrega aquí.</p>
+  <p class="phead__summary">${REALES().length} conceptos, cada uno en un solo lugar, con su nombre en inglés y las lecciones que lo usan. Cuando te surja una duda en el Dojo o en la Ronda, la respuesta se agrega aquí.</p>
   <label class="buscar"><span class="lbl">Buscar</span><input type="search" placeholder="modelo, softmax, latencia…" autocomplete="off" data-buscar-en=".gent"></label>
   <nav class="letras" aria-label="Letras">${letras.map((x) => `<a href="#l-${x}">${x}</a>`).join('')}</nav>
   <p class="c-req c-sin" hidden>Nada coincide. Si falta un concepto, <a href="${SITIO.issues}">dímelo en GitHub</a> y lo agrego.</p>
 </header>
 ${letras.map((x) => `<section class="letra" id="l-${x}"><h2>${x}</h2><div class="g-lista">${lista.filter((g) => letra(g) === x).map(entrada).join('\n')}</div></section>`).join('\n')}`;
-  return pagina({ path: '/glosario/', title: `Glosario · ${SITIO.nombre} · TrueML`, desc: `Los ${GLOS.size} conceptos para llevar un modelo de ML a producción, explicados en palabras simples, con su nombre en inglés.`,
-    actual: 'glosario', contenido, ancho: true, globos: [...GLOS.keys()] });
+  return pagina({ path: '/glosario/', title: `Glosario · ${SITIO.nombre} · TrueML`, desc: `Los ${REALES().length} conceptos para llevar un modelo de ML a producción, explicados en palabras simples, con su nombre en inglés.`,
+    actual: 'glosario', contenido, ancho: true, globos: REALES().map((g) => g.id) });
 }
 
 // ================================================================ para leer la Ronda
@@ -440,7 +443,7 @@ writeFileSync(join(OUT, 'sensei.css'), CSS);
 const sinMd = (s) => s.replace(/\[\[([a-z0-9-]+)(?:\|([^\]]+))?\]\]/g, (_, id, t) => t || GLOS.get(id).termino.toLowerCase()).replace(/[*`]/g, '');
 writeFileSync(join(OUT, 'indice.json'), JSON.stringify({
   lecciones: LISTAS.map((l) => ({ t: l.titulo, n: l.n, u: l.url, m: l.modulo.titulo })),
-  conceptos: [...GLOS.values()].map((g) => ({ t: g.termino, en: g.en || '', u: `/glosario/#g-${g.id}`, c: sinMd(g.corto) })),
+  conceptos: REALES().map((g) => ({ t: g.termino, en: g.en || '', u: `/glosario/#g-${g.id}`, c: sinMd(g.corto) })),
 }));
 
 const urls = Object.keys(pages);
@@ -452,7 +455,8 @@ const BUILD = hash.digest('hex').slice(0, 12);
 writeFileSync(join(OUT, 'sw.js'), leer(join(ROOT, 'site', 'sw.js')).replace("'__BUILD__';", `'${BUILD}';`).replace('= __PAGES__;', `= ${JSON.stringify(core)};`));
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITIO.url}/sitemap.xml\n`);
 writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((p) => `  <url><loc>${SITIO.url}${p}</loc></url>`).join('\n')}\n</urlset>\n`);
-console.log(`[build] glosario: ${GLOS.size} conceptos · ${PRESENTA.size} presentados en alguna lección`);
+const enlazadosPlan = [...new Set(LISTAS.flatMap((l) => [...l.terminos].filter((id) => GLOS.get(id).plan)))];
+console.log(`[build] glosario: ${REALES().length} conceptos · ${PRESENTA.size} presentados en alguna lección${enlazadosPlan.length ? ` · ${enlazadosPlan.length} enlazados que todavía no tienen su lección (${enlazadosPlan.join(', ')})` : ''}`);
 if (adelantos.length) console.log(`[build] adelantos (palabras usadas antes de presentarse):\n  ${adelantos.join('\n  ')}`);
 if (SOLO) { const l = POR_ID.get(SOLO); console.log(`[build] --solo ${SOLO}: ${l.palabras} palabras · ${l.min.esencial} min lo esencial, ${l.min.todo} min todo · ${JSON.stringify(l.cuenta)} · ${l.secciones.length} secciones · en ${OUT}`); }
 console.log(`[build] listo: ${urls.length} páginas · ${LISTAS.length} de ${ORDEN.length} lecciones · BUILD ${BUILD}`);

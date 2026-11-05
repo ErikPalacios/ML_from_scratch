@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 528" role="img" aria-labelledby="f-imagenes-tiles-t" class="f-svg" style="max-width:420px">
+<title id="f-imagenes-tiles-t">La imagen de la cámara de C03, de 2,448 por 2,048 píxeles en un solo canal, partida en 20 tiles de 512 por 512: 5 a lo ancho y 4 a lo alto. Una grieta en naranja cae dentro de uno de los tiles. Abajo, la misma grieta de 0.2 milímetros vista de cerca a tres resoluciones: con 2,448 píxeles de ancho mide 3.3 píxeles y se ve; con 1,024 mide 1.4 píxeles y apenas se ve; con 224 mide 0.3 píxeles y se pierde.</title>
+<rect class="f-card" x="10" y="10" width="340" height="242" rx="16"/>
+<text class="f-l" x="28" y="36">C03 · 2,448 × 2,048 · UN CANAL</text>
+<rect class="f-off" x="28" y="50" width="196" height="164" rx="4"/>
+<rect class="f-chip" x="46" y="76" width="160" height="112" rx="14" style="stroke:var(--muted);stroke-opacity:.5;stroke-width:1.5"/>
+<circle class="f-off" cx="84" cy="132" r="13" style="stroke:var(--muted);stroke-opacity:.5;stroke-width:1.5"/>
+<line class="f-linea" x1="67.2" y1="50" x2="67.2" y2="214" style="stroke-dasharray:4 3"/>
+<line class="f-linea" x1="106.4" y1="50" x2="106.4" y2="214" style="stroke-dasharray:4 3"/>
+<line class="f-linea" x1="145.6" y1="50" x2="145.6" y2="214" style="stroke-dasharray:4 3"/>
+<line class="f-linea" x1="184.8" y1="50" x2="184.8" y2="214" style="stroke-dasharray:4 3"/>
+<line class="f-linea" x1="28" y1="91.0" x2="224" y2="91.0" style="stroke-dasharray:4 3"/>
+<line class="f-linea" x1="28" y1="132.0" x2="224" y2="132.0" style="stroke-dasharray:4 3"/>
+<line class="f-linea" x1="28" y1="173.0" x2="224" y2="173.0" style="stroke-dasharray:4 3"/>
+<rect x="145.6" y="91.0" width="39.2" height="41.0" style="fill:none;stroke:var(--o);stroke-width:2.5"/>
+<polyline points="159.6,100.0 165.6,110.0 162.6,120.0 168.6,127.0" style="fill:none;stroke:var(--o);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"/>
+<text class="f-t" x="240" y="74">20 tiles</text>
+<text class="f-s" x="240" y="96">de 512 × 512:</text>
+<text class="f-s" x="240" y="115">5 a lo ancho,</text>
+<text class="f-s" x="240" y="134">4 a lo alto.</text>
+<text class="f-s" x="240" y="164">Se analizan</text>
+<text class="f-s" x="240" y="183">sin achicar,</text>
+<text class="f-s" x="240" y="202">como un batch.</text>
+<line x1="28" y1="234" x2="46" y2="234" style="stroke:var(--o);stroke-width:2.5;stroke-linecap:round"/>
+<text class="f-s" x="54" y="238">la grieta de 0.2 mm, dentro de un tile</text>
+<rect class="f-card" x="10" y="264" width="340" height="254" rx="16"/>
+<text class="f-l" x="28" y="290">LA GRIETA, VISTA DE CERCA</text>
+<text class="f-l" x="28" y="312">2,448 PX</text>
+<rect class="f-chip" x="28" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="42" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="42" y="322" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="56" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="56" y="322" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="70" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="70" y="322" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="84" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="84" y="322" width="13" height="13" rx="2" style="fill-opacity:0.3"/>
+<rect class="f-chip" x="98" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="28" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="42" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="42" y="336" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="56" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="56" y="336" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="70" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="70" y="336" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="84" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="84" y="336" width="13" height="13" rx="2" style="fill-opacity:0.3"/>
+<rect class="f-chip" x="98" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="28" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="42" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="42" y="350" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="56" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="56" y="350" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="70" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="70" y="350" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="84" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="84" y="350" width="13" height="13" rx="2" style="fill-opacity:0.3"/>
+<rect class="f-chip" x="98" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="28" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="42" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="42" y="364" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="56" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="56" y="364" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="70" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="70" y="364" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="84" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="84" y="364" width="13" height="13" rx="2" style="fill-opacity:0.3"/>
+<rect class="f-chip" x="98" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="28" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="42" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="42" y="378" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="56" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="56" y="378" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="70" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="70" y="378" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="84" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="84" y="378" width="13" height="13" rx="2" style="fill-opacity:0.3"/>
+<rect class="f-chip" x="98" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="28" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="42" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="42" y="392" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="56" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="56" y="392" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="70" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="70" y="392" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="84" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="84" y="392" width="13" height="13" rx="2" style="fill-opacity:0.3"/>
+<rect class="f-chip" x="98" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<text class="f-t" x="28" y="431">3.3 px</text>
+<text class="f-s" x="28" y="451">se ve</text>
+<text class="f-l" x="138" y="312">1,024 PX</text>
+<rect class="f-chip" x="138" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="152" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="166" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="166" y="322" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="180" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="180" y="322" width="13" height="13" rx="2" style="fill-opacity:0.4"/>
+<rect class="f-chip" x="194" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="208" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="138" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="152" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="166" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="166" y="336" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="180" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="180" y="336" width="13" height="13" rx="2" style="fill-opacity:0.4"/>
+<rect class="f-chip" x="194" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="208" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="138" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="152" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="166" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="166" y="350" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="180" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="180" y="350" width="13" height="13" rx="2" style="fill-opacity:0.4"/>
+<rect class="f-chip" x="194" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="208" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="138" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="152" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="166" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="166" y="364" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="180" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="180" y="364" width="13" height="13" rx="2" style="fill-opacity:0.4"/>
+<rect class="f-chip" x="194" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="208" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="138" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="152" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="166" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="166" y="378" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="180" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="180" y="378" width="13" height="13" rx="2" style="fill-opacity:0.4"/>
+<rect class="f-chip" x="194" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="208" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="138" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="152" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="166" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="166" y="392" width="13" height="13" rx="2" style="fill-opacity:1"/>
+<rect class="f-chip" x="180" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="180" y="392" width="13" height="13" rx="2" style="fill-opacity:0.4"/>
+<rect class="f-chip" x="194" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="208" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<text class="f-t" x="138" y="431">1.4 px</text>
+<text class="f-s" x="138" y="451">apenas</text>
+<text class="f-l" x="248" y="312">224 PX</text>
+<rect class="f-chip" x="248" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="262" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="276" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="276" y="322" width="13" height="13" rx="2" style="fill-opacity:0.3"/>
+<rect class="f-chip" x="290" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="304" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="318" y="322" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="248" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="262" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="276" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="276" y="336" width="13" height="13" rx="2" style="fill-opacity:0.3"/>
+<rect class="f-chip" x="290" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="304" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="318" y="336" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="248" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="262" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="276" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="276" y="350" width="13" height="13" rx="2" style="fill-opacity:0.3"/>
+<rect class="f-chip" x="290" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="304" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="318" y="350" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="248" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="262" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="276" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="276" y="364" width="13" height="13" rx="2" style="fill-opacity:0.3"/>
+<rect class="f-chip" x="290" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="304" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="318" y="364" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="248" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="262" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="276" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="276" y="378" width="13" height="13" rx="2" style="fill-opacity:0.3"/>
+<rect class="f-chip" x="290" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="304" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="318" y="378" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="248" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="262" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="276" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-o" x="276" y="392" width="13" height="13" rx="2" style="fill-opacity:0.3"/>
+<rect class="f-chip" x="290" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="304" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<rect class="f-chip" x="318" y="392" width="13" height="13" rx="2" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<text class="f-t" x="248" y="431">0.3 px</text>
+<text class="f-s" x="248" y="451">se pierde</text>
+<text class="f-s" x="28" y="485">Achicada a 224, la grieta apenas tiñe un</text>
+<text class="f-s" x="28" y="504">píxel: casi no se distingue del metal.</text>
+</svg>

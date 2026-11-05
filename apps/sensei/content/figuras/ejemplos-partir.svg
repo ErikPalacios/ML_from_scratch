@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 440" role="img" aria-labelledby="f-ejemplos-partir-t" class="f-svg" style="max-width:420px">
+<title id="f-ejemplos-partir-t">Tres formas de repartir las mismas 12 fotos de tres vendedores, A, B y C, ordenadas de enero a marzo. Al azar: tres fotos van a test, una de cada vendedor, y los tres vendedores quedan en train y en test. Por tiempo: las tres fotos más recientes, después de un corte, van a test. Por grupo: las cuatro fotos del vendedor C van a test y las de A y B, a train.</title>
+<rect class="f-card" x="10" y="10" width="340" height="420" rx="16"/>
+<text class="f-l" x="26" y="38">12 FOTOS · 3 VENDEDORES · ENE → MAR</text>
+<circle class="f-o" cx="34" cy="55" r="6"/><text class="f-s" x="45" y="59" style="font-size:12px">vendedor A</text>
+<circle class="f-b" cx="124" cy="55" r="6"/><text class="f-s" x="135" y="59" style="font-size:12px">vendedor B</text>
+<circle class="f-g" cx="214" cy="55" r="6"/><text class="f-s" x="225" y="59" style="font-size:12px">vendedor C</text>
+<text class="f-t" x="26" y="92">Al azar</text>
+<text class="f-s" x="334" y="92" text-anchor="end" style="font-size:12px">A, B y C quedan en los dos lados</text>
+<rect class="f-chip" x="70" y="104" width="272" height="28" rx="8"/>
+<rect class="f-chip" x="70" y="138" width="272" height="28" rx="8"/>
+<text class="f-l" x="26" y="122">TRAIN</text>
+<text class="f-l" x="26" y="156">TEST</text>
+<circle class="f-o" cx="88" cy="118" r="7"/>
+<circle class="f-b" cx="110" cy="118" r="7"/>
+<circle class="f-g" cx="132" cy="152" r="7"/>
+<circle class="f-o" cx="154" cy="118" r="7"/>
+<circle class="f-g" cx="176" cy="118" r="7"/>
+<circle class="f-b" cx="198" cy="152" r="7"/>
+<circle class="f-o" cx="220" cy="118" r="7"/>
+<circle class="f-b" cx="242" cy="118" r="7"/>
+<circle class="f-g" cx="264" cy="118" r="7"/>
+<circle class="f-o" cx="286" cy="152" r="7"/>
+<circle class="f-b" cx="308" cy="118" r="7"/>
+<circle class="f-g" cx="330" cy="118" r="7"/>
+<line class="f-linea" x1="26" y1="188" x2="334" y2="188" style="opacity:.5"/>
+<text class="f-t" x="26" y="214">Por tiempo</text>
+<text class="f-s" x="334" y="214" text-anchor="end" style="font-size:12px">test es lo que vino después</text>
+<rect class="f-chip" x="70" y="226" width="272" height="28" rx="8"/>
+<rect class="f-chip" x="70" y="260" width="272" height="28" rx="8"/>
+<text class="f-l" x="26" y="244">TRAIN</text>
+<text class="f-l" x="26" y="278">TEST</text>
+<line class="f-flecha" x1="275" y1="222" x2="275" y2="292" style="stroke-dasharray:4 4"/>
+<text class="f-l" x="275" y="306" text-anchor="middle">CORTE</text>
+<circle class="f-o" cx="88" cy="240" r="7"/>
+<circle class="f-b" cx="110" cy="240" r="7"/>
+<circle class="f-g" cx="132" cy="240" r="7"/>
+<circle class="f-o" cx="154" cy="240" r="7"/>
+<circle class="f-g" cx="176" cy="240" r="7"/>
+<circle class="f-b" cx="198" cy="240" r="7"/>
+<circle class="f-o" cx="220" cy="240" r="7"/>
+<circle class="f-b" cx="242" cy="240" r="7"/>
+<circle class="f-g" cx="264" cy="240" r="7"/>
+<circle class="f-o" cx="286" cy="274" r="7"/>
+<circle class="f-b" cx="308" cy="274" r="7"/>
+<circle class="f-g" cx="330" cy="274" r="7"/>
+<line class="f-linea" x1="26" y1="310" x2="334" y2="310" style="opacity:.5"/>
+<text class="f-t" x="26" y="336">Por grupo</text>
+<text class="f-s" x="334" y="336" text-anchor="end" style="font-size:12px">C entero en test; A y B en train</text>
+<rect class="f-chip" x="70" y="348" width="272" height="28" rx="8"/>
+<rect class="f-chip" x="70" y="382" width="272" height="28" rx="8"/>
+<text class="f-l" x="26" y="366">TRAIN</text>
+<text class="f-l" x="26" y="400">TEST</text>
+<circle class="f-o" cx="88" cy="362" r="7"/>
+<circle class="f-b" cx="110" cy="362" r="7"/>
+<circle class="f-g" cx="132" cy="396" r="7"/>
+<circle class="f-o" cx="154" cy="362" r="7"/>
+<circle class="f-g" cx="176" cy="396" r="7"/>
+<circle class="f-b" cx="198" cy="362" r="7"/>
+<circle class="f-o" cx="220" cy="362" r="7"/>
+<circle class="f-b" cx="242" cy="362" r="7"/>
+<circle class="f-g" cx="264" cy="396" r="7"/>
+<circle class="f-o" cx="286" cy="362" r="7"/>
+<circle class="f-b" cx="308" cy="362" r="7"/>
+<circle class="f-g" cx="330" cy="396" r="7"/>
+</svg>

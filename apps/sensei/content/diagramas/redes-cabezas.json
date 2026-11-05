@@ -1,0 +1,98 @@
+{
+  "titulo": "Un backbone, tres cabezas",
+  "width": 78,
+  "height": 63,
+  "lanes": [
+    { "id": "reusa", "label": "Se reutiliza · el backbone", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 29 },
+    { "id": "cambia", "label": "Cambia con la tarea · la cabeza", "kind": "neutral", "x": 0, "y": 31, "w": 78, "h": 32 }
+  ],
+  "nodes": [
+    {
+      "id": "foto", "label": "Foto", "sub": "ya preprocesada", "kind": "client",
+      "x": 2, "y": 5, "w": 18, "h": 8,
+      "note": "La imagen ya convertida en [[tensor]]: 224 × 224 en C01, 640 × 640 en el detector de C02, tiles de 512 × 512 en C04. Las convoluciones aceptan tamaños distintos, así que el tipo de backbone puede ser el mismo."
+    },
+    {
+      "id": "backbone", "label": "Backbone", "sub": "convoluciones", "kind": "model",
+      "x": 29, "y": 5, "w": 20, "h": 8,
+      "note": "Todas las capas convolucionales, casi siempre preentrenadas con ImageNet. Es lo caro: en la ResNet-50, el 99.97 % de las [[mac|MACs]]. Es la parte que se reutiliza de una tarea a otra ([[transfer-learning|transfer learning]])."
+    },
+    {
+      "id": "mapas", "label": "Mapas", "sub": "las features", "kind": "store",
+      "x": 29, "y": 18, "w": 20, "h": 8,
+      "note": "Lo que entrega el [[backbone]]: [[mapa-activaciones|mapas de activaciones]]. En C01, 2,048 mapas de 7 × 7. Detección y segmentación toman también mapas de capas anteriores, más grandes, porque necesitan saber **dónde** está cada cosa."
+    },
+    {
+      "id": "clasif", "label": "Clasificación", "sub": "pooling + densa", "kind": "model",
+      "x": 2, "y": 34, "w": 22, "h": 9,
+      "note": "Promedia cada mapa en un número (2,048) y una capa densa da un [[logit]] por categoría: 2,048 × 500 + 500 = 1,024,500 parámetros. Promediar borra el dónde: aquí solo importa el qué."
+    },
+    {
+      "id": "detec", "label": "Detección", "sub": "una caja por posición", "kind": "model",
+      "x": 28, "y": 34, "w": 22, "h": 9,
+      "note": "En cada posición de los mapas propone una caja (4 números: dónde está y de qué tamaño) y un puntaje por clase. Un detector como YOLOv8 a 640 × 640 lo hace en 80 × 80 + 40 × 40 + 20 × 20 = 8,400 posiciones."
+    },
+    {
+      "id": "segm", "label": "Segmentación", "sub": "decoder que agranda", "kind": "model",
+      "x": 54, "y": 34, "w": 22, "h": 9,
+      "note": "Un **decoder** agranda los mapas de regreso al tamaño de la entrada y da una respuesta por píxel. Como en la U-Net, recibe atajos desde el backbone (ahí llamado **encoder**) para no perder los bordes finos."
+    },
+    {
+      "id": "top5", "label": "Top-5", "sub": "C01 · 500 categorías", "kind": "client",
+      "x": 2, "y": 52, "w": 22, "h": 9,
+      "note": "El [[softmax]] vuelve los 500 logits probabilidades y Ana ve las 5 más altas ([[top-k-accuracy|top-5]])."
+    },
+    {
+      "id": "cajas", "label": "Cajas", "sub": "C02 · tras el NMS", "kind": "client",
+      "x": 28, "y": 52, "w": 22, "h": 9,
+      "note": "Casi todas las candidatas se tiran por puntaje bajo, y varias marcan el mismo objeto. El **NMS** (*non-maximum suppression*) deja la de puntaje más alto y borra las que se enciman mucho con ella. Quedan unas cuantas cajas, cada una con su clase."
+    },
+    {
+      "id": "mascara", "label": "Máscara", "sub": "C04 · una por píxel", "kind": "client",
+      "x": 54, "y": 52, "w": 22, "h": 9,
+      "note": "Una probabilidad por píxel: en un tile de 512 × 512 son 262,144 respuestas. En C04, la probabilidad de que cada píxel sea tumor."
+    }
+  ],
+  "edges": [
+    { "from": "foto", "to": "backbone", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "backbone", "to": "mapas", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "mapas", "to": "clasif", "kind": "online", "fromSide": "l", "toSide": "t" },
+    { "from": "mapas", "to": "detec", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "mapas", "to": "segm", "kind": "online", "fromSide": "r", "toSide": "t" },
+    { "from": "clasif", "to": "top5", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "detec", "to": "cajas", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "segm", "to": "mascara", "kind": "online", "fromSide": "b", "toSide": "t" }
+  ],
+  "flows": [
+    {
+      "id": "clasificacion",
+      "label": "Clasificación (C01)",
+      "steps": [
+        { "nodes": ["foto", "backbone"], "edges": ["foto>backbone"], "text": "**La foto entra al backbone.** En C01, de 224 × 224: la ResNet-50 sin su capa final, con los pesos de ImageNet." },
+        { "nodes": ["backbone", "mapas"], "edges": ["backbone>mapas"], "text": "**Salen los mapas.** 2,048 mapas de 7 × 7: qué encontró cada filtro y en qué parte de la foto." },
+        { "nodes": ["mapas", "clasif"], "edges": ["mapas>clasif"], "text": "**Cabeza de clasificación.** Promedia cada mapa en un número y una capa densa da 500 logits. Aquí ya no importa dónde, solo qué." },
+        { "nodes": ["clasif", "top5"], "edges": ["clasif>top5"], "text": "**Top-5.** El softmax vuelve los logits probabilidades y Ana ve las 5 categorías más probables." }
+      ]
+    },
+    {
+      "id": "deteccion",
+      "label": "Detección (C02)",
+      "steps": [
+        { "nodes": ["foto", "backbone"], "edges": ["foto>backbone"], "text": "**Un frame de video entra al backbone**, a 640 × 640. El backbone es del mismo tipo; lo que cambia es lo que viene después." },
+        { "nodes": ["backbone", "mapas"], "edges": ["backbone>mapas"], "text": "**Mapas de tres tamaños.** El detector toma mapas con saltos de 8, 16 y 32 píxeles: 80 × 80, 40 × 40 y 20 × 20 posiciones." },
+        { "nodes": ["mapas", "detec"], "edges": ["mapas>detec"], "text": "**Una caja por posición.** En cada una de las 8,400 posiciones, la cabeza propone una caja y un puntaje para persona y para vehículo." },
+        { "nodes": ["detec", "cajas"], "edges": ["detec>cajas"], "text": "**NMS.** Se tiran las de puntaje bajo y, de las que marcan el mismo objeto, queda la de puntaje más alto. Salen unas cuantas cajas." }
+      ]
+    },
+    {
+      "id": "segmentacion",
+      "label": "Segmentación (C04)",
+      "steps": [
+        { "nodes": ["foto", "backbone"], "edges": ["foto>backbone"], "text": "**Un tile de 512 × 512** de la laminilla entra al encoder: un backbone que achica el mapa mientras gana canales." },
+        { "nodes": ["backbone", "mapas"], "edges": ["backbone>mapas"], "text": "**Mapas chicos y profundos.** El más chico sabe qué tejido hay, pero ya no sabe exactamente dónde están sus bordes." },
+        { "nodes": ["mapas", "segm"], "edges": ["mapas>segm"], "text": "**El decoder agranda.** Duplica el lado paso a paso hasta 512 y, en cada tamaño, recibe por un atajo el mapa del encoder de ese mismo tamaño, que conserva los bordes." },
+        { "nodes": ["segm", "mascara"], "edges": ["segm>mascara"], "text": "**Una respuesta por píxel:** 262,144 probabilidades de tumor por tile." }
+      ]
+    }
+  ]
+}

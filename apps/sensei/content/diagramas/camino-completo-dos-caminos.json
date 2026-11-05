@@ -1,0 +1,59 @@
+{
+  "titulo": "Los dos caminos de C01",
+  "width": 78,
+  "height": 54,
+  "lanes": [
+    { "id": "online", "label": "Camino online · por cada foto · milisegundos", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 20 },
+    { "id": "offline", "label": "Camino offline · datos y entrenamiento · días y semanas", "kind": "offline", "x": 0, "y": 23, "w": 78, "h": 31 }
+  ],
+  "nodes": [
+    { "id": "ana", "label": "App de Ana", "sub": "sube la foto", "kind": "client", "x": 2, "y": 7, "w": 16, "h": 9,
+      "note": "Ana sube la foto de sus tenis y la sugerencia tiene que llegar mientras ella sigue escribiendo. Que alguien esté esperando es justo lo que define al [[camino-online|camino online]]." },
+    { "id": "api", "label": "API del modelo", "sub": "prepara la foto", "kind": "service", "x": 29, "y": 7, "w": 18, "h": 9,
+      "note": "Recibe la foto, la decodifica, la achica y la convierte en los números que el modelo espera. El marketplace no espera más de 300 ms: si no hay respuesta, usa el [[fallback]]." },
+    { "id": "modelo", "label": "Modelo", "sub": "inferencia en GPU", "kind": "gpu", "x": 58, "y": 7, "w": 18, "h": 9,
+      "note": "Hace la [[inferencia]] con las perillas fijas: calcula qué tan probable es cada una de las 500 categorías. Es la versión que llegó con el último [[deploy]]." },
+    { "id": "registro", "label": "Registro", "sub": "una línea por foto", "kind": "queue", "x": 29, "y": 29, "w": 18, "h": 8,
+      "note": "Una línea por foto: cuándo llegó, qué respondió el modelo, con qué versión y cuánto tardó. Se escribe aparte, sin hacer esperar a Ana. Es el **puente 1**: todo lo que el camino offline sabe del mundo, lo sabe por aquí." },
+    { "id": "datos", "label": "Datos y etiquetas", "sub": "las fotos del mes", "kind": "store", "x": 2, "y": 29, "w": 18, "h": 8,
+      "note": "Una muestra de lo registrado (≈ 1 de cada 100 fotos) más las categorías del mes: las que eligió quien vende, las que corrigieron moderadores y unas 5 mil revisadas a mano. Sale un [[dataset]] fijo, con su versión." },
+    { "id": "entrenar", "label": "Entrenamiento", "sub": "unas horas en GPU", "kind": "job", "x": 2, "y": 43, "w": 18, "h": 8,
+      "note": "Aquí sí se mueven las perillas: es el [[entrenamiento]]. Corre en una máquina con GPU que se renta un rato y se apaga. Nadie está esperando: si tarda una hora más, no pasa nada." },
+    { "id": "examen", "label": "Examen", "sub": "¿mejor que el actual?", "kind": "job", "x": 29, "y": 43, "w": 18, "h": 8,
+      "note": "El modelo nuevo responde el [[golden-set|golden set]], las mismas fotos de cada mes, y se compara con el modelo actual. Solo se aprueba si no es peor en nada importante." },
+    { "id": "deploy", "label": "Deploy", "sub": "5 % → 25 % → 100 %", "kind": "job", "x": 58, "y": 43, "w": 18, "h": 8,
+      "note": "El **puente 2**: el [[deploy]] pone la versión aprobada a responder poco a poco, primero 5 de cada 100 fotos, luego 25 y luego todas. Si la latencia o los errores empeoran, se regresa sola a la versión anterior." }
+  ],
+  "edges": [
+    { "from": "ana", "to": "api", "kind": "online", "bidir": true, "label": "foto" },
+    { "from": "api", "to": "modelo", "kind": "online", "bidir": true, "label": "foto lista" },
+    { "from": "api", "to": "registro", "kind": "async", "fromSide": "b", "toSide": "t", "label": "log" },
+    { "from": "registro", "to": "datos", "kind": "offline", "fromSide": "l", "toSide": "r", "label": "muestra" },
+    { "from": "datos", "to": "entrenar", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "entrenar", "to": "examen", "kind": "offline", "label": "candidato" },
+    { "from": "examen", "to": "deploy", "kind": "offline", "label": "aprobado" },
+    { "from": "deploy", "to": "modelo", "kind": "offline", "dashed": true, "fromSide": "t", "toSide": "b", "label": "versión nueva" }
+  ],
+  "flows": [
+    { "id": "una-foto", "label": "Una foto: el camino online",
+      "steps": [
+        { "nodes": ["ana", "api"], "edges": ["ana>api"], "text": "**Online.** Ana sube la foto y la API la recibe. Desde aquí corre el reloj: 99 de cada 100 veces, la respuesta sale en menos de 200 ms." },
+        { "nodes": ["api", "modelo"], "edges": ["api>modelo"], "text": "La API prepara la foto y el modelo hace la inferencia. Sus perillas no se mueven: solo calcula." },
+        { "nodes": ["modelo", "api", "ana"], "edges": ["api>modelo", "ana>api"], "text": "La respuesta regresa hasta la app de Ana. Si tardara más de 300 ms, el marketplace dejaría de esperar y le mostraría el selector manual: el **fallback**." },
+        { "nodes": ["api", "registro"], "edges": ["api>registro"], "text": "**Puente 1, de online a offline.** Aparte, sin hacer esperar a Ana, queda una línea en el registro: cuándo llegó la foto, qué respondió el modelo y cuánto tardó." }
+      ] },
+    { "id": "un-mes", "label": "Un mes: el camino offline",
+      "steps": [
+        { "nodes": ["registro", "datos"], "edges": ["registro>datos"], "text": "**Offline.** De lo registrado se guarda una muestra, ≈ 1 de cada 100 fotos, y se junta con las categorías del mes. Personas revisan a mano unas 5 mil." },
+        { "nodes": ["datos", "entrenar"], "edges": ["datos>entrenar"], "text": "Con el dataset del mes se entrena un modelo nuevo: unas horas en una GPU. Aquí sí se mueven las perillas." },
+        { "nodes": ["entrenar", "examen"], "edges": ["entrenar>examen"], "text": "El modelo nuevo presenta su examen: el golden set, las mismas fotos de cada mes, contra el modelo actual." },
+        { "nodes": ["examen", "deploy"], "edges": ["examen>deploy"], "text": "Si no es peor en nada importante, se aprueba y se guarda con su número de versión." },
+        { "nodes": ["deploy", "modelo"], "edges": ["deploy>modelo"], "text": "**Puente 2, de offline a online.** El deploy pone la versión nueva a responder poco a poco: 5 %, 25 % y 100 % de las fotos. Si algo empeora, se regresa a la anterior." }
+      ] },
+    { "id": "falla-offline", "label": "Si el camino offline se cae",
+      "steps": [
+        { "nodes": ["datos", "entrenar", "examen", "deploy"], "edges": [], "text": "Imagina que este mes el entrenamiento falla y nadie lo arregla en una semana. ¿Alguien lo nota hoy?" },
+        { "nodes": ["ana", "api", "modelo"], "edges": ["ana>api", "api>modelo"], "text": "No: las fotos se siguen respondiendo con el modelo actual, en milisegundos. El camino offline no bloquea al online. El costo es otro: el modelo envejece un poco más." }
+      ] }
+  ]
+}

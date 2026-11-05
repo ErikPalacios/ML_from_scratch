@@ -1,0 +1,24 @@
+{
+  "titulo": "Cuánto pesa un tensor",
+  "intro": "Empieza en la foto de C01: 224 × 224 píxeles, 3 canales, [[float32]], una foto por batch y 500 fotos por segundo cruzando la red del gateway a la GPU.",
+  "entradas": [
+    { "id": "alto", "label": "Alto de la entrada (píxeles)", "min": 32, "max": 2048, "paso": 32, "valor": 224 },
+    { "id": "ancho", "label": "Ancho de la entrada (píxeles)", "min": 32, "max": 2048, "paso": 32, "valor": 224 },
+    { "id": "canales", "label": "Canales (1 = gris · 3 = RGB · 4 = RGBA)", "min": 1, "max": 4, "paso": 1, "valor": 3 },
+    { "id": "bytes", "label": "Bytes por número (1 = uint8 · 2 = float16 · 4 = float32)", "min": 1, "max": 4, "paso": 1, "valor": 4 },
+    { "id": "lote", "label": "Fotos por batch", "min": 1, "max": 64, "paso": 1, "valor": 1 },
+    { "id": "rps", "label": "Fotos por segundo que cruzan la red", "min": 0, "max": 5000, "paso": 50, "valor": 500 }
+  ],
+  "calculos": [
+    { "id": "nums", "formula": "alto * ancho * canales" },
+    { "id": "foto", "formula": "nums * bytes" }
+  ],
+  "salidas": [
+    { "label": "Números por foto", "formula": "nums", "formato": "int", "nota": "alto × ancho × canales" },
+    { "label": "Bytes por foto", "formula": "foto", "formato": "bytes", "nota": "números × bytes por número" },
+    { "label": "Bytes por batch", "formula": "foto * lote", "formato": "bytes", "nota": "lo que ocupa la entrada en la GPU" },
+    { "label": "Bytes por segundo en la red", "formula": "foto * rps", "formato": "bytes", "nota": "bytes por foto × fotos por segundo" },
+    { "label": "La red, en Gb/s", "formula": "foto * rps * 8 / 1e9", "formato": "num", "decimales": 2, "nota": "× 8 bits por byte" }
+  ],
+  "nota": "Con uint8 (1 byte por número) la red baja 4 veces: es la mejora que C01 deja anotada para cuando crezca. Y una entrada de 512 × 512 pesa más de 5 veces lo que una de 224 × 224, porque (512 ÷ 224)² ≈ 5.2."
+}

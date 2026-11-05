@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 452" role="img" aria-labelledby="f-modelo-recta-t" class="f-svg" style="max-width:420px">
+<title id="f-modelo-recta-t">Un modelo lineal: el precio sugerido contra los años de uso. Los puntos son ventas pasadas de ejemplo, que bajan de unos 1,500 pesos con 0 años a unos 150 con 4.5 años. La recta llena es w = −300 y b = 1,500: empieza en 1,500 con 0 años y baja 300 pesos por año, hasta −300 pesos con 6 años, un precio imposible. La recta punteada es w = −200 y b = 1,800: empieza más arriba y baja más despacio.</title>
+<rect class="f-card" x="10" y="10" width="340" height="432" rx="16"/>
+<text class="f-l" x="28" y="38">PRECIO = w × AÑOS + b</text>
+<rect class="f-chip" x="66" y="250.0" width="268" height="60.0" rx="4"/>
+<line x1="66" y1="100.0" x2="334" y2="100.0" style="stroke:var(--rule);stroke-width:1"/>
+<text class="f-s" x="58" y="104.0" text-anchor="end" style="font-size:12px">1,500</text>
+<line x1="66" y1="150.0" x2="334" y2="150.0" style="stroke:var(--rule);stroke-width:1"/>
+<text class="f-s" x="58" y="154.0" text-anchor="end" style="font-size:12px">1,000</text>
+<line x1="66" y1="200.0" x2="334" y2="200.0" style="stroke:var(--rule);stroke-width:1"/>
+<text class="f-s" x="58" y="204.0" text-anchor="end" style="font-size:12px">500</text>
+<line x1="66" y1="250.0" x2="334" y2="250.0" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="58" y="254.0" text-anchor="end" style="font-size:12px">0</text>
+<line x1="66" y1="300.0" x2="334" y2="300.0" style="stroke:var(--rule);stroke-width:1"/>
+<text class="f-s" x="58" y="304.0" text-anchor="end" style="font-size:12px">−500</text>
+<text class="f-s" x="66.0" y="328.0" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="110.7" y="328.0" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="155.3" y="328.0" text-anchor="middle" style="font-size:12px">2</text>
+<text class="f-s" x="200.0" y="328.0" text-anchor="middle" style="font-size:12px">3</text>
+<text class="f-s" x="244.7" y="328.0" text-anchor="middle" style="font-size:12px">4</text>
+<text class="f-s" x="289.3" y="328.0" text-anchor="middle" style="font-size:12px">5</text>
+<text class="f-s" x="334.0" y="328.0" text-anchor="middle" style="font-size:12px">6</text>
+<text class="f-l" x="200.0" y="348.0" text-anchor="middle">AÑOS DE USO</text>
+<line x1="66.0" y1="70.0" x2="334.0" y2="190.0" style="stroke:var(--p);stroke-width:2.5;stroke-dasharray:7 5"/>
+<line x1="66.0" y1="100.0" x2="334.0" y2="280.0" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle class="f-y" cx="97.3" cy="117.0" r="5"/>
+<circle class="f-y" cx="110.7" cy="135.0" r="5"/>
+<circle class="f-y" cx="133.0" cy="142.0" r="5"/>
+<circle class="f-y" cx="146.4" cy="160.0" r="5"/>
+<circle class="f-y" cx="168.7" cy="164.0" r="5"/>
+<circle class="f-y" cx="182.1" cy="182.0" r="5"/>
+<circle class="f-y" cx="213.4" cy="194.0" r="5"/>
+<circle class="f-y" cx="226.8" cy="212.0" r="5"/>
+<circle class="f-y" cx="244.7" cy="217.0" r="5"/>
+<circle class="f-y" cx="267.0" cy="236.0" r="5"/>
+<circle cx="66.0" cy="100.0" r="6" style="fill:var(--b)"/>
+<text class="f-t" x="76.0" y="102.0" style="font-size:15px;fill:var(--tm-acc)">b</text>
+<path d="M258.1,229.0 H302.7 V259.0" style="fill:none;stroke:var(--b);stroke-width:1.5"/>
+<text class="f-s" x="280.4" y="223.0" text-anchor="middle" style="font-size:12px">1 año</text>
+<text class="f-t" x="307.7" y="249.0" style="font-size:13px;fill:var(--tm-acc)">−300</text>
+<circle cx="334.0" cy="280.0" r="6" style="fill:var(--o)"/>
+<text class="f-s" x="322.0" y="284.0" text-anchor="end" style="font-size:12px">6 años: −300 pesos</text>
+<text class="f-l" x="74.0" y="302.0">ZONA DE PRECIOS NEGATIVOS</text>
+<line x1="28" y1="372.0" x2="58" y2="372.0" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<text class="f-s" x="68" y="376.0">w = −300 · b = 1,500</text>
+<line x1="28" y1="396.0" x2="58" y2="396.0" style="stroke:var(--p);stroke-width:2.5;stroke-dasharray:7 5"/>
+<text class="f-s" x="68" y="400.0">w = −200 · b = 1,800</text>
+<circle class="f-y" cx="236" cy="372.0" r="5"/><text class="f-s" x="248" y="376.0">venta pasada</text>
+<text class="f-s" x="28" y="428.0" style="font-size:12px"><tspan style="font-weight:700;fill:var(--tm-acc)">b</tspan>: dónde empieza la recta · <tspan style="font-weight:700;fill:var(--tm-acc)">w</tspan>: cuánto baja por año</text>
+</svg>

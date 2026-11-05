@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 506" role="img" aria-labelledby="f-embeddings-proyeccion-t" class="f-svg" style="max-width:420px">
+<title id="f-embeddings-proyeccion-t">El producto punto como sombra. Arriba, la flecha de los tenis, (4, 3), y la línea que apunta hacia las botas, (3, 4). Desde la punta de los tenis baja una perpendicular a esa línea; el pedazo entre el origen y ese punto mide 4.8: es la sombra de los tenis sobre la dirección de las botas. Como las botas miden 5, 4.8 por 5 da 24, que es el producto punto. Abajo, tres pares de flechas: tenis y botas forman menos de 90 grados y su producto punto es más 24; tenis y playera forman 90 grados y da 0; tenis y bolsa forman más de 90 grados y da menos 7.</title>
+<rect class="f-card" x="10" y="10" width="340" height="290" rx="16"/>
+<text class="f-l" x="28" y="36">EL PRODUCTO PUNTO COMO SOMBRA</text>
+<line class="f-linea" x1="60" y1="222" x2="181" y2="60.7" style="stroke-dasharray:5 5"/>
+<text class="f-s" x="189" y="65.7">hacia las botas</text>
+<line x1="60" y1="222" x2="152.2" y2="99.1" style="stroke:var(--y);stroke-width:8;stroke-linecap:round"/>
+<line class="f-linea" x1="188" y1="126" x2="152.2" y2="99.1" style="stroke-dasharray:4 4"/>
+<path class="f-linea" d="M147.4,105.5 L153.8,110.3 L158.6,103.9"/>
+<line x1="60" y1="222" x2="178.4" y2="133.2" style="stroke:var(--o);stroke-width:3;stroke-linecap:round"/><path class="f-o" d="M188,126 L182,138 L174.8,128.4 Z"/>
+<circle class="f-ink" cx="60" cy="222" r="3.5"/>
+<text class="f-s" x="68" y="240" style="font-size:12px">(0, 0)</text>
+<text class="f-t" x="196" y="132">Tenis</text>
+<text class="f-s" x="196" y="149">(4, 3)</text>
+<text class="f-s" x="114" y="133" text-anchor="end" style="font-weight:700">sombra = 4.8</text>
+<text class="f-s" x="28" y="262">Lo que los tenis avanzan hacia las botas: 4.8</text>
+<text class="f-t" x="28" y="286">4.8 × 5 (largo de las botas) = 24</text>
+<rect class="f-card" x="10" y="314" width="340" height="182" rx="16"/>
+<text class="f-l" x="28" y="340">EL SIGNO DEPENDE DEL ÁNGULO</text>
+<line x1="54" y1="420" x2="94.8" y2="389.4" style="stroke:var(--o);stroke-width:2.5;stroke-linecap:round"/><path class="f-o" d="M102,384 L97.5,393 L92.1,385.8 Z"/>
+<line x1="54" y1="420" x2="84.6" y2="379.2" style="stroke:var(--o);stroke-width:2.5;stroke-linecap:round"/><path class="f-o" d="M90,372 L88.2,381.9 L81,376.5 Z"/>
+<circle class="f-ink" cx="54" cy="420" r="2.5"/>
+<text class="f-t" x="78" y="448" text-anchor="middle">+24</text>
+<text class="f-s" x="78" y="466" text-anchor="middle" style="font-size:12px">mismo lado</text>
+<text class="f-l" x="78" y="484" text-anchor="middle">MENOS DE 90°</text>
+<line x1="178" y1="420" x2="218.8" y2="389.4" style="stroke:var(--o);stroke-width:2.5;stroke-linecap:round"/><path class="f-o" d="M226,384 L221.5,393 L216.1,385.8 Z"/>
+<line x1="178" y1="420" x2="147.4" y2="379.2" style="stroke:var(--g);stroke-width:2.5;stroke-linecap:round"/><path class="f-g" d="M142,372 L151,376.5 L143.8,381.9 Z"/>
+<circle class="f-ink" cx="178" cy="420" r="2.5"/>
+<text class="f-t" x="184" y="448" text-anchor="middle">0</text>
+<text class="f-s" x="184" y="466" text-anchor="middle" style="font-size:12px">perpendiculares</text>
+<text class="f-l" x="184" y="484" text-anchor="middle">90°</text>
+<line x1="296" y1="420" x2="336.8" y2="389.4" style="stroke:var(--o);stroke-width:2.5;stroke-linecap:round"/><path class="f-o" d="M344,384 L339.5,393 L334.1,385.8 Z"/>
+<line x1="296" y1="420" x2="255.2" y2="389.4" style="stroke:var(--g);stroke-width:2.5;stroke-linecap:round"/><path class="f-g" d="M248,384 L257.9,385.8 L252.5,393 Z"/>
+<circle class="f-ink" cx="296" cy="420" r="2.5"/>
+<text class="f-t" x="296" y="448" text-anchor="middle">−7</text>
+<text class="f-s" x="296" y="466" text-anchor="middle" style="font-size:12px">lados opuestos</text>
+<text class="f-l" x="296" y="484" text-anchor="middle">MÁS DE 90°</text>
+<path class="f-linea" d="M184.4,415.2 L179.6,408.8 L173.2,413.6"/>
+</svg>

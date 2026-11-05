@@ -1,0 +1,252 @@
+{
+  "titulo": "La prueba de paridad, en cada cambio de código",
+  "width": 78,
+  "height": 42,
+  "lanes": [
+    {
+      "id": "ci",
+      "label": "CI · antes de que el cambio llegue a producción",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 42
+    }
+  ],
+  "nodes": [
+    {
+      "id": "fotos",
+      "label": "20 fotos fijas",
+      "sub": "de referencia",
+      "kind": "store",
+      "x": 1,
+      "y": 17,
+      "w": 16,
+      "h": 9,
+      "note": "Fotos elegidas a propósito y que nunca cambian: una de color conocido (como el naranja), una con EXIF de lado, un PNG con transparencia, una muy grande. Como no cambian, cualquier diferencia en el resultado viene del código."
+    },
+    {
+      "id": "entreno",
+      "label": "Preprocesar",
+      "sub": "como al entrenar",
+      "kind": "job",
+      "x": 22,
+      "y": 5,
+      "w": 17,
+      "h": 9,
+      "note": "El [[preprocesamiento]] tal como lo llaman el entrenamiento y la evaluación: el mismo `preprocess.py`, con las versiones de librerías del contenedor de entrenamiento."
+    },
+    {
+      "id": "gateway",
+      "label": "Preprocesar",
+      "sub": "en el gateway real",
+      "kind": "service",
+      "x": 22,
+      "y": 29,
+      "w": 17,
+      "h": 9,
+      "note": "El gateway armado en su contenedor, tal como va a correr en producción. Así la prueba atrapa diferencias de versiones y de librerías, no solo de código."
+    },
+    {
+      "id": "guardados",
+      "label": "Tensores guardados",
+      "sub": "de la versión aprobada",
+      "kind": "store",
+      "x": 44,
+      "y": 5,
+      "w": 17,
+      "h": 9,
+      "note": "Los [[tensor|tensores]] que dieron estas mismas fotos la última vez que todo se aprobó. Compararse contra ellos atrapa un cambio que afecta a los dos caminos a la vez."
+    },
+    {
+      "id": "comparar",
+      "label": "Comparar",
+      "sub": "diferencia máxima",
+      "kind": "monitor",
+      "x": 44,
+      "y": 22,
+      "w": 17,
+      "h": 9,
+      "note": "Para cada foto, la diferencia absoluta más grande entre los tensores, número por número. Con el mismo código y las mismas versiones debe ser **0**. La Ronda agrega una versión de punta a punta: comparar también las predicciones del modelo para esas fotos."
+    },
+    {
+      "id": "veredicto",
+      "label": "¿Pasa?",
+      "sub": "0, o casi 0",
+      "kind": "job",
+      "x": 65,
+      "y": 22,
+      "w": 13,
+      "h": 9,
+      "note": "Si la diferencia pasa la tolerancia, el cambio no avanza. Una prueba que falla en CI cuesta minutos; un [[training-serving-skew|skew]] en producción cuesta semanas de sugerencias peores sin que nadie lo note."
+    }
+  ],
+  "edges": [
+    {
+      "from": "fotos",
+      "to": "entreno",
+      "kind": "neutral",
+      "fromSide": "t",
+      "toSide": "l"
+    },
+    {
+      "from": "fotos",
+      "to": "gateway",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "l"
+    },
+    {
+      "from": "entreno",
+      "to": "comparar",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "gateway",
+      "to": "comparar",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "guardados",
+      "to": "comparar",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "comparar",
+      "to": "veredicto",
+      "kind": "monitor",
+      "fromSide": "r",
+      "toSide": "l"
+    }
+  ],
+  "flows": [
+    {
+      "id": "pasa",
+      "label": "Un cambio inocente",
+      "steps": [
+        {
+          "nodes": [
+            "fotos",
+            "entreno",
+            "gateway"
+          ],
+          "edges": [
+            "fotos>entreno",
+            "fotos>gateway"
+          ],
+          "text": "Alguien cambia un mensaje del registro del gateway. CI toma las 20 fotos fijas y las pasa por los dos caminos: como en el entrenamiento y por el gateway real."
+        },
+        {
+          "nodes": [
+            "entreno",
+            "gateway",
+            "guardados",
+            "comparar"
+          ],
+          "edges": [
+            "entreno>comparar",
+            "gateway>comparar",
+            "guardados>comparar"
+          ],
+          "text": "Compara los tres tensores de cada foto, número por número. La diferencia máxima es **0**."
+        },
+        {
+          "nodes": [
+            "comparar",
+            "veredicto"
+          ],
+          "edges": [
+            "comparar>veredicto"
+          ],
+          "text": "**Pasa.** El cambio sigue su camino a producción."
+        }
+      ]
+    },
+    {
+      "id": "opencv",
+      "label": "Alguien cambia a OpenCV",
+      "steps": [
+        {
+          "nodes": [
+            "fotos",
+            "entreno",
+            "gateway"
+          ],
+          "edges": [
+            "fotos>entreno",
+            "fotos>gateway"
+          ],
+          "text": "Alguien «optimiza» el gateway: ahora lee las fotos con OpenCV, que entrega [[bgr|BGR]]. Las 20 fotos pasan por los dos caminos."
+        },
+        {
+          "nodes": [
+            "entreno",
+            "gateway",
+            "comparar"
+          ],
+          "edges": [
+            "entreno>comparar",
+            "gateway>comparar"
+          ],
+          "text": "En el canal R de la foto naranja, el entrenamiento da 1.92 y el gateway −1.04: una diferencia de ≈ 2.96."
+        },
+        {
+          "nodes": [
+            "comparar",
+            "veredicto"
+          ],
+          "edges": [
+            "comparar>veredicto"
+          ],
+          "text": "**No pasa.** El cambio se detiene en CI, antes de que una sola foto real llegue por ese camino. Sin la prueba, se habría notado semanas después, como una baja en las sugerencias aceptadas."
+        }
+      ]
+    },
+    {
+      "id": "version",
+      "label": "Otra versión de Pillow",
+      "steps": [
+        {
+          "nodes": [
+            "fotos",
+            "gateway"
+          ],
+          "edges": [
+            "fotos>gateway"
+          ],
+          "text": "Se actualiza Pillow en el contenedor del gateway, pero no en el del entrenamiento. El código es el mismo."
+        },
+        {
+          "nodes": [
+            "entreno",
+            "gateway",
+            "guardados",
+            "comparar"
+          ],
+          "edges": [
+            "entreno>comparar",
+            "gateway>comparar",
+            "guardados>comparar"
+          ],
+          "text": "Algunos píxeles salen distintos en 1 unidad: ≈ 0.017 después de normalizar. Es chico, pero no es 0."
+        },
+        {
+          "nodes": [
+            "comparar",
+            "veredicto"
+          ],
+          "edges": [
+            "comparar>veredicto"
+          ],
+          "text": "**No pasa**, y eso es lo que se quiere: avisa que los dos lados ya no son idénticos. Se actualizan los dos a la vez, se mide si cambian las predicciones y se guardan tensores nuevos."
+        }
+      ]
+    }
+  ]
+}

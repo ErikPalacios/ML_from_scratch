@@ -1,0 +1,21 @@
+{
+  "titulo": "Memoria y costo de un índice",
+  "intro": "Cuánto pesan los vectores y cuánto trabajo hace una búsqueda exacta. Empieza en C07: 100 millones de vectores de 512 números en float32, con 1,750 búsquedas por segundo en el pico.",
+  "entradas": [
+    { "id": "n", "label": "Vectores en el catálogo", "min": 1, "max": 1000, "paso": 1, "valor": 100, "unidad": "millones" },
+    { "id": "d", "label": "Dimensión: números por vector", "min": 64, "max": 2048, "paso": 64, "valor": 512 },
+    { "id": "bytes", "label": "Bytes por número (4 = float32 · 2 = float16 · 1 = int8)", "min": 1, "max": 4, "paso": 1, "valor": 4 },
+    { "id": "q", "label": "Búsquedas por segundo", "min": 0, "max": 5000, "paso": 50, "valor": 1750 }
+  ],
+  "calculos": [
+    { "id": "mem", "formula": "n * 1e6 * d * bytes" },
+    { "id": "mult", "formula": "n * 1e6 * d" }
+  ],
+  "salidas": [
+    { "label": "Memoria de los vectores", "formula": "mem", "formato": "bytes", "decimales": 1, "nota": "N × d × bytes" },
+    { "label": "Multiplicaciones por búsqueda exacta", "formula": "mult", "formato": "sci", "nota": "un producto punto contra cada vector" },
+    { "label": "Multiplicaciones por segundo", "formula": "mult * q", "formato": "sci", "nota": "si todas las búsquedas fueran exactas" },
+    { "label": "Solo leer los vectores, en cada búsqueda", "formula": "mem / 200e9 * 1000", "formato": "ms", "nota": "con memoria que entrega 200 GB por segundo" }
+  ],
+  "nota": "Baja la dimensión a 128 o los bytes a 1 y todo baja en proporción. Lo que ninguna perilla arregla es que la búsqueda exacta lee el catálogo entero en cada consulta: por eso existen los índices aproximados."
+}

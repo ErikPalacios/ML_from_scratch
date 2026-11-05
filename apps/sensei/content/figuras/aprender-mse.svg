@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 432" role="img" aria-labelledby="f-aprender-mse-t" class="f-svg" style="max-width:420px">
+<title id="f-aprender-mse-t">El error cuadrático, dibujado. Cuatro días de jitomate: el lunes se pronosticaron 30 kilos y se vendieron 28, error más 2; el martes 20 y 21, error menos 1; el miércoles 25 y 31, error menos 6; el jueves 40 y 37, error más 3. Cada error es un cuadrado cuyo lado mide el error: sus áreas son 4, 1, 36 y 9. El cuadrado del miércoles ocupa más que los otros tres juntos. MSE igual a 50 entre 4, 12.5 kilos al cuadrado; su raíz, unos 3.5 kilos. El error de 6 kilos aporta el 72 por ciento del total.</title>
+<rect class="f-card" x="10" y="10" width="340" height="412" rx="16"/>
+<text class="f-l" x="28" y="36">KILOS DE JITOMATE · 4 DÍAS</text>
+<text class="f-t" x="28" y="60">Cada error, un cuadrado</text>
+<text class="f-s" x="28" y="80" style="font-size:12px">su lado es el error; su área, el error al cuadrado</text>
+<rect class="f-b" x="54.0" y="194.0" width="24.0" height="24.0" rx="3"/>
+<text class="f-t" x="66" y="186.0" text-anchor="middle">4</text>
+<text class="f-l" x="66" y="240" text-anchor="middle">LUN</text>
+<text class="f-s" x="66" y="260" text-anchor="middle" style="font-size:12px">dijo 30</text>
+<text class="f-s" x="66" y="276" text-anchor="middle" style="font-size:12px">vendió 28</text>
+<text class="f-t" x="66" y="298" text-anchor="middle" style="font-size:13px">+2 kg</text>
+<rect class="f-b" x="136.0" y="206.0" width="12.0" height="12.0" rx="3"/>
+<text class="f-t" x="142" y="198.0" text-anchor="middle">1</text>
+<text class="f-l" x="142" y="240" text-anchor="middle">MAR</text>
+<text class="f-s" x="142" y="260" text-anchor="middle" style="font-size:12px">dijo 20</text>
+<text class="f-s" x="142" y="276" text-anchor="middle" style="font-size:12px">vendió 21</text>
+<text class="f-t" x="142" y="298" text-anchor="middle" style="font-size:13px">−1 kg</text>
+<rect class="f-o" x="186.0" y="146.0" width="72.0" height="72.0" rx="3"/>
+<text x="222" y="188.0" text-anchor="middle" style="fill:var(--navy);font:800 18px var(--sans)">36</text>
+<text class="f-l" x="222" y="240" text-anchor="middle">MIÉ</text>
+<text class="f-s" x="222" y="260" text-anchor="middle" style="font-size:12px">dijo 25</text>
+<text class="f-s" x="222" y="276" text-anchor="middle" style="font-size:12px">vendió 31</text>
+<text class="f-t" x="222" y="298" text-anchor="middle" style="font-size:13px">−6 kg</text>
+<rect class="f-b" x="288.0" y="182.0" width="36.0" height="36.0" rx="3"/>
+<text class="f-t" x="306" y="174.0" text-anchor="middle">9</text>
+<text class="f-l" x="306" y="240" text-anchor="middle">JUE</text>
+<text class="f-s" x="306" y="260" text-anchor="middle" style="font-size:12px">dijo 40</text>
+<text class="f-s" x="306" y="276" text-anchor="middle" style="font-size:12px">vendió 37</text>
+<text class="f-t" x="306" y="298" text-anchor="middle" style="font-size:13px">+3 kg</text>
+<line class="f-linea" x1="28" y1="218" x2="334" y2="218"/>
+<rect class="f-chip" x="24" y="318" width="312" height="94" rx="10"/>
+<text class="f-t" x="38" y="344" style="font-size:14px">MSE = (4 + 1 + 36 + 9) ÷ 4 = 12.5 kg²</text>
+<text class="f-s" x="38" y="366">Su raíz, el RMSE: √12.5 ≈ 3.5 kg</text>
+<circle cx="44" cy="388" r="6" style="fill:var(--o)"/>
+<text class="f-s" x="58" y="393">El error de 6 kg pone 36 de 50: el 72 %</text>
+</svg>

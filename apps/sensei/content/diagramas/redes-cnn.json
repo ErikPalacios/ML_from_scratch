@@ -43,7 +43,7 @@
       "y": 8,
       "w": 14,
       "h": 9,
-      "note": "Una [[convolucion|convolución]] con 64 filtros de 7 × 7 (stride 2) y luego un [[pooling]]. La foto queda en 64 mapas de 56 × 56: ya no son colores, son respuestas a filtros. Está aquí para achicar pronto la foto y que lo que sigue cueste menos."
+      "note": "Una [[convolucion|convolución]] con 64 filtros de 7 × 7 y [[stride]] 2 deja la foto en 112 × 112, y un max [[pooling]] la baja a 56 × 56: 64 mapas que ya no son colores, son respuestas a filtros. Está aquí para achicar pronto la foto y que lo que sigue cueste menos: solo hace el 2.9 % de las cuentas."
     },
     {
       "id": "bloques",
@@ -54,7 +54,7 @@
       "y": 8,
       "w": 14,
       "h": 9,
-      "note": "Casi todos los parámetros viven aquí. Cuatro etapas de 3, 4, 6 y 3 bloques, cada uno con su atajo ([[resnet]]). Los mapas se achican (56 → 7 de lado) y se vuelven más (64 → 2,048). Aquí la red combina bordes en texturas y texturas en partes: es lo que sabe «ver»."
+      "note": "Casi todo vive aquí: ≈ 23.5 millones de parámetros y ≈ 97 % de las multiplicaciones-sumas. Cuatro etapas de 3, 4, 6 y 3 bloques, cada uno con su atajo ([[resnet]]). Los mapas se achican (56 → 28 → 14 → 7 de lado) mientras los canales crecen (256 → 512 → 1,024 → 2,048). Aquí la red combina bordes en texturas y texturas en partes: es lo que sabe «ver»."
     },
     {
       "id": "gap",
@@ -65,7 +65,7 @@
       "y": 8,
       "w": 14,
       "h": 9,
-      "note": "Cada uno de los 2,048 mapas de 7 × 7 se promedia en un solo número. Ya no importa *dónde* estaba algo en la foto, solo *qué tanto* hay. Está aquí para que la cabeza reciba siempre una lista fija de 2,048 números."
+      "note": "Cada uno de los 2,048 mapas de 7 × 7 se promedia en un solo número. Ya no importa *dónde* estaba algo en la foto, solo *qué tanto* hay. Está aquí para que la cabeza reciba siempre una lista fija de 2,048 números, sin importar el tamaño de la foto."
     },
     {
       "id": "features",
@@ -87,7 +87,7 @@
       "y": 32,
       "w": 14,
       "h": 9,
-      "note": "Una sola capa densa: 2,048 × 500 pesos + 500 sesgos = 1,024,500 parámetros. Está aquí porque es la única parte que sabe de las categorías de C01: es la que se cambia con [[transfer-learning|transfer learning]] (la original de ImageNet sacaba 1,000)."
+      "note": "Una sola capa densa: 2,048 × 500 pesos + 500 sesgos = 1,024,500 parámetros, el 4.2 % del modelo, pero solo el 0.025 % de las cuentas. Está aquí porque es la única parte que sabe de las categorías de C01: es la que se cambia con [[transfer-learning|transfer learning]] (la original de ImageNet sacaba 1,000)."
     },
     {
       "id": "softmax",

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 560" role="img" aria-labelledby="f-redes-xor-t" class="f-svg" style="max-width:420px">
+<title id="f-redes-xor-t">Tres paneles. Arriba, el AND: de los cuatro puntos (0,0), (1,0), (0,1) y (1,1), solo (1,1) vale 1, y una recta lo separa de los otros tres. En medio, el XOR: valen 1 los puntos (0,1) y (1,0), en esquinas opuestas; dos rectas punteadas de intento fallan, porque cualquier recta deja un cero del lado de los unos. Abajo, la capa oculta: con h1 igual a ReLU de x1 más x2 y h2 igual a ReLU de x1 más x2 menos 1, los puntos se mueven a (0,0), (1,0) dos veces y (2,1); los dos que valen 1 caen juntos en (1,0) y una recta azul ya los separa.</title>
+<rect class="f-card" x="10" y="10" width="340" height="173" rx="16"/>
+<text class="f-l" x="28" y="36">AND · UNA RECTA BASTA</text>
+<circle class="f-b" cx="236" cy="32" r="6"/>
+<text class="f-s" x="246" y="37">vale 1</text>
+<circle cx="294" cy="32" r="5.5" style="fill:var(--blk);stroke:var(--ink);stroke-width:2"/>
+<text class="f-s" x="304" y="37">vale 0</text>
+<line class="f-linea" x1="56" y1="148" x2="186" y2="148"/>
+<line class="f-linea" x1="70" y1="160" x2="70" y2="46"/>
+<text class="f-s" x="70" y="170" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="160" y="170" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="56" y="152" text-anchor="end" style="font-size:12px">0</text>
+<text class="f-s" x="56" y="72" text-anchor="end" style="font-size:12px">1</text>
+<text class="f-s" x="190" y="152" style="font-size:13px;font-weight:700">x₁</text>
+<text class="f-s" x="78" y="54" style="font-size:13px;font-weight:700">x₂</text>
+<line x1="101.5" y1="56" x2="173.5" y2="120" style="stroke:var(--b);stroke-width:3;stroke-linecap:round"/>
+<circle cx="70" cy="148" r="8" style="fill:var(--blk);stroke:var(--ink);stroke-width:2.5"/>
+<circle cx="70" cy="68" r="8" style="fill:var(--blk);stroke:var(--ink);stroke-width:2.5"/>
+<circle cx="160" cy="148" r="8" style="fill:var(--blk);stroke:var(--ink);stroke-width:2.5"/>
+<circle class="f-b" cx="160" cy="68" r="9"/>
+<text class="f-s" x="206" y="72">Vale 1 solo en (1, 1).</text>
+<text class="f-s" x="206" y="92">Una recta lo aparta</text>
+<text class="f-s" x="206" y="112">de los otros tres.</text>
+<rect class="f-card" x="10" y="193" width="340" height="173" rx="16"/>
+<text class="f-l" x="28" y="219">XOR · NINGUNA RECTA SIRVE</text>
+<line class="f-linea" x1="56" y1="331" x2="186" y2="331"/>
+<line class="f-linea" x1="70" y1="343" x2="70" y2="229"/>
+<text class="f-s" x="70" y="353" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="160" y="353" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="56" y="335" text-anchor="end" style="font-size:12px">0</text>
+<text class="f-s" x="56" y="255" text-anchor="end" style="font-size:12px">1</text>
+<text class="f-s" x="190" y="335" style="font-size:13px;font-weight:700">x₁</text>
+<text class="f-s" x="78" y="237" style="font-size:13px;font-weight:700">x₂</text>
+<line x1="56.5" y1="279" x2="128.5" y2="343" style="stroke:var(--muted);stroke-width:2;stroke-dasharray:6 5"/>
+<line x1="101.5" y1="239" x2="173.5" y2="303" style="stroke:var(--muted);stroke-width:2;stroke-dasharray:6 5"/>
+<circle cx="70" cy="331" r="8" style="fill:var(--blk);stroke:var(--ink);stroke-width:2.5"/>
+<circle class="f-b" cx="70" cy="251" r="9"/>
+<circle class="f-b" cx="160" cy="331" r="9"/>
+<circle cx="160" cy="251" r="8" style="fill:var(--blk);stroke:var(--ink);stroke-width:2.5"/>
+<text class="f-s" x="206" y="255">Vale 1 en (0, 1) y (1, 0),</text>
+<text class="f-s" x="206" y="275">esquinas opuestas.</text>
+<text class="f-s" x="206" y="295">Toda recta deja un ○</text>
+<text class="f-s" x="206" y="315">del lado de los ●.</text>
+<rect class="f-card" x="10" y="376" width="340" height="173" rx="16"/>
+<text class="f-l" x="28" y="402">CON UNA CAPA OCULTA: (h₁, h₂)</text>
+<line class="f-linea" x1="56" y1="514" x2="186" y2="514"/>
+<line class="f-linea" x1="70" y1="526" x2="70" y2="412"/>
+<text class="f-s" x="70" y="536" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="115" y="536" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="160" y="536" text-anchor="middle" style="font-size:12px">2</text>
+<text class="f-s" x="56" y="518" text-anchor="end" style="font-size:12px">0</text>
+<text class="f-s" x="56" y="438" text-anchor="end" style="font-size:12px">1</text>
+<text class="f-s" x="190" y="518" style="font-size:13px;font-weight:700">h₁</text>
+<text class="f-s" x="78" y="420" style="font-size:13px;font-weight:700">h₂</text>
+<line x1="83.5" y1="522" x2="155.5" y2="458" style="stroke:var(--b);stroke-width:3;stroke-linecap:round"/>
+<circle cx="70" cy="514" r="8" style="fill:var(--blk);stroke:var(--ink);stroke-width:2.5"/>
+<circle class="f-b" cx="115" cy="514" r="9"/>
+<circle cx="160" cy="434" r="8" style="fill:var(--blk);stroke:var(--ink);stroke-width:2.5"/>
+<text class="f-s" x="115" y="498" text-anchor="middle" style="font-size:12px;font-weight:700">×2</text>
+<text class="f-s" x="206" y="438" style="font-size:12px">h₁ = ReLU(x₁ + x₂)</text>
+<text class="f-s" x="206" y="458" style="font-size:12px">h₂ = ReLU(x₁ + x₂ − 1)</text>
+<text class="f-s" x="206" y="478" style="font-size:12px">(0, 1) y (1, 0) caen</text>
+<text class="f-s" x="206" y="498" style="font-size:12px">juntos en (1, 0):</text>
+<text class="f-s" x="206" y="518" style="font-size:12px">ahora una recta basta.</text>
+</svg>

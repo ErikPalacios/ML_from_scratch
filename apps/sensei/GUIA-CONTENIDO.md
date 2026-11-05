@@ -30,7 +30,7 @@ Una lección completa trae todo esto. Los números son el piso, no el techo.
 
 | Pieza | Mínimo | Para qué |
 |---|---|---|
-| Extensión | 7,000 a 10,000 palabras · lo esencial en 20–30 min, todo en 35–55 min (el build lo calcula) | Profundidad de curso, no de resumen |
+| Extensión | 7,000 a 10,000 palabras · lo esencial en ≈ 30–40 min, todo en ≈ 50–75 min (el build lo calcula con el texto, las piezas y los ejercicios) | Profundidad de curso, no de resumen |
 | Secciones | 10 a 14, con al menos 2 marcadas `[extra]` | Dos pasadas |
 | Diagramas (motor de la Ronda) | 2, cada uno con recorrido | Ver el flujo |
 | Figuras SVG | 3 | Ver la idea |

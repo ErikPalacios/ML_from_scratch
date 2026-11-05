@@ -8,7 +8,7 @@
       "corto": "La pieza más chica de una red neuronal: multiplica cada entrada por un peso, suma todo más un sesgo y pasa el resultado por una activación.",
       "largo": "Sus pesos y su sesgo son [[parametro|parámetros]]: los ajusta el entrenamiento. Una neurona con 3 entradas tiene 4 parámetros. Se juntan muchas en una [[capa]]. El nombre viene de las neuronas del cerebro, pero es solo una multiplicación y una suma.",
       "ejemplo": "Entradas 0.5, 0.8 y 0.2; pesos 2, −1 y 3; sesgo 0.1: 1.0 − 0.8 + 0.6 + 0.1 = 0.9, y la ReLU deja pasar 0.9.",
-      "ver": ["activacion", "capa", "red-neuronal"],
+      "ver": ["activacion", "capa", "perceptron"],
       "leccion": "redes"
     },
     {
@@ -16,7 +16,8 @@
       "termino": "Activación",
       "en": "activation function",
       "corto": "La función sencilla que una neurona aplica al final de su suma. Sin ella, apilar capas no serviría de nada: todo seguiría siendo una recta.",
-      "largo": "Una capa sin activación solo multiplica y suma, y dos así juntas equivalen a una sola: si y = 3x + 1 y z = 2y − 1, entonces z = 6x + 1. La activación «dobla» la recta, y con muchas neuronas la red puede formar curvas tan complicadas como haga falta. La más usada es la [[relu|ReLU]]. También se le dice «activación» al número que sale de una neurona.",
+      "largo": "Una capa sin activación solo multiplica y suma, y dos así juntas equivalen a una sola. La activación «dobla» la recta, y con muchas neuronas la red puede formar curvas tan complicadas como haga falta. La más usada es la [[relu|ReLU]]; antes se usaban activaciones suaves que aplastan el número entre 0 y 1. También se le dice «activación» al número que sale de una neurona.",
+      "ejemplo": "Sin activación, y = 3x + 1 seguida de z = 2y − 1 da z = 6x + 1: otra recta. Con una ReLU en medio, la red se dobla en el 0.",
       "ver": ["relu", "neurona"],
       "leccion": "redes"
     },
@@ -25,8 +26,19 @@
       "termino": "ReLU",
       "en": "rectified linear unit",
       "corto": "La activación más usada: si el número es negativo, sale 0; si no, sale igual. ReLU(−0.3) = 0 y ReLU(0.9) = 0.9.",
-      "largo": "Es barata de calcular y funciona muy bien en redes profundas. Cuando una neurona saca 0 se dice que «no se activó».",
+      "largo": "Es barata de calcular y funciona muy bien en redes profundas; se impuso en la década de 2010. Cuando una neurona saca 0 se dice que «no se activó». Como apaga más o menos la mitad de los números, la regla de [[inicializacion|inicialización]] de He usa un 2 para compensar.",
+      "ejemplo": "En la red que calcula el XOR, h₂ = ReLU(x₁ + x₂ − 1) vale 0 en tres casos y 1 solo cuando las dos entradas valen 1.",
       "ver": ["activacion", "neurona"],
+      "leccion": "redes"
+    },
+    {
+      "id": "perceptron",
+      "termino": "Perceptrón",
+      "en": "perceptron",
+      "corto": "La primera neurona artificial que aprendía sola (Frank Rosenblatt, 1958): suma sus entradas con pesos y responde 1 si la suma pasa de 0. Solo puede separar lo que se separa con una recta.",
+      "largo": "Su regla de aprendizaje es corregirse solo cuando se equivoca: si dijo 0 y era 1, le suma cada entrada a su peso; si dijo 1 y era 0, se la resta. Aprende el AND en unas cuantas vueltas, pero nunca el XOR, porque su frontera es una recta y los casos del XOR no se separan con una. Minsky y Papert convirtieron ese límite en teorema en 1969; se resolvió con capas ocultas, el [[mlp|MLP]].",
+      "ejemplo": "Con w₁ = 2, w₂ = 1 y b = −2 calcula el AND: solo la entrada (1, 1) da una suma positiva, 2 + 1 − 2 = 1.",
+      "ver": ["neurona", "mlp", "activacion"],
       "leccion": "redes"
     },
     {
@@ -34,9 +46,9 @@
       "termino": "Capa",
       "en": "layer",
       "corto": "Un grupo de neuronas que reciben las mismas entradas, cada una con sus propios pesos. Lo que sale de una capa entra a la siguiente.",
-      "largo": "En una capa densa (*dense*, *fully connected* o *linear*) cada neurona ve todas las entradas, y tiene entradas × salidas pesos más un sesgo por salida. En una capa convolucional cada filtro ve solo un pedacito ([[convolucion]]).",
+      "largo": "En una capa densa (*dense*, *fully connected* o *linear*) cada neurona ve todas las entradas: tiene entradas × salidas pesos más un sesgo por salida, y hace entradas × salidas multiplicaciones-sumas por ejemplo. En una capa convolucional cada filtro ve solo un pedacito ([[convolucion]]). Una red de capas densas es un [[mlp|MLP]].",
       "ejemplo": "Una capa densa de 2,048 entradas y 500 salidas tiene 2,048 × 500 + 500 = 1,024,500 parámetros: es la cabeza de la ResNet-50 de C01.",
-      "ver": ["neurona", "red-neuronal", "deep-learning"],
+      "ver": ["neurona", "red-neuronal", "mlp"],
       "leccion": "redes"
     },
     {
@@ -44,9 +56,19 @@
       "termino": "Red neuronal",
       "en": "neural network",
       "corto": "Un modelo hecho de capas de neuronas, una tras otra. Por dentro solo multiplica, suma y aplica activaciones, capa por capa, millones de veces.",
-      "largo": "Sus [[parametro|parámetros]] son todos sus pesos y sesgos. Responder es hacer un [[forward-pass|forward pass]]; aprender es ajustar los parámetros con [[backpropagation]] y [[descenso-gradiente|descenso de gradiente]].",
+      "largo": "Sus [[parametro|parámetros]] son todos sus pesos y sesgos. Responder es hacer un [[forward-pass|forward pass]]; aprender es ajustar los parámetros con [[backpropagation]] y [[descenso-gradiente|descenso de gradiente]]. Cada capa acomoda los datos para que a la siguiente le sea más fácil.",
       "ejemplo": "Una red de juguete de 2 entradas, 3 neuronas y 2 salidas tiene (2 × 3 + 3) + (3 × 2 + 2) = 17 parámetros.",
-      "ver": ["neurona", "capa", "deep-learning", "cnn"],
+      "ver": ["neurona", "capa", "mlp", "cnn"],
+      "leccion": "redes"
+    },
+    {
+      "id": "mlp",
+      "termino": "MLP",
+      "en": "multilayer perceptron · perceptrón multicapa",
+      "corto": "Una red neuronal hecha solo de capas densas, con activaciones entre ellas: cada neurona de una capa ve todas las salidas de la anterior.",
+      "largo": "Las capas de en medio se llaman ocultas. Con una sola capa oculta ya resuelve problemas que una neurona sola no puede, como el XOR. Cada capa tiene entradas × salidas + salidas [[parametro|parámetros]]. Sobre fotos desperdicia parámetros (cada píxel lleva su propio peso), por eso para imágenes se usan [[cnn|CNNs]]; pero dentro de cada bloque de un [[transformer]] hay un MLP chico.",
+      "ejemplo": "784 entradas (un dígito de 28 × 28), 128 ocultas y 10 salidas: (784 × 128 + 128) + (128 × 10 + 10) = 101,770 parámetros.",
+      "ver": ["capa", "perceptron", "red-neuronal"],
       "leccion": "redes"
     },
     {
@@ -54,8 +76,19 @@
       "termino": "Deep learning",
       "en": "deep learning · aprendizaje profundo",
       "corto": "Usar redes neuronales con muchas capas. «Profundo» se refiere a la cantidad de capas, no a nada filosófico.",
-      "largo": "Cada capa trabaja sobre lo que encontró la anterior, así que con muchas capas la red combina cosas simples (bordes) en cosas complicadas (un tenis). No hay un número oficial de capas a partir del cual algo es «deep». La ResNet-50 tiene 50 capas con pesos.",
+      "largo": "Cada capa trabaja sobre lo que encontró la anterior, así que con muchas capas la red combina cosas simples (bordes) en cosas complicadas (un tenis). No hay un número oficial de capas a partir del cual algo es «deep». Despegó en 2012, cuando se juntaron muchos datos (ImageNet), GPUs y trucos para entrenar redes profundas.",
+      "ejemplo": "La ResNet-50 tiene 50 capas con pesos; la red de juguete de la lección, 2. Las dos son redes neuronales, pero solo la primera se llamaría profunda.",
       "ver": ["red-neuronal", "capa", "cnn"],
+      "leccion": "redes"
+    },
+    {
+      "id": "inicializacion",
+      "termino": "Inicialización",
+      "en": "initialization · weight init",
+      "corto": "Los valores con que empiezan los pesos de una red antes de entrenar: al azar y chiquitos, con un tamaño que depende de cuántas entradas suma cada neurona.",
+      "largo": "No pueden empezar todos iguales, ni en cero: las neuronas de una capa calcularían lo mismo, recibirían la misma culpa y seguirían siendo gemelas para siempre. Y el tamaño importa: pesos un poco grandes hacen que los números exploten capa tras capa, y un poco chicos, que se apaguen. Con [[relu|ReLU]] se usa la regla de He: desviación estándar √(2 ÷ entradas). PyTorch inicializa cada capa al crearla; en un [[fine-tuning]], solo la cabeza nueva empieza al azar.",
+      "ejemplo": "Una convolución de 3 × 3 sobre 64 canales suma 576 entradas por neurona: sus pesos empiezan con desviación √(2 ÷ 576) ≈ 0.059.",
+      "ver": ["semilla", "relu", "backpropagation"],
       "leccion": "redes"
     },
     {
@@ -63,9 +96,9 @@
       "termino": "Convolución",
       "en": "convolution",
       "corto": "Pasar un filtro chico (por ejemplo de 3 × 3) por toda la foto: en cada posición multiplica los píxeles que cubre por sus pesos, suma y escribe un número.",
-      "largo": "El mismo [[filtro]] se usa en todas las posiciones, así que una capa convolucional tiene muy pocos parámetros y encuentra un patrón esté donde esté. Cada filtro produce un [[mapa-activaciones|mapa de activaciones]]. (En matemáticas, una convolución voltea el filtro antes de aplicarlo; las redes no lo voltean, pero se le sigue llamando así.)",
+      "largo": "El mismo [[filtro]] se usa en todas las posiciones, así que una capa convolucional tiene muy pocos parámetros, encuentra un patrón esté donde esté y reutiliza cada peso miles de veces por foto. Cada filtro produce un [[mapa-activaciones|mapa de activaciones]], cuyo tamaño depende del [[stride]] y del [[padding]]. (En matemáticas, una convolución voltea el filtro antes de aplicarlo; las redes no lo voltean, pero se le sigue llamando así.)",
       "ejemplo": "Un filtro con columnas 1, 0 y −1 sobre una ventana con filas 9 · 9 · 1, 8 · 9 · 0 y 9 · 8 · 1 da 8 + 8 + 8 = 24: hay un borde de claro a oscuro.",
-      "ver": ["filtro", "mapa-activaciones", "cnn", "pooling"],
+      "ver": ["filtro", "mapa-activaciones", "stride", "cnn"],
       "leccion": "redes"
     },
     {
@@ -73,7 +106,7 @@
       "termino": "Filtro",
       "en": "filter · kernel",
       "corto": "La cuadrícula chica de pesos que recorre la foto en una convolución. Cada filtro busca un patrón: un borde, un cambio de color, una textura.",
-      "largo": "Sobre una foto de 3 [[canal|canales]], un filtro de 3 × 3 es en realidad de 3 × 3 × 3: 27 pesos más 1 sesgo. Sus pesos los aprende el entrenamiento; nadie los escribe a mano.",
+      "largo": "Sobre una entrada de varios [[canal|canales]], un filtro de 3 × 3 mira todos a la vez: sobre una foto de color es de 3 × 3 × 3, 27 pesos más 1 sesgo. Sus pesos los aprende el entrenamiento; nadie los escribe a mano.",
       "ejemplo": "Una capa de 64 filtros de 3 × 3 sobre una foto de color: 64 × (27 + 1) = 1,792 parámetros.",
       "ver": ["convolucion", "mapa-activaciones"],
       "leccion": "redes"
@@ -84,7 +117,28 @@
       "en": "feature map · activation map",
       "corto": "La cuadrícula que produce un filtro al recorrer la foto. Dice dónde de la foto encontró lo que busca ese filtro.",
       "largo": "Una capa con 64 filtros produce 64 mapas, que son los 64 [[canal|canales]] de entrada de la capa siguiente. En una CNN los mapas se van achicando y multiplicando: la ResNet-50 termina con 2,048 mapas de 7 × 7.",
+      "ejemplo": "La primera capa de la ResNet-50 convierte la foto de 3 × 224 × 224 en 64 mapas de 112 × 112.",
       "ver": ["filtro", "convolucion", "canal"],
+      "leccion": "redes"
+    },
+    {
+      "id": "stride",
+      "termino": "Stride",
+      "en": "stride · paso",
+      "corto": "Cuántos píxeles salta un filtro de una posición a la siguiente. Con stride 2, la salida queda de la mitad de ancho y de la mitad de alto.",
+      "largo": "Entra en la fórmula del tamaño de salida de una [[convolucion|convolución]] o de un [[pooling]]: lado = (n + 2p − k) ÷ s + 1, redondeando la división hacia abajo, con n el lado de la entrada, k el del filtro, p el [[padding]] y s el stride. Cada capa con stride 2 deja la cuarta parte de las posiciones y hace crecer más rápido el [[campo-receptivo|campo receptivo]].",
+      "ejemplo": "La primera capa de la ResNet-50 (7 × 7, padding 3, stride 2) convierte la foto de 224 × 224 en mapas de 112 × 112: (224 + 6 − 7) ÷ 2 = 111.5, que baja a 111, más 1.",
+      "ver": ["padding", "convolucion", "campo-receptivo"],
+      "leccion": "redes"
+    },
+    {
+      "id": "padding",
+      "termino": "Padding",
+      "en": "padding · relleno",
+      "corto": "Un marco de ceros alrededor de la entrada de una convolución, para que el filtro también se centre en las orillas y la salida no se encoja.",
+      "largo": "Con un filtro de k × k (k impar), padding (k − 1) ÷ 2 y [[stride]] 1, la salida mide lo mismo que la entrada: por eso casi todas las convoluciones de 3 × 3 llevan padding 1. Cerca de la orilla el filtro ve ceros en vez de imagen, así que las respuestas de la orilla suelen ser peores.",
+      "ejemplo": "Una entrada de 5 × 5 con un filtro de 3 × 3: sin padding sale de 3 × 3; con padding 1, (5 + 2 − 3) ÷ 1 + 1 = 5, del mismo tamaño.",
+      "ver": ["stride", "convolucion"],
       "leccion": "redes"
     },
     {
@@ -92,9 +146,9 @@
       "termino": "Pooling",
       "en": "pooling · max pooling · average pooling",
       "corto": "Resumir cada cuadrito de un mapa en un solo número (el mayor, o el promedio) para achicarlo. No tiene parámetros: no aprende nada.",
-      "largo": "Un *max pooling* de 2 × 2 deja los mapas con la cuarta parte de los números. Se pierde exactamente dónde estaba algo dentro del cuadrito, pero se conserva que sí estaba. Al final de la ResNet-50, un pooling global promedia cada mapa entero en un número.",
+      "largo": "Un *max pooling* de 2 × 2 con stride 2 deja los mapas con la cuarta parte de los números; su tamaño sale de la misma fórmula que el de una convolución. Se pierde exactamente dónde estaba algo dentro del cuadrito, pero se conserva que sí estaba. Al final de la ResNet-50, un pooling global promedia cada mapa entero en un número.",
       "ejemplo": "El cuadrito 5, 6, 7, 3 con max pooling da 7.",
-      "ver": ["convolucion", "cnn"],
+      "ver": ["convolucion", "stride", "cnn"],
       "leccion": "redes"
     },
     {
@@ -102,18 +156,19 @@
       "termino": "CNN",
       "en": "convolutional neural network",
       "corto": "Una red neuronal hecha sobre todo de convoluciones, activaciones y pooling. Es la familia clásica para imágenes.",
-      "largo": "Le va bien a las fotos por tres razones: cada filtro mira cerca (el significado está en los píxeles vecinos), usa el mismo filtro en todas partes (reconoce un tenis esté donde esté, con pocos parámetros) y arma lo complicado con lo simple, capa tras capa. La ResNet-50 de C01 es una CNN.",
+      "largo": "Le va bien a las fotos por tres razones: cada filtro mira cerca (el significado está en los píxeles vecinos), usa el mismo filtro en todas partes (reconoce un tenis esté donde esté, con pocos parámetros) y arma lo complicado con lo simple, capa tras capa, porque su [[campo-receptivo|campo receptivo]] crece. La ResNet-50 de C01 es una CNN.",
+      "ejemplo": "Una capa convolucional de 64 filtros de 3 × 3 sobre la foto de color tiene 1,792 parámetros; una capa densa de 1,000 neuronas sobre los mismos 150,528 números tendría ≈ 150 millones.",
       "ver": ["convolucion", "pooling", "backbone", "resnet"],
       "leccion": "redes"
     },
     {
-      "id": "backbone",
-      "termino": "Backbone",
-      "en": "backbone · feature extractor",
-      "corto": "La parte de la red que «ve»: recibe la foto y la convierte en una lista de números (features) que describen lo que hay en ella. Después va la cabeza, que decide.",
-      "largo": "Es la parte grande y cara, y casi siempre viene preentrenada ([[transfer-learning|transfer learning]]). La cabeza (*head*) es chica y es la que sabe de las categorías propias. Sus features también sirven solas, como [[embedding]].",
-      "ejemplo": "En la ResNet-50 de C01, el backbone entrega 2,048 números por foto y la cabeza los convierte en 500 logits.",
-      "ver": ["cnn", "resnet", "transfer-learning"],
+      "id": "campo-receptivo",
+      "termino": "Campo receptivo",
+      "en": "receptive field",
+      "corto": "El pedazo de la foto original que puede influir en una neurona. Crece con cada capa, y más rápido con stride.",
+      "largo": "Se calcula capa por capa con dos números, el campo r y el salto j (píxeles de la foto entre dos neuronas vecinas): r nuevo = r + (k − 1) × j y j nuevo = j × s, empezando con r = 1 y j = 1. Es un máximo teórico: los píxeles del centro pesan mucho más que los de la orilla. Decide si una red alcanza a ver un objeto grande y si un detalle chico sobrevive.",
+      "ejemplo": "Tres capas de 3 × 3 con stride 1 ven 3, 5 y 7 píxeles. Un número del último mapa de la ResNet-50 puede depender de 427 × 427 píxeles.",
+      "ver": ["stride", "convolucion", "cnn"],
       "leccion": "redes"
     },
     {
@@ -121,9 +176,9 @@
       "termino": "ResNet",
       "en": "residual network · ResNet-50",
       "corto": "Una familia de CNNs (He y otros, Microsoft Research, 2015) en la que cada bloque tiene un atajo: su entrada se le suma a su salida. Eso permitió entrenar redes muy profundas.",
-      "largo": "Con el atajo (*skip connection*), salida = bloque(x) + x: cada bloque solo aprende una corrección, y la señal del aprendizaje llega bien hasta las primeras capas. Ganó la competencia de ImageNet de 2015. La ResNet-50 tiene 50 capas con pesos en su camino principal y 16 bloques residuales.",
+      "largo": "Con el atajo (*skip connection*), salida = bloque(x) + x: cada bloque solo aprende una corrección, y la señal del aprendizaje llega bien hasta las primeras capas. Ganó la competencia de ImageNet de 2015. La ResNet-50 tiene 50 capas con pesos en su camino principal, 16 bloques residuales en cuatro etapas y hace ≈ 4.1 mil millones de multiplicaciones-sumas por foto de 224 × 224.",
       "ejemplo": "La ResNet-50 original (1,000 categorías) tiene ≈ 25.6 millones de parámetros: ≈ 102 MB en float32. La de C01, con 500 categorías, ≈ 24.5 millones.",
-      "ver": ["cnn", "backbone"],
+      "ver": ["cnn", "backbone", "batchnorm"],
       "leccion": "redes"
     },
     {
@@ -131,7 +186,7 @@
       "termino": "BatchNorm",
       "en": "batch normalization",
       "corto": "Una capa que acomoda los números de cada canal para que queden alrededor de 0 y con dispersión parecida a 1. Se porta distinto al entrenar y al responder.",
-      "largo": "Al entrenar usa el promedio y la desviación del [[batch]] actual y va guardando un promedio acumulado (*running stats*). Al responder, en [[modo-eval|modo eval]], usa esos valores acumulados. Si el modelo se queda en modo entrenamiento en producción, la respuesta de una foto depende de las otras fotos de su batch.",
+      "largo": "Al entrenar usa el promedio y la desviación del [[batch]] actual y va guardando un promedio acumulado (*running stats*). Al responder, en [[modo-eval|modo eval]], usa esos valores acumulados. Si el modelo se queda en modo entrenamiento en producción, la respuesta de una foto depende de las otras fotos de su batch. Cada bloque de la ResNet lleva varias.",
       "ejemplo": "Un canal da 2, 4, 6 y 8 en un batch: promedio 5, desviación ≈ 2.24. La foto que dio 4 queda en ≈ −0.45. Con las estadísticas acumuladas da eso siempre; con las de otro batch, otra cosa.",
       "ver": ["modo-eval", "dropout", "batch"],
       "leccion": "redes"
@@ -142,6 +197,7 @@
       "en": "dropout",
       "corto": "Una traba contra el overfitting: al entrenar, apaga al azar una fracción de las neuronas en cada paso. Al responder no apaga nada.",
       "largo": "Obliga a la red a repartir lo que sabe en lugar de depender de unas pocas neuronas. Las que quedan se multiplican para compensar (con la mitad apagada, por 2). Si el modelo se queda en modo entrenamiento en producción, la misma foto da respuestas distintas cada vez. La ResNet-50 estándar no tiene Dropout; muchos otros modelos sí.",
+      "ejemplo": "Con dropout de 0.5, una capa de 4 neuronas que saca 1, 2, 3 y 4 podría sacar al entrenar 2, 0, 6 y 0: la mitad apagada y el resto multiplicado por 2. Al responder saca 1, 2, 3 y 4.",
       "ver": ["overfitting", "modo-eval", "batchnorm"],
       "leccion": "redes"
     },
@@ -151,7 +207,28 @@
       "en": "eval mode · model.eval()",
       "corto": "El interruptor de PyTorch que le dice al modelo «ahora vas a responder, no a entrenar». BatchNorm usa sus estadísticas guardadas y Dropout deja de apagar neuronas.",
       "largo": "Un modelo recién creado o cargado está en modo entrenamiento (`model.train()`). Olvidar `model.eval()` en el servidor es un bug clásico: no da error, solo baja la calidad. No apaga el cálculo para aprender: para eso es `torch.inference_mode()`. En producción van los dos.",
+      "ejemplo": "En modo eval, la foto del ejemplo de BatchNorm da −0.45 llegue sola o acompañada. En modo train, sola en su batch, daría 0.",
       "ver": ["batchnorm", "dropout", "inferencia"],
+      "leccion": "redes"
+    },
+    {
+      "id": "backbone",
+      "termino": "Backbone",
+      "en": "backbone · feature extractor · encoder",
+      "corto": "La parte de la red que «ve»: recibe la foto y la convierte en una lista de números (features) que describen lo que hay en ella. Después va la cabeza, que decide.",
+      "largo": "Es la parte grande y cara (en la ResNet-50, el 99.97 % de las multiplicaciones-sumas), y casi siempre viene preentrenada ([[transfer-learning|transfer learning]]). La [[cabeza]] es chica y es la que sabe de la tarea: el mismo backbone sirve para clasificar, detectar o segmentar cambiando solo la cabeza. Sus features también sirven solas, como [[embedding]].",
+      "ejemplo": "En la ResNet-50 de C01, el backbone entrega 2,048 números por foto y la cabeza los convierte en 500 logits.",
+      "ver": ["cabeza", "cnn", "transfer-learning"],
+      "leccion": "redes"
+    },
+    {
+      "id": "cabeza",
+      "termino": "Cabeza",
+      "en": "head",
+      "corto": "La parte final de una red, chica, que convierte lo que entrega el backbone en la respuesta de la tarea: un logit por categoría, cajas o una máscara.",
+      "largo": "Es lo que se cambia al reutilizar un [[backbone]] para otra tarea ([[transfer-learning|transfer learning]]). En [[clasificacion|clasificación]] es un pooling más una capa densa; en [[deteccion|detección]], una capa que propone una caja y un puntaje por clase en cada posición; en [[segmentacion|segmentación]], un decoder que agranda los mapas hasta dar una respuesta por píxel. No confundir con las «cabezas de atención» de un [[transformer]], que son otra cosa.",
+      "ejemplo": "La cabeza de C01 es una capa densa de 2,048 → 500: 2,048 × 500 + 500 = 1,024,500 parámetros. La original de ImageNet, de 1,000 categorías, tiene 2,049,000.",
+      "ver": ["backbone", "transfer-learning", "logit"],
       "leccion": "redes"
     },
     {
@@ -159,9 +236,9 @@
       "termino": "Transfer learning",
       "en": "transfer learning · aprendizaje por transferencia",
       "corto": "Usar lo que un modelo ya aprendió en una tarea para resolver otra. Se parte de un modelo preentrenado en vez de empezar de cero.",
-      "largo": "Lo típico en visión: un [[backbone]] entrenado con ImageNet (≈ 1.28 millones de fotos, 1,000 categorías) ya sabe ver bordes, texturas y formas. Se le cambia la cabeza por una con las categorías propias y se sigue entrenando ([[fine-tuning]]). Hace falta mucho menos datos y tiempo. Ayuda menos cuando las imágenes se parecen poco a las del preentrenamiento, como radiografías.",
+      "largo": "Lo típico en visión: un [[backbone]] entrenado con ImageNet (≈ 1.28 millones de fotos, 1,000 categorías) ya sabe ver bordes, texturas y formas. Se le cambia la [[cabeza]] por una con las categorías propias y se sigue entrenando ([[fine-tuning]]). Hacen falta muchos menos datos y tiempo. Ayuda menos cuando las imágenes se parecen poco a las del preentrenamiento, como radiografías.",
       "ejemplo": "C01 parte de una ResNet-50 preentrenada en ImageNet y cambia su cabeza de 1,000 a 500 categorías.",
-      "ver": ["fine-tuning", "backbone"],
+      "ver": ["fine-tuning", "backbone", "cabeza"],
       "leccion": "redes"
     },
     {
@@ -170,8 +247,18 @@
       "en": "fine-tuning · ajuste fino",
       "corto": "Seguir entrenando un modelo preentrenado con tus propios datos, con un learning rate chico para no borrar lo que ya sabía.",
       "largo": "Se puede congelar el backbone y entrenar solo la cabeza (rápido, sirve con pocos datos) o entrenar todo con [[learning-rate|learning rate]] chico (más lento, suele dar mejor resultado con muchos datos). Es la forma más común de [[transfer-learning|transfer learning]].",
-      "ejemplo": "En la Ronda, el fine-tuning de C01 usa learning rate 0.0003, 8 épocas y batches de 64, y cabe en una GPU en horas.",
+      "ejemplo": "En la Ronda, el fine-tuning de C01 usa learning rate 0.0003, 8 épocas y batches de 64, y cabe en una GPU en horas. Con el backbone congelado, solo se moverían 1,024,500 de los 24,532,532 parámetros.",
       "ver": ["transfer-learning", "learning-rate"],
+      "leccion": "redes"
+    },
+    {
+      "id": "vit",
+      "termino": "ViT",
+      "en": "Vision Transformer",
+      "corto": "Un modelo de visión que parte la foto en parches de 16 × 16 píxeles y los trata como los tokens de una frase, con un transformer.",
+      "largo": "Lo presentaron Dosovitskiy y otros en 2020. Cada parche (16 × 16 × 3 = 768 números) se convierte en un vector, se le suma su posición y entra a un [[transformer]] junto con un token extra, [CLS], de donde sale la respuesta. No trae de fábrica las ideas de una [[cnn|CNN]] (mirar de cerca, el mismo filtro en todas partes): las aprende de los datos, así que brilla con preentrenamientos enormes. El ViT-B/16 tiene ≈ 86 millones de parámetros.",
+      "ejemplo": "Una foto de 224 × 224 con parches de 16: 224 ÷ 16 = 14 por lado, 14 × 14 = 196 parches; con el [CLS], 197 tokens.",
+      "ver": ["transformer", "atencion", "token", "cnn"],
       "leccion": "redes"
     }
   ]

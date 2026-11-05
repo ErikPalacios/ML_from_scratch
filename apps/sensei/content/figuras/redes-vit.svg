@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 460" role="img" aria-labelledby="f-redes-vit-t" class="f-svg" style="max-width:420px">
+<title id="f-redes-vit-t">Cómo lee una foto un ViT-B/16. La foto de 224 por 224 píxeles se parte en una cuadrícula de 14 por 14, 196 parches. Un parche marcado en amarillo se amplía: 16 por 16 píxeles por 3 colores, 768 números, que una capa densa de 768 a 768 convierte en un token. Abajo, la fila de tokens: CLS, 1, 2, 3 y así hasta 196, en total 197 tokens de 768 números, entra a un transformer de 12 bloques donde cada parche mira a todos. La respuesta sale del token CLS.</title>
+<rect class="f-card" x="10" y="10" width="340" height="440" rx="16"/>
+<text class="f-l" x="28" y="36">UN VIT-B/16 LEE LA FOTO EN PARCHES</text>
+<rect class="f-chip" x="28" y="52" width="154" height="154" rx="4"/>
+<ellipse class="f-o" cx="108" cy="150" rx="58" ry="30" style="opacity:.55"/>
+<ellipse class="f-o" cx="80" cy="132" rx="26" ry="22" style="opacity:.55"/>
+<line x1="39" y1="52" x2="39" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="63" x2="182" y2="63" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="50" y1="52" x2="50" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="74" x2="182" y2="74" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="61" y1="52" x2="61" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="85" x2="182" y2="85" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="72" y1="52" x2="72" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="96" x2="182" y2="96" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="83" y1="52" x2="83" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="107" x2="182" y2="107" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="94" y1="52" x2="94" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="118" x2="182" y2="118" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="105" y1="52" x2="105" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="129" x2="182" y2="129" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="116" y1="52" x2="116" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="140" x2="182" y2="140" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="127" y1="52" x2="127" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="151" x2="182" y2="151" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="138" y1="52" x2="138" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="162" x2="182" y2="162" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="149" y1="52" x2="149" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="173" x2="182" y2="173" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="160" y1="52" x2="160" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="184" x2="182" y2="184" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="171" y1="52" x2="171" y2="206" style="stroke:var(--muted);stroke-width:.7"/>
+<line x1="28" y1="195" x2="182" y2="195" style="stroke:var(--muted);stroke-width:.7"/>
+<rect class="f-y" x="72" y="118" width="11" height="11" style="stroke:var(--navy);stroke-width:1.5"/>
+<text class="f-s" x="28" y="228" style="font-size:12px">224 × 224 píxeles</text>
+<text class="f-s" x="28" y="246" style="font-size:12px;font-weight:700">14 × 14 = 196 parches</text>
+<line x1="83" y1="123.5" x2="228" y2="100.0" style="stroke:var(--yd);stroke-width:2;stroke-dasharray:4 4"/>
+<rect class="f-y" x="228" y="58" width="84" height="84" rx="8"/>
+<text class="f-s" x="270" y="94" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">16 × 16</text>
+<text class="f-s" x="270" y="114" text-anchor="middle" style="fill:var(--navy);font:600 12px var(--sans)">píxeles × 3</text>
+<text class="f-s" x="270" y="164" text-anchor="middle" style="font-size:13px;font-weight:700">= 768 números</text>
+<line class="f-flecha" x1="270" y1="172" x2="270" y2="187"/>
+<path class="f-punta" d="M263,185 L277,185 L270,194 Z"/>
+<rect class="f-dark" x="212" y="198" width="116" height="44" rx="10"/>
+<text class="f-dark-t" x="270" y="217" text-anchor="middle">densa 768 → 768</text>
+<text class="f-dark-l" x="270" y="233" text-anchor="middle">UN TOKEN</text>
+<text class="f-l" x="28" y="278">197 TOKENS DE 768 NÚMEROS</text>
+<rect class="f-p" x="28" y="290" width="46" height="30" rx="15"/>
+<text class="f-pill-t" x="51" y="310" text-anchor="middle" style="font-size:12px">CLS</text>
+<rect class="f-b" x="80" y="290" width="46" height="30" rx="15"/>
+<text class="f-pill-t" x="103" y="310" text-anchor="middle" style="font-size:14px">1</text>
+<rect class="f-b" x="132" y="290" width="46" height="30" rx="15"/>
+<text class="f-pill-t" x="155" y="310" text-anchor="middle" style="font-size:14px">2</text>
+<rect class="f-b" x="184" y="290" width="46" height="30" rx="15"/>
+<text class="f-pill-t" x="207" y="310" text-anchor="middle" style="font-size:14px">3</text>
+<rect class="f-off" x="236" y="290" width="46" height="30" rx="15"/>
+<text class="f-s" x="259" y="310" text-anchor="middle" style="font-size:15px;font-weight:700">…</text>
+<rect class="f-b" x="288" y="290" width="46" height="30" rx="15"/>
+<text class="f-pill-t" x="311" y="310" text-anchor="middle" style="font-size:14px">196</text>
+<line class="f-flecha" x1="180" y1="326" x2="180" y2="341"/>
+<path class="f-punta" d="M173,339 L187,339 L180,348 Z"/>
+<rect class="f-dark" x="28" y="352" width="304" height="52" rx="12"/>
+<text class="f-dark-t" x="180" y="374" text-anchor="middle" style="font-size:14px;font-weight:700">Transformer · 12 bloques</text>
+<text class="f-dark-l" x="180" y="392" text-anchor="middle">CADA PARCHE MIRA A TODOS</text>
+<text class="f-s" x="180" y="430" text-anchor="middle">la respuesta sale del token [CLS]</text>
+</svg>

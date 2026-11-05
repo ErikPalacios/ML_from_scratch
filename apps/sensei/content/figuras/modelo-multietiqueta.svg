@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 416" role="img" aria-labelledby="f-modelo-multietiqueta-t" class="f-svg" style="max-width:420px">
+<title id="f-modelo-multietiqueta-t">Los mismos tres logits de un post, spam 2.0, violencia 1.0 y odio menos 3.0, con softmax y con una sigmoide por política. Con softmax compiten por el 100 %: spam 72.7 %, violencia 26.8 % y odio 0.5 %; la violencia queda debajo de la línea de 50 %. Con una sigmoide por política, cada una se contesta sola: spam 88.1 %, violencia 73.1 % y odio 4.7 %; spam y violencia pasan la línea. Juntas suman 165.9 %, y está bien, porque son tres preguntas distintas.</title>
+<rect class="f-card" x="10" y="10" width="340" height="72" rx="16"/>
+<text class="f-l" x="28" y="36">LOS LOGITS DE UN POST</text>
+<text class="f-t" x="28" y="64" style="font-size:14px">spam 2.0 · violencia 1.0 · odio −3.0</text>
+<rect class="f-card" x="10" y="94" width="340" height="152" rx="16"/>
+<text class="f-l" x="28" y="120">SOFTMAX: COMPITEN</text>
+<line x1="259.0" y1="134" x2="259.0" y2="212" style="stroke:var(--o);stroke-width:2;stroke-dasharray:5 4"/>
+<text class="f-s" x="259.0" y="132" text-anchor="middle" style="font-size:12px;fill:var(--o);font-weight:700">50 %</text>
+<text class="f-s" x="28" y="154">spam</text>
+<text class="f-t" x="108" y="154">72.7 %</text>
+<rect class="f-off" x="184" y="143" width="150" height="12" rx="6"/>
+<rect class="f-b" x="184" y="143" width="109.1" height="12" rx="6"/>
+<text class="f-s" x="28" y="180">violencia</text>
+<text class="f-t" x="108" y="180">26.8 %</text>
+<rect class="f-off" x="184" y="169" width="150" height="12" rx="6"/>
+<rect class="f-b" x="184" y="169" width="40.1" height="12" rx="6"/>
+<text class="f-s" x="28" y="206">odio</text>
+<text class="f-t" x="108" y="206">0.5 %</text>
+<rect class="f-off" x="184" y="195" width="150" height="12" rx="6"/>
+<rect class="f-b" x="184" y="195" width="3.0" height="12" rx="6"/>
+<text class="f-s" x="28" y="232" style="font-size:12px">Suman 100 %: si el spam sube, la violencia baja.</text>
+<rect class="f-card" x="10" y="256" width="340" height="152" rx="16"/>
+<text class="f-l" x="28" y="282">UNA SIGMOIDE POR POLÍTICA</text>
+<line x1="259.0" y1="296" x2="259.0" y2="374" style="stroke:var(--o);stroke-width:2;stroke-dasharray:5 4"/>
+<text class="f-s" x="259.0" y="294" text-anchor="middle" style="font-size:12px;fill:var(--o);font-weight:700">50 %</text>
+<text class="f-s" x="28" y="316">spam</text>
+<text class="f-t" x="108" y="316">88.1 %</text>
+<rect class="f-off" x="184" y="305" width="150" height="12" rx="6"/>
+<rect class="f-b" x="184" y="305" width="132.1" height="12" rx="6"/>
+<text class="f-s" x="28" y="342">violencia</text>
+<text class="f-t" x="108" y="342">73.1 %</text>
+<rect class="f-off" x="184" y="331" width="150" height="12" rx="6"/>
+<rect class="f-b" x="184" y="331" width="109.7" height="12" rx="6"/>
+<text class="f-s" x="28" y="368">odio</text>
+<text class="f-t" x="108" y="368">4.7 %</text>
+<rect class="f-off" x="184" y="357" width="150" height="12" rx="6"/>
+<rect class="f-b" x="184" y="357" width="7.1" height="12" rx="6"/>
+<text class="f-s" x="28" y="394" style="font-size:12px">Cada una de 0 a 100 %: suman 165.9 %, y está bien.</text>
+</svg>

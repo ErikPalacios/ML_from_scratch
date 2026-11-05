@@ -1,0 +1,17 @@
+{
+  "titulo": "El modelo lineal: mueve las perillas",
+  "intro": "precio = **w** × años + **b**. Mueve las dos perillas y mira cómo cambian todas las predicciones a la vez.",
+  "entradas": [
+    { "id": "w", "label": "Perilla **w** · pesos por cada año", "min": -600, "max": 600, "paso": 10, "valor": -300 },
+    { "id": "b", "label": "Perilla **b** · precio con 0 años", "min": 0, "max": 3000, "paso": 50, "valor": 1500 },
+    { "id": "x", "label": "Años de uso de unos tenis", "min": 0, "max": 10, "paso": 0.5, "valor": 2, "unidad": "años" }
+  ],
+  "salidas": [
+    { "label": "Precio sugerido para esos tenis", "formula": "w * x + b", "formato": "int", "nota": "w × años + b, en pesos" },
+    { "label": "Tenis nuevos (0 años)", "formula": "b", "formato": "int" },
+    { "label": "Con 2 años", "formula": "w * 2 + b", "formato": "int" },
+    { "label": "Con 4 años", "formula": "w * 4 + b", "formato": "int" },
+    { "label": "Con 6 años", "formula": "w * 6 + b", "formato": "int", "nota": "si sale negativo, el modelo no lo sabe" }
+  ],
+  "nota": "Con w = 0 la recta queda plana: el modelo ignora los años y siempre dice b. Con w positiva, unos tenis viejos valdrían más que unos nuevos."
+}

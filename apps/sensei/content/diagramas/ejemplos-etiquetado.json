@@ -1,0 +1,136 @@
+{
+  "titulo": "El ciclo de las etiquetas de C01",
+  "width": 78,
+  "height": 58,
+  "lanes": [
+    { "id": "prod", "label": "En producción", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 13 },
+    { "id": "mes", "label": "Cada mes, offline", "kind": "offline", "x": 0, "y": 15, "w": 78, "h": 28 },
+    { "id": "fijo", "label": "El examen fijo", "kind": "monitor", "x": 0, "y": 45, "w": 78, "h": 13 }
+  ],
+  "nodes": [
+    {
+      "id": "mod",
+      "label": "Moderadores",
+      "sub": "corrigen lo reportado",
+      "kind": "human",
+      "x": 3, "y": 3.5, "w": 21, "h": 8,
+      "note": "Sus **correcciones** son etiquetas buenas, pero solo existen para lo que alguien reportó o revisó: no son una muestra del tráfico. En el dataset de septiembre son el 7 %."
+    },
+    {
+      "id": "senales",
+      "label": "Señales del mes",
+      "sub": "sugerencias y elecciones",
+      "badge": "2",
+      "kind": "store",
+      "x": 28.5, "y": 3.5, "w": 21, "h": 8,
+      "note": "Lo que deja cada publicación: las 5 sugerencias con su [[confianza]], la categoría que eligió quien vende y si moderación la corrigió. Con esto se arma la cola y se filtran las etiquetas débiles."
+    },
+    {
+      "id": "app",
+      "label": "Ana publica",
+      "sub": "el modelo sugiere 5",
+      "badge": "1",
+      "kind": "client",
+      "x": 54, "y": 3.5, "w": 21, "h": 8,
+      "note": "Ana sube la foto y el modelo le sugiere 5 categorías. Lo que ella elige es la etiqueta más abundante, ≈ 2.5 M al día, y la más contaminada: la gente tiende a aceptar la primera sugerencia."
+    },
+    {
+      "id": "cola",
+      "label": "Elegir qué etiquetar",
+      "sub": "≈ 5k: dudas y azar",
+      "badge": "3",
+      "kind": "job",
+      "x": 28.5, "y": 19, "w": 21, "h": 8,
+      "note": "Aquí se decide en qué se gasta el presupuesto. Es el [[active-learning|active learning]]: baja confianza, desacuerdos con quien vende, categorías nuevas y 20–30 % al azar, la única parte que mide el error real."
+    },
+    {
+      "id": "anot",
+      "label": "Anotadores",
+      "sub": "con guía · 10 % doble",
+      "badge": "4",
+      "kind": "human",
+      "x": 54, "y": 19, "w": 21, "h": 8,
+      "note": "Personas con una guía escrita y versionada: qué es cada categoría, con ejemplos y contraejemplos, y una salida para «no sé». El 10 % lo etiquetan dos personas sin saberlo. Cuesta ≈ US$0.05–0.10 por foto."
+    },
+    {
+      "id": "acuerdo",
+      "label": "Acuerdo",
+      "sub": "kappa · un experto decide",
+      "badge": "5",
+      "kind": "monitor",
+      "x": 54, "y": 32, "w": 21, "h": 8,
+      "note": "Mide si la guía funciona: [[kappa]] por clase, no el porcentaje de acuerdo, que engaña cuando una clase domina. Un experto decide cada desacuerdo y lo que se aprende entra a la guía."
+    },
+    {
+      "id": "snap",
+      "label": "Dataset del mes",
+      "sub": "sin copias · por vendedor",
+      "badge": "6",
+      "kind": "store",
+      "x": 28.5, "y": 32, "w": 21, "h": 8,
+      "note": "Junta las etiquetas humanas, las correcciones y las elecciones filtradas de quien vende. Quita copias por sha256 y casi copias por huella perceptual ([[duplicado-cercano]]), y reparte por vendedor: hash mod 100 < 95 va a train ([[split-por-grupo]])."
+    },
+    {
+      "id": "train",
+      "label": "Entrenar",
+      "sub": "train y validación",
+      "badge": "7",
+      "kind": "gpu",
+      "x": 3, "y": 32, "w": 21, "h": 8,
+      "note": "El modelo aprende solo con [[train-set|train]]; con [[validation-set|validación]] se decide cuándo parar y qué versión queda. Ninguna foto del golden set puede estar aquí."
+    },
+    {
+      "id": "golden",
+      "label": "Golden set",
+      "sub": "50k · congelado",
+      "kind": "store",
+      "x": 28.5, "y": 48.5, "w": 21, "h": 8,
+      "note": "El [[golden-set|golden set]]: ≈ 50 mil fotos, cada una con dos etiquetas humanas, al menos ≈ 50 por categoría, de celular y de web. El mismo examen cada mes. Costó ≈ US$5–10 mil, una vez."
+    },
+    {
+      "id": "examen",
+      "label": "Examen",
+      "sub": "el nuevo contra el actual",
+      "kind": "job",
+      "x": 54, "y": 48.5, "w": 21, "h": 8,
+      "note": "El modelo nuevo y el que está en producción responden las mismas fotos. El nuevo sale solo si no es peor en el total, en la cola larga ni en ningún [[slice]]."
+    }
+  ],
+  "edges": [
+    { "from": "app", "to": "senales", "kind": "online", "fromSide": "l", "toSide": "r" },
+    { "from": "mod", "to": "senales", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "senales", "to": "cola", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "senales", "to": "snap", "kind": "offline", "dashed": true, "fromSide": "b", "toSide": "t", "via": [[33, 14], [26, 14], [26, 29.5], [33, 29.5]] },
+    { "from": "cola", "to": "anot", "kind": "offline", "fromSide": "r", "toSide": "l" },
+    { "from": "anot", "to": "acuerdo", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "acuerdo", "to": "snap", "kind": "offline", "fromSide": "l", "toSide": "r" },
+    { "from": "snap", "to": "train", "kind": "offline", "fromSide": "l", "toSide": "r" },
+    { "from": "train", "to": "examen", "kind": "offline", "fromSide": "b", "toSide": "t", "via": [[13.5, 44], [64.5, 44]] },
+    { "from": "golden", "to": "examen", "kind": "monitor", "fromSide": "r", "toSide": "l" },
+    { "from": "examen", "to": "app", "kind": "async", "dashed": true, "fromSide": "r", "toSide": "r", "via": [[77, 52.5], [77, 7.5]] }
+  ],
+  "flows": [
+    {
+      "id": "mes",
+      "label": "Un mes de etiquetas",
+      "steps": [
+        { "nodes": ["app"], "edges": [], "text": "Ana publica sus tenis. El modelo le **sugiere 5 categorías** y ella elige una. Esa elección es una etiqueta débil: está influida por la sugerencia." },
+        { "nodes": ["app", "mod", "senales"], "edges": ["app>senales", "mod>senales"], "text": "Cada mes se juntan las **señales**: qué sugirió el modelo y con qué [[confianza]], qué eligió quien vende y qué corrigió moderación." },
+        { "nodes": ["senales", "cola"], "edges": ["senales>cola"], "text": "**[[active-learning|Active learning]]**: de millones de fotos se eligen ≈ 5,000. Las dudosas (top-1 menor que 0.3), los desacuerdos, lo nuevo y 20–30 % al azar." },
+        { "nodes": ["cola", "anot"], "edges": ["cola>anot"], "text": "Personas con una **guía escrita** las etiquetan. El 10 % lo etiquetan dos personas, sin saber cuáles." },
+        { "nodes": ["anot", "acuerdo"], "edges": ["anot>acuerdo"], "text": "Se mide el **acuerdo** con [[kappa]], por clase. Un experto decide cada desacuerdo, y lo aprendido entra a la guía." },
+        { "nodes": ["senales", "acuerdo", "snap"], "edges": ["acuerdo>snap", "senales>snap"], "text": "El **dataset del mes** junta las etiquetas humanas, las correcciones y las elecciones filtradas (la flecha punteada). Se quitan copias y casi copias, y se reparte por vendedor." },
+        { "nodes": ["snap", "train"], "edges": ["snap>train"], "text": "Se **entrena** con train (1,840,211 fotos en septiembre) y se decide con validación (92,417)." }
+      ]
+    },
+    {
+      "id": "examen",
+      "label": "El examen que no se mueve",
+      "steps": [
+        { "nodes": ["golden"], "edges": [], "text": "El **golden set**: ≈ 50 mil fotos con dos etiquetas humanas cada una, estratificado y congelado. Nunca entra al dataset del mes." },
+        { "nodes": ["train", "golden", "examen"], "edges": ["train>examen", "golden>examen"], "text": "El modelo nuevo y el actual responden **las mismas fotos**. Si una sola foto del golden set se colara al entrenamiento, el examen mediría memoria." },
+        { "nodes": ["examen", "app"], "edges": ["examen>app"], "text": "Si pasa, el modelo nuevo **sugiere el mes siguiente**, y sus sugerencias vuelven a influir en lo que eligen los vendedores. Por eso la elección de quien vende nunca es el examen." }
+      ]
+    }
+  ]
+}

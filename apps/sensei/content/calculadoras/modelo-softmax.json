@@ -1,0 +1,24 @@
+{
+  "titulo": "Softmax en vivo",
+  "intro": "Mueve los tres [[logit|logits]] y mira cómo cambian las probabilidades. La temperatura divide los tres logits antes del softmax.",
+  "entradas": [
+    { "id": "a", "label": "Logit de **Tenis**", "min": -5, "max": 10, "paso": 0.1, "valor": 3 },
+    { "id": "b", "label": "Logit de **Botas**", "min": -5, "max": 10, "paso": 0.1, "valor": 1 },
+    { "id": "c", "label": "Logit de **Sandalias**", "min": -5, "max": 10, "paso": 0.1, "valor": 0 },
+    { "id": "t", "label": "Temperatura", "min": 0.5, "max": 5, "paso": 0.1, "valor": 1 }
+  ],
+  "calculos": [
+    { "id": "ea", "formula": "exp(a / t)" },
+    { "id": "eb", "formula": "exp(b / t)" },
+    { "id": "ec", "formula": "exp(c / t)" },
+    { "id": "s", "formula": "ea + eb + ec" }
+  ],
+  "salidas": [
+    { "label": "P(Tenis)", "formula": "ea / s", "formato": "pct", "barra": true },
+    { "label": "P(Botas)", "formula": "eb / s", "formato": "pct", "barra": true },
+    { "label": "P(Sandalias)", "formula": "ec / s", "formato": "pct", "barra": true },
+    { "label": "Suma de las exponenciales", "formula": "s", "nota": "el denominador" },
+    { "label": "Tenis contra Botas", "formula": "ea / eb", "formato": "x", "nota": "con temperatura 1, e elevado a la diferencia de logits" }
+  ],
+  "nota": "Súmale lo mismo a los tres logits: nada cambia. Sube la temperatura: las barras se emparejan; bájala: el favorito se lleva casi todo. En ningún caso cambia el orden."
+}

@@ -1,0 +1,279 @@
+{
+  "titulo": "La cadena de métricas de C01",
+  "width": 78,
+  "height": 54,
+  "lanes": [
+    {
+      "id": "offline",
+      "label": "Offline · antes de que nadie lo use",
+      "kind": "offline",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 16
+    },
+    {
+      "id": "online",
+      "label": "Online · con vendedores reales",
+      "kind": "online",
+      "x": 0,
+      "y": 19,
+      "w": 78,
+      "h": 16
+    },
+    {
+      "id": "negocio",
+      "label": "Negocio · lo que le importa a la empresa",
+      "kind": "monitor",
+      "x": 0,
+      "y": 38,
+      "w": 78,
+      "h": 16
+    }
+  ],
+  "nodes": [
+    {
+      "id": "gate",
+      "label": "Gate offline",
+      "sub": "golden set · 50,000 fotos",
+      "badge": "1",
+      "kind": "job",
+      "x": 3,
+      "y": 5,
+      "w": 22,
+      "h": 9,
+      "note": "El examen de la sección: el modelo nuevo contra el actual, en las mismas fotos guardadas. Es rápido y barato, y no molesta a nadie. Pero solo mide lo que se puede calcular con etiquetas."
+    },
+    {
+      "id": "top5",
+      "label": "Top-5 accuracy",
+      "sub": "≈ 96 % · minutos",
+      "kind": "monitor",
+      "x": 53,
+      "y": 5,
+      "w": 22,
+      "h": 9,
+      "note": "La métrica **offline**: de cada 100 fotos del golden set, en cuántas la categoría correcta está entre las 5 sugerencias. Es un *proxy*: se mide porque es lo único que se puede medir antes de que alguien use el modelo."
+    },
+    {
+      "id": "ab",
+      "label": "A/B por vendedor",
+      "sub": "1–2 semanas",
+      "badge": "2",
+      "kind": "job",
+      "x": 3,
+      "y": 24,
+      "w": 22,
+      "h": 9,
+      "note": "A una parte de los vendedores, elegidos al azar, les toca el modelo nuevo; al resto, el actual. Se reparte por vendedor y no por foto, para que nadie vea sugerencias que cambian de una foto a otra. Es un [[ab-test|A/B test]]."
+    },
+    {
+      "id": "acepta",
+      "label": "Tasa de aceptación",
+      "sub": "publica con una sugerencia",
+      "kind": "monitor",
+      "x": 53,
+      "y": 24,
+      "w": 22,
+      "h": 9,
+      "note": "La métrica **online**: qué fracción de los vendedores publica con una de las 5 categorías sugeridas. Mide lo que hace la gente, no lo que dice el golden set. Ojo: está sesgada por la propia sugerencia; sirve como tendencia."
+    },
+    {
+      "id": "guard",
+      "label": "Guardrails",
+      "sub": "p99 · recategorizadas",
+      "kind": "monitor",
+      "x": 3,
+      "y": 43,
+      "w": 22,
+      "h": 9,
+      "note": "Lo que no tiene que mejorar, pero no puede empeorar: el p99 de latencia, el porcentaje de publicaciones que moderación tiene que recategorizar y el tiempo para llenar el formulario. Aceptar más sugerencias equivocadas sería una mejora falsa."
+    },
+    {
+      "id": "negocio",
+      "label": "Publicaciones completadas",
+      "sub": "la métrica de negocio",
+      "badge": "3",
+      "kind": "monitor",
+      "x": 53,
+      "y": 43,
+      "w": 22,
+      "h": 9,
+      "note": "La [[metrica-negocio|métrica de negocio]]: qué fracción de la gente que empieza a publicar termina. Es la razón de que C01 exista. Se mueve lento y por muchas causas, así que se sigue en el A/B como métrica secundaria."
+    }
+  ],
+  "edges": [
+    {
+      "from": "gate",
+      "to": "top5",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "mide"
+    },
+    {
+      "from": "gate",
+      "to": "ab",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "si pasa"
+    },
+    {
+      "from": "ab",
+      "to": "acepta",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "mide"
+    },
+    {
+      "from": "top5",
+      "to": "acepta",
+      "kind": "neutral",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "¿la mueve?"
+    },
+    {
+      "from": "acepta",
+      "to": "negocio",
+      "kind": "neutral",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "¿la mueve?"
+    },
+    {
+      "from": "guard",
+      "to": "ab",
+      "kind": "monitor",
+      "dashed": true,
+      "fromSide": "t",
+      "toSide": "b",
+      "label": "no pueden empeorar"
+    }
+  ],
+  "flows": [
+    {
+      "id": "cumple",
+      "label": "Cuando la cadena se cumple",
+      "steps": [
+        {
+          "nodes": [
+            "gate",
+            "top5"
+          ],
+          "edges": [
+            "gate>top5"
+          ],
+          "text": "**Offline.** El gate mide la top-5 del modelo nuevo en el golden set, en minutos y sin molestar a nadie."
+        },
+        {
+          "nodes": [
+            "gate",
+            "ab"
+          ],
+          "edges": [
+            "gate>ab"
+          ],
+          "text": "Si pasa el gate (y después el *shadow* y el *canary*, que revisan que no se rompa nada), el modelo entra a un **A/B**: a una parte de los vendedores, elegidos al azar (por ejemplo, la mitad), les toca el nuevo."
+        },
+        {
+          "nodes": [
+            "ab",
+            "acepta"
+          ],
+          "edges": [
+            "ab>acepta"
+          ],
+          "text": "**Online.** Durante 1–2 semanas se compara la tasa de aceptación de los dos grupos."
+        },
+        {
+          "nodes": [
+            "top5",
+            "acepta"
+          ],
+          "edges": [
+            "top5>acepta"
+          ],
+          "text": "Si la cadena funciona, más top-5 se traduce en más vendedores que aceptan una sugerencia."
+        },
+        {
+          "nodes": [
+            "acepta",
+            "negocio"
+          ],
+          "edges": [
+            "acepta>negocio"
+          ],
+          "text": "**Negocio.** Y más aceptación debería mover lo que le importa a la empresa: que más gente termine de publicar."
+        },
+        {
+          "nodes": [
+            "guard",
+            "ab"
+          ],
+          "edges": [
+            "guard>ab"
+          ],
+          "text": "Mientras tanto, los **guardrails** no pueden empeorar. Un modelo que gana aceptación pero sube el p99 o las recategorizaciones no se aprueba."
+        }
+      ]
+    },
+    {
+      "id": "rompe",
+      "label": "Cuando se rompe",
+      "steps": [
+        {
+          "nodes": [
+            "gate",
+            "top5"
+          ],
+          "edges": [
+            "gate>top5"
+          ],
+          "text": "Un modelo nuevo gana **1.5 puntos de top-5** en el golden set. Pasa el gate sin problema. (Ejemplo de la Ronda, en M11, con los números de C01.)"
+        },
+        {
+          "nodes": [
+            "ab",
+            "acepta"
+          ],
+          "edges": [
+            "ab>acepta"
+          ],
+          "text": "El A/B de dos semanas da **0.4 puntos menos** de aceptación. La cadena se rompió."
+        },
+        {
+          "nodes": [
+            "top5",
+            "acepta"
+          ],
+          "edges": [
+            "top5>acepta"
+          ],
+          "text": "Primera razón: ganó en los lugares 4 y 5 de la lista y perdió un poco en el 1. Los vendedores casi siempre eligen el primero o el segundo, y la top-5 los cuenta igual."
+        },
+        {
+          "nodes": [
+            "gate"
+          ],
+          "edges": [],
+          "text": "Segunda: el golden set tiene 8 meses. La ganancia estaba en categorías que hoy casi no se usan; en las de temporada, empata."
+        },
+        {
+          "nodes": [
+            "guard",
+            "ab"
+          ],
+          "edges": [
+            "guard>ab"
+          ],
+          "text": "Tercera: el modelo es más pesado. En el pico, más fotos no reciben respuesta a tiempo y esos vendedores ven el selector manual. El guardrail de latencia lo atrapa. Ninguna de las tres es un bug: por eso la última palabra la tiene el A/B."
+        }
+      ]
+    }
+  ]
+}

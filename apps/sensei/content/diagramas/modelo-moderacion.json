@@ -1,0 +1,55 @@
+{
+  "titulo": "Un modelo multietiqueta decide qué pasa con un post (C06)",
+  "width": 78,
+  "height": 54,
+  "lanes": [
+    { "id": "camino", "label": "Cada post, antes de publicar · ≤ 150 ms", "kind": "online", "x": 0, "y": 0, "w": 46, "h": 54 },
+    { "id": "accion", "label": "La acción", "kind": "neutral", "x": 48, "y": 0, "w": 30, "h": 54 }
+  ],
+  "nodes": [
+    { "id": "post", "label": "Post", "sub": "texto de quien publica", "kind": "client", "x": 24, "y": 6, "w": 18, "h": 8,
+      "note": "Está aquí porque hay que revisarlo antes de que alguien lo vea. En C06 llegan ≈ 30 millones de posts y 150 millones de comentarios al día, y el chequeo tiene un p99 de 150 ms." },
+    { "id": "modelo", "label": "Modelo", "sub": "un logit por política", "kind": "model", "x": 24, "y": 18, "w": 18, "h": 8,
+      "note": "Un solo modelo de texto, [[multietiqueta]]: en una pasada da un [[logit]] por cada una de las 7 políticas. Agregar una política es agregarle una salida y reentrenar, no poner otro modelo en el camino." },
+    { "id": "sigm", "label": "7 sigmoides", "sub": "un % por política", "kind": "service", "x": 24, "y": 30, "w": 18, "h": 8,
+      "note": "Está aquí porque cada política es su propia pregunta de sí o no. Una [[sigmoide]] por política convierte cada logit en una probabilidad de 0 a 1. No compiten ni tienen por qué sumar 100 %: con [[softmax]], una política le quitaría probabilidad a la otra." },
+    { "id": "decide", "label": "Decisión", "sub": "cada política, su umbral", "kind": "service", "x": 24, "y": 42, "w": 18, "h": 8,
+      "note": "Compara cada probabilidad con los [[umbral|umbrales]] de **su** política. Un post puede quedar marcado por dos políticas a la vez. El modelo da números; quien decide qué hacer es esta regla." },
+    { "id": "config", "label": "Config de política", "sub": "umbrales con versión", "kind": "store", "x": 2, "y": 42, "w": 18, "h": 8,
+      "note": "Los umbrales viven fuera del código, en una configuración con versión: por política, por gravedad y por superficie (post o comentario). Cada versión del modelo trae los suyos, porque cada versión reparte sus scores distinto." },
+    { "id": "publica", "label": "Se publica", "sub": "lo normal", "kind": "client", "x": 54, "y": 8, "w": 22, "h": 8,
+      "note": "Casi todo lo que llega no viola nada: en C06, ≈ 0.5 % de lo publicado viola alguna política. Por eso lo que depende del modelo falla abierto: si no contesta a tiempo, el post se publica y se puntúa después." },
+    { "id": "revision", "label": "Revisión", "sub": "una persona decide", "kind": "human", "x": 54, "y": 24, "w": 22, "h": 8,
+      "note": "Una persona mira el post. En C06 hay ≈ 600 moderadores para ≈ 216 mil revisiones al día, y esa capacidad es la que fija qué tan bajos pueden ser los umbrales de revisión." },
+    { "id": "bloquea", "label": "No se publica", "sub": "solo con score muy alto", "kind": "service", "x": 54, "y": 42, "w": 22, "h": 8,
+      "note": "Aquí el sistema actúa solo, sin que nadie mire. Por eso su umbral es muy alto y se fija por [[precision]]: un error castiga a alguien que no hizo nada." }
+  ],
+  "edges": [
+    { "from": "post", "to": "modelo", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "modelo", "to": "sigm", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "sigm", "to": "decide", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "config", "to": "decide", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "decide", "to": "publica", "kind": "online", "fromSide": "r", "toSide": "l", "via": [[45, 44], [45, 12]] },
+    { "from": "decide", "to": "revision", "kind": "async", "fromSide": "r", "toSide": "l", "via": [[48, 46], [48, 28]] },
+    { "from": "decide", "to": "bloquea", "kind": "online", "fromSide": "r", "toSide": "l", "via": [[50, 48]] }
+  ],
+  "flows": [
+    { "id": "normal", "label": "Un post normal", "steps": [
+      { "nodes": ["post", "modelo"], "edges": ["post>modelo"], "text": "Llega un post. Antes de publicarlo, el modelo lo lee: hay ≈ 150 ms para todo." },
+      { "nodes": ["modelo", "sigm"], "edges": ["modelo>sigm"], "text": "Salen 7 **logits**, uno por política, en una sola pasada. Cada uno pasa por su **sigmoide**: spam 0.02, violencia 0.01, odio 0.03…" },
+      { "nodes": ["sigm", "decide", "config"], "edges": ["sigm>decide", "config>decide"], "text": "Cada probabilidad se compara con los umbrales de **su** política, que vienen de la configuración. Ninguna llega." },
+      { "nodes": ["decide", "publica"], "edges": ["decide>publica"], "text": "Se publica sin cambios. Es lo que pasa con casi todo." }
+    ] },
+    { "id": "doble", "label": "Spam y violento a la vez", "steps": [
+      { "nodes": ["post", "modelo", "sigm"], "edges": ["post>modelo", "modelo>sigm"], "text": "Un mensaje que vende seguidores falsos y amenaza a quien lo reporte. Logits: spam 2.0, violencia 1.0, odio −3.0." },
+      { "nodes": ["sigm"], "edges": [], "text": "Con una sigmoide por política: spam **0.88**, violencia **0.73**, odio 0.05. No compiten: el post puede ser las dos cosas." },
+      { "nodes": ["sigm", "decide", "config"], "edges": ["sigm>decide", "config>decide"], "text": "Spam bloquea solo desde 0.98: 0.88 no alcanza. Violencia manda a revisión desde ≈ 0.5: 0.73 sí (umbrales ilustrativos de la Ronda)." },
+      { "nodes": ["decide", "publica", "revision"], "edges": ["decide>publica", "decide>revision"], "text": "Se publica y una persona lo revisa con prioridad. Con **softmax**, la violencia habría quedado en 0.27, debajo de la línea, y nadie lo habría visto." }
+    ] },
+    { "id": "obvio", "label": "Spam obvio", "steps": [
+      { "nodes": ["post", "modelo", "sigm"], "edges": ["post>modelo", "modelo>sigm"], "text": "El mismo «gana dinero fácil» que ya se publicó mil veces. Logit de spam: 4.6." },
+      { "nodes": ["sigm", "decide", "config"], "edges": ["sigm>decide", "config>decide"], "text": "Su sigmoide da **0.99**: pasa el umbral de bloqueo del spam, 0.98." },
+      { "nodes": ["decide", "bloquea"], "edges": ["decide>bloquea"], "text": "No se publica. Aquí el sistema actúa solo, sin que nadie lo mire, y por eso pide un score tan alto." }
+    ] }
+  ]
+}

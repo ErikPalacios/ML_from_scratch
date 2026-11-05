@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 470" role="img" aria-labelledby="f-embeddings-grafo-t" class="f-svg" style="max-width:420px">
+<title id="f-embeddings-grafo-t">Una búsqueda en un índice HNSW con dos niveles y 24 puntos. Arriba, el nivel 1 tiene solo 6 puntos, unidos por saltos largos. La búsqueda entra por el punto de la izquierda y da 3 saltos largos, cada uno al vecino más cercano a la consulta, una estrella abajo a la derecha. Luego baja al nivel 0, donde están los 24 puntos unidos por caminos cortos, y da 2 pasos cortos más hasta el vecino más cercano de verdad. En total comparó la consulta contra 12 de los 24 puntos.</title>
+<rect class="f-card" x="10" y="10" width="340" height="450" rx="16"/>
+<text class="f-l" x="28" y="38">NIVEL 1 · POCOS PUNTOS, SALTOS LARGOS</text>
+<line class="f-linea" x1="24" y1="200" x2="336" y2="200" style="stroke-dasharray:3 5"/>
+<text class="f-l" x="28" y="224">NIVEL 0 · TODOS, CON CAMINOS CORTOS</text>
+<line class="f-linea" x1="153" y1="69" x2="46" y2="102"/>
+<line class="f-linea" x1="153" y1="69" x2="196" y2="104"/>
+<line class="f-linea" x1="153" y1="69" x2="195" y2="136"/>
+<line class="f-linea" x1="153" y1="69" x2="49" y2="175"/>
+<line class="f-linea" x1="46" y1="102" x2="49" y2="175"/>
+<line class="f-linea" x1="196" y1="104" x2="195" y2="136"/>
+<line class="f-linea" x1="196" y1="104" x2="310" y2="169"/>
+<line class="f-linea" x1="195" y1="136" x2="310" y2="169"/>
+<line class="f-linea" x1="47" y1="248" x2="92" y2="252" style="stroke-width:1.2"/>
+<line class="f-linea" x1="47" y1="248" x2="46" y2="276" style="stroke-width:1.2"/>
+<line class="f-linea" x1="47" y1="248" x2="93" y2="285" style="stroke-width:1.2"/>
+<line class="f-linea" x1="92" y1="252" x2="46" y2="276" style="stroke-width:1.2"/>
+<line class="f-linea" x1="92" y1="252" x2="93" y2="285" style="stroke-width:1.2"/>
+<line class="f-linea" x1="153" y1="243" x2="198" y2="241" style="stroke-width:1.2"/>
+<line class="f-linea" x1="153" y1="243" x2="154" y2="280" style="stroke-width:1.2"/>
+<line class="f-linea" x1="153" y1="243" x2="196" y2="278" style="stroke-width:1.2"/>
+<line class="f-linea" x1="198" y1="241" x2="256" y2="250" style="stroke-width:1.2"/>
+<line class="f-linea" x1="198" y1="241" x2="196" y2="278" style="stroke-width:1.2"/>
+<line class="f-linea" x1="256" y1="250" x2="303" y2="247" style="stroke-width:1.2"/>
+<line class="f-linea" x1="256" y1="250" x2="253" y2="285" style="stroke-width:1.2"/>
+<line class="f-linea" x1="256" y1="250" x2="302" y2="283" style="stroke-width:1.2"/>
+<line class="f-linea" x1="303" y1="247" x2="302" y2="283" style="stroke-width:1.2"/>
+<line class="f-linea" x1="303" y1="247" x2="307" y2="308" style="stroke-width:1.2"/>
+<line class="f-linea" x1="46" y1="276" x2="93" y2="285" style="stroke-width:1.2"/>
+<line class="f-linea" x1="46" y1="276" x2="48" y2="309" style="stroke-width:1.2"/>
+<line class="f-linea" x1="93" y1="285" x2="94" y2="316" style="stroke-width:1.2"/>
+<line class="f-linea" x1="154" y1="280" x2="196" y2="278" style="stroke-width:1.2"/>
+<line class="f-linea" x1="154" y1="280" x2="151" y2="320" style="stroke-width:1.2"/>
+<line class="f-linea" x1="196" y1="278" x2="195" y2="310" style="stroke-width:1.2"/>
+<line class="f-linea" x1="253" y1="285" x2="302" y2="283" style="stroke-width:1.2"/>
+<line class="f-linea" x1="253" y1="285" x2="254" y2="315" style="stroke-width:1.2"/>
+<line class="f-linea" x1="302" y1="283" x2="307" y2="308" style="stroke-width:1.2"/>
+<line class="f-linea" x1="302" y1="283" x2="310" y2="343" style="stroke-width:1.2"/>
+<line class="f-linea" x1="48" y1="309" x2="94" y2="316" style="stroke-width:1.2"/>
+<line class="f-linea" x1="48" y1="309" x2="49" y2="349" style="stroke-width:1.2"/>
+<line class="f-linea" x1="94" y1="316" x2="49" y2="349" style="stroke-width:1.2"/>
+<line class="f-linea" x1="94" y1="316" x2="93" y2="345" style="stroke-width:1.2"/>
+<line class="f-linea" x1="151" y1="320" x2="195" y2="310" style="stroke-width:1.2"/>
+<line class="f-linea" x1="151" y1="320" x2="148" y2="351" style="stroke-width:1.2"/>
+<line class="f-linea" x1="195" y1="310" x2="204" y2="344" style="stroke-width:1.2"/>
+<line class="f-linea" x1="254" y1="315" x2="307" y2="308" style="stroke-width:1.2"/>
+<line class="f-linea" x1="254" y1="315" x2="248" y2="350" style="stroke-width:1.2"/>
+<line class="f-linea" x1="307" y1="308" x2="310" y2="343" style="stroke-width:1.2"/>
+<line class="f-linea" x1="49" y1="349" x2="93" y2="345" style="stroke-width:1.2"/>
+<line class="f-linea" x1="93" y1="345" x2="148" y2="351" style="stroke-width:1.2"/>
+<line class="f-linea" x1="148" y1="351" x2="204" y2="344" style="stroke-width:1.2"/>
+<line class="f-linea" x1="204" y1="344" x2="248" y2="350" style="stroke-width:1.2"/>
+<line class="f-linea" x1="248" y1="350" x2="310" y2="343" style="stroke-width:1.2"/>
+<circle class="f-b" cx="46" cy="102" r="6"/>
+<circle class="f-b" cx="153" cy="69" r="6"/>
+<circle class="f-b" cx="195" cy="136" r="6"/>
+<circle class="f-b" cx="196" cy="104" r="6"/>
+<circle class="f-b" cx="310" cy="169" r="6"/>
+<circle class="f-b" cx="49" cy="175" r="6"/>
+<circle class="f-off" cx="47" cy="248" r="5"/>
+<circle class="f-off" cx="92" cy="252" r="5"/>
+<circle class="f-b" cx="153" cy="243" r="5"/>
+<circle class="f-off" cx="198" cy="241" r="5"/>
+<circle class="f-off" cx="256" cy="250" r="5"/>
+<circle class="f-off" cx="303" cy="247" r="5"/>
+<circle class="f-b" cx="46" cy="276" r="5"/>
+<circle class="f-off" cx="93" cy="285" r="5"/>
+<circle class="f-off" cx="154" cy="280" r="5"/>
+<circle class="f-b" cx="196" cy="278" r="5"/>
+<circle class="f-off" cx="253" cy="285" r="5"/>
+<circle class="f-off" cx="302" cy="283" r="5"/>
+<circle class="f-off" cx="48" cy="309" r="5"/>
+<circle class="f-off" cx="94" cy="316" r="5"/>
+<circle class="f-off" cx="151" cy="320" r="5"/>
+<circle class="f-b" cx="195" cy="310" r="5"/>
+<circle class="f-off" cx="254" cy="315" r="5"/>
+<circle class="f-off" cx="307" cy="308" r="5"/>
+<circle class="f-b" cx="49" cy="349" r="5"/>
+<circle class="f-off" cx="93" cy="345" r="5"/>
+<circle class="f-off" cx="148" cy="351" r="5"/>
+<circle class="f-off" cx="204" cy="344" r="5"/>
+<circle class="f-off" cx="248" cy="350" r="5"/>
+<circle class="f-b" cx="310" cy="343" r="5"/>
+<path class="f-acc" d="M272,139.5 L274.1,145.1 L280.1,145.4 L275.4,149.1 L277,154.9 L272,151.6 L267,154.9 L268.6,149.1 L263.9,145.4 L269.9,145.1 Z"/>
+<path class="f-acc" d="M272,313.5 L274.1,319.1 L280.1,319.4 L275.4,323.1 L277,328.9 L272,325.6 L267,328.9 L268.6,323.1 L263.9,319.4 L269.9,319.1 Z"/>
+<line x1="310" y1="177" x2="310" y2="335" style="stroke:var(--tm-acc);stroke-width:2;stroke-dasharray:4 4"/>
+<text class="f-s" x="302" y="192" text-anchor="end" style="font-size:12px">baja de nivel</text>
+<line x1="52.7" y1="99.9" x2="136.8" y2="74" style="stroke:var(--tm-acc);stroke-width:3;stroke-linecap:round"/>
+<path class="f-acc" d="M145.4,71.4 L138.1,78.3 L135.4,69.7 Z"/>
+<circle class="f-acc" cx="95.7" cy="73.1" r="9"/><text class="f-acc-t" x="95.7" y="78.1" text-anchor="middle" style="font-size:13px">1</text>
+<line x1="156.7" y1="74.9" x2="186" y2="121.6" style="stroke:var(--tm-acc);stroke-width:3;stroke-linecap:round"/>
+<path class="f-acc" d="M190.8,129.2 L182.2,124 L189.8,119.2 Z"/>
+<circle class="f-acc" cx="185" cy="95.6" r="9"/><text class="f-acc-t" x="185" y="100.6" text-anchor="middle" style="font-size:13px">2</text>
+<line x1="201.7" y1="137.9" x2="293.7" y2="164.3" style="stroke:var(--tm-acc);stroke-width:3;stroke-linecap:round"/>
+<path class="f-acc" d="M302.3,166.8 L292.4,168.6 L294.9,160 Z"/>
+<circle class="f-acc" cx="256.1" cy="140" r="9"/><text class="f-acc-t" x="256.1" y="145" text-anchor="middle" style="font-size:13px">3</text>
+<line x1="303" y1="343.8" x2="264.9" y2="348.1" style="stroke:var(--tm-acc);stroke-width:3;stroke-linecap:round"/>
+<path class="f-acc" d="M255.9,349.1 L264.4,343.6 L265.4,352.6 Z"/>
+<circle class="f-acc" cx="280.5" cy="359.4" r="9"/><text class="f-acc-t" x="280.5" y="364.4" text-anchor="middle" style="font-size:13px">4</text>
+<line x1="249.2" y1="343.1" x2="251.1" y2="331.8" style="stroke:var(--tm-acc);stroke-width:3;stroke-linecap:round"/>
+<path class="f-acc" d="M252.6,322.9 L255.6,332.5 L246.7,331 Z"/>
+<circle class="f-acc" cx="238.2" cy="330.3" r="9"/><text class="f-acc-t" x="238.2" y="335.3" text-anchor="middle" style="font-size:13px">5</text>
+<circle cx="46" cy="102" r="10" style="fill:none;stroke:var(--tm-acc);stroke-width:2"/>
+<text class="f-s" x="34" y="86" style="font-size:12px;font-weight:700">entrada</text>
+<circle cx="254" cy="315" r="10" style="fill:none;stroke:var(--g);stroke-width:2.5"/>
+<path class="f-acc" d="M36,375 L38.2,380.9 L44.6,381.2 L39.6,385.2 L41.3,391.3 L36,387.8 L30.7,391.3 L32.4,385.2 L27.4,381.2 L33.8,380.9 Z"/>
+<text class="f-s" x="54" y="389">la consulta</text>
+<circle cx="190" cy="384" r="9" style="fill:none;stroke:var(--g);stroke-width:2.5"/><text class="f-s" x="206" y="389">lo que encontró</text>
+<circle class="f-b" cx="36" cy="410" r="6"/><text class="f-s" x="54" y="415">también está en el nivel de arriba</text>
+<text class="f-t" x="28" y="446">Comparó contra 12 de los 24 puntos</text>
+</svg>

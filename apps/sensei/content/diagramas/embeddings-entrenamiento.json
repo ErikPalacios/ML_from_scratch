@@ -1,0 +1,42 @@
+{
+  "titulo": "Entrenar dos torres con aprendizaje contrastivo",
+  "width": 78,
+  "height": 42,
+  "lanes": [
+    { "id": "entrena", "label": "Entrenamiento · un paso con un batch de B pares", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 42 }
+  ],
+  "nodes": [
+    { "id": "pares", "label": "Pares del batch", "sub": "B fotos con su título", "kind": "store", "x": 29, "y": 4, "w": 20, "h": 8,
+      "note": "Pares que deben quedar juntos: la foto principal de una publicación y su título. El encoder de C07 se ajusta con pares (título, foto) del propio marketplace; CLIP usó ≈ 400 millones de pares de internet, en batches de 32,768." },
+    { "id": "torre-img", "label": "Torre de imagen", "sub": "foto → vector", "kind": "model", "x": 2, "y": 17, "w": 18, "h": 8,
+      "note": "Una red de visión (una CNN o un [[vit|ViT]]) que convierte cada foto en un vector de 512 números y lo normaliza. Es la mitad del modelo de [[dos-torres|dos torres]]." },
+    { "id": "tabla", "label": "Tabla B × B", "sub": "coseno de cada par", "kind": "job", "x": 29, "y": 17, "w": 20, "h": 8,
+      "note": "El coseno de cada foto contra cada título. Con B = 3 son 9 números; con B = 32,768, más de mil millones. La diagonal son los pares correctos; todo lo demás, los incorrectos." },
+    { "id": "torre-txt", "label": "Torre de texto", "sub": "título → vector", "kind": "model", "x": 58, "y": 17, "w": 18, "h": 8,
+      "note": "Un [[transformer]] de texto que convierte cada título en un vector del **mismo** espacio que las fotos. Eso es lo que hace al modelo [[multimodal]]." },
+    { "id": "perdida", "label": "Pérdida contrastiva", "sub": "la diagonal debe ganar", "kind": "job", "x": 29, "y": 31, "w": 20, "h": 8,
+      "note": "La pérdida del [[aprendizaje-contrastivo|aprendizaje contrastivo]]: un [[softmax]] por fila (cada foto elige su título) y por columna (cada título elige su foto), con la diagonal como respuesta correcta. Baja cuando la diagonal gana con claridad." }
+  ],
+  "edges": [
+    { "from": "pares", "to": "torre-img", "kind": "offline", "label": "fotos", "fromSide": "l", "toSide": "t", "via": [[11, 8]] },
+    { "from": "pares", "to": "torre-txt", "kind": "offline", "label": "títulos", "fromSide": "r", "toSide": "t", "via": [[67, 8]] },
+    { "from": "torre-img", "to": "tabla", "kind": "offline", "label": "vectores", "fromSide": "r", "toSide": "l" },
+    { "from": "torre-txt", "to": "tabla", "kind": "offline", "label": "vectores", "fromSide": "l", "toSide": "r" },
+    { "from": "tabla", "to": "perdida", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "perdida", "to": "torre-img", "kind": "offline", "label": "ajusta", "dashed": true, "fromSide": "l", "toSide": "b", "via": [[11, 35]] },
+    { "from": "perdida", "to": "torre-txt", "kind": "offline", "label": "ajusta", "dashed": true, "fromSide": "r", "toSide": "b", "via": [[67, 35]] }
+  ],
+  "flows": [
+    { "id": "paso", "label": "Un paso de entrenamiento", "steps": [
+      { "nodes": ["pares"], "edges": [], "text": "Llega un batch de B pares (foto, título). Cada foto tiene 1 título correcto y B − 1 incorrectos: los de las otras fotos del batch. No hace falta etiquetar nada más." },
+      { "nodes": ["pares", "torre-img", "torre-txt"], "edges": ["pares>torre-img", "pares>torre-txt"], "text": "Cada torre convierte lo suyo en vectores de 512 números y los normaliza: las fotos, la de imagen; los títulos, la de texto." },
+      { "nodes": ["torre-img", "torre-txt", "tabla"], "edges": ["torre-img>tabla", "torre-txt>tabla"], "text": "Se calcula el coseno de cada foto contra cada título: una tabla de B × B. La diagonal son los pares correctos." },
+      { "nodes": ["tabla", "perdida"], "edges": ["tabla>perdida"], "text": "Cada fila es una pregunta de opción múltiple: «¿cuál de estos títulos es el tuyo?». Los cosenos se dividen entre la temperatura, pasan por un [[softmax]] y la [[entropia-cruzada|entropía cruzada]] mide qué tan poco ganó la diagonal." },
+      { "nodes": ["perdida", "torre-img", "torre-txt"], "edges": ["perdida>torre-img", "perdida>torre-txt"], "text": "El gradiente ajusta **las dos torres** a la vez: sube los cosenos de la diagonal y baja los demás. Los pares difíciles (la foto de unas botas contra el título de unos tenis) son los que más empujan." }
+    ] },
+    { "id": "despues", "label": "Después: cada torre a su trabajo", "steps": [
+      { "nodes": ["torre-img", "torre-txt"], "edges": [], "text": "Con el modelo ya entrenado, las torres calculan el vector de cada publicación del catálogo, en lote, y con ellos se llena el índice vectorial." },
+      { "nodes": ["torre-txt"], "edges": [], "text": "En cada búsqueda, la torre de texto convierte lo que escribió el usuario. Las dos torres se publican juntas, con la misma versión: un vector de la versión 7 no se compara con uno de la 8." }
+    ] }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "titulo": "Las guardas de C01, antes de decodificar",
+  "width": 78,
+  "height": 60,
+  "lanes": [
+    { "id": "sigue", "label": "Sigue · hacia el modelo", "kind": "online", "x": 0, "y": 0, "w": 47, "h": 60 },
+    { "id": "rechazo", "label": "Se rechaza · sin abrir la foto", "kind": "neutral", "x": 49, "y": 0, "w": 29, "h": 60 }
+  ],
+  "nodes": [
+    { "id": "llega", "label": "Llega una foto", "sub": "bytes que nadie ha abierto", "kind": "client", "x": 11, "y": 6, "w": 25, "h": 7,
+      "note": "El gateway recibe la petición con la foto adentro. Todavía no sabe si es una foto, cuánto mide ni si es una trampa: son bytes. Todo lo que sigue en esta columna cuesta casi nada, porque no abre la imagen." },
+    { "id": "peso", "label": "¿Pesa ≤ 10 MB?", "sub": "lo que anuncia la petición", "kind": "service", "x": 11, "y": 17, "w": 25, "h": 7,
+      "note": "La petición anuncia su tamaño en un encabezado (`Content-Length`) antes de mandar el cuerpo. Revisarlo cuesta nada y evita recibir un archivo enorme. Es la revisión más barata, por eso va primero." },
+    { "id": "tipo", "label": "¿Es una imagen?", "sub": "los primeros bytes", "kind": "service", "x": 11, "y": 28, "w": 25, "h": 7,
+      "note": "El nombre del archivo puede mentir; sus primeros bytes no. Un [[jpeg|JPEG]] empieza con `FF D8`, un [[png|PNG]] con `89 50 4E 47`. Si no es JPEG, PNG ni WebP, no tiene caso seguir." },
+    { "id": "mp", "label": "¿Mide ≤ 40 MP?", "sub": "solo el encabezado", "kind": "service", "x": 11, "y": 39, "w": 25, "h": 7,
+      "note": "El encabezado de la imagen dice su ancho y su alto. Con eso se sabe cuánta memoria pediría **sin decodificar nada**. Es la defensa contra una [[bomba-descompresion|bomba de descompresión]]." },
+    { "id": "deco", "label": "Decodificar", "sub": "2 a la vez · con tiempo límite", "kind": "service", "x": 11, "y": 50, "w": 25, "h": 7,
+      "note": "Solo aquí se abre la foto. Cada copia del gateway tiene 1 GiB de memoria y una foto de 40 MP puede ocupar hasta ≈ 320 MB, así que decodifica como máximo 2 a la vez, y con un tiempo límite. Después sigue el [[preprocesamiento]]." },
+    { "id": "no-peso", "label": "Responde 413", "sub": "pesa más de 10 MB", "kind": "client", "x": 51, "y": 17, "w": 25, "h": 7,
+      "note": "413 quiere decir, en HTTP, «demasiado grande». Se responde sin leer el cuerpo: el archivo ni siquiera termina de llegar. Es un error del cliente, así que nadie lo reintenta." },
+    { "id": "no-tipo", "label": "Responde 415", "sub": "no es JPEG, PNG ni WebP", "kind": "client", "x": 51, "y": 28, "w": 25, "h": 7,
+      "note": "415 quiere decir «tipo no soportado». Un PDF que se llama `tenis.jpg` termina aquí: sus primeros bytes dicen `%PDF`." },
+    { "id": "no-mp", "label": "Responde 413", "sub": "demasiados píxeles", "kind": "client", "x": 51, "y": 39, "w": 25, "h": 7,
+      "note": "Una foto puede pesar 12 KB y medir 100 MP. Aquí se rechaza antes de abrirla: nunca llega a pedir sus 300 MB de memoria." }
+  ],
+  "edges": [
+    { "from": "llega", "to": "peso", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "peso", "to": "tipo", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "tipo", "to": "mp", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "mp", "to": "deco", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "peso", "to": "no-peso", "kind": "neutral", "dashed": true, "fromSide": "r", "toSide": "l", "label": "no" },
+    { "from": "tipo", "to": "no-tipo", "kind": "neutral", "dashed": true, "fromSide": "r", "toSide": "l", "label": "no" },
+    { "from": "mp", "to": "no-mp", "kind": "neutral", "dashed": true, "fromSide": "r", "toSide": "l", "label": "no" }
+  ],
+  "flows": [
+    { "id": "normal", "label": "Una foto normal de la app", "steps": [
+      { "nodes": ["llega"], "edges": [], "text": "Llegan ≈ 200 KB: la foto de Ana, ya achicada por la app del celular. Todavía nadie la abre." },
+      { "nodes": ["llega", "peso"], "edges": ["llega>peso"], "text": "La petición anuncia ≈ 200 KB: menos de 10 MB. **Sigue.**" },
+      { "nodes": ["peso", "tipo"], "edges": ["peso>tipo"], "text": "Los primeros bytes son `FF D8 FF`: es un JPEG de verdad. **Sigue.**" },
+      { "nodes": ["tipo", "mp"], "edges": ["tipo>mp"], "text": "El encabezado dice 1024 × 768: 0.8 MP, muy lejos de 40. **Sigue.**" },
+      { "nodes": ["mp", "deco"], "edges": ["mp>deco"], "text": "Ahora sí se decodifica: ≈ 2.4 MB de píxeles en uint8. De aquí pasa al preprocesamiento y, en ≈ 6 ms de CPU, sale el tensor de 602 KB." }
+    ] },
+    { "id": "grande", "label": "Un archivo de 25 MB", "steps": [
+      { "nodes": ["llega"], "edges": [], "text": "Llega una petición que anuncia 25 MB: por ejemplo, el original de una cámara profesional." },
+      { "nodes": ["llega", "peso", "no-peso"], "edges": ["llega>peso", "peso>no-peso"], "text": "25 MB es más que 10. El gateway responde **413** con solo leer el encabezado: no recibe el archivo completo ni toca la CPU para decodificar." }
+    ] },
+    { "id": "bomba", "label": "Una bomba de 12 KB", "steps": [
+      { "nodes": ["llega"], "edges": [], "text": "Llega un PNG de 12 KB. Por su peso, parece inofensivo." },
+      { "nodes": ["llega", "peso"], "edges": ["llega>peso"], "text": "12 KB: muy lejos de 10 MB. **Sigue.**" },
+      { "nodes": ["peso", "tipo"], "edges": ["peso>tipo"], "text": "Empieza con `89 50 4E 47`: es un PNG válido. **Sigue.**" },
+      { "nodes": ["tipo", "mp", "no-mp"], "edges": ["tipo>mp", "mp>no-mp"], "text": "Su encabezado dice 10,000 × 10,000 = 100 MP: más de 40. **413.** Abierto en RGB habría pedido 300 MB, ≈ 25,000 veces su peso. Nunca se abre." }
+    ] },
+    { "id": "pdf", "label": "Un PDF que se llama tenis.jpg", "steps": [
+      { "nodes": ["llega", "peso"], "edges": ["llega>peso"], "text": "Llega un archivo de 400 KB llamado `tenis.jpg`. Pesa poco. **Sigue.**" },
+      { "nodes": ["peso", "tipo", "no-tipo"], "edges": ["peso>tipo", "tipo>no-tipo"], "text": "Sus primeros bytes son `%PDF`: no es una imagen, aunque el nombre diga .jpg. El gateway responde **415** sin intentar decodificarlo." }
+    ] }
+  ]
+}

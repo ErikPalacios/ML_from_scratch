@@ -1,0 +1,78 @@
+{
+  "titulo": "Cuánto cuesta etiquetar",
+  "intro": "Los valores iniciales son la cola mensual de C01 con el precio más bajo de la Ronda. Para el [[golden-set|golden set]], pon 50,000 fotos y 100 % de doble anotación.",
+  "entradas": [
+    {
+      "id": "n",
+      "label": "Fotos por etiquetar",
+      "min": 100,
+      "max": 100000,
+      "paso": 100,
+      "valor": 5000
+    },
+    {
+      "id": "p",
+      "label": "Precio por etiqueta, en dólares",
+      "min": 0.01,
+      "max": 1,
+      "paso": 0.01,
+      "valor": 0.05
+    },
+    {
+      "id": "d",
+      "label": "Fotos con doble anotación",
+      "min": 0,
+      "max": 100,
+      "paso": 5,
+      "valor": 10,
+      "unidad": "%"
+    },
+    {
+      "id": "s",
+      "label": "Tiempo por etiqueta",
+      "min": 5,
+      "max": 120,
+      "paso": 1,
+      "valor": 25,
+      "unidad": "s"
+    }
+  ],
+  "calculos": [
+    {
+      "id": "a",
+      "formula": "n * (1 + d / 100)"
+    },
+    {
+      "id": "h",
+      "formula": "a * s / 3600"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Anotaciones",
+      "formula": "a",
+      "formato": "int",
+      "nota": "las fotos dobles cuentan dos veces"
+    },
+    {
+      "label": "Costo en dólares",
+      "formula": "a * p",
+      "formato": "num",
+      "decimales": 0
+    },
+    {
+      "label": "Horas de trabajo",
+      "formula": "h",
+      "formato": "num",
+      "decimales": 0
+    },
+    {
+      "label": "Personas de tiempo completo durante un mes",
+      "formula": "h / 160",
+      "formato": "num",
+      "decimales": 2,
+      "nota": "si una persona etiqueta ≈ 160 horas al mes"
+    }
+  ],
+  "nota": "El precio y el tiempo por etiqueta cambian mucho por tarea y proveedor; se miden con un piloto antes de comprometerse. En C01, la cola del mes ya cuesta más que reentrenar el modelo, que son unas horas de una GPU. El Dojo usa 20 % de doble anotación porque con 10 % de 800 fotos serían solo 80 dobles, muy pocas para medir el acuerdo de cada clase."
+}

@@ -1,43 +1,55 @@
 {
-  "titulo": "Una búsqueda semántica, de punta a punta",
+  "titulo": "Una búsqueda híbrida, de punta a punta",
   "width": 78,
-  "height": 45,
+  "height": 60,
   "lanes": [
-    { "id": "antes", "label": "Antes · el catálogo en vectores", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 16 },
-    { "id": "busqueda", "label": "Por cada búsqueda · milisegundos", "kind": "online", "x": 0, "y": 19, "w": 78, "h": 26 }
+    { "id": "antes", "label": "Antes · el catálogo, en lote", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 17 },
+    { "id": "busqueda", "label": "Por cada búsqueda · milisegundos", "kind": "online", "x": 0, "y": 19, "w": 78, "h": 41 }
   ],
   "nodes": [
     { "id": "catalogo", "label": "Catálogo", "sub": "100 M publicaciones", "kind": "store", "x": 1, "y": 5, "w": 16, "h": 8,
       "note": "Las ≈ 100 millones de publicaciones activas de C07, cada una con su foto y su título. Se convierten en vectores **antes** de que alguien busque, en lote, sin prisa." },
-    { "id": "enc-catalogo", "label": "Encoder", "sub": "foto y título → vector", "kind": "model", "x": 25, "y": 5, "w": 17, "h": 8,
-      "note": "Un modelo tipo CLIP: convierte la foto y el título de cada publicación en un [[embedding]] de 512 números. Es [[multimodal]]: fotos y textos quedan en el mismo espacio." },
-    { "id": "indice", "label": "Índice vectorial", "sub": "ANN · ya organizado", "kind": "store", "x": 50, "y": 5, "w": 18, "h": 8,
-      "note": "Los 100 M vectores organizados para buscar sin revisarlos todos: un [[indice-vectorial|índice vectorial]] de [[ann|ANN]]. En float32 pesarían ≈ 205 GB; C07 los guarda en int8 (51.2 GB) más el grafo." },
-    { "id": "usuario", "label": "Búsqueda", "sub": "«tenis blancos»", "kind": "client", "x": 1, "y": 29, "w": 16, "h": 8,
-      "note": "Alguien escribe lo que busca (o sube una foto). Está aquí porque todo el camino de abajo corre mientras espera: 99 de cada 100 búsquedas de texto tienen que responder en menos de 300 ms." },
-    { "id": "enc-consulta", "label": "Encoder", "sub": "texto → 512 números", "kind": "model", "x": 24, "y": 29, "w": 17, "h": 8,
+    { "id": "enc-catalogo", "label": "Encoder", "sub": "foto y título → vector", "kind": "model", "x": 24, "y": 5, "w": 17, "h": 8,
+      "note": "Un modelo tipo CLIP, de [[dos-torres|dos torres]]: convierte la foto y el título de cada publicación en un [[embedding]] de 512 números, ya normalizado. Es [[multimodal]]: fotos y textos quedan en el mismo espacio." },
+    { "id": "indice", "label": "Índice vectorial", "sub": "HNSW · ya organizado", "kind": "store", "x": 50, "y": 5, "w": 18, "h": 8,
+      "note": "Los 100 M vectores organizados para buscar sin revisarlos todos: un [[indice-vectorial|índice vectorial]] [[hnsw|HNSW]]. En float32 pesarían ≈ 205 GB; C07 los guarda en int8 (51.2 GB) más el grafo (≈ 25.6 GB)." },
+    { "id": "usuario", "label": "Búsqueda", "sub": "«tenis blancos»", "kind": "client", "x": 1, "y": 31, "w": 16, "h": 8,
+      "note": "Alguien escribe lo que busca. Todo el camino de abajo corre mientras espera: 99 de cada 100 búsquedas de texto tienen que responder en menos de 300 ms." },
+    { "id": "enc-consulta", "label": "Encoder", "sub": "texto → 512 números", "kind": "model", "x": 24, "y": 23, "w": 17, "h": 8,
       "note": "El **mismo** modelo que codificó el catálogo, en la misma versión: si no, los vectores no se pueden comparar. Por búsqueda calcula un solo vector, así que es rápido." },
-    { "id": "reranker", "label": "Re-ranker", "sub": "reordena los 30 primeros", "kind": "model", "x": 50, "y": 29, "w": 18, "h": 8,
+    { "id": "bm25", "label": "BM25", "sub": "índice de palabras", "kind": "store", "x": 24, "y": 40, "w": 17, "h": 8,
+      "note": "La búsqueda por palabras de siempre, con [[bm25|BM25]]. Encuentra lo que los embeddings confunden (marcas, modelos, tallas). Arranca en cuanto llega la búsqueda, sin esperar al encoder, y es el respaldo si la parte semántica falla." },
+    { "id": "rrf", "label": "Fusión RRF", "sub": "junta las dos listas", "kind": "service", "x": 50, "y": 29, "w": 18, "h": 8,
+      "note": "Junta la lista semántica y la de palabras con RRF: cada lista le da a cada publicación 1 ÷ (60 + su posición) y se suman. Es la [[busqueda-hibrida|búsqueda híbrida]]: ganan las que las dos listas ponen arriba." },
+    { "id": "reranker", "label": "Re-ranker", "sub": "reordena los 30 primeros", "kind": "model", "x": 50, "y": 44, "w": 18, "h": 8,
       "note": "El [[re-ranking]]: un modelo más caro que lee la búsqueda y cada candidato juntos y los reordena. En C07 reordena solo los 30 primeros: con 100 costaría el triple de GPUs." }
   ],
   "edges": [
     { "from": "catalogo", "to": "enc-catalogo", "kind": "offline", "label": "fotos" },
     { "from": "enc-catalogo", "to": "indice", "kind": "offline", "label": "vectores" },
-    { "from": "usuario", "to": "enc-consulta", "kind": "online", "label": "texto" },
-    { "from": "enc-consulta", "to": "indice", "kind": "online", "label": "vector", "fromSide": "t", "toSide": "b", "via": [[32.5, 22], [54, 22]] },
-    { "from": "indice", "to": "reranker", "kind": "online", "label": "candidatos", "fromSide": "b", "toSide": "t", "via": [[63, 22]] },
-    { "from": "reranker", "to": "usuario", "kind": "online", "label": "resultados", "fromSide": "b", "toSide": "b", "via": [[59, 41.5], [9, 41.5]] }
+    { "from": "usuario", "to": "enc-consulta", "kind": "online", "label": "texto", "fromSide": "r", "toSide": "l", "via": [[20.5, 35], [20.5, 27]] },
+    { "from": "usuario", "to": "bm25", "kind": "online", "fromSide": "r", "toSide": "l", "via": [[20.5, 35], [20.5, 44]] },
+    { "from": "enc-consulta", "to": "indice", "kind": "online", "label": "vector", "fromSide": "r", "toSide": "b", "via": [[59, 27]] },
+    { "from": "indice", "to": "rrf", "kind": "online", "label": "vecinos", "fromSide": "r", "toSide": "r", "via": [[73, 9], [73, 33]] },
+    { "from": "bm25", "to": "rrf", "kind": "online", "label": "palabras", "fromSide": "r", "toSide": "l", "via": [[45.5, 44], [45.5, 33]] },
+    { "from": "rrf", "to": "reranker", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "reranker", "to": "usuario", "kind": "online", "label": "resultados", "fromSide": "b", "toSide": "b", "via": [[59, 56], [9, 56]] }
   ],
   "flows": [
     { "id": "indexar", "label": "Antes: preparar el catálogo", "steps": [
-      { "nodes": ["catalogo", "enc-catalogo"], "edges": ["catalogo>enc-catalogo"], "text": "Cada publicación del catálogo pasa por el encoder: su foto y su título se convierten en un vector de 512 números." },
-      { "nodes": ["enc-catalogo", "indice"], "edges": ["enc-catalogo>indice"], "text": "Los 100 M vectores se guardan en un índice vectorial ya organizado (en grupos o en un grafo). Esto se hace en lote y puede tardar horas: nadie está esperando." }
+      { "nodes": ["catalogo", "enc-catalogo"], "edges": ["catalogo>enc-catalogo"], "text": "Cada publicación del catálogo pasa por el encoder: su foto y su título se convierten en un vector de 512 números, ya normalizado." },
+      { "nodes": ["enc-catalogo", "indice"], "edges": ["enc-catalogo>indice"], "text": "Los 100 M vectores se guardan en un índice HNSW ya organizado. Esto se hace en lote y puede tardar horas: nadie está esperando. Las publicaciones nuevas se agregan después, en minutos, sin reconstruir todo." }
     ] },
-    { "id": "buscar", "label": "Una búsqueda", "steps": [
-      { "nodes": ["usuario", "enc-consulta"], "edges": ["usuario>enc-consulta"], "text": "Alguien escribe «tenis blancos». El encoder convierte ese texto en un vector de 512 números, en el mismo espacio que las fotos del catálogo." },
-      { "nodes": ["enc-consulta", "indice"], "edges": ["enc-consulta>indice"], "text": "**Retrieval.** El índice busca los vecinos más cercanos de ese vector sin revisar los 100 M: es un ANN. En milisegundos devuelve unos cientos de candidatos." },
-      { "nodes": ["indice", "reranker"], "edges": ["indice>reranker"], "text": "**Re-ranking.** El re-ranker lee la búsqueda junto con cada uno de los 30 primeros candidatos y les pone una calificación más precisa." },
-      { "nodes": ["reranker", "usuario"], "edges": ["reranker>usuario"], "text": "Los resultados, ya reordenados, regresan a la pantalla. Todo el viaje tiene que caber en menos de 300 ms." }
+    { "id": "buscar", "label": "Una búsqueda híbrida", "steps": [
+      { "nodes": ["usuario", "enc-consulta", "bm25"], "edges": ["usuario>enc-consulta", "usuario>bm25"], "text": "Alguien escribe «tenis blancos». En el mismo instante arrancan dos búsquedas: BM25 busca las palabras y el encoder convierte el texto en un vector de 512 números." },
+      { "nodes": ["enc-consulta", "indice"], "edges": ["enc-consulta>indice"], "text": "**Retrieval semántico.** El índice busca los vecinos más cercanos de ese vector sin revisar los 100 M: es un ANN. En milisegundos devuelve unos 200 candidatos." },
+      { "nodes": ["indice", "bm25", "rrf"], "edges": ["indice>rrf", "bm25>rrf"], "text": "**Fusión.** BM25 aporta sus mejores por palabras. RRF junta las dos listas por posición: ganan las publicaciones que las dos listas ponen arriba." },
+      { "nodes": ["rrf", "reranker"], "edges": ["rrf>reranker"], "text": "**Re-ranking.** El re-ranker lee la búsqueda junto con cada uno de los 30 primeros candidatos y les pone una calificación más precisa." },
+      { "nodes": ["reranker", "usuario"], "edges": ["reranker>usuario"], "text": "Los resultados, ya reordenados, regresan a la pantalla. 99 de cada 100 búsquedas de texto tienen que caber en menos de 300 ms." }
+    ] },
+    { "id": "respaldo", "label": "Si lo semántico falla", "steps": [
+      { "nodes": ["enc-consulta", "indice"], "edges": [], "text": "El encoder o el índice no contestan a tiempo: una GPU se reinicia, un pedazo del índice se cae. Cada llamada tiene su propio límite de tiempo, así que nadie espera de más." },
+      { "nodes": ["usuario", "bm25", "rrf", "reranker"], "edges": ["usuario>bm25", "bm25>rrf", "rrf>reranker", "reranker>usuario"], "text": "La búsqueda sigue solo con BM25, la que ya funcionaba antes de los embeddings. Los resultados son peores en sinónimos, pero la búsqueda no se cae." }
     ] }
   ]
 }

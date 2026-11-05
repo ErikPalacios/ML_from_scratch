@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 540" role="img" aria-labelledby="f-embeddings-similitudes-t" class="f-svg" style="max-width:420px">
+<title id="f-embeddings-similitudes-t">Un batch de 3 pares en el aprendizaje contrastivo. Arriba, una tabla de 3 por 3 con el coseno de cada foto contra cada título. La diagonal, en verde, son los pares correctos: tenis con «Tenis blancos», 0.80; botas con «Botas cafés», 0.75; bolsa con «Bolsa de piel», 0.60. El entrenamiento sube esos números y baja los demás, como el 0.60 de la foto de botas contra el título de los tenis. Abajo, la foto de tenis elige su título con un softmax: con temperatura 1 le da una probabilidad de 0.44 al correcto; con temperatura 0.1, de 0.92, y su pérdida baja de 0.82 a 0.08.</title>
+<rect class="f-card" x="10" y="10" width="340" height="290" rx="16"/>
+<text class="f-l" x="28" y="36">UN BATCH DE 3 PARES</text>
+<text class="f-s" x="28" y="56">coseno de cada foto contra cada título</text>
+<text class="f-s" x="170" y="84" text-anchor="middle" style="font-size:12px;font-weight:700">Tenis</text>
+<text class="f-s" x="170" y="99" text-anchor="middle" style="font-size:12px">blancos</text>
+<text class="f-s" x="240" y="84" text-anchor="middle" style="font-size:12px;font-weight:700">Botas</text>
+<text class="f-s" x="240" y="99" text-anchor="middle" style="font-size:12px">cafés</text>
+<text class="f-s" x="310" y="84" text-anchor="middle" style="font-size:12px;font-weight:700">Bolsa</text>
+<text class="f-s" x="310" y="99" text-anchor="middle" style="font-size:12px">de piel</text>
+<text class="f-s" x="28" y="133">foto: tenis</text>
+<rect class="f-g" x="138" y="107" width="64" height="42" rx="8"/>
+<text x="170" y="133" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">0.80 ↑</text>
+<rect class="f-chip" x="208" y="107" width="64" height="42" rx="8"/>
+<text class="f-t" x="240" y="133" text-anchor="middle" style="font-size:14px">0.55 ↓</text>
+<rect class="f-chip" x="278" y="107" width="64" height="42" rx="8"/>
+<text class="f-t" x="310" y="133" text-anchor="middle" style="font-size:14px">0.10 ↓</text>
+<text class="f-s" x="28" y="181">foto: botas</text>
+<rect class="f-chip" x="138" y="155" width="64" height="42" rx="8"/>
+<text class="f-t" x="170" y="181" text-anchor="middle" style="font-size:14px">0.60 ↓</text>
+<rect class="f-g" x="208" y="155" width="64" height="42" rx="8"/>
+<text x="240" y="181" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">0.75 ↑</text>
+<rect class="f-chip" x="278" y="155" width="64" height="42" rx="8"/>
+<text class="f-t" x="310" y="181" text-anchor="middle" style="font-size:14px">0.05 ↓</text>
+<text class="f-s" x="28" y="229">foto: bolsa</text>
+<rect class="f-chip" x="138" y="203" width="64" height="42" rx="8"/>
+<text class="f-t" x="170" y="229" text-anchor="middle" style="font-size:14px">0.15 ↓</text>
+<rect class="f-chip" x="208" y="203" width="64" height="42" rx="8"/>
+<text class="f-t" x="240" y="229" text-anchor="middle" style="font-size:14px">0.30 ↓</text>
+<rect class="f-g" x="278" y="203" width="64" height="42" rx="8"/>
+<text x="310" y="229" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">0.60 ↑</text>
+<rect class="f-g" x="28" y="258" width="14" height="14" rx="3"/><text class="f-s" x="50" y="270">los pares correctos: el entrenamiento los sube</text>
+<rect class="f-chip" x="28" y="278" width="14" height="14" rx="3" style="stroke:var(--rule);stroke-width:1"/><text class="f-s" x="50" y="290">los demás: el entrenamiento los baja</text>
+<rect class="f-card" x="10" y="314" width="340" height="216" rx="16"/>
+<text class="f-l" x="28" y="340">LA FOTO DE TENIS ELIGE SU TÍTULO</text>
+<text class="f-s" x="28" y="362" style="font-size:12px">probabilidad que le da a cada título</text>
+<text class="f-l" x="128" y="384">CON τ = 1</text><text class="f-l" x="240" y="384">CON τ = 0.1</text>
+<text class="f-s" x="28" y="411" style="font-weight:700">Tenis blancos</text>
+<rect class="f-chip" x="128" y="400" width="54" height="12" rx="3"/>
+<rect class="f-g" x="128" y="400" width="23.7" height="12" rx="3"/>
+<text class="f-s" x="188" y="411" style="font-size:12px">0.44</text>
+<rect class="f-chip" x="240" y="400" width="54" height="12" rx="3"/>
+<rect class="f-g" x="240" y="400" width="49.9" height="12" rx="3"/>
+<text class="f-s" x="300" y="411" style="font-size:12px">0.92</text>
+<text class="f-s" x="28" y="437">Botas cafés</text>
+<rect class="f-chip" x="128" y="426" width="54" height="12" rx="3"/>
+<rect class="f-off" x="128" y="426" width="18.5" height="12" rx="3"/>
+<text class="f-s" x="188" y="437" style="font-size:12px">0.34</text>
+<rect class="f-chip" x="240" y="426" width="54" height="12" rx="3"/>
+<rect class="f-off" x="240" y="426" width="4.1" height="12" rx="3"/>
+<text class="f-s" x="300" y="437" style="font-size:12px">0.08</text>
+<text class="f-s" x="28" y="463">Bolsa de piel</text>
+<rect class="f-chip" x="128" y="452" width="54" height="12" rx="3"/>
+<rect class="f-off" x="128" y="452" width="11.8" height="12" rx="3"/>
+<text class="f-s" x="188" y="463" style="font-size:12px">0.22</text>
+<rect class="f-chip" x="240" y="452" width="54" height="12" rx="3"/>
+<rect class="f-off" x="240" y="452" width="1.5" height="12" rx="3"/>
+<text class="f-s" x="300" y="463" style="font-size:12px">&lt; 0.01</text>
+<text class="f-s" x="28" y="492">Pérdida = −ln(probabilidad del correcto)</text>
+<text class="f-t" x="28" y="512" style="font-size:14px">0.82 con τ = 1 → 0.08 con τ = 0.1</text>
+</svg>

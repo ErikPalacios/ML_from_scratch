@@ -1,0 +1,20 @@
+{
+  "titulo": "Descenso de gradiente en la parábola",
+  "intro": "La perilla de juguete arranca en w = 0, con pérdida 36, y el fondo está en w = 3. Mueve el [[learning-rate|learning rate]] y el número de pasos: cada paso multiplica la distancia al fondo por **1 − 8 × lr**.",
+  "entradas": [
+    { "id": "lr", "label": "Learning rate", "min": 0.001, "max": 0.3, "paso": 0.001, "valor": 0.05 },
+    { "id": "n", "label": "Pasos", "min": 1, "max": 20, "paso": 1, "valor": 3 }
+  ],
+  "calculos": [
+    { "id": "f", "formula": "1 - 8 * lr" },
+    { "id": "w", "formula": "3 - 3 * pow(f, n)" },
+    { "id": "perd", "formula": "4 * pow(w - 3, 2)" }
+  ],
+  "salidas": [
+    { "label": "Perilla **w** al final", "formula": "w", "decimales": 3, "nota": "el fondo está en 3" },
+    { "label": "Pérdida al final", "formula": "perd", "nota": "empezó en 36" },
+    { "label": "Factor por paso", "formula": "f", "decimales": 2, "nota": "entre −1 y 1 se acerca; si es negativo, brinca de lado" },
+    { "label": "Pasos para quedar a menos de 0.01 del fondo", "formula": "abs(f) < 1 ? max(1, ceil(log(0.01 / 3) / log(max(abs(f), 1e-12)))) : Infinity", "formato": "int", "nota": "«—» si nunca llega" }
+  ],
+  "nota": "Prueba 0.125: el factor es 0 y llega en un solo paso. Con 0.25 el factor es −1: rebota para siempre entre 0 y 6, con pérdida 36. Arriba de 0.25, cada salto es más grande que el anterior y la pérdida explota."
+}

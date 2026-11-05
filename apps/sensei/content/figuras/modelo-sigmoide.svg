@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 404" role="img" aria-labelledby="f-modelo-sigmoide-t" class="f-svg" style="max-width:420px">
+<title id="f-modelo-sigmoide-t">La sigmoide, p = 1 entre 1 más e a la menos z, dibujada para logits z de menos 6 a 6. Es una curva en forma de S que va de casi 0 a casi 100 por ciento. Con z = −2 da 11.9 %, con z = 0 da 50 % y con z = 2 da 88.1 %. Un umbral de 0.5 corta la curva en z = 0: a la izquierda la decisión es «no» y a la derecha «sí». Un umbral de 0.9 la corta en z = 2.2.</title>
+<rect class="f-card" x="10" y="10" width="340" height="384" rx="16"/>
+<text class="f-l" x="28" y="38">LA SIGMOIDE</text>
+<text class="f-t" x="332" y="39" text-anchor="end" style="font-size:13px">p = 1 ÷ (1 + e^(−z))</text>
+<line x1="52" y1="270.0" x2="332" y2="270.0" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="46" y="274.0" text-anchor="end" style="font-size:12px">0 %</text>
+<line x1="52" y1="170.0" x2="332" y2="170.0" style="stroke:var(--rule);stroke-width:1"/>
+<text class="f-s" x="46" y="174.0" text-anchor="end" style="font-size:12px">50 %</text>
+<line x1="52" y1="70.0" x2="332" y2="70.0" style="stroke:var(--rule);stroke-width:1"/>
+<text class="f-s" x="46" y="74.0" text-anchor="end" style="font-size:12px">100 %</text>
+<line x1="52.0" y1="270" x2="52.0" y2="275" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="52.0" y="290" text-anchor="middle" style="font-size:12px">−6</text>
+<line x1="98.7" y1="270" x2="98.7" y2="275" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="98.7" y="290" text-anchor="middle" style="font-size:12px">−4</text>
+<line x1="145.3" y1="270" x2="145.3" y2="275" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="145.3" y="290" text-anchor="middle" style="font-size:12px">−2</text>
+<line x1="192.0" y1="270" x2="192.0" y2="275" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="192.0" y="290" text-anchor="middle" style="font-size:12px">0</text>
+<line x1="238.7" y1="270" x2="238.7" y2="275" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="238.7" y="290" text-anchor="middle" style="font-size:12px">2</text>
+<line x1="285.3" y1="270" x2="285.3" y2="275" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="285.3" y="290" text-anchor="middle" style="font-size:12px">4</text>
+<line x1="332.0" y1="270" x2="332.0" y2="275" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="332.0" y="290" text-anchor="middle" style="font-size:12px">6</text>
+<line x1="52" y1="90.0" x2="243.3" y2="90.0" style="stroke:var(--p);stroke-width:2;stroke-dasharray:5 4"/>
+<line x1="243.3" y1="90.0" x2="243.3" y2="270" style="stroke:var(--p);stroke-width:1.5;stroke-dasharray:2 4"/>
+<text class="f-s" x="58" y="83.0" style="font-size:12px;fill:var(--p);font-weight:700">umbral 0.9 → z ≥ 2.2</text>
+<line x1="52" y1="170.0" x2="332" y2="170.0" style="stroke:var(--o);stroke-width:2;stroke-dasharray:6 4"/>
+<text class="f-s" x="332" y="163.0" text-anchor="end" style="font-size:12px;fill:var(--o);font-weight:700">umbral 0.5</text>
+<polyline points="52.0,269.5 56.7,269.4 61.3,269.3 66.0,269.1 70.7,268.9 75.3,268.7 80.0,268.4 84.7,268.0 89.3,267.6 94.0,267.0 98.7,266.4 103.3,265.6 108.0,264.7 112.7,263.5 117.3,262.2 122.0,260.5 126.7,258.5 131.3,256.2 136.0,253.4 140.7,250.0 145.3,246.2 150.0,241.6 154.7,236.4 159.3,230.4 164.0,223.7 168.7,216.2 173.3,208.0 178.0,199.1 182.7,189.7 187.3,180.0 192.0,170.0 196.7,160.0 201.3,150.3 206.0,140.9 210.7,132.0 215.3,123.8 220.0,116.3 224.7,109.6 229.3,103.6 234.0,98.4 238.7,93.8 243.3,90.0 248.0,86.6 252.7,83.8 257.3,81.5 262.0,79.5 266.7,77.8 271.3,76.5 276.0,75.3 280.7,74.4 285.3,73.6 290.0,73.0 294.7,72.4 299.3,72.0 304.0,71.6 308.7,71.3 313.3,71.1 318.0,70.9 322.7,70.7 327.3,70.6 332.0,70.5" style="fill:none;stroke:var(--b);stroke-width:3.5;stroke-linejoin:round;stroke-linecap:round"/>
+<circle cx="145.3" cy="246.2" r="6" class="f-y" style="stroke:var(--blk);stroke-width:2"/>
+<text class="f-t" x="133.3" y="238.2" text-anchor="end" style="font-size:12px">z = −2 → 11.9 %</text>
+<circle cx="192.0" cy="170.0" r="6" class="f-y" style="stroke:var(--blk);stroke-width:2"/>
+<text class="f-t" x="204.0" y="194.0" text-anchor="start" style="font-size:12px">z = 0 → 50 %</text>
+<circle cx="238.7" cy="93.8" r="6" class="f-y" style="stroke:var(--blk);stroke-width:2"/>
+<text class="f-t" x="252.7" y="115.8" text-anchor="start" style="font-size:12px">z = 2 → 88.1 %</text>
+<rect class="f-off" x="52" y="302" width="138.0" height="22" rx="6"/>
+<rect class="f-b2" x="194.0" y="302" width="138.0" height="22" rx="6"/>
+<text class="f-t" x="122.0" y="318" text-anchor="middle" style="font-size:13px">«no»</text>
+<text class="f-t" x="262.0" y="318" text-anchor="middle" style="font-size:13px">«sí»</text>
+<text class="f-l" x="192.0" y="346" text-anchor="middle">LOGIT z · DECISIÓN CON UMBRAL 0.5</text>
+<text class="f-s" x="28" y="372" style="font-size:12px">El umbral no cambia la curva: solo dónde se corta.</text>
+</svg>

@@ -6,9 +6,9 @@
       "termino": "Vector",
       "en": "vector",
       "corto": "Una lista ordenada de números. Si tiene 2 números se puede dibujar como un punto (o una flecha) en un plano; si tiene 512, es un punto en un espacio de 512 dimensiones.",
-      "largo": "Cada número es una coordenada, y su posición en la lista importa: (4, 3) no es lo mismo que (3, 4). La cantidad de números se llama la dimensión del vector. Un vector es el caso más sencillo de un [[tensor]]: un tensor de una sola fila.",
+      "largo": "Cada número es una coordenada, y su posición en la lista importa: (4, 3) no es lo mismo que (3, 4). La cantidad de números se llama la [[dimensionalidad|dimensión]] del vector. Un vector es el caso más sencillo de un [[tensor]]: un tensor de una sola fila.",
       "ejemplo": "(4, 3) es un vector de dimensión 2: un punto 4 pasos a la derecha y 3 hacia arriba. El [[embedding]] de un producto en C07 de la Ronda es un vector de dimensión 512.",
-      "ver": ["embedding", "distancia-euclidiana", "similitud-coseno"],
+      "ver": ["embedding", "producto-punto", "dimensionalidad"],
       "leccion": "embeddings"
     },
     {
@@ -23,13 +23,24 @@
       "leccion": "embeddings"
     },
     {
+      "id": "producto-punto",
+      "termino": "Producto punto",
+      "en": "dot product · inner product",
+      "corto": "Multiplicar dos vectores coordenada por coordenada y sumar todo. Da un solo número: positivo si apuntan hacia el mismo lado, cero si son perpendiculares y negativo si apuntan hacia lados opuestos.",
+      "largo": "Es igual a (largo de a) × (largo de b) × el coseno del ángulo entre ellos, así que mezcla dirección y largo: una flecha más larga saca productos punto más grandes con todo. Visto en el dibujo, es la «sombra» de una flecha sobre la dirección de la otra, multiplicada por el largo de la otra. Con vectores [[normalizacion-l2|normalizados]] es exactamente la [[similitud-coseno]]. Es la cuenta más repetida de ML: una [[neurona]] es un producto punto más un sesgo, la última capa de un clasificador hace uno por clase, la [[atencion|atención]] compara vectores con productos punto y una búsqueda exacta hace uno por cada vector del catálogo.",
+      "analogia": "Un ticket de compra: las cantidades (2, 1, 3) por los precios (50, 120, 15), sumadas, dan el total, 265. Se rompe en que en un ticket no hay números negativos, y en un embedding sí: por eso el producto punto puede salir negativo.",
+      "ejemplo": "(4, 3) · (3, 4) = 4 × 3 + 3 × 4 = 24. (4, 3) · (−3, 4) = −12 + 12 = 0: son perpendiculares. Con 512 números son 512 multiplicaciones y 511 sumas.",
+      "ver": ["similitud-coseno", "normalizacion-l2", "vector"],
+      "leccion": "embeddings"
+    },
+    {
       "id": "similitud-coseno",
       "termino": "Similitud coseno",
       "en": "cosine similarity",
       "corto": "Qué tan parecida es la dirección de dos vectores: el coseno del ángulo entre ellos. Va de −1 (opuestos) a 1 (misma dirección); 0 es perpendicular.",
-      "largo": "Se calcula como el producto punto de los dos vectores dividido entre el producto de sus largos. No le importa qué tan largo es cada vector, solo hacia dónde apunta. Si los vectores ya vienen normalizados (largo 1), la similitud coseno es simplemente el producto punto, que es lo que calculan los índices vectoriales.",
+      "largo": "Se calcula como el [[producto-punto|producto punto]] de los dos vectores dividido entre el producto de sus largos. No le importa qué tan largo es cada vector, solo hacia dónde apunta. Si los vectores ya vienen [[normalizacion-l2|normalizados]] (largo 1), la similitud coseno es simplemente el producto punto, que es lo que calculan los índices vectoriales. Qué coseno cuenta como «muy parecido» depende de cada modelo: se decide con ejemplos, no a ojo.",
       "ejemplo": "a = (4, 3) y b = (3, 4): producto punto 4×3 + 3×4 = 24; cada uno mide 5; cos = 24 ÷ (5 × 5) = 0.96. Casi la misma dirección.",
-      "ver": ["distancia-euclidiana", "vector", "embedding"],
+      "ver": ["producto-punto", "normalizacion-l2", "distancia-euclidiana"],
       "leccion": "embeddings"
     },
     {
@@ -37,9 +48,39 @@
       "termino": "Distancia euclidiana",
       "en": "Euclidean distance · L2 distance",
       "corto": "La distancia «en línea recta» entre dos puntos, la de la regla: la raíz de la suma de las diferencias al cuadrado, coordenada por coordenada.",
-      "largo": "Es el teorema de Pitágoras extendido a cualquier número de dimensiones. A diferencia de la [[similitud-coseno]], sí cambia si un vector es más largo que otro. Con vectores normalizados, las dos medidas ordenan a los vecinos igual.",
+      "largo": "Es el teorema de Pitágoras extendido a cualquier número de dimensiones. A diferencia de la [[similitud-coseno]], sí cambia si un vector es más largo que otro. Con vectores [[normalizacion-l2|normalizados]], las dos medidas ordenan a los vecinos igual, porque la distancia al cuadrado es 2 − 2 × coseno.",
       "ejemplo": "Entre (4, 3) y (3, 4): diferencias 1 y −1; al cuadrado 1 y 1; suman 2; la raíz de 2 ≈ 1.41.",
-      "ver": ["similitud-coseno", "vector"],
+      "ver": ["similitud-coseno", "normalizacion-l2", "vector"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "normalizacion-l2",
+      "termino": "Normalización L2",
+      "en": "L2 normalization",
+      "corto": "Dividir un vector entre su largo para que mida exactamente 1. Conserva la dirección y borra el largo.",
+      "largo": "El largo de Pitágoras (la raíz de la suma de los cuadrados) se llama norma L2; de ahí el nombre. Con embeddings normalizados, la [[similitud-coseno]] es solo el [[producto-punto]], y la [[distancia-euclidiana]] y el coseno ordenan a los vecinos igual (distancia² = 2 − 2 × coseno). No es la [[normalizacion]] de las fotos, que le resta a cada píxel un promedio y lo divide entre una desviación. Si promedias dos vectores normalizados, el resultado ya no mide 1 y hay que volver a normalizar.",
+      "ejemplo": "(4, 3) mide √(16 + 9) = 5; normalizado queda (0.8, 0.6), y 0.8² + 0.6² = 1. El vector (8, 6), que mide 10, también queda en (0.8, 0.6).",
+      "ver": ["producto-punto", "similitud-coseno", "distancia-euclidiana"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "deduplicacion",
+      "termino": "Deduplicación",
+      "en": "deduplication · dedup",
+      "corto": "Encontrar las copias y casi copias de un mismo contenido para quedarse con una o tratarlas como grupo. Con embeddings: si el coseno entre dos cosas pasa un umbral, se marcan como duplicadas.",
+      "largo": "Las copias exactas se detectan antes y más barato con un hash de los bytes; los recortes, recompresiones y filtros, con un hash perceptual o con embeddings y un [[umbral]] elegido con pares revisados por personas. El umbral depende de qué cuesta cada error: antes de repartir un dataset conviene recall alto, para que la misma foto no quede en train y en test ([[leakage]]); en moderación, donde una decisión se aplica a todo el grupo, conviene precision alta. En un catálogo grande no se compara todo contra todo: para cada elemento nuevo se buscan sus vecinos más cercanos y solo a ellos se les aplica el umbral.",
+      "ejemplo": "Con 8 pares revisados (4 duplicados de verdad), un umbral de 0.95 marca 4 pares y acierta 3: precision 0.75 y recall 0.75. Uno de 0.90 encuentra los 4 duplicados (recall 1.0), con precision 0.67.",
+      "ver": ["similitud-coseno", "umbral", "leakage"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "busqueda-semantica",
+      "termino": "Búsqueda semántica",
+      "en": "semantic search",
+      "corto": "Buscar por significado y no por palabras: se compara el embedding de la consulta con los de los documentos y se devuelven los más cercanos.",
+      "largo": "Encuentra sinónimos («chamarra» y «chaqueta»), descripciones vagas («algo para ir a la playa») y, con un modelo [[multimodal]], fotos a partir de un texto. Falla con lo exacto: un modelo, una talla o un código quedan cerca de otros parecidos. Por eso casi siempre va junto con [[bm25|BM25]] en una [[busqueda-hibrida|búsqueda híbrida]]. Por debajo es una búsqueda de [[vecinos-cercanos|vecinos más cercanos]] sobre un [[indice-vectorial|índice vectorial]].",
+      "ejemplo": "En C07 de la Ronda, «tenis blancos» se convierte en un vector de 512 números y el índice devuelve las publicaciones más cercanas de entre 100 millones, en milisegundos.",
+      "ver": ["busqueda-hibrida", "vecinos-cercanos", "embedding"],
       "leccion": "embeddings"
     },
     {
@@ -57,10 +98,10 @@
       "termino": "ANN (vecinos cercanos aproximados)",
       "en": "approximate nearest neighbors",
       "corto": "Buscar los vecinos más cercanos sin compararse contra todos: se revisa solo una parte bien elegida de la colección. Es muchísimo más rápido, a cambio de perder de vez en cuando algún vecino verdadero.",
-      "largo": "Cuánto se pierde se mide con el recall contra la búsqueda exacta: de los 100 vecinos verdaderos, cuántos encontró el ANN. Mirar más de la colección sube el recall y baja la velocidad: es una perilla, no un defecto. Las técnicas más usadas son los grafos (HNSW) y los grupos o «estantes» (IVF).",
+      "largo": "Cuánto se pierde se mide con el recall contra la búsqueda exacta: de los 100 vecinos verdaderos, cuántos encontró el ANN. Mirar más de la colección sube el recall y baja la velocidad: es una perilla, no un defecto. Las técnicas más usadas son los grafos ([[hnsw|HNSW]]) y los grupos o «estantes» (IVF).",
       "analogia": "Una biblioteca ordenada por estantes de tema: para buscar un libro de cocina vas directo al estante de cocina y no revisas los otros. Se rompe en que un libro que quedó en el estante de al lado (un libro de nutrición con recetas) no lo vas a ver, aunque fuera el que querías.",
       "ejemplo": "En C07 de la Ronda se pide recall@100 ≥ 0.95: de los 100 vecinos exactos, el ANN tiene que encontrar al menos 95.",
-      "ver": ["vecinos-cercanos", "indice-vectorial"],
+      "ver": ["vecinos-cercanos", "indice-vectorial", "hnsw"],
       "leccion": "embeddings"
     },
     {
@@ -69,8 +110,49 @@
       "en": "vector index",
       "corto": "Una estructura de datos que guarda millones de vectores ya organizados (en grupos o en un grafo) para encontrar los más cercanos a uno nuevo sin revisarlos todos.",
       "largo": "Se construye antes, sin prisa, y se consulta en milisegundos. Tiene que caber en memoria: 100 millones de vectores de 512 números pesan ≈ 205 GB en float32. Lo ofrecen librerías (FAISS), bases de datos vectoriales y motores de búsqueda (OpenSearch k-NN). Cada uno trae perillas que cambian velocidad, memoria y recall.",
-      "ejemplo": "En C07 de la Ronda: un índice HNSW con los vectores guardados en int8 (51.2 GB) más el grafo (≈ 25.6 GB), partido en 4 pedazos.",
-      "ver": ["ann", "vecinos-cercanos", "retrieval"],
+      "ejemplo": "En C07 de la Ronda: un índice [[hnsw|HNSW]] con los vectores guardados en int8 (51.2 GB) más el grafo (≈ 25.6 GB), partido en 4 pedazos.",
+      "ver": ["ann", "hnsw", "retrieval"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "hnsw",
+      "termino": "HNSW",
+      "en": "Hierarchical Navigable Small World",
+      "corto": "Un índice de vecinos aproximados muy usado: conecta cada vector con unos cuantos vecinos y busca saltando de vecino en vecino hacia la consulta, con niveles de atajos para llegar rápido.",
+      "largo": "Arriba hay pocos puntos unidos por saltos largos; abajo, todos los puntos con caminos cortos. La búsqueda empieza arriba, baja de nivel y termina con pasos finos, así que el trabajo crece muy despacio con el tamaño del catálogo (como log N). Sus perillas: M, cuántos vecinos guarda cada punto (más recall y más memoria), y ef_search, cuántos candidatos mantiene mientras busca (más recall y más latencia). Vive en memoria y borrar de él es caro. Lo propusieron Malkov y Yashunin en 2016.",
+      "analogia": "Manejar a otra ciudad: autopista hasta la ciudad correcta y luego calles hasta la puerta. Se rompe en que HNSW no lleva mapa: en cada punto solo ve a sus vecinos, y por eso a veces se queda con uno que no es el más cercano de todos.",
+      "ejemplo": "En C07 de la Ronda, con M = 32 el grafo guarda hasta 64 vecinos por vector en el nivel de abajo: 64 × 4 bytes = 256 bytes; para 100 M vectores, ≈ 25.6 GB además de los vectores.",
+      "ver": ["ann", "indice-vectorial", "vecinos-cercanos"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "dimensionalidad",
+      "termino": "Dimensionalidad (dimensión)",
+      "en": "dimensionality · embedding dimension",
+      "corto": "Cuántos números tiene un vector. En un embedding es una decisión de diseño: más números dan lugar a más detalle, pero la memoria y el trabajo de cada búsqueda crecen en proporción.",
+      "largo": "Un embedding de 1,024 números ocupa el doble de memoria y cuesta el doble por comparación que uno de 512. Cada duplicación suele ayudar menos que la anterior, así que se busca la dimensión más chica que cumpla con la calidad. En muchas dimensiones pasan cosas raras: dos vectores al azar salen casi perpendiculares (en 512 dimensiones, su coseno típico es ≈ 0.04), así que la escala de los cosenos depende de cada modelo.",
+      "ejemplo": "En la Ronda, C08 usa 128 (100 M vectores en int8 = 12.8 GB), C07 usa 512 (51.2 GB en int8) y C11 usa 1,024 (12 M pedazos de documentos = 49.2 GB en float32).",
+      "ver": ["vector", "embedding", "indice-vectorial"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "bm25",
+      "termino": "BM25",
+      "en": "BM25 · Okapi BM25",
+      "corto": "La fórmula clásica para ordenar documentos por las palabras de la búsqueda: premia las palabras que coinciden, más si son raras, sin premiar de más la repetición ni los textos largos.",
+      "largo": "Funciona sobre un índice invertido: para cada palabra, la lista de documentos que la contienen. El peso de una palabra (su IDF) crece mientras más rara es: en 1,000,000 de documentos, una palabra que está en 500 pesa ≈ ln 2,000 ≈ 7.6 y una que está en 100,000, ≈ ln 10 ≈ 2.3. Repetir una palabra se satura: con k1 = 1.2, diez repeticiones valen menos del doble que una. Es la búsqueda por defecto de Lucene, Elasticsearch y OpenSearch. Es muy buena con marcas, modelos, tallas y códigos, y mala con sinónimos y descripciones vagas; por eso se combina con embeddings en la [[busqueda-hibrida|búsqueda híbrida]].",
+      "ejemplo": "En C07 de la Ronda, BM25 en OpenSearch es la búsqueda de hoy: falla con «chamarra» contra «chaqueta» (≈ 8 % de las búsquedas no dan resultados), pero encuentra «iPhone 13 Pro 128» exacto. Se queda como parte del híbrido y como respaldo.",
+      "ver": ["busqueda-hibrida", "busqueda-semantica", "retrieval"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "busqueda-hibrida",
+      "termino": "Búsqueda híbrida",
+      "en": "hybrid search",
+      "corto": "Correr una búsqueda por palabras (BM25) y una por significado (embeddings) en paralelo sobre el mismo catálogo y juntar sus listas. Cada una tapa los huecos de la otra.",
+      "largo": "Las listas se juntan casi siempre con RRF (*Reciprocal Rank Fusion*, Cormack y otros, 2009): cada lista le da a cada documento 1 ÷ (k + su posición), con k = 60, y se suman. Usa solo posiciones, así que no hay que comparar puntajes de escalas distintas. Si la parte semántica falla, la de palabras sigue respondiendo sola.",
+      "ejemplo": "Con RRF (k = 60), una publicación 1.ª en la lista semántica y 3.ª en la de BM25 suma 1/61 + 1/63 ≈ 0.0323; una 1.ª solo en BM25, 1/61 ≈ 0.0164. C07 y C11 de la Ronda la usan.",
+      "ver": ["bm25", "busqueda-semantica", "retrieval"],
       "leccion": "embeddings"
     },
     {
@@ -78,8 +160,9 @@
       "termino": "Retrieval (recuperación)",
       "en": "retrieval · candidate generation",
       "corto": "La primera etapa de una búsqueda: traer rápido y barato unos cientos de candidatos de entre millones, aunque el orden no sea perfecto.",
-      "largo": "Suele ser una búsqueda en un [[indice-vectorial|índice vectorial]], a veces junto con una búsqueda por palabras clave. Su trabajo es no dejar fuera lo bueno; ordenarlo bien le toca al [[re-ranking]]. En RAG es la parte que busca los documentos antes de que el LLM responda.",
-      "ver": ["re-ranking", "indice-vectorial", "ann"],
+      "largo": "Suele ser una búsqueda en un [[indice-vectorial|índice vectorial]], muchas veces junto con una búsqueda por palabras ([[bm25|BM25]]): eso es la [[busqueda-hibrida|búsqueda híbrida]]. Su trabajo es no dejar fuera lo bueno; ordenarlo bien le toca al [[re-ranking]]. En RAG es la parte que busca los documentos antes de que el LLM responda.",
+      "ejemplo": "En C07 de la Ronda, el índice vectorial aporta ≈ 200 candidatos y BM25 otros ≈ 200, de entre 100 millones de publicaciones, en unas decenas de milisegundos. El re-ranker solo ve los 30 primeros.",
+      "ver": ["re-ranking", "indice-vectorial", "busqueda-hibrida"],
       "leccion": "embeddings"
     },
     {
@@ -87,9 +170,9 @@
       "termino": "Re-ranking (reordenar)",
       "en": "re-ranking · reranker",
       "corto": "La segunda etapa de una búsqueda: después de una primera búsqueda rápida, un modelo más caro y más preciso vuelve a calificar solo los primeros candidatos y los reordena.",
-      "largo": "Puede darse el lujo de ser lento por candidato porque mira pocos (decenas, no millones). Un re-ranker típico (un *cross-encoder*) lee la consulta y el candidato juntos, en vez de comparar dos vectores calculados por separado. Cuántos candidatos reordenar es una decisión de costo.",
+      "largo": "Puede darse el lujo de ser lento por candidato porque mira pocos (decenas, no millones). Un re-ranker típico (un *cross-encoder*) lee la consulta y el candidato juntos, en vez de comparar dos vectores calculados por separado, como hace un modelo de [[dos-torres|dos torres]]. Cuántos candidatos reordenar es una decisión de costo.",
       "ejemplo": "En C07 de la Ronda, reordenar los 100 primeros de cada búsqueda pediría ≈ 24 GPUs L4; los 30 primeros, ≈ 8.",
-      "ver": ["retrieval"],
+      "ver": ["retrieval", "dos-torres"],
       "leccion": "embeddings"
     },
     {
@@ -97,9 +180,30 @@
       "termino": "Multimodal",
       "en": "multimodal",
       "corto": "Que trabaja con más de un tipo de dato a la vez, como texto e imágenes. Un embedding multimodal pone fotos y textos en el mismo espacio, para compararlos directamente.",
-      "largo": "CLIP (OpenAI, 2021) tiene dos redes, una para imágenes y otra para texto, entrenadas juntas con unos 400 millones de pares (imagen, texto) para que una foto y su descripción queden cerca. Así, el vector de «tenis blancos» queda cerca del vector de la foto de unos tenis blancos.",
+      "largo": "CLIP (OpenAI, 2021) tiene dos redes, una para imágenes y otra para texto, entrenadas juntas con [[aprendizaje-contrastivo|aprendizaje contrastivo]] sobre unos 400 millones de pares (imagen, texto) para que una foto y su descripción queden cerca. Así, el vector de «tenis blancos» queda cerca del vector de la foto de unos tenis blancos.",
       "ejemplo": "En C07 de la Ronda, un encoder tipo CLIP (512 dimensiones) permite buscar productos con texto o subiendo una foto.",
-      "ver": ["embedding", "retrieval"],
+      "ver": ["embedding", "aprendizaje-contrastivo", "dos-torres"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "aprendizaje-contrastivo",
+      "termino": "Aprendizaje contrastivo",
+      "en": "contrastive learning",
+      "corto": "Entrenar un encoder con pares que deben quedar juntos (una foto y su título): se acercan los vectores de cada par y se alejan los de las cosas que no son pareja.",
+      "largo": "En cada [[batch]] de B pares, cada foto tiene 1 título correcto y B − 1 incorrectos: los de las otras fotos (los «negativos dentro del batch»). Se calcula una tabla de B × B cosenos, se divide entre una temperatura, se aplica un [[softmax]] por fila y la pérdida es la [[entropia-cruzada|entropía cruzada]] con la diagonal como respuesta correcta. Así se entrenó CLIP, y así se entrenan muchos modelos de embeddings de texto y los modelos de [[dos-torres|dos torres]] de recomendación.",
+      "analogia": "Un memorama: volteas una foto y tienes que encontrar su tarjeta de texto entre muchas. Se rompe en que en el memorama las tarjetas no cambian; aquí cada error mueve las tarjetas (los vectores) para que la próxima vez la pareja quede más cerca.",
+      "ejemplo": "Con cosenos 0.80 (su título), 0.55 y 0.10, y temperatura 0.1, la foto de tenis le da 92 % a su título y su pérdida es −ln 0.92 ≈ 0.08. CLIP usó ≈ 400 millones de pares y batches de 32,768.",
+      "ver": ["dos-torres", "multimodal", "embedding"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "dos-torres",
+      "termino": "Dos torres (two-tower)",
+      "en": "two-tower model · dual encoder · bi-encoder",
+      "corto": "Un modelo con dos redes que convierten por separado dos tipos de cosas (consultas y productos, o usuarios y publicaciones) en vectores del mismo espacio. El parecido es el producto punto entre ellos.",
+      "largo": "Como cada lado se calcula por separado, los vectores del catálogo se calculan antes, en lote, y en cada consulta solo se calcula uno: eso permite buscar entre millones con un [[ann|ANN]]. Es más rápido y menos preciso que un *cross-encoder*, que lee la consulta y el candidato juntos; por eso se combinan: dos torres para el [[retrieval]] y cross-encoder para el [[re-ranking]]. Se entrena con [[aprendizaje-contrastivo|aprendizaje contrastivo]]. Las dos torres se publican juntas, con la misma versión.",
+      "ejemplo": "En C08 de la Ronda, la torre de usuario calcula un vector de 128 números en cada visita al inicio de la app, y el índice que llenó la torre de publicaciones devuelve ≈ 500 candidatos de entre 100 M. En C07, el encoder tipo CLIP tiene una torre de imagen y una de texto.",
+      "ver": ["aprendizaje-contrastivo", "retrieval", "re-ranking"],
       "leccion": "embeddings"
     }
   ]

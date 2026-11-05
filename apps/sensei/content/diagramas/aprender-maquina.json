@@ -1,0 +1,48 @@
+{
+  "titulo": "La máquina que entrena: la CPU prepara, la GPU calcula",
+  "width": 78, "height": 46,
+  "lanes": [
+    { "id": "cpu", "label": "CPU y memoria normal", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 19 },
+    { "id": "gpu", "label": "GPU y su memoria, la VRAM", "kind": "offline", "x": 0, "y": 21, "w": 78, "h": 25 }
+  ],
+  "nodes": [
+    { "id": "fotos", "label": "Fotos de train", "sub": "1.84 M JPEG en S3", "kind": "store", "x": 2, "y": 6, "w": 18, "h": 9,
+      "note": "Está aquí porque las fotos no viven en la GPU: son ≈ 1.84 millones de archivos JPEG en un disco o en S3 (el almacenamiento de AWS). En cada época se leen todas, en desorden." },
+    { "id": "cpu", "label": "CPU", "sub": "lee, decodifica, augmenta", "kind": "service", "x": 30, "y": 6, "w": 18, "h": 9,
+      "note": "La [[cpu|CPU]] prepara los datos: lee cada JPEG, lo convierte en números, le aplica la [[augmentation]] y arma el batch. Lo hacen varios procesos a la vez (los *workers* del DataLoader) mientras la GPU calcula el batch anterior." },
+    { "id": "lote", "label": "Batch listo", "sub": "[64, 3, 224, 224]", "kind": "queue", "x": 58, "y": 6, "w": 18, "h": 9,
+      "note": "Un [[batch]] de 64 fotos son 64 × 150,528 = 9,633,792 números: ≈ 38.5 MB en float32. Espera en la memoria normal hasta que la GPU lo pida." },
+    { "id": "nucleos", "label": "Núcleos de la GPU", "sub": "forward, backward, Adam", "kind": "gpu", "x": 30, "y": 28, "w": 18, "h": 10,
+      "note": "Aquí pasa el cálculo: miles de núcleos de la [[gpu|GPU]] hacen a la vez las multiplicaciones con su suma del [[forward-pass]], de la [[backpropagation]] y del paso de [[adam|Adam]]. Solo trabajan con lo que está en la VRAM." },
+    { "id": "vram", "label": "VRAM", "sub": "perillas, gradientes, Adam, activaciones", "kind": "store", "x": 58, "y": 28, "w": 18, "h": 10,
+      "note": "La [[vram|VRAM]] tiene que guardar todo a la vez: perillas, gradientes y los dos promedios de Adam (≈ 16 bytes por perilla, ≈ 392 MB en C01) y las activaciones del batch (≈ 3 GB con 64 fotos, una estimación). Si no cabe, el entrenamiento se detiene con un error de memoria." },
+    { "id": "ckpt", "label": "Checkpoint", "sub": "S3, cada 15 min", "kind": "store", "x": 2, "y": 28, "w": 18, "h": 10,
+      "note": "Una copia del estado, fuera de la máquina: perillas, estado de Adam, paso y semillas, ≈ 294 MB. Si la máquina se apaga, otra sigue desde aquí." }
+  ],
+  "edges": [
+    { "from": "fotos", "to": "cpu", "kind": "offline", "label": "JPEG" },
+    { "from": "cpu", "to": "lote", "kind": "offline", "label": "tensores" },
+    { "from": "lote", "to": "vram", "kind": "offline", "fromSide": "b", "toSide": "t", "label": "PCIe" },
+    { "from": "vram", "to": "nucleos", "kind": "offline", "fromSide": "l", "toSide": "r", "bidir": true, "label": "lee y escribe" },
+    { "from": "vram", "to": "ckpt", "kind": "async", "dashed": true, "fromSide": "b", "toSide": "b", "via": [[67, 42.5], [11, 42.5]], "label": "copia" }
+  ],
+  "flows": [
+    { "id": "paso", "label": "Un paso, en la máquina", "steps": [
+      { "nodes": ["fotos", "cpu"], "edges": ["fotos>cpu"], "text": "**1 · La CPU lee y prepara.** Toma 64 JPEG en desorden, los decodifica y les aplica la augmentation: una foto volteada, otra recortada." },
+      { "nodes": ["cpu", "lote"], "edges": ["cpu>lote"], "text": "**2 · Sale el batch.** Un tensor de [64, 3, 224, 224]: ≈ 9.6 millones de números, ≈ 38.5 MB en float32." },
+      { "nodes": ["lote", "vram"], "edges": ["lote>vram"], "text": "**3 · Se copia a la GPU.** Viaja por PCIe, el cable entre la tarjeta de la GPU y el resto de la computadora, y queda en la VRAM." },
+      { "nodes": ["vram", "nucleos"], "edges": ["vram>nucleos"], "text": "**4 · La GPU calcula.** Forward pass, pérdida, backpropagation y el paso de Adam: miles de millones de multiplicaciones con su suma, leyendo y escribiendo en la VRAM. Las perillas nuevas se quedan ahí mismo." },
+      { "nodes": ["cpu", "nucleos"], "edges": [], "text": "**Y otra vez.** Mientras la GPU calculaba, la CPU ya preparó el siguiente batch. En C01, 28,754 vueltas por época." }
+    ] },
+    { "id": "vram", "label": "Qué ocupa la VRAM", "steps": [
+      { "nodes": ["vram"], "edges": [], "text": "**Lo fijo.** Perillas (98 MB en float32), sus gradientes (98 MB) y los dos promedios de Adam (196 MB): ≈ 392 MB, 16 bytes por perilla." },
+      { "nodes": ["vram", "nucleos"], "edges": ["vram>nucleos"], "text": "**Las activaciones.** Lo que cada capa calculó en el forward pass, guardado para la backpropagation: ≈ 3 GB con 64 fotos en 16 bits (estimación). En una CNN, es lo que más ocupa." },
+      { "nodes": ["vram"], "edges": [], "text": "**Todo junto**, unos cuantos GB más lo del runtime: cabe en una GPU de 16 GB. Un LLM de 8,000 millones de parámetros pediría 128 GB solo de lo fijo." }
+    ] },
+    { "id": "lenta", "label": "Si la CPU no alcanza", "steps": [
+      { "nodes": ["fotos", "cpu"], "edges": ["fotos>cpu"], "text": "Decodificar JPEG y hacer augmentation cuesta. Si la CPU tarda más en preparar un batch que la GPU en calcularlo…" },
+      { "nodes": ["nucleos"], "edges": [], "text": "…la GPU se queda esperando sin hacer nada. El entrenamiento «corre», pero la GPU, la parte cara, pasa mucho tiempo sin usarse (nvidia-smi lo muestra)." },
+      { "nodes": ["cpu", "lote"], "edges": ["cpu>lote"], "text": "Arreglos comunes: más workers en el DataLoader, fotos guardadas ya en tamaño chico, o una máquina con más CPU por GPU. Se mide antes de comprar una GPU más grande." }
+    ] }
+  ]
+}
