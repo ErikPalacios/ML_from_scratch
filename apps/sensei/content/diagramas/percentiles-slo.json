@@ -38,7 +38,7 @@
       "sub": "lee cada 15 s",
       "kind": "monitor",
       "x": 58, "y": 20, "w": 18, "h": 8,
-      "note": "Cada 15 segundos lee los contadores de todas las copias y los guarda con su hora. Con eso puede calcular cualquier ventana: 5 minutos, un día o un mes."
+      "note": "Cada 15 segundos lee los contadores de todas las copias y los guarda con su hora. Con eso calcula cualquier ventana: 5 minutos o un día. Prometheus guarda días o semanas; para la cuenta de un mes, los conteos se guardan además en otro lugar, por más tiempo."
     },
     {
       "id": "regla",
@@ -70,7 +70,7 @@
       "sub": "sigue el runbook",
       "kind": "human",
       "x": 4, "y": 50, "w": 18, "h": 8,
-      "note": "La persona de guardia (*on-call*). El runbook de C01 le dice qué revisar primero: qué tramo subió (preprocesamiento, cola o cálculo en la GPU), si hubo un deploy y si falta capacidad."
+      "note": "La persona de guardia (*on-call*). El *runbook* de C01, su manual de qué hacer con cada alerta, le dice qué revisar primero: qué tramo subió (preprocesamiento, cola o cálculo en la GPU), si hubo un deploy y si falta capacidad."
     },
     {
       "id": "equipo",

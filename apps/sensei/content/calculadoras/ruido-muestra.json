@@ -26,7 +26,7 @@
     { "label": "En los dos brazos", "formula": "2 * ceil(n)", "formato": "int" },
     { "label": "Regla rápida, con el factor exacto", "formula": "2 * pow(za + zb, 2) * p1 * (1 - p1) / pow(p2 - p1, 2)", "formato": "int", "barra": true, "nota": "2 × (z de α + z de potencia)² × p(1 − p) ÷ MDE²; con 5 % y 80 % el factor es 15.7, que la regla de bolsillo redondea a 16" },
     { "label": "z de α", "formula": "za", "decimales": 2, "nota": "1.96 con α = 5 %" },
-    { "label": "z de la potencia", "formula": "zb", "decimales": 2, "nota": "0.84 con 80 %" },
+    { "label": "z de la potencia", "formula": "zb + 0", "decimales": 2, "nota": "0.84 con 80 %" },
     { "label": "Horas para juntarla en C01, al 50/50", "formula": "2 * ceil(n) / (2500000 / 24)", "decimales": 1, "nota": "con ≈ 2.5 M publicaciones al día" }
   ],
   "nota": "n crece con 1 ÷ efecto²: divide el MDE entre 2 y la muestra se multiplica por 4. Y aunque la muestra se junte en horas, el A/B de C01 corre semanas completas."

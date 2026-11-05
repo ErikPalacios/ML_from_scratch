@@ -67,8 +67,8 @@
     { "from": "p", "to": "corte", "kind": "monitor", "fromSide": "b", "toSide": "t" },
     { "from": "corte", "to": "rechazo", "kind": "monitor", "fromSide": "l", "toSide": "r", "label": "sí" },
     { "from": "corte", "to": "norechazo", "kind": "monitor", "fromSide": "l", "toSide": "r", "label": "no" },
-    { "from": "rechazo", "to": "falsa", "kind": "monitor", "fromSide": "l", "toSide": "r", "dashed": true, "label": "5 %" },
-    { "from": "norechazo", "to": "escapa", "kind": "monitor", "fromSide": "l", "toSide": "r", "dashed": true, "label": "20 %" }
+    { "from": "rechazo", "to": "falsa", "kind": "monitor", "fromSide": "l", "toSide": "r", "dashed": true, "label": "sin efecto" },
+    { "from": "norechazo", "to": "escapa", "kind": "monitor", "fromSide": "l", "toSide": "r", "dashed": true, "label": "con efecto" }
   ],
   "flows": [
     {

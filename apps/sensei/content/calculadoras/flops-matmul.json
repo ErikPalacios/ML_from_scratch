@@ -8,7 +8,7 @@
       "min": 1,
       "max": 100000,
       "paso": 1,
-      "valor": 4096,
+      "valor": 32,
       "tipo": "numero"
     },
     {
@@ -17,7 +17,7 @@
       "min": 1,
       "max": 100000,
       "paso": 1,
-      "valor": 4096,
+      "valor": 2048,
       "tipo": "numero"
     },
     {
@@ -26,7 +26,7 @@
       "min": 1,
       "max": 100000,
       "paso": 1,
-      "valor": 4096,
+      "valor": 500,
       "tipo": "numero"
     },
     {
@@ -88,5 +88,5 @@
       "formato": "int"
     }
   ],
-  "nota": "Duplica cualquiera de los tres tamaños y el trabajo se duplica; duplica los tres y se multiplica por 8. El tiempo es un piso: supone que la memoria entrega los números a tiempo, y eso lo decide la intensidad aritmética (sección 4)."
+  "nota": "Duplica cualquiera de los tres tamaños y el trabajo se duplica; duplica los tres y se multiplica por 8. El tiempo es un piso: supone que la memoria entrega los números a tiempo, y eso lo decide la intensidad aritmética, que ves en la sección de la memoria."
 }

@@ -7,7 +7,7 @@
       "en": "example · sample · instance",
       "corto": "Un caso del que ya sabes la respuesta: la entrada (lo que ve el modelo) junto con su etiqueta (la respuesta correcta).",
       "largo": "Un [[modelo]] aprende de muchos ejemplos. En un [[dataset]] cada ejemplo es una fila: sus [[feature|features]] y su [[etiqueta]]. A aprender de ejemplos que ya traen su respuesta se le llama aprendizaje supervisado.",
-      "ejemplo": "La foto de los tenis de Ana junto con «Calzado › Tenis» es un ejemplo. El snapshot de septiembre de C01 trae casi 2 millones. En C09, un ejemplo es un pago con su respuesta: fue fraude o no.",
+      "ejemplo": "La foto de los tenis de Ana junto con «Calzado › Tenis» es un ejemplo. El dataset de septiembre de C01 trae casi 2 millones. En C09, un ejemplo es un pago con su respuesta: fue fraude o no.",
       "ver": [
         "feature",
         "etiqueta",
@@ -49,7 +49,7 @@
       "en": "one-hot encoding",
       "corto": "Una forma de codificar una categoría: una columna por cada valor posible, con 1 en la del valor que tiene el ejemplo y 0 en todas las demás.",
       "largo": "Evita inventar un orden o una distancia: con 1, 2 y 3, el modelo tendría un solo peso para la feature y el efecto del valor 3 quedaría obligado a ser el triple que el del 1. Con one-hot cada valor tiene su propio peso. Su costo: una columna por valor, así que con miles o millones de valores (ids de anuncios o de productos) se vuelve enorme y casi toda de ceros; ahí se usa hashing o [[embedding|embeddings]]. Un valor que no se vio al entrenar no tiene columna, así que se reserva una para «otro».",
-      "analogia": "Un formulario con casillas para marcar una sola opción: no se escribe el número de la opción, se marca su casilla. Se rompe con miles de opciones: nadie llena un formulario de 16 millones de casillas, y por eso existe el hashing.",
+      "analogia": "Un formulario con casillas para marcar una sola opción: no se escribe el número de la opción, se marca su casilla. Se rompe con millones de opciones: un formulario así no cabría en ninguna hoja y habría que reimprimirlo con cada opción nueva. Para eso existe el hashing: un número fijo de casillas, y una fórmula decide cuál marcar.",
       "ejemplo": "Tres giros de comercio: supermercado = [1, 0, 0], gasolinera = [0, 1, 0] y videojuegos = [0, 0, 1]. Cada fila suma exactamente 1.",
       "ver": [
         "codificacion",
@@ -90,7 +90,7 @@
       "en": "data split · partición",
       "corto": "Repartir el dataset en partes que no se mezclan: una para aprender (train), una para decidir (validación) y una para el examen final (test).",
       "largo": "No basta con la proporción (80/10/10, por ejemplo). Importa la unidad: si las fotos vienen en familias (del mismo vendedor, o la misma foto en varias publicaciones), la familia entera va a un solo lado ([[split-por-grupo]]); si el modelo va a predecir el futuro, se reparte por fecha ([[split-temporal]]). Si no, hay [[leakage]].",
-      "ejemplo": "C01 reparte por vendedor: ≈ 95 % a train y ≈ 5 % a validación (1,840,211 y 92,417 fotos en el snapshot de septiembre). El examen final es el [[golden-set]], que se arma aparte.",
+      "ejemplo": "C01 reparte por vendedor: ≈ 95 % a train y ≈ 5 % a validación (1,840,211 y 92,417 fotos en el dataset de septiembre). El examen final es el [[golden-set]], que se arma aparte.",
       "ver": [
         "train-set",
         "validation-set",
@@ -113,7 +113,7 @@
         "split"
       ],
       "leccion": "ejemplos",
-      "ejemplo": "Con 50,000 fotos y un reparto 80/10/10, train son 50,000 × 0.80 = 40,000 fotos. En el snapshot de septiembre de C01 son 1,840,211, ≈ 95 % del total."
+      "ejemplo": "Con 50,000 fotos y un reparto 80/10/10, train son 50,000 × 0.80 = 40,000 fotos. En el dataset de septiembre de C01 son 1,840,211, ≈ 95 % del total."
     },
     {
       "id": "validation-set",
@@ -121,7 +121,7 @@
       "en": "validation set · dev set",
       "corto": "Una parte del dataset de la que el modelo no aprende y que tú miras mientras desarrollas, para decidir: cuándo parar, qué ajustes usar, qué versión es mejor.",
       "largo": "Como con ella tomas decisiones, poco a poco su resultado se vuelve optimista: elegiste justo lo que mejor le fue ahí. Por eso hace falta además un [[test-set]] que no se toca.",
-      "ejemplo": "En el snapshot de septiembre de C01 son 92,417 fotos, ≈ 5 % del total.",
+      "ejemplo": "En el dataset de septiembre de C01 son 92,417 fotos, ≈ 5 % del total.",
       "ver": [
         "train-set",
         "test-set",
@@ -163,7 +163,7 @@
       "en": "data leakage · fuga de datos",
       "corto": "Cuando el entrenamiento o la evaluación tienen información que no existirá en el momento de predecir, o cuando el test se parece demasiado al train. El examen se filtró.",
       "largo": "El síntoma es siempre el mismo: un resultado sospechosamente bueno antes de producción que se derrumba en producción. Formas comunes: la misma foto (o casi) en train y en test ([[duplicado-cercano]]), una [[feature]] que trae escondida la respuesta, datos del futuro, ejemplos de un mismo grupo a los dos lados, y cuentas (como el promedio para escalar) hechas con todo el dataset antes de repartir.",
-      "ejemplo": "Un vendedor sube la misma foto en tres publicaciones. Con un split al azar por publicación, 98 de cada 100 veces que una de esas fotos cae en test, su gemela está en train: el modelo la reconoce de memoria.",
+      "ejemplo": "Un vendedor sube la misma foto en tres publicaciones. Con un split al azar 80/20 por publicación, ≈ 98 de cada 100 veces que esa foto aparece en test, otra copia suya está en train: el modelo la reconoce de memoria.",
       "ver": [
         "split",
         "split-temporal",
@@ -249,7 +249,7 @@
       "en": "label noise",
       "corto": "Etiquetas equivocadas dentro del dataset. Siempre hay algunas: por cansancio, por una guía ambigua o porque la fuente automática se equivoca o llega tarde.",
       "largo": "En train, el ruido le enseña cosas falsas al modelo. En evaluación es peor: el modelo «falla» donde la etiqueta estaba mal y la métrica mide parte del ruido, así que pone un techo a lo que puedes medir. Northcutt, Athalye y Mueller (2021) estimaron al menos 3.3 % de etiquetas erróneas en promedio en los test sets de 10 datasets conocidos, y ≈ 6 % en la validación de ImageNet. Lo sospechoso (donde el modelo contradice la etiqueta con mucha seguridad) se manda a revisión humana; no se borra automáticamente.",
-      "ejemplo": "C09: según la suposición de la Ronda, a los 30 días solo ha llegado ≈ 60 % de los contracargos. Si entrenas con los pagos del mes pasado, ≈ 4 de cada 10 fraudes todavía están etiquetados como pagos buenos.",
+      "ejemplo": "C09: según la suposición de la Ronda, a los 30 días solo ha llegado ≈ 60 % de los contracargos. En los pagos de hace 30 días, ≈ 4 de cada 10 fraudes todavía están etiquetados como pagos buenos; en los de la semana pasada, muchos más.",
       "ver": [
         "etiqueta",
         "etiquetado",

@@ -25,7 +25,7 @@ Ese es el caso que vamos a seguir en todo Sensei. Se llama **C01**. Es el mismo 
 
 ### Qué es un modelo
 
-A un programa normal tú le escribes las reglas: «si la compra pasa de 1000 pesos, el envío es gratis». A un [[modelo]] no le escribes reglas. Le muestras miles de ejemplos con su respuesta correcta y él solo encuentra la manera de pasar de la entrada a la respuesta.
+A un programa normal tú le escribes las reglas: «si la compra pasa de 1,000 pesos, el envío es gratis». A un [[modelo]] no le escribes reglas. Le muestras miles de ejemplos con su respuesta correcta y él solo encuentra la manera de pasar de la entrada a la respuesta.
 
 ¿Por qué no escribir las reglas a mano? Intenta escribir la regla para reconocer unos tenis en una foto. ¿Por la forma? ¿Por las agujetas? ¿Y si es una bota? ¿Y si la foto está oscura, o de lado, o el tenis está dentro de su caja? Hay cosas que es mucho más fácil mostrar que explicar.
 
@@ -38,7 +38,7 @@ Por dentro, un modelo es un montón de números que se llaman [[parametro|parám
 :::analogia Cómo aprende un niño a reconocer perros
 Nadie le explica a un niño «un perro tiene cuatro patas, hocico y cola». Le señalan perros: este es un perro, este también, ese de allá es un gato. Después de suficientes ejemplos reconoce un perro que nunca había visto. Un modelo aprende de una forma parecida: de ejemplos, no de reglas.
 
-La diferencia es la cantidad: al niño le bastan unos cuantos ejemplos, y el modelo necesita miles.
+**Dónde se rompe:** en la cantidad. Al niño le bastan unos cuantos ejemplos, y el modelo necesita miles.
 :::
 
 ### Entrenar y usar
@@ -71,12 +71,12 @@ Que un modelo funcione en tu laptop no significa que esté listo. Está en [[pro
 | Qué tan rápido | Da igual si tarda 5 segundos | Más o menos lo que dura un parpadeo |
 | Si se rompe | Lo vuelves a correr | Ana no recibe sugerencia y tiene que buscar la categoría a mano; si pasa seguido, se publica menos y el negocio pierde dinero |
 | Los datos | Los que descargaste, siempre los mismos | Nuevos cada día, y van cambiando |
-| Dónde corre | En un [[notebook]], en tu máquina | En [[servidor\|servidores]] que nunca se apagan |
+| Dónde corre | En un [[notebook]] (un documento donde corres el código por pedacitos), en tu máquina | En [[servidor\|servidores]] que nunca se apagan |
 
 Por eso existe el trabajo de [[ml-engineer]]. No se trata solo de que el modelo acierte, sino de que todo lo que lo rodea funcione. Un artículo científico famoso de Google («Hidden Technical Debt in Machine Learning Systems», Sculley y otros, 2015) lo dibujó así: el código del modelo es una cajita chica en medio de todo lo demás, que son los datos, la configuración, los servidores y el monitoreo.
 
 :::figura camino-completo-sculley
-Inspirada en la figura del artículo de Sculley y otros (2015). Los tamaños no son medidas: dicen dónde está casi todo el trabajo.
+Inspirada en la figura del artículo de Sculley y otros (2015). Los tamaños no son medidas: dicen dónde está casi todo el trabajo. Las [[feature|features]] son los datos de entrada, ya preparados para el modelo.
 :::
 
 ### Deploy: cambiar de versión sin que nadie lo sufra
@@ -101,7 +101,7 @@ Todo empieza con ejemplos. Hay que juntar fotos, ponerles su categoría correcta
 
 ### 2 · Modelo
 
-Con el dataset se entrena el modelo. Luego se examina con fotos que nunca vio, y solo si pasa el examen se aprueba. Al final se convierte a un formato que hace los mismos cálculos con menos trabajo, para que responda más rápido. **Sale:** el modelo aprobado, guardado en un archivo.
+Con el dataset se entrena el modelo. Luego se examina con fotos que nunca vio, y solo si pasa el examen se aprueba. Al final se convierte a un formato que hace casi los mismos cálculos con mucho menos trabajo, para que responda más rápido, y se comprueba que sus respuestas no cambien. **Sale:** el modelo aprobado, guardado en un archivo.
 
 ### 3 · API
 
@@ -113,11 +113,11 @@ El programa funciona en tu máquina, pero ¿funcionará igual en otra? Se empaqu
 
 ### 5 · Orquestación
 
-Una sola computadora no aguanta millones de [[request|peticiones]] y, si se apaga, se apaga todo. Así que se corren muchas copias del contenedor en muchas máquinas, y un sistema de [[orquestacion|orquestación]] decide cuántas hacen falta, les reparte el trabajo y reemplaza a las que fallan. También cambia a la versión nueva poco a poco, sin apagar nada. El orquestador más usado es Kubernetes. **Sale:** el servicio funcionando para todo el mundo.
+Una sola computadora tiene dos problemas: puede no aguantar todas las [[request|peticiones]] de la hora pico y, si se apaga, se apaga todo. En C01 pesa más el segundo: una sola máquina con el modelo aguantaría el tráfico, pero se usan dos para que, si una falla, la otra siga respondiendo. Así que se corren varias copias del contenedor en varias máquinas, y un sistema de [[orquestacion|orquestación]] decide cuántas hacen falta, les reparte el trabajo y reemplaza a las que fallan. También cambia a la versión nueva poco a poco, sin apagar nada. El orquestador más usado es Kubernetes. **Sale:** el servicio funcionando para todo el mundo.
 
 ### 6 · Monitoreo
 
-Ya en producción se mide todo: cuánto tarda cada respuesta, cuántas fallan y si el modelo sigue acertando. Eso es el [[monitoreo]]. Y aquí viene lo que más sorprende al principio: aunque nadie toque el modelo, con el tiempo empieza a fallar más, porque el mundo cambia y llegan fotos distintas a las de su entrenamiento. A eso se le llama [[drift]]. Cuando pasa, se juntan datos nuevos y se vuelve a la etapa 1: es el [[reentrenamiento]]. **Sale:** la señal de que hay que reentrenar y las fotos nuevas para etiquetar.
+Ya en producción se mide todo: cuánto tarda cada respuesta, cuántas fallan y si el modelo sigue acertando. Eso es el [[monitoreo]]. Y aquí viene lo que más sorprende al principio: aunque nadie toque el modelo, con el tiempo empieza a fallar más, porque el mundo cambia y llegan fotos distintas a las de su entrenamiento. A ese cambio en lo que llega se le llama [[drift]]. Cuando pasa, se juntan datos nuevos y se vuelve a la etapa 1: es el [[reentrenamiento]]. **Sale:** la señal de que hay que reentrenar y las fotos nuevas para etiquetar.
 
 :::analogia Una cadena de restaurantes
 - **Datos:** conseguir los ingredientes y revisar que estén buenos.
@@ -151,23 +151,11 @@ Ahora juntemos todo en la escena del principio. Cuando Ana sube la foto, pasa es
 Todo el recorrido, de ida y vuelta, en una fracción de segundo.
 :::
 
-El mensaje que los servidores del marketplace le mandan a la API se llama [[request]], y lo que regresa se llama *response*. El tiempo que tarda la API desde que recibe la request hasta que manda la response es la [[latencia]]. C01 se compromete a que 99 de cada 100 respuestas tarden menos de 200 [[ms|milisegundos]], más o menos lo que dura un parpadeo, sin contar el viaje por internet hasta el celular de Ana.
+El mensaje que los servidores del marketplace le mandan a la API se llama [[request]], y lo que regresa se llama *response*. El tiempo que pasa entre una request y su response es la [[latencia]]. C01 se compromete a que 99 de cada 100 respuestas tarden menos de 200 [[ms|milisegundos]], más o menos lo que dura un parpadeo, sin contar el viaje por internet hasta el celular de Ana.
 
 Fíjate en dos detalles de esa promesa. Tiene un número que se puede medir: no dice «rápido», dice «menos de 200 ms, 99 de cada 100 veces». Y dice **dónde** se mide: del lado del servidor, desde que la request completa llega hasta que sale la respuesta. Lo que tarda la foto en subir depende de la señal del celular de Ana, y eso nadie en el marketplace lo controla. En la Ronda, a una promesa así, con número y con lugar donde se mide, se le llama [[slo|SLO]].
 
-:::profundo ¿Por qué «99 de cada 100» y no el promedio?
-Imagina que 98 respuestas tardan 30 ms y 2 tardan 3 segundos:
-
-:::cuenta El promedio que engaña
-98 respuestas rápidas | 98 × 30 ms | 2,940 ms
-2 respuestas lentas | 2 × 3,000 ms | 6,000 ms
-Promedio | (2,940 + 6,000) ÷ 100 | ≈ 89 ms
-La número 99, ordenadas // las 2 lentas son la 99 y la 100 | 98 rápidas y luego 2 lentas | 3,000 ms
-= El promedio dice 89 ms y se ve muy bien; «99 de cada 100» dice 3 segundos.
-:::
-
-El promedio se ve muy bien, pero 2 de cada 100 personas sienten la app trabada, y con millones de fotos al día eso es muchísima gente. Ordenadas de la más rápida a la más lenta, la número 99 tarda 3 segundos: eso es lo que mide «99 de cada 100», y ahí no se cumplen los 200 ms. Por eso se mide qué tan lentas son las respuestas más lentas, y no solo el promedio. En la Ronda lo vas a ver escrito como «p99 ≤ 200 ms»: el [[p99]], el percentil 99. Lo vemos a fondo en la lección de percentiles.
-:::
+¿Y por qué «99 de cada 100» y no el promedio? Porque el promedio esconde a quienes esperan mucho. Lo ves con números en la sección extra «El presupuesto de 200 milisegundos».
 
 ### Cuando la respuesta no llega a tiempo
 
@@ -184,12 +172,12 @@ Ese plan B es el [[fallback]]. Es peor que la sugerencia, pero Ana puede publica
 Dentro del servidor, la foto de Ana pasa por cinco pasos:
 
 - **Red y entrada.** La request entra por el balanceador de carga (*load balancer*), la puerta que reparte las requests entre las copias del servicio, y la API lee la foto que llegó.
-- **Preprocesamiento.** La API [[decodificar|decodifica]] la foto (convierte el archivo JPEG en píxeles), la achica, recorta el centro y la normaliza: la convierte en los números que el modelo espera.
+- **Preprocesamiento.** La API [[decodificar|decodifica]] la foto (convierte el archivo JPEG, el formato de foto más común, en píxeles), la achica, recorta el centro y la normaliza: la convierte en los números que el modelo espera.
 - **Modelo.** La foto ya preparada viaja al servidor que tiene el modelo cargado en una [[gpu|GPU]], la tarjeta que hace miles de cuentas a la vez. Ahí espera su turno como máximo 2 ms, porque el servidor junta varias fotos para calcularlas de un jalón, y el modelo calcula.
 - **Respuesta.** De las 500 probabilidades se toman las 5 más altas, se arma el mensaje de respuesta y se deja lista la línea del registro, que se escribe aparte.
 - **El propio programa.** El programa de la API también gasta tiempo en organizarse: atiende muchas requests a la vez, espera su turno en el procesador y limpia memoria de vez en cuando. En los casos lentos se nota.
 
-La Ronda estima cuánto tarda cada paso en C01. Son estimaciones para medir después, no mediciones. Estos son sus valores para un caso lento:
+La Ronda estima cuánto tarda cada paso en C01. Son estimaciones para medir después, no mediciones. Estos son sus valores para un caso lento: lo que tarda cada paso en sus peores momentos, cuando solo 1 de cada 100 requests tarda más en ese paso.
 
 :::cuenta El presupuesto de C01, en el caso lento
 Red y entrada // balanceador y leer la foto | 10 + 30 ms | 40 ms
@@ -207,12 +195,26 @@ De esta cuenta salen dos cosas. La primera: quedan ≈ 50 ms para lo que no se 
 :::analogia Llegar a tiempo a clase
 Si tu clase empieza en 30 minutos, repartes: 5 para salir de tu casa, 20 de camino y 5 de margen por si el camión tarda. Un presupuesto de latencia es lo mismo con 200 ms: cada paso tiene su parte y se deja margen.
 
-**Dónde se rompe:** tu trayecto es uno y lo ves completo. Un servidor atiende cientos de fotos por segundo, y en cada una los pasos tardan distinto. Casi nunca todos tienen su peor momento en la misma foto, así que sumar el caso lento de cada paso da una cuenta pesimista, no exacta. Sirve para repartir; el número de verdad se mide de punta a punta.
+**Dónde se rompe:** tu trayecto es uno y lo ves completo. Un servidor atiende cientos de fotos por segundo, y en cada una los pasos tardan distinto. Casi nunca todos tienen su peor momento en la misma foto, así que sumar el caso lento de cada paso suele dar de más. Suele, no siempre: si los pasos se ponen lentos en fotos distintas, la suma también puede quedarse corta (lo ves con números en la lección de percentiles). Sirve para repartir; el número de verdad se mide de punta a punta.
 :::
 
 :::calculadora camino-completo-presupuesto
 Empieza en los valores de la cuenta. Sube el preprocesamiento a 120 ms, como con una foto web gigante, y mira qué pasa con los dos márgenes.
 :::
+
+### ¿Por qué «99 de cada 100» y no el promedio?
+
+Imagina que 98 respuestas tardan 30 ms y 2 tardan 3 segundos:
+
+:::cuenta El promedio que engaña
+98 respuestas rápidas | 98 × 30 ms | 2,940 ms
+2 respuestas lentas | 2 × 3,000 ms | 6,000 ms
+Promedio | (2,940 + 6,000) ÷ 100 | ≈ 89 ms
+La número 99, ordenadas // las 2 lentas son la 99 y la 100 | 98 rápidas y luego 2 lentas | 3,000 ms
+= El promedio dice 89 ms y se ve muy bien; «99 de cada 100» dice 3 segundos.
+:::
+
+El promedio se ve muy bien, pero 2 de cada 100 personas sienten la app trabada, y con millones de fotos al día eso es muchísima gente. Ordenadas de la más rápida a la más lenta, la número 99 tarda 3 segundos: eso es lo que mide «99 de cada 100», y ahí no se cumplen los 200 ms. Por eso se mide qué tan lentas son las respuestas más lentas, y no solo el promedio. En la Ronda lo vas a ver escrito como «p99 ≤ 200 ms»: el [[p99]], el percentil 99. Lo vemos a fondo en la lección de percentiles.
 
 ### Haz la prueba: el promedio contra «99 de cada 100»
 
@@ -243,7 +245,7 @@ promedio:          61 ms
 pasan de 300 ms:   145 (ven el selector manual)
 ```
 
-El promedio, 61 ms, haría pensar que todo va de maravilla. Pero la request número 9,900 tarda 918 ms: la promesa de 200 ms no se cumple y 145 personas vieron el selector manual. Si cambias la semilla (`random.seed`), los números cambian un poco, pero la conclusión no.
+El promedio, 61 ms, haría pensar que todo va de maravilla. Pero la request número 9,900 tarda 918 ms: la promesa de 200 ms no se cumple y 145 personas vieron el selector manual. Si cambias la semilla (`random.seed`), los números cambian: el promedio apenas se mueve, y el de «99 de cada 100» puede moverse varios cientos de milisegundos, porque depende de unas pocas requests lentas. La conclusión no cambia: siempre pasa de 200 ms.
 
 :::nota Lo que no entra en la cuenta: la subida de la foto
 El presupuesto empieza cuando la request completa llega al servidor; la subida desde el celular de Ana queda fuera. Lo que sí se controla es cuánto pesa lo que sube: la app de C01 reduce la foto a 1024 píxeles de lado largo antes de mandarla, unos 150 a 250 KB.
@@ -275,7 +277,7 @@ Sus reglas son distintas, y casi todas salen de esa diferencia de relojes:
 La pregunta que decide en qué camino vive algo es una sola: **¿alguien está esperando la respuesta?** Sugerir la categoría mientras Ana escribe: sí, así que va online, con su presupuesto de tiempo y su fallback. Clasificar de una vez las ≈ 200 millones de fotos viejas del catálogo, publicadas antes de que existiera el modelo: nadie espera cada respuesta, así que va offline, en tandas y sin tocar el camino de Ana. En la Ronda a ese trabajo se le llama *backfill*.
 
 :::ojo
-Inferencia no es lo mismo que online. Usar el modelo puede pasar en los dos caminos. Cuando Ana espera, es inferencia online. Cuando el examen del mes hace que el modelo nuevo responda las ≈ 50 mil fotos del [[golden-set|golden set]], o cuando se clasifican las fotos viejas del catálogo, también es inferencia, pero offline: nadie espera cada respuesta. Son dos preguntas distintas: «¿se mueven las perillas?» separa entrenar de usar, y «¿alguien está esperando?» separa online de offline.
+Inferencia no es lo mismo que online. Usar el modelo puede pasar en los dos caminos. Cuando Ana espera, es inferencia online. Cuando el examen del mes hace que el modelo nuevo responda las ≈ 50 mil fotos del [[golden-set|golden set]] (fotos revisadas por personas, siempre las mismas, que solo se usan para examinar), o cuando se clasifican las fotos viejas del catálogo, también es inferencia, pero offline: nadie espera cada respuesta. Son dos preguntas distintas: «¿se mueven las perillas?» separa entrenar de usar, y «¿alguien está esperando?» separa online de offline.
 :::
 
 ### Las seis etapas, en los dos caminos
@@ -296,7 +298,7 @@ Los dos caminos no viven aislados: se tocan en dos puntos.
 
 :::pasos
 1. Del online al offline: el registro
-Cada request deja una línea: cuándo llegó, qué respondió el modelo, con qué versión y cuánto tardó. Se escribe aparte, sin hacer esperar a Ana. De esas líneas salen las fotos nuevas, las pistas para etiquetarlas y las alarmas de drift: todo lo que el camino offline sabe del mundo, lo sabe por aquí.
+Cada request deja una línea: cuándo llegó, qué respondió el modelo, con qué versión y cuánto tardó. Se escribe aparte, sin hacer esperar a Ana. De esas líneas salen las fotos nuevas, las pistas para etiquetarlas y las alarmas de drift: lo que el camino offline sabe de lo que está pasando en producción, lo sabe por aquí.
 2. Del offline al online: el deploy
 La versión que pasó el examen se pone a responder poco a poco, como viste en «¿Qué significa producción?». Es la única puerta por la que algo del camino offline le llega a Ana.
 :::
@@ -338,19 +340,19 @@ Pico de diseño // margen para picos raros y para crecer | 350 × ≈ 1.4 | 500
 = C01 se diseña para **500 requests por segundo**, aunque el promedio sea 116.
 :::
 
-Diseñar para el promedio es el error más caro: en la hora pico llegarían 3 veces más fotos de las que el sistema aguanta. Pero el promedio también importa, porque es el que paga la factura: la mayor parte del día las máquinas trabajan muy por debajo de lo que pueden.
+Diseñar para el promedio es un error caro: en la hora pico llegarían 3 veces más fotos de las que el sistema aguanta. Pero el promedio también importa, porque es el que paga la factura: la mayor parte del día las máquinas trabajan muy por debajo de lo que pueden.
 
 ### El camino offline: un mes en números
 
 :::cuenta Un mes de C01, de un camino al otro
 Fotos que responde una versión del modelo // un mes de 30 días | 10 M × 30 | 300 M
-Fotos que se guardan para revisar // ≈ 1 de cada 100 | 10 M × 0.01 | ≈ 100 mil al día
+Fotos que se guardan de muestra // ≈ 1 de cada 100 | 10 M × 0.01 | ≈ 100 mil al día
 Fotos que revisan personas a mano | dato de la Ronda | ≈ 5 mil al mes
 Respuestas por cada foto revisada | 300 M ÷ 5 mil | 60 mil
 = Por cada foto que revisa una persona, el modelo respondió unas **60 mil**.
 :::
 
-Las etiquetas buenas son lo escaso del camino offline, y lo escaso cuesta. Según la Ronda, el reentrenamiento mensual de C01 son unas horas de una GPU: unas decenas de dólares. Es caro al lado de responder una foto, pero barato al lado de etiquetar con cuidado esas ≈ 5 mil fotos, que cuesta cientos (unos 5 o 10 centavos de dólar por foto). En el camino offline, el dinero y la calidad están en qué fotos se etiquetan, no en la máquina que entrena.
+Las etiquetas buenas son lo escaso del camino offline, y lo escaso cuesta. Según la Ronda, el reentrenamiento mensual de C01 son unas horas de una GPU: unas decenas de dólares. Es caro al lado de responder una foto, pero barato al lado de etiquetar con cuidado esas ≈ 5 mil fotos, que cuesta cientos de dólares (unos 5 o 10 centavos de dólar por foto). En el camino offline, el dinero y la calidad están en qué fotos se etiquetan, no en la máquina que entrena.
 
 Compara los relojes: un mes son 30 × 86,400 = 2,592,000 segundos, y una request de 200 ms cabe 2,592,000 ÷ 0.2 ≈ 13 millones de veces. Por eso los dos caminos no pueden tener las mismas reglas: en uno, 50 ms de más rompen la promesa; en el otro, una hora de más ni se nota.
 
@@ -361,11 +363,11 @@ Las confusiones que más se repiten al empezar, y cómo evitarlas.
 1. **Confundir entrenar con usar.** «El modelo aprende de cada foto que le subes», o «responder tarda horas». Entrenar mueve las perillas y se hace de vez en cuando; usar solo calcula y pasa millones de veces al día. **Cómo evitarlo:** pregúntate «¿se mueven las perillas?». Si sí, es entrenamiento; si no, es inferencia.
 2. **Creer que 95 % en tu laptop significa «listo».** Ese número dice que el modelo acierta en tus fotos de prueba. No dice si responde en 200 ms, si aguanta cientos de fotos por segundo en la hora pico, si sigue acertando con las fotos borrosas de celulares reales ni qué pasa cuando falla. **Cómo evitarlo:** recorre las seis etapas y pregunta en cada una «¿esto ya existe?».
 3. **Creer que el modelo aprende en vivo.** El modelo que responde tiene sus perillas fijas. Lo que aprende del mundo entra por el camino offline, con datos revisados y un examen, y llega como versión nueva. Aprender en vivo existe, pero es raro y arriesgado: sin examen, un error o un ataque se vuelve parte del modelo al instante. **Cómo evitarlo:** cuando oigas «aprende de los usuarios», pregunta cada cuánto se reentrena y quién aprueba la versión nueva.
-4. **Ignorar el drift.** «Nadie lo ha tocado, así que sigue igual de bien». El mundo cambia aunque el modelo no, y el modelo se equivoca más sin lanzar ningún error. **Cómo evitarlo:** vigila al modelo y no solo al servidor: mide con etiquetas nuevas y compara las fotos de hoy con las del entrenamiento.
+4. **Ignorar el drift.** «Nadie lo ha tocado, así que sigue igual de bien». El mundo cambia aunque el modelo no, y el modelo puede equivocarse más sin lanzar ningún error. **Cómo evitarlo:** vigila al modelo y no solo al servidor: mide con etiquetas nuevas y compara las fotos de hoy con las del entrenamiento.
 5. **Olvidar el fallback.** Sin plan B, el día que el modelo tarda o se cae, la persona se queda viendo una pantalla trabada. **Cómo evitarlo:** para cada pieza que está en el camino de alguien que espera, decide cuánto se espera como máximo y qué se hace si la respuesta no llega.
 6. **Dibujar solo el camino online.** Foto → API → modelo → respuesta, y listo. Falta de dónde salen las etiquetas, cómo se entrena la próxima versión, cómo sabes que es mejor y cómo te enteras de que la actual empeoró. **Cómo evitarlo:** dibuja siempre los dos caminos con sus dos puentes: el registro (de online a offline) y el deploy (de offline a online).
 
-## En la vida real {In real life}
+## En la vida real {In real life} [extra]
 
 El camino de C01 no es especial. Toma tres casos de la Ronda que no se parecen en nada: video, pagos y un asistente que contesta preguntas. Las seis etapas y los dos caminos son los mismos; cambian las piezas y, sobre todo, los relojes.
 
@@ -373,7 +375,7 @@ El camino de C01 no es especial. Toma tres casos de la Ronda que no se parecen e
 
 Una empresa de logística tiene 25 centros con 40 cámaras cada uno: 1,000 cámaras. Quiere una alerta cuando una persona o un vehículo entra a una zona prohibida.
 
-- **Online:** cada centro tiene su propia caja con GPU, que mira 5 cuadros por segundo de cada cámara y detecta personas y vehículos. Si alguien sigue en la zona ≈ 1.5 segundos, la caja sube el evento a la nube, otro modelo lo confirma y la alerta llega a la pantalla de un operador. Reloj: 5 segundos o menos, 95 de cada 100 veces.
+- **Online:** cada centro tiene su propia caja con GPU, que mira 5 cuadros por segundo de cada cámara y detecta personas y vehículos. Si alguien sigue en la zona ≈ 1.5 segundos, la caja sube el evento a la nube, otro modelo lo confirma y la alerta llega a la pantalla de un operador. Reloj: 5 segundos o menos desde que la persona entra, contando ese segundo y medio, 95 de cada 100 veces.
 - **Offline:** cada operador marca la alerta como confirmada o descartada, y esas marcas son las etiquetas. Con ellas se reentrena, y el modelo nuevo se instala por olas: primero en 2 centros durante una semana y luego en 5, en 10 y en los últimos 8.
 - **Fallback:** si se cae el internet de un centro, la caja sigue detectando y guarda los eventos en su disco (le caben al menos 72 horas) hasta que vuelve la red.
 - **Lo distinto:** la API, el contenedor y la orquestación no viven en un solo lugar, sino repartidos en 25 cajas. Al cómputo que se pone junto a donde nacen los datos se le llama *edge* («la orilla»). Aquí hace falta porque el video de 40 cámaras no cabe en el internet de un centro.
@@ -382,14 +384,14 @@ Una empresa de logística tiene 25 centros con 40 cámaras cada uno: 1,000 cáma
 
 Una empresa latinoamericana que procesa pagos en línea recibe ≈ 10 millones de pagos al día y quiere frenar los fraudes en el momento en que ocurren.
 
-- **Online:** el chequeo corre dentro del cobro, antes de pedirle la autorización al banco de la tarjeta. Reloj: 100 ms o menos, 99 de cada 100 veces. Lo que más delata un fraude es lo que pasó en los últimos minutos con esa tarjeta, así que esos conteos se calculan con un flujo continuo de eventos (*streaming*) que se pone al día en segundos: un tercer reloj, entre los otros dos.
+- **Online:** el chequeo corre dentro del cobro, antes de pedirle la autorización al banco de la tarjeta. Reloj: 100 ms o menos, 99 de cada 100 veces. Una de las pistas más fuertes de un fraude es lo que pasó en los últimos minutos con esa tarjeta (por ejemplo, 30 intentos de pago en un minuto), así que esos conteos se calculan con un flujo continuo de eventos (*streaming*) que se pone al día en segundos: un tercer reloj, entre los otros dos.
 - **Offline:** la etiqueta es el contracargo, el reclamo del dueño de la tarjeta que dice «yo no hice esa compra», y tarda semanas o meses en llegar. Con los supuestos de la Ronda, ≈ 60 % llega en 30 días y ≈ 90 % en 60, así que se entrena solo con meses que ya «maduraron».
 - **Fallback:** si el modelo no responde a tiempo, deciden reglas fijas y límites. Nunca se bloquean todos los pagos.
 - **Lo distinto:** el modelo no es una red neuronal sino uno mucho más ligero, que corre en el procesador, sin GPU. Lo difícil no es el modelo: son los datos frescos y las etiquetas lentas.
 
 ### C11 · Un asistente que contesta con los documentos de la empresa
 
-Los ≈ 8,000 empleados del marketplace de C01 hacen ≈ 25 mil preguntas al día a un asistente que responde con los documentos internos y cita de dónde sacó cada cosa. Usa un [[llm|LLM]] con [[rag|RAG]]: antes de contestar, busca los pedazos de documento que vienen al caso y se los da al LLM.
+Los ≈ 8,000 empleados del marketplace de C01 hacen ≈ 25 mil preguntas al día a un asistente que responde con los documentos internos y cita de dónde sacó cada cosa. Usa un [[llm|LLM]] (un modelo grande de lenguaje: escribe texto, como el de un chat) con [[rag|RAG]]: antes de contestar, busca los pedazos de documento que vienen al caso y se los da al LLM.
 
 - **Online:** llega la pregunta, se buscan los pedazos que esa persona tiene permiso de ver, se arma la instrucción para el LLM y la respuesta aparece palabra por palabra. Reloj: empieza a aparecer en 2.5 segundos o menos, 95 de cada 100 veces.
 - **Offline:** el LLM no se reentrena. El camino offline es tener los documentos al día: ≈ 1.5 millones de documentos partidos en ≈ 12 millones de pedazos, y cada cambio tiene que poder encontrarse en 15 minutos o menos (95 de cada 100 veces).
@@ -403,13 +405,13 @@ Los ≈ 8,000 empleados del marketplace de C01 hacen ≈ 25 mil preguntas al d
 | C01 · Categoría de una foto | 200 ms (99 de 100) | Una versión nueva al mes | Selector manual |
 | C02 · Video | 5 s hasta el operador (95 de 100) | Semanas: olas de centros | La caja guarda los eventos |
 | C09 · Fraude | 100 ms dentro del cobro (99 de 100) | Meses: las etiquetas tardan | Reglas fijas y límites |
-| C11 · Asistente con RAG | 2.5 s hasta que empieza la respuesta (95 de 100) | 15 min para un documento nuevo | Solo resultados de búsqueda |
+| C11 · Asistente con RAG | 2.5 s hasta que empieza la respuesta (95 de 100) | 15 min para un documento nuevo o editado | Solo resultados de búsqueda |
 
 Fuera de ML pasa lo mismo. Un buscador de internet recorre y ordena páginas web todo el tiempo, sin que nadie espere (offline), y contesta tu búsqueda en una fracción de segundo (online). Tu banco autoriza tu tarjeta en el momento y arma tu estado de cuenta una vez al mes. La pregunta que separa los dos caminos es la misma en todos lados: ¿alguien está esperando?
 
 ## Ejercicios {Exercises}
 
-Resuelve cada uno en papel antes de abrir la solución. Los medios te piden razonar con dos ideas a la vez.
+Resuelve cada uno en papel antes de abrir la solución. Los medios te piden razonar con dos ideas a la vez, y los retos, usar todo el camino en un caso nuevo.
 
 :::ejercicios
 ? [facil] Para cada frase, di si es entrenamiento o inferencia. (a) El modelo de C01 recibe la foto de Ana y responde «Calzado › Tenis, 94 %». (b) Se le muestran 1.8 millones de fotos con su categoría y sus perillas cambian un poquito con cada grupo. (c) Una app de galería ordena tus fotos por tema mientras el celular se carga de noche, con un modelo que ya trae instalado. (d) Un equipo ajusta un modelo de lenguaje con 10 mil conversaciones de su área de soporte.
@@ -447,10 +449,10 @@ Hay que hacer dos preguntas por separado: «¿se mueven las perillas?» y «¿al
 | (b) El reentrenamiento | Entrenar | Offline |
 | (c) El examen del mes | Usar: las perillas no se mueven | Offline: nadie espera cada respuesta |
 | (d) Las fotos viejas | Usar | Offline: va en tandas, sin tocar el camino de Ana |
-| (e) Ajustar con cada clic | Entrenar | Online |
+| (e) Ajustar con cada clic | Entrenar | Online: en vivo, dentro del sistema que responde |
 
-El (e) existe y se llama aprendizaje en línea (*online learning*), pero es raro: necesita la respuesta correcta en segundos (en fraude tarda meses) y, sin examen de por medio, un error o un ataque se vuelve parte del modelo al instante. C01 no lo hace.
-? [medio] Desde la web, un vendedor sube la foto original de su cámara, de muchos megapíxeles, y en el caso lento el preprocesamiento tarda 120 ms en lugar de 52. Los demás pasos quedan como en el presupuesto de C01: red y entrada 40 ms, modelo 27 ms, respuesta 3 ms y el propio programa 30 ms. (a) ¿Cuánto suma? (b) ¿Se cumple la promesa? (c) ¿Ana recibe sugerencia? (d) ¿Qué cambiarías?
+El (e) existe y se llama aprendizaje en línea (*online learning*). Ahí «en línea» quiere decir que se ajusta en vivo, en el mismo sistema que responde: nadie espera el ajuste, pero le pega al instante a la siguiente respuesta. Es raro: necesita la respuesta correcta en segundos o minutos (en fraude tarda meses) y, sin examen de por medio, un error o un ataque se vuelve parte del modelo al instante. C01 no lo hace.
+? [medio] Esta vez Ana publica desde la web, no desde la app, y sube la foto original de su cámara, de muchos megapíxeles. En el caso lento, el preprocesamiento tarda 120 ms en lugar de 52. Los demás pasos quedan como en el presupuesto de C01: red y entrada 40 ms, modelo 27 ms, respuesta 3 ms y el propio programa 30 ms. (a) ¿Cuánto suma? (b) ¿Se cumple la promesa? (c) ¿Ana recibe sugerencia? (d) ¿Qué cambiarías?
 :::cuenta Con una foto gigante
 Los otros pasos | 40 + 27 + 3 + 30 | 100 ms
 Total | 100 + 120 | 220 ms
@@ -460,22 +462,32 @@ Contra los 300 ms del marketplace | 300 − 220 | 80 ms de sobra
 :::
 (d) El problema está en lo que entra, así que se ataca ahí: achicar la foto antes de subirla (la app de C01 ya la reduce a 1024 píxeles de lado largo) y ponerle un límite de tamaño a lo que llega de la web. Compruébalo en la calculadora: con el preprocesamiento en 120 ms, el margen sale en −20 ms.
 ? [medio] ¿Es drift? Para cada situación di si es drift y, si no, qué es. (a) Llega diciembre y suben las fotos de adornos, suéteres y juguetes. (b) El negocio agrega la categoría «bolsas». (c) Sale un celular muy popular que toma fotos más brillantes y con más contraste. (d) Alguien cambia el código de la API y ahora la foto le llega al modelo con los colores en otro orden. (e) Las respuestas tardan más en la hora de más tráfico.
-- (a) **Drift.** Las fotos que llegan cambiaron con la temporada.
+- (a) **Drift.** Las fotos que llegan cambiaron con la temporada. Más adelante verás que tiene un nombre más exacto: cuando cambia sobre todo cuánto llega de cada categoría, se llama [[label-shift|*label shift*]].
 - (b) **No es drift: es un cambio en las categorías.** El modelo ni siquiera tiene «bolsas» entre sus respuestas. Toca reentrenar con la categoría nueva.
 - (c) **Drift.** Las fotos se parecen menos a las del entrenamiento, aunque los productos sean los mismos.
 - (d) **No es drift: es un bug.** El mundo no cambió; cambió cómo el programa prepara la foto, que ya no es igual que en el entrenamiento. Tiene nombre: [[training-serving-skew]]. Se arregla el código, no se reentrena.
 - (e) **No es drift: es carga.** El modelo acierta igual; lo que faltan son copias. Es trabajo de la orquestación.
-? [medio] Una app de comida a domicilio muestra «Llega en 35 min» cuando confirmas tu pedido. (a) ¿Qué parte es el camino online y qué tan rápido tendría que ser? (b) ¿De dónde salen las etiquetas del camino offline? (c) ¿Qué fallback pondrías? (d) ¿Cuáles son los dos puentes?
+? [reto] Una app de comida a domicilio muestra «Llega en 35 min» cuando confirmas tu pedido. (a) ¿Qué parte es el camino online y qué tan rápido tendría que ser? (b) ¿De dónde salen las etiquetas del camino offline? (c) ¿Qué fallback pondrías? (d) ¿Cuáles son los dos puentes?
 - (a) **Online:** al confirmar, la app manda el restaurante, tu dirección y la hora, y el modelo predice el tiempo. Tú estás esperando esa pantalla, así que tiene que ser rápido: del orden de cientos de milisegundos, como C01 (es un supuesto razonable, no un dato).
 - (b) **Etiquetas:** el tiempo real de entrega, que se sabe cuando el pedido llega a tu puerta. Hay que guardar cada predicción y, cuando llegue el tiempo real, juntar las dos.
 - (c) **Fallback:** un tiempo fijo por zona o el promedio de ese restaurante, como «30–45 min». Es peor que el modelo, pero nunca deja la pantalla vacía.
 - (d) **Puentes:** el registro de cada predicción con su tiempo real (de online a offline) y el deploy del modelo reentrenado (de offline a online).
+? [reto] Moderación quiere revisar con otro modelo si cada foto trae un producto prohibido. En el caso lento, ese modelo tarda 60 ms. (a) Si va en el camino de Ana, después del clasificador, ¿cuánto suma el caso lento de C01, que era de 152 ms, y qué margen queda contra los 200 ms? (b) ¿Ana está esperando esa respuesta? ¿Dónde lo pondrías y qué ganas?
+:::cuenta Un modelo más en el camino de Ana
+Presupuesto de C01, caso lento | 40 + 52 + 27 + 3 + 30 | 152 ms
+Con el modelo de moderación | 152 + 60 | 212 ms
+Contra la promesa | 200 − 212 | −12 ms
+= En el caso lento ya no cabe en los 200 ms, y todo por un modelo que Ana ni siquiera necesita.
+:::
+(b) **No.** Para sugerirle «Tenis» no hace falta saber si el producto está prohibido, así que ese modelo va aparte, sin que nadie espere cada respuesta: otro servicio revisa la foto segundos o minutos después (y si hubiera que frenar la publicación, al publicar, con su propio reloj).
+
+Ganas tres cosas: Ana conserva sus 48 ms de margen, si moderación falla ella ni se entera, y moderación puede usar un modelo más lento y más preciso. La Ronda hace lo mismo: en C01, la moderación es otro sistema, fuera de la API de categorías.
 :::
 
 ## Lo que sigue {What comes next}
 
 - **En Sensei.** La siguiente lección, «Qué es un modelo», abre la caja: qué hace el modelo por dentro y qué significa de verdad el «94 %». Después vienen cómo ve una foto, con qué aprende, cómo aprende y cómo saber si aprendió. Las cuentas de esta lección (percentiles, requests por segundo, qué tan seguido falla algo) se hacen a fondo en el módulo «Números y estadística para producción».
-- **En la Ronda.** **M01 · El mapa y la entrevista** arranca justo aquí: el ciclo de vida, la figura de Sculley y los dos caminos separados, que es lo primero que un entrevistador busca en tu diagrama. Su arquitectura de referencia es este mismo camino con más cajas (un gateway, un registro de modelos, un feature store y un job de drift), y sus estimaciones son las de la sección de números: 116, 350 y 500 requests por segundo. **M02 · Patrones de inferencia** desarrolla la pregunta «¿alguien está esperando?», **M03 · Latencia y capacidad** reparte el presupuesto de 200 ms tramo por tramo, **M11 · Despliegue seguro** hace el deploy poco a poco y **M12 · Monitoreo** caza el drift.
+- **En la Ronda.** **M01 · El mapa y la entrevista** arranca justo aquí: el ciclo de vida, la figura de Sculley y los dos caminos separados, que es lo primero que un entrevistador busca en tu diagrama. Su arquitectura de referencia es este mismo camino con más cajas (una puerta de entrada o *gateway*, un registro con las versiones aprobadas del modelo, un *feature store* que guarda datos ya preparados y una tarea diaria que busca drift), y sus estimaciones son las de la sección de números: 116, 350 y 500 requests por segundo. **M02 · Patrones de inferencia** desarrolla la pregunta «¿alguien está esperando?», **M03 · Latencia y capacidad** reparte el presupuesto de 200 ms tramo por tramo, **M11 · Despliegue seguro** hace el deploy poco a poco y **M12 · Monitoreo** caza el drift.
 - **En el Dojo.** Practicas el mismo C01 estación por estación, con código de verdad: son las 12 estaciones de esta lección.
 
 ## Palabras que vas a oír {Words you will hear}

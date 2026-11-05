@@ -12,7 +12,7 @@
     { "id": "app", "label": "Publicación", "sub": "espera ≤ 300 ms", "kind": "client", "x": 1, "y": 16, "w": 15, "h": 9,
       "note": "El backend de publicación del marketplace. Recibe la foto de Ana, llama al servicio y espera **como máximo 300 ms**. Pasado ese tiempo deja de esperar y usa el plan B." },
     { "id": "alb", "label": "ALB", "sub": "99.99 %", "kind": "edge", "x": 20, "y": 16, "w": 12, "h": 9,
-      "note": "El balanceador de AWS reparte los requests entre las dos zonas, y él mismo vive en las dos. Está **en serie** con todo lo demás y no tiene copia: por eso es la pieza que más minutos pone en la cuenta. 99.99 % es un valor ilustrativo, como todos los de este diagrama; los de tu sistema se miden." },
+      "note": "El balanceador de AWS reparte los requests entre las dos zonas, y él mismo vive en las dos. Está **en serie** con todo lo demás y entra a la cuenta una sola vez, sin una réplica en paralelo (su porcentaje ya incluye sus propias copias): por eso es la pieza que más minutos pone. 99.99 % es un valor ilustrativo, como todos los de este diagrama; los de tu sistema se miden." },
     { "id": "gwA", "label": "Gateway", "sub": "CPU · 99.95 %", "kind": "service", "x": 40, "y": 7, "w": 16, "h": 9,
       "note": "Recibe la foto, la decodifica y la prepara en CPU. Tiene réplicas en las dos zonas: si cae la zona A, las de la B absorben todo el tráfico. En paralelo, las dos zonas dan 1 − 0.0005² ≈ 99.99998 %." },
     { "id": "tA", "label": "Triton · T4", "sub": "99.5 %", "kind": "gpu", "x": 60, "y": 7, "w": 17, "h": 9,

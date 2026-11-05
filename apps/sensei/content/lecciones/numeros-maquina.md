@@ -56,10 +56,6 @@ print("valores posibles con 1 a 8 bits:", [2**b for b in range(1, 9)])
 valores posibles con 1 a 8 bits: [2, 4, 8, 16, 32, 64, 128, 256]
 ```
 
-:::nota Hexadecimal: los bits de 4 en 4
-Escribir 32 ceros y unos es incómodo, así que los programadores agrupan los bits de 4 en 4. Cada grupo tiene 16 combinaciones y se escribe con un solo símbolo: del 0 al 9 y de la A (10) a la F (15). Es el sistema **hexadecimal**, y se marca con `0x`: 1110 1100 es `0xEC` y 255 es `0xFF`. Lo vas a ver en mensajes de error y en los colores de las páginas web: el naranja de los tenis, con rojo 236, verde 106 y azul 63, se escribe `#EC6A3F`.
-:::
-
 ### Enteros sin signo y con signo
 
 Un [[entero]] (*integer*) es un número sin decimales. En la computadora cada entero tiene un tamaño fijo en bits, y el tamaño decide su rango.
@@ -147,18 +143,7 @@ un contador int32 llega a 2,147,483,647: a 116 fotos por segundo, en 214 días
 
 La salida es convertir a un tipo más grande antes de hacer cuentas (int32 o float32) y, al final, recortar a 0–255 antes de volver a uint8.
 
-Los contadores también dan la vuelta. Mira un contador int32 de las fotos de C01:
-
-:::cuenta Un contador int32 de las fotos de C01
-Fotos por segundo, en promedio // ≈ 10 millones al día: ≈ 2.5 M publicaciones con ≈ 3 fotos, más otros equipos | 10,000,000 ÷ 86,400 s | ≈ 116
-El int32 más grande | 2³¹ − 1 | 2,147,483,647
-Días hasta llegar | 2,147,483,647 ÷ 116 ÷ 86,400 | ≈ 214 días
-Con uint32 // sin signo: el doble | 4,294,967,295 ÷ 116 ÷ 86,400 | ≈ 429 días
-Con int64 | 9.2 × 10¹⁸ ÷ 116 | ≈ 2,500 millones de años
-= En unos 7 meses, el contador int32 salta a −2,147,483,648 y la gráfica muestra fotos negativas. Con int64 no pasa nunca: por eso los contadores se guardan en 64 bits.
-:::
-
-No es teoría. En diciembre de 2014, el video *Gangnam Style* pasó de 2,147,483,647 vistas en YouTube, el tope de un int32, y YouTube tuvo que cambiar su contador a 64 bits. En 1996, el primer cohete Ariane 5 se autodestruyó unos 40 segundos después de despegar: su software convirtió un número con decimales en un entero de 16 bits con signo (tope: 32,767), el número no cabía y el programa de navegación se detuvo. Y muchos sistemas cuentan el tiempo en segundos desde el 1 de enero de 1970 con un int32: ese contador se llena el 19 de enero de 2038 a las 03:14:07 (hora UTC), el «problema del año 2038».
+Los contadores también dan la vuelta: en la sección extra «En la vida real» está uno de C01, junto con los desbordes que tumbaron un cohete y el contador de YouTube.
 
 Los números con decimales también se desbordan, pero de otra forma: se vuelven *infinito*. Lo ves en la siguiente sección.
 
@@ -199,21 +184,17 @@ En FP32, con 23 bits de mantisa, entre 1 y 2 caben 2²³ = 8,388,608 números, t
 Eso es justo lo que se busca: el error es **relativo**. Un número cercano a 1 se guarda con un error menor que una diezmillonésima; uno cercano a un millón, con un error de centésimas; y los dos están igual de bien guardados para su tamaño: a menos de 0.000006 % de su valor. La figura lo muestra con un formato de 8 bits, donde se pueden dibujar todos los números que existen.
 
 :::figura numeros-maquina-recta
-Todos los números de FP8 E5M2, un formato de 8 bits con 2 de mantisa, entre 0 y 16. En cada tramo (de 1 a 2, de 2 a 4, de 4 a 8 y de 8 a 16) hay exactamente 4. La separación se duplica de tramo en tramo, pero el error relativo es el mismo.
+Todos los números de FP8 E5M2, un formato de 8 bits con 2 de mantisa, entre 0 y 16. En cada tramo (de 1 a 2, de 2 a 4, de 4 a 8 y de 8 a 16) hay exactamente 4. La separación se duplica de tramo en tramo, pero el error relativo máximo es el mismo en todos: 12.5 %.
 :::
 
 ### Infinito y NaN
 
 Algunas combinaciones de bits están reservadas. Con el exponente todo en unos, el número es **infinito** (`inf`) o **NaN** (*not a number*, «no es un número»):
 
-- `inf` aparece cuando un resultado es demasiado grande para el formato: es el overflow de los números con decimales. También sale al dividir entre cero en NumPy o en PyTorch (Python, en cambio, da un error).
+- `inf` aparece cuando un resultado es demasiado grande para el formato: es el overflow de los números con decimales. También sale al dividir entre cero un número que no es 0, en NumPy o en PyTorch (Python, en cambio, da un error).
 - `NaN` aparece con cuentas que no tienen respuesta: 0 ÷ 0, infinito menos infinito, o un `inf` multiplicado por 0.
 
-NaN contagia: cualquier cuenta con un NaN da NaN. Y NaN es distinto de todo, hasta de sí mismo: `x == x` es falso si `x` es NaN. Basta un NaN en la [[loss|pérdida]] para que la [[backpropagation]] llene de NaN todos los gradientes, y el siguiente paso, todos los pesos. Por eso «loss = nan» es la falla de entrenamiento más famosa, y muchas veces empieza con un overflow.
-
-:::profundo Los subnormales y el −0
-Con el exponente todo en ceros, el 1 de adelante se vuelve 0 y la mantisa sigue contando hacia abajo: son los números **subnormales**, que llenan el hueco entre el normal más chico y el 0, con menos cifras. En FP32 llegan hasta ≈ 1.4 × 10⁻⁴⁵; en FP16, hasta ≈ 6 × 10⁻⁸. Algunas GPUs los convierten en 0 para ir más rápido (*flush to zero*). Ese mismo exponente en ceros con la mantisa en ceros es el 0, que puede tener signo: existe un −0, que al compararlo es igual a 0.
-:::
+NaN contagia: cualquier suma, resta, multiplicación o división con un NaN da NaN. Y NaN es distinto de todo, hasta de sí mismo: `x == x` es falso si `x` es NaN. Basta un NaN en la [[loss|pérdida]] para que la [[backpropagation]] llene de NaN todos los gradientes, y el siguiente paso, todos los pesos. Por eso «loss = nan» es la falla de entrenamiento más famosa, y muchas veces empieza con un overflow.
 
 ## FP32, FP16 y BF16: el mismo truco con distintos bits {FP32, FP16 and BF16: the same trick with different bits}
 
@@ -230,21 +211,17 @@ Cómo reparte sus bits cada formato. BF16 es la primera mitad de FP32: el mismo 
 | FP16 (float16) | 1 · 5 · 10 | 2 | 65,504 | ≈ 3 | ≈ 0.001 |
 | BF16 (bfloat16) | 1 · 8 · 7 | 2 | ≈ 3.4 × 10³⁸ | ≈ 2 | ≈ 0.008 |
 
-¿De dónde salen las cifras? FP32 tiene 24 bits de dígitos (23 de mantisa más el 1 gratis), y 2²⁴ ≈ 16.8 millones: unas 7 cifras decimales. FP16 tiene 11 bits, y 2¹¹ = 2,048: unas 3. BF16 tiene 8, y 2⁸ = 256: entre 2 y 3.
-
 ### FP32: la referencia
 
 Es el [[float32]] de la lección de imágenes. Con él se entrena por omisión, es el tipo que PyTorch usa si no le pides otro, y contra él se compara cualquier otro formato. Guarda ≈ 7 cifras y llega hasta ≈ 3.4 × 10³⁸: para casi todo, sobra. Su problema es el tamaño: 4 bytes por número.
 
-FP64, el doble de grande, casi no se usa en ML (las GPUs lo calculan mucho más lento), pero te lo vas a encontrar en un lugar: los números con decimales de Python son FP64, igual que los arreglos de NumPy si no le dices otra cosa.
-
 ### FP16: la mitad de memoria y un techo de 65,504
 
-[[fp16|FP16]] (*half precision*, media precisión) usa 2 bytes. Con 5 bits de exponente, su potencia más grande es 2¹⁵, y el número más grande que guarda es (2 − 2⁻¹⁰) × 2¹⁵ = **65,504**. Lo que pase de ahí se vuelve `inf`. Por abajo, el normal más chico es ≈ 0.000061 y los subnormales llegan a ≈ 0.00000006; lo que sea más chico se vuelve 0.
+[[fp16|FP16]] (*half precision*, media precisión) usa 2 bytes. Con 5 bits de exponente, su potencia más grande es 2¹⁵, y el número más grande que guarda es (2 − 2⁻¹⁰) × 2¹⁵ = **65,504**. Lo que pase de ahí se vuelve `inf`. Por abajo, el más chico con todas sus cifras es ≈ 0.000061; debajo quedan unos números especiales con menos cifras, los *subnormales*, que llegan a ≈ 0.00000006, y lo que sea más chico se vuelve 0.
 
 Con 10 bits de mantisa guarda ≈ 3 cifras: junto al 1, la separación es 2⁻¹⁰ ≈ 0.001, así que 1.0001 no existe y se guarda como 1.
 
-En una CNN como la de C01, los números se quedan lejos del techo, y FP16 es la elección normal para servir: el engine de C01 es TensorRT en FP16. En un [[transformer]] es otra historia. Dos ejemplos:
+En una CNN como la de C01, los números se quedan lejos del techo, y FP16 es la elección normal para servir: C01 corre su modelo como un *engine* de TensorRT (el modelo ya convertido por la herramienta de NVIDIA para correr rápido en su GPU), y ese engine trabaja en FP16. En un [[transformer]] es otra historia. Dos ejemplos:
 
 - **Exponenciales.** e¹¹ ≈ 59,874 cabe, pero e¹² ≈ 162,755 ya no. Un [[softmax]] hecho sin cuidado en FP16 da `inf` con cualquier logit mayor que ≈ 11.09, que es el logaritmo natural de 65,504. Por eso las librerías le restan a todos los logits el más alto, el truco de la lección «Qué es un modelo».
 - **Cuadrados.** 255² = 65,025 cabe; 256² = 65,536 ya no. Medir el tamaño de un vector de activaciones suma cuadrados, y basta un valor de 256 para que el resultado sea `inf`.
@@ -264,13 +241,46 @@ El resultado es el rango de FP32 (hasta ≈ 3.4 × 10³⁸) con 2 o 3 cifras. Co
 | 70,000 | 70,000 | `inf` | 70,144 |
 | 0.00000001 (10⁻⁸) | 1.0 × 10⁻⁸ | 0 | ≈ 1.001 × 10⁻⁸ |
 
-BF16 se equivoca más en cada número, pero nunca se desborda donde FP32 no lo haría. Y resulta que las redes neuronales toleran muy bien la imprecisión (el ruido del entrenamiento es mucho más grande que ese error), pero no el overflow. Por eso los LLMs se entrenan y se sirven en BF16, y por eso la Ronda (M04) dice que BF16 «le ganó» a FP16 en los LLMs.
+BF16 se equivoca más en cada número, pero prácticamente nunca se desborda donde FP32 no lo haría. Y resulta que las redes neuronales toleran muy bien la imprecisión (el ruido del entrenamiento es mucho más grande que ese error), pero no el overflow. Por eso los LLMs se entrenan y se sirven en BF16, y por eso la Ronda (M04) dice que BF16 «le ganó» a FP16 en los LLMs.
 
-Un detalle de hardware que la Ronda subraya: BF16 existe en las GPUs desde la generación Ampere (la A100 y la A10G) en adelante, pero **no en la T4**. Servir en una T4 un LLM entrenado en BF16 obliga a FP16, con riesgo de overflow, o a FP32, con el doble de memoria y sin los núcleos rápidos.
+Un detalle de hardware que la Ronda subraya: BF16 existe en las GPUs desde la generación Ampere (la A100 y la A10G) en adelante, pero **no en la T4**. Servir en una T4 un LLM entrenado en BF16 obliga a FP16, con riesgo de overflow, o a FP32, con el doble de memoria y unas 8 veces menos velocidad de cálculo.
 
-:::nota TF32, en una línea
-TF32 no es un formato para guardar: es un modo de cálculo de las GPUs desde Ampere, que multiplica con el exponente de FP32 y la mantisa de FP16 (10 bits) mientras los tensores se siguen guardando como FP32. Acelera las cuentas «en FP32» sin cambiar el código, pero no ahorra memoria.
-:::
+### En PyTorch: el dtype de cada tensor
+
+Cada tensor de PyTorch guarda todos sus números en el mismo formato, y ese formato es su [[dtype]] (*data type*, tipo de dato). El dtype decide cuántos bytes ocupa cada número y cómo se leen sus bits.
+
+| En PyTorch | Formato | Bytes por número |
+|---|---|---|
+| `torch.float32` o `torch.float` | FP32 | 4 |
+| `torch.float16` o `torch.half` | FP16 | 2 |
+| `torch.bfloat16` | BF16 | 2 |
+| `torch.float64` o `torch.double` | FP64 | 8 |
+| `torch.uint8` | uint8 | 1 |
+| `torch.int8` | int8 | 1 |
+| `torch.int64` o `torch.long` | int64 | 8 |
+| `torch.bool` | verdadero o falso | 1 |
+
+Lo que PyTorch elige solo: un tensor con decimales nace en float32; uno con enteros, en int64. La memoria de un tensor es su cantidad de números por los bytes de su dtype. El tensor de la foto de Ana, de [[shape]] [1, 3, 224, 224], tiene 150,528 números: ocupa 602,112 bytes (≈ 602 KB) en float32, la mitad en float16 y ≈ 151 KB en uint8.
+
+Así se ve en código. Es una ilustración: necesita PyTorch, que no viene con Python, y por eso no lleva su salida; lo que imprime está en los comentarios.
+
+```python
+import torch
+
+x = torch.tensor([0.1, 2.5])          # con decimales: nace en float32
+print(x.dtype, x.element_size())      # torch.float32 4  (4 bytes por número)
+x16 = x.to(torch.float16)             # una copia en FP16, con la mitad de bytes
+etiquetas = torch.tensor([3, 41])     # enteros: nacen en int64
+print(etiquetas.dtype)                # torch.int64
+foto = torch.zeros(1, 3, 224, 224, dtype=torch.uint8)
+print(foto.float().div(255).dtype)    # torch.float32: así se convierte la foto
+```
+
+## Redondeo: por qué 0.1 + 0.2 no da 0.3 {Rounding: why 0.1 + 0.2 is not 0.3} [extra]
+
+Casi ningún número cabe exacto en los bits. La computadora guarda el más cercano que sí existe, y la diferencia es el error de [[redondeo]] (*rounding error*).
+
+Piensa en 1/3 en decimal: es 0.3333…, con treses que no se acaban. En binario, 1/10 hace lo mismo: 0.1 = 0.000110011001100110011…₂, con «0011» repetido para siempre. FP32 lo corta a los 24 bits de dígitos y guarda 0.100000001490116…; FP64 lo corta a los 53 y guarda 0.1000000000000000055…
 
 Con Python puedes ver los bits de verdad. El módulo `struct` convierte un número en los bytes de un FP32 (`"f"`) o de un FP16 (`"e"`):
 
@@ -309,44 +319,9 @@ except OverflowError as error:
 
 Fíjate en el 0.1: su mantisa es «1001» repetido hasta que se acaban los bits, y en FP32 el último está redondeado hacia arriba. Y el 65,504 en FP16 tiene la mantisa toda en unos y el exponente en 11110: es el último número antes del infinito, que usa el exponente 11111.
 
-### En PyTorch: el dtype de cada tensor
+FP64, el doble de grande que FP32, casi no se usa en ML (las GPUs lo calculan mucho más lento), pero te lo vas a encontrar en un lugar: los números con decimales de Python son FP64, igual que los arreglos de NumPy si no le dices otra cosa.
 
-Cada tensor de PyTorch guarda todos sus números en el mismo formato, y ese formato es su [[dtype]] (*data type*, tipo de dato). El dtype decide cuántos bytes ocupa cada número y cómo se leen sus bits.
-
-| En PyTorch | Formato | Bytes por número |
-|---|---|---|
-| `torch.float32` o `torch.float` | FP32 | 4 |
-| `torch.float16` o `torch.half` | FP16 | 2 |
-| `torch.bfloat16` | BF16 | 2 |
-| `torch.float64` o `torch.double` | FP64 | 8 |
-| `torch.uint8` | uint8 | 1 |
-| `torch.int8` | int8 | 1 |
-| `torch.int64` o `torch.long` | int64 | 8 |
-| `torch.bool` | verdadero o falso | 1 |
-
-Lo que PyTorch elige solo: un tensor con decimales nace en float32; uno con enteros, en int64. La memoria de un tensor es su cantidad de números por los bytes de su dtype. El tensor de la foto de Ana, de [[shape]] [1, 3, 224, 224], tiene 150,528 números: ocupa 602,112 bytes (≈ 602 KB) en float32, la mitad en float16 y ≈ 151 KB en uint8.
-
-Así se ve en código. Es una ilustración: necesita PyTorch, que no viene con Python, y por eso no lleva su salida; lo que imprime está en los comentarios.
-
-```python
-import torch
-
-x = torch.tensor([0.1, 2.5])          # con decimales: nace en float32
-print(x.dtype, x.element_size())      # torch.float32 4  (4 bytes por número)
-x16 = x.to(torch.float16)             # una copia en FP16, con la mitad de bytes
-etiquetas = torch.tensor([3, 41])     # enteros: nacen en int64
-print(etiquetas.dtype)                # torch.int64
-foto = torch.zeros(1, 3, 224, 224, dtype=torch.uint8)
-print(foto.float().div(255).dtype)    # torch.float32: así se convierte la foto
-```
-
-## Redondeo: por qué 0.1 + 0.2 no da 0.3 {Rounding: why 0.1 + 0.2 is not 0.3}
-
-Casi ningún número cabe exacto en los bits. La computadora guarda el más cercano que sí existe, y la diferencia es el error de [[redondeo]] (*rounding error*).
-
-Piensa en 1/3 en decimal: es 0.3333…, con treses que no se acaban. En binario, 1/10 hace lo mismo: 0.1 = 0.000110011001100110011…₂, con «0011» repetido para siempre. FP32 lo corta a los 24 bits de dígitos y guarda 0.100000001490116…; FP64 lo corta a los 53 y guarda 0.1000000000000000055…
-
-Por eso, en Python, que usa FP64, 0.1 + 0.2 da **0.30000000000000004**, y `0.1 + 0.2 == 0.3` es falso. No es un error de Python: pasa en JavaScript, en C y en cualquier lenguaje que use estos formatos. En FP32, de pura suerte, 0.1 + 0.2 sí da el mismo número que 0.3, porque los dos errores se compensan; en FP16 vuelve a fallar. Que dos cuentas de punto flotante den exactamente lo mismo es cuestión de suerte.
+Como 0.1 y 0.2 ya vienen redondeados, en Python 0.1 + 0.2 da **0.30000000000000004**, y `0.1 + 0.2 == 0.3` es falso. No es un error de Python: pasa en JavaScript, en C y en cualquier lenguaje que use estos formatos. En FP32, de pura suerte, 0.1 + 0.2 sí da el mismo número que 0.3, porque los dos errores se compensan; en FP16 vuelve a fallar. Que dos cuentas de punto flotante den exactamente lo mismo es cuestión de suerte.
 
 ¿Qué tan grande es el error? A lo mucho, media separación. En proporción al número:
 
@@ -356,22 +331,15 @@ Por eso, en Python, que usa FP64, 0.1 + 0.2 da **0.30000000000000004**, y `0.1 +
 | FP16 | ≈ 0.05 % |
 | BF16 | ≈ 0.4 % |
 
+De ahí salen las cifras de la tabla de formatos. FP32 tiene 24 bits de dígitos (23 de mantisa más el 1 gratis), y 2²⁴ ≈ 16.8 millones: unas 7 cifras decimales. FP16 tiene 11 bits, y 2¹¹ = 2,048: unas 3. BF16 tiene 8, y 2⁸ = 256: entre 2 y 3.
+
 ### La regla: nunca compares con ==
 
-Para comparar números de punto flotante se pregunta si están **cerca**: si la diferencia es menor que una tolerancia. En Python, `math.isclose(a, b)`; en PyTorch, `torch.allclose(a, b, rtol=…, atol=…)`. La tolerancia depende del formato: en la prueba de paridad de la Ronda (M08), la diferencia máxima normal entre los logits de dos versiones del modelo es de ≈ 0.0001 en FP32 y de ≈ 0.01 en FP16. Si sale órdenes de magnitud más grande, es un bug.
+Para comparar números de punto flotante se pregunta si están **cerca**: si la diferencia es menor que una tolerancia. En Python, `math.isclose(a, b)`; en PyTorch, `torch.allclose(a, b, rtol=…, atol=…)`. La tolerancia depende del formato: en la prueba de paridad de la Ronda (M08), la diferencia máxima esperable entre los logits de dos versiones del modelo es de ≈ 0.0001 en FP32 y de ≈ 0.01 en FP16. Si sale órdenes de magnitud más grande, es un bug.
 
 ### Los enteros grandes también se redondean
 
-Un FP32 guarda exacto cualquier entero hasta 2²⁴ = 16,777,216. Arriba de eso la separación ya es 2: el 16,777,217 no existe, y **16,777,216 + 1 = 16,777,216**. FP16 se atora mucho antes, en 2,048 (2,048 + 1 = 2,048), y BF16 en 256.
-
-:::cuenta Un contador de fotos guardado en float32
-Fotos por segundo // el promedio de C01 | 10,000,000 ÷ 86,400 | ≈ 116
-El último entero seguro de FP32 | 2²⁴ | 16,777,216
-Horas hasta llegar | 16,777,216 ÷ 116 ÷ 3,600 | ≈ 40 horas
-Una foto más // ya no se mueve | 16,777,216 + 1 | 16,777,216
-Años hasta atorarse en FP64 // como los contadores de Prometheus: 53 bits de dígitos | 2⁵³ ÷ 116 ÷ 86,400 ÷ 365 | ≈ 2.5 millones
-= Un contador en float32 se atora en menos de dos días, sin ningún error. Contar es trabajo de enteros, o de FP64.
-:::
+Un FP32 guarda exacto cualquier entero hasta 2²⁴ = 16,777,216. Arriba de eso la separación ya es 2: el 16,777,217 no existe, y **16,777,216 + 1 = 16,777,216**. FP16 se atora mucho antes, en 2,048 (2,048 + 1 = 2,048), y BF16 en 256. Un contador de fotos de C01 guardado en float32 se atoraría en menos de dos días, sin ningún error: la cuenta está en «En la vida real».
 
 ### Los errores se acumulan
 
@@ -407,23 +375,25 @@ FP16: 1 + 0.001 = 1.0009765625
 ¿cerca de 0.3? True
 ```
 
-El 1 + 0.001 sí se mueve en FP16, pero no a 1.001: al número de FP16 más cercano, 1.0009765625, que es 1 + 2⁻¹⁰.
+El 1 + 0.001 sí se mueve en FP16, pero no a 1.001: al número de FP16 más cercano, 1.0009765625, que es 1 + 2⁻¹⁰. Un error así, repetido millones de veces, hizo fallar un misil antiaéreo en 1991: la historia está en «En la vida real».
 
-:::ejemplo El reloj del Patriot
-En febrero de 1991, en Dhahran, Arabia Saudita, una batería de misiles antiaéreos Patriot llevaba ≈ 100 horas encendida. Su reloj contaba el tiempo en décimas de segundo y lo convertía multiplicando por 0.1, guardado en un registro de 24 bits. Ese 0.1 tenía un error de ≈ 0.000000095.
-
-En 100 horas hay 3,600,000 décimas de segundo, y el error se sumó en cada una: 3,600,000 × 0.000000095 ≈ **0.34 segundos** de atraso. Un misil Scud recorre más de medio kilómetro en ese tiempo. El sistema lo buscó en el lugar equivocado, no lo interceptó, y el ataque mató a 28 soldados estadounidenses. El error de cada décima era diminuto; lo grave fue acumularlo.
-:::
-
-## Precisión mixta: entrenar en 16 bits sin perder lo importante {Mixed precision: training in 16 bits without losing what matters}
+## Precisión mixta: entrenar en 16 bits sin perder lo importante {Mixed precision: training in 16 bits without losing what matters} [extra]
 
 Entrenar en 16 bits tiene dos premios. Las activaciones ocupan la mitad de memoria. Y las GPUs tienen núcleos especiales para multiplicar matrices en 16 bits, los [[tensor-core|*tensor cores*]], muchísimo más rápidos: una T4 hace ≈ 65 billones (65 × 10¹²) de operaciones por segundo en FP16 contra ≈ 8.1 billones en FP32 (M04): 8 veces menos.
+
+:::nota TF32, en una línea
+TF32 no es un formato para guardar: es un modo de cálculo de las GPUs desde Ampere, que multiplica con el exponente de FP32 y la mantisa de FP16 (10 bits) mientras los tensores se siguen guardando como FP32. Acelera las cuentas «en FP32» sin tocar el modelo (en PyTorch, a lo mucho con una línea de configuración), pero no ahorra memoria.
+:::
 
 Pero entrenar todo en FP16 falla de tres maneras:
 
 1. **Los cambios chicos se pierden.** Con un [[learning-rate|learning rate]] de 0.001 y un gradiente de 0.1, el paso es de 0.0001. Un peso que vale 1 debería quedar en 1.0001, pero en FP16 queda en 1: el cambio es menor que media separación. El modelo deja de aprender sin ningún error.
 2. **Los gradientes diminutos se vuelven 0.** FP16 no baja de ≈ 6 × 10⁻⁸. Un gradiente de 10⁻⁸ se guarda como 0, y esa parte del modelo deja de aprender.
 3. **Lo grande se desborda.** Lo que pase de 65,504 es `inf`, y de ahí viene el NaN.
+
+:::profundo Los subnormales y el −0
+Con el exponente todo en ceros, el 1 de adelante se vuelve 0 y la mantisa sigue contando hacia abajo: son los números **subnormales**, que llenan el hueco entre el más chico con todas sus cifras y el 0, con menos cifras. En FP32 llegan hasta ≈ 1.4 × 10⁻⁴⁵; en FP16, hasta ≈ 6 × 10⁻⁸. Algunas GPUs los convierten en 0 para ir más rápido (*flush to zero*). Ese mismo exponente en ceros con la mantisa en ceros es el 0, que puede tener signo: existe un −0, que al compararlo es igual a 0.
+:::
 
 La [[precision-mixta|precisión mixta]] (*mixed precision*; en PyTorch se llama AMP, de *automatic mixed precision*) resuelve las tres con tres ideas, publicadas en 2018 por investigadores de NVIDIA y de Baidu:
 
@@ -496,28 +466,6 @@ for fotos, etiquetas in datos:
 
 Si se entrena en BF16, el `autocast` lleva `dtype=torch.bfloat16` y el `scaler` sobra.
 
-## FP8: un byte que conserva un exponente {FP8: one byte that keeps an exponent} [extra]
-
-¿Se puede bajar a 8 bits sin dejar de ser punto flotante? Sí: es [[fp8|FP8]], que existe en dos versiones, propuestas en 2022 por investigadores de NVIDIA, Arm e Intel:
-
-| Versión | Signo · exponente · mantisa | El más grande | Separación entre 1 y 2 | Para qué |
-|---|---|---|---|---|
-| E4M3 | 1 · 4 · 3 | 448 | 0.125 | Pesos y activaciones |
-| E5M2 | 1 · 5 · 2 | 57,344 | 0.25 | Gradientes, que necesitan más rango |
-
-El nombre dice el reparto: E4M3 es «exponente de 4 bits, mantisa de 3». La figura de los números que no están parejos era justo E5M2.
-
-:::cuenta El número más grande de E4M3
-Exponente más grande // 4 bits en unos = 15, menos el sesgo de 7 | 15 − 7 | 8
-Mantisa más grande // la 111 se reserva para NaN | 1.110₂ = 1 + 1/2 + 1/4 | 1.75
-El más grande | 1.75 × 2⁸ | 448
-= Con 3 bits de mantisa, entre 1 y 2 solo hay 8 números: 1, 1.125, 1.25… hasta 1.875. Es ≈ 1 cifra decimal.
-:::
-
-Con un rango tan corto, FP8 casi nunca se usa solo: cada tensor lleva una **escala**, un número en FP32 que lo agranda o lo achica para que su valor más grande caiga cerca del máximo antes de convertirlo. Es la misma idea de la cuantización, que viene en la siguiente sección. La diferencia con INT8 es que FP8 conserva un exponente: sus escalones son finos cerca del 0 y gruesos lejos de él, así que aguanta mejor los valores atípicos (M08).
-
-¿Dónde existe? En las GPUs Ada (L4, L40S) y Hopper (H100), y no en la A100, la A10G ni la T4 (M04). La generación Blackwell (B200) ya agrega FP4. En la Ronda, C10 sirve su LLM de 70,600 millones de parámetros con los pesos en FP8, y M14 explica que el [[kv-cache|KV cache]] también puede ir en FP8: de 320 KiB por token baja a 160 KiB, y caben el doble de conversaciones a la vez.
-
 ## Cuantización: enteros con una escala {Quantization: integers with a scale}
 
 FP16 corta los bytes a la mitad. Para bajar a la cuarta parte o menos se usan enteros. Guardar los números de un modelo con menos bits se llama [[cuantizacion|cuantización]] (*quantization*), y la versión más común es [[int8|INT8]]: cada número se guarda como un entero de 8 bits, más una **escala** que comparte todo el grupo.
@@ -563,26 +511,13 @@ Ahora agrega a esa capa un solo peso de 25. La escala pasa a 25 ÷ 127 ≈ 0.197
 - **Recortar los extremos:** elegir el rango con un percentil en vez del máximo, y aceptar que los poquísimos valores de afuera se saturen.
 - **Dejar sin cuantizar las capas delicadas:** a menudo, la primera y la última, que se quedan en FP16.
 
-### El punto cero, para rangos que no están centrados
-
-Si los números no están repartidos alrededor del 0, la versión simétrica desperdicia enteros. Después de una [[relu|ReLU]] todo es positivo: con un rango de 0 a 6, la escala simétrica es 6 ÷ 127 ≈ 0.047 y la mitad negativa de los enteros nunca se usa. La cuantización **asimétrica** usa todos los enteros para el rango real, del mínimo al máximo, y agrega un **punto cero** (*zero point*): el entero que representa al 0 de verdad.
-
-**valor ≈ escala × (entero − punto cero)**
-
-:::ejemplo Un rango de −1 a 3, en uint8 (de 0 a 255)
-- Escala = (3 − (−1)) ÷ 255 = 4 ÷ 255 ≈ 0.01569. Con el rango de la ReLU, de 0 a 6, sería 6 ÷ 255 ≈ 0.024: la mitad que la simétrica.
-- Punto cero = redondear(1 ÷ 0.01569) = redondear(63.75) = **64**. El 0 real se guarda como 64, exacto. Importa, porque el 0 es de los números más comunes dentro de una red.
-- El 2.2 se guarda como redondear(2.2 ÷ 0.01569) + 64 = 140 + 64 = **204**, y vuelve como 0.01569 × (204 − 64) ≈ 2.1961.
-- El −0.5 se guarda como redondear(−31.875) + 64 = −32 + 64 = **32**, y vuelve como 0.01569 × (32 − 64) ≈ −0.5020.
-:::
-
 :::calculadora numeros-maquina-cuantizar
 Prueba también los otros pesos del ejemplo (−0.73, 1.26 y 2.04): con el rango en 2.5, ninguno queda a más de medio escalón.
 :::
 
 ### Calibrar: medir los rangos antes de cuantizar
 
-Los pesos están fijos, así que su rango se mide una vez. Las activaciones cambian con cada foto. Para elegir sus escalas se **calibra**: se pasan por el modelo unos cientos de ejemplos reales y se anota el rango de cada capa. M08 pide de unos cientos a ≈ 1,000 (la guía de NVIDIA, al menos 500 para CNNs), sacados del tráfico reciente de producción, de todos los slices y con el mismo preprocesamiento del servidor.
+Los pesos están fijos, así que su rango se mide una vez. Las activaciones cambian con cada foto. Para elegir sus escalas se **calibra**: se pasan por el modelo unos cientos de ejemplos reales y se anota el rango de cada capa.
 
 :::ojo
 «Calibrar» aquí no es la [[calibracion|calibración]] de la lección «¿Aprendió de verdad?», la de que un 90 % de confianza acierte 90 de cada 100. Es la misma palabra para otra cosa: aquí, medir rangos para elegir escalas. En la Ronda vas a ver las dos.
@@ -595,13 +530,60 @@ Hay dos maneras de llegar a un modelo cuantizado:
 
 La regla de la Ronda: primero PTQ, siempre. QAT, solo si PTQ no pasa el examen y el INT8 de verdad compra algo.
 
+El punto cero, INT4 y FP8 están en la sección extra «Cuantizar a fondo».
+
+## Memoria del modelo {Model memory}
+
+La cuenta que más vas a hacer en la Ronda es una multiplicación:
+
+**memoria de los pesos = [[parametro|parámetros]] × bytes por parámetro**
+
+:::cuenta La ResNet-50 de C01, en cada formato
+Parámetros // con su capa final de 500 categorías | 24,532,532 | ≈ 24.5 M
+FP32 | 24.5 M × 4 B | ≈ 98 MB
+FP16 o BF16 | 24.5 M × 2 B | ≈ 49 MB
+INT8 // más las escalas | 24.5 M × 1 B | ≈ 24.5 MB
+INT4 | 24.5 M × 0.5 B | ≈ 12 MB
+Lo que midió la Ronda // M08: el archivo ONNX en FP32 contra INT8 | 98 MB → 25.1 MB | ≈ 3.9 veces menos
+= En una T4 de 16 GB, hasta en FP32 la ResNet-50 ocupa 0.6 % de la memoria. En una CNN, la memoria de los pesos casi nunca es el problema.
+:::
+
+En un [[llm|LLM]] es lo contrario. Un modelo de 70B (70 mil millones de parámetros) pesa 280 GB en FP32, **140 GB en FP16 o BF16**, 70 GB en INT8 o [[fp8|FP8]] (un punto flotante de 1 byte) y 35 GB en INT4. Con los 70,600 millones de Llama 3 70B, el que usa la Ronda, son ≈ 141 GB en BF16 y ≈ 70.6 GB en FP8. Una H100 tiene 80 GB: en BF16 no cabe; en FP8 caben los pesos, pero casi no queda lugar para el KV cache; en INT4 (≈ 35 GB, más ≈ 1.1 GB de escalas por grupo) sobra espacio.
+
+:::calculadora numeros-maquina-memoria
+Prueba también Llama 3 8B (8030) en una L4 de 24 GB: en BF16, los pesos solos ya ocupan dos terceras partes.
+:::
+
+Menos bytes no siempre es más velocidad, y cada cambio de formato mueve un poco las respuestas: por eso ningún modelo convertido sale sin examen (M08). Las dos cosas, con números, están en la sección extra que sigue.
+
+:::diagrama numeros-maquina-c01
+Del checkpoint a la respuesta: qué formato tiene cada cosa. Usa «Recorrer» para seguir los pesos, la foto de Ana o una cuantización a INT8.
+:::
+
+## Cuantizar a fondo: punto cero, INT4, FP8 y el examen {Quantization in depth: zero point, INT4, FP8 and the exam} [extra]
+
+Con INT8 y su escala ya tienes lo esencial. Aquí van las piezas que la Ronda usa en M08 y M14: el punto cero, INT4, FP8, la velocidad que de verdad se gana y el examen que pasa todo modelo convertido.
+
+### El punto cero, para rangos que no están centrados
+
+Si los números no están repartidos alrededor del 0, la versión simétrica desperdicia enteros. Después de una [[relu|ReLU]] nada es negativo: con un rango de 0 a 6, la escala simétrica es 6 ÷ 127 ≈ 0.047 y la mitad negativa de los enteros nunca se usa. La cuantización **asimétrica** usa todos los enteros para el rango real, del mínimo al máximo, y agrega un **punto cero** (*zero point*): el entero que representa al 0 de verdad.
+
+**valor ≈ escala × (entero − punto cero)**
+
+:::ejemplo Un rango de −1 a 3, en uint8 (de 0 a 255)
+- Escala = (3 − (−1)) ÷ 255 = 4 ÷ 255 ≈ 0.01569. Con el rango de la ReLU, de 0 a 6, sería 6 ÷ 255 ≈ 0.024: la mitad que la simétrica.
+- Punto cero = redondear(1 ÷ 0.01569) = redondear(63.75) = **64**. El 0 real se guarda como 64, exacto. Importa, porque el 0 es de los números más comunes dentro de una red.
+- El 2.2 se guarda como redondear(2.2 ÷ 0.01569) + 64 = 140 + 64 = **204**, y vuelve como 0.01569 × (204 − 64) ≈ 2.1961.
+- El −0.5 se guarda como redondear(−31.875) + 64 = −32 + 64 = **32**, y vuelve como 0.01569 × (32 − 64) ≈ −0.5020.
+:::
+
 ### INT4: dieciséis valores y una escala por grupo
 
 [[int4|INT4]] usa 4 bits: solo 16 enteros, de −8 a 7 (la versión simétrica usa de −7 a 7). Es medio byte por número, y con una sola escala por capa no alcanza. En la capa del ejemplo, la escala sería 2.5 ÷ 7 ≈ 0.357, y el 0.1 se guardaría como redondear(0.28) = **0**: desaparece.
 
 La solución es una escala para cada **grupo** chico de pesos seguidos, por ejemplo cada 128: en un grupo chico el rango es más angosto y los escalones, más finos. Cuesta algo: si cada escala ocupa 2 bytes (en FP16), son 16 bits por cada 128 pesos, 0.125 bits más por peso: **4.125 bits por peso** en vez de 4.
 
-En los LLMs, INT4 casi siempre es *weight-only* («solo pesos»): los pesos se guardan en INT4 y se convierten de vuelta a BF16 al vuelo, justo antes de multiplicar. Los métodos más usados se llaman AWQ y GPTQ (M14).
+En los LLMs, INT4 casi siempre es *weight-only* («solo pesos»): los pesos se guardan en INT4 y se convierten de vuelta a 16 bits (BF16 o FP16) al vuelo, justo antes de multiplicar. Los métodos más usados se llaman AWQ y GPTQ (M14).
 
 ```python
 pesos = [0.1, -0.73, 1.26, 2.04, -2.5]
@@ -632,35 +614,35 @@ INT4: escala 0.3571 · enteros [0, -2, 4, 6, -7]
    error máximo 0.1686 · el 0.1 quedó en 0.0000
 ```
 
-## Memoria del modelo y el precio de cuantizar {Model memory and the price of quantization}
+### FP8: un byte que conserva un exponente
 
-La cuenta que más vas a hacer en la Ronda es una multiplicación:
+¿Se puede bajar a 8 bits sin dejar de ser punto flotante? Sí: es [[fp8|FP8]], que existe en dos versiones, propuestas en 2022 por investigadores de NVIDIA, Arm e Intel:
 
-**memoria de los pesos = [[parametro|parámetros]] × bytes por parámetro**
+| Versión | Signo · exponente · mantisa | El más grande | Separación entre 1 y 2 | Para qué |
+|---|---|---|---|---|
+| E4M3 | 1 · 4 · 3 | 448 | 0.125 | Pesos y activaciones |
+| E5M2 | 1 · 5 · 2 | 57,344 | 0.25 | Gradientes, que necesitan más rango |
 
-:::cuenta La ResNet-50 de C01, en cada formato
-Parámetros // con su capa final de 500 categorías | 24,532,532 | ≈ 24.5 M
-FP32 | 24.5 M × 4 B | ≈ 98 MB
-FP16 o BF16 | 24.5 M × 2 B | ≈ 49 MB
-INT8 // más las escalas | 24.5 M × 1 B | ≈ 24.5 MB
-INT4 | 24.5 M × 0.5 B | ≈ 12 MB
-Lo que midió la Ronda // M08: el archivo ONNX en FP32 contra INT8 | 98 MB → 25.1 MB | ≈ 3.9 veces menos
-= En una T4 de 16 GB, hasta en FP32 la ResNet-50 ocupa 0.6 % de la memoria. En una CNN, la memoria de los pesos casi nunca es el problema.
+El nombre dice el reparto: E4M3 es «exponente de 4 bits, mantisa de 3». La figura de los números que no están parejos era justo E5M2.
+
+:::cuenta El número más grande de E4M3
+Exponente más grande // 4 bits en unos = 15, menos el sesgo de 7 | 15 − 7 | 8
+Mantisa más grande // la 111 se reserva para NaN | 1.110₂ = 1 + 1/2 + 1/4 | 1.75
+El más grande | 1.75 × 2⁸ | 448
+= Con 3 bits de mantisa, entre 1 y 2 solo hay 8 números: 1, 1.125, 1.25… hasta 1.875. Es ≈ 1 cifra decimal.
 :::
 
-En un [[llm|LLM]] es lo contrario. Un modelo de 70B (70 mil millones de parámetros) pesa 280 GB en FP32, **140 GB en FP16 o BF16**, 70 GB en INT8 o FP8 y 35 GB en INT4. Con los 70,600 millones de Llama 3 70B, el que usa la Ronda, son ≈ 141 GB en BF16 y ≈ 70.6 GB en FP8. Una H100 tiene 80 GB: en BF16 no cabe; en FP8 caben los pesos, pero casi no queda lugar para el KV cache; en INT4 (≈ 35 GB, más ≈ 1.1 GB de escalas por grupo) sobra espacio.
+Con un rango tan corto, FP8 casi nunca se usa solo: cada tensor lleva una **escala**, un número en FP32 que lo agranda o lo achica para que su valor más grande caiga cerca del máximo antes de convertirlo. Es la misma idea de la escala de INT8. La diferencia con INT8 es que FP8 conserva un exponente: sus escalones son finos cerca del 0 y gruesos lejos de él, así que aguanta mejor los valores atípicos (M08).
 
-:::calculadora numeros-maquina-memoria
-Prueba también Llama 3 8B (8030) en una L4 de 24 GB: en BF16, los pesos solos ya ocupan dos terceras partes.
-:::
+¿Dónde existe? En las GPUs Ada (L4, L40S) y Hopper (H100), y no en la A100, la A10G ni la T4 (M04). La generación Blackwell (B200) ya agrega FP4. En la Ronda, C10 sirve su LLM de 70,600 millones de parámetros con los pesos en FP8, y M14 explica que el [[kv-cache|KV cache]] también puede ir en FP8: de 320 KiB por token baja a 160 KiB, y caben el doble de conversaciones a la vez.
 
 ### Menos bytes, ¿más velocidad?
 
-A veces. En una CNN, lo que más tarda son las cuentas, no leer los pesos, así que el techo lo pone cuántas operaciones INT8 por segundo hace el chip contra las de FP16: en la T4, 130 billones contra 65 billones, el doble como máximo. La Ronda (M08) lo midió con la ResNet-50 de C01 en CPU, de FP32 a INT8, con 4 veces menos bytes: fue ≈ 2 veces más rápida con una foto a la vez y ≈ 3.5 veces con 8, no 4. Además, no todo se cuantiza, cada cambio entre INT8 y FP16 cuesta una conversión, y el preprocesamiento y la red siguen igual.
+A veces. En una CNN con varias fotos por batch, lo que más tarda son las cuentas, no leer los pesos (la lección de FLOPs lo muestra capa por capa), así que el techo lo pone cuántas operaciones INT8 por segundo hace el chip contra las de FP16: en la T4, 130 billones contra 65 billones, el doble como máximo. La Ronda (M08) lo midió con la ResNet-50 de C01 en CPU, de FP32 a INT8, con 4 veces menos bytes: fue ≈ 2 veces más rápida con una foto a la vez y ≈ 3.5 veces con 8, no 4. Además, no todo se cuantiza, cada cambio entre INT8 y FP16 cuesta una conversión, y el preprocesamiento y la red siguen igual.
 
 En un LLM que genera texto pasa otra cosa. Para cada [[token]] nuevo, la GPU relee todos los pesos, y casi todo el tiempo se va en leer, no en calcular: está limitado por la memoria ([[memory-bound]]), como explica la lección de FLOPs. Ahí, menos bytes son casi directo más tokens: Llama 3 8B en una L4, que lee 300 GB por segundo, no pasa de ≈ 19 tokens por segundo en BF16 (16 GB de pesos), ≈ 37 en INT8 y ≈ 52 en INT4 (≈ 5.7 GB), según M04.
 
-### Lo que cuesta: las respuestas cambian
+### El examen de un modelo convertido
 
 Cada cambio de formato mueve un poco cada número, y miles de millones de cuentas encadenadas mueven los resultados. En la lección «Qué es un modelo» viste que pasar a FP16 cambia los logits del orden de 0.01: en una foto casi empatada, con Tenis 2.31 y Botas 2.30, eso basta para que cambie el [[argmax]].
 
@@ -672,15 +654,11 @@ Acuerdo mínimo del top-1 // que los dos den la misma categoría | 99.5 % de 10,
 Fotos que pueden cambiar su top-1 | 10,000 − 9,950 | ≤ 50
 Acuerdo mínimo del top-5 | — | 99 %
 Diferencia máxima de logits // se reporta; entre dos FP32 sería ≈ 0.0001, y órdenes de magnitud más es un bug | engine FP16 contra PyTorch FP32 | ≈ 0.01
-Calidad // top-1 y top-5 en el golden set, contra el modelo actual | diferencia con el actual | ≥ −0.3 puntos
+Calidad // top-1 y top-5 en el golden set, contra el modelo actual | diferencia con el actual | ≥ −0.3 [[punto-porcentual\|puntos]]
 = La [[prueba-paridad|paridad]] dice que el engine se porta como el modelo que evaluaste. La calidad, medida por categoría y por slice, dice que nadie salió perdiendo.
 :::
 
 Para INT8 el acuerdo esperado es menor, y su umbral se fija con datos. Y ahí el promedio engaña. M08 lo muestra con un ejemplo ilustrativo: si el 80 % de las fotos (las categorías grandes) pierde 0.1 puntos y el 20 % de la [[long-tail|cola larga]] pierde 1.1, el total baja 0.8 × 0.1 + 0.2 × 1.1 = 0.3 puntos, justo en la orilla del examen, aunque la cola perdió 11 veces más. Una categoría chica, con ≈ 60 fotos en el golden set, puede perder 5 puntos sin mover el total. Por eso el examen de INT8 mira el [[recall]] por categoría y por [[slice]], no solo el promedio.
-
-:::diagrama numeros-maquina-c01
-Del checkpoint a la respuesta: qué formato tiene cada cosa. Usa «Recorrer» para seguir los pesos, la foto de Ana o una cuantización a INT8.
-:::
 
 ## Errores comunes {Common mistakes}
 
@@ -698,7 +676,7 @@ Un modelo que funciona en FP32 da `inf` o NaN en FP16: un softmax sin restar el 
 
 ### 3. Olvidar que cuantizar cambia las salidas
 
-«Es el mismo modelo, solo que en INT8.» No: cada respuesta cambia un poco, algunas cambian de categoría y la confianza de todas se mueve, y con ella cualquier umbral, como el de C01 que manda a etiquetar las fotos cuyo top-1 queda debajo de 0.3. La Ronda señala una trampa: `trtexec --int8` sin datos de calibración arma un engine que corre rápido, pero con escalas de relleno; sus predicciones no valen nada.
+«Es el mismo modelo, solo que en INT8.» No: cada respuesta cambia un poco, algunas cambian de categoría y la confianza de todas se mueve, y con ella cualquier umbral, como el de C01 que manda a etiquetar las fotos cuyo top-1 queda debajo de 0.3. La Ronda señala una trampa: `trtexec --int8` (la herramienta de TensorRT que arma y mide engines) sin datos de calibración arma un engine que corre rápido, pero con escalas de relleno: sirve para medir la velocidad, y sus predicciones no valen nada.
 
 **Cómo evitarlo:** calibrar con datos reales de producción y pasar el mismo examen que un modelo nuevo: paridad, calidad por categoría y por slice, y la [[ece|ECE]].
 
@@ -726,17 +704,17 @@ Un arreglo de NumPy nace en float64. Si lo conviertes en tensor y se lo pasas a 
 
 El modelo de C01 se entrena con precisión mixta, se guarda y se exporta en FP32 (el ONNX pesa ≈ 98 MB) y se sirve como un engine de TensorRT en FP16: ≈ 49 MB de pesos en una T4 de 16 GB, cuyos tensor cores hacen ≈ 65 billones de operaciones por segundo en FP16. La entrada que manda el gateway es un tensor float32 de 602 KB, y la salida, 500 logits en float32.
 
-La Ronda deja anotadas dos mejoras que son de esta lección. Una: mandar la entrada en uint8 (150,528 bytes en vez de 602,112) y normalizar dentro del modelo, para que el tráfico de red entre el gateway y la GPU baje 4 veces, de ≈ 2.4 Gb/s a ≈ 0.6 Gb/s en el pico de diseño de 500 fotos por segundo. Dos: medir la ResNet-50 en INT8 en CPU, porque la GPU está al ≈ 5 % en promedio. Si diera ≈ 15 ms por imagen por [[vcpu|vCPU]] (un núcleo virtual de la nube) sin perder más de 0.5 puntos en el golden set, podría salir más barata que las dos T4 (≈ US$768 al mes). Es una medición pendiente, no un hecho.
+La Ronda deja anotadas dos mejoras que son de esta lección. Una: mandar la entrada en uint8 (150,528 bytes en vez de 602,112) y normalizar dentro del modelo, para que el tráfico de red entre el gateway y la GPU baje 4 veces, de ≈ 2.4 Gb/s a ≈ 0.6 Gb/s en el pico de diseño de 500 fotos por segundo. Dos: medir la ResNet-50 en INT8 en CPU, porque la GPU está al ≈ 5 % en promedio. Si diera ≈ 15 ms por imagen por [[vcpu|vCPU]] (un núcleo virtual de la nube) sin perder más de 0.5 puntos en el golden set, podría salir más barata que las dos T4 (≈ US$768 al mes). Para calibrarla, M08 pide de unos cientos a ≈ 1,000 fotos (la guía de NVIDIA, al menos 500 para CNNs), sacadas del tráfico reciente de producción, de todos los slices y con el mismo preprocesamiento del gateway. Es una medición pendiente, no un hecho.
 
 ### C10: un LLM de 70B en FP8, y por qué no INT4
 
-C10 sirve un modelo de ≈ 70,600 millones de parámetros a varios equipos de una empresa. En BF16 pesaría ≈ 141 GB, y cada réplica necesitaría 4 H100 para tener lugar para el KV cache. En FP8 pesa ≈ 70.6 GB y cada réplica usa 2 H100: de los 144 GB que usa vLLM (el 90 % de 160), quedan ≈ 68 GB para el KV cache, ≈ 93 conversaciones de 2,250 tokens a la vez. Con 16 réplicas, son 32 H100.
+C10 sirve un modelo de ≈ 70,600 millones de parámetros a varios equipos de una empresa. En BF16 pesaría ≈ 141 GB, y cada réplica necesitaría 4 H100 para tener lugar para el KV cache. En FP8 pesa ≈ 70.6 GB y cada réplica usa 2 H100. vLLM, el programa que lo sirve, toma el 90 % de sus 160 GB: 144. Quitando los 70.6 de pesos y ≈ 5 del runtime, quedan ≈ 68 GB para el KV cache: ≈ 93 conversaciones de 2,250 tokens a la vez. Con 16 réplicas, son 32 H100.
 
 ¿Por qué no INT4, con ≈ 35 a 40 GB de pesos en una sola H100 por réplica? La Ronda lo descarta: le dejaría ≈ 30 GB de KV a cada GPU, menos conversaciones por réplica, y INT4 arriesga más calidad que FP8 cuando la memoria ya no es el límite. Y nada de esto lo decide el formato solo: cada versión cuantizada corre los golden sets de cada producto contra la versión en BF16.
 
 ### C02 y el teléfono: modelos en el edge
 
-En C02, cada centro de distribución tiene su propia caja con una GPU L4 que vigila 40 cámaras con un detector ligero (≈ 10 a 30 millones de parámetros) en TensorRT FP16: un engine de ≈ 50 a 150 MB. Si algún día pasa a INT8, la Ronda pide calibrar con frames reales de día y de noche, porque las escalas se ajustan a lo que ven. En los equipos más chicos, como los Jetson de NVIDIA, algunos modelos traen además un acelerador que solo corre capas de CNN en INT8 o FP16 (M04).
+En C02, cada centro de distribución tiene su propia caja con una GPU L4 que vigila 40 cámaras con un detector ligero (≈ 10 a 30 millones de parámetros) en TensorRT FP16: de 20 a 60 MB de pesos, y la Ronda estima el engine completo en ≈ 50 a 150 MB. Si algún día pasa a INT8, la Ronda pide calibrar con frames reales de día y de noche, porque las escalas se ajustan a lo que ven. En los equipos más chicos, como los Jetson de NVIDIA, algunos modelos traen además un acelerador que solo corre capas de CNN en INT8 o FP16 (M04).
 
 En un teléfono, el límite es todavía más duro: lo que pesa la app y lo que aguanta la batería. Los chips de IA de los teléfonos (las NPU) trabajan sobre todo en FP16 e INT8, con herramientas como Core ML, de Apple, o LiteRT (antes TensorFlow Lite), de Google. Un modelo de 20 millones de parámetros pesa 40 MB en FP16 y 20 MB en INT8: a veces, cuantizar es lo que decide si cabe.
 
@@ -744,9 +722,47 @@ En un teléfono, el límite es todavía más duro: lo que pesa la app y lo que a
 
 Cuantizar no es solo para pesos. En la lección de embeddings viste que C07 guarda 100 millones de vectores de 512 números: ≈ 205 GB en float32 y ≈ 51.2 GB en int8. C08, con vectores de 128, baja a 12.8 GB. Para el orden final, C07 recalcula la distancia de sus mejores candidatos con los vectores completos: el int8 sirve para buscar rápido, y la precisión se recupera donde importa.
 
+### Contadores, cohetes y relojes
+
+Los contadores también dan la vuelta. Mira un contador int32 de las fotos de C01:
+
+:::cuenta Un contador int32 de las fotos de C01
+Fotos por segundo, en promedio // ≈ 10 millones al día: ≈ 2.5 M publicaciones con ≈ 3 fotos, más otros equipos | 10,000,000 ÷ 86,400 s | ≈ 116
+El int32 más grande | 2³¹ − 1 | 2,147,483,647
+Días hasta llegar | 2,147,483,647 ÷ 116 ÷ 86,400 | ≈ 214 días
+Con uint32 // sin signo: el doble | 4,294,967,295 ÷ 116 ÷ 86,400 | ≈ 429 días
+Con int64 | 9.2 × 10¹⁸ ÷ 116 ÷ 86,400 ÷ 365 | ≈ 2,500 millones de años
+= En unos 7 meses, el contador int32 salta a −2,147,483,648 y la gráfica muestra fotos negativas. Con int64 no pasa nunca: por eso los contadores se guardan en 64 bits.
+:::
+
+No es teoría. En diciembre de 2014, YouTube anunció que el video *Gangnam Style* había pasado de 2,147,483,647 vistas, el tope de un int32, y que había tenido que cambiar su contador a 64 bits. En 1996, el primer cohete Ariane 5 se autodestruyó unos 40 segundos después de despegar: su software convirtió un número con decimales en un entero de 16 bits con signo (tope: 32,767), el número no cabía y el programa de navegación se detuvo. Y muchos sistemas cuentan el tiempo en segundos desde el 1 de enero de 1970 con un int32: ese contador se llena el 19 de enero de 2038 a las 03:14:07 (hora UTC), el «problema del año 2038».
+
+Un contador en float32 ni siquiera da la vuelta: se atora en 16,777,216, el último entero exacto de FP32.
+
+:::cuenta Un contador de fotos guardado en float32
+Fotos por segundo // el promedio de C01 | 10,000,000 ÷ 86,400 | ≈ 116
+El último entero seguro de FP32 | 2²⁴ | 16,777,216
+Horas hasta llegar | 16,777,216 ÷ 116 ÷ 3,600 | ≈ 40 horas
+Una foto más // ya no se mueve | 16,777,216 + 1 | 16,777,216
+Años hasta atorarse en FP64 // como los contadores de Prometheus: 53 bits de dígitos | 2⁵³ ÷ 116 ÷ 86,400 ÷ 365 | ≈ 2.5 millones
+= Un contador en float32 se atora en menos de dos días, sin ningún error. Contar es trabajo de enteros, o de FP64.
+:::
+
+Y un error de redondeo diminuto, sumado millones de veces, también puede costar caro:
+
+:::ejemplo El reloj del Patriot
+En febrero de 1991, en Dhahran, Arabia Saudita, una batería de misiles antiaéreos Patriot llevaba ≈ 100 horas encendida. Su reloj contaba el tiempo en décimas de segundo y lo convertía multiplicando por 0.1, guardado en un registro de 24 bits. Ese 0.1 tenía un error de ≈ 0.000000095.
+
+En 100 horas hay 3,600,000 décimas de segundo, y el error se sumó en cada una: 3,600,000 × 0.000000095 ≈ **0.34 segundos** de atraso. Un misil Scud recorre más de medio kilómetro en ese tiempo. El sistema lo buscó en el lugar equivocado, no lo interceptó, y el ataque mató a 28 soldados estadounidenses. El error de cada décima era diminuto; lo grave fue acumularlo.
+:::
+
 ### Fuera de ML: el dinero, la hoja de cálculo y Pac-Man
 
 Los bancos y las tiendas no guardan el dinero en punto flotante: 0.1 + 0.2 pesos no puede dar 0.30000000000000004. Lo guardan en centavos, con enteros, o con tipos decimales exactos. Las hojas de cálculo como Excel guardan los números en FP64 y conservan a lo mucho 15 cifras: si escribes como número una tarjeta de 16 dígitos, el último se vuelve 0. Y en el *Pac-Man* original, el nivel 256 sale con media pantalla de basura: el contador del nivel es un solo byte, y ahí se desborda.
+
+:::nota Hexadecimal: los bits de 4 en 4
+Escribir 32 ceros y unos es incómodo, así que los programadores agrupan los bits de 4 en 4. Cada grupo tiene 16 combinaciones y se escribe con un solo símbolo: del 0 al 9 y de la A (10) a la F (15). Es el sistema **hexadecimal**, y se marca con `0x`: 1110 1100 es `0xEC` y 255 es `0xFF`. Lo vas a ver en mensajes de error y en los colores de las páginas web: el naranja de los tenis, con rojo 236, verde 106 y azul 63, se escribe `#EC6A3F`.
+:::
 
 ## Ejercicios {Exercises}
 
@@ -758,7 +774,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de rangos, cuantizació
 - 1010 1010 como uint8: 128 + 32 + 8 + 2 = **170**.
 - Como int8, el primer bit vale −128: −128 + 32 + 8 + 2 = **−86**. Es lo mismo que 170 − 256.
 ? [facil] ¿Cabe 40,000 en un int16? ¿Y en un uint16? ¿Cuánto ocupa un millón de números int16?
-- int16 va de −32,768 a 32,767: **no cabe**. En un arreglo de NumPy daría la vuelta: 40,000 − 65,536 = −25,536.
+- int16 va de −32,768 a 32,767: **no cabe**. Si sale de una cuenta en un arreglo int16 de NumPy (por ejemplo, 20,000 + 20,000), da la vuelta: 40,000 − 65,536 = −25,536.
 - uint16 va de 0 a 65,535: **sí cabe**.
 - Un millón de int16: 1,000,000 × 2 bytes = **2 MB**.
 ? [facil] En uint8, ¿cuánto da 200 + 70? ¿Y 30 − 50? ¿Qué darían si se saturaran?
@@ -779,7 +795,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de rangos, cuantizació
 - 1.0 ÷ 0.0315 = 31.75 → **32**; de vuelta, 32 × 0.0315 ≈ 1.0079: error de 0.0079, **0.8 %**.
 - 0.03 ÷ 0.0315 = 0.95 → **1**; de vuelta, ≈ 0.0315: error de 0.0015, **5 %**.
 - El error de los dos está debajo de media escala (≈ 0.0157), pero en proporción el número chico sale mucho peor. Por eso importan las escalas por canal o por grupo.
-? [medio] Con la escala de pérdida en 65,536, un gradiente real de 3 sale escalado en el backward en FP16. ¿Qué pasa? Si el mismo gradiente se repitiera, ¿cuántos pasos se saltaría GradScaler antes de que quepa?
+? [medio] De la sección extra de precisión mixta: con la escala de pérdida en 65,536, un gradiente real de 3 sale escalado en el backward en FP16. ¿Qué pasa? Si el mismo gradiente se repitiera, ¿cuántos pasos se saltaría GradScaler antes de que quepa?
 - 3 × 65,536 = 196,608, más que 65,504: **`inf`**. GradScaler salta el paso y baja la escala a 32,768.
 - 3 × 32,768 = 98,304: otra vez `inf`. Salta otro paso; la escala baja a 16,384.
 - 3 × 16,384 = 49,152: **cabe**. Se saltaron **2 pasos**, y los pesos no se tocaron en ninguno.
@@ -790,15 +806,15 @@ Resuélvelos con lápiz antes de abrir la solución. Los de rangos, cuantizació
 ? [reto] Un LLM de 70,600 millones de parámetros va en INT4, con grupos de 128 pesos y una escala FP16 por grupo. (a) ¿Cuántos bits ocupa cada peso, contando su parte de la escala? (b) ¿Cuántos GB pesan los pesos? (c) ¿Caben en una H100 de 80 GB, si vLLM usa el 90 % de la memoria? ¿Y en BF16?
 - (a) 4 bits + 16 bits ÷ 128 = 4 + 0.125 = **4.125 bits**, es decir, 0.515625 bytes.
 - (b) 70.6 × 10⁹ × 0.515625 B ≈ **36.4 GB**.
-- (c) vLLM usa 0.9 × 80 = 72 GB; quedan 72 − 36.4 ≈ **35.6 GB** para el runtime y el KV cache: **sí cabe**, con margen. En BF16 son ≈ 141 GB: no caben ni en una ni, dejando lugar para el KV cache, en dos.
-? [reto] Diseña el contador de fotos de C01. Al pico de diseño, 500 fotos por segundo sin parar: ¿en cuántos días da la vuelta un int32? ¿Y un uint32? ¿En cuántas horas se atora un float32? ¿Qué tipo eliges?
+- (c) vLLM usa 0.9 × 80 = 72 GB; quedan 72 − 36.4 ≈ **35.6 GB** para el runtime y el KV cache: **sí cabe**, con margen. En BF16 son ≈ 141 GB: no caben en una, y en dos (144 GB útiles) apenas entran los pesos, sin lugar para el KV cache.
+? [reto] Diseña el contador de fotos de C01. Al pico de diseño, 500 fotos por segundo sin parar: ¿en cuántos días da la vuelta un int32? ¿Y un uint32? ¿En cuántas horas se atora un float32 (lo explica la sección extra «Redondeo»)? ¿Qué tipo eliges?
 - int32: 2,147,483,647 ÷ 500 ÷ 86,400 ≈ **49.7 días**.
 - uint32: 4,294,967,295 ÷ 500 ÷ 86,400 ≈ **99.4 días**.
 - float32: 16,777,216 ÷ 500 ≈ 33,554 segundos ≈ **9.3 horas**.
-- Elijo **int64**: 9.2 × 10¹⁸ ÷ 500 da ≈ 585 millones de años. O FP64, como Prometheus: 2⁵³ ÷ 500 da ≈ 570,000 años de enteros exactos.
-? [reto] La paridad del engine FP16 de C01 da 99.2 % de acuerdo en el top-1, con 10,000 fotos. ¿Cuántas fotos cambiaron? ¿Pasa el examen? ¿Qué revisas, y en qué orden?
+- Elijo **int64**: 9.2 × 10¹⁸ ÷ 500 ÷ 86,400 ÷ 365 ≈ 585 millones de años. O FP64, como Prometheus: 2⁵³ ÷ 500 ÷ 86,400 ÷ 365 ≈ 570,000 años de enteros exactos.
+? [reto] La paridad del engine FP16 de C01 da 99.2 % de acuerdo en el top-1, con 10,000 fotos, y el examen pide al menos 99.5 %. ¿Cuántas fotos cambiaron? ¿Pasa? ¿Qué revisas, y en qué orden?
 - Cambiaron 0.8 % de 10,000 = **80 fotos**. El examen permite 50: **no pasa**.
-- FP16 en una CNN suele pasar el 99.5 % con holgura, así que sospecha de un bug, no del formato. Primero, el ONNX en FP32 con ONNX Runtime: si ahí ya falla, el problema está en el export (preprocesamiento distinto, una capa mal convertida, el orden de las categorías).
+- FP16 en una CNN suele pasar el 99.5 % con holgura, así que sospecha de un bug, no del formato. Primero, el ONNX en FP32 con ONNX Runtime (un programa que corre archivos ONNX, sin TensorRT): si ahí ya falla, el problema está en el export (preprocesamiento distinto, una capa mal convertida, el orden de las categorías).
 - Si el ONNX pasa y el engine no, busca la capa cuyas salidas se separan comparando las intermedias, y déjala en FP32: puede ser un overflow de FP16. Revisa también si la diferencia máxima de logits es ≈ 0.01 o mucho más.
 - Lo que nunca se hace: bajar el umbral para que pase.
 :::
@@ -807,7 +823,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de rangos, cuantizació
 
 **En la Ronda:**
 
-- **M01 · El mapa y la entrevista** trae la primera tabla de bytes y avisa que la precisión (FP16 o INT8) mueve la factura más que la arquitectura del modelo.
+- **M01 · El mapa y la entrevista** trae la primera tabla de bytes y avisa que el batch, la precisión (FP16 o INT8) y el ajuste automático del número de máquinas mueven la factura más que la arquitectura del modelo.
 - **M04 · Hardware para inferencia** arranca con «parámetros × bytes por parámetro» y su tabla de dtypes, con la GPU que soporta cada uno, explica por qué BF16 le ganó a FP16 en los LLMs y suma las activaciones y el KV cache a la memoria de la GPU.
 - **M08 · Optimización de modelos** cuantiza la ResNet-50 de C01 (98 MB → 25.1 MB), explica la escala por canal, el punto cero, la calibración, PTQ y QAT, y arma el examen: paridad, slices y latencia.
 - **M14 · Sistemas con LLMs** elige el formato de un LLM en producción: BF16, FP8, INT8 o INT4 *weight-only* (AWQ, GPTQ), y el KV cache en FP8.
@@ -835,7 +851,7 @@ Con 8 bits hay 2⁸ = 256 combinaciones. Sin signo van del 0 al 255. Con signo, 
 ? ¿Qué da 250 + 10 en un arreglo uint8 de NumPy, y por qué?
 4. El resultado, 260, no cabe en 8 bits: se pierde el noveno bit y queda 260 − 256 = 4. NumPy da la vuelta sin avisar.
 ? Si FP16 y BF16 ocupan 2 bytes, ¿en qué se diferencian?
-FP16 tiene 5 bits de exponente y 10 de mantisa: ≈ 3 cifras, pero su máximo es 65,504. BF16 tiene 8 y 7: el rango de FP32 con 2 o 3 cifras. BF16 no se desborda donde FP32 no lo haría, y por eso es el formato de los LLMs.
+FP16 tiene 5 bits de exponente y 10 de mantisa: ≈ 3 cifras, pero su máximo es 65,504. BF16 tiene 8 y 7: el rango de FP32 con 2 o 3 cifras. BF16 prácticamente no se desborda donde FP32 no lo haría, y por eso es el formato de los LLMs.
 ? ¿Por qué 0.1 + 0.2 no da exactamente 0.3 en Python?
 Porque 0.1 y 0.2 no tienen una escritura finita en binario: se guardan redondeados y los errores se suman. Python usa FP64 y da 0.30000000000000004. Los números de punto flotante se comparan con tolerancia, no con ==.
 ? En la precisión mixta, ¿para qué sirven la copia maestra en FP32 y la escala de la pérdida?

@@ -26,7 +26,7 @@
     "en": "Kolmogorov–Smirnov test · KS test",
     "corto": "Compara dos muestras de un número midiendo la distancia vertical más grande, D, entre sus curvas acumuladas. D va de 0 (iguales) a 1 (todos los datos de una quedan antes que todos los de la otra).",
     "largo": "La curva acumulada de una muestra dice, para cada valor x, qué fracción de los datos es menor o igual a x: sube de 0 a 1 en escalones, uno por dato. La prueba pone las dos curvas juntas y busca dónde se separan más: eso es D. No necesita bins. También da un [[p-value]]: qué tan raro sería un D así de grande si las dos muestras salieran de la misma distribución. En monitoreo ese p-value engaña: el D que ya cuenta como «significativo» es ≈ 1.36 × √(2 ÷ n), con n datos por lado, así que con millones de datos cualquier cambio minúsculo lo es. Se usa D como tamaño del cambio, con un umbral calibrado, o la prueba sobre muestras chicas.",
-    "ejemplo": "Con 1 millón de datos por lado y una media corrida 0.02 desviaciones estándar (nada que importe), D ≈ 0.008 y el umbral es 0.0019: p ≈ 6 × 10⁻²⁹. Con 5 fotos por lado, el umbral es ≈ 0.86.",
+    "ejemplo": "Con 1 millón de datos por lado y una media corrida 0.02 desviaciones estándar (nada que importe), D ≈ 0.008 y el umbral es 0.0019: p ≈ 8 × 10⁻²⁹. Con 5 fotos por lado, el umbral es ≈ 0.86.",
     "ver": ["p-value", "significancia", "psi"],
     "leccion": "distribuciones"
   },
@@ -65,7 +65,7 @@
     "termino": "Prueba chi-cuadrado",
     "en": "chi-square test · χ²",
     "corto": "Compara conteos de categorías contra los que esperabas: suma (observado − esperado)² ÷ esperado. Si el total pasa un valor crítico, la diferencia es «significativa».",
-    "largo": "Los esperados salen de la [[referencia]]: el total de hoy por la proporción de cada categoría en la referencia. El valor crítico depende de cuántas categorías hay: con K categorías se usan K − 1 «grados de libertad» (con 5 categorías, 4, y el corte al 5 % es 9.49). Para cambios chicos, chi-cuadrado ≈ n × [[psi|PSI]]: con las mismas proporciones, cien veces más datos dan un chi-cuadrado cien veces más grande. Por eso, con millones de predicciones al día, cualquier cambio sale significativo: sirve para saber si hay datos suficientes, y el PSI para saber si el cambio importa.",
+    "largo": "Los esperados salen de la [[referencia]]: el total de hoy por la proporción de cada categoría en la referencia. El valor crítico depende de cuántas categorías hay: con K categorías se usan K − 1 «grados de libertad» (con 5 categorías, 4, y el corte al 5 % es 9.49). Para cambios chicos, chi-cuadrado ≈ n × [[psi|PSI]]: con las mismas proporciones, cien veces más datos dan un chi-cuadrado cien veces más grande. Por eso, con millones de predicciones al día, casi cualquier cambio sale significativo: sirve para saber si hay evidencia de un cambio, y el PSI para saber si el cambio importa.",
     "ejemplo": "Mezcla de 5 categorías padre de C01, con 1 punto de diferencia en dos de ellas: con 1,000 predicciones, chi-cuadrado ≈ 1.33 (nada); con 100,000, ≈ 133 (p ≈ 8 × 10⁻²⁸). El PSI es 0.0013 en los dos casos.",
     "ver": ["p-value", "psi", "prueba-ks"],
     "leccion": "distribuciones"
@@ -75,7 +75,7 @@
     "termino": "Concept drift",
     "en": "concept drift · deriva de concepto",
     "corto": "Cuando cambia la regla que une la entrada con la respuesta correcta: la misma foto o el mismo pago ahora merecen otra respuesta, aunque los datos de entrada se vean idénticos.",
-    "largo": "En notación, cambia p(y | x): la probabilidad de cada respuesta y dada una entrada x. Como las entradas no se mueven, el [[psi|PSI]] de las entradas puede quedarse en cero mientras el modelo empeora. Solo se ve con etiquetas nuevas (la métrica cae) o con señales indirectas, como más correcciones de personas. Las etiquetas viejas quedan mal: se reetiqueta con la regla nueva y se reentrena. No es lo mismo que el [[drift]] de datos (cambian las entradas) ni que el [[label-shift]] (cambia cuánto hay de cada clase).",
+    "largo": "En notación, cambia p(y | x): la probabilidad de cada respuesta y dada una entrada x. En un concept drift puro las entradas no se mueven, así que el [[psi|PSI]] de las entradas puede quedarse en cero mientras el modelo empeora. Solo se ve con etiquetas nuevas (la métrica cae) o con señales indirectas, como más correcciones de personas. Las etiquetas viejas quedan mal: se reetiqueta con la regla nueva y se reentrena. No es lo mismo que el [[drift]] de datos (cambian las entradas) ni que el [[label-shift]] (cambia cuánto hay de cada clase).",
     "ejemplo": "En C01, moderación decide que las fundas de celular ya no van en «Celulares», sino en «Accesorios para celular»: la misma foto, otra respuesta correcta. En C09, los defraudadores aprenden los cortes y compran a US$95–99, justo debajo del corte de US$100: la misma compra ahora es fraude más seguido.",
     "ver": ["drift", "label-shift", "reentrenamiento"],
     "leccion": "distribuciones"

@@ -14,7 +14,7 @@
     { "id": "triton", "label": "Triton", "sub": "RAM del servidor de GPU", "kind": "service", "x": 57, "y": 7, "w": 18, "h": 9,
       "note": "El servidor del modelo recibe el tensor por la red interna. Una foto sola tarda pocos milisegundos en ese tramo, pero 500 por segundo son 301 MB/s ≈ **2.4 Gb/s**: el [[ancho-banda|ancho de banda]] es lo que se aprieta." },
     { "id": "gpu", "label": "T4", "sub": "VRAM: 320 GB/s", "kind": "gpu", "x": 57, "y": 29, "w": 18, "h": 9,
-      "note": "Lee sus pesos de la [[vram|VRAM]] a 320 GB/s y calcula en ≈ 3–6 ms. Sale un número por categoría (500), y el gateway arma las 5 mejores para la respuesta: unos cientos de bytes." },
+      "note": "Lee sus pesos de la [[vram|VRAM]] a 320 GB/s y calcula en ≈ 3–6 ms. Sale un número por categoría: 500 × 4 bytes ≈ 2 KB de regreso al gateway, que elige las 5 mejores. A Ana le llegan unos cientos de bytes." },
     { "id": "log", "label": "Log", "sub": "≈ 300 B por foto", "kind": "store", "x": 30, "y": 29, "w": 18, "h": 9,
       "note": "Un registro por predicción: qué foto, qué top-5, cuánto tardó, qué versión del modelo. ≈ 300 bytes × 10 M fotos = 3 GB al día." }
   ],
@@ -31,7 +31,7 @@
         { "nodes": ["cel", "gw"], "edges": ["cel>gw"], "text": "**El gateway la abre:** ≈ 6 ms de CPU. Sale el tensor: 150,528 números × 4 bytes = 602 KB, tres veces el JPEG." },
         { "nodes": ["gw", "triton"], "edges": ["gw>triton"], "text": "**Por la red interna:** 602 KB por foto. A 500 fotos por segundo son 301 MB/s, × 8 ≈ 2.4 Gb/s: un número que hay que revisar contra lo que sostiene cada máquina." },
         { "nodes": ["triton", "gpu"], "edges": ["triton>gpu"], "text": "**A la GPU por PCIe:** ≈ 16 GB/s, así que 602 KB tardan ≈ 40 µs. Cien veces menos que el cálculo: aquí la copia no importa." },
-        { "nodes": ["gpu"], "edges": [], "text": "**La T4 calcula:** ≈ 3–6 ms, leyendo sus pesos de la VRAM a 320 GB/s. Responde un número por categoría; viajan de regreso unos cientos de bytes." },
+        { "nodes": ["gpu"], "edges": [], "text": "**La T4 calcula:** ≈ 3–6 ms, leyendo sus pesos de la VRAM a 320 GB/s. Responde un número por categoría: 500 × 4 B ≈ 2 KB de regreso. El gateway elige las 5 mejores, y a Ana le llegan unos cientos de bytes." },
         { "nodes": ["gw", "log"], "edges": ["gw>log"], "text": "**Queda un log:** ≈ 300 B por foto. Con 10 M fotos al día, 3 GB." }
       ] }
   ]

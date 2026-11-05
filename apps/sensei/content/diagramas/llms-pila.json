@@ -23,7 +23,7 @@
     { "id": "sampling", "label": "Sampling", "sub": "elige uno", "kind": "service", "x": 21, "y": 32, "w": 15, "h": 9,
       "note": "Toma el más probable o sortea respetando las probabilidades ([[sampling]]), quizá solo entre los más probables (*top-p*)." },
     { "id": "token", "label": "Token nuevo", "sub": "se agrega al texto", "kind": "client", "x": 1, "y": 32, "w": 15, "h": 9,
-      "note": "Se manda a la app (*streaming*) y vuelve a entrar como el último id del texto. Su K y su V, de los 32 bloques, ya quedaron en el [[kv-cache|KV cache]]." }
+      "note": "Se manda a la app (*streaming*) y vuelve a entrar como el último id del texto. Al entrar se calculan su K y su V en los 32 bloques y se agregan al [[kv-cache|KV cache]], donde ya están las de los tokens anteriores." }
   ],
   "edges": [
     { "from": "ids", "to": "emb", "kind": "online" },

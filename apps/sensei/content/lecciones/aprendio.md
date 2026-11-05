@@ -91,10 +91,10 @@ Imagina que entrenas el mismo modelo cinco veces, cada una con una muestra disti
 
 ### El examen también tiene ruido
 
-La varianza no es solo del modelo: el **resultado del examen** también cambia según qué fotos te tocaron. Imagina un marketplace chico, o una categoría nueva de C01, con solo **250 fotos etiquetadas**. Apartas 50 para validación y entrenas con 200. Cada foto de validación vale 1 / 50 = **2 puntos** de accuracy, y con otras 50 fotos al azar el resultado se mueve varios puntos por pura suerte: unas veces te tocan fotos fáciles y otras, difíciles.
+La varianza no es solo del modelo: el **resultado del examen** también cambia según qué fotos te tocaron. Imagina un marketplace chico que apenas empieza, con solo **250 fotos etiquetadas**. Apartas 50 para validación y entrenas con 200. Cada foto de validación vale 1 / 50 = **2 puntos** de accuracy, y con otras 50 fotos al azar el resultado se mueve varios puntos por pura suerte: unas veces te tocan fotos fáciles y otras, difíciles.
 
 :::profundo ¿Cuánto se mueve un examen por pura suerte?
-Una regla aproximada: si el modelo acierta una fracción p de las fotos y el examen tiene n fotos, el resultado se puede mover por pura suerte hasta unos ±1.96 × √(p × (1 − p) / n). Es la mitad del ancho de un [[intervalo-confianza|intervalo de confianza]] del 95 %, que ves en la lección «Ruido, muestras y pruebas A/B». Con p = 0.85:
+Una regla aproximada: si el modelo acierta una fracción p de las fotos y el examen tiene n fotos tomadas al azar, en 19 de cada 20 exámenes así el resultado queda a menos de 1.96 × √(p × (1 − p) / n) de lo que el modelo acierta de verdad, hacia arriba o hacia abajo. Ese margen es la mitad del ancho de un [[intervalo-confianza|intervalo de confianza]] del 95 %, que ves en la lección «Ruido, muestras y pruebas A/B». Con p = 0.85:
 
 | Fotos en el examen | ± por pura suerte |
 |---|---|
@@ -102,7 +102,7 @@ Una regla aproximada: si el modelo acierta una fracción p de las fotos y el exa
 | 1,000 | ≈ ±2.2 puntos |
 | 50,000 (el golden set de C01) | ≈ ±0.3 puntos |
 
-Por eso, en la Ronda, el gate de C01 no le pide al modelo nuevo «sacar más» que el actual, sino «no sacar menos» por más de 0.3 puntos, comparando los dos foto por foto: con 50,000 fotos, diferencias así de chicas pueden salir por pura suerte.
+Por eso, en la Ronda, el gate de C01 (el examen que decide si un modelo nuevo reemplaza al actual) no le pide al modelo nuevo «sacar más» que el actual, sino «no sacar menos» por más de 0.3 puntos, comparando los dos foto por foto: con 50,000 fotos, diferencias así de chicas pueden salir por pura suerte.
 :::
 
 ### Validación cruzada: que todas las fotos sean examen
@@ -134,7 +134,7 @@ Validación cruzada con 5 grupos. En cada vuelta, el grupo naranja es la validac
 Promedio: (86 + 92 + 80 + 84 + 88) / 5 = 430 / 5 = **86 %**, lo mismo que contar todos los aciertos juntos: 215 de 250. Y el rango, de 80 % a 92 %, dice lo que un solo examen de 50 fotos habría escondido: según qué fotos te tocaran, podías reportar cualquier número entre 80 y 92.
 :::
 
-¿Y con cuál de los cinco modelos te quedas? Con ninguno. La validación cruzada mide una **receta** (la arquitectura, los [[hiperparametro|hiperparámetros]], cómo se preparan los datos), no un modelo. Cuando ya elegiste la receta, entrenas el modelo final con las 250 fotos. Y para comparar dos recetas, compáralas **vuelta por vuelta**, con los mismos grupos: si B le gana a A en las cinco vueltas, aunque sea por poco, créelo; si gana en promedio pero pierde en dos vueltas, puede ser suerte.
+¿Y con cuál de los cinco modelos te quedas? Con ninguno. La validación cruzada mide una **receta** (la arquitectura, los [[hiperparametro|hiperparámetros]], cómo se preparan los datos), no un modelo. Cuando ya elegiste la receta, entrenas el modelo final con las 250 fotos. Y para comparar dos recetas, compáralas **vuelta por vuelta**, con los mismos grupos: si B le gana a A en las cinco vueltas, aunque sea por poco, es buena señal; si gana en promedio pero pierde en dos vueltas, puede ser suerte.
 
 Tres cuidados, los mismos del reparto normal:
 
@@ -230,7 +230,7 @@ Directo de la tabla // sin pasar por P y R | 2·80 / (2·80 + 40 + 20) = 160 / 2
 = F1 ≈ 0.727, o sea 72.7 %. Las dos rutas dan lo mismo.
 :::
 
-Da menos que el promedio simple, (66.7 + 80) / 2 = 73.3 %: la media armónica se carga hacia el número más chico. Con el modelo que dice «tenis» a todo se nota más: F1 = 2 × 0.10 × 1.00 / (0.10 + 1.00) ≈ 0.18, cuando el promedio simple le habría regalado 55 %. Y fíjate en que TN, los 860 aciertos de «no es tenis», no aparece en precision, ni en recall, ni en F1: las tres no se dejan impresionar por la clase grande, y por eso se usan cuando hay desbalance.
+Da menos que el promedio simple, (66.7 + 80) / 2 ≈ 73.3 %: la media armónica se carga hacia el número más chico. Con el modelo que dice «tenis» a todo se nota más: F1 = 2 × 0.10 × 1.00 / (0.10 + 1.00) ≈ 0.18, cuando el promedio simple le habría regalado 55 %. Y fíjate en que TN, los 860 aciertos de «no es tenis», no aparece en precision, ni en recall, ni en F1: las tres no se dejan impresionar por la clase grande, y por eso se usan cuando hay desbalance.
 
 :::calculadora aprendio-matriz
 Las mismas cuentas, con los números que quieras. La última fila es el baseline: la accuracy de un modelo que siempre dice «no».
@@ -275,7 +275,7 @@ Si escribes 5, 3, 2 y 10 en la calculadora, sale lo mismo. Las librerías de ML 
 
 ## Muchas categorías: por clase, macro y top-k {Many classes: per class, macro and top-k}
 
-C01 no pregunta «¿es tenis?»: elige entre 500 categorías. Su matriz de confusión es la misma idea, pero de **500 × 500**: 250,000 casillas, con los 500 aciertos en la diagonal. Nadie la lee completa: se buscan las casillas grandes fuera de la diagonal, como «botas que dijo tenis: 30», que dicen dónde se confunde el modelo y muchas veces destapan dos categorías que ni las personas distinguen bien. Y para cualquier categoría, todo lo demás se junta como «negativo» y vuelves a tener su propio 2 × 2.
+C01 no pregunta «¿es tenis?»: elige entre 500 categorías. Su matriz de confusión es la misma idea, pero de **500 × 500**: 250,000 casillas, con los aciertos en las 500 casillas de la diagonal. Nadie la lee completa: se buscan las casillas grandes fuera de la diagonal, como «botas que dijo tenis: 30», que dicen dónde se confunde el modelo y muchas veces destapan dos categorías que ni las personas distinguen bien. Y para cualquier categoría, todo lo demás se junta como «negativo» y vuelves a tener su propio 2 × 2.
 
 ### Una métrica por categoría
 
@@ -287,7 +287,7 @@ Con 500 categorías, cada una tiene su precision y su recall, sacados de su prop
 ¿Por qué importa? Porque en un marketplace las categorías tienen un [[long-tail|long tail]] (cola larga): unas pocas, como tenis o celulares, tienen muchísimas fotos, y cientos de categorías raras (patines de hielo, refacciones de máquinas de coser) tienen poquitas. Un modelo puede mejorar en las grandes, empeorar en todas las chicas, y la accuracy casi ni se mueve.
 
 :::ejemplo Un modelo nuevo que «mejora» y en realidad empeora
-Con 1,000 fotos y 500 categorías no alcanza: salen 2 fotos por categoría en promedio. Así que aquí pasamos al golden set de C01, de 50,000 fotos. Para simplificar, partimos las 500 categorías en dos grupos y suponemos que dentro de cada grupo todas tienen el mismo recall:
+Con 1,000 fotos y 500 categorías no alcanza: salen 2 fotos por categoría en promedio. Así que aquí tomamos 50,000 fotos al azar de las que suben los vendedores de C01. Para simplificar, partimos las 500 categorías en dos grupos y suponemos que dentro de cada grupo todas tienen el mismo recall. Como las fotos salen al azar, las 300 categorías chicas juntan solo 5,000:
 
 | Grupo | Categorías | Fotos | Recall del modelo actual | Recall del modelo nuevo |
 |---|---|---|---|---|
@@ -307,7 +307,7 @@ Con 1,000 fotos y 500 categorías no alcanza: salen 2 fotos por categoría en pr
 La accuracy dice «mejoró un cuarto de punto». El macro-recall dice «empeoró 11 puntos». Las dos son ciertas: el modelo nuevo le sirve un poquito mejor a la mayoría de las fotos y mucho peor a 300 categorías. Para quien vende patines de hielo, es un desastre.
 :::
 
-Por eso el examen de C01 en la Ronda no se queda con la accuracy: exige que el recall de las 100 categorías con más tráfico (las que más publicaciones reciben) no se caiga y que **el macro-recall del long tail no empeore**.
+Por eso el examen de C01 en la Ronda no se queda con la accuracy: exige que ninguna de las 100 categorías con más tráfico (las que más publicaciones reciben) pierda más de 5 puntos de recall, con una prueba que descarta que la caída sea ruido, y que **el macro-recall del long tail no empeore**. Y su golden set, en vez de tomar fotos al azar, le da a cada categoría un piso de ≈ 50 fotos, para que las chicas tengan con qué medirse.
 
 ### Top-1 y top-5
 
@@ -364,7 +364,7 @@ Probemos tres umbrales:
 | 0.50 | fotos 1 a 4 | 3 | 1 | 1 | 3 / 4 = 75 % | 3 / 4 = 75 % |
 | 0.30 | fotos 1 a 6 | 4 | 2 | 0 | 4 / 6 ≈ 66.7 % | 4 / 4 = 100 % |
 
-Subir el umbral vuelve al modelo más exigente: dice «sí» menos veces, se equivoca menos cuando lo dice (sube la precision) y se le escapan más (baja el recall). Bajarlo hace lo contrario. **No hay umbral que mejore las dos a la vez:** se elige según qué error duele más.
+Subir el umbral vuelve al modelo más exigente: dice «sí» menos veces, suele equivocarse menos cuando lo dice (la precision tiende a subir) y se le escapan más (el recall baja o se queda igual; nunca sube). Bajarlo hace lo contrario. De cerca, la precision va a saltos: con el umbral en 0.70 dice «tenis» a las fotos 1 a 3 (precision 2 / 3 ≈ 66.7 %, recall 50 %); al bajarlo a 0.60 entra la foto 4, que sí era tenis, y suben las dos (75 % y 75 %). Pero en todo el recorrido **no puedes tener lo mejor de las dos:** el umbral se elige según qué error duele más.
 
 :::calculadora aprendio-umbral
 Un modelo de juguete con 1,000 fotos, hecho para que con el umbral en 0.50 salga la matriz de la sección anterior.
@@ -374,7 +374,7 @@ Un modelo de juguete con 1,000 fotos, hecho para que con el umbral en 0.50 salga
 
 En C01 el modelo no usa un umbral para decidir solo: siempre muestra sus 5 sugerencias. Pero imagina que el negocio quiere **preseleccionar** la categoría sin preguntarle a Ana. Ahí sí hace falta un umbral, y uno alto, porque preseleccionar mal es un falso positivo que Ana quizá ni note. Ese umbral se guarda en la configuración, con su versión, porque moverlo cambia lo que hace el sistema tanto como cambiar el modelo. En fraude la Ronda lo dice sin rodeos: el umbral sale del dinero, no de un F1 (la cuenta está en «En la vida real»).
 
-Si en lugar de unos cuantos umbrales pruebas todos, sale una curva que resume al modelo completo: la [[curva-roc|curva ROC]]. Su área, el [[auc|AUC]], es un número de 0.5 (adivinar al azar) a 1 (perfecto) para comparar modelos antes de elegir umbral. Las dos están en la sección siguiente, junto con la curva que conviene cuando los positivos son rarísimos.
+Si en lugar de unos cuantos umbrales pruebas todos, sale una curva que resume al modelo completo: la [[curva-roc|curva ROC]]. Su área, el [[auc|AUC]], es un número de 0 a 1 para comparar modelos antes de elegir umbral: 0.5 es adivinar al azar y 1 es perfecto. Las dos están en la sección siguiente, junto con la curva que conviene cuando los positivos son rarísimos.
 
 ## Todos los umbrales a la vez: ROC, PR y mAP {All thresholds at once: ROC, PR and mAP} [extra]
 
@@ -397,7 +397,7 @@ Un modelo perfecto sube hasta arriba sin moverse a la derecha: encuentra todos l
 
 ### AUC: la curva en un número
 
-El área bajo la curva ROC es el [[auc|AUC]] (*area under the curve*). En la práctica va de 0.5 (al azar) a 1 (perfecto). Y tiene una lectura muy útil: **es la probabilidad de que, si tomas al azar una foto de tenis y una que no lo es, el modelo le dé más puntos a la de tenis.**
+El área bajo la curva ROC es el [[auc|AUC]] (*area under the curve*). En la práctica va de 0.5 (al azar) a 1 (perfecto); menos de 0.5 querría decir que el modelo ordena al revés. Y tiene una lectura muy útil: **es la probabilidad de que, si tomas al azar una foto de tenis y una que no lo es, el modelo le dé más puntos a la de tenis** (si les da los mismos, la pareja cuenta como media).
 
 :::ejemplo El AUC de las 10 fotos, contando parejas
 Hay 4 fotos de tenis y 6 que no: 4 × 6 = 24 parejas. Contamos en cuántas la de tenis tiene el número más alto:
@@ -431,7 +431,7 @@ La [[curva-pr|curva PR]] (*precision–recall*) no tiene ese punto ciego: para c
 Un modelo de ejemplo con la prevalencia de C09: atrapa 70 % del fraude marcando 1 % de las compras buenas, como en la cuenta de arriba.
 :::
 
-Al área bajo la curva PR se le llama *average precision* (AP), o PR-AUC. En el modelo de la figura, el AUC es 0.98 y la AP, 0.29: el mismo modelo, dos historias. Con las 10 fotos de tenis la diferencia es chica (AUC 0.875 y AP ≈ 0.85), porque ahí 4 de cada 10 fotos son positivas. La regla práctica: **si los positivos son pocos, mira la curva PR** (un estudio muy citado de 2015, de Saito y Rehmsmeier, lo mostró con detalle). En la Ronda, C09 usa el AUC y la PR-AUC solo como chequeo de sanidad; para decidir mira el punto de operación: cuánto fraude atrapa y a cuántos clientes buenos molesta con el umbral que de verdad se va a usar.
+Al área bajo la curva PR se le llama *average precision* (AP), o PR-AUC. En el modelo de la figura, el AUC es ≈ 0.98 y la AP, ≈ 0.29: el mismo modelo, dos historias. Con las 10 fotos de tenis la diferencia es chica (AUC 0.875 y AP ≈ 0.85), porque ahí 4 de cada 10 fotos son positivas. La regla práctica: **si los positivos son pocos, mira la curva PR** (un estudio muy citado de 2015, de Saito y Rehmsmeier, lo mostró con detalle). En la Ronda, C09 usa el AUC y la PR-AUC solo como chequeo de sanidad; para decidir mira el punto de operación: cuánto fraude atrapa y a cuántos clientes buenos molesta con el umbral que de verdad se va a usar.
 
 ### Detección: IoU y mAP
 
@@ -456,7 +456,7 @@ La regla clásica dice que una caja es acierto si su IoU con una caja real es **
 Con los valores iniciales sale la cuenta de arriba.
 :::
 
-Con esa regla, cada caja del modelo es un acierto (TP) o una falsa alarma (FP), y cada objeto que nadie encontró es un FN. ¿Y los verdaderos negativos? No existen: en una foto hay infinitas cajas vacías posibles. Sin TN no hay tasa de falsos positivos ni curva ROC, así que la detección vive en la curva PR.
+Con esa regla, cada caja del modelo es un acierto (TP) o una falsa alarma (FP), y cada objeto que nadie encontró es un FN. ¿Y los verdaderos negativos? No se pueden contar: en una foto caben millones de cajas vacías posibles. Sin TN no hay tasa de falsos positivos ni curva ROC, así que la detección vive en la curva PR.
 
 La calificación más usada de un detector es el [[map|mAP]] (*mean average precision*). Se ordenan todas las cajas del modelo por confianza, se recorre la lista anotando precision y recall, y el área bajo esa curva PR es la AP de la clase. El mAP es el promedio de las AP de todas las clases. La versión de COCO, un conjunto de fotos de referencia muy usado, es más estricta: repite la cuenta con 10 mínimos de IoU, de 0.50 a 0.95, y los promedia.
 
@@ -522,7 +522,7 @@ Aquí todas las diferencias salen positivas porque el modelo exagera. Si en un g
 Cuando un modelo está mal calibrado hay arreglos baratos que no tocan lo que aprendió. El más común es el [[temperature-scaling|temperature scaling]]: dividir todos los [[logit|logits]] entre un mismo número T antes del [[softmax]]. Es la misma [[temperatura]] que vas a ver en los LLMs, usada para otra cosa. Con T mayor que 1, las probabilidades se aplanan y el modelo dice estar menos seguro.
 
 :::ejemplo La misma foto con T = 1.5
-Logits 3, 1 y 0 (tenis, botas y sandalias). Sin temperatura, el softmax da 84.4 %, 11.4 % y 4.2 %. Dividiendo entre 1.5 quedan 2, 0.67 y 0: e² ≈ 7.39, e^0.67 ≈ 1.95 y e⁰ = 1, que suman 10.34. Ahora: 7.39 / 10.34 ≈ **71.5 %**, 1.95 / 10.34 ≈ 18.8 % y 1 / 10.34 ≈ 9.7 %.
+Logits 3, 1 y 0 (tenis, botas y sandalias). Sin temperatura, el softmax da 84.4 %, 11.4 % y 4.2 %. Dividiendo entre 1.5 quedan 2, 0.667 y 0: e² ≈ 7.389, e^0.667 ≈ 1.948 y e⁰ = 1, que suman 10.337. Ahora: 7.389 / 10.337 ≈ **71.5 %**, 1.948 / 10.337 ≈ 18.8 % y 1 / 10.337 ≈ 9.7 %.
 
 Tenis sigue primero. Solo bajó su seguridad, de 84 % a 71 %.
 :::
@@ -579,10 +579,10 @@ No basta con que el nuevo saque «85 %». Tiene que no ser peor que el que ya es
 2. Las reglas se escriben antes de entrenar
 Qué métricas y con qué límite. Si se decide después de ver los resultados, siempre aparece una excusa para aprobar.
 3. Ningún número solo basta
-Una top-5 alta con el long tail roto, con un slice roto o con la seguridad inflada, no pasa.
+Una top-5 alta con el long tail roto, con un [[slice]] roto o con la seguridad inflada, no pasa.
 :::
 
-Los slices del gate son grupos de fotos, y detrás de un grupo de fotos muchas veces hay un grupo de personas: en la lección de datos viste que las fotos con poca luz suelen venir de celulares baratos. Cuando el modelo decide algo **sobre personas** (un crédito, una contratación, una identificación), medir las mismas métricas por grupo de personas es obligatorio y tiene nombre: [[equidad]] (*fairness*). Que el modelo no le falle mucho más a un grupo que a otro. El caso real más famoso está en «En la vida real».
+Los slices del gate son grupos de fotos, y detrás de un grupo de fotos muchas veces hay un grupo de personas: en «Datos, ejemplos, features y etiquetas» viste que las fotos con poca luz suelen venir de celulares baratos. Cuando el modelo decide algo **sobre personas** (un crédito, una contratación, una identificación), medir las mismas métricas por grupo de personas es obligatorio y tiene nombre: [[equidad]] (*fairness*). Que el modelo no le falle mucho más a un grupo que a otro. El caso real más famoso está en «En la vida real».
 
 ### La métrica del modelo no es la del negocio
 
@@ -594,13 +594,13 @@ Nadie en la empresa quiere «top-5 alta» por sí misma. C01 existe para que má
 | Online: el producto | Tasa de aceptación: qué fracción de vendedores publica con una de las 5 sugerencias | Con vendedores reales, en días |
 | Negocio | Tasa de publicaciones completadas | Con vendedores reales, en semanas |
 
-Cada nivel es una aproximación (un *proxy*) del de arriba: se mide el de abajo porque es más rápido y más barato. Además hay *guardrails*: métricas que no tienen que mejorar, pero no pueden empeorar. En C01 son el p99 de latencia, el porcentaje de publicaciones que moderación recategoriza y el tiempo para llenar el formulario.
+Cada nivel es una aproximación (un *proxy*) del que sigue en la tabla: la top-5 aproxima la aceptación, y la aceptación, las publicaciones completadas. Se mide el de más arriba porque es más rápido y más barato. Los dos de abajo, online y negocio, se miden con un [[ab-test|A/B test]]: a una parte de los vendedores, elegidos al azar, le toca el modelo nuevo; al resto, el actual, y se compara cómo le va a cada grupo. Además hay *guardrails*: métricas que no tienen que mejorar, pero no pueden empeorar. En C01 son el [[p99]] de latencia (el tiempo que solo 1 de cada 100 respuestas supera), la tasa de errores, el porcentaje de publicaciones que moderación recategoriza y el tiempo para llenar el formulario.
 
 :::diagrama aprendio-cadena
 La cadena de métricas de C01, del golden set al negocio. Prueba los dos recorridos: cuando la cadena se cumple y cuando se rompe.
 :::
 
-La cadena se puede romper. La Ronda (M11) trae un ejemplo con los números de C01: un modelo nuevo gana **1.5 puntos de top-5** en el golden set, y en un A/B de dos semanas la tasa de aceptación **baja 0.4 puntos**. Hay tres razones y ninguna es un bug: ganó en los lugares 4 y 5 de la lista y perdió un poco en el 1, que es el que la gente elige; el golden set tenía 8 meses y la ganancia estaba en categorías que hoy casi no se usan, y el modelo era más pesado, así que en el pico más vendedores se quedaban sin sugerencias a tiempo.
+La cadena se puede romper. La Ronda (M11) trae un ejemplo con los números de C01: un modelo nuevo gana **1.5 puntos de top-5** en el golden set, y en un A/B de dos semanas la tasa de aceptación **baja 0.4 puntos**. Hay tres razones y ninguna es un bug: ganó en los lugares 4 y 5 de la lista y perdió un poco en el 1, y la gente casi siempre elige el primero o el segundo; el golden set tenía 8 meses y la ganancia estaba en categorías que hoy casi no se usan, y el modelo era más pesado, así que en el pico más vendedores se quedaban sin sugerencias a tiempo.
 
 :::ojo
 Pasar el examen offline no prueba que el modelo funcione con gente real. El golden set es una foto del pasado y, con el [[drift]], el mundo se va alejando de él. Por eso, después del gate, el modelo nuevo primero recibe una copia de las fotos sin que nadie vea sus respuestas (*shadow*), luego responde de verdad a una parte chica del tráfico (*canary*) y, si el cambio es grande, pasa por un [[ab-test|A/B test]] sobre la tasa de aceptación. Y el [[monitoreo]] sigue midiendo. Eso lo verás en las estaciones de Orquestación y Monitoreo.
@@ -616,9 +616,9 @@ En fraude (C09) la cadena es más corta, porque la métrica de negocio es dinero
 
 **3. Decidir con el examen final.** Si miras el test, cambias algo y lo vuelves a mirar, el test se volvió validación. *Cómo evitarlo:* decide con validación (o con validación cruzada si hay pocos datos), usa el test una sola vez y escribe las reglas del gate antes de entrenar.
 
-**4. Llamar «mejora» a una diferencia más chica que el ruido.** Con 50 fotos de examen, el resultado se mueve ±10 puntos por pura suerte; con 50,000, ±0.3. *Cómo evitarlo:* estima el ruido antes de celebrar y compara los dos modelos en las mismas fotos, foto por foto o vuelta por vuelta.
+**4. Llamar «mejora» a una diferencia más chica que el ruido.** Con 50 fotos de examen y un modelo que acierta 85 %, el resultado puede moverse ≈ ±10 puntos por pura suerte; con 50,000, ≈ ±0.3. *Cómo evitarlo:* estima el ruido antes de celebrar y compara los dos modelos en las mismas fotos, foto por foto o vuelta por vuelta.
 
-**5. Dejar el umbral en 0.5 «porque sí».** El 0.5 no sale de ningún lado. *Cómo evitarlo:* elígelo en validación con el costo de cada error, guárdalo con la versión del modelo y revísalo cada vez que el modelo cambie, porque cada versión reparte su seguridad distinto.
+**5. Dejar el umbral en 0.5 «porque sí».** El 0.5 solo sería el mejor si los dos errores costaran lo mismo y el modelo estuviera [[calibracion|calibrado]] (es la cuenta del fraude en «En la vida real», con costos iguales). *Cómo evitarlo:* elígelo en validación con el costo de cada error, guárdalo con la versión del modelo y revísalo cada vez que el modelo cambie, porque cada versión reparte su seguridad distinto.
 
 **6. Leer la confianza como si fuera una probabilidad honesta.** Las redes modernas tienden a decir «90 %» cuando aciertan menos. *Cómo evitarlo:* mide el ECE, mira también la tabla por grupos de confianza y corrige con temperature scaling antes de usar el número para decidir.
 
@@ -642,13 +642,13 @@ Umbral sobre la probabilidad | 7.5 / 67.5 | ≈ 0.11
 = Marcar una compra conviene cuando el modelo le da más de ≈ 11 % de ser fraude. Con un rechazo de US$5, el umbral baja a ≈ 0.08; con US$10, sube a ≈ 0.14.
 :::
 
-La cuenta usa la probabilidad del modelo como si fuera verdad, así que solo funciona si el modelo está calibrado. Y no es «el umbral que da el mejor F1»: la Ronda lo resume así, el umbral sale de dinero. C09 además cuenta el recall en dólares. En una cohorte con 1,000 fraudes que suman US$45,000, el modelo A atrapa 700 (70 %) que suman US$22,500 (50 % del dinero), y el B atrapa 600 (60 %) que suman US$33,750 (75 %). Por conteo gana A; en dinero, B evita US$11,250 más.
+La cuenta usa la probabilidad del modelo como si fuera verdad, así que solo funciona si el modelo está calibrado. Usa también el monto promedio: en la Ronda, como un fraude grande cuesta más que uno chico, el umbral cambia con el monto de cada compra. Y no es «el umbral que da el mejor F1»: la Ronda lo resume así, el umbral sale de dinero. C09 además cuenta el recall en dólares. En una cohorte con 1,000 fraudes que suman US$45,000, el modelo A atrapa 700 (70 %) que suman US$22,500 (50 % del dinero), y el B atrapa 600 (60 %) que suman US$33,750 (75 %). Por conteo gana A; en dinero, B evita US$11,250 más.
 
 ### Equidad: cuando el grupo son personas
 
 El caso más famoso es de 2018. Un estudio («Gender Shades», de Buolamwini y Gebru) probó tres sistemas comerciales que adivinaban el género en fotos de caras: se equivocaban en no más de 0.8 % de los hombres de piel clara y hasta en 34.7 % de las mujeres de piel oscura. Las colecciones de fotos con que se solían evaluar tenían sobre todo caras de piel clara, así que el promedio no lo mostraba.
 
-Antes de medir se decide qué error importa igualar: el recall (que a nadie se le escapen más los casos reales), los falsos positivos (que a nadie se le acuse más en falso) o la precision. Cuando los grupos tienen proporciones distintas de casos reales no se pueden igualar todas a la vez (lo ves con números en el último ejercicio), así que elegir es una decisión de personas, no del modelo. En la Ronda, M10 pone la equidad en el gate «donde aplica»; en C01 no aplica así, porque el modelo no decide sobre nadie, y en C03, donde las cámaras graban a trabajadores para revisar su equipo de protección, manda la privacidad: las métricas se sacan por zona y turno, nunca por persona.
+Antes de medir se decide qué error importa igualar: el recall (que a nadie se le escapen más los casos reales), los falsos positivos (que a nadie se le acuse más en falso) o la precision. Cuando los grupos tienen proporciones distintas de casos reales, no se pueden igualar las tres a la vez, salvo en casos extremos como un modelo que nunca se equivoca (lo ves con números en el último ejercicio), así que elegir es una decisión de personas, no del modelo. En la Ronda, M10 pone la equidad en el gate «donde aplica»; en C01 no aplica así, porque el modelo no decide sobre nadie, y en C03, donde las cámaras graban a trabajadores para revisar su equipo de protección, manda la privacidad: las métricas se sacan por zona y turno, nunca por persona.
 
 ### C02 y C03: eventos y defectos
 
@@ -675,6 +675,13 @@ Acierta en todas las que están bien: **99.5 %** de accuracy. Su recall es **0 %
 Intersección: de 2 a 10 en x y en y, 8 × 8 = 64. Unión: 100 + 100 − 64 = 136. IoU = 64 / 136 ≈ **0.47**: no pasa. Corrida solo 2 unidades en cada dirección (20 % del lado), ya no cuenta como acierto.
 ? [facil] Para tres fotos, la categoría correcta quedó en el lugar 1, en el 4 y en el 7 de la lista del modelo. ¿Cuánto vale la top-1 y cuánto la top-5 en esas tres fotos?
 Top-1: solo la primera tiene la correcta en el lugar 1: 1 de 3 ≈ **33 %**. Top-5: los lugares 1 y 4 están entre los 5 primeros y el 7 no: 2 de 3 ≈ **67 %**.
+? [medio] Un modelo clasifica tres categorías. «Tenis» tiene 900 fotos de prueba y el modelo acierta 810; «Patines» tiene 90 y acierta 45; «Refacciones» tiene 10 y acierta 2. Calcula la accuracy (contando fotos) y el macro-recall. ¿Qué te dice cada una?
+Recall por categoría: 810 / 900 = 90 %, 45 / 90 = 50 % y 2 / 10 = 20 %.
+
+- Accuracy, contando fotos: (810 + 45 + 2) / 1,000 = 857 / 1,000 = **85.7 %**.
+- Macro-recall, promediando categorías: (90 + 50 + 20) / 3 = 160 / 3 ≈ **53.3 %**.
+
+La accuracy la manda «Tenis», que tiene 9 de cada 10 fotos. El macro-recall muestra lo que ella esconde: en las otras dos categorías el modelo falla la mitad de las fotos o más.
 ? [medio] Un modelo da los logits 2, 1 y 0. Calcula sus probabilidades con softmax, y luego con temperature scaling de T = 2. ¿Cambia la clase de arriba?
 Sin temperatura: e² ≈ 7.389, e¹ ≈ 2.718 y e⁰ = 1, que suman 11.107. Probabilidades: ≈ **66.5 %**, 24.5 % y 9.0 %.
 
@@ -689,13 +696,13 @@ Aciertos por grupo: 130 / 200 = 65 %, 225 / 300 = 75 % y 460 / 500 = 92 %.
 - 95 %: pesa 0.5 y la distancia es 0.03 → 0.015.
 
 ECE = 0.010 + 0.015 + 0.015 = **0.040**. Pasa, por poco.
-? [medio] Comparas dos recetas con validación cruzada de 5 vueltas y los mismos grupos. La A saca 86, 92, 80, 84 y 88 %. En el caso 1, la B saca 88, 93, 81, 85 y 90 %. En el caso 2, la B saca 95, 85, 78, 90 y 89 %. ¿En cuál confías más en que B es mejor?
-En los dos casos B promedia 437 / 5 = **87.4 %**, contra 86 % de A. Pero vuelta por vuelta:
+? [medio] Comparas dos recetas con validación cruzada de 5 vueltas, con los mismos 5 grupos de 50 fotos de la sección. La A saca 86, 92, 80, 84 y 88 %. En el caso 1, la B saca 88, 96, 82, 86 y 90 %. En el caso 2, la B saca 96, 86, 78, 90 y 92 %. ¿En cuál confías más en que B es mejor?
+En los dos casos B promedia 442 / 5 = **88.4 %**, contra 86 % de A. Pero vuelta por vuelta:
 
-- Caso 1: +2, +1, +1, +1 y +2. B gana en las 5.
-- Caso 2: +9, −7, −2, +6 y +1. B gana en 3 y pierde en 2.
+- Caso 1: +2, +4, +2, +2 y +2. B gana en las 5.
+- Caso 2: +10, −6, −2, +6 y +4. B gana en 3 y pierde en 2.
 
-Confías más en el caso 1: B gana siempre, aunque sea por poco. En el caso 2, el mismo promedio sale de diferencias que van y vienen, y puede ser suerte.
+Confías más en el caso 1: B gana siempre, aunque sea por poco (con 50 fotos por grupo, cada foto vale 2 puntos: B acierta 1 o 2 fotos más en cada vuelta). En el caso 2, el mismo promedio sale de diferencias que van y vienen, y puede ser suerte.
 ? [reto] Fraude con los costos de C09: en 1,000,000 de compras hay 800 fraudes; un fraude que pasa cuesta US$60 y rechazar a un cliente bueno, US$7.5. Con el umbral bajo, el modelo atrapa 560 fraudes y marca 9,992 compras buenas; con el alto, atrapa 320 y marca 999. Compara el costo de los dos umbrales contra no tener modelo.
 - Sin modelo pasan los 800 fraudes: 800 × 60 = **US$48,000**.
 - Umbral bajo: pasan 240 fraudes (US$14,400) y se rechazan 9,992 buenas (9,992 × 7.5 = US$74,940). Total: **US$89,340**, casi el doble que no hacer nada.
@@ -706,7 +713,7 @@ La precision lo explica: 560 / 10,552 ≈ 5.3 % con el bajo y 320 / 1,319 ≈ 24
 - Grupo A: TP = 300 × 0.80 = 240; FP = 700 × 0.10 = 70. Precision = 240 / 310 ≈ **77.4 %**.
 - Grupo B: TP = 100 × 0.80 = 80; FP = 900 × 0.10 = 90. Precision = 80 / 170 ≈ **47.1 %**.
 
-Depende de qué quieras igualar. Por errores por persona, trata igual a los dos grupos: encuentra al mismo 80 % y acusa en falso al mismo 10 %. Por lo que significa un «sí», no: en el grupo B, más de la mitad de los rechazados (90 de 170) sí iba a pagar. Con proporciones distintas de casos reales (30 % contra 10 %) no se pueden igualar las tres cosas a la vez; cuál importa más lo decide la gente que responde por el sistema.
+Depende de qué quieras igualar. Por errores por persona, trata igual a los dos grupos: encuentra al mismo 80 % y acusa en falso al mismo 10 %. Por lo que significa un «sí», no: en el grupo B, más de la mitad de los rechazados (90 de 170) sí iba a pagar. Con proporciones distintas de casos reales (30 % contra 10 %), un modelo que comete los dos errores, como este, no puede igualar las tres cosas a la vez; cuál importa más lo decide la gente que responde por el sistema.
 :::
 
 ## Lo que sigue en la Ronda {Where the Ronda picks it up}
@@ -738,7 +745,7 @@ No se sabe. Si el 1 % de las compras son fraude, un modelo que siempre dice «no
 ? De 100 tenis, el modelo encontró 80, y en total dijo «tenis» 120 veces. ¿Cuánto valen la precision y el recall?
 Recall = 80 / 100 = 80 %. Precision = 80 / 120 ≈ 66.7 %. Los 40 que sobran son falsos positivos.
 ? Subes el umbral de 0.5 a 0.7. ¿Qué les pasa a la precision y al recall?
-La precision sube y el recall baja: el modelo dice «sí» menos veces, se equivoca menos cuando lo dice y se le escapan más casos. En la calculadora del umbral, la precision pasa de 66.7 % a 93 % y el recall baja de 80 % a 56 %.
+Normalmente la precision sube y el recall baja (el recall nunca sube): el modelo dice «sí» menos veces, se equivoca menos cuando lo dice y se le escapan más casos. En la calculadora del umbral, la precision pasa de 66.7 % a 93 % y el recall baja de 80 % a 56 %.
 ? Un modelo nuevo sube la accuracy de 85.0 % a 85.25 %, pero el macro-recall baja de 75 % a 64 %. ¿Qué pasó?
 Mejoró un poco en las categorías grandes, que tienen casi todas las fotos, y empeoró mucho en las chicas. La accuracy cuenta fotos; el macro-recall cuenta categorías. En C01 no se aprueba.
 ? El modelo dijo ≈ 90 % en 300 fotos y acertó en 246. ¿Está bien calibrado?

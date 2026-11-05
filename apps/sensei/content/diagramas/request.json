@@ -48,13 +48,13 @@
     {
       "id": "api",
       "label": "API del modelo",
-      "sub": "revisa y pasa",
+      "sub": "prepara la foto",
       "kind": "edge",
       "x": 41,
       "y": 7,
       "w": 16,
       "h": 9,
-      "note": "La [[api|API]] revisa que la petición venga bien y le pasa la foto al modelo. Si el modelo no contesta a tiempo, el marketplace le muestra a Ana el selector de categorías a mano."
+      "note": "La [[api|API]] revisa que la petición venga bien, prepara la foto (la decodifica, la achica y la convierte en los números que el modelo espera) y se la pasa al modelo. Si la API no contesta en 300 ms, el marketplace le muestra a Ana el selector de categorías a mano."
     },
     {
       "id": "modelo",
@@ -160,7 +160,7 @@
           "edges": [
             "api>modelo"
           ],
-          "text": "La API se la pasa al modelo, que hace la inferencia."
+          "text": "La API prepara la foto y se la pasa al modelo, que hace la inferencia."
         },
         {
           "nodes": [

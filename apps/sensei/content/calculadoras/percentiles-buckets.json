@@ -1,6 +1,6 @@
 {
   "titulo": "Percentil desde buckets",
-  "intro": "Una ventana de 5 minutos del servicio de C01: cuántas requests cayeron en cada [[bucket]] (sin acumular). La calculadora hace lo mismo que `histogram_quantile` de Prometheus: busca el bucket donde cae el rango e interpola adentro.",
+  "intro": "Una ventana de 5 minutos del servicio de C01, con sus buckets de abajo de 100 ms y de arriba de 500 juntos: cuántas requests cayeron en cada [[bucket]] (sin acumular). La calculadora hace lo mismo que `histogram_quantile` de Prometheus: busca el bucket donde cae el rango e interpola adentro.",
   "entradas": [
     { "id": "n1", "label": "Hasta 50 ms", "min": 0, "max": 1000000, "paso": 1, "valor": 6200, "tipo": "numero" },
     { "id": "n2", "label": "De 50 a 100 ms", "min": 0, "max": 1000000, "paso": 1, "valor": 3100, "tipo": "numero" },
@@ -35,5 +35,5 @@
     { "label": "Fracción en 200 ms o menos (el SLI)", "formula": "c4 / max(c7, 1)", "formato": "pct", "decimales": 2, "barra": true, "nota": "exacta, porque hay un borde en 200: el SLO pide al menos 99 %" },
     { "label": "Requests arriba de 200 ms", "formula": "c7 - c4", "formato": "int" }
   ],
-  "nota": "Si el percentil cae en «más de 500 ms», Prometheus responde el borde de arriba del penúltimo bucket, 500 ms: no sabe más. Por eso los bordes van apretados alrededor del SLO."
+  "nota": "Si el percentil cae en «más de 500 ms», Prometheus responde el borde de arriba del penúltimo bucket, 500 ms: no sabe más. Por eso el último borde va muy arriba de la promesa (en C01, 2.5 s), y los bordes van apretados alrededor del SLO, donde se decide."
 }

@@ -43,7 +43,29 @@ El `·` marca un espacio: el espacio va pegado a la palabra que sigue, como part
 Del texto a los números: el tokenizer parte la frase en tokens, cada token tiene un id, y cada id saca su vector de una tabla. Cortes e ids de ejemplo.
 :::
 
-### Cómo se arma el vocabulario: BPE
+El vocabulario no lo escribe nadie a mano: lo arma un método llamado [[bpe|BPE]] a partir de muchísimo texto. Cómo funciona lo ves en la sección 2, en la segunda pasada.
+
+Dos cosas que vas a oír mucho:
+
+- **En inglés, como regla aproximada, un token es unas ¾ partes de una palabra**; en español salen más. La Ronda (M14) lo usa porque los proveedores (las empresas que te venden acceso a su modelo) **cobran por token**: el mismo texto puede costar distinto según el idioma y el modelo.
+- **Cada modelo trae su tokenizer.** El de Llama 3 tiene un vocabulario de 128,256 tokens. No se pueden mezclar: los ids de un tokenizer no significan nada para otro modelo.
+
+### De ids a vectores
+
+Un id es solo una etiqueta: el token 23,817 no es «más grande» que el 285 en ningún sentido útil. Así que lo primero que hace el modelo es cambiar cada id por un [[embedding]], como los de la lección anterior.
+
+Para eso tiene una **tabla de embeddings**: una fila por cada token del vocabulario, y en cada fila un vector. El id dice qué fila leer. En Llama 3 8B cada vector tiene 4,096 números.
+
+:::cuenta La tabla de embeddings de Llama 3 8B
+Filas // una por token del vocabulario | dato del tokenizer | 128,256
+Números por fila | dato del modelo | 4,096
+Parámetros de la tabla | 128,256 × 4,096 | **525,336,576**
+Memoria // con 2 bytes por número, lo normal para servir | 525,336,576 × 2 bytes | ≈ 1.05 GB
+Parte del modelo // que tiene 8,030 millones de parámetros | 525 millones ÷ 8,030 millones | ≈ 6.5 %
+= Más de 500 millones de [[parametro|parámetros]] solo para cambiar ids por vectores. Se aprenden durante el [[entrenamiento]], igual que el resto: al final, tokens que se usan parecido quedan con vectores parecidos.
+:::
+
+## Cómo se arma el vocabulario: BPE {How the vocabulary is built: BPE} [extra]
 
 ¿Quién decide qué es un token? Nadie a mano: casi todos los tokenizers arman su vocabulario con [[bpe|BPE]] (*byte-pair encoding*, codificación por pares de bytes). La idea cabe en una frase: **empieza con letras sueltas y une, una y otra vez, el par de vecinos que más se repite**.
 
@@ -113,26 +135,6 @@ Un tokenizer real hace lo mismo con muchísimo más texto, hasta llegar al tama�
 BPE nació en 1994 para comprimir archivos (Philip Gage) y en 2016 se adaptó a la traducción automática (Sennrich y otros), para escribir palabras que el modelo nunca vio.
 :::
 
-Dos cosas que vas a oír mucho:
-
-- **En inglés, como regla aproximada, un token es unas ¾ partes de una palabra**; en español salen más. La Ronda (M14) lo usa porque los proveedores (las empresas que te venden acceso a su modelo) **cobran por token**: el mismo texto puede costar distinto según el idioma y el modelo.
-- **Cada modelo trae su tokenizer.** El de Llama 3 tiene un vocabulario de 128,256 tokens. No se pueden mezclar: los ids de un tokenizer no significan nada para otro modelo.
-
-### De ids a vectores
-
-Un id es solo una etiqueta: el token 23,817 no es «más grande» que el 285 en ningún sentido útil. Así que lo primero que hace el modelo es cambiar cada id por un [[embedding]], como los de la lección anterior.
-
-Para eso tiene una **tabla de embeddings**: una fila por cada token del vocabulario, y en cada fila un vector. El id dice qué fila leer. En Llama 3 8B cada vector tiene 4,096 números.
-
-:::cuenta La tabla de embeddings de Llama 3 8B
-Filas // una por token del vocabulario | dato del tokenizer | 128,256
-Números por fila | dato del modelo | 4,096
-Parámetros de la tabla | 128,256 × 4,096 | **525,336,576**
-Memoria // con 2 bytes por número, lo normal para servir | 525,336,576 × 2 bytes | ≈ 1.05 GB
-Parte del modelo // que tiene 8,030 millones de parámetros | 525 millones ÷ 8,030 millones | ≈ 6.5 %
-= Más de 500 millones de [[parametro|parámetros]] solo para cambiar ids por vectores. Se aprenden durante el [[entrenamiento]], igual que el resto: al final, tokens que se usan parecido quedan con vectores parecidos.
-:::
-
 ## Un LLM adivina el siguiente token {Predicting the next token}
 
 Ya con la frase convertida en vectores, ¿qué calcula el modelo? Algo sorprendentemente simple: **qué token es más probable que siga**.
@@ -141,7 +143,7 @@ Esto ya lo conoces. El modelo de C01 recibe una foto y da una probabilidad para 
 
 Por dentro funciona igual que en C01: la última capa da una calificación por opción, el [[logit]], y el [[softmax]] las convierte en [[probabilidad|probabilidades]] que suman 100 %. (Softmax calcula e ≈ 2.718 elevado a cada logit y divide cada resultado entre la suma de todos.)
 
-Un [[llm|LLM]] (*large language model*, modelo grande de lenguaje) es un modelo así, con miles de millones de parámetros, entrenado con cantidades enormes de texto a adivinar el siguiente token. Después se le entrena un poco más con ejemplos de conversaciones para que siga instrucciones (lo ves en la sección 6). De esa sola tarea, «adivina lo que sigue», salen las respuestas, los resúmenes y el código.
+Un [[llm|LLM]] (*large language model*, modelo grande de lenguaje) es un modelo así, con miles de millones de parámetros, entrenado con cantidades enormes de texto a adivinar el siguiente token. Después se le entrena un poco más con ejemplos de conversaciones para que siga instrucciones (lo ves en la sección 8). De esa sola tarea, «adivina lo que sigue», salen las respuestas, los resúmenes y el código.
 
 El texto que tú le das para que continúe se llama [[prompt]]: tu pregunta, las instrucciones y lo que haga falta para responder.
 
@@ -180,7 +182,7 @@ Imagina que después de «Ana vende unos» el modelo solo tuviera tres opciones,
 Las mismas tres opciones con tres temperaturas. Baja, el favorito se lleva casi todo; alta, el reparto se empareja.
 :::
 
-Así se ve el sorteo en Python. `random.choices` sortea respetando los pesos que le das, y la [[semilla]] fija hace que cada corrida salga igual:
+Así se ve el sorteo en Python. `random.choices` sortea respetando los pesos que le das (aquí, las probabilidades), y la [[semilla]] fija hace que cada corrida salga igual:
 
 ```python
 import math
@@ -222,6 +224,14 @@ Los servidores ofrecen otra perilla, *top-p*: antes de sortear, se queda solo co
 :::ojo
 Temperatura 0 no garantiza respuestas idénticas. En un servidor real, tu pregunta se calcula junto con las de otras personas, y el orden de las sumas puede cambiar los últimos decimales; a veces eso basta para que gane otro token. La Ronda (M14) lo menciona al hablar de cómo evaluar un LLM: si dos corridas del mismo modelo difieren, una «mejora» del mismo tamaño no es una mejora.
 :::
+
+### Probable no es verdadero: alucinaciones
+
+Un LLM aprendió a producir texto **probable**, no texto **verdadero**. Casi siempre lo probable y lo verdadero coinciden, porque aprendió de mucho texto correcto. Pero si le preguntas algo que no sabe, el token más probable sigue siendo uno que **suena** bien.
+
+Pregúntale a un modelo general por la política de devoluciones del marketplace de C01. Nunca la vio. Lo probable, por lo que leyó de otras tiendas, es «30 días», y eso contesta, con toda seguridad y buena redacción, aunque la política real diga 15. Eso es una [[alucinacion|alucinación]]: algo falso o sin respaldo, dicho con la misma confianza que algo cierto.
+
+No es un error raro que se arregla una vez: es una consecuencia de cómo funcionan. Se reduce, se mide y se diseña alrededor de él. En la Ronda se mide con un conjunto fijo de preguntas con respuesta conocida, el [[golden-set|golden set]]. La defensa más usada, darle al modelo los documentos antes de que conteste ([[rag|RAG]]), la ves en la sección 8.
 
 ## Un token a la vez: prefill y decode {One token at a time: prefill and decode}
 
@@ -278,7 +288,7 @@ TTFT // cola + prefill | dato del caso | ≈ 0.6 s
 TPOT // un paso de decode | dato del caso | ≈ 40 ms
 Tokens que faltan después del primero | 250 − 1 | 249
 Tiempo total | 0.6 + 249 × 0.04 | **≈ 10.6 s**
-Lo más que permiten sus metas // TTFT ≤ 1 s y TPOT ≤ 50 ms, 95 de cada 100 veces | 1.0 + 249 × 0.05 | ≈ 13.5 s
+Con el TTFT y el TPOT justo en su límite // sus metas: TTFT ≤ 1 s y TPOT ≤ 50 ms, 95 de cada 100 veces | 1.0 + 249 × 0.05 | ≈ 13.5 s
 = Diez segundos para una respuesta suenan a mucho, pero la persona empieza a leer a los 0.6 s y el texto sale a 25 tokens por segundo, varias veces más rápido de lo que alguien lee (≈ 4 a 7 tokens por segundo).
 :::
 
@@ -291,7 +301,7 @@ Los valores iniciales son los del request de C10. Cómo se reparten los 0.6 s en
 :::
 
 :::diagrama llms-request
-El camino de una pregunta: el prompt entra entero en una pasada (prefill) y la respuesta sale de un token a la vez (decode), leyendo los pesos y el KV cache en cada paso.
+El camino de una pregunta: el prompt entra entero en una pasada (prefill) y la respuesta sale de un token a la vez (decode), leyendo los pesos y el [[kv-cache|KV cache]] en cada paso.
 :::
 
 ### La ventana de contexto
@@ -305,7 +315,7 @@ Lo que no cabe en la ventana, el modelo no lo ve. Si el prompt tiene 8,000 token
 ¿Qué hay dentro del modelo, entre los vectores que entran y las probabilidades que salen? En casi todos los LLMs actuales, un [[transformer]]. Es una arquitectura que presentó un artículo de Google de 2017, «Attention Is All You Need». Es una pila de bloques iguales (32 en Llama 3 8B, 80 en Llama 3 70B), y cada bloque tiene dos partes:
 
 - Una capa de **atención**, donde los tokens se pasan información entre sí.
-- Una pequeña [[red-neuronal|red neuronal]] que procesa cada token por separado.
+- Una [[red-neuronal|red neuronal]] que procesa cada token por separado.
 
 La parte nueva, la que le dio nombre al artículo, es la atención.
 
@@ -340,7 +350,7 @@ Su nuevo vector es la suma de las V de todos, cada una multiplicada por su porce
 :::
 
 :::ejemplo La atención de «banco», con vectores de 2 números
-Frase: «Me senté en el banco». Veamos solo a «banco». Los números son inventados para que se puedan seguir con lápiz; un modelo real usa vectores de 128 números o más.
+Frase: «Me senté en el banco». Veamos solo a «banco». Los números son inventados para que se puedan seguir con lápiz; un modelo real usa vectores mucho más largos (en Llama 3, de 128 números).
 
 La Q de «banco» es (1, 0). Las K de cada token:
 
@@ -377,6 +387,10 @@ Imagina un tablero con un anuncio por cada palabra de la frase. Tu Q es lo que n
 
 **En un LLM, cada token solo mira a los anteriores** (y a sí mismo). Tiene sentido: cuando el modelo escribe, los tokens siguientes todavía no existen. Por eso la K y la V de un token, una vez calculadas, **ya no cambian** aunque la frase siga creciendo. Guárdalo para la sección 7.
 
+## Por dentro de la pila: las cabezas, el orden, los bloques y los expertos {Inside the stack: heads, order, blocks and experts} [extra]
+
+Esta sección es para una segunda pasada: por qué la atención se hace varias veces a la vez, cómo sabe el modelo el orden de las palabras, qué hay en un bloque completo y cómo trabaja un modelo enorme como si fuera uno chico.
+
 ### Varias cabezas a la vez
 
 Una sola atención le da a cada token un solo reparto de porcentajes, pero un token necesita varias cosas a la vez: a qué sustantivo se refiere, qué verbo lo afecta, si va entre comillas. Por eso la atención se hace **varias veces en paralelo** en cada bloque, cada vez con sus propias tablas de Q, K y V. Cada copia se llama **cabeza** (*head*), y el conjunto, [[multi-head|atención multi-cabeza]] (*multi-head attention*). No la confundas con la [[cabeza]] de una red de visión, la parte final que cambia según la tarea: mismo nombre, otra cosa.
@@ -386,14 +400,10 @@ En Llama 3 8B, el vector de cada token tiene 4,096 números y se reparte en **32
 Hay un truco más. Llama 3 8B tiene 32 cabezas de Q, pero solo **8** juegos de K y V: cada juego lo comparte un grupo de 4 cabezas. Se llama [[gqa|GQA]] (*grouped-query attention*, atención con consultas agrupadas), casi no cambia la calidad y es lo que hace que el KV cache de la sección 7 quepa en la GPU.
 
 :::profundo La fórmula completa, por si la ves escrita
-En los artículos verás: atención(Q, K, V) = softmax(Q · Kᵀ ÷ √d) · V. Es exactamente el ejemplo de arriba, hecho para todos los tokens a la vez con multiplicación de matrices. La única pieza nueva es dividir entre √d, la raíz del tamaño de los vectores: con vectores de 128 números los productos punto salen muy grandes, y dividirlos evita que el softmax le dé casi el 100 % a un solo token. Con nuestros vectores de 2 números no hacía falta.
+En los artículos verás: atención(Q, K, V) = softmax(Q · Kᵀ ÷ √d) · V. Es exactamente el ejemplo de «banco» de la sección 5, hecho para todos los tokens a la vez con multiplicación de matrices (Kᵀ es la tabla de las K «acostada»: sus filas se vuelven columnas). La única pieza nueva es dividir entre √d, la raíz del tamaño de los vectores: con vectores de 128 números los productos punto salen muy grandes, y dividirlos evita que el softmax le dé casi el 100 % a un solo token. Con nuestros vectores de 2 números no hacía falta.
 
 Y a diferencia de una CNN, que mira solo a sus vecinos (un filtro de 3 × 3 píxeles), la atención deja que cualquier token mire a cualquier otro anterior, esté a 2 o a 2,000 tokens. Ese alcance explica parte de su éxito y de su costo: con n tokens hay del orden de n × n comparaciones.
 :::
-
-## Por dentro de la pila: el orden, los bloques y los expertos {Inside the stack: order, blocks and experts} [extra]
-
-Esta sección es para una segunda pasada: cómo sabe el modelo el orden de las palabras, qué hay en un bloque completo y cómo trabaja un modelo enorme como si fuera uno chico.
 
 ### La atención no sabe el orden
 
@@ -450,7 +460,7 @@ Total | la suma | **8,030,261,248**
 
 ### Mezcla de expertos: muchos parámetros, poco trabajo por token
 
-En un modelo **denso**, cada token pasa por **todo** el MLP de cada bloque. Una [[moe|mezcla de expertos]] (*mixture of experts*, MoE) lo parte en varias redes más chicas, los **expertos**, y agrega un **enrutador** (*router*): una capa chiquita que, para cada token, califica a los expertos y elige unos pocos.
+En un modelo **denso**, cada token pasa por **todo** el MLP de cada bloque. Una [[moe|mezcla de expertos]] (*mixture of experts*, MoE) pone en cada bloque varias de esas redes en lugar de una, los **expertos**, y agrega un **enrutador** (*router*): una capa chiquita que, para cada token, califica a los expertos y elige unos pocos.
 
 :::ejemplo El enrutador de un bloque, con números
 Un bloque con 8 expertos que usa 2 por token, como Mixtral 8x7B (Mistral AI, 2023). Para el token «tenis», el enrutador da estas calificaciones (inventadas): E1 = 2.0, E2 = 0.1, E3 = −1.0, E4 = 1.0, E5 = 0.3, E6 = −0.5, E7 = 0.0 y E8 = 0.2.
@@ -474,11 +484,69 @@ Pesos que lee un token // si la conversación va sola | 12.9 × 2 | ≈ 26 GB
 = Ocupa la memoria de un modelo de 47 mil millones, pero cada token cuesta como uno de 13 mil millones: ≈ 3.6 veces menos trabajo. Y «8x7B» no son 56 mil millones: la atención y las tablas de tokens se comparten.
 :::
 
-En la Ronda (M14) aparece gpt-oss-120b, un MoE de OpenAI con ≈ 117 mil millones de parámetros en total y ≈ 5.1 mil millones activos por token. Para saber cuántas GPUs necesitas cuentan todos los expertos; para el TPOT, los que se leen en cada paso (con muchas conversaciones a la vez, entre todas usan casi todos). Y «experto» no quiere decir especialista: cuando los autores de Mixtral buscaron expertos por tema (biología, filosofía, matemáticas), no encontraron un patrón claro.
+En la Ronda (M14) aparece gpt-oss-120b, un MoE de OpenAI con ≈ 117 mil millones de parámetros en total y ≈ 5.1 mil millones activos por token. Para saber cuántas GPUs necesitas cuentan todos los expertos; para el TPOT, los que se leen en cada paso (con muchas conversaciones a la vez, entre todas usan casi todos). Y «experto» no quiere decir especialista: cuando los autores de Mixtral compararon textos de biología, de filosofía y artículos científicos, los expertos se repartían casi igual (solo en matemáticas vieron un reparto un poco distinto).
 
-## De modelo base a asistente {From base model to assistant}
+## Lo que ocupa en la GPU: pesos y KV cache {What fills the GPU: weights and KV cache}
 
-El modelo que contesta en un chat sale de tres etapas, cada una mucho más barata que la anterior, y cada una le enseña algo distinto.
+Ya tenemos lo necesario para entender las dos cuentas de memoria que la Ronda hace una y otra vez.
+
+### Los pesos
+
+Los LLMs se nombran por su número de parámetros: 7B, 8B, 70B. La **B** es de *billion*, mil millones en inglés. La ResNet-50 de C01 tiene ≈ 24.5 millones (25.6 millones la original, con 1,000 categorías): un modelo de 70B tiene unas 2,900 veces más.
+
+Cada parámetro es un número, y cuánto ocupa depende de su formato. En la lección de imágenes viste [[float32]], de 4 bytes. Para servir LLMs lo normal son 2 bytes, FP16 o [[bf16|BF16]] (dos maneras de guardar un número decimal en 16 bits), y cada vez más 1 byte ([[int8|INT8]] o FP8, como en C10) o medio ([[int4|INT4]]). Guardar los pesos con menos bytes se llama [[cuantizacion|cuantización]]: ahorra memoria a cambio de un poco de precisión.
+
+:::cuenta Pesos = parámetros × bytes por parámetro
+Llama 3 8B en BF16 // 8,030 millones de parámetros, 2 bytes cada uno | 8.03 × 2 | ≈ 16.1 GB
+Llama 3 8B en INT8 // 1 byte | 8.03 × 1 | ≈ 8 GB
+Llama 3 8B en INT4 // medio byte; en la práctica ≈ 5.7 GB, porque las tablas de tokens suelen quedarse en 16 bits y cada grupo de números guarda su escala | 8.03 × 0.5 | ≈ 4 GB
+Llama 3 70B en BF16 // 70,600 millones de parámetros; un 70B redondo daría 70 × 2 = 140 GB | 70.6 × 2 | **≈ 141 GB**
+Llama 3 70B en FP8 // 1 byte | 70.6 × 1 | ≈ 70.6 GB
+Llama 3 70B en INT4 // en la práctica ≈ 40 GB, por lo mismo | 70.6 × 0.5 | ≈ 35 GB
+= Una H100, de las GPUs más grandes, tiene 80 GB: Llama 3 70B en BF16 **ni siquiera cabe en una**. En C10 de la Ronda se sirve en FP8, repartido entre 2 H100. Y como el decode lee todos los pesos en cada token, menos bytes también es más velocidad: en una L4, el techo de Llama 3 8B sube de ≈ 19 tokens por segundo a ≈ 37 en INT8 (300 ÷ 8.03) y a ≈ 53 en INT4 (300 ÷ 5.7).
+:::
+
+Los pesos se cargan una vez y no cambian. Pero no son lo único que vive en la GPU.
+
+### El KV cache: no volver a calcular
+
+Recuerda el ciclo: para escribir el token 251 de una respuesta, la atención necesita la K y la V de **todos** los tokens anteriores: los 2,000 del prompt y los 250 ya escritos. Podrías recalcularlas todas en cada paso, pero sería tirar trabajo: ya las calculaste antes, y viste que no cambian.
+
+Así que se guardan. Esa memoria de K y V ya calculadas se llama [[kv-cache|KV cache]]: el modelo «recuerda lo que ya calculó». En cada paso solo calcula la K y la V del token nuevo y las agrega.
+
+El precio es memoria. Antes, un detalle que pide la cuenta. En cada bloque, la atención se hace varias veces en paralelo, en 32 **cabezas** ([[multi-head|atención multi-cabeza]]). Pero Llama 3 8B no guarda 32 juegos de K y V, sino solo **8**: cada juego lo comparten 4 cabezas, y cada K o V tiene 128 números. Ese ahorro se llama [[gqa|GQA]] y lo ves en la sección 6. Así que por **cada token** de **cada conversación activa** hay que guardar una K y una V **por cada juego de K y V de cada bloque** del modelo.
+
+:::cuenta El KV cache de Llama 3 8B
+Por token // K y V, en 32 bloques, 8 juegos de 128 números, 2 bytes por número | 2 × 32 × 8 × 128 × 2 = 131,072 bytes | **128 KiB**
+Una conversación que llena la ventana | 128 KiB × 8,192 tokens | 1 GiB ≈ 1.07 GB
+Sin GQA, por token // 32 juegos de K y V en vez de 8: 4 GiB por conversación | 128 KiB × 4 | 512 KiB
+Llama 3 70B, por token // 80 bloques en vez de 32 | 2 × 80 × 8 × 128 × 2 bytes | 320 KiB
+= Una sola conversación larga de un modelo de 8B ocupa 1 GiB de memoria de GPU, solo en KV cache.
+:::
+
+(Un KiB son 1,024 bytes y un GiB, 1,024 × 1,024 × 1,024. Las computadoras cuentan la memoria en potencias de 2; los [[prefijo-binario|prefijos binarios]] los ves en la lección de unidades.)
+
+Ahora junta las dos cuentas en una L4 de 24 GB. Los pesos se llevan ≈ 16.1 GB; el programa que los sirve, ≈ 2 GB más, y el servidor deja libre un margen de ≈ 10 %. Quedan ≈ 3.5 GB para KV cache: a ≈ 1.07 GB por conversación larga, caben 3 a la vez (4 si el servidor deja menos margen), no cientos. M04 hace esa cuenta completa.
+
+:::figura llms-memoria
+Qué llena la memoria de la GPU, a escala. Arriba, una L4 con Llama 3 8B: los pesos se comen dos tercios. Abajo, una réplica de C10: dos H100 con el modelo de 70B en FP8 y ≈ 68 GB de KV cache.
+:::
+
+:::calculadora llms-kv
+Los valores iniciales son los de una L4 con Llama 3 8B: 4 conversaciones de 8,192 tokens necesitan más memoria de la que hay.
+:::
+
+En C10 de la Ronda, cada réplica (una copia del servidor, aquí con 2 H100) carga los pesos de 70B en FP8 y le quedan ≈ 68 GB para KV cache: a 320 KiB por token, ≈ 93 conversaciones de 2,250 tokens a la vez. El KV cache, y no la velocidad de cálculo, suele decidir cuántas personas atiende una GPU a la vez.
+
+:::ojo
+No confundas el KV cache con el caché de respuestas de una página web. El KV cache no guarda respuestas para reutilizarlas con otras personas: guarda cálculos intermedios **de una conversación** mientras se escribe, y se libera al terminar. La excepción es el [[prefix-caching|prefix caching]] (sección 8), que reutiliza el KV cache de un **inicio de prompt** idéntico; la Ronda lo ve en M14.
+:::
+
+## De modelo base a asistente, y cómo adaptarlo {From base model to assistant, and how to adapt it} [extra]
+
+Esta sección es para una segunda pasada: cómo se construye un modelo de chat, cómo se le piden las cosas y cómo se adapta a tu caso con fine-tuning, LoRA o RAG.
+
+El modelo que contesta en un chat sale de tres etapas. La primera es, por mucho, la más cara; las otras dos usan muchísimos menos datos. Cada una le enseña algo distinto.
 
 :::diagrama llms-etapas
 Las tres etapas de un LLM de chat. Cada una parte de los pesos que dejó la anterior.
@@ -486,7 +554,7 @@ Las tres etapas de un LLM de chat. Cada una parte de los pesos que dejó la ante
 
 ### 1. Preentrenamiento: adivinar el siguiente token, billones de veces
 
-En el [[preentrenamiento]] (*pretraining*) se junta una cantidad enorme de texto (páginas web, libros, código) y se entrena el modelo a hacer lo de la sección 2: adivinar el siguiente token. Nadie tiene que etiquetar nada: la respuesta ya está escrita en el propio texto, y el token que sigue es la [[etiqueta]].
+En el [[preentrenamiento]] (*pretraining*) se junta una cantidad enorme de texto (páginas web, libros, código) y se entrena el modelo a hacer lo de la sección 3: adivinar el siguiente token. Nadie tiene que etiquetar nada: la respuesta ya está escrita en el propio texto, y el token que sigue es la [[etiqueta]].
 
 :::cuenta Una frase, siete ejercicios
 La frase // la de la sección 1 | «Ana vende sus tenis blancos.» | 8 tokens
@@ -516,7 +584,7 @@ Eres el asistente de soporte del marketplace. Contesta en español y en menos de
 
 ```
 
-El texto termina donde empieza la respuesta del asistente. El modelo la continúa y, al terminar, escribe `<|eot_id|>` (*end of turn*, fin del turno): es el token de «fin» del ciclo de la sección 3.
+El texto termina donde empieza la respuesta del asistente. El modelo la continúa y, al terminar, escribe `<|eot_id|>` (*end of turn*, fin del turno): es el token de «fin» del ciclo de la sección 4.
 
 ### 3. Ajuste por preferencias: RLHF
 
@@ -533,9 +601,9 @@ Con muchos de esos pares se entrena un **modelo de recompensa** (*reward model*)
 El LLM escribe respuestas, el modelo de recompensa las califica y el LLM se ajusta para sacar calificaciones más altas, con una correa: no puede alejarse demasiado del modelo de la etapa 2, para que no aprenda trucos que engañan al calificador.
 :::
 
-Hay versiones más simples que aprenden directo de los pares, sin modelo de recompensa; una muy usada es DPO (2023), la que usó Meta para Llama 3. El efecto es grande: en InstructGPT, las personas prefirieron las respuestas de un modelo de 1,300 millones de parámetros ajustado con las etapas 2 y 3 sobre las de GPT-3, de 175,000 millones, sin ajustar.
+Hay versiones más simples que aprenden directo de los pares, sin modelo de recompensa; una muy usada es DPO (2023), y Meta la usó en Llama 3. El efecto es grande: en InstructGPT, las personas prefirieron las respuestas de un modelo de 1,300 millones de parámetros ajustado con las etapas 2 y 3 sobre las de GPT-3, de 175,000 millones, sin ajustar.
 
-Lo que no hace: agregar conocimiento. Si el modelo base no sabía la política de devoluciones del marketplace, después del RLHF sigue sin saberla. Y como a la gente le gustan las respuestas seguras, premiar lo que se prefiere puede hacer más convincentes las alucinaciones (sección 8).
+Lo que no hace: agregar conocimiento. Si el modelo base no sabía la política de devoluciones del marketplace, después del RLHF sigue sin saberla. Y como a la gente le gustan las respuestas seguras, premiar lo que se prefiere puede hacer más convincentes las alucinaciones (sección 3).
 
 ### Cómo pedirle las cosas: system prompt y few-shot
 
@@ -543,7 +611,7 @@ Gracias a la etapa 2, el modelo distingue quién habla. Eso da dos herramientas 
 
 El [[system-prompt|system prompt]] es la parte del prompt que escribe la app, no la persona: el mensaje con rol «system» de la plantilla. Dice qué papel tiene el modelo, qué reglas sigue y en qué formato contesta; en C10 de la Ronda, cada producto tiene uno fijo de ≈ 1,000 tokens. Dos cosas que conviene saber de él:
 
-- **Va primero y no cambia.** Como es igual en todos los requests de un producto, el servidor guarda su KV cache y no lo recalcula en cada prefill: eso es [[prefix-caching|prefix caching]]. Solo sirve si los tokens son idénticos desde el principio: lo fijo va primero y lo variable (la fecha, el nombre, la pregunta) al final.
+- **Va primero y no cambia.** Como es igual en todos los requests de un producto, el servidor guarda su KV cache (sección 7) y no lo recalcula en cada prefill: eso es [[prefix-caching|prefix caching]]. Solo sirve si los tokens son idénticos desde el principio: lo fijo va primero y lo variable (la fecha, el nombre, la pregunta) al final.
 - **No es secreto ni es un candado.** Una persona insistente o un documento con instrucciones escondidas pueden convencer al modelo de ignorarlo, o de repetirlo. Lo que no se puede permitir se controla con código.
 
 Poner unos cuantos ejemplos resueltos en el prompt se llama [[few-shot]] (con pocos ejemplos); sin ejemplos, *zero-shot*. Ningún peso cambia: los ejemplos solo cambian el texto que el modelo continúa, y lo más probable es seguir el patrón que ve. Lo popularizó el artículo de GPT-3 (OpenAI, 2020), «Language Models are Few-Shot Learners».
@@ -564,82 +632,16 @@ Publicación: Vendo tenis Adidas negros del 25
 JSON:
 ```
 
-Con temperatura 0, lo más probable después del último «JSON:» es un JSON con las mismas tres llaves, en el mismo orden: `{"marca": "Adidas", "talla": "25", "color": "negro"}`. Los ejemplos enseñaron el formato, que «del 25» es una talla y que el color va en singular.
+Con temperatura 0, lo más probable después del último «JSON:» es un JSON con las mismas tres llaves, en el mismo orden: `{"marca": "Adidas", "talla": "25", "color": "negro"}`. Los ejemplos enseñaron el formato, que la talla viene escrita de varias formas («talla 27», «#26.5») y que el color va en singular; con eso, «del 25» se lee como talla.
 :::
 
-Los ejemplos se pagan en cada request: tres de ≈ 150 tokens (un supuesto) en las ≈ 2 millones de publicaciones de una noche de C10 son 450 × 2,000,000 = 900 millones de tokens de prefill de más. Como son idénticos y van al principio, el prefix caching los calcula una vez; si fueran después de la publicación, se recalcularían 2 millones de veces.
+Los ejemplos se pagan en cada request. Si cada uno mide ≈ 150 tokens (un supuesto: las publicaciones reales son más largas que las de arriba), los dos ejemplos en las ≈ 2 millones de publicaciones de una noche de C10 son 300 × 2,000,000 = 600 millones de tokens de prefill de más. Como son idénticos y van al principio, el prefix caching los calcula una vez; si fueran después de la publicación, se recalcularían 2 millones de veces.
 
 Tres hábitos que ayudan: di el formato exacto de la respuesta (los servidores pueden obligar a que el JSON salga válido), dale permiso de decir «no lo sé» y pon la pregunta al final, después de los documentos.
 
-## Lo que ocupa en la GPU: pesos y KV cache {What fills the GPU: weights and KV cache}
-
-Ya tenemos lo necesario para entender las dos cuentas de memoria que la Ronda hace una y otra vez.
-
-### Los pesos
-
-Los LLMs se nombran por su número de parámetros: 7B, 8B, 70B. La **B** es de *billion*, mil millones en inglés. La ResNet-50 de C01 tiene ≈ 24.5 millones (25.6 millones la original, con 1,000 categorías): un modelo de 70B tiene unas 2,900 veces más.
-
-Cada parámetro es un número, y cuánto ocupa depende de su formato. En la lección de imágenes viste [[float32]], de 4 bytes. Para servir LLMs casi siempre se usan 2 bytes, FP16 o [[bf16|BF16]] (dos maneras de guardar un número decimal en 16 bits), y a veces 1 byte ([[int8|INT8]] o FP8) o medio ([[int4|INT4]]). Guardar los pesos con menos bytes se llama [[cuantizacion|cuantización]]: ahorra memoria a cambio de un poco de precisión.
-
-:::cuenta Pesos = parámetros × bytes por parámetro
-Llama 3 8B en BF16 // 8,030 millones de parámetros, 2 bytes cada uno | 8.03 × 2 | ≈ 16.1 GB
-Llama 3 8B en INT8 // 1 byte | 8.03 × 1 | ≈ 8 GB
-Llama 3 8B en INT4 // medio byte; en la práctica ≈ 5.7 GB, porque las tablas de tokens suelen quedarse en 16 bits y cada grupo de números guarda su escala | 8.03 × 0.5 | ≈ 4 GB
-Llama 3 70B en BF16 // 70,600 millones de parámetros; un 70B redondo daría 70 × 2 = 140 GB | 70.6 × 2 | **≈ 141 GB**
-Llama 3 70B en FP8 // 1 byte | 70.6 × 1 | ≈ 70.6 GB
-Llama 3 70B en INT4 | 70.6 × 0.5 | ≈ 35 GB
-= Una H100, de las GPUs más grandes, tiene 80 GB: Llama 3 70B en BF16 **ni siquiera cabe en una**. En C10 de la Ronda se sirve en FP8, repartido entre 2 H100. Y como el decode lee todos los pesos en cada token, menos bytes también es más velocidad: en una L4, el techo de Llama 3 8B sube de ≈ 19 tokens por segundo a ≈ 37 en INT8 (300 ÷ 8.03) y a ≈ 52 en INT4 (300 ÷ 5.7).
-:::
-
-Los pesos se cargan una vez y no cambian. Pero no son lo único que vive en la GPU.
-
-### El KV cache: no volver a calcular
-
-Recuerda el ciclo: para escribir el token 251 de una respuesta, la atención necesita la K y la V de **todos** los tokens anteriores: los 2,000 del prompt y los 250 ya escritos. Podrías recalcularlas todas en cada paso, pero sería tirar trabajo: ya las calculaste antes, y viste que no cambian.
-
-Así que se guardan. Esa memoria de K y V ya calculadas se llama [[kv-cache|KV cache]]: el modelo «recuerda lo que ya calculó». En cada paso solo calcula la K y la V del token nuevo y las agrega.
-
-El precio es memoria. Por **cada token** de **cada conversación activa** hay que guardar una K y una V **por cada juego de K y V de cada bloque** del modelo.
-
-:::cuenta El KV cache de Llama 3 8B
-Por token // K y V, en 32 bloques, 8 juegos de 128 números, 2 bytes por número | 2 × 32 × 8 × 128 × 2 = 131,072 bytes | **128 KiB**
-Una conversación que llena la ventana | 128 KiB × 8,192 tokens | 1 GiB ≈ 1.07 GB
-Sin GQA, por token // 32 juegos de K y V en vez de 8: 4 GiB por conversación | 128 KiB × 4 | 512 KiB
-Llama 3 70B, por token // 80 bloques en vez de 32 | 2 × 80 × 8 × 128 × 2 bytes | 320 KiB
-= Una sola conversación larga de un modelo de 8B ocupa 1 GiB de memoria de GPU, solo en KV cache.
-:::
-
-(Un KiB son 1,024 bytes y un GiB, 1,024 × 1,024 × 1,024. Las computadoras cuentan la memoria en potencias de 2; los [[prefijo-binario|prefijos binarios]] los ves en la lección de unidades.)
-
-Ahora junta las dos cuentas en una L4 de 24 GB. Los pesos se llevan ≈ 16.1 GB; el programa que los sirve, ≈ 2 GB más, y el servidor deja libre un margen de ≈ 10 %. Quedan ≈ 3 o 4 GB para KV cache: a 1 GiB por conversación larga, caben ≈ 3 o 4 a la vez, no cientos. M04 hace esa cuenta completa.
-
-:::figura llms-memoria
-Qué llena la memoria de la GPU, a escala. Arriba, una L4 con Llama 3 8B: los pesos se comen dos tercios. Abajo, una réplica de C10: dos H100 con el modelo de 70B en FP8 y ≈ 68 GB de KV cache.
-:::
-
-:::calculadora llms-kv
-Los valores iniciales son los de una L4 con Llama 3 8B: 4 conversaciones de 8,192 tokens necesitan más memoria de la que hay.
-:::
-
-En C10 de la Ronda, cada réplica (una copia del servidor, aquí con 2 H100) carga los pesos de 70B en FP8 y le quedan ≈ 68 GB para KV cache: a 320 KiB por token, ≈ 93 conversaciones de 2,250 tokens a la vez. El KV cache, y no la velocidad de cálculo, suele decidir cuántas personas atiende una GPU a la vez.
-
-:::ojo
-No confundas el KV cache con el caché de respuestas de una página web. El KV cache no guarda respuestas para reutilizarlas con otras personas: guarda cálculos intermedios **de una conversación** mientras se escribe, y se libera al terminar. La excepción es el prefix caching de la sección 6, que reutiliza el KV cache de un **inicio de prompt** idéntico; la Ronda lo ve en M14.
-:::
-
-## Lo que un LLM hace mal, y cómo se ajusta {Hallucinations, fine-tuning, LoRA and RAG}
-
-### Alucinaciones
-
-Un LLM aprendió a producir texto **probable**, no texto **verdadero**. Casi siempre lo probable y lo verdadero coinciden, porque aprendió de mucho texto correcto. Pero si le preguntas algo que no sabe, el token más probable sigue siendo uno que **suena** bien.
-
-Pregúntale a un modelo general por la política de devoluciones del marketplace de C01. Nunca la vio. Lo probable, por lo que leyó de otras tiendas, es «30 días», y eso contesta, con toda seguridad y buena redacción, aunque la política real diga 15. Eso es una [[alucinacion|alucinación]]: algo falso o sin respaldo, dicho con la misma confianza que algo cierto.
-
-No es un error raro que se arregla una vez: es una consecuencia de cómo funcionan. Se reduce, se mide y se diseña alrededor de él. En la Ronda se mide con un conjunto fijo de preguntas con respuesta conocida, el [[golden-set|golden set]].
-
 ### Fine-tuning y LoRA
 
-Si quieres que el modelo hable con el tono de tu empresa, o que llene un formato muy específico, puedes seguir entrenándolo con tus propios ejemplos. Eso es [[fine-tuning]]: partir de un modelo ya entrenado y ajustarlo con pocos datos, como viste en la lección de redes con las CNN. En un LLM es la etapa 2 de la sección 6 otra vez, con tus ejemplos.
+Si quieres que el modelo hable con el tono de tu empresa, o que llene un formato muy específico, puedes seguir entrenándolo con tus propios ejemplos. Eso es [[fine-tuning]]: partir de un modelo ya entrenado y ajustarlo con pocos datos, como viste en la lección de redes con las CNN. En un LLM es la etapa 2 de esta sección otra vez, con tus ejemplos.
 
 El problema es el tamaño. Entrenar necesita mucha más memoria que servir: además de los pesos, hay que guardar el [[gradiente]] de cada parámetro y los datos extra del [[optimizador]]: con Adam y la mezcla usual de 2 y 4 bytes, del orden de 16 bytes por parámetro. Para un modelo de 8B: 8 mil millones × 16 bytes ≈ 128 GB, sin contar nada más.
 
@@ -647,18 +649,18 @@ El problema es el tamaño. Entrenar necesita mucha más memoria que servir: adem
 
 :::cuenta Cuánto ahorra LoRA
 Una tabla de 4,096 × 4,096 // por ejemplo, la de Q de un bloque | 4,096 × 4,096 | 16,777,216
-LoRA de rango 8 en su lugar // una tabla de 4,096 × 8 y otra de 8 × 4,096 | 4,096 × 8 + 8 × 4,096 | 65,536
+LoRA de rango 8 en su lugar // una tabla de 4,096 × 8 y otra de 8 × 4,096; el rango es ese lado chico, 8 | 4,096 × 8 + 8 × 4,096 | 65,536
 Cuántas veces menos | 16,777,216 ÷ 65,536 | **256**
 Llama 3 8B, rango 8 en Q y V // la de V va de 4,096 a 1,024 números: 4,096 × 8 + 8 × 1,024 = 40,960 | 32 bloques × (65,536 + 40,960) = 3,407,872 | ≈ 3.4 millones
 El adaptador en 2 bytes | 3,407,872 × 2 bytes | ≈ 7 MB
 = Lo que se entrena y se guarda es un **adaptador** de ≈ 7 MB, no otra copia de 16 GB del modelo. Con rangos más altos y en más tablas llega a decenas o cientos de MB, que sigue siendo poco.
 :::
 
-Y un mismo modelo base puede servir varios adaptadores: en la Ronda, vLLM lo hace con varios LoRA a la vez, uno por producto.
+Y un mismo modelo base puede servir varios adaptadores: en la Ronda, vLLM (un programa muy usado para servir LLMs) lo hace con varios LoRA a la vez, uno por producto.
 
 ### RAG: buscar primero, responder después
 
-Para el problema de la política de devoluciones, el fine-tuning no es la herramienta: la política cambia cada mes y no quieres reentrenar por eso. Lo que quieres es que el modelo **lea la política antes de contestar**.
+Para el problema de la política de devoluciones (sección 3), el fine-tuning no es la herramienta: la política cambia cada mes y no quieres reentrenar por eso. Lo que quieres es que el modelo **lea la política antes de contestar**.
 
 Eso es [[rag|RAG]] (*retrieval-augmented generation*, generación aumentada con búsqueda). Usa las piezas de la lección anterior:
 
@@ -676,7 +678,7 @@ El LLM contesta leyendo la política real: «15 días, según la política de de
 RAG no elimina las alucinaciones (el modelo todavía puede mezclar el documento con lo que «cree saber»), pero las reduce y, sobre todo, las hace **verificables**: puedes revisar si lo que dijo está en lo que citó. Y fíjate en el costo: los pedazos ocupan lugar en la ventana de contexto, tiempo de prefill y KV cache en la GPU.
 
 :::nota Cuál usar
-Una regla práctica: primero, un buen prompt (sección 6). Si al modelo le falta **información**, RAG. Si le falta **comportamiento** (un formato, un tono, una tarea muy específica), fine-tuning, normalmente con LoRA. La Ronda (M14) lo dice en una frase: si el prompt y RAG no alcanzan, un LoRA sobre el modelo abierto, con su propio golden set.
+Una regla práctica: primero, un buen prompt (como los de arriba). Si al modelo le falta **información**, RAG. Si le falta **comportamiento** (un formato, un tono, una tarea muy específica), fine-tuning, normalmente con LoRA. La Ronda (M14) lo dice en una frase: si el prompt y RAG no alcanzan, un LoRA sobre el modelo abierto, con su propio golden set.
 :::
 
 ## Errores comunes {Common mistakes}
@@ -691,9 +693,9 @@ Casi todos los errores con LLMs tienen algo en común: la respuesta **se ve bien
 
 ### Calcular la memoria solo con los pesos
 
-**Qué pasa:** «8B en BF16 son 16 GB y la L4 tiene 24: sobra». Falta el KV cache: 1 GiB por cada conversación de 8,192 tokens. Caben ≈ 3 o 4 a la vez, y las que llegan de más esperan en la cola, con el TTFT subiendo.
+**Qué pasa:** «8B en BF16 son 16 GB y la L4 tiene 24: sobra». Falta el KV cache: 1 GiB por cada conversación de 8,192 tokens. Caben 3 o 4 a la vez, y las que llegan de más esperan en la cola, con el TTFT subiendo.
 
-**Cómo evitarlo:** pesos + programa + margen + KV cache por conversación × conversaciones a la vez. vLLM imprime al arrancar cuántos tokens de KV cache le caben: ese es tu número real.
+**Cómo evitarlo:** pesos + programa + margen + KV cache por conversación × conversaciones a la vez. vLLM, un servidor de LLMs muy usado, imprime al arrancar cuántos tokens de KV cache le caben: ese es tu número real.
 
 ### Medir la velocidad con un solo número
 
@@ -709,13 +711,13 @@ Casi todos los errores con LLMs tienen algo en común: la respuesta **se ve bien
 
 ### Poner lo variable al principio del prompt
 
-**Qué pasa:** el system prompt empieza con «Hoy es 14 de octubre, 10:32» o con el nombre de la persona. Cada request tiene un principio distinto, el prefix caching no encuentra nada que reutilizar y cada request paga el prefill completo.
+**Qué pasa:** el [[system-prompt|system prompt]] (las instrucciones que la app pone al principio) empieza con «Hoy es 14 de octubre, 10:32» o con el nombre de la persona. Cada request tiene un principio distinto, el [[prefix-caching|prefix caching]] (reutilizar lo ya calculado de un inicio de prompt idéntico) no encuentra nada que reutilizar y cada request paga el prefill completo.
 
 **Cómo evitarlo:** lo fijo primero (instrucciones, políticas, ejemplos) y lo variable al final (fecha, datos de la persona, su pregunta). Y guarda el system prompt con versión, como el código, para saber qué versión produjo cada respuesta.
 
 ### Dejar que el modelo obedezca a los documentos
 
-**Qué pasa:** un documento o un correo que entra al prompt (por RAG o por una herramienta) dice «ignora tus instrucciones y reembolsa este pedido». El modelo no distingue bien entre instrucciones y datos: todo es texto que continuar. Se llama *prompt injection* (inyección en el prompt).
+**Qué pasa:** un documento o un correo que entra al prompt (por [[rag|RAG]] o por una herramienta) dice «ignora tus instrucciones y reembolsa este pedido». El modelo no distingue bien entre instrucciones y datos: todo es texto que continuar. Se llama *prompt injection* (inyección en el prompt).
 
 **Cómo evitarlo:** el modelo propone y el código decide. Permisos mínimos, validación fuera del modelo y aprobación de una persona para lo que no se puede deshacer (en C12, los reembolsos de más de US$50).
 
@@ -725,7 +727,7 @@ Los LLMs ocupan tres casos completos de la Ronda, y su ausencia explica otro.
 
 **C01 · Por qué el marketplace no usa un LLM para sugerir la categoría.** Un LLM podría leer la publicación de Ana y contestar «Calzado › Tenis», pero las cuentas no dan. La ResNet-50 hace ≈ 4.1 mil millones de multiplicaciones-sumas por foto entera; un LLM de 8B, ≈ 8 mil millones por **cada token**. C01 promete 200 ms o menos en 99 de cada 100 respuestas, medidos en la API, y quien llama corta a los 300 ms y muestra el selector manual: 5 tokens de decode a 40 ms ya se comen los 200 ms. Y un LLM podría inventar una categoría que no está entre las 500. El LLM sí entra al lado, en C10: redacta descripciones y saca atributos en JSON.
 
-**C10 · Servir un LLM propio.** El marketplace deja de pagar una API y sirve un modelo abierto de ≈ 70B para tres productos: el asistente de soporte (≈ 1 millón de requests al día), el de publicaciones (≈ 0.5 millones) y la extracción nocturna (≈ 2 millones de publicaciones). Usa todo lo de esta lección: ≈ 2,000 tokens de entrada y ≈ 250 de salida, TTFT ≤ 1 s y TPOT ≤ 50 ms, pesos en FP8 en 2 H100 por réplica, ≈ 93 conversaciones de KV cache por réplica y prefix caching para la mitad fija de cada prompt. En el pico llegan 60 requests por segundo y cada uno vive ≈ 10.5 s: ≈ 60 × 10.5 = 630 conversaciones vivas a la vez. Con 16 réplicas, 32 H100, cuesta ≈ US$161 mil al mes contra ≈ US$442 mil de la API.
+**C10 · Servir un LLM propio.** El marketplace deja de pagar una API y sirve un modelo abierto de ≈ 70B para tres productos: el asistente de soporte (≈ 1 millón de requests al día), el de publicaciones (≈ 0.5 millones) y la extracción nocturna (≈ 2 millones de publicaciones). Usa todo lo de esta lección: ≈ 2,000 tokens de entrada y ≈ 250 de salida, TTFT ≤ 1 s y TPOT ≤ 50 ms, pesos en FP8 en 2 H100 por réplica, ≈ 93 conversaciones de KV cache por réplica y prefix caching para la mitad fija de cada prompt. En el pico llegan 60 requests por segundo y cada uno vive ≈ 10.5 s (C10 redondea el TTFT a 0.5 s): ≈ 60 × 10.5 = 630 conversaciones vivas a la vez. Con 16 réplicas, 32 H100, cuesta ≈ US$161 mil al mes contra ≈ US$442 mil de la API.
 
 **C11 · RAG con los documentos de la empresa.** ≈ 8,000 empleados le preguntan a un asistente que busca entre ≈ 12 millones de pedazos de documentos y le pasa al LLM los 8 mejores. Todo tiene que caber en la ventana del modelo de C10:
 
@@ -751,7 +753,7 @@ Lo nuevo de verdad, con prefix caching // lo anterior ya está en el KV cache | 
 = Cada vuelta reenvía todo lo anterior: seis llamadas no cuestan seis veces una, cuestan más. Con una API se paga cada token de entrada (con descuento si está en caché); en una flota propia, el cómputo es sobre todo lo nuevo.
 :::
 
-El ciclo tiene límites (12 llamadas al LLM, 40 mil tokens y 20 s por turno; al agotarse, el caso pasa a una persona con un resumen), y lo que mueve dinero se decide en código: reembolsos automáticos hasta US$50 y, arriba de eso, con aprobación de una persona.
+El ciclo tiene límites (12 llamadas al LLM y 40 mil tokens por conversación, y 20 s por turno; al agotarse uno, el caso pasa a una persona con un resumen), y lo que mueve dinero se decide en código: reembolsos automáticos hasta US$50 y, arriba de eso, con aprobación de una persona.
 
 **Fuera del ML.** El teclado de tu celular sugiere la siguiente palabra con un modelo de lenguaje chiquito: la misma tarea, «adivina lo que sigue», a una escala miles de veces menor.
 
@@ -778,7 +780,7 @@ Greedy elige el tercero. Con top-p = 0.75, ese token solo ya suma 78.7 %: el sor
 Tiempo total = TTFT + (tokens − 1) × TPOT = 0.8 + 399 × 0.05 = 0.8 + 19.95 = **20.75 s**.
 
 La persona empieza a leer a los **0.8 s**, con el primer token, y después el texto sale a 1 ÷ 0.05 = 20 tokens por segundo, más rápido de lo que alguien lee: con streaming no se siente como 20 segundos de espera.
-? [medio] Haz las primeras tres uniones de BPE con este texto de muestra: «casa» aparece 4 veces, «cosa» 3 y «masa» 1. ¿En qué tokens quedan las tres palabras? ¿Y «pasa», que no estaba?
+? [medio] Haz las primeras tres uniones de BPE (sección 2) con este texto de muestra: «casa» aparece 4 veces, «cosa» 3 y «masa» 1. ¿En qué tokens quedan las tres palabras? ¿Y «pasa», que no estaba?
 **Unión 1.** Pares, sumando las veces de cada palabra: s + a sale en las tres (4 + 3 + 1 = 8); a + s, en «casa» y «masa» (4 + 1 = 5); c + a, 4; c + o y o + s, 3 cada uno; m + a, 1. Gana **s + a → sa** (8).
 
 **Unión 2.** Las palabras quedan c · a · sa, c · o · sa y m · a · sa. Pares: a + sa = 4 + 1 = 5; c + a = 4; c + o = 3; o + sa = 3; m + a = 1. Gana **a + sa → asa** (5).
@@ -802,10 +804,10 @@ Por conversación: 320 KiB × 4,096 = 1,310,720 KiB. En bytes: 1,310,720 × 1,02
 
 Caben: 68.4 GB ÷ 1.34 GB ≈ 50.96, o sea **50 conversaciones enteras**, contra las ≈ 93 de 2,250 tokens. Conversaciones casi dos veces más largas dejan lugar para casi la mitad: por eso C10 le pone un tope a la ventana.
 ? [reto] Necesitas atender 50 conversaciones de 8,192 tokens a la vez con Llama 3 8B en BF16. ¿Cuántas L4 necesitas? ¿Y si usas una H100 de 80 GB?
-**Con L4.** Cada L4 deja ≈ 3 a 4 GB para KV cache, y cada conversación ocupa ≈ 1.07 GB: caben 3 o 4 por GPU. Entonces 50 ÷ 4 = 12.5 y 50 ÷ 3 ≈ 16.7: hacen falta **entre 13 y 17 L4**, cada una con su propia copia de los pesos.
+**Con L4.** Con las cuentas de la sección 7, cada L4 deja ≈ 3.5 GB para KV cache, y cada conversación ocupa ≈ 1.07 GB: caben 3 por GPU (3.5 ÷ 1.07 ≈ 3.3), o 4 si el servidor deja menos margen. Entonces 50 ÷ 3 ≈ 16.7 y 50 ÷ 4 = 12.5: hacen falta **entre 13 y 17 L4**, cada una con su propia copia de los pesos.
 
-**Con una H100.** Memoria libre con 10 % de margen y ≈ 2 GB del programa: 0.9 × 80 − 16.1 − 2 = 53.9 GB. Las 50 conversaciones piden 50 × 1.07 = 53.7 GB: **caben justo en una**. La decisión la toma el KV cache, no el cálculo.
-? [reto] Comprueba los ≈ 70.6 mil millones de parámetros de Llama 3 70B con su configuración: vectores de 8,192 números, 64 cabezas de Q de 128, 8 juegos de K y V de 128, un MLP de 8,192 → 28,672 → 8,192 (tres tablas), 80 bloques y vocabulario de 128,256. Usa como modelo la cuenta de Llama 3 8B de la sección 5.
+**Con una H100.** Memoria libre con 10 % de margen y ≈ 2 GB del programa: 0.9 × 80 − 16.1 − 2 = 53.9 GB. Las 50 conversaciones piden 50 × 1.074 ≈ 53.7 GB: **caben justo en una**. La decisión la toma el KV cache, no el cálculo.
+? [reto] Comprueba los ≈ 70.6 mil millones de parámetros de Llama 3 70B con su configuración: vectores de 8,192 números, 64 cabezas de Q de 128, 8 juegos de K y V de 128, un MLP de 8,192 → 28,672 → 8,192 (tres tablas), 80 bloques y vocabulario de 128,256. Usa como modelo la cuenta de Llama 3 8B de la sección 6.
 **Atención de un bloque.** Q: 8,192 × (64 × 128) = 8,192 × 8,192 = 67,108,864. K y V: 8,192 × (8 × 128) = 8,192 × 1,024 = 8,388,608 cada una. La tabla que mezcla: 67,108,864. Suma: 2 × 67,108,864 + 2 × 8,388,608 = **150,994,944**.
 
 **MLP de un bloque.** 3 × 8,192 × 28,672 = **704,643,072**.

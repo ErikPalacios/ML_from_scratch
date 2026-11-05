@@ -48,5 +48,5 @@
 <text class="f-t" x="28" y="302" style="font-size:13px">Promedio</text><text class="f-s" x="104" y="302" style="font-size:12px">(86 + 92 + 80 + 84 + 88) / 5</text><text class="f-t" x="332" y="302" text-anchor="end" style="font-size:14px">86 %</text>
 <text class="f-t" x="28" y="328" style="font-size:13px">Rango</text><text class="f-s" x="104" y="328" style="font-size:12px">de la peor a la mejor vuelta</text><text class="f-t" x="332" y="328" text-anchor="end" style="font-size:14px">80–92 %</text>
 <rect class="f-chip" x="28" y="344" width="304" height="40" rx="10"/>
-<text class="f-s" x="40" y="369" style="font-size:12px">Cada foto fue examen una vez y entrenamiento cuatro.</text>
+<text class="f-s" x="40" y="369" style="font-size:12px">Cada foto fue examen 1 vez y entrenamiento 4.</text>
 </svg>

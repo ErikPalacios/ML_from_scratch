@@ -21,9 +21,9 @@
 <rect x="222" y="196" width="20" height="14" rx="3" style="fill:var(--y);opacity:.5"/>
 <text class="f-t" x="250" y="208" style="font-size:13px">Comparten</text>
 <text class="f-s" x="250" y="225" style="font-size:12px">80 × 180</text>
-<text class="f-s" x="222" y="262" style="font-size:12px">corrida 20 px</text>
-<text class="f-s" x="222" y="279" style="font-size:12px">a la derecha y</text>
-<text class="f-s" x="222" y="296" style="font-size:12px">20 hacia abajo</text>
+<text class="f-s" x="222" y="248" style="font-size:12px">corrida 20 px</text>
+<text class="f-s" x="222" y="264" style="font-size:12px">a la derecha y</text>
+<text class="f-s" x="222" y="280" style="font-size:12px">20 hacia abajo</text>
 <line x1="28" y1="296" x2="332" y2="296" style="stroke:var(--tm-line);stroke-width:1.5"/>
 <text class="f-t" x="28" y="324" style="font-size:13px">Comparten</text><text class="f-s" x="112" y="324">80 × 180</text><text class="f-t" x="332" y="324" text-anchor="end" style="font-size:13px">14,400</text>
 <text class="f-t" x="28" y="350" style="font-size:13px">Unión</text><text class="f-s" x="112" y="350">20,000 + 20,000 − 14,400</text><text class="f-t" x="332" y="350" text-anchor="end" style="font-size:13px">25,600</text>

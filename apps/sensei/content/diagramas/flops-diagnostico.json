@@ -4,7 +4,7 @@
   "height": 62,
   "lanes": [
     { "id": "contar", "label": "Contar", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 29 },
-    { "id": "decidir", "label": "Decidir", "kind": "monitor", "x": 0, "y": 31, "w": 78, "h": 31 }
+    { "id": "decidir", "label": "Decidir", "kind": "neutral", "x": 0, "y": 31, "w": 78, "h": 31 }
   ],
   "nodes": [
     { "id": "flops", "label": "FLOPs", "sub": "2 × n × m × k", "kind": "service", "x": 2, "y": 5, "w": 22, "h": 8,
@@ -28,10 +28,10 @@
     { "from": "flops", "to": "intens", "kind": "neutral", "fromSide": "b", "toSide": "t" },
     { "from": "bytes", "to": "intens", "kind": "neutral", "fromSide": "b", "toSide": "t" },
     { "from": "gpu", "to": "quiebre", "kind": "neutral", "fromSide": "b", "toSide": "t" },
-    { "from": "intens", "to": "comparar", "kind": "monitor", "fromSide": "b", "toSide": "t" },
-    { "from": "quiebre", "to": "comparar", "kind": "monitor", "fromSide": "b", "toSide": "t" },
-    { "from": "comparar", "to": "mb", "kind": "monitor", "fromSide": "b", "toSide": "t", "label": "menor" },
-    { "from": "comparar", "to": "cb", "kind": "monitor", "fromSide": "b", "toSide": "t", "label": "mayor" }
+    { "from": "intens", "to": "comparar", "kind": "neutral", "fromSide": "b", "toSide": "t" },
+    { "from": "quiebre", "to": "comparar", "kind": "neutral", "fromSide": "b", "toSide": "t" },
+    { "from": "comparar", "to": "mb", "kind": "neutral", "fromSide": "b", "toSide": "t", "label": "menor" },
+    { "from": "comparar", "to": "cb", "kind": "neutral", "fromSide": "b", "toSide": "t", "label": "mayor" }
   ],
   "flows": [
     { "id": "matmul", "label": "Una matmul de 4,096 en una T4",

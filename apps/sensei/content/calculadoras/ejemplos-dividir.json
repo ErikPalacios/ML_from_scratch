@@ -16,7 +16,7 @@
     { "label": "**Train**", "formula": "n - v - t", "formato": "int" },
     { "label": "**Validación**", "formula": "v", "formato": "int" },
     { "label": "**Test**", "formula": "t", "formato": "int" },
-    { "label": "Rara en validación, estratificado", "formula": "round(r * pv / 100)", "formato": "int", "nota": "siempre las mismas" },
+    { "label": "Rara en validación, estratificado", "formula": "round(r * pv / 100)", "formato": "int", "nota": "el mismo número en cada reparto" },
     { "label": "Rara en validación, al azar", "formula": "r * pv / 100", "formato": "num", "decimales": 1, "nota": "en promedio; cada reparto da otra cosa" },
     { "label": "Al azar: validación sin ninguna", "formula": "pow(q, r)", "formato": "pct", "barra": true },
     { "label": "Al azar: con una o ninguna", "formula": "pow(q, r) + r * (pv / 100) * pow(q, r - 1)", "formato": "pct", "barra": true }

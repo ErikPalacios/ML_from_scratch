@@ -76,7 +76,7 @@
       "y": 24,
       "w": 22,
       "h": 9,
-      "note": "La métrica **online**: qué fracción de los vendedores publica con una de las 5 categorías sugeridas. Mide lo que hace la gente, no lo que dice el golden set. Ojo: está sesgada por la propia sugerencia; sirve como tendencia."
+      "note": "La métrica **online**: qué fracción de los vendedores publica con una de las 5 categorías sugeridas. Mide lo que hace la gente, no lo que dice el golden set. Ojo: como medida de acierto está sesgada, porque la gente tiende a aceptar lo que se le sugiere; fuera del A/B sirve como tendencia, no como verdad."
     },
     {
       "id": "guard",
@@ -87,7 +87,7 @@
       "y": 43,
       "w": 22,
       "h": 9,
-      "note": "Lo que no tiene que mejorar, pero no puede empeorar: el p99 de latencia, el porcentaje de publicaciones que moderación tiene que recategorizar y el tiempo para llenar el formulario. Aceptar más sugerencias equivocadas sería una mejora falsa."
+      "note": "Lo que no tiene que mejorar, pero no puede empeorar: el p99 de latencia, la tasa de errores, el porcentaje de publicaciones que moderación tiene que recategorizar y el tiempo para llenar el formulario. Aceptar más sugerencias equivocadas sería una mejora falsa."
     },
     {
       "id": "negocio",
@@ -271,7 +271,7 @@
           "edges": [
             "guard>ab"
           ],
-          "text": "Tercera: el modelo es más pesado. En el pico, más fotos no reciben respuesta a tiempo y esos vendedores ven el selector manual. El guardrail de latencia lo atrapa. Ninguna de las tres es un bug: por eso la última palabra la tiene el A/B."
+          "text": "Tercera: el modelo es más pesado. En el pico, más fotos no reciben respuesta a tiempo y esos vendedores ven el selector manual. Para eso están los guardrails de errores y de latencia, y una prueba de carga al pico lo habría anticipado antes del A/B. Ninguna de las tres es un bug: por eso la última palabra la tiene el A/B."
         }
       ]
     }

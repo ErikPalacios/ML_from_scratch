@@ -16,5 +16,5 @@
     { "label": "Y termina en", "formula": "min(1, f + 1.96 * se)", "formato": "pct", "decimales": 1, "barra": true },
     { "label": "Fotos para la mitad del margen", "formula": "4 * n", "formato": "int", "nota": "el ruido baja con la raíz de n" }
   ],
-  "nota": "Prueba 50,000 fotos: es el golden set de C01, y el margen baja a ±0.3 puntos. Prueba 60: es lo que tiene una categoría chica, y el margen sube a ±9. Con pocas fotos o con una accuracy cerca de 0 % o de 100 %, esta regla falla (el intervalo puede pasarse de 100 %); ahí se usa la de Wilson, de la última sección extra."
+  "nota": "Prueba 50,000 fotos: es el golden set de C01, y el margen baja a ±0.3 puntos. Prueba 60: es lo que tiene una categoría chica, y el margen sube a ±9. Con pocas fotos o con una accuracy cerca de 0 % o de 100 %, esta regla falla (la cuenta puede pasarse de 100 %, y aquí se corta en 100); ahí se usa la de Wilson, de la sección extra «¿Es real una mejora de 0.2 puntos?»."
 }

@@ -76,7 +76,7 @@
       "y": 28,
       "w": 20,
       "h": 8,
-      "note": "Los circuitos que multiplican bloques de matrices en un solo paso, con números de pocos bits (FP16, BF16, FP8, INT8). Son rapidísimos, pero solo trabajan con lo que ya llegó al chip: si la memoria no los alimenta, esperan."
+      "note": "Los circuitos que multiplican bloques de matrices en un solo paso, con ciertos tipos de dato, casi todos de pocos bits (FP16, BF16, FP8 o INT8, según la GPU). Son rapidísimos, pero solo trabajan con lo que ya llegó al chip: si la memoria no los alimenta, esperan."
     }
   ],
   "edges": [

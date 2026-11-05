@@ -7,7 +7,7 @@ requisitos: ruido
 ---
 
 :::idea
-Para saber si los datos de hoy se parecen a los de antes se comparan sus distribuciones completas contra una referencia, y la diferencia se resume en un número como el PSI. Lo que decide una alerta es qué tan grande es el cambio, no si es «significativo»: con millones de datos, todo lo es.
+Para saber si los datos de hoy se parecen a los de antes se comparan sus distribuciones completas contra una referencia, y la diferencia se resume en un número como el PSI. Lo que decide una alerta es qué tan grande es el cambio, no si es «significativo»: con millones de datos, casi todo lo es.
 :::
 
 ## Por qué no basta el promedio {Why the average is not enough}
@@ -16,7 +16,7 @@ En C01 llegan ≈ 10 M fotos al día: ≈ 2.5 M publicaciones nuevas con ≈ 3 f
 
 Mientras tanto, hay una pregunta que no puede esperar: **¿las fotos de hoy se parecen a las de antes?** Si no se parecen, el modelo puede estar fallando más sin que salga un solo error. Es el [[drift]] de la primera lección. Esta lección trata de cómo se mide.
 
-La primera idea es comparar promedios: el brillo promedio de las fotos de hoy contra el de octubre. Es barato. Y no sirve.
+La primera idea es comparar promedios: el brillo promedio de las fotos de hoy contra el de octubre. Es barato. Y no basta.
 
 ### Mismo promedio, grupos distintos
 
@@ -24,7 +24,7 @@ Piensa en dos grupos de la prepa con el mismo [[promedio]], 7, en el mismo exame
 
 Lo que hay que comparar es la [[distribucion|distribución]]: qué valores aparecen y qué tan seguido. La forma más simple de verla es un [[histograma]]. Partes los valores posibles en intervalos, que se llaman *bins* (en Prometheus, el programa que guarda las métricas, les dicen [[bucket|buckets]]), y cuentas cuántos datos caen en cada uno.
 
-Para las fotos de C01, un número fácil de sacar es el **brillo**: el promedio de todos los píxeles de la foto, de 0 (negro) a 255 (blanco). Con 5 bins de 51 niveles cada uno queda así:
+Para las fotos de C01, un número fácil de sacar es el **brillo**: el promedio de todos los píxeles de la foto, de 0 (negro) a 255 (blanco). Con 5 bins de ≈ 51 niveles cada uno queda así:
 
 | Bin | Brillo | Qué fotos caen ahí |
 |---|---|---|
@@ -34,7 +34,7 @@ Para las fotos de C01, un número fácil de sacar es el **brillo**: el promedio 
 | 4 | 153 a 203 | Claras |
 | 5 | 204 a 255 | Muy claras: con flash, a pleno sol, fondo blanco |
 
-Un detalle importa. No todos los días llegan las mismas fotos (un día pueden ser 10 M y otro la mitad), así que no se comparan conteos: cada conteo se divide entre el total del día. Quedan **proporciones** que suman 1 (o 100 %). Un histograma en proporciones ya es una distribución, y dos distribuciones se comparan bin por bin aunque una tenga el doble de datos.
+Un detalle importa. No todos los días llega la misma cantidad de fotos (un día pueden ser 10 M y otro la mitad), así que no se comparan conteos: cada conteo se divide entre el total del día. Quedan **proporciones** que suman 1 (o 100 %). Un histograma en proporciones ya es una distribución, y dos distribuciones se comparan bin por bin aunque una tenga el doble de datos.
 
 :::figura distribuciones-mismo-promedio
 Arriba, el brillo de octubre: casi todo en medio. Abajo, una semana inventada para el ejemplo, con muchas fotos de noche y muchas con flash. El promedio es el mismo, ≈ 128; la forma no se parece en nada.
@@ -86,7 +86,7 @@ Una potencia repite una multiplicación: 2³ = 2 × 2 × 2 = 8. El [[logaritmo]]
 ### Las cinco reglas que vas a usar
 
 1. **El logaritmo de 1 es 0**, en cualquier base (ln 1 = 0, log2 1 = 0): para llegar a 1 hay que multiplicar cero veces.
-2. **Un número entre 0 y 1 tiene logaritmo negativo.** ln 0.5 = −0.693: para ir de 1 a 0.5, en vez de multiplicar por 2, divides entre 2.
+2. **Un número entre 0 y 1 tiene logaritmo negativo.** log2 0.5 = −1: para ir de 1 a 0.5 no multiplicas por 2, divides entre 2 una vez. Con ln pasa lo mismo: ln 0.5 = −0.693.
 3. **ln 0 no existe.** Por más veces que dividas, nunca llegas a 0; el logaritmo de un número cada vez más cercano a 0 baja sin fondo, hacia menos infinito. Va a importar con los bins vacíos.
 4. **Productos en sumas y cocientes en restas.** ln(a × b) = ln a + ln b, y ln(a ÷ b) = ln a − ln b. Por eso ln(b ÷ a) = −ln(a ÷ b): voltear el cociente solo cambia el signo.
 5. **Cambiar de base es dividir.** log2 x = ln x ÷ ln 2.
@@ -123,7 +123,7 @@ Esta sección explica de dónde sale la idea del PSI. Si vas en la primera pasad
 
 ### La sorpresa de un resultado
 
-Cuando te avisan cómo salió algo incierto, el aviso trae más o menos información según qué tan esperado era. «Hoy amaneció» no te dice nada. «Granizó en mayo» te dice mucho. La teoría de la información, que Claude Shannon publicó en 1948, lo mide así: un resultado con probabilidad p trae log2(1 ÷ p) [[bit|bits]] de sorpresa.
+Cuando te avisan cómo salió algo incierto, el aviso trae más o menos información según qué tan esperado era. «Hoy amaneció» no te dice nada. «Nevó en Cancún» te dice mucho. La teoría de la información, que Claude Shannon publicó en 1948, lo mide así: un resultado con probabilidad p trae log2(1 ÷ p) [[bit|bits]] de sorpresa.
 
 - Un volado: p = 1/2, y log2 2 = **1 bit**. Un bit es la sorpresa de una pregunta de sí o no con las dos respuestas igual de probables.
 - Una cara de un dado: p = 1/6, y log2 6 ≈ **2.585 bits**.
@@ -210,6 +210,8 @@ KL(oct ‖ dic) // al revés, con los pesos de octubre | 0.60 × ln(0.60 ÷ 0.55
 
 Y si la referencia dice que algo **nunca** pasa (q = 0) y pasa, la KL es infinita: ln(p ÷ 0) no existe. Es el problema de los bins vacíos, que vuelve a salir en el PSI.
 
+El PSI de la sección siguiente es, de hecho, **una KL de ida y vuelta**: la suma KL(P ‖ Q) + KL(Q ‖ P), con P la ventana actual y Q la referencia. Con los juguetes, 0.1445 + 0.0714 ≈ 0.216; en la semana de noche de esa sección, 0.1168 + 0.1084 = 0.2252. Por eso el PSI sí es simétrico: da lo mismo cuál histograma llames «referencia». Y por eso hereda el problema del cero.
+
 :::nota La entropía cruzada era una KL
 En la lección de cómo aprende un modelo viste la [[entropia-cruzada]]: el promedio de ln(1 ÷ q) cuando la realidad es P. Es exactamente la entropía de P más la KL: entropía cruzada = H(P) + KL(P ‖ Q). En el ejemplo, con ln: 0.927 + 0.145 = 1.071 nats. Como H(P) no depende del modelo, entrenar un clasificador con entropía cruzada es bajar la KL entre lo que de verdad pasa y lo que el modelo predice.
 :::
@@ -222,11 +224,11 @@ La Ronda menciona una versión simétrica, la divergencia de **Jensen–Shannon*
 - **Nunca es infinita**, porque M tiene algo donde P o Q tengan algo. Un bin vacío no la rompe.
 - **Tiene techo**: no pasa de ln 2 ≈ 0.693 nats (1 bit), que es lo que da cuando P y Q no comparten nada.
 
-En el ejemplo de los juguetes, M = (0.575, 0.37, 0.055) y la JS vale ≈ 0.022 nats. Herramientas de monitoreo como Evidently la usan para columnas de categorías. Ojo: algunas reportan su raíz cuadrada, que se llama distancia de Jensen–Shannon (aquí, ≈ 0.18 en bits). Antes de copiar un umbral, revisa cuál de las dos te dan.
+En el ejemplo de los juguetes, M = (0.575, 0.37, 0.055) y la JS vale ≈ 0.022 nats. Herramientas de monitoreo como Evidently la usan para columnas de categorías. Ojo: algunas reportan su raíz cuadrada, que se llama distancia de Jensen–Shannon (aquí, √0.022 ≈ 0.15 con ln, o ≈ 0.18 si se mide en bits). Antes de copiar un umbral, revisa cuál de las dos te dan y en qué unidad.
 
 ## El PSI paso a paso {PSI step by step}
 
-El [[psi|PSI]] (*Population Stability Index*, índice de estabilidad de la población) es la medida de drift más usada en la industria. Viene de los bancos: lo usan para vigilar si la gente que pide un crédito hoy se parece a aquella con la que se construyó el modelo de riesgo. Su fórmula es una suma, bin por bin:
+El [[psi|PSI]] (*Population Stability Index*, índice de estabilidad de la población) es una de las medidas de drift más usadas en la industria. Viene de los bancos: lo usan para vigilar si la gente que pide un crédito hoy se parece a aquella con la que se construyó el modelo de riesgo. Su fórmula es una suma, bin por bin:
 
 PSI = la suma de (actual − esperado) × ln(actual ÷ esperado)
 
@@ -277,15 +279,6 @@ Estos cortes son **costumbre, no ley**: vienen de la práctica de los bancos y s
 
 Para las categorías se hace igual: cada categoría es un bin. C01 calcula cada día el PSI de la mezcla de categorías que predice. Si «Celulares» era el 10 % de las predicciones y hoy es el 14 %, ese bin aporta (0.14 − 0.10) × ln 1.4 = 0.04 × 0.336 ≈ **0.013**.
 
-### Qué tan grande es un PSI de 0.25
-
-Una regla para darle tamaño: si una variable tiene forma de campana (una [[distribucion-normal|distribución normal]]) y su promedio se corre δ desviaciones estándar, el PSI vale ≈ δ² (con bins finos). Así:
-
-- PSI 0.1 es una corrida de ≈ 0.3 desviaciones estándar (√0.1 ≈ 0.32).
-- PSI 0.25 es una corrida de 0.5.
-
-El brillo de octubre tiene una desviación de ≈ 56 niveles, así que un PSI de 0.25 equivale a que el promedio se corra ≈ 28 niveles. En la semana de noche, el promedio bajó de ≈ 128 a ≈ 102: 0.46 desviaciones, y 0.46² ≈ 0.21, cerca del 0.23 que dio la cuenta. La regla es aproximada: supone una campana que solo se corre. Con 5 bins y una campana, el PSI sale un poco por debajo de δ² (0.22 en vez de 0.25 para media desviación); con más bins se acerca.
-
 :::calculadora distribuciones-psi
 :::
 
@@ -322,10 +315,6 @@ bin vacío con eps = 1e-06: 1.17
 ```
 
 Mira las últimas tres líneas. Con un bin vacío, el PSI depende del piso que elegiste para no calcular ln(0): **0.47, 0.71 o 1.17**, con los mismos datos. Ese número dice más de qué tan chico pusiste el piso que de qué tanto cambió el mundo. Cómo se evita está en «Errores comunes».
-
-:::nota El PSI es una KL de ida y vuelta
-Si leíste la sección extra: el PSI es la suma de las dos KL, KL(actual ‖ esperado) + KL(esperado ‖ actual). En la semana de noche, 0.1168 + 0.1084 = 0.2252. Por eso es simétrico: da lo mismo cuál histograma llames «referencia». Y por eso hereda el problema del cero.
-:::
 
 ## La prueba KS y la trampa del n enorme {The KS test and the huge-n trap}
 
@@ -376,7 +365,7 @@ Con muestras grandes no se cuenta: hay una fórmula. La D mínima para que la pr
 
 El umbral se encoge como 1 ÷ √n: cien veces más datos, un umbral diez veces más chico. Y C01 recibe ≈ 10 M fotos al día.
 
-Con 1 millón de fotos por lado, una corrida del promedio de 0.02 desviaciones estándar (en el brillo, ≈ 1 nivel de 255: nadie lo notaría, y al modelo no le hace nada) da D ≈ 0.008, cuatro veces el umbral, con un p-value de ≈ 6 × 10⁻²⁹. **Significativo e irrelevante.** Con 1,000 por lado, la misma corrida da D ≈ 0.045, debajo del umbral de 0.061: ruido.
+Con 1 millón de fotos por lado, una corrida del promedio de 0.02 desviaciones estándar (en el brillo, ≈ 1 nivel de 255: nadie lo notaría, y al modelo no le hace nada) da D ≈ 0.008, cuatro veces el umbral, con un p-value de ≈ 8 × 10⁻²⁹. **Significativo e irrelevante.** Con 1,000 por lado, la misma corrida da D ≈ 0.045, debajo del umbral de 0.061: ruido.
 
 ```python
 import math, random
@@ -460,11 +449,11 @@ Así nace la **fatiga de alertas**: después de la décima falsa alarma, nadie m
 3. **Corregir por comparaciones múltiples** si de todos modos usas p-values.
 4. **Agrupar**: una alerta por fuente con todas sus estadísticas, no doce alertas sueltas.
 
-Pedir 3 días seguidos rinde mucho. Si una prueba da falsa alarma el 5 % de los días y los días fueran independientes, que falle 3 días seguidos pasaría 0.05³ = 1 vez de cada 8,000. Con 12 pruebas, eso es ≈ 0.045 falsas alarmas al mes en vez de 18: una cada casi dos años. En la vida real los días no son del todo independientes (comparten la referencia y las mismas modas), así que la ganancia es menor, pero sigue siendo enorme.
+Pedir 3 días seguidos rinde mucho. Si una prueba da falsa alarma el 5 % de los días y los días fueran independientes, que dé falsa alarma 3 días seguidos pasaría 0.05³ = 1 vez de cada 8,000. Con 12 pruebas, eso es ≈ 0.045 falsas alarmas al mes en vez de 18: una cada casi dos años. En la vida real los días no son del todo independientes (comparten la referencia y las mismas modas), así que la ganancia es menor, pero sigue siendo enorme.
 
 Las herramientas maduras ya vienen así. Evidently, una librería abierta de monitoreo, usa la prueba KS solo con muestras de hasta 1,000 datos; con más, usa una distancia con umbral fijo (la de Wasserstein: cuánta masa hay que mover, y qué tan lejos, para convertir un histograma en el otro).
 
-## Qué cambió: cuatro diagnósticos {What changed: four diagnoses}
+## Qué cambió: cuatro diagnósticos {What changed: four diagnoses} [extra]
 
 En la primera lección le llamamos [[drift]] a todo cambio del mundo. Para operar un modelo conviene partirlo en piezas, porque cada una se detecta distinto y se arregla distinto. Primero, una notación de tres piezas, que es toda la que hace falta:
 
@@ -497,7 +486,7 @@ Cambia p(y | x): la misma entrada ahora merece otra respuesta. Es el [[concept-d
 - **C01:** moderación decide que las fundas de celular ya no van en «Celulares», sino en «Accesorios para celular». La foto es idéntica; la respuesta correcta cambió.
 - **C09:** los defraudadores aprenden tus cortes. Si el sistema se pone estricto desde US$100, compran a US$95–99; si bloquea desde 5 intentos por minuto, mandan 4. La compra se ve normal y ahora es fraude más seguido.
 
-Aquí está lo incómodo: **las entradas no se mueven**, así que el PSI puede quedarse en 0 mientras el modelo empeora. Solo se ve con etiquetas (la métrica cae) o con señales indirectas, como más correcciones de personas. En C09 las etiquetas buenas (los contracargos: cuando el dueño de la tarjeta reclama un cargo que no hizo) llegan 60 a 90 días tarde; por eso vigila lo que llega antes, como las tasas de rechazo por segmento y la acumulación de compras justo debajo de cada corte. Lo natural es que una distribución se mueva entera; lo de un adversario es que se amontone en un borde.
+Aquí está lo incómodo: en un concept drift puro **las entradas no se mueven**, así que el PSI puede quedarse en 0 mientras el modelo empeora. Solo se ve con etiquetas (la métrica cae) o con señales indirectas, como más correcciones de personas. En C09 las etiquetas buenas (los contracargos: cuando el dueño de la tarjeta reclama un cargo que no hizo) tardan hasta 90 días en llegar; por eso vigila lo que llega antes, como las tasas de rechazo por segmento y la acumulación de compras justo debajo de cada corte. Lo natural es que una distribución se mueva entera; lo de un adversario es que se amontone en un borde.
 
 ### Training-serving skew: cambió tu código
 
@@ -515,7 +504,7 @@ Un detector de drift lo reporta igual que un drift de verdad, y reentrenar no lo
 | Qué cambia | p(x): las entradas | p(y): la mezcla de clases | p(y \| x): la regla | Tu código |
 | Cómo se ve | PSI o KS de las entradas, embeddings | La mezcla de predicciones | La métrica cae y las entradas no se mueven | La paridad falla; suele empezar con un deploy |
 | ¿Etiquetas? | Para verlo no; para saber si dañó, sí | Para sospecharlo no; para confirmarlo, sí | Sí, siempre | No |
-| Qué haces | Etiquetar lo nuevo y reentrenar | Revisar umbrales y calibración | Reetiquetar con la regla nueva y reentrenar | Arreglar el código y agregar una prueba |
+| Qué haces | Etiquetar lo nuevo y, si dañó, reentrenar | Revisar umbrales y calibración | Reetiquetar con la regla nueva y reentrenar | Arreglar el código y agregar una prueba |
 
 :::diagrama distribuciones-diagnostico
 Cuando algo se mueve, se revisa en este orden: primero tu propio código, luego las entradas, luego la mezcla de predicciones y al final las etiquetas. Recorre los cuatro casos.
@@ -529,7 +518,7 @@ Y una **categoría nueva** (las «bolsas» del Dojo) no es ninguno de los cuatro
 
 ## Ventanas, estacionalidad, bins y embeddings {Windows, seasonality, bins and embeddings} [extra]
 
-El PSI es una cuenta de cinco renglones. Lo difícil es decidir **contra qué** se compara, **cuántos datos** entran en cada ventana, **qué bins** se usan y, con fotos, **qué representación** se compara. Esas decisiones cambian el número más que la fórmula.
+El PSI es una cuenta de cinco renglones. Lo difícil es decidir **contra qué** se compara, **qué tamaño** de cambio importa, **cuántos datos** entran en cada ventana, **qué bins** se usan y, con fotos, **qué representación** se compara. Esas decisiones cambian el número más que la fórmula.
 
 ### Tres referencias, tres preguntas
 
@@ -560,9 +549,18 @@ Hay dos formas de vivir con eso:
 - **Que el modelo aprenda la estacionalidad.** C14 entrena con las últimas 52 semanas (un año completo: Buen Fin, Navidad, Semana Santa) y usa como features el calendario y lo que pasó en el mismo evento del año anterior.
 - **Comparar contra la franja correcta.** La pregunta útil en diciembre es «¿este diciembre es raro para un diciembre?», no «¿se parece a noviembre?». En C09, la alerta de rechazos se compara contra la misma hora de la semana pasada, y en el Buen Fin dispararía aunque nada estuviera roto: en los días de evento, la línea base es el evento anterior.
 
+### Qué tan grande es un PSI de 0.25
+
+Una regla para darle tamaño: si una variable tiene forma de campana (una [[distribucion-normal|distribución normal]]) y su promedio se corre δ desviaciones estándar, el PSI vale ≈ δ² (con bins finos). Así:
+
+- PSI 0.1 es una corrida de ≈ 0.3 desviaciones estándar (√0.1 ≈ 0.32).
+- PSI 0.25 es una corrida de 0.5.
+
+El brillo de octubre tiene una desviación de ≈ 56 niveles, así que un PSI de 0.25 equivale a que el promedio se corra ≈ 28 niveles. En la semana de noche, el promedio bajó de ≈ 128 a ≈ 102: 0.46 desviaciones, y 0.46² ≈ 0.21, cerca del 0.23 que dio la cuenta. La regla es aproximada: supone una campana que solo se corre. Con 5 bins por cuantiles (cada uno con el 20 % de la referencia), el PSI sale un poco por debajo de δ² (0.22 en vez de 0.25 para media desviación); con más bins se acerca.
+
 ### Cuántos datos por ventana
 
-Una ventana chica tiene ruido aunque nada cambie. Cuando la referencia es mucho más grande que la ventana, el PSI de pura suerte es ≈ (K − 1) ÷ n, con K bins y n datos en la ventana.
+Una ventana chica tiene ruido aunque nada cambie. Cuando la referencia es mucho más grande que la ventana, el PSI de pura suerte sale, en promedio, ≈ (K − 1) ÷ n, con K bins y n datos en la ventana.
 
 :::cuenta El PSI que sale sin que nada pase
 500 categorías, 3,600 predicciones // una hora de un canary chico | 499 ÷ 3,600 | ≈ 0.14
@@ -590,15 +588,15 @@ La ResNet-50 de C01 calcula, justo antes de su última capa, un vector de 2,048 
 
 1. **La distancia entre los promedios.** Se promedian los vectores de la referencia, se promedian los de hoy y se comparan los dos promedios con la [[similitud-coseno]] o con una distancia. Es trivial de calcular y de guardar. Pero solo ve que se movió el centro: si la nube cambia de forma sin mover su centro, no lo ve.
 2. **MMD** (*maximum mean discrepancy*). Compara las dos nubes completas. Su umbral sale de una prueba por permutaciones: se revuelven al azar las etiquetas «referencia» y «hoy» muchas veces, para ver qué tan grande sale la medida por pura suerte. Su costo crece con el cuadrado de n, así que se usa con muestras de miles, no de millones.
-3. **Un clasificador de dominio.** Se entrena un clasificador chico que intenta distinguir los vectores de la referencia de los de hoy. Si no puede (su [[auc|AUC]] es ≈ 0.5, como tirar una moneda), nada cambió. Si puede, algo cambió, y las fotos que más seguro separa te enseñan **qué**. Evidently lo usa por omisión para embeddings: marca drift si el AUC pasa de 0.55 con más de 1,000 muestras.
+3. **Un clasificador de dominio.** Se entrena un clasificador chico que intenta distinguir los vectores de la referencia de los de hoy. Si no puede (su [[auc|AUC]] es ≈ 0.5, como tirar una moneda), las dos nubes no se distinguen. Si puede, algo cambió, y las fotos que más seguro separa te enseñan **qué**. Evidently lo usa por omisión para embeddings: marca drift si el AUC pasa de 0.55 con más de 1,000 muestras.
 
 No hace falta guardar el vector de cada foto:
 
 :::cuenta Guardar embeddings: todos o una muestra
-Un vector // 2,048 números en float32 | 2,048 × 4 bytes | 8,192 bytes
+Un vector // 2,048 números en [[float32]], de 4 bytes cada uno | 2,048 × 4 bytes | 8,192 bytes
 Todos los de un día // ≈ 10 M fotos | 10,000,000 × 8,192 bytes | ≈ 81.9 GB
 Una muestra al azar de 1 % | 100,000 × 8,192 bytes | ≈ 819 MB
-= Para comparar dos distribuciones bastan miles de vectores elegidos al azar. Guardarlos todos no mejora la medida y sí la cuenta del almacenamiento.
+= Para comparar dos distribuciones bastan miles de vectores elegidos al azar. Guardarlos todos casi no mejora la medida, y sí multiplica por 100 el almacenamiento.
 :::
 
 Una advertencia: con n enorme, un clasificador que saca AUC 0.6 puede ser «significativo» y aun así irrelevante. Es la misma trampa de la sección de KS: lo que se calibra es el tamaño del cambio, no la evidencia de que existe.
@@ -653,11 +651,11 @@ Casi todos tienen algo en común: el número sale, con decimales y todo, y no si
 
 **C01 · Clasificación de fotos.** El job diario calcula el PSI de la mezcla de categorías predichas contra las 4 semanas previas, junto con la tasa de aceptación de las sugerencias y las correcciones de los moderadores. Las estadísticas de las fotos (brillo, tamaño, resolución) atrapan las noches de invierno y los celulares nuevos; la tasa de fotos con baja confianza (top-1 menor que 0.3) atrapa al modelo que empieza a dudar. Nada de eso prueba que empeoró: para eso, cada semana se etiqueta una muestra al azar de fotos recientes y se mide la accuracy de verdad.
 
-**C09 · Fraude en pagos.** El patrón del fraude cambia en días, porque del otro lado hay alguien adaptándose a ti, y la etiqueta fuerte, el contracargo, llega 60 a 90 días tarde. Por eso el monitoreo vive de señales tempranas: la distribución de los scores y de cada feature contra su línea base, las tasas de rechazo por segmento contra la misma hora de la semana pasada y la acumulación justo debajo de cada corte. Y tiene su calendario: en el Buen Fin, la línea base es el Buen Fin anterior.
+**C09 · Fraude en pagos.** El patrón del fraude cambia en días, porque del otro lado hay alguien adaptándose a ti, y la etiqueta fuerte, el contracargo, tarda hasta 90 días en llegar. Por eso el monitoreo vive de señales tempranas: la distribución de los scores y de cada feature contra su línea base, las tasas de rechazo por segmento contra la misma hora de la semana pasada y la acumulación justo debajo de cada corte. Y tiene su calendario: en el Buen Fin, la línea base es el Buen Fin anterior.
 
-**C14 · Pronóstico de demanda.** Diciembre siempre se ve distinto, y cada quincena también. El modelo aprende ese calendario y el monitoreo vigila el sesgo del pronóstico por categoría. La Ronda da una regla para leerlo: si el sesgo aparece de golpe, suele ser un dato (un precio o una promoción mal capturados); si crece semana tras semana, es drift. Un cambio de hábitos, como pasarse a marcas propias, es concept drift: los mismos precios, otra respuesta.
+**C14 · Pronóstico de demanda.** Diciembre siempre se ve distinto, y cada quincena también. El modelo aprende ese calendario y el monitoreo vigila el sesgo del pronóstico por categoría. La Ronda da una regla para leerlo: si el sesgo aparece de golpe, suele ser un dato (un precio o una promoción mal capturados); si crece semana tras semana, es drift. Un cambio de hábitos, como pasarse a marcas propias, es concept drift: con los mismos precios relativos, otra demanda.
 
-**Fuera del ML.** El PSI nació en los bancos, para vigilar si quienes piden crédito hoy se parecen a quienes sirvieron para construir el modelo de riesgo. Y la entropía es la base de la compresión: una moneda justa no se puede comprimir (cada volado necesita 1 bit), pero los volados de una moneda 90/10 se pueden guardar, agrupándolos, con casi 0.47 bits cada uno. Es la idea detrás de los archivos ZIP.
+**Fuera del ML.** El PSI nació en los bancos, para vigilar si quienes piden crédito hoy se parecen a quienes sirvieron para construir el modelo de riesgo. Y la entropía es la base de la compresión: una moneda justa no se puede comprimir (cada volado necesita 1 bit), pero los volados de una moneda 90/10 se pueden guardar, agrupándolos, con casi 0.47 bits cada uno. Los archivos ZIP usan parte de esta idea: a lo que se repite mucho le dan códigos más cortos que a lo raro.
 
 ## Ejercicios {Exercises}
 
@@ -735,11 +733,11 @@ Con piso 0.000001: (0.000001 − 0.10) × ln(0.00001) ≈ (−0.1) × (−11.513
 
 **(b)** PSI ≈ 0.456 + 0.017 ≈ **0.47**, o ≈ 1.151 + 0.017 ≈ **1.17**. Son los mismos datos: el «cambio» depende de un número que elegiste tú. (El código de la lección da 0.47 y 1.17.)
 
-**(c)** Arma los bordes con cuantiles de la referencia, para que el lado de la referencia nunca quede vacío. Agrupa el bin 1 con el 2 si se vacía seguido. Fija un epsilon, anótalo y no lo cambies, para que el número de hoy se compare con el de ayer. Y si es una variable de categorías, considera la divergencia de Jensen–Shannon, que no se rompe con ceros.
+**(c)** Arma los bordes con cuantiles de la referencia: con 5 bins, cada uno guarda el 20 % de ella, así que nunca queda vacío de ese lado y es más difícil que se vacíe el de hoy. Agrupa el bin 1 con el 2 si se vacía seguido. Fija un epsilon, anótalo y no lo cambies, para que el número de hoy se compare con el de ayer. Y si es una variable de categorías, considera la divergencia de Jensen–Shannon, que no se rompe con ceros.
 ? [reto] El canary de C01 (la versión nueva que recibe solo una parte del tráfico mientras se prueba) compara la mezcla de categorías predichas contra la versión estable, con umbral 0.1. (a) Con las 500 categorías y 3,600 predicciones en una hora, ¿qué PSI esperas de pura suerte? (b) ¿Y con 5,000? (c) ¿Y con las ≈ 30 categorías padre y 3,600? (d) Explica por qué C01 compara categorías padre y pide al menos 5,000 predicciones. Usa PSI de ruido ≈ (K − 1) ÷ n.
 **(a)** 499 ÷ 3,600 ≈ **0.14**: arriba del umbral de 0.1 sin que nada cambie.
 
-**(b)** 499 ÷ 5,000 ≈ **0.10**: justo en el umbral. Sonaría cerca de la mitad de las veces.
+**(b)** 499 ÷ 5,000 ≈ **0.10**: justo en el umbral. El puro ruido lo rozaría cada hora y sonaría muy seguido.
 
 **(c)** 29 ÷ 3,600 ≈ **0.008**: más de diez veces por debajo del umbral.
 
@@ -756,7 +754,7 @@ Con piso 0.000001: (0.000001 − 0.10) × ln(0.00001) ≈ (−0.1) × (−11.513
 
 **En el Dojo:** la estación 1, «Datos y etiquetas», ya te pone frente a una categoría nueva, «bolsas»: no es drift, es una respuesta que el modelo no tiene. La estación 12, «Monitoreo y reentrenamiento» (todavía no está lista), calcula estas medidas sobre los registros de predicciones.
 
-**En Sensei:** la siguiente lección, «Cómo guarda números una computadora», explica float32 e int8, y por qué un vector de 2,048 números ocupa 8 KB. Más adelante, la lección de la estación 12, «Monitoreo, drift y reentrenamiento», junta esta lección con las alertas, las guías de qué hacer cuando una suena (*runbooks*) y la decisión de reentrenar.
+**En Sensei:** la siguiente lección, «Cómo guarda números una computadora», explica float32 e int8, y por qué un número en float32 ocupa 4 bytes. Más adelante, la lección de la estación 12, «Monitoreo, drift y reentrenamiento», junta esta lección con las alertas, las guías de qué hacer cuando una suena (*runbooks*) y la decisión de reentrenar.
 
 ## Palabras que vas a oír {Words you will hear}
 

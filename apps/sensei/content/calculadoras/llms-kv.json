@@ -21,5 +21,5 @@
     { "label": "Memoria libre", "formula": "libre * 1000000000", "formato": "bytes", "barra": true, "nota": "lo que tienes" },
     { "label": "Conversaciones que caben", "formula": "floor(libre * 1000000000 / porConv)", "formato": "int", "nota": "memoria libre ÷ por conversación" }
   ],
-  "nota": "Prueba Llama 3 70B en una réplica de C10: 80 bloques, 2,250 tokens y 68.4 GB libres. Caben 92 conversaciones enteras. Después pon 32 juegos de K y V en vez de 8: así sería sin GQA."
+  "nota": "Prueba Llama 3 70B en una réplica de C10: 80 bloques, 2,250 tokens y 68.4 GB libres; caben 92 conversaciones enteras. Sin GQA, el 70B guardaría 64 juegos de K y V (uno por cabeza de Q) en vez de 8: pruébalo y mira cuántas quedan."
 }

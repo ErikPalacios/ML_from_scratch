@@ -52,7 +52,7 @@
       "y": 6,
       "w": 14,
       "h": 9,
-      "note": "Cada publicación trae ≈ 3 fotos (7.5 M) y otros equipos, como moderación y búsqueda, también le preguntan al modelo: la Ronda redondea a **10 M imágenes al día**, una por [[request]]."
+      "note": "Cada publicación trae ≈ 3 fotos (7.5 M), y otros equipos de la empresa también le preguntan al modelo: la Ronda redondea a **10 M imágenes al día**, una por [[request]]."
     },
     {
       "id": "promedio",
@@ -85,7 +85,7 @@
       "y": 25,
       "w": 13,
       "h": 9,
-      "note": "Al pico se le suma un margen (× ≈ 1.4) para picos raros y crecimiento: 350 × 1.4 ≈ 486, y se redondea hacia arriba a un número fácil de defender: **500 req/s**."
+      "note": "Al pico se le suma un margen (× ≈ 1.4) para picos raros y crecimiento: 350 × 1.4 = 490, y se redondea hacia arriba a un número fácil de defender: **500 req/s**."
     },
     {
       "id": "gpus",

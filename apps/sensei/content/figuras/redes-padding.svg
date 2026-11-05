@@ -104,8 +104,8 @@
 <rect x="77" y="53" width="88" height="88" rx="7" style="fill:none;stroke:var(--yd);stroke-width:3;stroke-dasharray:7 5"/>
 <rect class="f-off" x="24" y="262" width="16" height="16" rx="3"/>
 <text class="f-s" x="46" y="275" style="font-size:12px">marco de ceros</text>
-<rect class="f-chip" x="140" y="262" width="16" height="16" rx="3"/>
-<text class="f-s" x="162" y="275" style="font-size:12px">la foto de 5 × 5</text>
+<rect class="f-chip" x="24" y="284" width="16" height="16" rx="3"/>
+<text class="f-s" x="46" y="297" style="font-size:12px">la foto de 5 × 5</text>
 <text class="f-l" x="236" y="62">SALIDA 3 × 3</text>
 <rect class="f-y" x="236" y="74" width="30" height="30" rx="5"/>
 <text class="f-s" x="251" y="94" text-anchor="middle" style="fill:var(--navy);font:700 12px var(--sans)">-17</text>
@@ -126,13 +126,13 @@
 <rect class="f-chip" x="304" y="142" width="30" height="30" rx="5"/>
 <text class="f-s" x="319" y="162" text-anchor="middle" style="font-size:12px;font-weight:700">1</text>
 <rect x="268" y="72" width="34" height="34" rx="6" style="fill:none;stroke:var(--yd);stroke-width:2.5;stroke-dasharray:5 4"/>
-<text class="f-s" x="236" y="196" style="font-size:12px">La ventana salta de</text>
-<text class="f-s" x="236" y="213" style="font-size:12px">2 en 2: caben 3</text>
-<text class="f-s" x="236" y="230" style="font-size:12px">posiciones por lado.</text>
-<text class="f-s" x="236" y="247" style="font-size:12px">La columna izquierda</text>
-<text class="f-s" x="236" y="264" style="font-size:12px">sale negativa: el</text>
-<text class="f-s" x="236" y="281" style="font-size:12px">filtro confunde el</text>
-<text class="f-s" x="236" y="298" style="font-size:12px">marco con un borde.</text>
+<text class="f-s" x="236" y="196" style="font-size:12px">Salta de 2 en 2:</text>
+<text class="f-s" x="236" y="213" style="font-size:12px">caben 3 por lado.</text>
+<text class="f-s" x="236" y="230" style="font-size:12px">La columna</text>
+<text class="f-s" x="236" y="247" style="font-size:12px">izquierda sale</text>
+<text class="f-s" x="236" y="264" style="font-size:12px">negativa: el filtro</text>
+<text class="f-s" x="236" y="281" style="font-size:12px">confunde el marco</text>
+<text class="f-s" x="236" y="298" style="font-size:12px">con un borde.</text>
 <rect class="f-card" x="10" y="320" width="340" height="120" rx="16"/>
 <text class="f-l" x="28" y="346">LA CUENTA</text>
 <text class="f-t" x="28" y="372">(n + 2p − k) ÷ s + 1</text>

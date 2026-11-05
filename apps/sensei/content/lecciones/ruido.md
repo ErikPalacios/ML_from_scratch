@@ -33,7 +33,7 @@ Si la muestra es al azar, su error es puro ruido: a veces de más, a veces de me
 | Solo las que el vendedor aceptó | Sesgo: justo las que el modelo acertó | No |
 
 :::ojo
-**Más datos no arreglan una muestra sesgada.** En 1936, la revista estadounidense *Literary Digest* mandó más de 10 millones de boletas para adivinar la elección presidencial y le regresaron ≈ 2.4 millones. Predijo que Alf Landon ganaría con ≈ 57 % de los votos; ganó Franklin Roosevelt con ≈ 61 %. Sus listas salían de directorios telefónicos y registros de autos, en plena crisis económica, y contestó una de cada cuatro personas: ni las listas ni quienes contestaron se parecían al país. Millones de respuestas sesgadas pierden contra unos miles elegidas al azar.
+**Más datos no arreglan una muestra sesgada.** Millones de respuestas sesgadas pierden contra unos miles elegidas al azar. El caso más famoso, una encuesta de 1936 con 2.4 millones de respuestas, está en «En la vida real».
 :::
 
 ### Cinco exámenes, cinco números
@@ -104,7 +104,7 @@ Arriba, cómo se reparten muchos exámenes de 1,000 fotos: una campana centrada 
 
 Esa forma se llama [[distribucion-normal|distribución normal]] (*normal distribution*), o campana de Gauss. Una [[distribucion]] dice cómo se reparten unos valores: cuáles salen seguido y cuáles casi nunca. La normal queda definida por dos números: su centro (el promedio) y su ancho (la desviación estándar).
 
-¿Por qué aparece? El resultado de un examen es el promedio de 1,000 piezas chiquitas: cada foto vale 1 si el modelo acierta y 0 si falla, y cada una se eligió sin importar las demás. Cuando muchas piezas pequeñas e independientes se suman, los golpes de suerte para arriba y para abajo se compensan, y lo más común es quedar cerca del centro; para irse a una orilla, casi todas tendrían que salir del mismo lado. Este hecho se llama **teorema del límite central**, y por él casi todo lo que se mide como promedio (una accuracy, una tasa de aceptación, la diferencia entre dos grupos) tiene forma de campana.
+¿Por qué aparece? El resultado de un examen es el promedio de 1,000 piezas chiquitas: cada foto vale 1 si el modelo acierta y 0 si falla, y cada una se eligió sin importar las demás. Cuando muchas piezas pequeñas e independientes se suman, los golpes de suerte para arriba y para abajo se compensan, y lo más común es quedar cerca del centro; para irse a una orilla, casi todas tendrían que salir del mismo lado. Que esa suma tome justo la forma de campana, sin importar cómo se reparta cada pieza, es el **teorema del límite central**. Por él, casi todo lo que se mide como promedio de muchos datos (una accuracy, una tasa de aceptación, la diferencia entre dos grupos) tiene forma de campana.
 
 :::ojo
 **Lo que se vuelve campana es el promedio, no cada dato.** Una foto suelta vale 0 o 1: nada que ver con una campana. Las latencias de un servidor tampoco: tienen una cola larga hacia la derecha, como viste en la lección de percentiles. Por eso esta lección habla siempre del resultado de un examen, no de cada foto.
@@ -158,11 +158,9 @@ Fíjate dónde quedó n: adentro de una raíz. Eso tiene una consecuencia enorme
 | 100 | 3.6 puntos | ± 7.0 |
 | 1,000 | 1.1 | ± 2.2 |
 | 4,000 | 0.56 | ± 1.1 |
-| 50,000 (el golden set de C01) | 0.16 | ± 0.3 |
+| 50,000 (el [[golden-set\|golden set]] de C01) | 0.16 | ± 0.3 |
 
-Mira la primera fila: con 100 fotos, la fórmula dice 3.6 puntos. Los cinco exámenes de 100 fotos de la sección anterior se dispersaron 3.5 (dividiendo entre n − 1). La fórmula predijo, sin repetir nada, lo que salió repitiendo.
-
-Y esto se paga en dinero. El [[golden-set|golden set]] de C01 tiene 50,000 fotos etiquetadas por dos personas cada una y cuesta del orden de US$5–10 mil. Bajar su ruido de ±0.3 a ±0.15 puntos pediría 200,000 fotos: cuatro veces el costo.
+Mira la primera fila: con 100 fotos, la fórmula dice 3.6 puntos. Los cinco exámenes de la sección anterior, inventados de ese tamaño a propósito, se dispersaron 3.5 (dividiendo entre n − 1). La fórmula da ese número sin repetir nada.
 
 Comprobémoslo en Python. El código simula 2,000 exámenes de cada tamaño con un modelo que acierta 85 % y mide cuánto se dispersan los resultados:
 
@@ -205,7 +203,7 @@ Decir «85 %» a secas esconde el ruido. Decir «85 % ± 2.2» lo muestra. Ese
 
 **lo que mediste ± 1.96 × el error estándar** (≈ ±2 errores estándar)
 
-En la lección «¿Aprendió de verdad?» viste que el gate de C01 no le pide al modelo nuevo «sacar más» que el actual, sino «no sacar menos» por más de 0.3 puntos. De aquí sale ese 0.3: es el margen de un examen de 50,000 fotos. Exigir «más que el actual» al décimo de punto sería decidir con ruido.
+En la lección «¿Aprendió de verdad?» viste que el gate de C01 (el examen que decide si un modelo nuevo reemplaza al actual) no le pide al modelo nuevo «sacar más» que el actual, sino «no sacar menos» por más de 0.3 puntos. De aquí sale ese 0.3: es el margen de un examen de 50,000 fotos. Exigir «más que el actual» al décimo de punto sería decidir con ruido.
 
 ### Lo que sí significa
 
@@ -222,20 +220,12 @@ Las lecturas equivocadas más comunes, de la más grave a la más fina:
 1. **«El modelo va a dar entre 82.8 % y 87.2 % en producción.»** No. El intervalo solo cubre el azar de qué fotos entraron a la muestra. Si en producción llegan otras fotos (es temporada de regreso a clases y suben mochilas), la población cambió: es [[drift]], y el intervalo no dice nada de eso.
 2. **«El intervalo cubre todos los errores.»** No. Si la muestra está sesgada (solo fotos de web) o las etiquetas tienen errores ([[ruido-etiquetas|ruido en las etiquetas]]), el intervalo sale igual de angosto y está mal. Solo mide el ruido; el sesgo hay que buscarlo aparte.
 3. **«El 95 % de las fotos están entre 82.8 % y 87.2 %.»** No tiene sentido: cada foto es acierto o fallo. El intervalo habla del promedio, no de las fotos.
-4. **«Si los intervalos de dos modelos se enciman, no hay diferencia.»** No necesariamente. Comparar dos intervalos no es la forma correcta de comparar dos modelos, y menos si los examinaron con las mismas fotos; eso lo arregla la prueba pareada, en la última sección extra.
+4. **«Si los intervalos de dos modelos se enciman, no hay diferencia.»** No necesariamente. Comparar dos intervalos no es la forma correcta de comparar dos modelos, y menos si los examinaron con las mismas fotos; eso lo arregla la prueba pareada, en la sección extra «¿Es real una mejora de 0.2 puntos?».
 5. **«Hay 95 % de probabilidad de que el valor verdadero esté en este intervalo.»** En sentido estricto, tampoco. El valor verdadero no se mueve: está adentro o afuera de tu intervalo, y no lo sabes. El 95 % habla de la receta, como en la figura. Mucha gente lo dice así sin causar daño; los que sí lo causan son los cuatro de arriba.
-
-### Cuántas fotos para un margen
-
-La cuenta también se puede hacer al revés: eliges el margen que necesitas y despejas n.
-
-n = 1.96² × p × (1 − p) ÷ margen²
-
-Para medir una accuracy de 85 % con ±1 punto: 3.84 × 0.1275 ÷ 0.01² ≈ 4,900 fotos. Con ±0.5 puntos, cuatro veces más: ≈ 19,600. Es la cuenta que decide de qué tamaño se hace un golden set, o cuántas fotos al azar hay que etiquetar cada mes para vigilar al modelo.
 
 ## La prueba A/B {The A/B test}
 
-Hasta aquí medimos al modelo con fotos etiquetadas, sin que nadie lo use: es lo que hace el gate de C01. Pero al negocio le importa que los vendedores **acepten** las sugerencias, y eso solo se ve con gente real. En la lección «¿Aprendió de verdad?» viste un caso de la Ronda: un modelo nuevo gana 1.5 puntos de top-5 en el golden set y, con vendedores reales, la tasa de aceptación **baja** 0.4 puntos.
+Hasta aquí medimos al modelo con fotos etiquetadas, sin que nadie lo use: es lo que hace el gate de C01. Pero al negocio le importa que los vendedores **acepten** las sugerencias: la **tasa de aceptación**, la fracción de publicaciones en que el vendedor eligió una de las categorías sugeridas, hoy ≈ 70 %. Eso solo se ve con gente real. En la lección «¿Aprendió de verdad?» viste un caso de la Ronda: un modelo nuevo gana 1.5 puntos de [[top-k-accuracy|top-5]] en el golden set y, con vendedores reales, la tasa de aceptación **baja** 0.4 puntos.
 
 ### ¿Por qué no comparar antes y después?
 
@@ -249,27 +239,6 @@ Una [[ab-test|prueba A/B]] (*A/B test*) reparte al azar a los usuarios en dos gr
 - **B, el tratamiento:** recibe el cambio, el modelo nuevo.
 
 Cada grupo se llama **brazo** (*arm*). Como los dos corren la misma semana, el regreso a clases y la campaña les tocan a los dos. Y como el reparto es al azar, todo lo demás (vendedores grandes y chicos, de celular y de web, de Monterrey y de Mérida) queda repartido parejo, incluso lo que no se te ocurrió medir. La única diferencia sistemática entre A y B es el modelo. Por eso, si B acepta más, el modelo **causó** la diferencia, y no solo coincidió con ella. Lo que queda es el ruido, y de eso se encarga la siguiente sección.
-
-### Qué se sortea: la unidad de aleatorización
-
-La [[unidad-aleatorizacion|unidad de aleatorización]] (*randomization unit*) es lo que se sortea entre los brazos. En C01 hay al menos dos opciones:
-
-- **Por request.** Cada foto que llega se sortea por separado. Ana sube tres fotos de sus tenis y dos reciben sugerencias del modelo A y una del modelo B: una experiencia incoherente, y las respuestas de los dos modelos se mezclan en la misma publicación.
-- **Por vendedor.** Se sortea a Ana una vez y para todo el experimento. Ve siempre el mismo modelo.
-
-C01 sortea por **vendedor**. El sorteo es un hash: `hash(sal + seller_id) mod 100` convierte el id de Ana en un número de 0 a 99 que parece al azar, pero que siempre sale igual para ella. De 0 a 49 va a A; de 50 a 99, a B. La sal es un texto que cambia en cada experimento: sin ella, los mismos vendedores caerían en el tratamiento de todos los experimentos, y arrastrarían efectos de uno al siguiente.
-
-### Una métrica que decide y varias que cuidan
-
-Antes de empezar se escribe **una** métrica primaria, la que decide. En C01 es la **tasa de aceptación**: la fracción de publicaciones en que el vendedor eligió una de las categorías sugeridas, hoy ≈ 70 %. También se fijan los **guardrails** (barandales): métricas que no tienen que mejorar, pero no pueden empeorar. En C01 son el [[p99]] de latencia, la tasa de errores, el porcentaje de publicaciones que un moderador recategoriza después (aceptar más una sugerencia equivocada sería una mejora falsa) y el tiempo para llenar el formulario.
-
-:::diagrama ruido-ab
-El A/B de C01: cada vendedor cae siempre en el mismo brazo; al final se revisa el reparto y luego la métrica primaria y los guardrails. Toca cada caja o recorre los pasos.
-:::
-
-### Antes de leer el resultado
-
-Al terminar, lo primero no es la aceptación: es revisar que cada brazo recibió la parte que le tocaba. Si el 50/50 salió chueco, algo pierde publicaciones en un brazo, y el resultado no se lee hasta entenderlo (la cuenta está en la sección extra de trampas). Y para probar la máquina antes de usarla se corre un **A/A**: el mismo modelo en los dos brazos, donde la diferencia es puro ruido. En la siguiente sección vas a ver qué tan seguido ese ruido parece un ganador.
 
 ## Hipótesis nula, p-value y significancia {Null hypothesis, p-value and significance}
 
@@ -311,72 +280,34 @@ El p-value es una de las ideas que más se leen mal en todo el oficio. Con p = 0
 Lo que sí dice es qué tan **sorprendentes** serían los datos si no pasara nada. ¿Por qué no es lo mismo que «la probabilidad de que B funcione»? Porque eso depende también de qué tan probable era que B funcionara antes de probarlo.
 
 :::ejemplo Por qué p < 0.05 no quiere decir «95 % de seguridad»
-Un equipo prueba 100 ideas en un año. Supón que solo 10 de verdad mejoran algo y las otras 90 no hacen nada. Con potencia de 80 % (la siguiente sección), de las 10 buenas detecta 8. De las 90 inútiles, el 5 % sale «significativa» por azar: 4.5 en promedio. En total, ≈ 12.5 ideas «ganadoras», y 4.5 de ellas son falsas alarmas: **36 %**, aunque cada una tuvo p < 0.05.
+Un equipo prueba 100 ideas en un año. Supón que solo 10 de verdad mejoran algo y las otras 90 no hacen nada. Con [[potencia]] de 80 % (la siguiente sección), de las 10 buenas detecta 8. De las 90 inútiles, el 5 % sale «significativa» por azar: 4.5 en promedio. En total, ≈ 12.5 ideas salen «significativas», y 4.5 de ellas son falsas alarmas: **36 %**, aunque cada una tuvo p < 0.05.
 :::
 
 ### La significancia: el corte se fija antes
 
 Falta decidir qué tan chico tiene que ser el p-value. Ese corte es la [[significancia]] (*significance level*), se escribe α (alfa) y casi siempre vale 0.05. Si el p-value queda abajo, el resultado es **estadísticamente significativo** y se rechaza H0. Con 0.005 < 0.05, B le gana a A.
 
-α es también la tasa de falsas alarmas que aceptas. Si no hay ningún efecto, el 5 % de los experimentos lo «encuentra» de todas formas. Una prueba es, en el fondo, un clasificador de experimentos: dice «hay efecto» o «no hay efecto», y se equivoca de las dos formas que ya conoces de la lección «¿Aprendió de verdad?». Declarar un efecto que no existe es un [[falso-positivo]] (en estadística, **error tipo I**); no ver uno que sí existe, un [[falso-negativo]] (**error tipo II**).
+α es también la tasa de falsas alarmas que aceptas. Si no hay ningún efecto, el 5 % de los experimentos lo «encuentra» de todas formas. Pasa hasta en un **A/A**, con el mismo modelo en los dos brazos. Una prueba es, en el fondo, un clasificador de experimentos: dice «hay efecto» o «no hay efecto», y se equivoca de las dos formas que ya conoces de la lección «¿Aprendió de verdad?». Declarar un efecto que no existe es un [[falso-positivo]] (en estadística, **error tipo I**); no ver uno que sí existe, un [[falso-negativo]] (**error tipo II**).
 
 :::diagrama ruido-prueba
 La lógica de una prueba, en tres recorridos: un A/B con efecto, un A/A donde no hay nada, y un A/B demasiado chico. Toca cada caja para leer su nota.
 :::
 
+:::ojo
+**Significativo no es importante.** Con 10 millones de publicaciones por brazo, una diferencia de 0.05 puntos de aceptación da p ≈ 0.015: significativa, y casi seguro inútil para el negocio. Decide con el tamaño del efecto y su intervalo, no solo con el p-value.
+:::
+
+## Diseñar el A/B: cuántos, a quién y cuánto tiempo {Designing the A/B test: how many, whom and how long} [extra]
+
+Un A/B se diseña antes de prenderlo, y el diseño contesta tres preguntas: **cuántas** unidades hacen falta, **a quién** se sortea y **cuánto tiempo** corre.
+
 ### El mismo punto, con menos datos
 
 Ahora imagina que alguien se saltó la cuenta de tamaño y corrió el A/B con 5,000 publicaciones por brazo: 70.0 % contra 71.0 %, el mismo punto de diferencia. El error estándar crece a √(2 × 0.705 × 0.295 ÷ 5,000) ≈ 0.91 puntos, z queda en 1.0 ÷ 0.91 ≈ 1.1, y p ≈ 0.27. No es significativo.
 
-¿Quiere decir que B no sirve? No: quiere decir que **con estos datos no se distingue del ruido**. «No significativo» no es «no hay efecto». Cuánta muestra hace falta para no quedarse ciego es el tema de la siguiente sección.
+¿Quiere decir que B no sirve? No: quiere decir que **con estos datos no se distingue del ruido**. «No significativo» no es «no hay efecto». Cuánta muestra hace falta para no quedarse ciego es lo que sigue.
 
-### Compruébalo con un A/A
-
-Si α es la tasa de falsas alarmas, un A/A debería salir «significativo» el 5 % de las veces. Este código corre 2,000 A/A con 2,000 publicaciones por brazo y la misma aceptación de 70 % en los dos:
-
-```python
-import math, random
-from statistics import NormalDist
-
-random.seed(2026)
-P, N, PRUEBAS = 0.70, 2000, 2000      # misma tasa en los dos brazos, 2,000 por brazo, 2,000 A/A
-
-def p_value(a, b, n):
-    """Prueba z de dos proporciones: a y b aceptaciones de n cada brazo."""
-    p = (a + b) / (2 * n)                       # la tasa con los dos brazos juntos
-    error = math.sqrt(p * (1 - p) * 2 / n)      # error estándar de la diferencia
-    z = (b - a) / n / error
-    return 2 * (1 - NormalDist().cdf(abs(z)))   # las dos colas
-
-pvalues = []
-for _ in range(PRUEBAS):
-    a = sum(random.random() < P for _ in range(N))    # control
-    b = sum(random.random() < P for _ in range(N))    # «tratamiento»: idéntico
-    pvalues.append(p_value(a, b, N))
-
-alarmas = sum(p < 0.05 for p in pvalues)
-print(f"{alarmas} de {PRUEBAS} A/A salieron «significativos»: {alarmas / PRUEBAS:.1%}")
-for i in range(5):                                    # cómo se reparten los p-values
-    k = sum(i / 5 <= p < (i + 1) / 5 for p in pvalues)
-    print(f"p entre {i / 5:.1f} y {(i + 1) / 5:.1f}: {k / PRUEBAS:.0%}")
-```
-
-```salida
-102 de 2000 A/A salieron «significativos»: 5.1%
-p entre 0.0 y 0.2: 21%
-p entre 0.2 y 0.4: 18%
-p entre 0.4 y 0.6: 20%
-p entre 0.6 y 0.8: 20%
-p entre 0.8 y 1.0: 21%
-```
-
-Las falsas alarmas salen ≈ 5 %, justo α. Y cuando no hay efecto, los p-values se reparten **parejo** entre 0 y 1: en un A/A, un p-value de 0.03 es tan normal como uno de 0.6. Un p-value chico, solo, no prueba nada: sale 1 de cada 20 veces sin que haya nada.
-
-:::ojo
-**Significativo no es importante.** Con 10 millones de usuarios por brazo, una diferencia de 0.05 puntos de aceptación da p ≈ 0.015: significativa, y casi seguro inútil para el negocio. Decide con el tamaño del efecto y su intervalo, no solo con el p-value.
-:::
-
-## Potencia y tamaño de muestra {Power and sample size}
+### Cuántos: potencia y efecto mínimo
 
 Una prueba se puede equivocar de dos formas, y las dos importan:
 
@@ -408,8 +339,8 @@ El 16 sale de redondear 2 × 2.80² ≈ 15.7. Es la regla de bolsillo para calc
 :::cuenta Cuántas publicaciones necesita el A/B de C01
 Varianza de una publicación // acepta o no acepta | 0.70 × 0.30 | 0.21
 MDE al cuadrado | 0.01² | 0.0001
-Factor de α y potencia | (1.96 + 0.84)² | ≈ 7.85
-Regla de bolsillo // 2 × 7.85 ≈ 16 | 16 × 0.21 ÷ 0.0001 | 33,600
+Factor de α y potencia | (1.96 + 0.84)² | 7.84
+Regla de bolsillo // 2 × 7.84 ≈ 16 | 16 × 0.21 ÷ 0.0001 | 33,600
 Fórmula completa de dos proporciones // con 70 % y 71 %, en el código de abajo | n_por_brazo(0.70, 0.71) | 32,647
 = **≈ 33,000 publicaciones por brazo**, el número que usa la Ronda. La regla de bolsillo queda a 3 % de la fórmula completa.
 :::
@@ -457,15 +388,78 @@ con potencia 90 %: 43,704 por brazo
 Sube la potencia a 90 % o baja α a 1 % y mira cuánto cuesta cada exigencia. Con una tasa de 20 % y 2 puntos de MDE tienes uno de los ejercicios.
 :::
 
-Con estos números, el A/B demasiado chico de la sección anterior se entiende mejor: con 5,000 publicaciones por brazo, la potencia para un efecto de 1 punto es ≈ 20 %. Cuatro de cada cinco veces, un modelo que sí sube la aceptación 1 punto habría salido «no significativo».
+Con estos números, el A/B demasiado chico del principio de esta sección se entiende mejor: con 5,000 publicaciones por brazo, la potencia para un efecto de 1 punto es ≈ 20 %. Cuatro de cada cinco veces, un modelo que sí sube la aceptación 1 punto habría salido «no significativo».
 
-### Por qué dura semanas si la muestra se junta en horas
+### A quién: la unidad de aleatorización
 
-C01 recibe ≈ 2.5 millones de publicaciones al día, ≈ 104,000 por hora. Repartiendo 50/50, las ≈ 65,000 que hacen falta entre los dos brazos se juntan en menos de una hora; con solo 5 % del tráfico en el tratamiento, en ≈ 6 horas. Aun así, el A/B de C01 corre **una o dos semanas completas** (y termina con mucha más muestra que el mínimo, lo que solo ayuda). Hay tres razones:
+La [[unidad-aleatorizacion|unidad de aleatorización]] (*randomization unit*) es lo que se sortea entre los brazos. En C01 hay al menos dos opciones:
+
+- **Por request.** Cada foto que llega se sortea por separado. Ana sube tres fotos de sus tenis y dos reciben sugerencias del modelo A y una del modelo B: una experiencia incoherente, y las respuestas de los dos modelos se mezclan en la misma publicación.
+- **Por vendedor.** Se sortea a Ana una vez y para todo el experimento. Ve siempre el mismo modelo.
+
+C01 sortea por **vendedor**. El sorteo es un hash: `hash(sal + seller_id) mod 100` convierte el id de Ana en un número de 0 a 99 que parece al azar, pero que siempre sale igual para ella. De 0 a 49 va a A; de 50 a 99, a B. La sal es un texto que cambia en cada experimento: sin ella, los mismos vendedores caerían en el tratamiento de todos los experimentos, y arrastrarían efectos de uno al siguiente.
+
+### Una métrica que decide y varias que cuidan
+
+Antes de empezar se escribe **una** métrica primaria, la que decide. En C01 es la **tasa de aceptación**. También se fijan los **guardrails** (barandales): métricas que no tienen que mejorar, pero no pueden empeorar. En C01 son el [[p99]] de latencia, la tasa de errores, el porcentaje de publicaciones que un moderador recategoriza después (aceptar más una sugerencia equivocada sería una mejora falsa) y el tiempo para llenar el formulario.
+
+:::diagrama ruido-ab
+El A/B de C01: cada vendedor cae siempre en el mismo brazo; al final se revisa el reparto y luego la métrica primaria y los guardrails. Toca cada caja o recorre los pasos.
+:::
+
+### Cuánto tiempo: semanas, aunque la muestra se junte en horas
+
+C01 recibe ≈ 2.5 millones de publicaciones al día, ≈ 104,000 por hora. Repartiendo 50/50, las ≈ 65,000 que hacen falta entre los dos brazos se juntan en menos de una hora; con solo 5 % del tráfico en el tratamiento, ese brazo llega a sus ≈ 33,000 en ≈ 6 horas. Aun así, el A/B de C01 corre **una o dos semanas completas** (y termina con mucha más muestra que el mínimo, lo que solo ayuda). Hay tres razones:
 
 1. **El ciclo de la semana.** Quien vende el domingo no es quien vende el martes: otros productos, otro tipo de vendedor. Una semana completa los incluye a todos, en la proporción de siempre.
 2. **El efecto novedad.** Un cambio visible altera el comportamiento los primeros días: hay curiosidad, o rechazo, y luego la gente se acomoda. Por eso se mira el efecto día por día: si se va achicando, hay que esperar.
 3. **Métricas que tardan.** Una recategorización de un moderador llega días después de la publicación. Un guardrail que llega tarde necesita que el experimento dure lo suficiente para verlo.
+
+### Antes de leer el resultado
+
+Al terminar, lo primero no es la aceptación: es revisar que cada brazo recibió la parte que le tocaba. Si el 50/50 salió chueco, algo pierde publicaciones en un brazo, y el resultado no se lee hasta entenderlo (la cuenta está en la sección siguiente). Y para probar la máquina antes de usarla se corre un **A/A**, como el de abajo.
+
+### Compruébalo con un A/A
+
+Si α es la tasa de falsas alarmas, un A/A debería salir «significativo» el 5 % de las veces. Este código corre 2,000 A/A con 2,000 publicaciones por brazo y la misma aceptación de 70 % en los dos:
+
+```python
+import math, random
+from statistics import NormalDist
+
+random.seed(2026)
+P, N, PRUEBAS = 0.70, 2000, 2000      # misma tasa en los dos brazos, 2,000 por brazo, 2,000 A/A
+
+def p_value(a, b, n):
+    """Prueba z de dos proporciones: a y b aceptaciones de n cada brazo."""
+    p = (a + b) / (2 * n)                       # la tasa con los dos brazos juntos
+    error = math.sqrt(p * (1 - p) * 2 / n)      # error estándar de la diferencia
+    z = (b - a) / n / error
+    return 2 * (1 - NormalDist().cdf(abs(z)))   # las dos colas
+
+pvalues = []
+for _ in range(PRUEBAS):
+    a = sum(random.random() < P for _ in range(N))    # control
+    b = sum(random.random() < P for _ in range(N))    # «tratamiento»: idéntico
+    pvalues.append(p_value(a, b, N))
+
+alarmas = sum(p < 0.05 for p in pvalues)
+print(f"{alarmas} de {PRUEBAS} A/A salieron «significativos»: {alarmas / PRUEBAS:.1%}")
+for i in range(5):                                    # cómo se reparten los p-values
+    k = sum(i / 5 <= p < (i + 1) / 5 for p in pvalues)
+    print(f"p entre {i / 5:.1f} y {(i + 1) / 5:.1f}: {k / PRUEBAS:.0%}")
+```
+
+```salida
+102 de 2000 A/A salieron «significativos»: 5.1%
+p entre 0.0 y 0.2: 21%
+p entre 0.2 y 0.4: 18%
+p entre 0.4 y 0.6: 20%
+p entre 0.6 y 0.8: 20%
+p entre 0.8 y 1.0: 21%
+```
+
+Las falsas alarmas salen ≈ 5 %, justo α. Y cuando no hay efecto, los p-values se reparten **parejo** entre 0 y 1: en un A/A, un p-value de 0.03 es tan normal como uno de 0.6. Un p-value abajo de 0.05, solo, no prueba nada: sale 1 de cada 20 veces sin que haya nada.
 
 ## Trampas: mirar antes, comparar de más y repartir mal {Pitfalls: peeking, multiple comparisons and broken splits} [extra]
 
@@ -529,7 +523,7 @@ Falsas alarmas esperadas | 20 × 0.05 | **1**
 = Con 20 métricas sin ningún efecto real, lo más probable es que alguna salga «significativa». Celebrar esa es celebrar el ruido.
 :::
 
-Con 10 métricas, la probabilidad de al menos una falsa alarma es 1 − 0.95¹⁰ ≈ 40 %; con las 100 categorías que revisa el gate de C01, son 5 falsas alarmas esperadas en cada gate. Las defensas, de la más importante a la más técnica:
+Con 10 métricas, la probabilidad de al menos una falsa alarma es 1 − 0.95¹⁰ ≈ 40 %; con las 100 categorías que revisa el gate de C01, si cada una se probara a 0.05 sin corregir, serían 5 falsas alarmas esperadas en cada gate. Las defensas, de la más importante a la más técnica:
 
 1. **Una métrica primaria, escrita antes.** Es la que decide. Las demás se leen como pistas para entender, no como trofeos.
 2. **Corregir el corte.** La corrección de **Bonferroni** usa α ÷ k en cada prueba: con 20 pruebas, 0.05 ÷ 20 = 0.0025. Así la probabilidad de al menos una falsa alarma vuelve a ≈ 5 %. El precio es menos potencia en cada prueba.
@@ -549,13 +543,13 @@ La cuenta de tamaño de muestra supone que las publicaciones son independientes.
 
 ## ¿Es real una mejora de 0.2 puntos? {Is a 0.2-point improvement real?} [extra]
 
-Volvamos a la pregunta del principio. La Ronda la plantea en M10: entrenas dos veces con la misma configuración y el golden set dice 85.3 % y 85.1 % de top-1. ¿El segundo es peor, o es ruido? Y si un modelo nuevo saca 0.2 puntos más que el actual, ¿es mejor de verdad?
+Volvamos a la pregunta del principio. La Ronda la plantea en M10: entrenas dos veces con la misma configuración y el golden set dice 85.3 % y 85.1 % de [[top-k-accuracy|top-1]]. ¿El segundo es peor, o es ruido? Y si un modelo nuevo saca 0.2 puntos más que el actual, ¿es mejor de verdad?
 
 ### Dos ruidos distintos
 
 En esa pregunta se mezclan dos ruidos, y conviene separarlos.
 
-**El ruido del entrenamiento.** Entrenar tiene azar: la [[semilla]], el orden de los batches, hasta el orden de las sumas en la GPU. La misma receta entrenada con 5 semillas da, en el ejemplo de la Ronda, 85.21 %, 85.34 %, 85.12 %, 85.29 % y 85.18 %. El promedio es 85.23 % y la desviación estándar (entre n − 1, porque son una muestra de todas las semillas posibles) es ≈ 0.09 puntos, con 0.22 puntos entre el mejor y el peor. Una diferencia de 0.2 puntos entre dos corridas cabe de sobra en este ruido: no dice nada de la receta.
+**El ruido del entrenamiento.** Entrenar tiene azar: la [[semilla]], el orden de los batches, hasta el orden de las sumas en la GPU. La misma receta entrenada con 5 semillas da, en el ejemplo de la Ronda, 85.21 %, 85.34 %, 85.12 %, 85.29 % y 85.18 %. El promedio es 85.23 % y la desviación estándar (entre n − 1, porque son una muestra de todas las semillas posibles) es ≈ 0.09 puntos, con 0.22 puntos entre el mejor y el peor. Una diferencia de 0.2 puntos entre dos corridas cabe en este ruido: no dice nada de la receta.
 
 **El ruido de la evaluación.** El golden set tiene 50,000 fotos, no infinitas. Una accuracy medida con él trae ±0.3 puntos.
 
@@ -601,6 +595,16 @@ La prueba pareada no mira solo la diferencia: mira también cuántas discrepanci
 
 Dos modelos que casi siempre dicen lo mismo se distinguen con poca diferencia; dos que discrepan muchísimo necesitan una más grande.
 
+### Cuántas fotos para un margen
+
+¿Y por qué 50,000 fotos? La cuenta del intervalo también se puede hacer al revés: eliges el margen que necesitas y despejas n.
+
+n = 1.96² × p × (1 − p) ÷ margen²
+
+Para medir una accuracy de 85 % con ±1 punto: 3.84 × 0.1275 ÷ 0.01² ≈ 4,900 fotos. Con ±0.5 puntos, cuatro veces más: ≈ 19,600. Es la cuenta que decide de qué tamaño se hace un golden set, o cuántas fotos al azar hay que etiquetar cada mes para vigilar al modelo.
+
+Y esto se paga en dinero. El [[golden-set|golden set]] de C01 tiene 50,000 fotos etiquetadas por dos personas cada una y cuesta del orden de US$5–10 mil. Bajar su ruido de ±0.3 a ±0.15 puntos pediría 200,000 fotos: cuatro veces el costo.
+
 ### El golden set por pedazos: cada slice trae su ruido
 
 El margen de ±0.3 es del golden set completo. Un [[slice]] (*rebanada*, un pedazo de los datos que se mide aparte) tiene menos fotos, y por lo tanto más ruido:
@@ -611,7 +615,7 @@ El margen de ±0.3 es del golden set completo. Un [[slice]] (*rebanada*, un peda
 | Las fotos con poca luz, el 5 %, con 77.4 % | 2,500 | ± 1.6 |
 | Una categoría chica, con 85 % | 60 | ± 9 |
 
-Por eso el gate de C01 le permite a cada slice moverse lo que mide su propio intervalo (≈ 1–2 puntos), y a las categorías chicas solo las frena con caídas grandes. Exigir «ninguna categoría baja más de 5 puntos» sin mirar su ruido daría falsas alarmas cada mes.
+Por eso el gate de C01 le permite a cada slice moverse lo que mide su propio intervalo (≈ 1–2 puntos). A cada una de las 100 categorías con más tráfico la frena solo si su [[recall]] cae más de 5 puntos **y** la caída es significativa (McNemar por categoría, con la corrección de Holm); las categorías chicas se vigilan juntas, con el [[macro-promedio|macro-recall]] del [[long-tail|long tail]]. Exigir «ninguna categoría baja más de 5 puntos» sin mirar su ruido daría falsas alarmas cada mes.
 
 :::profundo Cuando ±2 errores estándar no alcanza: Wilson y bootstrap
 La receta de ±1.96 errores estándar supone una campana simétrica, lejos de los límites de 0 % y 100 %. Con pocos datos o proporciones extremas, falla:
@@ -646,13 +650,13 @@ Ninguno de estos errores truena: la cuenta corre y el número sale. El daño es 
 
 ### Parar el A/B cuando se ve bien
 
-**Qué pasa:** se revisa el experimento cada mañana y se para el día que p baja de 0.05. Con 14 miradas, las falsas alarmas pasan de 5 % a más de 20 %.
+**Qué pasa:** se revisa el experimento cada mañana y se para el día que p baja de 0.05: es el [[peeking]]. Con 14 miradas, las falsas alarmas pasan de 5 % a más de 20 %.
 
-**Cómo evitarlo:** fija la muestra y la duración antes, con la cuenta de potencia, y decide solo al final. Los guardrails se miran a diario para detener un daño, nunca para declarar victoria.
+**Cómo evitarlo:** fija la muestra y la duración antes, con la cuenta de potencia, y decide solo al final. Los guardrails (las métricas que no pueden empeorar, como la latencia) se miran a diario para detener un daño, nunca para declarar victoria.
 
 ### Medir 20 métricas y quedarte con la que salió
 
-**Qué pasa:** la métrica primaria no se movió, pero «el tiempo en la página subió en celulares Android de noche». Con 20 métricas sin efecto, lo raro sería que ninguna saliera: hay 64 % de probabilidad de al menos una.
+**Qué pasa:** la métrica primaria no se movió, pero «el tiempo en la página subió en celulares Android de noche». Son [[comparaciones-multiples|comparaciones múltiples]]. Con 20 métricas sin efecto, lo raro sería que ninguna saliera: hay 64 % de probabilidad de al menos una.
 
 **Cómo evitarlo:** una métrica primaria escrita antes, que es la que decide. Las demás son pistas que se confirman con otro experimento. Si decides con varias, corrige el corte (Bonferroni o Holm).
 
@@ -660,7 +664,7 @@ Ninguno de estos errores truena: la cuenta corre y el número sale. El daño es 
 
 **Qué pasa:** el experimento reparte cada request al azar. Ana ve sugerencias de dos modelos en la misma publicación y su comportamiento mezcla los dos. Y si se sortean vendedores pero se analizan publicaciones como independientes, la varianza sale más chica de lo que es y aparecen «ganadores» que no existen.
 
-**Cómo evitarlo:** sortea por la unidad que vive la experiencia (en C01, el vendedor), con un hash del id y una sal nueva por experimento, y calcula la varianza agrupando por esa unidad.
+**Cómo evitarlo:** sortea por la [[unidad-aleatorizacion|unidad]] que vive la experiencia (en C01, el vendedor), con un sorteo que siempre da lo mismo para cada vendedor y cambia en cada experimento, y calcula la varianza agrupando por esa unidad.
 
 ### Correr tres días e ignorar el efecto novedad
 
@@ -670,7 +674,7 @@ Ninguno de estos errores truena: la cuenta corre y el número sale. El daño es 
 
 ### Leer «no significativo» como «no hay efecto»
 
-**Qué pasa:** un A/B con 5,000 publicaciones por brazo sale p = 0.27 y se concluye «el modelo nuevo no sirve». Con esa muestra, la potencia para un efecto de 1 punto era ≈ 20 %: el experimento casi no podía ver nada.
+**Qué pasa:** un A/B con 5,000 publicaciones por brazo sale p = 0.27 y se concluye «el modelo nuevo no sirve». Con esa muestra, la [[potencia]] para un efecto de 1 punto era ≈ 20 %: el experimento casi no podía ver nada.
 
 **Cómo evitarlo:** haz la cuenta de potencia antes. Si no se rechaza H0, reporta el intervalo del efecto: «entre −0.8 y +2.8 puntos» dice mucho más que «no significativo».
 
@@ -678,21 +682,21 @@ Ninguno de estos errores truena: la cuenta corre y el número sale. El daño es 
 
 **Qué pasa:** el modelo nuevo saca 85.2 % ± 0.3 y el actual 85.0 % ± 0.3 en el mismo golden set. Los intervalos se enciman y se concluye «empate». Pero son las mismas fotos, y foto por foto pueden ser claramente distintos.
 
-**Cómo evitarlo:** compara foto por foto con una prueba pareada (McNemar o bootstrap pareado), que es lo que hace el gate de C01.
+**Cómo evitarlo:** compara foto por foto con una [[prueba-pareada|prueba pareada]] (McNemar o bootstrap pareado), que es lo que hace el gate de C01.
 
-## En la vida real {In real life}
+## En la vida real {In real life} [extra]
 
 Las mismas cuentas aparecen en cualquier lugar donde se decide con datos que no son infinitos.
 
 **C01 · El gate y el A/B.** Cada modelo nuevo se compara foto por foto contra el actual en las 50,000 fotos del golden set, con una prueba pareada y un margen de no inferioridad de −0.3 puntos; los slices, con su propio intervalo de ≈ 1–2 puntos; las 100 categorías con más tráfico, con McNemar y la corrección de Holm. Si el cambio es grande, sigue un A/B por vendedor: ≈ 33,000 publicaciones por brazo para ver 1 punto sobre 70 %, una o dos semanas completas y el reparto revisado antes que nada. Y ≈ 1 % de los vendedores no ve sugerencias durante meses: un control de largo plazo que mide cuánto vale todo el sistema.
 
-**C15 · Anuncios.** Un medio de noticias con ≈ 300 millones de impresiones de anuncios al día y un CTR (*click-through rate*, la fracción de impresiones con clic) de ≈ 0.35 % quiere subir su ingreso por cada 1,000 páginas vistas. La unidad es la persona, y el ingreso por persona es muy disparejo: la mayoría genera casi nada y unos pocos lectores mucho, con una desviación de ≈ 3 veces el promedio (un supuesto que se mide con un mes de logs). Ver un cambio de 1 % pide ≈ 1.41 millones de personas por brazo; uno de 2 %, ≈ 353,000: 1 ÷ efecto² otra vez. Como los brazos comparten el presupuesto de cada anunciante y se lo pueden robar, la Ronda lo parte por brazo. Y un anuncio nuevo, en sus primeras 10,000 impresiones, espera ≈ 35 clics: su CTR trae un ruido de ≈ 1 ÷ √35 ≈ 17 %.
+**C15 · Anuncios.** Un medio de noticias con ≈ 300 millones de impresiones de anuncios al día y un CTR (*click-through rate*, la fracción de impresiones con clic) de ≈ 0.35 % quiere subir su ingreso por cada 1,000 páginas vistas. La unidad es la persona, y el ingreso por persona es muy disparejo: la mayoría genera casi nada y unos pocos lectores mucho, con una desviación de ≈ 3 veces el promedio (un supuesto que se mide con un mes de logs). Ver un cambio de 1 % en el ingreso por persona (1 % de su valor, no un punto) pide ≈ 1.41 millones de personas por brazo; uno de 2 %, ≈ 353,000: 1 ÷ efecto² otra vez. Como los brazos comparten el presupuesto de cada anunciante y se lo pueden robar, la Ronda lo parte por brazo. Y un anuncio nuevo, en sus primeras 10,000 impresiones, espera ≈ 35 clics: su CTR trae un ruido de ≈ 1 ÷ √35 ≈ 17 %.
 
 **Monitoreo (M12).** En C04, un sistema de patología digital con laminillas de 3 laboratorios, se revisan 4 estadísticas de drift por laboratorio cada día: 12 pruebas diarias a α = 0.05. Sin que nada cambie, son ≈ 18 falsas alarmas al mes. Así nace la fatiga de alertas: si la alarma suena siempre, nadie la oye.
 
-**Medicina.** Los ensayos clínicos son pruebas A/B con más reglas: pacientes repartidos al azar, un grupo de control con placebo o con el tratamiento de siempre, a veces sin que ni el paciente ni el médico sepan quién recibe qué (doble ciego), y la métrica primaria registrada antes de empezar. El ensayo de estreptomicina contra la tuberculosis del Medical Research Council británico, publicado en 1948, suele contarse como el primer ensayo aleatorizado moderno: murieron 4 de 55 pacientes con estreptomicina y 14 de 52 en el control. El placebo existe por algo parecido al efecto novedad: recibir algo, solo por recibirlo, ya cambia el resultado.
+**Medicina.** Los ensayos clínicos son pruebas A/B con más reglas: pacientes repartidos al azar, un grupo de control con placebo o con el tratamiento de siempre, a veces sin que ni el paciente ni el médico sepan quién recibe qué (doble ciego), y la métrica primaria registrada antes de empezar. El ensayo de estreptomicina contra la tuberculosis del Medical Research Council británico, publicado en 1948, suele contarse como el primer ensayo aleatorizado moderno: murieron 4 de 55 pacientes con estreptomicina y 14 de 52 en el control. El placebo existe porque recibir algo, solo por recibirlo, ya cambia el resultado, un primo del efecto novedad: dárselo también al control hace que ese efecto les toque a los dos grupos.
 
-**Encuestas.** Una encuesta de 1,000 personas al azar mide una intención de voto con un margen de ≈ ±3 puntos: 1.96 × √(0.5 × 0.5 ÷ 1,000) ≈ 3.1. Es el «margen de error» de las noticias, y no cubre lo que le pasó al *Literary Digest*: una muestra sesgada puede tener un margen chiquito y estar mal.
+**Encuestas.** Una encuesta de 1,000 personas al azar mide una intención de voto con un margen de ≈ ±3 puntos: 1.96 × √(0.5 × 0.5 ÷ 1,000) ≈ 3.1. Es el «margen de error» de las noticias, y no cubre el sesgo. En 1936, la revista estadounidense *Literary Digest* mandó más de 10 millones de boletas para adivinar la elección presidencial y le regresaron ≈ 2.4 millones. Predijo que Alf Landon ganaría con ≈ 57 % de los votos; ganó Franklin Roosevelt con ≈ 61 %. Sus listas salían de directorios telefónicos y registros de autos, en plena crisis económica, y contestó una de cada cuatro personas: ni las listas ni quienes contestaron se parecían al país. Una muestra sesgada puede tener un margen chiquito y estar mal.
 
 ## Ejercicios {Exercises}
 
@@ -754,11 +758,13 @@ Error estándar de la diferencia | √1,100 ÷ 50,000 | ≈ 0.066 puntos
 Intervalo de 95 % | 0.2 ± 1.96 × 0.066 | +0.07 a +0.33
 = Significativo, y el extremo de abajo, +0.07, queda muy por encima de −0.3: pasa el gate.
 :::
-Con 1,050 contra 950 la mejora era la misma, pero con 2,000 discrepancias: z ≈ 2.24 y p ≈ 0.025. Con la mitad de discrepancias, la misma diferencia se distingue mejor. Comparadas como muestras independientes, las dos darían el mismo z ≈ 0.89 y p ≈ 0.38.
-? [reto] Tu jefa quiere un A/B de C01 que vea 0.5 puntos de mejora sobre la aceptación de 70 % (α = 0.05, potencia de 80 %), con solo 10 % del tráfico en el tratamiento, y propone lanzar el modelo la primera mañana que p < 0.05. (a) ¿Cuántas publicaciones necesita el tratamiento, sin y con el *design effect* de 1.4 de la sección de trampas? (b) ¿En cuánto tiempo se juntan? (c) ¿Qué le contestas sobre revisarlo cada mañana, y cuánto debe durar?
-**(a)** Con MDE de 0.5 puntos, la fórmula completa da **131,229** publicaciones por brazo (la regla de bolsillo, 16 × 0.21 ÷ 0.005² = 134,400). Con el *design effect* de 1.4: 131,229 × 1.4 ≈ **183,700**.
+Con 1,050 contra 950 la mejora era la misma, pero con 2,000 discrepancias: z ≈ 2.24 y p ≈ 0.025. Con casi la mitad de discrepancias, la misma diferencia se distingue mejor. Comparadas como muestras independientes (con accuracies de ≈ 85 %), las dos darían el mismo z ≈ 0.89 y p ≈ 0.38.
+? [reto] Tu jefa quiere un A/B de C01 que vea 0.5 puntos de mejora sobre la aceptación de 70 % (α = 0.05, potencia de 80 %), con solo 10 % del tráfico en el tratamiento, y propone lanzar el modelo la primera mañana que p < 0.05. (a) ¿Cuántas publicaciones por brazo pide la fórmula, sin y con el *design effect* de 1.4 de la sección de trampas? (b) ¿En cuánto tiempo las junta el tratamiento? (c) ¿Qué le contestas sobre revisarlo cada mañana, y cuánto debe durar?
+**(a)** Con MDE de 0.5 puntos, la fórmula completa da **131,229** publicaciones por brazo (la regla de bolsillo, 16 × 0.21 ÷ 0.005² = 134,400). Con el *design effect* de 1.4: 131,229 × 1.4 ≈ **183,700**.
 
-**(b)** El tratamiento recibe 10 % de ≈ 2.5 M publicaciones al día: 250,000. 131,229 ÷ 250,000 ≈ 0.52 días ≈ **12.6 horas**; con el *design effect*, 183,700 ÷ 250,000 ≈ 0.73 días ≈ **18 horas**. El control, con 90 % del tráfico, termina antes.
+Esa fórmula supone brazos iguales. Con un control 9 veces más grande, su ruido casi no pesa y al tratamiento le basta algo más de la mitad: ≈ 73,000 (≈ 102,000 con el *design effect*). Usar el número de brazos iguales es ir a la segura.
+
+**(b)** El tratamiento recibe 10 % de ≈ 2.5 M publicaciones al día: 250,000. 131,229 ÷ 250,000 ≈ 0.52 días ≈ **12.6 horas**; con el *design effect*, 183,700 ÷ 250,000 ≈ 0.73 días ≈ **18 horas**. Con brazos desiguales, ≈ 7 y ≈ 10 horas. El control, con 90 % del tráfico, termina antes.
 
 **(c)** Parar en el primer p < 0.05 es peeking: con 14 miradas, las falsas alarmas pasan de 5 % a más de 20 %. La propuesta: fijar desde hoy **dos semanas completas**, aunque la muestra se junte en un día, por el ciclo semanal, el efecto novedad y las recategorizaciones que llegan tarde. Cada mañana sí se miran el reparto y los guardrails, para detener un daño, no para declarar victoria.
 :::
@@ -769,7 +775,7 @@ Con 1,050 contra 950 la mejora era la misma, pero con 2,000 discrepancias: z ≈
 
 - **M10 · MLOps** arma el gate de C01 con lo de las secciones extra: comparación pareada sobre el golden set (McNemar, con 1,100 contra 900), no inferioridad con margen de −0.3 puntos, otra comparación contra el modelo de hace 3 meses, McNemar por categoría con Holm sobre 100 y la dispersión entre semillas (≈ 0.09 puntos) para definir «reproducible».
 - **M11 · Despliegue seguro** dedica una sección al A/B: la unidad de aleatorización, la métrica primaria y sus guardrails, las ≈ 33,000 publicaciones por brazo, por qué dura semanas, el peeking (21.5 % en su simulación), el *sample ratio mismatch* y la interferencia entre brazos. También trae dos alternativas: *interleaving*, que compara dos rankings dentro de la misma lista, y *bandits*.
-- **M12 · Monitoreo** usa los intervalos para elegir ventanas (una tasa de 10 % con una semana de datos trae ±1.1 puntos; con cuatro semanas, ±0.56) y explica la fatiga de alertas con las comparaciones múltiples.
+- **M12 · Monitoreo** usa los intervalos para elegir ventanas (en C04, una tasa de 10 % medida con una semana de laminillas de un laboratorio trae ±1.1 puntos; con cuatro semanas, ±0.56) y explica la fatiga de alertas con las comparaciones múltiples.
 - Los casos **C01** (gate y A/B por vendedor) y **C15** (A/B por persona con presupuestos separados) hacen las cuentas en grande.
 
 **En el Dojo:** la estación 4, «Gate de evaluación y registry», va a armar la comparación pareada sobre el golden set, y la 10, «Rollout seguro», el camino de shadow, canary y A/B. Las dos están en preparación.

@@ -260,8 +260,8 @@
       "id": "drift",
       "termino": "Drift",
       "en": "data drift · deriva",
-      "corto": "Cuando los datos que llegan en producción dejan de parecerse a los del entrenamiento, y el modelo empieza a fallar más aunque nadie lo haya tocado.",
-      "largo": "El modelo no se descompone: el mundo cambia a su alrededor. Llegan productos nuevos, cambian las modas, las cámaras de los celulares toman fotos distintas.",
+      "corto": "Cuando los datos que llegan en producción dejan de parecerse a los del entrenamiento. Por eso el modelo puede empezar a fallar más aunque nadie lo haya tocado.",
+      "largo": "El modelo no se descompone: el mundo cambia a su alrededor. Llegan productos nuevos, cambian las modas, las cámaras de los celulares toman fotos distintas. Ojo: drift no siempre quiere decir que el modelo empeoró (con fotos mejor iluminadas hasta puede acertar más). Por eso el drift abre una investigación, y lo que decide si hay que reentrenar son las etiquetas nuevas.",
       "ejemplo": "Salen modelos nuevos de tenis y los celulares toman fotos con otra luz: las fotos que llegan se parecen cada vez menos a las del entrenamiento, y el modelo acierta un poco menos cada mes. Una categoría nueva (como «bolsas» en el Dojo) es otra cosa: ahí el modelo ni siquiera tiene esa respuesta.",
       "ver": [
         "monitoreo",

@@ -10,7 +10,7 @@ requisitos: imagenes, aprender
 Una red neuronal es una pila de capas que hacen cuentas muy simples (multiplicar, sumar y quitar los negativos), repetidas miles de millones de veces; contar esas cuentas te dice cuánta memoria y cuánta GPU pide el modelo. Una CNN mira la foto por pedacitos, con el mismo filtro en todas partes: por eso reconoce un tenis esté donde esté, con pocos parámetros.
 :::
 
-## Una neurona y el perceptrón {One neuron and the perceptron}
+## Una neurona y su límite {One neuron and its limit}
 
 En las lecciones anteriores viste que un modelo es una función con [[parametro|parámetros]] y que entrenar es ajustarlos. Ahora vamos a abrir la caja: ¿qué cuentas hace por dentro?
 
@@ -57,61 +57,25 @@ El nombre viene de las neuronas del cerebro: reciben señales de otras y, si la 
 **Dónde se rompe:** la neurona artificial es solo una multiplicación y una suma; una neurona real es una célula muchísimo más compleja. Una red neuronal no es un cerebro ni funciona como uno. Es una función matemática que tomó el nombre de una inspiración de hace décadas.
 :::
 
-### El perceptrón: la primera neurona que aprendía
-
-En 1958, el psicólogo estadounidense Frank Rosenblatt publicó el [[perceptron|perceptrón]]: una neurona como la de arriba, pero con una activación de **escalón**: si la suma pasa de 0 sale 1 («sí») y si no, 0 («no»). Lo nuevo era que **aprendía solo**, con una regla simple. Si acierta, no cambia nada. Si dijo 0 y era 1, le suma cada entrada a su peso (y 1 al sesgo), para que la próxima vez su suma salga más alta; si dijo 1 y era 0, se las resta.
-
-Probémoslo con dos funciones de dos entradas. El AND vale 1 solo si las dos valen 1. El XOR («o exclusivo») vale 1 si **exactamente una** vale 1. Cada «vuelta» es una pasada por los cuatro casos.
-
-```python
-# El perceptrón de Rosenblatt: si se equivoca, mueve sus pesos hacia la respuesta
-def entrenar(datos, vueltas=20):
-    w1, w2, b = 0, 0, 0
-    for vuelta in range(1, vueltas + 1):
-        errores = 0
-        for x1, x2, y in datos:
-            pred = 1 if w1 * x1 + w2 * x2 + b > 0 else 0   # el escalón
-            if pred != y:
-                errores += 1
-                w1 += (y - pred) * x1          # dijo 0 y era 1: suma la entrada
-                w2 += (y - pred) * x2          # dijo 1 y era 0: la resta
-                b += (y - pred)
-        if errores == 0:
-            return f"aprendió en la vuelta {vuelta}: w1={w1}, w2={w2}, b={b}"
-    return f"tras {vueltas} vueltas sigue fallando {errores} de 4"
-
-AND = [(0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 1)]
-XOR = [(0, 0, 0), (0, 1, 1), (1, 0, 1), (1, 1, 0)]
-print("AND:", entrenar(AND))
-print("XOR:", entrenar(XOR))
-```
-
-```salida
-AND: aprendió en la vuelta 6: w1=2, w2=1, b=-2
-XOR: tras 20 vueltas sigue fallando 4 de 4
-```
-
-Con el AND, a la sexta vuelta ya no se equivoca: con w₁ = 2, w₂ = 1 y b = −2, solo la entrada (1, 1) da una suma positiva (2 + 1 − 2 = 1). Con el XOR se queda en un ciclo en el que cada corrección deshace la anterior; ni con mil vueltas aprende.
-
-Rosenblatt llegó a construir una máquina, la Mark I Perceptron, que veía con una cámara de 20 × 20 = 400 fotoceldas, y un periódico de 1958 contó que la Marina de Estados Unidos esperaba que una máquina así llegara a caminar, hablar y ver. No pasó: el perceptrón tenía un límite que ninguna cantidad de vueltas arregla.
-
 ### Lo que una neurona sola no puede: el XOR
 
-¿Por qué falla? Una neurona con escalón responde 1 cuando w₁x₁ + w₂x₂ + b > 0 y 0 cuando no. La frontera entre las dos respuestas, w₁x₁ + w₂x₂ + b = 0, es una **recta**: una neurona sola parte el plano en dos con una recta, y nada más.
+Pongamos a una neurona a contestar «sí» o «no» sobre dos entradas que valen 0 o 1. En vez de la ReLU usa una activación de **escalón**: si la suma pasa de 0 sale 1 («sí»), y si no, 0 («no»). Dos funciones para probarla: el AND vale 1 solo si las dos entradas valen 1; el XOR («o exclusivo») vale 1 si **exactamente una** vale 1.
+
+La neurona responde 1 cuando w₁x₁ + w₂x₂ + b > 0 y 0 cuando no. La frontera entre las dos respuestas, w₁x₁ + w₂x₂ + b = 0, es una **recta**: una neurona sola parte el plano en dos con una recta, y nada más.
 
 :::figura redes-xor
 Arriba, el AND: el único punto que vale 1 queda solo de un lado de una recta. En medio, el XOR: los dos que valen 1 están en esquinas opuestas y ninguna recta los aparta de los otros dos. Abajo, la solución de la siguiente sección: una capa oculta mueve los puntos y ahí una recta sí sirve.
 :::
 
-Pon los cuatro casos como puntos, con x₁ a lo ancho y x₂ a lo alto. En el AND, el único 1 es la esquina (1, 1), y una recta la aparta. En el XOR, los unos están en esquinas opuestas, (0, 1) y (1, 0): cualquier recta que los deje del mismo lado deja también a alguno de los ceros. No es que el perceptrón no se esfuerce: lo que le pides no se puede dibujar con una recta.
+Pon los cuatro casos como puntos, con x₁ a lo ancho y x₂ a lo alto. En el AND, el único 1 es la esquina (1, 1), y una recta la aparta: con w₁ = 2, w₂ = 1 y b = −2, solo (1, 1) da una suma positiva (2 + 1 − 2 = 1). En el XOR, los unos están en esquinas opuestas, (0, 1) y (1, 0): cualquier recta que los deje del mismo lado deja también a alguno de los ceros. No es que falten pesos buenos: lo que le pides no se puede dibujar con una recta.
 
-En 1969, Marvin Minsky y Seymour Papert publicaron *Perceptrons*, un libro que convirtió este tipo de límites en teoremas. Se le suele culpar de que el interés y el dinero para las redes neuronales se enfriaran durante años; la historia real tiene más causas (computadoras lentas, pocos datos), pero el límite es real. La salida es juntar varias neuronas, en capas.
+Una neurona así, con escalón, es el [[perceptron|perceptrón]] que Frank Rosenblatt publicó en 1958, una de las primeras neuronas artificiales que aprendían solas. Aprendía el AND, pero nunca el XOR; su historia, con código, está en la sección extra «Del perceptrón a la inicialización». La salida es juntar varias neuronas, en capas.
 
 ## Capas y MLP: la red completa y lo que cuesta {Layers and MLPs: the whole network and its cost}
 
 Una neurona sola traza una recta. Se juntan muchas en una [[capa]]: todas reciben las mismas entradas, cada una con sus propios pesos, y cada una saca un número. Las salidas de una capa son las entradas de la siguiente. Eso es una [[red-neuronal|red neuronal]].
 
-Cuando cada neurona de una capa ve **todas** las salidas de la anterior, la capa se llama **densa** (*dense* o *fully connected*). Una red de capas densas con activaciones entre ellas es un [[mlp|MLP]] (*multilayer perceptron*, perceptrón multicapa), un nombre en honor al de Rosenblatt aunque ya no usa escalón. Las capas de en medio se llaman **capas ocultas** (*hidden layers*).
+Cuando cada neurona de una capa ve **todas** las salidas de la anterior, la capa se llama **densa** (*dense* o *fully connected*). Una red de capas densas con activaciones entre ellas es un [[mlp|MLP]] (*multilayer perceptron*, perceptrón multicapa), un nombre que viene del perceptrón, aunque ya no usa escalón. Las capas de en medio se llaman **capas ocultas** (*hidden layers*).
 
 ### El XOR, resuelto con una capa oculta
 
@@ -135,7 +99,7 @@ Es exactamente el XOR. La red tiene 9 parámetros: 4 pesos y 2 sesgos en la capa
 
 ¿Qué hizo la capa oculta? Movió los puntos: con las coordenadas (h₁, h₂), los dos casos que valen 1 caen juntos en (1, 0), y ahí una recta sí los separa de los ceros (el panel de abajo de la figura). Esa es la idea de toda red neuronal: **cada capa acomoda los datos para que a la siguiente le sea más fácil**.
 
-Aquí los pesos los puse a mano. En una red de verdad los encuentra el entrenamiento, con la [[backpropagation]] de la lección anterior: justo lo que faltaba en 1969, una forma de repartir la culpa del error entre las capas ocultas.
+Aquí los pesos los puse a mano. En una red de verdad los encuentra el entrenamiento, con la [[backpropagation]] que viste en «Cómo aprende un modelo»: una forma de repartir la culpa del error entre todas las capas, también las ocultas. Es justo lo que le faltaba a la regla del perceptrón, que solo sabe corregir la neurona que da la respuesta.
 
 Usar redes con muchas capas es el [[deep-learning|deep learning]] (aprendizaje profundo): «profundo» se refiere a la cantidad de capas. Cada capa trabaja sobre lo que encontró la anterior, así que más capas dan más pasos para combinar cosas simples en complicadas. La ResNet-50 de C01 tiene 50 capas con pesos.
 
@@ -199,7 +163,51 @@ Con los dígitos son 101,770 parámetros. Con la foto de C01 y apenas 128 neuron
 
 Contar parámetros dice cuánta memoria pide el modelo. Guardado como [[float32]], cada uno ocupa 4 bytes: los 25.6 millones de una ResNet-50 son 25.6 M × 4 B ≈ 102 MB, la primera cuenta de la Ronda en M04 para saber cuánta memoria de [[gpu|GPU]] necesita.
 
-Contar MACs dice cuánto cálculo pide cada foto: la ResNet-50 hace ≈ 4,100 millones, 4.1 GMACs (G es «giga», mil millones). Cada MAC son dos operaciones, así que son 8.2 GFLOPs ([[flop|FLOPs]]: operaciones con números decimales). La Ronda, en M03, lo usa como chequeo de cordura: una GPU T4 hace a lo mucho ≈ 65 × 10¹² operaciones por segundo en float16, así que nunca pasará de 65 × 10¹² ÷ 8.2 × 10⁹ ≈ 7,900 fotos por segundo. Lo medido es ≈ 1,200: el techo dice qué es imposible, no qué vas a obtener.
+Contar MACs dice cuánto cálculo pide cada foto: la ResNet-50 hace ≈ 4,100 millones, 4.1 GMACs (G es «giga», mil millones). Cuánto tarda eso en una GPU de verdad lo ves con la T4 de C01 en «En la vida real».
+
+## Del perceptrón a la inicialización {From the perceptron to initialization} [extra]
+
+Esta sección es para una segunda pasada: cómo aprendía una de las primeras neuronas artificiales, por qué las redes se atoraron durante años y con qué números empiezan los pesos de una red de hoy.
+
+### El perceptrón: una neurona que aprendía de sus errores
+
+En 1958, el psicólogo estadounidense Frank Rosenblatt publicó el [[perceptron|perceptrón]]: una neurona con escalón, como la del XOR de la primera sección. Lo nuevo era que **aprendía solo**, con una regla simple. Si acierta, no cambia nada. Si dijo 0 y era 1, le suma cada entrada a su peso (y 1 al sesgo), para que la próxima vez su suma salga más alta; si dijo 1 y era 0, se las resta.
+
+Probémoslo con el AND y el XOR de la primera sección. Cada «vuelta» es una pasada por los cuatro casos.
+
+```python
+# El perceptrón de Rosenblatt: si se equivoca, mueve sus pesos hacia la respuesta
+def entrenar(datos, vueltas=20):
+    w1, w2, b = 0, 0, 0
+    for vuelta in range(1, vueltas + 1):
+        errores = 0
+        for x1, x2, y in datos:
+            pred = 1 if w1 * x1 + w2 * x2 + b > 0 else 0   # el escalón
+            if pred != y:
+                errores += 1
+                w1 += (y - pred) * x1          # dijo 0 y era 1: suma la entrada
+                w2 += (y - pred) * x2          # dijo 1 y era 0: la resta
+                b += (y - pred)
+        if errores == 0:
+            return f"aprendió en la vuelta {vuelta}: w1={w1}, w2={w2}, b={b}"
+    return f"tras {vueltas} vueltas sigue fallando {errores} de 4"
+
+AND = [(0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 1)]
+XOR = [(0, 0, 0), (0, 1, 1), (1, 0, 1), (1, 1, 0)]
+print("AND:", entrenar(AND))
+print("XOR:", entrenar(XOR))
+```
+
+```salida
+AND: aprendió en la vuelta 6: w1=2, w2=1, b=-2
+XOR: tras 20 vueltas sigue fallando 4 de 4
+```
+
+Con el AND, a la sexta vuelta ya no se equivoca: llega a w₁ = 2, w₂ = 1 y b = −2, los pesos que viste en la primera sección. Con el XOR se queda en un ciclo en el que cada corrección deshace la anterior; ni con mil vueltas aprende.
+
+Rosenblatt llegó a construir una máquina, la Mark I Perceptron, que veía con una cámara de 20 × 20 = 400 fotoceldas, y un periódico de 1958 contó que la Marina de Estados Unidos esperaba que una máquina así llegara a caminar, hablar y ver. No pasó: el perceptrón tenía un límite que ninguna cantidad de vueltas arregla, el del XOR.
+
+En 1969, Marvin Minsky y Seymour Papert publicaron *Perceptrons*, un libro que convirtió este tipo de límites en teoremas. Se le suele culpar de que el interés y el dinero para las redes neuronales se enfriaran durante años; la historia real tiene más causas (computadoras lentas, pocos datos), pero el límite es real. La salida fueron las capas ocultas y una forma de entrenarlas, la backpropagation.
 
 :::profundo De 1958 a hoy, en ocho fechas
 | Año | Qué pasó |
@@ -213,16 +221,14 @@ Contar MACs dice cuánto cálculo pide cada foto: la ResNet-50 hace ≈ 4,100 mi
 | 2015 | Gana la ResNet, con atajos y 152 capas. Salen también la BatchNorm y la U-Net. |
 | 2020 | El Vision Transformer muestra que un transformer, la arquitectura de los LLMs, también ve fotos. |
 
-Entre 1986 y 2012 la idea básica casi no cambió. Cambiaron tres cosas: muchos más datos, GPUs para hacer las cuentas y trucos para entrenar redes profundas (la ReLU, una buena inicialización, el Dropout, la BatchNorm y los atajos), que están todos en esta lección.
+Desde 1986 la idea básica casi no cambió. Cambiaron tres cosas: muchos más datos, GPUs para hacer las cuentas y trucos para entrenar redes profundas. La ReLU y el Dropout ya los usó AlexNet en 2012; una buena inicialización, la BatchNorm y los atajos se sumaron entre 2010 y 2015. Están todos en esta lección.
 :::
 
-## Inicialización: con qué números empieza una red {Initialization: where the weights start} [extra]
+### Inicialización: con qué números empieza una red
 
 Antes del primer paso del entrenamiento, cada peso necesita un valor. Elegirlo se llama [[inicializacion|inicialización]] (*initialization*). Parece un detalle, pero durante años fue una de las razones por las que las redes profundas no aprendían.
 
-### ¿Por qué no empezar todo en cero?
-
-Piensa en dos neuronas ocultas que empiezan con los mismos pesos. Reciben las mismas entradas, así que calculan lo mismo; la backpropagation les reparte la misma culpa, así que se mueven igual. Paso tras paso siguen siendo gemelas: dos neuronas que valen por una. Es el problema de la **simetría**. Con todo en cero es peor: las ocultas sacan 0, la salida las multiplica por pesos que valen 0, la culpa regresa multiplicada por esos mismos ceros y nada se mueve.
+**¿Por qué no empezar todo en cero?** Piensa en dos neuronas ocultas que empiezan con los mismos pesos. Reciben las mismas entradas, así que calculan lo mismo; la backpropagation les reparte la misma culpa, así que se mueven igual. Paso tras paso siguen siendo gemelas: dos neuronas que valen por una. Es el problema de la **simetría**. Con todo en cero es peor: las ocultas sacan 0, la salida las multiplica por pesos que valen 0, la culpa regresa multiplicada por esos mismos ceros y nada se mueve.
 
 ```python
 # Dos neuronas ocultas que empiezan iguales: ¿se separan al entrenar?
@@ -262,7 +268,7 @@ Con 0.5, las dos neuronas se mueven, pero en cada paso tienen exactamente los mi
 
 Al azar, sí, pero ¿de qué tamaño? Si los pesos son un poco grandes, los números crecen un poco en cada capa y después de 20 o 50 capas explotan; si son un poco chicos, se encogen hasta casi 0. Lo mismo le pasa a la culpa del entrenamiento, que viaja de regreso por los mismos pesos.
 
-El tamaño justo depende de cuántas entradas suma cada neurona: entre más entradas, más chicos los pesos, para que la suma no crezca. La regla más usada con ReLU es la de He (Kaiming He y otros, 2015, el mismo primer autor de la ResNet): pesos al azar alrededor de 0 con una desviación estándar (qué tanto se alejan de 0, en promedio) de √(2 ÷ entradas). El 2 compensa que la ReLU apaga más o menos la mitad de los números, los negativos.
+El tamaño justo depende de cuántas entradas suma cada neurona: entre más entradas, más chicos los pesos, para que la suma no crezca. La regla más usada con ReLU es la de He (Kaiming He y otros, 2015, el mismo primer autor de la ResNet): pesos al azar alrededor de 0 con una desviación estándar de √(2 ÷ entradas). La desviación estándar mide qué tan lejos de 0 caen: es la raíz del promedio de sus cuadrados, la misma cuenta que hace `tamano` en el código de abajo. El 2 compensa que la ReLU apaga más o menos la mitad de los números, los negativos.
 
 ```python
 # ¿Qué le pasa a la señal después de 20 capas, según el tamaño de los pesos?
@@ -296,7 +302,7 @@ Con 512 canales de entrada | √(2 ÷ (3 × 3 × 512)) = √(2 ÷ 4,608) | ≈ 0
 = Más entradas, pesos más chicos: así la suma de cada neurona se queda del mismo tamaño en toda la red.
 :::
 
-En la práctica no lo escribes tú: PyTorch inicializa cada capa con una regla de este tipo al crearla, y la ResNet de torchvision usa la de He en sus convoluciones. En C01 casi ni importa, porque el backbone llega ya entrenado con ImageNet: solo la capa nueva de 2,048 → 500 empieza al azar, con números entre −1/√2,048 y +1/√2,048, o sea entre −0.022 y +0.022.
+En la práctica no lo escribes tú: PyTorch inicializa cada capa con una regla de este tipo al crearla, y la ResNet de torchvision usa la de He en sus convoluciones. En C01 casi ni importa, porque la red llega ya entrenada con ImageNet, más de un millón de fotos (lo ves en «Backbone, cabeza y transfer learning»): solo la capa nueva de 2,048 → 500 empieza al azar, con números entre −1/√2,048 y +1/√2,048, o sea entre −0.022 y +0.022.
 
 :::ojo
 Inicializar al azar es una de las razones por las que dos entrenamientos con los mismos datos dan resultados un poco distintos. Por eso C01 fija la [[semilla]]: con la misma semilla salen los mismos «azares».
@@ -341,18 +347,18 @@ Pesos de un filtro // mira los 3 canales a la vez | 3 × 3 × 3 | 27
 Parámetros de un filtro | 27 pesos + 1 sesgo | 28
 Parámetros de la capa | 64 filtros × 28 | 1,792
 Posiciones del filtro // con un marco de ceros la salida mide lo mismo que la entrada (lo ves abajo) | 224 × 224 | 50,176
-MACs de la capa | 50,176 posiciones × 64 filtros × 27 pesos | 86,704,128 ≈ 87 millones
+MACs de la capa | 50,176 posiciones × 64 filtros × 27 pesos = 86,704,128 | ≈ 87 millones
 Veces que se usa cada peso | una por posición | 50,176
 = 1,792 parámetros, 84,000 veces menos que los ≈ 150 millones de la capa densa, pero ≈ 87 millones de MACs: cada peso se reutiliza en las 50,176 posiciones.
 :::
 
-Esa es la diferencia de fondo: en una capa densa cada peso se usa una vez por foto; en una convolución, una vez por posición. Por eso la Ronda, en M04, dice que una CNN en GPU, con batches moderados, suele estar limitada por el cálculo y no por la memoria: cada peso que lee lo usa miles de veces.
+Esa es la diferencia de fondo: en una capa densa cada peso se usa una vez por foto; en una convolución, una vez por posición. Por eso la Ronda, en M04, dice que una CNN en GPU, con batches moderados, suele estar limitada por el cálculo y no por la memoria ([[compute-bound]]): la GPU pasa más tiempo haciendo cuentas que esperando números de la memoria, porque cada peso que lee lo usa miles de veces.
 
 ### Stride y padding: el tamaño de la salida
 
 En el ejemplo, la entrada era de 5 × 5 y la salida de 3 × 3: en una fila de 5, una ventana de 3 cabe en 5 − 3 + 1 = 3 posiciones. Dos perillas cambian esa cuenta:
 
-- El [[stride]] (paso): cuántos píxeles salta el filtro de una posición a la siguiente. Con stride 2 salta de dos en dos, y la salida queda de la mitad de ancho y de alto.
+- El [[stride]] (paso): cuántos píxeles salta el filtro de una posición a la siguiente. Con stride 2 salta de dos en dos, y la salida queda más o menos de la mitad de ancho y de alto.
 - El [[padding]] (relleno): un marco de ceros alrededor de la entrada, para que el filtro también se centre en las orillas y la salida no se encoja.
 
 Con las dos, el lado de la salida es:
@@ -380,48 +386,15 @@ El stride es la forma barata de achicar: con stride 2 queda la cuarta parte de l
 
 :::cuenta La primera capa de la ResNet-50
 Lado de salida // filtros de 7 × 7, padding 3, stride 2 | (224 + 6 − 7) ÷ 2 = 111.5, baja a 111; más 1 | 112
-Parámetros // sin sesgo: la BatchNorm que sigue ya suma su propio número | 7 × 7 × 3 × 64 | 9,408
-MACs // cada posición usa los 7 × 7 × 3 = 147 pesos de cada filtro | 112 × 112 × 64 × 147 | 118,013,952 ≈ 118 millones
-Después, el max pooling // ventana de 3 × 3, padding 1, stride 2 | (112 + 2 − 3) ÷ 2 = 55.5, baja a 55; más 1 | 56
+Parámetros // sin sesgo: la capa que sigue, una BatchNorm (la ves más adelante), ya suma su propio número | 7 × 7 × 3 × 64 | 9,408
+MACs // cada posición usa los 7 × 7 × 3 = 147 pesos de cada filtro | 112 × 112 × 64 × 147 = 118,013,952 | ≈ 118 millones
+Después, el max pooling // lo ves en un momento: ventana de 3 × 3, padding 1, stride 2 | (112 + 2 − 3) ÷ 2 = 55.5, baja a 55; más 1 | 56
 = La foto de 224 × 224 × 3 sale de las dos primeras capas como 64 mapas de 56 × 56: 16 veces menos posiciones, por apenas el 2.9 % de las MACs de toda la red.
 :::
 
 :::calculadora redes-conv
 Prueba n = 5, k = 3, p = 1 y s = 1: la salida mide 5, como la entrada. Luego sube el stride a 2.
 :::
-
-Lo mismo en Python, para varias capas de la ResNet-50:
-
-```python
-def lado(n, k, s, p):
-    return (n + 2 * p - k) // s + 1    # // divide y redondea hacia abajo
-
-def conv(nombre, n, c_in, c_out, k, s, p):
-    m = lado(n, k, s, p)
-    params = k * k * c_in * c_out          # sin sesgo, como en la ResNet
-    macs = m * m * c_out * k * k * c_in    # posiciones × filtros × pesos por filtro
-    print(f"{nombre:<24}{n:>4} -> {m:<4}{params:>12,}{macs:>15,}")
-
-print(f"{'capa':<24}{'lado':>4}{'':8}{'parámetros':>12}{'MACs':>15}")
-conv("primera, 7x7 stride 2", 224, 3, 64, 7, 2, 3)
-print(f"{'max pooling 3x3 s2':<24}{112:>4} -> {lado(112, 3, 2, 1)}")
-conv("3x3 de la etapa 1", 56, 64, 64, 3, 1, 1)
-conv("3x3 de la etapa 2", 28, 128, 128, 3, 1, 1)
-conv("3x3 de la etapa 3", 14, 256, 256, 3, 1, 1)
-conv("3x3 de la etapa 4", 7, 512, 512, 3, 1, 1)
-```
-
-```salida
-capa                    lado          parámetros           MACs
-primera, 7x7 stride 2    224 -> 112        9,408    118,013,952
-max pooling 3x3 s2       112 -> 56
-3x3 de la etapa 1         56 -> 56        36,864    115,605,504
-3x3 de la etapa 2         28 -> 28       147,456    115,605,504
-3x3 de la etapa 3         14 -> 14       589,824    115,605,504
-3x3 de la etapa 4          7 -> 7      2,359,296    115,605,504
-```
-
-Fíjate en las últimas cuatro filas. Cada vez que la ResNet achica el mapa a la mitad de lado, duplica los canales: las posiciones bajan 4 veces y los filtros y los pesos por filtro suben 2 veces cada uno. Las MACs quedan idénticas, pero los parámetros se multiplican por 4 en cada etapa: el trabajo se reparte parejo y los parámetros se amontonan al final.
 
 ### Pooling: resumir para achicar
 
@@ -448,7 +421,7 @@ Una red hecha de convoluciones, activaciones y pooling es una [[cnn|CNN]] (*conv
 
 1. **Mira de cerca.** Cada filtro mira un pedacito, y en una foto el significado está en los píxeles vecinos: un borde, una textura, una agujeta.
 2. **Usa el mismo filtro en todas partes.** El filtro que encuentra una agujeta la encuentra en la esquina o en el centro. El tenis de Ana puede estar en cualquier lugar de la foto y no hay que aprenderlo una vez por cada lugar. Por eso tiene tan pocos parámetros.
-3. **Arma lo complicado con lo simple.** Las primeras capas encuentran bordes y manchas de color. Las de en medio combinan bordes en texturas y formas (una suela, una costura). Las últimas combinan partes en objetos (un tenis). Funciona porque cada capa ve un pedazo de la foto más grande que la anterior: su [[campo-receptivo|campo receptivo]] crece, como verás en la siguiente sección. Nadie programa esa jerarquía: sale del entrenamiento.
+3. **Arma lo complicado con lo simple.** Las primeras capas encuentran bordes y manchas de color. Las de en medio combinan bordes en texturas y formas (una suela, una costura). Las últimas combinan partes en objetos (un tenis). Funciona porque cada capa ve un pedazo de la foto más grande que la anterior: su [[campo-receptivo|campo receptivo]] crece, como verás en la sección extra que sigue. Nadie programa esa jerarquía: sale del entrenamiento.
 
 :::analogia Una lupa con una plantilla
 Una convolución es como revisar una foto con una lupa que tiene pegada una plantilla: la pasas por toda la foto y apuntas en cada lugar qué tanto se parece lo que ves a la plantilla. Muchas lupas, cada una con su plantilla, dan muchos mapas.
@@ -476,7 +449,7 @@ Con tres capas de 3 × 3 y stride 1: r = 1 + 2 = 3, luego 3 + 2 = 5, luego 5 + 2
 La calculadora usa el mismo filtro y el mismo stride en todas las capas. Las redes reales mezclan, pero la fórmula de arriba sirve igual, capa por capa.
 :::
 
-En la ResNet-50 las capas son distintas: la primera es de 7 × 7, cada bloque tiene convoluciones de 1 × 1 (que no suman nada, porque k − 1 = 0) y una de 3 × 3, y cada etapa a partir de la segunda empieza con stride 2:
+En la ResNet-50 las capas son distintas. La primera es de 7 × 7. Después vienen 16 **bloques**, cada uno con dos convoluciones de 1 × 1 (que no suman nada, porque k − 1 = 0) y una de 3 × 3, repartidos en cuatro **etapas**; cada etapa a partir de la segunda empieza con stride 2:
 
 :::cuenta El campo receptivo de la ResNet-50, etapa por etapa
 Primera capa // 7 × 7, stride 2 | 1 + 6 × 1 | 7 (salto 2)
@@ -492,7 +465,7 @@ Etapa 4 // 3 bloques | 267 + 2 × 16 + 2 × 2 × 32 | 427 (salto 32)
 Los 427 píxeles son un máximo teórico: dicen qué píxeles **pueden** influir. Los del centro pesan muchísimo más que los de la orilla, porque llegan a la neurona por muchos más caminos. Un estudio de 2016 (Luo y otros) lo midió: el campo «efectivo» es una mancha que se desvanece del centro hacia afuera y ocupa solo una parte del teórico. Que algo «quepa» en el campo receptivo no garantiza que la red lo note.
 :::
 
-¿Para qué sirve en producción? Para dos preguntas de diseño: ¿la red alcanza a ver un objeto grande entero?, y ¿lo chico sobrevive? Con un salto de 32, cada número del último mapa resume un cuadro de 32 × 32 píxeles, y un defecto de 3 píxeles es casi nada ahí. Lo verás con números en la inspección de C03.
+¿Para qué sirve en producción? Para dos preguntas de diseño: ¿la red alcanza a ver un objeto grande entero?, y ¿lo chico sobrevive? Con un salto de 32, dos números vecinos del último mapa están a 32 píxeles uno del otro: a cada uno le toca una celda de 32 × 32 píxeles, y un defecto de 3 píxeles es casi nada en ella. Lo verás con números en la inspección de C03.
 
 ## La ResNet-50 por dentro: atajos, BatchNorm y model.eval() {Inside ResNet-50: shortcuts, BatchNorm and model.eval()}
 
@@ -504,14 +477,14 @@ La ResNet-50 de C01, de la foto a las 5 sugerencias. Toca cada caja; el recorrid
 
 ### El atajo que permitió ir profundo
 
-Durante años, apilar más capas parecía la forma obvia de mejorar. Pero a partir de cierta profundidad, una red **más** profunda acertaba **menos**, incluso en las fotos de entrenamiento. No era overfitting (que empeora la validación, no el entrenamiento): la red más profunda simplemente era más difícil de entrenar.
+Durante años, apilar más capas parecía la forma obvia de mejorar. Pero a partir de cierta profundidad, una red **más** profunda acertaba **menos**, incluso en las fotos de entrenamiento. No era [[overfitting]] (que empeora la validación, no el entrenamiento): la red más profunda simplemente era más difícil de entrenar.
 
 En 2015, Kaiming He y sus colegas de Microsoft Research propusieron una solución sencilla, la [[resnet|ResNet]] (*residual network*, red residual). Cada grupo de capas, un *bloque*, tiene un atajo, la **conexión residual** (*skip connection*): la entrada del bloque se le **suma** a su salida.
 
 salida = bloque(x) + x
 
 :::figura redes-residual
-Un bloque residual. La entrada x va por las capas del bloque y también por el atajo; al final, las dos se suman.
+Un bloque residual. La entrada x va por las capas del bloque y también por el atajo; al final, las dos se suman. (En la ResNet, la tercera ReLU va justo después de la suma.)
 :::
 
 ¿Por qué ayuda tanto? Dos intuiciones:
@@ -519,7 +492,7 @@ Un bloque residual. La entrada x va por las capas del bloque y también por el a
 - **Cada bloque solo aprende una corrección.** No tiene que reconstruir todo lo que ya traía la entrada, solo lo que hay que agregarle. Si un bloque no sirve, le basta aprender a sacar casi 0, y la entrada pasa por el atajo sin daño. Agregar bloques ya no puede empeorar tanto las cosas.
 - **El aprendizaje llega hasta abajo.** Al entrenar, la corrección del error viaja de la última capa hacia la primera (es la [[backpropagation]]). Con 50 capas apiladas, esa señal se debilita en el camino; los atajos le dan una vía directa.
 
-Con esa idea, el equipo entrenó redes de hasta 152 capas y ganó la competencia de ImageNet de 2015.
+Con esa idea, el equipo entrenó en ImageNet redes de hasta 152 capas y ganó la competencia de 2015.
 
 ### La ResNet-50, en números
 
@@ -535,24 +508,6 @@ Con esa idea, el equipo entrenó redes de hasta 152 capas y ganó la competencia
 | Cuentas por foto | ≈ 4,100 millones de MACs (4.1 GMACs) |
 | Campo receptivo de un número del último mapa | 427 × 427 píxeles (teórico) |
 
-:::nota Un detalle del conteo
-Cuatro de los 16 atajos no son una suma pura: cuando el bloque cambia la cantidad de canales o el tamaño de los mapas, el atajo lleva una convolución chica para que los dos lados cuadren. Esas cuatro no cuentan en el «50» del nombre, pero sus parámetros sí están en los 25.6 millones.
-:::
-
-¿Dónde viven los parámetros y dónde el trabajo? Contando capa por capa la ResNet-50 de C01, con su capa final de 500:
-
-| Parte | Mapa que sale | Parámetros | MACs por foto |
-|---|---|---|---|
-| Primera capa y max pooling | 64 × 56 × 56 | 9,536 (< 0.1 %) | 118 millones (2.9 %) |
-| Etapa 1 · 3 bloques | 256 × 56 × 56 | 0.2 millones (0.9 %) | 668 millones (16.3 %) |
-| Etapa 2 · 4 bloques | 512 × 28 × 28 | 1.2 millones (5.0 %) | 1,028 millones (25.1 %) |
-| Etapa 3 · 6 bloques | 1,024 × 14 × 14 | 7.1 millones (28.9 %) | 1,464 millones (35.8 %) |
-| Etapa 4 · 3 bloques | 2,048 × 7 × 7 | 15.0 millones (61.0 %) | 809 millones (19.8 %) |
-| Capa final (500) | 500 | 1.0 millones (4.2 %) | 1 millón (0.025 %) |
-| **Total** | | **24.5 millones** | **≈ 4,088 millones** |
-
-La etapa 4 guarda el 61 % de los parámetros, pero hace menos de una quinta parte del trabajo; la etapa 1, al revés, casi no tiene parámetros y hace el 16 % del trabajo, porque sus mapas son grandes. Para la memoria (M04) mandan las últimas etapas; el cálculo (M03) se reparte entre todas.
-
 ### BatchNorm
 
 Hay dos tipos de capa que se portan **distinto** al entrenar y al responder. Si se te olvida decirle a la red en qué momento está, en producción da respuestas raras sin ningún error: uno de los bugs más clásicos de llevar un modelo a producción.
@@ -561,7 +516,7 @@ La primera vive dentro de cada bloque de la ResNet. Los números pueden crecer o
 
 La pregunta clave es: ¿el promedio **de qué**?
 
-- **Al entrenar**, el de las fotos del [[batch]] actual. Y de paso va guardando un promedio de esos promedios a lo largo de todo el entrenamiento: sus *running stats* (estadísticas acumuladas).
+- **Al entrenar**, el de las fotos del [[batch]] actual. Y de paso va guardando, a lo largo de todo el entrenamiento, un promedio de esos promedios y de esas desviaciones (un promedio móvil, que pesa más los batches recientes): sus *running stats* (estadísticas acumuladas).
 - **Al responder**, debe usar esas estadísticas acumuladas, que ya no cambian.
 
 :::ejemplo La misma foto, respuestas distintas
@@ -578,7 +533,7 @@ En modo de inferencia, en cambio, se usan las estadísticas acumuladas (digamos,
 
 ### Dropout
 
-El [[dropout]] (Srivastava, Hinton y otros, 2014) es una traba contra el overfitting. **Al entrenar**, en cada paso apaga al azar una fracción de las neuronas, por ejemplo la mitad, y multiplica las que quedan para compensar (con la mitad apagada, por 2). Así la red no puede depender de unas pocas neuronas que memorizaron algo: tiene que repartir lo que sabe. **Al responder** no apaga nada.
+El [[dropout]] (Srivastava, Hinton y otros, 2014) es una traba contra el [[overfitting]]. **Al entrenar**, en cada paso apaga al azar una fracción de las neuronas, por ejemplo la mitad, y multiplica las que quedan para compensar (con la mitad apagada, por 2). Así la red no puede depender de unas pocas neuronas que memorizaron algo: tiene que repartir lo que sabe. **Al responder** no apaga nada.
 
 Si se queda en modo entrenamiento en producción, cada request apaga neuronas distintas: **la misma foto, enviada dos veces, da dos respuestas diferentes**.
 
@@ -606,7 +561,7 @@ with torch.inference_mode():      # y además: no guardes nada para aprender
 `model.eval()` **no** apaga el cálculo de lo que se necesita para aprender: solo cambia cómo se portan esas dos capas. Para lo otro está `torch.inference_mode()` (o el más viejo `torch.no_grad()`). Sin él, PyTorch guarda resultados intermedios para un aprendizaje que nunca va a llegar, y gasta memoria y tiempo. Son dos cosas distintas, y en producción van las dos.
 :::
 
-Lo traicionero de este bug es que **nada truena**: no hay error, la respuesta tiene el formato correcto y en tu [[notebook]] la accuracy se veía bien (porque ahí sí llamaste a `model.eval()`). Solo baja la calidad, en silencio. Por eso la Ronda insiste en la prueba de paridad: comparar, foto por foto, las respuestas del modelo que se sirve contra las del modelo que se evaluó.
+Lo traicionero de este bug es que **nada truena**: no hay error, la respuesta tiene el formato correcto y en tu [[notebook]] la accuracy se veía bien (porque ahí sí llamaste a `model.eval()`). Solo baja la calidad, en silencio. Por eso la Ronda insiste en la [[prueba-paridad|prueba de paridad]]: comparar, foto por foto, las respuestas del modelo que se sirve contra las del modelo que se evaluó.
 
 ## Backbone, cabeza y transfer learning {Backbone, head and transfer learning}
 
@@ -619,20 +574,8 @@ Separarlo así sirve mucho en producción. El backbone es lo caro y lo que sabe 
 
 ¿De dónde sale la diferencia entre los 25.6 millones de parámetros de la ResNet-50 original y los 24.5 de la de C01? Solo de la cabeza. Con 1,000 categorías: 2,048 × 1,000 + 1,000 = 2,049,000. Con 500: 2,048 × 500 + 500 = 1,024,500. La diferencia es 1,024,500: 25,557,032 − 1,024,500 = 24,532,532. El backbone, que es casi todo, es idéntico.
 
-### Una cabeza para cada tarea
-
-El backbone no sabe de categorías: solo describe la foto. Por eso sirve para tareas distintas, cambiando solo la cabeza:
-
-- **[[clasificacion|Clasificación]]** (C01): promedia cada mapa en un número y una capa densa da un logit por categoría. Ya no importa *dónde* estaba algo, solo *qué tanto* hay.
-- **[[deteccion|Detección]]** (C02): no puede promediar, porque necesita saber dónde. Su cabeza mira cada posición de los mapas y propone ahí una caja (4 números: dónde está y de qué tamaño) con un puntaje por clase.
-- **[[segmentacion|Segmentación]]** (C04): quiere una respuesta por píxel, así que su cabeza es un **decoder**, una red que agranda los mapas de regreso al tamaño de la foto. A la parte que achica, el backbone, en este contexto se le dice **encoder**.
-
-:::diagrama redes-cabezas
-Un mismo backbone y tres cabezas. Elige un recorrido para seguir una tarea.
-:::
-
 :::ojo Dos «cabezas» distintas
-En la lección de transformers vas a leer «cabezas de atención» ([[multi-head|multi-head attention]]). Son otra cosa: copias de la atención que trabajan en paralelo dentro de cada bloque. Aquí, «cabeza» es la parte final de la red, la que cambia según la tarea.
+En la lección de transformers vas a leer «cabezas de atención» ([[multi-head|multi-head attention]]). Son otra cosa: copias de la atención (la pieza con la que cada parte de la entrada decide a qué otras partes mirar) que trabajan en paralelo dentro de cada bloque. Aquí, «cabeza» es la parte final de la red, la que cambia según la tarea.
 :::
 
 ### Transfer learning y fine-tuning
@@ -647,7 +590,7 @@ Se carga la ResNet-50 con los pesos de ImageNet. Su backbone ya sabe «ver».
 2. Cambiar la cabeza
 La cabeza original saca 1,000 logits, uno por cada categoría de ImageNet, que no son las del marketplace. Se quita y se pone una nueva de 2,048 → 500, con pesos al azar.
 3. Seguir entrenando con las fotos propias
-Se entrena con las fotos de C01, con un [[learning-rate|learning rate]] chico para no destruir lo que el backbone ya sabía. Eso es el [[fine-tuning]] (ajuste fino). En la Ronda, el de C01 usa un learning rate de 0.0003, 8 épocas y batches de 64 fotos, y cabe en una sola GPU en unas horas.
+Se entrena con las fotos de C01, con un [[learning-rate|learning rate]] chico para no destruir lo que el backbone ya sabía. Eso es el [[fine-tuning]] (ajuste fino). En la Ronda, el de C01 usa un learning rate de 0.0003, 8 [[epoch|épocas]] y batches de 64 fotos, y cabe en una sola GPU en unas horas.
 :::
 
 En código, los dos primeros pasos son dos líneas (otra ilustración que necesita PyTorch):
@@ -668,19 +611,19 @@ Una cocinera con años de experiencia entra a un restaurante nuevo. No vuelve a 
 **Dónde se rompe:** si el restaurante nuevo es de algo muy distinto, mucho de lo que sabe sirve menos. Con los modelos pasa igual: el backbone de ImageNet ayuda muchísimo con fotos de productos, que se parecen a las fotos de ImageNet, pero bastante menos con radiografías o imágenes de satélite. Ahí hay que reentrenar más del backbone, o buscar uno preentrenado con imágenes parecidas.
 :::
 
-¿Por qué C01 empieza así? Porque con un modelo preentrenado hacen falta muchas menos fotos y horas de GPU para llegar a una buena top-5. Y como C01 se reentrena cada mes, cada reentrenamiento parte de pesos que ya saben ver.
+¿Por qué C01 empieza así? Porque con un modelo preentrenado hacen falta muchas menos fotos y horas de GPU para llegar a una buena [[top-k-accuracy|top-5]]. Y como C01 se reentrena cada mes, cada reentrenamiento parte de pesos que ya saben ver.
 
 ## Vision Transformers: la foto como una frase de parches {Vision Transformers: the photo as a sentence of patches} [extra]
 
 Las CNNs no son la única forma de ver fotos. En 2020, un equipo de Google (Dosovitskiy y otros) tomó el [[transformer]], la arquitectura de los [[llm|LLMs]] (los modelos de lenguaje de los chats), y le dio una foto como si fuera una frase. Lo llamaron [[vit|ViT]] (*Vision Transformer*).
 
-Un transformer recibe una lista de [[token|tokens]], cada uno convertido en un vector (una lista de números). El ViT parte la foto en cuadritos de 16 × 16 píxeles, los **parches** (*patches*), y cada parche se vuelve un token.
+Un transformer recibe una lista de [[token|tokens]] (en un LLM, pedazos de texto: palabras o partes de palabras), cada uno convertido en un vector (una lista de números). El ViT parte la foto en cuadritos de 16 × 16 píxeles, los **parches** (*patches*), y cada parche se vuelve un token.
 
 :::cuenta De la foto a los tokens de un ViT-B/16
 Parches por lado | 224 ÷ 16 | 14
 Parches en total | 14 × 14 | 196
 Números por parche // 16 × 16 píxeles × 3 colores | 16 × 16 × 3 | 768
-Del parche a su vector // una capa densa de 768 → 768 | 768 × 768 + 768 | 590,592 parámetros
+Parámetros para volver vector un parche // una capa densa de 768 → 768 | 768 × 768 + 768 | 590,592
 Tokens que entran // más uno extra, [CLS], que al final resume la foto | 196 + 1 | 197
 Pares que compara la atención en cada bloque | 197 × 197 | 38,809
 = 197 tokens de 768 números cada uno. «B/16» quiere decir tamaño Base, con parches de 16 píxeles.
@@ -690,7 +633,7 @@ Pares que compara la atención en cada bloque | 197 × 197 | 38,809
 Un ViT-B/16 lee la foto de 224 × 224 como 14 × 14 = 196 parches. Cada parche, de 768 números, se vuelve un token; con el token [CLS] entran 197 al transformer.
 :::
 
-Después, el ViT es un transformer como el de los LLMs: 12 bloques, cada uno con [[atencion|atención]] (cada parche mira a todos los demás y decide cuáles le importan; la ves en la lección de transformers y LLMs) y con un MLP chico que procesa cada token por separado. Dos detalles:
+Después, el ViT es un transformer como el de los LLMs: 12 bloques, cada uno con [[atencion|atención]] (cada parche mira a todos los demás y decide cuáles le importan; la ves en la lección de transformers y LLMs) y con un MLP de dos capas que procesa cada token por separado. Dos detalles:
 
 - **La posición se suma aparte.** Al convertir los parches en una lista, se pierde dónde estaba cada uno. Por eso a cada token se le suma un vector aprendido que dice «soy el parche 37»: un [[embedding-posicional|embedding posicional]].
 - **La respuesta sale del token [CLS].** Al final, una cabeza densa convierte su vector de 768 números en los logits, como la de la ResNet.
@@ -699,8 +642,8 @@ Después, el ViT es un transformer como el de los LLMs: 12 bloques, cada uno con
 |---|---|---|
 | Parámetros | ≈ 25.6 millones | ≈ 86 millones |
 | MACs por foto de 224 × 224 | ≈ 4,100 millones | ≈ 17,600 millones |
-| Qué ve la primera capa | 7 × 7 píxeles | todos los parches a la vez |
-| Lo que trae de fábrica | ver de cerca y el mismo filtro en todas partes | nada: lo tiene que aprender |
+| Qué mira al principio | cada filtro de la primera capa, 7 × 7 píxeles | cada parche, de 16 × 16; desde el primer bloque, todos los parches a la vez |
+| Lo que trae de fábrica | ver de cerca y el mismo filtro en todas partes | casi nada: lo tiene que aprender |
 | Cuántas fotos necesita | le basta ImageNet | brilla con preentrenamientos de decenas o cientos de millones de fotos |
 
 La CNN trae dos ideas metidas en su diseño; el ViT tiene que aprenderlas de los datos. Con pocos datos eso es una desventaja: en el artículo original, entrenado solo con ImageNet, el ViT quedaba unos puntos por debajo de una ResNet de tamaño parecido; preentrenado con muchísimas más fotos (14 millones en un caso, 300 millones en otro), la superaba.
@@ -735,21 +678,88 @@ Los resbalones típicos: olvidar los canales de entrada (un filtro de 3 × 3 sob
 
 ### 5. Cargar pesos con la cabeza equivocada
 
-Los pesos de un modelo de 1,000 categorías no caben en uno de 500: PyTorch truena con un error de *size mismatch* en la capa final. La tentación es «arreglarlo» con `strict=False`, que deja pasar sin avisar las capas cuyos nombres no coinciden. Si los nombres no coinciden (por ejemplo, porque al guardar se les pegó el prefijo `module.`), el modelo se queda con sus pesos al azar y responde basura sin un solo error.
+Los pesos de un modelo de 1,000 categorías no caben en uno de 500: PyTorch truena con un error de *size mismatch* en la capa final. Para quitárselo de encima, lo común es borrar la capa final de los pesos guardados y cargar el resto con `strict=False`, que deja pasar sin avisar las capas cuyos nombres no coinciden (un tamaño distinto sigue tronando). El peligro es que no avisa: si los nombres no coinciden (por ejemplo, porque al guardar se les pegó el prefijo `module.`), el modelo se queda con sus pesos al azar y responde basura sin un solo error.
 
-**Cómo evitarlo:** crear el modelo con el número correcto de categorías antes de cargar; si usas `strict=False`, revisar la lista de capas que no se cargaron, que devuelve la misma función; y evaluar con el golden set después de cargar.
+**Cómo evitarlo:** crear el modelo con el número correcto de categorías antes de cargar; si usas `strict=False`, revisar la lista de capas que no se cargaron, que devuelve la misma función; y evaluar con el [[golden-set|golden set]] después de cargar.
 
 ### 6. Achicar la foto y perder lo chico
 
 El [[resize]] del preprocesamiento es parte del modelo, aunque viva en otro archivo. Si un defecto mide 3 píxeles y achicas la foto a menos de la mitad, ya no está cuando la red la ve, y ninguna capa lo recupera.
 
-**Cómo evitarlo:** antes de elegir el tamaño de entrada, calcula cuántos píxeles mide lo más chico que hay que ver. Si son pocos, no achiques: corta la imagen en tiles a resolución completa.
+**Cómo evitarlo:** antes de elegir el tamaño de entrada, calcula cuántos píxeles mide lo más chico que hay que ver. Si son pocos, no achiques: corta la imagen en tiles (cuadros que la red procesa por separado) a resolución completa.
 
 ## En la vida real {In real life} [extra]
 
+### Un backbone, tres cabezas
+
+El backbone no sabe de categorías: solo describe la foto. Por eso sirve para tareas distintas, cambiando solo la cabeza:
+
+- **[[clasificacion|Clasificación]]** (C01): promedia cada mapa en un número y una capa densa da un logit por categoría. Ya no importa *dónde* estaba algo, solo *qué tanto* hay.
+- **[[deteccion|Detección]]** (C02): no puede promediar, porque necesita saber dónde. Su cabeza mira cada posición de los mapas y propone ahí una caja (4 números: dónde está y de qué tamaño) con un puntaje por clase.
+- **[[segmentacion|Segmentación]]** (C04): quiere una respuesta por píxel, así que su cabeza es un **decoder**, una red que agranda los mapas de regreso al tamaño de la foto. A la parte que achica, el backbone, en este contexto se le dice **encoder**.
+
+:::diagrama redes-cabezas
+Un mismo backbone y tres cabezas. Elige un recorrido para seguir una tarea.
+:::
+
 ### C01: la línea del caso, leída
 
-El caso C01 resume su modelo en una frase: «ResNet-50 con una capa final de 500 clases: 24.5 M parámetros y ≈ 4.1 GMACs a 224 × 224». Ya sabes leerla: memoria, cálculo, cabeza y preprocesamiento. Y cabe de sobra en su presupuesto, p99 ≤ 200 ms del lado del servidor: la Ronda estima ≈ 3–6 ms de GPU por foto en una T4. Si el servicio no contesta en 300 ms, la app le muestra a Ana el selector manual de categorías.
+El caso C01 resume su modelo en una frase: «ResNet-50 con una capa final de 500 clases: 24.5 M parámetros (…) y ≈ 4.1 GMACs a 224×224». Ya sabes leerla: memoria, cálculo, cabeza y preprocesamiento.
+
+La ResNet-50 se arma con 16 **bloques** (grupos de tres convoluciones) repartidos en cuatro **etapas**. Dentro de una etapa los mapas no cambian de tamaño, y a partir de la segunda, cada etapa los achica a la mitad de lado. Con la fórmula del lado de salida se puede contar la red capa por capa. En Python, la primera capa, el max pooling y una convolución de 3 × 3 de cada etapa:
+
+```python
+def lado(n, k, s, p):
+    return (n + 2 * p - k) // s + 1    # // divide y redondea hacia abajo
+
+def conv(nombre, n, c_in, c_out, k, s, p):
+    m = lado(n, k, s, p)
+    params = k * k * c_in * c_out          # sin sesgo, como en la ResNet
+    macs = m * m * c_out * k * k * c_in    # posiciones × filtros × pesos por filtro
+    print(f"{nombre:<24}{n:>4} -> {m:<4}{params:>12,}{macs:>15,}")
+
+print(f"{'capa':<24}{'lado':>4}{'':8}{'parámetros':>12}{'MACs':>15}")
+conv("primera, 7x7 stride 2", 224, 3, 64, 7, 2, 3)
+print(f"{'max pooling 3x3 s2':<24}{112:>4} -> {lado(112, 3, 2, 1)}")
+conv("3x3 de la etapa 1", 56, 64, 64, 3, 1, 1)
+conv("3x3 de la etapa 2", 28, 128, 128, 3, 1, 1)
+conv("3x3 de la etapa 3", 14, 256, 256, 3, 1, 1)
+conv("3x3 de la etapa 4", 7, 512, 512, 3, 1, 1)
+```
+
+```salida
+capa                    lado          parámetros           MACs
+primera, 7x7 stride 2    224 -> 112        9,408    118,013,952
+max pooling 3x3 s2       112 -> 56
+3x3 de la etapa 1         56 -> 56        36,864    115,605,504
+3x3 de la etapa 2         28 -> 28       147,456    115,605,504
+3x3 de la etapa 3         14 -> 14       589,824    115,605,504
+3x3 de la etapa 4          7 -> 7      2,359,296    115,605,504
+```
+
+Fíjate en las últimas cuatro filas. Cada vez que la ResNet achica el mapa a la mitad de lado, duplica los canales: las posiciones bajan 4 veces y los filtros y los pesos por filtro suben 2 veces cada uno. Las MACs quedan idénticas, pero los parámetros se multiplican por 4 en cada etapa: el trabajo se reparte parejo y los parámetros se amontonan al final.
+
+¿Dónde viven los parámetros y dónde el trabajo? Contando capa por capa toda la ResNet-50 de C01, con su capa final de 500:
+
+| Parte | Mapa que sale | Parámetros | MACs por foto |
+|---|---|---|---|
+| Primera capa y max pooling | 64 × 56 × 56 | 9,536 (< 0.1 %) | 118 millones (2.9 %) |
+| Etapa 1 · 3 bloques | 256 × 56 × 56 | 0.2 millones (0.9 %) | 668 millones (16.3 %) |
+| Etapa 2 · 4 bloques | 512 × 28 × 28 | 1.2 millones (5.0 %) | 1,028 millones (25.1 %) |
+| Etapa 3 · 6 bloques | 1,024 × 14 × 14 | 7.1 millones (28.9 %) | 1,464 millones (35.8 %) |
+| Etapa 4 · 3 bloques | 2,048 × 7 × 7 | 15.0 millones (61.0 %) | 809 millones (19.8 %) |
+| Capa final (500) | 500 | 1.0 millones (4.2 %) | 1 millón (0.025 %) |
+| **Total** | | **24.5 millones** | **≈ 4,088 millones** |
+
+La etapa 4 guarda el 61 % de los parámetros, pero hace menos de una quinta parte del trabajo; la etapa 1, al revés, casi no tiene parámetros y hace el 16 % del trabajo, porque sus mapas son grandes. Para la memoria (M04) mandan las últimas etapas; el cálculo (M03) se reparte entre todas.
+
+:::nota Un detalle del conteo
+Cuatro de los 16 atajos no pasan la entrada tal cual: cuando el bloque cambia la cantidad de canales o el tamaño de los mapas, el atajo lleva una convolución chica para que los dos lados cuadren. Esas cuatro no cuentan en el «50» del nombre, pero sus parámetros sí están contados en la tabla.
+:::
+
+Y el cálculo cabe de sobra en una GPU. Cada MAC son dos operaciones, así que una foto son 8.2 GFLOPs ([[flop|FLOPs]]: operaciones con números decimales). La Ronda, en M03, lo usa como chequeo de cordura: una GPU T4 hace a lo mucho ≈ 65 × 10¹² operaciones por segundo en float16, así que nunca pasará de 65 × 10¹² ÷ 8.2 × 10⁹ ≈ 7,900 fotos por segundo. Lo que se mide de verdad es mucho menos (la Ronda supone ≈ 1,200 fotos por segundo para C01): el techo dice qué es imposible, no qué vas a obtener.
+
+El presupuesto de C01 es un [[p99]] ≤ 200 ms del lado del servidor: 99 de cada 100 respuestas en menos de 200 ms. La Ronda estima ≈ 3–6 ms de cómputo en la GPU T4 (la mediana, con batches de 1 a 8 fotos), así que el modelo es una parte chica de ese tiempo. Si el servicio no contesta en 300 ms, la app le muestra a Ana el selector manual de categorías.
 
 ### C02: detectar en video, una caja por posición
 
@@ -764,12 +774,12 @@ Su cabeza no promedia, porque necesita saber dónde. En detectores como YOLOv8 m
 C03 revisa soportes metálicos en una planta de autopartes de Nuevo León, con una cámara de 2,448 × 2,048 píxeles por línea, y tiene que encontrar fisuras de 0.2 mm. Aquí manda la aritmética de esta lección:
 
 :::cuenta La fisura de C03, en píxeles
-Resolución sobre la pieza // supuesto de la Ronda: 150 mm de campo de visión | 150 mm ÷ 2,448 px | ≈ 0.061 mm por píxel
-Fisura de 0.2 mm | 0.2 ÷ 0.061 | ≈ 3.3 píxeles
-Si achicas la imagen a 1,024 de ancho | 0.2 ÷ (150 ÷ 1,024) | ≈ 1.4 píxeles: se pierde
-Tiles de 512 × 512 sin achicar | 2,448 ÷ 512 y 2,048 ÷ 512, redondeando hacia arriba | 5 × 4 = 20 tiles
-Último mapa de un tile // backbone con salto 32 | 512 ÷ 32 | 16 × 16 = 256 celdas
-Lo que mide la fisura dentro de una celda | 3.3 ÷ 32 | ≈ 10 % de su ancho
+Resolución sobre la pieza // supuesto de la Ronda: 150 mm de campo de visión | 150 mm ÷ 2,448 px | ≈ 0.061 mm/px
+Fisura de 0.2 mm | 0.2 ÷ 0.061 | ≈ 3.3 px
+Si achicas la imagen a 1,024 de ancho // la fisura casi desaparece | 0.2 ÷ (150 ÷ 1,024) | ≈ 1.4 px
+Tiles de 512 × 512 sin achicar // redondeando hacia arriba | 2,448 ÷ 512 → 5 · 2,048 ÷ 512 → 4 | 5 × 4 = 20
+Último mapa de un tile // backbone con salto 32: 512 ÷ 32 = 16 por lado | 16 × 16 | 256 celdas
+La fisura dentro de una celda // qué parte de su ancho ocupa | 3.3 ÷ 32 | ≈ 10 %
 = La fisura apenas ocupa una de 256 celdas. Si la cabeza promediara el mapa entero, como en C01, su señal quedaría diluida 256 veces.
 :::
 
@@ -787,7 +797,7 @@ Los tiles avanzan de 448 en 448 píxeles (un stride, otra vez), así que se enci
 
 ### Fuera de ML: los filtros de tu editor de fotos
 
-El «desenfocar» de un editor de fotos es una convolución con un filtro de 3 × 3 cuyos 9 pesos valen 1/9: cada píxel se vuelve el promedio de sus vecinos. «Enfocar» usa un 5 en el centro y −1 arriba, abajo y a los lados. Y el detector de bordes del ejemplo (columnas de 1, 0 y −1) es el filtro de Prewitt, de los años 70. La diferencia con una CNN es quién elige los pesos: ahí una persona; en la red, el entrenamiento.
+El «desenfocar» más simple de un editor de fotos es una convolución con un filtro de 3 × 3 cuyos 9 pesos valen 1/9: cada píxel se vuelve el promedio de sus vecinos. «Enfocar» usa un 5 en el centro y −1 arriba, abajo y a los lados. Y el detector de bordes del ejemplo (columnas de 1, 0 y −1) es el filtro de Prewitt, de los años 70. La diferencia con una CNN es quién elige los pesos: ahí una persona; en la red, el entrenamiento.
 
 ## Ejercicios {Exercises}
 
@@ -814,19 +824,19 @@ Resuélvelos con lápiz antes de abrir la solución; los de tamaños y parámetr
 - Pesos por filtro: 3 × 3 × 64 = 576. Parámetros: 576 × 128 = **73,728**.
 - MACs: 28 × 28 posiciones × 128 filtros × 576 = 784 × 128 × 576 = **57,802,752**, unos 58 millones.
 - Cada peso se usa una vez por posición: **784 veces**, y por eso hay 784 veces más MACs que parámetros.
-? [medio] Alguien olvida el center crop y le pasa a la ResNet-50 fotos de 256 × 256. ¿De qué tamaño sale la primera capa (7 × 7, padding 3, stride 2) y después el max pooling (3 × 3, padding 1, stride 2)? ¿De qué tamaño queda el último mapa? ¿Truena el modelo?
+? [medio] Alguien olvida el [[crop|center crop]] y le pasa a la ResNet-50 fotos de 256 × 256. ¿De qué tamaño sale la primera capa (7 × 7, padding 3, stride 2) y después el max pooling (3 × 3, padding 1, stride 2)? ¿De qué tamaño queda el último mapa? ¿Truena el modelo?
 - Primera capa: (256 + 6 − 7) ÷ 2 = 127.5, que baja a 127; más 1: **128**.
 - Max pooling: (128 + 2 − 3) ÷ 2 = 63.5, que baja a 63; más 1: **64**.
 - Último mapa: con salto 32, 256 ÷ 32 = **8**: mapas de 8 × 8 en vez de 7 × 7.
 - **No truena:** el pooling global promedia cada mapa, sea de 7 × 7 o de 8 × 8, y la cabeza recibe siempre 2,048 números. Por eso es peligroso: la respuesta cambia un poco y nada avisa, un caso de [[training-serving-skew]].
-? [medio] Cuatro capas de 3 × 3: la segunda tiene stride 2 y las demás stride 1. ¿Cuál es el campo receptivo de una neurona de la cuarta capa? ¿Y si las cuatro tuvieran stride 1?
+? [medio] (Usa la sección extra del campo receptivo.) Cuatro capas de 3 × 3: la segunda tiene stride 2 y las demás stride 1. ¿Cuál es el campo receptivo de una neurona de la cuarta capa? ¿Y si las cuatro tuvieran stride 1?
 - Empieza con r = 1 y j = 1. Capa 1 (k = 3, s = 1): r = 1 + 2 × 1 = 3, j = 1.
 - Capa 2 (s = 2): r = 3 + 2 × 1 = 5, y el salto pasa a j = 2.
 - Capa 3: r = 5 + 2 × 2 = 9. Capa 4: r = 9 + 2 × 2 = **13**.
 - Todas con stride 1: 1 + 4 × 2 = **9**. El stride de en medio le ganó 4 píxeles al campo.
-? [reto] Una cámara de inspección cubre 300 mm con 2,448 píxeles y hay que ver defectos de 0.3 mm. (a) ¿Cuántos píxeles mide un defecto? (b) Si la red recibe tiles de 512 y su backbone tiene salto 32, ¿qué fracción del ancho de una celda del último mapa ocupa el defecto? (c) ¿Qué cambiarías para verlo mejor?
-- (a) 300 ÷ 2,448 ≈ 0.1225 mm por píxel, así que 0.3 ÷ 0.1225 ≈ **2.4 píxeles**. Menos que la fisura de C03.
-- (b) 2.4 ÷ 32 ≈ **7.7 %** del ancho de una celda de 32 × 32. Y el tile de 512 tiene 16 × 16 = 256 celdas.
+? [reto] (Usa el salto de la sección extra del campo receptivo y el caso C03.) Una cámara de inspección cubre 300 mm con 2,448 píxeles y hay que ver defectos de 0.3 mm. (a) ¿Cuántos píxeles mide un defecto? (b) Si la red recibe tiles de 512 y su backbone tiene salto 32, ¿qué fracción del ancho de una celda del último mapa ocupa el defecto? (c) ¿Qué cambiarías para verlo mejor?
+- (a) 300 ÷ 2,448 ≈ 0.1225 mm por píxel, así que 0.3 ÷ 0.1225 ≈ **2.45 píxeles**. Menos que la fisura de C03.
+- (b) 2.45 ÷ 32 ≈ **7.7 %** del ancho de una celda de 32 × 32. Y el tile de 512 tiene 16 × 16 = 256 celdas.
 - (c) Primero la óptica: un campo de visión más chico (por ejemplo, dos cámaras de 150 mm) duplica los píxeles por defecto. Después, no achicar la imagen; usar mapas de salto 8, donde el defecto ocupa ≈ 31 % del ancho de una celda; y calificar cada posición y tomar el máximo en vez de promediar.
 ? [reto] La capa final de la ResNet-50 de C01 guarda ≈ 4 % de los parámetros pero hace ≈ 0.025 % de las MACs; la primera capa tiene 9,408 parámetros pero hace 118 millones de MACs. Explica las dos cosas con números: ¿cuántas veces se usa cada peso en cada capa?
 - Capa final, densa: cada peso se usa **una vez** por foto, así que sus MACs (1,024,000) son casi sus parámetros (1,024,500); contra ≈ 4,100 millones del modelo, son ≈ 0.025 %.
@@ -841,7 +851,7 @@ Resuélvelos con lápiz antes de abrir la solución; los de tamaños y parámetr
 - **M03 · Latencia y capacidad** hace el chequeo de cordura de esta lección: 8.2 GFLOPs por foto contra ≈ 65 TFLOPS de una T4, un techo de ≈ 7,900 fotos por segundo.
 - **M04 · Hardware para inferencia** arranca con la cuenta de los parámetros: 25.6 M × 4 bytes ≈ 102 MB en float32 (la Ronda le dice FP32) y ≈ 51 MB en float16 (FP16); para C01, ≈ 49 MB en float16. Ahí verás también por qué una CNN suele estar limitada por el cálculo, y cuánto pesan YOLOv8m (≈ 25.9 M parámetros) y ViT-B/16 (≈ 86 M).
 - **M07 · Servidores de modelos** carga el modelo una vez al arrancar, con `model.eval()` y `torch.inference_mode()`: sin lo primero, la BatchNorm usa las estadísticas del batch.
-- **M08 · Optimización** muestra que algunas herramientas que capturan el modelo para acelerarlo (`torch.export`, `torch.compile`) conservan la BatchNorm en modo train si olvidaste `eval()`, mientras que la exportación a ONNX te protege; y que al convertir el modelo a un formato rápido la BatchNorm se «pliega» dentro de la convolución anterior.
+- **M08 · Optimización** muestra que algunas herramientas que capturan el modelo para acelerarlo (`torch.export`, `torch.compile`) conservan la BatchNorm en modo train si olvidaste `eval()`, mientras que la exportación a ONNX (un formato estándar para guardar el modelo y correrlo fuera de PyTorch) te protege; y que al convertir el modelo a un formato rápido la BatchNorm se «pliega» dentro de la convolución anterior.
 - **Los casos.** C01 da el modelo por hecho («ResNet-50 con una capa final de 500 clases»); C02 usa un detector a 640 × 640 con NMS; C03, 20 tiles con un backbone y dos cabezas; C04, una U-Net sobre tiles que se enciman. Ahora sabes qué quiere decir cada palabra.
 
 **En el Dojo:** la estación 7, Empaquetado, usa la cuenta de esta lección, 25.6 M parámetros × 2 bytes ≈ 51 MB, para decidir que el modelo puede ir dentro del paquete del servidor (la imagen de Docker). Cuando abran las estaciones 3 (Entrenamiento) y 5 (Export, engine y paridad), ahí vas a practicar el fine-tuning y la prueba de paridad con `model.eval()`.
@@ -868,9 +878,9 @@ Una neurona con escalón separa el plano con una recta, y en el XOR los dos caso
 ? ¿Por qué una CNN necesita tan pocos parámetros comparada con una red densa sobre los mismos píxeles?
 Porque cada filtro mira solo un pedacito y se usa en todas las posiciones de la foto. Una capa de 64 filtros de 3 × 3 × 3 tiene 1,792 parámetros; una densa de 1,000 neuronas sobre los mismos 150,528 números tendría ≈ 150 millones.
 ? Una entrada de 56 × 56 pasa por una convolución de 3 × 3 con padding 1 y stride 2. ¿De qué tamaño sale?
-(56 + 2 − 3) ÷ 2 + 1 = 28.5, que se redondea hacia abajo a 28. Con stride 1 habría salido de 56.
+(56 + 2 − 3) ÷ 2 = 27.5, que baja a 27; más 1: 28. Con stride 1 habría salido de 56.
 ? ¿Qué hace la conexión residual de una ResNet?
-Le suma al bloque su propia entrada: salida = bloque(x) + x. Cada bloque solo aprende una corrección y la señal del aprendizaje llega bien hasta las primeras capas; eso permitió entrenar redes de hasta 152 capas.
+Le suma al bloque su propia entrada: salida = bloque(x) + x. Cada bloque solo aprende una corrección y la señal del aprendizaje llega bien hasta las primeras capas; eso permitió entrenar en ImageNet redes de hasta 152 capas.
 ? En producción, la misma foto da respuestas distintas según qué otras fotos venían en su batch. ¿Qué revisas primero?
 Que el modelo esté en modo eval (`model.eval()`). En modo train, la BatchNorm normaliza con las estadísticas del batch actual, así que la respuesta depende de las otras fotos.
 ? ¿Por qué C01 parte de una ResNet-50 preentrenada en ImageNet en vez de entrenar desde cero?

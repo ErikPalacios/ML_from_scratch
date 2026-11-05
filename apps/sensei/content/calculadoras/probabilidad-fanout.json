@@ -12,7 +12,7 @@
   "salidas": [
     { "label": "Requests lentos", "formula": "1 - rapido", "formato": "pct", "decimales": 2, "barra": true, "nota": "1 − (1 − p)^N: al menos uno lento" },
     { "label": "Requests rápidos", "formula": "rapido", "formato": "pct", "decimales": 2, "nota": "(1 − p)^N: los N rápidos a la vez" },
-    { "label": "La cuenta equivocada: sumar", "formula": "n * q", "formato": "pct", "decimales": 2, "nota": "N × p: casi atina con N × p chico y luego se pasa, hasta de 100 %" },
+    { "label": "La cuenta equivocada: sumar", "formula": "n * q", "formato": "pct", "decimales": 2, "nota": "N × p: casi atina si N × p es chico; luego se pasa, y puede pasar de 100 %" },
     { "label": "Lentos de cada 1,000 requests", "formula": "1000 * (1 - rapido)", "formato": "int" },
     { "label": "Lo que tendría que cumplir cada servicio para que el 99 % de los requests sea rápido", "formula": "pow(0.99, 1 / n)", "formato": "pct", "decimales": 3, "nota": "0.99^(1/N): con N = 10, su p99.9" }
   ],

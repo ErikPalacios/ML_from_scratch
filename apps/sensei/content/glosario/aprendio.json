@@ -167,7 +167,7 @@
       "id": "auc",
       "termino": "AUC",
       "en": "area under the ROC curve",
-      "corto": "El área bajo la curva ROC, de 0.5 (al azar) a 1 (perfecto). Es la probabilidad de que el modelo le dé más puntos a un «sí» que a un «no», tomados al azar.",
+      "corto": "El área bajo la curva ROC: 1 es perfecto y 0.5 es lo que saca adivinar al azar. Es la probabilidad de que el modelo le dé más puntos a un «sí» que a un «no», tomados al azar.",
       "largo": "Sirve para comparar modelos sin haber elegido [[umbral]]. No dice qué umbral usar ni cuánto vas a acertar con él. Con clases muy desbalanceadas puede verse excelente aunque casi todo lo que el modelo marca sea falsa alarma: ahí se mira la [[curva-pr|curva PR]].",
       "ejemplo": "4 fotos de tenis y 6 que no: 24 parejas. En 21 la de tenis tiene más puntos: AUC = 21 / 24 = 0.875.",
       "ver": ["curva-roc", "umbral", "curva-pr"],
@@ -239,7 +239,7 @@
       "en": "business metric · online metric · guardrail",
       "corto": "El número que dice si el sistema le sirve a la empresa y a la gente: publicaciones completadas, dinero que se deja de perder. La métrica del modelo, que se mide offline, es solo su aproximación.",
       "largo": "Se baja por una cadena: negocio → online (cómo reacciona la gente real; por ejemplo, cuántos aceptan la sugerencia) → offline (lo que se mide con datos guardados, como la top-5 en el [[golden-set|golden set]]). Cada eslabón es un *proxy* del de arriba, y la cadena se puede romper: un modelo que gana offline puede perder online. Por eso los cambios grandes se prueban con gente real en un [[ab-test|A/B test]], con *guardrails*: métricas que no tienen que mejorar pero no pueden empeorar, como la latencia.",
-      "ejemplo": "C01: negocio, tasa de publicaciones completadas; online, tasa de aceptación de la categoría sugerida; offline, top-5 en el golden set; guardrails, p99 de latencia, publicaciones que moderación recategoriza y tiempo para llenar el formulario.",
+      "ejemplo": "C01: negocio, tasa de publicaciones completadas; online, tasa de aceptación de la categoría sugerida; offline, top-5 en el golden set; guardrails, p99 de latencia, tasa de errores, publicaciones que moderación recategoriza y tiempo para llenar el formulario.",
       "ver": ["top-k-accuracy", "golden-set", "equidad"],
       "leccion": "aprendio"
     },
@@ -248,7 +248,7 @@
       "termino": "Equidad",
       "en": "fairness",
       "corto": "Que un modelo no le falle mucho más a un grupo de personas que a otro. Se revisa midiendo las mismas métricas por grupo, porque el promedio general puede esconder a un grupo donde el modelo falla.",
-      "largo": "Es obligatoria cuando el modelo decide sobre personas (crédito, contratación, identidad). Primero se elige qué error importa igualar: el [[recall]] (que a nadie se le escapen más los casos reales), los [[falso-positivo|falsos positivos]] (que a nadie se le acuse más en falso) o la [[precision]]. Cuando los grupos tienen proporciones distintas de casos reales, no se pueden igualar todas a la vez, así que elegir es una decisión de personas. Se mide con [[slice|slices]] por grupo y, si el grupo es sensible, con cuidado de privacidad.",
+      "largo": "Es obligatoria cuando el modelo decide sobre personas (crédito, contratación, identidad). Primero se elige qué error importa igualar: el [[recall]] (que a nadie se le escapen más los casos reales), los [[falso-positivo|falsos positivos]] (que a nadie se le acuse más en falso) o la [[precision]]. Cuando los grupos tienen proporciones distintas de casos reales, no se pueden igualar todas a la vez (salvo en casos extremos, como un modelo que nunca se equivoca), así que elegir es una decisión de personas. Se mide con [[slice|slices]] por grupo y, si el grupo es sensible, con cuidado de privacidad.",
       "ejemplo": "En 2018, un estudio («Gender Shades») encontró que tres sistemas comerciales que adivinaban el género en fotos de caras se equivocaban en no más de 0.8 % de los hombres de piel clara y hasta en 34.7 % de las mujeres de piel oscura.",
       "ver": ["slice", "macro-promedio", "metrica-negocio"],
       "leccion": "aprendio"

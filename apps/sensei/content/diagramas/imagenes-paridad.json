@@ -72,13 +72,13 @@
     {
       "id": "veredicto",
       "label": "¿Pasa?",
-      "sub": "0, o casi 0",
+      "sub": "diferencia 0",
       "kind": "job",
       "x": 65,
       "y": 22,
       "w": 13,
       "h": 9,
-      "note": "Si la diferencia pasa la tolerancia, el cambio no avanza. Una prueba que falla en CI cuesta minutos; un [[training-serving-skew|skew]] en producción cuesta semanas de sugerencias peores sin que nadie lo note."
+      "note": "Si la diferencia no es 0, el cambio no avanza. Solo se acepta una tolerancia chica cuando se elige a propósito una diferencia conocida, como decodificar en la GPU. Una prueba que falla en CI cuesta minutos; un [[training-serving-skew|skew]] en producción cuesta semanas de sugerencias peores sin que nadie lo note."
     }
   ],
   "edges": [

@@ -43,7 +43,7 @@
       "y": 18,
       "w": 23,
       "h": 8,
-      "note": "Está aquí para que el examen sea honesto: el [[split]] reparte las fotos en tres partes que no se mezclan. Las fotos de un mismo vendedor van juntas a un solo lado ([[split-por-grupo]]), y cada categoría se reparte en la misma proporción ([[estratificado]])."
+      "note": "Está aquí para que el examen sea honesto: el [[split]] reparte las fotos en tres partes que no se mezclan. Las fotos de un mismo vendedor van juntas a un solo lado ([[split-por-grupo]]), así que las partes salen cerca de 80/10/10, no exactas; dentro de eso se cuida que cada categoría quede en una proporción parecida ([[estratificado]])."
     },
     {
       "id": "train",
@@ -181,7 +181,7 @@
             "dataset"
           ],
           "edges": [],
-          "text": "Empiezas con **50,000 fotos**, cada una con su categoría correcta."
+          "text": "Empiezas con **50,000 fotos** ya sin copias, cada una con su categoría correcta."
         },
         {
           "nodes": [
@@ -191,7 +191,7 @@
           "edges": [
             "dataset>split"
           ],
-          "text": "Antes de repartir se quitan las copias y se agrupan las fotos por vendedor: una familia de fotos va entera a un solo lado."
+          "text": "Antes de repartir, las copias ya se quitaron y las fotos se agrupan por vendedor: una familia de fotos va entera a un solo lado."
         },
         {
           "nodes": [
@@ -205,7 +205,7 @@
             "split>val",
             "split>test"
           ],
-          "text": "Se reparten 80 / 10 / 10: **40,000** a train, **5,000** a validación y **5,000** a test. Ninguna foto está en dos partes."
+          "text": "Se reparten 80 / 10 / 10: ≈ **40,000** a train, ≈ **5,000** a validación y ≈ **5,000** a test (por vendedor salen cerca de esas cifras). Ninguna foto está en dos partes."
         }
       ]
     },

@@ -6,7 +6,7 @@
       "termino": "Promedio",
       "en": "mean · average",
       "corto": "La suma de todos los valores dividida entre cuántos son. Es lo que le tocaría a cada uno si el total se repartiera parejo.",
-      "largo": "Es el número correcto para los totales: con el promedio y la cantidad sabes el total, como cuánto cuesta servir un día o cuántas requests hay dentro del sistema a la vez. Pero un solo valor muy lejano lo jala mucho. En latencia engaña: unas cuantas requests lentísimas lo suben poco y no dice cuántas personas esperaron de más; por eso las promesas usan [[percentil|percentiles]]. La [[loss]] de un [[batch]] y la [[accuracy]] son promedios.",
+      "largo": "Es el número correcto para los totales: con el promedio y la cantidad sabes el total, como cuánto cuesta servir un día o cuántas requests hay dentro del sistema a la vez. Pero un solo valor muy lejano lo jala mucho. En latencia engaña de otra forma: si las lentas son pocas, lo suben solo un poco (98 requests de 30 ms y 2 de 3 s promedian 89.4 ms, abajo de 200) y no dice cuántas personas esperaron de más; por eso las promesas usan [[percentil|percentiles]]. La [[loss]] de un [[batch]] y la [[accuracy]] son promedios.",
       "analogia": "El punto donde apoyarías con un dedo una regla con monedas puestas en la marca de cada valor, para que no se caiga. Una moneda muy lejos obliga a mover mucho el dedo.",
       "ejemplo": "30, 32, 35, 38 y 45 ms suman 180, y el promedio es 180 ÷ 5 = 36 ms. Con 98 requests de 30 ms y 2 de 3 s, el promedio es 89.4 ms, aunque 2 de cada 100 personas esperaron 3 segundos.",
       "ver": ["mediana", "percentil", "valor-atipico"],
@@ -18,7 +18,7 @@
       "en": "median",
       "corto": "El valor de en medio cuando ordenas los datos: la mitad queda abajo y la mitad arriba. Si la cantidad es par, se promedian los dos de en medio.",
       "largo": "Es el percentil 50 (el p50) y describe el caso típico. Es resistente: solo mira el orden, así que un [[valor-atipico]] muy lejano casi no la mueve. Por eso se usa para la latencia típica, para reportar ingresos y para rellenar datos que faltan. Con una cantidad par, el método del rango más cercano toma el de abajo de los dos de en medio; con miles de datos la diferencia desaparece.",
-      "ejemplo": "Nueve sueldos de 9 a 16 mil pesos y uno de 900 mil: el promedio sube a 101,200 pesos y la mediana se queda en 12,500.",
+      "ejemplo": "Nueve sueldos de 9 a 16 mil pesos y uno de 900 mil: el promedio sube de ≈ 12,444 a 101,200 pesos, y la mediana apenas pasa de 12,000 a 12,500.",
       "ver": ["promedio", "percentil"],
       "leccion": "percentiles"
     },
@@ -37,7 +37,7 @@
       "termino": "p99",
       "en": "p99 · 99th percentile",
       "corto": "El percentil 99: el valor que deja abajo al 99 % de las requests. «p99 ≤ 200 ms» quiere decir que a lo más 1 de cada 100 tarda más de 200 ms.",
-      "largo": "Es la forma estándar de prometer [[latencia]], porque mira la [[cola-distribucion|cola]]: lo que viven las requests más lentas, las que vencen el timeout y las que la gente recuerda. A diferencia del [[promedio]], brinca de golpe cuando la fracción de lentas pasa del 1 %. Necesita muchas muestras: con menos de 100, el p99 es simplemente la más lenta. Su primo, el p99.9, deja arriba a 1 de cada 1,000.",
+      "largo": "Es una de las formas más comunes de prometer [[latencia]], porque mira la [[cola-distribucion|cola]]: lo que viven las requests más lentas, las que vencen el timeout y las que la gente recuerda. A diferencia del [[promedio]], brinca de golpe cuando la fracción de lentas pasa del 1 %. Necesita muchas muestras: con menos de 100, el p99 es simplemente la más lenta. Su primo, el p99.9, deja arriba a 1 de cada 1,000.",
       "ejemplo": "C01 promete p99 ≤ 200 ms del lado del servidor. Con 10 millones de requests al día, ese 1 % permitido son 100,000 requests lentas al día.",
       "ver": ["percentil", "slo", "cola-distribucion"],
       "leccion": "percentiles"

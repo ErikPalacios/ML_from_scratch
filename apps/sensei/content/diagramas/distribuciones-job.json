@@ -63,7 +63,7 @@
       "y": 4.5,
       "w": 18,
       "h": 8,
-      "note": "Cada predicción deja ≈ 300 bytes: versión del modelo, categoría y score top-1, y estadísticas de la foto (bytes, resolución, brillo). Nunca la foto. Se guarda el 100 %: cuesta casi nada y es la materia prima del drift."
+      "note": "Cada predicción deja ≈ 300 bytes: versión del modelo, las 5 categorías sugeridas con sus scores y estadísticas de la foto (bytes, resolución, brillo). Nunca la foto. Se guarda el 100 %: cuesta casi nada y es la materia prima del drift."
     },
     {
       "id": "ref",
@@ -118,7 +118,7 @@
       "y": 41.5,
       "w": 18,
       "h": 8,
-      "note": "Un ticket, no un *page*: nadie se despierta a las 3 a. m. por un PSI, porque el servicio sigue funcionando. Se analiza con calma y con datos."
+      "note": "Un ticket, no un *page* (la alerta urgente que despierta a quien está de guardia): nadie se despierta a las 3 a. m. por un PSI, porque el servicio sigue funcionando. Se analiza con calma y con datos."
     },
     {
       "id": "etiq",

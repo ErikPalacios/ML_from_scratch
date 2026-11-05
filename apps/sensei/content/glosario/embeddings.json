@@ -6,7 +6,7 @@
       "termino": "Vector",
       "en": "vector",
       "corto": "Una lista ordenada de números. Si tiene 2 números se puede dibujar como un punto (o una flecha) en un plano; si tiene 512, es un punto en un espacio de 512 dimensiones.",
-      "largo": "Cada número es una coordenada, y su posición en la lista importa: (4, 3) no es lo mismo que (3, 4). La cantidad de números se llama la [[dimensionalidad|dimensión]] del vector. Un vector es el caso más sencillo de un [[tensor]]: un tensor de una sola fila.",
+      "largo": "Cada número es una coordenada, y su posición en la lista importa: (4, 3) no es lo mismo que (3, 4). La cantidad de números se llama la [[dimensionalidad|dimensión]] del vector. Un vector es un [[tensor]] de una sola dimensión, una fila de números; ojo, que en un tensor «dimensión» cuenta las direcciones de la tabla, y en un vector, cuántos números trae.",
       "ejemplo": "(4, 3) es un vector de dimensión 2: un punto 4 pasos a la derecha y 3 hacia arriba. El [[embedding]] de un producto en C07 de la Ronda es un vector de dimensión 512.",
       "ver": ["embedding", "producto-punto", "dimensionalidad"],
       "leccion": "embeddings"
@@ -28,7 +28,7 @@
       "en": "dot product · inner product",
       "corto": "Multiplicar dos vectores coordenada por coordenada y sumar todo. Da un solo número: positivo si apuntan hacia el mismo lado, cero si son perpendiculares y negativo si apuntan hacia lados opuestos.",
       "largo": "Es igual a (largo de a) × (largo de b) × el coseno del ángulo entre ellos, así que mezcla dirección y largo: una flecha más larga saca productos punto más grandes con todo. Visto en el dibujo, es la «sombra» de una flecha sobre la dirección de la otra, multiplicada por el largo de la otra. Con vectores [[normalizacion-l2|normalizados]] es exactamente la [[similitud-coseno]]. Es la cuenta más repetida de ML: una [[neurona]] es un producto punto más un sesgo, la última capa de un clasificador hace uno por clase, la [[atencion|atención]] compara vectores con productos punto y una búsqueda exacta hace uno por cada vector del catálogo.",
-      "analogia": "Un ticket de compra: las cantidades (2, 1, 3) por los precios (50, 120, 15), sumadas, dan el total, 265. Se rompe en que en un ticket no hay números negativos, y en un embedding sí: por eso el producto punto puede salir negativo.",
+      "analogia": "Un ticket de compra: las cantidades (2, 1, 3) por los precios (50, 120, 15), sumadas, dan el total, 265. Se rompe en que en un ticket casi nunca hay cantidades negativas, y en un embedding los números negativos son normales: por eso el producto punto puede salir negativo.",
       "ejemplo": "(4, 3) · (3, 4) = 4 × 3 + 3 × 4 = 24. (4, 3) · (−3, 4) = −12 + 12 = 0: son perpendiculares. Con 512 números son 512 multiplicaciones y 511 sumas.",
       "ver": ["similitud-coseno", "normalizacion-l2", "vector"],
       "leccion": "embeddings"
@@ -109,7 +109,7 @@
       "termino": "Índice vectorial",
       "en": "vector index",
       "corto": "Una estructura de datos que guarda millones de vectores ya organizados (en grupos o en un grafo) para encontrar los más cercanos a uno nuevo sin revisarlos todos.",
-      "largo": "Se construye antes, sin prisa, y se consulta en milisegundos. Tiene que caber en memoria: 100 millones de vectores de 512 números pesan ≈ 205 GB en float32. Lo ofrecen librerías (FAISS), bases de datos vectoriales y motores de búsqueda (OpenSearch k-NN). Cada uno trae perillas que cambian velocidad, memoria y recall.",
+      "largo": "Se construye antes, sin prisa, y se consulta en milisegundos. Los más usados, como HNSW, viven en la memoria: 100 millones de vectores de 512 números pesan ≈ 205 GB en float32. Lo ofrecen librerías (FAISS), bases de datos vectoriales y motores de búsqueda (OpenSearch k-NN). Cada uno trae perillas que cambian velocidad, memoria y recall.",
       "ejemplo": "En C07 de la Ronda: un índice [[hnsw|HNSW]] con los vectores guardados en int8 (51.2 GB) más el grafo (≈ 25.6 GB), partido en 4 pedazos.",
       "ver": ["ann", "hnsw", "retrieval"],
       "leccion": "embeddings"
@@ -171,7 +171,7 @@
       "en": "re-ranking · reranker",
       "corto": "La segunda etapa de una búsqueda: después de una primera búsqueda rápida, un modelo más caro y más preciso vuelve a calificar solo los primeros candidatos y los reordena.",
       "largo": "Puede darse el lujo de ser lento por candidato porque mira pocos (decenas, no millones). Un re-ranker típico (un *cross-encoder*) lee la consulta y el candidato juntos, en vez de comparar dos vectores calculados por separado, como hace un modelo de [[dos-torres|dos torres]]. Cuántos candidatos reordenar es una decisión de costo.",
-      "ejemplo": "En C07 de la Ronda, reordenar los 100 primeros de cada búsqueda pediría ≈ 24 GPUs L4; los 30 primeros, ≈ 8.",
+      "ejemplo": "En C07 de la Ronda, reordenar los 100 primeros de cada búsqueda de texto pediría ≈ 24 GPUs L4; los 30 primeros, ≈ 8.",
       "ver": ["retrieval", "dos-torres"],
       "leccion": "embeddings"
     },

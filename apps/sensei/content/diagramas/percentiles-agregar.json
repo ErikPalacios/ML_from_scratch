@@ -14,7 +14,7 @@
       "sub": "(80 + 2,000) ÷ 2 = 1,040 ms",
       "kind": "job",
       "x": 26, "y": 4, "w": 26, "h": 8,
-      "note": "Da 1,040 ms: parece que todo el servicio está roto. Pesado por tráfico da ≈ 118 ms: parece que todo está bien. **Ninguno es el p99**: a los dos les falta contar cuántas requests, de todas, fueron lentas."
+      "note": "Da 1,040 ms, un número que no describe a ningún pod: ni A ni B tardan eso. Pesado por tráfico da ≈ 118 ms: parece que todo está bien. **Ninguno es el p99**: a los dos les falta contar cuántas requests, de todas, fueron lentas."
     },
     {
       "id": "podA",
@@ -71,7 +71,7 @@
       "label": "La trampa: promediar los p99",
       "steps": [
         { "nodes": ["podA", "podB"], "edges": [], "text": "Cada pod calcula **su propio** p99: 80 ms el A y ≈ 2 s el B. Cada número es correcto para su pod." },
-        { "nodes": ["podA", "podB", "trampa"], "edges": ["podA>trampa", "podB>trampa"], "text": "**Promediarlos** da 1,040 ms y parece que todo está roto; pesarlos por tráfico da ≈ 118 ms y parece que todo está bien. Ninguno es el p99: lo decide **cuántas** requests, de todas, fueron lentas, y eso solo lo dicen los buckets." }
+        { "nodes": ["podA", "podB", "trampa"], "edges": ["podA>trampa", "podB>trampa"], "text": "**Promediarlos** da 1,040 ms, un número que no describe a ningún pod; pesarlos por tráfico da ≈ 118 ms y parece que todo está bien. Ninguno es el p99: lo decide **cuántas** requests, de todas, fueron lentas, y eso solo lo dicen los buckets." }
       ]
     }
   ]

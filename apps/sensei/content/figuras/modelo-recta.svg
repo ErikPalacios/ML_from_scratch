@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 452" role="img" aria-labelledby="f-modelo-recta-t" class="f-svg" style="max-width:420px">
-<title id="f-modelo-recta-t">Un modelo lineal: el precio sugerido contra los años de uso. Los puntos son ventas pasadas de ejemplo, que bajan de unos 1,500 pesos con 0 años a unos 150 con 4.5 años. La recta llena es w = −300 y b = 1,500: empieza en 1,500 con 0 años y baja 300 pesos por año, hasta −300 pesos con 6 años, un precio imposible. La recta punteada es w = −200 y b = 1,800: empieza más arriba y baja más despacio.</title>
+<title id="f-modelo-recta-t">Un modelo lineal: el precio sugerido contra los años de uso. Los puntos son ventas pasadas de ejemplo, que bajan de unos 1,300 pesos con menos de un año a unos 150 con 4.5 años. La recta llena es w = −300 y b = 1,500: empieza en 1,500 con 0 años y baja 300 pesos por año, hasta −300 pesos con 6 años, un precio imposible. La recta punteada es w = −200 y b = 1,800: empieza más arriba y baja más despacio.</title>
 <rect class="f-card" x="10" y="10" width="340" height="432" rx="16"/>
 <text class="f-l" x="28" y="38">PRECIO = w × AÑOS + b</text>
 <rect class="f-chip" x="66" y="250.0" width="268" height="60.0" rx="4"/>

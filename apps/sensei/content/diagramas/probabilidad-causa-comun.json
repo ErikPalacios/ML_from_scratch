@@ -15,13 +15,13 @@
     { "id": "repA", "label": "Réplica A", "sub": "zona A · 99.5 %", "kind": "service", "x": 3, "y": 20, "w": 18, "h": 9,
       "note": "Una copia del servicio en la zona A, con su propia máquina, su electricidad y su red." },
     { "id": "alb", "label": "Balanceador", "sub": "reparte", "kind": "edge", "x": 30, "y": 20, "w": 18, "h": 9,
-      "note": "Manda cada request a una réplica sana. Si una zona deja de responder, manda todo a la otra." },
+      "note": "Manda cada request a una réplica sana. Si una zona deja de responder, manda todo a la otra. Si ninguna puede contestar, quien llama se queda sin respuesta y pasa al plan B." },
     { "id": "repB", "label": "Réplica B", "sub": "zona B · 99.5 %", "kind": "service", "x": 57, "y": 20, "w": 18, "h": 9,
       "note": "La copia de la zona B. Con fallas independientes, las dos juntas dan 99.9975 %. Con una causa común el 0.1 % del tiempo, ≈ 99.90 %." },
     { "id": "canary", "label": "Canary", "sub": "v8 al 5 %, una zona", "kind": "monitor", "x": 3, "y": 38, "w": 20, "h": 9,
       "note": "Una versión nueva entra primero a una parte chica del tráfico y a una sola zona, y se comparan sus errores con los de la versión anterior. Si suben, se regresa a la anterior en minutos, antes de que llegue a la otra zona." },
     { "id": "manual", "label": "Selector manual", "sub": "no comparte nada", "kind": "human", "x": 55, "y": 38, "w": 20, "h": 9,
-      "note": "Un plan B sirve solo si no depende de lo mismo que falló. El selector de C01 no usa el modelo ni su base: si se cae todo lo del modelo, sigue ahí." }
+      "note": "Un plan B sirve solo si no depende de lo mismo que falló. En C01 lo muestra quien llama, el backend de publicación, cuando no recibe respuesta a tiempo. El selector no usa el modelo ni su base: si se cae todo lo del modelo, sigue ahí." }
   ],
   "edges": [
     { "from": "alb", "to": "repA", "kind": "online", "fromSide": "l", "toSide": "r" },
@@ -46,7 +46,7 @@
     { "id": "base", "label": "Una causa común: la base compartida",
       "steps": [
         { "nodes": ["comun", "repA", "repB"], "edges": ["comun>repA", "comun>repB"], "text": "Las dos réplicas leen la misma base de datos, o el mismo caché. Si esa base se cae, las dos se quedan sin lo que necesitan **al mismo tiempo**." },
-        { "nodes": ["alb", "manual"], "edges": ["alb>manual"], "text": "Ahí solo salva un plan B que no use esa base. Si el plan B también la usara, caería con ellas: no sería plan B." }
+        { "nodes": ["alb", "manual"], "edges": ["alb>manual"], "text": "Ninguna réplica puede contestar, y quien llama pasa al plan B. Ahí solo salva un plan B que no use esa base: si también la usara, caería con ellas y no sería plan B." }
       ] },
     { "id": "defensa", "label": "La defensa: de a poco",
       "steps": [

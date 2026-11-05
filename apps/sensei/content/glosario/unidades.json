@@ -5,7 +5,7 @@
       "termino": "Notación científica",
       "en": "scientific notation",
       "corto": "Escribir un número como una cifra entre 1 y 10 multiplicada por una potencia de diez: 86,400 = 8.64 × 10⁴. Sirve para números enormes o diminutos sin contar ceros.",
-      "largo": "La cifra se llama mantisa y la potencia, exponente; un exponente negativo es un número chico: 4 × 10⁻⁵ = 0.00004. Para multiplicar se multiplican las mantisas y se suman los exponentes; para dividir, se dividen y se restan. Python y las hojas de cálculo la escriben con una e: `8.64e+04` es 8.64 × 10⁴. El exponente dice el [[orden-magnitud|orden de magnitud]].",
+      "largo": "La cifra se llama mantisa, y el número al que se eleva el 10, exponente; un exponente negativo es un número chico: 4 × 10⁻⁵ = 0.00004. Para multiplicar se multiplican las mantisas y se suman los exponentes; para dividir, se dividen y se restan. Python y las hojas de cálculo la escriben con una e: `8.64e+04` es 8.64 × 10⁴. El exponente dice el [[orden-magnitud|orden de magnitud]].",
       "ejemplo": "La ResNet-50 de C01 tiene 24,532,532 ≈ 2.45 × 10⁷ parámetros y hace ≈ 4.1 × 10⁹ multiplicaciones por foto; copiar la foto a la GPU tarda ≈ 4 × 10⁻⁵ s, 40 microsegundos.",
       "ver": [
         "orden-magnitud",
@@ -18,7 +18,7 @@
       "termino": "Orden de magnitud",
       "en": "order of magnitude",
       "corto": "La potencia de diez más cercana a un número: 86,400 es del orden de 10⁵. Dos cosas que difieren en un orden de magnitud están a 10 veces una de otra.",
-      "largo": "Para redondear al orden más cercano se mira la mantisa: si es menor que √10 ≈ 3.16 se queda la potencia; si no, se sube una. En diseño de sistemas, una [[estimacion|estimación]] sirve si atina al orden de magnitud: equivocarse por 2 veces rara vez cambia la decisión; por 10, sí, porque se pasa de un par de máquinas a un cluster.",
+      "largo": "Para redondear al orden más cercano se mira la mantisa: si es menor que √10 ≈ 3.16 se queda la potencia; si no, se sube una. Hay quien llama orden de magnitud solo al exponente, sin redondear: con esa costumbre, 86,400 es del orden de 10⁴. En diseño de sistemas, una [[estimacion|estimación]] sirve si atina al orden de magnitud: equivocarse por 2 veces rara vez cambia la decisión; por 10, sí, porque se pasa de un par de máquinas a un cluster.",
       "ejemplo": "Leer la RAM (≈ 10⁻⁷ s) y la promesa de 200 ms de C01 (2 × 10⁻¹ s) están a más de seis órdenes de magnitud: ≈ 2 millones de veces.",
       "ver": [
         "notacion-cientifica",

@@ -10,7 +10,7 @@
     { "id": "foto", "label": "Foto", "sub": "ya preparada", "kind": "client", "x": 1, "y": 7, "w": 16, "h": 9,
       "note": "Está aquí porque el modelo solo entiende números: es la foto de Ana ya convertida en números, del tamaño exacto que espera. Cómo se prepara es la siguiente lección." },
     { "id": "modelo", "label": "Modelo", "sub": "ResNet-50", "kind": "model", "x": 21, "y": 7, "w": 16, "h": 9,
-      "note": "Es la única caja que aprendió algo. Hace la [[inferencia]]: millones de multiplicaciones y sumas con sus [[parametro|parámetros]] fijos. Entrega 500 [[logit|logits]], uno por categoría, no una respuesta." },
+      "note": "Es la única caja que aprendió algo. Hace la [[inferencia]]: miles de millones de multiplicaciones y sumas con sus [[parametro|parámetros]] fijos. Entrega 500 [[logit|logits]], uno por categoría, no una respuesta." },
     { "id": "softmax", "label": "Softmax + top-5", "sub": "logits → %", "kind": "service", "x": 41, "y": 7, "w": 16, "h": 9,
       "note": "Está aquí porque los logits no se pueden mostrar ni comparar con una línea. [[softmax|Softmax]] los vuelve 500 probabilidades que suman 1, y el [[top-k]] se queda con las 5 más altas, con su nombre de categoría. En C01 lo hace el programa que está frente al modelo, no el modelo." },
     { "id": "sugerencias", "label": "Sugerencias", "sub": "Ana elige una", "kind": "client", "x": 61, "y": 7, "w": 16, "h": 9,

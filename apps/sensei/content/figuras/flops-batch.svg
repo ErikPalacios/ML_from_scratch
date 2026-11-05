@@ -35,7 +35,7 @@
 <text class="f-s" x="109.9" y="312" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">8</text>
 <text class="f-s" x="92" y="336" text-anchor="end" style="font-size:12px">batch 32</text>
 <rect x="100" y="324" width="15.4" height="16" rx="3" style="fill:var(--b)"/>
-<text class="f-s" x="121.4" y="336" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">32</text>
+<text class="f-s" x="121.4" y="336" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">31.5</text>
 <text class="f-s" x="92" y="360" text-anchor="end" style="font-size:12px">batch 256</text>
 <rect x="100" y="348" width="111.3" height="16" rx="3" style="fill:var(--b)"/>
 <text class="f-s" x="217.3" y="360" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">228</text>
@@ -47,5 +47,5 @@
 <line x1="297.2" y1="270" x2="297.2" y2="396" style="stroke:var(--tm-ink3);stroke-width:1.5;stroke-dasharray:4 4"/>
 <text class="f-s" x="297.2" y="264" text-anchor="middle" style="font-size:12px;font-weight:700">L4 ≈ 403</text>
 <text class="f-s" x="28" y="420" style="font-size:12px">Con batch b, cada peso se usa b veces: la intensidad</text>
-<text class="f-s" x="28" y="436" style="font-size:12px">es ≈ b mientras el batch sea chico frente a 4,096.</text>
+<text class="f-s" x="28" y="436" style="font-size:12px">es ≈ b mientras los pesos sean casi todos los bytes.</text>
 </svg>

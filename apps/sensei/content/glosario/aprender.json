@@ -57,7 +57,7 @@
       "en": "learning rate · lr · tasa de aprendizaje",
       "corto": "Qué tan grande es cada pasito al mover los parámetros (las perillas) de un modelo durante el entrenamiento. Muy chico: tarda una eternidad. Muy grande: se pasa del fondo del valle y la pérdida explota.",
       "largo": "Es el [[hiperparametro]] más importante y no tiene un valor correcto universal: depende del modelo, del [[optimizador]] y del tamaño del [[batch]], y se elige probando en validación. Casi nunca es fijo: un [[scheduler-lr|scheduler]] lo sube al principio con [[warmup]] y lo baja al final. Con Adam, es del orden de cuánto se mueve cada perilla por paso.",
-      "ejemplo": "C01 entrena con lr = 3e-4, que quiere decir 3 × 10⁻⁴ = 0.0003. En la parábola de la lección, 0.05 llega al fondo en 12 pasos y 0.3 explota.",
+      "ejemplo": "C01 entrena con lr = 3e-4, que quiere decir 3 × 10⁻⁴ = 0.0003. En la parábola de la lección, con 0.05 la perilla queda a menos de 0.01 del fondo en 12 pasos; con 0.3, la pérdida explota.",
       "ver": ["descenso-gradiente", "hiperparametro", "scheduler-lr"],
       "leccion": "aprender"
     },
@@ -66,7 +66,7 @@
       "termino": "Convergencia",
       "en": "convergence",
       "corto": "Cuando el entrenamiento ya casi no mejora: la pérdida dejó de bajar y los pasos apenas cambian las perillas.",
-      "largo": "En un modelo de juguete, la perilla llega al fondo y el gradiente a 0. En uno real, con batches al azar, la pérdida nunca se queda quieta: tiembla alrededor de un nivel, y se dice que convergió cuando ese nivel deja de bajar. Bajar el [[learning-rate]] al final ayuda a asentarse. Que la pérdida de entrenamiento converja no dice que el modelo sea bueno con datos nuevos: eso lo dice la validación.",
+      "largo": "En un modelo de juguete, la perilla se acerca cada vez más al fondo y el gradiente, a 0. En uno real, con batches al azar, la pérdida nunca se queda quieta: tiembla alrededor de un nivel, y se dice que convergió cuando ese nivel deja de bajar. Bajar el [[learning-rate]] al final ayuda a asentarse. Que la pérdida de entrenamiento converja no dice que el modelo sea bueno con datos nuevos: eso lo dice la validación.",
       "ejemplo": "En la parábola de la lección, con lr = 0.05 la perilla queda a menos de 0.01 del fondo en 12 pasos; con lr = 0.005 tarda 140.",
       "ver": ["descenso-gradiente", "learning-rate", "early-stopping"],
       "leccion": "aprender"
@@ -267,8 +267,8 @@
       "termino": "GPU",
       "en": "GPU · graphics processing unit · tarjeta gráfica",
       "corto": "Un chip con miles de núcleos sencillos que hacen la misma operación sobre muchos números a la vez. Nació para dibujar gráficos y hoy hace casi todo el entrenamiento de modelos y mucha de la inferencia.",
-      "largo": "Entrenar y responder es, casi todo, multiplicar y sumar tablas enormes de números: justo lo que una GPU hace en paralelo. Tiene su propia memoria, la [[vram|VRAM]], y solo calcula con lo que está ahí. Además de sus núcleos normales trae *tensor cores*, núcleos especiales para multiplicar tablas de números en formatos de 16 bits o menos.",
-      "ejemplo": "La T4 con la que C01 sirve su modelo tiene 2,560 núcleos CUDA, 320 tensor cores y 16 GB de VRAM. El fine-tune mensual de C01 tarda unas 3 a 4 horas en una GPU; en CPU, del orden de días.",
+      "largo": "Entrenar y responder es, casi todo, multiplicar y sumar tablas enormes de números: justo lo que una GPU hace en paralelo. Tiene su propia memoria, la [[vram|VRAM]], y solo calcula con lo que está ahí. Además de sus núcleos normales trae *tensor cores*, núcleos especiales para multiplicar tablas de números, sobre todo en formatos de 16 bits o menos.",
+      "ejemplo": "La T4 con la que C01 sirve su modelo tiene 2,560 núcleos CUDA, 320 tensor cores y 16 GB de VRAM. El fine-tune mensual de C01 tarda unas 3 a 4 horas en una GPU; en CPU, de días a semanas.",
       "ver": ["cpu", "vram"],
       "leccion": "aprender"
     },

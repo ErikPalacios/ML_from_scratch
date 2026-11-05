@@ -85,7 +85,7 @@
       "y": 35,
       "w": 17.5,
       "h": 8,
-      "note": "El [[recall]] de las 100 categorías que más publicaciones reciben no puede caerse, y el [[macro-promedio|macro-recall]] de las categorías chicas no puede empeorar, aunque la accuracy suba."
+      "note": "Ninguna de las 100 categorías que más publicaciones reciben puede perder más de 5 puntos de [[recall]] (con una prueba que descarta el ruido), y el [[macro-promedio|macro-recall]] de las categorías chicas no puede empeorar, aunque la accuracy suba."
     },
     {
       "id": "slices",

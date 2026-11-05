@@ -6,7 +6,7 @@
 <line x1="170" y1="56" x2="194" y2="56" style="stroke:var(--o);stroke-width:3;stroke-linecap:round"/><text class="f-s" x="200" y="61">validación</text>
 <rect class="f-chip" x="56" y="82" width="43.9" height="170" rx="6"/>
 <rect class="f-chip" x="187.7" y="82" width="146.3" height="170" rx="6"/>
-<text class="f-l" x="61" y="98">UNDER</text><text class="f-l" x="61" y="112">FITTING</text>
+<text class="f-l" x="61" y="230">UNDER</text><text class="f-l" x="61" y="244">FITTING</text>
 <text class="f-l" x="328" y="98" text-anchor="end">OVERFITTING</text>
 <line class="f-flecha" x1="56" y1="252" x2="340" y2="252"/>
 <line class="f-flecha" x1="56" y1="252" x2="56" y2="78"/>

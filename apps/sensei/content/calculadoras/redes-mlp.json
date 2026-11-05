@@ -94,5 +94,5 @@
       "nota": "una por peso"
     }
   ],
-  "nota": "Con 224 × 224 en color y solo 128 ocultas, la primera capa ya tiene 19.3 millones de parámetros, y cada uno sirve para un solo píxel en una sola posición."
+  "nota": "Con 224 × 224 en color y solo 128 ocultas, la primera capa ya tiene 19.3 millones de parámetros, y cada peso conecta un solo número de la foto (un píxel de un color) con una sola neurona."
 }

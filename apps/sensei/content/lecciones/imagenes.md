@@ -77,7 +77,7 @@ Antes de decodificar, la foto de Ana es una ristra de bytes que no se parece en 
 
 ### JPEG y PNG
 
-Hay muchos formatos de archivo de imagen. C01 acepta tres: JPEG, PNG y WebP. Los dos que más vas a ver:
+Hay muchos formatos de archivo de imagen. C01 acepta tres: JPEG, PNG y WebP (uno más reciente que, para la misma foto, suele dar archivos más chicos). Los dos que más vas a ver:
 
 | | [[jpeg\|JPEG]] | [[png\|PNG]] |
 |---|---|---|
@@ -85,7 +85,7 @@ Hay muchos formatos de archivo de imagen. C01 acepta tres: JPEG, PNG y WebP. Los
 | Para qué es bueno | Fotos | Capturas de pantalla, logos, dibujos |
 | Transparencia | No | Sí (puede traer 4 canales) |
 | Tamaño de una foto de 12 MP | Unos 3 MB | Bastante más que el JPEG |
-| Metadatos EXIF | Casi siempre | Rara vez |
+| Metadatos EXIF | Casi siempre, si salió de una cámara o un celular | Rara vez |
 
 JPEG divide la imagen en bloques de 8 × 8 píxeles y en cada uno se queda con lo importante. Cuanto más se comprime, más se notan esos bloques: es la foto «pixeleada» que se ve cuadriculada cuando alguien la reenvió muchas veces. Por eso dos JPEG de la misma escena, guardados con distinta calidad, no dan los mismos píxeles. Lo vas a necesitar cuando veas el *skew*.
 
@@ -103,7 +103,7 @@ Y un archivo chiquito puede estar hecho a propósito para decodificarse en una i
 
 Además de los píxeles, un JPEG suele traer datos escondidos que se llaman [[exif|EXIF]]: qué teléfono la tomó, la fecha y la hora, la exposición, cómo estaba girado el teléfono y, muchas veces, las coordenadas GPS de dónde se tomó. Importan por dos razones.
 
-**La orientación.** Muchos teléfonos guardan los píxeles siempre «acostados», como los ve el sensor, y anotan en el EXIF cómo hay que girarlos. Si Ana tomó la foto con el celular de pie, el archivo trae 4032 × 3024 píxeles acostados y una nota: orientación 6, «gira 90° a la derecha para verla bien». Tu galería aplica esa nota sin que te des cuenta, y por eso tú la ves derecha. Pero una librería que solo lee los píxeles la entrega de lado. Pillow, la librería de imágenes más común en Python, no la gira a menos que se lo pidas; OpenCV, en sus versiones actuales, la gira sola al leer, a menos que le pidas que no. Si un lado gira y el otro no, el modelo ve tenis acostados.
+**La orientación.** Muchos teléfonos guardan los píxeles siempre «acostados», como los ve el sensor, y anotan en el EXIF cómo hay que girarlos. Si Ana tomó la foto con el celular de pie, el archivo trae 4032 × 3024 píxeles acostados y una nota: orientación 6, «gira 90° a la derecha para verla bien». Tu galería aplica esa nota sin que te des cuenta, y por eso tú la ves derecha. Pero una librería que solo lee los píxeles la entrega de lado. Pillow, la librería de imágenes más común en Python, no la gira a menos que se lo pidas; OpenCV, otra librería de imágenes muy usada, en sus versiones actuales la gira sola al leer, a menos que le pidas que no. Si un lado gira y el otro no, el modelo ve tenis acostados.
 
 **La privacidad.** Con las coordenadas GPS de la foto de unos tenis tomada en la sala de Ana, cualquiera podría saber dónde vive. Por eso en C01 ni la foto ni su EXIF se guardan en los registros, y las pocas fotos que se copian para que una persona las etiquete (≈ 5,000 al mes) se guardan sin EXIF. Lo ves a fondo en la lección «Datos personales y la ley».
 
@@ -115,19 +115,19 @@ Sigamos la foto de 12 MP de Ana, ya girada: 3024 de ancho × 4032 de alto.
 
 :::pasos
 1. Resize: el lado corto a 256
-Se achica la foto sin deformarla, hasta que su lado más corto mida 256. El ancho pasa de 3024 a 256, y el alto se achica en la misma proporción: 4032 × 256 ÷ 3024 = 341.3, que se redondea a 341. Queda de 256 × 341. A eso se le llama [[resize]]. Al achicar, cada píxel nuevo se calcula mezclando varios de los viejos; la regla para mezclarlos es la [[interpolacion|interpolación]], y C01 usa la *bilinear* con antialias (la sección 5 la explica con números).
+Se achica la foto sin deformarla, hasta que su lado más corto mida 256. El ancho pasa de 3024 a 256, y el alto se achica en la misma proporción: 4032 × 256 ÷ 3024 = 341.3, que se redondea a 341. Queda de 256 × 341. A eso se le llama [[resize]]. Al achicar, cada píxel nuevo se calcula mezclando varios de los viejos; la regla para mezclarlos es la [[interpolacion|interpolación]]. C01 usa la *bilinear* con antialias, que hace que cada píxel nuevo tome en cuenta a todos los viejos que le caen debajo (la sección 5 lo explica con números).
 2. Center crop: el cuadro del centro
-El modelo espera un cuadrado de 224 × 224, así que se recorta el cuadro del centro: es el [[crop]]. A lo ancho sobran 256 − 224 = 32 píxeles, 16 de cada lado. A lo alto sobran 341 − 224 = 117, unos 58 arriba y 59 abajo. ¿Por qué 256 y luego 224, y no directo a 224? Porque así se entrenó la ResNet-50 original: el recorte se queda con el centro y descarta un poco de orilla.
+El modelo espera un cuadrado de 224 × 224, así que se recorta el cuadro del centro: es el [[crop]]. A lo ancho sobran 256 − 224 = 32 píxeles, 16 de cada lado. A lo alto sobran 341 − 224 = 117, unos 58 arriba y 59 abajo. ¿Por qué 256 y luego 224, y no directo a 224? Porque es la receta clásica para evaluar una ResNet-50: al entrenar, el modelo vio recortes de 224 × 224 sacados de fotos más grandes, y el recorte del centro es la versión fija, sin azar, de esos recortes. Descarta un poco de orilla, donde casi nunca está lo importante.
 3. A float32 y entre 255
 Hasta aquí cada número es un uint8 de 0 a 255. Se convierte a [[float32]], un número con decimales que ocupa 4 bytes, y se divide entre 255: ahora cada número va de 0 a 1. El naranja 236 queda en 236 ÷ 255 = 0.925.
 4. Normalizar
 A cada número se le resta un promedio y se divide entre una desviación, distintos para cada canal. Es la [[normalizacion|normalización]], y la vemos con números abajo.
 5. Reordenar y agrupar
-Se acomodan los números en el orden que espera el modelo, primero por canal, y se les agrega una dimensión más al frente. Queda el [[tensor]] [1, 3, 224, 224], que es la siguiente sección.
+Se acomodan los números en el orden que espera el modelo, primero por canal, y se les agrega una dimensión más al frente, que dice cuántas fotos van juntas. Queda el [[tensor]] [1, 3, 224, 224], que es la siguiente sección.
 :::
 
 :::figura imagenes-preproceso
-El camino completo de la foto de 12 MP, con su tamaño en cada paso. El orden exacto de algunos pasos cambia según la librería, pero el resultado es el mismo.
+El camino completo de la foto de 12 MP, con su tamaño en cada paso. Algunas librerías hacen en otro orden los pasos que solo acomodan números: el código de PyTorch de abajo pasa a CHW al principio. Eso no cambia ningún número.
 :::
 
 :::ojo Primero achicar, luego convertir
@@ -161,7 +161,7 @@ El píxel (236, 106, 63), canal por canal:
 - **G:** 106 ÷ 255 = 0.416 → (0.416 − 0.456) ÷ 0.224 = −0.040 ÷ 0.224 ≈ **−0.18**
 - **B:** 63 ÷ 255 = 0.247 → (0.247 − 0.406) ÷ 0.225 = −0.159 ÷ 0.225 ≈ **−0.71**
 
-El modelo no recibe «236, 106, 63», sino «1.92, −0.18, −0.71». Un negro puro (0, 0, 0) queda en −2.12, −2.04 y −1.80; un blanco puro, en 2.25, 2.43 y 2.64. Todo cae, más o menos, entre −2 y +3.
+El modelo no recibe «236, 106, 63», sino «1.92, −0.18, −0.71». Un negro puro (0, 0, 0) queda en −2.12, −2.04 y −1.80; un blanco puro, en 2.25, 2.43 y 2.64. Todo cae entre −2.12 y +2.64: números chicos, alrededor de 0.
 :::
 
 Lo mismo en Python. Se copia y se corre tal cual, sin instalar nada:
@@ -189,7 +189,7 @@ blanco:  [2.25, 2.43, 2.64]
 
 ### Así se ve con PyTorch
 
-Así lo escribe la Ronda en M07, con PyTorch (la librería de Python más usada para redes neuronales). Es una ilustración: necesita PyTorch y una foto, así que no lleva salida. No hace falta entender cada línea: fíjate en que cada paso de arriba es una línea.
+Con PyTorch (la librería de Python más usada para redes neuronales), cada paso de arriba es una línea. La parte de `TF` es la misma que escribe la Ronda en M07; abajo, antes de usarla, se abre la foto, se gira según su EXIF y se pasa a RGB. Es una ilustración: necesita PyTorch y una foto, así que no lleva salida, y no hace falta entender cada línea.
 
 ```python
 from PIL import Image, ImageOps
@@ -221,11 +221,11 @@ Lo que sale del preprocesamiento es un [[tensor]]: una tabla de números con cua
 | 1 | una lista | los 500 logits |
 | 2 | una tabla | un canal: 224 × 224 |
 | 3 | varias tablas | una foto: 3 canales de 224 × 224 |
-| 4 | varias fotos | un grupo de fotos: [1, 3, 224, 224] |
+| 4 | varias fotos | un grupo de 32 fotos: [32, 3, 224, 224]; con una sola, [1, 3, 224, 224] |
 
 Cuántos números hay en cada dimensión, en orden, es su [[shape]] (su «forma»). El de la foto de Ana es **[1, 3, 224, 224]**. Número por número:
 
-- **1:** cuántas fotos van juntas. Los modelos casi siempre procesan las entradas en grupos, que se llaman [[batch|batches]], porque calcular varias a la vez sale más barato que una por una. Una sola foto es un batch de 1. El servidor de modelos de C01 junta hasta 32 fotos que llegan casi al mismo tiempo, y entonces el shape es [32, 3, 224, 224].
+- **1:** cuántas fotos van juntas. Los modelos casi siempre procesan las entradas en grupos, que se llaman [[batch|batches]], porque calcular varias a la vez sale más barato que una por una. Una sola foto es un batch de 1. El servidor de modelos de C01 junta hasta 32 fotos que llegan casi al mismo tiempo; si junta 32, el shape es [32, 3, 224, 224].
 - **3:** los canales: rojo, verde y azul.
 - **224:** el alto, en píxeles.
 - **224:** el ancho, en píxeles.
@@ -242,7 +242,7 @@ El orden [canales, alto, ancho] se llama [[chw|CHW]] (*channels, height, width*)
 PyTorch y el modelo de C01 esperan CHW. Con el batch al frente se escribe NCHW: N es cuántas fotos.
 
 :::ojo Ancho × alto, pero alto primero
-Las fotos se describen como ancho × alto («4032 × 3024»). Los shapes, en cambio, se escriben con el alto primero. La misma foto acostada es (3024, 4032, 3) en HWC: 3024 filas de 4032 píxeles. Con 224 × 224 no se nota porque es cuadrada, pero en una foto rectangular confundirlos la voltea.
+Las fotos se describen como ancho × alto («4032 × 3024»). Los shapes, en cambio, se escriben con el alto primero. La misma foto acostada es (3024, 4032, 3) en HWC: 3024 filas de 4032 píxeles. Con 224 × 224 no se nota porque es cuadrada, pero en una foto rectangular confundirlos la deforma o la voltea.
 :::
 
 ### Cuánto pesa el tensor
@@ -258,7 +258,7 @@ Lo que regresa el modelo // 500 logits en float32 | 500 × 4 B = 2,000 B | ≈ 2
 = El tensor pesa **3 veces** el JPEG del celular (602 KB contra ≈ 200 KB): el JPEG venía comprimido; el tensor no, y además cada número pasó de 1 byte a 4.
 :::
 
-Y no viaja solo. Cuando llegan 500 fotos por segundo, esos 602 KB por foto se vuelven ≈ 2.4 gigabits por segundo en la red de C01: la sección 6 hace la cuenta.
+Y no es un tensor, son cientos por segundo. Cuando llegan 500 fotos por segundo, esos 602 KB por foto se vuelven ≈ 2.4 gigabits por segundo en la red de C01: la sección 6 hace la cuenta.
 
 :::nota El 1 que no aparece
 En la configuración del servidor de modelos de C01 (Triton) verás `dims: [ 3, 224, 224 ]`, sin el 1. No es un error: como ahí mismo se declara cuántas fotos puede juntar (`max_batch_size: 32`), Triton agrega él solo la dimensión del batch.
@@ -281,7 +281,7 @@ Se ve mejor agrandando una imagen chiquita. Toma una de 2 × 2 en escala de gris
 Arriba, la imagen de 2 × 2. Abajo, las dos formas de llevarla a 4 × 4: nearest repite cada píxel en un bloque de 2 × 2; bilinear hace un degradado. El píxel marcado se calcula paso a paso en la cuenta de abajo.
 :::
 
-¿De dónde salen los pesos? Cada píxel nuevo tiene su centro. Al agrandar una fila de 2 píxeles a 4, los centros de los píxeles nuevos 1 y 2 caen a un cuarto del camino entre los dos viejos, uno de cada lado. Los de las orillas (0 y 3) caen afuera de la imagen vieja y se quedan con el valor de la orilla. Por eso, en una fila, los pesos de los cuatro píxeles nuevos son (1, 0), (0.75, 0.25), (0.25, 0.75) y (0, 1): el que está más cerca pesa más. En dos dimensiones se hace lo mismo dos veces: primero a lo ancho, luego a lo alto.
+¿De dónde salen los pesos? Cada píxel nuevo tiene su centro. Al agrandar una fila de 2 píxeles a 4 (numerados del 0 al 3, como en Python), los centros de los píxeles nuevos 1 y 2 caen a un cuarto del camino entre los dos viejos, uno de cada lado. Los de las orillas (0 y 3) caen más afuera que el centro del píxel viejo de su orilla: de ese lado ya no hay otro vecino con quién mezclar, así que se quedan con el valor de la orilla. Por eso, en una fila, los pesos de los cuatro píxeles nuevos son (1, 0), (0.75, 0.25), (0.25, 0.75) y (0, 1): el que está más cerca pesa más. En dos dimensiones se hace lo mismo dos veces: primero a lo ancho, luego a lo alto.
 
 :::cuenta Un píxel nuevo, con bilinear
 Dónde cae // el píxel marcado, fila 1 y columna 1 | a un cuarto del camino, a lo alto y a lo ancho | pesos 0.75 y 0.25
@@ -357,7 +357,7 @@ El problema práctico es que «haz resize a 256» no dice cómo. Cada librería 
 |---|---|
 | Pillow, `Image.resize` | Bicubic (mezcla 16 vecinos en vez de 4).\nCon antialias al achicar. |
 | OpenCV, `cv2.resize` | Bilinear.\nSin antialias: para eso está el modo `INTER_AREA`. |
-| torchvision, `Resize` | Bilinear.\nCon antialias al achicar. |
+| torchvision (la parte de PyTorch para imágenes), `Resize` | Bilinear.\nCon antialias al achicar. |
 
 C01 lo deja escrito: resize bilinear **con** antialias, en un solo archivo de código. Y hay una trampa más. Algunos PNG no guardan RGB por píxel sino una **paleta**: una lista de colores, y cada píxel dice qué número de la lista usa. Si achicas esa imagen antes de convertirla a RGB, Pillow usa nearest sin avisar, porque no tiene sentido promediar posiciones de una lista. Por eso el orden es primero convertir a RGB y después achicar.
 
@@ -373,7 +373,7 @@ El píxel naranja es (236, 106, 63) en RGB. OpenCV lo entrega como (63, 106, 236
 - Lo que debía recibir: **1.92, −0.18, −0.71**.
 - Lo que recibe: en R, (63 ÷ 255 − 0.485) ÷ 0.229 ≈ **−1.04**; en G, el mismo −0.18; en B, (236 ÷ 255 − 0.406) ÷ 0.225 ≈ **2.31**.
 
-El verde no cambia, porque está en medio en los dos órdenes. Los otros dos se mueven ≈ 3 unidades, en una escala que va de −2 a +3.
+El verde no cambia, porque está en medio en los dos órdenes. Los otros dos se mueven ≈ 3 unidades, en una escala que va de −2.12 a +2.64.
 :::
 
 Para un modelo de categorías, unos tenis naranjas convertidos en tenis azules pueden seguir siendo tenis: el error no se nota en cada foto. Pero en todas las fotos donde el color importa (un vestido rojo, una fruta madura, una mancha de óxido) el modelo recibe otra cosa. La regla: convertir explícitamente, en un solo lugar, justo después de leer (`cv2.cvtColor(img, cv2.COLOR_BGR2RGB)`), y tener en las pruebas una foto de color conocido.
@@ -382,7 +382,7 @@ Para un modelo de categorías, unos tenis naranjas convertidos en tenis azules p
 
 Dos cosas más cambian los píxeles sin que se note a simple vista:
 
-- **El draft mode de JPEG.** Como JPEG trabaja por bloques de 8 × 8, un decodificador puede reconstruir la foto directamente a la mitad, a la cuarta o a la octava parte del tamaño, sin calcular todos los píxeles. Es mucho más rápido cuando de todos modos vas a achicar a 256: en la Ronda, la foto de 12 MP bajó de ≈ 40 a ≈ 18 ms. C01 lo usa (Pillow lo llama *draft mode*), sin bajar de 512 píxeles. Pero el resultado no es idéntico a decodificar completo y luego achicar, así que si se usa en producción hay que usarlo también al entrenar.
+- **El draft mode de JPEG.** Como JPEG trabaja por bloques de 8 × 8, un decodificador puede reconstruir la foto directamente a la mitad, a la cuarta o a la octava parte del tamaño, sin calcular todos los píxeles. Ahorra mucho cuando de todos modos vas a achicar a 256: en la Ronda, una foto de 12 MP bajó de ≈ 40 a ≈ 18 ms, aunque el ahorro cambia según el archivo. C01 lo usa (Pillow lo llama *draft mode*), sin bajar de 512 píxeles. Pero el resultado no es idéntico a decodificar completo y luego achicar, así que si se usa en producción hay que usarlo también al entrenar.
 - **Las versiones.** Dos librerías que decodifican JPEG, o dos versiones de la misma, pueden dar píxeles que difieren en una o dos unidades para el mismo archivo.
 
 ## Muchas imágenes por segundo: la red y el video {Many images per second: the network and video} [extra]
@@ -413,7 +413,7 @@ float32    602,112 B por foto · 2.41 Gb/s a 500 fotos/s
 batch de 32 en float32: 19,267,584 B
 ```
 
-A 500 fotos por segundo, el pico para el que está diseñado C01, son ≈ 2.4 Gb/s de puros tensores. Ese número es el [[ancho-banda|ancho de banda]] que pide el sistema, y es tanto que la Ronda deja anotada una mejora para cuando la red se apriete: mandar el tensor en uint8 (4 veces menos bytes) y hacer la normalización ya dentro del servidor del modelo.
+A 500 fotos por segundo, el pico de diseño de C01, son ≈ 2.4 Gb/s de puros tensores. Ese número es el [[ancho-banda|ancho de banda]] que pide el sistema, y es tanto que la Ronda deja anotada una mejora para cuando la red se apriete: mandar el tensor en uint8 (4 veces menos bytes) y hacer la normalización ya dentro del servidor del modelo.
 
 :::calculadora imagenes-tensor
 La línea que importa en la entrevista es la última: a 500 fotos por segundo, 602 KB por foto son ≈ 2.4 Gb/s.
@@ -437,9 +437,11 @@ El caso C02 de la Ronda es justo eso: una empresa de logística con 25 centros d
 
 Primera cuenta: si analizaras todo, serían 1,000 × 15 = **15,000 frames por segundo**, las 24 horas. Cada uno, una foto de ≈ 2.07 MP que hay que decodificar.
 
-### Comprimido cabe; crudo, no
+### Cuánto video manda un sitio
 
 Las cámaras no mandan los frames crudos: los comprimen con un **códec** (un programa que comprime y descomprime video), casi siempre H.264. El truco del video es que un frame se parece mucho al anterior. H.264 guarda un frame completo cada tanto (el *I-frame*) y, del resto, solo lo que cambió. Por eso el video se comprime mucho más que las fotos sueltas, y por eso lo que pesa depende de la escena: con la misma calidad, una bodega quieta pesa menos que un patio con lluvia.
+
+La cuenta usa el stream que analiza C02, de 5 fps; un poco más abajo verás por qué ese y no el de 15.
 
 :::cuenta Una cámara de C02, cruda y comprimida
 Píxeles por frame // 1080p | 1920 × 1080 = 2,073,600 | ≈ 2.07 MP
@@ -511,13 +513,13 @@ De ahí sale la defensa de C01. Antes de decodificar, el gateway hace tres revis
 Cada revisión puede rechazar la foto antes de abrirla. Usa los recorridos para seguir una foto normal, un archivo enorme, una bomba y un PDF disfrazado de foto.
 :::
 
-1. **El peso del archivo.** La petición anuncia cuántos bytes trae (`Content-Length`). Si son más de 10 MB, el gateway responde **413** («demasiado grande», en HTTP) sin leer el cuerpo.
+1. **El peso del archivo.** La petición anuncia cuántos bytes trae (`Content-Length`). Si son más de 10 MB, el gateway responde **413** («demasiado grande», en HTTP, el protocolo con el que se piden páginas y datos en la web) sin leer el resto de la petición, donde viene el archivo.
 2. **El tipo.** Los primeros bytes dicen qué formato es de verdad, sin importar cómo se llame el archivo: un JPEG empieza con `FF D8`; un PNG, con `89 50 4E 47`. Si no es JPEG, PNG ni WebP, responde **415** («tipo no soportado»).
 3. **Los píxeles.** El ancho y el alto del encabezado. Si pasan de 40 MP, otro **413**.
 
 ¿Por qué 40 MP? Porque cada decodificación vive en la memoria del servidor, y el costo crece con los píxeles, no con el peso del archivo. Una foto de 40 MP en RGB ocupa 40 M × 3 = 120 MB, y un PNG de 40 MP con transparencia y 16 bits por canal (PNG lo permite) llega a 40 M × 4 canales × 2 bytes = 320 MB. Cada copia del gateway de C01 tiene 1 GiB de memoria, así que decodifica como máximo 2 fotos a la vez, con un tiempo límite.
 
-Con la CPU pasa lo mismo. Una foto de la app, de 1024 × 768, tiene 786,432 píxeles: unas 15 veces menos que una de 12 MP. En la Ronda, decodificar una de 12 MP tardó ≈ 40 ms en una laptop, contra los ≈ 6 ms del promedio. Por eso unas cuantas fotos grandes de la computadora pueden comerse una buena parte de la CPU, aunque sean pocas.
+Con la CPU pasa lo mismo. Una foto de la app, de 1024 × 768, tiene 786,432 píxeles: unas 15 veces menos que una de 12 MP. En la Ronda, decodificar una de 12 MP tardó ≈ 40 ms en una laptop, contra los ≈ 6 ms del promedio. Por eso las fotos grandes que se suben desde la computadora pueden comerse una buena parte de la CPU, aunque sean pocas.
 
 Pillow trae su propia guarda: avisa si una imagen pasa de 89,478,485 píxeles (≈ 89 MP) y se niega a abrirla si pasa del doble (≈ 179 MP). Es una red de seguridad, no una política: con sus 100 MP, la bomba de arriba solo dispararía el aviso. Por eso C01 pone su límite explícito, mucho más abajo.
 
@@ -529,12 +531,12 @@ El archivo // un PNG de 1 píxel de ancho y 4,000 de alto | 1 bit por píxel | 8
 El resize lleva el lado corto a 256 | el largo crece igual: 4,000 × 256 | 1,024,000 de alto
 La imagen «achicada» | 256 × 1,024,000 × 3 B | ≈ 786 MB
 Y en float32 | × 4 | ≈ 3.1 GB
-= Un archivo de 85 bytes pide casi 1 GB al «achicarse». Por eso C01 también rechaza las proporciones de más de 1 a 8.
+= Un archivo de 85 bytes pide ≈ 786 MB al «achicarse» (la Ronda lo redondea a ≈ 1 GB), y ≈ 3.1 GB si se pasa a float32. Por eso C01 también rechaza las proporciones de más de 1 a 8: un lado más de 8 veces más largo que el otro.
 :::
 
 ## El mismo preprocesamiento en los dos momentos {Training-serving skew}
 
-Recuerda los dos momentos de un modelo: entrenar y usar. Las fotos pasan por el preprocesamiento en los dos. Al entrenar, cada una de los millones de fotos del [[dataset]]; en producción, cada foto que sube Ana. Y aquí está la regla más importante de esta lección:
+Recuerda los dos momentos de un modelo: entrenar y usar. Las fotos pasan por el preprocesamiento en los dos. Al entrenar, cada una de las fotos del [[dataset]], que son millones; en producción, cada foto que sube Ana. Y aquí está la regla más importante de esta lección:
 
 **El preprocesamiento tiene que ser idéntico en los dos momentos.**
 
@@ -544,7 +546,7 @@ Arriba, la foto de Ana en producción; abajo, las fotos del entrenamiento. Las d
 
 El modelo aprendió con fotos preparadas de cierta forma. Sus perillas están ajustadas a esos números. Si en producción la foto se prepara distinto, el modelo recibe números que nunca vio, y lo peor es cómo falla: **no hay ningún error**. El servicio contesta rápido, con su top-5 y su porcentaje. Solo que acierta menos, y nadie se entera hasta que alguien mide.
 
-La Ronda lo cuenta así en M09. El modelo de C01 saca 85 % de top-1 en su examen. Se despliega, y los vendedores aceptan sus sugerencias menos de lo esperado. Alguien manda fotos ya etiquetadas por el gateway real, y el top-1 da 80 %. En los registros no hay un solo error.
+La Ronda lo cuenta así en M09. El modelo de C01 saca 85 % de top-1 en su examen. Se despliega, y los vendedores aceptan sus sugerencias menos de lo esperado. Alguien manda fotos ya etiquetadas por el gateway real (el programa de C01 que recibe cada foto y la prepara para el modelo), y el top-1 da 80 %. En los registros no hay un solo error.
 
 Esa diferencia tiene nombre: [[training-serving-skew|training-serving skew]] (desfase entre entrenamiento y servicio). El modelo ve en producción entradas preparadas distinto de las que aprendió **por culpa de tu sistema**, no porque el mundo haya cambiado.
 
@@ -559,7 +561,7 @@ Todas tienen la misma forma: dos caminos de código que «hacen lo mismo» y no 
 | Cómo se llega a 224 | Resize a 256 y recorte del centro al entrenar; resize directo a 224 × 224 al servir.\n→ Fotos deformadas: en una foto de pie, los tenis se ven más anchos. |
 | La orientación EXIF | Un lado gira la foto según su EXIF y el otro no.\n→ Fotos de celular de lado. |
 | La escala o la normalización | Se olvidó el ÷ 255, o se usaron otras medias.\n→ En vez de 1.92, ≈ 1,028. |
-| La calidad del JPEG o el draft mode | El dataset guardó miniaturas recomprimidas y el servicio recibe el JPEG de la app; o hay draft mode en un solo lado.\n→ Otros artefactos de compresión: píxeles un poco distintos. |
+| La calidad del JPEG o el draft mode | El dataset guardó miniaturas recomprimidas y el servicio recibe el JPEG de la app; o solo un lado usa draft mode (decodificar directo a un tamaño menor).\n→ Otras huellas de la compresión: píxeles un poco distintos. |
 | Las versiones de las librerías | Otra versión de Pillow en el contenedor del servicio.\n→ Píxeles que difieren en una o dos unidades. |
 
 :::ojo Skew no es drift
@@ -582,19 +584,19 @@ Con tres medidas que vas a ver en la Ronda:
 La prueba corre en CI, el proceso automático que revisa cada cambio de código antes de aceptarlo. Recorre una prueba que pasa y dos que fallan.
 :::
 
-¿Qué tan grande tiene que ser una diferencia para que la prueba falle? Con el mismo código y las mismas versiones, la diferencia es **exactamente 0**. Si no es 0, algo cambió. Y los errores de la tabla se ven enormes en el tensor:
+¿Qué tan grande tiene que ser una diferencia para que la prueba falle? Con el mismo código y las mismas versiones, las cuentas son las mismas y en el mismo orden, así que la diferencia debe ser **exactamente 0**. Si no es 0, algo cambió. Y los errores de la tabla se ven enormes en el tensor:
 
 :::cuenta Cuánto mueve cada error al tensor
-Un decoder que difiere en 1 unidad // canal R | 1 ÷ 255 ÷ 0.229 | ≈ 0.017
-Leer BGR en vez de RGB // el naranja, canal R | 1.92 − (−1.04) | ≈ 2.96
-Olvidar el ÷ 255 // el naranja, canal R | 1,028 − 1.92 | ≈ 1,026
+Un decodificador que difiere en 1 unidad // canal R | 1 ÷ 255 ÷ 0.229 | ≈ 0.017
+Leer BGR en vez de RGB // el naranja, canal R: le llega el 63 del azul, que normalizado da (63 ÷ 255 − 0.485) ÷ 0.229 ≈ −1.04 | 1.92 − (−1.04) | ≈ 2.96
+Olvidar el ÷ 255 // el naranja, canal R: (236 − 0.485) ÷ 0.229 ≈ 1,028 | 1,028 − 1.92 | ≈ 1,026
 = Una prueba que exige diferencia 0 atrapa los tres. Solo se acepta una tolerancia chica cuando se elige a propósito una diferencia conocida, como decodificar en la GPU, y entonces se mide su efecto en las predicciones.
 :::
 
 :::analogia La receta y la báscula
-Un pastelero aprendió una receta pesando la harina en gramos. Si un día, en otra sucursal, alguien la pesa en onzas y usa el mismo número, el pastel sale, se ve como pastel y nadie recibe un aviso. Solo sabe peor.
+Un pastelero aprendió una receta con la báscula de su cocina. En otra sucursal siguen la misma receta, pero su báscula está mal calibrada: cuando marca 500 g de harina, en realidad son 550. El pastel sale, se ve como pastel y nadie recibe un aviso. Solo sabe peor.
 
-**Dónde se rompe la analogía:** el pastelero probaría el pastel y notaría que algo anda mal. El modelo no prueba nada: entrega su respuesta con la misma confianza de siempre. La única forma de enterarse es medir, por eso el preprocesamiento se prueba con fotos fijas.
+**Dónde se rompe la analogía:** el pastelero probaría el pastel y notaría que algo anda mal. El modelo no prueba nada: entrega su respuesta como siempre, con su porcentaje, sin avisar de nada. La única forma de enterarse es medir, y por eso el preprocesamiento se revisa con fotos fijas, como una báscula se revisa con pesas conocidas.
 :::
 
 ## Errores comunes {Common mistakes}
@@ -605,11 +607,11 @@ La foto de 12 MP en float32 ocupa ≈ 146 MB, solo para tirar casi todo un paso 
 2. Leer con OpenCV y olvidar que entrega BGR
 El modelo recibe el rojo y el azul cambiados, sin ningún error. **Cómo evitarlo:** convierte a RGB justo después de leer, dentro del archivo de preprocesamiento, y ten en las pruebas una foto de color conocido.
 3. Dividir entre 255 dos veces, o ninguna
-`ToDtype(..., scale=True)` ya divide entre 255; si además divides tú, todo queda casi en 0. Si nadie divide, los valores llegan a ≈ 1,000. **Cómo evitarlo:** una sola función hace la escala y la normalización, y la prueba de paridad la vigila.
+`ToDtype(..., scale=True)` ya divide entre 255; si además divides tú, todo queda entre 0 y 0.004, y para el modelo la foto es casi negra. Si nadie divide, los valores llegan a ≈ 1,000. **Cómo evitarlo:** una sola función hace la escala y la normalización, y la prueba de paridad la vigila.
 4. Confundir ancho × alto con el orden del shape
 Las fotos se dicen ancho × alto; los tensores, alto primero. Confundirlos voltea o deforma la foto. **Cómo evitarlo:** escribe el orden en un comentario junto a cada shape y prueba con una foto que no sea cuadrada.
 5. Achicar un PNG con paleta antes de convertirlo a RGB
-Pillow usa nearest sin avisar y la foto sale escalonada. **Cómo evitarlo:** primero `convert("RGB")`, después el resize.
+En un PNG con paleta, cada píxel no guarda su color sino el número de un color en una lista. Como no tiene sentido promediar esos números, Pillow lo achica con nearest (copia al vecino más cercano) sin avisar, y la foto sale escalonada. **Cómo evitarlo:** primero `convert("RGB")`, después el resize.
 6. Calcular la memoria con el peso del archivo
 Un archivo de 12 KB puede pedir 300 MB. Lo que ocupa en memoria depende de los píxeles, no del archivo. **Cómo evitarlo:** lee el ancho y el alto del encabezado y calcula ancho × alto × canales × bytes antes de decodificar.
 7. «Arreglar» el skew reentrenando
@@ -636,7 +638,7 @@ En C03 una cámara fotografía cada pieza metálica que pasa por una banda, para
 Arriba, la imagen de la cámara partida en 20 tiles. Abajo, la misma grieta vista de cerca a tres resoluciones: a la de la cámara mide 3.3 píxeles; achicada a 224, un tercio de píxel.
 :::
 
-Cada píxel cubre 150 ÷ 2,448 ≈ 0.061 mm, así que una grieta de 0.2 mm mide ≈ 3.3 píxeles de ancho. Si la imagen se achicara a 224 como en C01, cada píxel cubriría 0.67 mm y la grieta mediría 0.3 píxeles: un gris apenas más oscuro que el metal, perdido. Por eso C03 **no achica**: parte la imagen en 20 recortes de 512 × 512 (5 a lo ancho y 4 a lo alto, con un poco de traslape para no cortar una grieta en la orilla) y los procesa juntos, como un batch. A esos recortes se les llama *tiles* (mosaicos). Fíjate en otro detalle: esta cámara manda la imagen cruda, sin JPEG. No hay nada que decodificar, y no hay compresión que borre una grieta.
+Cada píxel cubre 150 ÷ 2,448 ≈ 0.061 mm, así que una grieta de 0.2 mm mide ≈ 3.3 píxeles de ancho. Si la imagen se achicara a 224 como en C01, cada píxel cubriría 0.67 mm y la grieta mediría 0.3 píxeles: un gris apenas más oscuro que el metal, perdido. Por eso C03 **no achica**: parte la imagen en 20 recortes de 512 × 512 (5 a lo ancho y 4 a lo alto, con un poco de traslape a lo ancho para no cortar una grieta en la orilla) y los procesa juntos, como un batch. A esos recortes se les llama *tiles* (mosaicos). Fíjate en otro detalle: esta cámara manda la imagen cruda, sin JPEG. No hay nada que decodificar, y no hay compresión que borre una grieta.
 
 ### C04: imágenes que no caben en la memoria
 
@@ -658,7 +660,7 @@ C05 rechaza al momento la foto de una credencial que no llegue a ≈ 200 DPI, po
 
 ## Ejercicios {Exercises}
 
-Resuélvelos con lápiz antes de abrir la solución. Los números son los de la lección.
+Resuélvelos con lápiz antes de abrir la solución. Los números son los de la lección. El 5 y el 9 usan las secciones extra 5 y 7: si todavía no las lees, déjalos para la segunda pasada.
 
 :::ejercicios
 ? [facil] Una imagen RGB mide 640 × 480. ¿Cuántos números son, cuántos bytes ocupa en uint8 y cuántos en float32?
@@ -674,7 +676,7 @@ Primero, 128 ÷ 255 ≈ 0.502 en los tres canales. Después, cada uno con su med
 - B: (0.502 − 0.406) ÷ 0.225 ≈ **0.43**
 
 No quedan iguales porque cada canal tiene su propia media: en las fotos de ImageNet hay, en promedio, más rojo que azul (0.485 contra 0.406). Comparado con lo que el modelo suele ver, este gris tiene «de más» sobre todo en el azul.
-? [facil] Una cámara graba a 25 fps. ¿Cada cuántos milisegundos llega un frame y cuántos frames manda en un minuto? ¿Y una de C02, a 5 fps?
+? [facil] Una cámara graba a 25 fps: 25 frames (fotos) por segundo. ¿Cada cuántos milisegundos llega un frame y cuántos frames manda en un minuto? ¿Y una de C02, a 5 fps?
 A 25 fps: 1,000 ÷ 25 = **40 ms** entre frames, y 25 × 60 = **1,500 frames** por minuto.
 
 A 5 fps: 1,000 ÷ 5 = **200 ms**, y 5 × 60 = **300 frames** por minuto: cinco veces menos trabajo para el detector.
@@ -697,7 +699,7 @@ OpenCV lo entrega como (30, 30, 200), así que al canal R le llega 30:
 - Recibe: (30 ÷ 255 − 0.485) ÷ 0.229 = (0.118 − 0.485) ÷ 0.229 ≈ **−1.60**.
 - Debía recibir: (200 ÷ 255 − 0.485) ÷ 0.229 = (0.784 − 0.485) ÷ 0.229 ≈ **1.31**.
 
-Una diferencia de ≈ 2.9 en una escala que va de −2 a +3: para el modelo, la cosa roja es azul. Ningún error lo avisa.
+Una diferencia de ≈ 2.9 en una escala que va de −2.12 a +2.64: para el modelo, la cosa roja es azul. Ningún error lo avisa.
 ? [medio] El tráfico de C01 crece 10 veces: 5,000 fotos por segundo. ¿Cuántos Gb/s de tensores viajan del gateway a la GPU en float32, en float16 y en uint8?
 Cada foto son 150,528 números. A 5,000 por segundo y 8 bits por byte:
 
@@ -705,10 +707,10 @@ Cada foto son 150,528 números. A 5,000 por segundo y 8 bits por byte:
 - float16: la mitad, ≈ **12.0 Gb/s**.
 - uint8: la cuarta parte, ≈ **6.0 Gb/s**.
 
-Por eso, si C01 crece, la primera palanca de la Ronda es mandar uint8 y normalizar dentro del servidor del modelo: la red baja 4 veces sin tocar la GPU.
+Por eso, si C01 crece, la primera palanca de la Ronda es mandar uint8 y normalizar dentro del servidor del modelo: la red baja 4 veces, y a la GPU solo le toca una resta y una división más por número, que le cuestan casi nada.
 ? [medio] Un sitio de C02 tiene 40 cámaras y un enlace a internet de 50 Mb/s. ¿Cabe el video si manda el stream principal (15 fps, ≈ 4 Mb/s por cámara)? ¿Y el de 5 fps (≈ 1.5 Mb/s)?
 - Principal: 40 × 4 = **160 Mb/s**, más de 3 veces el enlace.
-- 5 fps: 40 × 1.5 = **60 Mb/s**: tampoco cabe, y se comería el enlace entero.
+- 5 fps: 40 × 1.5 = **60 Mb/s**: tampoco cabe, ni usando el enlace entero.
 
 Ninguno cabe. Por eso C02 analiza el video **en el sitio** y solo sube los eventos: unas fotos y un clip corto cuando pasa algo.
 ? [reto] El encabezado de un PNG dice 30,000 × 30,000. ¿Cuántos megapíxeles son y cuánta memoria pediría en RGB uint8 y en float32? ¿Qué hace con él la guarda de C01, y qué haría Pillow sin configurar?
@@ -719,7 +721,7 @@ Ninguno cabe. Por eso C02 analiza el video **en el sitio** y solo sube los event
 ? [reto] En C03, la cámara ve 150 mm de pieza en 2,448 píxeles. ¿Cuántos píxeles mide una grieta de 0.2 mm? ¿Y si la imagen se achicara a 224 de ancho? ¿Cuántos tiles de 512 × 512 hacen falta para cubrir la imagen de 2,448 × 2,048?
 - Cada píxel cubre 150 ÷ 2,448 ≈ 0.061 mm. La grieta: 0.2 ÷ 0.061 ≈ **3.3 píxeles**.
 - A 224 de ancho, cada píxel cubre 150 ÷ 224 ≈ 0.67 mm, y la grieta mide 0.2 ÷ 0.67 ≈ **0.3 píxeles**: se mezcla con el metal de alrededor y desaparece.
-- Tiles: a lo ancho, 2,448 ÷ 512 ≈ 4.8, así que hacen falta **5**; a lo alto, 2,048 ÷ 512 = **4**. En total, 5 × 4 = **20**. Cinco tiles miden 2,560 píxeles y la imagen 2,448, así que se traslapan un poco, y eso ayuda a no cortar una grieta justo en la orilla de un tile.
+- Tiles: a lo ancho, 2,448 ÷ 512 ≈ 4.8, así que hacen falta **5**; a lo alto, 2,048 ÷ 512 = **4**. En total, 5 × 4 = **20**. Cinco tiles miden 2,560 píxeles y la imagen 2,448, así que a lo ancho se traslapan un poco (112 píxeles en total), y eso ayuda a no cortar una grieta justo en la orilla de un tile. A lo alto, cuatro tiles miden justo 2,048: ahí no hay traslape.
 :::
 
 ## Lo que sigue {What comes next}
@@ -733,7 +735,7 @@ En la Ronda:
 - **C02, C03 y C04:** frames por segundo y ancho de banda; resolución y tiles; imágenes que no caben en la memoria.
 - **M15 · Seguridad y confiabilidad:** el EXIF con GPS como dato personal, y por qué una foto de 40 MP pesa tanto en la CPU (decenas de ms de decodificar, hasta ≈ 320 MB de memoria) que C01 limita cuántas se decodifican a la vez.
 
-En el Dojo, la estación 1 (Datos y etiquetas) quita el EXIF de las fotos antes de mandarlas a etiquetar. Las estaciones 5 (Export, engine y paridad) y 6 (Código de serving), cuando estén, prueban la paridad que viste aquí.
+En el Dojo, la estación 1 (Datos y etiquetas) quita el EXIF de las fotos antes de mandarlas a etiquetar. Cuando estén listas, la estación 5 (Export, engine y paridad) aplica la idea de la prueba de paridad al modelo exportado, y la 6 (Código de serving) arma el gateway, que usa el mismo preprocesamiento que el entrenamiento.
 
 En Sensei sigue «Datos, ejemplos, features y etiquetas», donde la foto ya preparada se vuelve un ejemplo con su etiqueta. Más adelante, «Redes neuronales y CNNs» muestra qué hace el modelo con los 150,528 números, «Números grandes, unidades y estimaciones» practica bits, bytes y Gb/s, y «Cómo guarda números una computadora» explica por dentro uint8, float16 y float32.
 

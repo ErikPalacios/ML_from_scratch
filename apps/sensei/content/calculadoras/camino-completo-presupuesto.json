@@ -17,5 +17,5 @@
     { "label": "Margen contra la promesa de 200 ms", "formula": "200 - total", "formato": "ms", "decimales": 0, "nota": "si sale negativo, en este caso lento la promesa no se cumple" },
     { "label": "Margen hasta que el marketplace deja de esperar", "formula": "300 - total", "formato": "ms", "decimales": 0, "nota": "si sale negativo, Ana ve el selector manual (sin contar la red entre el marketplace y la API)" }
   ],
-  "nota": "Sumar el caso lento de cada paso da una cuenta pesimista: casi nunca todos los pasos tienen su peor momento en la misma foto. Sirve para repartir el presupuesto; el número de verdad se mide de punta a punta."
+  "nota": "Sumar el caso lento de cada paso suele dar de más, porque casi nunca todos los pasos tienen su peor momento en la misma foto. Suele, no siempre: si se ponen lentos en fotos distintas, la suma puede quedarse corta. Sirve para repartir el presupuesto; el número de verdad se mide de punta a punta."
 }

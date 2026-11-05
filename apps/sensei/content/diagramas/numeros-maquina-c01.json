@@ -21,7 +21,7 @@
       "note": "Una opción que la Ronda deja por medir: la ResNet-50 en [[int8|INT8]] en CPU, que podría costar menos que las dos T4 si no pierde más de 0.5 puntos. Pide calibrar con fotos reales y pasar el mismo examen." },
     { "id": "examen", "label": "Examen", "sub": "paridad y calidad", "kind": "monitor",
       "x": 58, "y": 18, "w": 19, "h": 8,
-      "note": "La [[prueba-paridad|prueba de paridad]] contra PyTorch FP32 en ≈ 10,000 fotos: acuerdo del top-1 ≥ 99.5 % y del top-5 ≥ 99 %, con diferencias de logits de ≈ 0.01. Y la calidad: top-1 y top-5 a no más de 0.3 puntos del modelo actual, por categoría y por slice." },
+      "note": "La [[prueba-paridad|prueba de paridad]] contra PyTorch FP32 en ≈ 10,000 fotos: acuerdo del top-1 ≥ 99.5 % y del top-5 ≥ 99 %, con diferencias de logits de ≈ 0.01. Y la calidad: top-1 y top-5 a no más de 0.3 puntos del modelo actual, revisada también por categoría y por slice." },
     { "id": "app", "label": "App de Ana", "sub": "foto en JPEG", "kind": "client",
       "x": 1, "y": 36, "w": 19, "h": 8,
       "note": "La app manda la foto comprimida (≈ 150–250 KB en JPEG) y recibe las 5 categorías sugeridas, con su probabilidad." },

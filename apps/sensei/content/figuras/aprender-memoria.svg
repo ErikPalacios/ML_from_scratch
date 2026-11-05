@@ -36,7 +36,7 @@
 <rect class="f-o" x="60.5" y="306" width="31.0" height="24" rx="4"/>
 <text x="76.0" y="323" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">2</text>
 <rect class="f-b2" x="92.5" y="306" width="63.0" height="24" rx="4"/>
-<text x="124.0" y="323" text-anchor="middle" style="fill:var(--navy);font:700 12px var(--sans)">4</text>
+<text x="124.0" y="323" text-anchor="middle" style="fill:var(--ink);font:700 12px var(--sans)">4</text>
 <rect class="f-p" x="156.5" y="306" width="63.0" height="24" rx="4"/>
 <text x="188.0" y="323" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">4</text>
 <rect class="f-p" x="220.5" y="306" width="63.0" height="24" rx="4"/>

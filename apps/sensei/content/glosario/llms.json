@@ -91,7 +91,7 @@
       "id": "sampling",
       "termino": "Sampling (muestreo)",
       "en": "sampling · decoding strategy",
-      "corto": "Elegir el siguiente token al azar, pero respetando las probabilidades que dio el modelo: el de 60 % sale 6 de cada 10 veces.",
+      "corto": "Elegir el siguiente token al azar, pero respetando las probabilidades que dio el modelo: el de 60 % sale, en promedio, 6 de cada 10 veces.",
       "largo": "La alternativa es tomar siempre el más probable (*greedy*). El muestreo da respuestas más variadas; elegir siempre el más probable da respuestas más repetibles. La [[temperatura]] controla qué tan parejo es el sorteo, y *top-p* lo limita a los tokens más probables que juntos suman p (por ejemplo, 90 %).",
       "ejemplo": "Con 66.5 %, 24.5 % y 9.0 %, en 1,000 sorteos con semilla fija salen 671, 249 y 80. Con top-p = 0.9, el de 9.0 % ni siquiera entra al sorteo.",
       "ver": [
@@ -188,7 +188,7 @@
       "termino": "Transformer",
       "en": "transformer",
       "corto": "La arquitectura de red neuronal detrás de casi todos los modelos de lenguaje actuales. Su pieza central es la atención: cada token mira a los demás para decidir qué le importa.",
-      "largo": "La presentó un artículo de Google de 2017, «Attention Is All You Need» (Vaswani y otros), para traducir. Es una pila de bloques iguales; cada bloque tiene una capa de [[atencion|atención]] ([[multi-head|multi-cabeza]]) y una pequeña red que procesa cada token por separado, con atajos que suman lo que entra a lo que sale. Como la atención no sabe el orden, se le agrega con [[embedding-posicional|embeddings posicionales]]. Los LLMs usan solo su mitad que escribe ([[decoder-only|solo decoder]]). También se usa con imágenes: el ViT es un transformer.",
+      "largo": "La presentó un artículo de Google de 2017, «Attention Is All You Need» (Vaswani y otros), para traducir. Es una pila de bloques iguales; cada bloque tiene una capa de [[atencion|atención]] ([[multi-head|multi-cabeza]]) y una red que procesa cada token por separado, con atajos que suman lo que entra a lo que sale. Como la atención no sabe el orden, se le agrega con [[embedding-posicional|embeddings posicionales]]. Los LLMs usan solo su mitad que escribe ([[decoder-only|solo decoder]]). También se usa con imágenes: el ViT es un transformer.",
       "ejemplo": "Llama 3 8B es una pila de 32 bloques; Llama 3 70B, de 80.",
       "ver": [
         "atencion",
@@ -202,7 +202,7 @@
       "id": "atencion",
       "termino": "Atención",
       "en": "attention · self-attention",
-      "corto": "El mecanismo con el que cada token mira a los tokens anteriores, decide cuáles le importan más y mezcla su información en esa proporción.",
+      "corto": "El mecanismo con el que cada token mira a los demás tokens (en un LLM, solo a los anteriores), decide cuáles le importan más y mezcla su información en esa proporción.",
       "largo": "Para cada token se calculan tres vectores, [[qkv|Q, K y V]]. Se compara la Q del token con la K de cada token ([[producto-punto|producto punto]]), esas calificaciones se convierten en porcentajes con [[softmax]], y el resultado es la suma de las V con esos porcentajes. Así, la palabra «banco» puede tomar significado de «senté» o de «dinero», según cuál esté en la frase. Se hace varias veces en paralelo ([[multi-head|multi-cabeza]]) y no sabe el orden por sí sola.",
       "ejemplo": "En «Me senté en el banco», «banco» le pone ≈ 78 % de su atención a «senté» (en el ejemplo de la lección, con números inventados).",
       "ver": [
@@ -287,7 +287,7 @@
       "id": "moe",
       "termino": "Mezcla de expertos (MoE)",
       "en": "mixture of experts",
-      "corto": "Un LLM cuya red de cada bloque está partida en varios «expertos»; para cada token, un enrutador elige solo unos pocos. Guarda muchos parámetros, pero cada token trabaja con una fracción.",
+      "corto": "Un LLM que en cada bloque tiene varias redes, los «expertos», en lugar de una; para cada token, un enrutador elige solo unos pocos. Guarda muchos parámetros, pero cada token trabaja con una fracción.",
       "largo": "El enrutador es una capa chica que califica a cada experto; se usan los de calificación más alta y sus resultados se mezclan con un [[softmax]] de esas calificaciones. La memoria cuenta todos los expertos; el cálculo y la lectura por token, solo los que se usaron. Los «expertos» no son especialidades humanas (uno de medicina, otro de leyes): el reparto lo aprende el modelo y casi nunca se puede leer así. A un modelo que no es MoE se le llama denso.",
       "analogia": "Una recepcionista que manda a cada paciente con 2 de 8 especialistas. Se rompe en dos lugares: nadie decidió qué sabe cada experto, y los 8 tienen que estar siempre en la memoria de la GPU, trabajen o no.",
       "ejemplo": "Mixtral 8x7B (Mistral AI, 2023) tiene 8 expertos por bloque y usa 2 por token: 46.7 mil millones de parámetros en total y 12.9 mil millones activos por token.",
@@ -302,7 +302,7 @@
       "termino": "Preentrenamiento",
       "en": "pretraining",
       "corto": "La primera y más cara etapa de un LLM: aprender a adivinar el siguiente token con enormes cantidades de texto. De ahí sale un modelo base, que continúa textos pero todavía no conversa.",
-      "largo": "No necesita etiquetas hechas por personas: el token que sigue ya está escrito en el texto, y esa es la respuesta de cada ejercicio. La [[loss|pérdida]] es la [[entropia-cruzada|entropía cruzada]] de cada predicción. Cuesta meses de miles de GPUs, así que casi nadie lo hace: se parte del modelo base que publicó alguien más y se le hacen las etapas siguientes ([[instruction-tuning|ajuste con instrucciones]] y [[rlhf|ajuste por preferencias]]).",
+      "largo": "No necesita etiquetas hechas por personas: el token que sigue ya está escrito en el texto, y esa es la respuesta de cada ejercicio. La [[loss|pérdida]] es la [[entropia-cruzada|entropía cruzada]] de cada predicción. Cuesta semanas o meses de miles de GPUs, así que casi nadie lo hace: se parte del modelo base que publicó alguien más y se le hacen las etapas siguientes ([[instruction-tuning|ajuste con instrucciones]] y [[rlhf|ajuste por preferencias]]).",
       "ejemplo": "Llama 3 se preentrenó con más de 15 billones (15 × 10¹²) de tokens. La frase «Ana vende sus tenis blancos.» (8 tokens) da 7 ejercicios: adivinar cada token a partir de los que tiene antes.",
       "ver": [
         "llm",

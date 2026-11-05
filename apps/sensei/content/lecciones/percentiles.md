@@ -18,7 +18,7 @@ Miles de requests no caben en un solo número. El promedio se deja jalar por una
 
 El [[promedio]] (*mean* o *average*) es el resumen que ya conoces: sumas todos los valores y divides entre cuántos son. Cinco requests que tardaron 30, 32, 35, 38 y 45 ms suman 180 ms; su promedio es 180 ÷ 5 = **36 ms**.
 
-Quiere decir: si el tiempo total se repartiera parejo, a cada request le tocarían 36 ms. Por eso el promedio es el número correcto para un **total**: con el promedio y la cantidad, sabes el total. En ML ya lo usaste: la [[loss]] de un [[batch]] es un promedio, y hasta la [[accuracy]] es un promedio de unos y ceros (1 si el modelo acertó, 0 si no). El ≈ 85 % de top-1 de C01 es el promedio de 50,000 unos y ceros.
+Quiere decir: si el tiempo total se repartiera parejo, a cada request le tocarían 36 ms. Por eso el promedio es el número correcto para un **total**: con el promedio y la cantidad, sabes el total. En ML ya lo usaste: la [[loss]] de un [[batch]] es un promedio, y hasta la [[accuracy]] es un promedio de unos y ceros (1 si el modelo acertó, 0 si no). El ≈ 85 % de [[top-k|top-1]] de C01 es el promedio de 50,000 unos y ceros, uno por foto de su [[golden-set|golden set]].
 
 ### La mediana
 
@@ -55,7 +55,7 @@ Dos listas pueden tener el mismo promedio y parecerse muy poco. Cien requests qu
 Lo que distingue a las dos listas es su [[distribucion|distribución]] (*distribution*): qué valores aparecen y qué tan seguido. Para verla se dibuja un [[histograma]] (*histogram*): partes el rango en intervalos del mismo ancho, por ejemplo de 10 en 10 ms, cuentas cuántos valores caen en cada uno y dibujas una barra por intervalo, tan alta como su cuenta. A cada intervalo se le llama [[bucket]] (también *bin*, «cajón»).
 
 :::figura percentiles-histograma
-1,000 requests de juguete de un minuto malo. La mayoría tarda entre 20 y 60 ms; unas cuantas se van hasta casi 700 ms. Las tres barras de la derecha juntan intervalos más anchos para que la cola quepa.
+1,000 requests de juguete de un minuto malo. La mayoría tarda entre 20 y 60 ms; unas cuantas se van hasta casi 700 ms. Las tres barras de la derecha juntan intervalos más anchos para que la cola quepa: de 150 a 300, de 300 a 500 y de 500 a 700 ms.
 :::
 
 Fíjate en la forma. Hay un montículo a la izquierda, y a la derecha la gráfica no termina de golpe: se estira, baja y larga, con unas pocas requests en 300, 500 y casi 700 ms. Esa parte larga y delgada es la [[cola-distribucion|cola]] de la distribución (*tail*). Las latencias casi siempre tienen la cola a la derecha: hay un piso, porque leer la foto y correr el modelo cuesta un mínimo, pero no hay techo, porque una pausa del programa, un reintento o una fila de espera siempre pueden sumar más.
@@ -70,7 +70,7 @@ No confundas la cola de una distribución con la [[long-tail|long tail]] de «Da
 
 ## Percentiles: contar desde abajo {Percentiles: counting from the bottom}
 
-La mediana deja abajo a la mitad de los valores. ¿Y si quieres el valor que deja abajo al 90 %, o al 99 %? Eso es un [[percentil]] (*percentile*): el percentil p es el valor que deja en él o abajo de él al p % de los datos. La mediana es el percentil 50.
+La mediana deja abajo a la mitad de los valores. ¿Y si quieres el valor que deja abajo al 90 %, o al 99 %? Eso es un [[percentil]] (*percentile*): el percentil p es el valor que deja en él o abajo de él al p % de los datos (o a un poco más, si no sale exacto). La mediana es el percentil 50.
 
 Se escriben con una p: **p50**, **p90**, **p95**, **p99**. El [[p99]] deja abajo al 99 % de las requests: solo 1 de cada 100 tarda más. Las herramientas de monitoreo a veces los llaman **cuantiles** (*quantiles*) y los escriben como fracción: el cuantil 0.99 es el p99.
 
@@ -110,12 +110,161 @@ Léelo así: «p95 = 160 ms» quiere decir que 19 de las 20 tardaron 160 ms o me
 - **p99.9**: 1 de cada 1,000 tarda más.
 
 :::nota ¿La mediana es 40 o 41?
-La mediana de la sección anterior promediaba los dos de en medio: (40 + 42) ÷ 2 = 41 ms. El rango más cercano toma la 10.ª y da 40. Son dos convenciones para la misma idea, y con miles de requests la diferencia desaparece. Hay más métodos; están en la sección extra «Cómo se calcula en la práctica».
+Con la regla de la sección anterior, la mediana de 20 valores promedia los dos de en medio: (40 + 42) ÷ 2 = 41 ms. El rango más cercano toma la 10.ª y da 40. Son dos convenciones para la misma idea, y con miles de requests la diferencia desaparece. Hay más métodos, y este mismo cálculo en Python; están en la sección extra «Cómo se calcula y se vigila en la práctica».
 :::
 
-### En Python
+:::calculadora percentiles-lista
+Empieza con las primeras 10 requests de la lista. Sube la de 900 ms a 3,000: el promedio se dispara y la mediana ni se mueve. Bájala a 50: la más lenta ahora es la de 160, y el p99 baja a 160.
+:::
 
-Este programa calcula el promedio, la mediana y los percentiles con las reglas de arriba, sin bibliotecas especiales. Al final compara con el módulo `statistics`, que ya viene con Python.
+## Por qué la promesa es un p99 {Why the promise is a p99}
+
+En «El camino completo» viste el ejemplo que empezó todo. Ahora cada número tiene nombre:
+
+:::cuenta 98 rápidas y 2 lentas
+98 requests de 30 ms | 98 × 30 | 2,940 ms
+2 requests de 3 s | 2 × 3,000 | 6,000 ms
+Promedio | (2,940 + 6,000) ÷ 100 | 89.4 ms
+p50 | 0.50 × 100 = 50 → la 50.ª | 30 ms
+p99 // las lentas son la 99.ª y la 100.ª | 0.99 × 100 = 99 → la 99.ª | 3,000 ms
+= El promedio dice 89 ms y cumple de sobra; el p99 dice 3 segundos y rompe la promesa de 200 ms.
+:::
+
+Ahora cambia una sola cosa: que solo **una** de las 100 sea lenta. El promedio baja a (99 × 30 + 3,000) ÷ 100 = 59.7 ms. Y el p99 baja a… 30 ms: la 99.ª ya es rápida y la lenta es la 100.ª. ¿El p99 se perdió la request lenta?
+
+Sí, y a propósito. «p99 ≤ 200 ms» no promete que ninguna request tarde más de 200 ms. Promete que **a lo más 1 de cada 100** tarda más. Conviene tener las dos frases juntas, porque dicen lo mismo:
+
+> p99 ≤ 200 ms quiere decir que al menos el 99 % de las requests tarda 200 ms o menos.
+
+Con una lenta de cada 100, se cumple; con dos, no. El p99 es un umbral sobre una **fracción**, y por eso brinca de golpe cuando la fracción de lentas cruza el 1 %. El promedio se mueve poquito con cada request y nunca te dice cuántas personas esperaron de más.
+
+:::calculadora percentiles-promedio-p99
+Empieza en el ejemplo de «El camino completo»: 2 % de lentas, de 3 s. Baja las lentas a 1 %: el p99 cae a 30 ms, porque la promesa permite 1 de cada 100. Súbelas a 5.5 %: ahora hasta el p95 dice 3 s, aunque el promedio, 193 ms, todavía «cumple» los 200.
+:::
+
+### Por qué importa la cola
+
+- **Es lo que la gente vive y recuerda.** Nadie siente el promedio. Ana siente su request, y si se trabó, eso es lo que cuenta de la app.
+- **Ahí vence el timeout.** Los servidores del marketplace esperan 300 ms y después muestran el selector de categorías, el [[fallback]]. Cada request de la cola que pasa de 300 ms es una sugerencia perdida.
+- **El 1 % no es poco.** Con 10 millones de requests al día, el 1 % son 100,000 requests lentas cada día.
+- **El 1 % de las requests no es el 1 % de las personas.** Quien publica 10 artículos con 3 fotos cada uno hace 30 requests. Si cada una tiene 1 % de probabilidad de caer en la cola, sin importar las demás, la probabilidad de que las 30 salgan rápidas es 0.99 multiplicado 30 veces: 0.99³⁰ ≈ 0.74. Lo que falta para 1, ≈ 26 %, es la probabilidad de que al menos una le toque: una de cada cuatro personas así.
+- **La cola avisa primero.** Cuando una fila de espera empieza a crecer, el p99 sube aunque el p50 casi no se mueva. La Ronda lo pone así en M03.
+
+El promedio no se tira: sigue siendo el número de los totales. Para dimensionar y para pagar, el promedio; para prometerle algo a una persona, los percentiles.
+
+## Los percentiles no se suman ni se promedian {Percentiles don't add up or average}
+
+El promedio tiene una propiedad muy cómoda: se suma y se promedia. Si una request pasa por un tramo A de 10.9 ms en promedio y luego por un tramo B de 10.9 ms en promedio, la request completa tarda 21.8 ms en promedio, exacto. Los percentiles no, y eso engaña en tres lugares: los tramos de una request, las copias de un servicio y las ventanas de tiempo.
+
+### Tramos en serie: A y luego B
+
+:::figura percentiles-suma
+100 requests que pasan por el tramo A y luego por el B. Cada tramo tiene una sola request lenta, pero no es la misma.
+:::
+
+:::cuenta El p99 que no se suma
+Tramo A // 99 de 10 ms; la request 7, de 100 ms | la 99.ª, ordenadas | p99 = 10 ms
+Tramo B // 99 de 10 ms; la request 42, de 100 ms | la 99.ª, ordenadas | p99 = 10 ms
+Suma de los p99 | 10 + 10 | 20 ms
+A + B, request por request // 98 de 20 ms; la 7 y la 42, de 110 ms | 2 lentas de 100: la 99.ª es lenta | p99 = 110 ms
+Los promedios, para comparar | 10.9 + 10.9 | 21.8 ms, exacto
+= Sumar los p99 dijo 20 ms; el p99 de verdad es 110 ms. Los promedios sí se sumaron.
+:::
+
+La suma se quedó corta porque las lentas cayeron en requests distintas: cada tramo tenía 1 % de lentas, pero la request completa tiene 2 %. Si cada tramo tuviera 2 lentas, en requests distintas, cada p99 valdría 100 ms y la suma 200, mientras que el p99 de verdad sería 110: ahora la suma se pasaría.
+
+**La suma de los p99 puede quedar arriba o abajo.** Suele pasarse, porque rara vez todos los tramos tienen su mal momento en la misma request; se queda corta cuando cada tramo tiene tan pocas lentas que su propio p99 no las ve, como en la figura, pero juntas pasan del 1 %. Da exacto cuando los tramos son lentos justo en las mismas requests. La Ronda lo anota en el presupuesto de C01: los percentiles no se suman, y tampoco las medianas. El presupuesto por tramo de «El camino completo» sirve para repartir; el p99 de verdad se **mide de punta a punta**.
+
+### Copias de un servicio: no promedies los p99
+
+Un servicio corre en varias copias detrás del balanceador de carga (en Kubernetes, cada copia es un *pod*). La Ronda trae este ejemplo en M03: en 5 minutos, el pod A atendió 9,900 requests con un p99 de 80 ms; el pod B, frenado por un vecino ruidoso (otro programa en su misma máquina que le quitaba la CPU), atendió 200 requests, todas en ≈ 2 s.
+
+:::cuenta Tres formas de «calcular» el p99 de dos pods
+Promedio de los p99 // no describe a ningún pod | (80 + 2,000) ÷ 2 | 1,040 ms
+Promedio pesado por tráfico // dice que todo está bien | (9,900 × 80 + 200 × 2,000) ÷ 10,100 | ≈ 118 ms
+Fracción de requests en ≈ 2 s | 200 ÷ 10,100 | ≈ 2 %
+p99 de verdad // más del 1 % tardó ≈ 2 s | 0.99 × 10,100 = 9,999 → la 9,999.ª | ≈ 2 s
+= Ninguno de los dos promedios es el p99. Para saberlo hay que contar cuántas requests, de todas, fueron lentas.
+:::
+
+El promedio pesado parece más listo, pero mezcla latencias, y lo que decide el p99 es una cuenta de requests. Lo correcto es juntar las distribuciones **antes** de calcular: sumar, bucket por bucket, lo que contó cada pod, y sacar el percentil al final.
+
+:::diagrama percentiles-agregar
+Usa «Recorrer» para ver la forma correcta y la trampa, con los dos pods de la Ronda.
+:::
+
+### Ventanas de tiempo
+
+Lo mismo pasa en el tiempo: el p99 del día no es el promedio de los 24 p99 horarios. La hora pico tiene muchas más requests, y ni pesando cada hora por su tráfico sale bien, igual que con los pods. Se calcula con las requests de todo el día, sumando los buckets de las 24 horas. Lo practicas en los ejercicios. Y hay un caso en el que la cola hasta **crece** al juntar piezas, el [[fan-out]]; lo ves en la sección extra «La cola de cerca».
+
+## Buckets: percentiles sin guardar cada número {Buckets: percentiles without keeping every number}
+
+Para un p99 exacto necesitas todas las latencias, ordenadas. C01 recibe unos 10 millones de requests al día, repartidas en varias copias. Guardarlas todas, ordenarlas de nuevo cada minuto y juntar las de todas las copias sería caro y lento. Y un percentil ya calculado dentro de cada copia, ya viste, no se puede combinar.
+
+La salida es un histograma de **buckets fijos**. Cada copia del servicio lleva un contador por bucket, y cada request suma 1 al contador del bucket donde cayó. Nada más: la latencia exacta no se guarda. Los contadores sí se pueden sumar, entre copias y entre ventanas de tiempo, y con ellos se estima el percentil.
+
+El servicio de C01 usa estos bordes, en milisegundos: 10, 25, 50, 75, 100, 150, 200, 300, 500, 1,000 y 2,500, más un último bucket para todo lo que pase de 2.5 s. Fíjate en 150, 200 y 300: rodean la promesa de 200 ms, con un borde justo en ella. Ahí es donde importa la precisión; arriba de 300 los buckets se abren mucho. Prometheus, el programa que junta los números del servicio (sus métricas) en C01, lee esos contadores de cada copia cada 15 segundos.
+
+### Del conteo al percentil
+
+:::pasos
+1. Cuenta el total
+Suma todos los buckets: son todas las requests de la ventana.
+2. Calcula el rango
+Multiplica el percentil, escrito como fracción, por el total, sin redondear. Para el p99 de 10,000 requests, 0.99 × 10,000 = 9,900.
+3. Busca el bucket
+Ve acumulando los conteos de los buckets, del más rápido al más lento. El primero cuyo acumulado llega al rango es donde cae la request 9,900.
+4. Interpola adentro
+Supón que las requests de ese bucket están repartidas parejo entre su borde de abajo y el de arriba, y calcula qué tanto del camino recorres.
+:::
+
+Toma una ventana de 5 minutos con 10,000 requests (unas 33 por segundo, un rato tranquilo), con los buckets que aquí no importan juntos:
+
+:::cuenta El p99 desde los buckets
+Hasta 50 ms | 6,200 requests | 6,200 acumuladas
+50 a 100 ms | 3,100 requests | 9,300 acumuladas
+100 a 150 ms | 520 requests | 9,820 acumuladas
+150 a 200 ms // aquí cae la 9,900 | 110 requests | 9,930 acumuladas
+Más de 200 ms // 50 + 15 + 5 | 70 requests | 10,000 acumuladas
+Qué tan adentro del bucket | (9,900 − 9,820) ÷ 110 | 80 de 110
+p99 estimado | 150 + 50 × 80 ÷ 110 | ≈ 186 ms
+En 200 ms o menos // exacto: hay un borde en 200 | 9,930 ÷ 10,000 | 99.3 %
+= El p99 estimado es ≈ 186 ms: se cumple la promesa. El de verdad está en algún lugar entre 150 y 200 ms, porque la interpolación supone que las 110 están repartidas parejo. La fracción en 200 ms o menos, en cambio, no se estima: se cuenta.
+:::
+
+:::figura percentiles-buckets
+Los mismos buckets: dónde cae la request 9,900 y cómo se interpola adentro del bucket de 150 a 200 ms.
+:::
+
+:::calculadora percentiles-buckets
+Empieza con la ventana de la cuenta. Pasa 100 requests del bucket de 50 a 100 al de 200 a 300 (3,000 y 150): el p99 cruza los 200 ms y la fracción baja de 99 %. Luego pide el p50 o el p99.9 con el último control.
+:::
+
+## SLI y SLO: la promesa en números {SLIs and SLOs: the promise in numbers}
+
+«El camino completo» dijo que a una promesa con número y con lugar de medición se le llama [[slo|SLO]]. Ahora puedes desarmarla en sus piezas:
+
+- El [[sli|SLI]] (*service level indicator*, «indicador del nivel de servicio») es el número que mides. Por ejemplo, el p99 de los últimos 5 minutos, o la fracción de requests que respondieron en 200 ms o menos.
+- El **SLO** (*service level objective*, «objetivo del nivel de servicio») es la meta que ese número tiene que cumplir: «p99 ≤ 200 ms», o «al menos 99 % de las requests en 200 ms o menos».
+- Si además hay un contrato con multas cuando no se cumple, se llama SLA (*service level agreement*).
+
+Un SLO completo dice **qué** se mide, **dónde**, **cuánto** y **en qué ventana**. El de latencia de C01 mide el tiempo de respuesta del lado del servidor (*server-side*), desde que el balanceador tiene la request completa hasta que sale la respuesta; pide p99 ≤ 200 ms; y se vigila en ventanas de 5 minutos, para avisar rápido, y de 30 días, para llevar la cuenta.
+
+### Dos formas de escribir la misma promesa
+
+«p99 ≤ 200 ms» y «al menos el 99 % de las requests en 200 ms o menos» son lo mismo. Si la request en la posición del p99 tardó 200 ms o menos, también las que están antes que ella: al menos el 99 %. Y al revés. En la práctica se prefiere la segunda forma, por tres razones:
+
+- Es un **conteo**: se suma entre copias y entre ventanas sin ningún truco.
+- Con un bucket justo en 200 ms, es **exacta**: no hay que interpolar.
+- Dice cuánto **margen** queda. «99.3 %» quiere decir que sobran 0.3 [[punto-porcentual|puntos porcentuales]] antes de romper la promesa.
+
+Ese 1 % de requests que pueden ser lentas es un presupuesto que se gasta: el [[error-budget]] (presupuesto de errores), que la lección de probabilidad desarrolla. Con 10 millones de requests al día, son 100,000 lentas permitidas al día, o 3 millones en 30 días. Un deploy malo puede gastarse una buena parte en una tarde; lo calculas en los ejercicios. Cómo se vigila todo esto, del contador a la alerta, está en la sección extra que sigue.
+
+## Cómo se calcula y se vigila en la práctica {How it is computed and watched in practice} [extra]
+
+### El rango más cercano en Python
+
+Este programa calcula el promedio, la mediana y los percentiles con las reglas de la sección de percentiles, sin bibliotecas especiales. Al final compara con el módulo `statistics`, que ya viene con Python.
 
 ```python
 import math
@@ -154,143 +303,11 @@ p99:      900 ms
 con statistics: 91 41.0
 ```
 
-`math.ceil` es el redondeo hacia arriba del paso 2, y `s[rango - 1]` resta 1 porque Python cuenta las posiciones desde 0.
-
-:::calculadora percentiles-lista
-Empieza con las primeras 10 requests de la lista. Sube la de 900 ms a 3,000: el promedio se dispara y la mediana ni se mueve. Bájala a 50: la más lenta ahora es la de 160, y el p99 baja a 160.
-:::
-
-## Por qué la promesa es un p99 {Why the promise is a p99}
-
-En «El camino completo» viste el ejemplo que empezó todo. Ahora cada número tiene nombre:
-
-:::cuenta 98 rápidas y 2 lentas
-98 requests de 30 ms | 98 × 30 | 2,940 ms
-2 requests de 3 s | 2 × 3,000 | 6,000 ms
-Promedio | (2,940 + 6,000) ÷ 100 | 89.4 ms
-p50 | 0.50 × 100 = 50 → la 50.ª | 30 ms
-p99 // las lentas son la 99.ª y la 100.ª | 0.99 × 100 = 99 → la 99.ª | 3,000 ms
-= El promedio dice 89 ms y cumple de sobra; el p99 dice 3 segundos y rompe la promesa de 200 ms.
-:::
-
-Ahora cambia una sola cosa: que solo **una** de las 100 sea lenta. El promedio baja a (99 × 30 + 3,000) ÷ 100 = 59.7 ms. Y el p99 baja a… 30 ms: la 99.ª ya es rápida y la lenta es la 100.ª. ¿El p99 se perdió la request lenta?
-
-Sí, y a propósito. «p99 ≤ 200 ms» no promete que ninguna request tarde más de 200 ms. Promete que **a lo más 1 de cada 100** tarda más. Conviene tener las dos frases juntas, porque dicen lo mismo:
-
-> p99 ≤ 200 ms quiere decir que al menos el 99 % de las requests tarda 200 ms o menos.
-
-Con una lenta de cada 100, se cumple; con dos, no. El p99 es un umbral sobre una **fracción**, y por eso brinca de golpe cuando la fracción de lentas cruza el 1 %. El promedio se mueve poquito con cada request y nunca te dice cuántas personas esperaron de más.
-
-:::calculadora percentiles-promedio-p99
-Empieza en el ejemplo de «El camino completo»: 2 % de lentas, de 3 s. Baja las lentas a 1 %: el p99 cae a 30 ms, porque la promesa permite 1 de cada 100. Súbelas a 5.5 %: ahora hasta el p95 dice 3 s, aunque el promedio, 193 ms, todavía «cumple» los 200.
-:::
-
-### Por qué importa la cola
-
-- **Es lo que la gente vive y recuerda.** Nadie siente el promedio. Ana siente su request, y si se trabó, eso es lo que cuenta de la app.
-- **Ahí vence el timeout.** Los servidores del marketplace esperan 300 ms y después muestran el selector de categorías, el [[fallback]]. Cada request de la cola que pasa de 300 ms es una sugerencia perdida.
-- **El 1 % no es poco.** Con 10 millones de requests al día, el 1 % son 100,000 requests lentas cada día.
-- **El 1 % de las requests no es el 1 % de las personas.** Quien publica 10 artículos con 3 fotos cada uno hace 30 requests. Si cada una tiene 1 % de probabilidad de caer en la cola, sin importar las demás, la probabilidad de que al menos una le toque es 1 − 0.99³⁰ ≈ 26 %: una de cada cuatro personas así.
-- **La cola avisa primero.** Cuando una fila de espera empieza a crecer, el p99 sube aunque el p50 casi no se mueva. La Ronda lo pone así en M03.
-
-### Para qué sí sirve el promedio
-
-El promedio no es inútil: es el número de los totales, como cuánto cuesta servir un día o cuántas requests hay dentro del sistema a la vez (la Ronda lo calcula así en M03, con la ley de Little). Para dimensionar y para pagar, el promedio; para prometerle algo a una persona, los percentiles. Por eso los tableros de la Ronda muestran la latencia como p50 y p99, nunca como promedio.
-
-## Los percentiles no se suman ni se promedian {Percentiles don't add up or average}
-
-El promedio tiene una propiedad muy cómoda: se suma y se promedia. Si una request pasa por un tramo A de 10.9 ms en promedio y luego por un tramo B de 10.9 ms en promedio, la request completa tarda 21.8 ms en promedio, exacto. Los percentiles no, y eso engaña en tres lugares: los tramos de una request, las copias de un servicio y las ventanas de tiempo.
-
-### Tramos en serie: A y luego B
-
-:::figura percentiles-suma
-100 requests que pasan por el tramo A y luego por el B. Cada tramo tiene una sola request lenta, pero no es la misma.
-:::
-
-:::cuenta El p99 que no se suma
-Tramo A // 99 de 10 ms; la request 7, de 100 ms | la 99.ª, ordenadas | p99 = 10 ms
-Tramo B // 99 de 10 ms; la request 42, de 100 ms | la 99.ª, ordenadas | p99 = 10 ms
-Suma de los p99 | 10 + 10 | 20 ms
-A + B, request por request // 98 de 20 ms; la 7 y la 42, de 110 ms | 2 lentas de 100: la 99.ª es lenta | p99 = 110 ms
-Los promedios, para comparar | 10.9 + 10.9 | 21.8 ms, exacto
-= Sumar los p99 dijo 20 ms; el p99 de verdad es 110 ms. Los promedios sí se sumaron.
-:::
-
-La suma se quedó corta porque las lentas cayeron en requests distintas: cada tramo tenía 1 % de lentas, pero la request completa tiene 2 %. Si cada tramo tuviera 2 lentas, en requests distintas, cada p99 valdría 100 ms y la suma 200, mientras que el p99 de verdad sería 110: ahora la suma se pasaría. **La suma de los p99 puede quedar arriba o abajo**, según si los tramos tienen su mal momento en la misma request. La Ronda lo anota en el presupuesto de C01: los percentiles no se suman, y tampoco las medianas. El presupuesto por tramo de «El camino completo» sirve para repartir; el p99 de verdad se **mide de punta a punta**.
-
-### Copias de un servicio: no promedies los p99
-
-Un servicio corre en varias copias detrás del balanceador de carga (en Kubernetes, cada copia es un *pod*). La Ronda trae este ejemplo en M03: en 5 minutos, el pod A atendió 9,900 requests con un p99 de 80 ms; el pod B, frenado por un vecino ruidoso en su máquina, atendió 200 requests, todas en ≈ 2 s.
-
-:::cuenta Tres formas de «calcular» el p99 de dos pods
-Promedio de los p99 // sugiere que todo está roto | (80 + 2,000) ÷ 2 | 1,040 ms
-Promedio pesado por tráfico // sugiere que todo está bien | (9,900 × 80 + 200 × 2,000) ÷ 10,100 | ≈ 118 ms
-Fracción de requests en ≈ 2 s | 200 ÷ 10,100 | ≈ 2 %
-p99 de verdad // más del 1 % tardó ≈ 2 s | 0.99 × 10,100 = 9,999 → la 9,999.ª | ≈ 2 s
-= Ninguno de los dos promedios es el p99. Para saberlo hay que contar cuántas requests, de todas, fueron lentas.
-:::
-
-El promedio pesado parece más listo, pero mezcla latencias, y lo que decide el p99 es una cuenta de requests. Lo correcto es juntar las distribuciones **antes** de calcular: sumar, bucket por bucket, lo que contó cada pod, y sacar el percentil al final.
-
-:::diagrama percentiles-agregar
-Usa «Recorrer» para ver la forma correcta y la trampa, con los dos pods de la Ronda.
-:::
-
-### Ventanas de tiempo y fan-out
-
-Lo mismo pasa en el tiempo: el p99 del día no es el promedio de los 24 p99 horarios, porque la hora pico tiene muchas más requests y debería pesar más. Se calcula con las requests de todo el día, sumando los buckets de las 24 horas. Lo practicas en los ejercicios.
-
-Y hay un caso en el que la cola **crece** al juntar piezas. Cuando una request se reparte en varias llamadas en paralelo y espera a todas, se dice que hace [[fan-out]]: tarda lo que la más lenta de sus llamadas. Si cada una de 100 llamadas cae en su cola del 1 %, ≈ 63 % de las requests espera a alguna lenta. La sección extra «La cola de cerca» hace la cuenta, y «Probabilidad para sistemas que fallan», a fondo.
-
-## Buckets: percentiles sin guardar cada número {Buckets: percentiles without keeping every number}
-
-Para un p99 exacto necesitas todas las latencias, ordenadas. C01 recibe unos 10 millones de requests al día, repartidas en varias copias. Guardarlas todas, ordenarlas de nuevo cada minuto y juntar las de todas las copias sería caro y lento. Y un percentil ya calculado dentro de cada copia, ya viste, no se puede combinar.
-
-La salida es un histograma de **buckets fijos**. Cada copia del servicio lleva un contador por bucket, y cada request suma 1 al contador del bucket donde cayó. Nada más: la latencia exacta no se guarda. Los contadores sí se pueden sumar, entre copias y entre ventanas de tiempo, y con ellos se estima el percentil.
-
-El servicio de C01 usa estos bordes, en milisegundos: 10, 25, 50, 75, 100, 150, 200, 300, 500, 1,000 y 2,500, más un último bucket para todo lo que pase de 2.5 s. Fíjate dónde están más juntos: 150, 200 y 300, alrededor de la promesa de 200 ms. Ahí es donde importa la precisión. Prometheus, el sistema de métricas que usa C01, lee esos contadores de cada copia cada 15 segundos.
-
-### Del conteo al percentil
-
-:::pasos
-1. Cuenta el total
-Suma todos los buckets: son todas las requests de la ventana.
-2. Calcula el rango
-q × total, sin redondear. Para el p99 de 10,000 requests, 0.99 × 10,000 = 9,900.
-3. Busca el bucket
-Ve acumulando los conteos de los buckets, del más rápido al más lento. El primero cuyo acumulado llega al rango es donde cae la request 9,900.
-4. Interpola adentro
-Supón que las requests de ese bucket están repartidas parejo entre su borde de abajo y el de arriba, y calcula qué tanto del camino recorres.
-:::
-
-Toma una ventana de 5 minutos con 10,000 requests (unas 33 por segundo, un rato tranquilo):
-
-:::cuenta El p99 desde los buckets
-Hasta 50 ms | 6,200 requests | 6,200 acumuladas
-50 a 100 ms | 3,100 requests | 9,300 acumuladas
-100 a 150 ms | 520 requests | 9,820 acumuladas
-150 a 200 ms // aquí cae la 9,900 | 110 requests | 9,930 acumuladas
-Más de 200 ms // 50 + 15 + 5 | 70 requests | 10,000 acumuladas
-Qué tan adentro del bucket | (9,900 − 9,820) ÷ 110 | 80 de 110
-p99 estimado | 150 + 50 × 80 ÷ 110 | ≈ 186 ms
-= El p99 estimado es ≈ 186 ms: se cumple la promesa. El de verdad está en algún lugar entre 150 y 200 ms; la interpolación supone que las 110 están repartidas parejo.
-:::
-
-:::figura percentiles-buckets
-Los mismos buckets: dónde cae la request 9,900 y cómo se interpola adentro del bucket de 150 a 200 ms.
-:::
-
-:::calculadora percentiles-buckets
-Empieza con la ventana de la cuenta. Pasa 100 requests del bucket de 50 a 100 al de 200 a 300 (3,000 y 150): el p99 cruza los 200 ms y la fracción baja de 99 %. Luego pide el p50 o el p99.9 con el último control.
-:::
-
-Dos detalles deciden si el estimado sirve. El primero: los bordes tienen que estar apretados donde decides. Con los mismos datos y bordes solo en 100, 500 y 1,000 ms, el p99 se estima en ≈ 445 ms, una alarma falsa (la cuenta está en la sección extra que sigue). El segundo: con un borde justo en 200 ms hay un número que sale **exacto**, sin interpolar, la fracción de requests en 200 ms o menos: 9,930 ÷ 10,000 = 99.3 %. Lo vas a necesitar para revisar la promesa.
-
-## Cómo se calcula en la práctica: métodos, bordes y Prometheus {How it is computed in practice: methods, edges and Prometheus} [extra]
+`math.ceil` es el redondeo hacia arriba del paso 2 del rango más cercano, y `s[rango - 1]` resta 1 porque Python cuenta las posiciones desde 0.
 
 ### Otros métodos para un percentil
 
-El rango más cercano siempre devuelve un valor que de verdad se midió. Otros métodos **interpolan**: si la posición cae entre dos valores, toman un punto intermedio. El más común es el que usan NumPy y la función PERCENTIL.INC de Excel, y Python con `method="inclusive"`. Cuenta las posiciones desde 0, calcula p ÷ 100 × (n − 1) y avanza en línea recta entre los dos vecinos.
+El rango más cercano siempre devuelve un valor que de verdad se midió. Otros métodos **interpolan**: si la posición cae entre dos valores, toman un punto intermedio. El más común es el que NumPy usa si no le pides otro; también es el de la función PERCENTIL.INC de Excel y el de Python con `method="inclusive"`. Cuenta las posiciones desde 0, calcula p ÷ 100 × (n − 1) y avanza en línea recta entre los dos vecinos.
 
 Con las 20 requests, el p95 cae en la posición 0.95 × 19 = 18.05: entre la 19.ª (160 ms) y la 20.ª (900 ms), al 5 % del camino. Sale 160 + 0.05 × 740 = **197 ms**, no 160.
 
@@ -322,17 +339,17 @@ p95 y p99, exclusive: 863.0 1484.6
 
 `statistics.quantiles(…, n=100)` devuelve los 99 cortes del p1 al p99, así que el p95 está en la posición 94 de la lista y el p99 en la 98. La última línea es la sorpresa: un p99 de 1,484.6 ms, **más que la request más lenta que mediste**. El método `exclusive` extrapola cuando la posición se sale de la lista, y con 20 valores el p99 se sale. Con pocos datos, el método cambia mucho la cola; con miles, las diferencias se vuelven chicas. Por eso la Ronda insiste en M03: importa usar siempre el mismo método, no cuál.
 
-Un detalle si lo programas tú: en la función `percentil` de la sección de percentiles, `p * len(s) / 100` multiplica antes de dividir. Al revés, con 100 requests, el p7 saldría de 7 / 100 × 100, que en la computadora da 7.000000000000001, y `ceil` lo subiría a la posición 8. Por qué pasa eso lo ves en «Cómo guarda números una computadora».
+Un detalle si lo programas tú: en la función `percentil` de arriba, `p * len(s) / 100` multiplica antes de dividir. Al revés, con 100 requests, el p7 saldría de 7 / 100 × 100, que en la computadora da 7.000000000000001, y `ceil` lo subiría a la posición 8. Por qué pasa eso lo ves en «Cómo guarda números una computadora».
 
 ### Dónde poner los bordes
 
-La interpolación dentro de un bucket es tan buena como sus bordes. Toma las mismas 10,000 requests de la cuenta de los buckets, pero con bordes solo en 100, 500 y 1,000 ms:
+Dos detalles deciden si el estimado de los buckets sirve: dónde están los bordes y si hay uno justo en el umbral de la promesa. La interpolación dentro de un bucket es tan buena como sus bordes. Toma las mismas 10,000 requests de la cuenta de los buckets, pero con bordes solo en 100, 500 y 1,000 ms:
 
 :::cuenta Los mismos datos con buckets gruesos
 Hasta 100 ms | 6,200 + 3,100 | 9,300 acumuladas
 100 a 500 ms // aquí cae la 9,900 | 520 + 110 + 50 + 15 = 695 | 9,995 acumuladas
-Qué tan adentro del bucket | (9,900 − 9,300) ÷ 695 | ≈ 0.86
-p99 estimado | 100 + 400 × 0.86 | ≈ 445 ms
+Qué tan adentro del bucket | (9,900 − 9,300) ÷ 695 = 600 ÷ 695 | ≈ 0.86
+p99 estimado | 100 + 400 × 600 ÷ 695 | ≈ 445 ms
 = Con los mismos datos, el estimado dice 445 ms: una alarma falsa. Y no hay forma de saber cuántas pasaron de 200 ms, porque no hay borde en 200.
 :::
 
@@ -352,33 +369,15 @@ histogram_quantile(0.99,
 Se lee de adentro hacia afuera:
 
 - `classifier_request_latency_seconds_bucket` son los contadores del servicio de C01: uno por bucket y por copia.
-- `rate(…[5m])` dice cuántas requests por segundo cayeron en cada bucket en los últimos 5 minutos.
+- `rate(…[5m])` convierte cada contador en requests por segundo, en promedio de los últimos 5 minutos.
 - `sum by (le)` suma las copias, bucket por bucket: así se juntan las distribuciones antes de calcular.
 - `histogram_quantile(0.99, …)` hace los cuatro pasos de la sección de buckets.
 
 Prometheus tiene otro tipo de métrica, *Summary*, que calcula los percentiles dentro de cada copia. Esos ya no se pueden juntar entre copias: es el error de promediar p99. Para un servicio con varias copias, se usa histograma.
 
-## SLI y SLO: la promesa y cómo se revisa {SLIs and SLOs: the promise and how it is checked}
+### Del contador a la alerta: cómo vigila C01 su promesa
 
-«El camino completo» dijo que a una promesa con número y con lugar de medición se le llama [[slo|SLO]]. Ahora puedes desarmarla en sus piezas:
-
-- El [[sli|SLI]] (*service level indicator*, «indicador del nivel de servicio») es el número que mides. Por ejemplo, el p99 de los últimos 5 minutos, o la fracción de requests que respondieron en 200 ms o menos.
-- El **SLO** (*service level objective*, «objetivo del nivel de servicio») es la meta que ese número tiene que cumplir: «p99 ≤ 200 ms», o «al menos 99 % de las requests en 200 ms o menos».
-- Si además hay un contrato con multas cuando no se cumple, se llama SLA (*service level agreement*).
-
-Un SLO completo dice **qué** se mide, **dónde**, **cuánto** y **en qué ventana**. El de latencia de C01 mide el tiempo de respuesta del lado del servidor (*server-side*), desde que el balanceador tiene la request completa hasta que sale la respuesta; pide p99 ≤ 200 ms; y se vigila en ventanas de 5 minutos, para avisar rápido, y de 30 días, para llevar la cuenta.
-
-### Dos formas de escribir la misma promesa
-
-«p99 ≤ 200 ms» y «al menos el 99 % de las requests en 200 ms o menos» son lo mismo. Si la request en la posición del p99 tardó 200 ms o menos, también las que están antes que ella: al menos el 99 %. Y al revés. En la práctica se prefiere la segunda forma, por tres razones:
-
-- Es un **conteo**: se suma entre copias y entre ventanas sin ningún truco.
-- Con un bucket justo en 200 ms, es **exacta**: no hay que interpolar.
-- Dice cuánto **margen** queda. «99.3 %» quiere decir que sobran 0.3 [[punto-porcentual|puntos porcentuales]] antes de romper la promesa.
-
-Ese 1 % de requests que pueden ser lentas es un presupuesto que se gasta: el [[error-budget]] (presupuesto de errores), que la lección de probabilidad desarrolla. Con 10 millones de requests al día, son 100,000 lentas permitidas al día, o 3 millones en 30 días. Un deploy malo puede gastarse una buena parte en una tarde; lo calculas en los ejercicios.
-
-### Cómo se revisa
+Con todas las piezas juntas, así se revisa el SLO de latencia de C01, de la request a la persona que despierta:
 
 :::pasos
 1. Medir cada request donde se prometió
@@ -410,7 +409,7 @@ Presupuesto del día | 1 % de 10,000,000 | 100,000
 
 ### Cuartiles y una regla para marcar atípicos
 
-Algunos percentiles tienen nombre propio. Los **cuartiles** parten los datos en cuatro: el p25 (primer cuartil, Q1), el p50 (la mediana) y el p75 (tercer cuartil, Q3). Los **deciles** los parten en diez: p10, p20, …, p90. El INEGI, por ejemplo, ordena los hogares de México por su ingreso y reporta sus deciles en la ENIGH, la Encuesta Nacional de Ingresos y Gastos de los Hogares.
+Algunos percentiles tienen nombre propio. Los **cuartiles** parten los datos en cuatro: el p25 (primer cuartil, Q1), el p50 (la mediana) y el p75 (tercer cuartil, Q3). Los **deciles** los parten en diez: p10, p20, …, p90. Ojo: la palabra también se usa para los grupos que quedan entre esos cortes. El INEGI, por ejemplo, ordena los hogares de México por su ingreso, los parte en diez grupos del mismo tamaño, sus «deciles de hogares», y reporta el ingreso de cada grupo en la ENIGH, la Encuesta Nacional de Ingresos y Gastos de los Hogares.
 
 Con las 20 requests y el rango más cercano, Q1 es la 5.ª (0.25 × 20 = 5), 34 ms, y Q3 es la 15.ª (0.75 × 20 = 15), 50 ms. El ancho de esa mitad de en medio, Q3 − Q1 = 16 ms, se llama **rango intercuartílico** (*interquartile range*, IQR): mide qué tan desparramados están los datos típicos, sin que la cola lo mueva. El estadístico John Tukey propuso en su libro *Exploratory Data Analysis* (1977) una regla que todavía dibujan los diagramas de caja (*box plots*): un valor es atípico si queda más de 1.5 IQR arriba de Q3, o abajo de Q1.
 
@@ -426,7 +425,9 @@ Marcar no es borrar. En latencia, que la regla marque una request quiere decir �
 
 ### Fan-out: cuando cada pieza tiene que ser mejor que el todo
 
-Si una request espera a N llamadas en paralelo y cada una cae en su cola del 1 %, sin importar las demás, la probabilidad de que la request toque alguna cola es 1 − 0.99 elevado a N. La cuenta tiene una consecuencia incómoda:
+Hay un caso en el que la cola **crece** al juntar piezas. Cuando una request se reparte en varias llamadas en paralelo y espera a todas, se dice que hace [[fan-out]]: tarda lo que la más lenta de sus llamadas. «Probabilidad para sistemas que fallan» lo desarrolla a fondo; aquí va la cuenta.
+
+Si una request espera a N llamadas en paralelo y cada una cae en su cola el 1 % de las veces, sin importar las demás, la probabilidad de que las N lleguen a tiempo es 0.99 elevado a N, y la de que la request toque alguna cola es lo que falta para 1: 1 − 0.99 elevado a N. La cuenta tiene una consecuencia incómoda:
 
 :::cuenta Requests que tocan alguna cola, y lo que tiene que cumplir cada pieza
 1 llamada | 1 − 0.99 | 1 %
@@ -441,7 +442,7 @@ Es el argumento central de *The Tail at Scale*, un artículo de Jeffrey Dean y L
 
 - **Menos llamadas en el camino de la persona.** Lo que se pueda calcular antes, se calcula antes y se guarda.
 - **Recortar la cola de cada llamada.** Un timeout corto con una respuesta parcial: en C11, si el reordenador de resultados no responde en 400 ms, se usa el orden que ya se tenía.
-- **Pedir dos veces.** El artículo describe las *hedged requests*: si la primera copia no responde en lo que tarda su p95, se manda la misma petición a otra copia y se usa la que llegue primero. Como solo se repite el 5 % más lento, la carga extra es de ≈ 5 %. En una prueba de Google que cuenta el artículo, con 1,000 valores repartidos en 100 servidores, mandar la segunda petición a los 10 ms bajó el p99.9 de 1,800 ms a 74 ms con apenas 2 % más requests.
+- **Pedir dos veces.** El artículo describe las *hedged requests*: si la primera copia no responde en lo que tarda su p95, se manda la misma petición a otra copia y se usa la que llegue primero. Como solo se repite el 5 % más lento, la carga extra es de ≈ 5 %. En una prueba de Google que cuenta el artículo, que leía 1,000 valores guardados en 100 servidores, mandar la segunda petición a los 10 ms bajó el p99.9 del tiempo para tenerlos todos de 1,800 ms a 74 ms, con apenas 2 % más requests.
 
 ### ¿Cuántas muestras necesita un p99?
 
@@ -488,8 +489,8 @@ Con ventanas de 50 o de 100 requests, el p99 brinca entre 79 y 221 ms sin que na
 
 Las requests que mediste son una [[muestra]] de todas las que pudieron pasar; qué tanto puedes confiar en lo que dice una muestra es el tema de «Ruido, muestras y pruebas A/B». Para un SLO, la consecuencia práctica es esta:
 
-- **Reporta cuántas requests hay detrás de cada percentil:** «p99 = 900 ms (n = 20)» se lee muy distinto que «p99 = 900 ms (n = 34,800)».
-- **No alertes con tráfico bajo.** C01, en el promedio del día, tiene ≈ 6,960 requests por minuto (≈ 70 arriba del p99), pero de madrugada muchas menos. La Ronda protege sus alertas en M12: la de errores exige al menos 1 request por segundo, porque con 20 requests de madrugada un solo error sería el 5 %.
+- **Reporta cuántas requests hay detrás de cada percentil:** «p99 = 900 ms (n = 20)» se lee muy distinto que «p99 = 900 ms (n = 34,800)», que son 5 minutos de C01 a su ritmo promedio.
+- **No alertes con tráfico bajo.** C01, en el promedio del día, recibe ≈ 116 requests por segundo, unas 6,960 por minuto (≈ 70 arriba del p99), pero de madrugada muchas menos. La Ronda protege sus alertas en M12: la de errores exige al menos 1 request por segundo, porque con 20 requests de madrugada un solo error sería el 5 %.
 - **Pide que dure.** La alerta de p99 de C01 espera 10 minutos seguidos arriba de 200 ms: una ventana ruidosa no despierta a nadie.
 
 ## Errores comunes {Common mistakes}
@@ -520,9 +521,9 @@ Con 50 requests, el «p99» es la más lenta de las 50, y brinca de una ventana 
 
 ### 5. Buckets demasiado gruesos o sin borde en el SLO
 
-Con bordes en 100 y 500 ms, un p99 de ≈ 186 ms se estima como ≈ 445 ms, y nadie puede contar cuántas pasaron de 200.
+Con bordes en 100 y 500 ms, el mismo p99 que con los bordes de C01 sale ≈ 186 ms se estima como ≈ 445 ms, una alarma falsa, y nadie puede contar cuántas pasaron de 200.
 
-**Cómo evitarlo:** bordes apretados alrededor del SLO y uno exactamente en él, como los 150, 200 y 300 ms de C01. Si cambias el SLO, cambia los buckets.
+**Cómo evitarlo:** bordes cerca del SLO y uno exactamente en él, como los 150, 200 y 300 ms de C01. Si cambias el SLO, cambia los buckets.
 
 ### 6. Borrar las requests lentas
 
@@ -540,11 +541,13 @@ Tu histograma dice p99 = 120 ms y el equipo de la app ve 900 ms. No hay contradi
 
 ### C01: la promesa completa, pieza por pieza
 
-Ya puedes leer todas las piezas del caso. La promesa: p99 ≤ 200 ms del lado del servidor, con un p50 esperado de ≈ 30–50 ms. Quien llama espera 300 ms; si no hay respuesta, Ana ve el selector manual. La medición: un histograma con 11 bordes, de 10 ms a 2.5 s, apretados alrededor de 200. La alerta: p99 arriba de 200 ms durante 10 minutos, y alguien despierta.
+Ya puedes leer todas las piezas del caso. La promesa: p99 ≤ 200 ms del lado del servidor, con un p50 esperado de ≈ 30–50 ms. Quien llama espera 300 ms; si no hay respuesta, Ana ve el selector manual. La medición: un histograma con 11 bordes, de 10 ms a 2.5 s, con uno justo en 200 y vecinos en 150 y 300. La alerta: p99 arriba de 200 ms durante 10 minutos, y alguien despierta.
 
 Hay un detalle más que hace útil al histograma cuando algo falla. C01 no tiene uno solo: tiene otro para el preprocesamiento (leer y preparar la foto, en CPU) y otro para la llamada al modelo (el viaje al servidor con la GPU y de regreso). Cuando el p99 total sube, comparar los dos dice qué tramo creció, y a cuál le hacen falta máquinas. Y la estimación de la Ronda para el caso lento, ≈ 150 ms, deja ≈ 50 ms de margen contra los 200: es una suma de casos lentos, así que sirve para planear, no para prometer.
 
-C01 tiene además una segunda promesa, la de disponibilidad: 99.9 % al mes. Su SLI cuenta las requests que respondieron sin error del servidor **y** dentro de 300 ms, entre las requests válidas; su presupuesto, el 0.1 %, son unas 300,000 requests al mes. Y el promedio también tiene su lugar en el caso: con la ley de Little (requests en curso = requests por segundo × latencia promedio), la Ronda calcula en M03 que a 500 requests por segundo y 50 ms en promedio hay 500 × 0.05 = 25 requests adentro del sistema a la vez.
+C01 tiene además una segunda promesa, la de disponibilidad: 99.9 % al mes. Su SLI cuenta las requests que respondieron sin error del servidor **y** dentro de 300 ms, entre las requests válidas; su presupuesto, el 0.1 %, son unas 300,000 requests al mes.
+
+Y el promedio también tiene su lugar en el caso, porque es el número de los totales: cuánto cuesta servir un día, o cuántas requests hay adentro del sistema a la vez. Con la ley de Little (requests en curso = requests por segundo × latencia promedio), la Ronda calcula en M03 que a 500 requests por segundo y 50 ms en promedio hay 500 × 0.05 = 25 requests adentro del sistema a la vez. Para la promesa, en cambio, se usan percentiles: en los tableros de la Ronda, la latencia de las requests aparece como p50 y p99, no como promedio.
 
 ### C11: un RAG que promete la mediana
 
@@ -556,7 +559,7 @@ C11 es un asistente interno que responde preguntas de los empleados con los docu
 | Hasta el primer pedazo de respuesta | p95 ≤ 2.5 s | Es lo que la persona espera viendo la pantalla vacía |
 | La respuesta completa | p50 ≤ 10 s | La cola la deciden las respuestas largas, no los servidores |
 
-La última es la interesante. Una respuesta típica de ≈ 300 [[token|tokens]], a ≈ 25–40 ms por token, tarda ≈ 7.5–12 s en generarse, más ≈ 1–1.8 s hasta el primer token; una de 600 tokens tarda 15–24 s solo en generarse. La cola de la respuesta completa está hecha de **preguntas que piden respuestas largas**, no de máquinas lentas. Prometer un p95 de 10 s sería prometer respuestas cortas. Por eso C11 promete la mediana, mantiene la cola corta con instrucciones de brevedad y un tope de 600 tokens, y manda el texto mientras se escribe (*streaming*), para que la persona empiece a leer antes.
+La última es la interesante. Una respuesta típica de ≈ 300 [[token|tokens]], a ≈ 25–40 ms por token, tarda ≈ 7.5–12 s en generarse, más ≈ 1–1.8 s hasta el primer token; una de 600 tokens tarda 15–24 s solo en generarse. Con eso, la Ronda calcula un promedio de ≈ 11 s y una mediana de ≈ 10: la mayoría de las respuestas son más cortas que el promedio, y las largas lo jalan hacia arriba, como el millonario de la fonda. La cola de la respuesta completa está hecha de **preguntas que piden respuestas largas**, no de máquinas lentas. Prometer un p95 de 10 s sería prometer respuestas cortas. Por eso C11 promete la mediana, mantiene la cola corta con instrucciones de brevedad y un tope de 600 tokens, y manda el texto mientras se escribe (*streaming*), para que la persona empiece a leer antes.
 
 Por dentro también hay fan-out: la búsqueda por palabras y la búsqueda por significado corren en paralelo, cada una con un timeout de 300 ms, y el reordenador tiene 400 ms; si no llega, se usa el orden anterior. Cada timeout corta la cola de una pieza para que no se vuelva la cola de todos.
 
@@ -567,15 +570,15 @@ C13 pone subtítulos en vivo en videollamadas. El audio llega en fragmentos de 1
 :::cuenta El factor de tiempo real de C13
 Un paso de 80 ms // el doble de rápido que la voz | 80 ÷ 160 | RTF 0.5
 El umbral de la alerta // medido en el p95 del paso | 128 ÷ 160 | RTF 0.8
-Un paso de 200 ms // el texto se atrasa 40 ms más | 200 ÷ 160 | RTF 1.25
+Un paso de 200 ms // el texto se atrasa 40 ms más en cada fragmento | 200 ÷ 160 | RTF 1.25
 = C13 vigila el p95 del paso, no su promedio: un promedio de 80 ms puede esconder pasos de 200 ms, y cada uno atrasa el texto que la persona lee.
 :::
 
-Si el paso tardara siempre lo mismo que el fragmento (RTF = 1), cada fragmento esperaría al anterior y el atraso crecería sin techo. Por eso la alerta suena cuando el p95 del paso pasa de 128 ms, el 80 % del fragmento, durante 5 minutos. Y la promesa al usuario también es un percentil: los subtítulos parciales, en p95 ≤ 500 ms desde que se dice la palabra; la frase final, en p95 ≤ 1.5 s.
+Con RTF = 1 no queda margen: si el paso tarda en promedio lo mismo que el fragmento, cada paso que se alarga atrasa a los que siguen y nunca hay tiempo libre para ponerse al día, así que el atraso se va acumulando. Por eso la alerta suena cuando el p95 del paso pasa de 128 ms, el 80 % del fragmento, durante 5 minutos. Y la promesa al usuario también es un percentil: los subtítulos parciales, en p95 ≤ 500 ms desde que se dice la palabra; la frase final, en p95 ≤ 1.5 s desde que la persona deja de hablar.
 
 ### Fuera de ML: el ingreso de un país
 
-Los ingresos tienen una cola larga a la derecha: unas pocas personas ganan muchísimo, como el millonario de la fonda. Por eso el ingreso promedio de un país queda arriba de lo que gana un hogar típico, y las oficinas de estadística reportan también la mediana o los deciles. La Oficina del Censo de Estados Unidos publica cada año el ingreso **mediano** de los hogares; el INEGI, en la ENIGH, el ingreso promedio y su reparto por deciles.
+Los ingresos tienen una cola larga a la derecha: unas pocas personas ganan muchísimo, como el millonario de la fonda. Por eso el ingreso promedio de un país queda arriba de lo que gana un hogar típico, y las oficinas de estadística reportan también la mediana o los deciles. La Oficina del Censo de Estados Unidos publica cada año el ingreso **mediano** de los hogares; el INEGI, en la ENIGH, que sale cada dos años, el ingreso promedio y cómo se reparte entre los deciles de hogares.
 
 Un hábito que sirve igual con sueldos que con latencias: cuando leas «el promedio subió», pregunta qué pasó con la mediana. Si el promedio sube y la mediana no, el aumento se lo llevó la cola.
 
@@ -615,7 +618,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de percentiles de una l
 ? [medio] Un servicio tuvo 23 horas tranquilas con 1,000 requests cada una y un p99 de 100 ms. En la hora pico atendió 100,000 requests y el 2 % tardó 500 ms. (a) ¿Cuánto da el promedio de los 24 p99 horarios? (b) ¿Cuál es el p99 del día?
 - (a) En la hora pico el 2 % pasa del 1 %, así que su p99 es 500 ms. Promedio: (23 × 100 + 500) ÷ 24 ≈ **117 ms**.
 - (b) El día tiene 23 × 1,000 + 100,000 = 123,000 requests, y las 2,000 de 500 ms son ≈ 1.6 %: más del 1 %. El p99 del día es **500 ms**.
-- El promedio de las horas le dio a la hora pico el mismo peso que a las 3 de la mañana, aunque tuvo 100 veces más requests.
+- El promedio de las horas le dio a la hora pico el mismo peso que a las 3 de la mañana, aunque tuvo 100 veces más requests. Pesarlas por tráfico tampoco sirve: (23,000 × 100 + 100,000 × 500) ÷ 123,000 ≈ 425 ms, otro número que no es el p99.
 ? [reto] Una página espera a 20 servicios llamados en paralelo, y cada uno pasa de 100 ms el 1 % de las veces, sin importar los demás. (a) ¿Qué fracción de las páginas tarda más de 100 ms? (b) Si quieres que solo el 1 % de las páginas pase de 100 ms, ¿qué tendría que cumplir cada servicio?
 - (a) La página es lenta si al menos un servicio lo es: 1 − 0.99²⁰ ≈ 1 − 0.818 = **18.2 %**, casi 1 de cada 5.
 - (b) Si x es la fracción de veces que cada servicio responde a tiempo, necesitas x²⁰ ≥ 0.99, o sea x ≥ 0.99 elevado a 1/20 ≈ 0.9995.
@@ -626,7 +629,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de percentiles de una l
 - (c) 20 × 60 = 1,200 requests. Rango: 0.999 × 1,200 = 1,198.8 → la 1,199.ª, y arriba queda **una sola**. El «p99.9» de ese minuto sería la penúltima request: puro ruido.
 :::
 
-## Lo que sigue {What comes next}
+## Lo que sigue {What comes next} [extra]
 
 **En la Ronda:**
 

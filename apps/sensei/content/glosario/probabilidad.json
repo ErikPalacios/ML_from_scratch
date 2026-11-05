@@ -1,14 +1,14 @@
 { "terminos": [
   { "id": "independencia", "termino": "Independencia", "en": "independence · independent events",
     "corto": "Dos eventos son independientes si saber que pasó uno no cambia la probabilidad del otro. Es lo que permite multiplicar sus probabilidades.",
-    "largo": "Casi todas las cuentas de confiabilidad la suponen: el [[fan-out]], la disponibilidad en serie y la [[redundancia]] en paralelo. Se cumple más o menos cuando las causas son distintas (el disco de una máquina y el de otra). Se rompe cuando hay una causa compartida: la misma versión en todas las réplicas, la misma zona, la misma base de datos; eso es una [[falla-correlacionada]]. No es lo mismo que «excluyentes»: dos eventos excluyentes, que no pueden pasar juntos, nunca son independientes, porque si pasa uno el otro ya tiene probabilidad 0.",
+    "largo": "Casi todas las cuentas de confiabilidad la suponen: el [[fan-out]], la disponibilidad en serie y la [[redundancia]] en paralelo. Se cumple más o menos cuando las causas son distintas (el disco de una máquina y el de otra). Se rompe cuando hay una causa compartida: la misma versión en todas las réplicas, la misma zona, la misma base de datos; eso es una [[falla-correlacionada]]. No es lo mismo que «excluyentes»: dos eventos excluyentes, que no pueden pasar juntos, nunca son independientes si los dos pueden pasar, porque si pasa uno el otro ya tiene probabilidad 0.",
     "ejemplo": "Dos réplicas de C01 en zonas distintas, cada una con sus propias fallas de hardware, son casi independientes: que se caiga la de la zona A no hace más probable que se caiga la de la B. Si las dos reciben el mismo deploy malo, dejan de serlo.",
     "ver": ["regla-producto", "falla-correlacionada", "probabilidad"],
     "leccion": "probabilidad" },
 
   { "id": "regla-producto", "termino": "Regla del producto", "en": "product rule · multiplication rule",
     "corto": "Si dos eventos son independientes, la probabilidad de que pasen los dos es el producto de sus probabilidades: P(A y B) = P(A) × P(B).",
-    "largo": "Multiplicar es tomar una fracción de una fracción: de los casos en que pasa A, solo en una parte pasa también B. Con N eventos independientes de probabilidad p, que pasen todos es p^N, y eso crece hacia abajo muy rápido: es la cuenta de la disponibilidad en serie y del [[fan-out]]. Solo vale con [[independencia]]: si los eventos tienden a pasar juntos, la probabilidad de que pasen los dos es mayor que el producto.",
+    "largo": "Multiplicar es tomar una fracción de una fracción: de los casos en que pasa A, solo en una parte pasa también B. Con N eventos independientes de probabilidad p, que pasen todos es p^N, y eso baja muy rápido: es la cuenta de la disponibilidad en serie y del [[fan-out]]. Solo vale con [[independencia]]: si los eventos tienden a pasar juntos, la probabilidad de que pasen los dos es mayor que el producto.",
     "ejemplo": "Dos servicios, cada uno rápido 9 de cada 10 veces y sin depender del otro: los dos rápidos 0.9 × 0.9 = 0.81 de las veces. Leer bien los 18 dígitos de una CLABE con 99 % por dígito: 0.99¹⁸ ≈ 0.835.",
     "ver": ["independencia", "complemento", "fan-out"],
     "leccion": "probabilidad" },

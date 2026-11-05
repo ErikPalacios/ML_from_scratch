@@ -8,7 +8,7 @@
   ],
   "nodes": [
     { "id": "post", "label": "Post", "sub": "texto de quien publica", "kind": "client", "x": 24, "y": 6, "w": 18, "h": 8,
-      "note": "Está aquí porque hay que revisarlo antes de que alguien lo vea. En C06 llegan ≈ 30 millones de posts y 150 millones de comentarios al día, y el chequeo tiene un p99 de 150 ms." },
+      "note": "Está aquí porque hay que revisarlo antes de que alguien lo vea. En C06 llegan ≈ 30 millones de posts y 150 millones de comentarios al día, y el chequeo tiene un p99 de 150 ms: el 99 % de las veces termina en 150 ms o menos." },
     { "id": "modelo", "label": "Modelo", "sub": "un logit por política", "kind": "model", "x": 24, "y": 18, "w": 18, "h": 8,
       "note": "Un solo modelo de texto, [[multietiqueta]]: en una pasada da un [[logit]] por cada una de las 7 políticas. Agregar una política es agregarle una salida y reentrenar, no poner otro modelo en el camino." },
     { "id": "sigm", "label": "7 sigmoides", "sub": "un % por política", "kind": "service", "x": 24, "y": 30, "w": 18, "h": 8,
@@ -22,7 +22,7 @@
     { "id": "revision", "label": "Revisión", "sub": "una persona decide", "kind": "human", "x": 54, "y": 24, "w": 22, "h": 8,
       "note": "Una persona mira el post. En C06 hay ≈ 600 moderadores para ≈ 216 mil revisiones al día, y esa capacidad es la que fija qué tan bajos pueden ser los umbrales de revisión." },
     { "id": "bloquea", "label": "No se publica", "sub": "solo con score muy alto", "kind": "service", "x": 54, "y": 42, "w": 22, "h": 8,
-      "note": "Aquí el sistema actúa solo, sin que nadie mire. Por eso su umbral es muy alto y se fija por [[precision]]: un error castiga a alguien que no hizo nada." }
+      "note": "Aquí el sistema actúa solo, sin que nadie mire. Por eso su umbral es muy alto y se fija por [[precision]] (de lo que bloquea, qué parte de verdad viola): un error castiga a alguien que no hizo nada." }
   ],
   "edges": [
     { "from": "post", "to": "modelo", "kind": "online", "fromSide": "b", "toSide": "t" },

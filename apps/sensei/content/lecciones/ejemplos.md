@@ -20,16 +20,16 @@ A aprender de ejemplos que ya traen su respuesta, como una tarea ya calificada, 
 
 Cada dato de la entrada que el modelo usa para decidir es una [[feature]]. En español a veces se dice «característica» o «variable», pero en el trabajo casi todo el mundo dice *feature*.
 
-**Datos en tabla.** En C09, un modelo decide si un pago con tarjeta es fraude mientras se cobra. En C15, una app de noticias predice si le darán clic a un anuncio. Su entrada es una fila de datos sueltos, cada uno con nombre, y a los datos que caben así se les llama **tabulares**:
+**Datos en tabla.** En C09, un modelo decide si un pago con tarjeta es fraude mientras se cobra. En C15, un sitio de noticias predice si le darán clic a un anuncio. Su entrada es una fila de datos sueltos, cada uno con nombre, y a los datos que caben así se les llama **tabulares**:
 
 | | Fraude en pagos (C09) | Clics en anuncios (C15) |
 |---|---|---|
 | La pregunta | ¿Este pago es fraude? | ¿Le darán clic a este anuncio? |
 | Las features de un ejemplo | monto US$45 · giro del comercio «videojuegos» · hora 03:12 · 4 intentos de la tarjeta en el último minuto | sección «deportes» · dispositivo «android» · hora 21 · anuncio de «autos» · lugar en la página «arriba» |
 | La etiqueta y de dónde sale | fraude sí o no: llega como contracargo, cuando el dueño de la tarjeta desconoce el cargo, semanas después | clic sí o no, en los 30 minutos siguientes |
-| Qué tan rara es la respuesta «sí» | ≈ 0.08 %: 1 de cada 1,250 pagos | ≈ 0.35 %: 1 de cada ≈ 286 anuncios |
+| Qué tan rara es la respuesta «sí» | ≈ 0.08 %: 1 de cada 1,250 pagos | ≈ 0.35 %: 1 de cada ≈ 286 anuncios mostrados |
 
-Fíjate en tres cosas. Unas features son números (el monto) y otras, categorías (el giro), que hay que convertir en números porque un modelo solo hace cuentas. La etiqueta no siempre la pone una persona: aquí la escribe lo que pasó después. Y la respuesta «sí» es rarísima, lo que complica medir.
+Fíjate en tres cosas. Unas features son números (el monto) y otras, categorías (el giro), que hay que convertir en números porque un modelo solo hace cuentas. La etiqueta no siempre la pone una persona: aquí la escribe lo que pasó después. Y la respuesta «sí» es rarísima, lo que complica medir: un modelo que dijera siempre «no» acertaría 99.92 % de los pagos sin atrapar un solo fraude.
 
 **Imágenes.** En una foto no hay columnas con nombre. La entrada son los [[pixel|píxeles]]: una foto de 224 × 224 píxeles, con 3 números por píxel (cuánto rojo, cuánto verde y cuánto azul), son 224 × 224 × 3 = **150,528 números**. Ninguno significa nada por sí solo: el número 10,000 no es «tiene agujetas». Un modelo para imágenes recibe los píxeles crudos y aprende por dentro sus propias features útiles: primero bordes, luego formas y luego cosas como «suela». Lo verás en la lección de redes neuronales.
 
@@ -56,9 +56,9 @@ Cuatro filas de un dataset. En C01 la columna «foto» no guarda la imagen misma
 
 La última columna es la más cara: de dónde sale lo ves en «Etiquetas», más abajo.
 
-## Convertir todo en números {Encoding, missing values and scaling} [extra]
+## Convertir todo en números {Encoding, missing values and scaling}
 
-Un modelo solo multiplica y suma, así que todo le tiene que llegar como número, y bien: sin relaciones inventadas, sin huecos y en escalas comparables. Son tres decisiones de casi cualquier dataset de tabla.
+Un modelo solo multiplica y suma, así que todo le tiene que llegar como número, y bien: sin relaciones inventadas, sin huecos y en escalas comparables. Son tres decisiones de casi cualquier dataset de tabla. En las tres vas a leer dos palabras que la sección siguiente explica a fondo: **train**, la parte de los datos con la que el modelo aprende, y **test**, la que se guarda para examinarlo al final.
 
 ### Categorías: por qué no 1, 2 y 3
 
@@ -85,9 +85,9 @@ La solución más común es el [[one-hot]]: una columna por cada valor posible, 
 
 Ahora cada giro tiene su propio peso: el modelo puede aprender que videojuegos sube mucho el riesgo y gasolinera casi nada, y ningún giro queda «más grande» ni «a la mitad» de otro. Tres detalles:
 
-- **Cuando el orden sí existe**, numerar está bien: en las tallas chica, mediana y grande, 1, 2 y 3 dicen algo verdadero.
+- **Cuando el orden sí existe**, numerar está bien: en las tallas chica, mediana y grande, el orden 1, 2 y 3 es verdadero. Que de una talla a la siguiente haya la misma distancia sigue siendo una suposición, pero razonable.
 - **Un valor que no se vio al entrenar** no tiene columna. Se reserva una columna «otro» para lo nuevo.
-- **Con millones de valores**, como el id de cada anuncio en C15, one-hot daría millones de columnas casi todas en 0. Ahí se usa *hashing*: una fórmula fija manda cada valor a una de un número fijo de casillas. C15 usa 2²⁴ = 16,777,216 casillas con un peso cada una: 2²⁴ × 4 bytes ≈ 67 MB. La otra salida es aprender una lista de números por valor, un [[embedding]], que ves en su propia lección.
+- **Con muchísimos valores**, one-hot se vuelve enorme. En C15 varias features son combinaciones de dos, como «sección deportes y anuncio de autos» o «región y anunciante», y entre todas pueden sumar cientos de miles de valores distintos: una columna por cada uno, casi todas en 0, y una lista que habría que mantener al día. Ahí se usa *hashing*: una fórmula fija manda cada valor a una de un número fijo de casillas, sin lista. C15 usa 2²⁴ = 16,777,216 casillas con un peso cada una: 2²⁴ × 4 bytes ≈ 67 MB, y un anuncio nuevo cae en sus casillas desde que aparece. La otra salida es aprender una lista de números por valor, un [[embedding]], que ves en su propia lección.
 
 ### Valores faltantes
 
@@ -99,7 +99,7 @@ Borrar los ejemplos con huecos, o la columna si casi siempre falta. Es lo más f
 2. Rellenar (imputar)
 Poner un valor razonable: la [[mediana]] de train (el valor de en medio cuando los ordenas) o una regla del negocio. C14, que pronostica ventas de supermercado, rellena a la tienda que no reportó con sus ventas del mismo día de la semana anterior, y marca esas filas (`imputed_input`) para medirlas aparte.
 3. Dejarlo como «no sé»
-Guardar el hueco como un valor especial, NaN (*not a number*, «no es un número»), para un modelo que lo sabe usar, como los de C09 y C14: árboles de decisión, cadenas de preguntas como «¿monto mayor que 100?» (*gradient boosting*). En una categoría se agrega el valor «desconocido» con su propio peso, como hace C15 cuando no sabe qué lee una persona.
+Guardar el hueco como un valor especial, NaN (*not a number*, «no es un número»), para un modelo que lo sabe usar. Los de C09 y C14 suman muchos árboles de decisión, cadenas de preguntas como «¿monto mayor que 100?», y a esa técnica se le llama *gradient boosting*; sus librerías (LightGBM, XGBoost) aprenden por qué rama mandar los NaN. En una categoría se agrega el valor «desconocido» con su propio peso, como hace C15 cuando no sabe qué lee una persona.
 :::
 
 :::ejemplo Rellenar con el promedio puede mentir
@@ -132,7 +132,7 @@ Los montos de cinco pagos de train: 20, 30, 35, 40 y 50 dólares.
 - La desviación estándar es su raíz: √100 = **10**.
 - Estandarizados: (20 − 35) ÷ 10 = −1.5, y luego −0.5, 0, 0.5 y 1.5.
 
-Ahora «z = 1.5» quiere decir «una desviación y media arriba de lo normal», sea monto u hora. Un pago nuevo de US$90 queda en (90 − 35) ÷ 10 = **5.5**: muy lejos de lo habitual. (Aquí se divide entre 5; hay una versión que divide entre 4, n − 1. Con miles de datos casi no cambia, y la diferencia la ves en la lección de ruido.)
+Ahora «z = 1.5» quiere decir «una desviación y media arriba del promedio», sea monto u hora. Un pago nuevo de US$90 queda en (90 − 35) ÷ 10 = **5.5**: muy lejos de lo habitual. (Aquí se divide entre 5; hay una versión que divide entre 4, n − 1. Con miles de datos casi no cambia, y la diferencia la ves en la lección de ruido.)
 :::
 
 Dos reglas, y las dos vienen de errores reales:
@@ -170,7 +170,7 @@ Toca cada caja para ver por qué está ahí, o sigue los dos recorridos.
 - **Validación** son los exámenes de práctica: te los pones para ver cómo vas y cambiar cómo estudias.
 - **Test** es el examen final: uno, al final, con preguntas que no habías visto.
 
-**Dónde se rompe la analogía.** Primero: si pruebas 40 versiones y te quedas con la que mejor salió en validación, la elegiste en parte por suerte, y su número sale optimista sin que nadie lo note; por eso hace falta un test aparte. Segundo: un alumno entiende, y un modelo puede memorizar literalmente casi 2 millones de fotos. Tercero: el examen final de verdad es producción, que cambia con el tiempo ([[drift]]); el test solo dice cómo le irá si el mundo se parece al test.
+**Dónde se rompe la analogía.** Primero: si pruebas 40 versiones y te quedas con la que mejor salió en validación, la elegiste en parte por suerte, y su número sale optimista sin que nadie lo note; por eso hace falta un test aparte. Segundo: ningún alumno memoriza 2 millones de ejercicios, y un modelo sí puede aprenderse de memoria casi 2 millones de fotos. Tercero: el examen final de verdad es producción, que cambia con el tiempo ([[drift]]); el test solo dice cómo le irá si el mundo se parece al test.
 :::
 
 :::ojo
@@ -195,7 +195,7 @@ Al azar: que no caiga ninguna // cada una se queda fuera con 0.9 | 0.9²⁰ | �
 Al azar: que caigan justo 2 // hay 20 × 19 ÷ 2 = 190 parejas posibles | 190 × 0.1² × 0.9¹⁸ | ≈ 0.285
 Al azar: que caigan 0 o 1 | 0.9²⁰ + 20 × 0.1 × 0.9¹⁹ | ≈ 0.39
 Estratificado: train, validación y test | 20 × 0.8, 20 × 0.1 y 20 × 0.1 | 16, 2 y 2, siempre
-= Al azar, unas 12 de cada 100 veces validación se queda sin ninguna máquina de escribir, y 39 de cada 100 tiene una o ninguna: esa categoría no se puede medir. Solo 28 de cada 100 veces sale el reparto «justo».
+= Al azar, unas 12 de cada 100 veces validación se queda sin ninguna máquina de escribir, y 39 de cada 100 tiene una o ninguna: esa categoría no se puede medir. Solo ≈ 29 de cada 100 veces sale el reparto «justo».
 :::
 
 El arreglo es un [[estratificado|split estratificado]]: repartir **cada categoría por separado** en la misma proporción, así las 20 máquinas de escribir quedan siempre en 16, 2 y 2. Se puede estratificar por cualquier cosa que deba salir bien representada: la categoría, o si la foto vino del celular o de la web.
@@ -215,13 +215,13 @@ Cada mes C01 entrena un modelo nuevo, y para saber si es mejor que el de producc
 
 ## Leakage: cuando el examen se filtra {Data leakage}
 
-El [[leakage]] (fuga de datos) es cuando el entrenamiento o la evaluación tienen información que no va a existir en el momento de predecir, o cuando el test se parece demasiado al train. El nombre lo dice: es un examen filtrado. El síntoma siempre es el mismo: un resultado sospechosamente bueno antes de producción que se derrumba en producción.
+El [[leakage]] (fuga de datos) es cuando el entrenamiento o la evaluación tienen información que no va a existir en el momento de predecir, o cuando el test se parece demasiado al train. El nombre lo dice: es un examen filtrado. El síntoma típico: un resultado sospechosamente bueno antes de producción que se derrumba en producción.
 
 Es de lo más importante de esta lección porque no da ningún error: todo corre, los números se ven increíbles y nadie se entera hasta producción. Tres formas muy comunes:
 
 ### 1 · La misma foto en train y en test
 
-En un marketplace la misma foto aparece una y otra vez: el vendedor sube la misma foto en tres publicaciones, o fotografía todo sobre la misma mesa con la misma luz. Si repartes al azar por publicación, las copias se separan: una queda en train y su gemela en test. El modelo no necesita entender nada para «acertarle»: ya la vio.
+En un marketplace la misma foto aparece una y otra vez: el vendedor sube la misma foto en tres publicaciones, o fotografía todo sobre la misma mesa con la misma luz. Si repartes al azar por publicación, las copias pueden quedar separadas: una en train y su gemela en test. El modelo no necesita entender nada para «acertarle»: ya la vio.
 
 :::ejemplo La misma foto en tres publicaciones
 Reparto al azar, 80 % a train y 20 % a test. Para una foto que aparece en 3 publicaciones:
@@ -230,10 +230,10 @@ Reparto al azar, 80 % a train y 20 % a test. Para una foto que aparece en 3 publ
 - Las 3 caen en test: 0.2 × 0.2 × 0.2 = 0.008.
 - Quedan separadas (al menos una en cada lado): 1 − 0.512 − 0.008 = 0.48.
 
-Ahora mira solo los casos en que al menos una copia está en test: 1 − 0.512 = 0.488. De esos, 0.48 tienen a su gemela en train: 0.48 ÷ 0.488 ≈ 0.98. Es decir, **98 de cada 100 veces** que una de esas fotos sale en el examen, el modelo ya se la sabía.
+Ahora mira solo los casos en que al menos una copia está en test: 1 − 0.512 = 0.488. De esos, 0.48 tienen a su gemela en train: 0.48 ÷ 0.488 ≈ 0.98. Es decir, **98 de cada 100 veces** que esa foto sale en el examen, el modelo ya vio una copia suya.
 :::
 
-La defensa tiene dos partes. Primero, **quitar copias antes de repartir**: a cada archivo se le calcula un *hash*, una huella digital corta que sale del contenido; dos archivos idénticos tienen la misma huella. Para fotos recortadas o vueltas a comprimir, los [[duplicado-cercano|casi duplicados]], hay huellas «perceptuales» que se parecen si las imágenes se parecen. Segundo, **repartir por grupo**: en C01 todas las fotos de un vendedor van al mismo lado, y el modelo no puede memorizar «la mesa de este vendedor». Eso es un [[split-por-grupo|split por grupo]]; las dos defensas, en código, están en la sección siguiente.
+La defensa tiene dos partes. Primero, **quitar copias antes de repartir**: a cada archivo se le calcula un *hash*, una huella digital corta que sale del contenido; dos archivos idénticos tienen la misma huella. Para fotos recortadas o vueltas a comprimir, los [[duplicado-cercano|casi duplicados]], hay huellas «perceptuales» que se parecen si las imágenes se parecen. Segundo, **repartir por grupo**: en C01 todas las fotos de un vendedor van al mismo lado, así que reconocer «la mesa de este vendedor» ya no sirve para acertar en validación. Eso es un [[split-por-grupo|split por grupo]]; las dos defensas, en código, están en la sección siguiente.
 
 ### 2 · Una feature que trae escondida la respuesta
 
@@ -245,7 +245,7 @@ La prueba es una pregunta, columna por columna: **¿este dato ya existía en el 
 
 ### 3 · Información del futuro
 
-Imagina una feature «ventas del vendedor en los últimos 90 días» que alguien calcula **hoy** para todas las publicaciones, también para una del 1 de marzo. Esos 90 días incluyen ventas de marzo a junio, que el 1 de marzo no habían pasado: el modelo aprende con un dato que en producción nunca va a tener.
+Imagina una feature «ventas del vendedor en los últimos 90 días» que alguien calcula **hoy, 1 de junio,** para todas las publicaciones, también para una del 1 de marzo. Esos 90 días van de marzo a junio: ventas que el 1 de marzo todavía no habían pasado. El modelo aprende con un dato que en producción nunca va a tener.
 
 Lo mismo pasa al repartir: si el modelo va a predecir el futuro, el examen tiene que venir del futuro. Es un [[split-temporal|split temporal]]: si entrenas con datos hasta el 5 de enero, evalúas desde el 6. Al azar, el modelo «ya conoce» las modas de diciembre cuando lo examinas con noviembre.
 
@@ -299,7 +299,7 @@ máquinas en train, val y test: 17 0 3
 repartos con validación sin máquinas: 124 de 1000
 ```
 
-Con la semilla 17 salió justo el caso malo: ninguna máquina en validación. De 1,000 sorteos, 124 (12.4 %) quedan igual, cerca del 12 % de la cuenta; no es idéntico porque aquí van exactamente 100 fotos a validación, en vez de sortear cada foto. Ahora, estratificado:
+Con la semilla 17 salió justo el caso malo: ninguna máquina en validación. De 1,000 sorteos, 124 (12.4 %) quedan igual, cerca del 12 % de la cuenta. No sale idéntico porque 1,000 sorteos también tienen suerte: con otras 1,000 semillas saldría otro número, casi siempre entre 10 % y 14 %. (Que aquí vayan exactamente 100 fotos a validación, en vez de sortear cada foto, lo baja un poquito: la cuenta exacta da 11.9 %.) Ahora, estratificado:
 
 ```python
 import random
@@ -350,9 +350,9 @@ C09 procesa ≈ 10 millones de pagos al día y ≈ 0.08 % son fraude: ≈ 8,000 
 
 - Fraudes de hace 30 días que ya tienen su contracargo: 8,000 × 0.6 = **4,800**.
 - Fraudes que todavía parecen pagos buenos: 8,000 − 4,800 = **3,200** por cada día de pagos.
-- La tasa de fraude que verías: 0.08 % × 0.6 = **0.048 %**, casi la mitad de la real.
+- La tasa de fraude que verías: 0.08 % × 0.6 = **0.048 %**: parece que hay 40 % menos fraude del que hay.
 
-Si entrenas con el mes pasado, le enseñas al modelo que miles de fraudes son pagos normales. Por eso C09 entrena solo con **cohortes maduras**, pagos de hace 60 a 90 días o más; las filas que no han madurado se quitan, no se marcan como «no fraude».
+Si entrenas con el mes pasado, le enseñas al modelo que miles de fraudes son pagos normales. Por eso C09 entrena solo con **cohortes maduras**: grupos de pagos (los de una misma semana) que ya tienen 60 a 90 días o más, cuando ya llegaron casi todos sus contracargos. Las filas que no han madurado se quitan, no se marcan como «no fraude».
 :::
 
 ### Por grupo: cada vendedor, entero de un lado
@@ -446,13 +446,13 @@ sha256 de los tenis:   53b7a26d1293f19c
 sha256 recomprimida:   29515c5130af0803
 ```
 
-La recomprimida cambia 1 bit de 16; la más clara, ninguno, porque el promedio sube lo mismo que cada píxel; la otra foto, 13. Sus sha256, en cambio, no se parecen en nada. pHash, la huella que menciona la Ronda, es una versión más robusta de la misma idea; otra forma es comparar los [[embedding|embeddings]] de dos fotos con [[similitud-coseno]].
+La recomprimida cambia 1 bit de 16; la más clara, ninguno, porque el promedio sube lo mismo que cada píxel; la otra foto, 13. Sus sha256, en cambio, no se parecen en nada. pHash, la huella que menciona la Ronda, es una versión más robusta de la misma idea. Otra forma es comparar los [[embedding|embeddings]] de dos fotos, listas de números que resumen lo que muestran, con la [[similitud-coseno]], que da cerca de 1 cuando las dos listas apuntan casi en la misma dirección.
 
 ¿Importa? Barz y Denzler (2020) revisaron CIFAR-10 y CIFAR-100, dos datasets clásicos de fotos chicas: el 3.3 % y el 10 % de sus imágenes de test tenían un casi duplicado en train. Si pasa en los datasets con que todo el mundo compara modelos, en los tuyos también.
 
 ## Etiquetas: de dónde salen y cuánto cuestan {Labels: where they come from and what they cost}
 
-La etiqueta es el dato más caro por unidad y el techo de todo lo demás: un modelo no puede ser más consistente que sus etiquetas. Si dos personas no se ponen de acuerdo en si una foto es «Tenis» o «Calzado deportivo», el modelo tampoco va a poder.
+La etiqueta es el dato más caro por unidad y el techo de todo lo demás: un modelo difícilmente va a ser más consistente que sus etiquetas, y con etiquetas malas ni siquiera lo puedes medir. Si dos personas no se ponen de acuerdo en si una foto es «Tenis» o «Calzado deportivo», el modelo tampoco va a poder.
 
 ### No todas valen lo mismo
 
@@ -462,7 +462,7 @@ En C01 salen de tres lugares. Los porcentajes son los del dataset de septiembre 
 |---|---|---|
 | La categoría que eligió quien vende | 72 %, ya filtrada | Abundante pero ruidosa. Y está contaminada: la gente suele aceptar lo que el modelo le sugirió, así que el modelo terminaría aprendiendo a imitarse a sí mismo |
 | Correcciones de moderadores | 7 % | Muy buena, pero solo de las publicaciones que alguien revisó |
-| Personas que etiquetan a mano | 21 % | La mejor y la más cara: unas 5 mil fotos al mes, elegidas a propósito |
+| Personas que etiquetan a mano | 21 % | La mejor y la más cara; hoy se suman unas 5 mil fotos al mes, elegidas a propósito |
 
 En otros casos la etiqueta la escribe lo que pasó después: el contracargo en C09, el clic en C15, lo vendido en C14. Cada fuente trae su sesgo, y conviene poder decirlo en una frase: la de quien vende está influida por la sugerencia; la de moderación solo existe para lo revisado; el contracargo tarda semanas.
 
@@ -472,7 +472,7 @@ En otros casos la etiqueta la escribe lo que pasó después: el contracargo en C
 
 - **Quién.** Un proveedor (escala rápido, pero sabe poco de tu tema), un equipo propio, expertos para los casos difíciles, o la gente dentro de su trabajo, como los moderadores de C01.
 - **Una guía escrita.** Qué es cada clase, con ejemplos y contraejemplos; los casos límite decididos por escrito («¿un celular con funda va en celulares o en fundas?»); una salida para «no sé», para no obligar a inventar; y una versión, para saber con qué reglas se hizo cada etiqueta.
-- **Control de calidad.** Una parte la etiquetan dos personas sin saberlo (en C01, el 10 %), se mide cuánto coinciden y un experto decide los desacuerdos. Lo que se resuelve entra a la guía.
+- **Control de calidad.** Una parte la etiquetan dos personas sin saberlo (en C01, el 10 %), se mide cuánto coinciden y un experto decide los desacuerdos. Lo que se resuelve entra a la guía. Ojo: el porcentaje de coincidencia engaña cuando casi todo es de una clase, porque coincidir en lo fácil no cuesta nada. Por eso se mide con [[kappa]], que descuenta lo que coincidirían por puro azar; la cuenta está en «Acuerdo y ruido».
 - **Un costo**, que se calcula antes de empezar.
 
 :::cuenta Lo que cuesta etiquetar en C01
@@ -551,7 +551,7 @@ Un dataset con 1,000 fotos: 950 de tenis y 50 de botas. Un «modelo» que siempr
 - Aciertos: las 950 de tenis. 950 ÷ 1,000 = 95 %.
 - Botas que reconoce: 0 de 50. O sea, 0 %.
 
-Un 95 % que no sirve para nada si tú vendes botas. En C09 y C15 es todavía más extremo: un modelo que siempre dice «no» acierta 99.92 % de los pagos y 99.65 % de los anuncios, y no atrapa ni un fraude ni predice un solo clic.
+Un 95 % que no sirve para nada si tú vendes botas. En C09 y C15 es todavía más extremo: un modelo que siempre dice «no» acierta 99.92 % de los pagos y 99.65 % de los anuncios mostrados, y no atrapa ni un fraude ni predice un solo clic.
 :::
 
 Por eso, con clases desbalanceadas, el porcentaje de aciertos total ([[accuracy]]) no basta. Hay que medir cada clase por separado: de las botas que había, ¿cuántas reconoció? Eso se llama [[recall]], y lo ves a fondo en la lección «¿Aprendió de verdad?».
@@ -598,12 +598,12 @@ Y su límite: la augmentation no inventa información. Si de una categoría tien
 Un [[slice]] es un pedazo de los datos de evaluación que comparte algo y se mide por separado: fotos de celular contra fotos de web, fotos con poca luz, imágenes muy chicas. Es medir por clase, aplicado a cualquier grupo.
 
 :::ejemplo Un modelo nuevo que «mejora»
-El 95 % de las fotos del golden set tienen buena luz y el 5 %, poca luz.
+Con números ilustrativos: el 95 % de las fotos del golden set tienen buena luz y el 5 %, poca luz.
 
 - Modelo actual: 85.4 % con buena luz y 77.4 % con poca. En total: 0.95 × 85.4 + 0.05 × 77.4 = 81.13 + 3.87 = **85.0 %**.
 - Modelo nuevo: 86.0 % con buena luz y 70.0 % con poca. En total: 0.95 × 86.0 + 0.05 × 70.0 = 81.7 + 3.5 = **85.2 %**.
 
-El total subió 0.2 puntos y parece una mejora. Pero con poca luz bajó 7.4 puntos, y esas fotos suelen venir de celulares baratos: es un grupo de personas al que el modelo nuevo le va bastante peor. Solo el slice lo muestra.
+El total subió 0.2 puntos y parece una mejora. Pero con poca luz bajó 7.4 puntos, y esas fotos pueden venir sobre todo de celulares baratos: sería un grupo de personas al que el modelo nuevo le va bastante peor. Solo el slice lo muestra.
 :::
 
 ## Errores comunes {Common mistakes}
@@ -620,7 +620,7 @@ Las trampas que más se repiten al armar un dataset, y cómo evitar cada una.
 
 ## En la vida real {In real life} [extra]
 
-Las mismas ideas, en seis lugares distintos. Fíjate en que la columna «cómo se reparte» casi nunca dice «al azar».
+Las mismas ideas, en seis lugares distintos. Fíjate en que la columna «cómo se reparte» nunca dice «al azar».
 
 | Dónde | El ejemplo y su etiqueta | Cómo se reparte | La trampa típica |
 |---|---|---|---|
@@ -652,10 +652,15 @@ La tablet va a «otro»: [0, 0, 0, 1]. Sin esa columna quedaría en puros ceros,
 - (25 − 35) ÷ 10 = **−1.0** · (35 − 35) ÷ 10 = **0** · (62 − 35) ÷ 10 = **2.7**
 
 El de producción también da **0**: se usan el promedio y la desviación de train, guardados con el modelo.
+? [facil] Un día de C15 trae 200,000 anuncios mostrados y 700 clics. ¿Qué accuracy saca un «modelo» que siempre dice «no clic»? ¿Cuántos clics atrapa?
+- Aciertos: los 200,000 − 700 = 199,300 sin clic. 199,300 ÷ 200,000 = **99.65 %**.
+- Clics que atrapa: **0 de 700**.
+
+Un 99.65 % que no sirve para nada. Por eso, con una clase tan rara, se mide cada clase por separado: de los 700 clics, ¿cuántos vio venir? Eso es el [[recall]], y aquí vale 0.
 ? [medio] Una categoría tiene 30 fotos y repartes al azar 90 / 5 / 5. ¿Qué probabilidad hay de que validación se quede sin ninguna? ¿Lo arregla estratificar?
 Cada foto se queda fuera de validación con probabilidad 0.95; las 30 a la vez, 0.95³⁰ ≈ **0.21**: una de cada cinco veces.
 
-Estratificar no alcanza: 30 × 0.05 = 1.5, así que validación tendría 1 o 2 fotos, que no miden nada. Hace falta juntar más (el golden set de C01 exige al menos ≈ 50 por categoría) o, con muy pocos datos, la [[validacion-cruzada|validación cruzada]] de «¿Aprendió de verdad?».
+Estratificar no alcanza: 30 × 0.05 = 1.5, así que validación tendría 1 o 2 fotos, que no miden nada. Hace falta juntar más (el golden set de C01 exige al menos ≈ 50 por categoría) o, con muy pocos datos, la [[validacion-cruzada|validación cruzada]] de «¿Aprendió de verdad?»: repartir varias veces, de modo que cada foto esté en validación una vez, y promediar.
 ? [medio] Un proveedor cobra US$0.08 por etiqueta y tarda 25 s por foto. Quieres 8,000 fotos al mes con 15 % de doble anotación. ¿Cuántas anotaciones, cuánto dinero y cuántas horas son?
 - Anotaciones: 8,000 × 1.15 = **9,200**.
 - Costo: 9,200 × US$0.08 = **US$736**.
@@ -666,7 +671,7 @@ La pregunta para cada una: ¿existía en el instante de decidir?
 - **(a), (d) y (e)** sí. Ojo con (d): el minuto **anterior**, sin contar el pago que se decide.
 - **(b)** es leakage: se llena después, justo al confirmar el fraude. Es la etiqueta disfrazada.
 - **(c)** también, tal como está: cuenta contracargos que llegaron después del pago, incluido el suyo. Bien hecha, cuenta solo los que habían llegado antes.
-? [reto] Dos personas etiquetan 200 fotos como «Tenis» o «No tenis». Coinciden en tenis en 150 y en no tenis en 20; A dice tenis y B no en 18; A dice no y B tenis en 12. Calcula el acuerdo y kappa.
+? [reto] Dos personas etiquetan 200 fotos como «Tenis» o «No tenis». Coinciden en tenis en 150 y en no tenis en 20; A dice tenis y B no en 18; A dice no y B tenis en 12. Calcula el acuerdo y kappa, como en la cuenta de «Acuerdo y ruido».
 - Acuerdo observado: (150 + 20) ÷ 200 = **0.85**.
 - A dice tenis en (150 + 18) ÷ 200 = 0.84; B, en (150 + 12) ÷ 200 = 0.81.
 - Por azar: 0.84 × 0.81 + 0.16 × 0.19 = 0.6804 + 0.0304 = pₑ = **0.7108**.

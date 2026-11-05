@@ -100,7 +100,7 @@ Cada bloque abre con `:::nombre` y cierra con `:::` solo en su línea.
 | `:::conceptos` | Los ids que **presenta** esta lección, separados por espacios. |
 | `:::chequeo` | Preguntas rápidas: `? pregunta` y en las líneas siguientes la respuesta. |
 
-Tablas con `| … |`. Dentro de una celda, `\n` parte la línea y `\|` es una barra.
+Tablas con `| … |`. Dentro de una celda, `\n` parte la línea y `\|` es una barra. **Dentro de una tabla o de un `:::cuenta`, un enlace con texto va escapado: `[[id\|texto]]`**, porque el `|` sin escapar parte la celda.
 
 **Código:** un bloque ` ```python ` va seguido de un bloque ` ```salida ` con lo que imprime **de verdad**: córrelo con `python3` antes de copiar la salida.
 - Usa solo la **biblioteca estándar** (`math`, `statistics`, `random` con semilla, `struct`, `collections`): así el lector lo corre sin instalar nada. En la máquina donde se escribe no hay NumPy ni PyTorch.

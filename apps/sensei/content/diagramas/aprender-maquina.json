@@ -9,7 +9,7 @@
     { "id": "fotos", "label": "Fotos de train", "sub": "1.84 M JPEG en S3", "kind": "store", "x": 2, "y": 6, "w": 18, "h": 9,
       "note": "Está aquí porque las fotos no viven en la GPU: son ≈ 1.84 millones de archivos JPEG en un disco o en S3 (el almacenamiento de AWS). En cada época se leen todas, en desorden." },
     { "id": "cpu", "label": "CPU", "sub": "lee, decodifica, augmenta", "kind": "service", "x": 30, "y": 6, "w": 18, "h": 9,
-      "note": "La [[cpu|CPU]] prepara los datos: lee cada JPEG, lo convierte en números, le aplica la [[augmentation]] y arma el batch. Lo hacen varios procesos a la vez (los *workers* del DataLoader) mientras la GPU calcula el batch anterior." },
+      "note": "La [[cpu|CPU]] prepara los datos: lee cada JPEG, lo convierte en números, le aplica la [[augmentation]] y arma el batch. Lo hacen varios procesos a la vez (los *workers* del DataLoader, la pieza de PyTorch que arma los batches) mientras la GPU calcula el batch anterior." },
     { "id": "lote", "label": "Batch listo", "sub": "[64, 3, 224, 224]", "kind": "queue", "x": 58, "y": 6, "w": 18, "h": 9,
       "note": "Un [[batch]] de 64 fotos son 64 × 150,528 = 9,633,792 números: ≈ 38.5 MB en float32. Espera en la memoria normal hasta que la GPU lo pida." },
     { "id": "nucleos", "label": "Núcleos de la GPU", "sub": "forward, backward, Adam", "kind": "gpu", "x": 30, "y": 28, "w": 18, "h": 10,
@@ -41,7 +41,7 @@
     ] },
     { "id": "lenta", "label": "Si la CPU no alcanza", "steps": [
       { "nodes": ["fotos", "cpu"], "edges": ["fotos>cpu"], "text": "Decodificar JPEG y hacer augmentation cuesta. Si la CPU tarda más en preparar un batch que la GPU en calcularlo…" },
-      { "nodes": ["nucleos"], "edges": [], "text": "…la GPU se queda esperando sin hacer nada. El entrenamiento «corre», pero la GPU, la parte cara, pasa mucho tiempo sin usarse (nvidia-smi lo muestra)." },
+      { "nodes": ["nucleos"], "edges": [], "text": "…la GPU se queda esperando sin hacer nada. El entrenamiento «corre», pero la GPU, la parte cara, pasa mucho tiempo sin usarse (el comando nvidia-smi lo muestra)." },
       { "nodes": ["cpu", "lote"], "edges": ["cpu>lote"], "text": "Arreglos comunes: más workers en el DataLoader, fotos guardadas ya en tamaño chico, o una máquina con más CPU por GPU. Se mide antes de comprar una GPU más grande." }
     ] }
   ]

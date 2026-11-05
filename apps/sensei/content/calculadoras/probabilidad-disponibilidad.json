@@ -19,5 +19,5 @@
     { "label": "Lo mismo con una réplica por pieza y sin causa común", "formula": "(1 - pow(af, n)) * 43200", "formato": "num", "decimales": 1, "barra": true, "nota": "minutos al mes, para comparar" },
     { "label": "Nueves", "formula": "-log10(max(1 - total, 1e-12))", "formato": "num", "decimales": 1, "nota": "3 es 99.9 %; 4, 99.99 %" }
   ],
-  "nota": "Con dos zonas al 99.5 %, Triton queda en ≈ 1 minuto al mes, contra 216 de una sola. Sube la causa común a 0.1 %: ≈ 44 minutos, y ya no importa cuántas réplicas pongas."
+  "nota": "Con dos zonas al 99.5 %, Triton queda en ≈ 1 minuto al mes, contra 216 de una sola. Sube la causa común a 0.1 %: ≈ 44 minutos, y más réplicas ya casi no lo bajan."
 }
