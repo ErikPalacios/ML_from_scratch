@@ -1,0 +1,106 @@
+{
+  "nota": "Los conceptos que presenta la lección «embeddings».",
+  "terminos": [
+    {
+      "id": "vector",
+      "termino": "Vector",
+      "en": "vector",
+      "corto": "Una lista ordenada de números. Si tiene 2 números se puede dibujar como un punto (o una flecha) en un plano; si tiene 512, es un punto en un espacio de 512 dimensiones.",
+      "largo": "Cada número es una coordenada, y su posición en la lista importa: (4, 3) no es lo mismo que (3, 4). La cantidad de números se llama la dimensión del vector. Un vector es el caso más sencillo de un [[tensor]]: un tensor de una sola fila.",
+      "ejemplo": "(4, 3) es un vector de dimensión 2: un punto 4 pasos a la derecha y 3 hacia arriba. El [[embedding]] de un producto en C07 de la Ronda es un vector de dimensión 512.",
+      "ver": ["embedding", "distancia-euclidiana", "similitud-coseno"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "embedding",
+      "termino": "Embedding",
+      "en": "embedding · vector embedding",
+      "corto": "El vector que produce un modelo para representar algo (una foto, una frase, un producto) de forma que las cosas parecidas queden cerca.",
+      "largo": "Lo produce una red ya entrenada: entra la foto o el texto y sale una lista de, por ejemplo, 512 números. Cada número por separado no significa nada que se pueda nombrar; lo que importa es la distancia entre vectores. Dos embeddings solo se pueden comparar si los produjo el mismo modelo, en la misma versión.",
+      "analogia": "Como las coordenadas de una ciudad en un mapa: ciudades cercanas tienen coordenadas parecidas. Se rompe en que un mapa tiene 2 ejes con nombre (latitud y longitud) y un embedding tiene cientos de ejes sin nombre.",
+      "ejemplo": "CLIP ViT-B/32 convierte una foto o un texto en 512 números; BERT-base convierte un texto en vectores de 768; la ResNet-50 de C01, justo antes de su última capa, produce 2,048.",
+      "ver": ["vector", "similitud-coseno", "vecinos-cercanos", "multimodal"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "similitud-coseno",
+      "termino": "Similitud coseno",
+      "en": "cosine similarity",
+      "corto": "Qué tan parecida es la dirección de dos vectores: el coseno del ángulo entre ellos. Va de −1 (opuestos) a 1 (misma dirección); 0 es perpendicular.",
+      "largo": "Se calcula como el producto punto de los dos vectores dividido entre el producto de sus largos. No le importa qué tan largo es cada vector, solo hacia dónde apunta. Si los vectores ya vienen normalizados (largo 1), la similitud coseno es simplemente el producto punto, que es lo que calculan los índices vectoriales.",
+      "ejemplo": "a = (4, 3) y b = (3, 4): producto punto 4×3 + 3×4 = 24; cada uno mide 5; cos = 24 ÷ (5 × 5) = 0.96. Casi la misma dirección.",
+      "ver": ["distancia-euclidiana", "vector", "embedding"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "distancia-euclidiana",
+      "termino": "Distancia euclidiana",
+      "en": "Euclidean distance · L2 distance",
+      "corto": "La distancia «en línea recta» entre dos puntos, la de la regla: la raíz de la suma de las diferencias al cuadrado, coordenada por coordenada.",
+      "largo": "Es el teorema de Pitágoras extendido a cualquier número de dimensiones. A diferencia de la [[similitud-coseno]], sí cambia si un vector es más largo que otro. Con vectores normalizados, las dos medidas ordenan a los vecinos igual.",
+      "ejemplo": "Entre (4, 3) y (3, 4): diferencias 1 y −1; al cuadrado 1 y 1; suman 2; la raíz de 2 ≈ 1.41.",
+      "ver": ["similitud-coseno", "vector"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "vecinos-cercanos",
+      "termino": "Vecinos más cercanos",
+      "en": "nearest neighbors · k-NN",
+      "corto": "Dado un vector, encontrar los k vectores de una colección que están más cerca de él. Es la operación que hay debajo de toda búsqueda por embeddings.",
+      "largo": "La forma exacta (fuerza bruta, *brute force*) compara contra todos: con 100 millones de vectores de 512 números son 51.2 mil millones de multiplicaciones por búsqueda. Por eso en producción casi siempre se usa la versión aproximada, el [[ann|ANN]].",
+      "ejemplo": "k = 30: los 30 productos cuyo embedding se parece más al de la búsqueda «tenis blancos».",
+      "ver": ["ann", "indice-vectorial", "similitud-coseno"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "ann",
+      "termino": "ANN (vecinos cercanos aproximados)",
+      "en": "approximate nearest neighbors",
+      "corto": "Buscar los vecinos más cercanos sin compararse contra todos: se revisa solo una parte bien elegida de la colección. Es muchísimo más rápido, a cambio de perder de vez en cuando algún vecino verdadero.",
+      "largo": "Cuánto se pierde se mide con el recall contra la búsqueda exacta: de los 100 vecinos verdaderos, cuántos encontró el ANN. Mirar más de la colección sube el recall y baja la velocidad: es una perilla, no un defecto. Las técnicas más usadas son los grafos (HNSW) y los grupos o «estantes» (IVF).",
+      "analogia": "Una biblioteca ordenada por estantes de tema: para buscar un libro de cocina vas directo al estante de cocina y no revisas los otros. Se rompe en que un libro que quedó en el estante de al lado (un libro de nutrición con recetas) no lo vas a ver, aunque fuera el que querías.",
+      "ejemplo": "En C07 de la Ronda se pide recall@100 ≥ 0.95: de los 100 vecinos exactos, el ANN tiene que encontrar al menos 95.",
+      "ver": ["vecinos-cercanos", "indice-vectorial"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "indice-vectorial",
+      "termino": "Índice vectorial",
+      "en": "vector index",
+      "corto": "Una estructura de datos que guarda millones de vectores ya organizados (en grupos o en un grafo) para encontrar los más cercanos a uno nuevo sin revisarlos todos.",
+      "largo": "Se construye antes, sin prisa, y se consulta en milisegundos. Tiene que caber en memoria: 100 millones de vectores de 512 números pesan ≈ 205 GB en float32. Lo ofrecen librerías (FAISS), bases de datos vectoriales y motores de búsqueda (OpenSearch k-NN). Cada uno trae perillas que cambian velocidad, memoria y recall.",
+      "ejemplo": "En C07 de la Ronda: un índice HNSW con los vectores guardados en int8 (51.2 GB) más el grafo (≈ 25.6 GB), partido en 4 pedazos.",
+      "ver": ["ann", "vecinos-cercanos", "retrieval"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "retrieval",
+      "termino": "Retrieval (recuperación)",
+      "en": "retrieval · candidate generation",
+      "corto": "La primera etapa de una búsqueda: traer rápido y barato unos cientos de candidatos de entre millones, aunque el orden no sea perfecto.",
+      "largo": "Suele ser una búsqueda en un [[indice-vectorial|índice vectorial]], a veces junto con una búsqueda por palabras clave. Su trabajo es no dejar fuera lo bueno; ordenarlo bien le toca al [[re-ranking]]. En RAG es la parte que busca los documentos antes de que el LLM responda.",
+      "ver": ["re-ranking", "indice-vectorial", "ann"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "re-ranking",
+      "termino": "Re-ranking (reordenar)",
+      "en": "re-ranking · reranker",
+      "corto": "La segunda etapa de una búsqueda: después de una primera búsqueda rápida, un modelo más caro y más preciso vuelve a calificar solo los primeros candidatos y los reordena.",
+      "largo": "Puede darse el lujo de ser lento por candidato porque mira pocos (decenas, no millones). Un re-ranker típico (un *cross-encoder*) lee la consulta y el candidato juntos, en vez de comparar dos vectores calculados por separado. Cuántos candidatos reordenar es una decisión de costo.",
+      "ejemplo": "En C07 de la Ronda, reordenar los 100 primeros de cada búsqueda pediría ≈ 24 GPUs L4; los 30 primeros, ≈ 8.",
+      "ver": ["retrieval"],
+      "leccion": "embeddings"
+    },
+    {
+      "id": "multimodal",
+      "termino": "Multimodal",
+      "en": "multimodal",
+      "corto": "Que trabaja con más de un tipo de dato a la vez, como texto e imágenes. Un embedding multimodal pone fotos y textos en el mismo espacio, para compararlos directamente.",
+      "largo": "CLIP (OpenAI, 2021) tiene dos redes, una para imágenes y otra para texto, entrenadas juntas con unos 400 millones de pares (imagen, texto) para que una foto y su descripción queden cerca. Así, el vector de «tenis blancos» queda cerca del vector de la foto de unos tenis blancos.",
+      "ejemplo": "En C07 de la Ronda, un encoder tipo CLIP (512 dimensiones) permite buscar productos con texto o subiendo una foto.",
+      "ver": ["embedding", "retrieval"],
+      "leccion": "embeddings"
+    }
+  ]
+}

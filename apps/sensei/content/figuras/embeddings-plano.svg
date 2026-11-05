@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 410" role="img" aria-labelledby="f-ep-t" class="f-svg" style="max-width:420px">
+<title id="f-ep-t">Cuatro productos como flechas que salen del origen en un plano. Tenis en (4, 3) y botas en (3, 4) apuntan casi en la misma dirección, con unos 16 grados entre ellas y similitud coseno 0.96. Playera en (−3, 4) y bolsa en (−4, 3) quedan juntas del otro lado. Entre tenis y playera hay 90 grados: coseno 0. Entre tenis y bolsa, coseno −0.28.</title>
+<rect class="f-card" x="10" y="10" width="340" height="250" rx="16"/>
+<text class="f-l" x="28" y="36">UN EMBEDDING DE 2 NÚMEROS</text>
+<line class="f-flecha" x1="30.0" y1="229" x2="30.0" y2="235" style="stroke-width:1"/>
+<line class="f-flecha" x1="60.0" y1="229" x2="60.0" y2="235" style="stroke-width:1"/>
+<line class="f-flecha" x1="90.0" y1="229" x2="90.0" y2="235" style="stroke-width:1"/>
+<line class="f-flecha" x1="120.0" y1="229" x2="120.0" y2="235" style="stroke-width:1"/>
+<line class="f-flecha" x1="150.0" y1="229" x2="150.0" y2="235" style="stroke-width:1"/>
+<line class="f-flecha" x1="210.0" y1="229" x2="210.0" y2="235" style="stroke-width:1"/>
+<line class="f-flecha" x1="240.0" y1="229" x2="240.0" y2="235" style="stroke-width:1"/>
+<line class="f-flecha" x1="270.0" y1="229" x2="270.0" y2="235" style="stroke-width:1"/>
+<line class="f-flecha" x1="300.0" y1="229" x2="300.0" y2="235" style="stroke-width:1"/>
+<line class="f-flecha" x1="330.0" y1="229" x2="330.0" y2="235" style="stroke-width:1"/>
+<line class="f-flecha" x1="177" y1="202.0" x2="183" y2="202.0" style="stroke-width:1"/>
+<line class="f-flecha" x1="177" y1="172.0" x2="183" y2="172.0" style="stroke-width:1"/>
+<line class="f-flecha" x1="177" y1="142.0" x2="183" y2="142.0" style="stroke-width:1"/>
+<line class="f-flecha" x1="177" y1="112.0" x2="183" y2="112.0" style="stroke-width:1"/>
+<line class="f-flecha" x1="177" y1="82.0" x2="183" y2="82.0" style="stroke-width:1"/>
+<line class="f-flecha" x1="15" y1="232" x2="345" y2="232" style="stroke-width:1.2"/>
+<line class="f-flecha" x1="180" y1="232" x2="180" y2="62" style="stroke-width:1.2"/>
+<text class="f-s" x="186" y="250" style="font-size:12px">(0, 0)</text>
+<text class="f-s" x="330" y="250" text-anchor="middle" style="font-size:12px">5</text>
+<text class="f-s" x="30" y="250" text-anchor="middle" style="font-size:12px">−5</text>
+<text class="f-s" x="172" y="86" text-anchor="end" style="font-size:12px">5</text>
+<path d="M226.4,197.2 A58,58 0 0 0 214.8,185.6" style="fill:none;stroke:var(--tm-ink);stroke-width:2"/>
+<text class="f-t" x="232" y="185" text-anchor="middle" style="font-size:13px">16°</text>
+<line x1="180" y1="232" x2="290.4" y2="149.2" style="stroke:var(--o);stroke-width:3;stroke-linecap:round"/>
+<path class="f-o" d="M300.0,142.0 L294.0,154.0 L286.8,144.4 Z"/>
+<line x1="180" y1="232" x2="262.8" y2="121.6" style="stroke:var(--o);stroke-width:3;stroke-linecap:round"/>
+<path class="f-o" d="M270.0,112.0 L267.6,125.2 L258.0,118.0 Z"/>
+<line x1="180" y1="232" x2="97.2" y2="121.6" style="stroke:var(--g);stroke-width:3;stroke-linecap:round"/>
+<path class="f-g" d="M90.0,112.0 L102.0,118.0 L92.4,125.2 Z"/>
+<line x1="180" y1="232" x2="69.6" y2="149.2" style="stroke:var(--g);stroke-width:3;stroke-linecap:round"/>
+<path class="f-g" d="M60.0,142.0 L73.2,144.4 L66.0,154.0 Z"/>
+<text class="f-t" x="302" y="164" text-anchor="start" style="font-size:13px">Tenis</text>
+<text class="f-s" x="302" y="179" text-anchor="start" style="font-size:12px">(4, 3)</text>
+<text class="f-t" x="276" y="104" text-anchor="start" style="font-size:13px">Botas</text>
+<text class="f-s" x="276" y="119" text-anchor="start" style="font-size:12px">(3, 4)</text>
+<text class="f-t" x="84" y="104" text-anchor="end" style="font-size:13px">Playera</text>
+<text class="f-s" x="84" y="119" text-anchor="end" style="font-size:12px">(−3, 4)</text>
+<text class="f-t" x="58" y="164" text-anchor="end" style="font-size:13px">Bolsa</text>
+<text class="f-s" x="58" y="179" text-anchor="end" style="font-size:12px">(−4, 3)</text>
+<rect class="f-card" x="10" y="276" width="340" height="124" rx="16"/>
+<text class="f-l" x="28" y="302">SIMILITUD COSENO CON TENIS</text>
+<circle class="f-o" cx="34" cy="325" r="6"/>
+<text class="f-t" x="48" y="330" style="font-size:13px">Botas</text>
+<text class="f-s" x="118" y="330">24 ÷ 25 =</text>
+<text class="f-t" x="196" y="330" style="font-size:13px">0.96</text>
+<text class="f-s" x="242" y="330" style="font-size:12px">casi igual</text>
+<circle class="f-g" cx="34" cy="351" r="6"/>
+<text class="f-t" x="48" y="356" style="font-size:13px">Playera</text>
+<text class="f-s" x="118" y="356">0 ÷ 25 =</text>
+<text class="f-t" x="196" y="356" style="font-size:13px">0</text>
+<text class="f-s" x="242" y="356" style="font-size:12px">perpendiculares</text>
+<circle class="f-g" cx="34" cy="377" r="6"/>
+<text class="f-t" x="48" y="382" style="font-size:13px">Bolsa</text>
+<text class="f-s" x="118" y="382">−7 ÷ 25 =</text>
+<text class="f-t" x="196" y="382" style="font-size:13px">−0.28</text>
+<text class="f-s" x="242" y="382" style="font-size:12px">algo opuestos</text>
+</svg>

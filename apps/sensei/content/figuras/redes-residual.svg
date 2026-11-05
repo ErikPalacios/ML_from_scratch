@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 380" role="img" aria-labelledby="f-redes-residual-t" class="f-svg" style="max-width:420px">
+<title id="f-redes-residual-t">Un bloque residual. La entrada x entra por arriba y se divide en dos caminos: uno pasa por las capas del bloque (convolución, BatchNorm y ReLU) y calcula una corrección; el otro es un atajo que lleva x sin cambios. Abajo los dos se suman: la salida es bloque de x más x.</title>
+<rect class="f-card" x="10" y="10" width="340" height="360" rx="16"/>
+<text class="f-l" x="28" y="36">UN BLOQUE RESIDUAL</text>
+<rect class="f-b" x="100" y="52" width="100" height="34" rx="17"/><text class="f-pill-t" x="150" y="74" text-anchor="middle">x</text>
+<line class="f-flecha" x1="150" y1="86" x2="150" y2="106"/><path class="f-punta" d="M143,104 L157,104 L150,113 Z"/>
+<rect class="f-dark" x="60" y="116" width="180" height="128" rx="14"/>
+<text class="f-dark-l" x="76" y="140">CAPAS DEL BLOQUE</text>
+<text class="f-dark-t" x="76" y="170">convolución + BatchNorm</text>
+<text class="f-dark-t" x="76" y="192">+ ReLU, tres veces</text>
+<text class="f-dark-t" x="76" y="214">calcula una corrección</text>
+<line class="f-flecha" x1="150" y1="244" x2="150" y2="272"/><path class="f-punta" d="M143,270 L157,270 L150,279 Z"/>
+<path d="M200,69 L296,69 Q312,69 312,85 L312,284 Q312,300 296,300 L174,300" style="fill:none;stroke:var(--y);stroke-width:4;stroke-linejoin:round"/>
+<path d="M178,292 L178,308 L168,300 Z" style="fill:var(--y)"/>
+<text x="320" y="182" style="fill:var(--yd);font:700 13px var(--sans)" transform="rotate(90 320 182)" text-anchor="middle">atajo: x pasa tal cual</text>
+<circle class="f-acc" cx="150" cy="300" r="18"/><text class="f-acc-t" x="150" y="306" text-anchor="middle">+</text>
+<line class="f-flecha" x1="150" y1="318" x2="150" y2="328"/><path class="f-punta" d="M143,326 L157,326 L150,335 Z"/>
+<text class="f-t" x="150" y="356" text-anchor="middle">salida = bloque(x) + x</text>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 370" role="img" aria-labelledby="f-ap-t" class="f-svg" style="max-width:420px">
+<title id="f-ap-t">La pérdida de entropía cruzada para un ejemplo es menos el logaritmo natural de p, donde p es la probabilidad que el modelo le dio a la respuesta correcta. Si p es 94 %, la pérdida es 0.06; si p es 10 %, es 2.30; si p es 1 %, es 4.61. Cuando p se acerca a 1, la pérdida se acerca a 0; cuando p se acerca a 0, la pérdida crece sin tope</title>
+<rect class="f-card" x="10" y="10" width="340" height="350" rx="16"/>
+<text class="f-t" x="26" y="40">Pérdida = −ln(p)</text>
+<text class="f-s" x="26" y="60" style="font-size:12px">p: la probabilidad de la respuesta correcta</text>
+<line class="f-flecha" x1="50" y1="80" x2="50" y2="260"/>
+<line class="f-flecha" x1="50" y1="260" x2="334" y2="260"/>
+<text class="f-l" x="42" y="264" text-anchor="end">0</text>
+<text class="f-l" x="42" y="228" text-anchor="end">1</text>
+<text class="f-l" x="42" y="192" text-anchor="end">2</text>
+<text class="f-l" x="42" y="156" text-anchor="end">3</text>
+<text class="f-l" x="42" y="120" text-anchor="end">4</text>
+<text class="f-l" x="42" y="84" text-anchor="end">5</text>
+<text class="f-l" x="50" y="280" text-anchor="middle">0 %</text>
+<text class="f-l" x="190" y="280" text-anchor="middle">50 %</text>
+<text class="f-l" x="330" y="280" text-anchor="middle">100 %</text>
+<path class="f-giro" style="stroke:var(--b);stroke-width:3" d="M51.9,80.0 L52.8,94.2 L54.2,108.8 L55.6,119.2 L58.4,133.8 L64.0,152.2 L69.6,164.3 L78.0,177.1 L92.0,191.7 L106.0,202.1 L134.0,216.7 L162.0,227.0 L190.0,235.0 L218.0,241.6 L246.0,247.2 L274.0,252.0 L302.0,256.2 L330.0,260.0"/>
+<circle class="f-acc" cx="313.2" cy="257.8" r="6"/>
+<text class="f-t" x="330" y="236" text-anchor="end" style="font-size:13px">94 % → 0.06</text>
+<circle class="f-acc" cx="78" cy="177.1" r="6"/>
+<text class="f-t" x="90" y="172" style="font-size:13px">10 % → 2.30</text>
+<circle class="f-acc" cx="52.8" cy="94.2" r="6"/>
+<text class="f-t" x="66" y="98" style="font-size:13px">1 % → 4.61</text>
+<text class="f-s" x="26" y="310">Seguro y en lo correcto: casi 0.</text>
+<text class="f-s" x="26" y="330">Seguro y equivocado: muy alta, y sin tope.</text>
+</svg>

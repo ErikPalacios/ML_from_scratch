@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 462" role="img" aria-labelledby="f-ee-t" class="f-svg" style="max-width:420px">
+<title id="f-ee-t">Un índice vectorial por grupos, como estantes. El plano está dividido en cuatro estantes, A, B, C y D, cada uno con sus puntos. La búsqueda, una estrella, cae en el estante B, cerca de la orilla con el A, y solo se revisa el estante B: un cuarto del trabajo. Encuentra dos de sus tres vecinos más cercanos; el que falta, que de hecho es el más cercano de todos, quedó del otro lado de la orilla, en el estante A, y se pierde. El recall en 3 es 2 de 3, unos 0.67.</title>
+<rect class="f-card" x="10" y="10" width="340" height="300" rx="16"/>
+<text class="f-l" x="28" y="36">UN ÍNDICE POR ESTANTES</text>
+<rect x="180" y="48" width="160" height="122" rx="10" style="fill:var(--b);opacity:.14"/>
+<line class="f-flecha" x1="180" y1="48" x2="180" y2="296" style="stroke-dasharray:5 5;stroke-width:1.5"/>
+<line class="f-flecha" x1="20" y1="170" x2="340" y2="170" style="stroke-dasharray:5 5;stroke-width:1.5"/>
+<text class="f-l" x="28" y="64" text-anchor="start">ESTANTE A</text>
+<text class="f-l" x="332" y="64" text-anchor="end">ESTANTE B</text>
+<text class="f-l" x="28" y="290" text-anchor="start">ESTANTE C</text>
+<text class="f-l" x="332" y="290" text-anchor="end">ESTANTE D</text>
+<circle class="f-off" cx="170" cy="118" r="6"/>
+<circle class="f-off" cx="120" cy="90" r="6"/>
+<circle class="f-off" cx="140" cy="140" r="6"/>
+<circle class="f-off" cx="90" cy="130" r="6"/>
+<circle class="f-off" cx="70" cy="80" r="6"/>
+<circle class="f-off" cx="110" cy="64" r="6"/>
+<circle class="f-b" cx="214" cy="106" r="6"/>
+<circle class="f-b" cx="226" cy="138" r="6"/>
+<circle class="f-b" cx="270" cy="80" r="6"/>
+<circle class="f-b" cx="300" cy="120" r="6"/>
+<circle class="f-b" cx="260" cy="150" r="6"/>
+<circle class="f-b" cx="310" cy="70" r="6"/>
+<circle class="f-off" cx="80" cy="244" r="6"/>
+<circle class="f-off" cx="130" cy="256" r="6"/>
+<circle class="f-off" cx="150" cy="232" r="6"/>
+<circle class="f-off" cx="104" cy="282" r="6"/>
+<circle class="f-off" cx="160" cy="276" r="6"/>
+<circle class="f-off" cx="230" cy="220" r="6"/>
+<circle class="f-off" cx="270" cy="250" r="6"/>
+<circle class="f-off" cx="300" cy="200" r="6"/>
+<circle class="f-off" cx="250" cy="270" r="6"/>
+<circle class="f-off" cx="320" cy="260" r="6"/>
+<circle cx="214" cy="106" r="11" style="fill:none;stroke:var(--b);stroke-width:2.5"/>
+<circle cx="226" cy="138" r="11" style="fill:none;stroke:var(--b);stroke-width:2.5"/>
+<circle cx="170" cy="118" r="11" style="fill:none;stroke:var(--o);stroke-width:2.5;stroke-dasharray:4 3"/>
+<path class="f-acc" d="M192.0,109.0 L194.7,116.3 L202.5,116.6 L196.4,121.4 L198.5,128.9 L192.0,124.6 L185.5,128.9 L187.6,121.4 L181.5,116.6 L189.3,116.3 Z"/>
+<line class="f-flecha" x1="160" y1="128" x2="128" y2="180" style="stroke-width:1.5"/>
+<rect class="f-chip" x="34" y="180" width="140" height="42" rx="8"/>
+<text class="f-s" x="42" y="197" style="font-size:12px">vecino verdadero,</text>
+<text class="f-s" x="42" y="213" style="font-size:12px">en otro estante: se pierde</text>
+<rect class="f-card" x="10" y="324" width="340" height="128" rx="16"/>
+<path class="f-acc" d="M34.0,341.0 L36.2,346.9 L42.6,347.2 L37.6,351.2 L39.3,357.3 L34.0,353.8 L28.7,357.3 L30.4,351.2 L25.4,347.2 L31.8,346.9 Z"/><text class="f-s" x="52" y="355">la búsqueda: cae en el estante B</text>
+<circle class="f-b" cx="34" cy="376" r="6"/><text class="f-s" x="52" y="381">se revisa solo el B: ¼ del trabajo</text>
+<circle cx="34" cy="402" r="8" style="fill:none;stroke:var(--b);stroke-width:2.5"/><text class="f-s" x="52" y="407">encontró 2 de los 3 más cercanos</text>
+<text class="f-t" x="28" y="438">recall@3 = 2 ÷ 3 ≈ 0.67</text>
+</svg>

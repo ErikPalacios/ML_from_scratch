@@ -1,0 +1,49 @@
+{
+  "titulo": "El mismo preprocesamiento en los dos momentos",
+  "width": 78,
+  "height": 46,
+  "lanes": [
+    { "id": "prod", "label": "Producción · cada foto que sube alguien", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 20 },
+    { "id": "entreno", "label": "Entrenamiento · una vez al mes", "kind": "offline", "x": 0, "y": 26, "w": 78, "h": 20 }
+  ],
+  "nodes": [
+    { "id": "foto", "label": "Foto de Ana", "sub": "JPEG · ≈ 200 KB", "kind": "client", "x": 1, "y": 7, "w": 16, "h": 9,
+      "note": "Es el punto de partida en producción: un archivo [[jpeg|JPEG]] (o PNG, o WebP), es decir, bytes comprimidos que el modelo todavía no puede usar. En C01 la app del celular suele mandarla ya reducida, de unos 200 KB." },
+    { "id": "deco", "label": "Decodificar", "sub": "bytes → píxeles", "kind": "service", "x": 21, "y": 7, "w": 16, "h": 9,
+      "note": "Está aquí porque el modelo necesita píxeles, no un archivo comprimido. [[decodificar|Decodificar]] convierte el archivo en la cuadrícula de [[pixel|píxeles]], tres números [[uint8]] por cada uno. Aquí también se gira la foto según su [[exif|EXIF]] y se pasa a [[rgb|RGB]]." },
+    { "id": "prep", "label": "Preprocesar", "sub": "resize · crop · normaliza", "kind": "service", "x": 41, "y": 7, "w": 16, "h": 9,
+      "note": "Está aquí porque el modelo espera una entrada de tamaño, tipo y escala exactos: [[resize|resize]] a 256, [[crop|center crop]] de 224 × 224, a [[float32]], [[normalizacion|normalización]] y orden [[chw|CHW]]. Sale el [[tensor]] [1, 3, 224, 224]." },
+    { "id": "modelo", "label": "Modelo", "sub": "inferencia", "kind": "gpu", "x": 61, "y": 7, "w": 16, "h": 9,
+      "note": "El modelo hace la [[inferencia]] con las perillas que le dejó el entrenamiento. Solo sabe interpretar fotos preparadas como las que vio al aprender." },
+    { "id": "dataset", "label": "Dataset", "sub": "fotos con etiqueta", "kind": "store", "x": 1, "y": 33, "w": 16, "h": 9,
+      "note": "Es el punto de partida del entrenamiento: millones de fotos de publicaciones pasadas, cada una con su categoría correcta: el [[dataset]] con que aprende el modelo." },
+    { "id": "deco2", "label": "Decodificar", "sub": "la misma librería", "kind": "service", "x": 21, "y": 33, "w": 16, "h": 9,
+      "note": "Está aquí para que las fotos del entrenamiento pasen por lo mismo que la de Ana: la misma librería y la misma versión que en producción. Dos versiones distintas del decodificador de JPEG pueden dar píxeles un poco diferentes." },
+    { "id": "prep2", "label": "Preprocesar", "sub": "el mismo código", "kind": "service", "x": 41, "y": 33, "w": 16, "h": 9,
+      "note": "Es la caja clave del diagrama: no una copia «parecida», sino el mismo archivo de código, importado por los dos lados. Lo único que cambia al entrenar son las variaciones al azar (el *augmentation*), que se apagan al evaluar." },
+    { "id": "train", "label": "Entrenamiento", "sub": "ajusta las perillas", "kind": "job", "x": 61, "y": 33, "w": 16, "h": 9,
+      "note": "El [[entrenamiento]] mueve los [[parametro|parámetros]] mirando fotos preparadas de cierta forma. Esa forma queda «aprendida»: el modelo espera la misma en producción." }
+  ],
+  "edges": [
+    { "from": "foto", "to": "deco", "kind": "online" },
+    { "from": "deco", "to": "prep", "kind": "online" },
+    { "from": "prep", "to": "modelo", "kind": "online" },
+    { "from": "dataset", "to": "deco2", "kind": "offline" },
+    { "from": "deco2", "to": "prep2", "kind": "offline" },
+    { "from": "prep2", "to": "train", "kind": "offline" },
+    { "from": "prep", "to": "prep2", "kind": "neutral", "dashed": true, "fromSide": "b", "toSide": "t", "label": "mismo código" },
+    { "from": "train", "to": "modelo", "kind": "offline", "fromSide": "t", "toSide": "b", "label": "perillas" }
+  ],
+  "flows": [
+    { "id": "foto-ana", "label": "La foto de Ana, paso a paso", "steps": [
+      { "nodes": ["foto", "deco"], "edges": ["foto>deco"], "text": "Llega el archivo: bytes comprimidos que todavía no son píxeles." },
+      { "nodes": ["deco", "prep"], "edges": ["deco>prep"], "text": "Se decodifica, se gira según EXIF y queda una cuadrícula de píxeles RGB, tres números de 0 a 255 por píxel." },
+      { "nodes": ["prep", "modelo"], "edges": ["prep>modelo"], "text": "Se redimensiona, se recorta a 224 × 224, se pasa a float32 y se normaliza: sale el tensor [1, 3, 224, 224], que entra al modelo." }
+    ] },
+    { "id": "mismo", "label": "Por qué tiene que ser el mismo", "steps": [
+      { "nodes": ["dataset", "deco2", "prep2", "train"], "edges": ["dataset>deco2", "deco2>prep2", "prep2>train"], "text": "Al entrenar, cada foto del dataset pasó por un preprocesamiento: el modelo aprendió con números preparados así." },
+      { "nodes": ["train", "modelo"], "edges": ["train>modelo"], "text": "Las perillas que salen del entrenamiento son las que usa el modelo en producción." },
+      { "nodes": ["prep", "prep2"], "edges": ["prep>prep2"], "text": "Si en producción la foto se prepara distinto (otro orden de colores, otra forma de redimensionar, otra normalización), el modelo recibe números que nunca vio. **Nada falla con error**: solo acierta menos. Por eso los dos lados usan el mismo código." }
+    ] }
+  ]
+}

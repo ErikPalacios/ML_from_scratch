@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 400" role="img" aria-labelledby="f-aprendio-matriz-t" class="f-svg" style="max-width:420px">
+<title id="f-aprendio-matriz-t">Matriz de confusión de 2 por 2 con 1,000 fotos de prueba. De las 100 fotos que eran tenis, el modelo dijo tenis en 80 (verdaderos positivos) y no en 20 (falsos negativos). De las 900 que no eran tenis, dijo tenis en 40 (falsos positivos) y no en 860 (verdaderos negativos). Accuracy 94 %, precision 80 de 120, unos 67 %, y recall 80 de 100, 80 %.</title>
+<rect class="f-card" x="10" y="10" width="340" height="380" rx="16"/>
+<text class="f-l" x="28" y="36">1,000 FOTOS DE PRUEBA</text>
+<text class="f-l" x="234" y="62" text-anchor="middle">EL MODELO DIJO</text>
+<text class="f-s" x="182.0" y="78" text-anchor="middle" style="font-size:12px">«tenis»</text>
+<text class="f-s" x="290.0" y="78" text-anchor="middle" style="font-size:12px">«no es tenis»</text>
+<rect class="f-chip" x="130" y="82" width="104" height="84" rx="10"/>
+<rect x="130" y="82" width="104" height="84" rx="10" style="fill:var(--g);opacity:.22"/>
+<text class="f-l" x="140" y="102">TP</text>
+<text class="f-t" x="182.0" y="134" text-anchor="middle" style="font-size:24px">80</text>
+<text class="f-s" x="182.0" y="154" text-anchor="middle" style="font-size:12px">acierto</text>
+<rect class="f-chip" x="238" y="82" width="104" height="84" rx="10"/>
+<rect x="238" y="82" width="104" height="84" rx="10" style="fill:var(--o);opacity:.18"/>
+<text class="f-l" x="248" y="102">FN</text>
+<text class="f-t" x="290.0" y="134" text-anchor="middle" style="font-size:24px">20</text>
+<text class="f-s" x="290.0" y="154" text-anchor="middle" style="font-size:12px">se le escapó</text>
+<rect class="f-chip" x="130" y="170" width="104" height="84" rx="10"/>
+<rect x="130" y="170" width="104" height="84" rx="10" style="fill:var(--o);opacity:.18"/>
+<text class="f-l" x="140" y="190">FP</text>
+<text class="f-t" x="182.0" y="222" text-anchor="middle" style="font-size:24px">40</text>
+<text class="f-s" x="182.0" y="242" text-anchor="middle" style="font-size:12px">falsa alarma</text>
+<rect class="f-chip" x="238" y="170" width="104" height="84" rx="10"/>
+<rect x="238" y="170" width="104" height="84" rx="10" style="fill:var(--g);opacity:.22"/>
+<text class="f-l" x="248" y="190">TN</text>
+<text class="f-t" x="290.0" y="222" text-anchor="middle" style="font-size:24px">860</text>
+<text class="f-s" x="290.0" y="242" text-anchor="middle" style="font-size:12px">acierto</text>
+<text class="f-l" x="28" y="102">ERA</text>
+<text class="f-t" x="28" y="128" style="font-size:13px">Tenis</text><text class="f-s" x="28" y="146" style="font-size:12px">100 fotos</text>
+<text class="f-t" x="28" y="216" style="font-size:13px">No tenis</text><text class="f-s" x="28" y="234" style="font-size:12px">900 fotos</text>
+<line x1="28" y1="282" x2="332" y2="282" style="stroke:var(--tm-line);stroke-width:1.5"/>
+<text class="f-t" x="28" y="310" style="font-size:13px">Accuracy</text><text class="f-s" x="112" y="310">(80 + 860) / 1,000</text><text class="f-t" x="332" y="310" text-anchor="end" style="font-size:13px">94 %</text>
+<text class="f-t" x="28" y="336" style="font-size:13px">Precision</text><text class="f-s" x="112" y="336">80 / (80 + 40)</text><text class="f-t" x="332" y="336" text-anchor="end" style="font-size:13px">≈ 67 %</text>
+<text class="f-t" x="28" y="362" style="font-size:13px">Recall</text><text class="f-s" x="112" y="362">80 / (80 + 20)</text><text class="f-t" x="332" y="362" text-anchor="end" style="font-size:13px">80 %</text>
+</svg>

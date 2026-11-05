@@ -1,0 +1,251 @@
+{
+  "titulo": "Las tres partes del dataset y quién usa cada una",
+  "width": 78,
+  "height": 42,
+  "lanes": [
+    {
+      "id": "reparto",
+      "label": "Se reparte una vez",
+      "kind": "offline",
+      "x": 0,
+      "y": 0,
+      "w": 29,
+      "h": 42
+    },
+    {
+      "id": "uso",
+      "label": "Quién usa cada parte",
+      "kind": "neutral",
+      "x": 31,
+      "y": 0,
+      "w": 47,
+      "h": 42
+    }
+  ],
+  "nodes": [
+    {
+      "id": "dataset",
+      "label": "Dataset",
+      "sub": "50,000 fotos con etiqueta",
+      "kind": "store",
+      "x": 3,
+      "y": 5,
+      "w": 23,
+      "h": 9,
+      "note": "Es el material de partida: todas las fotos con su [[etiqueta]]. Antes de repartir se quitan las copias repetidas, porque si la misma foto queda en dos partes el examen se filtra ([[leakage]])."
+    },
+    {
+      "id": "split",
+      "label": "Split",
+      "sub": "sin copias, por vendedor",
+      "kind": "job",
+      "x": 3,
+      "y": 18,
+      "w": 23,
+      "h": 8,
+      "note": "Está aquí para que el examen sea honesto: el [[split]] reparte las fotos en tres partes que no se mezclan. Las fotos de un mismo vendedor van juntas a un solo lado, y cada categoría se reparte en la misma proporción ([[estratificado]])."
+    },
+    {
+      "id": "train",
+      "label": "Train",
+      "sub": "40,000 · 80 %",
+      "badge": "1",
+      "kind": "store",
+      "x": 34,
+      "y": 5,
+      "w": 17,
+      "h": 8,
+      "note": "El [[train-set]]: está aquí para que el modelo aprenda. Sus perillas se ajustan para acertarles a estas fotos."
+    },
+    {
+      "id": "val",
+      "label": "Validación",
+      "sub": "5,000 · 10 %",
+      "badge": "2",
+      "kind": "store",
+      "x": 34,
+      "y": 18,
+      "w": 17,
+      "h": 8,
+      "note": "El [[validation-set]]: está aquí para que puedas decidir sin gastar el examen final. El modelo no aprende de estas fotos; tú las miras mientras desarrollas."
+    },
+    {
+      "id": "test",
+      "label": "Test",
+      "sub": "5,000 · 10 %",
+      "badge": "3",
+      "kind": "store",
+      "x": 34,
+      "y": 31,
+      "w": 17,
+      "h": 8,
+      "note": "El [[test-set]]: está aquí para tener un número honesto al final, así que se guarda bajo llave. En C01 este papel lo hace el [[golden-set]], que se arma aparte y no cambia de un mes a otro."
+    },
+    {
+      "id": "entreno",
+      "label": "Entrenamiento",
+      "sub": "las perillas se mueven",
+      "kind": "gpu",
+      "x": 60,
+      "y": 5,
+      "w": 17,
+      "h": 8,
+      "note": "El [[entrenamiento]] solo ve las fotos de train. Lo vemos paso a paso en la lección siguiente."
+    },
+    {
+      "id": "decidir",
+      "label": "Tú decides",
+      "sub": "qué versión, qué ajustes",
+      "kind": "human",
+      "x": 60,
+      "y": 18,
+      "w": 17,
+      "h": 8,
+      "note": "Está aquí porque desarrollar es decidir: con el resultado en validación eliges cuándo parar, qué ajustes usar y cuál de dos versiones es mejor. Y vuelves a entrenar."
+    },
+    {
+      "id": "examen",
+      "label": "Examen final",
+      "sub": "una sola vez",
+      "kind": "job",
+      "x": 60,
+      "y": 31,
+      "w": 17,
+      "h": 8,
+      "note": "Al final, una vez, el modelo elegido se examina con el test. Ese número es la mejor estimación de cómo le irá con fotos que nunca vio."
+    }
+  ],
+  "edges": [
+    {
+      "from": "dataset",
+      "to": "split",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "split",
+      "to": "train",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "split",
+      "to": "val",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "split",
+      "to": "test",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "train",
+      "to": "entreno",
+      "kind": "offline",
+      "label": "aprende"
+    },
+    {
+      "from": "val",
+      "to": "decidir",
+      "kind": "neutral",
+      "label": "mide"
+    },
+    {
+      "from": "decidir",
+      "to": "entreno",
+      "kind": "async",
+      "dashed": true,
+      "fromSide": "t",
+      "toSide": "b"
+    },
+    {
+      "from": "test",
+      "to": "examen",
+      "kind": "neutral",
+      "label": "reporta"
+    }
+  ],
+  "flows": [
+    {
+      "id": "reparto",
+      "label": "Cómo se reparte",
+      "steps": [
+        {
+          "nodes": [
+            "dataset"
+          ],
+          "edges": [],
+          "text": "Empiezas con **50,000 fotos**, cada una con su categoría correcta."
+        },
+        {
+          "nodes": [
+            "dataset",
+            "split"
+          ],
+          "edges": [
+            "dataset>split"
+          ],
+          "text": "Antes de repartir se quitan las copias y se agrupan las fotos por vendedor: una familia de fotos va entera a un solo lado."
+        },
+        {
+          "nodes": [
+            "split",
+            "train",
+            "val",
+            "test"
+          ],
+          "edges": [
+            "split>train",
+            "split>val",
+            "split>test"
+          ],
+          "text": "Se reparten 80 / 10 / 10: **40,000** a train, **5,000** a validación y **5,000** a test. Ninguna foto está en dos partes."
+        }
+      ]
+    },
+    {
+      "id": "uso",
+      "label": "Quién usa cada parte",
+      "steps": [
+        {
+          "nodes": [
+            "train",
+            "entreno"
+          ],
+          "edges": [
+            "train>entreno"
+          ],
+          "text": "**Train** es lo único que ve el entrenamiento. El modelo ajusta sus perillas para acertarles a estas fotos."
+        },
+        {
+          "nodes": [
+            "val",
+            "decidir",
+            "entreno"
+          ],
+          "edges": [
+            "val>decidir",
+            "decidir>entreno"
+          ],
+          "text": "**Validación** la miras tú: comparas versiones, eliges ajustes y vuelves a entrenar. Esta vuelta se repite muchas veces."
+        },
+        {
+          "nodes": [
+            "test",
+            "examen"
+          ],
+          "edges": [
+            "test>examen"
+          ],
+          "text": "**Test** se usa una sola vez, al final, con el modelo ya elegido. Si lo usas para decidir, deja de ser un examen honesto."
+        }
+      ]
+    }
+  ]
+}

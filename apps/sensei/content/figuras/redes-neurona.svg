@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 460" role="img" aria-labelledby="f-redes-neurona-t" class="f-svg" style="max-width:420px">
+<title id="f-redes-neurona-t">Una neurona con tres entradas: 0.5, 0.8 y 0.2, con pesos 2, menos 1 y 3. La neurona suma los productos y el sesgo 0.1: 1.0 menos 0.8 más 0.6 más 0.1 da 0.9. La ReLU deja pasar 0.9 porque no es negativo. Abajo, la gráfica de la ReLU: cero para los negativos y la misma recta para los positivos.</title>
+<rect class="f-card" x="10" y="10" width="340" height="290" rx="16"/>
+<text class="f-l" x="28" y="36">ENTRADAS</text><text class="f-l" x="250" y="36" text-anchor="middle">NEURONA</text>
+<line x1="86" y1="66" x2="212" y2="114.0" style="stroke:var(--tm-ink3);stroke-width:2"/>
+<line x1="86" y1="130" x2="212" y2="130.0" style="stroke:var(--tm-ink3);stroke-width:2"/>
+<line x1="86" y1="194" x2="212" y2="146.0" style="stroke:var(--tm-ink3);stroke-width:2"/>
+<rect class="f-chip" x="28" y="48" width="58" height="36" rx="10"/>
+<text class="f-t" x="57" y="71" text-anchor="middle">0.5</text>
+<rect class="f-y" x="122" y="76.6" width="52" height="26" rx="13"/>
+<text x="148" y="94.6" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">× 2</text>
+<rect class="f-chip" x="28" y="112" width="58" height="36" rx="10"/>
+<text class="f-t" x="57" y="135" text-anchor="middle">0.8</text>
+<rect class="f-y" x="122" y="117.0" width="52" height="26" rx="13"/>
+<text x="148" y="135.0" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">× −1</text>
+<rect class="f-chip" x="28" y="176" width="58" height="36" rx="10"/>
+<text class="f-t" x="57" y="199" text-anchor="middle">0.2</text>
+<rect class="f-y" x="122" y="157.4" width="52" height="26" rx="13"/>
+<text x="148" y="175.4" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">× 3</text>
+<circle class="f-dark" cx="250" cy="130" r="40"/>
+<text class="f-dark-t" x="250" y="132" text-anchor="middle" style="font-size:22px;font-weight:700">Σ</text>
+<text class="f-dark-t" x="250" y="152" text-anchor="middle" style="font-size:12px">+ 0.1</text>
+<text class="f-s" x="250" y="188" text-anchor="middle" style="font-size:12px">suma + sesgo = 0.9</text>
+<line class="f-flecha" x1="250" y1="196" x2="250" y2="210"/><path class="f-punta" d="M243,208 L257,208 L250,217 Z"/>
+<rect class="f-b" x="188" y="220" width="124" height="30" rx="15"/>
+<text class="f-pill-t" x="250" y="240" text-anchor="middle" style="font-size:14px">ReLU → 0.9</text>
+<text class="f-s" x="28" y="282" style="font-size:12px">3 pesos (amarillo) + 1 sesgo = 4 parámetros</text>
+<rect class="f-card" x="10" y="314" width="340" height="136" rx="16"/>
+<text class="f-l" x="28" y="340">LA CUENTA</text>
+<text class="f-s" x="28" y="364">0.5 × 2 = 1.0</text>
+<text class="f-s" x="28" y="384">0.8 × (−1) = −0.8</text>
+<text class="f-s" x="28" y="404">0.2 × 3 = 0.6</text>
+<text class="f-s" x="28" y="424">1.0 − 0.8 + 0.6 + 0.1</text>
+<text class="f-t" x="28" y="440" style="font-size:13px">= 0.9 → ReLU → 0.9</text>
+<text class="f-l" x="236" y="340">RELU</text>
+<line x1="236" y1="412" x2="340" y2="412" style="stroke:var(--tm-ink3);stroke-width:1.5"/>
+<line x1="290" y1="428" x2="290" y2="352" style="stroke:var(--tm-ink3);stroke-width:1.5"/>
+<polyline points="240,412 290,412 336,366" style="fill:none;stroke:var(--b);stroke-width:3;stroke-linejoin:round"/>
+<text class="f-s" x="238" y="428" style="font-size:12px">neg. → 0</text>
+</svg>

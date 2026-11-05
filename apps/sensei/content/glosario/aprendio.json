@@ -1,0 +1,173 @@
+{
+  "nota": "Los conceptos que presenta la lección «aprendio» (¿Aprendió de verdad?).",
+  "terminos": [
+    {
+      "id": "generalizacion",
+      "termino": "Generalización",
+      "en": "generalization",
+      "corto": "Que el modelo acierte en ejemplos nuevos que nunca vio, no solo en los de su entrenamiento. Es lo único que importa en producción.",
+      "largo": "Un modelo puede equivocarse muy poco en sus fotos de entrenamiento y mucho en las nuevas: memorizó en lugar de aprender ([[overfitting]]). La generalización solo se mide con fotos que el modelo no usó para aprender: el [[validation-set|set de validación]], el de prueba o el [[golden-set|golden set]].",
+      "analogia": "El estudiante que entendió el tema contesta bien un examen con preguntas nuevas; el que memorizó el examen de práctica, no. Se rompe en que el modelo no «entiende» como una persona: generalizar solo quiere decir que acierta en fotos nuevas.",
+      "ver": ["overfitting", "underfitting", "curva-aprendizaje"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "overfitting",
+      "termino": "Overfitting",
+      "en": "overfitting · sobreajuste",
+      "corto": "Cuando el modelo aprende demasiado bien sus ejemplos de entrenamiento, incluidas sus casualidades, y empeora con ejemplos nuevos. Memorizó.",
+      "largo": "Se reconoce en la [[curva-aprendizaje|curva de aprendizaje]]: la loss de entrenamiento sigue bajando mientras la de validación sube. Se combate quedándose con el mejor [[checkpoint]] (parar a tiempo), con más datos o [[augmentation]], y con trabas contra la memoria como el [[dropout]].",
+      "ejemplo": "Época 8: loss de entrenamiento 0.55, de validación 0.80. Época 20: 0.10 y 1.15. La brecha pasó de 0.25 a 1.05: el modelo memoriza.",
+      "ver": ["underfitting", "generalizacion", "curva-aprendizaje", "bias-variance"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "underfitting",
+      "termino": "Underfitting",
+      "en": "underfitting · subajuste",
+      "corto": "Cuando el modelo es demasiado simple, o entrenó muy poco, y ni siquiera aprende bien sus ejemplos de entrenamiento. Se equivoca en todas partes.",
+      "largo": "En la [[curva-aprendizaje|curva de aprendizaje]] se ve como dos líneas altas y juntas: el modelo no memoriza, pero tampoco aprende. Se arregla con un modelo más capaz o entrenando más tiempo.",
+      "ver": ["overfitting", "bias-variance"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "curva-aprendizaje",
+      "termino": "Curva de aprendizaje",
+      "en": "learning curve · training curve",
+      "corto": "La gráfica de la loss (o de una métrica) en entrenamiento y en validación al final de cada época. Muestra si el modelo aprende, si memoriza o si no aprende nada.",
+      "largo": "Si las dos líneas bajan juntas, aprende. Si la de entrenamiento baja y la de validación sube, hay [[overfitting]]. Si las dos se quedan altas, [[underfitting]]. Se guarda con cada entrenamiento porque un número final solo no muestra nada de eso.",
+      "ver": ["overfitting", "underfitting", "loss", "epoch"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "bias-variance",
+      "termino": "Sesgo y varianza",
+      "en": "bias–variance trade-off",
+      "corto": "Dos fuentes de error. Sesgo: el modelo es demasiado simple y falla siempre de forma parecida. Varianza: el modelo cambia mucho según la muestra con que lo entrenes, porque aprende sus casualidades.",
+      "largo": "Mucho sesgo es [[underfitting]]; mucha varianza es [[overfitting]]. La idea clásica es que al hacer el modelo más complejo baja el sesgo y sube la varianza. En las redes grandes de hoy la historia es más complicada, pero la regla práctica no cambia: mide en datos que el modelo no vio.",
+      "analogia": "Cinco dardos, uno por cada modelo entrenado con otra muestra. Sesgo: caen juntos, lejos del centro. Varianza: caen alrededor del centro, desparramados. Se rompe en que en ML no ves el centro: solo lo estimas con datos de validación.",
+      "ver": ["overfitting", "underfitting"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "accuracy",
+      "termino": "Accuracy",
+      "en": "accuracy · exactitud",
+      "corto": "La fracción de ejemplos en que el modelo acertó. Fácil de entender y fácil de engañar cuando una clase es mucho más común que otra.",
+      "largo": "Con [[desbalance]], un modelo que siempre dice la clase más común saca una accuracy alta sin servir para nada. Por eso se acompaña de la [[matriz-confusion|matriz de confusión]], [[precision]] y [[recall]]. Con muchas clases, «accuracy» suele querer decir top-1 ([[top-k-accuracy]]).",
+      "ejemplo": "De 1,000 compras, 10 son fraude. Un modelo que siempre dice «no es fraude» acierta 990: 99 % de accuracy y 0 fraudes atrapados.",
+      "ver": ["matriz-confusion", "precision", "recall", "top-k-accuracy"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "matriz-confusion",
+      "termino": "Matriz de confusión",
+      "en": "confusion matrix",
+      "corto": "La tabla que cuenta, para cada clase real, cuántas veces el modelo dijo cada clase. La diagonal son los aciertos; todo lo demás, en qué se confunde.",
+      "largo": "Con una pregunta de sí o no es de 2 × 2: verdaderos positivos, [[falso-negativo|falsos negativos]], [[falso-positivo|falsos positivos]] y verdaderos negativos. Con 500 clases es de 500 × 500 (250,000 casillas), y se buscan las casillas grandes fuera de la diagonal. De ella salen [[accuracy]], [[precision]] y [[recall]].",
+      "ejemplo": "1,000 fotos, 100 de tenis: 80 tenis bien encontrados, 20 que se le escaparon, 40 cosas que dijo tenis sin serlo y 860 bien descartadas.",
+      "ver": ["falso-positivo", "falso-negativo", "precision", "recall"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "falso-positivo",
+      "termino": "Falso positivo",
+      "en": "false positive · FP",
+      "corto": "Un «sí» equivocado: el modelo dijo que era de la clase que buscas y no lo era. Una falsa alarma.",
+      "largo": "Cuánto cuesta depende del negocio. Bajar los falsos positivos sube la [[precision]], normalmente a cambio de más [[falso-negativo|falsos negativos]].",
+      "ejemplo": "En C01: Ana sube unas botas y la app le sugiere «Tenis». Si lo acepta, la publicación queda mal clasificada y moderación la tiene que mover.",
+      "ver": ["falso-negativo", "precision", "matriz-confusion"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "falso-negativo",
+      "termino": "Falso negativo",
+      "en": "false negative · FN",
+      "corto": "Un «no» equivocado: sí era de la clase que buscas y el modelo no lo vio. Algo que se le escapó.",
+      "largo": "Bajar los falsos negativos sube el [[recall]], normalmente a cambio de más [[falso-positivo|falsos positivos]]. Qué error duele más se decide con el negocio, y eso fija el [[umbral]].",
+      "ejemplo": "En C01: Ana sube unos tenis y «Tenis» no aparece entre las sugerencias; tiene que buscar la categoría a mano. En fraude, un falso negativo es una compra robada que pasó.",
+      "ver": ["falso-positivo", "recall", "matriz-confusion"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "precision",
+      "termino": "Precision",
+      "en": "precision · precisión",
+      "corto": "De todas las veces que el modelo dijo «sí», qué fracción era verdad. Mide qué tanta basura hay en lo que el modelo señala.",
+      "largo": "Se calcula como verdaderos positivos / (verdaderos positivos + [[falso-positivo|falsos positivos]]). Se puede inflar diciendo «sí» muy pocas veces, por eso se mira junto con el [[recall]].",
+      "ejemplo": "El modelo dijo «tenis» 120 veces y acertó 80: precision = 80 / 120 ≈ 66.7 %.",
+      "ver": ["recall", "f1", "falso-positivo"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "recall",
+      "termino": "Recall",
+      "en": "recall · sensibilidad · TPR",
+      "corto": "De todos los casos que de verdad eran «sí», qué fracción encontró el modelo. Mide cuánto se le escapa.",
+      "largo": "Se calcula como verdaderos positivos / (verdaderos positivos + [[falso-negativo|falsos negativos]]). Se puede inflar diciendo «sí» a todo, por eso se mira junto con la [[precision]]. En la [[curva-roc|curva ROC]] se le llama tasa de verdaderos positivos (TPR).",
+      "ejemplo": "Había 100 tenis y el modelo encontró 80: recall = 80 / 100 = 80 %.",
+      "ver": ["precision", "f1", "falso-negativo", "macro-promedio"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "f1",
+      "termino": "F1",
+      "en": "F1 score",
+      "corto": "Un solo número que junta precision y recall con su media armónica. Sale bajo si cualquiera de las dos es mala.",
+      "largo": "F1 = 2 × precision × recall / (precision + recall), o directo de la tabla: 2·TP / (2·TP + FP + FN). No usa los verdaderos negativos, así que la clase grande no lo infla.",
+      "ejemplo": "Precision 66.7 % y recall 80 %: F1 = 2 × 0.667 × 0.80 / 1.467 ≈ 0.727. El promedio simple daría 73.3 %.",
+      "ver": ["precision", "recall"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "macro-promedio",
+      "termino": "Macro-promedio",
+      "en": "macro average · macro-recall",
+      "corto": "Sacar la métrica de cada clase por separado y promediarlas, de modo que cada clase pese lo mismo, tenga muchas fotos o pocas.",
+      "largo": "Lo contrario es contar fotos (micro-promedio, que para el recall con una sola etiqueta por foto es la accuracy), donde las clases grandes mandan. Con un [[long-tail|long tail]], el macro-recall revela categorías chicas que empeoraron aunque la accuracy suba.",
+      "ejemplo": "Un modelo nuevo sube la accuracy de 85.0 % a 85.25 % y baja el macro-recall de 75 % a 64 %: mejoró en las 200 categorías grandes y empeoró mucho en las 300 chicas.",
+      "ver": ["recall", "accuracy", "long-tail"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "top-k-accuracy",
+      "termino": "Top-k accuracy",
+      "en": "top-k accuracy · top-1 · top-5",
+      "corto": "La fracción de ejemplos en que la respuesta correcta está entre las k primeras del modelo. Top-1: es la primera. Top-5: está entre las cinco primeras.",
+      "largo": "Se usa cuando el modelo da una lista ordenada y una persona elige, o cuando hay muchas clases parecidas. Se hizo famosa con la competencia de ImageNet. En C01 la métrica offline principal es la top-5, porque la app muestra 5 sugerencias.",
+      "ejemplo": "El modelo de C01 saca ≈ 85 % de top-1 y ≈ 96 % de top-5: de 1,000 fotos, la primera sugerencia es correcta en 850 y la correcta está entre las cinco en 960.",
+      "ver": ["accuracy", "top-k"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "curva-roc",
+      "termino": "Curva ROC",
+      "en": "ROC curve · receiver operating characteristic",
+      "corto": "La gráfica de qué fracción de los «sí» encuentra el modelo (recall) contra qué fracción de los «no» marca por error, para todos los umbrales posibles.",
+      "largo": "Cada [[umbral]] es un punto: a lo ancho, la tasa de [[falso-positivo|falsos positivos]], FP / (FP + TN); a lo alto, el [[recall]]. Un modelo al azar va por la diagonal; uno perfecto sube pegado a la izquierda. El nombre viene de los radares de la Segunda Guerra Mundial.",
+      "ejemplo": "Con 10 fotos (4 de tenis): umbral 0.80 → 0 % de falsos positivos y 50 % de recall; 0.50 → 17 % y 75 %; 0.30 → 33 % y 100 %.",
+      "ver": ["auc", "umbral", "recall"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "auc",
+      "termino": "AUC",
+      "en": "area under the ROC curve",
+      "corto": "El área bajo la curva ROC, de 0.5 (al azar) a 1 (perfecto). Es la probabilidad de que el modelo le dé más puntos a un «sí» que a un «no», tomados al azar.",
+      "largo": "Sirve para comparar modelos sin haber elegido [[umbral]]. No dice qué umbral usar ni cuánto vas a acertar con él.",
+      "ejemplo": "4 fotos de tenis y 6 que no: 24 parejas. En 21 la de tenis tiene más puntos: AUC = 21 / 24 = 0.875.",
+      "ver": ["curva-roc", "umbral"],
+      "leccion": "aprendio"
+    },
+    {
+      "id": "calibracion",
+      "termino": "Calibración",
+      "en": "calibration · ECE",
+      "corto": "Que la seguridad del modelo sea honesta: de todas las veces que dice 90 %, que acierte 90 de cada 100.",
+      "largo": "Se revisa agrupando las predicciones por [[confianza]] y comparando con lo que acertó en cada grupo. El ECE (*expected calibration error*) resume las diferencias, pesadas por cuántos ejemplos tiene cada grupo. Las redes modernas suelen ser demasiado confiadas; el *temperature scaling* (dividir los [[logit|logits]] entre un número antes del [[softmax]]) lo corrige sin cambiar cuál clase queda primero.",
+      "ejemplo": "En 300 fotos el modelo dijo ≈ 90 % y acertó 246: 82 %. Exagera. El gate de C01 pide ECE ≤ 0.05.",
+      "ver": ["confianza", "probabilidad", "accuracy"],
+      "leccion": "aprendio"
+    }
+  ]
+}

@@ -1,0 +1,231 @@
+{
+  "titulo": "La ResNet-50 de C01, de la foto a las sugerencias",
+  "width": 78,
+  "height": 46,
+  "lanes": [
+    {
+      "id": "backbone",
+      "label": "Backbone · aprendió a ver con ImageNet",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 22
+    },
+    {
+      "id": "cabeza",
+      "label": "Cabeza · nueva, con las 500 categorías de C01",
+      "kind": "neutral",
+      "x": 0,
+      "y": 24,
+      "w": 78,
+      "h": 22
+    }
+  ],
+  "nodes": [
+    {
+      "id": "foto",
+      "label": "Foto",
+      "sub": "3 × 224 × 224",
+      "kind": "client",
+      "x": 1,
+      "y": 8,
+      "w": 14,
+      "h": 9,
+      "note": "La foto de Ana, ya preprocesada: 3 [[canal|canales]] (rojo, verde y azul) de 224 × 224 píxeles, 150,528 números. Está aquí porque es lo único que el modelo sabe leer: números, no imágenes."
+    },
+    {
+      "id": "inicio",
+      "label": "Primera capa",
+      "sub": "conv 7 × 7",
+      "kind": "model",
+      "x": 22,
+      "y": 8,
+      "w": 14,
+      "h": 9,
+      "note": "Una [[convolucion|convolución]] con 64 filtros de 7 × 7 (stride 2) y luego un [[pooling]]. La foto queda en 64 mapas de 56 × 56: ya no son colores, son respuestas a filtros. Está aquí para achicar pronto la foto y que lo que sigue cueste menos."
+    },
+    {
+      "id": "bloques",
+      "label": "16 bloques",
+      "sub": "residuales",
+      "kind": "model",
+      "x": 43,
+      "y": 8,
+      "w": 14,
+      "h": 9,
+      "note": "Casi todos los parámetros viven aquí. Cuatro etapas de 3, 4, 6 y 3 bloques, cada uno con su atajo ([[resnet]]). Los mapas se achican (56 → 7 de lado) y se vuelven más (64 → 2,048). Aquí la red combina bordes en texturas y texturas en partes: es lo que sabe «ver»."
+    },
+    {
+      "id": "gap",
+      "label": "Pooling global",
+      "sub": "un promedio por mapa",
+      "kind": "job",
+      "x": 64,
+      "y": 8,
+      "w": 14,
+      "h": 9,
+      "note": "Cada uno de los 2,048 mapas de 7 × 7 se promedia en un solo número. Ya no importa *dónde* estaba algo en la foto, solo *qué tanto* hay. Está aquí para que la cabeza reciba siempre una lista fija de 2,048 números."
+    },
+    {
+      "id": "features",
+      "label": "Features",
+      "sub": "2,048 números",
+      "kind": "store",
+      "x": 64,
+      "y": 32,
+      "w": 14,
+      "h": 9,
+      "note": "Lo que el [[backbone]] entrega: una descripción de la foto en 2,048 números. Es la frontera entre lo que se aprendió con ImageNet y lo nuevo de C01. Fotos parecidas dan listas parecidas; por eso también sirven como [[embedding]]."
+    },
+    {
+      "id": "head",
+      "label": "Cabeza",
+      "sub": "2,048 → 500",
+      "kind": "model",
+      "x": 43,
+      "y": 32,
+      "w": 14,
+      "h": 9,
+      "note": "Una sola capa densa: 2,048 × 500 pesos + 500 sesgos = 1,024,500 parámetros. Está aquí porque es la única parte que sabe de las categorías de C01: es la que se cambia con [[transfer-learning|transfer learning]] (la original de ImageNet sacaba 1,000)."
+    },
+    {
+      "id": "softmax",
+      "label": "Softmax",
+      "sub": "→ probabilidades",
+      "kind": "service",
+      "x": 22,
+      "y": 32,
+      "w": 14,
+      "h": 9,
+      "note": "Convierte los 500 [[logit|logits]] en probabilidades que suman 100 % (el [[softmax]]). No tiene parámetros. Está aquí para que los números se puedan ordenar y leer como «qué tan seguro está»."
+    },
+    {
+      "id": "top5",
+      "label": "Top-5",
+      "sub": "Tenis 94 % …",
+      "kind": "client",
+      "x": 1,
+      "y": 32,
+      "w": 14,
+      "h": 9,
+      "note": "Se ordenan las 500 probabilidades y se le muestran a Ana las 5 más altas. Está aquí porque la app muestra 5 sugerencias: si la correcta está entre ellas, funcionó ([[top-k-accuracy|top-5]])."
+    }
+  ],
+  "edges": [
+    {
+      "from": "foto",
+      "to": "inicio",
+      "kind": "online"
+    },
+    {
+      "from": "inicio",
+      "to": "bloques",
+      "kind": "online"
+    },
+    {
+      "from": "bloques",
+      "to": "gap",
+      "kind": "online",
+      "label": "2,048"
+    },
+    {
+      "from": "gap",
+      "to": "features",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "features",
+      "to": "head",
+      "kind": "online",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "head",
+      "to": "softmax",
+      "kind": "online",
+      "fromSide": "l",
+      "toSide": "r",
+      "label": "500"
+    },
+    {
+      "from": "softmax",
+      "to": "top5",
+      "kind": "online",
+      "fromSide": "l",
+      "toSide": "r"
+    }
+  ],
+  "flows": [
+    {
+      "id": "foto-de-ana",
+      "label": "La foto de Ana, capa por capa",
+      "steps": [
+        {
+          "nodes": [
+            "foto"
+          ],
+          "edges": [],
+          "text": "Llega la foto de los tenis, ya convertida en 3 × 224 × 224 = 150,528 números."
+        },
+        {
+          "nodes": [
+            "foto",
+            "inicio"
+          ],
+          "edges": [
+            "foto>inicio"
+          ],
+          "text": "**Primera capa.** 64 filtros de 7 × 7 recorren la foto y un pooling la achica: 64 mapas de 56 × 56 que dicen dónde hay bordes y manchas de color."
+        },
+        {
+          "nodes": [
+            "inicio",
+            "bloques"
+          ],
+          "edges": [
+            "inicio>bloques"
+          ],
+          "text": "**16 bloques residuales.** Cada uno combina lo que encontró el anterior: bordes en texturas, texturas en partes (una suela, unas agujetas). Salen 2,048 mapas de 7 × 7."
+        },
+        {
+          "nodes": [
+            "bloques",
+            "gap",
+            "features"
+          ],
+          "edges": [
+            "bloques>gap",
+            "gap>features"
+          ],
+          "text": "**Pooling global.** Cada mapa se promedia en un número: la foto queda descrita por 2,048 features. Hasta aquí llega el backbone."
+        },
+        {
+          "nodes": [
+            "features",
+            "head"
+          ],
+          "edges": [
+            "features>head"
+          ],
+          "text": "**Cabeza.** Una capa densa convierte las 2,048 features en 500 logits, uno por categoría de C01."
+        },
+        {
+          "nodes": [
+            "head",
+            "softmax",
+            "top5"
+          ],
+          "edges": [
+            "head>softmax",
+            "softmax>top5"
+          ],
+          "text": "**Softmax y top-5.** Los logits se vuelven probabilidades y se toman las 5 más altas: «Calzado › Tenis, 94 %» encabeza la lista."
+        }
+      ]
+    }
+  ]
+}

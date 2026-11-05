@@ -1,0 +1,217 @@
+{
+  "titulo": "El camino completo de un modelo",
+  "width": 78,
+  "height": 46,
+  "lanes": [
+    {
+      "id": "construir",
+      "label": "Construir · antes de producción",
+      "kind": "offline",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 21
+    },
+    {
+      "id": "operar",
+      "label": "Publicar y operar · en producción",
+      "kind": "online",
+      "x": 0,
+      "y": 25,
+      "w": 78,
+      "h": 21
+    }
+  ],
+  "nodes": [
+    {
+      "id": "datos",
+      "label": "Datos",
+      "sub": "fotos con su categoría",
+      "badge": "1",
+      "kind": "store",
+      "x": 3,
+      "y": 7,
+      "w": 20,
+      "h": 9,
+      "note": "Todo empieza con ejemplos: fotos con su categoría correcta, revisadas y guardadas como una versión fija. Sale un [[dataset]]. Lo ves a fondo en la estación 1 y 2."
+    },
+    {
+      "id": "modelo",
+      "label": "Modelo",
+      "sub": "entrenar y aprobar",
+      "badge": "2",
+      "kind": "model",
+      "x": 29,
+      "y": 7,
+      "w": 20,
+      "h": 9,
+      "note": "Con el dataset se entrena el [[modelo]], se examina con fotos que nunca vio y solo si pasa el examen se aprueba. Sale un archivo con el modelo aprobado."
+    },
+    {
+      "id": "api",
+      "label": "API",
+      "sub": "el programa que responde",
+      "badge": "3",
+      "kind": "service",
+      "x": 55,
+      "y": 7,
+      "w": 20,
+      "h": 9,
+      "note": "Un programa carga el modelo y lo pone a responder por la red: recibe una foto y regresa la categoría. La ventanilla por donde se le pregunta es su [[api|API]]."
+    },
+    {
+      "id": "contenedor",
+      "label": "Contenedor",
+      "sub": "empacado con todo",
+      "badge": "4",
+      "kind": "job",
+      "x": 55,
+      "y": 32,
+      "w": 20,
+      "h": 9,
+      "note": "El programa se empaca con todo lo que necesita en un [[contenedor]], para que corra igual en cualquier máquina."
+    },
+    {
+      "id": "orquestacion",
+      "label": "Orquestación",
+      "sub": "muchas copias",
+      "badge": "5",
+      "kind": "service",
+      "x": 29,
+      "y": 32,
+      "w": 20,
+      "h": 9,
+      "note": "Muchas copias del contenedor en muchas máquinas: la [[orquestacion|orquestación]] decide cuántas, reparte el trabajo y reemplaza las que fallan."
+    },
+    {
+      "id": "monitoreo",
+      "label": "Monitoreo",
+      "sub": "¿sigue rápido y acertando?",
+      "badge": "6",
+      "kind": "monitor",
+      "x": 3,
+      "y": 32,
+      "w": 20,
+      "h": 9,
+      "note": "Se mide todo en producción: qué tan rápido responde, cuántas fallan y si el modelo sigue acertando. Cuando el mundo cambia ([[drift]]), se dispara el [[reentrenamiento]]."
+    }
+  ],
+  "edges": [
+    {
+      "from": "datos",
+      "to": "modelo",
+      "kind": "offline",
+      "label": "dataset"
+    },
+    {
+      "from": "modelo",
+      "to": "api",
+      "kind": "offline",
+      "label": "aprobado"
+    },
+    {
+      "from": "api",
+      "to": "contenedor",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "código"
+    },
+    {
+      "from": "contenedor",
+      "to": "orquestacion",
+      "kind": "online",
+      "label": "paquete"
+    },
+    {
+      "from": "orquestacion",
+      "to": "monitoreo",
+      "kind": "online",
+      "label": "en vivo"
+    },
+    {
+      "from": "monitoreo",
+      "to": "datos",
+      "kind": "monitor",
+      "dashed": true,
+      "fromSide": "t",
+      "toSide": "b",
+      "label": "reentrenar"
+    }
+  ],
+  "flows": [
+    {
+      "id": "vuelta",
+      "label": "Una vuelta completa",
+      "steps": [
+        {
+          "nodes": [
+            "datos"
+          ],
+          "edges": [],
+          "text": "**1 · Datos.** Se juntan fotos y se les pone su categoría correcta."
+        },
+        {
+          "nodes": [
+            "datos",
+            "modelo"
+          ],
+          "edges": [
+            "datos>modelo"
+          ],
+          "text": "**2 · Modelo.** Con esos ejemplos se entrena el modelo, y se aprueba solo si pasa su examen."
+        },
+        {
+          "nodes": [
+            "modelo",
+            "api"
+          ],
+          "edges": [
+            "modelo>api"
+          ],
+          "text": "**3 · API.** Un programa lo carga y lo pone a responder por la red."
+        },
+        {
+          "nodes": [
+            "api",
+            "contenedor"
+          ],
+          "edges": [
+            "api>contenedor"
+          ],
+          "text": "**4 · Contenedor.** Se empaca con todo lo que necesita."
+        },
+        {
+          "nodes": [
+            "contenedor",
+            "orquestacion"
+          ],
+          "edges": [
+            "contenedor>orquestacion"
+          ],
+          "text": "**5 · Orquestación.** Corre en muchas copias, que se reparten el trabajo y se reemplazan si fallan."
+        },
+        {
+          "nodes": [
+            "orquestacion",
+            "monitoreo"
+          ],
+          "edges": [
+            "orquestacion>monitoreo"
+          ],
+          "text": "**6 · Monitoreo.** Ya en producción, se mide si sigue rápido y acertando."
+        },
+        {
+          "nodes": [
+            "monitoreo",
+            "datos"
+          ],
+          "edges": [
+            "monitoreo>datos"
+          ],
+          "text": "**Y de vuelta.** Cuando el modelo se queda atrás, se juntan datos nuevos y se reentrena: el ciclo empieza otra vez."
+        }
+      ]
+    }
+  ]
+}

@@ -20,11 +20,11 @@
   },
   "apps": [
     {
-      "id": "cimientos",
+      "id": "sensei",
       "tag": "Teoría desde cero",
-      "title": "Cimientos",
+      "title": "Sensei",
       "text": "La teoría de cada paso para llevar un modelo a producción, sin dar nada por sabido: qué es, por qué existe y cómo se conecta con lo demás. Con diagramas, analogías, un glosario que se abre sin salir de la página y el mismo caso del Dojo.",
-      "url": "https://cimientos-ml.vercel.app",
+      "url": "https://sensei-ml.vercel.app",
       "cta": "Empezar desde cero",
       "etapas": "todas",
       "num": "01"
@@ -94,7 +94,7 @@
     {
       "titulo": "Estoy empezando y quiero entender todo desde cero",
       "etapas": "todas",
-      "texto": "Lee la lección de cada paso en <a href=\"{{cimientos}}\">Cimientos</a>, con su glosario a la mano, y después practícalo en el <a href=\"{{taller}}\">dojo</a>, estación por estación."
+      "texto": "Lee la lección de cada paso en <a href=\"{{sensei}}\">Sensei</a>, con su glosario a la mano, y después practícalo en el <a href=\"{{taller}}\">dojo</a>, estación por estación."
     },
     {
       "titulo": "Tengo una entrevista de ML Engineer",

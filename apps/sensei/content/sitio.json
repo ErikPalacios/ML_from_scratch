@@ -1,0 +1,18 @@
+{
+  "nota": "El nombre, la dirección y los textos de la portada. Cambiar el nombre de la app = cambiar «nombre» aquí.",
+  "nombre": "Sensei",
+  "url": "https://sensei-ml.vercel.app",
+  "portada": "https://ml-desde-cero.vercel.app",
+  "dojo": "https://taller-ai-engineer.vercel.app",
+  "repo": "https://github.com/ErikPalacios/ML_from_scratch",
+  "issues": "https://github.com/ErikPalacios/ML_from_scratch/issues/new",
+  "pill": "Teoría desde cero",
+  "titular": "Lo que hay detrás de poner un modelo en producción, explicado desde cero.",
+  "lead": "Cada paso del camino, del dato al monitoreo, sin dar nada por sabido: qué es, por qué existe y cómo se conecta con lo demás. Con diagramas, ejemplos con números y el mismo caso del Dojo de principio a fin.",
+  "descripcion": "La teoría de cada paso para llevar un modelo de AI o ML a producción, desde cero: qué es, por qué existe y cómo se conecta con lo demás. En español, gratis y sin cuenta.",
+  "como": [
+    { "t": "Lee la lección", "d": "Cada lección responde una pregunta y explica cada concepto antes de usarlo, con diagramas y un ejemplo del caso C01." },
+    { "t": "Toca las palabras subrayadas", "d": "Abren su definición ahí mismo, sin salir de la página. Todas viven también en el glosario." },
+    { "t": "Practícalo en el Dojo", "d": "Cuando una lección corresponde a una estación del Dojo, al final está el enlace para construirla y romperla." }
+  ]
+}

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 520" role="img" aria-labelledby="f-lt-t" class="f-svg" style="max-width:420px">
+<title id="f-lt-t">Del texto a los números. La frase «Ana vende sus tenis blancos.» se parte en 8 tokens: Ana, vende, sus, ten, is, blanc, os y el punto, donde el espacio va pegado a la palabra que sigue. Cada token tiene un id, por ejemplo Ana es el 23,817. Cada id lee una fila de la tabla de embeddings, que en Llama 3 8B tiene 128,256 filas de 4,096 números. Los cortes, los ids y los números son de ejemplo.</title>
+<rect class="f-card" x="10" y="10" width="340" height="80" rx="16"/>
+<text class="f-l" x="28" y="36">TEXTO</text>
+<text class="f-t" x="28" y="66">Ana vende sus tenis blancos.</text>
+<line class="f-flecha" x1="180" y1="96" x2="180" y2="112"/><path class="f-punta" d="M172,110 L188,110 L180,120 Z"/>
+<text class="f-s" x="192" y="112" style="font-size:12px">tokenizer</text>
+<rect class="f-card" x="10" y="126" width="340" height="170" rx="16"/>
+<text class="f-l" x="28" y="152">8 TOKENS (· = UN ESPACIO)</text>
+<rect class="f-b2" x="24" y="166" width="72" height="52" rx="10"/>
+<text class="f-t" x="60" y="189" text-anchor="middle" style="font-size:14px;font-family:var(--mono)">Ana</text>
+<text class="f-s" x="60" y="208" text-anchor="middle" style="font-size:12px">23,817</text>
+<rect class="f-chip" x="104" y="166" width="72" height="52" rx="10"/>
+<text class="f-t" x="140" y="189" text-anchor="middle" style="font-size:14px;font-family:var(--mono)">·vende</text>
+<text class="f-s" x="140" y="208" text-anchor="middle" style="font-size:12px">54,120</text>
+<rect class="f-chip" x="184" y="166" width="72" height="52" rx="10"/>
+<text class="f-t" x="220" y="189" text-anchor="middle" style="font-size:14px;font-family:var(--mono)">·sus</text>
+<text class="f-s" x="220" y="208" text-anchor="middle" style="font-size:12px">4,512</text>
+<rect class="f-chip" x="264" y="166" width="72" height="52" rx="10"/>
+<text class="f-t" x="300" y="189" text-anchor="middle" style="font-size:14px;font-family:var(--mono)">·ten</text>
+<text class="f-s" x="300" y="208" text-anchor="middle" style="font-size:12px">3,402</text>
+<rect class="f-chip" x="24" y="228" width="72" height="52" rx="10"/>
+<text class="f-t" x="60" y="251" text-anchor="middle" style="font-size:14px;font-family:var(--mono)">is</text>
+<text class="f-s" x="60" y="270" text-anchor="middle" style="font-size:12px">285</text>
+<rect class="f-chip" x="104" y="228" width="72" height="52" rx="10"/>
+<text class="f-t" x="140" y="251" text-anchor="middle" style="font-size:14px;font-family:var(--mono)">·blanc</text>
+<text class="f-s" x="140" y="270" text-anchor="middle" style="font-size:12px">41,903</text>
+<rect class="f-chip" x="184" y="228" width="72" height="52" rx="10"/>
+<text class="f-t" x="220" y="251" text-anchor="middle" style="font-size:14px;font-family:var(--mono)">os</text>
+<text class="f-s" x="220" y="270" text-anchor="middle" style="font-size:12px">437</text>
+<rect class="f-chip" x="264" y="228" width="72" height="52" rx="10"/>
+<text class="f-t" x="300" y="251" text-anchor="middle" style="font-size:14px;font-family:var(--mono)">.</text>
+<text class="f-s" x="300" y="270" text-anchor="middle" style="font-size:12px">13</text>
+<line class="f-flecha" x1="180" y1="302" x2="180" y2="318"/><path class="f-punta" d="M172,316 L188,316 L180,326 Z"/>
+<text class="f-s" x="192" y="318" style="font-size:12px">cada id lee su fila</text>
+<rect class="f-dark" x="10" y="332" width="340" height="178" rx="16"/>
+<text class="f-dark-l" x="28" y="358">TABLA DE EMBEDDINGS</text>
+<text class="f-dark-t" x="34" y="376" style="font-size:12px;font-family:var(--mono)">0</text>
+<text class="f-dark-t" x="140" y="376" text-anchor="end" style="font-size:12px;font-family:var(--mono)">0.03</text>
+<text class="f-dark-t" x="192" y="376" text-anchor="end" style="font-size:12px;font-family:var(--mono)">−0.41</text>
+<text class="f-dark-t" x="236" y="376" text-anchor="end" style="font-size:12px;font-family:var(--mono)">…</text>
+<text class="f-dark-t" x="296" y="376" text-anchor="end" style="font-size:12px;font-family:var(--mono)">0.27</text>
+<text class="f-dark-t" x="34" y="398" style="font-size:12px;font-family:var(--mono)">…</text>
+<rect x="22" y="405" width="316" height="22" rx="6" style="fill:var(--y);opacity:.35"/>
+<text class="f-dark-t" x="34" y="420" style="font-size:12px;font-family:var(--mono)">23,817</text>
+<text class="f-dark-t" x="140" y="420" text-anchor="end" style="font-size:12px;font-family:var(--mono)">0.12</text>
+<text class="f-dark-t" x="192" y="420" text-anchor="end" style="font-size:12px;font-family:var(--mono)">−0.80</text>
+<text class="f-dark-t" x="236" y="420" text-anchor="end" style="font-size:12px;font-family:var(--mono)">…</text>
+<text class="f-dark-t" x="296" y="420" text-anchor="end" style="font-size:12px;font-family:var(--mono)">0.33</text>
+<text class="f-dark-t" x="34" y="442" style="font-size:12px;font-family:var(--mono)">…</text>
+<text class="f-dark-t" x="34" y="464" style="font-size:12px;font-family:var(--mono)">128,255</text>
+<text class="f-dark-t" x="140" y="464" text-anchor="end" style="font-size:12px;font-family:var(--mono)">−0.66</text>
+<text class="f-dark-t" x="192" y="464" text-anchor="end" style="font-size:12px;font-family:var(--mono)">0.05</text>
+<text class="f-dark-t" x="236" y="464" text-anchor="end" style="font-size:12px;font-family:var(--mono)">…</text>
+<text class="f-dark-t" x="296" y="464" text-anchor="end" style="font-size:12px;font-family:var(--mono)">0.18</text>
+<text class="f-dark-t" x="28" y="486">128,256 filas (una por token)</text>
+<text class="f-dark-t" x="28" y="502">× 4,096 números cada una, en Llama 3 8B</text>
+</svg>

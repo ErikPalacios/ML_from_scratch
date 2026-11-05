@@ -1,0 +1,48 @@
+{
+  "titulo": "De los logits a lo que ve Ana, y la regla de baja confianza",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "calcula", "label": "En cada foto · milisegundos", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 21 },
+    { "id": "decide", "label": "Aparte · una regla que pone una persona", "kind": "neutral", "x": 0, "y": 24, "w": 78, "h": 26 }
+  ],
+  "nodes": [
+    { "id": "foto", "label": "Foto", "sub": "ya preparada", "kind": "client", "x": 1, "y": 7, "w": 16, "h": 9,
+      "note": "Está aquí porque el modelo solo entiende números: es la foto de Ana ya convertida en números, del tamaño exacto que espera. Cómo se prepara es la siguiente lección." },
+    { "id": "modelo", "label": "Modelo", "sub": "ResNet-50", "kind": "model", "x": 21, "y": 7, "w": 16, "h": 9,
+      "note": "Es la única caja que aprendió algo. Hace la [[inferencia]]: millones de multiplicaciones y sumas con sus [[parametro|parámetros]] fijos. Entrega 500 [[logit|logits]], uno por categoría, no una respuesta." },
+    { "id": "softmax", "label": "Softmax + top-5", "sub": "logits → %", "kind": "service", "x": 41, "y": 7, "w": 16, "h": 9,
+      "note": "Está aquí porque los logits no se pueden mostrar ni comparar con una línea. [[softmax|Softmax]] los vuelve 500 probabilidades que suman 1, y el [[top-k]] se queda con las 5 más altas, con su nombre de categoría. En C01 lo hace el programa que está frente al modelo, no el modelo." },
+    { "id": "sugerencias", "label": "Sugerencias", "sub": "Ana elige una", "kind": "client", "x": 61, "y": 7, "w": 16, "h": 9,
+      "note": "Es lo que el sistema le da a Ana: las cinco categorías en orden, cada una con su score. Ella toca la correcta o, si ninguna es, busca en el selector de categorías." },
+    { "id": "regla", "label": "Regla", "sub": "¿top-1 < 0.3?", "kind": "service", "x": 41, "y": 31, "w": 16, "h": 9,
+      "note": "Un [[umbral]] que eligió una persona, no el modelo, y que se puede cambiar sin reentrenar. Está aquí para encontrar las fotos dudosas: en C01, un top-1 menor que 0.3 es «baja confianza». No cambia lo que ve Ana." },
+    { "id": "cola", "label": "Etiquetado", "sub": "una persona revisa", "kind": "queue", "x": 21, "y": 31, "w": 16, "h": 9,
+      "note": "Está aquí porque las fotos dudosas son las que más le pueden enseñar al modelo: se apartan para que una persona les ponga su [[etiqueta]] y entren al siguiente [[entrenamiento]]." },
+    { "id": "alerta", "label": "Alerta", "sub": "¿el doble de lo normal?", "kind": "monitor", "x": 61, "y": 31, "w": 16, "h": 9,
+      "note": "Está aquí porque la tasa de fotos dudosas avisa en minutos que algo cambió. En C01 salta si llega al doble de su promedio de 7 días durante 30 minutos: un error al preparar las fotos, un tipo de foto nueva o un modelo malo." }
+  ],
+  "edges": [
+    { "from": "foto", "to": "modelo", "kind": "online" },
+    { "from": "modelo", "to": "softmax", "kind": "online" },
+    { "from": "softmax", "to": "sugerencias", "kind": "online" },
+    { "from": "softmax", "to": "regla", "kind": "neutral", "fromSide": "b", "toSide": "t", "label": "top-1" },
+    { "from": "regla", "to": "cola", "kind": "async", "fromSide": "l", "toSide": "r" },
+    { "from": "regla", "to": "alerta", "kind": "monitor", "fromSide": "r", "toSide": "l" }
+  ],
+  "flows": [
+    { "id": "segura", "label": "El modelo está seguro", "steps": [
+      { "nodes": ["foto", "modelo"], "edges": ["foto>modelo"], "text": "Entra la foto de los tenis, ya convertida en números." },
+      { "nodes": ["modelo", "softmax"], "edges": ["modelo>softmax"], "text": "Salen 500 **logits**: puntajes crudos, positivos o negativos, uno por categoría." },
+      { "nodes": ["softmax", "sugerencias"], "edges": ["softmax>sugerencias"], "text": "**Softmax** los vuelve probabilidades que suman 1, y Ana ve las 5 más altas: Tenis 0.62, Botas 0.14, Sandalias 0.08…" },
+      { "nodes": ["softmax", "regla"], "edges": ["softmax>regla"], "text": "Aparte, la regla revisa la primera: 0.62 no es menor que el **umbral** de 0.3. No pasa nada más." }
+    ] },
+    { "id": "duda", "label": "El modelo duda", "steps": [
+      { "nodes": ["foto", "modelo", "softmax"], "edges": ["foto>modelo", "modelo>softmax"], "text": "Otra foto, oscura y movida. El camino es el mismo, pero ahora el top-1 es apenas 0.21." },
+      { "nodes": ["softmax", "sugerencias"], "edges": ["softmax>sugerencias"], "text": "Ana ve sus cinco sugerencias igual que siempre: la regla no cambia lo que ella ve." },
+      { "nodes": ["softmax", "regla"], "edges": ["softmax>regla"], "text": "0.21 es menor que 0.3: **baja confianza**." },
+      { "nodes": ["regla", "cola"], "edges": ["regla>cola"], "text": "La foto se aparta para que una persona la etiquete. Son justo las fotos que más le enseñan al siguiente modelo." },
+      { "nodes": ["regla", "alerta"], "edges": ["regla>alerta"], "text": "Y se cuenta. Una foto dudosa no dice nada; si de pronto son el doble de lo normal durante media hora, salta la **alerta**." }
+    ] }
+  ]
+}

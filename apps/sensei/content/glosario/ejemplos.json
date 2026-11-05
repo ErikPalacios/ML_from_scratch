@@ -1,0 +1,130 @@
+{
+  "nota": "Los conceptos que presenta la lección «ejemplos».",
+  "terminos": [
+    {
+      "id": "ejemplo",
+      "termino": "Ejemplo",
+      "en": "example · sample · instance",
+      "corto": "Un caso del que ya sabes la respuesta: la entrada (lo que ve el modelo) junto con su etiqueta (la respuesta correcta).",
+      "largo": "Un [[modelo]] aprende de muchos ejemplos. En un [[dataset]] cada ejemplo es una fila: sus [[feature|features]] y su [[etiqueta]]. A aprender de ejemplos que ya traen su respuesta se le llama aprendizaje supervisado.",
+      "ejemplo": "La foto de los tenis de Ana junto con «Calzado › Tenis» es un ejemplo. El snapshot de septiembre de C01 trae casi 2 millones.",
+      "ver": ["feature", "etiqueta", "dataset"],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "feature",
+      "termino": "Feature",
+      "en": "feature · característica · variable",
+      "corto": "Cada dato de la entrada que el modelo usa para decidir. En una tabla, una columna; en una foto, cada píxel.",
+      "largo": "En datos tabulares las features las elige una persona (el precio, los días que lleva la cuenta del vendedor, cuántas fotos trae la publicación); a eso se le llama *feature engineering*. En imágenes la entrada son los píxeles crudos y el modelo arma por dentro sus propias features útiles. Una feature solo sirve si existe en el momento de predecir; si no, es [[leakage]].",
+      "ejemplo": "Para predecir si una publicación se vende en su primera semana: precio 1,200 pesos, 14 ventas previas del vendedor, cuenta de 380 días. Son tres features.",
+      "ver": ["ejemplo", "leakage", "dataset"],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "split",
+      "termino": "Split",
+      "en": "data split · partición",
+      "corto": "Repartir el dataset en partes que no se mezclan: una para aprender (train), una para decidir (validación) y una para el examen final (test).",
+      "largo": "No basta con la proporción (80/10/10, por ejemplo). Importa la unidad: si las fotos vienen en familias (del mismo vendedor, o la misma foto en varias publicaciones), la familia entera va a un solo lado. Si no, hay [[leakage]].",
+      "ejemplo": "C01 reparte por vendedor: ≈ 95 % a train y ≈ 5 % a validación (1,840,211 y 92,417 fotos en el snapshot de septiembre). El examen final es el [[golden-set]], que se arma aparte.",
+      "ver": ["train-set", "validation-set", "test-set", "estratificado"],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "train-set",
+      "termino": "Train",
+      "en": "training set · conjunto de entrenamiento",
+      "corto": "La parte del dataset con la que el modelo aprende: sus parámetros se ajustan para acertarles a estos ejemplos.",
+      "largo": "Es la parte más grande, de 70 % a 95 % según el tamaño del dataset. Que el modelo acierte aquí no prueba gran cosa: con millones de [[parametro|parámetros]] se puede aprender estas fotos de memoria.",
+      "ver": ["validation-set", "test-set", "split"],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "validation-set",
+      "termino": "Validación",
+      "en": "validation set · dev set",
+      "corto": "Una parte del dataset de la que el modelo no aprende y que tú miras mientras desarrollas, para decidir: cuándo parar, qué ajustes usar, qué versión es mejor.",
+      "largo": "Como con ella tomas decisiones, poco a poco su resultado se vuelve optimista: elegiste justo lo que mejor le fue ahí. Por eso hace falta además un [[test-set]] que no se toca.",
+      "ejemplo": "En el snapshot de septiembre de C01 son 92,417 fotos, ≈ 5 % del total.",
+      "ver": ["train-set", "test-set", "split"],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "test-set",
+      "termino": "Test",
+      "en": "test set · held-out set",
+      "corto": "La parte que se guarda bajo llave y se usa al final, una vez, para estimar qué tan bien le irá al modelo con datos que nunca vio.",
+      "largo": "Si miras el test, cambias algo y vuelves a mirar, el test se convirtió en validación y ya no tienes un número honesto. En C01 el papel del test lo hace el [[golden-set]].",
+      "ver": ["validation-set", "golden-set", "split"],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "estratificado",
+      "termino": "Split estratificado",
+      "en": "stratified split",
+      "corto": "Repartir cada grupo (cada categoría, por ejemplo) por separado y en la misma proporción, para que train, validación y test tengan la misma mezcla.",
+      "ejemplo": "Una categoría con 20 fotos y un split 80/10/10: estratificado, quedan exactamente 16, 2 y 2. Al azar, unas 12 de cada 100 veces validación se queda sin ninguna (0.9 multiplicado por sí mismo 20 veces ≈ 0.12).",
+      "ver": ["split", "desbalance", "long-tail"],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "leakage",
+      "termino": "Leakage",
+      "en": "data leakage · fuga de datos",
+      "corto": "Cuando el entrenamiento o la evaluación tienen información que no existirá en el momento de predecir, o cuando el test se parece demasiado al train. El examen se filtró.",
+      "largo": "El síntoma es siempre el mismo: un resultado sospechosamente bueno antes de producción que se derrumba en producción. Tres formas comunes: la misma foto (o casi) en train y en test, una [[feature]] que trae escondida la respuesta, y datos del futuro.",
+      "ejemplo": "Un vendedor sube la misma foto en tres publicaciones. Con un split al azar por publicación, 98 de cada 100 veces que una de esas fotos cae en test, su gemela está en train: el modelo la reconoce de memoria.",
+      "ver": ["split", "feature", "test-set"],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "desbalance",
+      "termino": "Desbalance de clases",
+      "en": "class imbalance",
+      "corto": "Cuando unas clases tienen muchísimos más ejemplos que otras. El modelo tiende a favorecer a las grandes, y el promedio esconde que falla en las chicas.",
+      "ejemplo": "950 fotos de tenis y 50 de botas: un modelo que siempre dice «tenis» acierta 95 % y nunca reconoce unas botas.",
+      "ver": ["long-tail", "estratificado"],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "long-tail",
+      "termino": "Cola larga",
+      "en": "long tail",
+      "corto": "Cuando hay muchas categorías y la mayoría tiene pocos ejemplos: unas cuantas tienen decenas de miles y muchas, apenas cientos o decenas. Ordenadas de mayor a menor, forman una gráfica con una «cola» baja y larga.",
+      "largo": "El nombre viene de la gráfica: si ordenas las categorías de la más grande a la más chica, la curva cae rápido y luego sigue, baja y larga. Las grandes son la cabeza (*head*). En la Ronda se miden la cabeza y la cola por separado, porque un modelo nuevo suele ganar en una y perder en la otra.",
+      "ejemplo": "C01 tiene 500 categorías y ≈ 1.84 M fotos de entrenamiento: 3,680 por categoría si se repartieran parejo, pero casi ninguna está cerca de ese promedio.",
+      "ver": ["desbalance", "golden-set"],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "augmentation",
+      "termino": "Data augmentation",
+      "en": "data augmentation · aumento de datos",
+      "corto": "Hacer variaciones de las fotos de entrenamiento que no cambian su etiqueta (voltearla como espejo, recortar un poco distinto, cambiar el brillo) para que el modelo aprenda que esos cambios no importan.",
+      "largo": "Se aplica solo en train y al azar en cada pasada, así que el modelo casi nunca ve dos veces la misma imagen exacta. Validación y test van sin cambios. No inventa información: 40 fotos de las mismas 3 monedas siguen siendo 3 monedas.",
+      "ejemplo": "Unos tenis volteados como espejo siguen siendo tenis. Un 6 de cabeza es un 9: para leer texto, esa variación cambia la respuesta.",
+      "ver": ["train-set", "long-tail"],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "golden-set",
+      "termino": "Golden set",
+      "en": "golden set",
+      "corto": "Un conjunto de evaluación de la mejor calidad: etiquetado con cuidado por personas, congelado y que jamás se usa para entrenar. Es la regla fija con la que se comparan los modelos.",
+      "largo": "Congelado quiere decir que no cambia: dos modelos de meses distintos se examinan con exactamente las mismas fotos, así que la diferencia es del modelo y no del examen. Si hay que cambiarlo (porque llegaron categorías nuevas), se hace una versión nueva y se vuelve a examinar ahí al modelo que está en producción.",
+      "ejemplo": "En C01: ≈ 50 mil imágenes, cada una etiquetada por dos personas, con al menos ≈ 50 por categoría y repartidas entre fotos de celular y de web. Cuesta ≈ US$5–10 mil, una sola vez.",
+      "ver": ["test-set", "slice", "etiqueta"],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "slice",
+      "termino": "Slice",
+      "en": "slice · rebanada",
+      "corto": "Un pedazo de los datos de evaluación que comparte algo (fotos de celular, fotos con poca luz, una categoría) y que se mide por separado, porque el promedio general puede esconder que ahí el modelo empeoró.",
+      "ejemplo": "Un modelo nuevo sube de 85.0 % a 85.2 % en general, pero en el 5 % de fotos con poca luz baja de 77.4 % a 70.0 %. Solo el slice lo muestra.",
+      "ver": ["golden-set", "desbalance"],
+      "leccion": "ejemplos"
+    }
+  ]
+}

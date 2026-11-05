@@ -14,7 +14,7 @@ const AQUI = dirname(fileURLToPath(import.meta.url));
 const APPS_DIR = join(AQUI, '..');
 const ARCHIVOS = ['trueml-mark.js', 'lib.mjs', 'etapas.json', 'tokens.css', 'cliente.js'];
 // La carpeta de cada app que se despliega (el tablero copia su web/ entera, también al demo).
-const APPS = ['taller-ai', 'portada', 'cimientos', 'ml-system-design', 'atlas-arquitecturas', 'transformer-lab', 'tablero-ml/web', 'cheat-sheets'];
+const APPS = ['taller-ai', 'portada', 'sensei', 'ml-system-design', 'atlas-arquitecturas', 'transformer-lab', 'tablero-ml/web', 'cheat-sheets'];
 const DOJO = { carpeta: 'taller-ai', url: 'https://taller-ai-engineer.vercel.app' };
 const check = process.argv.includes('--check');
 
@@ -34,8 +34,13 @@ const dojo = {
     lista: listas.has(s.id), url: listas.has(s.id) ? `${DOJO.url}/${tronco.caso}/${s.id}/` : null })),
 };
 salidas.push([join(APPS_DIR, 'portada', 'data', 'dojo.json'), JSON.stringify(dojo, null, 2) + '\n']);
-// Cimientos enlaza cada lección de estación con su estación del Dojo, si ya está lista.
-salidas.push([join(APPS_DIR, 'cimientos', 'content', 'dojo.json'), JSON.stringify(dojo, null, 2) + '\n']);
+// Sensei dibuja sus diagramas con el mismo motor de la Ronda (carriles, recorridos, «por qué está aquí»):
+// copia el motor y sus estilos tal cual, para que los dos se vean y se comporten igual.
+for (const [de, a] of [['ml-system-design/js/ui/diagram.js', 'diagram.js'], ['ml-system-design/css/components.css', 'components.css']]) {
+  salidas.push([join(APPS_DIR, 'sensei', 'vendor', 'ronda', a), readFileSync(join(APPS_DIR, de), 'utf8')]);
+}
+// Sensei enlaza cada lección de estación con su estación del Dojo, si ya está lista.
+salidas.push([join(APPS_DIR, 'sensei', 'content', 'dojo.json'), JSON.stringify(dojo, null, 2) + '\n']);
 
 let malos = 0;
 for (const [ruta, texto] of salidas) {

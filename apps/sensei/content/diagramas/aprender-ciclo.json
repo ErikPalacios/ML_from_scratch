@@ -1,0 +1,43 @@
+{
+  "titulo": "Un paso de entrenamiento, que se repite cientos de miles de veces",
+  "width": 78, "height": 38,
+  "lanes": [
+    { "id": "paso", "label": "Entrenamiento · en una GPU, durante horas", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 38 }
+  ],
+  "nodes": [
+    { "id": "batch", "label": "Batch", "sub": "64 fotos + etiquetas", "kind": "store", "x": 2, "y": 6, "w": 18, "h": 9,
+      "note": "Está aquí porque no caben todas las fotos a la vez: un [[batch]] son 64 fotos del [[train-set]] con su categoría correcta, tomadas en desorden. En la siguiente vuelta llegan otras 64." },
+    { "id": "modelo", "label": "Modelo", "sub": "forward pass", "badge": "1", "kind": "model", "x": 31, "y": 6, "w": 18, "h": 9,
+      "note": "Sin una respuesta no hay nada que corregir. El [[forward-pass]]: las 64 fotos pasan por el modelo y sale, para cada una, qué tan probable es cada categoría. Es lo mismo que hace la [[inferencia]]." },
+    { "id": "loss", "label": "Pérdida", "sub": "compara con la etiqueta", "badge": "2", "kind": "job", "x": 60, "y": 6, "w": 18, "h": 9,
+      "note": "Está aquí porque para mejorar hay que medir. La [[loss|pérdida]]: para cada foto, −ln de la probabilidad que el modelo le dio a la categoría correcta. Se promedian las 64 y sale un solo número." },
+    { "id": "backprop", "label": "Backpropagation", "sub": "reparte la culpa", "badge": "3", "kind": "job", "x": 60, "y": 25, "w": 18, "h": 9,
+      "note": "Está aquí para saber qué perilla mover y hacia dónde. La [[backpropagation]] recorre el modelo de atrás hacia adelante y calcula el [[gradiente]]: para cada una de las 24.5 millones de perillas, hacia dónde girarla." },
+    { "id": "optim", "label": "Optimizador", "sub": "gira las perillas", "badge": "4", "kind": "service", "x": 31, "y": 25, "w": 18, "h": 9,
+      "note": "Es el único paso que cambia el modelo. El [[optimizador]] (Adam en C01) mueve cada perilla un poquito en contra de su gradiente. Qué tan grande es el paso lo decide el [[learning-rate]]." },
+    { "id": "ckpt", "label": "Checkpoint", "sub": "cada 15 minutos", "kind": "store", "x": 2, "y": 25, "w": 18, "h": 9,
+      "note": "Está aquí porque las máquinas fallan: cada 15 minutos se guarda un [[checkpoint]] de ≈ 294 MB: las perillas, el estado de Adam y en qué paso iba. Si la máquina se cae, se sigue desde ahí." }
+  ],
+  "edges": [
+    { "from": "batch", "to": "modelo", "kind": "offline", "label": "fotos" },
+    { "from": "modelo", "to": "loss", "kind": "offline", "label": "predicción" },
+    { "from": "loss", "to": "backprop", "kind": "offline", "fromSide": "b", "toSide": "t", "label": "un número" },
+    { "from": "backprop", "to": "optim", "kind": "offline", "fromSide": "l", "toSide": "r", "label": "gradiente" },
+    { "from": "optim", "to": "modelo", "kind": "offline", "fromSide": "t", "toSide": "b", "label": "perillas nuevas" },
+    { "from": "optim", "to": "ckpt", "kind": "async", "dashed": true, "fromSide": "l", "toSide": "r", "label": "guarda" }
+  ],
+  "flows": [
+    { "id": "paso", "label": "Un paso", "steps": [
+      { "nodes": ["batch", "modelo"], "edges": ["batch>modelo"], "text": "**1 · Forward pass.** Entran 64 fotos y el modelo da su predicción para cada una." },
+      { "nodes": ["modelo", "loss"], "edges": ["modelo>loss"], "text": "**2 · Pérdida.** Se compara cada predicción con su etiqueta y se promedia: sale un número, por ejemplo 1.12." },
+      { "nodes": ["loss", "backprop"], "edges": ["loss>backprop"], "text": "**3 · Backpropagation.** De la pérdida hacia atrás, se calcula cuánta culpa tiene cada perilla: el gradiente." },
+      { "nodes": ["backprop", "optim"], "edges": ["backprop>optim"], "text": "**4 · Ajuste.** El optimizador recibe el gradiente y decide cuánto girar cada perilla." },
+      { "nodes": ["optim", "modelo"], "edges": ["optim>modelo"], "text": "**Y otra vez.** El modelo, con sus perillas un poquito distintas, recibe el siguiente batch. En C01 esto se repite 28,754 veces por época." }
+    ] },
+    { "id": "caida", "label": "Si la máquina se cae", "steps": [
+      { "nodes": ["optim", "ckpt"], "edges": ["optim>ckpt"], "text": "Cada 15 minutos, aparte, se guarda un checkpoint con todo lo necesario para seguir." },
+      { "nodes": ["ckpt"], "edges": [], "text": "Si la máquina se apaga a media corrida, el entrenamiento nuevo carga el último checkpoint. Se pierden, como mucho, 15 minutos, no horas." },
+      { "nodes": ["ckpt", "modelo"], "edges": [], "text": "Las perillas y el estado del optimizador vuelven a donde estaban, y el ciclo sigue en el paso donde se quedó." }
+    ] }
+  ]
+}

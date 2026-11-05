@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" role="img" aria-labelledby="f-et-t" class="f-svg" style="max-width:420px">
+<title id="f-et-t">Un dataset como tabla. Cada fila es un ejemplo y cada columna una feature, y la última columna es la etiqueta. Fila 1: foto de unos tenis, precio 1,200 pesos, 14 ventas del vendedor, etiqueta Calzado › Tenis. Fila 2: botas, 950 pesos, 3 ventas, Calzado › Botas. Fila 3: playera, 250 pesos, 120 ventas, Ropa › Playeras. Fila 4: licuadora, 800 pesos, 7 ventas, Hogar › Cocina. Para el modelo, la foto son 150,528 números</title>
+<rect class="f-card" x="10" y="10" width="340" height="400" rx="16"/>
+<text class="f-l" x="26" y="38">FEATURES · LO QUE ENTRA</text>
+<text class="f-l" x="208" y="38">ETIQUETA</text>
+<line class="f-flecha" x1="26" y1="48" x2="188" y2="48"/>
+<line class="f-flecha" x1="208" y1="48" x2="334" y2="48"/>
+<text class="f-s" x="26" y="74" style="font-size:12px">Foto</text>
+<text class="f-s" x="84" y="74" style="font-size:12px">Precio</text>
+<text class="f-s" x="142" y="74" style="font-size:12px">Ventas</text>
+<text class="f-s" x="208" y="74" style="font-size:12px">La respuesta correcta</text>
+<line class="f-flecha" x1="198" y1="58" x2="198" y2="290" style="stroke-dasharray:4 4"/>
+<rect class="f-chip" x="18" y="86" width="324" height="48" rx="10"/>
+<rect class="f-o" x="26" y="94" width="40" height="32" rx="6"/>
+<text class="f-t" x="84" y="115" style="font-size:13px">$1,200</text>
+<text class="f-t" x="142" y="115" style="font-size:13px">14</text>
+<text class="f-t" x="208" y="115" style="font-size:13px">Calzado › Tenis</text>
+<rect class="f-y" x="26" y="146" width="40" height="32" rx="6"/>
+<text class="f-s" x="84" y="167">$950</text>
+<text class="f-s" x="142" y="167">3</text>
+<text class="f-s" x="208" y="167">Calzado › Botas</text>
+<rect class="f-g" x="26" y="194" width="40" height="32" rx="6"/>
+<text class="f-s" x="84" y="215">$250</text>
+<text class="f-s" x="142" y="215">120</text>
+<text class="f-s" x="208" y="215">Ropa › Playeras</text>
+<rect class="f-b" x="26" y="242" width="40" height="32" rx="6"/>
+<text class="f-s" x="84" y="263">$800</text>
+<text class="f-s" x="142" y="263">7</text>
+<text class="f-s" x="208" y="263">Hogar › Cocina</text>
+<text class="f-t" x="26" y="318" style="font-size:13px">Una fila = un ejemplo</text>
+<text class="f-s" x="26" y="340">Cada columna es una feature, y la</text>
+<text class="f-s" x="26" y="358">última es la etiqueta.</text>
+<text class="f-s" x="26" y="378">Para el modelo, la foto son 150,528 números.</text>
+<text class="f-s" x="26" y="398" style="font-size:12px">El modelo de C01 solo usa la foto.</text>
+</svg>

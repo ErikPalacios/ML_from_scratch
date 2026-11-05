@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 400" role="img" aria-labelledby="f-aprendio-roc-t" class="f-svg" style="max-width:420px">
+<title id="f-aprendio-roc-t">Curva ROC de 10 fotos, 4 de tenis y 6 que no. A lo ancho, la tasa de falsos positivos; a lo alto, la tasa de verdaderos positivos (el recall). La curva sube en escalones: el umbral 0.80 da 0 % de falsos positivos y 50 % de recall; el umbral 0.50, 17 % y 75 %; el umbral 0.30, 33 % y 100 %. La diagonal es un modelo al azar. El área bajo la curva, AUC, es 0.875.</title>
+<rect class="f-card" x="10" y="10" width="340" height="380" rx="16"/>
+<text class="f-l" x="28" y="36">CURVA ROC · 10 FOTOS</text>
+<polygon points="70.0,290.0 70.0,232.5 70.0,175.0 108.3,175.0 108.3,117.5 146.7,117.5 146.7,60.0 300.0,60.0 300.0,290.0" style="fill:var(--b);opacity:.14"/>
+<rect x="70" y="60" width="230" height="230" style="fill:none;stroke:var(--tm-line);stroke-width:1.5"/>
+<line x1="70" y1="290" x2="300" y2="60" style="stroke:var(--tm-ink3);stroke-width:1.5;stroke-dasharray:5 5"/>
+<polyline points="70.0,290.0 70.0,232.5 70.0,175.0 108.3,175.0 108.3,117.5 146.7,117.5 146.7,60.0 300.0,60.0" style="fill:none;stroke:var(--b);stroke-width:3;stroke-linejoin:round"/>
+<circle class="f-acc" cx="70.0" cy="175.0" r="6"/>
+<text class="f-t" x="80.0" y="180.0" style="font-size:12px">umbral 0.80</text>
+<circle class="f-acc" cx="108.3" cy="117.5" r="6"/>
+<text class="f-t" x="118.3" y="122.5" style="font-size:12px">umbral 0.50</text>
+<circle class="f-acc" cx="146.7" cy="60.0" r="6"/>
+<text class="f-t" x="156.7" y="82.0" style="font-size:12px">umbral 0.30</text>
+<text class="f-t" x="212.6" y="193.4" text-anchor="middle" style="font-size:15px">AUC = 0.875</text>
+<text class="f-s" x="242.5" y="147.4" text-anchor="middle" style="font-size:12px">al azar</text>
+<text class="f-s" x="62" y="294.0" text-anchor="end" style="font-size:12px">0</text>
+<text class="f-s" x="70.0" y="308" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="62" y="179.0" text-anchor="end" style="font-size:12px">50 %</text>
+<text class="f-s" x="185.0" y="308" text-anchor="middle" style="font-size:12px">50 %</text>
+<text class="f-s" x="62" y="64.0" text-anchor="end" style="font-size:12px">100 %</text>
+<text class="f-s" x="300.0" y="308" text-anchor="middle" style="font-size:12px">100 %</text>
+<text class="f-s" x="185.0" y="328" text-anchor="middle" style="font-size:12px">falsos positivos (de los 6 que no eran)</text>
+<text class="f-s" x="185.0" y="348" text-anchor="middle" style="font-size:12px">a lo alto: tenis encontrados (recall)</text>
+</svg>

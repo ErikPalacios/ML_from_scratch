@@ -1,0 +1,128 @@
+{
+  "nota": "Los conceptos que presenta la lección «aprender».",
+  "terminos": [
+    {
+      "id": "loss",
+      "termino": "Pérdida",
+      "en": "loss · loss function · función de pérdida",
+      "corto": "Un número que mide qué tan equivocado está el modelo: 0 si acierta con total seguridad, y más grande mientras peor le va. Entrenar es hacer que baje.",
+      "largo": "En clasificación la más usada es la entropía cruzada (*cross-entropy*): toma la probabilidad p que el modelo le dio a la respuesta correcta y calcula −ln(p). Para un [[batch]] se promedian las de todos sus ejemplos. A diferencia de contar aciertos, cambia un poquito con cada cambio pequeño de las perillas, y por eso dice hacia dónde mejorar.",
+      "ejemplo": "El modelo le da 94 % a «Tenis» y eran tenis: −ln(0.94) ≈ 0.062. Si le diera 10 %: −ln(0.10) ≈ 2.30. Un modelo que reparte parejo entre 500 categorías: −ln(1/500) ≈ 6.21.",
+      "ver": ["gradiente", "entrenamiento"],
+      "leccion": "aprender"
+    },
+    {
+      "id": "gradiente",
+      "termino": "Gradiente",
+      "en": "gradient",
+      "corto": "Para cada parámetro (cada «perilla») del modelo, hacia dónde y qué tan rápido cambia la pérdida si lo mueves un poquito. Es una lista con un número por parámetro.",
+      "largo": "El signo dice la dirección: negativo quiere decir que subir esa perilla baja la pérdida. El tamaño dice qué tan empinado está. Se calcula con [[backpropagation]] y se usa en el [[descenso-gradiente]]: cada perilla se mueve en contra de su gradiente.",
+      "ejemplo": "Una sola perilla w, con pérdida 36 cuando w = 0 y 35.76 cuando w = 0.01: bajó 0.24 por cada 0.01, así que el gradiente es ≈ −24.",
+      "ver": ["loss", "descenso-gradiente", "backpropagation"],
+      "leccion": "aprender"
+    },
+    {
+      "id": "descenso-gradiente",
+      "termino": "Descenso de gradiente",
+      "en": "gradient descent",
+      "corto": "La regla para mejorar los parámetros (las perillas) de un modelo: mover cada uno un pasito en contra de su gradiente. Parámetro nuevo = parámetro − learning rate × gradiente.",
+      "ejemplo": "w = 0, gradiente −24, learning rate 0.05: w nueva = 0 − 0.05 × (−24) = 1.2, y la pérdida baja de 36 a 12.96.",
+      "ver": ["gradiente", "learning-rate", "optimizador"],
+      "leccion": "aprender"
+    },
+    {
+      "id": "backpropagation",
+      "termino": "Backpropagation",
+      "en": "backpropagation · backprop · retropropagación",
+      "corto": "La forma de calcular el gradiente de todas las perillas a la vez: se recorre el modelo de la salida hacia la entrada, repartiendo la culpa del error paso por paso.",
+      "largo": "Cada paso del modelo sabe qué tanto cambia su salida cuando cambia su entrada; backpropagation multiplica esas sensibilidades a lo largo de la cadena (es la regla de la cadena del cálculo). Cuesta más o menos el doble que un [[forward-pass]]. Nadie la programa a mano: en PyTorch es `loss.backward()`.",
+      "ver": ["gradiente", "forward-pass"],
+      "leccion": "aprender"
+    },
+    {
+      "id": "learning-rate",
+      "termino": "Learning rate",
+      "en": "learning rate · lr · tasa de aprendizaje",
+      "corto": "Qué tan grande es cada pasito al mover los parámetros (las perillas) de un modelo durante el entrenamiento. Muy chico: tarda una eternidad. Muy grande: se pasa del fondo del valle y la pérdida explota.",
+      "ejemplo": "C01 entrena con lr = 3e-4, que quiere decir 3 × 10⁻⁴ = 0.0003.",
+      "ver": ["descenso-gradiente", "hiperparametro"],
+      "leccion": "aprender"
+    },
+    {
+      "id": "optimizador",
+      "termino": "Optimizador",
+      "en": "optimizer",
+      "corto": "La pieza que, con el gradiente en la mano, decide cuánto girar cada perilla. SGD es la regla simple; Adam es una forma más lista de hacerlo.",
+      "largo": "SGD (*stochastic gradient descent*) aplica la regla tal cual, con el gradiente de un [[batch]] al azar. Adam (propuesto en 2014) guarda para cada perilla un promedio de sus gradientes recientes y otro de su tamaño, y con eso ajusta el paso de cada una por separado. Esos dos números extra por perilla se guardan en el [[checkpoint]].",
+      "ejemplo": "C01 usa Adam: 24.5 M de perillas × 2 promedios = 49 M de números extra, ≈ 196 MB.",
+      "ver": ["descenso-gradiente", "learning-rate", "checkpoint"],
+      "leccion": "aprender"
+    },
+    {
+      "id": "batch",
+      "termino": "Batch",
+      "en": "batch · mini-batch · lote",
+      "corto": "Un grupo de ejemplos que el modelo procesa junto. Al entrenar, la pérdida y el gradiente se calculan promediando el batch, y con eso se da un paso.",
+      "largo": "Es un punto medio: el dataset completo no cabe de una vez en la GPU, y un ejemplo solo da un gradiente demasiado ruidoso y desperdicia la GPU. En [[inferencia]] la palabra también se usa: el servidor junta varias peticiones para calcularlas juntas, pero ahí no hay gradientes.",
+      "ejemplo": "C01 entrena con batches de 64 fotos.",
+      "ver": ["paso", "epoch"],
+      "leccion": "aprender"
+    },
+    {
+      "id": "epoch",
+      "termino": "Época",
+      "en": "epoch",
+      "corto": "Una pasada completa por el conjunto de entrenamiento: cada ejemplo se vio una vez.",
+      "ejemplo": "50,000 fotos en batches de 64: 50,000 ÷ 64 = 781.25, así que son 782 pasos por época (el último batch trae solo 16 fotos). C01 entrena 8 épocas.",
+      "ver": ["batch", "paso"],
+      "leccion": "aprender"
+    },
+    {
+      "id": "paso",
+      "termino": "Paso",
+      "en": "step · iteration · iteración",
+      "corto": "Una vuelta del ciclo de entrenamiento con un batch: pasar las fotos por el modelo, medir la pérdida, calcular el gradiente y ajustar los parámetros.",
+      "ejemplo": "C01: 1,840,211 fotos ÷ 64 = 28,753.3, redondeado hacia arriba son 28,754 pasos por época; por 8 épocas, 230,032 pasos.",
+      "ver": ["batch", "epoch"],
+      "leccion": "aprender"
+    },
+    {
+      "id": "checkpoint",
+      "termino": "Checkpoint",
+      "en": "checkpoint",
+      "corto": "Un archivo con el estado del entrenamiento en un momento: los parámetros, el estado del optimizador y en qué paso iba. Sirve para seguir si algo falla y para quedarse con la mejor versión.",
+      "ejemplo": "C01 guarda uno cada 15 minutos: 24.5 M parámetros × 4 bytes ≈ 98 MB, más el estado de Adam (2 × 98 MB), ≈ 294 MB en total.",
+      "ver": ["optimizador", "parametro"],
+      "leccion": "aprender"
+    },
+    {
+      "id": "hiperparametro",
+      "termino": "Hiperparámetro",
+      "en": "hyperparameter",
+      "corto": "Una decisión que tomas tú antes de entrenar y que el entrenamiento no cambia: el learning rate, el tamaño del batch, cuántas épocas, el optimizador.",
+      "largo": "Los [[parametro|parámetros]] los ajusta el entrenamiento y son millones; los hiperparámetros los eliges tú y son unos cuantos. Se eligen probando y comparando en [[validation-set|validación]], nunca en el test.",
+      "ejemplo": "C01: Adam, lr 3e-4, batch 64, 8 épocas.",
+      "ver": ["parametro", "learning-rate", "validation-set"],
+      "leccion": "aprender"
+    },
+    {
+      "id": "semilla",
+      "termino": "Semilla",
+      "en": "random seed · seed",
+      "corto": "El número con el que arranca el generador de números al azar de la computadora. Con la misma semilla salen los mismos «azares»: el mismo orden de fotos, las mismas variaciones.",
+      "largo": "Fijarla es necesario para repetir un entrenamiento, pero en GPU no alcanza: algunas sumas en paralelo se hacen en distinto orden y dan resultados un poquito distintos. Por eso «reproducible» quiere decir «el mismo resultado dentro del ruido», no idéntico.",
+      "ejemplo": "C01 entrena con la semilla 17. Con la misma receta y cinco semillas distintas, la Ronda muestra resultados entre 85.12 % y 85.34 % (números ilustrativos).",
+      "ver": ["checkpoint", "hiperparametro"],
+      "leccion": "aprender"
+    },
+    {
+      "id": "forward-pass",
+      "termino": "Forward pass",
+      "en": "forward pass · pasada hacia adelante",
+      "corto": "Pasar una entrada por el modelo, de principio a fin, hasta obtener su respuesta. Es lo único que hace la inferencia; al entrenar es la primera mitad de cada paso.",
+      "largo": "Al entrenar, además de la respuesta, se guardan los resultados intermedios, porque la [[backpropagation]] los necesita. Por eso entrenar ocupa mucha más memoria que hacer [[inferencia]].",
+      "ver": ["backpropagation", "inferencia"],
+      "leccion": "aprender"
+    }
+  ]
+}

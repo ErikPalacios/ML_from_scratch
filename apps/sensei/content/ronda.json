@@ -1,0 +1,66 @@
+{
+  "nota": "Los módulos de la Ronda de Diseño (apps/ml-system-design/js/content/catalog.js, campo short). Cada lección de Sensei dice en su encabezado (ronda: m01, m03) a cuáles prepara; la página /ronda/ lo junta.",
+  "url": "https://ronda-diseno-ml.vercel.app",
+  "modulos": [
+    {
+      "id": "m01",
+      "titulo": "El mapa y la entrevista"
+    },
+    {
+      "id": "m02",
+      "titulo": "Patrones de inferencia"
+    },
+    {
+      "id": "m03",
+      "titulo": "Latencia y capacidad"
+    },
+    {
+      "id": "m04",
+      "titulo": "Hardware para inferencia"
+    },
+    {
+      "id": "m05",
+      "titulo": "Contenedores"
+    },
+    {
+      "id": "m06",
+      "titulo": "Orquestación y escalado"
+    },
+    {
+      "id": "m07",
+      "titulo": "Servidores de modelos"
+    },
+    {
+      "id": "m08",
+      "titulo": "Optimización de modelos"
+    },
+    {
+      "id": "m09",
+      "titulo": "Datos y features"
+    },
+    {
+      "id": "m10",
+      "titulo": "MLOps"
+    },
+    {
+      "id": "m11",
+      "titulo": "Despliegue seguro"
+    },
+    {
+      "id": "m12",
+      "titulo": "Monitoreo"
+    },
+    {
+      "id": "m13",
+      "titulo": "Nube"
+    },
+    {
+      "id": "m14",
+      "titulo": "Sistemas con LLMs"
+    },
+    {
+      "id": "m15",
+      "titulo": "Seguridad y confiabilidad"
+    }
+  ]
+}

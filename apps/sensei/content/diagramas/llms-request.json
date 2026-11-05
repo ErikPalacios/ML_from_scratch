@@ -1,0 +1,41 @@
+{
+  "titulo": "Una pregunta a un LLM, de punta a punta",
+  "width": 78,
+  "height": 46,
+  "lanes": [
+    { "id": "request", "label": "Por cada request", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 31 },
+    { "id": "gpu", "label": "En la memoria de la GPU", "kind": "neutral", "x": 0, "y": 33, "w": 78, "h": 13 }
+  ],
+  "nodes": [
+    { "id": "app", "label": "Tu app", "sub": "manda el prompt", "kind": "client", "x": 1, "y": 7, "w": 16, "h": 8,
+      "note": "Manda el [[prompt]]: el texto con la pregunta y sus instrucciones. Recibe la respuesta poco a poco, conforme sale cada [[token]] (*streaming*)." },
+    { "id": "tok", "label": "Tokenizer", "sub": "texto ↔ ids", "kind": "service", "x": 26, "y": 7, "w": 18, "h": 8,
+      "note": "El [[tokenizer]] parte el texto en tokens y los cambia por números (ids). A la salida hace lo contrario: cada id nuevo se vuelve texto." },
+    { "id": "prefill", "label": "Prefill", "sub": "lee todo el prompt", "kind": "gpu", "x": 26, "y": 21, "w": 18, "h": 8,
+      "note": "Procesa todos los tokens del prompt **de una sola pasada**, en paralelo, y guarda la K y la V de cada uno en el [[kv-cache|KV cache]]. Termina con el primer token de la respuesta." },
+    { "id": "decode", "label": "Decode", "sub": "un token por paso", "kind": "gpu", "x": 55, "y": 21, "w": 20, "h": 8,
+      "note": "La [[generacion-autorregresiva|generación autorregresiva]]: un paso por cada token de salida, uno detrás de otro. Cada paso lee **todos** los pesos y el KV cache. Por eso escribir es mucho más lento que leer." },
+    { "id": "pesos", "label": "Pesos", "sub": "≈ 16 GB (8B en BF16)", "kind": "store", "x": 34, "y": 36, "w": 18, "h": 8,
+      "note": "Los [[parametro|parámetros]] del modelo. Un modelo de 8 mil millones de parámetros, a 2 bytes cada uno, ocupa ≈ 16 GB. Se cargan una vez y se quedan en la memoria de la GPU." },
+    { "id": "kv", "label": "KV cache", "sub": "crece con cada token", "kind": "store", "x": 57, "y": 36, "w": 18, "h": 8,
+      "note": "Lo que ya se calculó de cada token anterior, para no recalcularlo. En Llama 3 8B ocupa 128 KiB por token: una conversación de 8,192 tokens ya son 1 GiB." }
+  ],
+  "edges": [
+    { "from": "app", "to": "tok", "kind": "online", "bidir": true, "label": "prompt" },
+    { "from": "tok", "to": "prefill", "kind": "online", "label": "ids" },
+    { "from": "prefill", "to": "decode", "kind": "online", "label": "1.er token" },
+    { "from": "decode", "to": "tok", "kind": "online", "label": "ids nuevos", "fromSide": "t", "toSide": "r", "via": [[65, 11]] },
+    { "from": "pesos", "to": "prefill", "kind": "neutral", "fromSide": "t", "toSide": "b", "via": [[39, 32], [36, 32]] },
+    { "from": "pesos", "to": "decode", "kind": "neutral", "fromSide": "t", "toSide": "b", "via": [[47, 32], [59, 32]] },
+    { "from": "decode", "to": "kv", "kind": "neutral", "bidir": true, "label": "K y V" }
+  ],
+  "flows": [
+    { "id": "pregunta", "label": "Una pregunta, de ida y vuelta", "steps": [
+      { "nodes": ["app", "tok"], "edges": ["app>tok"], "text": "Tu app manda el prompt. El tokenizer lo parte en tokens y cambia cada uno por su número (id)." },
+      { "nodes": ["tok", "prefill", "pesos", "kv"], "edges": ["tok>prefill", "pesos>prefill"], "text": "**Prefill.** El modelo lee los ≈ 2,000 tokens del prompt de una sola pasada, en paralelo, y guarda lo que calculó de cada uno en el KV cache." },
+      { "nodes": ["prefill", "decode"], "edges": ["prefill>decode"], "text": "Sale el primer token de la respuesta. El tiempo hasta aquí es lo que la Ronda llama **TTFT** (tiempo al primer token)." },
+      { "nodes": ["decode", "pesos", "kv"], "edges": ["pesos>decode", "decode>kv"], "text": "**Decode.** Cada token nuevo es una vuelta completa: lee todos los pesos (≈ 16 GB) y el KV cache, elige un token y agrega su K y V al cache. Para 250 tokens de respuesta, 250 vueltas, una tras otra." },
+      { "nodes": ["decode", "tok", "app"], "edges": ["decode>tok", "app>tok"], "text": "Cada id nuevo se vuelve texto y se manda a tu app en cuanto sale. Por eso ves la respuesta aparecer palabra por palabra." }
+    ] }
+  ]
+}

@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 470" role="img" aria-labelledby="f-redes-convolucion-t" class="f-svg" style="max-width:420px">
+<title id="f-redes-convolucion-t">Una convolución. Arriba, una cuadrícula de 5 por 5 píxeles: las tres columnas de la izquierda claras (8 y 9) y las dos de la derecha oscuras (0 y 1). Un filtro de 3 por 3 con columnas de pesos 1, 0 y menos 1 está sobre las filas 1 a 3 y columnas 2 a 4. Multiplica cada píxel por su peso y suma: 8 más 8 más 8 da 24, que se escribe en la salida. La salida completa es de 3 por 3: 0, 24, 25 en cada fila, aproximadamente. Los números grandes marcan el borde entre lo claro y lo oscuro.</title>
+<rect class="f-card" x="10" y="10" width="340" height="450" rx="16"/>
+<text class="f-l" x="28" y="36">ENTRADA 5 × 5</text><text class="f-l" x="236" y="36">FILTRO 3 × 3</text>
+<rect class="f-chip" x="29" y="51" width="36" height="36" rx="5"/>
+<text class="f-t" x="47.0" y="74.0" text-anchor="middle">8</text>
+<rect class="f-chip" x="67" y="51" width="36" height="36" rx="5"/>
+<text class="f-t" x="78" y="69" text-anchor="middle">9</text>
+<rect class="f-chip" x="105" y="51" width="36" height="36" rx="5"/>
+<text class="f-t" x="116" y="69" text-anchor="middle">9</text>
+<rect class="f-dark" x="143" y="51" width="36" height="36" rx="5"/>
+<text class="f-dark-t" x="154" y="69" text-anchor="middle" style="font-size:15px;font-weight:700">1</text>
+<rect class="f-dark" x="181" y="51" width="36" height="36" rx="5"/>
+<text class="f-dark-t" x="199.0" y="74.0" text-anchor="middle" style="font-size:15px;font-weight:700">0</text>
+<rect class="f-chip" x="29" y="89" width="36" height="36" rx="5"/>
+<text class="f-t" x="47.0" y="112.0" text-anchor="middle">9</text>
+<rect class="f-chip" x="67" y="89" width="36" height="36" rx="5"/>
+<text class="f-t" x="78" y="107" text-anchor="middle">8</text>
+<rect class="f-chip" x="105" y="89" width="36" height="36" rx="5"/>
+<text class="f-t" x="116" y="107" text-anchor="middle">9</text>
+<rect class="f-dark" x="143" y="89" width="36" height="36" rx="5"/>
+<text class="f-dark-t" x="154" y="107" text-anchor="middle" style="font-size:15px;font-weight:700">0</text>
+<rect class="f-dark" x="181" y="89" width="36" height="36" rx="5"/>
+<text class="f-dark-t" x="199.0" y="112.0" text-anchor="middle" style="font-size:15px;font-weight:700">1</text>
+<rect class="f-chip" x="29" y="127" width="36" height="36" rx="5"/>
+<text class="f-t" x="47.0" y="150.0" text-anchor="middle">9</text>
+<rect class="f-chip" x="67" y="127" width="36" height="36" rx="5"/>
+<text class="f-t" x="78" y="145" text-anchor="middle">9</text>
+<rect class="f-chip" x="105" y="127" width="36" height="36" rx="5"/>
+<text class="f-t" x="116" y="145" text-anchor="middle">8</text>
+<rect class="f-dark" x="143" y="127" width="36" height="36" rx="5"/>
+<text class="f-dark-t" x="154" y="145" text-anchor="middle" style="font-size:15px;font-weight:700">1</text>
+<rect class="f-dark" x="181" y="127" width="36" height="36" rx="5"/>
+<text class="f-dark-t" x="199.0" y="150.0" text-anchor="middle" style="font-size:15px;font-weight:700">0</text>
+<rect class="f-chip" x="29" y="165" width="36" height="36" rx="5"/>
+<text class="f-t" x="47.0" y="188.0" text-anchor="middle">8</text>
+<rect class="f-chip" x="67" y="165" width="36" height="36" rx="5"/>
+<text class="f-t" x="85.0" y="188.0" text-anchor="middle">9</text>
+<rect class="f-chip" x="105" y="165" width="36" height="36" rx="5"/>
+<text class="f-t" x="123.0" y="188.0" text-anchor="middle">9</text>
+<rect class="f-dark" x="143" y="165" width="36" height="36" rx="5"/>
+<text class="f-dark-t" x="161.0" y="188.0" text-anchor="middle" style="font-size:15px;font-weight:700">0</text>
+<rect class="f-dark" x="181" y="165" width="36" height="36" rx="5"/>
+<text class="f-dark-t" x="199.0" y="188.0" text-anchor="middle" style="font-size:15px;font-weight:700">0</text>
+<rect class="f-chip" x="29" y="203" width="36" height="36" rx="5"/>
+<text class="f-t" x="47.0" y="226.0" text-anchor="middle">9</text>
+<rect class="f-chip" x="67" y="203" width="36" height="36" rx="5"/>
+<text class="f-t" x="85.0" y="226.0" text-anchor="middle">8</text>
+<rect class="f-chip" x="105" y="203" width="36" height="36" rx="5"/>
+<text class="f-t" x="123.0" y="226.0" text-anchor="middle">9</text>
+<rect class="f-dark" x="143" y="203" width="36" height="36" rx="5"/>
+<text class="f-dark-t" x="161.0" y="226.0" text-anchor="middle" style="font-size:15px;font-weight:700">1</text>
+<rect class="f-dark" x="181" y="203" width="36" height="36" rx="5"/>
+<text class="f-dark-t" x="199.0" y="226.0" text-anchor="middle" style="font-size:15px;font-weight:700">1</text>
+<rect x="64" y="48" width="118" height="118" rx="8" style="fill:none;stroke:var(--y);stroke-width:4"/>
+<text x="101" y="83" text-anchor="end" style="fill:var(--yd);font:700 12px var(--sans)">×1</text>
+<text x="139" y="83" text-anchor="end" style="fill:var(--yd);font:700 12px var(--sans)">×0</text>
+<text x="177" y="83" text-anchor="end" style="fill:var(--yd);font:700 12px var(--sans)">×−1</text>
+<text x="101" y="121" text-anchor="end" style="fill:var(--yd);font:700 12px var(--sans)">×1</text>
+<text x="139" y="121" text-anchor="end" style="fill:var(--yd);font:700 12px var(--sans)">×0</text>
+<text x="177" y="121" text-anchor="end" style="fill:var(--yd);font:700 12px var(--sans)">×−1</text>
+<text x="101" y="159" text-anchor="end" style="fill:var(--yd);font:700 12px var(--sans)">×1</text>
+<text x="139" y="159" text-anchor="end" style="fill:var(--yd);font:700 12px var(--sans)">×0</text>
+<text x="177" y="159" text-anchor="end" style="fill:var(--yd);font:700 12px var(--sans)">×−1</text>
+<rect class="f-y" x="237" y="51" width="28" height="28" rx="5"/>
+<text x="251.0" y="70.0" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">1</text>
+<rect class="f-y" x="267" y="51" width="28" height="28" rx="5"/>
+<text x="281.0" y="70.0" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">0</text>
+<rect class="f-y" x="297" y="51" width="28" height="28" rx="5"/>
+<text x="311.0" y="70.0" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">−1</text>
+<rect class="f-y" x="237" y="81" width="28" height="28" rx="5"/>
+<text x="251.0" y="100.0" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">1</text>
+<rect class="f-y" x="267" y="81" width="28" height="28" rx="5"/>
+<text x="281.0" y="100.0" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">0</text>
+<rect class="f-y" x="297" y="81" width="28" height="28" rx="5"/>
+<text x="311.0" y="100.0" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">−1</text>
+<rect class="f-y" x="237" y="111" width="28" height="28" rx="5"/>
+<text x="251.0" y="130.0" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">1</text>
+<rect class="f-y" x="267" y="111" width="28" height="28" rx="5"/>
+<text x="281.0" y="130.0" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">0</text>
+<rect class="f-y" x="297" y="111" width="28" height="28" rx="5"/>
+<text x="311.0" y="130.0" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">−1</text>
+<text class="f-s" x="236" y="160" style="font-size:12px">9 pesos que</text><text class="f-s" x="236" y="176" style="font-size:12px">aprende la red</text>
+<text class="f-l" x="28" y="268">LA VENTANA MARCADA</text>
+<text class="f-s" x="28" y="292">fila 1:  9×1 + 9×0 + 1×(−1) = 8</text>
+<text class="f-s" x="28" y="314">fila 2:  8×1 + 9×0 + 0×(−1) = 8</text>
+<text class="f-s" x="28" y="336">fila 3:  9×1 + 8×0 + 1×(−1) = 8</text>
+<text class="f-t" x="28" y="364" style="font-size:14px">suma: 8 + 8 + 8 = 24</text>
+<text class="f-l" x="28" y="396">SALIDA 3 × 3</text>
+<rect class="f-chip" x="150" y="380" width="36" height="22" rx="5"/>
+<text class="f-s" x="168" y="396" text-anchor="middle" style="font-weight:700">0</text>
+<rect class="f-y" x="190" y="380" width="36" height="22" rx="5"/>
+<text x="208" y="396" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">24</text>
+<rect class="f-chip" x="230" y="380" width="36" height="22" rx="5"/>
+<text class="f-s" x="248" y="396" text-anchor="middle" style="font-weight:700">25</text>
+<rect class="f-chip" x="150" y="404" width="36" height="22" rx="5"/>
+<text class="f-s" x="168" y="420" text-anchor="middle" style="font-weight:700">0</text>
+<rect class="f-chip" x="190" y="404" width="36" height="22" rx="5"/>
+<text class="f-s" x="208" y="420" text-anchor="middle" style="font-weight:700">25</text>
+<rect class="f-chip" x="230" y="404" width="36" height="22" rx="5"/>
+<text class="f-s" x="248" y="420" text-anchor="middle" style="font-weight:700">25</text>
+<rect class="f-chip" x="150" y="428" width="36" height="22" rx="5"/>
+<text class="f-s" x="168" y="444" text-anchor="middle" style="font-weight:700">0</text>
+<rect class="f-chip" x="190" y="428" width="36" height="22" rx="5"/>
+<text class="f-s" x="208" y="444" text-anchor="middle" style="font-weight:700">24</text>
+<rect class="f-chip" x="230" y="428" width="36" height="22" rx="5"/>
+<text class="f-s" x="248" y="444" text-anchor="middle" style="font-weight:700">25</text>
+<text class="f-s" x="28" y="420" style="font-size:12px">0 = parejo</text><text class="f-s" x="28" y="438" style="font-size:12px">24–25 = borde</text>
+</svg>

@@ -1,0 +1,194 @@
+{
+  "titulo": "El viaje de la foto de Ana",
+  "width": 78,
+  "height": 42,
+  "lanes": [
+    {
+      "id": "online",
+      "label": "Por cada foto · milisegundos",
+      "kind": "online",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 21
+    },
+    {
+      "id": "despues",
+      "label": "Después · para el monitoreo",
+      "kind": "monitor",
+      "x": 0,
+      "y": 24,
+      "w": 78,
+      "h": 18
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ana",
+      "label": "App de Ana",
+      "sub": "sube la foto",
+      "kind": "client",
+      "x": 1,
+      "y": 7,
+      "w": 16,
+      "h": 9,
+      "note": "Ana toma la foto de sus tenis y la sube. Para ella, la sugerencia aparece casi al instante."
+    },
+    {
+      "id": "backend",
+      "label": "Marketplace",
+      "sub": "sus servidores",
+      "kind": "service",
+      "x": 21,
+      "y": 7,
+      "w": 16,
+      "h": 9,
+      "note": "Los [[servidor|servidores]] del marketplace reciben la publicación y le piden la categoría al sistema del modelo con una [[request]]."
+    },
+    {
+      "id": "api",
+      "label": "API del modelo",
+      "sub": "revisa y pasa",
+      "kind": "edge",
+      "x": 41,
+      "y": 7,
+      "w": 16,
+      "h": 9,
+      "note": "La [[api|API]] revisa que la petición venga bien y le pasa la foto al modelo. Si el modelo no contesta a tiempo, el marketplace le muestra a Ana el selector de categorías a mano."
+    },
+    {
+      "id": "modelo",
+      "label": "Modelo",
+      "sub": "hace la inferencia",
+      "kind": "gpu",
+      "x": 61,
+      "y": 7,
+      "w": 16,
+      "h": 9,
+      "note": "El modelo calcula: hace una [[inferencia]] y devuelve qué tan probable es cada categoría."
+    },
+    {
+      "id": "registro",
+      "label": "Registro",
+      "sub": "una línea por foto",
+      "kind": "queue",
+      "x": 41,
+      "y": 29,
+      "w": 16,
+      "h": 9,
+      "note": "Por cada foto queda una línea: cuándo llegó, qué respondió el modelo y cuánto tardó. Se escribe aparte, para no hacer esperar a Ana."
+    },
+    {
+      "id": "monitoreo",
+      "label": "Monitoreo",
+      "sub": "rápido y acertando",
+      "kind": "monitor",
+      "x": 61,
+      "y": 29,
+      "w": 16,
+      "h": 9,
+      "note": "Con esos registros, el [[monitoreo]] mide la [[latencia]] y si el modelo sigue acertando."
+    }
+  ],
+  "edges": [
+    {
+      "from": "ana",
+      "to": "backend",
+      "kind": "online",
+      "bidir": true,
+      "label": "foto"
+    },
+    {
+      "from": "backend",
+      "to": "api",
+      "kind": "online",
+      "bidir": true,
+      "label": "request"
+    },
+    {
+      "from": "api",
+      "to": "modelo",
+      "kind": "online",
+      "bidir": true,
+      "label": "foto"
+    },
+    {
+      "from": "api",
+      "to": "registro",
+      "kind": "async",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "log"
+    },
+    {
+      "from": "registro",
+      "to": "monitoreo",
+      "kind": "monitor",
+      "label": "métricas"
+    }
+  ],
+  "flows": [
+    {
+      "id": "ida-vuelta",
+      "label": "Una foto, de ida y vuelta",
+      "steps": [
+        {
+          "nodes": [
+            "ana",
+            "backend"
+          ],
+          "edges": [
+            "ana>backend"
+          ],
+          "text": "Ana sube la foto y llega a los servidores del marketplace."
+        },
+        {
+          "nodes": [
+            "backend",
+            "api"
+          ],
+          "edges": [
+            "backend>api"
+          ],
+          "text": "El marketplace le manda una **request** a la API del modelo con la foto."
+        },
+        {
+          "nodes": [
+            "api",
+            "modelo"
+          ],
+          "edges": [
+            "api>modelo"
+          ],
+          "text": "La API se la pasa al modelo, que hace la inferencia."
+        },
+        {
+          "nodes": [
+            "modelo",
+            "api",
+            "backend",
+            "ana"
+          ],
+          "edges": [
+            "api>modelo",
+            "backend>api",
+            "ana>backend"
+          ],
+          "text": "La respuesta («Calzado › Tenis, 94 %») regresa por el mismo camino hasta la app de Ana. C01 se compromete a que la API responda en menos de 200 ms en 99 de cada 100 fotos."
+        },
+        {
+          "nodes": [
+            "api",
+            "registro",
+            "monitoreo"
+          ],
+          "edges": [
+            "api>registro",
+            "registro>monitoreo"
+          ],
+          "text": "Aparte, sin hacerla esperar, queda un registro de la foto. Con esos registros se monitorea el sistema."
+        }
+      ]
+    }
+  ]
+}

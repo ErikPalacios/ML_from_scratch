@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 430" role="img" aria-labelledby="f-ec-t" class="f-svg" style="max-width:420px">
+<title id="f-ec-t">La cola larga, con números ilustrativos. Las 500 categorías ordenadas de la más grande a la más chica: la número 1, Ropa › Playeras, tiene 62,000 fotos; la 2, Calzado › Tenis, 48,000; la 3, Celulares, 35,000; la 50, Audífonos, 6,000; la 250, Relojes de pared, 900; y la 500, Monedas antiguas, apenas 40. Las barras de las últimas casi no se ven</title>
+<rect class="f-card" x="10" y="10" width="340" height="410" rx="16"/>
+<text class="f-l" x="26" y="38">500 CATEGORÍAS, DE MAYOR A MENOR</text>
+<text class="f-s" x="26" y="58" style="font-size:12px">fotos de entrenamiento · números ilustrativos</text>
+<text class="f-s" x="26" y="90">#1 · Ropa › Playeras</text>
+<rect class="f-b" x="26" y="98" width="240" height="14" rx="7"/>
+<text class="f-t" x="274" y="110" style="font-size:13px">62,000</text>
+<text class="f-s" x="26" y="138">#2 · Calzado › Tenis</text>
+<rect class="f-b" x="26" y="146" width="186" height="14" rx="7"/>
+<text class="f-t" x="220" y="158" style="font-size:13px">48,000</text>
+<text class="f-s" x="26" y="186">#3 · Celulares</text>
+<rect class="f-b" x="26" y="194" width="135" height="14" rx="7"/>
+<text class="f-t" x="169" y="206" style="font-size:13px">35,000</text>
+<text class="f-l" x="26" y="232">⋮</text>
+<text class="f-s" x="26" y="256">#50 · Audífonos</text>
+<rect class="f-b2" x="26" y="264" width="23" height="14" rx="7"/>
+<text class="f-t" x="57" y="276" style="font-size:13px">6,000</text>
+<text class="f-l" x="26" y="302">⋮</text>
+<text class="f-s" x="26" y="326">#250 · Relojes de pared</text>
+<rect class="f-b2" x="26" y="334" width="4" height="14" rx="2"/>
+<text class="f-t" x="38" y="346" style="font-size:13px">900</text>
+<text class="f-s" x="26" y="372">#500 · Monedas antiguas</text>
+<rect class="f-b2" x="26" y="380" width="2" height="14" rx="1"/>
+<text class="f-t" x="36" y="392" style="font-size:13px">40 · casi no se ve</text>
+</svg>

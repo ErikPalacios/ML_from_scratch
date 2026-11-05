@@ -1,9 +1,0 @@
-{
-  "name": "cimientos",
-  "private": true,
-  "description": "Cimientos: la teoría de cada paso para llevar un modelo de ML a producción, explicada desde cero.",
-  "scripts": {
-    "build": "node tools/build.mjs",
-    "check": "node tools/build.mjs && node tools/check.mjs"
-  }
-}

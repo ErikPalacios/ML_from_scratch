@@ -1,0 +1,280 @@
+{
+  "nota": "Los conceptos que presenta la lección «camino-completo». Cada archivo de esta carpeta trae los de una lección (el nombre del archivo es su id). «corto»: una o dos frases, lo que sale en el globo. «largo», «analogia» y «ejemplo»: opcionales. «ver»: conceptos relacionados. «leccion»: dónde se explica a fondo, aunque todavía no exista. Dentro del texto, [[id]] enlaza a otro concepto.",
+  "terminos": [
+    {
+      "id": "modelo",
+      "termino": "Modelo",
+      "en": "model",
+      "corto": "Un programa que aprendió de ejemplos a convertir una entrada (una foto) en una respuesta (su categoría).",
+      "largo": "No lo escribe una persona regla por regla. Una persona elige su forma y los ejemplos, y el [[entrenamiento]] ajusta sus [[parametro|parámetros]] hasta que acierta. Por dentro es una función matemática muy grande: entran números (los píxeles de la foto) y salen números (qué tan probable es cada categoría).",
+      "ejemplo": "En C01 el modelo es una ResNet-50: recibe la foto de una publicación y devuelve qué tan probable es cada una de 500 categorías.",
+      "ver": [
+        "parametro",
+        "entrenamiento",
+        "inferencia"
+      ],
+      "leccion": "modelo"
+    },
+    {
+      "id": "parametro",
+      "termino": "Parámetro",
+      "en": "parameter · weight",
+      "corto": "Cada uno de los números internos de un modelo que el entrenamiento ajusta. Son sus «perillas».",
+      "largo": "Una combinación de valores de los parámetros hace que el modelo responda de una forma, y otra combinación, de otra. Entrenar es buscar la combinación con la que el modelo se equivoca menos. En inglés también se les dice *weights* (pesos).",
+      "ejemplo": "La ResNet-50 de C01 tiene unos 24.5 millones de parámetros con sus 500 categorías (25.6 millones en la versión original, de 1000).",
+      "ver": [
+        "modelo",
+        "entrenamiento"
+      ],
+      "leccion": "aprender"
+    },
+    {
+      "id": "entrenamiento",
+      "termino": "Entrenamiento",
+      "en": "training",
+      "corto": "Mostrarle al modelo muchos ejemplos con su respuesta correcta y ajustar sus parámetros, poco a poco, para que se equivoque menos.",
+      "largo": "El modelo adivina, se compara con la [[etiqueta]] correcta y mueve sus [[parametro|parámetros]] un poquito en la dirección que reduce el error. Eso se repite millones de veces. Es lento y caro, y se hace de vez en cuando, no con cada uso.",
+      "ejemplo": "En C01 el modelo se reentrena una vez al mes con las fotos nuevas del mes.",
+      "ver": [
+        "inferencia",
+        "etiqueta",
+        "dataset"
+      ],
+      "leccion": "aprender"
+    },
+    {
+      "id": "inferencia",
+      "termino": "Inferencia",
+      "en": "inference",
+      "corto": "Usar un modelo ya entrenado para responder sobre un caso nuevo. Los parámetros no cambian: el modelo solo calcula.",
+      "largo": "Es el otro momento en la vida de un modelo, después del [[entrenamiento]]. Cada respuesta que da es una [[prediccion|predicción]]. Es rápida y pasa todo el tiempo: es lo que hace el modelo en [[produccion|producción]].",
+      "ejemplo": "Cada vez que alguien sube una foto al marketplace de C01, el modelo hace una inferencia. Son millones al día.",
+      "ver": [
+        "prediccion",
+        "entrenamiento",
+        "serving"
+      ],
+      "leccion": "modelo"
+    },
+    {
+      "id": "prediccion",
+      "termino": "Predicción",
+      "en": "prediction",
+      "corto": "La respuesta que da un modelo para un caso. No es una certeza: suele venir con qué tan seguro está, como una probabilidad.",
+      "ejemplo": "«Calzado › Tenis, 94 %» es una predicción: el modelo cree que es eso, con una confianza de 94 %. Se lee como una probabilidad, aunque no siempre es exacta.",
+      "ver": [
+        "inferencia",
+        "modelo"
+      ],
+      "leccion": "modelo"
+    },
+    {
+      "id": "dataset",
+      "termino": "Dataset",
+      "en": "dataset · conjunto de datos",
+      "corto": "Una colección de ejemplos, guardada y ordenada, con la que se entrena o se evalúa un modelo.",
+      "largo": "Cada ejemplo trae la entrada (la foto) y, casi siempre, su [[etiqueta]] (la categoría correcta). En producción no basta con tenerlo: hay que poder decir exactamente con cuál dataset se entrenó cada modelo.",
+      "ejemplo": "El dataset de un mes en C01 son las fotos de publicaciones con su categoría revisada.",
+      "ver": [
+        "etiqueta",
+        "entrenamiento"
+      ],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "etiqueta",
+      "termino": "Etiqueta",
+      "en": "label",
+      "corto": "La respuesta correcta de un ejemplo: la que el modelo debería dar. En C01, la categoría real de una foto.",
+      "largo": "Muchas veces la pone una persona a mano, y por eso cuesta tiempo y dinero. Con etiquetas malas, el modelo aprende mal, aunque todo lo demás esté perfecto.",
+      "ver": [
+        "dataset",
+        "entrenamiento"
+      ],
+      "leccion": "ejemplos"
+    },
+    {
+      "id": "produccion",
+      "termino": "Producción",
+      "en": "production · prod",
+      "corto": "Cuando el sistema ya lo usa gente real, todos los días, y si falla alguien lo nota.",
+      "largo": "Lo contrario es desarrollo: tu laptop o un [[notebook]], donde puedes romper cosas sin que nadie se entere. «Poner en producción» (*deploy*) es pasar de uno a otro.",
+      "ver": [
+        "ml-engineer",
+        "monitoreo"
+      ],
+      "leccion": "camino-completo"
+    },
+    {
+      "id": "notebook",
+      "termino": "Notebook",
+      "en": "Jupyter notebook",
+      "corto": "Un documento donde mezclas código, resultados y notas, y corres el código por pedacitos. Muy bueno para explorar, malo para producción.",
+      "largo": "Puedes correr las celdas (los pedacitos de código) en cualquier orden, y por eso es fácil que algo funcione solo en tu máquina y solo esa vez. Para producción, el código pasa a archivos normales que corren siempre igual, de principio a fin.",
+      "ver": [
+        "produccion"
+      ],
+      "leccion": "camino-completo"
+    },
+    {
+      "id": "ml-engineer",
+      "termino": "ML engineer",
+      "en": "machine learning engineer",
+      "corto": "La persona que lleva un modelo del notebook a producción y lo mantiene funcionando: datos, entrenamiento, serving, despliegue y monitoreo.",
+      "largo": "No basta con que el modelo acierte. El trabajo es que todo lo que lo rodea también funcione: que le lleguen buenos datos, que responda rápido, que no se caiga y que alguien note cuando empieza a fallar.",
+      "ver": [
+        "produccion",
+        "pipeline"
+      ],
+      "leccion": "camino-completo"
+    },
+    {
+      "id": "pipeline",
+      "termino": "Pipeline",
+      "en": "pipeline",
+      "corto": "Una cadena de pasos donde lo que sale de uno es lo que entra al siguiente, y que se puede volver a correr igual.",
+      "analogia": "Una línea de ensamblaje: cada estación hace una cosa y le pasa la pieza a la siguiente.",
+      "ejemplo": "El camino de C01 es un pipeline: datos → modelo → API → contenedor → orquestación → monitoreo.",
+      "ver": [
+        "ml-engineer"
+      ],
+      "leccion": "camino-completo"
+    },
+    {
+      "id": "servidor",
+      "termino": "Servidor",
+      "en": "server",
+      "corto": "Una computadora (o un programa) que se queda encendida esperando peticiones y las responde.",
+      "largo": "La palabra se usa para las dos cosas: la máquina y el programa que corre en ella esperando peticiones. En producción, los servidores no se apagan nunca y casi siempre están en la nube (computadoras que empresas como Amazon o Google rentan por hora), no en una oficina.",
+      "ver": [
+        "request",
+        "api"
+      ],
+      "leccion": "http"
+    },
+    {
+      "id": "request",
+      "termino": "Request",
+      "en": "request · petición",
+      "corto": "Un mensaje que un programa le manda a otro, por la red, para pedirle algo. Lo que regresa se llama response (respuesta).",
+      "ejemplo": "Cuando Ana sube su foto, los servidores del marketplace le mandan una request a la API del modelo con la foto, y la response trae la categoría.",
+      "ver": [
+        "api",
+        "servidor",
+        "latencia"
+      ],
+      "leccion": "http"
+    },
+    {
+      "id": "api",
+      "termino": "API",
+      "en": "Application Programming Interface",
+      "corto": "La «ventanilla» de un programa: lo que otros programas le pueden pedir, cómo pedírselo y qué les va a regresar.",
+      "largo": "Quien la usa no necesita saber cómo funciona por dentro, solo qué pedir y en qué formato. Un modelo en producción casi siempre se usa a través de una API: le mandas una [[request]] con la foto y te regresa la categoría.",
+      "analogia": "La ventanilla de un banco: no ves la bóveda ni los sistemas de atrás, pero sabes qué trámites puedes pedir y qué papeles llevar.",
+      "ver": [
+        "request",
+        "servidor",
+        "serving"
+      ],
+      "leccion": "http"
+    },
+    {
+      "id": "serving",
+      "termino": "Serving",
+      "en": "model serving · servir un modelo",
+      "corto": "Tener el modelo cargado en un servidor, listo para responder predicciones por una API.",
+      "ver": [
+        "api",
+        "inferencia"
+      ],
+      "leccion": "e06-serving"
+    },
+    {
+      "id": "contenedor",
+      "termino": "Contenedor",
+      "en": "container",
+      "corto": "Un paquete con tu programa y todo lo que necesita para correr (la versión de Python, las librerías, los archivos), para que corra igual en cualquier máquina.",
+      "largo": "Resuelve el clásico «en mi máquina sí funciona». La herramienta más usada para crearlos es Docker. Ojo: si el modelo usa una GPU, la máquina también necesita sus drivers.",
+      "analogia": "Un contenedor de barco: no importa qué lleve adentro, tiene un tamaño estándar y cualquier puerto, grúa o barco lo puede mover.",
+      "ver": [
+        "orquestacion"
+      ],
+      "leccion": "e07-empaquetado"
+    },
+    {
+      "id": "orquestacion",
+      "termino": "Orquestación",
+      "en": "orchestration",
+      "corto": "Que un sistema decida por ti cuántas copias de tu programa correr, en qué máquinas, y que levante otra si una se cae.",
+      "largo": "También se encarga de cambiar a una versión nueva poco a poco, sin apagar el servicio. El orquestador de contenedores más usado es Kubernetes.",
+      "ver": [
+        "contenedor",
+        "servidor"
+      ],
+      "leccion": "e09-kubernetes"
+    },
+    {
+      "id": "monitoreo",
+      "termino": "Monitoreo",
+      "en": "monitoring",
+      "corto": "Medir todo el tiempo cómo se comporta el sistema en producción y avisar cuando algo se sale de lo normal.",
+      "largo": "En un sistema con un modelo se miden dos tipos de cosas. Las del software: qué tan rápido responde ([[latencia]]), cuántas peticiones fallan. Y las del modelo: si sigue acertando, o si los datos que llegan ya no se parecen a los de su entrenamiento ([[drift]]).",
+      "ver": [
+        "drift",
+        "latencia",
+        "reentrenamiento"
+      ],
+      "leccion": "e12-monitoreo"
+    },
+    {
+      "id": "drift",
+      "termino": "Drift",
+      "en": "data drift · deriva",
+      "corto": "Cuando los datos que llegan en producción dejan de parecerse a los del entrenamiento, y el modelo empieza a fallar más aunque nadie lo haya tocado.",
+      "largo": "El modelo no se descompone: el mundo cambia a su alrededor. Llegan productos nuevos, cambian las modas, las cámaras de los celulares toman fotos distintas.",
+      "ejemplo": "Salen modelos nuevos de tenis y los celulares toman fotos con otra luz: las fotos que llegan se parecen cada vez menos a las del entrenamiento, y el modelo acierta un poco menos cada mes. Una categoría nueva (como «bolsas» en el Dojo) es otra cosa: ahí el modelo ni siquiera tiene esa respuesta.",
+      "ver": [
+        "monitoreo",
+        "reentrenamiento"
+      ],
+      "leccion": "e12-monitoreo"
+    },
+    {
+      "id": "reentrenamiento",
+      "termino": "Reentrenamiento",
+      "en": "retraining",
+      "corto": "Volver a entrenar el modelo con datos nuevos para que se ponga al día con lo que está pasando.",
+      "largo": "Es lo que cierra el ciclo: el [[monitoreo]] detecta que el modelo se quedó atrás, se juntan y etiquetan datos nuevos, y se entrena una versión nueva que reemplaza a la anterior solo si es mejor.",
+      "ver": [
+        "drift",
+        "monitoreo",
+        "entrenamiento"
+      ],
+      "leccion": "e12-monitoreo"
+    },
+    {
+      "id": "latencia",
+      "termino": "Latencia",
+      "en": "latency",
+      "corto": "Cuánto tarda en llegar la respuesta desde que se hace la petición.",
+      "largo": "Se mide en [[ms|milisegundos]]. No basta con el promedio: importa sobre todo qué tan lentas son las respuestas más lentas, porque a esas personas la app se les traba.",
+      "ejemplo": "C01 se compromete a que 99 de cada 100 sugerencias tarden menos de 200 ms.",
+      "ver": [
+        "ms",
+        "request"
+      ],
+      "leccion": "latencia"
+    },
+    {
+      "id": "ms",
+      "termino": "Milisegundo (ms)",
+      "en": "millisecond",
+      "corto": "Una milésima de segundo. Un parpadeo dura entre 100 y 400 ms.",
+      "ver": [
+        "latencia"
+      ],
+      "leccion": "unidades"
+    }
+  ]
+}

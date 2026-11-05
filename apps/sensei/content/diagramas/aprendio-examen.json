@@ -1,0 +1,265 @@
+{
+  "titulo": "El examen de un modelo nuevo",
+  "width": 78,
+  "height": 62,
+  "lanes": [
+    {
+      "id": "entra",
+      "label": "Lo que entra",
+      "kind": "offline",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 16
+    },
+    {
+      "id": "mide",
+      "label": "Lo que se mide",
+      "kind": "neutral",
+      "x": 0,
+      "y": 18,
+      "w": 78,
+      "h": 27
+    },
+    {
+      "id": "decide",
+      "label": "La decisión",
+      "kind": "monitor",
+      "x": 0,
+      "y": 47,
+      "w": 78,
+      "h": 15
+    }
+  ],
+  "nodes": [
+    {
+      "id": "candidato",
+      "label": "Modelo nuevo",
+      "sub": "recién entrenado",
+      "kind": "model",
+      "x": 5,
+      "y": 5,
+      "w": 22,
+      "h": 9,
+      "note": "El modelo que acaba de salir del entrenamiento, con el [[checkpoint]] de su mejor época de validación. Todavía nadie lo usa: tiene que pasar el examen."
+    },
+    {
+      "id": "golden",
+      "label": "Golden set",
+      "sub": "50,000 fotos fijas",
+      "kind": "store",
+      "x": 51,
+      "y": 5,
+      "w": 22,
+      "h": 9,
+      "note": "Fotos revisadas a mano y congeladas: el mismo examen cada mes. Ninguna puede estar en el entrenamiento, o el examen mediría memoria ([[leakage]])."
+    },
+    {
+      "id": "predecir",
+      "label": "Predecir",
+      "sub": "una respuesta por foto",
+      "kind": "job",
+      "x": 29,
+      "y": 22,
+      "w": 20,
+      "h": 8,
+      "note": "El modelo nuevo responde las 50,000 fotos, y el modelo actual también. Así los dos se califican con exactamente las mismas preguntas."
+    },
+    {
+      "id": "topk",
+      "label": "Top-1 y top-5",
+      "sub": "¿cuánto acierta?",
+      "kind": "monitor",
+      "x": 2,
+      "y": 35,
+      "w": 21,
+      "h": 8,
+      "note": "La métrica principal de C01 es la [[top-k-accuracy|top-5]], porque la app muestra 5 sugerencias. El modelo actual saca ≈ 85 % de top-1 y ≈ 96 % de top-5."
+    },
+    {
+      "id": "clases",
+      "label": "Recall por clase",
+      "sub": "y macro-recall",
+      "kind": "monitor",
+      "x": 28.5,
+      "y": 35,
+      "w": 21,
+      "h": 8,
+      "note": "El [[recall]] de las 100 categorías que más publicaciones reciben no puede caerse, y el [[macro-promedio|macro-recall]] de las categorías chicas no puede empeorar, aunque la accuracy suba."
+    },
+    {
+      "id": "calib",
+      "label": "Calibración",
+      "sub": "ECE ≤ 0.05",
+      "kind": "monitor",
+      "x": 55,
+      "y": 35,
+      "w": 21,
+      "h": 8,
+      "note": "Que «90 %» quiera decir 90 %. En C01 el número ordena las sugerencias y podría decidir una preselección, así que tiene que significar algo. Ver [[calibracion]]."
+    },
+    {
+      "id": "actual",
+      "label": "Modelo actual",
+      "sub": "el que ya está",
+      "kind": "model",
+      "x": 56,
+      "y": 51,
+      "w": 20,
+      "h": 9,
+      "note": "El modelo que hoy está en [[produccion|producción]]. El nuevo no tiene que ser perfecto: tiene que no ser peor que este, en las mismas fotos."
+    },
+    {
+      "id": "gate",
+      "label": "¿Pasa?",
+      "sub": "todo o nada",
+      "kind": "job",
+      "x": 30,
+      "y": 51,
+      "w": 18,
+      "h": 9,
+      "note": "Las reglas se escriben **antes** de entrenar. Si falla una, el modelo nuevo no avanza. Si pasa todas, sigue a las pruebas con fotos reales de la gente: el examen offline no es la última palabra."
+    }
+  ],
+  "edges": [
+    {
+      "from": "candidato",
+      "to": "predecir",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "l"
+    },
+    {
+      "from": "golden",
+      "to": "predecir",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "r"
+    },
+    {
+      "from": "predecir",
+      "to": "topk",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "predecir",
+      "to": "clases",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "predecir",
+      "to": "calib",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "topk",
+      "to": "gate",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "l"
+    },
+    {
+      "from": "clases",
+      "to": "gate",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "calib",
+      "to": "gate",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "actual",
+      "to": "gate",
+      "kind": "monitor",
+      "dashed": true,
+      "fromSide": "l",
+      "toSide": "r",
+      "label": "comparar"
+    }
+  ],
+  "flows": [
+    {
+      "id": "examen",
+      "label": "Un examen completo",
+      "steps": [
+        {
+          "nodes": [
+            "candidato",
+            "golden"
+          ],
+          "edges": [],
+          "text": "**Entra** el modelo nuevo y el examen fijo: el golden set, 50,000 fotos que ningún modelo vio al entrenar."
+        },
+        {
+          "nodes": [
+            "candidato",
+            "golden",
+            "predecir"
+          ],
+          "edges": [
+            "candidato>predecir",
+            "golden>predecir"
+          ],
+          "text": "**Predecir.** El modelo nuevo responde cada foto. El actual también, para comparar en las mismas preguntas."
+        },
+        {
+          "nodes": [
+            "predecir",
+            "topk"
+          ],
+          "edges": [
+            "predecir>topk"
+          ],
+          "text": "**¿Cuánto acierta?** Top-1 y top-5. En C01 manda la top-5, porque la app muestra 5 sugerencias."
+        },
+        {
+          "nodes": [
+            "predecir",
+            "clases"
+          ],
+          "edges": [
+            "predecir>clases"
+          ],
+          "text": "**¿A quién le falla?** Recall de cada categoría y macro-recall: una accuracy que sube puede esconder 300 categorías chicas que empeoraron."
+        },
+        {
+          "nodes": [
+            "predecir",
+            "calib"
+          ],
+          "edges": [
+            "predecir>calib"
+          ],
+          "text": "**¿Su seguridad es honesta?** Calibración: cuando dice 90 %, ¿acierta 90 de cada 100?"
+        },
+        {
+          "nodes": [
+            "topk",
+            "clases",
+            "calib",
+            "actual",
+            "gate"
+          ],
+          "edges": [
+            "topk>gate",
+            "clases>gate",
+            "calib>gate",
+            "actual>gate"
+          ],
+          "text": "**¿Pasa?** Todo se compara contra el modelo actual con reglas escritas antes. Si falla una, no avanza; si pasa, sigue a la prueba con fotos reales de la gente."
+        }
+      ]
+    }
+  ]
+}

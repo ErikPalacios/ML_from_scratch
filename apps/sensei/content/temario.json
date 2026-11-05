@@ -1,0 +1,860 @@
+{
+ "nota": "Los módulos y sus lecciones, en el orden en que se leen. Una lección existe cuando está su archivo content/lecciones/<id>.md; mientras no, se muestra como «próximamente» con su fase. «ronda»: los módulos de la Ronda de Diseño (content/ronda.json) a los que prepara; la página /ronda/ lo junta. «estacion»: la estación de C01 que explica (enlace al Dojo). «etapas»: ids de etapas.json o \"todas\".",
+ "modulos": [
+  {
+   "id": "mapa",
+   "titulo": "El mapa",
+   "fase": 1,
+   "etapas": "todas",
+   "resumen": "El camino completo de un modelo, de principio a fin, para ubicar todo lo demás.",
+   "lecciones": [
+    {
+     "id": "camino-completo",
+     "titulo": "El camino completo",
+     "etapas": "todas",
+     "ronda": [
+      "m01"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "basico-ml",
+   "titulo": "Lo básico de ML",
+   "fase": 2,
+   "etapas": [
+    "datos",
+    "modelo"
+   ],
+   "resumen": "Qué es un modelo por dentro, cómo ve una foto, con qué aprende, cómo aprende, cómo saber si aprendió, y las tres familias que más vas a oír: redes convolucionales, embeddings y LLMs.",
+   "lecciones": [
+    {
+     "id": "modelo",
+     "titulo": "Qué es un modelo",
+     "etapas": [
+      "modelo"
+     ],
+     "ronda": [
+      "m01",
+      "m07"
+     ]
+    },
+    {
+     "id": "imagenes",
+     "titulo": "Una foto, vista por un modelo",
+     "etapas": [
+      "datos",
+      "modelo"
+     ],
+     "ronda": [
+      "m01",
+      "m07",
+      "m09"
+     ]
+    },
+    {
+     "id": "ejemplos",
+     "titulo": "Datos, ejemplos, features y etiquetas",
+     "etapas": [
+      "datos"
+     ],
+     "ronda": [
+      "m01",
+      "m09"
+     ]
+    },
+    {
+     "id": "aprender",
+     "titulo": "Cómo aprende un modelo",
+     "etapas": [
+      "modelo"
+     ],
+     "ronda": [
+      "m04",
+      "m10"
+     ]
+    },
+    {
+     "id": "aprendio",
+     "titulo": "¿Aprendió de verdad?",
+     "etapas": [
+      "modelo"
+     ],
+     "ronda": [
+      "m01",
+      "m10",
+      "m11"
+     ]
+    },
+    {
+     "id": "redes",
+     "titulo": "Redes neuronales y CNNs",
+     "etapas": [
+      "modelo"
+     ],
+     "ronda": [
+      "m04",
+      "m07",
+      "m08"
+     ]
+    },
+    {
+     "id": "embeddings",
+     "titulo": "Embeddings: el significado como coordenadas",
+     "etapas": [
+      "modelo"
+     ],
+     "ronda": [
+      "m02",
+      "m07",
+      "m09",
+      "m12"
+     ]
+    },
+    {
+     "id": "llms",
+     "titulo": "Transformers y LLMs",
+     "etapas": [
+      "modelo"
+     ],
+     "ronda": [
+      "m04",
+      "m07",
+      "m14"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "numeros",
+   "titulo": "Números y estadística para producción",
+   "fase": 3,
+   "etapas": [
+    "api",
+    "monitoreo"
+   ],
+   "resumen": "Las cuentas que aparecen en cada diseño: unidades, percentiles, probabilidad, ruido, pruebas A/B, cómo se comparan distribuciones y cómo guarda números una computadora.",
+   "lecciones": [
+    {
+     "id": "unidades",
+     "titulo": "Números grandes, unidades y estimaciones",
+     "etapas": "todas",
+     "ronda": [
+      "m01",
+      "m03",
+      "m04",
+      "m13"
+     ]
+    },
+    {
+     "id": "percentiles",
+     "titulo": "Promedios, medianas y percentiles",
+     "etapas": [
+      "api",
+      "monitoreo"
+     ],
+     "ronda": [
+      "m03",
+      "m12"
+     ]
+    },
+    {
+     "id": "probabilidad",
+     "titulo": "Probabilidad para sistemas que fallan",
+     "etapas": [
+      "orquestacion"
+     ],
+     "ronda": [
+      "m03",
+      "m15"
+     ]
+    },
+    {
+     "id": "ruido",
+     "titulo": "Ruido, muestras y pruebas A/B",
+     "etapas": [
+      "modelo",
+      "monitoreo"
+     ],
+     "ronda": [
+      "m10",
+      "m11"
+     ]
+    },
+    {
+     "id": "distribuciones",
+     "titulo": "Comparar distribuciones: cómo se mide el drift",
+     "etapas": [
+      "monitoreo"
+     ],
+     "ronda": [
+      "m12"
+     ]
+    },
+    {
+     "id": "numeros-maquina",
+     "titulo": "Cómo guarda números una computadora",
+     "etapas": [
+      "modelo"
+     ],
+     "ronda": [
+      "m04",
+      "m08"
+     ]
+    },
+    {
+     "id": "flops",
+     "titulo": "Matrices, FLOPs y qué tan rápido calcula una GPU",
+     "etapas": [
+      "modelo"
+     ],
+     "ronda": [
+      "m04",
+      "m08"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "computadora",
+   "titulo": "La computadora por dentro",
+   "fase": 4,
+   "etapas": [
+    "api",
+    "contenedor"
+   ],
+   "resumen": "Lo que pasa dentro de cada máquina: programas, procesos e hilos, memoria, CPU y GPU, el sistema operativo y cómo se hacen varias cosas a la vez.",
+   "lecciones": [
+    {
+     "id": "programa-proceso",
+     "titulo": "Programa, proceso e hilo",
+     "etapas": [
+      "api"
+     ],
+     "ronda": [
+      "m03",
+      "m06",
+      "m07"
+     ]
+    },
+    {
+     "id": "memoria",
+     "titulo": "Memoria, caché y disco",
+     "etapas": [
+      "modelo",
+      "api"
+     ],
+     "ronda": [
+      "m04",
+      "m05"
+     ]
+    },
+    {
+     "id": "cpu-gpu",
+     "titulo": "CPU y GPU",
+     "etapas": [
+      "modelo",
+      "api"
+     ],
+     "ronda": [
+      "m04",
+      "m06",
+      "m07",
+      "m08"
+     ]
+    },
+    {
+     "id": "sistema-operativo",
+     "titulo": "El sistema operativo: Linux, archivos y permisos",
+     "etapas": [
+      "contenedor"
+     ],
+     "ronda": [
+      "m05",
+      "m06",
+      "m15"
+     ]
+    },
+    {
+     "id": "async",
+     "titulo": "Hacer varias cosas a la vez: async, event loop y GIL",
+     "etapas": [
+      "api"
+     ],
+     "ronda": [
+      "m02",
+      "m03",
+      "m07"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "red",
+   "titulo": "La red y la web",
+   "fase": 5,
+   "etapas": [
+    "api",
+    "orquestacion"
+   ],
+   "resumen": "Cómo viaja un mensaje de una máquina a otra, qué es HTTP, cómo se diseña una API, quién reparte el tráfico y qué hacer cuando algo no responde.",
+   "lecciones": [
+    {
+     "id": "red",
+     "titulo": "Cómo viaja un mensaje: IP, puertos y DNS",
+     "etapas": [
+      "api",
+      "orquestacion"
+     ],
+     "ronda": [
+      "m02",
+      "m06",
+      "m13"
+     ]
+    },
+    {
+     "id": "http",
+     "titulo": "HTTP: requests, respuestas y códigos",
+     "etapas": [
+      "api"
+     ],
+     "ronda": [
+      "m02",
+      "m07",
+      "m15"
+     ]
+    },
+    {
+     "id": "apis",
+     "titulo": "APIs: REST, JSON, gRPC y streaming",
+     "etapas": [
+      "api"
+     ],
+     "ronda": [
+      "m02",
+      "m07",
+      "m14"
+     ]
+    },
+    {
+     "id": "balanceo",
+     "titulo": "Balanceadores, proxies y gateways",
+     "etapas": [
+      "api",
+      "orquestacion"
+     ],
+     "ronda": [
+      "m03",
+      "m06",
+      "m11"
+     ]
+    },
+    {
+     "id": "fallas-red",
+     "titulo": "Timeouts, reintentos e idempotencia",
+     "etapas": [
+      "api"
+     ],
+     "ronda": [
+      "m02",
+      "m03",
+      "m15"
+     ]
+    },
+    {
+     "id": "latencia",
+     "titulo": "Qué tan rápido y cuánto: latencia y throughput",
+     "etapas": [
+      "api",
+      "monitoreo"
+     ],
+     "ronda": [
+      "m03"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "datos-almacen",
+   "titulo": "Datos y almacenamiento",
+   "fase": 6,
+   "etapas": [
+    "datos"
+   ],
+   "resumen": "Dónde y cómo se guardan los datos: formatos de archivo, bases de datos, object storage, colas, y cómo se identifica y fecha cada cosa.",
+   "lecciones": [
+    {
+     "id": "formatos",
+     "titulo": "Archivos y formatos: JSON, CSV, Parquet y YAML",
+     "etapas": [
+      "datos"
+     ],
+     "ronda": [
+      "m01",
+      "m09",
+      "m12"
+     ]
+    },
+    {
+     "id": "bases-de-datos",
+     "titulo": "Bases de datos: tablas, SQL y llave-valor",
+     "etapas": [
+      "datos"
+     ],
+     "ronda": [
+      "m02",
+      "m09"
+     ]
+    },
+    {
+     "id": "almacenamiento",
+     "titulo": "Object storage, data lakes y warehouses",
+     "etapas": [
+      "datos"
+     ],
+     "ronda": [
+      "m09",
+      "m13"
+     ]
+    },
+    {
+     "id": "colas",
+     "titulo": "Colas y streams: mensajes que esperan",
+     "etapas": [
+      "datos",
+      "api"
+     ],
+     "ronda": [
+      "m02",
+      "m06",
+      "m12"
+     ]
+    },
+    {
+     "id": "tiempo-hash",
+     "titulo": "Tiempo, hashes e identificadores",
+     "etapas": [
+      "datos"
+     ],
+     "ronda": [
+      "m02",
+      "m09",
+      "m15"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "herramientas",
+   "titulo": "Herramientas del oficio",
+   "fase": 7,
+   "etapas": [
+    "modelo",
+    "contenedor"
+   ],
+   "resumen": "Lo que usa a diario quien lleva modelos a producción: la terminal, Python y sus paquetes, PyTorch, Git, las pruebas, CI/CD y la configuración.",
+   "lecciones": [
+    {
+     "id": "terminal",
+     "titulo": "La terminal y la shell",
+     "etapas": [
+      "contenedor"
+     ],
+     "ronda": [
+      "m05",
+      "m06"
+     ]
+    },
+    {
+     "id": "python-ecosistema",
+     "titulo": "Python, paquetes y entornos",
+     "etapas": [
+      "modelo",
+      "contenedor"
+     ],
+     "ronda": [
+      "m05",
+      "m07",
+      "m10"
+     ]
+    },
+    {
+     "id": "pytorch",
+     "titulo": "PyTorch en lo que toca a producción",
+     "etapas": [
+      "modelo"
+     ],
+     "ronda": [
+      "m07",
+      "m08",
+      "m15"
+     ]
+    },
+    {
+     "id": "git",
+     "titulo": "Git: versiones del código",
+     "etapas": [
+      "contenedor"
+     ],
+     "ronda": [
+      "m05",
+      "m09",
+      "m10"
+     ]
+    },
+    {
+     "id": "pruebas-ci",
+     "titulo": "Pruebas y CI/CD",
+     "etapas": [
+      "contenedor"
+     ],
+     "ronda": [
+      "m10",
+      "m11"
+     ]
+    },
+    {
+     "id": "config",
+     "titulo": "Configuración: YAML, variables de entorno y secretos",
+     "etapas": [
+      "contenedor",
+      "orquestacion"
+     ],
+     "ronda": [
+      "m05",
+      "m06",
+      "m15"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "nube",
+   "titulo": "La nube",
+   "fase": 8,
+   "etapas": [
+    "orquestacion"
+   ],
+   "resumen": "Qué es la nube, cómo se reparte en regiones y zonas, qué máquinas y GPUs rentas y cuánto cuestan, cómo es su red y qué te ofrece ya hecho.",
+   "lecciones": [
+    {
+     "id": "nube",
+     "titulo": "Qué es la nube",
+     "etapas": [
+      "orquestacion"
+     ],
+     "ronda": [
+      "m13"
+     ]
+    },
+    {
+     "id": "regiones",
+     "titulo": "Regiones, zonas y disponibilidad",
+     "etapas": [
+      "orquestacion"
+     ],
+     "ronda": [
+      "m06",
+      "m13",
+      "m15"
+     ]
+    },
+    {
+     "id": "maquinas",
+     "titulo": "Máquinas, GPUs y cómo se cobran",
+     "etapas": [
+      "modelo",
+      "orquestacion"
+     ],
+     "ronda": [
+      "m04",
+      "m13"
+     ]
+    },
+    {
+     "id": "redes-nube",
+     "titulo": "Redes en la nube: VPC, subredes y egress",
+     "etapas": [
+      "orquestacion"
+     ],
+     "ronda": [
+      "m13"
+     ]
+    },
+    {
+     "id": "gestionados",
+     "titulo": "Servicios gestionados, serverless y permisos",
+     "etapas": [
+      "orquestacion"
+     ],
+     "ronda": [
+      "m06",
+      "m13",
+      "m15"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "seguridad",
+   "titulo": "Seguridad",
+   "fase": 9,
+   "etapas": [
+    "api",
+    "orquestacion"
+   ],
+   "resumen": "Cifrado, llaves y certificados; quién eres y qué puedes hacer; datos personales y la ley; y los ataques que hay que conocer.",
+   "lecciones": [
+    {
+     "id": "cifrado",
+     "titulo": "Cifrado, llaves y certificados",
+     "etapas": [
+      "api"
+     ],
+     "ronda": [
+      "m15"
+     ]
+    },
+    {
+     "id": "identidad",
+     "titulo": "Autenticación y permisos",
+     "etapas": [
+      "api",
+      "orquestacion"
+     ],
+     "ronda": [
+      "m07",
+      "m15"
+     ]
+    },
+    {
+     "id": "privacidad",
+     "titulo": "Datos personales y la ley",
+     "etapas": [
+      "datos"
+     ],
+     "ronda": [
+      "m09",
+      "m15"
+     ]
+    },
+    {
+     "id": "ataques",
+     "titulo": "Ataques y cadena de suministro",
+     "etapas": [
+      "contenedor",
+      "modelo"
+     ],
+     "ronda": [
+      "m05",
+      "m15"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "datos",
+   "titulo": "Estaciones · Datos",
+   "fase": 10,
+   "etapas": [
+    "datos"
+   ],
+   "resumen": "De dónde salen los ejemplos con los que aprende el modelo y cómo se guardan para saber siempre con cuáles entrenaste.",
+   "lecciones": [
+    {
+     "id": "e01-datos",
+     "titulo": "Datos y etiquetas",
+     "etapas": [
+      "datos"
+     ],
+     "ronda": [
+      "m09"
+     ],
+     "estacion": 1
+    },
+    {
+     "id": "e02-versionado",
+     "titulo": "Versionado y linaje",
+     "etapas": [
+      "datos"
+     ],
+     "ronda": [
+      "m09",
+      "m10"
+     ],
+     "estacion": 2
+    }
+   ]
+  },
+  {
+   "id": "modelo-etapa",
+   "titulo": "Estaciones · Modelo",
+   "fase": 11,
+   "etapas": [
+    "modelo"
+   ],
+   "resumen": "Entrenar sin perder el rastro, decidir si el modelo nuevo es mejor y convertirlo a un formato rápido sin que cambie lo que responde.",
+   "lecciones": [
+    {
+     "id": "e03-entrenamiento",
+     "titulo": "Entrenamiento y experimentos",
+     "etapas": [
+      "modelo"
+     ],
+     "ronda": [
+      "m10"
+     ],
+     "estacion": 3
+    },
+    {
+     "id": "e04-gate",
+     "titulo": "Gate de evaluación y registry",
+     "etapas": [
+      "modelo"
+     ],
+     "ronda": [
+      "m10",
+      "m11"
+     ],
+     "estacion": 4
+    },
+    {
+     "id": "e05-export",
+     "titulo": "Export, engine y paridad",
+     "etapas": [
+      "modelo"
+     ],
+     "ronda": [
+      "m08"
+     ],
+     "estacion": 5
+    }
+   ]
+  },
+  {
+   "id": "api-etapa",
+   "titulo": "Estaciones · API",
+   "fase": 12,
+   "etapas": [
+    "api"
+   ],
+   "resumen": "El programa que carga el modelo y responde por la red, rápido y sin caerse.",
+   "lecciones": [
+    {
+     "id": "e06-serving",
+     "titulo": "Código de serving",
+     "etapas": [
+      "api"
+     ],
+     "ronda": [
+      "m03",
+      "m07"
+     ],
+     "estacion": 6
+    }
+   ]
+  },
+  {
+   "id": "contenedor-etapa",
+   "titulo": "Estaciones · Contenedor",
+   "fase": 13,
+   "etapas": [
+    "contenedor"
+   ],
+   "resumen": "Empacar el programa para que corra igual en cualquier máquina, y armarlo y probarlo solo en cada cambio.",
+   "lecciones": [
+    {
+     "id": "e07-empaquetado",
+     "titulo": "Empaquetado con Docker",
+     "etapas": [
+      "contenedor"
+     ],
+     "ronda": [
+      "m05"
+     ],
+     "estacion": 7
+    },
+    {
+     "id": "e08-cicd",
+     "titulo": "CI/CD y registro de imágenes",
+     "etapas": [
+      "contenedor"
+     ],
+     "ronda": [
+      "m05",
+      "m10"
+     ],
+     "estacion": 8
+    }
+   ]
+  },
+  {
+   "id": "orquestacion-etapa",
+   "titulo": "Estaciones · Orquestación",
+   "fase": 14,
+   "etapas": [
+    "orquestacion"
+   ],
+   "resumen": "Muchas copias en muchas máquinas, que se reparten el trabajo, se reemplazan solas y cambian de versión sin apagar nada.",
+   "lecciones": [
+    {
+     "id": "e09-kubernetes",
+     "titulo": "Kubernetes",
+     "etapas": [
+      "orquestacion"
+     ],
+     "ronda": [
+      "m06"
+     ],
+     "estacion": 9
+    },
+    {
+     "id": "e10-rollout",
+     "titulo": "Rollout seguro",
+     "etapas": [
+      "orquestacion"
+     ],
+     "ronda": [
+      "m11"
+     ],
+     "estacion": 10
+    }
+   ]
+  },
+  {
+   "id": "monitoreo-etapa",
+   "titulo": "Estaciones · Monitoreo",
+   "fase": 15,
+   "etapas": [
+    "monitoreo"
+   ],
+   "resumen": "Medir cada respuesta, notar cuándo el modelo se queda atrás y cerrar el ciclo con el reentrenamiento.",
+   "lecciones": [
+    {
+     "id": "e11-request",
+     "titulo": "La request en vivo",
+     "etapas": [
+      "api",
+      "monitoreo"
+     ],
+     "ronda": [
+      "m03",
+      "m12"
+     ],
+     "estacion": 11
+    },
+    {
+     "id": "e12-monitoreo",
+     "titulo": "Monitoreo, drift y reentrenamiento",
+     "etapas": [
+      "monitoreo"
+     ],
+     "ronda": [
+      "m12"
+     ],
+     "estacion": 12
+    }
+   ]
+  }
+ ]
+}

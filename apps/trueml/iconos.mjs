@@ -22,7 +22,7 @@ const NAVY = '#0E1530';
 const APPS = [
   ['portada/src', null],
   ['taller-ai/site', null],
-  ['cimientos/site', null],
+  ['sensei/site', null],
   ['ml-system-design/web', null],
   ['tablero-ml/web', null],
   ['atlas-arquitecturas/web', ['modelo']],
