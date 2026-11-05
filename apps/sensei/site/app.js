@@ -126,6 +126,54 @@
     else window.addEventListener('load', dibujarDiagramas);
   }
 
+  // ------------------------------------------------------------ calculadoras (tools/calculadora.mjs las dibuja con sus valores iniciales)
+  var MATH = ['exp', 'log', 'log2', 'log10', 'sqrt', 'pow', 'min', 'max', 'abs', 'round', 'floor', 'ceil', 'sin', 'cos', 'PI', 'E'];
+  function fijo(n, d) { return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+  function auto(n) { return Math.abs(n) >= 100 ? 0 : Math.abs(n) >= 10 ? 1 : 2; }
+  function formatear(x, f, dec) {
+    if (typeof x !== 'number' || !isFinite(x)) return '—';
+    var d = (dec === undefined || dec === null) ? null : dec;
+    if (f === 'int') return fijo(Math.round(x), 0);
+    if (f === 'pct') return fijo(x * 100, d === null ? 1 : d) + ' %';
+    if (f === 'sci') { if (x === 0) return '0'; var e = Math.floor(Math.log10(Math.abs(x))); return fijo(x / Math.pow(10, e), d === null ? 2 : d) + ' × 10^' + e; }
+    if (f === 'bytes') { var u = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'], k = 0, n = x; while (Math.abs(n) >= 1000 && k < u.length - 1) { n /= 1000; k++; } return fijo(n, d === null ? auto(n) : d) + ' ' + u[k]; }
+    if (f === 'ms') return Math.abs(x) >= 1000 ? fijo(x / 1000, d === null ? 2 : d) + ' s' : fijo(x, d === null ? auto(x) : d) + ' ms';
+    if (f === 'x') return fijo(x, d === null ? auto(x) : d) + '×';
+    return fijo(x, d === null ? auto(x) : d);
+  }
+  function compilar(formula, nombres) {
+    try { return new Function(nombres.join(','), 'var ' + MATH.map(function (m) { return m + '=Math.' + m; }).join(',') + '; return (' + formula + ');'); }
+    catch (e) { return function () { return NaN; }; }
+  }
+  $$('.cx-calc[data-calc]').forEach(function (fig) {
+    var spec; try { spec = JSON.parse(fig.getAttribute('data-calc')); } catch (e) { return; }
+    var ins = $$('input[data-id]', fig);
+    function recalcular() {
+      var v = {};
+      ins.forEach(function (i) {
+        var id = i.getAttribute('data-id'), x = parseFloat(i.value);
+        v[id] = isFinite(x) ? x : 0;
+        var o = fig.querySelector('[data-out="' + id + '"]');
+        var e = spec.entradas.filter(function (q) { return q.id === id; })[0] || {};
+        var paso = String(i.step || ''), dec = paso.indexOf('.') >= 0 ? paso.split('.')[1].length : 0;
+        if (o) o.textContent = formatear(v[id], 'num', dec) + (e.unidad ? ' ' + e.unidad : '');
+      });
+      spec.calculos.forEach(function (c) { var ks = Object.keys(v); v[c.id] = compilar(c.formula, ks).apply(null, ks.map(function (k) { return v[k]; })); });
+      var ks = Object.keys(v), vals = ks.map(function (k) { return v[k]; });
+      var ys = spec.salidas.map(function (s) { try { return compilar(s.formula, ks).apply(null, vals); } catch (e) { return NaN; } });
+      var maxB = 1e-12;
+      spec.salidas.forEach(function (s, k) { if (s.barra && s.formato !== 'pct' && isFinite(ys[k])) maxB = Math.max(maxB, Math.abs(ys[k])); });
+      spec.salidas.forEach(function (s, k) {
+        var el = fig.querySelector('[data-salida="' + k + '"]');
+        if (el) el.textContent = formatear(ys[k], s.formato, s.decimales);
+        var b = fig.querySelector('[data-barra="' + k + '"]');
+        if (b) { var w = s.formato === 'pct' ? ys[k] : Math.abs(ys[k]) / maxB; b.style.width = (Math.max(0, Math.min(1, isFinite(w) ? w : 0)) * 100).toFixed(1) + '%'; }
+      });
+    }
+    ins.forEach(function (i) { i.addEventListener('input', recalcular); });
+    fig.classList.add('is-viva');
+  });
+
   // ------------------------------------------------------------ el globo
   var datosEl = document.getElementById('g-datos'), DATOS = {};
   try { DATOS = datosEl ? JSON.parse(datosEl.textContent) : {}; } catch (e) { DATOS = {}; }

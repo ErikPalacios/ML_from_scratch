@@ -4,17 +4,21 @@ El nombre se cambia en un solo lugar: `apps/sensei/content/sitio.json`. Antes se
 
 ## 1. Qué es y para qué
 
-Sensei es la teoría desde cero de cada paso para llevar un modelo de AI o ML a producción. Lo explica como a alguien que apenas entra a la universidad, pero todo enfocado en AI y ML.
+Sensei es **el curso de teoría de TrueML** y, junto con el Dojo, su app principal. Enseña ML engineering desde cero: cada paso para llevar un modelo de AI o ML a producción, explicado como a alguien que apenas entra a la universidad, pero con la profundidad de un curso universitario introductorio bien hecho.
 
-**La meta:** que después de Sensei se pueda leer la **Ronda de Diseño ML** completa sin atorarse.
+**La meta principal es aprender de verdad:** entender cada concepto lo suficiente para razonar con él, calcularlo y explicarlo. Lo demás es consecuencia de aprenderlo bien:
 
-La Ronda da por sabidos unos 300 conceptos. Un inventario de sus 15 módulos y del caso C01 los agrupó en nueve temas: lo básico de ML, matemáticas y estadística, la computadora por dentro, redes y web, datos y almacenamiento, herramientas, nube, seguridad y unidades. Sensei los cubre todos, y cada lección dice para qué módulos de la Ronda prepara.
+- Leer la **Ronda de Diseño ML** completa sin atorarse. Un inventario de sus 15 módulos encontró unos 300 conceptos que da por sabidos, y el temario los cubre todos. Cada lección dice para qué módulos de la Ronda prepara.
+- Practicar en el **Dojo** sabiendo qué se hace y por qué.
+- Llegar a una entrevista con bases sólidas.
 
 | Herramienta | Para qué sirve |
 |---|---|
-| Sensei | Entender cada paso desde cero: qué es, por qué existe y cómo se conecta con lo demás. |
+| Sensei | Entender cada paso desde cero: qué es, por qué existe, cómo se calcula y cómo se conecta con lo demás. |
 | Dojo | Construir, rehacer y romper un mini-proyecto de cada paso. |
 | Ronda de Diseño | Defender el diseño completo en una entrevista. |
+
+**Por qué se subió el estándar (2026-11-04).** La primera versión de la fase 2 dejaba cada lección en introducción: ≈ 4,300 palabras, 1 diagrama, sin calculadoras ni ejercicios. Un módulo de la Ronda trae ≈ 14,000 palabras, ≈ 7 calculadoras, ≈ 18 tablas y ≈ 31 recuadros. El estándar nuevo de una lección es de 7,000 a 10,000 palabras, en dos pasadas (lo esencial y lo extra). Trae al menos 2 diagramas, 3 figuras, 2 calculadoras interactivas, 3 cuentas paso a paso, código con su salida real, errores comunes, el concepto en otros casos además de C01, y de 8 a 12 ejercicios con solución. Está en [apps/sensei/GUIA-CONTENIDO.md](../apps/sensei/GUIA-CONTENIDO.md), sección 3.
 
 ## 2. Las reglas del contenido
 
@@ -42,12 +46,12 @@ Las reglas completas, los formatos y la lista de revisión están en [apps/sense
 
 ## 4. Las fases
 
-Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
+La fase 2 se escribió con el estándar viejo y se profundiza junto con la fase 3. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
 
 | Fase | Módulo | Lecciones | Prepara para la Ronda |
 |---|---|---|---|
 | 1 ✓ | El mapa | El camino completo | M01 |
-| 2 | Lo básico de ML | Qué es un modelo · Una foto, vista por un modelo · Datos, ejemplos, features y etiquetas · Cómo aprende un modelo · ¿Aprendió de verdad? · Redes neuronales y CNNs · Embeddings · Transformers y LLMs | M01, M04, M07–M12, M14 |
+| 2 ✓ (a profundizar) | Lo básico de ML | Qué es un modelo · Una foto, vista por un modelo · Datos, ejemplos, features y etiquetas · Cómo aprende un modelo · ¿Aprendió de verdad? · Redes neuronales y CNNs · Embeddings · Transformers y LLMs | M01, M04, M07–M12, M14 |
 | 3 | Números y estadística para producción | Unidades y estimaciones · Percentiles · Probabilidad para sistemas que fallan · Ruido, muestras y pruebas A/B · Comparar distribuciones · Cómo guarda números una computadora · Matrices y FLOPs | M01, M03, M04, M08, M10–M13, M15 |
 | 4 | La computadora por dentro | Programa, proceso e hilo · Memoria, caché y disco · CPU y GPU · El sistema operativo · async, event loop y GIL | M02–M08, M15 |
 | 5 | La red y la web | IP, puertos y DNS · HTTP · APIs: REST, JSON, gRPC y streaming · Balanceadores y gateways · Timeouts, reintentos e idempotencia · Latencia y throughput | M02, M03, M06, M07, M11, M13–M15 |

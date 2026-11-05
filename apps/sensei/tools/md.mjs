@@ -3,14 +3,25 @@
 // En línea:  **negritas** · *itálicas* · `código` · [texto](url) · [[id]] o [[id|texto]] (una palabra del glosario)
 // Bloques:   ## y ### · párrafos · listas (- y 1.) · tablas (| … |) · ```código``` · > cita
 // Propios:   :::idea · :::analogia [título] · :::ojo · :::nota [etiqueta] · :::ejemplo [título] · :::profundo título · :::diagrama id
-//            :::figura id · :::conceptos · :::chequeo · :::pasos  (cada uno se cierra con ::: solo en su línea)
+//            :::figura id · :::calculadora id · :::cuenta título · :::conceptos · :::chequeo · :::ejercicios · :::pasos
+//            (cada uno se cierra con ::: solo en su línea)
+// Secciones: «## Título {English title}» abre una sección numerada; «## Título {English} [extra]» la marca como extra
+//            (para una segunda pasada). Sin marca, la sección es esencial.
+// Código:    ```python … ``` y, justo después, ```salida … ``` con lo que imprime de verdad.
 //
-// crear({ glosario, diagrama, figura }) devuelve render(texto) → { html, secciones, terminos, conceptos }.
+// crear({ glosario, diagrama, figura, calculadora }) devuelve render(texto) → { html, secciones, terminos, conceptos, cuenta }.
+// secciones: [{ id, t, extra, palabras }]; cuenta: cuántos diagramas, figuras, calculadoras, cuentas y ejercicios trae.
 
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 export const slug = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-export function crear({ glosario, diagrama, figura, contexto = '' }) {
+// Palabras que se leen de verdad en un pedazo de Markdown (sin marcas, ids ni bloques de código).
+export function palabras(md) {
+  return md.replace(/```[\s\S]*?```/g, ' ').replace(/\[\[([a-z0-9-]+)(?:\|([^\]]+))?\]\]/g, (_, id, t) => t || id)
+    .replace(/^:::.*$/gm, ' ').replace(/[#*`|>{}\[\]]/g, ' ').split(/\s+/).filter((w) => /[a-záéíóúñü0-9]/i.test(w)).length;
+}
+
+export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }) {
   const fallar = (msg) => { throw new Error(`${contexto}: ${msg}`); };
 
   // ------------------------------------------------------------ en línea
@@ -42,6 +53,8 @@ export function crear({ glosario, diagrama, figura, contexto = '' }) {
     };
     for (let i = 0; i < lineas.length; i++) {
       const l = lineas[i];
+      // las palabras de cada línea del nivel de arriba se suman a su sección (las de antes de la primera, a la intro)
+      if (arriba && !/^##\s/.test(l)) { const s0 = estado.secciones[estado.secciones.length - 1]; if (s0) s0.palabras += palabras(l); else estado.intro += palabras(l); }
       if (!l.trim()) { cerrarParrafo(); continue; }
 
       let m = l.match(/^:::([a-z]+)\s*(.*)$/);
@@ -56,6 +69,7 @@ export function crear({ glosario, diagrama, figura, contexto = '' }) {
           dentro.push(lineas[i]);
         }
         if (prof !== 0) fallar(`el bloque :::${tipo} no se cierra`);
+        if (arriba) { const s0 = estado.secciones[estado.secciones.length - 1], n = palabras(dentro.join('\n')); if (s0) s0.palabras += n; else estado.intro += n; }
         out.push(propio(tipo, arg.trim(), dentro.join('\n'), estado));
         continue;
       }
@@ -63,19 +77,20 @@ export function crear({ glosario, diagrama, figura, contexto = '' }) {
         cerrarParrafo();
         const lang = l.slice(3).trim(), code = [];
         for (i++; i < lineas.length && !lineas[i].startsWith('```'); i++) code.push(lineas[i]);
-        out.push(`<div class="c-code"${lang ? ` data-lang="${esc(lang)}"` : ''}><pre><code>${esc(code.join('\n'))}</code></pre></div>`);
+        if (lang === 'salida') out.push(`<div class="c-salida"><span class="c-salida-h">Salida</span><pre><code>${esc(code.join('\n'))}</code></pre></div>`);
+        else out.push(`<div class="c-code"${lang ? ` data-lang="${esc(lang)}"` : ''}>${lang ? `<span class="c-code-h">${esc(lang)}</span>` : ''}<pre><code>${esc(code.join('\n'))}</code></pre></div>`);
         continue;
       }
-      m = l.match(/^(#{2,3})\s+(.+?)(?:\s+\{([^}]+)\})?\s*$/);
+      m = l.match(/^(#{2,3})\s+(.+?)(?:\s+\{([^}]+)\})?(?:\s+\[(extra|esencial)\])?\s*$/);
       if (m) {
         cerrarParrafo();
-        const nivel = m[1].length, t = m[2].trim(), en = m[3], id = slug(t);
+        const nivel = m[1].length, t = m[2].trim(), en = m[3], extra = m[4] === 'extra', id = slug(t);
         if (nivel === 2 && arriba) {
           // en el nivel de arriba, cada ## abre una sección numerada (como en la Ronda) con su subtítulo en inglés
           if (abierta) out.push('</div></section>');
-          estado.secciones.push([id, t.replace(/[*`]/g, '')]);
+          estado.secciones.push({ id, t: t.replace(/[*`]/g, ''), extra, palabras: 0 });
           const n = String(estado.secciones.length).padStart(2, '0');
-          out.push(`<section class="sec" id="${id}"><div class="sec__head"><span class="sec__num">${n}</span><h2 class="sec__title">${inline(t, estado.terminos)}</h2>${en ? `<p class="sec__en">${esc(en)}</p>` : ''}</div><div class="sec__body">`);
+          out.push(`<section class="sec${extra ? ' sec--extra' : ''}" id="${id}"><div class="sec__head"><span class="sec__num">${n}</span><h2 class="sec__title">${inline(t, estado.terminos)}</h2><span class="prio prio--${extra ? 'extra' : 'core'}" title="${extra ? 'Para una segunda pasada: la lección se entiende sin ella' : 'Lo esencial de la lección'}">${extra ? 'Extra' : 'Esencial'}</span>${en ? `<p class="sec__en">${esc(en)}</p>` : ''}</div><div class="sec__body">`);
           abierta = true;
         } else {
           out.push(`<h${nivel} class="b-h${nivel}" id="${id}">${inline(t, estado.terminos)}</h${nivel}>${en ? `<p class="sec__en">${esc(en)}</p>` : ''}`);
@@ -153,13 +168,56 @@ export function crear({ glosario, diagrama, figura, contexto = '' }) {
         }
         return `<ol class="c-pasos">${pasos.map((p, k) => `<li><span class="c-pasos-n">${k + 1}</span><div><h4>${inline(p.t, estado.terminos)}</h4>${bloques(p.txt.join('\n'), estado)}</div></li>`).join('')}</ol>`;
       }
+      case 'cuenta': {
+        // filas «etiqueta | expresión | valor» (la etiqueta puede llevar « // nota»); «= texto» es el resultado
+        if (!arg) fallar(':::cuenta necesita un título');
+        const filas = [], res = [];
+        for (const l of dentro.split('\n')) {
+          if (!l.trim()) continue;
+          if (l.startsWith('= ')) { res.push(l.slice(2)); continue; }
+          const c = l.split(/(?<!\\)\|/).map((x) => x.replace(/\\\|/g, '|').trim());
+          if (c.length !== 3) fallar(`:::cuenta «${arg}»: cada fila es «etiqueta | expresión | valor» (vino: ${l})`);
+          const [et, nota] = c[0].split(' // ');
+          filas.push({ et, nota, ex: c[1], v: c[2] });
+        }
+        if (!filas.length) fallar(`:::cuenta «${arg}» sin filas`);
+        estado.cuenta.cuentas++;
+        const I = (x) => inline(x, estado.terminos);
+        return `<figure class="calc"><figcaption class="calc__head"><span class="calc__icon" aria-hidden="true">≈</span><span class="calc__title">${I(arg)}</span><span class="calc__tag">La cuenta</span></figcaption><div class="calc__rows">${filas.map((f) =>
+          `<div class="calc__row"><div class="calc__label">${I(f.et)}${f.nota ? `<span class="calc__note">${I(f.nota)}</span>` : ''}</div><div class="calc__expr">${I(f.ex)}</div><div class="calc__value"><span class="calc__eq" aria-hidden="true">=</span>${I(f.v)}</div></div>`).join('')}</div>${
+          res.length ? `<div class="calc__result"><span class="calc__result-k">Resultado</span><div class="calc__result-v">${I(res.join(' '))}</div></div>` : ''}</figure>`;
+      }
+      case 'calculadora': {
+        if (!arg) fallar(':::calculadora necesita el id');
+        if (!calculadora) fallar(':::calculadora no está disponible aquí');
+        estado.cuenta.calculadoras++;
+        const pie = dentro.trim() ? inline(dentro.trim().replace(/\n/g, ' '), estado.terminos) : '';
+        return calculadora(arg, pie, (s) => inline(s, estado.terminos));
+      }
+      case 'ejercicios': {
+        // «? [facil|medio|reto] pregunta» abre un ejercicio; las líneas siguientes son su solución paso a paso
+        const qs = [];
+        for (const l of dentro.split('\n')) {
+          const m2 = l.match(/^\? \[(facil|medio|reto)\]\s+(.+)$/);
+          if (m2) qs.push({ nivel: m2[1], q: m2[2].trim(), a: [] });
+          else if (l.startsWith('? ')) fallar(':::ejercicios: cada pregunta lleva su nivel, «? [facil] …», «? [medio] …» o «? [reto] …»');
+          else if (qs.length) qs[qs.length - 1].a.push(l);
+          else if (l.trim()) fallar(':::ejercicios empieza con «? [nivel] pregunta»');
+        }
+        if (!qs.length) fallar(':::ejercicios sin preguntas');
+        estado.cuenta.ejercicios += qs.length;
+        const NIV = { facil: 'Fácil', medio: 'Medio', reto: 'Reto' };
+        return `<ol class="c-ejercicios">${qs.map((x, k) => `<li class="c-ej c-ej--${x.nivel}"><div class="c-ej-q"><span class="c-num">${k + 1}</span><span class="c-niv">${NIV[x.nivel]}</span><div class="c-q">${bloques(x.q, estado)}</div></div><details class="c-ej-sol"><summary>Ver la solución paso a paso</summary><div class="c-a">${bloques(x.a.join('\n'), estado)}</div></details></li>`).join('')}</ol>`;
+      }
       case 'diagrama': {
         if (!arg) fallar(':::diagrama necesita el id');
+        estado.cuenta.diagramas++;
         const pie = dentro.trim() ? inline(dentro.trim().replace(/\n/g, ' '), estado.terminos) : '';
         return diagrama(arg, pie, (s) => inline(s, estado.terminos));
       }
       case 'figura': {
         if (!arg) fallar(':::figura necesita el id');
+        estado.cuenta.figuras++;
         const pie = dentro.trim() ? inline(dentro.trim().replace(/\n/g, ' '), estado.terminos) : '';
         return `<figure class="c-figura" id="fig-${arg}">${figura(arg)}${pie ? `<figcaption>${pie}</figcaption>` : ''}</figure>`;
       }
@@ -198,7 +256,7 @@ export function crear({ glosario, diagrama, figura, contexto = '' }) {
   return {
     inline: (s, usados = new Set()) => inline(s, usados),
     render(texto) {
-      const estado = { secciones: [], terminos: new Set(), conceptos: [] };
+      const estado = { secciones: [], terminos: new Set(), conceptos: [], intro: 0, cuenta: { diagramas: 0, figuras: 0, calculadoras: 0, cuentas: 0, ejercicios: 0 } };
       const html = bloques(texto, estado, true);
       return { html, ...estado };
     },

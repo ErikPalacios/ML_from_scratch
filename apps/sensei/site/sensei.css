@@ -453,3 +453,78 @@ a.tl:hover { box-shadow: 0 0 0 2px var(--accent); }
 .rmod__h a b { font: 700 13px var(--mono); color: var(--accent-ink); margin-right: 6px; }
 .rmod__cob { font: 600 12px/1 var(--mono); color: var(--muted); white-space: nowrap; }
 .rmod .strip i { height: 6px; }
+
+/* ================================================================ secciones esenciales y extra (como la prioridad de la Ronda) */
+.prio { align-self: center; display: inline-flex; align-items: center; min-height: 22px; padding: 2px 8px; border-radius: 999px; font: 700 10.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.prio--core { background: var(--accent-soft); color: var(--accent-ink); }
+.prio--extra { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--rule-strong); }
+.sec--extra .sec__num { color: var(--muted); }
+.toc__link small { font: 600 10px/1 var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-left: 4px; }
+
+/* ================================================================ la cuenta (como el bloque calc de la Ronda) y las calculadoras */
+.calc, .cx-calc { margin: 24px 0 !important; border-radius: 16px; background: var(--blk); box-shadow: inset 0 3px 0 var(--y); overflow: hidden; }
+.calc__head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; box-shadow: inset 0 -1px 0 var(--rule); }
+.calc__icon { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 7px; background: var(--yt); color: var(--navy); font: 800 14px/1 var(--sans); flex: none; }
+.calc__title { flex: 1; min-width: 0; font: 700 15px/1.35 var(--sans); color: var(--ink); }
+.calc__tag { font: 700 10.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--tm-dojo); }
+.calc__rows { display: flex; flex-direction: column; }
+.calc__row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.5fr) minmax(0, .9fr); gap: 4px 14px; align-items: baseline; padding: 10px 16px; box-shadow: inset 0 -1px 0 var(--rule); }
+.calc__label { display: flex; flex-direction: column; gap: 2px; font: 600 14.5px/1.4 var(--sans); color: var(--ink); min-width: 0; }
+.calc__note { font: 500 12.5px/1.4 var(--sans); color: var(--muted); }
+.calc__expr { font: 400 13px/1.5 var(--mono); color: var(--ink-2); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.calc__value { text-align: right; font: 700 14.5px/1.5 var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.calc__eq { color: var(--muted); margin-right: .4em; font-weight: 400; }
+.calc__result { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; align-items: baseline; padding: 12px 16px; background: color-mix(in srgb, var(--y) 14%, transparent); }
+.calc__result-k { font: 700 10.5px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--tm-dojo); }
+.calc__result-v { font: 600 15px/1.55 var(--sans); color: var(--ink); }
+@media (max-width: 560px) {
+  .calc__row { grid-template-columns: minmax(0, 1fr) auto; }
+  .calc__expr { grid-column: 1 / -1; grid-row: 2; }
+  .calc__result { grid-template-columns: minmax(0, 1fr); }
+}
+.cx-calc { box-shadow: inset 0 3px 0 var(--b); }
+.cx-calc .calc__icon { background: var(--b); color: #fff; }
+.cx-calc .calc__tag { color: var(--accent-ink); }
+.cx-intro, .cx-nota, .cx-pie { margin: 0; padding: 12px 16px 0; font: 14.5px/1.55 var(--sans); color: var(--ink-2); }
+.cx-nota { padding-bottom: 14px; color: var(--muted); }
+.cx-pie { padding-bottom: 14px; font-size: 13.5px; color: var(--muted); }
+.cx-ins { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px 18px; padding: 14px 16px 6px; }
+.cx-in { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; }
+.cx-in__l { grid-column: 1; font: 600 13.5px/1.35 var(--sans); color: var(--ink); }
+.cx-in__v { grid-column: 2; grid-row: 1; font: 700 13.5px/1 var(--mono); color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+.cx-in input { grid-column: 1 / -1; width: 100%; accent-color: var(--b); }
+.cx-in input[type="number"] { font: 15px/1.2 var(--mono); padding: 8px 10px; border-radius: 10px; border: 0; background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1px var(--rule); }
+.cx-outs { display: flex; flex-direction: column; gap: 0; margin: 8px 16px 4px; border-radius: 12px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--rule); }
+.cx-out { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; padding: 10px 14px; box-shadow: inset 0 -1px 0 var(--rule); }
+.cx-out:last-child { box-shadow: none; }
+.cx-out__l { display: flex; flex-direction: column; gap: 2px; font: 600 14px/1.4 var(--sans); color: var(--ink-2); }
+.cx-out__l small { font: 500 12px/1.4 var(--sans); color: var(--muted); }
+.cx-out__v { font: 800 16px/1.2 var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
+.cx-bar { grid-column: 1 / -1; height: 8px; border-radius: 999px; background: var(--tm-off); overflow: hidden; }
+.cx-bar i { display: block; height: 100%; border-radius: 999px; background: var(--b); transition: width .15s ease; }
+@media (prefers-reduced-motion: reduce) { .cx-bar i { transition: none; } }
+
+/* ================================================================ ejercicios (práctica con solución paso a paso) */
+.c-ejercicios { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.c-ej { border-radius: 16px; box-shadow: inset 0 0 0 1px var(--rule); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.c-ej-q { display: grid; grid-template-columns: 30px auto minmax(0, 1fr); gap: 4px 10px; align-items: start; }
+.c-ej-q .c-q { grid-column: 3; }
+.c-ej-q .c-q p { font: 600 16px/1.5 var(--sans); color: var(--ink); }
+.c-ej-q .c-q > * + * { margin-top: 8px; }
+.c-niv { margin-top: 5px; font: 700 10.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 5px 8px; border-radius: 999px; white-space: nowrap; }
+.c-ej--facil .c-niv { background: color-mix(in srgb, var(--g) 18%, transparent); color: var(--tm-okink); }
+.c-ej--medio .c-niv { background: color-mix(in srgb, var(--y) 20%, transparent); color: var(--tm-dojo); }
+.c-ej--reto .c-niv { background: color-mix(in srgb, var(--o) 18%, transparent); color: var(--bad); }
+.c-ej-sol > summary { display: inline-flex; font: 700 13px/1 var(--sans); color: var(--accent-ink); padding: 8px 12px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--rule); margin-left: 40px; }
+.c-ej-sol[open] > summary { background: var(--accent-soft); }
+.c-ej-sol .c-a { padding: 12px 0 0 40px; }
+@media (max-width: 480px) { .c-ej-q { grid-template-columns: 30px minmax(0, 1fr); } .c-ej-q .c-q { grid-column: 1 / -1; } .c-ej-sol > summary, .c-ej-sol .c-a { margin-left: 0; padding-left: 0; } }
+
+/* ================================================================ código y su salida real */
+.c-code { position: relative; }
+.c-code-h { display: block; padding: 8px 16px 0; font: 600 11.5px/1.2 var(--mono); color: var(--tm-codeink2); }
+.c-code-h + pre { padding-top: 6px; }
+.c-salida { margin-top: -10px !important; border-radius: 0 0 14px 14px; background: color-mix(in srgb, var(--tm-code) 82%, var(--g)); overflow: hidden; }
+.c-salida-h { display: block; padding: 8px 16px 0; font: 700 10.5px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: #9BE7CC; }
+.c-salida pre { margin: 0; padding: 6px 16px 14px; color: var(--tm-codeink); font: 13px/1.6 var(--mono); overflow-x: auto; }
+.c-salida pre code { background: none; padding: 0; font: inherit; overflow-wrap: normal; }

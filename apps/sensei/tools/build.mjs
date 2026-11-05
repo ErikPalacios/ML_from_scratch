@@ -11,19 +11,27 @@
 // y, en las lecciones, «En esta página» a la derecha.
 //
 // Revisa al construir: que cada [[id]] exista en el glosario, que cada concepto se presente en una sola lección, que
-// los diagramas y figuras existan y estén bien, y cuenta las palabras que una lección usa antes de que alguna las
-// presente («adelantos»: salen en su globo con su definición, pero conviene que sean pocas).
+// los diagramas, figuras y calculadoras existan y estén bien, y cuenta las palabras que una lección usa antes de que
+// alguna las presente («adelantos»: salen en su globo con su definición, pero conviene que sean pocas).
+//
+//   node tools/build.mjs                 todo el sitio en dist/
+//   node tools/build.mjs --solo <id>     solo esa lección, en .solo/<id>/ (para escribir varias lecciones en paralelo):
+//                                        tolera glosarios ajenos a medias y acepta los [[id]] que estén planeados en
+//                                        content/conceptos-plan.json aunque todavía no existan.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, existsSync, copyFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { crear, esc } from './md.mjs';
 import { validar as validarDiagrama, montar } from './diagrama.mjs';
+import { validar as validarCalc, dibujar as dibujarCalc } from './calculadora.mjs';
 import { marca, miniT, etapas as etapasDe } from '../vendor/trueml/lib.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const C = join(ROOT, 'content');
-const OUT = join(ROOT, 'dist');
+const SOLO = process.argv.includes('--solo') ? process.argv[process.argv.indexOf('--solo') + 1] : null;
+const OUT = SOLO ? join(ROOT, '.solo', SOLO) : join(ROOT, 'dist');
+const avisos = [];
 const leer = (p) => readFileSync(p, 'utf8');
 const json = (p) => JSON.parse(leer(p));
 const errores = [];
@@ -37,14 +45,23 @@ const DOJO = existsSync(join(C, 'dojo.json')) ? json(join(C, 'dojo.json')) : { e
 
 // ---------------------------------------------------------------- glosario: un archivo por lección en content/glosario/
 const GLOS = new Map();
-const TERMINOS = readdirSync(join(C, 'glosario')).filter((f) => f.endsWith('.json')).sort().flatMap((f) => json(join(C, 'glosario', f)).terminos.map((g) => ({ ...g, archivo: f })));
+const TERMINOS = readdirSync(join(C, 'glosario')).filter((f) => f.endsWith('.json')).sort().flatMap((f) => {
+  try { return json(join(C, 'glosario', f)).terminos.map((g) => ({ ...g, archivo: f })); }
+  catch (e) { if (SOLO && f !== `${SOLO}.json`) { avisos.push(`glosario/${f} no se pudo leer (¿a medio escribir?): se ignora`); return []; } throw new Error(`glosario/${f}: ${e.message}`); }
+});
+// en --solo, los problemas de los glosarios de otras lecciones son avisos, no errores
+const propio = (archivo) => !SOLO || archivo === `${SOLO}.json`;
+const problema = (archivo, msg) => (propio(archivo) ? errores : avisos).push(msg);
 for (const g of TERMINOS) {
-  if (!/^[a-z0-9-]+$/.test(g.id || '')) errores.push(`glosario: id inválido «${g.id}»`);
-  if (GLOS.has(g.id)) errores.push(`glosario: «${g.id}» está dos veces (${GLOS.get(g.id).archivo} y ${g.archivo})`);
-  for (const k of ['termino', 'corto']) if (!g[k]) errores.push(`glosario ${g.id}: falta «${k}»`);
+  if (!/^[a-z0-9-]+$/.test(g.id || '')) problema(g.archivo, `glosario: id inválido «${g.id}»`);
+  if (GLOS.has(g.id)) { problema(propio(g.archivo) ? g.archivo : GLOS.get(g.id).archivo, `glosario: «${g.id}» está dos veces (${GLOS.get(g.id).archivo} y ${g.archivo})`); if (!propio(g.archivo)) continue; }
+  for (const k of ['termino', 'corto']) if (!g[k]) problema(g.archivo, `glosario ${g.id}: falta «${k}»`);
   GLOS.set(g.id, { ver: [], ...g });
 }
-for (const g of GLOS.values()) for (const v of g.ver) if (!GLOS.has(v)) errores.push(`glosario ${g.id}: «ver» menciona «${v}», que no existe`);
+// En --solo, los conceptos planeados que otra lección todavía no escribe cuentan como existentes (con aviso).
+const PLAN = existsSync(join(C, 'conceptos-plan.json')) ? json(join(C, 'conceptos-plan.json')).lecciones : {};
+if (SOLO) for (const [lec, ids] of Object.entries(PLAN)) for (const id of ids) if (!GLOS.has(id)) GLOS.set(id, { id, termino: id, corto: `(planeado para la lección ${lec})`, ver: [], plan: lec, archivo: '(plan)' });
+for (const g of GLOS.values()) for (const v of g.ver) if (!GLOS.has(v)) problema(g.archivo, `glosario ${g.id}: «ver» menciona «${v}», que no existe`);
 
 // ---------------------------------------------------------------- temario y lecciones
 const ORDEN = [];   // todas las lecciones del temario, en orden de lectura
@@ -65,14 +82,14 @@ TEMARIO.modulos.forEach((m, k) => {
   }
 });
 const POR_ID = new Map(ORDEN.map((l) => [l.id, l]));
-for (const g of GLOS.values()) if (g.leccion && !POR_ID.has(g.leccion)) errores.push(`glosario ${g.id}: «leccion» = «${g.leccion}», que no está en el temario`);
+for (const g of GLOS.values()) if (g.leccion && !POR_ID.has(g.leccion)) problema(g.archivo, `glosario ${g.id}: «leccion» = «${g.leccion}», que no está en el temario`);
 for (const f of readdirSync(join(C, 'lecciones')).filter((f) => f.endsWith('.md'))) if (!POR_ID.has(f.slice(0, -3))) errores.push(`lecciones/${f} no está en el temario`);
 
 function frente(texto, archivo) {
   const m = texto.match(/^---\n([\s\S]*?)\n---\n/);
   if (!m) fail(`${archivo}: falta el encabezado --- … ---`);
   const meta = Object.fromEntries(m[1].split('\n').filter(Boolean).map((l) => { const i = l.indexOf(':'); return [l.slice(0, i).trim(), l.slice(i + 1).trim()]; }));
-  for (const k of ['titulo', 'subtitulo', 'pregunta', 'minutos']) if (!meta[k]) fail(`${archivo}: falta «${k}» en el encabezado`);
+  for (const k of ['titulo', 'subtitulo', 'pregunta']) if (!meta[k]) fail(`${archivo}: falta «${k}» en el encabezado`);
   meta.requisitos = meta.requisitos ? meta.requisitos.split(',').map((s) => s.trim()).filter(Boolean) : [];
   return { meta, cuerpo: texto.slice(m[0].length) };
 }
@@ -84,13 +101,23 @@ const diagrama = (id, pie, inline) => {
   if (errs.length) throw new Error(errs.join('; '));
   return montar(id, d, pie, inline);
 };
+const calculadora = (id, pie, inline) => {
+  const p = join(C, 'calculadoras', `${id}.json`);
+  if (!existsSync(p)) throw new Error(`falta content/calculadoras/${id}.json`);
+  const c = json(p), errs = validarCalc(c, id);
+  if (errs.length) throw new Error(errs.join('; '));
+  return dibujarCalc(c, id, pie, inline);
+};
 const figura = (id) => {
   const p = join(C, 'figuras', `${id}.svg`);
   if (!existsSync(p)) throw new Error(`falta content/figuras/${id}.svg`);
   return leer(p).trim();
 };
 
-const LISTAS = ORDEN.filter((l) => l.lista);
+// En --solo solo se arma esa lección (las demás pueden estar a medio escribir).
+if (SOLO && !POR_ID.has(SOLO)) fail(`--solo ${SOLO}: no está en el temario`);
+if (SOLO && !POR_ID.get(SOLO).lista) fail(`--solo ${SOLO}: falta content/lecciones/${SOLO}.md`);
+const LISTAS = ORDEN.filter((l) => l.lista && (!SOLO || l.id === SOLO));
 const PRESENTA = new Map();   // concepto → la lección que lo presenta
 for (const l of LISTAS) {
   const { meta, cuerpo } = frente(leer(l.archivo), `lecciones/${l.id}.md`);
@@ -98,12 +125,19 @@ for (const l of LISTAS) {
   for (const r of meta.requisitos) if (!POR_ID.has(r)) errores.push(`lecciones/${l.id}.md: requisito «${r}» no está en el temario`);
   l.meta = meta;
   try {
-    Object.assign(l, crear({ glosario: GLOS, diagrama, figura, contexto: `lecciones/${l.id}.md` }).render(cuerpo));
+    Object.assign(l, crear({ glosario: GLOS, diagrama, figura, calculadora, contexto: `lecciones/${l.id}.md` }).render(cuerpo));
   } catch (e) { fail(e.message); }
   for (const id of l.conceptos) {
     if (PRESENTA.has(id)) errores.push(`«${id}» se presenta en ${PRESENTA.get(id).id} y otra vez en ${l.id}`);
     else PRESENTA.set(id, l);
+    if (GLOS.get(id).plan) errores.push(`lecciones/${l.id}.md presenta «${id}», pero no está en content/glosario/${l.id}.json`);
   }
+  // el tiempo de lectura sale del texto: 200 palabras por minuto, más lo que toma jugar con lo interactivo
+  const total = l.intro + l.secciones.reduce((a, x) => a + x.palabras, 0);
+  const esencial = l.intro + l.secciones.filter((x) => !x.extra).reduce((a, x) => a + x.palabras, 0);
+  const extra = l.cuenta.diagramas * 1 + l.cuenta.figuras * 0.5 + l.cuenta.calculadoras * 1.5 + l.cuenta.ejercicios * 1.5 + l.cuenta.cuentas * 0.5;
+  l.palabras = total;
+  l.min = { todo: Math.max(1, Math.round(total / 200 + extra)), esencial: Math.max(1, Math.round(esencial / 200 + extra * (esencial / Math.max(1, total)))) };
 }
 // adelantos: palabras que una lección usa antes de que alguna lección (esta o una anterior) las presente
 const adelantos = [];
@@ -111,6 +145,9 @@ for (const l of LISTAS) {
   l.adelantos = [...l.terminos].filter((id) => !PRESENTA.has(id) || PRESENTA.get(id).pos > l.pos);
   if (l.adelantos.length) adelantos.push(`${l.id}: ${l.adelantos.join(', ')}`);
 }
+// En el sitio completo, cada concepto del glosario lo presenta alguna lección publicada.
+if (!SOLO) for (const g of GLOS.values()) if (!PRESENTA.has(g.id) && POR_ID.get(g.archivo.replace(/\.json$/, ''))?.lista) errores.push(`glosario ${g.id} (${g.archivo}) no está en el :::conceptos de su lección`);
+if (avisos.length) console.log(`[build] avisos:\n  ${avisos.join('\n  ')}`);
 if (errores.length) fail('\n  ' + errores.join('\n  '));
 
 // ================================================================ piezas comunes
@@ -243,7 +280,7 @@ function paginaLeccion(l) {
   const requisitos = req.length
     ? `Antes de esta lección: ${req.map((r) => (r.lista ? `<a href="${r.url}">${esc(r.titulo)}</a>` : `${esc(r.titulo)} (próximamente)`)).join(', ')}.`
     : 'No necesitas saber nada antes. Empieza aquí.';
-  const secciones = l.secciones.map(([id, t], k) => `<li><a class="toc__link" href="#${id}"><span class="toc__n">${String(k + 1).padStart(2, '0')}</span><span>${esc(t)}</span></a></li>`).join('');
+  const secciones = l.secciones.map((x, k) => `<li><a class="toc__link${x.extra ? ' is-extra' : ''}" href="#${x.id}"><span class="toc__n">${String(k + 1).padStart(2, '0')}</span><span>${esc(x.t)}${x.extra ? ' <small>extra</small>' : ''}</span></a></li>`).join('');
   const conecta = (l.ronda.length || est) ? `<div class="conecta"><span class="lbl">Te prepara para</span>${l.ronda.map(chipRonda).join('')}${est ? `<a class="chip chip--dojo" href="${est.url || SITIO.dojo}"><b>DOJO</b>Estación ${est.num} · ${esc(est.titulo)}</a>` : ''}</div>` : '';
   const contenido = `<article class="page">
   <header class="phead">
@@ -251,7 +288,7 @@ function paginaLeccion(l) {
     <h1 class="phead__title" id="titulo">${esc(l.titulo)}</h1>
     ${m.en ? `<p class="phead__en">${esc(m.en)}</p>` : ''}
     <p class="phead__summary">${esc(m.subtitulo)}</p>
-    <div class="phead__meta"><span>⏱ ${esc(m.minutos)} min de lectura</span><span>${l.conceptos.length} conceptos nuevos</span><span>${miniT(l.etapas)}</span></div>
+    <div class="phead__meta"><span>⏱ ${l.min.esencial < l.min.todo ? `${l.min.esencial} min lo esencial · ${l.min.todo} min todo` : `${l.min.todo} min de lectura`}</span><span>${l.conceptos.length} conceptos nuevos</span>${l.cuenta.calculadoras ? `<span>${l.cuenta.calculadoras} calculadora${l.cuenta.calculadoras > 1 ? 's' : ''}</span>` : ''}${l.cuenta.ejercicios ? `<span>${l.cuenta.ejercicios} ejercicios</span>` : ''}<span>${miniT(l.etapas)}</span></div>
     ${conecta}
     <details class="page-toc"><summary>${ICO.chev}<span class="lbl">Secciones</span><span class="page-toc__count">${l.secciones.length}</span></summary><ol>${secciones}</ol></details>
   </header>
@@ -388,7 +425,7 @@ function paginaRonda() {
 // ================================================================ escribir
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
-const pages = { '/': portada(), '/glosario/': paginaGlosario(), '/ronda/': paginaRonda() };
+const pages = SOLO ? {} : { '/': portada(), '/glosario/': paginaGlosario(), '/ronda/': paginaRonda() };
 for (const l of LISTAS) pages[l.url] = paginaLeccion(l);
 for (const [path, html] of Object.entries(pages)) {
   mkdirSync(join(OUT, path), { recursive: true });
@@ -417,4 +454,5 @@ writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITI
 writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((p) => `  <url><loc>${SITIO.url}${p}</loc></url>`).join('\n')}\n</urlset>\n`);
 console.log(`[build] glosario: ${GLOS.size} conceptos · ${PRESENTA.size} presentados en alguna lección`);
 if (adelantos.length) console.log(`[build] adelantos (palabras usadas antes de presentarse):\n  ${adelantos.join('\n  ')}`);
+if (SOLO) { const l = POR_ID.get(SOLO); console.log(`[build] --solo ${SOLO}: ${l.palabras} palabras · ${l.min.esencial} min lo esencial, ${l.min.todo} min todo · ${JSON.stringify(l.cuenta)} · ${l.secciones.length} secciones · en ${OUT}`); }
 console.log(`[build] listo: ${urls.length} páginas · ${LISTAS.length} de ${ORDEN.length} lecciones · BUILD ${BUILD}`);

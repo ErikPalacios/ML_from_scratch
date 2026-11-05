@@ -1,0 +1,21 @@
+{
+  "nota": "Qué lección presenta cada concepto planeado que todavía no existe en content/glosario/. Sirve para escribir varias lecciones a la vez sin repetir conceptos: node tools/build.mjs --solo <id> acepta los [[id]] de esta lista aunque su lección no esté escrita. Cuando un concepto ya está en su glosario, puede quedarse aquí sin problema. Los conceptos que ya existen (los 139 de las lecciones 0 a 8) no se repiten aquí.",
+  "lecciones": {
+    "camino-completo": ["deploy", "camino-online", "camino-offline"],
+    "modelo": ["funcion", "clasificacion-binaria", "multietiqueta", "sigmoide", "argmax", "baseline"],
+    "imagenes": ["interpolacion", "bgr", "frame", "fps", "bomba-descompresion", "training-serving-skew"],
+    "ejemplos": ["one-hot", "codificacion", "valor-faltante", "escalamiento", "duplicado-cercano", "split-temporal", "split-por-grupo", "ruido-etiquetas", "etiquetado", "active-learning"],
+    "aprender": ["entropia-cruzada", "mse", "regla-cadena", "momentum", "adam", "regularizacion", "weight-decay", "early-stopping", "scheduler-lr", "warmup", "gradiente-inestable", "convergencia", "cpu", "gpu", "vram"],
+    "aprendio": ["validacion-cruzada", "curva-pr", "map", "iou", "ece", "temperature-scaling", "metrica-negocio", "equidad"],
+    "redes": ["perceptron", "mlp", "inicializacion", "stride", "padding", "campo-receptivo", "vit", "cabeza"],
+    "embeddings": ["producto-punto", "normalizacion-l2", "dimensionalidad", "aprendizaje-contrastivo", "bm25", "busqueda-hibrida", "hnsw", "deduplicacion"],
+    "llms": ["preentrenamiento", "instruction-tuning", "rlhf", "bpe", "prefill", "decode", "ttft", "tpot", "few-shot", "system-prompt", "multi-head", "decoder-only", "moe", "embedding-posicional"],
+    "unidades": ["notacion-cientifica", "orden-magnitud", "bit", "byte", "prefijo-binario", "ancho-banda", "qps", "factor-pico", "estimacion", "ceil", "punto-porcentual", "throughput"],
+    "percentiles": ["promedio", "mediana", "percentil", "p99", "distribucion", "histograma", "cola-distribucion", "valor-atipico", "bucket", "slo", "sli"],
+    "probabilidad": ["independencia", "regla-producto", "complemento", "fan-out", "disponibilidad", "nueves", "redundancia", "valor-esperado", "tasa", "poisson", "error-budget"],
+    "ruido": ["muestra", "poblacion", "varianza", "desviacion-estandar", "error-estandar", "intervalo-confianza", "ab-test", "hipotesis-nula", "p-value", "significancia", "potencia", "mde", "comparaciones-multiples", "distribucion-normal", "tamano-muestra", "peeking"],
+    "distribuciones": ["referencia", "psi", "prueba-ks", "logaritmo", "entropia", "divergencia-kl", "chi-cuadrado", "concept-drift", "label-shift"],
+    "numeros-maquina": ["binario", "entero", "punto-flotante", "dtype", "fp16", "bf16", "fp8", "int8", "int4", "overflow", "redondeo", "cuantizacion", "precision-mixta"],
+    "flops": ["matriz", "multiplicacion-matrices", "flop", "mac", "tflops", "intensidad-aritmetica", "compute-bound", "memory-bound", "roofline", "ancho-banda-memoria"]
+  }
+}
