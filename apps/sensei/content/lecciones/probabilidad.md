@@ -183,7 +183,7 @@ Por eso en sistemas con mucho fan-out no basta con vigilar el p99 de cada pieza:
 Las otras salidas son preguntar a menos servicios, recortar la cola de cada uno, contestar con lo que llegó a tiempo (en la Ronda, el buscador de C07 responde con 3 de sus 4 pedazos si uno no llega, y marca la respuesta como parcial) o mandar una copia del request a otra réplica, otra copia del mismo servidor, cuando tarda. Esto último lo ves al final de esta sección.
 
 :::profundo Por qué los p99 de dos tramos no se suman
-El fan-out espera piezas en paralelo. Con piezas en serie, una detrás de otra, la regla del producto también sorprende. Dos tramos independientes, A y B, tardan cada uno 10 ms el 98 % de las veces y 100 ms el 2 % restante. Como solo el 98 % cae en 10 ms, el p99 de cada tramo es 100 ms, y la suma de los dos p99 da 200 ms. Pero el p99 del request completo es otro:
+En «Promedios, medianas y percentiles» viste que los p99 no se suman; aquí está el porqué, con la regla del producto. El fan-out espera piezas en paralelo; con piezas en serie, una detrás de otra, la regla también sorprende. Dos tramos independientes, A y B, tardan cada uno 10 ms el 98 % de las veces y 100 ms el 2 % restante. Como solo el 98 % cae en 10 ms, el p99 de cada tramo es 100 ms, y la suma de los dos p99 da 200 ms. Pero el p99 del request completo es otro:
 
 :::cuenta Dos tramos independientes con p99 = 100 ms cada uno
 Los dos rápidos | 0.98 × 0.98 | 96.04 % → 20 ms

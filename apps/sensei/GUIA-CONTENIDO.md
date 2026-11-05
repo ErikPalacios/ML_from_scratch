@@ -30,7 +30,7 @@ Una lección completa trae todo esto. Los números son el piso, no el techo.
 
 | Pieza | Mínimo | Para qué |
 |---|---|---|
-| Extensión | 7,000 a 10,000 palabras · lo esencial en ≈ 30–40 min, todo en ≈ 50–75 min (el build lo calcula con el texto, las piezas y los ejercicios) | Profundidad de curso, no de resumen |
+| Extensión | 8,000 a 11,000 palabras · lo esencial en ≈ 45–60 min, todo en ≈ 65–85 min (el build lo calcula con todo el texto, las piezas y los ejercicios; lo que va en `[extra]` y en `:::profundo` cuenta solo para «todo») | Profundidad de curso, no de resumen: un módulo de la Ronda lleva ≈ 65 min |
 | Secciones | 10 a 14, con al menos 2 marcadas `[extra]` | Dos pasadas |
 | Diagramas (motor de la Ronda) | 2, cada uno con recorrido | Ver el flujo |
 | Figuras SVG | 3 | Ver la idea |

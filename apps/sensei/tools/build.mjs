@@ -135,12 +135,18 @@ for (const l of LISTAS) {
     else PRESENTA.set(id, l);
     if (GLOS.get(id).plan) errores.push(`lecciones/${l.id}.md presenta «${id}», pero no está en content/glosario/${l.id}.json`);
   }
-  // el tiempo de lectura sale del texto: 200 palabras por minuto, más lo que toma jugar con lo interactivo
-  const total = l.intro + l.secciones.reduce((a, x) => a + x.palabras, 0);
-  const esencial = l.intro + l.secciones.filter((x) => !x.extra).reduce((a, x) => a + x.palabras, 0);
-  const extra = l.cuenta.diagramas * 1 + l.cuenta.figuras * 0.5 + l.cuenta.calculadoras * 1.5 + l.cuenta.ejercicios * 1.5 + l.cuenta.cuentas * 0.5;
-  l.palabras = total;
-  l.min = { todo: Math.max(1, Math.round(total / 200 + extra)), esencial: Math.max(1, Math.round(esencial / 200 + extra * (esencial / Math.max(1, total)))) };
+  // El tiempo de lectura sale del texto (200 palabras por minuto) más lo que toma cada pieza interactiva. Lo esencial
+  // es la intro y las secciones sin [extra], sin lo que va dentro de :::profundo (eso es de la segunda pasada).
+  const PESO = { diagramas: 1, figuras: 0.5, calculadoras: 1.5, ejercicios: 1.5, cuentas: 0.5 };
+  const piezas = (p) => Object.entries(PESO).reduce((a, [k, w]) => a + (p[k] || 0) * w, 0);
+  let esencial = 0, todo = 0;
+  for (const s of [{ ...l.intro, extra: false }, ...l.secciones]) {
+    const primera = (s.palabras - s.profundo) / 200 + piezas(s.piezas), segunda = s.profundo / 200 + piezas(s.piezasProfundo);
+    todo += primera + segunda;
+    if (!s.extra) esencial += primera;
+  }
+  l.palabras = l.intro.palabras + l.secciones.reduce((a, x) => a + x.palabras, 0);
+  l.min = { todo: Math.max(1, Math.round(todo)), esencial: Math.max(1, Math.round(esencial)) };
 }
 // adelantos: palabras que una lección usa antes de que alguna lección (esta o una anterior) las presente
 const adelantos = [];

@@ -582,7 +582,7 @@ La ResNet-50 con batches grandes tiende a ser compute-bound, así que lo que má
 
 ### En el decode de un LLM: tanto como bajen los bytes
 
-El decode es memory-bound: lo que lo acelera es leer menos bytes. Aquí basta cuantizar **solo los pesos** (*weight-only*): se guardan en INT8 o INT4 y se convierten de vuelta a BF16 justo antes de multiplicar, ya dentro del chip. Esa conversión cuesta cálculo, pero el cálculo sobra.
+El decode es memory-bound: lo que lo acelera es leer menos bytes. Aquí basta cuantizar **solo los pesos** (*weight-only*): se guardan en INT8 o INT4 y se convierten de vuelta a 16 bits (BF16 o FP16) justo antes de multiplicar, ya dentro del chip. Esa conversión cuesta cálculo, pero el cálculo sobra.
 
 :::cuenta Llama 3 8B en una L4, con menos bits
 BF16 // 2 bytes por peso | 300 GB/s ÷ 16.06 GB | ≈ 19 tokens por segundo

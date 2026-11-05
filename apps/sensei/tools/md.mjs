@@ -21,6 +21,43 @@ export function palabras(md) {
     .replace(/^:::.*$/gm, ' ').replace(/[#*`|>{}\[\]]/g, ' ').split(/\s+/).filter((w) => /[a-záéíóúñü0-9]/i.test(w)).length;
 }
 
+// Lo que pesa cada parte de la lección para el tiempo de lectura, contado sobre el texto crudo: las palabras de cada
+// sección (todas las líneas de listas, tablas y bloques; el código no), cuáles de ellas van dentro de :::profundo
+// (segunda pasada) y las piezas interactivas de cada sección, separando las que van dentro de :::profundo.
+// intro = lo que va antes del primer ##.
+export function contar(texto) {
+  const pz = () => ({ diagramas: 0, figuras: 0, calculadoras: 0, cuentas: 0, ejercicios: 0 });
+  const nueva = () => ({ palabras: 0, profundo: 0, piezas: pz(), piezasProfundo: pz() });
+  const intro = nueva(), secs = [];
+  let cur = intro, prof = 0, profDesde = -1, ejercicios = 0, codigo = false;
+  const PIEZA = { diagrama: 'diagramas', figura: 'figuras', calculadora: 'calculadoras', cuenta: 'cuentas' };
+  for (const l of texto.replace(/\r/g, '').split('\n')) {
+    if (l.startsWith('```')) { codigo = !codigo; continue; }
+    if (codigo) continue;
+    const ab = l.match(/^:::([a-z]+)\s*(.*)$/);
+    if (ab) {
+      prof++;
+      if (PIEZA[ab[1]]) (profDesde >= 0 ? cur.piezasProfundo : cur.piezas)[PIEZA[ab[1]]]++;
+      if (ab[1] === 'profundo' && profDesde < 0) profDesde = prof;
+      if (ab[1] === 'ejercicios') ejercicios = prof;
+      const w = palabras(ab[2]);
+      cur.palabras += w; if (profDesde >= 0) cur.profundo += w;
+      continue;
+    }
+    if (/^:::\s*$/.test(l)) {
+      if (prof === profDesde) profDesde = -1;
+      if (prof === ejercicios) ejercicios = 0;
+      prof = Math.max(0, prof - 1);
+      continue;
+    }
+    if (prof === 0 && /^##\s/.test(l)) { cur = nueva(); secs.push(cur); continue; }
+    if (ejercicios && /^\? \[(facil|medio|reto)\]/.test(l)) (profDesde >= 0 ? cur.piezasProfundo : cur.piezas).ejercicios++;
+    const w = palabras(l);
+    cur.palabras += w; if (profDesde >= 0) cur.profundo += w;
+  }
+  return { intro, secs };
+}
+
 export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }) {
   const fallar = (msg) => { throw new Error(`${contexto}: ${msg}`); };
 
@@ -53,8 +90,6 @@ export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }
     };
     for (let i = 0; i < lineas.length; i++) {
       const l = lineas[i];
-      // las palabras de cada línea del nivel de arriba se suman a su sección (las de antes de la primera, a la intro)
-      if (arriba && !/^##\s/.test(l)) { const s0 = estado.secciones[estado.secciones.length - 1]; if (s0) s0.palabras += palabras(l); else estado.intro += palabras(l); }
       if (!l.trim()) { cerrarParrafo(); continue; }
 
       let m = l.match(/^:::([a-z]+)\s*(.*)$/);
@@ -69,7 +104,6 @@ export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }
           dentro.push(lineas[i]);
         }
         if (prof !== 0) fallar(`el bloque :::${tipo} no se cierra`);
-        if (arriba) { const s0 = estado.secciones[estado.secciones.length - 1], n = palabras(dentro.join('\n')); if (s0) s0.palabras += n; else estado.intro += n; }
         out.push(propio(tipo, arg.trim(), dentro.join('\n'), estado));
         continue;
       }
@@ -184,7 +218,7 @@ export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }
         estado.cuenta.cuentas++;
         const I = (x) => inline(x, estado.terminos);
         return `<figure class="calc"><figcaption class="calc__head"><span class="calc__icon" aria-hidden="true">≈</span><span class="calc__title">${I(arg)}</span><span class="calc__tag">La cuenta</span></figcaption><div class="calc__rows">${filas.map((f) =>
-          `<div class="calc__row"><div class="calc__label">${I(f.et)}${f.nota ? `<span class="calc__note">${I(f.nota)}</span>` : ''}</div><div class="calc__expr">${I(f.ex)}</div><div class="calc__value"><span class="calc__eq" aria-hidden="true">=</span>${I(f.v)}</div></div>`).join('')}</div>${
+          `<div class="calc__row"><div class="calc__label">${I(f.et)}${f.nota ? `<span class="calc__note">${I(f.nota)}</span>` : ''}</div><div class="calc__expr">${I(f.ex)}</div><div class="calc__value">${/^[≈~<>≤≥]/.test(f.v.trim()) ? '' : '<span class="calc__eq" aria-hidden="true">=</span>'}${I(f.v)}</div></div>`).join('')}</div>${
           res.length ? `<div class="calc__result"><span class="calc__result-k">Resultado</span><div class="calc__result-v">${I(res.join(' '))}</div></div>` : ''}</figure>`;
       }
       case 'calculadora': {
@@ -256,9 +290,13 @@ export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }
   return {
     inline: (s, usados = new Set()) => inline(s, usados),
     render(texto) {
-      const estado = { secciones: [], terminos: new Set(), conceptos: [], intro: 0, cuenta: { diagramas: 0, figuras: 0, calculadoras: 0, cuentas: 0, ejercicios: 0 } };
+      const estado = { secciones: [], terminos: new Set(), conceptos: [], cuenta: { diagramas: 0, figuras: 0, calculadoras: 0, cuentas: 0, ejercicios: 0 } };
       const html = bloques(texto, estado, true);
-      return { html, ...estado };
+      // el tiempo de lectura se cuenta aparte, sobre el texto crudo de cada sección
+      const { intro, secs } = contar(texto);
+      if (secs.length !== estado.secciones.length) fallar(`el conteo encontró ${secs.length} secciones y el render ${estado.secciones.length}`);
+      secs.forEach((s, k) => Object.assign(estado.secciones[k], s));
+      return { html, ...estado, intro };
     },
   };
 }

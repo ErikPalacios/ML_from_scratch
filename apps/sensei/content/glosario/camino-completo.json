@@ -251,7 +251,8 @@
       "ver": [
         "drift",
         "latencia",
-        "reentrenamiento"
+        "reentrenamiento",
+        "psi"
       ],
       "leccion": "e12-monitoreo",
       "ejemplo": "En C01 se vigila que 99 de cada 100 respuestas tarden menos de 200 ms, cuántas fallan y si cambia cuáles categorías predice más seguido el modelo, que es una señal temprana de drift."
@@ -265,7 +266,10 @@
       "ejemplo": "Salen modelos nuevos de tenis y los celulares toman fotos con otra luz: las fotos que llegan se parecen cada vez menos a las del entrenamiento, y el modelo acierta un poco menos cada mes. Una categoría nueva (como «bolsas» en el Dojo) es otra cosa: ahí el modelo ni siquiera tiene esa respuesta.",
       "ver": [
         "monitoreo",
-        "reentrenamiento"
+        "reentrenamiento",
+        "concept-drift",
+        "label-shift",
+        "psi"
       ],
       "leccion": "e12-monitoreo"
     },

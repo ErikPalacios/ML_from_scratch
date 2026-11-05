@@ -258,7 +258,7 @@ Un SLO completo dice **qué** se mide, **dónde**, **cuánto** y **en qué venta
 - Con un bucket justo en 200 ms, es **exacta**: no hay que interpolar.
 - Dice cuánto **margen** queda. «99.3 %» quiere decir que sobran 0.3 [[punto-porcentual|puntos porcentuales]] antes de romper la promesa.
 
-Ese 1 % de requests que pueden ser lentas es un presupuesto que se gasta: el [[error-budget]] (presupuesto de errores), que la lección de probabilidad desarrolla. Con 10 millones de requests al día, son 100,000 lentas permitidas al día, o 3 millones en 30 días. Un deploy malo puede gastarse una buena parte en una tarde; lo calculas en los ejercicios. Cómo se vigila todo esto, del contador a la alerta, está en la sección extra que sigue.
+Ese 1 % de requests que pueden ser lentas es un presupuesto que se gasta: el [[error-budget]] (presupuesto de error), que la lección de probabilidad desarrolla. Con 10 millones de requests al día, son 100,000 lentas permitidas al día, o 3 millones en 30 días. Un deploy malo puede gastarse una buena parte en una tarde; lo calculas en los ejercicios. Cómo se vigila todo esto, del contador a la alerta, está en la sección extra que sigue.
 
 ## Cómo se calcula y se vigila en la práctica {How it is computed and watched in practice} [extra]
 
@@ -634,12 +634,12 @@ Resuélvelos con lápiz antes de abrir la solución. Los de percentiles de una l
 **En la Ronda:**
 
 - **M03 · Latencia y capacidad** abre su sección de percentiles, «p50, p95, p99: por qué el promedio miente», con 1,000 requests: 900 de 40 ms, 85 de 150 ms y 15 de 1.2 s. El promedio da ≈ 67 ms y el p99, 1,200 ms; ya puedes hacer la cuenta tú. Ahí mismo están el fan-out (*tail at scale*), los dos pods que no se promedian y la consulta de Prometheus de esta lección.
-- **M12 · Monitoreo** dice «percentiles desde histogramas, nunca promedios», explica los tipos de métrica de Prometheus y arma las alertas desde el SLO, con presupuesto de errores. **M15 · Seguridad y confiabilidad** desarrolla los SLO y el presupuesto de errores.
+- **M12 · Monitoreo** dice «percentiles desde histogramas, nunca promedios», explica los tipos de métrica de Prometheus y arma las alertas desde el SLO, con presupuesto de error. **M15 · Seguridad y confiabilidad** desarrolla los SLO y el presupuesto de error.
 - **C01** trae su SLO, los 11 bordes de su histograma y la alerta de p99 arriba de 200 ms durante 10 minutos. Ahora sabes qué quiere decir cada pieza.
 
 **En el Dojo:** las estaciones 11 (La request en vivo) y 12 (Monitoreo y reentrenamiento) son las de la etapa de monitoreo de C01. Cuando abran, ahí van a vivir estos percentiles, buckets y alertas.
 
-**En Sensei:** la siguiente lección, «Probabilidad para sistemas que fallan», hace a fondo la cuenta del fan-out y del presupuesto de errores. «Ruido, muestras y pruebas A/B» explica cuánto puedes confiar en un número que sale de una muestra. «Comparar distribuciones: cómo se mide el drift» compara dos histogramas con buckets como los de aquí. Y «Qué tan rápido y cuánto: latencia y throughput» explica por qué el p99 sube cuando se llena una fila de espera.
+**En Sensei:** la siguiente lección, «Probabilidad para sistemas que fallan», hace a fondo la cuenta del fan-out y del presupuesto de error. «Ruido, muestras y pruebas A/B» explica cuánto puedes confiar en un número que sale de una muestra. «Comparar distribuciones: cómo se mide el drift» compara dos histogramas con buckets como los de aquí. Y «Qué tan rápido y cuánto: latencia y throughput» explica por qué el p99 sube cuando se llena una fila de espera.
 
 ## Palabras que vas a oír {Words you will hear}
 

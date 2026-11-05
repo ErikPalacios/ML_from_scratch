@@ -503,7 +503,7 @@ Llama 3 8B en INT4 // medio byte; en la práctica ≈ 5.7 GB, porque las tablas 
 Llama 3 70B en BF16 // 70,600 millones de parámetros; un 70B redondo daría 70 × 2 = 140 GB | 70.6 × 2 | **≈ 141 GB**
 Llama 3 70B en FP8 // 1 byte | 70.6 × 1 | ≈ 70.6 GB
 Llama 3 70B en INT4 // en la práctica ≈ 40 GB, por lo mismo | 70.6 × 0.5 | ≈ 35 GB
-= Una H100, de las GPUs más grandes, tiene 80 GB: Llama 3 70B en BF16 **ni siquiera cabe en una**. En C10 de la Ronda se sirve en FP8, repartido entre 2 H100. Y como el decode lee todos los pesos en cada token, menos bytes también es más velocidad: en una L4, el techo de Llama 3 8B sube de ≈ 19 tokens por segundo a ≈ 37 en INT8 (300 ÷ 8.03) y a ≈ 53 en INT4 (300 ÷ 5.7).
+= Una H100, de las GPUs más grandes, tiene 80 GB: Llama 3 70B en BF16 **ni siquiera cabe en una**. En C10 de la Ronda se sirve en FP8, repartido entre 2 H100. Y como el decode lee todos los pesos en cada token, menos bytes también es más velocidad: en una L4, el techo de Llama 3 8B sube de ≈ 19 tokens por segundo a ≈ 37 en INT8 (300 ÷ 8.03) y a ≈ 52 en INT4 (300 ÷ 5.73).
 :::
 
 Los pesos se cargan una vez y no cambian. Pero no son lo único que vive en la GPU.
