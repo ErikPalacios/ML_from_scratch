@@ -1,0 +1,359 @@
+{
+  "titulo": "Un nodo con GPU de C01 por dentro: dos contenedores, un solo kernel",
+  "width": 78,
+  "height": 52,
+  "lanes": [
+    {
+      "id": "c-dp",
+      "label": "Contenedor del device plugin",
+      "kind": "online",
+      "x": 0,
+      "y": 0,
+      "w": 38,
+      "h": 15
+    },
+    {
+      "id": "c-tr",
+      "label": "Contenedor de Triton",
+      "kind": "online",
+      "x": 40,
+      "y": 0,
+      "w": 38,
+      "h": 15
+    },
+    {
+      "id": "kernel",
+      "label": "Kernel del nodo",
+      "kind": "neutral",
+      "x": 0,
+      "y": 17,
+      "w": 78,
+      "h": 17
+    },
+    {
+      "id": "hw",
+      "label": "Hardware de la g4dn.xlarge",
+      "kind": "offline",
+      "x": 0,
+      "y": 36,
+      "w": 78,
+      "h": 16
+    }
+  ],
+  "nodes": [
+    {
+      "id": "dp",
+      "label": "Device plugin",
+      "sub": "NVIDIA · uno por nodo",
+      "kind": "service",
+      "x": 9,
+      "y": 5,
+      "w": 20,
+      "h": 8,
+      "note": "El programa de NVIDIA que corre en cada nodo con GPU. Le pregunta al [[driver]] cuántas GPU hay y se lo anuncia a Kubernetes: «este nodo tiene `nvidia.com/gpu: 1`». Sin él, Kubernetes no sabría dónde poner a Triton. Trae su propia imagen, con su propio espacio de usuario."
+    },
+    {
+      "id": "tr",
+      "label": "Triton",
+      "sub": "Ubuntu 22.04 · UID 1000",
+      "kind": "model",
+      "x": 49,
+      "y": 5,
+      "w": 20,
+      "h": 8,
+      "note": "El servidor de modelos. Dentro ve Ubuntu 22.04, con las librerías de CUDA y el engine horneado en `/models`, y corre como el UID 1000, sin [[root]]. Ve la GPU porque el NVIDIA Container Toolkit le montó `/dev/nvidia0` y las librerías del driver al arrancar."
+    },
+    {
+      "id": "cg",
+      "label": "cgroups",
+      "sub": "uno por contenedor",
+      "kind": "monitor",
+      "x": 11,
+      "y": 22,
+      "w": 16,
+      "h": 8,
+      "note": "Un [[cgroup]] por contenedor. El de Triton tiene un tope de memoria de 6 GiB, que cuenta también su `/dev/shm`, porque vive en la RAM. Si un grupo pasa de su tope, el kernel mata procesos de ese grupo y de ningún otro."
+    },
+    {
+      "id": "ns",
+      "label": "Namespaces",
+      "sub": "qué ve cada uno",
+      "kind": "service",
+      "x": 31,
+      "y": 22,
+      "w": 16,
+      "h": 8,
+      "note": "Cada contenedor tiene sus namespaces: su lista de procesos (adentro, Triton es el [[pid|PID]] 1), su red y su árbol de archivos. Por eso el device plugin no ve los archivos ni los procesos de Triton, y Triton no ve los suyos."
+    },
+    {
+      "id": "drv",
+      "label": "Driver NVIDIA",
+      "sub": "nvidia.ko",
+      "kind": "service",
+      "x": 51,
+      "y": 22,
+      "w": 16,
+      "h": 8,
+      "note": "El módulo del [[driver]] de la GPU vive dentro del kernel del nodo; lo instaló la AMI acelerada de EKS. Los dos contenedores llegan a la misma T4 a través de él: Triton, para correr el modelo; el device plugin, para contarla. Por eso no viaja en ninguna imagen."
+    },
+    {
+      "id": "cpu",
+      "label": "CPU y RAM",
+      "sub": "4 vCPU · 16 GiB",
+      "kind": "service",
+      "x": 11,
+      "y": 41,
+      "w": 16,
+      "h": 8,
+      "note": "La CPU x86-64 y la RAM de la g4dn.xlarge: 4 [[vcpu|vCPU]] y 16 GiB. El kernel las reparte entre los contenedores. Ojo: cada contenedor cuenta los 4 vCPU del nodo, aunque su cgroup le dé solo una parte."
+    },
+    {
+      "id": "disco",
+      "label": "Disco",
+      "sub": "capas de las imágenes",
+      "kind": "store",
+      "x": 31,
+      "y": 41,
+      "w": 16,
+      "h": 8,
+      "note": "Las imágenes bajadas viven en el disco del nodo, capa por capa. Al arrancar un contenedor, el kernel [[montaje|monta]] sus capas como su `/`, con una capa escribible encima que se borra con él."
+    },
+    {
+      "id": "gpu",
+      "label": "T4",
+      "sub": "16 GB · /dev/nvidia0",
+      "kind": "gpu",
+      "x": 51,
+      "y": 41,
+      "w": 16,
+      "h": 8,
+      "note": "La GPU del nodo. Para el kernel es un dispositivo; para el contenedor de Triton, el archivo `/dev/nvidia0`. Kubernetes se la da entera a Triton."
+    }
+  ],
+  "edges": [
+    {
+      "from": "tr",
+      "to": "drv",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "CUDA"
+    },
+    {
+      "from": "ns",
+      "to": "dp",
+      "kind": "neutral",
+      "fromSide": "t",
+      "toSide": "r",
+      "via": [
+        [
+          39,
+          9
+        ]
+      ]
+    },
+    {
+      "from": "ns",
+      "to": "tr",
+      "kind": "neutral",
+      "fromSide": "t",
+      "toSide": "l",
+      "via": [
+        [
+          39,
+          9
+        ]
+      ]
+    },
+    {
+      "from": "disco",
+      "to": "ns",
+      "kind": "offline",
+      "fromSide": "t",
+      "toSide": "b",
+      "label": "capas"
+    },
+    {
+      "from": "cg",
+      "to": "cpu",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "topes"
+    },
+    {
+      "from": "drv",
+      "to": "gpu",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "PCIe"
+    },
+    {
+      "from": "dp",
+      "to": "drv",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "l",
+      "via": [
+        [
+          19,
+          16
+        ],
+        [
+          49,
+          16
+        ],
+        [
+          49,
+          26
+        ]
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "arrancar",
+      "label": "Arrancar Triton",
+      "steps": [
+        {
+          "nodes": [
+            "disco",
+            "ns"
+          ],
+          "edges": [
+            "disco>ns"
+          ],
+          "text": "containerd, el programa que arranca los contenedores del nodo, le pide al kernel uno nuevo. El namespace de montaje le arma a Triton su propio árbol: las capas de su imagen como su `/`, con Ubuntu 22.04 y el engine."
+        },
+        {
+          "nodes": [
+            "ns",
+            "tr"
+          ],
+          "edges": [
+            "ns>tr"
+          ],
+          "text": "En su namespace de procesos, `tritonserver` arranca como el **PID 1**. En el nodo es un proceso más, con otro número. Tiene su propia red y su propio nombre de máquina."
+        },
+        {
+          "nodes": [
+            "cg",
+            "tr"
+          ],
+          "edges": [],
+          "text": "El kernel lo mete en un **cgroup** con un tope de memoria de 6 GiB. Lo que use el device plugin no cuenta contra ese tope."
+        },
+        {
+          "nodes": [
+            "dp",
+            "drv",
+            "tr"
+          ],
+          "edges": [
+            "dp>drv"
+          ],
+          "text": "¿Por qué Kubernetes lo puso en este nodo? Porque el **device plugin** le preguntó al driver cuántas GPU hay y le avisó a Kubernetes que aquí hay una libre. Triton pide una entera."
+        },
+        {
+          "nodes": [
+            "tr",
+            "drv",
+            "gpu"
+          ],
+          "edges": [
+            "tr>drv",
+            "drv>gpu"
+          ],
+          "text": "El toolkit le montó `/dev/nvidia0` y las librerías del driver. Triton carga el engine en la VRAM: cada llamada a CUDA pasa por el **driver**, cuyo módulo vive en el kernel del nodo."
+        }
+      ]
+    },
+    {
+      "id": "oom",
+      "label": "Triton se pasa de memoria",
+      "steps": [
+        {
+          "nodes": [
+            "tr"
+          ],
+          "edges": [],
+          "text": "Supón que algo hace crecer la memoria de Triton, la RAM del nodo y no la VRAM de la T4, hasta pasar su tope."
+        },
+        {
+          "nodes": [
+            "tr",
+            "cg"
+          ],
+          "edges": [],
+          "text": "Su cgroup tiene un tope de **6 GiB**, y ahí cuenta todo, hasta su `/dev/shm`. El kernel intenta liberar memoria y no alcanza."
+        },
+        {
+          "nodes": [
+            "cg",
+            "cpu"
+          ],
+          "edges": [
+            "cg>cpu"
+          ],
+          "text": "La RAM del nodo todavía tiene espacio, pero no importa: el tope es del grupo. El **OOM killer** le manda SIGKILL a `tritonserver`."
+        },
+        {
+          "nodes": [
+            "tr",
+            "dp"
+          ],
+          "edges": [],
+          "text": "Triton muere sin poder limpiar y sale con código **137** (128 + 9). Kubernetes lo marca `OOMKilled` y lo vuelve a arrancar; mientras, la otra copia de Triton, en otra máquina, atiende. El device plugin, en su propio cgroup, ni se entera."
+        },
+        {
+          "nodes": [
+            "gpu",
+            "tr"
+          ],
+          "edges": [],
+          "text": "Quedarse sin VRAM es otra cosa: esa memoria no la vigila el cgroup. Es un error de CUDA dentro de Triton, no un `OOMKilled`."
+        }
+      ]
+    },
+    {
+      "id": "kernel",
+      "label": "Un kernel para todos",
+      "steps": [
+        {
+          "nodes": [
+            "dp",
+            "tr",
+            "ns"
+          ],
+          "edges": [
+            "ns>dp",
+            "ns>tr"
+          ],
+          "text": "Cada contenedor cree que es la única máquina: Triton ve Ubuntu 22.04 y el device plugin ve su propia imagen. Ninguno ve los procesos ni los archivos del otro."
+        },
+        {
+          "nodes": [
+            "dp",
+            "tr",
+            "drv"
+          ],
+          "edges": [
+            "dp>drv",
+            "tr>drv"
+          ],
+          "text": "Pero las syscalls de los dos llegan al **mismo kernel**, el de Amazon Linux 2023 del nodo, y los dos llegan a la T4 por el mismo driver. Por eso las imágenes no traen kernel ni driver."
+        },
+        {
+          "nodes": [
+            "cpu",
+            "disco",
+            "gpu"
+          ],
+          "edges": [],
+          "text": "Y por eso un contenedor no es una VM: si alguien rompiera el kernel desde un contenedor, tendría el nodo entero, con la GPU y el otro contenedor."
+        }
+      ]
+    }
+  ]
+}

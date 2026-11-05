@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 454" role="img" aria-labelledby="f-async-gil-t" class="f-svg" style="max-width:420px">
+<title id="f-async-gil-t">Dos tareas corridas de tres maneras, en la misma escala de tiempo de 0 a 0.6 segundos. Arriba, dos hilos que esperan 0.3 segundos cada uno: sus esperas se enciman, terminan juntos a los 0.3 segundos y casi no usan CPU. En medio, dos hilos que calculan Python puro: el GIL pasa de uno a otro, así que en cada momento solo uno calcula mientras el otro espera su turno (los turnos están dibujados más largos: en realidad duran 5 milisegundos); juntos tardan 0.6 segundos y usan un solo núcleo. Abajo, dos procesos, cada uno con su propio GIL: calculan al mismo tiempo, terminan a los 0.3 segundos y usan dos núcleos.</title>
+<text class="f-l" x="14" y="24">DOS TAREAS, TRES MANERAS</text>
+<rect class="f-card" x="10" y="36" width="340" height="90" rx="16"/>
+<text class="f-l" x="26" y="60">DOS HILOS QUE ESPERAN</text>
+<text class="f-t" x="334" y="60" text-anchor="end" style="font-size:13px">0.3 s · ≈ 0 núcleos</text>
+<text class="f-s" x="22" y="84" style="font-size:12px;font-weight:700">hilo 1</text>
+<rect class="f-b2" x="70" y="72" width="130" height="16" rx="2"/>
+<text class="f-s" x="22" y="108" style="font-size:12px;font-weight:700">hilo 2</text>
+<rect class="f-b2" x="70" y="96" width="130" height="16" rx="2"/>
+<text class="f-s" x="210" y="97" style="font-size:12px">las esperas se enciman</text>
+<line x1="200" y1="66" x2="200" y2="118" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<rect class="f-card" x="10" y="138" width="340" height="106" rx="16"/>
+<text class="f-l" x="26" y="162">DOS HILOS QUE CALCULAN</text>
+<text class="f-t" x="334" y="162" text-anchor="end" style="font-size:13px">0.6 s · 1 núcleo</text>
+<text class="f-s" x="22" y="184" style="font-size:12px;font-weight:700">hilo 1</text>
+<rect class="f-off" x="70" y="172" width="260" height="16"/>
+<text class="f-s" x="22" y="208" style="font-size:12px;font-weight:700">hilo 2</text>
+<rect class="f-off" x="70" y="196" width="260" height="16"/>
+<rect class="f-o" x="70" y="172" width="10.8" height="16"/>
+<rect class="f-o" x="80.8" y="196" width="10.8" height="16"/>
+<rect class="f-o" x="91.7" y="172" width="10.8" height="16"/>
+<rect class="f-o" x="102.5" y="196" width="10.8" height="16"/>
+<rect class="f-o" x="113.3" y="172" width="10.8" height="16"/>
+<rect class="f-o" x="124.2" y="196" width="10.8" height="16"/>
+<rect class="f-o" x="135" y="172" width="10.8" height="16"/>
+<rect class="f-o" x="145.8" y="196" width="10.8" height="16"/>
+<rect class="f-o" x="156.7" y="172" width="10.8" height="16"/>
+<rect class="f-o" x="167.5" y="196" width="10.8" height="16"/>
+<rect class="f-o" x="178.3" y="172" width="10.8" height="16"/>
+<rect class="f-o" x="189.2" y="196" width="10.8" height="16"/>
+<rect class="f-o" x="200" y="172" width="10.8" height="16"/>
+<rect class="f-o" x="210.8" y="196" width="10.8" height="16"/>
+<rect class="f-o" x="221.7" y="172" width="10.8" height="16"/>
+<rect class="f-o" x="232.5" y="196" width="10.8" height="16"/>
+<rect class="f-o" x="243.3" y="172" width="10.8" height="16"/>
+<rect class="f-o" x="254.2" y="196" width="10.8" height="16"/>
+<rect class="f-o" x="265" y="172" width="10.8" height="16"/>
+<rect class="f-o" x="275.8" y="196" width="10.8" height="16"/>
+<rect class="f-o" x="286.7" y="172" width="10.8" height="16"/>
+<rect class="f-o" x="297.5" y="196" width="10.8" height="16"/>
+<rect class="f-o" x="308.3" y="172" width="10.8" height="16"/>
+<rect class="f-o" x="319.2" y="196" width="10.8" height="16"/>
+<line x1="330" y1="166" x2="330" y2="218" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<text class="f-s" x="26" y="234" style="font-size:12px">Turnos agrandados: en realidad duran 5 ms.</text>
+<rect class="f-card" x="10" y="256" width="340" height="120" rx="16"/>
+<text class="f-l" x="26" y="280">DOS PROCESOS</text>
+<text class="f-t" x="334" y="280" text-anchor="end" style="font-size:13px">0.3 s · 2 núcleos</text>
+<text class="f-s" x="22" y="302" style="font-size:12px;font-weight:700">proc. 1</text>
+<rect class="f-o" x="70" y="290" width="130" height="16" rx="2"/>
+<text class="f-s" x="22" y="326" style="font-size:12px;font-weight:700">proc. 2</text>
+<rect class="f-o" x="70" y="314" width="130" height="16" rx="2"/>
+<text class="f-s" x="210" y="315" style="font-size:12px">cada uno, con su GIL</text>
+<line x1="200" y1="284" x2="200" y2="336" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<line class="f-linea" x1="70" y1="344" x2="330" y2="344"/>
+<line class="f-linea" x1="70" y1="344" x2="70" y2="348"/>
+<line class="f-linea" x1="200" y1="344" x2="200" y2="348"/>
+<line class="f-linea" x1="330" y1="344" x2="330" y2="348"/>
+<text class="f-s" x="70" y="362" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="200" y="362" text-anchor="middle" style="font-size:12px">0.3</text>
+<text class="f-s" x="330" y="362" text-anchor="middle" style="font-size:12px">0.6 s</text>
+<rect class="f-chip" x="10" y="388" width="340" height="58" rx="12"/>
+<rect class="f-o" x="26" y="398" width="14" height="14" rx="2"/>
+<text class="f-s" x="46" y="410" style="font-size:12px">calcula: tiene el GIL</text>
+<rect class="f-b2" x="196" y="398" width="14" height="14" rx="2"/>
+<text class="f-s" x="216" y="410" style="font-size:12px">espera I/O</text>
+<rect class="f-off" x="26" y="422" width="14" height="14" rx="2"/>
+<text class="f-s" x="46" y="434" style="font-size:12px">espera el GIL para calcular</text>
+</svg>

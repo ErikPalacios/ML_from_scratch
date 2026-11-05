@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 472" role="img" aria-labelledby="f-memoria-paginas-t" class="f-svg" style="max-width:420px">
+<title id="f-memoria-paginas-t">Dos procesos, A y B, cada uno con sus páginas de 4 KiB numeradas desde 0, y en medio los marcos de 4 KiB de la RAM de verdad. Las flechas son la tabla de páginas de cada proceso. La página 0 de A, su código, está en el marco 0. La página 1 de A, la foto, en el marco 2. La página 2 de A, los pesos, en el marco 3. La página 3 de A, poco usada, se mandó al swap, en el disco. La página 0 de B, su código, está en el marco 1. La página 1 de B está reservada y todavía no tiene RAM. La página 2 de B, los pesos, también apunta al marco 3: los dos procesos comparten esa copia. La página 3 de B, un tensor, está en el marco 4. En el disco están el swap y el archivo de pesos del que se llenó el marco 3. A y B usan las mismas direcciones sin pisarse.</title>
+<defs><marker id="mem-pag-m" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="452" rx="16"/>
+<text class="f-l" x="28" y="36">CADA PROCESO, SU PROPIO MAPA</text>
+<text class="f-s" x="28" y="54" style="font-size:12px;fill:var(--muted)">las flechas son la tabla de páginas de cada uno</text>
+<text class="f-s" x="65" y="78" text-anchor="middle" style="font-weight:700">Proceso A</text>
+<text class="f-s" x="180" y="78" text-anchor="middle" style="font-weight:700">RAM de verdad</text>
+<text class="f-s" x="295" y="78" text-anchor="middle" style="font-weight:700">Proceso B</text>
+<text class="f-s" x="65" y="94" text-anchor="middle" style="font-size:12px;fill:var(--muted)">páginas de 4 KiB</text>
+<text class="f-s" x="180" y="94" text-anchor="middle" style="font-size:12px;fill:var(--muted)">marcos de 4 KiB</text>
+<text class="f-s" x="295" y="94" text-anchor="middle" style="font-size:12px;fill:var(--muted)">páginas de 4 KiB</text>
+<rect class="f-chip" x="20" y="104" width="90" height="32" rx="7"/>
+<rect class="f-chip" x="20" y="148" width="90" height="32" rx="7"/>
+<rect class="f-chip" x="20" y="192" width="90" height="32" rx="7"/>
+<rect class="f-chip" x="20" y="236" width="90" height="32" rx="7"/>
+<rect class="f-b2" x="135" y="104" width="90" height="32" rx="7"/>
+<rect class="f-b2" x="135" y="148" width="90" height="32" rx="7"/>
+<rect class="f-b2" x="135" y="192" width="90" height="32" rx="7"/>
+<rect class="f-g" x="135" y="236" width="90" height="32" rx="7"/>
+<rect class="f-b2" x="135" y="280" width="90" height="32" rx="7"/>
+<rect class="f-chip" x="250" y="104" width="90" height="32" rx="7"/>
+<rect x="250" y="148" width="90" height="32" rx="7" style="fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:4 3"/>
+<rect class="f-chip" x="250" y="192" width="90" height="32" rx="7"/>
+<rect class="f-chip" x="250" y="236" width="90" height="32" rx="7"/>
+<g text-anchor="middle">
+<text class="f-s" x="65" y="117" style="font-size:12px;font-weight:700">página 0</text><text class="f-s" x="65" y="131" style="font-size:12px">código</text>
+<text class="f-s" x="65" y="161" style="font-size:12px;font-weight:700">página 1</text><text class="f-s" x="65" y="175" style="font-size:12px">la foto</text>
+<text class="f-s" x="65" y="205" style="font-size:12px;font-weight:700">página 2</text><text class="f-s" x="65" y="219" style="font-size:12px">pesos</text>
+<text class="f-s" x="65" y="249" style="font-size:12px;font-weight:700">página 3</text><text class="f-s" x="65" y="263" style="font-size:12px">poco usada</text>
+<text class="f-s" x="180" y="117" style="font-size:12px;font-weight:700">marco 0</text><text class="f-s" x="180" y="131" style="font-size:12px">código de A</text>
+<text class="f-s" x="180" y="161" style="font-size:12px;font-weight:700">marco 1</text><text class="f-s" x="180" y="175" style="font-size:12px">código de B</text>
+<text class="f-s" x="180" y="205" style="font-size:12px;font-weight:700">marco 2</text><text class="f-s" x="180" y="219" style="font-size:12px">foto de A</text>
+<text class="f-pill-t" x="180" y="249" style="font:700 12px var(--sans)">marco 3</text><text class="f-pill-t" x="180" y="263" style="font:600 12px var(--sans)">pesos: A y B</text>
+<text class="f-s" x="180" y="293" style="font-size:12px;font-weight:700">marco 4</text><text class="f-s" x="180" y="307" style="font-size:12px">tensor de B</text>
+<text class="f-s" x="295" y="117" style="font-size:12px;font-weight:700">página 0</text><text class="f-s" x="295" y="131" style="font-size:12px">código</text>
+<text class="f-s" x="295" y="161" style="font-size:12px;font-weight:700">página 1</text><text class="f-s" x="295" y="175" style="font-size:12px;fill:var(--muted)">sin RAM aún</text>
+<text class="f-s" x="295" y="205" style="font-size:12px;font-weight:700">página 2</text><text class="f-s" x="295" y="219" style="font-size:12px">pesos</text>
+<text class="f-s" x="295" y="249" style="font-size:12px;font-weight:700">página 3</text><text class="f-s" x="295" y="263" style="font-size:12px">tensor</text>
+</g>
+<g class="f-flecha" style="stroke-width:1.6" marker-end="url(#mem-pag-m)">
+<line x1="110" y1="120" x2="132" y2="120"/>
+<line x1="110" y1="164" x2="132" y2="205"/>
+<line x1="110" y1="208" x2="132" y2="249"/>
+<line x1="65" y1="268" x2="65" y2="337"/>
+<line x1="250" y1="120" x2="228" y2="161"/>
+<line x1="250" y1="208" x2="228" y2="249"/>
+<line x1="250" y1="252" x2="228" y2="293"/>
+</g>
+<rect class="f-off" x="20" y="340" width="320" height="72" rx="10"/>
+<text class="f-s" x="34" y="360"><tspan style="font-weight:700">Disco</tspan> · sobrevive al apagar</text>
+<text class="f-s" x="34" y="379" style="font-size:12px">swap: ahí espera la página 3 de A</text>
+<text class="f-s" x="34" y="397" style="font-size:12px">pesos.safetensors: de ahí se llenó el marco 3</text>
+<text class="f-s" x="28" y="434" style="font-size:12px">A y B usan las mismas direcciones sin pisarse.</text>
+<text class="f-s" x="28" y="450" style="font-size:12px">El marco 3 está en los dos mapas: una sola copia.</text>
+</svg>

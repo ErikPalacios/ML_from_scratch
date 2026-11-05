@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 514" role="img" aria-labelledby="f-memoria-escalera-t" class="f-svg" style="max-width:420px">
+<title id="f-memoria-escalera-t">La escalera de memoria, en barras que miden cuánto tarda en llegar un dato, en una escala donde cada línea punteada vale 100 veces la anterior: 1 nanosegundo, 100 nanosegundos, 10 microsegundos y 1 milisegundo. A la derecha de cada piso, el mismo tiempo si 1 nanosegundo durara 1 segundo. Caché L1, de 32 a 128 KiB por núcleo: cerca de 1 ns, como 1 segundo. Caché L2, de 1 a 16 MiB: cerca de 4 ns, 4 segundos. Caché L3, decenas de MiB: cerca de 15 ns, 15 segundos. RAM, de 8 GB a varios TB: cerca de 100 ns, 1 minuto 40 segundos. SSD NVMe, decenas de TB: cerca de 0.1 ms, 28 horas. Disco de red EBS gp3: cerca de 1 ms, 12 días. Disco duro: cerca de 10 ms, 4 meses. Las tres cachés están dentro de la CPU; la RAM, fuera del chip; los discos guardan aunque se apague la computadora.</title>
+<rect class="f-card" x="10" y="10" width="340" height="494" rx="16"/>
+<text class="f-l" x="28" y="36">LA ESCALERA DE MEMORIA</text>
+<text class="f-s" x="28" y="56" style="font-size:12px">la barra: cuánto tarda en llegar un dato</text>
+<text class="f-s" x="28" y="72" style="font-size:12px;fill:var(--muted)">cada línea punteada vale 100 veces la anterior</text>
+<line x1="66" y1="98" x2="66" y2="422" style="stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3;opacity:.5"/>
+<line x1="142" y1="98" x2="142" y2="422" style="stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3;opacity:.5"/>
+<line x1="218" y1="98" x2="218" y2="422" style="stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3;opacity:.5"/>
+<line x1="294" y1="98" x2="294" y2="422" style="stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3;opacity:.5"/>
+<text class="f-s" x="66" y="92" text-anchor="middle" style="font-size:12px;font-weight:700">1 ns</text>
+<text class="f-s" x="142" y="92" text-anchor="middle" style="font-size:12px;font-weight:700">100 ns</text>
+<text class="f-s" x="218" y="92" text-anchor="middle" style="font-size:12px;font-weight:700">10 µs</text>
+<text class="f-s" x="294" y="92" text-anchor="middle" style="font-size:12px;font-weight:700">1 ms</text>
+<rect class="f-b" x="28" y="130" width="38" height="12" rx="4"/>
+<rect class="f-b" x="28" y="176" width="60.9" height="12" rx="4"/>
+<rect class="f-b" x="28" y="222" width="82.7" height="12" rx="4"/>
+<rect class="f-g" x="28" y="268" width="114" height="12" rx="4"/>
+<rect class="f-o" x="28" y="314" width="228" height="12" rx="4"/>
+<rect class="f-o" x="28" y="360" width="266" height="12" rx="4"/>
+<rect class="f-o" x="28" y="406" width="304" height="12" rx="4"/>
+<g style="paint-order:stroke;stroke:var(--blk);stroke-width:5px;stroke-linejoin:round">
+<text class="f-s" x="28" y="122"><tspan style="font-weight:700">L1</tspan> · 32–128 KiB por núcleo</text>
+<text class="f-s" x="332" y="122" text-anchor="end" style="font-size:12px">≈ 1 ns → 1 s</text>
+<text class="f-s" x="28" y="168"><tspan style="font-weight:700">L2</tspan> · 1–16 MiB</text>
+<text class="f-s" x="332" y="168" text-anchor="end" style="font-size:12px">≈ 4 ns → 4 s</text>
+<text class="f-s" x="28" y="214"><tspan style="font-weight:700">L3</tspan> · decenas de MiB</text>
+<text class="f-s" x="332" y="214" text-anchor="end" style="font-size:12px">≈ 15 ns → 15 s</text>
+<text class="f-s" x="28" y="260"><tspan style="font-weight:700">RAM</tspan> · 8 GB a varios TB</text>
+<text class="f-s" x="332" y="260" text-anchor="end" style="font-size:12px">≈ 100 ns → 1 min 40 s</text>
+<text class="f-s" x="28" y="306"><tspan style="font-weight:700">SSD NVMe</tspan> · decenas de TB</text>
+<text class="f-s" x="332" y="306" text-anchor="end" style="font-size:12px">≈ 0.1 ms → 28 h</text>
+<text class="f-s" x="28" y="352"><tspan style="font-weight:700">Disco de red</tspan> · EBS gp3</text>
+<text class="f-s" x="332" y="352" text-anchor="end" style="font-size:12px">≈ 1 ms → 12 días</text>
+<text class="f-s" x="28" y="398"><tspan style="font-weight:700">Disco duro</tspan> · HDD</text>
+<text class="f-s" x="332" y="398" text-anchor="end" style="font-size:12px">≈ 10 ms → 4 meses</text>
+</g>
+<rect class="f-b" x="28" y="436" width="12" height="12" rx="3"/>
+<text class="f-s" x="46" y="446" style="font-size:12px">cachés: dentro de la CPU</text>
+<rect class="f-g" x="28" y="458" width="12" height="12" rx="3"/>
+<text class="f-s" x="46" y="468" style="font-size:12px">RAM: fuera de la CPU, se borra al apagar</text>
+<rect class="f-o" x="28" y="480" width="12" height="12" rx="3"/>
+<text class="f-s" x="46" y="490" style="font-size:12px">discos: lo que se queda aunque se apague</text>
+</svg>

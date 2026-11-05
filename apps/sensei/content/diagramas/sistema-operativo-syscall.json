@@ -1,0 +1,323 @@
+{
+  "titulo": "Triton abre su engine: una llamada al sistema, del programa al disco",
+  "width": 78,
+  "height": 56,
+  "lanes": [
+    {
+      "id": "usuario",
+      "label": "Espacio de usuario · los programas",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 15
+    },
+    {
+      "id": "kernel",
+      "label": "Kernel · el único que toca el hardware",
+      "kind": "online",
+      "x": 0,
+      "y": 17,
+      "w": 78,
+      "h": 24
+    },
+    {
+      "id": "hw",
+      "label": "Hardware",
+      "kind": "offline",
+      "x": 0,
+      "y": 43,
+      "w": 78,
+      "h": 13
+    }
+  ],
+  "nodes": [
+    {
+      "id": "triton",
+      "label": "Triton",
+      "sub": "quiere leer su engine",
+      "kind": "service",
+      "x": 2,
+      "y": 5,
+      "w": 20,
+      "h": 8,
+      "note": "El servidor de modelos de C01 arranca y necesita su engine: `/models/classifier/1/model.plan`. Corre en **modo usuario**, así que no puede leer el disco por su cuenta: tiene que pedirlo."
+    },
+    {
+      "id": "glibc",
+      "label": "glibc",
+      "sub": "la biblioteca de C",
+      "kind": "service",
+      "x": 29,
+      "y": 5,
+      "w": 20,
+      "h": 8,
+      "note": "Triton llama a la función `open()` de la biblioteca de C. Por dentro, glibc arma la [[syscall]] `openat` con la ruta y «solo lectura», y ejecuta la instrucción que cambia la CPU a modo kernel."
+    },
+    {
+      "id": "entrada",
+      "label": "Entrada al kernel",
+      "sub": "la CPU pasa a modo kernel",
+      "kind": "edge",
+      "x": 29,
+      "y": 22,
+      "w": 20,
+      "h": 8,
+      "note": "La syscall llega al [[kernel]]. La CPU ya está en **modo kernel**: desde aquí se puede tocar todo. Al terminar, el kernel regresa un número y la CPU vuelve a modo usuario. Si todo salió bien, ese número es el **descriptor** del archivo abierto, con el que el programa lo va a leer; si no, un error."
+    },
+    {
+      "id": "fs",
+      "label": "Sistema de archivos",
+      "sub": "recorre la ruta",
+      "kind": "service",
+      "x": 56,
+      "y": 22,
+      "w": 20,
+      "h": 8,
+      "note": "El [[sistema-archivos]] recorre la [[ruta]] carpeta por carpeta: `/`, `models`, `classifier`, `1` y por fin `model.plan`. Sabe en qué bloques del disco están sus bytes. Si una carpeta no existe, responde con el error 2: «No such file or directory»."
+    },
+    {
+      "id": "permisos",
+      "label": "¿Tiene permiso?",
+      "sub": "el UID contra rwx",
+      "kind": "monitor",
+      "x": 56,
+      "y": 32,
+      "w": 20,
+      "h": 8,
+      "note": "En cada paso, el kernel revisa los [[permisos]] del UID de Triton: x en cada carpeta del camino y r en el archivo. Si falta uno, responde con el error 13, «Permission denied», sin leer ni un byte."
+    },
+    {
+      "id": "driver",
+      "label": "Driver del disco",
+      "sub": "le habla al NVMe",
+      "kind": "service",
+      "x": 29,
+      "y": 32,
+      "w": 20,
+      "h": 8,
+      "note": "El [[driver]] del disco es la parte del kernel que sabe darle órdenes a ese tipo de disco. Pide los bloques del engine. Si se leyeron hace poco, el kernel ya los tiene en la RAM, en su [[page-cache|page cache]], y ni siquiera va al disco."
+    },
+    {
+      "id": "disco",
+      "label": "Disco NVMe",
+      "sub": "bloques de bytes",
+      "kind": "store",
+      "x": 29,
+      "y": 46,
+      "w": 20,
+      "h": 8,
+      "note": "El disco solo sabe de bloques numerados. Los nombres, las carpetas y los permisos existen gracias al sistema de archivos que el kernel escribió encima."
+    }
+  ],
+  "edges": [
+    {
+      "from": "triton",
+      "to": "glibc",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "open()",
+      "bidir": true
+    },
+    {
+      "from": "glibc",
+      "to": "entrada",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "openat",
+      "bidir": true
+    },
+    {
+      "from": "entrada",
+      "to": "fs",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "fs",
+      "to": "permisos",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "permisos",
+      "to": "driver",
+      "kind": "online",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "driver",
+      "to": "disco",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "bloques"
+    }
+  ],
+  "flows": [
+    {
+      "id": "leer",
+      "label": "Abrir y leer el engine",
+      "steps": [
+        {
+          "nodes": [
+            "triton"
+          ],
+          "edges": [],
+          "text": "Triton arranca y necesita su engine, `/models/classifier/1/model.plan`. Corre en **modo usuario**: no puede tocar el disco."
+        },
+        {
+          "nodes": [
+            "triton",
+            "glibc"
+          ],
+          "edges": [
+            "triton>glibc"
+          ],
+          "text": "Llama a `open()`. La **biblioteca de C** la convierte en la syscall `openat`, con la ruta y «solo lectura»."
+        },
+        {
+          "nodes": [
+            "glibc",
+            "entrada"
+          ],
+          "edges": [
+            "glibc>entrada"
+          ],
+          "text": "Una instrucción especial cambia la CPU a **modo kernel** y salta al código del kernel."
+        },
+        {
+          "nodes": [
+            "entrada",
+            "fs"
+          ],
+          "edges": [
+            "entrada>fs"
+          ],
+          "text": "El **sistema de archivos** recorre la ruta: `/`, `models`, `classifier`, `1` y `model.plan`."
+        },
+        {
+          "nodes": [
+            "fs",
+            "permisos"
+          ],
+          "edges": [
+            "fs>permisos"
+          ],
+          "text": "En cada paso, el kernel revisa los **permisos** del UID de Triton: x en cada carpeta y r en el archivo. Todo en orden."
+        },
+        {
+          "nodes": [
+            "permisos",
+            "driver",
+            "disco"
+          ],
+          "edges": [
+            "permisos>driver",
+            "driver>disco"
+          ],
+          "text": "Al leer, el **driver** le pide al disco los bloques del engine. Si se leyeron hace poco, ya están en la RAM."
+        },
+        {
+          "nodes": [
+            "entrada",
+            "glibc",
+            "triton"
+          ],
+          "edges": [
+            "glibc>entrada",
+            "triton>glibc"
+          ],
+          "text": "El kernel regresa un número, el **descriptor** del archivo: por ejemplo, el 3, porque el 0, el 1 y el 2 ya los tiene todo proceso (la entrada, la salida y los errores). La CPU vuelve a modo usuario, y con ese número Triton hace `read` hasta tener el engine completo."
+        }
+      ]
+    },
+    {
+      "id": "permiso",
+      "label": "Sin permiso",
+      "steps": [
+        {
+          "nodes": [
+            "triton",
+            "glibc",
+            "entrada"
+          ],
+          "edges": [
+            "triton>glibc",
+            "glibc>entrada"
+          ],
+          "text": "Ahora el engine se copió con permisos 600 y dueño root, y Triton corre como el UID 1000. Pide lo mismo."
+        },
+        {
+          "nodes": [
+            "entrada",
+            "fs",
+            "permisos"
+          ],
+          "edges": [
+            "entrada>fs",
+            "fs>permisos"
+          ],
+          "text": "El sistema de archivos encuentra el archivo, pero el UID 1000 cae en «los demás», que tienen `---`."
+        },
+        {
+          "nodes": [
+            "entrada",
+            "glibc",
+            "triton"
+          ],
+          "edges": [
+            "glibc>entrada",
+            "triton>glibc"
+          ],
+          "text": "El kernel regresa el **error 13** sin leer ni un byte. En Python sería `PermissionError: [Errno 13] Permission denied`. Triton no puede cargar el modelo y, como C01 lo arranca con `--exit-on-error=true`, se apaga: Kubernetes lo reinicia una y otra vez sin que llegue a estar listo."
+        }
+      ]
+    },
+    {
+      "id": "ruta",
+      "label": "La ruta no existe",
+      "steps": [
+        {
+          "nodes": [
+            "triton",
+            "glibc",
+            "entrada"
+          ],
+          "edges": [
+            "triton>glibc",
+            "glibc>entrada"
+          ],
+          "text": "Alguien configuró la ruta relativa `models/classifier/1/model.plan`, y Triton arrancó en otra carpeta de trabajo."
+        },
+        {
+          "nodes": [
+            "entrada",
+            "fs"
+          ],
+          "edges": [
+            "entrada>fs"
+          ],
+          "text": "El sistema de archivos busca `models` dentro de la carpeta de trabajo y no lo encuentra."
+        },
+        {
+          "nodes": [
+            "entrada",
+            "glibc",
+            "triton"
+          ],
+          "edges": [
+            "glibc>entrada",
+            "triton>glibc"
+          ],
+          "text": "**Error 2**: «No such file or directory». No se leyó ni un byte del engine: el kernel respondió solo, antes de llegar a él."
+        }
+      ]
+    }
+  ]
+}

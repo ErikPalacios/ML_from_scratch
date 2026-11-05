@@ -1,0 +1,64 @@
+{
+  "titulo": "Por qué se reinicia un pod",
+  "width": 78,
+  "height": 33,
+  "lanes": [
+    { "id": "k8s", "label": "Kubernetes", "kind": "monitor", "x": 0, "y": 0, "w": 78, "h": 15 },
+    { "id": "maquina", "label": "La máquina y el pod", "kind": "online", "x": 0, "y": 17, "w": 78, "h": 16 }
+  ],
+  "nodes": [
+    { "id": "rollout", "label": "Versión nueva", "sub": "un rollout", "kind": "job",
+      "x": 1, "y": 4, "w": 17, "h": 8,
+      "note": "Un *rollout* cambia los pods de una versión por los de la nueva, de a poco. No reinicia nada: crea pods nuevos y apaga los viejos con un apagado ordenado." },
+    { "id": "kubelet", "label": "kubelet", "sub": "arranca y vigila", "kind": "monitor",
+      "x": 31, "y": 4, "w": 16, "h": 8,
+      "note": "El programa de Kubernetes que corre en cada máquina. Arranca los contenedores, les pregunta si siguen vivos, les manda SIGTERM y SIGKILL, y lee el [[codigo-salida|código de salida]] de cada uno cuando terminan." },
+    { "id": "backoff", "label": "CrashLoopBackOff", "sub": "10 s, 20 s… 5 min", "kind": "queue",
+      "x": 60, "y": 4, "w": 17, "h": 8,
+      "note": "Si un contenedor se cae una y otra vez, el kubelet espera cada vez más antes de reintentar: 10 s, 20 s, 40 s… hasta 5 minutos. Si llega a correr 10 minutos sin problemas, la espera vuelve a empezar desde 10 s." },
+    { "id": "kernel", "label": "Kernel", "sub": "el OOM killer", "kind": "edge",
+      "x": 1, "y": 21, "w": 17, "h": 8,
+      "note": "El [[kernel]] hace cumplir el límite de memoria del contenedor, con un [[cgroup]]. Si el proceso se pasa, el OOM killer lo mata con SIGKILL: [[oom|OOMKilled]], código 137." },
+    { "id": "proc", "label": "Proceso PID 1", "sub": "Triton o uvicorn", "kind": "service",
+      "x": 31, "y": 21, "w": 16, "h": 8,
+      "note": "El [[proceso]] principal del contenedor: `tritonserver`, o `python` con uvicorn. Si termina, por la razón que sea, el kubelet lo vuelve a arrancar en el mismo pod: un proceso nuevo, que otra vez es el PID 1 de su contenedor." },
+    { "id": "probe", "label": "Liveness probe", "sub": "¿sigues vivo?", "kind": "monitor",
+      "x": 60, "y": 21, "w": 17, "h": 8,
+      "note": "La pregunta que el kubelet le hace al proceso cada 10 s. Si falla 3 veces seguidas (los valores por omisión), lo reinicia. Solo debe preguntar por el proceso, nunca por otro servicio: si no, una falla de Triton reinicia gateways sanos." }
+  ],
+  "edges": [
+    { "from": "rollout", "to": "kubelet", "kind": "neutral", "fromSide": "r", "toSide": "l", "label": "apaga el viejo" },
+    { "from": "kubelet", "to": "backoff", "kind": "neutral", "fromSide": "r", "toSide": "l", "label": "se repite" },
+    { "from": "backoff", "to": "proc", "kind": "neutral", "fromSide": "b", "toSide": "t", "via": [[68.5, 16], [44, 16]], "label": "reintenta" },
+    { "from": "kubelet", "to": "proc", "kind": "neutral", "fromSide": "b", "toSide": "t", "bidir": true },
+    { "from": "kernel", "to": "proc", "kind": "neutral", "fromSide": "r", "toSide": "l", "label": "SIGKILL" },
+    { "from": "probe", "to": "proc", "kind": "monitor", "fromSide": "l", "toSide": "r", "label": "¿respondes?" }
+  ],
+  "flows": [
+    { "id": "oom", "label": "Se pasa de memoria",
+      "steps": [
+        { "nodes": ["proc"], "edges": [], "text": "El proceso crece hasta pasar el límite de memoria de su contenedor: tres fotos gigantes a la vez, o una fuga que nunca suelta nada." },
+        { "nodes": ["kernel", "proc"], "edges": ["kernel>proc"], "text": "El **kernel** lo mata con SIGKILL. No hay excepción ni traceback: el proceso ni se entera." },
+        { "nodes": ["proc", "kubelet"], "edges": ["kubelet>proc"], "text": "El contenedor termina con **137**, y Kubernetes anota la razón: **OOMKilled**. El kubelet lo vuelve a arrancar en el mismo pod: un proceso nuevo, con la memoria vacía. RESTARTS sube 1." }
+      ] },
+    { "id": "arranque", "label": "No puede arrancar",
+      "steps": [
+        { "nodes": ["proc"], "edges": [], "text": "Triton arranca, pero el engine no coincide con la versión de TensorRT. Con `--exit-on-error=true`, sale de inmediato con un código de error." },
+        { "nodes": ["proc", "kubelet"], "edges": ["kubelet>proc"], "text": "El kubelet lee el código, ve que el contenedor terminó y lo arranca otra vez. Falla igual." },
+        { "nodes": ["kubelet", "backoff"], "edges": ["kubelet>backoff"], "text": "Como se repite, el kubelet espera cada vez más antes de reintentar: 10 s, 20 s, 40 s… hasta 5 minutos. Ese estado se llama **CrashLoopBackOff**." },
+        { "nodes": ["backoff", "proc"], "edges": ["backoff>proc"], "text": "Lo reintenta, y vuelve a fallar. El pod nunca queda listo. Es una falla ruidosa a propósito: mejor eso que un servidor «vivo» que no sabe clasificar." }
+      ] },
+    { "id": "colgado", "label": "Se queda colgado",
+      "steps": [
+        { "nodes": ["proc"], "edges": [], "text": "El proceso sigue vivo, pero ya no responde: un hilo atorado, un candado que nunca se suelta." },
+        { "nodes": ["probe", "proc"], "edges": ["probe>proc"], "text": "El kubelet le pregunta cada 10 s, con la **liveness probe**, si sigue vivo. Falla 3 veces seguidas: unos 30 s." },
+        { "nodes": ["kubelet", "proc"], "edges": ["kubelet>proc"], "text": "El kubelet lo mata: SIGTERM y, si no termina dentro del plazo de gracia, SIGKILL, que deja un 137. Después lo arranca de nuevo." }
+      ] },
+    { "id": "version", "label": "Una versión nueva",
+      "steps": [
+        { "nodes": ["rollout", "kubelet"], "edges": ["rollout>kubelet"], "text": "Llega una versión nueva. Kubernetes crea pods nuevos y le pide al kubelet que apague los viejos." },
+        { "nodes": ["kubelet", "proc"], "edges": ["kubelet>proc"], "text": "El proceso viejo recibe **SIGTERM** después del preStop: deja de aceptar, termina lo que tiene y sale con **0**." },
+        { "nodes": ["proc"], "edges": [], "text": "Este no se reinicia: su pod se borra. El pod nuevo trae su propio proceso, con RESTARTS en 0." }
+      ] }
+  ]
+}

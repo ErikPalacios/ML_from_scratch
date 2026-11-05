@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 380" role="img" aria-labelledby="f-async-little-t" class="f-svg" style="max-width:420px">
+<title id="f-async-little-t">La Ley de Little con barras. Once requests llegan una cada 10 milisegundos, de los 0 a los 100, y cada una dura 50 milisegundos, así que cada barra empieza 10 milisegundos después que la anterior y mide lo mismo. Una línea punteada en el instante 75 milisegundos corta cinco barras, las de las requests que llegaron a los 30, 40, 50, 60 y 70: en ese instante hay 5 en vuelo. La cuenta: lambda es 1 cada 10 milisegundos, 100 por segundo; W es 50 milisegundos; L es igual a lambda por W, 100 por 0.05, que da 5.</title>
+<text class="f-l" x="14" y="24">UNA REQUEST CADA 10 MS, DE 50 MS CADA UNA</text>
+<rect class="f-card" x="10" y="36" width="340" height="334" rx="16"/>
+<text class="f-t" x="196" y="56" style="font-size:13px">5 en vuelo</text>
+<rect class="f-b2" x="40" y="64" width="100" height="11" rx="2"/>
+<rect class="f-b2" x="60" y="79" width="100" height="11" rx="2"/>
+<rect class="f-b2" x="80" y="94" width="100" height="11" rx="2"/>
+<rect class="f-b" x="100" y="109" width="100" height="11" rx="2"/>
+<rect class="f-b" x="120" y="124" width="100" height="11" rx="2"/>
+<rect class="f-b" x="140" y="139" width="100" height="11" rx="2"/>
+<rect class="f-b" x="160" y="154" width="100" height="11" rx="2"/>
+<rect class="f-b" x="180" y="169" width="100" height="11" rx="2"/>
+<rect class="f-b2" x="200" y="184" width="100" height="11" rx="2"/>
+<rect class="f-b2" x="220" y="199" width="100" height="11" rx="2"/>
+<rect class="f-b2" x="240" y="214" width="100" height="11" rx="2"/>
+<line x1="190" y1="62" x2="190" y2="232" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<line class="f-linea" x1="40" y1="240" x2="340" y2="240"/>
+<line class="f-linea" x1="40" y1="240" x2="40" y2="244"/>
+<line class="f-linea" x1="140" y1="240" x2="140" y2="244"/>
+<line class="f-linea" x1="190" y1="240" x2="190" y2="244"/>
+<line class="f-linea" x1="240" y1="240" x2="240" y2="244"/>
+<line class="f-linea" x1="340" y1="240" x2="340" y2="244"/>
+<text class="f-s" x="40" y="258" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="140" y="258" text-anchor="middle" style="font-size:12px">50</text>
+<text class="f-t" x="190" y="258" text-anchor="middle" style="font-size:12px">75</text>
+<text class="f-s" x="240" y="258" text-anchor="middle" style="font-size:12px">100</text>
+<text class="f-s" x="344" y="258" text-anchor="end" style="font-size:12px">150 ms</text>
+<rect class="f-chip" x="24" y="270" width="312" height="88" rx="12"/>
+<text class="f-s" x="38" y="290" style="font-size:12px">Cada barra: de que llega a que sale.</text>
+<text class="f-s" x="38" y="310" style="font-size:13px">λ = 1 cada 10 ms = 100 por segundo</text>
+<text class="f-s" x="38" y="328" style="font-size:13px">W = 50 ms = 0.05 s</text>
+<text class="f-t" x="38" y="348" style="font-size:14px">L = λ × W = 100 × 0.05 = 5</text>
+</svg>

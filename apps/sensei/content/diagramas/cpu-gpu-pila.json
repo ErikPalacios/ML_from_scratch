@@ -1,0 +1,54 @@
+{
+  "titulo": "Qué pone tu imagen y qué pone la máquina",
+  "width": 78,
+  "height": 53,
+  "lanes": [
+    { "id": "imagen", "label": "Tu imagen: lo que eliges tú", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 17 },
+    { "id": "maquina", "label": "La máquina: lo que pone el nodo", "kind": "neutral", "x": 0, "y": 19, "w": 78, "h": 17 },
+    { "id": "hw", "label": "El hardware", "kind": "neutral", "x": 0, "y": 38, "w": 78, "h": 15 }
+  ],
+  "nodes": [
+    { "id": "prog", "label": "Triton", "sub": "tu programa", "kind": "service", "x": 1, "y": 6, "w": 18, "h": 8,
+      "note": "El programa que sirve el modelo. Viene dentro de la imagen de NVIDIA `tritonserver:24.08`, junto con todo lo que necesita para usar la GPU, menos el driver." },
+    { "id": "trt", "label": "TensorRT 10.3", "sub": "y el engine (sm_75)", "kind": "model", "x": 29, "y": 6, "w": 20, "h": 8,
+      "note": "TensorRT carga el engine de C01, que está atado a dos cosas: la arquitectura de la GPU para la que se construyó (la T4, sm_75) y esta versión de TensorRT. Con otra GPU u otra versión, hay que construirlo de nuevo." },
+    { "id": "cudart", "label": "CUDA 12.6", "sub": "runtime, cuBLAS, cuDNN", "kind": "store", "x": 57, "y": 6, "w": 20, "h": 8,
+      "note": "El runtime de [[cuda|CUDA]] y sus bibliotecas viajan **en la imagen**: son la mayor parte de los GB de una imagen de GPU. Su versión decide qué driver necesita la máquina." },
+    { "id": "plugin", "label": "Device plugin", "sub": "anuncia nvidia.com/gpu", "kind": "service", "x": 1, "y": 25, "w": 18, "h": 8,
+      "note": "Un programa del fabricante que corre en cada nodo con GPU, las detecta y se las anuncia a Kubernetes como un recurso. Sin él, para Kubernetes el nodo no tiene GPUs y ningún pod que pida una cae ahí." },
+    { "id": "modulo", "label": "Módulo nvidia.ko", "sub": "en el kernel de Linux", "kind": "service", "x": 29, "y": 25, "w": 20, "h": 8,
+      "note": "La parte del [[driver]] que vive dentro del [[kernel]] del sistema operativo y habla directo con la GPU. Lo instala quien arma la máquina, no tu imagen." },
+    { "id": "libcuda", "label": "libcuda y NVML", "sub": "las bibliotecas del driver", "kind": "service", "x": 57, "y": 25, "w": 20, "h": 8,
+      "note": "Por aquí los programas le piden cosas al driver. El NVIDIA Container Toolkit las monta dentro del contenedor desde la máquina. NVML es la que usa `nvidia-smi` para leer la memoria, la temperatura y la utilización." },
+    { "id": "gpu", "label": "La T4", "sub": "sm_75 · 16 GB", "kind": "gpu", "x": 29, "y": 43, "w": 20, "h": 8,
+      "note": "El hardware. Su arquitectura (compute capability 7.5, sm_75) decide qué kernels puede correr: los compilados para otra arquitectura no le sirven." }
+  ],
+  "edges": [
+    { "from": "prog", "to": "trt", "kind": "online", "fromSide": "r", "toSide": "l", "label": "carga" },
+    { "from": "trt", "to": "cudart", "kind": "online", "fromSide": "r", "toSide": "l", "label": "kernels" },
+    { "from": "cudart", "to": "libcuda", "kind": "online", "fromSide": "b", "toSide": "t", "label": "driver ≥ 525" },
+    { "from": "libcuda", "to": "modulo", "kind": "online", "fromSide": "l", "toSide": "r" },
+    { "from": "modulo", "to": "gpu", "kind": "online", "fromSide": "b", "toSide": "t" }
+  ],
+  "flows": [
+    { "id": "normal", "label": "Un arranque normal",
+      "steps": [
+        { "nodes": ["plugin"], "edges": [], "text": "En el nodo, el **device plugin** detectó la T4 y se la anunció a Kubernetes como `nvidia.com/gpu: 1`. Por eso el pod de Triton, que pide una GPU, cayó aquí." },
+        { "nodes": ["prog", "trt"], "edges": ["prog>trt"], "text": "Triton arranca dentro del contenedor y carga el **engine** con TensorRT 10.3, de la misma imagen." },
+        { "nodes": ["trt", "cudart", "libcuda"], "edges": ["trt>cudart", "cudart>libcuda"], "text": "TensorRT usa el **CUDA 12.6** de la imagen, que le pide al driver de la máquina que prepare la GPU. Cualquier CUDA 12.x corre con un driver 525 o más nuevo: alcanza." },
+        { "nodes": ["libcuda", "modulo", "gpu"], "edges": ["libcuda>modulo", "modulo>gpu"], "text": "El **módulo del kernel** habla con la T4. El engine se construyó para sm_75, que es justo esta GPU: carga y corre." }
+      ] },
+    { "id": "viejo", "label": "Un driver más viejo",
+      "steps": [
+        { "nodes": ["cudart", "libcuda"], "edges": ["cudart>libcuda"], "text": "Ahora la imagen trae PyTorch para **CUDA 13.0** y el nodo tiene el driver **535**. CUDA 13 pide un driver 580 o más nuevo." },
+        { "nodes": ["cudart"], "edges": [], "text": "El programa falla al arrancar: «The NVIDIA driver on your system is too old». La salida es actualizar el driver del nodo o usar una imagen con CUDA 12.x, **no** meter un driver en la imagen." },
+        { "nodes": ["libcuda"], "edges": [], "text": "Mientras tanto, `nvidia-smi` dice «CUDA Version: 12.2»: el CUDA más nuevo que soporta ese driver, **no** el de la imagen." }
+      ] },
+    { "id": "otra-gpu", "label": "Un engine de la T4 en una L4",
+      "steps": [
+        { "nodes": ["trt", "gpu"], "edges": [], "text": "Supón que C01 tiene que mudarse a otra región de la nube (otro grupo de centros de datos, en otra parte del mundo) y ahí solo hay L4. Imagina que esta caja fuera una **L4 (sm_89)** y el engine siguiera siendo el de la T4 (sm_75)." },
+        { "nodes": ["trt"], "edges": [], "text": "TensorRT no lo carga: el engine eligió sus kernels **cronometrándolos en una T4** y quedó guardado en el formato de TensorRT 10.3." },
+        { "nodes": ["trt", "gpu"], "edges": [], "text": "La salida: construir otro engine en una L4, con la misma versión de TensorRT, y pasarle el mismo examen de paridad. La Ronda pide tenerlo listo **antes** de necesitarlo." }
+      ] }
+  ]
+}

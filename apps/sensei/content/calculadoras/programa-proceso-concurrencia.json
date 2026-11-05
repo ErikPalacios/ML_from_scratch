@@ -1,0 +1,25 @@
+{
+  "titulo": "Concurrencia y núcleos: cuántas requests por segundo",
+  "intro": "Cada request del gateway usa la CPU un rato y espera a Triton otro rato. Mueve cuántas requests hay **en vuelo** a la vez (las que ya empezaron y no han terminado) y cuántos [[nucleo|núcleos]] hay. Arranca con los números de C01 y una sola request a la vez.",
+  "entradas": [
+    { "id": "c", "label": "CPU por request, en ms (≈ 6 = preparar la foto en el gateway)", "min": 0.5, "max": 100, "paso": 0.5, "valor": 6 },
+    { "id": "w", "label": "Espera por request, en ms (≈ 10 = esperar la respuesta de Triton)", "min": 0, "max": 200, "paso": 1, "valor": 10 },
+    { "id": "n", "label": "Requests en vuelo a la vez", "min": 1, "max": 64, "paso": 1, "valor": 1 },
+    { "id": "k", "label": "Núcleos", "min": 1, "max": 16, "paso": 1, "valor": 1 }
+  ],
+  "calculos": [
+    { "id": "t", "formula": "c + w" },
+    { "id": "porvuelo", "formula": "n * 1000 / t" },
+    { "id": "porcpu", "formula": "k * 1000 / c" },
+    { "id": "x", "formula": "min(porvuelo, porcpu)" }
+  ],
+  "salidas": [
+    { "label": "**Requests por segundo**", "formula": "x", "formato": "num", "decimales": 1 },
+    { "label": "Tope por las que están en vuelo", "formula": "porvuelo", "formato": "num", "decimales": 1, "nota": "en vuelo × 1,000 ÷ (CPU + espera)" },
+    { "label": "Tope por la CPU", "formula": "porcpu", "formato": "num", "decimales": 1, "nota": "núcleos × 1,000 ÷ CPU de cada request" },
+    { "label": "Uso de la CPU", "formula": "x * c / (1000 * k)", "formato": "pct", "barra": true },
+    { "label": "Lo que tarda cada request", "formula": "n * 1000 / x", "formato": "ms", "decimales": 1, "nota": "si pasa de CPU + espera, la request hace fila esperando su turno" },
+    { "label": "En vuelo para llenar los núcleos", "formula": "ceil(k * t / c)", "formato": "int" }
+  ],
+  "nota": "Es el caso ideal. En la vida real, cuando la CPU se acerca al 100 %, las requests empiezan a hacer fila antes, y la latencia sube más rápido. Pon la espera en 0, como un trabajo de pura CPU: más requests en vuelo ya no suben nada, solo más núcleos."
+}

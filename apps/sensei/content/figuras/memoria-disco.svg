@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 540" role="img" aria-labelledby="f-memoria-disco-t" class="f-svg" style="max-width:420px">
+<title id="f-memoria-disco-t">Por qué un disco duro tarda en leer 4 KiB en un lugar al azar. Arriba, un plato visto desde arriba, con sus pistas en círculos, el dato buscado marcado en naranja sobre su pista, también en naranja, y un brazo con la cabeza lectora, en azul, sobre otra pista. Paso 1: el brazo gira hasta poner la cabeza en la pista del dato (la posición nueva va con línea punteada), cerca de 8 milisegundos en promedio. Paso 2: hay que esperar a que el plato, que gira a 7,200 vueltas por minuto, lleve el dato hasta la cabeza: en promedio media vuelta, otros 4 milisegundos. En total, cerca de 12 ms por lectura al azar, unas 80 por segundo. En medio, un SSD: una tarjeta con dos chips de memoria flash y un chip de control, donde nada se mueve, que lee la celda directo en 0.05 a 0.1 ms. Abajo, las dos esperas a la misma escala: la barra del disco duro, 12 ms, cruza toda la figura; la del SSD, 0.1 ms, es una rayita; y la RAM, 0.0001 ms, mediría 0.0025 píxeles y no se ve.</title>
+<defs><marker id="mem-disco-m" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="520" rx="16"/>
+<text class="f-l" x="28" y="36">POR QUÉ UN DISCO DURO TARDA</text>
+<text class="f-s" x="28" y="54" style="font-size:12px;fill:var(--muted)">leer 4 KiB en un lugar al azar</text>
+<circle class="f-chip" cx="112" cy="160" r="72" style="stroke:var(--ink-2);stroke-width:1.5"/>
+<circle cx="112" cy="160" r="55" style="fill:none;stroke:var(--o);stroke-width:1.5;opacity:.6"/>
+<circle cx="112" cy="160" r="38" style="fill:none;stroke:var(--muted);stroke-width:1;opacity:.7"/>
+<path d="M64.37 187.5 A55 55 0 0 1 57.21 164.79" style="fill:none;stroke:var(--o);stroke-width:9"/>
+<circle class="f-ink" cx="112" cy="160" r="8"/>
+<path class="f-flecha" d="M34.95 131.95 A82 82 0 0 1 83.95 82.95" marker-end="url(#mem-disco-m)"/>
+<line x1="250" y1="212" x2="161.6" y2="136.2" style="stroke:var(--muted);stroke-width:2;stroke-dasharray:4 3;stroke-linecap:round"/>
+<circle cx="161.6" cy="136.2" r="7" style="fill:none;stroke:var(--tm-acc);stroke-width:2;stroke-dasharray:3 2"/>
+<line x1="250" y1="212" x2="149.4" y2="153.4" style="stroke:var(--muted);stroke-width:6;stroke-linecap:round"/>
+<circle class="f-ink" cx="250" cy="212" r="7"/>
+<circle cx="149.4" cy="153.4" r="7" style="fill:var(--tm-acc)"/>
+<circle class="f-y" cx="185" cy="118" r="9"/>
+<text x="185" y="122" text-anchor="middle" style="fill:var(--navy);font:800 12px var(--sans)">1</text>
+<circle class="f-y" cx="44" cy="92" r="9"/>
+<text x="44" y="96" text-anchor="middle" style="fill:var(--navy);font:800 12px var(--sans)">2</text>
+<text class="f-s" x="206" y="96" style="font-size:12px">plato: 7,200 rpm</text>
+<text class="f-s" x="206" y="112" style="font-size:12px;fill:var(--muted)">(vueltas por minuto)</text>
+<text class="f-s" x="262" y="236" style="font-size:12px">brazo</text>
+<circle class="f-y" cx="37" cy="259" r="9"/>
+<text x="37" y="263" text-anchor="middle" style="fill:var(--navy);font:800 12px var(--sans)">1</text>
+<text class="f-s" x="54" y="263" style="font-size:12px">El brazo va a la pista del <tspan style="fill:var(--o);font-weight:700">dato</tspan>: ≈ 8 ms</text>
+<circle class="f-y" cx="37" cy="283" r="9"/>
+<text x="37" y="287" text-anchor="middle" style="fill:var(--navy);font:800 12px var(--sans)">2</text>
+<text class="f-s" x="54" y="287" style="font-size:12px">Espera a que el dato llegue a la <tspan style="fill:var(--tm-acc);font-weight:700">cabeza</tspan>:</text>
+<text class="f-s" x="54" y="303" style="font-size:12px">media vuelta en promedio, ≈ 4 ms</text>
+<text class="f-s" x="28" y="328" style="font-size:12px;font-weight:700">Total: ≈ 12 ms, unas 80 lecturas por segundo</text>
+<rect class="f-chip" x="28" y="348" width="146" height="50" rx="8" style="stroke:var(--ink-2);stroke-width:1"/>
+<rect class="f-dark" x="36" y="358" width="36" height="30" rx="4"/>
+<rect class="f-dark" x="76" y="358" width="36" height="30" rx="4"/>
+<rect class="f-b2" x="116" y="358" width="50" height="30" rx="4"/>
+<text class="f-dark-t" x="54" y="377" text-anchor="middle" style="font-size:12px">flash</text>
+<text class="f-dark-t" x="94" y="377" text-anchor="middle" style="font-size:12px">flash</text>
+<text class="f-s" x="141" y="377" text-anchor="middle" style="font-size:12px;font-weight:700">control</text>
+<text class="f-s" x="184" y="364" style="font-size:12px;font-weight:700">SSD: nada se mueve.</text>
+<text class="f-s" x="184" y="380" style="font-size:12px">Lee la celda directo:</text>
+<text class="f-s" x="184" y="396" style="font-size:12px">≈ 0.05 a 0.1 ms</text>
+<text class="f-s" x="28" y="430" style="font-size:12px;font-weight:700">A la misma escala, leer 4 KiB al azar:</text>
+<text class="f-s" x="28" y="450" style="font-size:12px">disco duro ≈ 12 ms</text>
+<rect class="f-o" x="28" y="456" width="300" height="10" rx="3"/>
+<text class="f-s" x="28" y="484" style="font-size:12px">SSD NVMe ≈ 0.1 ms</text>
+<rect class="f-o" x="28" y="490" width="2.5" height="10" rx="1"/>
+<text class="f-s" x="28" y="518" style="font-size:12px;fill:var(--muted)">RAM ≈ 0.0001 ms: aquí mediría 0.0025 píxeles</text>
+</svg>

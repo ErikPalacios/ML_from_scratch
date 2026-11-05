@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 456" role="img" aria-labelledby="f-programa-proceso-esperas-t" class="f-svg" style="max-width:420px">
+<title id="f-programa-proceso-esperas-t">Cuatro requests del gateway en un solo núcleo, sobre una escala de 0 a 64 milisegundos. Cada una usa la CPU 6 milisegundos y después espera 10 milisegundos la respuesta de Triton. Arriba, una tras otra: la siguiente no empieza hasta que la anterior termina, y la cuarta sale a los 64 milisegundos; el núcleo trabaja solo 24 de esos 64. Abajo, concurrentes: cuando una empieza a esperar, la siguiente usa la CPU, y salen a los 16, 22, 28 y 34 milisegundos. La CPU sigue haciendo una sola cosa a la vez.</title>
+<rect class="f-card" x="10" y="10" width="340" height="436" rx="16"/>
+<text class="f-l" x="26" y="36">4 REQUESTS: 6 MS DE CPU, 10 DE ESPERA</text>
+<text class="f-s" x="26" y="62" style="font-size:13px;font-weight:700">Una tras otra, en un núcleo</text>
+<rect class="f-b" x="26" y="72" width="27.9" height="14" rx="2"/>
+<text class="f-pill-t" x="40" y="83" text-anchor="middle" style="font:800 12px var(--sans)">1</text>
+<rect class="f-b2" x="54.9" y="72" width="48.1" height="14" rx="2"/>
+<text class="f-s" x="78.9" y="83" text-anchor="middle" style="font-size:12px">espera</text>
+<rect class="f-b" x="103" y="92" width="27.9" height="14" rx="2"/>
+<text class="f-pill-t" x="117" y="103" text-anchor="middle" style="font:800 12px var(--sans)">2</text>
+<rect class="f-b2" x="131.9" y="92" width="48.1" height="14" rx="2"/>
+<rect class="f-b" x="180" y="112" width="27.9" height="14" rx="2"/>
+<text class="f-pill-t" x="194" y="123" text-anchor="middle" style="font:800 12px var(--sans)">3</text>
+<rect class="f-b2" x="208.9" y="112" width="48.1" height="14" rx="2"/>
+<rect class="f-b" x="257" y="132" width="27.9" height="14" rx="2"/>
+<text class="f-pill-t" x="271" y="143" text-anchor="middle" style="font:800 12px var(--sans)">4</text>
+<rect class="f-b2" x="285.9" y="132" width="48.1" height="14" rx="2"/>
+<text class="f-s" x="26" y="166" style="font-size:12px">la cuarta sale a los 64 ms</text>
+<text class="f-s" x="26" y="182" style="font-size:12px">el núcleo trabaja solo 24 de esos 64 ms</text>
+<text class="f-s" x="26" y="212" style="font-size:13px;font-weight:700">Concurrentes, en el mismo núcleo</text>
+<rect class="f-b" x="26" y="222" width="27.9" height="14" rx="2"/>
+<text class="f-pill-t" x="40" y="233" text-anchor="middle" style="font:800 12px var(--sans)">1</text>
+<rect class="f-b2" x="54.9" y="222" width="48.1" height="14" rx="2"/>
+<text class="f-s" x="107" y="233" style="font-size:12px">16 ms</text>
+<rect class="f-b" x="54.9" y="242" width="27.9" height="14" rx="2"/>
+<text class="f-pill-t" x="68.9" y="253" text-anchor="middle" style="font:800 12px var(--sans)">2</text>
+<rect class="f-b2" x="83.75" y="242" width="48.1" height="14" rx="2"/>
+<text class="f-s" x="136" y="253" style="font-size:12px">22 ms</text>
+<rect class="f-b" x="83.75" y="262" width="27.9" height="14" rx="2"/>
+<text class="f-pill-t" x="97.7" y="273" text-anchor="middle" style="font:800 12px var(--sans)">3</text>
+<rect class="f-b2" x="112.6" y="262" width="48.1" height="14" rx="2"/>
+<text class="f-s" x="165" y="273" style="font-size:12px">28 ms</text>
+<rect class="f-b" x="112.6" y="282" width="27.9" height="14" rx="2"/>
+<text class="f-pill-t" x="126.6" y="293" text-anchor="middle" style="font:800 12px var(--sans)">4</text>
+<rect class="f-b2" x="141.5" y="282" width="48.1" height="14" rx="2"/>
+<text class="f-s" x="194" y="293" style="font-size:12px">34 ms</text>
+<text class="f-s" x="26" y="316" style="font-size:12px">la cuarta sale a los 34 ms</text>
+<text class="f-s" x="26" y="332" style="font-size:12px">y la CPU sigue haciendo una cosa a la vez</text>
+<rect class="f-b" x="26" y="348" width="16" height="12" rx="2"/>
+<text class="f-s" x="50" y="358" style="font-size:12px">usa la CPU (6 ms)</text>
+<rect class="f-b2" x="26" y="368" width="16" height="12" rx="2"/>
+<text class="f-s" x="50" y="378" style="font-size:12px">espera a Triton (10 ms): el núcleo queda libre</text>
+<line class="f-linea" x1="26" y1="398" x2="334" y2="398"/>
+<line class="f-linea" x1="26" y1="398" x2="26" y2="403"/>
+<line class="f-linea" x1="103" y1="398" x2="103" y2="403"/>
+<line class="f-linea" x1="180" y1="398" x2="180" y2="403"/>
+<line class="f-linea" x1="257" y1="398" x2="257" y2="403"/>
+<line class="f-linea" x1="334" y1="398" x2="334" y2="403"/>
+<text class="f-s" x="26" y="418" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="103" y="418" text-anchor="middle" style="font-size:12px">16</text>
+<text class="f-s" x="180" y="418" text-anchor="middle" style="font-size:12px">32</text>
+<text class="f-s" x="257" y="418" text-anchor="middle" style="font-size:12px">48</text>
+<text class="f-s" x="334" y="418" text-anchor="middle" style="font-size:12px">64</text>
+<text class="f-l" x="180" y="436" text-anchor="middle">TIEMPO, EN MS</text>
+</svg>

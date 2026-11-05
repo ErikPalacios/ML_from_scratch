@@ -1,0 +1,61 @@
+{
+  "titulo": "El viaje de la foto de Ana por las máquinas de C01",
+  "width": 78,
+  "height": 60,
+  "lanes": [
+    { "id": "gw", "label": "Gateway · c6i.xlarge · solo CPU", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 16 },
+    { "id": "host", "label": "Triton · g4dn.xlarge · CPU y RAM", "kind": "neutral", "x": 0, "y": 18, "w": 78, "h": 16 },
+    { "id": "gpu", "label": "La T4 · VRAM y SMs", "kind": "online", "x": 0, "y": 36, "w": 78, "h": 24 }
+  ],
+  "nodes": [
+    { "id": "ana", "label": "La app de Ana", "sub": "JPEG ≈ 200 KB", "kind": "client", "x": 1, "y": 6, "w": 17, "h": 8,
+      "note": "La foto llega comprimida: un [[jpeg|JPEG]] de celular, del orden de 150 a 250 KB. Todavía no es un [[tensor]]: alguien tiene que decodificarla y prepararla." },
+    { "id": "prep", "label": "Decodificar y preparar", "sub": "CPU · ≈ 6 ms por foto", "kind": "service", "x": 28, "y": 6, "w": 21, "h": 8,
+      "note": "La CPU del gateway decodifica el JPEG, lo gira según su EXIF, lo reduce a 224 × 224 y lo normaliza: ≈ 6 ms de CPU por foto, más que el cálculo de la GPU. En el pico de diseño son ≈ 3 [[vcpu|vCPU]] ocupados, en máquinas c6i, donde el vCPU es ≈ 3 veces más barato que en la máquina de la GPU." },
+    { "id": "disco", "label": "Disco de la máquina", "sub": "pesos FP16 · ≈ 49 MB", "kind": "store", "x": 1, "y": 24, "w": 17, "h": 8,
+      "note": "El engine de TensorRT, ya construido para la T4: los pesos de la ResNet-50 en FP16, ≈ 49 MB, y los kernels que eligió para esta GPU. Se lee una sola vez, al arrancar." },
+    { "id": "triton", "label": "Triton", "sub": "recibe y arma el batch", "kind": "service", "x": 28, "y": 24, "w": 21, "h": 8,
+      "note": "El servidor del modelo corre en la CPU de la máquina de la GPU: recibe los tensores por la red, junta los que llegan en 2 ms (hasta 32) y lanza los kernels del engine. Pide 2 de los 4 vCPU de la g4dn.xlarge: no le sobra CPU para decodificar fotos." },
+    { "id": "ram", "label": "RAM fijada", "sub": "el batch, listo", "kind": "store", "x": 57, "y": 24, "w": 20, "h": 8,
+      "note": "El batch espera en [[ram|RAM]] fijada (*pinned*): memoria que el sistema operativo promete no mover, para que la GPU la lea directo, sin que la CPU copie cada byte (DMA)." },
+    { "id": "pcie", "label": "PCIe Gen3 x16", "sub": "≈ 16 GB/s por sentido", "kind": "edge", "x": 57, "y": 40, "w": 20, "h": 7,
+      "note": "El bus entre la máquina y la tarjeta de la T4: [[pcie|PCIe]]. El tensor de 602 KB lo cruza en ≈ 38 µs, y los 500 logits de vuelta (2 KB) en nada: ≈ 1 % del tiempo de la GPU. Lo caro fue la red." },
+    { "id": "vram", "label": "VRAM · GDDR6", "sub": "16 GB · 320 GB/s", "kind": "store", "x": 57, "y": 51, "w": 20, "h": 8,
+      "note": "La memoria de la T4, en chips GDDR6 alrededor de la GPU. Ahí viven los pesos del engine, el batch que llegó por PCIe y las activaciones de cada capa. Los SMs la leen a 320 GB/s." },
+    { "id": "sms", "label": "SMs y tensor cores", "sub": "engine FP16 · 3 a 6 ms", "kind": "gpu", "x": 28, "y": 51, "w": 21, "h": 8,
+      "note": "Los 40 [[sm|SMs]] corren los ≈ 56 kernels del engine, con las multiplicaciones en FP16 en los [[tensor-core|tensor cores]]. Con batches de 1 a 8 tardan ≈ 3 a 6 ms. Salen 500 [[logit|logits]] por foto." }
+  ],
+  "edges": [
+    { "from": "ana", "to": "prep", "kind": "online", "fromSide": "r", "toSide": "l", "label": "JPEG" },
+    { "from": "prep", "to": "triton", "kind": "online", "fromSide": "b", "toSide": "t", "label": "602 KB · red" },
+    { "from": "disco", "to": "triton", "kind": "neutral", "fromSide": "r", "toSide": "l", "label": "engine" },
+    { "from": "triton", "to": "ram", "kind": "online", "fromSide": "r", "toSide": "l", "label": "batch" },
+    { "from": "ram", "to": "pcie", "kind": "online", "fromSide": "b", "toSide": "t", "label": "DMA" },
+    { "from": "pcie", "to": "vram", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "vram", "to": "sms", "kind": "online", "fromSide": "l", "toSide": "r", "label": "320 GB/s" },
+    { "from": "sms", "to": "triton", "kind": "online", "fromSide": "t", "toSide": "b", "label": "logits · 2 KB" }
+  ],
+  "flows": [
+    { "id": "foto", "label": "La foto de Ana",
+      "steps": [
+        { "nodes": ["ana", "prep"], "edges": ["ana>prep"], "text": "La foto llega al gateway como JPEG. Una **CPU** la decodifica y la prepara: ≈ 6 ms, el tramo más caro antes de tocar la GPU." },
+        { "nodes": ["prep", "triton"], "edges": ["prep>triton"], "text": "El tensor de **602 KB** viaja por la red a la máquina de la GPU: de 2 a 4 ms. Triton lo junta con las fotos que llegaron en los últimos 2 ms." },
+        { "nodes": ["triton", "ram", "pcie"], "edges": ["triton>ram", "ram>pcie"], "text": "El batch queda en **RAM fijada**, memoria que el sistema operativo promete no mover, y la GPU lo copia por **PCIe** sin que la CPU mueva cada byte: ≈ 38 µs por foto." },
+        { "nodes": ["pcie", "vram"], "edges": ["pcie>vram"], "text": "El batch llega a la **VRAM**, donde ya esperaban los pesos del engine, cargados al arrancar." },
+        { "nodes": ["vram", "sms"], "edges": ["vram>sms"], "text": "Los **SMs** leen pesos y activaciones a 320 GB/s y corren los ≈ 56 kernels del engine en los tensor cores: de 3 a 6 ms." },
+        { "nodes": ["sms", "triton", "prep"], "edges": ["sms>triton"], "text": "Vuelven 500 logits, **2 KB**, por PCIe y por la red. El gateway calcula el top-5 y responde a la app de Ana." }
+      ] },
+    { "id": "arranque", "label": "Arrancar el servidor",
+      "steps": [
+        { "nodes": ["disco", "triton"], "edges": ["disco>triton"], "text": "Triton lee del disco el **engine**: ≈ 49 MB de pesos en FP16, construido para la T4." },
+        { "nodes": ["triton", "ram", "pcie", "vram"], "edges": ["triton>ram", "ram>pcie", "pcie>vram"], "text": "Los pesos cruzan PCIe **una sola vez**: 49 MB ÷ 15.75 GB/s ≈ 3 ms. Lo lento del arranque es otra cosa: bajar la imagen del contenedor, de varios GB, y preparar CUDA." },
+        { "nodes": ["vram", "sms"], "edges": ["vram>sms"], "text": "Triton corre unas fotos de prueba (el *warmup*) para que la primera request de verdad no pague lo que se prepara la primera vez." }
+      ] },
+    { "id": "sin-tier", "label": "Si la GPU preparara sus fotos",
+      "steps": [
+        { "nodes": ["triton"], "edges": [], "text": "Supón que las fotos se decodificaran en esta máquina. A su máximo, la T4 pediría **1,200 × 6 ms = 7.2 vCPU** de preparación." },
+        { "nodes": ["triton", "ram"], "edges": ["triton>ram"], "text": "La g4dn.xlarge tiene **4 vCPU** y Triton ya usa 2. La CPU no alcanza: los batches llegan a la RAM más despacio de lo que la GPU podría calcularlos." },
+        { "nodes": ["sms"], "edges": [], "text": "La GPU se queda **esperando**, con la utilización baja, y parece lenta sin estarlo. Por eso C01 prepara las fotos en su propio tier de CPU." }
+      ] }
+  ]
+}

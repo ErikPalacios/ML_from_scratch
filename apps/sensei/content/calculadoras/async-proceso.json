@@ -1,0 +1,22 @@
+{
+  "titulo": "¿Cuántas requests por segundo atiende un proceso?",
+  "intro": "Cada request gasta un rato de CPU y un rato esperando. **De una en una**, un proceso da 1 ÷ latencia requests por segundo. Con varias **a la vez**, las esperas se enciman, hasta que la CPU se llena. Arranca con un pod de C01 que atiende de una en una.",
+  "entradas": [
+    { "id": "c", "label": "CPU por request (6 = C01)", "min": 0.5, "max": 100, "paso": 0.5, "valor": 6, "unidad": "ms" },
+    { "id": "w", "label": "Espera por request (44 = C01, para 50 ms en total · 10500 = un LLM como el de C10)", "min": 0, "max": 20000, "paso": 1, "valor": 44, "unidad": "ms", "tipo": "numero" },
+    { "id": "k", "label": "Requests a la vez (1 = de una en una, bloqueante)", "min": 1, "max": 200, "paso": 1, "valor": 1 }
+  ],
+  "calculos": [
+    { "id": "lat", "formula": "c + w" },
+    { "id": "tope", "formula": "1000 / c" },
+    { "id": "rps", "formula": "min(k * 1000 / lat, tope)" }
+  ],
+  "salidas": [
+    { "label": "Latencia de cada request", "formula": "lat", "formato": "ms", "nota": "CPU + espera, sin contar filas" },
+    { "label": "Requests por segundo que atiende", "formula": "rps", "formato": "num", "decimales": 1, "barra": true },
+    { "label": "Tope que pone la CPU, con un núcleo", "formula": "tope", "formato": "num", "decimales": 1, "barra": true, "nota": "1,000 ms ÷ la CPU de cada request" },
+    { "label": "CPU ocupada", "formula": "rps * c / 1000", "formato": "pct", "barra": true },
+    { "label": "A la vez que hacen falta para llenar la CPU", "formula": "ceil(lat / c)", "formato": "int", "nota": "la Ley de Little de la sección 7: tope × latencia" }
+  ],
+  "nota": "Es el mejor caso: cerca del tope se forman filas y la latencia sube. Prueba la espera de un LLM, 10500 ms, con 5 ms de CPU: de una en una no llega ni a 0.1 por segundo, y para llenar la CPU harían falta más de 2,000 a la vez."
+}

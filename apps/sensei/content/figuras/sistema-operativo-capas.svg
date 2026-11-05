@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 432" role="img" aria-labelledby="f-sistema-operativo-capas-t" class="f-svg" style="max-width:420px">
+<title id="f-sistema-operativo-capas-t">Contenedores contra máquinas virtuales, como pilas. Arriba, los tres contenedores del docker compose de C01, que para probar corren juntos en una sola máquina con GPU: el gateway con Debian y Python 3.13, Triton con Ubuntu 22.04, CUDA y el engine, y Prometheus, el programa que junta las métricas, con BusyBox, un espacio de usuario mínimo, y su binario. Cada uno trae solo su espacio de usuario, y los tres se apoyan en un solo kernel Linux, el de la máquina, que está sobre el hardware: CPU, RAM, GPU y disco. Abajo, dos máquinas virtuales: cada una tiene tu servicio, su sistema completo y su propio kernel, y las dos se apoyan en un hipervisor (en AWS, Nitro), que reparte el hardware.</title>
+<rect class="f-card" x="10" y="10" width="340" height="196" rx="16"/>
+<text class="f-l" x="24" y="34">CONTENEDORES: UN KERNEL PARA TODOS</text>
+<rect x="24" y="44" width="94" height="80" rx="8" style="fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:4 3"/>
+<rect x="126" y="44" width="94" height="80" rx="8" style="fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:4 3"/>
+<rect x="228" y="44" width="94" height="80" rx="8" style="fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:4 3"/>
+<rect class="f-b" x="30" y="50" width="82" height="26" rx="6"/>
+<text x="71" y="68" text-anchor="middle" style="fill:#fff;font:700 13px var(--sans)">gateway</text>
+<rect class="f-b" x="132" y="50" width="82" height="26" rx="6"/>
+<text x="173" y="68" text-anchor="middle" style="fill:#fff;font:700 13px var(--sans)">Triton</text>
+<rect class="f-b" x="234" y="50" width="82" height="26" rx="6"/>
+<text x="275" y="68" text-anchor="middle" style="fill:#fff;font:700 13px var(--sans)">Prometheus</text>
+<rect class="f-chip" x="30" y="80" width="82" height="38" rx="6"/>
+<text class="f-s" x="71" y="96" text-anchor="middle" style="font-size:12px">Debian</text>
+<text class="f-s" x="71" y="111" text-anchor="middle" style="font-size:12px">Python 3.13</text>
+<rect class="f-chip" x="132" y="80" width="82" height="38" rx="6"/>
+<text class="f-s" x="173" y="96" text-anchor="middle" style="font-size:12px">Ubuntu 22.04</text>
+<text class="f-s" x="173" y="111" text-anchor="middle" style="font-size:12px">CUDA, engine</text>
+<rect class="f-chip" x="234" y="80" width="82" height="38" rx="6"/>
+<text class="f-s" x="275" y="96" text-anchor="middle" style="font-size:12px">BusyBox</text>
+<text class="f-s" x="275" y="111" text-anchor="middle" style="font-size:12px">y su binario</text>
+<text class="f-s" x="24" y="142" style="font-size:12px">cada uno trae su espacio de usuario, sin kernel</text>
+<rect class="f-dark" x="24" y="150" width="298" height="28" rx="6"/>
+<text class="f-dark-t" x="173" y="169" text-anchor="middle" style="font-weight:700">kernel Linux de la máquina: uno solo</text>
+<rect class="f-off" x="24" y="182" width="298" height="18" rx="5"/>
+<text class="f-s" x="173" y="195" text-anchor="middle" style="font-size:12px">hardware: CPU, RAM, GPU, disco</text>
+<rect class="f-card" x="10" y="218" width="340" height="204" rx="16"/>
+<text class="f-l" x="24" y="242">MÁQUINAS VIRTUALES: UN KERNEL POR VM</text>
+<rect x="24" y="252" width="145" height="100" rx="8" style="fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:4 3"/>
+<rect x="177" y="252" width="145" height="100" rx="8" style="fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:4 3"/>
+<rect class="f-b" x="32" y="258" width="129" height="26" rx="6"/>
+<text x="96.5" y="276" text-anchor="middle" style="fill:#fff;font:700 13px var(--sans)">tu servicio</text>
+<rect class="f-b" x="185" y="258" width="129" height="26" rx="6"/>
+<text x="249.5" y="276" text-anchor="middle" style="fill:#fff;font:700 13px var(--sans)">tu servicio</text>
+<rect class="f-chip" x="32" y="288" width="129" height="26" rx="6"/>
+<text class="f-s" x="96.5" y="305" text-anchor="middle" style="font-size:12px">su sistema completo</text>
+<rect class="f-chip" x="185" y="288" width="129" height="26" rx="6"/>
+<text class="f-s" x="249.5" y="305" text-anchor="middle" style="font-size:12px">su sistema completo</text>
+<rect class="f-dark" x="32" y="318" width="129" height="28" rx="6"/>
+<text class="f-dark-t" x="96.5" y="337" text-anchor="middle" style="font-weight:700">su propio kernel</text>
+<rect class="f-dark" x="185" y="318" width="129" height="28" rx="6"/>
+<text class="f-dark-t" x="249.5" y="337" text-anchor="middle" style="font-weight:700">su propio kernel</text>
+<rect class="f-p" x="24" y="362" width="298" height="26" rx="6"/>
+<text x="173" y="380" text-anchor="middle" style="fill:#fff;font:700 13px var(--sans)">hipervisor (en AWS, Nitro)</text>
+<rect class="f-off" x="24" y="392" width="298" height="20" rx="5"/>
+<text class="f-s" x="173" y="406" text-anchor="middle" style="font-size:12px">hardware: CPU, RAM, GPU, disco</text>
+</svg>

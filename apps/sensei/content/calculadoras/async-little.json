@@ -1,0 +1,23 @@
+{
+  "titulo": "La Ley de Little en un servicio",
+  "intro": "**L = λ × W.** Con lo que llega por segundo y lo que tarda cada request salen las que hay en vuelo; con la CPU de cada una, los núcleos ocupados. Arranca con el gateway de C01 en el pico de diseño.",
+  "entradas": [
+    { "id": "lam", "label": "Requests por segundo que llegan, λ (500 = pico de diseño de C01)", "min": 1, "max": 5000, "paso": 1, "valor": 500, "tipo": "numero" },
+    { "id": "W", "label": "Latencia promedio, W", "min": 1, "max": 5000, "paso": 1, "valor": 50, "unidad": "ms", "tipo": "numero" },
+    { "id": "cpu", "label": "CPU por request (6 = C01)", "min": 0.5, "max": 100, "paso": 0.1, "valor": 6, "unidad": "ms" },
+    { "id": "pods", "label": "Pods, de un núcleo cada uno", "min": 1, "max": 50, "paso": 1, "valor": 5 }
+  ],
+  "calculos": [
+    { "id": "L", "formula": "lam * W / 1000" },
+    { "id": "nuc", "formula": "lam * cpu / 1000" }
+  ],
+  "salidas": [
+    { "label": "En vuelo en todo el servicio, L = λ × W", "formula": "L", "formato": "num", "decimales": 1 },
+    { "label": "En vuelo por pod", "formula": "L / pods", "formato": "num", "decimales": 1, "nota": "el tope de C01 es 16 por pod" },
+    { "label": "Lugares libres antes del tope de 16", "formula": "16 - L / pods", "formato": "num", "decimales": 1, "nota": "si es negativo, el pod rechaza con un 503 lo que no cabe" },
+    { "label": "Núcleos ocupados en total, λ × CPU", "formula": "nuc", "formato": "num", "decimales": 2 },
+    { "label": "CPU de cada pod", "formula": "nuc / pods", "formato": "pct", "barra": true, "nota": "con 100 % o más, la fila crece sin techo" },
+    { "label": "Pods para quedar al 60 % de CPU", "formula": "ceil(nuc / 0.6)", "formato": "int", "nota": "el objetivo del HPA de C01" }
+  ],
+  "nota": "Con W en 150 ms quedan 15 en vuelo por pod: casi en el tope. Con 5000 ms, 500 por pod. Y prueba la CPU en 11.4 ms, la de un 10 % de fotos de 12 MP sin draft mode: con 5 pods, cada uno pasa del 100 %."
+}

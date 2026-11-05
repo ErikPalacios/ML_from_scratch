@@ -1,0 +1,25 @@
+{
+  "titulo": "Lo que marca nvidia-smi contra la carga real",
+  "intro": "Un modelo sencillo de la T4 de C01: cada batch tarda unos **ms fijos** (lanzar kernels, capas que no llenan la GPU) más unos **ms por cada foto**. Los valores iniciales son supuestos: dan ≈ 3 ms con una foto sola y ≈ 1,200 fotos por segundo con batches de 32, lo que mide C01.",
+  "entradas": [
+    { "id": "r", "label": "Fotos por segundo que llegan a esta GPU (58 = promedio · 175 = hora pico · 250 = pico de diseño)", "min": 1, "max": 2000, "paso": 1, "valor": 58, "tipo": "numero" },
+    { "id": "b", "label": "Fotos por batch, en promedio", "min": 1, "max": 32, "paso": 1, "valor": 1 },
+    { "id": "f", "label": "ms fijos por batch", "min": 0, "max": 10, "paso": 0.1, "valor": 2.2 },
+    { "id": "c", "label": "ms por cada foto del batch", "min": 0.05, "max": 5, "paso": 0.01, "valor": 0.77 }
+  ],
+  "calculos": [
+    { "id": "t", "formula": "f + c * b" },
+    { "id": "u", "formula": "r / b * t / 1000" },
+    { "id": "capb", "formula": "1000 * b / t" },
+    { "id": "cap", "formula": "1000 * 32 / (f + 32 * c)" }
+  ],
+  "salidas": [
+    { "label": "ms de GPU por batch", "formula": "t", "formato": "num", "decimales": 2 },
+    { "label": "Utilización que marca nvidia-smi", "formula": "min(u, 1)", "formato": "pct", "barra": true, "nota": "la parte del tiempo con algún kernel corriendo" },
+    { "label": "Carga real: fotos que llegan ÷ máximo con batches de 32", "formula": "r / cap", "formato": "pct", "barra": true },
+    { "label": "Fotos por segundo que aguanta con ese batch", "formula": "capb", "formato": "int" },
+    { "label": "Máximo con batches de 32", "formula": "cap", "formato": "int" },
+    { "label": "Fotos por segundo que no alcanza a atender", "formula": "max(0, r - capb)", "formato": "int", "nota": "si pasa de 0, la cola crece sin fin y nvidia-smi se queda en 100 %" }
+  ],
+  "nota": "La carga real no depende del batch: con 250 fotos por segundo es 21 % con batches de 1 o de 3. Lo que marca nvidia-smi sí cambia, de 74 % a 38 %, porque con batches más grandes cada foto gasta menos tiempo de GPU."
+}

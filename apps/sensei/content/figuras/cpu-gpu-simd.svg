@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 450" role="img" aria-labelledby="f-cpu-gpu-simd-t" class="f-svg" style="max-width:420px">
+<title id="f-cpu-gpu-simd-t">Una instrucción y cuántos números procesa. Arriba, una suma normal: 2.5 más 1.5 da 4.0, una instrucción y una suma. En medio, una suma con AVX-512: el registro a tiene 16 números en fila, el registro b otros 16, y una sola instrucción produce las 16 sumas a la vez, en los carriles 0 a 15. Abajo, los mismos 512 bits según el formato: caben 16 números FP32 de 32 bits, 32 números FP16 o BF16 de 16 bits, o 64 números INT8 de 8 bits.</title>
+<defs>
+<pattern id="f-cpu-gpu-simd-p32" x="28" y="334" width="19" height="16" patternUnits="userSpaceOnUse"><rect x="0" y="0" width="17.5" height="16" rx="2" class="f-b"/></pattern>
+<pattern id="f-cpu-gpu-simd-p16" x="28" y="374" width="9.5" height="16" patternUnits="userSpaceOnUse"><rect x="0" y="0" width="8" height="16" rx="1.5" class="f-p"/></pattern>
+<pattern id="f-cpu-gpu-simd-p8" x="28" y="414" width="4.75" height="16" patternUnits="userSpaceOnUse"><rect x="0" y="0" width="3.5" height="16" rx="1" class="f-o"/></pattern>
+</defs>
+<rect class="f-card" x="10" y="10" width="340" height="430" rx="16"/>
+<text class="f-l" x="28" y="36" style="font-size:12px">UNA INSTRUCCIÓN, ¿CUÁNTOS NÚMEROS?</text>
+
+<text class="f-s" x="28" y="64" style="font-size:13px;font-weight:600">Una suma normal: un número a la vez</text>
+<rect class="f-b" x="28" y="76" width="48" height="32" rx="6"/>
+<text class="f-pill-t" x="52" y="98" text-anchor="middle" style="font-size:14px">2.5</text>
+<text class="f-t" x="88" y="98" text-anchor="middle">+</text>
+<rect class="f-b" x="100" y="76" width="48" height="32" rx="6"/>
+<text class="f-pill-t" x="124" y="98" text-anchor="middle" style="font-size:14px">1.5</text>
+<text class="f-t" x="160" y="98" text-anchor="middle">=</text>
+<rect class="f-chip" x="172" y="76" width="48" height="32" rx="6"/>
+<text class="f-t" x="196" y="98" text-anchor="middle" style="font-size:14px">4.0</text>
+<text class="f-s" x="234" y="89" style="font-size:12px">1 instrucción,</text>
+<text class="f-s" x="234" y="105" style="font-size:12px">1 suma</text>
+
+<text class="f-s" x="28" y="142" style="font-size:13px;font-weight:600">AVX-512: 16 números FP32 por registro</text>
+<text class="f-t" x="28" y="168" style="font-size:13px">a</text>
+<rect class="f-b" x="50" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="68" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="86" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="104" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="122" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="140" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="158" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="176" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="194" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="212" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="230" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="248" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="266" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="284" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="302" y="154" width="17" height="20" rx="3"/>
+<rect class="f-b" x="320" y="154" width="17" height="20" rx="3"/>
+<text class="f-t" x="28" y="196" style="font-size:13px">b</text>
+<rect class="f-p" x="50" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="68" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="86" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="104" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="122" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="140" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="158" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="176" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="194" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="212" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="230" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="248" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="266" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="284" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="302" y="182" width="17" height="20" rx="3"/>
+<rect class="f-p" x="320" y="182" width="17" height="20" rx="3"/>
+<text class="f-t" x="28" y="230" style="font-size:13px">=</text>
+<rect class="f-g" x="50" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="68" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="86" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="104" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="122" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="140" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="158" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="176" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="194" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="212" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="230" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="248" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="266" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="284" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="302" y="216" width="17" height="20" rx="3"/>
+<rect class="f-g" x="320" y="216" width="17" height="20" rx="3"/>
+<text class="f-s" x="58.5" y="252" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="328.5" y="252" text-anchor="middle" style="font-size:12px">15</text>
+<text class="f-s" x="193.5" y="252" text-anchor="middle" style="font-size:12px">carriles</text>
+<text class="f-t" x="28" y="276" style="font-size:13px">1 instrucción, 16 sumas a la vez</text>
+
+<text class="f-s" x="28" y="310" style="font-size:13px;font-weight:600">Los mismos 512 bits, según el formato</text>
+<text class="f-s" x="28" y="328" style="font-size:12px">FP32 · 16 números de 32 bits</text>
+<rect x="28" y="334" width="304" height="16" fill="url(#f-cpu-gpu-simd-p32)"/>
+<text class="f-s" x="28" y="368" style="font-size:12px">FP16 o BF16 · 32 números de 16 bits</text>
+<rect x="28" y="374" width="304" height="16" fill="url(#f-cpu-gpu-simd-p16)"/>
+<text class="f-s" x="28" y="408" style="font-size:12px">INT8 · 64 números de 8 bits</text>
+<rect x="28" y="414" width="304" height="16" fill="url(#f-cpu-gpu-simd-p8)"/>
+</svg>

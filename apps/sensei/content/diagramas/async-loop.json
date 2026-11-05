@@ -1,0 +1,252 @@
+{
+  "titulo": "El event loop: un hilo que reparte turnos",
+  "width": 78,
+  "height": 46,
+  "lanes": [
+    {
+      "id": "hilo",
+      "label": "Dentro del proceso · un solo hilo",
+      "kind": "online",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 30
+    },
+    {
+      "id": "afuera",
+      "label": "Afuera",
+      "kind": "neutral",
+      "x": 0,
+      "y": 32,
+      "w": 78,
+      "h": 14
+    }
+  ],
+  "nodes": [
+    {
+      "id": "listas",
+      "label": "Tareas listas",
+      "sub": "pueden avanzar ya",
+      "kind": "queue",
+      "x": 2,
+      "y": 6,
+      "w": 19,
+      "h": 8,
+      "note": "La fila de las [[corrutina|corrutinas]] que ya tienen lo que esperaban, o que acaban de llegar. El loop toma siempre la primera."
+    },
+    {
+      "id": "loop",
+      "label": "Event loop",
+      "sub": "un turno a la vez",
+      "kind": "service",
+      "x": 29.5,
+      "y": 6,
+      "w": 19,
+      "h": 8,
+      "note": "El [[event-loop|event loop]] corre en un solo [[hilo]]. No calcula nada por su cuenta: toma una tarea lista, la deja correr hasta su siguiente `await` y repite."
+    },
+    {
+      "id": "corre",
+      "label": "Tarea con el turno",
+      "sub": "corre hasta su await",
+      "kind": "job",
+      "x": 57,
+      "y": 6,
+      "w": 19,
+      "h": 8,
+      "note": "En cada instante corre una sola tarea. Mientras no llegue a un `await`, el hilo es suyo: si calcula 60 ms sin soltarlo, nadie más avanza durante 60 ms."
+    },
+    {
+      "id": "esperan",
+      "label": "Tareas esperando",
+      "sub": "red, disco, relojes",
+      "kind": "store",
+      "x": 57,
+      "y": 19,
+      "w": 19,
+      "h": 8,
+      "note": "Las que llegaron a un `await`: esperan los bytes de una conexión, la respuesta de Triton o que pase un tiempo. Esperar aquí no gasta CPU ni un hilo: es el estado de cada corrutina, guardado en memoria."
+    },
+    {
+      "id": "so",
+      "label": "Sistema operativo",
+      "sub": "epoll · kqueue",
+      "kind": "external",
+      "x": 29.5,
+      "y": 36,
+      "w": 19,
+      "h": 8,
+      "note": "El loop le entrega la lista de lo que espera y se duerme con una sola [[syscall|llamada al sistema]]: epoll en Linux, kqueue en macOS. El [[sistema-operativo|sistema operativo]] lo despierta cuando llegan datos o vence un temporizador."
+    }
+  ],
+  "edges": [
+    {
+      "from": "listas",
+      "to": "loop",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "la primera"
+    },
+    {
+      "from": "loop",
+      "to": "corre",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "turno"
+    },
+    {
+      "from": "corre",
+      "to": "esperan",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "await"
+    },
+    {
+      "from": "esperan",
+      "to": "so",
+      "kind": "async",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "r",
+      "via": [
+        [
+          66.5,
+          40
+        ]
+      ],
+      "label": "avísame"
+    },
+    {
+      "from": "so",
+      "to": "listas",
+      "kind": "async",
+      "dashed": true,
+      "fromSide": "l",
+      "toSide": "b",
+      "via": [
+        [
+          11.5,
+          40
+        ]
+      ],
+      "label": "ya llegó"
+    }
+  ],
+  "flows": [
+    {
+      "id": "vuelta",
+      "label": "Una vuelta del loop",
+      "steps": [
+        {
+          "nodes": [
+            "listas",
+            "loop"
+          ],
+          "edges": [
+            "listas>loop"
+          ],
+          "text": "Llega la request **A**. Es una tarea nueva: entra a la fila de **listas**, y el loop la toma porque es la primera."
+        },
+        {
+          "nodes": [
+            "loop",
+            "corre"
+          ],
+          "edges": [
+            "loop>corre"
+          ],
+          "text": "El loop le da **el turno**. A corre su código: revisa la foto, que ya llegó, y manda el tensor a Triton."
+        },
+        {
+          "nodes": [
+            "corre",
+            "esperan"
+          ],
+          "edges": [
+            "corre>esperan"
+          ],
+          "text": "A llega a `await infer(x)`: se pausa sola y pasa a las que **esperan**. El turno vuelve al loop, que toma a la siguiente lista."
+        },
+        {
+          "nodes": [
+            "esperan",
+            "so"
+          ],
+          "edges": [
+            "esperan>so"
+          ],
+          "text": "Cuando ya no queda ninguna lista, el loop le pide al **sistema operativo** que lo despierte en cuanto llegue algo, y se duerme sin gastar CPU."
+        },
+        {
+          "nodes": [
+            "so",
+            "listas"
+          ],
+          "edges": [
+            "so>listas"
+          ],
+          "text": "≈ 10 ms después llega la respuesta de Triton. El sistema operativo despierta al loop, y A vuelve a la fila de **listas**."
+        },
+        {
+          "nodes": [
+            "listas",
+            "loop",
+            "corre"
+          ],
+          "edges": [
+            "listas>loop",
+            "loop>corre"
+          ],
+          "text": "Cuando le toca, A sigue justo después de su await: arma la respuesta y termina. En esos 10 ms, el loop atendió a otras."
+        }
+      ]
+    },
+    {
+      "id": "no-suelta",
+      "label": "Una tarea que no suelta el turno",
+      "steps": [
+        {
+          "nodes": [
+            "loop",
+            "corre"
+          ],
+          "edges": [
+            "loop>corre"
+          ],
+          "text": "El loop le da el turno a A, y A decodifica una foto de 12 MP, sin draft mode y **sin ningún await**: ≈ 60 ms de CPU."
+        },
+        {
+          "nodes": [
+            "so",
+            "listas"
+          ],
+          "edges": [
+            "so>listas"
+          ],
+          "text": "Mientras tanto llegan la respuesta de Triton para B y una request nueva, C. Las dos pasan a la fila de **listas**…"
+        },
+        {
+          "nodes": [
+            "listas"
+          ],
+          "edges": [],
+          "text": "…y ahí se quedan. El loop no puede darle el turno a nadie, porque sigue dentro de A. El health check tampoco avanza."
+        },
+        {
+          "nodes": [
+            "corre",
+            "loop",
+            "listas"
+          ],
+          "edges": [
+            "listas>loop"
+          ],
+          "text": "Cuando A por fin termina, el loop atiende a las que se juntaron, cada una hasta 60 ms tarde. Por eso el decode va a un hilo del pool."
+        }
+      ]
+    }
+  ]
+}

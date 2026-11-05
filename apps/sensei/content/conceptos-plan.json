@@ -17,11 +17,11 @@
     "distribuciones": ["referencia", "psi", "prueba-ks", "logaritmo", "entropia", "divergencia-kl", "chi-cuadrado", "concept-drift", "label-shift"],
     "numeros-maquina": ["binario", "entero", "punto-flotante", "dtype", "fp16", "bf16", "fp8", "int8", "int4", "overflow", "redondeo", "cuantizacion", "precision-mixta"],
     "flops": ["matriz", "multiplicacion-matrices", "flop", "mac", "tflops", "intensidad-aritmetica", "compute-bound", "memory-bound", "roofline", "ancho-banda-memoria"],
-    "programa-proceso": ["programa", "proceso", "hilo", "pid", "binario-ejecutable", "compilar", "interprete", "concurrencia", "paralelismo", "senal", "codigo-salida", "oom"],
+    "programa-proceso": ["programa", "proceso", "hilo", "pid", "binario-ejecutable", "compilar", "interprete", "concurrencia", "paralelismo", "senal", "codigo-salida", "oom", "cambio-contexto"],
     "memoria": ["ram", "cache-cpu", "disco", "ssd", "jerarquia-memoria", "localidad", "memoria-virtual", "swap"],
     "cpu-gpu": ["nucleo", "vcpu", "simd", "cuda", "kernel-gpu", "tensor-core", "hbm", "pcie", "nvlink", "driver", "utilizacion-gpu"],
-    "sistema-operativo": ["sistema-operativo", "kernel", "linux", "sistema-archivos", "ruta", "permisos", "root", "montaje", "arquitectura-cpu", "contenedor-vs-vm"],
-    "async": ["io", "bloqueo", "cpu-bound", "io-bound", "async", "event-loop", "corrutina", "gil", "threadpool", "multiproceso"],
+    "sistema-operativo": ["sistema-operativo", "kernel", "linux", "sistema-archivos", "ruta", "permisos", "root", "montaje", "arquitectura-cpu", "contenedor-vs-vm", "syscall", "cgroup"],
+    "async": ["io", "bloqueo", "cpu-bound", "io-bound", "async", "event-loop", "corrutina", "gil", "threadpool", "multiproceso", "worker"],
     "regiones": ["region", "zona-disponibilidad", "sla"],
     "fallas-red": ["timeout"]
   }

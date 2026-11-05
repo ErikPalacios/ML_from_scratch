@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 514" role="img" aria-labelledby="f-async-bloqueo-t" class="f-svg" style="max-width:420px">
+<title id="f-async-bloqueo-t">Cien milisegundos de un pod del gateway, en dos versiones. En las dos, la request A tiene un turno corto en el loop a los 6 milisegundos y empieza a decodificar su foto a los 10. Arriba, el decode de esa foto grande corre dentro del event loop, de los 10 a los 70 milisegundos. La respuesta de Triton para la request B llega a los 20, la request nueva C llega a los 30 y el health check toca a los 40, pero las tres esperan sin avanzar hasta que el decode termina: B corre a los 70, C a los 73 y el health check a los 76. Abajo, el mismo decode corre en un hilo del pool, de los 10 a los 70; el loop queda libre y atiende a B a los 20, a C a los 30 y al health check a los 40, en cuanto cada una queda lista.</title>
+<text class="f-l" x="14" y="24">CIEN MILISEGUNDOS DE UN POD</text>
+<rect class="f-card" x="10" y="36" width="340" height="182" rx="16"/>
+<text class="f-l" x="26" y="60">EL DECODE DENTRO DEL LOOP</text>
+<text class="f-s" x="22" y="84" style="font-size:12px;font-weight:700">loop</text>
+<rect class="f-b" x="91.6" y="72" width="10.4" height="16" rx="2"/>
+<rect class="f-o" x="102" y="72" width="156" height="16" rx="2"/>
+<text x="180" y="84" text-anchor="middle" style="fill:var(--navy);font:700 12px var(--sans)">decode de A: 60 ms</text>
+<rect class="f-b" x="258" y="72" width="7.8" height="16" rx="2"/>
+<rect class="f-b" x="265.8" y="72" width="7.8" height="16" rx="2"/>
+<rect class="f-b" x="273.6" y="72" width="5.2" height="16" rx="2"/>
+<text class="f-s" x="22" y="108" style="font-size:12px;font-weight:700">B</text>
+<rect class="f-off" x="128" y="96" width="130" height="16"/>
+<circle class="f-ink" cx="128" cy="104" r="3.5"/>
+<rect class="f-b" x="258" y="96" width="7.8" height="16" rx="2"/>
+<text class="f-s" x="22" y="132" style="font-size:12px;font-weight:700">C</text>
+<rect class="f-off" x="154" y="120" width="111.8" height="16"/>
+<circle class="f-ink" cx="154" cy="128" r="3.5"/>
+<rect class="f-b" x="265.8" y="120" width="7.8" height="16" rx="2"/>
+<text class="f-s" x="22" y="156" style="font-size:12px;font-weight:700">health</text>
+<rect class="f-off" x="180" y="144" width="93.6" height="16"/>
+<circle class="f-ink" cx="180" cy="152" r="3.5"/>
+<rect class="f-b" x="273.6" y="144" width="5.2" height="16" rx="2"/>
+<line class="f-linea" x1="76" y1="172" x2="336" y2="172"/>
+<line class="f-linea" x1="76" y1="172" x2="76" y2="176"/>
+<line class="f-linea" x1="206" y1="172" x2="206" y2="176"/>
+<line class="f-linea" x1="336" y1="172" x2="336" y2="176"/>
+<text class="f-s" x="76" y="190" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="206" y="190" text-anchor="middle" style="font-size:12px">50</text>
+<text class="f-s" x="342" y="190" text-anchor="end" style="font-size:12px">100 ms</text>
+<text class="f-t" x="26" y="208" style="font-size:13px">B, C y el health check esperan al decode</text>
+<rect class="f-card" x="10" y="230" width="340" height="206" rx="16"/>
+<text class="f-l" x="26" y="254">EL DECODE EN UN HILO DEL POOL</text>
+<text class="f-s" x="22" y="278" style="font-size:12px;font-weight:700">loop</text>
+<rect class="f-b" x="91.6" y="266" width="10.4" height="16" rx="2"/>
+<rect class="f-b" x="132" y="266" width="7.8" height="16" rx="2"/>
+<rect class="f-b" x="158" y="266" width="7.8" height="16" rx="2"/>
+<rect class="f-b" x="184" y="266" width="5.2" height="16" rx="2"/>
+<text class="f-s" x="22" y="302" style="font-size:12px;font-weight:700">pool</text>
+<rect class="f-o" x="102" y="290" width="156" height="16" rx="2"/>
+<text x="180" y="302" text-anchor="middle" style="fill:var(--navy);font:700 12px var(--sans)">decode de A: 60 ms</text>
+<text class="f-s" x="22" y="326" style="font-size:12px;font-weight:700">B</text>
+<circle class="f-ink" cx="128" cy="322" r="3.5"/>
+<rect class="f-b" x="132" y="314" width="7.8" height="16" rx="2"/>
+<text class="f-s" x="22" y="350" style="font-size:12px;font-weight:700">C</text>
+<circle class="f-ink" cx="154" cy="346" r="3.5"/>
+<rect class="f-b" x="158" y="338" width="7.8" height="16" rx="2"/>
+<text class="f-s" x="22" y="374" style="font-size:12px;font-weight:700">health</text>
+<circle class="f-ink" cx="180" cy="370" r="3.5"/>
+<rect class="f-b" x="184" y="362" width="5.2" height="16" rx="2"/>
+<line class="f-linea" x1="76" y1="390" x2="336" y2="390"/>
+<line class="f-linea" x1="76" y1="390" x2="76" y2="394"/>
+<line class="f-linea" x1="206" y1="390" x2="206" y2="394"/>
+<line class="f-linea" x1="336" y1="390" x2="336" y2="394"/>
+<text class="f-s" x="76" y="408" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="206" y="408" text-anchor="middle" style="font-size:12px">50</text>
+<text class="f-s" x="342" y="408" text-anchor="end" style="font-size:12px">100 ms</text>
+<text class="f-t" x="26" y="426" style="font-size:13px">Cada una avanza en cuanto queda lista</text>
+<rect class="f-chip" x="10" y="448" width="340" height="58" rx="12"/>
+<rect class="f-o" x="26" y="458" width="14" height="14" rx="2"/>
+<text class="f-s" x="46" y="470" style="font-size:12px">el decode de A (CPU)</text>
+<rect class="f-b" x="196" y="458" width="14" height="14" rx="2"/>
+<text class="f-s" x="216" y="470" style="font-size:12px">un turno corto</text>
+<rect class="f-off" x="26" y="482" width="14" height="14" rx="2"/>
+<text class="f-s" x="46" y="494" style="font-size:12px">lista, esperando turno</text>
+<circle class="f-ink" cx="203" cy="489" r="3.5"/>
+<text class="f-s" x="216" y="494" style="font-size:12px">queda lista</text>
+</svg>

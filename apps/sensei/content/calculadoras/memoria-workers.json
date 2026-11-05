@@ -1,0 +1,23 @@
+{
+  "titulo": "¿Caben los workers en el límite del contenedor?",
+  "intro": "Cada [[worker]] es un [[proceso]] con su propia memoria. El modelo puede ir una vez por worker (cada uno lo lee con `read` o `torch.load`) o una sola vez para todos (lo abren con [[mmap]] y comparten la [[page-cache|page cache]]). Arranca con el ejemplo del texto: 4 workers de 400 MB, un modelo de 1.2 GB y un límite de 4 GiB.",
+  "entradas": [
+    { "id": "n", "label": "Workers en el contenedor", "min": 1, "max": 16, "paso": 1, "valor": 4 },
+    { "id": "r", "label": "Memoria propia de cada worker, en MB (Python, librerías y datos de trabajo: un supuesto)", "min": 50, "max": 4000, "paso": 10, "valor": 400, "tipo": "numero" },
+    { "id": "m", "label": "Pesos del modelo, en MB", "min": 10, "max": 50000, "paso": 10, "valor": 1200, "tipo": "numero" },
+    { "id": "k", "label": "¿Cada worker carga su copia? 1 = sí (read o torch.load) · 0 = no (mmap compartido)", "min": 0, "max": 1, "paso": 1, "valor": 1 },
+    { "id": "l", "label": "Límite de memoria del contenedor, en GiB", "min": 0.5, "max": 64, "paso": 0.5, "valor": 4 }
+  ],
+  "calculos": [
+    { "id": "total", "formula": "(n * r + m * (k * n + (1 - k))) * 1e6" },
+    { "id": "lim", "formula": "l * 1073741824" }
+  ],
+  "salidas": [
+    { "label": "Memoria de todo el contenedor", "formula": "total", "formato": "bytes" },
+    { "label": "El límite", "formula": "lim", "formato": "bytes", "nota": "los GiB pasados a GB" },
+    { "label": "Parte del límite que ocupa", "formula": "total / lim", "formato": "pct", "barra": true, "nota": "más de 100 %: OOMKilled" },
+    { "label": "Suma de las RSS de los workers", "formula": "n * (r + m) * 1e6", "formato": "bytes", "nota": "lo que darías sumando lo que marca top: con mmap, cuenta el modelo varias veces" },
+    { "label": "Workers que caben, como máximo", "formula": "max(0, floor((lim / 1e6 - m * (1 - k)) / (r + k * m)))", "formato": "int" }
+  ],
+  "nota": "Con 1 (una copia por worker) son 6.4 GB: no caben en 4 GiB. Pon 0 (mmap): bajan a 2.8 GB y caben, aunque la suma de las RSS siga marcando 6.4 GB."
+}

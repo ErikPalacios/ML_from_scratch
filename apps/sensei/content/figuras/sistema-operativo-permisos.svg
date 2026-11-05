@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 372" role="img" aria-labelledby="f-sistema-operativo-permisos-t" class="f-svg" style="max-width:420px">
+<title id="f-sistema-operativo-permisos-t">Los diez caracteres de permisos que muestra ls -l para arrancar.sh: guion, r, w, x, r, guion, x, guion, guion, guion. El primero es el tipo: un guion quiere decir archivo. Los siguientes nueve son tres juegos de tres: el dueño tiene r, w y x; el grupo tiene r y x, sin w; los demás no tienen nada. Cada letra es un bit prendido y cada posición vale 4, 2 y 1. El dueño suma 4 más 2 más 1, que da 7; el grupo, 4 más 0 más 1, que da 5; los demás, 0. Por eso estos permisos se escriben 750 y se ponen con chmod 750 arrancar.sh. Abajo, una tabla: en un archivo, r es leerlo, w es cambiarlo y x es correrlo; en una carpeta, r es ver los nombres, w es crear y borrar adentro, y x es entrar.</title>
+<text class="f-l" x="14" y="22">LOS PERMISOS DE ARRANCAR.SH</text>
+<rect class="f-card" x="10" y="34" width="340" height="328" rx="16"/>
+<rect class="f-chip" x="31" y="50" width="28" height="34" rx="6"/>
+<text class="f-t" x="45" y="73" text-anchor="middle" style="font:800 16px var(--mono)">-</text>
+<rect class="f-b" x="61" y="50" width="28" height="34" rx="6"/>
+<text x="75" y="73" text-anchor="middle" style="fill:#fff;font:800 16px var(--mono)">r</text>
+<rect class="f-b" x="91" y="50" width="28" height="34" rx="6"/>
+<text x="105" y="73" text-anchor="middle" style="fill:#fff;font:800 16px var(--mono)">w</text>
+<rect class="f-b" x="121" y="50" width="28" height="34" rx="6"/>
+<text x="135" y="73" text-anchor="middle" style="fill:#fff;font:800 16px var(--mono)">x</text>
+<rect class="f-b" x="151" y="50" width="28" height="34" rx="6"/>
+<text x="165" y="73" text-anchor="middle" style="fill:#fff;font:800 16px var(--mono)">r</text>
+<rect class="f-chip" x="181" y="50" width="28" height="34" rx="6"/>
+<text class="f-t" x="195" y="73" text-anchor="middle" style="font:800 16px var(--mono)">-</text>
+<rect class="f-b" x="211" y="50" width="28" height="34" rx="6"/>
+<text x="225" y="73" text-anchor="middle" style="fill:#fff;font:800 16px var(--mono)">x</text>
+<rect class="f-chip" x="241" y="50" width="28" height="34" rx="6"/>
+<text class="f-t" x="255" y="73" text-anchor="middle" style="font:800 16px var(--mono)">-</text>
+<rect class="f-chip" x="271" y="50" width="28" height="34" rx="6"/>
+<text class="f-t" x="285" y="73" text-anchor="middle" style="font:800 16px var(--mono)">-</text>
+<rect class="f-chip" x="301" y="50" width="28" height="34" rx="6"/>
+<text class="f-t" x="315" y="73" text-anchor="middle" style="font:800 16px var(--mono)">-</text>
+<path class="f-linea" d="M33 90 V95 H57 V90"/>
+<path class="f-linea" d="M63 90 V95 H147 V90"/>
+<path class="f-linea" d="M153 90 V95 H237 V90"/>
+<path class="f-linea" d="M243 90 V95 H327 V90"/>
+<text class="f-s" x="45" y="112" text-anchor="middle" style="font-size:12px;font-weight:700">tipo</text>
+<text class="f-s" x="105" y="112" text-anchor="middle" style="font-size:12px;font-weight:700">dueño</text>
+<text class="f-s" x="195" y="112" text-anchor="middle" style="font-size:12px;font-weight:700">grupo</text>
+<text class="f-s" x="285" y="112" text-anchor="middle" style="font-size:12px;font-weight:700">los demás</text>
+<text class="f-l" x="45" y="139" text-anchor="middle">BITS</text>
+<text class="f-t" x="75" y="139" text-anchor="middle" style="font:800 15px var(--mono)">1</text>
+<text class="f-t" x="105" y="139" text-anchor="middle" style="font:800 15px var(--mono)">1</text>
+<text class="f-t" x="135" y="139" text-anchor="middle" style="font:800 15px var(--mono)">1</text>
+<text class="f-t" x="165" y="139" text-anchor="middle" style="font:800 15px var(--mono)">1</text>
+<text class="f-t" x="195" y="139" text-anchor="middle" style="font:800 15px var(--mono)">0</text>
+<text class="f-t" x="225" y="139" text-anchor="middle" style="font:800 15px var(--mono)">1</text>
+<text class="f-t" x="255" y="139" text-anchor="middle" style="font:800 15px var(--mono)">0</text>
+<text class="f-t" x="285" y="139" text-anchor="middle" style="font:800 15px var(--mono)">0</text>
+<text class="f-t" x="315" y="139" text-anchor="middle" style="font:800 15px var(--mono)">0</text>
+<text class="f-l" x="45" y="161" text-anchor="middle">VALE</text>
+<text class="f-s" x="75" y="161" text-anchor="middle" style="font-size:12px">4</text>
+<text class="f-s" x="105" y="161" text-anchor="middle" style="font-size:12px">2</text>
+<text class="f-s" x="135" y="161" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="165" y="161" text-anchor="middle" style="font-size:12px">4</text>
+<text class="f-s" x="195" y="161" text-anchor="middle" style="font-size:12px">2</text>
+<text class="f-s" x="225" y="161" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="255" y="161" text-anchor="middle" style="font-size:12px">4</text>
+<text class="f-s" x="285" y="161" text-anchor="middle" style="font-size:12px">2</text>
+<text class="f-s" x="315" y="161" text-anchor="middle" style="font-size:12px">1</text>
+<line class="f-linea" x1="66" y1="172" x2="144" y2="172"/>
+<line class="f-linea" x1="156" y1="172" x2="234" y2="172"/>
+<line class="f-linea" x1="246" y1="172" x2="324" y2="172"/>
+<text class="f-s" x="105" y="191" text-anchor="middle" style="font-size:13px">4 + 2 + 1</text>
+<text class="f-s" x="195" y="191" text-anchor="middle" style="font-size:13px">4 + 0 + 1</text>
+<text class="f-s" x="285" y="191" text-anchor="middle" style="font-size:13px">0 + 0 + 0</text>
+<text class="f-t" x="105" y="220" text-anchor="middle" style="font:800 24px var(--mono);fill:var(--b)">7</text>
+<text class="f-t" x="195" y="220" text-anchor="middle" style="font:800 24px var(--mono);fill:var(--b)">5</text>
+<text class="f-t" x="285" y="220" text-anchor="middle" style="font:800 24px var(--mono);fill:var(--b)">0</text>
+<rect class="f-dark" x="80" y="232" width="200" height="28" rx="14"/>
+<text class="f-dark-t" x="180" y="251" text-anchor="middle" style="font:700 13px var(--mono)">chmod 750 arrancar.sh</text>
+<rect class="f-chip" x="24" y="272" width="312" height="78" rx="10"/>
+<text class="f-l" x="74" y="292">EN UN ARCHIVO</text>
+<text class="f-l" x="192" y="292">EN UNA CARPETA</text>
+<text class="f-t" x="44" y="311" text-anchor="middle" style="font:800 13px var(--mono)">r</text>
+<text class="f-s" x="74" y="311" style="font-size:12px">leerlo</text>
+<text class="f-s" x="192" y="311" style="font-size:12px">ver los nombres</text>
+<text class="f-t" x="44" y="328" text-anchor="middle" style="font:800 13px var(--mono)">w</text>
+<text class="f-s" x="74" y="328" style="font-size:12px">cambiarlo</text>
+<text class="f-s" x="192" y="328" style="font-size:12px">crear y borrar</text>
+<text class="f-t" x="44" y="345" text-anchor="middle" style="font:800 13px var(--mono)">x</text>
+<text class="f-s" x="74" y="345" style="font-size:12px">correrlo</text>
+<text class="f-s" x="192" y="345" style="font-size:12px">entrar</text>
+</svg>

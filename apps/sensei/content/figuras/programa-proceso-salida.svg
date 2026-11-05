@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 484" role="img" aria-labelledby="f-programa-proceso-salida-t" class="f-svg" style="max-width:420px">
+<title id="f-programa-proceso-salida-t">Los 256 códigos de salida posibles, de 0 a 255, en una barra. El 0 es que todo salió bien. Del 1 al 125 son errores que define cada programa. El 126 y el 127 los pone la terminal. Del 128 al 255, la mitad de arriba, quiere decir que una señal mató al proceso: 128 más el número de la señal. Ejemplos: 0, todo salió bien; 1, una excepción sin atrapar; 2, argumentos equivocados; 127, la terminal no encontró el comando; 130, 128 más 2, SIGINT o Ctrl+C; 137, 128 más 9, SIGKILL, por un OOM o un plazo vencido; 139, 128 más 11, SIGSEGV; 143, 128 más 15, SIGTERM, el aviso amable. Abajo, el 137 en bits: 1000 1001. El primer bit vale 128 y dice que lo mató una señal; los otros siete valen 8 más 1, que es 9: SIGKILL.</title>
+<rect class="f-card" x="10" y="10" width="340" height="464" rx="16"/>
+<text class="f-l" x="26" y="36">EL CÓDIGO DE SALIDA: UN BYTE, DE 0 A 255</text>
+<rect class="f-g" x="26" y="50" width="3" height="26"/>
+<rect class="f-y" x="29" y="50" width="148.6" height="26"/>
+<rect class="f-o" x="177.6" y="50" width="2.4" height="26"/>
+<rect class="f-p" x="180" y="50" width="154" height="26"/>
+<text x="103.3" y="67.5" text-anchor="middle" style="fill:var(--navy);font:700 12px var(--sans)">1 a 125: el programa</text>
+<text class="f-pill-t" x="257" y="67.5" text-anchor="middle" style="font:700 12px var(--sans)">128 a 255: una señal</text>
+<text class="f-s" x="27.5" y="92" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="180" y="92" text-anchor="middle" style="font-size:12px">128</text>
+<text class="f-s" x="334" y="92" text-anchor="end" style="font-size:12px">255</text>
+<rect class="f-g" x="26" y="110" width="52" height="22" rx="6"/>
+<text class="f-pill-t" x="52" y="125.5" text-anchor="middle" style="font:800 13px var(--sans)">0</text>
+<text class="f-s" x="90" y="125.5" style="font-size:12px">todo salió bien</text>
+<rect class="f-y" x="26" y="138" width="52" height="22" rx="6"/>
+<text x="52" y="153.5" text-anchor="middle" style="fill:var(--navy);font:800 13px var(--sans)">1</text>
+<text class="f-s" x="90" y="153.5" style="font-size:12px">error: una excepción sin atrapar</text>
+<rect class="f-y" x="26" y="166" width="52" height="22" rx="6"/>
+<text x="52" y="181.5" text-anchor="middle" style="fill:var(--navy);font:800 13px var(--sans)">2</text>
+<text class="f-s" x="90" y="181.5" style="font-size:12px">argumentos equivocados</text>
+<rect class="f-o" x="26" y="194" width="52" height="22" rx="6"/>
+<text class="f-pill-t" x="52" y="209.5" text-anchor="middle" style="font:800 13px var(--sans)">127</text>
+<text class="f-s" x="90" y="209.5" style="font-size:12px">la terminal no encontró el comando</text>
+<rect class="f-p" x="26" y="222" width="52" height="22" rx="6"/>
+<text class="f-pill-t" x="52" y="237.5" text-anchor="middle" style="font:800 13px var(--sans)">130</text>
+<text class="f-s" x="90" y="237.5" style="font-size:12px">128 + 2: SIGINT, Ctrl+C</text>
+<rect class="f-p" x="26" y="250" width="52" height="22" rx="6"/>
+<text class="f-pill-t" x="52" y="265.5" text-anchor="middle" style="font:800 13px var(--sans)">137</text>
+<text class="f-s" x="90" y="265.5" style="font-size:12px">128 + 9: SIGKILL (OOM o plazo)</text>
+<rect class="f-p" x="26" y="278" width="52" height="22" rx="6"/>
+<text class="f-pill-t" x="52" y="293.5" text-anchor="middle" style="font:800 13px var(--sans)">139</text>
+<text class="f-s" x="90" y="293.5" style="font-size:12px">128 + 11: SIGSEGV, tocó memoria ajena</text>
+<rect class="f-p" x="26" y="306" width="52" height="22" rx="6"/>
+<text class="f-pill-t" x="52" y="321.5" text-anchor="middle" style="font:800 13px var(--sans)">143</text>
+<text class="f-s" x="90" y="321.5" style="font-size:12px">128 + 15: SIGTERM, el aviso amable</text>
+<line class="f-linea" x1="26" y1="342" x2="334" y2="342"/>
+<text class="f-t" x="26" y="366" style="font-size:13px">El 137 en bits</text>
+<rect class="f-p" x="26" y="376" width="30" height="30" rx="6"/>
+<text class="f-pill-t" x="41" y="397" text-anchor="middle" style="font:800 15px var(--sans)">1</text>
+<rect class="f-chip" x="60" y="376" width="30" height="30" rx="6"/>
+<text class="f-t" x="75" y="397" text-anchor="middle">0</text>
+<rect class="f-chip" x="94" y="376" width="30" height="30" rx="6"/>
+<text class="f-t" x="109" y="397" text-anchor="middle">0</text>
+<rect class="f-chip" x="128" y="376" width="30" height="30" rx="6"/>
+<text class="f-t" x="143" y="397" text-anchor="middle">0</text>
+<rect class="f-b" x="162" y="376" width="30" height="30" rx="6"/>
+<text class="f-pill-t" x="177" y="397" text-anchor="middle" style="font:800 15px var(--sans)">1</text>
+<rect class="f-chip" x="196" y="376" width="30" height="30" rx="6"/>
+<text class="f-t" x="211" y="397" text-anchor="middle">0</text>
+<rect class="f-chip" x="230" y="376" width="30" height="30" rx="6"/>
+<text class="f-t" x="245" y="397" text-anchor="middle">0</text>
+<rect class="f-b" x="264" y="376" width="30" height="30" rx="6"/>
+<text class="f-pill-t" x="279" y="397" text-anchor="middle" style="font:800 15px var(--sans)">1</text>
+<text class="f-s" x="41" y="422" text-anchor="middle" style="font-size:12px">128</text>
+<text class="f-s" x="75" y="422" text-anchor="middle" style="font-size:12px">64</text>
+<text class="f-s" x="109" y="422" text-anchor="middle" style="font-size:12px">32</text>
+<text class="f-s" x="143" y="422" text-anchor="middle" style="font-size:12px">16</text>
+<text class="f-s" x="177" y="422" text-anchor="middle" style="font-size:12px">8</text>
+<text class="f-s" x="211" y="422" text-anchor="middle" style="font-size:12px">4</text>
+<text class="f-s" x="245" y="422" text-anchor="middle" style="font-size:12px">2</text>
+<text class="f-s" x="279" y="422" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="26" y="448" style="font-size:12px">El primero vale 128: «lo mató una señal».</text>
+<text class="f-s" x="26" y="466" style="font-size:12px">Los otros siete dicen cuál: 8 + 1 = 9, SIGKILL.</text>
+</svg>

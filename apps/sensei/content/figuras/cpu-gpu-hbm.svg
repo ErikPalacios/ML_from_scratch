@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 486" role="img" aria-labelledby="f-cpu-gpu-hbm-t" class="f-svg" style="max-width:420px">
+<title id="f-cpu-gpu-hbm-t">Dos maneras de hacer la memoria de una GPU. Arriba, la T4 con GDDR6: 8 chips de memoria de 2 GB soldados en la tarjeta, 4 a cada lado de la GPU, cada uno conectado con 32 cables; son 256 cables a 10 Gb/s, y 256 por 10 entre 8 da 320 GB/s. Abajo, la H100 SXM con HBM3: 5 pilas de memoria pegadas al chip, cada una conectada con una banda de 1,024 cables; son 5,120 cables a cerca de 5.23 Gb/s, unos 3,350 GB/s. Veinte veces más cables, a la mitad de velocidad cada uno, dan unas diez veces el ancho de banda.</title>
+<rect class="f-card" x="10" y="10" width="340" height="466" rx="16"/>
+
+<text class="f-l" x="28" y="36" style="font-size:12px">LA T4 · GDDR6 EN LA TARJETA</text>
+<rect class="f-chip" x="28" y="48" width="304" height="128" rx="10"/>
+<line class="f-linea" x1="88" y1="68" x2="140" y2="92"/>
+<line class="f-linea" x1="88" y1="94" x2="140" y2="106"/>
+<line class="f-linea" x1="88" y1="120" x2="140" y2="120"/>
+<line class="f-linea" x1="88" y1="146" x2="140" y2="134"/>
+<line class="f-linea" x1="272" y1="68" x2="220" y2="92"/>
+<line class="f-linea" x1="272" y1="94" x2="220" y2="106"/>
+<line class="f-linea" x1="272" y1="120" x2="220" y2="120"/>
+<line class="f-linea" x1="272" y1="146" x2="220" y2="134"/>
+<rect class="f-card" x="46" y="58" width="42" height="20" rx="3"/>
+<text class="f-s" x="67" y="72.5" text-anchor="middle" style="font-size:12px">2 GB</text>
+<rect class="f-card" x="46" y="84" width="42" height="20" rx="3"/>
+<text class="f-s" x="67" y="98.5" text-anchor="middle" style="font-size:12px">2 GB</text>
+<rect class="f-card" x="46" y="110" width="42" height="20" rx="3"/>
+<text class="f-s" x="67" y="124.5" text-anchor="middle" style="font-size:12px">2 GB</text>
+<rect class="f-card" x="46" y="136" width="42" height="20" rx="3"/>
+<text class="f-s" x="67" y="150.5" text-anchor="middle" style="font-size:12px">2 GB</text>
+<rect class="f-card" x="272" y="58" width="42" height="20" rx="3"/>
+<text class="f-s" x="293" y="72.5" text-anchor="middle" style="font-size:12px">2 GB</text>
+<rect class="f-card" x="272" y="84" width="42" height="20" rx="3"/>
+<text class="f-s" x="293" y="98.5" text-anchor="middle" style="font-size:12px">2 GB</text>
+<rect class="f-card" x="272" y="110" width="42" height="20" rx="3"/>
+<text class="f-s" x="293" y="124.5" text-anchor="middle" style="font-size:12px">2 GB</text>
+<rect class="f-card" x="272" y="136" width="42" height="20" rx="3"/>
+<text class="f-s" x="293" y="150.5" text-anchor="middle" style="font-size:12px">2 GB</text>
+<rect class="f-dark" x="140" y="82" width="80" height="62" rx="8"/>
+<text class="f-dark-t" x="180" y="118" text-anchor="middle" style="font-size:14px;font-weight:700">GPU</text>
+<text class="f-s" x="28" y="198" style="font-size:12px">8 chips × 32 cables = 256 cables a 10 Gb/s</text>
+<text class="f-t" x="28" y="218" style="font-size:13px">256 × 10 ÷ 8 = 320 GB/s</text>
+
+<text class="f-l" x="28" y="252" style="font-size:12px">LA H100 SXM · HBM3 PEGADA AL CHIP</text>
+<rect class="f-chip" x="28" y="264" width="304" height="120" rx="10"/>
+<line x1="100" y1="290" x2="128" y2="290" style="stroke:var(--b);stroke-width:12;opacity:.45"/>
+<line x1="100" y1="321" x2="128" y2="321" style="stroke:var(--b);stroke-width:12;opacity:.45"/>
+<line x1="100" y1="352" x2="128" y2="352" style="stroke:var(--b);stroke-width:12;opacity:.45"/>
+<line x1="232" y1="305" x2="260" y2="305" style="stroke:var(--b);stroke-width:12;opacity:.45"/>
+<line x1="232" y1="336" x2="260" y2="336" style="stroke:var(--b);stroke-width:12;opacity:.45"/>
+<rect class="f-p" x="56" y="279" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="56" y="285" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="56" y="291" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="56" y="297" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="56" y="310" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="56" y="316" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="56" y="322" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="56" y="328" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="56" y="341" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="56" y="347" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="56" y="353" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="56" y="359" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="260" y="294" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="260" y="300" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="260" y="306" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="260" y="312" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="260" y="325" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="260" y="331" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="260" y="337" width="44" height="5" rx="1.5"/>
+<rect class="f-p" x="260" y="343" width="44" height="5" rx="1.5"/>
+<rect class="f-dark" x="128" y="276" width="104" height="94" rx="8"/>
+<text class="f-dark-t" x="180" y="327" text-anchor="middle" style="font-size:14px;font-weight:700">GPU</text>
+<text class="f-s" x="28" y="406" style="font-size:12px">5 pilas × 1,024 = 5,120 cables a ≈ 5.23 Gb/s</text>
+<text class="f-t" x="28" y="426" style="font-size:13px">5,120 × 5.23 ÷ 8 ≈ 3,350 GB/s</text>
+<text class="f-s" x="28" y="450" style="font-size:12px">20 veces más cables, a la mitad de velocidad:</text>
+<text class="f-s" x="28" y="466" style="font-size:12px;font-weight:700">≈ 10 veces el ancho de banda.</text>
+</svg>

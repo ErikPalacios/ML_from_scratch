@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 352" role="img" aria-labelledby="f-sistema-operativo-instruccion-t" class="f-svg" style="max-width:420px">
+<title id="f-sistema-operativo-instruccion-t">Arriba, la misma orden, regresa de la función, en los dos idiomas: en x86-64 es un solo byte, C3; en ARM64 son cuatro bytes, C0, 03, 5F y D6. Una CPU x86-64 no entiende los bytes de ARM64. Abajo, la cabecera de un ejecutable de Linux, que el kernel lee antes de correrlo. Los bytes 0 a 3 son 7F, 45, 4C y 46: el 7F y las letras E, L, F, que dicen «soy un programa». Los bytes 18 y 19 son 3E y 00, el número 62, que quiere decir que se compiló para x86-64; para ARM64 serían 183. Si no es para su CPU, el kernel responde exec format error.</title>
+<rect class="f-card" x="10" y="10" width="340" height="162" rx="16"/>
+<text class="f-l" x="24" y="34">«REGRESA DE LA FUNCIÓN», EN DOS IDIOMAS</text>
+<text class="f-t" x="24" y="66" style="font-size:13px">x86-64</text>
+<rect class="f-b" x="100" y="46" width="34" height="30" rx="6"/>
+<text x="117" y="66" text-anchor="middle" style="fill:#fff;font:800 13px var(--mono)">C3</text>
+<text class="f-s" x="144" y="66" style="font-size:12px">1 byte</text>
+<text class="f-t" x="24" y="106" style="font-size:13px">ARM64</text>
+<rect class="f-b" x="100" y="86" width="34" height="30" rx="6"/>
+<text x="117" y="106" text-anchor="middle" style="fill:#fff;font:800 13px var(--mono)">C0</text>
+<rect class="f-b" x="136" y="86" width="34" height="30" rx="6"/>
+<text x="153" y="106" text-anchor="middle" style="fill:#fff;font:800 13px var(--mono)">03</text>
+<rect class="f-b" x="172" y="86" width="34" height="30" rx="6"/>
+<text x="189" y="106" text-anchor="middle" style="fill:#fff;font:800 13px var(--mono)">5F</text>
+<rect class="f-b" x="208" y="86" width="34" height="30" rx="6"/>
+<text x="225" y="106" text-anchor="middle" style="fill:#fff;font:800 13px var(--mono)">D6</text>
+<text class="f-s" x="252" y="106" style="font-size:12px">4 bytes</text>
+<text class="f-s" x="24" y="140" style="font-size:12px">Una CPU x86-64 no entiende los 4 bytes de ARM64.</text>
+<text class="f-s" x="24" y="157" style="font-size:12px">Por eso el kernel lee antes la cabecera:</text>
+<rect class="f-card" x="10" y="184" width="340" height="158" rx="16"/>
+<text class="f-l" x="24" y="208">LA CABECERA DE UN EJECUTABLE DE LINUX</text>
+<text class="f-l" x="45" y="228" text-anchor="middle">0</text>
+<text class="f-l" x="81" y="228" text-anchor="middle">1</text>
+<text class="f-l" x="117" y="228" text-anchor="middle">2</text>
+<text class="f-l" x="153" y="228" text-anchor="middle">3</text>
+<text class="f-l" x="243" y="228" text-anchor="middle">18</text>
+<text class="f-l" x="279" y="228" text-anchor="middle">19</text>
+<rect class="f-chip" x="28" y="234" width="34" height="30" rx="6"/>
+<text class="f-t" x="45" y="254" text-anchor="middle" style="font:800 13px var(--mono)">7F</text>
+<rect class="f-chip" x="64" y="234" width="34" height="30" rx="6"/>
+<text class="f-t" x="81" y="254" text-anchor="middle" style="font:800 13px var(--mono)">45</text>
+<rect class="f-chip" x="100" y="234" width="34" height="30" rx="6"/>
+<text class="f-t" x="117" y="254" text-anchor="middle" style="font:800 13px var(--mono)">4C</text>
+<rect class="f-chip" x="136" y="234" width="34" height="30" rx="6"/>
+<text class="f-t" x="153" y="254" text-anchor="middle" style="font:800 13px var(--mono)">46</text>
+<text class="f-s" x="198" y="254" text-anchor="middle" style="font-size:14px;font-weight:700">· · ·</text>
+<rect class="f-b" x="226" y="234" width="34" height="30" rx="6"/>
+<text x="243" y="254" text-anchor="middle" style="fill:#fff;font:800 13px var(--mono)">3E</text>
+<rect class="f-b" x="262" y="234" width="34" height="30" rx="6"/>
+<text x="279" y="254" text-anchor="middle" style="fill:#fff;font:800 13px var(--mono)">00</text>
+<path class="f-linea" d="M30 271 V276 H168 V271"/>
+<path class="f-linea" d="M228 271 V276 H294 V271"/>
+<text class="f-s" x="99" y="295" text-anchor="middle" style="font-size:12px">7F y las letras E, L, F:</text>
+<text class="f-s" x="99" y="312" text-anchor="middle" style="font-size:12px;font-weight:700">«soy un programa»</text>
+<text class="f-s" x="261" y="295" text-anchor="middle" style="font-size:12px">la CPU: 3E 00 = 62,</text>
+<text class="f-s" x="261" y="312" text-anchor="middle" style="font-size:12px;font-weight:700">x86-64 (ARM64 sería 183)</text>
+<text class="f-s" x="24" y="333" style="font-size:12px">Si no es su CPU: «exec format error».</text>
+</svg>

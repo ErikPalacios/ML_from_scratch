@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 512" role="img" aria-labelledby="f-memoria-lineas-t" class="f-svg" style="max-width:420px">
+<title id="f-memoria-lineas-t">Una matriz de 4 filas por 8 columnas guardada fila tras fila. Arriba, cómo queda en la memoria: la fila 0, luego la 1, la 2 y la 3, una detrás de otra, en bloques de 4 números; cada bloque es una línea de caché (en una CPU real, una línea trae 16 números float32). En medio, la matriz recorrida por filas, con el orden de lectura del 1 al 32: solo la primera lectura de cada línea es un fallo que va a la RAM; las otras tres ya llegaron con ella. Son 8 fallos en 32 lecturas. Abajo, la misma matriz recorrida por columnas: cada lectura cae en una línea distinta, y si la matriz no cabe en la caché, cuando el recorrido vuelve por la siguiente columna esa línea ya se fue. Las 32 lecturas son fallos.</title>
+<rect class="f-card" x="10" y="10" width="340" height="492" rx="16"/>
+<text class="f-l" x="28" y="36">UNA MATRIZ DE 4 × 8, FILA TRAS FILA</text>
+<text class="f-s" x="28" y="56" style="font-size:12px">en la memoria va una fila detrás de otra:</text>
+<rect class="f-b" x="36" y="66" width="33" height="18" rx="3"/>
+<rect class="f-b" x="72" y="66" width="33" height="18" rx="3"/>
+<rect class="f-b2" x="108" y="66" width="33" height="18" rx="3"/>
+<rect class="f-b2" x="144" y="66" width="33" height="18" rx="3"/>
+<rect class="f-b" x="180" y="66" width="33" height="18" rx="3"/>
+<rect class="f-b" x="216" y="66" width="33" height="18" rx="3"/>
+<rect class="f-b2" x="252" y="66" width="33" height="18" rx="3"/>
+<rect class="f-b2" x="288" y="66" width="33" height="18" rx="3"/>
+<path d="M44.25 66V84M52.5 66V84M60.75 66V84M80.25 66V84M88.5 66V84M96.75 66V84M116.25 66V84M124.5 66V84M132.75 66V84M152.25 66V84M160.5 66V84M168.75 66V84M188.25 66V84M196.5 66V84M204.75 66V84M224.25 66V84M232.5 66V84M240.75 66V84M260.25 66V84M268.5 66V84M276.75 66V84M296.25 66V84M304.5 66V84M312.75 66V84" style="stroke:var(--blk);stroke-width:1.2"/>
+<text class="f-s" x="70.5" y="100" text-anchor="middle" style="font-size:12px">fila 0</text>
+<text class="f-s" x="142.5" y="100" text-anchor="middle" style="font-size:12px">fila 1</text>
+<text class="f-s" x="214.5" y="100" text-anchor="middle" style="font-size:12px">fila 2</text>
+<text class="f-s" x="286.5" y="100" text-anchor="middle" style="font-size:12px">fila 3</text>
+<text class="f-s" x="28" y="120" style="font-size:12px;fill:var(--muted)">cada bloque es una línea de caché: 4 números</text>
+<text class="f-s" x="28" y="136" style="font-size:12px;fill:var(--muted)">en el dibujo, 16 float32 en una CPU real</text>
+<text class="f-s" x="28" y="162" style="font-weight:700">Por filas: 1 fallo cada 4 lecturas</text>
+<rect class="f-o" x="60" y="172" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="90" y="172" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="120" y="172" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="150" y="172" width="28" height="28" rx="4"/>
+<rect class="f-o" x="180" y="172" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="210" y="172" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="240" y="172" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="270" y="172" width="28" height="28" rx="4"/>
+<rect class="f-o" x="60" y="202" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="90" y="202" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="120" y="202" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="150" y="202" width="28" height="28" rx="4"/>
+<rect class="f-o" x="180" y="202" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="210" y="202" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="240" y="202" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="270" y="202" width="28" height="28" rx="4"/>
+<rect class="f-o" x="60" y="232" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="90" y="232" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="120" y="232" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="150" y="232" width="28" height="28" rx="4"/>
+<rect class="f-o" x="180" y="232" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="210" y="232" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="240" y="232" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="270" y="232" width="28" height="28" rx="4"/>
+<rect class="f-o" x="60" y="262" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="90" y="262" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="120" y="262" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="150" y="262" width="28" height="28" rx="4"/>
+<rect class="f-o" x="180" y="262" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="210" y="262" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="240" y="262" width="28" height="28" rx="4"/>
+<rect class="f-chip" x="270" y="262" width="28" height="28" rx="4"/>
+<g style="fill:none;stroke:var(--ink-2);stroke-width:1.5">
+<rect x="58" y="170" width="122" height="32" rx="6"/>
+<rect x="178" y="170" width="122" height="32" rx="6"/>
+<rect x="58" y="200" width="122" height="32" rx="6"/>
+<rect x="178" y="200" width="122" height="32" rx="6"/>
+<rect x="58" y="230" width="122" height="32" rx="6"/>
+<rect x="178" y="230" width="122" height="32" rx="6"/>
+<rect x="58" y="260" width="122" height="32" rx="6"/>
+<rect x="178" y="260" width="122" height="32" rx="6"/>
+</g>
+<g style="font:700 12px var(--sans)" text-anchor="middle">
+<text class="f-pill-t" x="74" y="191" style="font:700 12px var(--sans)">1</text><text class="f-s" x="104" y="191" style="font-size:12px">2</text><text class="f-s" x="134" y="191" style="font-size:12px">3</text><text class="f-s" x="164" y="191" style="font-size:12px">4</text>
+<text class="f-pill-t" x="194" y="191" style="font:700 12px var(--sans)">5</text><text class="f-s" x="224" y="191" style="font-size:12px">6</text><text class="f-s" x="254" y="191" style="font-size:12px">7</text><text class="f-s" x="284" y="191" style="font-size:12px">8</text>
+<text class="f-pill-t" x="74" y="221" style="font:700 12px var(--sans)">9</text><text class="f-s" x="104" y="221" style="font-size:12px">10</text><text class="f-s" x="134" y="221" style="font-size:12px">11</text><text class="f-s" x="164" y="221" style="font-size:12px">12</text>
+<text class="f-pill-t" x="194" y="221" style="font:700 12px var(--sans)">13</text><text class="f-s" x="224" y="221" style="font-size:12px">14</text><text class="f-s" x="254" y="221" style="font-size:12px">15</text><text class="f-s" x="284" y="221" style="font-size:12px">16</text>
+<text class="f-pill-t" x="74" y="251" style="font:700 12px var(--sans)">17</text><text class="f-s" x="104" y="251" style="font-size:12px">18</text><text class="f-s" x="134" y="251" style="font-size:12px">19</text><text class="f-s" x="164" y="251" style="font-size:12px">20</text>
+<text class="f-pill-t" x="194" y="251" style="font:700 12px var(--sans)">21</text><text class="f-s" x="224" y="251" style="font-size:12px">22</text><text class="f-s" x="254" y="251" style="font-size:12px">23</text><text class="f-s" x="284" y="251" style="font-size:12px">24</text>
+<text class="f-pill-t" x="74" y="281" style="font:700 12px var(--sans)">25</text><text class="f-s" x="104" y="281" style="font-size:12px">26</text><text class="f-s" x="134" y="281" style="font-size:12px">27</text><text class="f-s" x="164" y="281" style="font-size:12px">28</text>
+<text class="f-pill-t" x="194" y="281" style="font:700 12px var(--sans)">29</text><text class="f-s" x="224" y="281" style="font-size:12px">30</text><text class="f-s" x="254" y="281" style="font-size:12px">31</text><text class="f-s" x="284" y="281" style="font-size:12px">32</text>
+</g>
+<text class="f-s" x="28" y="322" style="font-weight:700">Por columnas: cada lectura, otra línea</text>
+<text class="f-s" x="28" y="338" style="font-size:12px;fill:var(--muted)">si la matriz no cabe en la caché, al volver ya no está</text>
+<rect class="f-o" x="60" y="348" width="28" height="28" rx="4"/>
+<rect class="f-o" x="90" y="348" width="28" height="28" rx="4"/>
+<rect class="f-o" x="120" y="348" width="28" height="28" rx="4"/>
+<rect class="f-o" x="150" y="348" width="28" height="28" rx="4"/>
+<rect class="f-o" x="180" y="348" width="28" height="28" rx="4"/>
+<rect class="f-o" x="210" y="348" width="28" height="28" rx="4"/>
+<rect class="f-o" x="240" y="348" width="28" height="28" rx="4"/>
+<rect class="f-o" x="270" y="348" width="28" height="28" rx="4"/>
+<rect class="f-o" x="60" y="378" width="28" height="28" rx="4"/>
+<rect class="f-o" x="90" y="378" width="28" height="28" rx="4"/>
+<rect class="f-o" x="120" y="378" width="28" height="28" rx="4"/>
+<rect class="f-o" x="150" y="378" width="28" height="28" rx="4"/>
+<rect class="f-o" x="180" y="378" width="28" height="28" rx="4"/>
+<rect class="f-o" x="210" y="378" width="28" height="28" rx="4"/>
+<rect class="f-o" x="240" y="378" width="28" height="28" rx="4"/>
+<rect class="f-o" x="270" y="378" width="28" height="28" rx="4"/>
+<rect class="f-o" x="60" y="408" width="28" height="28" rx="4"/>
+<rect class="f-o" x="90" y="408" width="28" height="28" rx="4"/>
+<rect class="f-o" x="120" y="408" width="28" height="28" rx="4"/>
+<rect class="f-o" x="150" y="408" width="28" height="28" rx="4"/>
+<rect class="f-o" x="180" y="408" width="28" height="28" rx="4"/>
+<rect class="f-o" x="210" y="408" width="28" height="28" rx="4"/>
+<rect class="f-o" x="240" y="408" width="28" height="28" rx="4"/>
+<rect class="f-o" x="270" y="408" width="28" height="28" rx="4"/>
+<rect class="f-o" x="60" y="438" width="28" height="28" rx="4"/>
+<rect class="f-o" x="90" y="438" width="28" height="28" rx="4"/>
+<rect class="f-o" x="120" y="438" width="28" height="28" rx="4"/>
+<rect class="f-o" x="150" y="438" width="28" height="28" rx="4"/>
+<rect class="f-o" x="180" y="438" width="28" height="28" rx="4"/>
+<rect class="f-o" x="210" y="438" width="28" height="28" rx="4"/>
+<rect class="f-o" x="240" y="438" width="28" height="28" rx="4"/>
+<rect class="f-o" x="270" y="438" width="28" height="28" rx="4"/>
+<g style="fill:none;stroke:var(--ink-2);stroke-width:1.5">
+<rect x="58" y="346" width="122" height="32" rx="6"/>
+<rect x="178" y="346" width="122" height="32" rx="6"/>
+<rect x="58" y="376" width="122" height="32" rx="6"/>
+<rect x="178" y="376" width="122" height="32" rx="6"/>
+<rect x="58" y="406" width="122" height="32" rx="6"/>
+<rect x="178" y="406" width="122" height="32" rx="6"/>
+<rect x="58" y="436" width="122" height="32" rx="6"/>
+<rect x="178" y="436" width="122" height="32" rx="6"/>
+</g>
+<g class="f-pill-t" style="font:700 12px var(--sans)" text-anchor="middle">
+<text x="74" y="367">1</text><text x="104" y="367">5</text><text x="134" y="367">9</text><text x="164" y="367">13</text><text x="194" y="367">17</text><text x="224" y="367">21</text><text x="254" y="367">25</text><text x="284" y="367">29</text>
+<text x="74" y="397">2</text><text x="104" y="397">6</text><text x="134" y="397">10</text><text x="164" y="397">14</text><text x="194" y="397">18</text><text x="224" y="397">22</text><text x="254" y="397">26</text><text x="284" y="397">30</text>
+<text x="74" y="427">3</text><text x="104" y="427">7</text><text x="134" y="427">11</text><text x="164" y="427">15</text><text x="194" y="427">19</text><text x="224" y="427">23</text><text x="254" y="427">27</text><text x="284" y="427">31</text>
+<text x="74" y="457">4</text><text x="104" y="457">8</text><text x="134" y="457">12</text><text x="164" y="457">16</text><text x="194" y="457">20</text><text x="224" y="457">24</text><text x="254" y="457">28</text><text x="284" y="457">32</text>
+</g>
+<rect class="f-o" x="28" y="478" width="12" height="12" rx="3"/>
+<text class="f-s" x="46" y="488" style="font-size:12px">fallo: a la RAM, ≈ 100 ns</text>
+<rect class="f-chip" x="204" y="478" width="12" height="12" rx="3" style="stroke:var(--ink-2);stroke-width:1"/>
+<text class="f-s" x="222" y="488" style="font-size:12px">acierto: ≈ 1 ns</text>
+</svg>

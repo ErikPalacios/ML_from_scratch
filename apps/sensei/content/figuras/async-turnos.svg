@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 428" role="img" aria-labelledby="f-async-turnos-t" class="f-svg" style="max-width:420px">
+<title id="f-async-turnos-t">Tres requests, A, B y C, atendidas de dos maneras, en la misma escala de tiempo de 0 a 42 milisegundos. Cada request tiene 2 milisegundos de CPU, 10 de espera a Triton y otros 2 de CPU. Arriba, un hilo que bloquea: A ocupa de 0 a 14, B espera su turno hasta los 14 y ocupa de 14 a 28, y C espera hasta los 28 y ocupa de 28 a 42; la última termina a los 42 milisegundos. Abajo, un event loop que se turna: A calcula de 0 a 2, B de 2 a 4 y C de 4 a 6; sus esperas se enciman, y vuelven a calcular de 12 a 14, de 14 a 16 y de 16 a 18. La última termina a los 18 milisegundos.</title>
+<text class="f-l" x="14" y="24">TRES REQUESTS, DOS MANERAS</text>
+<rect class="f-card" x="10" y="36" width="340" height="152" rx="16"/>
+<text class="f-l" x="26" y="60">UN HILO QUE BLOQUEA: UNA TRAS OTRA</text>
+<text class="f-t" x="28" y="86" style="font-size:14px">A</text>
+<rect class="f-o" x="56" y="72" width="13.3" height="18" rx="2"/>
+<rect class="f-b2" x="69.3" y="72" width="66.7" height="18"/>
+<rect class="f-o" x="136" y="72" width="13.3" height="18" rx="2"/>
+<text class="f-t" x="28" y="110" style="font-size:14px">B</text>
+<rect class="f-off" x="56" y="96" width="93.3" height="18"/>
+<rect class="f-o" x="149.3" y="96" width="13.3" height="18" rx="2"/>
+<rect class="f-b2" x="162.7" y="96" width="66.7" height="18"/>
+<rect class="f-o" x="229.3" y="96" width="13.3" height="18" rx="2"/>
+<text class="f-t" x="28" y="134" style="font-size:14px">C</text>
+<rect class="f-off" x="56" y="120" width="186.7" height="18"/>
+<rect class="f-o" x="242.7" y="120" width="13.3" height="18" rx="2"/>
+<rect class="f-b2" x="256" y="120" width="66.7" height="18"/>
+<rect class="f-o" x="322.7" y="120" width="13.3" height="18" rx="2"/>
+<line x1="336" y1="66" x2="336" y2="144" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<line class="f-linea" x1="56" y1="150" x2="336" y2="150"/>
+<line class="f-linea" x1="56" y1="150" x2="56" y2="154"/>
+<line class="f-linea" x1="149.3" y1="150" x2="149.3" y2="154"/>
+<line class="f-linea" x1="242.7" y1="150" x2="242.7" y2="154"/>
+<line class="f-linea" x1="336" y1="150" x2="336" y2="154"/>
+<text class="f-s" x="56" y="168" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="149.3" y="168" text-anchor="middle" style="font-size:12px">14</text>
+<text class="f-s" x="242.7" y="168" text-anchor="middle" style="font-size:12px">28</text>
+<text class="f-s" x="342" y="168" text-anchor="end" style="font-size:12px">42 ms</text>
+<text class="f-t" x="26" y="182" style="font-size:13px">La última termina a los 42 ms</text>
+<rect class="f-card" x="10" y="200" width="340" height="152" rx="16"/>
+<text class="f-l" x="26" y="224">UN EVENT LOOP: SE TURNAN EN LAS ESPERAS</text>
+<text class="f-t" x="28" y="250" style="font-size:14px">A</text>
+<rect class="f-o" x="56" y="236" width="13.3" height="18" rx="2"/>
+<rect class="f-b2" x="69.3" y="236" width="66.7" height="18"/>
+<rect class="f-o" x="136" y="236" width="13.3" height="18" rx="2"/>
+<text class="f-t" x="28" y="274" style="font-size:14px">B</text>
+<rect class="f-off" x="56" y="260" width="13.3" height="18"/>
+<rect class="f-o" x="69.3" y="260" width="13.3" height="18" rx="2"/>
+<rect class="f-b2" x="82.7" y="260" width="66.7" height="18"/>
+<rect class="f-o" x="149.3" y="260" width="13.3" height="18" rx="2"/>
+<text class="f-t" x="28" y="298" style="font-size:14px">C</text>
+<rect class="f-off" x="56" y="284" width="26.7" height="18"/>
+<rect class="f-o" x="82.7" y="284" width="13.3" height="18" rx="2"/>
+<rect class="f-b2" x="96" y="284" width="66.7" height="18"/>
+<rect class="f-o" x="162.7" y="284" width="13.3" height="18" rx="2"/>
+<line x1="176" y1="230" x2="176" y2="308" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<text class="f-t" x="182" y="298" style="font-size:13px">18 ms</text>
+<line class="f-linea" x1="56" y1="314" x2="336" y2="314"/>
+<line class="f-linea" x1="56" y1="314" x2="56" y2="318"/>
+<line class="f-linea" x1="149.3" y1="314" x2="149.3" y2="318"/>
+<line class="f-linea" x1="242.7" y1="314" x2="242.7" y2="318"/>
+<line class="f-linea" x1="336" y1="314" x2="336" y2="318"/>
+<text class="f-s" x="56" y="332" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="149.3" y="332" text-anchor="middle" style="font-size:12px">14</text>
+<text class="f-s" x="242.7" y="332" text-anchor="middle" style="font-size:12px">28</text>
+<text class="f-s" x="342" y="332" text-anchor="end" style="font-size:12px">42 ms</text>
+<text class="f-t" x="26" y="346" style="font-size:13px">La última termina a los 18 ms</text>
+<rect class="f-chip" x="10" y="364" width="340" height="58" rx="12"/>
+<rect class="f-o" x="26" y="374" width="14" height="14" rx="2"/>
+<text class="f-s" x="46" y="386" style="font-size:12px">CPU: el hilo calcula</text>
+<rect class="f-b2" x="196" y="374" width="14" height="14" rx="2"/>
+<text class="f-s" x="216" y="386" style="font-size:12px">espera a Triton</text>
+<rect class="f-off" x="26" y="398" width="14" height="14" rx="2"/>
+<text class="f-s" x="46" y="410" style="font-size:12px">espera su turno: el hilo está ocupado</text>
+</svg>

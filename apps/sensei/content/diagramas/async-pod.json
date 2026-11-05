@@ -1,0 +1,313 @@
+{
+  "titulo": "Un pod del gateway de C01 por dentro",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    {
+      "id": "alrededor",
+      "label": "Alrededor del pod",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 13
+    },
+    {
+      "id": "pod",
+      "label": "Un pod · un proceso de uvicorn",
+      "kind": "online",
+      "x": 0,
+      "y": 15,
+      "w": 53,
+      "h": 35
+    },
+    {
+      "id": "gpu",
+      "label": "Otra máquina",
+      "kind": "neutral",
+      "x": 55,
+      "y": 15,
+      "w": 23,
+      "h": 35
+    }
+  ],
+  "nodes": [
+    {
+      "id": "alb",
+      "label": "Balanceador",
+      "sub": "reparte entre los pods",
+      "kind": "edge",
+      "x": 29,
+      "y": 4.5,
+      "w": 20,
+      "h": 8,
+      "note": "El balanceador de carga (el ALB de AWS) recibe las requests y las reparte entre los pods del gateway. En el pico de diseño, a cada uno de los 5 pods le tocan ≈ 100 por segundo."
+    },
+    {
+      "id": "health",
+      "label": "Health check",
+      "sub": "cada 10 s · espera 2 s",
+      "kind": "monitor",
+      "x": 56,
+      "y": 4.5,
+      "w": 20,
+      "h": 8,
+      "note": "Kubernetes le pregunta al pod «¿sigues vivo?» cada 10 s y espera la respuesta 2 s. Con tres fallas seguidas, lo reinicia. Contesta el loop: si está congelado, el health check falla aunque el proceso esté vivo."
+    },
+    {
+      "id": "hpa",
+      "label": "HPA",
+      "sub": "de 3 a 12 pods",
+      "kind": "monitor",
+      "x": 2,
+      "y": 4.5,
+      "w": 20,
+      "h": 8,
+      "note": "La regla de Kubernetes que agrega o quita pods según su CPU: apunta a 60 % de un núcleo por pod. En el pico de diseño, 500 × 6 ms = 3 núcleos ocupados, y bastan ≈ 5 pods."
+    },
+    {
+      "id": "loop",
+      "label": "Event loop",
+      "sub": "≈ 5 en vuelo · tope 16",
+      "kind": "service",
+      "x": 29,
+      "y": 21,
+      "w": 22,
+      "h": 9,
+      "note": "Un solo [[hilo]] con el [[event-loop|event loop]] de uvicorn. Encima las esperas de las ≈ 5 requests en vuelo (ya llegaron y no han terminado) y rechaza con un 503 a la número 17 (`MAX_INFLIGHT = 16`). Su contador de requests en vuelo no necesita candado: solo este hilo lo toca."
+    },
+    {
+      "id": "slots",
+      "label": "2 lugares de CPU",
+      "sub": "espera hasta 50 ms",
+      "kind": "queue",
+      "x": 29,
+      "y": 38,
+      "w": 22,
+      "h": 9,
+      "note": "Un `asyncio.Semaphore(2)`, un contador de lugares: solo 2 decodes a la vez, porque un PNG de 40 MP ocupa ≈ 320 MB al decodificarse y el pod tiene 1 GiB. Esperar un lugar no bloquea el loop. Si la espera pasa de 50 ms, la request recibe un 503."
+    },
+    {
+      "id": "pool",
+      "label": "Threadpool",
+      "sub": "decode ≈ 6 ms de CPU",
+      "kind": "job",
+      "x": 2,
+      "y": 38,
+      "w": 22,
+      "h": 9,
+      "note": "El [[threadpool]] de FastAPI, de 40 hilos, del que los 2 lugares de CPU dejan usar solo 2. Decodifica, endereza, redimensiona y normaliza la foto: ≈ 6 ms de CPU en promedio. Pillow y NumPy sueltan el [[gil|GIL]] en esas cuentas, así que el loop sigue corriendo al mismo tiempo."
+    },
+    {
+      "id": "triton",
+      "label": "Triton · T4",
+      "sub": "batches en C++ · ≈ 10 ms",
+      "kind": "gpu",
+      "x": 57,
+      "y": 21,
+      "w": 19,
+      "h": 9,
+      "note": "El servidor del modelo, en otra máquina con una GPU T4. Recibe el tensor por la red, lo junta con otros en un [[batch]] (espera ≤ 2 ms) y responde los logits: ≈ 10 ms de ida y vuelta. Está escrito en C++, sin GIL."
+    }
+  ],
+  "edges": [
+    {
+      "from": "alb",
+      "to": "loop",
+      "kind": "online",
+      "bidir": true,
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "health",
+      "to": "loop",
+      "kind": "monitor",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "¿vivo?",
+      "via": [
+        [
+          66,
+          18.5
+        ],
+        [
+          45,
+          18.5
+        ]
+      ]
+    },
+    {
+      "from": "loop",
+      "to": "triton",
+      "kind": "online",
+      "bidir": true,
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "await"
+    },
+    {
+      "from": "loop",
+      "to": "slots",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "decode"
+    },
+    {
+      "from": "slots",
+      "to": "pool",
+      "kind": "online",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "pool",
+      "to": "loop",
+      "kind": "online",
+      "fromSide": "t",
+      "toSide": "l",
+      "label": "tensor",
+      "via": [
+        [
+          13,
+          25.5
+        ]
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "normal",
+      "label": "Una request normal",
+      "steps": [
+        {
+          "nodes": [
+            "alb",
+            "loop"
+          ],
+          "edges": [
+            "alb>loop"
+          ],
+          "text": "El balanceador le pasa al pod la foto de Ana. El **loop** la acepta, porque hay ≈ 5 en vuelo, lejos del tope de 16, y lee los bytes con `await`."
+        },
+        {
+          "nodes": [
+            "loop",
+            "slots"
+          ],
+          "edges": [
+            "loop>slots"
+          ],
+          "text": "Para decodificar, espera con `await` uno de los **2 lugares de CPU**. Mientras espera, el loop atiende a otras."
+        },
+        {
+          "nodes": [
+            "slots",
+            "pool"
+          ],
+          "edges": [
+            "slots>pool"
+          ],
+          "text": "Un hilo del **threadpool** decodifica, redimensiona y normaliza: ≈ 6 ms de CPU. Pillow suelta el GIL, así que el loop sigue corriendo."
+        },
+        {
+          "nodes": [
+            "pool",
+            "loop"
+          ],
+          "edges": [
+            "pool>loop"
+          ],
+          "text": "El **tensor** vuelve al loop, y el lugar de CPU queda libre para otra request."
+        },
+        {
+          "nodes": [
+            "loop",
+            "triton"
+          ],
+          "edges": [
+            "loop>triton"
+          ],
+          "text": "El loop manda el tensor a **Triton** y lo espera con `await`, como máximo 150 ms. Triton junta esta foto con otras en un batch para la GPU."
+        },
+        {
+          "nodes": [
+            "triton",
+            "loop",
+            "alb"
+          ],
+          "edges": [
+            "loop>triton",
+            "alb>loop"
+          ],
+          "text": "≈ 10 ms después llegan los 500 logits. El loop arma el top 5 y responde. De ≈ 50 ms, la CPU del pod trabajó ≈ 6 a 7."
+        }
+      ]
+    },
+    {
+      "id": "pico",
+      "label": "La hora pico",
+      "steps": [
+        {
+          "nodes": [
+            "loop"
+          ],
+          "edges": [],
+          "text": "Si ya hay **16 requests en vuelo**, la siguiente recibe un 503 al instante, sin leer su foto. Rechazar cuesta microsegundos."
+        },
+        {
+          "nodes": [
+            "loop",
+            "slots"
+          ],
+          "edges": [
+            "loop>slots"
+          ],
+          "text": "Si una request espera más de **50 ms** por un lugar de CPU, también recibe un 503: ya no cumpliría los 200 ms."
+        },
+        {
+          "nodes": [
+            "hpa"
+          ],
+          "edges": [],
+          "text": "Si la CPU de los pods pasa de 60 %, el **HPA** agrega pods, hasta 12, y el balanceador reparte entre más."
+        }
+      ]
+    },
+    {
+      "id": "trampa",
+      "label": "La trampa: el decode en el loop",
+      "steps": [
+        {
+          "nodes": [
+            "loop"
+          ],
+          "edges": [],
+          "text": "Alguien quita el threadpool y decodifica dentro de la ruta `async def`. Cada decode congela el **loop**: ≈ 6 ms en promedio, de 40 a 80 ms con una foto web de 12 MP sin draft mode."
+        },
+        {
+          "nodes": [
+            "triton",
+            "loop"
+          ],
+          "edges": [
+            "loop>triton"
+          ],
+          "text": "Las respuestas de Triton llegan, pero esperan: el loop no puede atenderlas hasta que acabe el decode."
+        },
+        {
+          "nodes": [
+            "health",
+            "loop"
+          ],
+          "edges": [
+            "health>loop"
+          ],
+          "text": "El **health check** tampoco avanza. Si tarda más de 2 s tres veces seguidas, Kubernetes reinicia el pod, justo en el pico."
+        }
+      ]
+    }
+  ]
+}

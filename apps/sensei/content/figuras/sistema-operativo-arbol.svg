@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 462" role="img" aria-labelledby="f-sistema-operativo-arbol-t" class="f-svg" style="max-width:420px">
+<title id="f-sistema-operativo-arbol-t">El árbol de archivos del contenedor de Triton en C01. Todo empieza en la raíz, que se escribe con una barra. De ella cuelgan etc, con la configuración; dev, con los dispositivos como nvidia0 y shm; proc, con los procesos que inventa el kernel; tmp, con los temporales; usr, con los programas y las bibliotecas; opt, que contiene tritonserver, la carpeta de trabajo; y models, que contiene classifier, que contiene 1, que contiene model.plan, el engine. La ruta absoluta del engine es /models/classifier/1/model.plan y vale desde cualquier lugar. Parado en /opt/tritonserver, la ruta relativa es ../../models/classifier/1/model.plan: el primer punto punto sube a opt, el segundo sube a la raíz, y de ahí baja por el mismo camino que la absoluta.</title>
+<text class="f-l" x="14" y="22">EL ÁRBOL DEL CONTENEDOR DE TRITON</text>
+<rect class="f-card" x="10" y="34" width="340" height="418" rx="16"/>
+<line x1="34" y1="77" x2="34" y2="258" style="stroke:var(--b);stroke-width:2.5"/>
+<line class="f-linea" x1="34" y1="90" x2="50" y2="90"/>
+<line class="f-linea" x1="34" y1="114" x2="50" y2="114"/>
+<line class="f-linea" x1="34" y1="138" x2="50" y2="138"/>
+<line class="f-linea" x1="34" y1="162" x2="50" y2="162"/>
+<line class="f-linea" x1="34" y1="186" x2="50" y2="186"/>
+<line class="f-linea" x1="34" y1="210" x2="50" y2="210"/>
+<line x1="34" y1="258" x2="51" y2="258" style="stroke:var(--b);stroke-width:2.5"/>
+<line class="f-linea" x1="64" y1="220" x2="64" y2="234"/>
+<line class="f-linea" x1="64" y1="234" x2="81" y2="234"/>
+<line x1="64" y1="269" x2="64" y2="282" style="stroke:var(--b);stroke-width:2.5"/>
+<line x1="64" y1="282" x2="81" y2="282" style="stroke:var(--b);stroke-width:2.5"/>
+<line x1="94" y1="293" x2="94" y2="306" style="stroke:var(--b);stroke-width:2.5"/>
+<line x1="94" y1="306" x2="111" y2="306" style="stroke:var(--b);stroke-width:2.5"/>
+<line x1="124" y1="317" x2="124" y2="330" style="stroke:var(--b);stroke-width:2.5"/>
+<line x1="124" y1="330" x2="141" y2="330" style="stroke:var(--b);stroke-width:2.5"/>
+<rect class="f-b" x="20" y="55" width="28" height="22" rx="6"/>
+<text x="34" y="71" text-anchor="middle" style="fill:#fff;font:800 15px var(--sans)">/</text>
+<text class="f-s" x="58" y="71" style="font-size:12px">la raíz · <tspan style="fill:var(--o);font-weight:700">hasta aquí sube el segundo «..»</tspan></text>
+<text class="f-t" x="56" y="95" style="font-size:13px">etc</text>
+<text class="f-s" x="104" y="95" style="font-size:12px">configuración: passwd, hosts</text>
+<text class="f-t" x="56" y="119" style="font-size:13px">dev</text>
+<text class="f-s" x="104" y="119" style="font-size:12px">dispositivos: nvidia0, shm</text>
+<text class="f-t" x="56" y="143" style="font-size:13px">proc</text>
+<text class="f-s" x="104" y="143" style="font-size:12px">procesos, que inventa el kernel</text>
+<text class="f-t" x="56" y="167" style="font-size:13px">tmp</text>
+<text class="f-s" x="104" y="167" style="font-size:12px">temporales</text>
+<text class="f-t" x="56" y="191" style="font-size:13px">usr</text>
+<text class="f-s" x="104" y="191" style="font-size:12px">programas y bibliotecas</text>
+<text class="f-t" x="56" y="215" style="font-size:13px">opt</text>
+<text x="104" y="215" style="fill:var(--o);font:700 12px var(--sans)">hasta aquí sube el primer «..»</text>
+<rect class="f-chip" x="82" y="223" width="100" height="22" rx="6" style="stroke:var(--o);stroke-width:2"/>
+<text class="f-t" x="132" y="239" text-anchor="middle" style="font-size:13px">tritonserver</text>
+<text x="192" y="239" style="fill:var(--o);font:700 12px var(--sans)">carpeta de trabajo</text>
+<rect class="f-b" x="52" y="247" width="60" height="22" rx="6"/>
+<text x="82" y="263" text-anchor="middle" style="fill:#fff;font:700 13px var(--sans)">models</text>
+<rect class="f-b" x="82" y="271" width="78" height="22" rx="6"/>
+<text x="121" y="287" text-anchor="middle" style="fill:#fff;font:700 13px var(--sans)">classifier</text>
+<rect class="f-b" x="112" y="295" width="24" height="22" rx="6"/>
+<text x="124" y="311" text-anchor="middle" style="fill:#fff;font:700 13px var(--sans)">1</text>
+<rect class="f-b" x="142" y="319" width="88" height="22" rx="6"/>
+<text x="186" y="335" text-anchor="middle" style="fill:#fff;font:700 13px var(--sans)">model.plan</text>
+<text class="f-s" x="240" y="335" style="font-size:12px">el engine</text>
+<rect class="f-chip" x="24" y="356" width="312" height="84" rx="10"/>
+<text class="f-s" x="38" y="376" style="font-size:12px;font-weight:700">Absoluta, desde cualquier lugar:</text>
+<text x="38" y="394" style="fill:var(--b);font:700 12px var(--mono)">/models/classifier/1/model.plan</text>
+<text class="f-s" x="38" y="414" style="font-size:12px;font-weight:700">Relativa, parado en /opt/tritonserver:</text>
+<text x="38" y="432" style="fill:var(--o);font:700 12px var(--mono)">../../models/classifier/1/model.plan</text>
+</svg>

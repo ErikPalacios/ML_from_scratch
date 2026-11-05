@@ -1,0 +1,53 @@
+{
+  "titulo": "Dónde vive cada byte en el servidor de GPU de C01",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "guarda", "label": "Se queda aunque se apague", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 15 },
+    { "id": "volatil", "label": "Se borra al apagar: RAM y CPU", "kind": "online", "x": 0, "y": 17, "w": 78, "h": 15 },
+    { "id": "volatil-gpu", "label": "Se borra al apagar: la GPU", "kind": "online", "x": 0, "y": 34, "w": 78, "h": 16 }
+  ],
+  "nodes": [
+    { "id": "disco", "label": "Disco del nodo", "sub": "la imagen y el engine", "kind": "store", "x": 29, "y": 5, "w": 20, "h": 8,
+      "note": "El [[disco]] guarda los archivos aunque la máquina se apague: la imagen de Docker de Triton y, dentro, el engine de la ResNet-50 (≈ 50 a 150 MB). Leer de aquí tarda de ≈ 0.1 ms a unos milisegundos por lectura." },
+    { "id": "red", "label": "Red", "sub": "llega el tensor de Ana", "kind": "client", "x": 1, "y": 22, "w": 18, "h": 8,
+      "note": "El gateway ya decodificó y preparó la foto de Ana. Por la red llega un [[tensor]] [[float32]] de 602 KB, que se escribe directo en la RAM: la foto nunca toca un disco." },
+    { "id": "ram", "label": "RAM del nodo", "sub": "16 GiB · ≈ 100 ns", "kind": "store", "x": 29, "y": 22, "w": 20, "h": 8,
+      "note": "La [[ram|RAM]], la memoria de trabajo. Aquí viven Triton mientras corre, el tensor de cada request y la copia del engine que se leyó al arrancar. Se borra si se va la luz." },
+    { "id": "cpu", "label": "CPU", "sub": "núcleos y su caché", "kind": "service", "x": 58, "y": 22, "w": 19, "h": 8,
+      "note": "Los núcleos de la [[cpu|CPU]] solo calculan con lo que les llega a su [[cache-cpu|caché]], que responde en unos pocos nanosegundos. Aquí corre el código de Triton: recibe la request, acomoda el tensor y le encarga el trabajo a la GPU." },
+    { "id": "vram", "label": "VRAM", "sub": "16 GB · pesos en FP16", "kind": "store", "x": 29, "y": 39, "w": 20, "h": 8,
+      "note": "La [[vram|VRAM]], la memoria propia de la GPU. Los ≈ 49 MB de pesos en FP16 se copian aquí una vez, al arrancar, y se quedan mientras el servidor viva." },
+    { "id": "nucleos", "label": "Núcleos de la GPU", "sub": "la ResNet-50: 3–6 ms", "kind": "gpu", "x": 58, "y": 39, "w": 19, "h": 8,
+      "note": "Los núcleos de la [[gpu|GPU]] calculan con lo que está en la VRAM, pasando por sus propias cachés. La ResNet-50 tarda ≈ 3 a 6 ms por foto." }
+  ],
+  "edges": [
+    { "from": "disco", "to": "ram", "kind": "offline", "label": "al arrancar", "fromSide": "b", "toSide": "t" },
+    { "from": "red", "to": "ram", "kind": "online", "label": "cada foto", "fromSide": "r", "toSide": "l", "bidir": true },
+    { "from": "ram", "to": "cpu", "kind": "online", "label": "caché", "fromSide": "r", "toSide": "l", "bidir": true },
+    { "from": "ram", "to": "vram", "kind": "online", "label": "PCIe", "fromSide": "b", "toSide": "t", "bidir": true },
+    { "from": "vram", "to": "nucleos", "kind": "online", "fromSide": "r", "toSide": "l", "bidir": true }
+  ],
+  "flows": [
+    { "id": "arranque", "label": "Arrancar el servidor",
+      "steps": [
+        { "nodes": ["disco"], "edges": [], "text": "El engine vive en el **disco**, dentro de la imagen de Triton. Es lo único de esta máquina que sobrevive si se apaga." },
+        { "nodes": ["disco", "ram"], "edges": ["disco>ram"], "text": "Al arrancar, Triton lee el archivo: los bytes suben del disco a la **RAM**. Los ≈ 150 MB del engine, de un disco gp3 de base, tardan ≈ 1 s; bajar la imagen de varios GB tarda minutos." },
+        { "nodes": ["ram", "vram"], "edges": ["ram>vram"], "text": "Triton copia los pesos a la **VRAM** por PCIe, el camino entre la CPU y la GPU." },
+        { "nodes": ["vram", "nucleos"], "edges": ["vram>nucleos"], "text": "Listo: los pesos se quedan en la VRAM mientras el servidor viva. Ninguna foto vuelve a tocar el disco." }
+      ] },
+    { "id": "foto", "label": "La foto de Ana",
+      "steps": [
+        { "nodes": ["red", "ram"], "edges": ["red>ram"], "text": "Por la red llega el tensor de la foto de Ana: 602 KB en float32, que se escriben en la **RAM**." },
+        { "nodes": ["ram", "cpu"], "edges": ["ram>cpu"], "text": "La **CPU** corre el código de Triton: lee la request y acomoda el tensor. Los bytes suben a su caché de 64 en 64." },
+        { "nodes": ["ram", "vram"], "edges": ["ram>vram"], "text": "El tensor cruza a la **VRAM** por PCIe: ≈ 40 µs a ≈ 16 GB/s." },
+        { "nodes": ["vram", "nucleos"], "edges": ["vram>nucleos"], "text": "Los **núcleos de la GPU** corren la ResNet-50 con los pesos que ya estaban en la VRAM: ≈ 3 a 6 ms." },
+        { "nodes": ["red", "ram", "vram"], "edges": ["ram>vram", "red>ram"], "text": "Los 500 [[logit|logits]], un puntaje por categoría, regresan a la RAM y salen por la red. La foto vivió unos milisegundos en RAM y en VRAM, y nunca tocó un disco." }
+      ] },
+    { "id": "apagon", "label": "Se va la luz",
+      "steps": [
+        { "nodes": ["ram", "cpu", "vram", "nucleos"], "edges": [], "text": "Si la máquina se apaga, la **RAM**, la caché y la **VRAM** se borran: los pesos cargados y las requests que iban a la mitad." },
+        { "nodes": ["disco"], "edges": [], "text": "El **disco** conserva el engine. Al volver, el servidor repite el arranque completo: leer del disco y copiar a la VRAM. Por eso importa qué tan rápido carga." }
+      ] }
+  ]
+}

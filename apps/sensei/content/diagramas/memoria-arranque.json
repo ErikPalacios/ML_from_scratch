@@ -1,0 +1,48 @@
+{
+  "titulo": "Cargar los pesos al arrancar: del almacén a la GPU",
+  "width": 78,
+  "height": 49,
+  "lanes": [
+    { "id": "fuera", "label": "Fuera de la RAM: en disco", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 15 },
+    { "id": "ram", "label": "RAM del nodo", "kind": "online", "x": 0, "y": 17, "w": 78, "h": 15 },
+    { "id": "gpu", "label": "GPU", "kind": "online", "x": 0, "y": 34, "w": 78, "h": 15 }
+  ],
+  "nodes": [
+    { "id": "s3", "label": "S3", "sub": "los pesos de cada versión", "kind": "external", "x": 1, "y": 5, "w": 19, "h": 8,
+      "note": "El almacén de archivos de AWS, del otro lado de la red. Guarda los pesos de cada versión del modelo; un nodo los baja a ≈ 0.2 a 1 GB/s, según la Ronda (M05)." },
+    { "id": "local", "label": "Disco local", "sub": "NVMe o gp3", "kind": "store", "x": 29, "y": 5, "w": 19, "h": 8,
+      "note": "El [[disco]] del nodo. Un NVMe local lee ≈ 1 a 3 GB/s; el gp3, el disco de red con el que arranca la máquina en AWS, de base, 125 MiB/s: con él, cargar 16 GB tarda ≈ 2 minutos." },
+    { "id": "pc", "label": "Page cache", "sub": "el archivo, en RAM", "kind": "store", "x": 29, "y": 22, "w": 19, "h": 8,
+      "note": "La [[page-cache|page cache]]: la copia que el sistema operativo guarda en RAM de cada archivo que se lee. La segunda vez, el archivo sale de aquí y no del disco." },
+    { "id": "proc", "label": "Proceso", "sub": "vLLM, Triton o tu API", "kind": "service", "x": 58, "y": 22, "w": 19, "h": 8,
+      "note": "El servidor que carga el modelo. Si lee el archivo completo a su propia memoria, con `read` o un `torch.load` normal, guarda una copia más; con [[mmap]] usa directo las páginas de la page cache." },
+    { "id": "vram", "label": "VRAM", "sub": "los pesos, listos", "kind": "gpu", "x": 29, "y": 38, "w": 19, "h": 8,
+      "note": "Donde tienen que acabar los pesos para que la GPU calcule. Se copian por PCIe: 16 GB a ≈ 16 a 32 GB/s, del orden de un segundo." }
+  ],
+  "edges": [
+    { "from": "s3", "to": "local", "kind": "offline", "label": "se copia", "fromSide": "r", "toSide": "l" },
+    { "from": "local", "to": "pc", "kind": "offline", "label": "se lee", "fromSide": "b", "toSide": "t" },
+    { "from": "pc", "to": "vram", "kind": "offline", "label": "con mmap", "fromSide": "b", "toSide": "t" },
+    { "from": "pc", "to": "proc", "kind": "offline", "label": "read: copia", "fromSide": "r", "toSide": "l" },
+    { "from": "proc", "to": "vram", "kind": "offline", "fromSide": "b", "toSide": "r", "via": [[67.5, 42]] }
+  ],
+  "flows": [
+    { "id": "frio", "label": "Primer arranque en un nodo nuevo",
+      "steps": [
+        { "nodes": ["s3"], "edges": [], "text": "Los pesos viven en **S3**, el almacén de archivos de AWS, del otro lado de la red. El nodo nuevo no tiene nada." },
+        { "nodes": ["s3", "local"], "edges": ["s3>local"], "text": "Primero se copian al **disco local** del nodo. C10 copia así sus 70.6 GB en ≈ 1 a 2 minutos." },
+        { "nodes": ["local", "pc"], "edges": ["local>pc"], "text": "Al leer el archivo, el sistema operativo lo sube del disco a la **page cache**, en RAM. Aquí manda el disco: 125 MiB/s en un gp3 de base, varios GB/s en un NVMe." },
+        { "nodes": ["pc", "vram"], "edges": ["pc>vram"], "text": "Con **mmap**, el servidor usa esas páginas directo, sin hacer otra copia, y manda los pesos a la **VRAM** por PCIe." }
+      ] },
+    { "id": "read", "label": "Con una lectura normal",
+      "steps": [
+        { "nodes": ["pc", "proc"], "edges": ["pc>proc"], "text": "Si el **proceso** lee el archivo completo a su propia memoria, el mismo archivo queda **dos veces** en RAM: en la page cache y en el proceso." },
+        { "nodes": ["proc", "vram"], "edges": ["proc>vram"], "text": "De ahí se copia a la VRAM. Funciona igual, pero pide el doble de RAM mientras carga; con 4 workers que hacen lo mismo, 4 copias más." }
+      ] },
+    { "id": "caliente", "label": "Reinicio en el mismo nodo",
+      "steps": [
+        { "nodes": ["pc"], "edges": [], "text": "El proceso se reinicia, pero el archivo sigue en la **page cache**: nadie necesitó esa RAM mientras tanto." },
+        { "nodes": ["pc", "vram"], "edges": ["pc>vram"], "text": "Esta vez no se toca el disco: los pesos salen de la RAM y el arranque baja de minutos a segundos. Por eso medir el arranque en una máquina «caliente» engaña." }
+      ] }
+  ]
+}
