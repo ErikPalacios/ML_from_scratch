@@ -90,8 +90,8 @@
       "modulo": "2 · Números y estadística para producción",
       "fase": 3,
       "etapa": "todas",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/unidades/"
     },
     {
       "id": "percentiles",
@@ -99,8 +99,8 @@
       "modulo": "2 · Números y estadística para producción",
       "fase": 3,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/percentiles/"
     },
     {
       "id": "probabilidad",
@@ -108,8 +108,8 @@
       "modulo": "2 · Números y estadística para producción",
       "fase": 3,
       "etapa": "orquestacion",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/probabilidad/"
     },
     {
       "id": "ruido",
@@ -117,8 +117,8 @@
       "modulo": "2 · Números y estadística para producción",
       "fase": 3,
       "etapa": "modelo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/ruido/"
     },
     {
       "id": "distribuciones",
@@ -126,8 +126,8 @@
       "modulo": "2 · Números y estadística para producción",
       "fase": 3,
       "etapa": "monitoreo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/distribuciones/"
     },
     {
       "id": "numeros-maquina",
@@ -135,8 +135,8 @@
       "modulo": "2 · Números y estadística para producción",
       "fase": 3,
       "etapa": "modelo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/numeros-maquina/"
     },
     {
       "id": "flops",
@@ -144,8 +144,8 @@
       "modulo": "2 · Números y estadística para producción",
       "fase": 3,
       "etapa": "modelo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/flops/"
     },
     {
       "id": "programa-proceso",
