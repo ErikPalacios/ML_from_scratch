@@ -23,7 +23,7 @@
       "id": "sensei",
       "tag": "Teoría desde cero",
       "title": "Sensei",
-      "text": "La teoría de cada paso para llevar un modelo a producción, sin dar nada por sabido: qué es, por qué existe y cómo se conecta con lo demás. Con diagramas, analogías, un glosario que se abre sin salir de la página y el mismo caso del Dojo.",
+      "text": "La teoría de cada paso para llevar un modelo a producción, sin dar nada por sabido, para que después leas la Ronda de Diseño completa sin atorarte. Con los mismos diagramas de la Ronda, figuras con la cuenta a la vista y un glosario que se abre sin salir de la página.",
       "url": "https://sensei-ml.vercel.app",
       "cta": "Empezar desde cero",
       "etapas": "todas",
