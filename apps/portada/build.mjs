@@ -14,13 +14,16 @@ const OUT = join(ROOT, 'dist');
 const fail = (m) => { console.error('[build] ERROR: ' + m); process.exit(1); };
 const site = JSON.parse(readFileSync(join(ROOT, 'site.json'), 'utf8'));
 const dojo = JSON.parse(readFileSync(join(ROOT, 'data', 'dojo.json'), 'utf8'));
+const sensei = JSON.parse(readFileSync(join(ROOT, 'data', 'sensei.json'), 'utf8'));
+// Las apps principales: Sensei (entender) y el Dojo (practicar), cada una con su avance. site.destacada sigue sirviendo.
+const DEST = site.destacadas || [site.destacada];
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const today = new Date().toISOString().slice(0, 10);
 
 // {{id}} en los textos de los datos: la URL de esa herramienta (o repo, issues)
-const URLS = { repo: site.repo, issues: site.issues, [site.destacada.id]: site.destacada.url, ...Object.fromEntries(site.apps.map((a) => [a.id, a.url])) };
+const URLS = { repo: site.repo, issues: site.issues, ...Object.fromEntries([...DEST, ...site.apps].map((a) => [a.id, a.url])) };
 const enlaces = (t) => t.replace(/\{\{(\w+)\}\}/g, (_, k) => { if (!(k in URLS)) fail(`no hay URL para {{${k}}}`); return URLS[k]; });
-try { [site.destacada, ...site.apps, ...site.rutas].forEach((x) => etapas(x.etapas)); } catch (e) { fail(e.message); }
+try { [...DEST, ...site.apps, ...site.rutas].forEach((x) => etapas(x.etapas)); } catch (e) { fail(e.message); }
 
 // ---------------------------------------------------------------- piezas
 const herramienta = (a) => `<article class="p-tool" data-etapas="${etapas(a.etapas).join(' ')}" data-nombre="${esc(a.title)}" data-resumen="${esc(resumen(a.etapas))}">
@@ -30,21 +33,32 @@ const herramienta = (a) => `<article class="p-tool" data-etapas="${etapas(a.etap
         <a class="p-btn-dark" href="${esc(a.url)}">${esc(a.cta)} →</a>
       </article>`;
 
-const d = site.destacada;
 const listas = dojo.estaciones.filter((s) => s.lista);
-const pips = dojo.estaciones.map((s) => `<i class="tm-c-${s.etapa}${s.lista ? '' : ' p-off'}" title="${esc(`${s.num} · ${s.titulo}${s.lista ? '' : ' (próximamente)'}`)}"></i>`).join('');
-const avance = listas.length === 1 ? `Estación ${listas[0].num} de ${dojo.total} lista · ${listas[0].titulo}`
-  : `${listas.length} de ${dojo.total} estaciones listas · ${listas.map((s) => `${s.num} ${s.titulo}`).join(' · ')}`;
-const destacada = `<article class="p-dojo" id="dojo" data-etapas="${etapas(d.etapas).join(' ')}" data-nombre="${esc(d.title)}" data-resumen="${esc(resumen(d.etapas))}">
+// el avance de cada app principal: una celda por estación del Dojo o por lección de Sensei, del color de su etapa
+const AVANCE = {
+  dojo: () => ({ n: dojo.total, pips: dojo.estaciones.map((s) => `<i class="tm-c-${s.etapa}${s.lista ? '' : ' p-off'}" title="${esc(`${s.num} · ${s.titulo}${s.lista ? '' : ' (próximamente)'}`)}"></i>`).join(''),
+    texto: listas.length === 1 ? `Estación ${listas[0].num} de ${dojo.total} lista · ${listas[0].titulo}`
+      : `${listas.length} de ${dojo.total} estaciones listas · ${listas.map((s) => `${s.num} ${s.titulo}`).join(' · ')}` }),
+  sensei: () => {
+    const hechas = sensei.lecciones.filter((l) => l.lista);
+    const modulos = [...new Set(hechas.map((l) => l.modulo.replace(/^\d+ · /, '')))];
+    return { n: sensei.total, pips: sensei.lecciones.map((l) => `<i class="${l.etapa === 'todas' ? 'p-pip-todas' : `tm-c-${l.etapa}`}${l.lista ? '' : ' p-off'}" title="${esc(`${l.titulo}${l.lista ? '' : ` (fase ${l.fase})`}`)}"></i>`).join(''),
+      texto: `${hechas.length} de ${sensei.total} lecciones listas · ${modulos.join(' · ')}` };
+  },
+};
+const destacada = DEST.map((d, k) => {
+  const av = AVANCE[d.avance || 'dojo']();
+  return `<article class="p-dojo" id="${esc(d.id === 'taller' ? 'dojo' : d.id)}" data-etapas="${etapas(d.etapas).join(' ')}" data-nombre="${esc(d.title)}" data-resumen="${esc(resumen(d.etapas))}">
       ${franja('tm-stripe p-dojo-stripe')}
       <div class="p-dojo-body">
-        <div class="p-tool-h"><span class="p-num p-num-y">00 · ${esc(d.tag)}</span>${miniT(d.etapas)}</div>
+        <div class="p-tool-h"><span class="p-num p-num-y">${String(k).padStart(2, '0')} · ${esc(d.tag)}</span>${miniT(d.etapas)}</div>
         <h2>${esc(d.title)}</h2>
         <p>${esc(d.text)}</p>
-        <div class="p-avance"><div class="p-pips" style="--n:${dojo.total}">${pips}</div><span>${esc(avance)}</span></div>
+        <div class="p-avance"><div class="p-pips${av.n > 24 ? ' p-pips--densa' : ''}" style="--n:${av.n}">${av.pips}</div><span>${esc(av.texto)}</span></div>
         <a class="p-btn p-btn-y" href="${esc(d.url)}">${esc(d.cta)} →</a>
       </div>
     </article>`;
+}).join('\n    ');
 
 const ruta = (r, i) => `<div class="p-card p-ruta" data-etapas="${etapas(r.etapas).join(' ')}" data-nombre="${esc(r.titulo)}" data-resumen="${esc(resumen(r.etapas))}">
       <div class="p-tool-h"><span class="p-num">${String(i + 1).padStart(2, '0')}</span>${miniT(r.etapas, { etiqueta: false })}</div>
@@ -83,6 +97,6 @@ for (const f of ['icon.svg', 'og.png']) {
   copyFileSync(join(SRC, f), join(OUT, f));
 }
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${site.url}/sitemap.xml\n`);
-const urls = [site.url + '/', site.url + '/privacidad/', ...[site.destacada, ...site.apps].filter((a) => a.url).map((a) => a.url + '/')];
+const urls = [site.url + '/', site.url + '/privacidad/', ...[...DEST, ...site.apps].filter((a) => a.url).map((a) => a.url + '/')];
 writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u}</loc><lastmod>${today}</lastmod></url>`).join('\n')}\n</urlset>\n`);
-console.log(`[build] dist/ listo · Dojo + ${site.apps.length} herramientas · ${site.rutas.length} rutas · Dojo ${listas.length}/${dojo.total} · ${urls.length} URLs en el sitemap`);
+console.log(`[build] dist/ listo · ${DEST.map((d) => d.title).join(' + ')} + ${site.apps.length} herramientas · ${site.rutas.length} rutas · Dojo ${listas.length}/${dojo.total} · ${urls.length} URLs en el sitemap`);

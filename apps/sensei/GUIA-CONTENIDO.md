@@ -102,7 +102,10 @@ Cada bloque abre con `:::nombre` y cierra con `:::` solo en su línea.
 
 Tablas con `| … |`. Dentro de una celda, `\n` parte la línea y `\|` es una barra.
 
-**Código:** un bloque ` ```python ` va seguido de un bloque ` ```salida ` con lo que imprime **de verdad**: corre el código antes de copiar la salida. Usa la biblioteca estándar o NumPy. Usa PyTorch solo si está instalado donde lo corres, y dilo. Que sea corto, de 3 a 20 líneas, y que se pueda copiar y correr tal cual.
+**Código:** un bloque ` ```python ` va seguido de un bloque ` ```salida ` con lo que imprime **de verdad**: córrelo con `python3` antes de copiar la salida.
+- Usa solo la **biblioteca estándar** (`math`, `statistics`, `random` con semilla, `struct`, `collections`): así el lector lo corre sin instalar nada. En la máquina donde se escribe no hay NumPy ni PyTorch.
+- Si un concepto pide mostrar PyTorch o NumPy (por ejemplo `model.eval()`), va como ilustración **sin** bloque `salida`, y el texto lo dice.
+- Que sea corto, de 3 a 25 líneas, y que se pueda copiar y correr tal cual.
 
 **Ids de piezas:** los diagramas, figuras y calculadoras de una lección llevan su id como prefijo: `<lección>-<nombre>`, por ejemplo `modelo-softmax`. Así nadie pisa los archivos de otra lección.
 

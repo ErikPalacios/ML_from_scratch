@@ -34,6 +34,17 @@ const dojo = {
     lista: listas.has(s.id), url: listas.has(s.id) ? `${DOJO.url}/${tronco.caso}/${s.id}/` : null })),
 };
 salidas.push([join(APPS_DIR, 'portada', 'data', 'dojo.json'), JSON.stringify(dojo, null, 2) + '\n']);
+// El avance de Sensei para la portada: qué lecciones del temario ya tienen su archivo (la portada lo pinta como el del Dojo).
+const SENSEI = { carpeta: 'sensei', url: 'https://sensei-ml.vercel.app' };
+{
+  const c = join(APPS_DIR, SENSEI.carpeta, 'content');
+  const temario = JSON.parse(readFileSync(join(c, 'temario.json'), 'utf8'));
+  const hechas = new Set(readdirSync(join(c, 'lecciones')).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3)));
+  const ls = temario.modulos.flatMap((m, k) => m.lecciones.map((l) => ({ id: l.id, titulo: l.titulo, modulo: `${k} · ${m.titulo}`, fase: m.fase,
+    etapa: l.etapas === 'todas' ? 'todas' : l.etapas[0], lista: hechas.has(l.id), url: hechas.has(l.id) ? `${SENSEI.url}/${l.id}/` : null })));
+  salidas.push([join(APPS_DIR, 'portada', 'data', 'sensei.json'), JSON.stringify({ nota: `Generado por apps/trueml/sync.mjs desde apps/${SENSEI.carpeta}/content. No se edita a mano.`, url: SENSEI.url, total: ls.length, lecciones: ls }, null, 2) + '\n']);
+}
+
 // Sensei dibuja sus diagramas con el mismo motor de la Ronda (carriles, recorridos, «por qué está aquí»):
 // copia el motor y sus estilos tal cual, para que los dos se vean y se comporten igual.
 for (const [de, a] of [['ml-system-design/js/ui/diagram.js', 'diagram.js'], ['ml-system-design/css/components.css', 'components.css']]) {

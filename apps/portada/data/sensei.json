@@ -1,0 +1,538 @@
+{
+  "nota": "Generado por apps/trueml/sync.mjs desde apps/sensei/content. No se edita a mano.",
+  "url": "https://sensei-ml.vercel.app",
+  "total": 59,
+  "lecciones": [
+    {
+      "id": "camino-completo",
+      "titulo": "El camino completo",
+      "modulo": "0 · El mapa",
+      "fase": 1,
+      "etapa": "todas",
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/camino-completo/"
+    },
+    {
+      "id": "modelo",
+      "titulo": "Qué es un modelo",
+      "modulo": "1 · Lo básico de ML",
+      "fase": 2,
+      "etapa": "modelo",
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/modelo/"
+    },
+    {
+      "id": "imagenes",
+      "titulo": "Una foto, vista por un modelo",
+      "modulo": "1 · Lo básico de ML",
+      "fase": 2,
+      "etapa": "datos",
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/imagenes/"
+    },
+    {
+      "id": "ejemplos",
+      "titulo": "Datos, ejemplos, features y etiquetas",
+      "modulo": "1 · Lo básico de ML",
+      "fase": 2,
+      "etapa": "datos",
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/ejemplos/"
+    },
+    {
+      "id": "aprender",
+      "titulo": "Cómo aprende un modelo",
+      "modulo": "1 · Lo básico de ML",
+      "fase": 2,
+      "etapa": "modelo",
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/aprender/"
+    },
+    {
+      "id": "aprendio",
+      "titulo": "¿Aprendió de verdad?",
+      "modulo": "1 · Lo básico de ML",
+      "fase": 2,
+      "etapa": "modelo",
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/aprendio/"
+    },
+    {
+      "id": "redes",
+      "titulo": "Redes neuronales y CNNs",
+      "modulo": "1 · Lo básico de ML",
+      "fase": 2,
+      "etapa": "modelo",
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/redes/"
+    },
+    {
+      "id": "embeddings",
+      "titulo": "Embeddings: el significado como coordenadas",
+      "modulo": "1 · Lo básico de ML",
+      "fase": 2,
+      "etapa": "modelo",
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/embeddings/"
+    },
+    {
+      "id": "llms",
+      "titulo": "Transformers y LLMs",
+      "modulo": "1 · Lo básico de ML",
+      "fase": 2,
+      "etapa": "modelo",
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/llms/"
+    },
+    {
+      "id": "unidades",
+      "titulo": "Números grandes, unidades y estimaciones",
+      "modulo": "2 · Números y estadística para producción",
+      "fase": 3,
+      "etapa": "todas",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "percentiles",
+      "titulo": "Promedios, medianas y percentiles",
+      "modulo": "2 · Números y estadística para producción",
+      "fase": 3,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "probabilidad",
+      "titulo": "Probabilidad para sistemas que fallan",
+      "modulo": "2 · Números y estadística para producción",
+      "fase": 3,
+      "etapa": "orquestacion",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "ruido",
+      "titulo": "Ruido, muestras y pruebas A/B",
+      "modulo": "2 · Números y estadística para producción",
+      "fase": 3,
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "distribuciones",
+      "titulo": "Comparar distribuciones: cómo se mide el drift",
+      "modulo": "2 · Números y estadística para producción",
+      "fase": 3,
+      "etapa": "monitoreo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "numeros-maquina",
+      "titulo": "Cómo guarda números una computadora",
+      "modulo": "2 · Números y estadística para producción",
+      "fase": 3,
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "flops",
+      "titulo": "Matrices, FLOPs y qué tan rápido calcula una GPU",
+      "modulo": "2 · Números y estadística para producción",
+      "fase": 3,
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "programa-proceso",
+      "titulo": "Programa, proceso e hilo",
+      "modulo": "3 · La computadora por dentro",
+      "fase": 4,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "memoria",
+      "titulo": "Memoria, caché y disco",
+      "modulo": "3 · La computadora por dentro",
+      "fase": 4,
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "cpu-gpu",
+      "titulo": "CPU y GPU",
+      "modulo": "3 · La computadora por dentro",
+      "fase": 4,
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "sistema-operativo",
+      "titulo": "El sistema operativo: Linux, archivos y permisos",
+      "modulo": "3 · La computadora por dentro",
+      "fase": 4,
+      "etapa": "contenedor",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "async",
+      "titulo": "Hacer varias cosas a la vez: async, event loop y GIL",
+      "modulo": "3 · La computadora por dentro",
+      "fase": 4,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "red",
+      "titulo": "Cómo viaja un mensaje: IP, puertos y DNS",
+      "modulo": "4 · La red y la web",
+      "fase": 5,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "http",
+      "titulo": "HTTP: requests, respuestas y códigos",
+      "modulo": "4 · La red y la web",
+      "fase": 5,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "apis",
+      "titulo": "APIs: REST, JSON, gRPC y streaming",
+      "modulo": "4 · La red y la web",
+      "fase": 5,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "balanceo",
+      "titulo": "Balanceadores, proxies y gateways",
+      "modulo": "4 · La red y la web",
+      "fase": 5,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "fallas-red",
+      "titulo": "Timeouts, reintentos e idempotencia",
+      "modulo": "4 · La red y la web",
+      "fase": 5,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "latencia",
+      "titulo": "Qué tan rápido y cuánto: latencia y throughput",
+      "modulo": "4 · La red y la web",
+      "fase": 5,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "formatos",
+      "titulo": "Archivos y formatos: JSON, CSV, Parquet y YAML",
+      "modulo": "5 · Datos y almacenamiento",
+      "fase": 6,
+      "etapa": "datos",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "bases-de-datos",
+      "titulo": "Bases de datos: tablas, SQL y llave-valor",
+      "modulo": "5 · Datos y almacenamiento",
+      "fase": 6,
+      "etapa": "datos",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "almacenamiento",
+      "titulo": "Object storage, data lakes y warehouses",
+      "modulo": "5 · Datos y almacenamiento",
+      "fase": 6,
+      "etapa": "datos",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "colas",
+      "titulo": "Colas y streams: mensajes que esperan",
+      "modulo": "5 · Datos y almacenamiento",
+      "fase": 6,
+      "etapa": "datos",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "tiempo-hash",
+      "titulo": "Tiempo, hashes e identificadores",
+      "modulo": "5 · Datos y almacenamiento",
+      "fase": 6,
+      "etapa": "datos",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "terminal",
+      "titulo": "La terminal y la shell",
+      "modulo": "6 · Herramientas del oficio",
+      "fase": 7,
+      "etapa": "contenedor",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "python-ecosistema",
+      "titulo": "Python, paquetes y entornos",
+      "modulo": "6 · Herramientas del oficio",
+      "fase": 7,
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "pytorch",
+      "titulo": "PyTorch en lo que toca a producción",
+      "modulo": "6 · Herramientas del oficio",
+      "fase": 7,
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "git",
+      "titulo": "Git: versiones del código",
+      "modulo": "6 · Herramientas del oficio",
+      "fase": 7,
+      "etapa": "contenedor",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "pruebas-ci",
+      "titulo": "Pruebas y CI/CD",
+      "modulo": "6 · Herramientas del oficio",
+      "fase": 7,
+      "etapa": "contenedor",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "config",
+      "titulo": "Configuración: YAML, variables de entorno y secretos",
+      "modulo": "6 · Herramientas del oficio",
+      "fase": 7,
+      "etapa": "contenedor",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "nube",
+      "titulo": "Qué es la nube",
+      "modulo": "7 · La nube",
+      "fase": 8,
+      "etapa": "orquestacion",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "regiones",
+      "titulo": "Regiones, zonas y disponibilidad",
+      "modulo": "7 · La nube",
+      "fase": 8,
+      "etapa": "orquestacion",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "maquinas",
+      "titulo": "Máquinas, GPUs y cómo se cobran",
+      "modulo": "7 · La nube",
+      "fase": 8,
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "redes-nube",
+      "titulo": "Redes en la nube: VPC, subredes y egress",
+      "modulo": "7 · La nube",
+      "fase": 8,
+      "etapa": "orquestacion",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "gestionados",
+      "titulo": "Servicios gestionados, serverless y permisos",
+      "modulo": "7 · La nube",
+      "fase": 8,
+      "etapa": "orquestacion",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "cifrado",
+      "titulo": "Cifrado, llaves y certificados",
+      "modulo": "8 · Seguridad",
+      "fase": 9,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "identidad",
+      "titulo": "Autenticación y permisos",
+      "modulo": "8 · Seguridad",
+      "fase": 9,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "privacidad",
+      "titulo": "Datos personales y la ley",
+      "modulo": "8 · Seguridad",
+      "fase": 9,
+      "etapa": "datos",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "ataques",
+      "titulo": "Ataques y cadena de suministro",
+      "modulo": "8 · Seguridad",
+      "fase": 9,
+      "etapa": "contenedor",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "e01-datos",
+      "titulo": "Datos y etiquetas",
+      "modulo": "9 · Estaciones · Datos",
+      "fase": 10,
+      "etapa": "datos",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "e02-versionado",
+      "titulo": "Versionado y linaje",
+      "modulo": "9 · Estaciones · Datos",
+      "fase": 10,
+      "etapa": "datos",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "e03-entrenamiento",
+      "titulo": "Entrenamiento y experimentos",
+      "modulo": "10 · Estaciones · Modelo",
+      "fase": 11,
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "e04-gate",
+      "titulo": "Gate de evaluación y registry",
+      "modulo": "10 · Estaciones · Modelo",
+      "fase": 11,
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "e05-export",
+      "titulo": "Export, engine y paridad",
+      "modulo": "10 · Estaciones · Modelo",
+      "fase": 11,
+      "etapa": "modelo",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "e06-serving",
+      "titulo": "Código de serving",
+      "modulo": "11 · Estaciones · API",
+      "fase": 12,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "e07-empaquetado",
+      "titulo": "Empaquetado con Docker",
+      "modulo": "12 · Estaciones · Contenedor",
+      "fase": 13,
+      "etapa": "contenedor",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "e08-cicd",
+      "titulo": "CI/CD y registro de imágenes",
+      "modulo": "12 · Estaciones · Contenedor",
+      "fase": 13,
+      "etapa": "contenedor",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "e09-kubernetes",
+      "titulo": "Kubernetes",
+      "modulo": "13 · Estaciones · Orquestación",
+      "fase": 14,
+      "etapa": "orquestacion",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "e10-rollout",
+      "titulo": "Rollout seguro",
+      "modulo": "13 · Estaciones · Orquestación",
+      "fase": 14,
+      "etapa": "orquestacion",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "e11-request",
+      "titulo": "La request en vivo",
+      "modulo": "14 · Estaciones · Monitoreo",
+      "fase": 15,
+      "etapa": "api",
+      "lista": false,
+      "url": null
+    },
+    {
+      "id": "e12-monitoreo",
+      "titulo": "Monitoreo, drift y reentrenamiento",
+      "modulo": "14 · Estaciones · Monitoreo",
+      "fase": 15,
+      "etapa": "monitoreo",
+      "lista": false,
+      "url": null
+    }
+  ]
+}

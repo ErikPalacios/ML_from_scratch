@@ -81,6 +81,10 @@ body.tm-pagina {
 .p-pips { display: grid; grid-template-columns: repeat(var(--n, 12), minmax(0, 1fr)); gap: 4px; }
 .p-pips i { height: 8px; border-radius: 2px; }
 .p-pips i.p-off { opacity: .32; }
+.p-pip-todas { background: linear-gradient(90deg, var(--y), var(--o), var(--g), var(--b), var(--p), var(--n)); }
+.p-dojo + .p-dojo { margin-top: -12px; }
+.p-pips--densa { gap: 2px; }
+.p-pips--densa i { border-radius: 1px; }
 
 /* por dónde empezar, garantías, feedback y pie */
 .p-sec { margin-top: 64px; display: flex; flex-direction: column; gap: 16px; }

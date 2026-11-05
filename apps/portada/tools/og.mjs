@@ -15,7 +15,7 @@ const APPS = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const IMAGES = [
-  { out: 'portada/src/og.png', trueml: true, kicker: '6 etapas · del dato al monitoreo', title: 'TrueML', sub: 'Herramientas gratuitas para prepararte como ML Engineer: un dojo, un curso, hojas de estudio y laboratorios', foot: 'Gratis · sin cuenta · funciona sin conexión' },
+  { out: 'portada/src/og.png', trueml: true, kicker: '6 etapas · del dato al monitoreo', title: 'TrueML', sub: 'Aprende y practica ML engineering: un curso de teoría desde cero, un dojo, un curso de entrevistas, hojas de estudio y laboratorios', foot: 'Gratis · sin cuenta · funciona sin conexión' },
   { out: 'ml-system-design/web/og.png', etapas: 'todas', kicker: 'Curso y simulador', title: 'Ronda de Diseño ML', sub: 'Todo lo que rodea al modelo en producción, como lo evalúa un entrevistador', foot: 'TrueML · ronda-diseno-ml.vercel.app' },
   { out: 'cheat-sheets/site/og.png', etapas: ['api', 'contenedor', 'orquestacion', 'monitoreo'], kicker: 'Hojas de estudio', title: 'Cheat sheets ML', sub: 'Docker, Kubernetes, Git, Triton, FastAPI, Prometheus y vLLM, con PDF y revisores', foot: 'TrueML · cheat-sheets-ml.vercel.app' },
   { out: 'atlas-arquitecturas/web/og.png', etapas: ['modelo'], kicker: 'Arquitecturas a nivel 2', title: 'Atlas de Arquitecturas', sub: 'Diagramas, matemáticas y dimensiones de los modelos que preguntan en entrevistas', foot: 'TrueML · atlas-arquitecturas.vercel.app' },
