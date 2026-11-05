@@ -1,0 +1,308 @@
+{
+  "titulo": "Un paso de entrenamiento en precisión mixta",
+  "width": 78,
+  "height": 51,
+  "lanes": [
+    {
+      "id": "guarda",
+      "label": "Se guarda en FP32",
+      "kind": "offline",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 15
+    },
+    {
+      "id": "calcula",
+      "label": "Se calcula en FP16",
+      "kind": "neutral",
+      "x": 0,
+      "y": 17,
+      "w": 78,
+      "h": 15
+    },
+    {
+      "id": "revisa",
+      "label": "Se revisa en FP32",
+      "kind": "monitor",
+      "x": 0,
+      "y": 34,
+      "w": 78,
+      "h": 17
+    }
+  ],
+  "nodes": [
+    {
+      "id": "maestros",
+      "label": "Pesos maestros",
+      "sub": "FP32 · 4 B cada uno",
+      "kind": "store",
+      "x": 1,
+      "y": 5,
+      "w": 19,
+      "h": 8,
+      "note": "La copia de verdad de cada peso, en [[float32|FP32]]. Con ella, cualquier cambio chico cuenta: 1 + 0.0001 sí da 1.0001. Es la que se guarda en el [[checkpoint]]."
+    },
+    {
+      "id": "adam",
+      "label": "Optimizador",
+      "sub": "suma el cambio en FP32",
+      "kind": "job",
+      "x": 58,
+      "y": 5,
+      "w": 19,
+      "h": 8,
+      "note": "El [[optimizador]] (en C01, [[adam|Adam]]) calcula cuánto mover cada peso y se lo suma a los pesos maestros. Su estado, los promedios m y v, también vive en FP32."
+    },
+    {
+      "id": "copia",
+      "label": "Copia en FP16",
+      "sub": "2 B, solo para calcular",
+      "kind": "job",
+      "x": 1,
+      "y": 22,
+      "w": 19,
+      "h": 8,
+      "note": "Al empezar cada paso, los pesos se convierten a [[fp16|FP16]]: la mitad de bytes para leer y multiplicar. Es una copia de trabajo, no la que se guarda."
+    },
+    {
+      "id": "forward",
+      "label": "Forward",
+      "sub": "convs y matmuls en FP16",
+      "kind": "gpu",
+      "x": 29.5,
+      "y": 22,
+      "w": 19,
+      "h": 8,
+      "note": "Las convoluciones y multiplicaciones de matrices, casi todo el trabajo, van en FP16 en los tensor cores (en una T4, ≈ 8 veces más rápido que en FP32), acumulando las sumas en FP32. `torch.autocast` decide qué va en 16 bits y qué en 32."
+    },
+    {
+      "id": "backward",
+      "label": "Backward",
+      "sub": "gradientes en FP16",
+      "kind": "gpu",
+      "x": 58,
+      "y": 22,
+      "w": 19,
+      "h": 8,
+      "note": "La [[backpropagation]] calcula los gradientes en FP16. Como la pérdida venía multiplicada por la escala, un gradiente real de 10⁻⁸ sale como ≈ 0.000655, que FP16 sí guarda."
+    },
+    {
+      "id": "perdida",
+      "label": "Pérdida × escala",
+      "sub": "en FP32 · ×65,536",
+      "kind": "service",
+      "x": 29.5,
+      "y": 39,
+      "w": 19,
+      "h": 8,
+      "note": "La [[loss|pérdida]] y el softmax se calculan en FP32. Después la pérdida se multiplica por la escala (65,536 al principio) para que los gradientes salgan grandes y no se redondeen a 0."
+    },
+    {
+      "id": "revisar",
+      "label": "¿Hay inf o NaN?",
+      "sub": "÷ escala, en FP32",
+      "kind": "monitor",
+      "x": 58,
+      "y": 39,
+      "w": 19,
+      "h": 8,
+      "note": "El GradScaler divide los gradientes entre la escala, en FP32, y revisa que ninguno sea `inf` o NaN. Si hay uno, se salta el paso y la escala baja a la mitad; tras 2,000 pasos sin problemas, se duplica."
+    }
+  ],
+  "edges": [
+    {
+      "from": "maestros",
+      "to": "copia",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "copia",
+      "to": "forward",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "forward",
+      "to": "perdida",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "logits"
+    },
+    {
+      "from": "perdida",
+      "to": "backward",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "backward",
+      "to": "revisar",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "revisar",
+      "to": "adam",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "r",
+      "via": [
+        [
+          77.6,
+          43
+        ],
+        [
+          77.6,
+          9
+        ]
+      ]
+    },
+    {
+      "from": "adam",
+      "to": "maestros",
+      "kind": "offline",
+      "fromSide": "l",
+      "toSide": "r",
+      "label": "pesos nuevos"
+    },
+    {
+      "from": "revisar",
+      "to": "perdida",
+      "kind": "monitor",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "b",
+      "via": [
+        [
+          67.5,
+          49.5
+        ],
+        [
+          39,
+          49.5
+        ]
+      ],
+      "label": "inf: escala ÷ 2"
+    }
+  ],
+  "flows": [
+    {
+      "id": "normal",
+      "label": "Un paso normal",
+      "steps": [
+        {
+          "nodes": [
+            "maestros"
+          ],
+          "edges": [],
+          "text": "Los **pesos maestros** viven en FP32, 4 bytes cada uno. Son los que se guardan en el checkpoint."
+        },
+        {
+          "nodes": [
+            "maestros",
+            "copia"
+          ],
+          "edges": [
+            "maestros>copia"
+          ],
+          "text": "Al empezar el paso se hace una **copia en FP16**: la mitad de bytes para leer y para multiplicar."
+        },
+        {
+          "nodes": [
+            "copia",
+            "forward"
+          ],
+          "edges": [
+            "copia>forward"
+          ],
+          "text": "El **forward** hace las convoluciones y las multiplicaciones de matrices en FP16, en los tensor cores, acumulando las sumas en FP32."
+        },
+        {
+          "nodes": [
+            "forward",
+            "perdida"
+          ],
+          "edges": [
+            "forward>perdida"
+          ],
+          "text": "La **pérdida** se calcula en FP32 y se multiplica por la escala: 65,536 al principio."
+        },
+        {
+          "nodes": [
+            "perdida",
+            "backward"
+          ],
+          "edges": [
+            "perdida>backward"
+          ],
+          "text": "La **backpropagation** saca los gradientes en FP16. Como la pérdida venía multiplicada, los gradientes también: los diminutos ya no se redondean a 0."
+        },
+        {
+          "nodes": [
+            "backward",
+            "revisar"
+          ],
+          "edges": [
+            "backward>revisar"
+          ],
+          "text": "Los gradientes se **dividen entre la escala**, ya en FP32, y se revisa que ninguno sea `inf` o NaN."
+        },
+        {
+          "nodes": [
+            "revisar",
+            "adam",
+            "maestros"
+          ],
+          "edges": [
+            "revisar>adam",
+            "adam>maestros"
+          ],
+          "text": "Todo bien: el **optimizador** suma el cambio a los pesos maestros en FP32, donde 1 + 0.0001 sí da 1.0001. Empieza el siguiente paso."
+        }
+      ]
+    },
+    {
+      "id": "desborde",
+      "label": "Un paso que se desborda",
+      "steps": [
+        {
+          "nodes": [
+            "perdida",
+            "backward"
+          ],
+          "edges": [
+            "perdida>backward"
+          ],
+          "text": "Esta vez la escala es demasiado grande: un gradiente de 3 multiplicado por 65,536 da 196,608, más que 65,504. En FP16 es `inf`."
+        },
+        {
+          "nodes": [
+            "backward",
+            "revisar"
+          ],
+          "edges": [
+            "backward>revisar"
+          ],
+          "text": "La revisión encuentra el `inf` (o un NaN que salió de él)."
+        },
+        {
+          "nodes": [
+            "revisar",
+            "perdida"
+          ],
+          "edges": [
+            "revisar>perdida"
+          ],
+          "text": "Se **salta el paso**: los pesos maestros no cambian. La escala baja a la mitad, 32,768, para el siguiente. Si pasan 2,000 pasos sin problemas, se vuelve a duplicar."
+        }
+      ]
+    }
+  ]
+}

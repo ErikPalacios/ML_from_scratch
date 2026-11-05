@@ -1,0 +1,128 @@
+{
+  "titulo": "Entropía en bits",
+  "intro": "Reparte la probabilidad entre cuatro resultados (la calculadora la ajusta para que sume 100 %). La [[entropia|entropía]] es la sorpresa promedio de cada resultado.",
+  "entradas": [
+    {
+      "id": "a",
+      "label": "Resultado **A**",
+      "min": 0,
+      "max": 100,
+      "paso": 1,
+      "valor": 50
+    },
+    {
+      "id": "b",
+      "label": "Resultado **B**",
+      "min": 0,
+      "max": 100,
+      "paso": 1,
+      "valor": 50
+    },
+    {
+      "id": "c",
+      "label": "Resultado **C**",
+      "min": 0,
+      "max": 100,
+      "paso": 1,
+      "valor": 0
+    },
+    {
+      "id": "d",
+      "label": "Resultado **D**",
+      "min": 0,
+      "max": 100,
+      "paso": 1,
+      "valor": 0
+    }
+  ],
+  "calculos": [
+    {
+      "id": "s",
+      "formula": "max(a + b + c + d, 1e-9)"
+    },
+    {
+      "id": "pa",
+      "formula": "a / s"
+    },
+    {
+      "id": "ha",
+      "formula": "pa > 0 ? pa * log2(1 / pa) : 0"
+    },
+    {
+      "id": "pb",
+      "formula": "b / s"
+    },
+    {
+      "id": "hb",
+      "formula": "pb > 0 ? pb * log2(1 / pb) : 0"
+    },
+    {
+      "id": "pc",
+      "formula": "c / s"
+    },
+    {
+      "id": "hc",
+      "formula": "pc > 0 ? pc * log2(1 / pc) : 0"
+    },
+    {
+      "id": "pd",
+      "formula": "d / s"
+    },
+    {
+      "id": "hd",
+      "formula": "pd > 0 ? pd * log2(1 / pd) : 0"
+    },
+    {
+      "id": "h",
+      "formula": "ha + hb + hc + hd"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "**Entropía**",
+      "formula": "h",
+      "formato": "num",
+      "decimales": 3,
+      "nota": "bits de sorpresa, en promedio"
+    },
+    {
+      "label": "Equivale a elegir al azar entre",
+      "formula": "pow(2, h)",
+      "formato": "num",
+      "decimales": 2,
+      "nota": "opciones igual de probables"
+    },
+    {
+      "label": "Sorpresa si sale A",
+      "formula": "log2(1 / pa)",
+      "formato": "num",
+      "decimales": 2,
+      "nota": "bits; «—» si A es imposible"
+    },
+    {
+      "label": "P(A)",
+      "formula": "pa",
+      "formato": "pct",
+      "barra": true
+    },
+    {
+      "label": "P(B)",
+      "formula": "pb",
+      "formato": "pct",
+      "barra": true
+    },
+    {
+      "label": "P(C)",
+      "formula": "pc",
+      "formato": "pct",
+      "barra": true
+    },
+    {
+      "label": "P(D)",
+      "formula": "pd",
+      "formato": "pct",
+      "barra": true
+    }
+  ],
+  "nota": "Así empieza, una moneda justa: 1 bit. Sube C y D a 50: cuatro resultados parejos, 2 bits, el máximo posible con cuatro. Pon 94, 3, 2 y 1, la foto segura de C01: 0.41 bits. Y pon 100, 0, 0, 0: nada que sorprenda, 0 bits."
+}

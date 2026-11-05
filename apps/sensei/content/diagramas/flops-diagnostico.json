@@ -1,0 +1,58 @@
+{
+  "titulo": "¿Qué te limita y qué palanca mueves?",
+  "width": 78,
+  "height": 62,
+  "lanes": [
+    { "id": "contar", "label": "Contar", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 29 },
+    { "id": "decidir", "label": "Decidir", "kind": "monitor", "x": 0, "y": 31, "w": 78, "h": 31 }
+  ],
+  "nodes": [
+    { "id": "flops", "label": "FLOPs", "sub": "2 × n × m × k", "kind": "service", "x": 2, "y": 5, "w": 22, "h": 8,
+      "note": "El trabajo de la operación, contado: 2 [[flop|FLOPs]] por cada [[mac|MAC]]. Para una [[multiplicacion-matrices|multiplicación de matrices]] de n × k por k × m, 2 × n × m × k. Para un token de un LLM, ≈ 2 × parámetros." },
+    { "id": "bytes", "label": "Bytes", "sub": "lo que entra y sale de la VRAM", "kind": "service", "x": 28, "y": 5, "w": 22, "h": 8,
+      "note": "Todo lo que la operación tiene que leer de la [[vram|VRAM]] o escribir en ella: pesos, entradas y salidas, cada número con los bytes de su [[dtype]]. En un LLM, también el [[kv-cache|KV cache]] de cada conversación." },
+    { "id": "gpu", "label": "La GPU", "sub": "pico y ancho de banda", "kind": "gpu", "x": 54, "y": 5, "w": 22, "h": 8,
+      "note": "Dos números de su hoja de datos, en la precisión que vas a usar: el pico de [[tflops|TFLOPS]] (denso, no *with sparsity*) y el [[ancho-banda-memoria|ancho de banda de memoria]] en GB/s." },
+    { "id": "intens", "label": "Intensidad", "sub": "FLOPs ÷ bytes", "kind": "service", "x": 15, "y": 18, "w": 22, "h": 8,
+      "note": "La [[intensidad-aritmetica|intensidad aritmética]]: cuántas operaciones hace la operación con cada byte que mueve. Es propiedad de la operación, no de la máquina: sube con el tamaño de las matrices y con el batch." },
+    { "id": "quiebre", "label": "Punto de quiebre", "sub": "pico ÷ ancho de banda", "kind": "gpu", "x": 54, "y": 18, "w": 22, "h": 8,
+      "note": "Cuántas operaciones por byte necesita la GPU para que la memoria alcance a alimentar a sus núcleos: ≈ 203 en una T4, ≈ 403 en una L4, ≈ 153 en una A100 de 80 GB y ≈ 295 en una H100, en FP16." },
+    { "id": "comparar", "label": "¿Cuál es mayor?", "sub": "intensidad o quiebre", "kind": "job", "x": 28, "y": 35, "w": 22, "h": 8,
+      "note": "La comparación del [[roofline]]. El tiempo nunca baja del mayor de dos relojes: FLOPs ÷ pico y bytes ÷ ancho de banda. Cuál es el mayor lo decide justo esta comparación." },
+    { "id": "mb", "label": "Memory-bound", "sub": "manda la memoria", "kind": "monitor", "x": 2, "y": 52, "w": 28, "h": 8,
+      "note": "**Palancas:** [[batch|batching]] (una lectura de los pesos sirve para varias entradas), menos bytes ([[cuantizacion|cuantizar]] los pesos a INT8 o INT4), fusionar operaciones para no escribir y releer resultados intermedios, o una GPU con más GB/s. Comprar más TFLOPS no mueve nada." },
+    { "id": "cb", "label": "Compute-bound", "sub": "manda el cálculo", "kind": "monitor", "x": 48, "y": 52, "w": 28, "h": 8,
+      "note": "**Palancas:** menos FLOPs (menos resolución, un modelo más chico), tensor cores de menor precisión (FP16, luego INT8 o FP8) o una GPU con más TFLOPS. Más ancho de banda no lo acelera." }
+  ],
+  "edges": [
+    { "from": "flops", "to": "intens", "kind": "neutral", "fromSide": "b", "toSide": "t" },
+    { "from": "bytes", "to": "intens", "kind": "neutral", "fromSide": "b", "toSide": "t" },
+    { "from": "gpu", "to": "quiebre", "kind": "neutral", "fromSide": "b", "toSide": "t" },
+    { "from": "intens", "to": "comparar", "kind": "monitor", "fromSide": "b", "toSide": "t" },
+    { "from": "quiebre", "to": "comparar", "kind": "monitor", "fromSide": "b", "toSide": "t" },
+    { "from": "comparar", "to": "mb", "kind": "monitor", "fromSide": "b", "toSide": "t", "label": "menor" },
+    { "from": "comparar", "to": "cb", "kind": "monitor", "fromSide": "b", "toSide": "t", "label": "mayor" }
+  ],
+  "flows": [
+    { "id": "matmul", "label": "Una matmul de 4,096 en una T4",
+      "steps": [
+        { "nodes": ["flops", "bytes"], "edges": [], "text": "Dos matrices de 4,096 × 4,096 en FP16: **137 GFLOPs** de trabajo y **≈ 101 MB** que leer y escribir." },
+        { "nodes": ["flops", "bytes", "intens"], "edges": ["flops>intens", "bytes>intens"], "text": "Intensidad: 137 × 10⁹ ÷ 101 × 10⁶ ≈ **1,365 FLOPs por byte**. Cada número se reusa miles de veces." },
+        { "nodes": ["gpu", "quiebre"], "edges": ["gpu>quiebre"], "text": "La T4: 65 TFLOPS y 320 GB/s. Su punto de quiebre es ≈ **203**." },
+        { "nodes": ["intens", "quiebre", "comparar", "cb"], "edges": ["intens>comparar", "quiebre>comparar", "comparar>cb"], "text": "1,365 es mayor que 203: **compute-bound**. Tarda al menos ≈ 2.1 ms, y solo una GPU con más TFLOPS (o menor precisión) lo acelera." }
+      ] },
+    { "id": "token", "label": "Un token de Llama 3 8B en una L4",
+      "steps": [
+        { "nodes": ["flops", "bytes"], "edges": [], "text": "Un token: **≈ 16 GFLOPs**, y hay que leer los **≈ 16 GB** de pesos en BF16." },
+        { "nodes": ["flops", "bytes", "intens"], "edges": ["flops>intens", "bytes>intens"], "text": "Intensidad ≈ **1 FLOP por byte**: cada peso se usa una sola vez." },
+        { "nodes": ["gpu", "quiebre"], "edges": ["gpu>quiebre"], "text": "La L4: ≈ 121 TFLOPS y 300 GB/s. Su quiebre es ≈ **403**." },
+        { "nodes": ["intens", "quiebre", "comparar", "mb"], "edges": ["intens>comparar", "quiebre>comparar", "comparar>mb"], "text": "1 contra 403: **memory-bound**, unas 400 veces por debajo. Las palancas son de bytes: batching (≈ 59 tokens/s con 4 conversaciones), pesos en INT8 (≈ 37 tokens/s por conversación) o una GPU con más GB/s." }
+      ] },
+    { "id": "cabeza", "label": "La capa final de C01, con batch 32",
+      "steps": [
+        { "nodes": ["flops", "bytes", "intens"], "edges": ["flops>intens", "bytes>intens"], "text": "(32 × 2,048) · (2,048 × 500) en FP16: ≈ 65.5 MFLOPs y ≈ 2.2 MB. Intensidad ≈ **30**." },
+        { "nodes": ["gpu", "quiebre", "intens", "comparar", "mb"], "edges": ["gpu>quiebre", "intens>comparar", "quiebre>comparar", "comparar>mb"], "text": "30 contra 203 de la T4: **memory-bound**." },
+        { "nodes": ["mb"], "edges": [], "text": "¿Vale la pena optimizarla? No: es el 0.025 % del trabajo de la red. Diagnosticar dice **qué** limita; antes de mover una palanca, mira **cuánto** pesa esa parte en el total." }
+      ] }
+  ]
+}

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 440" role="img" aria-labelledby="f-flops-capa-t" class="f-svg" style="max-width:420px">
+<title id="f-flops-capa-t">Una capa densa sobre un batch, como multiplicación de matrices (no a escala). A la izquierda, X, el batch: 32 fotos por 2,048 números, una fila por foto. Arriba, W, los pesos: 2,048 por 500, una columna por categoría. Donde se cruzan la fila de una foto y la columna de una categoría queda su logit: el resultado mide 32 por 500. Cada logit es un producto punto de 2,048 números, 2,048 MACs. Todo el batch: 32 por 500 por 2,048, 32,768,000 MACs, unos 65.5 millones de FLOPs.</title>
+<rect class="f-card" x="10" y="10" width="340" height="420" rx="16"/>
+<text class="f-l" x="28" y="36">UNA CAPA DENSA SOBRE UN BATCH</text>
+<rect class="f-chip" x="226" y="66" width="56" height="154" rx="6" style="stroke:var(--b);stroke-width:1.5"/>
+<rect class="f-y" x="226" y="66" width="11" height="154" rx="3"/>
+<text class="f-s" x="231" y="60" text-anchor="middle" style="font-size:12px;font-weight:700">tenis</text>
+<text class="f-t" x="216" y="118" text-anchor="end">W: los pesos</text>
+<text class="f-s" x="216" y="138" text-anchor="end">2,048 × 500</text>
+<text class="f-s" x="216" y="156" text-anchor="end" style="font-size:12px">una columna por categoría</text>
+<rect class="f-chip" x="62" y="232" width="154" height="34" rx="6" style="stroke:var(--b);stroke-width:1.5"/>
+<rect class="f-y" x="62" y="232" width="154" height="9" rx="3"/>
+<text class="f-s" x="56" y="241" text-anchor="end" style="font-size:12px;font-weight:700">foto 1</text>
+<text class="f-t" x="62" y="290">X: el batch</text>
+<text class="f-s" x="62" y="308" style="font-size:12px">32 × 2,048 · una fila por foto</text>
+<rect class="f-chip" x="226" y="232" width="56" height="34" rx="6" style="stroke:var(--b);stroke-width:1.5"/>
+<rect x="226" y="232" width="11" height="9" rx="2" style="fill:var(--o)"/>
+<text class="f-t" x="290" y="254">logits</text>
+<text class="f-s" x="254" y="290" text-anchor="middle" style="font-size:12px">32 × 500</text>
+<text class="f-l" x="28" y="340">UN LOGIT</text>
+<text class="f-s" x="28" y="362">la fila de una foto por la columna de una categoría:</text>
+<text class="f-t" x="28" y="384">2,048 MACs, un producto punto</text>
+<text class="f-s" x="28" y="408">Todo el batch: 32 × 500 × 2,048 =</text>
+<text class="f-t" x="28" y="428" style="font-size:14px">32,768,000 MACs ≈ 65.5 millones de FLOPs</text>
+</svg>

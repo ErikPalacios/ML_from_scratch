@@ -1,0 +1,83 @@
+{
+  "titulo": "Un A/B de C01, de la publicación a la decisión",
+  "width": 78,
+  "height": 64,
+  "lanes": [
+    { "id": "vivo", "label": "Cada publicación, en vivo", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 31 },
+    { "id": "final", "label": "Al terminar las dos semanas", "kind": "monitor", "x": 0, "y": 33, "w": 78, "h": 31 }
+  ],
+  "nodes": [
+    {
+      "id": "vendedor", "label": "Vendedor", "sub": "Ana sube sus tenis", "kind": "client",
+      "x": 3, "y": 5, "w": 19, "h": 9,
+      "note": "La **unidad** del experimento es el vendedor, no cada publicación ni cada request. Así Ana ve siempre las sugerencias del mismo modelo, aunque suba diez publicaciones."
+    },
+    {
+      "id": "asignar", "label": "Asignar brazo", "sub": "hash(sal + vendedor)", "kind": "service",
+      "x": 31, "y": 5, "w": 21, "h": 9,
+      "note": "Un hash convierte la sal del experimento y el id del vendedor en un número de 0 a 99; de 0 a 49 va a A, de 50 a 99 a B. Es azar, pero **fijo**: el mismo vendedor siempre cae en el mismo brazo. La sal cambia en cada experimento, para que no les toque siempre a los mismos."
+    },
+    {
+      "id": "control", "label": "A · control", "sub": "modelo actual", "kind": "model",
+      "x": 14, "y": 19, "w": 21, "h": 9,
+      "note": "El **control** recibe exactamente lo de siempre. Sin él no sabrías si la aceptación cambió por el modelo nuevo o por la temporada, una campaña o un cambio en la app."
+    },
+    {
+      "id": "trat", "label": "B · tratamiento", "sub": "modelo nuevo", "kind": "model",
+      "x": 46, "y": 19, "w": 21, "h": 9,
+      "note": "El **tratamiento** solo cambia una cosa: el modelo que sugiere las categorías. Todo lo demás (la app, la hora, el tipo de vendedor) se reparte igual entre los dos brazos gracias al azar."
+    },
+    {
+      "id": "logs", "label": "Logs", "sub": "brazo y si aceptó", "kind": "store",
+      "x": 30, "y": 38, "w": 21, "h": 9,
+      "note": "Cada publicación deja una fila: el brazo, el modelo, si el vendedor aceptó una sugerencia, la latencia y si un moderador la corrigió después. Sin estas filas no hay análisis."
+    },
+    {
+      "id": "srm", "label": "¿50/50?", "sub": "chequeo de reparto", "kind": "monitor",
+      "x": 57, "y": 38, "w": 19, "h": 9,
+      "note": "Lo primero: ¿cada brazo recibió más o menos la mitad? Con 100,000 publicaciones, 50,600 contra 49,400 ya no es azar (p ≈ 0.00015): algo pierde unidades en un brazo, y el resultado no se lee hasta entenderlo."
+    },
+    {
+      "id": "analisis", "label": "Análisis", "sub": "z, p-value, intervalo", "kind": "job",
+      "x": 57, "y": 52, "w": 19, "h": 9,
+      "note": "La métrica primaria es la **tasa de aceptación**, fijada antes de empezar. Los guardrails (p99, errores, recategorizaciones de moderadores, tiempo del formulario) no tienen que mejorar, pero no pueden empeorar."
+    },
+    {
+      "id": "decidir", "label": "Decidir", "sub": "con la regla de antes", "kind": "human",
+      "x": 30, "y": 52, "w": 21, "h": 9,
+      "note": "La regla se escribió antes de ver datos: qué métrica, qué α, qué efecto mínimo y cuántas semanas. Decidir con una regla inventada después es elegir el resultado que te gusta."
+    }
+  ],
+  "edges": [
+    { "from": "vendedor", "to": "asignar", "kind": "online", "fromSide": "r", "toSide": "l", "label": "publica" },
+    { "from": "asignar", "to": "control", "kind": "online", "fromSide": "b", "toSide": "t", "label": "0–49" },
+    { "from": "asignar", "to": "trat", "kind": "online", "fromSide": "b", "toSide": "t", "label": "50–99" },
+    { "from": "control", "to": "logs", "kind": "online", "fromSide": "b", "toSide": "l" },
+    { "from": "trat", "to": "logs", "kind": "online", "fromSide": "b", "toSide": "r" },
+    { "from": "logs", "to": "srm", "kind": "monitor", "fromSide": "r", "toSide": "l", "dashed": true },
+    { "from": "srm", "to": "analisis", "kind": "monitor", "fromSide": "b", "toSide": "t" },
+    { "from": "analisis", "to": "decidir", "kind": "monitor", "fromSide": "l", "toSide": "r" }
+  ],
+  "flows": [
+    {
+      "id": "ana",
+      "label": "Ana entra al experimento",
+      "steps": [
+        { "nodes": ["vendedor"], "edges": [], "text": "**Ana publica unos tenis.** Es su primera publicación desde que empezó el experimento." },
+        { "nodes": ["vendedor", "asignar"], "edges": ["vendedor>asignar"], "text": "**Se sortea su brazo.** El hash de la sal y su id da, digamos, 73: le toca B. Mañana dará 73 otra vez." },
+        { "nodes": ["asignar", "trat"], "edges": ["asignar>trat"], "text": "**El modelo nuevo responde.** Ana ve cinco categorías sugeridas por el modelo B, sin saber que está en un experimento." },
+        { "nodes": ["trat", "logs"], "edges": ["trat>logs"], "text": "**Queda una fila en los logs:** brazo B, modelo nuevo, aceptó «Tenis» y cuánto tardó la respuesta. Lo mismo pasa con cada publicación de los dos brazos." }
+      ]
+    },
+    {
+      "id": "fin",
+      "label": "El análisis al final",
+      "steps": [
+        { "nodes": ["control", "trat", "logs"], "edges": ["control>logs", "trat>logs"], "text": "**Dos semanas completas** de filas de los dos brazos, aunque las ≈ 33,000 publicaciones por brazo se juntaron en horas." },
+        { "nodes": ["logs", "srm"], "edges": ["logs>srm"], "text": "**Primero el reparto.** Si no se parece al 50/50 que configuraste, algo está roto y no se lee nada más." },
+        { "nodes": ["srm", "analisis"], "edges": ["srm>analisis"], "text": "**Después la métrica primaria:** la diferencia entre B y A, con su p-value y su intervalo. Y los guardrails, que no empeoren." },
+        { "nodes": ["analisis", "decidir"], "edges": ["analisis>decidir"], "text": "**Se decide con la regla escrita antes.** Si B gana y ningún guardrail empeora, B pasa a todos." }
+      ]
+    }
+  ]
+}

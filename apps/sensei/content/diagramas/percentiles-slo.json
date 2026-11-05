@@ -1,0 +1,128 @@
+{
+  "titulo": "Cómo se revisa el SLO de latencia de C01",
+  "width": 78,
+  "height": 60,
+  "lanes": [
+    { "id": "request", "label": "Cada request · milisegundos", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 15 },
+    { "id": "prom", "label": "Prometheus · cada 15 s, cada 5 min, cada mes", "kind": "monitor", "x": 0, "y": 16, "w": 78, "h": 30 },
+    { "id": "gente", "label": "Las personas", "kind": "neutral", "x": 0, "y": 47, "w": 78, "h": 13 }
+  ],
+  "nodes": [
+    {
+      "id": "ana",
+      "label": "Foto de Ana",
+      "sub": "llega del marketplace",
+      "kind": "client",
+      "x": 2, "y": 4, "w": 17, "h": 8,
+      "note": "La request llega desde los servidores del marketplace. La subida por la red del celular de Ana no cuenta: el [[slo|SLO]] se mide del lado del servidor."
+    },
+    {
+      "id": "servicio",
+      "label": "Servicio de C01",
+      "sub": "mide cada request",
+      "kind": "service",
+      "x": 28, "y": 4, "w": 20, "h": 8,
+      "note": "Toma la hora cuando el balanceador le entrega la request completa y cuando sale la respuesta. La diferencia, por ejemplo 42 ms, suma 1 al bucket «hasta 50 ms». La latencia exacta no se guarda."
+    },
+    {
+      "id": "contadores",
+      "label": "Contadores",
+      "sub": "11 bordes + «+Inf»",
+      "kind": "store",
+      "x": 58, "y": 4, "w": 18, "h": 8,
+      "note": "Un contador por [[bucket]] en cada copia del servicio: bordes en 10, 25, 50, 75, 100, 150, 200, 300, 500, 1,000 y 2,500 ms. Solo suben."
+    },
+    {
+      "id": "prometheus",
+      "label": "Prometheus",
+      "sub": "lee cada 15 s",
+      "kind": "monitor",
+      "x": 58, "y": 20, "w": 18, "h": 8,
+      "note": "Cada 15 segundos lee los contadores de todas las copias y los guarda con su hora. Con eso puede calcular cualquier ventana: 5 minutos, un día o un mes."
+    },
+    {
+      "id": "regla",
+      "label": "p99 de 5 min",
+      "sub": "histogram_quantile",
+      "kind": "monitor",
+      "x": 31, "y": 20, "w": 18, "h": 8,
+      "note": "Suma los buckets de todas las copias (`sum by (le)`) y calcula el [[p99]] de los últimos 5 minutos. Es el [[sli|SLI]] de cada ventana."
+    },
+    {
+      "id": "alerta",
+      "label": "Alerta",
+      "sub": "> 200 ms por 10 min",
+      "kind": "monitor",
+      "x": 4, "y": 20, "w": 18, "h": 8,
+      "note": "`ClassifierHighP99Latency`. Los 10 minutos seguidos evitan despertar a alguien por un pico de un minuto, como una pausa del programa o un deploy."
+    },
+    {
+      "id": "mes",
+      "label": "Cuenta del mes",
+      "sub": "fracción ≤ 200 ms",
+      "kind": "monitor",
+      "x": 58, "y": 35, "w": 18, "h": 8,
+      "note": "Suma los conteos de 30 días: el bucket de 200 ms entre el total. El SLO pide al menos 99 %; el 1 % que sobra es el presupuesto ([[error-budget]])."
+    },
+    {
+      "id": "oncall",
+      "label": "Guardia",
+      "sub": "sigue el runbook",
+      "kind": "human",
+      "x": 4, "y": 50, "w": 18, "h": 8,
+      "note": "La persona de guardia (*on-call*). El runbook de C01 le dice qué revisar primero: qué tramo subió (preprocesamiento, cola o cálculo en la GPU), si hubo un deploy y si falta capacidad."
+    },
+    {
+      "id": "equipo",
+      "label": "Equipo",
+      "sub": "decide qué arriesgar",
+      "kind": "human",
+      "x": 58, "y": 50, "w": 18, "h": 8,
+      "note": "Si el presupuesto se está acabando, se frenan los cambios riesgosos. Si sobra, hay margen para probar cosas nuevas."
+    }
+  ],
+  "edges": [
+    { "from": "ana", "to": "servicio", "kind": "online", "label": "foto", "fromSide": "r", "toSide": "l" },
+    { "from": "servicio", "to": "contadores", "kind": "monitor", "label": "+1", "fromSide": "r", "toSide": "l" },
+    { "from": "contadores", "to": "prometheus", "kind": "monitor", "label": "15 s", "fromSide": "b", "toSide": "t" },
+    { "from": "prometheus", "to": "regla", "kind": "monitor", "fromSide": "l", "toSide": "r" },
+    { "from": "regla", "to": "alerta", "kind": "monitor", "fromSide": "l", "toSide": "r" },
+    { "from": "alerta", "to": "oncall", "kind": "monitor", "label": "page", "fromSide": "b", "toSide": "t" },
+    { "from": "prometheus", "to": "mes", "kind": "monitor", "label": "30 días", "fromSide": "b", "toSide": "t" },
+    { "from": "mes", "to": "equipo", "kind": "monitor", "fromSide": "b", "toSide": "t" }
+  ],
+  "flows": [
+    {
+      "id": "request",
+      "label": "Una request",
+      "steps": [
+        { "nodes": ["ana", "servicio"], "edges": ["ana>servicio"], "text": "**Llega la foto de los tenis.** Desde que el balanceador tiene la request completa empieza a correr el reloj del SLO." },
+        { "nodes": ["servicio", "contadores"], "edges": ["servicio>contadores"], "text": "**Se cuenta, no se guarda.** Tardó 42 ms: el servicio suma 1 al bucket «hasta 50 ms» (y, como son acumulados, a todos los de arriba). La latencia exacta se tira." }
+      ]
+    },
+    {
+      "id": "ventana",
+      "label": "Una ventana de 5 minutos",
+      "steps": [
+        { "nodes": ["contadores", "prometheus"], "edges": ["contadores>prometheus"], "text": "**Cada 15 segundos**, Prometheus lee los contadores de todas las copias del servicio." },
+        { "nodes": ["prometheus", "regla"], "edges": ["prometheus>regla"], "text": "**El SLI de la ventana.** Suma los buckets de todas las copias y calcula el p99 de los últimos 5 minutos: ≈ 186 ms. Se cumple." }
+      ]
+    },
+    {
+      "id": "rota",
+      "label": "Cuando se rompe",
+      "steps": [
+        { "nodes": ["regla", "alerta"], "edges": ["regla>alerta"], "text": "Un deploy hace más lento el preprocesamiento de las fotos: el p99 sube a 240 ms y se queda ahí. **A los 10 minutos** suena `ClassifierHighP99Latency`." },
+        { "nodes": ["alerta", "oncall"], "edges": ["alerta>oncall"], "text": "**Page.** Despierta a la persona de guardia, que sigue el runbook: ¿qué tramo subió?, ¿hubo deploy? Si coincide con el deploy, se regresa a la versión anterior." }
+      ]
+    },
+    {
+      "id": "mes",
+      "label": "La cuenta del mes",
+      "steps": [
+        { "nodes": ["prometheus", "mes"], "edges": ["prometheus>mes"], "text": "**30 días** con los mismos contadores: requests en 200 ms o menos entre el total. El SLO pide al menos 99 %; el 1 % restante es el presupuesto, ≈ 3 millones de requests al mes." },
+        { "nodes": ["mes", "equipo"], "edges": ["mes>equipo"], "text": "Si un deploy malo se gastó una quinta parte del presupuesto en una hora, el equipo **frena los cambios riesgosos** hasta que se recupere." }
+      ]
+    }
+  ]
+}

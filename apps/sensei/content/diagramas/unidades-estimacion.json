@@ -1,0 +1,295 @@
+{
+  "titulo": "La servilleta de C01: de publicaciones a dólares",
+  "width": 78,
+  "height": 56,
+  "lanes": [
+    {
+      "id": "trafico",
+      "label": "1 · Tráfico: de día a segundo",
+      "kind": "online",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 18
+    },
+    {
+      "id": "maquinas",
+      "label": "2 · Máquinas: cuántas GPUs",
+      "kind": "neutral",
+      "x": 0,
+      "y": 19,
+      "w": 78,
+      "h": 18
+    },
+    {
+      "id": "dinero",
+      "label": "3 · Dinero y bytes",
+      "kind": "offline",
+      "x": 0,
+      "y": 38,
+      "w": 78,
+      "h": 18
+    }
+  ],
+  "nodes": [
+    {
+      "id": "publicaciones",
+      "label": "2.5 M",
+      "sub": "publicaciones al día",
+      "kind": "client",
+      "x": 1,
+      "y": 6,
+      "w": 13,
+      "h": 9,
+      "note": "El dato del negocio: ≈ 2.5 millones de publicaciones nuevas al día. Es lo único que te dan; todo lo demás sale de cuentas y de supuestos que dices en voz alta."
+    },
+    {
+      "id": "fotos",
+      "label": "≈ 10 M fotos",
+      "sub": "al día",
+      "kind": "store",
+      "x": 23,
+      "y": 6,
+      "w": 14,
+      "h": 9,
+      "note": "Cada publicación trae ≈ 3 fotos (7.5 M) y otros equipos, como moderación y búsqueda, también le preguntan al modelo: la Ronda redondea a **10 M imágenes al día**, una por [[request]]."
+    },
+    {
+      "id": "promedio",
+      "label": "≈ 116 req/s",
+      "sub": "el promedio",
+      "kind": "service",
+      "x": 44,
+      "y": 6,
+      "w": 14,
+      "h": 9,
+      "note": "10,000,000 ÷ 86,400 s ≈ 115.7, que se dice **116**. Con el atajo de 10⁵ s saldrían 100: sirve para la cabeza, pero se queda 13.6 % abajo. El promedio es el que paga la factura."
+    },
+    {
+      "id": "pico",
+      "label": "≈ 350 req/s",
+      "sub": "la hora pico",
+      "kind": "service",
+      "x": 64,
+      "y": 6,
+      "w": 13,
+      "h": 9,
+      "note": "La gente duerme: el tráfico se amontona en la tarde. Si la hora pico lleva 1/8 del día, el [[factor-pico|factor de pico]] es 24 × 1/8 = 3: 116 × 3 ≈ **350 req/s**. Es un supuesto; se confirma con los registros del sistema de publicaciones."
+    },
+    {
+      "id": "diseno",
+      "label": "500 req/s",
+      "sub": "pico de diseño",
+      "kind": "edge",
+      "x": 64,
+      "y": 25,
+      "w": 13,
+      "h": 9,
+      "note": "Al pico se le suma un margen (× ≈ 1.4) para picos raros y crecimiento: 350 × 1.4 ≈ 486, y se redondea hacia arriba a un número fácil de defender: **500 req/s**."
+    },
+    {
+      "id": "gpus",
+      "label": "2 T4",
+      "sub": "⌈500 ÷ 600⌉ + 1",
+      "kind": "gpu",
+      "x": 41,
+      "y": 25,
+      "w": 16,
+      "h": 9,
+      "note": "Una T4 con el modelo optimizado sostiene ≈ 1,200 fotos por segundo, **medidas** con una prueba de carga; se planea al 50 % para que las colas no crezcan: 600. Entonces 500 ÷ 600 = 0.83 GPUs, que se [[ceil|redondean hacia arriba]] a 1, y una más de repuesto por si se cae (N+1): **2 T4**, una en cada zona. Las pide la disponibilidad, no el tráfico."
+    },
+    {
+      "id": "logs",
+      "label": "≈ 3 GB al día",
+      "sub": "de logs · 1.1 TB al año",
+      "kind": "store",
+      "x": 23,
+      "y": 44,
+      "w": 14,
+      "h": 9,
+      "note": "Cada predicción deja un registro de ≈ 300 bytes (qué foto, qué top-5, cuánto tardó, qué versión): 10 M × 300 B = **3 GB al día**, × 365 ≈ **1.1 TB al año**. Es barato: se guarda todo."
+    },
+    {
+      "id": "costo",
+      "label": "≈ US$768",
+      "sub": "al mes, de GPUs",
+      "kind": "monitor",
+      "x": 41,
+      "y": 44,
+      "w": 16,
+      "h": 9,
+      "note": "2 máquinas × US$0.526 la hora × 730 horas del mes ≈ **US$768**, en precio de lista aproximado. La infraestructura completa (gateway, balanceador, logs) suma ≈ US$1.75k: cabe en el presupuesto de US$3k."
+    },
+    {
+      "id": "red",
+      "label": "≈ 2.4 Gb/s",
+      "sub": "de tensores en el pico",
+      "kind": "edge",
+      "x": 64,
+      "y": 44,
+      "w": 13,
+      "h": 9,
+      "note": "La cuenta de un [[ancho-banda|ancho de banda]]: 500 fotos por segundo × 602 KB (el tensor en float32) ≈ 301 MB/s, × 8 ≈ **2.4 Gb/s** entre el gateway y las GPUs. Es la cuenta que se aprieta primero."
+    }
+  ],
+  "edges": [
+    {
+      "from": "publicaciones",
+      "to": "fotos",
+      "kind": "online",
+      "label": "× 3 + otros",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "fotos",
+      "to": "promedio",
+      "kind": "online",
+      "label": "÷ 86,400",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "promedio",
+      "to": "pico",
+      "kind": "online",
+      "label": "× 3",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "pico",
+      "to": "diseno",
+      "kind": "online",
+      "label": "× 1.4",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "diseno",
+      "to": "gpus",
+      "kind": "neutral",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "gpus",
+      "to": "costo",
+      "kind": "offline",
+      "label": "× 730 h",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "fotos",
+      "to": "logs",
+      "kind": "offline",
+      "label": "× 300 B",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "diseno",
+      "to": "red",
+      "kind": "online",
+      "label": "× 602 KB",
+      "fromSide": "b",
+      "toSide": "t"
+    }
+  ],
+  "flows": [
+    {
+      "id": "servilleta",
+      "label": "La servilleta, paso a paso",
+      "steps": [
+        {
+          "nodes": [
+            "publicaciones"
+          ],
+          "edges": [],
+          "text": "**El dato:** ≈ 2.5 M publicaciones nuevas al día. Lo demás son cuentas y supuestos dichos en voz alta."
+        },
+        {
+          "nodes": [
+            "publicaciones",
+            "fotos"
+          ],
+          "edges": [
+            "publicaciones>fotos"
+          ],
+          "text": "**Fotos al día:** ≈ 3 por publicación, más lo que piden otros equipos: ≈ 10 M. Una foto por request."
+        },
+        {
+          "nodes": [
+            "fotos",
+            "promedio"
+          ],
+          "edges": [
+            "fotos>promedio"
+          ],
+          "text": "**Por segundo:** 10,000,000 ÷ 86,400 ≈ 116 req/s. El promedio, el que paga la factura."
+        },
+        {
+          "nodes": [
+            "promedio",
+            "pico"
+          ],
+          "edges": [
+            "promedio>pico"
+          ],
+          "text": "**El pico:** si la hora pico lleva 1/8 del día, llega 24 × 1/8 = 3 veces el promedio: ≈ 350 req/s."
+        },
+        {
+          "nodes": [
+            "pico",
+            "diseno"
+          ],
+          "edges": [
+            "pico>diseno"
+          ],
+          "text": "**El diseño:** margen de ≈ 1.4 para lo inesperado y para crecer, y un número redondo: 500 req/s."
+        },
+        {
+          "nodes": [
+            "diseno",
+            "gpus"
+          ],
+          "edges": [
+            "diseno>gpus"
+          ],
+          "text": "**Las GPUs:** una T4 sostiene ≈ 1,200 fotos/s medidas; planeada al 50 %, cuenta por 600. ⌈500 ÷ 600⌉ = 1 por tráfico, y una más por si cae: 2."
+        },
+        {
+          "nodes": [
+            "gpus",
+            "costo"
+          ],
+          "edges": [
+            "gpus>costo"
+          ],
+          "text": "**El dinero:** 2 × US$0.526 la hora × 730 h ≈ US$768 al mes de GPUs."
+        },
+        {
+          "nodes": [
+            "fotos",
+            "logs"
+          ],
+          "edges": [
+            "fotos>logs"
+          ],
+          "text": "**Lo que se guarda:** 300 B por predicción: 3 GB al día, 1.1 TB al año."
+        },
+        {
+          "nodes": [
+            "diseno",
+            "red"
+          ],
+          "edges": [
+            "diseno>red"
+          ],
+          "text": "**La red:** 500 × 602 KB ≈ 301 MB/s ≈ 2.4 Gb/s de tensores. Más de lo que sostiene un solo nodo del gateway."
+        }
+      ]
+    }
+  ]
+}

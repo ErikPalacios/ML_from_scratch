@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 460" role="img" aria-labelledby="f-ruido-pareado-t" class="f-svg" style="max-width:420px">
+<title id="f-ruido-pareado-t">Una tabla de dos por dos con las mismas 50,000 fotos del golden set calificadas por dos modelos. Los dos aciertan en 41,550 y los dos fallan en 6,450: ahí empatan y no dicen quién es mejor. Solo el nuevo acierta en 1,050 y solo el actual en 950. El nuevo saca 85.2 % y el actual 85.0 %. Solo cuentan las 2,000 fotos en que discrepan: si los modelos fueran igual de buenos, cada una sería un volado, y lo normal sería 1,000 más o menos 22 para cada lado. Salió 1,050, a 2.2 desviaciones: el test pareado da p de 0.025, mientras que comparar las dos accuracies por separado da p de 0.38.</title>
+<rect class="f-card" x="10" y="10" width="340" height="440" rx="16"/>
+<text class="f-l" x="28.0" y="36.0">LAS MISMAS 50,000 FOTOS, DOS MODELOS</text>
+<text class="f-s" x="172.0" y="62.0" text-anchor="middle" style="font-size:12px">el actual acierta</text>
+<text class="f-s" x="280.0" y="62.0" text-anchor="middle" style="font-size:12px">el actual falla</text>
+<text class="f-s" x="28.0" y="96.0" style="font-size:12px">el nuevo</text>
+<text class="f-s" x="28.0" y="111.0" style="font-size:12px">acierta</text>
+<text class="f-s" x="28.0" y="158.0" style="font-size:12px">el nuevo</text>
+<text class="f-s" x="28.0" y="173.0" style="font-size:12px">falla</text>
+<rect class="f-off" x="120" y="74" width="104" height="54" rx="9"/>
+<text class="f-t" x="172.0" y="99.0" text-anchor="middle">41,550</text>
+<text class="f-s" x="172.0" y="117.0" text-anchor="middle" style="font-size:12px">los dos aciertan</text>
+<rect class="f-y" x="228" y="74" width="104" height="54" rx="9"/>
+<text x="280.0" y="99" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">1,050</text>
+<text x="280.0" y="117" text-anchor="middle" style="fill:var(--navy);font:600 12px var(--sans)">solo el nuevo</text>
+<rect class="f-y" x="120" y="136" width="104" height="54" rx="9"/>
+<text x="172.0" y="161" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">950</text>
+<text x="172.0" y="179" text-anchor="middle" style="fill:var(--navy);font:600 12px var(--sans)">solo el actual</text>
+<rect class="f-off" x="228" y="136" width="104" height="54" rx="9"/>
+<text class="f-t" x="280.0" y="161.0" text-anchor="middle">6,450</text>
+<text class="f-s" x="280.0" y="179.0" text-anchor="middle" style="font-size:12px">los dos fallan</text>
+<text class="f-s" x="28.0" y="214.0" style="font-size:12px">Nuevo: 42,600 = 85.2 %. Actual: 42,500 = 85.0 %.</text>
+<text class="f-s" x="28.0" y="231.0" style="font-size:12px">Las grises no dicen quién es mejor: ahí empatan.</text>
+<text class="f-l" x="28.0" y="262.0">SOLO CUENTAN LAS 2,000 EN QUE DISCREPAN</text>
+<rect class="f-y" x="28" y="274" width="159.6" height="26" rx="6"/>
+<rect class="f-chip" x="189.6" y="274" width="142.4" height="26" rx="6"/>
+<text x="38" y="292" style="fill:var(--navy);font:700 13px var(--sans)">1,050 para el nuevo</text>
+<text class="f-s" x="322.0" y="292.0" text-anchor="end" style="font-size:13px;font-weight:700">950 para el actual</text>
+<line x1="180.0" y1="268" x2="180.0" y2="306" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<text class="f-s" x="28.0" y="328.0" style="font-size:13px">Si fueran igual de buenos, cada foto sería</text>
+<text class="f-s" x="28.0" y="346.0" style="font-size:13px">un volado: 1,000 ± 22 para cada lado.</text>
+<text class="f-s" x="28.0" y="364.0" style="font-size:13px;font-weight:700">Salió 1,050: 50 ÷ 22.4 ≈ 2.2 desviaciones.</text>
+<rect x="28" y="384" width="148" height="56" rx="10" style="fill:var(--ok-soft);stroke:var(--ok);stroke-width:1.5"/>
+<text class="f-s" x="102.0" y="407.0" text-anchor="middle" style="font-size:12px">pareado</text>
+<text class="f-s" x="102.0" y="427.0" text-anchor="middle" style="font-size:15px;font-weight:700;fill:var(--ok)">p ≈ 0.025</text>
+<rect x="184" y="384" width="148" height="56" rx="10" class="f-chip"/>
+<text class="f-s" x="258.0" y="407.0" text-anchor="middle" style="font-size:12px">por separado</text>
+<text class="f-s" x="258.0" y="427.0" text-anchor="middle" style="font-size:15px;font-weight:700">p ≈ 0.38</text>
+</svg>

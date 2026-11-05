@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 486" role="img" aria-labelledby="f-probabilidad-cuadricula-t" class="f-svg" style="max-width:420px">
+<title id="f-probabilidad-cuadricula-t">Cien requests en una cuadrícula de 10 por 10. Las filas dicen si el servicio A fue rápido (9 filas) o lento (1 fila); las columnas, lo mismo para el servicio B. 81 cuadritos son los dos rápidos (0.9 por 0.9), 18 tienen solo uno lento (9 más 9) y 1 tiene los dos lentos (0.1 por 0.1). Al menos uno lento: 19 de 100, que es 100 menos 81. Sumar 10 más 10 da 20 porque cuenta dos veces el cuadrito de los dos lentos.</title>
+<rect class="f-card" x="10" y="10" width="340" height="466" rx="16"/>
+<text class="f-l" x="28" y="36">100 REQUESTS · DOS SERVICIOS</text>
+<text class="f-s" x="28" y="56" style="font-size:12px">cada servicio es lento 1 de cada 10 veces,</text>
+<text class="f-s" x="28" y="72" style="font-size:12px">sin depender del otro · 1 cuadrito = 1 request</text>
+<text class="f-s" x="199.5" y="88" text-anchor="middle" style="font-size:12px">B rápido (9 de 10)</text>
+<text class="f-s" x="304.5" y="88" text-anchor="middle" style="font-size:12px">B lento</text>
+<text class="f-s" x="96" y="185.5" text-anchor="end" style="font-size:12px">A rápido</text>
+<text class="f-s" x="96" y="201.5" text-anchor="end" style="font-size:12px">(9 de 10)</text>
+<text class="f-s" x="96" y="298.5" text-anchor="end" style="font-size:12px">A lento</text>
+<rect class="f-b2" x="106" y="96" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="127" y="96" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="148" y="96" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="169" y="96" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="190" y="96" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="211" y="96" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="232" y="96" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="253" y="96" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="274" y="96" width="19" height="19" rx="3"/>
+<rect class="f-y" x="295" y="96" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="106" y="117" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="127" y="117" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="148" y="117" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="169" y="117" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="190" y="117" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="211" y="117" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="232" y="117" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="253" y="117" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="274" y="117" width="19" height="19" rx="3"/>
+<rect class="f-y" x="295" y="117" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="106" y="138" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="127" y="138" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="148" y="138" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="169" y="138" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="190" y="138" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="211" y="138" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="232" y="138" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="253" y="138" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="274" y="138" width="19" height="19" rx="3"/>
+<rect class="f-y" x="295" y="138" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="106" y="159" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="127" y="159" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="148" y="159" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="169" y="159" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="190" y="159" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="211" y="159" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="232" y="159" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="253" y="159" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="274" y="159" width="19" height="19" rx="3"/>
+<rect class="f-y" x="295" y="159" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="106" y="180" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="127" y="180" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="148" y="180" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="169" y="180" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="190" y="180" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="211" y="180" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="232" y="180" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="253" y="180" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="274" y="180" width="19" height="19" rx="3"/>
+<rect class="f-y" x="295" y="180" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="106" y="201" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="127" y="201" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="148" y="201" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="169" y="201" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="190" y="201" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="211" y="201" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="232" y="201" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="253" y="201" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="274" y="201" width="19" height="19" rx="3"/>
+<rect class="f-y" x="295" y="201" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="106" y="222" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="127" y="222" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="148" y="222" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="169" y="222" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="190" y="222" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="211" y="222" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="232" y="222" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="253" y="222" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="274" y="222" width="19" height="19" rx="3"/>
+<rect class="f-y" x="295" y="222" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="106" y="243" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="127" y="243" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="148" y="243" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="169" y="243" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="190" y="243" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="211" y="243" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="232" y="243" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="253" y="243" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="274" y="243" width="19" height="19" rx="3"/>
+<rect class="f-y" x="295" y="243" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="106" y="264" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="127" y="264" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="148" y="264" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="169" y="264" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="190" y="264" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="211" y="264" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="232" y="264" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="253" y="264" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="274" y="264" width="19" height="19" rx="3"/>
+<rect class="f-y" x="295" y="264" width="19" height="19" rx="3"/>
+<rect class="f-y" x="106" y="285" width="19" height="19" rx="3"/>
+<rect class="f-y" x="127" y="285" width="19" height="19" rx="3"/>
+<rect class="f-y" x="148" y="285" width="19" height="19" rx="3"/>
+<rect class="f-y" x="169" y="285" width="19" height="19" rx="3"/>
+<rect class="f-y" x="190" y="285" width="19" height="19" rx="3"/>
+<rect class="f-y" x="211" y="285" width="19" height="19" rx="3"/>
+<rect class="f-y" x="232" y="285" width="19" height="19" rx="3"/>
+<rect class="f-y" x="253" y="285" width="19" height="19" rx="3"/>
+<rect class="f-y" x="274" y="285" width="19" height="19" rx="3"/>
+<rect class="f-o" x="295" y="285" width="19" height="19" rx="3"/>
+<rect class="f-b2" x="28" y="321" width="16" height="16" rx="3"/>
+<text class="f-t" x="54" y="334" style="font-size:14px">81</text>
+<text class="f-s" x="80" y="334">los dos rápidos: 0.9 × 0.9 = 0.81</text>
+<rect class="f-y" x="28" y="347" width="16" height="16" rx="3"/>
+<text class="f-t" x="54" y="360" style="font-size:14px">18</text>
+<text class="f-s" x="80" y="360">solo uno lento: 9 + 9</text>
+<rect class="f-o" x="28" y="373" width="16" height="16" rx="3"/>
+<text class="f-t" x="54" y="386" style="font-size:14px">1</text>
+<text class="f-s" x="80" y="386">los dos lentos: 0.1 × 0.1 = 0.01</text>
+<rect class="f-chip" x="24" y="406" width="312" height="62" rx="10"/>
+<text class="f-t" x="38" y="430" style="font-size:13px">Al menos uno lento: 19 = 100 − 81</text>
+<text class="f-s" x="38" y="451" style="font-size:12px">Sumar 10 + 10 = 20 cuenta dos veces el naranja</text>
+</svg>

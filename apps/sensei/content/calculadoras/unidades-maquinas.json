@@ -1,0 +1,28 @@
+{
+  "titulo": "Cuántas máquinas",
+  "intro": "Del pico de diseño a máquinas y dinero. Empieza en C01: 500 req/s, una T4 que sostiene 1,200 fotos por segundo medidas, planeada al 50 %, una de repuesto y US$0.526 la hora.",
+  "entradas": [
+    { "id": "p", "label": "Pico de diseño, en req/s", "min": 10, "max": 20000, "paso": 10, "valor": 500, "tipo": "numero" },
+    { "id": "c", "label": "Capacidad **medida** de una máquina, en req/s", "min": 10, "max": 5000, "paso": 10, "valor": 1200, "tipo": "numero" },
+    { "id": "u", "label": "Utilización objetivo", "min": 10, "max": 90, "paso": 5, "valor": 50, "unidad": "%" },
+    { "id": "r", "label": "Máquinas de repuesto (N+1 = 1)", "min": 0, "max": 3, "paso": 1, "valor": 1 },
+    { "id": "h", "label": "Precio por máquina y hora, en US$", "min": 0.05, "max": 10, "paso": 0.001, "valor": 0.526, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "plan", "formula": "c * u / 100" },
+    { "id": "exacto", "formula": "p / plan" },
+    { "id": "n", "formula": "ceil(exacto)" },
+    { "id": "tot", "formula": "n + r" }
+  ],
+  "salidas": [
+    { "label": "Capacidad planeada por máquina", "formula": "plan", "formato": "int", "nota": "medida × utilización, en req/s" },
+    { "label": "Máquinas, sin redondear", "formula": "exacto", "decimales": 2, "nota": "pico ÷ capacidad planeada" },
+    { "label": "Por tráfico, hacia arriba", "formula": "n", "formato": "int", "nota": "⌈pico ÷ capacidad planeada⌉" },
+    { "label": "Si redondearas hacia abajo", "formula": "floor(exacto)", "formato": "int", "nota": "lo que no se hace: en el pico faltaría capacidad" },
+    { "label": "Total, con repuesto", "formula": "tot", "formato": "int" },
+    { "label": "Carga de cada una en el pico", "formula": "p / (tot * c)", "formato": "pct", "barra": true, "nota": "contra su máximo medido, con todas encendidas" },
+    { "label": "Carga si se cae una", "formula": "p / ((tot - 1) * c)", "formato": "pct", "barra": true, "nota": "«—» quiere decir que no queda ninguna" },
+    { "label": "Costo al mes, en US$", "formula": "tot * h * 730", "formato": "int", "nota": "máquinas × US$ por hora × 730 h" }
+  ],
+  "nota": "Sube el pico a 5,000: ya son 9 por tráfico y 10 en total, y el repuesto pesa menos en la factura. Baja la utilización a 30 %: pagas más máquinas a cambio de colas más cortas."
+}

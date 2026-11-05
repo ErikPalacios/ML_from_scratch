@@ -1,0 +1,58 @@
+{
+  "titulo": "Lo que tumba a las dos réplicas a la vez",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "causas", "label": "Causas", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 14 },
+    { "id": "zonas", "label": "Dos zonas", "kind": "online", "x": 0, "y": 16, "w": 78, "h": 16 },
+    { "id": "defensa", "label": "La defensa", "kind": "monitor", "x": 0, "y": 34, "w": 78, "h": 16 }
+  ],
+  "nodes": [
+    { "id": "propia", "label": "Falla propia", "sub": "un disco, un nodo", "kind": "external", "x": 3, "y": 4, "w": 18, "h": 8,
+      "note": "Lo que le pasa a una sola réplica por su cuenta: se descompone un disco, se reinicia una máquina. Como no le pasa a la otra al mismo tiempo, las dos fallan juntas solo con probabilidad 0.005 × 0.005." },
+    { "id": "comun", "label": "Causa común", "sub": "deploy · config · base", "kind": "job", "x": 29, "y": 4, "w": 21, "h": 8,
+      "note": "Lo que llega a **las dos réplicas a la vez**: la misma versión con un error, el mismo cambio de configuración, la misma base de datos o el mismo certificado que vence. Es una [[falla-correlacionada]]: rompe la independencia y con ella la cuenta de la redundancia." },
+    { "id": "repA", "label": "Réplica A", "sub": "zona A · 99.5 %", "kind": "service", "x": 3, "y": 20, "w": 18, "h": 9,
+      "note": "Una copia del servicio en la zona A, con su propia máquina, su electricidad y su red." },
+    { "id": "alb", "label": "Balanceador", "sub": "reparte", "kind": "edge", "x": 30, "y": 20, "w": 18, "h": 9,
+      "note": "Manda cada request a una réplica sana. Si una zona deja de responder, manda todo a la otra." },
+    { "id": "repB", "label": "Réplica B", "sub": "zona B · 99.5 %", "kind": "service", "x": 57, "y": 20, "w": 18, "h": 9,
+      "note": "La copia de la zona B. Con fallas independientes, las dos juntas dan 99.9975 %. Con una causa común el 0.1 % del tiempo, ≈ 99.90 %." },
+    { "id": "canary", "label": "Canary", "sub": "v8 al 5 %, una zona", "kind": "monitor", "x": 3, "y": 38, "w": 20, "h": 9,
+      "note": "Una versión nueva entra primero a una parte chica del tráfico y a una sola zona, y se comparan sus errores con los de la versión anterior. Si suben, se regresa a la anterior en minutos, antes de que llegue a la otra zona." },
+    { "id": "manual", "label": "Selector manual", "sub": "no comparte nada", "kind": "human", "x": 55, "y": 38, "w": 20, "h": 9,
+      "note": "Un plan B sirve solo si no depende de lo mismo que falló. El selector de C01 no usa el modelo ni su base: si se cae todo lo del modelo, sigue ahí." }
+  ],
+  "edges": [
+    { "from": "alb", "to": "repA", "kind": "online", "fromSide": "l", "toSide": "r" },
+    { "from": "alb", "to": "repB", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "propia", "to": "repA", "kind": "neutral", "dashed": true, "fromSide": "b", "toSide": "t" },
+    { "from": "comun", "to": "repA", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "comun", "to": "repB", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "repA", "to": "canary", "kind": "monitor", "fromSide": "b", "toSide": "t", "label": "errores" },
+    { "from": "alb", "to": "manual", "kind": "neutral", "dashed": true, "fromSide": "b", "toSide": "t", "label": "si caen las dos" }
+  ],
+  "flows": [
+    { "id": "propia", "label": "Una falla propia",
+      "steps": [
+        { "nodes": ["propia", "repA"], "edges": ["propia>repA"], "text": "Se descompone el disco de la máquina de la réplica A. Solo le pasa a ella." },
+        { "nodes": ["alb", "repB"], "edges": ["alb>repB"], "text": "El balanceador manda todo a la réplica B. Para que fallen las dos, la B tendría que fallar **al mismo tiempo y por su cuenta**: 0.005 × 0.005 = 0.0025 % del tiempo, ≈ 1 minuto al mes." }
+      ] },
+    { "id": "deploy", "label": "Una causa común: un deploy malo",
+      "steps": [
+        { "nodes": ["comun", "repA", "repB"], "edges": ["comun>repA", "comun>repB"], "text": "Se publica la versión 8 en las dos zonas a la vez, y trae un error. Las dos réplicas quedan sanas… corriendo el mismo error." },
+        { "nodes": ["repA", "repB", "alb"], "edges": [], "text": "No importa cuántas réplicas haya: **caen juntas**. Si esto pasa el 0.1 % del tiempo, el par queda en ≈ 99.90 %, y 43 de sus 44 minutos caídos al mes son de esta causa." }
+      ] },
+    { "id": "base", "label": "Una causa común: la base compartida",
+      "steps": [
+        { "nodes": ["comun", "repA", "repB"], "edges": ["comun>repA", "comun>repB"], "text": "Las dos réplicas leen la misma base de datos, o el mismo caché. Si esa base se cae, las dos se quedan sin lo que necesitan **al mismo tiempo**." },
+        { "nodes": ["alb", "manual"], "edges": ["alb>manual"], "text": "Ahí solo salva un plan B que no use esa base. Si el plan B también la usara, caería con ellas: no sería plan B." }
+      ] },
+    { "id": "defensa", "label": "La defensa: de a poco",
+      "steps": [
+        { "nodes": ["comun", "repA"], "edges": ["comun>repA"], "text": "La versión 8 entra **solo a la zona A**, y primero a una parte chica del tráfico." },
+        { "nodes": ["repA", "canary"], "edges": ["repA>canary"], "text": "El canary compara los errores de la versión 8 con los de la anterior. Si suben, se regresa a la anterior en minutos." },
+        { "nodes": ["repB", "alb"], "edges": ["alb>repB"], "text": "La versión mala nunca llegó a la zona B, que siguió atendiendo. La causa común se convirtió en una falla de una sola zona: **la independencia se recuperó**." }
+      ] }
+  ]
+}

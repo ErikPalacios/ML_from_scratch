@@ -1,0 +1,245 @@
+{
+  "titulo": "Dónde se calcula y por dónde viajan los bytes",
+  "width": 78,
+  "height": 40,
+  "lanes": [
+    {
+      "id": "vram",
+      "label": "VRAM · la memoria de la GPU",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 17
+    },
+    {
+      "id": "chip",
+      "label": "El chip",
+      "kind": "online",
+      "x": 0,
+      "y": 19,
+      "w": 78,
+      "h": 21
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pesos",
+      "label": "Pesos",
+      "sub": "los números del modelo",
+      "kind": "store",
+      "x": 2,
+      "y": 6,
+      "w": 20,
+      "h": 8,
+      "note": "Los [[parametro|parámetros]] del modelo. La ResNet-50 de C01 en FP16 ocupa ≈ 49 MB; Llama 3 8B en BF16, ≈ 16 GB. Viven en la [[vram|VRAM]], y para usarlos hay que traerlos al chip."
+    },
+    {
+      "id": "entradas",
+      "label": "Entradas",
+      "sub": "el batch, el token",
+      "kind": "store",
+      "x": 27,
+      "y": 6,
+      "w": 20,
+      "h": 8,
+      "note": "Lo que entra a cada capa: la foto ya convertida en [[tensor]], los mapas de la capa anterior o, en un LLM, el vector del token y el [[kv-cache|KV cache]] de la conversación. También viven en la VRAM y también viajan."
+    },
+    {
+      "id": "salidas",
+      "label": "Salidas",
+      "sub": "el resultado de la capa",
+      "kind": "store",
+      "x": 57,
+      "y": 6,
+      "w": 20,
+      "h": 8,
+      "note": "Lo que calcula cada capa vuelve a la VRAM para que la siguiente lo lea. Escribirlo y releerlo también cuesta bytes: por eso conviene fusionar operaciones (lo ves en una sección extra)."
+    },
+    {
+      "id": "cache",
+      "label": "Caché del chip",
+      "sub": "pocos MB, rapidísima",
+      "kind": "store",
+      "x": 27,
+      "y": 28,
+      "w": 20,
+      "h": 8,
+      "note": "Una memoria chiquita dentro del chip, mucho más rápida que la VRAM. Todo lo que sube de la VRAM pasa por el **ancho de banda** (320 GB/s en una T4). Un buen programa trae un bloque de números **una vez** y lo usa muchas veces aquí: cuántas veces logra usar cada byte que trae es la [[intensidad-aritmetica|intensidad aritmética]]."
+    },
+    {
+      "id": "tensor",
+      "label": "Tensor cores",
+      "sub": "65 TFLOPS en FP16 (T4)",
+      "kind": "gpu",
+      "x": 57,
+      "y": 28,
+      "w": 20,
+      "h": 8,
+      "note": "Los circuitos que multiplican bloques de matrices en un solo paso, con números de pocos bits (FP16, BF16, FP8, INT8). Son rapidísimos, pero solo trabajan con lo que ya llegó al chip: si la memoria no los alimenta, esperan."
+    }
+  ],
+  "edges": [
+    {
+      "from": "pesos",
+      "to": "cache",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "l"
+    },
+    {
+      "from": "entradas",
+      "to": "cache",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "320 GB/s"
+    },
+    {
+      "from": "cache",
+      "to": "tensor",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "reusar"
+    },
+    {
+      "from": "tensor",
+      "to": "salidas",
+      "kind": "online",
+      "fromSide": "t",
+      "toSide": "b"
+    }
+  ],
+  "flows": [
+    {
+      "id": "matmul",
+      "label": "Una multiplicación grande",
+      "steps": [
+        {
+          "nodes": [
+            "pesos",
+            "entradas"
+          ],
+          "edges": [],
+          "text": "Dos matrices de 4,096 × 4,096 en FP16 esperan en la VRAM: ≈ 33.6 MB cada una."
+        },
+        {
+          "nodes": [
+            "pesos",
+            "entradas",
+            "cache"
+          ],
+          "edges": [
+            "pesos>cache",
+            "entradas>cache"
+          ],
+          "text": "Un bloque de cada una viaja al chip por el **ancho de banda**: 320 GB/s en una T4. Mover todo lo necesario (leer las dos y escribir el resultado, ≈ 101 MB) tarda al menos ≈ 0.3 ms."
+        },
+        {
+          "nodes": [
+            "cache",
+            "tensor"
+          ],
+          "edges": [
+            "cache>tensor"
+          ],
+          "text": "En el chip, cada número se usa en cientos de multiplicaciones antes de soltarlo. Los tensor cores hacen los ≈ 137 GFLOPs en al menos ≈ 2.1 ms."
+        },
+        {
+          "nodes": [
+            "tensor",
+            "salidas"
+          ],
+          "edges": [
+            "tensor>salidas"
+          ],
+          "text": "El resultado vuelve a la VRAM. El cálculo tardó ≈ 7 veces más que la memoria: es **compute-bound**, y la memoria le sobra."
+        }
+      ]
+    },
+    {
+      "id": "token",
+      "label": "Un token de un LLM",
+      "steps": [
+        {
+          "nodes": [
+            "pesos"
+          ],
+          "edges": [],
+          "text": "Para escribir **un** token, Llama 3 8B necesita **todos** sus pesos: ≈ 16 GB en BF16. Va en una L4, con 300 GB/s y ≈ 121 TFLOPS."
+        },
+        {
+          "nodes": [
+            "pesos",
+            "entradas",
+            "cache"
+          ],
+          "edges": [
+            "pesos>cache",
+            "entradas>cache"
+          ],
+          "text": "Traerlos al chip tarda al menos 16 GB ÷ 300 GB/s ≈ **54 ms**."
+        },
+        {
+          "nodes": [
+            "cache",
+            "tensor"
+          ],
+          "edges": [
+            "cache>tensor"
+          ],
+          "text": "Cada peso se usa **una sola vez**: una multiplicación y una suma, 2 FLOPs por cada 2 bytes. No hay nada que reusar, y los ≈ 16 GFLOPs se hacen en ≈ 0.13 ms."
+        },
+        {
+          "nodes": [
+            "tensor",
+            "salidas"
+          ],
+          "edges": [
+            "tensor>salidas"
+          ],
+          "text": "Los tensor cores esperan ≈ 400 veces más de lo que trabajan: **memory-bound**. El techo es ≈ 19 tokens por segundo, y una GPU con más TFLOPS no lo mueve."
+        }
+      ]
+    },
+    {
+      "id": "batch",
+      "label": "El mismo LLM, con batching",
+      "steps": [
+        {
+          "nodes": [
+            "pesos",
+            "cache"
+          ],
+          "edges": [
+            "pesos>cache"
+          ],
+          "text": "Con 4 conversaciones a la vez, los 16 GB de pesos se leen **una vez por paso** para las cuatro."
+        },
+        {
+          "nodes": [
+            "entradas",
+            "cache"
+          ],
+          "edges": [
+            "entradas>cache"
+          ],
+          "text": "Cada conversación trae su propio KV cache (≈ 1.07 GB con 8,192 tokens), que no se comparte."
+        },
+        {
+          "nodes": [
+            "cache",
+            "tensor",
+            "salidas"
+          ],
+          "edges": [
+            "cache>tensor",
+            "tensor>salidas"
+          ],
+          "text": "Salen 4 tokens por paso: ≈ 59 tokens por segundo en total, contra ≈ 19 con una sola conversación. Cada peso leído rindió cuatro veces."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{ "terminos": [
+  {
+    "id": "referencia",
+    "termino": "Referencia",
+    "en": "reference window · baseline",
+    "corto": "La muestra de datos «normales» contra la que se comparan los datos de hoy para saber si algo cambió: los datos con los que se entrenó el modelo, o unas semanas recientes que se portaron bien.",
+    "largo": "Comparar distribuciones siempre es comparar dos cosas: la referencia y la ventana actual, que es el pedazo de datos que revisas ahora (ayer, la última semana, la última hora). Cada referencia responde otra pregunta. Contra los datos de entrenamiento: «¿el modelo está viendo algo que no aprendió?». Contra una ventana reciente: «¿cambió algo de golpe?». Contra la misma franja de antes (el mismo periodo del año pasado, la misma hora de la semana pasada): «¿esto es raro para este momento?», que es lo que pide la estacionalidad. Lo normal es usar dos a la vez. La de entrenamiento se versiona con el modelo: si el modelo se reentrena con datos nuevos, su referencia cambia con él.",
+    "analogia": "Como la foto de «antes» en un antes y después: sin ella no hay comparación. Se rompe en que aquí hay que elegir cuál «antes» usar, y cada uno cuenta una historia distinta.",
+    "ejemplo": "C01 compara cada día la mezcla de categorías que predijo contra la de las 4 semanas previas, y abre un ticket si el [[psi|PSI]] pasa de 0.2 tres días seguidos. Un drift lento de 1 punto por semana nunca se ve contra la semana anterior (PSI ≤ 0.0012), pero contra el entrenamiento cruza 0.2 en la semana 15.",
+    "ver": ["psi", "drift", "monitoreo"],
+    "leccion": "distribuciones"
+  },
+  {
+    "id": "psi",
+    "termino": "PSI",
+    "en": "Population Stability Index · índice de estabilidad de la población",
+    "corto": "Un número que dice cuánto se movió un histograma respecto a su referencia: la suma, bin por bin, de (actual − esperado) × ln(actual ÷ esperado). Menos de 0.1 es estable; más de 0.25, un cambio grande.",
+    "largo": "Se arma con los mismos bins en los dos lados, en proporciones que suman 1. Cada bin aporta un número mayor o igual a 0, porque la diferencia y el [[logaritmo]] del cociente siempre tienen el mismo signo. Es la [[divergencia-kl|divergencia KL]] en las dos direcciones, sumadas. A diferencia de un [[p-value]], no crece con la cantidad de datos, así que sirve como tamaño del cambio. Los cortes 0.1 y 0.25 vienen de los bancos (credit scoring) y son costumbre, no ley: se calibran mirando cuánto se mueve en semanas normales. Como guía, en una variable con forma de campana, una media que se corre δ desviaciones estándar da un PSI de ≈ δ². Un bin vacío hace ln(0): se usan bins por cuantiles de la referencia y un piso fijo (epsilon).",
+    "ejemplo": "Brillo de las fotos de C01 en 5 bins: referencia 10, 20, 40, 20 y 10 %; una semana de noviembre con muchas fotos de noche, 22, 30, 30, 12 y 6 %. PSI ≈ 0.23: cambio moderado, arriba del 0.2 desde el que actúa C01.",
+    "ver": ["referencia", "divergencia-kl", "histograma", "logaritmo"],
+    "leccion": "distribuciones"
+  },
+  {
+    "id": "prueba-ks",
+    "termino": "Prueba KS",
+    "en": "Kolmogorov–Smirnov test · KS test",
+    "corto": "Compara dos muestras de un número midiendo la distancia vertical más grande, D, entre sus curvas acumuladas. D va de 0 (iguales) a 1 (todos los datos de una quedan antes que todos los de la otra).",
+    "largo": "La curva acumulada de una muestra dice, para cada valor x, qué fracción de los datos es menor o igual a x: sube de 0 a 1 en escalones, uno por dato. La prueba pone las dos curvas juntas y busca dónde se separan más: eso es D. No necesita bins. También da un [[p-value]]: qué tan raro sería un D así de grande si las dos muestras salieran de la misma distribución. En monitoreo ese p-value engaña: el D que ya cuenta como «significativo» es ≈ 1.36 × √(2 ÷ n), con n datos por lado, así que con millones de datos cualquier cambio minúsculo lo es. Se usa D como tamaño del cambio, con un umbral calibrado, o la prueba sobre muestras chicas.",
+    "ejemplo": "Con 1 millón de datos por lado y una media corrida 0.02 desviaciones estándar (nada que importe), D ≈ 0.008 y el umbral es 0.0019: p ≈ 6 × 10⁻²⁹. Con 5 fotos por lado, el umbral es ≈ 0.86.",
+    "ver": ["p-value", "significancia", "psi"],
+    "leccion": "distribuciones"
+  },
+  {
+    "id": "logaritmo",
+    "termino": "Logaritmo",
+    "en": "logarithm · ln · log2",
+    "corto": "La operación que responde «¿a qué potencia hay que elevar la base para llegar a este número?». log2 8 = 3 porque 2³ = 8. Convierte multiplicaciones en sumas y cocientes en restas.",
+    "largo": "Hay tres bases que vas a ver: 2 (log2, cuenta duplicaciones y mide [[bit|bits]]), 10 (log10, cuenta ceros) y e ≈ 2.718 (ln, el logaritmo natural, el que usan casi todas las fórmulas de ML). Sus reglas: ln 1 = 0; un número entre 0 y 1 tiene logaritmo negativo; ln(a × b) = ln a + ln b; ln(a ÷ b) = ln a − ln b; y ln 0 no existe (se va a menos infinito). Por eso mide cocientes: duplicar suma siempre ln 2 ≈ 0.693 y dividir entre 2 resta 0.693, sin importar de qué número partas. Para cambiar de base: log2 x = ln x ÷ ln 2. Ojo: en Python, `math.log` es ln; en muchas calculadoras, la tecla «log» es base 10.",
+    "ejemplo": "ln(0.14 ÷ 0.10) = ln 1.4 ≈ 0.336, y ln(0.10 ÷ 0.14) ≈ −0.336: subir de 10 % a 14 % y bajar de 14 % a 10 % miden lo mismo con signo contrario. log2 1,024 = 10.",
+    "ver": ["entropia", "psi", "entropia-cruzada"],
+    "leccion": "distribuciones"
+  },
+  {
+    "id": "entropia",
+    "termino": "Entropía",
+    "en": "entropy · Shannon entropy",
+    "corto": "La sorpresa promedio de algo incierto, medida en bits: la suma de p × log2(1 ÷ p) sobre todos los resultados. Una moneda justa tiene 1 bit; un dado, 2.585.",
+    "largo": "Un resultado con probabilidad p trae log2(1 ÷ p) bits de sorpresa: lo seguro trae 0 y lo raro trae mucho. La entropía promedia esa sorpresa con el peso de cada resultado. Es máxima cuando todo es igual de probable (log2 de cuántos resultados hay) y vale 0 cuando uno es seguro. 2 elevado a la entropía dice «es como elegir al azar entre tantas opciones parejas». En ML aparece como la indecisión de una predicción (la entropía del [[softmax]]), dentro de la [[entropia-cruzada]] con la que se entrena y en la [[divergencia-kl]]. Con ln en vez de log2 se mide en nats (1 nat ≈ 1.44 bits).",
+    "ejemplo": "Una moneda 90/10: 0.9 × 0.152 + 0.1 × 3.322 ≈ 0.469 bits. Una foto de C01 con softmax (0.94, 0.03, 0.02, 0.01): 0.41 bits; una dudosa (0.40, 0.35, 0.15, 0.10): 1.80 bits, como dudar entre 3.5 opciones.",
+    "ver": ["bit", "logaritmo", "divergencia-kl", "entropia-cruzada"],
+    "leccion": "distribuciones"
+  },
+  {
+    "id": "divergencia-kl",
+    "termino": "Divergencia KL",
+    "en": "Kullback–Leibler divergence · KL divergence · relative entropy",
+    "corto": "Cuánta sorpresa de más te llevas, en promedio, si te preparaste para la distribución Q y la realidad es P: la suma de p × ln(p ÷ q). Vale 0 solo si son iguales, y no es simétrica.",
+    "largo": "Se escribe KL(P ‖ Q) y el orden importa: pesa con las probabilidades de P, así que lo que más cuenta es lo que en la realidad pasa seguido y la referencia creía raro. Si Q le da 0 a algo que en P pasa, es infinita. Es la [[entropia-cruzada]] menos la [[entropia]] de P, así que entrenar un clasificador con entropía cruzada es bajar una KL. Sumada en las dos direcciones es el [[psi|PSI]]. Su prima simétrica es la divergencia de Jensen–Shannon: compara las dos contra su promedio M = (P + Q) ÷ 2, nunca es infinita y no pasa de ln 2 ≈ 0.693 (1 bit). Algunas librerías reportan su raíz cuadrada, la distancia de Jensen–Shannon.",
+    "ejemplo": "Categorías de C01 en octubre Q = (60 % ropa, 39 % calzado, 1 % juguetes) y en diciembre P = (55 %, 35 %, 10 %), números de ejemplo: KL(P ‖ Q) ≈ 0.145 y KL(Q ‖ P) ≈ 0.071. La suma, 0.216, es el PSI.",
+    "ver": ["entropia", "psi", "entropia-cruzada"],
+    "leccion": "distribuciones"
+  },
+  {
+    "id": "chi-cuadrado",
+    "termino": "Prueba chi-cuadrado",
+    "en": "chi-square test · χ²",
+    "corto": "Compara conteos de categorías contra los que esperabas: suma (observado − esperado)² ÷ esperado. Si el total pasa un valor crítico, la diferencia es «significativa».",
+    "largo": "Los esperados salen de la [[referencia]]: el total de hoy por la proporción de cada categoría en la referencia. El valor crítico depende de cuántas categorías hay: con K categorías se usan K − 1 «grados de libertad» (con 5 categorías, 4, y el corte al 5 % es 9.49). Para cambios chicos, chi-cuadrado ≈ n × [[psi|PSI]]: con las mismas proporciones, cien veces más datos dan un chi-cuadrado cien veces más grande. Por eso, con millones de predicciones al día, cualquier cambio sale significativo: sirve para saber si hay datos suficientes, y el PSI para saber si el cambio importa.",
+    "ejemplo": "Mezcla de 5 categorías padre de C01, con 1 punto de diferencia en dos de ellas: con 1,000 predicciones, chi-cuadrado ≈ 1.33 (nada); con 100,000, ≈ 133 (p ≈ 8 × 10⁻²⁸). El PSI es 0.0013 en los dos casos.",
+    "ver": ["p-value", "psi", "prueba-ks"],
+    "leccion": "distribuciones"
+  },
+  {
+    "id": "concept-drift",
+    "termino": "Concept drift",
+    "en": "concept drift · deriva de concepto",
+    "corto": "Cuando cambia la regla que une la entrada con la respuesta correcta: la misma foto o el mismo pago ahora merecen otra respuesta, aunque los datos de entrada se vean idénticos.",
+    "largo": "En notación, cambia p(y | x): la probabilidad de cada respuesta y dada una entrada x. Como las entradas no se mueven, el [[psi|PSI]] de las entradas puede quedarse en cero mientras el modelo empeora. Solo se ve con etiquetas nuevas (la métrica cae) o con señales indirectas, como más correcciones de personas. Las etiquetas viejas quedan mal: se reetiqueta con la regla nueva y se reentrena. No es lo mismo que el [[drift]] de datos (cambian las entradas) ni que el [[label-shift]] (cambia cuánto hay de cada clase).",
+    "ejemplo": "En C01, moderación decide que las fundas de celular ya no van en «Celulares», sino en «Accesorios para celular»: la misma foto, otra respuesta correcta. En C09, los defraudadores aprenden los cortes y compran a US$95–99, justo debajo del corte de US$100: la misma compra ahora es fraude más seguido.",
+    "ver": ["drift", "label-shift", "reentrenamiento"],
+    "leccion": "distribuciones"
+  },
+  {
+    "id": "label-shift",
+    "termino": "Label shift",
+    "en": "label shift · prior shift",
+    "corto": "Cuando cambia cuánto hay de cada clase, pero cada clase se ve como siempre. En diciembre llegan muchos más juguetes, y cada juguete se ve igual que en octubre.",
+    "largo": "En notación, cambia p(y), la proporción de cada respuesta, y p(x | y), cómo se ve cada clase, queda igual. Se sospecha mirando la mezcla de predicciones (en C01, la distribución de categorías predichas) y se confirma con etiquetas. Afecta sobre todo a los [[umbral|umbrales]] y a la [[calibracion]]: un modelo que aprendió que los juguetes son el 1 % les da menos probabilidad de la que merecen cuando son el 10 %. Se revisan umbrales y calibración por clase y, si hace falta, se reentrena con la mezcla actual.",
+    "ejemplo": "C01: supón que «Juguetes» pasa de 1 % a 10 % de las fotos en diciembre. C09: una ola de ataques sube la proporción de pagos fraudulentos, aunque cada fraude se vea como los de siempre.",
+    "ver": ["concept-drift", "drift", "desbalance"],
+    "leccion": "distribuciones"
+  }
+]}

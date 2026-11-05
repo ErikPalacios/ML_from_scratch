@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 470" role="img" aria-labelledby="f-distribuciones-psi-t" class="f-svg" style="max-width:420px">
+<title id="f-distribuciones-psi-t">PSI del brillo, bin por bin. Barras de octubre, el esperado: 10, 20, 40, 20 y 10 por ciento. Barras de una semana de noviembre con muchas fotos de noche, el actual: 22, 30, 30, 12 y 6 por ciento. Debajo, lo que aporta cada bin: 0.0946, 0.0405, 0.0288, 0.0409 y 0.0204. El bin 1, el de fotos muy oscuras, aporta más que ningún otro porque más que se duplicó. La suma, el PSI, es 0.2252: un cambio moderado.</title>
+<rect class="f-card" x="10" y="10" width="340" height="450" rx="16"/>
+<text class="f-l" x="28.0" y="36.0">PSI · SEMANA DE NOCHE CONTRA OCTUBRE</text>
+<rect class="f-b2" x="28" y="50" width="14" height="14" rx="3"/>
+<text class="f-s" x="48.0" y="62.0" style="font-size:12px">octubre (esperado)</text>
+<rect class="f-o" x="186" y="50" width="14" height="14" rx="3"/>
+<text class="f-s" x="206.0" y="62.0" style="font-size:12px">esta semana (actual)</text>
+<rect class="f-b2" x="50.4" y="190.0" width="20" height="30.0" rx="3"/>
+<text class="f-s" x="60.4" y="185.0" text-anchor="middle" style="font-size:12px;font-weight:700">10</text>
+<rect class="f-o" x="74.4" y="154.0" width="20" height="66.0" rx="3"/>
+<text class="f-s" x="84.4" y="149.0" text-anchor="middle" style="font-size:12px;font-weight:700">22</text>
+<text class="f-s" x="72.4" y="236.0" text-anchor="middle" style="font-size:12px">bin 1</text>
+<rect class="f-b2" x="107.2" y="160.0" width="20" height="60.0" rx="3"/>
+<text class="f-s" x="117.2" y="155.0" text-anchor="middle" style="font-size:12px;font-weight:700">20</text>
+<rect class="f-o" x="131.2" y="130.0" width="20" height="90.0" rx="3"/>
+<text class="f-s" x="141.2" y="125.0" text-anchor="middle" style="font-size:12px;font-weight:700">30</text>
+<text class="f-s" x="129.2" y="236.0" text-anchor="middle" style="font-size:12px">bin 2</text>
+<rect class="f-b2" x="164.0" y="100.0" width="20" height="120.0" rx="3"/>
+<text class="f-s" x="174.0" y="95.0" text-anchor="middle" style="font-size:12px;font-weight:700">40</text>
+<rect class="f-o" x="188.0" y="130.0" width="20" height="90.0" rx="3"/>
+<text class="f-s" x="198.0" y="125.0" text-anchor="middle" style="font-size:12px;font-weight:700">30</text>
+<text class="f-s" x="186.0" y="236.0" text-anchor="middle" style="font-size:12px">bin 3</text>
+<rect class="f-b2" x="220.8" y="160.0" width="20" height="60.0" rx="3"/>
+<text class="f-s" x="230.8" y="155.0" text-anchor="middle" style="font-size:12px;font-weight:700">20</text>
+<rect class="f-o" x="244.8" y="184.0" width="20" height="36.0" rx="3"/>
+<text class="f-s" x="254.8" y="179.0" text-anchor="middle" style="font-size:12px;font-weight:700">12</text>
+<text class="f-s" x="242.8" y="236.0" text-anchor="middle" style="font-size:12px">bin 4</text>
+<rect class="f-b2" x="277.6" y="190.0" width="20" height="30.0" rx="3"/>
+<text class="f-s" x="287.6" y="185.0" text-anchor="middle" style="font-size:12px;font-weight:700">10</text>
+<rect class="f-o" x="301.6" y="202.0" width="20" height="18.0" rx="3"/>
+<text class="f-s" x="311.6" y="197.0" text-anchor="middle" style="font-size:12px;font-weight:700">6</text>
+<text class="f-s" x="299.6" y="236.0" text-anchor="middle" style="font-size:12px">bin 5</text>
+<line x1="44" y1="220" x2="328" y2="220" class="f-linea"/>
+<text class="f-s" x="44.0" y="254.0" style="font-size:12px">← más oscuras</text>
+<text class="f-s" x="328.0" y="254.0" text-anchor="end" style="font-size:12px">más claras →</text>
+<text class="f-l" x="28.0" y="290.0">LO QUE APORTA CADA BIN</text>
+<rect class="f-p" x="58.4" y="312.0" width="28" height="40.0" rx="3"/>
+<text class="f-s" x="72.4" y="368.0" text-anchor="middle" style="font-size:12px;font-weight:700">0.0946</text>
+<rect class="f-p" x="115.2" y="334.9" width="28" height="17.1" rx="3"/>
+<text class="f-s" x="129.2" y="368.0" text-anchor="middle" style="font-size:12px;font-weight:700">0.0405</text>
+<rect class="f-p" x="172.0" y="339.8" width="28" height="12.2" rx="3"/>
+<text class="f-s" x="186.0" y="368.0" text-anchor="middle" style="font-size:12px;font-weight:700">0.0288</text>
+<rect class="f-p" x="228.8" y="334.7" width="28" height="17.3" rx="3"/>
+<text class="f-s" x="242.8" y="368.0" text-anchor="middle" style="font-size:12px;font-weight:700">0.0409</text>
+<rect class="f-p" x="285.6" y="343.4" width="28" height="8.6" rx="3"/>
+<text class="f-s" x="299.6" y="368.0" text-anchor="middle" style="font-size:12px;font-weight:700">0.0204</text>
+<line x1="44" y1="352" x2="328" y2="352" class="f-linea"/>
+<text class="f-s" x="28.0" y="396.0" style="font-size:12px">bin 1: 0.12 × ln 2.2 = 0.12 × 0.789 = 0.0946</text>
+<text class="f-t" x="28.0" y="422.0" style="font-size:14px">PSI = suma de los aportes = 0.2252</text>
+<text class="f-s" x="28.0" y="444.0" style="font-size:12px">moderado: arriba del 0.2 con el que actúa C01</text>
+</svg>

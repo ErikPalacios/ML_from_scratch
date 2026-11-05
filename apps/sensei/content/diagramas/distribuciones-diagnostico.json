@@ -1,0 +1,385 @@
+{
+  "titulo": "¿Qué cambió? Cuatro diagnósticos",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    {
+      "id": "alarma",
+      "label": "La alarma",
+      "kind": "monitor",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 13
+    },
+    {
+      "id": "revisas",
+      "label": "Lo que revisas",
+      "kind": "neutral",
+      "x": 0,
+      "y": 15,
+      "w": 78,
+      "h": 16
+    },
+    {
+      "id": "es",
+      "label": "Lo que es",
+      "kind": "offline",
+      "x": 0,
+      "y": 33,
+      "w": 78,
+      "h": 17
+    }
+  ],
+  "nodes": [
+    {
+      "id": "alerta",
+      "label": "Algo se movió",
+      "sub": "un PSI, una métrica",
+      "kind": "monitor",
+      "x": 30,
+      "y": 2.5,
+      "w": 18,
+      "h": 7.5,
+      "note": "Un ticket del job de drift, una caída de la tasa de aceptación o más fotos con baja [[confianza]]. Todavía no sabes qué es: el orden de las revisiones de abajo va de lo más barato y más común a lo que necesita etiquetas."
+    },
+    {
+      "id": "paridad",
+      "label": "Paridad",
+      "sub": "mismas fotos, 2 caminos",
+      "badge": "1",
+      "kind": "job",
+      "x": 5,
+      "y": 19.5,
+      "w": 16,
+      "h": 9,
+      "note": "Primero se descarta lo propio: se pasan las mismas fotos de referencia por el camino de entrenamiento y por el gateway real, y se comparan los números ([[prueba-paridad]]). Si salen distintos, el problema es tu código."
+    },
+    {
+      "id": "entradas",
+      "label": "Entradas",
+      "sub": "brillo, tamaño, embeddings",
+      "badge": "2",
+      "kind": "monitor",
+      "x": 24,
+      "y": 19.5,
+      "w": 16,
+      "h": 9,
+      "note": "Los histogramas de lo que entra al modelo contra su [[referencia]]: [[psi|PSI]] o [[prueba-ks|KS]] de cada estadística, y los [[embedding|embeddings]] para los cambios de contenido. No necesita etiquetas."
+    },
+    {
+      "id": "mezcla",
+      "label": "Predicciones",
+      "sub": "mezcla de categorías",
+      "badge": "3",
+      "kind": "monitor",
+      "x": 43,
+      "y": 19.5,
+      "w": 16,
+      "h": 9,
+      "note": "La distribución de las categorías que predice el modelo. Si se mueve mientras cada categoría se ve igual que siempre, cambió la mezcla de lo que se vende. Tampoco necesita etiquetas."
+    },
+    {
+      "id": "etiquetas",
+      "label": "Etiquetas",
+      "sub": "una muestra revisada",
+      "badge": "4",
+      "kind": "human",
+      "x": 62,
+      "y": 19.5,
+      "w": 16,
+      "h": 9,
+      "note": "Una muestra al azar de fotos recientes, etiquetada por personas. Es lo único que mide si el modelo acierta menos. Es lo más caro y lo más lento, y es lo que decide."
+    },
+    {
+      "id": "skew",
+      "label": "Skew",
+      "sub": "se arregla el código",
+      "kind": "service",
+      "x": 5,
+      "y": 38.5,
+      "w": 16,
+      "h": 9,
+      "note": "[[training-serving-skew|Training-serving skew]]: tu sistema prepara los datos distinto al servir que al entrenar. Suele empezar con un deploy. Reentrenar no lo arregla: lo esconde hasta que alguien corrige el código."
+    },
+    {
+      "id": "data",
+      "label": "Data drift",
+      "sub": "cambió p(x)",
+      "kind": "external",
+      "x": 24,
+      "y": 38.5,
+      "w": 16,
+      "h": 9,
+      "note": "Cambiaron las entradas y la regla no ([[drift]]). Se etiqueta una muestra del tipo nuevo de entrada para saber si daña; si daña, entra al próximo entrenamiento."
+    },
+    {
+      "id": "label",
+      "label": "Label shift",
+      "sub": "cambió p(y)",
+      "kind": "external",
+      "x": 43,
+      "y": 38.5,
+      "w": 16,
+      "h": 9,
+      "note": "Cambió cuánto hay de cada clase ([[label-shift]]). Se revisan los [[umbral|umbrales]] y la [[calibracion]] por clase; si hace falta, se reentrena con la mezcla actual."
+    },
+    {
+      "id": "concepto",
+      "label": "Concept drift",
+      "sub": "cambió p(y|x)",
+      "kind": "human",
+      "x": 62,
+      "y": 38.5,
+      "w": 16,
+      "h": 9,
+      "note": "Cambió la regla: la misma entrada merece otra respuesta ([[concept-drift]]). Las etiquetas viejas quedan mal: se reetiqueta con la regla nueva y se reentrena."
+    }
+  ],
+  "edges": [
+    {
+      "from": "alerta",
+      "to": "paridad",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          33,
+          12
+        ],
+        [
+          13,
+          12
+        ]
+      ]
+    },
+    {
+      "from": "alerta",
+      "to": "entradas",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          37,
+          12
+        ],
+        [
+          32,
+          12
+        ]
+      ]
+    },
+    {
+      "from": "alerta",
+      "to": "mezcla",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          41,
+          12
+        ],
+        [
+          51,
+          12
+        ]
+      ]
+    },
+    {
+      "from": "alerta",
+      "to": "etiquetas",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          45,
+          12
+        ],
+        [
+          70,
+          12
+        ]
+      ]
+    },
+    {
+      "from": "paridad",
+      "to": "skew",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "falla"
+    },
+    {
+      "from": "entradas",
+      "to": "data",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "se movieron"
+    },
+    {
+      "from": "mezcla",
+      "to": "label",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "se movió"
+    },
+    {
+      "from": "etiquetas",
+      "to": "concepto",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "acierta menos"
+    }
+  ],
+  "flows": [
+    {
+      "id": "bgr",
+      "label": "Un deploy con BGR",
+      "steps": [
+        {
+          "nodes": [
+            "alerta"
+          ],
+          "edges": [],
+          "text": "**El lunes sale una versión nueva del gateway.** Desde ese día sube la tasa de fotos con baja confianza y la mezcla de categorías se mueve."
+        },
+        {
+          "nodes": [
+            "alerta",
+            "paridad"
+          ],
+          "edges": [
+            "alerta>paridad"
+          ],
+          "text": "**Primero, la paridad.** Las mismas fotos de referencia dan números distintos por los dos caminos: la versión nueva lee los colores en orden BGR."
+        },
+        {
+          "nodes": [
+            "paridad",
+            "skew"
+          ],
+          "edges": [
+            "paridad>skew"
+          ],
+          "text": "**Es skew.** El mundo no cambió, cambió tu código. Se corrige y se agrega una prueba que impida que vuelva."
+        }
+      ]
+    },
+    {
+      "id": "noche",
+      "label": "Fotos de noche",
+      "steps": [
+        {
+          "nodes": [
+            "alerta",
+            "paridad"
+          ],
+          "edges": [
+            "alerta>paridad"
+          ],
+          "text": "**La paridad pasa:** el código hace lo mismo en los dos caminos."
+        },
+        {
+          "nodes": [
+            "entradas"
+          ],
+          "edges": [
+            "alerta>entradas"
+          ],
+          "text": "**El histograma del brillo se movió:** PSI ≈ 0.23 tres días seguidos. La mezcla de categorías, casi nada."
+        },
+        {
+          "nodes": [
+            "entradas",
+            "data"
+          ],
+          "edges": [
+            "entradas>data"
+          ],
+          "text": "**Es data drift:** cambió p(x), cómo se ven las fotos. Se etiqueta una muestra de fotos de noche para saber si el modelo acierta menos con ellas."
+        }
+      ]
+    },
+    {
+      "id": "diciembre",
+      "label": "Llega diciembre",
+      "steps": [
+        {
+          "nodes": [
+            "paridad",
+            "entradas"
+          ],
+          "edges": [
+            "alerta>paridad",
+            "alerta>entradas"
+          ],
+          "text": "**La paridad pasa y cada categoría se ve como siempre:** un juguete de diciembre parece un juguete de octubre."
+        },
+        {
+          "nodes": [
+            "mezcla"
+          ],
+          "edges": [
+            "alerta>mezcla"
+          ],
+          "text": "**La mezcla de predicciones sí se movió:** en el ejemplo, «Juguetes» pasa de 1 % a 10 %."
+        },
+        {
+          "nodes": [
+            "mezcla",
+            "label"
+          ],
+          "edges": [
+            "mezcla>label"
+          ],
+          "text": "**Es label shift:** cambió p(y), cuánto hay de cada clase. Se revisan umbrales y calibración de las categorías que crecieron."
+        }
+      ]
+    },
+    {
+      "id": "regla",
+      "label": "Una regla nueva",
+      "steps": [
+        {
+          "nodes": [
+            "paridad",
+            "entradas",
+            "mezcla"
+          ],
+          "edges": [
+            "alerta>paridad",
+            "alerta>entradas",
+            "alerta>mezcla"
+          ],
+          "text": "**Todo se ve igual:** la paridad pasa, las entradas no se mueven y la mezcla tampoco. El PSI da casi 0."
+        },
+        {
+          "nodes": [
+            "etiquetas"
+          ],
+          "edges": [
+            "alerta>etiquetas"
+          ],
+          "text": "**Pero la muestra etiquetada dice que el modelo acierta menos en «Celulares».** Moderación decidió que las fundas ahora van en «Accesorios para celular»."
+        },
+        {
+          "nodes": [
+            "etiquetas",
+            "concepto"
+          ],
+          "edges": [
+            "etiquetas>concepto"
+          ],
+          "text": "**Es concept drift:** cambió p(y | x), la respuesta correcta para la misma foto. Se reetiqueta con la regla nueva y se reentrena."
+        }
+      ]
+    }
+  ]
+}

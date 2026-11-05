@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 400" role="img" aria-labelledby="f-flops-roofline-t" class="f-svg" style="max-width:420px">
+<title id="f-flops-roofline-t">El roofline de una T4 en FP16, con las dos escalas logarítmicas. A lo ancho, la intensidad aritmética en FLOPs por byte, de 0.1 a 10,000; a lo alto, los TFLOPS alcanzables, de 0.01 a 100. La rampa sube como intensidad por 320 GB/s hasta el punto de quiebre, cerca de 203 FLOPs por byte, y desde ahí el techo es plano en 65 TFLOPS. A la izquierda del quiebre los cálculos son memory-bound; a la derecha, compute-bound. Tres puntos: el decode de un LLM, con intensidad 1, alcanza 0.32 TFLOPS; la capa final de C01 con batch 32, con intensidad cercana a 30, alcanza unos 9.5 TFLOPS; una multiplicación de dos matrices de 4,096, con intensidad cercana a 1,365, llega al techo de 65 TFLOPS.</title>
+<rect class="f-card" x="10" y="10" width="340" height="380" rx="16"/>
+<text class="f-l" x="28" y="36">EL ROOFLINE DE UNA T4 · FP16</text>
+<text class="f-l" x="28" y="56">TFLOPS</text>
+<line x1="60.0" y1="70" x2="60.0" y2="290" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="114.0" y1="70" x2="114.0" y2="290" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="168.0" y1="70" x2="168.0" y2="290" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="222.0" y1="70" x2="222.0" y2="290" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="276.0" y1="70" x2="276.0" y2="290" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="330.0" y1="70" x2="330.0" y2="290" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="60" y1="290.0" x2="330" y2="290.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="60" y1="235.0" x2="330" y2="235.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="60" y1="180.0" x2="330" y2="180.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="60" y1="125.0" x2="330" y2="125.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="60" y1="70.0" x2="330" y2="70.0" style="stroke:var(--tm-line);stroke-width:1"/>
+<polygon points="60.0,290 60.0,262.2 238.6,80.3 330.0,80.3 330.0,290" style="fill:var(--b);opacity:.10"/>
+<line x1="238.6" y1="80.3" x2="238.6" y2="290" style="stroke:var(--tm-ink3);stroke-width:1.5;stroke-dasharray:5 5"/>
+<polyline points="60.0,262.2 238.6,80.3 330.0,80.3" style="fill:none;stroke:var(--b);stroke-width:3;stroke-linejoin:round"/>
+<text class="f-s" x="60.0" y="306" text-anchor="middle" style="font-size:12px">0.1</text>
+<text class="f-s" x="114.0" y="306" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="168.0" y="306" text-anchor="middle" style="font-size:12px">10</text>
+<text class="f-s" x="222.0" y="306" text-anchor="middle" style="font-size:12px">100</text>
+<text class="f-s" x="276.0" y="306" text-anchor="middle" style="font-size:12px">1,000</text>
+<text class="f-s" x="326.0" y="306" text-anchor="middle" style="font-size:12px">10,000</text>
+<text class="f-s" x="54" y="294.0" text-anchor="end" style="font-size:12px">0.01</text>
+<text class="f-s" x="54" y="239.0" text-anchor="end" style="font-size:12px">0.1</text>
+<text class="f-s" x="54" y="184.0" text-anchor="end" style="font-size:12px">1</text>
+<text class="f-s" x="54" y="129.0" text-anchor="end" style="font-size:12px">10</text>
+<text class="f-s" x="54" y="74.0" text-anchor="end" style="font-size:12px">100</text>
+<text class="f-s" x="195" y="326" text-anchor="middle" style="font-size:12px">intensidad aritmética: FLOPs por byte</text>
+<text class="f-s" x="232.6" y="284" text-anchor="end" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">← memory-bound</text>
+<text class="f-s" x="244.6" y="284" style="font-size:12px;font-weight:700;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">compute-bound →</text>
+<text class="f-s" x="332" y="68.3" text-anchor="end" style="font-size:12px;font-weight:700">pico: 65 TFLOPS</text>
+<text class="f-s" x="244.6" y="200" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">quiebre ≈ 203</text>
+<text class="f-s" x="244.6" y="216" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">FLOPs por byte</text>
+<circle cx="114.0" cy="207.2" r="6" style="fill:var(--o);stroke:var(--blk);stroke-width:2"/>
+<circle cx="193.5" cy="126.3" r="6" style="fill:var(--o);stroke:var(--blk);stroke-width:2"/>
+<circle cx="283.3" cy="80.3" r="6" style="fill:var(--o);stroke:var(--blk);stroke-width:2"/>
+<text class="f-t" x="122.0" y="227.2" style="font-size:13px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">decode de un LLM</text>
+<text class="f-s" x="122.0" y="243.2" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">≈ 0.32 TFLOPS</text>
+<text class="f-t" x="183.5" y="102.3" text-anchor="end" style="font-size:13px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">capa final de C01</text>
+<text class="f-s" x="183.5" y="118.3" text-anchor="end" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">batch 32: ≈ 9.5</text>
+<text class="f-t" x="244.6" y="102.3" style="font-size:13px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">matmul de 4,096</text>
+<text class="f-s" x="244.6" y="118.3" style="font-size:12px;paint-order:stroke;stroke:var(--blk);stroke-width:4px;stroke-linejoin:round">≈ 1,365 FLOPs/B</text>
+<text class="f-s" x="28" y="352" style="font-size:12px">Quiebre: 65 TFLOPS ÷ 320 GB/s ≈ 203 FLOPs por byte.</text>
+<text class="f-s" x="28" y="370" style="font-size:12px">Rampa: intensidad × 320 GB/s. Techo: 65 TFLOPS.</text>
+</svg>

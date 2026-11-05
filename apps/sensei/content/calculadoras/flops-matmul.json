@@ -1,0 +1,92 @@
+{
+  "titulo": "FLOPs de una multiplicación de matrices",
+  "intro": "Escribe los tamaños: A mide n × k y B mide k × m. La calculadora cuenta las [[mac|MACs]] y los [[flop|FLOPs]], y el tiempo mínimo si la GPU fuera a su pico.",
+  "entradas": [
+    {
+      "id": "n",
+      "label": "**n**: filas de A (por ejemplo, las fotos del batch)",
+      "min": 1,
+      "max": 100000,
+      "paso": 1,
+      "valor": 4096,
+      "tipo": "numero"
+    },
+    {
+      "id": "k",
+      "label": "**k**: columnas de A, que son las filas de B",
+      "min": 1,
+      "max": 100000,
+      "paso": 1,
+      "valor": 4096,
+      "tipo": "numero"
+    },
+    {
+      "id": "m",
+      "label": "**m**: columnas de B",
+      "min": 1,
+      "max": 100000,
+      "paso": 1,
+      "valor": 4096,
+      "tipo": "numero"
+    },
+    {
+      "id": "p",
+      "label": "Pico de la GPU",
+      "unidad": "TFLOPS",
+      "min": 1,
+      "max": 1000,
+      "paso": 1,
+      "valor": 65
+    }
+  ],
+  "calculos": [
+    {
+      "id": "macs",
+      "formula": "n * m * k"
+    },
+    {
+      "id": "fl",
+      "formula": "2 * macs"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Tamaño del resultado",
+      "formula": "n * m",
+      "formato": "int",
+      "nota": "n × m casillas, cada una un producto punto de k números"
+    },
+    {
+      "label": "MACs",
+      "formula": "macs",
+      "formato": "int",
+      "nota": "n × m × k"
+    },
+    {
+      "label": "FLOPs",
+      "formula": "fl",
+      "formato": "int",
+      "nota": "2 × n × m × k"
+    },
+    {
+      "label": "En GFLOPs",
+      "formula": "fl / 1e9",
+      "formato": "num",
+      "decimales": 3,
+      "nota": "miles de millones"
+    },
+    {
+      "label": "Tiempo mínimo a ese pico",
+      "formula": "fl / (p * 1e12) * 1000",
+      "formato": "ms",
+      "decimales": 4,
+      "nota": "FLOPs ÷ FLOPS"
+    },
+    {
+      "label": "Multiplicaciones así por segundo, como techo",
+      "formula": "p * 1e12 / fl",
+      "formato": "int"
+    }
+  ],
+  "nota": "Duplica cualquiera de los tres tamaños y el trabajo se duplica; duplica los tres y se multiplica por 8. El tiempo es un piso: supone que la memoria entrega los números a tiempo, y eso lo decide la intensidad aritmética (sección 4)."
+}

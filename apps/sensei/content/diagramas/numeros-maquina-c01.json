@@ -1,0 +1,66 @@
+{
+  "titulo": "Los tipos de dato en el camino de C01",
+  "width": 78,
+  "height": 48,
+  "lanes": [
+    { "id": "off", "label": "Offline: del checkpoint al engine", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 29 },
+    { "id": "on", "label": "Online: la foto de Ana", "kind": "online", "x": 0, "y": 31, "w": 78, "h": 17 }
+  ],
+  "nodes": [
+    { "id": "ckpt", "label": "Checkpoint", "sub": "pesos FP32 · ≈ 98 MB", "kind": "store",
+      "x": 1, "y": 5, "w": 19, "h": 8,
+      "note": "Los pesos maestros que dejó el entrenamiento en precisión mixta, en [[float32|FP32]]: 24,532,532 parámetros × 4 bytes ≈ 98 MB. Es la versión de referencia contra la que se compara todo." },
+    { "id": "onnx", "label": "Export a ONNX", "sub": "FP32 · ≈ 98 MB", "kind": "job",
+      "x": 29.5, "y": 5, "w": 19, "h": 8,
+      "note": "El modelo exportado a ONNX, un formato que entienden muchos servidores. Sigue en FP32 y pasa una primera paridad en CPU, con ONNX Runtime, antes de seguir." },
+    { "id": "engine", "label": "Engine TensorRT", "sub": "FP16 · ≈ 49 MB", "kind": "model",
+      "x": 58, "y": 5, "w": 19, "h": 8,
+      "note": "TensorRT convierte el modelo para la GPU exacta donde va a correr, la T4, y en [[fp16|FP16]]: ≈ 49 MB de pesos. Se construye en CI con `trtexec --fp16` y viaja horneado en la imagen de Triton." },
+    { "id": "int8", "label": "INT8 en CPU", "sub": "por medir · con calibración", "kind": "job",
+      "x": 29.5, "y": 18, "w": 19, "h": 8,
+      "note": "Una opción que la Ronda deja por medir: la ResNet-50 en [[int8|INT8]] en CPU, que podría costar menos que las dos T4 si no pierde más de 0.5 puntos. Pide calibrar con fotos reales y pasar el mismo examen." },
+    { "id": "examen", "label": "Examen", "sub": "paridad y calidad", "kind": "monitor",
+      "x": 58, "y": 18, "w": 19, "h": 8,
+      "note": "La [[prueba-paridad|prueba de paridad]] contra PyTorch FP32 en ≈ 10,000 fotos: acuerdo del top-1 ≥ 99.5 % y del top-5 ≥ 99 %, con diferencias de logits de ≈ 0.01. Y la calidad: top-1 y top-5 a no más de 0.3 puntos del modelo actual, por categoría y por slice." },
+    { "id": "app", "label": "App de Ana", "sub": "foto en JPEG", "kind": "client",
+      "x": 1, "y": 36, "w": 19, "h": 8,
+      "note": "La app manda la foto comprimida (≈ 150–250 KB en JPEG) y recibe las 5 categorías sugeridas, con su probabilidad." },
+    { "id": "gateway", "label": "Gateway", "sub": "tensor FP32 · 602 KB", "kind": "service",
+      "x": 29.5, "y": 36, "w": 19, "h": 8,
+      "note": "Decodifica el JPEG a píxeles [[uint8]], achica, recorta y normaliza a float32: 150,528 números × 4 B = 602 KB. Mandar uint8 (≈ 151 KB) y normalizar dentro del modelo es una mejora que la Ronda deja anotada." },
+    { "id": "triton", "label": "Triton en la T4", "sub": "corre el engine FP16", "kind": "gpu",
+      "x": 58, "y": 36, "w": 19, "h": 8,
+      "note": "Triton corre el engine en FP16 con los tensor cores, en ≈ 3–6 ms de GPU. Su configuración declara la entrada y la salida como `TYPE_FP32`: la conversión a FP16 pasa adentro." }
+  ],
+  "edges": [
+    { "from": "ckpt", "to": "onnx", "kind": "offline", "fromSide": "r", "toSide": "l" },
+    { "from": "onnx", "to": "engine", "kind": "offline", "fromSide": "r", "toSide": "l", "label": "--fp16" },
+    { "from": "engine", "to": "examen", "kind": "monitor", "fromSide": "b", "toSide": "t" },
+    { "from": "onnx", "to": "int8", "kind": "offline", "dashed": true, "fromSide": "b", "toSide": "t" },
+    { "from": "int8", "to": "examen", "kind": "monitor", "dashed": true, "fromSide": "r", "toSide": "l" },
+    { "from": "examen", "to": "triton", "kind": "offline", "fromSide": "b", "toSide": "t", "label": "si pasa" },
+    { "from": "app", "to": "gateway", "kind": "online", "bidir": true, "fromSide": "r", "toSide": "l", "label": "JPEG" },
+    { "from": "gateway", "to": "triton", "kind": "online", "bidir": true, "fromSide": "r", "toSide": "l", "label": "FP32" }
+  ],
+  "flows": [
+    { "id": "pesos", "label": "Del checkpoint al engine",
+      "steps": [
+        { "nodes": ["ckpt"], "edges": [], "text": "El entrenamiento, en precisión mixta, deja un **checkpoint** con los pesos maestros en FP32: 24.5 M × 4 B ≈ 98 MB." },
+        { "nodes": ["ckpt", "onnx"], "edges": ["ckpt>onnx"], "text": "Se **exporta a ONNX**, todavía en FP32, y pasa una primera paridad en CPU." },
+        { "nodes": ["onnx", "engine"], "edges": ["onnx>engine"], "text": "En una T4 se construye el **engine de TensorRT en FP16**: ≈ 49 MB de pesos, la mitad." },
+        { "nodes": ["engine", "examen"], "edges": ["engine>examen"], "text": "El **examen**: ≈ 10,000 fotos del golden set. El top-1 tiene que coincidir con PyTorch FP32 en al menos 99.5 % de ellas, y la calidad no puede bajar más de 0.3 puntos." },
+        { "nodes": ["examen", "triton"], "edges": ["examen>triton"], "text": "Solo si pasa, el engine se hornea en la imagen de Triton y se despliega." }
+      ] },
+    { "id": "foto", "label": "La foto de Ana",
+      "steps": [
+        { "nodes": ["app", "gateway"], "edges": ["app>gateway"], "text": "Ana sube un JPEG. El gateway lo decodifica a píxeles **uint8**, lo achica y lo normaliza: un tensor **float32** de [1, 3, 224, 224], 602 KB." },
+        { "nodes": ["gateway", "triton"], "edges": ["gateway>triton"], "text": "El tensor viaja a Triton. Adentro, TensorRT corre el modelo en **FP16**." },
+        { "nodes": ["triton", "gateway", "app"], "edges": ["gateway>triton", "app>gateway"], "text": "Salen 500 logits en **float32**. El gateway calcula el softmax y el top-5, y la app le muestra las sugerencias a Ana." }
+      ] },
+    { "id": "int8", "label": "Si algún día se cuantiza",
+      "steps": [
+        { "nodes": ["onnx", "int8"], "edges": ["onnx>int8"], "text": "Desde el mismo ONNX en FP32 se cuantiza a **INT8**, calibrando con unos cientos de fotos reales de producción, de todos los slices." },
+        { "nodes": ["int8", "examen"], "edges": ["int8>examen"], "text": "Pasa por el **mismo examen**, mirando además el recall de la cola larga y los slices: el promedio puede esconder lo que pierden las categorías chicas." }
+      ] }
+  ]
+}

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 562" role="img" aria-labelledby="f-ruido-campana-t" class="f-svg" style="max-width:420px">
+<title id="f-ruido-campana-t">Arriba, una campana: cómo se reparten los resultados de muchos exámenes de 1,000 fotos con un modelo que acierta 85 %. El 68 % de los resultados cae entre 83.9 y 86.1 (una desviación estándar, 1.1 puntos, a cada lado); el 95 %, entre 82.7 y 87.3 (dos desviaciones), y el 99.7 %, entre 81.6 y 88.4 (tres). Abajo, el ancho de lo que puede salir por azar con 95 % para cuatro tamaños de examen: 100 fotos, más o menos 7 puntos; 1,000 fotos, 2.2; 4,000 fotos, 1.1; 50,000 fotos, 0.3. Cuatro veces más fotos dan la mitad de ancho.</title>
+<rect class="f-card" x="10" y="10" width="340" height="542" rx="16"/>
+<text class="f-l" x="28.0" y="36.0">MIL EXÁMENES DE 1,000 FOTOS: LA CAMPANA</text>
+<path d="M61.4 196.0 L61.4 194.7 L65.4 194.2 L69.3 193.7 L73.3 192.9 L77.2 192.0 L81.2 190.8 L85.2 189.4 L89.1 187.6 L93.1 185.5 L97.0 183.0 L101.0 180.0 L104.9 176.6 L108.9 172.6 L112.8 168.2 L116.8 163.2 L120.7 157.7 L124.7 151.7 L128.6 145.3 L132.6 138.6 L136.5 131.6 L140.5 124.4 L144.4 117.3 L148.4 110.3 L152.3 103.6 L156.3 97.4 L160.2 91.9 L164.2 87.1 L168.1 83.2 L172.1 80.3 L176.0 78.6 L180.0 78.0 L184.0 78.6 L187.9 80.3 L191.9 83.2 L195.8 87.1 L199.8 91.9 L203.7 97.4 L207.7 103.6 L211.6 110.3 L215.6 117.3 L219.5 124.4 L223.5 131.6 L227.4 138.6 L231.4 145.3 L235.3 151.7 L239.3 157.7 L243.2 163.2 L247.2 168.2 L251.1 172.6 L255.1 176.6 L259.0 180.0 L263.0 183.0 L266.9 185.5 L270.9 187.6 L274.8 189.4 L278.8 190.8 L282.8 192.0 L286.7 192.9 L290.7 193.7 L294.6 194.2 L298.6 194.7 L298.6 196.0 Z" style="fill:var(--b);opacity:0.22"/>
+<path d="M101.0 196.0 L101.0 180.0 L103.6 177.8 L106.2 175.3 L108.9 172.6 L111.5 169.7 L114.1 166.6 L116.8 163.2 L119.4 159.6 L122.0 155.7 L124.7 151.7 L127.3 147.5 L129.9 143.1 L132.6 138.6 L135.2 133.9 L137.8 129.2 L140.5 124.4 L143.1 119.7 L145.7 114.9 L148.4 110.3 L151.0 105.8 L153.7 101.5 L156.3 97.4 L158.9 93.6 L161.6 90.2 L164.2 87.1 L166.8 84.4 L169.5 82.1 L172.1 80.3 L174.7 79.0 L177.4 78.3 L180.0 78.0 L182.6 78.3 L185.3 79.0 L187.9 80.3 L190.5 82.1 L193.2 84.4 L195.8 87.1 L198.4 90.2 L201.1 93.6 L203.7 97.4 L206.3 101.5 L209.0 105.8 L211.6 110.3 L214.3 114.9 L216.9 119.7 L219.5 124.4 L222.2 129.2 L224.8 133.9 L227.4 138.6 L230.1 143.1 L232.7 147.5 L235.3 151.7 L238.0 155.7 L240.6 159.6 L243.2 163.2 L245.9 166.6 L248.5 169.7 L251.1 172.6 L253.8 175.3 L256.4 177.8 L259.0 180.0 L259.0 196.0 Z" style="fill:var(--b);opacity:0.45"/>
+<path d="M140.5 196.0 L140.5 124.4 L141.8 122.0 L143.1 119.7 L144.4 117.3 L145.7 114.9 L147.1 112.6 L148.4 110.3 L149.7 108.0 L151.0 105.8 L152.3 103.6 L153.7 101.5 L155.0 99.4 L156.3 97.4 L157.6 95.5 L158.9 93.6 L160.2 91.9 L161.6 90.2 L162.9 88.6 L164.2 87.1 L165.5 85.7 L166.8 84.4 L168.1 83.2 L169.5 82.1 L170.8 81.2 L172.1 80.3 L173.4 79.6 L174.7 79.0 L176.0 78.6 L177.4 78.3 L178.7 78.1 L180.0 78.0 L181.3 78.1 L182.6 78.3 L184.0 78.6 L185.3 79.0 L186.6 79.6 L187.9 80.3 L189.2 81.2 L190.5 82.1 L191.9 83.2 L193.2 84.4 L194.5 85.7 L195.8 87.1 L197.1 88.6 L198.4 90.2 L199.8 91.9 L201.1 93.6 L202.4 95.5 L203.7 97.4 L205.0 99.4 L206.3 101.5 L207.7 103.6 L209.0 105.8 L210.3 108.0 L211.6 110.3 L212.9 112.6 L214.3 114.9 L215.6 117.3 L216.9 119.7 L218.2 122.0 L219.5 124.4 L219.5 196.0 Z" style="fill:var(--b);opacity:0.8"/>
+<polyline points="40.0,195.8 41.7,195.7 43.5,195.7 45.3,195.6 47.0,195.6 48.8,195.5 50.5,195.5 52.2,195.4 54.0,195.3 55.8,195.2 57.5,195.0 59.2,194.9 61.0,194.7 62.8,194.6 64.5,194.4 66.2,194.1 68.0,193.9 69.7,193.6 71.5,193.3 73.3,192.9 75.0,192.5 76.7,192.1 78.5,191.6 80.3,191.1 82.0,190.5 83.8,189.9 85.5,189.2 87.2,188.5 89.0,187.7 90.8,186.8 92.5,185.8 94.2,184.8 96.0,183.7 97.8,182.5 99.5,181.2 101.2,179.8 103.0,178.3 104.7,176.7 106.5,175.1 108.3,173.3 110.0,171.4 111.7,169.4 113.5,167.4 115.3,165.2 117.0,162.9 118.8,160.5 120.5,158.0 122.2,155.4 124.0,152.8 125.8,150.0 127.5,147.2 129.2,144.3 131.0,141.3 132.8,138.3 134.5,135.2 136.2,132.1 138.0,128.9 139.7,125.8 141.5,122.6 143.3,119.4 145.0,116.3 146.7,113.2 148.5,110.1 150.3,107.1 152.0,104.2 153.8,101.4 155.5,98.6 157.2,96.0 159.0,93.5 160.8,91.2 162.5,89.0 164.2,87.0 166.0,85.2 167.8,83.5 169.5,82.1 171.2,80.9 173.0,79.8 174.7,79.0 176.5,78.5 178.3,78.1 180.0,78.0 181.7,78.1 183.5,78.5 185.3,79.0 187.0,79.8 188.8,80.9 190.5,82.1 192.2,83.5 194.0,85.2 195.8,87.0 197.5,89.0 199.2,91.2 201.0,93.5 202.8,96.0 204.5,98.6 206.2,101.4 208.0,104.2 209.7,107.1 211.5,110.1 213.3,113.2 215.0,116.3 216.7,119.4 218.5,122.6 220.3,125.8 222.0,128.9 223.8,132.1 225.5,135.2 227.2,138.3 229.0,141.3 230.8,144.3 232.5,147.2 234.2,150.0 236.0,152.8 237.8,155.4 239.5,158.0 241.2,160.5 243.0,162.9 244.7,165.2 246.5,167.4 248.3,169.4 250.0,171.4 251.7,173.3 253.5,175.1 255.3,176.7 257.0,178.3 258.8,179.8 260.5,181.2 262.2,182.5 264.0,183.7 265.8,184.8 267.5,185.8 269.2,186.8 271.0,187.7 272.8,188.5 274.5,189.2 276.2,189.9 278.0,190.5 279.7,191.1 281.5,191.6 283.3,192.1 285.0,192.5 286.7,192.9 288.5,193.3 290.3,193.6 292.0,193.9 293.8,194.1 295.5,194.4 297.2,194.6 299.0,194.7 300.8,194.9 302.5,195.0 304.2,195.2 306.0,195.3 307.8,195.4 309.5,195.5 311.2,195.5 313.0,195.6 314.7,195.6 316.5,195.7 318.3,195.7 320.0,195.8" style="fill:none;stroke:var(--accent-ink);stroke-width:2.5;stroke-linejoin:round"/>
+<line class="f-flecha" x1="36" y1="196" x2="324" y2="196"/>
+<text class="f-pill-t" x="180.0" y="172.0" text-anchor="middle" style="font-size:13px">68 %</text>
+<line class="f-linea" x1="61.4" y1="196" x2="61.4" y2="201"/>
+<text class="f-s" x="61.4" y="214.0" text-anchor="middle" style="font-size:12px">81.6</text>
+<line class="f-linea" x1="101.0" y1="196" x2="101.0" y2="201"/>
+<text class="f-s" x="101.0" y="214.0" text-anchor="middle" style="font-size:12px">82.7</text>
+<line class="f-linea" x1="140.5" y1="196" x2="140.5" y2="201"/>
+<text class="f-s" x="140.5" y="214.0" text-anchor="middle" style="font-size:12px">83.9</text>
+<line class="f-linea" x1="180.0" y1="196" x2="180.0" y2="201"/>
+<text class="f-s" x="180.0" y="214.0" text-anchor="middle" style="font-size:12px">85.0</text>
+<line class="f-linea" x1="219.5" y1="196" x2="219.5" y2="201"/>
+<text class="f-s" x="219.5" y="214.0" text-anchor="middle" style="font-size:12px">86.1</text>
+<line class="f-linea" x1="259.0" y1="196" x2="259.0" y2="201"/>
+<text class="f-s" x="259.0" y="214.0" text-anchor="middle" style="font-size:12px">87.3</text>
+<line class="f-linea" x1="298.6" y1="196" x2="298.6" y2="201"/>
+<text class="f-s" x="298.6" y="214.0" text-anchor="middle" style="font-size:12px">88.4</text>
+<path d="M101.0 230 L101.0 236 L259.0 236 L259.0 230" class="f-linea"/>
+<rect x="150.0" y="227" width="60" height="18" rx="9" style="fill:var(--blk)"/>
+<text class="f-s" x="180.0" y="240.5" text-anchor="middle" style="font-size:12px;font-weight:700">95 %</text>
+<path d="M61.4 256 L61.4 262 L298.6 262 L298.6 256" class="f-linea"/>
+<rect x="150.0" y="253" width="60" height="18" rx="9" style="fill:var(--blk)"/>
+<text class="f-s" x="180.0" y="266.5" text-anchor="middle" style="font-size:12px;font-weight:700">99.7 %</text>
+<text class="f-s" x="28.0" y="290.0" style="font-size:12px">Una desviación = 1.1 puntos: es el error estándar.</text>
+<text class="f-l" x="28.0" y="324.0">LO QUE PUEDE SALIR POR AZAR (95 %)</text>
+<text class="f-s" x="28.0" y="346.0" style="font-size:12px">100 fotos</text>
+<text class="f-s" x="332.0" y="346.0" text-anchor="end" style="font-size:12px;font-weight:700">± 7.0 puntos</text>
+<line x1="57.5" y1="357" x2="302.5" y2="357" style="stroke:var(--b);stroke-width:6;stroke-linecap:round"/>
+<text class="f-s" x="28.0" y="380.0" style="font-size:12px">1,000 fotos</text>
+<text class="f-s" x="332.0" y="380.0" text-anchor="end" style="font-size:12px;font-weight:700">± 2.2 puntos</text>
+<line x1="141.5" y1="391" x2="218.5" y2="391" style="stroke:var(--b);stroke-width:6;stroke-linecap:round"/>
+<text class="f-s" x="28.0" y="414.0" style="font-size:12px">4,000 fotos</text>
+<text class="f-s" x="332.0" y="414.0" text-anchor="end" style="font-size:12px;font-weight:700">± 1.1 puntos</text>
+<line x1="160.8" y1="425" x2="199.2" y2="425" style="stroke:var(--b);stroke-width:6;stroke-linecap:round"/>
+<text class="f-s" x="28.0" y="448.0" style="font-size:12px">50,000 fotos</text>
+<text class="f-s" x="332.0" y="448.0" text-anchor="end" style="font-size:12px;font-weight:700">± 0.3 puntos</text>
+<line x1="174.8" y1="459" x2="185.2" y2="459" style="stroke:var(--b);stroke-width:6;stroke-linecap:round"/>
+<line x1="180.0" y1="338" x2="180.0" y2="468" style="stroke:var(--tm-ink3);stroke-width:1.5;stroke-dasharray:4 3"/>
+<text class="f-s" x="180.0" y="484.0" text-anchor="middle" style="font-size:12px">85 %</text>
+<rect class="f-chip" x="28" y="496" width="304" height="46" rx="10"/>
+<text class="f-s" x="42.0" y="516.0" style="font-size:13px;font-weight:700">4 veces más fotos, la mitad de ancho:</text>
+<text class="f-s" x="42.0" y="534.0" style="font-size:13px">el ruido baja con la raíz de n.</text>
+</svg>

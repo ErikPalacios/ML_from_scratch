@@ -1,0 +1,116 @@
+{
+  "nota": "Los conceptos que presenta la lección «percentiles» (Promedios, medianas y percentiles).",
+  "terminos": [
+    {
+      "id": "promedio",
+      "termino": "Promedio",
+      "en": "mean · average",
+      "corto": "La suma de todos los valores dividida entre cuántos son. Es lo que le tocaría a cada uno si el total se repartiera parejo.",
+      "largo": "Es el número correcto para los totales: con el promedio y la cantidad sabes el total, como cuánto cuesta servir un día o cuántas requests hay dentro del sistema a la vez. Pero un solo valor muy lejano lo jala mucho. En latencia engaña: unas cuantas requests lentísimas lo suben poco y no dice cuántas personas esperaron de más; por eso las promesas usan [[percentil|percentiles]]. La [[loss]] de un [[batch]] y la [[accuracy]] son promedios.",
+      "analogia": "El punto donde apoyarías con un dedo una regla con monedas puestas en la marca de cada valor, para que no se caiga. Una moneda muy lejos obliga a mover mucho el dedo.",
+      "ejemplo": "30, 32, 35, 38 y 45 ms suman 180, y el promedio es 180 ÷ 5 = 36 ms. Con 98 requests de 30 ms y 2 de 3 s, el promedio es 89.4 ms, aunque 2 de cada 100 personas esperaron 3 segundos.",
+      "ver": ["mediana", "percentil", "valor-atipico"],
+      "leccion": "percentiles"
+    },
+    {
+      "id": "mediana",
+      "termino": "Mediana",
+      "en": "median",
+      "corto": "El valor de en medio cuando ordenas los datos: la mitad queda abajo y la mitad arriba. Si la cantidad es par, se promedian los dos de en medio.",
+      "largo": "Es el percentil 50 (el p50) y describe el caso típico. Es resistente: solo mira el orden, así que un [[valor-atipico]] muy lejano casi no la mueve. Por eso se usa para la latencia típica, para reportar ingresos y para rellenar datos que faltan. Con una cantidad par, el método del rango más cercano toma el de abajo de los dos de en medio; con miles de datos la diferencia desaparece.",
+      "ejemplo": "Nueve sueldos de 9 a 16 mil pesos y uno de 900 mil: el promedio sube a 101,200 pesos y la mediana se queda en 12,500.",
+      "ver": ["promedio", "percentil"],
+      "leccion": "percentiles"
+    },
+    {
+      "id": "percentil",
+      "termino": "Percentil",
+      "en": "percentile · quantile",
+      "corto": "El percentil p es el valor que deja en él o abajo de él al p % de los datos. El p50 es la mediana; el p99 solo deja arriba a 1 de cada 100.",
+      "largo": "Se calcula ordenando los datos. Con el método del rango más cercano, la posición es p ÷ 100 × n, redondeada hacia arriba ([[ceil]]). Otros métodos interpolan entre dos vecinos, y con pocos datos dan números distintos en la cola: importa usar siempre el mismo. Las herramientas de monitoreo los llaman cuantiles y los escriben como fracción (0.99). No se suman ni se promedian: el p99 de varios servidores se saca sumando sus [[bucket|buckets]] y calculando al final.",
+      "ejemplo": "Con 20 latencias ordenadas, el p95 es la 19.ª (0.95 × 20 = 19), 160 ms, y el p99 es la 20.ª (19.8 se redondea a 20), la más lenta, 900 ms.",
+      "ver": ["p99", "mediana", "histograma", "bucket"],
+      "leccion": "percentiles"
+    },
+    {
+      "id": "p99",
+      "termino": "p99",
+      "en": "p99 · 99th percentile",
+      "corto": "El percentil 99: el valor que deja abajo al 99 % de las requests. «p99 ≤ 200 ms» quiere decir que a lo más 1 de cada 100 tarda más de 200 ms.",
+      "largo": "Es la forma estándar de prometer [[latencia]], porque mira la [[cola-distribucion|cola]]: lo que viven las requests más lentas, las que vencen el timeout y las que la gente recuerda. A diferencia del [[promedio]], brinca de golpe cuando la fracción de lentas pasa del 1 %. Necesita muchas muestras: con menos de 100, el p99 es simplemente la más lenta. Su primo, el p99.9, deja arriba a 1 de cada 1,000.",
+      "ejemplo": "C01 promete p99 ≤ 200 ms del lado del servidor. Con 10 millones de requests al día, ese 1 % permitido son 100,000 requests lentas al día.",
+      "ver": ["percentil", "slo", "cola-distribucion"],
+      "leccion": "percentiles"
+    },
+    {
+      "id": "distribucion",
+      "termino": "Distribución",
+      "en": "distribution",
+      "corto": "Cómo se reparten los valores de algo: qué valores aparecen y qué tan seguido. Dos listas con el mismo promedio pueden tener distribuciones muy distintas.",
+      "largo": "Se ve con un [[histograma]]. Las latencias casi siempre tienen una distribución con [[cola-distribucion|cola]] a la derecha: un montículo de requests rápidas y unas pocas muy lentas, porque hay un piso (el trabajo mínimo) pero no un techo. Comparar la distribución de los datos de hoy contra la del entrenamiento es como se detecta el [[drift]].",
+      "ejemplo": "Cien requests de 50 ms, y la mezcla de 90 de 30 ms con 10 de 230 ms, tienen el mismo promedio, 50 ms; pero en la segunda, 10 de cada 100 pasan de 200 ms.",
+      "ver": ["histograma", "cola-distribucion", "percentil"],
+      "leccion": "percentiles"
+    },
+    {
+      "id": "histograma",
+      "termino": "Histograma",
+      "en": "histogram",
+      "corto": "Una gráfica de barras de una distribución: partes el rango en intervalos (buckets), cuentas cuántos valores caen en cada uno y dibujas una barra por intervalo.",
+      "largo": "En monitoreo, un histograma no es solo una gráfica: es la forma de guardar latencias. Cada copia del servicio lleva un contador por [[bucket]] y suma 1 donde cae cada request. Los contadores se suman entre copias y entre ventanas, y con ellos se estiman los [[percentil|percentiles]]. Prometheus los guarda acumulados, con la etiqueta le («menor o igual»).",
+      "ejemplo": "El servicio de C01 cuenta cada request en buckets con bordes de 10 ms a 2.5 s (10, 25, 50, 75, 100, 150, 200, 300, 500, 1,000 y 2,500 ms), más uno para lo que pasa de 2.5 s.",
+      "ver": ["bucket", "distribucion", "percentil"],
+      "leccion": "percentiles"
+    },
+    {
+      "id": "cola-distribucion",
+      "termino": "Cola de una distribución",
+      "en": "tail · tail latency",
+      "corto": "La parte larga y delgada de una distribución, donde quedan los pocos valores más extremos. En latencia, las requests más lentas: las del p95, el p99 y el p99.9.",
+      "largo": "La latencia tiene la cola a la derecha porque siempre se puede tardar más: una pausa del programa, un reintento, una fila de espera. La cola jala al [[promedio]] y decide el [[p99]]. A escala importa todavía más: con [[fan-out]], la cola de cada pieza se vuelve la latencia típica del conjunto. No es lo mismo que la [[long-tail]] de categorías, que son muchas categorías con pocas fotos cada una.",
+      "ejemplo": "En 1,000 requests de juguete, la mediana es 38 ms, pero 29 requests pasan de 150 ms y la más lenta tarda 693: esa es la cola, y ahí está el p99, en 488 ms.",
+      "ver": ["p99", "distribucion", "valor-atipico"],
+      "leccion": "percentiles"
+    },
+    {
+      "id": "valor-atipico",
+      "termino": "Valor atípico",
+      "en": "outlier",
+      "corto": "Un valor que queda muy lejos de los demás. Puede ser un error de medición o un caso real y raro; antes de hacer algo con él, hay que saber cuál es.",
+      "largo": "Jala mucho al [[promedio]] y casi nada a la [[mediana]]. Una regla común para marcarlos es la de Tukey: más de 1.5 rangos intercuartílicos arriba del tercer cuartil, o abajo del primero. En latencia, los atípicos reales no se borran: son la [[cola-distribucion|cola]] que la promesa del servicio quiere controlar, y se investigan. En los datos de entrenamiento, los errores de captura sí se corrigen o se quitan.",
+      "ejemplo": "En 20 requests con cuartiles de 34 y 50 ms, el límite de Tukey es 50 + 1.5 × 16 = 74 ms: las de 160 y 900 ms quedan marcadas.",
+      "ver": ["mediana", "cola-distribucion"],
+      "leccion": "percentiles"
+    },
+    {
+      "id": "bucket",
+      "termino": "Bucket",
+      "en": "bucket · bin",
+      "corto": "Cada intervalo de un histograma, como «de 150 a 200 ms». En monitoreo, un contador que suma 1 cada vez que una request cae en ese intervalo.",
+      "largo": "Con buckets fijos no hace falta guardar cada latencia: basta un contador por intervalo, que se suma entre copias y entre ventanas. Un percentil se estima buscando el bucket donde cae su posición e interpolando adentro, como si sus requests estuvieran repartidas parejo. Por eso los bordes se ponen apretados alrededor del SLO, y uno justo en él: con buckets gruesos, el estimado puede salir muy lejos del valor de verdad.",
+      "ejemplo": "De 10,000 requests, 9,820 caen hasta 150 ms y 110 entre 150 y 200. El p99 (la 9,900) queda 80 de 110 adentro de ese bucket: 150 + 50 × 80 ÷ 110 ≈ 186 ms.",
+      "ver": ["histograma", "percentil"],
+      "leccion": "percentiles"
+    },
+    {
+      "id": "slo",
+      "termino": "SLO",
+      "en": "SLO · service level objective",
+      "corto": "La meta que un número medido del servicio tiene que cumplir, en una ventana de tiempo. En C01: p99 ≤ 200 ms, medido del lado del servidor.",
+      "largo": "Un SLO completo dice qué se mide, dónde, cuánto y en qué ventana. Se revisa con su [[sli|SLI]]: cada pocos minutos para avisar, y cada 30 días para llevar la cuenta. «p99 ≤ 200 ms» es lo mismo que «al menos el 99 % de las requests en 200 ms o menos», y ese 1 % que sobra es un presupuesto que se puede gastar ([[error-budget]]). Si además hay un contrato con multas, se llama SLA.",
+      "ejemplo": "C01 tiene dos: el de latencia, p99 ≤ 200 ms; y el de disponibilidad, 99.9 % al mes de requests sin error del servidor y dentro de 300 ms.",
+      "ver": ["sli", "p99", "error-budget"],
+      "leccion": "percentiles"
+    },
+    {
+      "id": "sli",
+      "termino": "SLI",
+      "en": "SLI · service level indicator",
+      "corto": "El número que se mide para saber si se cumple una promesa del servicio: un percentil de latencia, o la fracción de requests buenas.",
+      "largo": "El [[slo|SLO]] le pone la meta. La forma más práctica es una fracción, porque es un conteo: se suma entre copias y entre ventanas y, con un [[bucket]] justo en el umbral, sale exacta. En Prometheus, la fracción de requests en 200 ms o menos es el bucket le=\"0.2\" entre el total.",
+      "ejemplo": "Un día con 10,000,000 requests y 9,935,000 en 200 ms o menos: el SLI vale 99.35 %, y el SLO de 99 % se cumple.",
+      "ver": ["slo", "bucket", "p99"],
+      "leccion": "percentiles"
+    }
+  ]
+}

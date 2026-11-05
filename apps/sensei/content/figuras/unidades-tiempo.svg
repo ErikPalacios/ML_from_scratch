@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 540" role="img" aria-labelledby="f-unidades-tiempo-t" class="f-svg" style="max-width:420px">
+<title id="f-unidades-tiempo-t">Una regla de tiempo en potencias de diez, de 1 nanosegundo arriba a 1 día abajo; cada marca vale 10 veces la anterior: 1 ns, 10 ns, 100 ns, 1 microsegundo, y así hasta 10 a la 5 segundos. Junto a la regla, lo que pasa a cada escala: leer la caché del CPU tarda cerca de 1 ns, el tiempo en que la luz avanza 30 cm; leer la RAM, cerca de 100 ns; copiar la foto de C01 a la GPU, cerca de 40 microsegundos; ir y volver por la red dentro del centro de datos, de 0.1 a 0.5 ms; la ResNet-50 calcula en la GPU en 3 a 6 ms; un cuadro de video a 30 fps dura 33 ms; la promesa de C01 es de 200 ms y el marketplace espera hasta 300 ms; 1 minuto son 60 s, 1 hora 3,600 s, el reentrenamiento mensual de C01 tarda de 3 a 4 horas y 1 día son 86,400 s, casi 10 a la 5.</title>
+<rect class="f-card" x="10" y="10" width="340" height="520" rx="16"/>
+<text class="f-l" x="28" y="36">DE 1 NANOSEGUNDO A 1 DÍA</text>
+<text class="f-s" x="28" y="56" style="font-size:12px">cada marca vale 10 veces la de arriba</text>
+<line class="f-linea" x1="92" y1="78" x2="92" y2="500"/>
+<line class="f-linea" x1="84" y1="86" x2="100" y2="86"/>
+<text class="f-l" x="78" y="90" text-anchor="end" style="fill:var(--ink)">1 ns</text>
+<line class="f-linea" x1="87" y1="115" x2="97" y2="115"/>
+<text class="f-l" x="78" y="119" text-anchor="end">10 ns</text>
+<line class="f-linea" x1="87" y1="144" x2="97" y2="144"/>
+<text class="f-l" x="78" y="148" text-anchor="end">100 ns</text>
+<line class="f-linea" x1="84" y1="173" x2="100" y2="173"/>
+<text class="f-l" x="78" y="177" text-anchor="end" style="fill:var(--ink)">1 µs</text>
+<line class="f-linea" x1="87" y1="202" x2="97" y2="202"/>
+<text class="f-l" x="78" y="206" text-anchor="end">10 µs</text>
+<line class="f-linea" x1="87" y1="231" x2="97" y2="231"/>
+<text class="f-l" x="78" y="235" text-anchor="end">100 µs</text>
+<line class="f-linea" x1="84" y1="260" x2="100" y2="260"/>
+<text class="f-l" x="78" y="264" text-anchor="end" style="fill:var(--ink)">1 ms</text>
+<line class="f-linea" x1="87" y1="289" x2="97" y2="289"/>
+<text class="f-l" x="78" y="293" text-anchor="end">10 ms</text>
+<line class="f-linea" x1="87" y1="318" x2="97" y2="318"/>
+<text class="f-l" x="78" y="322" text-anchor="end">100 ms</text>
+<line class="f-linea" x1="84" y1="347" x2="100" y2="347"/>
+<text class="f-l" x="78" y="351" text-anchor="end" style="fill:var(--ink)">1 s</text>
+<line class="f-linea" x1="87" y1="376" x2="97" y2="376"/>
+<text class="f-l" x="78" y="380" text-anchor="end">10 s</text>
+<line class="f-linea" x1="87" y1="405" x2="97" y2="405"/>
+<text class="f-l" x="78" y="409" text-anchor="end">100 s</text>
+<line class="f-linea" x1="87" y1="434" x2="97" y2="434"/>
+<text class="f-l" x="78" y="438" text-anchor="end">10³ s</text>
+<line class="f-linea" x1="87" y1="463" x2="97" y2="463"/>
+<text class="f-l" x="78" y="467" text-anchor="end">10⁴ s</text>
+<line class="f-linea" x1="87" y1="492" x2="97" y2="492"/>
+<text class="f-l" x="78" y="496" text-anchor="end">10⁵ s</text>
+<circle class="f-g" cx="92" cy="86" r="5"/>
+<text class="f-s" x="108" y="90.5">≈ 1 ns: leer la caché del CPU</text>
+<text class="f-s" x="108" y="107" style="font-size:12px;fill:var(--muted)">en 1 ns la luz avanza ≈ 30 cm</text>
+<circle class="f-g" cx="92" cy="144" r="5"/>
+<text class="f-s" x="108" y="148.5">≈ 100 ns: leer la memoria RAM</text>
+<circle class="f-b" cx="92" cy="219.5" r="5"/>
+<text class="f-s" x="108" y="224">≈ 40 µs: copiar la foto a la GPU</text>
+<rect class="f-b" x="88" y="231" width="8" height="20.3" rx="3"/>
+<text class="f-s" x="108" y="245.6">0.1–0.5 ms: ida y vuelta en la red</text>
+<text class="f-s" x="108" y="262.1" style="font-size:12px;fill:var(--muted)">dentro del centro de datos</text>
+<rect class="f-b" x="88" y="273.8" width="8" height="8.7" rx="3"/>
+<text class="f-s" x="108" y="282.7">3–6 ms: la ResNet-50 en la GPU</text>
+<circle class="f-p" cx="92" cy="304.2" r="5"/>
+<text class="f-s" x="108" y="308.7">33 ms: un cuadro de video a 30 fps</text>
+<rect class="f-b" x="88" y="326.7" width="8" height="5.1" rx="3"/>
+<text class="f-s" x="108" y="333.8">200–300 ms: la promesa de C01</text>
+<text class="f-s" x="108" y="350.3" style="font-size:12px;fill:var(--muted)">y lo que espera el marketplace</text>
+<circle class="f-ink" cx="92" cy="398.6" r="5"/>
+<text class="f-s" x="108" y="403.1">1 min = 60 s</text>
+<circle class="f-ink" cx="92" cy="450.1" r="5"/>
+<text class="f-s" x="108" y="454.6">1 h = 3,600 s</text>
+<circle class="f-y" cx="92" cy="465.9" r="5"/>
+<text class="f-s" x="108" y="470.4">3–4 h: el reentrenamiento de C01</text>
+<circle class="f-ink" cx="92" cy="490.2" r="5"/>
+<text class="f-s" x="108" y="494.7">1 día = 86,400 s ≈ 10⁵ s</text>
+<circle class="f-b" cx="34" cy="514" r="5"/><text class="f-s" x="46" y="518" style="font-size:12px">una request de C01</text>
+<circle class="f-y" cx="170" cy="514" r="5"/><text class="f-s" x="182" y="518" style="font-size:12px">el camino offline</text>
+</svg>

@@ -1,0 +1,38 @@
+{
+  "titulo": "El viaje de la foto de Ana, en unidades",
+  "width": 78,
+  "height": 42,
+  "lanes": [
+    { "id": "fuera", "label": "La red de Ana", "kind": "neutral", "x": 0, "y": 0, "w": 24, "h": 42 },
+    { "id": "dentro", "label": "Dentro del centro de datos (por request)", "kind": "online", "x": 25, "y": 0, "w": 53, "h": 42 }
+  ],
+  "nodes": [
+    { "id": "cel", "label": "Celular de Ana", "sub": "JPEG ≈ 200 KB", "kind": "client", "x": 3, "y": 7, "w": 18, "h": 9,
+      "note": "La app achica la foto a 1024 píxeles de lado largo antes de subirla: ≈ 200 KB, que son 1.6 megabits (× 8). Con una subida de 10 Mb/s, por ejemplo, tarda ≈ 0.16 s. Ese tramo no entra en la promesa de 200 ms: es la red de Ana y nadie del servidor la controla." },
+    { "id": "gw", "label": "Gateway", "sub": "CPU: decodifica, ≈ 6 ms", "kind": "service", "x": 30, "y": 7, "w": 18, "h": 9,
+      "note": "Abre el JPEG, lo achica y lo normaliza: ≈ 6 ms de CPU en promedio (estimación de la Ronda). Sale un tensor de 150,528 números en [[float32]]: 602,112 bytes ≈ **602 KB**, tres veces lo que pesaba el JPEG." },
+    { "id": "triton", "label": "Triton", "sub": "RAM del servidor de GPU", "kind": "service", "x": 57, "y": 7, "w": 18, "h": 9,
+      "note": "El servidor del modelo recibe el tensor por la red interna. Una foto sola tarda pocos milisegundos en ese tramo, pero 500 por segundo son 301 MB/s ≈ **2.4 Gb/s**: el [[ancho-banda|ancho de banda]] es lo que se aprieta." },
+    { "id": "gpu", "label": "T4", "sub": "VRAM: 320 GB/s", "kind": "gpu", "x": 57, "y": 29, "w": 18, "h": 9,
+      "note": "Lee sus pesos de la [[vram|VRAM]] a 320 GB/s y calcula en ≈ 3–6 ms. Sale un número por categoría (500), y el gateway arma las 5 mejores para la respuesta: unos cientos de bytes." },
+    { "id": "log", "label": "Log", "sub": "≈ 300 B por foto", "kind": "store", "x": 30, "y": 29, "w": 18, "h": 9,
+      "note": "Un registro por predicción: qué foto, qué top-5, cuánto tardó, qué versión del modelo. ≈ 300 bytes × 10 M fotos = 3 GB al día." }
+  ],
+  "edges": [
+    { "from": "cel", "to": "gw", "kind": "online", "label": "200 KB", "fromSide": "r", "toSide": "l" },
+    { "from": "gw", "to": "triton", "kind": "online", "label": "602 KB", "fromSide": "r", "toSide": "l" },
+    { "from": "triton", "to": "gpu", "kind": "online", "label": "PCIe ≈ 40 µs", "fromSide": "b", "toSide": "t" },
+    { "from": "gw", "to": "log", "kind": "async", "label": "300 B", "dashed": true, "fromSide": "b", "toSide": "t" }
+  ],
+  "flows": [
+    { "id": "viaje", "label": "Una foto, de punta a punta",
+      "steps": [
+        { "nodes": ["cel"], "edges": [], "text": "**Ana sube su foto:** un JPEG de ≈ 200 KB, que son 1.6 Mb. Con una subida de 10 Mb/s (un ejemplo), tarda ≈ 0.16 s, fuera de la promesa de 200 ms." },
+        { "nodes": ["cel", "gw"], "edges": ["cel>gw"], "text": "**El gateway la abre:** ≈ 6 ms de CPU. Sale el tensor: 150,528 números × 4 bytes = 602 KB, tres veces el JPEG." },
+        { "nodes": ["gw", "triton"], "edges": ["gw>triton"], "text": "**Por la red interna:** 602 KB por foto. A 500 fotos por segundo son 301 MB/s, × 8 ≈ 2.4 Gb/s: un número que hay que revisar contra lo que sostiene cada máquina." },
+        { "nodes": ["triton", "gpu"], "edges": ["triton>gpu"], "text": "**A la GPU por PCIe:** ≈ 16 GB/s, así que 602 KB tardan ≈ 40 µs. Cien veces menos que el cálculo: aquí la copia no importa." },
+        { "nodes": ["gpu"], "edges": [], "text": "**La T4 calcula:** ≈ 3–6 ms, leyendo sus pesos de la VRAM a 320 GB/s. Responde un número por categoría; viajan de regreso unos cientos de bytes." },
+        { "nodes": ["gw", "log"], "edges": ["gw>log"], "text": "**Queda un log:** ≈ 300 B por foto. Con 10 M fotos al día, 3 GB." }
+      ] }
+  ]
+}

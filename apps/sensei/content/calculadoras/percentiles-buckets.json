@@ -1,0 +1,39 @@
+{
+  "titulo": "Percentil desde buckets",
+  "intro": "Una ventana de 5 minutos del servicio de C01: cuántas requests cayeron en cada [[bucket]] (sin acumular). La calculadora hace lo mismo que `histogram_quantile` de Prometheus: busca el bucket donde cae el rango e interpola adentro.",
+  "entradas": [
+    { "id": "n1", "label": "Hasta 50 ms", "min": 0, "max": 1000000, "paso": 1, "valor": 6200, "tipo": "numero" },
+    { "id": "n2", "label": "De 50 a 100 ms", "min": 0, "max": 1000000, "paso": 1, "valor": 3100, "tipo": "numero" },
+    { "id": "n3", "label": "De 100 a 150 ms", "min": 0, "max": 1000000, "paso": 1, "valor": 520, "tipo": "numero" },
+    { "id": "n4", "label": "De 150 a 200 ms", "min": 0, "max": 1000000, "paso": 1, "valor": 110, "tipo": "numero" },
+    { "id": "n5", "label": "De 200 a 300 ms", "min": 0, "max": 1000000, "paso": 1, "valor": 50, "tipo": "numero" },
+    { "id": "n6", "label": "De 300 a 500 ms", "min": 0, "max": 1000000, "paso": 1, "valor": 15, "tipo": "numero" },
+    { "id": "n7", "label": "Más de 500 ms", "min": 0, "max": 1000000, "paso": 1, "valor": 5, "tipo": "numero" },
+    { "id": "q", "label": "Percentil que pides", "min": 50, "max": 99.9, "paso": 0.1, "valor": 99 }
+  ],
+  "calculos": [
+    { "id": "c1", "formula": "n1" },
+    { "id": "c2", "formula": "c1 + n2" },
+    { "id": "c3", "formula": "c2 + n3" },
+    { "id": "c4", "formula": "c3 + n4" },
+    { "id": "c5", "formula": "c4 + n5" },
+    { "id": "c6", "formula": "c5 + n6" },
+    { "id": "c7", "formula": "c6 + n7" },
+    { "id": "rango", "formula": "q / 100 * c7" },
+    { "id": "abajo", "formula": "rango <= c1 ? 0 : rango <= c2 ? 50 : rango <= c3 ? 100 : rango <= c4 ? 150 : rango <= c5 ? 200 : rango <= c6 ? 300 : 500" },
+    { "id": "arriba", "formula": "rango <= c1 ? 50 : rango <= c2 ? 100 : rango <= c3 ? 150 : rango <= c4 ? 200 : rango <= c5 ? 300 : rango <= c6 ? 500 : 1 / 0" },
+    { "id": "antes", "formula": "rango <= c1 ? 0 : rango <= c2 ? c1 : rango <= c3 ? c2 : rango <= c4 ? c3 : rango <= c5 ? c4 : rango <= c6 ? c5 : c6" },
+    { "id": "adentro", "formula": "rango <= c1 ? n1 : rango <= c2 ? n2 : rango <= c3 ? n3 : rango <= c4 ? n4 : rango <= c5 ? n5 : rango <= c6 ? n6 : n7" },
+    { "id": "estimado", "formula": "rango > c6 ? 500 : abajo + (arriba - abajo) * (rango - antes) / max(adentro, 1e-9)" }
+  ],
+  "salidas": [
+    { "label": "Requests en la ventana", "formula": "c7", "formato": "int" },
+    { "label": "Rango que buscas", "formula": "rango", "formato": "num", "decimales": 1, "nota": "percentil ÷ 100 × total, sin redondear" },
+    { "label": "Percentil estimado", "formula": "estimado", "formato": "ms", "decimales": 1, "nota": "interpolando como si las del bucket estuvieran repartidas parejo" },
+    { "label": "El de verdad está entre…", "formula": "abajo", "formato": "ms", "decimales": 0, "nota": "el borde de abajo de su bucket" },
+    { "label": "… y", "formula": "arriba", "formato": "ms", "decimales": 0, "nota": "el borde de arriba («—» si cae en el último, que no tiene techo)" },
+    { "label": "Fracción en 200 ms o menos (el SLI)", "formula": "c4 / max(c7, 1)", "formato": "pct", "decimales": 2, "barra": true, "nota": "exacta, porque hay un borde en 200: el SLO pide al menos 99 %" },
+    { "label": "Requests arriba de 200 ms", "formula": "c7 - c4", "formato": "int" }
+  ],
+  "nota": "Si el percentil cae en «más de 500 ms», Prometheus responde el borde de arriba del penúltimo bucket, 500 ms: no sabe más. Por eso los bordes van apretados alrededor del SLO."
+}

@@ -1,0 +1,21 @@
+{
+  "titulo": "Tokens por segundo al decodificar",
+  "intro": "En cada paso del [[decode]], la GPU lee todos los pesos una vez y el [[kv-cache|KV cache]] de cada conversación. Mueve los números y mira el techo de tokens por segundo.",
+  "entradas": [
+    { "id": "w", "label": "Pesos del modelo", "unidad": "GB", "min": 0.1, "max": 2000, "paso": 0.01, "valor": 16.06, "tipo": "numero" },
+    { "id": "bw", "label": "Ancho de banda de memoria", "unidad": "GB/s", "min": 10, "max": 10000, "paso": 1, "valor": 300, "tipo": "numero" },
+    { "id": "b", "label": "Conversaciones a la vez (el batch)", "min": 1, "max": 64, "paso": 1, "valor": 1 },
+    { "id": "kv", "label": "KV cache de cada conversación", "unidad": "GB", "min": 0, "max": 4, "paso": 0.01, "valor": 0 }
+  ],
+  "calculos": [
+    { "id": "gb", "formula": "w + b * kv" },
+    { "id": "t", "formula": "gb / bw" }
+  ],
+  "salidas": [
+    { "label": "Bytes que se leen en cada paso", "formula": "gb * 1e9", "formato": "bytes", "nota": "los pesos una vez, más el KV cache de cada conversación" },
+    { "label": "Tiempo mínimo de cada paso", "formula": "t * 1000", "formato": "ms", "nota": "bytes ÷ ancho de banda" },
+    { "label": "Tokens por segundo de cada conversación, como techo", "formula": "1 / t", "formato": "num", "decimales": 1 },
+    { "label": "Tokens por segundo en total, como techo", "formula": "b / t", "formato": "num", "decimales": 1, "barra": true }
+  ],
+  "nota": "Empieza con Llama 3 8B en BF16 (16.06 GB) en una L4 (300 GB/s): ≈ 19 tokens por segundo. Con los pesos en INT8 (8.03 GB) el techo sube a ≈ 37. Es una cota: no cuenta el cálculo ni el tiempo muerto, y lo real queda abajo."
+}

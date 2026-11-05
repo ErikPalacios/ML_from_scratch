@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 406" role="img" aria-labelledby="f-probabilidad-nueves-t" class="f-svg" style="max-width:420px">
+<title id="f-probabilidad-nueves-t">Cuánto puede estar caído un servicio en un mes de 30 días según su disponibilidad. Con 99 %, dos nueves, 7.2 horas: la barra completa. Con 99.9 %, tres nueves, 43.2 minutos: una décima parte. Con 99.99 %, cuatro nueves, 4.32 minutos, y con 99.999 %, cinco nueves, 26 segundos: barras que casi no se ven. Cada nueve más divide el tiempo permitido entre 10.</title>
+<rect class="f-card" x="10" y="10" width="340" height="386" rx="16"/>
+<text class="f-l" x="28" y="36">CAÍDA PERMITIDA EN UN MES DE 30 DÍAS</text>
+<text class="f-s" x="28" y="56" style="font-size:12px">el mes tiene 43,200 minutos</text>
+<text class="f-t" x="28" y="92" style="font-size:14px">99 %</text>
+<text class="f-s" x="120" y="92" style="font-size:12px">dos nueves</text>
+<rect class="f-o" x="28" y="101" width="304.0" height="16" rx="4"/>
+<text x="324.0" y="114" text-anchor="end" style="fill:var(--navy);font:700 13px var(--sans)">7.2 horas</text>
+<text class="f-t" x="28" y="154" style="font-size:14px">99.9 %</text>
+<text class="f-s" x="120" y="154" style="font-size:12px">tres nueves</text>
+<rect class="f-y" x="28" y="163" width="30.4" height="16" rx="4"/>
+<text class="f-t" x="66.4" y="176" style="font-size:13px">43.2 minutos</text>
+<text class="f-t" x="28" y="216" style="font-size:14px">99.99 %</text>
+<text class="f-s" x="120" y="216" style="font-size:12px">cuatro nueves</text>
+<rect class="f-b" x="28" y="225" width="3.0" height="16" rx="4"/>
+<text class="f-t" x="39.0" y="238" style="font-size:13px">4.32 minutos</text>
+<text class="f-t" x="28" y="278" style="font-size:14px">99.999 %</text>
+<text class="f-s" x="120" y="278" style="font-size:12px">cinco nueves</text>
+<rect class="f-b" x="28" y="287" width="1.0" height="16" rx="4"/>
+<text class="f-t" x="37.0" y="300" style="font-size:13px">26 segundos</text>
+<rect class="f-chip" x="24" y="328" width="312" height="58" rx="10"/>
+<text class="f-t" x="38" y="350" style="font-size:13px">Cada nueve más divide el tiempo entre 10</text>
+<text class="f-s" x="38" y="370" style="font-size:12px">y suele pedir otra forma de operar</text>
+</svg>

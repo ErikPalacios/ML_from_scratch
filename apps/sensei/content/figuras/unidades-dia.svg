@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 450" role="img" aria-labelledby="f-unidades-dia-t" class="f-svg" style="max-width:420px">
+<title id="f-unidades-dia-t">Una gráfica de barras con las 24 horas de un día de C01, con un perfil ilustrativo: cuántas fotos por segundo llegan en cada hora. De madrugada llegan menos de 20 por segundo; a mediodía, unas 130; a las 20 horas, la hora pico, unas 347. Tres líneas horizontales: el promedio del día, unas 116 por segundo; el pico, unas 350, tres veces el promedio; y el pico de diseño, 500, con margen. Las 24 barras suman los 10 millones de fotos del día, y la hora pico lleva 1 de cada 8: 1.25 millones de fotos entre 3,600 segundos, unas 347 por segundo.</title>
+<rect class="f-card" x="10" y="10" width="340" height="430" rx="16"/>
+<text class="f-l" x="28" y="36">UN DÍA DE C01, HORA POR HORA</text>
+<text class="f-s" x="28" y="56" style="font-size:12px">fotos por segundo en cada hora · perfil ilustrativo</text>
+<line class="f-linea" x1="52" y1="334" x2="340" y2="334" style="opacity:.25"/>
+<text class="f-l" x="46" y="338" text-anchor="end">0</text>
+<line class="f-linea" x1="52" y1="290" x2="340" y2="290" style="opacity:.25"/>
+<text class="f-l" x="46" y="294" text-anchor="end">100</text>
+<line class="f-linea" x1="52" y1="246" x2="340" y2="246" style="opacity:.25"/>
+<text class="f-l" x="46" y="250" text-anchor="end">200</text>
+<line class="f-linea" x1="52" y1="202" x2="340" y2="202" style="opacity:.25"/>
+<text class="f-l" x="46" y="206" text-anchor="end">300</text>
+<line class="f-linea" x1="52" y1="158" x2="340" y2="158" style="opacity:.25"/>
+<text class="f-l" x="46" y="162" text-anchor="end">400</text>
+<line class="f-linea" x1="52" y1="114" x2="340" y2="114" style="opacity:.25"/>
+<text class="f-l" x="46" y="118" text-anchor="end">500</text>
+<rect class="f-b2" x="53.5" y="309.6" width="9" height="24.4" rx="2"/>
+<rect class="f-b2" x="65.5" y="319.3" width="9" height="14.7" rx="2"/>
+<rect class="f-b2" x="77.5" y="324.2" width="9" height="9.8" rx="2"/>
+<rect class="f-b2" x="89.5" y="326.7" width="9" height="7.3" rx="2"/>
+<rect class="f-b2" x="101.5" y="327.9" width="9" height="6.1" rx="2"/>
+<rect class="f-b2" x="113.5" y="326.7" width="9" height="7.3" rx="2"/>
+<rect class="f-b2" x="125.5" y="321.8" width="9" height="12.2" rx="2"/>
+<rect class="f-b2" x="137.5" y="312" width="9" height="22" rx="2"/>
+<rect class="f-b2" x="149.5" y="299.8" width="9" height="34.2" rx="2"/>
+<rect class="f-b2" x="161.5" y="290" width="9" height="44" rx="2"/>
+<rect class="f-b2" x="173.5" y="277.8" width="9" height="56.2" rx="2"/>
+<rect class="f-b2" x="185.5" y="275.3" width="9" height="58.7" rx="2"/>
+<rect class="f-b2" x="197.5" y="274.1" width="9" height="59.9" rx="2"/>
+<rect class="f-b2" x="209.5" y="274.1" width="9" height="59.9" rx="2"/>
+<rect class="f-b2" x="221.5" y="276.6" width="9" height="57.4" rx="2"/>
+<rect class="f-b2" x="233.5" y="277.8" width="9" height="56.2" rx="2"/>
+<rect class="f-b2" x="245.5" y="276.6" width="9" height="57.4" rx="2"/>
+<rect class="f-b2" x="257.5" y="270.4" width="9" height="63.6" rx="2"/>
+<rect class="f-b2" x="269.5" y="248.4" width="9" height="85.6" rx="2"/>
+<rect class="f-b2" x="281.5" y="217.9" width="9" height="116.1" rx="2"/>
+<rect class="f-b" x="293.5" y="181.2" width="9" height="152.8" rx="2"/>
+<rect class="f-b2" x="305.5" y="224" width="9" height="110" rx="2"/>
+<rect class="f-b2" x="317.5" y="266.8" width="9" height="67.2" rx="2"/>
+<rect class="f-b2" x="329.5" y="294.9" width="9" height="39.1" rx="2"/>
+<line x1="52" y1="283.1" x2="340" y2="283.1" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:5 4"/>
+<text class="f-s" x="56" y="277.1" style="font-size:12px;font-weight:700;fill:var(--ink)">promedio ≈ 116</text>
+<line x1="52" y1="181.2" x2="340" y2="181.2" style="stroke:var(--b);stroke-width:2"/>
+<text class="f-s" x="56" y="175.2" style="font-size:12px;font-weight:700;fill:var(--accent-ink)">pico ≈ 350: la hora de las 20 h</text>
+<line x1="52" y1="114" x2="340" y2="114" style="stroke:var(--o);stroke-width:2"/>
+<text class="f-s" x="56" y="130" style="font-size:12px;font-weight:700;fill:var(--o)">diseño: 500, con margen</text>
+<text class="f-l" x="52" y="350" text-anchor="middle">0 h</text>
+<text class="f-l" x="124" y="350" text-anchor="middle">6 h</text>
+<text class="f-l" x="196" y="350" text-anchor="middle">12 h</text>
+<text class="f-l" x="268" y="350" text-anchor="middle">18 h</text>
+<text class="f-l" x="340" y="350" text-anchor="middle">24 h</text>
+<text class="f-s" x="28" y="378" style="font-size:12px">Las 24 barras suman los 10 M de fotos del día.</text>
+<text class="f-s" x="28" y="398" style="font-size:12px">La hora pico lleva 1/8: 1.25 M ÷ 3,600 s ≈ 347.</text>
+<text class="f-s" x="28" y="418" style="font-size:12px">El promedio paga la factura; el pico dimensiona.</text>
+</svg>

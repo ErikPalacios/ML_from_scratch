@@ -1,0 +1,78 @@
+{
+  "titulo": "El p99 de todo el servicio, con dos pods",
+  "width": 78,
+  "height": 58,
+  "lanes": [
+    { "id": "trampa", "label": "La trampa · promediar", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 14 },
+    { "id": "pods", "label": "Las copias del servicio · 5 minutos", "kind": "online", "x": 0, "y": 15, "w": 78, "h": 15 },
+    { "id": "bien", "label": "La forma correcta · Prometheus", "kind": "monitor", "x": 0, "y": 31, "w": 78, "h": 27 }
+  ],
+  "nodes": [
+    {
+      "id": "trampa",
+      "label": "Promediar los p99",
+      "sub": "(80 + 2,000) ÷ 2 = 1,040 ms",
+      "kind": "job",
+      "x": 26, "y": 4, "w": 26, "h": 8,
+      "note": "Da 1,040 ms: parece que todo el servicio está roto. Pesado por tráfico da ≈ 118 ms: parece que todo está bien. **Ninguno es el p99**: a los dos les falta contar cuántas requests, de todas, fueron lentas."
+    },
+    {
+      "id": "podA",
+      "label": "Pod A",
+      "sub": "9,900 requests · p99 80 ms",
+      "kind": "service",
+      "x": 4, "y": 18, "w": 22, "h": 9,
+      "note": "Atendió casi todo el tráfico, sin problemas. Su propio [[p99]], 80 ms, es correcto **para él**, pero no dice nada del servicio completo."
+    },
+    {
+      "id": "podB",
+      "label": "Pod B",
+      "sub": "200 requests · todas ≈ 2 s",
+      "kind": "service",
+      "x": 52, "y": 18, "w": 22, "h": 9,
+      "note": "Un vecino ruidoso en su máquina lo frenó: sus 200 requests tardaron ≈ 2 s. Son pocas comparadas con las de A, pero son el **2 % del total**: más que el 1 % que permite la promesa."
+    },
+    {
+      "id": "suma",
+      "label": "Sumar los buckets",
+      "sub": "sum by (le)",
+      "kind": "monitor",
+      "x": 28, "y": 35, "w": 22, "h": 8,
+      "note": "Junta las dos [[distribucion|distribuciones]]: suma, bucket por bucket, lo que contó cada pod. Queda un solo [[histograma]] de 10,100 requests."
+    },
+    {
+      "id": "cuantil",
+      "label": "El percentil al final",
+      "sub": "histogram_quantile(0.99)",
+      "kind": "monitor",
+      "x": 28, "y": 48, "w": 22, "h": 8,
+      "note": "Busca la posición 0.99 × 10,100 = 9,999 en los buckets sumados: cae entre las 200 lentas. El p99 del servicio es **≈ 2 s** y la promesa de 200 ms está rota."
+    }
+  ],
+  "edges": [
+    { "from": "podA", "to": "trampa", "kind": "async", "dashed": true, "label": "80 ms", "fromSide": "t", "toSide": "l", "via": [[15, 8]] },
+    { "from": "podB", "to": "trampa", "kind": "async", "dashed": true, "label": "2 s", "fromSide": "t", "toSide": "r", "via": [[63, 8]] },
+    { "from": "podA", "to": "suma", "kind": "monitor", "label": "buckets", "fromSide": "b", "toSide": "l", "via": [[15, 39]] },
+    { "from": "podB", "to": "suma", "kind": "monitor", "label": "buckets", "fromSide": "b", "toSide": "r", "via": [[63, 39]] },
+    { "from": "suma", "to": "cuantil", "kind": "monitor", "fromSide": "b", "toSide": "t" }
+  ],
+  "flows": [
+    {
+      "id": "bien",
+      "label": "La forma correcta",
+      "steps": [
+        { "nodes": ["podA", "podB"], "edges": [], "text": "**5 minutos de tráfico.** El pod A atiende 9,900 requests sin problemas; el pod B, frenado por un vecino ruidoso, atiende 200, todas en ≈ 2 s. Cada uno solo **cuenta**: suma 1 en el bucket de cada request." },
+        { "nodes": ["podA", "podB", "suma"], "edges": ["podA>suma", "podB>suma"], "text": "**Sumar los buckets.** Prometheus suma, bucket por bucket, lo que contó cada pod (`sum by (le)`). Queda un solo histograma de 10,100 requests: las dos distribuciones juntas." },
+        { "nodes": ["suma", "cuantil"], "edges": ["suma>cuantil"], "text": "**El percentil al final.** La posición es 0.99 × 10,100 = 9,999, y esa request cae entre las 200 lentas. El p99 del servicio es ≈ 2 s: la promesa está rota, aunque el pod A se vea perfecto." }
+      ]
+    },
+    {
+      "id": "trampa",
+      "label": "La trampa: promediar los p99",
+      "steps": [
+        { "nodes": ["podA", "podB"], "edges": [], "text": "Cada pod calcula **su propio** p99: 80 ms el A y ≈ 2 s el B. Cada número es correcto para su pod." },
+        { "nodes": ["podA", "podB", "trampa"], "edges": ["podA>trampa", "podB>trampa"], "text": "**Promediarlos** da 1,040 ms y parece que todo está roto; pesarlos por tráfico da ≈ 118 ms y parece que todo está bien. Ninguno es el p99: lo decide **cuántas** requests, de todas, fueron lentas, y eso solo lo dicen los buckets." }
+      ]
+    }
+  ]
+}

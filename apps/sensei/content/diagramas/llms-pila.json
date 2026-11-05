@@ -1,0 +1,48 @@
+{
+  "titulo": "Por dentro de Llama 3 8B: de los ids al siguiente token",
+  "width": 78,
+  "height": 46,
+  "lanes": [
+    { "id": "entrada", "label": "Entrada", "kind": "neutral", "x": 0, "y": 0, "w": 37, "h": 22 },
+    { "id": "bloque", "label": "Un bloque · 32 veces", "kind": "online", "x": 39, "y": 0, "w": 39, "h": 22 },
+    { "id": "salida", "label": "Salida · solo del último token", "kind": "neutral", "x": 0, "y": 24, "w": 78, "h": 22 }
+  ],
+  "nodes": [
+    { "id": "ids", "label": "Ids", "sub": "uno por token", "kind": "client", "x": 1, "y": 8, "w": 15, "h": 9,
+      "note": "El [[tokenizer]] ya partió el texto: aquí entran números, uno por token. En el [[prefill]] entran todos los del prompt a la vez; en cada paso de [[decode]], solo el último." },
+    { "id": "emb", "label": "Embeddings", "sub": "128,256 × 4,096", "kind": "store", "x": 21, "y": 8, "w": 15, "h": 9,
+      "note": "Cada id lee su fila: un vector de 4,096 números. Son 525 millones de [[parametro|parámetros]], el 6.5 % del modelo. La posición todavía no está: la agrega RoPE dentro de la atención." },
+    { "id": "att", "label": "Atención", "sub": "32 cabezas · RoPE", "kind": "model", "x": 41, "y": 8, "w": 15, "h": 9,
+      "note": "[[multi-head|Atención multi-cabeza]]: 32 cabezas de Q y 8 juegos de K y V ([[gqa|GQA]]), cada token mirando solo a los anteriores. ≈ 42 millones de parámetros por bloque. Su resultado se **suma** al vector que entró, como los atajos de la ResNet." },
+    { "id": "mlp", "label": "MLP", "sub": "sube a 14,336 y regresa", "kind": "model", "x": 62, "y": 8, "w": 15, "h": 9,
+      "note": "Una red que procesa cada token por separado: tres tablas de 4,096 × 14,336, ≈ 176 millones de parámetros por bloque. Es el 70 % del modelo. Lo que sale entra al bloque siguiente; después del bloque 32, a la capa de salida." },
+    { "id": "salida", "label": "Capa de salida", "sub": "4,096 → 128,256", "kind": "model", "x": 62, "y": 32, "w": 15, "h": 9,
+      "note": "Convierte el vector del último token en 128,256 [[logit|logits]], uno por cada token del vocabulario. Es otra tabla del tamaño de la de embeddings: 525 millones de parámetros." },
+    { "id": "softmax", "label": "Softmax", "sub": "con temperatura", "kind": "service", "x": 41, "y": 32, "w": 15, "h": 9,
+      "note": "Divide los logits entre la [[temperatura]] y los convierte en [[probabilidad|probabilidades]] que suman 100 %. No tiene parámetros." },
+    { "id": "sampling", "label": "Sampling", "sub": "elige uno", "kind": "service", "x": 21, "y": 32, "w": 15, "h": 9,
+      "note": "Toma el más probable o sortea respetando las probabilidades ([[sampling]]), quizá solo entre los más probables (*top-p*)." },
+    { "id": "token", "label": "Token nuevo", "sub": "se agrega al texto", "kind": "client", "x": 1, "y": 32, "w": 15, "h": 9,
+      "note": "Se manda a la app (*streaming*) y vuelve a entrar como el último id del texto. Su K y su V, de los 32 bloques, ya quedaron en el [[kv-cache|KV cache]]." }
+  ],
+  "edges": [
+    { "from": "ids", "to": "emb", "kind": "online" },
+    { "from": "emb", "to": "att", "kind": "online", "label": "4,096" },
+    { "from": "att", "to": "mlp", "kind": "online" },
+    { "from": "mlp", "to": "salida", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "salida", "to": "softmax", "kind": "online", "fromSide": "l", "toSide": "r", "label": "logits" },
+    { "from": "softmax", "to": "sampling", "kind": "online", "fromSide": "l", "toSide": "r" },
+    { "from": "sampling", "to": "token", "kind": "online", "fromSide": "l", "toSide": "r" },
+    { "from": "token", "to": "ids", "kind": "online", "fromSide": "t", "toSide": "b", "dashed": true }
+  ],
+  "flows": [
+    { "id": "un-token", "label": "Un token, de punta a punta", "steps": [
+      { "nodes": ["ids", "emb"], "edges": ["ids>emb"], "text": "Cada id del texto lee su fila de la tabla: un vector de 4,096 números por token." },
+      { "nodes": ["emb", "att"], "edges": ["emb>att"], "text": "**Atención.** Cada token mira a los anteriores, con 32 cabezas y la posición agregada por RoPE, y suma lo que tomó a su propio vector." },
+      { "nodes": ["att", "mlp"], "edges": ["att>mlp"], "text": "**MLP.** Cada token pasa por su red: sube a 14,336 números y regresa a 4,096. Atención y MLP forman un bloque; Llama 3 8B apila 32." },
+      { "nodes": ["mlp", "salida"], "edges": ["mlp>salida"], "text": "Después del bloque 32, el vector del **último** token se convierte en 128,256 logits." },
+      { "nodes": ["salida", "softmax", "sampling"], "edges": ["salida>softmax", "softmax>sampling"], "text": "Softmax con temperatura y un sorteo: sale **un** token." },
+      { "nodes": ["sampling", "token", "ids"], "edges": ["sampling>token", "token>ids"], "text": "El token se manda a la app y vuelve a entrar. Para el siguiente, solo se calcula él: lo de los anteriores ya está en el KV cache." }
+    ] }
+  ]
+}

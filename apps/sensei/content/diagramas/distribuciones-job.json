@@ -1,0 +1,305 @@
+{
+  "titulo": "El job de drift de C01, una vez al día",
+  "width": 78,
+  "height": 52,
+  "lanes": [
+    {
+      "id": "request",
+      "label": "En cada request",
+      "kind": "online",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 15
+    },
+    {
+      "id": "dia",
+      "label": "Una vez al día",
+      "kind": "monitor",
+      "x": 0,
+      "y": 17,
+      "w": 78,
+      "h": 19
+    },
+    {
+      "id": "dispara",
+      "label": "Si dispara",
+      "kind": "neutral",
+      "x": 0,
+      "y": 38,
+      "w": 78,
+      "h": 14
+    }
+  ],
+  "nodes": [
+    {
+      "id": "fotos",
+      "label": "Fotos de hoy",
+      "sub": "≈ 10 M al día",
+      "kind": "client",
+      "x": 2,
+      "y": 4.5,
+      "w": 18,
+      "h": 8,
+      "note": "≈ 2.5 M publicaciones nuevas al día con ≈ 3 fotos cada una, más las de otros equipos. Nadie las ha etiquetado: las [[etiqueta|etiquetas]] buenas llegan días o semanas después."
+    },
+    {
+      "id": "api",
+      "label": "Gateway + modelo",
+      "sub": "top-5 en ms",
+      "kind": "service",
+      "x": 30,
+      "y": 4.5,
+      "w": 18,
+      "h": 8,
+      "note": "Ana sube la foto de sus tenis y recibe 5 sugerencias. El job de drift no toca este camino: no le agrega ni un milisegundo a la [[latencia]]."
+    },
+    {
+      "id": "log",
+      "label": "Log de predicciones",
+      "sub": "una línea por foto",
+      "kind": "store",
+      "x": 58,
+      "y": 4.5,
+      "w": 18,
+      "h": 8,
+      "note": "Cada predicción deja ≈ 300 bytes: versión del modelo, categoría y score top-1, y estadísticas de la foto (bytes, resolución, brillo). Nunca la foto. Se guarda el 100 %: cuesta casi nada y es la materia prima del drift."
+    },
+    {
+      "id": "ref",
+      "label": "Referencia",
+      "sub": "4 semanas previas",
+      "kind": "store",
+      "x": 2,
+      "y": 26,
+      "w": 18,
+      "h": 8,
+      "note": "Los histogramas «normales»: los de las 4 semanas anteriores. Responde «¿cambió algo de golpe?». Conviene tener otra referencia, la del entrenamiento, para «¿el modelo está viendo algo que no aprendió?»."
+    },
+    {
+      "id": "job",
+      "label": "Job de drift",
+      "sub": "PSI · KS · χ²",
+      "kind": "job",
+      "x": 30,
+      "y": 26,
+      "w": 18,
+      "h": 8,
+      "note": "Un programa que corre una vez al día y termina. En la Ronda, el de C01 calcula el [[psi|PSI]] de la mezcla de categorías predichas contra las 4 semanas previas, la tasa de aceptación de las sugerencias y las re-categorizaciones de los moderadores. El brillo de esta lección es la misma cuenta sobre una entrada."
+    },
+    {
+      "id": "met",
+      "label": "Métricas",
+      "sub": "un número por variable",
+      "kind": "monitor",
+      "x": 58,
+      "y": 26,
+      "w": 18,
+      "h": 8,
+      "note": "El job publica cada resultado como una métrica más (en Prometheus), para que las alertas usen el mismo mecanismo que todo lo demás y se vea la historia: cuánto se mueve el PSI en semanas normales."
+    },
+    {
+      "id": "regla",
+      "label": "¿Pasa la regla?",
+      "sub": "> 0.2 tres días",
+      "kind": "monitor",
+      "x": 58,
+      "y": 41.5,
+      "w": 18,
+      "h": 8,
+      "note": "En C01: PSI mayor que 0.2 sostenido 3 días, o la aceptación cae más de 3 puntos semana contra semana. Pedir 3 días seguidos quita casi todas las falsas alarmas de un día raro."
+    },
+    {
+      "id": "ticket",
+      "label": "Ticket",
+      "sub": "al equipo de ML",
+      "kind": "human",
+      "x": 30,
+      "y": 41.5,
+      "w": 18,
+      "h": 8,
+      "note": "Un ticket, no un *page*: nadie se despierta a las 3 a. m. por un PSI, porque el servicio sigue funcionando. Se analiza con calma y con datos."
+    },
+    {
+      "id": "etiq",
+      "label": "Etiquetar muestra",
+      "sub": "¿acierta menos?",
+      "kind": "human",
+      "x": 2,
+      "y": 41.5,
+      "w": 18,
+      "h": 8,
+      "note": "El drift abre una investigación; no decide nada. Solo una muestra etiquetada dice si el modelo empeoró. Si sí, esas fotos entran al próximo [[reentrenamiento]]."
+    }
+  ],
+  "edges": [
+    {
+      "from": "fotos",
+      "to": "api",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "api",
+      "to": "log",
+      "kind": "async",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "log"
+    },
+    {
+      "from": "log",
+      "to": "job",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "t",
+      "dashed": true
+    },
+    {
+      "from": "ref",
+      "to": "job",
+      "kind": "monitor",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "comparar"
+    },
+    {
+      "from": "job",
+      "to": "met",
+      "kind": "monitor",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "met",
+      "to": "regla",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "regla",
+      "to": "ticket",
+      "kind": "monitor",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "ticket",
+      "to": "etiq",
+      "kind": "neutral",
+      "fromSide": "l",
+      "toSide": "r"
+    }
+  ],
+  "flows": [
+    {
+      "id": "normal",
+      "label": "Un día normal",
+      "steps": [
+        {
+          "nodes": [
+            "fotos",
+            "api"
+          ],
+          "edges": [
+            "fotos>api"
+          ],
+          "text": "**Llegan las fotos.** Cada una pasa por el gateway y el modelo, y la persona recibe sus 5 sugerencias."
+        },
+        {
+          "nodes": [
+            "api",
+            "log"
+          ],
+          "edges": [
+            "api>log"
+          ],
+          "text": "**Cada predicción deja una línea** en el log: categoría, score, versión del modelo y estadísticas de la foto. Se escribe aparte, sin hacer esperar a nadie."
+        },
+        {
+          "nodes": [
+            "log",
+            "ref",
+            "job"
+          ],
+          "edges": [
+            "log>job",
+            "ref>job"
+          ],
+          "text": "**Una vez al día**, el job lee las líneas de ayer, arma los histogramas (brillo, tamaño, categorías, score) y los compara contra los de la referencia."
+        },
+        {
+          "nodes": [
+            "job",
+            "met"
+          ],
+          "edges": [
+            "job>met"
+          ],
+          "text": "**Publica un número por variable.** Un día normal, el PSI del brillo da ≈ 0.002: ruido."
+        },
+        {
+          "nodes": [
+            "met",
+            "regla"
+          ],
+          "edges": [
+            "met>regla"
+          ],
+          "text": "**La regla no se cumple.** Nadie hace nada, que es justo lo que debe pasar casi todos los días."
+        }
+      ]
+    },
+    {
+      "id": "noche",
+      "label": "Una semana de noviembre",
+      "steps": [
+        {
+          "nodes": [
+            "fotos"
+          ],
+          "edges": [],
+          "text": "**Oscurece más temprano** y muchos vendedores toman la foto en casa, de noche. Nadie tocó el modelo."
+        },
+        {
+          "nodes": [
+            "log",
+            "ref",
+            "job",
+            "met"
+          ],
+          "edges": [
+            "log>job",
+            "ref>job",
+            "job>met"
+          ],
+          "text": "**El PSI del brillo da ≈ 0.23** el lunes, el martes y el miércoles: las fotos muy oscuras pasaron de 10 % a 22 %."
+        },
+        {
+          "nodes": [
+            "met",
+            "regla",
+            "ticket"
+          ],
+          "edges": [
+            "met>regla",
+            "regla>ticket"
+          ],
+          "text": "**Tres días arriba de 0.2:** se abre un ticket para el equipo de ML. No es un page: el servicio funciona."
+        },
+        {
+          "nodes": [
+            "ticket",
+            "etiq"
+          ],
+          "edges": [
+            "ticket>etiq"
+          ],
+          "text": "**Alguien investiga:** ¿coincide con un deploy (sería skew)? ¿Qué bins se movieron? Y se etiqueta una muestra de fotos de noche: solo eso dice si el modelo acierta menos."
+        }
+      ]
+    }
+  ]
+}

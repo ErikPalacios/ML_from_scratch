@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 500" role="img" aria-labelledby="f-distribuciones-mismo-promedio-t" class="f-svg" style="max-width:420px">
+<title id="f-distribuciones-mismo-promedio-t">Dos histogramas del brillo de las fotos de C01, en 5 bins de 0 a 255. Arriba, octubre, la referencia: 10, 20, 40, 20 y 10 por ciento, con la mayoría en el bin de en medio; desviación estándar de unos 56 niveles. Abajo, una semana rara: 30, 15, 10, 15 y 30 por ciento, con la mayoría en los extremos, muy oscuras y muy claras; desviación de unos 84. Las dos tienen el mismo promedio, unos 128, marcado con una línea punteada.</title>
+<rect class="f-card" x="10" y="10" width="340" height="480" rx="16"/>
+<text class="f-l" x="28.0" y="36.0">BRILLO DE LAS FOTOS · DOS SEMANAS</text>
+<text class="f-t" x="28.0" y="62.0" style="font-size:14px">Octubre: la referencia</text>
+<text class="f-s" x="332.0" y="62.0" text-anchor="end" style="font-size:12px">desviación ≈ 56</text>
+<text class="f-s" x="186.0" y="84.0" text-anchor="middle" style="font-size:12px;font-weight:700">promedio ≈ 128</text>
+<line x1="186.0" y1="90" x2="186.0" y2="212" style="stroke:var(--ink);stroke-width:2;stroke-dasharray:5 4"/>
+<rect class="f-b" x="52.4" y="188.0" width="40" height="24.0" rx="4"/>
+<text class="f-pill-t" x="72.4" y="204.0" text-anchor="middle" style="font-size:12px">10 %</text>
+<text class="f-s" x="72.4" y="228.0" text-anchor="middle" style="font-size:12px">0–50</text>
+<rect class="f-b" x="109.2" y="164.0" width="40" height="48.0" rx="4"/>
+<text class="f-pill-t" x="129.2" y="180.0" text-anchor="middle" style="font-size:12px">20 %</text>
+<text class="f-s" x="129.2" y="228.0" text-anchor="middle" style="font-size:12px">51–101</text>
+<rect class="f-b" x="166.0" y="116.0" width="40" height="96.0" rx="4"/>
+<text class="f-pill-t" x="186.0" y="132.0" text-anchor="middle" style="font-size:12px">40 %</text>
+<text class="f-s" x="186.0" y="228.0" text-anchor="middle" style="font-size:12px">102–152</text>
+<rect class="f-b" x="222.8" y="164.0" width="40" height="48.0" rx="4"/>
+<text class="f-pill-t" x="242.8" y="180.0" text-anchor="middle" style="font-size:12px">20 %</text>
+<text class="f-s" x="242.8" y="228.0" text-anchor="middle" style="font-size:12px">153–203</text>
+<rect class="f-b" x="279.6" y="188.0" width="40" height="24.0" rx="4"/>
+<text class="f-pill-t" x="299.6" y="204.0" text-anchor="middle" style="font-size:12px">10 %</text>
+<text class="f-s" x="299.6" y="228.0" text-anchor="middle" style="font-size:12px">204–255</text>
+<line x1="44" y1="212" x2="328" y2="212" class="f-linea"/>
+<text class="f-t" x="28.0" y="270.0" style="font-size:14px">Una semana rara</text>
+<text class="f-s" x="332.0" y="270.0" text-anchor="end" style="font-size:12px">desviación ≈ 84</text>
+<text class="f-s" x="186.0" y="292.0" text-anchor="middle" style="font-size:12px;font-weight:700">promedio ≈ 128</text>
+<line x1="186.0" y1="298" x2="186.0" y2="420" style="stroke:var(--ink);stroke-width:2;stroke-dasharray:5 4"/>
+<rect class="f-o" x="52.4" y="348.0" width="40" height="72.0" rx="4"/>
+<text class="f-pill-t" x="72.4" y="364.0" text-anchor="middle" style="font-size:12px">30 %</text>
+<text class="f-s" x="72.4" y="436.0" text-anchor="middle" style="font-size:12px">0–50</text>
+<rect class="f-o" x="109.2" y="384.0" width="40" height="36.0" rx="4"/>
+<text class="f-pill-t" x="129.2" y="400.0" text-anchor="middle" style="font-size:12px">15 %</text>
+<text class="f-s" x="129.2" y="436.0" text-anchor="middle" style="font-size:12px">51–101</text>
+<rect class="f-o" x="166.0" y="396.0" width="40" height="24.0" rx="4"/>
+<text class="f-pill-t" x="186.0" y="412.0" text-anchor="middle" style="font-size:12px">10 %</text>
+<text class="f-s" x="186.0" y="436.0" text-anchor="middle" style="font-size:12px">102–152</text>
+<rect class="f-o" x="222.8" y="384.0" width="40" height="36.0" rx="4"/>
+<text class="f-pill-t" x="242.8" y="400.0" text-anchor="middle" style="font-size:12px">15 %</text>
+<text class="f-s" x="242.8" y="436.0" text-anchor="middle" style="font-size:12px">153–203</text>
+<rect class="f-o" x="279.6" y="348.0" width="40" height="72.0" rx="4"/>
+<text class="f-pill-t" x="299.6" y="364.0" text-anchor="middle" style="font-size:12px">30 %</text>
+<text class="f-s" x="299.6" y="436.0" text-anchor="middle" style="font-size:12px">204–255</text>
+<line x1="44" y1="420" x2="328" y2="420" class="f-linea"/>
+<text class="f-s" x="180.0" y="456.0" text-anchor="middle" style="font-size:12px">brillo de la foto: 0 = negro, 255 = blanco</text>
+<text class="f-t" x="180.0" y="478.0" text-anchor="middle" style="font-size:14px">Mismo promedio, otra forma</text>
+</svg>

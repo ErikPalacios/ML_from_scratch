@@ -1,0 +1,26 @@
+{
+  "titulo": "Unidades de datos",
+  "intro": "Escribe un tamaño, elige el prefijo, si es decimal o binario y si son bytes o bits. Abajo sale lo mismo en las otras unidades. Empieza con un disco de 1 TB.",
+  "entradas": [
+    { "id": "n", "label": "Cantidad", "min": 0.01, "max": 100000, "paso": 0.01, "valor": 1, "tipo": "numero" },
+    { "id": "p", "label": "Prefijo: 0 = ninguno · 1 = kilo · 2 = mega · 3 = giga · 4 = tera · 5 = peta", "min": 0, "max": 5, "paso": 1, "valor": 4 },
+    { "id": "bin", "label": "0 = decimal (KB, de 1,000 en 1,000) · 1 = binario (KiB, de 1,024 en 1,024)", "min": 0, "max": 1, "paso": 1, "valor": 0 },
+    { "id": "bits", "label": "0 = bytes (B) · 1 = bits (b)", "min": 0, "max": 1, "paso": 1, "valor": 0 }
+  ],
+  "calculos": [
+    { "id": "B", "formula": "n * pow(1000 + 24 * bin, p) / (1 + 7 * bits)" }
+  ],
+  "salidas": [
+    { "label": "Bytes, exactos", "formula": "B", "formato": "int" },
+    { "label": "Bits", "formula": "B * 8", "formato": "sci", "nota": "bytes × 8" },
+    { "label": "MB (10⁶ bytes)", "formula": "B / 1e6" },
+    { "label": "MiB (2²⁰ bytes)", "formula": "B / pow(2, 20)" },
+    { "label": "GB (10⁹ bytes)", "formula": "B / 1e9" },
+    { "label": "GiB (2³⁰ bytes)", "formula": "B / pow(2, 30)", "nota": "lo que Windows llama «GB»" },
+    { "label": "TB (10¹² bytes)", "formula": "B / 1e12" },
+    { "label": "TiB (2⁴⁰ bytes)", "formula": "B / pow(2, 40)" },
+    { "label": "Cuánto más grande es el binario de ese prefijo", "formula": "pow(1.024, p) - 1", "formato": "pct", "nota": "1,024ᵖ ÷ 1,000ᵖ − 1" },
+    { "label": "Segundos para mandarlo por una red de 1 Gb/s", "formula": "B * 8 / 1e9", "nota": "en el mejor caso; ÷ 3,600 para horas" }
+  ],
+  "nota": "Cambia a binario con el mismo 1 tera: son 1,099,511,627,776 bytes, 10 % más. Cambia a bits: 1 terabit son 125 GB. La b chiquita divide entre 8."
+}

@@ -1,0 +1,166 @@
+{
+  "terminos": [
+    {
+      "id": "notacion-cientifica",
+      "termino": "Notación científica",
+      "en": "scientific notation",
+      "corto": "Escribir un número como una cifra entre 1 y 10 multiplicada por una potencia de diez: 86,400 = 8.64 × 10⁴. Sirve para números enormes o diminutos sin contar ceros.",
+      "largo": "La cifra se llama mantisa y la potencia, exponente; un exponente negativo es un número chico: 4 × 10⁻⁵ = 0.00004. Para multiplicar se multiplican las mantisas y se suman los exponentes; para dividir, se dividen y se restan. Python y las hojas de cálculo la escriben con una e: `8.64e+04` es 8.64 × 10⁴. El exponente dice el [[orden-magnitud|orden de magnitud]].",
+      "ejemplo": "La ResNet-50 de C01 tiene 24,532,532 ≈ 2.45 × 10⁷ parámetros y hace ≈ 4.1 × 10⁹ multiplicaciones por foto; copiar la foto a la GPU tarda ≈ 4 × 10⁻⁵ s, 40 microsegundos.",
+      "ver": [
+        "orden-magnitud",
+        "estimacion"
+      ],
+      "leccion": "unidades"
+    },
+    {
+      "id": "orden-magnitud",
+      "termino": "Orden de magnitud",
+      "en": "order of magnitude",
+      "corto": "La potencia de diez más cercana a un número: 86,400 es del orden de 10⁵. Dos cosas que difieren en un orden de magnitud están a 10 veces una de otra.",
+      "largo": "Para redondear al orden más cercano se mira la mantisa: si es menor que √10 ≈ 3.16 se queda la potencia; si no, se sube una. En diseño de sistemas, una [[estimacion|estimación]] sirve si atina al orden de magnitud: equivocarse por 2 veces rara vez cambia la decisión; por 10, sí, porque se pasa de un par de máquinas a un cluster.",
+      "ejemplo": "Leer la RAM (≈ 10⁻⁷ s) y la promesa de 200 ms de C01 (2 × 10⁻¹ s) están a más de seis órdenes de magnitud: ≈ 2 millones de veces.",
+      "ver": [
+        "notacion-cientifica",
+        "estimacion"
+      ],
+      "leccion": "unidades"
+    },
+    {
+      "id": "bit",
+      "termino": "Bit",
+      "en": "bit · binary digit",
+      "corto": "La unidad más chica de información: un 0 o un 1. Se escribe con b minúscula.",
+      "largo": "Con n bits caben 2ⁿ combinaciones: con 8, 256. Ocho bits forman un [[byte]]. Las velocidades de red se miden en bits por segundo (Mb/s, Gb/s), mientras que los archivos y las memorias se miden en bytes: confundirlos cambia la cuenta por 8. Cómo se escriben los números con bits es el sistema [[binario]].",
+      "ejemplo": "Un plan de internet de 100 megas son 100 Mb/s: 12.5 MB por segundo. Un archivo de 1 GB tarda ≈ 80 s en bajar, no 10.",
+      "ver": [
+        "byte",
+        "ancho-banda",
+        "binario"
+      ],
+      "leccion": "unidades"
+    },
+    {
+      "id": "byte",
+      "termino": "Byte",
+      "en": "byte",
+      "corto": "Un grupo de 8 bits: la unidad en la que se miden los archivos y las memorias. Se escribe con B mayúscula y guarda un número del 0 al 255.",
+      "largo": "Un canal de un píxel en [[uint8]] ocupa 1 byte; un número en [[float32]], 4. Los múltiplos (KB, MB, GB…) van de mil en mil en el sistema decimal y de 1,024 en 1,024 con los [[prefijo-binario|prefijos binarios]] (KiB, MiB, GiB…).",
+      "ejemplo": "La foto de C01 como tensor: 3 × 224 × 224 = 150,528 números × 4 bytes = 602,112 bytes ≈ 602 KB, que son ≈ 4.8 millones de bits.",
+      "ver": [
+        "bit",
+        "prefijo-binario"
+      ],
+      "leccion": "unidades"
+    },
+    {
+      "id": "prefijo-binario",
+      "termino": "Prefijo binario (KiB, MiB, GiB)",
+      "en": "binary prefix · kibi, mebi, gibi",
+      "corto": "Los múltiplos de 1,024 en vez de 1,000: 1 KiB = 1,024 bytes, 1 MiB = 1,024 KiB, 1 GiB = 1,024 MiB. Llevan una i: KiB, MiB, GiB, TiB.",
+      "largo": "Las computadoras cuentan en potencias de 2, y 2¹⁰ = 1,024 se parece a mil, así que por décadas «kilobyte» quiso decir las dos cosas. En 1998 la IEC separó los nombres: KB son 1,000 bytes (decimal) y KiB, 1,024 (binario). La diferencia crece con cada prefijo: 2.4 % en kilo, 7.4 % en giga, 10 % en tera. Los discos y las redes usan decimal; la RAM, Windows, `nvidia-smi` y PyTorch, binario. En una misma cuenta se usa una sola regla.",
+      "ejemplo": "Un disco de 1 TB tiene 10¹² bytes; Windows los divide entre 2³⁰ y muestra ≈ 931 «GB», que en realidad son GiB. No falta nada: es otra regla.",
+      "ver": [
+        "byte",
+        "bit"
+      ],
+      "leccion": "unidades"
+    },
+    {
+      "id": "ancho-banda",
+      "termino": "Ancho de banda",
+      "en": "bandwidth",
+      "corto": "Cuántos datos puede mover un canal por segundo: una red, un disco, el bus entre el CPU y la GPU. La red se mide en bits por segundo (Gb/s); la memoria y los discos, en bytes por segundo (GB/s).",
+      "largo": "El tiempo de mandar algo grande es su tamaño entre el ancho de banda, con las unidades parejas (× 8 entre bytes y bits). No es lo mismo que la [[latencia]]: el ancho de banda dice cuánto cabe por segundo; la latencia, cuánto tarda en llegar lo primero. El de la memoria de la GPU tiene su propia lección: [[ancho-banda-memoria]].",
+      "analogia": "Una camioneta con 2 PB de discos que maneja 10 horas tiene un ancho de banda enorme (≈ 440 Gb/s) y una latencia pésima: el primer byte llega a las 10 horas. Se rompe en que una red manda un flujo continuo y la camioneta, todo de golpe.",
+      "ejemplo": "En el pico de diseño de C01 viajan 500 × 602 KB ≈ 301 MB/s del gateway a las GPUs: ≈ 2.4 Gb/s. Por PCIe, a ≈ 16 GB/s, copiar una foto tarda ≈ 40 µs.",
+      "ver": [
+        "bit",
+        "byte",
+        "latencia",
+        "ancho-banda-memoria"
+      ],
+      "leccion": "unidades"
+    },
+    {
+      "id": "throughput",
+      "termino": "Throughput",
+      "en": "throughput",
+      "corto": "Cuánto trabajo termina un sistema por unidad de tiempo: requests por segundo, fotos por segundo, tokens por segundo.",
+      "largo": "Es distinto de la [[latencia]], que es cuánto tarda una sola request: un servicio puede atender 500 por segundo aunque cada una tarde 50 ms, porque atiende muchas a la vez. Un throughput se dice con su momento (promedio o [[factor-pico|pico]]) y su lugar (el gateway trabaja por requests; la GPU, por fotos). Con el del pico se cuentan las máquinas.",
+      "ejemplo": "C01 se diseña para 500 req/s; una T4 sostiene ≈ 1,200 fotos por segundo, medidas con una prueba de carga. En un LLM hay dos: los tokens por segundo que ve cada persona y los de toda la flota.",
+      "ver": [
+        "qps",
+        "latencia",
+        "factor-pico"
+      ],
+      "leccion": "unidades"
+    },
+    {
+      "id": "qps",
+      "termino": "QPS (req/s)",
+      "en": "queries per second · requests per second",
+      "corto": "Cuántas requests o consultas llegan por segundo. Es la unidad con la que se dimensiona un servicio.",
+      "largo": "Se calcula dividiendo el volumen de un día entre 86,400 segundos: 1 millón al día son ≈ 11.6 por segundo. Ese es el promedio; para dimensionar se usan el pico y el pico de diseño (ver [[factor-pico]]). «QPS» viene de los buscadores (*queries*); «req/s» dice lo mismo para cualquier API.",
+      "ejemplo": "C01: 10,000,000 ÷ 86,400 ≈ 116 req/s de promedio, ≈ 350 en la hora pico y 500 de diseño. Las búsquedas de C07: 50 M al día, ≈ 579 de promedio y ≈ 1,750 en el pico.",
+      "ver": [
+        "throughput",
+        "factor-pico"
+      ],
+      "leccion": "unidades"
+    },
+    {
+      "id": "factor-pico",
+      "termino": "Factor de pico",
+      "en": "peak factor · peak-to-average ratio",
+      "corto": "Cuántas veces el promedio llega en el momento de más tráfico. Con él se pasa del promedio al pico, que es para lo que se compran las máquinas.",
+      "largo": "Si la hora pico lleva una fracción f del tráfico del día, el factor es 24 × f: con 1/8, 3. Suele estar entre 2 y 5 en apps que usan personas en una zona horaria, y cerca de 1 en un proceso que trabaja parejo las 24 horas. Al pico se le suma un margen (× 1.3 a 1.5) para picos raros y crecimiento, y se redondea hacia arriba: el **pico de diseño**.",
+      "ejemplo": "C01 supone 3: 116 × 3 ≈ 350 req/s; con un margen de ≈ 1.4 diseña para 500. Una notificación del Hot Sale podría llevarlo a ≈ 1,670 durante un minuto.",
+      "ver": [
+        "qps",
+        "throughput",
+        "estimacion"
+      ],
+      "leccion": "unidades"
+    },
+    {
+      "id": "estimacion",
+      "termino": "Estimación (cuenta de servilleta)",
+      "en": "back-of-the-envelope estimate",
+      "corto": "Una cuenta rápida con números redondos para saber el orden de magnitud de algo (requests por segundo, máquinas, bytes, dólares) antes de construirlo.",
+      "largo": "Se parte de pocos datos y de supuestos dichos en voz alta, se encadenan multiplicaciones y divisiones con las unidades a la vista y se redondea. No busca exactitud: busca no equivocarse por 10 y llevar a una decisión. Lo que depende del hardware o del negocio se marca como «a medir» y se mide con una prueba de carga.",
+      "ejemplo": "La de C01: 10 M fotos al día → 116 req/s → 350 en el pico → 500 de diseño → 2 T4 con N+1 → ≈ US$768 al mes de GPUs, y 3 GB de logs al día.",
+      "ver": [
+        "orden-magnitud",
+        "factor-pico",
+        "ceil"
+      ],
+      "leccion": "unidades"
+    },
+    {
+      "id": "ceil",
+      "termino": "Redondear hacia arriba (ceil)",
+      "en": "ceiling · ceil",
+      "corto": "Quedarse con el entero de arriba: ⌈0.83⌉ = 1 y ⌈2.1⌉ = 3. Así se cuentan las máquinas: media máquina no existe, y la que falta deja tráfico sin atender.",
+      "largo": "Se escribe ⌈x⌉ y en Python `math.ceil(x)`. Su contrario es el piso, ⌊x⌋ (`math.floor`), que se queda con el entero de abajo; `round` va al más cercano, y en Python manda los empates al par: `round(2.5)` da 2. Para capacidad, siempre hacia arriba; el repuesto (N+1) se suma después.",
+      "ejemplo": "GPUs de C01: ⌈500 ÷ 600⌉ = ⌈0.83⌉ = 1 por tráfico, más 1 de repuesto: 2. Con `floor` serían 0.",
+      "ver": [
+        "estimacion",
+        "throughput"
+      ],
+      "leccion": "unidades"
+    },
+    {
+      "id": "punto-porcentual",
+      "termino": "Punto porcentual",
+      "en": "percentage point · pp",
+      "corto": "La resta entre dos porcentajes: de 85 % a 87 % son 2 puntos porcentuales, aunque el cambio relativo sea de 2.4 %.",
+      "largo": "«Subió 2 %» y «subió 2 puntos» son cosas distintas: lo primero es multiplicar por 1.02; lo segundo, sumarle 2 al porcentaje. Con métricas y disponibilidad conviene decir los dos. Pasar de 99.9 % a 99.99 % son solo 0.09 puntos, pero la caída permitida se divide entre 10: de ≈ 43 a ≈ 4.3 minutos al mes.",
+      "ejemplo": "El gate de C01 no deja pasar un modelo que quede más de 0.3 puntos abajo del actual: si el actual saca 96 % de top-5, el nuevo pasa con 95.7 % y no con 95.6 %.",
+      "ver": [
+        "estimacion"
+      ],
+      "leccion": "unidades"
+    }
+  ]
+}

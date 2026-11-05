@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 540" role="img" aria-labelledby="f-unidades-prefijos-t" class="f-svg" style="max-width:420px">
+<title id="f-unidades-prefijos-t">Tres partes. Arriba, un byte como 8 casillas con los bits 1 0 1 1 0 1 1 0; debajo de cada casilla, lo que vale: 128, 64, 32, 16, 8, 4, 2 y 1. Sumando las casillas encendidas, 128 más 32 más 16 más 4 más 2, el byte guarda el número 182; con 8 bits caben 256 valores, de 0 a 255. En medio, los prefijos decimales contra los binarios: kilo, 10 a la 3 contra 2 a la 10, el binario es 2.4 % más grande; mega, 4.9 %; giga, 7.4 %; tera, 10 %; peta, 12.6 %. Abajo, el mismo disco de 1 TB medido con dos reglas del mismo largo: en GB llega a 1,000; en GiB, cuyas marcas están un poco más separadas, llega solo a 931. Son los mismos 10 a la 12 bytes; cada GiB es 7.4 % más grande.</title>
+<rect class="f-card" x="10" y="10" width="340" height="520" rx="16"/>
+<text class="f-l" x="28" y="36">UN BYTE = 8 BITS</text>
+<rect class="f-b" x="28" y="48" width="34" height="34" rx="6"/>
+<text class="f-pill-t" x="45" y="70.5" text-anchor="middle">1</text>
+<text class="f-l" x="45" y="100" text-anchor="middle">128</text>
+<rect class="f-chip" x="66" y="48" width="34" height="34" rx="6"/>
+<text class="f-t" x="83" y="70.5" text-anchor="middle">0</text>
+<text class="f-l" x="83" y="100" text-anchor="middle">64</text>
+<rect class="f-b" x="104" y="48" width="34" height="34" rx="6"/>
+<text class="f-pill-t" x="121" y="70.5" text-anchor="middle">1</text>
+<text class="f-l" x="121" y="100" text-anchor="middle">32</text>
+<rect class="f-b" x="142" y="48" width="34" height="34" rx="6"/>
+<text class="f-pill-t" x="159" y="70.5" text-anchor="middle">1</text>
+<text class="f-l" x="159" y="100" text-anchor="middle">16</text>
+<rect class="f-chip" x="180" y="48" width="34" height="34" rx="6"/>
+<text class="f-t" x="197" y="70.5" text-anchor="middle">0</text>
+<text class="f-l" x="197" y="100" text-anchor="middle">8</text>
+<rect class="f-b" x="218" y="48" width="34" height="34" rx="6"/>
+<text class="f-pill-t" x="235" y="70.5" text-anchor="middle">1</text>
+<text class="f-l" x="235" y="100" text-anchor="middle">4</text>
+<rect class="f-b" x="256" y="48" width="34" height="34" rx="6"/>
+<text class="f-pill-t" x="273" y="70.5" text-anchor="middle">1</text>
+<text class="f-l" x="273" y="100" text-anchor="middle">2</text>
+<rect class="f-chip" x="294" y="48" width="34" height="34" rx="6"/>
+<text class="f-t" x="311" y="70.5" text-anchor="middle">0</text>
+<text class="f-l" x="311" y="100" text-anchor="middle">1</text>
+<text class="f-s" x="28" y="124">128 + 32 + 16 + 4 + 2 = <tspan style="font-weight:700;fill:var(--ink)">182</tspan></text>
+<text class="f-s" x="28" y="144">8 bits: 2⁸ = 256 valores posibles, de 0 a 255</text>
+<line class="f-linea" x1="28" y1="164" x2="332" y2="164" style="opacity:.5"/>
+<text class="f-l" x="28" y="190">DECIMAL CONTRA BINARIO</text>
+<text class="f-l" x="88" y="212">DECIMAL</text><text class="f-l" x="158" y="212">BINARIO</text><text class="f-l" x="230" y="212">DIFERENCIA</text>
+<text class="f-s" x="28" y="236" style="font-weight:700;fill:var(--ink)">kilo</text>
+<text class="f-s" x="88" y="236">KB = 10³</text><text class="f-s" x="158" y="236">KiB = 2¹⁰</text>
+<rect class="f-y" x="230" y="225" width="11" height="13" rx="3"/>
+<text class="f-s" x="247" y="236" style="font-size:12px">+2.4 %</text>
+<text class="f-s" x="28" y="262" style="font-weight:700;fill:var(--ink)">mega</text>
+<text class="f-s" x="88" y="262">MB = 10⁶</text><text class="f-s" x="158" y="262">MiB = 2²⁰</text>
+<rect class="f-y" x="230" y="251" width="22.3" height="13" rx="3"/>
+<text class="f-s" x="258.3" y="262" style="font-size:12px">+4.9 %</text>
+<text class="f-s" x="28" y="288" style="font-weight:700;fill:var(--ink)">giga</text>
+<text class="f-s" x="88" y="288">GB = 10⁹</text><text class="f-s" x="158" y="288">GiB = 2³⁰</text>
+<rect class="f-y" x="230" y="277" width="33.9" height="13" rx="3"/>
+<text class="f-s" x="269.9" y="288" style="font-size:12px">+7.4 %</text>
+<text class="f-s" x="28" y="314" style="font-weight:700;fill:var(--ink)">tera</text>
+<text class="f-s" x="88" y="314">TB = 10¹²</text><text class="f-s" x="158" y="314">TiB = 2⁴⁰</text>
+<rect class="f-y" x="230" y="303" width="45.8" height="13" rx="3"/>
+<text class="f-s" x="281.8" y="314" style="font-size:12px">+10.0 %</text>
+<text class="f-s" x="28" y="340" style="font-weight:700;fill:var(--ink)">peta</text>
+<text class="f-s" x="88" y="340">PB = 10¹⁵</text><text class="f-s" x="158" y="340">PiB = 2⁵⁰</text>
+<rect class="f-y" x="230" y="329" width="57.9" height="13" rx="3"/>
+<text class="f-s" x="293.9" y="340" style="font-size:12px">+12.6 %</text>
+<line class="f-linea" x1="28" y1="378" x2="332" y2="378" style="opacity:.5"/>
+<text class="f-l" x="28" y="402">EL MISMO DISCO DE 1 TB, DOS REGLAS</text>
+<text class="f-s" x="28" y="426" style="font-size:12px">En GB: de 10⁹ en 10⁹ bytes</text>
+<line class="f-flecha" x1="40" y1="438" x2="320" y2="438" style="stroke:var(--b)"/>
+<line class="f-linea" x1="40" y1="432" x2="40" y2="438"/>
+<text class="f-l" x="40" y="452" text-anchor="middle">0</text>
+<line class="f-linea" x1="68" y1="432" x2="68" y2="438"/>
+<line class="f-linea" x1="96" y1="432" x2="96" y2="438"/>
+<text class="f-l" x="96" y="452" text-anchor="middle">200</text>
+<line class="f-linea" x1="124" y1="432" x2="124" y2="438"/>
+<line class="f-linea" x1="152" y1="432" x2="152" y2="438"/>
+<text class="f-l" x="152" y="452" text-anchor="middle">400</text>
+<line class="f-linea" x1="180" y1="432" x2="180" y2="438"/>
+<line class="f-linea" x1="208" y1="432" x2="208" y2="438"/>
+<text class="f-l" x="208" y="452" text-anchor="middle">600</text>
+<line class="f-linea" x1="236" y1="432" x2="236" y2="438"/>
+<line class="f-linea" x1="264" y1="432" x2="264" y2="438"/>
+<text class="f-l" x="264" y="452" text-anchor="middle">800</text>
+<line class="f-linea" x1="292" y1="432" x2="292" y2="438"/>
+<line class="f-linea" x1="320" y1="432" x2="320" y2="438"/>
+<text class="f-l" x="320" y="452" text-anchor="middle">1,000</text>
+<text class="f-s" x="28" y="478" style="font-size:12px">En GiB: de 2³⁰ en 2³⁰ bytes</text>
+<line class="f-flecha" x1="40" y1="490" x2="320" y2="490" style="stroke:var(--o)"/>
+<line class="f-linea" x1="40" y1="484" x2="40" y2="490"/>
+<text class="f-l" x="40" y="504" text-anchor="middle">0</text>
+<line class="f-linea" x1="70.1" y1="484" x2="70.1" y2="490"/>
+<line class="f-linea" x1="100.1" y1="484" x2="100.1" y2="490"/>
+<text class="f-l" x="100.1" y="504" text-anchor="middle">200</text>
+<line class="f-linea" x1="130.2" y1="484" x2="130.2" y2="490"/>
+<line class="f-linea" x1="160.3" y1="484" x2="160.3" y2="490"/>
+<text class="f-l" x="160.3" y="504" text-anchor="middle">400</text>
+<line class="f-linea" x1="190.3" y1="484" x2="190.3" y2="490"/>
+<line class="f-linea" x1="220.4" y1="484" x2="220.4" y2="490"/>
+<text class="f-l" x="220.4" y="504" text-anchor="middle">600</text>
+<line class="f-linea" x1="250.5" y1="484" x2="250.5" y2="490"/>
+<line class="f-linea" x1="280.5" y1="484" x2="280.5" y2="490"/>
+<text class="f-l" x="280.5" y="504" text-anchor="middle">800</text>
+<line class="f-linea" x1="310.6" y1="484" x2="310.6" y2="490"/>
+<line class="f-linea" x1="320" y1="482" x2="320" y2="490" style="stroke:var(--o);stroke-width:2.5"/>
+<text class="f-l" x="320" y="504" text-anchor="middle" style="fill:var(--ink)">931</text>
+<text class="f-s" x="28" y="526" style="font-size:12px">Mismos 10¹² bytes: cada GiB es 7.4 % más grande.</text>
+</svg>

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 382" role="img" aria-labelledby="f-numeros-maquina-byte-t" class="f-svg" style="max-width:420px">
+<title id="f-numeros-maquina-byte-t">Un byte, los mismos 8 bits leídos de dos maneras. Los bits son 1, 1, 1, 0, 1, 1, 0, 0. Sin signo, como uint8, cada posición vale de izquierda a derecha 128, 64, 32, 16, 8, 4, 2 y 1, y los bits prendidos suman 128 más 64 más 32 más 8 más 4, que da 236. Con signo, como int8, la primera posición vale menos 128 en vez de 128, y la suma da menos 128 más 64 más 32 más 8 más 4, que es menos 20. Los bits no dicen qué número son: lo dice el tipo de dato.</title>
+<rect class="f-card" x="10" y="10" width="340" height="362" rx="16"/>
+<text class="f-l" x="28.0" y="36.0">UN BYTE, DOS LECTURAS</text>
+<text class="f-s" x="28.0" y="62.0" style="font-size:13px;font-weight:600">Sin signo (uint8): cada bit suma su posición</text>
+<rect class="f-b" x="30.0" y="74.0" width="34.0" height="34.0" rx="6"/>
+<text x="47.0" y="97.0" text-anchor="middle" style="fill:#fff;font:800 16px var(--sans)">1</text>
+<text class="f-s" x="47.0" y="126.0" text-anchor="middle" style="font-size:12px;font-weight:700">128</text>
+<rect class="f-b" x="68.0" y="74.0" width="34.0" height="34.0" rx="6"/>
+<text x="85.0" y="97.0" text-anchor="middle" style="fill:#fff;font:800 16px var(--sans)">1</text>
+<text class="f-s" x="85.0" y="126.0" text-anchor="middle" style="font-size:12px;font-weight:700">64</text>
+<rect class="f-b" x="106.0" y="74.0" width="34.0" height="34.0" rx="6"/>
+<text x="123.0" y="97.0" text-anchor="middle" style="fill:#fff;font:800 16px var(--sans)">1</text>
+<text class="f-s" x="123.0" y="126.0" text-anchor="middle" style="font-size:12px;font-weight:700">32</text>
+<rect class="f-chip" x="144.0" y="74.0" width="34.0" height="34.0" rx="6"/>
+<text class="f-t" x="161.0" y="97.0" text-anchor="middle" style="font-size:16px">0</text>
+<text class="f-s" x="161.0" y="126.0" text-anchor="middle" style="font-size:12px">16</text>
+<rect class="f-b" x="182.0" y="74.0" width="34.0" height="34.0" rx="6"/>
+<text x="199.0" y="97.0" text-anchor="middle" style="fill:#fff;font:800 16px var(--sans)">1</text>
+<text class="f-s" x="199.0" y="126.0" text-anchor="middle" style="font-size:12px;font-weight:700">8</text>
+<rect class="f-b" x="220.0" y="74.0" width="34.0" height="34.0" rx="6"/>
+<text x="237.0" y="97.0" text-anchor="middle" style="fill:#fff;font:800 16px var(--sans)">1</text>
+<text class="f-s" x="237.0" y="126.0" text-anchor="middle" style="font-size:12px;font-weight:700">4</text>
+<rect class="f-chip" x="258.0" y="74.0" width="34.0" height="34.0" rx="6"/>
+<text class="f-t" x="275.0" y="97.0" text-anchor="middle" style="font-size:16px">0</text>
+<text class="f-s" x="275.0" y="126.0" text-anchor="middle" style="font-size:12px">2</text>
+<rect class="f-chip" x="296.0" y="74.0" width="34.0" height="34.0" rx="6"/>
+<text class="f-t" x="313.0" y="97.0" text-anchor="middle" style="font-size:16px">0</text>
+<text class="f-s" x="313.0" y="126.0" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-t" x="28.0" y="156.0" style="font-size:14px">128 + 64 + 32 + 8 + 4 = 236</text>
+<text class="f-s" x="28.0" y="190.0" style="font-size:13px;font-weight:600">Con signo (int8): el primero vale −128</text>
+<rect class="f-b" x="30.0" y="202.0" width="34.0" height="34.0" rx="6"/>
+<text x="47.0" y="225.0" text-anchor="middle" style="fill:#fff;font:800 16px var(--sans)">1</text>
+<text x="47.0" y="254.0" text-anchor="middle" style="fill:var(--o);font:800 12px var(--sans)">−128</text>
+<rect class="f-b" x="68.0" y="202.0" width="34.0" height="34.0" rx="6"/>
+<text x="85.0" y="225.0" text-anchor="middle" style="fill:#fff;font:800 16px var(--sans)">1</text>
+<text class="f-s" x="85.0" y="254.0" text-anchor="middle" style="font-size:12px;font-weight:700">64</text>
+<rect class="f-b" x="106.0" y="202.0" width="34.0" height="34.0" rx="6"/>
+<text x="123.0" y="225.0" text-anchor="middle" style="fill:#fff;font:800 16px var(--sans)">1</text>
+<text class="f-s" x="123.0" y="254.0" text-anchor="middle" style="font-size:12px;font-weight:700">32</text>
+<rect class="f-chip" x="144.0" y="202.0" width="34.0" height="34.0" rx="6"/>
+<text class="f-t" x="161.0" y="225.0" text-anchor="middle" style="font-size:16px">0</text>
+<text class="f-s" x="161.0" y="254.0" text-anchor="middle" style="font-size:12px">16</text>
+<rect class="f-b" x="182.0" y="202.0" width="34.0" height="34.0" rx="6"/>
+<text x="199.0" y="225.0" text-anchor="middle" style="fill:#fff;font:800 16px var(--sans)">1</text>
+<text class="f-s" x="199.0" y="254.0" text-anchor="middle" style="font-size:12px;font-weight:700">8</text>
+<rect class="f-b" x="220.0" y="202.0" width="34.0" height="34.0" rx="6"/>
+<text x="237.0" y="225.0" text-anchor="middle" style="fill:#fff;font:800 16px var(--sans)">1</text>
+<text class="f-s" x="237.0" y="254.0" text-anchor="middle" style="font-size:12px;font-weight:700">4</text>
+<rect class="f-chip" x="258.0" y="202.0" width="34.0" height="34.0" rx="6"/>
+<text class="f-t" x="275.0" y="225.0" text-anchor="middle" style="font-size:16px">0</text>
+<text class="f-s" x="275.0" y="254.0" text-anchor="middle" style="font-size:12px">2</text>
+<rect class="f-chip" x="296.0" y="202.0" width="34.0" height="34.0" rx="6"/>
+<text class="f-t" x="313.0" y="225.0" text-anchor="middle" style="font-size:16px">0</text>
+<text class="f-s" x="313.0" y="254.0" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-t" x="28.0" y="284.0" style="font-size:14px">−128 + 64 + 32 + 8 + 4 = −20</text>
+<rect class="f-chip" x="24.0" y="304.0" width="312.0" height="60.0" rx="10"/>
+<text class="f-t" x="38.0" y="328.0" style="font-size:13px">Los bits no dicen qué número son:</text>
+<text class="f-s" x="38.0" y="348.0" style="font-size:12px">lo dice el tipo de dato. 236 o −20, según quién lea.</text>
+</svg>

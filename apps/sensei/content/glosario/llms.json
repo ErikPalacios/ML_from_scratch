@@ -8,7 +8,12 @@
       "corto": "El pedacito de texto con el que trabaja un modelo de lenguaje: una palabra entera, un trozo de palabra, un signo o un espacio con la palabra que sigue.",
       "largo": "Cada token tiene un número (su id) en el vocabulario del [[tokenizer]]. Los modelos cobran, miden y limitan todo en tokens: el largo del [[prompt]], la [[ventana-contexto|ventana de contexto]], el precio y la velocidad («tokens por segundo»).",
       "ejemplo": "En inglés, como regla aproximada, 1 token ≈ ¾ de palabra. En español suelen salir más tokens por palabra, y la cuenta exacta depende de cada tokenizer.",
-      "ver": ["tokenizer", "prompt", "ventana-contexto"],
+      "ver": [
+        "tokenizer",
+        "bpe",
+        "prompt",
+        "ventana-contexto"
+      ],
       "leccion": "llms"
     },
     {
@@ -16,9 +21,26 @@
       "termino": "Tokenizer",
       "en": "tokenizer",
       "corto": "El programa que parte un texto en tokens y cambia cada uno por su número (id), y que al final hace lo contrario: de ids a texto.",
-      "largo": "Tiene un vocabulario fijo, que se decide antes de entrenar el modelo: la lista de todos los tokens que conoce. Las palabras comunes suelen ser un solo token; las raras se arman con varios pedazos. Cada modelo trae el suyo, así que el mismo texto da distinto número de tokens en modelos distintos.",
+      "largo": "Tiene un vocabulario fijo, que se decide antes de entrenar el modelo, casi siempre con [[bpe|BPE]]: la lista de todos los tokens que conoce. Las palabras comunes suelen ser un solo token; las raras se arman con varios pedazos. Cada modelo trae el suyo, así que el mismo texto da distinto número de tokens en modelos distintos, y los ids de uno no significan nada para otro.",
       "ejemplo": "El tokenizer de Llama 3 tiene un vocabulario de 128,256 tokens.",
-      "ver": ["token", "embedding"],
+      "ver": [
+        "token",
+        "bpe",
+        "embedding"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "bpe",
+      "termino": "BPE (codificación por pares de bytes)",
+      "en": "byte-pair encoding",
+      "corto": "El método con el que se arma el vocabulario de casi todos los tokenizers: empezar con letras (o bytes) y unir, una y otra vez, el par de vecinos que más se repite en un texto de muestra.",
+      "largo": "Cada unión crea un token nuevo y queda guardada como regla, en orden. Para partir un texto nuevo se aplican las reglas en ese mismo orden. Las palabras comunes terminan en un solo token y las raras se arman con pedazos. En su versión por bytes (la de GPT-2 y Llama 3) se empieza con los 256 valores de un byte, así que cualquier texto se puede escribir, hasta un emoji. Nació en 1994 para comprimir archivos y en 2016 se adaptó a la traducción automática.",
+      "ejemplo": "Con «tenis» (3 veces), «tengo» (2), «tela» y «pista», las primeras uniones son t + e → te, te + n → ten, i + s → is y ten + is → tenis. Una palabra que no estaba, «tenista», queda como tenis · t · a.",
+      "ver": [
+        "tokenizer",
+        "token"
+      ],
       "leccion": "llms"
     },
     {
@@ -26,9 +48,14 @@
       "termino": "Prompt",
       "en": "prompt",
       "corto": "El texto que se le da al modelo de lenguaje para que continúe: la pregunta, las instrucciones y, a veces, documentos o ejemplos.",
-      "largo": "El modelo lo lee completo antes de escribir el primer token de la respuesta (el *prefill*). Un prompt largo cuesta más dinero, ocupa más [[kv-cache|KV cache]] y tarda más en dar el primer token.",
+      "largo": "El modelo lo lee completo antes de escribir el primer token de la respuesta (el [[prefill]]). En una app suele tener partes: el [[system-prompt|system prompt]], ejemplos [[few-shot]], documentos y la pregunta. Un prompt largo cuesta más dinero, ocupa más [[kv-cache|KV cache]] y tarda más en dar el primer token.",
       "ejemplo": "En C10 de la Ronda, un prompt típico tiene ≈ 2,000 tokens y la respuesta ≈ 250.",
-      "ver": ["token", "ventana-contexto", "generacion-autorregresiva"],
+      "ver": [
+        "token",
+        "system-prompt",
+        "few-shot",
+        "ventana-contexto"
+      ],
       "leccion": "llms"
     },
     {
@@ -36,49 +63,28 @@
       "termino": "Ventana de contexto",
       "en": "context window",
       "corto": "El máximo de tokens que un modelo puede tener en cuenta en un request, sumando el prompt y la respuesta. Lo que no cabe, el modelo no lo ve.",
-      "largo": "Viene de la arquitectura y de cómo se entrenó el modelo. En producción también es una perilla de capacidad: cada token dentro de la ventana ocupa [[kv-cache|KV cache]] en la GPU, así que ventanas más largas permiten menos conversaciones a la vez.",
+      "largo": "Viene de la arquitectura y de cómo se entrenó el modelo: aprendió posiciones hasta cierto largo ([[embedding-posicional|embeddings posicionales]]). En producción también es una perilla de capacidad: cada token dentro de la ventana ocupa [[kv-cache|KV cache]] en la GPU, así que ventanas más largas permiten menos conversaciones a la vez.",
       "ejemplo": "Llama 3 8B salió en abril de 2024 con una ventana de 8,192 tokens; Llama 3.1 (julio de 2024) la amplió a ≈ 128 mil.",
-      "ver": ["token", "kv-cache", "prompt"],
+      "ver": [
+        "token",
+        "kv-cache",
+        "prompt"
+      ],
       "leccion": "llms"
     },
     {
-      "id": "transformer",
-      "termino": "Transformer",
-      "en": "transformer",
-      "corto": "La arquitectura de red neuronal detrás de casi todos los modelos de lenguaje actuales. Su pieza central es la atención: cada token mira a los demás para decidir qué le importa.",
-      "largo": "La presentó un artículo de Google de 2017, «Attention Is All You Need» (Vaswani y otros). Es una pila de bloques iguales; cada bloque tiene una capa de [[atencion|atención]] y una pequeña red que procesa cada token por separado. También se usa con imágenes: el ViT de CLIP es un transformer.",
-      "ejemplo": "Llama 3 8B es una pila de 32 bloques; Llama 3 70B, de 80.",
-      "ver": ["atencion", "qkv", "llm"],
-      "leccion": "llms"
-    },
-    {
-      "id": "atencion",
-      "termino": "Atención",
-      "en": "attention · self-attention",
-      "corto": "El mecanismo con el que cada token mira a todos los tokens anteriores, decide cuáles le importan más y mezcla su información en esa proporción.",
-      "largo": "Para cada token se calculan tres vectores, [[qkv|Q, K y V]]. Se compara la Q del token con la K de cada token (producto punto), esas calificaciones se convierten en porcentajes con [[softmax]], y el resultado es la suma de las V con esos porcentajes. Así, la palabra «banco» puede tomar significado de «senté» o de «dinero», según cuál esté en la frase.",
-      "ejemplo": "En «Me senté en el banco», «banco» le pone ≈ 78 % de su atención a «senté» (en el ejemplo de la lección, con números inventados).",
-      "ver": ["qkv", "transformer", "kv-cache"],
-      "leccion": "llms"
-    },
-    {
-      "id": "qkv",
-      "termino": "Q, K y V",
-      "en": "query, key, value",
-      "corto": "Los tres vectores que la atención calcula para cada token: Q (*query*, lo que busca), K (*key*, la etiqueta con la que se ofrece a los demás) y V (*value*, la información que entrega).",
-      "largo": "Se obtienen multiplicando el vector del token por tres tablas de [[parametro|parámetros]] distintas, aprendidas en el entrenamiento. Qué tanto atiende un token a otro sale de comparar la Q del primero con la K del segundo; lo que recibe es la V del segundo. Las K y V de los tokens anteriores son las que se guardan en el [[kv-cache|KV cache]].",
-      "analogia": "Como buscar en un tablero de anuncios: tu Q es lo que necesitas, la K de cada anuncio es su título y la V es lo que dice el anuncio. Lees más a fondo los anuncios cuyo título se parece a lo que buscas. Se rompe en que aquí no eliges uno: mezclas todos, cada uno con su porcentaje.",
-      "ver": ["atencion", "kv-cache"],
-      "leccion": "llms"
-    },
-    {
-      "id": "generacion-autorregresiva",
-      "termino": "Generación autorregresiva",
-      "en": "autoregressive generation · decode",
-      "corto": "Escribir de un token a la vez: el modelo predice el siguiente token, lo agrega al texto y vuelve a predecir con el texto ya alargado.",
-      "largo": "Por eso un LLM lee rápido y escribe lento. Leer el prompt (el *prefill*) se hace de una sola pasada, con todos los tokens en paralelo. Escribir (el *decode*) son tantas pasadas como tokens tenga la respuesta, una detrás de otra, y en cada una se leen todos los pesos del modelo.",
-      "ejemplo": "Una respuesta de 250 tokens son 250 pasadas del modelo. Si cada una tarda 50 ms, son 12.5 segundos.",
-      "ver": ["sampling", "kv-cache", "prompt"],
+      "id": "llm",
+      "termino": "LLM (modelo grande de lenguaje)",
+      "en": "large language model",
+      "corto": "Un transformer con miles de millones de parámetros, entrenado con enormes cantidades de texto para predecir el siguiente token. De esa sola tarea salen la conversación, los resúmenes y el código.",
+      "largo": "Casi todos son [[decoder-only|solo decoder]]. Se construyen en etapas: [[preentrenamiento]] (continuar texto de todo tipo), [[instruction-tuning|ajuste con instrucciones]] (seguir el formato de una conversación) y ajuste por preferencias ([[rlhf|RLHF]] o DPO). Sus tamaños se dicen en parámetros: 7B, 8B o 70B (la B es de *billion*, mil millones en inglés). Sus pesos ocupan decenas de GB, así que la memoria de la GPU decide qué se puede servir y cómo.",
+      "ejemplo": "Llama 3 70B tiene ≈ 70.6 mil millones de parámetros: en BF16 (2 bytes cada uno), ≈ 141 GB.",
+      "ver": [
+        "transformer",
+        "token",
+        "preentrenamiento",
+        "generacion-autorregresiva"
+      ],
       "leccion": "llms"
     },
     {
@@ -86,8 +92,12 @@
       "termino": "Sampling (muestreo)",
       "en": "sampling · decoding strategy",
       "corto": "Elegir el siguiente token al azar, pero respetando las probabilidades que dio el modelo: el de 60 % sale 6 de cada 10 veces.",
-      "largo": "La alternativa es tomar siempre el más probable (*greedy*). El muestreo da respuestas más variadas; elegir siempre el más probable da respuestas más repetibles. La [[temperatura]] y otras perillas (quedarse solo con los más probables, *top-k* o *top-p*) controlan qué tan arriesgado es el sorteo.",
-      "ver": ["temperatura", "generacion-autorregresiva"],
+      "largo": "La alternativa es tomar siempre el más probable (*greedy*). El muestreo da respuestas más variadas; elegir siempre el más probable da respuestas más repetibles. La [[temperatura]] controla qué tan parejo es el sorteo, y *top-p* lo limita a los tokens más probables que juntos suman p (por ejemplo, 90 %).",
+      "ejemplo": "Con 66.5 %, 24.5 % y 9.0 %, en 1,000 sorteos con semilla fija salen 671, 249 y 80. Con top-p = 0.9, el de 9.0 % ni siquiera entra al sorteo.",
+      "ver": [
+        "temperatura",
+        "generacion-autorregresiva"
+      ],
       "leccion": "llms"
     },
     {
@@ -97,7 +107,280 @@
       "corto": "La perilla del muestreo: con temperatura baja el modelo casi siempre elige el token más probable; con temperatura alta, las opciones menos probables ganan terreno.",
       "largo": "Antes de convertir las calificaciones del modelo ([[logit|logits]]) en probabilidades con [[softmax]], se dividen entre la temperatura. Dividir entre un número chico agranda las diferencias; entre uno grande, las aplana. Temperatura 0 equivale a elegir siempre el más probable, aunque en un servidor real eso no garantiza respuestas idénticas.",
       "ejemplo": "Logits 2, 1 y 0. Con temperatura 1: 66.5 %, 24.5 % y 9.0 %. Con 0.5: 86.7 %, 11.7 % y 1.6 %. Con 2: 50.6 %, 30.7 % y 18.6 %.",
-      "ver": ["sampling"],
+      "ver": [
+        "sampling"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "generacion-autorregresiva",
+      "termino": "Generación autorregresiva",
+      "en": "autoregressive generation",
+      "corto": "Escribir de un token a la vez: el modelo predice el siguiente token, lo agrega al texto y vuelve a predecir con el texto ya alargado.",
+      "largo": "Por eso un LLM lee rápido y escribe lento. Leer el prompt (el [[prefill]]) se hace de una sola pasada, con todos los tokens en paralelo. Escribir (el [[decode]]) son tantas pasadas como tokens tenga la respuesta, una detrás de otra, y en cada una se leen todos los pesos del modelo. Termina cuando el modelo elige un token especial de fin o se llega al límite de tokens.",
+      "ejemplo": "Una respuesta de 250 tokens son 250 pasadas del modelo. Si cada una tarda 40 ms, el decode dura ≈ 10 segundos.",
+      "ver": [
+        "decode",
+        "sampling",
+        "kv-cache"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "prefill",
+      "termino": "Prefill",
+      "en": "prefill",
+      "corto": "La primera fase de cada request a un LLM: leer todo el prompt de una sola pasada, en paralelo, y guardar su K y su V en el KV cache. Termina con el primer token de la respuesta.",
+      "largo": "Como todos los tokens del prompt ya existen, se procesan juntos: cada peso que llega de la memoria se usa para miles de tokens a la vez, así que lo que manda es la velocidad de cálculo de la GPU ([[compute-bound]]). Su duración crece con el largo del prompt y, junto con la espera en la cola, forma el [[ttft|TTFT]]. El [[prefix-caching|prefix caching]] se salta la parte del prompt que ya se calculó antes.",
+      "ejemplo": "En C10 de la Ronda, el prefill de un prompt de 2,000 tokens ocupa ≈ 150 ms de una réplica de 2 H100.",
+      "ver": [
+        "decode",
+        "ttft",
+        "kv-cache",
+        "prefix-caching"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "decode",
+      "termino": "Decode",
+      "en": "decode",
+      "corto": "La segunda fase de cada request a un LLM: escribir la respuesta de un token por paso. Cada paso lee todos los pesos del modelo y el KV cache, y agrega un token.",
+      "largo": "Es la [[generacion-autorregresiva|generación autorregresiva]] vista como trabajo de la GPU. Como cada paso produce un solo token por conversación, casi no hay cálculo por cada byte leído: manda la velocidad de la memoria ([[memory-bound]]). Lo que tarda un paso es el [[tpot|TPOT]]. Por eso los servidores juntan muchas conversaciones en cada paso: una sola lectura de los pesos les sirve a todas.",
+      "ejemplo": "Llama 3 8B en BF16 pesa ≈ 16.1 GB y una L4 lee ≈ 300 GB por segundo: cada paso tarda al menos ≈ 54 ms, así que una conversación sola no pasa de ≈ 19 tokens por segundo.",
+      "ver": [
+        "prefill",
+        "tpot",
+        "generacion-autorregresiva",
+        "kv-cache"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "ttft",
+      "termino": "TTFT (tiempo al primer token)",
+      "en": "time to first token",
+      "corto": "Lo que tarda un LLM, desde que llega el request, en mandar el primer token de la respuesta. Es lo que la persona siente como «tardó en contestar».",
+      "largo": "Suma la espera en la cola del servidor y el [[prefill]] del prompt. Crece con prompts más largos y, sobre todo, cuando el servidor está saturado: en la Ronda, la cola rompe el TTFT antes que cualquier otra cosa. Con *streaming*, es el número que decide si la app se siente rápida.",
+      "ejemplo": "En C10 de la Ronda, la meta es que 95 de cada 100 requests vean su primer token en 1 s o menos; uno típico lo ve a los ≈ 0.6 s.",
+      "ver": [
+        "tpot",
+        "prefill",
+        "latencia"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "tpot",
+      "termino": "TPOT (tiempo por token de salida)",
+      "en": "time per output token",
+      "corto": "Lo que tarda un LLM en escribir cada token de la respuesta después del primero, en promedio. Es el ritmo al que aparece el texto.",
+      "largo": "Es la duración de un paso de [[decode]]. La respuesta completa tarda [[ttft|TTFT]] + (tokens de salida − 1) × TPOT. Sube un poco con cada conversación que el servidor junta en el mismo paso. Mientras el texto salga más rápido de lo que una persona lee (≈ 4 a 7 tokens por segundo), nadie lo nota.",
+      "ejemplo": "En C10, el TPOT típico es 40 ms (25 tokens por segundo): una respuesta de 250 tokens tarda 0.6 + 249 × 0.04 ≈ 10.6 s, pero se empieza a leer a los 0.6 s.",
+      "ver": [
+        "ttft",
+        "decode"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "transformer",
+      "termino": "Transformer",
+      "en": "transformer",
+      "corto": "La arquitectura de red neuronal detrás de casi todos los modelos de lenguaje actuales. Su pieza central es la atención: cada token mira a los demás para decidir qué le importa.",
+      "largo": "La presentó un artículo de Google de 2017, «Attention Is All You Need» (Vaswani y otros), para traducir. Es una pila de bloques iguales; cada bloque tiene una capa de [[atencion|atención]] ([[multi-head|multi-cabeza]]) y una pequeña red que procesa cada token por separado, con atajos que suman lo que entra a lo que sale. Como la atención no sabe el orden, se le agrega con [[embedding-posicional|embeddings posicionales]]. Los LLMs usan solo su mitad que escribe ([[decoder-only|solo decoder]]). También se usa con imágenes: el ViT es un transformer.",
+      "ejemplo": "Llama 3 8B es una pila de 32 bloques; Llama 3 70B, de 80.",
+      "ver": [
+        "atencion",
+        "decoder-only",
+        "multi-head",
+        "llm"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "atencion",
+      "termino": "Atención",
+      "en": "attention · self-attention",
+      "corto": "El mecanismo con el que cada token mira a los tokens anteriores, decide cuáles le importan más y mezcla su información en esa proporción.",
+      "largo": "Para cada token se calculan tres vectores, [[qkv|Q, K y V]]. Se compara la Q del token con la K de cada token ([[producto-punto|producto punto]]), esas calificaciones se convierten en porcentajes con [[softmax]], y el resultado es la suma de las V con esos porcentajes. Así, la palabra «banco» puede tomar significado de «senté» o de «dinero», según cuál esté en la frase. Se hace varias veces en paralelo ([[multi-head|multi-cabeza]]) y no sabe el orden por sí sola.",
+      "ejemplo": "En «Me senté en el banco», «banco» le pone ≈ 78 % de su atención a «senté» (en el ejemplo de la lección, con números inventados).",
+      "ver": [
+        "qkv",
+        "multi-head",
+        "transformer",
+        "kv-cache"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "qkv",
+      "termino": "Q, K y V",
+      "en": "query, key, value",
+      "corto": "Los tres vectores que la atención calcula para cada token: Q (*query*, lo que busca), K (*key*, la etiqueta con la que se ofrece a los demás) y V (*value*, la información que entrega).",
+      "largo": "Se obtienen multiplicando el vector del token por tres tablas de [[parametro|parámetros]] distintas, aprendidas en el entrenamiento. Qué tanto atiende un token a otro sale de comparar la Q del primero con la K del segundo; lo que recibe es la V del segundo. Las K y V de los tokens anteriores son las que se guardan en el [[kv-cache|KV cache]].",
+      "analogia": "Como buscar en un tablero de anuncios: tu Q es lo que necesitas, la K de cada anuncio es su título y la V es lo que dice el anuncio. Lees más a fondo los anuncios cuyo título se parece a lo que buscas. Se rompe en que aquí no eliges uno: mezclas todos, cada uno con su porcentaje.",
+      "ejemplo": "En el ejemplo de la lección, la Q de «banco» es (1, 0) y la K de «senté» es (3, 0): su producto punto, 3, es la calificación más alta, así que el nuevo vector de «banco» toma sobre todo la V de «senté» (77.8 %).",
+      "ver": [
+        "atencion",
+        "kv-cache",
+        "gqa"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "multi-head",
+      "termino": "Atención multi-cabeza",
+      "en": "multi-head attention",
+      "corto": "Hacer la atención varias veces en paralelo dentro de cada bloque, cada vez con sus propias tablas de Q, K y V. Cada copia, una cabeza, puede fijarse en una relación distinta.",
+      "largo": "El vector de cada token se reparte entre las cabezas: cada una calcula su propia atención con vectores más chicos, y al final sus resultados se pegan otra vez y una tabla más los mezcla. No es lo mismo que la [[cabeza]] de una red de visión, que es su parte final.",
+      "ejemplo": "Llama 3 8B: 32 cabezas de 128 números (32 × 128 = 4,096) en cada uno de sus 32 bloques, con solo 8 juegos de K y V ([[gqa|GQA]]).",
+      "ver": [
+        "atencion",
+        "qkv",
+        "gqa"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "gqa",
+      "termino": "GQA (atención con consultas agrupadas)",
+      "en": "grouped-query attention",
+      "corto": "Un truco para ahorrar memoria: varias cabezas de Q comparten la misma K y la misma V, así que el KV cache guarda menos vectores por token.",
+      "largo": "Con atención [[multi-head|multi-cabeza]] completa, cada cabeza de Q tiene su K y su V. Con GQA (Ainslie y otros, 2023), las cabezas de Q se agrupan y cada grupo comparte una sola K y una sola V. Casi no cambia la calidad y divide el [[kv-cache|KV cache]] entre el tamaño del grupo.",
+      "ejemplo": "Llama 3 8B tiene 32 cabezas de Q y 8 juegos de K y V (grupos de 4): 128 KiB de KV cache por token. Sin GQA serían 512 KiB.",
+      "ver": [
+        "multi-head",
+        "kv-cache"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "embedding-posicional",
+      "termino": "Embedding posicional",
+      "en": "positional embedding · positional encoding",
+      "corto": "La información de en qué lugar del texto está cada token. Hace falta porque la atención, por sí sola, mezcla un conjunto y no sabe el orden.",
+      "largo": "Una suma da lo mismo en cualquier orden: sin posiciones, «el perro muerde al cartero» y «el cartero muerde al perro» se mezclarían igual. El transformer original sumaba a cada embedding un vector fijo hecho con ondas (senos y cosenos); GPT-2 y el [[vit|ViT]] aprenden un vector por posición; Llama usa RoPE, que gira la Q y la K de cada token un ángulo que crece con su posición, para que la calificación dependa de la distancia entre los dos tokens.",
+      "ejemplo": "En un ViT-B/16, a cada uno de los 197 tokens se le suma un vector aprendido que dice «soy el parche 37». En Llama 3, el giro de RoPE va dentro de cada cabeza de atención.",
+      "ver": [
+        "atencion",
+        "transformer",
+        "ventana-contexto"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "decoder-only",
+      "termino": "Solo decoder",
+      "en": "decoder-only",
+      "corto": "El tipo de transformer de los LLMs que escriben: una pila de bloques donde cada token solo mira a los anteriores, entrenada a adivinar el siguiente token.",
+      "largo": "El transformer original (2017) tenía dos mitades para traducir: un *encoder*, que lee la frase de origen completa en las dos direcciones, y un *decoder*, que escribe la traducción mirando solo hacia atrás. GPT (2018) y casi todos los LLMs actuales se quedan solo con el decoder. Los que se quedan solo con el encoder, como BERT (2018), no escriben: sirven para entender un texto completo, para clasificar y para [[embedding|embeddings]].",
+      "ejemplo": "Llama 3 8B es solo decoder: una tabla de embeddings, 32 bloques que miran hacia atrás y una capa final que da un logit por cada uno de los 128,256 tokens.",
+      "ver": [
+        "transformer",
+        "atencion",
+        "llm"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "moe",
+      "termino": "Mezcla de expertos (MoE)",
+      "en": "mixture of experts",
+      "corto": "Un LLM cuya red de cada bloque está partida en varios «expertos»; para cada token, un enrutador elige solo unos pocos. Guarda muchos parámetros, pero cada token trabaja con una fracción.",
+      "largo": "El enrutador es una capa chica que califica a cada experto; se usan los de calificación más alta y sus resultados se mezclan con un [[softmax]] de esas calificaciones. La memoria cuenta todos los expertos; el cálculo y la lectura por token, solo los que se usaron. Los «expertos» no son especialidades humanas (uno de medicina, otro de leyes): el reparto lo aprende el modelo y casi nunca se puede leer así. A un modelo que no es MoE se le llama denso.",
+      "analogia": "Una recepcionista que manda a cada paciente con 2 de 8 especialistas. Se rompe en dos lugares: nadie decidió qué sabe cada experto, y los 8 tienen que estar siempre en la memoria de la GPU, trabajen o no.",
+      "ejemplo": "Mixtral 8x7B (Mistral AI, 2023) tiene 8 expertos por bloque y usa 2 por token: 46.7 mil millones de parámetros en total y 12.9 mil millones activos por token.",
+      "ver": [
+        "transformer",
+        "decoder-only"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "preentrenamiento",
+      "termino": "Preentrenamiento",
+      "en": "pretraining",
+      "corto": "La primera y más cara etapa de un LLM: aprender a adivinar el siguiente token con enormes cantidades de texto. De ahí sale un modelo base, que continúa textos pero todavía no conversa.",
+      "largo": "No necesita etiquetas hechas por personas: el token que sigue ya está escrito en el texto, y esa es la respuesta de cada ejercicio. La [[loss|pérdida]] es la [[entropia-cruzada|entropía cruzada]] de cada predicción. Cuesta meses de miles de GPUs, así que casi nadie lo hace: se parte del modelo base que publicó alguien más y se le hacen las etapas siguientes ([[instruction-tuning|ajuste con instrucciones]] y [[rlhf|ajuste por preferencias]]).",
+      "ejemplo": "Llama 3 se preentrenó con más de 15 billones (15 × 10¹²) de tokens. La frase «Ana vende sus tenis blancos.» (8 tokens) da 7 ejercicios: adivinar cada token a partir de los que tiene antes.",
+      "ver": [
+        "llm",
+        "instruction-tuning",
+        "rlhf",
+        "entropia-cruzada"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "instruction-tuning",
+      "termino": "Ajuste con instrucciones",
+      "en": "instruction tuning · SFT (supervised fine-tuning)",
+      "corto": "La segunda etapa de un LLM: seguir entrenando el modelo base con ejemplos de peticiones y buenas respuestas, para que conteste en vez de solo continuar el texto.",
+      "largo": "Es un [[fine-tuning]] con conversaciones, casi siempre escritas o revisadas por personas. La tarea es la misma de antes (adivinar el siguiente token), pero solo sobre esos ejemplos y en un formato fijo de roles (sistema, usuario, asistente) marcados con tokens especiales. Ahí aprende el formato del chat y a respetar el [[system-prompt|system prompt]]; casi todo lo que sabe viene del [[preentrenamiento]].",
+      "ejemplo": "En InstructGPT (OpenAI, 2022), esta etapa usó del orden de 13 mil ejemplos: muy poco comparado con los billones de tokens del preentrenamiento.",
+      "ver": [
+        "preentrenamiento",
+        "rlhf",
+        "fine-tuning",
+        "system-prompt"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "rlhf",
+      "termino": "RLHF (ajuste por preferencias humanas)",
+      "en": "reinforcement learning from human feedback",
+      "corto": "La tercera etapa de un LLM de chat: personas comparan respuestas del modelo, se entrena un modelo que imita sus preferencias y con él se ajusta el LLM hacia lo que la gente prefiere.",
+      "largo": "Pasos: el modelo escribe dos o más respuestas a la misma petición; una persona elige la mejor; un modelo de recompensa (*reward model*) aprende a predecir esa elección; y el LLM se ajusta por refuerzo (prueba, recibe una calificación y se mueve hacia lo que sube la calificación), sin alejarse mucho del modelo de la etapa anterior. DPO (2023) consigue algo parecido sin modelo de recompensa, directo de los pares; Meta lo usó en Llama 3. Enseña tono, utilidad y qué rechazar; no agrega conocimiento.",
+      "ejemplo": "En InstructGPT (OpenAI, 2022), las personas prefirieron las respuestas de un modelo de 1,300 millones de parámetros ajustado así sobre las de GPT-3, de 175,000 millones.",
+      "ver": [
+        "instruction-tuning",
+        "preentrenamiento",
+        "alucinacion"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "system-prompt",
+      "termino": "System prompt (instrucciones de sistema)",
+      "en": "system prompt",
+      "corto": "Las instrucciones que la app le da al LLM al principio de cada conversación, antes de lo que escribe la persona: qué papel tiene, qué reglas sigue y en qué formato contesta.",
+      "largo": "En la plantilla de chat ocupa el rol «system», separado del «user» con tokens especiales. El modelo aprendió a darle más peso en el [[instruction-tuning|ajuste con instrucciones]], pero no es una barrera de seguridad: una persona o un documento pueden convencer al modelo de ignorarlo o de repetirlo completo. Por eso no lleva secretos. Como es igual en todos los requests de un producto, va primero y el [[prefix-caching|prefix caching]] lo reutiliza.",
+      "ejemplo": "En C10 de la Ronda, cada producto tiene un prefijo fijo de ≈ 1,000 tokens (instrucciones y políticas) que se guarda con versión, como el código.",
+      "ver": [
+        "prompt",
+        "few-shot",
+        "prefix-caching"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "few-shot",
+      "termino": "Few-shot (ejemplos en el prompt)",
+      "en": "few-shot prompting · in-context learning",
+      "corto": "Poner unos cuantos ejemplos resueltos dentro del prompt para que el modelo copie el patrón, sin cambiar ni un peso. Sin ejemplos se llama zero-shot.",
+      "largo": "No es [[entrenamiento]]: los ejemplos solo cambian el texto que el modelo tiene que continuar, y lo más probable es seguir el formato que ve. Lo popularizó el artículo de GPT-3 (OpenAI, 2020), «Language Models are Few-Shot Learners». Cada ejemplo cuesta tokens en cada request; si son fijos y van al principio, el [[prefix-caching|prefix caching]] evita recalcularlos.",
+      "ejemplo": "Para sacar marca, talla y color de una publicación, se ponen dos publicaciones con su JSON ya resuelto y al final la nueva: el modelo responde con el mismo formato.",
+      "ver": [
+        "prompt",
+        "system-prompt",
+        "prefix-caching"
+      ],
+      "leccion": "llms"
+    },
+    {
+      "id": "prefix-caching",
+      "termino": "Prefix caching",
+      "en": "prefix caching",
+      "corto": "Reutilizar el KV cache del inicio de un prompt que ya se calculó en un request anterior, para no repetir su prefill. Solo sirve si los tokens son idénticos desde el principio.",
+      "largo": "Muchos requests de un producto empiezan igual: el [[system-prompt|system prompt]], los ejemplos [[few-shot]], las políticas. El servidor guarda el [[kv-cache|KV cache]] de esos tokens y, si el siguiente prompt empieza exactamente igual, se salta esa parte del [[prefill]]: baja el [[ttft|TTFT]] y el cómputo. Basta un token distinto al principio (la fecha, el nombre de la persona) para que ya no sirva: lo fijo va primero y lo variable al final.",
+      "ejemplo": "En C10 de la Ronda, la mitad de un prompt de 2,000 tokens es el prefijo fijo del producto: con prefix caching, el prefill solo calcula los ≈ 1,000 tokens restantes.",
+      "ver": [
+        "kv-cache",
+        "prefill",
+        "system-prompt"
+      ],
       "leccion": "llms"
     },
     {
@@ -105,19 +388,14 @@
       "termino": "KV cache",
       "en": "KV cache",
       "corto": "La memoria donde un LLM guarda la K y la V (dos vectores que la atención calcula para cada token) de los tokens que ya procesó, para no recalcularlas en cada token nuevo. Crece con cada token y vive en la memoria de la GPU.",
-      "largo": "Sin él, cada token nuevo obligaría a recalcular todo lo anterior. Con él, solo se calcula lo del token nuevo. El precio es memoria: por cada token de cada conversación activa se guardan dos vectores (K y V) por cada bloque del modelo. Por eso suele ser lo que limita cuántas conversaciones atiende una GPU a la vez.",
-      "ejemplo": "Llama 3 8B: 2 (K y V) × 32 bloques × 8 × 128 números × 2 bytes = 131,072 bytes = 128 KiB por token. Una conversación de 8,192 tokens: 1 GiB.",
-      "ver": ["qkv", "atencion", "ventana-contexto"],
-      "leccion": "llms"
-    },
-    {
-      "id": "llm",
-      "termino": "LLM (modelo grande de lenguaje)",
-      "en": "large language model",
-      "corto": "Un transformer con miles de millones de parámetros, entrenado con enormes cantidades de texto para predecir el siguiente token. De esa sola tarea salen la conversación, los resúmenes y el código.",
-      "largo": "Primero se entrena a continuar texto de todo tipo; después se ajusta con ejemplos para que siga instrucciones y converse. Sus tamaños se dicen en parámetros: 7B, 8B o 70B (la B es de *billion*, mil millones en inglés). Sus pesos ocupan decenas de GB, así que la memoria de la GPU decide qué se puede servir y cómo.",
-      "ejemplo": "Llama 3 70B tiene ≈ 70.6 mil millones de parámetros: en BF16 (2 bytes cada uno), ≈ 141 GB.",
-      "ver": ["transformer", "token", "generacion-autorregresiva"],
+      "largo": "Sin él, cada token nuevo obligaría a recalcular todo lo anterior. Con él, solo se calcula lo del token nuevo. El precio es memoria: por cada token de cada conversación activa se guardan dos vectores (K y V) por cada juego de K y V de cada bloque del modelo. Por eso suele ser lo que limita cuántas conversaciones atiende una GPU a la vez, y por eso existen trucos como [[gqa|GQA]]. El [[prefix-caching|prefix caching]] lo reutiliza entre requests que empiezan igual.",
+      "ejemplo": "Llama 3 8B: 2 (K y V) × 32 bloques × 8 juegos × 128 números × 2 bytes = 131,072 bytes = 128 KiB por token. Una conversación de 8,192 tokens: 1 GiB.",
+      "ver": [
+        "qkv",
+        "gqa",
+        "atencion",
+        "ventana-contexto"
+      ],
       "leccion": "llms"
     },
     {
@@ -126,8 +404,12 @@
       "en": "low-rank adaptation",
       "corto": "Una forma barata de hacer fine-tuning: en vez de cambiar todos los pesos del modelo, se congelan y se entrenan unas tablas chiquitas que se suman a algunos de ellos.",
       "largo": "La propuso un artículo de Microsoft de 2021 (Hu y otros). Lo que se entrena y se guarda es un adaptador de unos pocos MB a unos cientos de MB, según el rango y cuántas tablas toque, no una copia del modelo. Un mismo modelo base puede servir varios adaptadores, uno por producto o cliente.",
-      "ejemplo": "Una tabla de 4,096 × 4,096 tiene 16,777,216 números. Con LoRA de rango 8 se entrenan dos tablas de 4,096 × 8 y 8 × 4,096: 65,536 números, 256 veces menos. En Llama 3 8B, rango 8 sobre las tablas de Q y V de sus 32 bloques: ≈ 7 MB.",
-      "ver": ["llm", "rag"],
+      "ejemplo": "Una tabla de 4,096 × 4,096 tiene 16,777,216 números. Con LoRA de rango 8 se entrenan dos tablas de 4,096 × 8 y 8 × 4,096: 65,536 números, 256 veces menos. En Llama 3 8B, rango 8 sobre las tablas de Q y V de sus 32 bloques: ≈ 3.4 millones de números, ≈ 7 MB.",
+      "ver": [
+        "llm",
+        "rag",
+        "instruction-tuning"
+      ],
       "leccion": "llms"
     },
     {
@@ -137,7 +419,11 @@
       "corto": "Primero buscar los documentos que sirven para la pregunta y después pedirle al LLM que conteste usándolos. «Buscar y luego responder.»",
       "largo": "La búsqueda es un [[retrieval]] sobre [[embedding|embeddings]] de los documentos, a veces con [[re-ranking]]. Los pedazos encontrados se pegan en el [[prompt]]. Así el modelo puede contestar con información que no vio al entrenar (la política de devoluciones de esta semana) y citar de dónde la sacó. No elimina las [[alucinacion|alucinaciones]], pero las reduce y las hace verificables.",
       "ejemplo": "Pregunta: «¿cuántos días tengo para devolver unos tenis?». El sistema busca la política de devoluciones del marketplace, la pone en el prompt y el modelo responde con lo que dice el documento.",
-      "ver": ["retrieval", "alucinacion", "prompt"],
+      "ver": [
+        "retrieval",
+        "alucinacion",
+        "prompt"
+      ],
       "leccion": "llms"
     },
     {
@@ -147,7 +433,10 @@
       "corto": "Cuando un LLM escribe, con toda seguridad y buena redacción, algo falso o que no está respaldado por ninguna fuente.",
       "largo": "Pasa porque el modelo aprendió a producir texto **probable**, no texto verificado: si no sabe un dato, el token más probable sigue siendo uno que suena bien. No es un error raro que se arregla una vez; es una propiedad de cómo funcionan. Se reduce con [[rag|RAG]], con instrucciones de decir «no lo sé» y se mide en un conjunto de preguntas con respuesta conocida.",
       "ejemplo": "Preguntas por la política de devoluciones del marketplace y el modelo contesta «30 días» porque es lo común, aunque la política real diga 15.",
-      "ver": ["rag", "llm"],
+      "ver": [
+        "rag",
+        "llm"
+      ],
       "leccion": "llms"
     }
   ]

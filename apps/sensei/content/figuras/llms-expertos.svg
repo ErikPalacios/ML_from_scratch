@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 362" role="img" aria-labelledby="f-llms-expertos-t" class="f-svg" style="max-width:420px">
+<title id="f-llms-expertos-t">Un bloque con mezcla de expertos. El token tenis llega al enrutador, que califica a los 8 expertos: E1 2.0, E2 0.1, E3 menos 1.0, E4 1.0, E5 0.3, E6 menos 0.5, E7 0.0 y E8 0.2. Se queda con los dos más altos, E1 y E4, y el softmax de 2 y 1 les da 73.1 y 26.9 por ciento. La salida es 73.1 por ciento de lo que calcula E1 más 26.9 por ciento de lo que calcula E4; los otros 6 expertos no calculan nada para este token.</title>
+<text class="f-l" x="14" y="24">UN BLOQUE CON 8 EXPERTOS · 2 POR TOKEN</text>
+<rect class="f-dark" x="125" y="36" width="110" height="46" rx="12"/>
+<text class="f-dark-l" x="180" y="54" text-anchor="middle">TOKEN</text>
+<text class="f-dark-t" x="180" y="73" text-anchor="middle" style="font-size:14px;font-weight:700">«tenis»</text>
+<line class="f-flecha" x1="180" y1="84" x2="180" y2="96"/><path class="f-punta" d="M172,94 L188,94 L180,104 Z"/>
+<rect class="f-card" x="20" y="108" width="320" height="64" rx="14"/>
+<text class="f-t" x="36" y="132">Enrutador</text>
+<text class="f-s" x="36" y="153" style="font-size:12px">califica a los 8 y se queda con los 2 más altos</text>
+<line x1="33" y1="173" x2="33" y2="209" style="stroke:var(--b);stroke-width:8"/>
+<line x1="159" y1="173" x2="159" y2="209" style="stroke:var(--b);stroke-width:3"/>
+<rect class="f-b" x="15" y="210" width="36" height="46" rx="8"/>
+<text class="f-pill-t" x="33" y="229" text-anchor="middle" style="font-size:14px">E1</text>
+<text x="33" y="248" text-anchor="middle" style="fill:#fff;font-size:12px">2.0</text>
+<rect class="f-off" x="57" y="210" width="36" height="46" rx="8"/>
+<text class="f-s" x="75" y="229" text-anchor="middle" style="font-size:13px">E2</text>
+<text class="f-s" x="75" y="248" text-anchor="middle" style="font-size:12px">0.1</text>
+<rect class="f-off" x="99" y="210" width="36" height="46" rx="8"/>
+<text class="f-s" x="117" y="229" text-anchor="middle" style="font-size:13px">E3</text>
+<text class="f-s" x="117" y="248" text-anchor="middle" style="font-size:12px">−1.0</text>
+<rect class="f-b" x="141" y="210" width="36" height="46" rx="8"/>
+<text class="f-pill-t" x="159" y="229" text-anchor="middle" style="font-size:14px">E4</text>
+<text x="159" y="248" text-anchor="middle" style="fill:#fff;font-size:12px">1.0</text>
+<rect class="f-off" x="183" y="210" width="36" height="46" rx="8"/>
+<text class="f-s" x="201" y="229" text-anchor="middle" style="font-size:13px">E5</text>
+<text class="f-s" x="201" y="248" text-anchor="middle" style="font-size:12px">0.3</text>
+<rect class="f-off" x="225" y="210" width="36" height="46" rx="8"/>
+<text class="f-s" x="243" y="229" text-anchor="middle" style="font-size:13px">E6</text>
+<text class="f-s" x="243" y="248" text-anchor="middle" style="font-size:12px">−0.5</text>
+<rect class="f-off" x="267" y="210" width="36" height="46" rx="8"/>
+<text class="f-s" x="285" y="229" text-anchor="middle" style="font-size:13px">E7</text>
+<text class="f-s" x="285" y="248" text-anchor="middle" style="font-size:12px">0.0</text>
+<rect class="f-off" x="309" y="210" width="36" height="46" rx="8"/>
+<text class="f-s" x="327" y="229" text-anchor="middle" style="font-size:13px">E8</text>
+<text class="f-s" x="327" y="248" text-anchor="middle" style="font-size:12px">0.2</text>
+<text class="f-t" x="33" y="276" text-anchor="middle" style="font-size:13px">73.1 %</text>
+<text class="f-t" x="159" y="276" text-anchor="middle" style="font-size:13px">26.9 %</text>
+<rect class="f-chip" x="20" y="290" width="320" height="62" rx="14"/>
+<text class="f-s" x="36" y="315">Salida = 73.1 % de E1 + 26.9 % de E4</text>
+<text class="f-s" x="36" y="336">Los otros 6 expertos no calculan nada.</text>
+</svg>

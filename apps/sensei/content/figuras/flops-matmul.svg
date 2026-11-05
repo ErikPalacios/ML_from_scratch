@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 450" role="img" aria-labelledby="f-flops-matmul-t" class="f-svg" style="max-width:420px">
+<title id="f-flops-matmul-t">Multiplicación de una matriz de 2 por 3 por una de 3 por 2. A tiene las cantidades que compran Sofía (2, 1 y 3) y Luis (1, 0 y 2) de playeras, gorras y calcetines. B tiene el precio y los gramos de cada producto: playera 50 pesos y 200 gramos, gorra 120 y 100, calcetines 15 y 50. El resultado C es de 2 por 2: Sofía paga 265 y su paquete pesa 650 gramos; Luis paga 80 y pesa 300 gramos. La casilla marcada sale de la fila de Sofía por la columna del precio: 2 por 50 más 1 por 120 más 3 por 15, igual a 265. Cada casilla son 3 MACs; las 4 casillas, 12 MACs, que son 24 FLOPs.</title>
+<rect class="f-card" x="10" y="10" width="340" height="430" rx="16"/>
+<text class="f-l" x="28" y="36">MULTIPLICAR (2 × 3) · (3 × 2)</text>
+<text class="f-s" x="28" y="58" style="font-size:12px">A: cantidades · B: precio y gramos · C = A · B</text>
+<text class="f-t" x="196" y="82" text-anchor="end">B</text>
+<text class="f-s" x="234" y="82" text-anchor="middle" style="font-size:12px;font-weight:700">precio</text>
+<text class="f-s" x="290" y="82" text-anchor="middle" style="font-size:12px;font-weight:700">gramos</text>
+<text class="f-s" x="198" y="109" text-anchor="end" style="font-size:12px">playera</text>
+<rect class="f-y" x="207" y="91" width="54" height="28" rx="5"/>
+<text x="234.0" y="110.0" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">50</text>
+<rect class="f-chip" x="263" y="91" width="54" height="28" rx="5"/>
+<text class="f-t" x="290.0" y="110.0" text-anchor="middle">200</text>
+<text class="f-s" x="198" y="139" text-anchor="end" style="font-size:12px">gorra</text>
+<rect class="f-y" x="207" y="121" width="54" height="28" rx="5"/>
+<text x="234.0" y="140.0" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">120</text>
+<rect class="f-chip" x="263" y="121" width="54" height="28" rx="5"/>
+<text class="f-t" x="290.0" y="140.0" text-anchor="middle">100</text>
+<text class="f-s" x="198" y="169" text-anchor="end" style="font-size:12px">calcetines</text>
+<rect class="f-y" x="207" y="151" width="54" height="28" rx="5"/>
+<text x="234.0" y="170.0" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">15</text>
+<rect class="f-chip" x="263" y="151" width="54" height="28" rx="5"/>
+<text class="f-t" x="290.0" y="170.0" text-anchor="middle">50</text>
+<text class="f-t" x="40" y="188" text-anchor="middle">A</text>
+<text class="f-s" x="58" y="213" text-anchor="end" style="font-size:12px">Sofía</text>
+<rect class="f-y" x="65" y="195" width="42" height="28" rx="5"/>
+<text x="86.0" y="214.0" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">2</text>
+<rect class="f-y" x="109" y="195" width="42" height="28" rx="5"/>
+<text x="130.0" y="214.0" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">1</text>
+<rect class="f-y" x="153" y="195" width="42" height="28" rx="5"/>
+<text x="174.0" y="214.0" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">3</text>
+<text class="f-s" x="58" y="243" text-anchor="end" style="font-size:12px">Luis</text>
+<rect class="f-chip" x="65" y="225" width="42" height="28" rx="5"/>
+<text class="f-t" x="86.0" y="244.0" text-anchor="middle">1</text>
+<rect class="f-chip" x="109" y="225" width="42" height="28" rx="5"/>
+<text class="f-t" x="130.0" y="244.0" text-anchor="middle">0</text>
+<rect class="f-chip" x="153" y="225" width="42" height="28" rx="5"/>
+<text class="f-t" x="174.0" y="244.0" text-anchor="middle">2</text>
+<rect class="f-y" x="207" y="195" width="54" height="28" rx="5"/>
+<text x="234.0" y="214.0" text-anchor="middle" style="fill:var(--navy);font:700 15px var(--sans)">265</text>
+<rect class="f-chip" x="263" y="195" width="54" height="28" rx="5"/>
+<text class="f-t" x="290.0" y="214.0" text-anchor="middle">650</text>
+<rect class="f-chip" x="207" y="225" width="54" height="28" rx="5"/>
+<text class="f-t" x="234.0" y="244.0" text-anchor="middle">80</text>
+<rect class="f-chip" x="263" y="225" width="54" height="28" rx="5"/>
+<text class="f-t" x="290.0" y="244.0" text-anchor="middle">300</text>
+<rect x="206" y="194" width="56" height="30" rx="6" style="fill:none;stroke:var(--o);stroke-width:3"/>
+<text class="f-t" x="326" y="229">C</text>
+<text class="f-l" x="28" y="284">LA CASILLA MARCADA</text>
+<text class="f-s" x="28" y="306">la fila de Sofía por la columna del precio:</text>
+<text class="f-t" x="28" y="330">2 × 50 + 1 × 120 + 3 × 15 = 265</text>
+<text class="f-s" x="28" y="360">Cada casilla son 3 MACs, y hay 4 casillas:</text>
+<text class="f-t" x="28" y="384">2 × 2 × 3 = 12 MACs = 24 FLOPs</text>
+<text class="f-s" x="28" y="412" style="font-size:12px">(n × k) · (k × m) da n × m: las de adentro deben</text>
+<text class="f-s" x="28" y="428" style="font-size:12px">ser iguales; las de afuera dan el tamaño.</text>
+</svg>

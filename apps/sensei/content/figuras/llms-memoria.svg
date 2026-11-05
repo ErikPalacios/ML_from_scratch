@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 380" role="img" aria-labelledby="f-llms-memoria-t" class="f-svg" style="max-width:420px">
+<title id="f-llms-memoria-t">Qué llena la memoria de la GPU. En una L4 de 24 GB con Llama 3 8B en BF16: pesos 16.1 GB, el programa que los sirve unos 2 GB, KV cache unos 3.5 GB y un margen de 10 por ciento, 2.4 GB; caben unas 3 conversaciones de 8 mil tokens. En una réplica de C10, con dos H100 que suman 160 GB y un modelo de 70B en FP8: pesos 70.6 GB, el programa unos 5 GB, KV cache 68.4 GB y margen 16 GB; caben unas 93 conversaciones de 2,250 tokens.</title>
+<text class="f-l" x="14" y="24">QUÉ LLENA LA MEMORIA DE LA GPU</text>
+<rect class="f-card" x="10" y="36" width="340" height="160" rx="16"/>
+<text class="f-t" x="26" y="62">Una L4 · 24 GB</text>
+<text class="f-s" x="26" y="80" style="font-size:12px">Llama 3 8B en BF16, con 10 % de margen</text>
+<rect class="f-b" x="26" y="90" width="206.6" height="30"/>
+<text x="129.3" y="110" text-anchor="middle" style="fill:#fff;font-size:13px;font-weight:700">pesos 16.1 GB</text>
+<rect class="f-off" x="232.6" y="90" width="25.7" height="30"/>
+<rect class="f-y" x="258.3" y="90" width="44.9" height="30"/>
+<text x="280.7" y="110" text-anchor="middle" style="fill:var(--navy);font-size:13px;font-weight:700">KV</text>
+<rect class="f-chip" x="303.2" y="90" width="30.8" height="30" style="stroke:var(--muted);stroke-width:1.2;stroke-dasharray:3 2"/>
+<rect class="f-off" x="26" y="131" width="11" height="11" rx="2"/><text class="f-s" x="42" y="141" style="font-size:12px">programa ≈ 2 GB</text>
+<rect class="f-y" x="172" y="131" width="11" height="11" rx="2"/><text class="f-s" x="188" y="141" style="font-size:12px">KV cache ≈ 3.5 GB</text>
+<rect class="f-chip" x="26" y="149" width="11" height="11" rx="2" style="stroke:var(--muted);stroke-width:1.2;stroke-dasharray:3 2"/><text class="f-s" x="42" y="159" style="font-size:12px">margen 10 % = 2.4 GB</text>
+<text class="f-t" x="26" y="184" style="font-size:13px">3.5 GB ÷ 1.07 GB por conversación de 8k ≈ 3</text>
+<rect class="f-card" x="10" y="208" width="340" height="162" rx="16"/>
+<text class="f-t" x="26" y="234">Una réplica de C10 · 160 GB</text>
+<text class="f-s" x="26" y="252" style="font-size:12px">2 × H100, modelo de 70B en FP8</text>
+<rect class="f-b" x="26" y="262" width="135.9" height="30"/>
+<text x="94" y="282" text-anchor="middle" style="fill:#fff;font-size:13px;font-weight:700">pesos 70.6 GB</text>
+<rect class="f-off" x="161.9" y="262" width="9.6" height="30"/>
+<rect class="f-y" x="171.5" y="262" width="131.7" height="30"/>
+<text x="237.4" y="282" text-anchor="middle" style="fill:var(--navy);font-size:13px;font-weight:700">KV cache 68.4 GB</text>
+<rect class="f-chip" x="303.2" y="262" width="30.8" height="30" style="stroke:var(--muted);stroke-width:1.2;stroke-dasharray:3 2"/>
+<line class="f-linea" x1="166.7" y1="294" x2="166.7" y2="302"/>
+<text class="f-s" x="166.7" y="314" text-anchor="middle" style="font-size:12px">programa ≈ 5 GB</text>
+<text class="f-s" x="334" y="314" text-anchor="end" style="font-size:12px">margen 16 GB</text>
+<text class="f-t" x="26" y="338" style="font-size:13px">68.4 GB ÷ 0.737 GB por conversación</text>
+<text class="f-t" x="26" y="357" style="font-size:13px">de 2,250 tokens ≈ 93 a la vez</text>
+</svg>

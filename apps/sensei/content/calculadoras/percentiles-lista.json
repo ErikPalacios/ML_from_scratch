@@ -1,0 +1,29 @@
+{
+  "titulo": "Percentiles de una lista",
+  "intro": "Diez latencias de C01, en el orden en que llegaron. Cambia cualquiera: la calculadora las ordena y saca el [[promedio]], la [[mediana]] y los percentiles por el rango más cercano.",
+  "entradas": [
+    { "id": "a", "label": "Request 1", "min": 1, "max": 5000, "paso": 1, "valor": 38, "unidad": "ms", "tipo": "numero" },
+    { "id": "b", "label": "Request 2", "min": 1, "max": 5000, "paso": 1, "valor": 45, "unidad": "ms", "tipo": "numero" },
+    { "id": "c", "label": "Request 3", "min": 1, "max": 5000, "paso": 1, "valor": 31, "unidad": "ms", "tipo": "numero" },
+    { "id": "d", "label": "Request 4", "min": 1, "max": 5000, "paso": 1, "valor": 900, "unidad": "ms", "tipo": "numero" },
+    { "id": "e", "label": "Request 5", "min": 1, "max": 5000, "paso": 1, "valor": 36, "unidad": "ms", "tipo": "numero" },
+    { "id": "f", "label": "Request 6", "min": 1, "max": 5000, "paso": 1, "valor": 42, "unidad": "ms", "tipo": "numero" },
+    { "id": "g", "label": "Request 7", "min": 1, "max": 5000, "paso": 1, "valor": 33, "unidad": "ms", "tipo": "numero" },
+    { "id": "h", "label": "Request 8", "min": 1, "max": 5000, "paso": 1, "valor": 160, "unidad": "ms", "tipo": "numero" },
+    { "id": "i", "label": "Request 9", "min": 1, "max": 5000, "paso": 1, "valor": 40, "unidad": "ms", "tipo": "numero" },
+    { "id": "j", "label": "Request 10", "min": 1, "max": 5000, "paso": 1, "valor": 35, "unidad": "ms", "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "orden", "formula": "[a, b, c, d, e, f, g, h, i, j].sort((x, y) => x - y)" },
+    { "id": "prom", "formula": "(a + b + c + d + e + f + g + h + i + j) / 10" }
+  ],
+  "salidas": [
+    { "label": "Promedio", "formula": "prom", "formato": "ms", "decimales": 1, "barra": true, "nota": "la suma entre 10" },
+    { "label": "Mediana", "formula": "(orden[4] + orden[5]) / 2", "formato": "ms", "decimales": 1, "barra": true, "nota": "el promedio de la 5.ª y la 6.ª, ya ordenadas" },
+    { "label": "p90", "formula": "orden[8]", "formato": "ms", "barra": true, "nota": "0.90 × 10 = 9: la 9.ª" },
+    { "label": "p95", "formula": "orden[9]", "formato": "ms", "barra": true, "nota": "0.95 × 10 = 9.5, hacia arriba: la 10.ª" },
+    { "label": "p99", "formula": "orden[9]", "formato": "ms", "barra": true, "nota": "0.99 × 10 = 9.9, hacia arriba: la 10.ª, la más lenta" },
+    { "label": "Requests más rápidas que el promedio", "formula": "orden.filter((x) => x < prom).length", "formato": "int", "nota": "de 10" }
+  ],
+  "nota": "Con 10 valores, el p95 y el p99 caen los dos en la posición 10: son la más lenta. Diez requests no alcanzan para distinguirlos; un p99 que signifique algo necesita cientos o miles."
+}

@@ -1,0 +1,53 @@
+{
+  "titulo": "C01: piezas en serie, réplicas en paralelo",
+  "width": 78,
+  "height": 54,
+  "lanes": [
+    { "id": "entrada", "label": "Entrada · en las dos zonas", "kind": "neutral", "x": 0, "y": 0, "w": 35, "h": 41 },
+    { "id": "zonaA", "label": "Zona A", "kind": "online", "x": 37, "y": 0, "w": 41, "h": 20 },
+    { "id": "zonaB", "label": "Zona B", "kind": "online", "x": 37, "y": 21, "w": 41, "h": 20 },
+    { "id": "planb", "label": "Plan B", "kind": "neutral", "x": 0, "y": 43, "w": 78, "h": 11 }
+  ],
+  "nodes": [
+    { "id": "app", "label": "Publicación", "sub": "espera ≤ 300 ms", "kind": "client", "x": 1, "y": 16, "w": 15, "h": 9,
+      "note": "El backend de publicación del marketplace. Recibe la foto de Ana, llama al servicio y espera **como máximo 300 ms**. Pasado ese tiempo deja de esperar y usa el plan B." },
+    { "id": "alb", "label": "ALB", "sub": "99.99 %", "kind": "edge", "x": 20, "y": 16, "w": 12, "h": 9,
+      "note": "El balanceador de AWS reparte los requests entre las dos zonas, y él mismo vive en las dos. Está **en serie** con todo lo demás y no tiene copia: por eso es la pieza que más minutos pone en la cuenta. 99.99 % es un valor ilustrativo, como todos los de este diagrama; los de tu sistema se miden." },
+    { "id": "gwA", "label": "Gateway", "sub": "CPU · 99.95 %", "kind": "service", "x": 40, "y": 7, "w": 16, "h": 9,
+      "note": "Recibe la foto, la decodifica y la prepara en CPU. Tiene réplicas en las dos zonas: si cae la zona A, las de la B absorben todo el tráfico. En paralelo, las dos zonas dan 1 − 0.0005² ≈ 99.99998 %." },
+    { "id": "tA", "label": "Triton · T4", "sub": "99.5 %", "kind": "gpu", "x": 60, "y": 7, "w": 17, "h": 9,
+      "note": "Triton corre la ResNet-50 en una GPU T4. Se planea a 600 fotos por segundo, la mitad de las ≈ 1,200 medidas. El pico de diseño es 500 por segundo: por el tráfico bastaría una T4, y hay dos por disponibilidad, una por zona. Eso es **N+1**." },
+    { "id": "gwB", "label": "Gateway", "sub": "CPU · 99.95 %", "kind": "service", "x": 40, "y": 28, "w": 16, "h": 9,
+      "note": "La copia del gateway en la zona B. No comparte máquina, electricidad ni red con la de la zona A, y eso es lo que hace que sus fallas sean casi independientes." },
+    { "id": "tB", "label": "Triton · T4", "sub": "99.5 %", "kind": "gpu", "x": 60, "y": 28, "w": 17, "h": 9,
+      "note": "La segunda T4. Si cae la zona A, atiende sola el pico de diseño, al ≈ 42 % de su máximo (500 ÷ 1,200). En paralelo, las dos T4 dan 1 − 0.005² = 99.9975 %: ≈ 1 minuto al mes contra 216 de una sola." },
+    { "id": "manual", "label": "Selector manual", "sub": "Ana elige a mano", "kind": "human", "x": 30, "y": 45, "w": 22, "h": 8,
+      "note": "El [[fallback]] de C01: si el modelo no contesta en 300 ms, Ana elige la categoría de una lista. No usa nada del modelo, así que la disponibilidad del modelo **deja de multiplicarse** con la de publicar." }
+  ],
+  "edges": [
+    { "from": "app", "to": "alb", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "alb", "to": "gwA", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "alb", "to": "gwB", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "gwA", "to": "tA", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "gwB", "to": "tB", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "app", "to": "manual", "kind": "neutral", "dashed": true, "fromSide": "b", "toSide": "l", "label": "sin respuesta" }
+  ],
+  "flows": [
+    { "id": "normal", "label": "Un request normal",
+      "steps": [
+        { "nodes": ["app"], "edges": [], "text": "Ana sube la foto de sus tenis. El backend de publicación llama al servicio y espera **como máximo 300 ms**." },
+        { "nodes": ["app", "alb", "gwA"], "edges": ["app>alb", "alb>gwA"], "text": "El ALB manda el request a una de las dos zonas; digamos la A. El gateway decodifica y prepara la foto." },
+        { "nodes": ["gwA", "tA"], "edges": ["gwA>tA"], "text": "Triton calcula el top-5. El request necesitó **las tres piezas en serie**: si fallan cada una por su lado, sus disponibilidades se multiplican." }
+      ] },
+    { "id": "zona", "label": "Se cae la zona A",
+      "steps": [
+        { "nodes": ["gwA", "tA"], "edges": [], "text": "Se va la luz en un centro de datos y la zona A deja de responder. Sus dos piezas caen **juntas**: por eso cada zona lleva su propio gateway y su propia T4." },
+        { "nodes": ["alb", "gwB", "tB"], "edges": ["alb>gwB", "gwB>tB"], "text": "El ALB manda todo a la zona B. Su T4 aguanta sola el pico de diseño, al ≈ 42 % de su máximo: eso es N+1. **En paralelo basta con una**, y la probabilidad de que fallen las dos por separado es 0.005 × 0.005." }
+      ] },
+    { "id": "planb", "label": "No llega nada a tiempo",
+      "steps": [
+        { "nodes": ["app", "manual"], "edges": ["app>manual"], "text": "Pasan 300 ms sin respuesta, por la razón que sea. El backend deja de esperar y muestra el selector manual: Ana elige la categoría ella misma." },
+        { "nodes": ["manual"], "edges": [], "text": "El modelo quedó **fuera del camino crítico**: si falla, publicar sigue funcionando, con un paso más para Ana. Por eso a C01 le basta con 99.9 % en una sola región." }
+      ] }
+  ]
+}

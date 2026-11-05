@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 430" role="img" aria-labelledby="f-distribuciones-ks-t" class="f-svg" style="max-width:420px">
+<title id="f-distribuciones-ks-t">Dos curvas acumuladas en escalones. A lo ancho, el brillo de la foto, de 0 a 200; a lo alto, qué fracción de las fotos tiene ese brillo o menos, de 0 a 1. La curva de la referencia sube en 60, 95, 120, 140 y 175. La de esta semana sube antes, en 20, 40, 55, 100 y 125. La distancia vertical más grande entre las dos, D, es 0.6 y está en un brillo de 55: ahí ya pasaron 3 de las 5 fotos de esta semana y ninguna de la referencia.</title>
+<rect class="f-card" x="10" y="10" width="340" height="410" rx="16"/>
+<text class="f-l" x="28.0" y="36.0">DOS CURVAS ACUMULADAS · 5 FOTOS POR LADO</text>
+<line x1="58" y1="300.0" x2="330" y2="300.0" style="stroke:var(--rule);stroke-width:1"/>
+<text class="f-s" x="50.0" y="304.0" text-anchor="end" style="font-size:12px">0</text>
+<line x1="58" y1="258.0" x2="330" y2="258.0" style="stroke:var(--rule);stroke-width:1"/>
+<text class="f-s" x="50.0" y="262.0" text-anchor="end" style="font-size:12px">0.2</text>
+<line x1="58" y1="216.0" x2="330" y2="216.0" style="stroke:var(--rule);stroke-width:1"/>
+<text class="f-s" x="50.0" y="220.0" text-anchor="end" style="font-size:12px">0.4</text>
+<line x1="58" y1="174.0" x2="330" y2="174.0" style="stroke:var(--rule);stroke-width:1"/>
+<text class="f-s" x="50.0" y="178.0" text-anchor="end" style="font-size:12px">0.6</text>
+<line x1="58" y1="132.0" x2="330" y2="132.0" style="stroke:var(--rule);stroke-width:1"/>
+<text class="f-s" x="50.0" y="136.0" text-anchor="end" style="font-size:12px">0.8</text>
+<line x1="58" y1="90.0" x2="330" y2="90.0" style="stroke:var(--rule);stroke-width:1"/>
+<text class="f-s" x="50.0" y="94.0" text-anchor="end" style="font-size:12px">1</text>
+<text class="f-s" x="58.0" y="318.0" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="126.0" y="318.0" text-anchor="middle" style="font-size:12px">50</text>
+<text class="f-s" x="194.0" y="318.0" text-anchor="middle" style="font-size:12px">100</text>
+<text class="f-s" x="262.0" y="318.0" text-anchor="middle" style="font-size:12px">150</text>
+<text class="f-s" x="330.0" y="318.0" text-anchor="middle" style="font-size:12px">200</text>
+<polyline points="58.0,300.0 139.6,300.0 139.6,258.0 187.2,258.0 187.2,216.0 221.2,216.0 221.2,174.0 248.4,174.0 248.4,132.0 296.0,132.0 296.0,90.0 330.0,90.0" style="fill:none;stroke:var(--b);stroke-width:3;stroke-linejoin:round"/>
+<polyline points="58.0,300.0 85.2,300.0 85.2,258.0 112.4,258.0 112.4,216.0 132.8,216.0 132.8,174.0 194.0,174.0 194.0,132.0 228.0,132.0 228.0,90.0 330.0,90.0" style="fill:none;stroke:var(--o);stroke-width:3;stroke-linejoin:round;stroke-dasharray:7 4"/>
+<line x1="135.5" y1="298.0" x2="135.5" y2="176.0" style="stroke:var(--ink);stroke-width:2.5"/>
+<line x1="129.5" y1="298.0" x2="141.5" y2="298.0" style="stroke:var(--ink);stroke-width:2.5"/>
+<line x1="129.5" y1="176.0" x2="141.5" y2="176.0" style="stroke:var(--ink);stroke-width:2.5"/>
+<text class="f-t" x="135.5" y="162.0" text-anchor="middle" style="font-size:15px">D = 0.6</text>
+<text class="f-s" x="194.0" y="338.0" text-anchor="middle" style="font-size:12px">brillo de la foto</text>
+<line x1="28" y1="358" x2="52" y2="358" style="stroke:var(--b);stroke-width:3"/>
+<text class="f-s" x="60.0" y="362.0" style="font-size:12px">referencia: 60, 95, 120, 140, 175</text>
+<line x1="28" y1="380" x2="52" y2="380" style="stroke:var(--o);stroke-width:3;stroke-dasharray:7 4"/>
+<text class="f-s" x="60.0" y="384.0" style="font-size:12px">esta semana: 20, 40, 55, 100, 125</text>
+<text class="f-s" x="28.0" y="410.0" style="font-size:12px">a lo alto: qué fracción tiene ese brillo o menos</text>
+</svg>

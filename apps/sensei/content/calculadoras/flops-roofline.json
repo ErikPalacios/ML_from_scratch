@@ -1,0 +1,86 @@
+{
+  "titulo": "El roofline de tu GPU",
+  "intro": "Pon el pico y el [[ancho-banda-memoria|ancho de banda]] de una GPU, y la [[intensidad-aritmetica|intensidad aritmética]] de un cálculo. Sale cuántos TFLOPS puede alcanzar y qué lo limita.",
+  "entradas": [
+    {
+      "id": "p",
+      "label": "Pico de cálculo",
+      "unidad": "TFLOPS",
+      "min": 1,
+      "max": 5000,
+      "paso": 1,
+      "valor": 65,
+      "tipo": "numero"
+    },
+    {
+      "id": "bw",
+      "label": "Ancho de banda de memoria",
+      "unidad": "GB/s",
+      "min": 10,
+      "max": 10000,
+      "paso": 1,
+      "valor": 320,
+      "tipo": "numero"
+    },
+    {
+      "id": "i",
+      "label": "Intensidad aritmética del cálculo",
+      "unidad": "FLOPs/B",
+      "min": 1,
+      "max": 2000,
+      "paso": 1,
+      "valor": 1
+    }
+  ],
+  "calculos": [
+    {
+      "id": "quiebre",
+      "formula": "p * 1000 / bw"
+    },
+    {
+      "id": "rampa",
+      "formula": "i * bw / 1000"
+    },
+    {
+      "id": "alcanza",
+      "formula": "min(p, rampa)"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Punto de quiebre de la GPU",
+      "formula": "quiebre",
+      "formato": "num",
+      "decimales": 0,
+      "nota": "FLOPs por byte: pico ÷ ancho de banda"
+    },
+    {
+      "label": "Lo que la memoria alcanza a alimentar",
+      "formula": "rampa",
+      "formato": "num",
+      "decimales": 2,
+      "nota": "TFLOPS: intensidad × ancho de banda"
+    },
+    {
+      "label": "TFLOPS alcanzables",
+      "formula": "alcanza",
+      "formato": "num",
+      "decimales": 2,
+      "nota": "el menor de los dos: el techo del roofline"
+    },
+    {
+      "label": "Parte del pico que puedes usar",
+      "formula": "alcanza / p",
+      "formato": "pct",
+      "barra": true
+    },
+    {
+      "label": "Intensidad ÷ punto de quiebre",
+      "formula": "i / quiebre",
+      "formato": "x",
+      "nota": "menos de 1×: memory-bound · 1× o más: compute-bound",
+      "decimales": 3
+    }
+  ],
+  "nota": "Con la T4 y una intensidad de 1 alcanzas 0.32 TFLOPS: el 0.5 % del pico. Pon la L4 (121 TFLOPS y 300 GB/s) con la misma intensidad: alcanzas un poco menos que con la T4, aunque tiene casi el doble de pico."
+}

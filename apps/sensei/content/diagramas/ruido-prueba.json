@@ -1,0 +1,105 @@
+{
+  "titulo": "Cómo decide una prueba de hipótesis",
+  "width": 78,
+  "height": 70,
+  "lanes": [
+    { "id": "antes", "label": "Antes de ver los datos", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 16 },
+    { "id": "cuenta", "label": "La cuenta", "kind": "neutral", "x": 0, "y": 18, "w": 78, "h": 22 },
+    { "id": "decision", "label": "La decisión y sus dos errores", "kind": "monitor", "x": 0, "y": 42, "w": 78, "h": 28 }
+  ],
+  "nodes": [
+    {
+      "id": "regla", "label": "Escribir la regla", "sub": "métrica, α = 0.05, n", "kind": "job",
+      "x": 3, "y": 4, "w": 22, "h": 9,
+      "note": "Se decide **antes**: qué métrica manda, qué tan seguido aceptas una falsa alarma (α = 0.05), qué efecto quieres poder ver y, con eso, cuántas unidades y cuántos días."
+    },
+    {
+      "id": "h0", "label": "Suponer H0", "sub": "no hay diferencia", "kind": "service",
+      "x": 34, "y": 4, "w": 22, "h": 9,
+      "note": "La [[hipotesis-nula|hipótesis nula]] dice que A y B son igual de buenos y que cualquier diferencia es ruido. No es lo que crees: es la suposición que la prueba intenta tumbar."
+    },
+    {
+      "id": "datos", "label": "Los datos", "sub": "A 70.0 % · B 71.0 %", "kind": "store",
+      "x": 3, "y": 25, "w": 20, "h": 9,
+      "note": "Lo que salió del experimento: cuántas unidades hubo en cada brazo y cuántas aceptaron. Con 33,000 publicaciones por brazo, 23,100 contra 23,430."
+    },
+    {
+      "id": "z", "label": "¿Qué tan raro?", "sub": "z = diferencia ÷ error", "kind": "job",
+      "x": 30, "y": 25, "w": 20, "h": 9,
+      "note": "Se divide la diferencia entre su [[error-estandar|error estándar]], el que tendría si H0 fuera cierta. Así la diferencia queda en «errores estándar»: 1 punto ÷ 0.355 ≈ 2.8."
+    },
+    {
+      "id": "p", "label": "p-value", "sub": "si H0 fuera cierta", "kind": "monitor",
+      "x": 56, "y": 25, "w": 20, "h": 9,
+      "note": "El [[p-value]] responde: **si no hubiera ninguna diferencia**, ¿qué tan seguido saldría una al menos así de grande? Con z ≈ 2.8, p ≈ 0.005: una vez de cada 200. No es la probabilidad de que B funcione."
+    },
+    {
+      "id": "corte", "label": "¿p < α?", "sub": "α = 0.05", "kind": "job",
+      "x": 57, "y": 51, "w": 18, "h": 9,
+      "note": "La [[significancia]] α es el corte que escribiste antes. Si el p-value queda abajo, la diferencia se llama «estadísticamente significativa». No quiere decir que sea grande ni que importe."
+    },
+    {
+      "id": "rechazo", "label": "Rechazar H0", "sub": "se ve una diferencia", "kind": "service",
+      "x": 31, "y": 45, "w": 18, "h": 9,
+      "note": "Concluyes que A y B son distintos. Si en realidad no lo eran, acabas de dar una **falsa alarma**: pasa en el 5 % de los A/A, justo lo que vale α."
+    },
+    {
+      "id": "norechazo", "label": "No rechazar", "sub": "no se ve diferencia", "kind": "service",
+      "x": 31, "y": 58, "w": 18, "h": 9,
+      "note": "No es «no hay diferencia»: es «con estos datos no se ve». Si el efecto existía y no lo viste, es un efecto que se escapó; con [[potencia]] de 80 %, pasa una de cada cinco veces."
+    },
+    {
+      "id": "falsa", "label": "Falsa alarma", "sub": "error tipo I", "kind": "monitor",
+      "x": 3, "y": 45, "w": 18, "h": 9,
+      "note": "Declarar ganador a un modelo que es igual. Su probabilidad, si no hay efecto, es α. Mirar antes de tiempo o medir 20 métricas la infla."
+    },
+    {
+      "id": "escapa", "label": "Se escapó", "sub": "error tipo II", "kind": "monitor",
+      "x": 3, "y": 58, "w": 18, "h": 9,
+      "note": "No ver un efecto que sí existe. Su probabilidad es 1 − potencia: con 80 % de potencia, 20 %. Se baja con más muestra."
+    }
+  ],
+  "edges": [
+    { "from": "regla", "to": "h0", "kind": "offline", "fromSide": "r", "toSide": "l" },
+    { "from": "h0", "to": "z", "kind": "neutral", "fromSide": "b", "toSide": "t", "dashed": true },
+    { "from": "datos", "to": "z", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "z", "to": "p", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "p", "to": "corte", "kind": "monitor", "fromSide": "b", "toSide": "t" },
+    { "from": "corte", "to": "rechazo", "kind": "monitor", "fromSide": "l", "toSide": "r", "label": "sí" },
+    { "from": "corte", "to": "norechazo", "kind": "monitor", "fromSide": "l", "toSide": "r", "label": "no" },
+    { "from": "rechazo", "to": "falsa", "kind": "monitor", "fromSide": "l", "toSide": "r", "dashed": true, "label": "5 %" },
+    { "from": "norechazo", "to": "escapa", "kind": "monitor", "fromSide": "l", "toSide": "r", "dashed": true, "label": "20 %" }
+  ],
+  "flows": [
+    {
+      "id": "efecto",
+      "label": "Un A/B con efecto",
+      "steps": [
+        { "nodes": ["regla"], "edges": [], "text": "**La regla, antes:** tasa de aceptación, α = 0.05, efecto mínimo de 1 punto, potencia 80 %: ≈ 33,000 publicaciones por brazo." },
+        { "nodes": ["regla", "h0"], "edges": ["regla>h0"], "text": "**Se supone H0:** los dos modelos son igual de buenos." },
+        { "nodes": ["datos", "z"], "edges": ["datos>z", "h0>z"], "text": "**Salen los datos:** A 70.0 %, B 71.0 %. La diferencia de 1 punto entre su error estándar, 0.355, da z ≈ 2.8." },
+        { "nodes": ["z", "p"], "edges": ["z>p"], "text": "**El p-value:** si H0 fuera cierta, una diferencia así de grande saldría ≈ 0.5 % de las veces. p ≈ 0.005." },
+        { "nodes": ["p", "corte", "rechazo"], "edges": ["p>corte", "corte>rechazo"], "text": "**0.005 < 0.05: se rechaza H0.** B es distinto de A, y como la diferencia es positiva, mejor." }
+      ]
+    },
+    {
+      "id": "aa",
+      "label": "Un A/A",
+      "steps": [
+        { "nodes": ["h0"], "edges": [], "text": "**Un A/A:** los dos brazos reciben el mismo modelo. Aquí H0 es cierta por construcción." },
+        { "nodes": ["datos", "z", "p"], "edges": ["datos>z", "z>p"], "text": "**Casi siempre** sale una diferencia chica, un z cerca de 0 y un p-value cualquiera entre 0 y 1." },
+        { "nodes": ["corte", "norechazo"], "edges": ["p>corte", "corte>norechazo"], "text": "**19 de cada 20 veces,** p ≥ 0.05: no se rechaza, que es lo correcto." },
+        { "nodes": ["corte", "rechazo", "falsa"], "edges": ["corte>rechazo", "rechazo>falsa"], "text": "**1 de cada 20,** el azar cruza la raya y la prueba «encuentra» un ganador que no existe: una falsa alarma. Ese 5 % es α." }
+      ]
+    },
+    {
+      "id": "chico",
+      "label": "Un A/B demasiado chico",
+      "steps": [
+        { "nodes": ["regla"], "edges": [], "text": "**Alguien se saltó la cuenta** y corrió el A/B con 5,000 publicaciones por brazo." },
+        { "nodes": ["datos", "z", "p"], "edges": ["datos>z", "z>p"], "text": "**El mismo 1 punto de diferencia,** pero con un error estándar de 0.91: z ≈ 1.1 y p ≈ 0.27." },
+        { "nodes": ["corte", "norechazo", "escapa"], "edges": ["p>corte", "corte>norechazo", "norechazo>escapa"], "text": "**No se rechaza H0,** aunque B sí era mejor: el efecto se escapó por falta de [[potencia]]. «No significativo» no quería decir «no sirve»." }
+      ]
+    }
+  ]
+}

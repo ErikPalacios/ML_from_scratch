@@ -1,0 +1,226 @@
+{
+  "titulo": "PSI de dos histogramas",
+  "intro": "Cinco bins del brillo de las fotos de C01. Arriba, qué porcentaje cayó en cada bin en la [[referencia]] (octubre); abajo, esta semana. Si tus porcentajes no suman 100, la calculadora los reparte para que sí sumen.",
+  "entradas": [
+    {
+      "id": "e1",
+      "label": "Referencia, bin 1 · muy oscuras",
+      "min": 0,
+      "max": 60,
+      "paso": 1,
+      "valor": 10,
+      "unidad": "%"
+    },
+    {
+      "id": "e2",
+      "label": "Referencia, bin 2 · oscuras",
+      "min": 0,
+      "max": 60,
+      "paso": 1,
+      "valor": 20,
+      "unidad": "%"
+    },
+    {
+      "id": "e3",
+      "label": "Referencia, bin 3 · medias",
+      "min": 0,
+      "max": 60,
+      "paso": 1,
+      "valor": 40,
+      "unidad": "%"
+    },
+    {
+      "id": "e4",
+      "label": "Referencia, bin 4 · claras",
+      "min": 0,
+      "max": 60,
+      "paso": 1,
+      "valor": 20,
+      "unidad": "%"
+    },
+    {
+      "id": "e5",
+      "label": "Referencia, bin 5 · muy claras",
+      "min": 0,
+      "max": 60,
+      "paso": 1,
+      "valor": 10,
+      "unidad": "%"
+    },
+    {
+      "id": "a1",
+      "label": "**Esta semana**, bin 1 · muy oscuras",
+      "min": 0,
+      "max": 60,
+      "paso": 1,
+      "valor": 22,
+      "unidad": "%"
+    },
+    {
+      "id": "a2",
+      "label": "**Esta semana**, bin 2 · oscuras",
+      "min": 0,
+      "max": 60,
+      "paso": 1,
+      "valor": 30,
+      "unidad": "%"
+    },
+    {
+      "id": "a3",
+      "label": "**Esta semana**, bin 3 · medias",
+      "min": 0,
+      "max": 60,
+      "paso": 1,
+      "valor": 30,
+      "unidad": "%"
+    },
+    {
+      "id": "a4",
+      "label": "**Esta semana**, bin 4 · claras",
+      "min": 0,
+      "max": 60,
+      "paso": 1,
+      "valor": 12,
+      "unidad": "%"
+    },
+    {
+      "id": "a5",
+      "label": "**Esta semana**, bin 5 · muy claras",
+      "min": 0,
+      "max": 60,
+      "paso": 1,
+      "valor": 6,
+      "unidad": "%"
+    }
+  ],
+  "calculos": [
+    {
+      "id": "se",
+      "formula": "max(e1 + e2 + e3 + e4 + e5, 1e-9)"
+    },
+    {
+      "id": "sa",
+      "formula": "max(a1 + a2 + a3 + a4 + a5, 1e-9)"
+    },
+    {
+      "id": "p1",
+      "formula": "max(e1 / se, 0.0001)"
+    },
+    {
+      "id": "q1",
+      "formula": "max(a1 / sa, 0.0001)"
+    },
+    {
+      "id": "t1",
+      "formula": "(q1 - p1) * log(q1 / p1)"
+    },
+    {
+      "id": "p2",
+      "formula": "max(e2 / se, 0.0001)"
+    },
+    {
+      "id": "q2",
+      "formula": "max(a2 / sa, 0.0001)"
+    },
+    {
+      "id": "t2",
+      "formula": "(q2 - p2) * log(q2 / p2)"
+    },
+    {
+      "id": "p3",
+      "formula": "max(e3 / se, 0.0001)"
+    },
+    {
+      "id": "q3",
+      "formula": "max(a3 / sa, 0.0001)"
+    },
+    {
+      "id": "t3",
+      "formula": "(q3 - p3) * log(q3 / p3)"
+    },
+    {
+      "id": "p4",
+      "formula": "max(e4 / se, 0.0001)"
+    },
+    {
+      "id": "q4",
+      "formula": "max(a4 / sa, 0.0001)"
+    },
+    {
+      "id": "t4",
+      "formula": "(q4 - p4) * log(q4 / p4)"
+    },
+    {
+      "id": "p5",
+      "formula": "max(e5 / se, 0.0001)"
+    },
+    {
+      "id": "q5",
+      "formula": "max(a5 / sa, 0.0001)"
+    },
+    {
+      "id": "t5",
+      "formula": "(q5 - p5) * log(q5 / p5)"
+    },
+    {
+      "id": "psi",
+      "formula": "t1 + t2 + t3 + t4 + t5"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "**PSI**",
+      "formula": "psi",
+      "formato": "num",
+      "decimales": 3
+    },
+    {
+      "label": "Veredicto",
+      "formula": "psi < 0.1 ? 0 : (psi <= 0.25 ? 1 : 2)",
+      "formato": "int",
+      "nota": "0 = estable (menos de 0.1) · 1 = mirar (0.1 a 0.25) · 2 = cambio grande (más de 0.25)"
+    },
+    {
+      "label": "Contra el umbral de acción de C01",
+      "formula": "psi / 0.2",
+      "formato": "x",
+      "nota": "arriba de 1× tres días seguidos, C01 abre un ticket"
+    },
+    {
+      "label": "Aporte del bin 1 · muy oscuras",
+      "formula": "t1",
+      "formato": "num",
+      "decimales": 4,
+      "barra": true
+    },
+    {
+      "label": "Aporte del bin 2 · oscuras",
+      "formula": "t2",
+      "formato": "num",
+      "decimales": 4,
+      "barra": true
+    },
+    {
+      "label": "Aporte del bin 3 · medias",
+      "formula": "t3",
+      "formato": "num",
+      "decimales": 4,
+      "barra": true
+    },
+    {
+      "label": "Aporte del bin 4 · claras",
+      "formula": "t4",
+      "formato": "num",
+      "decimales": 4,
+      "barra": true
+    },
+    {
+      "label": "Aporte del bin 5 · muy claras",
+      "formula": "t5",
+      "formato": "num",
+      "decimales": 4,
+      "barra": true
+    }
+  ],
+  "nota": "Empieza con la semana de noche de la lección: PSI ≈ 0.225. Iguala las dos filas: 0. Ahora pon el bin 5 de esta semana en 0 y mira cómo salta su aporte: ln de algo casi cero es enorme. La calculadora usa un piso de 0.01 % por bin; con otro piso saldría otro número."
+}

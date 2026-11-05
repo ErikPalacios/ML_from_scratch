@@ -1,0 +1,20 @@
+{
+  "titulo": "El ruido de una proporción",
+  "intro": "Pon la accuracy que mediste y cuántas fotos tenía el examen. El [[error-estandar|error estándar]] dice cuánto se movería ese número si repitieras el examen con otras fotos al azar; el intervalo de 95 % son ≈ 2 errores estándar a cada lado.",
+  "entradas": [
+    { "id": "p", "label": "Accuracy medida", "min": 1, "max": 99, "paso": 0.5, "valor": 85, "unidad": "%" },
+    { "id": "n", "label": "Fotos en el examen", "min": 10, "max": 1000000, "paso": 10, "valor": 1000, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "f", "formula": "p / 100" },
+    { "id": "se", "formula": "sqrt(f * (1 - f) / max(n, 1))" }
+  ],
+  "salidas": [
+    { "label": "Error estándar, en puntos", "formula": "se * 100", "decimales": 2, "nota": "√(p × (1 − p) ÷ n)" },
+    { "label": "Margen al 95 %, en puntos", "formula": "1.96 * se * 100", "decimales": 2, "nota": "± 1.96 errores estándar" },
+    { "label": "El intervalo empieza en", "formula": "max(0, f - 1.96 * se)", "formato": "pct", "decimales": 1, "barra": true },
+    { "label": "Y termina en", "formula": "min(1, f + 1.96 * se)", "formato": "pct", "decimales": 1, "barra": true },
+    { "label": "Fotos para la mitad del margen", "formula": "4 * n", "formato": "int", "nota": "el ruido baja con la raíz de n" }
+  ],
+  "nota": "Prueba 50,000 fotos: es el golden set de C01, y el margen baja a ±0.3 puntos. Prueba 60: es lo que tiene una categoría chica, y el margen sube a ±9. Con pocas fotos o con una accuracy cerca de 0 % o de 100 %, esta regla falla (el intervalo puede pasarse de 100 %); ahí se usa la de Wilson, de la última sección extra."
+}

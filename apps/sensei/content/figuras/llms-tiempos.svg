@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 388" role="img" aria-labelledby="f-llms-tiempos-t" class="f-svg" style="max-width:420px">
+<title id="f-llms-tiempos-t">Un request de C10 en el tiempo. Arriba, completo: la cola y el prefill ocupan los primeros 0.6 segundos, que son el TTFT, y después vienen 249 pasos de decode de 40 milisegundos cada uno, el TPOT, hasta terminar a los 10.6 segundos. Abajo, el primer segundo con lupa: 0.45 segundos de cola, 0.15 de prefill y, desde los 0.6 segundos, un token cada 40 milisegundos. Total: 0.6 más 249 por 0.04, aproximadamente 10.6 segundos.</title>
+<text class="f-l" x="14" y="24">UN REQUEST DE C10, EN EL TIEMPO</text>
+<rect class="f-card" x="10" y="36" width="340" height="118" rx="16"/>
+<text class="f-l" x="26" y="60">COMPLETO</text>
+<rect class="f-off" x="26" y="70" width="12.6" height="24"/>
+<rect class="f-o" x="38.6" y="70" width="4.2" height="24"/>
+<rect class="f-b2" x="42.8" y="70" width="278.9" height="24"/>
+<text class="f-s" x="182.2" y="86.5" text-anchor="middle" style="font-size:12px">decode: 249 pasos de 40 ms</text>
+<line class="f-linea" x1="26" y1="102" x2="334" y2="102"/>
+<line class="f-linea" x1="26" y1="102" x2="26" y2="106"/>
+<text class="f-s" x="26" y="120" text-anchor="middle" style="font-size:12px">0</text>
+<line class="f-linea" x1="82" y1="102" x2="82" y2="106"/>
+<text class="f-s" x="82" y="120" text-anchor="middle" style="font-size:12px">2</text>
+<line class="f-linea" x1="138" y1="102" x2="138" y2="106"/>
+<text class="f-s" x="138" y="120" text-anchor="middle" style="font-size:12px">4</text>
+<line class="f-linea" x1="194" y1="102" x2="194" y2="106"/>
+<text class="f-s" x="194" y="120" text-anchor="middle" style="font-size:12px">6</text>
+<line class="f-linea" x1="250" y1="102" x2="250" y2="106"/>
+<text class="f-s" x="250" y="120" text-anchor="middle" style="font-size:12px">8</text>
+<line class="f-linea" x1="306" y1="102" x2="306" y2="106"/>
+<text class="f-s" x="306" y="120" text-anchor="middle" style="font-size:12px">10 s</text>
+<line x1="42.8" y1="64" x2="42.8" y2="98" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<line x1="321.7" y1="64" x2="321.7" y2="98" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<text class="f-t" x="46.8" y="142" style="font-size:13px">TTFT 0.6 s</text>
+<text class="f-t" x="321.7" y="142" text-anchor="end" style="font-size:13px">total ≈ 10.6 s</text>
+<rect class="f-card" x="10" y="166" width="340" height="138" rx="16"/>
+<text class="f-l" x="26" y="190">EL PRIMER SEGUNDO, CON LUPA</text>
+<text class="f-s" x="334" y="212" text-anchor="end" style="font-size:12px">cada bloque azul: 1 token, 40 ms</text>
+<rect class="f-off" x="26" y="220" width="138.6" height="24"/>
+<text class="f-s" x="95.3" y="236.5" text-anchor="middle" style="font-size:12px">cola</text>
+<rect class="f-o" x="164.6" y="220" width="46.2" height="24"/>
+<rect class="f-b" x="211.8" y="220" width="10.3" height="24" rx="2"/>
+<rect class="f-b" x="224.1" y="220" width="10.3" height="24" rx="2"/>
+<rect class="f-b" x="236.4" y="220" width="10.3" height="24" rx="2"/>
+<rect class="f-b" x="248.8" y="220" width="10.3" height="24" rx="2"/>
+<rect class="f-b" x="261.1" y="220" width="10.3" height="24" rx="2"/>
+<rect class="f-b" x="273.4" y="220" width="10.3" height="24" rx="2"/>
+<rect class="f-b" x="285.7" y="220" width="10.3" height="24" rx="2"/>
+<rect class="f-b" x="298" y="220" width="10.3" height="24" rx="2"/>
+<rect class="f-b" x="310.4" y="220" width="10.3" height="24" rx="2"/>
+<rect class="f-b" x="322.7" y="220" width="10.3" height="24" rx="2"/>
+<line class="f-linea" x1="26" y1="252" x2="334" y2="252"/>
+<line class="f-linea" x1="26" y1="252" x2="26" y2="256"/>
+<text class="f-s" x="26" y="270" text-anchor="middle" style="font-size:12px">0</text>
+<line class="f-linea" x1="87.6" y1="252" x2="87.6" y2="256"/>
+<text class="f-s" x="87.6" y="270" text-anchor="middle" style="font-size:12px">0.2</text>
+<line class="f-linea" x1="149.2" y1="252" x2="149.2" y2="256"/>
+<text class="f-s" x="149.2" y="270" text-anchor="middle" style="font-size:12px">0.4</text>
+<line class="f-linea" x1="272.4" y1="252" x2="272.4" y2="256"/>
+<text class="f-s" x="272.4" y="270" text-anchor="middle" style="font-size:12px">0.8</text>
+<line class="f-linea" x1="334" y1="252" x2="334" y2="256"/>
+<text class="f-s" x="334" y="270" text-anchor="middle" style="font-size:12px">1 s</text>
+<line x1="210.8" y1="214" x2="210.8" y2="258" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"/>
+<text class="f-t" x="210.8" y="271" text-anchor="middle" style="font-size:13px">TTFT 0.6 s</text>
+<text class="f-s" x="95.3" y="292" text-anchor="middle" style="font-size:12px">cola 0.45 s</text>
+<text class="f-s" x="187.7" y="292" text-anchor="middle" style="font-size:12px">prefill 0.15 s</text>
+<rect class="f-chip" x="10" y="316" width="340" height="62" rx="14"/>
+<text class="f-s" x="26" y="341">Total = TTFT + 249 × TPOT</text>
+<text class="f-t" x="26" y="363" style="font-size:14px">= 0.6 + 249 × 0.04 ≈ 10.6 s</text>
+</svg>

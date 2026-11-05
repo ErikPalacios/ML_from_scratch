@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 451" role="img" aria-labelledby="f-ruido-intervalos-t" class="f-svg" style="max-width:420px">
+<title id="f-ruido-intervalos-t">Veinte muestras simuladas de 1,000 fotos, cada una de un modelo que acierta de verdad el 85 %. Cada muestra da su accuracy y su intervalo de 95 %, dibujado como una barra horizontal. Diecinueve barras cruzan la línea punteada del 85 %; una, la de una muestra que dio 88.1 %, con un intervalo de 86.1 a 90.1, queda toda a la derecha. El 95 % describe la receta: de cada 20 intervalos, se espera que uno falle.</title>
+<rect class="f-card" x="10" y="10" width="340" height="431" rx="16"/>
+<text class="f-l" x="28.0" y="36.0">20 MUESTRAS DE 1,000 FOTOS, 20 INTERVALOS</text>
+<line x1="180.0" y1="58" x2="180.0" y2="321.5" style="stroke:var(--tm-ink3);stroke-width:1.5;stroke-dasharray:4 3"/>
+<text class="f-s" x="186.0" y="56.0" style="font-size:12px">85 %: el verdadero</text>
+<line x1="138.3" y1="74.0" x2="240.4" y2="74.0" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="189.3" cy="74.0" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="93.8" y1="86.5" x2="200.9" y2="86.5" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="147.3" cy="86.5" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="145.7" y1="99.0" x2="247.0" y2="99.0" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="196.3" cy="99.0" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="128.4" y1="111.5" x2="231.6" y2="111.5" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="180.0" cy="111.5" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="96.2" y1="124.0" x2="203.1" y2="124.0" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="149.7" cy="124.0" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="168.1" y1="136.5" x2="266.6" y2="136.5" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="217.3" cy="136.5" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="153.2" y1="149.0" x2="253.5" y2="149.0" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="203.3" cy="149.0" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="205.5" y1="161.5" x2="299.2" y2="161.5" style="stroke:var(--o);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="252.3" cy="161.5" r="3.6" style="fill:var(--surface);stroke:var(--o);stroke-width:2"/>
+<line x1="93.8" y1="174.0" x2="200.9" y2="174.0" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="147.3" cy="174.0" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="145.7" y1="186.5" x2="247.0" y2="186.5" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="196.3" cy="186.5" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="108.6" y1="199.0" x2="214.1" y2="199.0" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="161.3" cy="199.0" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="130.8" y1="211.5" x2="233.8" y2="211.5" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="182.3" cy="211.5" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="116.0" y1="224.0" x2="220.7" y2="224.0" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="168.3" cy="224.0" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="88.9" y1="236.5" x2="196.5" y2="236.5" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="142.7" cy="236.5" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="175.5" y1="249.0" x2="273.1" y2="249.0" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="224.3" cy="249.0" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="96.2" y1="261.5" x2="203.1" y2="261.5" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="149.7" cy="261.5" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="125.9" y1="274.0" x2="229.4" y2="274.0" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="177.7" cy="274.0" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="140.7" y1="286.5" x2="242.6" y2="286.5" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="191.7" cy="286.5" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="101.2" y1="299.0" x2="207.5" y2="299.0" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="154.3" cy="299.0" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<line x1="98.7" y1="311.5" x2="205.3" y2="311.5" style="stroke:var(--b);stroke-width:3.5;stroke-linecap:round"/>
+<circle cx="152.0" cy="311.5" r="3.6" style="fill:var(--surface);stroke:var(--b);stroke-width:2"/>
+<text class="f-s" x="28.0" y="166.0" style="font-size:12px;font-weight:700;fill:var(--bad)">esta no: 88.1 ± 2.0</text>
+<line class="f-flecha" x1="36" y1="329.5" x2="324" y2="329.5"/>
+<line class="f-linea" x1="63.3" y1="329.5" x2="63.3" y2="334.5"/>
+<text class="f-s" x="63.3" y="348.5" text-anchor="middle" style="font-size:12px">80 %</text>
+<line class="f-linea" x1="121.7" y1="329.5" x2="121.7" y2="334.5"/>
+<text class="f-s" x="121.7" y="348.5" text-anchor="middle" style="font-size:12px">82.5 %</text>
+<line class="f-linea" x1="180.0" y1="329.5" x2="180.0" y2="334.5"/>
+<text class="f-s" x="180.0" y="348.5" text-anchor="middle" style="font-size:12px">85 %</text>
+<line class="f-linea" x1="238.3" y1="329.5" x2="238.3" y2="334.5"/>
+<text class="f-s" x="238.3" y="348.5" text-anchor="middle" style="font-size:12px">87.5 %</text>
+<line class="f-linea" x1="296.7" y1="329.5" x2="296.7" y2="334.5"/>
+<text class="f-s" x="296.7" y="348.5" text-anchor="middle" style="font-size:12px">90 %</text>
+<rect class="f-chip" x="28" y="365.5" width="304" height="66" rx="10"/>
+<text class="f-s" x="42.0" y="387.5" style="font-size:13px;font-weight:700">19 de 20 atrapan el 85 %; una no.</text>
+<text class="f-s" x="42.0" y="405.5" style="font-size:13px">El 95 % es de la receta: de cada 20</text>
+<text class="f-s" x="42.0" y="422.5" style="font-size:13px">intervalos, esperas que falle uno.</text>
+</svg>

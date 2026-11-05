@@ -1,0 +1,50 @@
+{
+  "titulo": "Cómo se construye un LLM de chat, en tres etapas",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "pre", "label": "1 · Preentrenamiento · meses, miles de GPUs", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 15 },
+    { "id": "sft", "label": "2 · Ajuste con instrucciones · mucho menos", "kind": "offline", "x": 0, "y": 17, "w": 78, "h": 15 },
+    { "id": "pref", "label": "3 · Ajuste por preferencias", "kind": "offline", "x": 0, "y": 34, "w": 78, "h": 16 }
+  ],
+  "nodes": [
+    { "id": "texto", "label": "Texto público", "sub": "web, libros, código", "kind": "store", "x": 1, "y": 5, "w": 18, "h": 8,
+      "note": "Billones de [[token|tokens]]: Llama 3 se preentrenó con más de 15 billones (15 × 10¹²), según Meta. Nadie lo etiqueta: el token que sigue ya está escrito en el texto, y esa es la respuesta correcta de cada ejercicio." },
+    { "id": "pre", "label": "Preentrenamiento", "sub": "adivinar el siguiente token", "kind": "job", "x": 30, "y": 5, "w": 18, "h": 8,
+      "note": "El [[preentrenamiento]]: la tarea de la sección 2, repetida billones de veces, bajando la [[entropia-cruzada|entropía cruzada]] de cada predicción. Es la etapa más cara por mucho; casi ninguna empresa la hace por su cuenta." },
+    { "id": "base", "label": "Modelo base", "sub": "continúa textos", "kind": "model", "x": 59, "y": 5, "w": 18, "h": 8,
+      "note": "Sabe muchísimo, pero no sabe que existe una conversación: ante una pregunta, puede contestarla o seguir escribiendo más preguntas, porque las dos cosas son continuaciones probables." },
+    { "id": "ejemplos", "label": "Ejemplos", "sub": "petición → buena respuesta", "kind": "human", "x": 1, "y": 22, "w": 18, "h": 8,
+      "note": "Conversaciones escritas o revisadas por personas, en el formato de chat con roles (sistema, usuario, asistente). Son muchísimos menos datos: en InstructGPT, del orden de 13 mil ejemplos." },
+    { "id": "sft", "label": "Ajuste con instrucciones", "sub": "misma tarea, otros datos", "kind": "job", "x": 30, "y": 22, "w": 18, "h": 8,
+      "note": "El [[instruction-tuning|ajuste con instrucciones]] (SFT): sigue adivinando el siguiente token, pero solo sobre esos ejemplos. No le enseña datos nuevos; le enseña a usar lo que sabe en forma de conversación." },
+    { "id": "instruido", "label": "Modelo instruido", "sub": "sigue el formato de chat", "kind": "model", "x": 59, "y": 22, "w": 18, "h": 8,
+      "note": "Ya contesta en vez de continuar, respeta el [[system-prompt|system prompt]] y termina su turno con un token especial de fin." },
+    { "id": "pares", "label": "Comparaciones", "sub": "¿cuál de las dos es mejor?", "kind": "human", "x": 1, "y": 39, "w": 18, "h": 8,
+      "note": "El modelo escribe dos respuestas a la misma petición y una persona elige la mejor. Comparar es más fácil y más barato que escribir la respuesta ideal." },
+    { "id": "rlhf", "label": "RLHF o DPO", "sub": "más de lo que se prefiere", "kind": "job", "x": 30, "y": 39, "w": 18, "h": 8,
+      "note": "En el [[rlhf|RLHF]], un modelo de recompensa aprende a imitar esas elecciones y el LLM se ajusta para sacar más puntos, sin alejarse mucho del modelo instruido. DPO aprende directo de los pares, sin modelo de recompensa; es el que usó Meta para Llama 3." },
+    { "id": "chat", "label": "Modelo de chat", "sub": "el que se publica", "kind": "model", "x": 59, "y": 39, "w": 18, "h": 8,
+      "note": "El que descargas y sirves, como el de ≈ 70B de C10. Ninguna de las tres etapas le enseñó la política de devoluciones del marketplace: eso lo tiene que leer en el [[prompt]] ([[rag|RAG]])." }
+  ],
+  "edges": [
+    { "from": "texto", "to": "pre", "kind": "offline", "label": "tokens" },
+    { "from": "pre", "to": "base", "kind": "offline" },
+    { "from": "base", "to": "sft", "kind": "offline", "label": "pesos", "fromSide": "b", "toSide": "t", "via": [[68, 17.5], [39, 17.5]] },
+    { "from": "ejemplos", "to": "sft", "kind": "offline" },
+    { "from": "sft", "to": "instruido", "kind": "offline" },
+    { "from": "instruido", "to": "rlhf", "kind": "offline", "label": "pesos", "fromSide": "b", "toSide": "t", "via": [[68, 34.5], [39, 34.5]] },
+    { "from": "pares", "to": "rlhf", "kind": "offline" },
+    { "from": "rlhf", "to": "chat", "kind": "offline" }
+  ],
+  "flows": [
+    { "id": "etapas", "label": "De texto suelto a asistente", "steps": [
+      { "nodes": ["texto", "pre"], "edges": ["texto>pre"], "text": "**Preentrenamiento.** Billones de tokens de texto público; cada token es un ejercicio: adivinarlo a partir de los anteriores." },
+      { "nodes": ["pre", "base"], "edges": ["pre>base"], "text": "Sale un **modelo base**: un continuador de textos que sabe mucho, pero no conversa." },
+      { "nodes": ["base", "ejemplos", "sft"], "edges": ["base>sft", "ejemplos>sft"], "text": "**Ajuste con instrucciones.** Se parte de los pesos del modelo base y se sigue entrenando, con la misma tarea, sobre conversaciones de ejemplo." },
+      { "nodes": ["sft", "instruido"], "edges": ["sft>instruido"], "text": "El **modelo instruido** ya contesta, respeta los roles del chat y sabe cuándo terminar su turno." },
+      { "nodes": ["instruido", "pares", "rlhf"], "edges": ["instruido>rlhf", "pares>rlhf"], "text": "**Ajuste por preferencias.** Personas comparan pares de respuestas; con RLHF o DPO el modelo se mueve hacia lo que la gente prefiere." },
+      { "nodes": ["rlhf", "chat"], "edges": ["rlhf>chat"], "text": "Sale el **modelo de chat** que se publica. Lo que no aprendió en ninguna etapa (datos de tu empresa, lo de esta semana) se le da en el prompt." }
+    ] }
+  ]
+}

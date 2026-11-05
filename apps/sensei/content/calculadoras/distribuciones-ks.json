@@ -1,0 +1,167 @@
+{
+  "titulo": "KS a ojo",
+  "intro": "Cinco fotos de la [[referencia]] y cinco de esta semana, con su brillo de 0 a 255. La calculadora arma las dos curvas acumuladas y busca dónde se separan más: esa distancia es D. Abajo, la D mínima que la [[prueba-ks|prueba KS]] llamaría «significativa» si cada lado tuviera n datos.",
+  "entradas": [
+    {
+      "id": "r1",
+      "label": "Referencia, foto 1",
+      "min": 0,
+      "max": 255,
+      "paso": 1,
+      "valor": 60
+    },
+    {
+      "id": "r2",
+      "label": "Referencia, foto 2",
+      "min": 0,
+      "max": 255,
+      "paso": 1,
+      "valor": 95
+    },
+    {
+      "id": "r3",
+      "label": "Referencia, foto 3",
+      "min": 0,
+      "max": 255,
+      "paso": 1,
+      "valor": 120
+    },
+    {
+      "id": "r4",
+      "label": "Referencia, foto 4",
+      "min": 0,
+      "max": 255,
+      "paso": 1,
+      "valor": 140
+    },
+    {
+      "id": "r5",
+      "label": "Referencia, foto 5",
+      "min": 0,
+      "max": 255,
+      "paso": 1,
+      "valor": 175
+    },
+    {
+      "id": "s1",
+      "label": "**Esta semana**, foto 1",
+      "min": 0,
+      "max": 255,
+      "paso": 1,
+      "valor": 20
+    },
+    {
+      "id": "s2",
+      "label": "**Esta semana**, foto 2",
+      "min": 0,
+      "max": 255,
+      "paso": 1,
+      "valor": 40
+    },
+    {
+      "id": "s3",
+      "label": "**Esta semana**, foto 3",
+      "min": 0,
+      "max": 255,
+      "paso": 1,
+      "valor": 55
+    },
+    {
+      "id": "s4",
+      "label": "**Esta semana**, foto 4",
+      "min": 0,
+      "max": 255,
+      "paso": 1,
+      "valor": 100
+    },
+    {
+      "id": "s5",
+      "label": "**Esta semana**, foto 5",
+      "min": 0,
+      "max": 255,
+      "paso": 1,
+      "valor": 125
+    },
+    {
+      "id": "n",
+      "label": "Datos por lado, si fueran muestras grandes",
+      "min": 5,
+      "max": 10000000,
+      "paso": 1,
+      "valor": 5,
+      "tipo": "numero"
+    }
+  ],
+  "calculos": [
+    {
+      "id": "d1",
+      "formula": "abs((((r1 <= r1) + (r2 <= r1) + (r3 <= r1) + (r4 <= r1) + (r5 <= r1)) / 5) - (((s1 <= r1) + (s2 <= r1) + (s3 <= r1) + (s4 <= r1) + (s5 <= r1)) / 5))"
+    },
+    {
+      "id": "d2",
+      "formula": "abs((((r1 <= r2) + (r2 <= r2) + (r3 <= r2) + (r4 <= r2) + (r5 <= r2)) / 5) - (((s1 <= r2) + (s2 <= r2) + (s3 <= r2) + (s4 <= r2) + (s5 <= r2)) / 5))"
+    },
+    {
+      "id": "d3",
+      "formula": "abs((((r1 <= r3) + (r2 <= r3) + (r3 <= r3) + (r4 <= r3) + (r5 <= r3)) / 5) - (((s1 <= r3) + (s2 <= r3) + (s3 <= r3) + (s4 <= r3) + (s5 <= r3)) / 5))"
+    },
+    {
+      "id": "d4",
+      "formula": "abs((((r1 <= r4) + (r2 <= r4) + (r3 <= r4) + (r4 <= r4) + (r5 <= r4)) / 5) - (((s1 <= r4) + (s2 <= r4) + (s3 <= r4) + (s4 <= r4) + (s5 <= r4)) / 5))"
+    },
+    {
+      "id": "d5",
+      "formula": "abs((((r1 <= r5) + (r2 <= r5) + (r3 <= r5) + (r4 <= r5) + (r5 <= r5)) / 5) - (((s1 <= r5) + (s2 <= r5) + (s3 <= r5) + (s4 <= r5) + (s5 <= r5)) / 5))"
+    },
+    {
+      "id": "d6",
+      "formula": "abs((((r1 <= s1) + (r2 <= s1) + (r3 <= s1) + (r4 <= s1) + (r5 <= s1)) / 5) - (((s1 <= s1) + (s2 <= s1) + (s3 <= s1) + (s4 <= s1) + (s5 <= s1)) / 5))"
+    },
+    {
+      "id": "d7",
+      "formula": "abs((((r1 <= s2) + (r2 <= s2) + (r3 <= s2) + (r4 <= s2) + (r5 <= s2)) / 5) - (((s1 <= s2) + (s2 <= s2) + (s3 <= s2) + (s4 <= s2) + (s5 <= s2)) / 5))"
+    },
+    {
+      "id": "d8",
+      "formula": "abs((((r1 <= s3) + (r2 <= s3) + (r3 <= s3) + (r4 <= s3) + (r5 <= s3)) / 5) - (((s1 <= s3) + (s2 <= s3) + (s3 <= s3) + (s4 <= s3) + (s5 <= s3)) / 5))"
+    },
+    {
+      "id": "d9",
+      "formula": "abs((((r1 <= s4) + (r2 <= s4) + (r3 <= s4) + (r4 <= s4) + (r5 <= s4)) / 5) - (((s1 <= s4) + (s2 <= s4) + (s3 <= s4) + (s4 <= s4) + (s5 <= s4)) / 5))"
+    },
+    {
+      "id": "d10",
+      "formula": "abs((((r1 <= s5) + (r2 <= s5) + (r3 <= s5) + (r4 <= s5) + (r5 <= s5)) / 5) - (((s1 <= s5) + (s2 <= s5) + (s3 <= s5) + (s4 <= s5) + (s5 <= s5)) / 5))"
+    },
+    {
+      "id": "D",
+      "formula": "max(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10)"
+    },
+    {
+      "id": "u",
+      "formula": "1.36 * sqrt(2 / max(n, 1))"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "D, la distancia vertical más grande",
+      "formula": "D",
+      "formato": "num",
+      "decimales": 2
+    },
+    {
+      "label": "D mínima para «significativo» con ese n",
+      "formula": "u",
+      "formato": "num",
+      "decimales": 4,
+      "nota": "1.36 × √(2 ÷ n), al 5 %"
+    },
+    {
+      "label": "¿La prueba diría «cambió»?",
+      "formula": "D > u ? 1 : 0",
+      "formato": "int",
+      "nota": "1 = sí · 0 = no"
+    }
+  ],
+  "nota": "Empieza con las fotos de la lección: D = 0.6, y con 5 por lado no alcanza (con muestras tan chicas la cuenta exacta pide D = 1). Sube las fotos de esta semana hasta que se parezcan a las de la referencia: D baja. Luego deja D como está y escribe 1000000 en n: el umbral baja a 0.0019 y cualquier diferencia ya «es significativa»."
+}
