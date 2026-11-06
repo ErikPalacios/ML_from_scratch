@@ -10,7 +10,7 @@ requisitos: python-ecosistema, redes, cpu-gpu, numeros-maquina
 PyTorch está hecho para entrenar: anota cada cuenta para poder corregirla, se porta distinto en modo entrenamiento y deja que la GPU trabaje por su lado. Servir un modelo es saber qué de eso apagar, qué medir de otra forma y qué congelar antes de exportarlo.
 :::
 
-En la Ronda, C01 empieza con un `model.pt` que corre en una celda de Jupyter, el cuaderno donde la científica de datos entrenó la [[resnet|ResNet-50]]. El trabajo es convertir eso en un servicio confiable. Casi todo lo que falla en ese paso es PyTorch usado como si siguiera entrenando.
+En la Ronda, C01 empieza con un `model.pt` que corre en una celda de Jupyter, el cuaderno donde se entrenó la [[resnet|ResNet-50]]: una página en el navegador donde el código se escribe y se corre por pedazos, llamados celdas. El trabajo es convertir eso en un servicio confiable. Casi todo lo que falla en ese paso es PyTorch usado como si siguiera entrenando.
 
 Esta lección recorre cinco trabajos, en orden:
 
@@ -36,7 +36,7 @@ PyTorch trabaja en modo **eager** (ansioso): cada operación corre en el momento
 
 ### Instalarlo
 
-PyTorch no viene con Python. Se instala con [[pip]], dentro de un [[entorno-virtual|entorno virtual]] (los dos están en la lección anterior), junto con torchvision, su parte de visión. Es una ilustración: el comando baja cientos de MB y, en Linux, una versión que ya trae su propio CUDA.
+PyTorch no viene con Python. Se instala con [[pip]], dentro de un [[entorno-virtual|entorno virtual]] (los dos están en la lección anterior), junto con torchvision, su parte de visión. Es una ilustración: el comando baja de cientos de MB a varios GB, porque en Linux la versión normal ya trae su propio CUDA.
 
 ```bash
 pip install torch torchvision
@@ -56,7 +56,7 @@ Cada tensor vive en un **device** ([[device]], dispositivo): el chip en cuya mem
 
 Para cambiar de device se usa `.to(device)`. En un tensor, regresa una copia en ese device (o el mismo tensor, si ya estaba ahí). En un modelo, mueve todos sus pesos y regresa el mismo modelo.
 
-La regla que más muerde: **una operación necesita todos sus tensores en el mismo device**. PyTorch no copia nada por su cuenta. Si el modelo está en la GPU y la foto en la CPU, truena con un mensaje que empieza así: `Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!`. Con los dtypes pasa algo parecido: un tensor en FP32 no se multiplica con uno en FP16 sin convertir antes. Esto sí corre en cualquier computadora:
+La regla que más muerde: **una operación necesita todos sus tensores en el mismo device**. PyTorch no copia nada por su cuenta. Si el modelo está en la GPU y la foto en la CPU, truena con un mensaje que empieza así: `Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!`. Con los dtypes pasa algo parecido: una multiplicación de matrices (`@`) no mezcla un tensor en FP32 con uno en [[fp16|FP16]] sin convertir antes. En las cuentas de número por número, como `*` o `+`, PyTorch sí convierte solo al tipo más ancho. Esto sí corre en cualquier computadora:
 
 ```python
 import torch
@@ -84,7 +84,7 @@ cpu True
 Error: addmv input tensors must have the same dtype, but got Half, Float, and Half
 ```
 
-`Half` es FP16 y `Float` es FP32: los nombres viejos de PyTorch. En un servidor con GPU, el código lleva un device en una variable y lo usa en cada `.to()`. Es una ilustración, porque aquí no hay GPU:
+El `try` y el `except` atrapan el error para imprimirlo, en vez de que el programa se detenga ahí. `addmv` es el nombre interno de una multiplicación de matriz por vector, y `Half` y `Float` son los nombres viejos de FP16 y FP32 en PyTorch. En un servidor con GPU, el código lleva un device en una variable y lo usa en cada `.to()`. Es una ilustración, porque aquí no hay GPU:
 
 ```python
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"   # la línea de M07
@@ -98,19 +98,19 @@ Esa primera línea tiene una trampa que la Ronda señala en M05: si el contenedo
 
 ## nn.Module y state_dict: el modelo y sus pesos {nn.Module and state_dict: the model and its weights}
 
-En PyTorch, un modelo es una **clase** de Python. Una clase es un molde: describe qué datos guarda cada objeto hecho con ella y qué sabe hacer. Los modelos se escriben heredando de [[nn-module|`nn.Module`]], la clase base de todas las capas y modelos de PyTorch. Un `nn.Module` tiene dos partes:
+En PyTorch, un modelo es una **clase** de Python. Una clase es un molde: describe qué datos guarda cada objeto hecho con ella y qué sabe hacer. Los modelos se escriben **heredando** de [[nn-module|`nn.Module`]], la clase base de todas las capas y modelos de PyTorch: tu clase arranca con todo lo que `nn.Module` ya sabe hacer (guardar, mover de device, cambiar de modo) y tú solo le agregas lo tuyo. Un `nn.Module` tiene dos partes:
 
-- **`__init__`**, que se corre una vez al crear el modelo: ahí se crean las capas y se cuelgan del objeto (`self.conv = …`). Así el módulo las registra y sabe cuáles son sus pesos.
+- **`__init__`**, que se corre una vez al crear el modelo: ahí se crean las capas y se cuelgan del objeto (`self.conv = …`, donde `self` es el objeto mismo). Así el módulo las registra y sabe cuáles son sus pesos.
 - **`forward`**, que dice cómo pasa una entrada por esas capas: el [[forward-pass]].
 
-Para usarlo se escribe `modelo(x)`, no `modelo.forward(x)`. Llamar al módulo corre `forward` y, además, los ganchos (*hooks*) que otras herramientas le cuelgan, como el profiler o el exportador.
+Para usarlo se escribe `modelo(x)`, no `modelo.forward(x)`. Llamar al módulo corre `forward` y, además, los ganchos (*hooks*): funciones que tú u otras herramientas le cuelgan para correr antes o después de cada capa, por ejemplo para ver qué sale de ella. `modelo.forward(x)` se los salta.
 
 ### Parámetros y buffers
 
 Un módulo guarda dos tipos de tensores:
 
 - **Parámetros** (*parameters*): los pesos que el entrenamiento ajusta, las perillas de la lección «Cómo aprende un modelo». Tienen `requires_grad=True`: autograd les calcula el gradiente.
-- **Buffers**: números que el módulo guarda y necesita, pero que no se aprenden con gradiente. El ejemplo de siempre es la [[batchnorm|BatchNorm]]: sus estadísticas acumuladas (`running_mean` y `running_var`) se van actualizando al entrenar, y al responder se usan en vez de las del batch.
+- **Buffers**: números que el módulo guarda y necesita, pero que no se aprenden con gradiente. El ejemplo de siempre es la [[batchnorm|BatchNorm]]: sus estadísticas acumuladas (`running_mean` y `running_var`, el promedio y la varianza de lo que ha visto) se van actualizando al entrenar, y al responder se usan en vez de las del batch.
 
 Este módulo chiquito tiene una convolución, una BatchNorm y una capa final de 3 clases:
 
@@ -137,7 +137,7 @@ parametros = dict(m.named_parameters())
 for nombre, t in m.state_dict().items():
     tipo = "parámetro" if nombre in parametros else "buffer"
     print(f"{nombre:<22} {str(tuple(t.shape)):<14} {tipo}")
-print("números que se aprenden:", sum(p.numel() for p in m.parameters()))
+print("números que se aprenden:", sum(p.numel() for p in m.parameters()))  # numel: cuántos números trae
 ```
 
 ```salida
@@ -182,7 +182,7 @@ print("fc.weight:", tuple(estado["fc.weight"].shape), estado["fc.weight"].dtype)
 numeros = sum(t.numel() for t in modelo.parameters())
 print(f"parámetros: {numeros:,} · en FP32: {numeros * 4 / 1e6:.1f} MB")
 
-ruta = os.path.join(tempfile.mkdtemp(), "resnet50_500.pt")
+ruta = os.path.join(tempfile.mkdtemp(), "resnet50_500.pt")  # en una carpeta temporal
 torch.save(estado, ruta)                           # solo el diccionario, no el objeto
 cargado = torch.load(ruta, map_location="cpu", weights_only=True)
 
@@ -206,14 +206,14 @@ parámetros: 24,532,532 · en FP32: 98.1 MB
 ['size mismatch for fc.weight', 'size mismatch for fc.bias']
 ```
 
-El último intento falla bien: el archivo trae una capa final de 500 clases y el modelo espera 1,000. `strict=False` existe, y deja pasar los nombres que faltan o sobran sin tronar. Úsalo solo a propósito, como al cambiar la cabeza para un [[fine-tuning]], y revisa lo que regresa: un modelo al que le faltó cargar algo arranca con esos pesos al azar y contesta basura sin ningún error.
+El último intento falla bien: el archivo trae una capa final de 500 clases y el modelo espera 1,000. `strict=False` existe, y deja pasar los nombres que faltan o sobran sin tronar; una forma distinta, como esta, truena de todos modos. Úsalo solo a propósito, como al cambiar la [[cabeza]] (la capa final, la que da una puntuación por clase) para un [[fine-tuning]], y revisa lo que regresa: un modelo al que le faltó cargar algo arranca con esos pesos al azar y contesta basura sin ningún error.
 
 :::cuenta Lo que pesa el state_dict de C01
 Parámetros // 161 tensores en FP32 | 24,532,532 × 4 B | 98,130,128 B
 Buffers en FP32 // running_mean y running_var de 53 BatchNorm | 53,120 × 4 B | 212,480 B
 Contadores // num_batches_tracked, en int64 | 53 × 8 B | 424 B
 Todo | 98,130,128 + 212,480 + 424 | ≈ 98.34 MB
-= Los buffers son 0.2 % del archivo, pero sin ellos la BatchNorm no sabe normalizar al responder. La Ronda mide el checkpoint de C01 en 98.4 MB: lo de más es el empaque del zip.
+= Los buffers son 0.2 % del archivo, pero sin ellos la BatchNorm no sabe normalizar al responder. La Ronda mide el checkpoint de C01 en 98.4 MB: lo de más es el empaque, porque `torch.save` guarda un zip.
 :::
 
 :::profundo Cargar sin gastar el doble de RAM
@@ -252,7 +252,7 @@ tensor(15.) · requires_grad: False · grad_fn: None
 
 Para derivar después, muchas notas necesitan guardar sus entradas. La derivada de `w * w` es `2 * w`, así que esa nota se queda con `w`. En una red, eso son las **activaciones** de cada capa: lo que salió de cada una. Se quedan en memoria hasta el `backward()`. Al responder, el backward nunca llega, y esa memoria se gasta para nada.
 
-¿Cuánto es? Este bloque le pregunta a autograd qué guarda en cada forward de la ResNet-50 de C01, sin contar los pesos, que de todos modos están en memoria. Tarda unos segundos:
+¿Cuánto es? Este bloque le pregunta a autograd qué guarda en cada forward de la ResNet-50 de C01, sin contar los pesos, que de todos modos están en memoria. No hace falta seguir cada línea: el truco es un gancho (`saved_tensors_hooks`) que autograd llama con cada tensor que guarda, y el bloque suma los bytes de cada uno. Tarda unos segundos:
 
 ```python
 import torch
@@ -294,10 +294,10 @@ La lección «Cómo aprende un modelo» estimó ≈ 44 MB por foto en 16 bits: e
 
 ### El primer interruptor: no_grad e inference_mode
 
-[[no-grad|`torch.no_grad()`]] apaga las notas: lo que corre adentro no arma gráfica ni guarda activaciones. `torch.inference_mode()` hace lo mismo y un poco más: también se salta unas cuentas internas de PyTorch que solo sirven para autograd, así que es algo más rápido. A cambio, lo que sale de ahí no puede entrar después a una cuenta con gradiente. Para servir, eso da igual: se usa `inference_mode`. Los dos son un `with`: valen para lo que está adentro, y solo en el [[hilo]] que lo abrió.
+[[no-grad|`torch.no_grad()`]] apaga las notas: lo que corre adentro no arma gráfica ni guarda activaciones. `torch.inference_mode()` hace lo mismo y un poco más: también se salta unas cuentas internas de PyTorch que solo sirven para autograd, así que es algo más rápido. A cambio, lo que sale de ahí no puede entrar después a una cuenta con gradiente. Para servir, eso da igual: se usa `inference_mode`. Los dos se usan con un `with`, la forma de Python de decir «lo que va dentro de este bloque corre con esto puesto, y al salir se quita solo». Valen para lo que está adentro, y solo en el [[hilo]] que abrió el bloque.
 
 :::profundo Lo que inference_mode se salta, y su precio
-Cada tensor normal lleva un contador de versión: un número que sube cada vez que alguien lo modifica en su lugar. Autograd lo revisa en el backward para saber si un tensor que guardó cambió después, porque entonces el gradiente saldría mal. `inference_mode` no lleva esos contadores, y por eso es algo más rápido. El precio: lo que nace ahí adentro queda marcado como «tensor de inferencia» y no puede entrar a una cuenta con gradiente. Lo que nace en `no_grad` sí puede.
+Cada tensor normal lleva un contador de versión: un número que sube cada vez que alguien lo modifica en su lugar, es decir, cambiando sus números sin hacer una copia. Autograd lo revisa en el backward para saber si un tensor que guardó cambió después, porque entonces el gradiente saldría mal. `inference_mode` no lleva esos contadores, y por eso es algo más rápido. El precio: lo que nace ahí adentro queda marcado como «tensor de inferencia» y no puede entrar a una cuenta con gradiente. Lo que nace en `no_grad` sí puede.
 
 ```python
 import torch
@@ -345,7 +345,7 @@ otras = torch.randn(3, 4)                      # otras fotos que llegaron en el 
 antes = red[1].running_mean.clone()            # los buffers de la BatchNorm
 
 with torch.no_grad():                          # autograd apagado, pero la red sigue en modo train
-    a = red(torch.cat([foto, otras]))[0]
+    a = red(torch.cat([foto, otras]))[0]       # cat junta las 4 en un batch; [0] es la de Ana
     b = red(torch.cat([foto, otras]))[0]
 print("train + no_grad · ¿misma respuesta dos veces?", torch.allclose(a, b))
 print("train + no_grad · ¿cambió la memoria de la BatchNorm?", not torch.equal(antes, red[1].running_mean))
@@ -367,7 +367,7 @@ eval + inference_mode · ¿sola = en grupo? True
 eval + inference_mode · requires_grad: False
 ```
 
-Fíjate en la segunda línea: con `no_grad` y en modo train, cada request **cambia el modelo**. La BatchNorm mezcla en su memoria las estadísticas de los batches que le llegan, y el modelo se va desviando poco a poco del que se evaluó. En eval, la respuesta de la foto de Ana ya no depende de con quién llegó en el batch.
+Fíjate en la segunda línea: con `no_grad` y en modo train, cada request **cambia el modelo**. La BatchNorm mezcla en su memoria las estadísticas de los batches que le llegan, y el modelo se va desviando poco a poco del que se evaluó. La tercera muestra el otro lado: `eval()` solo no apaga autograd, y la salida todavía trae `requires_grad=True`. Con los dos interruptores puestos, la respuesta de la foto de Ana ya no depende de con quién llegó en el batch, y no se guarda ninguna nota.
 
 :::figura pytorch-interruptores
 Los dos interruptores y sus cuatro combinaciones. Solo la de abajo a la derecha sirve para responder: modo eval (las respuestas no cambian) y autograd apagado (sin memoria gastada).
@@ -375,7 +375,7 @@ Los dos interruptores y sus cuatro combinaciones. Solo la de abajo a la derecha 
 
 ## DataLoader: alimentar al modelo por lotes {DataLoader: feeding the model in batches} [extra]
 
-Al entrenar, la GPU necesita un [[batch]] nuevo cada pocos milisegundos. Abrir las fotos, decodificarlas, recortarlas y convertirlas en tensores es trabajo de CPU, y si lo hace el mismo proceso que entrena, la GPU se queda esperando. PyTorch separa ese trabajo en dos piezas.
+Al entrenar, la GPU necesita un [[batch]] nuevo cada pocos milisegundos. Abrir las fotos, decodificarlas, recortarlas, aplicarles **aumentaciones** (cambios al azar, como voltearlas o moverles el brillo, para que el modelo vea más variedad) y convertirlas en tensores es trabajo de CPU, y si lo hace el mismo proceso que entrena, la GPU se queda esperando. PyTorch separa ese trabajo en dos piezas.
 
 ### Dataset: qué ejemplos hay
 
@@ -392,10 +392,10 @@ El [[dataloader|DataLoader]] le pide ejemplos al Dataset y los junta en batches.
 
 - **`batch_size`**: cuántos ejemplos por batch (64 en el entrenamiento de C01).
 - **`shuffle=True`**: revuelve el orden en cada [[epoch|época]]. Con un `generator` con [[semilla]], el orden sale igual en cada corrida.
-- **`num_workers`**: cuántos **procesos** aparte preparan batches mientras el entrenamiento corre. Son procesos y no hilos por el [[gil|GIL]]: decodificar con Python puro en hilos no avanzaría en paralelo (lo viste en la lección de [[multiproceso]]). Con 0, que es lo que trae por omisión, todo lo hace el proceso principal.
+- **`num_workers`**: cuántos **procesos** aparte preparan batches mientras el entrenamiento corre. Son procesos y no hilos por el [[gil|GIL]]: decodificar con Python puro en hilos no avanzaría en paralelo (lo viste con el [[multiproceso]], en la lección del GIL). Con 0, que es lo que trae por omisión, todo lo hace el proceso principal.
 - **`pin_memory=True`**: deja cada batch en RAM fijada, la que el sistema operativo promete no mover, para que la copia a la GPU sea más rápida y pueda ir en paralelo con el cálculo (lección «CPU y GPU»).
 
-Los workers le pasan los batches al proceso principal por memoria compartida, que en Linux es la carpeta `/dev/shm`. Docker le da a cada contenedor solo 64 MiB ahí: con varios workers, el entrenamiento truena con un mensaje de *bus error* que culpa a la «*shared memory (shm)*», y se arregla con `--shm-size=1g` (Ronda, referencia de comandos).
+Los workers le pasan los batches al proceso principal por memoria compartida, que en Linux es la carpeta `/dev/shm`. Docker le da a cada contenedor solo 64 MiB ahí: con varios workers, el entrenamiento truena con un mensaje de *bus error* que culpa a la «*shared memory (shm)*», y se arregla con `--shm-size=1g`, una opción de `docker run` (lección de memoria; Ronda, referencia de comandos).
 
 ```python
 import torch
@@ -421,19 +421,19 @@ if __name__ == "__main__":                           # necesario cuando hay work
 
 ```salida
 ejemplos: 10
-(4, 3, 2, 2) fotos [6, 0, 8, 9] · worker [0, 0, 0, 0]
-(4, 3, 2, 2) fotos [4, 2, 5, 7] · worker [1, 1, 1, 1]
-(2, 3, 2, 2) fotos [1, 3] · worker [0, 0]
+(4, 3, 2, 2) fotos [1, 5, 8, 9] · worker [0, 0, 0, 0]
+(4, 3, 2, 2) fotos [4, 2, 0, 7] · worker [1, 1, 1, 1]
+(2, 3, 2, 2) fotos [6, 3] · worker [0, 0]
 ```
 
-Tres cosas que muestra la salida. Los batches salen en orden aunque los arman dos workers: el 0 hace el primero, el 1 el segundo y el 0 otra vez el tercero. El último batch trae solo 2 fotos, porque 10 no se divide entre 4 (`drop_last=True` lo tiraría). Y la línea del `if __name__ == "__main__"` es obligatoria: en macOS y en Windows, y desde Python 3.14 también en Linux, cada worker arranca un Python nuevo que vuelve a leer tu archivo, y sin ese `if` cada worker volvería a crear workers.
+Tres cosas que muestra la salida. Los batches salen en orden aunque los arman dos workers: el 0 hace el primero, el 1 el segundo y el 0 otra vez el tercero. El último batch trae solo 2 fotos, porque 10 no se divide entre 4 (`drop_last=True` lo tiraría). Y la línea del `if __name__ == "__main__"`, que quiere decir «corre esto solo si este archivo es el programa que arrancaste, no si otro Python lo está leyendo», es obligatoria: en macOS y en Windows, y desde Python 3.14 también en Linux, los workers salen de un Python nuevo que vuelve a leer tu archivo (el método de arranque *spawn* o *forkserver*, no *fork*). Sin ese `if`, ese Python nuevo volvería a correr el DataLoader e intentaría crear sus propios workers, y el programa truena con un `RuntimeError`.
 
 ### ¿Cuántos workers?
 
 Los suficientes para que la GPU nunca espere. Cada worker prepara fotos a un ritmo fijo, así que la cuenta es una división:
 
 :::cuenta Los workers que pide el entrenamiento de C01
-Fotos por segundo que consume la GPU // supuesto para el ejemplo: ResNet-50 con AMP, batches de 64 | — | ≈ 700
+Fotos por segundo que consume la GPU // supuesto para el ejemplo: ResNet-50 en precisión mixta, batches de 64 | — | ≈ 700
 Tiempo de CPU por foto en un worker // decodificar ≈ 5 ms (M15, una foto de 1024 px), más recortar y las aumentaciones; supuesto | ≈ 5 + 5 ms | ≈ 10 ms
 Fotos por segundo de un worker | 1,000 ms ÷ 10 ms | ≈ 100
 Workers necesarios | 700 ÷ 100 | 7
@@ -447,7 +447,7 @@ Dos opciones más del DataLoader ayudan a que la GPU no espere: `persistent_work
 En la inferencia en línea, la de cada request, no hay DataLoader: llega una foto y se responde. Pero el camino offline (calificar millones de fotos viejas de una vez, armar los [[embedding|embeddings]] de un catálogo, evaluar un modelo con su [[golden-set|golden set]]) es igual que entrenar sin backward: un Dataset que lee archivos, un DataLoader con workers y `shuffle=False`, y el modelo en eval con `inference_mode`. Ahí también la GPU espera si la CPU no alcanza.
 
 :::ojo
-La semilla del DataLoader no basta si cada worker usa su propio generador al azar para las aumentaciones (los cambios al azar a cada foto). La Ronda (M10) le da a cada worker su semilla con `worker_init_fn`. Lo ves en «autocast y determinismo».
+La semilla del DataLoader no basta si cada worker usa su propio generador al azar para las aumentaciones. La Ronda (M10) le da a cada worker su semilla con `worker_init_fn`. Lo ves en «autocast y determinismo».
 :::
 
 ## La GPU trabaja aparte: medir el tiempo y la memoria {The GPU works on its own: timing and memory}
@@ -481,10 +481,10 @@ Arriba, la CPU deja los kernels en la fila en pocos milisegundos y para el reloj
 :::
 
 :::cuenta Lo que mide un reloj sin sincronizar
-Kernels de la ResNet-50 sin fusionar // la cuenta de la lección «CPU y GPU» | — | 174
-CPU para dejarlos en la fila // supuesto: ≈ 10 µs cada uno, con Python de por medio | 174 × 10 µs | ≈ 1.7 ms
+Kernels de la ResNet-50 sin fusionar // uno por operación; la cuenta de la lección «CPU y GPU» | — | 174
+CPU para dejarlos en la fila // supuesto: ≈ 10 µs (millonésimas de segundo) cada uno, con Python de por medio | 174 × 10 µs | ≈ 1.7 ms
 GPU para correr un batch de 32 en FP32 // supuesto para el ejemplo | — | ≈ 60 ms
-Fotos por segundo según el reloj sin sincronizar | 32 ÷ 0.0017 s | ≈ 18,400
+Fotos por segundo según el reloj sin sincronizar | 32 ÷ 0.0017 s | ≈ 18,800
 Fotos por segundo de verdad | 32 ÷ 0.060 s | ≈ 530
 = El reloj sin sincronizar exagera ≈ 35 veces. Los dos tiempos son supuestos; la lección es que sin `synchronize()` el número no significa nada.
 :::
@@ -502,13 +502,13 @@ Pedirle memoria al [[driver]] de la GPU es lento. Por eso PyTorch tiene un [[cac
 - `torch.cuda.memory_allocated()`: lo que ocupan los tensores que existen ahora.
 - `torch.cuda.memory_reserved()`: lo que PyTorch ya pidió al driver, ocupado o apartado.
 
-`nvidia-smi`, la herramienta de NVIDIA, no sabe nada de eso: ve la memoria reservada **más** el contexto de CUDA, lo que ocupan CUDA y sus bibliotecas en cuanto arrancan (de 0.3 a 0.8 GB en C01, según la Ronda). Por eso una GPU que «está llena» en nvidia-smi puede tener casi todo libre por dentro.
+`nvidia-smi`, la herramienta de NVIDIA que muestra en la terminal cuánta memoria usa cada proceso, no sabe nada de eso: ve la memoria reservada **más** el contexto de CUDA, lo que ocupan CUDA y sus bibliotecas en cuanto arrancan (de 0.3 a 0.8 GB en C01, según la Ronda). Por eso una GPU que «está llena» en nvidia-smi puede tener casi todo libre por dentro.
 
 :::figura pytorch-memoria
 La memoria de una T4 de 16 GB con un servidor de PyTorch. nvidia-smi suma todo lo que el proceso tiene: el contexto de CUDA, los tensores vivos y lo que el allocator apartó. memory_allocated solo cuenta los tensores vivos.
 :::
 
-Si un tensor no cabe ni en lo apartado ni en lo libre, PyTorch truena con un [[oom|OOM]] de CUDA: una excepción, `torch.cuda.OutOfMemoryError`, con un mensaje que empieza con «CUDA out of memory. Tried to allocate…». No es el OOMKilled de Kubernetes, que es la RAM del contenedor: este es la VRAM, adentro del proceso, y el programa lo puede atrapar. Se arregla con un batch o una imagen más chicos, con menos procesos por GPU o con otra GPU.
+Si un tensor no cabe ni en lo apartado ni en lo libre, PyTorch truena con un [[oom|OOM]] de CUDA (*out of memory*, sin memoria): una excepción, la forma de Python de avisar un error, `torch.cuda.OutOfMemoryError`, con un mensaje que empieza con «CUDA out of memory. Tried to allocate…». No es el OOMKilled de Kubernetes, que es la RAM del contenedor: este es la VRAM, adentro del proceso, y el programa lo puede atrapar. Se arregla con un batch o una imagen más chicos, con menos procesos por GPU o con otra GPU.
 
 `torch.cuda.empty_cache()` le devuelve al driver lo apartado que nadie usa. Sirve para que **otro proceso** pueda usar esa memoria, o para que nvidia-smi muestre el número real. No libera ni un byte de un tensor que siga vivo, así que no arregla un OOM de tu propio proceso: el siguiente batch pediría esa memoria otra vez.
 
@@ -523,7 +523,7 @@ torch.cuda.synchronize()
 print(torch.cuda.max_memory_allocated() / 1e9, "GB en el pico")   # pesos + activaciones vivas
 ```
 
-El pico incluye los pesos y las activaciones que estuvieron vivas al mismo tiempo. A eso se le suma el contexto de CUDA y un margen, porque el allocator parte la memoria en bloques y no siempre cabe un tensor grande aunque la suma de huecos alcance (la *fragmentación*).
+El pico incluye los pesos y las activaciones que estuvieron vivas al mismo tiempo. A eso se le suma el contexto de CUDA y un margen, porque el allocator parte la memoria en bloques y no siempre cabe un tensor grande aunque la suma de huecos alcance (la *fragmentación*). El allocator se ajusta con una [[variable-entorno|variable de entorno]] (un valor con nombre que el proceso recibe al arrancar): `PYTORCH_ALLOC_CONF=expandable_segments:True` le deja agrandar un bloque en vez de pedir otro aparte, y suele bajar la fragmentación. En PyTorch 2.15 ese es el nombre principal; el viejo, `PYTORCH_CUDA_ALLOC_CONF`, que vas a ver en muchos tutoriales, sigue funcionando.
 :::
 
 :::calculadora pytorch-vram
@@ -573,13 +573,15 @@ batch 32 → compilaciones: 2
 ['batch fijo', 'batch variable']
 ```
 
-La primera compilación fue para batch 1 exacto. Con el 8 falló la guarda, y PyTorch recompiló con el batch como variable; el 4 y el 32 ya cupieron. Con un modelo de verdad cada compilación tarda: la Ronda (M08) midió la ResNet-50 en CPU y la primera llamada tardó **≈ 17 s**, el primer batch de 8 recompiló en ≈ 6 s, y el de 16 recompiló otra vez. Ya compilada, la ganancia fue modesta: ≈ 15 ms contra ≈ 16–19 ms en eager, de 1.1 a 1.2 veces. En GPU suele ganar más, pero depende del modelo y del batch: se mide.
+La primera compilación fue para batch 1 exacto. Con el 8 falló la guarda, y PyTorch recompiló con el batch como variable; en esta red chiquita, el 4 y el 32 ya cupieron. Con un modelo de verdad cada compilación tarda: la Ronda (M08) midió la ResNet-50 en CPU y la primera llamada tardó **≈ 17 s**, el primer batch de 8 recompiló en ≈ 6 s, y el de 16 recompiló otra vez, porque la guarda de esa versión variable decía «batch de 2 a 15». Ya compilada, la ganancia fue modesta: ≈ 15 ms contra ≈ 16–19 ms en eager, de 1.1 a 1.2 veces. En GPU suele ganar más, pero depende del modelo y del batch: se mide.
+
+`torch.compile` tiene tres modos. El normal fusiona operaciones. `mode="reduce-overhead"` además graba la secuencia de kernels con *CUDA graphs* para relanzarla de un jalón, lo que ayuda con batches chicos en GPU, donde lanzar cuesta más que calcular. Y `mode="max-autotune"` prueba varias versiones de cada kernel y se queda con la más rápida, a cambio de compilar mucho más lento.
 
 ### TorchScript: el camino viejo
 
-[[torchscript|TorchScript]] fue la primera manera de sacar un modelo de Python. Tiene dos modos. `torch.jit.trace` corre el modelo una vez con una entrada de ejemplo y graba las operaciones que pasaron. `torch.jit.script` lee el código de Python y lo traduce, con todo y sus `if`. Triton todavía carga modelos de TorchScript.
+[[torchscript|TorchScript]] fue la primera manera de sacar un modelo de Python. Tiene dos modos. `torch.jit.trace` corre el modelo una vez con una entrada de ejemplo y graba las operaciones que pasaron. `torch.jit.script` lee el código de Python y lo traduce, con todo y sus `if`. El resultado es un archivo que corre sin tu código de Python, y Triton, el servidor de modelos de C01, todavía lo sabe cargar.
 
-Hoy está en mantenimiento: ya no recibe funciones nuevas y la documentación de PyTorch recomienda `torch.export`. Con Python 3.14, PyTorch 2.15 avisa al usarlo que no está soportado en esa versión y que puede fallar.
+Hoy va de salida: desde 2025, la documentación de PyTorch lo marca como obsoleto (*deprecated*) y pide usar `torch.export`, y ya no recibe funciones nuevas. Con Python 3.14, PyTorch 2.15 avisa al usarlo que no está soportado en esa versión y que puede fallar.
 
 :::profundo Trace contra script: el if que desaparece
 `trace` graba lo que pasó con **esa** entrada. Si el `forward` tiene un `if` que depende de los datos, se graba solo el camino que se tomó, y el otro desaparece sin error:
@@ -616,7 +618,7 @@ El trazado multiplicó por 2 un número negativo, porque con el ejemplo positivo
 
 ### torch.export: la gráfica completa, con sus formas
 
-[[torch-export|`torch.export.export`]] captura el modelo **completo** antes de correrlo en producción, y falla si no puede: no deja pedazos sueltos en Python. Le dices qué dimensiones pueden cambiar y entre qué valores, y regresa un programa con la gráfica, los pesos y esas formas declaradas.
+[[torch-export|`torch.export.export`]] (desde PyTorch 2.1, en 2023) captura el modelo **completo** antes de correrlo en producción, y falla si no puede: no deja pedazos sueltos en Python. Le dices qué dimensiones pueden cambiar y entre qué valores, y regresa un programa con la gráfica, los pesos y esas formas declaradas.
 
 ```python
 import torch
@@ -645,10 +647,10 @@ operaciones capturadas: ['linear.default', 'relu.default', 'linear.default']
 AssertionError · Guard failed: input.size()[0] <= 32
 ```
 
-Ese programa es el punto de partida de lo que sigue. `torch.onnx.export`, el exportador a [[onnx|ONNX]] (desde PyTorch 2.9 lo usa por omisión), parte de `torch.export`; de ONNX, C01 construye su [[engine-tensorrt|engine de TensorRT]]. Y AOTInductor compila ese programa por adelantado en un archivo `.pt2` que se carga sin compilar nada. Los dos caminos son de la estación de exportar del Dojo.
+Ese programa es el punto de partida de lo nuevo. Desde PyTorch 2.9, `torch.onnx.export`, el exportador a [[onnx|ONNX]] (un formato de modelo que leen muchas herramientas, no solo PyTorch), parte de `torch.export` por omisión (`dynamo=True`). C01 todavía usa el exportador viejo, el que traza el modelo con TorchScript (lo corre una vez y graba lo que pasó) (`dynamo=False`, con un ejemplo de batch 2 y el batch declarado como dinámico), y la Ronda deja anotado el plan de pasarse al nuevo. De ese ONNX, C01 construye su [[engine-tensorrt|engine de TensorRT]]: el modelo compilado por la herramienta de NVIDIA para un tipo de GPU, la T4. Y AOTInductor compila el programa de `torch.export` por adelantado en un archivo `.pt2` que se carga sin compilar nada. Los dos caminos son de la estación de exportar del Dojo.
 
 :::diagrama pytorch-caminos
-Toca cada caja, o usa «Recorrer» para seguir el camino de C01 y el de quedarse en PyTorch.
+La línea ámbar es el camino de C01 hoy: TorchScript, ONNX, engine de TensorRT y Triton. Toca cada caja, o usa «Recorrer» para seguir ese camino, el de quedarse en PyTorch y el viejo.
 :::
 
 :::ojo
@@ -661,9 +663,9 @@ Dos herramientas que cambian los números del modelo en el último decimal: una 
 
 ### autocast: 16 bits donde es seguro
 
-En la lección «Cómo guarda números una computadora» viste la [[precision-mixta|precisión mixta]]. [[autocast|`torch.autocast`]] es la pieza que la hace: dentro de su `with`, cada operación corre en el dtype que le conviene. Las multiplicaciones de matrices y las convoluciones van en FP16 o BF16; lo delicado, como la pérdida, se queda en FP32. **Los pesos no cambian**: siguen en FP32 y se convierten al vuelo, operación por operación.
+En la lección «Cómo guarda números una computadora» viste la [[precision-mixta|precisión mixta]]. [[autocast|`torch.autocast`]] es la pieza que la hace (en PyTorch, la precisión mixta se llama AMP, de *automatic mixed precision*): dentro de su `with`, cada operación corre en el dtype que le conviene. Las multiplicaciones de matrices y las convoluciones van en FP16 o BF16; lo delicado, como la pérdida, se queda en FP32. **Los pesos no cambian**: siguen en FP32 y se convierten al vuelo, operación por operación.
 
-Al servir, autocast es la forma de correr en 16 bits sin tocar el checkpoint. La otra es convertir el modelo entero con `modelo.half()`, que sí cambia los pesos a FP16 y ahorra su memoria. En CPU, autocast usa BF16:
+Al servir, autocast es la forma de correr en 16 bits sin tocar el checkpoint. La otra es convertir el modelo entero con `modelo.half()`, que sí cambia los pesos a FP16 y ahorra su memoria. En CPU, autocast usa BF16. El bloque compara contra FP32 con `torch.allclose(a, b, atol=…)`, que responde `True` si cada número de `a` queda a menos de `atol` (la tolerancia) del de `b`:
 
 ```python
 import torch
@@ -790,13 +792,13 @@ BF16       diferencia máxima 1e-03 · top-1 igual 100.0% · ¿pasa? True
 sin eval() diferencia máxima 2e-01 · top-1 igual 100.0% · ¿pasa? False
 ```
 
-El exportado da exactamente lo mismo porque, en la misma máquina, corre las mismas operaciones; un engine de TensorRT no las corre igual, y por eso su tolerancia es la de FP16. El BF16 se mueve en el tercer decimal y pasa. El tercero es el bug del modo train: el top-1 coincidió en las 64 fotos, y aun así la diferencia de logits lo delató. Por eso la paridad mira las dos cosas.
+En la salida, `1e-03` es 0.001 (un 1 corrido tres lugares a la derecha del punto). El exportado da exactamente lo mismo porque, en la misma máquina, corre las mismas operaciones; un engine de TensorRT no las corre igual, y por eso su tolerancia es la de FP16. El BF16 se mueve en el tercer decimal y pasa. El tercero es el bug del modo train: el top-1 coincidió en las 64 fotos, y aun así la diferencia de logits lo delató. Por eso la paridad mira las dos cosas.
 
 ## torchvision y el warmup de inferencia {torchvision and inference warmup}
 
 ### torchvision: modelos con su receta
 
-[[torchvision]] es la parte de PyTorch para imágenes. Trae tres cosas: arquitecturas ya escritas (`resnet50`, `mobilenet_v3_large`…), pesos entrenados con ImageNet para cada una y las *transforms*, las funciones de [[preprocesamiento]] que viste en la lección de imágenes. Cada versión de pesos sabe con qué receta se evaluó. Este bloque la consulta sin descargar nada:
+[[torchvision]] es la parte de PyTorch para imágenes. Entre otras cosas (datasets famosos, lectores de imágenes y video, operaciones de detección), trae tres que importan aquí: arquitecturas ya escritas (`resnet50`, `mobilenet_v3_large`…), pesos entrenados con ImageNet para cada una y las *transforms*, las funciones de [[preprocesamiento]] que viste en la lección de imágenes. Cada versión de pesos sabe con qué receta se evaluó. Este bloque la consulta sin descargar nada:
 
 ```python
 from torchvision.models import ResNet50_Weights, resnet50
@@ -818,15 +820,15 @@ normalización: [0.485, 0.456, 0.406] [0.229, 0.224, 0.225]
 25,557,032 parámetros · 1000 clases
 ```
 
-Las dos versiones de la misma arquitectura se evaluaron con recetas distintas: la V2 achica a 232 y no a 256. La regla no es «usa la receta de torchvision», sino **«sirve con el mismo preprocesamiento con el que entrenaste»**. C01 parte de los pesos V2, pero hace su fine-tuning con `Resize(256)`, así que su gateway usa `Resize(256)`. Un preprocesamiento distinto no da ningún error: da [[training-serving-skew]], y el modelo acierta menos.
+Las dos versiones de la misma arquitectura se evaluaron con recetas distintas: la V2 achica a 232 y no a 256. La regla no es «usa la receta de torchvision», sino **«sirve con el mismo preprocesamiento con el que entrenaste»**. C01 entrena con `Resize(256)`, así que su gateway usa `Resize(256)`, aunque los pesos V2 de torchvision se hayan evaluado con 232. Un preprocesamiento distinto no da ningún error: da [[training-serving-skew]], y el modelo acierta menos.
 
 ### Warmup de inferencia: calentar antes de abrir
 
-Las primeras requests de un servidor recién arrancado son lentas. En la primera llamada pasan cosas que después ya no: CUDA carga sus kernels en la GPU, el caching allocator pide su memoria al driver, cuDNN elige algoritmos y, si usas torch.compile, se compila todo. En la CPU de la Mac donde se escribió esta lección, la primera foto de la ResNet-50 tardó ≈ 2 veces más que las siguientes (≈ 25 contra ≈ 13 ms; cambia de una máquina a otra). Con torch.compile, son los ≈ 17 s de arriba.
+Las primeras requests de un servidor recién arrancado son lentas. En la primera llamada pasan cosas que después ya no: CUDA carga sus kernels en la GPU, el caching allocator pide su memoria al driver, cuDNN (la biblioteca de NVIDIA para convoluciones) elige algoritmos y, si usas torch.compile, se compila todo. En la CPU de la Mac donde se revisó esta lección, la primera foto de la ResNet-50 tardó ≈ 17 a 35 ms y las siguientes ≈ 15 a 16 ms: en la CPU, sin compilar, la diferencia es chica y cambia de una corrida a otra. En una GPU pesa más, porque la primera llamada además arranca CUDA y carga sus bibliotecas. Con torch.compile, son los ≈ 17 s de arriba.
 
-El [[warmup-inferencia|warmup de inferencia]] es pagar eso antes de recibir tráfico: el servidor corre unas cuantas requests falsas al arrancar, con todos los tamaños de batch que va a ver, y solo después se declara listo en su [[health-check|*readiness*]]. El gateway de M07 manda una foto gris de 256 × 256; Triton, en C01, corre tres batches de 32.
+El [[warmup-inferencia|warmup de inferencia]] es pagar eso antes de recibir tráfico: el servidor corre unas cuantas requests falsas al arrancar, con todos los tamaños de batch que va a ver, y solo después se declara listo en su [[health-check|*readiness*]], la pregunta con que Kubernetes decide si ya le manda tráfico. El servidor de [[fastapi|FastAPI]] (la biblioteca de Python con que se escriben servidores web) de M07 manda una foto negra de 256 × 256 (`Image.new("RGB", (256, 256))`, que nace en ceros); Triton, en C01, corre tres batches de 32.
 
-Un buen warmup tiene tres reglas. Usa **las mismas formas** que va a ver el tráfico: si el servidor arma batches de 1 a 32, cada tamaño que dispare una compilación o una elección de algoritmo nuevo tiene que pasar por ahí. No necesita fotos reales: unos tensores en ceros o una imagen gris bastan, porque lo que se calienta es el código, no la respuesta. Y la readiness depende de que termine, porque el warmup que corre mientras ya llega tráfico no protege a nadie.
+Un buen warmup tiene tres reglas. Usa **las mismas formas** que va a ver el tráfico: si el servidor arma batches de 1 a 32, cada tamaño que dispare una compilación o una elección de algoritmo nuevo tiene que pasar por ahí. No necesita fotos reales: unos tensores en ceros o una imagen negra bastan, porque lo que se calienta es el código, no la respuesta. Y la readiness depende de que termine, porque el warmup que corre mientras ya llega tráfico no protege a nadie.
 
 :::profundo El warmup de Triton en C01
 En Triton, el warmup se declara en la configuración de cada modelo, el archivo `config.pbtxt`. Este es el de C01 (M07): tres corridas con un batch de 32 en ceros antes de marcar el modelo como listo.
@@ -848,7 +850,7 @@ Baja a 0 los segundos de la primera llamada y las recompilaciones: eso es lo que
 :::
 
 :::diagrama pytorch-arranque
-Del archivo de pesos a la primera respuesta. Usa «Recorrer» para seguir un arranque bien hecho y los tres errores que la Ronda más ve.
+Del archivo de pesos a la primera respuesta. Fíjate en que el archivo entra en `load_state_dict` y no en `build_model()`: primero la arquitectura, después los pesos. Usa «Recorrer» para seguir un arranque bien hecho y los tres errores que la Ronda más ve.
 :::
 
 ## Errores comunes {Common mistakes}
@@ -861,15 +863,15 @@ Un modelo recién creado o cargado está en modo train. Responde, y responde dis
 
 ### 2. El inference_mode en el hilo equivocado
 
-El modo de autograd vale por [[hilo]]. En un servidor async, `with torch.inference_mode(): await run_in_threadpool(predecir, x)` lo prende en el hilo del event loop, pero el modelo corre en otro hilo del pool, con autograd prendido. La Ronda (M07) lo midió: la salida sale con `requires_grad=True`. Funciona, pero cada request guarda su gráfica.
+El modo de autograd vale por [[hilo]]. En un servidor [[async]], `with torch.inference_mode(): await run_in_threadpool(predecir, x)` lo prende en el hilo del [[event-loop|event loop]], pero el modelo corre en otro hilo del [[threadpool|pool de hilos]], con autograd prendido. La Ronda (M07) lo midió: la salida sale con `requires_grad=True`. Funciona, pero cada request guarda su gráfica.
 
 **Cómo evitarlo:** el `with` va dentro de la función que corre el modelo. Una prueba barata: revisar que la salida tenga `requires_grad=False`.
 
 ### 3. Cargar con strict=False para callar un error
 
-El checkpoint no carga y alguien pone `strict=False`. Ahora carga… sin las llaves que no coincidían. Un caso típico: un modelo entrenado con `nn.DataParallel` guarda cada nombre con `module.` adelante (`module.fc.weight`). Con `strict=False`, no carga **ni uno** de los 320 tensores, y el modelo responde con pesos al azar.
+El checkpoint no carga y alguien pone `strict=False`. Ahora carga… sin las llaves que no coincidían. Un caso típico: un modelo entrenado con `nn.DataParallel`, una forma vieja de entrenar con varias GPUs a la vez, guarda cada nombre con `module.` adelante (`module.fc.weight`). Con `strict=False`, no carga **ni uno** de los 320 tensores, y el modelo responde con pesos al azar.
 
-**Cómo evitarlo:** `strict=True` siempre en el servidor. Si los nombres traen un prefijo, quítalo a propósito (`{k.removeprefix("module."): v for k, v in estado.items()}`) y vuelve a cargar con `strict=True`.
+**Cómo evitarlo:** `strict=True` siempre en el servidor. Si los nombres traen un prefijo, quítalo a propósito: `{k.removeprefix("module."): v for k, v in estado.items()}` arma un diccionario nuevo con los mismos tensores y los nombres sin `module.`. Después vuelve a cargar con `strict=True`.
 
 ### 4. Medir la GPU sin sincronizar
 
@@ -885,7 +887,7 @@ El checkpoint no carga y alguien pone `strict=False`. Ahora carga… sin las lla
 
 ### 6. Abrir el tráfico antes del warmup
 
-El pod pasa su readiness en cuanto carga los pesos. La primera request paga la compilación o la inicialización de CUDA; con un timeout de 0.15 s como el del gateway de C01, todas las que lleguen en ese rato fallan. Pasa en cada pod nuevo, justo cuando el tráfico sube y el autoescalado agrega pods.
+El [[pod]] (cada copia del servidor que corre Kubernetes) pasa su readiness en cuanto carga los pesos. La primera request paga la compilación o la inicialización de CUDA; con un timeout de 0.15 s como el del gateway de C01, todas las que lleguen en ese rato fallan. Pasa en cada pod nuevo, justo cuando el tráfico sube y el autoescalado agrega pods.
 
 **Cómo evitarlo:** la readiness responde «listo» solo después del warmup, con todas las formas de batch que el servidor va a ver.
 
@@ -893,25 +895,25 @@ El pod pasa su readiness en cuanto carga los pesos. La primera request paga la c
 
 ### C01: del notebook al servicio
 
-C01 recorre esta lección completa. El MVP, la primera versión, era un proceso de FastAPI con PyTorch adentro. Al arrancar, construye `resnet50(num_classes=500)`, carga el state_dict con `map_location="cpu"` y `weights_only=True`, lo pasa a eval y a la GPU, y corre una foto gris de warmup. En cada request, preprocesa con las mismas transforms del entrenamiento y llama al modelo dentro de `inference_mode`.
+C01 recorre esta lección completa. El MVP, la primera versión, era un proceso de FastAPI con PyTorch adentro. Al arrancar, construye `resnet50(num_classes=500)`, carga el state_dict con `map_location="cpu"` y `weights_only=True`, lo pasa a eval y a la GPU, y corre una foto negra de warmup. En cada request, preprocesa con las mismas transforms del entrenamiento y llama al modelo dentro de `inference_mode`.
 
 Funcionaba, pero no crecía: PyTorch en eager, en FP32 y de una foto a la vez, da del orden de 100 fotos por segundo por proceso en una T4. Para el pico de diseño de 500 requests por segundo harían falta ≈ 5 GPUs. La versión final exporta: el modelo en eval, a ONNX con batch dinámico de 1 a 32, de ahí a un engine de TensorRT en FP16, servido con Triton a ≈ 1,200 fotos por segundo por T4. Antes de publicar, la paridad compara el engine con el modelo de PyTorch en FP32 sobre las mismas fotos: el top-1 tiene que coincidir en 99.5 % o más. Y Triton corre tres batches de 32 de warmup antes de declararse listo.
 
-El entrenamiento mensual sí usa todo lo demás: un DataLoader con 8 workers y batches de 64, AMP con autocast, la semilla 17 y un checkpoint que guarda, además de los pesos, el estado del optimizador, del GradScaler y de los generadores al azar. Sin ellos, reanudar no es seguir (M10).
+El entrenamiento mensual sí usa todo lo demás: un DataLoader con 8 workers y batches de 64, AMP con autocast, la semilla 17 y un checkpoint que guarda, además de los pesos, el estado del optimizador, del GradScaler (la pieza de la precisión mixta que escala la pérdida para que los gradientes en FP16 no se vuelvan cero) y de los generadores al azar. Sin ellos, reanudar no es seguir (M10).
 
 ### Un servidor que se come la VRAM: varios workers
 
-M07 cuenta una trampa con FastAPI. Cada [[worker]] de uvicorn es un proceso con su copia de los pesos y su propio contexto de CUDA. Con 4 workers en una T4, solo eso son ≈ 1.6 a 4.4 GB, antes de las activaciones. Con un modelo chico, cabe. Con Llama 3 8B en BF16, ≈ 16.1 GB de pesos, dos workers ya son ≈ 32 GB: no caben en una L4 de 24 GB, y el segundo truena con un OOM de CUDA al arrancar. Por eso los LLMs se sirven con un solo proceso por GPU, como vLLM, que además aparta de entrada casi toda la memoria para su [[kv-cache|KV cache]].
+M07 cuenta una trampa con FastAPI. [[uvicorn]] es el programa que corre un servidor de FastAPI, y puede arrancar varios [[worker|workers]]: cada uno es un proceso con su copia de los pesos y su propio contexto de CUDA. Con 4 workers en una T4, solo eso son 4 × (≈ 0.1 GB de pesos + 0.3 a 1 GB de contexto) ≈ 1.6 a 4.4 GB, antes de las activaciones. M07 toma el contexto con más margen que los 0.3 a 0.8 GB de C01, porque depende de qué bibliotecas de CUDA cargue cada proceso. Con un modelo chico, cabe. Con Llama 3 8B en BF16, ≈ 16.1 GB de pesos, dos workers ya son ≈ 32 GB: no caben en una L4 de 24 GB, y el segundo truena con un OOM de CUDA al arrancar. Por eso los LLMs se sirven con un solo proceso por GPU, como vLLM, que además aparta de entrada casi toda la memoria para su [[kv-cache|KV cache]].
 
 ### C10: un LLM que aparta la GPU entera
 
-C10 sirve un LLM de ≈ 70,600 millones de parámetros con vLLM. vLLM es PyTorch por dentro, pero no deja que el caching allocator decida: al arrancar aparta el 90 % de la VRAM (`gpu_memory_utilization=0.9`), carga ahí los pesos y reparte lo que sobra en bloques fijos para el KV cache. Así, un OOM a media conversación casi no puede pasar: si no hay bloques libres, la request espera en la cola. La Ronda (M14) recomienda fijar ese 0.9 a mano, porque el valor por omisión cambió entre versiones.
+C10 sirve un LLM de ≈ 70,600 millones de parámetros con vLLM. vLLM es PyTorch por dentro, pero no deja que el caching allocator decida: al arrancar aparta el 90 % de la VRAM (`gpu_memory_utilization=0.9`), carga ahí los pesos y reparte lo que sobra en bloques fijos para el KV cache. Así, un OOM a media conversación casi no puede pasar: si no hay bloques libres, las requests nuevas esperan en la cola y, si hace falta, vLLM saca una conversación y la recalcula después, como viste en la lección de memoria. La Ronda (M14) recomienda fijar ese 0.9 a mano, porque el valor por omisión cambió entre versiones.
 
 Su arranque es el de esta lección, en grande: cargar ≈ 70.6 GB de pesos en FP8 desde safetensors con mmap, preparar los *CUDA graphs* (la secuencia de kernels grabada para relanzarla de un jalón) para varios tamaños de batch y solo entonces aceptar tráfico. Puede tardar minutos, y por eso un pod nuevo de C10 no recibe requests hasta pasar su readiness.
 
 ### C02: exportar para la orilla
 
-En C02, cada centro de distribución tiene una caja con una GPU L4 que vigila 40 cámaras con un detector ligero en TensorRT FP16. Ahí no hay Python en el camino caliente: el modelo se exporta desde PyTorch en eval, se convierte en engine para esa GPU y se valida con frames reales, de día y de noche. Lo que en C01 es un ahorro, en la orilla es obligatorio: la caja corre lejos, sin nadie que reinicie un proceso con autograd prendido.
+En C02, cada centro de distribución tiene una caja con una GPU L4 que vigila 40 cámaras con un detector ligero en TensorRT FP16. Es la **orilla** (*edge*): la computadora está junto a las cámaras, no en la nube. Ahí no hay Python en el camino caliente, lo que corre con cada cuadro de video: el modelo se exporta desde PyTorch en eval, se convierte en engine para esa GPU y se valida con cuadros reales, de día y de noche. Lo que en C01 es un ahorro, en la orilla es obligatorio: la caja corre lejos, sin nadie que reinicie un proceso con autograd prendido.
 
 ### Calificar fotos viejas por lotes
 
@@ -920,6 +922,8 @@ Cuando C01 cambia de modelo, puede querer recalificar millones de publicaciones 
 ### Fuera de ML: el cronómetro y la pizzería
 
 Medir sin sincronizar es como medir cuánto tarda una pizzería con el reloj de la caja. La cajera toma tu orden en 20 segundos y la pasa a la cocina: si paras el cronómetro ahí, la pizzería «hace» 180 pizzas por hora. La pizza sale 15 minutos después. La cajera es la CPU, la cocina es la GPU, y `synchronize()` es esperar a que la pizza llegue a la mesa.
+
+Dónde se rompe: la cocina de la GPU no hace una pizza a la vez, sino miles de cuentas en paralelo dentro de cada kernel. Y la cajera no espera a nadie: puede dejar cientos de órdenes en la fila antes de que salga la primera. Por eso, sin sincronizar, el error no es de unos segundos, sino de decenas de veces.
 
 ## Ejercicios {Exercises}
 
@@ -941,7 +945,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de memoria y warmup se 
 ? [facil] ¿Cuál «warmup» es cada uno? (a) El learning rate sube de 0 a 0.0003 en los primeros 500 pasos. (b) Triton corre tres batches de 32 antes de marcar el modelo como listo. (c) Un pod con torch.compile manda batches de 1, 8 y 16 al arrancar.
 - (a) Es el **warmup del entrenamiento**: cuida que el modelo no dé saltos al empezar.
 - (b) y (c) son **warmup de inferencia**: pagar la preparación antes de que llegue el primer usuario.
-? [medio] Con autograd prendido, la ResNet-50 guarda ≈ 86 MB por foto. Un servidor con 4 procesos en una T4 de 16 GB usa batches de 16; cada proceso tiene 0.5 GB de contexto de CUDA y 98 MB de pesos. ¿Cuánto usan los 4 procesos con autograd prendido? ¿Y con `inference_mode`, si las activaciones vivas son ≈ 10 MB por foto?
+? [medio] Con autograd prendido, la ResNet-50 guarda ≈ 86 MB por foto. Un servidor con 4 procesos en una T4 de 16 GB usa batches de 16; cada proceso tiene 0.5 GB de contexto de CUDA y 98 MB de pesos. ¿Cuánto usan los 4 procesos con autograd prendido? ¿Y con `inference_mode`, si las activaciones vivas son ≈ 10 MB por foto? (Es el centro del rango de C01 en la Ronda: activaciones y memoria de trabajo de ≈ 0.2 a 0.5 GB en un batch de 32, de ≈ 6 a 16 MB por foto.)
 - Con autograd, por proceso: 0.5 + 0.098 + 16 × 0.086 = 0.5 + 0.098 + 1.376 ≈ **1.97 GB**. Los 4: ≈ **7.9 GB**, la mitad de la T4.
 - Con inference_mode: 0.5 + 0.098 + 16 × 0.010 = 0.758 GB. Los 4: ≈ **3.0 GB**.
 - Apagar autograd libera ≈ 4.9 GB. Con batches de 32, la diferencia se duplica.
@@ -958,7 +962,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de memoria y warmup se 
 - El resto de nvidia-smi: 9.5 − 8.8 = **0.7 GB**, el contexto de CUDA y sus bibliotecas.
 - No es fuga: una fuga se ve en `memory_allocated` creciendo request tras request. Para comprobarlo, se vigila `memory_allocated` a lo largo del tiempo.
 ? [reto] La paridad de un modelo servido con autocast en BF16 da una diferencia máxima de logits de 0.007 contra FP32, y 7 de 8 fotos con el mismo top-1, en una prueba con pesos al azar. Diseña la prueba que usarías antes de publicar: ¿qué entradas, qué tolerancia y qué umbral?
-- Entradas: fotos reales, no al azar, como las ≈ 10,000 del golden set, con el preprocesamiento del gateway.
+- Entradas: fotos reales, no al azar, como las 50,000 del golden set, con el preprocesamiento del gateway.
 - Tolerancia de logits: la del formato. BF16 tiene ≈ 2 o 3 cifras, así que se espera una diferencia del orden de 0.01; una de 1 sería un bug. Se reporta la diferencia máxima, no se exige `==`.
 - Umbral de decisión: el acuerdo del top-1, ≥ 99.5 % como en C01, y el top-5 ≥ 99 %. Con pesos al azar los logits están casi empatados; con un modelo entrenado, el acuerdo sale mucho más alto.
 - Y la calidad contra el golden set, por categoría y por slice, porque un promedio bueno puede esconder una categoría que empeoró.
@@ -973,8 +977,9 @@ Resuélvelos con lápiz antes de abrir la solución. Los de memoria y warmup se 
 
 **En la Ronda:**
 
+- **M05 · Contenedores** mete PyTorch en una imagen con CUDA: qué versión de CUDA trae el paquete, cómo se comprueba con `torch.version.cuda` y la trampa del servicio que arranca en la CPU porque no vio la GPU.
 - **M07 · Servidores de modelos** arranca con FastAPI y PyTorch: carga del state_dict, `eval()`, `inference_mode` en el hilo correcto, el warmup antes de la readiness y por qué varios workers duplican la VRAM.
-- **M08 · Optimización de modelos** exporta con `torch.onnx.export` desde el modelo en eval, mide torch.compile (17 s la primera llamada), compila con AOTInductor y arma la paridad con tolerancias de ≈ 0.0001 en FP32 y ≈ 0.01 en FP16.
+- **M08 · Optimización de modelos** exporta con `torch.onnx.export` desde el modelo en eval (con el exportador viejo, `dynamo=False`), mide torch.compile (17 s la primera llamada), compila con AOTInductor y arma la paridad con tolerancias de ≈ 0.0001 en FP32 y ≈ 0.01 en FP16.
 - **M15 · Seguridad y confiabilidad** vuelve a `torch.load` con `weights_only=True`, al state_dict en safetensors y al hash de los pesos.
 - **M10 · MLOps** fija semillas, el DataLoader reproducible y `cudnn.benchmark`, y dice qué guarda un checkpoint para reanudar.
 

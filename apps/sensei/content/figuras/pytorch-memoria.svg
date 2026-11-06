@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 454" role="img" aria-labelledby="f-pytorch-memoria-t" class="f-svg" style="max-width:420px">
+<title id="f-pytorch-memoria-t">La memoria de una T4 de 16 GB con un servidor de PyTorch, como una barra de 0 a 16 GB, con números de ejemplo. El primer pedazo, de 0.5 GB, es el contexto de CUDA: lo que ocupan CUDA y sus bibliotecas al arrancar. Sigue 1.2 GB de tensores vivos, los pesos y las activaciones que existen ahora. Luego 4.3 GB que el caching allocator apartó y nadie usa en este momento, libres por dentro de PyTorch. El resto, 10 GB, está libre en la GPU. Debajo, tres medidas cubren tramos distintos de la barra: nvidia-smi cuenta 6.0 GB, todo lo del proceso; memory_reserved cuenta 5.5 GB, los tensores vivos más lo apartado; memory_allocated cuenta 1.2 GB, solo los tensores vivos.</title>
+<rect class="f-card" x="10" y="10" width="340" height="434" rx="16"/>
+<text class="f-l" x="26" y="36">UNA T4 DE 16 GB, POR DENTRO</text>
+<text class="f-s" x="26" y="56" style="font-size:12px">Números de ejemplo.</text>
+<rect class="f-p" x="20" y="70" width="10" height="34" rx="2"/>
+<rect class="f-b" x="30" y="70" width="24" height="34"/>
+<rect class="f-b2" x="54" y="70" width="86" height="34"/>
+<rect class="f-off" x="140" y="70" width="200" height="34" rx="2"/>
+<text class="f-s" x="240" y="92" text-anchor="middle" style="font-size:12px">libre en la GPU</text>
+<text class="f-s" x="20" y="122" style="font-size:12px">0</text>
+<text class="f-s" x="140" y="122" text-anchor="middle" style="font-size:12px">6 GB</text>
+<text class="f-s" x="340" y="122" text-anchor="end" style="font-size:12px">16 GB</text>
+<text class="f-t" x="20" y="148" style="font:700 12px var(--mono)">nvidia-smi: 6.0 GB</text>
+<line class="f-flecha" x1="20" y1="158" x2="140" y2="158"/>
+<line class="f-flecha" x1="20" y1="152" x2="20" y2="164"/>
+<line class="f-flecha" x1="140" y1="152" x2="140" y2="164"/>
+<text class="f-t" x="30" y="186" style="font:700 12px var(--mono)">memory_reserved: 5.5 GB</text>
+<line class="f-flecha" x1="30" y1="196" x2="140" y2="196"/>
+<line class="f-flecha" x1="30" y1="190" x2="30" y2="202"/>
+<line class="f-flecha" x1="140" y1="190" x2="140" y2="202"/>
+<text class="f-t" x="30" y="224" style="font:700 12px var(--mono)">memory_allocated: 1.2 GB</text>
+<line class="f-flecha" x1="30" y1="234" x2="54" y2="234"/>
+<line class="f-flecha" x1="30" y1="228" x2="30" y2="240"/>
+<line class="f-flecha" x1="54" y1="228" x2="54" y2="240"/>
+<line class="f-linea" x1="26" y1="258" x2="334" y2="258"/>
+<rect class="f-p" x="26" y="272" width="14" height="14" rx="3"/>
+<text class="f-t" x="48" y="284" style="font-size:13px;font-weight:700">Contexto de CUDA · 0.5 GB</text>
+<text class="f-s" x="48" y="301" style="font-size:12px">CUDA y sus bibliotecas. Solo lo ve nvidia-smi.</text>
+<rect class="f-b" x="26" y="316" width="14" height="14" rx="3"/>
+<text class="f-t" x="48" y="328" style="font-size:13px;font-weight:700">Tensores vivos · 1.2 GB</text>
+<text class="f-s" x="48" y="345" style="font-size:12px">Pesos y activaciones que existen ahora.</text>
+<rect class="f-b2" x="26" y="360" width="14" height="14" rx="3"/>
+<text class="f-t" x="48" y="372" style="font-size:13px;font-weight:700">Apartado por el allocator · 4.3 GB</text>
+<text class="f-s" x="48" y="389" style="font-size:12px">Lo usó un batch y se lo quedó. Libre por</text>
+<text class="f-s" x="48" y="405" style="font-size:12px">dentro: el siguiente tensor lo reusa.</text>
+<text class="f-s" x="26" y="428" style="font-size:12px">nvidia-smi dice 6.0 GB; tus tensores son 1.2 GB.</text>
+</svg>

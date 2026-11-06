@@ -1,0 +1,246 @@
+{
+  "titulo": "De la laptop a producción: sin lock y con lock",
+  "width": 78,
+  "height": 56,
+  "lanes": [
+    {
+      "id": "sin",
+      "label": "Sin lock: lo que había en la laptop",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 18
+    },
+    {
+      "id": "con",
+      "label": "Con lock: la misma lista en todos lados",
+      "kind": "neutral",
+      "x": 0,
+      "y": 20,
+      "w": 78,
+      "h": 36
+    }
+  ],
+  "nodes": [
+    {
+      "id": "laptop",
+      "label": "Laptop",
+      "sub": "el Python de siempre",
+      "kind": "client",
+      "x": 1,
+      "y": 6,
+      "w": 20,
+      "h": 9,
+      "note": "En el Python de siempre de la laptop, NumPy estaba instalado desde hace meses, a mano, y **nadie lo anotó**. Ahí el gateway arranca sin problema."
+    },
+    {
+      "id": "build1",
+      "label": "Build sin lock",
+      "sub": "pip install fastapi…",
+      "kind": "job",
+      "x": 29,
+      "y": 6,
+      "w": 20,
+      "h": 9,
+      "note": "El Dockerfile instala de memoria, con nombres sin versión. Falta lo que nadie anotó, y lo que sí se anotó llega en **la versión de ese día**, la más nueva que cabe."
+    },
+    {
+      "id": "cont1",
+      "label": "Contenedor",
+      "sub": "truena o cambia",
+      "kind": "service",
+      "x": 57,
+      "y": 6,
+      "w": 20,
+      "h": 9,
+      "note": "O falla al arrancar con `ModuleNotFoundError: No module named 'numpy'`, o arranca con otra Pillow que redimensiona un poco distinto, y las categorías cambian **sin un solo error**."
+    },
+    {
+      "id": "pyproject",
+      "label": "pyproject.toml",
+      "sub": "9 directas, con rango",
+      "kind": "store",
+      "x": 1,
+      "y": 26,
+      "w": 20,
+      "h": 9,
+      "note": "El [[pyproject]] dice lo que el equipo **acepta**: solo las [[dependencia|dependencias]] directas, casi todas con rango, como `fastapi>=0.141`, y `pillow==12.3.0` fija."
+    },
+    {
+      "id": "lock",
+      "label": "Lock con hashes",
+      "sub": "37, con == y sha256",
+      "kind": "store",
+      "x": 29,
+      "y": 26,
+      "w": 20,
+      "h": 9,
+      "note": "El [[lock-file|lock]] dice lo que se **instala**: todo el árbol, las 9 directas y las 28 transitivas, con versión exacta y hash. Se genera una vez, con `uv pip compile` o `pip-compile`, y se guarda en el repositorio junto al código."
+    },
+    {
+      "id": "pruebas",
+      "label": "Pruebas",
+      "sub": "un venv limpio del lock",
+      "kind": "service",
+      "x": 57,
+      "y": 26,
+      "w": 20,
+      "h": 9,
+      "note": "Las pruebas corren en un [[entorno-virtual|entorno virtual]] nuevo, instalado del mismo lock (más pytest, con `requirements-dev.txt`). Lo que pasa las pruebas es lo que va a correr."
+    },
+    {
+      "id": "builder",
+      "label": "Etapa builder",
+      "sub": "/opt/venv, solo wheels",
+      "kind": "job",
+      "x": 29,
+      "y": 43,
+      "w": 20,
+      "h": 9,
+      "note": "La primera etapa del Dockerfile crea `/opt/venv` e instala las 37 del lock con `--only-binary=:all:`. Si a un paquete le falta su wheel, el build falla aquí."
+    },
+    {
+      "id": "gateway",
+      "label": "Gateway",
+      "sub": "slim + /opt/venv",
+      "kind": "service",
+      "x": 57,
+      "y": 43,
+      "w": 20,
+      "h": 9,
+      "note": "La segunda etapa parte de una imagen limpia y copia **solo** `/opt/venv`, a la misma ruta, y el código. Pesa ≈ 87 MB comprimida y trae las mismas 37 versiones que se probaron."
+    }
+  ],
+  "edges": [
+    {
+      "from": "laptop",
+      "to": "build1",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "de memoria"
+    },
+    {
+      "from": "build1",
+      "to": "cont1",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "otras versiones"
+    },
+    {
+      "from": "pyproject",
+      "to": "lock",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "resolver"
+    },
+    {
+      "from": "lock",
+      "to": "pruebas",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "pip install -r"
+    },
+    {
+      "from": "lock",
+      "to": "builder",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "las mismas 37"
+    },
+    {
+      "from": "builder",
+      "to": "gateway",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "COPY /opt/venv"
+    }
+  ],
+  "flows": [
+    {
+      "id": "truena",
+      "label": "El que truena",
+      "steps": [
+        {
+          "nodes": [
+            "laptop"
+          ],
+          "edges": [],
+          "text": "En la laptop, `uvicorn app.main:app` arranca. NumPy está en el `site-packages` del Python de siempre, pero **no está en ninguna lista**."
+        },
+        {
+          "nodes": [
+            "laptop",
+            "build1"
+          ],
+          "edges": [
+            "laptop>build1"
+          ],
+          "text": "El Dockerfile instala lo que alguien recordó, sin versiones. El resolvedor escoge **las más nuevas de ese día**."
+        },
+        {
+          "nodes": [
+            "build1",
+            "cont1"
+          ],
+          "edges": [
+            "build1>cont1"
+          ],
+          "text": "En el contenedor: `ModuleNotFoundError: No module named 'numpy'`. O, peor, arranca con otra Pillow y las categorías salen un poco distintas, **sin un solo error**."
+        }
+      ]
+    },
+    {
+      "id": "igual",
+      "label": "El que llega igual",
+      "steps": [
+        {
+          "nodes": [
+            "pyproject",
+            "lock"
+          ],
+          "edges": [
+            "pyproject>lock"
+          ],
+          "text": "El `pyproject.toml` dice las 9 directas. Se resuelve **una vez** y el lock anota las 37, con `==` y hash."
+        },
+        {
+          "nodes": [
+            "lock",
+            "pruebas"
+          ],
+          "edges": [
+            "lock>pruebas"
+          ],
+          "text": "Las pruebas corren en un **entorno limpio** instalado del lock. Si a alguien se le olvidó anotar NumPy, aquí truena, en la laptop o en CI, y no en producción."
+        },
+        {
+          "nodes": [
+            "lock",
+            "builder"
+          ],
+          "edges": [
+            "lock>builder"
+          ],
+          "text": "El build de la imagen instala **del mismo lock**, en `/opt/venv`, solo con wheels."
+        },
+        {
+          "nodes": [
+            "builder",
+            "gateway"
+          ],
+          "edges": [
+            "builder>gateway"
+          ],
+          "text": "La imagen final copia `/opt/venv` y el código. En producción corren las **mismas 37 versiones** que pasaron las pruebas."
+        }
+      ]
+    }
+  ]
+}

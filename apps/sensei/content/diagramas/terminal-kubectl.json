@@ -76,7 +76,7 @@
    "y": 5,
    "w": 30,
    "h": 8,
-   "note": "Recibe la request [[http|HTTP]] de `kubectl`, revisa quién eres y si puedes leer los logs de ese pod en el namespace `classifier`, y se la pasa al kubelet de la máquina correcta."
+   "note": "Recibe la request [[https|HTTPS]] (HTTP cifrado) de `kubectl`, revisa quién eres y si puedes leer los logs de ese pod en el namespace `classifier`, y se la pasa al kubelet de la máquina correcta."
   },
   {
    "id": "kubelet",
@@ -98,7 +98,7 @@
    "y": 33,
    "w": 30,
    "h": 8,
-   "note": "El runtime de contenedores guarda aquí, línea por línea y con su hora, lo que el contenedor escribe en stdout y stderr. Se rota al llegar a ≈ 10 MiB, y `kubectl logs` solo lee el más reciente."
+   "note": "El runtime de contenedores guarda aquí, línea por línea y con su hora, lo que el contenedor escribe en stdout y stderr. Al llegar a 10 MiB se rota: se guarda aparte y empieza uno nuevo. `kubectl logs` solo lee el más reciente."
   },
   {
    "id": "gateway",

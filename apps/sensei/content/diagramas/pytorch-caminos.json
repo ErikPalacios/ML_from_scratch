@@ -1,0 +1,402 @@
+{
+  "titulo": "Los caminos para sacar un modelo de PyTorch eager",
+  "width": 78,
+  "height": 64,
+  "lanes": [
+    {
+      "id": "capturar",
+      "label": "Capturar",
+      "kind": "neutral",
+      "x": 24,
+      "y": 0,
+      "w": 24,
+      "h": 46
+    },
+    {
+      "id": "sale",
+      "label": "Lo que sale",
+      "kind": "offline",
+      "x": 52,
+      "y": 0,
+      "w": 26,
+      "h": 64
+    }
+  ],
+  "nodes": [
+    {
+      "id": "modelo",
+      "label": "Modelo en eval",
+      "sub": "nn.Module, eager",
+      "kind": "model",
+      "x": 1,
+      "y": 20,
+      "w": 18,
+      "h": 9,
+      "note": "El punto de partida: la ResNet-50 de C01 como [[nn-module|nn.Module]], con su state_dict cargado y **en eval**. Todo camino captura el modelo tal como está: en modo train, la BatchNorm se captura con las estadísticas del batch."
+    },
+    {
+      "id": "compile",
+      "label": "torch.compile",
+      "sub": "en la primera llamada",
+      "kind": "job",
+      "x": 26,
+      "y": 3,
+      "w": 20,
+      "h": 8,
+      "note": "[[torch-compile|torch.compile]] captura el `forward` mientras corre, fusiona operaciones y genera código para tu chip. No sale de Python: es el mismo modelo, más rápido, en el mismo proceso."
+    },
+    {
+      "id": "compilado",
+      "label": "Código compilado",
+      "sub": "vive en el proceso",
+      "kind": "service",
+      "x": 55,
+      "y": 3,
+      "w": 19,
+      "h": 8,
+      "note": "El código compilado vale mientras sus **guardas** se cumplan: si llega otra forma, recompila. En la Ronda (M08), la primera llamada de la ResNet-50 en CPU tardó ≈ 17 s, y cada proceso nuevo la vuelve a pagar."
+    },
+    {
+      "id": "script",
+      "label": "TorchScript",
+      "sub": "jit.trace o jit.script",
+      "kind": "job",
+      "x": 26,
+      "y": 16,
+      "w": 20,
+      "h": 8,
+      "note": "[[torchscript|TorchScript]], el camino viejo. `trace` graba lo que pasó con una entrada de ejemplo y pierde los `if` que dependen de los datos; `script` lee el código. Desde 2025, la documentación de PyTorch lo marca como obsoleto. El exportador viejo a ONNX, el que usa C01, traza con él."
+    },
+    {
+      "id": "pt",
+      "label": "Archivo TorchScript",
+      "sub": "Triton todavía lo carga",
+      "kind": "store",
+      "x": 55,
+      "y": 16,
+      "w": 19,
+      "h": 8,
+      "note": "Un archivo que corre sin tu código de Python, en el C++ de PyTorch. Triton todavía lo sirve, pero ya no recibe funciones nuevas y la documentación pide usar `torch.export`."
+    },
+    {
+      "id": "export",
+      "label": "torch.export",
+      "sub": "batch de 1 a 32",
+      "kind": "job",
+      "x": 26,
+      "y": 35,
+      "w": 20,
+      "h": 8,
+      "note": "[[torch-export|torch.export]] captura el modelo **completo** antes de producción, o falla. Declaras qué dimensiones cambian (el batch, de 1 a 32) y regresa un programa con la gráfica, los pesos y esas formas. En M08, la Ronda lo llama con un ejemplo de batch 2 para compilar con AOTInductor."
+    },
+    {
+      "id": "pt2",
+      "label": "Archivo .pt2",
+      "sub": "AOTInductor",
+      "kind": "store",
+      "x": 55,
+      "y": 41,
+      "w": 19,
+      "h": 8,
+      "note": "AOTInductor compila el programa **por adelantado** en un archivo `.pt2`, que se carga sin compilar nada al arrancar. Es la forma de quedarse en PyTorch sin pagar los 17 s en cada pod."
+    },
+    {
+      "id": "onnx",
+      "label": "ONNX",
+      "sub": "torch.onnx.export",
+      "kind": "store",
+      "x": 55,
+      "y": 29,
+      "w": 19,
+      "h": 8,
+      "note": "[[onnx|ONNX]] es un formato de modelo que leen muchas herramientas, no solo PyTorch. Desde PyTorch 2.9, `torch.onnx.export` parte de `torch.export` por omisión. C01 todavía usa el exportador viejo (`dynamo=False`), que traza con TorchScript. Lo ves en la estación de exportar."
+    },
+    {
+      "id": "trt",
+      "label": "Engine de TensorRT",
+      "sub": "FP16, para la T4",
+      "kind": "gpu",
+      "x": 55,
+      "y": 53,
+      "w": 19,
+      "h": 8,
+      "note": "De ONNX, C01 construye un [[engine-tensorrt|engine de TensorRT]] en FP16, hecho para su GPU. Antes de publicarlo, la paridad lo compara con el modelo en FP32: el top-1 tiene que coincidir en 99.5 % o más."
+    },
+    {
+      "id": "triton",
+      "label": "Triton",
+      "sub": "≈ 1,200 fotos/s por T4",
+      "kind": "service",
+      "x": 26,
+      "y": 53,
+      "w": 20,
+      "h": 8,
+      "note": "El servidor de modelos de C01 carga el engine, corre tres batches de 32 de warmup y solo entonces se declara listo. Es el camino de C01: sin PyTorch en el camino de cada request."
+    }
+  ],
+  "edges": [
+    {
+      "from": "modelo",
+      "to": "compile",
+      "kind": "neutral",
+      "fromSide": "t",
+      "toSide": "l",
+      "via": [
+        [
+          10,
+          7
+        ]
+      ]
+    },
+    {
+      "from": "modelo",
+      "to": "script",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l",
+      "via": [
+        [
+          22,
+          24.5
+        ],
+        [
+          22,
+          20
+        ]
+      ]
+    },
+    {
+      "from": "modelo",
+      "to": "export",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "l",
+      "via": [
+        [
+          10,
+          39
+        ]
+      ]
+    },
+    {
+      "from": "compile",
+      "to": "compilado",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "script",
+      "to": "pt",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "via": [
+        [
+          50,
+          18.5
+        ]
+      ]
+    },
+    {
+      "from": "script",
+      "to": "onnx",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l",
+      "via": [
+        [
+          49,
+          22
+        ],
+        [
+          49,
+          32
+        ]
+      ]
+    },
+    {
+      "from": "export",
+      "to": "onnx",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "via": [
+        [
+          52,
+          37
+        ],
+        [
+          52,
+          35
+        ]
+      ]
+    },
+    {
+      "from": "export",
+      "to": "pt2",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "via": [
+        [
+          50,
+          40
+        ],
+        [
+          50,
+          45
+        ]
+      ]
+    },
+    {
+      "from": "onnx",
+      "to": "trt",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "r",
+      "label": "FP16",
+      "via": [
+        [
+          76.5,
+          33
+        ],
+        [
+          76.5,
+          57
+        ]
+      ]
+    },
+    {
+      "from": "trt",
+      "to": "triton",
+      "kind": "online",
+      "fromSide": "l",
+      "toSide": "r",
+      "label": "lo sirve"
+    }
+  ],
+  "flows": [
+    {
+      "id": "c01",
+      "label": "El camino de C01",
+      "steps": [
+        {
+          "nodes": [
+            "modelo"
+          ],
+          "edges": [],
+          "text": "La ResNet-50 entrenada, cargada y **en eval**. Sin `eval()`, todo lo que sigue captura la BatchNorm de entrenar."
+        },
+        {
+          "nodes": [
+            "modelo",
+            "script",
+            "onnx"
+          ],
+          "edges": [
+            "modelo>script",
+            "script>onnx"
+          ],
+          "text": "C01 exporta con `torch.onnx.export` y **dynamo=False**, el exportador viejo: traza el modelo con TorchScript, con un ejemplo de batch 2, y escribe un **ONNX** con el batch dinámico de 1 a 32."
+        },
+        {
+          "nodes": [
+            "modelo",
+            "export",
+            "onnx"
+          ],
+          "edges": [
+            "modelo>export",
+            "export>onnx"
+          ],
+          "text": "Desde PyTorch 2.9, el exportador por omisión parte de **torch.export**: es el plan de migración que la Ronda deja anotado para C01."
+        },
+        {
+          "nodes": [
+            "onnx",
+            "trt"
+          ],
+          "edges": [
+            "onnx>trt"
+          ],
+          "text": "De ONNX sale el **engine de TensorRT** en FP16, y la paridad lo compara con el modelo en FP32."
+        },
+        {
+          "nodes": [
+            "trt",
+            "triton"
+          ],
+          "edges": [
+            "trt>triton"
+          ],
+          "text": "**Triton** lo sirve a ≈ 1,200 fotos por segundo por T4, contra ≈ 100 de PyTorch eager de una foto a la vez."
+        }
+      ]
+    },
+    {
+      "id": "pytorch",
+      "label": "Quedarse en PyTorch",
+      "steps": [
+        {
+          "nodes": [
+            "modelo",
+            "compile"
+          ],
+          "edges": [
+            "modelo>compile"
+          ],
+          "text": "La vía corta: **torch.compile** en el mismo servidor de Python. El modelo se usa igual."
+        },
+        {
+          "nodes": [
+            "compile",
+            "compilado"
+          ],
+          "edges": [
+            "compile>compilado"
+          ],
+          "text": "La primera llamada compila (≈ 17 s en la Ronda) y cada forma nueva recompila. Sin warmup, eso lo paga el primer usuario de cada pod."
+        },
+        {
+          "nodes": [
+            "modelo",
+            "export",
+            "pt2"
+          ],
+          "edges": [
+            "modelo>export",
+            "export>pt2"
+          ],
+          "text": "Para no compilar en cada arranque: **torch.export** y luego **AOTInductor**, que deja un `.pt2` ya compilado."
+        }
+      ]
+    },
+    {
+      "id": "viejo",
+      "label": "El camino viejo",
+      "steps": [
+        {
+          "nodes": [
+            "modelo",
+            "script"
+          ],
+          "edges": [
+            "modelo>script"
+          ],
+          "text": "**TorchScript**: `trace` graba una corrida; `script` lee el código con sus `if`."
+        },
+        {
+          "nodes": [
+            "script",
+            "pt"
+          ],
+          "edges": [
+            "script>pt"
+          ],
+          "text": "El archivo corre sin Python y Triton lo carga, pero la documentación lo marca como obsoleto: lo nuevo se hace con `torch.export`."
+        }
+      ]
+    }
+  ]
+}

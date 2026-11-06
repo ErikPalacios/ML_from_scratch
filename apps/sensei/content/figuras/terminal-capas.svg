@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 470" role="img" aria-labelledby="f-terminal-capas-t" class="f-svg" style="max-width:420px">
+<title id="f-terminal-capas-t">Tres programas distintos, uno dentro del otro. Arriba, la terminal: la ventana que dibuja letras y pasa lo que tecleas, con un prompt como ana@gw-node:~$ ls /models. Lo que tecleas baja a la shell y lo que responde sube a la ventana. En medio, la shell, bash o zsh: lee la línea y lanza los programas, en cinco pasos: lee, parte en palabras, busca el programa, lo lanza y espera a que termine. Con fork y exec crea los procesos de abajo, como kubectl, grep y wc. Cada uno hereda, copiadas de la shell, tres cosas: la carpeta, las variables y los tres flujos.</title>
+<rect class="f-card" x="10" y="10" width="340" height="450" rx="16"/>
+<text class="f-l" x="26" y="36" style="font-size:12px">TRES PROGRAMAS DISTINTOS</text>
+<rect class="f-chip" x="26" y="50" width="308" height="96" rx="12"/>
+<text class="f-t" x="40" y="76">Terminal</text>
+<text class="f-s" x="40" y="96" style="font-size:12px">La ventana: dibuja letras y pasa lo que tecleas.</text>
+<rect class="f-dark" x="40" y="106" width="280" height="28" rx="6"/>
+<text class="f-dark-t" x="52" y="125" style="font:600 13px var(--mono)">ana@gw-node:~$ ls /models</text>
+<line class="f-flecha" x1="60" y1="150" x2="60" y2="168"/>
+<polygon class="f-punta" points="54,167 66,167 60,177"/>
+<text class="f-s" x="72" y="168" style="font-size:12px">lo que tecleas</text>
+<line class="f-flecha" x1="200" y1="176" x2="200" y2="159"/>
+<polygon class="f-punta" points="194,160 206,160 200,150"/>
+<text class="f-s" x="212" y="168" style="font-size:12px">lo que responde</text>
+<rect class="f-chip" x="26" y="180" width="308" height="100" rx="12"/>
+<text class="f-t" x="40" y="206">Shell (bash, zsh)</text>
+<text class="f-s" x="40" y="226" style="font-size:12px">Lee la línea y lanza los programas.</text>
+<rect class="f-b" x="36" y="240" width="42" height="26" rx="13"/>
+<text class="f-pill-t" x="57" y="258" text-anchor="middle" style="font:700 12px var(--sans)">1 Lee</text>
+<rect class="f-b" x="82" y="240" width="56" height="26" rx="13"/>
+<text class="f-pill-t" x="110" y="258" text-anchor="middle" style="font:700 12px var(--sans)">2 Parte</text>
+<rect class="f-b" x="142" y="240" width="56" height="26" rx="13"/>
+<text class="f-pill-t" x="170" y="258" text-anchor="middle" style="font:700 12px var(--sans)">3 Busca</text>
+<rect class="f-b" x="202" y="240" width="56" height="26" rx="13"/>
+<text class="f-pill-t" x="230" y="258" text-anchor="middle" style="font:700 12px var(--sans)">4 Lanza</text>
+<rect class="f-b" x="262" y="240" width="62" height="26" rx="13"/>
+<text class="f-pill-t" x="293" y="258" text-anchor="middle" style="font:700 12px var(--sans)">5 Espera</text>
+<line class="f-flecha" x1="180" y1="284" x2="180" y2="302"/>
+<polygon class="f-punta" points="174,301 186,301 180,311"/>
+<text class="f-t" x="196" y="302" style="font:700 13px var(--mono)">fork + exec</text>
+<rect class="f-dark" x="26" y="314" width="308" height="136" rx="12"/>
+<text class="f-dark-t" x="40" y="340" style="font-size:15px;font-weight:700">Procesos que lanza</text>
+<rect class="f-b" x="40" y="352" width="72" height="24" rx="6"/>
+<text class="f-pill-t" x="76" y="369" text-anchor="middle" style="font:700 13px var(--mono)">kubectl</text>
+<rect class="f-b" x="120" y="352" width="52" height="24" rx="6"/>
+<text class="f-pill-t" x="146" y="369" text-anchor="middle" style="font:700 13px var(--mono)">grep</text>
+<rect class="f-b" x="180" y="352" width="40" height="24" rx="6"/>
+<text class="f-pill-t" x="200" y="369" text-anchor="middle" style="font:700 13px var(--mono)">wc</text>
+<text class="f-dark-t" x="40" y="400" style="font-size:12px">Cada uno hereda, copiado de la shell:</text>
+<rect class="f-o" x="40" y="412" width="76" height="24" rx="12"/>
+<text class="f-pill-t" x="78" y="428" text-anchor="middle" style="font:700 12px var(--sans)">carpeta</text>
+<rect class="f-o" x="124" y="412" width="88" height="24" rx="12"/>
+<text class="f-pill-t" x="168" y="428" text-anchor="middle" style="font:700 12px var(--sans)">variables</text>
+<rect class="f-o" x="220" y="412" width="100" height="24" rx="12"/>
+<text class="f-pill-t" x="270" y="428" text-anchor="middle" style="font:700 12px var(--sans)">3 flujos: 0 1 2</text>
+</svg>

@@ -16,7 +16,7 @@ Son las 3 de la mañana y suena una alerta: el gateway de C01 está respondiendo
 kubectl logs -n classifier gateway-7f9c --since=10m | grep '"status":504' | wc -l
 ```
 
-Un segundo después aparece un número: 37. En diez minutos, 37 requests terminaron en 504. Con otra línea encuentra la request `9f2c41d0` que un usuario reportó y lee qué le pasó.
+Un segundo después aparece un número: 37. En diez minutos, 37 requests de ese pod (una de las copias del gateway que corren en Kubernetes) terminaron en 504. (Esta línea necesita un cluster de Kubernetes, así que aquí no se corre: el 37 es de ejemplo.) Con otra línea encuentra la request `9f2c41d0` que un usuario reportó y lee qué le pasó.
 
 Para quien no lo ha visto, eso parece magia o un idioma secreto. No es ninguna de las dos. Son cuatro ideas: una ventana, un programa que lee lo que escribes, unos programas chicos que hacen una sola cosa y unos tubos que los conectan. Al terminar esta lección vas a poder leer esa línea palabra por palabra, y escribir las tuyas.
 
@@ -31,10 +31,10 @@ La [[terminal]] (*terminal*, o *terminal emulator*) es el programa que dibuja la
 Cada sistema trae la suya:
 
 - **macOS** trae la app **Terminal**; mucha gente usa también iTerm2 o la terminal de su editor de código.
-- **Windows** trae **Windows Terminal**. Para tener un Linux de verdad dentro de Windows existe **WSL2** (*Windows Subsystem for Linux*): corre un kernel de Linux en una máquina virtual ligera, y su terminal se ve igual que la de un servidor.
+- **Windows 11** trae **Windows Terminal** (en Windows 10 se instala aparte, desde la Microsoft Store). Para tener un Linux de verdad dentro de Windows existe **WSL2** (*Windows Subsystem for Linux*): corre un kernel de Linux en una máquina virtual ligera, y su terminal se ve igual que la de un servidor.
 - **Linux** trae varias, como GNOME Terminal.
 
-Se llama «emulador» por historia: en los años setenta, una terminal era un aparato físico, un teclado con una pantalla conectado por cable a una computadora grande. El programa de hoy imita a ese aparato.
+Se llama «emulador» porque imita a las terminales de los años setenta: un teclado con pantalla, conectado por cable a una computadora grande.
 
 ### El programa que lee: la shell
 
@@ -45,18 +45,18 @@ Hay varias, y casi todas entienden lo mismo:
 | Shell | Dónde la vas a ver |
 |---|---|
 | **bash** | La de casi todos los servidores Linux y la de las imágenes de Debian y Ubuntu, como la `python:3.13-slim` del gateway de C01 |
-| **zsh** | La de macOS desde 2019. Entiende casi todo lo de bash, con algunas diferencias que verás aquí |
-| **sh** | La más básica, la que exige el estándar POSIX. En los contenedores chicos (Alpine, o los que solo traen BusyBox) a veces es la única |
+| **zsh** | La de macOS desde Catalina (2019), en las cuentas nuevas. Entiende casi todo lo de bash, con algunas diferencias que verás aquí |
+| **sh** | La más básica, la que exige POSIX, el estándar que comparten los sistemas tipo Unix, como Linux y macOS. En los contenedores chicos (Alpine, o los que solo traen BusyBox, un solo programa que imita a cientos de comandos) a veces es la única |
 
 Hay imágenes que no traen ninguna: la Ronda avisa que una imagen *distroless* no trae shell, así que no hay dónde escribir comandos adentro.
 
 :::figura terminal-capas
-Tres programas distintos. La terminal dibuja letras y pasa lo que tecleas. La shell lee la línea, la parte en palabras, encuentra el programa y lo lanza. Los procesos que lanza heredan la carpeta, las variables y los tres flujos.
+Tres programas distintos. La terminal dibuja letras y pasa lo que tecleas. La shell lee la línea, la parte en palabras, encuentra el programa, lo lanza y espera a que termine. Los procesos que lanza heredan la carpeta, las variables y los tres flujos.
 :::
 
 ### El prompt y el ciclo
 
-Cuando la shell está lista para recibir algo, escribe el **prompt** (*prompt*, «invitación»): un texto corto al principio de la línea, como `ana@laptop ~ %` en zsh o `ana@gw-node:~$` en bash. Casi siempre dice quién eres, en qué máquina estás y en qué carpeta. Léelo siempre: es la forma más rápida de saber si estás en tu laptop o en un servidor de producción. Termina en `$` para un usuario normal y en `#` si eres [[root]].
+Cuando la shell está lista para recibir algo, escribe el **prompt** (*prompt*, «invitación»): un texto corto al principio de la línea, como `ana@laptop ~ %` en zsh o `ana@gw-node:~$` en bash. Casi siempre dice quién eres, en qué máquina estás y en qué carpeta (`~` es tu carpeta personal). Léelo siempre: es la forma más rápida de saber si estás en tu laptop o en un servidor de producción. Para un usuario normal termina en `$` en bash y en `%` en zsh; si eres [[root]], en `#`.
 
 Desde ahí, la shell repite el mismo ciclo para cada línea:
 
@@ -80,7 +80,7 @@ Un [[comando]] (*command*) es lo que escribes en una línea para pedir algo: una
 La primera palabra puede ser dos cosas:
 
 - **Un programa** en el disco, un [[binario-ejecutable]] o un script. `ls`, `grep`, `python3` y `kubectl` son archivos que viven en alguna carpeta, como `/usr/bin/ls`.
-- **Un builtin** (*builtin*, «integrado»): algo que la shell hace por sí misma, sin lanzar ningún proceso. `cd`, `export`, `echo` y `type` son builtins.
+- **Un builtin** (*builtin*, «integrado»): algo que la shell hace por sí misma, sin lanzar ningún proceso. `cd`, `export`, `echo` (imprime lo que le pases) y `type` son builtins.
 
 ¿Por qué `cd` no puede ser un programa aparte? Porque cambia la carpeta del proceso que lo corre. Si fuera un programa, cambiaría la carpeta de un hijo que muere un instante después, y la shell seguiría donde estaba.
 
@@ -94,10 +94,10 @@ Antes de lanzar nada, la shell convierte tu línea en una lista de palabras. Ent
 
 Todo lo que va después del comando son sus [[argumento-cli|argumentos]] (*arguments*). La shell los separa por los espacios y se los entrega al programa como una lista de textos. El programa decide qué significa cada uno. Por costumbre hay dos clases:
 
-- **Opciones** o *flags*: empiezan con guion y cambian cómo trabaja el programa. Las **cortas** llevan un guion y una letra, `-n`; las **largas**, dos guiones y una palabra, `--lines`. Son la misma opción: `tail -n 20 gateway.log` y `tail --lines=20 gateway.log` muestran las últimas 20 líneas. Muchas cortas se pueden juntar: `ls -la` es `ls -l -a`.
+- **Opciones** o *flags*: empiezan con guion y cambian cómo trabaja el programa. Las **cortas** llevan un guion y una letra, `-n`; las **largas**, dos guiones y una palabra, `--lines`. Son la misma opción: `tail -n 20 gateway.log` y `tail --lines=20 gateway.log` muestran las últimas 20 líneas. Muchas cortas se pueden juntar: `ls -la` es `ls -l -a` (lista larga, con permisos y tamaños, y con los archivos ocultos).
 - **Argumentos posicionales**: lo demás, casi siempre los archivos o las cosas sobre las que trabaja. En `tail -n 20 gateway.log`, el `20` es el valor de `-n` y `gateway.log` es el posicional.
 
-Las opciones largas son, sobre todo, cosa de los programas de GNU, los que trae Linux. Los de macOS vienen de BSD, otra familia, y muchas veces solo entienden las cortas: en una Mac, `tail --lines=20` falla. Para saber qué acepta un programa, casi todos responden a `--help`, y `man tail` abre su manual. La hoja de referencia de comandos de la Ronda lo dice claro: no memorices flags, `--help` existe.
+Las opciones largas son, sobre todo, cosa de los programas de GNU, los que trae Linux. Los de macOS vienen de BSD, otra familia, y muchas veces solo entienden las cortas: en una Mac (macOS 26), `wc --lines gateway.log` (`wc` cuenta; con `-l`, las líneas) falla con `illegal option`, aunque `wc -l gateway.log` funciona. Algunos, como `head` y `tail`, ya aceptan `--lines`: no adivines, pregúntale al programa. Para saber qué acepta un programa, casi todos responden a `--help`, y `man tail` abre su manual. La hoja de referencia de comandos de la Ronda lo dice claro: no memorices los flags de `docker run`, `--help` existe.
 
 ### Las comillas: un espacio es un separador
 
@@ -105,6 +105,8 @@ Como el espacio separa argumentos, un nombre con espacios se parte. Si tienes un
 
 - **Comillas dobles** `"…"`: juntan todo en un argumento, pero la shell todavía reemplaza las variables de adentro.
 - **Comillas simples** `'…'`: juntan todo y no reemplazan nada. Lo que escribes llega tal cual.
+
+Una variable de la shell es un nombre que guarda un texto: `nombre="mis fotos"` la crea y `$nombre` la lee. La sección que sigue las cuenta a fondo.
 
 El programa `printf '[%s]\n'` imprime cada argumento que recibe entre corchetes, en su propia línea. Es la forma más honesta de ver qué palabras armó la shell. Este bloque, y todos los de la lección, corre en un contenedor de Linux con bash 5, en una carpeta vacía:
 
@@ -148,7 +150,7 @@ docker run --rm --gpus all mi-servicio:3f9c2ab \
   python -c "import torch; print(torch.cuda.is_available())"
 ```
 
-La `\` le dice a la shell «la línea sigue abajo». Tiene que ser lo último de la línea: si después de ella queda un espacio invisible, la shell ve un espacio escapado, termina el comando ahí y la línea de abajo se vuelve otro comando. Este de arriba es una ilustración: necesita Docker y una GPU.
+La `\` le dice a la shell «la línea sigue abajo». Tiene que ser lo último de la línea: si después de ella queda un espacio invisible, la `\` protege ese espacio en vez del salto de línea, el comando termina ahí y la línea de abajo se vuelve otro comando. Este de arriba es una ilustración (lanza un contenedor y le pregunta a PyTorch si ve la GPU): necesita Docker y una GPU.
 
 ### Comodines: la shell completa los nombres
 
@@ -214,7 +216,7 @@ pwd
 /home/ana/trabajo
 ```
 
-El `&&` encadena dos comandos: el de la derecha corre solo si el de la izquierda salió bien, con código 0.
+`/tmp` es la carpeta de archivos temporales. El `&&` encadena dos comandos: el de la derecha corre solo si el de la izquierda salió bien, con código 0.
 
 ### Variables de entorno: un diccionario que se hereda
 
@@ -250,7 +252,7 @@ el comando dio 3 líneas · HOME es /home/ana
 
 `bash -c '…'` lanza una bash hija que corre ese texto: es la forma más corta de preguntar «¿qué ve un hijo?». El `$( … )` de la penúltima línea es la **sustitución de comando**: la shell corre lo de adentro y pone en su lugar lo que imprimió. La Ronda lo usa todo el tiempo, por ejemplo `TAG=$(git rev-parse --short=7 HEAD)` para guardar el id del último cambio del código en una variable.
 
-La herencia va en una sola dirección: de padre a hijo, como una copia al nacer. Un hijo que cambia su variable no cambia la del padre, y un padre que la cambia después no cambia la de un hijo que ya nació. Por eso, si cambias una variable de un servidor que ya está corriendo, hay que reiniciarlo para que la vea. La lección «Configuración: YAML, variables de entorno y secretos» usa este mecanismo para configurar el gateway de C01, con `TRITON_URL`, `INFER_TIMEOUT_S=0.15` y `PREPROCESS_CONCURRENCY=2`.
+La herencia va en una sola dirección: de padre a hijo, como una copia al nacer. Un hijo que cambia su variable no cambia la del padre, y un padre que la cambia después no cambia la de un hijo que ya nació. Por eso, si cambias una variable de un servidor que ya está corriendo, hay que reiniciarlo para que la vea.
 
 ### PATH: dónde busca la shell los programas
 
@@ -286,7 +288,7 @@ hola desde saluda
 /usr/local/sbin
 ```
 
-Las dos primeras líneas del bloque fabrican un programa de una línea y le dan el permiso `x`, el de ejecución de la lección del sistema operativo. La línea de `PATH=` pone la carpeta nueva **al principio** de la lista: así gana sobre cualquier otro `saluda` del sistema. El mensaje de error dice `line 4` porque el bloque corre como script; en una terminal normal, bash dice `bash: saluda: command not found` y zsh, `zsh: command not found: saluda`.
+Las líneas 2 y 3 del bloque fabrican un programa de una línea y le dan el permiso `x`, el de ejecución de la lección del sistema operativo. El `>` escribe en el archivo lo que imprime `printf` (lo ves en la sección que sigue), y la primera línea del programa, `#!/bin/sh`, dice con qué se corre (la sección de scripts lo explica). La línea de `PATH=` pone la carpeta nueva **al principio** de la lista: así gana sobre cualquier otro `saluda` del sistema. En la última, cada `|` le pasa lo que imprime un comando al siguiente (las tuberías tienen su sección): `tr` cambia cada `:` por un salto de línea y `head -n 3` deja las tres primeras. El mensaje de error dice `line 4` porque el bloque corre como script; en una terminal normal, bash dice `bash: saluda: command not found` y zsh, `zsh: command not found: saluda`.
 
 Así funciona también un entorno de Python: activarlo pone su carpeta `bin` al principio de PATH, y por eso `python3` pasa a ser el de ese entorno. El gateway de C01 tiene el suyo en `/opt/venv`. Lo verás en «Python, paquetes y entornos».
 
@@ -304,13 +306,14 @@ En la lección del sistema operativo viste que el kernel numera los archivos que
 
 ¿Por qué dos salidas, si las dos van a la pantalla? Para poder separarlas. Si guardas los resultados de un programa en un archivo, quieres que los errores sigan apareciendo frente a ti y no se mezclen con los datos. Un buen programa escribe su resultado en stdout y todo lo demás, el progreso, los avisos, los errores, en stderr.
 
-El programa no sabe a dónde van sus flujos. Escribe en el 1 y ya. Que el 1 sea la pantalla, un archivo o la entrada de otro programa lo decide quien lo lanzó. En un contenedor, el 1 y el 2 los captura el *runtime* (el programa que corre los contenedores en la máquina) y los guarda en un archivo de log: por eso `docker logs` y `kubectl logs` muestran los dos. Un **log** (*log*, «bitácora») es eso: el registro, línea por línea, de lo que un programa va contando. C01 escribe una línea JSON por request a stdout y otro programa, Fluent Bit, la recoge y la manda a S3.
+El programa no sabe a dónde van sus flujos. Escribe en el 1 y ya. Que el 1 sea la pantalla, un archivo o la entrada de otro programa lo decide quien lo lanzó. En un contenedor, el 1 y el 2 los captura el *runtime* (el programa que corre los contenedores en la máquina) y los guarda en un archivo de log: por eso `docker logs` y `kubectl logs` muestran los dos. Un **log** (*log*, «bitácora») es eso: el registro, línea por línea, de lo que un programa va contando. C01 escribe una línea JSON por request a stdout y otro programa, Fluent Bit, la recoge y la manda a S3, el [[object-storage|almacenamiento de objetos]] de AWS.
 
 :::nota El buffer de stdout
-La lección del sistema operativo contó que Python junta en un *buffer* lo que imprime antes de hacer el `write`. Cuando stdout es una terminal, vacía el buffer en cada línea; cuando es un archivo o un tubo, lo hace cada varios KB. Por eso el gateway de C01 arranca con `PYTHONUNBUFFERED=1`: en el contenedor, stdout no es una terminal, y sin esa variable las últimas líneas se perderían si el proceso muere.
+La lección del sistema operativo contó que Python junta en un *buffer* lo que imprime antes de hacer el `write`. Cuando stdout es una terminal, vacía el buffer en cada línea; cuando es un archivo o un tubo, lo hace cada varios KB. Por eso el gateway de C01 arranca con `PYTHONUNBUFFERED=1`: en el contenedor, stdout no es una terminal, y sin esa variable las líneas tardarían en salir y las últimas se perderían si el proceso muere de golpe.
 :::
 
-Python lo muestra con su módulo `subprocess`, que lanza un programa hijo como lo haría la shell y captura sus flujos por separado:
+:::profundo Lo mismo desde Python
+Python muestra los tres flujos con su módulo `subprocess`, que lanza un programa hijo como lo haría la shell y captura sus flujos por separado. `sys.executable` es la ruta del mismo Python que corre el código, `-I` lo aísla (no carga módulos de tu carpeta ni lee las variables `PYTHON…`), y `repr` muestra el texto con sus `\n` a la vista:
 
 ```python
 import subprocess, sys
@@ -341,6 +344,7 @@ la tubería por /bin/sh: ['1', 'a', '2', 'b']
 ```
 
 Tres cosas salen por tres caminos distintos: los resultados, el aviso y el código. Y el `env=` muestra la herencia: el hijo ve exactamente el entorno que le dio su padre. La última parte, con `shell=True`, le pasa el texto a `/bin/sh`, y es la shell la que arma la tubería que verás en la sección que sigue.
+:::
 
 ### Redirección: mandar un flujo a otro lado
 
@@ -358,7 +362,7 @@ La [[redireccion|redirección]] (*redirection*) le pide a la shell que, antes de
 El `2>&1` se lee «que el 2 apunte a donde apunta el 1 **en este momento**». Y ahí está la trampa: la shell aplica las redirecciones de izquierda a derecha, así que el orden importa.
 
 :::figura terminal-redireccion
-Los descriptores de un proceso son flechas. A la izquierda, primero el 1 apunta al archivo y después el 2 copia esa flecha: los dos terminan en el archivo. A la derecha, el 2 copia la flecha del 1 cuando todavía apuntaba a la pantalla, y solo después el 1 cambia: los errores siguen saliendo en la pantalla.
+Los descriptores de un proceso son flechas: el 1 es stdout y el 2, stderr. A la izquierda, primero el 1 apunta al archivo y después el 2 copia esa flecha: los dos terminan en el archivo. A la derecha, el 2 copia la flecha del 1 cuando todavía apuntaba a la pantalla, y solo después el 1 cambia: los errores siguen saliendo en la pantalla.
 :::
 
 Aquí `ls` lista un archivo que existe y otro que no, así que escribe en sus dos salidas:
@@ -394,7 +398,7 @@ existe.txt
 tres
 ```
 
-`cat` imprime el contenido de un archivo, y `wc -l` cuenta líneas. Con `>` solo, el error no entró al archivo: salió en la pantalla. Con `> todo.txt 2>&1`, los dos entraron. Con el orden al revés, el error volvió a la pantalla. Y la última línea muestra lo peligroso de `>`: el archivo perdió el «uno» y el «dos» sin preguntar. bash tiene un atajo, `&> todo.txt`, que manda los dos flujos al archivo sin pensar en el orden.
+`cat` imprime el contenido de un archivo, `wc -l` cuenta líneas y el `;` separa dos comandos en la misma línea. Con `>` solo, el error no entró al archivo: salió en la pantalla. Con `> todo.txt 2>&1`, los dos entraron. Con el orden al revés, el error volvió a la pantalla. Y la última línea muestra lo peligroso de `>`: el archivo perdió el «uno» y el «dos» sin preguntar. bash tiene un atajo, `&> todo.txt`, que manda los dos flujos al archivo sin pensar en el orden.
 
 ## Tuberías: comandos chicos que se encadenan {Pipes: small commands chained together}
 
@@ -404,7 +408,7 @@ Una [[pipe|tubería]] (*pipe*) conecta el stdout de un programa con el stdin del
 
 Por dentro, la shell le pide al kernel un tubo, un pedacito de memoria con dos extremos (en Linux, de 64 KiB), lanza los dos procesos y conecta el descriptor 1 del primero a un extremo y el 0 del segundo al otro. Los dos procesos **corren al mismo tiempo**. El primero escribe mientras el segundo lee; si el tubo se llena, el que escribe espera, y si se vacía, el que lee espera. Ninguno guarda la salida completa en un archivo intermedio, así que una tubería puede procesar un archivo mucho más grande que la memoria.
 
-Esa idea, programas chicos que hacen una sola cosa y se conectan con tubos, nació con Unix en los años setenta y sigue siendo la forma de trabajar en la terminal. Los de uso diario:
+Así se trabaja en la terminal desde los años setenta: programas chicos que hacen una sola cosa, unidos por tubos. Los de uso diario:
 
 | Comando | Qué hace con las líneas que le llegan |
 |---|---|
@@ -481,7 +485,7 @@ Tamaño del día | 10⁷ × 300 B | ≈ 3 GB
 Líneas de la request 9f2c41d0 // en el log simplificado; en el real, una | — | 2
 Fracción que deja pasar `grep 9f2c41d0` | 2 ÷ 10⁷ | 0.00002 %
 Tiempo de leerlo // suponiendo que el disco y grep leen ≈ 500 MB/s | 3 GB ÷ 500 MB/s | ≈ 6 s
-= Para encontrar 2 líneas, grep lee los 10 millones. No hay atajo: el log no tiene índice. Pero 6 segundos es poco, y la memoria que usa es la de una línea.
+= Para encontrar 2 líneas, grep lee los 10 millones. No hay atajo: el log no tiene índice. Pero 6 segundos es poco, y la memoria que usa es poca: lee el archivo de a pedacitos, unas cuantas líneas a la vez.
 :::
 
 Dos reglas salen de esa cuenta. Primero, **filtra lo antes posible**: `grep` al principio de la tubería, para que a `sort` (el único que necesita ver todo antes de soltar algo) le lleguen 2 líneas y no 10 millones. Segundo, **corre el comando donde están los datos**: lo ves en la sección de `ssh`.
@@ -498,7 +502,7 @@ En `jq … | sort | uniq -c | sort -rn | head -n 2`, `head` imprime dos líneas 
 
 ### Un archivo con comandos
 
-Un [[script-shell|script de shell]] (*shell script*) es un archivo de texto con comandos, uno por línea, que la shell corre de arriba abajo como si los fueras tecleando. Sirve para no repetir a mano una receta de diez comandos y para que otra persona, o un pipeline de CI, la corra igual. En C01, `bash model/build_engine.sh` construye el engine de TensorRT en una T4; en la Ronda, un script de release firma la imagen y la publica.
+Un [[script-shell|script de shell]] (*shell script*) es un archivo de texto con comandos, uno por línea, que la shell corre de arriba abajo como si los fueras tecleando. Sirve para no repetir a mano una receta de diez comandos y para que otra persona, o un pipeline de [[ci|CI]] (la máquina que corre las pruebas en cada cambio del código), la corra igual. En C01, `bash model/build_engine.sh` construye el [[engine-tensorrt|engine de TensorRT]] (el modelo compilado para una GPU concreta) en una T4; en la Ronda, un script de publicación (*release*) firma la imagen y la sube.
 
 Dentro de un script se usan las mismas cosas de la terminal, más un par de piezas:
 
@@ -542,6 +546,8 @@ dos.txt: 2 líneas
 -rwxr-xr-x
 ```
 
+El primer intento dio 126 porque el archivo no tenía la `x`; `bash contar.sh` funcionó igual. Ya con `chmod +x`, `./contar.sh` corre, y la última línea deja los primeros 10 caracteres de `ls -l` (eso hace `cut -c1-10`): los permisos, ahora con sus `x`.
+
 ### set -euo pipefail: que el script se detenga al fallar
 
 Por omisión, un script de bash es optimista: si un comando falla, imprime el error y **sigue con el siguiente**, como si nada. En un script que borra el modelo viejo después de copiar el nuevo, «seguir como si nada» es una catástrofe. Por eso casi todo script serio empieza, justo después del shebang, con `set -euo pipefail`. Cada letra apaga una forma de fallar en silencio:
@@ -549,7 +555,7 @@ Por omisión, un script de bash es optimista: si un comando falla, imprime el er
 | Opción | Qué hace |
 |---|---|
 | `-e` | Si un comando sale con un código distinto de 0, el script se detiene ahí, con ese código |
-| `-u` | Usar una variable que no existe es un error. Sin esto, `rm -rf "$CARPETA/"` con `CARPETA` vacía se vuelve `rm -rf /` |
+| `-u` | Usar una variable que no existe es un error. Sin esto, si `CARPETA` no existe (basta un error de dedo en su nombre), `rm -rf "$CARPETA"/*` se vuelve `rm -rf /*`: borrar todo lo que se pueda |
 | `-o pipefail` | El código de una tubería es el del último comando que falló, no solo el del último comando. Sin esto, `grep … \| wc -l` «sale bien» aunque `grep` no haya encontrado el archivo, porque `wc` sí terminó bien |
 
 ```bash
@@ -580,7 +586,7 @@ sin pipefail: 0
 con pipefail: 1
 ```
 
-`false` es un comando que no hace nada y sale con 1; `true`, con 0. `sin.sh` falló y terminó con 0: un pipeline de CI lo habría dado por bueno. `con.sh` se detuvo y salió con el 2 de `grep`.
+`false` es un comando que no hace nada y sale con 1; `true`, con 0. Y `bash sin.sh; echo …` corre el script y, al terminar, imprime su código. `sin.sh` falló y terminó con 0: un pipeline de CI lo habría dado por bueno. `con.sh` se detuvo y salió con el 2 de `grep`.
 
 Para revisar que un script no tenga errores de escritura sin correrlo está `bash -n script.sh`. La Ronda lo usó con el script del engine de C01: «solo pasó `bash -n`», porque sin GPU no se podía correr.
 
@@ -589,7 +595,9 @@ Para revisar que un script no tenga errores de escritura sin correrlo está `bas
 
 - **Dentro de una condición no cuenta.** En `if grep -q x log; then …`, que `grep` falle es una respuesta («no»), no un error. Lo mismo con lo que va antes de `&&` o de `||`.
 - **grep sin coincidencias es un fallo.** `grep` sale con 1 cuando no encuentra nada. Con `-e` y `pipefail`, `errores=$(grep ERROR app.log | wc -l)` mata el script justo el día que no hubo errores. Si «nada» es una respuesta válida, escribe `{ grep ERROR app.log || true; } | wc -l`.
-- **`local x=$(cmd)` se traga el error.** Dentro de una función, `local` sale con 0 aunque `cmd` haya fallado. Se escribe en dos líneas: `local x`, y abajo `x=$(cmd)`.
+- **`local x=$(cmd)` se traga el error.** Dentro de una función (un bloque de comandos con nombre), `local` crea una variable que solo vive ahí, y sale con 0 aunque `cmd` haya fallado. Se escribe en dos líneas: `local x`, y abajo `x=$(cmd)`.
+
+Y `-u` tampoco es completa: solo detecta las variables que **no existen**. Una que existe pero está vacía (`CARPETA=""`) pasa sin aviso. Para exigir que traiga algo se escribe `"${CARPETA:?}"`: si está vacía o no existe, el script se detiene con un error.
 
 Hay una herramienta, ShellCheck, que revisa scripts y encuentra estas trampas, y muchas más.
 :::
@@ -602,11 +610,15 @@ Hay una herramienta, ShellCheck, que revisa scripts y encuentra estas trampas, y
 
 Para probar quién eres, en vez de una contraseña se usa casi siempre un **par de llaves**: dos archivos que se crean juntos con `ssh-keygen`. La **llave privada** se queda en tu laptop (por ejemplo, `~/.ssh/id_ed25519`) y nunca se comparte; es la que la lección del sistema operativo pidió guardar con permisos 600. La **llave pública** se copia al servidor. Con ellas, tu laptop demuestra que tiene la privada sin mandarla nunca por la red. Cómo funciona eso por dentro es tema de la fase de seguridad.
 
+:::profundo Las llaves y los permisos que exige ssh
+Ed25519 es el tipo de llave que `ssh-keygen` crea por omisión desde OpenSSH 9.5, de 2023. Los permisos 600 no son un consejo: si otros usuarios pueden leer tu llave privada, ssh se niega a usarla y avisa `UNPROTECTED PRIVATE KEY FILE!`. Del lado del servidor, la carpeta `~/.ssh` y el archivo `authorized_keys` (la lista de llaves públicas que dejan entrar) no deben poder escribirlos otros, o el servidor ignora tus llaves.
+:::
+
 Tres usos que vas a ver:
 
 - `ssh ana@gw-node` abre una shell allá.
 - `ssh ana@gw-node 'grep 9f2c41d0 /var/log/gateway.log'` corre un solo comando allá y te trae su salida. Las comillas simples importan: con ellas, la tubería o el comodín los resuelve la shell de allá; sin ellas, tu shell local se los come primero.
-- `ssh -L 8000:localhost:8000 ana@gw-node` abre un **túnel**: lo que tu laptop mande a su propio puerto 8000 viaja por ssh y sale en el puerto 8000 de `gw-node`. Así puedes hacer `curl localhost:8000` desde tu laptop y llegarle a un servicio que no está expuesto a internet. `kubectl port-forward`, de la Ronda, hace lo mismo para un pod.
+- `ssh -L 8000:localhost:8000 ana@gw-node` abre un **túnel**: lo que tu laptop mande a su propio puerto 8000 viaja por ssh y sale en el puerto 8000 de `gw-node`. Así puedes hacer `curl localhost:8000` (`curl` hace una request HTTP desde la terminal) desde tu laptop y llegarle a un servicio que no está expuesto a internet. `kubectl port-forward`, de la Ronda, hace lo mismo para un pod de Kubernetes.
 
 :::cuenta Llevar el comando a los datos
 El log del día | — | ≈ 3 GB
@@ -618,9 +630,9 @@ Lo que viaja de vuelta | 2 líneas de ≈ 300 B | ≈ 600 B
 
 ### sudo: un comando como root
 
-En la lección del sistema operativo conociste a [[root]], el usuario que puede todo. Entrar como root a un servidor es mala idea: cualquier error de dedo tiene poder total. Lo normal es entrar como tu usuario y, solo para el comando que lo necesita, pedir permiso con [[sudo]] (*superuser do*): `sudo systemctl restart docker` reinicia el servicio de Docker como root. `sudo` te pide **tu** contraseña, revisa en una lista si tienes permiso y anota quién hizo qué.
+En la lección del sistema operativo conociste a [[root]], el usuario que puede todo. Entrar como root a un servidor es mala idea: cualquier error de dedo tiene poder total. Lo normal es entrar como tu usuario y, solo para el comando que lo necesita, pedir permiso con [[sudo]] (*superuser do*): `sudo systemctl restart docker` reinicia el servicio de Docker como root (`systemctl` arranca y detiene los servicios de Linux, los programas que corren en el fondo). `sudo` te pide **tu** contraseña, revisa en una lista si tienes permiso y anota quién hizo qué.
 
-Dentro de un contenedor casi nunca hay `sudo`, y no hace falta. La imagen se arma con lo que necesita, y el proceso corre como el usuario que dice su receta: root, si no dice otra cosa, o un usuario sin privilegios, que es lo recomendado. Agregar `sudo` a una imagen solo le da a un atacante un camino para subir de privilegios. Si escribes `sudo` en el contenedor de esta lección, la respuesta es `sudo: command not found`, con el código 127.
+Dentro de un contenedor casi nunca hay `sudo`, y no hace falta. La imagen se arma con lo que necesita, y el proceso corre como el usuario que dice su receta, el [[dockerfile|Dockerfile]]: root, si no dice otra cosa, o un usuario sin privilegios, que es lo recomendado. Agregar `sudo` a una imagen solo le da a un atacante un camino para subir de privilegios. Si escribes `sudo` en el contenedor de esta lección, la respuesta es `bash: sudo: command not found`, con el código 127.
 
 ### Qué pasa cuando tecleas kubectl logs gateway-7f9c
 
@@ -630,16 +642,16 @@ Ahora junta todo. En C01, el gateway corre como varios [[pod|pods]] (el pod es l
 Toca cada caja para ver qué hace. Usa «Recorrer» para seguir la línea desde que aprietas Enter hasta que ves los logs, y para ver qué cambia con una tubería a grep.
 :::
 
-En palabras: la shell parte la línea, encuentra `kubectl` en el PATH y lo lanza. `kubectl` lee su configuración (el *kubeconfig*, en `~/.kube/config`: a qué cluster hablar y con qué credenciales) y le hace una request [[http|HTTP]] al *API server*, la puerta de entrada de Kubernetes. El API server se la pasa al **kubelet**, el programa de Kubernetes que corre en cada máquina del cluster, en la máquina donde vive ese pod. El kubelet lee el archivo donde el runtime fue guardando el stdout y el stderr del contenedor, y la respuesta hace el camino de regreso. `kubectl` escribe las líneas en **su** stdout, que es tu terminal, o el tubo hacia `grep` si pusiste uno.
+En palabras: la shell parte la línea, encuentra `kubectl` en el PATH y lo lanza. `kubectl` lee su configuración (el *kubeconfig*, en `~/.kube/config`: a qué cluster hablar y con qué credenciales) y le hace una request [[https|HTTPS]] (HTTP cifrado) al *API server*, la puerta de entrada de Kubernetes. El API server se la pasa al **kubelet**, el programa de Kubernetes que corre en cada máquina del cluster, en la máquina donde vive ese pod. El kubelet lee el archivo donde el runtime fue guardando el stdout y el stderr del contenedor, y la respuesta hace el camino de regreso. `kubectl` escribe las líneas en **su** stdout, que es tu terminal, o el tubo hacia `grep` si pusiste uno.
 
 Las opciones que más se usan: `-f` se queda siguiendo las líneas nuevas (Ctrl+C deja de seguir; el pod sigue igual), `--tail=50` trae solo las últimas 50, `--since=10m` las de los últimos diez minutos, `--previous` las del contenedor anterior, el que murió, y `--timestamps` agrega la hora que anotó el runtime al guardar cada línea.
 
 :::cuenta Cuánta historia trae kubectl logs en el pico
 Requests por segundo // el pico de diseño de C01 | — | 500
-Pods del gateway // el mínimo del autoescalado, que va de 3 a 12 | — | 3
+Pods del gateway // el mínimo del autoescalado (Kubernetes agrega o quita pods según el tráfico), que va de 3 a 12 | — | 3
 Líneas por segundo en cada pod | 500 ÷ 3 | ≈ 167
 Lo que cubre `--tail=50` | 50 ÷ 167 | ≈ 0.3 s
-Lo que cabe en el archivo del pod // se rota al llegar a ≈ 10 MiB = 10,485,760 B | 10,485,760 ÷ (167 × 300 B) | ≈ 210 s ≈ 3.5 min
+Lo que cabe en el archivo del pod // al llegar a 10 MiB = 10,485,760 B se rota: se guarda aparte y empieza uno nuevo | 10,485,760 ÷ (167 × 300 B) | ≈ 210 s ≈ 3.5 min
 = En el pico, las últimas 50 líneas son 0.3 segundos de tráfico, y el archivo entero del pod, unos 3.5 minutos. Para encontrar algo hay que pedir un rango de tiempo y filtrar con grep. A las 3 de la mañana hay mucho menos tráfico y el archivo alcanza para más: por eso a Ana le sirvió `--since=10m`.
 :::
 
@@ -647,7 +659,7 @@ Lo que cabe en el archivo del pod // se rota al llegar a ≈ 10 MiB = 10,485,760
 Sube los pods a 12, el máximo del autoescalado: cada pod recibe menos tráfico y el mismo --tail cubre más tiempo.
 :::
 
-Ojo con lo que `kubectl logs` **no** tiene: solo ve lo que sigue guardado en la máquina del pod. El kubelet rota ese archivo cuando crece (por omisión, al llegar a ≈ 10 MiB), `kubectl logs` solo lee el más reciente, y si el pod se borra, sus logs se van con él. Para buscar en el día completo, los ≈ 3 GB, se va a donde Fluent Bit los guardó: en C01, un [[bucket-objetos|bucket]] de S3.
+Ojo con lo que `kubectl logs` **no** tiene: solo ve lo que sigue guardado en la máquina del pod. El kubelet rota ese archivo cuando crece (por omisión, al llegar a 10 MiB, y guarda hasta 5), `kubectl logs` solo lee el más reciente, y si el pod se borra, sus logs se van con él. Además, cada línea guardada pesa unos 40 bytes más que la original, por la hora y el nombre del flujo que le agrega el runtime: el archivo dura un poco menos de lo que dio la cuenta. Para buscar en el día completo, los ≈ 3 GB, se va a donde Fluent Bit los guardó: en C01, un [[bucket-objetos|bucket]] de S3.
 
 :::profundo Los comandos de la Ronda, leídos
 Con lo que ya sabes, los comandos de los módulos de contenedores y de Kubernetes se leen solos: el programa, un verbo, opciones y argumentos. Docker y Kubernetes se presentan a fondo en las estaciones; aquí solo hay que reconocer su forma.
@@ -661,7 +673,7 @@ Con lo que ya sabes, los comandos de los módulos de contenedores y de Kubernete
 | `kubectl describe pod POD` | Todo sobre un pod, con sus eventos y su último código de salida |
 | `kubectl apply -f k8s/gateway.yaml` | Le pide a Kubernetes que deje todo como dice ese archivo |
 | `kubectl rollout undo deploy/gateway` | Regresa a la versión anterior del gateway |
-| `curl -sS localhost:8080/healthz` | Hace una request HTTP. `-s` quita la barra de progreso y `-S` muestra los errores de todos modos |
+| `curl -sS localhost:8080/healthz` | Hace una request HTTP. `-s` quita la barra de progreso (y también calla los errores); `-S` vuelve a mostrar los errores |
 | `nvidia-smi` | Muestra las GPUs de la máquina: memoria usada, [[utilizacion-gpu\|utilización]] y procesos |
 | `grpcurl` | Como `curl`, pero para [[grpc\|gRPC]] |
 :::
@@ -676,6 +688,8 @@ La shell espera a que termine cada comando antes de escribir el prompt. Eso es c
 - `kill PID` le manda una [[senal|señal]] a un proceso: SIGTERM por omisión, que pide terminar en orden. `kill -9 PID` manda SIGKILL, que no se puede atrapar.
 - **Ctrl+C** hace que la terminal le mande SIGINT al proceso de primer plano: «interrumpe lo que haces».
 - **Ctrl+Z** le manda SIGTSTP: lo pausa y te devuelve el prompt. `fg` lo regresa al primer plano y `bg` lo deja seguir en segundo plano.
+
+El orden de esas señales es una costumbre que vas a ver en todos lados: primero se pide (SIGTERM, para que el proceso termine lo que traía, vacíe sus buffers y cierre sus archivos) y solo si no obedece se obliga (SIGKILL). `kill -9` de entrada es como desconectar la computadora: funciona, pero lo que estaba a medias se pierde. Kubernetes hace lo mismo al apagar un pod, como viste en la lección de procesos: SIGTERM, un plazo de gracia y, si el proceso sigue vivo, SIGKILL. Para buscar un PID sin leer toda la lista de `ps` está `pgrep`: `pgrep -f uvicorn` imprime el PID de cada proceso cuyo comando contiene `uvicorn`.
 
 ### Segundo plano y sesiones que sobreviven
 
@@ -762,7 +776,7 @@ Regresa a Ana y su alerta de 504. Con lo que ya sabes, su noche se lee comando p
 2. ¿Cuántos 504 y desde cuándo?
 `kubectl logs -n classifier gateway-7f9c --since=10m | grep '"status":504' | wc -l` da el número. Cambiando el `wc -l` por `jq -r .request_id | head`, saca unos ids para seguir.
 3. ¿Qué le pasó a la request del usuario?
-El reporte trae el id `9f2c41d0`, que viaja en el header `X-Request-ID`. Esa request es de hace dos horas: ya no está en el archivo del pod, sino en el log del día que Fluent Bit guardó en S3. Ana lo lee sin bajarlo a disco, en una tubería: `aws s3 cp s3://…/2026-11-06.jsonl.gz - | gunzip | grep 9f2c41d0`. El `-` le dice a `aws` que escriba en stdout en vez de en un archivo, y `gunzip` descomprime al vuelo.
+El reporte trae el id `9f2c41d0`, que viaja en el header `X-Request-ID`. Esa request es de hace dos horas: ya no está en el archivo del pod, sino en S3, donde Fluent Bit va subiendo el log en pedazos (un archivo nuevo cada pocos minutos, y aquí comprimido con gzip para que ocupe menos). Ana lee el pedazo de esa hora sin bajarlo a disco, en una tubería: `aws s3 cp s3://…/2026/11/06/01/….gz - | gunzip | grep 9f2c41d0`. `aws` es el programa de línea de comandos de AWS, y el `-` le dice que escriba en stdout en vez de en un archivo, y `gunzip` descomprime al vuelo.
 4. ¿Y Triton?
 `kubectl port-forward -n classifier svc/triton 8002:8002` abre un túnel al puerto de métricas, y `curl -sS localhost:8002/metrics | grep nv_inference_queue` muestra cuánto esperan las requests en la cola de Triton.
 :::
@@ -775,19 +789,19 @@ Cada paso `run:` de GitHub Actions, el sistema que corre las pruebas de un repos
 
 ### Entrenar en una máquina rentada
 
-Mucho del trabajo de entrenar modelos se hace por `ssh` a una máquina con GPU en la nube. El ritual es casi siempre el mismo: `ssh` a la máquina, `tmux` para que el entrenamiento sobreviva si se corta la conexión, `python3 entrenar.py 2>&1 | tee entrenar.log` para ver el progreso y guardarlo a la vez (`tee` copia lo que le llega a un archivo y también a su stdout), y en otra ventana `nvidia-smi` cada tanto para ver la memoria de la GPU. Cuando un LLM no cabe en la GPU, ahí lo ves primero.
+Mucho del trabajo de entrenar modelos se hace por `ssh` a una máquina con GPU en la nube. El ritual es casi siempre el mismo: `ssh` a la máquina, `tmux` para que el entrenamiento sobreviva si se corta la conexión, `python3 -u entrenar.py 2>&1 | tee entrenar.log` para ver el progreso y guardarlo a la vez (`tee` copia lo que le llega a un archivo y también a su stdout; el `-u` es lo mismo que `PYTHONUNBUFFERED=1`: sin él, como stdout es un tubo, Python juntaría las líneas y el progreso llegaría a saltos), y en otra ventana `nvidia-smi` cada tanto para ver la memoria de la GPU. Cuando un LLM no cabe en la GPU, ahí lo ves primero.
 
 ### Explorar datos antes de abrir un notebook
 
-Con un CSV de ventas de 2 GB (el pronóstico de demanda de C14, o las transacciones de fraude de C09), antes de cargarlo en Python: `head -n 3 ventas.csv` muestra las columnas, `wc -l` cuenta las filas, y `cut -d, -f4 ventas.csv | sort | uniq -c | sort -rn | head` dice qué tiendas tienen más filas, si la cuarta columna es la tienda. Son segundos, sin llenar la RAM.
+Con un CSV de ventas de 2 GB (el pronóstico de demanda de C14, o las transacciones de fraude de C09), antes de cargarlo en Python o en un notebook (un cuaderno de Jupyter, donde el código se corre por pedazos): `head -n 3 ventas.csv` muestra las columnas, `wc -l` cuenta las filas, y `cut -d, -f4 ventas.csv | sort | uniq -c | sort -rn | head` dice qué tiendas tienen más filas, si la cuarta columna es la tienda. Son segundos, sin llenar la RAM.
 
 ### Fuera de ML
 
-La forma de trabajar con programas chicos y tubos viene de Unix, que se escribió en los Laboratorios Bell a principios de los setenta; los tubos los propuso Doug McIlroy y se agregaron en 1973. Medio siglo después, la misma barra vertical conecta los comandos de un administrador de sistemas, de un científico que procesa genomas o de quien mantiene un sitio web. Y `ssh` es como se administran casi todos los servidores del mundo.
+La forma de trabajar con programas chicos y tubos viene de Unix, que se empezó a escribir en los Laboratorios Bell en 1969; los tubos los propuso Doug McIlroy y se agregaron en 1973. Medio siglo después, la misma barra vertical conecta los comandos de un administrador de sistemas, de un científico que procesa genomas o de quien mantiene un sitio web. Y `ssh` es como se administran casi todos los servidores del mundo.
 
 ## Ejercicios {Exercises}
 
-Intenta cada uno antes de abrir la solución. Los de bash puedes correrlos en una terminal de Linux o en WSL2; en una Mac casi todos funcionan igual.
+Intenta cada uno antes de abrir la solución. Los de bash puedes correrlos en una terminal de Linux o en WSL2. En una Mac casi todos funcionan igual, con detalles: el `wc -l` de la Mac pone espacios antes del número, `timeout` no viene instalado y `jq` viene desde macOS 15.
 
 :::ejercicios
 ? [facil] En una carpeta con `a.csv`, `b.csv` y `notas.txt`, escribes `ls -l "reportes de octubre" *.csv`. ¿Cuántos argumentos recibe `ls`, y cuáles son?
@@ -828,7 +842,7 @@ jq -r 'select(.status == 504) | .request_id' gateway.log | sort -u
 ? [medio] Un compañero corre `python3 entrenar.py 2>&1 > entrenar.log` y se queja: «los errores no quedan en el log». ¿Qué pasó y cómo se arregla?
 - Las redirecciones se aplican de izquierda a derecha. `2>&1` hizo que el 2 apuntara a donde apuntaba el 1 **en ese momento**: la pantalla.
 - Después, `> entrenar.log` movió solo el 1 al archivo. Los errores siguieron en la pantalla.
-- Arreglo: `python3 entrenar.py > entrenar.log 2>&1`, o `&> entrenar.log` en bash. Si además quiere verlo en vivo: `python3 entrenar.py 2>&1 | tee entrenar.log`.
+- Arreglo: `python3 entrenar.py > entrenar.log 2>&1`, o `&> entrenar.log` en bash. Si además quiere verlo en vivo: `python3 -u entrenar.py 2>&1 | tee entrenar.log`, con `-u` para que Python no junte las líneas en el buffer del tubo.
 ? [medio] De la sección extra de scripts: un script con `set -euo pipefail` tiene la línea `errores=$(grep ERROR app.log | wc -l)`. Un día el log no trae ningún ERROR y el script muere sin imprimir nada útil. ¿Por qué? ¿Cómo lo arreglas?
 - `grep` sale con 1 cuando no encuentra nada. Con `pipefail`, la tubería entera sale con 1 aunque `wc` haya contado 0 sin problema.
 - Con `-e`, ese 1 detiene el script en esa línea.
@@ -851,10 +865,10 @@ promedio: 69.0 ms en 4 requests
 - `jq -r '.ms'` saca un número por línea. `awk` va sumando cada uno en `s`; al final (`END`), `NR` es cuántas líneas leyó.
 - A mano: (41 + 152 + 44 + 39) ÷ 4 = 276 ÷ 4 = **69 ms**.
 - Para la más lenta, `jq` arma «ms, tabulador, id», `sort -n` ordena por el número y `tail -n 1` deja la última: **9f2c41d0, con 152 ms**. Fíjate en que un solo 504 sube el promedio de ≈ 41 a 69: por eso la latencia se mide con [[percentil|percentiles]].
-? [reto] El log del día, ≈ 3 GB, está en una máquina a la que entras por `ssh` como `ana@gw-node`, en `/var/log/gateway/hoy.jsonl`. Tu red es de 100 Mb/s. Compara (a) `ssh ana@gw-node 'cat /var/log/gateway/hoy.jsonl' | grep 9f2c41d0` con (b) `ssh ana@gw-node 'grep 9f2c41d0 /var/log/gateway/hoy.jsonl'`. ¿Dónde corre cada `grep`? ¿Cuánto tarda cada uno, aproximadamente, si grep lee 500 MB/s?
-- En (a), `cat` corre allá y manda el archivo completo por la red; el `grep` corre en tu laptop. Viajan 3 GB: 3 × 10⁹ × 8 ÷ 10⁸ = **240 s**, unos 4 minutos.
+? [reto] El log del día, ≈ 3 GB, está en una máquina a la que entras por `ssh` como `ana@gw-node`, en `/var/log/gateway/hoy.jsonl`. Estás en un café, con una red de 20 Mb/s. Compara (a) `ssh ana@gw-node 'cat /var/log/gateway/hoy.jsonl' | grep 9f2c41d0` con (b) `ssh ana@gw-node 'grep 9f2c41d0 /var/log/gateway/hoy.jsonl'`. ¿Dónde corre cada `grep`? ¿Cuánto tarda cada uno, aproximadamente, si grep lee 500 MB/s?
+- En (a), `cat` corre allá y manda el archivo completo por la red; el `grep` corre en tu laptop. Viajan 3 GB: 3 × 10⁹ × 8 ÷ (2 × 10⁷) = **1,200 s**, 20 minutos.
 - En (b), lo que va entre comillas es el comando remoto completo: `grep` corre allá. Lee 3 GB en ≈ **6 s** y por la red viajan un par de líneas.
-- (b) es ≈ 40 veces más rápido. La regla: lleva el comando a los datos, no los datos al comando.
+- (b) es ≈ 200 veces más rápido (1,200 ÷ 6); con la red de 100 Mb/s de la sección de ssh eran ≈ 40. La regla: lleva el comando a los datos, no los datos al comando.
 - Cuidado con `ssh ana@gw-node grep 9f2c41d0 /var/log/gateway/hoy.jsonl | wc -l`: el `grep` corre allá, pero el `| wc -l` lo resuelve tu shell local, porque no está entre comillas. Aquí da lo mismo; con un `>` o un comodín, no.
 :::
 
@@ -863,8 +877,8 @@ promedio: 69.0 ms en 4 requests
 **En la Ronda:**
 
 - **M05 · Contenedores** está escrito en comandos: `docker build`, `docker run` con `\` al final de cada línea, `docker history`, variables como `SHA=$(git rev-parse --short=7 HEAD)`, la forma exec del `CMD` y la `sh` que se vuelve PID 1 en la forma shell.
-- **M06 · Orquestación y escalado** usa `kubectl get`, `describe`, `logs`, `apply` y `rollout` para mirar y cambiar el cluster, y los códigos 137 y 143 de los pods que mueren.
-- **La hoja de referencia «Docker y kubectl»** junta los comandos de los dos módulos, con un método para depurar pods: síntoma, comandos y causa típica. Ahora la puedes leer como una lista de tuberías.
+- **M06 · Orquestación y escalado** usa `kubectl get`, `describe` y `rollout` para mirar y cambiar el cluster, y el código 137 de los pods que se quedan sin memoria.
+- **La hoja de referencia «Docker y kubectl»** junta los comandos de los dos módulos (ahí están `kubectl logs --previous`, `apply` y los códigos 137 y 143), con un método para depurar pods: síntoma, comandos y causa típica. Ahora la puedes leer como una lista de tuberías.
 - **C01** trae los comandos para probar el gateway: `curl` con una foto, `pytest`, `docker compose up --build` y `bash model/build_engine.sh`.
 
 **En el Dojo:** la estación 7, «Empaquetado (Docker)», se trabaja desde la terminal: construir la imagen del gateway, correrla, leer sus logs y entrar con `docker exec`. La estación 9, «Kubernetes», cuando abra, usa `kubectl` para todo lo que se ve en esta lección.

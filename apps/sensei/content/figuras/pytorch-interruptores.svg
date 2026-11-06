@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 392" role="img" aria-labelledby="f-pytorch-interruptores-t" class="f-svg" style="max-width:420px">
+<title id="f-pytorch-interruptores-t">Los dos interruptores de servir y sus cuatro combinaciones, en una tabla de dos por dos. Las columnas son autograd: prendido, o apagado con inference_mode. Los renglones son el modo del modelo: train o eval. En modo train, con autograd prendido o apagado, la red responde distinto cada vez y cada request cambia el modelo, porque la BatchNorm mete en su memoria las estadísticas del batch y el Dropout apaga neuronas al azar: no sirve. En modo eval con autograd prendido, las respuestas ya son fijas, pero cada foto guarda unos 86 MB de notas para un backward que nunca llega: tampoco sirve. Solo la combinación de abajo a la derecha, modo eval con inference_mode, sirve para responder: respuestas fijas y cero notas guardadas.</title>
+<rect class="f-card" x="10" y="10" width="340" height="372" rx="16"/>
+<text class="f-l" x="26" y="36">DOS INTERRUPTORES, CUATRO COMBINACIONES</text>
+<text class="f-l" x="103" y="64" text-anchor="middle">AUTOGRAD PRENDIDO</text>
+<text class="f-l" x="257" y="64" text-anchor="middle">AUTOGRAD APAGADO</text>
+<text class="f-s" x="103" y="80" text-anchor="middle" style="font-size:12px">guarda notas</text>
+<text class="f-s" x="257" y="80" text-anchor="middle" style="font-size:12px">inference_mode: sin notas</text>
+<text class="f-l" x="26" y="106">MODO TRAIN · BATCHNORM Y DROPOUT ACTIVOS</text>
+<rect class="f-chip" x="26" y="114" width="152" height="92" rx="12"/>
+<text class="f-t" x="38" y="138" style="font-size:13px;font-weight:700">Responde distinto</text>
+<text class="f-s" x="38" y="157" style="font-size:12px">Cada request cambia</text>
+<text class="f-s" x="38" y="173" style="font-size:12px">el modelo</text>
+<text class="f-s" x="38" y="192" style="font-size:12px">≈ 86 MB de notas/foto</text>
+<rect class="f-chip" x="182" y="114" width="152" height="92" rx="12"/>
+<text class="f-t" x="194" y="138" style="font-size:13px;font-weight:700">Responde distinto</text>
+<text class="f-s" x="194" y="157" style="font-size:12px">Cada request cambia</text>
+<text class="f-s" x="194" y="173" style="font-size:12px">el modelo</text>
+<text class="f-s" x="194" y="192" style="font-size:12px">0 MB de notas</text>
+<text class="f-l" x="26" y="232">MODO EVAL · ESTADÍSTICAS GUARDADAS</text>
+<rect class="f-chip" x="26" y="240" width="152" height="92" rx="12"/>
+<text class="f-t" x="38" y="264" style="font-size:13px;font-weight:700">Respuestas fijas</text>
+<text class="f-s" x="38" y="283" style="font-size:12px">pero cada foto guarda</text>
+<text class="f-s" x="38" y="299" style="font-size:12px">≈ 86 MB de notas</text>
+<text class="f-s" x="38" y="318" style="font-size:12px">para nada</text>
+<rect class="f-dark" x="182" y="240" width="152" height="92" rx="12"/>
+<text class="f-dark-t" x="194" y="264" style="font-size:13px;font-weight:700">Respuestas fijas</text>
+<text class="f-dark-t" x="194" y="283" style="font-size:12px">0 MB de notas</text>
+<rect class="f-g" x="194" y="298" width="96" height="22" rx="11"/>
+<text class="f-pill-t" x="242" y="313" text-anchor="middle" style="font:700 12px var(--sans)">para servir</text>
+<text class="f-s" x="26" y="358" style="font-size:12px">model.eval() cambia las respuestas;</text>
+<text class="f-s" x="26" y="374" style="font-size:12px">inference_mode, la memoria. Hacen falta los dos.</text>
+</svg>

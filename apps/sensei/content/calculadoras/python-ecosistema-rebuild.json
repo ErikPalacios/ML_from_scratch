@@ -1,0 +1,21 @@
+{
+  "titulo": "Reconstruir sin lock: ¿qué tan probable es que algo cambie?",
+  "intro": "Sin [[lock-file|lock]], cada paquete del árbol puede llegar en una versión nueva que cabe en su rango. Arranca con el gateway de C01: 37 paquetes, 10 % de probabilidad por paquete en un mes (un supuesto) y un mes de espera.",
+  "entradas": [
+    { "id": "n", "label": "Paquetes en el árbol, directos y transitivos", "min": 1, "max": 500, "paso": 1, "valor": 37 },
+    { "id": "p", "label": "Probabilidad de que un paquete saque una versión nueva en un mes", "min": 0, "max": 50, "paso": 1, "valor": 10, "unidad": "%" },
+    { "id": "m", "label": "Meses entre el primer build y el nuevo", "min": 1, "max": 24, "paso": 1, "valor": 1 }
+  ],
+  "calculos": [
+    { "id": "quieto", "formula": "pow(1 - p / 100, m)" },
+    { "id": "ninguno", "formula": "pow(quieto, n)" }
+  ],
+  "salidas": [
+    { "label": "Que no cambie ninguno", "formula": "ninguno", "formato": "pct", "decimales": 1 },
+    { "label": "Que cambie al menos uno", "formula": "1 - ninguno", "formato": "pct", "decimales": 1, "barra": true, "nota": "sin lock" },
+    { "label": "Paquetes que cambian, en promedio", "formula": "n * (1 - quieto)", "formato": "num", "decimales": 1 },
+    { "label": "Que cambie al menos uno, con lock y hashes", "formula": "0", "formato": "pct", "nota": "se instalan los mismos archivos" },
+    { "label": "Builds sin lock, en promedio, para que uno salga idéntico al primero", "formula": "1 / max(ninguno, 1e-15)", "formato": "int", "nota": "1 ÷ la primera línea" }
+  ],
+  "nota": "Con 37 paquetes y 10 %, que no cambie ninguno es 0.9³⁷ ≈ 2 %: uno de cada ≈ 49 builds. Con 150 paquetes, como un proyecto con PyTorch, 0.9¹⁵⁰ baja a ≈ 0.00001 %, que la primera línea redondea a 0.0 %: uno de cada ≈ 7.3 millones. Aunque cada paquete cambie poco, que no cambie ninguno es casi imposible."
+}

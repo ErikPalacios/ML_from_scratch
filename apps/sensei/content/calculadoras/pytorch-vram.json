@@ -1,0 +1,25 @@
+{
+  "titulo": "Cuánta VRAM usa un servidor de PyTorch",
+  "intro": "Cada proceso de PyTorch tiene su propio contexto de CUDA, su copia de los pesos y las activaciones de su batch. Arranca como debe: 4 procesos en una T4 de 16 GB, batches de 32 y [[no-grad|inference_mode]] (≈ 10 MB vivos por foto, el centro del rango que la Ronda da para C01). Pon autograd en 1 y cada foto guarda ≈ 86 MB de notas.",
+  "entradas": [
+    { "id": "procs", "label": "Procesos en la GPU", "min": 1, "max": 8, "paso": 1, "valor": 4 },
+    { "id": "batch", "label": "Fotos por batch", "min": 1, "max": 64, "paso": 1, "valor": 32 },
+    { "id": "ag", "label": "Autograd: 0 = inference_mode, 1 = prendido", "min": 0, "max": 1, "paso": 1, "valor": 0 },
+    { "id": "ctx", "label": "Contexto de CUDA por proceso", "min": 0.3, "max": 0.8, "paso": 0.1, "valor": 0.5, "unidad": "GB" },
+    { "id": "pesos", "label": "Pesos por proceso (ResNet-50 en FP32)", "min": 10, "max": 2000, "paso": 1, "valor": 98, "unidad": "MB", "tipo": "numero" },
+    { "id": "vram", "label": "VRAM de la GPU", "min": 8, "max": 80, "paso": 1, "valor": 16, "unidad": "GB" }
+  ],
+  "calculos": [
+    { "id": "foto", "formula": "ag * 0.086 + (1 - ag) * 0.010" },
+    { "id": "uno", "formula": "ctx + pesos / 1000 + batch * foto" },
+    { "id": "todos", "formula": "procs * uno" }
+  ],
+  "salidas": [
+    { "label": "Activaciones o notas por foto", "formula": "foto * 1e9", "formato": "bytes" },
+    { "label": "Un proceso", "formula": "uno * 1e9", "formato": "bytes", "nota": "contexto + pesos + batch × lo de cada foto" },
+    { "label": "Todos los procesos", "formula": "todos * 1e9", "formato": "bytes" },
+    { "label": "Parte de la GPU ocupada", "formula": "todos / vram", "formato": "pct", "barra": true, "nota": "más de 100 %: OOM de CUDA" },
+    { "label": "Procesos que caben, como mucho", "formula": "floor(vram / uno)", "formato": "int" }
+  ],
+  "nota": "Con inference_mode, los 4 procesos usan ≈ 3.7 GB, el 23 % de la T4. Con autograd prendido son ≈ 13.4 GB, el 84 %, y un quinto proceso ya no cabe. Falta el margen por la fragmentación: en la práctica cabe un poco menos."
+}

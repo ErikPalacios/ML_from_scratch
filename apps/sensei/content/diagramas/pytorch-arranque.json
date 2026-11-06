@@ -1,0 +1,362 @@
+{
+  "titulo": "El arranque de un servidor de PyTorch, del archivo a la primera respuesta",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    {
+      "id": "arranque",
+      "label": "Al arrancar, una vez",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 31
+    },
+    {
+      "id": "request",
+      "label": "En cada request",
+      "kind": "online",
+      "x": 0,
+      "y": 33,
+      "w": 78,
+      "h": 17
+    }
+  ],
+  "nodes": [
+    {
+      "id": "archivo",
+      "label": "Archivo de pesos",
+      "sub": "state_dict · 98 MB",
+      "kind": "store",
+      "x": 18,
+      "y": 19,
+      "w": 17,
+      "h": 8,
+      "note": "El [[state-dict|state_dict]] de C01: 320 tensores con nombre, sin la receta del modelo. Se lee con `torch.load(ruta, map_location=\"cpu\", weights_only=True)` y entra directo a `load_state_dict`: la arquitectura no sale del archivo."
+    },
+    {
+      "id": "arq",
+      "label": "build_model()",
+      "sub": "resnet50(500)",
+      "kind": "service",
+      "x": 1,
+      "y": 4,
+      "w": 17,
+      "h": 8,
+      "note": "**Primero la arquitectura**: `resnet50(num_classes=500)`, vacía. En C01, una sola función la arma, y la usan el servidor, el export y la paridad."
+    },
+    {
+      "id": "carga",
+      "label": "load_state_dict",
+      "sub": "strict=True",
+      "kind": "service",
+      "x": 24,
+      "y": 4,
+      "w": 17,
+      "h": 8,
+      "note": "Copia los pesos y revisa que cada nombre y cada forma cuadren. Con `strict=False` para callar un error, un modelo puede quedarse con pesos al azar y contestar basura sin tronar."
+    },
+    {
+      "id": "eval",
+      "label": "eval() y .to()",
+      "sub": "a la GPU",
+      "kind": "gpu",
+      "x": 61,
+      "y": 4,
+      "w": 16,
+      "h": 8,
+      "note": "`model.eval()` fija la BatchNorm y apaga el Dropout. `.to(DEVICE)` sube los pesos a la VRAM; si esperas GPU, comprueba `torch.cuda.is_available()` y termina si no hay."
+    },
+    {
+      "id": "warmup",
+      "label": "Warmup",
+      "sub": "todas las formas de batch",
+      "kind": "job",
+      "x": 61,
+      "y": 19,
+      "w": 16,
+      "h": 8,
+      "note": "El [[warmup-inferencia|warmup de inferencia]]: unas requests falsas, en ceros o con una foto negra, con cada tamaño de batch que va a llegar. Paga la preparación de CUDA, del allocator y de la compilación antes que el usuario."
+    },
+    {
+      "id": "listo",
+      "label": "Readiness: listo",
+      "sub": "abre el tráfico",
+      "kind": "monitor",
+      "x": 40,
+      "y": 19,
+      "w": 17,
+      "h": 8,
+      "note": "La [[health-check|readiness]] responde «listo» **solo después del warmup**. Antes, Kubernetes no le manda requests al pod."
+    },
+    {
+      "id": "req",
+      "label": "Request",
+      "sub": "los bytes de la foto",
+      "kind": "client",
+      "x": 1,
+      "y": 37,
+      "w": 16,
+      "h": 8,
+      "note": "La foto de ≈ 200 KB llega con su request. Si el gateway corta a los 0.15 s, como en C01, el modelo tiene que responder antes."
+    },
+    {
+      "id": "pre",
+      "label": "Preprocesar",
+      "sub": "Resize(256), como al entrenar",
+      "kind": "service",
+      "x": 21,
+      "y": 37,
+      "w": 18,
+      "h": 8,
+      "note": "Las mismas transforms del fine-tuning: si cambian, no hay error, hay [[training-serving-skew]]. Sale el tensor de 3 × 224 × 224 en FP32."
+    },
+    {
+      "id": "modelo",
+      "label": "Modelo",
+      "sub": "dentro de inference_mode",
+      "kind": "model",
+      "x": 43,
+      "y": 37,
+      "w": 18,
+      "h": 8,
+      "note": "El `with torch.inference_mode()` va **dentro** de la función que corre el modelo: vale solo en el [[hilo]] que lo abre. La salida debe salir con `requires_grad=False`."
+    },
+    {
+      "id": "resp",
+      "label": "Respuesta",
+      "sub": "500 categorías",
+      "kind": "client",
+      "x": 64,
+      "y": 37,
+      "w": 13,
+      "h": 8,
+      "note": "Los logits de las 500 categorías, con la misma respuesta para la misma foto, venga sola o en un batch."
+    }
+  ],
+  "edges": [
+    {
+      "from": "archivo",
+      "to": "carga",
+      "kind": "neutral",
+      "fromSide": "t",
+      "toSide": "b",
+      "via": [
+        [
+          29,
+          15.5
+        ]
+      ]
+    },
+    {
+      "from": "arq",
+      "to": "carga",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "carga",
+      "to": "eval",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "eval",
+      "to": "warmup",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "warmup",
+      "to": "listo",
+      "kind": "monitor",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "listo",
+      "to": "modelo",
+      "kind": "monitor",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          46,
+          32
+        ]
+      ]
+    },
+    {
+      "from": "req",
+      "to": "pre",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "pre",
+      "to": "modelo",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "modelo",
+      "to": "resp",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l"
+    }
+  ],
+  "flows": [
+    {
+      "id": "bien",
+      "label": "Un arranque bien hecho",
+      "steps": [
+        {
+          "nodes": [
+            "arq"
+          ],
+          "edges": [],
+          "text": "**Primero la arquitectura**: `build_model()` arma la ResNet-50 de 500 clases, con pesos al azar."
+        },
+        {
+          "nodes": [
+            "archivo",
+            "arq",
+            "carga"
+          ],
+          "edges": [
+            "archivo>carga",
+            "arq>carga"
+          ],
+          "text": "**Después los pesos**: se lee el state_dict a la RAM y `load_state_dict` lo copia con **strict=True**: `<All keys matched successfully>`."
+        },
+        {
+          "nodes": [
+            "carga",
+            "eval"
+          ],
+          "edges": [
+            "carga>eval"
+          ],
+          "text": "**eval()** y a la GPU, una sola vez al arrancar."
+        },
+        {
+          "nodes": [
+            "eval",
+            "warmup"
+          ],
+          "edges": [
+            "eval>warmup"
+          ],
+          "text": "El **warmup** corre requests falsas con cada tamaño de batch."
+        },
+        {
+          "nodes": [
+            "warmup",
+            "listo"
+          ],
+          "edges": [
+            "warmup>listo"
+          ],
+          "text": "Solo ahora la **readiness** dice «listo» y entra tráfico."
+        },
+        {
+          "nodes": [
+            "req",
+            "pre",
+            "modelo",
+            "resp"
+          ],
+          "edges": [
+            "req>pre",
+            "pre>modelo",
+            "modelo>resp"
+          ],
+          "text": "Cada request se preprocesa igual que al entrenar y corre dentro de **inference_mode**. Ningún usuario paga la preparación."
+        }
+      ]
+    },
+    {
+      "id": "sin-eval",
+      "label": "Error: olvidar eval()",
+      "steps": [
+        {
+          "nodes": [
+            "carga",
+            "eval"
+          ],
+          "edges": [
+            "carga>eval"
+          ],
+          "text": "Se carga el modelo y se sube a la GPU, pero **sin eval()**: queda en modo train. Nada truena."
+        },
+        {
+          "nodes": [
+            "modelo",
+            "resp"
+          ],
+          "edges": [
+            "modelo>resp"
+          ],
+          "text": "La BatchNorm usa las estadísticas de cada batch y las mete en su memoria: la misma foto responde distinto según con quién llegó, y el modelo se va desviando."
+        }
+      ]
+    },
+    {
+      "id": "hilo",
+      "label": "Error: inference_mode en otro hilo",
+      "steps": [
+        {
+          "nodes": [
+            "pre",
+            "modelo"
+          ],
+          "edges": [
+            "pre>modelo"
+          ],
+          "text": "El `with torch.inference_mode()` se abre en el hilo del event loop, y el modelo corre en un hilo del pool."
+        },
+        {
+          "nodes": [
+            "modelo"
+          ],
+          "edges": [],
+          "text": "Ahí autograd sigue prendido: la salida trae `requires_grad=True` y cada request guarda su gráfica. La Ronda (M07) lo midió."
+        }
+      ]
+    },
+    {
+      "id": "temprano",
+      "label": "Error: abrir antes del warmup",
+      "steps": [
+        {
+          "nodes": [
+            "eval",
+            "listo"
+          ],
+          "edges": [],
+          "text": "La readiness dice «listo» en cuanto cargan los pesos, **sin warmup**."
+        },
+        {
+          "nodes": [
+            "req",
+            "pre",
+            "modelo"
+          ],
+          "edges": [
+            "req>pre",
+            "pre>modelo",
+            "listo>modelo"
+          ],
+          "text": "La primera request paga la inicialización de CUDA o la compilación. Con el timeout de 0.15 s, fallan todas las que llegan en ese rato, en cada pod nuevo."
+        }
+      ]
+    }
+  ]
+}

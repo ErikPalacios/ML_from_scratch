@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 452" role="img" aria-labelledby="f-pytorch-state-dict-t" class="f-svg" style="max-width:420px">
+<title id="f-pytorch-state-dict-t">El state_dict de la ResNet-50 de C01 es una tabla de nombre a tensor, con 320 renglones. Los primeros son conv1.weight, de forma 64 por 3 por 7 por 7, que es un parámetro; bn1.weight y bn1.bias, de 64 números, también parámetros; y bn1.running_mean, bn1.running_var y bn1.num_batches_tracked, que son buffers de la primera BatchNorm. Sigue layer1.0.conv1.weight, de 64 por 64 por 1 por 1, y 311 renglones más, hasta fc.weight, de 500 por 2048, y fc.bias, de 500, la capa final de 500 clases. Una barra reparte los 320 tensores: 161 son parámetros, que el entrenamiento ajusta, y 159 son buffers, tres por cada una de las 53 BatchNorm, que se guardan pero no se aprenden. Los dos tipos viajan en el mismo archivo.</title>
+<rect class="f-card" x="10" y="10" width="340" height="432" rx="16"/>
+<text class="f-l" x="26" y="36">EL STATE_DICT DE LA RESNET-50 DE C01</text>
+<text class="f-s" x="26" y="58" style="font-size:12px">Un diccionario: nombre → tensor.</text>
+<text class="f-l" x="40" y="84">NOMBRE</text>
+<text class="f-l" x="222" y="84">FORMA</text>
+<line class="f-linea" x1="26" y1="92" x2="334" y2="92"/>
+<rect class="f-b" x="26" y="101" width="8" height="14" rx="2"/>
+<text class="f-s" x="40" y="113" style="font:12px var(--mono)">conv1.weight</text>
+<text class="f-s" x="222" y="113" style="font:12px var(--mono)">(64, 3, 7, 7)</text>
+<rect class="f-b" x="26" y="123" width="8" height="14" rx="2"/>
+<text class="f-s" x="40" y="135" style="font:12px var(--mono)">bn1.weight</text>
+<text class="f-s" x="222" y="135" style="font:12px var(--mono)">(64,)</text>
+<rect class="f-b" x="26" y="145" width="8" height="14" rx="2"/>
+<text class="f-s" x="40" y="157" style="font:12px var(--mono)">bn1.bias</text>
+<text class="f-s" x="222" y="157" style="font:12px var(--mono)">(64,)</text>
+<rect class="f-o" x="26" y="167" width="8" height="14" rx="2"/>
+<text class="f-s" x="40" y="179" style="font:12px var(--mono)">bn1.running_mean</text>
+<text class="f-s" x="222" y="179" style="font:12px var(--mono)">(64,)</text>
+<rect class="f-o" x="26" y="189" width="8" height="14" rx="2"/>
+<text class="f-s" x="40" y="201" style="font:12px var(--mono)">bn1.running_var</text>
+<text class="f-s" x="222" y="201" style="font:12px var(--mono)">(64,)</text>
+<rect class="f-o" x="26" y="211" width="8" height="14" rx="2"/>
+<text class="f-s" x="40" y="223" style="font:12px var(--mono)">bn1.num_batches_tracked</text>
+<text class="f-s" x="222" y="223" style="font:12px var(--mono)">()</text>
+<rect class="f-b" x="26" y="233" width="8" height="14" rx="2"/>
+<text class="f-s" x="40" y="245" style="font:12px var(--mono)">layer1.0.conv1.weight</text>
+<text class="f-s" x="222" y="245" style="font:12px var(--mono)">(64, 64, 1, 1)</text>
+<text class="f-s" x="40" y="269" style="font-size:12px;font-style:italic">⋮ 311 renglones más</text>
+<rect class="f-b" x="26" y="281" width="8" height="14" rx="2"/>
+<text class="f-s" x="40" y="293" style="font:12px var(--mono)">fc.weight</text>
+<text class="f-s" x="222" y="293" style="font:12px var(--mono)">(500, 2048)</text>
+<rect class="f-b" x="26" y="303" width="8" height="14" rx="2"/>
+<text class="f-s" x="40" y="315" style="font:12px var(--mono)">fc.bias</text>
+<text class="f-s" x="222" y="315" style="font:12px var(--mono)">(500,)</text>
+<line class="f-linea" x1="26" y1="330" x2="334" y2="330"/>
+<text class="f-l" x="26" y="352">LOS 320 TENSORES</text>
+<rect class="f-b" x="26" y="362" width="155" height="22" rx="4"/>
+<text class="f-pill-t" x="103" y="377" text-anchor="middle" style="font:700 12px var(--sans)">161 parámetros</text>
+<rect class="f-o" x="181" y="362" width="153" height="22" rx="4"/>
+<text class="f-pill-t" x="257" y="377" text-anchor="middle" style="font:700 12px var(--sans)">159 buffers</text>
+<text class="f-s" x="26" y="404" style="font-size:12px">Parámetros: los ajusta el entrenamiento.</text>
+<text class="f-s" x="26" y="422" style="font-size:12px">Buffers: 3 por BatchNorm × 53 = 159, no se aprenden.</text>
+</svg>

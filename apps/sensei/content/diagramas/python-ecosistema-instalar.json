@@ -1,0 +1,332 @@
+{
+  "titulo": "De pip install a un paquete que se puede importar",
+  "width": 78,
+  "height": 64,
+  "lanes": [
+    {
+      "id": "red",
+      "label": "PyPI o el espejo de la empresa",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 14
+    },
+    {
+      "id": "maquina",
+      "label": "Tu máquina o el build de la imagen",
+      "kind": "neutral",
+      "x": 0,
+      "y": 15,
+      "w": 78,
+      "h": 49
+    }
+  ],
+  "nodes": [
+    {
+      "id": "indice",
+      "label": "Índice de paquetes",
+      "sub": "wheels y sdists",
+      "kind": "external",
+      "x": 29,
+      "y": 3,
+      "w": 20,
+      "h": 8,
+      "note": "[[pypi|PyPI]], o el espejo propio de la empresa con `--index-url`. Guarda, de cada paquete, todas sus versiones y sus archivos: varias [[wheel|wheels]], una por plataforma, y a veces un **sdist** con el código fuente."
+    },
+    {
+      "id": "cmd",
+      "label": "pip install",
+      "sub": "python -m pip",
+      "kind": "client",
+      "x": 1,
+      "y": 22,
+      "w": 20,
+      "h": 8,
+      "note": "Lo que pides, por ejemplo `python -m pip install pillow==12.3.0`. Con `python -m pip` corre el [[pip]] **de ese Python**, el mismo que después hará el `import`."
+    },
+    {
+      "id": "resolver",
+      "label": "Resolvedor",
+      "sub": "elige las versiones",
+      "kind": "service",
+      "x": 29,
+      "y": 22,
+      "w": 20,
+      "h": 8,
+      "note": "La parte de pip que busca una versión de cada paquete que cumpla todas las reglas, incluidas las de las [[dependencia-transitiva|transitivas]], que lee del `Requires-Dist` de cada ficha. Si dos reglas chocan, regresa y prueba otra versión; si no hay salida, se rinde con `ResolutionImpossible`."
+    },
+    {
+      "id": "lock",
+      "label": "Lock con hashes",
+      "sub": "requirements.txt",
+      "kind": "store",
+      "x": 57,
+      "y": 22,
+      "w": 20,
+      "h": 8,
+      "note": "El [[lock-file|lock file]]: todo el árbol con `==` y el sha256 de cada archivo. Con él, el resolvedor no tiene nada que escoger: cada versión ya está fija. El del gateway trae las 37."
+    },
+    {
+      "id": "build",
+      "label": "Construir el sdist",
+      "sub": "con un compilador",
+      "kind": "job",
+      "x": 1,
+      "y": 38,
+      "w": 20,
+      "h": 8,
+      "note": "Si no hay wheel para tu plataforma, pip baja el código fuente y lo **construye**: corre la herramienta de empaquetado y, si trae C, un [[compilar|compilador]] como `gcc`. Es lento, pide herramientas que una imagen slim no tiene y puede fallar a la mitad."
+    },
+    {
+      "id": "archivo",
+      "label": "Escoger el archivo",
+      "sub": "por la etiqueta",
+      "kind": "service",
+      "x": 29,
+      "y": 38,
+      "w": 20,
+      "h": 8,
+      "note": "De la versión elegida, pip escoge la wheel cuya etiqueta sirve en esta máquina: Python, interfaz binaria, sistema y chip, como `cp313-cp313-manylinux_2_28_x86_64`. Una de puro Python, `py3-none-any`, sirve en todos lados."
+    },
+    {
+      "id": "hash",
+      "label": "Comparar el hash",
+      "sub": "--require-hashes",
+      "kind": "service",
+      "x": 57,
+      "y": 38,
+      "w": 20,
+      "h": 8,
+      "note": "Con `--require-hashes`, pip calcula el sha256 del archivo bajado y lo compara con el del lock. Si cambió un solo byte, se niega a instalar: `THESE PACKAGES DO NOT MATCH THE HASHES`."
+    },
+    {
+      "id": "site",
+      "label": "site-packages",
+      "sub": "listo para import",
+      "kind": "store",
+      "x": 29,
+      "y": 54,
+      "w": 20,
+      "h": 8,
+      "note": "Instalar una wheel es descomprimirla aquí, con su carpeta `.dist-info`. `site-packages` está en `sys.path`, así que desde ahora `import` lo encuentra. Si usas un [[entorno-virtual|entorno virtual]], es el `site-packages` del entorno."
+    }
+  ],
+  "edges": [
+    {
+      "from": "cmd",
+      "to": "resolver",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "lo que pides"
+    },
+    {
+      "from": "indice",
+      "to": "resolver",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "fichas"
+    },
+    {
+      "from": "lock",
+      "to": "resolver",
+      "kind": "neutral",
+      "fromSide": "l",
+      "toSide": "r",
+      "label": "versiones fijas"
+    },
+    {
+      "from": "resolver",
+      "to": "archivo",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "archivo",
+      "to": "build",
+      "kind": "neutral",
+      "dashed": true,
+      "fromSide": "l",
+      "toSide": "r",
+      "label": "solo sdist"
+    },
+    {
+      "from": "build",
+      "to": "site",
+      "kind": "neutral",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "l",
+      "via": [
+        [
+          11,
+          58
+        ]
+      ],
+      "label": "wheel construida"
+    },
+    {
+      "from": "archivo",
+      "to": "site",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "wheel"
+    },
+    {
+      "from": "archivo",
+      "to": "hash",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "sha256"
+    },
+    {
+      "from": "hash",
+      "to": "site",
+      "kind": "neutral",
+      "fromSide": "b",
+      "toSide": "r",
+      "via": [
+        [
+          67,
+          58
+        ]
+      ],
+      "label": "coincide"
+    }
+  ],
+  "flows": [
+    {
+      "id": "normal",
+      "label": "Una instalación normal",
+      "steps": [
+        {
+          "nodes": [
+            "cmd",
+            "resolver"
+          ],
+          "edges": [
+            "cmd>resolver"
+          ],
+          "text": "Escribes `python -m pip install pillow==12.3.0`. El resolvedor recibe **lo que pides**."
+        },
+        {
+          "nodes": [
+            "indice",
+            "resolver"
+          ],
+          "edges": [
+            "indice>resolver"
+          ],
+          "text": "Pregunta al índice qué versiones hay y lee la ficha de cada una: su `Requires-Dist` dice qué pide a su vez. Así arma el árbol completo, con las **transitivas**."
+        },
+        {
+          "nodes": [
+            "resolver",
+            "archivo"
+          ],
+          "edges": [
+            "resolver>archivo"
+          ],
+          "text": "Con las versiones elegidas, pip escoge de cada una la wheel cuya **etiqueta** sirve aquí: en el contenedor del gateway, `cp313` y `manylinux_2_28_x86_64`."
+        },
+        {
+          "nodes": [
+            "archivo",
+            "site"
+          ],
+          "edges": [
+            "archivo>site"
+          ],
+          "text": "Instalar la wheel es, en lo esencial, **descomprimirla** en `site-packages`: no hace falta ningún compilador. Desde ahora, `import PIL` la encuentra en `sys.path`."
+        }
+      ]
+    },
+    {
+      "id": "sinwheel",
+      "label": "Un paquete sin wheel",
+      "steps": [
+        {
+          "nodes": [
+            "resolver",
+            "archivo"
+          ],
+          "edges": [
+            "resolver>archivo"
+          ],
+          "text": "La versión elegida no tiene wheel para esta plataforma, por ejemplo una para musl en una imagen Alpine."
+        },
+        {
+          "nodes": [
+            "archivo",
+            "build"
+          ],
+          "edges": [
+            "archivo>build"
+          ],
+          "text": "Solo hay **sdist**, el código fuente. pip lo tiene que construir, con `gcc` si trae C. Con `--only-binary=:all:`, como en el Dockerfile del gateway, el build **falla aquí** en vez de compilar en silencio."
+        },
+        {
+          "nodes": [
+            "build",
+            "site"
+          ],
+          "edges": [
+            "build>site"
+          ],
+          "text": "Si la construcción sale bien, el resultado es una wheel hecha en tu máquina, y se instala como cualquier otra. Si falla, falla a la mitad del build de la imagen."
+        }
+      ]
+    },
+    {
+      "id": "lock",
+      "label": "Con lock y hashes",
+      "steps": [
+        {
+          "nodes": [
+            "lock",
+            "resolver"
+          ],
+          "edges": [
+            "lock>resolver"
+          ],
+          "text": "`pip install --require-hashes -r requirements.txt`. El lock trae **todo el árbol** con `==`: no queda nada por escoger."
+        },
+        {
+          "nodes": [
+            "resolver",
+            "archivo"
+          ],
+          "edges": [
+            "resolver>archivo"
+          ],
+          "text": "pip baja exactamente esas versiones, con la wheel de esta plataforma."
+        },
+        {
+          "nodes": [
+            "archivo",
+            "hash"
+          ],
+          "edges": [
+            "archivo>hash"
+          ],
+          "text": "Calcula el **sha256** de cada archivo y lo compara con el del lock. Si alguien cambió un byte en el camino, pip se niega: `THESE PACKAGES DO NOT MATCH THE HASHES`."
+        },
+        {
+          "nodes": [
+            "hash",
+            "site"
+          ],
+          "edges": [
+            "hash>site"
+          ],
+          "text": "Si todos coinciden, se instalan los **mismos archivos** que se probaron, en cualquier máquina y en cualquier fecha."
+        }
+      ]
+    }
+  ]
+}

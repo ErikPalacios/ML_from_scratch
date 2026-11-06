@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 398" role="img" aria-labelledby="f-terminal-redireccion-t" class="f-svg" style="max-width:420px">
+<title id="f-terminal-redireccion-t">El orden de las redirecciones importa, porque los descriptores son flechas. Al inicio, en una terminal, el descriptor 1, stdout, y el 2, stderr, apuntan los dos a la pantalla. A la izquierda, ls con &gt; todo.txt 2&gt;&amp;1: en el paso 1, &gt; todo.txt mueve la flecha del 1 al archivo todo.txt; en el paso 2, 2&gt;&amp;1 hace que el 2 copie la flecha del 1, que ya apunta al archivo: los dos van al archivo. A la derecha, ls con 2&gt;&amp;1 &gt; alreves.txt: en el paso 1, el 2 copia la flecha del 1 cuando todavía apunta a la pantalla; en el paso 2, solo el 1 se mueve al archivo alreves.txt: los errores siguen saliendo en la pantalla.</title>
+<rect class="f-card" x="10" y="10" width="340" height="378" rx="16"/>
+<text class="f-l" x="26" y="36" style="font-size:12px">EL ORDEN IMPORTA</text>
+<rect class="f-chip" x="20" y="48" width="320" height="74" rx="12"/>
+<text class="f-t" x="34" y="76">Al inicio</text>
+<text class="f-s" x="34" y="98" style="font-size:12px">Los dos apuntan</text>
+<text class="f-s" x="34" y="114" style="font-size:12px">a la pantalla.</text>
+<rect class="f-card" x="267" y="60" width="70" height="24" rx="6"/>
+<text class="f-s" x="302" y="76" text-anchor="middle" style="font-size:12px">pantalla</text>
+<path class="f-flecha" style="stroke:var(--b)" d="M210 72 H231 V67 H261"/>
+<polygon style="fill:var(--b)" points="260,63 260,71 267,67"/>
+<path class="f-flecha" style="stroke:var(--p)" d="M210 102 H245 V77 H261"/>
+<polygon style="fill:var(--p)" points="260,73 260,81 267,77"/>
+<text class="f-s" x="182" y="76" text-anchor="end" style="font:600 12px var(--mono)">stdout</text>
+<text class="f-s" x="182" y="106" text-anchor="end" style="font:600 12px var(--mono)">stderr</text>
+<circle class="f-b" cx="199" cy="72" r="11"/>
+<text class="f-pill-t" x="199" y="77" text-anchor="middle" style="font:800 13px var(--sans)">1</text>
+<circle class="f-p" cx="199" cy="102" r="11"/>
+<text class="f-pill-t" x="199" y="107" text-anchor="middle" style="font:800 13px var(--sans)">2</text>
+<rect class="f-chip" x="20" y="132" width="156" height="246" rx="12"/>
+<text class="f-t" x="30" y="154" style="font:700 12px var(--mono)">&gt; todo.txt 2&gt;&amp;1</text>
+<text class="f-s" x="30" y="178" style="font-size:12px">Paso 1: <tspan style="font-family:var(--mono)">&gt; todo.txt</tspan></text>
+<rect class="f-card" x="103" y="188" width="70" height="24" rx="6"/>
+<text class="f-s" x="138" y="204" text-anchor="middle" style="font-size:12px">pantalla</text>
+<rect class="f-card" x="103" y="218" width="70" height="24" rx="6"/>
+<text class="f-s" x="138" y="234" text-anchor="middle" style="font-size:12px">todo.txt</text>
+<path class="f-flecha" style="stroke:var(--b)" d="M46 200 H67 V225 H97"/>
+<polygon style="fill:var(--b)" points="96,221 96,229 103,225"/>
+<path class="f-flecha" style="stroke:var(--p)" d="M46 230 H81 V205 H97"/>
+<polygon style="fill:var(--p)" points="96,201 96,209 103,205"/>
+<circle class="f-b" cx="35" cy="200" r="11"/>
+<text class="f-pill-t" x="35" y="205" text-anchor="middle" style="font:800 13px var(--sans)">1</text>
+<circle class="f-p" cx="35" cy="230" r="11"/>
+<text class="f-pill-t" x="35" y="235" text-anchor="middle" style="font:800 13px var(--sans)">2</text>
+<text class="f-s" x="30" y="266" style="font-size:12px">Paso 2: <tspan style="font-family:var(--mono)">2&gt;&amp;1</tspan></text>
+<rect class="f-card" x="103" y="276" width="70" height="24" rx="6"/>
+<text class="f-s" x="138" y="292" text-anchor="middle" style="font-size:12px">pantalla</text>
+<rect class="f-card" x="103" y="306" width="70" height="24" rx="6"/>
+<text class="f-s" x="138" y="322" text-anchor="middle" style="font-size:12px">todo.txt</text>
+<path class="f-flecha" style="stroke:var(--b)" d="M46 288 H67 V313 H97"/>
+<polygon style="fill:var(--b)" points="96,309 96,317 103,313"/>
+<path class="f-flecha" style="stroke:var(--p)" d="M46 318 H81 V323 H97"/>
+<polygon style="fill:var(--p)" points="96,319 96,327 103,323"/>
+<circle class="f-b" cx="35" cy="288" r="11"/>
+<text class="f-pill-t" x="35" y="293" text-anchor="middle" style="font:800 13px var(--sans)">1</text>
+<circle class="f-p" cx="35" cy="318" r="11"/>
+<text class="f-pill-t" x="35" y="323" text-anchor="middle" style="font:800 13px var(--sans)">2</text>
+<text class="f-t" x="30" y="352" style="font-size:13px">Los dos van</text>
+<text class="f-t" x="30" y="368" style="font-size:13px">al archivo.</text>
+<rect class="f-chip" x="184" y="132" width="156" height="246" rx="12"/>
+<text class="f-t" x="194" y="154" style="font:700 12px var(--mono)">2&gt;&amp;1 &gt; alreves.txt</text>
+<text class="f-s" x="194" y="178" style="font-size:12px">Paso 1: <tspan style="font-family:var(--mono)">2&gt;&amp;1</tspan></text>
+<rect class="f-card" x="267" y="188" width="70" height="24" rx="6"/>
+<text class="f-s" x="302" y="204" text-anchor="middle" style="font-size:12px">pantalla</text>
+<rect class="f-card" x="267" y="218" width="70" height="24" rx="6"/>
+<text class="f-s" x="302" y="234" text-anchor="middle" style="font-size:12px">alreves.txt</text>
+<path class="f-flecha" style="stroke:var(--b)" d="M210 200 H231 V195 H261"/>
+<polygon style="fill:var(--b)" points="260,191 260,199 267,195"/>
+<path class="f-flecha" style="stroke:var(--p)" d="M210 230 H245 V205 H261"/>
+<polygon style="fill:var(--p)" points="260,201 260,209 267,205"/>
+<circle class="f-b" cx="199" cy="200" r="11"/>
+<text class="f-pill-t" x="199" y="205" text-anchor="middle" style="font:800 13px var(--sans)">1</text>
+<circle class="f-p" cx="199" cy="230" r="11"/>
+<text class="f-pill-t" x="199" y="235" text-anchor="middle" style="font:800 13px var(--sans)">2</text>
+<text class="f-s" x="194" y="266" style="font-size:12px">Paso 2: <tspan style="font-family:var(--mono)">&gt; alreves.txt</tspan></text>
+<rect class="f-card" x="267" y="276" width="70" height="24" rx="6"/>
+<text class="f-s" x="302" y="292" text-anchor="middle" style="font-size:12px">pantalla</text>
+<rect class="f-card" x="267" y="306" width="70" height="24" rx="6"/>
+<text class="f-s" x="302" y="322" text-anchor="middle" style="font-size:12px">alreves.txt</text>
+<path class="f-flecha" style="stroke:var(--b)" d="M210 288 H231 V313 H261"/>
+<polygon style="fill:var(--b)" points="260,309 260,317 267,313"/>
+<path class="f-flecha" style="stroke:var(--p)" d="M210 318 H245 V293 H261"/>
+<polygon style="fill:var(--p)" points="260,289 260,297 267,293"/>
+<circle class="f-b" cx="199" cy="288" r="11"/>
+<text class="f-pill-t" x="199" y="293" text-anchor="middle" style="font:800 13px var(--sans)">1</text>
+<circle class="f-p" cx="199" cy="318" r="11"/>
+<text class="f-pill-t" x="199" y="323" text-anchor="middle" style="font:800 13px var(--sans)">2</text>
+<text class="f-t" x="194" y="352" style="font-size:13px">Los errores siguen</text>
+<text class="f-t" x="194" y="368" style="font-size:13px">en la pantalla.</text>
+</svg>

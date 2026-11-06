@@ -5,7 +5,7 @@
    "termino": "Terminal",
    "en": "terminal · terminal emulator",
    "corto": "La ventana de texto donde se escriben comandos en vez de usar el mouse. Solo pasa lo que tecleas a otro programa, la shell, y dibuja el texto que ese programa le regresa.",
-   "largo": "La terminal no entiende los comandos: eso lo hace la [[shell]] que corre adentro. Su trabajo es dibujar letras, colores y el cursor, y mandar las teclas, incluidas combinaciones como Ctrl+C, que le pide al kernel convertir en la [[senal|señal]] SIGINT para el proceso de primer plano. Cada sistema trae la suya: la app Terminal en macOS, Windows Terminal en Windows (con WSL2 para tener un Linux de verdad) y GNOME Terminal en muchos Linux. Se le dice «emulador de terminal» porque imita a los aparatos de teclado y pantalla que en los años setenta se conectaban por cable a una computadora grande.",
+   "largo": "La terminal no entiende los comandos: eso lo hace la [[shell]] que corre adentro. Su trabajo es dibujar letras, colores y el cursor, y mandar las teclas, incluidas combinaciones como Ctrl+C, que le pide al kernel convertir en la [[senal|señal]] SIGINT para el proceso de primer plano. Cada sistema trae la suya: la app Terminal en macOS, Windows Terminal en Windows 11 (con WSL2 para tener un Linux de verdad) y GNOME Terminal en muchos Linux. Se le dice «emulador de terminal» porque imita a los aparatos de teclado y pantalla que en los años setenta se conectaban por cable a una computadora grande.",
    "analogia": "El vidrio de una ventanilla de banco: por ahí pasan tus papeles y por ahí te regresan la respuesta, pero el que atiende es otro (la shell). Se rompe en que la terminal sí hace un trabajo propio: dibuja colores, guarda lo que ya salió y convierte teclas como Ctrl+C en avisos.",
    "ejemplo": "Ana abre la app Terminal de su Mac. Lo que escribe lo lee zsh, la shell; la Terminal solo lo dibuja. Si cambia el tamaño de las letras, eso es cosa de la Terminal.",
    "ver": [
@@ -20,7 +20,7 @@
    "termino": "Shell",
    "en": "shell",
    "corto": "El programa que lee los comandos que escribes en la terminal, los parte en palabras, encuentra cada programa y lo lanza como un proceso nuevo. bash, zsh y sh son shells.",
-   "largo": "Para cada línea, la shell repite un ciclo: la lee, la parte en palabras (respetando las comillas), reemplaza las variables y los [[comodin|comodines]], busca la primera palabra como builtin o en las carpetas de [[path-shell|PATH]], lanza el [[proceso]] con `fork` y `exec`, conecta sus [[flujos-estandar|flujos]] y espera su [[codigo-salida|código de salida]]. bash es la de casi todos los servidores Linux; zsh, la de macOS desde 2019; sh, la más básica, a veces la única en un contenedor chico. Una imagen distroless no trae ninguna. También corre archivos de comandos, los [[script-shell|scripts]].",
+   "largo": "Para cada línea, la shell repite un ciclo: la lee, la parte en palabras (respetando las comillas), reemplaza las variables y los [[comodin|comodines]], busca la primera palabra como builtin o en las carpetas de [[path-shell|PATH]], lanza el [[proceso]] con `fork` y `exec`, conecta sus [[flujos-estandar|flujos]] y espera su [[codigo-salida|código de salida]]. bash es la de casi todos los servidores Linux; zsh, la de macOS desde Catalina (2019); sh, la más básica, a veces la única en un contenedor chico. Una imagen distroless no trae ninguna. También corre archivos de comandos, los [[script-shell|scripts]].",
    "analogia": "El que atiende en la ventanilla: lee tu papel, entiende qué pides, se lo pasa a la oficina que corresponde y te regresa la respuesta. Se rompe en que la shell no hace casi nada por sí misma: casi todo lo hacen otros programas que ella lanza.",
    "ejemplo": "En `kubectl logs gateway-7f9c | grep 504`, la shell parte la línea en dos comandos, lanza `kubectl` y `grep` a la vez y conecta la salida del primero con la entrada del segundo con un tubo.",
    "ver": [
@@ -34,7 +34,7 @@
    "id": "comando",
    "termino": "Comando",
    "en": "command",
-   "corto": "Lo que escribes en una línea de la terminal para pedir algo: una primera palabra, que es un programa o algo que la shell sabe hacer, seguida de sus argumentos.",
+   "corto": "Lo que escribes en una línea de la terminal para pedir algo: una primera palabra, que es un programa o algo que la shell (el programa que lee lo que escribes) sabe hacer, seguida de sus argumentos.",
    "largo": "La primera palabra puede ser un programa en el disco (`ls` es el archivo `/usr/bin/ls`, `kubectl`, `python3`) o un **builtin**, que la shell hace sin lanzar ningún proceso (`cd`, `export`, `echo`). `cd` tiene que ser builtin porque cambia la carpeta de la propia shell. `type ls` dice cómo va a entender la shell una palabra; `which ls` dice la ruta del programa. Lo demás de la línea son sus [[argumento-cli|argumentos]].",
    "ejemplo": "`type cd` responde `cd is a shell builtin`; `type ls` responde `ls is /usr/bin/ls`. Si la palabra no es ninguna de las dos, la shell dice «command not found» y deja el código 127.",
    "ver": [
@@ -62,7 +62,7 @@
    "id": "directorio-trabajo",
    "termino": "Directorio de trabajo",
    "en": "working directory · current directory",
-   "corto": "La carpeta donde está parado un proceso: desde ahí se leen las rutas relativas. En la terminal, `pwd` la muestra y `cd` la cambia.",
+   "corto": "La carpeta donde está parado un proceso: desde ahí se leen las rutas relativas, las que no empiezan con `/`. En la terminal, `pwd` la muestra y `cd` la cambia.",
    "largo": "Cada [[proceso]] tiene el suyo y lo hereda de quien lo lanzó, así que un programa arranca en la carpeta donde estaba la [[shell]]. Una [[ruta]] relativa como `datos/train.csv` se busca ahí, no junto al archivo del programa. `cd ..` sube una carpeta, `cd` solo va a la carpeta personal (`~`) y `cd -` regresa a la anterior. Como cada proceso tiene su copia, un `cd` dentro de un hijo o de una subshell `( … )` no mueve al padre. En una imagen de contenedor, lo fija la línea `WORKDIR`. La lección del sistema operativo le dice «carpeta de trabajo».",
    "ejemplo": "Parada en `/home/ana/trabajo`, `python3 entrenar.py` abre `datos/train.csv` como `/home/ana/trabajo/datos/train.csv`. `(cd /tmp && pwd)` imprime `/tmp`, y el `pwd` siguiente vuelve a dar `/home/ana/trabajo`.",
    "ver": [
@@ -105,7 +105,7 @@
    "id": "flujos-estandar",
    "termino": "Flujos estándar",
    "en": "standard streams · stdin · stdout · stderr",
-   "corto": "Los tres canales de texto con que nace todo proceso: stdin (descriptor 0) para leer, stdout (1) para los resultados y stderr (2) para los errores y avisos. En una terminal, el 0 es el teclado y los otros dos, la pantalla.",
+   "corto": "Los tres canales de texto con que nace todo proceso, numerados 0, 1 y 2: stdin para leer, stdout para los resultados y stderr para los errores y avisos. En una terminal, el 0 es el teclado y los otros dos, la pantalla.",
    "largo": "El kernel numera los archivos abiertos de cada [[proceso]]; esos números son los descriptores, y los tres primeros vienen abiertos y heredados del padre. El programa escribe en el 1 sin saber a dónde va: una terminal, un archivo con [[redireccion|redirección]] o la entrada de otro programa con un [[pipe|tubo]] lo decide quien lo lanza. Separar stdout de stderr permite guardar los datos sin mezclar los errores. En un [[contenedor]], el runtime guarda los dos en un archivo de log, y por eso `docker logs` y `kubectl logs` los muestran. Cuando stdout no es una terminal, Python lo guarda en un buffer: de ahí `PYTHONUNBUFFERED=1`.",
    "ejemplo": "El gateway de C01 escribe una línea JSON por request a stdout; Fluent Bit la recoge y la manda a S3. Un `print(\"aviso\", file=sys.stderr)` sale por el 2 y no se mezcla con esos datos.",
    "ver": [
@@ -119,7 +119,7 @@
    "id": "redireccion",
    "termino": "Redirección",
    "en": "redirection",
-   "corto": "Pedirle a la shell que, antes de lanzar un programa, conecte uno de sus flujos a un archivo: `>` manda stdout a un archivo (vaciándolo), `>>` agrega al final, `<` lee de un archivo y `2>` manda los errores.",
+   "corto": "Pedirle a la shell que, antes de lanzar un programa, conecte uno de sus flujos (stdin, stdout o stderr) a un archivo: `>` manda stdout a un archivo (vaciándolo), `>>` agrega al final, `<` lee de un archivo y `2>` manda los errores.",
    "largo": "`2>&1` hace que el descriptor 2 apunte a donde apunta el 1 **en ese momento**, y la shell aplica las redirecciones de izquierda a derecha: `cmd > log 2>&1` manda los dos [[flujos-estandar|flujos]] al archivo, pero `cmd 2>&1 > log` deja los errores en la pantalla. `&> log` es el atajo de bash para los dos. `/dev/null` es un archivo especial que se traga todo. `>` vacía el archivo al prepararse, antes de que corra el programa: `sort log > log` deja `log` vacío.",
    "ejemplo": "`python3 entrenar.py > entrenar.log 2>&1` guarda en el archivo los resultados y los errores; `ls existe.txt noexiste.txt 2> /dev/null` muestra solo `existe.txt`.",
    "ver": [
@@ -163,7 +163,7 @@
    "termino": "Script de shell",
    "en": "shell script",
    "corto": "Un archivo de texto con comandos, uno por línea, que la shell corre de arriba abajo como si los fueras tecleando. Sirve para repetir una receta igual cada vez.",
-   "largo": "Dentro se usan las mismas cosas de la terminal, más `\"$@\"` (los argumentos del script), `for`, `if` y la sustitución `$( … )`. Se corre con `bash script.sh`, o con `./script.sh` si tiene [[shebang]] y permiso de ejecución. Por omisión, bash sigue aunque un comando falle; por eso los scripts serios empiezan con `set -euo pipefail`: `-e` se detiene en el primer error, `-u` prohíbe variables que no existen y `-o pipefail` hace que una [[pipe|tubería]] falle si falla cualquiera de sus comandos. `bash -n` revisa la sintaxis sin correrlo y ShellCheck encuentra trampas comunes. Cada paso `run:` de un CI es un script.",
+   "largo": "Dentro se usan las mismas cosas de la terminal, más `\"$@\"` (los argumentos del script), `for`, `if` y la sustitución `$( … )`. Se corre con `bash script.sh`, o con `./script.sh` si tiene [[shebang]] y permiso de ejecución. Por omisión, bash sigue aunque un comando falle; por eso los scripts serios empiezan con `set -euo pipefail`: `-e` se detiene en el primer error, `-u` prohíbe variables que no existen (una vacía sí pasa) y `-o pipefail` hace que una [[pipe|tubería]] falle si falla cualquiera de sus comandos. `bash -n` revisa la sintaxis sin correrlo y ShellCheck encuentra trampas comunes. Cada paso `run:` de un CI es un script.",
    "ejemplo": "En C01, `bash model/build_engine.sh` construye el engine de TensorRT y se niega a correr si la GPU no es una T4. Sin `pipefail`, `grep x no-existe.log | wc -l` termina con 0 aunque `grep` haya fallado.",
    "ver": [
     "shebang",
@@ -176,7 +176,7 @@
    "id": "shebang",
    "termino": "Shebang",
    "en": "shebang · hashbang · #!",
-   "corto": "La primera línea de un script que empieza con `#!` y dice con qué programa se corre, como `#!/usr/bin/env bash`. La lee el kernel al ejecutar el archivo.",
+   "corto": "La primera línea de un script (un archivo de comandos) que empieza con `#!` y dice con qué programa se corre, como `#!/usr/bin/env bash`. La lee el kernel al ejecutar el archivo.",
    "largo": "Al ejecutar un archivo de texto, el kernel ve los caracteres `#!`, toma el resto de la línea como el intérprete y lo lanza con el script como argumento. `#!/bin/bash` pide exactamente esa bash (en una Mac, una muy vieja, de la serie 3.2); `#!/usr/bin/env bash` busca `bash` en [[path-shell|PATH]], y es la forma más portátil; `#!/bin/sh` pide la shell básica, que en Debian es `dash` y no entiende todo lo de bash. Para que `./script.sh` funcione, el archivo necesita el [[permisos|permiso]] `x` (`chmod +x`); sin él, sale «Permission denied» con el código 126. El nombre viene de *sharp* (`#`) y *bang* (`!`).",
    "ejemplo": "Un `contar.sh` que empieza con `#!/usr/bin/env bash`: `./contar.sh tres.txt` da 126 hasta que `chmod +x contar.sh` lo vuelve ejecutable (`-rwxr-xr-x`). `bash contar.sh` funciona siempre, porque ahí el programa que corre es bash.",
    "ver": [
@@ -205,7 +205,7 @@
    "termino": "ssh",
    "en": "ssh · secure shell",
    "corto": "El programa para abrir una shell en otra computadora a través de la red, con todo cifrado: `ssh ana@gw-node`. Para probar quién eres usa casi siempre un par de llaves, una privada que no sale de tu laptop y una pública en el servidor.",
-   "largo": "Lo que tecleas lo lee una [[shell]] en la otra máquina, y los procesos corren allá; tu [[terminal]] solo dibuja. Usa el [[puerto]] 22 por omisión. La llave privada (por ejemplo `~/.ssh/id_ed25519`) se guarda con permisos 600; la pública se copia al servidor. `ssh host 'comando'` corre un solo comando allá: lo que va entre comillas lo resuelve la shell remota, y lo de afuera, la tuya. `ssh -L 8000:localhost:8000 host` abre un túnel desde tu puerto 8000 hasta el 8000 del servidor. Si se corta la conexión, los procesos de la sesión reciben SIGHUP; por eso los trabajos largos van en tmux o con nohup.",
+   "largo": "Lo que tecleas lo lee una [[shell]] en la otra máquina, y los procesos corren allá; tu [[terminal]] solo dibuja. Usa el [[puerto]] 22 por omisión. La llave privada (por ejemplo `~/.ssh/id_ed25519`, el tipo que `ssh-keygen` crea por omisión desde OpenSSH 9.5) se guarda con permisos 600, y ssh se niega a usarla si otros la pueden leer; la pública se copia al servidor. `ssh host 'comando'` corre un solo comando allá: lo que va entre comillas lo resuelve la shell remota, y lo de afuera, la tuya. `ssh -L 8000:localhost:8000 host` abre un túnel desde tu puerto 8000 hasta el 8000 del servidor. Si se corta la conexión, los procesos de la sesión reciben SIGHUP; por eso los trabajos largos van en tmux o con nohup.",
    "analogia": "Un control remoto con cable largo: los botones están en tu mano, pero la tele que obedece está en otro cuarto. Se rompe en que el cable va cifrado y en que puedes pedirle a la tele de allá que te mande solo lo que te interesa, en vez de todo.",
    "ejemplo": "Buscar `9f2c41d0` en un log de 3 GB: `ssh ana@gw-node 'grep 9f2c41d0 /var/log/gateway.log'` lo lee allá en ≈ 6 s y trae dos líneas; bajarlo con una red de 100 Mb/s tardaría ≈ 4 minutos.",
    "ver": [

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 414" role="img" aria-labelledby="f-terminal-palabras-t" class="f-svg" style="max-width:420px">
+<title id="f-terminal-palabras-t">Las palabras que arma la shell antes de lanzar el programa, en cuatro casos. Comillas: con rm mis fotos, rm recibe dos argumentos, mis y fotos; con rm "mis fotos", entre comillas, recibe uno solo, mis fotos. Comodines: con ls *.log, la shell reemplaza el patrón por los nombres que coinciden y ls recibe tres argumentos, gateway-1.log, gateway-2.log y triton.log, sin ver nunca el asterisco; con ls "*.log", entre comillas, la shell no toca el patrón y ls recibe un argumento, *.log, tal cual.</title>
+<rect class="f-card" x="10" y="10" width="340" height="394" rx="16"/>
+<text class="f-l" x="26" y="36" style="font-size:12px">LAS PALABRAS QUE ARMA LA SHELL</text>
+<text class="f-t" x="26" y="62" style="font-size:14px">Comillas</text>
+<rect class="f-chip" x="26" y="72" width="308" height="60" rx="12"/>
+<text class="f-t" x="40" y="94" style="font:700 13px var(--mono)">rm mis fotos</text>
+<text class="f-s" x="320" y="94" text-anchor="end" style="font-size:12px">2 argumentos</text>
+<text class="f-s" x="40" y="120" style="font-size:12px">rm recibe:</text>
+<rect class="f-b" x="108" y="104" width="44" height="22" rx="6"/>
+<text class="f-pill-t" x="130" y="120" text-anchor="middle" style="font:700 12px var(--mono)">mis</text>
+<rect class="f-b" x="158" y="104" width="56" height="22" rx="6"/>
+<text class="f-pill-t" x="186" y="120" text-anchor="middle" style="font:700 12px var(--mono)">fotos</text>
+<rect class="f-chip" x="26" y="140" width="308" height="60" rx="12"/>
+<text class="f-t" x="40" y="162" style="font:700 13px var(--mono)">rm "mis fotos"</text>
+<text class="f-s" x="320" y="162" text-anchor="end" style="font-size:12px">1 argumento</text>
+<text class="f-s" x="40" y="188" style="font-size:12px">rm recibe:</text>
+<rect class="f-b" x="108" y="172" width="84" height="22" rx="6"/>
+<text class="f-pill-t" x="150" y="188" text-anchor="middle" style="font:700 12px var(--mono)">mis fotos</text>
+<text class="f-t" x="26" y="226" style="font-size:14px">Comodines</text>
+<rect class="f-chip" x="26" y="236" width="308" height="90" rx="12"/>
+<text class="f-t" x="40" y="258" style="font:700 13px var(--mono)">ls *.log</text>
+<text class="f-s" x="320" y="258" text-anchor="end" style="font-size:12px">3 argumentos</text>
+<text class="f-s" x="40" y="284" style="font-size:12px">ls recibe:</text>
+<rect class="f-b" x="108" y="268" width="104" height="22" rx="6"/>
+<text class="f-pill-t" x="160" y="284" text-anchor="middle" style="font:700 12px var(--mono)">gateway-1.log</text>
+<rect class="f-b" x="218" y="268" width="104" height="22" rx="6"/>
+<text class="f-pill-t" x="270" y="284" text-anchor="middle" style="font:700 12px var(--mono)">gateway-2.log</text>
+<rect class="f-b" x="108" y="296" width="84" height="22" rx="6"/>
+<text class="f-pill-t" x="150" y="312" text-anchor="middle" style="font:700 12px var(--mono)">triton.log</text>
+<text class="f-s" x="200" y="312" style="font-size:12px">nunca ve el *</text>
+<rect class="f-chip" x="26" y="334" width="308" height="60" rx="12"/>
+<text class="f-t" x="40" y="356" style="font:700 13px var(--mono)">ls "*.log"</text>
+<text class="f-s" x="320" y="356" text-anchor="end" style="font-size:12px">1 argumento</text>
+<text class="f-s" x="40" y="382" style="font-size:12px">ls recibe:</text>
+<rect class="f-o" x="108" y="366" width="56" height="22" rx="6"/>
+<text class="f-pill-t" x="136" y="382" text-anchor="middle" style="font:700 12px var(--mono)">*.log</text>
+<text class="f-s" x="172" y="382" style="font-size:12px">el patrón, tal cual</text>
+</svg>

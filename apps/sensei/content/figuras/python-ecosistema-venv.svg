@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 430" role="img" aria-labelledby="f-python-ecosistema-venv-t" class="f-svg" style="max-width:420px">
+<title id="f-python-ecosistema-venv-t">El mismo comando, python, antes y después de activar un entorno virtual. La shell recorre las carpetas del PATH de izquierda a derecha y corre el primer python que encuentra; las demás ya no se revisan. Antes, el PATH empieza con /usr/local/bin: ahí está python, y corre /usr/local/bin/python, que ve el site-packages de base, donde está pytest. Después de source .venv/bin/activate, el PATH empieza con la carpeta nueva .venv/bin, y luego /usr/local/bin: ahora corre /home/ana/trabajo/.venv/bin/python, que ve el site-packages del entorno, con solo pip. Activar no copia ni instala nada: solo pone .venv/bin al principio del PATH, y deactivate la quita.</title>
+<rect class="f-card" x="10" y="10" width="340" height="410" rx="16"/>
+<text class="f-l" x="26" y="36" style="font-size:12px">EL PATH, DE IZQUIERDA A DERECHA</text>
+<!-- antes -->
+<rect class="f-chip" x="20" y="48" width="320" height="150" rx="12"/>
+<text class="f-t" x="32" y="72">Antes</text>
+<rect class="f-b" x="32" y="84" width="128" height="46" rx="8"/>
+<text class="f-pill-t" x="96" y="103" text-anchor="middle" style="font:700 12px var(--mono)">/usr/local/bin</text>
+<text class="f-pill-t" x="96" y="121" text-anchor="middle" style="font:700 12px var(--sans)">corre su python</text>
+<text class="f-s" x="166" y="112" style="font:700 13px var(--mono)">:</text>
+<rect class="f-off" x="176" y="84" width="94" height="46" rx="8"/>
+<text class="f-s" x="223" y="103" text-anchor="middle" style="font:700 12px var(--mono)">/usr/bin</text>
+<text class="f-s" x="223" y="121" text-anchor="middle" style="font-size:12px">no se revisa</text>
+<text class="f-s" x="276" y="112" style="font:700 13px var(--mono)">:</text>
+<rect class="f-off" x="286" y="84" width="42" height="46" rx="8"/>
+<text class="f-s" x="307" y="111" text-anchor="middle" style="font:700 13px var(--mono)">…</text>
+<text class="f-s" x="32" y="158" style="font:11px var(--mono)">python → /usr/local/bin/python</text>
+<text class="f-s" x="32" y="180" style="font-size:12px">ve el site-packages de base: ahí está pytest</text>
+<!-- flecha -->
+<line class="f-flecha" x1="44" y1="200" x2="44" y2="218"/>
+<polygon class="f-punta" points="38,217 50,217 44,226"/>
+<text class="f-t" x="60" y="218" style="font:700 12px var(--mono)">source .venv/bin/activate</text>
+<!-- después -->
+<rect class="f-chip" x="20" y="232" width="320" height="150" rx="12"/>
+<text class="f-t" x="32" y="256">Después</text>
+<rect class="f-o" x="104" y="242" width="128" height="20" rx="10"/>
+<text class="f-pill-t" x="168" y="256" text-anchor="middle" style="font:700 12px var(--sans)">.venv/bin, primero</text>
+<rect class="f-b" x="32" y="268" width="112" height="46" rx="8"/>
+<text class="f-pill-t" x="88" y="287" text-anchor="middle" style="font:700 12px var(--mono)">.venv/bin</text>
+<text class="f-pill-t" x="88" y="305" text-anchor="middle" style="font:700 12px var(--sans)">corre su python</text>
+<text class="f-s" x="150" y="296" style="font:700 13px var(--mono)">:</text>
+<rect class="f-off" x="160" y="268" width="118" height="46" rx="8"/>
+<text class="f-s" x="219" y="287" text-anchor="middle" style="font:700 12px var(--mono)">/usr/local/bin</text>
+<text class="f-s" x="219" y="305" text-anchor="middle" style="font-size:12px">no se revisa</text>
+<text class="f-s" x="284" y="296" style="font:700 13px var(--mono)">:</text>
+<rect class="f-off" x="294" y="268" width="34" height="46" rx="8"/>
+<text class="f-s" x="311" y="295" text-anchor="middle" style="font:700 13px var(--mono)">…</text>
+<text class="f-s" x="32" y="342" style="font:11px var(--mono)">python → /home/ana/trabajo/.venv/bin/python</text>
+<text class="f-s" x="32" y="364" style="font-size:12px">ve el site-packages del entorno: solo pip</text>
+<text class="f-s" x="26" y="406" style="font-size:12px">No copia ni instala nada. deactivate la quita.</text>
+</svg>

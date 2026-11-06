@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 452" role="img" aria-labelledby="f-python-ecosistema-arbol-t" class="f-svg" style="max-width:420px">
+<title id="f-python-ecosistema-arbol-t">Una parte del árbol de dependencias del gateway de C01. A la izquierda, cuatro de las 9 dependencias que el equipo pidió, y debajo de cada una lo que ella pide. fastapi pide starlette, que pide anyio, que pide idna; y fastapi pide también pydantic, que pide pydantic-core. uvicorn pide h11. aiohttp pide yarl, que pide idna y multidict, y aiohttp pide también multidict directamente. pillow no pide nada: su código compilado viene adentro. idna cuelga de dos ramas, la de fastapi y la de aiohttp, y multidict de dos lugares, aiohttp y yarl. A la derecha, el site-packages: cada paquete aparece una sola vez, idna y multidict incluidos, porque en un site-packages cabe una versión de cada uno.</title>
+<rect class="f-card" x="10" y="10" width="340" height="432" rx="16"/>
+<text class="f-l" x="26" y="36" style="font-size:12px">UNA PARTE DEL ÁRBOL DEL GATEWAY</text>
+<rect class="f-b" x="26" y="46" width="14" height="14" rx="3"/>
+<text class="f-s" x="46" y="58" style="font-size:12px">la pidió el equipo</text>
+<rect class="f-o" x="164" y="46" width="14" height="14" rx="3"/>
+<text class="f-s" x="184" y="58" style="font-size:12px">cuelga de dos lados</text>
+<!-- fastapi -->
+<rect class="f-b" x="26" y="70" width="70" height="22" rx="6"/>
+<text class="f-pill-t" x="61" y="86" text-anchor="middle" style="font:700 13px var(--sans)">fastapi</text>
+<polyline class="f-linea" points="36,92 36,112 52,112"/>
+<polyline class="f-linea" points="36,112 36,178 52,178"/>
+<text class="f-s" x="56" y="116">starlette</text>
+<polyline class="f-linea" points="62,120 62,134 76,134"/>
+<text class="f-s" x="80" y="138">anyio</text>
+<polyline class="f-linea" points="86,142 86,156 100,156"/>
+<rect class="f-o" x="104" y="146" width="44" height="20" rx="6"/>
+<text class="f-pill-t" x="126" y="160" text-anchor="middle" style="font:700 12px var(--sans)">idna</text>
+<text class="f-s" x="56" y="182">pydantic</text>
+<polyline class="f-linea" points="62,186 62,200 76,200"/>
+<text class="f-s" x="80" y="204">pydantic-core</text>
+<!-- uvicorn -->
+<rect class="f-b" x="26" y="218" width="70" height="22" rx="6"/>
+<text class="f-pill-t" x="61" y="234" text-anchor="middle" style="font:700 13px var(--sans)">uvicorn</text>
+<polyline class="f-linea" points="36,240 36,256 52,256"/>
+<text class="f-s" x="56" y="260">h11</text>
+<!-- aiohttp -->
+<rect class="f-b" x="26" y="274" width="70" height="22" rx="6"/>
+<text class="f-pill-t" x="61" y="290" text-anchor="middle" style="font:700 13px var(--sans)">aiohttp</text>
+<polyline class="f-linea" points="36,296 36,312 52,312"/>
+<polyline class="f-linea" points="36,312 36,388 52,388"/>
+<text class="f-s" x="56" y="316">yarl</text>
+<polyline class="f-linea" points="62,320 62,336 76,336"/>
+<polyline class="f-linea" points="62,336 62,360 76,360"/>
+<rect class="f-o" x="80" y="326" width="44" height="20" rx="6"/>
+<text class="f-pill-t" x="102" y="340" text-anchor="middle" style="font:700 12px var(--sans)">idna</text>
+<rect class="f-o" x="80" y="350" width="70" height="20" rx="6"/>
+<text class="f-pill-t" x="115" y="364" text-anchor="middle" style="font:700 12px var(--sans)">multidict</text>
+<rect class="f-o" x="56" y="378" width="70" height="20" rx="6"/>
+<text class="f-pill-t" x="91" y="392" text-anchor="middle" style="font:700 12px var(--sans)">multidict</text>
+<!-- pillow -->
+<rect class="f-b" x="26" y="410" width="70" height="22" rx="6"/>
+<text class="f-pill-t" x="61" y="426" text-anchor="middle" style="font:700 13px var(--sans)">pillow</text>
+<text class="f-s" x="104" y="426" style="font-size:12px">no pide nada</text>
+<!-- site-packages -->
+<rect class="f-chip" x="206" y="70" width="132" height="316" rx="12"/>
+<text class="f-l" x="218" y="92" style="font-size:12px">SITE-PACKAGES</text>
+<text class="f-s" x="218" y="110" style="font-size:12px">cada uno, una vez</text>
+<rect class="f-b" x="218" y="122" width="10" height="10" rx="2"/>
+<text class="f-s" x="234" y="132">aiohttp</text>
+<text class="f-s" x="234" y="154">anyio</text>
+<rect class="f-b" x="218" y="166" width="10" height="10" rx="2"/>
+<text class="f-s" x="234" y="176">fastapi</text>
+<text class="f-s" x="234" y="198">h11</text>
+<rect class="f-o" x="230" y="206" width="44" height="20" rx="6"/>
+<text class="f-pill-t" x="252" y="220" text-anchor="middle" style="font:700 12px var(--sans)">idna</text>
+<rect class="f-o" x="230" y="230" width="70" height="20" rx="6"/>
+<text class="f-pill-t" x="265" y="244" text-anchor="middle" style="font:700 12px var(--sans)">multidict</text>
+<rect class="f-b" x="218" y="256" width="10" height="10" rx="2"/>
+<text class="f-s" x="234" y="266">pillow</text>
+<text class="f-s" x="234" y="288">pydantic</text>
+<text class="f-s" x="234" y="310">pydantic-core</text>
+<text class="f-s" x="234" y="332">starlette</text>
+<rect class="f-b" x="218" y="344" width="10" height="10" rx="2"/>
+<text class="f-s" x="234" y="354">uvicorn</text>
+<text class="f-s" x="234" y="376">yarl</text>
+</svg>

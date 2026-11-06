@@ -1,0 +1,24 @@
+{
+  "titulo": "Las requests que paga un pod sin warmup",
+  "intro": "Mientras el servidor compila o se prepara, las requests que llegan esperan, y las que esperan más que el [[timeout]] del gateway fallan. Arranca con un pod nuevo que sirve la ResNet-50 con [[torch-compile|torch.compile]]: 50 requests por segundo, ≈ 17 s la primera llamada y 2 recompilaciones de ≈ 6 s.",
+  "entradas": [
+    { "id": "rps", "label": "Requests por segundo que llegan al pod", "min": 1, "max": 500, "paso": 1, "valor": 50 },
+    { "id": "t1", "label": "Segundos de la primera llamada", "min": 0, "max": 60, "paso": 0.5, "valor": 17, "unidad": "s" },
+    { "id": "n", "label": "Recompilaciones que paga el tráfico", "min": 0, "max": 10, "paso": 1, "valor": 2 },
+    { "id": "tr", "label": "Segundos de cada recompilación", "min": 0, "max": 30, "paso": 0.5, "valor": 6, "unidad": "s" },
+    { "id": "to", "label": "Timeout del gateway", "min": 0.05, "max": 2, "paso": 0.05, "valor": 0.15, "unidad": "s" },
+    { "id": "pods", "label": "Pods que arrancan a la vez", "min": 1, "max": 50, "paso": 1, "valor": 1 }
+  ],
+  "calculos": [
+    { "id": "f1", "formula": "rps * t1 * min(1, floor(t1 / to))" },
+    { "id": "fr", "formula": "n * rps * tr * min(1, floor(tr / to))" }
+  ],
+  "salidas": [
+    { "label": "Segundos de preparación que paga el tráfico", "formula": "t1 + n * tr", "formato": "num", "decimales": 1 },
+    { "label": "Fallan por la primera llamada", "formula": "f1", "formato": "int" },
+    { "label": "Fallan por las recompilaciones", "formula": "fr", "formato": "int" },
+    { "label": "Fallan en un pod", "formula": "f1 + fr", "formato": "int" },
+    { "label": "Fallan en todos los pods nuevos", "formula": "(f1 + fr) * pods", "formato": "int", "nota": "justo cuando el autoescalado agrega pods" }
+  ],
+  "nota": "Cuenta aproximada: toma como fallidas todas las requests que llegan mientras el servidor está ocupado, si esa espera pasa el timeout. Con 17 s, 2 × 6 s y 50 requests por segundo fallan 1,450 en el pod. En eager, sin compilar, la primera llamada en la CPU de la Mac tardó ≈ 17 a 35 ms: no pasa los 0.15 s y no tira ninguna."
+}
