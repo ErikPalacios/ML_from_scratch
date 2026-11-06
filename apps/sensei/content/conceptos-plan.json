@@ -29,10 +29,16 @@
     "balanceo": ["balanceador", "algoritmo-balanceo", "proxy", "proxy-inverso", "api-gateway", "ingress", "service-k8s", "health-check", "rate-limit", "token-bucket", "sticky-session", "service-mesh", "sidecar", "cdn", "ruteo-por-peso"],
     "fallas-red": ["timeout", "deadline", "reintento", "backoff-exponencial", "jitter", "retry-after", "tormenta-reintentos", "presupuesto-reintentos", "idempotencia", "llave-idempotencia", "circuit-breaker", "degradacion", "load-shedding", "hedging", "fail-open"],
     "latencia": ["latencia-punta-a-punta", "tiempo-servicio", "tiempo-en-cola", "utilizacion", "teoria-colas", "saturacion", "cuello-botella", "capacidad", "headroom", "prueba-carga", "carga-abierta", "backpressure", "cola-acotada", "batching-dinamico", "goodput"],
-    "colas": ["cola-mensajes", "at-least-once"],
+    "formatos": ["archivo", "formato-archivo", "formato-binario", "utf-8", "csv", "json-lines", "yaml", "parquet", "formato-columnar", "compresion", "esquema-datos", "evolucion-esquema", "avro", "pickle", "safetensors"],
+    "bases-de-datos": ["base-datos", "tabla", "llave-primaria", "sql", "indice-bd", "join", "transaccion", "base-relacional", "nosql", "llave-valor", "redis", "cache", "upsert", "tombstone", "replica-lectura", "consistencia-eventual"],
+    "almacenamiento": ["object-storage", "bucket-objetos", "url-prefirmada", "durabilidad", "clase-almacenamiento", "ciclo-vida", "almacenamiento-bloques", "data-lake", "data-warehouse", "oltp-olap", "lakehouse", "particion-datos", "snapshot", "retencion", "feature-store", "backfill"],
+    "colas": ["cola-mensajes", "productor", "consumidor", "broker", "stream-eventos", "topico", "particion-topico", "offset", "grupo-consumidores", "at-least-once", "at-most-once", "exactly-once", "visibility-timeout", "dlq", "lag-consumidor", "cdc"],
+    "tiempo-hash": ["timestamp", "tiempo-unix", "utc", "iso-8601", "reloj-monotonico", "desfase-reloj", "event-time", "ventana-tiempo", "watermark", "point-in-time", "funcion-hash", "hash-criptografico", "checksum", "sharding", "asignacion-hash", "uuid", "request-id"],
     "redes-nube": ["vpc", "nat", "egress"],
-    "cifrado": ["tls", "mtls"],
+    "cifrado": ["tls", "mtls", "hmac"],
     "identidad": ["jwt", "api-key"],
-    "e10-rollout": ["canary"]
+    "e10-rollout": ["canary"],
+    "e02-versionado": ["versionado-datos", "linaje"],
+    "e05-export": ["onnx", "engine-tensorrt"]
   }
 }

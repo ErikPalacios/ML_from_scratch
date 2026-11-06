@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 486" role="img" aria-labelledby="f-almacenamiento-llaves-t" class="f-svg" style="max-width:420px">
+<title id="f-almacenamiento-llaves-t">Las carpetas de un bucket no existen. Arriba, lo que enseña la consola: una carpeta logs, cerrada, y una carpeta fotos, dentro 2026, dentro 11, y dentro dos carpetas, 06 con ana-tenis.jpg y beto-bici.jpg, y 07 con caro-lampara.jpg. Abajo, lo que de verdad hay: una lista plana de cuatro llaves en orden alfabético, fotos/2026/11/06/ana-tenis.jpg, fotos/2026/11/06/beto-bici.jpg, fotos/2026/11/07/caro-lampara.jpg y logs/dt=2026-11-06/part-0000.parquet. Las dos primeras comparten el prefijo fotos/2026/11/06/, que está resaltado. Un LIST con ese prefijo devuelve esas dos llaves. La diagonal es una letra más de la llave.</title>
+<rect class="f-card" x="10" y="10" width="340" height="466" rx="16"/>
+<text class="f-l" x="26" y="36">LO QUE ENSEÑA LA CONSOLA</text>
+<rect class="f-y" x="28" y="52" width="16" height="12" rx="2"/>
+<text class="f-s" x="52" y="63">fotos/</text>
+<line class="f-linea" x1="36" y1="68" x2="36" y2="84"/>
+<line class="f-linea" x1="36" y1="84" x2="46" y2="84"/>
+<rect class="f-y" x="50" y="78" width="16" height="12" rx="2"/>
+<text class="f-s" x="74" y="89">2026/</text>
+<line class="f-linea" x1="58" y1="94" x2="58" y2="110"/>
+<line class="f-linea" x1="58" y1="110" x2="68" y2="110"/>
+<rect class="f-y" x="72" y="104" width="16" height="12" rx="2"/>
+<text class="f-s" x="96" y="115">11/</text>
+<line class="f-linea" x1="80" y1="120" x2="80" y2="214"/>
+<line class="f-linea" x1="80" y1="136" x2="90" y2="136"/>
+<rect class="f-y" x="94" y="130" width="16" height="12" rx="2"/>
+<text class="f-s" x="118" y="141" style="font-weight:700">06/</text>
+<line class="f-linea" x1="102" y1="146" x2="102" y2="188"/>
+<line class="f-linea" x1="102" y1="162" x2="112" y2="162"/>
+<rect class="f-b2" x="116" y="155" width="11" height="14" rx="2"/>
+<text class="f-s" x="134" y="167">ana-tenis.jpg</text>
+<line class="f-linea" x1="102" y1="188" x2="112" y2="188"/>
+<rect class="f-b2" x="116" y="181" width="11" height="14" rx="2"/>
+<text class="f-s" x="134" y="193">beto-bici.jpg</text>
+<line class="f-linea" x1="80" y1="214" x2="90" y2="214"/>
+<rect class="f-y" x="94" y="208" width="16" height="12" rx="2"/>
+<text class="f-s" x="118" y="219">07/</text>
+<line class="f-linea" x1="102" y1="224" x2="102" y2="240"/>
+<line class="f-linea" x1="102" y1="240" x2="112" y2="240"/>
+<rect class="f-b2" x="116" y="233" width="11" height="14" rx="2"/>
+<text class="f-s" x="134" y="245">caro-lampara.jpg</text>
+<text class="f-s" x="206" y="104" style="font-size:12px">Parecen carpetas,</text>
+<text class="f-s" x="206" y="120" style="font-size:12px">pero nadie las creó:</text>
+<text class="f-s" x="206" y="136" style="font-size:12px">la consola las dibuja</text>
+<text class="f-s" x="206" y="152" style="font-size:12px">cortando en cada «/».</text>
+<rect class="f-y" x="28" y="256" width="16" height="12" rx="2"/>
+<text class="f-s" x="52" y="267">logs/</text>
+<text class="f-s" x="96" y="267" style="font-size:12px">(otra «carpeta», cerrada)</text>
+<line class="f-linea" x1="26" y1="292" x2="334" y2="292" style="stroke-dasharray:3 4"/>
+<text class="f-l" x="26" y="316">LO QUE HAY: LLAVES EN ORDEN</text>
+<rect class="f-chip" x="22" y="326" width="316" height="22" rx="6"/>
+<rect x="26" y="329" width="125" height="16" rx="4" style="fill:var(--b);opacity:.3"/>
+<text class="f-s" x="28" y="342" style="font:12px var(--mono)">fotos/2026/11/06/ana-tenis.jpg</text>
+<rect class="f-chip" x="22" y="352" width="316" height="22" rx="6"/>
+<rect x="26" y="355" width="125" height="16" rx="4" style="fill:var(--b);opacity:.3"/>
+<text class="f-s" x="28" y="368" style="font:12px var(--mono)">fotos/2026/11/06/beto-bici.jpg</text>
+<rect class="f-chip" x="22" y="378" width="316" height="22" rx="6"/>
+<text class="f-s" x="28" y="394" style="font:12px var(--mono)">fotos/2026/11/07/caro-lampara.jpg</text>
+<rect class="f-chip" x="22" y="404" width="316" height="22" rx="6"/>
+<text class="f-s" x="28" y="420" style="font:12px var(--mono)">logs/dt=2026-11-06/part-0000.parquet</text>
+<text class="f-t" x="26" y="446" style="font-size:13px">LIST «fotos/2026/11/06/» → 2 llaves</text>
+<text class="f-s" x="26" y="462" style="font-size:12px">La «/» es una letra más de la llave.</text>
+</svg>

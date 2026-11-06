@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 438" role="img" aria-labelledby="f-tiempo-hash-cambio-horario-t" class="f-svg" style="max-width:420px">
+<title id="f-tiempo-hash-cambio-horario-t">Los dos cambios de horario de Tijuana en 2026, con la hora local arriba y UTC abajo, hora por hora. El 8 de marzo, las 8, 9, 10 y 11 en UTC son, en Tijuana, las 0:00, la 1:00, las 3:00 y las 4:00: el reloj brinca de 1:59 a 3:00, y las 2:30 de ese día no existen. Antes del brinco es UTC menos 8 y después, UTC menos 7. El 1 de noviembre, las 7, 8, 9 y 10 en UTC son, en Tijuana, las 0:00, la 1:00, otra vez la 1:00 y las 2:00: el reloj regresa de 1:59 a 1:00, y la 1:30 pasa dos veces, a las 8:30 y a las 9:30 en UTC. En UTC cada hora llega una sola vez y en orden.</title>
+<rect class="f-card" x="10" y="10" width="340" height="418" rx="16"/>
+<text class="f-l" x="26" y="36">TIJUANA, 2026: UNA HORA FALTA, OTRA SOBRA</text>
+<text class="f-t" x="26" y="64" style="font-size:14px">8 de marzo: el reloj brinca</text>
+<text class="f-l" x="26" y="97">LOCAL</text>
+<rect class="f-b" x="86" y="78" width="58" height="28" rx="7"/>
+<text class="f-pill-t" x="115" y="97" text-anchor="middle" style="font:700 13px var(--mono)">0:00</text>
+<rect class="f-b" x="148" y="78" width="58" height="28" rx="7"/>
+<text class="f-pill-t" x="177" y="97" text-anchor="middle" style="font:700 13px var(--mono)">1:00</text>
+<rect class="f-b" x="210" y="78" width="58" height="28" rx="7"/>
+<text class="f-pill-t" x="239" y="97" text-anchor="middle" style="font:700 13px var(--mono)">3:00</text>
+<rect class="f-b" x="272" y="78" width="58" height="28" rx="7"/>
+<text class="f-pill-t" x="301" y="97" text-anchor="middle" style="font:700 13px var(--mono)">4:00</text>
+<line x1="208" y1="72" x2="208" y2="112" style="stroke:var(--o);stroke-width:3;stroke-linecap:round"/>
+<text class="f-l" x="26" y="133">UTC</text>
+<rect class="f-chip" x="86" y="114" width="58" height="28" rx="7"/>
+<text class="f-t" x="115" y="133" text-anchor="middle" style="font:700 13px var(--mono)">08:00</text>
+<rect class="f-chip" x="148" y="114" width="58" height="28" rx="7"/>
+<text class="f-t" x="177" y="133" text-anchor="middle" style="font:700 13px var(--mono)">09:00</text>
+<rect class="f-chip" x="210" y="114" width="58" height="28" rx="7"/>
+<text class="f-t" x="239" y="133" text-anchor="middle" style="font:700 13px var(--mono)">10:00</text>
+<rect class="f-chip" x="272" y="114" width="58" height="28" rx="7"/>
+<text class="f-t" x="301" y="133" text-anchor="middle" style="font:700 13px var(--mono)">11:00</text>
+<text class="f-s" x="26" y="166" style="font-size:12px">Antes, UTC−8; después, UTC−7.</text>
+<text class="f-s" x="26" y="184" style="font-size:12px"><tspan style="fill:var(--o);font-weight:700">Las 2:30 no existen:</tspan> de 1:59 se pasa a 3:00.</text>
+<line x1="26" y1="204" x2="334" y2="204" style="stroke:var(--rule);stroke-width:1.5"/>
+<text class="f-t" x="26" y="232" style="font-size:14px">1 de noviembre: el reloj regresa</text>
+<text class="f-l" x="26" y="265">LOCAL</text>
+<rect class="f-b" x="86" y="246" width="58" height="28" rx="7"/>
+<text class="f-pill-t" x="115" y="265" text-anchor="middle" style="font:700 13px var(--mono)">0:00</text>
+<rect class="f-o" x="148" y="246" width="58" height="28" rx="7"/>
+<text class="f-pill-t" x="177" y="265" text-anchor="middle" style="font:700 13px var(--mono)">1:00</text>
+<rect class="f-o" x="210" y="246" width="58" height="28" rx="7"/>
+<text class="f-pill-t" x="239" y="265" text-anchor="middle" style="font:700 13px var(--mono)">1:00</text>
+<rect class="f-b" x="272" y="246" width="58" height="28" rx="7"/>
+<text class="f-pill-t" x="301" y="265" text-anchor="middle" style="font:700 13px var(--mono)">2:00</text>
+<text class="f-l" x="26" y="301">UTC</text>
+<rect class="f-chip" x="86" y="282" width="58" height="28" rx="7"/>
+<text class="f-t" x="115" y="301" text-anchor="middle" style="font:700 13px var(--mono)">07:00</text>
+<rect class="f-chip" x="148" y="282" width="58" height="28" rx="7"/>
+<text class="f-t" x="177" y="301" text-anchor="middle" style="font:700 13px var(--mono)">08:00</text>
+<rect class="f-chip" x="210" y="282" width="58" height="28" rx="7"/>
+<text class="f-t" x="239" y="301" text-anchor="middle" style="font:700 13px var(--mono)">09:00</text>
+<rect class="f-chip" x="272" y="282" width="58" height="28" rx="7"/>
+<text class="f-t" x="301" y="301" text-anchor="middle" style="font:700 13px var(--mono)">10:00</text>
+<text class="f-s" x="26" y="334" style="font-size:12px">Antes, UTC−7; después, UTC−8.</text>
+<text class="f-s" x="26" y="352" style="font-size:12px"><tspan style="fill:var(--o);font-weight:700">La 1:30 pasa dos veces:</tspan> 08:30 y 09:30 en UTC.</text>
+<rect class="f-chip" x="24" y="368" width="312" height="48" rx="10"/>
+<text class="f-t" x="38" y="388" style="font-size:13px">En UTC no pasa nada raro:</text>
+<text class="f-s" x="38" y="406" style="font-size:12px">cada hora llega una vez, y en orden.</text>
+</svg>

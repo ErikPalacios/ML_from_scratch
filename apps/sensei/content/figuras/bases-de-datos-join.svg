@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 440" role="img" aria-labelledby="f-bases-de-datos-join-t" class="f-svg" style="max-width:420px">
+<title id="f-bases-de-datos-join-t">Un JOIN entre dos tablas por la columna request_id. A la izquierda, publicaciones, con cuatro filas: r-101 tenis, r-102 botas, r-103 bolsas y r-104 tenis. A la derecha, predicciones, en otro orden y con tres filas: r-103 bolsas, r-101 tenis y r-102 tenis. Unas líneas unen cada request_id con el mismo de la otra tabla, sin importar la posición; r-104 no tiene pareja, porque su predicción no llegó. Abajo, el resultado del LEFT JOIN, con las columnas request_id, categoría, top1 y si acertó: r-101 tenis, tenis, sí; r-102 botas, tenis, no; r-103 bolsas, bolsas, sí; r-104 tenis, NULL, sin dato. El INNER JOIN se queda solo con las tres primeras filas, las que tienen pareja; el LEFT JOIN agrega la cuarta, con NULL donde faltó la predicción. El top-1 acertó 2 de 3, 67 por ciento.</title>
+<rect class="f-card" x="10" y="10" width="340" height="420" rx="16"/>
+<text class="f-l" x="26" y="36" style="font-size:12px">DOS TABLAS, UNIDAS POR SU LLAVE</text>
+<text class="f-t" x="20" y="58" style="font-size:13px">publicaciones</text>
+<text class="f-t" x="196" y="58" style="font-size:13px">predicciones</text>
+<rect class="f-chip" x="20" y="66" width="144" height="24" rx="5"/>
+<text class="f-s" x="26" y="83" style="font-size:12px;font-weight:700">request_id</text>
+<text class="f-s" x="104" y="83" style="font-size:12px;font-weight:700">categoría</text>
+<text class="f-s" x="26" y="107">r-101</text><text class="f-s" x="104" y="107">tenis</text>
+<text class="f-s" x="26" y="131">r-102</text><text class="f-s" x="104" y="131">botas</text>
+<text class="f-s" x="26" y="155">r-103</text><text class="f-s" x="104" y="155">bolsas</text>
+<text class="f-s" x="26" y="179">r-104</text><text class="f-s" x="104" y="179">tenis</text>
+<line class="f-linea" x1="20" y1="114" x2="164" y2="114" style="stroke-width:1"/>
+<line class="f-linea" x1="20" y1="138" x2="164" y2="138" style="stroke-width:1"/>
+<line class="f-linea" x1="20" y1="162" x2="164" y2="162" style="stroke-width:1"/>
+<line class="f-linea" x1="20" y1="186" x2="164" y2="186" style="stroke-width:1"/>
+<rect class="f-chip" x="196" y="66" width="144" height="24" rx="5"/>
+<text class="f-s" x="202" y="83" style="font-size:12px;font-weight:700">request_id</text>
+<text class="f-s" x="284" y="83" style="font-size:12px;font-weight:700">top1</text>
+<text class="f-s" x="202" y="107">r-103</text><text class="f-s" x="284" y="107">bolsas</text>
+<text class="f-s" x="202" y="131">r-101</text><text class="f-s" x="284" y="131">tenis</text>
+<text class="f-s" x="202" y="155">r-102</text><text class="f-s" x="284" y="155">tenis</text>
+<line class="f-linea" x1="196" y1="114" x2="340" y2="114" style="stroke-width:1"/>
+<line class="f-linea" x1="196" y1="138" x2="340" y2="138" style="stroke-width:1"/>
+<line class="f-linea" x1="196" y1="162" x2="340" y2="162" style="stroke-width:1"/>
+<line x1="166" y1="102" x2="194" y2="126" style="stroke:var(--b);stroke-width:2"/>
+<line x1="166" y1="126" x2="194" y2="150" style="stroke:var(--b);stroke-width:2"/>
+<line x1="166" y1="150" x2="194" y2="102" style="stroke:var(--b);stroke-width:2"/>
+<line x1="166" y1="174" x2="190" y2="174" style="stroke:var(--o);stroke-width:2;stroke-dasharray:4 3"/>
+<text class="f-s" x="200" y="179" style="font-size:12px;fill:var(--o);font-weight:700">r-104: no llegó</text>
+<text class="f-l" x="26" y="218" style="font-size:12px">EL RESULTADO DEL LEFT JOIN</text>
+<rect class="f-chip" x="24" y="228" width="312" height="24" rx="5"/>
+<text class="f-s" x="30" y="245" style="font-size:12px;font-weight:700">request_id</text>
+<text class="f-s" x="110" y="245" style="font-size:12px;font-weight:700">categoría</text>
+<text class="f-s" x="190" y="245" style="font-size:12px;font-weight:700">top1</text>
+<text class="f-s" x="270" y="245" style="font-size:12px;font-weight:700">¿acertó?</text>
+<rect x="24" y="324" width="312" height="24" rx="4" style="fill:var(--y);opacity:.28"/>
+<text class="f-s" x="30" y="269">r-101</text><text class="f-s" x="110" y="269">tenis</text><text class="f-s" x="190" y="269">tenis</text>
+<text x="270" y="269" style="fill:var(--g);font:700 13px var(--sans)">sí</text>
+<text class="f-s" x="30" y="293">r-102</text><text class="f-s" x="110" y="293">botas</text><text class="f-s" x="190" y="293">tenis</text>
+<text x="270" y="293" style="fill:var(--o);font:700 13px var(--sans)">no</text>
+<text class="f-s" x="30" y="317">r-103</text><text class="f-s" x="110" y="317">bolsas</text><text class="f-s" x="190" y="317">bolsas</text>
+<text x="270" y="317" style="fill:var(--g);font:700 13px var(--sans)">sí</text>
+<text class="f-s" x="30" y="341">r-104</text><text class="f-s" x="110" y="341">tenis</text>
+<text class="f-t" x="190" y="341" style="font-size:13px">NULL</text>
+<text class="f-s" x="270" y="341">—</text>
+<line class="f-linea" x1="24" y1="276" x2="336" y2="276" style="stroke-width:1"/>
+<line class="f-linea" x1="24" y1="300" x2="336" y2="300" style="stroke-width:1"/>
+<line class="f-linea" x1="24" y1="324" x2="336" y2="324" style="stroke-width:1"/>
+<rect class="f-b" x="16" y="254" width="4" height="68" rx="2"/>
+<rect class="f-b" x="26" y="362" width="4" height="16" rx="2"/>
+<text class="f-s" x="40" y="375" style="font-size:12px"><tspan style="font-weight:700">INNER JOIN:</tspan> solo las 3 que tienen pareja.</text>
+<rect x="24" y="386" width="10" height="16" rx="2" style="fill:var(--y);opacity:.5"/>
+<text class="f-s" x="40" y="399" style="font-size:12px"><tspan style="font-weight:700">LEFT JOIN:</tspan> las 4; donde falta, NULL.</text>
+<text class="f-t" x="26" y="420" style="font-size:13px">El top-1 acertó 2 de 3: 67 %.</text>
+</svg>

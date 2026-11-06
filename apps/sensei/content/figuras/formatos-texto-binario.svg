@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 372" role="img" aria-labelledby="f-formatos-texto-binario-t" class="f-svg" style="max-width:420px">
+<title id="f-formatos-texto-binario-t">El número 1,234,567 de dos maneras. Como texto son siete letras, del 1 al 7, y cada una ocupa un byte: 31, 32, 33, 34, 35, 36 y 37 en hexadecimal. Como entero de 32 bits son cuatro bytes, 87, D6, 12 y 00, con el más chico primero, porque 1,234,567 es 0x0012D687. Esos mismos cuatro bytes, leídos como float32, dan 1.73 por 10 a la menos 39: los bytes no cambian, cambia quien los lee.</title>
+<rect class="f-card" x="10" y="10" width="340" height="352" rx="16"/>
+<text class="f-l" x="28" y="36">EL NÚMERO 1,234,567</text>
+
+<text class="f-s" x="28" y="62" style="font-size:13px;font-weight:600">Como texto: 7 letras, 7 bytes</text>
+<rect class="f-chip" x="28" y="72" width="40" height="34" rx="6"/>
+<text class="f-t" x="48" y="95" text-anchor="middle" style="font-size:16px">1</text>
+<rect class="f-chip" x="72" y="72" width="40" height="34" rx="6"/>
+<text class="f-t" x="92" y="95" text-anchor="middle" style="font-size:16px">2</text>
+<rect class="f-chip" x="116" y="72" width="40" height="34" rx="6"/>
+<text class="f-t" x="136" y="95" text-anchor="middle" style="font-size:16px">3</text>
+<rect class="f-chip" x="160" y="72" width="40" height="34" rx="6"/>
+<text class="f-t" x="180" y="95" text-anchor="middle" style="font-size:16px">4</text>
+<rect class="f-chip" x="204" y="72" width="40" height="34" rx="6"/>
+<text class="f-t" x="224" y="95" text-anchor="middle" style="font-size:16px">5</text>
+<rect class="f-chip" x="248" y="72" width="40" height="34" rx="6"/>
+<text class="f-t" x="268" y="95" text-anchor="middle" style="font-size:16px">6</text>
+<rect class="f-chip" x="292" y="72" width="40" height="34" rx="6"/>
+<text class="f-t" x="312" y="95" text-anchor="middle" style="font-size:16px">7</text>
+<text class="f-s" x="48" y="124" text-anchor="middle" style="font:12px var(--mono)">31</text>
+<text class="f-s" x="92" y="124" text-anchor="middle" style="font:12px var(--mono)">32</text>
+<text class="f-s" x="136" y="124" text-anchor="middle" style="font:12px var(--mono)">33</text>
+<text class="f-s" x="180" y="124" text-anchor="middle" style="font:12px var(--mono)">34</text>
+<text class="f-s" x="224" y="124" text-anchor="middle" style="font:12px var(--mono)">35</text>
+<text class="f-s" x="268" y="124" text-anchor="middle" style="font:12px var(--mono)">36</text>
+<text class="f-s" x="312" y="124" text-anchor="middle" style="font:12px var(--mono)">37</text>
+<text class="f-s" x="28" y="142" style="font-size:12px">Abajo, el byte de cada letra, en hexadecimal.</text>
+
+<text class="f-s" x="28" y="176" style="font-size:13px;font-weight:600">Como int32: 4 bytes, el más chico primero</text>
+<rect class="f-b" x="28" y="186" width="70" height="34" rx="6"/>
+<text class="f-pill-t" x="63" y="209" text-anchor="middle" style="font:800 15px var(--mono)">87</text>
+<rect class="f-b" x="104" y="186" width="70" height="34" rx="6"/>
+<text class="f-pill-t" x="139" y="209" text-anchor="middle" style="font:800 15px var(--mono)">D6</text>
+<rect class="f-b" x="180" y="186" width="70" height="34" rx="6"/>
+<text class="f-pill-t" x="215" y="209" text-anchor="middle" style="font:800 15px var(--mono)">12</text>
+<rect class="f-b" x="256" y="186" width="70" height="34" rx="6"/>
+<text class="f-pill-t" x="291" y="209" text-anchor="middle" style="font:800 15px var(--mono)">00</text>
+<text class="f-s" x="63" y="238" text-anchor="middle" style="font-size:12px">el más chico</text>
+<text class="f-s" x="291" y="238" text-anchor="middle" style="font-size:12px">el más grande</text>
+<text class="f-t" x="28" y="264" style="font-size:14px">0x0012D687 = 1,234,567</text>
+
+<rect class="f-chip" x="24" y="282" width="312" height="64" rx="10"/>
+<text class="f-t" x="38" y="306" style="font-size:13px">Los mismos 4 bytes como float32:</text>
+<text class="f-s" x="38" y="326" style="font-size:12px">1.73 × 10⁻³⁹, un número que no tiene nada</text>
+<text class="f-s" x="38" y="341" style="font-size:12px">que ver. Los bytes no cambian; cambia quien lee.</text>
+</svg>

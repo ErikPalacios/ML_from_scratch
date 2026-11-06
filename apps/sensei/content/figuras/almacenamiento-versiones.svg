@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 436" role="img" aria-labelledby="f-almacenamiento-versiones-t" class="f-svg" style="max-width:420px">
+<title id="f-almacenamiento-versiones-t">Cómo guarda versiones un lakehouse. En el bucket hay cinco archivos Parquet, A, B, C, D y E. Un registro aparte dice qué archivos forman cada versión de la tabla. La versión 1 son A y B. La versión 2 agrega filas en C: A, B y C. La versión 3 borra filas de B: reescribe lo que quedaba de B en un archivo nuevo, D, y deja de apuntar a B: A, C y D. La versión 4 agrega E: A, C, D y E. Leer la versión 2 es leer A, B y C: eso es el time travel. B sigue en el bucket hasta que la limpieza lo borra; después, las versiones 1 y 2 ya no se pueden leer.</title>
+<rect class="f-card" x="10" y="10" width="340" height="416" rx="16"/>
+<text class="f-l" x="26" y="36">ARCHIVOS PARQUET EN EL BUCKET</text>
+<rect class="f-b" x="28" y="50" width="52" height="34" rx="6"/>
+<text class="f-pill-t" x="54" y="73" text-anchor="middle">A</text>
+<rect class="f-b" x="90" y="50" width="52" height="34" rx="6"/>
+<text class="f-pill-t" x="116" y="73" text-anchor="middle">B</text>
+<rect class="f-b" x="152" y="50" width="52" height="34" rx="6"/>
+<text class="f-pill-t" x="178" y="73" text-anchor="middle">C</text>
+<rect class="f-b" x="214" y="50" width="52" height="34" rx="6"/>
+<text class="f-pill-t" x="240" y="73" text-anchor="middle">D</text>
+<rect class="f-b" x="276" y="50" width="52" height="34" rx="6"/>
+<text class="f-pill-t" x="302" y="73" text-anchor="middle">E</text>
+<text class="f-s" x="26" y="104" style="font-size:12px">Nunca se editan: solo se agregan archivos nuevos.</text>
+<text class="f-l" x="26" y="136">EL REGISTRO DE VERSIONES</text>
+<rect class="f-chip" x="22" y="148" width="316" height="34" rx="8"/>
+<text class="f-t" x="34" y="170" style="font-size:13px">v1</text>
+<text class="f-s" x="60" y="170" style="font-size:12px">escribe A y B</text>
+<rect class="f-b" x="196" y="155" width="22" height="20" rx="4"/><text class="f-pill-t" x="207" y="170" text-anchor="middle" style="font-size:12px">A</text>
+<rect class="f-b" x="222" y="155" width="22" height="20" rx="4"/><text class="f-pill-t" x="233" y="170" text-anchor="middle" style="font-size:12px">B</text>
+<rect class="f-linea" x="248" y="155" width="22" height="20" rx="4"/>
+<rect class="f-linea" x="274" y="155" width="22" height="20" rx="4"/>
+<rect class="f-linea" x="300" y="155" width="22" height="20" rx="4"/>
+<rect x="22" y="190" width="316" height="34" rx="8" style="fill:var(--o);opacity:.18"/>
+<text class="f-t" x="34" y="212" style="font-size:13px">v2</text>
+<text class="f-s" x="60" y="212" style="font-size:12px">agrega filas en C</text>
+<rect class="f-b" x="196" y="197" width="22" height="20" rx="4"/><text class="f-pill-t" x="207" y="212" text-anchor="middle" style="font-size:12px">A</text>
+<rect class="f-b" x="222" y="197" width="22" height="20" rx="4"/><text class="f-pill-t" x="233" y="212" text-anchor="middle" style="font-size:12px">B</text>
+<rect class="f-b" x="248" y="197" width="22" height="20" rx="4"/><text class="f-pill-t" x="259" y="212" text-anchor="middle" style="font-size:12px">C</text>
+<rect class="f-linea" x="274" y="197" width="22" height="20" rx="4"/>
+<rect class="f-linea" x="300" y="197" width="22" height="20" rx="4"/>
+<rect class="f-chip" x="22" y="232" width="316" height="34" rx="8"/>
+<text class="f-t" x="34" y="254" style="font-size:13px">v3</text>
+<text class="f-s" x="60" y="254" style="font-size:12px">borra filas de B → D</text>
+<rect class="f-b" x="196" y="239" width="22" height="20" rx="4"/><text class="f-pill-t" x="207" y="254" text-anchor="middle" style="font-size:12px">A</text>
+<rect class="f-linea" x="222" y="239" width="22" height="20" rx="4"/>
+<rect class="f-b" x="248" y="239" width="22" height="20" rx="4"/><text class="f-pill-t" x="259" y="254" text-anchor="middle" style="font-size:12px">C</text>
+<rect class="f-b" x="274" y="239" width="22" height="20" rx="4"/><text class="f-pill-t" x="285" y="254" text-anchor="middle" style="font-size:12px">D</text>
+<rect class="f-linea" x="300" y="239" width="22" height="20" rx="4"/>
+<rect class="f-chip" x="22" y="274" width="316" height="34" rx="8"/>
+<text class="f-t" x="34" y="296" style="font-size:13px">v4</text>
+<text class="f-s" x="60" y="296" style="font-size:12px">agrega E</text>
+<rect class="f-b" x="196" y="281" width="22" height="20" rx="4"/><text class="f-pill-t" x="207" y="296" text-anchor="middle" style="font-size:12px">A</text>
+<rect class="f-linea" x="222" y="281" width="22" height="20" rx="4"/>
+<rect class="f-b" x="248" y="281" width="22" height="20" rx="4"/><text class="f-pill-t" x="259" y="296" text-anchor="middle" style="font-size:12px">C</text>
+<rect class="f-b" x="274" y="281" width="22" height="20" rx="4"/><text class="f-pill-t" x="285" y="296" text-anchor="middle" style="font-size:12px">D</text>
+<rect class="f-b" x="300" y="281" width="22" height="20" rx="4"/><text class="f-pill-t" x="311" y="296" text-anchor="middle" style="font-size:12px">E</text>
+<text class="f-t" x="26" y="336" style="font-size:13px">Time travel: leer v2 es leer A, B y C.</text>
+<text class="f-s" x="26" y="356" style="font-size:12px">La tabla de hoy (v4) ya no usa B, pero B sigue</text>
+<text class="f-s" x="26" y="372" style="font-size:12px">en el bucket: nadie copió nada para guardar v2.</text>
+<rect class="f-chip" x="22" y="386" width="316" height="30" rx="8"/>
+<text class="f-s" x="34" y="406" style="font-size:12px;font-weight:700">Si la limpieza borra B, v1 y v2 se pierden.</text>
+</svg>

@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 392" role="img" aria-labelledby="f-formatos-magicos-t" class="f-svg" style="max-width:420px">
+<title id="f-formatos-magicos-t">Los primeros cuatro bytes de seis archivos, en hexadecimal. tenis.jpg empieza con FF D8 FF E0: es JPEG, y la firma son los tres primeros. logo.png empieza con 89 50 4E 47: es PNG. modelo.pt empieza con 50 4B 03 04, las letras PK: es un zip. logs.gz empieza con 1F 8B: es gzip. dia.parquet empieza con 50 41 52 31, las letras PAR1: es Parquet. Abajo, un archivo llamado tenis.png que empieza con FF D8 FF E0: el nombre dice PNG, pero los bytes dicen JPEG. La extensión es parte del nombre; la firma es parte del contenido.</title>
+<rect class="f-card" x="10" y="10" width="340" height="372" rx="16"/>
+<text class="f-l" x="26" y="36">ARCHIVO</text>
+<text class="f-l" x="122" y="36">PRIMEROS 4 BYTES</text>
+<text class="f-l" x="272" y="36">FORMATO</text>
+
+<text class="f-s" x="26" y="69" style="font:600 13px var(--mono)">tenis.jpg</text>
+<rect class="f-b" x="122" y="50" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="138" y="69" text-anchor="middle" style="font:700 13px var(--mono)">FF</text>
+<rect class="f-b" x="158" y="50" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="174" y="69" text-anchor="middle" style="font:700 13px var(--mono)">D8</text>
+<rect class="f-b" x="194" y="50" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="210" y="69" text-anchor="middle" style="font:700 13px var(--mono)">FF</text>
+<rect class="f-chip" x="230" y="50" width="32" height="28" rx="6"/>
+<text class="f-s" x="246" y="69" text-anchor="middle" style="font:600 13px var(--mono)">E0</text>
+<text class="f-t" x="272" y="69" style="font-size:14px">JPEG</text>
+
+<text class="f-s" x="26" y="115" style="font:600 13px var(--mono)">logo.png</text>
+<rect class="f-b" x="122" y="96" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="138" y="115" text-anchor="middle" style="font:700 13px var(--mono)">89</text>
+<rect class="f-b" x="158" y="96" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="174" y="115" text-anchor="middle" style="font:700 13px var(--mono)">50</text>
+<rect class="f-b" x="194" y="96" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="210" y="115" text-anchor="middle" style="font:700 13px var(--mono)">4E</text>
+<rect class="f-b" x="230" y="96" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="246" y="115" text-anchor="middle" style="font:700 13px var(--mono)">47</text>
+<text class="f-t" x="272" y="115" style="font-size:14px">PNG</text>
+<text class="f-s" x="272" y="131" style="font-size:12px">«‰PNG»</text>
+
+<text class="f-s" x="26" y="161" style="font:600 13px var(--mono)">modelo.pt</text>
+<rect class="f-b" x="122" y="142" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="138" y="161" text-anchor="middle" style="font:700 13px var(--mono)">50</text>
+<rect class="f-b" x="158" y="142" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="174" y="161" text-anchor="middle" style="font:700 13px var(--mono)">4B</text>
+<rect class="f-b" x="194" y="142" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="210" y="161" text-anchor="middle" style="font:700 13px var(--mono)">03</text>
+<rect class="f-b" x="230" y="142" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="246" y="161" text-anchor="middle" style="font:700 13px var(--mono)">04</text>
+<text class="f-t" x="272" y="161" style="font-size:14px">zip</text>
+<text class="f-s" x="272" y="177" style="font-size:12px">«PK»</text>
+
+<text class="f-s" x="26" y="207" style="font:600 13px var(--mono)">logs.gz</text>
+<rect class="f-b" x="122" y="188" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="138" y="207" text-anchor="middle" style="font:700 13px var(--mono)">1F</text>
+<rect class="f-b" x="158" y="188" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="174" y="207" text-anchor="middle" style="font:700 13px var(--mono)">8B</text>
+<rect class="f-chip" x="194" y="188" width="32" height="28" rx="6"/>
+<text class="f-s" x="210" y="207" text-anchor="middle" style="font:600 13px var(--mono)">08</text>
+<rect class="f-chip" x="230" y="188" width="32" height="28" rx="6"/>
+<text class="f-s" x="246" y="207" text-anchor="middle" style="font:600 13px var(--mono)">00</text>
+<text class="f-t" x="272" y="207" style="font-size:14px">gzip</text>
+
+<text class="f-s" x="26" y="253" style="font:600 13px var(--mono)">dia.parquet</text>
+<rect class="f-b" x="122" y="234" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="138" y="253" text-anchor="middle" style="font:700 13px var(--mono)">50</text>
+<rect class="f-b" x="158" y="234" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="174" y="253" text-anchor="middle" style="font:700 13px var(--mono)">41</text>
+<rect class="f-b" x="194" y="234" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="210" y="253" text-anchor="middle" style="font:700 13px var(--mono)">52</text>
+<rect class="f-b" x="230" y="234" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="246" y="253" text-anchor="middle" style="font:700 13px var(--mono)">31</text>
+<text class="f-t" x="272" y="253" style="font-size:14px">Parquet</text>
+<text class="f-s" x="272" y="269" style="font-size:12px">«PAR1»</text>
+
+<line class="f-linea" x1="26" y1="288" x2="334" y2="288" style="stroke-dasharray:4 4"/>
+
+<text class="f-s" x="26" y="317" style="font:600 13px var(--mono)">tenis.png</text>
+<rect class="f-o" x="122" y="298" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="138" y="317" text-anchor="middle" style="font:700 13px var(--mono)">FF</text>
+<rect class="f-o" x="158" y="298" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="174" y="317" text-anchor="middle" style="font:700 13px var(--mono)">D8</text>
+<rect class="f-o" x="194" y="298" width="32" height="28" rx="6"/>
+<text class="f-pill-t" x="210" y="317" text-anchor="middle" style="font:700 13px var(--mono)">FF</text>
+<rect class="f-chip" x="230" y="298" width="32" height="28" rx="6"/>
+<text class="f-s" x="246" y="317" text-anchor="middle" style="font:600 13px var(--mono)">E0</text>
+<text class="f-t" x="272" y="317" style="font-size:14px;fill:var(--o)">¡JPEG!</text>
+
+<text class="f-s" x="26" y="352" style="font-size:13px;font-weight:600">El nombre dice PNG; los bytes, JPEG.</text>
+<text class="f-s" x="26" y="370" style="font-size:12px">En azul, la firma que reconoce cada formato.</text>
+</svg>

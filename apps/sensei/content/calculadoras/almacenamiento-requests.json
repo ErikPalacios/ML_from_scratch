@@ -1,0 +1,115 @@
+{
+  "titulo": "Objetos chicos contra archivos grandes",
+  "intro": "Los mismos registros, guardados uno por objeto o juntos en archivos. Arranca con el log de C01: 10 millones de predicciones al día, de ≈ 300 bytes, **un objeto por predicción**, 90 días de retención y un job que lee el último mes una vez al mes. Precios de lista de S3 Standard en us-east-1 (noviembre de 2026): US$0.023 por GB-mes, US$0.005 por 1,000 PUT y US$0.0004 por 1,000 GET.",
+  "entradas": [
+    {
+      "id": "n",
+      "label": "Registros al día, en millones",
+      "min": 0.01,
+      "max": 100,
+      "paso": 0.01,
+      "valor": 10,
+      "tipo": "numero"
+    },
+    {
+      "id": "b",
+      "label": "Bytes por registro",
+      "min": 10,
+      "max": 100000,
+      "paso": 10,
+      "valor": 300,
+      "tipo": "numero"
+    },
+    {
+      "id": "k",
+      "label": "Registros por objeto (1 = uno por registro · 6944 = un archivo por minuto)",
+      "min": 1,
+      "max": 100000000,
+      "paso": 1,
+      "valor": 1,
+      "tipo": "numero"
+    },
+    {
+      "id": "d",
+      "label": "Retención, en días",
+      "min": 1,
+      "max": 3650,
+      "paso": 1,
+      "valor": 90,
+      "tipo": "numero"
+    },
+    {
+      "id": "l",
+      "label": "Veces al mes que un job lee el último mes",
+      "min": 0,
+      "max": 30,
+      "paso": 1,
+      "valor": 1
+    }
+  ],
+  "calculos": [
+    {
+      "id": "gbd",
+      "formula": "n * 1e6 * b / 1e9"
+    },
+    {
+      "id": "od",
+      "formula": "max(n * 1e6 / k, 1)"
+    },
+    {
+      "id": "alm",
+      "formula": "gbd * d * 0.023"
+    },
+    {
+      "id": "put",
+      "formula": "od * 30.4 * 0.005 / 1000"
+    },
+    {
+      "id": "get",
+      "formula": "l * od * 30.4 * 0.0004 / 1000"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Tamaño de cada objeto",
+      "formula": "b * min(k, n * 1e6)",
+      "formato": "bytes"
+    },
+    {
+      "label": "Objetos que se suben al día",
+      "formula": "od",
+      "formato": "int"
+    },
+    {
+      "label": "Guardar, en US$ al mes",
+      "formula": "alm",
+      "formato": "num",
+      "decimales": 2
+    },
+    {
+      "label": "Los PUT, en US$ al mes",
+      "formula": "put",
+      "formato": "num",
+      "decimales": 2
+    },
+    {
+      "label": "Los GET de las lecturas, en US$ al mes",
+      "formula": "get",
+      "formato": "num",
+      "decimales": 2
+    },
+    {
+      "label": "Total, en US$ al mes",
+      "formula": "alm + put + get",
+      "formato": "num",
+      "decimales": 2
+    },
+    {
+      "label": "Parte del total que son requests",
+      "formula": "(put + get) / max(alm + put + get, 1e-9)",
+      "formato": "pct",
+      "barra": true
+    }
+  ],
+  "nota": "Un PUT cuesta lo mismo que guardar ≈ 217 KB un mes. Con objetos mucho más chicos que eso, mandan las requests; con objetos mucho más grandes, los GB."
+}

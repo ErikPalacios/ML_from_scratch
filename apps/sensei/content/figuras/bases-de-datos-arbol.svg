@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 416" role="img" aria-labelledby="f-bases-de-datos-arbol-t" class="f-svg" style="max-width:420px">
+<title id="f-bases-de-datos-arbol-t">Un árbol B sobre 10 millones de llaves, buscando la llave 4,242,424. Para que se pueda dibujar, cada página trae 2 llaves; en uno de verdad trae unas 300. Nivel 1, la raíz, una página con las llaves 3.3 millones y 6.7 millones: como 4,242,424 está entre las dos, la búsqueda baja por el camino de en medio. Nivel 2, unas 112 páginas; se ven tres, y la de en medio tiene las llaves 4.4 y 5.6 millones: como 4,242,424 es menor que 4.4 millones, baja por la izquierda. Nivel 3, las hojas, unas 33,000 páginas; la hoja de 3.3 a 4.4 millones tiene la llave y la dirección de su fila. Al final, una página de la tabla con la fila: id 4,242,424, ana, Tenis naranjas, 900. En total, 3 páginas del árbol y 1 de la tabla: 4 lecturas. Sin índice, serían las 500,000 páginas de la tabla.</title>
+<rect class="f-card" x="10" y="10" width="340" height="396" rx="16"/>
+<text class="f-l" x="26" y="36" style="font-size:12px">BUSCAR EL 4,242,424 ENTRE 10 M</text>
+<text class="f-s" x="26" y="56" style="font-size:12px">Aquí, 2 llaves por página; en uno real, ≈ 300.</text>
+<text class="f-l" x="26" y="88" style="font-size:12px">RAÍZ</text>
+<text class="f-s" x="26" y="104" style="font-size:12px">1 página</text>
+<rect class="f-b" x="180" y="76" width="100" height="32" rx="7"/>
+<line x1="230" y1="80" x2="230" y2="104" style="stroke:var(--blk);stroke-width:1.5"/>
+<text class="f-pill-t" x="205" y="97" text-anchor="middle" style="font-size:13px">3.3 M</text>
+<text class="f-pill-t" x="255" y="97" text-anchor="middle" style="font-size:13px">6.7 M</text>
+<line class="f-flecha" x1="186" y1="108" x2="140" y2="148" style="stroke-width:1.5"/>
+<line x1="230" y1="108" x2="222" y2="148" style="stroke:var(--b);stroke-width:3"/>
+<line class="f-flecha" x1="274" y1="108" x2="304" y2="148" style="stroke-width:1.5"/>
+<text class="f-l" x="26" y="160" style="font-size:12px">NIVEL 2</text>
+<text class="f-s" x="26" y="176" style="font-size:12px">≈ 112</text>
+<text class="f-s" x="26" y="192" style="font-size:12px">páginas</text>
+<rect class="f-chip" x="102" y="148" width="76" height="32" rx="7"/>
+<line class="f-linea" x1="140" y1="152" x2="140" y2="176" style="stroke-width:1"/>
+<text class="f-s" x="120" y="169" text-anchor="middle" style="font-size:12px">1.1 M</text>
+<text class="f-s" x="160" y="169" text-anchor="middle" style="font-size:12px">2.2 M</text>
+<rect class="f-b" x="184" y="148" width="76" height="32" rx="7"/>
+<line x1="222" y1="152" x2="222" y2="176" style="stroke:var(--blk);stroke-width:1.5"/>
+<text class="f-pill-t" x="202" y="169" text-anchor="middle" style="font-size:12px">4.4 M</text>
+<text class="f-pill-t" x="242" y="169" text-anchor="middle" style="font-size:12px">5.6 M</text>
+<rect class="f-chip" x="266" y="148" width="76" height="32" rx="7"/>
+<line class="f-linea" x1="304" y1="152" x2="304" y2="176" style="stroke-width:1"/>
+<text class="f-s" x="284" y="169" text-anchor="middle" style="font-size:12px">7.8 M</text>
+<text class="f-s" x="324" y="169" text-anchor="middle" style="font-size:12px">8.9 M</text>
+<line x1="192" y1="180" x2="139" y2="220" style="stroke:var(--b);stroke-width:3"/>
+<line class="f-flecha" x1="222" y1="180" x2="221" y2="220" style="stroke-width:1.5"/>
+<line class="f-flecha" x1="252" y1="180" x2="303" y2="220" style="stroke-width:1.5"/>
+<text class="f-l" x="26" y="232" style="font-size:12px">HOJAS</text>
+<text class="f-s" x="26" y="248" style="font-size:12px">≈ 33,000</text>
+<text class="f-s" x="26" y="264" style="font-size:12px">páginas</text>
+<rect class="f-b" x="104" y="220" width="70" height="32" rx="7"/>
+<text class="f-pill-t" x="139" y="241" text-anchor="middle" style="font-size:12px">3.3–4.4 M</text>
+<rect class="f-chip" x="186" y="220" width="70" height="32" rx="7"/>
+<text class="f-s" x="221" y="241" text-anchor="middle" style="font-size:12px">4.4–5.6 M</text>
+<rect class="f-chip" x="268" y="220" width="70" height="32" rx="7"/>
+<text class="f-s" x="303" y="241" text-anchor="middle" style="font-size:12px">5.6–6.7 M</text>
+<line x1="139" y1="252" x2="139" y2="284" style="stroke:var(--b);stroke-width:3"/>
+<polygon points="132,282 146,282 139,292" style="fill:var(--b)"/>
+<text class="f-l" x="152" y="280" style="font-size:12px">LA TABLA · 1 PÁGINA</text>
+<rect x="26" y="294" width="308" height="34" rx="8" style="fill:none;stroke:var(--b);stroke-width:2.5"/>
+<text class="f-t" x="40" y="316" style="font-size:13px">4,242,424 · ana · Tenis naranjas · 900</text>
+<rect class="f-chip" x="24" y="342" width="312" height="52" rx="10"/>
+<text class="f-t" x="38" y="364" style="font-size:13px">3 del árbol + 1 de la tabla = 4 lecturas.</text>
+<text class="f-s" x="38" y="383" style="font-size:12px">Sin índice: las 500,000 páginas de la tabla.</text>
+</svg>

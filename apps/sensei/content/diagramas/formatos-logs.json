@@ -1,0 +1,56 @@
+{
+  "titulo": "El log de una predicción, de JSON Lines a Parquet",
+  "width": 78,
+  "height": 46,
+  "lanes": [
+    { "id": "request", "label": "En cada request", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 15 },
+    { "id": "lotes", "label": "Después, en lotes", "kind": "offline", "x": 0, "y": 17, "w": 78, "h": 29 }
+  ],
+  "nodes": [
+    { "id": "gateway", "label": "Gateway", "sub": "1 línea JSON a stdout", "kind": "service",
+      "x": 1, "y": 5, "w": 19, "h": 8,
+      "note": "Después de contestarle a Ana, el gateway imprime una línea [[json-lines|JSON Lines]] de ≈ 300 bytes: `request_id`, `model_version`, top-5, latencias, bytes de la foto y el principio de su hash. Escribir una línea no hace esperar a nadie." },
+    { "id": "fluent", "label": "Fluent Bit", "sub": "junta líneas en lotes", "kind": "job",
+      "x": 30, "y": 5, "w": 18, "h": 8,
+      "note": "Un programa que corre en cada máquina: lee lo que los contenedores escriben a stdout, junto con la hora en que el sistema guardó cada línea, y lo manda en lotes. Si se atrasa o se cae, los logs llegan tarde o algunos se pierden, pero ninguna request espera por él." },
+    { "id": "crudo", "label": "S3: crudo", "sub": "JSON Lines comprimido", "kind": "store",
+      "x": 58, "y": 5, "w": 19, "h": 8,
+      "note": "Los lotes llegan como archivos de JSON Lines comprimidos, por ejemplo con gzip. Sirven para no perder nada, pero así no se consultan: ≈ 3 GB al día sin comprimir, y para leer dos campos hay que leerlo todo." },
+    { "id": "convertir", "label": "Conversión", "sub": "JSON Lines → Parquet", "kind": "job",
+      "x": 58, "y": 22, "w": 19, "h": 8,
+      "note": "Un job junta muchas líneas, valida el [[esquema-datos|esquema]] y escribe [[parquet|Parquet]]: pocos archivos grandes, con row groups y estadísticas. Aquí cada campo recibe su tipo exacto. Fluent Bit también puede escribir Parquet directo en S3, pero saldrían archivos del tamaño de cada lote: chicos." },
+    { "id": "parquet", "label": "S3: Parquet", "sub": "por fecha y por modelo", "kind": "store",
+      "x": 30, "y": 22, "w": 18, "h": 8,
+      "note": "Los mismos datos, por columnas y comprimidos: de 5 a 10 veces menos que el JSON crudo, según la Ronda. Van en carpetas por fecha y por versión del modelo, una [[particion-datos|partición]], para que nadie abra los días que no necesita." },
+    { "id": "drift", "label": "Job de drift", "sub": "lee top1 y score de un día", "kind": "monitor",
+      "x": 1, "y": 22, "w": 19, "h": 8,
+      "note": "Cada día compara cómo se reparten las categorías y los scores contra los días anteriores. Abre solo la carpeta de ayer y solo dos columnas: ≈ 40 MB en vez de 3 GB." },
+    { "id": "dataset", "label": "Siguiente dataset", "sub": "fotos para etiquetar", "kind": "job",
+      "x": 30, "y": 36, "w": 18, "h": 8,
+      "note": "Los logs también eligen qué fotos mandar a etiquetar y qué entra al próximo [[reentrenamiento]]. Para eso se unen con las etiquetas por el `request_id`." }
+  ],
+  "edges": [
+    { "from": "gateway", "to": "fluent", "kind": "async", "dashed": true, "label": "stdout", "fromSide": "r", "toSide": "l" },
+    { "from": "fluent", "to": "crudo", "kind": "async", "dashed": true, "label": "lotes", "fromSide": "r", "toSide": "l" },
+    { "from": "crudo", "to": "convertir", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "convertir", "to": "parquet", "kind": "offline", "label": "Parquet", "fromSide": "l", "toSide": "r" },
+    { "from": "parquet", "to": "drift", "kind": "monitor", "label": "2 columnas", "fromSide": "l", "toSide": "r" },
+    { "from": "parquet", "to": "dataset", "kind": "offline", "fromSide": "b", "toSide": "t" }
+  ],
+  "flows": [
+    { "id": "ana", "label": "La predicción de Ana",
+      "steps": [
+        { "nodes": ["gateway"], "edges": [], "text": "El gateway le contesta a Ana y escribe su predicción como **una línea JSON** de ≈ 300 bytes en stdout." },
+        { "nodes": ["gateway", "fluent"], "edges": ["gateway>fluent"], "text": "**Fluent Bit** recoge la línea junto con miles más, con la hora en que se guardó: la línea no la trae." },
+        { "nodes": ["fluent", "crudo"], "edges": ["fluent>crudo"], "text": "Los lotes llegan a S3 como **JSON Lines comprimido**. Si una línea quedó cortada, se pierde esa y nada más." },
+        { "nodes": ["crudo", "convertir"], "edges": ["crudo>convertir"], "text": "La **conversión** lee muchas horas de líneas, revisa el esquema y les da tipo a los campos." },
+        { "nodes": ["convertir", "parquet"], "edges": ["convertir>parquet"], "text": "Sale **Parquet**: por columnas, comprimido, en la carpeta del día y de la versión del modelo. El ≈ 3 GB diario queda en unos cientos de MB." }
+      ] },
+    { "id": "revision", "label": "La revisión diaria de drift",
+      "steps": [
+        { "nodes": ["parquet"], "edges": [], "text": "El job de drift no abre todos los logs guardados: solo la carpeta `fecha=` de ayer." },
+        { "nodes": ["parquet", "drift"], "edges": ["parquet>drift"], "text": "De cada archivo lee el **pie** y, con él, solo las columnas `top1` y `score`: ≈ 40 MB en vez de 3 GB." },
+        { "nodes": ["parquet", "dataset"], "edges": ["parquet>dataset"], "text": "Los mismos archivos alimentan el **siguiente dataset**: las fotos de baja confianza se mandan a etiquetar." }
+      ] }
+  ]
+}

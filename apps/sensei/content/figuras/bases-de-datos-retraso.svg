@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 372" role="img" aria-labelledby="f-bases-de-datos-retraso-t" class="f-svg" style="max-width:420px">
+<title id="f-bases-de-datos-retraso-t">El precio de los tenis en la primaria y en una réplica de lectura, en una línea de tiempo de 0 a 500 milisegundos. Antes del cero, las dos dicen 900. En el milisegundo 0, Ana escribe 850 y la primaria cambia al instante. La réplica va 300 milisegundos atrás: sigue diciendo 900 hasta el milisegundo 300, y de ahí en adelante dice 850. A los 100 milisegundos, Ana recarga su página, que lee de la réplica, y ve 900: cree que su cambio falló. A los 400 milisegundos, la réplica ya dice 850. El arreglo: lo que Ana escribió, ella lo lee de la primaria durante unos segundos.</title>
+<rect class="f-card" x="10" y="10" width="340" height="352" rx="16"/>
+<text class="f-l" x="26" y="36" style="font-size:12px">EL PRECIO DE LOS TENIS, EN DOS COPIAS</text>
+<text class="f-s" x="138" y="64" text-anchor="middle" style="font-size:12px;font-weight:700">Ana escribe 850</text>
+<line x1="138" y1="70" x2="138" y2="178" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>
+<text class="f-s" x="24" y="93" style="font-size:12px;font-weight:700">Primaria</text>
+<rect class="f-off" x="100" y="76" width="38" height="26" rx="4"/>
+<text class="f-s" x="119" y="94" text-anchor="middle" style="font-size:12px">900</text>
+<rect class="f-b" x="139" y="76" width="191" height="26" rx="4"/>
+<text class="f-pill-t" x="234" y="94" text-anchor="middle" style="font-size:13px">850</text>
+<line class="f-linea" x1="139" y1="128" x2="253" y2="128"/>
+<line class="f-linea" x1="139" y1="123" x2="139" y2="133"/>
+<line class="f-linea" x1="253" y1="123" x2="253" y2="133"/>
+<text class="f-s" x="196" y="120" text-anchor="middle" style="font-size:12px;font-weight:700">retraso: 300 ms</text>
+<text class="f-s" x="24" y="155" style="font-size:12px;font-weight:700">Réplica</text>
+<rect class="f-off" x="100" y="138" width="153" height="26" rx="4"/>
+<text class="f-s" x="119" y="156" text-anchor="middle" style="font-size:12px">900</text>
+<rect class="f-b" x="254" y="138" width="76" height="26" rx="4"/>
+<text class="f-pill-t" x="265" y="156" text-anchor="middle" style="font-size:13px">850</text>
+<circle cx="177" cy="151" r="5.5" style="fill:var(--o);stroke:var(--blk);stroke-width:1.5"/>
+<circle cx="292" cy="151" r="5.5" style="fill:var(--g);stroke:var(--blk);stroke-width:1.5"/>
+<line class="f-linea" x1="100" y1="182" x2="330" y2="182" style="stroke-width:1"/>
+<line class="f-linea" x1="138" y1="182" x2="138" y2="187" style="stroke-width:1"/>
+<line class="f-linea" x1="177" y1="182" x2="177" y2="187" style="stroke-width:1"/>
+<line class="f-linea" x1="215" y1="182" x2="215" y2="187" style="stroke-width:1"/>
+<line class="f-linea" x1="253" y1="182" x2="253" y2="187" style="stroke-width:1"/>
+<line class="f-linea" x1="292" y1="182" x2="292" y2="187" style="stroke-width:1"/>
+<line class="f-linea" x1="330" y1="182" x2="330" y2="187" style="stroke-width:1"/>
+<text class="f-s" x="138" y="201" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="177" y="201" text-anchor="middle" style="font-size:12px">100</text>
+<text class="f-s" x="215" y="201" text-anchor="middle" style="font-size:12px">200</text>
+<text class="f-s" x="253" y="201" text-anchor="middle" style="font-size:12px">300</text>
+<text class="f-s" x="292" y="201" text-anchor="middle" style="font-size:12px">400</text>
+<text class="f-s" x="330" y="201" text-anchor="middle" style="font-size:12px">500</text>
+<text class="f-s" x="100" y="201" style="font-size:12px">ms</text>
+<circle cx="32" cy="228" r="6" style="fill:var(--o)"/>
+<text class="f-s" x="46" y="232" style="font-size:12px"><tspan style="font-weight:700">100 ms:</tspan> Ana recarga y la réplica todavía</text>
+<text class="f-s" x="46" y="248" style="font-size:12px">dice 900. Cree que su cambio falló.</text>
+<circle cx="32" cy="272" r="6" style="fill:var(--g)"/>
+<text class="f-s" x="46" y="276" style="font-size:12px"><tspan style="font-weight:700">400 ms:</tspan> la réplica ya aplicó el cambio.</text>
+<rect class="f-chip" x="24" y="294" width="312" height="54" rx="10"/>
+<text class="f-t" x="38" y="317" style="font-size:13px">Arreglo: lo que Ana escribió, Ana lo lee</text>
+<text class="f-s" x="38" y="336" style="font-size:12px">de la primaria durante unos segundos.</text>
+</svg>

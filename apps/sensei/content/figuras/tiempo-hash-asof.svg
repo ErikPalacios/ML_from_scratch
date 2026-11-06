@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 402" role="img" aria-labelledby="f-tiempo-hash-asof-t" class="f-svg" style="max-width:420px">
+<title id="f-tiempo-hash-asof-t">Un join as-of con la feature pagos de la tarjeta en la última hora. Arriba, la feature como escalera sobre el tiempo: vale 2 desde las 9:00, 3 desde las 10:00, 7 desde las 10:30 y 4 desde las 11:00. Una decisión de las 10:10 toma el escalón donde cae, el 3, y una de las 10:35 toma el 7. Usar el valor de hoy les daría 4 a las dos, un valor del futuro. Abajo, un acercamiento de 10:28 a 10:36: el valor 7 se calculó a las 10:30 pero llegó al servicio a las 10:32, así que una decisión de las 10:31 todavía vio el 3. Con la hora de cálculo, el join le daría 7; con la hora de disponibilidad, 3, que es lo que el modelo vio de verdad.</title>
+<rect class="f-card" x="10" y="10" width="340" height="382" rx="16"/>
+<text class="f-l" x="26" y="34">LA FEATURE, ESCALÓN POR ESCALÓN</text>
+<text class="f-s" x="26" y="56" style="font-size:12px">«pagos de la tarjeta en la última hora»</text>
+<rect class="f-chip" x="30" y="86" width="131" height="30" rx="6"/>
+<text class="f-t" x="96" y="106" text-anchor="middle" style="font-size:14px">2</text>
+<rect class="f-b" x="165" y="86" width="63" height="30" rx="6"/>
+<text class="f-pill-t" x="196" y="106" text-anchor="middle" style="font-size:14px">3</text>
+<rect class="f-b" x="232" y="86" width="63" height="30" rx="6"/>
+<text class="f-pill-t" x="263" y="106" text-anchor="middle" style="font-size:14px">7</text>
+<rect class="f-o" x="299" y="86" width="31" height="30" rx="6"/>
+<text class="f-pill-t" x="314" y="106" text-anchor="middle" style="font-size:14px">4</text>
+<text class="f-s" x="30" y="80" text-anchor="middle" style="font:12px var(--mono)">9:00</text>
+<text class="f-s" x="163" y="80" text-anchor="middle" style="font:12px var(--mono)">10:00</text>
+<text class="f-s" x="230" y="80" text-anchor="middle" style="font:12px var(--mono)">10:30</text>
+<text class="f-s" x="300" y="80" text-anchor="middle" style="font:12px var(--mono)">11:00</text>
+<line x1="186" y1="158" x2="186" y2="122" style="stroke:var(--ink);stroke-width:2"/>
+<path class="f-ink" d="M181,126 L186,118 L191,126 Z"/>
+<text class="f-t" x="186" y="172" text-anchor="middle" style="font-size:12px">10:10 → 3</text>
+<line x1="241" y1="176" x2="241" y2="122" style="stroke:var(--ink);stroke-width:2"/>
+<path class="f-ink" d="M236,126 L241,118 L246,126 Z"/>
+<text class="f-t" x="241" y="190" text-anchor="middle" style="font-size:12px">10:35 → 7</text>
+<text class="f-s" x="26" y="214" style="font-size:12px;fill:var(--o);font-weight:700">Con «el de hoy», las dos verían 4: del futuro.</text>
+<line x1="26" y1="230" x2="334" y2="230" style="stroke:var(--rule);stroke-width:1.5"/>
+<text class="f-l" x="26" y="252">ACERCAMIENTO: DE 10:28 A 10:36</text>
+<text class="f-s" x="105" y="274" text-anchor="middle" style="font-size:12px">se calculó</text>
+<text class="f-s" x="180" y="274" text-anchor="middle" style="font-size:12px;font-weight:700">llegó</text>
+<rect class="f-b" x="30" y="282" width="148" height="30" rx="6"/>
+<text class="f-pill-t" x="60" y="302" text-anchor="middle" style="font-size:14px">3</text>
+<rect class="f-chip" x="182" y="282" width="148" height="30" rx="6"/>
+<text class="f-t" x="256" y="302" text-anchor="middle" style="font-size:14px">7</text>
+<line x1="105" y1="278" x2="105" y2="316" style="stroke:var(--surface);stroke-width:2;stroke-dasharray:4 3"/>
+<text class="f-s" x="30" y="330" text-anchor="middle" style="font:12px var(--mono)">10:28</text>
+<text class="f-s" x="105" y="330" text-anchor="middle" style="font:12px var(--mono)">10:30</text>
+<text class="f-s" x="180" y="330" text-anchor="middle" style="font:12px var(--mono)">10:32</text>
+<text class="f-s" x="326" y="330" text-anchor="middle" style="font:12px var(--mono)">10:36</text>
+<circle class="f-o" cx="142" cy="297" r="6"/>
+<text class="f-t" x="142" y="352" text-anchor="middle" style="font-size:12px">decisión de las 10:31 → vio 3</text>
+<text class="f-s" x="26" y="376" style="font-size:12px">Con la hora de cálculo: 7. Con la de llegada: 3.</text>
+</svg>

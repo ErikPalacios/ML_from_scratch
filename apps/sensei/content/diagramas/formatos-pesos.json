@@ -1,0 +1,56 @@
+{
+  "titulo": "Cargar unos pesos: un .pt contra un safetensors",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "pt", "label": "Un .pt: zip con un pickle", "kind": "offline", "x": 0, "y": 0, "w": 38, "h": 37 },
+    { "id": "st", "label": "Un safetensors", "kind": "neutral", "x": 40, "y": 0, "w": 38, "h": 37 }
+  ],
+  "nodes": [
+    { "id": "pt", "label": "modelo.pt", "sub": "zip: data.pkl + tensores", "kind": "store",
+      "x": 3, "y": 5, "w": 32, "h": 7,
+      "note": "Lo que escribe `torch.save`: un zip con los bytes de cada tensor y un [[pickle]], `data.pkl`, que dice cómo armar el diccionario. Empieza con los bytes `PK`." },
+    { "id": "unpickler", "label": "Unpickler", "sub": "sigue las instrucciones", "kind": "service",
+      "x": 3, "y": 17, "w": 32, "h": 7,
+      "note": "La máquina que reconstruye el objeto. Sigue las instrucciones del pickle: «busca esta función», «llámala con esto». Si el archivo pide `os.system`, lo llama." },
+    { "id": "guardia", "label": "weights_only=True", "sub": "solo tensores y tipos básicos", "kind": "monitor",
+      "x": 3, "y": 29, "w": 32, "h": 7,
+      "note": "Una lista de lo permitido: tensores, números, textos, listas y diccionarios. Si el pickle pide otra función, la carga se detiene con un error. Es el comportamiento por omisión desde PyTorch 2.6." },
+    { "id": "st", "label": "modelo.safetensors", "sub": "8 B + encabezado JSON + bytes", "kind": "store",
+      "x": 43, "y": 5, "w": 32, "h": 7,
+      "note": "Ocho bytes con el largo del encabezado, el encabezado en JSON (nombre, [[dtype]], [[shape]] y posición de cada tensor) y los bytes de los tensores, uno tras otro." },
+    { "id": "header", "label": "Leer el encabezado", "sub": "json.loads, nada que ejecutar", "kind": "service",
+      "x": 43, "y": 17, "w": 32, "h": 7,
+      "note": "Se leen 8 bytes, después el JSON. Un JSON solo trae datos: no hay manera de pedir que se llame una función." },
+    { "id": "mmap", "label": "mmap", "sub": "los bytes, sin copiarlos", "kind": "job",
+      "x": 43, "y": 29, "w": 32, "h": 7,
+      "note": "Con las posiciones del encabezado, el archivo se abre con [[mmap]]: los tensores aparecen en la memoria y el sistema lee del disco solo lo que se toca." },
+    { "id": "modelo", "label": "Pesos en memoria", "sub": "state_dict listo", "kind": "model",
+      "x": 23, "y": 41, "w": 32, "h": 7,
+      "note": "El diccionario con un tensor por capa, listo para `load_state_dict`. Por los dos caminos llegan los mismos números; lo que cambia es qué más pudo pasar al cargar." }
+  ],
+  "edges": [
+    { "from": "pt", "to": "unpickler", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "unpickler", "to": "guardia", "kind": "offline", "label": "¿llamar una función?", "fromSide": "b", "toSide": "t" },
+    { "from": "guardia", "to": "modelo", "kind": "offline", "fromSide": "b", "toSide": "l", "via": [[19, 44.5]] },
+    { "from": "st", "to": "header", "kind": "neutral", "fromSide": "b", "toSide": "t" },
+    { "from": "header", "to": "mmap", "kind": "neutral", "label": "posiciones", "fromSide": "b", "toSide": "t" },
+    { "from": "mmap", "to": "modelo", "kind": "neutral", "fromSide": "b", "toSide": "r", "via": [[59, 44.5]] }
+  ],
+  "flows": [
+    { "id": "trampa", "label": "Un .pt con trampa",
+      "steps": [
+        { "nodes": ["pt"], "edges": [], "text": "Alguien te pasa un `modelo.pt` bajado de un foro. Por dentro es un zip, y su `data.pkl` trae, además de los pesos, una instrucción escondida." },
+        { "nodes": ["pt", "unpickler"], "edges": ["pt>unpickler"], "text": "El **unpickler** sigue las instrucciones una por una. Sin protección, al llegar a la escondida llama la función que pida: con los permisos de tu programa." },
+        { "nodes": ["unpickler", "guardia"], "edges": ["unpickler>guardia"], "text": "Con **weights_only=True**, cada función que el archivo pide se compara con la lista de lo permitido. Esta no está: la carga se detiene con un error, y nada se ejecutó." },
+        { "nodes": ["guardia", "modelo"], "edges": ["guardia>modelo"], "text": "Con un `.pt` limpio, la guardia deja pasar solo tensores y tipos básicos, y llegan los **pesos**. Es una buena defensa, pero sigue siendo un pickle: depende de que PyTorch esté al día." }
+      ] },
+    { "id": "safe", "label": "Un safetensors",
+      "steps": [
+        { "nodes": ["st"], "edges": [], "text": "El mismo modelo, guardado en **safetensors**: un largo, un encabezado JSON y bytes." },
+        { "nodes": ["st", "header"], "edges": ["st>header"], "text": "Se leen 8 bytes y luego el **encabezado**, con `json.loads`. Un JSON no puede pedir que se ejecute nada." },
+        { "nodes": ["header", "mmap"], "edges": ["header>mmap"], "text": "Con las posiciones de cada tensor, el archivo se abre con **mmap**: no se copia, y del disco solo se lee lo que se usa." },
+        { "nodes": ["mmap", "modelo"], "edges": ["mmap>modelo"], "text": "Los **pesos** quedan en memoria. Mismos números que con el `.pt`, sin ningún paso donde pudiera correr código ajeno." }
+      ] }
+  ]
+}

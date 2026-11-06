@@ -1,0 +1,23 @@
+{
+  "titulo": "Cuánto pesan los logs de predicciones",
+  "intro": "Arranca con C01: ≈ 10 M predicciones al día, ≈ 300 B por línea de [[json-lines|JSON Lines]], 90 días de retención y [[parquet|Parquet]] 5 veces más chico que el JSON crudo.",
+  "entradas": [
+    { "id": "n", "label": "Predicciones al día, en millones", "min": 0.1, "max": 1000, "paso": 0.1, "valor": 10, "tipo": "numero" },
+    { "id": "b", "label": "Bytes por línea de log", "min": 50, "max": 5000, "paso": 10, "valor": 300, "tipo": "numero" },
+    { "id": "r", "label": "Veces que Parquet comprime contra el JSON crudo", "min": 1, "max": 20, "paso": 0.5, "valor": 5 },
+    { "id": "d", "label": "Días que se guardan (retención)", "min": 1, "max": 730, "paso": 1, "valor": 90 }
+  ],
+  "calculos": [
+    { "id": "dia", "formula": "n * 1e6 * b" },
+    { "id": "pq", "formula": "dia / r" }
+  ],
+  "salidas": [
+    { "label": "JSON Lines al día", "formula": "dia", "formato": "bytes", "barra": true },
+    { "label": "Parquet al día", "formula": "pq", "formato": "bytes", "barra": true },
+    { "label": "JSON Lines guardado en toda la retención", "formula": "dia * d", "formato": "bytes" },
+    { "label": "Parquet guardado en toda la retención", "formula": "pq * d", "formato": "bytes" },
+    { "label": "Lo que se ahorra", "formula": "(dia - pq) * d", "formato": "bytes", "nota": "en almacenamiento, sin contar que cada lectura también baja" },
+    { "label": "Lo que se escribe por segundo, en promedio", "formula": "dia / 86400", "formato": "bytes", "nota": "escribir nunca es el problema" }
+  ],
+  "nota": "Con los números de C01, 3 GB al día se vuelven 600 MB, y 270 GB en 90 días se vuelven 54 GB. Sube las líneas a 5,000 B, como un log de depuración, y mira cómo se dispara todo."
+}

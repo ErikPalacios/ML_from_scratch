@@ -1,0 +1,22 @@
+{
+  "titulo": "¿Cuándo chocan dos huellas?",
+  "intro": "**Con n cosas y huellas de b bits, los choques esperados son ≈ n² ÷ (2 × 2ᵇ)**: la paradoja del cumpleaños. Arranca con las 10 millones de fotos diarias de C01 y una huella de 32 bits.",
+  "entradas": [
+    { "id": "n", "label": "Cosas que hasheas, en millones (10 = un día de fotos de C01)", "min": 0.001, "max": 10000000, "paso": 0.001, "valor": 10, "tipo": "numero" },
+    { "id": "b", "label": "Bits de la huella (32 = CRC32 · 64 · 122 = UUID v4 · 256 = SHA-256)", "min": 16, "max": 256, "paso": 1, "valor": 32 }
+  ],
+  "calculos": [
+    { "id": "cosas", "formula": "n * 1e6" },
+    { "id": "casillas", "formula": "pow(2, b)" },
+    { "id": "pares", "formula": "cosas * max(cosas - 1, 0) / 2" },
+    { "id": "esperados", "formula": "pares / casillas" }
+  ],
+  "salidas": [
+    { "label": "Casillas distintas", "formula": "casillas", "formato": "sci", "nota": "2 elevado a los bits" },
+    { "label": "Pares que pueden chocar", "formula": "pares", "formato": "sci" },
+    { "label": "Choques esperados", "formula": "esperados", "formato": "sci", "nota": "pares ÷ casillas" },
+    { "label": "Probabilidad de al menos un choque", "formula": "1 - exp(-esperados)", "formato": "pct", "decimales": 2, "barra": true },
+    { "label": "Cosas para llegar a 50 % de choque", "formula": "1.1774 * sqrt(casillas)", "formato": "sci", "nota": "≈ 1.18 × la raíz de las casillas" }
+  ],
+  "nota": "Con 32 bits, un día de fotos da ≈ 11,600 choques. Sube a 64: casi ninguno con 10 millones, pero 50 % con ≈ 5,000 millones. Con 122 o 256 bits, el número de choques esperados es tan chico que en la práctica nunca pasa."
+}

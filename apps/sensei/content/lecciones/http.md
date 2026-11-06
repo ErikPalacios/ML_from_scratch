@@ -678,7 +678,7 @@ SageMaker AI, la plataforma de ML de AWS, te pide un contenedor que escuche en e
 
 En C02, la computadora pequeña de cada centro de distribución, conectada a las cámaras (la «caja»), detecta un evento en una cámara y se lo manda a una API de la nube por HTTPS. La API revisa el token del sitio, lo anota y responde **202** sin esperar a que nadie lo verifique: «lo recibí». Si la caja no recibe respuesta y reintenta, el evento no se duplica, porque la API lo registra con su `event_id` y reconoce el repetido.
 
-Las fotos y el clip del evento, en cambio, no pasan por esa API. Antes de mandar el evento, la caja le pide a la API, con un `POST` chiquito que responde 200, una **URL firmada** de S3 para cada archivo: una URL que trae escrito en su query un permiso para subir ese archivo, y nada más, durante 15 minutos. Después sube el archivo con un `PUT` directo a esa URL. Como el permiso ya viaja en la URL, esa request no lleva header `Authorization`. Al final manda el evento, con los nombres de los archivos ya subidos. Así los megabytes de video no cruzan la API ni su balanceador.
+Las fotos y el clip del evento, en cambio, no pasan por esa API. Antes de mandar el evento, la caja le pide a la API, con un `POST` chiquito que responde 200, una **[[url-prefirmada|URL firmada]]** de S3 para cada archivo: una URL que trae escrito en su query un permiso para subir ese archivo, y nada más, durante 15 minutos. Después sube el archivo con un `PUT` directo a esa URL. Como el permiso ya viaja en la URL, esa request no lleva header `Authorization`. Al final manda el evento, con los nombres de los archivos ya subidos. Así los megabytes de video no cruzan la API ni su balanceador.
 
 ### Fuera de ML
 

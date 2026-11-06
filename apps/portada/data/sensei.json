@@ -252,8 +252,8 @@
       "modulo": "5 · Datos y almacenamiento",
       "fase": 6,
       "etapa": "datos",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/formatos/"
     },
     {
       "id": "bases-de-datos",
@@ -261,8 +261,8 @@
       "modulo": "5 · Datos y almacenamiento",
       "fase": 6,
       "etapa": "datos",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/bases-de-datos/"
     },
     {
       "id": "almacenamiento",
@@ -270,8 +270,8 @@
       "modulo": "5 · Datos y almacenamiento",
       "fase": 6,
       "etapa": "datos",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/almacenamiento/"
     },
     {
       "id": "colas",
@@ -279,8 +279,8 @@
       "modulo": "5 · Datos y almacenamiento",
       "fase": 6,
       "etapa": "datos",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/colas/"
     },
     {
       "id": "tiempo-hash",
@@ -288,8 +288,8 @@
       "modulo": "5 · Datos y almacenamiento",
       "fase": 6,
       "etapa": "datos",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/tiempo-hash/"
     },
     {
       "id": "terminal",

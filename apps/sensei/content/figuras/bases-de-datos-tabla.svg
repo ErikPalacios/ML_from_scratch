@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" role="img" aria-labelledby="f-bases-de-datos-tabla-t" class="f-svg" style="max-width:420px">
+<title id="f-bases-de-datos-tabla-t">La tabla publicaciones, con cuatro columnas: id, vendedor, título y precio, y cinco filas. Fila 1: id 1, ana, Tenis naranjas, 900. Fila 2: id 2, beto, Botas de piel, 1,500. Fila 3: id 3, ana, Bolsa de mano, 650. Fila 4: id 4, carla, Tenis blancos, 1,200. Fila 5: id 5, beto, Sandalias, 300. La columna id, sombreada en naranja, es la llave primaria: distinta en cada fila y nunca vacía. La fila 1, marcada en azul, es una fila: la publicación de Ana. La columna precio, marcada con línea punteada verde, es una columna: el mismo dato de todas las filas, con su tipo, un entero. Si llega otra fila con id 1, la base la rechaza con un error.</title>
+<rect class="f-card" x="10" y="10" width="340" height="400" rx="16"/>
+<text class="f-l" x="26" y="38" style="font-size:12px">LA TABLA «PUBLICACIONES»</text>
+<rect class="f-chip" x="24" y="52" width="312" height="28" rx="6"/>
+<rect x="24" y="52" width="40" height="168" rx="6" style="fill:var(--o);opacity:.22"/>
+<text class="f-l" x="34" y="71" style="font-size:12px">ID</text>
+<text class="f-l" x="72" y="71" style="font-size:12px">VENDEDOR</text>
+<text class="f-l" x="162" y="71" style="font-size:12px">TÍTULO</text>
+<text class="f-l" x="276" y="71" style="font-size:12px">PRECIO</text>
+<line class="f-linea" x1="24" y1="108" x2="336" y2="108" style="stroke-width:1"/>
+<line class="f-linea" x1="24" y1="136" x2="336" y2="136" style="stroke-width:1"/>
+<line class="f-linea" x1="24" y1="164" x2="336" y2="164" style="stroke-width:1"/>
+<line class="f-linea" x1="24" y1="192" x2="336" y2="192" style="stroke-width:1"/>
+<line class="f-linea" x1="24" y1="220" x2="336" y2="220" style="stroke-width:1"/>
+<text class="f-t" x="38" y="99" style="font-size:13px">1</text>
+<text class="f-s" x="72" y="99">ana</text>
+<text class="f-s" x="162" y="99">Tenis naranjas</text>
+<text class="f-s" x="326" y="99" text-anchor="end">900</text>
+<text class="f-t" x="38" y="127" style="font-size:13px">2</text>
+<text class="f-s" x="72" y="127">beto</text>
+<text class="f-s" x="162" y="127">Botas de piel</text>
+<text class="f-s" x="326" y="127" text-anchor="end">1,500</text>
+<text class="f-t" x="38" y="155" style="font-size:13px">3</text>
+<text class="f-s" x="72" y="155">ana</text>
+<text class="f-s" x="162" y="155">Bolsa de mano</text>
+<text class="f-s" x="326" y="155" text-anchor="end">650</text>
+<text class="f-t" x="38" y="183" style="font-size:13px">4</text>
+<text class="f-s" x="72" y="183">carla</text>
+<text class="f-s" x="162" y="183">Tenis blancos</text>
+<text class="f-s" x="326" y="183" text-anchor="end">1,200</text>
+<text class="f-t" x="38" y="211" style="font-size:13px">5</text>
+<text class="f-s" x="72" y="211">beto</text>
+<text class="f-s" x="162" y="211">Sandalias</text>
+<text class="f-s" x="326" y="211" text-anchor="end">300</text>
+<rect x="22" y="80" width="316" height="28" rx="5" style="fill:none;stroke:var(--b);stroke-width:2.5"/>
+<rect x="266" y="50" width="72" height="172" rx="7" style="fill:none;stroke:var(--g);stroke-width:2;stroke-dasharray:5 4"/>
+<rect x="26" y="240" width="14" height="14" rx="3" style="fill:var(--o);opacity:.45"/>
+<text class="f-s" x="50" y="252" style="font-size:12px"><tspan style="font-weight:700">La llave primaria (id):</tspan> distinta en</text>
+<text class="f-s" x="50" y="268" style="font-size:12px">cada fila y nunca vacía.</text>
+<rect x="26" y="284" width="14" height="14" rx="3" style="fill:none;stroke:var(--b);stroke-width:2.5"/>
+<text class="f-s" x="50" y="296" style="font-size:12px"><tspan style="font-weight:700">Una fila:</tspan> una publicación, la de Ana.</text>
+<rect x="26" y="314" width="14" height="14" rx="3" style="fill:none;stroke:var(--g);stroke-width:2;stroke-dasharray:3 2"/>
+<text class="f-s" x="50" y="326" style="font-size:12px"><tspan style="font-weight:700">Una columna:</tspan> el mismo dato de todas,</text>
+<text class="f-s" x="50" y="342" style="font-size:12px">con su tipo (precio es un entero).</text>
+<rect class="f-chip" x="24" y="356" width="312" height="44" rx="10"/>
+<text class="f-s" x="38" y="374" style="font-size:12px">Si llega otra fila con id = 1:</text>
+<text class="f-t" x="38" y="392" style="font-size:13px">la base la rechaza con un error.</text>
+</svg>

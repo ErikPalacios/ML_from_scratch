@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 418" role="img" aria-labelledby="f-tiempo-hash-desfase-t" class="f-svg" style="max-width:420px">
+<title id="f-tiempo-hash-desfase-t">Una request vista de dos maneras sobre una línea de tiempo de 200 milisegundos, del segundo 14:03:05.000 al 14:03:05.200. Arriba, lo que pasó de verdad: el backend manda la request en el milisegundo 100 y el gateway la recibe 30 milisegundos después, en el 130. Abajo, lo que dicen los logs, cada uno con el reloj de su máquina: el backend tiene bien su reloj y anota que envió en 05.100; el reloj del gateway va 80 milisegundos atrás y anota que recibió en 05.050. Ordenados por hora, la request llega antes de salir. Por eso los logs se unen por request ID y el orden lo da quién llamó a quién, no la hora.</title>
+<rect class="f-card" x="10" y="10" width="340" height="398" rx="16"/>
+<text class="f-l" x="26" y="36">DOS MÁQUINAS, DOS RELOJES</text>
+<text class="f-t" x="26" y="64" style="font-size:14px">Lo que pasó de verdad</text>
+<text class="f-s" x="176" y="90" text-anchor="end" style="font-size:12px;font-weight:700">backend envía</text>
+<text class="f-s" x="226" y="90" style="font-size:12px;font-weight:700">gateway recibe</text>
+<text class="f-s" x="226" y="104" style="font-size:12px">30 ms después</text>
+<line class="f-linea" x1="40" y1="116" x2="320" y2="116"/>
+<circle class="f-b" cx="180" cy="116" r="7"/>
+<circle class="f-b" cx="222" cy="116" r="7"/>
+<text class="f-s" x="40" y="138" text-anchor="middle" style="font:12px var(--mono)">.000</text>
+<text class="f-s" x="110" y="138" text-anchor="middle" style="font:12px var(--mono)">.050</text>
+<text class="f-s" x="180" y="138" text-anchor="middle" style="font:12px var(--mono)">.100</text>
+<text class="f-s" x="250" y="138" text-anchor="middle" style="font:12px var(--mono)">.150</text>
+<text class="f-s" x="320" y="138" text-anchor="middle" style="font:12px var(--mono)">.200</text>
+<text class="f-l" x="40" y="156">SEGUNDO 14:03:05 · MILÉSIMAS</text>
+<line x1="26" y1="172" x2="334" y2="172" style="stroke:var(--rule);stroke-width:1.5"/>
+<text class="f-t" x="26" y="198" style="font-size:14px">Lo que dicen los logs</text>
+<text class="f-l" x="26" y="222">BACKEND</text>
+<text class="f-l" x="334" y="222" text-anchor="end">SU RELOJ VA BIEN</text>
+<line class="f-linea" x1="40" y1="238" x2="320" y2="238"/>
+<circle class="f-b" cx="180" cy="238" r="7"/>
+<text class="f-s" x="194" y="256" style="font-size:12px">envié: 05.100</text>
+<text class="f-l" x="26" y="274">GATEWAY</text>
+<text class="f-l" x="334" y="274" text-anchor="end">SU RELOJ VA 80 MS ATRÁS</text>
+<line class="f-linea" x1="40" y1="290" x2="320" y2="290"/>
+<circle class="f-o" cx="110" cy="290" r="7"/>
+<text class="f-s" x="124" y="308" style="font-size:12px">recibí: 05.050</text>
+<line x1="174" y1="243" x2="122" y2="282" style="stroke:var(--o);stroke-width:2;stroke-dasharray:4 3"/>
+<path d="M117,286 L120.4,276.6 L126.4,284.6 Z" style="fill:var(--o)"/>
+<rect class="f-chip" x="24" y="328" width="312" height="66" rx="10"/>
+<text class="f-t" x="38" y="350" style="font-size:13px">Por hora, llega antes de salir.</text>
+<text class="f-s" x="38" y="368" style="font-size:12px">Une los logs por request ID; el orden lo da</text>
+<text class="f-s" x="38" y="384" style="font-size:12px">quién llamó a quién, no la hora.</text>
+</svg>

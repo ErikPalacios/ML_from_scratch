@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" role="img" aria-labelledby="f-colas-particiones-t" class="f-svg" style="max-width:420px">
+<title id="f-colas-particiones-t">Un tópico de 3 particiones, P0, P1 y P2, leído por un grupo de consumidores. Arriba, el grupo tiene 2 consumidores: el consumidor 1 lee P0 y P1, y el consumidor 2 lee P2. Abajo, el grupo tiene 4 consumidores: cada partición tiene el suyo, y el consumidor 4 no tiene ninguna partición que leer. Cada color es una llave, y una llave cae siempre en la misma partición. Cada partición la lee un solo consumidor del grupo, así que más consumidores que particiones no ayuda. El orden solo vale dentro de cada partición.</title>
+<rect class="f-card" x="10" y="10" width="340" height="400" rx="16"/>
+<text class="f-l" x="28" y="36">3 PARTICIONES, UN GRUPO DE CONSUMIDORES</text>
+
+<text class="f-t" x="28" y="62" style="font-size:13px">Con 2 consumidores</text>
+<text class="f-t" x="28" y="92" style="font-size:12px">P0</text>
+<rect class="f-o" x="52" y="76" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-p" x="76" y="76" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-o" x="100" y="76" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-o" x="124" y="76" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-p" x="148" y="76" width="22" height="22" rx="3" style="opacity:.8"/>
+<text class="f-t" x="28" y="122" style="font-size:12px">P1</text>
+<rect class="f-y" x="52" y="106" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-y" x="76" y="106" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-y" x="100" y="106" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-y" x="124" y="106" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-y" x="148" y="106" width="22" height="22" rx="3" style="opacity:.8"/>
+<text class="f-t" x="28" y="152" style="font-size:12px">P2</text>
+<rect class="f-g" x="52" y="136" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-b2" x="76" y="136" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-g" x="100" y="136" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-b2" x="124" y="136" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-g" x="148" y="136" width="22" height="22" rx="3" style="opacity:.8"/>
+<line class="f-flecha" x1="174" y1="87" x2="234" y2="101"/>
+<line class="f-flecha" x1="174" y1="117" x2="234" y2="101"/>
+<line class="f-flecha" x1="174" y1="147" x2="234" y2="147"/>
+<rect class="f-b" x="236" y="88" width="96" height="26" rx="6"/>
+<text x="284" y="105.5" text-anchor="middle" class="f-pill-t" style="font-size:12px">consumidor 1</text>
+<rect class="f-b" x="236" y="134" width="96" height="26" rx="6"/>
+<text x="284" y="151.5" text-anchor="middle" class="f-pill-t" style="font-size:12px">consumidor 2</text>
+<text class="f-s" x="28" y="180" style="font-size:12px">El 1 lee dos particiones; el 2, una.</text>
+
+<text class="f-t" x="28" y="212" style="font-size:13px">Con 4 consumidores</text>
+<text class="f-t" x="28" y="242" style="font-size:12px">P0</text>
+<rect class="f-o" x="52" y="226" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-p" x="76" y="226" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-o" x="100" y="226" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-o" x="124" y="226" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-p" x="148" y="226" width="22" height="22" rx="3" style="opacity:.8"/>
+<text class="f-t" x="28" y="272" style="font-size:12px">P1</text>
+<rect class="f-y" x="52" y="256" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-y" x="76" y="256" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-y" x="100" y="256" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-y" x="124" y="256" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-y" x="148" y="256" width="22" height="22" rx="3" style="opacity:.8"/>
+<text class="f-t" x="28" y="302" style="font-size:12px">P2</text>
+<rect class="f-g" x="52" y="286" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-b2" x="76" y="286" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-g" x="100" y="286" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-b2" x="124" y="286" width="22" height="22" rx="3" style="opacity:.8"/><rect class="f-g" x="148" y="286" width="22" height="22" rx="3" style="opacity:.8"/>
+<line class="f-flecha" x1="174" y1="237" x2="234" y2="237"/>
+<line class="f-flecha" x1="174" y1="267" x2="234" y2="267"/>
+<line class="f-flecha" x1="174" y1="297" x2="234" y2="297"/>
+<rect class="f-b" x="236" y="224" width="96" height="26" rx="6"/>
+<text x="284" y="241.5" text-anchor="middle" class="f-pill-t" style="font-size:12px">consumidor 1</text>
+<rect class="f-b" x="236" y="254" width="96" height="26" rx="6"/>
+<text x="284" y="271.5" text-anchor="middle" class="f-pill-t" style="font-size:12px">consumidor 2</text>
+<rect class="f-b" x="236" y="284" width="96" height="26" rx="6"/>
+<text x="284" y="301.5" text-anchor="middle" class="f-pill-t" style="font-size:12px">consumidor 3</text>
+<rect class="f-off" x="236" y="314" width="96" height="26" rx="6"/>
+<text class="f-s" x="284" y="331.5" text-anchor="middle" style="font-size:12px">consumidor 4</text>
+<text class="f-s" x="226" y="331.5" text-anchor="end" style="font-size:12px">no tiene qué leer</text>
+
+<rect class="f-chip" x="24" y="350" width="312" height="52" rx="10"/>
+<text class="f-s" x="36" y="370" style="font-size:12px">Cada color es una llave: cae siempre en la misma</text>
+<text class="f-s" x="36" y="387" style="font-size:12px">partición. Cada partición, a un solo consumidor.</text>
+</svg>

@@ -1,0 +1,23 @@
+{
+  "titulo": "Una hora pico contra una cola",
+  "intro": "Los workers procesan siempre lo mismo; lo que llega sube en la hora pico y vuelve a bajar. Arranca con la revisión de fotos de C01: **116** por segundo fuera del pico, **350** en la hora pico y workers para **200**.",
+  "entradas": [
+    { "id": "base", "label": "Fotos por segundo fuera del pico", "min": 10, "max": 1000, "paso": 1, "valor": 116, "unidad": "/s" },
+    { "id": "pico", "label": "Fotos por segundo en la hora pico", "min": 10, "max": 2000, "paso": 10, "valor": 350, "unidad": "/s" },
+    { "id": "horas", "label": "Cuánto dura el pico", "min": 0.25, "max": 6, "paso": 0.25, "valor": 1, "unidad": "h" },
+    { "id": "cap", "label": "Lo que procesan los workers", "min": 10, "max": 2000, "paso": 10, "valor": 200, "unidad": "/s" }
+  ],
+  "calculos": [
+    { "id": "crece", "formula": "max(pico - cap, 0)" },
+    { "id": "fila", "formula": "crece * horas * 3600" },
+    { "id": "neto", "formula": "cap - base" }
+  ],
+  "salidas": [
+    { "label": "Lo que crece la fila en el pico, por segundo", "formula": "crece", "formato": "int" },
+    { "label": "Fotos en la fila al terminar el pico", "formula": "fila", "formato": "int", "barra": true },
+    { "label": "Espera de la última, en minutos", "formula": "fila / cap / 60", "formato": "num", "decimales": 0, "nota": "lo que hay delante entre lo que sale por segundo" },
+    { "label": "Horas para vaciar la fila después del pico", "formula": "neto > 0 ? fila / neto / 3600 : Infinity", "formato": "num", "decimales": 1, "nota": "«—» = nunca: los workers no procesan ni lo de fuera del pico" },
+    { "label": "Workers de más para cubrir el pico sin cola", "formula": "max(pico / cap - 1, 0)", "formato": "pct", "nota": "lo que costaría hacerlo síncrono" }
+  ],
+  "nota": "Si lo que procesan los workers es menor que lo que llega fuera del pico, la fila crece para siempre: una cola esconde un pico, no la falta de capacidad."
+}

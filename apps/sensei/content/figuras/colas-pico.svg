@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 430" role="img" aria-labelledby="f-colas-pico-t" class="f-svg" style="max-width:420px">
+<title id="f-colas-pico-t">La hora pico de C01 con una cola en medio, de las 19 a las 24 horas. Arriba, fotos por segundo: fuera del pico llegan 116 y salen 116. De las 20 a las 21 llegan 350, pero los workers solo procesan 200: la fila crece 150 por segundo. Desde las 21 vuelven a llegar 116 y los workers siguen a 200: la fila se vacía a 84 por segundo. Abajo, las fotos esperando: cero hasta las 20, suben en línea recta hasta 540,000 a las 21 y bajan hasta cero cerca de las 22:47. Con workers para el pico no habría fila, pero se pagarían 75 por ciento más workers todo el día.</title>
+<rect class="f-card" x="10" y="10" width="340" height="410" rx="16"/>
+<text class="f-l" x="28" y="36">UNA HORA PICO CON UNA COLA EN MEDIO</text>
+<line x1="28" y1="54" x2="48" y2="54" style="stroke:var(--o);stroke-width:3"/>
+<text class="f-s" x="54" y="58" style="font-size:12px">llegan</text>
+<line x1="112" y1="54" x2="132" y2="54" style="stroke:var(--b);stroke-width:3;stroke-dasharray:6 4"/>
+<text class="f-s" x="138" y="58" style="font-size:12px">salen: workers para 200/s</text>
+
+<text class="f-t" x="28" y="84" style="font-size:13px">Fotos por segundo</text>
+<rect class="f-o" x="111" y="100" width="55" height="45" style="opacity:.28"/>
+<rect class="f-b" x="166" y="145" width="98.2" height="25.2" style="opacity:.28"/>
+<line class="f-linea" x1="56" y1="205" x2="331" y2="205"/>
+<path d="M56,170.2 H111 V100 H166 V170.2 H331" style="fill:none;stroke:var(--o);stroke-width:3"/>
+<path d="M56,170.2 H111 V145 H264.2 V170.2 H331" style="fill:none;stroke:var(--b);stroke-width:3;stroke-dasharray:6 4"/>
+<text class="f-s" x="50" y="104" text-anchor="end" style="font-size:12px">350</text>
+<text class="f-s" x="50" y="149" text-anchor="end" style="font-size:12px">200</text>
+<text class="f-s" x="50" y="174" text-anchor="end" style="font-size:12px">116</text>
+<text class="f-t" x="138.5" y="127" text-anchor="middle" style="font-size:13px">+150/s</text>
+<text class="f-t" x="215" y="162" text-anchor="middle" style="font-size:13px">−84/s</text>
+<text class="f-s" x="215" y="194" text-anchor="middle" style="font-size:12px">la fila se vacía</text>
+<text class="f-s" x="138.5" y="194" text-anchor="middle" style="font-size:12px">crece</text>
+
+<text class="f-t" x="28" y="236" style="font-size:13px">Fotos esperando en la fila</text>
+<path d="M56,340 H111 L166,259 L264.2,340 Z" class="f-o" style="opacity:.4"/>
+<path d="M56,340 H111 L166,259 L264.2,340 H331" style="fill:none;stroke:var(--o);stroke-width:2.5"/>
+<circle cx="166" cy="259" r="4" class="f-ink"/>
+<text class="f-t" x="174" y="262" style="font-size:13px">540,000 a las 21 h</text>
+<text class="f-s" x="174" y="279" style="font-size:12px">la última espera 45 min</text>
+<circle cx="264.2" cy="340" r="4" class="f-ink"/>
+<text class="f-s" x="332" y="322" text-anchor="end" style="font-size:12px">vacía ≈ 22:47</text>
+<line class="f-linea" x1="56" y1="340" x2="331" y2="340"/>
+<line class="f-linea" x1="56" y1="336" x2="56" y2="344"/>
+<line class="f-linea" x1="111" y1="336" x2="111" y2="344"/>
+<line class="f-linea" x1="166" y1="336" x2="166" y2="344"/>
+<line class="f-linea" x1="221" y1="336" x2="221" y2="344"/>
+<line class="f-linea" x1="276" y1="336" x2="276" y2="344"/>
+<line class="f-linea" x1="331" y1="336" x2="331" y2="344"/>
+<text class="f-s" x="56" y="358" text-anchor="middle" style="font-size:12px">19 h</text>
+<text class="f-s" x="111" y="358" text-anchor="middle" style="font-size:12px">20</text>
+<text class="f-s" x="166" y="358" text-anchor="middle" style="font-size:12px">21</text>
+<text class="f-s" x="221" y="358" text-anchor="middle" style="font-size:12px">22</text>
+<text class="f-s" x="276" y="358" text-anchor="middle" style="font-size:12px">23</text>
+<text class="f-s" x="331" y="358" text-anchor="middle" style="font-size:12px">24 h</text>
+
+<rect class="f-chip" x="24" y="372" width="312" height="38" rx="10"/>
+<text class="f-s" x="36" y="388" style="font-size:12px">Con workers para 350/s no habría fila, pero</text>
+<text class="f-s" x="36" y="403" style="font-size:12px">pagarías 75 % más workers todo el día.</text>
+</svg>

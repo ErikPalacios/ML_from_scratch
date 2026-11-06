@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 466" role="img" aria-labelledby="f-almacenamiento-clases-t" class="f-svg" style="max-width:420px">
+<title id="f-almacenamiento-clases-t">Las cinco clases de almacenamiento de S3, con el precio de guardar un GB al mes como barra. Standard, 0.023 dólares, se lee al instante sin cargo por GB. Standard-IA, 0.0125, se lee al instante pagando 0.01 dólares por GB, con un mínimo de 30 días. Glacier Instant Retrieval, 0.004, al instante pagando 0.03 por GB, mínimo 90 días. Glacier Flexible Retrieval, 0.0036, de minutos a horas, mínimo 90 días. Glacier Deep Archive, cerca de 0.001, hasta 12 horas, mínimo 180 días. Todas tienen once nueves de durabilidad: lo que cambia es cuánto cuesta o cuánto tarda leer. De Standard a Deep Archive, guardar es unas 23 veces más barato.</title>
+<rect class="f-card" x="10" y="10" width="340" height="446" rx="16"/>
+<text class="f-l" x="26" y="36">GUARDAR 1 GB UN MES, Y LEER</text>
+<text class="f-t" x="26" y="66" style="font-size:13px">Standard</text>
+<rect class="f-o" x="26" y="74" width="200" height="18" rx="3"/>
+<text class="f-t" x="234" y="88" style="font-size:13px">US$0.023</text>
+<text class="f-s" x="26" y="110" style="font-size:12px">Leer: al instante, sin cargo por GB</text>
+<text class="f-t" x="26" y="138" style="font-size:13px">Standard-IA</text>
+<rect class="f-y" x="26" y="146" width="109" height="18" rx="3"/>
+<text class="f-t" x="143" y="160" style="font-size:13px">US$0.0125</text>
+<text class="f-s" x="26" y="182" style="font-size:12px">Leer: al instante + US$0.01/GB · mín. 30 días</text>
+<text class="f-t" x="26" y="210" style="font-size:13px">Glacier Instant Retrieval</text>
+<rect class="f-b" x="26" y="218" width="35" height="18" rx="3"/>
+<text class="f-t" x="69" y="232" style="font-size:13px">US$0.004</text>
+<text class="f-s" x="26" y="254" style="font-size:12px">Leer: al instante + US$0.03/GB · mín. 90 días</text>
+<text class="f-t" x="26" y="282" style="font-size:13px">Glacier Flexible Retrieval</text>
+<rect class="f-p" x="26" y="290" width="31" height="18" rx="3"/>
+<text class="f-t" x="65" y="304" style="font-size:13px">US$0.0036</text>
+<text class="f-s" x="26" y="326" style="font-size:12px">Leer: de minutos a horas · mín. 90 días</text>
+<text class="f-t" x="26" y="354" style="font-size:13px">Glacier Deep Archive</text>
+<rect class="f-g" x="26" y="362" width="9" height="18" rx="2"/>
+<text class="f-t" x="43" y="376" style="font-size:13px">≈ US$0.001</text>
+<text class="f-s" x="26" y="398" style="font-size:12px">Leer: hasta 12 h de espera · mín. 180 días</text>
+<rect class="f-chip" x="22" y="408" width="316" height="42" rx="8"/>
+<text class="f-s" x="34" y="425" style="font-size:12px;font-weight:700">Las cinco: once nueves. De arriba abajo, guardar</text>
+<text class="f-s" x="34" y="442" style="font-size:12px;font-weight:700">es 23 veces más barato; leer, más caro o lento.</text>
+</svg>

@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 484" role="img" aria-labelledby="f-almacenamiento-particiones-t" class="f-svg" style="max-width:420px">
+<title id="f-almacenamiento-particiones-t">Un mes de log de predicciones de C01, noviembre de 2026, como 30 casillas, una partición por día, cada una con 4 archivos Parquet de unos 125 MB, de dt=2026-11-01 a dt=2026-11-30. La casilla del día 6 está resaltada: es la que pide una consulta de un día. Las casillas del 1 al 7 están marcadas como la semana. Abajo, lo que se lee en cada caso: un día, 4 archivos y medio GB; una semana, 28 archivos y 3.3 GB; el mes entero, 120 archivos y 15 GB. Sin particiones, cualquier consulta tendría que abrir el mes entero.</title>
+<rect class="f-card" x="10" y="10" width="340" height="464" rx="16"/>
+<text class="f-l" x="26" y="36">LOGS/PREDICCIONES/ · NOV 2026</text>
+<text class="f-s" x="26" y="60" style="font-size:12px">Cada casilla es un prefijo, de <tspan style="font:12px var(--mono)">dt=2026-11-01/</tspan></text>
+<text class="f-s" x="26" y="74" style="font-size:12px">a <tspan style="font:12px var(--mono)">dt=2026-11-30/</tspan>, con 4 archivos de ≈ 125 MB.</text>
+<rect x="28" y="94" width="46" height="28" rx="6" style="fill:var(--y);opacity:.35"/>
+<rect x="80" y="94" width="46" height="28" rx="6" style="fill:var(--y);opacity:.35"/>
+<rect x="132" y="94" width="46" height="28" rx="6" style="fill:var(--y);opacity:.35"/>
+<rect x="184" y="94" width="46" height="28" rx="6" style="fill:var(--y);opacity:.35"/>
+<rect x="236" y="94" width="46" height="28" rx="6" style="fill:var(--y);opacity:.35"/>
+<rect class="f-o" x="288" y="94" width="46" height="28" rx="6"/>
+<rect x="28" y="128" width="46" height="28" rx="6" style="fill:var(--y);opacity:.35"/>
+<rect class="f-chip" x="80" y="128" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="132" y="128" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="184" y="128" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="236" y="128" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="288" y="128" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="28" y="162" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="80" y="162" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="132" y="162" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="184" y="162" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="236" y="162" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="288" y="162" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="28" y="196" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="80" y="196" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="132" y="196" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="184" y="196" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="236" y="196" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="288" y="196" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="28" y="230" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="80" y="230" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="132" y="230" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="184" y="230" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="236" y="230" width="46" height="28" rx="6"/>
+<rect class="f-chip" x="288" y="230" width="46" height="28" rx="6"/>
+<text class="f-s" x="51" y="113" text-anchor="middle" style="font:700 12px var(--mono)">01</text>
+<text class="f-s" x="103" y="113" text-anchor="middle" style="font:700 12px var(--mono)">02</text>
+<text class="f-s" x="155" y="113" text-anchor="middle" style="font:700 12px var(--mono)">03</text>
+<text class="f-s" x="207" y="113" text-anchor="middle" style="font:700 12px var(--mono)">04</text>
+<text class="f-s" x="259" y="113" text-anchor="middle" style="font:700 12px var(--mono)">05</text>
+<text class="f-pill-t" x="311" y="113" text-anchor="middle" style="font:800 12px var(--mono)">06</text>
+<text class="f-s" x="51" y="147" text-anchor="middle" style="font:700 12px var(--mono)">07</text>
+<text class="f-s" x="103" y="147" text-anchor="middle" style="font:12px var(--mono)">08</text>
+<text class="f-s" x="155" y="147" text-anchor="middle" style="font:12px var(--mono)">09</text>
+<text class="f-s" x="207" y="147" text-anchor="middle" style="font:12px var(--mono)">10</text>
+<text class="f-s" x="259" y="147" text-anchor="middle" style="font:12px var(--mono)">11</text>
+<text class="f-s" x="311" y="147" text-anchor="middle" style="font:12px var(--mono)">12</text>
+<text class="f-s" x="51" y="181" text-anchor="middle" style="font:12px var(--mono)">13</text>
+<text class="f-s" x="103" y="181" text-anchor="middle" style="font:12px var(--mono)">14</text>
+<text class="f-s" x="155" y="181" text-anchor="middle" style="font:12px var(--mono)">15</text>
+<text class="f-s" x="207" y="181" text-anchor="middle" style="font:12px var(--mono)">16</text>
+<text class="f-s" x="259" y="181" text-anchor="middle" style="font:12px var(--mono)">17</text>
+<text class="f-s" x="311" y="181" text-anchor="middle" style="font:12px var(--mono)">18</text>
+<text class="f-s" x="51" y="215" text-anchor="middle" style="font:12px var(--mono)">19</text>
+<text class="f-s" x="103" y="215" text-anchor="middle" style="font:12px var(--mono)">20</text>
+<text class="f-s" x="155" y="215" text-anchor="middle" style="font:12px var(--mono)">21</text>
+<text class="f-s" x="207" y="215" text-anchor="middle" style="font:12px var(--mono)">22</text>
+<text class="f-s" x="259" y="215" text-anchor="middle" style="font:12px var(--mono)">23</text>
+<text class="f-s" x="311" y="215" text-anchor="middle" style="font:12px var(--mono)">24</text>
+<text class="f-s" x="51" y="249" text-anchor="middle" style="font:12px var(--mono)">25</text>
+<text class="f-s" x="103" y="249" text-anchor="middle" style="font:12px var(--mono)">26</text>
+<text class="f-s" x="155" y="249" text-anchor="middle" style="font:12px var(--mono)">27</text>
+<text class="f-s" x="207" y="249" text-anchor="middle" style="font:12px var(--mono)">28</text>
+<text class="f-s" x="259" y="249" text-anchor="middle" style="font:12px var(--mono)">29</text>
+<text class="f-s" x="311" y="249" text-anchor="middle" style="font:12px var(--mono)">30</text>
+<rect class="f-o" x="26" y="274" width="14" height="14" rx="2"/>
+<text class="f-s" x="48" y="286" style="font-size:12px">el día que pide la consulta: dt=2026-11-06</text>
+<rect x="26" y="296" width="14" height="14" rx="2" style="fill:var(--y);opacity:.6"/>
+<text class="f-s" x="48" y="308" style="font-size:12px">la semana, del 1 al 7</text>
+<text class="f-l" x="26" y="340">LO QUE SE LEE</text>
+<text class="f-s" x="26" y="362" style="font-size:12px;font-weight:700">Un día</text>
+<rect class="f-o" x="26" y="368" width="6" height="14" rx="2"/>
+<text class="f-s" x="40" y="380" style="font-size:12px">4 archivos · 0.5 GB</text>
+<text class="f-s" x="26" y="402" style="font-size:12px;font-weight:700">Una semana</text>
+<rect x="26" y="408" width="36" height="14" rx="2" style="fill:var(--y);opacity:.6"/>
+<text class="f-s" x="70" y="420" style="font-size:12px">28 archivos · 3.3 GB</text>
+<text class="f-s" x="26" y="442" style="font-size:12px;font-weight:700">El mes, o cualquier consulta sin particiones</text>
+<rect class="f-b2" x="26" y="448" width="160" height="14" rx="2"/>
+<text class="f-s" x="194" y="460" style="font-size:12px">120 archivos · 15 GB</text>
+</svg>

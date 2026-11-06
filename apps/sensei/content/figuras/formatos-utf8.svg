@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 384" role="img" aria-labelledby="f-formatos-utf8-t" class="f-svg" style="max-width:420px">
+<title id="f-formatos-utf8-t">El texto «Niño» seguido de un espacio y el emoji de un tenis, en UTF-8. Son seis caracteres y diez bytes. N es 4E, i es 69, o es 6F y el espacio es 20: un byte cada uno, como en ASCII. La ñ ocupa dos bytes, C3 y B1. El tenis ocupa cuatro: F0, 9F, 91 y 9F. Abajo, los primeros cinco bytes leídos como Latin-1, que toma cada byte como una letra: 4E es N, 69 es i, C3 es Ã, B1 es ± y 6F es o. Niño se vuelve NiÃ±o.</title>
+<rect class="f-card" x="10" y="10" width="340" height="364" rx="16"/>
+<text class="f-l" x="21" y="36">«NIÑO 👟»: 6 CARACTERES, 10 BYTES</text>
+
+<rect class="f-chip" x="21" y="50" width="28" height="30" rx="6"/>
+<text class="f-t" x="35" y="71" text-anchor="middle" style="font-size:15px">N</text>
+<rect class="f-chip" x="55" y="50" width="28" height="30" rx="6"/>
+<text class="f-t" x="69" y="71" text-anchor="middle" style="font-size:15px">i</text>
+<rect class="f-o" x="89" y="50" width="58" height="30" rx="6"/>
+<text class="f-pill-t" x="118" y="71" text-anchor="middle">ñ</text>
+<rect class="f-chip" x="153" y="50" width="28" height="30" rx="6"/>
+<text class="f-t" x="167" y="71" text-anchor="middle" style="font-size:15px">o</text>
+<rect class="f-chip" x="187" y="50" width="28" height="30" rx="6"/>
+<text class="f-s" x="201" y="70" text-anchor="middle" style="font-size:12px">esp.</text>
+<rect class="f-p" x="221" y="50" width="118" height="30" rx="6"/>
+<text x="280" y="71" text-anchor="middle" style="font-size:16px">👟</text>
+
+<path class="f-flecha" d="M35 84v10M69 84v10M118 84v10M167 84v10M201 84v10M280 84v10"/>
+
+<rect class="f-chip" x="21" y="98" width="28" height="30" rx="5"/>
+<text class="f-t" x="35" y="118" text-anchor="middle" style="font:700 12px var(--mono)">4E</text>
+<rect class="f-chip" x="55" y="98" width="28" height="30" rx="5"/>
+<text class="f-t" x="69" y="118" text-anchor="middle" style="font:700 12px var(--mono)">69</text>
+<rect class="f-o" x="89" y="98" width="28" height="30" rx="5"/>
+<text class="f-pill-t" x="103" y="118" text-anchor="middle" style="font:800 12px var(--mono)">C3</text>
+<rect class="f-o" x="119" y="98" width="28" height="30" rx="5"/>
+<text class="f-pill-t" x="133" y="118" text-anchor="middle" style="font:800 12px var(--mono)">B1</text>
+<rect class="f-chip" x="153" y="98" width="28" height="30" rx="5"/>
+<text class="f-t" x="167" y="118" text-anchor="middle" style="font:700 12px var(--mono)">6F</text>
+<rect class="f-chip" x="187" y="98" width="28" height="30" rx="5"/>
+<text class="f-t" x="201" y="118" text-anchor="middle" style="font:700 12px var(--mono)">20</text>
+<rect class="f-p" x="221" y="98" width="28" height="30" rx="5"/>
+<text class="f-pill-t" x="235" y="118" text-anchor="middle" style="font:800 12px var(--mono)">F0</text>
+<rect class="f-p" x="251" y="98" width="28" height="30" rx="5"/>
+<text class="f-pill-t" x="265" y="118" text-anchor="middle" style="font:800 12px var(--mono)">9F</text>
+<rect class="f-p" x="281" y="98" width="28" height="30" rx="5"/>
+<text class="f-pill-t" x="295" y="118" text-anchor="middle" style="font:800 12px var(--mono)">91</text>
+<rect class="f-p" x="311" y="98" width="28" height="30" rx="5"/>
+<text class="f-pill-t" x="325" y="118" text-anchor="middle" style="font:800 12px var(--mono)">9F</text>
+
+<text class="f-s" x="35" y="146" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="69" y="146" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="118" y="146" text-anchor="middle" style="font-size:12px;font-weight:700">2 bytes</text>
+<text class="f-s" x="167" y="146" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="201" y="146" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="280" y="146" text-anchor="middle" style="font-size:12px;font-weight:700">4 bytes</text>
+
+<line class="f-linea" x1="21" y1="166" x2="339" y2="166" style="stroke-dasharray:4 4"/>
+<text class="f-l" x="21" y="190">LEÍDOS COMO LATIN-1: UN BYTE, UNA LETRA</text>
+
+<rect class="f-chip" x="21" y="202" width="28" height="30" rx="5"/>
+<text class="f-t" x="35" y="222" text-anchor="middle" style="font:700 12px var(--mono)">4E</text>
+<rect class="f-chip" x="55" y="202" width="28" height="30" rx="5"/>
+<text class="f-t" x="69" y="222" text-anchor="middle" style="font:700 12px var(--mono)">69</text>
+<rect class="f-o" x="89" y="202" width="28" height="30" rx="5"/>
+<text class="f-pill-t" x="103" y="222" text-anchor="middle" style="font:800 12px var(--mono)">C3</text>
+<rect class="f-o" x="123" y="202" width="28" height="30" rx="5"/>
+<text class="f-pill-t" x="137" y="222" text-anchor="middle" style="font:800 12px var(--mono)">B1</text>
+<rect class="f-chip" x="157" y="202" width="28" height="30" rx="5"/>
+<text class="f-t" x="171" y="222" text-anchor="middle" style="font:700 12px var(--mono)">6F</text>
+
+<path class="f-flecha" d="M35 236v10M69 236v10M103 236v10M137 236v10M171 236v10"/>
+
+<text class="f-t" x="35" y="268" text-anchor="middle" style="font-size:16px">N</text>
+<text class="f-t" x="69" y="268" text-anchor="middle" style="font-size:16px">i</text>
+<text class="f-t" x="103" y="268" text-anchor="middle" style="font-size:16px;fill:var(--o)">Ã</text>
+<text class="f-t" x="137" y="268" text-anchor="middle" style="font-size:16px;fill:var(--o)">±</text>
+<text class="f-t" x="171" y="268" text-anchor="middle" style="font-size:16px">o</text>
+
+<text class="f-s" x="206" y="224" style="font-size:12px">Latin-1 no sabe</text>
+<text class="f-s" x="206" y="240" style="font-size:12px">que C3 y B1 van</text>
+<text class="f-s" x="206" y="256" style="font-size:12px">juntos.</text>
+
+<rect class="f-chip" x="21" y="288" width="318" height="70" rx="10"/>
+<text class="f-t" x="35" y="313" style="font-size:14px">Niño  →  NiÃ±o</text>
+<text class="f-s" x="35" y="333" style="font-size:12px">Es UTF-8 leído con la tabla equivocada.</text>
+<text class="f-s" x="35" y="349" style="font-size:12px">Los bytes están bien; la lectura, no.</text>
+</svg>

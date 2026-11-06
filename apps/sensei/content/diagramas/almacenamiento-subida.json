@@ -1,0 +1,248 @@
+{
+  "titulo": "La foto de Ana sube directo al bucket, con un permiso prestado",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    {
+      "id": "producto",
+      "label": "El marketplace: lo que hace la app de Ana",
+      "kind": "online",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 22
+    },
+    {
+      "id": "datos",
+      "label": "Dónde viven los bytes, y quién los lee",
+      "kind": "offline",
+      "x": 0,
+      "y": 30,
+      "w": 78,
+      "h": 20
+    }
+  ],
+  "nodes": [
+    {
+      "id": "app",
+      "label": "App de Ana",
+      "sub": "la foto de 200 KB",
+      "kind": "client",
+      "x": 1,
+      "y": 9,
+      "w": 20,
+      "h": 8,
+      "note": "La app tiene la foto, pero **no tiene credenciales** del bucket: si las tuviera, cualquiera podría sacarlas de la app y leer o borrar todo. Lo único que recibe es una [[url-prefirmada|URL prefirmada]] para una sola llave."
+    },
+    {
+      "id": "api",
+      "label": "API del marketplace",
+      "sub": "firma la URL",
+      "kind": "service",
+      "x": 29,
+      "y": 9,
+      "w": 20,
+      "h": 8,
+      "note": "Revisa que Ana inició sesión, inventa una llave nueva y **firma** con la clave secreta de su rol una URL de `PUT` que vale 15 minutos. Firmar es una cuenta local: no llama a S3. La API nunca ve los bytes de la foto."
+    },
+    {
+      "id": "db",
+      "label": "Base de datos",
+      "sub": "la publicación y su llave",
+      "kind": "store",
+      "x": 57,
+      "y": 9,
+      "w": 20,
+      "h": 8,
+      "note": "La publicación de Ana guarda el **texto de la llave** (`fotos/8f3a.jpg`), no la foto. Es una fila chiquita en una [[base-datos|base de datos]]."
+    },
+    {
+      "id": "s3",
+      "label": "Bucket de fotos",
+      "sub": "privado · S3",
+      "kind": "store",
+      "x": 1,
+      "y": 38,
+      "w": 20,
+      "h": 8,
+      "note": "Un [[bucket-objetos|bucket]] privado del producto. Recibe el `PUT`, recalcula la firma, revisa que no haya vencido y guarda el objeto con [[durabilidad]] de once nueves. Una regla de [[ciclo-vida|ciclo de vida]] lo mueve de clase cuando envejece."
+    },
+    {
+      "id": "c01",
+      "label": "Gateway de C01",
+      "sub": "variante: la llave",
+      "kind": "service",
+      "x": 29,
+      "y": 38,
+      "w": 20,
+      "h": 8,
+      "note": "En la variante que propone M13 para ahorrar, la request a C01 lleva **la llave, no los bytes** (en el diseño base, el gateway recibe la foto). El gateway lee la foto del bucket con el permiso de su propio rol, que solo deja leer el prefijo de fotos: un `GET` por foto, ≈ 304 millones al mes."
+    },
+    {
+      "id": "lake",
+      "label": "Log en el lake",
+      "sub": "la llave, no la foto",
+      "kind": "store",
+      "x": 57,
+      "y": 38,
+      "w": 20,
+      "h": 8,
+      "note": "El log de cada predicción anota la llave de la foto, la categoría y la confianza: ≈ 300 bytes. La foto ya vive en el bucket del producto; copiarla «por si acaso» serían ≈ 60 TB más cada mes."
+    }
+  ],
+  "edges": [
+    {
+      "from": "app",
+      "to": "api",
+      "kind": "online",
+      "label": "pide la URL",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "api",
+      "to": "app",
+      "kind": "online",
+      "dashed": true,
+      "label": "URL · 15 min",
+      "fromSide": "t",
+      "toSide": "t",
+      "via": [
+        [
+          39,
+          5
+        ],
+        [
+          11,
+          5
+        ]
+      ]
+    },
+    {
+      "from": "app",
+      "to": "s3",
+      "kind": "online",
+      "label": "PUT directo",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "api",
+      "to": "db",
+      "kind": "online",
+      "label": "guarda la llave",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "api",
+      "to": "c01",
+      "kind": "online",
+      "label": "la llave",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "c01",
+      "to": "s3",
+      "kind": "online",
+      "label": "GET",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "c01",
+      "to": "lake",
+      "kind": "async",
+      "label": "log",
+      "fromSide": "r",
+      "toSide": "l"
+    }
+  ],
+  "flows": [
+    {
+      "id": "subida",
+      "label": "Subir la foto",
+      "steps": [
+        {
+          "nodes": [
+            "app",
+            "api"
+          ],
+          "edges": [
+            "app>api"
+          ],
+          "text": "Ana toca «publicar». La app manda un `POST` chiquito a la API: «quiero subir una foto JPEG»."
+        },
+        {
+          "nodes": [
+            "api",
+            "app"
+          ],
+          "edges": [
+            "api>app"
+          ],
+          "text": "La API revisa la sesión de Ana, inventa la llave `fotos/8f3a.jpg` y **firma** una URL de `PUT` que vale 15 minutos para esa llave y nada más."
+        },
+        {
+          "nodes": [
+            "app",
+            "s3"
+          ],
+          "edges": [
+            "app>s3"
+          ],
+          "text": "La app sube los 200 KB **directo al bucket**. S3 recalcula la firma: si la llave o la hora no cuadran, responde 403. Aquí cuadran, y guarda el objeto."
+        },
+        {
+          "nodes": [
+            "app",
+            "api",
+            "db"
+          ],
+          "edges": [
+            "app>api",
+            "api>db"
+          ],
+          "text": "La app manda la publicación con la llave (un `POST` más, otra vez por la flecha de arriba). La API la guarda en la base de datos: una fila con texto, no una foto."
+        }
+      ]
+    },
+    {
+      "id": "clasificar",
+      "label": "Clasificar la foto",
+      "steps": [
+        {
+          "nodes": [
+            "api",
+            "c01"
+          ],
+          "edges": [
+            "api>c01"
+          ],
+          "text": "El marketplace le pide a C01 una categoría. En la variante de M13, la request lleva **la llave**, unos cuantos bytes, en vez de los 200 KB."
+        },
+        {
+          "nodes": [
+            "c01",
+            "s3"
+          ],
+          "edges": [
+            "c01>s3"
+          ],
+          "text": "El gateway hace un `GET` con el permiso de su propio rol. No usa URLs prefirmadas: es un servicio de confianza, con permiso de leer ese prefijo."
+        },
+        {
+          "nodes": [
+            "c01",
+            "lake"
+          ],
+          "edges": [
+            "c01>lake"
+          ],
+          "text": "La predicción queda en el log, **con la llave de la foto y no sus bytes**, y llega al lake en archivos grandes, no uno por predicción."
+        }
+      ]
+    }
+  ]
+}

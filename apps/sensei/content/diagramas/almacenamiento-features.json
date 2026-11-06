@@ -1,0 +1,54 @@
+{
+  "titulo": "Una feature, una definición, dos almacenes",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "offline", "label": "Offline: horas y días", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 29 },
+    { "id": "online", "label": "Online: cada request, en milisegundos", "kind": "online", "x": 0, "y": 31, "w": 78, "h": 19 }
+  ],
+  "nodes": [
+    { "id": "lake", "label": "Data lake", "sub": "eventos por dt=", "kind": "store", "x": 1, "y": 7, "w": 18, "h": 8,
+      "note": "Las transacciones y los eventos de cada día, en Parquet, en una [[particion-datos|partición]] por fecha. Es la fuente de verdad: todo lo de abajo se puede rehacer desde aquí." },
+    { "id": "job", "label": "Job de features", "sub": "una sola definición", "kind": "job", "x": 27, "y": 7, "w": 18, "h": 8,
+      "note": "El código que calcula «compras de la tarjeta en las últimas 24 h». Es **el mismo** para la historia y para el presente: si hubiera dos versiones, sus números se separarían ([[training-serving-skew|training-serving skew]])." },
+    { "id": "offline", "label": "Offline store", "sub": "cada valor con su hora", "kind": "store", "x": 53, "y": 7, "w": 18, "h": 8,
+      "note": "Todas las versiones de cada valor, con su timestamp, en el lake o en el [[data-warehouse|warehouse]]. De aquí salen los datasets de entrenamiento." },
+    { "id": "train", "label": "Dataset", "sub": "point-in-time", "kind": "job", "x": 27, "y": 19, "w": 18, "h": 8,
+      "note": "Para cada ejemplo toma el valor que la feature tenía **justo antes** de ese momento ([[point-in-time]]). Si tomara uno posterior, el modelo aprendería con el futuro: [[leakage]]." },
+    { "id": "req", "label": "Request", "sub": "la tarjeta 77", "kind": "client", "x": 1, "y": 37, "w": 18, "h": 8,
+      "note": "Una transacción de ahora. El modelo tiene que decidir en milisegundos si la deja pasar." },
+    { "id": "svc", "label": "Servicio del modelo", "sub": "pide las features", "kind": "service", "x": 27, "y": 37, "w": 18, "h": 8,
+      "note": "Lee las features de la tarjeta del online store, con su llave (el id de la tarjeta), y se las da al modelo. No calcula nada histórico en el momento." },
+    { "id": "online", "label": "Online store", "sub": "llave-valor · el último valor", "kind": "store", "x": 53, "y": 37, "w": 18, "h": 8,
+      "note": "Solo el valor más nuevo de cada tarjeta, en una base [[llave-valor]] como [[redis|Redis]]: responde en ≈ 1 ms. Cada llave lleva un [[ttl|TTL]] para que lo que ya nadie usa se borre solo." }
+  ],
+  "edges": [
+    { "from": "lake", "to": "job", "kind": "offline", "label": "lee", "fromSide": "r", "toSide": "l" },
+    { "from": "job", "to": "offline", "kind": "offline", "label": "escribe", "fromSide": "r", "toSide": "l" },
+    { "from": "offline", "to": "train", "kind": "offline", "label": "historia", "fromSide": "b", "toSide": "r", "via": [[62, 23]] },
+    { "from": "offline", "to": "online", "kind": "offline", "label": "materializa", "fromSide": "r", "toSide": "r", "via": [[75, 11], [75, 41]] },
+    { "from": "req", "to": "svc", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "svc", "to": "online", "kind": "online", "label": "GET", "fromSide": "r", "toSide": "l" }
+  ],
+  "flows": [
+    { "id": "entrenar", "label": "Armar un dataset",
+      "steps": [
+        { "nodes": ["lake", "job"], "edges": ["lake>job"], "text": "Cada noche, el **job de features** lee la partición del día en el lake." },
+        { "nodes": ["job", "offline"], "edges": ["job>offline"], "text": "Calcula la feature y la escribe en el **offline store**, cada valor con la hora en que cambió." },
+        { "nodes": ["offline", "train"], "edges": ["offline>train"], "text": "Para entrenar, cada ejemplo toma el valor de **justo antes** de su momento: a una transacción de las 10:05 le toca el valor de las 10:00, no el de las 10:30." }
+      ] },
+    { "id": "servir", "label": "Servir una request",
+      "steps": [
+        { "nodes": ["offline", "online"], "edges": ["offline>online"], "text": "Un job **materializa**: copia el valor más nuevo de cada tarjeta del offline store al online store." },
+        { "nodes": ["req", "svc"], "edges": ["req>svc"], "text": "Llega una transacción de la tarjeta 77." },
+        { "nodes": ["svc", "online"], "edges": ["svc>online"], "text": "El servicio hace un `GET` con la llave de la tarjeta y recibe sus features en ≈ 1 ms. Son los mismos números que vio el entrenamiento, porque salen del mismo job." }
+      ] },
+    { "id": "backfill", "label": "Backfill de una feature nueva",
+      "steps": [
+        { "nodes": ["job"], "edges": [], "text": "Alguien define una feature nueva. Desde hoy se calcula cada noche, pero no tiene historia." },
+        { "nodes": ["lake", "job"], "edges": ["lake>job"], "text": "El **backfill** corre el mismo job sobre las 90 particiones viejas, una por corrida, 10 a la vez: ≈ 3 horas en vez de 30." },
+        { "nodes": ["job", "offline"], "edges": ["job>offline"], "text": "Cada corrida escribe solo su día en el **offline store**. Si una se cae, se repite esa: escribirla dos veces da lo mismo." },
+        { "nodes": ["offline", "train"], "edges": ["offline>train"], "text": "Ya hay 90 días de historia para entrenar. El online store no se toca: a las requests de hoy no les sirve el valor de hace tres meses." }
+      ] }
+  ]
+}

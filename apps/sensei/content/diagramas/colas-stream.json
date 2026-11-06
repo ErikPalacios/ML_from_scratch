@@ -1,0 +1,332 @@
+{
+ "titulo": "Un stream de eventos en C07: un tópico, varios grupos",
+ "width": 78,
+ "height": 46,
+ "lanes": [
+  {
+   "id": "escriben",
+   "label": "Escriben y vigilan",
+   "kind": "online",
+   "x": 0,
+   "y": 0,
+   "w": 52,
+   "h": 46
+  },
+  {
+   "id": "leen",
+   "label": "Leen: un grupo por sistema",
+   "kind": "offline",
+   "x": 54,
+   "y": 0,
+   "w": 24,
+   "h": 46
+  }
+ ],
+ "nodes": [
+  {
+   "id": "vendedor",
+   "label": "Vendedor",
+   "sub": "marca «vendido»",
+   "kind": "client",
+   "x": 1,
+   "y": 5,
+   "w": 19,
+   "h": 8,
+   "note": "Ana vendió sus tenis y lo marca en la app. Desde ahí, C07 promete que la publicación desaparezca de la búsqueda en un minuto."
+  },
+  {
+   "id": "svc",
+   "label": "listing-service",
+   "sub": "el productor",
+   "kind": "service",
+   "x": 30,
+   "y": 5,
+   "w": 19,
+   "h": 8,
+   "note": "El servicio del catálogo guarda el cambio en su base y publica el evento `listing 42: vendido` con **llave** `listing_id`. Para no perder ninguno entre la base y el tópico, usa el patrón outbox o [[cdc|CDC]]."
+  },
+  {
+   "id": "topico",
+   "label": "listing-events",
+   "sub": "tópico · llave listing_id",
+   "kind": "queue",
+   "x": 30,
+   "y": 20,
+   "w": 19,
+   "h": 8,
+   "note": "Un [[topico|tópico]] de Kafka partido en [[particion-topico|particiones]]. La llave decide la partición con un hash, así los eventos de un mismo listing quedan en orden. Guarda 7 días: leer no borra nada."
+  },
+  {
+   "id": "monitor",
+   "label": "Lag por grupo",
+   "sub": "> 3 min durante 10",
+   "kind": "monitor",
+   "x": 1,
+   "y": 35,
+   "w": 19,
+   "h": 8,
+   "note": "El [[lag-consumidor|lag]] de cada grupo: el último offset escrito menos el confirmado, convertido a tiempo. Con más de 3 minutos sostenidos 10, alguien revisa. Los workers escalan por lag."
+  },
+  {
+   "id": "dlq",
+   "label": "DLQ",
+   "sub": "fotos que no bajan",
+   "kind": "queue",
+   "x": 30,
+   "y": 35,
+   "w": 19,
+   "h": 8,
+   "note": "Un evento cuya foto no se puede bajar o leer va aquí con su motivo, y el worker sigue con el siguiente offset. Así **un error nunca bloquea la partición**."
+  },
+  {
+   "id": "sink",
+   "label": "sink-al-lake",
+   "sub": "otro grupo, más lento",
+   "kind": "job",
+   "x": 58,
+   "y": 5,
+   "w": 19,
+   "h": 8,
+   "note": "Un [[grupo-consumidores|grupo]] que guarda cada evento en el [[data-lake|data lake]] para entrenar. Va un rato atrás, con su propio offset, y no estorba a nadie."
+  },
+  {
+   "id": "v7",
+   "label": "embed-worker-v7",
+   "sub": "grupo del índice actual",
+   "kind": "service",
+   "x": 58,
+   "y": 20,
+   "w": 19,
+   "h": 8,
+   "note": "El grupo que mantiene el índice de búsqueda. Cada partición la lee un solo consumidor del grupo. Calcula el [[embedding]] de lo nuevo y borra del índice lo vendido."
+  },
+  {
+   "id": "v8",
+   "label": "embed-worker-v8",
+   "sub": "un grupo nuevo",
+   "kind": "service",
+   "x": 58,
+   "y": 35,
+   "w": 19,
+   "h": 8,
+   "note": "Para estrenar un modelo nuevo, un grupo nuevo lee el mismo tópico **desde el offset de un snapshot** del catálogo. El v7 sigue sirviendo mientras tanto: los dos leen todo, cada uno a su ritmo."
+  }
+ ],
+ "edges": [
+  {
+   "from": "vendedor",
+   "to": "svc",
+   "kind": "online",
+   "label": "vendido",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "svc",
+   "to": "topico",
+   "kind": "async",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "topico",
+   "to": "sink",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l",
+   "via": [
+    [
+     53,
+     24
+    ],
+    [
+     53,
+     9
+    ]
+   ]
+  },
+  {
+   "from": "topico",
+   "to": "v7",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "topico",
+   "to": "v8",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l",
+   "via": [
+    [
+     53,
+     24
+    ],
+    [
+     53,
+     39
+    ]
+   ]
+  },
+  {
+   "from": "v7",
+   "to": "dlq",
+   "kind": "neutral",
+   "dashed": true,
+   "fromSide": "b",
+   "toSide": "t",
+   "via": [
+    [
+     67.5,
+     32
+    ],
+    [
+     39.5,
+     32
+    ]
+   ]
+  },
+  {
+   "from": "topico",
+   "to": "monitor",
+   "kind": "monitor",
+   "dashed": true,
+   "label": "offsets",
+   "fromSide": "l",
+   "toSide": "t",
+   "via": [
+    [
+     10.5,
+     24
+    ]
+   ]
+  }
+ ],
+ "flows": [
+  {
+   "id": "evento",
+   "label": "Un evento, tres lectores",
+   "steps": [
+    {
+     "nodes": [
+      "vendedor",
+      "svc"
+     ],
+     "edges": [
+      "vendedor>svc"
+     ],
+     "text": "Ana marca sus tenis como **vendidos**. El listing-service guarda el cambio."
+    },
+    {
+     "nodes": [
+      "svc",
+      "topico"
+     ],
+     "edges": [
+      "svc>topico"
+     ],
+     "text": "Publica `listing 42: vendido` con llave `listing_id`. El hash de la llave lo manda a la misma partición que el alta y el cambio de precio de ese listing: **en orden**."
+    },
+    {
+     "nodes": [
+      "topico",
+      "v7"
+     ],
+     "edges": [
+      "topico>v7"
+     ],
+     "text": "El grupo **embed-worker-v7** lo lee en su offset, borra el listing del índice y hace commit. Los tenis de Ana desaparecen de la búsqueda en segundos."
+    },
+    {
+     "nodes": [
+      "topico",
+      "sink"
+     ],
+     "edges": [
+      "topico>sink"
+     ],
+     "text": "El grupo **sink-al-lake** lee el **mismo** evento, un minuto después, con su propio offset. Leer no borró nada."
+    }
+   ]
+  },
+  {
+   "id": "caida",
+   "label": "Un consumidor que se cae",
+   "steps": [
+    {
+     "nodes": [
+      "v7"
+     ],
+     "edges": [],
+     "text": "Un consumidor del grupo v7 procesa tres eventos y se cae **antes de hacer commit** de su offset."
+    },
+    {
+     "nodes": [
+      "topico",
+      "v7"
+     ],
+     "edges": [
+      "topico>v7"
+     ],
+     "text": "El broker **rebalancea**: otra copia del grupo hereda la partición y sigue desde el último offset confirmado. Relee los tres eventos: at-least-once."
+    },
+    {
+     "nodes": [
+      "v7",
+      "dlq"
+     ],
+     "edges": [
+      "v7>dlq"
+     ],
+     "text": "Uno de ellos trae una foto que no baja: va a la **DLQ** con su motivo, y el worker sigue con el siguiente offset."
+    },
+    {
+     "nodes": [
+      "topico",
+      "monitor"
+     ],
+     "edges": [
+      "topico>monitor"
+     ],
+     "text": "Mientras tanto, el **lag** del grupo subió unos segundos y volvió a bajar. Si pasara de 3 minutos durante 10, sonaría la alerta."
+    }
+   ]
+  },
+  {
+   "id": "releer",
+   "label": "Un grupo nuevo que relee",
+   "steps": [
+    {
+     "nodes": [
+      "v8"
+     ],
+     "edges": [],
+     "text": "Hay un modelo nuevo de embeddings. Se arma un índice nuevo desde un [[snapshot]] del catálogo (una foto fija de los datos), que guarda el offset del tópico en ese momento."
+    },
+    {
+     "nodes": [
+      "topico",
+      "v8"
+     ],
+     "edges": [
+      "topico>v8"
+     ],
+     "text": "El grupo **embed-worker-v8** empieza a leer desde ese offset: los cambios que pasaron después del snapshot. Es un *replay*, posible porque el tópico guarda 7 días."
+    },
+    {
+     "nodes": [
+      "topico",
+      "v7",
+      "v8"
+     ],
+     "edges": [
+      "topico>v7",
+      "topico>v8"
+     ],
+     "text": "Los dos grupos leen todo, cada uno con su offset. Cuando el v8 alcanza al v7, se cambia la búsqueda al índice nuevo, sin que el productor se haya enterado."
+    }
+   ]
+  }
+ ]
+}

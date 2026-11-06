@@ -1,0 +1,65 @@
+{
+  "titulo": "El request ID de C01: de la foto de Ana a su etiqueta",
+  "width": 78,
+  "height": 58,
+  "lanes": [
+    { "id": "camino", "label": "El camino de la request", "kind": "online", "x": 0, "y": 0, "w": 46, "h": 58 },
+    { "id": "guardado", "label": "Lo que queda guardado", "kind": "monitor", "x": 48, "y": 0, "w": 30, "h": 58 }
+  ],
+  "nodes": [
+    { "id": "app", "label": "App de Ana", "sub": "sube la foto", "kind": "client",
+      "x": 12, "y": 4, "w": 22, "h": 7,
+      "note": "El teléfono de Ana manda la foto de sus tenis, de ≈ 200 KB, al backend del marketplace." },
+    { "id": "backend", "label": "Backend", "sub": "crea el request ID", "kind": "service",
+      "x": 12, "y": 18, "w": 22, "h": 7,
+      "note": "La primera pieza que recibe la request le pone su [[request-id|request ID]], `9f2c41d0`, y lo manda en el header `X-Request-ID`. También elige el brazo del A/B con un hash del `seller_id` ([[asignacion-hash]]) y lo manda en `X-Model-Arm`." },
+    { "id": "gateway", "label": "Gateway", "sub": "lo copia en su log", "kind": "service",
+      "x": 12, "y": 32, "w": 22, "h": 7,
+      "note": "Respeta el id que llega (o inventa uno si falta), lo escribe en cada línea de su log y lo devuelve en la respuesta. Mide su latencia con el [[reloj-monotonico|reloj monotónico]]." },
+    { "id": "triton", "label": "Triton", "sub": "la ResNet-50, en la GPU", "kind": "gpu",
+      "x": 12, "y": 46, "w": 22, "h": 7,
+      "note": "Recibe el tensor de 602,112 bytes en FP32 y devuelve 500 logits, uno por categoría. Su reloj no coincide exactamente con el del gateway: por eso las piezas se unen por id, no por hora." },
+    { "id": "etiqueta", "label": "Elección de Ana", "sub": "request_id · categoría", "kind": "store",
+      "x": 51, "y": 18, "w": 25, "h": 7,
+      "note": "Minutos después, Ana acepta la categoría sugerida o la cambia. El backend guarda esa elección, la etiqueta, con el mismo request ID y con su propia hora de llegada." },
+    { "id": "predlog", "label": "Log de predicciones", "sub": "request_id · sha256 · top-5", "kind": "store",
+      "x": 51, "y": 32, "w": 25, "h": 7,
+      "note": "Una línea por predicción: el request ID, la hora en UTC, la versión del modelo, el sha256 de la foto (no la foto), el top-5 y la latencia. Si alguien pide borrar sus datos, se encuentran por id y por hash." },
+    { "id": "dataset", "label": "Dataset de training", "sub": "une por request_id", "kind": "job",
+      "x": 51, "y": 46, "w": 25, "h": 7,
+      "note": "El job que arma el siguiente dataset une cada predicción con su etiqueta por request ID. Sin ese id no habría unión posible: ni la hora ni el hash de la foto bastan." }
+  ],
+  "edges": [
+    { "from": "app", "to": "backend", "kind": "online", "fromSide": "b", "toSide": "t", "label": "foto" },
+    { "from": "backend", "to": "gateway", "kind": "online", "fromSide": "b", "toSide": "t", "label": "X-Request-ID" },
+    { "from": "gateway", "to": "triton", "kind": "online", "fromSide": "b", "toSide": "t", "label": "tensor" },
+    { "from": "backend", "to": "etiqueta", "kind": "offline", "fromSide": "r", "toSide": "l", "label": "después" },
+    { "from": "gateway", "to": "predlog", "kind": "monitor", "fromSide": "r", "toSide": "l", "label": "una línea" },
+    { "from": "predlog", "to": "dataset", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "etiqueta", "to": "dataset", "kind": "offline", "fromSide": "r", "toSide": "r", "via": [[77.5, 21.5], [77.5, 49.5]] }
+  ],
+  "flows": [
+    { "id": "request", "label": "Una request, de punta a punta",
+      "steps": [
+        { "nodes": ["app", "backend"], "edges": ["app>backend"],
+          "text": "Ana sube la foto de sus tenis desde la app. La request llega al **backend** del marketplace a las 14:03:05 UTC." },
+        { "nodes": ["backend"], "edges": [],
+          "text": "El backend le pone un nombre que nadie más tiene, `X-Request-ID: 9f2c41d0`, y elige el brazo del A/B con un hash del `seller_id`." },
+        { "nodes": ["backend", "gateway"], "edges": ["backend>gateway"],
+          "text": "El id viaja en un header. El **gateway** lo escribe en cada línea de su log y lo devuelve en la respuesta." },
+        { "nodes": ["gateway", "triton"], "edges": ["gateway>triton"],
+          "text": "**Triton** recibe el tensor y devuelve 500 logits. Cada pieza anota su parte con su propio reloj." },
+        { "nodes": ["gateway", "predlog"], "edges": ["gateway>predlog"],
+          "text": "El gateway deja una línea por predicción: request_id, hora en UTC, versión del modelo, sha256 de la foto, top-5 y latencia." }
+      ] },
+    { "id": "etiqueta", "label": "La etiqueta llega después",
+      "steps": [
+        { "nodes": ["backend", "etiqueta"], "edges": ["backend>etiqueta"],
+          "text": "Minutos después, Ana acepta la categoría o la cambia. El backend guarda su elección con el **mismo** request_id." },
+        { "nodes": ["etiqueta", "predlog", "dataset"], "edges": ["etiqueta>dataset", "predlog>dataset"],
+          "text": "Al armar el dataset, la predicción y su etiqueta se unen por request_id: no por hora, que no coincide entre máquinas, ni por el hash de la foto, que cambia si la foto guardada se vuelve a comprimir." },
+        { "nodes": ["dataset"], "edges": [],
+          "text": "Si el id no se hubiera guardado al predecir, esta unión no existiría. Con él, también se encuentra todo lo de Ana si pide borrar sus datos." }
+      ] }
+  ]
+}

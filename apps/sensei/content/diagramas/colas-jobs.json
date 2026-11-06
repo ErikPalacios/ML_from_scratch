@@ -1,0 +1,309 @@
+{
+ "titulo": "Una cola de trabajos por dentro: recibir, esconder, confirmar",
+ "width": 78,
+ "height": 46,
+ "lanes": [
+  {
+   "id": "arriba",
+   "label": "Productor y broker",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 16
+  },
+  {
+   "id": "abajo",
+   "label": "Consumidores",
+   "kind": "offline",
+   "x": 0,
+   "y": 17,
+   "w": 78,
+   "h": 29
+  }
+ ],
+ "nodes": [
+  {
+   "id": "api",
+   "label": "API",
+   "sub": "el productor",
+   "kind": "service",
+   "x": 1,
+   "y": 5,
+   "w": 19,
+   "h": 8,
+   "note": "El [[productor]]: acepta el `POST /v1/jobs`, guarda el estado como `queued`, mete el mensaje y responde **202** en milisegundos. No espera a ningún worker."
+  },
+  {
+   "id": "cola",
+   "label": "Cola de trabajos",
+   "sub": "SQS · plazo de 2 min",
+   "kind": "queue",
+   "x": 30,
+   "y": 5,
+   "w": 19,
+   "h": 8,
+   "note": "El [[broker]] guarda cada mensaje en disco, con copias, hasta que alguien lo confirma. Al entregarlo no lo borra: lo esconde durante el [[visibility-timeout|visibility timeout]]. Lleva la cuenta de cuántas veces entregó cada mensaje."
+  },
+  {
+   "id": "dlq",
+   "label": "DLQ",
+   "sub": "tras 5 recepciones",
+   "kind": "queue",
+   "x": 58,
+   "y": 5,
+   "w": 19,
+   "h": 8,
+   "note": "La [[dlq|dead-letter queue]]: a donde van los mensajes que se recibieron 5 veces (`maxReceiveCount`) sin ack. Lleva más retención que la cola original, para que dé tiempo de revisarlos y reenviarlos (*redrive*)."
+  },
+  {
+   "id": "w1",
+   "label": "Worker 1",
+   "sub": "OCR · ack al final",
+   "kind": "service",
+   "x": 9,
+   "y": 22,
+   "w": 19,
+   "h": 8,
+   "note": "Un [[consumidor]]: recibe un mensaje, baja el PDF del almacén, lo procesa, escribe el resultado y **solo entonces** confirma. Mientras trabaja, renueva el plazo con un latido."
+  },
+  {
+   "id": "w2",
+   "label": "Worker 2",
+   "sub": "una copia idéntica",
+   "kind": "service",
+   "x": 41,
+   "y": 22,
+   "w": 19,
+   "h": 8,
+   "note": "Otra copia del mismo programa. Compite con el worker 1 por los mensajes: cada mensaje se lo lleva uno solo. Para procesar más rápido, se agregan copias."
+  },
+  {
+   "id": "res",
+   "label": "Resultados",
+   "sub": "results/{job_id}.json",
+   "kind": "store",
+   "x": 25,
+   "y": 35,
+   "w": 19,
+   "h": 8,
+   "note": "Cada resultado va a una llave fija, derivada del `job_id`. Si un trabajo se repite, sobrescribe lo mismo: el efecto es [[idempotencia|idempotente]] aunque la entrega sea [[at-least-once]]."
+  },
+  {
+   "id": "alertas",
+   "label": "Alertas",
+   "sub": "DLQ > 0 · edad > 5 min",
+   "kind": "monitor",
+   "x": 58,
+   "y": 35,
+   "w": 19,
+   "h": 8,
+   "note": "Dos alertas: la DLQ con más de 0 mensajes, y la edad del mensaje más viejo de la cola sostenida unos minutos. La profundidad sola no dice cuánto atraso hay."
+  }
+ ],
+ "edges": [
+  {
+   "from": "api",
+   "to": "cola",
+   "kind": "async",
+   "label": "mensaje",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "cola",
+   "to": "w1",
+   "kind": "async",
+   "label": "recibe",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "cola",
+   "to": "w2",
+   "kind": "async",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "w1",
+   "to": "res",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "l",
+   "via": [
+    [
+     18.5,
+     39
+    ]
+   ]
+  },
+  {
+   "from": "w2",
+   "to": "res",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "r",
+   "via": [
+    [
+     50.5,
+     39
+    ]
+   ]
+  },
+  {
+   "from": "cola",
+   "to": "dlq",
+   "kind": "neutral",
+   "label": "5.ª vez",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "dlq",
+   "to": "alertas",
+   "kind": "monitor",
+   "dashed": true,
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "DLQ > 0"
+  }
+ ],
+ "flows": [
+  {
+   "id": "normal",
+   "label": "Un trabajo normal",
+   "steps": [
+    {
+     "nodes": [
+      "api",
+      "cola"
+     ],
+     "edges": [
+      "api>cola"
+     ],
+     "text": "La **API** mete el mensaje `{\"job_id\": \"8f3a\", \"pdf\": \"uploads/8f3a.pdf\"}` y responde 202. El broker lo guarda en disco antes de decir «lo tengo»."
+    },
+    {
+     "nodes": [
+      "cola",
+      "w1"
+     ],
+     "edges": [
+      "cola>w1"
+     ],
+     "text": "El **worker 1** lo recibe. El mensaje no se borra: queda **en vuelo**, escondido 2 minutos. El worker 2 no lo ve."
+    },
+    {
+     "nodes": [
+      "w1",
+      "res"
+     ],
+     "edges": [
+      "w1>res"
+     ],
+     "text": "El worker lee el PDF, corre el OCR y escribe `results/8f3a.json`. Si tarda, renueva el plazo con un latido."
+    },
+    {
+     "nodes": [
+      "w1",
+      "cola"
+     ],
+     "edges": [
+      "cola>w1"
+     ],
+     "text": "Solo ahora manda el **ack**: en SQS, borra el mensaje. Con el orden «trabajar y luego confirmar», la entrega es at-least-once."
+    }
+   ]
+  },
+  {
+   "id": "caida",
+   "label": "Un worker que se cae a la mitad",
+   "steps": [
+    {
+     "nodes": [
+      "cola",
+      "w1"
+     ],
+     "edges": [
+      "cola>w1"
+     ],
+     "text": "El **worker 1** recibe el mensaje y empieza. A los 40 s, la máquina *spot* desaparece. No hubo ack."
+    },
+    {
+     "nodes": [
+      "cola"
+     ],
+     "edges": [],
+     "text": "El broker no sabe nada: solo ve que el plazo de 2 minutos **vence sin ack**. El mensaje vuelve a ser visible. Nadie lo perdió."
+    },
+    {
+     "nodes": [
+      "cola",
+      "w2"
+     ],
+     "edges": [
+      "cola>w2"
+     ],
+     "text": "El **worker 2** lo recibe, como si fuera nuevo. Es la segunda entrega del mismo mensaje."
+    },
+    {
+     "nodes": [
+      "w2",
+      "res"
+     ],
+     "edges": [
+      "w2>res"
+     ],
+     "text": "Escribe en la **misma llave**, `results/8f3a.json`. Si el worker 1 hubiera alcanzado a escribir, se sobrescribe con lo mismo: repetir no daña."
+    }
+   ]
+  },
+  {
+   "id": "veneno",
+   "label": "Un mensaje venenoso",
+   "steps": [
+    {
+     "nodes": [
+      "cola",
+      "w1"
+     ],
+     "edges": [
+      "cola>w1"
+     ],
+     "text": "Llega un PDF corrupto. El **worker 1** lo abre y se cae. Al vencer el plazo, el mensaje vuelve."
+    },
+    {
+     "nodes": [
+      "cola",
+      "w2"
+     ],
+     "edges": [
+      "cola>w2"
+     ],
+     "text": "Lo toma el **worker 2** y también se cae. Y otra vez, y otra: cada intento ocupa un worker hasta que vence el plazo."
+    },
+    {
+     "nodes": [
+      "cola",
+      "dlq"
+     ],
+     "edges": [
+      "cola>dlq"
+     ],
+     "text": "Tras la **quinta recepción** sin ack, la regla de reenvío lo mueve a la **DLQ** en vez de entregarlo otra vez. La cola sigue con los demás trabajos."
+    },
+    {
+     "nodes": [
+      "dlq",
+      "alertas"
+     ],
+     "edges": [
+      "dlq>alertas"
+     ],
+     "text": "La alerta **DLQ > 0** avisa. Una persona revisa el PDF, arregla el bug y reenvía el mensaje a la cola, o marca el trabajo como `failed` con su motivo."
+    }
+   ]
+  }
+ ]
+}

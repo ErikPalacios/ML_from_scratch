@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 352" role="img" aria-labelledby="f-formatos-rowgroups-t" class="f-svg" style="max-width:420px">
+<title id="f-formatos-rowgroups-t">Un archivo Parquet con ocho row groups. Para cada uno, el pie guarda el máximo de la columna ms: 180, 210, 950, 190, 205, 230, 175 y 640. La pregunta es qué requests tardaron más de 500 ms. Solo el row group 3, con máximo 950, y el 8, con máximo 640, pueden tener alguna: son los únicos que se leen. Los otros seis tienen su máximo por debajo de 500 y se saltan sin leer un solo dato. Se leen 2 de 8, el 25 por ciento.</title>
+<rect class="f-card" x="10" y="10" width="340" height="332" rx="16"/>
+<text class="f-l" x="24" y="36">8 ROW GROUPS · MÁXIMO DE ms</text>
+<text class="f-s" x="24" y="56" style="font-size:12px">La pregunta: ¿qué requests tardaron más de 500 ms?</text>
+
+<line class="f-linea" x1="24" y1="250" x2="336" y2="250"/>
+<line class="f-linea" x1="24" y1="170" x2="336" y2="170" style="stroke:var(--o);stroke-dasharray:5 4;stroke-width:2"/>
+<text class="f-s" x="26" y="164" style="font-size:12px;font-weight:700;fill:var(--o)">500 ms</text>
+
+<rect class="f-off" x="34" y="221.2" width="28" height="28.8" rx="3"/>
+<text class="f-s" x="48" y="215" text-anchor="middle" style="font-size:12px">180</text>
+<rect class="f-off" x="72" y="216.4" width="28" height="33.6" rx="3"/>
+<text class="f-s" x="86" y="210" text-anchor="middle" style="font-size:12px">210</text>
+<rect class="f-o" x="110" y="98" width="28" height="152" rx="3"/>
+<text class="f-s" x="124" y="92" text-anchor="middle" style="font-size:12px;font-weight:700">950</text>
+<rect class="f-off" x="148" y="219.6" width="28" height="30.4" rx="3"/>
+<text class="f-s" x="162" y="213" text-anchor="middle" style="font-size:12px">190</text>
+<rect class="f-off" x="186" y="217.2" width="28" height="32.8" rx="3"/>
+<text class="f-s" x="200" y="211" text-anchor="middle" style="font-size:12px">205</text>
+<rect class="f-off" x="224" y="213.2" width="28" height="36.8" rx="3"/>
+<text class="f-s" x="238" y="207" text-anchor="middle" style="font-size:12px">230</text>
+<rect class="f-off" x="262" y="222" width="28" height="28" rx="3"/>
+<text class="f-s" x="276" y="216" text-anchor="middle" style="font-size:12px">175</text>
+<rect class="f-o" x="300" y="147.6" width="28" height="102.4" rx="3"/>
+<text class="f-s" x="314" y="141" text-anchor="middle" style="font-size:12px;font-weight:700">640</text>
+
+<text class="f-s" x="48" y="268" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="86" y="268" text-anchor="middle" style="font-size:12px">2</text>
+<text class="f-s" x="124" y="268" text-anchor="middle" style="font-size:12px;font-weight:700">3</text>
+<text class="f-s" x="162" y="268" text-anchor="middle" style="font-size:12px">4</text>
+<text class="f-s" x="200" y="268" text-anchor="middle" style="font-size:12px">5</text>
+<text class="f-s" x="238" y="268" text-anchor="middle" style="font-size:12px">6</text>
+<text class="f-s" x="276" y="268" text-anchor="middle" style="font-size:12px">7</text>
+<text class="f-s" x="314" y="268" text-anchor="middle" style="font-size:12px;font-weight:700">8</text>
+
+<rect class="f-o" x="24" y="288" width="14" height="14" rx="3"/>
+<text class="f-s" x="46" y="300" style="font-size:12px">Se lee: su máximo pasa de 500 (2 de 8)</text>
+<rect class="f-off" x="24" y="312" width="14" height="14" rx="3"/>
+<text class="f-s" x="46" y="324" style="font-size:12px">Se salta sin leerlo: ahí no puede haber ninguna</text>
+</svg>

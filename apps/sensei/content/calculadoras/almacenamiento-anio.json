@@ -1,0 +1,139 @@
+{
+  "titulo": "Un año de fotos, con ciclo de vida",
+  "intro": "Las fotos entran cada día; las primeras semanas viven en **Standard** y después pasan a una clase fría hasta que se borran. Arranca con el bucket del marketplace: 10 millones de fotos de 200 KB, 30 días en Standard, Glacier Instant Retrieval y borrado al año. Las cuentas son de un mes cualquiera, cuando el bucket ya está lleno.",
+  "entradas": [
+    {
+      "id": "f",
+      "label": "Fotos que entran al día, en millones",
+      "min": 0.1,
+      "max": 50,
+      "paso": 0.1,
+      "valor": 10
+    },
+    {
+      "id": "kb",
+      "label": "Tamaño de cada foto, en KB",
+      "min": 10,
+      "max": 10000,
+      "paso": 10,
+      "valor": 200,
+      "tipo": "numero"
+    },
+    {
+      "id": "n",
+      "label": "Días en Standard antes de moverla",
+      "min": 0,
+      "max": 365,
+      "paso": 1,
+      "valor": 30
+    },
+    {
+      "id": "r",
+      "label": "Retención: días hasta borrarla",
+      "min": 1,
+      "max": 3650,
+      "paso": 1,
+      "valor": 365,
+      "tipo": "numero"
+    },
+    {
+      "id": "pf",
+      "label": "Precio de la clase fría, US$ por GB-mes (0.0125 = IA · 0.004 = Glacier IR · 0.001 = Deep Archive)",
+      "min": 0.0005,
+      "max": 0.0125,
+      "paso": 0.0001,
+      "valor": 0.004,
+      "tipo": "numero"
+    },
+    {
+      "id": "pt",
+      "label": "Precio de mover cada foto, US$ por 1,000 (0.01 = IA · 0.02 = Glacier IR · 0.05 = Deep Archive)",
+      "min": 0,
+      "max": 0.05,
+      "paso": 0.01,
+      "valor": 0.02
+    }
+  ],
+  "calculos": [
+    {
+      "id": "gbd",
+      "formula": "f * 1e6 * kb * 1e3 / 1e9"
+    },
+    {
+      "id": "dstd",
+      "formula": "min(n, r)"
+    },
+    {
+      "id": "dfria",
+      "formula": "max(r - n, 0)"
+    },
+    {
+      "id": "cstd",
+      "formula": "gbd * dstd * 0.023"
+    },
+    {
+      "id": "cfria",
+      "formula": "gbd * dfria * pf"
+    },
+    {
+      "id": "ctrans",
+      "formula": "f * 1e6 * 30.4 * min(1, dfria) * pt / 1000"
+    },
+    {
+      "id": "todo",
+      "formula": "gbd * r * 0.023"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Lo que entra cada día",
+      "formula": "gbd * 1e9",
+      "formato": "bytes"
+    },
+    {
+      "label": "Guardado en total",
+      "formula": "gbd * r * 1e9",
+      "formato": "bytes",
+      "nota": "los días de retención × lo de cada día"
+    },
+    {
+      "label": "Standard, en US$ al mes",
+      "formula": "cstd",
+      "formato": "num",
+      "decimales": 0
+    },
+    {
+      "label": "Clase fría, en US$ al mes",
+      "formula": "cfria",
+      "formato": "num",
+      "decimales": 0
+    },
+    {
+      "label": "Mover las fotos, en US$ al mes",
+      "formula": "ctrans",
+      "formato": "num",
+      "decimales": 0,
+      "nota": "una request por foto, ≈ 30.4 días de fotos"
+    },
+    {
+      "label": "Total con ciclo de vida, en US$ al mes",
+      "formula": "cstd + cfria + ctrans",
+      "formato": "num",
+      "decimales": 0
+    },
+    {
+      "label": "Todo en Standard, en US$ al mes",
+      "formula": "todo",
+      "formato": "num",
+      "decimales": 0
+    },
+    {
+      "label": "Lo que ahorra el ciclo de vida",
+      "formula": "1 - (cstd + cfria + ctrans) / max(todo, 1e-9)",
+      "formato": "pct",
+      "barra": true,
+      "nota": "negativo: sale más caro que no hacer nada"
+    }
+  ],
+  "nota": "No cuenta lo que cuesta leer de la clase fría (US$0.01 a 0.03 por GB, u horas de espera en Glacier) ni las duraciones mínimas (si la retención es menor que el mínimo de la clase, te cobran el mínimo), ni los ≈ 40 KB de metadatos que paga cada objeto en Deep Archive. Standard se cobra a US$0.023 por GB-mes para todo, sin el descuento por volumen. Precios de lista de us-east-1, noviembre de 2026."
+}

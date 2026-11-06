@@ -1,0 +1,41 @@
+{
+  "titulo": "Una primaria y sus réplicas de lectura",
+  "width": 78,
+  "height": 36,
+  "nodes": [
+    { "id": "ana", "label": "App de Ana", "sub": "baja el precio", "kind": "client", "x": 1, "y": 4, "w": 19, "h": 8,
+      "note": "Ana escribe y enseguida vuelve a leer lo que escribió. Es la persona a la que más le importa ver su propio cambio." },
+    { "id": "comprador", "label": "App del comprador", "sub": "solo lee", "kind": "client", "x": 1, "y": 25, "w": 19, "h": 8,
+      "note": "Los compradores solo leen. Para ellos, ver el precio de hace unos milisegundos no hace daño." },
+    { "id": "backend", "label": "Backend", "sub": "elige a quién preguntar", "kind": "service", "x": 29.5, "y": 14, "w": 19, "h": 9,
+      "note": "Manda todas las escrituras a la primaria y reparte las lecturas entre las réplicas. Para *read your writes*, durante unos segundos después de que alguien escribe, sus lecturas van a la primaria." },
+    { "id": "primaria", "label": "Primaria", "sub": "todas las escrituras", "kind": "store", "x": 58, "y": 4, "w": 19, "h": 8,
+      "note": "La única copia que acepta escrituras. Antes de confirmar cada [[transaccion|transacción]], la anota en su registro de escritura (el WAL), y ese registro es lo que manda a las réplicas." },
+    { "id": "replicas", "label": "Réplicas de lectura", "sub": "van unos ms atrás", "kind": "store", "x": 58, "y": 25, "w": 19, "h": 8,
+      "note": "Copias que aplican el WAL de la primaria en el mismo orden y atienden lecturas. Su retraso suele ser de milisegundos, pero sube con la carga. Si la primaria se cae, una puede ascender a primaria." }
+  ],
+  "edges": [
+    { "from": "ana", "to": "backend", "kind": "online", "fromSide": "r", "toSide": "l", "via": [[24.5, 8], [24.5, 16.5]] },
+    { "from": "comprador", "to": "backend", "kind": "online", "fromSide": "r", "toSide": "l", "via": [[24.5, 29], [24.5, 20.5]] },
+    { "from": "backend", "to": "primaria", "kind": "online", "fromSide": "r", "toSide": "l", "via": [[53.5, 16.5], [53.5, 8]], "label": "escribe · relee" },
+    { "from": "backend", "to": "replicas", "kind": "online", "fromSide": "r", "toSide": "l", "via": [[53.5, 20.5], [53.5, 29]], "label": "lee" },
+    { "from": "primaria", "to": "replicas", "kind": "async", "fromSide": "b", "toSide": "t", "label": "WAL" }
+  ],
+  "flows": [
+    { "id": "viaja", "label": "Un cambio viaja", "steps": [
+      { "nodes": ["ana"], "edges": [], "text": "Ana baja el precio de sus tenis de 900 a 850." },
+      { "nodes": ["ana", "backend"], "edges": ["ana>backend"], "text": "La app le manda el cambio al backend." },
+      { "nodes": ["backend", "primaria"], "edges": ["backend>primaria"], "text": "El backend lo escribe en la **primaria**, en una transacción. Con el `COMMIT`, el cambio ya está en el disco." },
+      { "nodes": ["primaria", "replicas"], "edges": ["primaria>replicas"], "text": "La primaria manda el cambio por su registro, el **WAL**, y las réplicas lo aplican en orden. Tardan milisegundos; con mucha carga, segundos." }
+    ] },
+    { "id": "propio", "label": "Leer lo que escribiste", "steps": [
+      { "nodes": ["ana", "backend"], "edges": ["ana>backend"], "text": "100 ms después del cambio, Ana recarga su publicación." },
+      { "nodes": ["backend", "replicas"], "edges": ["backend>replicas"], "text": "Si la lectura va a una réplica que va 300 ms atrás, Ana ve **900**. Cree que su cambio falló y lo vuelve a hacer." },
+      { "nodes": ["backend", "primaria"], "edges": ["backend>primaria"], "text": "El arreglo: durante unos segundos después de que Ana escribe, **sus** lecturas van a la primaria, que ya dice 850 (por eso la flecha dice «relee»: quien acaba de escribir vuelve a leer ahí). Las de los demás siguen en las réplicas." }
+    ] },
+    { "id": "comprador", "label": "Un comprador lee", "steps": [
+      { "nodes": ["comprador", "backend"], "edges": ["comprador>backend"], "text": "Un comprador abre la misma publicación al mismo tiempo." },
+      { "nodes": ["backend", "replicas"], "edges": ["backend>replicas"], "text": "Su lectura va a una réplica. Si ve 900 unos milisegundos más, no pasa nada: es **consistencia eventual**, y a cambio la primaria queda libre para las escrituras." }
+    ] }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "titulo": "Leer y cambiar una publicación con un caché a un lado",
+  "width": 78,
+  "height": 36,
+  "nodes": [
+    { "id": "comprador", "label": "App del comprador", "sub": "abre la publicación", "kind": "client", "x": 1, "y": 4, "w": 19, "h": 8,
+      "note": "Alguien abre la publicación de los tenis de Ana. Una publicación se lee miles de veces por cada vez que se escribe: por eso vale la pena guardar una copia." },
+    { "id": "ana", "label": "App de Ana", "sub": "baja el precio", "kind": "client", "x": 1, "y": 25, "w": 19, "h": 8,
+      "note": "Ana cambia el precio de 900 a 850. Cada cambio deja vieja la copia del caché, y alguien tiene que encargarse de eso." },
+    { "id": "backend", "label": "Backend", "sub": "primero el caché", "kind": "service", "x": 29.5, "y": 14, "w": 19, "h": 9,
+      "note": "Hace *cache-aside*: busca la llave en Redis; si no está, lee la base y guarda la copia con un [[ttl|TTL]]. Al escribir, escribe primero en la base y luego **borra** la llave del caché." },
+    { "id": "redis", "label": "Redis · caché", "sub": "pub:1 · TTL 5 min", "kind": "store", "x": 58, "y": 4, "w": 19, "h": 8,
+      "note": "Una copia de cada publicación pedida, en la RAM: un acierto responde en ≈ 1 ms con la red. Si se reinicia y pierde todo, no pasa nada grave: se vuelve a llenar desde la base." },
+    { "id": "pg", "label": "PostgreSQL", "sub": "la verdad", "kind": "store", "x": 58, "y": 25, "w": 19, "h": 8,
+      "note": "La base operacional: la que guarda la publicación de verdad, con sus [[transaccion|transacciones]]. El caché es una copia de lo que dice aquí, nunca al revés." }
+  ],
+  "edges": [
+    { "from": "comprador", "to": "backend", "kind": "online", "fromSide": "r", "toSide": "l", "via": [[24.5, 8], [24.5, 16.5]], "label": "lee" },
+    { "from": "ana", "to": "backend", "kind": "online", "fromSide": "r", "toSide": "l", "via": [[24.5, 29], [24.5, 20.5]], "label": "escribe" },
+    { "from": "backend", "to": "redis", "kind": "online", "fromSide": "r", "toSide": "l", "via": [[53.5, 16.5], [53.5, 8]], "label": "GET · SET · DEL" },
+    { "from": "backend", "to": "pg", "kind": "online", "fromSide": "r", "toSide": "l", "via": [[53.5, 20.5], [53.5, 29]], "label": "si falló · escribe" }
+  ],
+  "flows": [
+    { "id": "acierto", "label": "Un acierto", "steps": [
+      { "nodes": ["comprador"], "edges": [], "text": "Un comprador abre la publicación de Ana. La app le pide al backend la publicación 1." },
+      { "nodes": ["comprador", "backend"], "edges": ["comprador>backend"], "text": "El backend arma la llave `pub:1`: el tipo de dato y su llave primaria." },
+      { "nodes": ["backend", "redis"], "edges": ["backend>redis"], "text": "Hace `GET pub:1` en Redis, y la copia está: es un **acierto**. Responde en ≈ 1 ms, sin tocar PostgreSQL." }
+    ] },
+    { "id": "fallo", "label": "Un fallo", "steps": [
+      { "nodes": ["comprador", "backend"], "edges": ["comprador>backend"], "text": "Otro comprador pide una publicación que nadie había abierto en los últimos 5 minutos." },
+      { "nodes": ["backend", "redis"], "edges": ["backend>redis"], "text": "`GET pub:1` no encuentra nada, porque la copia venció su TTL: es un **fallo**. Ya se gastó ≈ 1 ms." },
+      { "nodes": ["backend", "pg"], "edges": ["backend>pg"], "text": "El backend hace el `SELECT` por llave primaria en PostgreSQL: unas cuantas páginas de un árbol B, unos milisegundos." },
+      { "nodes": ["backend", "redis"], "edges": ["backend>redis"], "text": "Guarda la copia con `SET pub:1 … EX 300`. Los pedidos de los siguientes 5 minutos serán aciertos." }
+    ] },
+    { "id": "cambio", "label": "Ana cambia el precio", "steps": [
+      { "nodes": ["ana", "backend"], "edges": ["ana>backend"], "text": "Ana baja el precio a 850." },
+      { "nodes": ["backend", "pg"], "edges": ["backend>pg"], "text": "El backend escribe primero en **PostgreSQL**, en una transacción: la base es la verdad. Es la misma flecha de los fallos, porque a la base se va por las dos cosas." },
+      { "nodes": ["backend", "redis"], "edges": ["backend>redis"], "text": "Después **borra** la llave con `DEL pub:1`. No la actualiza: si dos cambios compitieran, una copia actualizada podría quedarse con el valor que perdió." },
+      { "nodes": ["comprador", "backend", "pg", "redis"], "edges": ["comprador>backend", "backend>pg", "backend>redis"], "text": "El siguiente comprador provoca un fallo, lee 850 de la base y vuelve a llenar el caché. Si el borrado se hubiera perdido, el TTL de 5 minutos lo arregla solo: nadie ve el precio viejo más de 5 minutos." }
+    ] }
+  ]
+}
