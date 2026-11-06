@@ -12,7 +12,7 @@
     { "id": "app", "label": "Publicación", "sub": "espera ≤ 300 ms", "kind": "client", "x": 1, "y": 16, "w": 15, "h": 9,
       "note": "El backend de publicación del marketplace. Recibe la foto de Ana, llama al servicio y espera **como máximo 300 ms**. Pasado ese tiempo deja de esperar y usa el plan B." },
     { "id": "alb", "label": "ALB", "sub": "99.99 %", "kind": "edge", "x": 20, "y": 16, "w": 12, "h": 9,
-      "note": "El balanceador de AWS reparte los requests entre las dos zonas, y él mismo vive en las dos. Está **en serie** con todo lo demás y entra a la cuenta una sola vez, sin una réplica en paralelo (su porcentaje ya incluye sus propias copias): por eso es la pieza que más minutos pone. 99.99 % es un valor ilustrativo, como todos los de este diagrama; los de tu sistema se miden." },
+      "note": "El balanceador de AWS reparte las requests entre las dos zonas, y él mismo vive en las dos. Está **en serie** con todo lo demás y entra a la cuenta una sola vez, sin una réplica en paralelo (su porcentaje ya incluye sus propias copias): por eso es la pieza que más minutos pone. 99.99 % es un valor ilustrativo, como todos los de este diagrama; los de tu sistema se miden." },
     { "id": "gwA", "label": "Gateway", "sub": "CPU · 99.95 %", "kind": "service", "x": 40, "y": 7, "w": 16, "h": 9,
       "note": "Recibe la foto, la decodifica y la prepara en CPU. Tiene réplicas en las dos zonas: si cae la zona A, las de la B absorben todo el tráfico. En paralelo, las dos zonas dan 1 − 0.0005² ≈ 99.99998 %." },
     { "id": "tA", "label": "Triton · T4", "sub": "99.5 %", "kind": "gpu", "x": 60, "y": 7, "w": 17, "h": 9,
@@ -33,11 +33,11 @@
     { "from": "app", "to": "manual", "kind": "neutral", "dashed": true, "fromSide": "b", "toSide": "l", "label": "sin respuesta" }
   ],
   "flows": [
-    { "id": "normal", "label": "Un request normal",
+    { "id": "normal", "label": "Una request normal",
       "steps": [
         { "nodes": ["app"], "edges": [], "text": "Ana sube la foto de sus tenis. El backend de publicación llama al servicio y espera **como máximo 300 ms**." },
-        { "nodes": ["app", "alb", "gwA"], "edges": ["app>alb", "alb>gwA"], "text": "El ALB manda el request a una de las dos zonas; digamos la A. El gateway decodifica y prepara la foto." },
-        { "nodes": ["gwA", "tA"], "edges": ["gwA>tA"], "text": "Triton calcula el top-5. El request necesitó **las tres piezas en serie**: si fallan cada una por su lado, sus disponibilidades se multiplican." }
+        { "nodes": ["app", "alb", "gwA"], "edges": ["app>alb", "alb>gwA"], "text": "El ALB manda la request a una de las dos zonas; digamos la A. El gateway decodifica y prepara la foto." },
+        { "nodes": ["gwA", "tA"], "edges": ["gwA>tA"], "text": "Triton calcula el top-5. La request necesitó **las tres piezas en serie**: si fallan cada una por su lado, sus disponibilidades se multiplican." }
       ] },
     { "id": "zona", "label": "Se cae la zona A",
       "steps": [

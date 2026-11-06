@@ -21,17 +21,17 @@
     "leccion": "probabilidad" },
 
   { "id": "fan-out", "termino": "Fan-out", "en": "fan-out",
-    "corto": "Cuando un request llama a N servicios a la vez y espera a todos. Basta con que uno tarde para que el request tarde: si cada uno es lento con probabilidad p, el request lo es con 1 − (1 − p)^N.",
-    "largo": "Pasa en buscadores con el índice repartido en pedazos, en páginas armadas con muchos bloques y en sistemas con muchos servicios chicos. Con N servicios que superan su [[p99]] el 1 % de las veces, el request toca la cola con probabilidad 1 % si N = 1, ≈ 9.6 % si N = 10 y ≈ 63.4 % si N = 100: el p99 de cada pieza se vuelve la latencia típica del conjunto. Para que el 99 % de los requests sean rápidos, cada servicio tiene que cumplir su percentil 0.99^(1/N) ≈ 1 − 0.01 ÷ N: con 10, su p99.9. Las salidas: menos servicios, colas más cortas, responder con lo que llegó a tiempo o mandar una copia a otra réplica (*hedging*).",
+    "corto": "Cuando una request llama a N servicios a la vez y espera a todos. Basta con que uno tarde para que la request tarde: si cada uno es lento con probabilidad p, la request lo es con 1 − (1 − p)^N.",
+    "largo": "Pasa en buscadores con el índice repartido en pedazos, en páginas armadas con muchos bloques y en sistemas con muchos servicios chicos. Con N servicios que superan su [[p99]] el 1 % de las veces, la request toca la cola con probabilidad 1 % si N = 1, ≈ 9.6 % si N = 10 y ≈ 63.4 % si N = 100: el p99 de cada pieza se vuelve la latencia típica del conjunto. Para que el 99 % de las requests sean rápidas, cada servicio tiene que cumplir su percentil 0.99^(1/N) ≈ 1 − 0.01 ÷ N: con 10, su p99.9. Las salidas: menos servicios, colas más cortas, responder con lo que llegó a tiempo o mandar una copia a otra réplica (*hedging*).",
     "analogia": "Una mesa de restaurante donde nadie empieza a comer hasta que llegan todos los platos: basta con que uno se retrase para que la cena entera se retrase, y con muchos platos casi siempre hay uno que se retrasa.",
-    "ejemplo": "En C11, cada pregunta busca por palabras y por significado al mismo tiempo y espera a las dos búsquedas: un fan-out de dos. La Ronda (M02) advierte que con 10 servicios en paralelo, ≈ 10 % de los requests toca el p99 de alguno.",
+    "ejemplo": "En C11, cada pregunta busca por palabras y por significado al mismo tiempo y espera a las dos búsquedas: un fan-out de dos. La Ronda (M02) advierte que con 10 servicios en paralelo, ≈ 10 % de las requests toca el p99 de alguno.",
     "ver": ["p99", "complemento", "cola-distribucion"],
     "leccion": "probabilidad" },
 
   { "id": "disponibilidad", "termino": "Disponibilidad", "en": "availability · uptime",
-    "corto": "La fracción del tiempo, o de los requests, en que un servicio responde bien. 99.9 % quiere decir que puede fallar el 0.1 %: ≈ 43 minutos en un mes de 30 días.",
-    "largo": "Se mide por tiempo (minutos arriba ÷ minutos totales) o por requests (buenos ÷ válidos), y esa medida es un [[sli|SLI]]; la meta, un [[slo|SLO]]. Piezas en serie multiplican sus disponibilidades, así que el conjunto es peor que su peor pieza. Réplicas en paralelo multiplican sus indisponibilidades: 1 − (1 − a)^k, si fallan de forma independiente. El tiempo caído es cuántas veces se falla por cuánto se tarda en volver, y por eso volver rápido (un *rollback* en minutos) sube la disponibilidad tanto como fallar menos.",
-    "ejemplo": "El SLI de C01 cuenta como bueno un request que no termina en error del servidor y responde en 300 ms o menos, y su SLO es 99.9 % en 30 días. Tres piezas en serie al 99.99 %, 99.95 % y 99.9 % dan ≈ 99.84 %: ≈ 69 minutos al mes.",
+    "corto": "La fracción del tiempo, o de las requests, en que un servicio responde bien. 99.9 % quiere decir que puede fallar el 0.1 %: ≈ 43 minutos en un mes de 30 días.",
+    "largo": "Se mide por tiempo (minutos arriba ÷ minutos totales) o por requests (buenas ÷ válidas), y esa medida es un [[sli|SLI]]; la meta, un [[slo|SLO]]. Piezas en serie multiplican sus disponibilidades, así que el conjunto es peor que su peor pieza. Réplicas en paralelo multiplican sus indisponibilidades: 1 − (1 − a)^k, si fallan de forma independiente. El tiempo caído es cuántas veces se falla por cuánto se tarda en volver, y por eso volver rápido (un *rollback* en minutos) sube la disponibilidad tanto como fallar menos.",
+    "ejemplo": "El SLI de C01 cuenta como buena una request que no termina en error del servidor y responde en 300 ms o menos, y su SLO es 99.9 % en 30 días. Tres piezas en serie al 99.99 %, 99.95 % y 99.9 % dan ≈ 99.84 %: ≈ 69 minutos al mes.",
     "ver": ["nueves", "error-budget", "redundancia"],
     "leccion": "probabilidad" },
 
@@ -45,7 +45,7 @@
   { "id": "error-budget", "termino": "Presupuesto de error", "en": "error budget",
     "corto": "Lo que un SLO te deja fallar: 1 − SLO. Con 99.9 % en 30 días son 43.2 minutos, o 1 de cada 1,000 requests. Es un presupuesto para gastarlo en cambios y experimentos, no para guardarlo.",
     "largo": "La idea viene de la ingeniería de confiabilidad de Google (SRE). Se convierte en una política escrita antes de los problemas y acordada con producto: con presupuesto de sobra se lanza normal; con poco, con más cuidado; agotado, se congela lo que no sea para mejorar la confiabilidad. Las alertas se arman con la velocidad a la que se gasta (*burn rate*): con 5 % de errores contra un SLO de 99.9 % se gasta 50 veces más rápido de lo permitido, y el presupuesto del mes dura 14.4 horas.",
-    "ejemplo": "C01: 0.001 × 10 millones de requests al día × 30 días = 300,000 requests fallidos permitidos al mes. Un deploy que hace fallar el 5 % durante 2 horas se come ≈ 41,667, el 14 % del mes.",
+    "ejemplo": "C01: 0.001 × 10 millones de requests al día × 30 días = 300,000 requests fallidas permitidos al mes. Un deploy que hace fallar el 5 % durante 2 horas se come ≈ 41,667, el 14 % del mes.",
     "ver": ["slo", "disponibilidad", "nueves"],
     "leccion": "probabilidad" },
 

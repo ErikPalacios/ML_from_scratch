@@ -1,6 +1,6 @@
 {
-  "titulo": "Fan-out: ¿qué tan seguido es lento el request?",
-  "intro": "El request llama a **N** servicios a la vez y espera a todos. Cada uno es lento con probabilidad **p**, sin depender de los demás.",
+  "titulo": "Fan-out: ¿qué tan seguido es lenta la request?",
+  "intro": "La request llama a **N** servicios a la vez y espera a todos. Cada uno es lento con probabilidad **p**, sin depender de los demás.",
   "entradas": [
     { "id": "n", "label": "**N**: servicios que espera", "min": 1, "max": 200, "paso": 1, "valor": 10 },
     { "id": "p", "label": "**p**: probabilidad de que cada uno sea lento", "min": 0.01, "max": 10, "paso": 0.01, "valor": 1, "unidad": "%" }
@@ -10,11 +10,11 @@
     { "id": "rapido", "formula": "pow(1 - q, n)" }
   ],
   "salidas": [
-    { "label": "Requests lentos", "formula": "1 - rapido", "formato": "pct", "decimales": 2, "barra": true, "nota": "1 − (1 − p)^N: al menos uno lento" },
-    { "label": "Requests rápidos", "formula": "rapido", "formato": "pct", "decimales": 2, "nota": "(1 − p)^N: los N rápidos a la vez" },
+    { "label": "Requests lentas", "formula": "1 - rapido", "formato": "pct", "decimales": 2, "barra": true, "nota": "1 − (1 − p)^N: al menos uno lento" },
+    { "label": "Requests rápidas", "formula": "rapido", "formato": "pct", "decimales": 2, "nota": "(1 − p)^N: los N rápidos a la vez" },
     { "label": "La cuenta equivocada: sumar", "formula": "n * q", "formato": "pct", "decimales": 2, "nota": "N × p: casi atina si N × p es chico; luego se pasa, y puede pasar de 100 %" },
-    { "label": "Lentos de cada 1,000 requests", "formula": "1000 * (1 - rapido)", "formato": "int" },
-    { "label": "Lo que tendría que cumplir cada servicio para que el 99 % de los requests sea rápido", "formula": "pow(0.99, 1 / n)", "formato": "pct", "decimales": 3, "nota": "0.99^(1/N): con N = 10, su p99.9" }
+    { "label": "Lentas de cada 1,000 requests", "formula": "1000 * (1 - rapido)", "formato": "int" },
+    { "label": "Lo que tendría que cumplir cada servicio para que el 99 % de las requests sean rápidas", "formula": "pow(0.99, 1 / n)", "formato": "pct", "decimales": 3, "nota": "0.99^(1/N): con N = 10, su p99.9" }
   ],
   "nota": "Con p = 1 % prueba N = 1, 10, 69 y 100: 1 %, 9.6 %, la mitad y 63.4 %. Luego baja p a 0.1 % (cada servicio cumple su p99.9) y con N = 100 queda en 9.5 %."
 }

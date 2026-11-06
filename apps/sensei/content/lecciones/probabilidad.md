@@ -7,14 +7,14 @@ requisitos: percentiles
 ---
 
 :::idea
-En producción, una probabilidad se lee como una frecuencia, y con millones de requests al día un «1 %» es muchísimo. Si un request necesita **todas** sus piezas, se multiplican sus probabilidades de funcionar y el conjunto falla más que cada pieza; si basta con **una** de varias copias, se multiplican las de fallar y falla mucho menos, siempre que las fallas sean independientes, que es justo lo que más se rompe en la práctica.
+En producción, una probabilidad se lee como una frecuencia, y con millones de requests al día un «1 %» es muchísimo. Si una request necesita **todas** sus piezas, se multiplican sus probabilidades de funcionar y el conjunto falla más que cada pieza; si basta con **una** de varias copias, se multiplican las de fallar y falla mucho menos, siempre que las fallas sean independientes, que es justo lo que más se rompe en la práctica.
 :::
 
 ## Probabilidad: un número y una frecuencia {Probability: a number and a frequency}
 
-En «Qué es un modelo» viste la [[probabilidad]] como lo que sale de un [[softmax]]: un número de 0 a 1 que dice qué tan seguro está el modelo. Aquí vamos a usar la misma idea desde el otro lado. No para decir qué cree un modelo, sino **qué tan seguido le pasa algo a un sistema**: que un request tarde de más, que un servidor se caiga, que un pago sea fraude.
+En «Qué es un modelo» viste la [[probabilidad]] como lo que sale de un [[softmax]]: un número de 0 a 1 que dice qué tan seguro está el modelo. Aquí vamos a usar la misma idea desde el otro lado. No para decir qué cree un modelo, sino **qué tan seguido le pasa algo a un sistema**: que una request tarde de más, que un servidor se caiga, que un pago sea fraude.
 
-A cada cosa que puede pasar o no se le llama **evento**. Su probabilidad se escribe con una P: P(lento) = 0.01 se lee «la probabilidad de que un request sea lento es 0.01». Hay tres formas de decir lo mismo, y conviene pasar de una a otra sin pensar:
+A cada cosa que puede pasar o no se le llama **evento**. Su probabilidad se escribe con una P: P(lento) = 0.01 se lee «la probabilidad de que una request sea lenta es 0.01». Hay tres formas de decir lo mismo, y conviene pasar de una a otra sin pensar:
 
 | Número | Porcentaje | En palabras |
 |---|---|---|
@@ -30,7 +30,7 @@ En producción, la forma más útil de pensar una probabilidad es como una **fre
 Un sistema en producción repite muchísimas veces. C01 recibe ≈ 10 millones de fotos al día (≈ 2.5 M publicaciones nuevas con ≈ 3 fotos cada una, más lo que piden otros equipos), y cada foto es un [[request]]. Con ese volumen, las probabilidades dejan de ser abstractas y se vuelven conteos:
 
 :::cuenta Lo que una probabilidad por request significa en C01
-1 % // por ejemplo, los requests que tardan de más | 10,000,000 × 0.01 | 100,000 al día
+1 % // por ejemplo, las requests que tardan de más | 10,000,000 × 0.01 | 100,000 al día
 0.1 % | 10,000,000 × 0.001 | 10,000 al día
 0.01 % | 10,000,000 × 0.0001 | 1,000 al día
 Uno en un millón | 10,000,000 × 0.000001 | 10 al día
@@ -43,22 +43,22 @@ Por eso un equipo de producción casi nunca discute si algo va a pasar. Discute 
 
 La probabilidad también describe **tiempo**. Si un servidor estuvo caído 43 minutos en un mes de 30 días (43,200 minutos), estuvo arriba 43,157 de 43,200: el 99.9 % del tiempo. Dicho como probabilidad: si eliges un instante al azar del mes, la probabilidad de encontrarlo caído es 0.1 %. Esa fracción del tiempo en que algo funciona es su [[disponibilidad]], y tiene su propia sección más adelante.
 
-¿De dónde salen estos números? Hay dos fuentes. Se **miden**: cuentas en los registros (*logs*) cuántos requests tardaron de más y lo divides entre el total. O se **suponen** para diseñar, y entonces se dicen como supuesto. En la Ronda, casi todas las disponibilidades de cada pieza son ilustrativas: en tu sistema se miden.
+¿De dónde salen estos números? Hay dos fuentes. Se **miden**: cuentas en los registros (*logs*) cuántas requests tardaron de más y lo divides entre el total. O se **suponen** para diseñar, y entonces se dicen como supuesto. En la Ronda, casi todas las disponibilidades de cada pieza son ilustrativas: en tu sistema se miden.
 
 :::ojo
-**Di siempre «1 % de qué».** «1 % de los requests», «1 % del tiempo» y «1 % de probabilidad de que se caiga este mes» son tres cosas distintas. Un servicio puede responder bien el 99.9 % de sus requests y aun así haber estado caído 3 horas un domingo de madrugada, cuando casi nadie lo usaba. Mezclar esas unidades es la fuente número uno de cuentas sin sentido.
+**Di siempre «1 % de qué».** «1 % de las requests», «1 % del tiempo» y «1 % de probabilidad de que se caiga este mes» son tres cosas distintas. Un servicio puede responder bien el 99.9 % de sus requests y aun así haber estado caído 3 horas un domingo de madrugada, cuando casi nadie lo usaba. Mezclar esas unidades es la fuente número uno de cuentas sin sentido.
 :::
 
 ### Las dos reglas de siempre
 
 1. Una probabilidad va de 0 (no pasa nunca) a 1 (pasa siempre).
-2. Si unas opciones cubren todos los casos y no pueden pasar a la vez, sus probabilidades suman 1. Un request es lento o no lo es: P(lento) + P(no lento) = 0.01 + 0.99 = 1.
+2. Si unas opciones cubren todos los casos y no pueden pasar a la vez, sus probabilidades suman 1. Una request es lenta o no lo es: P(lento) + P(no lento) = 0.01 + 0.99 = 1.
 
 La segunda regla parece obvia, pero de ella sale el truco más útil de la lección. Lo ves en la siguiente sección.
 
 ## Independencia: la regla del producto y el complemento {Independence: the product rule and the complement}
 
-Imagina un request que necesita a dos servicios, A y B. Cada uno, de vez en cuando, tarda de más. Para que el dibujo se vea, supongamos que cada uno es lento 1 de cada 10 veces. En un sistema real sería mucho menos, pero la cuenta es la misma.
+Imagina una request que necesita a dos servicios, A y B. Cada uno, de vez en cuando, tarda de más. Para que el dibujo se vea, supongamos que cada uno es lento 1 de cada 10 veces. En un sistema real sería mucho menos, pero la cuenta es la misma.
 
 ### Independientes: uno no te dice nada del otro
 
@@ -79,7 +79,7 @@ P(A y B) = P(A) × P(B)
 En general, P(A y B) = P(A) × P(B | A): primero la fracción en que pasa A, y luego, dentro de esos casos, la fracción en que también pasa B. La independencia es justo lo que permite cambiar P(B | A) por P(B), un número que puedes medir por separado.
 
 :::figura probabilidad-cuadricula
-Cada cuadrito es un request. Las filas dicen cómo le fue al servicio A y las columnas, al B. Como son independientes, la fila de «A lento» tiene la misma proporción de «B lento» que cualquier otra fila.
+Cada cuadrito es una request. Las filas dicen cómo le fue al servicio A y las columnas, al B. Como son independientes, la fila de «A lento» tiene la misma proporción de «B lento» que cualquier otra fila.
 :::
 
 ### El complemento: lo que no pasa
@@ -102,19 +102,19 @@ Al menos uno lento // el complemento de «los dos rápidos» | 1 − 0.81 | **0.
 
 La tentación es sumar: 10 % + 10 % = 20 %. Está mal, y el dibujo dice por qué: el cuadrito naranja, donde los dos son lentos, se cuenta dos veces, una en la fila de A y otra en la columna de B. La suma correcta le resta lo que contó doble: 0.1 + 0.1 − 0.01 = 0.19.
 
-Sumar probabilidades solo es correcto cuando los eventos **no pueden pasar a la vez**. Se llaman **excluyentes**: «el request tardó menos de 100 ms» y «tardó entre 100 y 200 ms» se suman sin problema. Para «al menos uno» de varios eventos que sí pueden coincidir, usa el complemento.
+Sumar probabilidades solo es correcto cuando los eventos **no pueden pasar a la vez**. Se llaman **excluyentes**: «la request tardó menos de 100 ms» y «tardó entre 100 y 200 ms» se suman sin problema. Para «al menos uno» de varios eventos que sí pueden coincidir, usa el complemento.
 
 Con probabilidades chicas la suma casi atina. Con 1 % cada uno: 1 − 0.99 × 0.99 = 1.99 %, contra el 2 % de la suma. Por eso el error se esconde: con dos piezas «funciona», y con cien se vuelve un disparate. Con cien piezas de 1 %, la suma diría 100 %, y la cuenta correcta, 1 − 0.99¹⁰⁰, da ≈ 63 %: lo ves a fondo en la siguiente sección.
 
 :::ojo
-**Independiente no es lo mismo que excluyente.** Excluyentes: no pueden pasar juntos, como que un request sea rápido y lento. Independientes: uno no cambia la probabilidad del otro, como dos dados. De hecho, dos eventos excluyentes que sí pueden pasar nunca son independientes: si pasó uno, el otro ya tiene probabilidad 0.
+**Independiente no es lo mismo que excluyente.** Excluyentes: no pueden pasar juntos, como que una request sea rápida y lenta. Independientes: uno no cambia la probabilidad del otro, como dos dados. De hecho, dos eventos excluyentes que sí pueden pasar nunca son independientes: si pasó uno, el otro ya tiene probabilidad 0.
 :::
 
-## Fan-out: un request que espera a muchos {Fan-out: one request that waits for many} [extra]
+## Fan-out: una request que espera a muchos {Fan-out: one request that waits for many} [extra]
 
-Muchos sistemas parten un request en pedazos. Un buscador con un índice que no cabe en una máquina lo reparte en 100 pedazos, y cada búsqueda les pregunta a los 100 a la vez. Una página de inicio arma 30 bloques, cada uno pedido a otro servicio. En C11, el asistente con documentos de la Ronda, cada pregunta busca por palabras y por significado al mismo tiempo. A esto se le llama [[fan-out]]: un request se abre en abanico hacia N servicios y **espera a todos**.
+Muchos sistemas parten una request en pedazos. Un buscador con un índice que no cabe en una máquina lo reparte en 100 pedazos, y cada búsqueda les pregunta a los 100 a la vez. Una página de inicio arma 30 bloques, cada uno pedido a otro servicio. En C11, el asistente con documentos de la Ronda, cada pregunta busca por palabras y por significado al mismo tiempo. A esto se le llama [[fan-out]]: una request se abre en abanico hacia N servicios y **espera a todos**.
 
-Esperar a todos tiene una consecuencia: el request es tan lento como el más lento de sus N servicios. Basta con que uno tarde para que el request tarde. En la lección de percentiles lo viste de pasada; aquí va de dónde sale la cuenta y qué se hace con ella.
+Esperar a todos tiene una consecuencia: la request es tan lenta como el más lento de sus N servicios. Basta con que uno tarde para que la request tarde. En la lección de percentiles lo viste de pasada; aquí va de dónde sale la cuenta y qué se hace con ella.
 
 ### La cuenta
 
@@ -122,9 +122,9 @@ En la lección de percentiles viste el [[p99]]: el valor bajo el cual queda el 9
 
 - Un servicio es rápido con probabilidad 0.99.
 - Los N son rápidos a la vez con probabilidad 0.99 × 0.99 × … × 0.99 = 0.99^N, por la regla del producto.
-- El request es lento si **al menos uno** es lento: 1 − 0.99^N, por el complemento.
+- La request es lenta si **al menos uno** es lento: 1 − 0.99^N, por el complemento.
 
-:::cuenta El request toca la cola: 1 − 0.99^N
+:::cuenta La request toca la cola: 1 − 0.99^N
 N = 1 | 1 − 0.99 | 1 %
 N = 10 | 1 − 0.99¹⁰ = 1 − 0.904 | ≈ 9.6 %
 N = 100 | 1 − 0.99¹⁰⁰ = 1 − 0.366 | ≈ 63.4 %
@@ -143,19 +143,19 @@ Prueba también p = 5 % con N = 20: la suma ya dice 100 %, y la cuenta correct
 
 ### Verlo funcionar
 
-La fórmula se puede comprobar sin fórmulas: simulas muchos requests, a cada uno le sorteas sus N servicios y cuentas cuántos salieron lentos. Python trae un sorteador, `random.random()`, que da un número al azar entre 0 y 1: si sale menor que 0.01, ese servicio fue lento, cosa que pasa 1 de cada 100 veces. `random.seed(7)` fija la [[semilla]], para que el sorteo salga igual cada vez que lo corras.
+La fórmula se puede comprobar sin fórmulas: simulas muchas requests, a cada una le sorteas sus N servicios y cuentas cuántas salieron lentas. Python trae un sorteador, `random.random()`, que da un número al azar entre 0 y 1: si sale menor que 0.01, ese servicio fue lento, cosa que pasa 1 de cada 100 veces. `random.seed(7)` fija la [[semilla]], para que el sorteo salga igual cada vez que lo corras.
 
 ```python
 import random
 
 random.seed(7)
 p_lento = 0.01        # cada servicio tarda de más el 1 % de las veces
-requests = 100_000    # cuántos requests simulamos
+requests = 100_000    # cuántas requests simulamos
 
 for n in (1, 10, 100):
     lentos = 0
     for _ in range(requests):
-        # el request es lento si AL MENOS UNO de sus n servicios es lento
+        # la request es lenta si AL MENOS UNO de sus n servicios es lento
         if any(random.random() < p_lento for _ in range(n)):
             lentos += 1
     simulado = 100 * lentos / requests
@@ -173,41 +173,41 @@ La simulación no sabe nada de fórmulas: solo sortea y cuenta. Aun así, sus n�
 
 ### Al revés: qué le pides a cada servicio
 
-En un diseño la pregunta suele ir al revés: si quiero que 99 de cada 100 requests sean rápidos, ¿qué tiene que cumplir cada servicio? Necesitas que q^N = 0.99, donde q es la probabilidad de que un servicio sea rápido. Despejando, q = 0.99^(1/N), que es casi exactamente 1 − 0.01 ÷ N.
+En un diseño la pregunta suele ir al revés: si quiero que 99 de cada 100 requests sean rápidas, ¿qué tiene que cumplir cada servicio? Necesitas que q^N = 0.99, donde q es la probabilidad de que un servicio sea rápido. Despejando, q = 0.99^(1/N), que es casi exactamente 1 − 0.01 ÷ N.
 
 - Con N = 10: q ≈ 1 − 0.001 = 0.999. Cada servicio tiene que cumplir su **p99.9**.
 - Con N = 100: q ≈ 0.9999. Cada servicio tiene que cumplir su **p99.99**.
 
-Por eso en sistemas con mucho fan-out no basta con vigilar el p99 de cada pieza: se vigila su p99.9 o su p99.99. La curva verde de la figura muestra la diferencia: con 100 servicios que cumplen su p99.9, solo 9.5 % de los requests es lento, en vez de 63.4 %.
+Por eso en sistemas con mucho fan-out no basta con vigilar el p99 de cada pieza: se vigila su p99.9 o su p99.99. La curva verde de la figura muestra la diferencia: con 100 servicios que cumplen su p99.9, solo 9.5 % de las requests es lenta, en vez de 63.4 %.
 
-Las otras salidas son preguntar a menos servicios, recortar la cola de cada uno, contestar con lo que llegó a tiempo (en la Ronda, el buscador de C07 responde con 3 de sus 4 pedazos si uno no llega, y marca la respuesta como parcial) o mandar una copia del request a otra réplica, otra copia del mismo servidor, cuando tarda. Esto último lo ves al final de esta sección.
+Las otras salidas son preguntar a menos servicios, recortar la cola de cada uno, contestar con lo que llegó a tiempo (en la Ronda, el buscador de C07 responde con 3 de sus 4 pedazos si uno no llega, y marca la respuesta como parcial) o mandar una copia de la request a otra réplica, otra copia del mismo servidor, cuando tarda. Esto último lo ves al final de esta sección.
 
 :::profundo Por qué los p99 de dos tramos no se suman
-En «Promedios, medianas y percentiles» viste que los p99 no se suman; aquí está el porqué, con la regla del producto. El fan-out espera piezas en paralelo; con piezas en serie, una detrás de otra, la regla también sorprende. Dos tramos independientes, A y B, tardan cada uno 10 ms el 98 % de las veces y 100 ms el 2 % restante. Como solo el 98 % cae en 10 ms, el p99 de cada tramo es 100 ms, y la suma de los dos p99 da 200 ms. Pero el p99 del request completo es otro:
+En «Promedios, medianas y percentiles» viste que los p99 no se suman; aquí está el porqué, con la regla del producto. El fan-out espera piezas en paralelo; con piezas en serie, una detrás de otra, la regla también sorprende. Dos tramos independientes, A y B, tardan cada uno 10 ms el 98 % de las veces y 100 ms el 2 % restante. Como solo el 98 % cae en 10 ms, el p99 de cada tramo es 100 ms, y la suma de los dos p99 da 200 ms. Pero el p99 de la request completa es otro:
 
 :::cuenta Dos tramos independientes con p99 = 100 ms cada uno
 Los dos rápidos | 0.98 × 0.98 | 96.04 % → 20 ms
 Uno lento // A lento y B rápido, o al revés | 2 × 0.98 × 0.02 | 3.92 % → 110 ms
 Los dos lentos | 0.02 × 0.02 | 0.04 % → 200 ms
-p99 del request // el 99 % de los requests cae dentro de 96.04 % + 3.92 % | 96.04 % < 99 % ≤ 99.96 % | **110 ms**
-= Sumar los p99 da 200 ms, pero el real es 110 ms: es raro que los dos tramos tengan su peor caso en el mismo request. Si los dos tramos fueran lentos siempre en los mismos requests (la misma foto gigante hace lento cada tramo), la suma sería exacta.
+p99 de la request // el 99 % de las requests cae dentro de 96.04 % + 3.92 % | 96.04 % < 99 % ≤ 99.96 % | **110 ms**
+= Sumar los p99 da 200 ms, pero el real es 110 ms: es raro que los dos tramos tengan su peor caso en la misma request. Si los dos tramos fueran lentos siempre en las mismas requests (la misma foto gigante hace lento cada tramo), la suma sería exacta.
 :::
 
-La Ronda (M03) saca la conclusión práctica: la suma de los p99 sirve para **repartir** el presupuesto de latencia entre los tramos, pero el cumplimiento se **mide** de punta a punta, con el [[histograma]] del request completo.
+La Ronda (M03) saca la conclusión práctica: la suma de los p99 sirve para **repartir** el presupuesto de latencia entre los tramos, pero el cumplimiento se **mide** de punta a punta, con el [[histograma]] de la request completa.
 :::
 
 ### Copias contra la cola: el hedging
 
-Hay un caso en que la independencia suele valer, y se aprovecha. Si un servidor tarda de más por una pausa al azar (el programa se detiene a limpiar su memoria, u otro programa en la misma máquina acapara la CPU), es raro que otra réplica tenga su pausa en el mismo instante. Entonces, si un request no ha respondido cuando ya pasó su p95, se manda una **copia** a otra réplica y se usa la primera respuesta que llegue. Se llama *hedging*. Solo se paga en el ≈ 5 % de los requests que llegan a ese punto: ≈ 5 % más de carga para recortar mucho la cola.
+Hay un caso en que la independencia suele valer, y se aprovecha. Si un servidor tarda de más por una pausa al azar (el programa se detiene a limpiar su memoria, u otro programa en la misma máquina acapara la CPU), es raro que otra réplica tenga su pausa en el mismo instante. Entonces, si una request no ha respondido cuando ya pasó su p95, se manda una **copia** a otra réplica y se usa la primera respuesta que llegue. Se llama *hedging*. Solo se paga en el ≈ 5 % de las requests que llegan a ese punto: ≈ 5 % más de carga para recortar mucho la cola.
 
-Y solo funciona si la lentitud de las dos réplicas es independiente. Si un request tarda porque su foto es enorme, las dos copias tardan igual. La Ronda (M03) lo recomienda para lecturas baratas que ya tienen réplicas, no para inferencia cara en una GPU cerca de su límite, donde ese 5 % extra cae en la pieza más cara.
+Y solo funciona si la lentitud de las dos réplicas es independiente. Si una request tarda porque su foto es enorme, las dos copias tardan igual. La Ronda (M03) lo recomienda para lecturas baratas que ya tienen réplicas, no para inferencia cara en una GPU cerca de su límite, donde ese 5 % extra cae en la pieza más cara.
 
 ## Disponibilidad, los nueves y el presupuesto de error {Availability, the nines and the error budget}
 
-La [[disponibilidad]] (*availability*) es la fracción del tiempo, o de los requests, en que un servicio responde bien. Se mide de dos formas:
+La [[disponibilidad]] (*availability*) es la fracción del tiempo, o de las requests, en que un servicio responde bien. Se mide de dos formas:
 
 - **Por tiempo:** minutos arriba ÷ minutos totales. Es sencilla, pero trata igual un minuto de las 4 de la mañana que uno del pico.
-- **Por requests:** requests buenos ÷ requests válidos. Es la que usa C01. Cada respuesta trae un código de tres cifras: los que empiezan con 5, como 500 o 503, son errores del servidor, y los que empiezan con 4, errores de quien llama. Un request bueno no termina en un error del servidor y responde en 300 ms o menos. Válidos son todos menos los que fallan por culpa de quien llama: una foto de 50 MB, que se rechaza por pesada, no cuenta ni como buena ni como mala. Esa medida es un [[sli|SLI]], y la meta que se le pone, 99.9 % en 30 días, es su [[slo|SLO]], como viste en la lección de percentiles. C01 tiene además otro SLO, el de latencia: p99 ≤ 200 ms, medido en su API.
+- **Por requests:** requests buenas ÷ requests válidas. Es la que usa C01. Cada respuesta trae un código de tres cifras: los que empiezan con 5, como 500 o 503, son errores del servidor, y los que empiezan con 4, errores de quien llama. Una request buena no termina en un error del servidor y responde en 300 ms o menos. Válidas son todas menos las que fallan por culpa de quien llama: una foto de 50 MB, que se rechaza por pesada, no cuenta ni como buena ni como mala. Esa medida es un [[sli|SLI]], y la meta que se le pone, 99.9 % en 30 días, es su [[slo|SLO]], como viste en la lección de percentiles. C01 tiene además otro SLO, el de latencia: p99 ≤ 200 ms, medido en su API.
 
 ### Los nueves
 
@@ -228,7 +228,7 @@ Lo que cada nivel suele pedir, según la hoja de números de la Ronda (una regla
 
 ### 99.9 % no es «casi nunca»
 
-Tres nueves suena a perfección. No lo es: son 43 minutos al mes y, en C01, con 10 millones de requests al día, 0.1 % son **10,000 requests fallidos cada día**. Un SLO de 99.9 % no promete que nada falle: promete que lo que falla cabe en ese número.
+Tres nueves suena a perfección. No lo es: son 43 minutos al mes y, en C01, con 10 millones de requests al día, 0.1 % son **10,000 requests fallidas cada día**. Un SLO de 99.9 % no promete que nada falle: promete que lo que falla cabe en ese número.
 
 ### El presupuesto de error
 
@@ -245,7 +245,7 @@ Parte del presupuesto que se comió | 41,667 ÷ 300,000 | **≈ 14 %**
 :::
 
 :::calculadora probabilidad-presupuesto
-Prueba media hora con todo caído: 100 % de los requests durante 0.5 h. Se come ≈ 69 % del mes, lo mismo que 30 de sus 43.2 minutos: medir en requests o en tiempo da igual cuando el tráfico es parejo.
+Prueba media hora con todo caído: 100 % de las requests durante 0.5 h. Se come ≈ 69 % del mes, lo mismo que 30 de sus 43.2 minutos: medir en requests o en tiempo da igual cuando el tráfico es parejo.
 :::
 
 ## El presupuesto en la práctica {The error budget in practice} [extra]
@@ -278,11 +278,11 @@ Un **SLA** (*service level agreement*) es un contrato con consecuencias si no se
 
 ## Piezas en serie y réplicas en paralelo {Pieces in series and replicas in parallel}
 
-Un request de C01 pasa por tres piezas, una detrás de otra: el balanceador (ALB), que reparte el tráfico; el gateway, un programa en CPU que abre y prepara la foto, y Triton, el servidor que corre la ResNet-50 en una [[gpu|GPU]] T4. Esas piezas están **en serie**: el request necesita a las tres. Además, el gateway y Triton existen en dos copias, una en cada zona, y esas copias están **en paralelo**: basta con una.
+Una request de C01 pasa por tres piezas, una detrás de otra: el balanceador (ALB), que reparte el tráfico; el gateway, un programa en CPU que abre y prepara la foto, y Triton, el servidor que corre la ResNet-50 en una [[gpu|GPU]] T4. Esas piezas están **en serie**: la request necesita a las tres. Además, el gateway y Triton existen en dos copias, una en cada zona, y esas copias están **en paralelo**: basta con una.
 
 ### En serie se multiplican las disponibilidades
 
-Si el request necesita todas las piezas, funciona solo cuando funciona cada una. Con fallas independientes es la regla del producto aplicada a «funciona»:
+Si la request necesita todas las piezas, funciona solo cuando funciona cada una. Con fallas independientes es la regla del producto aplicada a «funciona»:
 
 disponibilidad en serie = a₁ × a₂ × … × aₙ
 
@@ -325,7 +325,7 @@ Si cae una zona // la que queda, de su máximo | 500 ÷ 1,200 | ≈ 42 %
 La de repuesto tiene que estar donde no le pegue lo mismo que a la otra. Por eso C01 pone cada réplica en una **zona de disponibilidad** (*availability zone*, AZ) distinta: un centro de datos, o un grupo de ellos, con su propia electricidad, su enfriamiento y su red, separado de los demás de la misma **región**, que es el grupo de zonas que la nube tiene en una misma área geográfica. Dos réplicas en la misma máquina, o en la misma zona, **no son un N+1 de verdad**: si se va la luz, caen juntas.
 
 :::diagrama probabilidad-c01
-Los porcentajes son valores ilustrativos de la Ronda. Toca cada caja para ver por qué está ahí, y usa «Recorrer» para seguir un request normal, la caída de una zona y el plan B.
+Los porcentajes son valores ilustrativos de la Ronda. Toca cada caja para ver por qué está ahí, y usa «Recorrer» para seguir una request normal, la caída de una zona y el plan B.
 :::
 
 Con esas cifras, la cadena completa de C01 queda así: el balanceador, que ya vive en las dos zonas, al 99.99 %; el gateway en dos zonas, con 1 − 0.0005² ≈ 99.99998 %, y Triton en dos zonas, con 1 − 0.005² = 99.9975 %. Multiplicadas en serie dan ≈ 99.99 %: unos **5 minutos al mes**, muy por debajo de los 43 que permite el SLO. Y 4 de esos 5 minutos los pone el balanceador, la única pieza que entra a la cuenta sin una réplica en paralelo (su 99.99 % ya incluye sus propias copias).
@@ -399,7 +399,7 @@ Con un dado, cada cara sale con probabilidad 1/6, así que el valor esperado es 
 
 Varias cuentas de esta lección eran valores esperados:
 
-- **Requests fallidos al día.** Cada request aporta 1 falla con probabilidad 0.001 y 0 con probabilidad 0.999: su valor esperado es 0.001, y el de 10 millones de requests, **10,000**. Con N repeticiones independientes de algo de probabilidad p, se esperan N × p.
+- **Requests fallidas al día.** Cada request aporta 1 falla con probabilidad 0.001 y 0 con probabilidad 0.999: su valor esperado es 0.001, y el de 10 millones de requests, **10,000**. Con N repeticiones independientes de algo de probabilidad p, se esperan N × p.
 - **Minutos caídos al mes.** Cada minuto está caído con probabilidad 1 − a, así que se esperan 43,200 × (1 − a) minutos.
 
 ### Decidir con dinero: C09
@@ -430,7 +430,7 @@ Una [[tasa]] (*rate*) es cuántas veces pasa algo por unidad de tiempo: requests
 :::cuenta Las tasas de C01
 Requests por segundo, en promedio | 10,000,000 ÷ 86,400 s | ≈ 116
 Requests por segundo en el pico del día // la Ronda supone 3 veces el promedio | 116 × 3 | ≈ 350
-Fallas por segundo, si se gasta justo el presupuesto // el 0.1 % de los requests | 116 × 0.001 | ≈ 0.116
+Fallas por segundo, si se gasta justo el presupuesto // el 0.1 % de las requests | 116 × 0.001 | ≈ 0.116
 Fallas por minuto | 0.116 × 60 | ≈ 7
 Segundos entre dos fallas, en promedio | 1 ÷ 0.116 | ≈ 8.6
 = Las tasas se convierten como cualquier unidad: por segundo × 60 = por minuto, y por segundo × 86,400 = por día.
@@ -522,13 +522,13 @@ Casi todos tienen la misma raíz: una cuenta que supone algo (independencia, una
 
 ### Sumar lo que se multiplica
 
-**Qué pasa:** «cada uno de los 50 servicios es lento el 1 %, así que el request es lento el 50 %». Sumar solo vale con eventos excluyentes, y aquí pueden coincidir. La cuenta correcta da 1 − 0.99⁵⁰ ≈ 39.5 %. Con 150 servicios, la suma diría 150 %.
+**Qué pasa:** «cada uno de los 50 servicios es lento el 1 %, así que la request es lenta el 50 %». Sumar solo vale con eventos excluyentes, y aquí pueden coincidir. La cuenta correcta da 1 − 0.99⁵⁰ ≈ 39.5 %. Con 150 servicios, la suma diría 150 %.
 
 **Cómo evitarlo:** para «todos funcionan», multiplica las probabilidades de funcionar. Para «al menos uno falla», usa el complemento: 1 − P(todos funcionan). Si una probabilidad te da más de 1, la cuenta está mal.
 
 ### Suponer independencia sin revisarla
 
-**Qué pasa:** se multiplica sin preguntar si las cosas se mueven juntas. Dos tramos de un request son lentos el 2 % de las veces cada uno, y se calcula que los dos son lentos a la vez solo 0.02 × 0.02 = 0.04 %. Pero si a los dos los vuelve lentos la misma foto gigante, pasan juntos casi el 2 % de las veces: 50 veces más.
+**Qué pasa:** se multiplica sin preguntar si las cosas se mueven juntas. Dos tramos de una request son lentos el 2 % de las veces cada uno, y se calcula que los dos son lentos a la vez solo 0.02 × 0.02 = 0.04 %. Pero si a los dos los vuelve lentos la misma foto gigante, pasan juntos casi el 2 % de las veces: 50 veces más.
 
 **Cómo evitarlo:** antes de multiplicar, pregunta si hay una causa que mueva a los dos. Si la hay, no supongas: mide en los datos cuántas veces pasan juntos.
 
@@ -552,7 +552,7 @@ Casi todos tienen la misma raíz: una cuenta que supone algo (independencia, una
 
 ### Medir cada pieza y no el conjunto
 
-**Qué pasa:** cada uno de los 10 servicios de un [[fan-out]] cumple su p99, y el equipo celebra. Pero ≈ 9.6 % de los requests toca la cola de alguno, y el p99 de lo que vive la persona es mucho peor que el de cualquier pieza.
+**Qué pasa:** cada uno de los 10 servicios de un [[fan-out]] cumple su p99, y el equipo celebra. Pero ≈ 9.6 % de las requests toca la cola de alguno, y el p99 de lo que vive la persona es mucho peor que el de cualquier pieza.
 
 **Cómo evitarlo:** mide la latencia y la disponibilidad **de punta a punta**, donde las vive quien llama. Y a cada pieza pídele lo que el conjunto necesita: con 10 en paralelo, su p99.9.
 
@@ -564,7 +564,7 @@ Casi todos tienen la misma raíz: una cuenta que supone algo (independencia, una
 
 ## En la vida real {In real life} [extra]
 
-**C01 · Clasificación de fotos.** Toda la lección en un solo caso. Un SLO de 99.9 % en 30 días: 43.2 minutos, o 300,000 requests fallidos al mes. Dos T4, una por zona, aunque el tráfico pide una sola: N+1, para que la que queda aguante el pico de diseño al ≈ 42 %. El gateway y Triton en dos zonas, y el balanceador en las dos. Un plan B que no comparte nada con el modelo, el selector manual, que lo saca del camino crítico y permite quedarse en una sola región. Y cambios de versión de a poco, 5 % del tráfico primero, porque un deploy malo es la causa común que más minutos le come al presupuesto.
+**C01 · Clasificación de fotos.** Toda la lección en un solo caso. Un SLO de 99.9 % en 30 días: 43.2 minutos, o 300,000 requests fallidas al mes. Dos T4, una por zona, aunque el tráfico pide una sola: N+1, para que la que queda aguante el pico de diseño al ≈ 42 %. El gateway y Triton en dos zonas, y el balanceador en las dos. Un plan B que no comparte nada con el modelo, el selector manual, que lo saca del camino crítico y permite quedarse en una sola región. Y cambios de versión de a poco, 5 % del tráfico primero, porque un deploy malo es la causa común que más minutos le come al presupuesto.
 
 **C11 · Un asistente con documentos ([[rag|RAG]]).** Cada pregunta de un empleado pasa por varios pasos en serie: revisar sus permisos, buscar por palabras y por significado (las dos búsquedas a la vez, un fan-out de dos), reordenar los resultados con otro modelo y, al final, pedirle la respuesta a un [[llm|LLM]]. Son muchas piezas multiplicándose, y por eso cada una tiene un plan B que la saca de la cuenta: si el reordenador no responde a tiempo, se usa el orden que ya traía la búsqueda; si el LLM falla, se muestran solo los resultados de búsqueda. Su meta es 99.5 % para la respuesta generada, y más para la búsqueda sola: cada escalón de plan B cambia calidad por disponibilidad.
 
@@ -585,11 +585,11 @@ Se cuenta que el caballero de Méré, un jugador francés, apostaba a sacar al m
 Resuélvelos con lápiz antes de abrir la solución. Los primeros cuatro son directos; los dos últimos piden juntar varias ideas.
 
 :::ejercicios
-? [facil] Un servicio responde mal el 0.2 % de los requests y recibe 5 millones al día. ¿Cuántas respuestas malas se esperan al día? ¿Qué probabilidad tiene un request de salir bien?
+? [facil] Un servicio responde mal el 0.2 % de las requests y recibe 5 millones al día. ¿Cuántas respuestas malas se esperan al día? ¿Qué probabilidad tiene una request de salir bien?
 Respuestas malas esperadas: 5,000,000 × 0.002 = **10,000 al día**. Es un [[valor-esperado|valor esperado]], N × p.
 
 Salir bien es el complemento: 1 − 0.002 = 0.998 = **99.8 %**.
-? [facil] Un request necesita a dos servicios en serie, independientes, cada uno con 99.9 % de disponibilidad. ¿Qué disponibilidad tiene el conjunto? ¿Cuántos minutos caído es eso en un mes de 30 días?
+? [facil] Una request necesita a dos servicios en serie, independientes, cada uno con 99.9 % de disponibilidad. ¿Qué disponibilidad tiene el conjunto? ¿Cuántos minutos caído es eso en un mes de 30 días?
 Regla del producto: 0.999 × 0.999 = 0.998001 ≈ **99.8 %**.
 
 Caído: (1 − 0.998001) × 43,200 = 0.001999 × 43,200 ≈ **86.4 minutos**. Con el atajo de sumar los minutos de cada pieza: 43.2 + 43.2 = 86.4. El doble de lo que permite cada pieza por separado.
@@ -597,7 +597,7 @@ Caído: (1 − 0.998001) × 43,200 = 0.001999 × 43,200 ≈ **86.4 minutos**. Co
 Mes: 43,200 × 0.0005 = **21.6 minutos**.
 
 Día: 1,440 minutos × 0.0005 = 0.72 minutos = **43.2 segundos**.
-? [facil] Un request hace [[fan-out]] a 5 servicios, cada uno lento el 2 % de las veces, de forma independiente. ¿Qué probabilidad hay de que el request sea lento? ¿Qué diría la suma?
+? [facil] Una request hace [[fan-out]] a 5 servicios, cada uno lento el 2 % de las veces, de forma independiente. ¿Qué probabilidad hay de que la request sea lenta? ¿Qué diría la suma?
 Los 5 rápidos: 0.98⁵ ≈ 0.904. Al menos uno lento: 1 − 0.904 ≈ **9.6 %**.
 
 La suma diría 5 × 2 % = 10 %. Con probabilidades chicas casi atina, pero ya se pasa.
@@ -607,26 +607,26 @@ Dos réplicas: 1 − 0.01² = 1 − 0.0001 = **99.99 %**, que son 43,200 × 0.0
 Tres réplicas: 1 − 0.01³ = 1 − 0.000001 = **99.9999 %**, que son 43,200 × 0.000001 = 0.0432 minutos ≈ **2.6 segundos** al mes.
 
 En el papel, cada réplica de 99 % agrega dos nueves. En la realidad, una causa común se come casi todo eso.
-? [medio] El SLO de C01 es 99.9 % en 30 días, con 10 millones de requests al día. Un incidente hace fallar el 50 % de los requests durante 15 minutos. ¿Qué parte del presupuesto del mes se come?
+? [medio] El SLO de C01 es 99.9 % en 30 días, con 10 millones de requests al día. Un incidente hace fallar el 50 % de las requests durante 15 minutos. ¿Qué parte del presupuesto del mes se come?
 :::cuenta Un incidente corto pero fuerte
 Requests por minuto | 10,000,000 ÷ 1,440 | ≈ 6,944
-Requests fallidos en el incidente | 6,944 × 15 × 0.5 | ≈ 52,083
+Requests fallidas en el incidente | 6,944 × 15 × 0.5 | ≈ 52,083
 Presupuesto del mes | 0.001 × 10,000,000 × 30 | 300,000
 Parte que se comió | 52,083 ÷ 300,000 | **≈ 17 %**
-= Quince minutos se comen más presupuesto que el deploy de dos horas con 5 % de errores (14 %). Lo que cuenta es cuántos requests fallan, no cuánto dura.
+= Quince minutos se comen más presupuesto que el deploy de dos horas con 5 % de errores (14 %). Lo que cuenta es cuántas requests fallan, no cuánto dura.
 :::
-? [medio] Un request hace fan-out a 50 servicios, espera a los 50, y quieres que el 99 % de los requests sean rápidos. ¿Qué percentil tiene que cumplir cada servicio? ¿Y qué fracción de los requests sería lenta si cada uno solo cumpliera su p99?
+? [medio] Una request hace fan-out a 50 servicios, espera a los 50, y quieres que el 99 % de las requests sean rápidas. ¿Qué percentil tiene que cumplir cada servicio? ¿Y qué fracción de las requests sería lenta si cada uno solo cumpliera su p99?
 Si q es la probabilidad de que cada servicio sea rápido, necesitas q⁵⁰ = 0.99, así que q = 0.99^(1/50) ≈ 0.99980.
 
 Con el atajo: 1 − 0.01 ÷ 50 = 1 − 0.0002 = 0.9998.
 
-Cada servicio tiene que cumplir su **p99.98**: ser lento solo 1 de cada 5,000 veces. Si solo cumpliera su p99, serían lentos 1 − 0.99⁵⁰ ≈ **39.5 %** de los requests.
+Cada servicio tiene que cumplir su **p99.98**: ser lento solo 1 de cada 5,000 veces. Si solo cumpliera su p99, serían lentas 1 − 0.99⁵⁰ ≈ **39.5 %** de las requests.
 ? [medio] Supón que el equipo de C01 hace ≈ 20 deploys al mes y que cada uno tiene 2 % de probabilidad de salir malo (los dos números son supuestos). Sin canary, un deploy malo deja el servicio caído 30 minutos. ¿Cuántos minutos caídos por deploys se esperan al mes? ¿Y si con un canary uno malo solo afecta al 5 % del tráfico durante 10 minutos?
 Deploys malos esperados al mes: 20 × 0.02 = 0.4.
 
 **Sin canary:** 0.4 × 30 = **12 minutos** esperados al mes, ≈ 28 % de los 43.2 que permite el SLO, solo por deploys.
 
-**Con canary:** cada deploy malo hace fallar el 5 % de los requests durante 10 minutos. Para el SLI, que cuenta requests, eso pesa lo mismo que 0.05 × 10 = 0.5 minutos con todo caído. Esperado al mes: 0.4 × 0.5 = **0.2 minutos**, menos del 0.5 % del presupuesto.
+**Con canary:** cada deploy malo hace fallar el 5 % de las requests durante 10 minutos. Para el SLI, que cuenta requests, eso pesa lo mismo que 0.05 × 10 = 0.5 minutos con todo caído. Esperado al mes: 0.4 × 0.5 = **0.2 minutos**, menos del 0.5 % del presupuesto.
 
 El canary no hace que los deploys salgan mal menos seguido: hace que cada uno cueste 60 veces menos. Es la misma palanca que el rollback rápido de «El presupuesto en la práctica»: no evita la falla, achica su daño.
 ? [reto] Las dos zonas de Triton en C01 tienen 99.5 % cada una, y un deploy malo las tumba a la vez el 0.1 % del tiempo. (a) ¿Qué disponibilidad tiene Triton? (b) Con canary y una zona a la vez, esa causa común baja a 0.02 % del tiempo. ¿Qué disponibilidad queda y cuántos minutos al mes se ahorran? (c) ¿Serviría más agregar una tercera zona, sin canary?
@@ -635,7 +635,7 @@ El canary no hace que los deploys salgan mal menos seguido: hace que cada uno cu
 **(b)** 0.999975 × 0.9998 ≈ 0.999775 ≈ **99.98 %**: ≈ 9.7 minutos al mes. Se ahorran 44.3 − 9.7 ≈ **34.6 minutos**.
 
 **(c)** Tres zonas sin canary: 1 − 0.005³ = 0.999999875, y por la causa común, 0.999999875 × 0.999 ≈ 0.999000 → ≈ 43.2 minutos al mes. Se ahorra ≈ 1 minuto. La tercera zona ataca la falla propia, que ya era chica; el canary ataca la causa común, que era casi todo.
-? [reto] (a) Un servicio recibe en promedio 10 requests por segundo, al azar, y puede atender como máximo 15 por segundo. ¿En qué fracción de los segundos llegan más de los que puede atender? (b) ¿Por qué no es lo mismo que el «15 o más» de la lección?
+? [reto] (a) Un servicio recibe en promedio 10 requests por segundo, al azar, y puede atender como máximo 15 por segundo. ¿En qué fracción de los segundos llegan más de las que puede atender? (b) ¿Por qué no es lo mismo que el «15 o más» de la lección?
 **(a)** «Más de 15» es 16 o más. Con Poisson y λ = 10, P(16 o más) = 1 − P(0 a 15). Sumar 16 términos a mano es largo; en Python:
 
 ```python
@@ -686,7 +686,7 @@ Intenta responder en tu cabeza antes de abrir cada respuesta.
 :::chequeo
 ? ¿Por qué se multiplican, y no se suman, las probabilidades de que dos servicios independientes funcionen?
 Porque «los dos funcionan» es una fracción de una fracción: de los casos en que funciona A, solo en una parte funciona también B. Sumar sirve para eventos excluyentes. Para «al menos uno falla» se usa el complemento: 1 − P(todos funcionan).
-? Un request espera a 100 servicios, cada uno lento el 1 % de las veces. ¿Qué fracción de los requests es lenta?
+? Una request espera a 100 servicios, cada uno lento el 1 % de las veces. ¿Qué fracción de las requests es lenta?
 1 − 0.99¹⁰⁰ ≈ 63 %. El p99 de cada pieza se vuelve la latencia típica del conjunto.
 ? ¿Cuánto es 99.9 % en minutos al mes? ¿Y 99.99 %?
 Un mes de 30 días tiene 43,200 minutos: 43.2 minutos y 4.32 minutos. Cada nueve más divide el tiempo entre 10.

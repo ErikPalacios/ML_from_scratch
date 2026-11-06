@@ -273,7 +273,7 @@ Una respuesta de 250 tokens | 250 ÷ 19 | ≈ 13 s
 
 Por eso, en la Ronda, la velocidad de un LLM no se mide con un solo número sino con dos:
 
-- [[ttft|TTFT]] (*time to first token*, tiempo al primer token): desde que llega el request hasta que sale el primer token. Suma la espera en la cola del servidor y el prefill.
+- [[ttft|TTFT]] (*time to first token*, tiempo al primer token): desde que llega la request hasta que sale el primer token. Suma la espera en la cola del servidor y el prefill.
 - [[tpot|TPOT]] (*time per output token*, tiempo por token de salida): cuánto tarda cada token después del primero, en promedio. Es un paso de decode.
 
 Con esos dos, la respuesta completa tarda:
@@ -282,8 +282,8 @@ Con esos dos, la respuesta completa tarda:
 
 El «− 1» es porque el primer token ya está contado en el TTFT. Y como la persona empieza a leer en cuanto sale el primero, las metas ([[slo|SLO]]) de un LLM que conversa se ponen sobre el TTFT y el TPOT, no sobre el tiempo total.
 
-:::cuenta Un request de C10, con sus dos relojes
-Prompt y respuesta // un request típico del caso | dato del caso | 2,000 y 250 tokens
+:::cuenta Una request de C10, con sus dos relojes
+Prompt y respuesta // una request típica del caso | dato del caso | 2,000 y 250 tokens
 TTFT // cola + prefill | dato del caso | ≈ 0.6 s
 TPOT // un paso de decode | dato del caso | ≈ 40 ms
 Tokens que faltan después del primero | 250 − 1 | 249
@@ -293,11 +293,11 @@ Con el TTFT y el TPOT justo en su límite // sus metas: TTFT ≤ 1 s y TPOT ≤ 
 :::
 
 :::figura llms-tiempos
-El mismo request de C10 en el tiempo. Arriba, completo: 0.6 s hasta el primer token y después 249 pasos de 40 ms. Abajo, el primer segundo con lupa: la cola, el prefill y los primeros tokens.
+La misma request de C10 en el tiempo. Arriba, completa: 0.6 s hasta el primer token y después 249 pasos de 40 ms. Abajo, el primer segundo con lupa: la cola, el prefill y los primeros tokens.
 :::
 
 :::calculadora llms-tiempo
-Los valores iniciales son los del request de C10. Cómo se reparten los 0.6 s entre la cola y el prefill es un supuesto del ejemplo (la Ronda, en M14, estima ≈ 150 ms de prefill). Prueba un prompt de 8,000 tokens, o un decode de 10 tokens por segundo.
+Los valores iniciales son los de la request de C10. Cómo se reparten los 0.6 s entre la cola y el prefill es un supuesto del ejemplo (la Ronda, en M14, estima ≈ 150 ms de prefill). Prueba un prompt de 8,000 tokens, o un decode de 10 tokens por segundo.
 :::
 
 :::diagrama llms-request
@@ -306,7 +306,7 @@ El camino de una pregunta: el prompt entra entero en una pasada (prefill) y la r
 
 ### La ventana de contexto
 
-Todo modelo tiene un límite de cuántos tokens puede tener en cuenta en un request, sumando el prompt y la respuesta. Ese límite es su [[ventana-contexto|ventana de contexto]]. Llama 3 8B salió en abril de 2024 con una ventana de 8,192 tokens; su versión 3.1, de julio de 2024, la amplió a ≈ 128 mil (131,072). Las cuentas de esta lección usan los 8,192 del Llama 3 original, como la Ronda.
+Todo modelo tiene un límite de cuántos tokens puede tener en cuenta en una request, sumando el prompt y la respuesta. Ese límite es su [[ventana-contexto|ventana de contexto]]. Llama 3 8B salió en abril de 2024 con una ventana de 8,192 tokens; su versión 3.1, de julio de 2024, la amplió a ≈ 128 mil (131,072). Las cuentas de esta lección usan los 8,192 del Llama 3 original, como la Ronda.
 
 Lo que no cabe en la ventana, el modelo no lo ve. Si el prompt tiene 8,000 tokens y la ventana es de 8,192, solo quedan 192 para la respuesta. Y en producción, como verás en la sección 7, cada token dentro de la ventana ocupa memoria de GPU: la ventana también es una cuestión de costo.
 
@@ -611,7 +611,7 @@ Gracias a la etapa 2, el modelo distingue quién habla. Eso da dos herramientas 
 
 El [[system-prompt|system prompt]] es la parte del prompt que escribe la app, no la persona: el mensaje con rol «system» de la plantilla. Dice qué papel tiene el modelo, qué reglas sigue y en qué formato contesta; en C10 de la Ronda, cada producto tiene uno fijo de ≈ 1,000 tokens. Dos cosas que conviene saber de él:
 
-- **Va primero y no cambia.** Como es igual en todos los requests de un producto, el servidor guarda su KV cache (sección 7) y no lo recalcula en cada prefill: eso es [[prefix-caching|prefix caching]]. Solo sirve si los tokens son idénticos desde el principio: lo fijo va primero y lo variable (la fecha, el nombre, la pregunta) al final.
+- **Va primero y no cambia.** Como es igual en todas las requests de un producto, el servidor guarda su KV cache (sección 7) y no lo recalcula en cada prefill: eso es [[prefix-caching|prefix caching]]. Solo sirve si los tokens son idénticos desde el principio: lo fijo va primero y lo variable (la fecha, el nombre, la pregunta) al final.
 - **No es secreto ni es un candado.** Una persona insistente o un documento con instrucciones escondidas pueden convencer al modelo de ignorarlo, o de repetirlo. Lo que no se puede permitir se controla con código.
 
 Poner unos cuantos ejemplos resueltos en el prompt se llama [[few-shot]] (con pocos ejemplos); sin ejemplos, *zero-shot*. Ningún peso cambia: los ejemplos solo cambian el texto que el modelo continúa, y lo más probable es seguir el patrón que ve. Lo popularizó el artículo de GPT-3 (OpenAI, 2020), «Language Models are Few-Shot Learners».
@@ -727,7 +727,7 @@ Los LLMs ocupan tres casos completos de la Ronda, y su ausencia explica otro.
 
 **C01 · Por qué el marketplace no usa un LLM para sugerir la categoría.** Un LLM podría leer la publicación de Ana y contestar «Calzado › Tenis», pero las cuentas no dan. La ResNet-50 hace ≈ 4.1 mil millones de multiplicaciones-sumas por foto entera; un LLM de 8B, ≈ 8 mil millones por **cada token**. C01 promete 200 ms o menos en 99 de cada 100 respuestas, medidos en la API, y quien llama corta a los 300 ms y muestra el selector manual: 5 tokens de decode a 40 ms ya se comen los 200 ms. Y un LLM podría inventar una categoría que no está entre las 500. El LLM sí entra al lado, en C10: redacta descripciones y saca atributos en JSON.
 
-**C10 · Servir un LLM propio.** El marketplace deja de pagar una API y sirve un modelo abierto de ≈ 70B para tres productos: el asistente de soporte (≈ 1 millón de requests al día), el de publicaciones (≈ 0.5 millones) y la extracción nocturna (≈ 2 millones de publicaciones). Usa todo lo de esta lección: ≈ 2,000 tokens de entrada y ≈ 250 de salida, TTFT ≤ 1 s y TPOT ≤ 50 ms, pesos en FP8 en 2 H100 por réplica, ≈ 93 conversaciones de KV cache por réplica y prefix caching para la mitad fija de cada prompt. En el pico llegan 60 requests por segundo y cada uno vive ≈ 10.5 s (C10 redondea el TTFT a 0.5 s): ≈ 60 × 10.5 = 630 conversaciones vivas a la vez. Con 16 réplicas, 32 H100, cuesta ≈ US$161 mil al mes contra ≈ US$442 mil de la API.
+**C10 · Servir un LLM propio.** El marketplace deja de pagar una API y sirve un modelo abierto de ≈ 70B para tres productos: el asistente de soporte (≈ 1 millón de requests al día), el de publicaciones (≈ 0.5 millones) y la extracción nocturna (≈ 2 millones de publicaciones). Usa todo lo de esta lección: ≈ 2,000 tokens de entrada y ≈ 250 de salida, TTFT ≤ 1 s y TPOT ≤ 50 ms, pesos en FP8 en 2 H100 por réplica, ≈ 93 conversaciones de KV cache por réplica y prefix caching para la mitad fija de cada prompt. En el pico llegan 60 requests por segundo y cada una vive ≈ 10.5 s (C10 redondea el TTFT a 0.5 s): ≈ 60 × 10.5 = 630 conversaciones vivas a la vez. Con 16 réplicas, 32 H100, cuesta ≈ US$161 mil al mes contra ≈ US$442 mil de la API.
 
 **C11 · RAG con los documentos de la empresa.** ≈ 8,000 empleados le preguntan a un asistente que busca entre ≈ 12 millones de pedazos de documentos y le pasa al LLM los 8 mejores. Todo tiene que caber en la ventana del modelo de C10:
 
@@ -776,7 +776,7 @@ Greedy elige el tercero. Con top-p = 0.75, ese token solo ya suma 78.7 %: el sor
 - BF16: 13,000,000,000 × 2 bytes = **26 GB**. No cabe.
 - INT8: 13,000,000,000 × 1 byte = **13 GB**. Cabe, y con 10 % de margen y ≈ 2 GB del programa quedan 0.9 × 24 − 13 − 2 ≈ 6.6 GB para KV cache.
 - INT4: 13,000,000,000 × 0.5 bytes = **6.5 GB**, algo más en la práctica. Cabe de sobra.
-? [facil] Un request tiene TTFT de 0.8 s y TPOT de 50 ms. ¿Cuánto tarda una respuesta de 400 tokens? ¿Cuándo empieza a leer la persona?
+? [facil] Una request tiene TTFT de 0.8 s y TPOT de 50 ms. ¿Cuánto tarda una respuesta de 400 tokens? ¿Cuándo empieza a leer la persona?
 Tiempo total = TTFT + (tokens − 1) × TPOT = 0.8 + 399 × 0.05 = 0.8 + 19.95 = **20.75 s**.
 
 La persona empieza a leer a los **0.8 s**, con el primer token, y después el texto sale a 1 ÷ 0.05 = 20 tokens por segundo, más rápido de lo que alguien lee: con streaming no se siente como 20 segundos de espera.
@@ -847,7 +847,7 @@ Intenta responder en tu cabeza antes de abrir cada respuesta.
 :::chequeo
 ? ¿Por qué un LLM tarda más en escribir 500 tokens que en leer un prompt de 500 tokens?
 Porque el prompt ya existe completo y se procesa en una sola pasada, en paralelo (prefill). La respuesta se escribe de un token a la vez (decode): 500 pasadas una tras otra, y en cada una el modelo lee todos sus pesos de la memoria de la GPU.
-? Un request tiene TTFT de 0.5 s y TPOT de 30 ms. ¿Cuánto tarda una respuesta de 201 tokens?
+? Una request tiene TTFT de 0.5 s y TPOT de 30 ms. ¿Cuánto tarda una respuesta de 201 tokens?
 TTFT + (tokens − 1) × TPOT = 0.5 + 200 × 0.03 = 0.5 + 6 = 6.5 s. La persona empieza a leer a los 0.5 s.
 ? Logits 3 y 1 para dos tokens. ¿Qué probabilidades da el softmax con temperatura 1? ¿Y con temperatura 2?
 Temperatura 1: e³ ≈ 20.09 y e¹ ≈ 2.72; suman 22.81; da ≈ 88 % y ≈ 12 %. Temperatura 2: los logits quedan 1.5 y 0.5; e^1.5 ≈ 4.48 y e^0.5 ≈ 1.65; suman 6.13; da ≈ 73 % y ≈ 27 %. Más temperatura, reparto más parejo.

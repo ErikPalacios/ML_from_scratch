@@ -32,7 +32,7 @@
   "flows": [
     { "id": "pregunta", "label": "Una pregunta, de ida y vuelta", "steps": [
       { "nodes": ["app", "tok"], "edges": ["app>tok"], "text": "Tu app manda el prompt. El tokenizer lo parte en tokens y cambia cada uno por su número (id)." },
-      { "nodes": ["tok", "prefill", "pesos", "kv"], "edges": ["tok>prefill", "pesos>prefill"], "text": "**Prefill.** El modelo lee todos los tokens del prompt (≈ 2,000 en un request de C10) de una sola pasada, en paralelo, y guarda lo que calculó de cada uno en el KV cache." },
+      { "nodes": ["tok", "prefill", "pesos", "kv"], "edges": ["tok>prefill", "pesos>prefill"], "text": "**Prefill.** El modelo lee todos los tokens del prompt (≈ 2,000 en una request de C10) de una sola pasada, en paralelo, y guarda lo que calculó de cada uno en el KV cache." },
       { "nodes": ["prefill", "decode"], "edges": ["prefill>decode"], "text": "Sale el primer token de la respuesta. El tiempo hasta aquí, contando la espera en la cola, es el **TTFT**: en C10, ≈ 0.6 s." },
       { "nodes": ["decode", "pesos", "kv"], "edges": ["pesos>decode", "decode>kv"], "text": "**Decode.** Cada token nuevo es una vuelta completa: lee todos los pesos (≈ 16 GB en un modelo de 8B en BF16) y el KV cache, elige un token y agrega su K y V al cache. Cada vuelta es un **TPOT**; para 250 tokens, 249 vueltas más." },
       { "nodes": ["decode", "tok", "app"], "edges": ["decode>tok", "app>tok"], "text": "Cada id nuevo se vuelve texto y se manda a tu app en cuanto sale. Por eso ves la respuesta aparecer palabra por palabra." }

@@ -1,6 +1,6 @@
 {
   "titulo": "Disponibilidad compuesta",
-  "intro": "Un sistema de **piezas en serie** (el request necesita todas) donde cada pieza tiene **réplicas en paralelo** (basta con una). La **causa común** es lo que tumba todo a la vez, como un deploy malo.",
+  "intro": "Un sistema de **piezas en serie** (la request necesita todas) donde cada pieza tiene **réplicas en paralelo** (basta con una). La **causa común** es lo que tumba todo a la vez, como un deploy malo.",
   "entradas": [
     { "id": "a", "label": "Disponibilidad de **una réplica**", "min": 90, "max": 99.99, "paso": 0.01, "valor": 99.5, "unidad": "%" },
     { "id": "k", "label": "**Réplicas en paralelo** por pieza", "min": 1, "max": 4, "paso": 1, "valor": 2 },

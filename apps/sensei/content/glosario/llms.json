@@ -62,7 +62,7 @@
       "id": "ventana-contexto",
       "termino": "Ventana de contexto",
       "en": "context window",
-      "corto": "El máximo de tokens que un modelo puede tener en cuenta en un request, sumando el prompt y la respuesta. Lo que no cabe, el modelo no lo ve.",
+      "corto": "El máximo de tokens que un modelo puede tener en cuenta en una request, sumando el prompt y la respuesta. Lo que no cabe, el modelo no lo ve.",
       "largo": "Viene de la arquitectura y de cómo se entrenó el modelo: aprendió posiciones hasta cierto largo ([[embedding-posicional|embeddings posicionales]]). En producción también es una perilla de capacidad: cada token dentro de la ventana ocupa [[kv-cache|KV cache]] en la GPU, así que ventanas más largas permiten menos conversaciones a la vez.",
       "ejemplo": "Llama 3 8B salió en abril de 2024 con una ventana de 8,192 tokens; Llama 3.1 (julio de 2024) la amplió a ≈ 128 mil.",
       "ver": [
@@ -160,9 +160,9 @@
       "id": "ttft",
       "termino": "TTFT (tiempo al primer token)",
       "en": "time to first token",
-      "corto": "Lo que tarda un LLM, desde que llega el request, en mandar el primer token de la respuesta. Es lo que la persona siente como «tardó en contestar».",
+      "corto": "Lo que tarda un LLM, desde que llega la request, en mandar el primer token de la respuesta. Es lo que la persona siente como «tardó en contestar».",
       "largo": "Suma la espera en la cola del servidor y el [[prefill]] del prompt. Crece con prompts más largos y, sobre todo, cuando el servidor está saturado: en la Ronda, la cola rompe el TTFT antes que cualquier otra cosa. Con *streaming*, es el número que decide si la app se siente rápida.",
-      "ejemplo": "En C10 de la Ronda, la meta es que 95 de cada 100 requests vean su primer token en 1 s o menos; uno típico lo ve a los ≈ 0.6 s.",
+      "ejemplo": "En C10 de la Ronda, la meta es que 95 de cada 100 requests vean su primer token en 1 s o menos; una típica lo ve a los ≈ 0.6 s.",
       "ver": [
         "tpot",
         "prefill",
@@ -346,7 +346,7 @@
       "termino": "System prompt (instrucciones de sistema)",
       "en": "system prompt",
       "corto": "Las instrucciones que la app le da al LLM al principio de cada conversación, antes de lo que escribe la persona: qué papel tiene, qué reglas sigue y en qué formato contesta.",
-      "largo": "En la plantilla de chat ocupa el rol «system», separado del «user» con tokens especiales. El modelo aprendió a darle más peso en el [[instruction-tuning|ajuste con instrucciones]], pero no es una barrera de seguridad: una persona o un documento pueden convencer al modelo de ignorarlo o de repetirlo completo. Por eso no lleva secretos. Como es igual en todos los requests de un producto, va primero y el [[prefix-caching|prefix caching]] lo reutiliza.",
+      "largo": "En la plantilla de chat ocupa el rol «system», separado del «user» con tokens especiales. El modelo aprendió a darle más peso en el [[instruction-tuning|ajuste con instrucciones]], pero no es una barrera de seguridad: una persona o un documento pueden convencer al modelo de ignorarlo o de repetirlo completo. Por eso no lleva secretos. Como es igual en todas las requests de un producto, va primero y el [[prefix-caching|prefix caching]] lo reutiliza.",
       "ejemplo": "En C10 de la Ronda, cada producto tiene un prefijo fijo de ≈ 1,000 tokens (instrucciones y políticas) que se guarda con versión, como el código.",
       "ver": [
         "prompt",
@@ -373,8 +373,8 @@
       "id": "prefix-caching",
       "termino": "Prefix caching",
       "en": "prefix caching",
-      "corto": "Reutilizar el KV cache del inicio de un prompt que ya se calculó en un request anterior, para no repetir su prefill. Solo sirve si los tokens son idénticos desde el principio.",
-      "largo": "Muchos requests de un producto empiezan igual: el [[system-prompt|system prompt]], los ejemplos [[few-shot]], las políticas. El servidor guarda el [[kv-cache|KV cache]] de esos tokens y, si el siguiente prompt empieza exactamente igual, se salta esa parte del [[prefill]]: baja el [[ttft|TTFT]] y el cómputo. Basta un token distinto al principio (la fecha, el nombre de la persona) para que ya no sirva: lo fijo va primero y lo variable al final.",
+      "corto": "Reutilizar el KV cache del inicio de un prompt que ya se calculó en una request anterior, para no repetir su prefill. Solo sirve si los tokens son idénticos desde el principio.",
+      "largo": "Muchas requests de un producto empiezan igual: el [[system-prompt|system prompt]], los ejemplos [[few-shot]], las políticas. El servidor guarda el [[kv-cache|KV cache]] de esos tokens y, si el siguiente prompt empieza exactamente igual, se salta esa parte del [[prefill]]: baja el [[ttft|TTFT]] y el cómputo. Basta un token distinto al principio (la fecha, el nombre de la persona) para que ya no sirva: lo fijo va primero y lo variable al final.",
       "ejemplo": "En C10 de la Ronda, la mitad de un prompt de 2,000 tokens es el prefijo fijo del producto: con prefix caching, el prefill solo calcula los ≈ 1,000 tokens restantes.",
       "ver": [
         "kv-cache",

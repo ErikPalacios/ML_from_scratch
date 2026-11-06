@@ -1,6 +1,6 @@
 {
   "titulo": "Presupuesto de error",
-  "intro": "Del **SLO** al tiempo y a los requests que se pueden fallar en un mes de 30 días, y cuánto se come un incidente.",
+  "intro": "Del **SLO** al tiempo y a las requests que se pueden fallar en un mes de 30 días, y cuánto se come un incidente.",
   "entradas": [
     { "id": "slo", "label": "**SLO**", "min": 99, "max": 99.99, "paso": 0.01, "valor": 99.9, "unidad": "%" },
     { "id": "rpd", "label": "Requests al día", "tipo": "numero", "min": 1000, "max": 10000000000, "paso": 1000, "valor": 10000000 },
@@ -15,8 +15,8 @@
   "salidas": [
     { "label": "Presupuesto de error", "formula": "b", "formato": "pct", "decimales": 2, "nota": "1 − SLO" },
     { "label": "Minutos caído permitidos al mes", "formula": "b * 43200", "formato": "num", "decimales": 1, "nota": "si se cae todo el servicio" },
-    { "label": "Requests fallidos permitidos al mes", "formula": "mes", "formato": "int" },
-    { "label": "Requests fallidos permitidos al día", "formula": "b * rpd", "formato": "int" },
+    { "label": "Requests fallidas permitidas al mes", "formula": "mes", "formato": "int" },
+    { "label": "Requests fallidas permitidas al día", "formula": "b * rpd", "formato": "int" },
     { "label": "Requests que falla el incidente", "formula": "fallan", "formato": "int", "nota": "requests por hora × horas × % que falla" },
     { "label": "Lo que se come del presupuesto del mes", "formula": "fallan / max(mes, 1e-9)", "formato": "pct", "decimales": 1, "barra": true },
     { "label": "A ese ritmo, el presupuesto del mes dura", "formula": "min(mes / max(rpd / 24 * err / 100, 1e-9), 720)", "formato": "num", "decimales": 1, "nota": "horas; 720 es el mes entero" }
