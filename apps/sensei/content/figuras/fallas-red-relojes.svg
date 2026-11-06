@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 372" role="img" aria-labelledby="f-fallas-red-relojes-t" class="f-svg" style="max-width:420px">
+<title id="f-fallas-red-relojes-t">Una llamada del gateway a Triton, de izquierda a derecha en el tiempo, con cuatro etapas: conectar (el saludo), mandar la foto, esperar a que Triton calcule y leer la respuesta, que llega en cinco pedazos. Abajo, los tres timeouts. El de conexión cubre solo el saludo del principio. El de lectura cubre el silencio antes del primer pedazo y se reinicia con cada pedazo que llega. El total cubre la llamada completa, de punta a punta. Una respuesta que llega a goteo, un byte cada 9 segundos, nunca dispara un timeout de lectura de 10 segundos; solo el total la corta.</title>
+<text class="f-l" x="14" y="22">UNA LLAMADA, TRES RELOJES</text>
+<rect class="f-card" x="10" y="32" width="340" height="252" rx="16"/>
+<text class="f-s" x="42" y="62" text-anchor="middle" style="font-size:12px">saludo</text>
+<text class="f-s" x="89" y="62" text-anchor="middle" style="font-size:12px">mandar</text>
+<text class="f-s" x="170" y="62" text-anchor="middle" style="font-size:12px">esperar a Triton</text>
+<text class="f-s" x="277" y="62" text-anchor="middle" style="font-size:12px">leer a pedazos</text>
+<rect class="f-p" x="30" y="70" width="28" height="22" rx="3"/>
+<rect class="f-b" x="60" y="70" width="48" height="22" rx="3"/>
+<rect class="f-off" x="110" y="70" width="120" height="22" rx="3"/>
+<rect class="f-g" x="232" y="70" width="14" height="22" rx="3"/>
+<rect class="f-g" x="252" y="70" width="14" height="22" rx="3"/>
+<rect class="f-g" x="272" y="70" width="14" height="22" rx="3"/>
+<rect class="f-g" x="292" y="70" width="14" height="22" rx="3"/>
+<rect class="f-g" x="312" y="70" width="14" height="22" rx="3"/>
+<line class="f-flecha" x1="30" y1="104" x2="330" y2="104"/>
+<path class="f-punta" d="M328,98 L328,110 L338,104 Z"/>
+<text class="f-l" x="30" y="122">TIEMPO</text>
+<line x1="30" y1="140" x2="58" y2="140" style="stroke:var(--p);stroke-width:3"/>
+<line x1="30" y1="134" x2="30" y2="146" style="stroke:var(--p);stroke-width:2"/>
+<line x1="58" y1="134" x2="58" y2="146" style="stroke:var(--p);stroke-width:2"/>
+<text class="f-t" x="68" y="145" style="font-size:13px">Conexión</text>
+<text class="f-s" x="134" y="145" style="font-size:12px">solo el saludo del principio</text>
+<line x1="110" y1="180" x2="230" y2="180" style="stroke:var(--o);stroke-width:3"/>
+<line x1="110" y1="174" x2="110" y2="186" style="stroke:var(--o);stroke-width:2"/>
+<line x1="230" y1="174" x2="230" y2="186" style="stroke:var(--o);stroke-width:2"/>
+<line x1="246" y1="180" x2="252" y2="180" style="stroke:var(--o);stroke-width:3"/>
+<line x1="266" y1="180" x2="272" y2="180" style="stroke:var(--o);stroke-width:3"/>
+<line x1="286" y1="180" x2="292" y2="180" style="stroke:var(--o);stroke-width:3"/>
+<line x1="306" y1="180" x2="312" y2="180" style="stroke:var(--o);stroke-width:3"/>
+<text class="f-t" x="30" y="168" style="font-size:13px">Lectura</text>
+<text class="f-s" x="30" y="204" style="font-size:12px">el silencio más largo entre pedazos;</text>
+<text class="f-s" x="30" y="220" style="font-size:12px">vuelve a cero con cada pedazo que llega</text>
+<line x1="30" y1="246" x2="326" y2="246" style="stroke:var(--b);stroke-width:3"/>
+<line x1="30" y1="240" x2="30" y2="252" style="stroke:var(--b);stroke-width:2"/>
+<line x1="326" y1="240" x2="326" y2="252" style="stroke:var(--b);stroke-width:2"/>
+<text class="f-t" x="30" y="272" style="font-size:13px">Total</text>
+<text class="f-s" x="72" y="272" style="font-size:12px">la llamada completa, de punta a punta</text>
+<rect class="f-chip" x="10" y="296" width="340" height="66" rx="12"/>
+<text class="f-t" x="26" y="320" style="font-size:13px">A goteo, un byte cada 9 s</text>
+<text class="f-s" x="26" y="338" style="font-size:12px">nunca dispara una lectura de 10 s.</text>
+<text class="f-s" x="26" y="354" style="font-size:12px">Solo el total acota cuánto dura todo.</text>
+</svg>

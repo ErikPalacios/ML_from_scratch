@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 394" role="img" aria-labelledby="f-fallas-red-breaker-t" class="f-svg" style="max-width:420px">
+<title id="f-fallas-red-breaker-t">Los tres estados de un circuit breaker, con los números de ejemplo de M15. Cerrado: llama a la dependencia y cuenta las fallas. Si fallan más del 50 por ciento en los últimos 10 segundos, con al menos 20 llamadas, pasa a abierto. Abierto: no llama, y cada request recibe el plan B en un milisegundo. Cuando pasan 30 segundos, pasa a semiabierto. Semiabierto: deja pasar 5 llamadas de prueba. Si salen bien, vuelve a cerrado; si fallan, vuelve a abierto otros 30 segundos. El mínimo de 20 llamadas evita que dos fallas de tres, de madrugada, lo abran por nada.</title>
+<defs><marker id="fb-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<text class="f-l" x="14" y="22">TRES ESTADOS, CON LOS NÚMEROS DE M15</text>
+<rect class="f-card" x="10" y="32" width="340" height="290" rx="16"/>
+<rect class="f-chip" x="24" y="46" width="160" height="54" rx="10" style="stroke:var(--g);stroke-width:2"/>
+<text class="f-t" x="36" y="68" style="font-size:14px">Cerrado</text>
+<text class="f-s" x="36" y="88" style="font-size:12px">llama y cuenta las fallas</text>
+<line class="f-flecha" x1="104" y1="100" x2="104" y2="142" marker-end="url(#fb-a)"/>
+<text class="f-t" x="116" y="117" style="font-size:12px">más de 50 % de fallas</text>
+<text class="f-s" x="116" y="133" style="font-size:12px">en 10 s, con ≥ 20 llamadas</text>
+<rect class="f-chip" x="24" y="146" width="160" height="54" rx="10" style="stroke:var(--o);stroke-width:2"/>
+<text class="f-t" x="36" y="168" style="font-size:14px">Abierto</text>
+<text class="f-s" x="36" y="188" style="font-size:12px">no llama: plan B en ≈ 1 ms</text>
+<line class="f-flecha" x1="104" y1="200" x2="104" y2="242" marker-end="url(#fb-a)"/>
+<text class="f-t" x="116" y="225" style="font-size:12px">pasan 30 s</text>
+<rect class="f-chip" x="24" y="246" width="160" height="54" rx="10" style="stroke:var(--y);stroke-width:2"/>
+<text class="f-t" x="36" y="268" style="font-size:14px">Semiabierto</text>
+<text class="f-s" x="36" y="288" style="font-size:12px">deja pasar 5 de prueba</text>
+<path class="f-flecha" d="M184,262 L290,262 L290,173 L190,173" marker-end="url(#fb-a)"/>
+<text class="f-s" x="196" y="256" style="font-size:12px">si fallan</text>
+<path class="f-flecha" d="M184,288 L320,288 L320,60 L190,60" marker-end="url(#fb-a)"/>
+<text class="f-s" x="196" y="306" style="font-size:12px">si salen bien</text>
+<rect class="f-chip" x="10" y="334" width="340" height="50" rx="12"/>
+<text class="f-s" x="26" y="355" style="font-size:12px">El mínimo de 20 llamadas evita que 2 fallas</text>
+<text class="f-s" x="26" y="372" style="font-size:12px">de 3, a las 4 a. m., abran el breaker por nada.</text>
+</svg>

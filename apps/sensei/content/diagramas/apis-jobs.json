@@ -1,0 +1,297 @@
+{
+  "titulo": "Un trabajo largo: 202, cola, worker y aviso",
+  "width": 78,
+  "height": 49,
+  "lanes": [
+    {
+      "id": "rapido",
+      "label": "Lo que espera el cliente: milisegundos",
+      "kind": "online",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 18
+    },
+    {
+      "id": "lento",
+      "label": "En segundo plano: minutos",
+      "kind": "neutral",
+      "x": 0,
+      "y": 19,
+      "w": 78,
+      "h": 30
+    }
+  ],
+  "nodes": [
+    {
+      "id": "cliente",
+      "label": "Cliente",
+      "sub": "otro sistema o la app",
+      "kind": "client",
+      "x": 1,
+      "y": 7,
+      "w": 18,
+      "h": 8,
+      "note": "Quien pide el trabajo. Sube el PDF con una **URL prefirmada**, crea el trabajo y después espera un [[webhook]] o pregunta por [[polling]]."
+    },
+    {
+      "id": "api",
+      "label": "API de trabajos",
+      "sub": "POST → 202 + job_id",
+      "kind": "service",
+      "x": 30,
+      "y": 7,
+      "w": 19,
+      "h": 8,
+      "note": "Valida, anota el trabajo como `queued`, lo encola y responde **202 Accepted** con el `job_id` en milisegundos: nunca procesa. También atiende el `GET /v1/jobs/{id}` del polling."
+    },
+    {
+      "id": "estado",
+      "label": "Estado del trabajo",
+      "sub": "queued → succeeded",
+      "kind": "store",
+      "x": 59,
+      "y": 7,
+      "w": 18,
+      "h": 8,
+      "note": "Una tabla indexada por `job_id`: `queued`, `running`, `succeeded` o `failed`. Leerla es barato, y eso importa cuando miles de clientes preguntan."
+    },
+    {
+      "id": "almacen",
+      "label": "Object storage",
+      "sub": "el PDF y el resultado",
+      "kind": "store",
+      "x": 1,
+      "y": 33,
+      "w": 18,
+      "h": 8,
+      "note": "Donde viven los bytes grandes. Ni la API ni la cola los cargan: solo pasan la *key*, como `uploads/51c2.pdf`. El resultado queda en `results/51c2.json`."
+    },
+    {
+      "id": "cola",
+      "label": "Cola",
+      "sub": "job_id + key",
+      "kind": "queue",
+      "x": 30,
+      "y": 33,
+      "w": 19,
+      "h": 8,
+      "note": "Guarda mensajes chicos: el `job_id` y la key del PDF. La cola no es para bytes grandes."
+    },
+    {
+      "id": "worker",
+      "label": "Worker",
+      "sub": "corre el OCR",
+      "kind": "job",
+      "x": 59,
+      "y": 33,
+      "w": 18,
+      "h": 8,
+      "note": "Toma un trabajo de la cola, lee el PDF del almacén, corre el modelo página por página, guarda el resultado y marca el estado."
+    }
+  ],
+  "edges": [
+    {
+      "from": "cliente",
+      "to": "api",
+      "kind": "online",
+      "label": "POST · GET",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "api",
+      "to": "estado",
+      "kind": "online",
+      "label": "queued",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "cliente",
+      "to": "almacen",
+      "kind": "online",
+      "label": "sube el PDF",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "api",
+      "to": "cola",
+      "kind": "async",
+      "label": "mensaje chico",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "cola",
+      "to": "worker",
+      "kind": "async",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "worker",
+      "to": "estado",
+      "kind": "async",
+      "label": "succeeded",
+      "fromSide": "t",
+      "toSide": "b"
+    },
+    {
+      "from": "worker",
+      "to": "almacen",
+      "kind": "async",
+      "label": "resultado",
+      "fromSide": "b",
+      "toSide": "b",
+      "via": [
+        [
+          68,
+          46
+        ],
+        [
+          10,
+          46
+        ]
+      ]
+    },
+    {
+      "from": "estado",
+      "to": "cliente",
+      "kind": "async",
+      "dashed": true,
+      "label": "webhook firmado",
+      "fromSide": "t",
+      "toSide": "t",
+      "via": [
+        [
+          68,
+          3
+        ],
+        [
+          10,
+          3
+        ]
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "webhook",
+      "label": "Con webhook",
+      "steps": [
+        {
+          "nodes": [
+            "cliente",
+            "almacen"
+          ],
+          "edges": [
+            "cliente>almacen"
+          ],
+          "text": "El cliente **sube el PDF** al almacén con una URL prefirmada. Los bytes grandes nunca pasan por la API."
+        },
+        {
+          "nodes": [
+            "cliente",
+            "api"
+          ],
+          "edges": [
+            "cliente>api"
+          ],
+          "text": "Hace `POST /v1/jobs` con la key del PDF y la URL donde quiere el aviso."
+        },
+        {
+          "nodes": [
+            "api",
+            "estado",
+            "cola"
+          ],
+          "edges": [
+            "api>estado",
+            "api>cola"
+          ],
+          "text": "La API anota el trabajo como `queued`, encola un mensaje chico y responde **202 Accepted** con el `job_id`. Todo en milisegundos."
+        },
+        {
+          "nodes": [
+            "cola",
+            "worker"
+          ],
+          "edges": [
+            "cola>worker"
+          ],
+          "text": "Un worker toma el trabajo y corre el OCR. Puede tardar minutos; nadie está esperando una request abierta."
+        },
+        {
+          "nodes": [
+            "worker",
+            "almacen",
+            "estado"
+          ],
+          "edges": [
+            "worker>almacen",
+            "worker>estado"
+          ],
+          "text": "Guarda el resultado en el almacén y marca el estado como `succeeded`."
+        },
+        {
+          "nodes": [
+            "estado",
+            "cliente"
+          ],
+          "edges": [
+            "estado>cliente"
+          ],
+          "text": "Sale el **webhook**: un `POST` a la URL del cliente, firmado con HMAC. Si el cliente está caído, se reintenta; si llega dos veces, el cliente lo descarta por `job_id`."
+        }
+      ]
+    },
+    {
+      "id": "polling",
+      "label": "Con polling",
+      "steps": [
+        {
+          "nodes": [
+            "cliente",
+            "api"
+          ],
+          "edges": [
+            "cliente>api"
+          ],
+          "text": "Después del 202, el cliente pregunta: `GET /v1/jobs/51c2`."
+        },
+        {
+          "nodes": [
+            "api",
+            "estado"
+          ],
+          "edges": [
+            "api>estado"
+          ],
+          "text": "La API lee el estado: `running`. Responde con un `Retry-After` que sugiere cuándo volver a preguntar."
+        },
+        {
+          "nodes": [
+            "cliente",
+            "api",
+            "estado"
+          ],
+          "edges": [
+            "cliente>api",
+            "api>estado"
+          ],
+          "text": "El cliente vuelve a preguntar, una y otra vez. Con 10,000 trabajos vivos y una pregunta cada 2 s, son **5,000 consultas por segundo**, y casi todas dicen «todavía no»."
+        },
+        {
+          "nodes": [
+            "cliente",
+            "almacen"
+          ],
+          "edges": [],
+          "text": "Cuando el estado dice `succeeded`, el cliente lee el resultado del almacén con una URL prefirmada."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,283 @@
+{
+  "titulo": "La cadena de relojes de C01: quién se rinde primero",
+  "width": 78,
+  "height": 38,
+  "lanes": [
+    {
+      "id": "producto",
+      "label": "El producto: quien espera",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 17
+    },
+    {
+      "id": "servicio",
+      "label": "El servicio de C01",
+      "kind": "online",
+      "x": 0,
+      "y": 19,
+      "w": 78,
+      "h": 19
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ana",
+      "label": "App de Ana",
+      "sub": "toca «Publicar»",
+      "kind": "client",
+      "x": 1,
+      "y": 6,
+      "w": 16,
+      "h": 9,
+      "note": "Ana sube la foto de sus tenis desde la app. Ella no ve ningún reloj: ve una sugerencia de categoría o el selector para elegirla a mano."
+    },
+    {
+      "id": "backend",
+      "label": "Backend",
+      "sub": "se rinde a los 300 ms",
+      "kind": "service",
+      "x": 28,
+      "y": 6,
+      "w": 20,
+      "h": 9,
+      "note": "El programa del marketplace que recibe la publicación. Le pide la categoría al gateway y espera **como máximo 300 ms**. Es el techo de todos los demás relojes: si vence, o si llega un 503 o un 504, muestra el selector."
+    },
+    {
+      "id": "selector",
+      "label": "Selector manual",
+      "sub": "el plan B",
+      "kind": "human",
+      "x": 58,
+      "y": 6,
+      "w": 19,
+      "h": 9,
+      "note": "El [[fallback]] de C01: Ana elige la categoría a mano. No depende del modelo, así que publicar sigue funcionando aunque Triton esté caído. Cada vez que se usa se cuenta, por motivo, para que una caída no pase en silencio."
+    },
+    {
+      "id": "gateway",
+      "label": "Gateway",
+      "sub": "deadline de 250 ms",
+      "kind": "service",
+      "x": 1,
+      "y": 26,
+      "w": 20,
+      "h": 9,
+      "note": "Al llegar la request anota su [[deadline]]: **250 ms**, 50 menos que el backend, para alcanzar a contestar un 504 antes de que el backend se vaya. Prepara la foto y llama a Triton con min(150, lo que queda). Tiene 16 lugares por pod (`MAX_INFLIGHT`): la 17 recibe un 503 al instante."
+    },
+    {
+      "id": "fila",
+      "label": "Fila de Triton",
+      "sub": "rechaza a los 100 ms",
+      "kind": "queue",
+      "x": 31,
+      "y": 26,
+      "w": 19,
+      "h": 9,
+      "note": "Las fotos esperan su turno para la GPU. Triton rechaza la que lleva **más de 100 ms** en la fila (su política `REJECT`), porque ya no llegaría dentro de los 150 ms del gateway: calcularla sería trabajo zombi."
+    },
+    {
+      "id": "gpu",
+      "label": "ResNet-50",
+      "sub": "en la T4",
+      "kind": "gpu",
+      "x": 60,
+      "y": 26,
+      "w": 17,
+      "h": 9,
+      "note": "Triton corre el modelo en la GPU. En un día normal, ir y volver a Triton toma ≈ 10 ms. Cuando se traba, es la pieza que todos los relojes de arriba protegen."
+    }
+  ],
+  "edges": [
+    {
+      "from": "ana",
+      "to": "backend",
+      "kind": "online",
+      "label": "foto",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "backend",
+      "to": "gateway",
+      "kind": "online",
+      "label": "≤ 300 ms",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          38,
+          21
+        ],
+        [
+          11,
+          21
+        ]
+      ]
+    },
+    {
+      "from": "gateway",
+      "to": "fila",
+      "kind": "online",
+      "label": "≤ 150 ms",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "fila",
+      "to": "gpu",
+      "kind": "online",
+      "label": "su turno",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "backend",
+      "to": "selector",
+      "kind": "online",
+      "label": "si falla",
+      "dashed": true,
+      "fromSide": "r",
+      "toSide": "l"
+    }
+  ],
+  "flows": [
+    {
+      "id": "normal",
+      "label": "Un día normal",
+      "steps": [
+        {
+          "nodes": [
+            "ana",
+            "backend"
+          ],
+          "edges": [
+            "ana>backend"
+          ],
+          "text": "Ana toca «Publicar». El backend le pide la categoría al gateway y arranca su reloj: **300 ms**."
+        },
+        {
+          "nodes": [
+            "backend",
+            "gateway"
+          ],
+          "edges": [
+            "backend>gateway"
+          ],
+          "text": "El gateway anota su **deadline de 250 ms** y prepara la foto. Supón que eso toma ≈ 20 ms: le quedan 230."
+        },
+        {
+          "nodes": [
+            "gateway",
+            "fila"
+          ],
+          "edges": [
+            "gateway>fila"
+          ],
+          "text": "Llama a Triton con un timeout de min(150, 230) = **150 ms**."
+        },
+        {
+          "nodes": [
+            "fila",
+            "gpu"
+          ],
+          "edges": [
+            "fila>gpu"
+          ],
+          "text": "La foto espera unos milisegundos en la fila y la GPU la calcula."
+        },
+        {
+          "nodes": [
+            "backend",
+            "gateway",
+            "ana"
+          ],
+          "edges": [
+            "backend>gateway"
+          ],
+          "text": "La categoría vuelve en **≈ 50 ms**, muy dentro de todos los relojes. Ana ve «Tenis» sugerido."
+        }
+      ]
+    },
+    {
+      "id": "traba",
+      "label": "Triton se traba",
+      "steps": [
+        {
+          "nodes": [
+            "gateway",
+            "fila"
+          ],
+          "edges": [
+            "gateway>fila"
+          ],
+          "text": "La GPU se queda ocupada. La foto de Ana entra a la fila de Triton y espera."
+        },
+        {
+          "nodes": [
+            "fila"
+          ],
+          "edges": [],
+          "text": "A los **100 ms** en la fila, Triton la rechaza porque ya no llegaría a tiempo, y el gateway contesta de inmediato un **503**."
+        },
+        {
+          "nodes": [
+            "gateway"
+          ],
+          "edges": [],
+          "text": "Si la GPU se colgó del todo y Triton ni siquiera contesta, a los **150 ms** el gateway se rinde, cancela la llamada y responde un **504**. Todavía le quedan ≈ 80 ms de su deadline."
+        },
+        {
+          "nodes": [
+            "backend",
+            "selector"
+          ],
+          "edges": [
+            "backend>selector"
+          ],
+          "text": "Con el 503 o con el 504, el backend recibe su respuesta antes de sus 300 ms y muestra el **selector manual**. Ana elige la categoría a mano y publica."
+        }
+      ]
+    },
+    {
+      "id": "zombi",
+      "label": "Un salto sin deadline",
+      "steps": [
+        {
+          "nodes": [
+            "gateway",
+            "fila"
+          ],
+          "edges": [
+            "gateway>fila"
+          ],
+          "text": "Supón que el gateway le diera **5 s** a Triton, en vez de 150 ms."
+        },
+        {
+          "nodes": [
+            "backend",
+            "selector"
+          ],
+          "edges": [
+            "backend>selector"
+          ],
+          "text": "A los 300 ms el backend ya se rindió y mostró el selector: Ana ya publicó."
+        },
+        {
+          "nodes": [
+            "gateway",
+            "fila",
+            "gpu"
+          ],
+          "edges": [
+            "gateway>fila",
+            "fila>gpu"
+          ],
+          "text": "Pero el gateway sigue esperando 4.7 s más, ocupando uno de sus 16 lugares, y Triton calcula una respuesta que nadie va a leer: **trabajo zombi**."
+        }
+      ]
+    }
+  ]
+}

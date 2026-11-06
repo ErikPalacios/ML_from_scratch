@@ -465,7 +465,7 @@ vCPU ocupados en el preproceso // Little aplicado a la CPU: cada request que cal
 
 ### Dónde se pone el límite
 
-Cada request en vuelo ocupa algo: memoria para su foto, una conexión, un lugar en el loop. Por eso el gateway de C01 tiene un tope, `MAX_INFLIGHT = 16` por pod: la request 17 recibe al instante un 503, un error que dice «estoy saturado, reintenta», y rechazarla cuesta microsegundos. ¿Por qué 16? Por Little al revés: a 100 por segundo, con 20 en vuelo cada request tardaría en promedio 20 ÷ 100 = 0.2 s, justo la promesa de 200 ms de C01, y con más, ni el promedio la cumpliría. Se baja a 16 por memoria: 16 fotos de hasta 10 MB son 160 MB, que caben en el 1 GiB del pod junto con los 2 decodes.
+Cada request en vuelo ocupa algo: memoria para su foto, una conexión, un lugar en el loop. Por eso el gateway de C01 tiene un tope, `MAX_INFLIGHT = 16` por pod: la request 17 recibe al instante un 503, un error que dice «estoy saturado, vuelve más tarde», y rechazarla cuesta microsegundos. ¿Por qué 16? Por Little al revés: a 100 por segundo, con 20 en vuelo cada request tardaría en promedio 20 ÷ 100 = 0.2 s, justo la promesa de 200 ms de C01, y con más, ni el promedio la cumpliría. Se baja a 16 por memoria: 16 fotos de hasta 10 MB son 160 MB, que caben en el 1 GiB del pod junto con los 2 decodes.
 
 Little también dice qué pasa cuando algo se frena. El gateway espera a Triton como máximo 150 ms: es su [[timeout]], su tiempo máximo de espera. Si Triton tarda hasta ese límite, las llamadas abiertas pasan de 5 a 500 × 0.15 = **75**, ≈ 15 por pod. Con un timeout de 5 s serían 500 × 5 = **2,500** colgadas, ≈ 500 por pod, cada una con su memoria y su conexión, para respuestas que nadie espera: quien llamó, el *backend* del marketplace (el programa que pidió la categoría), se va a los 300 ms. Los timeouts acotan W y, con W, la concurrencia.
 
@@ -592,7 +592,7 @@ Cancelar en async es barato: la corrutina recibe un aviso en el await donde est�
 
 `asyncio.Semaphore(n)` es un contador de lugares: deja pasar a n corrutinas a la vez y pone a esperar a las demás, con await, sin bloquear el loop. El gateway de C01 pone uno de 2 lugares frente al threadpool, aunque el pool de FastAPI tiene 40 hilos. ¿Por qué tan pocos? Por memoria. Un PNG de 40 MP ocupa ≈ 320 MB al decodificarse, y el pod tiene 1 GiB. Con 2 lugares, el peor caso es 2 × 320 MB, más ≈ 80 MB de Python y ≈ 160 MB de requests en vuelo: ≈ 880 MB, el 82 % del límite (la cuenta completa está en «Programa, proceso e hilo»). Con 40 serían 12.8 GB, y el pod moriría por falta de memoria ([[oom|OOM]]).
 
-Esperar un lugar tiene además un tiempo máximo: si una request espera más de 50 ms, recibe un 503, un error que dice «estoy saturado, reintenta». Esperar más ya no cumpliría la promesa de 200 ms, y rechazar cuesta microsegundos.
+Esperar un lugar tiene además un tiempo máximo: si una request espera más de 50 ms, recibe un 503, un error que dice «estoy saturado, vuelve más tarde». Esperar más ya no cumpliría la promesa de 200 ms, y rechazar cuesta microsegundos.
 
 `asyncio.Queue(maxsize=…)` es lo mismo para una fila: si se llena, quien quiere meter algo espera o recibe un error. Sin tope, la fila crece en silencio, como verás con C13 en «En la vida real».
 

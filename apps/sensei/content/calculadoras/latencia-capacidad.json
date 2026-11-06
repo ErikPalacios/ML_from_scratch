@@ -1,0 +1,106 @@
+{
+ "titulo": "Cuántas máquinas, y con cuánto margen",
+ "intro": "**Máquinas = ⌈pico ÷ (capacidad medida × utilización objetivo)⌉ + repuesto.** Arranca con las T4 de C01: 500 req/s de pico de diseño, ≈ 1,200 medidas por T4, planeadas al 50 % y una de repuesto.",
+ "entradas": [
+  {
+   "id": "pico",
+   "label": "Pico de diseño, en req/s (500 = C01 · 1,670 = el minuto de Hot Sale)",
+   "min": 10,
+   "max": 5000,
+   "paso": 10,
+   "valor": 500
+  },
+  {
+   "id": "cap",
+   "label": "[[capacidad|Capacidad]] medida por máquina, en req/s (el codo de la prueba de carga)",
+   "min": 50,
+   "max": 5000,
+   "paso": 50,
+   "valor": 1200
+  },
+  {
+   "id": "obj",
+   "label": "Utilización objetivo",
+   "min": 10,
+   "max": 100,
+   "paso": 5,
+   "valor": 50,
+   "unidad": "%"
+  },
+  {
+   "id": "rep",
+   "label": "Máquinas de repuesto (1 = N+1)",
+   "min": 0,
+   "max": 3,
+   "paso": 1,
+   "valor": 1
+  },
+  {
+   "id": "precio",
+   "label": "US$ al mes por máquina (≈ 384 = una g4dn.xlarge con su T4, on demand en us-east-1, encendida 730 h)",
+   "min": 0,
+   "max": 20000,
+   "paso": 1,
+   "valor": 384,
+   "tipo": "numero"
+  }
+ ],
+ "calculos": [
+  {
+   "id": "plan",
+   "formula": "cap * obj / 100"
+  },
+  {
+   "id": "n0",
+   "formula": "ceil(pico / plan)"
+  },
+  {
+   "id": "n",
+   "formula": "n0 + rep"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "Capacidad planeada por máquina",
+   "formula": "plan",
+   "formato": "int",
+   "nota": "medida × objetivo"
+  },
+  {
+   "label": "Máquinas por throughput",
+   "formula": "n0",
+   "formato": "int"
+  },
+  {
+   "label": "Máquinas en total, con repuesto",
+   "formula": "n",
+   "formato": "int"
+  },
+  {
+   "label": "Carga de cada una en el pico, con todas vivas",
+   "formula": "pico / (n * cap)",
+   "formato": "pct",
+   "barra": true,
+   "nota": "contra su máximo medido"
+  },
+  {
+   "label": "Carga de cada una si cae una",
+   "formula": "pico / ((n - 1) * cap)",
+   "formato": "pct",
+   "barra": true,
+   "nota": "más de 100 %: no aguanta la caída; «—»: no queda ninguna"
+  },
+  {
+   "label": "Headroom en el pico",
+   "formula": "1 - pico / (n * cap)",
+   "formato": "pct",
+   "nota": "lo que queda libre a propósito"
+  },
+  {
+   "label": "Costo al mes, en US$",
+   "formula": "n * precio",
+   "formato": "int"
+  }
+ ],
+ "nota": "Pon el repuesto en 0: la única T4 va al ≈ 42 % en el pico, pero si cae, no queda nada. En C01, el headroom lo compra sobre todo el N+1."
+}

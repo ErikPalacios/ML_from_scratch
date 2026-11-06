@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 482" role="img" aria-labelledby="f-fallas-red-jitter-t" class="f-svg" style="max-width:420px">
+<title id="f-fallas-red-jitter-t">Los reintentos de la simulación de 1,000 clientes que fallan juntos, contados en ventanas de 50 milisegundos, de 0 a 1,500 milisegundos, con la misma escala arriba y abajo. Una línea punteada marca lo que el servidor atiende en 50 milisegundos: 250. Arriba, sin jitter: tres torres, de 1,000 intentos a los 200 milisegundos, de 950 a los 600 y de 900 a los 1,400; cada una cuatro veces por encima del cupo. Hay 2,850 intentos y 850 clientes se rinden. Abajo, con jitter: cuatro barras de entre 226 y 277 intentos entre 0 y 200 milisegundos, cerca del cupo, y después casi nada. Hay 1,061 intentos y nadie se rinde.</title>
+<text class="f-l" x="14" y="22">LOS MISMOS 1,000 CLIENTES, DOS ESPERAS</text>
+<rect class="f-card" x="10" y="32" width="340" height="186" rx="16"/>
+<text class="f-l" x="26" y="54">SIN JITTER: 850 SE RINDEN</text>
+<text class="f-s" x="172" y="112" style="font-size:12px">2,850 intentos en total</text>
+<rect class="f-o" x="78.7" y="80" width="8.5" height="110" rx="1.5"/>
+<rect class="f-o" x="156" y="85.5" width="8.5" height="104.5" rx="1.5"/>
+<rect class="f-o" x="310.7" y="91" width="8.5" height="99" rx="1.5"/>
+<text class="f-t" x="83" y="74" text-anchor="middle" style="font-size:12px">1,000</text>
+<text class="f-t" x="160.2" y="79.5" text-anchor="middle" style="font-size:12px">950</text>
+<text class="f-t" x="315" y="85" text-anchor="middle" style="font-size:12px">900</text>
+<line x1="40" y1="162.5" x2="330" y2="162.5" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>
+<text class="f-s" x="182" y="156" style="font-size:12px">lo que atiende el servidor</text>
+<line class="f-linea" x1="40" y1="190" x2="330" y2="190"/>
+<line class="f-linea" x1="40" y1="190" x2="40" y2="194"/>
+<line class="f-linea" x1="136.7" y1="190" x2="136.7" y2="194"/>
+<line class="f-linea" x1="233.3" y1="190" x2="233.3" y2="194"/>
+<line class="f-linea" x1="330" y1="190" x2="330" y2="194"/>
+<text class="f-s" x="40" y="208" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="136.7" y="208" text-anchor="middle" style="font-size:12px">500</text>
+<text class="f-s" x="233.3" y="208" text-anchor="middle" style="font-size:12px">1,000</text>
+<text class="f-s" x="342" y="208" text-anchor="end" style="font-size:12px">1,500 ms</text>
+<rect class="f-card" x="10" y="230" width="340" height="184" rx="16"/>
+<text class="f-l" x="26" y="252">CON JITTER: NADIE SE RINDE</text>
+<rect class="f-g" x="40" y="357.5" width="8.5" height="30.5" rx="1.5"/>
+<rect class="f-g" x="49.7" y="358.7" width="8.5" height="29.3" rx="1.5"/>
+<rect class="f-g" x="59.3" y="363.1" width="8.5" height="24.9" rx="1.5"/>
+<rect class="f-g" x="69" y="360.7" width="8.5" height="27.3" rx="1.5"/>
+<rect class="f-g" x="78.7" y="386" width="8.5" height="2"/>
+<rect class="f-g" x="88.3" y="386" width="8.5" height="2"/>
+<rect class="f-g" x="98" y="386" width="8.5" height="2"/>
+<rect class="f-g" x="107.7" y="386" width="8.5" height="2"/>
+<rect class="f-g" x="117.3" y="386" width="8.5" height="2"/>
+<rect class="f-g" x="127" y="386" width="8.5" height="2"/>
+<rect class="f-g" x="136.7" y="386" width="8.5" height="2"/>
+<rect class="f-g" x="146.3" y="386" width="8.5" height="2"/>
+<line x1="40" y1="360.5" x2="330" y2="360.5" style="stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3"/>
+<text class="f-s" x="182" y="354" style="font-size:12px">lo que atiende el servidor</text>
+<text class="f-t" x="26" y="286" style="font-size:13px">De 226 a 277 por ventana, cerca del cupo;</text>
+<text class="f-s" x="26" y="304" style="font-size:12px">1,061 intentos; a los 600 ms ya no queda nadie</text>
+<line class="f-linea" x1="40" y1="388" x2="330" y2="388"/>
+<line class="f-linea" x1="40" y1="388" x2="40" y2="392"/>
+<line class="f-linea" x1="136.7" y1="388" x2="136.7" y2="392"/>
+<line class="f-linea" x1="233.3" y1="388" x2="233.3" y2="392"/>
+<line class="f-linea" x1="330" y1="388" x2="330" y2="392"/>
+<text class="f-s" x="40" y="406" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="136.7" y="406" text-anchor="middle" style="font-size:12px">500</text>
+<text class="f-s" x="233.3" y="406" text-anchor="middle" style="font-size:12px">1,000</text>
+<text class="f-s" x="342" y="406" text-anchor="end" style="font-size:12px">1,500 ms</text>
+<rect class="f-chip" x="10" y="426" width="340" height="46" rx="12"/>
+<text class="f-s" x="26" y="446" style="font-size:12px">Cada barra: los intentos que llegan en 50 ms.</text>
+<text class="f-s" x="26" y="462" style="font-size:12px">Misma escala arriba y abajo; el cupo es 250.</text>
+</svg>

@@ -1,0 +1,62 @@
+{
+  "titulo": "Dónde se va el tiempo de una foto de C01",
+  "width": 78,
+  "height": 47,
+  "lanes": [
+    { "id": "req", "label": "Una request de C01: viajar, esperar y trabajar", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 47 }
+  ],
+  "nodes": [
+    { "id": "caller", "label": "Backend", "sub": "pide la categoría", "kind": "client",
+      "x": 1, "y": 5, "w": 18, "h": 8,
+      "note": "El **backend del marketplace** manda la foto de Ana y espera como máximo 300 ms. Reusa conexiones abiertas ([[keep-alive]]), así que no paga un [[handshake]] en cada foto." },
+    { "id": "alb", "label": "Balanceador", "sub": "viajar: ≈ 3 ms", "kind": "edge",
+      "x": 30, "y": 5, "w": 18, "h": 8,
+      "note": "**Viajar.** El balanceador recibe la request y la pasa a un pod; el gateway lee los ≈ 200 KB de la foto. En una request típica, ≈ 2 a 6 ms (M03). Aquí **arranca el reloj del SLO**: cuando la request completa ya llegó." },
+    { "id": "filagw", "label": "Fila del pod", "sub": "esperar un lugar de CPU", "kind": "queue",
+      "x": 59, "y": 5, "w": 18, "h": 8,
+      "note": "**Esperar.** Si el núcleo del pod está decodificando otras fotos, esta espera. Con poco tráfico, ≈ 0 ms. Con el núcleo al 90 %, ≈ 54 ms en promedio: es la [[tiempo-en-cola|espera]] que más crece cerca del pico." },
+    { "id": "slo", "label": "Reloj del SLO", "sub": "p99 ≤ 200 ms", "kind": "monitor",
+      "x": 30, "y": 21, "w": 18, "h": 8,
+      "note": "El [[slo|SLO]] de C01 mide la [[latencia-punta-a-punta|latencia de punta a punta]] del lado del servidor: desde que el balanceador tiene la request completa hasta que sale la respuesta. La subida desde el celular de Ana queda fuera." },
+    { "id": "decode", "label": "Preproceso", "sub": "trabajar: ≈ 6 ms de CPU", "kind": "service",
+      "x": 59, "y": 21, "w": 18, "h": 8,
+      "note": "**Trabajar.** Decode del JPEG, resize, crop y normalización: el [[tiempo-servicio|tiempo de servicio]] de la CPU, ≈ 6 ms por foto en promedio. Una foto web de 12 MP cuesta mucho más." },
+    { "id": "salida", "label": "Salida", "sub": "trabajar: ≈ 1 ms", "kind": "service",
+      "x": 1, "y": 21, "w": 18, "h": 8,
+      "note": "**Viajar y trabajar.** Los logits regresan de Triton (≈ 1 ms) y el gateway hace softmax, top-5 y el JSON de la respuesta: ≈ 1 ms de CPU (lección de async). Con el decode, la CPU trabaja ≈ 7 ms por request; las cuentas de capacidad redondean a 6." },
+    { "id": "gpu", "label": "ResNet-50", "sub": "trabajar: 3–6 ms", "kind": "gpu",
+      "x": 30, "y": 37, "w": 18, "h": 8,
+      "note": "**Trabajar.** El modelo en la GPU, con TensorRT en FP16. Es una parte chica del total: 4 de 20 ms en la request típica." },
+    { "id": "filatr", "label": "Fila de Triton", "sub": "esperar: ≤ 2 ms de ventana", "kind": "queue",
+      "x": 59, "y": 37, "w": 18, "h": 8,
+      "note": "**Viajar y esperar.** El tensor de 602 KB viaja a la T4 de su misma zona (≈ 2 a 4 ms) y espera compañeros para un batch, como máximo 2 ms: con poco tráfico casi nunca llega nadie y espera la ventana completa. Si la GPU está ocupada, espera además al batch anterior." }
+  ],
+  "edges": [
+    { "from": "caller", "to": "alb", "kind": "online", "label": "foto", "fromSide": "r", "toSide": "l" },
+    { "from": "alb", "to": "filagw", "kind": "online", "label": "completa", "fromSide": "r", "toSide": "l" },
+    { "from": "filagw", "to": "decode", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "decode", "to": "filatr", "kind": "online", "label": "tensor", "fromSide": "b", "toSide": "t" },
+    { "from": "filatr", "to": "gpu", "kind": "online", "label": "batch", "fromSide": "l", "toSide": "r" },
+    { "from": "gpu", "to": "salida", "kind": "online", "label": "logits", "fromSide": "l", "toSide": "b", "via": [[10, 41]] },
+    { "from": "salida", "to": "caller", "kind": "online", "label": "top-5", "fromSide": "t", "toSide": "b" }
+  ],
+  "flows": [
+    { "id": "tranquilo", "label": "Con poco tráfico",
+      "steps": [
+        { "nodes": ["caller", "alb"], "edges": ["caller>alb"], "text": "**Viajar: ≈ 3 ms.** La foto entra por el balanceador por una conexión ya abierta y el gateway la lee. Arranca el reloj del SLO." },
+        { "nodes": ["alb", "filagw"], "edges": ["alb>filagw"], "text": "**Esperar: 0 ms.** Un martes en la tarde, el núcleo del pod trabaja ≈ 23 % del tiempo: casi siempre está libre cuando llega una foto." },
+        { "nodes": ["filagw", "decode"], "edges": ["filagw>decode"], "text": "**Trabajar: 6 ms.** Decode, resize, crop y normalización en la CPU." },
+        { "nodes": ["decode", "filatr"], "edges": ["decode>filatr"], "text": "**Viajar y esperar: ≈ 5 ms.** El tensor viaja a Triton (3 ms) y espera los 2 ms de la ventana del batcher: casi nunca llega compañía." },
+        { "nodes": ["filatr", "gpu"], "edges": ["filatr>gpu"], "text": "**Trabajar: 4 ms.** La ResNet-50 en la T4." },
+        { "nodes": ["gpu", "salida", "caller"], "edges": ["gpu>salida", "salida>caller"], "text": "**Viajar y trabajar: ≈ 2 ms.** Los logits regresan (≈ 1 ms), el gateway arma top-5 y JSON (≈ 1 ms) y la respuesta sale. En total, **20 ms**: 7 de viaje, 2 de espera y 11 de trabajo." }
+      ] },
+    { "id": "pico", "label": "Cerca del pico",
+      "steps": [
+        { "nodes": ["caller", "alb"], "edges": ["caller>alb"], "text": "La misma foto, la misma conexión, el mismo viaje: ≈ 3 ms. Pero ahora llegan 750 requests por segundo a 5 pods, y el HPA (la regla de Kubernetes que agrega pods) todavía no reacciona." },
+        { "nodes": ["filagw"], "edges": [], "text": "**Esperar: ≈ 54 ms en promedio.** Cada pod recibe 150 por segundo de 6 ms: su núcleo trabaja el 90 % del tiempo. Las ráfagas ya no se deshacen y la fila crece." },
+        { "nodes": ["decode"], "edges": ["filagw>decode"], "text": "**Trabajar: 6 ms.** Exactamente lo mismo que con poco tráfico: el trabajo no cambió." },
+        { "nodes": ["filatr", "gpu"], "edges": ["decode>filatr", "filatr>gpu"], "text": "Triton casi no lo nota: cada T4 va lejos de su máximo. La fila que creció es la del gateway, su cuello de botella." },
+        { "nodes": ["salida", "caller", "slo"], "edges": ["gpu>salida", "salida>caller"], "text": "**Total ≈ 75 ms en promedio** (20 + 54), y el p99 de la parte del pod, ≈ 276 ms: la promesa de 200 ms se rompe. La diferencia con la tarde es pura espera." }
+      ] }
+  ]
+}

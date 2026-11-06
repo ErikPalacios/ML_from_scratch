@@ -1,0 +1,280 @@
+{
+  "titulo": "Una llamada del gateway a Triton dentro de un service mesh",
+  "width": 78,
+  "height": 58,
+  "lanes": [
+    {
+      "id": "control",
+      "label": "Plano de control",
+      "kind": "monitor",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 13
+    },
+    {
+      "id": "podgw",
+      "label": "Pod del gateway",
+      "kind": "online",
+      "x": 0,
+      "y": 15,
+      "w": 37,
+      "h": 26
+    },
+    {
+      "id": "podt",
+      "label": "Pod de Triton",
+      "kind": "online",
+      "x": 39,
+      "y": 15,
+      "w": 39,
+      "h": 26
+    },
+    {
+      "id": "metricas",
+      "label": "Métricas",
+      "kind": "monitor",
+      "x": 0,
+      "y": 43,
+      "w": 78,
+      "h": 15
+    }
+  ],
+  "nodes": [
+    {
+      "id": "istiod",
+      "label": "istiod",
+      "sub": "config y certificados",
+      "kind": "service",
+      "x": 31,
+      "y": 3,
+      "w": 16,
+      "h": 8,
+      "note": "El plano de control de Istio. No toca ninguna request: les reparte a todos los sidecars sus reglas (rutas, pesos, reintentos, timeouts) y sus certificados, y los renueva solos."
+    },
+    {
+      "id": "gw",
+      "label": "Gateway",
+      "sub": "llama a triton",
+      "kind": "service",
+      "x": 1,
+      "y": 24,
+      "w": 15,
+      "h": 8,
+      "note": "El programa de siempre, sin cambios: llama a `triton` como si fuera directo. No sabe que hay un proxy en medio."
+    },
+    {
+      "id": "sca",
+      "label": "Sidecar",
+      "sub": "Envoy",
+      "kind": "edge",
+      "x": 19,
+      "y": 24,
+      "w": 14,
+      "h": 8,
+      "note": "Un [[sidecar]] en el mismo pod que intercepta todo lo que sale del gateway. Elige un pod de Triton **request por request** (L7), cifra con mTLS y reintenta si se lo pidieron."
+    },
+    {
+      "id": "scb",
+      "label": "Sidecar",
+      "sub": "Envoy",
+      "kind": "edge",
+      "x": 47,
+      "y": 24,
+      "w": 14,
+      "h": 8,
+      "note": "El sidecar del pod de Triton. Revisa el certificado de quien llama (¿de verdad es el gateway?), descifra y le pasa la request a Triton por localhost."
+    },
+    {
+      "id": "triton",
+      "label": "Triton",
+      "sub": "sin cambios",
+      "kind": "gpu",
+      "x": 64,
+      "y": 24,
+      "w": 13,
+      "h": 8,
+      "note": "Triton tampoco sabe nada de la malla: recibe HTTP simple por localhost, como siempre."
+    },
+    {
+      "id": "prom",
+      "label": "Prometheus",
+      "sub": "junta las métricas",
+      "kind": "monitor",
+      "x": 32,
+      "y": 47,
+      "w": 16,
+      "h": 8,
+      "note": "**Prometheus** es un programa que, cada pocos segundos, les pide sus números (sus métricas) a los servicios y los guarda. Aquí lee los de cada sidecar: cuántas requests hubo entre cada par de servicios, cuánto tardaron y con qué códigos. Sin escribir una línea en el gateway ni en Triton."
+    }
+  ],
+  "edges": [
+    {
+      "from": "gw",
+      "to": "sca",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "sca",
+      "to": "scb",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "mTLS"
+    },
+    {
+      "from": "scb",
+      "to": "triton",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "istiod",
+      "to": "sca",
+      "kind": "async",
+      "fromSide": "l",
+      "toSide": "t",
+      "via": [
+        [
+          26,
+          7
+        ]
+      ],
+      "label": "config"
+    },
+    {
+      "from": "istiod",
+      "to": "scb",
+      "kind": "async",
+      "fromSide": "r",
+      "toSide": "t",
+      "via": [
+        [
+          54,
+          7
+        ]
+      ],
+      "label": "config"
+    },
+    {
+      "from": "sca",
+      "to": "prom",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "l",
+      "via": [
+        [
+          26,
+          51
+        ]
+      ],
+      "label": "métricas"
+    },
+    {
+      "from": "scb",
+      "to": "prom",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "r",
+      "via": [
+        [
+          54,
+          51
+        ]
+      ],
+      "label": "métricas"
+    }
+  ],
+  "flows": [
+    {
+      "id": "llamada",
+      "label": "Una request por la malla",
+      "steps": [
+        {
+          "nodes": [
+            "gw",
+            "sca"
+          ],
+          "edges": [
+            "gw>sca"
+          ],
+          "text": "El gateway llama a `triton`. Sin saberlo, su request la recibe primero el **sidecar** de su propio pod."
+        },
+        {
+          "nodes": [
+            "sca",
+            "scb"
+          ],
+          "edges": [
+            "sca>scb"
+          ],
+          "text": "El sidecar elige un pod de Triton **para esta request** (L7: se acabaron las conexiones pegadas) y la manda cifrada con **mTLS**, con el certificado del gateway."
+        },
+        {
+          "nodes": [
+            "scb",
+            "triton"
+          ],
+          "edges": [
+            "scb>triton"
+          ],
+          "text": "El sidecar de Triton revisa que quien llama sea de verdad el gateway, descifra y se la pasa a Triton por localhost."
+        },
+        {
+          "nodes": [
+            "sca",
+            "scb",
+            "prom"
+          ],
+          "edges": [
+            "sca>prom",
+            "scb>prom"
+          ],
+          "text": "Los dos sidecars cuentan la request, su tiempo y su código. **Prometheus** los lee: métricas de cada par de servicios sin tocar el código."
+        }
+      ]
+    },
+    {
+      "id": "pesos",
+      "label": "Un cambio de pesos para un canary",
+      "steps": [
+        {
+          "nodes": [
+            "istiod"
+          ],
+          "edges": [],
+          "text": "Alguien aplica una regla nueva: 95 % al Triton estable y 5 % al canary."
+        },
+        {
+          "nodes": [
+            "istiod",
+            "sca",
+            "scb"
+          ],
+          "edges": [
+            "istiod>sca",
+            "istiod>scb"
+          ],
+          "text": "**istiod** la reparte a todos los sidecars en segundos. Nadie reinicia nada."
+        },
+        {
+          "nodes": [
+            "gw",
+            "sca",
+            "scb",
+            "triton"
+          ],
+          "edges": [
+            "gw>sca",
+            "sca>scb",
+            "scb>triton"
+          ],
+          "text": "Desde la siguiente request, el sidecar del gateway reparte 95 a 5, **por peso**, aunque el canary tenga un solo pod."
+        }
+      ]
+    }
+  ]
+}

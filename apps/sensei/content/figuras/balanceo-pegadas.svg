@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 428" role="img" aria-labelledby="f-balanceo-pegadas-t" class="f-svg" style="max-width:420px">
+<title id="f-balanceo-pegadas-t">Tres pods del gateway y tres pods de Triton, el tercero recién creado. Arriba, el reparto por conexión de un Service de Kubernetes: cada gateway tiene una sola conexión larga; dos cayeron en Triton 1 y una en Triton 2. Triton 1 recibe 67 por ciento del tráfico, Triton 2 el 33 por ciento y Triton 3, el nuevo, 0 por ciento hasta que alguna conexión se cierre. Abajo, un reparto por request: cada gateway manda sus requests a los tres Tritons, y cada uno recibe 33 por ciento desde la primera request.</title>
+<text class="f-l" x="14" y="28">TRES GATEWAYS, TRES TRITONS</text>
+<rect class="f-card" x="10" y="40" width="340" height="182" rx="16"/>
+<text class="f-l" x="26" y="62">POR CONEXIÓN · SERVICE (L4)</text>
+<rect class="f-chip" x="30" y="74" width="80" height="28" rx="8"/>
+<text class="f-s" x="70" y="93" text-anchor="middle" style="font-size:12px;font-weight:700">gateway 1</text>
+<rect class="f-chip" x="140" y="74" width="80" height="28" rx="8"/>
+<text class="f-s" x="180" y="93" text-anchor="middle" style="font-size:12px;font-weight:700">gateway 2</text>
+<rect class="f-chip" x="250" y="74" width="80" height="28" rx="8"/>
+<text class="f-s" x="290" y="93" text-anchor="middle" style="font-size:12px;font-weight:700">gateway 3</text>
+<line x1="70" y1="102" x2="70" y2="144" style="stroke:var(--b);stroke-width:4;stroke-linecap:round"/>
+<line x1="180" y1="102" x2="78" y2="144" style="stroke:var(--b);stroke-width:4;stroke-linecap:round"/>
+<line x1="290" y1="102" x2="186" y2="144" style="stroke:var(--b);stroke-width:4;stroke-linecap:round"/>
+<rect class="f-dark" x="30" y="146" width="80" height="28" rx="8"/>
+<text class="f-dark-t" x="70" y="165" text-anchor="middle" style="font-size:12px;font-weight:700">Triton 1</text>
+<rect class="f-dark" x="140" y="146" width="80" height="28" rx="8"/>
+<text class="f-dark-t" x="180" y="165" text-anchor="middle" style="font-size:12px;font-weight:700">Triton 2</text>
+<rect x="250" y="146" width="80" height="28" rx="8" style="fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:4 3"/>
+<text class="f-s" x="290" y="165" text-anchor="middle" style="font-size:12px;font-weight:700">Triton 3</text>
+<text class="f-t" x="70" y="196" text-anchor="middle" style="font-size:14px">67 %</text>
+<text class="f-t" x="180" y="196" text-anchor="middle" style="font-size:14px">33 %</text>
+<text class="f-t" x="290" y="196" text-anchor="middle" style="font-size:14px;fill:var(--o)">0 %</text>
+<text class="f-s" x="290" y="212" text-anchor="middle" style="font-size:12px">nuevo, ocioso</text>
+<rect class="f-card" x="10" y="234" width="340" height="182" rx="16"/>
+<text class="f-l" x="26" y="256">POR REQUEST · L7</text>
+<rect class="f-chip" x="30" y="268" width="80" height="28" rx="8"/>
+<text class="f-s" x="70" y="287" text-anchor="middle" style="font-size:12px;font-weight:700">gateway 1</text>
+<rect class="f-chip" x="140" y="268" width="80" height="28" rx="8"/>
+<text class="f-s" x="180" y="287" text-anchor="middle" style="font-size:12px;font-weight:700">gateway 2</text>
+<rect class="f-chip" x="250" y="268" width="80" height="28" rx="8"/>
+<text class="f-s" x="290" y="287" text-anchor="middle" style="font-size:12px;font-weight:700">gateway 3</text>
+<line x1="70" y1="296" x2="70" y2="338" style="stroke:var(--b);stroke-width:1.5;opacity:.8"/>
+<line x1="70" y1="296" x2="180" y2="338" style="stroke:var(--b);stroke-width:1.5;opacity:.8"/>
+<line x1="70" y1="296" x2="290" y2="338" style="stroke:var(--b);stroke-width:1.5;opacity:.8"/>
+<line x1="180" y1="296" x2="70" y2="338" style="stroke:var(--b);stroke-width:1.5;opacity:.8"/>
+<line x1="180" y1="296" x2="180" y2="338" style="stroke:var(--b);stroke-width:1.5;opacity:.8"/>
+<line x1="180" y1="296" x2="290" y2="338" style="stroke:var(--b);stroke-width:1.5;opacity:.8"/>
+<line x1="290" y1="296" x2="70" y2="338" style="stroke:var(--b);stroke-width:1.5;opacity:.8"/>
+<line x1="290" y1="296" x2="180" y2="338" style="stroke:var(--b);stroke-width:1.5;opacity:.8"/>
+<line x1="290" y1="296" x2="290" y2="338" style="stroke:var(--b);stroke-width:1.5;opacity:.8"/>
+<rect class="f-dark" x="30" y="340" width="80" height="28" rx="8"/>
+<text class="f-dark-t" x="70" y="359" text-anchor="middle" style="font-size:12px;font-weight:700">Triton 1</text>
+<rect class="f-dark" x="140" y="340" width="80" height="28" rx="8"/>
+<text class="f-dark-t" x="180" y="359" text-anchor="middle" style="font-size:12px;font-weight:700">Triton 2</text>
+<rect class="f-dark" x="250" y="340" width="80" height="28" rx="8"/>
+<text class="f-dark-t" x="290" y="359" text-anchor="middle" style="font-size:12px;font-weight:700">Triton 3</text>
+<text class="f-t" x="70" y="390" text-anchor="middle" style="font-size:14px">33 %</text>
+<text class="f-t" x="180" y="390" text-anchor="middle" style="font-size:14px">33 %</text>
+<text class="f-t" x="290" y="390" text-anchor="middle" style="font-size:14px">33 %</text>
+<text class="f-s" x="180" y="406" text-anchor="middle" style="font-size:12px">cada request elige; el nuevo trabaja desde ya</text>
+</svg>

@@ -1,0 +1,25 @@
+{
+  "titulo": "Cuánto multiplican los reintentos",
+  "intro": "**Con L capas que reintentan r veces, al fondo le llegan hasta (1 + r)ᴸ intentos por request.** Con una sola capa y un [[presupuesto-reintentos|presupuesto]], la carga sube a lo más ese porcentaje. Arranca con el ejemplo de M03 y el pico de C01.",
+  "entradas": [
+    { "id": "q", "label": "Requests por segundo que entran", "min": 1, "max": 1000000, "paso": 1, "valor": 500, "tipo": "numero" },
+    { "id": "L", "label": "Capas que reintentan", "min": 1, "max": 5, "paso": 1, "valor": 3 },
+    { "id": "r", "label": "Reintentos en cada capa", "min": 0, "max": 5, "paso": 1, "valor": 3 },
+    { "id": "p", "label": "Presupuesto de reintentos, en %", "min": 0, "max": 50, "paso": 1, "valor": 10 },
+    { "id": "k", "label": "Lo que aguanta el fondo, en requests por segundo (2,400 = las dos T4 de C01)", "min": 1, "max": 1000000, "paso": 1, "valor": 2400, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "a", "formula": "pow(1 + r, L)" },
+    { "id": "fondo", "formula": "q * a" },
+    { "id": "conp", "formula": "q * (1 + p / 100)" }
+  ],
+  "salidas": [
+    { "label": "Intentos por llamada en cada capa", "formula": "1 + r", "formato": "int", "nota": "el original más los reintentos" },
+    { "label": "Intentos al fondo por cada request, en el peor caso", "formula": "a", "formato": "x", "decimales": 0 },
+    { "label": "Requests por segundo al fondo, si todo falla", "formula": "fondo", "formato": "int" },
+    { "label": "Contra lo que aguanta el fondo", "formula": "fondo / k", "formato": "pct", "barra": true, "nota": "más de 100 %: la tormenta lo mantiene saturado" },
+    { "label": "Con una sola capa y el presupuesto", "formula": "conp", "formato": "int", "nota": "requests por segundo, a lo más" },
+    { "label": "Contra lo que aguanta el fondo, con presupuesto", "formula": "conp / k", "formato": "pct", "barra": true }
+  ],
+  "nota": "Con 0 reintentos, la carga es la que entra. Con 1 reintento y 4 capas, ya es 16 veces. El presupuesto no depende de cuántas capas haya: por eso se reintenta en una sola."
+}

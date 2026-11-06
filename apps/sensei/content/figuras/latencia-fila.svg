@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 446" role="img" aria-labelledby="f-latencia-fila-t" class="f-svg" style="max-width:420px">
+<title id="f-latencia-fila-t">Una fila, dos maneras de llegar. Un núcleo atiende cinco fotos, A, B, C, D y E, y cada una le cuesta 6 milisegundos de CPU. Arriba llegan parejas, una cada 7.5 milisegundos, a los 0, 7.5, 15, 22.5 y 30 milisegundos: cuando llega cada una, la anterior ya terminó, nadie espera y las cinco tardan 6 milisegundos. Abajo llegan a los 0, 2, 4, 14 y 30 milisegundos: B espera 4 milisegundos, C espera 8 y D espera 4, así que tardan 10, 14 y 10. En los dos casos el núcleo trabaja 30 de los 36 milisegundos, el 83 por ciento. El trabajo y la utilización son los mismos; la espera sale de llegar juntas.</title>
+<rect class="f-card" x="10" y="10" width="340" height="426" rx="16"/>
+<text class="f-l" x="28" y="36">UN NÚCLEO, CINCO FOTOS DE 6 MS</text>
+<rect class="f-b" x="28" y="49" width="14" height="14" rx="3"/>
+<text class="f-s" x="48" y="61" style="font-size:12px">el núcleo trabaja</text>
+<rect class="f-o" x="160" y="49" width="14" height="14" rx="3"/>
+<text class="f-s" x="180" y="61" style="font-size:12px">la foto espera en la fila</text>
+<polygon class="f-ink" points="29,72 41,72 35,81"/>
+<text class="f-s" x="48" y="81" style="font-size:12px">llega una foto</text>
+
+<text class="f-t" x="28" y="110" style="font-size:14px">Llegan parejas: una cada 7.5 ms</text>
+<polygon class="f-ink" points="38,117 50,117 44,126"/>
+<polygon class="f-ink" points="98,117 110,117 104,126"/>
+<polygon class="f-ink" points="158,117 170,117 164,126"/>
+<polygon class="f-ink" points="218,117 230,117 224,126"/>
+<polygon class="f-ink" points="278,117 290,117 284,126"/>
+<rect class="f-chip" x="44" y="130" width="288" height="24" rx="4"/>
+<rect class="f-b" x="44" y="130" width="48" height="24" rx="4"/>
+<text x="68" y="147" text-anchor="middle" class="f-pill-t" style="font-size:13px">A</text>
+<rect class="f-b" x="104" y="130" width="48" height="24" rx="4"/>
+<text x="128" y="147" text-anchor="middle" class="f-pill-t" style="font-size:13px">B</text>
+<rect class="f-b" x="164" y="130" width="48" height="24" rx="4"/>
+<text x="188" y="147" text-anchor="middle" class="f-pill-t" style="font-size:13px">C</text>
+<rect class="f-b" x="224" y="130" width="48" height="24" rx="4"/>
+<text x="248" y="147" text-anchor="middle" class="f-pill-t" style="font-size:13px">D</text>
+<rect class="f-b" x="284" y="130" width="48" height="24" rx="4"/>
+<text x="308" y="147" text-anchor="middle" class="f-pill-t" style="font-size:13px">E</text>
+<line class="f-linea" x1="44" y1="164" x2="332" y2="164"/>
+<line class="f-linea" x1="44" y1="160" x2="44" y2="168"/>
+<line class="f-linea" x1="140" y1="160" x2="140" y2="168"/>
+<line class="f-linea" x1="236" y1="160" x2="236" y2="168"/>
+<line class="f-linea" x1="332" y1="160" x2="332" y2="168"/>
+<text class="f-s" x="44" y="182" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="140" y="182" text-anchor="middle" style="font-size:12px">12</text>
+<text class="f-s" x="236" y="182" text-anchor="middle" style="font-size:12px">24</text>
+<text class="f-s" x="332" y="182" text-anchor="middle" style="font-size:12px">36 ms</text>
+<text class="f-s" x="28" y="204" style="font-size:13px">Nadie espera: las cinco tardan 6 ms.</text>
+
+<text class="f-t" x="28" y="236" style="font-size:14px">Llegan en ráfaga: 0, 2, 4, 14 y 30 ms</text>
+<polygon class="f-ink" points="38,243 50,243 44,252"/>
+<polygon class="f-ink" points="54,243 66,243 60,252"/>
+<polygon class="f-ink" points="70,243 82,243 76,252"/>
+<polygon class="f-ink" points="150,243 162,243 156,252"/>
+<polygon class="f-ink" points="278,243 290,243 284,252"/>
+<rect class="f-chip" x="44" y="256" width="288" height="24" rx="4"/>
+<rect class="f-b" x="44" y="256" width="48" height="24" rx="4"/>
+<text x="68" y="273" text-anchor="middle" class="f-pill-t" style="font-size:13px">A</text>
+<rect class="f-b" x="92" y="256" width="48" height="24" rx="4"/>
+<text x="116" y="273" text-anchor="middle" class="f-pill-t" style="font-size:13px">B</text>
+<rect class="f-b" x="140" y="256" width="48" height="24" rx="4"/>
+<text x="164" y="273" text-anchor="middle" class="f-pill-t" style="font-size:13px">C</text>
+<rect class="f-b" x="188" y="256" width="48" height="24" rx="4"/>
+<text x="212" y="273" text-anchor="middle" class="f-pill-t" style="font-size:13px">D</text>
+<rect class="f-b" x="284" y="256" width="48" height="24" rx="4"/>
+<text x="308" y="273" text-anchor="middle" class="f-pill-t" style="font-size:13px">E</text>
+<line x1="92" y1="256" x2="92" y2="280" style="stroke:var(--blk);stroke-width:2"/>
+<line x1="140" y1="256" x2="140" y2="280" style="stroke:var(--blk);stroke-width:2"/>
+<line x1="188" y1="256" x2="188" y2="280" style="stroke:var(--blk);stroke-width:2"/>
+<rect class="f-o" x="60" y="287" width="32" height="13" rx="3"/>
+<text class="f-s" x="55" y="298" text-anchor="end" style="font-size:12px;font-weight:700">B</text>
+<rect class="f-o" x="156" y="287" width="32" height="13" rx="3"/>
+<text class="f-s" x="151" y="298" text-anchor="end" style="font-size:12px;font-weight:700">D</text>
+<rect class="f-o" x="76" y="304" width="64" height="13" rx="3"/>
+<text class="f-s" x="71" y="315" text-anchor="end" style="font-size:12px;font-weight:700">C</text>
+<line class="f-linea" x1="44" y1="326" x2="332" y2="326"/>
+<line class="f-linea" x1="44" y1="322" x2="44" y2="330"/>
+<line class="f-linea" x1="140" y1="322" x2="140" y2="330"/>
+<line class="f-linea" x1="236" y1="322" x2="236" y2="330"/>
+<line class="f-linea" x1="332" y1="322" x2="332" y2="330"/>
+<text class="f-s" x="44" y="344" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="140" y="344" text-anchor="middle" style="font-size:12px">12</text>
+<text class="f-s" x="236" y="344" text-anchor="middle" style="font-size:12px">24</text>
+<text class="f-s" x="332" y="344" text-anchor="middle" style="font-size:12px">36 ms</text>
+<text class="f-s" x="28" y="366" style="font-size:13px">B, C y D esperan 4, 8 y 4 ms: tardan 10, 14 y 10.</text>
+
+<rect class="f-chip" x="24" y="378" width="312" height="48" rx="10"/>
+<text class="f-t" x="38" y="398" style="font-size:13px">Mismo trabajo, misma utilización (83 %):</text>
+<text class="f-s" x="38" y="416" style="font-size:12px">la fila sale de llegar juntas.</text>
+</svg>

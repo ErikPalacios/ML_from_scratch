@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 428" role="img" aria-labelledby="f-latencia-filas-t" class="f-svg" style="max-width:420px">
+<title id="f-latencia-filas-t">Filas separadas contra una fila compartida. Arriba, dos cajas (servidores) con una fila cada uno: el primero está ocupado y tiene tres requests esperando, mientras el segundo está libre y sin fila; la tercera request espera aunque haya un servidor desocupado. Abajo, los mismos dos servidores con una sola fila: los dos trabajan y la siguiente request va al primero que se desocupe. Con 80 por ciento de utilización y 10 milisegundos de servicio, la espera promedio es de 40 milisegundos con filas separadas y de unos 18 con una fila compartida.</title>
+<rect class="f-card" x="10" y="10" width="340" height="408" rx="16"/>
+<text class="f-l" x="28" y="36">DOS CAJAS (SERVIDORES): DOS FILAS O UNA</text>
+
+<text class="f-t" x="28" y="64" style="font-size:14px">Una fila por caja</text>
+<circle class="f-o" cx="150" cy="95" r="9"/>
+<circle class="f-o" cx="174" cy="95" r="9"/>
+<circle class="f-o" cx="198" cy="95" r="9"/>
+<line class="f-flecha" x1="214" y1="95" x2="226" y2="95"/>
+<polygon class="f-punta" points="234,95 224,90 224,100"/>
+<rect class="f-b" x="236" y="78" width="108" height="34" rx="8"/>
+<text x="290" y="100" text-anchor="middle" class="f-pill-t" style="font-size:12px">Caja 1: ocupada</text>
+<line class="f-flecha" x1="214" y1="141" x2="226" y2="141"/>
+<polygon class="f-punta" points="234,141 224,136 224,146"/>
+<rect class="f-off" x="236" y="124" width="108" height="34" rx="8"/>
+<text class="f-t" x="290" y="146" text-anchor="middle" style="font-size:12px">Caja 2: libre</text>
+<text class="f-s" x="28" y="100" style="font-size:12px">fila de la caja 1</text>
+<text class="f-s" x="28" y="146" style="font-size:12px">fila de la caja 2: vacía</text>
+<text class="f-s" x="28" y="186" style="font-size:12px">La última espera detrás de la caja 1, y la 2 descansa.</text>
+
+<text class="f-t" x="28" y="222" style="font-size:14px">Una fila para los dos</text>
+<circle class="f-o" cx="150" cy="276" r="9"/>
+<circle class="f-o" cx="174" cy="276" r="9"/>
+<line class="f-flecha" x1="190" y1="276" x2="214" y2="276"/>
+<line class="f-flecha" x1="214" y1="276" x2="228" y2="257"/>
+<line class="f-flecha" x1="214" y1="276" x2="228" y2="295"/>
+<polygon class="f-punta" points="236,251 225,252 231,261"/>
+<polygon class="f-punta" points="236,301 225,300 231,291"/>
+<rect class="f-b" x="236" y="236" width="108" height="34" rx="8"/>
+<text x="290" y="258" text-anchor="middle" class="f-pill-t" style="font-size:12px">Caja 1: ocupada</text>
+<rect class="f-b" x="236" y="282" width="108" height="34" rx="8"/>
+<text x="290" y="304" text-anchor="middle" class="f-pill-t" style="font-size:12px">Caja 2: ocupada</text>
+<text class="f-s" x="28" y="281" style="font-size:12px">una sola fila</text>
+<text class="f-s" x="28" y="344" style="font-size:12px">La siguiente va a la primera caja que se desocupe.</text>
+
+<rect class="f-chip" x="24" y="360" width="312" height="48" rx="10"/>
+<text class="f-t" x="38" y="380" style="font-size:13px">Cada caja al 80 %, 10 ms por request:</text>
+<text class="f-s" x="38" y="398" style="font-size:12px">40 ms de espera con filas separadas; ≈ 18 con una.</text>
+</svg>

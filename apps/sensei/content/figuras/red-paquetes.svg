@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 412" role="img" aria-labelledby="f-red-paquetes-t" class="f-svg" style="max-width:420px">
+<title id="f-red-paquetes-t">El original de la foto de Ana, de 3,000,000 de bytes, se parte en 2,055 pedazos de hasta 1,460 bytes. Cada pedazo viaja en un paquete con dos partes: un encabezado, que dice su número y de dónde viene y a dónde va, del celular al servidor, y la carga, que es el pedazo de la foto. El paquete 1 y el 2 llevan 1,460 bytes cada uno; el último, el 2,055, lleva los 1,160 bytes que sobran. Abajo, el camino: del celular a un router, a otro router y al servidor. Cada router lee solo el encabezado y pasa el paquete al siguiente.</title>
+<defs><marker id="frp-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="392" rx="16"/>
+<text class="f-l" x="28" y="36">UNA FOTO, MILES DE PAQUETES</text>
+<rect class="f-o" x="28" y="50" width="304" height="32" rx="6"/>
+<line x1="44" y1="50" x2="44" y2="82" style="stroke:var(--blk);stroke-width:2"/>
+<line x1="61" y1="50" x2="61" y2="82" style="stroke:var(--blk);stroke-width:2"/>
+<line x1="299" y1="50" x2="299" y2="82" style="stroke:var(--blk);stroke-width:2"/>
+<line x1="316" y1="50" x2="316" y2="82" style="stroke:var(--blk);stroke-width:2"/>
+<text x="180" y="71" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">la foto original: 3,000,000 bytes</text>
+<text class="f-s" x="180" y="104" text-anchor="middle" style="font-size:12px">se parte en 2,055 pedazos de hasta 1,460 bytes</text>
+<line class="f-flecha" x1="180" y1="112" x2="180" y2="126" marker-end="url(#frp-a)"/>
+<rect class="f-b" x="28" y="136" width="156" height="40" rx="6"/>
+<text x="106" y="152" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">encabezado · n.º 1</text>
+<text x="106" y="168" text-anchor="middle" style="fill:#fff;font:400 12px var(--sans)">celular → servidor</text>
+<rect class="f-chip" x="188" y="136" width="144" height="40" rx="6"/>
+<text class="f-s" x="260" y="152" text-anchor="middle" style="font-size:12px;font-weight:700">carga: 1,460 bytes</text>
+<text class="f-s" x="260" y="168" text-anchor="middle" style="font-size:12px">de la foto</text>
+<rect class="f-b" x="28" y="184" width="156" height="40" rx="6"/>
+<text x="106" y="200" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">encabezado · n.º 2</text>
+<text x="106" y="216" text-anchor="middle" style="fill:#fff;font:400 12px var(--sans)">celular → servidor</text>
+<rect class="f-chip" x="188" y="184" width="144" height="40" rx="6"/>
+<text class="f-s" x="260" y="200" text-anchor="middle" style="font-size:12px;font-weight:700">carga: 1,460 bytes</text>
+<text class="f-s" x="260" y="216" text-anchor="middle" style="font-size:12px">los que siguen</text>
+<text class="f-t" x="106" y="246" text-anchor="middle">⋮</text>
+<text class="f-t" x="260" y="246" text-anchor="middle">⋮</text>
+<rect class="f-b" x="28" y="256" width="156" height="40" rx="6"/>
+<text x="106" y="272" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">encabezado · n.º 2,055</text>
+<text x="106" y="288" text-anchor="middle" style="fill:#fff;font:400 12px var(--sans)">celular → servidor</text>
+<rect class="f-chip" x="188" y="256" width="144" height="40" rx="6"/>
+<text class="f-s" x="260" y="272" text-anchor="middle" style="font-size:12px;font-weight:700">carga: 1,160 bytes</text>
+<text class="f-s" x="260" y="288" text-anchor="middle" style="font-size:12px">lo que sobra</text>
+<text class="f-l" x="28" y="324">EL CAMINO</text>
+<rect class="f-chip" x="28" y="334" width="62" height="28" rx="14"/>
+<text class="f-s" x="59" y="352" text-anchor="middle" style="font-size:12px;font-weight:700">celular</text>
+<line class="f-flecha" x1="92" y1="348" x2="108" y2="348" marker-end="url(#frp-a)"/>
+<rect class="f-off" x="114" y="334" width="58" height="28" rx="14"/>
+<text class="f-s" x="143" y="352" text-anchor="middle" style="font-size:12px">router</text>
+<line class="f-flecha" x1="174" y1="348" x2="190" y2="348" marker-end="url(#frp-a)"/>
+<rect class="f-off" x="196" y="334" width="58" height="28" rx="14"/>
+<text class="f-s" x="225" y="352" text-anchor="middle" style="font-size:12px">router</text>
+<line class="f-flecha" x1="256" y1="348" x2="268" y2="348" marker-end="url(#frp-a)"/>
+<rect class="f-chip" x="272" y="334" width="60" height="28" rx="14"/>
+<text class="f-s" x="302" y="352" text-anchor="middle" style="font-size:12px;font-weight:700">servidor</text>
+<text class="f-s" x="180" y="386" text-anchor="middle" style="font-size:12px">Cada router lee solo el encabezado y lo reenvía.</text>
+</svg>

@@ -1,0 +1,83 @@
+{
+  "titulo": "Lo que cuesta el polling",
+  "intro": "Con la [[ley-little|ley de Little]], los trabajos vivos son la llegada por la duración, y cada uno pregunta por su estado cada tanto. Arranca con los números de M02.",
+  "entradas": [
+    {
+      "id": "l",
+      "label": "Trabajos que llegan por segundo",
+      "min": 1,
+      "max": 2000,
+      "paso": 1,
+      "valor": 50
+    },
+    {
+      "id": "w",
+      "label": "Duración promedio de un trabajo, en segundos (cola + proceso)",
+      "min": 1,
+      "max": 3600,
+      "paso": 1,
+      "valor": 200,
+      "unidad": "s"
+    },
+    {
+      "id": "i",
+      "label": "Cada cuánto pregunta cada cliente, en segundos",
+      "min": 0.5,
+      "max": 120,
+      "paso": 0.5,
+      "valor": 2,
+      "unidad": "s"
+    }
+  ],
+  "calculos": [
+    {
+      "id": "vivos",
+      "formula": "l * w"
+    },
+    {
+      "id": "gets",
+      "formula": "vivos / i"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Trabajos vivos a la vez",
+      "formula": "vivos",
+      "formato": "int",
+      "nota": "Little: llegada × duración"
+    },
+    {
+      "label": "Consultas de estado por segundo",
+      "formula": "gets",
+      "formato": "int"
+    },
+    {
+      "label": "Veces la tasa de creación",
+      "formula": "gets / l",
+      "formato": "x",
+      "decimales": 1
+    },
+    {
+      "label": "Consultas que encuentran el trabajo terminado",
+      "formula": "min(1, l / gets)",
+      "formato": "pct",
+      "decimales": 1,
+      "barra": true,
+      "nota": "el resto contesta «todavía no»"
+    },
+    {
+      "label": "Lo que tarda en enterarse, en promedio, en segundos",
+      "formula": "i / 2",
+      "formato": "num",
+      "decimales": 1,
+      "nota": "después de que el trabajo terminó"
+    },
+    {
+      "label": "Avisos por segundo con webhook",
+      "formula": "l",
+      "formato": "int",
+      "nota": "uno por trabajo"
+    }
+  ],
+  "nota": "Prueba 10 s: 1,000 consultas por segundo, 20 veces la creación, y el cliente se entera 5 s tarde en promedio. Ningún intervalo le gana al webhook en carga; el webhook pide a cambio una dirección pública, firmas y reintentos."
+}

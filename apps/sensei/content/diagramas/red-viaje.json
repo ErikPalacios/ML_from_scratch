@@ -1,0 +1,52 @@
+{
+  "titulo": "El viaje de la foto de Ana: qué nombre, qué IP y qué puerto en cada salto",
+  "width": 78,
+  "height": 58,
+  "lanes": [
+    { "id": "afuera", "label": "Internet y el marketplace", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 25 },
+    { "id": "c01", "label": "C01: red privada en us-east-1", "kind": "online", "x": 0, "y": 27, "w": 78, "h": 31 }
+  ],
+  "nodes": [
+    { "id": "ana", "label": "Celular de Ana", "sub": "4G · IP privada", "kind": "client", "x": 1, "y": 6, "w": 19, "h": 9,
+      "note": "La app es el [[cliente]]: abre la conexión. El celular tiene una [[ip-privada|IP privada]] del operador, que [[nat|NAT]] traduce a una pública al salir a internet. Su [[rtt|RTT]] por 4G suma decenas de milisegundos que nadie en C01 controla." },
+    { "id": "dns", "label": "DNS", "sub": "nombre → IP", "kind": "external", "x": 30, "y": 6, "w": 18, "h": 9,
+      "note": "Antes de conectarse, la app pregunta al [[dns|DNS]] la [[direccion-ip|IP]] del backend del marketplace. Si la respuesta está en caché y su [[ttl|TTL]] no ha vencido, no hay ni que preguntar." },
+    { "id": "backend", "label": "Backend", "sub": "del marketplace", "kind": "service", "x": 58, "y": 6, "w": 19, "h": 9,
+      "note": "El programa del marketplace que guarda la foto para la publicación. Recibe el JPEG de ≈ 200 KB (la app ya achicó la foto de 3 MB) por [[tcp|TCP]] en el [[puerto]] 443 y después se lo manda a C01 de servidor a servidor, en la misma región." },
+    { "id": "alb", "label": "ALB", "sub": "puerto 443 · TLS", "kind": "edge", "x": 58, "y": 34, "w": 19, "h": 9,
+      "note": "El ALB (*Application Load Balancer*) es el balanceador de AWS: la puerta de entrada de C01. Escucha en el 443, quita el cifrado ([[tls|TLS]], el protocolo que impide que alguien lea la request en el camino) y reparte las requests entre los pods del gateway. Lo verás en la lección de [[balanceador|balanceadores]]." },
+    { "id": "gateway", "label": "Gateway", "sub": "pod · puerto 8080", "kind": "service", "x": 30, "y": 34, "w": 18, "h": 9,
+      "note": "uvicorn escucha en **0.0.0.0:8080** dentro de su contenedor. Para el ALB es [[servidor]]; para Triton es [[cliente]]: abre conexiones hacia él y las reusa." },
+    { "id": "kdns", "label": "DNS del clúster", "sub": "CoreDNS", "kind": "store", "x": 1, "y": 34, "w": 19, "h": 9,
+      "note": "El gateway no sabe la IP de Triton: sabe el nombre **triton.classifier.svc.cluster.local**. El DNS de Kubernetes (el programa que lo atiende se llama CoreDNS) lo traduce a la IP estable del Service, que no cambia aunque los pods de Triton se reinicien." },
+    { "id": "triton", "label": "Triton", "sub": "puerto 8000 · T4", "kind": "model", "x": 30, "y": 48, "w": 18, "h": 9,
+      "note": "Escucha HTTP en el 8000, gRPC en el 8001 y métricas en el 8002. Recibe el tensor de 602 KB (≈ 413 paquetes), corre la ResNet-50 en la GPU (una T4) y contesta con las categorías." }
+  ],
+  "edges": [
+    { "from": "ana", "to": "dns", "kind": "neutral", "fromSide": "r", "toSide": "l", "label": "¿IP?" },
+    { "from": "ana", "to": "backend", "kind": "online", "fromSide": "b", "toSide": "b", "via": [[10.5, 21], [67.5, 21]], "label": "200 KB · :443" },
+    { "from": "backend", "to": "alb", "kind": "online", "fromSide": "b", "toSide": "t", "label": ":443" },
+    { "from": "alb", "to": "gateway", "kind": "online", "fromSide": "l", "toSide": "r", "label": ":8080" },
+    { "from": "gateway", "to": "kdns", "kind": "neutral", "fromSide": "l", "toSide": "r", "label": "¿IP?" },
+    { "from": "gateway", "to": "triton", "kind": "online", "fromSide": "b", "toSide": "t", "label": ":8000" }
+  ],
+  "flows": [
+    { "id": "foto", "label": "La foto de Ana, salto por salto",
+      "steps": [
+        { "nodes": ["ana"], "edges": [], "text": "Ana toca «publicar». La app, el **cliente**, tiene que mandar la foto, ya achicada a ≈ 200 KB, a un programa que vive en otra máquina, en Virginia. Sabe su **nombre**, no su dirección." },
+        { "nodes": ["ana", "dns"], "edges": ["ana>dns"], "text": "Primero el **DNS**: el nombre del backend se vuelve una **IP**. Si el celular ya lo había preguntado y el **TTL** no venció, la respuesta sale de su caché, sin viajar." },
+        { "nodes": ["ana", "backend"], "edges": ["ana>backend"], "text": "La app abre una conexión **TCP** al puerto **443**, el de HTTPS: un handshake de 1 RTT, más el saludo del cifrado. Después la foto viaja partida en ≈ 137 paquetes que los routers de internet reenvían uno por uno." },
+        { "nodes": ["backend", "alb"], "edges": ["backend>alb"], "text": "El backend guarda la foto y llama a C01 con los mismos ≈ 200 KB, **de servidor a servidor** y en la misma región: otra vez 137 paquetes por una conexión que ya estaba abierta." },
+        { "nodes": ["alb", "gateway"], "edges": ["alb>gateway"], "text": "El **ALB** recibe en el 443 y pasa la request a la **IP privada** de un pod del gateway, al puerto **8080**, donde uvicorn escucha en **0.0.0.0**." },
+        { "nodes": ["gateway", "kdns"], "edges": ["gateway>kdns"], "text": "El gateway prepara el tensor y busca a Triton por su nombre de Kubernetes, **triton.classifier.svc.cluster.local**. El DNS del clúster le da la IP del Service." },
+        { "nodes": ["gateway", "triton"], "edges": ["gateway>triton"], "text": "Ahora el gateway es el **cliente**: manda 602 KB al puerto **8000** de Triton por una conexión reusada, dentro de la misma zona. La respuesta regresa por las mismas conexiones, salto por salto, hasta el celular de Ana." }
+      ] },
+    { "id": "cliente", "label": "Quién es cliente y quién servidor",
+      "steps": [
+        { "nodes": ["ana", "backend"], "edges": ["ana>backend"], "text": "La app de Ana es **cliente** del backend: ella abre la conexión. El backend es **servidor**: estaba escuchando en el 443." },
+        { "nodes": ["backend", "alb"], "edges": ["backend>alb"], "text": "El mismo backend es **cliente** de C01. Ser cliente o servidor no es un tipo de máquina: es quién abre la conexión." },
+        { "nodes": ["alb", "gateway"], "edges": ["alb>gateway"], "text": "El ALB es servidor del backend y cliente del gateway. Cada salto es una conexión distinta, con su propio handshake si es nueva." },
+        { "nodes": ["gateway", "triton"], "edges": ["gateway>triton"], "text": "El gateway es servidor del ALB y **cliente** de Triton. Por eso le importa reusar sus conexiones: cada una nueva es 1 RTT más." }
+      ] }
+  ]
+}

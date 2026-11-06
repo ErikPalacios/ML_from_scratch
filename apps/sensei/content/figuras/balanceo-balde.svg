@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 404" role="img" aria-labelledby="f-balanceo-balde-t" class="f-svg" style="max-width:420px">
+<title id="f-balanceo-balde-t">Las fichas del balde de moderación, de 0 a 3 segundos. El balde guarda hasta 100 fichas y se rellena a 50 por segundo. En el primer segundo llega una ráfaga de 300 requests. El balde baja de 100 a 0 en 0.4 segundos, porque se gastan 300 fichas por segundo y solo caen 50. De 0.4 a 1 segundo se queda en 0: pasan las 50 por segundo que caen y 250 por segundo reciben 429. De 1 a 3 segundos ya no llegan requests y el balde se rellena en línea recta hasta 100. De 300 requests pasan cerca de 150: 100 del balde y 50 que caen en ese segundo.</title>
+<rect class="f-card" x="10" y="10" width="340" height="384" rx="16"/>
+<text class="f-l" x="26" y="36">EL BALDE DE MODERACIÓN</text>
+<text class="f-s" x="26" y="56" style="font-size:12px">r = 50 por s · balde de 100 · ráfaga de 300 en 1 s</text>
+<rect x="56" y="80" width="90" height="156" style="fill:var(--o);opacity:.14"/>
+<text class="f-l" x="101" y="94" text-anchor="middle">RÁFAGA</text>
+<line class="f-linea" x1="56" y1="100" x2="326" y2="100" style="stroke-dasharray:3 4;opacity:.6"/>
+<line class="f-linea" x1="56" y1="168" x2="326" y2="168" style="stroke-dasharray:3 4;opacity:.6"/>
+<line class="f-linea" x1="56" y1="80" x2="56" y2="236"/>
+<line class="f-linea" x1="56" y1="236" x2="326" y2="236"/>
+<polyline points="56,100 92,236" style="fill:none;stroke:var(--o);stroke-width:3;stroke-linecap:round"/>
+<polyline points="92,236 146,236" style="fill:none;stroke:var(--y);stroke-width:3;stroke-linecap:round"/>
+<polyline points="146,236 326,100" style="fill:none;stroke:var(--b);stroke-width:3;stroke-linecap:round"/>
+<text class="f-s" x="50" y="104" text-anchor="end" style="font-size:12px">100</text>
+<text class="f-s" x="50" y="172" text-anchor="end" style="font-size:12px">50</text>
+<text class="f-s" x="50" y="240" text-anchor="end" style="font-size:12px">0</text>
+<text class="f-s" x="56" y="254" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="146" y="254" text-anchor="middle" style="font-size:12px">1 s</text>
+<text class="f-s" x="236" y="254" text-anchor="middle" style="font-size:12px">2 s</text>
+<text class="f-s" x="326" y="254" text-anchor="middle" style="font-size:12px">3 s</text>
+<text class="f-s" x="98" y="192" style="font-size:12px;font-weight:700">vacío a los 0.4 s</text>
+<text class="f-s" x="168" y="124" style="font-size:12px;font-weight:700">se rellena en 2 s</text>
+<text class="f-l" x="26" y="76">FICHAS</text>
+<rect class="f-o" x="26" y="272" width="14" height="14" rx="2"/>
+<text class="f-s" x="48" y="284" style="font-size:12px">0 a 0.4 s: pasan 300 por s, con el balde</text>
+<rect class="f-y" x="26" y="296" width="14" height="14" rx="2"/>
+<text class="f-s" x="48" y="308" style="font-size:12px">0.4 a 1 s: pasan 50 por s; el resto, 429</text>
+<rect class="f-b" x="26" y="320" width="14" height="14" rx="2"/>
+<text class="f-s" x="48" y="332" style="font-size:12px">1 a 3 s: sin requests, el balde se llena</text>
+<rect class="f-chip" x="22" y="346" width="316" height="38" rx="10"/>
+<text class="f-t" x="34" y="370" style="font-size:13px">De 300, pasan ≈ 150: 100 del balde + 50</text>
+</svg>

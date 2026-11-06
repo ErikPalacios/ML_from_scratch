@@ -1,0 +1,64 @@
+{
+  "titulo": "La entrada de C01: quién reparte, quién deja pasar y quién vigila",
+  "width": 78,
+  "height": 70,
+  "lanes": [
+    { "id": "afuera", "label": "Quien llama", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 14 },
+    { "id": "entrada", "label": "La puerta · en las dos zonas", "kind": "online", "x": 0, "y": 15, "w": 78, "h": 13 },
+    { "id": "gateway", "label": "Gateway · de 3 a 12 pods (aquí, 3)", "kind": "online", "x": 0, "y": 29, "w": 78, "h": 13 },
+    { "id": "cluster", "label": "Dentro del clúster · Triton, de 2 a 4 pods", "kind": "neutral", "x": 0, "y": 43, "w": 78, "h": 27 }
+  ],
+  "nodes": [
+    { "id": "backend", "label": "Backend", "sub": "del marketplace", "kind": "client", "x": 6, "y": 4, "w": 20, "h": 8,
+      "note": "El programa que arma la publicación de Ana y pide la categoría. Llama a **una sola dirección** y espera a lo más 300 ms. No sabe cuántos pods hay detrás, ni le importa." },
+    { "id": "moderacion", "label": "Moderación", "sub": "llama en tandas", "kind": "client", "x": 52, "y": 4, "w": 20, "h": 8,
+      "note": "Otro equipo que usa C01. Su cuota es de 50 requests por segundo, con ráfagas de hasta 100: un [[token-bucket]] en el gateway." },
+    { "id": "alb", "label": "ALB", "sub": "TLS · token · pesos", "kind": "edge", "x": 27, "y": 18, "w": 24, "h": 8,
+      "note": "El [[balanceador]] L7 de AWS. Termina TLS, verifica el token de quien llama y, si hay un canary, reparte con [[ruteo-por-peso|pesos]]. Manda cada request directo a la IP de un pod del gateway que pase sus [[health-check|health checks]]. Le suma de 1 a 3 ms a la request típica (el p50)." },
+    { "id": "gwa", "label": "Gateway A", "sub": "listo", "kind": "service", "x": 2, "y": 32, "w": 20, "h": 8,
+      "note": "Un pod del gateway: revisa la cuota de quien llama, el tamaño del body (máximo 10 MB) y el tiempo que queda, prepara la foto y llama a Triton. Aguanta ≈ 100 requests por segundo." },
+    { "id": "gwb", "label": "Gateway B", "sub": "listo", "kind": "service", "x": 29, "y": 32, "w": 20, "h": 8,
+      "note": "Otro pod, igual al A. Ninguno guarda estado de una request a la siguiente, así que cualquiera puede atender cualquier request." },
+    { "id": "gwc", "label": "Gateway C", "sub": "se puede colgar", "kind": "service", "x": 56, "y": 32, "w": 20, "h": 8,
+      "note": "El pod del recorrido de la falla. Si se cuelga, acepta conexiones pero no contesta, y sigue recibiendo su parte del tráfico hasta que los health checks lo sacan." },
+    { "id": "svc", "label": "Service triton", "sub": "kube-proxy · por conexión", "kind": "edge", "x": 26, "y": 47, "w": 26, "h": 8,
+      "note": "El [[service-k8s|Service]] de Kubernetes: un nombre y una IP fijos para los pods de Triton que están listos. Reparte **por conexión** y al azar: es L4." },
+    { "id": "ta", "label": "Triton A", "sub": "T4 · zona A", "kind": "gpu", "x": 8, "y": 60, "w": 20, "h": 8,
+      "note": "Un pod de Triton con su GPU T4, en la zona A. Junta las fotos de muchas requests en un batch." },
+    { "id": "tb", "label": "Triton B", "sub": "T4 · zona B", "kind": "gpu", "x": 50, "y": 60, "w": 20, "h": 8,
+      "note": "El otro pod de Triton, en la otra zona: si cae una, la otra aguanta el pico de diseño al ≈ 42 % de su máximo." }
+  ],
+  "edges": [
+    { "from": "backend", "to": "alb", "kind": "online", "fromSide": "b", "toSide": "l", "via": [[16, 22]], "label": "HTTPS" },
+    { "from": "moderacion", "to": "alb", "kind": "online", "fromSide": "b", "toSide": "r", "via": [[62, 22]] },
+    { "from": "alb", "to": "gwa", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[35, 29], [12, 29]] },
+    { "from": "alb", "to": "gwb", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "alb", "to": "gwc", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[43, 29], [66, 29]] },
+    { "from": "gwa", "to": "svc", "kind": "online", "fromSide": "b", "toSide": "l", "via": [[12, 51]] },
+    { "from": "gwb", "to": "svc", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "gwc", "to": "svc", "kind": "online", "fromSide": "b", "toSide": "r", "via": [[66, 51]] },
+    { "from": "svc", "to": "ta", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[34, 57], [18, 57]] },
+    { "from": "svc", "to": "tb", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[44, 57], [60, 57]] }
+  ],
+  "flows": [
+    { "id": "normal", "label": "Una request normal", "steps": [
+      { "nodes": ["backend", "alb"], "edges": ["backend>alb"], "text": "El backend manda la foto de Ana por **HTTPS** a la dirección de C01. El ALB descifra (termina TLS) y verifica el token: ya sabe quién llama." },
+      { "nodes": ["alb", "gwb"], "edges": ["alb>gwb"], "text": "El ALB elige **un pod del gateway listo** y le pasa la request directo a su IP. Decide request por request: es L7." },
+      { "nodes": ["gwb"], "edges": [], "text": "El gateway revisa el **balde** del backend, que el body no pase de 10 MB y el tiempo que queda. Todo bien: decodifica, redimensiona y normaliza la foto." },
+      { "nodes": ["gwb", "svc", "ta"], "edges": ["gwb>svc", "svc>ta"], "text": "Llama a `triton`. La conexión ya estaba abierta, y **kube-proxy** eligió su pod cuando se abrió: Triton A. Triton la junta con otras en un batch y responde." },
+      { "nodes": ["backend", "alb", "gwb", "ta"], "edges": [], "text": "La respuesta vuelve por el mismo camino. Hubo dos repartos, el del ALB y el del Service (tres, si hay un canary: los pesos del ALB), cada uno con su propia lista de destinos sanos." }
+    ]},
+    { "id": "colgado", "label": "Un pod del gateway se cuelga", "steps": [
+      { "nodes": ["gwc"], "edges": [], "text": "El Gateway C se **cuelga**: acepta conexiones, pero no contesta nada." },
+      { "nodes": ["alb", "gwc"], "edges": ["alb>gwc"], "text": "El ALB todavía no lo sabe y le sigue mandando su parte. Cada una de esas requests espera hasta que quien llamó se rinde, a los 300 ms." },
+      { "nodes": ["alb", "gwc"], "edges": [], "text": "Los **health checks** fallan una vez, y otra. Con una pregunta cada 5 s y 3 fallas, pasan ≈ 15 s: ≈ 1,500 requests perdidas, si el pod tenía 100 por segundo." },
+      { "nodes": ["alb", "gwa", "gwb"], "edges": ["alb>gwa", "alb>gwb"], "text": "Al fallar la readiness, el controlador de AWS da de baja al pod en el ALB (o lo saca el chequeo del propio ALB, lo que pase primero), y el tráfico se reparte entre los que quedan. La liveness acabará por reiniciarlo." }
+    ]},
+    { "id": "cuota", "label": "Un cliente que se pasa de su cuota", "steps": [
+      { "nodes": ["moderacion", "alb"], "edges": ["moderacion>alb"], "text": "Un programa de moderación con un error manda **300 requests en 1 s**. El ALB, por sí solo, no limita por cliente: las deja pasar." },
+      { "nodes": ["alb", "gwa", "gwb", "gwc"], "edges": ["alb>gwa", "alb>gwb", "alb>gwc"], "text": "Las requests se reparten entre los gateways. Para que la cuota valga una sola vez, los tres consultan **el mismo balde** de moderación, en un almacén compartido, o cada uno lleva su parte." },
+      { "nodes": ["gwa", "gwb", "gwc"], "edges": [], "text": "Pasan las 100 fichas del balde y las 50 que caen en ese segundo: **≈ 150**. Las otras ≈ 150 reciben **429** con `Retry-After`, sin tocar a Triton." },
+      { "nodes": ["backend", "ta", "tb"], "edges": [], "text": "El backend del marketplace ni se entera: su cuota es aparte, y la GPU sigue libre para la foto de Ana." }
+    ]}
+  ]
+}

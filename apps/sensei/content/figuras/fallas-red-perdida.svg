@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 510" role="img" aria-labelledby="f-fallas-red-perdida-t" class="f-svg" style="max-width:420px">
+<title id="f-fallas-red-perdida-t">Dos conversaciones entre un cliente y un servidor, con el tiempo hacia abajo. Arriba, sin llave: el cliente pide publicar; el servidor publica la número 1; la respuesta se pierde en la red; al cliente se le vence el timeout y reintenta; el servidor publica la número 2 y contesta que todo salió bien. Resultado: dos publicaciones de los mismos tenis. Abajo, con llave: el cliente pide publicar con la llave K; el servidor publica la número 1 y guarda que la llave K dio la número 1; la respuesta se pierde; el cliente reintenta con la misma llave K; el servidor ve que K ya está y devuelve la número 1 sin publicar otra vez. Resultado: una sola publicación.</title>
+<defs><marker id="fp-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<text class="f-l" x="14" y="22">SIN LLAVE</text>
+<rect class="f-card" x="10" y="30" width="340" height="220" rx="16"/>
+<text class="f-t" x="60" y="52" text-anchor="middle" style="font-size:13px">Cliente</text>
+<text class="f-t" x="300" y="52" text-anchor="middle" style="font-size:13px">Servidor</text>
+<line class="f-linea" x1="60" y1="60" x2="60" y2="224" style="stroke-dasharray:3 4"/>
+<line class="f-linea" x1="300" y1="60" x2="300" y2="224" style="stroke-dasharray:3 4"/>
+<text class="f-s" x="180" y="74" text-anchor="middle" style="font-size:12px">publicar</text>
+<line class="f-flecha" x1="62" y1="80" x2="296" y2="80" marker-end="url(#fp-a)"/>
+<rect class="f-chip" x="206" y="88" width="88" height="20" rx="6"/>
+<text class="f-t" x="250" y="102" text-anchor="middle" style="font-size:12px">publica #1</text>
+<text class="f-s" x="236" y="118" text-anchor="middle" style="font-size:12px">la respuesta se pierde</text>
+<line class="f-flecha" x1="298" y1="124" x2="160" y2="124" style="stroke-dasharray:5 4"/>
+<line x1="144" y1="118" x2="156" y2="130" style="stroke:var(--o);stroke-width:2.5"/>
+<line x1="156" y1="118" x2="144" y2="130" style="stroke:var(--o);stroke-width:2.5"/>
+<text x="68" y="150" style="fill:var(--o);font:700 12px var(--sans)">se vence el timeout</text>
+<text class="f-s" x="180" y="166" text-anchor="middle" style="font-size:12px">reintento: publicar</text>
+<line class="f-flecha" x1="62" y1="172" x2="296" y2="172" marker-end="url(#fp-a)"/>
+<rect class="f-chip" x="206" y="180" width="88" height="20" rx="6" style="stroke:var(--o);stroke-width:2"/>
+<text class="f-t" x="250" y="194" text-anchor="middle" style="font-size:12px">publica #2</text>
+<text class="f-s" x="180" y="210" text-anchor="middle" style="font-size:12px">ok: #2</text>
+<line class="f-flecha" x1="298" y1="216" x2="64" y2="216" marker-end="url(#fp-a)"/>
+<text class="f-t" x="26" y="242" style="font-size:13px">Resultado: dos publicaciones</text>
+<text class="f-l" x="14" y="272">CON LLAVE: LA MISMA EN CADA INTENTO</text>
+<rect class="f-card" x="10" y="280" width="340" height="220" rx="16"/>
+<text class="f-t" x="60" y="302" text-anchor="middle" style="font-size:13px">Cliente</text>
+<text class="f-t" x="300" y="302" text-anchor="middle" style="font-size:13px">Servidor</text>
+<line class="f-linea" x1="60" y1="310" x2="60" y2="474" style="stroke-dasharray:3 4"/>
+<line class="f-linea" x1="300" y1="310" x2="300" y2="474" style="stroke-dasharray:3 4"/>
+<text class="f-s" x="180" y="324" text-anchor="middle" style="font-size:12px">publicar · llave K</text>
+<line class="f-flecha" x1="62" y1="330" x2="296" y2="330" marker-end="url(#fp-a)"/>
+<rect class="f-chip" x="164" y="338" width="130" height="20" rx="6"/>
+<text class="f-t" x="229" y="352" text-anchor="middle" style="font-size:12px">publica #1, guarda K</text>
+<text class="f-s" x="236" y="368" text-anchor="middle" style="font-size:12px">la respuesta se pierde</text>
+<line class="f-flecha" x1="298" y1="374" x2="160" y2="374" style="stroke-dasharray:5 4"/>
+<line x1="144" y1="368" x2="156" y2="380" style="stroke:var(--o);stroke-width:2.5"/>
+<line x1="156" y1="368" x2="144" y2="380" style="stroke:var(--o);stroke-width:2.5"/>
+<text x="68" y="400" style="fill:var(--o);font:700 12px var(--sans)">se vence el timeout</text>
+<text class="f-s" x="180" y="416" text-anchor="middle" style="font-size:12px">reintento · la misma llave K</text>
+<line class="f-flecha" x1="62" y1="422" x2="296" y2="422" marker-end="url(#fp-a)"/>
+<rect class="f-chip" x="164" y="430" width="130" height="20" rx="6" style="stroke:var(--g);stroke-width:2"/>
+<text class="f-t" x="229" y="444" text-anchor="middle" style="font-size:12px">K ya está: da #1</text>
+<text class="f-s" x="180" y="460" text-anchor="middle" style="font-size:12px">ok: #1</text>
+<line class="f-flecha" x1="298" y1="466" x2="64" y2="466" marker-end="url(#fp-a)"/>
+<text class="f-t" x="26" y="492" style="font-size:13px">Resultado: una sola publicación</text>
+</svg>

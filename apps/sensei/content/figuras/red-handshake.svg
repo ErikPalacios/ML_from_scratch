@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 410" role="img" aria-labelledby="f-red-handshake-t" class="f-svg" style="max-width:420px">
+<title id="f-red-handshake-t">Una conexión TCP nueva entre un cliente y un servidor a 30 milisegundos de distancia, con un RTT de 60 milisegundos. El tiempo corre hacia abajo. A los 0 milisegundos, el cliente manda SYN. A los 30 llega al servidor, que contesta SYN-ACK. A los 60 llega al cliente, que manda el ACK y, en seguida, la request. A los 90 la request llega al servidor, que contesta. A los 120 la respuesta llega al cliente. El primer RTT, de 0 a 60, es el handshake, y en él no viaja ningún dato; el segundo, de 60 a 120, es la request y su respuesta.</title>
+<defs><marker id="frh-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker><marker id="frh-b" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--b)"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="390" rx="16"/>
+<text class="f-l" x="24" y="34">UNA CONEXIÓN NUEVA · RTT DE 60 MS</text>
+<text class="f-t" x="120" y="62" text-anchor="middle" style="font-size:13px">cliente</text>
+<text class="f-t" x="290" y="62" text-anchor="middle" style="font-size:13px">servidor</text>
+<line class="f-linea" x1="120" y1="72" x2="120" y2="300"/>
+<line class="f-linea" x1="290" y1="72" x2="290" y2="300"/>
+<text class="f-s" x="298" y="84" style="font-size:12px">0 ms</text>
+<text class="f-s" x="298" y="134" style="font-size:12px">30</text>
+<text class="f-s" x="298" y="184" style="font-size:12px">60</text>
+<text class="f-s" x="298" y="234" style="font-size:12px">90</text>
+<text class="f-s" x="298" y="284" style="font-size:12px">120</text>
+<line class="f-flecha" x1="120" y1="80" x2="286" y2="129" marker-end="url(#frh-a)"/>
+<line class="f-flecha" x1="290" y1="130" x2="124" y2="179" marker-end="url(#frh-a)"/>
+<line x1="120" y1="180" x2="286" y2="229" style="stroke:var(--b);stroke-width:2.5" marker-end="url(#frh-b)"/>
+<line x1="290" y1="230" x2="124" y2="279" style="stroke:var(--b);stroke-width:2.5" marker-end="url(#frh-b)"/>
+<rect class="f-card" x="163" y="94" width="84" height="22" rx="6"/>
+<text class="f-s" x="205" y="110" text-anchor="middle" style="font-size:12px;font-weight:700">SYN</text>
+<rect class="f-card" x="163" y="144" width="84" height="22" rx="6"/>
+<text class="f-s" x="205" y="160" text-anchor="middle" style="font-size:12px;font-weight:700">SYN-ACK</text>
+<rect class="f-card" x="151" y="194" width="108" height="22" rx="6"/>
+<text class="f-s" x="205" y="210" text-anchor="middle" style="font-size:12px;font-weight:700">ACK + request</text>
+<rect class="f-card" x="163" y="244" width="84" height="22" rx="6"/>
+<text class="f-s" x="205" y="260" text-anchor="middle" style="font-size:12px;font-weight:700">respuesta</text>
+<line class="f-linea" x1="30" y1="80" x2="30" y2="178"/>
+<line class="f-linea" x1="30" y1="80" x2="38" y2="80"/>
+<line class="f-linea" x1="30" y1="178" x2="38" y2="178"/>
+<text class="f-s" x="44" y="124" style="font-size:12px;font-weight:700">1 RTT</text>
+<text class="f-s" x="44" y="140" style="font-size:12px">sin datos</text>
+<line x1="30" y1="182" x2="30" y2="280" style="stroke:var(--b);stroke-width:1.5"/>
+<line x1="30" y1="182" x2="38" y2="182" style="stroke:var(--b);stroke-width:1.5"/>
+<line x1="30" y1="280" x2="38" y2="280" style="stroke:var(--b);stroke-width:1.5"/>
+<text class="f-s" x="44" y="224" style="font-size:12px;font-weight:700">1 RTT</text>
+<text class="f-s" x="44" y="240" style="font-size:12px">la request</text>
+<rect class="f-chip" x="24" y="314" width="312" height="72" rx="10"/>
+<text class="f-t" x="38" y="338" style="font-size:13px">Conexión nueva: 2 RTT = 120 ms.</text>
+<text class="f-s" x="38" y="358" style="font-size:12px">Conexión ya abierta: 1 RTT = 60 ms.</text>
+<text class="f-s" x="38" y="376" style="font-size:12px">Con TLS encima, un RTT más (otra lección).</text>
+</svg>

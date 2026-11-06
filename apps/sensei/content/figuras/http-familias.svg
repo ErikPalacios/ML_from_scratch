@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 456" role="img" aria-labelledby="f-http-familias-t" class="f-svg" style="max-width:420px">
+<title id="f-http-familias-t">Las cinco familias de códigos de estado de HTTP. 1xx, informativo: sigue; por ejemplo, 101 al cambiar a WebSocket. 2xx, éxito: 200 y 202. 3xx, ve a otro lado: 301 y 308, el sitio se mudó, con el header Location que dice a dónde. 4xx, tu request está mal: 400, 401, 403, 404, 405, 413, 415, 422 y 429. Es culpa de quien pide y no se reintenta, salvo el 429 después de Retry-After. 5xx, yo fallé: 500, 502, 503 y 504. Es culpa de quien responde y se puede reintentar con cuidado, el 503 después de Retry-After. La línea entre el 4xx y el 5xx es la que más importa: separa «tu request está mal» de «yo fallé».</title>
+<rect class="f-card" x="10" y="10" width="340" height="436" rx="16"/>
+<text class="f-l" x="26" y="36">LA PRIMERA CIFRA DICE LA FAMILIA</text>
+<rect class="f-off" x="26" y="52" width="62" height="44" rx="8"/>
+<text x="57" y="80" text-anchor="middle" style="fill:var(--ink);font:800 16px var(--sans)">1xx</text>
+<text class="f-t" x="100" y="70" style="font-size:13px">Informativo: sigue</text>
+<text class="f-s" x="100" y="88" style="font-size:12px">101: la conexión pasa a WebSocket</text>
+<rect class="f-g" x="26" y="106" width="62" height="44" rx="8"/>
+<text class="f-pill-t" x="57" y="134" text-anchor="middle" style="font:800 16px var(--sans)">2xx</text>
+<text class="f-t" x="100" y="124" style="font-size:13px">Éxito</text>
+<text class="f-s" x="100" y="142" style="font-size:12px">200 salió bien · 202 lo recibí</text>
+<rect class="f-b" x="26" y="160" width="62" height="44" rx="8"/>
+<text class="f-pill-t" x="57" y="188" text-anchor="middle" style="font:800 16px var(--sans)">3xx</text>
+<text class="f-t" x="100" y="178" style="font-size:13px">Ve a otro lado</text>
+<text class="f-s" x="100" y="196" style="font-size:12px">301 · 308 se mudó: mira Location</text>
+<line x1="26" y1="220" x2="334" y2="220" style="stroke:var(--rule);stroke-width:1.5"/>
+<rect class="f-y" x="26" y="236" width="62" height="78" rx="8"/>
+<text x="57" y="281" text-anchor="middle" style="fill:var(--navy);font:800 16px var(--sans)">4xx</text>
+<text class="f-t" x="100" y="254" style="font-size:13px">Tu request está mal</text>
+<text class="f-s" x="100" y="272" style="font-size:12px">400 · 401 · 403 · 404 · 405</text>
+<text class="f-s" x="100" y="288" style="font-size:12px">413 · 415 · 422 · 429</text>
+<text class="f-s" x="100" y="306" style="font-size:12px;font-weight:700">Culpa de quien pide. No reintentes,</text>
+<text class="f-s" x="100" y="322" style="font-size:12px;font-weight:700">salvo el 429, tras Retry-After.</text>
+<line x1="26" y1="338" x2="334" y2="338" style="stroke:var(--o);stroke-width:2.5;stroke-dasharray:6 4"/>
+<rect x="180" y="328" width="150" height="20" rx="10" style="fill:var(--blk)"/>
+<text x="255" y="342" text-anchor="middle" style="fill:var(--o);font:700 12px var(--sans)">la línea que más importa</text>
+<rect class="f-o" x="26" y="356" width="62" height="78" rx="8"/>
+<text class="f-pill-t" x="57" y="401" text-anchor="middle" style="font:800 16px var(--sans)">5xx</text>
+<text class="f-t" x="100" y="374" style="font-size:13px">Yo fallé</text>
+<text class="f-s" x="100" y="392" style="font-size:12px">500 · 502 · 503 · 504</text>
+<text class="f-s" x="100" y="410" style="font-size:12px;font-weight:700">Culpa de quien responde. Reintenta</text>
+<text class="f-s" x="100" y="426" style="font-size:12px;font-weight:700">con cuidado; el 503, tras Retry-After.</text>
+</svg>

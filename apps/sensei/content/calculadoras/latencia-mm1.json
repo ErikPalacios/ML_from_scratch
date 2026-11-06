@@ -1,0 +1,72 @@
+{
+ "titulo": "La fila de un servidor (M/M/1)",
+ "intro": "Un servidor con una fila: llegan λ requests por segundo y cada una le cuesta S de [[tiempo-servicio|tiempo de servicio]]. Arranca en un pod del gateway de C01 en el pico de diseño.",
+ "entradas": [
+  {
+   "id": "s",
+   "label": "Tiempo de servicio S (6 = la CPU del gateway por foto)",
+   "min": 1,
+   "max": 50,
+   "paso": 0.5,
+   "valor": 6,
+   "unidad": "ms"
+  },
+  {
+   "id": "lam",
+   "label": "Llegadas λ, en requests por segundo (100 = un pod en el pico de diseño)",
+   "min": 1,
+   "max": 400,
+   "paso": 1,
+   "valor": 100
+  }
+ ],
+ "calculos": [
+  {
+   "id": "rho",
+   "formula": "lam * s / 1000"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "Utilización ρ = λ × S",
+   "formula": "rho",
+   "formato": "pct",
+   "barra": true,
+   "nota": "más de 100 %: llega más trabajo del que cabe"
+  },
+  {
+   "label": "Tiempo promedio en el sistema, W = S ÷ (1 − ρ)",
+   "formula": "s / max(1 - rho, 0)",
+   "formato": "ms",
+   "decimales": 1,
+   "nota": "solo existe si ρ es menor que 100 %; arriba sale «—»"
+  },
+  {
+   "label": "Espera promedio en la fila",
+   "formula": "s / max(1 - rho, 0) - s",
+   "formato": "ms",
+   "decimales": 1,
+   "nota": "W − S: lo que no es trabajo"
+  },
+  {
+   "label": "p99 ≈ 4.6 × W",
+   "formula": "s / max(1 - rho, 0) * log(100)",
+   "formato": "ms",
+   "decimales": 0,
+   "nota": "en M/M/1, W × ln(100)"
+  },
+  {
+   "label": "Requests adentro, en promedio (Little: λ × W)",
+   "formula": "lam * s / max(1 - rho, 0) / 1000",
+   "formato": "num",
+   "decimales": 1
+  },
+  {
+   "label": "Lo que crece la fila cada segundo",
+   "formula": "max(lam - 1000 / s, 0)",
+   "formato": "int",
+   "nota": "0 mientras ρ sea menor que 100 %; arriba, la fila no tiene fondo"
+  }
+ ],
+ "nota": "Prueba S = 3 con 150 llegadas: con la mitad de trabajo por foto, el núcleo baja a 45 % y el p99 a ≈ 25 ms. Bajar el tiempo de servicio también baja la utilización."
+}

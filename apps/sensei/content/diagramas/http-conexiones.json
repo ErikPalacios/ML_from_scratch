@@ -1,0 +1,54 @@
+{
+  "titulo": "Se reparten conexiones, no requests",
+  "width": 78,
+  "height": 44,
+  "lanes": [
+    { "id": "gws", "label": "Gateways", "kind": "online", "x": 0, "y": 0, "w": 22, "h": 44 },
+    { "id": "tris", "label": "Triton", "kind": "neutral", "x": 56, "y": 0, "w": 22, "h": 44 }
+  ],
+  "nodes": [
+    { "id": "g1", "label": "Gateway A", "sub": "un pod", "kind": "service",
+      "x": 2, "y": 9, "w": 18, "h": 8,
+      "note": "Un pod del gateway. Con HTTP/1.1 tiene un [[pool-conexiones|pool]] de varias conexiones hacia Triton; con [[http2|HTTP/2]] o [[grpc|gRPC]], normalmente una sola, larga, por la que manda todas sus requests." },
+    { "id": "g2", "label": "Gateway B", "sub": "otro pod", "kind": "service",
+      "x": 2, "y": 29, "w": 18, "h": 8,
+      "note": "Otro pod del gateway, igual al primero. Cada uno elige a qué Triton conectarse solo en el momento de abrir cada conexión." },
+    { "id": "svc", "label": "Service", "sub": "el nombre fijo de Triton", "kind": "edge",
+      "x": 30, "y": 19, "w": 18, "h": 8,
+      "note": "Un [[service-k8s|Service de Kubernetes]]. No es un programa por el que pasen las requests: son reglas en cada máquina que eligen un pod de Triton **cuando se abre una conexión**. Lo que viaje después por esa conexión ya no lo mira." },
+    { "id": "t1", "label": "Triton 1", "sub": "ya estaba", "kind": "gpu",
+      "x": 58, "y": 4, "w": 18, "h": 8,
+      "note": "Un pod de Triton que ya estaba corriendo. Tiene las conexiones que se abrieron cuando llegó." },
+    { "id": "t2", "label": "Triton 2", "sub": "ya estaba", "kind": "gpu",
+      "x": 58, "y": 18, "w": 18, "h": 8,
+      "note": "Otro pod de Triton que ya estaba. Con HTTP/2, cada gateway quedó pegado a uno de estos dos." },
+    { "id": "t3", "label": "Triton 3", "sub": "recién llegado", "kind": "gpu",
+      "x": 58, "y": 32, "w": 18, "h": 8,
+      "note": "El pod que agregó el autoescalado porque subió el tráfico. Solo recibe trabajo cuando alguien **abre una conexión nueva** y le toca a él." }
+  ],
+  "edges": [
+    { "from": "g1", "to": "svc", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "g2", "to": "svc", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "svc", "to": "t1", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "svc", "to": "t2", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "svc", "to": "t3", "kind": "online", "dashed": true, "fromSide": "r", "toSide": "l" }
+  ],
+  "flows": [
+    { "id": "pool", "label": "HTTP/1.1 con un pool",
+      "steps": [
+        { "nodes": ["g1", "g2"], "edges": [], "text": "Cada gateway tiene un **pool** de varias conexiones keep-alive hacia Triton, porque en HTTP/1.1 cada conexión lleva una request a la vez." },
+        { "nodes": ["g1", "g2", "svc", "t1", "t2"], "edges": ["g1>svc", "g2>svc", "svc>t1", "svc>t2"], "text": "Al abrir cada conexión, el **Service** eligió un Triton. Con varias conexiones por gateway, el trabajo queda repartido entre los dos." },
+        { "nodes": ["svc", "t3"], "edges": ["svc>t3"], "text": "Cuando llega Triton 3, las conexiones que el pool abre o renueva empiezan a tocarle. Tarda un rato, pero recibe su parte." }
+      ] },
+    { "id": "h2", "label": "HTTP/2: una conexión por gateway",
+      "steps": [
+        { "nodes": ["g1", "svc", "t1"], "edges": ["g1>svc", "svc>t1"], "text": "Con **HTTP/2**, el gateway A abre una sola conexión y le toca Triton 1. Manda por ahí todas sus requests, intercaladas, durante horas." },
+        { "nodes": ["g2", "svc", "t2"], "edges": ["g2>svc", "svc>t2"], "text": "El gateway B quedó pegado a Triton 2. Con dos gateways y dos Triton, hubo suerte: cada uno tiene la mitad." }
+      ] },
+    { "id": "nuevo", "label": "Llega un Triton nuevo",
+      "steps": [
+        { "nodes": ["t3"], "edges": [], "text": "Subió el tráfico y llegó **Triton 3**. Pero nadie abre conexiones nuevas: las dos que hay siguen vivas." },
+        { "nodes": ["t1", "t2", "t3"], "edges": [], "text": "Triton 1 y 2 siguen saturados y Triton 3 casi no recibe nada. Las salidas: repartir por request con un intermediario, ponerle un tiempo de vida máximo a cada conexión o que el cliente reparta él mismo." }
+      ] }
+  ]
+}

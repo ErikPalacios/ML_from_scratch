@@ -1,0 +1,99 @@
+{
+  "titulo": "Cuánto pesa un tensor según cómo lo mandes",
+  "intro": "Elige cuántos números lleva el [[tensor]], cuántos bytes ocupa cada uno en binario y cuántas letras en [[json|JSON]]. Arranca con la foto de Ana en C01, a 500 requests por segundo.",
+  "entradas": [
+    {
+      "id": "n",
+      "label": "Números del tensor (150528 = la foto de C01 · 768 = un embedding)",
+      "min": 1,
+      "max": 100000000,
+      "paso": 1,
+      "valor": 150528,
+      "tipo": "numero"
+    },
+    {
+      "id": "b",
+      "label": "Bytes por número en binario: 1 = uint8 · 2 = FP16 · 4 = FP32",
+      "min": 1,
+      "max": 8,
+      "paso": 1,
+      "valor": 4
+    },
+    {
+      "id": "j",
+      "label": "Bytes por número en JSON (≈ 20.4 con todas las cifras · ≈ 8.35 con 4 decimales)",
+      "min": 2,
+      "max": 25,
+      "paso": 0.1,
+      "valor": 20.4
+    },
+    {
+      "id": "q",
+      "label": "Requests por segundo",
+      "min": 1,
+      "max": 5000,
+      "paso": 1,
+      "valor": 500,
+      "unidad": "req/s"
+    }
+  ],
+  "calculos": [
+    {
+      "id": "bin",
+      "formula": "n * b"
+    },
+    {
+      "id": "b64",
+      "formula": "4 * ceil(bin / 3)"
+    },
+    {
+      "id": "js",
+      "formula": "n * j"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "En binario",
+      "formula": "bin",
+      "formato": "bytes",
+      "nota": "la extensión binaria de Triton o gRPC"
+    },
+    {
+      "label": "En base64, dentro de un JSON",
+      "formula": "b64",
+      "formato": "bytes",
+      "nota": "4 letras por cada 3 bytes"
+    },
+    {
+      "label": "En JSON, como texto",
+      "formula": "js",
+      "formato": "bytes"
+    },
+    {
+      "label": "JSON contra binario",
+      "formula": "js / bin",
+      "formato": "x",
+      "decimales": 1
+    },
+    {
+      "label": "Red en binario, en Gb/s",
+      "formula": "bin * q * 8 / 1e9",
+      "formato": "num",
+      "decimales": 2
+    },
+    {
+      "label": "Red en base64, en Gb/s",
+      "formula": "b64 * q * 8 / 1e9",
+      "formato": "num",
+      "decimales": 2
+    },
+    {
+      "label": "Red en JSON, en Gb/s",
+      "formula": "js * q * 8 / 1e9",
+      "formato": "num",
+      "decimales": 2,
+      "nota": "cada una de las dos máquinas del gateway de C01 sostiene ≈ 1.56 Gb/s"
+    }
+  ],
+  "nota": "Pon 1 byte por número (uint8) y mira la red en binario: ≈ 0.6 Gb/s, la mejora que la Ronda deja anotada para C01. En JSON, los píxeles como enteros de 0 a 255 ocupan ≈ 4.6 letras cada uno: pon 4.6 en la tercera entrada y compara."
+}

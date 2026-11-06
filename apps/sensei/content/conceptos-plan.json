@@ -23,6 +23,16 @@
     "sistema-operativo": ["sistema-operativo", "kernel", "linux", "sistema-archivos", "ruta", "permisos", "root", "montaje", "arquitectura-cpu", "contenedor-vs-vm", "syscall", "cgroup"],
     "async": ["io", "bloqueo", "cpu-bound", "io-bound", "async", "event-loop", "corrutina", "gil", "threadpool", "multiproceso", "worker", "ley-little"],
     "regiones": ["region", "zona-disponibilidad", "sla"],
-    "fallas-red": ["timeout"]
+    "red": ["protocolo", "paquete-red", "direccion-ip", "ip-privada", "puerto", "socket", "localhost", "cliente", "tcp", "udp", "handshake", "rtt", "dns", "ttl", "capas-red"],
+    "http": ["http", "url", "metodo-http", "header", "body", "codigo-estado", "https", "keep-alive", "pool-conexiones", "http2", "cookie"],
+    "apis": ["endpoint", "rest", "json", "serializacion", "esquema-api", "versionado-api", "grpc", "protobuf", "streaming", "sse", "websocket", "polling", "webhook", "base64", "protocolo-inferencia"],
+    "balanceo": ["balanceador", "algoritmo-balanceo", "proxy", "proxy-inverso", "api-gateway", "ingress", "service-k8s", "health-check", "rate-limit", "token-bucket", "sticky-session", "service-mesh", "sidecar", "cdn", "ruteo-por-peso"],
+    "fallas-red": ["timeout", "deadline", "reintento", "backoff-exponencial", "jitter", "retry-after", "tormenta-reintentos", "presupuesto-reintentos", "idempotencia", "llave-idempotencia", "circuit-breaker", "degradacion", "load-shedding", "hedging", "fail-open"],
+    "latencia": ["latencia-punta-a-punta", "tiempo-servicio", "tiempo-en-cola", "utilizacion", "teoria-colas", "saturacion", "cuello-botella", "capacidad", "headroom", "prueba-carga", "carga-abierta", "backpressure", "cola-acotada", "batching-dinamico", "goodput"],
+    "colas": ["cola-mensajes", "at-least-once"],
+    "redes-nube": ["vpc", "nat", "egress"],
+    "cifrado": ["tls", "mtls"],
+    "identidad": ["jwt", "api-key"],
+    "e10-rollout": ["canary"]
   }
 }

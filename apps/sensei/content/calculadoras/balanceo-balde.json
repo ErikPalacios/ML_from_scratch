@@ -1,0 +1,22 @@
+{
+  "titulo": "Un token bucket en vivo",
+  "intro": "Un balde de **B** fichas que se rellena a **r** por segundo; cada request gasta una. Llega una ráfaga de N requests en T segundos, con el balde lleno. Arranca con el equipo de moderación de C01: 50 por segundo, balde de 100 y 300 requests en 1 s.",
+  "entradas": [
+    { "id": "r", "label": "Ritmo sostenido r (fichas por segundo)", "min": 1, "max": 1000, "paso": 1, "valor": 50 },
+    { "id": "b", "label": "Tamaño del balde B (la ráfaga que toleras)", "min": 1, "max": 2000, "paso": 1, "valor": 100 },
+    { "id": "n", "label": "Requests de la ráfaga", "min": 1, "max": 10000, "paso": 1, "valor": 300, "tipo": "numero" },
+    { "id": "t", "label": "En cuántos segundos llegan", "min": 0.1, "max": 60, "paso": 0.1, "valor": 1 }
+  ],
+  "calculos": [
+    { "id": "pasan", "formula": "min(n, b + r * t)" }
+  ],
+  "salidas": [
+    { "label": "Ritmo de llegada", "formula": "n / t", "formato": "num", "decimales": 1, "nota": "requests por segundo" },
+    { "label": "Pasan", "formula": "pasan", "formato": "int", "nota": "las del balde más las que caen mientras dura la ráfaga" },
+    { "label": "Reciben 429", "formula": "n - pasan", "formato": "int" },
+    { "label": "Parte rechazada", "formula": "(n - pasan) / n", "formato": "pct", "barra": true },
+    { "label": "Segundos hasta vaciar el balde", "formula": "n / t > r ? b / (n / t - r) : 0", "formato": "num", "decimales": 2, "nota": "0: con ese ritmo no se vacía" },
+    { "label": "Segundos para rellenarlo completo", "formula": "b / r", "formato": "num", "decimales": 1, "nota": "si el cliente se calma" }
+  ],
+  "nota": "Si el ritmo de llegada es menor que r, no se rechaza nada, por larga que sea la ráfaga. Si es mayor, el balde aguanta B y después solo pasan r por segundo."
+}

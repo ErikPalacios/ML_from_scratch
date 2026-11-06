@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" role="img" aria-labelledby="f-red-capas-t" class="f-svg" style="max-width:420px">
+<title id="f-red-capas-t">Lo que manda el gateway a Triton, como sobres dentro de sobres. Por dentro van los datos: el tensor de la foto, de 602,112 bytes. Los envuelve HTTP, la capa 7, que dice qué se pide: POST a /v2/models/classifier/infer. Lo envuelve TCP, la capa 4, que dice a qué programa va: del puerto 51234 al 8000, en orden. Lo envuelve IP, la capa 3, que dice a qué máquina: de 10.0.3.15 a 10.0.3.27. Y por fuera va la capa de enlace, la capa 2, Ethernet o Wi-Fi, que lo lleva solo hasta el siguiente aparato del camino. Cada capa agrega su sobre al salir y lo quita al llegar.</title>
+<rect class="f-card" x="10" y="10" width="340" height="400" rx="16"/>
+<text class="f-l" x="24" y="34">SOBRES DENTRO DE SOBRES</text>
+<rect class="f-off" x="20" y="46" width="320" height="300" rx="12"/>
+<text class="f-l" x="32" y="66">ENLACE · CAPA 2 · ¿AL SIGUIENTE APARATO?</text>
+<text class="f-s" x="32" y="84" style="font-size:12px">Ethernet o Wi-Fi: solo hasta el siguiente salto</text>
+<rect class="f-card" x="30" y="96" width="300" height="240" rx="10"/>
+<text class="f-l" x="42" y="116">IP · CAPA 3 · ¿A QUÉ MÁQUINA?</text>
+<text class="f-s" x="42" y="134" style="font-size:12px">de 10.0.3.15 a 10.0.3.27</text>
+<rect class="f-chip" x="40" y="146" width="280" height="180" rx="10"/>
+<text class="f-l" x="52" y="166">TCP · CAPA 4 · ¿A QUÉ PROGRAMA?</text>
+<text class="f-s" x="52" y="184" style="font-size:12px">del puerto 51234 al 8000, en orden</text>
+<rect class="f-card" x="50" y="196" width="260" height="120" rx="10"/>
+<text class="f-l" x="62" y="216">HTTP · CAPA 7 · ¿QUÉ SE PIDE?</text>
+<text class="f-s" x="62" y="234" style="font-size:12px">POST /v2/models/classifier/infer</text>
+<rect class="f-o" x="60" y="246" width="240" height="60" rx="8"/>
+<text x="180" y="270" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--sans)">los datos: el tensor de la foto</text>
+<text x="180" y="290" text-anchor="middle" style="fill:var(--navy);font:400 12px var(--sans)">602,112 bytes</text>
+<rect class="f-chip" x="24" y="356" width="312" height="44" rx="10"/>
+<text class="f-s" x="36" y="374" style="font-size:12px;font-weight:700">Cada capa agrega su sobre al salir</text>
+<text class="f-s" x="36" y="391" style="font-size:12px">y lo quita al llegar, de afuera hacia adentro.</text>
+</svg>

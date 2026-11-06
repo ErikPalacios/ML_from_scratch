@@ -1,0 +1,45 @@
+{
+  "titulo": "Cómo se resuelve un nombre: la primera vez y las siguientes",
+  "width": 78,
+  "height": 56,
+  "lanes": [
+    { "id": "maquina", "label": "Tu lado: el que pregunta", "kind": "neutral", "x": 0, "y": 0, "w": 50, "h": 56 },
+    { "id": "internet", "label": "Servidores DNS de internet", "kind": "online", "x": 52, "y": 0, "w": 26, "h": 56 }
+  ],
+  "nodes": [
+    { "id": "app", "label": "Tu programa", "sub": "pide api.example.com", "kind": "client", "x": 1, "y": 22, "w": 19, "h": 9,
+      "note": "Un programa casi nunca sabe IPs: sabe nombres. Le pide al sistema operativo la [[direccion-ip|IP]] de un nombre (en Python, `socket.getaddrinfo`) y el sistema le pregunta a su resolver." },
+    { "id": "resolver", "label": "Resolver", "sub": "con caché", "kind": "service", "x": 29, "y": 22, "w": 18, "h": 9,
+      "note": "El servidor de [[dns|DNS]] que hace el trabajo por ti: el de tu proveedor de internet, el de la nube o uno público. Pregunta de servidor en servidor y guarda cada respuesta en su caché lo que diga su [[ttl|TTL]]." },
+    { "id": "raiz", "label": "Raíz", "sub": "¿quién lleva .com?", "kind": "external", "x": 57, "y": 4, "w": 20, "h": 9,
+      "note": "La punta del árbol de nombres. No sabe la IP de api.example.com, pero sabe qué servidores llevan cada terminación: .com, .mx, .org. Hay 13 nombres de servidores raíz, cada uno con muchas copias por el mundo." },
+    { "id": "tld", "label": "Servidor de .com", "sub": "¿quién lleva example?", "kind": "external", "x": 57, "y": 22, "w": 20, "h": 9,
+      "note": "El servidor de la terminación (*top-level domain*, TLD). Tampoco sabe la IP final: sabe qué servidor es el **autoritativo** de example.com, el que tiene la respuesta oficial." },
+    { "id": "auth", "label": "Autoritativo", "sub": "de example.com", "kind": "external", "x": 57, "y": 40, "w": 20, "h": 9,
+      "note": "El que manda en ese nombre: aquí la empresa escribió que api.example.com es 203.0.113.10, con un TTL de 300 s. Si cambia de máquina, cambia este registro." }
+  ],
+  "edges": [
+    { "from": "app", "to": "resolver", "kind": "online", "fromSide": "r", "toSide": "l", "label": "¿IP?" },
+    { "from": "resolver", "to": "raiz", "kind": "online", "fromSide": "t", "toSide": "l", "via": [[38, 8.5]], "label": "1" },
+    { "from": "resolver", "to": "tld", "kind": "online", "fromSide": "r", "toSide": "l", "label": "2" },
+    { "from": "resolver", "to": "auth", "kind": "online", "fromSide": "b", "toSide": "l", "via": [[38, 44.5]], "label": "3" },
+    { "from": "resolver", "to": "app", "kind": "online", "dashed": true, "fromSide": "b", "toSide": "b", "via": [[34, 52], [10.5, 52]], "label": "IP + TTL" }
+  ],
+  "flows": [
+    { "id": "primera", "label": "La primera vez: nadie lo sabe",
+      "steps": [
+        { "nodes": ["app"], "edges": [], "text": "Tu programa quiere hablar con **api.example.com**. Para abrir una conexión necesita una **IP**, no un nombre." },
+        { "nodes": ["app", "resolver"], "edges": ["app>resolver"], "text": "Le pregunta al **resolver**. Su caché está vacía para ese nombre: tiene que averiguarlo." },
+        { "nodes": ["resolver", "raiz"], "edges": ["resolver>raiz"], "text": "Pregunta a la **raíz**. La raíz no sabe la IP, pero contesta «pregúntale a los servidores de **.com**, que están en tal IP»." },
+        { "nodes": ["resolver", "tld"], "edges": ["resolver>tld"], "text": "Pregunta a **.com**. Tampoco sabe la IP: contesta «el autoritativo de **example.com** es tal servidor»." },
+        { "nodes": ["resolver", "auth"], "edges": ["resolver>auth"], "text": "Pregunta al **autoritativo**, que sí sabe: **203.0.113.10, válida por 300 s**. Cada pregunta fue una ida y vuelta: la primera vez cuesta varios **RTT**." },
+        { "nodes": ["resolver", "app"], "edges": ["resolver>app"], "text": "El resolver guarda la respuesta en su caché, con su **TTL**, y se la da a tu programa, que también la puede guardar. Ahora sí: a abrir la conexión TCP." }
+      ] },
+    { "id": "cache", "label": "Las siguientes: la caché",
+      "steps": [
+        { "nodes": ["app", "resolver"], "edges": ["app>resolver"], "text": "Un minuto después, otra request al mismo nombre. El resolver la tiene en caché y el **TTL** no ha vencido." },
+        { "nodes": ["resolver", "app"], "edges": ["resolver>app"], "text": "Contesta de inmediato, sin preguntarle a nadie: una sola ida y vuelta corta, hasta el resolver, en vez de varias por internet. Así, casi todas las búsquedas terminan en el resolver." },
+        { "nodes": ["auth"], "edges": [], "text": "El precio: si la empresa cambia la IP en el **autoritativo**, los que la tengan en caché siguen usando la vieja **hasta que venza su TTL**. Con 300 s, hasta 5 minutos." }
+      ] }
+  ]
+}

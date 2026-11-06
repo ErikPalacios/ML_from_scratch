@@ -198,8 +198,8 @@
       "modulo": "4 · La red y la web",
       "fase": 5,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/red/"
     },
     {
       "id": "http",
@@ -207,8 +207,8 @@
       "modulo": "4 · La red y la web",
       "fase": 5,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/http/"
     },
     {
       "id": "apis",
@@ -216,8 +216,8 @@
       "modulo": "4 · La red y la web",
       "fase": 5,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/apis/"
     },
     {
       "id": "balanceo",
@@ -225,8 +225,8 @@
       "modulo": "4 · La red y la web",
       "fase": 5,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/balanceo/"
     },
     {
       "id": "fallas-red",
@@ -234,8 +234,8 @@
       "modulo": "4 · La red y la web",
       "fase": 5,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/fallas-red/"
     },
     {
       "id": "latencia",
@@ -243,8 +243,8 @@
       "modulo": "4 · La red y la web",
       "fase": 5,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/latencia/"
     },
     {
       "id": "formatos",

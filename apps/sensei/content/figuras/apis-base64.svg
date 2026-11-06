@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" role="img" aria-labelledby="f-apis-base64-t" class="f-svg" style="max-width:420px">
+<title id="f-apis-base64-t">Cómo base64 convierte 3 bytes en 4 letras. Arriba, los tres primeros bytes de cualquier JPEG: FF, D8 y FF. En medio, sus 24 bits seguidos: 11111111, 11011000, 11111111. Abajo, los mismos 24 bits cortados en cuatro grupos de 6: 111111, 111101, 100011 y 111111, que valen 63, 61, 35 y 63, y que en el alfabeto de base64 son las letras diagonal, 9, j y diagonal. Por eso todo JPEG escrito en base64 empieza con diagonal 9 j diagonal. Cuatro letras por cada tres bytes: un 33 por ciento más.</title>
+<rect class="f-card" x="10" y="10" width="340" height="310" rx="16"/>
+<text class="f-l" x="28" y="36">3 BYTES → 24 BITS DE 6 EN 6 → 4 LETRAS</text>
+<rect class="f-chip" x="24" y="50" width="103" height="34" rx="8"/>
+<text class="f-t" x="75.5" y="73" text-anchor="middle" style="font:800 16px var(--mono)">FF</text>
+<rect class="f-chip" x="128" y="50" width="103" height="34" rx="8"/>
+<text class="f-t" x="179.5" y="73" text-anchor="middle" style="font:800 16px var(--mono)">D8</text>
+<rect class="f-chip" x="232" y="50" width="103" height="34" rx="8"/>
+<text class="f-t" x="283.5" y="73" text-anchor="middle" style="font:800 16px var(--mono)">FF</text>
+<rect class="f-b" x="24" y="104" width="12" height="24" rx="2"/>
+<text x="30" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-b" x="37" y="104" width="12" height="24" rx="2"/>
+<text x="43" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-b" x="50" y="104" width="12" height="24" rx="2"/>
+<text x="56" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-b" x="63" y="104" width="12" height="24" rx="2"/>
+<text x="69" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-b" x="76" y="104" width="12" height="24" rx="2"/>
+<text x="82" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-b" x="89" y="104" width="12" height="24" rx="2"/>
+<text x="95" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-p" x="102" y="104" width="12" height="24" rx="2"/>
+<text x="108" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-p" x="115" y="104" width="12" height="24" rx="2"/>
+<text x="121" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-p" x="128" y="104" width="12" height="24" rx="2"/>
+<text x="134" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-p" x="141" y="104" width="12" height="24" rx="2"/>
+<text x="147" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-p" x="154" y="104" width="12" height="24" rx="2"/>
+<text x="160" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">0</text>
+<rect class="f-p" x="167" y="104" width="12" height="24" rx="2"/>
+<text x="173" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-b" x="180" y="104" width="12" height="24" rx="2"/>
+<text x="186" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-b" x="193" y="104" width="12" height="24" rx="2"/>
+<text x="199" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">0</text>
+<rect class="f-b" x="206" y="104" width="12" height="24" rx="2"/>
+<text x="212" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">0</text>
+<rect class="f-b" x="219" y="104" width="12" height="24" rx="2"/>
+<text x="225" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">0</text>
+<rect class="f-b" x="232" y="104" width="12" height="24" rx="2"/>
+<text x="238" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-b" x="245" y="104" width="12" height="24" rx="2"/>
+<text x="251" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-p" x="258" y="104" width="12" height="24" rx="2"/>
+<text x="264" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-p" x="271" y="104" width="12" height="24" rx="2"/>
+<text x="277" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-p" x="284" y="104" width="12" height="24" rx="2"/>
+<text x="290" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-p" x="297" y="104" width="12" height="24" rx="2"/>
+<text x="303" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-p" x="310" y="104" width="12" height="24" rx="2"/>
+<text x="316" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<rect class="f-p" x="323" y="104" width="12" height="24" rx="2"/>
+<text x="329" y="121" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">1</text>
+<path class="f-linea" d="M127.5 86 L127.5 134 M231.5 86 L231.5 134" style="stroke-dasharray:3 3"/>
+<path class="f-linea" d="M25 138 L25 144 L100 144 L100 138 M103 138 L103 144 L178 144 L178 138 M181 138 L181 144 L256 144 L256 138 M259 138 L259 144 L334 144 L334 138"/>
+<text class="f-t" x="62.5" y="166" text-anchor="middle" style="font-size:14px">63</text>
+<text class="f-t" x="140.5" y="166" text-anchor="middle" style="font-size:14px">61</text>
+<text class="f-t" x="218.5" y="166" text-anchor="middle" style="font-size:14px">35</text>
+<text class="f-t" x="296.5" y="166" text-anchor="middle" style="font-size:14px">63</text>
+<rect class="f-dark" x="40.5" y="178" width="44" height="40" rx="8"/>
+<text x="62.5" y="205" text-anchor="middle" class="f-dark-t" style="font:800 20px var(--mono)">/</text>
+<rect class="f-dark" x="118.5" y="178" width="44" height="40" rx="8"/>
+<text x="140.5" y="205" text-anchor="middle" class="f-dark-t" style="font:800 20px var(--mono)">9</text>
+<rect class="f-dark" x="196.5" y="178" width="44" height="40" rx="8"/>
+<text x="218.5" y="205" text-anchor="middle" class="f-dark-t" style="font:800 20px var(--mono)">j</text>
+<rect class="f-dark" x="274.5" y="178" width="44" height="40" rx="8"/>
+<text x="296.5" y="205" text-anchor="middle" class="f-dark-t" style="font:800 20px var(--mono)">/</text>
+<rect class="f-chip" x="20" y="236" width="320" height="70" rx="10"/>
+<text class="f-s" x="28" y="256" style="font-size:12px">Alfabeto: A–Z (0–25), a–z (26–51), 0–9 (52–61), + y /</text>
+<text class="f-t" x="28" y="276" style="font-size:13px">Todo JPEG en base64 empieza con «/9j/».</text>
+<text class="f-s" x="28" y="295" style="font-size:12px">4 letras por cada 3 bytes: 33 % más.</text>
+</svg>

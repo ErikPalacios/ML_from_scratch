@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 424" role="img" aria-labelledby="f-http-conexion-t" class="f-svg" style="max-width:420px">
+<title id="f-http-conexion-t">La misma request con un RTT de 50 ms y 40 ms de trabajo del servidor, en dos líneas de tiempo que bajan. A la izquierda, con una conexión nueva: primero el saludo de TCP, una ida y vuelta de 50 ms; después el saludo de TLS 1.3, otra ida y vuelta; después la request, los 40 ms del servidor y la respuesta, que llega a los 190 ms. A la derecha, con una conexión que ya estaba abierta: solo la request, los 40 ms del servidor y la respuesta, que llega a los 90 ms. Se ahorran 100 ms, los dos saludos.</title>
+<rect class="f-card" x="10" y="10" width="340" height="404" rx="16"/>
+<text class="f-l" x="26" y="36">RTT DE 50 MS · EL TIEMPO CORRE HACIA ABAJO</text>
+<text class="f-l" x="95" y="62" text-anchor="middle">CONEXIÓN NUEVA</text>
+<text class="f-l" x="265" y="62" text-anchor="middle">YA ABIERTA</text>
+<text class="f-s" x="40" y="84" text-anchor="middle" style="font-size:12px">cliente</text>
+<text class="f-s" x="150" y="84" text-anchor="middle" style="font-size:12px">servidor</text>
+<text class="f-s" x="210" y="84" text-anchor="middle" style="font-size:12px">cliente</text>
+<text class="f-s" x="320" y="84" text-anchor="middle" style="font-size:12px">servidor</text>
+<rect x="40" y="100" width="110" height="60" style="fill:var(--p);opacity:.16"/>
+<rect x="40" y="160" width="110" height="60" style="fill:var(--y);opacity:.22"/>
+<rect x="40" y="220" width="110" height="108" style="fill:var(--g);opacity:.16"/>
+<rect x="210" y="100" width="110" height="108" style="fill:var(--g);opacity:.16"/>
+<line class="f-linea" x1="40" y1="92" x2="40" y2="336"/>
+<line class="f-linea" x1="150" y1="92" x2="150" y2="336"/>
+<line class="f-linea" x1="210" y1="92" x2="210" y2="216"/>
+<line class="f-linea" x1="320" y1="92" x2="320" y2="216"/>
+<line class="f-flecha" x1="40" y1="100" x2="146" y2="129"/>
+<polygon class="f-punta" points="150,130 141.23,131.76 143.33,124.04"/>
+<line class="f-flecha" x1="150" y1="130" x2="44" y2="159"/>
+<polygon class="f-punta" points="40,160 46.67,154.04 48.77,161.76"/>
+<line class="f-flecha" x1="40" y1="160" x2="146" y2="189"/>
+<polygon class="f-punta" points="150,190 141.23,191.76 143.33,184.04"/>
+<line class="f-flecha" x1="150" y1="190" x2="44" y2="219"/>
+<polygon class="f-punta" points="40,220 46.67,214.04 48.77,221.76"/>
+<line class="f-flecha" x1="40" y1="220" x2="146" y2="249"/>
+<polygon class="f-punta" points="150,250 141.23,251.76 143.33,244.04"/>
+<rect class="f-o" x="147" y="250" width="6" height="48" rx="2"/>
+<text class="f-s" x="141" y="278" text-anchor="end" style="font-size:12px;font-weight:700">40 ms</text>
+<line class="f-flecha" x1="150" y1="298" x2="44" y2="327"/>
+<polygon class="f-punta" points="40,328 46.67,322.04 48.77,329.76"/>
+<text class="f-t" x="157" y="128" style="font-size:12px">TCP</text>
+<text class="f-s" x="157" y="144" style="font-size:12px">1 RTT</text>
+<text class="f-t" x="157" y="188" style="font-size:12px">TLS</text>
+<text class="f-s" x="157" y="204" style="font-size:12px">1 RTT</text>
+<text class="f-t" x="157" y="266" style="font-size:12px">HTTP</text>
+<text class="f-s" x="157" y="282" style="font-size:12px">1 RTT</text>
+<line class="f-flecha" x1="210" y1="100" x2="316" y2="129"/>
+<polygon class="f-punta" points="320,130 311.23,131.76 313.33,124.04"/>
+<rect class="f-o" x="317" y="130" width="6" height="48" rx="2"/>
+<text class="f-s" x="311" y="158" text-anchor="end" style="font-size:12px;font-weight:700">40 ms</text>
+<line class="f-flecha" x1="320" y1="178" x2="214" y2="207"/>
+<polygon class="f-punta" points="210,208 216.67,202.04 218.77,209.76"/>
+<text class="f-t" x="265" y="236" text-anchor="middle" style="font-size:13px">90 ms</text>
+<text class="f-s" x="265" y="252" text-anchor="middle" style="font-size:12px">llega la respuesta</text>
+<rect class="f-chip" x="194" y="268" width="140" height="62" rx="8"/>
+<text class="f-s" x="264" y="290" text-anchor="middle" style="font-size:12px;font-weight:700">100 ms ahorrados:</text>
+<text class="f-s" x="264" y="306" text-anchor="middle" style="font-size:12px">los saludos de TCP</text>
+<text class="f-s" x="264" y="322" text-anchor="middle" style="font-size:12px">y TLS ya se pagaron</text>
+<text class="f-t" x="95" y="356" text-anchor="middle" style="font-size:13px">190 ms</text>
+<text class="f-s" x="95" y="372" text-anchor="middle" style="font-size:12px">llega la respuesta</text>
+<rect x="26" y="390" width="12" height="12" rx="2" style="fill:var(--p);opacity:.5"/>
+<text class="f-s" x="44" y="400" style="font-size:12px">TCP</text>
+<rect x="84" y="390" width="12" height="12" rx="2" style="fill:var(--y);opacity:.6"/>
+<text class="f-s" x="102" y="400" style="font-size:12px">TLS 1.3</text>
+<rect x="164" y="390" width="12" height="12" rx="2" style="fill:var(--g);opacity:.5"/>
+<text class="f-s" x="182" y="400" style="font-size:12px">la request y su respuesta</text>
+</svg>

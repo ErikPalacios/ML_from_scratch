@@ -1,0 +1,318 @@
+{
+  "titulo": "Quién responde cada código en el camino de C01",
+  "width": 78,
+  "height": 60,
+  "lanes": [
+    {
+      "id": "camino",
+      "label": "El camino de la request",
+      "kind": "online",
+      "x": 0,
+      "y": 0,
+      "w": 46,
+      "h": 60
+    },
+    {
+      "id": "corta",
+      "label": "Responde por su cuenta",
+      "kind": "neutral",
+      "x": 48,
+      "y": 0,
+      "w": 30,
+      "h": 60
+    }
+  ],
+  "nodes": [
+    {
+      "id": "backend",
+      "label": "Backend",
+      "sub": "el cliente · espera 300 ms",
+      "kind": "client",
+      "x": 14,
+      "y": 4,
+      "w": 22,
+      "h": 7,
+      "note": "El programa del marketplace que recibe la publicación de Ana y pide la categoría. Es el [[cliente]] de esta conversación. Lee el código de cada respuesta para decidir: con un 4xx no reintenta; con un 503, un 504 o nada en 300 ms, muestra el selector manual, su [[fallback]]."
+    },
+    {
+      "id": "alb",
+      "label": "ALB",
+      "sub": "TLS · token · reparte",
+      "kind": "edge",
+      "x": 14,
+      "y": 19,
+      "w": 22,
+      "h": 7,
+      "note": "El [[balanceador]] de AWS. Termina [[https|HTTPS]], verifica el token de `Authorization` y reparte las requests entre los 5 pods del gateway. Si el token no vale, responde **401** sin molestar al gateway."
+    },
+    {
+      "id": "gw",
+      "label": "Gateway",
+      "sub": "FastAPI · 5 pods",
+      "kind": "service",
+      "x": 14,
+      "y": 34,
+      "w": 22,
+      "h": 7,
+      "note": "Revisa la request de lo barato a lo caro: el método, el tamaño por `Content-Length`, el tipo, los parámetros y la foto. Después la prepara y llama a Triton con un [[timeout]] de 150 ms. Si todo sale bien, responde **200** con un JSON."
+    },
+    {
+      "id": "triton",
+      "label": "Triton",
+      "sub": "el modelo, en una GPU",
+      "kind": "gpu",
+      "x": 14,
+      "y": 49,
+      "w": 22,
+      "h": 7,
+      "note": "El servidor del modelo. Recibe el tensor por HTTP en el puerto 8000 y devuelve 500 números, uno por categoría. No habla con el backend: solo con el gateway."
+    },
+    {
+      "id": "c-alb",
+      "label": "401 · 502",
+      "sub": "token malo · gateway cerró",
+      "kind": "client",
+      "x": 52,
+      "y": 19,
+      "w": 24,
+      "h": 7,
+      "note": "Los responde el ALB. **401** si el token falta o venció: culpa del cliente. **502** si el gateway le cierra la conexión o le contesta algo que no es HTTP: culpa de atrás. Y si no tiene ningún pod registrado al que mandarla, un 503. (Si los tiene pero todos fallan sus revisiones de salud, el ALB les manda la request de todos modos.)"
+    },
+    {
+      "id": "c-gw",
+      "label": "405 · 413 · 415 · 422",
+      "sub": "y 400 si no es imagen",
+      "kind": "client",
+      "x": 52,
+      "y": 34,
+      "w": 24,
+      "h": 7,
+      "note": "Los responde el gateway sin llegar al modelo, todos culpa del cliente: **405** con GET, **413** con más de 10 MB, **415** con un tipo que no es JPEG, PNG ni WebP, **422** con `top_k` fuera de 1 a 20 (lo pone FastAPI) y **400** si los bytes no se pueden decodificar. Ninguno se reintenta."
+    },
+    {
+      "id": "c-tri",
+      "label": "503 · 504",
+      "sub": "los pone el gateway por Triton",
+      "kind": "client",
+      "x": 52,
+      "y": 49,
+      "w": 24,
+      "h": 7,
+      "note": "Los responde el gateway por Triton. **503** con `Retry-After` si Triton está caído o si el pod ya atiende 16 requests a la vez, su tope (`MAX_INFLIGHT`). **504** si Triton no contesta en 150 ms. Culpa del servidor: el backend cae al selector manual."
+    }
+  ],
+  "edges": [
+    {
+      "from": "backend",
+      "to": "alb",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "POST"
+    },
+    {
+      "from": "alb",
+      "to": "gw",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "gw",
+      "to": "triton",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "tensor"
+    },
+    {
+      "from": "gw",
+      "to": "backend",
+      "kind": "online",
+      "fromSide": "l",
+      "toSide": "l",
+      "label": "200",
+      "via": [
+        [
+          5,
+          37.5
+        ],
+        [
+          5,
+          7.5
+        ]
+      ]
+    },
+    {
+      "from": "alb",
+      "to": "c-alb",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "corta"
+    },
+    {
+      "from": "gw",
+      "to": "c-gw",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "corta"
+    },
+    {
+      "from": "triton",
+      "to": "c-tri",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "corta"
+    }
+  ],
+  "flows": [
+    {
+      "id": "bien",
+      "label": "Sale bien: 200",
+      "steps": [
+        {
+          "nodes": [
+            "backend",
+            "alb"
+          ],
+          "edges": [
+            "backend>alb"
+          ],
+          "text": "El backend manda `POST /v1/classify?top_k=5` con la foto en el body. El **ALB** descifra HTTPS y revisa el token: vale."
+        },
+        {
+          "nodes": [
+            "alb",
+            "gw"
+          ],
+          "edges": [
+            "alb>gw"
+          ],
+          "text": "La request llega a uno de los 5 pods del **gateway**. Pesa 214,836 bytes, es un JPEG y `top_k` vale 5: pasa todas las revisiones."
+        },
+        {
+          "nodes": [
+            "gw",
+            "triton"
+          ],
+          "edges": [
+            "gw>triton"
+          ],
+          "text": "El gateway prepara la foto y le manda el tensor a **Triton**, que responde en unos milisegundos."
+        },
+        {
+          "nodes": [
+            "gw",
+            "backend"
+          ],
+          "edges": [
+            "gw>backend"
+          ],
+          "text": "El gateway arma el JSON con las 5 categorías y responde **200**. La respuesta regresa por el mismo camino hasta el backend, que se las sugiere a Ana."
+        }
+      ]
+    },
+    {
+      "id": "pesada",
+      "label": "Una foto de 14 MB: 413",
+      "steps": [
+        {
+          "nodes": [
+            "backend",
+            "alb",
+            "gw"
+          ],
+          "edges": [
+            "backend>alb",
+            "alb>gw"
+          ],
+          "text": "Una foto subida desde la web llega con `Content-Length: 14000000`."
+        },
+        {
+          "nodes": [
+            "gw",
+            "c-gw"
+          ],
+          "edges": [
+            "gw>c-gw"
+          ],
+          "text": "El gateway lee el header y responde **413** sin leer el body. Triton ni se entera. El backend no reintenta: la foto seguiría pesando 14 MB."
+        }
+      ]
+    },
+    {
+      "id": "token",
+      "label": "Un token vencido: 401",
+      "steps": [
+        {
+          "nodes": [
+            "backend",
+            "alb"
+          ],
+          "edges": [
+            "backend>alb"
+          ],
+          "text": "El backend olvidó renovar su credencial: el token de `Authorization` ya venció."
+        },
+        {
+          "nodes": [
+            "alb",
+            "c-alb"
+          ],
+          "edges": [
+            "alb>c-alb"
+          ],
+          "text": "El **ALB** responde **401** él mismo. El gateway no recibe nada y no gasta nada."
+        }
+      ]
+    },
+    {
+      "id": "lento",
+      "label": "Triton se frena: 504",
+      "steps": [
+        {
+          "nodes": [
+            "backend",
+            "alb",
+            "gw"
+          ],
+          "edges": [
+            "backend>alb",
+            "alb>gw"
+          ],
+          "text": "Una request normal pasa el ALB y las revisiones del gateway."
+        },
+        {
+          "nodes": [
+            "gw",
+            "triton"
+          ],
+          "edges": [
+            "gw>triton"
+          ],
+          "text": "El gateway llama a **Triton**, pero Triton está lento y no contesta."
+        },
+        {
+          "nodes": [
+            "triton",
+            "c-tri"
+          ],
+          "edges": [
+            "triton>c-tri"
+          ],
+          "text": "A los 150 ms vence el timeout. El gateway cancela la llamada y responde **504**: soy un intermediario y el de atrás no contestó a tiempo."
+        },
+        {
+          "nodes": [
+            "backend"
+          ],
+          "edges": [],
+          "text": "El backend recibe el 504 y muestra el **selector manual**. Ana elige la categoría a mano y su publicación sale igual."
+        }
+      ]
+    }
+  ]
+}

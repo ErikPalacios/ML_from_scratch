@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 574" role="img" aria-labelledby="f-http-anatomia-t" class="f-svg" style="max-width:420px">
+<title id="f-http-anatomia-t">Una request de HTTP y su respuesta, con sus cuatro partes numeradas. La request: 1, la línea de la petición, POST /v1/classify?top_k=5 HTTP/1.1, con el método, la ruta con su query y la versión. 2, los headers: Host classifier.internal, Authorization Bearer y un token, Content-Type image/jpeg y Content-Length 214836. 3, una línea en blanco, que marca dónde acaban los headers. 4, el body: los 214,836 bytes de la foto. La respuesta tiene la misma forma: 1, la línea de estado, HTTP/1.1 200 OK, con la versión, el código y una frase para humanos. 2, los headers Content-Type application/json y Content-Length 345. 3, la línea en blanco. 4, el body: un JSON con la versión del modelo y 5 categorías.</title>
+<rect class="f-card" x="10" y="10" width="340" height="554" rx="16"/>
+<text class="f-l" x="26" y="36">UNA REQUEST Y SU RESPUESTA</text>
+<text class="f-t" x="26" y="62" style="font-size:14px">La request: lo que manda el backend</text>
+<circle class="f-acc" cx="34" cy="88" r="10"/>
+<text class="f-acc-t" x="34" y="93.5" text-anchor="middle" style="font-size:13px">1</text>
+<rect class="f-chip" x="50" y="75" width="288" height="26" rx="6"/>
+<text x="58" y="93" style="fill:var(--ink);font:700 12px var(--mono)">POST /v1/classify?top_k=5 HTTP/1.1</text>
+<text class="f-s" x="72" y="118" text-anchor="middle" style="font-size:12px">método</text>
+<text class="f-s" x="165" y="118" text-anchor="middle" style="font-size:12px">ruta y query</text>
+<text class="f-s" x="272" y="118" text-anchor="middle" style="font-size:12px">versión</text>
+<circle class="f-acc" cx="34" cy="166" r="10"/>
+<text class="f-acc-t" x="34" y="171.5" text-anchor="middle" style="font-size:13px">2</text>
+<rect class="f-chip" x="50" y="130" width="288" height="74" rx="6"/>
+<text x="58" y="148" style="fill:var(--ink);font:600 12px var(--mono)">Host: classifier.internal</text>
+<text x="58" y="164" style="fill:var(--ink);font:600 12px var(--mono)">Authorization: Bearer eyJ…</text>
+<text x="58" y="180" style="fill:var(--ink);font:600 12px var(--mono)">Content-Type: image/jpeg</text>
+<text x="58" y="196" style="fill:var(--ink);font:600 12px var(--mono)">Content-Length: 214836</text>
+<circle class="f-acc" cx="34" cy="226" r="10"/>
+<text class="f-acc-t" x="34" y="231.5" text-anchor="middle" style="font-size:13px">3</text>
+<text x="58" y="231" style="fill:var(--o);font:700 12px var(--mono)">\r\n</text>
+<text class="f-s" x="98" y="231" style="font-size:12px">línea en blanco: aquí acaban los headers</text>
+<circle class="f-acc" cx="34" cy="264" r="10"/>
+<text class="f-acc-t" x="34" y="269.5" text-anchor="middle" style="font-size:13px">4</text>
+<rect class="f-b2" x="50" y="248" width="288" height="32" rx="6"/>
+<text class="f-s" x="58" y="269" style="font-size:12px;font-weight:700">214,836 bytes de la foto, tal cual</text>
+<line class="f-linea" x1="26" y1="300" x2="334" y2="300" style="stroke-dasharray:4 4"/>
+<text class="f-t" x="26" y="328" style="font-size:14px">La respuesta: lo que contesta el gateway</text>
+<circle class="f-acc" cx="34" cy="354" r="10"/>
+<text class="f-acc-t" x="34" y="359.5" text-anchor="middle" style="font-size:13px">1</text>
+<rect class="f-chip" x="50" y="341" width="288" height="26" rx="6"/>
+<text x="58" y="359" style="fill:var(--ink);font:700 12px var(--mono)">HTTP/1.1 200 OK</text>
+<text class="f-s" x="182" y="359" style="font-size:12px">← frase para humanos</text>
+<text class="f-s" x="89" y="384" text-anchor="middle" style="font-size:12px">versión</text>
+<text class="f-s" x="134" y="384" text-anchor="middle" style="font-size:12px;font-weight:700">código</text>
+<circle class="f-acc" cx="34" cy="418" r="10"/>
+<text class="f-acc-t" x="34" y="423.5" text-anchor="middle" style="font-size:13px">2</text>
+<rect class="f-chip" x="50" y="396" width="288" height="42" rx="6"/>
+<text x="58" y="414" style="fill:var(--ink);font:600 12px var(--mono)">Content-Type: application/json</text>
+<text x="58" y="430" style="fill:var(--ink);font:600 12px var(--mono)">Content-Length: 345</text>
+<circle class="f-acc" cx="34" cy="460" r="10"/>
+<text class="f-acc-t" x="34" y="465.5" text-anchor="middle" style="font-size:13px">3</text>
+<text x="58" y="465" style="fill:var(--o);font:700 12px var(--mono)">\r\n</text>
+<text class="f-s" x="98" y="465" style="font-size:12px">línea en blanco</text>
+<circle class="f-acc" cx="34" cy="504" r="10"/>
+<text class="f-acc-t" x="34" y="509.5" text-anchor="middle" style="font-size:13px">4</text>
+<rect class="f-b2" x="50" y="482" width="288" height="44" rx="6"/>
+<text x="58" y="500" style="fill:var(--ink);font:600 12px var(--mono)">{"model_version": "…-fp16",</text>
+<text x="58" y="516" style="fill:var(--ink);font:600 12px var(--mono)"> "predictions": [5 categorías]}</text>
+<text class="f-s" x="26" y="550" style="font-size:12px">Misma forma de ida y de vuelta; solo cambia la línea 1.</text>
+</svg>

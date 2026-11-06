@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 414" role="img" aria-labelledby="f-balanceo-capas-t" class="f-svg" style="max-width:420px">
+<title id="f-balanceo-capas-t">Una request de C01 dibujada como sobres, uno dentro de otro. Por fuera, la capa 3, IP, con las direcciones de origen y de destino. Adentro, la capa 4, TCP, con los puertos. Adentro, el cifrado TLS, donde sin la llave solo se ven bytes revueltos. Y hasta adentro, la capa 7, HTTP: el método POST, la ruta /v1/classify, el header Authorization con el token, el Content-Length y el body con la foto. Un balanceador L4 lee solo las capas 3 y 4 y elige una vez por conexión. Un balanceador L7 descifra el TLS, lee la request completa y elige en cada request.</title>
+<rect class="f-card" x="10" y="10" width="340" height="394" rx="16"/>
+<text class="f-l" x="26" y="36">UNA REQUEST, POR CAPAS</text>
+<rect class="f-chip" x="22" y="50" width="316" height="276" rx="12"/>
+<text class="f-l" x="34" y="70">IP · CAPA 3</text>
+<text class="f-s" x="34" y="88" style="font-size:12px">de 10.0.1.7 a 10.0.2.15</text>
+<rect class="f-o" x="290" y="58" width="36" height="20" rx="10"/>
+<text x="308" y="72" text-anchor="middle" style="fill:#fff;font:800 12px var(--sans)">L4</text>
+<rect class="f-card" x="34" y="98" width="292" height="218" rx="10"/>
+<text class="f-l" x="46" y="118">TCP · CAPA 4</text>
+<text class="f-s" x="46" y="136" style="font-size:12px">del puerto 51834 al puerto 443</text>
+<rect class="f-o" x="278" y="106" width="36" height="20" rx="10"/>
+<text x="296" y="120" text-anchor="middle" style="fill:#fff;font:800 12px var(--sans)">L4</text>
+<rect x="46" y="146" width="268" height="160" rx="10" style="fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:5 4"/>
+<text class="f-l" x="58" y="166">TLS · CIFRADO</text>
+<text class="f-s" x="58" y="184" style="font-size:12px">sin la llave, solo bytes revueltos</text>
+<rect class="f-chip" x="58" y="194" width="244" height="102" rx="8"/>
+<text class="f-l" x="70" y="214">HTTP · CAPA 7</text>
+<rect class="f-b" x="254" y="202" width="36" height="20" rx="10"/>
+<text x="272" y="216" text-anchor="middle" style="fill:#fff;font:800 12px var(--sans)">L7</text>
+<text class="f-t" x="70" y="237" style="font-size:14px">POST /v1/classify</text>
+<text class="f-s" x="70" y="255" style="font-size:12px">Authorization: Bearer eyJ…</text>
+<text class="f-s" x="70" y="272" style="font-size:12px">Content-Length: 204800</text>
+<text class="f-s" x="70" y="289" style="font-size:12px">body: la foto de los tenis</text>
+<rect class="f-o" x="24" y="344" width="36" height="20" rx="10"/>
+<text x="42" y="358" text-anchor="middle" style="fill:#fff;font:800 12px var(--sans)">L4</text>
+<text class="f-s" x="70" y="359" style="font-size:12px">lee IPs y puertos: elige por conexión</text>
+<rect class="f-b" x="24" y="374" width="36" height="20" rx="10"/>
+<text x="42" y="388" text-anchor="middle" style="fill:#fff;font:800 12px var(--sans)">L7</text>
+<text class="f-s" x="70" y="389" style="font-size:12px">descifra y lee todo: elige en cada request</text>
+</svg>

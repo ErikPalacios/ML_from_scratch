@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 452" role="img" aria-labelledby="f-http-url-t" class="f-svg" style="max-width:420px">
+<title id="f-http-url-t">La URL https://classifier.internal:443/v1/classify?top_k=5 partida en cinco piezas de colores. El esquema, https, dice con qué protocolo se habla. El host, classifier.internal, dice a qué máquina; el DNS lo convierte en una IP. El puerto, 443, se puede omitir: por omisión es 80 en http y 443 en https. La ruta, /v1/classify, dice qué cosa dentro del servidor. La query, ?top_k=5, trae parámetros nombre igual a valor. En la request, la ruta y la query viajan en la primera línea, POST /v1/classify?top_k=5 HTTP/1.1, y el host en el header Host. El esquema y el puerto no se escriben: ya se usaron para abrir la conexión.</title>
+<rect class="f-card" x="10" y="10" width="340" height="432" rx="16"/>
+<text class="f-l" x="26" y="36">UNA URL, PIEZA POR PIEZA</text>
+<rect class="f-p" x="26" y="52" width="56" height="28" rx="7"/>
+<text class="f-pill-t" x="54" y="71" text-anchor="middle" style="font:700 13px var(--mono)">https</text>
+<text x="86" y="71" style="fill:var(--muted);font:700 13px var(--mono)">://</text>
+<rect class="f-b" x="112" y="52" width="170" height="28" rx="7"/>
+<text class="f-pill-t" x="197" y="71" text-anchor="middle" style="font:700 13px var(--mono)">classifier.internal</text>
+<rect class="f-y" x="286" y="52" width="48" height="28" rx="7"/>
+<text x="310" y="71" text-anchor="middle" style="fill:var(--navy);font:700 13px var(--mono)">:443</text>
+<rect class="f-g" x="26" y="88" width="118" height="28" rx="7"/>
+<text class="f-pill-t" x="85" y="107" text-anchor="middle" style="font:700 13px var(--mono)">/v1/classify</text>
+<rect class="f-o" x="148" y="88" width="88" height="28" rx="7"/>
+<text class="f-pill-t" x="192" y="107" text-anchor="middle" style="font:700 13px var(--mono)">?top_k=5</text>
+<rect class="f-p" x="26" y="142" width="14" height="14" rx="3"/>
+<text class="f-t" x="48" y="154" style="font-size:13px">Esquema</text>
+<text class="f-s" x="48" y="172" style="font-size:12px">con qué protocolo se habla: http o https</text>
+<rect class="f-b" x="26" y="188" width="14" height="14" rx="3"/>
+<text class="f-t" x="48" y="200" style="font-size:13px">Host</text>
+<text class="f-s" x="48" y="218" style="font-size:12px">a qué máquina; el DNS lo vuelve una IP</text>
+<rect class="f-y" x="26" y="234" width="14" height="14" rx="3"/>
+<text class="f-t" x="48" y="246" style="font-size:13px">Puerto</text>
+<text class="f-s" x="48" y="264" style="font-size:12px">si falta: 80 en http y 443 en https</text>
+<rect class="f-g" x="26" y="280" width="14" height="14" rx="3"/>
+<text class="f-t" x="48" y="292" style="font-size:13px">Ruta</text>
+<text class="f-s" x="48" y="310" style="font-size:12px">qué cosa, dentro del servidor</text>
+<rect class="f-o" x="26" y="326" width="14" height="14" rx="3"/>
+<text class="f-t" x="48" y="338" style="font-size:13px">Query</text>
+<text class="f-s" x="48" y="356" style="font-size:12px">parámetros nombre=valor, separados por &amp;</text>
+<rect class="f-chip" x="26" y="372" width="308" height="56" rx="8"/>
+<text class="f-s" x="38" y="392" style="font-size:12px">La ruta y la query van en la primera línea;</text>
+<text class="f-s" x="38" y="408" style="font-size:12px">el host, en el header Host. El esquema y el</text>
+<text class="f-s" x="38" y="424" style="font-size:12px">puerto no viajan: ya abrieron la conexión.</text>
+</svg>

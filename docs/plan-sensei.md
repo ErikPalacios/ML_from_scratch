@@ -70,9 +70,17 @@ Para la fase 5, sin tocar las dos pasadas de fondo ni las figuras a mano:
 - Que el escritor verifique solo lo que corre (el Python y las cuentas) y le deje los hechos a su revisión.
 - Que la pasada de claridad mire solo las capturas de 780 px en claro y en oscuro.
 
+**Fase 5 (2026-11-06): ≈ 1.5 % por lección.** Con esos tres ajustes, el límite semanal pasó de 53 % a 62 %: 1 punto para los paquetes, 5 para escribir las 6 lecciones con su revisión mecánica y 3 para las dos pasadas de fondo. Es menos que el 1.75 % de la fase 3 y casi tres veces menos que la fase 4. Las 6 lecciones cupieron en una sola ventana de 5 horas, que pasó de 4 % a 69 %. Las dos pasadas de fondo no se recortaron: la de hechos hizo 129 correcciones y la de claridad, 104 cambios.
+
+Lo que funcionó, para repetirlo en la fase 6:
+
+- **Dos flujos en vez de uno.** El primero escribe y hace la revisión mecánica de todas las lecciones. Entre los dos se mide el uso y se decide cuántas lecciones caben en las pasadas de fondo. El segundo corre hechos y después claridad, lección por lección.
+- **Escritores sin búsqueda web.** Cada escritor anota sus dudas de hechos con línea, entre 17 y 27 por lección, y la revisión de hechos empieza por ellas.
+- **Reparto de conceptos antes de escribir.** Los paquetes de la Ronda traen un inventario de los conceptos de red que usa cada fuente. Con él se repartieron 86 ids entre las 6 lecciones y se reservaron 10 para fases posteriores (tls, mtls, vpc, nat, egress, jwt, api-key, cola-mensajes, at-least-once y canary), para que se enlacen con una frase y no se presenten antes de tiempo.
+
 ## 5. Las fases
 
-Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05: 21 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
+Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, y la 5 desde el 2026-11-06: 27 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo) y las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
 
 | Fase | Módulo | Lecciones | Prepara para la Ronda |
 |---|---|---|---|
@@ -80,7 +88,7 @@ Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 
 | 2 ✓ (profundizada) | Lo básico de ML | Qué es un modelo · Una foto, vista por un modelo · Datos, ejemplos, features y etiquetas · Cómo aprende un modelo · ¿Aprendió de verdad? · Redes neuronales y CNNs · Embeddings · Transformers y LLMs | M01, M04, M07–M12, M14 |
 | 3 ✓ | Números y estadística para producción | Unidades y estimaciones · Percentiles · Probabilidad para sistemas que fallan · Ruido, muestras y pruebas A/B · Comparar distribuciones · Cómo guarda números una computadora · Matrices y FLOPs | M01, M03, M04, M08, M10–M13, M15 |
 | 4 ✓ | La computadora por dentro | Programa, proceso e hilo · Memoria, caché y disco · CPU y GPU · El sistema operativo · async, event loop y GIL | M02–M08, M15 |
-| 5 | La red y la web | IP, puertos y DNS · HTTP · APIs: REST, JSON, gRPC y streaming · Balanceadores y gateways · Timeouts, reintentos e idempotencia · Latencia y throughput | M02, M03, M06, M07, M11, M13–M15 |
+| 5 ✓ | La red y la web | IP, puertos y DNS · HTTP · APIs: REST, JSON, gRPC y streaming · Balanceadores y gateways · Timeouts, reintentos e idempotencia · Latencia y throughput | M02, M03, M06, M07, M11, M13–M15 |
 | 6 | Datos y almacenamiento | Formatos · Bases de datos · Object storage, data lakes y warehouses · Colas y streams · Tiempo, hashes e identificadores | M01, M02, M06, M09, M12, M13, M15 |
 | 7 | Herramientas del oficio | La terminal · Python y sus paquetes · PyTorch para producción · Git · Pruebas y CI/CD · Configuración y secretos | M05–M11, M15 |
 | 8 | La nube | Qué es la nube · Regiones y zonas · Máquinas, GPUs y precios · Redes en la nube · Servicios gestionados y permisos | M04, M06, M13, M15 |

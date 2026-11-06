@@ -370,7 +370,7 @@ Las nubes dan el precio de las máquinas por hora (aunque muchas cobran por segu
 Capacidad planeada por T4 | 1,200 × 0.5 | 600 fotos/s
 Por tráfico | ⌈500 ÷ 600⌉ = ⌈0.83⌉ | 1
 Con repuesto // N+1, una en cada zona | 1 + 1 | 2 T4
-Una, todo el mes // precio de lista aproximado de una g4dn.xlarge | US$0.526 × 730 h | ≈ US$384
+Una, todo el mes // precio de lista aproximado de una g4dn.xlarge (on demand, en us-east-1) | US$0.526 × 730 h | ≈ US$384
 Las dos | 2 × US$384 | ≈ US$768 al mes
 Carga promedio de cada una // contra su máximo medido | (116 ÷ 2) ÷ 1,200 | ≈ 5 %
 = Una GPU alcanza para el tráfico; la segunda la pide la disponibilidad. Y en promedio las dos trabajan al 5 %: es la primera pregunta de costo que te van a hacer.

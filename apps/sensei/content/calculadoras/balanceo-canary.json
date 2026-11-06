@@ -1,0 +1,22 @@
+{
+  "titulo": "Cuánto ve un canary",
+  "intro": "Con [[ruteo-por-peso|pesos]], el canary recibe el porcentaje que fijas. Con un [[service-k8s|Service]] solo, recibe su parte de los pods listos. Arranca con C01 en el pico del día: 350 requests por segundo, canary al 5 % y una ventana de 10 minutos.",
+  "entradas": [
+    { "id": "q", "label": "Tráfico total (requests por segundo)", "min": 1, "max": 2000, "paso": 1, "valor": 350 },
+    { "id": "w", "label": "Peso del canary (%)", "min": 0.1, "max": 50, "paso": 0.1, "valor": 5 },
+    { "id": "v", "label": "Ventana para decidir (minutos)", "min": 1, "max": 240, "paso": 1, "valor": 10 },
+    { "id": "s", "label": "Pods estables (para comparar con el reparto por pods)", "min": 1, "max": 50, "paso": 1, "valor": 2 },
+    { "id": "c", "label": "Pods del canary", "min": 1, "max": 10, "paso": 1, "valor": 1 }
+  ],
+  "calculos": [
+    { "id": "qc", "formula": "q * w / 100" }
+  ],
+  "salidas": [
+    { "label": "Requests por segundo al canary, con pesos", "formula": "qc", "formato": "num", "decimales": 1 },
+    { "label": "Requests del canary en la ventana", "formula": "qc * v * 60", "formato": "int", "nota": "la evidencia para decidir" },
+    { "label": "Si el canary falla en todo, parte del presupuesto mensual de C01", "formula": "qc * v * 60 / 300000", "formato": "pct", "barra": true, "nota": "≈ 300,000 fallas permitidas en 30 días" },
+    { "label": "Parte que recibiría repartiendo por pods", "formula": "c / (s + c)", "formato": "pct", "barra": true, "nota": "lo que hace un Service solo" },
+    { "label": "Pods estables que harían falta para ese peso, por pods", "formula": "ceil(round(c * (100 - w) / w * 1000) / 1000)", "formato": "int" }
+  ],
+  "nota": "Al 1 % juntas 2,100 requests en 10 minutos; al 25 %, 52,500, pero un modelo malo afecta a 1 de cada 4. Por pods, 1 de 3 es ≈ 33 %."
+}

@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 422" role="img" aria-labelledby="f-balanceo-rr-lc-t" class="f-svg" style="max-width:420px">
+<title id="f-balanceo-rr-lc-t">Dos pods, A y B, que atienden de una en una, en una escala de 0 a 140 milisegundos. Llegan diez requests, una cada 10 ms; la primera, R1, tarda 100 ms y las otras nueve, 8 ms. Arriba, round-robin: A recibe las impares; la R1 lo ocupa de 0 a 100, y la R3, R5, R7 y R9 hacen fila detrás de ella y se atienden de 100 a 132, después de esperar 80, 68, 56 y 44 ms. B recibe las pares y las atiende al llegar, con huecos entre una y otra. Abajo, least-connections: la R1 va a A, y como A tiene una en vuelo y B ninguna, las nueve ligeras van a B, que las atiende al llegar. Nadie espera.</title>
+<text class="f-l" x="14" y="28">DOS PODS, UNA REQUEST PESADA</text>
+<rect class="f-card" x="10" y="40" width="340" height="182" rx="16"/>
+<text class="f-l" x="26" y="62">ROUND-ROBIN: POR TURNOS</text>
+<text class="f-t" x="30" y="92" style="font-size:14px">A</text>
+<rect class="f-o" x="60" y="76" width="200" height="22" rx="3"/>
+<text x="160" y="92" text-anchor="middle" style="fill:#fff;font:800 12px var(--sans)">R1 · 100 ms</text>
+<rect class="f-b" x="260" y="76" width="16" height="22" rx="2"/>
+<text x="268" y="92" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">3</text>
+<rect class="f-b" x="276" y="76" width="16" height="22" rx="2"/>
+<text x="284" y="92" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">5</text>
+<rect class="f-b" x="292" y="76" width="16" height="22" rx="2"/>
+<text x="300" y="92" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">7</text>
+<rect class="f-b" x="308" y="76" width="16" height="22" rx="2"/>
+<text x="316" y="92" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">9</text>
+<text class="f-s" x="24" y="122" style="font-size:12px">fila</text>
+<rect style="fill:var(--muted);opacity:.5" x="100" y="103" width="160" height="6" rx="2"/>
+<rect style="fill:var(--muted);opacity:.5" x="140" y="112" width="136" height="6" rx="2"/>
+<rect style="fill:var(--muted);opacity:.5" x="180" y="121" width="112" height="6" rx="2"/>
+<rect style="fill:var(--muted);opacity:.5" x="220" y="130" width="88" height="6" rx="2"/>
+<text class="f-t" x="30" y="158" style="font-size:14px">B</text>
+<rect class="f-b" x="80" y="142" width="16" height="22" rx="2"/>
+<text x="88" y="158" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">2</text>
+<rect class="f-b" x="120" y="142" width="16" height="22" rx="2"/>
+<text x="128" y="158" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">4</text>
+<rect class="f-b" x="160" y="142" width="16" height="22" rx="2"/>
+<text x="168" y="158" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">6</text>
+<rect class="f-b" x="200" y="142" width="16" height="22" rx="2"/>
+<text x="208" y="158" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">8</text>
+<rect class="f-b" x="240" y="142" width="16" height="22" rx="2"/>
+<text x="248" y="158" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">10</text>
+<line class="f-linea" x1="60" y1="174" x2="340" y2="174"/>
+<line class="f-linea" x1="60" y1="174" x2="60" y2="178"/>
+<line class="f-linea" x1="160" y1="174" x2="160" y2="178"/>
+<line class="f-linea" x1="260" y1="174" x2="260" y2="178"/>
+<line class="f-linea" x1="340" y1="174" x2="340" y2="178"/>
+<text class="f-s" x="60" y="191" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="160" y="191" text-anchor="middle" style="font-size:12px">50</text>
+<text class="f-s" x="260" y="191" text-anchor="middle" style="font-size:12px">100</text>
+<text class="f-s" x="342" y="191" text-anchor="end" style="font-size:12px">140 ms</text>
+<text class="f-t" x="26" y="211" style="font-size:13px">R3, R5, R7, R9 esperan 80, 68, 56 y 44 ms</text>
+<rect class="f-card" x="10" y="234" width="340" height="150" rx="16"/>
+<text class="f-l" x="26" y="256">LEAST-CONNECTIONS: AL MÁS LIBRE</text>
+<text class="f-t" x="30" y="286" style="font-size:14px">A</text>
+<rect class="f-o" x="60" y="270" width="200" height="22" rx="3"/>
+<text x="160" y="286" text-anchor="middle" style="fill:#fff;font:800 12px var(--sans)">R1 · 100 ms</text>
+<text class="f-t" x="30" y="318" style="font-size:14px">B</text>
+<rect class="f-b" x="80" y="302" width="16" height="22" rx="2"/>
+<text x="88" y="318" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">2</text>
+<rect class="f-b" x="100" y="302" width="16" height="22" rx="2"/>
+<text x="108" y="318" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">3</text>
+<rect class="f-b" x="120" y="302" width="16" height="22" rx="2"/>
+<text x="128" y="318" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">4</text>
+<rect class="f-b" x="140" y="302" width="16" height="22" rx="2"/>
+<text x="148" y="318" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">5</text>
+<rect class="f-b" x="160" y="302" width="16" height="22" rx="2"/>
+<text x="168" y="318" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">6</text>
+<rect class="f-b" x="180" y="302" width="16" height="22" rx="2"/>
+<text x="188" y="318" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">7</text>
+<rect class="f-b" x="200" y="302" width="16" height="22" rx="2"/>
+<text x="208" y="318" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">8</text>
+<rect class="f-b" x="220" y="302" width="16" height="22" rx="2"/>
+<text x="228" y="318" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">9</text>
+<rect class="f-b" x="240" y="302" width="16" height="22" rx="2"/>
+<text x="248" y="318" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">10</text>
+<line class="f-linea" x1="60" y1="334" x2="340" y2="334"/>
+<line class="f-linea" x1="60" y1="334" x2="60" y2="338"/>
+<line class="f-linea" x1="160" y1="334" x2="160" y2="338"/>
+<line class="f-linea" x1="260" y1="334" x2="260" y2="338"/>
+<line class="f-linea" x1="340" y1="334" x2="340" y2="338"/>
+<text class="f-s" x="60" y="351" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="160" y="351" text-anchor="middle" style="font-size:12px">50</text>
+<text class="f-s" x="260" y="351" text-anchor="middle" style="font-size:12px">100</text>
+<text class="f-s" x="342" y="351" text-anchor="end" style="font-size:12px">140 ms</text>
+<text class="f-t" x="26" y="372" style="font-size:13px">Las nueve ligeras van a B: nadie espera</text>
+<rect class="f-o" x="20" y="398" width="14" height="14" rx="2"/>
+<text class="f-s" x="40" y="410" style="font-size:12px">100 ms</text>
+<rect class="f-b" x="96" y="398" width="14" height="14" rx="2"/>
+<text class="f-s" x="116" y="410" style="font-size:12px">8 ms</text>
+<rect style="fill:var(--muted);opacity:.5" x="164" y="398" width="14" height="14" rx="2"/>
+<text class="f-s" x="184" y="410" style="font-size:12px">en fila, sin atender</text>
+</svg>

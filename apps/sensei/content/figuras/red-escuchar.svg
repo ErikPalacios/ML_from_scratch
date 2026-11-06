@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 430" role="img" aria-labelledby="f-red-escuchar-t" class="f-svg" style="max-width:420px">
+<title id="f-red-escuchar-t">Un contenedor tiene dos puertas de red: la de la red, con la dirección 10.0.3.15, por donde llega lo de afuera, y la de loopback, 127.0.0.1, que solo se alcanza desde adentro. Arriba, uvicorn escucha en 127.0.0.1, puerto 8080: queda conectado solo a la puerta de adentro, y la request que llega de afuera por 10.0.3.15 no encuentra a nadie escuchando y se rechaza. Abajo, uvicorn escucha en 0.0.0.0, puerto 8080, que quiere decir todas las puertas: queda conectado a las dos y la request de afuera llega.</title>
+<defs><marker id="fre-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="200" rx="16"/>
+<text class="f-l" x="24" y="34">ESCUCHA EN 127.0.0.1:8080</text>
+<rect class="f-chip" x="118" y="46" width="222" height="124" rx="12"/>
+<text class="f-l" x="330" y="64" text-anchor="end">CONTENEDOR</text>
+<text class="f-s" x="20" y="72" style="font-size:12px;font-weight:700">request</text>
+<text class="f-s" x="20" y="88" style="font-size:12px">de afuera</text>
+<line class="f-flecha" x1="20" y1="100" x2="98" y2="100" marker-end="url(#fre-a)"/>
+<rect class="f-b" x="104" y="86" width="98" height="28" rx="6"/>
+<text x="153" y="105" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">10.0.3.15</text>
+<rect class="f-off" x="104" y="128" width="98" height="28" rx="6"/>
+<text class="f-s" x="153" y="147" text-anchor="middle" style="font-size:12px;font-weight:700">127.0.0.1</text>
+<line x1="216" y1="92" x2="232" y2="108" style="stroke:var(--o);stroke-width:3;stroke-linecap:round"/>
+<line x1="232" y1="92" x2="216" y2="108" style="stroke:var(--o);stroke-width:3;stroke-linecap:round"/>
+<line class="f-linea" x1="202" y1="142" x2="250" y2="128"/>
+<rect class="f-dark" x="250" y="106" width="80" height="40" rx="8"/>
+<text class="f-dark-t" x="290" y="123" text-anchor="middle" style="font-weight:700">uvicorn</text>
+<text class="f-dark-t" x="290" y="139" text-anchor="middle" style="font-size:12px">:8080</text>
+<text class="f-s" x="24" y="192" style="font-size:12px;font-weight:700">Nadie escucha en 10.0.3.15: se rechaza.</text>
+<rect class="f-card" x="10" y="220" width="340" height="200" rx="16"/>
+<text class="f-l" x="24" y="244">ESCUCHA EN 0.0.0.0:8080 · TODAS</text>
+<rect class="f-chip" x="118" y="256" width="222" height="124" rx="12"/>
+<text class="f-l" x="330" y="274" text-anchor="end">CONTENEDOR</text>
+<text class="f-s" x="20" y="282" style="font-size:12px;font-weight:700">request</text>
+<text class="f-s" x="20" y="298" style="font-size:12px">de afuera</text>
+<line class="f-flecha" x1="20" y1="310" x2="98" y2="310" marker-end="url(#fre-a)"/>
+<rect class="f-b" x="104" y="296" width="98" height="28" rx="6"/>
+<text x="153" y="315" text-anchor="middle" style="fill:#fff;font:700 12px var(--sans)">10.0.3.15</text>
+<rect class="f-off" x="104" y="338" width="98" height="28" rx="6"/>
+<text class="f-s" x="153" y="357" text-anchor="middle" style="font-size:12px;font-weight:700">127.0.0.1</text>
+<line class="f-flecha" x1="202" y1="310" x2="244" y2="322" marker-end="url(#fre-a)"/>
+<line class="f-linea" x1="202" y1="352" x2="250" y2="338"/>
+<rect class="f-dark" x="250" y="316" width="80" height="40" rx="8"/>
+<text class="f-dark-t" x="290" y="333" text-anchor="middle" style="font-weight:700">uvicorn</text>
+<text class="f-dark-t" x="290" y="349" text-anchor="middle" style="font-size:12px">:8080</text>
+<text class="f-s" x="24" y="402" style="font-size:12px;font-weight:700">Escucha en las dos: la request llega.</text>
+</svg>

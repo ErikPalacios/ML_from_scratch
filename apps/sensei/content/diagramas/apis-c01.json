@@ -1,0 +1,222 @@
+{
+  "titulo": "Qué formato habla cada salto de C01",
+  "width": 78,
+  "height": 40,
+  "lanes": [
+    {
+      "id": "afuera",
+      "label": "Hacia afuera: JSON, para otros equipos",
+      "kind": "online",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 17
+    },
+    {
+      "id": "adentro",
+      "label": "Dentro: tensor en binario",
+      "kind": "neutral",
+      "x": 0,
+      "y": 19,
+      "w": 78,
+      "h": 21
+    }
+  ],
+  "nodes": [
+    {
+      "id": "app",
+      "label": "App de Ana",
+      "sub": "sube la foto",
+      "kind": "client",
+      "x": 1,
+      "y": 6,
+      "w": 18,
+      "h": 8,
+      "note": "La app reduce la foto antes de subirla: un JPEG de ≈ 200 KB. Le habla al backend del marketplace, no a C01 directamente."
+    },
+    {
+      "id": "backend",
+      "label": "Backend",
+      "sub": "del marketplace",
+      "kind": "service",
+      "x": 30,
+      "y": 6,
+      "w": 19,
+      "h": 8,
+      "note": "El programa de otro equipo que llama a C01. Solo conoce el **contrato**: `POST /v1/classify?top_k=5` con la foto en el [[body]], y de regreso un JSON con `model_version`, `predictions` y `latency_ms`. Espera como máximo 300 ms."
+    },
+    {
+      "id": "gw",
+      "label": "Gateway de C01",
+      "sub": "FastAPI · /v1/classify",
+      "kind": "service",
+      "x": 30,
+      "y": 28,
+      "w": 19,
+      "h": 8,
+      "note": "Valida contra el [[esquema-api|esquema]] (un `top_k` de 0 recibe 422 aquí), decodifica el JPEG y arma el tensor de 602 KB. Al final hace el softmax y el top-5, y responde en [[json|JSON]]: unos cientos de bytes."
+    },
+    {
+      "id": "triton",
+      "label": "Triton",
+      "sub": "HTTP :8000 · gRPC :8001",
+      "kind": "gpu",
+      "x": 59,
+      "y": 28,
+      "w": 18,
+      "h": 8,
+      "note": "Habla el [[protocolo-inferencia|protocolo KServe v2]] por HTTP y por [[grpc|gRPC]]. C01 usa HTTP con la **extensión binaria**: un JSON corto con nombre, shape y dtype, y detrás los bytes crudos del tensor. Devuelve 500 logits, 2 KB."
+    },
+    {
+      "id": "logs",
+      "label": "Logs",
+      "sub": "una línea JSON por request",
+      "kind": "store",
+      "x": 1,
+      "y": 28,
+      "w": 18,
+      "h": 8,
+      "note": "Cada request deja una línea de texto en JSON con su `request_id`, su `model_version`, el top-k y la latencia, sin la imagen. Es JSON porque la van a leer personas y herramientas."
+    }
+  ],
+  "edges": [
+    {
+      "from": "app",
+      "to": "backend",
+      "kind": "online",
+      "label": "foto",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "backend",
+      "to": "gw",
+      "kind": "online",
+      "label": "JPEG ↓ · JSON ↑",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "gw",
+      "to": "triton",
+      "kind": "online",
+      "label": "602 KB",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "gw",
+      "to": "logs",
+      "kind": "async",
+      "dashed": true,
+      "label": "JSON",
+      "fromSide": "l",
+      "toSide": "r"
+    }
+  ],
+  "flows": [
+    {
+      "id": "ida-vuelta",
+      "label": "Una foto de ida y vuelta",
+      "steps": [
+        {
+          "nodes": [
+            "app",
+            "backend"
+          ],
+          "edges": [
+            "app>backend"
+          ],
+          "text": "Ana sube la foto de sus tenis. La app manda un **JPEG de ≈ 200 KB** al backend del marketplace."
+        },
+        {
+          "nodes": [
+            "backend",
+            "gw"
+          ],
+          "edges": [
+            "backend>gw"
+          ],
+          "text": "El backend llama al endpoint `POST /v1/classify?top_k=5`. El cuerpo son los **bytes crudos** del JPEG, con `Content-Type: image/jpeg`: nada de JSON ni de base64."
+        },
+        {
+          "nodes": [
+            "gw"
+          ],
+          "edges": [],
+          "text": "El gateway **valida** contra el esquema: tipo de archivo, tamaño, `top_k` entre 1 y 20. Lo que no cumple sale con 415, 413 o 422, sin tocar la GPU."
+        },
+        {
+          "nodes": [
+            "gw",
+            "triton"
+          ],
+          "edges": [
+            "gw>triton"
+          ],
+          "text": "Decodifica la foto y arma el tensor: 150,528 floats, **602 KB**. Lo manda a `POST /v2/models/classifier/infer` por HTTP con la extensión binaria, con un timeout de 150 ms."
+        },
+        {
+          "nodes": [
+            "triton",
+            "gw"
+          ],
+          "edges": [
+            "gw>triton"
+          ],
+          "text": "Triton responde con 500 logits en binario: 2 KB."
+        },
+        {
+          "nodes": [
+            "gw",
+            "backend"
+          ],
+          "edges": [
+            "backend>gw"
+          ],
+          "text": "El gateway hace el softmax y el top-5, y responde **200** con un JSON de unos cientos de bytes: `model_version`, `predictions` y `latency_ms`."
+        },
+        {
+          "nodes": [
+            "gw",
+            "logs"
+          ],
+          "edges": [
+            "gw>logs"
+          ],
+          "text": "Y deja su **línea JSON** en el log, sin la imagen, sin bloquear la respuesta."
+        }
+      ]
+    },
+    {
+      "id": "si-json",
+      "label": "¿Y si el tensor fuera en JSON?",
+      "steps": [
+        {
+          "nodes": [
+            "gw"
+          ],
+          "edges": [],
+          "text": "Escribir los 150,528 floats como texto: ≈ 20.4 letras cada uno, **≈ 3.07 MB**. Serializarlo tarda decenas de milisegundos de CPU por request (≈ 50 ms medidos en una laptop)."
+        },
+        {
+          "nodes": [
+            "gw",
+            "triton"
+          ],
+          "edges": [
+            "gw>triton"
+          ],
+          "text": "A 500 requests por segundo, la red pasa de **≈ 2.4 a ≈ 12.3 Gb/s**, y solo serializar ocuparía ≈ 25 núcleos."
+        },
+        {
+          "nodes": [
+            "triton"
+          ],
+          "edges": [],
+          "text": "Triton tendría que leer el texto de vuelta: otros ≈ 23 ms. Por eso el JSON se queda hacia afuera, donde los mensajes son chicos, y el tensor viaja en binario."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 390" role="img" aria-labelledby="f-apis-tamanos-t" class="f-svg" style="max-width:420px">
+<title id="f-apis-tamanos-t">Los 150,528 números del tensor de la foto de Ana, en cinco formas, como barras horizontales. En uint8, normalizando dentro del modelo: 151 KB. En float32 binario, con la extensión binaria de Triton o con gRPC: 602 KB. En float32 dentro de un JSON con base64: 803 KB. En JSON con 4 decimales: 1.26 MB. En JSON con todas las cifras: 3.07 MB, 5.1 veces el binario. A 500 requests por segundo son 0.6, 2.4, 3.2, 5.0 y 12.3 gigabits por segundo.</title>
+<rect class="f-card" x="10" y="10" width="340" height="370" rx="16"/>
+<text class="f-l" x="28" y="36">EL MISMO TENSOR, CINCO FORMAS</text>
+<text class="f-s" x="28" y="66">uint8, normalizado dentro del modelo</text>
+<rect class="f-g" x="28" y="74" width="9.3" height="18" rx="3"/>
+<text class="f-t" x="45" y="88" style="font-size:13px">151 KB · ¼ del binario</text>
+<text class="f-s" x="28" y="120">float32 en binario (extensión binaria o gRPC)</text>
+<rect class="f-b" x="28" y="128" width="37.3" height="18" rx="3"/>
+<text class="f-t" x="73" y="142" style="font-size:13px">602 KB · 1×</text>
+<text class="f-s" x="28" y="174">float32 en base64, dentro de un JSON</text>
+<rect class="f-p" x="28" y="182" width="49.7" height="18" rx="3"/>
+<text class="f-t" x="86" y="196" style="font-size:13px">803 KB · 1.33×</text>
+<text class="f-s" x="28" y="228">JSON con 4 decimales (otra entrada)</text>
+<rect class="f-y" x="28" y="236" width="77.8" height="18" rx="3"/>
+<text class="f-t" x="114" y="250" style="font-size:13px">1.26 MB · 2.1×</text>
+<text class="f-s" x="28" y="282">JSON con todas las cifras</text>
+<rect class="f-o" x="28" y="290" width="190" height="18" rx="3"/>
+<text class="f-t" x="226" y="304" style="font-size:13px">3.07 MB · 5.1×</text>
+<rect class="f-chip" x="24" y="324" width="312" height="44" rx="10"/>
+<text class="f-s" x="36" y="342" style="font-size:12px;font-weight:600">A 500 por segundo, en el mismo orden:</text>
+<text class="f-t" x="36" y="360" style="font-size:13px">0.6 · 2.4 · 3.2 · 5.0 · 12.3 Gb/s</text>
+</svg>

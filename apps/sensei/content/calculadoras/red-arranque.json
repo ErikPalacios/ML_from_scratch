@@ -1,0 +1,24 @@
+{
+  "titulo": "El arranque lento de una conexión nueva",
+  "intro": "Una conexión [[tcp|TCP]] nueva empieza mandando unos pocos paquetes por cada ida y vuelta y duplica la cantidad en cada [[rtt|RTT]]. Arranca con el JPEG de ≈ 200 KB que la app de Ana sube por 4G, con una conexión recién abierta.",
+  "entradas": [
+    { "id": "kb", "label": "Lo que hay que mandar, en KB (200 = JPEG del celular · 602 = tensor de C01 · 3000 = foto original)", "min": 1, "max": 100000, "paso": 1, "valor": 200, "tipo": "numero" },
+    { "id": "rtt", "label": "RTT, en ms", "min": 0.1, "max": 300, "paso": 0.1, "valor": 50 },
+    { "id": "iw", "label": "Ventana inicial, en paquetes (10 es lo normal hoy)", "min": 1, "max": 100, "paso": 1, "valor": 10 },
+    { "id": "mb", "label": "Ancho de banda, en Mb/s", "min": 1, "max": 10000, "paso": 1, "valor": 10 }
+  ],
+  "calculos": [
+    { "id": "paq", "formula": "ceil(kb * 1000 / 1460)" },
+    { "id": "rondas", "formula": "ceil(log2(paq / iw + 1))" },
+    { "id": "t_arranque", "formula": "rondas * rtt" },
+    { "id": "t_ancho", "formula": "kb * 1000 * 8 / (mb * 1e6) * 1000" }
+  ],
+  "salidas": [
+    { "label": "Paquetes de 1,460 bytes", "formula": "paq", "formato": "int" },
+    { "label": "Idas y vueltas del arranque lento", "formula": "rondas", "formato": "int", "nota": "cada una manda el doble que la anterior" },
+    { "label": "Lo que pide el arranque lento", "formula": "t_arranque", "formato": "ms", "decimales": 1, "nota": "idas y vueltas × RTT" },
+    { "label": "Lo que pide el ancho de banda", "formula": "t_ancho", "formato": "ms", "decimales": 1, "nota": "bits ÷ bits por segundo" },
+    { "label": "Piso aproximado del envío", "formula": "max(t_arranque, t_ancho)", "formato": "ms", "decimales": 1, "nota": "manda el más lento de los dos; sin contar el handshake" }
+  ],
+  "nota": "Sube el ancho de banda a 1000 Mb/s: el envío no baja de 200 ms, porque lo que manda es el RTT. Ahora, con esos 1000 Mb/s, baja el RTT a 0.5, como dentro de una zona de la nube: el mismo envío cae a 2 ms."
+}

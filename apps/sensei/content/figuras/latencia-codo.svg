@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 440" role="img" aria-labelledby="f-latencia-codo-t" class="f-svg" style="max-width:420px">
+<title id="f-latencia-codo-t">La curva de una fila M/M/1 para un pod del gateway con 6 milisegundos de servicio. A lo ancho, la utilización de 0 a 100 por ciento; a lo alto, milisegundos de 0 a 300. La curva azul es el tiempo promedio en el pod, W igual a 6 entre 1 menos rho: 12 milisegundos al 50 por ciento, 60 al 90 y 120 al 95. La curva naranja es su p99, 4.6 veces W: 55 milisegundos al 50 por ciento, 138 al 80 y 276 al 90; al 95 ya son 553 y salen de la gráfica. Una línea punteada marca 200 milisegundos, toda la promesa de C01: el p99 del pod la cruza cerca del 86 por ciento. Una banda verde entre 50 y 70 por ciento marca donde se planea un servicio online. Las dos curvas casi no se mueven hasta el 50 por ciento y después suben como palo de hockey.</title>
+<rect class="f-card" x="10" y="10" width="340" height="420" rx="16"/>
+<text class="f-l" x="28" y="36">LA FILA DE UN POD (S = 6 MS)</text>
+<line x1="28" y1="56" x2="50" y2="56" style="stroke:var(--b);stroke-width:3;stroke-linecap:round"/>
+<text class="f-s" x="58" y="60" style="font-size:12px">W: tiempo promedio en el pod</text>
+<line x1="28" y1="76" x2="50" y2="76" style="stroke:var(--o);stroke-width:3;stroke-linecap:round"/>
+<text class="f-s" x="58" y="80" style="font-size:12px">p99 ≈ 4.6 × W</text>
+<line x1="28" y1="96" x2="50" y2="96" style="stroke:var(--tm-ink3);stroke-width:2;stroke-dasharray:5 4"/>
+<text class="f-s" x="58" y="100" style="font-size:12px">200 ms: toda la promesa de C01</text>
+
+<rect class="f-g" x="195" y="118" width="51.6" height="200" style="opacity:.16"/>
+<text class="f-s" x="220.8" y="134" text-anchor="middle" style="font-size:12px;font-weight:700">se planea</text>
+<text class="f-s" x="220.8" y="149" text-anchor="middle" style="font-size:12px;font-weight:700">aquí</text>
+
+<line x1="66" y1="251.3" x2="324" y2="251.3" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="66" y1="118" x2="324" y2="118" style="stroke:var(--tm-line);stroke-width:1"/>
+<line x1="66" y1="184.7" x2="324" y2="184.7" style="stroke:var(--tm-ink3);stroke-width:2;stroke-dasharray:5 4"/>
+<line class="f-flecha" x1="66" y1="318" x2="328" y2="318"/>
+<line class="f-flecha" x1="66" y1="318" x2="66" y2="112"/>
+<text class="f-s" x="59" y="322" text-anchor="end" style="font-size:12px">0</text>
+<text class="f-s" x="59" y="255.3" text-anchor="end" style="font-size:12px">100</text>
+<text class="f-s" x="59" y="188.7" text-anchor="end" style="font-size:12px">200</text>
+<text class="f-s" x="59" y="122" text-anchor="end" style="font-size:12px">300</text>
+<text class="f-s" x="66" y="335" text-anchor="middle" style="font-size:12px">0 %</text>
+<text class="f-s" x="130.5" y="335" text-anchor="middle" style="font-size:12px">25 %</text>
+<text class="f-s" x="195" y="335" text-anchor="middle" style="font-size:12px">50 %</text>
+<text class="f-s" x="259.5" y="335" text-anchor="middle" style="font-size:12px">75 %</text>
+<text class="f-s" x="324" y="335" text-anchor="middle" style="font-size:12px">100 %</text>
+<text class="f-s" x="195" y="354" text-anchor="middle" style="font-size:12px">ρ: utilización de la CPU del pod · en ms, a lo alto</text>
+
+<polyline points="66.0,299.6 76.3,298.8 86.6,298.0 97.0,297.1 107.3,296.1 117.6,295.0 127.9,293.8 138.2,292.4 148.6,290.9 158.9,289.2 169.2,287.3 179.5,285.1 189.8,282.6 200.2,279.6 210.5,276.1 220.8,271.9 231.1,266.8 241.4,260.4 246.6,256.6 251.8,252.2 256.9,247.2 262.1,241.2 267.2,234.3 272.4,225.9 277.6,215.7 282.7,202.9 285.3,195.2 287.9,186.4 290.5,176.3 293.0,164.5 295.6,150.5 298.2,133.8 299.5,124.1 300.3,118.0" style="fill:none;stroke:var(--o);stroke-width:3;stroke-linejoin:round;stroke-linecap:round"/>
+<polyline points="66.0,314.0 86.6,313.7 107.3,313.2 127.9,312.7 148.6,312.1 169.2,311.3 189.8,310.3 200.2,309.7 210.5,308.9 220.8,308.0 231.1,306.9 241.4,305.5 251.8,303.7 262.1,301.3 272.4,298.0 277.6,295.8 282.7,293.0 287.9,289.4 293.0,284.7 298.2,278.0 300.8,273.6 303.4,268.0 305.9,260.9 308.5,251.3 311.1,238.0 312.4,229.1 313.7,218.0 315.0,203.7 316.3,184.7 317.5,158.0 318.8,118.0" style="fill:none;stroke:var(--b);stroke-width:3;stroke-linejoin:round;stroke-linecap:round"/>
+
+<circle class="f-acc" cx="195" cy="281.2" r="5"/>
+<text class="f-t" x="188" y="270" text-anchor="end" style="font-size:13px">55</text>
+<circle class="f-acc" cx="272.4" cy="225.9" r="5"/>
+<text class="f-t" x="264" y="222" text-anchor="end" style="font-size:13px">138</text>
+<circle class="f-acc" cx="298.2" cy="133.8" r="5"/>
+<text class="f-t" x="290" y="138" text-anchor="end" style="font-size:13px">276</text>
+<circle class="f-acc" cx="298.2" cy="278" r="5"/>
+<text class="f-t" x="290" y="272" text-anchor="end" style="font-size:13px">60</text>
+<circle class="f-acc" cx="311.1" cy="238" r="5"/>
+<text class="f-t" x="304" y="242" text-anchor="end" style="font-size:13px">120</text>
+<text class="f-s" x="332" y="112" text-anchor="end" style="font-size:12px">↑ a 95 %: 553</text>
+
+<rect class="f-chip" x="24" y="370" width="312" height="50" rx="10"/>
+<text class="f-t" x="38" y="391" style="font-size:13px">De 50 a 90 %, la espera se multiplica por 9.</text>
+<text class="f-s" x="38" y="409" style="font-size:12px">Cerca del 86 %, el p99 del pod ya gasta los 200 ms.</text>
+</svg>

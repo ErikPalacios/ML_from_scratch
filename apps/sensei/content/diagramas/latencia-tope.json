@@ -1,0 +1,53 @@
+{
+  "titulo": "Topes en cada fila: rechazar rápido lo que no va a llegar a tiempo",
+  "width": 78,
+  "height": 34,
+  "lanes": [
+    { "id": "camino", "label": "Lo que llega", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 16 },
+    { "id": "rechazo", "label": "Lo que no cabe", "kind": "neutral", "x": 0, "y": 18, "w": 78, "h": 16 }
+  ],
+  "nodes": [
+    { "id": "backend", "label": "Backend", "sub": "manda la foto", "kind": "client",
+      "x": 1, "y": 5, "w": 18, "h": 8,
+      "note": "El backend del marketplace manda la foto y espera como máximo 300 ms. Si recibe un error, no reintenta a ciegas: muestra el selector." },
+    { "id": "gw", "label": "Pod del gateway", "sub": "MAX_INFLIGHT = 16", "kind": "service",
+      "x": 30, "y": 5, "w": 18, "h": 8,
+      "note": "Una [[cola-acotada|cola acotada]] por número: como mucho 16 requests en vuelo por pod, y solo 2 decodes a la vez, con 50 ms de espera máxima por un lugar. La 17.ª se rechaza en microsegundos." },
+    { "id": "filatr", "label": "Fila de Triton", "sub": "tope: 100 ms", "kind": "queue",
+      "x": 59, "y": 5, "w": 18, "h": 8,
+      "note": "Una cola acotada por tiempo: lo que ya esperó 100 ms se rechaza (`default_queue_policy` con REJECT). Es el último eslabón de 300 → 250 → 150 → 100 ms. Detrás está la T4, con ≈ 1,210 fotos por segundo como máximo." },
+    { "id": "selector", "label": "Selector manual", "sub": "el fallback", "kind": "human",
+      "x": 1, "y": 22, "w": 18, "h": 8,
+      "note": "El [[fallback]]: Ana elige la categoría a mano. Peor que una sugerencia, mucho mejor que una pantalla esperando." },
+    { "id": "error", "label": "503 rápido", "sub": "«no puedo: no esperes»", "kind": "monitor",
+      "x": 30, "y": 22, "w": 18, "h": 8,
+      "note": "El [[backpressure]] de C01: un 503, el [[codigo-estado|código]] de «servicio no disponible», que cuesta microsegundos y le dice a quien llama que no puede más. Rechazar a propósito lo que no cabe es [[load-shedding]]." }
+  ],
+  "edges": [
+    { "from": "backend", "to": "gw", "kind": "online", "label": "foto", "fromSide": "r", "toSide": "l" },
+    { "from": "gw", "to": "filatr", "kind": "online", "label": "tensor", "fromSide": "r", "toSide": "l" },
+    { "from": "gw", "to": "error", "kind": "online", "dashed": true, "label": "la 17.ª", "fromSide": "b", "toSide": "t" },
+    { "from": "filatr", "to": "error", "kind": "online", "dashed": true, "label": "esperó 100 ms", "fromSide": "b", "toSide": "r", "via": [[68, 26]] },
+    { "from": "error", "to": "selector", "kind": "online", "dashed": true, "label": "503", "fromSide": "l", "toSide": "r" }
+  ],
+  "flows": [
+    { "id": "normal", "label": "Carga normal",
+      "steps": [
+        { "nodes": ["backend", "gw"], "edges": ["backend>gw"], "text": "La foto entra al pod. En el pico de diseño hay ≈ 5 en vuelo por pod (100 por segundo × los ≈ 50 ms de promedio que usa la Ronda, la cuenta de la lección de async): de los 16 lugares sobran 11." },
+        { "nodes": ["gw", "filatr"], "edges": ["gw>filatr"], "text": "El tensor llega a Triton. La T4 va al ≈ 21 % de su máximo: la fila espera ≈ 1 a 3 ms. Ningún tope se toca, y nadie lo nota." }
+      ] },
+    { "id": "contope", "label": "Sobrecarga con topes",
+      "steps": [
+        { "nodes": ["backend", "gw", "filatr"], "edges": ["backend>gw", "gw>filatr"], "text": "Llegan 1,400 fotos por segundo a una T4 que procesa ≈ 1,210. La fila de Triton se llena hasta su tope de 100 ms." },
+        { "nodes": ["filatr", "error"], "edges": ["filatr>error"], "text": "Lo que ya esperó 100 ms se rechaza: ≈ 14 % de las fotos. **Rechazar rápido** en vez de dejar que esperen para nada." },
+        { "nodes": ["gw", "error"], "edges": ["gw>error"], "text": "Si un pod llega a 16 en vuelo, la 17.ª también se rechaza al instante. La presión viaja hacia atrás: es el **backpressure**." },
+        { "nodes": ["error", "selector"], "edges": ["error>selector"], "text": "El backend recibe el 503 y le muestra a Ana el selector. El otro 86 % se contesta **antes del timeout**: el goodput se queda cerca de 1,210 por segundo." }
+      ] },
+    { "id": "sintope", "label": "La misma sobrecarga sin topes",
+      "steps": [
+        { "nodes": ["backend", "gw", "filatr"], "edges": ["backend>gw", "gw>filatr"], "text": "Todo se acepta. Sobran 190 fotos cada segundo y se van a la fila, que no tiene fondo." },
+        { "nodes": ["filatr"], "edges": [], "text": "A los 10 s esperan 1,900: la última tardará ≈ 1.6 s solo en esperar. La GPU trabaja al máximo, sin un solo error." },
+        { "nodes": ["gw", "backend"], "edges": [], "text": "El gateway se rinde a los 150 ms y el backend a los 300: **todas** las respuestas llegan tarde. Throughput de 1,210 por segundo, goodput de casi cero." }
+      ] }
+  ]
+}

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 344" role="img" aria-labelledby="f-apis-protobuf-t" class="f-svg" style="max-width:420px">
+<title id="f-apis-protobuf-t">La misma predicción, con label Tenis y score 0.83, en dos formatos. En JSON son 33 bytes de texto: llave, comillas, la palabra label, dos puntos, Tenis, coma, la palabra score, dos puntos, 0.83 y la llave de cierre. En protobuf son 12 bytes: la etiqueta 0A, que dice campo 1 con longitud; la longitud 05; los 5 bytes de Tenis; la etiqueta 15, que dice campo 2 de 4 bytes; y los 4 bytes del float32 0.83: E1 7A 54 3F. Los nombres de los campos no viajan, solo su número.</title>
+<rect class="f-card" x="10" y="10" width="340" height="324" rx="16"/>
+<text class="f-l" x="28" y="36">UNA PREDICCIÓN, DOS FORMATOS</text>
+<text class="f-t" x="28" y="64" style="font-size:14px">JSON · 33 bytes</text>
+<rect class="f-chip" x="24" y="74" width="312" height="40" rx="8"/>
+<text x="36" y="99" style="fill:var(--ink);font:600 12.5px var(--mono)">{"<tspan style="fill:var(--o)">label</tspan>": "Tenis", "<tspan style="fill:var(--o)">score</tspan>": 0.83}</text>
+<text class="f-s" x="28" y="134" style="font-size:12px">Los nombres viajan en cada mensaje; 0.83 va en letras.</text>
+<text class="f-t" x="28" y="164" style="font-size:14px">Protobuf · 12 bytes</text>
+<text class="f-s" x="65" y="186" text-anchor="middle" style="font-size:12px">longitud: 5</text>
+<text class="f-s" x="191" y="186" text-anchor="middle" style="font-size:12px">campo 2 · 4 bytes</text>
+<path class="f-linea" d="M65 191 L65 197 M191 191 L191 197"/>
+<rect class="f-o" x="24" y="200" width="26" height="32" rx="5"/>
+<text x="37" y="221" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">0A</text>
+<rect class="f-y" x="52" y="200" width="26" height="32" rx="5"/>
+<text x="65" y="221" text-anchor="middle" style="fill:var(--navy);font:700 12px var(--mono)">05</text>
+<rect class="f-chip" x="80" y="200" width="96" height="32" rx="5"/>
+<text x="128" y="221" text-anchor="middle" style="fill:var(--ink);font:700 12px var(--mono)">T e n i s</text>
+<rect class="f-o" x="178" y="200" width="26" height="32" rx="5"/>
+<text x="191" y="221" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">15</text>
+<rect class="f-b" x="206" y="200" width="130" height="32" rx="5"/>
+<text x="271" y="221" text-anchor="middle" class="f-pill-t" style="font:700 12px var(--mono)">E1 7A 54 3F</text>
+<path class="f-linea" d="M37 235 L37 241 M128 235 L128 241 M271 235 L271 241"/>
+<text class="f-s" x="40" y="256" text-anchor="middle" style="font-size:12px">campo 1</text>
+<text class="f-s" x="128" y="256" text-anchor="middle" style="font-size:12px">el texto</text>
+<text class="f-s" x="271" y="256" text-anchor="middle" style="font-size:12px">0.83 en float32</text>
+<rect class="f-chip" x="24" y="274" width="312" height="44" rx="10"/>
+<text class="f-t" x="36" y="293" style="font-size:13px">Etiqueta = número de campo × 8 + tipo</text>
+<text class="f-s" x="36" y="310" style="font-size:12px">0A = 1 × 8 + 2 (longitud) · 15 = 2 × 8 + 5 (4 bytes)</text>
+</svg>
