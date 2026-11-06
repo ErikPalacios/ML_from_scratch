@@ -132,7 +132,7 @@ docker run --rm --gpus all tu-imagen:tag \\
   const COMPOSE_GPU = `services:
   triton:
     build: ./triton
-    # /dev/shm de 1 GB: el default de Docker (64 MB) se queda corto para Triton
+    # /dev/shm de 1 GB: el default de Docker (64 MiB) se queda corto para Triton
     shm_size: 1g
     deploy:
       resources:
@@ -242,8 +242,8 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
             ['<code>sudo nvidia-ctk runtime configure --runtime=docker</code> y <code>sudo systemctl restart docker</code>', 'Registra el runtime de NVIDIA en <code>/etc/docker/daemon.json</code>', 'Una vez por máquina, tras instalar el toolkit'],
             ['<code>--gpus all</code> · <code>--gpus 1</code> · <code>--gpus device=0</code> · <code>--gpus \'"device=0,2"\'</code>', 'Qué GPUs ve el contenedor (también por UUID, de <code>nvidia-smi -L</code>)', 'Con varias GPUs, una por contenedor. Las comillas dobles internas son obligatorias si hay coma'],
             ['<code>docker exec -it triton nvidia-smi</code>', 'Lo mismo, dentro del contenedor', '¿Triton ve la GPU? ¿Cuánta memoria usa? En el c01, <span class="est">unos pocos GB</span> de 16 (<a href="#m04.vram">M4 · VRAM</a>)'],
-            ['<code>--shm-size=1g</code> o <code>--ipc=host</code>', 'Tamaño de <code>/dev/shm</code> (64 MB por defecto) o el IPC del host', 'El DataLoader de PyTorch con <code>num_workers</code> &gt; 0 pasa tensores por <code>/dev/shm</code>; Triton también lo usa. <code>--ipc=host</code> aísla menos'],
-            ['<code>--ulimit memlock=-1 --ulimit stack=67108864</code>', 'Sin límite de memoria bloqueada; pila de 64 MB', 'Lo recomienda el banner de las imágenes de NGC, junto con <code>--shm-size</code>'],
+            ['<code>--shm-size=1g</code> o <code>--ipc=host</code>', 'Tamaño de <code>/dev/shm</code> (64 MiB por defecto) o el IPC del host', 'El DataLoader de PyTorch con <code>num_workers</code> &gt; 0 pasa tensores por <code>/dev/shm</code>; Triton también lo usa. <code>--ipc=host</code> aísla menos'],
+            ['<code>--ulimit memlock=-1 --ulimit stack=67108864</code>', 'Sin límite de memoria bloqueada; pila de 64 MiB', 'Lo recomienda el banner de las imágenes de NGC, junto con <code>--shm-size</code>'],
           ] },
           { t: 'code', title: 'Sanity check en tres pasos', files: [
             { name: 'gpu-check.sh', lang: 'bash', code: GPU_CHECK, note: 'Un comando después de la imagen (<code>nvidia-smi</code>, <code>python -c …</code>) reemplaza el CMD; el entrypoint de NGC igual imprime su banner, donde aparecen los avisos de driver y de <code>/dev/shm</code>.' },
@@ -254,7 +254,7 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
             ['<code>nvidia-container-cli: requirement error: unsatisfied condition: cuda&gt;=12.x, please update your driver…</code>', 'La imagen pide una CUDA que el driver del host no soporta', 'Driver más nuevo o una release anterior de la imagen (<a href="#m05.cuda">M5 · CUDA</a>). Saltarte el chequeo con <code>NVIDIA_DISABLE_REQUIRE=true</code> no agrega compatibilidad: si el driver no alcanza, falla después, al inicializar CUDA'],
             ['<code>CUDA driver version is insufficient for CUDA runtime version</code> · PyTorch: <code>The NVIDIA driver on your system is too old</code>', 'El mismo desajuste, visto desde el proceso', 'Igual que la fila anterior'],
             ['<code>torch.cuda.is_available()</code> → <code>False</code>; <code>nvidia-smi: command not found</code> adentro', 'Sin <code>--gpus</code>, el toolkit no monta driver ni <code>nvidia-smi</code>', '<code>--gpus all</code>'],
-            ['<code>ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).</code>', 'Los workers del DataLoader llenaron los 64 MB de <code>/dev/shm</code>', '<code>--shm-size</code>; en Kubernetes, un <code>emptyDir</code> con <code>medium: Memory</code> como en <code>k8s/triton.yaml</code>'],
+            ['<code>ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).</code>', 'Los workers del DataLoader llenaron los 64 MiB de <code>/dev/shm</code>', '<code>--shm-size</code>; en Kubernetes, un <code>emptyDir</code> con <code>medium: Memory</code> como en <code>k8s/triton.yaml</code>'],
             ['Triton no carga el modelo: el engine es de otra versión de TensorRT o de otra GPU', 'Engine construido en otra GPU o con otra release de TensorRT', 'Reconstruirlo en la misma GPU y release de NGC que Triton (<a href="#c01.archivos">c01 · archivos</a>)'],
           ] },
           { t: 'p', html: `El "CUDA Version" de <code>nvidia-smi</code> es la versión máxima que soporta el driver, no la de tu imagen (esa la ves con <code>torch.version.cuda</code>): <a href="#m05.cuda">M5 · CUDA</a>.` },
@@ -437,7 +437,7 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
           { t: 'code', title: 'Medir el cold start de un pod de Triton', files: [
             { name: 'cold-start.sh', lang: 'bash', code: COLD_START, note: '<code>Created</code> → <code>PodScheduled</code> = espera de nodo (la hora de creación del nodo dice cuánto de eso fue aprovisionar la máquina); <code>PodScheduled</code> → <code>Started</code> = pull y creación del contenedor (el evento <code>Pulled</code> da la duración exacta del pull); <code>Started</code> → <code>Ready</code> = carga del engine y warmup. Cada parte tiene otra palanca.' },
           ] },
-          { t: 'callout', kind: 'trap', title: 'El porcentaje del HPA es sobre el request', html: `<p><code>averageUtilization: 60</code> es el 60 % del <b>request</b> de CPU, no del nodo: con el request de 1 CPU del gateway del c01, 0.6 cores por pod. Cambiar el request cambia cuándo escala sin tocar el HPA. <code>kubectl top</code> muestra cores absolutos: compáralos con el request.</p>` },
+          { t: 'callout', kind: 'trap', title: 'El porcentaje del HPA es sobre el request', html: `<p><code>averageUtilization: 60</code> es el 60 % del <b>request</b> de CPU, no del nodo: con el request de 1 CPU del gateway del c01, 0.6 vCPU por pod. Cambiar el request cambia cuándo escala sin tocar el HPA. <code>kubectl top</code> muestra cores absolutos: compáralos con el request.</p>` },
         ],
       },
 
@@ -503,7 +503,7 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
       { id: 'ref-comandos-11', kind: 'trampa', q: 'Construiste la imagen en un Mac con Apple Silicon y en EKS falla. ¿Qué pasó?',
         a: 'Salió <code>arm64</code>. En los nodos x86 ves <code>no match for platform in manifest</code> al bajarla, o <code>exec format error</code> en el log. Construye con <code>--platform linux/amd64</code> (mejor: en CI) y compruébalo con <code>docker buildx imagetools inspect</code>.' },
       { id: 'ref-comandos-12', kind: 'concepto', q: '¿Para qué <code>--shm-size</code> o <code>--ipc=host</code> con PyTorch o Triton?',
-        a: 'Docker da 64 MB de <code>/dev/shm</code> por defecto. Los workers del DataLoader pasan tensores por ahí (si no alcanza: "insufficient shared memory") y Triton también lo usa. En Kubernetes: un emptyDir con <code>medium: Memory</code>.' },
+        a: 'Docker da 64 MiB de <code>/dev/shm</code> por defecto. Los workers del DataLoader pasan tensores por ahí (si no alcanza: "insufficient shared memory") y Triton también lo usa. En Kubernetes: un emptyDir con <code>medium: Memory</code>.' },
       { id: 'ref-comandos-14', kind: 'trampa', q: '¿Sirve <code>kubectl port-forward svc/triton</code> para hacer un load test?',
         a: 'No: elige un solo pod y pasa por el API server y el kubelet. Sirve para una prueba de humo (health, metadata del modelo, métricas); el load test va contra el Service o el balanceador real.' },
       { id: 'ref-comandos-15', kind: 'frase', q: '¿Cómo dices en inglés tu primera reacción ante un deploy que empeora el p99?',
@@ -526,7 +526,7 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
       { en: 'ProgressDeadlineExceeded', es: 'plazo de progreso vencido', def: 'Razón de la condición <code>Progressing=False</code> de un Deployment cuyo rollout no avanza en <code>progressDeadlineSeconds</code> (600 s por defecto). En GPU, esperar nodo, imagen y carga del modelo (' + E('≈ 4–11 min') + ') puede pasarlo.', say: 'GPU pods take minutes to become ready, so we raise progressDeadlineSeconds on that Deployment.' },
       { en: 'configuration drift', es: 'deriva de configuración', def: 'Diferencia entre lo que describe git y lo que corre en el cluster, típica de cambios manuales (<code>kubectl edit</code>, <code>scale</code>, <code>set image</code>). Una herramienta de GitOps la detecta y puede revertirla.', say: 'Editing the Deployment by hand creates drift, and the next sync overwrites it.' },
       { en: 'exec format error', es: 'error de formato de ejecutable', def: 'Error del kernel al ejecutar un binario de otra arquitectura: por ejemplo, una imagen arm64 construida en un Mac con Apple Silicon en un nodo x86.', say: 'An exec format error means the image was built for arm64, so I rebuild it for linux/amd64.' },
-      { en: 'shared memory (/dev/shm)', es: 'memoria compartida', def: 'tmpfs que los procesos usan para intercambiar datos sin copiarlos. Docker da 64 MB por defecto: poco para los workers del DataLoader de PyTorch o para Triton.', say: 'We give the Triton container a 1 GB /dev/shm, because the 64 MB default is too small.' },
+      { en: 'shared memory (/dev/shm)', es: 'memoria compartida', def: 'tmpfs que los procesos usan para intercambiar datos sin copiarlos. Docker da 64 MiB por defecto: poco para los workers del DataLoader de PyTorch o para Triton.', say: 'We give the Triton container a 1 GB /dev/shm, because the 64 MiB default is too small.' },
       { en: 'metrics-server', es: 'servidor de métricas de recursos', def: 'Componente que recoge CPU y memoria de los kubelets y las expone en la Metrics API. Lo usan <code>kubectl top</code> y el HPA por CPU o memoria; no viene en todos los clusters.', say: 'kubectl top returns nothing because metrics-server isn\'t installed on this cluster.' },
     ],
   });

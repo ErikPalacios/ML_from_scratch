@@ -15,7 +15,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 # así editar main.py no reinstala numpy y Pillow en cada build
 COPY requirements.txt .
 # --only-binary: solo wheels precompilados; si falta uno, el build falla aquí en vez de intentar
-# compilar (y necesitar gcc) en silencio. Verificado: los 37 paquetes tienen wheel cp313 manylinux x86_64.
+# compilar (y necesitar gcc) en silencio. Verificado: los 37 paquetes tienen wheel para Linux x86_64. Los ≈ 18
+# con código compilado (numpy, pillow, pydantic_core, uvloop…) traen el suyo manylinux; los de puro Python, py3-none-any.
 RUN pip install --only-binary=:all: -r requirements.txt
 
 # ---------------------------------------------------------------- etapa 2: runtime
