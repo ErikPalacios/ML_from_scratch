@@ -119,7 +119,7 @@ spec:
                 command: ["sleep", "10"]
           volumeMounts:
             - name: dshm
-              mountPath: /dev/shm  # memoria compartida de Triton (en k8s /dev/shm son 64 MB por defecto)
+              mountPath: /dev/shm  # memoria compartida de Triton (en k8s /dev/shm son 64 MiB por defecto)
       volumes:
         - name: dshm
           emptyDir:

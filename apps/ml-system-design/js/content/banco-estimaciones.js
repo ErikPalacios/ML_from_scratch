@@ -85,7 +85,7 @@
       { topic: 'hardware', title: 'KV cache', expr: 'KV por token = 2 × capas × KV heads × head_dim × bytes · secuencias = ⌊KV libre ÷ (tokens × KV por token)⌋', ex: 'Llama 3 8B: 128 KiB por token, 8k tokens = 1 GiB ≈ 1.07 GB · 70B: 320 KiB' },
       { topic: 'hardware', title: 'Prefill y decode', expr: 'TTFT ≳ 2 × parámetros × tokens del prompt ÷ FLOPS · tokens/s ≲ ancho de banda ÷ bytes de pesos', ex: 'L4, 8B BF16: ≳ 0.27 s para 2,000 tokens · ≲ 19 tokens/s' },
       { topic: 'hardware', title: 'GPUs', expr: 'GPUs = ⌈pico de diseño ÷ (capacidad medida × utilización)⌉ + 1', ex: '⌈500 ÷ (1,200 × 0.5)⌉ + 1 = 2 · utilización 50–70 %' },
-      { topic: 'hardware', title: 'CPU del preproceso', expr: 'cores = req/s × segundos de CPU por request · vCPU = cores ÷ utilización objetivo del HPA', ex: '500 × 6 ms = 3 cores → ÷ 0.6 = 5 vCPU → 2 × c6i.xlarge' },
+      { topic: 'hardware', title: 'CPU del preproceso', expr: 'vCPU ocupados = req/s × segundos de CPU por request · vCPU a provisionar = ocupados ÷ utilización objetivo del HPA', ex: '500 × 6 ms = 3 vCPU ocupados → ÷ 0.6 = 5 vCPU → 2 × c6i.xlarge' },
 
       { topic: 'costo', title: 'Costo mensual', expr: 'US$/mes = instancias × US$/h × 730 h', ex: '2 × 0.526 × 730 ≈ US$768' },
       { topic: 'costo', title: 'Por 1,000 predicciones', expr: 'a capacidad: US$/h ÷ (pred/s × 3.6) · real: costo del mes ÷ predicciones del mes × 1,000', ex: 'T4 a 600 img/s ≈ US$0.00024 · las 2 T4 del c01 con su carga ≈ US$0.0025' },
@@ -318,10 +318,10 @@
                 ],
               },
               {
-                ask: 'El gateway gasta ≈ <b>6 ms de CPU</b> por request (el preproceso del caso 1). ¿Cuántos cores ocupa durante el spike?', unit: 'cores', answer: cores, tol: 0.15,
+                ask: 'El gateway gasta ≈ <b>6 ms de CPU</b> por request (el preproceso del caso 1). ¿Cuántos vCPU ocupa durante el spike?', unit: 'vCPU', answer: cores, tol: 0.15,
                 steps: [
-                  'Planteamiento (Little aplicado a la CPU): cores ocupados = tasa × tiempo de CPU por request.',
-                  `Con el resultado de la primera parte: ${f(spike)} req/s × 0.006 s ≈ <b>${f(cores)} cores</b>`,
+                  'Planteamiento (Little aplicado a la CPU): vCPU ocupados = tasa × tiempo de CPU por request.',
+                  `Con el resultado de la primera parte: ${f(spike)} req/s × 0.006 s ≈ <b>${f(cores)} vCPU</b>`,
                   'El caso 1 provisiona 8 vCPU de gateway para su pico de diseño: en un spike, el primer cuello de botella puede ser la CPU (y la red) del gateway, no la GPU.',
                 ],
               },
@@ -1116,14 +1116,14 @@
           const c4 = ceilx(vcpu / 4);
           const nodes = Math.max(2, c4);
           const cost = nodes * 0.17 * MES_H;
-          const coresTxt = (x) => f(x) + (Math.abs(x - 1) < 1e-9 ? ' core' : ' cores');
+          const coresTxt = (x) => f(x) + ' vCPU';
           return {
             q: `El gateway decodifica y preprocesa cada imagen en CPU: ≈ <b>${m} ms de CPU por request</b> (medido con fotos reales). El tráfico promedia <b>${f(avg)} req/s</b> y el pico de diseño es <b>${f(P)} req/s</b>. El HPA escala al <b>${Math.round(u * 100)} %</b> de CPU y los nodos son <b>c6i.xlarge</b> (4 vCPU, ≈ US$0.17/h, aprox.).`,
             parts: [
               {
-                ask: 'Cores ocupados en el <b>pico</b>', unit: 'cores', answer: cores, tol: 0.15,
+                ask: 'vCPU ocupados en el <b>pico</b>', unit: 'vCPU', answer: cores, tol: 0.15,
                 steps: [
-                  'Planteamiento (Little aplicado a la CPU): cores ocupados = tasa × tiempo de CPU por request. Con el pico de diseño, no con el promedio.',
+                  'Planteamiento (Little aplicado a la CPU): vCPU ocupados = tasa × tiempo de CPU por request. Con el pico de diseño, no con el promedio.',
                   `${f(P)} × ${f(m / 1000, 3)} s = <b>${coresTxt(cores)}</b>`,
                   `Con el promedio darían ${f((avg * m) / 1000)}: dimensionar con eso satura el threadpool en el pico y el p99 explota.`,
                 ],
@@ -1131,7 +1131,7 @@
               {
                 ask: 'vCPU a provisionar (lo que suman los requests de CPU de los pods)', unit: 'vCPU', answer: vcpu, tol: 0.15,
                 steps: [
-                  'Planteamiento: vCPU = cores ocupados ÷ utilización objetivo del HPA.',
+                  'Planteamiento: vCPU a provisionar = vCPU ocupados ÷ utilización objetivo del HPA.',
                   `Con el resultado anterior: ${f(cores)} ÷ ${u} = <b>${f(vcpu)} vCPU</b>`,
                 ],
               },
@@ -1151,7 +1151,7 @@
               },
             ],
             hint: 'Little aplicado a la CPU: cores = req/s del pico × segundos de CPU por request. Después divide por la utilización objetivo del HPA, reparte en nodos de 4 vCPU (mínimo 2) y ponle precio con 730 h.',
-            takeaway: `Cada tier se dimensiona por separado y con el pico: en el caso 1 el gateway en CPU (≈ 3 cores en el pico de diseño) es lo primero que se satura en un spike. Si el preproceso pesa (fotos de 12 MP: ≈ 40–80 ms de CPU), limitar tamaños, el draft mode de JPEG o reducir en el cliente valen más que otra GPU. <i>"Preprocessing costs about ${m} ms of CPU per image, so the design peak keeps ${coresTxt(cores)} busy; with the autoscaler targeting ${Math.round(u * 100)}%, I request about ${f(vcpu)} vCPUs."</i>`,
+            takeaway: `Cada tier se dimensiona por separado y con el pico: en el caso 1 el gateway en CPU (≈ 3 vCPU ocupados en el pico de diseño) es lo primero que se satura en un spike. Si el preproceso pesa (fotos de 12 MP: ≈ 40–80 ms de CPU), limitar tamaños, el draft mode de JPEG o reducir en el cliente valen más que otra GPU. <i>"Preprocessing costs about ${m} ms of CPU per image, so the design peak keeps about ${f(cores)} vCPUs busy; with the autoscaler targeting ${Math.round(u * 100)}%, I request about ${f(vcpu)} vCPUs."</i>`,
           };
         },
       },

@@ -352,7 +352,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]` },
             { name: 'docker-compose.yml (extracto)', lang: 'yaml', code: `services:
   triton:
     build: ./triton
-    # /dev/shm de 64 MB (el default de Docker) no alcanza para Triton
+    # /dev/shm de 64 MiB (el default de Docker) no alcanza para Triton
     shm_size: 1g
     deploy:
       resources:

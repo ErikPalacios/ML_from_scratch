@@ -13,7 +13,7 @@ services:
       - "8000:8000"  # HTTP/REST KServe v2 (el gateway) y /v2/health/*
       - "8001:8001"  # gRPC (perf_analyzer, clientes que lo prefieran)
       - "8002:8002"  # métricas Prometheus nv_*
-    shm_size: 1g  # Triton usa /dev/shm; los 64 MB por defecto de Docker se quedan cortos
+    shm_size: 1g  # Triton usa /dev/shm; los 64 MiB por defecto de Docker se quedan cortos
     deploy:
       resources:
         reservations:

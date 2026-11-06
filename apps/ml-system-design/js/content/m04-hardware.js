@@ -171,8 +171,8 @@
             `<b>INT8 en CPUs modernas.</b> Las instrucciones VNNI (AVX-512, desde Cascade Lake; en AWS, las c6i) y AMX (desde Sapphire Rapids; las c7i) aceleran INT8 y reducen mucho la distancia con una GPU chica en modelos de este tamaño. Cuánto, se mide.`,
           ] },
           { t: 'calc', title: '¿Sin GPU en el caso 1? (números del c01)', rows: [
-            { label: 'ResNet-50 FP32 en CPU', expr: '500 × ' + E('≈ 40–80 ms') + ' por imagen por vCPU', value: '≈ 20–40 vCPU ocupados en el pico' },
-            { label: 'ResNet-50 INT8 (ONNX Runtime u OpenVINO), a provisionar con el HPA al 60 %', expr: '500 × ' + E('≈ 8–25 ms') + ' ÷ 0.6', value: E('≈ 7–21 vCPU en el pico'), note: E('≈ 4–12.5') + ' ocupados' },
+            { label: 'ResNet-50 FP32 en CPU', expr: '500 × ' + E('≈ 100–150 ms') + ' por imagen por vCPU', value: '≈ 50–75 vCPU ocupados en el pico', note: 'Piso físico de un vCPU de c6i (medio núcleo con AVX-512): ≈ 73 ms por foto' },
+            { label: 'ResNet-50 INT8 en una c7i con AMX (ONNX Runtime u OpenVINO), a provisionar con el HPA al 60 %', expr: '500 × ' + E('≈ 8–25 ms') + ' ÷ 0.6', value: E('≈ 7–21 vCPU en el pico'), note: E('≈ 4–12.5') + ' ocupados. Con VNNI (c6i) no se llega: su piso físico ya es ≈ 18 ms por imagen por vCPU' },
             { label: 'Contra', expr: '2 × g4dn.xlarge', value: E('≈ US$768/mes') },
           ], result: 'En FP32 gana la T4. En INT8, CPU-only puede costar igual o menos y elimina un tier entero (sin engine atado a una GPU, sin cold start de nodos GPU). No hay benchmark confiable para tu stack: se mide en la semana 1.' },
           { t: 'h3', text: 'GPU: el default, con costo fijo' },
@@ -188,7 +188,7 @@
           { t: 'followups', items: [
             { q: '¿Por qué no sirves el modelo en CPU?',
               junior: 'Porque la GPU es mucho más rápida para deep learning.',
-              senior: 'A 500 req/s con ResNet-50 en FP32 serían ≈ 20–40 vCPU ocupados en el pico, así que parto de una T4 con TensorRT FP16. Pero la carga promedio es ≈ 5 % de esa GPU, así que en la primera semana mido INT8 en una c7i: si da ≈ 15 ms por imagen por vCPU sin perder más de 0.5 pp en el golden set, CPU-only suma ≈ US$125–250/mes de CPU contra ≈ US$768 de las dos T4 (cuentas del c01) y me ahorro el tier GPU.',
+              senior: 'A 500 req/s con ResNet-50 en FP32 serían ≈ 50–75 vCPU ocupados en el pico, así que parto de una T4 con TensorRT FP16. Pero la carga promedio es ≈ 5 % de esa GPU, así que en la primera semana mido INT8 en una c7i: si da ≈ 15 ms por imagen por vCPU sin perder más de 0.5 pp en el golden set, CPU-only suma ≈ US$130–260/mes de CPU contra ≈ US$768 de las dos T4 (cuentas del c01) y me ahorro el tier GPU.',
               why: 'Convierte "más rápida" en costo y en operación, y deja una prueba concreta que cambiaría la decisión.' },
             { q: 'Estamos en GCP. ¿Usarías TPUs?',
               junior: 'Sí, las TPUs son más rápidas que las GPUs.',
@@ -429,7 +429,7 @@ nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv -l 
             { label: 'T4 (g4dn.xlarge), 600 img/s', expr: '0.526 ÷ (600 × 3.6)', value: E('≈ US$0.00024'), note: 'Capacidad planificada del c01 (≈ 50 % del máximo medido)' },
             { label: 'L4 (g6.xlarge), 1,500 img/s', expr: '0.805 ÷ (1,500 × 3.6)', value: E('≈ US$0.00015'), note: '<b>Supuesto</b>: ≈ 2.5× la T4 (el c01 estima 2–3×). Mídelo con perf_analyzer antes de decidir' },
             { label: 'A10G (g5.xlarge), 1,500 img/s', expr: '1.006 ÷ (1,500 × 3.6)', value: E('≈ US$0.00019'), note: '<b>Supuesto</b>: la hoja de datos AWS/NVIDIA muestra ≈ 2.5× la T4 en ResNet-50, pero en INT8 y batch 128, no en tu configuración' },
-            { label: 'CPU INT8 (c6i), 15 ms por imagen por vCPU al 60 %', expr: '1,000 × 0.015 s ÷ 0.6 ÷ 3,600 × 0.0425', value: E('≈ US$0.0003'), note: 'Si la accuracy aguanta; el c01 lo manda a medir en la semana 1' },
+            { label: 'CPU INT8 (c7i con AMX), 15 ms por imagen por vCPU al 60 %', expr: '1,000 × 0.015 s ÷ 0.6 ÷ 3,600 × 0.0446', value: E('≈ US$0.0003'), note: 'Si la accuracy aguanta; el c01 lo manda a medir en la semana 1' },
           ], result: 'A capacidad llena, la L4 sería la más barata por predicción aunque cueste ≈ 53 % más por hora.' },
           { t: 'p', html: `Pero nadie paga "a capacidad llena". Pagas horas encendidas, y en el c01 hay ≈ 116 req/s promedio repartidos en dos GPUs que están ahí por N+1:` },
           { t: 'calc', title: 'El caso 1 con su carga real (2 GPUs siempre encendidas, sin autoscaling)', rows: [
@@ -473,7 +473,7 @@ nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv -l 
             { option: 'CPU INT8 (c6i/c7i) dentro del gateway', verdict: 'depende',
               pros: 'Sin tier GPU, sin engine atado a una arquitectura, escala con el HPA de CPU.',
               cons: 'Riesgo de perder accuracy en el long tail; ≈ 7–21 vCPU en el pico.',
-              why: `Si el benchmark da ≈ 15 ms por imagen por vCPU con ≤ 0.5 pp de pérdida, cuesta menos: ${E('≈ US$125–250/mes')} de CPU contra ${E('≈ US$768')} de GPU (análisis del c01), porque la CPU escala con la carga y no paga una GPU ociosa por N+1.` },
+              why: `Si el benchmark da ≈ 15 ms por imagen por vCPU con ≤ 0.5 pp de pérdida, cuesta menos: ${E('≈ US$130–260/mes')} de CPU contra ${E('≈ US$768')} de GPU (análisis del c01), porque la CPU escala con la carga y no paga una GPU ociosa por N+1.` },
             { option: 'Fracción de L4 (AWS g6f, desde 2025)', verdict: 'depende',
               pros: `g6f.large: 1/8 de L4 con ≈ 3 GB de VRAM a ${E('≈ US$0.20/h')}. Right-sizing por debajo de una GPU entera.`,
               cons: 'Throughput y aislamiento de la fracción por medir; 3 GB son justos para varias instancias.',
