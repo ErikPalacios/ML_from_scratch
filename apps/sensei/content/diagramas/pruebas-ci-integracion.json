@@ -1,0 +1,52 @@
+{
+  "titulo": "Las pruebas de integración del gateway: qué es de verdad y qué es falso",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    { "id": "prueba", "label": "En la prueba: CI, sin GPU", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 32 },
+    { "id": "prod", "label": "En producción", "kind": "online", "x": 0, "y": 34, "w": 78, "h": 16 }
+  ],
+  "nodes": [
+    { "id": "test", "label": "test_api.py", "sub": "pytest · 26 pruebas", "kind": "job", "x": 1, "y": 7, "w": 16, "h": 8,
+      "note": "Las 26 pruebas de integración del gateway. Cada una arma una [[request]] (una foto, un PDF, un archivo enorme), se la manda al gateway y revisa la respuesta: el [[codigo-estado|código]], los campos y el `model_version`. Corren con [[pytest]] en cualquier máquina." },
+    { "id": "gateway", "label": "Gateway", "sub": "de verdad: valida", "kind": "service", "x": 21, "y": 7, "w": 16, "h": 8,
+      "note": "El programa **de verdad**, el mismo que va en la imagen. Valida la request (tipo de archivo, tamaño, píxeles) y responde 415, 413 o 400 antes de gastar nada. Lo que no es suyo, Triton, se lo da un [[fixture]] como un doble." },
+    { "id": "pre", "label": "preprocess.py", "sub": "de verdad", "kind": "service", "x": 21, "y": 21, "w": 16, "h": 8,
+      "note": "El mismo [[preprocesamiento]] de entrenamiento, evaluación y servicio: decodifica, lleva el lado corto a 256, recorta 224 × 224 y normaliza. Sus funciones tienen además sus [[prueba-unitaria|pruebas unitarias]] y la de los tensores de las 20 fotos de referencia." },
+    { "id": "cliente", "label": "Cliente de Triton", "sub": "de verdad · timeout 0.15 s", "kind": "service", "x": 41, "y": 7, "w": 16, "h": 8,
+      "note": "El código del gateway que habla con Triton por HTTP, con su [[timeout]] de 0.15 s (`INFER_TIMEOUT_S`). Si Triton tarda más, el gateway responde 504; si no contesta, 503. Es de verdad: lo único falso es quien le contesta." },
+    { "id": "falso", "label": "Triton falso", "sub": "un doble · revisa el contrato", "kind": "external", "x": 61, "y": 7, "w": 16, "h": 8,
+      "note": "Un [[mock]]: un objeto que finge ser Triton y responde lo que la prueba le diga (logits fijos, un error, una espera larga). Respeta los métodos y los errores del cliente real y revisa el nombre, el dtype y el shape del tensor que le llega: [1, 3, 224, 224] en FP32." },
+    { "id": "real", "label": "Triton real", "sub": "T4 · engine FP16", "kind": "gpu", "x": 61, "y": 39, "w": 16, "h": 8,
+      "note": "El de producción: una GPU T4 con el engine de TensorRT en FP16. Tarda, se puede quedar sin memoria y su engine puede responder distinto a lo esperado. Nada de eso lo ve el falso: lo ven la paridad de punta a punta, la [[prueba-humo|prueba de humo]] y el canary." }
+  ],
+  "edges": [
+    { "from": "test", "to": "gateway", "kind": "neutral", "label": "foto", "fromSide": "r", "toSide": "l" },
+    { "from": "gateway", "to": "pre", "kind": "neutral", "label": "bytes", "fromSide": "b", "toSide": "t" },
+    { "from": "pre", "to": "cliente", "kind": "neutral", "label": "tensor", "fromSide": "r", "toSide": "b", "via": [[49, 25]] },
+    { "from": "cliente", "to": "falso", "kind": "neutral", "label": "infer", "fromSide": "r", "toSide": "l" },
+    { "from": "falso", "to": "real", "kind": "online", "dashed": true, "label": "mismo contrato", "fromSide": "b", "toSide": "t" }
+  ],
+  "flows": [
+    { "id": "pasa", "label": "Una prueba que pasa",
+      "steps": [
+        { "nodes": ["test", "gateway"], "edges": ["test>gateway"], "text": "La prueba manda la foto de los tenis con `top_k=5`, como lo haría el backend." },
+        { "nodes": ["gateway", "pre"], "edges": ["gateway>pre"], "text": "El **gateway de verdad** valida la request y pasa los bytes al **preprocesamiento de verdad**." },
+        { "nodes": ["pre", "cliente"], "edges": ["pre>cliente"], "text": "Sale un tensor [1, 3, 224, 224] en FP32 y el **cliente de Triton** lo manda." },
+        { "nodes": ["cliente", "falso"], "edges": ["cliente>falso"], "text": "El **Triton falso** revisa el nombre, el dtype y el shape, y regresa unos logits fijos." },
+        { "nodes": ["test", "gateway"], "edges": [], "text": "El gateway convierte los logits en el top-5 y responde 200. La prueba revisa el código, los 5 resultados y el `model_version`. **Pasa.**" }
+      ] },
+    { "id": "contrato", "label": "Un contrato roto",
+      "steps": [
+        { "nodes": ["pre"], "edges": [], "text": "Alguien cambia el preprocesamiento para mandar el tensor en FP16, «para ahorrar red», sin cambiar la configuración de Triton." },
+        { "nodes": ["pre", "cliente", "falso"], "edges": ["pre>cliente", "cliente>falso"], "text": "El Triton falso revisa el dtype: esperaba FP32 y recibió FP16. Lanza el mismo error que lanzaría el real." },
+        { "nodes": ["test"], "edges": [], "text": "La prueba falla en CI, en el PR. **El error sale aquí y no en producción**, en minutos y sin GPU." }
+      ] },
+    { "id": "ciego", "label": "Lo que el falso no ve",
+      "steps": [
+        { "nodes": ["falso"], "edges": [], "text": "El falso siempre contesta rápido y con los logits que le dijeron. No sabe cuánto tarda el engine, ni si cabe en la memoria de la GPU." },
+        { "nodes": ["falso", "real"], "edges": ["falso>real"], "text": "El **Triton real** puede comportarse distinto: otra versión de TensorRT, un engine construido en otra GPU, poca memoria." },
+        { "nodes": ["real"], "edges": [], "text": "Para eso hacen falta pruebas contra la pieza de verdad: la **paridad de punta a punta** en el runner con T4 y la **prueba de humo** en staging." }
+      ] }
+  ]
+}

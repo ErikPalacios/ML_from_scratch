@@ -1,0 +1,48 @@
+{
+  "titulo": "La trazabilidad de C01: del modelo en producción a su origen",
+  "width": 78,
+  "height": 46,
+  "lanes": [
+    { "id": "origen", "label": "Cómo nació el modelo", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 26 },
+    { "id": "hoy", "label": "Lo que corre hoy", "kind": "online", "x": 0, "y": 28, "w": 78, "h": 18 }
+  ],
+  "nodes": [
+    { "id": "commit", "label": "Commit de código", "sub": "c3f2fc2 · entrenamiento", "kind": "store", "x": 1, "y": 4, "w": 22, "h": 8,
+      "note": "El [[commit]] exacto del código de entrenamiento. Solo dice la verdad si el árbol estaba limpio: si el script tenía cambios sin commit, apunta a otro código." },
+    { "id": "snap", "label": "Snapshot de datos", "sub": "ds-2026-09-01", "kind": "store", "x": 28, "y": 4, "w": 22, "h": 8,
+      "note": "El [[snapshot]]: la lista fija de datos con que se entrenó, en object storage, en un prefijo que no se reescribe. Git no versiona datos: el snapshot sí." },
+    { "id": "digest", "label": "Imagen de entrenamiento", "sub": "fijada por su digest", "kind": "store", "x": 55, "y": 4, "w": 22, "h": 8,
+      "note": "El entorno exacto donde corrió el entrenamiento: la imagen de contenedor, identificada por su [[digest-imagen|digest]], la huella SHA-256 de su contenido. Lo ves en la estación 7." },
+    { "id": "reg", "label": "Modelo registrado", "sub": "resnet50-2026-10-01", "kind": "store", "x": 28, "y": 16, "w": 22, "h": 8,
+      "note": "En el [[registro-modelos|registro de modelos]], cada versión guarda **tres punteros**: commit, snapshot y digest. No copia nada: apunta. Con los tres, el modelo se puede explicar y volver a entrenar." },
+    { "id": "dep", "label": "Repo de despliegue", "sub": "qué imagen y qué modelo", "kind": "store", "x": 1, "y": 33, "w": 22, "h": 8,
+      "note": "Con [[gitops|GitOps]], este repositorio dice qué corre en el clúster. Su historia es la historia de producción, y volver a ayer es un `git revert`." },
+    { "id": "gw", "label": "Gateway", "sub": "classifier-gateway:3f9c2ab", "kind": "service", "x": 28, "y": 33, "w": 22, "h": 8,
+      "note": "La imagen del gateway lleva como tag el hash corto del commit de **su** código: `git show 3f9c2ab` enseña exactamente qué corre. Es otro commit, del código del gateway, no del entrenamiento." },
+    { "id": "triton", "label": "Triton", "sub": "sirve resnet50-2026-10-01", "kind": "model", "x": 55, "y": 33, "w": 22, "h": 8,
+      "note": "Triton responde con el modelo `resnet50-2026-10-01`, y esa versión viaja en cada respuesta y en cada línea de log. Es la punta del hilo." }
+  ],
+  "edges": [
+    { "from": "reg", "to": "commit", "kind": "offline", "dashed": true, "fromSide": "l", "toSide": "b", "via": [[12, 20]] },
+    { "from": "reg", "to": "snap", "kind": "offline", "dashed": true, "fromSide": "t", "toSide": "b" },
+    { "from": "reg", "to": "digest", "kind": "offline", "dashed": true, "fromSide": "r", "toSide": "b", "via": [[66, 20]] },
+    { "from": "reg", "to": "triton", "kind": "offline", "fromSide": "b", "toSide": "t", "via": [[39, 27], [66, 27]], "label": "versión" },
+    { "from": "dep", "to": "gw", "kind": "online", "fromSide": "r", "toSide": "l", "label": "Argo CD" },
+    { "from": "gw", "to": "triton", "kind": "online", "fromSide": "r", "toSide": "l", "label": "tensor" }
+  ],
+  "flows": [
+    { "id": "origen", "label": "¿De dónde salió este modelo?",
+      "steps": [
+        { "nodes": ["triton"], "edges": [], "text": "Una respuesta rara llega con `model_version: resnet50-2026-10-01`. Esa es la punta del hilo." },
+        { "nodes": ["triton", "reg"], "edges": ["reg>triton"], "text": "En el **registro de modelos**, esa versión tiene su ficha." },
+        { "nodes": ["reg", "commit", "snap", "digest"], "edges": ["reg>commit", "reg>snap", "reg>digest"], "text": "La ficha trae **tres punteros**: el commit `c3f2fc2`, el snapshot `ds-2026-09-01` y el digest de la imagen de entrenamiento. Con `git show c3f2fc2` ves el código; con el snapshot, los datos exactos." },
+        { "nodes": ["commit"], "edges": [], "text": "Si el entrenamiento corrió con el **árbol limpio**, ese commit es el código de verdad. Si no, el hilo se corta aquí: por eso el pipeline revisa `git status --porcelain`." }
+      ] },
+    { "id": "ayer", "label": "Volver a la versión de ayer",
+      "steps": [
+        { "nodes": ["gw"], "edges": [], "text": "La imagen nueva del gateway empieza a responder errores." },
+        { "nodes": ["dep"], "edges": [], "text": "En el **repositorio de despliegue**, un `git revert` del commit que cambió el tag, en un PR que se aprueba rápido." },
+        { "nodes": ["dep", "gw", "triton"], "edges": ["dep>gw", "gw>triton"], "text": "Argo CD ve el cambio y regresa el clúster a `classifier-gateway:3f9c2ab`, una imagen que ya existía: no se reconstruye nada." }
+      ] }
+  ]
+}

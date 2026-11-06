@@ -1,0 +1,58 @@
+{
+  "titulo": "El camino de un cambio: de la laptop de Luis a producción",
+  "width": 78,
+  "height": 52,
+  "lanes": [
+    { "id": "laptop", "label": "En la laptop", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 14 },
+    { "id": "github", "label": "En GitHub", "kind": "neutral", "x": 0, "y": 16, "w": 78, "h": 20 },
+    { "id": "despues", "label": "Después del merge", "kind": "offline", "x": 0, "y": 38, "w": 78, "h": 14 }
+  ],
+  "nodes": [
+    { "id": "luis", "label": "Luis", "sub": "rama fix-timeout", "kind": "client", "badge": "1", "x": 2, "y": 4, "w": 20, "h": 8,
+      "note": "Luis trabaja en su propia [[rama]], `fix-timeout`, y hace commits en su laptop. `main` no se toca: las otras cuatro personas siguen trabajando sin enterarse." },
+    { "id": "rama", "label": "Su rama en GitHub", "sub": "origin/fix-timeout", "kind": "store", "badge": "2", "x": 2, "y": 22, "w": 20, "h": 8,
+      "note": "`git push` sube la rama al [[remoto-git|remoto]]. Ahora hay una copia fuera de su laptop, pero todavía no es parte de `main`." },
+    { "id": "pr", "label": "Pull request", "sub": "main ← fix-timeout", "kind": "service", "badge": "3", "x": 29, "y": 22, "w": 20, "h": 8,
+      "note": "El [[pull-request|pull request]] pide unir la rama a `main`. Muestra el diff, los commits y la conversación, y no se puede unir hasta que la revisión y CI digan que sí." },
+    { "id": "rev", "label": "Revisión", "sub": "Ana lee el diff", "kind": "human", "badge": "4", "x": 56, "y": 17, "w": 20, "h": 8,
+      "note": "La [[revision-codigo|revisión de código]]: otra persona lee el cambio. ¿Hace lo que dice? ¿Tiene pruebas? ¿Mete un secreto o un archivo de pesos? ¿Cambia el preprocesamiento?" },
+    { "id": "ci", "label": "CI", "sub": "los 26 tests del gateway", "kind": "job", "badge": "4", "x": 56, "y": 27, "w": 20, "h": 8,
+      "note": "La [[ci|integración continua]] corre sola en cada PR: en C01, los 26 tests del gateway. Si uno falla, el botón de merge se queda bloqueado. Es el tema de la lección siguiente." },
+    { "id": "main", "label": "main", "sub": "un commit nuevo", "kind": "store", "badge": "5", "x": 56, "y": 41, "w": 20, "h": 8,
+      "note": "Con la aprobación y CI en verde, el botón hace el [[merge]]. `main` avanza a un commit nuevo, con su id: el nombre exacto de esta versión del código." },
+    { "id": "img", "label": "Imagen del gateway", "sub": "tag = hash corto", "kind": "job", "badge": "6", "x": 29, "y": 41, "w": 20, "h": 8,
+      "note": "CI construye la imagen y la nombra con el commit: `classifier-gateway:` más los 7 caracteres de `git rev-parse --short=7 HEAD`. Así se sabe siempre qué código lleva adentro." },
+    { "id": "dep", "label": "Repo de despliegue", "sub": "un PR cambia el tag", "kind": "store", "badge": "7", "x": 2, "y": 41, "w": 20, "h": 8,
+      "note": "Con [[gitops|GitOps]], otro PR cambia el tag de la imagen en el repositorio de despliegue, y Argo CD lo aplica en el clúster. Si truena, el rollback es un `git revert` aquí." }
+  ],
+  "edges": [
+    { "from": "luis", "to": "rama", "kind": "neutral", "fromSide": "b", "toSide": "t", "label": "git push" },
+    { "from": "rama", "to": "pr", "kind": "neutral", "fromSide": "r", "toSide": "l", "label": "abre" },
+    { "from": "pr", "to": "rev", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "pr", "to": "ci", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "rev", "to": "luis", "kind": "monitor", "dashed": true, "fromSide": "t", "toSide": "r", "via": [[66, 8]], "label": "pide cambios" },
+    { "from": "rev", "to": "main", "kind": "neutral", "fromSide": "r", "toSide": "r", "via": [[77.5, 21], [77.5, 45]] },
+    { "from": "ci", "to": "main", "kind": "neutral", "fromSide": "b", "toSide": "t", "label": "merge" },
+    { "from": "main", "to": "img", "kind": "offline", "fromSide": "l", "toSide": "r", "label": "construye" },
+    { "from": "img", "to": "dep", "kind": "offline", "fromSide": "l", "toSide": "r", "label": "GitOps" }
+  ],
+  "flows": [
+    { "id": "entra", "label": "Un cambio que entra",
+      "steps": [
+        { "nodes": ["luis"], "edges": [], "text": "Luis baja el timeout del gateway en su rama, **fix-timeout**, y hace commit. Nadie más ve el cambio todavía." },
+        { "nodes": ["luis", "rama"], "edges": ["luis>rama"], "text": "`git push` sube la rama a GitHub. Si alguien hubiera subido a esa misma rama algo que Luis no tiene, el push se rechazaría." },
+        { "nodes": ["rama", "pr"], "edges": ["rama>pr"], "text": "Luis abre el **pull request**: «quiero unir fix-timeout a main». El diff muestra una sola línea cambiada." },
+        { "nodes": ["pr", "rev", "ci"], "edges": ["pr>rev", "pr>ci"], "text": "Al mismo tiempo, **Ana revisa** el diff y **CI** corre los 26 tests del gateway. Las dos cosas tienen que salir bien." },
+        { "nodes": ["rev", "ci", "main"], "edges": ["rev>main", "ci>main"], "text": "Aprobado y en verde: el botón hace el **merge** y `main` avanza a un commit nuevo." },
+        { "nodes": ["main", "img"], "edges": ["main>img"], "text": "CI construye la **imagen** del gateway y le pone como tag el hash corto del commit." },
+        { "nodes": ["img", "dep"], "edges": ["img>dep"], "text": "Un PR en el **repositorio de despliegue** cambia el tag, y Argo CD lleva la imagen nueva al clúster. Lo ves en la sección extra de GitOps." }
+      ] },
+    { "id": "detiene", "label": "Un cambio que se detiene",
+      "steps": [
+        { "nodes": ["pr", "rev"], "edges": ["pr>rev"], "text": "Ana nota que el cambio toca el timeout y no trae ninguna prueba que diga qué pasa si Triton tarda más." },
+        { "nodes": ["rev", "luis"], "edges": ["rev>luis"], "text": "**Pide cambios** en el PR. Nada entra a `main` mientras tanto: el gateway en producción no se entera." },
+        { "nodes": ["luis", "rama"], "edges": ["luis>rama"], "text": "Luis agrega la prueba en un commit nuevo, en la misma rama, y hace push." },
+        { "nodes": ["pr", "ci"], "edges": ["rama>pr", "pr>ci"], "text": "El **PR se actualiza solo** y CI vuelve a correr, ahora con la prueba nueva. Si pasa y Ana aprueba, sigue el camino normal." }
+      ] }
+  ]
+}

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 352" role="img" aria-labelledby="f-pruebas-ci-cobertura-t" class="f-svg" style="max-width:420px">
+<title id="f-pruebas-ci-cobertura-t">La función de resize con el error del martes, línea por línea, y qué prueba pasó por cada una. Línea 1, el if que revisa si la foto mide menos de 32: la corren las dos pruebas, la de la foto cuadrada y la de la foto chiquita. Línea 2, el raise del error: solo la chiquita. Línea 3, la escala con max en vez de min, que es el error: solo la cuadrada. Línea 4, el return: solo la cuadrada. Entre las dos pasan por las 4 líneas: 100 por ciento de cobertura. Las dos pruebas pasan y el error sigue ahí, porque con una foto cuadrada min y max dan lo mismo. La cobertura dice qué corrió, no qué está bien.</title>
+<rect class="f-card" x="10" y="10" width="340" height="332" rx="16"/>
+<text class="f-l" x="28" y="36">COBERTURA: 4 DE 4 LÍNEAS</text>
+<text class="f-s" x="268" y="62" text-anchor="middle" style="font-size:12px;font-weight:700">cuadrada</text>
+<text class="f-s" x="322" y="62" text-anchor="middle" style="font-size:12px;font-weight:700">chiquita</text>
+
+<text class="f-s" x="28" y="62" style="font:12px var(--mono)">def resize(ancho, alto):</text>
+
+<text class="f-s" x="28" y="92" style="font:12px var(--mono)">1 if min(ancho, alto) &lt; 32:</text>
+<circle class="f-g" cx="268" cy="88" r="7"/>
+<circle class="f-g" cx="322" cy="88" r="7"/>
+
+<text class="f-s" x="28" y="120" style="font:12px var(--mono)">2     raise ValueError(…)</text>
+<circle class="f-linea" cx="268" cy="116" r="6"/>
+<circle class="f-g" cx="322" cy="116" r="7"/>
+
+<rect class="f-o" x="20" y="132" width="320" height="26" rx="6" style="opacity:.22"/>
+<text class="f-t" x="28" y="149" style="font:700 12px var(--mono)">3 escala = 256 / max(…)</text>
+<circle class="f-g" cx="268" cy="145" r="7"/>
+<circle class="f-linea" cx="322" cy="145" r="6"/>
+
+<text class="f-s" x="28" y="178" style="font:12px var(--mono)">4 return round(…), round(…)</text>
+<circle class="f-g" cx="268" cy="174" r="7"/>
+<circle class="f-linea" cx="322" cy="174" r="6"/>
+
+<text class="f-s" x="28" y="206" style="font-size:12px">¿pasa la prueba?</text>
+<text class="f-t" x="268" y="206" text-anchor="middle" style="font-size:13px">sí</text>
+<text class="f-t" x="322" y="206" text-anchor="middle" style="font-size:13px">sí</text>
+
+<text class="f-t" x="28" y="236" style="font-size:13px">La línea 3 corrió, y está mal.</text>
+<text class="f-s" x="28" y="254" style="font-size:12px">Con 500 × 500, min y max dan lo mismo:</text>
+<text class="f-s" x="28" y="270" style="font-size:12px">nadie la probó con una foto vertical.</text>
+
+<rect class="f-chip" x="24" y="284" width="312" height="44" rx="10"/>
+<text class="f-t" x="38" y="303" style="font-size:13px">100 % de cobertura, y el error sigue ahí.</text>
+<text class="f-s" x="38" y="320" style="font-size:12px">Dice qué corrió, no qué está bien.</text>
+</svg>

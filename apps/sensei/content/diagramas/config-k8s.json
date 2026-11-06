@@ -1,0 +1,65 @@
+{
+  "titulo": "Cómo llega la configuración al gateway en Kubernetes",
+  "width": 78,
+  "height": 60,
+  "lanes": [
+    { "id": "declara", "label": "Se declara y se guarda en el clúster", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 31 },
+    { "id": "nodo", "label": "En el nodo, dentro del pod del gateway", "kind": "online", "x": 0, "y": 33, "w": 78, "h": 27 }
+  ],
+  "nodes": [
+    { "id": "git", "label": "Git", "sub": "manifiestos y values", "kind": "store", "x": 1, "y": 5, "w": 18, "h": 8,
+      "note": "La configuración que no es secreta vive en el repositorio: las plantillas y un **values-prod.yaml** por ambiente. Cada cambio es un [[commit]] con autor y motivo, y volver es revertirlo." },
+    { "id": "helm", "label": "Helm", "sub": "llena las plantillas", "kind": "job", "x": 29, "y": 5, "w": 18, "h": 8,
+      "note": "[[helm|Helm]] llena los huecos de las plantillas con los valores del ambiente y aplica el resultado al clúster. Corre en cada despliegue y termina." },
+    { "id": "cm", "label": "ConfigMap", "sub": "TRITON_URL, timeout", "kind": "store", "x": 57, "y": 5, "w": 18, "h": 8,
+      "note": "El [[configmap|ConfigMap]] gateway-config guarda TRITON_URL, INFER_TIMEOUT_S=\"0.15\" y PREPROCESS_CONCURRENCY=\"2\". Todo como texto." },
+    { "id": "gestor", "label": "Gestor de secretos", "sub": "la contraseña, cifrada", "kind": "external", "x": 1, "y": 19, "w": 18, "h": 8,
+      "note": "El [[gestor-secretos|gestor de secretos]] guarda DB_PASSWORD cifrada, decide quién la lee y registra cada lectura. Nunca pasa por Git." },
+    { "id": "eso", "label": "External Secrets", "sub": "copia cada hora", "kind": "job", "x": 29, "y": 19, "w": 18, "h": 8,
+      "note": "External Secrets Operator corre en el clúster con permiso para leer **solo** ese secreto del gestor, y lo copia a un Secret de Kubernetes cada cierto tiempo." },
+    { "id": "sec", "label": "Secret", "sub": "DB_PASSWORD en base64", "kind": "store", "x": 57, "y": 19, "w": 18, "h": 8,
+      "note": "El [[secret-k8s|Secret]] gateway-db. Su valor va en [[base64]], que no cifra: lo protege quién puede hacer **get secrets** y, si está activo, el cifrado en reposo de etcd." },
+    { "id": "kubelet", "label": "kubelet", "sub": "el agente del nodo", "kind": "service", "x": 57, "y": 42, "w": 18, "h": 9,
+      "note": "El agente de Kubernetes en cada máquina. Arranca el contenedor con las variables del ConfigMap y escribe el archivo del Secret; después revisa el archivo cada cierto tiempo (≈ 1 minuto)." },
+    { "id": "env", "label": "Variables de entorno", "sub": "fijas desde el arranque", "kind": "store", "x": 29, "y": 37, "w": 18, "h": 8,
+      "note": "Se copian al crear el contenedor. Si el ConfigMap cambia, el proceso que ya corre **no se entera**: hay que reiniciar el pod." },
+    { "id": "archivo", "label": "Archivo montado", "sub": "/etc/gateway/db", "kind": "store", "x": 29, "y": 49, "w": 18, "h": 8,
+      "note": "La contraseña llega como archivo de solo lectura (modo 0400). No se hereda a los hijos, no sale en el entorno y se actualiza solo cuando cambia el Secret." },
+    { "id": "gateway", "label": "Gateway", "sub": "valida y arranca", "kind": "service", "x": 1, "y": 42, "w": 18, "h": 9,
+      "note": "El proceso lee las variables y el archivo, **valida todo al arrancar** y solo entonces acepta requests. Si algo falta, termina con código 1 y el pod nunca queda listo." }
+  ],
+  "edges": [
+    { "from": "git", "to": "helm", "kind": "offline", "fromSide": "r", "toSide": "l", "label": "values" },
+    { "from": "helm", "to": "cm", "kind": "offline", "fromSide": "r", "toSide": "l", "label": "aplica" },
+    { "from": "gestor", "to": "eso", "kind": "offline", "fromSide": "r", "toSide": "l", "label": "lee" },
+    { "from": "eso", "to": "sec", "kind": "offline", "fromSide": "r", "toSide": "l", "label": "escribe" },
+    { "from": "cm", "to": "kubelet", "kind": "online", "fromSide": "r", "toSide": "r", "via": [[77, 9], [77, 46.5]] },
+    { "from": "sec", "to": "kubelet", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "kubelet", "to": "env", "kind": "online", "fromSide": "l", "toSide": "r", "via": [[52, 46.5], [52, 41]], "label": "al crear" },
+    { "from": "kubelet", "to": "archivo", "kind": "online", "fromSide": "l", "toSide": "r", "via": [[52, 46.5], [52, 53]], "label": "refresca" },
+    { "from": "env", "to": "gateway", "kind": "online", "fromSide": "l", "toSide": "r", "via": [[24, 41], [24, 46.5]] },
+    { "from": "archivo", "to": "gateway", "kind": "online", "fromSide": "l", "toSide": "r", "via": [[24, 53], [24, 46.5]] }
+  ],
+  "flows": [
+    { "id": "arranque", "label": "Arranca un pod",
+      "steps": [
+        { "nodes": ["git", "helm", "cm"], "edges": ["git>helm", "helm>cm"], "text": "En el despliegue, **Helm** toma las plantillas y el values-prod.yaml de Git y deja en el clúster el **ConfigMap** con la dirección de Triton y el timeout." },
+        { "nodes": ["gestor", "eso", "sec"], "edges": ["gestor>eso", "eso>sec"], "text": "Aparte, **External Secrets** lee la contraseña del gestor (el gestor anota la lectura) y la copia al **Secret** gateway-db." },
+        { "nodes": ["cm", "sec", "kubelet"], "edges": ["cm>kubelet", "sec>kubelet"], "text": "Kubernetes asigna el pod a una máquina. Su **kubelet** lee el ConfigMap y el Secret para preparar el contenedor." },
+        { "nodes": ["kubelet", "env", "archivo"], "edges": ["kubelet>env", "kubelet>archivo"], "text": "El ConfigMap entra como **variables de entorno**; el Secret, como **archivo** de solo lectura en /etc/gateway/db." },
+        { "nodes": ["env", "archivo", "gateway"], "edges": ["env>gateway", "archivo>gateway"], "text": "El **gateway** lee las dos cosas, valida todo y, si está completo, empieza a aceptar requests. Si falta algo, termina con código 1 y el pod nunca recibe tráfico." }
+      ] },
+    { "id": "timeout", "label": "Cambias el timeout",
+      "steps": [
+        { "nodes": ["git", "helm", "cm"], "edges": ["git>helm", "helm>cm"], "text": "Cambias inferTimeoutS de 0.15 a 0.2 en values-prod.yaml, con su pull request. Helm actualiza el **ConfigMap**." },
+        { "nodes": ["env", "gateway"], "edges": ["env>gateway"], "text": "Los pods que ya corren **no se enteran**: sus variables de entorno se copiaron al arrancar y siguen en 0.15." },
+        { "nodes": ["kubelet", "env", "gateway"], "edges": ["cm>kubelet", "kubelet>env", "env>gateway"], "text": "Hay que reemplazarlos: kubectl rollout restart, o una anotación con el hash del ConfigMap para que Helm lo haga solo. Cada pod nuevo arranca con 0.2." }
+      ] },
+    { "id": "password", "label": "Cambias la contraseña",
+      "steps": [
+        { "nodes": ["gestor", "eso", "sec"], "edges": ["gestor>eso", "eso>sec"], "text": "El gestor guarda la versión 2. En su siguiente vuelta, **External Secrets** la copia al Secret." },
+        { "nodes": ["sec", "kubelet", "archivo"], "edges": ["sec>kubelet", "kubelet>archivo"], "text": "El **kubelet** nota el cambio en su siguiente revisión (≈ 1 minuto) y reescribe el archivo. Ningún pod se reinicia." },
+        { "nodes": ["archivo", "gateway"], "edges": ["archivo>gateway"], "text": "El gateway tiene que **volver a leer** el archivo, por ejemplo cuando una conexión a la base falla. Si solo lo leyó al arrancar, sigue con la vieja hasta reiniciarse." }
+      ] }
+  ]
+}

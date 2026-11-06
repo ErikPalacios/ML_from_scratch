@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 440" role="img" aria-labelledby="f-git-tres-lugares-t" class="f-svg" style="max-width:420px">
+<title id="f-git-tres-lugares-t">Los tres lugares de un cambio en un repositorio de Git. Arriba, el área de trabajo: los archivos que ves y editas; ahí un archivo nuevo aparece en git status --short como dos signos de interrogación, y uno cambiado como una M en la segunda columna. Con git add, el cambio pasa al staging, también llamado index: lo que va a entrar en la próxima foto; ahí un archivo nuevo aparece como A en la primera columna y uno cambiado como M en la primera columna. Con git commit, el cambio pasa al historial, dentro de la carpeta .git: las fotos guardadas, una tras otra, como 1e53ceb y 139f652, con la rama main apuntando a la última. Si todo está en el historial, git status no muestra nada.</title>
+<rect class="f-card" x="10" y="10" width="340" height="420" rx="16"/>
+<text class="f-l" x="26" y="36">LOS TRES LUGARES DE UN CAMBIO</text>
+<rect class="f-chip" x="26" y="50" width="308" height="86" rx="12"/>
+<text class="f-t" x="40" y="76">Área de trabajo</text>
+<text class="f-s" x="40" y="96" style="font-size:12px">Los archivos que ves y editas.</text>
+<rect class="f-b" x="40" y="106" width="18" height="20" rx="4"/>
+<text class="f-pill-t" x="49" y="121" text-anchor="middle" style="font:700 13px var(--mono)">?</text>
+<rect class="f-b" x="60" y="106" width="18" height="20" rx="4"/>
+<text class="f-pill-t" x="69" y="121" text-anchor="middle" style="font:700 13px var(--mono)">?</text>
+<text class="f-s" x="86" y="121" style="font-size:12px">sin seguir</text>
+<rect class="f-linea" x="176" y="106" width="18" height="20" rx="4"/>
+<rect class="f-b" x="196" y="106" width="18" height="20" rx="4"/>
+<text class="f-pill-t" x="205" y="121" text-anchor="middle" style="font:700 13px var(--mono)">M</text>
+<text class="f-s" x="222" y="121" style="font-size:12px">cambiado</text>
+<line class="f-flecha" x1="180" y1="138" x2="180" y2="158"/>
+<polygon class="f-punta" points="174,157 186,157 180,167"/>
+<text class="f-t" x="196" y="158" style="font:700 13px var(--mono)">git add</text>
+<rect class="f-chip" x="26" y="172" width="308" height="86" rx="12"/>
+<text class="f-t" x="40" y="198">Staging (index)</text>
+<text class="f-s" x="40" y="218" style="font-size:12px">Lo que va a entrar en la próxima foto.</text>
+<rect class="f-b" x="40" y="228" width="18" height="20" rx="4"/>
+<text class="f-pill-t" x="49" y="243" text-anchor="middle" style="font:700 13px var(--mono)">A</text>
+<rect class="f-linea" x="60" y="228" width="18" height="20" rx="4"/>
+<text class="f-s" x="86" y="243" style="font-size:12px">nuevo</text>
+<rect class="f-b" x="176" y="228" width="18" height="20" rx="4"/>
+<text class="f-pill-t" x="185" y="243" text-anchor="middle" style="font:700 13px var(--mono)">M</text>
+<rect class="f-linea" x="196" y="228" width="18" height="20" rx="4"/>
+<text class="f-s" x="222" y="243" style="font-size:12px">cambiado</text>
+<line class="f-flecha" x1="180" y1="260" x2="180" y2="280"/>
+<polygon class="f-punta" points="174,279 186,279 180,289"/>
+<text class="f-t" x="196" y="280" style="font:700 13px var(--mono)">git commit</text>
+<rect class="f-dark" x="26" y="294" width="308" height="118" rx="12"/>
+<text class="f-dark-t" x="40" y="320" style="font-size:15px;font-weight:700">Historial (.git)</text>
+<text class="f-dark-t" x="40" y="340" style="font-size:12px">Las fotos guardadas, una tras otra.</text>
+<rect class="f-b" x="40" y="352" width="86" height="26" rx="6"/>
+<text class="f-pill-t" x="83" y="370" text-anchor="middle" style="font:700 13px var(--mono)">1e53ceb</text>
+<rect class="f-dark-l" x="136" y="364" width="22" height="2"/>
+<polygon class="f-dark-l" points="137,360 137,370 129,365"/>
+<rect class="f-b" x="160" y="352" width="86" height="26" rx="6"/>
+<text class="f-pill-t" x="203" y="370" text-anchor="middle" style="font:700 13px var(--mono)">139f652</text>
+<rect class="f-o" x="258" y="355" width="56" height="20" rx="10"/>
+<text class="f-pill-t" x="286" y="369" text-anchor="middle" style="font:700 12px var(--sans)">main</text>
+<text class="f-dark-t" x="40" y="400" style="font-size:12px">Si todo está aquí, git status no muestra nada.</text>
+</svg>

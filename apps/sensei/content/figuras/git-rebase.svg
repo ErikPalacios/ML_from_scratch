@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 390" role="img" aria-labelledby="f-git-rebase-t" class="f-svg" style="max-width:420px">
+<title id="f-git-rebase-t">Un rebase, antes y después. Antes: main tiene 1e53ceb y encima 821910a; la rama logs sale de 1e53ceb con dos commits, 0750449 y 707221d. Después de git rebase main, los dos commits de logs se rehacen encima de 821910a como 26b7ad8 y a8b1758: los mismos cambios y mensajes, con ids nuevos, porque cambió el padre de cada uno. La historia queda en línea recta. Los originales, 0750449 y 707221d, se quedan sin ninguna rama que los nombre.</title>
+<rect class="f-card" x="10" y="10" width="340" height="370" rx="16"/>
+<text class="f-l" x="26" y="36">ANTES DEL REBASE</text>
+<rect class="f-b" x="26" y="52" width="76" height="28" rx="6"/>
+<text class="f-pill-t" x="64" y="71" text-anchor="middle" style="font:700 13px var(--mono)">1e53ceb</text>
+<line class="f-flecha" x1="138" y1="66" x2="112" y2="66"/>
+<polygon class="f-punta" points="112,61 112,71 104,66"/>
+<rect class="f-b" x="140" y="52" width="76" height="28" rx="6"/>
+<text class="f-pill-t" x="178" y="71" text-anchor="middle" style="font:700 13px var(--mono)">821910a</text>
+<rect class="f-o" x="228" y="56" width="52" height="20" rx="10"/>
+<text class="f-pill-t" x="254" y="70" text-anchor="middle" style="font:700 12px var(--sans)">main</text>
+<rect class="f-p" x="140" y="108" width="76" height="28" rx="6"/>
+<text class="f-pill-t" x="178" y="127" text-anchor="middle" style="font:700 13px var(--mono)">0750449</text>
+<line class="f-flecha" x1="252" y1="122" x2="226" y2="122"/>
+<polygon class="f-punta" points="226,117 226,127 218,122"/>
+<rect class="f-p" x="254" y="108" width="76" height="28" rx="6"/>
+<text class="f-pill-t" x="292" y="127" text-anchor="middle" style="font:700 13px var(--mono)">707221d</text>
+<line class="f-flecha" x1="138" y1="114" x2="100.6" y2="88.5"/>
+<polygon class="f-punta" points="103.4,84.4 97.8,92.6 94,84"/>
+<rect class="f-dark" x="266" y="144" width="52" height="20" rx="10"/>
+<text class="f-dark-t" x="292" y="158" text-anchor="middle" style="font:700 12px var(--sans)">logs</text>
+<line x1="26" y1="180" x2="334" y2="180" class="f-linea"/>
+<text class="f-l" x="26" y="204">DESPUÉS DE GIT REBASE MAIN</text>
+<rect class="f-b" x="26" y="214" width="66" height="28" rx="6"/>
+<text class="f-pill-t" x="59" y="233" text-anchor="middle" style="font:700 13px var(--mono)">1e53ceb</text>
+<polygon class="f-punta" points="102,223 102,233 94,228"/>
+<rect class="f-b" x="104" y="214" width="66" height="28" rx="6"/>
+<text class="f-pill-t" x="137" y="233" text-anchor="middle" style="font:700 13px var(--mono)">821910a</text>
+<polygon class="f-punta" points="180,223 180,233 172,228"/>
+<rect class="f-o" x="182" y="214" width="66" height="28" rx="6"/>
+<text class="f-pill-t" x="215" y="233" text-anchor="middle" style="font:700 13px var(--mono)">26b7ad8</text>
+<polygon class="f-punta" points="258,223 258,233 250,228"/>
+<rect class="f-o" x="260" y="214" width="66" height="28" rx="6"/>
+<text class="f-pill-t" x="293" y="233" text-anchor="middle" style="font:700 13px var(--mono)">a8b1758</text>
+<rect class="f-o" x="111" y="250" width="52" height="20" rx="10"/>
+<text class="f-pill-t" x="137" y="264" text-anchor="middle" style="font:700 12px var(--sans)">main</text>
+<rect class="f-dark" x="267" y="250" width="52" height="20" rx="10"/>
+<text class="f-dark-t" x="293" y="264" text-anchor="middle" style="font:700 12px var(--sans)">logs</text>
+<text class="f-s" x="26" y="296" style="font-size:12px">Los originales, sin rama que los nombre:</text>
+<rect class="f-linea" x="104" y="306" width="66" height="26" rx="6" style="stroke-dasharray:4 3"/>
+<text class="f-s" x="137" y="324" text-anchor="middle" style="font:600 12px var(--mono)">0750449</text>
+<rect class="f-linea" x="182" y="306" width="66" height="26" rx="6" style="stroke-dasharray:4 3"/>
+<text class="f-s" x="215" y="324" text-anchor="middle" style="font:600 12px var(--mono)">707221d</text>
+<text class="f-s" x="26" y="356" style="font-size:12px">Mismos cambios y mensajes, ids nuevos:</text>
+<text class="f-s" x="26" y="372" style="font-size:12px">cambió el padre de cada uno.</text>
+</svg>

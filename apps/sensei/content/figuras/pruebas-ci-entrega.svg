@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" role="img" aria-labelledby="f-pruebas-ci-entrega-t" class="f-svg" style="max-width:420px">
+<title id="f-pruebas-ci-entrega-t">Las dos formas de CD, una arriba de la otra. Las dos van igual: CI, luego staging, luego un paso más y producción. En la entrega continua, ese paso es un botón: una persona decide cuándo sale a producción. En el despliegue continuo, el paso es automático: si todo pasó, el pipeline lo lleva solo. En las dos hay un solo artefacto, las mismas pruebas y el mismo rollback.</title>
+<rect class="f-card" x="10" y="10" width="340" height="310" rx="16"/>
+<text class="f-l" x="28" y="36">DOS CD: ¿QUIÉN DA EL ÚLTIMO PASO?</text>
+
+<text class="f-t" x="28" y="64" style="font-size:14px">Entrega continua</text>
+<rect class="f-chip" x="24" y="76" width="52" height="34" rx="8"/>
+<text class="f-t" x="50" y="98" text-anchor="middle" style="font-size:13px">CI</text>
+<line class="f-flecha" x1="78" y1="93" x2="92" y2="93"/>
+<polygon class="f-punta" points="92,88 100,93 92,98"/>
+<rect class="f-chip" x="102" y="76" width="74" height="34" rx="8"/>
+<text class="f-t" x="139" y="98" text-anchor="middle" style="font-size:13px">staging</text>
+<line class="f-flecha" x1="178" y1="93" x2="190" y2="93"/>
+<polygon class="f-punta" points="190,88 198,93 190,98"/>
+<rect class="f-o" x="200" y="76" width="66" height="34" rx="17"/>
+<text class="f-pill-t" x="233" y="98" text-anchor="middle" style="font-size:13px">botón</text>
+<line class="f-flecha" x1="268" y1="93" x2="280" y2="93"/>
+<polygon class="f-punta" points="280,88 288,93 280,98"/>
+<rect class="f-dark" x="290" y="76" width="46" height="34" rx="8"/>
+<text class="f-dark-t" x="313" y="98" text-anchor="middle" style="font-size:13px;font-weight:700">prod</text>
+<text class="f-s" x="233" y="130" text-anchor="middle" style="font-size:12px">una persona decide cuándo</text>
+
+<text class="f-t" x="28" y="170" style="font-size:14px">Despliegue continuo</text>
+<rect class="f-chip" x="24" y="182" width="52" height="34" rx="8"/>
+<text class="f-t" x="50" y="204" text-anchor="middle" style="font-size:13px">CI</text>
+<line class="f-flecha" x1="78" y1="199" x2="92" y2="199"/>
+<polygon class="f-punta" points="92,194 100,199 92,204"/>
+<rect class="f-chip" x="102" y="182" width="74" height="34" rx="8"/>
+<text class="f-t" x="139" y="204" text-anchor="middle" style="font-size:13px">staging</text>
+<line class="f-flecha" x1="178" y1="199" x2="190" y2="199"/>
+<polygon class="f-punta" points="190,194 198,199 190,204"/>
+<rect class="f-b" x="200" y="182" width="66" height="34" rx="17"/>
+<text class="f-pill-t" x="233" y="204" text-anchor="middle" style="font-size:13px">solo</text>
+<line class="f-flecha" x1="268" y1="199" x2="280" y2="199"/>
+<polygon class="f-punta" points="280,194 288,199 280,204"/>
+<rect class="f-dark" x="290" y="182" width="46" height="34" rx="8"/>
+<text class="f-dark-t" x="313" y="204" text-anchor="middle" style="font-size:13px;font-weight:700">prod</text>
+<text class="f-s" x="233" y="236" text-anchor="middle" style="font-size:12px">el pipeline, si todo pasó</text>
+
+<rect class="f-chip" x="24" y="254" width="312" height="52" rx="10"/>
+<text class="f-t" x="38" y="275" style="font-size:13px">Igual en las dos:</text>
+<text class="f-s" x="38" y="294" style="font-size:12px">un artefacto, las mismas pruebas, el mismo rollback.</text>
+</svg>

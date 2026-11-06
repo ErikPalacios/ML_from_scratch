@@ -1,0 +1,349 @@
+{
+ "titulo": "De kubectl logs a las líneas en tu pantalla",
+ "width": 78,
+ "height": 57,
+ "lanes": [
+  {
+   "id": "laptop",
+   "label": "Tu laptop",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 36,
+   "h": 57
+  },
+  {
+   "id": "cluster",
+   "label": "El cluster de Kubernetes",
+   "kind": "online",
+   "x": 40,
+   "y": 0,
+   "w": 38,
+   "h": 57
+  }
+ ],
+ "nodes": [
+  {
+   "id": "terminal",
+   "label": "Terminal",
+   "sub": "dibuja y pasa las teclas",
+   "kind": "client",
+   "x": 3,
+   "y": 5,
+   "w": 30,
+   "h": 8,
+   "note": "La [[terminal]] manda lo que tecleas a la shell y dibuja lo que le llega. No sabe qué es `kubectl`."
+  },
+  {
+   "id": "shell",
+   "label": "Shell",
+   "sub": "parte, busca en PATH y lanza",
+   "kind": "service",
+   "x": 3,
+   "y": 19,
+   "w": 30,
+   "h": 8,
+   "note": "La [[shell]] parte la línea en palabras: `kubectl`, `logs`, `-n`, `classifier`, `gateway-7f9c`. Busca `kubectl` en las carpetas de [[path-shell|PATH]] y lo lanza como proceso hijo, con `fork` y `exec`."
+  },
+  {
+   "id": "kubectl",
+   "label": "kubectl",
+   "sub": "un proceso hijo de la shell",
+   "kind": "job",
+   "x": 3,
+   "y": 33,
+   "w": 30,
+   "h": 8,
+   "note": "Un programa que habla con Kubernetes. Hereda de la shell la carpeta, las variables y los tres [[flujos-estandar|flujos]]: su stdout es tu terminal, o el tubo hacia `grep` si pusiste uno."
+  },
+  {
+   "id": "config",
+   "label": "~/.kube/config",
+   "sub": "a qué cluster y con qué credenciales",
+   "kind": "store",
+   "x": 3,
+   "y": 47,
+   "w": 30,
+   "h": 8,
+   "note": "El *kubeconfig*: un archivo [[yaml|YAML]] con la dirección del cluster, tus credenciales y el namespace por omisión. La variable de entorno `KUBECONFIG` puede apuntar a otro."
+  },
+  {
+   "id": "api",
+   "label": "API server",
+   "sub": "la puerta de entrada",
+   "kind": "edge",
+   "x": 45,
+   "y": 5,
+   "w": 30,
+   "h": 8,
+   "note": "Recibe la request [[http|HTTP]] de `kubectl`, revisa quién eres y si puedes leer los logs de ese pod en el namespace `classifier`, y se la pasa al kubelet de la máquina correcta."
+  },
+  {
+   "id": "kubelet",
+   "label": "kubelet",
+   "sub": "uno en cada máquina",
+   "kind": "service",
+   "x": 45,
+   "y": 19,
+   "w": 30,
+   "h": 8,
+   "note": "El programa de Kubernetes que corre en cada máquina del cluster: arranca los contenedores y sabe dónde quedaron sus logs. Lee el archivo y manda las líneas de vuelta."
+  },
+  {
+   "id": "archivo",
+   "label": "Archivo de log del pod",
+   "sub": "en el disco de la máquina",
+   "kind": "store",
+   "x": 45,
+   "y": 33,
+   "w": 30,
+   "h": 8,
+   "note": "El runtime de contenedores guarda aquí, línea por línea y con su hora, lo que el contenedor escribe en stdout y stderr. Se rota al llegar a ≈ 10 MiB, y `kubectl logs` solo lee el más reciente."
+  },
+  {
+   "id": "gateway",
+   "label": "Contenedor del gateway",
+   "sub": "uvicorn escribe en stdout",
+   "kind": "service",
+   "x": 45,
+   "y": 47,
+   "w": 30,
+   "h": 8,
+   "note": "El gateway de C01 escribe una línea JSON por request en su stdout, con `PYTHONUNBUFFERED=1` para que salga al instante. No sabe que alguien la está leyendo."
+  }
+ ],
+ "edges": [
+  {
+   "from": "terminal",
+   "to": "shell",
+   "kind": "neutral",
+   "label": "teclas",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "shell",
+   "to": "kubectl",
+   "kind": "neutral",
+   "label": "fork + exec",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "kubectl",
+   "to": "config",
+   "kind": "neutral",
+   "label": "lee",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "kubectl",
+   "to": "api",
+   "kind": "online",
+   "label": "HTTPS",
+   "fromSide": "r",
+   "toSide": "l",
+   "via": [
+    [
+     38,
+     37
+    ],
+    [
+     38,
+     9
+    ]
+   ]
+  },
+  {
+   "from": "api",
+   "to": "kubelet",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "kubelet",
+   "to": "archivo",
+   "kind": "online",
+   "label": "lee",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "gateway",
+   "to": "archivo",
+   "kind": "offline",
+   "label": "stdout y stderr",
+   "fromSide": "t",
+   "toSide": "b"
+  },
+  {
+   "from": "kubectl",
+   "to": "terminal",
+   "kind": "online",
+   "label": "stdout",
+   "fromSide": "l",
+   "toSide": "l",
+   "via": [
+    [
+     1,
+     37
+    ],
+    [
+     1,
+     9
+    ]
+   ],
+   "dashed": true
+  }
+ ],
+ "flows": [
+  {
+   "id": "enter",
+   "label": "De Enter a las líneas",
+   "steps": [
+    {
+     "nodes": [
+      "gateway",
+      "archivo"
+     ],
+     "edges": [
+      "gateway>archivo"
+     ],
+     "text": "Desde antes: el gateway escribe una línea por request en su stdout, y el runtime las va guardando en el **archivo de log** del pod."
+    },
+    {
+     "nodes": [
+      "terminal",
+      "shell"
+     ],
+     "edges": [
+      "terminal>shell"
+     ],
+     "text": "Ana teclea `kubectl logs -n classifier gateway-7f9c` y aprieta Enter. La **terminal** le pasa la línea a la **shell**."
+    },
+    {
+     "nodes": [
+      "shell",
+      "kubectl"
+     ],
+     "edges": [
+      "shell>kubectl"
+     ],
+     "text": "La shell parte la línea en palabras, encuentra `kubectl` en PATH y lo lanza como **proceso hijo**, con las demás palabras como argumentos."
+    },
+    {
+     "nodes": [
+      "kubectl",
+      "config"
+     ],
+     "edges": [
+      "kubectl>config"
+     ],
+     "text": "`kubectl` lee el **kubeconfig**: a qué cluster hablar y con qué credenciales."
+    },
+    {
+     "nodes": [
+      "kubectl",
+      "api"
+     ],
+     "edges": [
+      "kubectl>api"
+     ],
+     "text": "Le hace una request HTTPS al **API server**: «dame los logs del pod gateway-7f9c del namespace classifier»."
+    },
+    {
+     "nodes": [
+      "api",
+      "kubelet",
+      "archivo"
+     ],
+     "edges": [
+      "api>kubelet",
+      "kubelet>archivo"
+     ],
+     "text": "El API server revisa permisos y se la pasa al **kubelet** de la máquina del pod, que lee el archivo de log."
+    },
+    {
+     "nodes": [
+      "kubectl",
+      "terminal"
+     ],
+     "edges": [
+      "kubectl>terminal"
+     ],
+     "text": "Las líneas regresan por el mismo camino. `kubectl` las escribe en **su stdout**, que es tu terminal, y la terminal las dibuja. La shell espera a que `kubectl` termine y vuelve a escribir el prompt."
+    }
+   ]
+  },
+  {
+   "id": "grep",
+   "label": "Con | grep 9f2c41d0",
+   "steps": [
+    {
+     "nodes": [
+      "shell",
+      "kubectl"
+     ],
+     "edges": [
+      "shell>kubectl"
+     ],
+     "text": "Con `kubectl logs … | grep 9f2c41d0`, la shell lanza **dos** procesos a la vez y une el stdout de `kubectl` con el stdin de `grep` con un tubo."
+    },
+    {
+     "nodes": [
+      "kubectl",
+      "api",
+      "kubelet",
+      "archivo"
+     ],
+     "edges": [
+      "kubectl>api",
+      "api>kubelet",
+      "kubelet>archivo"
+     ],
+     "text": "`kubectl` hace exactamente lo mismo: no sabe que su salida va a un tubo. Las líneas llegan igual."
+    },
+    {
+     "nodes": [
+      "kubectl",
+      "terminal"
+     ],
+     "edges": [
+      "kubectl>terminal"
+     ],
+     "text": "Pero ya no van a la terminal: entran a `grep`, que solo deja pasar las de `9f2c41d0`. A tu pantalla llegan esas dos."
+    }
+   ]
+  },
+  {
+   "id": "seguir",
+   "label": "Con -f y Ctrl+C",
+   "steps": [
+    {
+     "nodes": [
+      "kubelet",
+      "archivo",
+      "gateway"
+     ],
+     "edges": [
+      "gateway>archivo",
+      "kubelet>archivo"
+     ],
+     "text": "Con `-f`, el kubelet no cierra la respuesta: cada línea nueva que el gateway escribe le llega a `kubectl` en cuanto se guarda."
+    },
+    {
+     "nodes": [
+      "terminal",
+      "kubectl"
+     ],
+     "edges": [
+      "kubectl>terminal"
+     ],
+     "text": "Al apretar **Ctrl+C**, la terminal hace que el kernel le mande SIGINT a `kubectl`, que termina. El pod ni se entera: sigue atendiendo requests."
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,219 @@
+{
+ "terminos": [
+  {
+   "id": "terminal",
+   "termino": "Terminal",
+   "en": "terminal · terminal emulator",
+   "corto": "La ventana de texto donde se escriben comandos en vez de usar el mouse. Solo pasa lo que tecleas a otro programa, la shell, y dibuja el texto que ese programa le regresa.",
+   "largo": "La terminal no entiende los comandos: eso lo hace la [[shell]] que corre adentro. Su trabajo es dibujar letras, colores y el cursor, y mandar las teclas, incluidas combinaciones como Ctrl+C, que le pide al kernel convertir en la [[senal|señal]] SIGINT para el proceso de primer plano. Cada sistema trae la suya: la app Terminal en macOS, Windows Terminal en Windows (con WSL2 para tener un Linux de verdad) y GNOME Terminal en muchos Linux. Se le dice «emulador de terminal» porque imita a los aparatos de teclado y pantalla que en los años setenta se conectaban por cable a una computadora grande.",
+   "analogia": "El vidrio de una ventanilla de banco: por ahí pasan tus papeles y por ahí te regresan la respuesta, pero el que atiende es otro (la shell). Se rompe en que la terminal sí hace un trabajo propio: dibuja colores, guarda lo que ya salió y convierte teclas como Ctrl+C en avisos.",
+   "ejemplo": "Ana abre la app Terminal de su Mac. Lo que escribe lo lee zsh, la shell; la Terminal solo lo dibuja. Si cambia el tamaño de las letras, eso es cosa de la Terminal.",
+   "ver": [
+    "shell",
+    "comando",
+    "ssh"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "shell",
+   "termino": "Shell",
+   "en": "shell",
+   "corto": "El programa que lee los comandos que escribes en la terminal, los parte en palabras, encuentra cada programa y lo lanza como un proceso nuevo. bash, zsh y sh son shells.",
+   "largo": "Para cada línea, la shell repite un ciclo: la lee, la parte en palabras (respetando las comillas), reemplaza las variables y los [[comodin|comodines]], busca la primera palabra como builtin o en las carpetas de [[path-shell|PATH]], lanza el [[proceso]] con `fork` y `exec`, conecta sus [[flujos-estandar|flujos]] y espera su [[codigo-salida|código de salida]]. bash es la de casi todos los servidores Linux; zsh, la de macOS desde 2019; sh, la más básica, a veces la única en un contenedor chico. Una imagen distroless no trae ninguna. También corre archivos de comandos, los [[script-shell|scripts]].",
+   "analogia": "El que atiende en la ventanilla: lee tu papel, entiende qué pides, se lo pasa a la oficina que corresponde y te regresa la respuesta. Se rompe en que la shell no hace casi nada por sí misma: casi todo lo hacen otros programas que ella lanza.",
+   "ejemplo": "En `kubectl logs gateway-7f9c | grep 504`, la shell parte la línea en dos comandos, lanza `kubectl` y `grep` a la vez y conecta la salida del primero con la entrada del segundo con un tubo.",
+   "ver": [
+    "terminal",
+    "comando",
+    "script-shell"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "comando",
+   "termino": "Comando",
+   "en": "command",
+   "corto": "Lo que escribes en una línea de la terminal para pedir algo: una primera palabra, que es un programa o algo que la shell sabe hacer, seguida de sus argumentos.",
+   "largo": "La primera palabra puede ser un programa en el disco (`ls` es el archivo `/usr/bin/ls`, `kubectl`, `python3`) o un **builtin**, que la shell hace sin lanzar ningún proceso (`cd`, `export`, `echo`). `cd` tiene que ser builtin porque cambia la carpeta de la propia shell. `type ls` dice cómo va a entender la shell una palabra; `which ls` dice la ruta del programa. Lo demás de la línea son sus [[argumento-cli|argumentos]].",
+   "ejemplo": "`type cd` responde `cd is a shell builtin`; `type ls` responde `ls is /usr/bin/ls`. Si la palabra no es ninguna de las dos, la shell dice «command not found» y deja el código 127.",
+   "ver": [
+    "shell",
+    "argumento-cli",
+    "path-shell"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "argumento-cli",
+   "termino": "Argumento",
+   "en": "argument · command-line argument · flag",
+   "corto": "Cada palabra que va después del comando. La shell las separa por los espacios y se las pasa al programa como una lista de textos; las que empiezan con guion son opciones (flags).",
+   "largo": "Las opciones cortas llevan un guion y una letra (`-n 20`) y las largas, dos guiones y una palabra (`--lines=20`); varias cortas se juntan (`ls -la`). Lo demás son argumentos posicionales, casi siempre archivos. Como el espacio separa, un texto con espacios va entre comillas: las dobles todavía reemplazan variables, las simples no reemplazan nada. Una `\\` al final de la línea dice que el comando sigue abajo. Las opciones largas son sobre todo de los programas de GNU (Linux); los de macOS muchas veces solo aceptan las cortas. Casi todo programa explica las suyas con `--help`.",
+   "ejemplo": "`rm mis fotos` le pasa a `rm` dos argumentos, `mis` y `fotos`; `rm \"mis fotos\"` le pasa uno. En `tail -n 20 gateway.log`, `-n 20` es una opción con su valor y `gateway.log` es el posicional.",
+   "ver": [
+    "comando",
+    "comodin",
+    "shell"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "directorio-trabajo",
+   "termino": "Directorio de trabajo",
+   "en": "working directory · current directory",
+   "corto": "La carpeta donde está parado un proceso: desde ahí se leen las rutas relativas. En la terminal, `pwd` la muestra y `cd` la cambia.",
+   "largo": "Cada [[proceso]] tiene el suyo y lo hereda de quien lo lanzó, así que un programa arranca en la carpeta donde estaba la [[shell]]. Una [[ruta]] relativa como `datos/train.csv` se busca ahí, no junto al archivo del programa. `cd ..` sube una carpeta, `cd` solo va a la carpeta personal (`~`) y `cd -` regresa a la anterior. Como cada proceso tiene su copia, un `cd` dentro de un hijo o de una subshell `( … )` no mueve al padre. En una imagen de contenedor, lo fija la línea `WORKDIR`. La lección del sistema operativo le dice «carpeta de trabajo».",
+   "ejemplo": "Parada en `/home/ana/trabajo`, `python3 entrenar.py` abre `datos/train.csv` como `/home/ana/trabajo/datos/train.csv`. `(cd /tmp && pwd)` imprime `/tmp`, y el `pwd` siguiente vuelve a dar `/home/ana/trabajo`.",
+   "ver": [
+    "ruta",
+    "sistema-archivos",
+    "proceso"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "variable-entorno",
+   "termino": "Variable de entorno",
+   "en": "environment variable · env var",
+   "corto": "Un ajuste que el proceso recibe al arrancar: un par nombre-valor, los dos de texto, que cada proceso hereda de su padre. Juntas forman un diccionario, como `HOME=/home/ana` o `PYTHONUNBUFFERED=1`.",
+   "largo": "En la [[shell]], `MODELO=resnet50` crea una variable que solo vive ahí; `export MODELO` la pasa al entorno, y desde entonces la heredan los hijos. `VAR=valor comando` la pone solo para ese comando. Se lee con `$VAR` (mejor `\"$VAR\"`) y `env` las lista todas; en Python están en `os.environ`. La herencia es una copia al nacer: un proceso que ya corre no ve los cambios del padre, y hay que reiniciarlo. Son la forma más común de configurar un servicio sin cambiar su código; la variable más famosa es [[path-shell|PATH]].",
+   "analogia": "La mochila que cada proceso recibe al nacer, con una copia de las notas de su padre. Lo que el hijo escriba en sus notas no cambia las del padre. Se rompe en que las notas son solo texto: un número o una lista hay que leerlos y convertirlos.",
+   "ejemplo": "El gateway de C01 arranca con `PYTHONUNBUFFERED=1`, `TRITON_URL`, `INFER_TIMEOUT_S=0.15` y `PREPROCESS_CONCURRENCY=2`. `INFER_TIMEOUT_S=0.15 python3 app.py` se lo da solo a ese proceso.",
+   "ver": [
+    "path-shell",
+    "proceso",
+    "shell"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "path-shell",
+   "termino": "PATH",
+   "en": "PATH · search path",
+   "corto": "La variable de entorno con la lista de carpetas, separadas por `:`, donde la shell busca los programas, en orden. Si un programa no está en ninguna, sale «command not found» con el código 127.",
+   "largo": "Cuando la primera palabra de un [[comando]] no trae `/`, la [[shell]] revisa cada carpeta de PATH, de izquierda a derecha, y corre el primer archivo ejecutable con ese nombre. Con `/` (`./entrenar`, `/usr/bin/ls`) no busca: va directo a esa [[ruta]]. La carpeta actual no está en PATH, por seguridad. Poner una carpeta al principio (`PATH=\"$HOME/bin:$PATH\"`) hace que sus programas ganen; activar un entorno de Python hace justo eso con su carpeta `bin`. No es lo mismo que una ruta: la ruta es la dirección de un archivo; PATH, una lista de carpetas donde buscar.",
+   "ejemplo": "Con `PATH=/usr/local/bin:/usr/bin:/bin`, `python3` corre `/usr/local/bin/python3` si existe, aunque también haya uno en `/usr/bin`. En una imagen sin `/opt/venv/bin` en PATH, Kubernetes reporta `exec: \"uvicorn\": executable file not found in $PATH`.",
+   "ver": [
+    "variable-entorno",
+    "comando",
+    "codigo-salida"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "flujos-estandar",
+   "termino": "Flujos estándar",
+   "en": "standard streams · stdin · stdout · stderr",
+   "corto": "Los tres canales de texto con que nace todo proceso: stdin (descriptor 0) para leer, stdout (1) para los resultados y stderr (2) para los errores y avisos. En una terminal, el 0 es el teclado y los otros dos, la pantalla.",
+   "largo": "El kernel numera los archivos abiertos de cada [[proceso]]; esos números son los descriptores, y los tres primeros vienen abiertos y heredados del padre. El programa escribe en el 1 sin saber a dónde va: una terminal, un archivo con [[redireccion|redirección]] o la entrada de otro programa con un [[pipe|tubo]] lo decide quien lo lanza. Separar stdout de stderr permite guardar los datos sin mezclar los errores. En un [[contenedor]], el runtime guarda los dos en un archivo de log, y por eso `docker logs` y `kubectl logs` los muestran. Cuando stdout no es una terminal, Python lo guarda en un buffer: de ahí `PYTHONUNBUFFERED=1`.",
+   "ejemplo": "El gateway de C01 escribe una línea JSON por request a stdout; Fluent Bit la recoge y la manda a S3. Un `print(\"aviso\", file=sys.stderr)` sale por el 2 y no se mezcla con esos datos.",
+   "ver": [
+    "redireccion",
+    "pipe",
+    "proceso"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "redireccion",
+   "termino": "Redirección",
+   "en": "redirection",
+   "corto": "Pedirle a la shell que, antes de lanzar un programa, conecte uno de sus flujos a un archivo: `>` manda stdout a un archivo (vaciándolo), `>>` agrega al final, `<` lee de un archivo y `2>` manda los errores.",
+   "largo": "`2>&1` hace que el descriptor 2 apunte a donde apunta el 1 **en ese momento**, y la shell aplica las redirecciones de izquierda a derecha: `cmd > log 2>&1` manda los dos [[flujos-estandar|flujos]] al archivo, pero `cmd 2>&1 > log` deja los errores en la pantalla. `&> log` es el atajo de bash para los dos. `/dev/null` es un archivo especial que se traga todo. `>` vacía el archivo al prepararse, antes de que corra el programa: `sort log > log` deja `log` vacío.",
+   "ejemplo": "`python3 entrenar.py > entrenar.log 2>&1` guarda en el archivo los resultados y los errores; `ls existe.txt noexiste.txt 2> /dev/null` muestra solo `existe.txt`.",
+   "ver": [
+    "flujos-estandar",
+    "pipe",
+    "shell"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "pipe",
+   "termino": "Tubería",
+   "en": "pipe · pipeline",
+   "corto": "Conectar la salida de un programa con la entrada del siguiente con una barra vertical: `cmd1 | cmd2`. Los dos corren a la vez, y lo que imprime el primero no sale en la pantalla: entra al segundo.",
+   "largo": "La [[shell]] le pide al kernel un tubo, un pedazo de memoria con dos extremos (64 KiB en Linux), y conecta el stdout de uno al stdin del otro. Si el tubo se llena, el que escribe espera; si se vacía, espera el que lee. Nada se guarda en un archivo intermedio, así que una tubería procesa archivos más grandes que la memoria. Así se arman herramientas con programas chicos: `grep` filtra, `sort` ordena, `uniq -c` cuenta repetidos seguidos, `wc -l` cuenta líneas, `head` y `tail` recortan, `cut` y `awk` trabajan por columnas y `jq` lee [[json|JSON]]. El código de una tubería es el del último comando, salvo con `set -o pipefail`.",
+   "analogia": "Una línea de ensamble: cada estación hace una sola cosa y le pasa la pieza a la siguiente, y todas trabajan al mismo tiempo. Se rompe con `sort`: esa estación no puede soltar nada hasta haber visto todas las piezas.",
+   "ejemplo": "`grep -o '\"status\":[0-9]*' gateway.log | cut -d: -f2 | sort | uniq -c | sort -rn` cuenta los códigos de estado de un log de C01: `6 200`, `2 504`…",
+   "ver": [
+    "flujos-estandar",
+    "redireccion",
+    "shell"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "comodin",
+   "termino": "Comodín",
+   "en": "wildcard · glob · globbing",
+   "corto": "Un carácter que la shell reemplaza por los nombres de archivo que coinciden con un patrón: `*` es cualquier texto, `?` un carácter y `[12]` uno de la lista. El reemplazo pasa antes de lanzar el programa.",
+   "largo": "El programa nunca ve el patrón: recibe la lista de nombres ya hecha. Por eso `ls *.log` y `ls \"*.log\"` no son lo mismo: entre comillas, el patrón llega tal cual. Si no coincide con nada, bash pasa el patrón literal y zsh se niega a correr el comando (`no matches found`). Los patrones que son para otro programa van entre comillas: `find . -name \"*.log\"`. Y un `rm *` en la carpeta equivocada borra todo lo que ahí coincida.",
+   "ejemplo": "Con `gateway-1.log`, `gateway-2.log` y `triton.log` en la carpeta, `echo *.log` imprime los tres y `echo gateway-?.log`, solo los dos primeros.",
+   "ver": [
+    "argumento-cli",
+    "shell",
+    "ruta"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "script-shell",
+   "termino": "Script de shell",
+   "en": "shell script",
+   "corto": "Un archivo de texto con comandos, uno por línea, que la shell corre de arriba abajo como si los fueras tecleando. Sirve para repetir una receta igual cada vez.",
+   "largo": "Dentro se usan las mismas cosas de la terminal, más `\"$@\"` (los argumentos del script), `for`, `if` y la sustitución `$( … )`. Se corre con `bash script.sh`, o con `./script.sh` si tiene [[shebang]] y permiso de ejecución. Por omisión, bash sigue aunque un comando falle; por eso los scripts serios empiezan con `set -euo pipefail`: `-e` se detiene en el primer error, `-u` prohíbe variables que no existen y `-o pipefail` hace que una [[pipe|tubería]] falle si falla cualquiera de sus comandos. `bash -n` revisa la sintaxis sin correrlo y ShellCheck encuentra trampas comunes. Cada paso `run:` de un CI es un script.",
+   "ejemplo": "En C01, `bash model/build_engine.sh` construye el engine de TensorRT y se niega a correr si la GPU no es una T4. Sin `pipefail`, `grep x no-existe.log | wc -l` termina con 0 aunque `grep` haya fallado.",
+   "ver": [
+    "shebang",
+    "shell",
+    "codigo-salida"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "shebang",
+   "termino": "Shebang",
+   "en": "shebang · hashbang · #!",
+   "corto": "La primera línea de un script que empieza con `#!` y dice con qué programa se corre, como `#!/usr/bin/env bash`. La lee el kernel al ejecutar el archivo.",
+   "largo": "Al ejecutar un archivo de texto, el kernel ve los caracteres `#!`, toma el resto de la línea como el intérprete y lo lanza con el script como argumento. `#!/bin/bash` pide exactamente esa bash (en una Mac, una muy vieja, de la serie 3.2); `#!/usr/bin/env bash` busca `bash` en [[path-shell|PATH]], y es la forma más portátil; `#!/bin/sh` pide la shell básica, que en Debian es `dash` y no entiende todo lo de bash. Para que `./script.sh` funcione, el archivo necesita el [[permisos|permiso]] `x` (`chmod +x`); sin él, sale «Permission denied» con el código 126. El nombre viene de *sharp* (`#`) y *bang* (`!`).",
+   "ejemplo": "Un `contar.sh` que empieza con `#!/usr/bin/env bash`: `./contar.sh tres.txt` da 126 hasta que `chmod +x contar.sh` lo vuelve ejecutable (`-rwxr-xr-x`). `bash contar.sh` funciona siempre, porque ahí el programa que corre es bash.",
+   "ver": [
+    "script-shell",
+    "permisos",
+    "interprete"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "sudo",
+   "termino": "sudo",
+   "en": "sudo · superuser do",
+   "corto": "El comando para correr otro comando como root, el usuario que puede todo, sin entrar como root: `sudo systemctl restart docker`. Pide tu contraseña, revisa si tienes permiso y anota quién hizo qué.",
+   "largo": "Entrar a un servidor como [[root]] le da poder total a cualquier error de dedo; con `sudo`, el poder se pide comando por comando y queda registrado. En un [[contenedor]] casi nunca hay `sudo`: la imagen ya trae lo que necesita y el proceso corre con el usuario que dice su receta (root si no dice otra cosa; mejor, uno sin privilegios). Agregarlo solo le daría a un atacante una forma de subir de privilegios. Nunca se corre con `sudo` un comando pegado de internet sin entenderlo.",
+   "ejemplo": "En un nodo con GPU, `sudo systemctl restart docker` reinicia Docker después de instalar el NVIDIA Container Toolkit. En el contenedor de la lección, `sudo` da `command not found` y el código 127.",
+   "ver": [
+    "root",
+    "permisos",
+    "ssh"
+   ],
+   "leccion": "terminal"
+  },
+  {
+   "id": "ssh",
+   "termino": "ssh",
+   "en": "ssh · secure shell",
+   "corto": "El programa para abrir una shell en otra computadora a través de la red, con todo cifrado: `ssh ana@gw-node`. Para probar quién eres usa casi siempre un par de llaves, una privada que no sale de tu laptop y una pública en el servidor.",
+   "largo": "Lo que tecleas lo lee una [[shell]] en la otra máquina, y los procesos corren allá; tu [[terminal]] solo dibuja. Usa el [[puerto]] 22 por omisión. La llave privada (por ejemplo `~/.ssh/id_ed25519`) se guarda con permisos 600; la pública se copia al servidor. `ssh host 'comando'` corre un solo comando allá: lo que va entre comillas lo resuelve la shell remota, y lo de afuera, la tuya. `ssh -L 8000:localhost:8000 host` abre un túnel desde tu puerto 8000 hasta el 8000 del servidor. Si se corta la conexión, los procesos de la sesión reciben SIGHUP; por eso los trabajos largos van en tmux o con nohup.",
+   "analogia": "Un control remoto con cable largo: los botones están en tu mano, pero la tele que obedece está en otro cuarto. Se rompe en que el cable va cifrado y en que puedes pedirle a la tele de allá que te mande solo lo que te interesa, en vez de todo.",
+   "ejemplo": "Buscar `9f2c41d0` en un log de 3 GB: `ssh ana@gw-node 'grep 9f2c41d0 /var/log/gateway.log'` lo lee allá en ≈ 6 s y trae dos líneas; bajarlo con una red de 100 Mb/s tardaría ≈ 4 minutos.",
+   "ver": [
+    "shell",
+    "terminal",
+    "puerto"
+   ],
+   "leccion": "terminal"
+  }
+ ]
+}

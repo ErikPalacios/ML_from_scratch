@@ -1,0 +1,275 @@
+{
+ "titulo": "Una tubería: cinco procesos unidos por tubos",
+ "width": 78,
+ "height": 50,
+ "lanes": [
+  {
+   "id": "proc",
+   "label": "Los cinco procesos de la tubería, corriendo a la vez",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 33
+  },
+  {
+   "id": "fuera",
+   "label": "El archivo y la pantalla",
+   "kind": "offline",
+   "x": 0,
+   "y": 35,
+   "w": 78,
+   "h": 15
+  }
+ ],
+ "nodes": [
+  {
+   "id": "grep",
+   "label": "grep -o",
+   "sub": "saca \"status\":NNN",
+   "kind": "job",
+   "x": 2,
+   "y": 5,
+   "w": 18,
+   "h": 8,
+   "note": "`grep -o '\"status\":[0-9]*'` lee el archivo línea por línea y, de cada una, deja pasar solo el pedazo que coincide, como `\"status\":504`. Las líneas de error no tienen `status`: no dejan nada. Es el filtro: lo pone primero para que a los demás les llegue poco."
+  },
+  {
+   "id": "cut",
+   "label": "cut -d: -f2",
+   "sub": "deja el número",
+   "kind": "job",
+   "x": 30,
+   "y": 5,
+   "w": 18,
+   "h": 8,
+   "note": "Corta cada línea en los dos puntos y deja el segundo pedazo: de `\"status\":504` queda `504`. Trabaja una línea a la vez y la suelta enseguida."
+  },
+  {
+   "id": "sort",
+   "label": "sort",
+   "sub": "pone juntos los iguales",
+   "kind": "job",
+   "x": 58,
+   "y": 5,
+   "w": 18,
+   "h": 8,
+   "note": "Ordena las líneas. Es el único de la fila que **no puede soltar nada** hasta leer la última: la línea más chica podría ser la que falta. Si son muchas, GNU `sort` usa archivos temporales en el disco."
+  },
+  {
+   "id": "uniq",
+   "label": "uniq -c",
+   "sub": "cuenta cada grupo",
+   "kind": "job",
+   "x": 58,
+   "y": 21,
+   "w": 18,
+   "h": 8,
+   "note": "Junta las líneas iguales **que vienen seguidas** y dice cuántas eran: `6 200`. Por eso va después de `sort`: sin ordenar, dos 200 separados por un 504 contarían como dos grupos."
+  },
+  {
+   "id": "sortrn",
+   "label": "sort -rn",
+   "sub": "del mayor al menor",
+   "kind": "job",
+   "x": 30,
+   "y": 21,
+   "w": 18,
+   "h": 8,
+   "note": "Ordena otra vez, ahora por el conteo, como número (`-n`) y al revés (`-r`): el código más común queda arriba."
+  },
+  {
+   "id": "log",
+   "label": "gateway.log",
+   "sub": "una línea JSON por request",
+   "kind": "store",
+   "x": 2,
+   "y": 39,
+   "w": 18,
+   "h": 8,
+   "note": "El log del gateway en [[json-lines|JSON Lines]]. `grep` lo abre como archivo; los demás nunca lo ven: reciben lo que les manda el de su izquierda por su stdin."
+  },
+  {
+   "id": "pantalla",
+   "label": "Tu terminal",
+   "sub": "solo ve el resultado",
+   "kind": "client",
+   "x": 30,
+   "y": 39,
+   "w": 18,
+   "h": 8,
+   "note": "Solo el stdout del último proceso llega a la [[terminal]]. Lo de en medio viaja por los tubos y nunca se dibuja. Los errores (stderr) de cualquiera de los cinco sí salen aquí, porque no van por los tubos."
+  }
+ ],
+ "edges": [
+  {
+   "from": "log",
+   "to": "grep",
+   "kind": "offline",
+   "label": "lee",
+   "fromSide": "t",
+   "toSide": "b"
+  },
+  {
+   "from": "grep",
+   "to": "cut",
+   "kind": "neutral",
+   "label": "tubo",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "cut",
+   "to": "sort",
+   "kind": "neutral",
+   "label": "tubo",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "sort",
+   "to": "uniq",
+   "kind": "neutral",
+   "label": "tubo",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "uniq",
+   "to": "sortrn",
+   "kind": "neutral",
+   "label": "tubo",
+   "fromSide": "l",
+   "toSide": "r"
+  },
+  {
+   "from": "sortrn",
+   "to": "pantalla",
+   "kind": "online",
+   "label": "stdout",
+   "fromSide": "b",
+   "toSide": "t"
+  }
+ ],
+ "flows": [
+  {
+   "id": "contar",
+   "label": "Contar los códigos de estado",
+   "steps": [
+    {
+     "nodes": [
+      "grep",
+      "cut",
+      "sort",
+      "uniq",
+      "sortrn"
+     ],
+     "edges": [],
+     "text": "La shell ve cuatro barras `|`: pide **cuatro tubos** al kernel y lanza **cinco procesos a la vez**. El stdout de cada uno queda conectado al stdin del siguiente."
+    },
+    {
+     "nodes": [
+      "log",
+      "grep"
+     ],
+     "edges": [
+      "log>grep"
+     ],
+     "text": "`grep` lee `gateway.log` y, de cada línea, deja solo `\"status\":200`. Las dos líneas de error no dejan nada: de 12 líneas salen 10."
+    },
+    {
+     "nodes": [
+      "grep",
+      "cut"
+     ],
+     "edges": [
+      "grep>cut"
+     ],
+     "text": "Cada pedazo entra por el tubo a `cut`, que deja solo el número. `grep` y `cut` trabajan al mismo tiempo, como dos estaciones de una línea de ensamble."
+    },
+    {
+     "nodes": [
+      "cut",
+      "sort"
+     ],
+     "edges": [
+      "cut>sort"
+     ],
+     "text": "`sort` recibe los diez números y **espera** a que `cut` termine: no sabe cuál es el más chico hasta ver el último."
+    },
+    {
+     "nodes": [
+      "sort",
+      "uniq"
+     ],
+     "edges": [
+      "sort>uniq"
+     ],
+     "text": "Ya ordenados, los iguales quedan juntos: seis 200, dos 504, un 400, un 413. `uniq -c` cuenta cada grupo."
+    },
+    {
+     "nodes": [
+      "uniq",
+      "sortrn"
+     ],
+     "edges": [
+      "uniq>sortrn"
+     ],
+     "text": "`sort -rn` ordena por el conteo, del mayor al menor."
+    },
+    {
+     "nodes": [
+      "sortrn",
+      "pantalla"
+     ],
+     "edges": [
+      "sortrn>pantalla"
+     ],
+     "text": "Solo el stdout del último llega a la terminal: **6 200 · 2 504 · 1 413 · 1 400**. Lo demás viajó por los tubos sin dibujarse."
+    }
+   ]
+  },
+  {
+   "id": "grande",
+   "label": "Con un log de 3 GB",
+   "steps": [
+    {
+     "nodes": [
+      "log",
+      "grep"
+     ],
+     "edges": [
+      "log>grep"
+     ],
+     "text": "Con el log del día, `grep` lee 10 millones de líneas. Si el patrón es un request_id, como `9f2c41d0`, deja pasar 2."
+    },
+    {
+     "nodes": [
+      "grep",
+      "cut",
+      "sort"
+     ],
+     "edges": [
+      "grep>cut",
+      "cut>sort"
+     ],
+     "text": "A `sort`, el único que guarda todo, le llegan 2 líneas en vez de 10 millones. **Filtrar primero** es lo que hace rápida una tubería."
+    },
+    {
+     "nodes": [
+      "sort",
+      "uniq",
+      "sortrn",
+      "pantalla"
+     ],
+     "edges": [
+      "sort>uniq",
+      "uniq>sortrn",
+      "sortrn>pantalla"
+     ],
+     "text": "Ningún proceso guardó el archivo completo en memoria: cada uno tuvo, a lo mucho, unas líneas a la vez. Por eso una tubería procesa archivos más grandes que la RAM."
+    }
+   ]
+  }
+ ]
+}

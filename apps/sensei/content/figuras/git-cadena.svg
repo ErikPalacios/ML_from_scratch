@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" role="img" aria-labelledby="f-git-cadena-t" class="f-svg" style="max-width:420px">
+<title id="f-git-cadena-t">Dos historias de tres commits cada una, con los mismos archivos. Cada commit apunta a su padre con una flecha hacia la izquierda. En la original, los commits son 1e53ceb (el timeout), 811804c (el preprocesamiento) y 19fc2c8 (el top-5). En la segunda solo cambia el mensaje del primer commit, y los tres ids son otros: c4d6f12, 529d5c3 y 68c0bfe. Como cada commit guarda el id de su padre, un cambio en el primero cambia todos los que vienen después.</title>
+<rect class="f-card" x="10" y="10" width="340" height="310" rx="16"/>
+<text class="f-l" x="26" y="36">CADA COMMIT GUARDA EL ID DE SU PADRE</text>
+<text class="f-s" x="26" y="62" style="font-size:13px;font-weight:700">Original</text>
+<rect class="f-b" x="26" y="72" width="86" height="54" rx="8"/>
+<text class="f-pill-t" x="69" y="96" text-anchor="middle" style="font:700 14px var(--mono)">1e53ceb</text>
+<text class="f-pill-t" x="69" y="115" text-anchor="middle" style="font:600 12px var(--sans)">timeout</text>
+<line class="f-flecha" x1="134" y1="99" x2="122" y2="99"/>
+<polygon class="f-punta" points="122,94 122,104 114,99"/>
+<rect class="f-b" x="136" y="72" width="86" height="54" rx="8"/>
+<text class="f-pill-t" x="179" y="96" text-anchor="middle" style="font:700 14px var(--mono)">811804c</text>
+<text class="f-pill-t" x="179" y="115" text-anchor="middle" style="font:600 12px var(--sans)">preproceso</text>
+<line class="f-flecha" x1="244" y1="99" x2="232" y2="99"/>
+<polygon class="f-punta" points="232,94 232,104 224,99"/>
+<rect class="f-b" x="246" y="72" width="86" height="54" rx="8"/>
+<text class="f-pill-t" x="289" y="96" text-anchor="middle" style="font:700 14px var(--mono)">19fc2c8</text>
+<text class="f-pill-t" x="289" y="115" text-anchor="middle" style="font:600 12px var(--sans)">top-5</text>
+<text class="f-s" x="26" y="158" style="font-size:13px;font-weight:700">Con el primer mensaje corregido</text>
+<rect class="f-o" x="26" y="168" width="86" height="54" rx="8"/>
+<text class="f-pill-t" x="69" y="192" text-anchor="middle" style="font:700 14px var(--mono)">c4d6f12</text>
+<text class="f-pill-t" x="69" y="211" text-anchor="middle" style="font:600 12px var(--sans)">timeout</text>
+<line class="f-flecha" x1="134" y1="195" x2="122" y2="195"/>
+<polygon class="f-punta" points="122,190 122,200 114,195"/>
+<rect class="f-o" x="136" y="168" width="86" height="54" rx="8"/>
+<text class="f-pill-t" x="179" y="192" text-anchor="middle" style="font:700 14px var(--mono)">529d5c3</text>
+<text class="f-pill-t" x="179" y="211" text-anchor="middle" style="font:600 12px var(--sans)">preproceso</text>
+<line class="f-flecha" x1="244" y1="195" x2="232" y2="195"/>
+<polygon class="f-punta" points="232,190 232,200 224,195"/>
+<rect class="f-o" x="246" y="168" width="86" height="54" rx="8"/>
+<text class="f-pill-t" x="289" y="192" text-anchor="middle" style="font:700 14px var(--mono)">68c0bfe</text>
+<text class="f-pill-t" x="289" y="211" text-anchor="middle" style="font:600 12px var(--sans)">top-5</text>
+<text x="69" y="240" text-anchor="middle" style="fill:var(--o);font:700 12px var(--sans)">otro mensaje</text>
+<text class="f-s" x="26" y="270" style="font-size:12px">config.py es idéntico en las dos historias.</text>
+<text class="f-s" x="26" y="288" style="font-size:12px">Cambió un mensaje y cambió el primer id;</text>
+<text class="f-s" x="26" y="306" style="font-size:12px">los otros dos guardan ese id: también cambian.</text>
+</svg>

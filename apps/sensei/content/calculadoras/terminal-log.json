@@ -1,0 +1,94 @@
+{
+ "titulo": "Buscar en un log grande: allá o en tu laptop",
+ "intro": "Un log de [[json-lines|JSON Lines]] tiene una línea por request. Para encontrar una sola request, `grep` lee el archivo completo. Compara leerlo **en el servidor** contra **bajarlo** a tu laptop. Arranca con el día de C01.",
+ "entradas": [
+  {
+   "id": "d",
+   "label": "Requests al día, en millones (10 = C01)",
+   "min": 0.1,
+   "max": 100,
+   "paso": 0.1,
+   "valor": 10
+  },
+  {
+   "id": "b",
+   "label": "Bytes por línea (≈ 300 en C01)",
+   "min": 50,
+   "max": 2000,
+   "paso": 10,
+   "valor": 300
+  },
+  {
+   "id": "n",
+   "label": "Días de log",
+   "min": 1,
+   "max": 90,
+   "paso": 1,
+   "valor": 1
+  },
+  {
+   "id": "lect",
+   "label": "Lectura de disco y grep, en MB por segundo (una suposición)",
+   "min": 50,
+   "max": 3000,
+   "paso": 50,
+   "valor": 500
+  },
+  {
+   "id": "red",
+   "label": "Tu red, en Mb por segundo (megabits)",
+   "min": 5,
+   "max": 1000,
+   "paso": 5,
+   "valor": 100
+  }
+ ],
+ "calculos": [
+  {
+   "id": "tam",
+   "formula": "d * 1e6 * b * n"
+  },
+  {
+   "id": "leer",
+   "formula": "tam / (lect * 1e6)"
+  },
+  {
+   "id": "bajar",
+   "formula": "tam * 8 / (red * 1e6)"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "Tamaño del log",
+   "formula": "tam",
+   "formato": "bytes"
+  },
+  {
+   "label": "Líneas que grep tiene que leer",
+   "formula": "d * 1e6 * n",
+   "formato": "int"
+  },
+  {
+   "label": "Leerlo en el servidor, en segundos",
+   "formula": "leer",
+   "formato": "num",
+   "decimales": 1,
+   "nota": "con ssh: corre el comando donde están los datos"
+  },
+  {
+   "label": "Bajarlo a tu laptop, en minutos",
+   "formula": "bajar / 60",
+   "formato": "num",
+   "decimales": 1,
+   "nota": "un byte son 8 bits"
+  },
+  {
+   "label": "Cuántas veces más lento es bajarlo",
+   "formula": "bajar / max(leer, 1e-9)",
+   "formato": "x",
+   "decimales": 0,
+   "barra": false
+  }
+ ],
+ "nota": "La red casi siempre es más lenta que el disco: por eso se lleva el comando a los datos. Con 30 días, el log de C01 pesa 90 GB, y bajarlo tarda horas aunque grep lo lea en 3 minutos."
+}

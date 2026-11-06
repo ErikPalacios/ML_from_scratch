@@ -1,0 +1,24 @@
+{
+  "titulo": "Pesos dentro de Git, o con Git LFS",
+  "intro": "Git guarda cada versión completa de un archivo, y cada clone baja toda la historia. Con [[git-lfs|Git LFS]], el historial guarda un puntero de ≈ 133 bytes por versión y cada clone baja solo la versión que pide. Arranca con los pesos de C01: 98 MB, un fine-tune al mes, dos años.",
+  "entradas": [
+    { "id": "mb", "label": "Tamaño del archivo de pesos, en MB", "min": 1, "max": 200000, "paso": 1, "valor": 98, "tipo": "numero" },
+    { "id": "v", "label": "Versiones nuevas por año", "min": 1, "max": 365, "paso": 1, "valor": 12 },
+    { "id": "a", "label": "Años de historia", "min": 1, "max": 10, "paso": 1, "valor": 2 },
+    { "id": "c", "label": "Clones completos al día (personas nuevas y CI)", "min": 0, "max": 500, "paso": 1, "valor": 10 }
+  ],
+  "calculos": [
+    { "id": "versiones", "formula": "v * a" },
+    { "id": "b", "formula": "mb * 1e6" }
+  ],
+  "salidas": [
+    { "label": "Versiones guardadas", "formula": "versiones", "formato": "int" },
+    { "label": "Historial dentro de Git", "formula": "b * versiones", "formato": "bytes", "nota": "los pesos casi no se comprimen" },
+    { "label": "Historial con Git LFS (solo los punteros)", "formula": "133 * versiones", "formato": "bytes" },
+    { "label": "Lo que baja cada clone sin LFS", "formula": "b * versiones", "formato": "bytes", "nota": "toda la historia" },
+    { "label": "Lo que baja cada clone con LFS", "formula": "b", "formato": "bytes", "nota": "solo la versión que pides" },
+    { "label": "Tráfico de clones al día, sin LFS", "formula": "b * versiones * c", "formato": "bytes" },
+    { "label": "El archivo contra el límite de GitHub sin LFS (100 MiB)", "formula": "b / (100 * 1048576)", "formato": "pct", "barra": true, "nota": "más de 100 %: GitHub rechaza el push" }
+  ],
+  "nota": "Con 98 MB, el archivo queda en ≈ 93 % del límite: entra, con aviso. Con 16,000 MB (un LLM de 8 mil millones de parámetros en BF16), no entra sin LFS, y lo normal es dejarlo en object storage."
+}

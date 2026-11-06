@@ -1,0 +1,67 @@
+{
+  "titulo": "Del commit al clúster: el camino de un cambio del gateway de C01",
+  "width": 78,
+  "height": 54,
+  "lanes": [
+    { "id": "ci", "label": "CI: en runners, con cada PR y en main", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 25 },
+    { "id": "cd", "label": "CD: en el clúster", "kind": "online", "x": 0, "y": 27, "w": 78, "h": 27 }
+  ],
+  "nodes": [
+    { "id": "pr", "label": "Pull request", "sub": "el cambio", "kind": "human", "x": 1, "y": 9, "w": 14, "h": 8,
+      "note": "Alguien sube su [[rama]] y abre un [[pull-request|pull request]]. Desde aquí nadie copia archivos ni corre comandos a mano: todo lo dispara este evento, y lo de abajo solo pasa cuando el PR ya se juntó a main." },
+    { "id": "lint", "label": "Lint y tipos", "sub": "ruff · mypy · ≈ 1 min", "kind": "job", "x": 19, "y": 3, "w": 17, "h": 8,
+      "note": "El [[linter]], el formateador y el revisor de tipos. Leen el código sin correrlo y fallan en segundos. No habrían atrapado el martes: el código sin paréntesis es válido." },
+    { "id": "pruebas", "label": "Pruebas", "sub": "pytest · ≈ 2 min", "kind": "job", "x": 19, "y": 14, "w": 17, "h": 8,
+      "note": "Las [[prueba-unitaria|unitarias]], las 26 de [[prueba-integracion|integración]] con el Triton falso y los tensores de las 20 fotos de referencia. Corren al mismo tiempo que el lint, en otro [[runner-ci|runner]]. **Aquí cae el cambio del martes.**" },
+    { "id": "imagen", "label": "Imagen", "sub": "por commit · ≈ 1 min", "kind": "job", "x": 40, "y": 9, "w": 16, "h": 8,
+      "note": "Solo en main y solo si lint y pruebas salieron con 0. Se construye **una vez** la [[imagen-contenedor|imagen]], nombrada con el commit, y se le hace una [[prueba-humo|prueba de humo]]. Ese mismo [[artefacto]] pasa por todo lo que sigue." },
+    { "id": "paridad", "label": "Paridad e2e", "sub": "runner con T4 · ≈ 1 min", "kind": "gpu", "x": 60, "y": 9, "w": 17, "h": 8,
+      "note": "En un runner propio con la GPU de producción: las 20 fotos de referencia pasan por el gateway real (la imagen recién hecha) hacia un Triton con el engine de producción, y se comparan con las predicciones del pipeline de evaluación. Atrapa el skew que las pruebas de abajo no vieron." },
+    { "id": "staging", "label": "Staging", "sub": "pods nuevos · ≈ 3 min", "kind": "service", "x": 60, "y": 32, "w": 17, "h": 8,
+      "note": "El [[ambiente]] de ensayo: la misma imagen, por su [[digest-imagen|digest]], con la configuración de staging. Los pods nuevos arrancan y pasan su [[health-check|health check]]." },
+    { "id": "humo", "label": "Prueba de humo", "sub": "healthz + una foto", "kind": "monitor", "x": 40, "y": 32, "w": 16, "h": 8,
+      "note": "`GET /healthz` responde 200 y una foto conocida regresa una categoría con su score y su `model_version`. Si falla, el pipeline se detiene: producción ni se entera." },
+    { "id": "prod", "label": "Producción", "sub": "pod a pod · ≈ 5 min", "kind": "service", "x": 19, "y": 32, "w": 17, "h": 8,
+      "note": "El mismo digest, con la configuración de producción. Los pods se cambian de uno en uno, sin apagar el servicio. Unos 12.5 minutos después del merge, el cambio está en el clúster." },
+    { "id": "canary", "label": "Canary", "sub": "horas · estación 10", "kind": "monitor", "x": 1, "y": 32, "w": 14, "h": 8,
+      "note": "La versión nueva recibe primero una parte del tráfico, se compara contra la estable y avanza si los criterios se cumplen. Es el freno de producción; se construye en la estación 10 del Dojo." },
+    { "id": "anterior", "label": "Versión anterior", "sub": "viva 24 a 48 h", "kind": "store", "x": 19, "y": 44, "w": 17, "h": 8,
+      "note": "La imagen anterior sigue en el registro, por su digest, y viva unos días. Por eso el [[rollback]] toma segundos o minutos: es mover el tráfico de vuelta, no reconstruir nada." }
+  ],
+  "edges": [
+    { "from": "pr", "to": "lint", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "pr", "to": "pruebas", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "lint", "to": "imagen", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "pruebas", "to": "imagen", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "imagen", "to": "paridad", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "paridad", "to": "staging", "kind": "online", "label": "mismo digest", "fromSide": "b", "toSide": "t" },
+    { "from": "staging", "to": "humo", "kind": "online", "fromSide": "l", "toSide": "r" },
+    { "from": "humo", "to": "prod", "kind": "online", "fromSide": "l", "toSide": "r" },
+    { "from": "prod", "to": "canary", "kind": "online", "fromSide": "l", "toSide": "r" },
+    { "from": "canary", "to": "anterior", "kind": "monitor", "dashed": true, "label": "rollback", "fromSide": "b", "toSide": "l", "via": [[8, 48]] }
+  ],
+  "flows": [
+    { "id": "pasa", "label": "Un cambio que pasa",
+      "steps": [
+        { "nodes": ["pr", "lint", "pruebas"], "edges": ["pr>lint", "pr>pruebas"], "text": "El PR dispara dos jobs a la vez: **lint** (≈ 1 min) y **pruebas** (≈ 2 min). Todo sale con 0 y el PR queda en verde." },
+        { "nodes": ["lint", "pruebas", "imagen"], "edges": ["lint>imagen", "pruebas>imagen"], "text": "Ya en main, se construye la **imagen** una sola vez, nombrada con el commit (≈ 1 min). Van ≈ 3 minutos." },
+        { "nodes": ["imagen", "paridad"], "edges": ["imagen>paridad"], "text": "La **paridad de punta a punta** corre en el runner con T4 (≈ 1 min): el gateway nuevo se porta igual que el evaluado." },
+        { "nodes": ["paridad", "staging", "humo"], "edges": ["paridad>staging", "staging>humo"], "text": "El mismo digest llega a **staging** y pasa la **prueba de humo** (≈ 3.5 min en total)." },
+        { "nodes": ["humo", "prod"], "edges": ["humo>prod"], "text": "**Producción**, de pod en pod (≈ 5 min). Unos 12.5 minutos después del merge, el cambio está en el clúster." },
+        { "nodes": ["prod", "canary"], "edges": ["prod>canary"], "text": "El **canary** decide en horas cuándo recibe todo el tráfico." }
+      ] },
+    { "id": "martes", "label": "El cambio del martes",
+      "steps": [
+        { "nodes": ["pr"], "edges": [], "text": "Alguien quitó los paréntesis de la normalización. El código es válido." },
+        { "nodes": ["pr", "lint"], "edges": ["pr>lint"], "text": "**Lint y tipos pasan**: no hay ningún error de sintaxis ni de tipos." },
+        { "nodes": ["pr", "pruebas"], "edges": ["pr>pruebas"], "text": "**Las pruebas fallan**: la normalización da −1.19 en vez de 1.92 y el tensor de las 20 fotos ya no coincide con el guardado. pytest sale con 1." },
+        { "nodes": ["pr"], "edges": [], "text": "El PR queda en rojo, a los ≈ 2 minutos. No se junta, no hay imagen y nada llega al clúster." }
+      ] },
+    { "id": "falla", "label": "Pasa todo y falla en producción",
+      "steps": [
+        { "nodes": ["prod", "canary"], "edges": ["prod>canary"], "text": "Ninguna prueba atrapa todo. Esta versión pasó CI y staging, pero en el canary los errores 5xx suben por arriba del criterio." },
+        { "nodes": ["canary", "anterior"], "edges": ["canary>anterior"], "text": "**Primero revertir, después investigar.** El tráfico vuelve a la **versión anterior**, que seguía viva: segundos, no una reconstrucción." },
+        { "nodes": ["anterior"], "edges": [], "text": "Ya con calma, se busca la causa y se agrega la prueba que faltaba, abajo en la pirámide, para que no vuelva." }
+      ] }
+  ]
+}

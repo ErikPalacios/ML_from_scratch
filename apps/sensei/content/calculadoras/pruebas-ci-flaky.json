@@ -1,0 +1,19 @@
+{ "titulo": "Cuántas falsas alarmas da un CI con pruebas flaky",
+  "intro": "Cada [[prueba-flaky|prueba flaky]] falla sin razón de vez en cuando, y basta una para que la corrida salga en rojo. **P(rojo sin error) = 1 − (1 − pᵏ)ⁿ**, con n pruebas, p la falla de cada una y k los intentos. Arranca con el ejemplo del texto: 300 pruebas con 0.1 % cada una.",
+  "entradas": [
+    { "id": "n", "label": "Pruebas en el repositorio", "min": 1, "max": 5000, "paso": 1, "valor": 300, "tipo": "numero" },
+    { "id": "p", "label": "Falla sin razón de cada una, en %", "min": 0, "max": 10, "paso": 0.05, "valor": 0.1, "unidad": "%" },
+    { "id": "r", "label": "Reintentos automáticos si una falla", "min": 0, "max": 3, "paso": 1, "valor": 0 },
+    { "id": "c", "label": "Corridas del CI al día", "min": 1, "max": 200, "paso": 1, "valor": 20 }
+  ],
+  "calculos": [
+    { "id": "q", "formula": "pow(p / 100, r + 1)" },
+    { "id": "verde", "formula": "pow(1 - q, n)" }
+  ],
+  "salidas": [
+    { "label": "Una prueba tumba la corrida", "formula": "q", "formato": "pct", "decimales": 4, "nota": "falla en todos sus intentos" },
+    { "label": "Corridas en rojo sin ningún error de verdad", "formula": "1 - verde", "formato": "pct", "decimales": 2, "barra": true },
+    { "label": "Falsas alarmas al día", "formula": "c * (1 - verde)", "formato": "num", "decimales": 1 },
+    { "label": "Corridas seguidas en verde, en promedio, antes de una falsa alarma", "formula": "verde / max(1 - verde, 1e-9)", "formato": "num", "decimales": 1, "nota": "más de 1 millón: casi nunca" }
+  ],
+  "nota": "Un reintento baja las falsas alarmas muchísimo, pero también esconde fallas reales que pasan a veces. Por eso se cuentan los reintentos y la prueba flaky se arregla." }

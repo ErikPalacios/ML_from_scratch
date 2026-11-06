@@ -35,10 +35,23 @@
     "colas": ["cola-mensajes", "productor", "consumidor", "broker", "stream-eventos", "topico", "particion-topico", "offset", "grupo-consumidores", "at-least-once", "at-most-once", "exactly-once", "visibility-timeout", "dlq", "lag-consumidor", "cdc"],
     "tiempo-hash": ["timestamp", "tiempo-unix", "utc", "iso-8601", "reloj-monotonico", "desfase-reloj", "event-time", "ventana-tiempo", "watermark", "point-in-time", "funcion-hash", "hash-criptografico", "checksum", "sharding", "asignacion-hash", "uuid", "request-id"],
     "redes-nube": ["vpc", "nat", "egress"],
-    "cifrado": ["tls", "mtls", "hmac"],
+    "cifrado": ["tls", "mtls", "hmac", "kms"],
     "identidad": ["jwt", "api-key"],
-    "e10-rollout": ["canary"],
+    "e10-rollout": ["canary", "blue-green", "shadow"],
     "e02-versionado": ["versionado-datos", "linaje"],
-    "e05-export": ["onnx", "engine-tensorrt"]
+    "e05-export": ["onnx", "engine-tensorrt"],
+    "terminal": ["terminal", "shell", "comando", "argumento-cli", "directorio-trabajo", "variable-entorno", "path-shell", "flujos-estandar", "redireccion", "pipe", "comodin", "script-shell", "shebang", "sudo", "ssh"],
+    "python-ecosistema": ["modulo-python", "paquete-python", "biblioteca-estandar", "pip", "pypi", "wheel", "extension-nativa", "dependencia", "dependencia-transitiva", "version-semantica", "lock-file", "entorno-virtual", "conda", "uv", "pyproject", "type-hints", "pydantic"],
+    "pytorch": ["pytorch", "device", "nn-module", "state-dict", "autograd", "no-grad", "dataloader", "sincronizacion-cuda", "caching-allocator", "torch-compile", "torchscript", "torch-export", "autocast", "determinismo", "torchvision", "warmup-inferencia"],
+    "git": ["git", "repositorio", "commit", "rama", "merge", "conflicto-merge", "rebase", "remoto-git", "pull-request", "revision-codigo", "gitignore", "tag-git", "git-lfs", "trunk-based", "monorepo", "gitops"],
+    "pruebas-ci": ["prueba-unitaria", "prueba-integracion", "prueba-e2e", "pytest", "fixture", "mock", "cobertura", "prueba-humo", "prueba-datos", "prueba-flaky", "linter", "ci", "cd", "github-actions", "runner-ci", "artefacto", "ambiente", "rollback"],
+    "config": ["configuracion", "twelve-factor", "precedencia-config", "feature-flag", "secreto", "gestor-secretos", "configmap", "secret-k8s", "archivo-env", "rotacion-secretos", "escaneo-secretos", "validacion-config", "helm"],
+    "e04-gate": ["quality-gate", "registro-modelos"],
+    "e06-serving": ["fastapi", "uvicorn"],
+    "e07-empaquetado": ["imagen-contenedor", "dockerfile", "capa-imagen", "digest-imagen"],
+    "e08-cicd": ["registro-imagenes"],
+    "e09-kubernetes": ["pod", "deployment-k8s"],
+    "gestionados": ["iam"],
+    "ataques": ["cadena-suministro", "sbom"]
   }
 }

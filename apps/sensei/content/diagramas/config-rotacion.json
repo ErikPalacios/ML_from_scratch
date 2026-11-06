@@ -1,0 +1,48 @@
+{
+  "titulo": "Rotar una contraseña sin cortar el servicio",
+  "width": 78,
+  "height": 42,
+  "lanes": [
+    { "id": "guarda", "label": "Quién guarda y quién cambia", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 18 },
+    { "id": "usa", "label": "Quién la usa y quién mira", "kind": "online", "x": 0, "y": 22, "w": 78, "h": 20 }
+  ],
+  "nodes": [
+    { "id": "escaner", "label": "Escáner", "sub": "gitleaks, en el CI", "kind": "monitor", "x": 1, "y": 6, "w": 18, "h": 8,
+      "note": "El [[escaneo-secretos|escáner de secretos]] revisa cada commit. Si encuentra la contraseña en el código o en la historia, dispara una rotación **ya**, sin esperar la fecha." },
+    { "id": "rotador", "label": "Rotación", "sub": "cada 90 días o ya", "kind": "job", "x": 30, "y": 6, "w": 18, "h": 8,
+      "note": "Un job (o el propio gestor, si lo sabe hacer) que crea la contraseña nueva, la guarda y, al final, revoca la vieja. Sigue siempre el mismo orden." },
+    { "id": "gestor", "label": "Gestor de secretos", "sub": "versión 1 → versión 2", "kind": "store", "x": 59, "y": 6, "w": 18, "h": 8,
+      "note": "El [[gestor-secretos|gestor]] guarda las dos versiones. Desde que se guarda la 2, es la que entrega a quien la pida." },
+    { "id": "bd", "label": "Base de datos", "sub": "acepta v1 y v2", "kind": "store", "x": 1, "y": 29, "w": 18, "h": 8,
+      "note": "Durante la rotación acepta **las dos contraseñas**. Ese periodo de dos credenciales válidas es lo que evita que todos los pods fallen a la vez." },
+    { "id": "pods", "label": "Pods del gateway", "sub": "leen el archivo", "kind": "service", "x": 30, "y": 29, "w": 18, "h": 8,
+      "note": "Reciben la versión 2 como archivo montado y la usan en la siguiente conexión. Si la tuvieran en una variable de entorno, habría que reiniciarlos por oleadas." },
+    { "id": "auditoria", "label": "Registro", "sub": "quién leyó, cuándo", "kind": "monitor", "x": 59, "y": 29, "w": 18, "h": 8,
+      "note": "El gestor anota cada lectura y la base, cada conexión. Con eso se sabe cuándo nadie usa ya la versión 1 y, si hubo filtración, si alguien de afuera la usó." }
+  ],
+  "edges": [
+    { "from": "escaner", "to": "rotador", "kind": "monitor", "fromSide": "r", "toSide": "l", "label": "¡ya!" },
+    { "from": "rotador", "to": "gestor", "kind": "offline", "fromSide": "r", "toSide": "l", "label": "guarda v2" },
+    { "from": "rotador", "to": "bd", "kind": "offline", "fromSide": "b", "toSide": "t", "via": [[39, 18], [10, 18]], "label": "crea v2" },
+    { "from": "gestor", "to": "pods", "kind": "online", "fromSide": "b", "toSide": "t", "via": [[68, 21], [39, 21]], "label": "entrega v2" },
+    { "from": "pods", "to": "bd", "kind": "online", "fromSide": "l", "toSide": "r", "label": "conecta" },
+    { "from": "gestor", "to": "auditoria", "kind": "monitor", "fromSide": "r", "toSide": "r", "via": [[77.5, 10], [77.5, 33]], "dashed": true },
+    { "from": "auditoria", "to": "rotador", "kind": "monitor", "fromSide": "l", "toSide": "r", "via": [[53, 33], [53, 12]], "dashed": true, "label": "nadie usa v1" }
+  ],
+  "flows": [
+    { "id": "rotacion", "label": "Una rotación normal",
+      "steps": [
+        { "nodes": ["rotador", "bd"], "edges": ["rotador>bd"], "text": "Llegó la fecha. El job **crea la versión 2** en la base de datos, que desde ahora acepta las dos." },
+        { "nodes": ["rotador", "gestor"], "edges": ["rotador>gestor"], "text": "Guarda la versión 2 en el **gestor**. Desde ahora, es la que entrega." },
+        { "nodes": ["gestor", "pods", "bd"], "edges": ["gestor>pods", "pods>bd"], "text": "Los **pods** reciben el archivo nuevo y se conectan con la versión 2. Los que todavía no se enteran siguen funcionando con la 1." },
+        { "nodes": ["gestor", "auditoria", "rotador"], "edges": ["gestor>auditoria", "auditoria>rotador"], "text": "El **registro** muestra que ya nadie se conecta con la versión 1. Solo entonces el job la **revoca** en la base. Nadie notó nada." }
+      ] },
+    { "id": "filtracion", "label": "Una filtración",
+      "steps": [
+        { "nodes": ["escaner", "rotador"], "edges": ["escaner>rotador"], "text": "El **escáner** encuentra la contraseña en un commit. No importa que ya la hayan borrado: la historia la guarda. Se rota **ya**." },
+        { "nodes": ["rotador", "bd", "gestor"], "edges": ["rotador>bd", "rotador>gestor"], "text": "Mismos pasos que siempre, pero ahora: versión 2 en la base y en el gestor." },
+        { "nodes": ["gestor", "pods", "bd"], "edges": ["gestor>pods", "pods>bd"], "text": "Los pods pasan a la versión 2. Aquí sí conviene acelerar: reiniciar por oleadas en vez de esperar el refresco." },
+        { "nodes": ["auditoria", "rotador"], "edges": ["auditoria>rotador"], "text": "Se revoca la versión 1 y se revisa el **registro**: ¿alguien de afuera se conectó con ella entre la filtración y ahora?" }
+      ] }
+  ]
+}

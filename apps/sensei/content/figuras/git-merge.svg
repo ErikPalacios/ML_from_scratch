@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 390" role="img" aria-labelledby="f-git-merge-t" class="f-svg" style="max-width:420px">
+<title id="f-git-merge-t">Las dos formas de unir una rama. Arriba, un fast-forward: la rama top-k tiene el commit 821910a encima de 1e53ceb, y main seguía en 1e53ceb; como main no se movió, su etiqueta solo avanza de 1e53ceb a 821910a, sin crear ningún commit. Abajo, un commit de merge: main avanzó a 60006fd y la rama logs a 26b7ad8, las dos desde 821910a; el merge crea el commit 9341d8a, que tiene dos padres, 60006fd y 26b7ad8, y main apunta a él.</title>
+<rect class="f-card" x="10" y="10" width="340" height="370" rx="16"/>
+<text class="f-l" x="26" y="36">FAST-FORWARD</text>
+<text class="f-s" x="26" y="54" style="font-size:12px">main no se movió: solo avanza su etiqueta.</text>
+<rect class="f-o" x="182" y="66" width="56" height="20" rx="10"/>
+<text class="f-pill-t" x="210" y="80" text-anchor="middle" style="font:700 12px var(--sans)">top-k</text>
+<rect class="f-b" x="40" y="92" width="76" height="28" rx="6"/>
+<text class="f-pill-t" x="78" y="111" text-anchor="middle" style="font:700 13px var(--mono)">1e53ceb</text>
+<line class="f-flecha" x1="170" y1="106" x2="126" y2="106"/>
+<polygon class="f-punta" points="126,101 126,111 118,106"/>
+<rect class="f-b" x="172" y="92" width="76" height="28" rx="6"/>
+<text class="f-pill-t" x="210" y="111" text-anchor="middle" style="font:700 13px var(--mono)">821910a</text>
+<rect class="f-linea" x="50" y="128" width="56" height="20" rx="10" style="stroke-dasharray:4 3"/>
+<text class="f-s" x="78" y="142" text-anchor="middle" style="font-size:12px;font-weight:700">main</text>
+<line class="f-flecha" x1="110" y1="138" x2="172" y2="138"/>
+<polygon class="f-punta" points="172,133 172,143 180,138"/>
+<rect class="f-o" x="182" y="128" width="56" height="20" rx="10"/>
+<text class="f-pill-t" x="210" y="142" text-anchor="middle" style="font:700 12px var(--sans)">main</text>
+<text class="f-s" x="78" y="166" text-anchor="middle" style="font-size:12px">antes</text>
+<text class="f-s" x="210" y="166" text-anchor="middle" style="font-size:12px">después</text>
+<line x1="26" y1="184" x2="334" y2="184" class="f-linea"/>
+<text class="f-l" x="26" y="208">COMMIT DE MERGE</text>
+<text class="f-s" x="26" y="226" style="font-size:12px">Las dos avanzaron: un commit nuevo con dos padres.</text>
+<rect class="f-b" x="26" y="242" width="76" height="28" rx="6"/>
+<text class="f-pill-t" x="64" y="261" text-anchor="middle" style="font:700 13px var(--mono)">821910a</text>
+<line class="f-flecha" x1="138" y1="256" x2="112" y2="256"/>
+<polygon class="f-punta" points="112,251 112,261 104,256"/>
+<rect class="f-b" x="140" y="242" width="76" height="28" rx="6"/>
+<text class="f-pill-t" x="178" y="261" text-anchor="middle" style="font:700 13px var(--mono)">60006fd</text>
+<line class="f-flecha" x1="252" y1="256" x2="226" y2="256"/>
+<polygon class="f-punta" points="226,251 226,261 218,256"/>
+<rect class="f-o" x="254" y="242" width="76" height="28" rx="6"/>
+<text class="f-pill-t" x="292" y="261" text-anchor="middle" style="font:700 13px var(--mono)">9341d8a</text>
+<rect class="f-b" x="140" y="302" width="76" height="28" rx="6"/>
+<text class="f-pill-t" x="178" y="321" text-anchor="middle" style="font:700 13px var(--mono)">26b7ad8</text>
+<line class="f-flecha" x1="138" y1="308" x2="98.4" y2="277.8"/>
+<polygon class="f-punta" points="101.4,273.8 95.3,281.8 92,273"/>
+<line class="f-flecha" x1="262" y1="272" x2="224.5" y2="299.3"/>
+<polygon class="f-punta" points="227.4,303.3 221.5,295.2 218,304"/>
+<rect class="f-o" x="272" y="278" width="52" height="20" rx="10"/>
+<text class="f-pill-t" x="298" y="292" text-anchor="middle" style="font:700 12px var(--sans)">main</text>
+<rect class="f-dark" x="152" y="336" width="52" height="20" rx="10"/>
+<text class="f-dark-t" x="178" y="350" text-anchor="middle" style="font:700 12px var(--sans)">logs</text>
+<text class="f-s" x="26" y="372" style="font-size:12px">9341d8a tiene dos padres: 60006fd y 26b7ad8.</text>
+</svg>

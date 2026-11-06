@@ -1,0 +1,23 @@
+{
+  "titulo": "Cuánto tarda en llegar un cambio",
+  "intro": "Tres maneras de cambiar el comportamiento del gateway: una variable de entorno (hay que reiniciar los pods por oleadas), un archivo montado (lo refresca el kubelet) y un [[feature-flag|feature flag]] (el programa refresca sus reglas cada tantos segundos). Arranca con **5 pods** que tardan **30 s** cada uno en arrancar y quedar listos, de uno en uno; los tiempos son de ejemplo.",
+  "entradas": [
+    { "id": "pods", "label": "Pods del gateway", "min": 1, "max": 50, "paso": 1, "valor": 5 },
+    { "id": "arranque", "label": "Segundos que tarda un pod en arrancar y quedar listo", "min": 5, "max": 300, "paso": 5, "valor": 30, "unidad": "s" },
+    { "id": "lote", "label": "Pods que se reinician a la vez", "min": 1, "max": 10, "paso": 1, "valor": 1 },
+    { "id": "kubelet", "label": "Cada cuánto revisa el kubelet los archivos montados", "min": 10, "max": 300, "paso": 10, "valor": 60, "unidad": "s" },
+    { "id": "sondeo", "label": "Cada cuánto refresca el programa las reglas de los flags", "min": 1, "max": 300, "paso": 1, "valor": 30, "unidad": "s" }
+  ],
+  "calculos": [
+    { "id": "oleadas", "formula": "ceil(pods / lote)" },
+    { "id": "reinicio", "formula": "oleadas * arranque" }
+  ],
+  "salidas": [
+    { "label": "Oleadas de reinicio", "formula": "oleadas", "formato": "int" },
+    { "label": "Variable de entorno: segundos hasta el último pod", "formula": "reinicio", "formato": "num", "decimales": 0, "barra": true, "nota": "sin contar el tiempo de armar y aprobar el cambio" },
+    { "label": "Archivo montado: segundos, a lo mucho", "formula": "kubelet", "formato": "num", "decimales": 0, "barra": true, "nota": "más la copia del kubelet, y si el programa vuelve a leer el archivo" },
+    { "label": "Feature flag: segundos, a lo mucho", "formula": "sondeo", "formato": "num", "decimales": 0, "barra": true, "nota": "todos los pods a la vez, sin reiniciar nada" },
+    { "label": "El flag es más rápido que el reinicio, en veces", "formula": "reinicio / max(sondeo, 1e-9)", "formato": "x", "decimales": 1 }
+  ],
+  "nota": "El reinicio crece con los pods; el flag no. Con 12 pods de uno en uno, el reinicio pasa a 6 minutos y el flag sigue en 30 segundos."
+}

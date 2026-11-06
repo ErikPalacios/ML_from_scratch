@@ -1,0 +1,85 @@
+{
+ "titulo": "Cuánta historia trae kubectl logs",
+ "intro": "`kubectl logs` lee el log de **un** pod. En el pico, el tráfico se reparte entre los pods del gateway, y cada uno escribe una línea por request. Arranca con el pico de diseño de C01 y el mínimo de 3 pods.",
+ "entradas": [
+  {
+   "id": "rps",
+   "label": "Requests por segundo en total (500 = pico de diseño de C01)",
+   "min": 10,
+   "max": 2000,
+   "paso": 10,
+   "valor": 500
+  },
+  {
+   "id": "pods",
+   "label": "Pods del gateway (el autoescalado va de 3 a 12)",
+   "min": 1,
+   "max": 20,
+   "paso": 1,
+   "valor": 3
+  },
+  {
+   "id": "t",
+   "label": "Líneas que pides con --tail",
+   "min": 10,
+   "max": 2000,
+   "paso": 10,
+   "valor": 50
+  },
+  {
+   "id": "b",
+   "label": "Bytes por línea",
+   "min": 50,
+   "max": 2000,
+   "paso": 10,
+   "valor": 300
+  },
+  {
+   "id": "rot",
+   "label": "Tamaño al que se rota el archivo del pod, en MiB (≈ 10 por omisión)",
+   "min": 1,
+   "max": 100,
+   "paso": 1,
+   "valor": 10
+  }
+ ],
+ "calculos": [
+  {
+   "id": "lps",
+   "formula": "rps / pods"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "Líneas por segundo en cada pod",
+   "formula": "lps",
+   "formato": "num",
+   "decimales": 1
+  },
+  {
+   "label": "Segundos de tráfico que cubre --tail",
+   "formula": "t / lps",
+   "formato": "num",
+   "decimales": 2
+  },
+  {
+   "label": "Líneas que escribe cada pod en 10 minutos",
+   "formula": "600 * lps",
+   "formato": "int"
+  },
+  {
+   "label": "Megabytes que escribe cada pod en 10 minutos",
+   "formula": "600 * lps * b / 1e6",
+   "formato": "num",
+   "decimales": 1
+  },
+  {
+   "label": "Minutos que dura el archivo antes de rotar",
+   "formula": "rot * pow(2, 20) / (lps * b) / 60",
+   "formato": "num",
+   "decimales": 1,
+   "nota": "lo más viejo que alcanza kubectl logs: solo lee el archivo actual"
+  }
+ ],
+ "nota": "Con 12 pods, el mismo --tail=50 cubre 1.2 s en vez de 0.3 s, y el archivo del pod dura ≈ 14 minutos en vez de 3.5. Para ir más atrás, se busca en el log del día guardado en S3."
+}

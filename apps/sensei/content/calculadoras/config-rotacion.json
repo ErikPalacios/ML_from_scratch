@@ -1,0 +1,19 @@
+{
+  "titulo": "Cuánto sirve una contraseña robada",
+  "intro": "Una contraseña se filtra en un momento cualquiera. Sirve hasta la siguiente [[rotacion-secretos|rotación]] o hasta que alguien nota la filtración y la rota, lo que pase primero. Arranca con el ejemplo del texto: **rotar cada 90 días** y no notarla nunca (un año es «nunca» para esta cuenta).",
+  "entradas": [
+    { "id": "n", "label": "Días entre rotaciones", "min": 1, "max": 365, "paso": 1, "valor": 90, "unidad": "días" },
+    { "id": "d", "label": "Días que tardas en notar la filtración (365 = nunca)", "min": 0, "max": 365, "paso": 1, "valor": 365, "unidad": "días" }
+  ],
+  "calculos": [
+    { "id": "m", "formula": "min(d, n)" },
+    { "id": "prom", "formula": "m - m * m / (2 * n)" }
+  ],
+  "salidas": [
+    { "label": "Rotaciones al año", "formula": "365 / n", "formato": "num", "decimales": 1, "nota": "cuántas veces hay que hacer el cambio" },
+    { "label": "Peor caso: días que la contraseña robada sirve", "formula": "m", "formato": "num", "decimales": 0, "barra": true, "nota": "lo que llegue primero: la rotación o la detección" },
+    { "label": "En promedio, días que sirve", "formula": "prom", "formato": "num", "decimales": 1, "barra": true, "nota": "la filtración cae en un momento al azar del periodo" },
+    { "label": "Si nunca la notaras: el promedio", "formula": "n / 2", "formato": "num", "decimales": 1, "nota": "la mitad del periodo de rotación" }
+  ],
+  "nota": "Pasar de rotar cada 90 días a cada 30 baja el promedio de 45 a 15 días. Notar la filtración en 1 día lo baja a ≈ 1, rotes cada 90 o cada 30: detectar rápido pesa más que rotar seguido."
+}

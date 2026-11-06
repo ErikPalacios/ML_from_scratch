@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 380" role="img" aria-labelledby="f-pruebas-ci-piramide-t" class="f-svg" style="max-width:420px">
+<title id="f-pruebas-ci-piramide-t">La pirámide de pruebas, en tres pisos. Abajo, el piso más ancho: las pruebas unitarias, cientos, de milisegundos cada una, que prueban una función sola y corren en cada cambio. En medio: las de integración, decenas, de segundos, como el gateway con un Triton falso, también en cada cambio. Arriba, el piso más angosto: las end-to-end, unas pocas, de minutos, que recorren todo el camino como lo haría Ana, antes de producción. Al subir, las pruebas son más lentas, más caras y más frágiles; al bajar, más rápidas, más baratas y dicen mejor dónde está el error.</title>
+<rect class="f-card" x="10" y="10" width="340" height="360" rx="16"/>
+<text class="f-l" x="28" y="36">LA PIRÁMIDE DE PRUEBAS</text>
+
+<polygon class="f-dark" points="90,60 130,60 150.1,130 69.9,130"/>
+<text class="f-dark-t" x="110" y="100" text-anchor="middle" style="font-size:13px;font-weight:700">e2e</text>
+
+<polygon class="f-b" points="68.6,134 151.4,134 172,206 48,206"/>
+<text class="f-pill-t" x="110" y="175" text-anchor="middle" style="font-size:14px">integración</text>
+
+<polygon class="f-chip" points="46.8,210 173.2,210 196,290 24,290"/>
+<text class="f-t" x="110" y="255" text-anchor="middle" style="font-size:14px">unitarias</text>
+
+<text class="f-t" x="206" y="80" style="font-size:14px">End-to-end</text>
+<text class="f-s" x="206" y="98" style="font-size:12px">pocas · minutos</text>
+<text class="f-s" x="206" y="114" style="font-size:12px">todo, como Ana</text>
+
+<text class="f-t" x="206" y="156" style="font-size:14px">Integración</text>
+<text class="f-s" x="206" y="174" style="font-size:12px">decenas · segundos</text>
+<text class="f-s" x="206" y="190" style="font-size:12px">gateway y un doble</text>
+
+<text class="f-t" x="206" y="236" style="font-size:14px">Unitarias</text>
+<text class="f-s" x="206" y="254" style="font-size:12px">cientos · milisegundos</text>
+<text class="f-s" x="206" y="270" style="font-size:12px">una función sola</text>
+
+<rect class="f-chip" x="24" y="306" width="312" height="50" rx="10"/>
+<text class="f-t" x="38" y="327" style="font-size:13px">↑ más lentas, caras y frágiles</text>
+<text class="f-s" x="38" y="346" style="font-size:12px">↓ más rápidas, baratas y precisas: dicen dónde</text>
+</svg>
