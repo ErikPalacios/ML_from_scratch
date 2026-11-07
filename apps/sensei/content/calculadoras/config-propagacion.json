@@ -1,6 +1,6 @@
 {
   "titulo": "Cuánto tarda en llegar un cambio",
-  "intro": "Tres maneras de cambiar el comportamiento del gateway: una variable de entorno (hay que reiniciar los pods por oleadas), un archivo montado (lo refresca el kubelet) y un [[feature-flag|feature flag]] (el programa refresca sus reglas cada tantos segundos). Arranca con **5 pods** que tardan **30 s** cada uno en arrancar y quedar listos, de uno en uno; los tiempos son de ejemplo.",
+  "intro": "Tres maneras de cambiar el comportamiento del gateway: una variable de entorno (hay que reiniciar los pods por oleadas), un archivo montado (lo refresca el kubelet) y un [[feature-flag|feature flag]] (el programa refresca sus reglas cada tantos segundos). Arranca con **5 pods** que tardan **30 s** cada uno en arrancar y quedar listos, reiniciados de uno en uno, el caso más lento; los tiempos son de ejemplo. Por omisión, Kubernetes reemplaza alrededor de un cuarto de los pods a la vez: súbelo en «Pods que se reinician a la vez» para ver cuánto se acorta.",
   "entradas": [
     { "id": "pods", "label": "Pods del gateway", "min": 1, "max": 50, "paso": 1, "valor": 5 },
     { "id": "arranque", "label": "Segundos que tarda un pod en arrancar y quedar listo", "min": 5, "max": 300, "paso": 5, "valor": 30, "unidad": "s" },

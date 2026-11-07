@@ -1,6 +1,6 @@
 {
   "titulo": "Pesos dentro de Git, o con Git LFS",
-  "intro": "Git guarda cada versión completa de un archivo, y cada clone baja toda la historia. Con [[git-lfs|Git LFS]], el historial guarda un puntero de ≈ 133 bytes por versión y cada clone baja solo la versión que pide. Arranca con los pesos de C01: 98 MB, un fine-tune al mes, dos años.",
+  "intro": "Git guarda cada versión completa de un archivo, y cada clone baja toda la historia. Con [[git-lfs|Git LFS]], el historial guarda un puntero de ≈ 130 bytes por versión (125 más los dígitos del tamaño: 133 con 98 MB) y cada clone baja solo la versión que pide; el servidor de LFS, en cambio, sí guarda todas las versiones. Arranca con los pesos de C01: 98 MB, un fine-tune al mes, dos años.",
   "entradas": [
     { "id": "mb", "label": "Tamaño del archivo de pesos, en MB", "min": 1, "max": 200000, "paso": 1, "valor": 98, "tipo": "numero" },
     { "id": "v", "label": "Versiones nuevas por año", "min": 1, "max": 365, "paso": 1, "valor": 12 },
@@ -9,16 +9,19 @@
   ],
   "calculos": [
     { "id": "versiones", "formula": "v * a" },
-    { "id": "b", "formula": "mb * 1e6" }
+    { "id": "b", "formula": "mb * 1e6" },
+    { "id": "ptr", "formula": "126 + floor(log10(b))" }
   ],
   "salidas": [
     { "label": "Versiones guardadas", "formula": "versiones", "formato": "int" },
     { "label": "Historial dentro de Git", "formula": "b * versiones", "formato": "bytes", "nota": "los pesos casi no se comprimen" },
-    { "label": "Historial con Git LFS (solo los punteros)", "formula": "133 * versiones", "formato": "bytes" },
+    { "label": "Historial con Git LFS (solo los punteros)", "formula": "ptr * versiones", "formato": "bytes" },
+    { "label": "Lo que guarda el servidor de LFS", "formula": "b * versiones", "formato": "bytes", "nota": "todas las versiones; en GitHub Free caben 10 GiB (noviembre de 2026)" },
     { "label": "Lo que baja cada clone sin LFS", "formula": "b * versiones", "formato": "bytes", "nota": "toda la historia" },
     { "label": "Lo que baja cada clone con LFS", "formula": "b", "formato": "bytes", "nota": "solo la versión que pides" },
     { "label": "Tráfico de clones al día, sin LFS", "formula": "b * versiones * c", "formato": "bytes" },
-    { "label": "El archivo contra el límite de GitHub sin LFS (100 MiB)", "formula": "b / (100 * 1048576)", "formato": "pct", "barra": true, "nota": "más de 100 %: GitHub rechaza el push" }
+    { "label": "El archivo contra el límite de GitHub sin LFS (100 MiB)", "formula": "b / (100 * 1048576)", "formato": "pct", "barra": true, "nota": "más de 100 %: GitHub rechaza el push" },
+    { "label": "El archivo contra el límite de Git LFS en GitHub Free (2 GB)", "formula": "b / 2e9", "formato": "pct", "barra": true, "nota": "más de 100 %: ni con LFS entra en un solo archivo" }
   ],
-  "nota": "Con 98 MB, el archivo queda en ≈ 93 % del límite: entra, con aviso. Con 16,000 MB (un LLM de 8 mil millones de parámetros en BF16), no entra sin LFS, y lo normal es dejarlo en object storage."
+  "nota": "Con 98 MB, el archivo queda en ≈ 93.5 % del límite: entra, con aviso. Con 16,000 MB (un LLM de 8 mil millones de parámetros en BF16), no entra sin LFS, y en un solo archivo tampoco entra con LFS en GitHub Free (2 GB por archivo; límites de GitHub en noviembre de 2026): lo normal es partirlo en varios archivos o dejarlo en object storage."
 }

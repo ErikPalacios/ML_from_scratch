@@ -14,7 +14,7 @@
   },
   {
    "id": "cluster",
-   "label": "El cluster de Kubernetes",
+   "label": "El clúster de Kubernetes",
    "kind": "online",
    "x": 40,
    "y": 0,
@@ -59,13 +59,13 @@
   {
    "id": "config",
    "label": "~/.kube/config",
-   "sub": "a qué cluster y con qué credenciales",
+   "sub": "a qué clúster y con qué credenciales",
    "kind": "store",
    "x": 3,
    "y": 47,
    "w": 30,
    "h": 8,
-   "note": "El *kubeconfig*: un archivo [[yaml|YAML]] con la dirección del cluster, tus credenciales y el namespace por omisión. La variable de entorno `KUBECONFIG` puede apuntar a otro."
+   "note": "El *kubeconfig*: un archivo [[yaml|YAML]] con la dirección del clúster, tus credenciales y el namespace por omisión. La variable de entorno `KUBECONFIG` puede apuntar a otro."
   },
   {
    "id": "api",
@@ -87,7 +87,7 @@
    "y": 19,
    "w": 30,
    "h": 8,
-   "note": "El programa de Kubernetes que corre en cada máquina del cluster: arranca los contenedores y sabe dónde quedaron sus logs. Lee el archivo y manda las líneas de vuelta."
+   "note": "El programa de Kubernetes que corre en cada máquina del clúster: arranca los contenedores y sabe dónde quedaron sus logs. Lee el archivo y manda las líneas de vuelta."
   },
   {
    "id": "archivo",
@@ -241,7 +241,7 @@
      "edges": [
       "kubectl>config"
      ],
-     "text": "`kubectl` lee el **kubeconfig**: a qué cluster hablar y con qué credenciales."
+     "text": "`kubectl` lee el **kubeconfig**: a qué clúster hablar y con qué credenciales."
     },
     {
      "nodes": [

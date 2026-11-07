@@ -16,7 +16,7 @@ Son las 3 de la mañana y suena una alerta: el gateway de C01 está respondiendo
 kubectl logs -n classifier gateway-7f9c --since=10m | grep '"status":504' | wc -l
 ```
 
-Un segundo después aparece un número: 37. En diez minutos, 37 requests de ese pod (una de las copias del gateway que corren en Kubernetes) terminaron en 504. (Esta línea necesita un cluster de Kubernetes, así que aquí no se corre: el 37 es de ejemplo.) Con otra línea encuentra la request `9f2c41d0` que un usuario reportó y lee qué le pasó.
+Un segundo después aparece un número: 37. En diez minutos, 37 requests de ese pod (una de las copias del gateway que corren en Kubernetes) terminaron en 504. (Esta línea necesita un clúster de Kubernetes, así que aquí no se corre: el 37 es de ejemplo.) Con otra línea encuentra la request `9f2c41d0` que un usuario reportó y lee qué le pasó.
 
 Para quien no lo ha visto, eso parece magia o un idioma secreto. No es ninguna de las dos. Son cuatro ideas: una ventana, un programa que lee lo que escribes, unos programas chicos que hacen una sola cosa y unos tubos que los conectan. Al terminar esta lección vas a poder leer esa línea palabra por palabra, y escribir las tuyas.
 
@@ -636,23 +636,23 @@ Dentro de un contenedor casi nunca hay `sudo`, y no hace falta. La imagen se arm
 
 ### Qué pasa cuando tecleas kubectl logs gateway-7f9c
 
-Ahora junta todo. En C01, el gateway corre como varios [[pod|pods]] (el pod es la unidad que Kubernetes arranca: uno o más contenedores juntos, en una máquina del cluster) dentro del *namespace* `classifier`, un espacio de nombres para separar las cosas de cada equipo. `kubectl` es el programa de la línea de comandos para hablar con Kubernetes, el sistema de [[orquestacion|orquestación]] de C01. Ana escribe `kubectl logs -n classifier gateway-7f9c` (el nombre real de un pod es más largo, algo como `gateway-7f9c…-x2kq4`; aquí va acortado).
+Ahora junta todo. En C01, el gateway corre como varios [[pod|pods]] (el pod es la unidad que Kubernetes arranca: uno o más contenedores juntos, en una máquina del clúster) dentro del *namespace* `classifier`, un espacio de nombres para separar las cosas de cada equipo. `kubectl` es el programa de la línea de comandos para hablar con Kubernetes, el sistema de [[orquestacion|orquestación]] de C01. Ana escribe `kubectl logs -n classifier gateway-7f9c` (el nombre real de un pod es más largo, algo como `gateway-7f9c…-x2kq4`; aquí va acortado).
 
 :::diagrama terminal-kubectl
 Toca cada caja para ver qué hace. Usa «Recorrer» para seguir la línea desde que aprietas Enter hasta que ves los logs, y para ver qué cambia con una tubería a grep.
 :::
 
-En palabras: la shell parte la línea, encuentra `kubectl` en el PATH y lo lanza. `kubectl` lee su configuración (el *kubeconfig*, en `~/.kube/config`: a qué cluster hablar y con qué credenciales) y le hace una request [[https|HTTPS]] (HTTP cifrado) al *API server*, la puerta de entrada de Kubernetes. El API server se la pasa al **kubelet**, el programa de Kubernetes que corre en cada máquina del cluster, en la máquina donde vive ese pod. El kubelet lee el archivo donde el runtime fue guardando el stdout y el stderr del contenedor, y la respuesta hace el camino de regreso. `kubectl` escribe las líneas en **su** stdout, que es tu terminal, o el tubo hacia `grep` si pusiste uno.
+En palabras: la shell parte la línea, encuentra `kubectl` en el PATH y lo lanza. `kubectl` lee su configuración (el *kubeconfig*, en `~/.kube/config`: a qué clúster hablar y con qué credenciales) y le hace una request [[https|HTTPS]] (HTTP cifrado) al *API server*, la puerta de entrada de Kubernetes. El API server se la pasa al **kubelet**, el programa de Kubernetes que corre en cada máquina del clúster, en la máquina donde vive ese pod. El kubelet lee el archivo donde el runtime fue guardando el stdout y el stderr del contenedor, y la respuesta hace el camino de regreso. `kubectl` escribe las líneas en **su** stdout, que es tu terminal, o el tubo hacia `grep` si pusiste uno.
 
 Las opciones que más se usan: `-f` se queda siguiendo las líneas nuevas (Ctrl+C deja de seguir; el pod sigue igual), `--tail=50` trae solo las últimas 50, `--since=10m` las de los últimos diez minutos, `--previous` las del contenedor anterior, el que murió, y `--timestamps` agrega la hora que anotó el runtime al guardar cada línea.
 
 :::cuenta Cuánta historia trae kubectl logs en el pico
 Requests por segundo // el pico de diseño de C01 | — | 500
-Pods del gateway // el mínimo del autoescalado (Kubernetes agrega o quita pods según el tráfico), que va de 3 a 12 | — | 3
-Líneas por segundo en cada pod | 500 ÷ 3 | ≈ 167
-Lo que cubre `--tail=50` | 50 ÷ 167 | ≈ 0.3 s
-Lo que cabe en el archivo del pod // al llegar a 10 MiB = 10,485,760 B se rota: se guarda aparte y empieza uno nuevo | 10,485,760 ÷ (167 × 300 B) | ≈ 210 s ≈ 3.5 min
-= En el pico, las últimas 50 líneas son 0.3 segundos de tráfico, y el archivo entero del pod, unos 3.5 minutos. Para encontrar algo hay que pedir un rango de tiempo y filtrar con grep. A las 3 de la mañana hay mucho menos tráfico y el archivo alcanza para más: por eso a Ana le sirvió `--since=10m`.
+Pods del gateway // los que hay en el pico, como en las otras lecciones; el autoescalado (Kubernetes agrega o quita pods según el tráfico) va de 3 a 12 | — | 5
+Líneas por segundo en cada pod | 500 ÷ 5 | 100
+Lo que cubre `--tail=50` | 50 ÷ 100 | 0.5 s
+Lo que cabe en el archivo del pod // al llegar a 10 MiB = 10,485,760 B se rota: se guarda aparte y empieza uno nuevo | 10,485,760 ÷ (100 × 300 B) | ≈ 350 s ≈ 5.8 min
+= En el pico, las últimas 50 líneas son medio segundo de tráfico, y el archivo entero del pod, menos de 6 minutos. Para encontrar algo hay que pedir un rango de tiempo y filtrar con grep. A las 3 de la mañana hay mucho menos tráfico y el archivo alcanza para más: por eso a Ana le sirvió `--since=10m`.
 :::
 
 :::calculadora terminal-tail
@@ -760,9 +760,9 @@ Un paso falla, el script sigue, y el siguiente trabaja sobre lo que quedó a med
 
 ### 6. Estar en la máquina equivocada
 
-El comando correcto en el lugar equivocado: un `kubectl delete` en el cluster de producción cuando creías estar en el de pruebas, o un `sudo` que pegaste de internet sin leerlo.
+El comando correcto en el lugar equivocado: un `kubectl delete` en el clúster de producción cuando creías estar en el de pruebas, o un `sudo` que pegaste de internet sin leerlo.
 
-**Cómo evitarlo:** lee el prompt antes de cada comando con poder; con Kubernetes, `kubectl config current-context` te dice a qué cluster le hablas. Y nunca corras con `sudo` un comando que no entiendas palabra por palabra.
+**Cómo evitarlo:** lee el prompt antes de cada comando con poder; con Kubernetes, `kubectl config current-context` te dice a qué clúster le hablas. Y nunca corras con `sudo` un comando que no entiendas palabra por palabra.
 
 ## En la vida real {In real life} [extra]
 
@@ -847,7 +847,7 @@ jq -r 'select(.status == 504) | .request_id' gateway.log | sort -u
 - `grep` sale con 1 cuando no encuentra nada. Con `pipefail`, la tubería entera sale con 1 aunque `wc` haya contado 0 sin problema.
 - Con `-e`, ese 1 detiene el script en esa línea.
 - Arreglo: decir que «nada» está bien: `errores=$({ grep ERROR app.log || true; } | wc -l)`. Ojo: `grep -c` no lo arregla, porque también sale con 1 cuando el conteo es 0.
-? [medio] En el pico de 500 requests por segundo, el gateway tiene 12 pods. ¿Cuánto tiempo cubren las últimas 200 líneas de un pod (`--tail=200`)? ¿Cuántas líneas trae `--since=5m`, y cuánto pesan a ≈ 300 B cada una?
+? [medio] Llegan 500 requests por segundo y el autoescalado está en su máximo: 12 pods (más de los 5 que pide el pico). ¿Cuánto tiempo cubren las últimas 200 líneas de un pod (`--tail=200`)? ¿Cuántas líneas trae `--since=5m`, y cuánto pesan a ≈ 300 B cada una?
 - Por pod: 500 ÷ 12 ≈ **41.7 líneas por segundo**.
 - `--tail=200`: 200 ÷ 41.7 ≈ **4.8 s** de tráfico.
 - `--since=5m`: 300 s × 41.7 ≈ **12,500 líneas**, y 12,500 × 300 B ≈ **3.75 MB**. Cabe de sobra en una tubería con `grep`; es demasiado para leerlo a ojo.
@@ -877,7 +877,7 @@ promedio: 69.0 ms en 4 requests
 **En la Ronda:**
 
 - **M05 · Contenedores** está escrito en comandos: `docker build`, `docker run` con `\` al final de cada línea, `docker history`, variables como `SHA=$(git rev-parse --short=7 HEAD)`, la forma exec del `CMD` y la `sh` que se vuelve PID 1 en la forma shell.
-- **M06 · Orquestación y escalado** usa `kubectl get`, `describe` y `rollout` para mirar y cambiar el cluster, y el código 137 de los pods que se quedan sin memoria.
+- **M06 · Orquestación y escalado** usa `kubectl get`, `describe` y `rollout` para mirar y cambiar el clúster, y el código 137 de los pods que se quedan sin memoria.
 - **La hoja de referencia «Docker y kubectl»** junta los comandos de los dos módulos (ahí están `kubectl logs --previous`, `apply` y los códigos 137 y 143), con un método para depurar pods: síntoma, comandos y causa típica. Ahora la puedes leer como una lista de tuberías.
 - **C01** trae los comandos para probar el gateway: `curl` con una foto, `pytest`, `docker compose up --build` y `bash model/build_engine.sh`.
 

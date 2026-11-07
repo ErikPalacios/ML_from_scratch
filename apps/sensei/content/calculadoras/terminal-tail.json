@@ -1,6 +1,6 @@
 {
  "titulo": "Cuánta historia trae kubectl logs",
- "intro": "`kubectl logs` lee el log de **un** pod. En el pico, el tráfico se reparte entre los pods del gateway, y cada uno escribe una línea por request. Arranca con el pico de diseño de C01 y el mínimo de 3 pods.",
+ "intro": "`kubectl logs` lee el log de **un** pod. En el pico, el tráfico se reparte entre los pods del gateway, y cada uno escribe una línea por request. Arranca con el pico de diseño de C01 y los 5 pods que tiene en el pico.",
  "entradas": [
   {
    "id": "rps",
@@ -16,7 +16,7 @@
    "min": 1,
    "max": 20,
    "paso": 1,
-   "valor": 3
+   "valor": 5
   },
   {
    "id": "t",
@@ -81,5 +81,5 @@
    "nota": "lo más viejo que alcanza kubectl logs: solo lee el archivo actual"
   }
  ],
- "nota": "Con 12 pods, el mismo --tail=50 cubre 1.2 s en vez de 0.3 s, y el archivo del pod dura ≈ 14 minutos en vez de 3.5. Para ir más atrás, se busca en el log del día guardado en S3."
+ "nota": "Con 12 pods, el máximo del autoescalado, el mismo --tail=50 cubre 1.2 s en vez de 0.5 s, y el archivo del pod dura ≈ 14 minutos en vez de ≈ 6. Para ir más atrás, se busca en el log del día guardado en S3."
 }

@@ -10,7 +10,7 @@
     { "id": "escaner", "label": "Escáner", "sub": "gitleaks, en el CI", "kind": "monitor", "x": 1, "y": 6, "w": 18, "h": 8,
       "note": "El [[escaneo-secretos|escáner de secretos]] revisa cada commit. Si encuentra la contraseña en el código o en la historia, dispara una rotación **ya**, sin esperar la fecha." },
     { "id": "rotador", "label": "Rotación", "sub": "cada 90 días o ya", "kind": "job", "x": 30, "y": 6, "w": 18, "h": 8,
-      "note": "Un job (o el propio gestor, si lo sabe hacer) que crea la contraseña nueva, la guarda y, al final, revoca la vieja. Sigue siempre el mismo orden." },
+      "note": "Un job, una tarea que corre y termina (o el propio gestor, si lo sabe hacer), que crea la contraseña nueva, la guarda y, al final, revoca la vieja. Sigue siempre el mismo orden." },
     { "id": "gestor", "label": "Gestor de secretos", "sub": "versión 1 → versión 2", "kind": "store", "x": 59, "y": 6, "w": 18, "h": 8,
       "note": "El [[gestor-secretos|gestor]] guarda las dos versiones. Desde que se guarda la 2, es la que entrega a quien la pida." },
     { "id": "bd", "label": "Base de datos", "sub": "acepta v1 y v2", "kind": "store", "x": 1, "y": 29, "w": 18, "h": 8,

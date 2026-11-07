@@ -3,13 +3,13 @@
 <rect class="f-card" x="10" y="10" width="340" height="360" rx="16"/>
 <text class="f-l" x="28" y="36">LA PIRÁMIDE DE PRUEBAS</text>
 
-<polygon class="f-dark" points="90,60 130,60 150.1,130 69.9,130"/>
+<polygon class="f-dark" style="stroke:var(--b);stroke-width:1.5" points="90,60 130,60 150.1,130 69.9,130"/>
 <text class="f-dark-t" x="110" y="100" text-anchor="middle" style="font-size:13px;font-weight:700">e2e</text>
 
-<polygon class="f-b" points="68.6,134 151.4,134 172,206 48,206"/>
+<polygon class="f-b" style="stroke:var(--b);stroke-width:1.5" points="68.6,134 151.4,134 172,206 48,206"/>
 <text class="f-pill-t" x="110" y="175" text-anchor="middle" style="font-size:14px">integración</text>
 
-<polygon class="f-chip" points="46.8,210 173.2,210 196,290 24,290"/>
+<polygon class="f-chip" style="stroke:var(--b);stroke-width:1.5" points="46.8,210 173.2,210 196,290 24,290"/>
 <text class="f-t" x="110" y="255" text-anchor="middle" style="font-size:14px">unitarias</text>
 
 <text class="f-t" x="206" y="80" style="font-size:14px">End-to-end</text>

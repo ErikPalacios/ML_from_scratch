@@ -34,13 +34,13 @@ Este es el inventario del gateway de C01:
 | `MODEL_VERSION` | Qué modelo espera encontrar | `resnet50-2026-10-01` | Con cada modelo |
 | `DB_PASSWORD` | La contraseña de una base de datos | (secreta) | Sí |
 
-`triton.classifier:8000` es el nombre corto de Triton dentro del clúster: el Service `triton` en el *namespace* `classifier`, como en la lección de red, y su puerto 8000. La última fila es un ejemplo de esta lección: supón que el gateway anota en una base de datos cada sugerencia que Ana acepta. Sirve para hablar de contraseñas; en «En la vida real» verás que el gateway de la Ronda casi no tiene.
+`triton.classifier:8000` es el nombre corto de Triton dentro del clúster: el [[service-k8s|Service]] `triton` (la dirección fija que reparte las requests entre las copias de Triton) en el *namespace* `classifier` (la carpeta de Kubernetes que agrupa los objetos de un equipo) y su puerto 8000. En la lección de red viste el nombre completo, `triton.classifier.svc.cluster.local`; el DNS del clúster completa el corto con sus terminaciones y los dos llegan al mismo Service. La última fila es un ejemplo de esta lección: supón que el gateway anota en una base de datos cada sugerencia que Ana acepta. Sirve para hablar de contraseñas; en «En la vida real» verás que el gateway de la Ronda casi no tiene.
 
 ### Tres ambientes, un solo código
 
 El gateway corre en tres lugares. Cada uno es un [[ambiente]] (*environment*): una copia del sistema con su propio propósito.
 
-- **Tu laptop**, para programar. Triton corre a tu lado con docker compose, en la CPU, y contesta lento.
+- **Tu laptop** (el ambiente *dev*), para programar. Triton corre a tu lado con docker compose, la herramienta que levanta varios contenedores juntos en una sola máquina, en la CPU, y contesta lento. El gateway lo corres directo desde la terminal y lo encuentra en `localhost:8000`, el puerto que compose publica en tu máquina.
 - **Staging**, para probar. Un clúster parecido al de producción, con datos de prueba y sin usuarios.
 - **Producción**, la de verdad. Ana y millones más.
 
@@ -103,6 +103,8 @@ Fíjate en tres cosas. `MODELO` no aparece en `env` ni la ve el hijo: le faltó 
 
 Docker y Kubernetes hacen lo mismo con otra forma. En Docker, `docker run -e INFER_TIMEOUT_S=0.15 …`, o `--env-file` con un archivo. En Kubernetes, la lista `env:` del contenedor. La Ronda (M05) lo resume al comparar docker compose con Kubernetes: «Las variables de entorno son las mismas; cambian los valores».
 
+Una imagen también puede traer variables de fábrica: la línea `ENV` del Dockerfile (la receta con la que se arma la imagen, que escribirás en la estación 7), como el `PYTHONUNBUFFERED=1` del gateway de C01. Esas son el valor de partida. Lo que pase quien arranca el contenedor, con `-e` en Docker o con `env:` en Kubernetes, las pisa. Es la primera vez que ves una regla de «quién gana», y no será la última.
+
 ### Leerlas en Python
 
 En Python, el entorno está en `os.environ`, que se porta como un diccionario de textos. `os.environ["X"]` da un error si `X` no existe; `os.environ.get("X", "algo")` devuelve un valor por omisión (*default*). La conversión a número la haces tú:
@@ -119,9 +121,9 @@ os.environ.pop("TRITON_URL", None)          # que esta no exista
 crudo = os.environ["INFER_TIMEOUT_S"]
 print(repr(crudo), "es de tipo", type(crudo).__name__)    # todo llega como texto
 
-timeout = float(os.environ.get("INFER_TIMEOUT_S", "1.0"))
+timeout = float(os.environ.get("INFER_TIMEOUT_S", "0.15"))
 concurrencia = int(os.environ.get("PREPROCESS_CONCURRENCY", "2"))
-url = os.environ.get("TRITON_URL", "localhost:8000")      # no está: valor por omisión
+url = os.environ.get("TRITON_URL", "localhost:8000")      # no está: el de la laptop
 print(f"{timeout * 1000:.0f} ms · {concurrencia} decodes · {url}")
 
 print("bool('false') da", bool(os.environ["SUGERENCIAS_ACTIVAS"]))   # la trampa
@@ -144,11 +146,29 @@ int('0.15'): invalid literal for int() with base 10: '0.15'
 
 La tercera línea es una trampa clásica. En Python, `bool()` de cualquier texto que no esté vacío es verdadero: `bool("false")` da `True`, y `bool("0")` también. Un interruptor leído así no se apaga nunca. La salida es comparar el texto contra una lista de valores que significan «sí».
 
+### La herencia va de padre a hijo, nunca al revés
+
+`os.environ` también se puede escribir, como hizo el ejemplo de arriba. Lo que cambies ahí lo ven los procesos que tu programa arranque **después**, porque reciben una copia de su entorno de ese momento. Nadie más se entera: ni la terminal que arrancó tu programa ni otros procesos que ya corren.
+
+```python
+import os, subprocess, sys
+
+os.environ["INFER_TIMEOUT_S"] = "0.2"                  # el padre cambia su entorno
+hijo = 'import os; print("el hijo ve:", os.environ["INFER_TIMEOUT_S"])'
+subprocess.run([sys.executable, "-c", hijo])           # un hijo nuevo hereda la copia
+```
+
+```salida
+el hijo ve: 0.2
+```
+
+Por eso un script que hace `export` no cambia la terminal desde la que lo corriste: el script es un hijo, y su copia muere con él (salvo que lo cargues con `source script.sh`, que corre sus líneas dentro de tu misma shell en vez de en un hijo). Y por eso, en un contenedor, la única forma de que el proceso principal vea un valor nuevo es arrancarlo otra vez.
+
 ### ¿Cuándo poner un valor por omisión?
 
 Un valor por omisión es cómodo, pero puede esconder un error. Si el gateway trae `localhost:8000` como dirección de Triton y en producción alguien olvida la variable, el gateway arranca feliz y falla en cada request, buscando un Triton que no está en su propio contenedor.
 
-La regla: **valor por omisión solo para lo que es igual en todos lados y es seguro**, como `PREPROCESS_CONCURRENCY=2`. Lo que tiene que cambiar entre ambientes, como la dirección de Triton o una contraseña, no lleva valor por omisión: si falta, el programa se niega a arrancar. Y si te apoyas en el valor por omisión de otra herramienta, escríbelo de todos modos. La Ronda (M06) lo pide con KEDA, que por omisión baja hasta cero réplicas: «Escríbelo siempre, aunque sea el valor que quieres».
+La regla: **valor por omisión solo para lo que es igual en todos lados y es seguro**, como `PREPROCESS_CONCURRENCY=2`. Lo que tiene que cambiar entre ambientes, como la dirección de Triton o una contraseña, no lleva valor por omisión: si falta, el programa se niega a arrancar. Y si te apoyas en el valor por omisión de otra herramienta, escríbelo de todos modos. La Ronda (M06) lo pide con KEDA, la pieza que decide cuántas copias (réplicas) de Triton corren según su fila, y que por omisión baja hasta cero réplicas: «Escríbelo siempre, aunque sea el valor que quieres».
 
 Un detalle de nombres. Las variables van en mayúsculas con guion bajo, y conviene que lleven la unidad: el `_S` de `INFER_TIMEOUT_S` dice «segundos». Sin él, alguien escribe 150 pensando en milisegundos. En «Validar al arrancar» verás lo que pasa.
 
@@ -156,7 +176,7 @@ Un detalle de nombres. Las variables van en mayúsculas con guion bajo, y convie
 
 Las variables de entorno funcionan bien para unos cuantos valores sueltos. Cuando son treinta, cuando hay listas o valores anidados, o cuando cada cambio debe revisarlo otra persona, se escriben en un archivo. En ML, casi siempre en [[yaml|YAML]], el formato de la lección de formatos: `nombre: valor`, la indentación manda y se permiten comentarios.
 
-Python no trae un lector de YAML. El más usado es PyYAML, que se instala con `pip install pyyaml`; la salida de abajo es de PyYAML 6.0. Este archivo escribe lo común una sola vez y lo reusa en cada ambiente:
+Python no trae un lector de YAML. El más usado es PyYAML, que se instala con `pip install pyyaml`; la salida de abajo es de PyYAML 6.0.3. Este archivo escribe lo común una sola vez y lo reusa en cada ambiente:
 
 ```python
 import yaml      # PyYAML: no viene con Python (pip install pyyaml)
@@ -194,7 +214,7 @@ float int
 safe_load se niega: ConstructorError
 ```
 
-Tres cosas del ejemplo. Primero, YAML sí trae tipos: el 0.15 llega como número, no como texto, al revés que una variable de entorno. Segundo, `&comun` le pone nombre a un bloque (un ancla, *anchor*) y `<<: *comun` lo copia; lo que se escribe después pisa lo copiado. Sirve para no repetir, pero un archivo lleno de anclas cuesta leerlo: úsalas poco. Tercero, la última línea. `yaml.load` puede crear objetos de Python desde el texto, hasta llamar a una función del sistema, y con un archivo que no escribiste tú eso es una puerta abierta. **Usa siempre `yaml.safe_load`**, que solo crea textos, números, listas y diccionarios.
+Tres cosas del ejemplo. Primero, YAML sí trae tipos: el 0.15 llega como número, no como texto, al revés que una variable de entorno. Segundo, `&comun` le pone nombre a un bloque (un ancla, *anchor*) y `<<: *comun` lo copia; lo que se escribe después pisa lo copiado. Sirve para no repetir, pero un archivo lleno de anclas cuesta leerlo: úsalas poco. Tercero, la última línea. Con el lector inseguro de PyYAML (`yaml.load(texto, Loader=yaml.UnsafeLoader)`, que en versiones de antes de 2019 era lo que hacía `yaml.load` a secas), YAML puede crear objetos de Python desde el texto, hasta llamar a una función del sistema, y con un archivo que no escribiste tú eso es una puerta abierta. Desde PyYAML 6.0, `yaml.load` sin decir qué lector usar ni siquiera corre. **Usa siempre `yaml.safe_load`**, que solo crea textos, números, listas y diccionarios.
 
 Recuerda también la trampa de la lección de formatos: en PyYAML, un `no` sin comillas se lee como falso. Pon entre comillas todo texto que pueda parecer otra cosa.
 
@@ -209,7 +229,7 @@ umbral_baja_confianza: 0.3     # por debajo, la foto se aparta para etiquetar
 top_k: 5
 ```
 
-Cada cambio queda en un [[commit]] de [[git|Git]], con quién lo hizo, cuándo y por qué. La Ronda (M10) pide que los umbrales cambien «en un PR propio, con motivo», y M11 explica la ventaja: si el umbral nuevo sale mal, volver es revertir ese commit. El orden de las categorías, en cambio, no va aquí: `labels.json` viaja dentro del archivo del modelo con su huella ([[hash-criptografico|hash]]), y el gateway la revisa al arrancar.
+Cada cambio queda en un [[commit]] de [[git|Git]], con quién lo hizo, cuándo y por qué. La Ronda (M10) pide que los umbrales cambien «en un PR propio, con motivo» (un [[pull-request|PR]] es la propuesta de cambio que otra persona revisa antes de juntarla), y M11 explica la ventaja: si el umbral nuevo sale mal, volver es revertir ese commit. El orden de las categorías, en cambio, no va aquí: `labels.json` viaja dentro del archivo del modelo con su huella ([[hash-criptografico|hash]]), y el gateway la revisa al arrancar.
 
 ### Quién gana: la precedencia
 
@@ -222,7 +242,7 @@ El respaldo que escribió el programador. Igual en todos lados.
 Lo que vale para un ambiente entero: `staging.yaml`, `produccion.yaml`.
 3. La variable de entorno
 Lo que pone quien arranca el proceso: Docker, Kubernetes o tú en la terminal.
-4. El flag
+4. El flag de la línea de comandos
 Un [[argumento-cli|argumento]] en la línea de comandos, como `--infer-timeout-s 0.5`. Lo más específico: esta corrida, hoy.
 :::
 
@@ -241,7 +261,7 @@ Si alguien corre con --infer-timeout-s 0.5 | pisa a todos | 0.5 s
 = Sin flag, el gateway usa 0.25 s, aunque el archivo de staging diga 0.15. Si eso te sorprende, el culpable es una variable de entorno que alguien olvidó: por eso conviene imprimir de dónde salió cada valor.
 :::
 
-Así se arma la precedencia completa con la biblioteca estándar. `argparse` lee los flags y `json` lee el archivo (el mismo programa leería YAML con `yaml.safe_load`). Cada valor guarda de dónde salió:
+Así se arma la precedencia completa con la [[biblioteca-estandar|biblioteca estándar]], lo que Python trae sin instalar nada. `argparse` lee los flags y `json` lee el archivo (el mismo programa leería YAML con `yaml.safe_load`). Cada valor guarda de dónde salió:
 
 ```python
 import argparse, json, os
@@ -284,13 +304,25 @@ con ['--infer-timeout-s', '0.5']
   triton_url = triton.classifier-staging:8000  ← archivo
 ```
 
-Imprimir el origen de cada valor al arrancar ahorra horas de preguntarse «¿por qué este pod tiene otro timeout?». Con una excepción: los secretos se imprimen tapados, como `DB_PASSWORD=****`.
+Imprimir el origen de cada valor al arrancar ahorra horas de preguntarse «¿por qué este [[pod]] (una de las copias del gateway que corren en Kubernetes) tiene otro timeout?». Con una excepción: los secretos se imprimen tapados, como `DB_PASSWORD=****`.
+
+:::profundo Cada herramienta trae su propia precedencia
+La regla «gana lo más específico» se repite en todas partes, pero cada herramienta la escribe a su modo, y conviene saber la de las que usas:
+
+- **Docker:** el `ENV` del Dockerfile es lo de fábrica; `-e` o `--env-file` al arrancar lo pisan.
+- **Kubernetes** (verás las dos formas en su sección): las variables de la imagen pierden contra las del pod. Dentro del pod, si una llave viene a la vez de un ConfigMap entero (`envFrom`) y de la lista `env:`, gana `env:`.
+- **python-dotenv:** `load_dotenv()` lee el archivo `.env`, pero por omisión **no pisa** una variable que ya existe en el entorno. Así, lo que pone Kubernetes le gana a un `.env` olvidado.
+- **pydantic-settings**, que verás en la sección siguiente, de más a menos: los argumentos que le pasas a la clase en el código, el entorno, el archivo `.env`, una carpeta de archivos secretos y, al final, los valores por omisión.
+- **Helm**, que verás en la sección de Kubernetes, tiene la suya para sus archivos de valores.
+
+Cuando un valor no es el que esperabas, la pregunta casi nunca es «¿qué dice el archivo?», sino «¿qué capa lo pisó?».
+:::
 
 ## Validar al arrancar {Validate at startup}
 
 Un error de configuración puede aparecer en dos momentos: al arrancar o con tráfico encima. La diferencia es enorme.
 
-Si el gateway revisa su configuración al arrancar y algo está mal, termina con un [[codigo-salida|código de salida]] distinto de 0. En Kubernetes, ese pod nunca queda listo para recibir requests, y una actualización se detiene ahí: los pods viejos siguen atendiendo a Ana. Si el error aparece hasta la tercera request, el pod ya estaba recibiendo tráfico, y lo falla.
+Si el gateway revisa su configuración al arrancar y algo está mal, termina con un [[codigo-salida|código de salida]] distinto de 0. En Kubernetes, ese pod nunca queda listo para recibir requests, y una actualización se detiene ahí: los pods viejos siguen atendiendo a Ana. (El Deployment de C01, el objeto de Kubernetes que mantiene corriendo las copias del gateway y las cambia por las nuevas, lleva `maxUnavailable: 0`, que prohíbe apagar un pod viejo antes de que el nuevo esté listo.) Si el error aparece hasta la tercera request, el pod ya estaba recibiendo tráfico, y lo falla.
 
 La [[validacion-config|validación de configuración]] (*config validation*) es eso: revisar **toda** la configuración al arrancar, antes de aceptar la primera request. Que no falte nada obligatorio, que cada valor tenga su tipo y que esté en un rango con sentido.
 
@@ -298,14 +330,14 @@ El rango importa tanto como el tipo. Mira lo que pasa si alguien escribe `INFER_
 
 :::cuenta Un cero de más: 150 segundos en vez de 0.15
 Requests por pod // 500 por segundo en el pico, repartidas en 5 pods | 500 ÷ 5 | 100 por segundo
-Lugares por pod // MAX_INFLIGHT | — | 16
+Lugares por pod // MAX_INFLIGHT | el tope del gateway | 16
 Con 0.15 s // cada lugar se libera a los 150 ms | 16 ÷ 0.15 | ≈ 107 por segundo: alcanza
 Con 150 s // cada lugar queda tomado dos minutos y medio | 16 ÷ 150 | ≈ 0.11 por segundo
 Tiempo en llenarse, con 150 s | 16 lugares ÷ 100 por segundo | 0.16 s
-= Con 0.15, cada request recibe en 150 ms un error claro y el gateway sigue de pie. Con 150, en 0.16 s el pod se llena y rechaza todo lo demás con 503 durante dos minutos y medio, esperando respuestas que nadie quiere: el backend se rinde a los 300 ms. Un cero de más convirtió un Triton lento en un gateway caído.
+= Con 0.15, cada request recibe en 150 ms un error claro y el gateway sigue de pie. Con 150, en 0.16 s el pod se llena y rechaza todo lo demás con 503 (el código de HTTP para «ahora no puedo atenderte») por lo menos dos minutos y medio, esperando respuestas que nadie quiere: quien llamó, el backend del marketplace, se rinde a los 300 ms (lección de async). Un cero de más convirtió un Triton lento en un gateway caído.
 :::
 
-Un validador hecho con la biblioteca estándar. Junta **todos** los errores antes de rendirse, para que quien lo arregle no tenga que arrancar una vez por error:
+Un validador hecho con la biblioteca estándar. Junta **todos** los errores antes de rendirse, para que quien lo arregle no tenga que arrancar una vez por error. Una `dataclass` es una clase que solo guarda campos, y `frozen=True` impide cambiarlos una vez creada:
 
 ```python
 from dataclasses import dataclass
@@ -353,7 +385,7 @@ configuración inválida:
   PREPROCESS_CONCURRENCY='dos': no es un int
 ```
 
-`SystemExit` es lo que lanza `sys.exit()`: si nadie la atrapa, Python termina con código 1. Así se ve desde la shell, con un programa más corto. `$?` es el código de salida del último comando:
+`SystemExit` es lo que lanza `sys.exit()`: si nadie la atrapa y lleva un texto, como aquí, Python escribe el texto en [[flujos-estandar|stderr]], la salida de errores, y termina con código 1. Así se ve desde la shell, con un programa más corto. `$?` es el código de salida del último comando:
 
 ```bash
 cat > app.py <<'FIN'
@@ -377,22 +409,26 @@ código de salida: 1
 Escribir el validador a mano está bien para tres valores. Para treinta, se usa una biblioteca. La más común en Python es pydantic-settings, que se apoya en [[pydantic]], la biblioteca que revisa los datos a partir de los tipos que anotas en una clase. Lee el entorno, convierte cada valor y, si algo falla, se detiene con un error que dice qué campo y por qué. Es una ilustración, sin salida: pide `pip install pydantic-settings`.
 
 ```python
-from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic import Field, SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Config(BaseSettings):
+    model_config = SettingsConfigDict(secrets_dir="/etc/gateway/db")   # una carpeta de secretos
     triton_url: str                                      # obligatoria: sin valor por omisión
     infer_timeout_s: float = Field(0.15, ge=0.01, le=2)  # en segundos, de 0.01 a 2
     preprocess_concurrency: int = Field(2, ge=1, le=8)
+    db_password: SecretStr                               # sale del archivo DB_PASSWORD
 
 config = Config()   # lee TRITON_URL, INFER_TIMEOUT_S… del entorno; si algo no cuadra, ValidationError
 ```
+
+Tres detalles. El nombre del campo `triton_url` se busca en el entorno sin importar mayúsculas, así que encuentra `TRITON_URL`. Con `INFER_TIMEOUT_S=150`, se detiene con `1 validation error for Config` y la razón: `infer_timeout_s`, «Input should be less than or equal to 2» (salida de pydantic-settings 2.16). Y `secrets_dir` le dice que, si un campo no viene en el entorno, lo busque en una carpeta donde cada archivo, con el nombre del campo, es un secreto: justo la forma en que Kubernetes monta un Secret, como verás más adelante. `SecretStr` guarda la contraseña y, si alguien imprime la configuración, muestra `**********` en su lugar.
 
 Los archivos también se validan, y antes de llegar al clúster: el [[ci|CI]], el sistema que corre las pruebas en cada cambio, puede revisar que cada YAML se lea y tenga sus campos. La Ronda usa `docker compose config -q` así: arma el archivo final de docker compose, con las variables ya puestas, y falla si algo está mal.
 
 ## Secretos: lo que da acceso {Secrets: what grants access}
 
-Un [[secreto]] (*secret*) es la parte de la configuración que da acceso. La Ronda (M15) lo define así: «cualquier cosa que da acceso: la API key de un proveedor, la contraseña de Postgres, la llave de firma de tus tokens». Una [[api-key|API key]] es una contraseña larga que usa un programa para entrar a un servicio; una llave de firma sirve para probar que un mensaje lo escribiste tú.
+Un [[secreto]] (*secret*) es la parte de la configuración que da acceso. La Ronda (M15) lo define así: «cualquier cosa que da acceso: la API key de un proveedor, la contraseña de Postgres, la llave de firma de tus tokens». Postgres es una base de datos muy usada. Una [[api-key|API key]] es una contraseña larga que usa un programa para entrar a un servicio; una llave de firma sirve para probar que un mensaje lo escribiste tú.
 
 La diferencia con el resto de la configuración es una sola. Un timeout lo puede leer cualquiera sin daño; un secreto, no. Para la base de datos, quien tiene la contraseña del gateway **es** el gateway.
 
@@ -404,7 +440,7 @@ El código lo leen muchas personas, se copia a laptops y servicios, y a veces se
 2. En Git
 Git guarda la historia completa. Un secreto que estuvo en un commit sigue ahí aunque lo borres en el siguiente: cualquiera con una copia del repositorio lo recupera. Lo verás funcionando en la sección extra «Gestores de secretos, rotación y escaneo».
 3. En la imagen
-Lo viste en la lección del sistema operativo: un `COPY .env` deja el archivo en una [[capa-imagen|capa]] de la imagen, y un `ARG HF_TOKEN` queda en su historial. Borrarlo en una línea posterior del Dockerfile no lo quita.
+Lo viste en la lección del sistema operativo: un `COPY .env` deja el archivo en una [[capa-imagen|capa]] de la imagen (cada línea del Dockerfile agrega una capa encima de las anteriores, y las de abajo no se borran), y un `ARG HF_TOKEN` (el token de Hugging Face pasado como argumento al armar la imagen) queda en su historial. Borrarlo en una línea posterior del Dockerfile no lo quita.
 4. En los logs
 Un `print(config)` al arrancar, o un error que muestra la dirección completa de la base de datos con la contraseña adentro (`postgres://gateway:prod-Xq81@db:5432`), deja el secreto donde lo lee mucha gente. Y los logs de C01 se guardan 90 días.
 :::
@@ -413,7 +449,7 @@ Un `print(config)` al arrancar, o un error que muestra la dirección completa de
 
 Twelve-factor proponía pasar también los secretos como variables de entorno, y se sigue haciendo mucho. Es mejor que escribirlos en el código, pero tienen fugas:
 
-- `docker inspect` muestra todas las variables de un contenedor a quien pueda usar Docker en esa máquina.
+- `docker inspect`, el comando que muestra cómo se arrancó un contenedor, enseña todas sus variables a quien pueda usar Docker en esa máquina.
 - En Linux, el entorno con el que arrancó un proceso está en el archivo `/proc/<pid>/environ`, donde `<pid>` es su [[pid]]. Lo pueden leer el mismo usuario y [[root]].
 - Lo heredan todos los procesos hijos, aunque no lo necesiten. Y muchos reportes de errores y páginas de depuración vuelcan el entorno completo.
 
@@ -430,13 +466,13 @@ DB_PASSWORD=prod-Xq81
 arrancó con: {'DB_PASSWORD': 'prod-Xq81'}
 ```
 
-`$!` es el PID del último proceso que la shell mandó al fondo con `&`. El `sleep` no hace nada con la contraseña, y aun así la tiene. Y la última línea es el error más común de todos: un programa que imprime su configuración al arrancar y se lleva el secreto al log. El archivo `/proc` es cosa de Linux; en macOS no existe, pero la herencia es igual.
+`$!` es el PID del último proceso que la shell mandó al fondo con `&`. Ese archivo separa las variables con un byte cero; `tr '\0' '\n'` cambia cada cero por un salto de línea para que `grep` lo lea. El `sleep` no hace nada con la contraseña, y aun así la tiene. Y la última línea es el error más común de todos: un programa que imprime su configuración al arrancar y se lleva el secreto al log. El archivo `/proc` es cosa de Linux; en macOS no existe, pero la herencia es igual.
 
 Además, cambiar una variable de entorno exige reiniciar el proceso (la regla 2). Por eso hoy se prefiere que el secreto llegue como **archivo**: uno con [[permisos]] de solo lectura para el usuario del proceso, que no se hereda, no sale en `docker inspect` y se puede cambiar sin reiniciar.
 
 ### El archivo .env, en tu laptop
 
-En la laptop, lo cómodo es un [[archivo-env|archivo .env]]: un archivo de texto con una línea `NOMBRE=valor` por variable, que docker compose y bibliotecas como python-dotenv cargan solas. Ahí vive la contraseña de tu base de datos de prueba.
+En la laptop, lo cómodo es un [[archivo-env|archivo .env]]: un archivo de texto con una línea `NOMBRE=valor` por variable. docker compose lee solo el `.env` de la carpeta del proyecto para llenar las variables de su archivo, y en Python la biblioteca python-dotenv lo carga con una línea, `load_dotenv()`. Ahí vive la contraseña de tu base de datos de prueba.
 
 El peligro: está en la carpeta del proyecto, junto al código, y un `git add .` lo sube. La defensa es el [[gitignore|.gitignore]] de la lección de Git, la lista de lo que Git debe ignorar. `git status --short` marca con `??` lo que Git ve y todavía no guarda:
 
@@ -460,14 +496,14 @@ git ls-files                          # lo que de verdad quedó guardado
 app.py
 ```
 
-Con `.env` en el `.gitignore`, Git ni lo ve. Lo mismo va en el `.dockerignore`, para que no entre a la imagen. Lo que sí se sube es un `.env.example` con los nombres y valores de mentira, para que la siguiente persona sepa qué llenar.
+Con `.env` en el `.gitignore`, Git ni lo ve. Lo mismo va en el `.dockerignore`, la lista de lo que Docker no copia a la imagen. Lo que sí se sube es un `.env.example` con los nombres y valores de mentira, para que la siguiente persona sepa qué llenar.
 
 ### Dónde vive la contraseña
 
 La Ronda (M15) ordena los lugares posibles de peor a mejor:
 
 :::figura config-fugas
-Cinco lugares para la contraseña del gateway, del peor al mejor. Los dos primeros, nunca. La variable de entorno es aceptable. Un archivo que llega desde un gestor de secretos es bueno. Y lo mejor es no tener contraseña.
+Cinco lugares para la contraseña del gateway, del peor al mejor. Los dos primeros, nunca (el manifiesto es el archivo YAML que le describe a Kubernetes qué crear). La variable de entorno es aceptable. Un archivo que llega desde un gestor de secretos es bueno. Y lo mejor es no tener contraseña.
 :::
 
 El último escalón merece una explicación. «La mejor forma de manejar un secreto es no tenerlo», dice la Ronda. En la nube, un pod puede tener su propia identidad, y la nube le da credenciales que duran poco, sin que nadie guarde una llave. Eso lo hace [[iam|IAM]], el sistema de permisos de la nube, que verás en la fase «La nube». Cuando sí hace falta una contraseña, como la de una base de datos, el camino es el de la sección siguiente.
@@ -476,7 +512,7 @@ El último escalón merece una explicación. «La mejor forma de manejar un secr
 
 En producción, el gateway corre en Kubernetes, el [[orquestacion|orquestador]] de C01. Cada copia del gateway vive en un [[pod]]: la unidad más chica que corre Kubernetes, uno o más contenedores que comparten red y disco (lo verás a fondo en la estación 9). Kubernetes necesita guardar la configuración en algún lugar para dársela a cada pod que crea. Para eso tiene dos objetos.
 
-Un [[configmap|ConfigMap]] guarda configuración como pares nombre-valor dentro del clúster. Un [[secret-k8s|Secret]] tiene la misma forma, pero es para secretos: tiene permisos aparte y se puede guardar cifrado. Así se declaran en YAML (es una ilustración; los manifiestos completos son de la estación 9):
+Un [[configmap|ConfigMap]] guarda configuración como pares nombre-valor dentro del clúster. Un [[secret-k8s|Secret]] tiene la misma forma, pero es para secretos: tiene permisos aparte y se puede guardar cifrado. Así se declaran en YAML, en un manifiesto, el archivo que le describe a Kubernetes qué objetos crear (es una ilustración; los manifiestos completos son de la estación 9):
 
 ```yaml
 apiVersion: v1
@@ -497,6 +533,7 @@ data:
 Y así los usa el pod del gateway: el ConfigMap entero como variables de entorno, y el Secret como archivo, en una carpeta que se le [[montaje|monta]] al contenedor:
 
 ```yaml
+securityContext: {runAsUser: 10001, fsGroup: 10001}   # el gateway no corre como root
 containers:
   - name: gateway
     envFrom:
@@ -505,10 +542,12 @@ containers:
       - {name: db, mountPath: /etc/gateway/db, readOnly: true}
 volumes:
   - name: db
-    secret: {secretName: gateway-db, defaultMode: 0400}   # solo lectura, solo el dueño
+    secret: {secretName: gateway-db, defaultMode: 0440}   # solo lectura: el dueño y el grupo
 ```
 
 Adentro, el gateway encuentra el archivo `/etc/gateway/db/DB_PASSWORD` con la contraseña y lo lee como cualquier archivo. Cada llave del Secret se vuelve un archivo con ese nombre.
+
+Ojo con los permisos. El kubelet, el agente de Kubernetes que corre en cada máquina y arranca sus pods, crea esos archivos con dueño root. El gateway de C01 corre como el usuario 10001 (lección del sistema operativo), así que con un modo `0400`, «solo el dueño lee», no podría abrir su propia contraseña. `fsGroup` le pone al archivo el grupo 10001, que el proceso trae, y `0440` deja leer al dueño y a ese grupo, y a nadie escribir. Un ConfigMap o un Secret guarda, además, a lo mucho 1 MiB (1,048,576 bytes): sirve para valores y archivos chicos, nunca para los pesos de un modelo.
 
 ### Variable o archivo
 
@@ -538,16 +577,16 @@ cHJvZC1YcTgx
 
 ¿Por qué base64, entonces? Para que en el campo `data` quepa cualquier secreto, aunque sean bytes que no son texto, como una llave binaria. Si escribes el manifiesto a mano, el campo `stringData` acepta el texto tal cual y Kubernetes lo convierte.
 
-La Ronda (M15) lo dice sin rodeos: «un Secret no es secreto por diseño». Kubernetes guarda todos sus objetos en etcd, su base de datos interna, y por omisión guarda los Secrets ahí sin cifrar. El cifrado en reposo (*encryption at rest*) se activa aparte, casi siempre con una llave de un [[kms|KMS]], el servicio de la nube que guarda llaves de cifrado (lo verás en la fase de seguridad). EKS, el Kubernetes de AWS, lo activa por omisión desde marzo de 2025 (M15).
+La Ronda (M15) lo dice sin rodeos: «un Secret no es secreto por diseño». Kubernetes guarda todos sus objetos en etcd, su base de datos interna, y por omisión guarda los Secrets ahí sin cifrar. El cifrado en reposo (*encryption at rest*) se activa aparte, casi siempre con una llave de un [[kms|KMS]], el servicio de la nube que guarda llaves de cifrado (lo verás en la fase de seguridad). EKS, el Kubernetes de AWS, lo activa por omisión desde marzo de 2025 en los clústeres con Kubernetes 1.28 o más nuevo, con una llave que administra AWS si no le das una tuya (M15).
 
 Pero el cifrado protege los discos, no a las personas. M15: «el control real es quién puede hacer `get secrets`». En Kubernetes eso lo deciden los permisos de cada usuario y programa sobre cada *namespace*, la carpeta que agrupa los objetos. Y ojo con un detalle: quien pueda crear un pod en un namespace puede montarle cualquier Secret de ahí y leerlo.
 
 ### Lo que cambia y lo que no llega
 
-Si cambias `INFER_TIMEOUT_S` en el ConfigMap, los pods que ya corren no se enteran: su variable se copió al arrancar. Hay que reiniciarlos, por oleadas, con `kubectl rollout restart deployment/gateway`. Un archivo montado, en cambio, se actualiza solo, con un retraso de alrededor de un minuto. Aun así, tu programa tiene que volver a leerlo: si lo leyó una vez al arrancar, sigue con el valor viejo.
+Si cambias `INFER_TIMEOUT_S` en el ConfigMap, los pods que ya corren no se enteran: su variable se copió al arrancar. Hay que reiniciarlos, por oleadas, con `kubectl rollout restart deployment/gateway` (`kubectl` es el comando con el que se le habla a Kubernetes). Un archivo montado, en cambio, se actualiza solo, con un retraso que suele llegar hasta alrededor de un minuto. Aun así, tu programa tiene que volver a leerlo: si lo leyó una vez al arrancar, sigue con el valor viejo.
 
 :::profundo Por qué tarda, y cuándo no llega nunca
-Quien escribe los archivos en el nodo es el kubelet, el agente de Kubernetes que corre en cada máquina y arranca sus pods. No vigila cada cambio al instante: revisa cada cierto tiempo (por omisión, cada minuto) y además guarda una copia de los objetos. El retraso total puede ser ese periodo más el de la copia.
+Quien escribe los archivos en el nodo es el kubelet, el agente de Kubernetes que corre en cada máquina y arranca sus pods. No vigila cada cambio al instante: revisa cada cierto tiempo (su periodo de sincronización, por omisión un minuto) y además guarda una copia de los objetos. La documentación de Kubernetes lo dice así: el retraso total puede ser ese periodo más lo que tarde en ponerse al día la copia.
 
 Hay un caso en que el archivo no se actualiza nunca: si se montó con `subPath` (un solo archivo dentro de una carpeta que ya existe). Y si marcas el ConfigMap con `immutable: true`, Kubernetes no deja cambiarlo: para un valor nuevo, se crea otro ConfigMap con otro nombre. Así, cada versión de la configuración tiene nombre propio y volver a la anterior es apuntar al nombre viejo.
 :::
@@ -573,7 +612,7 @@ tritonUrl: "triton.classifier:8000"
 inferTimeoutS: "0.15"
 ```
 
-`helm upgrade --install gateway ./chart -f values-prod.yaml` llena los huecos y aplica el resultado al clúster. Helm tiene su propia precedencia: el `values.yaml` del chart, luego cada `-f` en orden (el último gana) y, encima de todo, `--set`. Los archivos de valores van en Git; los secretos, no: llegan del gestor de secretos. La alternativa más usada es kustomize, que viene dentro de `kubectl` y, en vez de plantillas, aplica parches sobre un manifiesto base.
+`helm upgrade --install gateway ./chart -f values-prod.yaml` llena los huecos y aplica el resultado al clúster. Helm tiene su propia precedencia: el `values.yaml` del chart, luego cada `-f` en orden (el último gana) y, encima de todo, `--set`. Los archivos de valores van en Git; los secretos, no: llegan del gestor de secretos. Helm es un proyecto graduado de la CNCF, la fundación que también cuida a Kubernetes. La alternativa más usada es kustomize, que viene dentro de `kubectl` desde la versión 1.14 (`kubectl apply -k`) y, en vez de plantillas, aplica parches sobre un manifiesto base.
 
 ## Gestores de secretos, rotación y escaneo {Secret managers, rotation and scanning} [extra]
 
@@ -583,18 +622,20 @@ Un Secret de Kubernetes guarda la contraseña en el clúster, pero no responde t
 
 Un [[gestor-secretos|gestor de secretos]] (*secret manager*) es un servicio dedicado a guardar secretos. Los más usados son HashiCorp Vault, AWS Secrets Manager, Google Cloud Secret Manager y Azure Key Vault. Hace cuatro cosas que un archivo no hace:
 
-- **Guarda cifrado**, con una llave del KMS que nunca sale de ese servicio.
-- **Decide quién lee**, con los permisos de la nube (IAM): el gateway de producción lee su contraseña y nada más; el de staging, ni esa.
+- **Guarda cifrado**, con una llave que nunca sale del servicio; en la nube, casi siempre una del KMS.
+- **Decide quién lee**, con permisos por secreto (en la nube, los de IAM): el gateway de producción lee su contraseña y nada más; el de staging, ni esa.
 - **Registra cada lectura**: quién, cuándo y desde dónde. Si un secreto se filtra, ese registro dice quién lo tuvo.
-- **Guarda versiones** y puede cambiarlas solo, con la rotación que viene abajo.
+- **Guarda versiones**, y varios saben cambiarlas solos, con la rotación que viene abajo.
 
-¿Cómo llega del gestor al pod? Hay dos caminos. **External Secrets Operator** es un programa que corre en el clúster, lee el gestor cada cierto tiempo y copia el valor a un Secret de Kubernetes, que el pod monta como siempre. El **Secrets Store CSI Driver** monta el secreto del gestor directo como archivo dentro del pod. M15 pone ese archivo montado desde un gestor como el escalón «bueno».
+Vault es el único de la lista que puedes instalar en tus propias máquinas, en cualquier nube o en ninguna; los otros tres viven dentro de su nube. Desde agosto de 2023, Vault ya no es software libre: HashiCorp, su empresa (hoy de IBM), lo pasó a una licencia BSL (*Business Source License*), que deja usarlo pero no ofrecerlo como un servicio que compita con ella. Por eso nació OpenBao, una copia de la última versión libre que mantiene la Linux Foundation.
 
-:::cuenta Lo que cuesta AWS Secrets Manager
+¿Cómo llega del gestor al pod? Hay dos caminos. **External Secrets Operator** es un programa que corre en el clúster, lee el gestor cada cierto tiempo (por omisión, cada hora) y copia el valor a un Secret de Kubernetes, que el pod monta como siempre. El **Secrets Store CSI Driver** monta el secreto del gestor directo como archivo dentro del pod. M15 pone ese archivo montado desde un gestor como el escalón «bueno».
+
+:::cuenta Lo que cuesta AWS Secrets Manager (precios de lista, noviembre de 2026)
 Guardar // US$0.40 por secreto al mes (M15) | 5 secretos × 0.40 | US$2.00 al mes
 Leer con External Secrets // cada hora, 5 secretos, 30 días | 5 × 24 × 30 | 3,600 lecturas
 Su costo // US$0.05 por cada 10,000 lecturas | 3,600 ÷ 10,000 × 0.05 | ≈ US$0.02
-Si cada pod leyera directo // 12 pods, cada 5 minutos | 12 × 5 × 12 × 24 × 30 | 518,400 lecturas ≈ US$2.59
+Si cada pod leyera directo // 12 pods, 5 secretos, cada 5 minutos | 12 × 5 × 12 × 24 × 30 | 518,400 lecturas ≈ US$2.59
 = Entre US$2 y US$5 al mes. Un gestor de secretos es barato; lo que crece es leer de más, y se arregla leyendo cada hora en vez de cada 5 minutos.
 :::
 
@@ -654,7 +695,7 @@ El [[escaneo-secretos|escaneo de secretos]] (*secret scanning*) es revisar el c�
 
 - **En tu máquina, antes del commit**, con un programa como gitleaks puesto como *pre-commit hook*: un script que Git corre antes de cada commit y que puede detenerlo.
 - **En el CI**, en cada pull request, para lo que se escapó del primero.
-- **En el servidor de Git.** GitHub revisa los repositorios y, con la protección de push (*push protection*), rechaza un push que trae un token con forma conocida.
+- **En el servidor de Git.** GitHub revisa los repositorios y, con la protección de push (*push protection*), rechaza un push que trae un token con forma conocida. En los repositorios públicos es gratis y viene prendida desde 2024; en los privados es parte de un producto de pago, GitHub Secret Protection.
 
 ¿Cómo reconoce un secreto? Muchos tienen forma fija. Una llave de acceso de AWS empieza con `AKIA` y lleva 16 letras mayúsculas o dígitos más; un token clásico de GitHub empieza con `ghp_`. Esas formas se escriben como expresiones regulares (*regular expressions*): patrones de texto que el módulo `re` de Python sabe buscar. Así funciona un escáner chiquito:
 
@@ -689,11 +730,11 @@ línea 5: token de GitHub → ghp_a1B2a1…
 
 `AKIAIOSFODNN7EXAMPLE` es la llave de ejemplo que AWS usa en su documentación: no abre nada. Fíjate en que el escáner muestra solo el principio de lo que encontró: un reporte de secretos que imprime los secretos completos es otra fuga.
 
-Las herramientas de verdad, como gitleaks, traen cientos de reglas así y además miden qué tan «al azar» se ve un texto, porque una llave generada al azar casi no repite letras. A cambio, a veces marcan algo que no es secreto, y esos casos se anotan en una lista de excepciones. Cuando encuentran uno de verdad, el orden ya lo sabes: rotar primero.
+Las herramientas de verdad traen cientos de reglas así (gitleaks, más de 200 en su configuración de 2026) y además miden qué tan «al azar» se ve un texto, porque una llave generada al azar casi no repite letras. A cambio, a veces marcan algo que no es secreto, y esos casos se anotan en una lista de excepciones. Cuando encuentran uno de verdad, el orden ya lo sabes: rotar primero.
 
 ## Feature flags: cambiar el comportamiento sin desplegar {Feature flags: changing behavior without deploying} [extra]
 
-Hasta aquí, la configuración se lee al arrancar y cambia con un despliegue. Un [[feature-flag|*feature flag*]] (bandera de función) es configuración que se consulta **mientras el programa corre**. La Ronda (M11) lo define como «una condición en el código que se evalúa en tiempo de ejecución contra una configuración remota». En el código se ve así: «si el flag `sugerencias-v2` está prendido para este vendedor, usa el modelo nuevo; si no, el de siempre».
+Hasta aquí, la configuración se lee al arrancar y cambia con un despliegue. Un [[feature-flag|*feature flag*]] (bandera de función; ojo, no es el flag de la línea de comandos de la precedencia) es configuración que se consulta **mientras el programa corre**. La Ronda (M11) lo define como «una condición en el código que se evalúa en tiempo de ejecución contra una configuración remota». En el código se ve así: «si el flag `sugerencias-v2` está prendido para este vendedor, usa el modelo nuevo; si no, el de siempre».
 
 La idea grande es separar dos cosas que parecían una. **Desplegar** es poner el código nuevo en los servidores. **Activar** es que la gente lo use. Con un flag, el código llega apagado y se enciende después: para el equipo interno, luego para el 10 % de los vendedores, luego para todos. El MVP de C01 hace exactamente eso: solo un 10 % de los vendedores ve las sugerencias.
 
@@ -709,7 +750,7 @@ Sube los pods a 12, el máximo del gateway de C01, y mira cómo crece el reinici
 
 Para prender el flag a un porcentaje, el servicio de flags tiene que decidir quién está adentro. Tirar un dado en cada request sería un desastre: Ana vería sugerencias en una foto y en la siguiente no. La decisión tiene que ser **estable**: el mismo vendedor, siempre del mismo lado.
 
-Se logra con una [[funcion-hash|función hash]], la de la lección de tiempo y hash: el mismo texto da siempre el mismo número. Se calcula el hash del id del vendedor junto con una «sal» propia del flag, se reduce a una cubeta del 0 al 99, y entran las cubetas debajo del porcentaje:
+Se logra con una [[funcion-hash|función hash]], la de la lección de tiempo y hash: el mismo texto da siempre el mismo número. Se calcula el hash del id del vendedor junto con una «sal», un texto fijo y distinto para cada flag. Los primeros 8 caracteres del hash se leen como un número, y el residuo de dividirlo entre 100 da una cubeta del 0 al 99. Entran las cubetas debajo del porcentaje:
 
 ```python
 import hashlib
@@ -743,7 +784,9 @@ Una regla más de M11: el valor del flag **se registra con cada predicción**. S
 
 ### La deuda de los flags
 
-Hay servicios hechos para esto, como LaunchDarkly, Unleash, Flagsmith o AWS AppConfig, y OpenFeature, un estándar abierto para hablar con cualquiera de ellos. El programa no les pregunta en cada request: guarda las reglas en memoria y las refresca cada tantos segundos.
+Hay servicios hechos para esto, como LaunchDarkly, Unleash, Flagsmith o AWS AppConfig. Y está OpenFeature, un estándar abierto para hablar con cualquiera de ellos: tu código pregunta siempre igual («¿está prendido `sugerencias-v2` para este vendedor?») y cambiar de servicio es cambiar una pieza, no reescribir cada `if`. Es un proyecto de la CNCF, en incubación desde diciembre de 2023.
+
+El programa no les pregunta en cada request, porque eso le sumaría una llamada de red a cada foto. Guarda las reglas en memoria y las mantiene al día: unos las vuelven a pedir cada tantos segundos (Unleash, por omisión, cada 15) y otros dejan una conexión abierta por la que el servicio avisa cada cambio al momento (LaunchDarkly). Si el servicio de flags se cae, el programa sigue con las últimas reglas que tenía, o con el valor por omisión de cada flag: por eso ese valor debe ser el seguro, casi siempre «apagado».
 
 El costo está en el código. M11: «cada flag es una rama de código». Cada `if` de un flag es un camino más que probar, y un flag que ya está al 100 % desde hace meses se borra, junto con el camino viejo. En «En la vida real» está la historia de un flag viejo que costó cientos de millones de dólares en 45 minutos.
 
@@ -771,7 +814,7 @@ El gateway trae `localhost:8000` como dirección de Triton por omisión. En prod
 
 Cambias el timeout en el ConfigMap y nada pasa: los pods leyeron sus variables de entorno al arrancar. O peor: la mitad se reinició por otra razón y ahora hay pods con dos timeouts distintos.
 
-**Cómo evitarlo:** después de cambiar un ConfigMap que llega como variable, reiniciar el Deployment completo (`kubectl rollout restart`). Con Helm, el truco común es poner en el pod una anotación con el hash del ConfigMap: si la configuración cambia, el hash cambia, y Kubernetes reemplaza los pods solo.
+**Cómo evitarlo:** después de cambiar un ConfigMap que llega como variable, reiniciar el Deployment completo (`kubectl rollout restart`). Con Helm, el truco común es poner en el pod una anotación (una etiqueta de texto libre) con el hash del ConfigMap: si la configuración cambia, el hash cambia, y Kubernetes reemplaza los pods solo.
 
 ### 5. Creer que un Secret de Kubernetes está cifrado
 
@@ -795,20 +838,21 @@ Así queda la configuración del gateway de C01, juntando lo que reparte la Rond
 |---|---|---|
 | `TRITON_URL`, `INFER_TIMEOUT_S=0.15`, `PREPROCESS_CONCURRENCY=2`, `MAX_INFLIGHT` | Los manifiestos, en Git | Un ConfigMap, como variables de entorno (M06) |
 | `PYTHONUNBUFFERED=1` y el entorno de Python en `/opt/venv` | El Dockerfile | Dentro de la imagen: es igual en todos los ambientes |
-| `MODEL_VERSION` y `labels.json` con su hash | El artefacto del modelo, en el registro de modelos | Con el modelo; el gateway compara al arrancar y en cada revisión de salud (M11) |
+| `MODEL_VERSION` | Los manifiestos, en Git, y cambia con cada modelo | Una variable de entorno; el gateway la compara con la versión del modelo al arrancar y en cada revisión de salud (M11) |
+| `labels.json` con su hash | El artefacto del modelo, en el registro de modelos | Viaja con el modelo, nunca suelto (M10 y M11) |
 | Umbral 0.3 y top-k | Un archivo versionado en Git | Cambia en su propio PR, con motivo (M10) |
 | Sugerencias para el 10 % de los vendedores | El servicio de flags | Se consulta mientras corre y se anota en el log |
-| Acceso a S3 | En ningún lado: no hay llave | La identidad del pod en la nube (IRSA, en EKS) |
+| Acceso a S3, el object storage de AWS | En ningún lado: no hay llave | La identidad del pod en la nube (IRSA, *IAM Roles for Service Accounts*, en EKS) |
 
 Fíjate en la última fila y en lo que no está. El gateway de la Ronda casi no tiene secretos: a S3 entra con la identidad del pod, y a quien le llama lo reconoce con un [[jwt|JWT]] (un token firmado que dice quién llama), revisado en el balanceador antes de llegar al gateway. La mejor contraseña es la que no existe.
 
-Fíjate también en `PYTHONUNBUFFERED=1`: va en la imagen porque no cambia entre ambientes. Una variable de entorno no es automáticamente configuración. Y en el escalado de C01, la Ronda escribe en el YAML de KEDA valores que coinciden con los de omisión, como `minReplicaCount`, y cambia uno peligroso: `ignoreNullValues: "false"`, para que una consulta vacía sea un error visible y no un 0 silencioso.
+Fíjate también en `PYTHONUNBUFFERED=1`: va en la imagen porque no cambia entre ambientes. Una variable de entorno no es automáticamente configuración. Y en el escalado de Triton en C01, la Ronda escribe en el YAML de KEDA todo lo que importa, aunque coincida con el valor por omisión, como `cooldownPeriod: 300`; nunca deja `minReplicaCount` en su 0 de fábrica, sino que lo fija en 2; y cambia uno peligroso: `ignoreNullValues: "false"`, para que, si la consulta de métricas que KEDA le hace a Prometheus no devuelve nada, sea un error visible y no un 0 silencioso.
 
 ### Knight Capital: un flag viejo que nadie borró
 
 El 1 de agosto de 2012, Knight Capital, una de las firmas que más acciones compraba y vendía en Estados Unidos, desplegó código nuevo en sus 8 servidores de órdenes. El código reusaba un flag que años antes encendía una función vieja, que ya no se usaba pero seguía en el código. Uno de los servidores no recibió el código nuevo: cuando el flag se prendió, ese servidor despertó la función vieja.
 
-En unos 45 minutos mandó millones de órdenes que nadie quería, y la empresa perdió ≈ US$440 millones: casi 10 millones por minuto. Knight no sobrevivió sola: meses después la compró otra firma. Ahí están juntos tres errores de esta lección: un flag que nunca se borró, un nombre de flag reusado para otra cosa y un despliegue que nadie verificó en todos los servidores.
+En unos 45 minutos mandó más de 4 millones de órdenes que nadie quería, todo para atender 212 órdenes chicas de clientes, y la empresa perdió más de US$460 millones, según la investigación de la SEC, el regulador de la bolsa en Estados Unidos (Knight calculó ≈ 440 al día siguiente): unos 10 millones por minuto. La SEC la multó además con US$12 millones. Knight no sobrevivió sola: tuvo que pedir dinero de emergencia a otros inversionistas esa misma semana, y meses después se fusionó con otra firma, Getco. Ahí están juntos tres errores de esta lección: un flag que nunca se borró, un nombre de flag reusado para otra cosa y un despliegue que nadie verificó en todos los servidores.
 
 ### Uber, 2016: la llave en el repositorio
 
@@ -847,7 +891,7 @@ Resuélvelos antes de abrir la solución. Los de rotación y reinicios se pueden
 - Lo que protege un Secret es quién puede leerlo (`get secrets` y crear pods en el namespace) y, si está activo, el cifrado en reposo de etcd. Y ese manifiesto, con el valor adentro, no debería estar en Git.
 ? [medio] Alguien pone `INFER_TIMEOUT_S=200` pensando en milisegundos. El pico es de 500 requests por segundo en 5 pods, con 16 lugares por pod. Si Triton se traba, ¿cuántas requests por segundo puede despachar cada pod? ¿Cuánto tarda en llenarse? ¿Qué lo habría evitado?
 - Cada lugar queda tomado 200 s: 16 ÷ 200 = **0.08 requests por segundo** por pod.
-- Le llegan 500 ÷ 5 = 100 por segundo: los 16 lugares se llenan en 16 ÷ 100 = **0.16 s**. Todo lo demás recibe 503 durante más de 3 minutos.
+- Le llegan 500 ÷ 5 = 100 por segundo: los 16 lugares se llenan en 16 ÷ 100 = **0.16 s**. Todo lo demás recibe 503 por lo menos 3 minutos y pico, lo que tarda en soltarse cada lugar.
 - Con 0.2 s, lo que quería, serían 16 ÷ 0.2 = 80 por segundo: no alcanza para 100, pero el pod despacha 80 errores claros por segundo y se recupera en cuanto Triton vuelve.
 - Lo habría evitado validar el rango al arrancar (de 0.01 a 2 segundos) y leer bien el nombre: `_S` es segundos.
 ? [medio] Cambias `INFER_TIMEOUT_S` de 0.15 a 0.2 en el ConfigMap del gateway, que llega como variable de entorno. Pasan 10 minutos y los pods siguen con 0.15. ¿Por qué? ¿Qué haces? ¿Qué cambiaría si llegara como archivo montado?
@@ -882,6 +926,7 @@ Resuélvelos antes de abrir la solución. Los de rotación y reinicios se pueden
 
 - **M05 · Contenedores** pasa la configuración del gateway como variables de entorno (`TRITON_URL: "triton:8000"` en docker compose), deja `.env` fuera de la imagen con el `.dockerignore` y prohíbe los secretos en `ARG`, en `ENV` y en las capas: los del build van con `RUN --mount=type=secret` y los de producción, por Secret.
 - **M06 · Orquestación y escalado** pone ConfigMap y Secret en su tabla de objetos básicos, pasa `TRITON_URL` e `INFER_TIMEOUT_S` como variables del Deployment y prefiere la identidad del pod a un Secret con llaves.
+- **M07 · Servidores de modelos** explica por qué el umbral, el top-k y el mapeo a categorías no van dentro de Triton: cambian con el producto, no con el modelo, y meterlos ahí obligaría a armar una imagen nueva del servidor de GPU para cada ajuste.
 - **M15 · Seguridad y confiabilidad** ordena dónde vive un secreto, recuerda que un Secret es base64, rota con dos credenciales válidas, cifra con KMS y le pone precio a Secrets Manager.
 - **M10 y M11** versionan los umbrales con el modelo y usan feature flags y kill switches para soltar un modelo nuevo de a poco.
 

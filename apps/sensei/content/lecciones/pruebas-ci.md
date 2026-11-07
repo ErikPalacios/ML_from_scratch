@@ -14,7 +14,7 @@ Imagina un martes. Alguien del equipo de C01 abre `preprocess.py`, el archivo qu
 
 Pero ahora cada número del tensor sale mal, y el modelo acierta mucho menos. Es el [[training-serving-skew|skew]] de la lección de imágenes: nada truena, solo empeora. Si nadie lo nota, a la mañana siguiente ≈ 2.5 millones de publicaciones reciben una categoría peor.
 
-Esta lección es la respuesta a ese martes. Primero, las pruebas: qué es una, de qué tamaños hay y cuáles necesita un sistema con un modelo. Después, las máquinas que las corren solas en cada cambio (CI) y el camino que lleva el cambio aprobado hasta el clúster (CD), con lo que se hace cuando algo sale mal de todos modos.
+Esta lección es la respuesta a ese martes. Primero, las pruebas: qué es una, de qué tamaños hay y cuáles necesita un sistema con un modelo. Después, las máquinas que las corren solas en cada cambio (CI) y el camino que lleva el cambio aprobado hasta el clúster (CD), con lo que se hace cuando algo sale mal de todos modos. El **clúster** es el grupo de máquinas donde Kubernetes, el [[orquestacion|orquestador]] de C01, corre el gateway y Triton.
 
 ## Pruebas unitarias con pytest {Unit tests with pytest}
 
@@ -67,17 +67,19 @@ resize_cambiado: 3 pruebas, 2 fallan
   ✗ test_vertical → AssertionError: Tuples differ: (192, 256) != (256, 341)
 ```
 
+Cómo se lee el código: cada función que empieza con `test_` es una prueba, y `assertEqual(a, b)` revisa que `a` sea igual a `b`. Las pruebas llaman a `resize`, y el `for` del final hace que ese nombre sea primero la versión buena y luego la cambiada; las líneas de adentro del `for` corren las tres pruebas e imprimen cuántas fallan. No hace falta entender cada una de esas líneas.
+
 Las mismas tres pruebas, contra las dos versiones. Con la buena pasan; con la cambiada fallan dos y dicen el porqué: esperaban 256 × 341 y recibieron 192 × 256. Fíjate en la tercera: con una foto cuadrada, `min` y `max` dan lo mismo, y la prueba pasa con las dos. **Una prueba solo atrapa lo que mira.** Elegir buenos casos es la mitad del trabajo.
 
 ### pytest: lo mismo, con menos ceremonia
 
 Casi todos los proyectos de Python usan [[pytest]], una herramienta que no viene con Python (se instala con [[pip]]) y que hace tres cosas por ti:
 
-- **Encuentra las pruebas sola.** Busca archivos que se llamen `test_*.py` (o `*_test.py`) y, adentro, funciones que empiecen con `test_`. No hay que registrarlas en ningún lado.
+- **Encuentra las pruebas sola.** Busca archivos que se llamen `test_*.py` (o `*_test.py`) y, adentro, funciones cuyo nombre empiece con `test` (casi siempre `test_algo`), sueltas o dentro de una clase que empiece con `Test`. No hay que registrarlas en ningún lado.
 - **Usa el `assert` de Python.** En vez de `self.assertEqual(a, b)`, escribes `assert a == b`. Si falla, pytest abre la expresión y muestra qué valía cada lado.
 - **Repite una prueba con varios casos.** `@pytest.mark.parametrize` corre la misma función con cada fila de una tabla, y cada fila cuenta como una prueba aparte.
 
-Este bloque corre en una terminal de Linux con pytest 8.4. Crea los dos archivos con `cat > archivo <<'EOF'` (todo lo que sigue, hasta la línea `EOF`, se escribe en el archivo), corre las pruebas, hace con `sed` el cambio del martes y las vuelve a correr. pytest imprime cuánto tardó, algo que cambia en cada corrida; el `sed` del final de cada corrida lo borra.
+Este bloque corre en una terminal de Linux con pytest 8.4. Crea los dos archivos con `cat > archivo <<'EOF'` (todo lo que sigue, hasta la línea `EOF`, se escribe en el archivo), corre las pruebas, hace con `sed` el cambio del martes y las vuelve a correr. `sed -i 's|viejo|nuevo|' archivo` es un programa que busca un texto dentro del archivo y lo cambia por otro; el `grep` de en medio muestra cómo quedó la línea. `python -m pytest` corre pytest con ese Python (como `python -m pip` en la lección de Python), y `-q` le pide un resumen corto. pytest imprime cuánto tardó, algo que cambia en cada corrida; el `sed` del final de cada corrida lo borra. (Dos detalles son de Linux con bash: en una Mac, el `sed` de BSD pide `sed -i ''` en vez de `sed -i`, y `${PIPESTATUS[0]}`, el código de salida del primer programa de la tubería, en zsh se escribe `${pipestatus[1]}`.)
 
 ```bash
 cat > preprocess.py <<'EOF'
@@ -126,9 +128,9 @@ Así se lee:
 
 - **Cada punto es una prueba que pasó; cada F, una que falló.** La primera corrida da 4 puntos: las tres filas de la tabla y la del negro y el blanco.
 - **Sin paréntesis, cambia el orden de las cuentas.** Python divide antes de restar, así que la línea nueva calcula 236 ÷ 255 − (0.485 ÷ 0.229) ≈ −1.19 en vez de 1.92. Las cuatro pruebas fallan y cada una dice qué recibió.
-- **El código de salida es 1.** pytest sale con 0 si todo pasó y con 1 si algo falló. Es el [[codigo-salida|código de salida]] de la lección de programas: con ese número, una máquina decide sola si el cambio sigue adelante.
+- **El código de salida es 1.** pytest sale con 0 si todo pasó y con 1 si algo falló (y con 5 si no encontró ninguna prueba, para que un CI mal configurado no salga en verde sin probar nada). Es el [[codigo-salida|código de salida]] de la lección de programas: con ese número, una máquina decide sola si el cambio sigue adelante.
 
-`pytest.approx(esperado, abs=0.01)` acepta una diferencia de hasta 0.01: los números con punto decimal se comparan con tolerancia, nunca con `==`, como viste en la lección de números. `-p no:cacheprovider` solo evita que pytest guarde una carpeta de caché, y `COLUMNS=60` hace más angosta la salida.
+`pytest.approx(esperado, abs=0.01)` acepta una diferencia de hasta 0.01: los números con punto decimal se comparan con tolerancia, nunca con `==`, como viste en la lección de números. En la segunda corrida, `--tb=line` resume cada falla en una sola línea y `-rN` quita el resumen del final. `-p no:cacheprovider` solo evita que pytest guarde una carpeta de caché, y `COLUMNS=60` hace más angosta la salida.
 
 :::nota Las tres partes de una buena prueba
 *Prepara* los datos, *actúa* (llama a la función) y *revisa* con un `assert`. Si una prueba necesita diez líneas de preparación, la función probablemente hace demasiadas cosas.
@@ -207,7 +209,7 @@ def clasificar(tensor, cliente):                 # un pedazo del gateway
         logits = cliente.infer(tensor, timeout=0.15)
     except TimeoutError:
         return 504, None
-    return 200, max(range(len(logits)), key=logits.__getitem__)
+    return 200, max(range(len(logits)), key=logits.__getitem__)  # la posición del logit más alto
 
 falso = mock.Mock()                              # un doble: responde lo que le digas
 falso.infer.return_value = [0.1, 3.2, -1.0]
@@ -240,7 +242,11 @@ con autospec: Mock object has no attribute 'infer_rapido'
 con autospec: missing a required argument: 'timeout'
 ```
 
-Con el doble, la prueba revisa dos caminos que con un Triton real serían difíciles de provocar: la respuesta normal y el [[timeout]] que se convierte en un 504. El de C01 espera a Triton a lo mucho 0.15 s, el `INFER_TIMEOUT_S` de su configuración.
+Con el doble, la prueba revisa dos caminos que con un Triton real serían difíciles de provocar: la respuesta normal y el [[timeout]] que se convierte en un 504, el [[codigo-estado|código HTTP]] de «el servidor de atrás no contestó a tiempo». El de C01 espera a Triton a lo mucho 0.15 s, el `INFER_TIMEOUT_S` de su configuración.
+
+:::profundo Cuando el código crea su propio cliente: mock.patch
+Aquí el doble entra como argumento de `clasificar`. Cuando el código crea su cliente por dentro, se usa `mock.patch`, que cambia un nombre por un doble solo mientras dura la prueba y lo regresa al terminar. Tiene una trampa famosa: se cambia el nombre **donde se busca**, no donde se definió. Si `gateway/app.py` hace `from triton import ClienteTriton`, ese `import` copia el nombre `ClienteTriton` dentro de `app.py`. Hay que parchar `gateway.app.ClienteTriton`; parchar `triton.ClienteTriton` cambia el original, no la copia que ya tiene `app.py`, y la prueba sigue usando el real.
+:::
 
 ### El riesgo: un doble que no se parece al real
 
@@ -256,7 +262,7 @@ Que cada pieza funcione sola no quiere decir que funcionen juntas. Las pruebas s
 
 Una [[prueba-integracion|prueba de integración]] (*integration test*) prueba varias piezas de verdad conectadas: el gateway completo, con su preprocesamiento, su validación y su cliente de Triton, pero con el Triton falso en vez del real. Ya no es una función: es el programa entero, que recibe una [[request]] HTTP y devuelve una respuesta.
 
-El gateway de C01 tiene 26 pruebas así (la Ronda las llama «los 26 tests del gateway»). Cada una manda una request y revisa la respuesta: 200 con el `top_k` que se pidió, 415 si el archivo no es una imagen, 413 si es demasiado grande, 503 si Triton está caído, 504 si tarda demasiado, y que existan el *health check* y las métricas. Corren sin GPU; la Ronda dice que, contando crear el entorno e instalar lo necesario, son ≈ 2 minutos.
+El gateway de C01 tiene 26 pruebas así (la Ronda las llama «los 26 tests del gateway»). Cada una manda una request y revisa la respuesta: 200 con el `top_k` que se pidió (las k categorías con más score), 415 si el archivo no es una imagen, 413 si es demasiado grande, 503 si Triton está caído, 504 si tarda demasiado, y que existan el [[health-check|health check]] y las métricas. Corren sin GPU; la Ronda dice que, contando crear el entorno e instalar lo necesario, son ≈ 2 minutos.
 
 :::diagrama pruebas-ci-integracion
 Toca cada caja para ver qué es de verdad y qué es falso. Usa «Recorrer» para seguir una prueba que pasa, una que atrapa un contrato roto y lo que el falso no puede ver.
@@ -264,17 +270,17 @@ Toca cada caja para ver qué es de verdad y qué es falso. Usa «Recorrer» para
 
 ### End-to-end: todo el camino, como un usuario
 
-Una [[prueba-e2e|prueba end-to-end]] (*end-to-end test*, de punta a punta, «e2e») prende **todo**: la app, el backend, el gateway, el Triton de verdad con su GPU y su engine, y manda una foto como lo haría Ana. Revisa lo que vería ella: que la sugerencia llegue, que sea una de las 500 categorías y que tarde lo que debe.
+Una [[prueba-e2e|prueba end-to-end]] (*end-to-end test*, de punta a punta, «e2e») prende **todo**: la app, el backend, el gateway, el Triton de verdad con su GPU y su [[engine-tensorrt|engine]] (el modelo ya convertido para correr rápido en esa GPU), y manda una foto como lo haría Ana. Revisa lo que vería ella: que la sugerencia llegue, que sea una de las 500 categorías y que tarde lo que debe.
 
 Es la única que prueba lo que todas las demás suponen: que las piezas de verdad se hablan bien, en las máquinas de verdad. Por eso no se puede quitar. Pero tiene tres problemas:
 
-- **Es lenta.** Hay que levantar todo antes de la primera request: un pod nuevo de Triton tarda, según la Ronda (M05), de ≈ 4 a 11 minutos en estar listo.
+- **Es lenta.** Hay que levantar todo antes de la primera request: un [[pod]] nuevo de Triton (la unidad con la que Kubernetes corre un contenedor) tarda, según la Ronda (M05), de ≈ 4 a 11 minutos en estar listo.
 - **Es cara.** Necesita una GPU y un ambiente completo prendidos.
 - **Cuando falla, no dice dónde.** «No llegó la sugerencia» puede ser la red, el backend, el gateway, el engine o el disco.
 
 ### La pirámide
 
-Por eso las pruebas se reparten como una pirámide: muchas unitarias abajo, menos de integración en medio y unas pocas end-to-end arriba. La idea se le atribuye a Mike Cohn, que la popularizó en 2009.
+Por eso las pruebas se reparten como una pirámide: muchas unitarias abajo, menos de integración en medio y unas pocas end-to-end arriba. La idea se le atribuye a Mike Cohn, que la popularizó en su libro *Succeeding with Agile*, de 2009; él la dibujó con otros nombres (unidad, servicio e interfaz gráfica), y hoy cada equipo pone los suyos.
 
 :::figura pruebas-ci-piramide
 Abajo, muchas pruebas baratas que corren en cada cambio; arriba, pocas caras que corren antes de producción. Al subir, cada prueba cubre más del sistema, pero tarda más, cuesta más y dice menos de dónde está el error.
@@ -291,20 +297,24 @@ La razón es aritmética. Con tiempos supuestos pero realistas:
 
 La regla de la Ronda (M10) lo dice al revés: un error que se escapa hasta una prueba de arriba, y que una de abajo pudo atrapar, es una prueba que falta abajo.
 
+:::profundo Pirámide, trofeo y cono de helado
+La pirámide es una guía, no una ley, y tiene críticos. Kent C. Dodds propuso un «trofeo», con el piso más ancho en las de integración: en una aplicación que casi solo conecta piezas, las unitarias prueban poco de lo que de verdad falla. Lo que nadie defiende es la forma contraria, el «cono de helado»: casi todo en pruebas end-to-end y a mano, y casi nada abajo.
+:::
+
 :::profundo Pruebas de contrato
 Entre la integración y la end-to-end hay un tipo que en ML importa mucho: la **prueba de contrato** (*contract test*). Revisa que una pieza cumpla lo que promete a la otra, sin prender las dos. El gateway de C01 tiene dos contratos. Hacia sus clientes, el [[esquema-api|esquema]] de su respuesta: los mismos campos, los códigos 400, 413 y 415 y el `model_version` en cada respuesta, que en la Ronda revisa `test_api.py`. Hacia Triton, el nombre, el dtype y el shape de la entrada que dice la configuración del modelo. Si alguien cambia un lado sin el otro, la prueba de contrato falla en CI, no en producción. Es la versión automática del [[versionado-api|versionado de una API]]: un cambio que rompe el contrato no puede pasar callado.
 :::
 
 ## Pruebas de ML: los datos y el modelo {ML tests: data and model}
 
-Todo lo anterior viene del software de siempre. Un sistema con un modelo tiene dos cosas más que se pueden romper sin tocar una línea de código: los datos y el modelo. La Ronda (M09) lo reparte así: la validación de datos mira los datos; el gate mira el modelo; el [[monitoreo]] mira producción.
+Todo lo anterior viene del software de siempre. Un sistema con un modelo tiene dos cosas más que se pueden romper sin tocar una línea de código: los datos y el modelo. La Ronda (M09) lo reparte así: la validación de datos mira los datos; el *gate*, el examen que decide si un modelo nuevo puede salir (lo ves al final de esta sección), mira el modelo; y el [[monitoreo]] mira producción.
 
 ### Pruebas de datos
 
 Una [[prueba-datos|prueba de datos]] (*data test*, también *validación de datos*) revisa un lote de datos antes de usarlo, como se revisa una entrega antes de firmarla. Lo que revisa:
 
 - **El [[esquema-datos|esquema]]:** que estén las columnas que deben, con su tipo.
-- **Rangos y formatos:** que cada `label_id` esté entre 0 y 499 (las 500 categorías) y que cada huella sea un SHA-256 de 64 letras.
+- **Rangos y formatos:** que cada `label_id` (el número de la categoría) esté entre 0 y 499, las 500 categorías, y que la huella de cada foto, su [[hash-criptografico|hash]] SHA-256, tenga sus 64 caracteres hexadecimales (los dígitos 0 a 9 y las letras a a f).
 - **Nulos y repetidos:** que no falten etiquetas y que la misma foto no venga dos veces.
 - **Volumen y frescura:** que haya entre 0.8 y 1.5 veces las filas del [[snapshot]] anterior y que el dato más nuevo tenga menos de 48 horas. La Ronda aclara que esos números son ejemplos: se fijan mirando la historia de tus snapshots.
 
@@ -357,8 +367,8 @@ Cada regla se decide entre dos acciones. **Bloquea** lo que invalida el resultad
 
 Al modelo no se le puede pedir que acierte cada foto: ningún modelo lo hace. Se le prueba de otras tres maneras, y las tres ya las conoces:
 
-1. **Que el preprocesamiento no cambió.** Es la [[prueba-paridad|prueba de paridad]] de la lección de imágenes: 20 fotos de referencia pasan por `preprocess.py` en cada cambio, y su tensor se compara número por número con uno guardado en el repositorio. Con el mismo código y las mismas versiones, la diferencia debe ser exactamente 0. **Esta es la prueba que atrapa el martes**: con los paréntesis quitados, la diferencia en el canal rojo del naranja es de ≈ 3.1.
-2. **Que el modelo que se sirve es el que se evaluó.** La otra paridad: el engine de TensorRT en FP16 contra el modelo de PyTorch en FP32, con ≈ 10,000 fotos del [[golden-set|golden set]]; tienen que coincidir en el top-1 al menos en 99.5 %.
+1. **Que el preprocesamiento no cambió.** Es la [[prueba-paridad|prueba de paridad]] de la lección de imágenes: 20 fotos de referencia pasan por `preprocess.py` en cada cambio, y su tensor se compara número por número con uno guardado en el repositorio. Con el mismo código y las mismas versiones, la diferencia debe ser exactamente 0. **Esta es la prueba que atrapa el martes**: con los paréntesis quitados, el canal rojo del naranja da −1.19 en vez de 1.92, una diferencia de ≈ 3.1.
+2. **Que el modelo que se sirve es el que se evaluó.** La otra paridad: el [[engine-tensorrt|engine de TensorRT]] en FP16 (el modelo convertido para la T4) contra el modelo de PyTorch en FP32, con ≈ 10,000 fotos del [[golden-set|golden set]]; tienen que coincidir en el top-1, la categoría con más score, al menos en 99.5 % de las fotos.
 3. **Que el modelo nuevo no salió peor.** El examen completo, en el golden set, por categoría y por [[slice]], contra el modelo que está en producción.
 
 El tercero tiene nombre: es el [[quality-gate|gate de calidad]] (*quality gate*), una lista de umbrales escrita antes de ver los resultados que decide si un modelo puede reemplazar al actual. Solo el que pasa se guarda en el [[registro-modelos|registro de modelos]] (*model registry*) con su reporte. Los dos se construyen en la estación 4 del Dojo; aquí basta saber que son pruebas como las otras: si fallan, el camino se detiene.
@@ -403,7 +413,7 @@ cache_empieza_vacia → guarda_en_cache : pasan
 guarda_en_cache → cache_empieza_vacia : 1 falla
 ```
 
-¿Por qué importa tanto una prueba que falla de vez en cuando? Porque son muchas, y la falsa alarma de una sola tumba la corrida completa:
+¿Por qué importa tanto una prueba que falla de vez en cuando? Porque son muchas, y la falsa alarma de una sola tumba la corrida completa. Si cada prueba pasa con probabilidad 0.999 y una no depende de otra, la probabilidad de que pasen **todas** es multiplicar 0.999 por sí mismo una vez por prueba, como en la lección de probabilidad: con 300 pruebas, 0.999³⁰⁰.
 
 :::cuenta Un CI con pruebas un poquito flaky
 Pruebas en el repositorio // un supuesto | — | 300
@@ -422,7 +432,7 @@ La Ronda (M10) lo dice en una frase: una prueba flaky enseña al equipo a ignora
 
 1. **Se aparta** (*quarantine*, cuarentena): sale de las pruebas que bloquean, con un aviso y un responsable, para que no tape a las demás.
 2. **Se arregla la causa:** una semilla fija, una carpeta propia con `tmp_path`, un doble en vez de la red, un tiempo medido con margen.
-3. **El reintento automático, con cuidado.** Correrla otra vez si falla baja mucho las falsas alarmas, pero también esconde fallas reales que pasan a veces, como una carrera entre dos hilos. Si se reintenta, se cuenta cuántas veces hizo falta.
+3. **El reintento automático, con cuidado.** Correrla otra vez si falla baja mucho las falsas alarmas, pero también esconde fallas reales que pasan a veces, como una *carrera* (*race condition*) entre dos [[hilo|hilos]]: un error que sale solo cuando uno de los dos llega primero. Si se reintenta, se cuenta cuántas veces hizo falta.
 
 En las pruebas del modelo hay una versión propia de esto. Una prueba que exige que **cada** foto conserve su categoría después de recomprimir el JPEG falla todas las noches: siempre hay fotos en la frontera entre dos categorías. Las pruebas del modelo son estadísticas: un umbral sobre una muestra fija y con semillas fijas.
 
@@ -432,7 +442,7 @@ La Ronda (M10) toma la idea de CheckList (Ribeiro y otros, 2020), escrita para t
 
 ### Cobertura: qué líneas corrieron
 
-La [[cobertura]] (*coverage*, *code coverage*) mide qué parte del código corrió mientras corrían las pruebas. La más común cuenta líneas: si las pruebas pasaron por 45 de 50 líneas, la cobertura es de 90 %. La versión más exigente cuenta **ramas**: en cada `if`, que se haya probado el camino del sí y el del no. En Python se mide con la herramienta `coverage.py`, o con `pytest --cov` si se instala el complemento `pytest-cov`.
+La [[cobertura]] (*coverage*, *code coverage*) mide qué parte del código corrió mientras corrían las pruebas. La más común cuenta líneas: si las pruebas pasaron por 45 de 50 líneas, la cobertura es de 90 %. La versión más exigente cuenta **ramas**: en cada `if`, que se haya probado el camino del sí y el del no. En Python se mide con la herramienta `coverage.py` (con `coverage run --branch` para contar ramas), o con `pytest --cov` si se instala el complemento `pytest-cov` (y `--cov-branch` para las ramas).
 
 Sirve para encontrar lo que **ninguna** prueba toca: un `except` que nunca se probó o una rama para fotos chiquitas. Lo que no dice es si lo que corrió está bien. Este código mide la cobertura a mano con `sys.settrace`, una función de Python que avisa cada vez que se ejecuta una línea:
 
@@ -480,13 +490,13 @@ Con 100 % de cobertura, el `max` del martes sigue ahí. **La cobertura dice qué
 
 ## CI: cada cambio, probado en una máquina limpia {CI: every change tested on a clean machine}
 
-Tener pruebas no sirve si alguien tiene que acordarse de correrlas. La [[ci|integración continua]] (*continuous integration*, CI) es la práctica de juntar los cambios de todos al código principal seguido, varias veces al día, y de correr **todas** las pruebas automáticamente con cada uno, en una máquina limpia.
+Tener pruebas no sirve si alguien tiene que acordarse de correrlas. La [[ci|integración continua]] (*continuous integration*, CI) es la práctica de juntar (con un [[merge]]) los cambios de todos al código principal seguido, varias veces al día, y de correr **todas** las pruebas automáticamente con cada uno, en una máquina limpia.
 
 En la lección de Git viste el [[commit]], la [[rama]] y el [[pull-request|pull request]] (PR): la propuesta de juntar los cambios de una rama con la principal, que otra persona revisa. CI se cuelga de ahí:
 
 :::pasos
 1. Subes tu rama
-Haces `git push` de tu rama con el cambio del martes y abres el PR.
+Con `git push` mandas tu rama, con el cambio del martes, al repositorio compartido (el [[remoto-git|remoto]], en GitHub) y abres el PR.
 2. Una máquina limpia arranca sola
 Un servicio de CI ve el cambio y prende una máquina nueva. Baja el código, instala las [[dependencia|dependencias]] exactas del [[lock-file|lock file]] y corre los pasos que el repositorio le dice.
 3. Corre todo, en orden
@@ -499,7 +509,7 @@ El martes termina aquí: las pruebas salen en rojo en el PR, a los pocos minutos
 
 ### Por qué una máquina limpia
 
-«En mi máquina sí funciona» es la frase que CI existe para borrar. Tu laptop tiene paquetes que instalaste hace meses, archivos que no están en el repositorio y variables que pusiste un día y olvidaste. La máquina de CI arranca vacía cada vez, así que lo que pasa ahí es lo que de verdad está en el repositorio. La máquina que corre el trabajo se llama [[runner-ci|runner]]: puede ser una que renta el servicio o una propia, por ejemplo con GPU.
+«En mi máquina sí funciona» es la frase que CI existe para borrar. Tu laptop tiene paquetes que instalaste hace meses, archivos que no están en el repositorio y [[variable-entorno|variables de entorno]] que pusiste un día y olvidaste. La máquina de CI arranca vacía cada vez, así que lo que pasa ahí es lo que de verdad está en el repositorio. La máquina que corre el trabajo se llama [[runner-ci|runner]]: puede ser una que renta el servicio o una propia, por ejemplo con GPU.
 
 El servicio de CI más usado con GitHub es [[github-actions|GitHub Actions]]: los pasos se escriben en un archivo [[yaml|YAML]] dentro del mismo repositorio. La sección extra que sigue lo abre línea por línea.
 
@@ -507,7 +517,7 @@ El servicio de CI más usado con GitHub es [[github-actions|GitHub Actions]]: lo
 
 Antes de las pruebas, CI corre revisiones que ni siquiera ejecutan el código:
 
-- Un [[linter]] lee el código y marca errores probables y malas prácticas: una variable que no existe, un `import` que no se usa, una comparación con `== None`. En Python, el más usado hoy es **ruff**, que además ordena los `import`.
+- Un [[linter]] lee el código y marca errores probables y malas prácticas: una variable que no existe, un `import` que no se usa, una comparación con `== None`. En Python, hoy el más popular es **ruff**, de la empresa Astral. Está escrito en Rust, un lenguaje que se [[compilar|compila]] y corre mucho más rápido que Python. Revisa un repositorio entero en una fracción de segundo y reemplaza a varias herramientas de antes, como flake8 e isort (con sus reglas de `import`, también los ordena).
 - Un **formateador** (*formatter*) reescribe el código con un estilo fijo: espacios, comillas, largo de línea. **black** fue el estándar; `ruff format` hace casi lo mismo. Así nadie discute de estilo en una revisión, y un PR muestra solo lo que cambió de verdad.
 - Un **revisor de tipos** como **mypy** lee las [[type-hints|anotaciones de tipo]] de la lección de Python y avisa, sin correr nada, si una función que espera un `float` recibe un texto.
 
@@ -515,7 +525,7 @@ Tardan segundos y atrapan muchos errores tontos antes de gastar minutos en las p
 
 ### Lo que va en CI y lo que no
 
-CI tiene que ser rápido: si tarda una hora, la gente junta cambios grandes para esperar menos, y cada cambio grande es más difícil de revisar y de revertir. La Ronda (M10) marca el límite en ML: entrenar el modelo completo en cada PR suena riguroso, pero son horas de GPU por cada cambio de una línea, y el resultado varía con la semilla. El CI de código corre en minutos (unitarias, una prueba chica del entrenamiento y el contrato del gateway). Entrenar es trabajo de otro pipeline, con su propio disparador.
+CI tiene que ser rápido: si tarda una hora, la gente junta cambios grandes para esperar menos, y cada cambio grande es más difícil de revisar y de revertir. La Ronda (M10) marca el límite en ML: entrenar el modelo completo en cada PR suena riguroso, pero son horas de GPU por cada cambio de una línea, y el resultado varía con la semilla. El CI de código corre en minutos (unitarias, una prueba chica del entrenamiento, que corre unos pasos con un puñado de fotos para ver que el código no truena, y el contrato del gateway). Entrenar es trabajo de otro pipeline, con su propio disparador.
 
 ## GitHub Actions por dentro {GitHub Actions, inside} [extra]
 
@@ -528,7 +538,7 @@ Sus partes:
 - **`runs-on`**: en qué tipo de runner corre el job.
 - **`steps`**: los pasos de un job, en orden. Un paso es `run` (un [[comando]] de la terminal) o `uses` (una acción ya hecha, como bajar el código o instalar Python).
 
-Este sería el CI del gateway de C01. Es una ilustración: solo corre dentro de GitHub, y las versiones de las acciones (`@v5`, `@v6`) son las que había al escribir esto. Cada `#` explica su línea.
+Este sería el CI del gateway de C01. Es una ilustración: solo corre dentro de GitHub, y las versiones de las acciones (`@v7`) son las más nuevas en noviembre de 2026. Cada `#` explica su línea.
 
 ```yaml
 # .github/workflows/gateway.yml
@@ -544,64 +554,73 @@ jobs:
   lint:                               # segundos: lo primero que puede fallar
     runs-on: ubuntu-latest            # un runner de GitHub, limpio, con Linux
     steps:
-      - uses: actions/checkout@v5     # baja el código del commit
-      - uses: actions/setup-python@v6
-        with: { python-version: "3.13" }
-      - run: pip install ruff mypy    # en el proyecto real, con versiones fijas
+      - uses: actions/checkout@v7     # baja el código del commit
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: gateway/requirements-dev.txt
+      - run: pip install -r gateway/requirements-dev.txt   # versiones fijas:
+                                      # ruff, mypy, pytest y lo que importa el gateway
       - run: ruff check gateway/      # el linter
       - run: ruff format --check gateway/    # ¿está formateado? (no reescribe)
-      - run: mypy gateway/app         # los tipos
+      - run: mypy gateway/app         # los tipos (necesita lo que el código importa)
 
   pruebas:                            # corre al mismo tiempo que lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with: { python-version: "3.13", cache: pip }
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: gateway/requirements-dev.txt
       - run: pip install -r gateway/requirements-dev.txt
       - run: pytest gateway/tests -q  # las unitarias, las 26 con el Triton falso
                                       # y los tensores de las 20 fotos de referencia
 
   imagen:                             # solo si los dos anteriores salieron con 0
     needs: [lint, pruebas]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'   # y solo en main, no en los PR
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - run: docker build -t classifier-gateway:${{ github.sha }} gateway/
-      - run: ./ci/humo.sh classifier-gateway:${{ github.sha }}   # contra la imagen
+      - uses: actions/checkout@v7
+      - run: docker build -t classifier-gateway:${{ github.sha }} gateway/   # arma la imagen (estación 7)
+      - run: ./ci/humo.sh classifier-gateway:${{ github.sha }}   # un script: prueba de humo contra la imagen
+      # aquí falta subir la imagen a un registro (estación 8): sin eso,
+      # el job de paridad no la encuentra
 
   paridad:                            # en una máquina propia, con la GPU de producción
     needs: imagen
     runs-on: [self-hosted, gpu-t4]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: ./ci/paridad_e2e.sh classifier-gateway:${{ github.sha }}
 ```
 
-Tres cosas para fijarse. `lint` y `pruebas` corren a la vez, cada uno en su máquina, y `imagen` espera a los dos. `${{ github.sha }}` es el identificador del commit, así que la imagen queda nombrada por el código exacto que la produjo. Y el último job no corre en una máquina de GitHub. (Para subir la imagen a un registro falta un paso más; es de la estación 8.)
+Tres cosas para fijarse. `lint` y `pruebas` corren a la vez, cada uno en su máquina, y `imagen` espera a los dos. `${{ github.sha }}` es el identificador del commit, así que la imagen queda nombrada por el código exacto que la produjo. Y el último job no corre en una máquina de GitHub. Por eso la imagen tiene que viajar por un registro: el runner de `imagen` se borra al terminar, y la imagen con él. Ese paso, subirla, falta a propósito; es de la estación 8. (`cache-dependency-path` le dice a `setup-python` de qué archivo sacar la llave de la caché: si no se lo dices, busca un `requirements.txt` o un `pyproject.toml`, y aquí el archivo se llama de otra forma.)
 
 ### Lo que queda de cada corrida
 
 Cuando un job termina, su máquina se borra. Lo que queda es lo que guardaste a propósito:
 
 - **El registro** (*log*) de cada paso, con lo que imprimió: ahí está el `FFFF` de pytest y la línea que falló. El PR enlaza a él.
-- **Los artefactos de la corrida.** La acción `actions/upload-artifact` guarda archivos que se pueden bajar después: el reporte de las pruebas, el de cobertura, un wheel. GitHub los borra solos después de un tiempo (por omisión, 90 días).
+- **Los artefactos de la corrida.** La acción `actions/upload-artifact` guarda archivos que se pueden bajar después: el reporte de las pruebas, el de cobertura, un wheel. GitHub los borra solos después de un tiempo: por omisión, 90 días, y cada paso puede pedir menos con `retention-days`.
 - **La caché.** `cache: pip` guarda los paquetes ya bajados para la siguiente corrida, con una llave que sale del archivo de dependencias: si las dependencias no cambiaron, la instalación tarda segundos.
 
-Dos detalles más que ahorran tiempo. Con `concurrency`, un push nuevo al mismo PR cancela la corrida vieja, que ya no le importa a nadie. Y con `timeout-minutes`, un job que se atora muere a los minutos que digas en lugar de esperar horas: por omisión, GitHub espera hasta 6 horas.
+Dos detalles más que ahorran tiempo. Con `concurrency` y `cancel-in-progress: true`, un push nuevo al mismo PR cancela la corrida vieja, que ya no le importa a nadie (sin esa segunda línea, la nueva solo espera su turno). Y con `timeout-minutes`, un job que se atora muere a los minutos que digas en lugar de esperar horas: por omisión son 360 minutos, 6 horas, que en los runners de GitHub es además el máximo por job.
 
 ### El runner: de GitHub o propio
 
-Un [[runner-ci|runner]] es la máquina que corre un job. Los de GitHub (`ubuntu-latest`) nacen limpios para cada job y se borran al terminar; no hay que mantenerlos, pero no traen GPU ni ven tu red privada. Un runner propio (*self-hosted*) es una máquina tuya con un programa de GitHub instalado que pide trabajo; los jobs lo eligen por sus etiquetas, como `[self-hosted, gpu-t4]`.
+Un [[runner-ci|runner]] es la máquina que corre un job. Los de GitHub (`ubuntu-latest`) nacen limpios para cada job y se borran al terminar; no hay que mantenerlos, pero los estándar no traen GPU ni ven tu red privada. GitHub también renta runners más grandes, incluso uno con una T4, que se pagan por minuto (el de GPU, a US$0.052 el minuto en la lista de precios de GitHub de noviembre de 2026: ≈ US$3.1 la hora, unas 6 veces la máquina de la cuenta de abajo) y solo existen en sus planes de pago para organizaciones (Team y Enterprise). Un runner propio (*self-hosted*) es una máquina tuya con un programa de GitHub instalado que pide trabajo; los jobs lo eligen por sus etiquetas, como `[self-hosted, gpu-t4]`. Ese no nace limpio solo: si no se configura para usarse en un único job y apagarse, como el de C01, cada job hereda lo que dejó el anterior.
 
-C01 necesita uno por una razón que viste en la lección de números: el engine de TensorRT se construye y se prueba en el mismo tipo de GPU en el que se sirve, una T4. La Ronda (M08) agrega una guardia: el job aborta si la GPU del runner no es una T4. Y la máquina se prende solo mientras corre el job:
+C01 usa uno propio por una razón que viste en la lección de números: el engine de TensorRT se construye y se prueba en el mismo tipo de GPU en el que se sirve, una T4. La Ronda (M08) agrega una guardia: el job aborta si la GPU del runner no es una T4. Y la máquina se prende solo mientras corre el job:
 
 :::cuenta El runner con T4: prendido solo cuando trabaja
-Una T4 en la nube // una g4dn, según la Ronda (M10) | — | ≈ US$0.53 por hora
+Una T4 en la nube // una g4dn.xlarge de AWS bajo demanda, en us-east-1, según la Ronda | — | ≈ US$0.526 por hora
 Prendida todo el mes | 0.526 × 730 h | ≈ US$384
 Prendida solo en los jobs // un supuesto: 10 horas de builds y paridades al mes | 0.526 × 10 h | ≈ US$5.3
-= La Ronda (C01) estima el runner efímero en menos de US$10 al mes. Pagar 70 veces más por tenerlo esperando no compra nada.
+= La Ronda (C01) estima el runner efímero en menos de US$10 al mes. Pagar 73 veces más por tenerlo esperando no compra nada.
 :::
 
 Un runner propio tiene un riesgo: si el código de un PR corre en tu máquina, el de un PR malicioso también. Por eso los runners propios se usan en repositorios privados, o solo para la rama principal. Las credenciales que un job necesita (para subir una imagen, por ejemplo) se guardan como secretos del repositorio, nunca en el YAML; la lección de configuración lo explica.
@@ -610,14 +629,16 @@ Un runner propio tiene un riesgo: si el código de un PR corre en tu máquina, e
 
 CI responde «¿este cambio está bien?». Falta la otra mitad: llevarlo a producción sin que nadie copie archivos a mano. Eso es [[cd|CD]], y la sigla quiere decir dos cosas parecidas:
 
-- **Entrega continua** (*continuous delivery*): cada cambio que pasa el CI queda **listo** para producción, probado en un ambiente igual, y desplegarlo es apretar un botón. Una persona decide cuándo.
+- **Entrega continua** (*continuous delivery*): cada cambio que pasa el CI queda **listo** para producción, probado en una copia del sistema parecida a producción, y desplegarlo es apretar un botón. Una persona decide cuándo.
 - **Despliegue continuo** (*continuous deployment*): lo mismo, sin botón. Lo que pasa todas las pruebas llega solo a producción.
+
+La idea de la entrega continua la fijó el libro *Continuous Delivery* de Jez Humble y David Farley, de 2010: el software siempre está en un estado que se puede liberar, y liberarlo es una decisión de negocio, no una hazaña técnica.
 
 :::figura pruebas-ci-entrega
 Las dos CD hacen todo igual hasta staging. La diferencia es el último paso: en la entrega continua lo da una persona; en el despliegue continuo, el pipeline.
 :::
 
-La segunda exige más confianza en las pruebas y en el freno de producción. Pero con esos dos, no es más arriesgada: los cambios llegan chicos y de uno en uno, y uno chico es fácil de revisar y de revertir.
+El despliegue continuo exige más confianza en las pruebas y en el freno de producción. Pero con esos dos, no es más arriesgada: los cambios llegan chicos y de uno en uno, y uno chico es fácil de revisar y de revertir.
 
 ### El artefacto: se construye una vez
 
@@ -631,7 +652,9 @@ Un [[ambiente]] (*environment*) es una copia completa del sistema para un propó
 
 ### La prueba de humo: ¿arrancó?
 
-Una [[prueba-humo|prueba de humo]] (*smoke test*) es lo mínimo para saber que algo arrancó y responde. El nombre viene de la electrónica: lo prendes y, si sale humo, ya no hace falta revisar lo demás. No mide si el modelo es bueno; mide si está vivo y contesta con sentido. En C01, después de cada despliegue: el [[health-check|health check]] (`GET /healthz` responde 200) y una request con una foto conocida, que debe regresar una categoría con un score entre 0 y 1 y su `model_version`.
+Una [[prueba-humo|prueba de humo]] (*smoke test*) es lo mínimo para saber que algo arrancó y responde. El nombre viene de dos oficios. En la electrónica, prendes el aparato y, si sale humo, ya no hace falta revisar lo demás; en la plomería, se llena la tubería de humo antes que de agua, para ver por dónde se fuga. No mide si el modelo es bueno; mide si está vivo y contesta con sentido. En C01, después de cada despliegue: el [[health-check|health check]] (`GET /healthz` responde 200) y una request con una foto conocida, que debe regresar una categoría con un score entre 0 y 1 y su `model_version`.
+
+¿Por qué las dos? Porque `/healthz`, como viste en la lección de balanceo, solo dice que el programa responde; no pregunta por el modelo. Un gateway puede contestar 200 en `/healthz` y no poder clasificar nada. El código de abajo arma en tu máquina un gateway de juguete que contesta como el real y le hace la prueba de humo dos veces: con el modelo cargado y sin él. Fíjate en que, sin modelo, el health check pasa, y es la foto la que falla.
 
 ```python
 import json, threading, urllib.request, urllib.error
@@ -643,23 +666,27 @@ def gateway_falso(modelo_listo):                 # un gateway de juguete, en tu 
         def responder(self, codigo, datos):
             self.send_response(codigo); self.end_headers()
             self.wfile.write(json.dumps(datos).encode())
-        def do_GET(self):                         # GET /healthz
-            self.responder(200 if modelo_listo else 503, {"listo": modelo_listo})
+        def do_GET(self):                         # GET /healthz: solo «estoy vivo»
+            self.responder(200, {"vivo": True})
         def do_POST(self):                        # POST /v1/classify
             self.rfile.read(int(self.headers["Content-Length"]))
+            if not modelo_listo:                  # vivo, pero sin modelo: no puede clasificar
+                return self.responder(503, {"error": "modelo sin cargar"})
             self.responder(200, {"top": [{"categoria": "tenis", "score": 0.91}],
                                  "model_version": "resnet50-2026-10-01"})
     return ThreadingHTTPServer(("127.0.0.1", 0), Atiende)   # puerto 0: el que esté libre
 
 def prueba_de_humo(url):
+    vio = []
     try:
-        urllib.request.urlopen(url + "/healthz", timeout=2)
+        vio.append(f"healthz {urllib.request.urlopen(url + '/healthz', timeout=2).status}")
         r = urllib.request.urlopen(url + "/v1/classify", data=b"\xff\xd8 foto", timeout=2)
         top = json.load(r)["top"][0]
         assert 0 <= top["score"] <= 1, "score fuera de 0–1"
-        return f"pasa: {top['categoria']} ({top['score']})"
+        vio.append(f"pasa: {top['categoria']} ({top['score']})")
     except (urllib.error.URLError, AssertionError) as e:
-        return f"falla: {e}"
+        vio.append(f"falla: {e}")
+    return " · ".join(vio)
 
 for listo in (True, False):
     servidor = gateway_falso(listo)
@@ -670,11 +697,11 @@ for listo in (True, False):
 ```
 
 ```salida
-modelo cargado → pasa: tenis (0.91)
-modelo sin cargar → falla: HTTP Error 503: Service Unavailable
+modelo cargado → healthz 200 · pasa: tenis (0.91)
+modelo sin cargar → healthz 200 · falla: HTTP Error 503: Service Unavailable
 ```
 
-Todo pasa dentro de tu máquina, por [[localhost]]: nada sale a la red. En el pipeline, una falla de humo detiene el despliegue antes de que la versión nueva atienda a nadie.
+Las dos veces, `/healthz` respondió 200. Solo la foto descubrió que el segundo no tenía modelo. Todo pasa dentro de tu máquina, por [[localhost]]: nada sale a la red. En el pipeline, una falla de humo detiene el despliegue antes de que la versión nueva atienda a nadie.
 
 ### Rollback: volver a la versión anterior
 
@@ -682,11 +709,11 @@ Un [[rollback]] es regresar a la versión que funcionaba. Es el seguro de todo l
 
 Funciona solo si se preparó antes:
 
-- **La versión anterior sigue disponible.** Su imagen sigue en el registro, nombrada por su digest y no por una etiqueta que mañana puede apuntar a otra cosa. C01 deja la anterior viva de 24 a 48 horas después de cada release.
-- **Es rápido.** La Ronda pide revertir en ≤ 5 minutos. Si la versión vieja sigue prendida, es mover el tráfico: segundos. Si hay que volver a levantar pods de Triton en nodos con GPU, de ≈ 5 a 20 minutos.
+- **La versión anterior sigue disponible.** Su imagen sigue en el registro, nombrada por su digest y no por una etiqueta que mañana puede apuntar a otra cosa. C01 deja la anterior viva de 24 a 48 horas después de cada *release* (cada versión que sale a producción).
+- **Es rápido.** La Ronda pide revertir en ≤ 5 minutos. Si la versión vieja sigue prendida, es mover el tráfico: segundos. Si hay que volver a levantar pods de Triton en nodos con GPU (las máquinas del clúster que tienen una T4), de ≈ 5 a 20 minutos.
 - **Se ensayó.** Un rollback que nunca se probó no es un plan; se practica en staging.
 
-En Kubernetes, `kubectl rollout undo deployment/gateway` regresa un despliegue a su versión anterior (es una ilustración: necesita un clúster). Para no tener que revertir todo de golpe, las versiones nuevas reciben primero una parte chica del tráfico, el [[canary]], o se preparan completas al lado de la vieja y el tráfico se cambia de una vez, el [[blue-green|blue-green]]. Las dos son de la estación 10 del Dojo.
+En Kubernetes, `kubectl` es el comando de la terminal con el que se le dan órdenes al clúster, y `kubectl rollout undo deployment/gateway` regresa un despliegue a su versión anterior (es una ilustración: necesita un clúster). Para no tener que revertir todo de golpe, las versiones nuevas reciben primero una parte chica del tráfico, el [[canary]], o se preparan completas al lado de la vieja y el tráfico se cambia de una vez, el [[blue-green|blue-green]]. Las dos son de la estación 10 del Dojo.
 
 :::profundo GitOps: desplegar con un pull request
 En la lección de Git viste [[gitops|GitOps]]: el estado que debe tener el clúster vive en un repositorio, y una herramienta como Argo CD o Flux hace que el clúster se parezca a lo que dice ese repositorio. Con GitOps, el último paso de CD no ejecuta comandos contra el clúster: abre un PR que cambia el digest de la imagen en un archivo. Juntarlo es desplegar, y el rollback es revertir ese commit. La ventaja, según la Ronda (M10): la historia de Git dice qué versión servía producción en cada momento y quién la aprobó. Lo que no hace sola es promover de staging a producción ni el canary: eso lo hace tu pipeline, o herramientas como Argo Rollouts.
@@ -711,7 +738,7 @@ Total, con lint y pruebas a la vez | max(1, 2) + 1 + 1 + 3.5 + 5 | ≈ 12.5 min
 Recorre el camino de un cambio que pasa, el del martes que se queda en el PR y uno que pasa todo pero falla en producción.
 :::
 
-Un despliegue malo se mide en requests dañadas: cuántas llegan a la versión nueva antes de que alguien la quite. Con las ≈ 116 requests por segundo del promedio de C01 (≈ 10 millones de fotos al día), 10 minutos para detectar y 5 para revertir:
+Un despliegue malo se mide en requests dañadas: cuántas llegan a la versión nueva antes de que alguien la quite. Y se compara con el [[error-budget|presupuesto de error]] de la lección de probabilidad: si el [[slo|SLO]] promete que 99.9 % de las requests salen bien, el 0.1 % restante es lo que el mes puede fallar, ni una más. Con las ≈ 116 requests por segundo del promedio de C01 (≈ 10 millones de fotos al día), 10 minutos para detectar y 5 para revertir:
 
 :::cuenta Lo que cuesta un despliegue malo
 Requests por segundo // promedio de C01 | 10,000,000 ÷ 86,400 | ≈ 116
@@ -755,7 +782,7 @@ La meta se cumple con pruebas que corren líneas sin revisar nada. El `max` del 
 
 ### 5. Construir otra vez para producción
 
-«Staging pasó; ahora construyo la imagen de producción.» Esa imagen es otra: otro momento, otras versiones de lo que no estaba fijo. O peor: se construyó en una laptop con Apple Silicon y salió para otra [[arquitectura-cpu|arquitectura]].
+«Staging pasó; ahora construyo la imagen de producción.» Esa imagen es otra: otro momento, otras versiones de lo que no estaba fijo. O peor: se construyó en una laptop con Apple Silicon (los chips de Apple, arm64) y salió para otra [[arquitectura-cpu|arquitectura]] que la de los nodos del clúster (amd64).
 
 **Cómo evitarlo:** construir una vez en CI, para la plataforma de los nodos, y promover ese mismo digest por staging y producción.
 
@@ -763,7 +790,7 @@ La meta se cumple con pruebas que corren líneas sin revisar nada. El `max` del 
 
 La versión anterior ya se borró del registro, nadie sabe el comando, o volver tarda 20 minutos porque hay que levantar nodos con GPU.
 
-**Cómo evitarlo:** dejar viva la versión anterior durante el *bake*, el tiempo de observación después de cada release (de 24 a 48 horas en C01), desplegar por digest y ensayar el rollback en staging.
+**Cómo evitarlo:** dejar viva la versión anterior durante el *bake*, el tiempo de observación después de cada *release* (de 24 a 48 horas en C01), desplegar por digest y ensayar el rollback en staging.
 
 ## En la vida real {In real life} [extra]
 
@@ -771,11 +798,11 @@ La versión anterior ya se borró del registro, nadie sabe el comando, o volver 
 
 El cambio de una línea llega en un PR. GitHub Actions corre ruff y mypy (pasan: el código es válido) y pytest. Las pruebas de normalización y la de los tensores de las 20 fotos de referencia fallan, el PR queda en rojo y el cambio nunca llega a `main`. Quien lo escribió ve el error en minutos, en su PR, y no en las métricas de aceptación de la semana siguiente.
 
-Lo que sí se junta sigue el camino de la cuenta de arriba: imagen nombrada por el commit, paridad por el gateway real en el runner con T4, staging, humo y producción. Un modelo nuevo pasa además por el gate y por el registro (estación 4) y, ya servido, por *shadow* (recibe una copia del tráfico sin responderle a nadie) de 1 a 2 días y por un canary de 5 % → 25 % → 100 %, con rollback automático si los errores 5xx pasan de 0.5 % o el [[p99]] de 200 ms (estación 10).
+Lo que sí se junta sigue el camino de la cuenta de arriba: imagen nombrada por el commit, paridad por el gateway real en el runner con T4, staging, humo y producción. Un modelo nuevo pasa además por el gate y por el registro (estación 4) y, ya servido, por *shadow* (recibe una copia del tráfico sin responderle a nadie) de 1 a 2 días y por un canary de 5 % → 25 % → 100 %, con rollback automático si los errores 5xx (los códigos del 500 al 599, las fallas del servidor) pasan de 0.5 % o el [[p99]] de 200 ms (estación 10).
 
 ### C02: rollback sin balanceador, en cada sitio
 
-En C02, cada centro de distribución tiene su propia caja con una GPU que vigila sus cámaras. No hay un balanceador que mueva el tráfico: cada caja tiene que poder volver sola. Guarda cada versión del modelo en su propia carpeta, y un enlace llamado `current` dice cuál corre. Volver es apuntar el enlace a la versión anterior, que sigue en el disco, y reiniciar el contenedor. Si durante una ola de actualizaciones un sitio empeora contra su semana anterior, la ola se detiene y ese sitio vuelve.
+En C02, cada centro de distribución tiene su propia caja con una GPU que vigila sus cámaras. No hay un balanceador que mueva el tráfico: cada caja tiene que poder volver sola. Guarda cada versión del modelo en su propia carpeta, y un enlace llamado `current` (un archivo que solo apunta a otra carpeta) dice cuál corre. Volver es apuntar el enlace a la versión anterior, que sigue en el disco, y reiniciar el contenedor. Si durante una ola de actualizaciones un sitio empeora contra su semana anterior, la ola se detiene y ese sitio vuelve.
 
 ### C10 y los LLMs: un prompt nuevo es un cambio de código
 
@@ -783,17 +810,17 @@ En un sistema con un LLM, cambiar las instrucciones que se le dan al modelo (el 
 
 ### C06: 126 pruebas en ≈ 5 segundos, y pruebas para las alertas
 
-C06 modera contenido: decide qué publicaciones se quedan, se revisan o se bajan. Su código de referencia en la Ronda trae 126 pruebas que corren en ≈ 5 segundos, sin GPU, sin Triton y sin Kafka: los modelos y la cola de mensajes van con dobles. Es la base de la pirámide funcionando: se pueden correr cada vez que guardas un archivo.
+C06 modera contenido: decide qué publicaciones se quedan, se revisan o se bajan. Su código de referencia en la Ronda trae 126 pruebas que corren en ≈ 5 segundos, sin GPU, sin Triton y sin Kafka, su [[cola-mensajes|cola de mensajes]]: los modelos y la cola van con dobles. Es la base de la pirámide funcionando: se pueden correr cada vez que guardas un archivo.
 
-Trae algo más que vale la pena copiar: **pruebas para las alertas**. Las reglas que deciden cuándo despertar a alguien se escriben en un archivo, y `promtool test rules`, de Prometheus, las prueba con series de métricas inventadas: simula hasta 33 días de datos en ≈ 1 a 2 minutos y revisa que la alerta suene cuando debe y se calle cuando no. Una alerta que nunca se probó es como un rollback que nunca se ensayó: no sabes si funciona hasta el peor momento.
+Trae algo más que vale la pena copiar: **pruebas para las alertas**. Las reglas que deciden cuándo despertar a alguien se escriben en un archivo, y `promtool test rules`, de Prometheus (el sistema que junta las métricas y dispara las alertas), las prueba con series de métricas inventadas: simula hasta 33 días de datos en ≈ 1 a 2 minutos y revisa que la alerta suene cuando debe y se calle cuando no. Una alerta que nunca se probó es como un rollback que nunca se ensayó: no sabes si funciona hasta el peor momento.
 
 ### Knight Capital, 2012: el servidor que nadie actualizó
 
-El 1 de agosto de 2012, la casa de bolsa Knight Capital instaló código nuevo a mano en 8 servidores, y en uno se quedó el viejo. Ese servidor reactivó una función abandonada años antes y empezó a mandar órdenes de compra y venta sin parar. En ≈ 45 minutos la empresa perdió ≈ US$440 millones y tuvo que ser rescatada. Un despliegue automático, igual en todas las máquinas y con una forma probada de volver, era justo lo que faltó.
+El 1 de agosto de 2012, la casa de bolsa Knight Capital instaló código nuevo a mano en 8 servidores, y en uno se quedó el viejo. Ese servidor reactivó una función abandonada años antes y empezó a mandar órdenes de compra y venta sin parar. En ≈ 45 minutos la empresa perdió más de US$460 millones, según la SEC (el regulador de la bolsa de Estados Unidos; el primer estimado de la empresa fue de ≈ US$440 millones), y tuvo que ser rescatada por inversionistas. Un despliegue automático, igual en todas las máquinas y con una forma probada de volver, era justo lo que faltó.
 
 ### CrowdStrike, 2024: sin canary
 
-El 19 de julio de 2024, CrowdStrike mandó una actualización de configuración de su programa de seguridad a todas las computadoras con Windows que lo usaban, a la vez. Un error en ese archivo las hizo caer: Microsoft estimó ≈ 8.5 millones de máquinas, con aeropuertos, bancos y hospitales detenidos. Entre lo que la empresa prometió cambiar estaba mandar esas actualizaciones por etapas, empezando por pocas máquinas. Es la cuenta del despliegue malo a escala mundial: el mismo error con el 5 % de las máquinas habría sido un susto.
+El 19 de julio de 2024, CrowdStrike mandó una actualización de configuración de su programa de seguridad a todas las computadoras con Windows que lo usaban y estaban prendidas, en una sola ola. Un error en ese archivo las hizo caer: Microsoft estimó ≈ 8.5 millones de máquinas, con aeropuertos, bancos y hospitales detenidos. Entre lo que la empresa prometió cambiar estaba mandar esas actualizaciones por etapas, empezando por pocas máquinas. Es la cuenta del despliegue malo a escala mundial: el mismo error con el 5 % de las máquinas habría sido un susto.
 
 ## Ejercicios {Exercises}
 
@@ -819,7 +846,7 @@ Intenta cada uno antes de abrir la solución. El de flaky y el del despliegue ma
 - (a) Pasan todas con probabilidad 0.998¹⁵⁰ ≈ 0.741. En rojo: 1 − 0.741 ≈ **25.9 %**, una de cada cuatro.
 - (b) Con un reintento, una prueba solo tumba la corrida si falla dos veces seguidas: 0.002² = 0.000004. Pasan todas con (1 − 0.000004)¹⁵⁰ ≈ 0.9994: en rojo, ≈ **0.06 %**.
 - (c) Que también esconde fallas reales que pasan a veces, como una carrera entre dos hilos. Por eso se cuentan los reintentos y las pruebas flaky se arreglan.
-? [medio] ¿Qué etapa del pipeline de C01 atrapa cada error? (a) El preprocesamiento lee los colores como BGR. (b) Alguien cambió el nombre de la entrada en la configuración de Triton y no en el gateway. (c) La imagen se construyó en una Mac y salió para arm64. (d) Llega un snapshot con 40 % de las fotos repetidas.
+? [medio] ¿Qué etapa del pipeline de C01 atrapa cada error? (a) El preprocesamiento lee los colores como BGR (azul, verde, rojo: al revés de RGB). (b) Alguien cambió el nombre de la entrada en la configuración de Triton y no en el gateway. (c) La imagen se construyó en una Mac y salió para arm64. (d) Llega un snapshot con 40 % de las fotos repetidas.
 - (a) La **paridad del preprocesamiento**: el tensor de las 20 fotos ya no coincide con el guardado (en el canal rojo del naranja, ≈ 2.96 de diferencia, según la lección de imágenes).
 - (b) Las **pruebas de integración**, si el Triton falso revisa el nombre de la entrada; si no, la **paridad de punta a punta** o la **prueba de humo**, que hablan con el Triton real.
 - (c) **Construir en CI** para `linux/amd64` lo evita; si se cuela, el pod no arranca en staging y la **prueba de humo** falla.

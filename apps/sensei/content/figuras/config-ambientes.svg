@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 500" role="img" aria-labelledby="f-config-ambientes-t" class="f-svg" style="max-width:420px">
+<title id="f-config-ambientes-t">Una imagen, tres ambientes. Arriba, la imagen del gateway: la misma en los tres, byte por byte. Debajo, la configuración de cada ambiente. En tu laptop, para programar: Triton en localhost:8000, un timeout de 2.0 segundos y la contraseña en un archivo .env que queda fuera de Git. En staging, para probar: Triton en triton.classifier-staging:8000, un timeout de 0.15 segundos y la contraseña de staging, que llega del gestor de secretos. En producción, con Ana y millones más: Triton en triton.classifier:8000, un timeout de 0.15 segundos y la contraseña de producción, que llega del gestor de secretos como archivo montado. Lo que pasó en staging pasó con el mismo código que llega a producción.</title>
+<rect class="f-card" x="10" y="10" width="340" height="480" rx="16"/>
+<text class="f-l" x="20" y="36" style="font-size:12px">UNA IMAGEN, TRES AMBIENTES</text>
+<rect class="f-dark" x="20" y="50" width="320" height="58" rx="12"/>
+<text class="f-dark-t" x="34" y="74" style="font-size:15px;font-weight:700">Imagen del gateway</text>
+<text class="f-dark-t" x="34" y="95" style="font-size:12px">La misma en los tres, byte por byte.</text>
+<line class="f-flecha" x1="54" y1="110" x2="54" y2="124"/>
+<polygon class="f-punta" points="48,123 60,123 54,133"/>
+<text class="f-s" x="70" y="127" style="font-size:12px">+ la configuración de cada ambiente</text>
+
+<rect class="f-chip" x="20" y="142" width="320" height="96" rx="12"/>
+<circle class="f-b" cx="40" cy="161" r="6"/>
+<text class="f-t" x="52" y="166">Tu laptop</text>
+<text class="f-s" x="130" y="166" style="font-size:12px">para programar</text>
+<text class="f-s" x="34" y="190" style="font-size:12px">Triton</text>
+<text class="f-t" x="108" y="190" style="font:600 12px var(--mono)">localhost:8000</text>
+<text class="f-s" x="34" y="210" style="font-size:12px">Timeout</text>
+<text class="f-t" x="108" y="210" style="font:600 12px var(--mono)">2.0 s</text>
+<text class="f-s" x="34" y="230" style="font-size:12px">Contraseña</text>
+<text class="f-t" x="108" y="230" style="font-size:12px;font-weight:600">un archivo .env, fuera de Git</text>
+
+<rect class="f-chip" x="20" y="248" width="320" height="96" rx="12"/>
+<circle class="f-y" cx="40" cy="267" r="6"/>
+<text class="f-t" x="52" y="272">Staging</text>
+<text class="f-s" x="118" y="272" style="font-size:12px">para probar, sin usuarios</text>
+<text class="f-s" x="34" y="296" style="font-size:12px">Triton</text>
+<text class="f-t" x="108" y="296" style="font:600 12px var(--mono)">triton.classifier-staging:8000</text>
+<text class="f-s" x="34" y="316" style="font-size:12px">Timeout</text>
+<text class="f-t" x="108" y="316" style="font:600 12px var(--mono)">0.15 s</text>
+<text class="f-s" x="34" y="336" style="font-size:12px">Contraseña</text>
+<text class="f-t" x="108" y="336" style="font-size:12px;font-weight:600">la de staging, del gestor</text>
+
+<rect class="f-chip" x="20" y="354" width="320" height="96" rx="12"/>
+<circle class="f-g" cx="40" cy="373" r="6"/>
+<text class="f-t" x="52" y="378">Producción</text>
+<text class="f-s" x="144" y="378" style="font-size:12px">Ana y millones más</text>
+<text class="f-s" x="34" y="402" style="font-size:12px">Triton</text>
+<text class="f-t" x="108" y="402" style="font:600 12px var(--mono)">triton.classifier:8000</text>
+<text class="f-s" x="34" y="422" style="font-size:12px">Timeout</text>
+<text class="f-t" x="108" y="422" style="font:600 12px var(--mono)">0.15 s</text>
+<text class="f-s" x="34" y="442" style="font-size:12px">Contraseña</text>
+<text class="f-t" x="108" y="442" style="font-size:12px;font-weight:600">la de producción, del gestor</text>
+
+<text class="f-s" x="20" y="474" style="font-size:12px">Lo que pasó en staging pasó con este mismo código.</text>
+</svg>

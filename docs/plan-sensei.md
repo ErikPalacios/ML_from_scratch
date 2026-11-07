@@ -84,9 +84,26 @@ Lo nuevo de la fase 6, para repetirlo:
 
 - **Una pasada de consistencia barata al integrar** (sonnet, esfuerzo bajo, solo reporta). Encontró lo que ninguna revisión por lección podía ver: la línea de log de C01 escrita de tres formas, un `request_id` distinto al de la lección de HTTP y una variante de M13 (mandar la llave de la foto en vez de sus bytes) contada como si fuera el diseño de C01.
 
+**Fase 7 (2026-11-06): ≈ 3.5 % por lección, como en la fase 4.** El límite semanal pasó de 71 % a 92 %. El costo se fue casi todo en los escritores:
+
+- **Paquetes:** 1 punto.
+- **Escritores:** 16 puntos. Cada uno generó ≈ 290–380 mil tokens de salida en 3 horas, el triple que en la fase 6. Agotaron la ventana de 5 horas y se cortaron sin entregar su reporte (ni sus dudas de hechos). El texto sí quedó completo, hasta el chequeo final.
+- **Piezas faltantes y revisión mecánica:** 1 punto. Las hizo un agente por lección con esfuerzo medio, sin reescribir la prosa: 14 figuras a mano, 4 diagramas, 4 calculadoras y 2 glosarios.
+- **Pasadas de fondo:** 3.5 puntos, en dos tandas de 3 lecciones para medir entre una y otra. Ninguna se recortó: la de hechos hizo 144 correcciones y la de claridad, 94 cambios.
+- **Consistencia e integración:** menos de 1 punto.
+
+Lo que encareció a los escritores:
+- Lecciones sobre herramientas, con 13 a 15 bloques de código cada una.
+- Un ayudante nuevo que corre los bloques `bash` en un contenedor Linux sin red y el Python con PyTorch 2.15. Valió la pena: las salidas de bash, Git, pytest y PyTorch son reales y deterministas. Pero cada escritor iteró muchas veces sobre ellas.
+
+Para la fase 8:
+- Escritores con esfuerzo «medio», o con un tope de bloques de código.
+- Lanzar los escritores solo al inicio de una ventana nueva, nunca con la ventana a medias.
+- Que cada escritor guarde sus pendientes en disco conforme avanza, no solo en el reporte final.
+
 ## 5. Las fases
 
-Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, y la 5 y la 6 desde el 2026-11-06: 32 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) y las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
+Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, y la 5, la 6 y la 7 desde el 2026-11-06: 38 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) y las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
 
 | Fase | Módulo | Lecciones | Prepara para la Ronda |
 |---|---|---|---|
@@ -96,7 +113,7 @@ Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 
 | 4 ✓ | La computadora por dentro | Programa, proceso e hilo · Memoria, caché y disco · CPU y GPU · El sistema operativo · async, event loop y GIL | M02–M08, M15 |
 | 5 ✓ | La red y la web | IP, puertos y DNS · HTTP · APIs: REST, JSON, gRPC y streaming · Balanceadores y gateways · Timeouts, reintentos e idempotencia · Latencia y throughput | M02, M03, M06, M07, M11, M13–M15 |
 | 6 ✓ | Datos y almacenamiento | Formatos · Bases de datos · Object storage, data lakes y warehouses · Colas y streams · Tiempo, hashes e identificadores | M01, M02, M06, M09, M12, M13, M15 |
-| 7 | Herramientas del oficio | La terminal · Python y sus paquetes · PyTorch para producción · Git · Pruebas y CI/CD · Configuración y secretos | M05–M11, M15 |
+| 7 ✓ | Herramientas del oficio | La terminal · Python y sus paquetes · PyTorch para producción · Git · Pruebas y CI/CD · Configuración y secretos | M05–M11, M15 |
 | 8 | La nube | Qué es la nube · Regiones y zonas · Máquinas, GPUs y precios · Redes en la nube · Servicios gestionados y permisos | M04, M06, M13, M15 |
 | 9 | Seguridad | Cifrado, llaves y certificados · Autenticación y permisos · Datos personales y la ley · Ataques y cadena de suministro | M05, M07, M09, M15 |
 | 10 | Estaciones · Datos | Estación 1 y 2 de C01 | M09, M10 |

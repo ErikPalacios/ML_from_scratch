@@ -5,7 +5,7 @@
    "termino": "Git",
    "en": "Git",
    "corto": "Un programa que guarda la historia de un proyecto: cada versión es una foto completa de sus archivos, con autor, fecha, mensaje y un id que es el hash de todo su contenido. Es distribuido: cada copia trae la historia entera.",
-   "largo": "Lo escribió Linus Torvalds en 2005 para el código de Linux, y hoy es el sistema de versiones más usado. Guarda fotos, no diferencias: si un archivo no cambió, la foto nueva apunta al mismo contenido de antes. Cada versión es un [[commit]], cada línea de trabajo es una [[rama]] y la carpeta con su historia es un [[repositorio]]. Como cada persona tiene la historia completa, puede ver versiones viejas y guardar nuevas sin internet; el servidor (GitHub, GitLab) es una copia más, la que el equipo usa para juntar su trabajo.",
+   "largo": "Lo escribió Linus Torvalds en abril de 2005 para el código de Linux, y hoy es el sistema de versiones más usado. Guarda fotos, no diferencias: si un archivo no cambió, la foto nueva apunta al mismo contenido de antes. Cada versión es un [[commit]], cada línea de trabajo es una [[rama]] y la carpeta con su historia es un [[repositorio]]. Como cada persona tiene la historia completa, puede ver versiones viejas y guardar nuevas sin internet; el servidor (GitHub, GitLab) es una copia más, la que el equipo usa para juntar su trabajo.",
    "analogia": "Un álbum donde cada foto es el proyecto entero y lleva escrita la foto anterior. Se rompe en que las fotos no se pueden retocar sin que cambie su nombre y el de todas las que vienen después.",
    "ejemplo": "En C01, la imagen del gateway se llama classifier-gateway:3f9c2ab: con `git show 3f9c2ab` se ve el código exacto que corre en producción.",
    "ver": [
@@ -20,7 +20,7 @@
    "id": "repositorio",
    "termino": "Repositorio",
    "en": "repository · repo",
-   "corto": "La carpeta de un proyecto que Git vigila, con una carpeta oculta `.git` donde vive toda su historia. Un cambio pasa por tres lugares: el área de trabajo, el staging y el historial.",
+   "corto": "La carpeta de un proyecto que Git vigila, con una carpeta oculta `.git` donde vive toda su historia. Un cambio pasa por tres lugares: el área de trabajo (lo que editas), el staging (lo que va a entrar en la próxima versión guardada) y el historial (las versiones ya guardadas).",
    "largo": "El **área de trabajo** (*working tree*) son los archivos que ves y editas. El **staging** (*staging area* o *index*) es lo que va a entrar en la próxima foto; se llena con `git add`. El **historial** son los commits ya guardados en `.git`; se agrega uno con `git commit`. `git status --short` dice con dos letras dónde está cada archivo: `??` sin seguir, `A` o `M` en la primera columna si está en el staging, `M` en la segunda si cambió y no está en el staging. Si borras `.git`, los archivos se quedan pero la historia desaparece. Un repositorio puede tener copias en otros lugares: los [[remoto-git|remotos]].",
    "ejemplo": "`git init -q gateway` crea la carpeta gateway con su .git; después de `git add config.py` y `git commit`, `git status --short` ya no imprime nada: el árbol está limpio.",
    "ver": [
@@ -35,8 +35,8 @@
    "id": "commit",
    "termino": "Commit",
    "en": "commit",
-   "corto": "Una foto guardada del proyecto: su árbol de archivos, el id del commit padre, el autor, la fecha y un mensaje. Su id es el hash SHA-1 de todo eso, así que cambiar cualquier cosa del pasado cambia todos los ids siguientes.",
-   "largo": "Git calcula el id con un [[hash-criptografico|hash criptográfico]] (SHA-1, 40 caracteres hexadecimales) del texto del commit. Como ese texto incluye el id del padre, cada commit amarra toda la historia anterior: nadie puede cambiar el código de un commit y conservar su id. Se suele usar el **hash corto**, los primeros 7 caracteres (más si otro objeto empieza igual). El mismo contenido con el mismo autor, fecha, mensaje y padre da el mismo id en cualquier máquina. No es el COMMIT de una [[transaccion|transacción]] de base de datos ni el commit de un [[offset]] en una cola: los tres dicen «esto queda firme», pero son cosas distintas.",
+   "corto": "Una foto guardada del proyecto: la lista de sus archivos (el árbol), el id del commit anterior (su padre), el autor, la fecha y un mensaje. Su id es el hash (SHA-1, por omisión) de todo eso, así que cambiar cualquier cosa del pasado cambia todos los ids siguientes.",
+   "largo": "Git calcula el id con un [[hash-criptografico|hash criptográfico]] (SHA-1 por omisión, que se escribe con 40 caracteres hexadecimales) del texto del commit. Como ese texto incluye el id del padre, cada commit amarra toda la historia anterior: nadie puede cambiar el código de un commit y conservar su id. Se suele usar el **hash corto**, los primeros 7 caracteres (más si otro objeto empieza igual). El mismo contenido con el mismo autor, fecha, mensaje y padre da el mismo id en cualquier máquina. No es el COMMIT de una [[transaccion|transacción]] de base de datos ni el commit de un [[offset]] en una cola: los tres dicen «esto queda firme», pero son cosas distintas.",
    "ejemplo": "El commit «Sube el timeout a 0.20 s» son 213 bytes de texto; Git calcula el SHA-1 de `commit 213`, un byte en cero y esos bytes, y le salen los 40 caracteres que empiezan con 139f652. Con un carácter menos en el mensaje, el id es otro: c27a81e.",
    "ver": [
     "git",
@@ -51,7 +51,7 @@
    "termino": "Rama",
    "en": "branch",
    "corto": "Un nombre que apunta a un commit y avanza solo con cada commit nuevo que haces en ella. Crearla es escribir un archivo de 41 bytes: no copia ningún archivo del proyecto.",
-   "largo": "Git guarda cada rama en `.git/refs/heads/` con el id completo de su commit (40 caracteres y un salto de línea). `main` es la rama que Git crea al empezar. **HEAD** dice en qué rama estás: es el archivo `.git/HEAD`, que normalmente contiene `ref: refs/heads/main`. `git switch -c nombre` crea una rama y te pasa a ella. Con las ramas, cinco personas trabajan a la vez sin pisarse: cada una en la suya, y al final se unen con un [[merge]] o se ponen al día con un [[rebase]].",
+   "largo": "Git guarda cada rama en `.git/refs/heads/` con el id completo de su commit (40 caracteres y un salto de línea). `main` es el nombre que casi todos usan para la primera rama (GitHub, desde 2020); Git 2.x todavía la llama `master` si no configuras `init.defaultBranch main`. **HEAD** dice en qué rama estás: es el archivo `.git/HEAD`, que normalmente contiene `ref: refs/heads/main`. `git switch -c nombre` crea una rama y te pasa a ella. Con las ramas, cinco personas trabajan a la vez sin pisarse: cada una en la suya, y al final se unen con un [[merge]] o se ponen al día con un [[rebase]].",
    "analogia": "Un separador de libro que se mueve solo a la página que acabas de escribir. Se rompe en que un libro tiene una sola historia, y en Git cada separador puede seguir su propia continuación.",
    "ejemplo": "Cien ramas ocupan 100 × 41 = 4,100 bytes, unos 4 KB, aunque el proyecto pese 300 MB.",
    "ver": [
@@ -81,7 +81,7 @@
    "id": "conflicto-merge",
    "termino": "Conflicto de merge",
    "en": "merge conflict",
-   "corto": "Lo que pasa cuando dos ramas cambiaron las mismas líneas del mismo archivo de manera distinta: Git no adivina cuál quieres, marca el pedazo en el archivo y se detiene para que decidas.",
+   "corto": "Lo que pasa cuando dos ramas cambiaron las mismas líneas del mismo archivo (o líneas pegadas) de manera distinta: Git no adivina cuál quieres, marca el pedazo en el archivo y se detiene para que decidas.",
    "largo": "El pedazo en disputa queda entre marcadores: de `<<<<<<< HEAD` a `=======` está tu versión, y de ahí a `>>>>>>> otra-rama`, la de la rama que estás uniendo. `git status --short` muestra el archivo con `UU`. Se resuelve editando el archivo (tu versión, la otra o una tercera), borrando los marcadores, con `git add` y con `git commit`; `git merge --abort` deshace el intento. Lo difícil suele ser la decisión, no Git. Se evitan con ramas cortas, cambios chicos y trayendo seguido lo nuevo de main.",
    "ejemplo": "Luis sube INFER_TIMEOUT_S a 0.25 en su rama y Ana lo baja a 0.10 en main: al unir, config.py queda con las dos líneas entre marcadores, y lo resuelven dejando 0.15.",
    "ver": [
@@ -111,7 +111,7 @@
    "termino": "Remoto",
    "en": "remote · origin",
    "corto": "Otra copia de tu repositorio, en otro lugar, con la que intercambias commits. Por costumbre, la principal se llama origin, y casi siempre vive en GitHub o en GitLab.",
-   "largo": "`git clone` baja un repositorio con toda su historia y apunta origin a su dirección. `git fetch` baja lo nuevo sin tocar tus ramas (queda en `origin/main`); `git pull` hace un fetch y lo une a tu rama, con merge o con `--rebase`; `git push` sube tus commits. Push solo mueve la rama del remoto hacia adelante: si alguien subió algo que no tienes, se rechaza, porque si entrara borraría su trabajo. `--force` sobrescribe de todos modos; `--force-with-lease` se niega si el remoto cambió desde la última vez que lo viste. Los equipos protegen main para que nadie la fuerce.",
+   "largo": "`git clone` baja un repositorio con toda su historia y apunta origin a su dirección. `git fetch` baja lo nuevo sin tocar tus ramas (queda en `origin/main`); `git pull` hace un fetch y lo une a tu rama (si tu rama también tiene commits propios, el Git de hoy pide que elijas `--rebase` o `--no-rebase`); `git push` sube tus commits. Push solo mueve la rama del remoto hacia adelante: si alguien subió algo que no tienes, se rechaza, porque si entrara borraría su trabajo. `--force` sobrescribe de todos modos; `--force-with-lease` se niega si el remoto cambió desde la última vez que lo viste. Los equipos protegen main para que nadie la fuerce.",
    "ejemplo": "Luis sube primero; el push de Ana se rechaza con «! [rejected] main -> main (fetch first)». Ana corre `git pull --rebase origin main`, su commit queda encima del de Luis y el segundo push entra.",
    "ver": [
     "repositorio",
@@ -125,7 +125,7 @@
    "id": "pull-request",
    "termino": "Pull request",
    "en": "pull request · PR · merge request",
-   "corto": "Una petición, en GitHub, para unir tu rama a main: muestra el diff, los commits, la conversación y el resultado de las pruebas, y se une con un botón cuando se aprueba. En GitLab se llama merge request.",
+   "corto": "Una petición, en GitHub, para unir tu rama a main: muestra el diff (las líneas que salen y las que entran), los commits, la conversación y el resultado de las pruebas, y se une con un botón cuando se aprueba. En GitLab se llama merge request.",
    "largo": "En un equipo casi nadie sube directo a main: cada cambio va en su rama, la rama se sube al [[remoto-git|remoto]] y se abre un PR. Ahí ocurre la [[revision-codigo|revisión de código]] y corren las pruebas automáticas de [[ci]]. Si piden cambios, los commits nuevos en la misma rama actualizan el PR. Una regla de protección puede exigir PR, al menos una aprobación y CI en verde antes de unir. Los PRs chicos se revisan mejor y se revierten más fácil. Con [[gitops|GitOps]], desplegar y hacer rollback también son PRs.",
    "ejemplo": "En C01, un PR que cambia el timeout del gateway corre los 26 tests del gateway y espera la aprobación de otra persona antes de entrar a main.",
    "ver": [
@@ -154,9 +154,9 @@
    "id": "gitignore",
    "termino": ".gitignore",
    "en": ".gitignore",
-   "corto": "Un archivo con patrones de lo que Git debe hacer como que no existe: el entorno virtual, los archivos que Python genera, el .env, los pesos y los datos. Ignorar no saca lo que ya entró a un commit.",
+   "corto": "Un archivo con patrones de lo que Git debe hacer como que no existe: el entorno virtual, los archivos que Python genera, el archivo .env (ajustes, a veces con contraseñas), los pesos y los datos. Ignorar no saca lo que ya entró a un commit.",
    "largo": "Cada línea es un patrón: `.venv/` ignora una carpeta, `*.pyc` todo lo que termine así, `.env` un archivo. `git check-ignore -v ruta` dice qué línea ignora a un archivo. `.gitignore` solo actúa sobre archivos que Git todavía no sigue: si uno ya entró, hay que sacarlo con `git rm --cached` (lo quita del repositorio y lo deja en tu carpeta), y aun así sigue en los commits viejos. Por eso un [[secreto]] que llegó a un commit se da por filtrado. El [[lock-file|lock file]] sí se versiona, porque con él se reconstruye el entorno.",
-   "ejemplo": "Con `.venv/`, `__pycache__/`, `.env`, `pesos/` y `datos/` en .gitignore, de ocho archivos `git status` solo muestra dos: .gitignore y app.py.",
+   "ejemplo": "Con `.venv/`, `__pycache__/`, `.env`, `pesos/` y `datos/` en .gitignore, de siete archivos `git status` solo muestra dos: .gitignore y app.py.",
    "ver": [
     "repositorio",
     "git-lfs",
@@ -184,7 +184,7 @@
    "termino": "Git LFS",
    "en": "Git Large File Storage",
    "corto": "Una extensión de Git para archivos grandes: el repositorio guarda un puntero de texto con el hash SHA-256 y el tamaño del archivo, y el archivo de verdad vive en un servidor aparte.",
-   "largo": "Sin LFS, Git guarda cada versión completa de cada archivo y cada clone baja toda la historia: 24 versiones de unos pesos de 98 MB son ≈ 2.35 GB para siempre. Con LFS, el historial guarda 24 punteros de ≈ 130 bytes y cada clone baja solo la versión que pide. Se activa con `git lfs install` y `git lfs track \"*.pt\"`, que escribe la regla en `.gitattributes`. GitHub avisa con archivos de más de 50 MiB y rechaza los de más de 100 MiB sin LFS. En ML, los datos y los pesos suelen ir mejor en [[object-storage|object storage]], con su versión, y en Git solo la referencia: lo resuelven el [[versionado-datos|versionado de datos]] y herramientas como DVC.",
+   "largo": "Sin LFS, Git guarda cada versión completa de cada archivo y cada clone baja toda la historia: 24 versiones de unos pesos de 98 MB son ≈ 2.35 GB para siempre. Con LFS, el historial guarda 24 punteros de ≈ 130 bytes y cada clone baja solo la versión que pide; el servidor de LFS sí guarda las 24 versiones, y GitHub las cuenta contra una cuota (10 GiB de almacenamiento y 10 GiB de descargas al mes en el plan gratuito, con archivos de hasta 2 GB, en noviembre de 2026). Se activa con `git lfs install` y `git lfs track \"*.pt\"`, que escribe la regla en `.gitattributes`. GitHub avisa con archivos de más de 50 MiB y rechaza los de más de 100 MiB sin LFS (según su documentación, en noviembre de 2026). En ML, los datos y los pesos suelen ir mejor en [[object-storage|object storage]], con su versión, y en Git solo la referencia: lo resuelven el [[versionado-datos|versionado de datos]] y herramientas como DVC.",
    "ejemplo": "El puntero de un archivo de 1 MiB son tres líneas: version, oid sha256:… y size 1048576, en total 132 bytes.",
    "ver": [
     "gitignore",
@@ -227,8 +227,8 @@
    "id": "gitops",
    "termino": "GitOps",
    "en": "GitOps",
-   "corto": "Manejar un clúster con un repositorio: el estado deseado (qué imagen, cuántas copias) vive en Git, y un programa como Argo CD o Flux compara el clúster con el repositorio y aplica la diferencia. Desplegar es un PR y el rollback es un git revert.",
-   "largo": "Los archivos del repositorio son los manifests de Kubernetes, el sistema de [[orquestacion|orquestación]] que presenta la estación 9. Como todo pasa por Git, la historia del repositorio es la historia de producción: quién desplegó qué, cuándo y quién lo aprobó. Un cambio hecho a mano en el clúster deja a Git describiendo otra cosa (*configuration drift*), y con la sincronización automática Argo CD lo revierte. El rollback a la versión de ayer es un revert, y la imagen de ayer ya existe: no se reconstruye.",
+   "corto": "Manejar un clúster (el grupo de máquinas donde corren los programas) con un repositorio de Git: el estado deseado (qué imagen, cuántas copias) vive en Git, y un programa como Argo CD o Flux compara el clúster con el repositorio y aplica la diferencia. Desplegar es un PR y el rollback es un git revert.",
+   "largo": "Los archivos del repositorio son los manifests de Kubernetes, el sistema de [[orquestacion|orquestación]] que presenta la estación 9. Como todo pasa por Git, la historia del repositorio es la historia de producción: quién desplegó qué, cuándo y quién lo aprobó. Un cambio hecho a mano en el clúster deja a Git describiendo otra cosa (*configuration drift*), y con la sincronización automática más la autorreparación (*self-heal*, apagada por omisión) Argo CD lo revierte solo. El nombre lo puso Weaveworks en 2017; Argo CD y Flux son proyectos de la CNCF. El rollback a la versión de ayer es un revert, y la imagen de ayer ya existe: no se reconstruye.",
    "ejemplo": "El repositorio de despliegue de C01 dice image: classifier-gateway:8d41e07; la versión truena, un `git revert` lo regresa a 3f9c2ab y Argo CD vuelve el clúster a la imagen de ayer.",
    "ver": [
     "pull-request",

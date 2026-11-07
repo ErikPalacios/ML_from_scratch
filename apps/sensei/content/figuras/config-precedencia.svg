@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 500" role="img" aria-labelledby="f-config-precedencia-t" class="f-svg" style="max-width:420px">
+<title id="f-config-precedencia-t">Quién gana, valor por valor, en staging, cuando alguien corre el gateway con --infer-timeout-s 0.5. Una tabla con cuatro filas, de la que más manda arriba a la que menos manda abajo: el flag de esta corrida, la variable de entorno puesta con export, el archivo de staging y el respaldo del código. Y tres columnas: el timeout, cuántas fotos decodifica a la vez y la dirección de Triton. Cada columna se busca de arriba hacia abajo y gana el primero que aparece. Timeout: el flag dice 0.5 y gana; el entorno dice 0.25, el archivo 0.15 y el código 1.0, pero los pisa el flag. Decodes: solo el código lo trae, con 2, y gana. Triton: el flag y el entorno no lo traen; el archivo dice triton.classifier-staging:8000 y gana sobre localhost:8000 del código. Al final, lo que usa el gateway: infer_timeout_s = 0.5 del flag, preprocess_concurrency = 2 del código y triton_url = triton.classifier-staging:8000 del archivo.</title>
+<rect class="f-card" x="10" y="10" width="340" height="480" rx="16"/>
+<text class="f-l" x="26" y="36" style="font-size:12px">QUIÉN GANA, VALOR POR VALOR</text>
+<text class="f-s" x="26" y="56" style="font-size:12px">En staging, con --infer-timeout-s 0.5 en la corrida.</text>
+
+<text class="f-t" x="141" y="88" text-anchor="middle" style="font-size:13px">Timeout</text>
+<text class="f-t" x="219" y="88" text-anchor="middle" style="font-size:13px">Decodes</text>
+<text class="f-t" x="297" y="88" text-anchor="middle" style="font-size:13px">Triton</text>
+
+<line class="f-flecha" x1="30" y1="104" x2="30" y2="278"/>
+<polygon class="f-punta" points="24,277 36,277 30,287"/>
+
+<text class="f-t" x="40" y="116" style="font-size:13px">Flag</text>
+<text class="f-s" x="40" y="132" style="font-size:12px">esta vez</text>
+<rect class="f-g" x="104" y="100" width="74" height="36" rx="8"/>
+<text class="f-pill-t" x="141" y="123" text-anchor="middle" style="font:800 13px var(--mono)">0.5</text>
+<rect class="f-linea" x="182" y="100" width="74" height="36" rx="8"/>
+<text class="f-s" x="219" y="123" text-anchor="middle">—</text>
+<rect class="f-linea" x="260" y="100" width="74" height="36" rx="8"/>
+<text class="f-s" x="297" y="123" text-anchor="middle">—</text>
+
+<text class="f-t" x="40" y="160" style="font-size:13px">Entorno</text>
+<text class="f-s" x="40" y="176" style="font-size:12px">export</text>
+<rect class="f-off" x="104" y="144" width="74" height="36" rx="8"/>
+<text class="f-s" x="141" y="167" text-anchor="middle" style="font:12px var(--mono)">0.25</text>
+<rect class="f-linea" x="182" y="144" width="74" height="36" rx="8"/>
+<text class="f-s" x="219" y="167" text-anchor="middle">—</text>
+<rect class="f-linea" x="260" y="144" width="74" height="36" rx="8"/>
+<text class="f-s" x="297" y="167" text-anchor="middle">—</text>
+
+<text class="f-t" x="40" y="204" style="font-size:13px">Archivo</text>
+<text class="f-s" x="40" y="220" style="font-size:12px">staging</text>
+<rect class="f-off" x="104" y="188" width="74" height="36" rx="8"/>
+<text class="f-s" x="141" y="211" text-anchor="middle" style="font:12px var(--mono)">0.15</text>
+<rect class="f-linea" x="182" y="188" width="74" height="36" rx="8"/>
+<text class="f-s" x="219" y="211" text-anchor="middle">—</text>
+<rect class="f-g" x="260" y="188" width="74" height="36" rx="8"/>
+<text class="f-pill-t" x="297" y="211" text-anchor="middle" style="font:800 12px var(--mono)">staging</text>
+
+<text class="f-t" x="40" y="248" style="font-size:13px">Código</text>
+<text class="f-s" x="40" y="264" style="font-size:12px">respaldo</text>
+<rect class="f-off" x="104" y="232" width="74" height="36" rx="8"/>
+<text class="f-s" x="141" y="255" text-anchor="middle" style="font:12px var(--mono)">1.0</text>
+<rect class="f-g" x="182" y="232" width="74" height="36" rx="8"/>
+<text class="f-pill-t" x="219" y="255" text-anchor="middle" style="font:800 13px var(--mono)">2</text>
+<rect class="f-off" x="260" y="232" width="74" height="36" rx="8"/>
+<text class="f-s" x="297" y="255" text-anchor="middle" style="font:12px var(--mono)">localhost</text>
+
+<rect class="f-g" x="26" y="300" width="16" height="16" rx="4"/>
+<text class="f-s" x="50" y="313" style="font-size:12px">gana: el primero que aparece desde arriba</text>
+<rect class="f-off" x="26" y="324" width="16" height="16" rx="4"/>
+<text class="f-s" x="50" y="337" style="font-size:12px">está, pero lo pisa uno de más arriba</text>
+<rect class="f-linea" x="26" y="348" width="16" height="16" rx="4"/>
+<text class="f-s" x="50" y="361" style="font-size:12px">no lo trae: se sigue buscando abajo</text>
+
+<rect class="f-chip" x="26" y="378" width="308" height="96" rx="12"/>
+<text class="f-l" x="40" y="400" style="font-size:12px">LO QUE USA EL GATEWAY</text>
+<text class="f-t" x="40" y="420" style="font:600 12px var(--mono)">infer_timeout_s = 0.5  ← flag</text>
+<text class="f-t" x="40" y="438" style="font:600 12px var(--mono)">preprocess_concurrency = 2  ← código</text>
+<text class="f-t" x="40" y="456" style="font:600 12px var(--mono)">triton_url  ← archivo</text>
+<text class="f-t" x="56" y="470" style="font:600 12px var(--mono)">= triton.classifier-staging:8000</text>
+</svg>

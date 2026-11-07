@@ -30,7 +30,7 @@
     { "from": "rama", "to": "pr", "kind": "neutral", "fromSide": "r", "toSide": "l", "label": "abre" },
     { "from": "pr", "to": "rev", "kind": "neutral", "fromSide": "r", "toSide": "l" },
     { "from": "pr", "to": "ci", "kind": "neutral", "fromSide": "r", "toSide": "l" },
-    { "from": "rev", "to": "luis", "kind": "monitor", "dashed": true, "fromSide": "t", "toSide": "r", "via": [[66, 8]], "label": "pide cambios" },
+    { "from": "rev", "to": "luis", "kind": "neutral", "dashed": true, "fromSide": "t", "toSide": "r", "via": [[66, 8]], "label": "pide cambios" },
     { "from": "rev", "to": "main", "kind": "neutral", "fromSide": "r", "toSide": "r", "via": [[77.5, 21], [77.5, 45]] },
     { "from": "ci", "to": "main", "kind": "neutral", "fromSide": "b", "toSide": "t", "label": "merge" },
     { "from": "main", "to": "img", "kind": "offline", "fromSide": "l", "toSide": "r", "label": "construye" },

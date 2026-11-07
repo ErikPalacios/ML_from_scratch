@@ -24,7 +24,7 @@
     { "id": "env", "label": "Variables de entorno", "sub": "fijas desde el arranque", "kind": "store", "x": 29, "y": 37, "w": 18, "h": 8,
       "note": "Se copian al crear el contenedor. Si el ConfigMap cambia, el proceso que ya corre **no se entera**: hay que reiniciar el pod." },
     { "id": "archivo", "label": "Archivo montado", "sub": "/etc/gateway/db", "kind": "store", "x": 29, "y": 49, "w": 18, "h": 8,
-      "note": "La contraseña llega como archivo de solo lectura (modo 0400). No se hereda a los hijos, no sale en el entorno y se actualiza solo cuando cambia el Secret." },
+      "note": "La contraseña llega como archivo de solo lectura (modo 0440, con el grupo del pod: el gateway no corre como root). No se hereda a los hijos, no sale en el entorno y se actualiza solo cuando cambia el Secret." },
     { "id": "gateway", "label": "Gateway", "sub": "valida y arranca", "kind": "service", "x": 1, "y": 42, "w": 18, "h": 9,
       "note": "El proceso lee las variables y el archivo, **valida todo al arrancar** y solo entonces acepta requests. Si algo falta, termina con código 1 y el pod nunca queda listo." }
   ],

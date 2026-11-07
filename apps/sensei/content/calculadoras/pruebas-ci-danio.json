@@ -5,15 +5,16 @@
     { "id": "t", "label": "Parte del tráfico en la versión nueva (100 = todo · 5 = canary)", "min": 1, "max": 100, "paso": 1, "valor": 100, "unidad": "%" },
     { "id": "d", "label": "Minutos para detectar", "min": 0, "max": 120, "paso": 1, "valor": 10, "unidad": "min" },
     { "id": "v", "label": "Minutos para revertir", "min": 0, "max": 60, "paso": 0.5, "valor": 5, "unidad": "min" },
+    { "id": "m", "label": "Requests del mes, en millones (300 = C01: 10 M al día × 30)", "min": 1, "max": 10000, "paso": 1, "valor": 300, "tipo": "numero" },
     { "id": "s", "label": "SLO, en %", "min": 90, "max": 99.99, "paso": 0.01, "valor": 99.9, "unidad": "%" }
   ],
   "calculos": [
     { "id": "malas", "formula": "q * (t / 100) * (d + v) * 60" },
-    { "id": "presupuesto", "formula": "q * 86400 * 30 * (1 - s / 100)" }
+    { "id": "presupuesto", "formula": "m * 1000000 * (1 - s / 100)" }
   ],
   "salidas": [
     { "label": "Requests dañadas", "formula": "malas", "formato": "int" },
-    { "label": "Presupuesto de error del mes", "formula": "presupuesto", "formato": "int", "nota": "las que el SLO deja fallar en 30 días" },
+    { "label": "Presupuesto de error del mes", "formula": "presupuesto", "formato": "int", "nota": "las que el SLO deja fallar en el mes; sale del tráfico de todo el mes, no del de este momento" },
     { "label": "Parte del presupuesto que se come este despliegue", "formula": "malas / max(presupuesto, 1e-9)", "formato": "pct", "decimales": 1, "barra": true, "nota": "más de 100 %: un despliegue se comió el mes" }
   ],
-  "nota": "Con 116 por segundo, el presupuesto da ≈ 300,700 (el curso redondea a 300,000). Fíjate en qué baja más el daño: dividir el tiempo entre 3, o mandar solo el 5 % del tráfico." }
+  "nota": "El presupuesto no cambia si subes las requests por segundo: el pico de 500 dura unos minutos, y el presupuesto se cuenta sobre todo el mes. Con 116 por segundo y 15 minutos salen 104,400 dañadas (el texto redondea a ≈ 104,000). Fíjate en qué baja más el daño: dividir el tiempo entre 3, o mandar solo el 5 % del tráfico." }
