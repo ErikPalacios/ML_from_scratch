@@ -1,5 +1,5 @@
 {
-  "titulo": "Los tipos de dato en el camino de C01",
+  "titulo": "Los tipos de dato en el camino de Alba",
   "width": 78,
   "height": 48,
   "lanes": [
@@ -18,7 +18,7 @@
       "note": "TensorRT convierte el modelo para la GPU exacta donde va a correr, la T4, y en [[fp16|FP16]]: ≈ 49 MB de pesos. Se construye en CI con `trtexec --fp16` y viaja horneado en la imagen de Triton." },
     { "id": "int8", "label": "INT8 en CPU", "sub": "por medir · con calibración", "kind": "job",
       "x": 29.5, "y": 18, "w": 19, "h": 8,
-      "note": "Una opción que la Ronda deja por medir: la ResNet-50 en [[int8|INT8]] en CPU, que podría costar menos que las dos T4 si no pierde más de 0.5 puntos. Pide calibrar con fotos reales y pasar el mismo examen." },
+      "note": "Una opción que el equipo de Alba tiene por medir: la ResNet-50 en [[int8|INT8]] en CPU, que podría costar menos que las dos T4 si no pierde más de 0.5 puntos. Pide calibrar con fotos reales y pasar el mismo examen." },
     { "id": "examen", "label": "Examen", "sub": "paridad y calidad", "kind": "monitor",
       "x": 58, "y": 18, "w": 19, "h": 8,
       "note": "La [[prueba-paridad|prueba de paridad]] contra PyTorch FP32 en ≈ 10,000 fotos: acuerdo del top-1 ≥ 99.5 % y del top-5 ≥ 99 %, con diferencias de logits de ≈ 0.01. Y la calidad: top-1 y top-5 a no más de 0.3 puntos del modelo actual, revisada también por categoría y por slice." },
@@ -27,7 +27,7 @@
       "note": "La app manda la foto comprimida (≈ 150–250 KB en JPEG) y recibe las 5 categorías sugeridas, con su probabilidad." },
     { "id": "gateway", "label": "Gateway", "sub": "tensor FP32 · 602 KB", "kind": "service",
       "x": 29.5, "y": 36, "w": 19, "h": 8,
-      "note": "Decodifica el JPEG a píxeles [[uint8]], achica, recorta y normaliza a float32: 150,528 números × 4 B = 602 KB. Mandar uint8 (≈ 151 KB) y normalizar dentro del modelo es una mejora que la Ronda deja anotada." },
+      "note": "Decodifica el JPEG a píxeles [[uint8]], achica, recorta y normaliza a float32: 150,528 números × 4 B = 602 KB. Mandar uint8 (≈ 151 KB) y normalizar dentro del modelo es una mejora que el equipo de Alba tiene anotada." },
     { "id": "triton", "label": "Triton en la T4", "sub": "corre el engine FP16", "kind": "gpu",
       "x": 58, "y": 36, "w": 19, "h": 8,
       "note": "Triton corre el engine en FP16 con los tensor cores, en ≈ 3–6 ms de GPU. Su configuración declara la entrada y la salida como `TYPE_FP32`: la conversión a FP16 pasa adentro." }

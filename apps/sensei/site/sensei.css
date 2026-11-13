@@ -144,6 +144,7 @@ html.drawer-open { overflow: hidden; }
 .strip i.is-pronto { background: repeating-linear-gradient(135deg, var(--tm-off) 0 2px, transparent 2px 4px); }
 .nav { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px 8px 20px; box-shadow: inset 0 1px 0 var(--rule); }
 .nav__top { display: flex; flex-direction: column; gap: 1px; padding: 8px 0 4px; }
+.nav__fin { margin-top: 10px; padding-top: 10px; box-shadow: inset 0 1px 0 var(--rule); }
 .nav__group { padding-top: 10px; margin-top: 8px; box-shadow: inset 0 1px 0 var(--rule); }
 .nav__group > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 8px 6px; border-radius: 8px; }
 .nav__group > summary:hover { background: var(--surface-2); }
@@ -428,7 +429,7 @@ a.tl:hover { box-shadow: 0 0 0 2px var(--accent); }
 .tl.leida .tl__ok { display: flex; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 
-/* ================================================================ glosario y «Para leer la Ronda» */
+/* ================================================================ glosario y «¿Qué sigue después de Sensei?» */
 .buscar { display: flex; flex-direction: column; gap: 8px; max-width: 520px; margin-top: 20px; }
 .buscar input { font: 17px/1.3 var(--sans); padding: 13px 15px; border-radius: 14px; border: 0; background: var(--surface-2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--rule); }
 .buscar input:focus { outline: 2px solid var(--focus); outline-offset: 0; }
@@ -528,3 +529,30 @@ a.tl:hover { box-shadow: 0 0 0 2px var(--accent); }
 .c-salida-h { display: block; padding: 8px 16px 0; font: 700 10.5px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: #9BE7CC; }
 .c-salida pre { margin: 0; padding: 6px 16px 14px; color: var(--tm-codeink); font: 13px/1.6 var(--mono); overflow-x: auto; }
 .c-salida pre code { background: none; padding: 0; font: inherit; overflow-wrap: normal; }
+
+/* ================================================================ ecuaciones (tools/mate.mjs) y el bloque :::formula */
+.m { font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Times New Roman", Georgia, serif; font-size: 1.08em; font-style: normal; white-space: nowrap; color: var(--ink); }
+.m i.m-v { font-style: italic; padding: 0 .04em; }
+.m .m-w, .m .m-t { font-style: normal; }
+.m .m-t { font-family: var(--sans); font-size: .86em; }
+.m .m-o { padding: 0 .28em; }
+.m sub, .m sup { font-size: .72em; line-height: 0; }
+.m sub .m-w, .m sup .m-w { font-family: var(--sans); font-size: .95em; }
+.m-frac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; margin: 0 .12em; }
+.m-frac > span { padding: 0 .2em; line-height: 1.25; }
+.m-den { border-top: 1.2px solid currentColor; }
+.m-raiz { display: inline-flex; align-items: flex-start; }
+.m-raiz-x { border-top: 1.2px solid currentColor; padding: 0 .1em; margin-top: .08em; }
+.m-op-g { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 .15em; line-height: 1; }
+.m-sig { font-size: 1.5em; }
+.m-lim { font-size: .66em; }
+.formula { margin: 24px 0 !important; border-radius: 16px; background: var(--blk); box-shadow: inset 0 3px 0 var(--accent); padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+.formula__t { font: 700 10.5px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent-ink); }
+.formula__eqs { display: flex; flex-direction: column; align-items: center; gap: 10px; overflow-x: auto; padding: 4px 0; }
+.m--bloque { display: block; font-size: 1.3em; text-align: center; line-height: 1.6; }
+.formula__vars { margin: 0; display: grid; gap: 6px; padding-top: 10px; box-shadow: inset 0 1px 0 var(--rule); }
+.formula__donde { font: 600 13px/1 var(--sans); color: var(--muted); font-style: italic; }
+.formula__vars > div { display: grid; grid-template-columns: minmax(2.6em, max-content) minmax(0, 1fr); gap: 4px 12px; align-items: baseline; }
+.formula__vars dt { text-align: right; }
+.formula__vars dd { margin: 0; font: 14.5px/1.5 var(--sans); color: var(--ink-2); }
+.calc__expr .m, .calc__label .m { font-size: 1.1em; white-space: normal; }

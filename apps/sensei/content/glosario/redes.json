@@ -47,7 +47,7 @@
       "en": "layer",
       "corto": "Un grupo de neuronas que reciben las mismas entradas, cada una con sus propios pesos. Lo que sale de una capa entra a la siguiente.",
       "largo": "En una capa densa (*dense*, *fully connected* o *linear*) cada neurona ve todas las entradas: tiene entradas × salidas pesos más un sesgo por salida, y hace entradas × salidas multiplicaciones-sumas por ejemplo. En una capa convolucional cada filtro ve solo un pedacito ([[convolucion]]). Una red de capas densas es un [[mlp|MLP]].",
-      "ejemplo": "Una capa densa de 2,048 entradas y 500 salidas tiene 2,048 × 500 + 500 = 1,024,500 parámetros: es la cabeza de la ResNet-50 de C01.",
+      "ejemplo": "Una capa densa de 2,048 entradas y 500 salidas tiene 2,048 × 500 + 500 = 1,024,500 parámetros: es la cabeza de la ResNet-50 de Alba, el marketplace del curso, que elige entre 500 categorías.",
       "ver": ["neurona", "red-neuronal", "mlp"],
       "leccion": "redes"
     },
@@ -156,7 +156,7 @@
       "termino": "CNN",
       "en": "convolutional neural network",
       "corto": "Una red neuronal hecha sobre todo de convoluciones, activaciones y pooling. Es la familia clásica para imágenes.",
-      "largo": "Le va bien a las fotos por tres razones: cada filtro mira cerca (el significado está en los píxeles vecinos), usa el mismo filtro en todas partes (reconoce un tenis esté donde esté, con pocos parámetros) y arma lo complicado con lo simple, capa tras capa, porque su [[campo-receptivo|campo receptivo]] crece. La ResNet-50 de C01 es una CNN.",
+      "largo": "Le va bien a las fotos por tres razones: cada filtro mira cerca (el significado está en los píxeles vecinos), usa el mismo filtro en todas partes (reconoce un tenis esté donde esté, con pocos parámetros) y arma lo complicado con lo simple, capa tras capa, porque su [[campo-receptivo|campo receptivo]] crece. La ResNet-50 con la que Alba, el marketplace del curso, sugiere la categoría de cada foto es una CNN.",
       "ejemplo": "Una capa convolucional de 64 filtros de 3 × 3 sobre la foto de color tiene 1,792 parámetros; una capa densa de 1,000 neuronas sobre los mismos 150,528 números tendría ≈ 150 millones.",
       "ver": ["convolucion", "pooling", "backbone", "resnet"],
       "leccion": "redes"
@@ -177,7 +177,7 @@
       "en": "residual network · ResNet-50",
       "corto": "Una familia de CNNs (He y otros, Microsoft Research, 2015) en la que cada bloque tiene un atajo: su entrada se le suma a su salida. Eso permitió entrenar redes muy profundas.",
       "largo": "Con el atajo (*skip connection*), salida = bloque(x) + x: cada bloque solo aprende una corrección, y la señal del aprendizaje llega bien hasta las primeras capas. Ganó la competencia de ImageNet de 2015. La ResNet-50 tiene 50 capas con pesos en su camino principal, 16 bloques residuales en cuatro etapas y hace ≈ 4.1 mil millones de multiplicaciones-sumas por foto de 224 × 224.",
-      "ejemplo": "La ResNet-50 original (1,000 categorías) tiene ≈ 25.6 millones de parámetros: ≈ 102 MB en float32. La de C01, con 500 categorías, ≈ 24.5 millones.",
+      "ejemplo": "La ResNet-50 original (1,000 categorías) tiene ≈ 25.6 millones de parámetros: ≈ 102 MB en float32. La de Alba, el marketplace del curso, con 500 categorías: ≈ 24.5 millones.",
       "ver": ["cnn", "backbone", "batchnorm"],
       "leccion": "redes"
     },
@@ -217,7 +217,7 @@
       "en": "backbone · feature extractor · encoder",
       "corto": "La parte de la red que «ve»: recibe la foto y la convierte en una lista de números (features) que describen lo que hay en ella. Después va la cabeza, que decide.",
       "largo": "Es la parte grande y cara (en la ResNet-50, el 99.97 % de las multiplicaciones-sumas), y casi siempre viene preentrenada ([[transfer-learning|transfer learning]]). La [[cabeza]] es chica y es la que sabe de la tarea: el mismo backbone sirve para clasificar, detectar o segmentar cambiando solo la cabeza. Sus features también sirven solas, como [[embedding]].",
-      "ejemplo": "En la ResNet-50 de C01, el backbone entrega 2,048 números por foto y la cabeza los convierte en 500 logits.",
+      "ejemplo": "En la ResNet-50 de Alba, el marketplace del curso, el backbone entrega 2,048 números por foto y la cabeza los convierte en 500 logits.",
       "ver": ["cabeza", "cnn", "transfer-learning"],
       "leccion": "redes"
     },
@@ -227,7 +227,7 @@
       "en": "head",
       "corto": "La parte final de una red, chica, que convierte lo que entrega el backbone en la respuesta de la tarea: un logit por categoría, cajas o una máscara.",
       "largo": "Es lo que se cambia al reutilizar un [[backbone]] para otra tarea ([[transfer-learning|transfer learning]]). En [[clasificacion|clasificación]] es un pooling más una capa densa; en [[deteccion|detección]], una capa que propone una caja y un puntaje por clase en cada posición; en [[segmentacion|segmentación]], un decoder que agranda los mapas hasta dar una respuesta por píxel. No confundir con las «cabezas de atención» de un [[transformer]], que son otra cosa.",
-      "ejemplo": "La cabeza de C01 es una capa densa de 2,048 → 500: 2,048 × 500 + 500 = 1,024,500 parámetros. La original de ImageNet, de 1,000 categorías, tiene 2,049,000.",
+      "ejemplo": "La cabeza de la ResNet-50 de Alba, que elige entre 500 categorías, es una capa densa de 2,048 → 500: entradas × salidas + salidas = 2,048 × 500 + 500 = 1,024,500 parámetros. La original de ImageNet, de 1,000 categorías, tiene 2,049,000.",
       "ver": ["backbone", "transfer-learning", "logit"],
       "leccion": "redes"
     },
@@ -237,7 +237,7 @@
       "en": "transfer learning · aprendizaje por transferencia",
       "corto": "Usar lo que un modelo ya aprendió en una tarea para resolver otra. Se parte de un modelo preentrenado en vez de empezar de cero.",
       "largo": "Lo típico en visión: un [[backbone]] entrenado con ImageNet (≈ 1.28 millones de fotos, 1,000 categorías) ya sabe ver bordes, texturas y formas. Se le cambia la [[cabeza]] por una con las categorías propias y se sigue entrenando ([[fine-tuning]]). Hacen falta muchos menos datos y tiempo. Ayuda menos cuando las imágenes se parecen poco a las del preentrenamiento, como radiografías.",
-      "ejemplo": "C01 parte de una ResNet-50 preentrenada en ImageNet y cambia su cabeza de 1,000 a 500 categorías.",
+      "ejemplo": "Alba, el marketplace del curso, parte de una ResNet-50 preentrenada en ImageNet y cambia su cabeza de 1,000 a 500 categorías.",
       "ver": ["fine-tuning", "backbone", "cabeza"],
       "leccion": "redes"
     },
@@ -247,7 +247,7 @@
       "en": "fine-tuning · ajuste fino",
       "corto": "Seguir entrenando un modelo preentrenado con tus propios datos, con un learning rate chico para no borrar lo que ya sabía.",
       "largo": "Se puede congelar el backbone y entrenar solo la cabeza (rápido, sirve con pocos datos) o entrenar todo con [[learning-rate|learning rate]] chico (más lento, suele dar mejor resultado con muchos datos). Es la forma más común de [[transfer-learning|transfer learning]].",
-      "ejemplo": "En la Ronda, el fine-tuning de C01 usa learning rate 0.0003, 8 épocas y batches de 64, y cabe en una GPU en horas. Con el backbone congelado, solo se moverían 1,024,500 de los 24,532,532 parámetros.",
+      "ejemplo": "El fine-tuning de Alba, el marketplace del curso, usa learning rate 0.0003, 8 épocas y batches de 64, y cabe en una GPU en unas 3–4 horas. Con el backbone congelado, solo se moverían 1,024,500 de los 24,532,532 parámetros.",
       "ver": ["transfer-learning", "learning-rate"],
       "leccion": "redes"
     },

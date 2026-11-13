@@ -67,7 +67,7 @@
       "y": 22,
       "w": 17,
       "h": 9,
-      "note": "Para cada foto, la diferencia absoluta más grande entre los tensores, número por número. Con el mismo código y las mismas versiones debe ser **0**. La Ronda agrega una versión de punta a punta: comparar también las predicciones del modelo para esas fotos."
+      "note": "Para cada foto, la diferencia absoluta más grande entre los tensores, número por número. Con el mismo código y las mismas versiones debe ser **0**. Alba agrega una versión de punta a punta: comparar también las predicciones del modelo para esas fotos."
     },
     {
       "id": "veredicto",

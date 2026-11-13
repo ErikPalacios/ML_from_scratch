@@ -1,23 +1,23 @@
 {
   "titulo": "¿Cabe, o lo mata el OOM killer?",
-  "intro": "El pico de memoria de un proceso que decodifica fotos: su base, los archivos de las requests que está atendiendo y lo que ocupa cada foto mientras se decodifica. Si pasa el límite del contenedor, el kernel lo mata (OOMKilled, código 137). Arranca con el gateway de C01.",
+  "intro": "El pico de memoria de un proceso que decodifica fotos: su base, los archivos de las requests que está atendiendo y lo que ocupa cada foto mientras se decodifica. Si pasa el límite del contenedor, el kernel lo mata (OOMKilled, código 137). La calculadora aplica \\(M = b + a + f × d\\) y \\(f_{max} = (L − b − a)/d\\), redondeado hacia abajo. Arranca con el gateway de Alba.",
   "entradas": [
-    { "id": "l", "label": "Límite del contenedor, en MiB (1024 = 1 GiB, el del gateway de C01)", "min": 128, "max": 16384, "paso": 128, "valor": 1024, "tipo": "numero" },
-    { "id": "b", "label": "Memoria base del proceso, en MB (≈ 80 = Python, librerías y código, según C01)", "min": 0, "max": 4000, "paso": 10, "valor": 80 },
-    { "id": "r", "label": "Archivos de las requests en vuelo, en MB (160 = 16 requests de hasta 10 MB)", "min": 0, "max": 2000, "paso": 10, "valor": 160 },
-    { "id": "d", "label": "Memoria de cada foto mientras se decodifica, en MB (320 = PNG de 40 MP)", "min": 1, "max": 2000, "paso": 1, "valor": 320 },
-    { "id": "n", "label": "Fotos decodificándose a la vez", "min": 0, "max": 16, "paso": 1, "valor": 2 }
+    { "id": "l", "label": "Límite del contenedor, \\(L\\), en MiB (1024 = 1 GiB, el del gateway de Alba)", "min": 128, "max": 16384, "paso": 128, "valor": 1024, "tipo": "numero" },
+    { "id": "b", "label": "Memoria base del proceso, \\(b\\), en MB (≈ 80 = Python, librerías y código, en el gateway de Alba)", "min": 0, "max": 4000, "paso": 10, "valor": 80 },
+    { "id": "r", "label": "Archivos de las requests en vuelo, \\(a\\), en MB (160 = 16 requests de hasta 10 MB)", "min": 0, "max": 2000, "paso": 10, "valor": 160 },
+    { "id": "d", "label": "Memoria de cada foto mientras se decodifica, \\(d\\), en MB (320 = PNG de 40 MP)", "min": 1, "max": 2000, "paso": 1, "valor": 320 },
+    { "id": "n", "label": "Fotos decodificándose a la vez, \\(f\\)", "min": 0, "max": 16, "paso": 1, "valor": 2 }
   ],
   "calculos": [
     { "id": "lim", "formula": "l * 1.048576" },
     { "id": "pico", "formula": "b + r + n * d" }
   ],
   "salidas": [
-    { "label": "El límite", "formula": "lim * 1e6", "formato": "bytes", "nota": "1 MiB = 1.048576 MB" },
-    { "label": "**Memoria en el peor momento**", "formula": "pico * 1e6", "formato": "bytes", "nota": "base + archivos en vuelo + fotos × memoria de cada una" },
-    { "label": "Parte del límite que usa", "formula": "pico / lim", "formato": "pct", "barra": true, "nota": "más de 100 %: OOMKilled" },
-    { "label": "Margen", "formula": "(lim - pico) * 1e6", "formato": "bytes", "nota": "si es negativo, el kernel lo mata" },
-    { "label": "Fotos a la vez que caben", "formula": "max(floor((lim - b - r) / d), 0)", "formato": "int" }
+    { "label": "El límite, \\(L\\)", "formula": "lim * 1e6", "formato": "bytes", "nota": "en MB: MiB × 1.048576 (1 MiB = 1,048,576 B)" },
+    { "label": "**Memoria en el peor momento, \\(M\\)**", "formula": "pico * 1e6", "formato": "bytes", "nota": "\\(M = b + a + f × d\\)" },
+    { "label": "Parte del límite que usa", "formula": "pico / lim", "formato": "pct", "barra": true, "nota": "\\(M/L\\); más de 100 %: OOMKilled" },
+    { "label": "Margen", "formula": "(lim - pico) * 1e6", "formato": "bytes", "nota": "\\(L − M\\); si es negativo, el kernel lo mata" },
+    { "label": "Fotos a la vez que caben, \\(f_{max}\\)", "formula": "max(floor((lim - b - r) / d), 0)", "formato": "int", "nota": "\\((L − b − a)/d\\), redondeado hacia abajo" }
   ],
   "nota": "Con 3 fotos a la vez, 80 + 160 + 3 × 320 = 1,200 MB pasan los ≈ 1,074 MB del límite. El kernel no espera a que termine la foto: mata al proceso con SIGKILL, sin excepción ni traceback, y el kubelet lo reinicia."
 }

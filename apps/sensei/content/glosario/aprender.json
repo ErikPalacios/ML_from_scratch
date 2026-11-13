@@ -17,7 +17,7 @@
       "en": "cross-entropy · log loss (con dos clases)",
       "corto": "La pérdida más usada para clasificar: menos el logaritmo de la probabilidad que el modelo le dio a la respuesta correcta. Casi 0 si acierta con seguridad; muy alta si está seguro de otra cosa.",
       "largo": "Para un ejemplo es −ln(p), donde p es la probabilidad de la respuesta correcta; para un [[batch]], el promedio. Con dos respuestas (clic o no clic) se escribe −ln(p) si pasó y −ln(1 − p) si no, y se llama *log loss*. Castiga sin tope la seguridad equivocada, y por eso empuja al modelo a dar probabilidades honestas. Un modelo que reparte parejo entre K categorías tiene pérdida ln(K). Bajarla es lo mismo que hacer más probable lo que de verdad pasó.",
-      "ejemplo": "94 % a la correcta: −ln(0.94) ≈ 0.062. 10 %: −ln(0.10) ≈ 2.30. Al azar entre 500 categorías: ln(500) ≈ 6.21. En C15, decir 0.35 % de clic para todo da una log loss de 0.02329.",
+      "ejemplo": "94 % a la correcta: −ln(0.94) ≈ 0.062. 10 %: −ln(0.10) ≈ 2.30. Al azar entre 500 categorías: ln(500) ≈ 6.21. Al predecir clics en anuncios, decir 0.35 % de clic para todo da una log loss de 0.02329.",
       "ver": ["loss", "softmax", "probabilidad", "mse"],
       "leccion": "aprender"
     },
@@ -26,7 +26,7 @@
       "termino": "Error cuadrático medio",
       "en": "mean squared error · MSE",
       "corto": "La pérdida más usada para predecir números: el promedio de los errores al cuadrado. Un error de 6 pesa 36; uno de 1, solo 1.",
-      "largo": "Para cada ejemplo, (predicción − respuesta)²; para el grupo, el promedio. Elevar al cuadrado quita el signo y castiga mucho más los errores grandes. El número que hace más chico el MSE es el promedio de las respuestas: un modelo entrenado con MSE aprende a predecir la media. Su raíz, el RMSE, vuelve a las unidades originales. Si el negocio necesita otra cosa, como un número que alcance 9 de cada 10 días, se usan otras pérdidas (las de cuantiles, en C14).",
+      "largo": "Para cada ejemplo, (predicción − respuesta)²; para el grupo, el promedio. Elevar al cuadrado quita el signo y castiga mucho más los errores grandes. El número que hace más chico el MSE es el promedio de las respuestas: un modelo entrenado con MSE aprende a predecir la media. Su raíz, el RMSE, vuelve a las unidades originales. Si el negocio necesita otra cosa, como un número que alcance 9 de cada 10 días, se usan otras pérdidas (las de cuantiles, como en un pronóstico de demanda).",
       "ejemplo": "Errores de +2, −1, −6 y +3 kg: (4 + 1 + 36 + 9) ÷ 4 = 12.5 kg²; la raíz, ≈ 3.5 kg. El error de 6 aporta el 72 % del total.",
       "ver": ["loss", "regresion", "entropia-cruzada"],
       "leccion": "aprender"
@@ -57,7 +57,7 @@
       "en": "learning rate · lr · tasa de aprendizaje",
       "corto": "Qué tan grande es cada pasito al mover los parámetros (las perillas) de un modelo durante el entrenamiento. Muy chico: tarda una eternidad. Muy grande: se pasa del fondo del valle y la pérdida explota.",
       "largo": "Es el [[hiperparametro]] más importante y no tiene un valor correcto universal: depende del modelo, del [[optimizador]] y del tamaño del [[batch]], y se elige probando en validación. Casi nunca es fijo: un [[scheduler-lr|scheduler]] lo sube al principio con [[warmup]] y lo baja al final. Con Adam, es del orden de cuánto se mueve cada perilla por paso.",
-      "ejemplo": "C01 entrena con lr = 3e-4, que quiere decir 3 × 10⁻⁴ = 0.0003. En la parábola de la lección, con 0.05 la perilla queda a menos de 0.01 del fondo en 12 pasos; con 0.3, la pérdida explota.",
+      "ejemplo": "El modelo de Alba, el marketplace que sigue el curso, se entrena con lr = 3e-4, que quiere decir 3 × 10⁻⁴ = 0.0003. En la parábola de la lección, con 0.05 la perilla queda a menos de 0.01 del fondo en 12 pasos; con 0.3, la pérdida explota.",
       "ver": ["descenso-gradiente", "hiperparametro", "scheduler-lr"],
       "leccion": "aprender"
     },
@@ -117,7 +117,7 @@
       "en": "batch · mini-batch · lote",
       "corto": "Un grupo de ejemplos que el modelo procesa junto. Al entrenar, la pérdida y el gradiente se calculan promediando el batch, y con eso se da un paso.",
       "largo": "Es un punto medio: el dataset completo no cabe de una vez en la GPU, y un ejemplo solo da un gradiente demasiado ruidoso y desperdicia la GPU. En [[inferencia]] la palabra también se usa: el servidor junta varias peticiones para calcularlas juntas, pero ahí no hay gradientes.",
-      "ejemplo": "C01 entrena con batches de 64 fotos.",
+      "ejemplo": "Alba, el marketplace que sigue el curso, entrena su modelo con batches de 64 fotos.",
       "ver": ["paso", "epoch"],
       "leccion": "aprender"
     },
@@ -127,7 +127,7 @@
       "en": "step · iteration · iteración",
       "corto": "Una vuelta del ciclo de entrenamiento con un batch: pasar las fotos por el modelo, medir la pérdida, calcular el gradiente y ajustar los parámetros.",
       "largo": "Es la unidad con la que se cuenta el entrenamiento: el [[scheduler-lr|scheduler]] y el [[warmup]] se definen en pasos, y el [[checkpoint]] anota en qué paso iba. Pasos por época = ejemplos ÷ tamaño del [[batch]], redondeado hacia arriba (o hacia abajo, si se tira el último batch incompleto).",
-      "ejemplo": "C01: 1,840,211 fotos ÷ 64 = 28,753.3, redondeado hacia arriba son 28,754 pasos por época; por 8 épocas, 230,032 pasos.",
+      "ejemplo": "Alba, el marketplace que sigue el curso: 1,840,211 fotos ÷ 64 = 28,753.3, redondeado hacia arriba son 28,754 pasos por época; por 8 épocas, 230,032 pasos.",
       "ver": ["batch", "epoch"],
       "leccion": "aprender"
     },
@@ -137,7 +137,7 @@
       "en": "epoch",
       "corto": "Una pasada completa por el conjunto de entrenamiento: cada ejemplo se vio una vez.",
       "largo": "Al empezar cada época se revuelven los ejemplos, para que los [[batch|batches]] no sean siempre los mismos grupos. Al final de cada una se suele medir la validación: es lo que usa el [[early-stopping|early stopping]] para decidir si sigue.",
-      "ejemplo": "50,000 fotos en batches de 64: 50,000 ÷ 64 = 781.25, así que son 782 pasos por época (el último batch trae solo 16 fotos). C01 entrena 8 épocas.",
+      "ejemplo": "50,000 fotos en batches de 64: 50,000 ÷ 64 = 781.25, así que son 782 pasos por época (el último batch trae solo 16 fotos). Alba, el marketplace que sigue el curso, entrena su modelo 8 épocas.",
       "ver": ["batch", "paso"],
       "leccion": "aprender"
     },
@@ -147,7 +147,7 @@
       "en": "optimizer",
       "corto": "La pieza que, con el gradiente en la mano, decide cuánto girar cada perilla. SGD es la regla simple; momentum y Adam son formas más listas de hacerlo.",
       "largo": "SGD (*stochastic gradient descent*) aplica la regla tal cual, con el gradiente de un [[batch]] al azar. El [[momentum]] arrastra la dirección de los pasos anteriores. [[adam|Adam]] guarda para cada perilla un promedio de sus gradientes recientes y otro de su tamaño, y con eso ajusta el paso de cada una por separado. Esos números extra por perilla se guardan en el [[checkpoint]] y ocupan memoria de la GPU.",
-      "ejemplo": "C01 usa Adam: 24.5 M de perillas × 2 promedios = 49 M de números extra, ≈ 196 MB.",
+      "ejemplo": "Alba, el marketplace que sigue el curso, usa Adam: 24.5 M de perillas × 2 promedios = 49 M de números extra, ≈ 196 MB.",
       "ver": ["descenso-gradiente", "momentum", "adam", "checkpoint"],
       "leccion": "aprender"
     },
@@ -178,7 +178,7 @@
       "en": "hyperparameter",
       "corto": "Una decisión que tomas tú antes de entrenar y que el entrenamiento no cambia: el learning rate, el tamaño del batch, cuántas épocas, el optimizador.",
       "largo": "Los [[parametro|parámetros]] los ajusta el entrenamiento y son millones; los hiperparámetros los eliges tú y son unos cuantos. Se eligen probando y comparando en [[validation-set|validación]], nunca en el test.",
-      "ejemplo": "C01: Adam, lr 3e-4, batch 64, 8 épocas.",
+      "ejemplo": "El reentrenamiento de Alba, el marketplace que sigue el curso: Adam, lr 3e-4, batch 64, 8 épocas.",
       "ver": ["parametro", "learning-rate", "validation-set"],
       "leccion": "aprender"
     },
@@ -238,7 +238,7 @@
       "en": "checkpoint",
       "corto": "Un archivo con el estado del entrenamiento en un momento: los parámetros, el estado del optimizador y en qué paso iba. Sirve para seguir si algo falla y para quedarse con la mejor versión.",
       "largo": "Uno completo lleva las perillas, el estado del [[optimizador]] (en Adam, m y v), la época y el paso, el estado del [[scheduler-lr|scheduler]], el del GradScaler si se usa precisión mixta y el de los generadores de azar. Con solo las perillas se puede responder, pero no seguir el mismo entrenamiento. Guardarlo seguido permite usar máquinas *spot*, que el proveedor puede reclamar con poco aviso.",
-      "ejemplo": "C01 guarda uno cada 15 minutos: 24.5 M parámetros × 4 bytes ≈ 98 MB, más el estado de Adam (2 × 98 MB), ≈ 294 MB en total.",
+      "ejemplo": "Alba, el marketplace que sigue el curso, guarda uno cada 15 minutos: 24.5 M parámetros × 4 bytes ≈ 98 MB, más el estado de Adam (2 × 98 MB), ≈ 294 MB en total.",
       "ver": ["optimizador", "parametro", "early-stopping"],
       "leccion": "aprender"
     },
@@ -248,7 +248,7 @@
       "en": "random seed · seed",
       "corto": "El número con el que arranca el generador de números al azar de la computadora. Con la misma semilla salen los mismos «azares»: el mismo orden de fotos, las mismas variaciones.",
       "largo": "Fijarla es necesario para repetir un entrenamiento, pero en GPU no alcanza: algunas sumas en paralelo se hacen en distinto orden y dan resultados un poquito distintos. Por eso «reproducible» quiere decir «el mismo resultado dentro del ruido», no idéntico.",
-      "ejemplo": "C01 entrena con la semilla 17. Con la misma receta y cinco semillas distintas, la Ronda muestra resultados entre 85.12 % y 85.34 % (números ilustrativos).",
+      "ejemplo": "Alba, el marketplace que sigue el curso, entrena con la semilla 17. Con la misma receta y cinco semillas distintas, un ejemplo con números ilustrativos da resultados entre 85.12 % y 85.34 %.",
       "ver": ["checkpoint", "hiperparametro"],
       "leccion": "aprender"
     },
@@ -257,8 +257,8 @@
       "termino": "CPU",
       "en": "CPU · central processing unit · procesador",
       "corto": "El procesador de una computadora: pocos núcleos muy capaces, de 8 a 16 en una laptop y decenas en un servidor, que hacen cualquier tipo de trabajo, uno tras otro, muy rápido.",
-      "largo": "Corre el sistema operativo, el código de Python, la lectura de archivos y la red. Al entrenar, la CPU prepara los batches (leer las fotos, decodificarlas, la [[augmentation]]) y la [[gpu|GPU]] hace las cuentas. Si la CPU no alcanza a preparar los datos, la GPU se queda esperando. Algunos modelos, como los árboles de C14, se entrenan solo en CPU.",
-      "ejemplo": "El entrenamiento de C14 corre en una máquina de 96 vCPU (núcleos virtuales), unas 2 a 3 horas cada domingo.",
+      "largo": "Corre el sistema operativo, el código de Python, la lectura de archivos y la red. Al entrenar, la CPU prepara los batches (leer las fotos, decodificarlas, la [[augmentation]]) y la [[gpu|GPU]] hace las cuentas. Si la CPU no alcanza a preparar los datos, la GPU se queda esperando. Algunos modelos, como los árboles de un pronóstico de demanda, se entrenan solo en CPU.",
+      "ejemplo": "Un pronóstico de demanda de supermercado, con ≈ 490 millones de filas, se entrena en una máquina de 96 vCPU (núcleos virtuales), unas 2 a 3 horas cada domingo.",
       "ver": ["gpu", "vram"],
       "leccion": "aprender"
     },
@@ -268,7 +268,7 @@
       "en": "GPU · graphics processing unit · tarjeta gráfica",
       "corto": "Un chip con miles de núcleos sencillos que hacen la misma operación sobre muchos números a la vez. Nació para dibujar gráficos y hoy hace casi todo el entrenamiento de modelos y mucha de la inferencia.",
       "largo": "Entrenar y responder es, casi todo, multiplicar y sumar tablas enormes de números: justo lo que una GPU hace en paralelo. Tiene su propia memoria, la [[vram|VRAM]], y solo calcula con lo que está ahí. Además de sus núcleos normales trae *tensor cores*, núcleos especiales para multiplicar tablas de números, sobre todo en formatos de 16 bits o menos.",
-      "ejemplo": "La T4 con la que C01 sirve su modelo tiene 2,560 núcleos CUDA, 320 tensor cores y 16 GB de VRAM. El fine-tune mensual de C01 tarda unas 3 a 4 horas en una GPU; en CPU, de días a semanas.",
+      "ejemplo": "La T4 con la que Alba, el marketplace que sigue el curso, sirve su modelo tiene 2,560 núcleos CUDA, 320 tensor cores y 16 GB de VRAM. El fine-tune mensual de Alba tarda unas 3 a 4 horas en una GPU; en CPU, de días a semanas.",
       "ver": ["cpu", "vram"],
       "leccion": "aprender"
     },
@@ -277,8 +277,8 @@
       "termino": "VRAM",
       "en": "VRAM · memoria de la GPU",
       "corto": "La memoria propia de la GPU. Todo con lo que la GPU calcula tiene que estar ahí: al entrenar, las perillas, sus gradientes, el estado del optimizador y las activaciones.",
-      "largo": "Su tamaño decide qué cabe: 16 GB en una T4, 24 GB en una L4 o una A10G, 80 GB en una H100. Entrenar con Adam en precisión mixta ocupa ≈ 16 bytes por parámetro (la cuenta del artículo de ZeRO, 2020), más las activaciones, que crecen con el tamaño del batch. Servir en FP16 ocupa ≈ 2 bytes por parámetro, más el runtime. En la Ronda, M04 hace estas cuentas.",
-      "ejemplo": "C01: 24.5 M × 16 B ≈ 392 MB de lo fijo para entrenar, más ≈ 3 GB de activaciones con batch 64 (estimación). Para servir en FP16: ≈ 49 MB de pesos. Un LLM de 8,000 millones de parámetros: 128 GB solo de lo fijo.",
+      "largo": "Su tamaño decide qué cabe: 16 GB en una T4, 24 GB en una L4 o una A10G, 80 GB en una H100. Entrenar con Adam en precisión mixta ocupa ≈ 16 bytes por parámetro (la cuenta del artículo de ZeRO, 2020), más las activaciones, que crecen con el tamaño del batch. Servir en FP16 ocupa ≈ 2 bytes por parámetro, más el runtime.",
+      "ejemplo": "Alba, el marketplace que sigue el curso: 24.5 M × 16 B ≈ 392 MB de lo fijo para entrenar, más ≈ 3 GB de activaciones con batch 64 (estimación). Para servir en FP16: ≈ 49 MB de pesos. Un LLM de 8,000 millones de parámetros: 128 GB solo de lo fijo.",
       "ver": ["gpu", "optimizador", "checkpoint"],
       "leccion": "aprender"
     }

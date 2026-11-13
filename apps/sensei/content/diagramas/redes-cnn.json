@@ -1,5 +1,5 @@
 {
-  "titulo": "La ResNet-50 de C01, de la foto a las sugerencias",
+  "titulo": "La ResNet-50 de Alba, de la foto a las sugerencias",
   "width": 78,
   "height": 46,
   "lanes": [
@@ -14,7 +14,7 @@
     },
     {
       "id": "cabeza",
-      "label": "Cabeza · nueva, con las 500 categorías de C01",
+      "label": "Cabeza · nueva, con las 500 categorías de Alba",
       "kind": "neutral",
       "x": 0,
       "y": 24,
@@ -76,7 +76,7 @@
       "y": 32,
       "w": 14,
       "h": 9,
-      "note": "Lo que el [[backbone]] entrega: una descripción de la foto en 2,048 números. Es la frontera entre lo que se aprendió con ImageNet y lo nuevo de C01. Fotos parecidas dan listas parecidas; por eso también sirven como [[embedding]]."
+      "note": "Lo que el [[backbone]] entrega: una descripción de la foto en 2,048 números. Es la frontera entre lo que se aprendió con ImageNet y lo nuevo de Alba. Fotos parecidas dan listas parecidas; por eso también sirven como [[embedding]]."
     },
     {
       "id": "head",
@@ -87,7 +87,7 @@
       "y": 32,
       "w": 14,
       "h": 9,
-      "note": "Una sola capa densa: 2,048 × 500 pesos + 500 sesgos = 1,024,500 parámetros, el 4.2 % del modelo, pero solo el 0.025 % de las cuentas. Está aquí porque es la única parte que sabe de las categorías de C01: es la que se cambia con [[transfer-learning|transfer learning]] (la original de ImageNet sacaba 1,000)."
+      "note": "Una sola capa densa: 2,048 × 500 pesos + 500 sesgos = 1,024,500 parámetros, el 4.2 % del modelo, pero solo el 0.025 % de las cuentas. Está aquí porque es la única parte que sabe de las 500 categorías de Alba: es la que se cambia con [[transfer-learning|transfer learning]] (la original de ImageNet sacaba 1,000)."
     },
     {
       "id": "softmax",
@@ -211,7 +211,7 @@
           "edges": [
             "features>head"
           ],
-          "text": "**Cabeza.** Una capa densa convierte las 2,048 features en 500 logits, uno por categoría de C01."
+          "text": "**Cabeza.** Una capa densa convierte las 2,048 features en 500 logits, uno por categoría de Alba."
         },
         {
           "nodes": [

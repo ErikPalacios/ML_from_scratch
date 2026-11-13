@@ -10,6 +10,7 @@ Esta guía es para quien escribe lecciones de Sensei, sea una persona o Claude. 
   - Leer la **Ronda de Diseño ML** (`apps/ml-system-design`) completa sin atorarse.
   - Practicar en el **Dojo** (`apps/taller-ai`) sabiendo qué se hace y por qué.
   - Llegar a una entrevista con bases sólidas.
+- **Sensei es independiente.** Es la primera app de TrueML: quien la lee no conoce la Ronda, el Dojo ni sus códigos. Lo de arriba es para quien escribe. **Las lecciones nunca nombran la Ronda, el Dojo, sus módulos (M01–M15) ni sus casos (C01–C15)** (regla 9). Los dos aparecen solo en la página final del curso, «¿Qué sigue después de Sensei?» (`/que-sigue/`, en `tools/build.mjs`), y el enlace a la estación del Dojo lo pone el build al cierre de cada lección.
 - **Idioma:** español de México, claro y directo. El término técnico en inglés va al lado del español la primera vez («función de pérdida (*loss*)»), porque es el que se usa en el trabajo y en las entrevistas.
 
 ## 2. Las reglas
@@ -17,12 +18,15 @@ Esta guía es para quien escribe lecciones de Sensei, sea una persona o Claude. 
 1. **No asumir nada.** Cada concepto se explica antes de usarse, o en ese mismo momento. Si una palabra técnica aparece, o se explica ahí, o se marca como `[[id]]` del glosario, o ambas. Revisa cada párrafo preguntándote: «¿un chico de primer semestre sabría qué es esto?».
 2. **Entender, no memorizar.** Cada idea importante responde tres preguntas: qué es, por qué existe (qué problema resuelve) y cómo se calcula o se usa. Si algo se puede calcular, se calcula a la vista.
 3. **Analogías solo donde ayudan, nunca forzadas.** Una buena analogía tiene correspondencia clara y dice **dónde se rompe**. Si un ejemplo directo con números explica mejor, usa el ejemplo.
-4. **Números concretos.** Cada idea abstracta lleva un ejemplo con números reales y pequeños, que se puedan seguir con lápiz. Muestra la cuenta.
-5. **El caso C01 como hilo, sin encerrarse en él.** C01 es un marketplace que sugiere la categoría de la foto de una publicación: ≈ 2.5 M publicaciones al día, 500 categorías y una ResNet-50 servida con Triton en Kubernetes. Ana sube la foto de unos tenis. Úsalo cuando ayude. Además, muestra el concepto en **otros casos** (los 15 casos de la Ronda: video en tiempo real, OCR, búsqueda, recomendación, fraude, LLMs, RAG, agentes, voz, pronóstico, anuncios) y en la vida diaria, para que se entienda en general y no solo en un caso.
+4. **Números concretos, con su ecuación.** Cada idea abstracta lleva un ejemplo con números reales y pequeños, que se puedan seguir con lápiz. Cada método que calcula algo lleva primero su **ecuación general** en un `:::formula`, con cada letra definida en palabras y con su unidad, y después la sustitución con números. En un `:::cuenta`, cada fila nombra su letra y cada número tiene origen visible (una fila anterior, una letra de la fórmula, el texto de arriba o la ficha de Alba): nada de un «50» sin decir que es \(U − L\). Nada de etiquetas vagas («qué tan adentro»): la etiqueta dice qué es y con qué letra. El modelo es la sección «Buckets» de `percentiles.md`.
+5. **Alba como hilo, sin encerrarse en ella.** Alba es la empresa ficticia fija del curso: un marketplace que sugiere la categoría de la foto de cada publicación (≈ 2.5 M publicaciones al día, 500 categorías y una ResNet-50 servida con Triton en Kubernetes). Ana sube la foto de unos tenis. **Todos sus números viven en una sola ficha, `content/empresa.json`**, y la lección `camino-completo` la presenta. Reglas:
+   - Usa los números de la ficha, tal cual. Si una lección necesita un dato de Alba que no está, se agrega a la ficha (con su nota) y se usa igual en todas.
+   - **Cada lección se entiende sola.** La primera vez que Alba aparece, preséntala en una frase con los números que esa lección necesita («Alba recibe ≈ 2.5 millones de publicaciones al día y sugiere la categoría de cada foto; por eso…»). Después, cada párrafo que usa un número de Alba lo escribe ahí mismo, sin «como vimos» y sin suponer que se leyó otra lección.
+   - Muestra el concepto también en **otros casos**, nombrados por lo que son (video en tiempo real, OCR, búsqueda, recomendación, fraude, un LLM propio, RAG, agentes, voz, pronóstico, anuncios) y en la vida diaria, para que se entienda en general. Sus números son supuestos del ejemplo y se dice así. No se inventan otras empresas con nombre: la única es Alba.
 6. **Hechos verificados.** Nada de cifras inventadas. Si das un número (parámetros de un modelo, tamaño de un tipo de dato, una fecha), tiene que ser correcto. Si es una suposición para un ejemplo, dilo. Si no estás seguro, no lo des o dilo en forma aproximada y honesta. Cada cuenta se recalcula con un script antes de escribirla.
 7. **Frases cortas.** Un párrafo es una idea. Sin relleno: más profundidad no es más palabras, es más ideas, más ejemplos y más práctica.
 8. **Dos pasadas.** Lo esencial se entiende leyendo solo las secciones esenciales. Lo que profundiza va en secciones `[extra]` o en bloques `:::profundo`, para una segunda pasada.
-9. **Puente con lo que sigue.** Cuando un concepto se usa mucho en la Ronda o en el Dojo, dilo: «En la Ronda lo vas a ver en M04, cuando calcule cuánta memoria de GPU necesita el modelo».
+9. **Sin citas a otras apps.** Nada de «la Ronda dice», «en M04», «C10», «en el Dojo» ni enlaces a ellas. Si una idea viene de la Ronda, se cuenta aquí mismo: como dato de Alba («el equipo de Alba estima…») o como supuesto del ejemplo. El puente es con otras lecciones de Sensei, por su título («lo ves a fondo en «Percentiles»»). Antes de dar una lección por terminada, `grep -nE 'Ronda|\bC(0[1-9]|1[0-5])\b|\bM(0[1-9]|1[0-5])\b|Dojo'` sobre la lección y sus piezas sale vacío.
 
 ## 3. El estándar de una lección
 
@@ -35,12 +39,13 @@ Una lección completa trae todo esto. Los números son el piso, no el techo.
 | Diagramas (motor de la Ronda) | 2, cada uno con recorrido | Ver el flujo |
 | Figuras SVG | 3 | Ver la idea |
 | Calculadoras | 2 si el tema tiene cantidades (1 si es casi cualitativo) | Jugar con los números y sentir cómo cambian |
-| Cuentas (`:::cuenta`) | 3 | La aritmética paso a paso |
+| Cuentas (`:::cuenta`) | 3, cada una después de la ecuación que aplica | La aritmética paso a paso |
+| Ecuaciones (`:::formula`) | Una por cada método que calcula algo | Saber de dónde sale cada número |
 | Código | 1 o más bloques de Python con su salida real (`salida`), si el concepto se calcula | Verlo funcionar en tu computadora |
 | Errores comunes | Una sección esencial de 4 a 7 trampas, cada una con cómo evitarla | Lo que confunde en la práctica |
-| En la vida real | Una sección con C01 y al menos 2 casos más, o ejemplos fuera de ML | Entenderlo en general |
+| En la vida real | Una sección con Alba y al menos 2 casos más, o ejemplos fuera de ML | Entenderlo en general |
 | Ejercicios | Una sección esencial con 8 a 12 problemas (≈ 4 fáciles, ≈ 4 medios, 2 o 3 retos), con solución paso a paso | Practicar de verdad |
-| Lo que sigue | Una sección con la Ronda (qué módulo lo usa y cómo), el Dojo si aplica y las lecciones siguientes | El puente |
+| Lo que sigue | Una sección con las lecciones de Sensei que siguen y qué usan de esta (sin la Ronda ni el Dojo: el build pone la estación del Dojo al cierre) | El puente |
 | Palabras que vas a oír | `:::conceptos` con los ids que presenta la lección | El vocabulario |
 | Chequeo | 5 a 7 preguntas rápidas | Repaso de un minuto |
 | Glosario | Cada concepto con `corto`, `largo` y `ejemplo` (y `analogia` si ayuda) | El cuaderno único |
@@ -93,6 +98,7 @@ Cada bloque abre con `:::nombre` y cierra con `:::` solo en su línea.
 | `:::profundo Título` | Para ir más hondo. Va plegado y es opcional: la lección se entiende sin él. |
 | `:::pasos` | Pasos numerados. Cada uno empieza con `1. Título` en su línea y sigue con su texto. |
 | `:::cuenta Título` | Una cuenta paso a paso, como el bloque «calc» de la Ronda. Cada fila es `etiqueta \| expresión \| valor`; la etiqueta puede llevar `etiqueta // nota`; la línea `= texto` es el resultado. |
+| `:::formula Título` | Una o más líneas con la ecuación y, debajo, `- símbolo: qué es, con unidad` por cada letra. Notación de `tools/mate.mjs`: `frac{a}{b}`, `x_i`, `x_{antes}`, `x^2`, `sqrt{x}`, `sum_{i=1}^{n}`, `text{…}`; letras sueltas en cursiva, palabras rectas. En línea, en cualquier texto: `\( r = q/100 × N \)` (en tablas y cuentas, sin `\|` dentro). |
 | `:::calculadora id` | Una calculadora de `content/calculadoras/<id>.json` (sección 7). El texto de adentro es su pie. |
 | `:::diagrama id` | Un diagrama de `content/diagramas/<id>.json`. El texto de adentro es su pie. |
 | `:::figura id` | Una figura de `content/figuras/<id>.svg`. El texto de adentro es su pie. |
@@ -173,6 +179,7 @@ Una calculadora es lo más cercano a experimentar: el lector mueve un control y 
 ```
 
 - **Entradas:**
+  - La `label` dice exactamente qué es, con su letra y su unidad, igual que en el `:::formula` de la lección: «Percentil a estimar, \\(q\\) (99 = el p99)». El `intro` dice qué ecuaciones aplica, y la `nota` de cada salida, su fórmula.
   - `min`, `max`, `paso` y `valor` inicial; `unidad` es opcional.
   - `"tipo": "numero"` usa una caja de número en vez de deslizador.
   - Pon como valor inicial el del ejemplo del texto, para que coincida.
@@ -220,7 +227,10 @@ Ejemplos reales: `content/figuras/redes-convolucion.svg`, `content/figuras/image
 
 - [ ] Cumple el estándar de la sección 3. `--solo` imprime las piezas y los minutos.
 - [ ] Cada concepto técnico se explica antes de usarse o está marcado con `[[id]]`, y su id existe o está planeado.
+- [ ] Cada método trae su `:::formula`, cada fila de cada cuenta nombra su letra y ningún número sale de la nada.
 - [ ] Cada cuenta, ejercicio y salida de código se recalculó con un script.
 - [ ] Las analogías dicen dónde se rompen.
 - [ ] Revisaste las capturas de `tools/vista.mjs` y nada se encima ni se corta.
+- [ ] Los números de Alba coinciden con `content/empresa.json`, y la lección presenta a Alba la primera vez que la usa.
+- [ ] El `grep` de la regla 9 sale vacío: ni Ronda, ni Dojo, ni M01–M15, ni C01–C15.
 - [ ] `node tools/build.mjs --solo <id>` pasa sin errores.

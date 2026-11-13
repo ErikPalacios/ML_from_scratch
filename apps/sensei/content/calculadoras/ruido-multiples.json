@@ -1,18 +1,18 @@
 {
   "titulo": "Comparaciones múltiples",
-  "intro": "Corres varias pruebas y en ninguna hay un efecto real. ¿Qué tan probable es que al menos una salga «significativa» por puro azar? Supone pruebas independientes, cada una con su α.",
+  "intro": "Corres varias pruebas y en ninguna hay un efecto real. ¿Qué tan probable es que al menos una salga «significativa» por puro azar? Supone pruebas independientes, cada una con su α, y aplica \\(P = 1 − (1 − α)^k\\), \\(E = k × α\\) y el corte de Bonferroni \\(α_B = α ÷ k\\).",
   "entradas": [
-    { "id": "k", "label": "Pruebas independientes (métricas, slices, categorías)", "min": 1, "max": 200, "paso": 1, "valor": 20 },
-    { "id": "alfa", "label": "Significancia α de cada prueba", "min": 0.1, "max": 20, "paso": 0.1, "valor": 5, "unidad": "%" }
+    { "id": "k", "label": "Pruebas independientes \\(k\\) (métricas, slices, categorías)", "min": 1, "max": 200, "paso": 1, "valor": 20 },
+    { "id": "alfa", "label": "Significancia \\(α\\) de cada prueba", "min": 0.1, "max": 20, "paso": 0.1, "valor": 5, "unidad": "%" }
   ],
   "calculos": [
     { "id": "a", "formula": "alfa / 100" }
   ],
   "salidas": [
-    { "label": "Al menos una falsa alarma", "formula": "1 - pow(1 - a, k)", "formato": "pct", "barra": true, "nota": "1 − (1 − α)ᵏ" },
-    { "label": "Falsas alarmas esperadas", "formula": "k * a", "decimales": 2, "nota": "k × α" },
-    { "label": "Umbral de Bonferroni para cada prueba", "formula": "a / k", "decimales": 5, "nota": "α ÷ k" },
-    { "label": "Al menos una, con Bonferroni", "formula": "1 - pow(1 - a / k, k)", "formato": "pct", "barra": true, "nota": "vuelve a quedar en ≈ α" }
+    { "label": "Al menos una falsa alarma, \\(P\\)", "formula": "1 - pow(1 - a, k)", "formato": "pct", "barra": true, "nota": "\\(P = 1 − (1 − α)^k\\)" },
+    { "label": "Falsas alarmas esperadas, \\(E\\)", "formula": "k * a", "decimales": 2, "nota": "\\(E = k × α\\)" },
+    { "label": "Corte de Bonferroni para cada prueba, \\(α_B\\)", "formula": "a / k", "decimales": 5, "nota": "\\(α_B = α ÷ k\\)" },
+    { "label": "Al menos una, con Bonferroni", "formula": "1 - pow(1 - a / k, k)", "formato": "pct", "barra": true, "nota": "\\(1 − (1 − α_B)^k\\): vuelve a quedar en ≈ α" }
   ],
-  "nota": "Con 20 pruebas a 0.05 esperas 1 falsa alarma y tienes 64 % de probabilidad de ver al menos una. Con 100 categorías, como el gate de C01, son 5 esperadas: por eso ahí se corrige (con Holm, una versión menos estricta de Bonferroni). Mirar el mismo A/B 14 días no son 14 pruebas independientes, porque cada día repite casi todos los datos del anterior: por eso el peeking da ≈ 23 %, no el 51 % que saldría aquí."
+  "nota": "Con 20 pruebas a 0.05 esperas 1 falsa alarma y tienes 64 % de probabilidad de ver al menos una. Con 100 categorías, como las que vigila el gate de Alba (el marketplace que sigue el curso), son 100 × 0.05 = 5 esperadas: por eso ahí se corrige (con Holm, una versión menos estricta de Bonferroni). Mirar el mismo A/B 14 días no son 14 pruebas independientes, porque cada día repite casi todos los datos del anterior: por eso el peeking da ≈ 23 %, no el 51 % que saldría aquí."
 }

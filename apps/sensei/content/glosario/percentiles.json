@@ -27,8 +27,8 @@
       "termino": "Percentil",
       "en": "percentile · quantile",
       "corto": "El percentil p es el valor que deja en él o abajo de él al p % de los datos. El p50 es la mediana; el p99 solo deja arriba a 1 de cada 100.",
-      "largo": "Se calcula ordenando los datos. Con el método del rango más cercano, la posición es p ÷ 100 × n, redondeada hacia arriba ([[ceil]]). Otros métodos interpolan entre dos vecinos, y con pocos datos dan números distintos en la cola: importa usar siempre el mismo. Las herramientas de monitoreo los llaman cuantiles y los escriben como fracción (0.99). No se suman ni se promedian: el p99 de varios servidores se saca sumando sus [[bucket|buckets]] y calculando al final.",
-      "ejemplo": "Con 20 latencias ordenadas, el p95 es la 19.ª (0.95 × 20 = 19), 160 ms, y el p99 es la 20.ª (19.8 se redondea a 20), la más lenta, 900 ms.",
+      "largo": "Se calcula ordenando los datos. Con el método del rango más cercano, la posición es \\(r = q/100 × N\\), redondeada hacia arriba ([[ceil]]): \\(q\\) es el percentil (99 para el p99) y \\(N\\), cuántos valores hay. Otros métodos interpolan entre dos vecinos, y con pocos datos dan números distintos en la cola: importa usar siempre el mismo. Las herramientas de monitoreo los llaman cuantiles y los escriben como fracción (0.99). No se suman ni se promedian: el p99 de varios servidores se saca sumando sus [[bucket|buckets]] y calculando al final.",
+      "ejemplo": "Con 20 latencias ordenadas, el p95 es la 19.ª (\\(r\\) = 0.95 × 20 = 19), 160 ms, y el p99 es la 20.ª (\\(r\\) = 0.99 × 20 = 19.8, que se redondea a 20), la más lenta, 900 ms.",
       "ver": ["p99", "mediana", "histograma", "bucket"],
       "leccion": "percentiles"
     },
@@ -38,7 +38,7 @@
       "en": "p99 · 99th percentile",
       "corto": "El percentil 99: el valor que deja abajo al 99 % de las requests. «p99 ≤ 200 ms» quiere decir que a lo más 1 de cada 100 tarda más de 200 ms.",
       "largo": "Es una de las formas más comunes de prometer [[latencia]], porque mira la [[cola-distribucion|cola]]: lo que viven las requests más lentas, las que vencen el timeout y las que la gente recuerda. A diferencia del [[promedio]], brinca de golpe cuando la fracción de lentas pasa del 1 %. Necesita muchas muestras: con menos de 100, el p99 es simplemente la más lenta. Su primo, el p99.9, deja arriba a 1 de cada 1,000.",
-      "ejemplo": "C01 promete p99 ≤ 200 ms del lado del servidor. Con 10 millones de requests al día, ese 1 % permitido son 100,000 requests lentas al día.",
+      "ejemplo": "Alba, el marketplace que sigue el curso, promete p99 ≤ 200 ms del lado del servidor. Con 10 millones de requests al día, ese 1 % permitido son 0.01 × 10,000,000 = 100,000 requests lentas al día.",
       "ver": ["percentil", "slo", "cola-distribucion"],
       "leccion": "percentiles"
     },
@@ -58,7 +58,7 @@
       "en": "histogram",
       "corto": "Una gráfica de barras de una distribución: partes el rango en intervalos (buckets), cuentas cuántos valores caen en cada uno y dibujas una barra por intervalo.",
       "largo": "En monitoreo, un histograma no es solo una gráfica: es la forma de guardar latencias. Cada copia del servicio lleva un contador por [[bucket]] y suma 1 donde cae cada request. Los contadores se suman entre copias y entre ventanas, y con ellos se estiman los [[percentil|percentiles]]. Prometheus los guarda acumulados, con la etiqueta le («menor o igual»).",
-      "ejemplo": "El servicio de C01 cuenta cada request en buckets con bordes de 10 ms a 2.5 s (10, 25, 50, 75, 100, 150, 200, 300, 500, 1,000 y 2,500 ms), más uno para lo que pasa de 2.5 s.",
+      "ejemplo": "El servicio de Alba, el marketplace que sigue el curso, cuenta cada request en buckets con bordes de 10 ms a 2.5 s (10, 25, 50, 75, 100, 150, 200, 300, 500, 1,000 y 2,500 ms), más uno para lo que pasa de 2.5 s.",
       "ver": ["bucket", "distribucion", "percentil"],
       "leccion": "percentiles"
     },
@@ -88,7 +88,7 @@
       "en": "bucket · bin",
       "corto": "Cada intervalo de un histograma, como «de 150 a 200 ms». En monitoreo, un contador que suma 1 cada vez que una request cae en ese intervalo.",
       "largo": "Con buckets fijos no hace falta guardar cada latencia: basta un contador por intervalo, que se suma entre copias y entre ventanas. Un percentil se estima buscando el bucket donde cae su posición e interpolando adentro, como si sus requests estuvieran repartidas parejo. Por eso los bordes se ponen apretados alrededor del SLO, y uno justo en él: con buckets gruesos, el estimado puede salir muy lejos del valor de verdad.",
-      "ejemplo": "De 10,000 requests, 9,820 caen hasta 150 ms y 110 entre 150 y 200. El p99 (la 9,900) queda 80 de 110 adentro de ese bucket: 150 + 50 × 80 ÷ 110 ≈ 186 ms.",
+      "ejemplo": "De \\(N\\) = 10,000 requests, \\(C\\) = 9,820 caen hasta 150 ms y \\(n\\) = 110 entre \\(L\\) = 150 y \\(U\\) = 200 ms. El p99 es la request \\(r\\) = 0.99 × 10,000 = 9,900, y queda \\((r − C)/n\\) = 80 ÷ 110 del camino dentro de ese bucket: \\(p ≈ L + (U − L) × (r − C)/n\\) = 150 + 50 × 80 ÷ 110 ≈ 186 ms.",
       "ver": ["histograma", "percentil"],
       "leccion": "percentiles"
     },
@@ -96,9 +96,9 @@
       "id": "slo",
       "termino": "SLO",
       "en": "SLO · service level objective",
-      "corto": "La meta que un número medido del servicio tiene que cumplir, en una ventana de tiempo. En C01: p99 ≤ 200 ms, medido del lado del servidor.",
+      "corto": "La meta que un número medido del servicio tiene que cumplir, en una ventana de tiempo. En Alba, el marketplace que sigue el curso: p99 ≤ 200 ms, medido del lado del servidor.",
       "largo": "Un SLO completo dice qué se mide, dónde, cuánto y en qué ventana. Se revisa con su [[sli|SLI]]: cada pocos minutos para avisar, y cada 30 días para llevar la cuenta. «p99 ≤ 200 ms» es lo mismo que «al menos el 99 % de las requests en 200 ms o menos», y ese 1 % que sobra es un presupuesto que se puede gastar ([[error-budget]]). Si además hay un contrato con multas, se llama SLA.",
-      "ejemplo": "C01 tiene dos: el de latencia, p99 ≤ 200 ms; y el de disponibilidad, 99.9 % al mes de requests sin error del servidor y dentro de 300 ms.",
+      "ejemplo": "Alba tiene dos: el de latencia, p99 ≤ 200 ms; y el de disponibilidad, 99.9 % al mes de requests sin error del servidor y dentro de 300 ms.",
       "ver": ["sli", "p99", "error-budget"],
       "leccion": "percentiles"
     },

@@ -1,11 +1,11 @@
 {
   "titulo": "IoU de dos cajas",
-  "intro": "La caja real de la figura va de x = 40 a 140 y de y = 20 a 220: 100 × 200 píxeles. Mueve la caja del modelo y cambia su tamaño. La IoU sale como porcentaje: 56 % es 0.56.",
+  "intro": "La caja real de la figura va de x = 40 a 140 y de y = 20 a 220: 100 × 200 píxeles. Mueve la caja del modelo y cambia su tamaño. Aplica las ecuaciones de la lección: \\(A_{modelo} = w × h\\), \\(U = A_{real} + A_{modelo} − I\\) con \\(A_{real}\\) = 20,000 px², y \\(text{IoU} = I/U\\). La IoU sale como porcentaje: 56 % es 0.56.",
   "entradas": [
-    { "id": "dx", "label": "Corrimiento a la derecha", "min": -150, "max": 150, "paso": 5, "valor": 20, "unidad": "px" },
-    { "id": "dy", "label": "Corrimiento hacia abajo", "min": -250, "max": 250, "paso": 5, "valor": 20, "unidad": "px" },
-    { "id": "w", "label": "Ancho de la caja del modelo", "min": 10, "max": 300, "paso": 5, "valor": 100, "unidad": "px" },
-    { "id": "h", "label": "Alto de la caja del modelo", "min": 10, "max": 400, "paso": 5, "valor": 200, "unidad": "px" }
+    { "id": "dx", "label": "Corrimiento de la caja del modelo a la derecha (negativo: a la izquierda)", "min": -150, "max": 150, "paso": 5, "valor": 20, "unidad": "px" },
+    { "id": "dy", "label": "Corrimiento de la caja del modelo hacia abajo (negativo: hacia arriba)", "min": -250, "max": 250, "paso": 5, "valor": 20, "unidad": "px" },
+    { "id": "w", "label": "Ancho de la caja del modelo, \\(w\\)", "min": 10, "max": 300, "paso": 5, "valor": 100, "unidad": "px" },
+    { "id": "h", "label": "Alto de la caja del modelo, \\(h\\)", "min": 10, "max": 400, "paso": 5, "valor": 200, "unidad": "px" }
   ],
   "calculos": [
     { "id": "iw", "formula": "max(0, min(140, 40 + dx + w) - max(40, 40 + dx))" },
@@ -15,9 +15,9 @@
     { "id": "iou", "formula": "inter / max(union, 1e-9)" }
   ],
   "salidas": [
-    { "label": "Comparten (intersección)", "formula": "inter", "formato": "int", "nota": "píxeles cuadrados" },
-    { "label": "Cubren juntas (unión)", "formula": "union", "formato": "int", "nota": "20,000 + la del modelo − lo que comparten" },
-    { "label": "**IoU**", "formula": "iou", "formato": "pct", "barra": true, "nota": "la mitad de la barra es 0.5, la regla clásica" },
+    { "label": "Lo que comparten (intersección, I)", "formula": "inter", "formato": "int", "nota": "px²: ancho común × alto común" },
+    { "label": "Lo que cubren juntas (unión, U)", "formula": "union", "formato": "int", "nota": "px²: \\(U = A_{real} + A_{modelo} − I\\) = 20,000 + \\(w × h\\) − \\(I\\)" },
+    { "label": "**IoU**", "formula": "iou", "formato": "pct", "barra": true, "nota": "\\(I/U\\); la mitad de la barra es 0.5, la regla clásica" },
     { "label": "¿Acierto con IoU ≥ 0.5? · 1 = sí, 0 = no", "formula": "iou >= 0.5 ? 1 : 0", "formato": "int" }
   ],
   "nota": "Prueba 20 a la derecha y 0 hacia abajo: la IoU sube a 0.67. Ahora haz la caja del doble de tamaño y centrada en la persona (−50, −100, 200 y 400): la cubre completa y aun así la IoU baja a 0.25, porque la unión crece."

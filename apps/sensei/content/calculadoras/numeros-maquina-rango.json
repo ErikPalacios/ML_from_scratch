@@ -1,10 +1,10 @@
 {
   "titulo": "El rango de un entero",
-  "intro": "Elige cuántos [[bit|bits]] tiene el [[entero]] y si lleva signo. Después escribe un número y mira qué queda guardado si no cabe: si da la vuelta ([[overflow]]) o si se satura.",
+  "intro": "Elige cuántos [[bit|bits]], \\(n\\), tiene el [[entero]] y si lleva signo. La calculadora aplica la regla de la lección: sin signo, de 0 a \\(2^n − 1\\); con signo, de \\(−2^{n−1}\\) a \\(2^{n−1} − 1\\). Después escribe un número y mira qué queda guardado si no cabe: si da la vuelta ([[overflow]]) o si se satura.",
   "entradas": [
-    { "id": "b", "label": "Bits del entero (8 = uint8 o int8 · 16 · 32)", "min": 2, "max": 32, "paso": 1, "valor": 8 },
+    { "id": "b", "label": "Bits del entero, \\(n\\) (8 = uint8 o int8 · 16 · 32)", "min": 2, "max": 32, "paso": 1, "valor": 8 },
     { "id": "s", "label": "¿Con signo? 0 = no (uint) · 1 = sí (int)", "min": 0, "max": 1, "paso": 1, "valor": 0 },
-    { "id": "v", "label": "Número que quieres guardar", "min": -10000000000, "max": 10000000000, "paso": 1, "valor": 256, "tipo": "numero" }
+    { "id": "v", "label": "Número que quieres guardar, \\(x\\)", "min": -10000000000, "max": 10000000000, "paso": 1, "valor": 256, "tipo": "numero" }
   ],
   "calculos": [
     { "id": "n", "formula": "pow(2, b)" },
@@ -13,12 +13,12 @@
     { "id": "vr", "formula": "round(v)" }
   ],
   "salidas": [
-    { "label": "Valores distintos", "formula": "n", "formato": "int", "nota": "2 elevado a los bits" },
-    { "label": "El más chico", "formula": "lo", "formato": "int" },
-    { "label": "El más grande", "formula": "hi", "formato": "int" },
+    { "label": "Valores distintos", "formula": "n", "formato": "int", "nota": "\\(2^n\\): 2 elevado a los bits" },
+    { "label": "El más chico", "formula": "lo", "formato": "int", "nota": "0 sin signo · \\(−2^{n−1}\\) con signo" },
+    { "label": "El más grande", "formula": "hi", "formato": "int", "nota": "\\(2^n − 1\\) sin signo · \\(2^{n−1} − 1\\) con signo" },
     { "label": "Bytes que ocupa cada uno", "formula": "b / 8", "formato": "num", "decimales": 1, "nota": "8 bits por byte" },
-    { "label": "Si da la vuelta, queda guardado", "formula": "((vr - lo) % n + n) % n + lo", "formato": "int", "nota": "lo que hacen los arreglos de NumPy y PyTorch, sin avisar" },
-    { "label": "Si se satura, queda guardado", "formula": "min(hi, max(lo, vr))", "formato": "int", "nota": "lo que hace cv2.add de OpenCV" }
+    { "label": "Si da la vuelta, queda guardado", "formula": "((vr - lo) % n + n) % n + lo", "formato": "int", "nota": "le suma o le resta \\(2^n\\) a \\(x\\) hasta que cabe: lo que hacen los arreglos de NumPy y PyTorch, sin avisar" },
+    { "label": "Si se satura, queda guardado", "formula": "min(hi, max(lo, vr))", "formato": "int", "nota": "se queda en la orilla más cercana: lo que hace cv2.add de OpenCV" }
   ],
-  "nota": "Con 8 bits sin signo, 256 da la vuelta a 0. Con signo, 128 queda en −128. Con 32 bits con signo, el más grande es 2,147,483,647: un contador de las fotos de C01 llega ahí en ≈ 214 días."
+  "nota": "Con 8 bits sin signo, 256 da la vuelta a 0. Con signo, 128 queda en −128. Con 32 bits con signo, el más grande es 2,147,483,647: un contador de las fotos de Alba, el marketplace del curso, que sube ≈ 116 veces por segundo, llega ahí en 2,147,483,647 ÷ 116 ÷ 86,400 ≈ 214 días."
 }

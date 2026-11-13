@@ -1,5 +1,5 @@
 {
- "nota": "Los módulos y sus lecciones, en el orden en que se leen. Una lección existe cuando está su archivo content/lecciones/<id>.md; mientras no, se muestra como «próximamente» con su fase. «ronda»: los módulos de la Ronda de Diseño (content/ronda.json) a los que prepara; la página /ronda/ lo junta. «estacion»: la estación de C01 que explica (enlace al Dojo). «etapas»: ids de etapas.json o \"todas\".",
+ "nota": "Los módulos y sus lecciones, en el orden en que se leen. Una lección existe cuando está su archivo content/lecciones/<id>.md; mientras no, se muestra como «próximamente» con su fase. «estacion»: la estación del Dojo que explica (el enlace sale al cierre de la lección). «etapas»: ids de etapas.json o \"todas\".",
  "modulos": [
   {
    "id": "mapa",
@@ -11,10 +11,7 @@
     {
      "id": "camino-completo",
      "titulo": "El camino completo",
-     "etapas": "todas",
-     "ronda": [
-      "m01"
-     ]
+     "etapas": "todas"
     }
    ]
   },
@@ -33,10 +30,6 @@
      "titulo": "Qué es un modelo",
      "etapas": [
       "modelo"
-     ],
-     "ronda": [
-      "m01",
-      "m07"
      ]
     },
     {
@@ -45,11 +38,6 @@
      "etapas": [
       "datos",
       "modelo"
-     ],
-     "ronda": [
-      "m01",
-      "m07",
-      "m09"
      ]
     },
     {
@@ -57,10 +45,6 @@
      "titulo": "Datos, ejemplos, features y etiquetas",
      "etapas": [
       "datos"
-     ],
-     "ronda": [
-      "m01",
-      "m09"
      ]
     },
     {
@@ -68,10 +52,6 @@
      "titulo": "Cómo aprende un modelo",
      "etapas": [
       "modelo"
-     ],
-     "ronda": [
-      "m04",
-      "m10"
      ]
     },
     {
@@ -79,11 +59,6 @@
      "titulo": "¿Aprendió de verdad?",
      "etapas": [
       "modelo"
-     ],
-     "ronda": [
-      "m01",
-      "m10",
-      "m11"
      ]
     },
     {
@@ -91,12 +66,6 @@
      "titulo": "Redes neuronales y CNNs",
      "etapas": [
       "modelo"
-     ],
-     "ronda": [
-      "m03",
-      "m04",
-      "m07",
-      "m08"
      ]
     },
     {
@@ -104,12 +73,6 @@
      "titulo": "Embeddings: el significado como coordenadas",
      "etapas": [
       "modelo"
-     ],
-     "ronda": [
-      "m02",
-      "m07",
-      "m09",
-      "m12"
      ]
     },
     {
@@ -117,11 +80,6 @@
      "titulo": "Transformers y LLMs",
      "etapas": [
       "modelo"
-     ],
-     "ronda": [
-      "m04",
-      "m07",
-      "m14"
      ]
     }
    ]
@@ -139,13 +97,7 @@
     {
      "id": "unidades",
      "titulo": "Números grandes, unidades y estimaciones",
-     "etapas": "todas",
-     "ronda": [
-      "m01",
-      "m03",
-      "m04",
-      "m13"
-     ]
+     "etapas": "todas"
     },
     {
      "id": "percentiles",
@@ -153,10 +105,6 @@
      "etapas": [
       "api",
       "monitoreo"
-     ],
-     "ronda": [
-      "m03",
-      "m12"
      ]
     },
     {
@@ -164,10 +112,6 @@
      "titulo": "Probabilidad para sistemas que fallan",
      "etapas": [
       "orquestacion"
-     ],
-     "ronda": [
-      "m03",
-      "m15"
      ]
     },
     {
@@ -176,10 +120,6 @@
      "etapas": [
       "modelo",
       "monitoreo"
-     ],
-     "ronda": [
-      "m10",
-      "m11"
      ]
     },
     {
@@ -187,9 +127,6 @@
      "titulo": "Comparar distribuciones: cómo se mide el drift",
      "etapas": [
       "monitoreo"
-     ],
-     "ronda": [
-      "m12"
      ]
     },
     {
@@ -197,10 +134,6 @@
      "titulo": "Cómo guarda números una computadora",
      "etapas": [
       "modelo"
-     ],
-     "ronda": [
-      "m04",
-      "m08"
      ]
     },
     {
@@ -208,10 +141,6 @@
      "titulo": "Matrices, FLOPs y qué tan rápido calcula una GPU",
      "etapas": [
       "modelo"
-     ],
-     "ronda": [
-      "m04",
-      "m08"
      ]
     }
    ]
@@ -231,11 +160,6 @@
      "titulo": "Programa, proceso e hilo",
      "etapas": [
       "api"
-     ],
-     "ronda": [
-      "m03",
-      "m06",
-      "m07"
      ]
     },
     {
@@ -244,10 +168,6 @@
      "etapas": [
       "modelo",
       "api"
-     ],
-     "ronda": [
-      "m04",
-      "m05"
      ]
     },
     {
@@ -256,12 +176,6 @@
      "etapas": [
       "modelo",
       "api"
-     ],
-     "ronda": [
-      "m04",
-      "m06",
-      "m07",
-      "m08"
      ]
     },
     {
@@ -269,11 +183,6 @@
      "titulo": "El sistema operativo: Linux, archivos y permisos",
      "etapas": [
       "contenedor"
-     ],
-     "ronda": [
-      "m05",
-      "m06",
-      "m15"
      ]
     },
     {
@@ -281,11 +190,6 @@
      "titulo": "Hacer varias cosas a la vez: async, event loop y GIL",
      "etapas": [
       "api"
-     ],
-     "ronda": [
-      "m02",
-      "m03",
-      "m07"
      ]
     }
    ]
@@ -306,11 +210,6 @@
      "etapas": [
       "api",
       "orquestacion"
-     ],
-     "ronda": [
-      "m02",
-      "m06",
-      "m13"
      ]
     },
     {
@@ -318,11 +217,6 @@
      "titulo": "HTTP: requests, respuestas y códigos",
      "etapas": [
       "api"
-     ],
-     "ronda": [
-      "m02",
-      "m07",
-      "m15"
      ]
     },
     {
@@ -330,11 +224,6 @@
      "titulo": "APIs: REST, JSON, gRPC y streaming",
      "etapas": [
       "api"
-     ],
-     "ronda": [
-      "m02",
-      "m07",
-      "m14"
      ]
     },
     {
@@ -343,11 +232,6 @@
      "etapas": [
       "api",
       "orquestacion"
-     ],
-     "ronda": [
-      "m03",
-      "m06",
-      "m11"
      ]
     },
     {
@@ -355,11 +239,6 @@
      "titulo": "Timeouts, reintentos e idempotencia",
      "etapas": [
       "api"
-     ],
-     "ronda": [
-      "m02",
-      "m03",
-      "m15"
      ]
     },
     {
@@ -368,9 +247,6 @@
      "etapas": [
       "api",
       "monitoreo"
-     ],
-     "ronda": [
-      "m03"
      ]
     }
    ]
@@ -389,11 +265,6 @@
      "titulo": "Archivos y formatos: JSON, CSV, Parquet y YAML",
      "etapas": [
       "datos"
-     ],
-     "ronda": [
-      "m01",
-      "m09",
-      "m12"
      ]
     },
     {
@@ -401,10 +272,6 @@
      "titulo": "Bases de datos: tablas, SQL y llave-valor",
      "etapas": [
       "datos"
-     ],
-     "ronda": [
-      "m02",
-      "m09"
      ]
     },
     {
@@ -412,10 +279,6 @@
      "titulo": "Object storage, data lakes y warehouses",
      "etapas": [
       "datos"
-     ],
-     "ronda": [
-      "m09",
-      "m13"
      ]
     },
     {
@@ -424,11 +287,6 @@
      "etapas": [
       "datos",
       "api"
-     ],
-     "ronda": [
-      "m02",
-      "m06",
-      "m12"
      ]
     },
     {
@@ -436,11 +294,6 @@
      "titulo": "Tiempo, hashes e identificadores",
      "etapas": [
       "datos"
-     ],
-     "ronda": [
-      "m02",
-      "m09",
-      "m15"
      ]
     }
    ]
@@ -460,10 +313,6 @@
      "titulo": "La terminal y la shell",
      "etapas": [
       "contenedor"
-     ],
-     "ronda": [
-      "m05",
-      "m06"
      ]
     },
     {
@@ -472,11 +321,6 @@
      "etapas": [
       "modelo",
       "contenedor"
-     ],
-     "ronda": [
-      "m05",
-      "m07",
-      "m10"
      ]
     },
     {
@@ -484,11 +328,6 @@
      "titulo": "PyTorch en lo que toca a producción",
      "etapas": [
       "modelo"
-     ],
-     "ronda": [
-      "m07",
-      "m08",
-      "m15"
      ]
     },
     {
@@ -496,11 +335,6 @@
      "titulo": "Git: versiones del código",
      "etapas": [
       "contenedor"
-     ],
-     "ronda": [
-      "m05",
-      "m09",
-      "m10"
      ]
     },
     {
@@ -508,10 +342,6 @@
      "titulo": "Pruebas y CI/CD",
      "etapas": [
       "contenedor"
-     ],
-     "ronda": [
-      "m10",
-      "m11"
      ]
     },
     {
@@ -520,11 +350,6 @@
      "etapas": [
       "contenedor",
       "orquestacion"
-     ],
-     "ronda": [
-      "m05",
-      "m06",
-      "m15"
      ]
     }
    ]
@@ -543,9 +368,6 @@
      "titulo": "Qué es la nube",
      "etapas": [
       "orquestacion"
-     ],
-     "ronda": [
-      "m13"
      ]
     },
     {
@@ -553,11 +375,6 @@
      "titulo": "Regiones, zonas y disponibilidad",
      "etapas": [
       "orquestacion"
-     ],
-     "ronda": [
-      "m06",
-      "m13",
-      "m15"
      ]
     },
     {
@@ -566,10 +383,6 @@
      "etapas": [
       "modelo",
       "orquestacion"
-     ],
-     "ronda": [
-      "m04",
-      "m13"
      ]
     },
     {
@@ -577,9 +390,6 @@
      "titulo": "Redes en la nube: VPC, subredes y egress",
      "etapas": [
       "orquestacion"
-     ],
-     "ronda": [
-      "m13"
      ]
     },
     {
@@ -587,11 +397,6 @@
      "titulo": "Servicios gestionados, serverless y permisos",
      "etapas": [
       "orquestacion"
-     ],
-     "ronda": [
-      "m06",
-      "m13",
-      "m15"
      ]
     }
    ]
@@ -611,9 +416,6 @@
      "titulo": "Cifrado, llaves y certificados",
      "etapas": [
       "api"
-     ],
-     "ronda": [
-      "m15"
      ]
     },
     {
@@ -622,10 +424,6 @@
      "etapas": [
       "api",
       "orquestacion"
-     ],
-     "ronda": [
-      "m07",
-      "m15"
      ]
     },
     {
@@ -633,10 +431,6 @@
      "titulo": "Datos personales y la ley",
      "etapas": [
       "datos"
-     ],
-     "ronda": [
-      "m09",
-      "m15"
      ]
     },
     {
@@ -645,10 +439,6 @@
      "etapas": [
       "contenedor",
       "modelo"
-     ],
-     "ronda": [
-      "m05",
-      "m15"
      ]
     }
    ]
@@ -668,9 +458,6 @@
      "etapas": [
       "datos"
      ],
-     "ronda": [
-      "m09"
-     ],
      "estacion": 1
     },
     {
@@ -678,10 +465,6 @@
      "titulo": "Versionado y linaje",
      "etapas": [
       "datos"
-     ],
-     "ronda": [
-      "m09",
-      "m10"
      ],
      "estacion": 2
     }
@@ -702,9 +485,6 @@
      "etapas": [
       "modelo"
      ],
-     "ronda": [
-      "m10"
-     ],
      "estacion": 3
     },
     {
@@ -713,10 +493,6 @@
      "etapas": [
       "modelo"
      ],
-     "ronda": [
-      "m10",
-      "m11"
-     ],
      "estacion": 4
     },
     {
@@ -724,9 +500,6 @@
      "titulo": "Export, engine y paridad",
      "etapas": [
       "modelo"
-     ],
-     "ronda": [
-      "m08"
      ],
      "estacion": 5
     }
@@ -747,10 +520,6 @@
      "etapas": [
       "api"
      ],
-     "ronda": [
-      "m03",
-      "m07"
-     ],
      "estacion": 6
     }
    ]
@@ -770,9 +539,6 @@
      "etapas": [
       "contenedor"
      ],
-     "ronda": [
-      "m05"
-     ],
      "estacion": 7
     },
     {
@@ -780,10 +546,6 @@
      "titulo": "CI/CD y registro de imágenes",
      "etapas": [
       "contenedor"
-     ],
-     "ronda": [
-      "m05",
-      "m10"
      ],
      "estacion": 8
     }
@@ -804,9 +566,6 @@
      "etapas": [
       "orquestacion"
      ],
-     "ronda": [
-      "m06"
-     ],
      "estacion": 9
     },
     {
@@ -814,9 +573,6 @@
      "titulo": "Rollout seguro",
      "etapas": [
       "orquestacion"
-     ],
-     "ronda": [
-      "m11"
      ],
      "estacion": 10
     }
@@ -838,10 +594,6 @@
       "api",
       "monitoreo"
      ],
-     "ronda": [
-      "m03",
-      "m12"
-     ],
      "estacion": 11
     },
     {
@@ -849,9 +601,6 @@
      "titulo": "Monitoreo, drift y reentrenamiento",
      "etapas": [
       "monitoreo"
-     ],
-     "ronda": [
-      "m12"
      ],
      "estacion": 12
     }

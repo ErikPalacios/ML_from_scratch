@@ -8,7 +8,7 @@
   ],
   "nodes": [
     { "id": "foto", "label": "Foto de Ana", "sub": "JPEG · ≈ 200 KB", "kind": "client", "x": 1, "y": 7, "w": 16, "h": 9,
-      "note": "Es el punto de partida en producción: un archivo [[jpeg|JPEG]] (o PNG, o WebP), es decir, bytes comprimidos que el modelo todavía no puede usar. En C01 la app del celular suele mandarla ya reducida, de unos 200 KB." },
+      "note": "Es el punto de partida en producción: un archivo [[jpeg|JPEG]] (o PNG, o WebP), es decir, bytes comprimidos que el modelo todavía no puede usar. En Alba la app del celular suele mandarla ya reducida, de unos 200 KB." },
     { "id": "deco", "label": "Decodificar", "sub": "bytes → píxeles", "kind": "service", "x": 21, "y": 7, "w": 16, "h": 9,
       "note": "Está aquí porque el modelo necesita píxeles, no un archivo comprimido. [[decodificar|Decodificar]] convierte el archivo en la cuadrícula de [[pixel|píxeles]], tres números [[uint8]] por cada uno. Aquí también se gira la foto según su [[exif|EXIF]] y se pasa a [[rgb|RGB]]." },
     { "id": "prep", "label": "Preprocesar", "sub": "resize · crop · normaliza", "kind": "service", "x": 41, "y": 7, "w": 16, "h": 9,

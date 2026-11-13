@@ -1,21 +1,21 @@
 {
-  "titulo": "Presupuesto de latencia de C01",
-  "intro": "Cada control es lo que tarda un paso del viaje de la foto **en un caso lento**. Empiezan en las estimaciones de la Ronda para C01. Muévelos y mira si todavía cabe en la promesa de 200 ms y en los 300 ms que espera el marketplace.",
+  "titulo": "Presupuesto de latencia de Alba",
+  "intro": "Cada control es lo que tarda un paso del viaje de la foto **en un caso lento**, en ms. Empiezan en las estimaciones del equipo de Alba. La calculadora suma \\(T = t_{red} + t_{pre} + t_{mod} + t_{resp} + t_{prog}\\) y saca el margen \\(M = S − T\\) dos veces: con \\(S\\) = 200 ms, la promesa, y con \\(S\\) = 300 ms, lo que espera el marketplace. Muévelos y mira si todavía cabe.",
   "entradas": [
-    { "id": "red", "label": "**Red y entrada**: balanceador y leer la foto", "min": 0, "max": 200, "paso": 1, "valor": 40, "unidad": "ms" },
-    { "id": "pre", "label": "**Preprocesamiento**: decodificar, achicar, normalizar", "min": 0, "max": 300, "paso": 1, "valor": 52, "unidad": "ms" },
-    { "id": "modelo", "label": "**Modelo**: viaje, turno y cálculo en la GPU", "min": 0, "max": 200, "paso": 1, "valor": 27, "unidad": "ms" },
-    { "id": "resp", "label": "**Respuesta**: top-5, mensaje y registro", "min": 0, "max": 50, "paso": 1, "valor": 3, "unidad": "ms" },
-    { "id": "prog", "label": "**El propio programa**: organizarse y esperar turno", "min": 0, "max": 100, "paso": 1, "valor": 30, "unidad": "ms" }
+    { "id": "red", "label": "**Red y entrada**, \\(t_{red}\\): balanceador y leer la foto", "min": 0, "max": 200, "paso": 1, "valor": 40, "unidad": "ms" },
+    { "id": "pre", "label": "**Preprocesamiento**, \\(t_{pre}\\): decodificar, achicar, normalizar", "min": 0, "max": 300, "paso": 1, "valor": 52, "unidad": "ms" },
+    { "id": "modelo", "label": "**Modelo**, \\(t_{mod}\\): viaje, turno y cálculo en la GPU", "min": 0, "max": 200, "paso": 1, "valor": 27, "unidad": "ms" },
+    { "id": "resp", "label": "**Respuesta**, \\(t_{resp}\\): top-5, mensaje y registro", "min": 0, "max": 50, "paso": 1, "valor": 3, "unidad": "ms" },
+    { "id": "prog", "label": "**El propio programa**, \\(t_{prog}\\): organizarse y esperar turno", "min": 0, "max": 100, "paso": 1, "valor": 30, "unidad": "ms" }
   ],
   "calculos": [
     { "id": "total", "formula": "red + pre + modelo + resp + prog" }
   ],
   "salidas": [
-    { "label": "Total del lado del servidor", "formula": "total", "formato": "ms", "decimales": 0 },
-    { "label": "Parte de los 200 ms que se usa", "formula": "total / 200", "formato": "pct", "decimales": 0, "barra": true },
-    { "label": "Margen contra la promesa de 200 ms", "formula": "200 - total", "formato": "ms", "decimales": 0, "nota": "si sale negativo, en este caso lento la promesa no se cumple" },
-    { "label": "Margen hasta que el marketplace deja de esperar", "formula": "300 - total", "formato": "ms", "decimales": 0, "nota": "si sale negativo, Ana ve el selector manual (sin contar la red entre el marketplace y la API)" }
+    { "label": "Total del lado del servidor, \\(T\\)", "formula": "total", "formato": "ms", "decimales": 0, "nota": "\\(T = t_{red} + t_{pre} + t_{mod} + t_{resp} + t_{prog}\\)" },
+    { "label": "Parte de los 200 ms que se usa, \\(T ÷ 200\\)", "formula": "total / 200", "formato": "pct", "decimales": 0, "barra": true },
+    { "label": "Margen contra la promesa de 200 ms, \\(M = 200 − T\\)", "formula": "200 - total", "formato": "ms", "decimales": 0, "nota": "\\(S\\) = 200; si sale negativo, en este caso lento la promesa no se cumple" },
+    { "label": "Margen hasta los 300 ms del marketplace, \\(M = 300 − T\\)", "formula": "300 - total", "formato": "ms", "decimales": 0, "nota": "\\(S\\) = 300; si sale negativo, Ana ve el selector manual (sin contar la red entre el marketplace y la API)" }
   ],
   "nota": "Sumar el caso lento de cada paso suele dar de más, porque casi nunca todos los pasos tienen su peor momento en la misma foto. Suele, no siempre: si se ponen lentos en fotos distintas, la suma puede quedarse corta. Sirve para repartir el presupuesto; el número de verdad se mide de punta a punta."
 }

@@ -45,7 +45,7 @@ Por tipo // viajar + esperar + trabajar | 7 + 2 + 11 | 20 ms
 = Con poco tráfico, casi todo es viaje y trabajo, y la única espera es esa ventana de 2 ms (la sección de batching la explica). El modelo en la GPU son 4 de 20 ms; la CPU trabaja 7, casi todo en el decode. Son los 18 a 20 ms de una request típica que viste en la lección de async.
 :::
 
-:::diagrama latencia-c01
+:::diagrama latencia-alba
 Toca cada caja para ver qué tiempo gasta ahí la request, o usa «Recorrer» para seguir la misma foto con poco tráfico y cerca del pico.
 :::
 

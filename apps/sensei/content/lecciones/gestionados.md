@@ -195,7 +195,7 @@ El camino privado hasta SageMaker AI // [[privatelink\|endpoint de interfaz]]: U
 
 Fíjate de dónde sale la diferencia: el sobreprecio de las máquinas son ≈ US$307 al mes. Los dos cobros por GB, ≈ US$1,212. Con imágenes, lo que pesa es lo que se cobra por byte. En los ejercicios verás que con FP32 solo la entrada costaría ≈ US$2,929.
 
-:::diagrama gestionados-c01
+:::diagrama gestionados-alba
 Sigue «Una request», luego «Lo que se cobra por GB» y al final «Lo que no ves». Toca cada caja para ver quién la opera.
 :::
 

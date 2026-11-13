@@ -1,20 +1,20 @@
 {
   "titulo": "Cuánto tarda en cargar un modelo",
-  "intro": "Antes de responder, los pesos tienen que salir del [[disco]]. Lo que ya está en la [[page-cache|page cache]] sale de la RAM y casi no cuenta. Arranca con Llama 3 8B en BF16 leído de un disco gp3 de base (125 MiB/s ≈ 131 MB/s).",
+  "intro": "Antes de responder, los pesos tienen que salir del [[disco]]. Lo que ya está en la [[page-cache|page cache]] sale de la RAM y casi no cuenta. Arranca con Llama 3 8B en BF16 leído de un disco gp3 de base (125 MiB/s ≈ 131 MB/s). La calculadora aplica \\(t = B/v\\), solo con la parte \\(c\\) que no está en la page cache: \\(t = B × (1 − c/100) ÷ v\\).",
   "entradas": [
-    { "id": "g", "label": "Tamaño de los pesos, en GB (0.15 = engine de C01 · 16.06 = Llama 3 8B en BF16 · 70.6 = el LLM de C10 en FP8 · 141 = Llama 3 70B en BF16)", "min": 0.01, "max": 500, "paso": 0.01, "valor": 16.06, "tipo": "numero" },
-    { "id": "d", "label": "Lectura del disco, en MB/s (131 = gp3 de base · 550 = SSD SATA · 2000 = NVMe local)", "min": 10, "max": 15000, "paso": 1, "valor": 131, "tipo": "numero" },
-    { "id": "c", "label": "Parte del archivo que ya está en la page cache", "min": 0, "max": 100, "paso": 5, "valor": 0, "unidad": "%" }
+    { "id": "g", "label": "Tamaño de los pesos \\(B\\), en GB (0.15 = el engine de Alba · 16.06 = Llama 3 8B en BF16 · 70.6 = un LLM propio de 70,600 millones de parámetros en FP8 · 141 = Llama 3 70B en BF16)", "min": 0.01, "max": 500, "paso": 0.01, "valor": 16.06, "tipo": "numero" },
+    { "id": "d", "label": "Velocidad de lectura del disco \\(v\\), en MB/s (131 = gp3 de base · 550 = SSD SATA · 2000 = NVMe local)", "min": 10, "max": 15000, "paso": 1, "valor": 131, "tipo": "numero" },
+    { "id": "c", "label": "Parte del archivo que ya está en la page cache, \\(c\\)", "min": 0, "max": 100, "paso": 5, "valor": 0, "unidad": "%" }
   ],
   "calculos": [
     { "id": "b", "formula": "g * 1e9 * (1 - c / 100)" },
     { "id": "t", "formula": "b / (d * 1e6)" }
   ],
   "salidas": [
-    { "label": "Bytes que hay que leer del disco", "formula": "b", "formato": "bytes" },
-    { "label": "Tiempo leyendo del disco", "formula": "t * 1000", "formato": "ms" },
-    { "label": "En minutos", "formula": "t / 60", "formato": "num", "decimales": 1 },
-    { "label": "Contra un NVMe local a 2,000 MB/s", "formula": "2000 / d", "formato": "x", "decimales": 1, "nota": "veces más lento (menos de 1×: más rápido)" }
+    { "label": "Bytes que hay que leer del disco", "formula": "b", "formato": "bytes", "nota": "\\(B × (1 − c/100)\\)" },
+    { "label": "Tiempo leyendo del disco, \\(t\\)", "formula": "t * 1000", "formato": "ms", "nota": "\\(B × (1 − c/100) ÷ v\\), con \\(v\\) pasado a GB/s" },
+    { "label": "El mismo tiempo, en minutos", "formula": "t / 60", "formato": "num", "decimales": 1, "nota": "\\(t ÷ 60\\)" },
+    { "label": "Contra un NVMe local a 2,000 MB/s", "formula": "2000 / d", "formato": "x", "decimales": 1, "nota": "\\(2,000 ÷ v\\): veces más lento (menos de 1×: más rápido)" }
   ],
   "nota": "Escribe 2000 en el disco: el mismo modelo baja a ≈ 8 s. Luego pon 100 % de page cache: es un reinicio en el mismo nodo, y el disco ya no cuenta. Prueba 141 GB con 131 MB/s: casi 18 minutos solo de leer."
 }

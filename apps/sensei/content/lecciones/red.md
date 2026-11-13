@@ -1,8 +1,8 @@
 ---
 titulo: Cómo viaja un mensaje: IP, puertos y DNS
 en: How a message travels: IP, ports and DNS
-subtitulo: Qué pasa entre el «publicar» de Ana y el gateway de C01: la foto partida en paquetes, la dirección de cada máquina, el puerto de cada programa, la conexión que no pierde nada, el tiempo que cobra la luz y el directorio que convierte nombres en direcciones.
-pregunta: Cuando Ana toca «publicar», ¿cómo llega su foto del celular al gateway de C01, y cómo sabe la red a qué máquina y a qué programa ir?
+subtitulo: Qué pasa entre el «publicar» de Ana y el gateway de Alba: la foto partida en paquetes, la dirección de cada máquina, el puerto de cada programa, la conexión que no pierde nada, el tiempo que cobra la luz y el directorio que convierte nombres en direcciones.
+pregunta: Cuando Ana toca «publicar», ¿cómo llega su foto del celular al gateway de Alba, y cómo sabe la red a qué máquina y a qué programa ir?
 requisitos: camino-completo, programa-proceso
 ---
 
@@ -10,7 +10,7 @@ requisitos: camino-completo, programa-proceso
 Un mensaje viaja por la red partido en paquetes, y cada paquete lleva escritas dos cosas: la dirección IP de la máquina a la que va y el puerto del programa que lo espera. TCP los junta en orden y reenvía los que se pierden; el DNS convierte los nombres en direcciones. Todo eso cuesta idas y vueltas, y ninguna puede ser más rápida que la luz.
 :::
 
-Ana está en la Ciudad de México y toca «publicar». La foto de sus tenis pesa ≈ 3 MB en su celular; la app la achica a ≈ 200 KB, la manda y, poco después, le sugiere «Tenis». En medio, la foto cruzó unos 3,000 km hasta el norte de Virginia, en Estados Unidos, donde viven las máquinas del marketplace y las de C01.
+Ana vende en Alba, la empresa que seguimos en todo el curso: un marketplace que recibe ≈ 2.5 millones de publicaciones al día y le sugiere a quien vende la categoría de cada foto, entre 500 posibles. Ana está en la Ciudad de México y toca «publicar». La foto de sus tenis pesa ≈ 3 MB en su celular; la app la achica a ≈ 200 KB, la manda y, poco después, le sugiere «Tenis». En medio, la foto cruzó unos 3,000 km hasta el norte de Virginia, en Estados Unidos, donde viven las máquinas de Alba: las del marketplace y las del clasificador, el servicio que le pone categoría a la foto. El programa del clasificador que recibe la foto y la prepara para el modelo se llama **gateway**.
 
 En «El camino completo» seguiste ese viaje desde arriba: la request entra, el modelo responde. Aquí vas a abrir la parte que se dio por hecha: **la red**. Tres preguntas guían la lección:
 
@@ -18,7 +18,7 @@ En «El camino completo» seguiste ese viaje desde arriba: la request entra, el 
 - **¿A qué programa?** En una máquina corren muchos [[proceso|procesos]]. ¿Cómo llega la foto al gateway y no a otro?
 - **¿Cómo no se pierde nada?** La red pierde y desordena pedazos. ¿Cómo llega la foto completa y en orden?
 
-Al final vas a poder seguir la foto salto por salto, con los números que la Ronda usa en M02, M06 y M13, y vas a entender por qué un servidor que «corre bien» en un contenedor a veces no contesta.
+Al final vas a poder seguir la foto salto por salto, con los números del sistema de Alba, y vas a entender por qué un servidor que «corre bien» en un contenedor a veces no contesta.
 
 ## Protocolos y paquetes: la foto viaja en pedazos {Protocols and packets: the photo travels in pieces}
 
@@ -41,15 +41,30 @@ La red no manda la foto de una sola pieza. La parte en pedazos, y cada pedazo vi
 
 ¿De qué tamaño? En casi todas las redes, un paquete lleva como máximo **1,500 bytes**. Ese tope se llama MTU (*maximum transmission unit*). Del total, 40 bytes son encabezados (20 del protocolo IP y 20 del protocolo TCP, que vas a conocer en las siguientes secciones), así que de foto caben **1,460 bytes** por paquete.
 
+Para saber cuántos paquetes ocupa algo, divide su tamaño entre lo que cabe de datos en cada paquete:
+
+:::formula Paquetes de un archivo
+D = M − E
+P = ⌈frac{S}{D}⌉
+H = P × E
+- S: el tamaño de lo que se manda, en bytes
+- M: el tope de un paquete, el MTU: 1,500 bytes
+- E: los encabezados de cada paquete: 40 bytes (20 de IP y 20 de TCP)
+- D: los bytes de datos que caben en cada paquete: 1,500 − 40 = 1,460
+- P: los paquetes. ⌈ ⌉ quiere decir «redondea hacia arriba»: el pedazo que sobra también ocupa un paquete
+- H: los bytes de encabezados que viajan en total, en bytes
+:::
+
 Haz la cuenta con el original de la foto de Ana, los 3 MB que guarda su celular. Así llegan las fotos que los vendedores suben desde la computadora, sin achicar:
 
 :::cuenta La foto original de Ana, en paquetes
-Foto original del celular | — | 3,000,000 bytes
-Foto por paquete // 1,500 de tope menos 40 de encabezados | 1,500 − 40 | 1,460 bytes
-Paquetes | 3,000,000 ÷ 1,460 = 2,054.8 → hacia arriba | 2,055
+Foto original del celular, \(S\) | — | 3,000,000 bytes
+Datos por paquete, \(D\) // 1,500 de tope menos 40 de encabezados | \(D = M − E\) = 1,500 − 40 | 1,460 bytes
+Paquetes, \(P\) | \(P = ⌈S/D⌉\) = ⌈3,000,000 ÷ 1,460⌉ = ⌈2,054.8⌉ | 2,055
 El último paquete // lo que sobra después de 2,054 llenos | 3,000,000 − 2,054 × 1,460 | 1,160 bytes
-Encabezados en total | 2,055 × 40 | 82,200 bytes
-= Una sola foto original son 2,055 paquetes, y ≈ 2.7 % de lo que viaja son encabezados. El JPEG de ≈ 200 KB que de verdad manda la app de Ana, ya achicado, son 137.
+Encabezados en total, \(H\) | \(H = P × E\) = 2,055 × 40 | 82,200 bytes
+Parte que son encabezados // \(H\) entre todo lo que viaja, \(S + H\) | 82,200 ÷ 3,082,200 | ≈ 2.7 %
+= Una sola foto original son 2,055 paquetes, y ≈ 2.7 % de lo que viaja son encabezados. El JPEG de ≈ 200 KB que de verdad manda la app de Ana, ya achicado, son ⌈200,000 ÷ 1,460⌉ = 137.
 :::
 
 :::figura red-paquetes
@@ -100,7 +115,7 @@ Una dirección de esos rangos es una [[ip-privada|IP privada]]: vale solo dentro
 
 Tu casa es el ejemplo. Tu router le da a cada aparato una IP privada, `192.168.1.x`, y él tiene una sola IP pública que le dio tu proveedor. Cuando tu celular sale a internet, el router cambia en cada paquete la dirección privada por la pública y anota el cambio, para saber a quién devolver la respuesta. Esa traducción se llama [[nat|NAT]] (*network address translation*). Así, una IP pública alcanza para toda la casa. Las compañías de celulares hacen lo mismo en grande: en IPv4, el celular de Ana casi seguro tiene una IP privada, y miles de celulares salen por la misma pública.
 
-En la nube pasa igual. Las máquinas de C01 viven en una red privada de AWS (*Amazon Web Services*, la nube de Amazon) con direcciones como `10.0.3.15`, y desde internet no se pueden alcanzar: solo la puerta de entrada tiene IP pública. Esa red privada en la nube se llama [[vpc|VPC]], y la vas a armar en la fase 8. En Kubernetes, además, cada *pod* (cada copia de un programa) recibe su propia IP privada al nacer y la pierde al morir: la siguiente copia tendrá otra.
+En la nube pasa igual. Las máquinas de Alba viven en una red privada de AWS (*Amazon Web Services*, la nube de Amazon) con direcciones como `10.0.3.15`, y desde internet no se pueden alcanzar: solo la puerta de entrada tiene IP pública. Esa red privada en la nube se llama [[vpc|VPC]], y la vas a armar en la lección «Redes en la nube: VPC, subredes y egress». En Kubernetes, además, cada *pod* (cada copia de un programa) recibe su propia IP privada al nacer y la pierde al morir: la siguiente copia tendrá otra.
 
 :::profundo Las direcciones, en Python
 El módulo `ipaddress` de la biblioteca estándar lee direcciones, las muestra en binario y dice de qué tipo son:
@@ -154,7 +169,7 @@ Algunos puertos son famosos, porque cada protocolo tiene uno acordado:
 | 443 | HTTPS, la web cifrada: casi todo internet |
 | 8000 | uvicorn, si no le dices otro; y el HTTP de Triton |
 | 8001 · 8002 | Triton: gRPC (otra manera de pedirle predicciones, que verás en la lección de APIs) y métricas |
-| 8080 | El gateway de C01 |
+| 8080 | El gateway de Alba |
 
 Los puertos del 0 al 1023 están reservados para los protocolos más conocidos, y en Linux solo [[root]] puede apuntarse en ellos, como viste en «El sistema operativo». (Docker y containerd 2.0, dos de los programas que arrancan contenedores, quitan esa regla dentro de ellos, pero la costumbre se quedó.) Por eso los programas propios, como el gateway con su 8080, usan puertos altos. Triton escucha en tres a la vez (el 8002 es para que Prometheus, el programa que junta las métricas de todos, las lea), así que **un programa puede tener varios puertos**; lo que no puede pasar, salvo con opciones especiales que aquí no hacen falta, es que dos programas de la misma máquina se apunten en el mismo puerto de la misma IP.
 
@@ -167,7 +182,7 @@ Con esas syscalls se ven los dos papeles de cualquier conversación por la red:
 - El [[servidor]] llega primero y espera: hace `bind` en su puerto, `listen` y se queda en `accept`.
 - El [[cliente]] (*client*) es quien **abre** la conexión: hace `connect` a la IP y al puerto del servidor.
 
-Ser cliente o servidor no es un tipo de máquina: es un papel en una conexión. El gateway de C01 es servidor cuando le llega la foto y cliente cuando le habla a Triton.
+Ser cliente o servidor no es un tipo de máquina: es un papel en una conexión. El gateway de Alba es servidor cuando le llega la foto y cliente cuando le habla a Triton.
 
 El cliente también necesita un puerto, para que la respuesta tenga a dónde volver. No lo elige: el kernel le presta uno libre de un rango alto, un **puerto efímero** (*ephemeral port*), que dura lo que dure la conexión. En Linux, por omisión, sale del 32,768 al 60,999. (El organismo que reparte los números, la IANA, recomienda otro rango, del 49,152 al 65,535, y Windows usa ese.)
 
@@ -228,10 +243,10 @@ Dentro de un contenedor es una trampa. En «El sistema operativo» viste que un 
 Las dos puertas de un contenedor. Escuchando en 127.0.0.1, uvicorn solo atiende la de adentro y la request de afuera se rechaza. Escuchando en 0.0.0.0, atiende las dos.
 :::
 
-Es el error clásico de «el contenedor corre, los logs dicen que todo está bien y no contesta». Por eso el gateway de C01 arranca con `uvicorn ... --host 0.0.0.0 --port 8080`. Lo vas a vivir en la estación 7 del Dojo.
+Es el error clásico de «el contenedor corre, los logs dicen que todo está bien y no contesta». Por eso el gateway de Alba arranca con `uvicorn ... --host 0.0.0.0 --port 8080`.
 
 :::profundo Cuando localhost sí sirve entre contenedores
-Un pod de Kubernetes puede tener varios contenedores, y esos sí comparten el mismo namespace de red: entre ellos, localhost funciona. La Ronda lo menciona como una opción para C01: si el gateway y Triton vivieran en el mismo pod, se hablarían por localhost, sin red de por medio.
+Un pod de Kubernetes puede tener varios contenedores, y esos sí comparten el mismo namespace de red: entre ellos, localhost funciona. Alba podría usarlo: si el gateway y Triton vivieran en el mismo pod, se hablarían por localhost, sin red de por medio.
 :::
 
 ## TCP y UDP: con conexión o sin ella {TCP and UDP: with or without a connection}
@@ -293,9 +308,9 @@ Para cerrar, cada lado manda un paquete con la marca FIN («ya no voy a mandar m
 | Llega todo | Sí: reenvía lo perdido | No: lo perdido se pierde |
 | En orden | Sí | No |
 | Encabezado | 20 bytes o más | 8 bytes |
-| Lo usan | HTTP/1.1 y HTTP/2, la foto de Ana, el tensor de C01, las bases de datos | Voz, video en vivo, juegos, DNS, QUIC (y con él, HTTP/3) |
+| Lo usan | HTTP/1.1 y HTTP/2, la foto de Ana, el tensor de Alba, las bases de datos | Voz, video en vivo, juegos, DNS, QUIC (y con él, HTTP/3) |
 
-Todo lo que viaja en C01, de la foto al tensor y a la respuesta, va por TCP: una categoría equivocada por un pedazo perdido sería mucho peor que unos milisegundos de espera.
+Todo lo que viaja en el sistema de Alba, de la foto al tensor y a la respuesta, va por TCP: una categoría equivocada por un pedazo perdido sería mucho peor que unos milisegundos de espera.
 
 ## RTT: lo que tarda la ida y vuelta {RTT: the round trip time}
 
@@ -307,19 +322,27 @@ Si juegas en línea, ya lo conoces: el «ping» que muestra el juego, «32 ms»,
 
 ### El límite de la luz
 
-El RTT tiene un piso que ninguna tecnología puede bajar: la velocidad de la luz. En el vacío, la luz recorre ≈ 300,000 km por segundo; dentro de la fibra óptica, el vidrio la frena a ≈ 200,000 km por segundo: **200 km por milisegundo**. En la lección de unidades viste la regla que usa la Ronda, ≥ 1 ms de ida y vuelta por cada 100 km. Sale de aquí: 100 km de ida y 100 de vuelta son 200 km, un milisegundo.
+El RTT tiene un piso que ninguna tecnología puede bajar: la velocidad de la luz. En el vacío, la luz recorre ≈ 300,000 km por segundo; dentro de la fibra óptica, el vidrio la frena a ≈ 200,000 km por segundo: **200 km por milisegundo**. En la lección de unidades viste una regla práctica: ≥ 1 ms de ida y vuelta por cada 100 km. Sale de aquí: 100 km de ida y 100 de vuelta son 200 km, un milisegundo.
+
+:::formula Piso del RTT por la distancia
+RTT ≈ frac{2 × d × f}{v}
+- d: la distancia en línea recta, en km
+- v: la velocidad de la luz en la fibra: ≈ 200 km por ms
+- f: cuántas veces más larga es la ruta real que la línea recta, sin unidad: 1 es la línea recta, el mínimo físico; una ruta real suele andar en ≈ 1.5
+- RTT: la ida y vuelta, en ms. El 2 es porque el paquete va y la respuesta regresa
+:::
 
 :::cuenta El piso físico entre Ana y Virginia
-Distancia en línea recta // de la Ciudad de México a Ashburn, en el norte de Virginia | — | ≈ 3,012 km
-Solo la ida // a 200 km por milisegundo | 3,012 ÷ 200 | ≈ 15 ms
-Ida y vuelta: el RTT mínimo | 2 × 15 | ≈ 30 ms
-Una ruta real // la fibra no va en línea recta y cada router suma un poco; suele salir del orden de 1.5 veces | 30 × 1.5 | ≈ 45 ms
+Distancia en línea recta, \(d\) // de la Ciudad de México a Ashburn, en el norte de Virginia | — | ≈ 3,012 km
+Solo la ida, \(d ÷ v\) // a 200 km por milisegundo | 3,012 ÷ 200 | ≈ 15 ms
+Ida y vuelta con \(f = 1\): el RTT mínimo | \(RTT = 2 × d ÷ v\) = 2 × 15 | ≈ 30 ms
+Una ruta real, con \(f ≈ 1.5\) // la fibra no va en línea recta y cada router suma un poco | 30 × 1.5 | ≈ 45 ms
 = Ninguna request de Ana a Virginia puede contestarse en menos de ≈ 30 ms, aunque el servidor responda al instante. Y por 4G, el tramo de radio del celular suma todavía más.
 :::
 
 Más [[ancho-banda|ancho de banda]] no baja el RTT. El ancho de banda dice **cuántos** bits caben por segundo en el tubo; el RTT dice **cuánto tarda** un bit en ir y volver. Una carretera de diez carriles deja pasar más coches, pero no hace más corto el viaje de cada uno. Para bajar el RTT solo hay dos caminos: acercarse o hacer menos idas y vueltas.
 
-La tabla usa dos palabras de la nube. Una [[region|región]] es un lugar del mundo donde un proveedor de nube tiene sus centros de datos: la de AWS en el norte de Virginia se llama `us-east-1`, y ahí vive C01. Una [[zona-disponibilidad|zona]] es uno o varios centros de datos dentro de una región, separados de los demás para que no fallen juntos; C01 usa dos. Las dos tienen su propia lección más adelante.
+La tabla usa dos palabras de la nube. Una [[region|región]] es un lugar del mundo donde un proveedor de nube tiene sus centros de datos: la de AWS en el norte de Virginia se llama `us-east-1`, y ahí viven las máquinas de Alba. Una [[zona-disponibilidad|zona]] es uno o varios centros de datos dentro de una región, separados de los demás para que no fallen juntos; Alba usa dos, `us-east-1a` y `us-east-1b`. Las dos tienen su propia lección más adelante.
 
 | Entre | RTT típico |
 |---|---|
@@ -339,13 +362,22 @@ Dos referencias públicas: AWS dice que las zonas de una región están a menos 
 
 Ahora junta las piezas. Una request por una conexión **nueva** paga 1 RTT de handshake y 1 RTT de la request y su respuesta: **2 RTT**. Si además va cifrada, como casi todo en internet, con [[tls|TLS]] (el protocolo que cifra la conexión para que nadie en el camino pueda leerla), el saludo del cifrado suma, en su versión actual (TLS 1.3), **otro RTT**: 3 en total. La versión anterior, TLS 1.2, que todavía se usa, cobraba 2 de saludo: 4 en total. Por una conexión que ya estaba abierta: 1.
 
+En una fórmula:
+
+:::formula Lo que la red le cobra a una request
+T ≈ k × RTT
+- RTT: la ida y vuelta entre el cliente y el servidor, en ms
+- k: las idas y vueltas que paga la request: 1 por una conexión ya abierta; 2 por una nueva (handshake de TCP y request); 3 por una nueva con TLS 1.3
+- T: el tiempo que la red le cobra a la request, en ms, sin contar lo que tarde el servidor en contestar
+:::
+
 Con un RTT de 60 ms, un número redondo cerca del de Ana a Virginia (≈ 45 ms de la ruta más lo que sume el 4G), la diferencia se ve así:
 
 :::cuenta Conexión nueva contra conexión abierta, a 60 ms de RTT
-Por una conexión ya abierta // solo la request y su respuesta | 1 × 60 ms | 60 ms
-Por una conexión nueva // handshake de TCP + request | 2 × 60 ms | 120 ms
-Nueva y con TLS // handshake de TCP + saludo de TLS + request | 3 × 60 ms | 180 ms
-= Abrir la conexión triplica lo que la red le cobra a la request. Contra una promesa de 200 ms, como el [[slo|SLO]] de C01, la diferencia entre 60 y 180 ms es casi todo el presupuesto.
+Por una conexión ya abierta, \(k = 1\) // solo la request y su respuesta | \(T = k × RTT\) = 1 × 60 ms | 60 ms
+Por una conexión nueva, \(k = 2\) // handshake de TCP + request | 2 × 60 ms | 120 ms
+Nueva y con TLS, \(k = 3\) // handshake de TCP + saludo de TLS + request | 3 × 60 ms | 180 ms
+= Abrir la conexión triplica lo que la red le cobra a la request. Contra una promesa de 200 ms, como el [[slo|SLO]] de Alba (el 99 % de las requests en 200 ms o menos), la diferencia entre 60 y 180 ms es casi todo el presupuesto.
 :::
 
 Por eso existe [[keep-alive]]: dejar la conexión abierta después de una request para mandar la siguiente por ahí. Y por eso los programas que hacen muchas requests guardan varias conexiones abiertas listas para usarse, un [[pool-conexiones|pool de conexiones]]. Las dos ideas son de la lección de HTTP.
@@ -354,7 +386,7 @@ Por eso existe [[keep-alive]]: dejar la conexión abierta después de una reques
 Pon 184 km, Querétaro, con conexión nueva y TLS: ≈ 5.5 ms. Acercarse vale más que cualquier optimización del código.
 :::
 
-En C01, la regla se cumple en cada salto. El backend del marketplace está en la misma región que C01 y llama con conexiones abiertas. El gateway y Triton están en la misma zona y también reusan conexiones: su RTT es una fracción de milisegundo. Lo que no se controla es el tramo de Ana: por eso el [[slo|SLO]] de 200 ms se mide del lado del servidor, desde que la request completa llega.
+En Alba, la regla se cumple en cada salto. El backend del marketplace está en la misma región que el clasificador y llama con conexiones abiertas. El gateway y Triton están en la misma zona y también reusan conexiones: su RTT es una fracción de milisegundo. Lo que no se controla es el tramo de Ana: por eso el [[slo|SLO]] de 200 ms se mide del lado del servidor, desde que la request completa llega.
 
 ## DNS: del nombre a la dirección {DNS: from name to address}
 
@@ -427,11 +459,11 @@ De los 150 s a los 300, el programa siguió mandando requests a la máquina viej
 
 ### Nombres dentro de Kubernetes
 
-Dentro de un clúster de Kubernetes, el grupo de máquinas que maneja los pods de C01, hay un DNS propio. El problema que resuelve es el de las IP de los pods: cambian cada vez que un pod se reinicia. Así que el gateway no apunta a la IP de un pod de Triton; apunta a un nombre:
+Dentro de un clúster de Kubernetes, el grupo de máquinas que maneja los pods de Alba, hay un DNS propio. El problema que resuelve es el de las IP de los pods: cambian cada vez que un pod se reinicia. Así que el gateway no apunta a la IP de un pod de Triton; apunta a un nombre:
 
 `triton.classifier.svc.cluster.local`
 
-Se lee igual, de derecha a izquierda: el dominio del clúster (`cluster.local`), los Services (`svc`), el *namespace* `classifier` y el Service `triton`. Ojo: un *namespace* de Kubernetes no es el namespace de red de Linux que viste arriba; es solo una carpeta para agrupar los objetos de un equipo, y `classifier` es la de C01. Un [[service-k8s|Service]] es un objeto de Kubernetes que pone **un nombre y una IP fijos** delante de los pods que hacen el mismo trabajo, y reparte entre ellos. El gateway lee ese nombre de una variable de su configuración, `TRITON_URL=triton.classifier.svc.cluster.local:8000`: el nombre y, después de los dos puntos, el puerto.
+Se lee igual, de derecha a izquierda: el dominio del clúster (`cluster.local`), los Services (`svc`), el *namespace* `classifier` y el Service `triton`. Ojo: un *namespace* de Kubernetes no es el namespace de red de Linux que viste arriba; es solo una carpeta para agrupar los objetos de un equipo, y `classifier` es la del clasificador de Alba. Un [[service-k8s|Service]] es un objeto de Kubernetes que pone **un nombre y una IP fijos** delante de los pods que hacen el mismo trabajo, y reparte entre ellos. El gateway lee ese nombre de una variable de su configuración, `TRITON_URL=triton.classifier.svc.cluster.local:8000`: el nombre y, después de los dos puntos, el puerto.
 
 :::profundo Por qué un nombre corto cuesta varias consultas en un pod
 Dentro de un pod, el archivo `/etc/resolv.conf` le dice al sistema a qué DNS preguntar y qué terminaciones probar. En el namespace `classifier`, la lista de terminaciones (*search*) es `classifier.svc.cluster.local`, `svc.cluster.local` y `cluster.local`, y Kubernetes pone `ndots:5`: si un nombre tiene menos de 5 puntos, se prueba primero con cada terminación. Por eso `triton` a secas funciona dentro del namespace: se vuelve `triton.classifier.svc.cluster.local` al primer intento.
@@ -468,8 +500,8 @@ Cada sobre ocupa bytes que no son datos. En un paquete de TCP sobre IPv4, la cue
 :::cuenta Lo que pesan los sobres de un paquete de 1,500 bytes
 Encabezado de IP // IPv4, el tamaño más común | — | 20 bytes
 Encabezado de TCP // sin opciones extra | — | 20 bytes
-Lo que queda para datos | 1,500 − 20 − 20 | 1,460 bytes
-Parte que son sobres | 40 ÷ 1,500 | ≈ 2.7 %
+Lo que queda para datos, \(D\) | \(D = M − E\) = 1,500 − 20 − 20 | 1,460 bytes
+Parte que son sobres // \(E ÷ M\) | 40 ÷ 1,500 | ≈ 2.7 %
 Con UDP en vez de TCP // 8 bytes de encabezado | 1,500 − 20 − 8 | 1,472 bytes
 = Por eso 1,460 es el número de la primera sección. El enlace agrega su sobre aparte, por fuera de los 1,500, y el de HTTP va solo en el primer paquete de la request.
 :::
@@ -477,7 +509,7 @@ Con UDP en vez de TCP // 8 bytes de encabezado | 1,500 − 20 − 8 | 1,472 byte
 En la práctica caben un poco menos. Linux le pone a cada paquete de TCP, por omisión, 12 bytes de opciones con la hora de envío (*timestamps*), que le sirven para medir el RTT: quedan 1,448 bytes de datos. La lección redondea con 1,460, la cuenta clásica.
 :::
 
-Las capas importan para la Ronda por una razón práctica: **lo que ve una máquina depende de la capa en la que trabaja**. Un router solo lee la capa 3: IP de origen y de destino. Un balanceador (un programa que reparte las requests entre varias copias de un mismo servidor) que trabaja en la capa 4 ve también los puertos, y nada más: reparte **conexiones**, sin saber qué requests van adentro. Uno de capa 7 abre HTTP y ve cada request: su ruta, sus encabezados. La Ronda (M06) dice que el Service de Kubernetes «balancea por conexión (L4)», y en la lección [[balanceador|Balanceadores, proxies y gateways]] vas a ver por qué eso le complica la vida a un servidor de modelos.
+Las capas importan al diseñar un sistema por una razón práctica: **lo que ve una máquina depende de la capa en la que trabaja**. Un router solo lee la capa 3: IP de origen y de destino. Un balanceador (un programa que reparte las requests entre varias copias de un mismo servidor) que trabaja en la capa 4 ve también los puertos, y nada más: reparte **conexiones**, sin saber qué requests van adentro. Uno de capa 7 abre HTTP y ve cada request: su ruta, sus encabezados. El Service de Kubernetes reparte por conexión, en la capa 4, y en la lección [[balanceador|Balanceadores, proxies y gateways]] vas a ver por qué eso le complica la vida a un servidor de modelos.
 
 ### El viaje completo
 
@@ -487,7 +519,7 @@ Ahora sí, la respuesta a la pregunta de la lección. Recorre el diagrama paso a
 Usa «Recorrer» para seguir la foto de Ana salto por salto, o el recorrido de quién es cliente y quién servidor en cada conexión.
 :::
 
-En una frase: la app **resuelve** un nombre con el DNS, abre una conexión **TCP** a la **IP** y al **puerto** 443 del backend, y manda la foto en paquetes que los routers reenvían. El backend hace lo mismo hacia C01. El ALB (*Application Load Balancer*), el balanceador de AWS que es la puerta de entrada de C01, pasa la request a la IP privada de un pod del gateway, en el puerto 8080, donde uvicorn escucha en 0.0.0.0. Y el gateway, ahora como cliente, resuelve `triton.classifier.svc.cluster.local` y manda el tensor al puerto 8000 de Triton. Cada salto es una conexión distinta, y en cada una se repite lo mismo: nombre → IP, IP → máquina, puerto → programa, TCP → completo y en orden.
+En una frase: la app **resuelve** un nombre con el DNS, abre una conexión **TCP** a la **IP** y al **puerto** 443 del backend, y manda la foto en paquetes que los routers reenvían. El backend hace lo mismo hacia el clasificador. El ALB (*Application Load Balancer*), el balanceador de AWS que es la puerta de entrada del clasificador, pasa la request a la IP privada de un pod del gateway, en el puerto 8080, donde uvicorn escucha en 0.0.0.0. Y el gateway, ahora como cliente, resuelve `triton.classifier.svc.cluster.local` y manda el tensor al puerto 8000 de Triton. Cada salto es una conexión distinta, y en cada una se repite lo mismo: nombre → IP, IP → máquina, puerto → programa, TCP → completo y en orden.
 
 ## Dentro de TCP: pérdidas, arranque lento y conexiones caras {Inside TCP: losses, slow start and expensive connections} [extra]
 
@@ -497,19 +529,39 @@ En la sección de TCP viste lo que promete. Aquí va cómo lo cumple sin ahogar 
 
 TCP no sabe qué tan ancho es el camino. Si mandara todo de golpe, podría saturar un router y perder la mitad. Así que empieza con poco y va subiendo: manda un puñado de paquetes, espera sus acuses y, si llegaron bien, en la siguiente vuelta manda el doble. Esa cantidad que se permite mandar sin acuse es la **ventana de congestión** (*congestion window*), y la fase en la que se duplica en cada RTT se llama **arranque lento** (*slow start*). Hoy casi todos los sistemas empiezan con una ventana de 10 paquetes, ≈ 14.6 KB: la recomendación del RFC 6928, de 2013, que Linux ya usaba desde 2011.
 
-:::cuenta El JPEG de 200 KB, en una conexión recién abierta
-Paquetes que hay que mandar | 200,000 ÷ 1,460 → hacia arriba | 137
-Primera vuelta // la ventana inicial | 10 | llevan 10
-Segunda vuelta // el doble | 20 | llevan 30
-Tercera vuelta | 40 | llevan 70
-Cuarta vuelta | 80 | llevan 150: ya pasaron de 137
-= Son 4 RTT solo para mandar 200 KB, aunque el tubo fuera enorme. Por 4G, con 50 ms de RTT, son ≈ 200 ms. Una foto de 3 MB necesita 8.
+Como la ventana se duplica, en la vuelta 1 salen \(w\) paquetes, en la 2 salen \(2w\), en la 3, \(4w\)… Después de \(r\) vueltas van \(w + 2w + 4w + …\) = \(w × (2^r − 1)\). Los paquetes \(P\) salen de \(P = ⌈S/D⌉\), la fórmula de la primera sección. El envío también tiene que caber en el tubo, y manda el más lento de los dos límites:
+
+:::formula Arranque lento
+w × (2^r − 1) ≥ P
+t_{arranque} = r × RTT
+t_{ancho} = frac{8 × S}{A}
+t ≈ max(t_{arranque}, t_{ancho})
+- P: los paquetes que hay que mandar
+- w: la ventana inicial, en paquetes: 10 hoy
+- r: las vueltas del arranque lento, cada una de un RTT: el número más chico que cumple la primera línea
+- RTT: la ida y vuelta, en ms
+- S: lo que hay que mandar, en bytes; el 8 lo pasa a bits
+- A: el ancho de banda, en bits por segundo
+- t_{arranque}: lo que pide el arranque lento, en ms
+- t_{ancho}: lo que pide el ancho de banda, en segundos (bits ÷ bits por segundo)
+- t: lo mínimo que tarda el envío, sin contar el handshake. Antes de comparar, pasa \(t_{arranque}\) y \(t_{ancho}\) a la misma unidad
 :::
 
-Con un ancho de banda chico pasa al revés: el que manda es el tubo, no el RTT. 3 MB a 10 Mb/s son 2.4 s, se abra la ventana tan rápido como se abra. La calculadora te deja ver cuál de los dos limita.
+:::cuenta El JPEG de 200 KB, en una conexión recién abierta
+Paquetes que hay que mandar, \(P\) | \(P = ⌈S/D⌉\) = ⌈200,000 ÷ 1,460⌉ | 137
+Primera vuelta // la ventana inicial, \(w\) | 10 | llevan 10
+Segunda vuelta // el doble | 20 | llevan 30
+Tercera vuelta | 40 | llevan 70
+Cuarta vuelta // ya pasaron de 137 | 80 | llevan 150
+Vueltas, \(r\) // la primera con \(w × (2^r − 1) ≥ P\) | 10 × (2⁴ − 1) = 150 ≥ 137 | 4
+Tiempo del arranque, \(t_{arranque}\) // por 4G, con ≈ 60 ms de RTT, como el de Ana a Virginia | \(t_{arranque} = r × RTT\) = 4 × 60 ms | ≈ 240 ms
+= Son 4 RTT solo para mandar 200 KB, aunque el tubo fuera enorme. Una foto de 3 MB, de 2,055 paquetes, necesita 8: 10 × (2⁸ − 1) = 2,550 ≥ 2,055.
+:::
+
+Con un ancho de banda chico pasa al revés: el que manda es el tubo, no el RTT. 3 MB a 10 Mb/s son \(t_{ancho}\) = 8 × 3,000,000 ÷ 10,000,000 = 2.4 s, se abra la ventana tan rápido como se abra. La calculadora te deja ver cuál de los dos limita.
 
 :::calculadora red-arranque
-Pon 602 KB, el tensor de C01, con 0.5 ms de RTT y 5000 Mb/s, como dentro de una zona: 6 vueltas, ≈ 3 ms. Y el tensor ya viaja por conexiones abiertas, con la ventana grande.
+Pon 602 KB, el tensor que el gateway le manda a Triton, con 0.5 ms de RTT y 5000 Mb/s, como dentro de una zona: 6 vueltas, ≈ 3 ms. Y el tensor ya viaja por conexiones abiertas, con la ventana grande.
 :::
 
 Una conexión que ya estaba abierta tiene la ventana grande: la siguiente request no vuelve a arrancar desde 10. Es otra razón para reusar conexiones, además del handshake. (Si la conexión pasa un rato sin usarse, Linux, por omisión, vuelve a empezar con la ventana chica.)
@@ -528,16 +580,16 @@ Esto explica QUIC. Para arreglarlo había que cambiar TCP, pero TCP vive dentro 
 
 ### Los puertos que se quedan ocupados
 
-Al cerrar una conexión, el lado que cierra primero no libera de inmediato sus cuatro números: los deja apartados un rato por si llega tarde algún paquete viejo. Ese estado se llama **TIME_WAIT**, y en Linux dura 60 s. Si el que cierra primero es el cliente, el puerto apartado es uno de sus efímeros, y esos se pueden acabar.
+Al cerrar una conexión, el lado que cierra primero no libera de inmediato sus cuatro números: los deja apartados un rato por si llega tarde algún paquete viejo. Ese estado se llama **TIME_WAIT**, y en Linux dura 60 s. Si el que cierra primero es el cliente, el puerto apartado es uno de sus efímeros, y esos se pueden acabar. El techo sale de repartir los puertos entre lo que dura apartado cada uno: \(R_{max} = N ÷ t_{TW}\), con \(N\) los puertos efímeros, \(t_{TW}\) los segundos que dura TIME_WAIT y \(R_{max}\) las conexiones nuevas por segundo que aguanta el cliente.
 
 :::cuenta Un cliente que abre y cierra una conexión por request
-Puertos efímeros de Linux // del 32,768 al 60,999 | 60,999 − 32,768 + 1 | 28,232
-Lo que dura cada uno apartado al cerrar | — | 60 s
-Conexiones nuevas por segundo, como máximo // hacia la misma IP y el mismo puerto | 28,232 ÷ 60 | ≈ 470
-= Un cliente que abre y cierra una conexión por request no pasa de ≈ 470 requests por segundo hacia el mismo destino. Al pico de diseño de C01, 500 por segundo, ya no alcanzaría.
+Puertos efímeros de Linux, \(N\) // del 32,768 al 60,999 | 60,999 − 32,768 + 1 | 28,232
+Lo que dura cada uno apartado al cerrar, \(t_{TW}\) | — | 60 s
+Conexiones nuevas por segundo, como máximo, \(R_{max}\) // hacia la misma IP y el mismo puerto | \(R_{max} = N ÷ t_{TW}\) = 28,232 ÷ 60 | ≈ 470
+= Un cliente que abre y cierra una conexión por request no pasa de ≈ 470 requests por segundo hacia el mismo destino. Al pico de diseño de Alba, 500 por segundo, ya no alcanzaría.
 :::
 
-C01 no tiene ese problema, porque reparte las 500 requests por segundo entre 5 pods y, sobre todo, porque reusa conexiones. Pero un *job* de prueba que lanza miles de requests con un cliente que abre una conexión cada vez se topa con ese techo y empieza a fallar con «*cannot assign requested address*». La salida no es tocar el kernel: es un [[pool-conexiones|pool de conexiones]].
+Alba no tiene ese problema, porque reparte las 500 requests por segundo entre 5 pods y, sobre todo, porque reusa conexiones. Pero un *job* de prueba que lanza miles de requests con un cliente que abre una conexión cada vez se topa con ese techo y empieza a fallar con «*cannot assign requested address*». La salida no es tocar el kernel: es un [[pool-conexiones|pool de conexiones]].
 
 ## Errores comunes {Common mistakes}
 
@@ -579,9 +631,9 @@ Si el RTT a otro continente es de 100 ms, ningún plan de internet más rápido 
 
 ## En la vida real {In real life} [extra]
 
-### C01: cada salto, con sus números
+### Alba: cada salto, con sus números
 
-Este es el viaje de la foto de Ana con lo que la Ronda deja escrito para C01:
+Este es el viaje de la foto de Ana con los números del sistema de Alba:
 
 | Salto | Cliente → servidor | Puerto | Lo que viaja |
 |---|---|---|---|
@@ -591,31 +643,31 @@ Este es el viaje de la foto de Ana con lo que la Ronda deja escrito para C01:
 | Gateway → Triton | El gateway, por el nombre del Service | 8000 | El tensor de 602 KB: 413 paquetes |
 | Prometheus → Triton | El que vigila las métricas | 8002 | Las métricas, cada 15 a 60 s, según se configure |
 
-Tres decisiones de C01 salen directo de esta lección.
+Tres decisiones de Alba salen directo de esta lección.
 
 **Triton no tiene IP pública ni puerta de entrada.** Solo se alcanza desde adentro, y una regla de red de Kubernetes (una *NetworkPolicy*) deja que le hablen únicamente los pods del gateway, y al 8002 solo Prometheus. Si nadie de afuera puede llegar al puerto, nadie de afuera puede abusar de él.
 
-**El gateway habla con el Triton de su misma zona.** Al pico de diseño, el gateway manda 500 tensores de 602 KB por segundo: ≈ 301 MB/s, ≈ 2.4 Gb/s, ≈ 206,500 paquetes por segundo. Dentro de una zona, el RTT es una fracción de milisegundo y el tráfico no se cobra. Entre zonas, el RTT sube un poco y AWS cobra US$0.01 por GB en cada sentido (su precio de 2026 en us-east-1). Si el Service repartiera al azar, la mitad de los tensores cruzaría de zona. En un mes promedio, con ≈ 10 millones de fotos al día, los tensores suman 10,000,000 × 602 KB × 30 días ≈ 180 TB; la mitad son ≈ 90 TB, y a US$0.02 por GB (0.01 de cada lado), ≈ US$1,800 al mes: más de lo que cuestan las dos GPUs. La Ronda (M06) lo arregla con una línea en el Service de Triton, `trafficDistribution: PreferSameZone` (existe desde Kubernetes 1.34 y es estable desde 1.35): cada gateway prefiere el Triton de su zona y solo cruza si el suyo no está listo.
+**El gateway habla con el Triton de su misma zona.** Al pico de diseño, el gateway manda 500 tensores de 602 KB por segundo: ≈ 301 MB/s, ≈ 2.4 Gb/s, ≈ 206,500 paquetes por segundo. Dentro de una zona, el RTT es una fracción de milisegundo y el tráfico no se cobra. Entre zonas, el RTT sube un poco y AWS cobra US$0.01 por GB en cada sentido (su precio de 2026 en us-east-1). Si el Service repartiera al azar, la mitad de los tensores cruzaría de zona. En un mes de 30.4 días (el que se usa para costos), con ≈ 10 millones de fotos al día (≈ 3 por publicación, más las que piden otros equipos), los tensores suman 10,000,000 × 602 KB × 30.4 días ≈ 183 TB; la mitad son ≈ 91.5 TB, y a US$0.02 por GB (0.01 de cada lado), ≈ US$1,830 al mes: más del doble de lo que cuestan al mes las dos GPUs del clasificador, ≈ US$768. Alba lo arregla con una línea en el Service de Triton, `trafficDistribution: PreferSameZone` (existe desde Kubernetes 1.34 y es estable desde 1.35): cada gateway prefiere el Triton de su zona y solo cruza si el suyo no está listo.
 
-**Las conexiones se reusan en todo el camino.** El ALB mantiene conexiones abiertas con los pods del gateway, y la Ronda le da a su tramo ≈ 1 a 3 ms; el gateway reusa las suyas con Triton, y el tramo completo del tensor, con la conversión a bytes y la red dentro de la nube, se estima en ≈ 2 a 4 ms la mediana y ≈ 5 a 10 ms el p99. Con una conexión nueva por request, cada tramo pagaría el handshake, el arranque lento y un puerto en TIME_WAIT.
+**Las conexiones se reusan en todo el camino.** El ALB mantiene conexiones abiertas con los pods del gateway, y el equipo de Alba le estima a ese tramo ≈ 1 a 3 ms; el gateway reusa las suyas con Triton, y el tramo completo del tensor, con la conversión a bytes y la red dentro de la nube, se estima en ≈ 2 a 4 ms la mediana y ≈ 5 a 10 ms el p99. Con una conexión nueva por request, cada tramo pagaría el handshake, el arranque lento y un puerto en TIME_WAIT.
 
 Dentro de una red de AWS, además, las máquinas pueden usar paquetes de hasta 9,001 bytes (*jumbo frames*): ahí el tensor de 602 KB son ≈ 68 paquetes en vez de 413. Al salir a internet, el tope vuelve a 1,500.
 
-Y un detalle de M13: en AWS, cada IP pública cuesta US$0.005 por hora desde 2024, ≈ US$3.65 al mes. Darle IP pública a cada máquina «por comodidad» es pagar por exponerlas. Las de C01 viven en subredes privadas.
+Y un detalle de costos: en AWS, cada IP pública cuesta US$0.005 por hora desde 2024, ≈ US$3.65 al mes. Darle IP pública a cada máquina «por comodidad» es pagar por exponerlas. Las de Alba viven en subredes privadas.
 
-### M07 y C10: las conexiones largas y el pod que nadie usa
+### Las conexiones largas y el pod que nadie usa
 
-Kubernetes reparte en la capa 4: **conexiones, no requests**. C10 sirve un LLM propio, y cada respuesta llega token por token durante varios segundos por la misma conexión. Un cliente que abre pocas conexiones y las mantiene vivas queda pegado a los mismos pods. Cuando el sistema agrega un pod nuevo porque hay mucha carga, el pod nace, está listo… y no recibe nada hasta que las conexiones viejas se cierran. La Ronda (M07) da las salidas: un balanceador de capa 7, que reparte requests; que el cliente conozca todas las IPs de los pods y reparta él mismo; o un tiempo de vida máximo para cada conexión. Lo vas a ver completo en la lección de balanceo.
+Kubernetes reparte en la capa 4: **conexiones, no requests**. Piensa en un servicio que sirve su propio LLM (un modelo de lenguaje grande, como el de un chatbot): cada respuesta llega token por token (un token es un pedazo de palabra), durante varios segundos por la misma conexión. Un cliente que abre pocas conexiones y las mantiene vivas queda pegado a los mismos pods. Cuando el sistema agrega un pod nuevo porque hay mucha carga, el pod nace, está listo… y no recibe nada hasta que las conexiones viejas se cierran. Hay tres salidas: un balanceador de capa 7, que reparte requests; que el cliente conozca todas las IPs de los pods y reparta él mismo; o un tiempo de vida máximo para cada conexión. Lo vas a ver completo en la lección «Balanceadores, proxies y gateways».
 
 ### Voz y videollamadas: UDP a propósito
 
-En una videollamada, la voz y el video viajan casi siempre por UDP. Si se pierde un pedazo, el programa lo tapa como puede (repite el anterior, suaviza) y sigue: reenviarlo llegaría cuando ya no sirve. Lo que sí va por TCP es lo que no puede perderse, como el texto del chat. Un sistema de voz con ML, como el de transcripción de la Ronda, tiene el mismo dilema: para subtítulos en vivo, a veces conviene perder 20 ms de audio antes que atrasarse medio segundo.
+En una videollamada, la voz y el video viajan casi siempre por UDP. Si se pierde un pedazo, el programa lo tapa como puede (repite el anterior, suaviza) y sigue: reenviarlo llegaría cuando ya no sirve. Lo que sí va por TCP es lo que no puede perderse, como el texto del chat. Un sistema de ML que convierte voz a texto en tiempo real tiene el mismo dilema: para subtítulos en vivo, a veces conviene perder 20 ms de audio antes que atrasarse medio segundo.
 
 ### Cuando falla el DNS, falla todo
 
 El 4 de octubre de 2021, Facebook, Instagram y WhatsApp desaparecieron de internet durante unas 6 horas. Una orden de mantenimiento desconectó por error la red que une sus centros de datos, y sus servidores autoritativos de DNS, al quedarse aislados, dejaron de anunciarse a internet: nadie podía resolver `facebook.com`, así que nadie podía conectarse, aunque los servidores de la aplicación estuvieran encendidos. Hasta los empleados tuvieron problemas para entrar a los edificios, porque sus sistemas también dependían de esa red.
 
-El 20 de octubre de 2025, en la región us-east-1 de AWS, la misma de C01, un error en el sistema que actualiza los registros de DNS de DynamoDB (una base de datos de AWS) dejó su nombre sin ninguna IP. Los programas que la usaban no podían encontrarla. AWS arregló el registro en menos de 3 horas, y aun así cada cliente tardó en recuperarse lo que tardó en vencer la respuesta vacía que tenía en caché: el TTL otra vez. Como muchos otros servicios de AWS dependen de DynamoDB, la falla siguió rebotando entre ellos hasta la tarde: unas 14 horas en total. Entre los ingenieros hay un dicho: «siempre es el DNS». Un sistema puede tener dos zonas, dos GPUs y su plan B; si nadie puede resolver su nombre, nadie llega.
+El 20 de octubre de 2025, en la región us-east-1 de AWS, la misma de Alba, un error en el sistema que actualiza los registros de DNS de DynamoDB (una base de datos de AWS) dejó su nombre sin ninguna IP. Los programas que la usaban no podían encontrarla. AWS arregló el registro en menos de 3 horas, y aun así cada cliente tardó en recuperarse lo que tardó en vencer la respuesta vacía que tenía en caché: el TTL otra vez. Como muchos otros servicios de AWS dependen de DynamoDB, la falla siguió rebotando entre ellos hasta la tarde: unas 14 horas en total. Entre los ingenieros hay un dicho: «siempre es el DNS». Un sistema puede tener dos zonas, dos GPUs y su plan B; si nadie puede resolver su nombre, nadie llega.
 
 ## Ejercicios {Exercises}
 
@@ -623,8 +675,9 @@ Resuélvelos con lápiz antes de abrir la solución. Los de distancia y de arran
 
 :::ejercicios
 ? [facil] Un vendedor sube desde la web el original de una foto de 10 MB. ¿Cuántos paquetes de 1,460 bytes de datos son? ¿Cuántos bytes de encabezados de IP y TCP viajan con ellos?
-- Paquetes: 10,000,000 ÷ 1,460 = 6,849.3 → hacia arriba, **6,850**.
-- Encabezados: 6,850 × 40 bytes = **274,000 bytes**, ≈ 274 KB: el 2.7 % de lo que viaja.
+- Con \(P = ⌈S/D⌉\) y \(H = P × E\), donde \(S\) = 10,000,000 bytes, \(D\) = 1,460 y \(E\) = 40.
+- Paquetes: \(P\) = ⌈10,000,000 ÷ 1,460⌉ = ⌈6,849.3⌉ = **6,850**.
+- Encabezados: \(H\) = 6,850 × 40 bytes = **274,000 bytes**, ≈ 274 KB: 274,000 ÷ 10,274,000 ≈ el 2.7 % de lo que viaja.
 ? [facil] ¿Cuáles de estas direcciones son privadas? 10.2.3.4, 172.15.0.1, 172.31.255.1, 192.169.0.1 y 127.0.0.1.
 - **10.2.3.4: privada.** Empieza con 10: está en `10.0.0.0/8`.
 - **172.15.0.1: pública.** El rango privado de 172 va del 172.16 al 172.31; el 15 queda afuera.
@@ -636,9 +689,10 @@ Resuélvelos con lápiz antes de abrir la solución. Los de distancia y de arran
 - El problema es la dirección: sin `--host`, uvicorn escucha en **127.0.0.1**, el localhost del contenedor. Lo que llega por `-p` entra por la interfaz de red del contenedor, donde nadie escucha.
 - Arreglo: `uvicorn app:app --host 0.0.0.0 --port 8000`.
 ? [facil] Un juego promete un RTT de 40 ms. Si todo fuera fibra en línea recta, ¿a cuántos km puede estar el servidor, como máximo?
-- 40 ms de ida y vuelta son 20 ms de ida.
-- A 200 km por milisegundo: 20 × 200 = **4,000 km**, como máximo. En la práctica, menos, porque la ruta no es recta y cada router suma.
+- Con fibra en línea recta, \(f = 1\), y \(RTT = 2 × d ÷ v\). Despejando, \(d = RTT × v ÷ 2\).
+- \(d\) = 40 × 200 ÷ 2 = **4,000 km**, como máximo: 40 ms de ida y vuelta son 20 ms de ida, y a 200 km por milisegundo dan 4,000 km. En la práctica, menos, porque la ruta no es recta y cada router suma.
 ? [medio] Un programa hace 3 requests seguidas, cada una esperando a la anterior, a un servidor con 45 ms de RTT y TLS. ¿Cuánto tarda la red si abre una conexión nueva para cada una? ¿Y si abre una y la reusa?
+- Con \(T = k × RTT\), sumando las \(k\) de las 3 requests y \(RTT\) = 45 ms.
 - Conexión nueva para cada una: 3 RTT por request (TCP, TLS y la request) × 3 requests = 9 RTT = 9 × 45 = **405 ms**.
 - Una sola conexión: 2 RTT para abrirla (TCP y TLS) + 3 RTT de las requests = 5 RTT = **225 ms**.
 - Reusar ahorra 180 ms. Si la conexión ya estaba abierta de antes, quedan 3 × 45 = 135 ms.
@@ -650,34 +704,29 @@ Resuélvelos con lápiz antes de abrir la solución. Los de distancia y de arran
 - `/8` deja fijos los primeros 8 bits, que en 10.0.0.0 son 00001010. Coinciden: **sí está**.
 - `/24` deja fijos los primeros 3 bytes: 10, 0 y 2. El tercer byte de la dirección es 3, no 2: **no está**. Estaría en `10.0.3.0/24`.
 ? [medio] Por una conexión TCP nueva hay que mandar 1 MB, con 50 ms de RTT y 10 Mb/s de ancho de banda. ¿Cuántas vueltas pide el arranque lento, con ventana inicial de 10? ¿Qué limita más, el RTT o el ancho de banda?
-- Paquetes: 1,000,000 ÷ 1,460 → **685**.
-- Vueltas: 10, 20, 40, 80, 160, 320 suman 630; falta una más: **7 vueltas**, 7 × 50 = **350 ms**.
-- Por ancho de banda: 1,000,000 × 8 = 8,000,000 bits ÷ 10,000,000 bits por segundo = **0.8 s**.
+- Con \(P = ⌈S/D⌉\), \(w × (2^r − 1) ≥ P\), \(t_{arranque} = r × RTT\) y \(t_{ancho} = 8 × S ÷ A\), donde \(S\) = 1,000,000 bytes, \(w\) = 10, \(RTT\) = 50 ms y \(A\) = 10,000,000 bits por segundo.
+- Paquetes: \(P\) = ⌈1,000,000 ÷ 1,460⌉ = ⌈684.9⌉ = **685**.
+- Vueltas: 10, 20, 40, 80, 160, 320 suman 630, menos de 685; falta una más: \(r\) = **7**, porque 10 × (2⁷ − 1) = 1,270 ≥ 685. \(t_{arranque}\) = 7 × 50 = **350 ms**.
+- Por ancho de banda: \(t_{ancho}\) = 8 × 1,000,000 = 8,000,000 bits ÷ 10,000,000 bits por segundo = **0.8 s**.
 - Limita el ancho de banda: el envío tarda ≈ 800 ms aunque la ventana se abra en 350. Con 100 Mb/s, mandaría el RTT.
 ? [reto] Un *job* de prueba manda 2,000 requests por segundo a un Triton, desde una sola máquina, y abre y cierra una conexión por request. A los pocos segundos empieza a fallar con «cannot assign requested address». ¿Por qué, y en cuántos segundos? ¿Qué cambias?
-- Cada conexión cerrada deja su puerto efímero en TIME_WAIT 60 s. Para sostener 2,000 por segundo harían falta 2,000 × 60 = **120,000** puertos apartados a la vez, y Linux trae 28,232.
+- Con \(R_{max} = N ÷ t_{TW}\), \(N\) = 28,232 puertos y \(t_{TW}\) = 60 s. Cada conexión cerrada deja su puerto efímero en TIME_WAIT 60 s. Para sostener 2,000 por segundo harían falta 2,000 × 60 = **120,000** puertos apartados a la vez, y Linux trae 28,232.
 - Se acaban en 28,232 ÷ 2,000 ≈ **14 segundos**. Desde ahí, el kernel no tiene puerto que prestarle a la siguiente conexión.
-- El techo con conexiones nuevas es ≈ 470 por segundo hacia ese destino. Arreglo: un pool de conexiones con keep-alive. Con 20 conexiones reusadas, cada una lleva 100 requests por segundo, sin handshakes ni TIME_WAIT.
-? [reto] Ana, en la Ciudad de México, sube por 4G a Virginia el original de su foto, de 3 MB, como si la app no la achicara. Supón un RTT de 80 ms (45 de la ruta más 35 del tramo de radio), 10 Mb/s de subida, el nombre ya guardado en caché y una conexión nueva con TLS. Estima lo que tarda la red hasta que la foto llega completa. ¿Por qué el SLO de C01 no mide esto?
+- El techo con conexiones nuevas es \(R_{max}\) = 28,232 ÷ 60 ≈ 470 por segundo hacia ese destino. Arreglo: un pool de conexiones con keep-alive. Con 20 conexiones reusadas, cada una lleva 100 requests por segundo, sin handshakes ni TIME_WAIT.
+? [reto] Ana, en la Ciudad de México, sube por 4G a Virginia el original de su foto, de 3 MB, como si la app no la achicara. Supón un RTT de 80 ms (45 de la ruta más 35 del tramo de radio), 10 Mb/s de subida, el nombre ya guardado en caché y una conexión nueva con TLS. Estima lo que tarda la red hasta que la foto llega completa. ¿Por qué el SLO de Alba no mide esto?
+- Con \(T = k × RTT\) para los saludos y \(t ≈ max(t_{arranque}, t_{ancho})\) para la foto, con \(RTT\) = 80 ms, \(S\) = 3,000,000 bytes y \(A\) = 10,000,000 bits por segundo.
 - DNS: en caché, **0 ms**.
-- Handshake de TCP y saludo de TLS: 2 RTT = **160 ms**.
-- La foto: el arranque lento pediría 8 vueltas × 80 = 640 ms, pero el ancho de banda pide 3,000,000 × 8 ÷ 10,000,000 = **2.4 s**. Manda el ancho de banda.
+- Handshake de TCP y saludo de TLS: 2 de las \(k = 3\) vueltas de una conexión nueva con TLS (la tercera es la foto misma, que va abajo): 2 × 80 = **160 ms**.
+- La foto: son 2,055 paquetes, y el arranque lento pediría \(r\) = 8 vueltas (10 × (2⁸ − 1) = 2,550 ≥ 2,055): \(t_{arranque}\) = 8 × 80 = 640 ms. Pero el ancho de banda pide \(t_{ancho}\) = 8 × 3,000,000 ÷ 10,000,000 = **2.4 s**. Manda el ancho de banda.
 - Total: ≈ 160 + 2,400 ≈ **2.6 s**, más lo que tarde en volver la respuesta.
-- El SLO de C01 (p99 ≤ 200 ms) se mide del lado del servidor, desde que la request completa llega. Estos 2.6 s dependen de la señal de Ana y de su compañía de celular, que nadie en C01 controla. Por eso, además, la app achica la foto antes de subirla: con ≈ 200 KB son 137 paquetes, 4 vueltas de arranque lento × 80 = 320 ms (el ancho de banda pediría solo 160), y con el handshake, ≈ 480 ms en vez de 2.6 s.
+- El SLO de Alba (p99 ≤ 200 ms) se mide del lado del servidor, desde que la request completa llega. Estos 2.6 s dependen de la señal de Ana y de su compañía de celular, que nadie en Alba controla. Por eso, además, la app achica la foto antes de subirla: con ≈ 200 KB son 137 paquetes, \(t_{arranque}\) = 4 vueltas × 80 = 320 ms (\(t_{ancho}\) = 8 × 200,000 ÷ 10,000,000 = 0.16 s: solo 160 ms), y con los 160 ms de los saludos, ≈ 480 ms en vez de 2.6 s.
 :::
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
+La siguiente lección, «HTTP: requests, respuestas y códigos», abre lo que viaja **dentro** de la conexión TCP: el método, la URL, los encabezados, los códigos como 200 o 503, el keep-alive y el pool de conexiones. Después vienen las APIs, los balanceadores (capa 4 contra capa 7), los timeouts y reintentos, y la latencia de punta a punta. Más adelante, «Redes en la nube: VPC, subredes y egress» arma la VPC, el NAT y la salida a internet de Alba, y «Cifrado, llaves y certificados» explica el cifrado con TLS.
 
-- **M02 · Patrones de inferencia**, para decidir si el modelo corre en la nube o junto a las cámaras, pregunta si cabe una ida y vuelta por una red que no controlas y cuántos Mb/s tiene el sitio: RTT y ancho de banda.
-- **M06 · Orquestación y escalado** usa los Services de Kubernetes como «un nombre DNS estable delante de los pods sanos», pone `triton.classifier.svc.cluster.local:8000` en la configuración del gateway, advierte que el Service balancea por conexión (L4) y manda el tráfico a la misma zona con `PreferSameZone`.
-- **M13 · Nube** recorre cada byte: IP públicas que se cobran, subredes privadas, el NAT de la salida a internet y lo que cuesta cruzar de zona o de región.
-- **También:** M07 usa los puertos de Triton (8000 HTTP, 8001 gRPC, 8002 métricas) y el caso del pod nuevo que no recibe tráfico por las conexiones persistentes.
-
-**En el Dojo:** la estación 7, «Empaquetado (Docker)», ya está abierta: ahí publicas puertos con `-p` y te topas con el «escuchar en 0.0.0.0». La estación 9, «Kubernetes», todavía no abre; cuando abra, el gateway encontrará a Triton por el nombre de su Service.
-
-**En Sensei:** la siguiente lección, «HTTP: requests, respuestas y códigos», abre lo que viaja **dentro** de la conexión TCP: el método, la URL, los encabezados, los códigos como 200 o 503, el keep-alive y el pool de conexiones. Después vienen las APIs, los balanceadores (capa 4 contra capa 7), los timeouts y reintentos, y la latencia de punta a punta. En la fase 8, «Redes en la nube» arma la VPC, el NAT y la salida a internet de C01, y otra lección explica el cifrado con TLS.
+Las lecciones de las estaciones retoman esto: en «Empaquetado con Docker» se publican puertos con `-p` y vuelve el «escuchar en 0.0.0.0»; en «Kubernetes», el gateway encuentra a Triton por el nombre de su Service.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -693,7 +742,7 @@ Intenta responder en tu cabeza antes de abrir cada respuesta.
 
 :::chequeo
 ? ¿Qué decide la IP y qué decide el puerto?
-La IP, a qué máquina va el paquete; el puerto, a qué programa de esa máquina. El gateway de C01 escucha en el 8080 de la IP de su pod.
+La IP, a qué máquina va el paquete; el puerto, a qué programa de esa máquina. El gateway de Alba escucha en el 8080 de la IP de su pod.
 ? ¿Por qué el original de la foto de Ana, de 3 MB, viajaría en ≈ 2,055 paquetes y no de una pieza?
 Un paquete lleva como máximo 1,500 bytes, 1,460 de datos. En pedazos, el cable se comparte y lo dañado se reenvía solo.
 ? ¿Por qué un servidor que escucha en 127.0.0.1 dentro de un contenedor no recibe nada de afuera?

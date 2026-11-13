@@ -1,5 +1,5 @@
 {
-  "titulo": "C01: piezas en serie, réplicas en paralelo",
+  "titulo": "Alba: piezas en serie, réplicas en paralelo",
   "width": 78,
   "height": 54,
   "lanes": [
@@ -22,7 +22,7 @@
     { "id": "tB", "label": "Triton · T4", "sub": "99.5 %", "kind": "gpu", "x": 60, "y": 28, "w": 17, "h": 9,
       "note": "La segunda T4. Si cae la zona A, atiende sola el pico de diseño, al ≈ 42 % de su máximo (500 ÷ 1,200). En paralelo, las dos T4 dan 1 − 0.005² = 99.9975 %: ≈ 1 minuto al mes contra 216 de una sola." },
     { "id": "manual", "label": "Selector manual", "sub": "Ana elige a mano", "kind": "human", "x": 30, "y": 45, "w": 22, "h": 8,
-      "note": "El [[fallback]] de C01: si el modelo no contesta en 300 ms, Ana elige la categoría de una lista. No usa nada del modelo, así que la disponibilidad del modelo **deja de multiplicarse** con la de publicar." }
+      "note": "El [[fallback]] de Alba: si el modelo no contesta en 300 ms, Ana elige la categoría de una lista. No usa nada del modelo, así que la disponibilidad del modelo **deja de multiplicarse** con la de publicar." }
   ],
   "edges": [
     { "from": "app", "to": "alb", "kind": "online", "fromSide": "r", "toSide": "l" },
@@ -47,7 +47,7 @@
     { "id": "planb", "label": "No llega nada a tiempo",
       "steps": [
         { "nodes": ["app", "manual"], "edges": ["app>manual"], "text": "Pasan 300 ms sin respuesta, por la razón que sea. El backend deja de esperar y muestra el selector manual: Ana elige la categoría ella misma." },
-        { "nodes": ["manual"], "edges": [], "text": "El modelo quedó **fuera del camino crítico**: si falla, publicar sigue funcionando, con un paso más para Ana. Por eso a C01 le basta con 99.9 % en una sola región." }
+        { "nodes": ["manual"], "edges": [], "text": "El modelo quedó **fuera del camino crítico**: si falla, publicar sigue funcionando, con un paso más para Ana. Por eso a Alba le basta con 99.9 % en una sola región." }
       ] }
   ]
 }

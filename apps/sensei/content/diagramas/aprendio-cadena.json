@@ -1,5 +1,5 @@
 {
-  "titulo": "La cadena de métricas de C01",
+  "titulo": "La cadena de métricas de Alba",
   "width": 78,
   "height": 54,
   "lanes": [
@@ -99,7 +99,7 @@
       "y": 43,
       "w": 22,
       "h": 9,
-      "note": "La [[metrica-negocio|métrica de negocio]]: qué fracción de la gente que empieza a publicar termina. Es la razón de que C01 exista. Se mueve lento y por muchas causas, así que se sigue en el A/B como métrica secundaria."
+      "note": "La [[metrica-negocio|métrica de negocio]]: qué fracción de la gente que empieza a publicar termina. Es la razón de que exista el modelo de Alba. Se mueve lento y por muchas causas, así que se sigue en el A/B como métrica secundaria."
     }
   ],
   "edges": [
@@ -234,7 +234,7 @@
           "edges": [
             "gate>top5"
           ],
-          "text": "Un modelo nuevo gana **1.5 puntos de top-5** en el golden set. Pasa el gate sin problema. (Ejemplo de la Ronda, en M11, con los números de C01.)"
+          "text": "Un modelo nuevo gana **1.5 puntos de top-5** en el golden set. Pasa el gate sin problema. (Ejemplo con los números de Alba: golden set de 50,000 fotos.)"
         },
         {
           "nodes": [

@@ -1,11 +1,11 @@
 {
   "titulo": "Presupuesto de error",
-  "intro": "Del **SLO** al tiempo y a las requests que se pueden fallar en un mes de 30 días, y cuánto se come un incidente.",
+  "intro": "Del **SLO** al tiempo y a las requests que se pueden fallar en un mes de 30 días, y cuánto se come un incidente. La calculadora aplica \\( B = (1 − S) × R × 30 \\), \\( F = R/24 × h × p \\) y \\( f = F ÷ B \\).",
   "entradas": [
-    { "id": "slo", "label": "**SLO**", "min": 99, "max": 99.99, "paso": 0.01, "valor": 99.9, "unidad": "%" },
-    { "id": "rpd", "label": "Requests al día", "tipo": "numero", "min": 1000, "max": 10000000000, "paso": 1000, "valor": 10000000 },
-    { "id": "err", "label": "Un incidente: % de requests que fallan", "min": 0, "max": 100, "paso": 0.5, "valor": 5, "unidad": "%" },
-    { "id": "horas", "label": "… durante", "min": 0, "max": 24, "paso": 0.25, "valor": 2, "unidad": "h" }
+    { "id": "slo", "label": "**SLO**, \\( S \\)", "min": 99, "max": 99.99, "paso": 0.01, "valor": 99.9, "unidad": "%" },
+    { "id": "rpd", "label": "Requests al día, \\( R \\)", "tipo": "numero", "min": 1000, "max": 10000000000, "paso": 1000, "valor": 10000000 },
+    { "id": "err", "label": "Un incidente: % de requests que fallan, \\( p \\)", "min": 0, "max": 100, "paso": 0.5, "valor": 5, "unidad": "%" },
+    { "id": "horas", "label": "… durante \\( h \\) horas", "min": 0, "max": 24, "paso": 0.25, "valor": 2, "unidad": "h" }
   ],
   "calculos": [
     { "id": "b", "formula": "1 - slo / 100" },
@@ -13,13 +13,13 @@
     { "id": "fallan", "formula": "rpd / 24 * horas * err / 100" }
   ],
   "salidas": [
-    { "label": "Presupuesto de error", "formula": "b", "formato": "pct", "decimales": 2, "nota": "1 − SLO" },
-    { "label": "Minutos caído permitidos al mes", "formula": "b * 43200", "formato": "num", "decimales": 1, "nota": "si se cae todo el servicio" },
-    { "label": "Requests fallidas permitidas al mes", "formula": "mes", "formato": "int" },
-    { "label": "Requests fallidas permitidas al día", "formula": "b * rpd", "formato": "int" },
-    { "label": "Requests que falla el incidente", "formula": "fallan", "formato": "int", "nota": "requests por hora × horas × % que falla" },
-    { "label": "Lo que se come del presupuesto del mes", "formula": "fallan / max(mes, 1e-9)", "formato": "pct", "decimales": 1, "barra": true },
-    { "label": "A ese ritmo, el presupuesto del mes dura", "formula": "min(mes / max(rpd / 24 * err / 100, 1e-9), 720)", "formato": "num", "decimales": 1, "nota": "horas; 720 es el mes entero" }
+    { "label": "Presupuesto de error, \\( 1 − S \\)", "formula": "b", "formato": "pct", "decimales": 2, "nota": "la parte de las requests que se puede fallar" },
+    { "label": "Minutos caído permitidos al mes", "formula": "b * 43200", "formato": "num", "decimales": 1, "nota": "\\( (1 − S) × 43,200 \\), si se cae todo el servicio" },
+    { "label": "Requests fallidas permitidas al mes, \\( B \\)", "formula": "mes", "formato": "int", "nota": "\\( B = (1 − S) × R × 30 \\)" },
+    { "label": "Requests fallidas permitidas al día", "formula": "b * rpd", "formato": "int", "nota": "\\( (1 − S) × R \\)" },
+    { "label": "Requests que falla el incidente, \\( F \\)", "formula": "fallan", "formato": "int", "nota": "\\( F = R/24 × h × p \\): requests por hora × horas × fracción que falla" },
+    { "label": "Lo que se come del presupuesto del mes, \\( f \\)", "formula": "fallan / max(mes, 1e-9)", "formato": "pct", "decimales": 1, "barra": true, "nota": "\\( f = F ÷ B \\)" },
+    { "label": "A ese ritmo, el presupuesto del mes dura", "formula": "min(mes / max(rpd / 24 * err / 100, 1e-9), 720)", "formato": "num", "decimales": 1, "nota": "\\( B ÷ (R/24 × p) \\), en horas; 720 es el mes entero" }
   ],
-  "nota": "Con los números de C01: 300,000 requests al mes, y el deploy malo de 5 % durante 2 h se come ≈ 14 %. Sube el SLO a 99.99 %: el mismo incidente se come más que el mes entero."
+  "nota": "Con los números de Alba, ≈ 10 millones de requests al día y un SLO de 99.9 %: \\( B \\) = 300,000 requests al mes, y el deploy malo de 5 % durante 2 h se come ≈ 14 %. Sube el SLO a 99.99 %: el mismo incidente se come más que el mes entero."
 }

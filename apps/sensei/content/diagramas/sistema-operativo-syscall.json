@@ -41,7 +41,7 @@
       "y": 5,
       "w": 20,
       "h": 8,
-      "note": "El servidor de modelos de C01 arranca y necesita su engine: `/models/classifier/1/model.plan`. Corre en **modo usuario**, así que no puede leer el disco por su cuenta: tiene que pedirlo."
+      "note": "El servidor de modelos de Alba arranca y necesita su engine: `/models/classifier/1/model.plan`. Corre en **modo usuario**, así que no puede leer el disco por su cuenta: tiene que pedirlo."
     },
     {
       "id": "glibc",
@@ -275,7 +275,7 @@
             "glibc>entrada",
             "triton>glibc"
           ],
-          "text": "El kernel regresa el **error 13** sin leer ni un byte. En Python sería `PermissionError: [Errno 13] Permission denied`. Triton no puede cargar el modelo y, como C01 lo arranca con `--exit-on-error=true`, se apaga: Kubernetes lo reinicia una y otra vez sin que llegue a estar listo."
+          "text": "El kernel regresa el **error 13** sin leer ni un byte. En Python sería `PermissionError: [Errno 13] Permission denied`. Triton no puede cargar el modelo y, como Alba lo arranca con `--exit-on-error=true`, se apaga: Kubernetes lo reinicia una y otra vez sin que llegue a estar listo."
         }
       ]
     },

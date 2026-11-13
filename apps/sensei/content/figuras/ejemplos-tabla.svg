@@ -31,5 +31,5 @@
 <text class="f-s" x="26" y="340">Cada columna es una feature, y la</text>
 <text class="f-s" x="26" y="358">última es la etiqueta.</text>
 <text class="f-s" x="26" y="378">Para el modelo, la foto son 150,528 números.</text>
-<text class="f-s" x="26" y="398" style="font-size:12px">El modelo de C01 solo usa la foto.</text>
+<text class="f-s" x="26" y="398" style="font-size:12px">El modelo de Alba solo usa la foto.</text>
 </svg>

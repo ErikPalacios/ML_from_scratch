@@ -25,7 +25,7 @@
     { "id": "rlhf", "label": "RLHF o DPO", "sub": "más de lo que se prefiere", "kind": "job", "x": 30, "y": 39, "w": 18, "h": 8,
       "note": "En el [[rlhf|RLHF]], un modelo de recompensa aprende a imitar esas elecciones y el LLM se ajusta para sacar más puntos, sin alejarse mucho del modelo instruido. DPO aprende directo de los pares, sin modelo de recompensa; Meta lo usó en Llama 3." },
     { "id": "chat", "label": "Modelo de chat", "sub": "el que se publica", "kind": "model", "x": 59, "y": 39, "w": 18, "h": 8,
-      "note": "El que descargas y sirves, como el de ≈ 70B de C10. Ninguna de las tres etapas le enseñó la política de devoluciones del marketplace: eso lo tiene que leer en el [[prompt]] ([[rag|RAG]])." }
+      "note": "El que descargas y sirves, como el de ≈ 70B que sirve Alba, el marketplace del curso. Ninguna de las tres etapas le enseñó la política de devoluciones de Alba: eso lo tiene que leer en el [[prompt]] ([[rag|RAG]])." }
   ],
   "edges": [
     { "from": "texto", "to": "pre", "kind": "offline", "label": "tokens" },

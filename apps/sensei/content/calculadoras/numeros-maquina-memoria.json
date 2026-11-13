@@ -1,22 +1,22 @@
 {
   "titulo": "Cuánto pesa un modelo",
-  "intro": "**Memoria de los pesos = [[parametro|parámetros]] × bytes por parámetro.** Elige el tipo de dato y la [[gpu|GPU]]. Arranca con la ResNet-50 de C01 en FP32.",
+  "intro": "**Memoria de los pesos = [[parametro|parámetros]] × bytes por parámetro**: \\(M = P × b\\). Elige el tipo de dato y la [[gpu|GPU]]. Arranca con la ResNet-50 de Alba, el marketplace del curso, en FP32.",
   "entradas": [
-    { "id": "p", "label": "Parámetros, en millones (24.5 = ResNet-50 de C01 · 8030 = Llama 3 8B · 70600 = Llama 3 70B)", "min": 0.1, "max": 2000000, "paso": 0.1, "valor": 24.5, "tipo": "numero" },
-    { "id": "t", "label": "Tipo de dato: 0 = FP32 · 1 = FP16 o BF16 · 2 = INT8 o FP8 · 3 = INT4", "min": 0, "max": 3, "paso": 1, "valor": 0 },
-    { "id": "g", "label": "Memoria de la GPU, en GB (16 = T4 · 24 = L4 · 80 = H100)", "min": 8, "max": 192, "paso": 8, "valor": 16 }
+    { "id": "p", "label": "Parámetros \\(P\\), en millones (24.5 = ResNet-50 de Alba · 8030 = Llama 3 8B · 70600 = Llama 3 70B)", "min": 0.1, "max": 2000000, "paso": 0.1, "valor": 24.5, "tipo": "numero" },
+    { "id": "t", "label": "Tipo de dato, que fija \\(b\\): 0 = FP32 (4 B) · 1 = FP16 o BF16 (2 B) · 2 = INT8 o FP8 (1 B) · 3 = INT4 (0.5 B)", "min": 0, "max": 3, "paso": 1, "valor": 0 },
+    { "id": "g", "label": "Memoria de la GPU \\(G\\), en GB (16 = T4 · 24 = L4 · 80 = H100)", "min": 8, "max": 192, "paso": 8, "valor": 16 }
   ],
   "calculos": [
     { "id": "bpp", "formula": "4 / pow(2, t)" },
     { "id": "w", "formula": "p * 1e6 * bpp" }
   ],
   "salidas": [
-    { "label": "Bytes por parámetro", "formula": "bpp", "formato": "num", "decimales": 1, "nota": "los bits entre 8" },
+    { "label": "Bytes por parámetro \\(b\\)", "formula": "bpp", "formato": "num", "decimales": 1, "nota": "los bits entre 8" },
     { "label": "Bits por parámetro", "formula": "bpp * 8", "formato": "int" },
-    { "label": "Memoria de los pesos", "formula": "w", "formato": "bytes" },
-    { "label": "Parte de la GPU que ocupan", "formula": "w / (g * 1e9)", "formato": "pct", "barra": true, "nota": "más de 100 %: no cabe en una" },
-    { "label": "Copias del modelo que caben en una GPU", "formula": "floor(g * 1e9 / w)", "formato": "int", "nota": "solo los pesos: falta el runtime, las activaciones y el KV cache" },
-    { "label": "GPUs necesarias solo para los pesos", "formula": "ceil(w / (g * 1e9))", "formato": "int", "nota": "el mínimo; en la práctica, más" }
+    { "label": "Memoria de los pesos \\(M\\)", "formula": "w", "formato": "bytes", "nota": "\\(M = P × b\\)" },
+    { "label": "Parte de la GPU que ocupan", "formula": "w / (g * 1e9)", "formato": "pct", "barra": true, "nota": "\\(M ÷ G\\); más de 100 %: no cabe en una" },
+    { "label": "Copias del modelo que caben en una GPU", "formula": "floor(g * 1e9 / w)", "formato": "int", "nota": "\\(G ÷ M\\), redondeado hacia abajo; solo los pesos: falta el runtime, las activaciones y el KV cache" },
+    { "label": "GPUs necesarias solo para los pesos", "formula": "ceil(w / (g * 1e9))", "formato": "int", "nota": "\\(M ÷ G\\), redondeado hacia arriba: el mínimo; en la práctica, más" }
   ],
-  "nota": "Escribe 70600 con la GPU en 80 y recorre los cuatro tipos: en BF16, 141 GB no caben en una H100; en FP8, 70.6 GB caben, pero casi no queda lugar; en INT4, ≈ 35 GB dejan margen. Con los 24.5 de C01, la memoria nunca es el problema."
+  "nota": "Escribe 70600 con la GPU en 80 y recorre los cuatro tipos: en BF16, 141 GB no caben en una H100; en FP8, 70.6 GB caben, pero casi no queda lugar; en INT4, ≈ 35 GB dejan margen. Con los 24.5 M de Alba (≈ 98 MB en FP32), la memoria nunca es el problema."
 }

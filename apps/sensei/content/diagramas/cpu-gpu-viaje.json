@@ -1,5 +1,5 @@
 {
-  "titulo": "El viaje de la foto de Ana por las máquinas de C01",
+  "titulo": "El viaje de la foto de Ana por las máquinas de Alba",
   "width": 78,
   "height": 60,
   "lanes": [
@@ -55,7 +55,7 @@
       "steps": [
         { "nodes": ["triton"], "edges": [], "text": "Supón que las fotos se decodificaran en esta máquina. A su máximo, la T4 pediría **1,200 × 6 ms = 7.2 vCPU** de preparación." },
         { "nodes": ["triton", "ram"], "edges": ["triton>ram"], "text": "La g4dn.xlarge tiene **4 vCPU** y Triton ya usa 2. La CPU no alcanza: los batches llegan a la RAM más despacio de lo que la GPU podría calcularlos." },
-        { "nodes": ["sms"], "edges": [], "text": "La GPU se queda **esperando**, con la utilización baja, y parece lenta sin estarlo. Por eso C01 prepara las fotos en su propio tier de CPU." }
+        { "nodes": ["sms"], "edges": [], "text": "La GPU se queda **esperando**, con la utilización baja, y parece lenta sin estarlo. Por eso Alba prepara las fotos en su propio tier de CPU." }
       ] }
   ]
 }

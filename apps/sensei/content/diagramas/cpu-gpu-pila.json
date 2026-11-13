@@ -11,7 +11,7 @@
     { "id": "prog", "label": "Triton", "sub": "tu programa", "kind": "service", "x": 1, "y": 6, "w": 18, "h": 8,
       "note": "El programa que sirve el modelo. Viene dentro de la imagen de NVIDIA `tritonserver:24.08`, junto con todo lo que necesita para usar la GPU, menos el driver." },
     { "id": "trt", "label": "TensorRT 10.3", "sub": "y el engine (sm_75)", "kind": "model", "x": 29, "y": 6, "w": 20, "h": 8,
-      "note": "TensorRT carga el engine de C01, que está atado a dos cosas: la arquitectura de la GPU para la que se construyó (la T4, sm_75) y esta versión de TensorRT. Con otra GPU u otra versión, hay que construirlo de nuevo." },
+      "note": "TensorRT carga el engine de Alba, que está atado a dos cosas: la arquitectura de la GPU para la que se construyó (la T4, sm_75) y esta versión de TensorRT. Con otra GPU u otra versión, hay que construirlo de nuevo." },
     { "id": "cudart", "label": "CUDA 12.6", "sub": "runtime, cuBLAS, cuDNN", "kind": "store", "x": 57, "y": 6, "w": 20, "h": 8,
       "note": "El runtime de [[cuda|CUDA]] y sus bibliotecas viajan **en la imagen**: son la mayor parte de los GB de una imagen de GPU. Su versión decide qué driver necesita la máquina." },
     { "id": "plugin", "label": "Device plugin", "sub": "anuncia nvidia.com/gpu", "kind": "service", "x": 1, "y": 25, "w": 18, "h": 8,
@@ -46,9 +46,9 @@
       ] },
     { "id": "otra-gpu", "label": "Un engine de la T4 en una L4",
       "steps": [
-        { "nodes": ["trt", "gpu"], "edges": [], "text": "Supón que C01 tiene que mudarse a otra región de la nube (otro grupo de centros de datos, en otra parte del mundo) y ahí solo hay L4. Imagina que esta caja fuera una **L4 (sm_89)** y el engine siguiera siendo el de la T4 (sm_75)." },
+        { "nodes": ["trt", "gpu"], "edges": [], "text": "Supón que Alba tiene que mudarse a otra región de la nube (otro grupo de centros de datos, en otra parte del mundo) y ahí solo hay L4. Imagina que esta caja fuera una **L4 (sm_89)** y el engine siguiera siendo el de la T4 (sm_75)." },
         { "nodes": ["trt"], "edges": [], "text": "TensorRT no lo carga: el engine eligió sus kernels **cronometrándolos en una T4** y quedó guardado en el formato de TensorRT 10.3." },
-        { "nodes": ["trt", "gpu"], "edges": [], "text": "La salida: construir otro engine en una L4, con la misma versión de TensorRT, y pasarle el mismo examen de paridad. La Ronda pide tenerlo listo **antes** de necesitarlo." }
+        { "nodes": ["trt", "gpu"], "edges": [], "text": "La salida: construir otro engine en una L4, con la misma versión de TensorRT, y pasarle el mismo examen de paridad. Conviene tenerlo listo **antes** de necesitarlo." }
       ] }
   ]
 }

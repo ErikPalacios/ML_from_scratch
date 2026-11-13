@@ -1,9 +1,9 @@
 {
   "titulo": "Descenso de gradiente en la parábola",
-  "intro": "La perilla de juguete arranca en w = 0, con pérdida 36, y el fondo está en w = 3. Mueve el [[learning-rate|learning rate]] y el número de pasos: cada paso multiplica la distancia al fondo por **1 − 8 × lr**.",
+  "intro": "La perilla de juguete arranca en w = 0, con pérdida 36, y el fondo está en w = 3. Mueve el [[learning-rate|learning rate]] y el número de pasos. La calculadora aplica el atajo de la lección: \\(f = 1 − 8 × lr\\) y \\(d_t = d_0 × f^t\\), con \\(d_0 = −3\\) (la perilla arranca 3 abajo del fondo), y luego \\(w = 3 + d_t\\) y \\(L = 4 × d_t^2\\).",
   "entradas": [
-    { "id": "lr", "label": "Learning rate", "min": 0.001, "max": 0.3, "paso": 0.001, "valor": 0.05 },
-    { "id": "n", "label": "Pasos", "min": 1, "max": 20, "paso": 1, "valor": 3 }
+    { "id": "lr", "label": "Learning rate, \\(lr\\)", "min": 0.001, "max": 0.3, "paso": 0.001, "valor": 0.05 },
+    { "id": "n", "label": "Número de pasos, \\(t\\)", "min": 1, "max": 20, "paso": 1, "valor": 3 }
   ],
   "calculos": [
     { "id": "f", "formula": "1 - 8 * lr" },
@@ -11,10 +11,10 @@
     { "id": "perd", "formula": "4 * pow(w - 3, 2)" }
   ],
   "salidas": [
-    { "label": "Perilla **w** al final", "formula": "w", "decimales": 3, "nota": "el fondo está en 3" },
-    { "label": "Pérdida al final", "formula": "perd", "nota": "empezó en 36" },
-    { "label": "Factor por paso", "formula": "f", "decimales": 2, "nota": "entre −1 y 1 se acerca; si es negativo, brinca de lado" },
-    { "label": "Pasos para quedar a menos de 0.01 del fondo", "formula": "abs(f) < 1 ? max(1, ceil(log(0.01 / 3) / log(max(abs(f), 1e-12)))) : Infinity", "formato": "int", "nota": "«—» si nunca llega" }
+    { "label": "Perilla al final, \\(w\\)", "formula": "w", "decimales": 3, "nota": "\\(w = 3 + d_t\\); el fondo está en 3" },
+    { "label": "Pérdida al final, \\(L\\)", "formula": "perd", "nota": "\\(L = 4 × d_t^2\\); empezó en 36" },
+    { "label": "Factor por paso, \\(f\\)", "formula": "f", "decimales": 2, "nota": "\\(f = 1 − 8 × lr\\); entre −1 y 1 se acerca; si es negativo, brinca de lado" },
+    { "label": "Pasos para quedar a menos de 0.01 del fondo", "formula": "abs(f) < 1 ? max(1, ceil(log(0.01 / 3) / log(max(abs(f), 1e-12)))) : Infinity", "formato": "int", "nota": "el primer \\(t\\) con \\(3 × |f|^t < 0.01\\); «—» si nunca llega" }
   ],
   "nota": "Prueba 0.125: el factor es 0 y llega en un solo paso. Con 0.25 el factor es −1: rebota para siempre entre 0 y 6, con pérdida 36. Arriba de 0.25, cada salto es más grande que el anterior y la pérdida explota."
 }

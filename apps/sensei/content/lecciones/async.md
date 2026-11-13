@@ -2,7 +2,7 @@
 titulo: Hacer varias cosas a la vez: async, event loop y GIL
 en: Doing several things at once: async, the event loop and the GIL
 subtitulo: Por qué un servidor pasa casi todo su tiempo esperando, cómo un solo hilo atiende cientos de requests turnándose en los puntos de espera, por qué en Python los hilos sirven para esperar y no para calcular, y cómo se calcula cuánta concurrencia hace falta.
-pregunta: ¿Cómo atiende un pod del gateway de C01, con un solo proceso y un núcleo, 100 requests por segundo, y cuándo deja de funcionar?
+pregunta: ¿Cómo atiende un pod del gateway de Alba, con un solo proceso y un núcleo, 100 requests por segundo, y cuándo deja de funcionar?
 requisitos: programa-proceso
 ---
 
@@ -10,7 +10,7 @@ requisitos: programa-proceso
 Una request pasa casi toda su vida esperando: la red, otro servicio, el disco. Async aprovecha esas esperas: un solo hilo, el event loop, se turna entre muchas requests justo donde cada una espera. Lo que calcula no se turna así: dentro del loop congela a todas, y por eso va a un threadpool, a otros procesos o a más máquinas; por el GIL de Python, los hilos solo aceleran las cuentas que corren en C. Cuántas cosas a la vez hacen falta lo dice la Ley de Little: lo que llega por segundo por lo que tarda cada una.
 :::
 
-El gateway de C01 es el programa que recibe cada foto, la prepara y se la pasa al modelo. En el pico de diseño, el tráfico para el que se compran las máquinas, le llegan 500 [[request|requests]] por segundo. Las atienden 5 copias del programa (en Kubernetes, cada copia es un *pod*), y cada pod corre **un solo [[proceso]]** de Python con **un [[vcpu|vCPU]]** reservado: la unidad de CPU que renta la nube, que para el programa es un núcleo. Cada request tarda en promedio 50 ms.
+Alba, la empresa que seguimos en todo el curso, es un marketplace, una tienda en línea donde cualquiera publica lo que vende: recibe ≈ 2.5 millones de publicaciones al día y le sugiere a quien vende la categoría de cada foto, entre 500 posibles. Su **gateway** es el programa que recibe cada foto, la prepara y se la pasa al modelo. En el pico de diseño, el tráfico para el que se compran las máquinas, le llegan 500 [[request|requests]] por segundo. Las atienden 5 copias del programa (en Kubernetes, cada copia es un *pod*), y cada pod corre **un solo [[proceso]]** de Python con **un [[vcpu|vCPU]]** reservado: la unidad de CPU que renta la nube, que para el programa es un núcleo. Cada request tarda en promedio 50 ms.
 
 A cada pod le tocan 100 requests por segundo. De una en una, a 50 ms cada una, no pasaría de 20 (1 s ÷ 0.05 s), y sin embargo aguanta, con la CPU al 60 %. ¿Cómo? Y también falla: basta una sola línea mal puesta para que el mismo pod se congele entero. ¿Cuándo, y por qué?
 
@@ -32,9 +32,9 @@ Lo que distingue al I/O es lo que tarda. Los números son aproximados, pero sus 
 | Leer la RAM | ≈ 100 ns | ≈ 2 minutos |
 | Leer un bloque de 4 KiB de un [[ssd\|SSD]] NVMe de los de hoy | ≈ 0.1 ms | ≈ 1 día |
 | Ir y volver por la red dentro del centro de datos | 0.1 a 0.5 ms | de 1 a 6 días |
-| Ir y volver a Triton, en C01 | ≈ 10 ms | ≈ 4 meses |
+| Ir y volver a Triton, en Alba | ≈ 10 ms | ≈ 4 meses |
 | Leer un archivo chico de S3, el almacén de archivos de AWS | decenas de ms | de 4 meses a 3 años |
-| La respuesta completa del [[llm\|LLM]] de C10 | ≈ 10 s | ≈ 300 años |
+| La respuesta completa de un [[llm\|LLM]] servido en GPUs propias | ≈ 10 s | ≈ 300 años |
 
 Mientras el gateway espera esos 10 ms a Triton, un [[nucleo|núcleo]] de ≈ 3 GHz (3 × 10⁹ ciclos de reloj por segundo) da 3 × 10⁹ × 0.01 s = 30 millones de ciclos, y en cada ciclo termina varias instrucciones. Una operación suelta es casi gratis comparada con una espera. La CPU se nota cuando son millones de operaciones, como al decodificar una foto.
 
@@ -45,16 +45,16 @@ Mientras el gateway espera esos 10 ms a Triton, un [[nucleo|núcleo]] de ≈ 3 G
 Bloquear no gasta CPU: el [[sistema-operativo|sistema operativo]] duerme al hilo y le presta el núcleo a otro. Lo que gasta es **el hilo**: mientras espera, no puede atender nada más. Un servidor con un solo hilo que bloquea atiende de una en una.
 
 :::cuenta Un pod que atiende de una en una
-Latencia de cada request // el promedio de C01 en el pico de diseño (M03) | — | 50 ms
-Requests por segundo, de una en una | 1 s ÷ 0.05 s | 20
+Latencia de cada request // el promedio de Alba en el pico de diseño | — | 50 ms
+Requests por segundo, de una en una // 1 s entre la latencia de cada una | 1 s ÷ 0.05 s | 20
 Lo que le toca a cada pod // 500 por segundo entre 5 pods | 500 ÷ 5 | 100 por segundo
-Requests que el pod debe tener en curso a la vez | 100 ÷ 20 | 5
+Requests que el pod debe tener en curso a la vez // lo que le llega entre lo que da de una en una | 100 ÷ 20 | 5
 = De una en una, el pod atiende la quinta parte de lo que le llega. Necesita ≈ 5 requests en curso al mismo tiempo. La sección de la Ley de Little hace esta cuenta en general.
 :::
 
 La salida clásica es darle **un hilo a cada request**: mientras uno espera, el sistema operativo corre otro, y cada cambio es un [[cambio-contexto|cambio de contexto]] de microsegundos. Funciona con decenas o cientos a la vez. Con miles se vuelve caro, porque cada hilo necesita su propia pila en memoria y el sistema operativo tiene que repartirles turnos a todos. La otra salida, la de esta lección, es que un solo hilo aproveche las esperas.
 
-### De qué está hecha una request de C01
+### De qué está hecha una request de Alba
 
 | Paso | Qué hace el gateway | Cuánto, en una request típica |
 |---|---|---|
@@ -63,7 +63,7 @@ La salida clásica es darle **un hilo a cada request**: mientras uno espera, el 
 | Mandar el tensor a Triton y esperar los logits | Espera a la red y a la GPU de otra máquina | ≈ 10 ms |
 | Softmax, top 5 y armar la respuesta | Calcula con la CPU | ≈ 1 ms |
 
-Suman de 18 a 20 ms: son los números de una request típica (M03 y C01). El promedio que usa la Ronda, ≈ 50 ms, es una estimación más larga: suma las esperas en fila, detrás de otras requests, y las requests lentas, que jalan el promedio hacia arriba. La CPU trabaja ≈ 6 a 7 ms por request, casi todo en el decode; la Ronda usa ≈ 6 ms en sus cuentas de capacidad, y aquí también. **Todo lo demás es esperar**, y ahí está el truco: mientras una request espera, el núcleo puede trabajar para otra.
+Suman de 18 a 20 ms (1 a 3 + 6 + 10 + 1): son los números de una request típica, con poco tráfico. El promedio que usa el equipo de Alba en el pico de diseño, ≈ 50 ms, es una estimación más larga: suma las esperas en fila, detrás de otras requests, y las requests lentas, que jalan el promedio hacia arriba. La CPU trabaja ≈ 6 a 7 ms por request, casi todo en el decode; el equipo de Alba usa ≈ 6 ms en sus cuentas de capacidad, y aquí también. **Todo lo demás es esperar**, y ahí está el truco: mientras una request espera, el núcleo puede trabajar para otra.
 
 ## CPU-bound contra I/O-bound {CPU-bound vs I/O-bound}
 
@@ -113,18 +113,18 @@ En producción se lee igual, en las gráficas: lento con un núcleo al 100 % es 
 |---|---|---|
 | Decodificar y redimensionar una foto | CPU-bound | Cuentas sobre millones de píxeles |
 | Llamar a Triton desde el gateway | I/O-bound | El gateway espera; la GPU calcula en otra máquina |
-| Leer y decodificar fotos para entrenar | Las dos | M02: «En CV el cuello de botella suele ser IO + decode, no la GPU» (CV es visión por computadora) |
-| Pedirle una respuesta al LLM de C10, visto desde su gateway | I/O-bound | Unos milisegundos de CPU y ≈ 10.5 s de espera: ≈ 99.9 % es esperar |
+| Leer y decodificar fotos para entrenar | Las dos | En visión por computadora, el cuello de botella suele ser leer y decodificar las fotos, no la GPU |
+| Pedirle una respuesta a un LLM propio, visto desde su gateway | I/O-bound | Unos milisegundos de CPU y ≈ 10.5 s de espera: ≈ 99.9 % es esperar |
 
 :::ojo CPU-bound no es compute-bound
-En la lección de FLOPs viste [[compute-bound]] y [[memory-bound]]: hablan de un **chip** y de si lo limita calcular o leer su memoria. CPU-bound e I/O-bound hablan de un **programa** y de si lo limita la CPU o la espera. La misma inferencia puede ser las dos cosas: para el gateway de C01, llamar a Triton es I/O-bound (espera 10 ms), y dentro de la GPU, la ResNet-50 con batches grandes tiende a ser compute-bound.
+En la lección de FLOPs viste [[compute-bound]] y [[memory-bound]]: hablan de un **chip** y de si lo limita calcular o leer su memoria. CPU-bound e I/O-bound hablan de un **programa** y de si lo limita la CPU o la espera. La misma inferencia puede ser las dos cosas: para el gateway de Alba, llamar a Triton es I/O-bound (espera 10 ms), y dentro de la GPU, la ResNet-50 con batches grandes tiende a ser compute-bound.
 :::
 
 ### La regla que ordena todo
 
 **Lo que espera se puede encimar; lo que calcula solo se reparte.** Mientras una request espera, otra puede avanzar, sin gastar un núcleo más. Las cuentas, en cambio, necesitan núcleos: para hacer más hay que repartirlas entre más núcleos o más máquinas, o calcular menos.
 
-C01 tiene de las dos en cada request, y por eso usa dos herramientas: async para las esperas y un [[threadpool]], un grupo de hilos aparte, para las cuentas. Las secciones que siguen las arman.
+El gateway de Alba tiene de las dos en cada request, y por eso usa dos herramientas: async para las esperas y un [[threadpool]], un grupo de hilos aparte, para las cuentas. Las secciones que siguen las arman.
 
 ## async, await y el event loop: turnarse en los puntos de espera {async, await and the event loop: taking turns at the waiting points}
 
@@ -151,7 +151,7 @@ Y le pide al sistema operativo que le avise cuando llegue lo que espera: los byt
 Con la siguiente tarea lista. Si no hay ninguna, el loop duerme hasta que el sistema operativo le avise que algo llegó, y esa tarea vuelve a la fila de las listas.
 :::
 
-Programar así es **[[async]]** (asíncrono). En Python, el event loop viene en `asyncio`, que es parte de la biblioteca estándar: lo que trae Python sin instalar nada. El gateway de C01 está escrito con FastAPI, una librería de Python para hacer APIs, y lo corre uvicorn, un servidor que arranca un event loop en cada proceso y crea una tarea por cada request que llega.
+Programar así es **[[async]]** (asíncrono). En Python, el event loop viene en `asyncio`, que es parte de la biblioteca estándar: lo que trae Python sin instalar nada. El gateway de Alba está escrito con FastAPI, una librería de Python para hacer APIs, y lo corre uvicorn, un servidor que arranca un event loop en cada proceso y crea una tarea por cada request que llega.
 
 ```python
 import asyncio, time
@@ -200,7 +200,7 @@ Segunda: turnándose, el total es lo que tarda la espera más larga, 0.3 s, y B 
 Tres requests, cada una con 2 ms de CPU, 10 ms de espera y otros 2 ms de CPU. Arriba, un hilo que bloquea: una tras otra, la última termina a los 42 ms. Abajo, un event loop: las esperas se enciman y la última termina a los 18 ms. El hilo calcula lo mismo en los dos casos, 12 ms; la diferencia es que abajo no se queda parado esperando.
 :::
 
-Esto es [[concurrencia]] sin [[paralelismo]]: tres requests en curso, pero en cada instante solo una corrutina corre, en un solo núcleo. Y async no hace más rápida a ninguna request. La Ronda (M03) lo dice así: «La concurrencia deja atender a otros mientras uno espera a Triton; no acelera a ninguno».
+Esto es [[concurrencia]] sin [[paralelismo]]: tres requests en curso, pero en cada instante solo una corrutina corre, en un solo núcleo. Y async no hace más rápida a ninguna request. Dicho en una frase: la concurrencia deja atender a otros mientras uno espera a Triton; no acelera a ninguno.
 
 :::analogia El mesero de un restaurante
 Un mesero atiende diez mesas. Toma la orden de una, la deja en la cocina y, mientras se cocina, va a otra mesa. No se queda parado junto a la cocina: el plato tarda lo mismo, pero en ese rato atendió a otras cinco mesas. El mesero es el event loop; cada mesa, una request; la cocina, Triton.
@@ -212,11 +212,23 @@ Un mesero atiende diez mesas. Toma la orden de una, la deja en la cocina y, mien
 Toca cada caja para ver qué hace, o usa «Recorrer» para seguir una vuelta del loop y una tarea que no suelta el turno.
 :::
 
-:::calculadora async-proceso
-Arranca con un pod de C01 que atiende de una en una: 20 por segundo. Sube «a la vez» a 5 y llega a 100, con la CPU al 60 %. ¿A partir de cuántas a la vez ya no sube más, y por qué?
+La calculadora de abajo junta lo de esta sección en dos ecuaciones. La primera suma lo que tarda una request; la segunda dice cuántas por segundo salen, que es lo menos entre dos techos: el de las esperas encimadas y el de la CPU.
+
+:::formula Requests por segundo que atiende un proceso
+W = c + w
+X = min(frac{k}{W}, frac{1}{c})
+- c: la CPU que gasta cada request, en s (6 ms = 0.006 s)
+- w: lo que cada request pasa esperando (la red, Triton), en s
+- W: la latencia de cada request, en s
+- k: cuántas requests tiene en curso a la vez (1 = de una en una, bloqueante)
+- X: las requests por segundo que atiende el proceso, con un núcleo. \(1/c\) es lo más que da ese núcleo
 :::
 
-Desde 9 a la vez ya no sube: con 6 ms de CPU cada una, un núcleo termina como máximo 1,000 ÷ 6 ≈ 167 por segundo, y las que sobran hacen fila. Encimar esperas sirve hasta que la CPU se llena.
+:::calculadora async-proceso
+Arranca con un pod de Alba que atiende de una en una: 20 por segundo. Sube «a la vez» a 5 y llega a 100, con la CPU al 60 %. ¿A partir de cuántas a la vez ya no sube más, y por qué?
+:::
+
+Desde 9 a la vez ya no sube. Con \(c\) = 6 ms, el techo del núcleo es \(1/c\) = 1 ÷ 0.006 s ≈ 167 por segundo. Con \(W\) = 6 + 44 = 50 ms y 8 a la vez, \(k/W\) = 8 ÷ 0.05 s = 160, todavía abajo; con 9, 9 ÷ 0.05 s = 180, ya arriba, y las que sobran hacen fila. Encimar esperas sirve hasta que la CPU se llena.
 
 :::profundo Cómo sabe el loop qué está listo: epoll, kqueue y las 10,000 conexiones
 El loop no revisa cada conexión para ver si ya llegó algo: gastaría CPU en preguntar. Le entrega al sistema operativo la lista de todo lo que espera (para el sistema operativo, cada conexión abierta es un *socket*, con su número) y hace una sola [[syscall|llamada al sistema]] que dice: «duérmeme hasta que alguna de estas tenga datos, o hasta que venza mi próximo temporizador». En Linux esa llamada es **epoll**; en macOS, **kqueue**; en Windows, IOCP. El sistema operativo despierta al loop con la lista de las que ya están listas.
@@ -230,9 +242,9 @@ A este reparto de turnos se le llama **cooperativo** (*cooperative multitasking*
 
 El loop tiene una regla que no se negocia: una corrutina suelta el turno **solo** en un await. Entre dos await, el hilo es suyo y nadie más corre. Es un trato de confianza: funciona mientras cada una suelte el turno pronto.
 
-### La trampa de C01
+### La trampa del gateway de Alba
 
-En FastAPI, la función que atiende una dirección de la API, como `/v1/classify`, se llama **ruta** (*route*; no es la [[ruta]] de un archivo). La de abajo es la trampa que la Ronda cuenta en C01, M02, M03 y M07; la línea `@app.post` la conecta con su dirección. Es una ilustración, sin salida, porque necesita FastAPI:
+En FastAPI, la función que atiende una dirección de la API, como `/v1/classify`, se llama **ruta** (*route*; no es la [[ruta]] de un archivo). La de abajo es una trampa muy común en un servidor de ML escrito con async; la línea `@app.post` la conecta con su dirección. Es una ilustración, sin salida, porque necesita FastAPI:
 
 ```python
 @app.post("/v1/classify")
@@ -245,18 +257,18 @@ async def classify(request: Request):
 `preprocess` decodifica y redimensiona con la CPU, sin ningún await, y mientras tanto **el loop está detenido**. Ninguna otra request avanza: ni las que ya tienen su respuesta de Triton esperando, ni las que acaban de llegar, ni el *health check*, la request que Kubernetes manda cada pocos segundos para preguntar «¿sigues vivo?».
 
 :::cuenta Una foto grande dentro del loop
-Tiempo del decode // una foto web de 12 MP decodificada sin draft mode, el atajo de decodificar directo a un tamaño menor: de 40 a 80 ms (M03) | — | ≈ 60 ms
-Requests que llegan mientras // a un pod en el pico de diseño | 100 por s × 0.06 s | ≈ 6
-Lo que espera de más cada una | — | hasta 60 ms
-El loop ocupado si todos los decodes van adentro // ≈ 6 ms cada uno en promedio, a 100 por segundo | 100 × 6 ms ÷ 1,000 ms | 60 %
+Tiempo del decode // una foto web de 12 MP decodificada sin draft mode, el atajo de decodificar directo a un tamaño menor: de 40 a 80 ms | — | ≈ 60 ms
+Requests que llegan mientras // tasa × tiempo del decode; a un pod le tocan 500 ÷ 5 = 100 por segundo en el pico de diseño | 100 por s × 0.06 s | ≈ 6
+Lo que espera de más cada una // a lo más, todo el decode | — | hasta 60 ms
+El loop ocupado si todos los decodes van adentro // tasa × CPU de cada decode: ≈ 6 ms en promedio, a 100 por segundo | 100 × 6 ms ÷ 1,000 ms | 60 %
 = Con el decode dentro, el loop pasa 60 % del tiempo congelado. Cada request espera, además de lo suyo, los decodes de las que llegaron antes, y con más tráfico espera más.
 :::
 
 ### El síntoma
 
-La Ronda lo resume en una frase: «un p99 que crece con la concurrencia sin que la CPU esté llena». La [[mediana]] se mueve poco y las requests más lentas, mucho: las que caen detrás de una foto grande esperan decenas de milisegundos de más, y esas forman el [[p99]], el tiempo que solo 1 de cada 100 supera. Y la CPU no tiene por qué llenarse: la espera no es por falta de núcleos, es por falta de turnos, porque todo pasa por un solo hilo.
+El síntoma cabe en una frase: un p99 que crece con la concurrencia sin que la CPU esté llena. La [[mediana]] se mueve poco y las requests más lentas, mucho: las que caen detrás de una foto grande esperan decenas de milisegundos de más, y esas forman el [[p99]], el tiempo que solo 1 de cada 100 supera. Y la CPU no tiene por qué llenarse: la espera no es por falta de núcleos, es por falta de turnos, porque todo pasa por un solo hilo.
 
-Hay un efecto peor. En C01, Kubernetes le pregunta a cada pod por su salud cada 10 s y espera la respuesta 2 s. Si el loop está congelado más de 2 s en tres preguntas seguidas, Kubernetes da al pod por muerto y lo reinicia, justo en la hora de más tráfico.
+Hay un efecto peor. En Alba, Kubernetes le pregunta a cada pod por su salud cada 10 s y espera la respuesta 2 s. Si el loop está congelado más de 2 s en tres preguntas seguidas, Kubernetes da al pod por muerto y lo reinicia, justo en la hora de más tráfico.
 
 :::profundo Verlo en tu computadora: un latido que se congela
 Este programa tiene un «latido» que debería avanzar cada 50 ms, como un health check, y una ruta que «decodifica» durante 0.3 s. Aquí el decode es un `time.sleep`: bloquea el hilo igual que uno de verdad, aunque no gaste CPU.
@@ -305,7 +317,7 @@ Cien milisegundos de un pod. Arriba, el decode de una foto grande corre dentro d
 
 Los sospechosos de siempre son `time.sleep`, las librerías de red que no son async (como `requests`), leer archivos grandes, decodificar imágenes, correr el modelo de PyTorch (`model(x)`) y armar un JSON enorme (el formato de texto con que viajan los datos de una API). El bloque de abajo trae cada uno con su arreglo.
 
-En FastAPI hay tres arreglos. Usar las librerías que se esperan con await para el I/O. Mandar lo bloqueante a un hilo con `await run_in_threadpool(preprocess, body)`, que es el arreglo de C01. O escribir la ruta con `def` en vez de `async def`: FastAPI la corre entera en un hilo de su [[threadpool]].
+En FastAPI hay tres arreglos. Usar las librerías que se esperan con await para el I/O. Mandar lo bloqueante a un hilo con `await run_in_threadpool(preprocess, body)`, que es el arreglo del gateway de Alba. O escribir la ruta con `def` en vez de `async def`: FastAPI la corre entera en un hilo de su [[threadpool]].
 
 :::profundo Los sospechosos, uno por uno, y cómo encontrar al que bloquea
 | Lo que bloquea | El arreglo |
@@ -317,7 +329,7 @@ En FastAPI hay tres arreglos. Usar las librerías que se esperan con await para 
 | `model(x)` de PyTorch | Un hilo del pool, o un servidor de modelos como Triton |
 | Armar un JSON enorme, comprimir, sacar la huella (*hash*) de un archivo grande | Un hilo del pool, si tarda más que unos milisegundos |
 
-asyncio trae un modo de depuración: `asyncio.run(main(), debug=True)`, o la variable de ambiente `PYTHONASYNCIODEBUG=1`. En ese modo, avisa en el log cada vez que una tarea retiene el loop más de 100 ms sin soltar el turno, y dice cuál fue. En producción se usa py-spy, un programa que mira en vivo en qué línea está cada hilo de un proceso de Python, sin reiniciarlo ni cambiar su código. Y la defensa de siempre es medir por separado: el gateway de C01 tiene un histograma para el preproceso y otro para la llamada a Triton. Si la latencia sube y solo crece el primero, el problema está en la CPU del gateway, no en la GPU.
+asyncio trae un modo de depuración: `asyncio.run(main(), debug=True)`, o la variable de ambiente `PYTHONASYNCIODEBUG=1`. En ese modo, avisa en el log cada vez que una tarea retiene el loop más de 100 ms sin soltar el turno, y dice cuál fue. En producción se usa py-spy, un programa que mira en vivo en qué línea está cada hilo de un proceso de Python, sin reiniciarlo ni cambiar su código. Y la defensa de siempre es medir por separado: el gateway de Alba tiene un histograma para el preproceso y otro para la llamada a Triton. Si la latencia sube y solo crece el primero, el problema está en la CPU del gateway, no en la GPU.
 :::
 
 ## El GIL: los hilos esperan juntos, pero calculan de uno en uno {The GIL: threads wait together but compute one at a time}
@@ -331,7 +343,7 @@ El Python que instalas normalmente se llama CPython: un [[interprete|intérprete
 Un hilo suelta el GIL en tres casos:
 
 - **Cuando espera.** `time.sleep`, leer de la red, leer un archivo. Mientras espera, el GIL queda libre y otro hilo corre.
-- **Cuando entra a código en C que lo suelta.** Pillow (la librería de imágenes que usa C01) al decodificar y redimensionar, NumPy en sus operaciones grandes, PyTorch dentro de cada operación. Hacen sus cuentas en C, sin tocar los datos de Python (sus *objetos*), y mientras tanto otro hilo puede correr Python.
+- **Cuando entra a código en C que lo suelta.** Pillow (la librería de imágenes que usa el gateway de Alba) al decodificar y redimensionar, NumPy en sus operaciones grandes, PyTorch dentro de cada operación. Hacen sus cuentas en C, sin tocar los datos de Python (sus *objetos*), y mientras tanto otro hilo puede correr Python.
 - **A la fuerza, cada 5 ms.** Si un hilo calcula Python puro sin parar y otro espera el GIL, a los 5 ms el intérprete le pide que lo suelte (lo dice `sys.getswitchinterval()`), para que ningún hilo se quede sin turno.
 
 La consecuencia, en una frase: **los hilos de Python sirven para esperar, no para calcular**, salvo que el cálculo pase en C y suelte el GIL.
@@ -384,14 +396,14 @@ En la reunión, muchos pueden estar leyendo, pensando o esperando un correo al m
 **Dónde se rompe:** en una reunión, quien tiene el micrófono lo suelta cuando quiere; aquí, el moderador se lo quita cada 5 ms a quien no lo suelta. Y hay quienes trabajan sin hablar: las librerías en C, como Pillow o PyTorch, calculan sin el micrófono, mientras otro lo usa.
 :::
 
-En producción, la Ronda (M07) da el síntoma: «CPU del proceso clavada en ≈ 100 % de un core con los demás libres». Pasa con el código en Python puro alrededor del modelo: recorrer una por una las cajas que encontró un detector de objetos, leer o armar un JSON grande.
+En producción, el síntoma es un proceso con la CPU clavada en ≈ 100 % de un núcleo y los demás núcleos libres. Pasa con el código en Python puro alrededor del modelo: recorrer una por una las cajas que encontró un detector de objetos, leer o armar un JSON grande.
 
 :::profundo Por qué existe el GIL, el lado bueno de PyTorch y el Python que no lo tiene
-La Ronda (M07) también da el lado bueno: «Las ops de PyTorch sueltan el GIL». Con la ResNet-50 en CPU, en una laptop con Apple M4, midió ≈ 60 imágenes por segundo con 1 hilo y ≈ 95 con 4. Los hilos ayudan, porque PyTorch calcula en C, pero no 4 veces, porque cada llamada de PyTorch ya usa varios núcleos por dentro.
+Primero, el lado bueno: las operaciones de PyTorch sueltan el GIL. Con la ResNet-50 en CPU, en una laptop con Apple M4, se midieron ≈ 60 imágenes por segundo con 1 hilo y ≈ 95 con 4. Los hilos ayudan, porque PyTorch calcula en C, pero no 4 veces, porque cada llamada de PyTorch ya usa varios núcleos por dentro.
 
 CPython lleva en cada objeto la cuenta de cuántas cosas lo usan, sean variables, listas u otros objetos (*reference counting*); cuando la cuenta llega a 0, libera su memoria. Si dos hilos cambiaran esa cuenta al mismo tiempo, podría quedar mal, y el programa liberaría memoria que todavía se usa. Un candado por objeto sería lento. Un solo candado global es simple y hace rápido al programa de un hilo, que es casi todo el Python que existe. Además, las librerías en C se escriben más fácil sabiendo que nadie más toca los objetos de Python mientras ellas trabajan.
 
-Quitarlo tomó décadas. Desde Python 3.13 (2024) existe, como experimento, una versión sin GIL, la *free-threaded*, y desde la 3.14 (2025) tiene soporte oficial. Pero no es la que se instala por omisión, cada librería en C tiene que adaptarse para funcionar sin GIL (si una no lo está, Python vuelve a activar el GIL al importarla), y con un solo hilo corre un poco más lento: en la 3.14, ≈ 5 a 10 %. La 3.14 trae además otra salida: varios intérpretes dentro de un mismo proceso, cada uno con su GIL (`concurrent.interpreters`), aunque muchas librerías todavía no funcionan con ellos. En producción, hoy, cuenta con que el GIL está ahí: la Ronda lo da por hecho.
+Quitarlo tomó décadas. Desde Python 3.13 (2024) existe, como experimento, una versión sin GIL, la *free-threaded*, y desde la 3.14 (2025) tiene soporte oficial. Pero no es la que se instala por omisión, cada librería en C tiene que adaptarse para funcionar sin GIL (si una no lo está, Python vuelve a activar el GIL al importarla), y con un solo hilo corre un poco más lento: en la 3.14, ≈ 5 a 10 %. La 3.14 trae además otra salida: varios intérpretes dentro de un mismo proceso, cada uno con su GIL (`concurrent.interpreters`), aunque muchas librerías todavía no funcionan con ellos. En producción, hoy, cuenta con que el GIL está ahí.
 :::
 
 ## Threadpool, procesos y workers: dónde va el trabajo de CPU {Thread pools, processes and workers: where the CPU work goes}
@@ -406,7 +418,7 @@ En un servidor async, el pool es el lugar natural para lo bloqueante: el loop le
 
 ¿Y acelera las cuentas? Depende del GIL: sí, para lo que corre en C y lo suelta, como el decode de Pillow, NumPy o PyTorch; no, para Python puro. Aunque no las acelere, el pool libera al loop: el planificador turna los hilos en los núcleos y el GIL cambia de dueño cada 5 ms, así que el loop recibe su turno aunque el decode siga. Si el decode corre en C, como el de Pillow, el loop ni siquiera espera el GIL.
 
-El tope importa tanto como el pool. C01 deja decodificar solo **2 fotos a la vez** por pod, no 40: un PNG de 40 MP llega a ocupar ≈ 320 MB mientras se decodifica (lo midió la Ronda), y el pod tiene 1 GiB de memoria. Cómo se pone ese tope está en la sección extra «Async a fondo».
+El tope importa tanto como el pool. El gateway de Alba deja decodificar solo **2 fotos a la vez** por pod, no 40: un PNG de 40 MP llega a ocupar ≈ 320 MB mientras se decodifica (lo midió el equipo de Alba), y el pod tiene 1 GiB de memoria. Cómo se pone ese tope está en la sección extra «Async a fondo».
 
 ### 2. Varios procesos
 
@@ -419,15 +431,15 @@ Cuesta tres cosas: arrancar un intérprete por proceso; copiar los datos de ida 
 Un **[[worker]]** es un proceso, a veces un hilo, que toma trabajo de una fila y lo hace. La palabra tiene dos usos:
 
 - **Workers de un servidor.** `uvicorn --workers 4` arranca 4 procesos iguales, cada uno con su event loop, que se reparten las requests. Un proceso padre los vigila: si uno muere o se queda colgado, arranca otro. gunicorn, muy usado en Python, hace lo mismo, y puede arrancar workers de uvicorn.
-- **Workers de una cola**, los del *patrón asíncrono* de M02 (asíncrono en la arquitectura, no en el código): procesos que sacan trabajos (*jobs*) de una cola y los procesan a su ritmo.
+- **Workers de una cola**, los del *patrón asíncrono* (asíncrono en la arquitectura, no en el código): procesos que sacan trabajos (*jobs*) de una cola y los procesan a su ritmo.
 
 Los workers de un servidor tienen una trampa cuando hay un modelo adentro: **cada proceso carga el suyo**. Con una [[cnn|CNN]] chica como la ResNet-50 caben, pero se turnan la GPU sin armar [[batch|batches]] entre ellos. Con Llama 3 8B, que pesa ≈ 16 GB en BF16 (8 mil millones de parámetros × 2 bytes), dos workers ya no caben en una GPU L4 de 24 GB. La cuenta completa, con la memoria que pide [[cuda|CUDA]] en cada proceso, está en la sección extra de «Programa, proceso e hilo». Para un modelo grande, la salida es un servidor con una sola copia que arme batches adentro.
 
-### Por qué C01 corre un solo proceso por pod
+### Por qué Alba corre un solo proceso por pod
 
-C01 corre **un solo worker de uvicorn por contenedor** y escala con más pods: el HPA (*Horizontal Pod Autoscaler*), la regla de Kubernetes que agrega o quita pods según su CPU, los mueve entre 3 y 12. La Ronda (M05) da las razones: varios workers en un pod esconden cuánta CPU usa cada proceso, multiplican la memoria, complican las métricas (los números que el servicio publica para vigilarlo) y pueden dejar un pod «sano» con un worker colgado.
+El gateway de Alba corre **un solo worker de uvicorn por contenedor** y escala con más pods: el HPA (*Horizontal Pod Autoscaler*), la regla de Kubernetes que agrega o quita pods según su CPU, los mueve entre 3 y 12. Las razones: varios workers en un pod esconden cuánta CPU usa cada proceso, multiplican la memoria, complican las métricas (los números que el servicio publica para vigilarlo) y pueden dejar un pod «sano» con un worker colgado.
 
-Así, la concurrencia de C01 se reparte en capas. En cada pod, el loop encima las esperas y 2 hilos hacen las cuentas. Entre pods, Kubernetes reparte los núcleos. Y Triton, escrito en C++ y sin GIL, junta las fotos de muchas requests en un batch para la GPU.
+Así, la concurrencia del gateway de Alba se reparte en capas. En cada pod, el loop encima las esperas y 2 hilos hacen las cuentas. Entre pods, Kubernetes reparte los núcleos. Y Triton, escrito en C++ y sin GIL, junta las fotos de muchas requests en un batch para la GPU.
 
 :::diagrama async-pod
 Toca cada caja para ver por qué está ahí, o usa «Recorrer» para seguir una request normal, la hora pico y la trampa del decode en el loop.
@@ -441,11 +453,14 @@ Hay tres maneras de arrancar un proceso de Python desde otro. Con **fork**, el s
 
 Falta una pregunta: ¿cuántas cosas a la vez? ¿Cuántas requests en vuelo, cuántos hilos, cuántas conexiones? La respuesta es una multiplicación.
 
-**L = λ × W.** Lo que hay adentro, en promedio, es lo que llega por unidad de tiempo por lo que tarda cada uno adentro. Es la **[[ley-little|Ley de Little]]** (*Little's law*), que John Little demostró en 1961:
+Lo que hay adentro, en promedio, es lo que llega por unidad de tiempo por lo que tarda cada uno adentro. Es la **[[ley-little|Ley de Little]]** (*Little's law*), que John Little demostró en 1961:
 
-- **L**: cuántas hay adentro en promedio. En un servidor, las requests **en vuelo**: ya llegaron y todavía no terminan.
-- **λ** (la letra griega lambda): la [[tasa]] de llegada, en requests por segundo.
-- **W**: cuánto pasa cada una adentro, en promedio: su [[latencia]].
+:::formula Ley de Little
+L = λ × W
+- L: cuántas hay adentro en promedio. En un servidor, las requests **en vuelo**: ya llegaron y todavía no terminan
+- λ: la letra griega lambda: la [[tasa]] de llegada, en requests por segundo
+- W: cuánto pasa cada una adentro, en promedio: su [[latencia]], en segundos
+:::
 
 El ejemplo de todos los días: a un restaurante llegan 100 clientes por hora y cada uno se queda media hora. Adentro hay, en promedio, 100 × 0.5 = 50. No importa el menú ni a qué hora llegó cada quien.
 
@@ -453,27 +468,36 @@ El ejemplo de todos los días: a un restaurante llegan 100 clientes por hora y c
 Una request llega cada 10 ms (λ = 100 por segundo) y cada una tarda 50 ms (W). Cada barra es una request, de que llega a que sale. La línea punteada, a los 75 ms, corta 5 barras: hay 5 en vuelo, L = 100 × 0.05. Entre los 50 y los 100 ms, cualquier otra línea también corta 5.
 :::
 
-Vale para cualquier cosa con entradas y salidas. En C01 sirve para cuatro cosas:
+Vale para cualquier cosa con entradas y salidas. Aplicada a la CPU, lo que «pasa adentro» de un núcleo es la CPU de cada request, \(c\), y lo que hay adentro son núcleos ocupados:
 
-:::cuenta Little en el gateway de C01, en el pico de diseño (M03)
-Requests en vuelo en todo el servicio // 500 por segundo, 50 ms cada una | 500 × 0.05 s | 25
+:::formula Ley de Little aplicada a la CPU
+n = λ × c
+- λ: la tasa de llegada, en requests por segundo, como en la Ley de Little
+- c: la CPU que gasta cada request, en s (la misma \(c\) de «Requests por segundo que atiende un proceso»)
+- n: núcleos (vCPU) ocupados en promedio
+:::
+
+En Alba sirve para cuatro cosas:
+
+:::cuenta Little en el gateway de Alba, en el pico de diseño
+Requests en vuelo en todo el servicio, \(L\) // \(λ\) = 500 por segundo, \(W\) = 50 ms cada una | \(L = λ × W\) = 500 × 0.05 s | 25
 Por pod // con 5 pods | 25 ÷ 5 | 5
-Llamadas a Triton abiertas a la vez // ≈ 10 ms de ida y vuelta | 500 × 0.010 s | 5
-vCPU ocupados en el preproceso // Little aplicado a la CPU: cada request que calcula ocupa un vCPU ≈ 6 ms | 500 × 0.006 s | 3
+Llamadas a Triton abiertas a la vez // aquí \(W\) es la llamada: ≈ 10 ms de ida y vuelta | \(λ × W\) = 500 × 0.010 s | 5
+vCPU ocupados en el preproceso, \(n\) // \(c\) ≈ 6 ms de CPU por request | \(n = λ × c\) = 500 × 0.006 s | 3
 = 25 requests en vuelo, 5 por pod, que entre todas ocupan 3 vCPU: el resto de su vida esperan. Es la primera mitad de la respuesta de la lección.
 :::
 
 ### Dónde se pone el límite
 
-Cada request en vuelo ocupa algo: memoria para su foto, una conexión, un lugar en el loop. Por eso el gateway de C01 tiene un tope, `MAX_INFLIGHT = 16` por pod: la request 17 recibe al instante un 503, un error que dice «estoy saturado, vuelve más tarde», y rechazarla cuesta microsegundos. ¿Por qué 16? Por Little al revés: a 100 por segundo, con 20 en vuelo cada request tardaría en promedio 20 ÷ 100 = 0.2 s, justo la promesa de 200 ms de C01, y con más, ni el promedio la cumpliría. Se baja a 16 por memoria: 16 fotos de hasta 10 MB son 160 MB, que caben en el 1 GiB del pod junto con los 2 decodes.
+Cada request en vuelo ocupa algo: memoria para su foto, una conexión, un lugar en el loop. Por eso el gateway de Alba tiene un tope, `MAX_INFLIGHT = 16` por pod: la request 17 recibe al instante un 503, un error que dice «estoy saturado, vuelve más tarde», y rechazarla cuesta microsegundos. ¿Por qué 16? Por Little al revés, \(W = L ÷ λ\): a 100 por segundo, con 20 en vuelo cada request tardaría en promedio 20 ÷ 100 = 0.2 s, justo la promesa de 200 ms de Alba (el p99 en 200 ms o menos), y con más, ni el promedio la cumpliría. Se baja a 16 por memoria: 16 fotos de hasta 10 MB son 160 MB, que caben en el 1 GiB del pod junto con los 2 decodes.
 
-Little también dice qué pasa cuando algo se frena. El gateway espera a Triton como máximo 150 ms: es su [[timeout]], su tiempo máximo de espera. Si Triton tarda hasta ese límite, las llamadas abiertas pasan de 5 a 500 × 0.15 = **75**, ≈ 15 por pod. Con un timeout de 5 s serían 500 × 5 = **2,500** colgadas, ≈ 500 por pod, cada una con su memoria y su conexión, para respuestas que nadie espera: quien llamó, el *backend* del marketplace (el programa que pidió la categoría), se va a los 300 ms. Los timeouts acotan W y, con W, la concurrencia.
+Little también dice qué pasa cuando algo se frena. El gateway espera a Triton como máximo 150 ms: es su [[timeout]], su tiempo máximo de espera. Si Triton tarda hasta ese límite, las llamadas abiertas pasan de 5 a \(λ × W\) = 500 × 0.15 = **75**, ≈ 15 por pod. Con un timeout de 5 s serían 500 × 5 = **2,500** colgadas, ≈ 500 por pod, cada una con su memoria y su conexión, para respuestas que nadie espera: quien llamó, el *backend* del marketplace (el programa que pidió la categoría), se va a los 300 ms. Los timeouts acotan W y, con W, la concurrencia.
 
 ### La trampa: Little habla de promedios
 
-L es un promedio. En un instante dado puede haber muchas más, porque las requests llegan al azar: en una hora simulada de un pod, con 5 en promedio, hubo un momento con 19. Por eso un tope como el de C01 deja margen sobre el promedio. Con 16, el pod casi nunca rechaza en condiciones normales, y si rechaza seguido, algo va lento.
+L es un promedio. En un instante dado puede haber muchas más, porque las requests llegan al azar: en una hora simulada de un pod, con 5 en promedio, hubo un momento con 19. Por eso un tope como el de Alba, 16 por pod, deja margen sobre el promedio de 5. Con 16, el pod casi nunca rechaza en condiciones normales, y si rechaza seguido, algo va lento.
 
-Lo que no se hace es multiplicar la tasa por el p99 para sacar «la concurrencia en el peor caso». La Ronda (M03) es tajante: «es una cuenta sin significado». Piensa en el restaurante: si el cliente más lento de cada 100 se queda 2 horas (un supuesto), 100 × 2 = 200 supondría que **todos** se quedan 2 horas; adentro sigue habiendo 50 en promedio. Cuántos hay en el peor momento depende de cuántos llegan juntos, y eso lo dicen una simulación o una prueba de carga.
+Lo que no se hace es multiplicar la tasa por el p99 para sacar «la concurrencia en el peor caso». Es una cuenta sin significado. Piensa en el restaurante: si el cliente más lento de cada 100 se queda 2 horas (un supuesto), 100 × 2 = 200 supondría que **todos** se quedan 2 horas; adentro sigue habiendo 50 en promedio. Cuántos hay en el peor momento depende de cuántos llegan juntos, y eso lo dicen una simulación o una prueba de carga.
 
 :::profundo Verlo en una simulación: el promedio y los picos
 Esta simulación manda una hora de tráfico a un pod (100 por segundo y 50 ms en promedio, todo al azar) y cuenta cuántas hay adentro en cada instante:
@@ -483,7 +507,7 @@ import random
 from collections import Counter
 random.seed(7)
 
-lam, W = 100, 0.050                     # un pod de C01: 100 requests por segundo, 50 ms en promedio
+lam, W = 100, 0.050                     # un pod de Alba: 100 requests por segundo, 50 ms en promedio
 eventos, t = [], 0.0
 for _ in range(360_000):                # una hora de tráfico
     t += random.expovariate(lam)        # llegadas al azar, 100 por segundo en promedio
@@ -516,14 +540,14 @@ El promedio sale exactamente el de Little, aunque cada request tardó distinto. 
 
 ### Cuándo deja de funcionar
 
-Aplicada a la CPU, Little da los núcleos ocupados: tasa × CPU por request. Ese número tiene un techo, los núcleos que tienes. Si lo pasa, cada segundo llega más trabajo del que se puede hacer y la fila crece sin parar. Y aun en el 100 % justo, la fila no tiene techo: por eso se deja margen, y el HPA de C01 apunta al 60 %.
+Aplicada a la CPU, Little da los núcleos ocupados: \(n = λ × c\). Ese número tiene un techo, los núcleos que tienes. Si lo pasa, cada segundo llega más trabajo del que se puede hacer y la fila crece sin parar. Y aun en el 100 % justo, la fila no tiene techo: por eso se deja margen, y el HPA de Alba apunta al 60 %.
 
 Pasa más fácil de lo que parece: basta con que suba el tráfico o la CPU de cada request. Una foto web de 12 MP sin draft mode cuesta de 40 a 80 ms de CPU, no 6, y el ejercicio 6 calcula con cuántas así ya no alcanza.
 
-Con esto ya tienes la respuesta completa. Un pod de C01 atiende 100 requests por segundo porque cada una pasa casi toda su vida esperando y el loop las encima: 5 en vuelo con 0.6 vCPU. Deja de funcionar de tres maneras:
+Con esto ya tienes la respuesta completa. Un pod de Alba atiende 100 requests por segundo porque cada una pasa casi toda su vida esperando y el loop las encima: 5 en vuelo (100 × 0.05 s) con 0.6 vCPU (100 × 0.006 s). Deja de funcionar de tres maneras:
 
 1. **Algo bloquea el loop**, y nadie avanza.
-2. **La CPU no alcanza**: tasa × CPU por request llega a los núcleos.
+2. **La CPU no alcanza**: \(n = λ × c\) llega a los núcleos que hay.
 3. **W crece**, porque algo de atrás se frena, y la concurrencia crece con ella hasta acabarse la memoria o las conexiones. Por eso los timeouts y los topes.
 
 :::calculadora async-little
@@ -542,13 +566,13 @@ Async no solo encima requests distintas. Dentro de una misma request, encima las
 
 ### Llamar a varios a la vez: la suma se vuelve el máximo
 
-Si una request llama en serie a tres servicios, las latencias se suman. Si las llamadas no dependen entre sí, `asyncio.gather` las lanza juntas y la request espera solo a la más lenta. La Ronda (M03) lo llama «paralelizar lo independiente»: «La suma se vuelve el máximo».
+Si una request llama en serie a tres servicios, las latencias se suman. Si las llamadas no dependen entre sí, `asyncio.gather` las lanza juntas y la request espera solo a la más lenta. A esto se le llama paralelizar lo independiente: la suma se vuelve el máximo. En serie, \(W = W_1 + W_2 + W_3\); a la vez, \(W = max(W_1, W_2, W_3)\).
 
-El precio es el [[fan-out]] de la lección de probabilidad: si esperas a todos, basta con que uno tenga un mal momento. Con 10 servicios que superan su p99 el 1 % de las veces, casi 10 % de tus requests (1 − 0.99¹⁰ = 9.6 %) toca el p99 de al menos uno.
+El precio es el [[fan-out]] de la lección de probabilidad: si esperas a todos, basta con que uno tenga un mal momento. Con 10 servicios que superan su p99 el 1 % de las veces, casi 10 % de tus requests toca el p99 de al menos uno: la probabilidad de que ninguno lo toque es 0.99 multiplicado 10 veces, y \(1 − 0.99^{10}\) = 9.6 %.
 
 ### Un tiempo límite en cada await
 
-Un await sin límite puede esperar para siempre. `asyncio.wait_for(llamada, timeout=…)` espera como máximo ese tiempo y, si vence, **cancela** la llamada y lanza un error, `TimeoutError`, que tu código atrapa con `try` y `except`. C01 lo usa con Triton, y le da lo que quede del presupuesto: quien llama espera 300 ms, el gateway se da 250 en total, a Triton le da 150, y la fila de Triton rechaza a los 100. Cada salto espera menos que el de antes: «300 → 250 → 150 → 100 ms» (M15).
+Un await sin límite puede esperar para siempre. `asyncio.wait_for(llamada, timeout=…)` espera como máximo ese tiempo y, si vence, **cancela** la llamada y lanza un error, `TimeoutError`, que tu código atrapa con `try` y `except`. El gateway de Alba lo usa con Triton, y le da lo que quede del presupuesto: quien llama espera 300 ms, el gateway se da 250 en total, a Triton le da 150, y la fila de Triton rechaza a los 100. Cada salto espera menos que el de antes: 300 → 250 → 150 → 100 ms.
 
 ```python
 import asyncio, time
@@ -582,23 +606,23 @@ re-ranker: cancelado a los 150 ms
 a la vez y con límite: 150 ms · en fila y sin límite: 530 ms
 ```
 
-La request responde a los 150 ms con lo que tiene, en vez de esperar 530. Qué hace con el re-ranker que faltó (el modelo que reordena los resultados) es decisión del diseño: en C11, si no llega a tiempo, la Ronda usa el orden que ya traía la búsqueda.
+La request responde a los 150 ms con lo que tiene, en vez de esperar 530. Qué hace con el re-ranker que faltó (el modelo que reordena los resultados) es decisión del diseño: en el asistente interno de Alba, que responde con los documentos de la empresa (RAG), si el re-ranker no llega a tiempo se usa el orden que ya traía la búsqueda.
 
 ### Cancelar lo que ya nadie espera
 
-Cancelar en async es barato: la corrutina recibe un aviso en el await donde está y deja de correr. Es lo que hace C10, el LLM de la Ronda: si el cliente cierra la conexión, el gateway cierra la suya con vLLM, el servidor que corre el modelo, y «vLLM aborta la secuencia y libera su KV cache» (el [[kv-cache|KV cache]] es la memoria de la GPU donde el modelo guarda lo que ya calculó de cada token de la conversación). Sin eso, la GPU seguiría generando tokens para nadie.
+Cancelar en async es barato: la corrutina recibe un aviso en el await donde está y deja de correr. Es lo que hace el gateway de un servicio que sirve su propio LLM: si el cliente cierra la conexión, el gateway cierra la suya con vLLM, el servidor que corre el modelo, y vLLM deja de generar esa respuesta y libera su KV cache (el [[kv-cache|KV cache]] es la memoria de la GPU donde el modelo guarda lo que ya calculó de cada token de la conversación). Sin eso, la GPU seguiría generando tokens para nadie.
 
 ### Acotar cuántas a la vez
 
-`asyncio.Semaphore(n)` es un contador de lugares: deja pasar a n corrutinas a la vez y pone a esperar a las demás, con await, sin bloquear el loop. El gateway de C01 pone uno de 2 lugares frente al threadpool, aunque el pool de FastAPI tiene 40 hilos. ¿Por qué tan pocos? Por memoria. Un PNG de 40 MP ocupa ≈ 320 MB al decodificarse, y el pod tiene 1 GiB. Con 2 lugares, el peor caso es 2 × 320 MB, más ≈ 80 MB de Python y ≈ 160 MB de requests en vuelo: ≈ 880 MB, el 82 % del límite (la cuenta completa está en «Programa, proceso e hilo»). Con 40 serían 12.8 GB, y el pod moriría por falta de memoria ([[oom|OOM]]).
+`asyncio.Semaphore(2)` es un contador de lugares, aquí 2: deja pasar a 2 corrutinas a la vez y pone a esperar a las demás, con await, sin bloquear el loop. El gateway de Alba pone uno de 2 lugares frente al threadpool, aunque el pool de FastAPI tiene 40 hilos. ¿Por qué tan pocos? Por memoria. Un PNG de 40 MP ocupa ≈ 320 MB al decodificarse, y el pod tiene 1 GiB. Con 2 lugares, el peor caso es 2 × 320 MB, más ≈ 80 MB de Python y ≈ 160 MB de requests en vuelo: ≈ 880 MB, el 82 % del límite (la cuenta completa está en «Programa, proceso e hilo»). Con 40 serían 12.8 GB, y el pod moriría por falta de memoria ([[oom|OOM]]).
 
 Esperar un lugar tiene además un tiempo máximo: si una request espera más de 50 ms, recibe un 503, un error que dice «estoy saturado, vuelve más tarde». Esperar más ya no cumpliría la promesa de 200 ms, y rechazar cuesta microsegundos.
 
-`asyncio.Queue(maxsize=…)` es lo mismo para una fila: si se llena, quien quiere meter algo espera o recibe un error. Sin tope, la fila crece en silencio, como verás con C13 en «En la vida real».
+`asyncio.Queue(maxsize=…)` es lo mismo para una fila: si se llena, quien quiere meter algo espera o recibe un error. Sin tope, la fila crece en silencio, como verás con los subtítulos en vivo en «En la vida real».
 
 ### Tu propio batching
 
-M07 cuenta cómo armar *dynamic batching* (juntar en un batch las requests que llegan casi al mismo tiempo) en Python: una `asyncio.Queue`, una tarea que junta hasta N requests o espera T milisegundos, una sola llamada al modelo con todo el batch y un *future* por request (una promesa de resultado que se cumple después) para regresarle a cada una lo suyo. El esqueleto es corto; lo difícil son los bordes. Un ítem corrupto no debe tumbar a los demás, un cliente que ya canceló no debe ocupar lugar, y la fila necesita tope. Triton hace todo eso en C++, fuera del GIL, y por eso C01 lo usa en vez de escribirlo.
+Se puede armar *dynamic batching* (juntar en un batch las requests que llegan casi al mismo tiempo) en Python: una `asyncio.Queue`, una tarea que junta requests hasta un máximo o hasta que pasan unos milisegundos, una sola llamada al modelo con todo el batch y un *future* por request (una promesa de resultado que se cumple después) para regresarle a cada una lo suyo. El esqueleto es corto; lo difícil son los bordes. Un ítem corrupto no debe tumbar a los demás, un cliente que ya canceló no debe ocupar lugar, y la fila necesita tope. Triton hace todo eso en C++, fuera del GIL, y por eso Alba lo usa en vez de escribirlo.
 
 ## Errores comunes {Common mistakes}
 
@@ -624,7 +648,7 @@ Por el GIL, cuatro hilos que calculan Python puro usan un núcleo, no cuatro.
 
 Un pool de 40 hilos que decodifica 40 fotos de 40 MP pide 12.8 GB en un pod de 1 GiB. Una fila sin tope (`asyncio.Queue()`) nunca falla: solo crece, y la latencia con ella.
 
-**Cómo evitarlo:** un tope por recurso (los 2 lugares de CPU de C01, `MAX_INFLIGHT = 16`, filas con `maxsize`) y rechazar rápido lo que no cabe: un 503 cuesta microsegundos.
+**Cómo evitarlo:** un tope por recurso (los 2 lugares de CPU del gateway de Alba, `MAX_INFLIGHT = 16`, filas con `maxsize`) y rechazar rápido lo que no cabe: un 503 cuesta microsegundos.
 
 ### 5. Varios workers con el modelo adentro
 
@@ -640,48 +664,58 @@ Un pool de 40 hilos que decodifica 40 fotos de 40 MP pide 12.8 GB en un pod de 1
 
 ### 7. Un await sin timeout
 
-La Ronda (M03) lo dice así: «Un servicio lento es peor que uno caído». Por Little, cada segundo de más que tarda suma λ requests colgadas: a 500 por segundo, 500 más.
+Un servicio lento es peor que uno caído. Por Little, \(L = λ × W\): cada segundo de más en \(W\) suma \(λ\) requests colgadas; a 500 por segundo, 500 más.
 
 **Cómo evitarlo:** un timeout en cada llamada por la red, más corto que el de quien te llama, y pasarle a cada salto (cada servicio por el que pasa la request) lo que queda del presupuesto.
 
 ## En la vida real {In real life} [extra]
 
-### C01: de un proceso que hacía todo a dos piezas que hacen cada una lo suyo
+### Alba: de un proceso que hacía todo a dos piezas que hacen cada una lo suyo
 
-El primer servicio de C01, el MVP (la versión mínima para probar la idea), era lo más simple posible: una máquina con GPU, un proceso de FastAPI con PyTorch adentro, y una foto a la vez. Atendía al 10 % de los vendedores, ≈ 35 requests por segundo en el pico. La Ronda cuenta por qué no crece: PyTorch así da del orden de 100 imágenes por segundo por proceso, y «el GIL y la falta de batching hacen que agregar threads no ayude».
+El primer servicio de Alba, el MVP (la versión mínima para probar la idea), era lo más simple posible: una máquina con GPU, un proceso de FastAPI con PyTorch adentro, y una foto a la vez. Atendía al 10 % de los vendedores, ≈ 35 requests por segundo en el pico (el 10 % de 350, el pico de un día normal). No podía crecer: PyTorch así da del orden de 100 imágenes por segundo por proceso, y el GIL y la falta de batching hacen que agregar hilos no ayude.
 
-El diseño final separa el trabajo según su tipo. El gateway, en máquinas sin GPU, encima las esperas con su loop y hace el decode en 2 hilos, en 3 a 12 pods. Triton, en la GPU, junta las fotos en batches desde C++; con TensorRT en FP16, la Ronda cuenta con ≈ 1,200 imágenes por segundo por T4, un número que se mide antes de producción.
+El diseño final separa el trabajo según su tipo. El gateway, en máquinas sin GPU, encima las esperas con su loop y hace el decode en 2 hilos, en 3 a 12 pods. Triton, en la GPU, junta las fotos en batches desde C++; con TensorRT en FP16, el equipo de Alba cuenta con ≈ 1,200 imágenes por segundo por T4, un número que se mide antes de producción.
 
-Aun con ese diseño, los vCPU se cuentan con el pico. La Ronda (M03) cuenta qué pasa si se dimensiona con el tráfico promedio del día: a 116 requests por segundo, el gateway ocupa 116 × 6 ms ≈ 0.7 vCPU, y le dan 1. A las 8 de la noche llegan 350 por segundo, que piden ≈ 2.1: «el threadpool se satura y el p99 explota».
+Aun con ese diseño, los vCPU se cuentan con el pico. ¿Qué pasa si se dimensiona con el tráfico promedio del día? Con \(n = λ × c\): a 116 requests por segundo, el gateway ocupa 116 × 0.006 s ≈ 0.7 vCPU, y le dan 1. A las 8 de la noche llegan 350 por segundo, que piden 350 × 0.006 s ≈ 2.1: el threadpool se satura y el p99 explota.
 
-### C10: cientos de conversaciones abiertas
+### Un LLM propio: cientos de conversaciones abiertas
 
-El gateway del LLM de C10 casi no calcula: revisa la llave de acceso, la cuota y el tamaño de cada request en unos milisegundos, y después espera a vLLM mientras reenvía cada token apenas llega. Cada request dura segundos, así que hay muchas abiertas a la vez:
+El gateway de un servicio que sirve su propio LLM casi no calcula: revisa la llave de acceso, la cuota y el tamaño de cada request en unos milisegundos, y después espera a vLLM mientras reenvía cada token apenas llega. Cada request dura segundos, así que hay muchas abiertas a la vez:
 
-:::cuenta Little en el gateway de C10 (Ronda)
-Requests por segundo en el pico | — | 60
-Lo que dura cada una // generando la respuesta | — | ≈ 10.5 s
-Conversaciones abiertas a la vez | 60 × 10.5 s | ≈ 630
+:::cuenta Little en el gateway de un LLM propio, con supuestos del ejemplo
+Requests por segundo en el pico, \(λ\) // supuesto del ejemplo | — | 60
+Lo que dura cada una, \(W\) // generando la respuesta | — | ≈ 10.5 s
+Conversaciones abiertas a la vez, \(L\) | \(L = λ × W\) = 60 × 10.5 s | ≈ 630
 Por réplica del gateway // con 4 réplicas | 630 ÷ 4 | ≈ 158
-Tope por réplica // 16 réplicas de vLLM × 72 en vuelo cada una, lo más que aguantan cumpliendo su promesa, ÷ 4 gateways | — | 288
-= 630 conversaciones son ≈ 55 % de lo que el gateway acepta. Con un hilo por conversación serían cientos de hilos esperando; con un event loop, son corrutinas.
+Tope por réplica // 16 réplicas de vLLM × 72 en vuelo cada una, lo más que aguantan cumpliendo su promesa, ÷ 4 gateways | 16 × 72 ÷ 4 | 288
+= 158 de 288 por réplica (158 ÷ 288): las 630 conversaciones son ≈ 55 % de lo que el gateway acepta. Con un hilo por conversación serían cientos de hilos esperando; con un event loop, son corrutinas.
 :::
 
-### C13: la fila que crece en silencio
+### Subtítulos en vivo: la fila que crece en silencio
 
-En C13, los subtítulos en vivo de una reunión, el audio llega en pedazos de 160 ms. La Ronda cuenta una trampa: una `asyncio.Queue()` sin tope entre la conexión y el modelo. Si la GPU tarda 200 ms en procesar cada pedazo, la fila nunca falla, pero cada pedazo agrega 40 ms de atraso: en 10 minutos llegan 3,750 pedazos y salen 3,000, y los 750 que esperan son 2 minutos de audio. La sesión va dos minutos atrasada, sin un error ni un log. La regla que pone la Ronda: saltarse resultados intermedios mientras alcance y, si el atraso pasa de ≈ 2 s, cerrar la sesión para que se abra en una GPU con lugar.
+En un servicio de voz a texto en tiempo real, como los subtítulos en vivo de una reunión, el audio llega en pedazos de 160 ms. La trampa: una `asyncio.Queue()` sin tope entre la conexión y el modelo. Si la GPU tarda más en procesar un pedazo de lo que tarda en llegar el siguiente, la fila nunca falla, pero se atrasa:
 
-### M02: workers de una cola
-
-El OCR de un PDF de 200 páginas, a ≈ 1 s por página, tarda ≈ 200 s con un worker y ≈ 10 s con 20. Little funciona igual con jobs: si llegan 50 por segundo y cada uno vive ≈ 200 s, hay ≈ 10,000 activos a la vez.
-
-:::ojo «Asíncrono» quiere decir dos cosas en la Ronda
-En el **código**, async es un hilo que no se bloquea mientras espera. En la **arquitectura**, M02 llama **patrón asíncrono** a otra cosa: la API pone el trabajo en una cola, responde «recibido» de inmediato y unos [[worker|workers]] lo procesan después. C01 es síncrono en su arquitectura (Ana espera su respuesta, a lo más 300 ms) y async en el código de su gateway.
+:::formula Atraso de una fila sin tope
+A = (frac{T}{t_{llega}} − frac{T}{t_{proc}}) × t_{llega}
+- T: el tiempo que lleva abierta la sesión, en s
+- t_{llega}: cada cuánto llega un pedazo de audio, en s; también es el audio que trae cada pedazo
+- t_{proc}: lo que tarda la GPU en procesar un pedazo, en s
+- A: el atraso: el audio que espera en la fila, en s. Los pedazos que llegaron menos los que salieron, por lo que dura cada uno
 :::
 
-### En el Dojo
+Con \(t_{proc}\) = 200 ms, cada pedazo agrega 200 − 160 = 40 ms de atraso. En 10 minutos (\(T\) = 600 s) llegan 600 ÷ 0.16 = 3,750 pedazos y salen 600 ÷ 0.2 = 3,000, y los 3,750 − 3,000 = 750 que esperan son 750 × 0.16 s = 120 s: 2 minutos de audio. La sesión va dos minutos atrasada, sin un error ni un log. La regla de ese diseño: saltarse resultados intermedios mientras alcance y, si el atraso pasa de ≈ 2 s, cerrar la sesión para que se abra en una GPU con lugar.
 
-La estación 1 copia las fotos que hay que etiquetar: baja cada una de S3, le quita los metadatos y la vuelve a subir. Lo hace con `ThreadPoolExecutor(16)`, 16 hilos a la vez. Funciona a pesar del GIL porque casi todo es esperar a la red, y lo que calcula, Pillow, suelta el GIL.
+### Workers de una cola
+
+El OCR de un PDF de 200 páginas, a ≈ 1 s por página, tarda ≈ 200 s con un worker y ≈ 10 s con 20. Little funciona igual con jobs: si llegan 50 por segundo y cada uno vive ≈ 200 s, hay \(L = λ × W\) = 50 × 200 ≈ 10,000 activos a la vez.
+
+:::ojo «Asíncrono» quiere decir dos cosas
+En el **código**, async es un hilo que no se bloquea mientras espera. En la **arquitectura**, se llama **patrón asíncrono** a otra cosa: la API pone el trabajo en una cola, responde «recibido» de inmediato y unos [[worker|workers]] lo procesan después. El sistema de Alba es síncrono en su arquitectura (Ana espera su respuesta, a lo más 300 ms) y async en el código de su gateway.
+:::
+
+### Alba: 16 hilos que copian fotos
+
+Para preparar las fotos que hay que etiquetar, Alba copia cada una: la baja de S3, le quita los metadatos y la vuelve a subir. Lo hace con `ThreadPoolExecutor(16)`, 16 hilos a la vez. Funciona a pesar del GIL porque casi todo es esperar a la red, y lo que calcula, Pillow, suelta el GIL.
 
 ### Fuera de ML: el navegador
 
@@ -697,57 +731,48 @@ Resuélvelos con lápiz antes de abrir la solución. Los de capacidad se pueden 
 - (b) **CPU-bound**: cuentas sobre millones de píxeles.
 - (c) **I/O-bound**: tu programa espera segundos; el que calcula es el servidor del LLM.
 - (d) **CPU-bound**: un ciclo de Python que no espera nada.
-- (e) **I/O-bound**: escribir al disco o a la red. Por eso C01 escribe cada línea a la salida del programa (*stdout*) y otro programa la lleva a S3: la respuesta no espera al log.
+- (e) **I/O-bound**: escribir al disco o a la red. Por eso el gateway de Alba escribe cada línea a la salida del programa (*stdout*) y otro programa la lleva a S3: la respuesta no espera al log.
 ? [facil] Un servidor con un solo hilo bloquea mientras espera, y cada request tarda 25 ms. ¿Cuántas atiende por segundo? ¿Y con 4 hilos, si casi todo es espera?
-- De una en una: 1 ÷ 0.025 s = **40 por segundo**.
-- Con 4 hilos, 4 requests en curso a la vez: 4 × 40 = **160 por segundo**, mientras la CPU alcance. Como casi todo es espera, los hilos sueltan el GIL y se enciman.
+- De una en una, \(X = 1 ÷ W\): 1 ÷ 0.025 s = **40 por segundo**.
+- Con 4 hilos, 4 requests en curso a la vez, \(X = k ÷ W\): 4 ÷ 0.025 s = **160 por segundo**, mientras la CPU alcance. Como casi todo es espera, los hilos sueltan el GIL y se enciman.
 ? [facil] A un servicio le llegan 200 requests por segundo y cada una tarda 80 ms en promedio. ¿Cuántas hay en vuelo? ¿Y si la latencia sube a 400 ms?
-- Little: L = 200 × 0.08 s = **16** en vuelo.
+- Little, \(L = λ × W\): 200 × 0.08 s = **16** en vuelo.
 - Con 400 ms: 200 × 0.4 = **80**. Cinco veces la latencia son cinco veces los hilos, las conexiones y la memoria.
 ? [facil] Una ruta `async def` hace `time.sleep(1)` y llegan 5 requests al mismo tiempo. ¿Cuándo termina la última? ¿Y si fuera `await asyncio.sleep(1)`?
-- `time.sleep(1)` bloquea el loop: las 5 se atienden en fila, y la última termina a los **5 s**.
+- `time.sleep(1)` bloquea el loop: las 5 se atienden en fila, y la última termina a los 5 × 1 s = **5 s**.
 - `await asyncio.sleep(1)` suelta el turno: las 5 esperas se enciman, y todas terminan a los **≈ 1 s**.
 ? [medio] Un script de Python puro procesa 4 archivos, y cada uno pide 2 s de CPU. ¿Cuánto tarda con 1 hilo, con 4 hilos y con 4 procesos, en una máquina de 4 núcleos?
 - 1 hilo: 4 × 2 s = **8 s**.
 - 4 hilos: también **≈ 8 s**. El GIL deja correr Python a un hilo a la vez: los cuatro se turnan el mismo núcleo.
 - 4 procesos: **≈ 2 s** más lo que tardan en arrancar, porque cada uno tiene su GIL y su núcleo.
 - Si el trabajo fuera esperar a la red, los 4 hilos sí tardarían lo de uno.
-? [medio] Un pod de C01 recibe 100 requests por segundo con ≈ 6 ms de CPU cada una. ¿Qué parte de su núcleo usa? Ahora 1 de cada 10 fotos llega de 12 MP sin draft mode y cuesta 60 ms. ¿Y ahora? ¿Desde qué fracción de fotos grandes deja de alcanzar?
-- Al principio: 100 × 6 ms = 600 ms de CPU por segundo: **60 %** del núcleo.
-- Con 10 % de fotos grandes: 0.9 × 6 + 0.1 × 60 = **11.4 ms** en promedio, y 100 × 11.4 ms = 1.14 s de CPU por segundo: **114 %**. No alcanza: la fila crece sin parar.
-- El límite es 10 ms en promedio, porque 100 × 10 ms = 1 s: 6 + f × (60 − 6) = 10, así que f = 4 ÷ 54 ≈ **7.4 %**.
+? [medio] Un pod de Alba recibe 100 requests por segundo con ≈ 6 ms de CPU cada una. ¿Qué parte de su núcleo usa? Ahora 1 de cada 10 fotos llega de 12 MP sin draft mode y cuesta 60 ms. ¿Y ahora? ¿Desde qué fracción de fotos grandes deja de alcanzar?
+- Núcleos ocupados: \(n = λ × c\). Al principio: 100 × 0.006 s = 0.6, es decir 600 ms de CPU por segundo: **60 %** del núcleo.
+- Con una fracción \(f\) de fotos grandes, la CPU promedio es \(c = (1 − f) × 6 + f × 60\) ms. Con \(f\) = 0.1: 0.9 × 6 + 0.1 × 60 = **11.4 ms**, y \(n\) = 100 × 0.0114 s = 1.14 s de CPU por segundo: **114 %**. No alcanza: la fila crece sin parar.
+- El límite es \(n\) = 1, o sea \(c\) = 1 ÷ 100 = 0.01 s = 10 ms en promedio: 6 + f × (60 − 6) = 10, así que f = 4 ÷ 54 ≈ **7.4 %**.
 - Arreglos: draft mode, rechazar las fotos demasiado grandes, más pods. El tráfico no subió; subió la CPU por request.
 ? [medio] Una request necesita features del vendedor (40 ms), la predicción del modelo (90 ms) y un re-ranker (60 ms). ¿Cuánto tarda en serie? ¿Y con `asyncio.gather`, si son independientes? ¿Y si el re-ranker necesita la predicción?
-- En serie: 40 + 90 + 60 = **190 ms**.
-- Las tres a la vez: lo que tarda la más lenta, **90 ms**.
+- En serie, las latencias se suman, \(W = W_1 + W_2 + W_3\): 40 + 90 + 60 = **190 ms**.
+- Las tres a la vez, gana la más lenta, \(W = max(W_1, W_2, W_3)\): max(40, 90, 60) = **90 ms**.
 - Si el re-ranker espera al modelo: las features van en paralelo con la cadena modelo → re-ranker, que suma 90 + 60 = 150. El total es el máximo: max(40, 150) = **150 ms**.
 ? [medio] Tienes una L4 de 24 GB y un modelo que, con su contexto de CUDA, ocupa 7 GB por proceso. ¿Cuántos workers de uvicorn caben? ¿Por qué no es buena idea, y qué harías?
-- Caben 24 ÷ 7 = 3.4, o sea **3 workers**, con 3 GB libres.
+- Caben 24 ÷ 7 = 3.4, redondeado hacia abajo **3 workers**: ocupan 3 × 7 = 21 GB y dejan 24 − 21 = 3 GB libres.
 - Pero son 3 copias del mismo modelo turnándose la GPU con batch 1: la memoria se triplica y no se arman batches entre ellas.
 - Mejor **un solo servidor** con una copia del modelo que reciba la concurrencia y arme batches (Triton, o vLLM si es un LLM), y en el gateway, procesos sin modelo.
-? [reto] C01 en el pico de diseño: 500 requests por segundo, 5 pods, 50 ms en promedio, de los que ≈ 10 son la llamada a Triton. Triton se frena y tarda hasta su timeout de 150 ms. (a) ¿Cuántas llamadas a Triton quedan abiertas por pod? (b) ¿Cuántas requests en vuelo por pod, contando todo? (c) ¿Qué hace `MAX_INFLIGHT = 16`? (d) ¿Y si el timeout fuera de 5 s?
-- (a) 500 × 0.15 = 75 llamadas abiertas: **15 por pod**.
-- (b) Cada request tarda ahora 50 − 10 + 150 = 190 ms. L = 500 × 0.19 = 95: **19 por pod**.
+? [reto] El gateway de Alba en el pico de diseño: 500 requests por segundo, 5 pods, 50 ms en promedio, de los que ≈ 10 son la llamada a Triton. Triton se frena y tarda hasta su timeout de 150 ms. (a) ¿Cuántas llamadas a Triton quedan abiertas por pod? (b) ¿Cuántas requests en vuelo por pod, contando todo? (c) ¿Qué hace `MAX_INFLIGHT = 16`? (d) ¿Y si el timeout fuera de 5 s?
+- (a) Little, \(L = λ × W\), con \(W\) = 0.15 s para la llamada a Triton: 500 × 0.15 = 75 llamadas abiertas; entre 5 pods, 75 ÷ 5 = **15 por pod**.
+- (b) Cada request tarda ahora \(W\) = 50 − 10 + 150 = 190 ms. \(L\) = 500 × 0.19 s = 95, y 95 ÷ 5 = **19 por pod**.
 - (c) 19 no cabe en 16: el pod rechaza con un 503 inmediato lo que pasa del tope. Falla rápido, en microsegundos, en vez de encolar trabajo que se va a vencer.
-- (d) Con 5 s, 500 × 5 = 2,500 colgadas, ≈ 500 por pod, para respuestas que quien llamó abandonó a los 300 ms; sin el tope, se acaba la memoria. Por eso cada salto lleva timeout, y el gateway, tope.
-? [reto] En C13 el audio llega en pedazos de 160 ms. Ahora la GPU tarda 180 ms en procesar cada uno, con una `asyncio.Queue()` sin tope en medio. (a) ¿Qué utilización implica? (b) ¿Cuánto atraso hay después de 30 minutos? (c) ¿Desde qué tiempo por pedazo deja de crecer el atraso, y qué regla pondrías mientras tanto?
-- (a) 180 ÷ 160 = **1.125**, es decir 112.5 %. Con más de 100 %, la fila no tiene techo.
-- (b) En 1,800 s llegan 1,800 ÷ 0.16 = 11,250 pedazos y salen 1,800 ÷ 0.18 = 10,000. Esperan 1,250 × 0.16 s = **200 s: 3 minutos y 20 segundos** de atraso. Es lo mismo que 20 ms de atraso por cada uno de los 10,000 pedazos procesados.
-- (c) Deja de crecer cuando cada pedazo se procesa en **menos de 160 ms**, lo que tarda en llegar el siguiente. Mientras tanto, una fila con tope y una regla para cuando no alcanza, como la de la Ronda: saltarse resultados intermedios y, si el atraso pasa de ≈ 2 s, cerrar la sesión para que se reabra en una GPU con lugar.
+- (d) Con 5 s, 500 × 5 = 2,500 colgadas, 2,500 ÷ 5 = 500 por pod, para respuestas que quien llamó abandonó a los 300 ms; sin el tope, se acaba la memoria. Por eso cada salto lleva timeout, y el gateway, tope.
+? [reto] En el servicio de subtítulos en vivo, el audio llega en pedazos de 160 ms. Ahora la GPU tarda 180 ms en procesar cada uno, con una `asyncio.Queue()` sin tope en medio. (a) ¿Qué utilización implica? (b) ¿Cuánto atraso hay después de 30 minutos? (c) ¿Desde qué tiempo por pedazo deja de crecer el atraso, y qué regla pondrías mientras tanto?
+- (a) La utilización es lo que tarda procesar un pedazo entre cada cuánto llega uno, \(t_{proc} ÷ t_{llega}\): 180 ÷ 160 = **1.125**, es decir 112.5 %. Con más de 100 %, la fila no tiene techo.
+- (b) Con el atraso de una fila sin tope, \(A = (T/t_{llega} − T/t_{proc}) × t_{llega}\), y \(T\) = 30 × 60 = 1,800 s: llegan 1,800 ÷ 0.16 = 11,250 pedazos y salen 1,800 ÷ 0.18 = 10,000. Esperan 11,250 − 10,000 = 1,250, y 1,250 × 0.16 s = **200 s: 3 minutos y 20 segundos** de atraso. Es lo mismo que 20 ms de atraso por cada uno de los 10,000 pedazos procesados.
+- (c) Deja de crecer cuando cada pedazo se procesa en **menos de 160 ms**, lo que tarda en llegar el siguiente. Mientras tanto, una fila con tope y una regla para cuando no alcanza, como la de «En la vida real»: saltarse resultados intermedios y, si el atraso pasa de ≈ 2 s, cerrar la sesión para que se reabra en una GPU con lugar.
 :::
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M02 · Patrones de inferencia** abre con el patrón síncrono y su trampa: un JPEG decodificado dentro de un `async def` frena todo el proceso, health checks incluidos. Después arma el patrón asíncrono con cola y workers, y le aplica Little a los jobs.
-- **M03 · Latencia y capacidad** separa latencia, throughput y concurrencia («25 = 500 × 0.05»), usa Little para el tope de requests en vuelo y el pool de conexiones a Triton, y cuenta cómo un threadpool saturado hace explotar el p99.
-- **M07 · Servidores de modelos** parte de FastAPI con PyTorch: el modelo dentro de un `async def`, el GIL, `uvicorn --workers 4` y el batching que Triton ya hace en C++.
-- También **M05** (un proceso por contenedor), **M06** (escalar por requests en vuelo, con un objetivo que sale de Little) y **M14** (en un LLM, la capacidad se cuenta en respuestas que se generan a la vez).
-
-**En el Dojo:** cuando abra la estación 6, «Código de serving», ahí vas a escribir el gateway de C01 con estas piezas. La estación 7, «Empaquetado», ya mete un gateway y un servidor de modelo en contenedores, cada uno con uvicorn como único proceso.
-
-**En Sensei:** la fase siguiente, «La red y la web», abre lo que aquí fue «esperar a la red»: cómo viaja un mensaje, HTTP y sus códigos (el 503 y el 504), los timeouts y los reintentos. Y «Qué tan rápido y cuánto: latencia y throughput» lleva la Ley de Little a las filas y a la utilización.
+El módulo siguiente, «La red y la web», abre lo que aquí fue «esperar a la red»: cómo viaja un mensaje, HTTP y sus códigos (el 503 y el 504), los timeouts y los reintentos. Y «Qué tan rápido y cuánto: latencia y throughput» lleva la Ley de Little a las filas y a la utilización. Más adelante, «Colas y streams: mensajes que esperan» arma el patrón asíncrono, con una cola y sus workers, y «Código de serving» escribe el gateway de Alba con las piezas de esta lección.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -762,7 +787,7 @@ io bloqueo cpu-bound io-bound async event-loop corrutina gil threadpool multipro
 Intenta responder en tu cabeza antes de abrir cada respuesta.
 
 :::chequeo
-? ¿Por qué una request del gateway de C01 pasa casi todo su tiempo esperando?
+? ¿Por qué una request del gateway de Alba pasa casi todo su tiempo esperando?
 Porque casi todo lo que hace es I/O: recibir la foto y esperar ≈ 10 ms a Triton, además de esperar su turno. La CPU trabaja ≈ 6 a 7 ms, casi todo en el decode.
 ? ¿Qué hace `await`, y por qué un `await` solo no encima nada?
 Marca un punto de espera y le regresa el turno al event loop, que corre otra tarea lista. Para encimar hacen falta varias tareas: `asyncio.gather` o, en un servidor, una por request.
@@ -770,8 +795,8 @@ Marca un punto de espera y le regresa el turno al event loop, que corre otra tar
 El loop se detiene mientras dura el decode: nada avanza, ni el health check. El p99 crece con la concurrencia sin que la CPU esté llena. Arreglo: `run_in_threadpool` o `asyncio.to_thread`.
 ? ¿Por qué en Python los hilos sirven para esperar y no para calcular?
 Por el GIL: solo el hilo que lo tiene ejecuta Python. Los que esperan lo sueltan y se enciman; los que calculan Python puro se turnan un núcleo. Pillow o PyTorch, que lo sueltan, sí aprovechan varios hilos.
-? ¿Por qué C01 corre un solo worker de uvicorn por pod?
+? ¿Por qué el gateway de Alba corre un solo worker de uvicorn por pod?
 Porque varios workers multiplican la memoria, esconden la CPU de cada proceso, complican las métricas y pueden dejar uno colgado en un pod «sano». La CPU se escala con más pods.
-? En el pico de diseño de C01, ¿cuántas requests hay en vuelo? ¿Qué no debes hacer con el p99?
-500 × 0.05 s = 25, ≈ 5 por pod. No multipliques la tasa por el p99: Little habla de promedios. El peor caso lo acota el timeout.
+? En el pico de diseño de Alba, 500 requests por segundo de 50 ms en promedio, ¿cuántas hay en vuelo? ¿Qué no debes hacer con el p99?
+\(L = λ × W\) = 500 × 0.05 s = 25, y entre 5 pods, 5 por pod. No multipliques la tasa por el p99: Little habla de promedios. El peor caso lo acota el timeout.
 :::

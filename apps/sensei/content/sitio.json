@@ -8,7 +8,7 @@
   "issues": "https://github.com/ErikPalacios/ML_from_scratch/issues/new",
   "pill": "El curso de teoría de TrueML",
   "titular": "ML engineering desde cero, para entenderlo de verdad.",
-  "lead": "Cada concepto que hace falta para llevar un modelo de AI o ML a producción, desde lo más básico: qué es, por qué existe y cómo se calcula. Con diagramas, figuras, calculadoras para jugar con los números, ejercicios con solución y el mismo caso del Dojo de principio a fin. Al terminar, la Ronda de Diseño se lee sola.",
+  "lead": "Cada concepto que hace falta para llevar un modelo de AI o ML a producción, desde lo más básico: qué es, por qué existe y cómo se calcula. Con diagramas, figuras, calculadoras para jugar con los números, ejercicios con solución y una misma empresa de principio a fin: Alba, un marketplace que sugiere la categoría de cada foto.",
   "descripcion": "El curso de teoría de TrueML: ML engineering desde cero, del dato a producción, con diagramas, calculadoras interactivas y ejercicios con solución. En español, gratis y sin cuenta.",
   "como": [
     {
@@ -24,8 +24,8 @@
       "d": "Abren su definición ahí mismo, sin salir de la página. Todas viven también en el glosario."
     },
     {
-      "t": "Llévalo al Dojo y a la Ronda",
-      "d": "Al final de cada lección está la estación del Dojo para practicarlo y el módulo de la Ronda donde se usa."
+      "t": "Sigue a Alba",
+      "d": "Cada lección aterriza el tema en Alba, la empresa del curso, con sus números a la vista. No hace falta recordar otras lecciones para entenderla."
     }
   ]
 }

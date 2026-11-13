@@ -27,14 +27,14 @@ A cada cosa que puede pasar o no se le llama **evento**. Su probabilidad se escr
 
 En producción, la forma más útil de pensar una probabilidad es como una **frecuencia**: si repites algo muchas veces, la fracción de veces que pasa se acerca a su probabilidad. Lanza una moneda 10 veces y puede salir sol 7 veces: 70 %, lejos de 50 %. Lánzala 10,000 veces y vas a quedar muy cerca de 50 %. Con pocas repeticiones manda la suerte; con muchas, la probabilidad.
 
-Un sistema en producción repite muchísimas veces. C01 recibe ≈ 10 millones de fotos al día (≈ 2.5 M publicaciones nuevas con ≈ 3 fotos cada una, más lo que piden otros equipos), y cada foto es un [[request]]. Con ese volumen, las probabilidades dejan de ser abstractas y se vuelven conteos:
+Un sistema en producción repite muchísimas veces. Alba, la empresa que seguimos en todo el curso, es un marketplace: cuando alguien publica algo para vender, un modelo le sugiere la categoría de cada foto, entre 500 posibles. Alba recibe ≈ 10 millones de fotos al día (≈ 2.5 M publicaciones nuevas con ≈ 3 fotos cada una, más lo que piden otros equipos), y cada foto es un [[request]]. Con ese volumen, las probabilidades dejan de ser abstractas y se vuelven conteos. La cuenta es una sola multiplicación: las veces al día son \( R × p \), donde \(R\) son las requests al día y \(p\) la probabilidad de que a una request le pase algo.
 
-:::cuenta Lo que una probabilidad por request significa en C01
-1 % // por ejemplo, las requests que tardan de más | 10,000,000 × 0.01 | 100,000 al día
+:::cuenta Lo que una probabilidad por request significa en Alba
+1 % // \(p\) = 0.01; por ejemplo, las requests que tardan de más | \(R × p\) = 10,000,000 × 0.01 | 100,000 al día
 0.1 % | 10,000,000 × 0.001 | 10,000 al día
 0.01 % | 10,000,000 × 0.0001 | 1,000 al día
 Uno en un millón | 10,000,000 × 0.000001 | 10 al día
-= Algo de «uno en un millón» le pasa a C01 **diez veces al día**. En producción no existe «casi nunca»: existe «cuántas veces al día».
+= Algo de «uno en un millón» le pasa a Alba **diez veces al día**. En producción no existe «casi nunca»: existe «cuántas veces al día».
 :::
 
 Por eso un equipo de producción casi nunca discute si algo va a pasar. Discute cuántas veces va a pasar y qué hace el sistema cuando pase.
@@ -43,7 +43,7 @@ Por eso un equipo de producción casi nunca discute si algo va a pasar. Discute 
 
 La probabilidad también describe **tiempo**. Si un servidor estuvo caído 43 minutos en un mes de 30 días (43,200 minutos), estuvo arriba 43,157 de 43,200: el 99.9 % del tiempo. Dicho como probabilidad: si eliges un instante al azar del mes, la probabilidad de encontrarlo caído es 0.1 %. Esa fracción del tiempo en que algo funciona es su [[disponibilidad]], y tiene su propia sección más adelante.
 
-¿De dónde salen estos números? Hay dos fuentes. Se **miden**: cuentas en los registros (*logs*) cuántas requests tardaron de más y lo divides entre el total. O se **suponen** para diseñar, y entonces se dicen como supuesto. En la Ronda, casi todas las disponibilidades de cada pieza son ilustrativas: en tu sistema se miden.
+¿De dónde salen estos números? Hay dos fuentes. Se **miden**: cuentas en los registros (*logs*) cuántas requests tardaron de más y lo divides entre el total. O se **suponen** para diseñar, y entonces se dicen como supuesto. En esta lección, casi todas las disponibilidades de cada pieza son supuestos ilustrativos: en tu sistema se miden.
 
 :::ojo
 **Di siempre «1 % de qué».** «1 % de las requests», «1 % del tiempo» y «1 % de probabilidad de que se caiga este mes» son tres cosas distintas. Un servicio puede responder bien el 99.9 % de sus requests y aun así haber estado caído 3 horas un domingo de madrugada, cuando casi nadie lo usaba. Mezclar esas unidades es la fuente número uno de cuentas sin sentido.
@@ -66,13 +66,18 @@ Dos eventos son **independientes** si saber que pasó uno no cambia la probabili
 
 Son independientes dos lanzamientos de una moneda, dos dados o dos servidores en edificios distintos que fallan por su propio hardware. **No** lo son «llueve» y «hay tráfico», ni dos servidores que recibieron la misma versión con el mismo error. Si sabes que llovió, el tráfico es más probable. Si sabes que uno de esos servidores falló, el otro casi seguro también.
 
-En el caso C08 de «Qué es un modelo» apareció la notación P(contacto | click): la probabilidad de que alguien contacte al vendedor **sabiendo** que hizo clic. La barra se lee «dado». Con ella, la independencia se escribe corto: A y B son independientes cuando P(B | A) = P(B). Saber A no mueve nada.
+En el ejemplo de recomendación de «Qué es un modelo» apareció la notación P(contacto | click): la probabilidad de que alguien contacte al vendedor **sabiendo** que hizo clic. La barra se lee «dado». Con ella, la independencia se escribe corto: A y B son independientes cuando P(B | A) = P(B). Saber A no mueve nada.
 
 ### La regla del producto
 
 Si A y B son independientes, la probabilidad de que pasen **los dos** es el producto de sus probabilidades. Es la [[regla-producto|regla del producto]]:
 
-P(A y B) = P(A) × P(B)
+:::formula Regla del producto
+P(A text{ y } B) = P(A) × P(B)
+- A, B: dos eventos independientes, como «el servicio A responde rápido» y «el servicio B responde rápido»
+- P(A), P(B): la probabilidad de cada uno, como número de 0 a 1 (0.9 = 9 de cada 10 veces)
+- P(A text{ y } B): la probabilidad de que pasen los dos en la misma request
+:::
 
 ¿Por qué multiplicar? Piensa en 100 requests. A es rápido en 90. De esos 90, B es rápido en 9 de cada 10, o sea en 81. Los dos rápidos: 81 de 100, que es 0.9 × 0.9 = 0.81. Multiplicar es tomar una fracción de una fracción.
 
@@ -85,6 +90,13 @@ Cada cuadrito es una request. Las filas dicen cómo le fue al servicio A y las c
 ### El complemento: lo que no pasa
 
 La probabilidad de que algo **no** pase es 1 menos la probabilidad de que pase. Es el [[complemento]]: P(no A) = 1 − P(A). Sale directo de la segunda regla de la sección anterior: «pasa» y «no pasa» cubren todo y suman 1.
+
+:::formula Complemento
+P(text{no } A) = 1 − P(A)
+P(text{al menos uno}) = 1 − P(text{ninguno})
+- P(A): la probabilidad de que pase A, de 0 a 1
+- P(text{ninguno}): la probabilidad de que no pase ninguno de los eventos; si son independientes, sale con la regla del producto
+:::
 
 Su gran uso es contestar preguntas de «**al menos uno**». ¿Qué probabilidad hay de que al menos uno de los dos servicios sea lento? Contar todas las formas en que eso pasa es engorroso: A lento, B lento, o los dos. Su contrario, en cambio, es una sola cosa: los dos rápidos. Entonces:
 
@@ -112,7 +124,7 @@ Con probabilidades chicas la suma casi atina. Con 1 % cada uno: 1 − 0.99 × 0
 
 ## Fan-out: una request que espera a muchos {Fan-out: one request that waits for many} [extra]
 
-Muchos sistemas parten una request en pedazos. Un buscador con un índice que no cabe en una máquina lo reparte en 100 pedazos, y cada búsqueda les pregunta a los 100 a la vez. Una página de inicio arma 30 bloques, cada uno pedido a otro servicio. En C11, el asistente con documentos de la Ronda, cada pregunta busca por palabras y por significado al mismo tiempo. A esto se le llama [[fan-out]]: una request se abre en abanico hacia N servicios y **espera a todos**.
+Muchos sistemas parten una request en pedazos. Un buscador con un índice que no cabe en una máquina lo reparte en 100 pedazos, y cada búsqueda les pregunta a los 100 a la vez. Una página de inicio arma 30 bloques, cada uno pedido a otro servicio. En el asistente interno de Alba, que responde a sus empleados con los documentos de la empresa, cada pregunta busca por palabras y por significado al mismo tiempo. A esto se le llama [[fan-out]]: una request se abre en abanico hacia N servicios y **espera a todos**.
 
 Esperar a todos tiene una consecuencia: la request es tan lenta como el más lento de sus N servicios. Basta con que uno tarde para que la request tarde. En la lección de percentiles lo viste de pasada; aquí va de dónde sale la cuenta y qué se hace con ella.
 
@@ -124,10 +136,20 @@ En la lección de percentiles viste el [[p99]]: el valor bajo el cual queda el 9
 - Los N son rápidos a la vez con probabilidad 0.99 × 0.99 × … × 0.99 = 0.99^N, por la regla del producto.
 - La request es lenta si **al menos uno** es lento: 1 − 0.99^N, por el complemento.
 
+Con cualquier probabilidad de ser lento, no solo 1 %, la cuenta queda así:
+
+:::formula Fan-out: probabilidad de que la request sea lenta
+P_{lenta} = 1 − (1 − p)^N
+- p: la probabilidad de que un servicio sea lento; 0.01 si «lento» es pasar su p99
+- N: cuántos servicios espera la request
+- (1 − p)^N: la probabilidad de que los N sean rápidos a la vez (regla del producto)
+- P_{lenta}: la probabilidad de que la request sea lenta: al menos uno lento (complemento)
+:::
+
 :::cuenta La request toca la cola: 1 − 0.99^N
-N = 1 | 1 − 0.99 | 1 %
-N = 10 | 1 − 0.99¹⁰ = 1 − 0.904 | ≈ 9.6 %
-N = 100 | 1 − 0.99¹⁰⁰ = 1 − 0.366 | ≈ 63.4 %
+N = 1 // \(p\) = 0.01 en las tres filas | \(P_{lenta} = 1 − (1 − p)^N\) = 1 − 0.99 | 1 %
+N = 10 | \(1 − 0.99^{10}\) = 1 − 0.904 | ≈ 9.6 %
+N = 100 | \(1 − 0.99^{100}\) = 1 − 0.366 | ≈ 63.4 %
 = Con 100 servicios, casi dos de cada tres requests tocan la [[cola-distribucion|cola]] de alguno: el p99 de cada pieza se vuelve la latencia **típica** del conjunto. Es el argumento central de Jeffrey Dean y Luiz André Barroso en *The Tail at Scale* (2013).
 :::
 
@@ -175,12 +197,19 @@ La simulación no sabe nada de fórmulas: solo sortea y cuenta. Aun así, sus n�
 
 En un diseño la pregunta suele ir al revés: si quiero que 99 de cada 100 requests sean rápidas, ¿qué tiene que cumplir cada servicio? Necesitas que q^N = 0.99, donde q es la probabilidad de que un servicio sea rápido. Despejando, q = 0.99^(1/N), que es casi exactamente 1 − 0.01 ÷ N.
 
-- Con N = 10: q ≈ 1 − 0.001 = 0.999. Cada servicio tiene que cumplir su **p99.9**.
-- Con N = 100: q ≈ 0.9999. Cada servicio tiene que cumplir su **p99.99**.
+:::formula Lo que se le pide a cada servicio
+q = s^{1/N} ≈ 1 − frac{1 − s}{N}
+- s: la fracción de requests que quieres rápidas; 0.99 si quieres que lo sean 99 de cada 100
+- N: cuántos servicios espera la request
+- q: la probabilidad de que cada servicio sea rápido. Se lee como percentil: con q = 0.999, cada servicio tiene que cumplir su p99.9
+:::
+
+- Con N = 10: \(q ≈ 1 − (1 − s)/N\) = 1 − 0.01 ÷ 10 = 1 − 0.001 = 0.999. Cada servicio tiene que cumplir su **p99.9**.
+- Con N = 100: \(q\) ≈ 1 − 0.01 ÷ 100 = 0.9999. Cada servicio tiene que cumplir su **p99.99**.
 
 Por eso en sistemas con mucho fan-out no basta con vigilar el p99 de cada pieza: se vigila su p99.9 o su p99.99. La curva verde de la figura muestra la diferencia: con 100 servicios que cumplen su p99.9, solo 9.5 % de las requests es lenta, en vez de 63.4 %.
 
-Las otras salidas son preguntar a menos servicios, recortar la cola de cada uno, contestar con lo que llegó a tiempo (en la Ronda, el buscador de C07 responde con 3 de sus 4 pedazos si uno no llega, y marca la respuesta como parcial) o mandar una copia de la request a otra réplica, otra copia del mismo servidor, cuando tarda. Esto último lo ves al final de esta sección.
+Las otras salidas son preguntar a menos servicios, recortar la cola de cada uno, contestar con lo que llegó a tiempo (por ejemplo, un buscador con su índice partido en 4 pedazos responde con 3 si uno no llega, y marca la respuesta como parcial) o mandar una copia de la request a otra réplica, otra copia del mismo servidor, cuando tarda. Esto último lo ves al final de esta sección.
 
 :::profundo Por qué los p99 de dos tramos no se suman
 En «Promedios, medianas y percentiles» viste que los p99 no se suman; aquí está el porqué, con la regla del producto. El fan-out espera piezas en paralelo; con piezas en serie, una detrás de otra, la regla también sorprende. Dos tramos independientes, A y B, tardan cada uno 10 ms el 98 % de las veces y 100 ms el 2 % restante. Como solo el 98 % cae en 10 ms, el p99 de cada tramo es 100 ms, y la suma de los dos p99 da 200 ms. Pero el p99 de la request completa es otro:
@@ -193,31 +222,39 @@ p99 de la request // el 99 % de las requests cae dentro de 96.04 % + 3.92 % |
 = Sumar los p99 da 200 ms, pero el real es 110 ms: es raro que los dos tramos tengan su peor caso en la misma request. Si los dos tramos fueran lentos siempre en las mismas requests (la misma foto gigante hace lento cada tramo), la suma sería exacta.
 :::
 
-La Ronda (M03) saca la conclusión práctica: la suma de los p99 sirve para **repartir** el presupuesto de latencia entre los tramos, pero el cumplimiento se **mide** de punta a punta, con el [[histograma]] de la request completa.
+La conclusión práctica: la suma de los p99 sirve para **repartir** el presupuesto de latencia entre los tramos, pero el cumplimiento se **mide** de punta a punta, con el [[histograma]] de la request completa.
 :::
 
 ### Copias contra la cola: el hedging
 
 Hay un caso en que la independencia suele valer, y se aprovecha. Si un servidor tarda de más por una pausa al azar (el programa se detiene a limpiar su memoria, u otro programa en la misma máquina acapara la CPU), es raro que otra réplica tenga su pausa en el mismo instante. Entonces, si una request no ha respondido cuando ya pasó su p95, se manda una **copia** a otra réplica y se usa la primera respuesta que llegue. Se llama *hedging*. Solo se paga en el ≈ 5 % de las requests que llegan a ese punto: ≈ 5 % más de carga para recortar mucho la cola.
 
-Y solo funciona si la lentitud de las dos réplicas es independiente. Si una request tarda porque su foto es enorme, las dos copias tardan igual. La Ronda (M03) lo recomienda para lecturas baratas que ya tienen réplicas, no para inferencia cara en una GPU cerca de su límite, donde ese 5 % extra cae en la pieza más cara.
+Y solo funciona si la lentitud de las dos réplicas es independiente. Si una request tarda porque su foto es enorme, las dos copias tardan igual. Por eso se recomienda para lecturas baratas que ya tienen réplicas, no para inferencia cara en una GPU cerca de su límite, donde ese 5 % extra cae en la pieza más cara.
 
 ## Disponibilidad, los nueves y el presupuesto de error {Availability, the nines and the error budget}
 
 La [[disponibilidad]] (*availability*) es la fracción del tiempo, o de las requests, en que un servicio responde bien. Se mide de dos formas:
 
 - **Por tiempo:** minutos arriba ÷ minutos totales. Es sencilla, pero trata igual un minuto de las 4 de la mañana que uno del pico.
-- **Por requests:** requests buenas ÷ requests válidas. Es la que usa C01. Cada respuesta trae un código de tres cifras: los que empiezan con 5, como 500 o 503, son errores del servidor, y los que empiezan con 4, errores de quien llama. Una request buena no termina en un error del servidor y responde en 300 ms o menos. Válidas son todas menos las que fallan por culpa de quien llama: una foto de 50 MB, que se rechaza por pesada, no cuenta ni como buena ni como mala. Esa medida es un [[sli|SLI]], y la meta que se le pone, 99.9 % en 30 días, es su [[slo|SLO]], como viste en la lección de percentiles. C01 tiene además otro SLO, el de latencia: p99 ≤ 200 ms, medido en su API.
+- **Por requests:** requests buenas ÷ requests válidas. Es la que usa Alba. Cada respuesta trae un código de tres cifras: los que empiezan con 5, como 500 o 503, son errores del servidor, y los que empiezan con 4, errores de quien llama. Una request buena no termina en un error del servidor y responde en 300 ms o menos. Válidas son todas menos las que fallan por culpa de quien llama: una foto de 50 MB, que se rechaza por pesada, no cuenta ni como buena ni como mala. Esa medida es un [[sli|SLI]], y la meta que se le pone, 99.9 % en 30 días, es su [[slo|SLO]], como viste en la lección de percentiles. Alba tiene además otro SLO, el de latencia: p99 ≤ 200 ms, medido en su API.
 
 ### Los nueves
 
 Las disponibilidades se nombran por sus [[nueves]] (*the nines*): 99.9 % son «tres nueves» y 99.99 %, «cuatro nueves». En la lección de unidades ya los convertiste en tiempo: un mes de 30 días tiene 30 × 24 × 60 = 43,200 minutos, y la caída permitida es el complemento de la disponibilidad por esa ventana, (1 − disponibilidad) × 43,200. Con 99.9 % son **43.2 minutos**; con 99.99 %, **4.32 minutos**; con 99.999 %, ≈ 26 segundos. Cada nueve más divide entre 10 el tiempo que te puedes permitir caído.
 
+:::formula Minutos caídos al mes
+m = (1 − A) × 43,200
+- A: la disponibilidad, como fracción: 0.999 para 99.9 %
+- 1 − A: la fracción del tiempo caído (el complemento)
+- 43,200: los minutos de un mes de 30 días, 30 × 24 × 60
+- m: los minutos caídos, o los que se permite estar caído, en el mes
+:::
+
 :::figura probabilidad-nueves
 Las mismas cifras como barras. Las de cuatro y cinco nueves ya son rayas: a esta escala casi no se ven.
 :::
 
-Lo que cada nivel suele pedir, según la hoja de números de la Ronda (una regla práctica, no una norma):
+Lo que cada nivel suele pedir (una regla práctica, no una norma):
 
 | Disponibilidad | Al mes | Al día | Lo que suele hacer falta |
 |---|---|---|---|
@@ -228,19 +265,35 @@ Lo que cada nivel suele pedir, según la hoja de números de la Ronda (una regla
 
 ### 99.9 % no es «casi nunca»
 
-Tres nueves suena a perfección. No lo es: son 43 minutos al mes y, en C01, con 10 millones de requests al día, 0.1 % son **10,000 requests fallidas cada día**. Un SLO de 99.9 % no promete que nada falle: promete que lo que falla cabe en ese número.
+Tres nueves suena a perfección. No lo es: son 43 minutos al mes y, en Alba, con 10 millones de requests al día, 0.1 % son **10,000 requests fallidas cada día**. Un SLO de 99.9 % no promete que nada falle: promete que lo que falla cabe en ese número.
 
 ### El presupuesto de error
 
-Si el SLO es 99.9 %, el 0.1 % que sobra es el [[error-budget|presupuesto de error]] (*error budget*): lo que se te permite fallar en la ventana. En C01 son 43.2 minutos al mes, medido en tiempo, o 0.001 × 10,000,000 × 30 = **300,000 requests al mes**, ≈ 10,000 al día, medido en requests. Lo viste de pasada en la lección de unidades; aquí va para qué sirve.
+Si el SLO es 99.9 %, el 0.1 % que sobra es el [[error-budget|presupuesto de error]] (*error budget*): lo que se te permite fallar en la ventana. Medido en tiempo, es la fórmula de los minutos de arriba. Medido en requests, y con lo que se come un incidente:
+
+:::formula Presupuesto de error en requests
+B = (1 − S) × R × 30
+F = frac{R}{24} × h × p
+f = frac{F}{B}
+- S: el SLO, como fracción: 0.999 para 99.9 %
+- R: las requests al día
+- 30: los días de la ventana
+- B: las requests que se pueden fallar en el mes
+- h: las horas que dura un incidente
+- p: la fracción de requests que fallan durante el incidente (la probabilidad de que una falle): 0.05 para 5 %
+- F: las requests que falla el incidente
+- f: la parte del presupuesto del mes que se come
+:::
+
+En Alba, con \(S\) = 0.999 y \(R\) ≈ 10,000,000, son 43.2 minutos al mes, medido en tiempo, o \(B\) = 0.001 × 10,000,000 × 30 = **300,000 requests al mes**, ≈ 10,000 al día, medido en requests. Lo viste de pasada en la lección de unidades; aquí va para qué sirve.
 
 La idea viene de la ingeniería de confiabilidad de Google (*site reliability engineering*, SRE): tratarlo como un presupuesto de verdad, que **se gasta**: en lanzar versiones nuevas (cada [[deploy]] arriesga un poco), en experimentos, en mantenimiento. Un presupuesto intacto a fin de mes no es un logro: quiere decir que el equipo pudo moverse más rápido. Uno agotado quiere decir que hay que frenar.
 
-:::cuenta Cuánto presupuesto se come un deploy malo en C01
-Presupuesto del mes, en requests | 0.001 × 10,000,000 × 30 | 300,000
-Requests por hora, en promedio | 10,000,000 ÷ 24 | ≈ 416,667
-Requests que falla un deploy malo // hace fallar el 5 % durante 2 horas | 416,667 × 2 × 0.05 | ≈ 41,667
-Parte del presupuesto que se comió | 41,667 ÷ 300,000 | **≈ 14 %**
+:::cuenta Cuánto presupuesto se come un deploy malo en Alba
+Presupuesto del mes, \(B\) // \(S\) = 0.999 y \(R\) = 10,000,000 | \(B = (1 − S) × R × 30\) = 0.001 × 10,000,000 × 30 | 300,000
+Requests por hora, en promedio, \(R/24\) | 10,000,000 ÷ 24 | ≈ 416,667
+Requests que falla un deploy malo, \(F\) // hace fallar \(p\) = 5 % durante \(h\) = 2 horas | \(F = R/24 × h × p\) = 416,667 × 2 × 0.05 | ≈ 41,667
+Parte del presupuesto que se comió, \(f\) | \(f = F ÷ B\) = 41,667 ÷ 300,000 | **≈ 14 %**
 = Un solo incidente de dos horas se come casi la séptima parte del mes.
 :::
 
@@ -260,7 +313,7 @@ La segunda palanca suele ser la más barata. Si una versión nueva sale mal, reg
 
 ### Qué tan rápido se gasta
 
-Vuelve al deploy malo de C01: con 5 % de errores se gasta 50 veces más rápido de lo permitido (5 % ÷ 0.1 %), y a ese ritmo el presupuesto del mes completo dura 14.4 horas. Esa velocidad de gasto se llama *burn rate*, y en la Ronda (M12) las alertas se arman con ella: no esperan a que el presupuesto se acabe, avisan cuando se está gastando demasiado rápido.
+Vuelve al deploy malo de Alba: con \(p\) = 5 % de errores contra un presupuesto de \(1 − S\) = 0.1 %, se gasta \(p ÷ (1 − S)\) = 0.05 ÷ 0.001 = 50 veces más rápido de lo permitido. A ese ritmo, el presupuesto del mes completo dura \(B ÷ (R/24 × p)\) = 300,000 ÷ (416,667 × 0.05) ≈ 14.4 horas. Esa velocidad de gasto se llama *burn rate*, y las alertas se arman con ella: no esperan a que el presupuesto se acabe, avisan cuando se está gastando demasiado rápido.
 
 ### Una política escrita antes
 
@@ -278,18 +331,23 @@ Un **SLA** (*service level agreement*) es un contrato con consecuencias si no se
 
 ## Piezas en serie y réplicas en paralelo {Pieces in series and replicas in parallel}
 
-Una request de C01 pasa por tres piezas, una detrás de otra: el balanceador (ALB), que reparte el tráfico; el gateway, un programa en CPU que abre y prepara la foto, y Triton, el servidor que corre la ResNet-50 en una [[gpu|GPU]] T4. Esas piezas están **en serie**: la request necesita a las tres. Además, el gateway y Triton existen en dos copias, una en cada zona, y esas copias están **en paralelo**: basta con una.
+Una request de Alba pasa por tres piezas, una detrás de otra: el balanceador (ALB), que reparte el tráfico; el gateway, un programa en CPU que abre y prepara la foto, y Triton, el servidor que corre la ResNet-50 en una [[gpu|GPU]] T4. Esas piezas están **en serie**: la request necesita a las tres. Además, el gateway y Triton existen en dos copias, una en cada zona, y esas copias están **en paralelo**: basta con una.
 
 ### En serie se multiplican las disponibilidades
 
 Si la request necesita todas las piezas, funciona solo cuando funciona cada una. Con fallas independientes es la regla del producto aplicada a «funciona»:
 
-disponibilidad en serie = a₁ × a₂ × … × aₙ
+:::formula Disponibilidad de piezas en serie
+A = a_1 × a_2 × … × a_n
+- a_1, a_2, …, a_n: la disponibilidad de cada pieza, como fracción: 0.999 para 99.9 %
+- n: cuántas piezas hay en serie
+- A: la disponibilidad del conjunto, como fracción
+:::
 
 :::cuenta Tres piezas en serie, con valores ilustrativos
-Las tres al 99.9 % // ≈ 130 min al mes | 0.999 × 0.999 × 0.999 | ≈ 99.70 %
+Las tres al 99.9 % // minutos: \(m = (1 − A) × 43,200\) ≈ 130 al mes | \(A = a_1 × a_2 × a_3\) = 0.999 × 0.999 × 0.999 | ≈ 99.70 %
 Al 99.99 %, 99.95 % y 99.9 % // ≈ 69 min al mes | 0.9999 × 0.9995 × 0.999 | ≈ 99.84 %
-Los minutos al mes de cada una, sumados | 4.32 + 21.6 + 43.2 | ≈ 69
+Los minutos al mes de cada una, sumados // \((1 − a_i) × 43,200\) para cada pieza | 4.32 + 21.6 + 43.2 | ≈ 69
 = El conjunto es **peor que su peor pieza**, que permite 43 minutos. En serie, cada pieza resta.
 :::
 
@@ -301,9 +359,15 @@ De aquí salen dos reglas de diseño. Con fallas independientes, **un sistema no
 
 Si hay k copias de una pieza y **basta con una**, la pieza solo falla cuando fallan todas. Tener copias de sobra se llama [[redundancia]] (*redundancy*), y cada copia es una **réplica**: el mismo programa, corriendo en otra máquina. Si cada réplica está disponible con probabilidad a y fallan por separado, fallan todas con probabilidad (1 − a)^k, y por el complemento:
 
-disponibilidad con k réplicas = 1 − (1 − a)^k
+:::formula Disponibilidad con réplicas en paralelo
+A_{pieza} = 1 − (1 − a)^k
+- a: la disponibilidad de una réplica, como fracción
+- k: cuántas réplicas hay; basta con que funcione una
+- (1 − a)^k: la probabilidad de que fallen las k a la vez, si fallan por separado
+- A_{pieza}: la disponibilidad de la pieza con todas sus réplicas
+:::
 
-- Dos réplicas al 99 %: 1 − 0.01² = 1 − 0.0001 = **99.99 %**. Dos piezas de dos nueves dan cuatro nueves.
+- Dos réplicas al 99 %, \(a\) = 0.99 y \(k\) = 2: 1 − 0.01² = 1 − 0.0001 = **99.99 %**. Dos piezas de dos nueves dan cuatro nueves.
 - Dos réplicas al 99.5 %: 1 − 0.005² = 1 − 0.000025 = **99.9975 %**: ≈ 1 minuto al mes, contra 216 de una sola.
 - Tres réplicas al 99 %: 1 − 0.01³ = 99.9999 %: ≈ 2.6 segundos al mes.
 
@@ -311,24 +375,24 @@ Cada réplica más multiplica la indisponibilidad por (1 − a): con réplicas d
 
 ### N+1: una de sobra
 
-¿Cuántas réplicas? La regla más común se llama **N+1**: N son las que necesitas para atender el tráfico, y la +1 es la de repuesto, para que perder una no se note. En la lección de unidades contaste así las T4 de C01; aquí importa qué le pasa a la que queda:
+¿Cuántas réplicas? La regla más común se llama **N+1**: N son las que necesitas para atender el tráfico, y la +1 es la de repuesto, para que perder una no se note. En la lección de unidades contaste así las T4 de Alba; aquí importa qué le pasa a la que queda:
 
-:::cuenta Por qué C01 tiene dos T4 y no una
-Fotos por segundo que se planean por T4 // la mitad de las ≈ 1,200 medidas | 0.5 × 1,200 | 600
-GPUs para el tráfico // el pico de diseño es 500 por segundo | 500 ÷ 600 = 0.83, redondeado hacia arriba | 1
-N+1, una por zona | 1 + 1 | **2**
-Carga de cada una en el pico de diseño // de su máximo | 250 ÷ 1,200 | ≈ 21 %
-Si cae una zona // la que queda, de su máximo | 500 ÷ 1,200 | ≈ 42 %
+:::cuenta Por qué Alba tiene dos T4 y no una
+Fotos por segundo que se planean por T4 // se planean al 50 % de las ≈ 1,200 que mide una T4 como máximo | 0.5 × 1,200 | 600
+GPUs para el tráfico, \(N\) // pico de diseño ÷ fotos planeadas por T4, redondeado hacia arriba; el pico de diseño de Alba es 500 por segundo | 500 ÷ 600 = 0.83 → 1 | 1
+N+1, una por zona | \(N + 1\) = 1 + 1 | **2**
+Carga de cada una en el pico de diseño // 500 ÷ 2 = 250 por segundo cada una, entre su máximo de 1,200 | 250 ÷ 1,200 | ≈ 21 %
+Si cae una zona // la que queda recibe los 500, entre su máximo de 1,200 | 500 ÷ 1,200 | ≈ 42 %
 = La segunda GPU no es por el tráfico, es por la disponibilidad: la que queda aguanta sola el pico de diseño.
 :::
 
-La de repuesto tiene que estar donde no le pegue lo mismo que a la otra. Por eso C01 pone cada réplica en una **zona de disponibilidad** (*availability zone*, AZ) distinta: un centro de datos, o un grupo de ellos, con su propia electricidad, su enfriamiento y su red, separado de los demás de la misma **región**, que es el grupo de zonas que la nube tiene en una misma área geográfica. Dos réplicas en la misma máquina, o en la misma zona, **no son un N+1 de verdad**: si se va la luz, caen juntas.
+La de repuesto tiene que estar donde no le pegue lo mismo que a la otra. Por eso Alba pone cada réplica en una **zona de disponibilidad** (*availability zone*, AZ) distinta: un centro de datos, o un grupo de ellos, con su propia electricidad, su enfriamiento y su red, separado de los demás de la misma **región**, que es el grupo de zonas que la nube tiene en una misma área geográfica. Dos réplicas en la misma máquina, o en la misma zona, **no son un N+1 de verdad**: si se va la luz, caen juntas.
 
-:::diagrama probabilidad-c01
-Los porcentajes son valores ilustrativos de la Ronda. Toca cada caja para ver por qué está ahí, y usa «Recorrer» para seguir una request normal, la caída de una zona y el plan B.
+:::diagrama probabilidad-alba
+Los porcentajes son supuestos ilustrativos de Alba. Toca cada caja para ver por qué está ahí, y usa «Recorrer» para seguir una request normal, la caída de una zona y el plan B.
 :::
 
-Con esas cifras, la cadena completa de C01 queda así: el balanceador, que ya vive en las dos zonas, al 99.99 %; el gateway en dos zonas, con 1 − 0.0005² ≈ 99.99998 %, y Triton en dos zonas, con 1 − 0.005² = 99.9975 %. Multiplicadas en serie dan ≈ 99.99 %: unos **5 minutos al mes**, muy por debajo de los 43 que permite el SLO. Y 4 de esos 5 minutos los pone el balanceador, la única pieza que entra a la cuenta sin una réplica en paralelo (su 99.99 % ya incluye sus propias copias).
+Con esas cifras, la cadena completa de Alba queda así: el balanceador, que ya vive en las dos zonas, al 99.99 %; el gateway en dos zonas, cada una al 99.95 %, con \(A_{pieza} = 1 − (1 − a)^k\) = 1 − 0.0005² ≈ 99.99998 %, y Triton en dos zonas, cada una al 99.5 %, con 1 − 0.005² = 99.9975 %. Multiplicadas en serie dan ≈ 99.99 %: unos **5 minutos al mes**, muy por debajo de los 43 que permite el SLO. Y 4 de esos 5 minutos los pone el balanceador, la única pieza que entra a la cuenta sin una réplica en paralelo (su 99.99 % ya incluye sus propias copias).
 
 :::calculadora probabilidad-disponibilidad
 Pon 3 piezas en serie con una réplica de 99.9 % cada una: ≈ 130 minutos al mes, como en la cuenta de arriba. Luego dale 2 réplicas a cada pieza y mira los minutos bajar a segundos.
@@ -340,7 +404,7 @@ Volver a intentar algo que falló (*retry*) usa la misma cuenta. Si cada intento
 
 ### Sacar al modelo del camino crítico
 
-Hay algo todavía mejor que tener copias de una pieza: que el producto no la necesite, o sea, sacarla del **camino crítico**, lo que tiene que funcionar para que el producto funcione. En C01, si el modelo no contesta en 300 ms, el backend de publicación (el programa del marketplace que recibe lo que publica Ana) muestra el selector de categorías y Ana elige a mano. Ese [[fallback]] no depende del modelo, así que la disponibilidad del modelo **deja de multiplicarse** con la de publicar: si el modelo falla, publicar sigue funcionando, con un paso más para Ana. Por eso a C01 le basta con 99.9 % en una sola región. Un caso de pagos como C09, donde el modelo decide dentro de cada compra, pide 99.99 %: ≈ 4.3 minutos al mes.
+Hay algo todavía mejor que tener copias de una pieza: que el producto no la necesite, o sea, sacarla del **camino crítico**, lo que tiene que funcionar para que el producto funcione. En Alba, si el modelo no contesta en 300 ms, el backend de publicación (el programa del marketplace que recibe lo que publica Ana) muestra el selector de categorías y Ana elige a mano. Ese [[fallback]] no depende del modelo, así que la disponibilidad del modelo **deja de multiplicarse** con la de publicar: si el modelo falla, publicar sigue funcionando, con un paso más para Ana. Por eso a Alba le basta con 99.9 % en una sola región. Un sistema de detección de fraude en tiempo real, donde el modelo decide dentro de cada compra, pide 99.99 %: ≈ 4.3 minutos al mes.
 
 ## Cuando la independencia se rompe {When independence breaks}
 
@@ -350,20 +414,27 @@ La cuenta de la redundancia, 1 − (1 − a)^k, esconde una suposición enorme: 
 
 - **El mismo error en todas las réplicas.** Una versión con un error, o un cambio de configuración, se aplica a todas a la vez. Las dos zonas quedan perfectamente sanas… corriendo el mismo error.
 - **Todo un dominio de falla.** Lo que depende de un mismo punto débil forma un *dominio de falla* (*failure domain*): una máquina, un rack (el mueble donde se apilan varias máquinas), una zona, una región. Dos réplicas en la misma zona caen juntas cuando cae la zona.
-- **Una dependencia compartida.** Las dos réplicas leen la misma base de datos, el mismo caché (una copia rápida de datos que se consultan seguido) o el mismo certificado de seguridad (el archivo con el que un servidor demuestra quién es), que vence el mismo día para todas. Hasta el plan B puede depender de lo que falló: la Ronda (M15) da el ejemplo de un plan B que guarda sus respuestas en el mismo servidor de caché que usa el camino principal, en la misma zona. Si ese servidor se cae, caen los dos.
-- **La sobrecarga que se contagia.** Si una réplica cae y la otra no aguanta el doble de tráfico, cae también: la segunda falla la causó la primera. Por eso el N+1 se mide con el tráfico **del pico**: la T4 que queda en C01 tiene que aguantar 500 por segundo sola.
+- **Una dependencia compartida.** Las dos réplicas leen la misma base de datos, el mismo caché (una copia rápida de datos que se consultan seguido) o el mismo certificado de seguridad (el archivo con el que un servidor demuestra quién es), que vence el mismo día para todas. Hasta el plan B puede depender de lo que falló: por ejemplo, un plan B que guarda sus respuestas en el mismo servidor de caché que usa el camino principal, en la misma zona. Si ese servidor se cae, caen los dos.
+- **La sobrecarga que se contagia.** Si una réplica cae y la otra no aguanta el doble de tráfico, cae también: la segunda falla la causó la primera. Por eso el N+1 se mide con el tráfico **del pico**: la T4 que queda en Alba tiene que aguantar sola el pico de diseño, 500 por segundo.
 - **Reintentos en manada.** Si un servicio se cae y cada cliente reintenta 3 veces, el servicio recibe hasta 4 veces su tráfico justo cuando está más débil. Los reintentos de miles de clientes llegan juntos, no al azar: es una tormenta de reintentos (*retry storm*).
 
 ### La causa común manda
 
-Supón que, además de sus fallas propias, de vez en cuando algo tumba a las dos zonas de Triton a la vez: digamos el 0.1 % del tiempo, por un deploy malo o una configuración rota. La cuenta cambia así:
+Supón que, además de sus fallas propias, de vez en cuando algo tumba a las dos zonas de Triton a la vez: digamos el 0.1 % del tiempo, por un deploy malo o una configuración rota. Para que la pieza funcione tienen que pasar dos cosas: que funcione al menos una réplica y que no pase la causa común. Con la regla del producto:
+
+:::formula Réplicas con una causa común
+A = [1 − (1 − a)^k] × (1 − c)
+- a, k: la disponibilidad de una réplica y cuántas réplicas hay, como en la fórmula de las réplicas en paralelo
+- c: la fracción del tiempo en que una causa común tumba todas las réplicas a la vez: 0.001 para 0.1 %
+- A: la disponibilidad de la pieza
+:::
 
 :::cuenta Triton en dos zonas, sin y con una causa común
-Dos zonas independientes // cada una al 99.5 %: ≈ 1 min al mes | 1 − 0.005² | 99.9975 %
-Con una causa común el 0.1 % del tiempo // funcionan las réplicas y no pasa la causa común: ≈ 44 min al mes | 0.999975 × 0.999 | ≈ 99.90 %
-La cadena completa de C01, sin causa común // ≈ 5 min al mes | 0.9999 × 0.99999975 × 0.999975 | ≈ 99.99 %
+Dos zonas independientes // cada una al 99.5 %: ≈ 1 min al mes | \(1 − (1 − a)^k\) = 1 − 0.005² | 99.9975 %
+Con una causa común el 0.1 % del tiempo // \(c\) = 0.001; ≈ 44 min al mes | \(A\) = 0.999975 × (1 − 0.001) = 0.999975 × 0.999 | ≈ 99.90 %
+La cadena completa de Alba, sin causa común // en serie: ALB 0.9999, gateway 0.99999975 y Triton 0.999975; ≈ 5 min al mes | 0.9999 × 0.99999975 × 0.999975 | ≈ 99.99 %
 La misma cadena, con la causa común // ≈ 49 min al mes | 0.9999 × 0.99999975 × 0.999975 × 0.999 | ≈ 99.89 %
-= Con la causa común, C01 queda **apenas debajo** de su SLO de 99.9 %. De los 44 minutos de Triton, 43 son de la causa común: la redundancia compra nueves solo contra las fallas independientes.
+= Con la causa común, Alba queda **apenas debajo** de su SLO de 99.9 %. De los 44 minutos de Triton, 43 son de la causa común: la redundancia compra nueves solo contra las fallas independientes.
 :::
 
 Fíjate qué pasó. La segunda zona bajó la falla propia de Triton de 216 minutos al mes a ≈ 1, pero no tocó los 43 de la causa común. Una tercera zona tampoco los tocaría. Contra una causa común, más copias de lo mismo no sirven.
@@ -376,8 +447,8 @@ Recorre los cuatro casos: una falla propia, dos causas comunes y la defensa.
 
 Contra una causa común no sirve multiplicar réplicas. Sirve que la causa **no llegue a todas a la vez**:
 
-- **Cambiar de a poco.** Una versión nueva entra primero a una parte chica del tráfico, en C01 el 5 %, y a una zona a la vez. A esa primera parte se le llama *canary*, por los canarios que los mineros bajaban a la mina para detectar gases. Si los errores suben, se regresa a la versión anterior en minutos, antes de que llegue a la otra zona. Lo ves en la Ronda, en M11.
-- **Un plan B que no comparta nada.** El selector manual de C01 no usa el modelo ni nada de lo que el modelo usa: si se cae todo lo del modelo, sigue ahí. Un plan B que depende de lo mismo que falló no es plan B.
+- **Cambiar de a poco.** Una versión nueva entra primero a una parte chica del tráfico, en Alba el 5 %, y a una zona a la vez. A esa primera parte se le llama *canary*, por los canarios que los mineros bajaban a la mina para detectar gases. Si los errores suben, se regresa a la versión anterior en minutos, antes de que llegue a la otra zona. Lo ves a fondo en la lección «Rollout seguro».
+- **Un plan B que no comparta nada.** El selector manual de Alba no usa el modelo ni nada de lo que el modelo usa: si se cae todo lo del modelo, sigue ahí. Un plan B que depende de lo mismo que falló no es plan B.
 - **Reintentar con medida.** Pocos reintentos, en una sola capa del sistema, con esperas cada vez más largas y solo para lo que es seguro repetir. Lo ves en la lección «Timeouts, reintentos e idempotencia».
 - **Ensayarlo.** Apagar una zona a propósito en un ensayo programado (*game day*) para descubrir qué compartían las réplicas sin que nadie lo supiera.
 
@@ -391,33 +462,39 @@ Para un vuelo muy temprano pones dos despertadores. Si cada uno falla el 5 % de
 
 Hasta aquí contamos **qué tan seguido** pasa algo. Muchas decisiones también necesitan **cuánto cuesta** cuando pasa. La herramienta que junta las dos cosas es el [[valor-esperado|valor esperado]] (*expected value*): multiplicas cada resultado posible por su probabilidad y sumas todo.
 
-valor esperado = resultado₁ × P(resultado₁) + resultado₂ × P(resultado₂) + …
+:::formula Valor esperado
+E = x_1 × P(x_1) + x_2 × P(x_2) + …
+E = sum_{i} x_i × P(x_i)
+- x_i: cada resultado posible, con su unidad: una cara del dado, US$ perdidos, fallas
+- P(x_i): la probabilidad de ese resultado; todas suman 1
+- E: el valor esperado, en la misma unidad que los resultados
+:::
 
-Con un dado, cada cara sale con probabilidad 1/6, así que el valor esperado es (1 + 2 + 3 + 4 + 5 + 6) × 1/6 = 21 ÷ 6 = **3.5**. Nunca sale un 3.5. El valor esperado no es «lo que va a salir»: es **el promedio a la larga**. Si tiras el dado mil veces y promedias, vas a quedar muy cerca de 3.5. Es la misma idea de frecuencia de la primera sección, ahora con valores en vez de conteos.
+Con un dado, cada cara sale con probabilidad 1/6, así que el valor esperado es \(E\) = 1 × 1/6 + 2 × 1/6 + … + 6 × 1/6 = (1 + 2 + 3 + 4 + 5 + 6) × 1/6 = 21 ÷ 6 = **3.5**. Nunca sale un 3.5. El valor esperado no es «lo que va a salir»: es **el promedio a la larga**. Si tiras el dado mil veces y promedias, vas a quedar muy cerca de 3.5. Es la misma idea de frecuencia de la primera sección, ahora con valores en vez de conteos.
 
 ### Ya lo usaste sin nombrarlo
 
 Varias cuentas de esta lección eran valores esperados:
 
-- **Requests fallidas al día.** Cada request aporta 1 falla con probabilidad 0.001 y 0 con probabilidad 0.999: su valor esperado es 0.001, y el de 10 millones de requests, **10,000**. Con N repeticiones independientes de algo de probabilidad p, se esperan N × p.
-- **Minutos caídos al mes.** Cada minuto está caído con probabilidad 1 − a, así que se esperan 43,200 × (1 − a) minutos.
+- **Requests fallidas al día.** Cada request aporta 1 falla con probabilidad 0.001 y 0 con probabilidad 0.999: su valor esperado es 1 × 0.001 + 0 × 0.999 = 0.001, y el de 10 millones de requests, 10,000,000 × 0.001 = **10,000**. Con N repeticiones independientes de algo de probabilidad p, se esperan \(E = N × p\).
+- **Minutos caídos al mes.** Cada minuto está caído con probabilidad 1 − A, así que se esperan \(m = (1 − A) × 43,200\) minutos: la fórmula de los nueves.
 
-### Decidir con dinero: C09
+### Decidir con dinero: un caso de fraude
 
-En «Qué es un modelo» viste el [[umbral]] de C09, el caso de fraude con tarjetas, con la idea de «lo que esperas perder». Eso era un valor esperado. Hagámoslo completo, con las tres acciones del sistema real. Un pago de US$30 llega con una probabilidad de fraude [[calibracion|calibrada]] de 0.05. Los costos que usa la Ronda:
+En «Qué es un modelo» viste el [[umbral]] de un sistema de detección de fraude con tarjetas, con la idea de «lo que esperas perder». Eso era un valor esperado. Hagámoslo completo, con las tres acciones del sistema real. Un pago de US$30 llega con una probabilidad de fraude [[calibracion|calibrada]] de \(p\) = 0.05. Los costos, supuestos del ejemplo:
 
 - Aprobar un fraude cuesta el monto más ≈ US$15 de comisión: 30 + 15 = US$45.
 - Rechazar a un cliente bueno cuesta ≈ US$5–10, lo que fije el negocio; se usa el punto medio, US$7.5.
 - Pedir una verificación extra (*step-up*, como un código en el celular) tiene sus propios riesgos: se supone que ≈ 20 % de los fraudes la pasa igual y que ≈ 15 % de los clientes buenos abandona la compra.
 
 :::cuenta El costo esperado de cada acción, para un pago de US$30 con p = 0.05
-Aprobar // solo cuesta si es fraude | 0.05 × 45 | US$2.25
-Rechazar // solo cuesta si era bueno | 0.95 × 7.5 | US$7.13
-Step-up // el fraude que pasa más el cliente bueno que abandona | 0.05 × 0.20 × 45 + 0.95 × 0.15 × 7.5 = 0.45 + 1.07 | **US$1.52**
+Aprobar // US$45 si es fraude (probabilidad \(p\) = 0.05), US$0 si no | \(E\) = 45 × 0.05 + 0 × 0.95 = 0.05 × 45 | US$2.25
+Rechazar // US$7.5 si era bueno (probabilidad 1 − \(p\) = 0.95), US$0 si era fraude | 0.95 × 7.5 | US$7.13
+Step-up // el fraude que pasa (20 % de los fraudes, US$45) más el cliente bueno que abandona (15 % de los buenos, US$7.5) | 0.05 × 0.20 × 45 + 0.95 × 0.15 × 7.5 = 0.45 + 1.07 | **US$1.52**
 = Gana el step-up: es la acción con menor costo **esperado**. No quiere decir que este pago vaya a costar US$1.52: va a costar US$0, US$7.5 o US$45. Quiere decir que, entre muchísimos pagos como este, ese es el promedio.
 :::
 
-Para el sistema completo, la cuenta se hace por cada 1,000 pagos. Hoy, con las ≈ 400 reglas que ya tiene, a C09 se le cuelan fraudes en ≈ 0.08 % de los pagos (≈ 8,000 de 10 millones al día), con un monto promedio de ≈ US$45. En cada 1,000 pagos se esperan 0.8 fraudes, y 0.8 × (45 + 15) = **US$48** de pérdida. Es la [[metrica-negocio|métrica de negocio]] del caso: un modelo nuevo se juzga por cuánto baja ese costo por cada 1,000 pagos, contando también a los clientes buenos que rechace, no por su [[accuracy]].
+Para el sistema completo, la cuenta se hace por cada 1,000 pagos. Hoy, con las ≈ 400 reglas que ya tiene, a este sistema se le cuelan fraudes en ≈ 0.08 % de los pagos (≈ 8,000 de 10 millones al día), con un monto promedio de ≈ US$45. En cada 1,000 pagos se esperan \(E = N × p\) = 1,000 × 0.0008 = 0.8 fraudes, y cada uno cuesta el monto más la comisión, 45 + 15 = US$60: 0.8 × 60 = **US$48** de pérdida. Es la [[metrica-negocio|métrica de negocio]] del caso: un modelo nuevo se juzga por cuánto baja ese costo por cada 1,000 pagos, contando también a los clientes buenos que rechace, no por su [[accuracy]].
 
 :::ojo
 **El valor esperado no lo es todo.** Perder US$100 cada mes y tener 1 probabilidad en 1,000, cada mes, de perder US$100,000 tienen el mismo valor esperado: US$100 al mes. El primero es un gasto; el segundo puede quebrar una empresa. El promedio los iguala, y por eso lo raro y catastrófico (borrar datos, filtrar información) se diseña aparte, con copias en otro lugar, permisos y ensayos de recuperación.
@@ -427,12 +504,12 @@ Para el sistema completo, la cuenta se hace por cada 1,000 pagos. Hoy, con las �
 
 Una [[tasa]] (*rate*) es cuántas veces pasa algo por unidad de tiempo: requests por segundo, fallas por día. Es un valor esperado: el número de eventos que se espera en cada segundo. Las [[qps|QPS]] (*queries per second*) de las que se habla en todo diseño son una tasa.
 
-:::cuenta Las tasas de C01
-Requests por segundo, en promedio | 10,000,000 ÷ 86,400 s | ≈ 116
-Requests por segundo en el pico del día // la Ronda supone 3 veces el promedio | 116 × 3 | ≈ 350
-Fallas por segundo, si se gasta justo el presupuesto // el 0.1 % de las requests | 116 × 0.001 | ≈ 0.116
+:::cuenta Las tasas de Alba
+Requests por segundo, en promedio, \(λ\) // \(λ = R ÷ 86,400\), con \(R\) = 10 millones al día | 10,000,000 ÷ 86,400 s | ≈ 116
+Requests por segundo en el pico del día // supuesto de Alba: la hora pico lleva 1/8 del día, así que su tasa es 24 ÷ 8 = 3 veces el promedio | 116 × 3 | ≈ 350
+Fallas por segundo, si se gasta justo el presupuesto // \(λ × (1 − S)\): el 0.1 % de las requests | 116 × 0.001 | ≈ 0.116
 Fallas por minuto | 0.116 × 60 | ≈ 7
-Segundos entre dos fallas, en promedio | 1 ÷ 0.116 | ≈ 8.6
+Segundos entre dos fallas, en promedio // 1 ÷ tasa de fallas | 1 ÷ 0.116 | ≈ 8.6
 = Las tasas se convierten como cualquier unidad: por segundo × 60 = por minuto, y por segundo × 86,400 = por día.
 :::
 
@@ -476,9 +553,9 @@ Con un promedio de 10, un segundo con 15 o más pasa en ≈ 8 % de los segundos
 
 ### El modelo de Poisson
 
-Este patrón tiene nombre. Cuando muchas personas, cada una con una probabilidad chica y sin ponerse de acuerdo, generan eventos a una tasa promedio λ (la letra griega lambda), el número de eventos en cada intervalo sigue una distribución de [[poisson|Poisson]], por el matemático francés Siméon Denis Poisson. Es el modelo estándar de llegadas al azar, y la Ronda lo usa así en M03.
+Este patrón tiene nombre. Cuando muchas personas, cada una con una probabilidad chica y sin ponerse de acuerdo, generan eventos a una tasa promedio λ (la letra griega lambda), el número de eventos en cada intervalo sigue una distribución de [[poisson|Poisson]], por el matemático francés Siméon Denis Poisson. Es el modelo estándar de llegadas al azar.
 
-La regla para llevarse: **lo que llega en cada intervalo se aleja del promedio, normalmente, en ≈ √λ**. A esa medida de lo que algo se aleja de su promedio se le llama [[desviacion-estandar|desviación estándar]], y la vas a ver a fondo en la lección siguiente.
+La regla para llevarse: **lo que llega en cada intervalo se aleja del promedio, normalmente, en \(σ ≈ sqrt{λ}\)**. A esa medida de lo que algo se aleja de su promedio se le llama [[desviacion-estandar|desviación estándar]], y la vas a ver a fondo en la lección siguiente.
 
 | Promedio por intervalo (λ) | Se aleja, normalmente, en (√λ) | Comparado con el promedio |
 |---|---|---|
@@ -487,31 +564,38 @@ La regla para llevarse: **lo que llega en cada intervalo se aleja del promedio, 
 | 10 | ≈ 3.2 | 32 % |
 | 10,000 | 100 | 1 % |
 
-Dos consecuencias, y las dos están en la Ronda:
+Dos consecuencias:
 
-- **Mientras más chico el intervalo, más se amontona.** M03: 500 requests por segundo, medidos por minuto, no son 5 requests cada 10 ms. En ventanas de 10 ms llegan 5 en promedio, ± 2.2, y ≈ 3 % de esas ventanas trae 10 o más: el doble de la tasa durante esos 10 ms.
+- **Mientras más chico el intervalo, más se amontona.** 500 requests por segundo, medidos por minuto, no son 5 requests cada 10 ms. En ventanas de 10 ms llegan \(λ\) = 500 × 0.01 = 5 en promedio, ± \(sqrt{5}\) ≈ 2.2, y ≈ 3 % de esas ventanas trae 10 o más: el doble de la tasa durante esos 10 ms.
 - **Mientras más tráfico, más parejo en proporción.** 10,000 por segundo se mueven ± 1 %; 10 por segundo, ± 32 %. Un sistema chico vive más a saltos.
 
-:::ejemplo El batching de C01
-Cada Triton de C01 espera hasta 2 ms a que lleguen compañeros para calcular varias fotos juntas en un [[batch]]. En el pico de diseño cada uno recibe ≈ 250 requests por segundo, así que en 2 ms llegan en promedio 250 × 0.002 = 0.5. Con Poisson, la probabilidad de que no llegue **ninguno** en esa espera es e^(−0.5) ≈ 61 %. A la carga promedio, ≈ 58 por segundo en cada GPU, se esperan 0.116 en 2 ms y la probabilidad de no recibir compañía sube a e^(−0.116) ≈ 89 %. Por eso la Ronda concluye que, con el tráfico normal, el batching casi no ayuda. Se activa igual porque cuesta como mucho 2 ms y, en un pico o si cae una GPU, el batch crece solo.
+:::ejemplo El batching de Alba
+Cada Triton de Alba espera hasta 2 ms a que lleguen compañeros para calcular varias fotos juntas en un [[batch]]. En el pico de diseño, 500 por segundo repartidos entre las 2 T4, cada uno recibe ≈ 250 requests por segundo, así que en 2 ms llegan en promedio \(λ\) = 250 × 0.002 = 0.5. Con Poisson, la probabilidad de que no llegue **ninguno** en esa espera es \(P(0) = e^{−λ}\) = e^(−0.5) ≈ 61 %, donde e ≈ 2.718 es una constante, como π (la fórmula completa está al final de esta sección). A la carga promedio, 116 ÷ 2 ≈ 58 por segundo en cada GPU, se esperan \(λ\) = 58 × 0.002 ≈ 0.116 en 2 ms y la probabilidad de no recibir compañía sube a e^(−0.116) ≈ 89 %. Por eso, con el tráfico normal, el batching casi no ayuda. Se activa igual porque cuesta como mucho 2 ms y, en un pico o si cae una GPU, el batch crece solo.
 :::
 
 ### Dónde se rompe Poisson
 
 Poisson supone lo mismo que toda la lección: llegadas **independientes**. Cuando no lo son, se amontonan mucho más:
 
-- **Un aviso a millones de personas.** M03 calcula un ejemplo ilustrativo: 5 M personas reciben una notificación y 2 % sube una foto en el minuto siguiente. Es un pico de ≈ 4.8 veces el pico normal del día.
+- **Un aviso a millones de personas.** En el Hot Sale, Alba manda una notificación a 5 M personas y 2 % de ellas, ≈ 100,000, sube una foto en el minuto siguiente: 100,000 ÷ 60 ≈ 1,670 requests por segundo. Es un pico de ≈ 4.8 veces el pico normal del día, ≈ 350 por segundo.
 - **Tareas programadas a la hora en punto.** Miles de procesos que corren «cada hora, en el minuto 0» llegan juntos.
 - **Reintentos.** Una falla de unos segundos produce una ola de reintentos que llegan juntos.
 
-Lo que no es aleatorio se suma encima de lo aleatorio. Por eso C01 diseña para 500 por segundo y no para su pico de 350: el margen de ≈ 1.4 veces cubre ráfagas y el crecimiento del tráfico. Y por eso sus GPUs se planean al 50 % de su máximo: en «Qué tan rápido y cuánto: latencia y throughput» vas a ver que, cerca del 100 % de uso, la espera en la fila se dispara justo por estas ráfagas.
+Lo que no es aleatorio se suma encima de lo aleatorio. Por eso Alba diseña para 500 por segundo y no para su pico de 350: el margen de ≈ 1.4 veces cubre ráfagas y el crecimiento del tráfico. Y por eso sus GPUs se planean al 50 % de su máximo: en «Qué tan rápido y cuánto: latencia y throughput» vas a ver que, cerca del 100 % de uso, la espera en la fila se dispara justo por estas ráfagas.
 
 :::profundo La fórmula de Poisson
 Con un promedio de λ eventos por intervalo, la probabilidad de que lleguen exactamente k es:
 
-P(k) = λ^k × e^(−λ) ÷ k!
+:::formula Distribución de Poisson
+P(k) = frac{λ^k × e^{−λ}}{k!}
+- λ: el promedio de eventos por intervalo; por ejemplo, 10 requests por segundo
+- k: el número exacto de eventos cuya probabilidad buscas: 0, 1, 2…
+- e: el número e ≈ 2.718, una constante, como π
+- k!: «k factorial», 1 × 2 × … × k; y 0! = 1
+- P(k): la probabilidad de que en un intervalo lleguen exactamente k
+:::
 
-donde k!, «k factorial», es 1 × 2 × … × k, y 0! = 1. Con λ = 10 sale P(10) ≈ 12.5 % y P(15) ≈ 3.5 %; sumando de 15 en adelante, P(15 o más) ≈ 8.3 %. Con λ = 0.5 y k = 0 queda 0.5⁰ × e^(−0.5) ÷ 0! = e^(−0.5) ≈ 0.61, la cuenta del batching de C01.
+Con λ = 10 sale P(10) = 10¹⁰ × e^(−10) ÷ 10! ≈ 12.5 % y P(15) ≈ 3.5 %; sumando de 15 en adelante, P(15 o más) ≈ 8.3 %. Con λ = 0.5 y k = 0 queda 0.5⁰ × e^(−0.5) ÷ 0! = e^(−0.5) ≈ 0.61, la cuenta del batching de Alba.
 
 ¿De dónde sale? De la simulación de arriba: 1,000 personas, cada una con probabilidad 0.01. Si haces crecer la cantidad de personas y achicas la probabilidad de cada una, con el producto fijo en λ, la probabilidad de que pidan exactamente k se acerca a esta fórmula. Por eso Poisson describe bien cualquier cosa hecha de muchos eventos raros e independientes: requests, discos que fallan en una flota grande, clics en un anuncio.
 :::
@@ -560,19 +644,19 @@ Casi todos tienen la misma raíz: una cuenta que supone algo (independencia, una
 
 **Qué pasa:** «llegan 10 por segundo y el servidor atiende 10 por segundo: alcanza». Con llegadas al azar, ≈ 8 % de los segundos trae 15 o más, y cada uno forma una fila que tarda en vaciarse. Lo que no es aleatorio, como las notificaciones y los reintentos, lo empeora.
 
-**Cómo evitarlo:** dimensiona para el pico y agrega margen (C01: promedio 116, pico 350 y diseño 500 por segundo), y planea las máquinas lejos del 100 % de uso, por ejemplo al 50 %.
+**Cómo evitarlo:** dimensiona para el pico y agrega margen (en Alba: promedio 116, pico 350 y diseño 500 por segundo), y planea las máquinas lejos del 100 % de uso, por ejemplo al 50 %.
 
 ## En la vida real {In real life} [extra]
 
-**C01 · Clasificación de fotos.** Toda la lección en un solo caso. Un SLO de 99.9 % en 30 días: 43.2 minutos, o 300,000 requests fallidas al mes. Dos T4, una por zona, aunque el tráfico pide una sola: N+1, para que la que queda aguante el pico de diseño al ≈ 42 %. El gateway y Triton en dos zonas, y el balanceador en las dos. Un plan B que no comparte nada con el modelo, el selector manual, que lo saca del camino crítico y permite quedarse en una sola región. Y cambios de versión de a poco, 5 % del tráfico primero, porque un deploy malo es la causa común que más minutos le come al presupuesto.
+**Alba · Clasificación de fotos.** Toda la lección en un solo caso. Un SLO de 99.9 % en 30 días: 43.2 minutos, o 300,000 requests fallidas al mes. Dos T4, una por zona, aunque el tráfico pide una sola: N+1, para que la que queda aguante el pico de diseño al ≈ 42 %. El gateway y Triton en dos zonas, y el balanceador en las dos. Un plan B que no comparte nada con el modelo, el selector manual, que lo saca del camino crítico y permite quedarse en una sola región. Y cambios de versión de a poco, 5 % del tráfico primero, porque un deploy malo es la causa común que más minutos le come al presupuesto.
 
-**C11 · Un asistente con documentos ([[rag|RAG]]).** Cada pregunta de un empleado pasa por varios pasos en serie: revisar sus permisos, buscar por palabras y por significado (las dos búsquedas a la vez, un fan-out de dos), reordenar los resultados con otro modelo y, al final, pedirle la respuesta a un [[llm|LLM]]. Son muchas piezas multiplicándose, y por eso cada una tiene un plan B que la saca de la cuenta: si el reordenador no responde a tiempo, se usa el orden que ya traía la búsqueda; si el LLM falla, se muestran solo los resultados de búsqueda. Su meta es 99.5 % para la respuesta generada, y más para la búsqueda sola: cada escalón de plan B cambia calidad por disponibilidad.
+**Alba · Un asistente con documentos ([[rag|RAG]]).** Cada pregunta de un empleado pasa por varios pasos en serie: revisar sus permisos, buscar por palabras y por significado (las dos búsquedas a la vez, un fan-out de dos), reordenar los resultados con otro modelo y, al final, pedirle la respuesta a un [[llm|LLM]]. Son muchas piezas multiplicándose, y por eso cada una tiene un plan B que la saca de la cuenta: si el reordenador no responde a tiempo, se usa el orden que ya traía la búsqueda; si el LLM falla, se muestran solo los resultados de búsqueda. Su meta es 99.5 % para la respuesta generada, y más para la búsqueda sola: cada escalón de plan B cambia calidad por disponibilidad.
 
-**C12 · Un agente de soporte.** Por conversación, el agente hace ≈ 6 llamadas al LLM y ≈ 3.5 llamadas a herramientas, como consultar un pedido o el rastreo de un paquete: ≈ 10 pasos en serie. Si cada paso saliera bien el 99 % de las veces, por su cuenta (un supuesto para el ejemplo), la conversación completa saldría sin tropiezos 0.99¹⁰ ≈ 90 % de las veces. Con 150,000 conversaciones al día, ≈ 14,000 tendrían al menos un paso fallido. Por eso un agente no se diseña como si todo fuera a salir bien: lleva límites (≤ 8 llamadas a herramientas por turno y ≤ 12 llamadas al LLM por conversación), reintentos solo para lo que se puede repetir sin efectos y una salida diseñada para cuando algo falla o se acaba: pasarle la conversación a una persona, con un resumen.
+**Un agente de soporte.** Por conversación, el agente hace ≈ 6 llamadas al LLM y ≈ 3.5 llamadas a herramientas, como consultar un pedido o el rastreo de un paquete: ≈ 10 pasos en serie. Si cada paso saliera bien el 99 % de las veces, por su cuenta (un supuesto para el ejemplo), la conversación completa saldría sin tropiezos 0.99¹⁰ ≈ 90 % de las veces. Con 150,000 conversaciones al día, ≈ 14,000 tendrían al menos un paso fallido. Por eso un agente no se diseña como si todo fuera a salir bien: lleva límites (≤ 8 llamadas a herramientas por turno y ≤ 12 llamadas al LLM por conversación), reintentos solo para lo que se puede repetir sin efectos y una salida diseñada para cuando algo falla o se acaba: pasarle la conversación a una persona, con un resumen.
 
-**C09 · Fraude con tarjetas.** El modelo decide dentro de cada pago, así que está en el camino crítico y pide 99.99 %: ≈ 4.3 minutos al mes. Si el modelo no contesta, quien orquesta el pago aprueba o pide verificación según el tipo de comercio y el monto, pero nunca bloquea todo, y la Ronda lo justifica con un valor esperado: el fraude que se espera en unos minutos cuesta menos que rechazar a todos. Sus umbrales también salen de valores esperados: el costo de aprobar, verificar o rechazar cada pago, contra los ≈ US$48 por cada 1,000 pagos que el fraude cuesta hoy.
+**Fraude con tarjetas.** El modelo decide dentro de cada pago, así que está en el camino crítico y pide 99.99 %: ≈ 4.3 minutos al mes. Si el modelo no contesta, quien orquesta el pago aprueba o pide verificación según el tipo de comercio y el monto, pero nunca bloquea todo, y se justifica con un valor esperado: el fraude que se espera en unos minutos cuesta menos que rechazar a todos. Sus umbrales también salen de valores esperados: el costo de aprobar, verificar o rechazar cada pago, contra los ≈ US$48 por cada 1,000 pagos que el fraude cuesta hoy.
 
-**C05 · Documentos.** Ya usaste la regla del producto en «Qué es un modelo»: leer bien los 18 dígitos de una CLABE con 99 % por dígito daba 0.99¹⁸ ≈ 0.835. La Ronda la lleva a documentos completos: uno de 10 campos con 99.5 % de acierto por campo sale perfecto con probabilidad 0.995¹⁰ ≈ 95 %, **si** los errores fueran independientes. Cada vez que algo necesita que salgan bien muchas cosas, se multiplica.
+**Documentos.** Ya usaste la regla del producto en «Qué es un modelo»: leer bien los 18 dígitos de una CLABE con 99 % por dígito daba 0.99¹⁸ ≈ 0.835. Lo mismo vale para un documento completo, en un sistema que lee documentos (OCR): uno de 10 campos con 99.5 % de acierto por campo sale perfecto con probabilidad 0.995¹⁰ ≈ 95 %, **si** los errores fueran independientes. Cada vez que algo necesita que salgan bien muchas cosas, se multiplica.
 
 **En la vida diaria.** Un viaje con dos escalas son tres vuelos. Si cada uno sale a tiempo 9 de cada 10 veces, los tres salen a tiempo 0.9³ ≈ 73 % de las veces… si los retrasos fueran independientes; con una tormenta, se atrasan todos juntos. Las series de luces navideñas antiguas, conectadas en serie, se apagaban completas si se fundía un solo foco: con 50 focos que, digamos, sobreviven la temporada al 99 % cada uno, la serie llega entera 0.99⁵⁰ ≈ 61 % de las veces. Y un hospital tiene su propia planta de luz porque la red eléctrica es la causa común de todo lo que hay adentro.
 
@@ -586,57 +670,61 @@ Resuélvelos con lápiz antes de abrir la solución. Los primeros cuatro son dir
 
 :::ejercicios
 ? [facil] Un servicio responde mal el 0.2 % de las requests y recibe 5 millones al día. ¿Cuántas respuestas malas se esperan al día? ¿Qué probabilidad tiene una request de salir bien?
-Respuestas malas esperadas: 5,000,000 × 0.002 = **10,000 al día**. Es un [[valor-esperado|valor esperado]], N × p.
+Es un [[valor-esperado|valor esperado]]: \(E = N × p\), con \(N\) = 5,000,000 requests y \(p\) = 0.002. Respuestas malas esperadas: 5,000,000 × 0.002 = **10,000 al día**.
 
-Salir bien es el complemento: 1 − 0.002 = 0.998 = **99.8 %**.
+Salir bien es el complemento, \(1 − p\): 1 − 0.002 = 0.998 = **99.8 %**.
 ? [facil] Una request necesita a dos servicios en serie, independientes, cada uno con 99.9 % de disponibilidad. ¿Qué disponibilidad tiene el conjunto? ¿Cuántos minutos caído es eso en un mes de 30 días?
-Regla del producto: 0.999 × 0.999 = 0.998001 ≈ **99.8 %**.
+Piezas en serie, \(A = a_1 × a_2\): 0.999 × 0.999 = 0.998001 ≈ **99.8 %**.
 
-Caído: (1 − 0.998001) × 43,200 = 0.001999 × 43,200 ≈ **86.4 minutos**. Con el atajo de sumar los minutos de cada pieza: 43.2 + 43.2 = 86.4. El doble de lo que permite cada pieza por separado.
+Caído, \(m = (1 − A) × 43,200\): (1 − 0.998001) × 43,200 = 0.001999 × 43,200 ≈ **86.4 minutos**. Con el atajo de sumar los minutos de cada pieza: 43.2 + 43.2 = 86.4. El doble de lo que permite cada pieza por separado.
 ? [facil] ¿Cuánto tiempo caído permite 99.95 % en un mes de 30 días? ¿Y en un día?
-Mes: 43,200 × 0.0005 = **21.6 minutos**.
+Con \(m = (1 − A) × 43,200\) y \(A\) = 0.9995, así que \(1 − A\) = 0.0005. Mes: 43,200 × 0.0005 = **21.6 minutos**.
 
-Día: 1,440 minutos × 0.0005 = 0.72 minutos = **43.2 segundos**.
+Día: la misma cuenta con los minutos de un día, 24 × 60 = 1,440: 1,440 × 0.0005 = 0.72 minutos = 0.72 × 60 = **43.2 segundos**.
 ? [facil] Una request hace [[fan-out]] a 5 servicios, cada uno lento el 2 % de las veces, de forma independiente. ¿Qué probabilidad hay de que la request sea lenta? ¿Qué diría la suma?
-Los 5 rápidos: 0.98⁵ ≈ 0.904. Al menos uno lento: 1 − 0.904 ≈ **9.6 %**.
+Con \(P_{lenta} = 1 − (1 − p)^N\), \(p\) = 0.02 y \(N\) = 5. Los 5 rápidos: \((1 − p)^N\) = 0.98⁵ ≈ 0.904. Al menos uno lento: 1 − 0.904 ≈ **9.6 %**.
 
-La suma diría 5 × 2 % = 10 %. Con probabilidades chicas casi atina, pero ya se pasa.
+La suma, \(N × p\), diría 5 × 2 % = 10 %. Con probabilidades chicas casi atina, pero ya se pasa.
 ? [medio] Un servicio tiene dos réplicas, cada una con 99 % de disponibilidad, independientes, y basta con una. ¿Qué disponibilidad tiene? ¿Y con tres réplicas? Pásalo a tiempo caído por mes.
-Dos réplicas: 1 − 0.01² = 1 − 0.0001 = **99.99 %**, que son 43,200 × 0.0001 = **4.32 minutos** al mes.
+Con \(A_{pieza} = 1 − (1 − a)^k\) y \(a\) = 0.99, así que \(1 − a\) = 0.01. Dos réplicas, \(k\) = 2: 1 − 0.01² = 1 − 0.0001 = **99.99 %**, que con \(m = (1 − A) × 43,200\) son 43,200 × 0.0001 = **4.32 minutos** al mes.
 
-Tres réplicas: 1 − 0.01³ = 1 − 0.000001 = **99.9999 %**, que son 43,200 × 0.000001 = 0.0432 minutos ≈ **2.6 segundos** al mes.
+Tres réplicas, \(k\) = 3: 1 − 0.01³ = 1 − 0.000001 = **99.9999 %**, que son 43,200 × 0.000001 = 0.0432 minutos = 0.0432 × 60 ≈ **2.6 segundos** al mes.
 
 En el papel, cada réplica de 99 % agrega dos nueves. En la realidad, una causa común se come casi todo eso.
-? [medio] El SLO de C01 es 99.9 % en 30 días, con 10 millones de requests al día. Un incidente hace fallar el 50 % de las requests durante 15 minutos. ¿Qué parte del presupuesto del mes se come?
+? [medio] El SLO de Alba es 99.9 % en 30 días, con 10 millones de requests al día. Un incidente hace fallar el 50 % de las requests durante 15 minutos. ¿Qué parte del presupuesto del mes se come?
+Con las fórmulas del presupuesto: \(F = R/24 × h × p\), \(B = (1 − S) × R × 30\) y \(f = F ÷ B\). Aquí \(R\) = 10,000,000, \(S\) = 0.999, \(p\) = 0.5 y \(h\) = 15 min = 0.25 h.
+
 :::cuenta Un incidente corto pero fuerte
-Requests por minuto | 10,000,000 ÷ 1,440 | ≈ 6,944
-Requests fallidas en el incidente | 6,944 × 15 × 0.5 | ≈ 52,083
-Presupuesto del mes | 0.001 × 10,000,000 × 30 | 300,000
-Parte que se comió | 52,083 ÷ 300,000 | **≈ 17 %**
+Requests por hora, \(R/24\) | 10,000,000 ÷ 24 | ≈ 416,667
+Requests fallidas en el incidente, \(F\) | \(F = R/24 × h × p\) = 416,667 × 0.25 × 0.5 | ≈ 52,083
+Presupuesto del mes, \(B\) | \(B = (1 − S) × R × 30\) = 0.001 × 10,000,000 × 30 | 300,000
+Parte que se comió, \(f\) | \(f = F ÷ B\) = 52,083 ÷ 300,000 | **≈ 17 %**
 = Quince minutos se comen más presupuesto que el deploy de dos horas con 5 % de errores (14 %). Lo que cuenta es cuántas requests fallan, no cuánto dura.
 :::
 ? [medio] Una request hace fan-out a 50 servicios, espera a los 50, y quieres que el 99 % de las requests sean rápidas. ¿Qué percentil tiene que cumplir cada servicio? ¿Y qué fracción de las requests sería lenta si cada uno solo cumpliera su p99?
-Si q es la probabilidad de que cada servicio sea rápido, necesitas q⁵⁰ = 0.99, así que q = 0.99^(1/50) ≈ 0.99980.
+Con \(q = s^{1/N}\), \(s\) = 0.99 y \(N\) = 50: si \(q\) es la probabilidad de que cada servicio sea rápido, necesitas q⁵⁰ = 0.99, así que q = 0.99^(1/50) ≈ 0.99980.
 
-Con el atajo: 1 − 0.01 ÷ 50 = 1 − 0.0002 = 0.9998.
+Con el atajo, \(1 − (1 − s)/N\): 1 − 0.01 ÷ 50 = 1 − 0.0002 = 0.9998.
 
-Cada servicio tiene que cumplir su **p99.98**: ser lento solo 1 de cada 5,000 veces. Si solo cumpliera su p99, serían lentas 1 − 0.99⁵⁰ ≈ **39.5 %** de las requests.
-? [medio] Supón que el equipo de C01 hace ≈ 20 deploys al mes y que cada uno tiene 2 % de probabilidad de salir malo (los dos números son supuestos). Sin canary, un deploy malo deja el servicio caído 30 minutos. ¿Cuántos minutos caídos por deploys se esperan al mes? ¿Y si con un canary uno malo solo afecta al 5 % del tráfico durante 10 minutos?
-Deploys malos esperados al mes: 20 × 0.02 = 0.4.
+Cada servicio tiene que cumplir su **p99.98**: ser lento solo 1 de cada 5,000 veces. Si solo cumpliera su p99, con \(P_{lenta} = 1 − (1 − p)^N\) y \(p\) = 0.01, serían lentas 1 − 0.99⁵⁰ ≈ **39.5 %** de las requests.
+? [medio] Supón que el equipo de Alba hace ≈ 20 deploys al mes y que cada uno tiene 2 % de probabilidad de salir malo (los dos números son supuestos). Sin canary, un deploy malo deja el servicio caído 30 minutos. ¿Cuántos minutos caídos por deploys se esperan al mes? ¿Y si con un canary uno malo solo afecta al 5 % del tráfico durante 10 minutos?
+Es un valor esperado, \(E = N × p\). Deploys malos esperados al mes, con \(N\) = 20 y \(p\) = 0.02: 20 × 0.02 = 0.4.
 
-**Sin canary:** 0.4 × 30 = **12 minutos** esperados al mes, ≈ 28 % de los 43.2 que permite el SLO, solo por deploys.
+**Sin canary:** minutos esperados = deploys malos esperados × minutos que cuesta cada uno: 0.4 × 30 = **12 minutos** al mes, 12 ÷ 43.2 ≈ 28 % de los 43.2 que permite el SLO, solo por deploys.
 
-**Con canary:** cada deploy malo hace fallar el 5 % de las requests durante 10 minutos. Para el SLI, que cuenta requests, eso pesa lo mismo que 0.05 × 10 = 0.5 minutos con todo caído. Esperado al mes: 0.4 × 0.5 = **0.2 minutos**, menos del 0.5 % del presupuesto.
+**Con canary:** cada deploy malo hace fallar el 5 % de las requests durante 10 minutos. Para el SLI, que cuenta requests, eso pesa lo mismo que 0.05 × 10 = 0.5 minutos con todo caído. Esperado al mes: 0.4 × 0.5 = **0.2 minutos**, 0.2 ÷ 43.2 ≈ 0.46 %: menos del 0.5 % del presupuesto.
 
-El canary no hace que los deploys salgan mal menos seguido: hace que cada uno cueste 60 veces menos. Es la misma palanca que el rollback rápido de «El presupuesto en la práctica»: no evita la falla, achica su daño.
-? [reto] Las dos zonas de Triton en C01 tienen 99.5 % cada una, y un deploy malo las tumba a la vez el 0.1 % del tiempo. (a) ¿Qué disponibilidad tiene Triton? (b) Con canary y una zona a la vez, esa causa común baja a 0.02 % del tiempo. ¿Qué disponibilidad queda y cuántos minutos al mes se ahorran? (c) ¿Serviría más agregar una tercera zona, sin canary?
-**(a)** Réplicas: 1 − 0.005² = 0.999975. Con la causa común: 0.999975 × 0.999 ≈ 0.998975 ≈ **99.90 %**, que son (1 − 0.998975) × 43,200 ≈ **44.3 minutos** al mes.
+El canary no hace que los deploys salgan mal menos seguido: hace que cada uno cueste 30 ÷ 0.5 = 60 veces menos. Es la misma palanca que el rollback rápido de «El presupuesto en la práctica»: no evita la falla, achica su daño.
+? [reto] Las dos zonas de Triton en Alba tienen 99.5 % cada una, y un deploy malo las tumba a la vez el 0.1 % del tiempo. (a) ¿Qué disponibilidad tiene Triton? (b) Con canary y una zona a la vez, esa causa común baja a 0.02 % del tiempo. ¿Qué disponibilidad queda y cuántos minutos al mes se ahorran? (c) ¿Serviría más agregar una tercera zona, sin canary?
+Con \(A = [1 − (1 − a)^k] × (1 − c)\) y \(m = (1 − A) × 43,200\), donde \(a\) = 0.995.
 
-**(b)** 0.999975 × 0.9998 ≈ 0.999775 ≈ **99.98 %**: ≈ 9.7 minutos al mes. Se ahorran 44.3 − 9.7 ≈ **34.6 minutos**.
+**(a)** Con \(k\) = 2 y \(c\) = 0.001. Réplicas: 1 − 0.005² = 0.999975. Con la causa común: 0.999975 × 0.999 ≈ 0.998975 ≈ **99.90 %**, que son (1 − 0.998975) × 43,200 ≈ **44.3 minutos** al mes.
 
-**(c)** Tres zonas sin canary: 1 − 0.005³ = 0.999999875, y por la causa común, 0.999999875 × 0.999 ≈ 0.999000 → ≈ 43.2 minutos al mes. Se ahorra ≈ 1 minuto. La tercera zona ataca la falla propia, que ya era chica; el canary ataca la causa común, que era casi todo.
+**(b)** Con \(c\) = 0.0002: 0.999975 × 0.9998 ≈ 0.999775 ≈ **99.98 %**: (1 − 0.999775) × 43,200 ≈ 9.7 minutos al mes. Se ahorran 44.3 − 9.7 ≈ **34.6 minutos**.
+
+**(c)** Tres zonas sin canary, \(k\) = 3 y \(c\) = 0.001: 1 − 0.005³ = 0.999999875, y por la causa común, 0.999999875 × 0.999 ≈ 0.999000 → ≈ 43.2 minutos al mes. Se ahorra ≈ 1 minuto. La tercera zona ataca la falla propia, que ya era chica; el canary ataca la causa común, que era casi todo.
 ? [reto] (a) Un servicio recibe en promedio 10 requests por segundo, al azar, y puede atender como máximo 15 por segundo. ¿En qué fracción de los segundos llegan más de las que puede atender? (b) ¿Por qué no es lo mismo que el «15 o más» de la lección?
-**(a)** «Más de 15» es 16 o más. Con Poisson y λ = 10, P(16 o más) = 1 − P(0 a 15). Sumar 16 términos a mano es largo; en Python:
+**(a)** Con la fórmula de Poisson, \(P(k) = λ^k × e^{−λ} ÷ k!\), y el complemento. «Más de 15» es 16 o más. Con λ = 10, P(16 o más) = 1 − P(0 a 15) = \(1 − sum_{k=0}^{15} P(k)\). Sumar 16 términos a mano es largo; en Python:
 
 ```python
 import math
@@ -659,17 +747,7 @@ segundos por hora: 175
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M03 · Latencia y capacidad** calcula el fan-out con 1 − 0.99^N (1 %, ≈ 9.6 % y ≈ 63.4 %), explica por qué los p99 de los tramos no se suman, usa Poisson para las ráfagas en ventanas de 10 ms y recorta la cola con *hedging*.
-- **M15 · Seguridad y confiabilidad** define SLI, SLO y SLA, hace la disponibilidad compuesta de C01 en serie y en paralelo, con y sin causa común, y convierte el presupuesto de error en una política.
-- **M06 · Orquestación y escalado** lleva el N+1 por zona a Kubernetes: las réplicas repartidas en dos zonas y qué falla cubre cada mecanismo.
-- **M02 · Patrones de inferencia** advierte que cada llamada síncrona extra es cola que pagas, y **M11 · Despliegue seguro** explica el canary, la defensa contra el deploy malo.
-- La **hoja de números** de la Ronda trae la tabla de nueves completa, por mes, por año y por día.
-
-**En el Dojo:** cuando abran las estaciones 9 (Kubernetes) y 10 (Rollout seguro), vas a repartir las réplicas de C01 en dos zonas y a cambiar de versión de a poco, con las cuentas de esta lección.
-
-**En Sensei:** la siguiente lección, «Ruido, muestras y pruebas A/B», usa la probabilidad para otra pregunta: si una métrica subió, ¿mejoró de verdad o fue suerte? Ahí vas a ver cuántos datos hay que juntar para que una diferencia no sea solo ruido, la misma pregunta que se hace un canary antes de decidir. Más adelante, «Timeouts, reintentos e idempotencia» desarrolla los reintentos que aquí solo contamos; «Qué tan rápido y cuánto: latencia y throughput» explica por qué la fila se dispara cerca del 100 % de uso, y «Regiones, zonas y disponibilidad», qué es exactamente una zona y cuándo vale la pena una segunda región.
+**En Sensei:** la siguiente lección, «Ruido, muestras y pruebas A/B», usa la probabilidad para otra pregunta: si una métrica subió, ¿mejoró de verdad o fue suerte? Ahí vas a ver cuántos datos hay que juntar para que una diferencia no sea solo ruido, la misma pregunta que se hace un canary antes de decidir. Más adelante, «Timeouts, reintentos e idempotencia» desarrolla los reintentos que aquí solo contamos; «Qué tan rápido y cuánto: latencia y throughput» explica por qué la fila se dispara cerca del 100 % de uso, y «Regiones, zonas y disponibilidad», qué es exactamente una zona y cuándo vale la pena una segunda región. Ya en las lecciones del sistema de Alba, «Kubernetes» reparte las réplicas en dos zonas y «Rollout seguro» cambia de versión de a poco, con las cuentas de esta lección.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -690,7 +768,7 @@ Porque «los dos funcionan» es una fracción de una fracción: de los casos en 
 1 − 0.99¹⁰⁰ ≈ 63 %. El p99 de cada pieza se vuelve la latencia típica del conjunto.
 ? ¿Cuánto es 99.9 % en minutos al mes? ¿Y 99.99 %?
 Un mes de 30 días tiene 43,200 minutos: 43.2 minutos y 4.32 minutos. Cada nueve más divide el tiempo entre 10.
-? ¿Qué es el presupuesto de error de C01 y para qué sirve?
+? ¿Qué es el presupuesto de error de Alba, con su SLO de 99.9 % en 30 días, y para qué sirve?
 Es 1 − SLO: 0.1 %, que son 43.2 minutos o 300,000 requests al mes. Se gasta en deploys y experimentos, y una política escrita de antemano dice qué hacer cuando se acaba, como congelar los lanzamientos riesgosos.
 ? ¿Por qué dos réplicas en la misma zona no son N+1?
 Porque comparten lo que falla: si se cae la zona, caen juntas. La cuenta 1 − (1 − a)² supone fallas independientes, y contra una causa común más réplicas iguales no ayudan.

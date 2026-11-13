@@ -8,11 +8,11 @@
   ],
   "nodes": [
     { "id": "catalogo", "label": "Catálogo", "sub": "100 M publicaciones", "kind": "store", "x": 1, "y": 5, "w": 16, "h": 8,
-      "note": "Las ≈ 100 millones de publicaciones activas de C07, cada una con su foto y su título. Se convierten en vectores **antes** de que alguien busque, en lote, sin prisa." },
+      "note": "Las ≈ 100 millones de publicaciones activas de Alba, cada una con su foto y su título. Se convierten en vectores **antes** de que alguien busque, en lote, sin prisa." },
     { "id": "enc-catalogo", "label": "Encoder", "sub": "foto y título → vector", "kind": "model", "x": 24, "y": 5, "w": 17, "h": 8,
       "note": "Un modelo tipo CLIP, de [[dos-torres|dos torres]]: convierte la foto y el título de cada publicación en un [[embedding]] de 512 números, ya normalizado. Es [[multimodal]]: fotos y textos quedan en el mismo espacio." },
     { "id": "indice", "label": "Índice vectorial", "sub": "HNSW · ya organizado", "kind": "store", "x": 50, "y": 5, "w": 18, "h": 8,
-      "note": "Los 100 M vectores organizados para buscar sin revisarlos todos: un [[indice-vectorial|índice vectorial]] [[hnsw|HNSW]]. En float32 pesarían ≈ 205 GB; C07 los guarda en int8 (51.2 GB) más el grafo (≈ 25.6 GB)." },
+      "note": "Los 100 M vectores organizados para buscar sin revisarlos todos: un [[indice-vectorial|índice vectorial]] [[hnsw|HNSW]]. En float32 pesarían ≈ 205 GB; Alba los guarda en int8 (51.2 GB) más el grafo (≈ 25.6 GB)." },
     { "id": "usuario", "label": "Búsqueda", "sub": "«tenis blancos»", "kind": "client", "x": 1, "y": 31, "w": 16, "h": 8,
       "note": "Alguien escribe lo que busca. Todo el camino de abajo corre mientras espera: 99 de cada 100 búsquedas de texto tienen que responder en menos de 300 ms." },
     { "id": "enc-consulta", "label": "Encoder", "sub": "texto → 512 números", "kind": "model", "x": 24, "y": 23, "w": 17, "h": 8,
@@ -22,7 +22,7 @@
     { "id": "rrf", "label": "Fusión RRF", "sub": "junta las dos listas", "kind": "service", "x": 50, "y": 29, "w": 18, "h": 8,
       "note": "Junta la lista semántica y la de palabras con RRF: cada lista le da a cada publicación 1 ÷ (60 + su posición) y se suman. Es la [[busqueda-hibrida|búsqueda híbrida]]: ganan las que las dos listas ponen arriba." },
     { "id": "reranker", "label": "Re-ranker", "sub": "reordena los 30 primeros", "kind": "model", "x": 50, "y": 44, "w": 18, "h": 8,
-      "note": "El [[re-ranking]]: un modelo más caro que lee la búsqueda y cada candidato juntos y los reordena. En C07 reordena solo los 30 primeros: con 100 costaría el triple de GPUs." }
+      "note": "El [[re-ranking]]: un modelo más caro que lee la búsqueda y cada candidato juntos y los reordena. En Alba reordena solo los 30 primeros: con 100 costaría el triple de GPUs." }
   ],
   "edges": [
     { "from": "catalogo", "to": "enc-catalogo", "kind": "offline", "label": "fotos" },

@@ -1,11 +1,11 @@
 {
   "titulo": "Concurrencia y núcleos: cuántas requests por segundo",
-  "intro": "Cada request del gateway usa la CPU un rato y espera a Triton otro rato. Mueve cuántas requests hay **en vuelo** a la vez (las que ya empezaron y no han terminado) y cuántos [[nucleo|núcleos]] hay. Arranca con los números de C01 y una sola request a la vez.",
+  "intro": "Cada request del gateway usa la CPU un rato y espera a Triton otro rato. Mueve cuántas requests hay **en vuelo** a la vez (las que ya empezaron y no han terminado) y cuántos [[nucleo|núcleos]] hay. La calculadora aplica \\(t = c + w\\), \\(X = min(n × 1,000/t, k × 1,000/c)\\) y \\(T = n × 1,000/X\\). Arranca con los números del gateway de Alba y una sola request a la vez.",
   "entradas": [
-    { "id": "c", "label": "CPU por request, en ms (≈ 6 = preparar la foto en el gateway)", "min": 0.5, "max": 100, "paso": 0.5, "valor": 6 },
-    { "id": "w", "label": "Espera por request, en ms (≈ 10 = esperar la respuesta de Triton)", "min": 0, "max": 200, "paso": 1, "valor": 10 },
-    { "id": "n", "label": "Requests en vuelo a la vez", "min": 1, "max": 64, "paso": 1, "valor": 1 },
-    { "id": "k", "label": "Núcleos", "min": 1, "max": 16, "paso": 1, "valor": 1 }
+    { "id": "c", "label": "CPU por request, \\(c\\), en ms (≈ 6 = preparar la foto en el gateway)", "min": 0.5, "max": 100, "paso": 0.5, "valor": 6 },
+    { "id": "w", "label": "Espera por request, \\(w\\), en ms (≈ 10 = esperar la respuesta de Triton)", "min": 0, "max": 200, "paso": 1, "valor": 10 },
+    { "id": "n", "label": "Requests en vuelo a la vez, \\(n\\)", "min": 1, "max": 64, "paso": 1, "valor": 1 },
+    { "id": "k", "label": "Núcleos de la CPU, \\(k\\)", "min": 1, "max": 16, "paso": 1, "valor": 1 }
   ],
   "calculos": [
     { "id": "t", "formula": "c + w" },
@@ -14,12 +14,12 @@
     { "id": "x", "formula": "min(porvuelo, porcpu)" }
   ],
   "salidas": [
-    { "label": "**Requests por segundo**", "formula": "x", "formato": "num", "decimales": 1 },
-    { "label": "Tope por las que están en vuelo", "formula": "porvuelo", "formato": "num", "decimales": 1, "nota": "en vuelo × 1,000 ÷ (CPU + espera)" },
-    { "label": "Tope por la CPU", "formula": "porcpu", "formato": "num", "decimales": 1, "nota": "núcleos × 1,000 ÷ CPU de cada request" },
-    { "label": "Uso de la CPU", "formula": "x * c / (1000 * k)", "formato": "pct", "barra": true },
-    { "label": "Lo que tarda cada request", "formula": "n * 1000 / x", "formato": "ms", "decimales": 1, "nota": "si pasa de CPU + espera, la request hace fila esperando su turno" },
-    { "label": "En vuelo para llenar los núcleos", "formula": "ceil(k * t / c)", "formato": "int" }
+    { "label": "**Requests por segundo, \\(X\\)**", "formula": "x", "formato": "num", "decimales": 1, "nota": "\\(X = min(n × 1,000/t, k × 1,000/c)\\): el menor de los dos topes" },
+    { "label": "Tope por las que están en vuelo", "formula": "porvuelo", "formato": "num", "decimales": 1, "nota": "\\(n × 1,000/t\\), con \\(t = c + w\\)" },
+    { "label": "Tope por la CPU", "formula": "porcpu", "formato": "num", "decimales": 1, "nota": "\\(k × 1,000/c\\)" },
+    { "label": "Uso de la CPU", "formula": "x * c / (1000 * k)", "formato": "pct", "barra": true, "nota": "\\(X × c/(1,000 × k)\\): ms de CPU usados por cada ms disponible" },
+    { "label": "Lo que tarda cada request, \\(T\\)", "formula": "n * 1000 / x", "formato": "ms", "decimales": 1, "nota": "\\(T = n × 1,000/X\\); si pasa de \\(t\\), la request hace fila esperando su turno" },
+    { "label": "En vuelo para llenar los núcleos, \\(n_{lleno}\\)", "formula": "ceil(k * t / c)", "formato": "int", "nota": "\\(k × t/c\\), redondeado hacia arriba" }
   ],
   "nota": "Es el caso ideal. En la vida real, cuando la CPU se acerca al 100 %, las requests empiezan a hacer fila antes, y la latencia sube más rápido. Pon la espera en 0, como un trabajo de pura CPU: más requests en vuelo ya no suben nada, solo más núcleos."
 }

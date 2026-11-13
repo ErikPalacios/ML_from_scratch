@@ -1,10 +1,10 @@
 {
   "titulo": "Cuánto cuesta etiquetar",
-  "intro": "Los valores iniciales son la cola mensual de C01 con el precio más bajo de la Ronda. Para el [[golden-set|golden set]], pon 50,000 fotos y 100 % de doble anotación.",
+  "intro": "Los valores iniciales son la cola mensual de Alba, el marketplace del curso (≈ 5,000 fotos, 10 % con doble anotación), con el precio más bajo de su rango de US$0.05–0.10. Aplica \\(A = n × (1 + d)\\), \\(D = A × c\\), \\(H = A × s ÷ 3,600\\) y \\(T = H ÷ 160\\), las letras de la lección. Para el [[golden-set|golden set]], pon 50,000 fotos y 100 % de doble anotación.",
   "entradas": [
     {
       "id": "n",
-      "label": "Fotos por etiquetar",
+      "label": "Fotos por etiquetar, \\(n\\)",
       "min": 100,
       "max": 100000,
       "paso": 100,
@@ -12,7 +12,7 @@
     },
     {
       "id": "p",
-      "label": "Precio por etiqueta, en dólares",
+      "label": "Precio por anotación, \\(c\\), en dólares",
       "min": 0.01,
       "max": 1,
       "paso": 0.01,
@@ -20,7 +20,7 @@
     },
     {
       "id": "d",
-      "label": "Fotos con doble anotación",
+      "label": "Fotos con doble anotación, \\(d\\)",
       "min": 0,
       "max": 100,
       "paso": 5,
@@ -29,7 +29,7 @@
     },
     {
       "id": "s",
-      "label": "Tiempo por etiqueta",
+      "label": "Tiempo por anotación, \\(s\\)",
       "min": 5,
       "max": 120,
       "paso": 1,
@@ -49,30 +49,32 @@
   ],
   "salidas": [
     {
-      "label": "Anotaciones",
+      "label": "Anotaciones, \\(A\\)",
       "formula": "a",
       "formato": "int",
-      "nota": "las fotos dobles cuentan dos veces"
+      "nota": "\\(A = n × (1 + d)\\): las fotos dobles cuentan dos veces"
     },
     {
-      "label": "Costo en dólares",
+      "label": "Costo en dólares, \\(D\\)",
       "formula": "a * p",
       "formato": "num",
-      "decimales": 0
+      "decimales": 0,
+      "nota": "\\(D = A × c\\)"
     },
     {
-      "label": "Horas de trabajo",
+      "label": "Horas de trabajo, \\(H\\)",
       "formula": "h",
       "formato": "num",
-      "decimales": 0
+      "decimales": 0,
+      "nota": "\\(H = A × s ÷ 3,600\\)"
     },
     {
-      "label": "Personas de tiempo completo durante un mes",
+      "label": "Personas de tiempo completo durante un mes, \\(T\\)",
       "formula": "h / 160",
       "formato": "num",
       "decimales": 2,
-      "nota": "si una persona etiqueta ≈ 160 horas al mes"
+      "nota": "\\(T = H ÷ 160\\), si una persona etiqueta ≈ 160 horas al mes"
     }
   ],
-  "nota": "El precio y el tiempo por etiqueta cambian mucho por tarea y proveedor; se miden con un piloto antes de comprometerse. En C01, la cola del mes ya cuesta más que reentrenar el modelo, que son unas horas de una GPU. El Dojo usa 20 % de doble anotación porque con 10 % de 800 fotos serían solo 80 dobles, muy pocas para medir el acuerdo de cada clase."
+  "nota": "El precio y el tiempo por etiqueta cambian mucho por tarea y proveedor; se miden con un piloto antes de comprometerse. En Alba, la cola del mes ya cuesta más que reentrenar el modelo, que son unas horas de una GPU. En una cola chica, de 800 fotos al mes, conviene 20 % de doble anotación: con 10 % serían solo 80 dobles, muy pocas para medir el acuerdo de cada clase."
 }

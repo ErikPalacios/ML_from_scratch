@@ -219,7 +219,7 @@ Una zona casi nunca falla como en las películas, con todo apagado. Lo normal es
 
 Así queda C01:
 
-:::diagrama regiones-c01
+:::diagrama regiones-alba
 Toca cada caja para ver por qué está ahí, y usa «Recorrer» para ver un día normal, la caída de una zona y lo que pasa si las requests cruzan de zona.
 :::
 

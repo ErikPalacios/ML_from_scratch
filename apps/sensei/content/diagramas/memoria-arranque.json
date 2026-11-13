@@ -9,7 +9,7 @@
   ],
   "nodes": [
     { "id": "s3", "label": "S3", "sub": "los pesos de cada versión", "kind": "external", "x": 1, "y": 5, "w": 19, "h": 8,
-      "note": "El almacén de archivos de AWS, del otro lado de la red. Guarda los pesos de cada versión del modelo; un nodo los baja a ≈ 0.2 a 1 GB/s, según la Ronda (M05)." },
+      "note": "El almacén de archivos de AWS, del otro lado de la red. Guarda los pesos de cada versión del modelo; un nodo los baja a ≈ 0.2 a 1 GB/s, con supuestos típicos." },
     { "id": "local", "label": "Disco local", "sub": "NVMe o gp3", "kind": "store", "x": 29, "y": 5, "w": 19, "h": 8,
       "note": "El [[disco]] del nodo. Un NVMe local lee ≈ 1 a 3 GB/s; el gp3, el disco de red con el que arranca la máquina en AWS, de base, 125 MiB/s: con él, cargar 16 GB tarda ≈ 2 minutos." },
     { "id": "pc", "label": "Page cache", "sub": "el archivo, en RAM", "kind": "store", "x": 29, "y": 22, "w": 19, "h": 8,
@@ -30,7 +30,7 @@
     { "id": "frio", "label": "Primer arranque en un nodo nuevo",
       "steps": [
         { "nodes": ["s3"], "edges": [], "text": "Los pesos viven en **S3**, el almacén de archivos de AWS, del otro lado de la red. El nodo nuevo no tiene nada." },
-        { "nodes": ["s3", "local"], "edges": ["s3>local"], "text": "Primero se copian al **disco local** del nodo. C10 copia así sus 70.6 GB en ≈ 1 a 2 minutos." },
+        { "nodes": ["s3", "local"], "edges": ["s3>local"], "text": "Primero se copian al **disco local** del nodo. Un LLM propio de 70.6 GB se copia así en ≈ 1 a 2 minutos." },
         { "nodes": ["local", "pc"], "edges": ["local>pc"], "text": "Al leer el archivo, el sistema operativo lo sube del disco a la **page cache**, en RAM. Aquí manda el disco: 125 MiB/s en un gp3 de base, varios GB/s en un NVMe." },
         { "nodes": ["pc", "vram"], "edges": ["pc>vram"], "text": "Con **mmap**, el servidor usa esas páginas directo, sin hacer otra copia, y manda los pesos a la **VRAM** por PCIe." }
       ] },

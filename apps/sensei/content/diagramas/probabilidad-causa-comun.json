@@ -21,7 +21,7 @@
     { "id": "canary", "label": "Canary", "sub": "v8 al 5 %, una zona", "kind": "monitor", "x": 3, "y": 38, "w": 20, "h": 9,
       "note": "Una versión nueva entra primero a una parte chica del tráfico y a una sola zona, y se comparan sus errores con los de la versión anterior. Si suben, se regresa a la anterior en minutos, antes de que llegue a la otra zona." },
     { "id": "manual", "label": "Selector manual", "sub": "no comparte nada", "kind": "human", "x": 55, "y": 38, "w": 20, "h": 9,
-      "note": "Un plan B sirve solo si no depende de lo mismo que falló. En C01 lo muestra quien llama, el backend de publicación, cuando no recibe respuesta a tiempo. El selector no usa el modelo ni su base: si se cae todo lo del modelo, sigue ahí." }
+      "note": "Un plan B sirve solo si no depende de lo mismo que falló. En Alba lo muestra quien llama, el backend de publicación, cuando no recibe respuesta a tiempo. El selector no usa el modelo ni su base: si se cae todo lo del modelo, sigue ahí." }
   ],
   "edges": [
     { "from": "alb", "to": "repA", "kind": "online", "fromSide": "l", "toSide": "r" },

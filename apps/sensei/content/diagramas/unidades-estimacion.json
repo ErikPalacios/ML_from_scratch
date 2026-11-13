@@ -1,5 +1,5 @@
 {
-  "titulo": "La servilleta de C01: de publicaciones a dólares",
+  "titulo": "La servilleta de Alba: de publicaciones a dólares",
   "width": 78,
   "height": 56,
   "lanes": [
@@ -52,7 +52,7 @@
       "y": 6,
       "w": 14,
       "h": 9,
-      "note": "Cada publicación trae ≈ 3 fotos (7.5 M), y otros equipos de la empresa también le preguntan al modelo: la Ronda redondea a **10 M imágenes al día**, una por [[request]]."
+      "note": "Cada publicación trae ≈ 3 fotos (7.5 M), y otros equipos de la empresa (moderación, búsqueda) también le preguntan al modelo, ≈ 2.5 M más: el equipo de Alba redondea a **10 M imágenes al día**, una por [[request]]."
     },
     {
       "id": "promedio",
@@ -118,7 +118,7 @@
       "y": 44,
       "w": 16,
       "h": 9,
-      "note": "2 máquinas × US$0.526 la hora × 730 horas del mes ≈ **US$768**, en precio de lista aproximado. La infraestructura completa (gateway, balanceador, logs) suma ≈ US$1.75k: cabe en el presupuesto de US$3k."
+      "note": "2 máquinas × US$0.526 la hora × 730 horas del mes ≈ **US$768**, en precio de lista aproximado. La infraestructura completa (gateway, balanceador, logs y red) suma ≈ US$1.8k: cabe en el presupuesto de US$3k."
     },
     {
       "id": "red",

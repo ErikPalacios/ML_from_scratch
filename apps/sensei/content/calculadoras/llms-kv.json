@@ -1,25 +1,25 @@
 {
   "titulo": "La memoria del KV cache",
-  "intro": "Por cada token se guardan una K y una V en cada bloque. Los valores iniciales son los de Llama 3 8B en una L4, con la memoria que les queda después de los pesos.",
+  "intro": "Por cada token se guardan una K y una V en cada bloque. La calculadora aplica \\(m_{token} = 2 × L × g × d × b\\), \\(m_{conv} = m_{token} × N\\) y \\(c = ⌊M_{libre} ÷ m_{conv}⌋\\). Los valores iniciales son los de Llama 3 8B en una L4, con la memoria que les queda después de los pesos, el programa y el margen.",
   "entradas": [
-    { "id": "capas", "label": "Bloques del modelo", "min": 1, "max": 128, "paso": 1, "valor": 32 },
-    { "id": "kvh", "label": "Juegos de K y V por bloque", "min": 1, "max": 128, "paso": 1, "valor": 8 },
-    { "id": "d", "label": "Números por cada K o V", "min": 32, "max": 256, "paso": 32, "valor": 128 },
-    { "id": "b", "label": "Bytes por número (2 = BF16, 1 = FP8)", "min": 0.5, "max": 4, "paso": 0.5, "valor": 2 },
-    { "id": "t", "label": "Tokens por conversación", "min": 1, "max": 131072, "paso": 1, "valor": 8192, "tipo": "numero" },
-    { "id": "u", "label": "Conversaciones a la vez", "min": 1, "max": 256, "paso": 1, "valor": 4 },
-    { "id": "libre", "label": "Memoria libre para el KV cache", "min": 0.5, "max": 160, "paso": 0.1, "valor": 3.5, "unidad": "GB" }
+    { "id": "capas", "label": "Bloques del modelo, \\(L\\) (32 en Llama 3 8B, 80 en el 70B)", "min": 1, "max": 128, "paso": 1, "valor": 32 },
+    { "id": "kvh", "label": "Juegos de K y V por bloque, \\(g\\) (8 con GQA)", "min": 1, "max": 128, "paso": 1, "valor": 8 },
+    { "id": "d", "label": "Números por cada K o V, \\(d\\)", "min": 32, "max": 256, "paso": 32, "valor": 128 },
+    { "id": "b", "label": "Bytes por número, \\(b\\) (2 = BF16, 1 = FP8)", "min": 0.5, "max": 4, "paso": 0.5, "valor": 2 },
+    { "id": "t", "label": "Tokens por conversación, \\(N\\) (prompt más respuesta)", "min": 1, "max": 131072, "paso": 1, "valor": 8192, "tipo": "numero" },
+    { "id": "u", "label": "Conversaciones que quieres atender a la vez", "min": 1, "max": 256, "paso": 1, "valor": 4 },
+    { "id": "libre", "label": "Memoria libre para el KV cache, \\(M_{libre}\\)", "min": 0.5, "max": 160, "paso": 0.1, "valor": 3.5, "unidad": "GB" }
   ],
   "calculos": [
     { "id": "porToken", "formula": "2 * capas * kvh * d * b" },
     { "id": "porConv", "formula": "porToken * t" }
   ],
   "salidas": [
-    { "label": "Por token, en KiB", "formula": "porToken / 1024", "formato": "num", "decimales": 0, "nota": "2 × bloques × juegos × números × bytes ÷ 1,024" },
-    { "label": "Por conversación", "formula": "porConv", "formato": "bytes", "nota": "por token × tokens" },
-    { "label": "Todas las conversaciones", "formula": "porConv * u", "formato": "bytes", "barra": true, "nota": "lo que necesitas" },
-    { "label": "Memoria libre", "formula": "libre * 1000000000", "formato": "bytes", "barra": true, "nota": "lo que tienes" },
-    { "label": "Conversaciones que caben", "formula": "floor(libre * 1000000000 / porConv)", "formato": "int", "nota": "memoria libre ÷ por conversación" }
+    { "label": "Por token, \\(m_{token}\\), en KiB", "formula": "porToken / 1024", "formato": "num", "decimales": 0, "nota": "\\(2 × L × g × d × b\\) bytes, ÷ 1,024 para pasar a KiB" },
+    { "label": "Por conversación, \\(m_{conv}\\)", "formula": "porConv", "formato": "bytes", "nota": "\\(m_{token} × N\\)" },
+    { "label": "Todas las conversaciones que quieres", "formula": "porConv * u", "formato": "bytes", "barra": true, "nota": "\\(m_{conv}\\) × conversaciones a la vez: lo que necesitas" },
+    { "label": "Memoria libre, \\(M_{libre}\\)", "formula": "libre * 1000000000", "formato": "bytes", "barra": true, "nota": "lo que tienes" },
+    { "label": "Conversaciones enteras que caben, \\(c\\)", "formula": "floor(libre * 1000000000 / porConv)", "formato": "int", "nota": "\\(⌊M_{libre} ÷ m_{conv}⌋\\): redondeado hacia abajo" }
   ],
-  "nota": "Prueba Llama 3 70B en una réplica de C10: 80 bloques, 2,250 tokens y 68.4 GB libres; caben 92 conversaciones enteras. Sin GQA, el 70B guardaría 64 juegos de K y V (uno por cabeza de Q) en vez de 8: pruébalo y mira cuántas quedan."
+  "nota": "Prueba Llama 3 70B en una réplica del LLM de Alba (2 H100, pesos en FP8; el KV cache sigue en 2 bytes): \\(L\\) = 80 bloques, \\(N\\) = 2,250 tokens y \\(M_{libre}\\) = 68.4 GB; caben 92 conversaciones enteras. Sin GQA, el 70B guardaría 64 juegos de K y V (uno por cabeza de Q) en vez de 8: pruébalo y mira cuántas quedan."
 }

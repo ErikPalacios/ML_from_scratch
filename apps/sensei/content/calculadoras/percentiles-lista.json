@@ -1,6 +1,6 @@
 {
   "titulo": "Percentiles de una lista",
-  "intro": "Diez latencias de C01, en el orden en que llegaron. Cambia cualquiera: la calculadora las ordena y saca el [[promedio]], la [[mediana]] y los percentiles por el rango más cercano.",
+  "intro": "Diez latencias del servicio de Alba, en el orden en que llegaron (\\(N\\) = 10). Cambia cualquiera: la calculadora las ordena (\\(x_1\\) la más rápida, \\(x_{10}\\) la más lenta) y saca el [[promedio]], \\((x_1 + … + x_N) ÷ N\\); la [[mediana]]; y los percentiles por el rango más cercano, con \\(r = q/100 × N\\) y \\(p = x_{⌈r⌉}\\).",
   "entradas": [
     { "id": "a", "label": "Request 1", "min": 1, "max": 5000, "paso": 1, "valor": 38, "unidad": "ms", "tipo": "numero" },
     { "id": "b", "label": "Request 2", "min": 1, "max": 5000, "paso": 1, "valor": 45, "unidad": "ms", "tipo": "numero" },
@@ -18,12 +18,12 @@
     { "id": "prom", "formula": "(a + b + c + d + e + f + g + h + i + j) / 10" }
   ],
   "salidas": [
-    { "label": "Promedio", "formula": "prom", "formato": "ms", "decimales": 1, "barra": true, "nota": "la suma entre 10" },
-    { "label": "Mediana", "formula": "(orden[4] + orden[5]) / 2", "formato": "ms", "decimales": 1, "barra": true, "nota": "el promedio de la 5.ª y la 6.ª, ya ordenadas" },
-    { "label": "p90", "formula": "orden[8]", "formato": "ms", "barra": true, "nota": "0.90 × 10 = 9: la 9.ª" },
-    { "label": "p95", "formula": "orden[9]", "formato": "ms", "barra": true, "nota": "0.95 × 10 = 9.5, hacia arriba: la 10.ª" },
-    { "label": "p99", "formula": "orden[9]", "formato": "ms", "barra": true, "nota": "0.99 × 10 = 9.9, hacia arriba: la 10.ª, la más lenta" },
-    { "label": "Requests más rápidas que el promedio", "formula": "orden.filter((x) => x < prom).length", "formato": "int", "nota": "de 10" }
+    { "label": "Promedio", "formula": "prom", "formato": "ms", "decimales": 1, "barra": true, "nota": "\\((x_1 + … + x_{10}) ÷ 10\\): la suma entre \\(N\\) = 10" },
+    { "label": "Mediana", "formula": "(orden[4] + orden[5]) / 2", "formato": "ms", "decimales": 1, "barra": true, "nota": "\\((x_5 + x_6) ÷ 2\\): \\(N\\) = 10 es par, así que se promedian la 5.ª y la 6.ª, ya ordenadas" },
+    { "label": "p90, \\(q\\) = 90", "formula": "orden[8]", "formato": "ms", "barra": true, "nota": "\\(r\\) = 0.90 × 10 = 9 → \\(x_9\\), la 9.ª" },
+    { "label": "p95, \\(q\\) = 95", "formula": "orden[9]", "formato": "ms", "barra": true, "nota": "\\(r\\) = 0.95 × 10 = 9.5 → hacia arriba, \\(x_{10}\\), la 10.ª" },
+    { "label": "p99, \\(q\\) = 99", "formula": "orden[9]", "formato": "ms", "barra": true, "nota": "\\(r\\) = 0.99 × 10 = 9.9 → hacia arriba, \\(x_{10}\\), la más lenta" },
+    { "label": "Requests más rápidas que el promedio", "formula": "orden.filter((x) => x < prom).length", "formato": "int", "nota": "cuántas de las 10 tardaron menos que el promedio" }
   ],
   "nota": "Con 10 valores, el p95 y el p99 caen los dos en la posición 10: son la más lenta. Diez requests no alcanzan para distinguirlos; un p99 que signifique algo necesita cientos o miles."
 }

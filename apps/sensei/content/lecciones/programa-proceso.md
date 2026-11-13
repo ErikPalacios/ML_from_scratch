@@ -2,7 +2,7 @@
 titulo: Programa, proceso e hilo
 en: Program, process and thread
 subtitulo: Qué corre de verdad dentro de una máquina cuando «corre» el gateway o Triton: procesos con su propia memoria, hilos que se turnan los núcleos, señales para pedirles que terminen y los números con los que mueren, como el 137 de un OOMKilled.
-pregunta: ¿Qué pasa dentro de la máquina cuando «corre» el gateway de C01 o Triton, y por qué a veces un pod se reinicia solo?
+pregunta: ¿Qué pasa dentro de la máquina cuando «corre» el gateway de Alba o Triton, y por qué a veces un pod se reinicia solo?
 requisitos: camino-completo
 ---
 
@@ -10,9 +10,9 @@ requisitos: camino-completo
 Un programa es un archivo; un proceso es ese programa corriendo, con su propia memoria, su número (PID) y uno o más hilos que el sistema operativo turna en los núcleos de la CPU. Casi todo lo que ves en producción, del [[throughput]] de un servidor a un pod que se reinicia solo, se explica con cómo viven, cómo se avisan y cómo mueren los procesos.
 :::
 
-En la Ronda vas a leer frases como «el gateway corre en 3 pods», «`uvicorn --workers 4` son 4 procesos» u «OOMKilled (exit code 137)». Parecen jerga, pero cada una describe algo concreto que pasa dentro de una máquina.
+En cualquier sistema de ML en producción vas a leer frases como «el gateway corre en 3 pods», «`uvicorn --workers 4` son 4 procesos» u «OOMKilled (exit code 137)». Parecen jerga, pero cada una describe algo concreto que pasa dentro de una máquina.
 
-Un ejemplo. Un *pod* es la unidad que arranca Kubernetes, el [[orquestacion|orquestador]] de C01: uno o más [[contenedor|contenedores]] que corren juntos en la misma máquina. Una mañana le pides a Kubernetes la lista de pods de C01 (el comando es `kubectl get pods`) y ves esto:
+Un ejemplo. Alba, la empresa que seguimos en todo el curso, es un marketplace: recibe ≈ 2.5 millones de publicaciones al día y le sugiere a quien vende la categoría de cada foto, entre 500 posibles. Su servicio corre en dos programas: el *gateway*, que recibe cada foto y la prepara, y Triton, que corre el modelo en la GPU. Un *pod* es la unidad que arranca Kubernetes, el [[orquestacion|orquestador]] de Alba: uno o más [[contenedor|contenedores]] que corren juntos en la misma máquina. Una mañana le pides a Kubernetes la lista de pods de Alba (el comando es `kubectl get pods`) y ves esto:
 
 ```text
 NAME                      READY   STATUS    RESTARTS     AGE
@@ -27,9 +27,9 @@ Nadie [[deploy|desplegó]] nada, y uno de los gateways se reinició 3 veces (la 
 
 ## Programa y proceso {Program and process}
 
-Un [[programa]] (*program*) es un archivo, o un grupo de archivos, con instrucciones para una computadora. El gateway de C01 es una carpeta con archivos de Python; Triton, el servidor que corre el modelo en la GPU, es un archivo llamado `tritonserver`. En el disco no hacen nada, como una receta guardada en un cajón.
+Un [[programa]] (*program*) es un archivo, o un grupo de archivos, con instrucciones para una computadora. El gateway de Alba es una carpeta con archivos de Python; Triton, el servidor que corre el modelo en la GPU, es un archivo llamado `tritonserver`. En el disco no hacen nada, como una receta guardada en un cajón.
 
-Un [[proceso]] (*process*) es un programa **corriendo**. Quien lo arranca es el [[kernel]], el corazón del [[sistema-operativo|sistema operativo]] (Windows, macOS o Linux, el de los servidores de C01): la parte que manda sobre la máquina. Al arrancar un programa, el kernel le arma un lugar para trabajar:
+Un [[proceso]] (*process*) es un programa **corriendo**. Quien lo arranca es el [[kernel]], el corazón del [[sistema-operativo|sistema operativo]] (Windows, macOS o Linux, el de los servidores de Alba): la parte que manda sobre la máquina. Al arrancar un programa, el kernel le arma un lugar para trabajar:
 
 - **Memoria propia.** Un pedazo de la [[ram|RAM]] (la memoria principal, donde viven los datos mientras se usan) que ningún otro proceso puede tocar. Ahí van su código, sus datos y, en el gateway, cada foto mientras se decodifica.
 - **Un número: el PID.** El [[pid|PID]] (*process ID*) identifica al proceso mientras vive. Con ese número se le habla; por ejemplo, para pedirle que termine.
@@ -38,10 +38,10 @@ Un [[proceso]] (*process*) es un programa **corriendo**. Quien lo arranca es el 
 - **Su entorno.** Las variables de entorno, ajustes que recibe al arrancar (en el gateway, `PREPROCESS_CONCURRENCY=2`: cuántas fotos decodifica a la vez), y el usuario a nombre del cual corre, que decide qué archivos puede tocar.
 
 :::figura programa-proceso-anatomia
-El proceso del gateway de C01, por dentro, con tres de sus hilos. Su memoria es solo suya. Los hilos comparten casi todo; cada uno tiene su propia pila, donde anota en qué va.
+El proceso del gateway de Alba, por dentro, con tres de sus hilos. Su memoria es solo suya. Los hilos comparten casi todo; cada uno tiene su propia pila, donde anota en qué va.
 :::
 
-Del mismo programa pueden correr muchos procesos a la vez. Si abres dos terminales (las ventanas donde se escriben comandos en vez de usar el mouse) y en cada una corres `python3`, hay dos procesos de un solo programa. El gateway de C01 corre de 3 a 12 copias, según el tráfico, y cada copia es un proceso aparte: una foto que decodifica una copia no existe para las demás.
+Del mismo programa pueden correr muchos procesos a la vez. Si abres dos terminales (las ventanas donde se escriben comandos en vez de usar el mouse) y en cada una corres `python3`, hay dos procesos de un solo programa. El gateway de Alba corre de 3 a 12 copias, según el tráfico, y cada copia es un proceso aparte: una foto que decodifica una copia no existe para las demás.
 
 Este código arranca el mismo programa tres veces. Cada corrida da otros PIDs, así que no los imprime: solo los compara.
 
@@ -96,9 +96,9 @@ Hay dos formas de llevar un programa, escrito por una persona, hasta esas instru
 
 [[compilar|Compilar]] (*compile*) es traducir el programa completo a instrucciones de máquina **antes** de correrlo, una sola vez, con otro programa llamado compilador. Lo que sale es un [[binario-ejecutable|binario ejecutable]]: un archivo de instrucciones que el kernel puede cargar y arrancar directo. Se le dice binario porque no es texto para personas, sino los bits que lee la CPU.
 
-Triton está escrito en C++ y se compila al binario `tritonserver`; NVIDIA lo entrega ya compilado en su imagen de contenedor (el paquete del que se arranca cada contenedor), y la imagen de C01 se arma encima de ella. Docker y Kubernetes están escritos en Go, otro lenguaje que se compila, y el propio Python, en C: también son binarios.
+Triton está escrito en C++ y se compila al binario `tritonserver`; NVIDIA lo entrega ya compilado en su imagen de contenedor (el paquete del que se arranca cada contenedor), y la imagen de Alba se arma encima de ella. Docker y Kubernetes están escritos en Go, otro lenguaje que se compila, y el propio Python, en C: también son binarios.
 
-Un binario sirve para una arquitectura y un sistema operativo. Uno de Linux para x86-64 no corre en un nodo arm64 (un *nodo* es cada máquina donde Kubernetes corre pods), ni uno para arm64 en un nodo x86-64: el contenedor muere con `exec format error`. La Ronda (M05) cuenta cuándo pasa: alguien construye la imagen en su Mac con chip M, que es arm64, y la sube a nodos x86-64. «El sistema operativo» lo abre a fondo.
+Un binario sirve para una arquitectura y un sistema operativo. Uno de Linux para x86-64 no corre en un nodo arm64 (un *nodo* es cada máquina donde Kubernetes corre pods), ni uno para arm64 en un nodo x86-64: el contenedor muere con `exec format error`. Suele pasar así: alguien construye la imagen en su Mac con chip M, que es arm64, y la sube a nodos x86-64. «El sistema operativo» lo abre a fondo.
 
 ### Interpretar: leer y ejecutar al mismo tiempo
 
@@ -151,14 +151,14 @@ El gateway arranca con el comando `uvicorn app:app`, pero `uvicorn` no es un bin
 :::profundo Compilar mientras corre, y compilar modelos
 Desde la 3.13, CPython trae además un *JIT* (*just-in-time*, «justo a tiempo») experimental, apagado por omisión, que traduce partes del bytecode a instrucciones de máquina mientras el programa corre.
 
-La palabra se usa también con modelos. TensorRT, la herramienta de NVIDIA, «compila» el modelo de C01 en un *engine*: un archivo hecho para un tipo de GPU (la T4) y una versión de TensorRT. Si no coinciden, Triton no puede cargarlo y termina al arrancar (sección 8). `torch.compile` hace algo parecido con un modelo de PyTorch, mientras el programa corre.
+La palabra se usa también con modelos. TensorRT, la herramienta de NVIDIA, «compila» el modelo de Alba en un *engine*: un archivo hecho para un tipo de GPU (la T4) y una versión de TensorRT. Si no coinciden, Triton no puede cargarlo y termina al arrancar (sección 8). `torch.compile` hace algo parecido con un modelo de PyTorch, mientras el programa corre.
 :::
 
 ## Hilos y turnos {Threads and turns}
 
 Un hilo, la línea de ejecución de la sección 1, tiene dos cosas propias: **el punto del código por donde va** y su **pila** (*stack*), una libreta donde anota en qué función está y las variables de esa función. Todo lo demás lo comparte con los otros hilos de su proceso: el resto de la memoria, los archivos abiertos y el PID.
 
-¿Para qué varios hilos? Para hacer varias cosas a la vez sin copiar la memoria. El gateway de C01 tiene un hilo que atiende las requests que llegan y un [[threadpool]] (un grupo fijo de hilos que esperan trabajo) que decodifica fotos, dos a la vez. Triton, por dentro, tiene hilos que reciben requests, hilos que arman los [[batch|batches]] y hilos que corren el modelo.
+¿Para qué varios hilos? Para hacer varias cosas a la vez sin copiar la memoria. El gateway de Alba tiene un hilo que atiende las requests que llegan y un [[threadpool]] (un grupo fijo de hilos que esperan trabajo) que decodifica fotos, dos a la vez. Triton, por dentro, tiene hilos que reciben requests, hilos que arman los [[batch|batches]] y hilos que corren el modelo.
 
 Este código hace la misma tarea en un hilo y en un proceso hijo. La tarea agrega una foto a una lista:
 
@@ -232,7 +232,7 @@ Los procesos no tienen ese problema entre ellos, porque no comparten memoria. Lo
 
 ## Concurrencia y paralelismo {Concurrency and parallelism}
 
-Dos palabras que se confunden mucho, y la Ronda usa las dos:
+Dos palabras que se confunden mucho, y que vas a oír todo el tiempo:
 
 - **[[concurrencia|Concurrencia]]** (*concurrency*): varias tareas **en curso** al mismo tiempo. Ya empezaron y no han terminado, aunque en cada instante avance solo una.
 - **[[paralelismo|Paralelismo]]** (*parallelism*): varias tareas **avanzando en el mismo instante**, cada una en su propio núcleo. Necesita hardware: con un solo núcleo, dos tareas nunca avanzan en el mismo instante.
@@ -256,13 +256,13 @@ Cuatro núcleos // paralelismo | (40 + 40 + 40 + 40) ÷ 4 | 40 ms
 
 ### Cuando hay esperas, la concurrencia sí ayuda
 
-Ahora una request del gateway: ≈ 6 ms de CPU para preparar la foto y ≈ 10 ms esperando la respuesta de Triton (un número redondo: en la Ronda, ese tramo va de ≈ 5 a 12 ms). Mientras espera, el hilo está bloqueado y el núcleo queda libre.
+Ahora una request del gateway: ≈ 6 ms de CPU para preparar la foto, que llamamos \(c\), y ≈ 10 ms esperando la respuesta de Triton, que llamamos \(w\) (un número redondo: en Alba, ese tramo va de ≈ 5 a 12 ms). Mientras espera, el hilo está bloqueado y el núcleo queda libre. Sola, de principio a fin, una request tarda \(t = c + w\) ms.
 
 :::figura programa-proceso-esperas
 Cuatro requests del gateway en un solo núcleo. Arriba, una tras otra: el núcleo pasa casi todo el tiempo esperando. Abajo, concurrentes: mientras una espera a Triton, la siguiente usa la CPU.
 :::
 
-Una tras otra, cada request ocupa 6 + 10 = 16 ms y la cuarta sale a los 4 × 16 = 64 ms. Concurrentes, el núcleo prepara una cada 6 ms y cada una sale 10 ms después: a los 16, 22, 28 y 34 ms, con el mismo núcleo. Es la idea que vas a encontrar en toda la Ronda: **la concurrencia aprovecha las esperas; el paralelismo, los núcleos.** [[io|*I/O*]] (de *input/output*, entrada y salida) es todo lo que entra y sale de un programa: la red, el disco. Al trabajo que pasa casi todo el tiempo esperando I/O se le dice [[io-bound|I/O-bound]], y al que pasa casi todo el tiempo calculando, [[cpu-bound|CPU-bound]].
+Una tras otra, cada request ocupa \(t = c + w\) = 6 + 10 = 16 ms, y la cuarta sale a los 4 × \(t\) = 4 × 16 = 64 ms. Concurrentes, el núcleo prepara una cada \(c\) = 6 ms y cada una sale \(w\) = 10 ms después de terminar su parte de CPU: la request número \(i\) sale a los \(i × c + w\) ms: la primera a los 1 × 6 + 10 = 16 ms, y las otras a los 22, 28 y 34 ms, con el mismo núcleo. Es una idea que vas a encontrar en todo el curso: **la concurrencia aprovecha las esperas; el paralelismo, los núcleos.** [[io|*I/O*]] (de *input/output*, entrada y salida) es todo lo que entra y sale de un programa: la red, el disco. Al trabajo que pasa casi todo el tiempo esperando I/O se le dice [[io-bound|I/O-bound]], y al que pasa casi todo el tiempo calculando, [[cpu-bound|CPU-bound]].
 
 El mismo experimento en Python, con cuatro tareas que esperan y cuatro que calculan, una tras otra y en 4 hilos. Los tiempos cambian según la máquina, así que el código solo imprime cuántas veces más rápido fue con hilos.
 
@@ -302,11 +302,28 @@ calcular  rapidez con 4 hilos: ×1
 
 Esperar en 4 hilos fue 4 veces más rápido. Calcular, igual que una tras otra, aunque la laptop donde se corrió tiene 10 núcleos. La razón es el [[gil|GIL]] (*global interpreter lock*): un candado de CPython que deja ejecutar Python a un solo hilo a la vez. Un hilo bloqueado lo suelta, por eso esperar no estorba. NumPy, PyTorch y Pillow también lo sueltan en buena parte de su trabajo en C, y por eso los dos hilos del gateway sí decodifican en paralelo. Desde Python 3.13 existe una versión sin GIL (*free-threaded*), todavía opcional; con ella, el segundo número sube. La lección «Hacer varias cosas a la vez» cuenta el GIL a fondo.
 
+¿Cuántas requests por segundo salen, entonces? Hay dos topes, y manda el más bajo. Uno lo ponen las requests en vuelo: cada una ocupa \(t\) ms, así que \(n\) en vuelo dan \(n × 1,000/t\) por segundo (un segundo son 1,000 ms). El otro lo pone la CPU: cada núcleo prepara una request cada \(c\) ms.
+
+:::formula Requests por segundo con n en vuelo
+t = c + w
+X = min(frac{n × 1,000}{t}, frac{k × 1,000}{c})
+T = frac{n × 1,000}{X}
+n_{lleno} = frac{k × t}{c}
+- c: los ms de CPU de cada request (en el gateway, ≈ 6)
+- w: los ms que espera cada request sin usar la CPU (la respuesta de Triton, ≈ 10)
+- t: lo que tarda una request sola, de principio a fin, en ms
+- n: requests **en vuelo** a la vez: ya empezaron y no han terminado
+- k: los núcleos de CPU que puede usar el proceso
+- X: requests por segundo que salen: el menor de los dos topes
+- T: lo que tarda cada request, en ms, contando lo que espera su turno en la CPU
+- n_{lleno}: cuántas en vuelo hacen falta para llenar los núcleos (si sale con decimales, sube al siguiente entero)
+:::
+
 :::calculadora programa-proceso-concurrencia
 Arranca con una sola request en vuelo: el núcleo pasa 10 de cada 16 ms esperando. Sube las requests en vuelo a 3 y después a 8: ¿qué pasa con las requests por segundo y con lo que tarda cada una?
 :::
 
-Con 1 en vuelo salen 1,000 ÷ 16 = 62.5 requests por segundo. Con 3, la cuenta daría 3 × 62.5 = 187.5, pero un núcleo no da más de 1,000 ÷ 6 ≈ 167: es su tope. Con 8 ya no salen más, y las de sobra esperan turno: si salen 167 por segundo y hay 8 en vuelo, cada una tarda 8 ÷ 167 ≈ 0.048 s, 48 ms en vez de 16. Pasado el tope, solo más núcleos suben el número.
+Con \(n\) = 1 en vuelo, el tope de las requests en vuelo es 1 × 1,000 ÷ 16 = 62.5 requests por segundo, y el de la CPU, \(k × 1,000/c\) = 1 × 1,000 ÷ 6 ≈ 167: manda el más bajo, \(X\) = 62.5. Con 3, el primero daría 3 × 1,000 ÷ 16 = 187.5, pero la CPU no da más de ≈ 167: ahora \(X\) ≈ 167. Para llenar el núcleo bastan \(n_{lleno}\) = 1 × 16 ÷ 6 ≈ 2.7, o sea 3 en vuelo. Con 8 ya no salen más, y las de sobra esperan turno: \(T = n × 1,000/X\) = 8 × 1,000 ÷ 167 ≈ 48 ms en vez de 16. Pasado el tope, solo más núcleos suben el número.
 
 ## Procesos o hilos para servir un modelo {Processes or threads to serve a model} [extra]
 
@@ -316,24 +333,26 @@ Un servidor de modelos puede atender varias requests a la vez de dos maneras: co
 
 Uvicorn tiene la opción `--workers`. Cada [[worker]] es una copia completa del servidor en un proceso aparte, con su propia memoria, y un proceso padre los vigila y reemplaza al que muere. Si la app carga un modelo en la GPU, cada worker carga **su** copia de los pesos y abre su propio contexto de [[cuda|CUDA]] (CUDA es la plataforma de NVIDIA para programar sus GPUs, y el contexto, lo que cada proceso prepara para usarla, que ocupa su propio pedazo de la memoria de la GPU).
 
+Cada worker carga sus pesos y su contexto, así que la memoria de la GPU que usan entre todos es \(M = W × (P + C_{cuda})\): \(W\) workers, cada uno con \(P\) GB de pesos (parámetros × bytes por parámetro) y \(C_{cuda}\) GB de contexto de CUDA.
+
 :::cuenta uvicorn --workers 4 con el modelo en la GPU
-Pesos de la ResNet-50 de C01 en FP32 | 24.5 M × 4 B | ≈ 0.1 GB
-Contexto de CUDA, por proceso | estimación de M04 | ≈ 0.3 a 1 GB
-4 workers en una T4 de 16 GB | 4 × (0.1 + 0.3 a 1 GB) | ≈ 1.6 a 4.4 GB
-Pesos de Llama 3 8B en BF16 | 8.03 mil millones × 2 B | ≈ 16.1 GB
-2 workers con ese modelo | 2 × 16.06 GB | ≈ 32 GB
+Pesos de la ResNet-50 de Alba en FP32, \(P\) // parámetros × 4 B por número FP32 | 24.5 M × 4 B | ≈ 0.1 GB
+Contexto de CUDA por proceso, \(C_{cuda}\) // estimación típica: depende de la GPU y de la versión de CUDA | supuesto | ≈ 0.3 a 1 GB
+4 workers en una T4 de 16 GB | \(M = W × (P + C_{cuda})\) = 4 × (0.1 + 0.3 a 1 GB) | ≈ 1.6 a 4.4 GB
+Pesos de Llama 3 8B en BF16, \(P\) // BF16 usa 2 B por número | 8.03 mil millones × 2 B | ≈ 16.1 GB
+2 workers con ese modelo // sin contar el contexto | \(W × P\) = 2 × 16.06 GB | ≈ 32 GB
 = Con la ResNet-50, los workers desperdician memoria, pero caben. Con un LLM de 8B, ni dos copias entran en una L4 de 24 GB. Y en los dos casos, cada worker atiende sus requests por su lado: se turnan la GPU sin juntar batches entre ellos.
 :::
 
-Por eso C01 sigue una regla: **un proceso por pod, muchos pods**. El escalado lo hace Kubernetes con réplicas, copias del pod. Varios workers dentro de un pod esconden cuánta CPU usa cada proceso, complican las métricas y pueden dejar un pod «sano» con un worker colgado (M05).
+Por eso Alba sigue una regla: **un proceso por pod, muchos pods**. El escalado lo hace Kubernetes con réplicas, copias del pod. Varios workers dentro de un pod esconden cuánta CPU usa cada proceso, complican las métricas y pueden dejar un pod «sano» con un worker colgado.
 
 ### Triton: un proceso con muchas copias adentro
 
-Triton atiende todo desde un solo proceso de C++. Si le pides dos instancias de un modelo en la misma GPU (`instance_group`), son dos copias del modelo dentro de ese proceso, que corren en paralelo en hilos distintos. La excepción es su *backend* de Python, el que corre código de Python para preparar o terminar una predicción: ahí cada instancia es un proceso aparte, justo para que cada una tenga su propio GIL (M07).
+Triton atiende todo desde un solo proceso de C++. Si le pides dos instancias de un modelo en la misma GPU (`instance_group`), son dos copias del modelo dentro de ese proceso, que corren en paralelo en hilos distintos. La excepción es su *backend* de Python, el que corre código de Python para preparar o terminar una predicción: ahí cada instancia es un proceso aparte, justo para que cada una tenga su propio GIL.
 
-### Más hilos o más procesos: lo que midió la Ronda
+### Más hilos o más procesos: una medición
 
-En M08, la Ronda midió una ResNet-50 en la CPU de una laptop, con 4 núcleos, ONNX Runtime (un programa que corre modelos exportados a ONNX, un formato de archivo para modelos), FP32 y una foto por request:
+Una medición de ejemplo: una ResNet-50 en la CPU de una laptop, con 4 núcleos, ONNX Runtime (un programa que corre modelos exportados a ONNX, un formato de archivo para modelos), FP32 y una foto por request:
 
 | Configuración | Fotos por segundo | Cada request tarda |
 |---|---|---|
@@ -343,11 +362,11 @@ En M08, la Ronda midió una ResNet-50 en la CPU de una laptop, con 4 núcleos, O
 
 Con 4 hilos en un proceso, los 4 núcleos trabajan en la **misma** foto, que sale rápido. Con 4 procesos, cada núcleo trabaja en una foto distinta: salen más fotos por segundo, pero cada una tarda casi el triple. Las dos son paralelismo, dentro de una request o entre requests. Cuál conviene lo decide el presupuesto de latencia, cuánto puede tardar cada request: con margen, más procesos; con el presupuesto justo, más hilos por request.
 
-Las cuentas cuadran: un proceso que tarda 46 ms por foto hace 1,000 ÷ 46 ≈ 21.7 fotos por segundo, y cuatro de ellos, ≈ 87.
+Las cuentas cuadran con fotos por segundo = procesos × 1,000 ÷ ms por foto: un proceso que tarda 46 ms por foto hace 1,000 ÷ 46 ≈ 21.7 fotos por segundo, y cuatro de ellos, 4 × 1,000 ÷ 46 ≈ 87.
 
 ### Varios procesos en una GPU
 
-Una GPU también se reparte entre procesos. Con *time-slicing* (repartir el tiempo en rebanadas), la GPU se turna entre ellos, con cambios de contexto y sin garantías de cuánto le toca a cada uno. Con MPS (*Multi-Process Service*, de NVIDIA), los procesos corren a la vez en la GPU, pero un error fatal de uno puede afectar a los demás (M04).
+Una GPU también se reparte entre procesos. Con *time-slicing* (repartir el tiempo en rebanadas), la GPU se turna entre ellos, con cambios de contexto y sin garantías de cuánto le toca a cada uno. Con MPS (*Multi-Process Service*, de NVIDIA), los procesos corren a la vez en la GPU, pero un error fatal de uno puede afectar a los demás.
 
 ## Señales: avisarle algo a un proceso {Signals: telling a process something}
 
@@ -396,7 +415,7 @@ En el Dockerfile (la receta con la que se arma la imagen del contenedor), la lí
 
 ### El apagado ordenado, en cuatro pasos
 
-Cada vez que C01 publica una versión nueva o quita un pod que sobra, Kubernetes lo apaga en orden. Quien hace el trabajo en cada máquina es el **kubelet**, el programa de Kubernetes que arranca, vigila y detiene los contenedores de esa máquina.
+Cada vez que Alba publica una versión nueva o quita un pod que sobra, Kubernetes lo apaga en orden. Quien hace el trabajo en cada máquina es el **kubelet**, el programa de Kubernetes que arranca, vigila y detiene los contenedores de esa máquina.
 
 :::pasos
 1. Sale del balanceo
@@ -406,7 +425,7 @@ Un `sleep` corto que Kubernetes corre dentro del contenedor antes de avisarle (1
 3. SIGTERM
 Le llega al PID 1. El servidor deja de aceptar y termina lo que tiene en curso, a lo que se le dice *drenar*: Triton, en hasta 30 s; el gateway, en hasta 20.
 4. SIGKILL, si se pasa del plazo
-Si sigue vivo al vencer el plazo de gracia, que se cuenta desde el paso 1 (`terminationGracePeriodSeconds`: 30 s si nadie lo cambia; en C01, 60 para Triton y 45 para el gateway), el kubelet lo mata con SIGKILL.
+Si sigue vivo al vencer el plazo de gracia, que se cuenta desde el paso 1 (`terminationGracePeriodSeconds`: 30 s si nadie lo cambia; en Alba, 60 para Triton y 45 para el gateway), el kubelet lo mata con SIGKILL.
 :::
 
 ## Códigos de salida: cómo termina un proceso {Exit codes: how a process ends}
@@ -497,29 +516,45 @@ La RAM de una máquina tiene un tamaño fijo. Si los procesos piden más, el ker
 Tres cosas lo hacen traicionero:
 
 1. **No hay excepción.** El proceso no se entera, porque SIGKILL no se puede atender. No hay *traceback*, el mensaje de Python que dice en qué línea falló.
-2. **Se pierden los últimos logs.** Si su salida no va a una pantalla, Python junta los mensajes y los escribe de a muchos; con SIGKILL, lo juntado se pierde, justo las líneas que explicaban qué pasó. Por eso los contenedores de Python llevan `PYTHONUNBUFFERED=1`, que los escribe al instante (M05).
+2. **Se pierden los últimos logs.** Si su salida no va a una pantalla, Python junta los mensajes y los escribe de a muchos; con SIGKILL, lo juntado se pierde, justo las líneas que explicaban qué pasó. Por eso los contenedores de Python llevan `PYTHONUNBUFFERED=1`, que los escribe al instante.
 3. **El código es 137**, el mismo de cualquier SIGKILL.
 
 ### En un contenedor, el límite es tuyo
 
-Un contenedor tiene su propio tope de memoria: en Kubernetes, el `limits.memory` de cada contenedor. El kernel lo hace cumplir con un [[cgroup]] (su mecanismo para ponerle topes de CPU y memoria a un grupo de procesos). Si el proceso pasa su límite, el kernel lo mata **aunque a la máquina le sobre memoria**. Kubernetes lo reporta como **OOMKilled**, código 137, y lo vuelve a arrancar. En C01, el contenedor de Triton tiene un límite de 6 GiB de RAM (el modelo vive en la GPU), y el del gateway, de 1 GiB.
+Un contenedor tiene su propio tope de memoria: en Kubernetes, el `limits.memory` de cada contenedor. El kernel lo hace cumplir con un [[cgroup]] (su mecanismo para ponerle topes de CPU y memoria a un grupo de procesos). Si el proceso pasa su límite, el kernel lo mata **aunque a la máquina le sobre memoria**. Kubernetes lo reporta como **OOMKilled**, código 137, y lo vuelve a arrancar. En Alba, el contenedor de Triton tiene un límite de 6 GiB de RAM (el modelo vive en la GPU), y el del gateway, de 1 GiB.
 
-### Los PNG gigantes del gateway de C01
+### Los PNG gigantes del gateway de Alba
 
-Una foto ocupa mucho más decodificada que en el archivo. En el gateway de C01, un PNG de 40 megapíxeles llega a ≈ 320 MB (medido): Pillow guarda cada píxel en 4 bytes (40 M × 4 B = 160 MB) y hace copias al enderezar la foto y al convertirla a RGB.
+Una foto ocupa mucho más decodificada que en el archivo. En el gateway de Alba, un PNG de 40 megapíxeles llega a ≈ 320 MB (medido): Pillow guarda cada píxel en 4 bytes (40 M × 4 B = 160 MB) y hace copias al enderezar la foto y al convertirla a RGB.
+
+La memoria del proceso en su peor momento es la suma de tres partes: lo que ocupa siempre, los archivos que está recibiendo y las fotos que está decodificando.
+
+:::formula Memoria en el peor momento
+M = b + a + f × d
+f_{max} = frac{L − b − a}{d}
+- L: el límite de memoria del contenedor, en MB
+- b: la memoria base del proceso (Python, las librerías y el código), en MB
+- a: los archivos de las requests en vuelo, en MB
+- d: lo que ocupa cada foto mientras se decodifica, en MB
+- f: cuántas fotos se decodifican a la vez
+- M: la memoria en el peor momento, en MB. Si pasa de \(L\), OOMKilled
+- f_{max}: cuántas fotos caben a la vez: el resultado, redondeado hacia abajo
+:::
 
 :::cuenta ¿Cuántos PNG de 40 MP caben a la vez en el gateway?
-Límite del contenedor | 1 GiB = 1,073,741,824 B | ≈ 1,074 MB
-Memoria base del proceso // Python, las librerías y el código | estimación de C01 | ≈ 80 MB
-Archivos de las requests en vuelo // acepta hasta 16, de hasta 10 MB (M03) | 16 × 10 MB | 160 MB
-Lo que queda para decodificar | 1,074 − 80 − 160 | ≈ 834 MB
-Fotos a la vez | 834 ÷ 320 | 2.6: caben **2**
-Con 3 a la vez // se pasa por ≈ 126 MB | 80 + 160 + 3 × 320 | 1,200 MB: no cabe
-= Tres PNG gigantes al mismo tiempo, y el kernel mata al gateway: OOMKilled. Por eso C01 limita a 2 los decodes simultáneos por pod (`PREPROCESS_CONCURRENCY=2`) y rechaza las fotos de más de 40 MP antes de abrirlas.
+Límite del contenedor, \(L\) // 1 GiB = 1,024 × 1,024 × 1,024 B | 1,073,741,824 B | ≈ 1,074 MB
+Memoria base, \(b\) // Python, las librerías y el código | estimación del equipo de Alba | ≈ 80 MB
+Archivos en vuelo, \(a\) // acepta hasta 16 requests a la vez, de hasta 10 MB cada una | 16 × 10 MB | 160 MB
+Cada foto decodificándose, \(d\) // un PNG de 40 MP, medido | 40 M × 4 B = 160 MB, más copias | ≈ 320 MB
+Lo que queda para decodificar | \(L − b − a\) = 1,074 − 80 − 160 | ≈ 834 MB
+Fotos a la vez, \(f_{max}\) | \((L − b − a)/d\) = 834 ÷ 320 | 2.6: caben **2**
+Con 2 a la vez, \(M\) // 880 ÷ 1,074 ≈ 82 % del límite | \(M = b + a + f × d\) = 80 + 160 + 2 × 320 | 880 MB
+Con 3 a la vez // se pasa por 1,200 − 1,074 ≈ 126 MB | 80 + 160 + 3 × 320 | 1,200 MB: no cabe
+= Tres PNG gigantes al mismo tiempo, y el kernel mata al gateway: OOMKilled. Por eso Alba limita a 2 los decodes simultáneos por pod (`PREPROCESS_CONCURRENCY=2`) y rechaza las fotos de más de 40 MP antes de abrirlas.
 :::
 
 :::calculadora programa-proceso-oom
-Arranca con C01: 2 fotos a la vez, 880 MB, el 82 % del límite. Pon 3 para ver el OOM, o sube el límite a 2048 MiB y mira cuántas caben.
+Arranca con el gateway de Alba: 2 fotos a la vez, 880 MB, el 82 % del límite. Pon 3 para ver el OOM, o sube el límite a 2048 MiB y mira cuántas caben.
 :::
 
 ### Lo que no es un OOMKilled
@@ -560,24 +595,26 @@ Un pod «se reinicia solo» cuando el proceso principal de su contenedor termina
 Toca cada caja para ver qué hace, o usa «Recorrer» para seguir cuatro historias: un OOM, un engine que no carga, un proceso colgado y una versión nueva.
 :::
 
-¿Y el gateway de la tabla del principio? Tres reinicios en 5 horas, sin deploys ni errores en los logs. `kubectl describe pod` dice OOMKilled y 137: el kernel lo mató por memoria. Lo que se reinició fue el proceso, no el pod: el kubelet arrancó otro `python` en el mismo pod. No dejó rastro porque SIGKILL no se puede atender: ni excepción ni últimos logs. Como los topes de C01 (2 fotos a la vez, de hasta 40 MP) dejan el peor momento en 880 MB, la primera sospecha es una fuga de memoria (*memory leak*): el proceso guarda cosas que nunca suelta y crece hasta pasar el límite, cada tantas horas. La gráfica de memoria del pod lo distingue: una fuga es una rampa que sube sin parar; un pico de fotos gigantes, un salto.
+¿Y el gateway de la tabla del principio? Tres reinicios en 5 horas, sin deploys ni errores en los logs. `kubectl describe pod` dice OOMKilled y 137: el kernel lo mató por memoria. Lo que se reinició fue el proceso, no el pod: el kubelet arrancó otro `python` en el mismo pod. No dejó rastro porque SIGKILL no se puede atender: ni excepción ni últimos logs. Como los topes de Alba (2 fotos a la vez, de hasta 40 MP) dejan el peor momento en 880 MB, la primera sospecha es una fuga de memoria (*memory leak*): el proceso guarda cosas que nunca suelta y crece hasta pasar el límite, cada tantas horas. La gráfica de memoria del pod lo distingue: una fuga es una rampa que sube sin parar; un pico de fotos gigantes, un salto.
 
 ## El apagado ordenado, segundo a segundo {Graceful shutdown, second by second} [extra]
 
 Cada deploy, y cada vez que el *autoscaler* (la pieza que decide cuántos pods correr según la carga) quita pods, se apagan procesos. Si se apagan mal, cada uno corta las requests que tenía a medias. Con 3 a 12 pods del gateway, cada deploy apaga varios procesos, y eso suma.
 
 :::figura programa-proceso-apagado
-El apagado de un pod de Triton y de uno del gateway en C01, y el que trae Kubernetes si nadie lo cambia. Fíjate en que el plazo se cuenta desde el segundo 0, con el preStop adentro. El SIGKILL llega solo si el proceso sigue vivo al final del plazo.
+El apagado de un pod de Triton y de uno del gateway en Alba, y el que trae Kubernetes si nadie lo cambia. Fíjate en que el plazo se cuenta desde el segundo 0, con el preStop adentro. El SIGKILL llega solo si el proceso sigue vivo al final del plazo.
 :::
 
 ### ¿Por qué esperar antes del SIGTERM?
 
-Sacar un pod del balanceo no es instantáneo. Kubernetes avisa que el pod está terminando, y cada pieza que reparte tráfico tiene que enterarse y actualizar su lista: kube-proxy, el componente que reparte las requests entre pods dentro del clúster (el grupo de máquinas que maneja Kubernetes), y el ALB, el balanceador de AWS que recibe las requests de afuera. Mientras tanto siguen llegando requests, y si el proceso dejara de aceptar de inmediato, se perderían. El `sleep` del preStop lo mantiene atendiendo mientras la baja se propaga. En el gateway es más largo porque el ALB tarda más que kube-proxy (M06).
+Sacar un pod del balanceo no es instantáneo. Kubernetes avisa que el pod está terminando, y cada pieza que reparte tráfico tiene que enterarse y actualizar su lista: kube-proxy, el componente que reparte las requests entre pods dentro del clúster (el grupo de máquinas que maneja Kubernetes), y el ALB, el balanceador de AWS que recibe las requests de afuera. Mientras tanto siguen llegando requests, y si el proceso dejara de aceptar de inmediato, se perderían. El `sleep` del preStop lo mantiene atendiendo mientras la baja se propaga. En el gateway es más largo porque el ALB tarda más que kube-proxy.
 
-:::cuenta Los plazos de gracia de C01 y de C10
-Triton // preStop + drenado + margen | 10 + 30 + 20 s | 60 s
-Gateway | 15 + 20 + 10 s | 45 s
-vLLM, el servidor del LLM de C10 // la respuesta más larga: 1,024 tokens × 50 ms ≈ 51 s | 15 + 60 + 15 s | 90 s
+El plazo de gracia \(G\) tiene que cubrir tres tramos: \(G = p + D + m\), con \(p\) el preStop, \(D\) el drenado más largo y \(m\) un margen, todo en segundos.
+
+:::cuenta Los plazos de gracia de Alba y de un servicio de LLM
+Triton en Alba | \(G = p + D + m\) = 10 + 30 + 20 s | 60 s
+Gateway en Alba | 15 + 20 + 10 s | 45 s
+vLLM, en un servicio que sirve su propio LLM // \(D\) cubre la respuesta más larga: 1,024 tokens × 50 ms ≈ 51 s | 15 + 60 + 15 s | 90 s
 Por omisión // nadie lo cambió | lo que trae Kubernetes | 30 s
 = La regla: el plazo de gracia cubre el preStop, el drenado más largo y un margen. El tiempo del preStop cuenta dentro del plazo: si no caben, el SIGKILL llega a media respuesta.
 :::
@@ -600,15 +637,15 @@ Si de verdad necesitas un *script* (un archivo de comandos para la shell) como P
 
 ### Cómo probar que tu apagado funciona
 
-En tu máquina, `docker stop` manda SIGTERM y espera 10 s antes del SIGKILL. Con la forma exec, uvicorn cierra en menos de un segundo; la estación 7 del Dojo lo revisa así. Si `docker stop` tarda los 10 s completos, la señal no llegó.
+En tu máquina, `docker stop` manda SIGTERM y espera 10 s antes del SIGKILL. Con la forma exec, uvicorn cierra en menos de un segundo. Si `docker stop` tarda los 10 s completos, la señal no llegó.
 
 En Kubernetes, borra un pod con `kubectl delete pod` y mira dos cosas: cuánto tarda en desaparecer y con qué código terminó. Un 0 es un apagado limpio (con tini delante, el de uvicorn sale con 143); un 137, que el plazo se acabó. Y mientras tanto, manda tráfico: si el apagado es bueno, ningún cliente ve un error. Si el SIGKILL corta una request a medias, el balanceador ve la conexión cortada y le contesta al cliente con un error: un 502, en HTTP.
 
 ### Un worker a mitad de un trabajo largo
 
-Un worker de una cola, un proceso que toma trabajos de una fila y los hace uno por uno, tiene otro problema: sus trabajos pueden durar minutos. En M06, cuando baja la cola, el autoscaler quita pods de workers sin mirar qué están haciendo. Un worker que procesa un video de 10 minutos recibe SIGTERM a los 15 s de empezar. Si muere, el video vuelve a la cola cuando vence el tiempo que la cola le había dado, y otro worker empieza de cero.
+Un worker de una cola, un proceso que toma trabajos de una fila y los hace uno por uno, tiene otro problema: sus trabajos pueden durar minutos. Cuando baja la cola, el autoscaler quita pods de workers sin mirar qué están haciendo. Un worker que procesa un video de 10 minutos recibe SIGTERM a los 15 s de empezar. Si muere, el video vuelve a la cola cuando vence el tiempo que la cola le había dado, y otro worker empieza de cero.
 
-Las tres defensas de la Ronda: un plazo de gracia mayor que el trabajo más largo; un worker que, al recibir SIGTERM, termina lo que tiene y ya no toma otro, y trabajos que se puedan repetir sin hacer daño, porque repetirlos va a pasar de todos modos.
+Las tres defensas: un plazo de gracia mayor que el trabajo más largo; un worker que, al recibir SIGTERM, termina lo que tiene y ya no toma otro, y trabajos que se puedan repetir sin hacer daño, porque repetirlos va a pasar de todos modos.
 
 ## Errores comunes {Common mistakes}
 
@@ -622,7 +659,7 @@ Las tres defensas de la Ronda: un plazo de gracia mayor que el trabajo más larg
 
 El preStop más el drenado no caben en `terminationGracePeriodSeconds`, y el SIGKILL llega a media respuesta en cada deploy.
 
-**Cómo evitarlo:** plazo = preStop + drenado + margen, como C01 (60 = 10 + 30 + 20). En los workers de una cola, un plazo mayor que el trabajo más largo.
+**Cómo evitarlo:** plazo = preStop + drenado + margen, como Triton en Alba (60 = 10 + 30 + 20). En los workers de una cola, un plazo mayor que el trabajo más largo.
 
 ### 3. Multiplicar procesos sin contar la memoria
 
@@ -650,45 +687,57 @@ Un contador o una lista que tocan varios hilos pierde actualizaciones de vez en 
 
 ### 7. Una liveness que pregunta por otros
 
-Si la liveness del gateway revisa que Triton responda, cuando Triton cae el kubelet reinicia en cascada gateways sanos, que no arreglan nada (C01).
+Si la liveness del gateway revisa que Triton responda, cuando Triton cae el kubelet reinicia en cascada gateways sanos, que no arreglan nada.
 
 **Cómo evitarlo:** la liveness solo pregunta si el proceso responde. Las dependencias van en la *readiness probe*, la pregunta de «¿le mando tráfico?», que solo saca al pod del balanceo.
 
 ## En la vida real {In real life} [extra]
 
-### C01: un límite de CPU que congela
+### Alba: un límite de CPU que congela
 
-Cada request de C01 pasa por dos procesos en máquinas distintas: `python` con uvicorn en el gateway (≈ 6 ms de CPU por foto, en un hilo del threadpool) y `tritonserver` en el nodo de la T4. En el pico de diseño llegan 500 requests por segundo a todo el servicio y cada una tarda en promedio ≈ 50 ms, así que hay ≈ 25 en vuelo a la vez (500 × 0.05 s, según M03): con 5 pods del gateway en el pico, unas 5 por pod.
+Cada request de Alba pasa por dos procesos en máquinas distintas: `python` con uvicorn en el gateway (≈ 6 ms de CPU por foto, en un hilo del threadpool) y `tritonserver` en el nodo de la T4. En el pico de diseño llegan 500 requests por segundo a todo el servicio y cada una tarda en promedio ≈ 50 ms, así que hay ≈ 25 en vuelo a la vez. Sale de despejar \(n\) en la fórmula de \(T\) de la sección 4: \(n = X × T/1,000\), con \(X\) = 500 requests por segundo y \(T\) = 50 ms, da 500 × 50 ÷ 1,000 = 25. A esta relación se le llama ley de Little. Con 5 pods del gateway en el pico, unas 25 ÷ 5 = 5 por pod.
 
-La Ronda (M06) cuenta por qué C01 no le pone límite de CPU al gateway. Con un límite de 1 núcleo, el kernel le da 100 ms de CPU por cada ventana de 100 ms. El ejemplo de M06: llegan 4 fotos web grandes a la vez, y 4 hilos las decodifican en paralelo (C01 usa 2, pero la idea es la misma), cada una con 40 ms de CPU:
+Alba no le pone límite de CPU al gateway, y esta es la razón. Con un límite de 1 núcleo, el kernel le da 100 ms de CPU por cada ventana de 100 ms; si el contenedor se los acaba antes, lo congela hasta que empieza la siguiente ventana. Un ejemplo: llegan 4 fotos web grandes a la vez, y 4 hilos las decodifican en paralelo (Alba usa 2, pero la idea es la misma), cada una con 40 ms de CPU.
 
-:::cuenta Cuatro hilos contra un límite de 1 núcleo
-Cuota por ventana // límite de 1 núcleo | 1 × 100 ms | 100 ms de CPU
-Lo que gastan 4 hilos en paralelo | 4 × 1 ms por cada ms | 4 ms de CPU por ms
-Se acaba la cuota | 100 ÷ 4 | a los 25 ms
-Le falta a cada foto | 40 − 25 | 15 ms
-Congelado | del ms 25 al ms 100 | 75 ms sin hacer nada
-Terminan | 100 + 15 | a los 115 ms
-= Cada foto tardó 115 ms en vez de 40, y el uso promedio de CPU se ve bajo. Por eso C01 reserva CPU para el gateway, pero no le pone tope.
+:::formula Cuándo termina el trabajo con un límite de CPU
+Q = k × 100
+t_Q = frac{Q}{h}
+t_{fin} = 100 + (c − t_Q)
+- k: los núcleos de CPU que puede usar el proceso; aquí los fija el límite de CPU del contenedor (puede llevar decimales, como 1.5)
+- Q: la cuota: los ms de CPU que le tocan por cada ventana de 100 ms
+- h: los hilos que trabajan en paralelo; cada uno gasta 1 ms de CPU por cada ms
+- c: los ms de CPU que necesita cada foto
+- t_Q: el ms de la ventana en el que se acaba la cuota
+- t_{fin}: cuándo termina cada foto, en ms. Vale si \(c\) es mayor que \(t_Q\) y lo que falta cabe en la siguiente ventana; si \(c\) no pasa de \(t_Q\), no se congela y termina en \(c\)
 :::
 
-Otra historia de C01: si el engine de TensorRT no coincide con la GPU o con la versión, Triton sale al arrancar (`--exit-on-error=true`) y el pod queda en CrashLoopBackOff sin llegar nunca a estar listo. Es una falla ruidosa a propósito, mejor que un servidor «vivo» que no sabe clasificar. Y como Triton tarda en cargar el engine, una *startupProbe*, la pregunta que el kubelet hace solo mientras el proceso arranca, le da hasta 5 minutos (60 intentos, cada 5 s) antes de que la liveness empiece a contar.
+:::cuenta Cuatro hilos contra un límite de 1 núcleo
+Cuota por ventana, \(Q\) // límite \(k\) = 1 núcleo | \(Q = k × 100\) = 1 × 100 | 100 ms de CPU
+Gasto de \(h\) = 4 hilos // en paralelo, 1 ms de CPU por cada ms cada uno | 4 × 1 ms | 4 ms por ms
+Se acaba la cuota, \(t_Q\) | \(t_Q = Q/h\) = 100 ÷ 4 | a los 25 ms
+Le falta a cada foto // \(c\) = 40 ms de CPU por foto | \(c − t_Q\) = 40 − 25 | 15 ms
+Congelado | del ms 25 al ms 100 | 75 ms sin hacer nada
+Terminan, \(t_{fin}\) | \(t_{fin} = 100 + (c − t_Q)\) = 100 + 15 | a los 115 ms
+= Cada foto tardó 115 ms en vez de 40, y el uso promedio de CPU se ve bajo. Por eso Alba reserva CPU para el gateway, pero no le pone tope.
+:::
 
-### C10: un LLM que tarda minutos en volver
+Otra historia de Alba: si el engine de TensorRT no coincide con la GPU o con la versión, Triton sale al arrancar (`--exit-on-error=true`) y el pod queda en CrashLoopBackOff sin llegar nunca a estar listo. Es una falla ruidosa a propósito, mejor que un servidor «vivo» que no sabe clasificar. Y como Triton tarda en cargar el engine, una *startupProbe*, la pregunta que el kubelet hace solo mientras el proceso arranca, le da hasta 5 minutos (60 intentos, cada 5 s) antes de que la liveness empiece a contar.
 
-Con el LLM de C10, reiniciar un pod cuesta minutos: cargar 70 GB de pesos (≈ 70 mil millones de parámetros en [[fp8|FP8]], 1 byte cada uno) y preparar la GPU, con una startupProbe de hasta 15 minutos. Por eso su liveness es conservadora, tarda en darlo por muerto: un reinicio por error sale carísimo. Su apagado le da a vLLM, el programa que sirve el modelo, hasta 60 s para terminar las respuestas en curso.
+### Un LLM propio: minutos para volver
 
-### C13: esperar el final de la frase
+En un servicio que sirve su propio LLM, como el del ejemplo de los plazos de gracia, reiniciar un pod cuesta minutos: cargar 70 GB de pesos (≈ 70 mil millones de parámetros en [[fp8|FP8]], 1 byte cada uno) y preparar la GPU, con una startupProbe de hasta 15 minutos. Por eso su liveness es conservadora, tarda en darlo por muerto: un reinicio por error sale carísimo. Su apagado le da a vLLM, el programa que sirve el modelo, hasta 60 s para terminar las respuestas en curso.
 
-En la transcripción en vivo de C13, un worker no se apaga a media frase. Al recibir la orden, deja de aceptar sesiones y espera el final de la frase en curso de cada una antes de pasarlas a otro worker. Una frase dura como mucho ≈ 20.6 s (20 s de voz más 0.6 s para notar que terminó), y en el peor caso son dos: ≈ 41 s. Por eso su plazo de gracia es de 90 s, el triple del que trae Kubernetes.
+### Voz a texto en tiempo real: esperar el final de la frase
+
+En un servicio que transcribe voz a texto en tiempo real, un worker no se apaga a media frase. Al recibir la orden, deja de aceptar sesiones y espera el final de la frase en curso de cada una antes de pasarlas a otro worker. Una frase dura como mucho ≈ 20.6 s (20 s de voz más 0.6 s para notar que terminó), y en el peor caso son dos: 2 × 20.6 ≈ 41 s. Por eso su plazo de gracia es de 90 s, el triple del que trae Kubernetes.
 
 ### Un mensaje venenoso
 
-M02 cuenta el caso de un mensaje de una cola que provoca un OOM cada vez: un PDF corrupto o una imagen que dispara un bug. El worker que lo toma muere sin excepción, el mensaje vuelve a la cola, otro worker lo toma y muere también. Como el proceso nunca alcanza a anotar el fallo, el único que cuenta los intentos es la cola: tras 5, lo manda a una cola aparte, la DLQ (*dead-letter queue*). Sin ese tope, el mismo mensaje tumbaría workers para siempre, y cada intento volvería a cargar el modelo en la GPU.
+Un caso clásico de las colas es el mensaje que provoca un OOM cada vez: un PDF corrupto o una imagen que dispara un bug. El worker que lo toma muere sin excepción, el mensaje vuelve a la cola, otro worker lo toma y muere también. Como el proceso nunca alcanza a anotar el fallo, el único que cuenta los intentos es la cola: tras 5, lo manda a una cola aparte, la DLQ (*dead-letter queue*). Sin ese tope, el mismo mensaje tumbaría workers para siempre, y cada intento volvería a cargar el modelo en la GPU.
 
 ### La herramienta de pruebas también es un proceso
 
-Para medir cuánto aguanta C01, la Ronda (M03) usa Locust, un programa de Python que simula usuarios. Un solo proceso de Python puede saturarse antes que el servicio que mide, porque, por el GIL, no pasa de un núcleo: por eso se corre con `--processes 4`.
+Para medir cuánto aguanta su servicio, el equipo de Alba usa Locust, un programa de Python que simula usuarios. Un solo proceso de Python puede saturarse antes que el servicio que mide, porque, por el GIL, no pasa de un núcleo: por eso se corre con `--processes 4`.
 
 ### Fuera de ML
 
@@ -718,24 +767,29 @@ Resuélvelos con lápiz antes de abrir la solución. Los de requests por segundo
 - Con SIGTERM ignorado, el kubelet espera los **30 s** del plazo por omisión y después manda SIGKILL. Las requests a medias se cortan, y el contenedor termina con **137**.
 - SIGKILL no se puede atender ni ignorar: el kernel lo termina en el acto, también con **137**.
 ? [medio] Cuatro tareas de 30 ms de CPU cada una en 2 núcleos. (a) Si cada núcleo hace dos, una tras otra, ¿cuándo termina cada una y cuál es el promedio? (b) ¿Y si las cuatro se turnan en los 2 núcleos cada 10 ms?
-- (a) Núcleo 1: A de 0 a 30 y C de 30 a 60. Núcleo 2: B de 0 a 30 y D de 30 a 60. Terminan a los 30, 30, 60 y 60 ms: promedio (30 + 30 + 60 + 60) ÷ 4 = **45 ms**.
+- (a) Núcleo 1: A de 0 a 30 y C de 30 a 60. Núcleo 2: B de 0 a 30 y D de 30 a 60. Terminan a los 30, 30, 60 y 60 ms. El promedio es la suma de los momentos en que termina cada una, entre cuántas son: (30 + 30 + 60 + 60) ÷ 4 = **45 ms**.
 - (b) En cada turno de 10 ms corren dos: A y B de 0 a 10, C y D de 10 a 20, y así. A y B completan sus 30 ms a los **50 ms**; C y D, a los **60 ms**. Promedio: (50 + 50 + 60 + 60) ÷ 4 = **55 ms**.
 - La última termina igual a los 60 ms: con trabajo de pura CPU, turnarse no acelera; solo reparte la espera.
 ? [medio] El gateway gasta 6 ms de CPU y espera 12 ms a Triton por request, en un solo núcleo. ¿Cuántas requests por segundo da con 1 en vuelo? ¿Con 2? ¿Cuántas en vuelo hacen falta para llenar el núcleo?
-- Cada request tarda 6 + 12 = 18 ms. Con 1 en vuelo: 1,000 ÷ 18 ≈ **55.6** requests por segundo, con la CPU al 55.6 × 6 ÷ 1,000 ≈ 33 %.
-- Con 2 en vuelo: 2 × 1,000 ÷ 18 ≈ **111.1**.
-- El tope de un núcleo es 1,000 ÷ 6 ≈ **166.7**. Para llegar hacen falta 18 ÷ 6 = **3** en vuelo: 3 × 55.6 ≈ 166.7.
+- Usa las fórmulas de la sección 4, con \(c\) = 6, \(w\) = 12 y \(k\) = 1: \(t = c + w\), \(X = min(n × 1,000/t, k × 1,000/c)\) y \(n_{lleno} = k × t/c\).
+- Cada request tarda \(t\) = 6 + 12 = 18 ms. El tope de la CPU es \(k × 1,000/c\) = 1 × 1,000 ÷ 6 ≈ 166.7.
+- Con \(n\) = 1: 1 × 1,000 ÷ 18 ≈ 55.6, menos que 166.7, así que \(X\) ≈ **55.6** requests por segundo. La CPU trabaja \(X × c\) = 55.6 × 6 ≈ 333 ms de cada 1,000: ≈ 33 %.
+- Con \(n\) = 2: 2 × 1,000 ÷ 18 ≈ **111.1**, todavía abajo del tope.
+- Para llenar el núcleo: \(n_{lleno}\) = 1 × 18 ÷ 6 = **3** en vuelo, que dan 3 × 1,000 ÷ 18 ≈ 166.7, justo el tope.
 ? [medio] Un contenedor con 2 GiB de límite corre un proceso que usa 300 MB de base, sin otros archivos en memoria, y cada PNG de 40 MP ocupa 320 MB al decodificarse. ¿Cuántos decodes caben a la vez? ¿Qué pasa con uno más?
-- 2 GiB = 2,147,483,648 B ≈ 2,147 MB. Quedan 2,147 − 300 = 1,847 MB, y 1,847 ÷ 320 ≈ 5.8: caben **5**.
-- Con 5: 300 + 5 × 320 = 1,900 MB, el 88 % del límite.
-- Con 6: 300 + 6 × 320 = 2,220 MB, más que 2,147. El kernel mata al proceso: **OOMKilled**, código 137, y el kubelet lo reinicia.
+- Usa \(f_{max} = (L − b − a)/d\) y \(M = b + a + f × d\), con \(b\) = 300 MB, \(a\) = 0 (no hay archivos) y \(d\) = 320 MB.
+- \(L\) = 2 GiB = 2 × 1,024 × 1,024 × 1,024 B = 2,147,483,648 B ≈ 2,147 MB.
+- \(f_{max}\) = (2,147 − 300 − 0) ÷ 320 = 1,847 ÷ 320 ≈ 5.8: caben **5**.
+- Con 5: \(M\) = 300 + 0 + 5 × 320 = 1,900 MB; 1,900 ÷ 2,147 ≈ 88 % del límite.
+- Con 6: \(M\) = 300 + 0 + 6 × 320 = 2,220 MB, más que 2,147. El kernel mata al proceso: **OOMKilled**, código 137, y el kubelet lo reinicia.
 ? [medio] Un pod tiene un preStop de 5 s, su servidor tarda hasta 25 s en drenar y nadie cambió el plazo de gracia. ¿Alcanza? ¿Qué cambias?
-- El plazo por omisión es 30 s, y 5 + 25 = 30: el margen es **cero**. Si un día el drenado tarda 26 s, el SIGKILL llega a media respuesta.
-- Sube `terminationGracePeriodSeconds` a preStop + drenado + margen: 5 + 25 + 10 = **40 s** o más, como los 45 s del gateway de C01.
+- Usa \(G = p + D + m\). El plazo por omisión es \(G\) = 30 s, con \(p\) = 5 y \(D\) = 25: \(m\) = 30 − 5 − 25 = **0**, sin margen. Si un día el drenado tarda 26 s, el SIGKILL llega a media respuesta.
+- Sube `terminationGracePeriodSeconds` a \(G = p + D + m\) con un margen de, por ejemplo, 10 s: 5 + 25 + 10 = **40 s** o más, como los 45 s del gateway de Alba.
 ? [reto] Un contenedor tiene un límite de CPU de 1.5 núcleos: 150 ms de CPU por cada ventana de 100 ms, y si se los acaba antes, se congela hasta la siguiente ventana. Llegan 4 fotos a la vez y 4 hilos las decodifican en paralelo, con 40 ms de CPU cada una. ¿Cuándo termina cada foto? ¿Y con un límite de 2 núcleos?
-- Con 1.5: los 4 hilos gastan 4 ms de CPU por cada ms, así que la cuota se acaba a los 150 ÷ 4 = **37.5 ms**. Cada foto lleva 37.5 ms; le faltan 2.5 ms.
-- El contenedor queda congelado hasta el ms 100. Ahí terminan, a los 100 + 2.5 = **102.5 ms**: les faltaba el 6 % del trabajo y tardaron 2.6 veces lo necesario.
-- Con 2 núcleos, la cuota es de 200 ms y las cuatro fotos necesitan 4 × 40 = 160 ms: cabe. Terminan a los **40 ms**, sin congelarse.
+- Usa las fórmulas del límite de CPU: \(Q = k × 100\), \(t_Q = Q/h\) y \(t_{fin} = 100 + (c − t_Q)\), con \(h\) = 4 hilos y \(c\) = 40 ms.
+- Con \(k\) = 1.5: \(Q\) = 1.5 × 100 = 150 ms de CPU. Los 4 hilos gastan 4 ms de CPU por cada ms, así que \(t_Q\) = 150 ÷ 4 = **37.5 ms**. Cada foto lleva 37.5 ms; le faltan \(c − t_Q\) = 40 − 37.5 = 2.5 ms.
+- El contenedor queda congelado hasta el ms 100. Ahí terminan: \(t_{fin}\) = 100 + 2.5 = **102.5 ms**. Les faltaba 2.5 ÷ 40 ≈ 6 % del trabajo y tardaron 102.5 ÷ 40 ≈ 2.6 veces lo necesario.
+- Con \(k\) = 2: \(Q\) = 2 × 100 = 200 ms, y \(t_Q\) = 200 ÷ 4 = 50 ms, más que los \(c\) = 40 ms de cada foto (las cuatro juntas gastan 4 × 40 = 160 ms, menos que 200): cabe. Terminan a los **40 ms**, sin congelarse.
 - La lección: el límite de CPU es un precipicio. O no pasa nada, o pagas el resto de la ventana.
 ? [reto] Cada deploy del gateway tarda 45 s por pod, y durante los deploys los clientes ven errores. Los pods viejos terminan con Exit Code 137, sin OOMKilled, y en sus logs no aparece el mensaje de apagado de uvicorn. ¿Qué pasa? ¿Cómo lo confirmas y cómo lo arreglas?
 - 137 sin OOMKilled es un SIGKILL del kubelet: el proceso seguía vivo al vencer el plazo de **45 s**. Eso explica los 45 s por pod.
@@ -746,18 +800,9 @@ Resuélvelos con lápiz antes de abrir la solución. Los de requests por segundo
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
+En Sensei siguen «Memoria, caché y disco», que abre la RAM donde viven los procesos y la memoria virtual, y «CPU y GPU», que cuenta los núcleos, las vCPU y CUDA. «El sistema operativo» explica el kernel, los cgroups que ponen los límites y cómo un proceso le pide cosas al kernel. «Hacer varias cosas a la vez» sigue con el event loop, el GIL y los threadpools. Más adelante, «Colas y streams» vuelve a los workers y al mensaje venenoso, «Empaquetado con Docker» al PID 1, la forma exec y tini, y «Kubernetes» a las probes, el OOMKilled y el plazo de gracia.
 
-- **M02 · Patrones de inferencia:** los workers que toman mensajes de una cola, y el mensaje venenoso que provoca un OOM y mata al proceso sin excepción.
-- **M03 · Latencia y capacidad:** las requests en vuelo, Locust con varios procesos y dos causas de un p99 alto: el límite de CPU que congela, el de «En la vida real», y las pausas del propio proceso.
-- **M05 · Contenedores:** un proceso por contenedor, la forma exec que hace a uvicorn el PID 1, tini y `PYTHONUNBUFFERED=1`.
-- **M06 · Orquestación y escalado:** OOMKilled y su 137, las probes, el apagado ordenado con preStop y plazo de gracia, y los workers que reciben SIGTERM a mitad de un trabajo.
-- **M07 · Servidores de modelos:** `uvicorn --workers 4` y sus 4 copias del modelo, el threadpool del gateway y las instancias de Triton, con un proceso por instancia en su backend de Python.
-- **M08 · Optimización de modelos:** hilos contra procesos, medidos con una ResNet-50 en CPU.
-
-**En el Dojo:** la estación 7, «Empaquetado (Docker)», revisa que el PID 1 de cada imagen sea uvicorn y que el proceso cierre en menos de un segundo al recibir SIGTERM. Cuando abran, la 6, «Código de serving», arma el threadpool del gateway, y la 9, «Kubernetes», las probes y el plazo de gracia.
-
-**En Sensei:** «Memoria, caché y disco» abre la RAM donde viven los procesos y la memoria virtual. «CPU y GPU» cuenta los núcleos, las vCPU y CUDA. «El sistema operativo» explica el kernel, los cgroups que ponen los límites y cómo un proceso le pide cosas al kernel. «Hacer varias cosas a la vez» sigue con el event loop, el GIL y los threadpools. Dos avisos para la Ronda: en las GPUs, *kernel* es otra cosa, una función que corre en la GPU ([[kernel-gpu]]); y *scheduler* también nombra a la pieza de Kubernetes que decide en qué máquina corre cada pod y a la de Triton que junta requests en batches.
+Dos avisos para lo que viene: en las GPUs, *kernel* es otra cosa, una función que corre en la GPU ([[kernel-gpu]]); y *scheduler* también nombra a la pieza de Kubernetes que decide en qué máquina corre cada pod y a la de Triton que junta requests en batches.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -773,8 +818,8 @@ Intenta responder en tu cabeza antes de abrir cada respuesta.
 
 :::chequeo
 ? ¿Cuál es la diferencia entre un programa y un proceso?
-El programa es un archivo con instrucciones, quieto en el disco. El proceso es ese programa corriendo, con memoria propia, un PID, al menos un hilo y sus archivos abiertos. Del mismo programa corren muchos procesos, como los pods del gateway de C01.
-? Cuando «corre el gateway» de C01, ¿qué programa está corriendo de verdad?
+El programa es un archivo con instrucciones, quieto en el disco. El proceso es ese programa corriendo, con memoria propia, un PID, al menos un hilo y sus archivos abiertos. Del mismo programa corren muchos procesos, como los pods del gateway de Alba.
+? Cuando «corre el gateway» de Alba, ¿qué programa está corriendo de verdad?
 El binario `python`, el intérprete, que ejecuta el bytecode de uvicorn y de la app. Triton, en cambio, es un binario ya compilado desde C++: `tritonserver`.
 ? ¿Qué comparten dos hilos del mismo proceso, y qué tiene cada uno?
 Comparten la memoria, los archivos abiertos y el PID. Cada uno tiene su lugar en el código y su pila. Por compartir memoria, dos hilos pueden pisarse (una condición de carrera), y por eso existen los candados.

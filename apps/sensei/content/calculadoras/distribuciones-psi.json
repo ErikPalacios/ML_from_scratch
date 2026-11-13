@@ -1,10 +1,10 @@
 {
   "titulo": "PSI de dos histogramas",
-  "intro": "Cinco bins del brillo de las fotos de C01. Arriba, qué porcentaje cayó en cada bin en la [[referencia]] (octubre); abajo, esta semana. Si tus porcentajes no suman 100, la calculadora los reparte para que sí sumen.",
+  "intro": "Cinco bins del brillo de las fotos de Alba, el marketplace del curso. Arriba, qué porcentaje cayó en cada bin en la [[referencia]] (octubre), \\(e_i\\); abajo, esta semana, \\(a_i\\). Si tus porcentajes no suman 100, la calculadora los reparte para que sí sumen. Luego aplica \\(text{PSI} = sum (a_i − e_i) × ln(a_i/e_i)\\), con cada proporción como fracción.",
   "entradas": [
     {
       "id": "e1",
-      "label": "Referencia, bin 1 · muy oscuras",
+      "label": "Referencia, bin 1 · muy oscuras: \\(e_1\\) en %",
       "min": 0,
       "max": 60,
       "paso": 1,
@@ -13,7 +13,7 @@
     },
     {
       "id": "e2",
-      "label": "Referencia, bin 2 · oscuras",
+      "label": "Referencia, bin 2 · oscuras: \\(e_2\\) en %",
       "min": 0,
       "max": 60,
       "paso": 1,
@@ -22,7 +22,7 @@
     },
     {
       "id": "e3",
-      "label": "Referencia, bin 3 · medias",
+      "label": "Referencia, bin 3 · medias: \\(e_3\\) en %",
       "min": 0,
       "max": 60,
       "paso": 1,
@@ -31,7 +31,7 @@
     },
     {
       "id": "e4",
-      "label": "Referencia, bin 4 · claras",
+      "label": "Referencia, bin 4 · claras: \\(e_4\\) en %",
       "min": 0,
       "max": 60,
       "paso": 1,
@@ -40,7 +40,7 @@
     },
     {
       "id": "e5",
-      "label": "Referencia, bin 5 · muy claras",
+      "label": "Referencia, bin 5 · muy claras: \\(e_5\\) en %",
       "min": 0,
       "max": 60,
       "paso": 1,
@@ -49,7 +49,7 @@
     },
     {
       "id": "a1",
-      "label": "**Esta semana**, bin 1 · muy oscuras",
+      "label": "**Esta semana**, bin 1 · muy oscuras: \\(a_1\\) en %",
       "min": 0,
       "max": 60,
       "paso": 1,
@@ -58,7 +58,7 @@
     },
     {
       "id": "a2",
-      "label": "**Esta semana**, bin 2 · oscuras",
+      "label": "**Esta semana**, bin 2 · oscuras: \\(a_2\\) en %",
       "min": 0,
       "max": 60,
       "paso": 1,
@@ -67,7 +67,7 @@
     },
     {
       "id": "a3",
-      "label": "**Esta semana**, bin 3 · medias",
+      "label": "**Esta semana**, bin 3 · medias: \\(a_3\\) en %",
       "min": 0,
       "max": 60,
       "paso": 1,
@@ -76,7 +76,7 @@
     },
     {
       "id": "a4",
-      "label": "**Esta semana**, bin 4 · claras",
+      "label": "**Esta semana**, bin 4 · claras: \\(a_4\\) en %",
       "min": 0,
       "max": 60,
       "paso": 1,
@@ -85,7 +85,7 @@
     },
     {
       "id": "a5",
-      "label": "**Esta semana**, bin 5 · muy claras",
+      "label": "**Esta semana**, bin 5 · muy claras: \\(a_5\\) en %",
       "min": 0,
       "max": 60,
       "paso": 1,
@@ -172,25 +172,27 @@
       "label": "**PSI**",
       "formula": "psi",
       "formato": "num",
-      "decimales": 3
+      "decimales": 3,
+      "nota": "la suma de los cinco aportes de abajo"
     },
     {
-      "label": "Veredicto",
+      "label": "Veredicto, según la tabla de lectura",
       "formula": "psi < 0.1 ? 0 : (psi <= 0.25 ? 1 : 2)",
       "formato": "int",
       "nota": "0 = estable (menos de 0.1) · 1 = mirar (0.1 a 0.25) · 2 = cambio grande (más de 0.25)"
     },
     {
-      "label": "Contra el umbral de acción de C01",
+      "label": "Contra el umbral de acción de Alba, PSI ÷ 0.2",
       "formula": "psi / 0.2",
       "formato": "x",
-      "nota": "arriba de 1× tres días seguidos, C01 abre un ticket"
+      "nota": "arriba de 1× tres días seguidos, Alba abre un ticket"
     },
     {
       "label": "Aporte del bin 1 · muy oscuras",
       "formula": "t1",
       "formato": "num",
       "decimales": 4,
+      "nota": "\\((a_1 − e_1) × ln(a_1/e_1)\\)",
       "barra": true
     },
     {
@@ -198,6 +200,7 @@
       "formula": "t2",
       "formato": "num",
       "decimales": 4,
+      "nota": "\\((a_2 − e_2) × ln(a_2/e_2)\\)",
       "barra": true
     },
     {
@@ -205,6 +208,7 @@
       "formula": "t3",
       "formato": "num",
       "decimales": 4,
+      "nota": "\\((a_3 − e_3) × ln(a_3/e_3)\\)",
       "barra": true
     },
     {
@@ -212,6 +216,7 @@
       "formula": "t4",
       "formato": "num",
       "decimales": 4,
+      "nota": "\\((a_4 − e_4) × ln(a_4/e_4)\\)",
       "barra": true
     },
     {
@@ -219,6 +224,7 @@
       "formula": "t5",
       "formato": "num",
       "decimales": 4,
+      "nota": "\\((a_5 − e_5) × ln(a_5/e_5)\\)",
       "barra": true
     }
   ],

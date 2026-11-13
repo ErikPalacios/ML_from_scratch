@@ -12,15 +12,15 @@
     { "id": "modelo", "label": "Modelo", "sub": "ResNet-50", "kind": "model", "x": 21, "y": 7, "w": 16, "h": 9,
       "note": "Es la única caja que aprendió algo. Hace la [[inferencia]]: miles de millones de multiplicaciones y sumas con sus [[parametro|parámetros]] fijos. Entrega 500 [[logit|logits]], uno por categoría, no una respuesta." },
     { "id": "softmax", "label": "Softmax + top-5", "sub": "logits → %", "kind": "service", "x": 41, "y": 7, "w": 16, "h": 9,
-      "note": "Está aquí porque los logits no se pueden mostrar ni comparar con una línea. [[softmax|Softmax]] los vuelve 500 probabilidades que suman 1, y el [[top-k]] se queda con las 5 más altas, con su nombre de categoría. En C01 lo hace el programa que está frente al modelo, no el modelo." },
+      "note": "Está aquí porque los logits no se pueden mostrar ni comparar con una línea. [[softmax|Softmax]] los vuelve 500 probabilidades que suman 1, y el [[top-k]] se queda con las 5 más altas, con su nombre de categoría. En Alba lo hace el programa que está frente al modelo, no el modelo." },
     { "id": "sugerencias", "label": "Sugerencias", "sub": "Ana elige una", "kind": "client", "x": 61, "y": 7, "w": 16, "h": 9,
       "note": "Es lo que el sistema le da a Ana: las cinco categorías en orden, cada una con su score. Ella toca la correcta o, si ninguna es, busca en el selector de categorías." },
     { "id": "regla", "label": "Regla", "sub": "¿top-1 < 0.3?", "kind": "service", "x": 41, "y": 31, "w": 16, "h": 9,
-      "note": "Un [[umbral]] que eligió una persona, no el modelo, y que se puede cambiar sin reentrenar. Está aquí para encontrar las fotos dudosas: en C01, un top-1 menor que 0.3 es «baja confianza». No cambia lo que ve Ana." },
+      "note": "Un [[umbral]] que eligió una persona, no el modelo, y que se puede cambiar sin reentrenar. Está aquí para encontrar las fotos dudosas: en Alba, un top-1 menor que 0.3 es «baja confianza». No cambia lo que ve Ana." },
     { "id": "cola", "label": "Etiquetado", "sub": "una persona revisa", "kind": "queue", "x": 21, "y": 31, "w": 16, "h": 9,
       "note": "Está aquí porque las fotos dudosas son las que más le pueden enseñar al modelo: se apartan para que una persona les ponga su [[etiqueta]] y entren al siguiente [[entrenamiento]]." },
     { "id": "alerta", "label": "Alerta", "sub": "¿el doble de lo normal?", "kind": "monitor", "x": 61, "y": 31, "w": 16, "h": 9,
-      "note": "Está aquí porque la tasa de fotos dudosas avisa en minutos que algo cambió. En C01 salta si llega al doble de su promedio de 7 días durante 30 minutos: un error al preparar las fotos, un tipo de foto nueva o un modelo malo." }
+      "note": "Está aquí porque la tasa de fotos dudosas avisa en minutos que algo cambió. En Alba salta si llega al doble de su promedio de 7 días durante 30 minutos: un error al preparar las fotos, un tipo de foto nueva o un modelo malo." }
   ],
   "edges": [
     { "from": "foto", "to": "modelo", "kind": "online" },

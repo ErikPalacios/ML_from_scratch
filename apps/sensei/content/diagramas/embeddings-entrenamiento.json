@@ -7,7 +7,7 @@
   ],
   "nodes": [
     { "id": "pares", "label": "Pares del batch", "sub": "B fotos con su título", "kind": "store", "x": 29, "y": 4, "w": 20, "h": 8,
-      "note": "Pares que deben quedar juntos: la foto principal de una publicación y su título. El encoder de C07 se ajusta con pares (título, foto) del propio marketplace; CLIP usó ≈ 400 millones de pares de internet, en batches de 32,768." },
+      "note": "Pares que deben quedar juntos: la foto principal de una publicación y su título. El encoder de la búsqueda de Alba se ajusta con pares (título, foto) de su propio catálogo; CLIP usó ≈ 400 millones de pares de internet, en batches de 32,768." },
     { "id": "torre-img", "label": "Torre de imagen", "sub": "foto → vector", "kind": "model", "x": 2, "y": 17, "w": 18, "h": 8,
       "note": "Una red de visión (una CNN o un [[vit|ViT]]) que convierte cada foto en un vector de 512 números y lo normaliza. Es la mitad del modelo de [[dos-torres|dos torres]]." },
     { "id": "tabla", "label": "Tabla B × B", "sub": "coseno de cada par", "kind": "job", "x": 29, "y": 17, "w": 20, "h": 8,

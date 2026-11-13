@@ -2,7 +2,7 @@
   { "id": "matriz", "termino": "Matriz", "en": "matrix",
     "corto": "Una tabla de números ordenada en filas y columnas, todas del mismo largo. Su tamaño se dice «filas × columnas»: una matriz de 2 × 3 tiene 2 filas y 3 columnas.",
     "largo": "Es el paso que sigue al [[vector]]: un vector es una sola fila (o una sola columna) de números; una matriz, varias filas del mismo largo. Cada número se ubica por su fila y su columna. En ML casi todo es una matriz o se guarda como una: los pesos de una [[capa]] densa (una fila por número que entra y una columna por salida), un [[batch]] de [[embedding|embeddings]] (una fila por foto) o una tabla de datos (una fila por [[ejemplo]] y una columna por [[feature]]). Una matriz es un [[tensor]] de dos dimensiones, y su [[shape]] es [filas, columnas]. Lo que ocupa en memoria es filas × columnas × los bytes de su [[dtype]].",
-    "ejemplo": "Los pesos de la última capa de la ResNet-50 de C01 forman una matriz de 2,048 × 500: una fila por cada número que sale del backbone y una columna por categoría. Son 1,024,000 números: ≈ 2 MB en FP16 y ≈ 4.1 MB en float32.",
+    "ejemplo": "Alba, un marketplace, clasifica cada foto en 500 categorías con una ResNet-50. Los pesos de su última capa forman una matriz de 2,048 × 500: una fila por cada número que sale del backbone y una columna por categoría. Son 1,024,000 números: ≈ 2 MB en FP16 y ≈ 4.1 MB en float32.",
     "ver": ["vector", "tensor", "shape", "multiplicacion-matrices"],
     "leccion": "flops" },
 
@@ -16,7 +16,7 @@
   { "id": "flop", "termino": "FLOP", "en": "floating-point operation",
     "corto": "Una operación con números decimales: una suma o una multiplicación en punto flotante. Contar FLOPs dice cuánto trabajo pide un cálculo, sin importar en qué máquina corra.",
     "largo": "El plural se escribe FLOPs, con s minúscula, y es una **cantidad**. No lo confundas con FLOPS, con S mayúscula, que es una **velocidad**: FLOPs por segundo (ver [[tflops|TFLOPS]]). Una multiplicación con su suma, una [[mac|MAC]], son 2 FLOPs, así que multiplicar una matriz de n × k por una de k × m cuesta 2 × n × m × k FLOPs. Se usan los prefijos de siempre: MFLOPs (millones), GFLOPs (miles de millones), TFLOPs (billones, 10¹²). Ojo: muchos artículos y tablas llaman «FLOPs» a lo que en realidad son MACs; antes de comparar dos números, revisa cuál cuenta cada uno.",
-    "ejemplo": "La ResNet-50 de C01 hace ≈ 4.1 mil millones de MACs por foto: ≈ 8.2 GFLOPs. Un LLM hace ≈ 2 FLOPs por parámetro por cada token: Llama 3 8B, con 8.03 mil millones de parámetros, ≈ 16 GFLOPs por token.",
+    "ejemplo": "La ResNet-50 con la que Alba clasifica fotos hace ≈ 4.1 mil millones de MACs por foto: ≈ 8.2 GFLOPs. Un LLM hace ≈ 2 FLOPs por parámetro por cada token: Llama 3 8B, con 8.03 mil millones de parámetros, ≈ 16 GFLOPs por token.",
     "ver": ["mac", "tflops", "multiplicacion-matrices", "punto-flotante"],
     "leccion": "flops" },
 
@@ -30,7 +30,7 @@
   { "id": "tflops", "termino": "TFLOPS", "en": "teraFLOPS",
     "corto": "Billones (10¹²) de operaciones de punto flotante por segundo: la velocidad de cálculo de un chip. Una T4 anuncia 65 TFLOPS en FP16; una H100, ≈ 990.",
     "largo": "La S mayúscula es «por segundo»: FLOPS es una velocidad y FLOPs, con s minúscula, una cantidad. Lo que publica el fabricante es el **pico** teórico: todos los núcleos trabajando sin parar con un tipo de dato concreto. Depende mucho de la precisión: la T4 hace 8.1 TFLOPS en float32 y 65 en FP16 con sus *tensor cores*. Con enteros se dice TOPS (operaciones, no de punto flotante): 130 TOPS en INT8 en la T4. Si la hoja de datos dice *with sparsity*, divide entre 2: supone un modelo podado con un patrón especial. El tiempo mínimo de un cálculo es sus [[flop|FLOPs]] ÷ los FLOPS; en la práctica se logra una fracción, porque a menudo manda el [[ancho-banda-memoria|ancho de banda de memoria]] (ver [[roofline]]).",
-    "ejemplo": "La ResNet-50 hace 8.2 GFLOPs por foto. En una T4, a 65 TFLOPS: 8.2 × 10⁹ ÷ (65 × 10¹²) ≈ 0.126 ms por foto, un techo de ≈ 7,900 fotos por segundo. Lo que se mide en C01 es ≈ 1,200: ≈ 15 % del pico.",
+    "ejemplo": "La ResNet-50 hace 8.2 GFLOPs por foto. En una T4, a 65 TFLOPS: 8.2 × 10⁹ ÷ (65 × 10¹²) ≈ 0.126 ms por foto, un techo de ≈ 7,900 fotos por segundo. Alba, el marketplace que sigue el curso, mide ≈ 1,200 fotos por segundo en sus T4: ≈ 15 % del pico.",
     "ver": ["flop", "gpu", "roofline"],
     "leccion": "flops" },
 

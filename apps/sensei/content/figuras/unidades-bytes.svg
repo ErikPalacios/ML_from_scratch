@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 560" role="img" aria-labelledby="f-unidades-bytes-t" class="f-svg" style="max-width:420px">
-<title id="f-unidades-bytes-t">Una regla de tamaños en potencias de diez, de 1 byte arriba a 1 petabyte abajo; cada marca vale 10 veces la anterior y cada prefijo nuevo, kilo, mega, giga, tera y peta, vale mil veces el anterior. Junto a la regla: 1 byte es un canal de un píxel en uint8; 4 bytes, un número en float32; unos 300 bytes, el log de una predicción; unos 3 KB, un embedding de 768 números; unos 200 KB, la foto JPEG de Ana, y 602 KB la misma foto como tensor; unos 98 MB, la ResNet-50 de C01; 3 GB, los logs de un día de C01; 16 GB, la memoria de una GPU T4; unos 205 GB, el índice de búsqueda de C07; 1.1 TB, un año de logs de C01; unos 180 TB, un mes de tensores viajando por la red de C01; y unos 1.7 PB, un mes de audio en C13.</title>
+<title id="f-unidades-bytes-t">Una regla de tamaños en potencias de diez, de 1 byte arriba a 1 petabyte abajo; cada marca vale 10 veces la anterior y cada prefijo nuevo, kilo, mega, giga, tera y peta, vale mil veces el anterior. Junto a la regla: 1 byte es un canal de un píxel en uint8; 4 bytes, un número en float32; unos 300 bytes, el log de una predicción; unos 3 KB, un embedding de 768 números; unos 200 KB, la foto JPEG de Ana, y 602 KB la misma foto como tensor; unos 98 MB, la ResNet-50 de Alba; 3 GB, los logs de un día de Alba; 16 GB, la memoria de una GPU T4; unos 205 GB, el índice de búsqueda de Alba; 1.1 TB, un año de logs de Alba; unos 180 TB, un mes de tensores viajando por la red de Alba; y unos 1.7 PB, un mes de audio de un servicio de subtítulos en vivo.</title>
 <rect class="f-card" x="10" y="10" width="340" height="540" rx="16"/>
 <text class="f-l" x="28" y="36">DE 1 BYTE A 1 PETABYTE</text>
 <text class="f-s" x="28" y="56" style="font-size:12px">cada marca, × 10 · cada prefijo nuevo, × 1,000</text>
@@ -49,17 +49,17 @@
 <circle class="f-b" cx="92" cy="242.1" r="5"/>
 <text class="f-s" x="108" y="249.6">602 KB: la misma foto como tensor</text>
 <circle class="f-o" cx="92" cy="301.8" r="5"/>
-<text class="f-s" x="108" y="306.3">≈ 98 MB: la ResNet-50 de C01</text>
+<text class="f-s" x="108" y="306.3">≈ 98 MB: la ResNet-50 de Alba</text>
 <circle class="f-y" cx="92" cy="341.9" r="5"/>
-<text class="f-s" x="108" y="344.4">3 GB: los logs de un día de C01</text>
+<text class="f-s" x="108" y="344.4">3 GB: los logs de un día de Alba</text>
 <circle class="f-o" cx="92" cy="361.5" r="5"/>
 <text class="f-s" x="108" y="368">16 GB: la VRAM de una T4</text>
 <circle class="f-p" cx="92" cy="391.4" r="5"/>
-<text class="f-s" x="108" y="395.9">≈ 205 GB: el índice de C07</text>
+<text class="f-s" x="108" y="395.9">≈ 205 GB: el índice de búsqueda</text>
 <circle class="f-y" cx="92" cy="411.1" r="5"/>
-<text class="f-s" x="108" y="415.6">1.1 TB: un año de logs de C01</text>
+<text class="f-s" x="108" y="415.6">1.1 TB: un año de logs de Alba</text>
 <circle class="f-b" cx="92" cy="470.9" r="5"/>
-<text class="f-s" x="108" y="475.4">≈ 180 TB: un mes de tensores de C01</text>
+<text class="f-s" x="108" y="475.4">≈ 180 TB: un mes de tensores de Alba</text>
 <circle class="f-p" cx="92" cy="497.2" r="5"/>
-<text class="f-s" x="108" y="501.7">≈ 1.7 PB: un mes de audio de C13</text>
+<text class="f-s" x="108" y="501.7">≈ 1.7 PB: un mes de audio en vivo</text>
 </svg>

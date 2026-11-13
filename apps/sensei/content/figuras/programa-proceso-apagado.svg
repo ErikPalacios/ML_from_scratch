@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 414" role="img" aria-labelledby="f-programa-proceso-apagado-t" class="f-svg" style="max-width:420px">
-<title id="f-programa-proceso-apagado-t">El apagado ordenado de un pod, en una escala de 0 a 60 segundos. En el segundo 0 el pod sale del balanceo. Triton en C01, con un plazo de 60 segundos: preStop de 0 a 10, SIGTERM en el segundo 10, drena lo que tiene en curso hasta 30 segundos, hasta el 40, y queda un margen hasta el 60, donde llegaría el SIGKILL si sigue vivo. El gateway de C01, con un plazo de 45 segundos: preStop de 0 a 15, SIGTERM en el 15, drena hasta 20 segundos, hasta el 35, margen hasta el 45 y SIGKILL ahí si sigue vivo. Si nadie lo cambia, el plazo es de 30 segundos: sin preStop, SIGTERM en el segundo 0 y SIGKILL en el 30.</title>
+<title id="f-programa-proceso-apagado-t">El apagado ordenado de un pod, en una escala de 0 a 60 segundos. En el segundo 0 el pod sale del balanceo. Triton en Alba, con un plazo de 60 segundos: preStop de 0 a 10, SIGTERM en el segundo 10, drena lo que tiene en curso hasta 30 segundos, hasta el 40, y queda un margen hasta el 60, donde llegaría el SIGKILL si sigue vivo. El gateway de Alba, con un plazo de 45 segundos: preStop de 0 a 15, SIGTERM en el 15, drena hasta 20 segundos, hasta el 35, margen hasta el 45 y SIGKILL ahí si sigue vivo. Si nadie lo cambia, el plazo es de 30 segundos: sin preStop, SIGTERM en el segundo 0 y SIGKILL en el 30.</title>
 <rect class="f-card" x="10" y="10" width="340" height="394" rx="16"/>
 <text class="f-l" x="26" y="36">EL APAGADO ORDENADO DE UN POD</text>
 <text class="f-s" x="26" y="56" style="font-size:12px">Segundo 0: el pod sale del balanceo.</text>
-<text class="f-s" x="26" y="84" style="font-size:13px;font-weight:700">Triton en C01 · plazo de 60 s</text>
+<text class="f-s" x="26" y="84" style="font-size:13px;font-weight:700">Triton en Alba · plazo de 60 s</text>
 <rect class="f-y" x="26" y="94" width="50.3" height="26" rx="3"/>
 <text x="51.2" y="111.5" text-anchor="middle" style="fill:var(--navy);font:700 12px var(--sans)">10 s</text>
 <rect class="f-b" x="77.3" y="94" width="153" height="26" rx="3"/>
@@ -14,7 +14,7 @@
 <line x1="333" y1="120" x2="333" y2="127" style="stroke:var(--ink);stroke-width:1.5"/>
 <text class="f-s" x="77.3" y="141" text-anchor="middle" style="font-size:12px;font-weight:700">SIGTERM</text>
 <text class="f-s" x="334" y="141" text-anchor="end" style="font-size:12px;font-weight:700">SIGKILL si sigue vivo</text>
-<text class="f-s" x="26" y="172" style="font-size:13px;font-weight:700">Gateway en C01 · plazo de 45 s</text>
+<text class="f-s" x="26" y="172" style="font-size:13px;font-weight:700">Gateway en Alba · plazo de 45 s</text>
 <rect class="f-y" x="26" y="182" width="76" height="26" rx="3"/>
 <text x="64" y="199.5" text-anchor="middle" style="fill:var(--navy);font:700 12px var(--sans)">15 s</text>
 <rect class="f-b" x="103" y="182" width="101.7" height="26" rx="3"/>

@@ -30,7 +30,7 @@ En la lección de imágenes viste que una foto, para el modelo, es un [[tensor]]
 
 ### Un mapa de productos
 
-Imagina que tomamos cuatro productos del marketplace de C01 y los colocamos en un plano, de modo que los que se parecen queden juntos. Una forma posible:
+Alba, la empresa que seguimos en todo el curso, es un marketplace en línea: una tienda donde cualquiera publica lo que vende. Tiene ≈ 100 millones de publicaciones activas, recibe ≈ 2.5 millones nuevas al día y, cuando alguien publica, le sugiere la categoría de cada foto, entre 500 posibles. Imagina que tomamos cuatro productos de Alba y los colocamos en un plano, de modo que los que se parecen queden juntos. Una forma posible:
 
 | Producto | Vector |
 |---|---|
@@ -51,9 +51,9 @@ Fíjate en algo importante: **los ejes no tienen nombre**. No dijimos «el eje x
 
 Un [[embedding]] es el vector que un modelo produce para una cosa (una foto, una frase, un producto, un usuario) con una propiedad muy especial: **cosas parecidas producen vectores cercanos**.
 
-¿De dónde sale? De una [[red-neuronal|red neuronal]] ya entrenada. En la lección de redes viste que una red es una pila de [[capa|capas]], y que cada capa transforma los números que recibe. Las primeras capas detectan cosas simples (bordes, colores); las de más adentro, cosas más abstractas (una suela, unas agujetas). La última capa convierte todo eso en la respuesta final, por ejemplo las 500 categorías de C01.
+¿De dónde sale? De una [[red-neuronal|red neuronal]] ya entrenada. En la lección de redes viste que una red es una pila de [[capa|capas]], y que cada capa transforma los números que recibe. Las primeras capas detectan cosas simples (bordes, colores); las de más adentro, cosas más abstractas (una suela, unas agujetas). La última capa convierte todo eso en la respuesta final, por ejemplo las 500 categorías entre las que elige el clasificador de fotos de Alba.
 
-Si cortas la red **justo antes de esa última capa**, lo que sale es un vector que resume la foto. Ese vector es un embedding. En la ResNet-50 de C01, justo antes de la última capa, sale un vector de 2,048 números.
+Si cortas la red **justo antes de esa última capa**, lo que sale es un vector que resume la foto. Ese vector es un embedding. En la ResNet-50 con la que Alba clasifica sus fotos, justo antes de la última capa, sale un vector de 2,048 números.
 
 :::ejemplo Por qué ese vector agrupa lo parecido
 Para elegir bien entre 500 categorías, la red tuvo que aprender a dejar las fotos de cada categoría en su propia zona de su espacio interno: si una foto de tenis cayera en la zona de las bolsas, la última capa le pondría «bolsa». Y como tenis y botas comparten mucho (suela, agujetas, forma de pie), sus zonas suelen quedar cerca, y la de las bolsas, lejos. Nadie le pidió «agrupa lo parecido»: lo aprendió porque le servía para acertar. Es una tendencia, no una garantía: el entrenamiento solo le pedía separar categorías.
@@ -92,15 +92,24 @@ Un embedding funciona como las coordenadas de una ciudad en un mapa: dos ciudade
 :::
 
 :::ojo
-Dos embeddings solo se pueden comparar si los produjo **el mismo modelo, en la misma versión**. Cada modelo inventa su propio «mapa». Comparar el vector de una foto hecho con la versión 1 contra uno hecho con la versión 2 es como comparar coordenadas de dos mapas con distinto origen y distinta escala: la cuenta sale, pero no significa nada. En la Ronda esto aparece como una regla: nunca mezclar versiones de embeddings en un mismo índice.
+Dos embeddings solo se pueden comparar si los produjo **el mismo modelo, en la misma versión**. Cada modelo inventa su propio «mapa». Comparar el vector de una foto hecho con la versión 1 contra uno hecho con la versión 2 es como comparar coordenadas de dos mapas con distinto origen y distinta escala: la cuenta sale, pero no significa nada. De ahí sale una regla: nunca mezclar versiones de embeddings en un mismo índice.
 :::
 
 ## El producto punto {The dot product}
 
 Para comparar dos embeddings hace falta una cuenta. La más importante de toda la lección, y una de las más repetidas de todo ML, es el [[producto-punto|producto punto]] (*dot product*): **multiplicas coordenada por coordenada y sumas todo**. Se escribe a · b, y el resultado es **un solo número**, no otro vector.
 
+:::formula Producto punto
+a · b = sum_{i=1}^{d} a_i × b_i
+a · b = a_1 × b_1 + … + a_d × b_d
+- a, b: los dos vectores que comparas, con la misma cantidad de números
+- d: la dimensión: cuántos números trae cada vector
+- a_i, b_i: el número que está en la posición \(i\) de cada vector (\(a_1\) es el primero)
+- sum_{i=1}^{d}: «suma lo que sigue para \(i\) = 1, 2, … hasta \(d\)»; las dos líneas dicen lo mismo
+:::
+
 :::ejemplo Tres productos punto con lápiz
-Tenis = (4, 3) y botas = (3, 4): 4 × 3 + 3 × 4 = 12 + 12 = **24**.
+Tenis = (4, 3) y botas = (3, 4): \(a_1 × b_1 + a_2 × b_2\) = 4 × 3 + 3 × 4 = 12 + 12 = **24**.
 
 Tenis y playera = (−3, 4): 4 × (−3) + 3 × 4 = −12 + 12 = **0**.
 
@@ -111,7 +120,7 @@ Con 3 números es igual: (1, 2, 3) · (4, 5, 6) = 4 + 10 + 18 = **32**. Con 512 
 
 No es una cuenta rara de matemáticos. La haces cada vez que pagas en una tienda: compras 2 playeras de $50, 1 gorra de $120 y 3 pares de calcetines de $15. Las cantidades son el vector (2, 1, 3) y los precios, (50, 120, 15). El total es su producto punto: 2 × 50 + 1 × 120 + 3 × 15 = 100 + 120 + 45 = **$265**. Cada cantidad se «pesa» con su precio y todo se suma.
 
-Y ya lo viste en la lección de redes: una [[neurona]] multiplica cada entrada por su peso y suma. Eso es el producto punto entre las entradas y los pesos, más el sesgo. La última capa de la ResNet-50 de C01 hace 500 productos punto, uno por categoría, de 2,048 números cada uno: 2,048 × 500 = 1,024,000 multiplicaciones para sacar los 500 [[logit|logits]].
+Y ya lo viste en la lección de redes: una [[neurona]] multiplica cada entrada por su peso y suma. Eso es el producto punto entre las entradas y los pesos, más el sesgo. La última capa de la ResNet-50 de Alba hace 500 productos punto, uno por categoría, de 2,048 números cada uno: 2,048 × 500 = 1,024,000 multiplicaciones para sacar los 500 [[logit|logits]].
 
 ### Lo que significa en el dibujo
 
@@ -131,9 +140,15 @@ Arriba, la sombra de los tenis sobre la dirección de las botas mide 4.8, y 4.8 
 
 ¿De qué depende el largo de esa sombra? Del largo de los tenis y del ángulo entre las dos flechas. Con el ángulo muy cerrado, la sombra es casi tan larga como la flecha; a 90°, desaparece; si el ángulo pasa de 90°, cae del lado contrario y cuenta como negativa. Esa fracción de la flecha que queda como sombra tiene un nombre que seguramente viste en la prepa: el **coseno** del ángulo, una función que vale 1 a 0°, 0 a 90° y −1 a 180°. Para tenis y botas el ángulo es de unos 16° y su coseno, 0.96: la sombra mide 5 × 0.96 = 4.8. Juntando todo:
 
-a · b = (largo de a) × (largo de b) × (coseno del ángulo entre a y b)
+:::formula Largo y producto punto
+‖a‖ = sqrt{a · a} = sqrt{sum_{i=1}^{d} a_i^2}
+a · b = ‖a‖ × ‖b‖ × cos θ
+- ‖a‖: el **largo** de la flecha \(a\) (Pitágoras), en las mismas unidades que sus números
+- θ: el ángulo entre las dos flechas, en grados (θ es la letra griega theta)
+- cos θ: el coseno de ese ángulo: 1 a 0°, 0 a 90°, −1 a 180°
+:::
 
-Con tenis y botas: 5 × 5 × 0.96 = 24.
+Con tenis y botas: \(‖a‖ × ‖b‖ × cos θ\) = 5 × 5 × 0.96 = 24.
 
 :::ojo
 **El producto punto mezcla dirección y largo.** Una flecha más larga saca productos punto más grandes con todo. (8, 6) apunta exactamente hacia donde apunta (4, 3), pero (8, 6) · (3, 4) = 24 + 24 = 48, el doble. Si comparas embeddings con el producto punto sin cuidar el largo, un vector largo «se parece» a todo. La siguiente sección arregla eso.
@@ -148,6 +163,12 @@ Si «parecido» significa «cerca», necesitamos medir qué tan cerca están dos
 ### Distancia euclidiana: la de la regla
 
 La [[distancia-euclidiana|distancia euclidiana]] es la distancia en línea recta, la que medirías con una regla. Es el teorema de Pitágoras: restas coordenada por coordenada, elevas al cuadrado, sumas y sacas raíz.
+
+:::formula Distancia euclidiana
+D(a, b) = sqrt{sum_{i=1}^{d} (a_i − b_i)^2}
+- D(a, b): la distancia en línea recta entre las puntas de \(a\) y \(b\)
+- a_i − b_i: la diferencia en la posición \(i\); \(d\) es la dimensión, como en el producto punto
+:::
 
 :::ejemplo Distancia entre tenis y botas
 Tenis = (4, 3) y botas = (3, 4).
@@ -166,14 +187,19 @@ Con 512 números es lo mismo, solo que restas, elevas y sumas 512 veces.
 
 La [[similitud-coseno|similitud coseno]] no mide la distancia entre las puntas, sino el **ángulo** entre las dos flechas. Si apuntan en la misma dirección, vale 1. Si son perpendiculares (90°), vale 0. Si apuntan en direcciones opuestas, vale −1. Se calcula con la fórmula de la sección anterior, despejada: el producto punto dividido entre los dos largos.
 
-coseno = (a · b) ÷ (largo de a × largo de b)
+:::formula Similitud coseno
+cos θ = frac{a · b}{‖a‖ × ‖b‖}
+- a · b: el producto punto de los dos vectores
+- ‖a‖, ‖b‖: sus largos
+- cos θ: la similitud coseno, entre −1 y 1, sin unidades
+:::
 
 :::cuenta El coseno entre tenis y botas
-Producto punto | 4 × 3 + 3 × 4 | 24
-Largo de los tenis // Pitágoras | √(4² + 3²) = √25 | 5
-Largo de las botas | √(3² + 4²) = √25 | 5
-Coseno | 24 ÷ (5 × 5) | **0.96**
-Ángulo // el que tiene ese coseno | arccos 0.96 | ≈ 16°
+Producto punto \(a · b\) // \(a\) = tenis (4, 3), \(b\) = botas (3, 4) | 4 × 3 + 3 × 4 | 24
+Largo de los tenis \(‖a‖\) // Pitágoras | √(4² + 3²) = √25 | 5
+Largo de las botas \(‖b‖\) | √(3² + 4²) = √25 | 5
+Coseno \(cos θ = a · b ÷ (‖a‖ × ‖b‖)\) | 24 ÷ (5 × 5) | **0.96**
+Ángulo \(θ\) // el que tiene ese coseno | arccos 0.96 | ≈ 16°
 = 0.96: casi la misma dirección. Con la playera: 0 ÷ 25 = **0** (90°, nada que ver). Con la bolsa: −7 ÷ 25 = **−0.28** (≈ 106°, lados algo opuestos).
 :::
 
@@ -191,8 +217,15 @@ Muchas veces lo que importa es la dirección (de qué se trata) y no el largo. P
 
 Normalizar un vector es dividir cada uno de sus números entre su largo, para que el vector mida exactamente 1. Se llama [[normalizacion-l2|normalización L2]] porque «norma L2» es el nombre técnico del largo de Pitágoras (la raíz de la suma de los cuadrados).
 
+:::formula Normalización L2
+u = frac{a}{‖a‖} = (frac{a_1}{‖a‖}, frac{a_2}{‖a‖}, …, frac{a_d}{‖a‖})
+- a: el vector original
+- ‖a‖: su largo
+- u: el vector normalizado: la misma dirección que \(a\), con largo \(‖u‖ = 1\)
+:::
+
 :::ejemplo Normalizar los tenis
-Los tenis (4, 3) miden 5. Divididos entre 5: (4 ÷ 5, 3 ÷ 5) = **(0.8, 0.6)**. Comprueba el largo: 0.8² + 0.6² = 0.64 + 0.36 = 1, y √1 = 1.
+Los tenis (4, 3) miden \(‖a‖\) = 5. Con \(u = a ÷ ‖a‖\), divididos entre 5: (4 ÷ 5, 3 ÷ 5) = **(0.8, 0.6)**. Comprueba el largo: 0.8² + 0.6² = 0.64 + 0.36 = 1, y √1 = 1.
 
 Las botas quedan en (0.6, 0.8); la playera, en (−0.6, 0.8), y la bolsa, en (−0.8, 0.6). Los tenis «largos» (8, 6) miden 10, y divididos entre 10 también quedan en (0.8, 0.6): normalizar borra la diferencia de largo y deja solo la dirección.
 :::
@@ -200,17 +233,17 @@ Las botas quedan en (0.6, 0.8); la playera, en (−0.6, 0.8), y la bolsa, en (�
 Con todos los vectores normalizados pasan dos cosas muy útiles:
 
 1. **El coseno es solo el producto punto**, porque los largos valen 1 y dividir entre 1 no cambia nada: (0.8, 0.6) · (0.6, 0.8) = 0.48 + 0.48 = 0.96. Una cuenta menos en cada comparación, y son millones de comparaciones.
-2. **La distancia y el coseno ordenan igual a los vecinos.** Con vectores de largo 1, la distancia al cuadrado es exactamente 2 − 2 × coseno. Mientras más alto el coseno, más chica la distancia.
+2. **La distancia y el coseno ordenan igual a los vecinos.** Con vectores de largo 1, la distancia al cuadrado es exactamente \(D^2 = 2 − 2 × cos θ\) (lo demuestras en los ejercicios). Mientras más alto el coseno, más chica la distancia.
 
 :::cuenta Distancia y coseno, con vectores de largo 1
-Coseno = producto punto // tenis (0.8, 0.6) y botas (0.6, 0.8), ya normalizados | 0.8 × 0.6 + 0.6 × 0.8 | 0.96
-Distancia al cuadrado | (0.8 − 0.6)² + (0.6 − 0.8)² | 0.08
-La misma, con la fórmula | 2 − 2 × 0.96 | 0.08
-Distancia | √0.08 | ≈ 0.28
+Coseno \(cos θ = a · b\) // tenis (0.8, 0.6) y botas (0.6, 0.8), ya normalizados: los largos valen 1 | 0.8 × 0.6 + 0.6 × 0.8 | 0.96
+Distancia al cuadrado \(D^2\) // con la fórmula de la distancia, sin la raíz | (0.8 − 0.6)² + (0.6 − 0.8)² | 0.08
+La misma, con \(D^2 = 2 − 2 × cos θ\) | 2 − 2 × 0.96 | 0.08
+Distancia \(D\) | √0.08 | ≈ 0.28
 = Ordenar a los vecinos por coseno (de mayor a menor) o por distancia (de menor a mayor) da exactamente la misma lista.
 :::
 
-Por eso la Ronda dice que el encoder de C07 entrega vectores de 512 números «L2-normalizados»: el índice puede comparar con el producto punto, la cuenta más barata. Y cuando una publicación junta su foto y su título en un solo vector, se promedian los dos y el resultado **se vuelve a normalizar**, porque el promedio de dos flechas de largo 1 casi nunca mide 1 (lo calculas en los ejercicios).
+Por eso el encoder con el que Alba busca entre sus publicaciones entrega vectores de 512 números «L2-normalizados»: el índice puede comparar con el producto punto, la cuenta más barata. Y cuando una publicación junta su foto y su título en un solo vector, se promedian los dos y el resultado **se vuelve a normalizar**, porque el promedio de dos flechas de largo 1 casi nunca mide 1 (lo calculas en los ejercicios).
 
 :::ojo
 **No es la normalización de las fotos.** En la lección de imágenes, [[normalizacion|normalizar]] era restarle a cada píxel un promedio y dividirlo entre una desviación. La normalización L2 es otra cosa: divide un vector completo entre su largo. Las dos se llaman «normalizar» porque las dos llevan los números a una escala estándar.
@@ -300,29 +333,44 @@ for coseno, nombre in buscar([0.85, 0.35, 0.15], k=3):
 
 Fíjate en dos cosas. Los vectores del catálogo se normalizan **una vez**, al armar el índice; la consulta se normaliza en cada búsqueda. Y el ciclo `for` recorre **todo** el catálogo. Con 6 productos es instantáneo. Veamos con un catálogo de verdad.
 
-### Las cuentas de C07
+### Las cuentas de la búsqueda de Alba
 
-En la Ronda, el caso C07 es una búsqueda por texto y por foto sobre el mismo marketplace de C01. Tiene ≈ 100 millones de publicaciones activas, cada una con un embedding de 512 números, y en la hora pico llegan ≈ 1,750 búsquedas por segundo.
+Alba quiere que se pueda buscar por texto y por foto entre sus ≈ 100 millones de publicaciones activas. Cada publicación tiene un embedding de 512 números, y en la hora pico llegan ≈ 1,750 búsquedas por segundo.
+
+Las cuentas de una búsqueda exacta salen de tres ecuaciones cortas:
+
+:::formula Memoria y trabajo de una búsqueda exacta
+Mem = N × d × bytes
+Mult = N × d
+T = frac{Mem}{V}
+- N: cuántos vectores hay en el catálogo
+- d: la dimensión de cada vector (números por vector)
+- bytes: cuántos bytes ocupa cada número: 4 en float32, 2 en float16, 1 en int8
+- Mem: la memoria que ocupan todos los vectores, en bytes
+- Mult: las multiplicaciones de una búsqueda exacta: un producto punto de \(d\) números contra cada uno de los \(N\) vectores
+- V: cuántos bytes por segundo entrega la memoria (aquí, 200 GB por segundo)
+- T: el tiempo que tarda una búsqueda solo en leer los vectores, en segundos
+:::
 
 :::cuenta Memoria para guardar los vectores
-Un vector // 512 números en float32 | 512 × 4 bytes | 2,048 bytes ≈ 2 KB
-El catálogo | 100,000,000 × 2,048 bytes | 204,800,000,000 bytes
+Un vector, \(d × bytes\) // 512 números en float32 | 512 × 4 bytes | 2,048 bytes ≈ 2 KB
+El catálogo, \(Mem = N × d × bytes\) // \(N\) = 100 millones de publicaciones activas | 100,000,000 × 2,048 bytes | 204,800,000,000 bytes
 En gigabytes | ÷ 1,000,000,000 | **204.8 GB ≈ 205 GB**
 = Una laptop típica tiene 8 o 16 GB de memoria: esto no cabe ni en 10 laptops de 16 GB.
 :::
 
 :::cuenta El trabajo de una búsqueda exacta
-Una comparación // un producto punto de 512 números | 512 multiplicaciones | 512
-Una búsqueda // contra todo el catálogo: 51.2 mil millones | 100,000,000 × 512 | **51,200,000,000**
-Un segundo en el pico // unos 90 millones de millones | 51,200,000,000 × 1,750 | ≈ 90,000,000,000,000
-Leer los vectores // en cada búsqueda, a 200 GB por segundo | 204.8 GB ÷ 200 GB/s | ≈ 1 s
+Una comparación, \(d\) // un producto punto de 512 números | 512 multiplicaciones | 512
+Una búsqueda, \(Mult = N × d\) // contra todo el catálogo: 51.2 mil millones | 100,000,000 × 512 | **51,200,000,000**
+Un segundo en el pico, \(Mult × 1,750\) // 1,750 búsquedas por segundo; unos 90 millones de millones | 51,200,000,000 × 1,750 | ≈ 90,000,000,000,000
+Leer los vectores, \(T = Mem ÷ V\) // en cada búsqueda, con \(V\) = 200 GB por segundo | 204.8 GB ÷ 200 GB/s | ≈ 1 s
 = Cada búsqueda tendría que leer los 205 GB completos de la memoria, y solo eso ya tarda del orden de un segundo.
 :::
 
-La memoria de un servidor grande entrega del orden de unos cientos de GB por segundo. A 200 GB por segundo, solo leer los vectores tomaría ≈ 1 segundo por búsqueda; aun al doble de velocidad, medio segundo. Y C07 se compromete a que 99 de cada 100 búsquedas de texto respondan en menos de 300 ms.
+La memoria de un servidor grande entrega del orden de unos cientos de GB por segundo. A 200 GB por segundo, solo leer los vectores tomaría ≈ 1 segundo por búsqueda; aun al doble de velocidad, medio segundo. Y Alba se compromete a que 99 de cada 100 búsquedas de texto respondan en menos de 300 ms.
 
 :::calculadora embeddings-indice
-Prueba los números de C08 de la Ronda: 100 millones de vectores de 128 números en int8 (1 byte). La memoria baja a 12.8 GB, pero la búsqueda exacta sigue leyendo todo en cada consulta.
+Prueba los números de la recomendación de Alba, la que llena la pantalla de inicio de cada usuario: 100 millones de vectores de 128 números en int8 (1 byte). La memoria baja a 12.8 GB, pero la búsqueda exacta sigue leyendo todo en cada consulta.
 :::
 
 La búsqueda exacta es perfecta en calidad e imposible en costo. Hace falta otra idea.
@@ -349,9 +397,9 @@ Un índice por grupos. La búsqueda (la estrella) solo revisa el grupo más cerc
 
 ### Velocidad contra recall
 
-¿Qué tanto se pierde? Se mide comparando el ANN contra la búsqueda exacta en una muestra de búsquedas. Si la búsqueda exacta dice que estos son los 100 vecinos verdaderos y el ANN encontró 95 de ellos, su **recall@100** es 95 ÷ 100 = 0.95. Es el mismo [[recall]] de la lección «¿Aprendió de verdad?»: de lo que había que encontrar, cuánto encontraste.
+¿Qué tanto se pierde? Se mide comparando el ANN contra la búsqueda exacta en una muestra de búsquedas. Si la búsqueda exacta dice que estos son los 100 vecinos verdaderos y el ANN encontró 95 de ellos, su **recall@100** es 95 ÷ 100 = 0.95. En general, \( text{recall@}k = h ÷ k \), donde \(k\) es cuántos vecinos verdaderos pediste y \(h\), cuántos de ellos halló el ANN. Es el mismo [[recall]] de la lección «¿Aprendió de verdad?»: de lo que había que encontrar, cuánto encontraste.
 
-La perilla es cuánto del catálogo revisar. En un índice por estantes, cuántos estantes. En [[hnsw|HNSW]], el índice que elige C07, el tamaño de la lista de candidatos que mantiene al buscar, que se llama `ef_search`. HNSW une los vectores en una red de caminos y busca saltando de vecino en vecino; lo ves por dentro en la sección siguiente.
+La perilla es cuánto del catálogo revisar. En un índice por estantes, cuántos estantes. En [[hnsw|HNSW]], el índice que elige Alba para su búsqueda, el tamaño de la lista de candidatos que mantiene al buscar, que se llama `ef_search`. HNSW une los vectores en una red de caminos y busca saltando de vecino en vecino; lo ves por dentro en la sección siguiente.
 
 | Mueves la perilla a… | Velocidad | Recall |
 |---|---|---|
@@ -359,11 +407,11 @@ La perilla es cuánto del catálogo revisar. En un índice por estantes, cuánto
 | Revisar más (10 estantes, una lista larga) | Más lento | Más alto |
 | Revisar todo | Tan lento como la búsqueda exacta | 1.0, perfecto |
 
-No existe el índice rápido y perfecto: existe el punto de la perilla que tu sistema puede pagar. En C07 se pide **recall@100 ≥ 0.95**, y se vigila en producción con un *job* (un programa que corre solo, termina y vuelve a correr) que cada hora lanza un set fijo de unas 1,000 búsquedas contra el ANN y contra la búsqueda exacta sobre los mismos vectores, y compara.
+No existe el índice rápido y perfecto: existe el punto de la perilla que tu sistema puede pagar. Para su búsqueda, Alba pide **recall@100 ≥ 0.95**, y lo vigila en producción con un *job* (un programa que corre solo, termina y vuelve a correr) que cada hora lanza un set fijo de unas 1,000 búsquedas contra el ANN y contra la búsqueda exacta sobre los mismos vectores, y compara.
 
 ## Un grafo con atajos: HNSW {A graph with shortcuts: HNSW} [extra]
 
-Uno de los índices más usados hoy, y el que elige C07, se llama [[hnsw|HNSW]] (*Hierarchical Navigable Small World*, «mundo pequeño navegable por niveles»; Malkov y Yashunin, 2016). En lugar de estantes, organiza los vectores como una red de caminos: puntos unidos por líneas, lo que en matemáticas se llama un grafo.
+Uno de los índices más usados hoy, y el que elige Alba para su búsqueda, se llama [[hnsw|HNSW]] (*Hierarchical Navigable Small World*, «mundo pequeño navegable por niveles»; Malkov y Yashunin, 2016). En lugar de estantes, organiza los vectores como una red de caminos: puntos unidos por líneas, lo que en matemáticas se llama un grafo.
 
 :::pasos
 1. Cada vector se une con unos cuantos vecinos
@@ -384,7 +432,7 @@ Para ir de Guadalajara a una calle de Monterrey no recorres todas las calles del
 **Dónde se rompe:** tú llevas un mapa completo; HNSW no. En cada punto solo ve a sus vecinos y salta al que esté más cerca de la consulta. Por eso se puede quedar en un punto que es el mejor de su barrio sin serlo del mapa entero. Para equivocarse menos, no sigue un solo camino: mantiene una lista de los mejores candidatos que ha visto y explora desde varios a la vez. El tamaño de esa lista es su perilla principal: el `ef_search` de la sección anterior.
 :::
 
-Gracias a los atajos, el trabajo crece muy despacio con el tamaño del catálogo. En la Ronda lo vas a leer como «el recorrido de HNSW crece como log N», donde N es el número de vectores: si el catálogo se duplica, la búsqueda da unos pocos saltos más, no el doble de trabajo.
+Gracias a los atajos, el trabajo crece muy despacio con el tamaño del catálogo. Se suele decir que «el recorrido de HNSW crece como log N», donde N es el número de vectores: si el catálogo se duplica, la búsqueda da unos pocos saltos más, no el doble de trabajo.
 
 ## Dimensiones, bytes y umbrales {Dimensions, bytes and thresholds} [extra]
 
@@ -394,15 +442,15 @@ La [[dimensionalidad]] de un embedding, cuántos números tiene, es una decisió
 
 Con más dimensiones, el modelo tiene más lugar para separar cosas finas: el color exacto, el estilo, la marca. Con pocas tiene que apretar: lo general sobrevive y lo fino se pierde. Pero la ganancia se aplana: en general, cada vez que duplicas la dimensión ganas menos que la vez anterior, mientras el costo se sigue duplicando. Por eso se busca la dimensión más chica que cumpla con la calidad.
 
-La Ronda elige distinto en cada caso, y siempre con la cuenta de memoria enfrente:
+Alba elige distinto en cada uno de sus sistemas, y siempre con la cuenta de memoria enfrente, \(Mem = N × d × bytes\):
 
-| Caso | Qué guarda | Dimensión | Lo que pesa |
+| Sistema de Alba | Qué guarda | Dimensión \(d\) | Lo que pesa, \(N × d × bytes\) |
 |---|---|---|---|
-| C08 · Recomendación | Un vector por publicación, entrenado para recomendar | 128 | 100 M × 128 × 1 byte = 12.8 GB en int8 |
-| C07 · Búsqueda | Foto y título en el mismo espacio | 512 | 100 M × 512 × 1 byte = 51.2 GB en int8 |
-| C11 · [[rag\|RAG]] | Pedazos de documentos de ≈ 400 [[token\|tokens]] | 1,024 | 12 M × 1,024 × 4 bytes ≈ 49.2 GB en float32 |
+| Recomendación | Un vector por publicación, entrenado para recomendar | 128 | 100 M × 128 × 1 byte = 12.8 GB en int8 |
+| Búsqueda | Foto y título en el mismo espacio | 512 | 100 M × 512 × 1 byte = 51.2 GB en int8 |
+| Asistente interno ([[rag\|RAG]]) | Pedazos de documentos de ≈ 400 [[token\|tokens]] | 1,024 | 12 M × 1,024 × 4 bytes ≈ 49.2 GB en float32 |
 
-C08 usa 128 y no 512 porque sus vectores se entrenan solo para recomendar, no para describir la foto: cuatro veces menos memoria. Algunos modelos modernos dejan elegir la dimensión sin reentrenar: sus primeros números ya funcionan como un embedding más chico (se llaman embeddings *Matryoshka*, como las muñecas rusas que caben una dentro de otra). En C11, uno de los modelos candidatos permite cualquier dimensión de 32 a 1,024.
+La recomendación usa 128 y no 512 porque sus vectores se entrenan solo para recomendar, no para describir la foto: cuatro veces menos memoria. Algunos modelos modernos dejan elegir la dimensión sin reentrenar: sus primeros números ya funcionan como un embedding más chico (se llaman embeddings *Matryoshka*, como las muñecas rusas que caben una dentro de otra). Para el asistente interno, con el que los ≈ 8,000 empleados de Alba consultan los documentos de la empresa, uno de los modelos candidatos permite cualquier dimensión de 32 a 1,024.
 
 ### Bytes por número
 
@@ -414,18 +462,28 @@ Cada número tampoco tiene que ocupar 4 bytes:
 | float16 | 2 | 102.4 GB | Casi nada |
 | int8 | 1 | 51.2 GB | Algo de precisión en las distancias |
 
-Guardar con menos bytes se llama [[cuantizacion|cuantización]]; la ves con calma en la lección de cómo guarda números una computadora. C07 recorre el índice en int8 y, para el orden final, recalcula la distancia de sus mejores 200 candidatos de cada pedazo con los vectores completos en float32. Así, el recorrido del grafo, que toca muchísimos vectores, trabaja con 51.2 GB y no con 204.8, y los vectores completos solo se leen para esos 200 candidatos: se recupera casi toda la exactitud.
+Guardar con menos bytes se llama [[cuantizacion|cuantización]]; la ves con calma en la lección de cómo guarda números una computadora. La búsqueda de Alba recorre el índice en int8 y, para el orden final, recalcula la distancia de sus mejores 200 candidatos de cada pedazo con los vectores completos en float32. Así, el recorrido del grafo, que toca muchísimos vectores, trabaja con 51.2 GB y no con 204.8, y los vectores completos solo se leen para esos 200 candidatos: se recupera casi toda la exactitud.
 
 ### El índice pesa más que los vectores
 
 Un índice HNSW guarda, además de los vectores, sus caminos. La perilla de construcción se llama M: cuántos vecinos guarda cada punto. En el nivel de abajo guarda hasta 2 × M, y cada vecino es un número de 4 bytes (su posición en la lista).
 
-:::cuenta La memoria del índice de C07
-Vectores en int8 | 100,000,000 × 512 × 1 byte | 51.2 GB
-Caminos de un vector // con M = 32: hasta 64 vecinos | 64 × 4 bytes | 256 bytes
-Caminos de todo el catálogo | 100,000,000 × 256 bytes | ≈ 25.6 GB
-Total | 51.2 + 25.6 | **≈ 77 GB**
-= C07 lo parte en 4 pedazos (*shards*) de 25 M vectores, de ≈ 19 GB cada uno más lo que agrega el motor, y guarda 2 copias de cada pedazo en máquinas distintas.
+:::formula Memoria de un índice HNSW
+Mem_{grafo} = N × 2M × 4
+Mem_{índice} = Mem + Mem_{grafo}
+- Mem: los vectores, \(N × d × bytes\), con las mismas letras que en la búsqueda exacta
+- M: la perilla de construcción: en el nivel de abajo, cada vector guarda hasta \(2M\) vecinos
+- 4: los bytes de cada vecino guardado (su posición en la lista)
+- Mem_{grafo}: la memoria de los caminos, en bytes
+- Mem_{índice}: la memoria de vectores y caminos juntos, en bytes, sin lo que agrega el motor
+:::
+
+:::cuenta La memoria del índice de la búsqueda de Alba
+Vectores en int8, \(Mem = N × d × bytes\) | 100,000,000 × 512 × 1 byte | 51.2 GB
+Caminos de un vector, \(2M × 4\) // con \(M\) = 32: hasta 64 vecinos | 64 × 4 bytes | 256 bytes
+Caminos de todo el catálogo, \(Mem_{grafo} = N × 2M × 4\) | 100,000,000 × 256 bytes | ≈ 25.6 GB
+Total, \(Mem_{índice} = Mem + Mem_{grafo}\) | 51.2 + 25.6 | **≈ 77 GB**
+= Alba lo parte en 4 pedazos (*shards*) de 25 M vectores, de ≈ 19 GB cada uno (77 ÷ 4) más lo que agrega el motor, y guarda 2 copias de cada pedazo en máquinas distintas.
 :::
 
 ### Lo raro de muchas dimensiones
@@ -483,19 +541,19 @@ Una persona revisó 8 pares de fotos y anotó cuáles son la misma foto:
 | 7 | 0.88 | No |
 | 8 | 0.80 | No |
 
-Hay 4 duplicados de verdad: los pares 1, 2, 3 y 5. Con cada umbral cambia lo que se marca (se marca todo par con coseno igual o mayor):
+Hay 4 duplicados de verdad: los pares 1, 2, 3 y 5. Con cada umbral cambia lo que se marca (se marca todo par con coseno igual o mayor). Las dos medidas son las de la lección «¿Aprendió de verdad?»: \( text{precision} = A ÷ m \) y \( text{recall} = A ÷ R \), donde \(m\) es cuántos pares marcó el umbral, \(A\) cuántos de esos son duplicados de verdad (los aciertos) y \(R\) cuántos duplicados de verdad había (aquí, 4):
 
-| Umbral | Marca | Aciertos | Precision | Recall |
+| Umbral | Marca (\(m\) pares) | Aciertos \(A\) | Precision \(A ÷ m\) | Recall \(A ÷ R\) |
 |---|---|---|---|---|
-| 0.97 | pares 1 y 2 | 2 de 2 | 1.00 | 2 de 4 = 0.50 |
-| 0.95 | pares 1 a 4 | 3 de 4 | 0.75 | 3 de 4 = 0.75 |
-| 0.90 | pares 1 a 6 | 4 de 6 | 0.67 | 4 de 4 = 1.00 |
+| 0.97 | pares 1 y 2 (2) | 2 | 2 ÷ 2 = 1.00 | 2 ÷ 4 = 0.50 |
+| 0.95 | pares 1 a 4 (4) | 3 | 3 ÷ 4 = 0.75 | 3 ÷ 4 = 0.75 |
+| 0.90 | pares 1 a 6 (6) | 4 | 4 ÷ 6 = 0.67 | 4 ÷ 4 = 1.00 |
 :::
 
 Es el mismo juego de [[precision]] contra [[recall]] de la lección «¿Aprendió de verdad?», y el umbral correcto depende de **qué cuesta cada error**:
 
 - **Antes de repartir un dataset** en entrenamiento y examen conviene un umbral bajo, con recall alto. Un duplicado que se escapa pone la misma foto en los dos lados y el examen mide memoria: es [[leakage]]. Juntar de más dos fotos distintas cuesta poco: solo caen del mismo lado.
-- **En moderación de contenido** (C06 en la Ronda), una decisión se aplica a todo un grupo de casi duplicados: si quitas una imagen, quitas sus copias. Ahí conviene un umbral estricto, con precision alta, porque juntar de más castigaría algo distinto.
+- **En moderación de contenido**, una decisión se aplica a todo un grupo de casi duplicados: si quitas una imagen, quitas sus copias. Ahí conviene un umbral estricto, con precision alta, porque juntar de más castigaría algo distinto.
 
 Dos detalles prácticos. Las copias **exactas** se detectan antes y más barato con un hash del archivo: una huella de sus bytes que cambia si cambia un solo byte (ya la usaste en «Datos, ejemplos, features y etiquetas»; a fondo, en «Tiempo, hashes e identificadores»). Los embeddings son para lo que no es idéntico: recortes, recompresiones, filtros. Y en un catálogo grande no se compara cada foto contra todas: para cada foto nueva se buscan sus vecinos más cercanos con un índice, como el de la búsqueda, y solo a esos se les aplica el umbral.
 
@@ -511,13 +569,22 @@ Un buscador por palabras guarda, para cada palabra, la lista de documentos que l
 2. **Repetir no vale tanto.** Que «tenis» aparezca 10 veces en un título no lo hace 10 veces más relevante: con los valores que usa por defecto Lucene (la biblioteca que hay debajo de Elasticsearch y OpenSearch, dos motores de búsqueda muy usados), 10 repeticiones valen menos del doble que una. Así un vendedor no gana repitiendo la palabra.
 3. **Los textos largos se castigan un poco.** Una coincidencia en un título corto dice más que en una descripción de 300 palabras.
 
-El peso de la primera idea se calcula con el [[logaritmo]] natural, que se escribe ln: una función que crece muy despacio (ln 10 ≈ 2.3 y ln 2,000 ≈ 7.6). En su versión más simple, el peso de una palabra es ln(publicaciones en total ÷ publicaciones que la tienen):
+El peso de la primera idea se calcula con el [[logaritmo]] natural, que se escribe ln: una función que crece muy despacio (ln 10 ≈ 2.3 y ln 2,000 ≈ 7.6). En su versión más simple, el peso de una palabra es el logaritmo de publicaciones en total entre publicaciones que la tienen:
 
-:::cuenta El peso de tres palabras en 1,000,000 de publicaciones
-«blancos» // está en 100,000 | ln(1,000,000 ÷ 100,000) = ln 10 | ≈ 2.3
-«tenis» // está en 20,000 | ln(1,000,000 ÷ 20,000) = ln 50 | ≈ 3.9
-«jordan» // está en 500 | ln(1,000,000 ÷ 500) = ln 2,000 | ≈ 7.6
-= Una coincidencia en «jordan» pesa unas 3 veces lo que una en «blancos». La fórmula exacta de BM25 agrega un 0.5 (para no dividir entre cero si ninguna publicación tiene la palabra) y un 1 (para que el peso nunca salga negativo), y aquí da prácticamente lo mismo: 2.30, 3.91 y 7.60.
+:::formula Peso de una palabra (IDF)
+w = ln frac{N}{n}
+w_{BM25} = ln(1 + frac{N − n + 0.5}{n + 0.5})
+- N: cuántas publicaciones hay en total
+- n: en cuántas de ellas aparece la palabra
+- w: el peso de la palabra en su versión simple, sin unidades
+- w_{BM25}: el mismo peso como lo calcula BM25: el 0.5 evita dividir entre cero si ninguna publicación tiene la palabra, y el 1 evita que el peso salga negativo
+:::
+
+:::cuenta El peso de tres palabras en N = 1,000,000 de publicaciones
+«blancos», \(w = ln(N ÷ n)\) // \(n\) = 100,000 | ln(1,000,000 ÷ 100,000) = ln 10 | ≈ 2.3
+«tenis» // \(n\) = 20,000 | ln(1,000,000 ÷ 20,000) = ln 50 | ≈ 3.9
+«jordan» // \(n\) = 500 | ln(1,000,000 ÷ 500) = ln 2,000 | ≈ 7.6
+= Una coincidencia en «jordan» pesa unas 3 veces lo que una en «blancos». Con \(w_{BM25}\), la fórmula exacta, aquí da prácticamente lo mismo: 2.30, 3.91 y 7.60.
 :::
 
 Gracias al logaritmo, una palabra 200 veces más rara no pesa 200 veces más, sino unas 3.
@@ -530,18 +597,26 @@ Gracias al logaritmo, una palabra 200 veces más rara no pesa 200 veces más, si
 | Buscas «algo para ir a la playa» | Busca «playa» literal | Trae sandalias, trajes de baño, sombreros |
 | Escribes con un error | Falla si la palabra no existe tal cual | Muchas veces lo tolera |
 | Buscas «iPhone 13 Pro 128» | Encuentra el modelo exacto | Lo confunde con «iPhone 12 Pro 256»: quedan cerca |
-| Buscas «error E-4012» (C11) | Encuentra el código exacto | Un código no «significa» nada para el modelo |
+| Buscas «error E-4012» en los manuales internos | Encuentra el código exacto | Un código no «significa» nada para el modelo |
 
-En C07, la búsqueda de hoy es BM25, y ≈ 8 % de las búsquedas no dan ningún resultado, sobre todo por vocabulario: «chamarra» contra «chaqueta», «tenis» contra «zapatillas». Pero BM25 es justo lo que encuentra marcas, modelos y tallas exactas.
+En Alba, la búsqueda de hoy es BM25, y ≈ 8 % de las búsquedas no dan ningún resultado, sobre todo por vocabulario: «chamarra» contra «chaqueta», «tenis» contra «zapatillas». Pero BM25 es justo lo que encuentra marcas, modelos y tallas exactas.
 
 ### Juntar las dos: RRF
 
-La [[busqueda-hibrida|búsqueda híbrida]] corre las dos búsquedas en paralelo sobre el mismo catálogo y junta sus listas. El problema es que sus puntajes no se pueden comparar: BM25 da números como 13.8 (la suma de los tres pesos de arriba, para una publicación que tiene las tres palabras) y el coseno, como 0.82. La forma más usada de juntarlas no mira los puntajes, solo las **posiciones**: RRF (*Reciprocal Rank Fusion*, Cormack y su equipo, 2009). Cada lista le da a cada publicación 1 ÷ (k + su posición), con k = 60, y se suman.
+La [[busqueda-hibrida|búsqueda híbrida]] corre las dos búsquedas en paralelo sobre el mismo catálogo y junta sus listas. El problema es que sus puntajes no se pueden comparar: BM25 da números como 13.8 (la suma de los tres pesos de arriba, para una publicación que tiene las tres palabras) y el coseno, como 0.82. La forma más usada de juntarlas no mira los puntajes, solo las **posiciones**: RRF (*Reciprocal Rank Fusion*, Cormack y su equipo, 2009). Cada lista le da a cada publicación 1 ÷ (60 + su posición), y se suman.
 
-:::cuenta RRF con k = 60
-1.ª en la semántica y 3.ª en BM25 | 1/61 + 1/63 | ≈ 0.0323
-20.ª en las dos listas | 1/80 + 1/80 | 0.025
-1.ª solo en BM25 // no aparece en la otra | 1/61 | ≈ 0.0164
+:::formula Puntaje RRF de una publicación
+RRF = frac{1}{60 + r_1} + frac{1}{60 + r_2}
+- r_1: la posición de la publicación en la lista semántica: 1 para la primera
+- r_2: su posición en la lista de BM25
+- 60: una constante que suaviza las diferencias entre los primeros lugares; es la que casi todos usan
+- RRF: el puntaje final, sin unidades: gana el más alto. Si la publicación no aparece en una de las listas, ese término no se suma
+:::
+
+:::cuenta RRF de tres publicaciones
+1.ª en la semántica y 3.ª en BM25 // \(r_1\) = 1, \(r_2\) = 3 | 1/(60 + 1) + 1/(60 + 3) = 1/61 + 1/63 | ≈ 0.0323
+20.ª en las dos listas // \(r_1\) = \(r_2\) = 20 | 1/(60 + 20) + 1/(60 + 20) = 1/80 + 1/80 | 0.025
+1.ª solo en BM25 // \(r_2\) = 1; no está en la semántica: solo suma el término de BM25 | 1/(60 + 1) = 1/61 | ≈ 0.0164
 = Ganan las publicaciones que las dos listas ponen arriba. Ser 20.ª en las dos vale más que ser 1.ª en una sola.
 :::
 
@@ -565,14 +640,14 @@ Una búsqueda híbrida: el catálogo se convierte en vectores antes; cada búsqu
 Fíjate en que hay **dos caminos** con presupuestos muy distintos. Convertir todo el catálogo en vectores se hace antes, en lote (todo junto, sin que nadie esté esperando), y puede tardar horas. Cada búsqueda, en cambio, tiene que contestar en milisegundos: solo calcula **un** vector (el de lo que escribió el usuario) y consulta el índice que ya existe.
 
 :::ejemplo Cuántos candidatos reordenar: una decisión de dinero
-En C07 de la Ronda, el re-ranker es la pieza que más mueve el costo, porque corre en GPUs por cada búsqueda de texto. Si reordena los 100 primeros candidatos de cada búsqueda de texto, necesita ≈ 24 GPUs; si reordena solo los 30 primeros, ≈ 8. El diseño elige 30 y lo confirma con una medición: si reordenar 100 casi no mejora los resultados, no se paga. Dieciséis GPUs de diferencia por una mejora que nadie nota sería una mala compra.
+En la búsqueda de Alba, el re-ranker es la pieza que más mueve el costo, porque corre en GPUs por cada búsqueda de texto. El equipo de Alba estima que, si reordena los 100 primeros candidatos de cada búsqueda de texto, necesita ≈ 24 GPUs; si reordena solo los 30 primeros, ≈ 8. El diseño elige 30 y lo confirma con una medición: si reordenar 100 casi no mejora los resultados, no se paga. Dieciséis GPUs de diferencia por una mejora que nadie nota sería una mala compra.
 :::
 
-Este patrón, «un paso barato y amplio, luego un paso caro y preciso», aparece en toda la Ronda: en búsqueda, en recomendación (C08, donde la Ronda lo llama **embudo**) y en moderación de contenido (C06, donde lo llama **cascada**: un modelo barato revisa todo y uno caro, solo lo dudoso).
+Este patrón, «un paso barato y amplio, luego un paso caro y preciso», aparece en muchos sistemas de ML: en búsqueda, en recomendación (donde se le llama **embudo**) y en moderación de contenido (donde se le llama **cascada**: un modelo barato revisa todo y uno caro, solo lo dudoso).
 
 ## Cómo aprende un encoder: aprendizaje contrastivo {How an encoder learns: contrastive learning} [extra]
 
-Un encoder como el de C07 no se entrena con etiquetas como «tenis» o «botas». Se entrena con **pares**: cosas que deben quedar juntas. Una foto y su título. Una pregunta y el párrafo que la responde. Un usuario y la publicación que contactó. Eso es el [[aprendizaje-contrastivo|aprendizaje contrastivo]] (*contrastive learning*): acercar los vectores de cada par y alejar los de lo que no es pareja.
+Un encoder como el de la búsqueda de Alba no se entrena con etiquetas como «tenis» o «botas». Se entrena con **pares**: cosas que deben quedar juntas. Una foto y su título. Una pregunta y el párrafo que la responde. Un usuario y la publicación que contactó. Eso es el [[aprendizaje-contrastivo|aprendizaje contrastivo]] (*contrastive learning*): acercar los vectores de cada par y alejar los de lo que no es pareja.
 
 ¿De dónde salen los «no pareja»? Del mismo [[batch]]. Si el batch trae B pares, cada foto tiene 1 título correcto y B − 1 incorrectos: los títulos de las otras fotos. No hay que etiquetar nada más; los pares ya existen (cada publicación tiene su foto y su título).
 
@@ -586,14 +661,26 @@ Las dos torres convierten las B fotos y los B títulos en vectores normalizados,
 Un batch de 3 pares. Arriba, el coseno de cada foto contra cada título: el entrenamiento sube la diagonal y baja lo demás. Abajo, la foto de tenis elige su título con dos temperaturas distintas.
 :::
 
+:::formula Pérdida contrastiva de una fila
+P = frac{e^{s_c / τ}}{sum_{j=1}^{B} e^{s_j / τ}}
+L = −ln P
+- B: cuántos pares trae el batch (y cuántos títulos hay en la fila)
+- s_j: el coseno de la foto contra el título \(j\)
+- c: el título correcto de esa foto (su pareja); \(s_c\) es su coseno
+- τ: la temperatura, un número chico como 0.1
+- e: el número de Euler, ≈ 2.718; \(e^x\) es la exponencial
+- P: la probabilidad que el softmax le da al título correcto, entre 0 y 1
+- L: la pérdida de esa fila: 0 si \(P\) = 1, y crece mientras más chica es \(P\)
+:::
+
 :::ejemplo La fila de los tenis, con números
-Cosenos de la foto de tenis contra los tres títulos: 0.80 (el suyo), 0.55 y 0.10. Con τ = 0.1, se dividen entre 0.1: quedan 8, 5.5 y 1.
+Cosenos de la foto de tenis contra los \(B\) = 3 títulos: \(s_c\) = 0.80 (el suyo), 0.55 y 0.10. Con \(τ\) = 0.1, se dividen entre 0.1: \(s_j / τ\) = 8, 5.5 y 1.
 
-- Exponenciales: e⁸ ≈ 2,981.0; e elevado a 5.5 ≈ 244.7; e¹ ≈ 2.7. Suman ≈ 3,228.4.
-- Probabilidad del título correcto: 2,981.0 ÷ 3,228.4 ≈ **0.92**.
-- Pérdida: −ln 0.92 ≈ **0.08**.
+- Exponenciales \(e^{s_j / τ}\): e⁸ ≈ 2,981.0; e elevado a 5.5 ≈ 244.7; e¹ ≈ 2.7. Suman ≈ 3,228.4: es el denominador.
+- Probabilidad del título correcto, \(P\): 2,981.0 ÷ 3,228.4 ≈ **0.92**.
+- Pérdida, \(L = −ln P\): −ln 0.92 ≈ **0.08**.
 
-Sin temperatura (τ = 1), los cosenos quedan muy juntos, el softmax casi no los distingue y el título correcto solo recibe 0.44: pérdida 0.82. Dividir entre un número chico separa los cosenos para que el softmax pueda decidir. CLIP aprende su temperatura durante el entrenamiento; empieza en 0.07.
+Sin temperatura (\(τ\) = 1), los cosenos quedan muy juntos: las exponenciales son e elevado a 0.80 ≈ 2.23, a 0.55 ≈ 1.73 y a 0.10 ≈ 1.11, que suman ≈ 5.06; el softmax casi no los distingue y el título correcto solo recibe \(P\) = 2.23 ÷ 5.06 ≈ 0.44: pérdida −ln 0.44 ≈ 0.82. Dividir entre un número chico separa los cosenos para que el softmax pueda decidir. CLIP aprende su temperatura durante el entrenamiento; empieza en 0.07.
 :::
 
 Así se ve el batch completo en Python:
@@ -637,9 +724,9 @@ Mira la foto 2, la de botas: es la que peor le va (0.82), porque su coseno con e
 
 ### Lo que sale: dos torres que hablan el mismo idioma
 
-Al terminar, la torre de imagen y la de texto ponen sus vectores en el mismo espacio. Eso es lo que hace posible buscar fotos con texto. Y permite un truco: clasificar una foto **sin entrenar una [[cabeza]]**. Calculas su vector y lo comparas con los vectores de textos como «una foto de unos tenis», «una foto de unas botas» y «una foto de una bolsa»; gana el texto más cercano. Sirve para arrancar sin datos etiquetados, pero en categorías muy específicas, como las 500 de C01, un modelo ajustado con tus propias fotos suele acertar más.
+Al terminar, la torre de imagen y la de texto ponen sus vectores en el mismo espacio. Eso es lo que hace posible buscar fotos con texto. Y permite un truco: clasificar una foto **sin entrenar una [[cabeza]]**. Calculas su vector y lo comparas con los vectores de textos como «una foto de unos tenis», «una foto de unas botas» y «una foto de una bolsa»; gana el texto más cercano. Sirve para arrancar sin datos etiquetados, pero en categorías muy específicas, como las 500 de Alba, un modelo ajustado con tus propias fotos suele acertar más.
 
-La misma receta sirve fuera de las fotos. En C08 de la Ronda, un modelo de dos torres se reentrena cada semana: una torre convierte a cada usuario en un vector de 128 números; la otra, a cada publicación. Los pares positivos son los contactos y clics de la gente; los negativos, las otras publicaciones del mismo batch. Las dos torres se publican juntas, con la misma versión, porque un vector de una versión no se compara con uno de otra.
+La misma receta sirve fuera de las fotos. En la recomendación de Alba, la que llena la pantalla de inicio de cada usuario, un modelo de dos torres se reentrena cada semana: una torre convierte a cada usuario en un vector de 128 números; la otra, a cada publicación. Los pares positivos son los contactos y clics de la gente; los negativos, las otras publicaciones del mismo batch. Las dos torres se publican juntas, con la misma versión, porque un vector de una versión no se compara con uno de otra.
 
 ## Errores comunes {Common mistakes}
 
@@ -655,7 +742,7 @@ Casi todos los errores con embeddings tienen algo en común: **nada truena**. La
 
 **Qué pasa:** se actualiza el encoder a la versión 8, pero el índice todavía tiene vectores de la versión 7, o la mitad del catálogo se recalculó y la otra mitad no. Las cuentas salen, pero comparan coordenadas de dos mapas distintos.
 
-**Cómo evitarlo:** un índice = una versión del modelo. Guarda la versión junto con cada vector, verifica en cada consulta que el encoder y el índice coincidan, y al cambiar de modelo recalcula todo el catálogo en un índice nuevo antes de cambiar el tráfico (en la Ronda, con *blue/green*: dos índices completos y un cambio de un solo golpe).
+**Cómo evitarlo:** un índice = una versión del modelo. Guarda la versión junto con cada vector, verifica en cada consulta que el encoder y el índice coincidan, y al cambiar de modelo recalcula todo el catálogo en un índice nuevo antes de cambiar el tráfico (una forma común es *blue/green*: dos índices completos y un cambio de un solo golpe).
 
 ### Creer que un coseno de 0.9 quiere decir «idéntico»
 
@@ -667,7 +754,7 @@ Casi todos los errores con embeddings tienen algo en común: **nada truena**. La
 
 **Qué pasa:** el equipo de modelos mide la calidad con una búsqueda exacta sobre un catálogo chico, y en producción el mismo modelo va a un índice aproximado sobre 100 millones, con int8 y filtros. El número que aprobaste no es el que la gente ve.
 
-**Cómo evitarlo:** mide el recall@k del índice contra la búsqueda exacta sobre los mismos vectores, con un set fijo de consultas que corre solo (en C07, cada hora, con un mínimo de 0.95), y evalúa los modelos nuevos sobre el índice real.
+**Cómo evitarlo:** mide el recall@k del índice contra la búsqueda exacta sobre los mismos vectores, con un set fijo de consultas que corre solo (en la búsqueda de Alba, cada hora, con un mínimo de 0.95), y evalúa los modelos nuevos sobre el índice real.
 
 ### Filtrar después de buscar
 
@@ -689,17 +776,17 @@ Casi todos los errores con embeddings tienen algo en común: **nada truena**. La
 
 ## En la vida real {In real life} [extra]
 
-Los embeddings no son de un solo caso: aparecen en casi toda la Ronda, cada vez con otra cara.
+Los embeddings no son de un solo sistema: en Alba aparecen en casi todos, cada vez con otra cara.
 
-**C01 · Clasificación de fotos.** La ResNet-50 ya produce 2,048 números por foto antes de su cabeza. Con ellos, el marketplace puede mostrar «publicaciones parecidas» a la foto de los tenis de Ana sin entrenar nada nuevo. Sirven también para limpiar el dataset: la misma foto aparece en varias publicaciones, y antes de repartir en entrenamiento y examen se quitan las copias exactas con un hash y los recortes y recompresiones con un hash perceptual o con embeddings. Y para vigilar el [[drift]]: el vector promedio de las fotos de hoy se compara contra el de una muestra de referencia; si se separan, cambió el contenido (por ejemplo, empiezan a llegar muchas fotos de un tipo de producto que antes casi no había), algo que las estadísticas de color o brillo no ven.
+**Clasificación de fotos.** La ResNet-50 que sugiere la categoría ya produce 2,048 números por foto antes de su cabeza. Con ellos, Alba puede mostrar «publicaciones parecidas» a la foto de los tenis que sube Ana, una vendedora, sin entrenar nada nuevo. Sirven también para limpiar el dataset: la misma foto aparece en varias publicaciones, y antes de repartir en entrenamiento y examen se quitan las copias exactas con un hash y los recortes y recompresiones con un hash perceptual o con embeddings. Y para vigilar el [[drift]]: el vector promedio de las fotos de hoy se compara contra el de una muestra de referencia; si se separan, cambió el contenido (por ejemplo, empiezan a llegar muchas fotos de un tipo de producto que antes casi no había), algo que las estadísticas de color o brillo no ven.
 
-**C07 · Búsqueda semántica.** Todo lo de esta lección junto: 100 M publicaciones, vectores de 512 números normalizados, un índice HNSW en int8 de ≈ 77 GB partido en 4 pedazos, BM25 en paralelo, RRF, un re-ranker sobre los 30 primeros y 99 de cada 100 búsquedas de texto en menos de 300 ms.
+**Búsqueda semántica.** Todo lo de esta lección junto: ≈ 100 M publicaciones activas, vectores de 512 números normalizados, un índice HNSW en int8 de ≈ 77 GB partido en 4 pedazos, BM25 en paralelo, RRF, un re-ranker sobre los 30 primeros y 99 de cada 100 búsquedas de texto en menos de 300 ms.
 
-**C11 · RAG.** Un asistente que responde con los documentos internos de una empresa. ≈ 1.5 millones de documentos se parten en ≈ 12 millones de pedazos de ≈ 400 [[token|tokens]], cada uno con un embedding de 1,024 números: ≈ 49.2 GB en float32 y ≈ 24.6 GB en float16. Cada pregunta corre BM25 y la búsqueda vectorial en paralelo (50 candidatos cada una), los junta con RRF y un re-ranker elige los 8 pedazos que se le dan al [[llm|LLM]]. BM25 es indispensable aquí: códigos de error, siglas y nombres de sistemas internos. Lo ves en la lección de LLMs, como [[rag|RAG]].
+**Asistente interno (RAG).** Los ≈ 8,000 empleados de Alba le hacen ≈ 25 mil preguntas al día a un asistente que responde con los documentos internos de la empresa. ≈ 1.5 millones de documentos se parten en ≈ 12 millones de pedazos de ≈ 400 [[token|tokens]], cada uno con un embedding de 1,024 números: ≈ 49.2 GB en float32 y ≈ 24.6 GB en float16. Cada pregunta corre BM25 y la búsqueda vectorial en paralelo (50 candidatos cada una), los junta con RRF y un re-ranker elige los 8 pedazos que se le dan al [[llm|LLM]]. BM25 es indispensable aquí: códigos de error, siglas y nombres de sistemas internos. Lo ves en la lección de LLMs, como [[rag|RAG]].
 
-**C06 · Moderación de contenido.** Las copias de una imagen que viola las reglas se suben miles de veces, recortadas o con filtros. Para imágenes se usa un hash perceptual (PDQ, de 256 bits: dos imágenes casi iguales tienen hashes con pocos bits distintos); para textos parecidos, métodos de casi duplicados o embeddings con un umbral estricto. Los casi duplicados se agrupan y una persona decide una sola vez por grupo: 10,000 resubidas de la misma imagen son una sola revisión.
+**Moderación de contenido.** Las copias de una imagen que viola las reglas se suben miles de veces, recortadas o con filtros. Para imágenes se usa un hash perceptual (PDQ, de 256 bits: dos imágenes casi iguales tienen hashes con pocos bits distintos); para textos parecidos, métodos de casi duplicados o embeddings con un umbral estricto. Los casi duplicados se agrupan y una persona decide una sola vez por grupo: 10,000 resubidas de la misma imagen son una sola revisión.
 
-**C08 · Recomendación.** Para llenar la pantalla de inicio de cada usuario, un modelo de dos torres convierte al usuario en un vector de 128 números y un índice HNSW devuelve ≈ 500 candidatos de entre 100 millones de publicaciones, ≈ 3,100 veces por segundo en el pico. Su índice pesa ≈ 38 GB (12.8 GB de vectores en int8 más 25.6 GB del grafo) y cabe entero en una máquina.
+**Recomendación.** Para llenar la pantalla de inicio de cada usuario, un modelo de dos torres convierte al usuario en un vector de 128 números y un índice HNSW devuelve ≈ 500 candidatos de entre 100 millones de publicaciones, ≈ 3,100 veces por segundo en el pico. Su índice pesa ≈ 38 GB (12.8 GB de vectores en int8 más 25.6 GB del grafo) y cabe entero en una máquina.
 
 **Fuera del ML.** El producto punto es la cuenta de cualquier ticket de compra (cantidades por precios), y la idea de «parecido = cerca» es la de cualquier mapa: dos ciudades vecinas tienen coordenadas parecidas.
 
@@ -709,56 +796,63 @@ Resuélvelos con lápiz antes de abrir la solución. Los primeros cuatro son dir
 
 :::ejercicios
 ? [facil] Calcula el producto punto de (2, −1, 3) y (4, 0, −2). ¿Las dos flechas apuntan hacia el mismo lado?
-Multiplica coordenada por coordenada y suma: 2 × 4 + (−1) × 0 + 3 × (−2) = 8 + 0 − 6 = **2**.
+Usa \(a · b = a_1 × b_1 + a_2 × b_2 + a_3 × b_3\): 2 × 4 + (−1) × 0 + 3 × (−2) = 8 + 0 − 6 = **2**.
 
-Es positivo, así que forman menos de 90°: apuntan hacia el mismo lado, aunque apenas. Su coseno lo confirma: los largos son √(4 + 1 + 9) = √14 ≈ 3.74 y √(16 + 0 + 4) = √20 ≈ 4.47, y 2 ÷ (3.74 × 4.47) ≈ 0.12, muy cerca de 0.
+Es positivo, así que forman menos de 90°: apuntan hacia el mismo lado, aunque apenas. Su coseno lo confirma: los largos son \(‖a‖\) = √(4 + 1 + 9) = √14 ≈ 3.74 y \(‖b‖\) = √(16 + 0 + 4) = √20 ≈ 4.47, y \(cos θ = a · b ÷ (‖a‖ × ‖b‖)\) = 2 ÷ (3.74 × 4.47) ≈ 0.12, muy cerca de 0.
 ? [facil] Normaliza el vector (6, 8) y comprueba que el resultado mide 1.
-Largo: √(6² + 8²) = √(36 + 64) = √100 = 10.
+Usa \(u = a ÷ ‖a‖\). Largo: \(‖a‖\) = √(6² + 8²) = √(36 + 64) = √100 = 10.
 
-Normalizado: (6 ÷ 10, 8 ÷ 10) = **(0.6, 0.8)**.
+Normalizado: \(u\) = (6 ÷ 10, 8 ÷ 10) = **(0.6, 0.8)**.
 
-Comprobación: 0.6² + 0.8² = 0.36 + 0.64 = 1, y √1 = 1. Es la misma dirección que las botas (3, 4).
+Comprobación, \(‖u‖\): 0.6² + 0.8² = 0.36 + 0.64 = 1, y √1 = 1. Es la misma dirección que las botas (3, 4).
 ? [facil] ¿Cuál es la similitud coseno entre (1, 2) y (3, 6)? ¿Y su distancia euclidiana? ¿Qué te dice la diferencia?
-Producto punto: 1 × 3 + 2 × 6 = 15. Largos: √(1 + 4) = √5 ≈ 2.24 y √(9 + 36) = √45 ≈ 6.71. Coseno: 15 ÷ (2.24 × 6.71) = 15 ÷ 15 = **1**. (Exacto: √5 × √45 = √225 = 15.)
+Usa \(cos θ = a · b ÷ (‖a‖ × ‖b‖)\) y \(D(a, b) = sqrt{(a_1 − b_1)^2 + (a_2 − b_2)^2}\), con \(a\) = (1, 2) y \(b\) = (3, 6).
 
-Distancia: √((3 − 1)² + (6 − 2)²) = √(4 + 16) = √20 ≈ **4.47**.
+Producto punto \(a · b\): 1 × 3 + 2 × 6 = 15. Largos: \(‖a‖\) = √(1 + 4) = √5 ≈ 2.24 y \(‖b‖\) = √(9 + 36) = √45 ≈ 6.71. Coseno: 15 ÷ (2.24 × 6.71) = 15 ÷ 15 = **1**. (Exacto: √5 × √45 = √225 = 15.)
+
+Distancia \(D(a, b)\): √((3 − 1)² + (6 − 2)²) = √(4 + 16) = √20 ≈ **4.47**.
 
 (3, 6) es (1, 2) multiplicado por 3: la misma dirección, el triple de largo. El coseno dice «idénticos»; la distancia dice «lejos». Si el largo no significa nada para tu modelo, el coseno (o normalizar antes) es la medida correcta.
 ? [facil] Un catálogo tiene 10 millones de embeddings de 768 números. ¿Cuánta memoria ocupan en float32? ¿Y en float16?
-float32: 10,000,000 × 768 × 4 bytes = 30,720,000,000 bytes ≈ **30.7 GB**.
+Usa \(Mem = N × d × bytes\), con \(N\) = 10,000,000 y \(d\) = 768.
 
-float16 usa 2 bytes por número, la mitad: ≈ **15.4 GB**.
+float32 (\(bytes\) = 4): 10,000,000 × 768 × 4 = 30,720,000,000 bytes ≈ **30.7 GB**.
+
+float16 (\(bytes\) = 2): 10,000,000 × 768 × 2 = 15,360,000,000 bytes ≈ **15.4 GB**, la mitad.
 ? [medio] Para una consulta, la búsqueda exacta dice que los 10 vecinos verdaderos son A, B, C, D, E, F, G, H, I y J. El índice ANN devolvió A, B, C, D, E, F, G, H, X y Y. ¿Cuál es su recall@10? Si te piden 0.95, ¿qué mueves y qué pagas?
-De los 10 verdaderos, el ANN encontró 8 (de la A a la H). Recall@10 = 8 ÷ 10 = **0.8**.
+Usa \(text{recall@}k = h ÷ k\). Aquí \(k\) = 10 vecinos verdaderos y el ANN halló \(h\) = 8 de ellos (de la A a la H; X y Y no estaban). Recall@10 = 8 ÷ 10 = **0.8**.
 
 Para subirlo hay que revisar más del catálogo: en HNSW, una lista de candidatos más larga (`ef_search`); en un índice por estantes, más estantes. Se paga en [[latencia]] y en [[cpu|CPU]] por búsqueda, y por lo tanto en máquinas para atender el mismo tráfico. Y una consulta no basta para decidir: el recall se mide sobre un set de cientos o miles de consultas.
-? [medio] Junta con RRF (k = 60: cada lista le da a cada publicación 1 ÷ (60 + su posición), y se suman) tres publicaciones. P está 1.ª en BM25 y no aparece en la lista semántica. Q está 4.ª en BM25 y 2.ª en la semántica. R está 10.ª en las dos. ¿En qué orden quedan?
+? [medio] Junta con RRF (cada lista le da a cada publicación 1 ÷ (60 + su posición), y se suman) tres publicaciones. P está 1.ª en BM25 y no aparece en la lista semántica. Q está 4.ª en BM25 y 2.ª en la semántica. R está 10.ª en las dos. ¿En qué orden quedan?
+Usa \(RRF = 1/(60 + r_1) + 1/(60 + r_2)\), con \(r_1\) la posición en la lista semántica y \(r_2\) en la de BM25.
 :::cuenta RRF de las tres
-P // solo en BM25 | 1/61 | ≈ 0.0164
-Q // en las dos | 1/64 + 1/62 ≈ 0.0156 + 0.0161 | ≈ 0.0318
-R // en las dos | 1/70 + 1/70 | ≈ 0.0286
+P // \(r_2\) = 1; no está en la semántica | 1/(60 + 1) = 1/61 | ≈ 0.0164
+Q // \(r_1\) = 2, \(r_2\) = 4 | 1/(60 + 2) + 1/(60 + 4) = 1/62 + 1/64 ≈ 0.0161 + 0.0156 | ≈ 0.0318
+R // \(r_1\) = \(r_2\) = 10 | 1/(60 + 10) + 1/(60 + 10) = 1/70 + 1/70 | ≈ 0.0286
 = Orden: **Q, R, P**.
 :::
 P fue la primera de una lista, pero solo de una. Q y R aparecen en las dos, y RRF premia ese acuerdo.
-? [medio] En C07, el vector de una publicación es el promedio del vector de su foto y el de su título. Si la foto da f = (1, 0) y el título t = (0, 1), los dos normalizados, ¿cuánto mide el promedio? ¿Qué hay que hacer y por qué?
-Promedio: ((1 + 0) ÷ 2, (0 + 1) ÷ 2) = (0.5, 0.5). Largo: √(0.25 + 0.25) = √0.5 ≈ **0.71**. No mide 1.
+? [medio] En la búsqueda de Alba, el vector de una publicación es el promedio del vector de su foto y el de su título. Si la foto da f = (1, 0) y el título t = (0, 1), los dos normalizados, ¿cuánto mide el promedio? ¿Qué hay que hacer y por qué?
+El promedio es \(a = (f + t) ÷ 2\), número por número: ((1 + 0) ÷ 2, (0 + 1) ÷ 2) = (0.5, 0.5). Su largo, \(‖a‖ = sqrt{a_1^2 + a_2^2}\): √(0.25 + 0.25) = √0.5 ≈ **0.71**. No mide 1.
 
-Hay que normalizarlo otra vez: (0.5 ÷ 0.71, 0.5 ÷ 0.71) ≈ **(0.71, 0.71)**.
+Hay que normalizarlo otra vez, con \(u = a ÷ ‖a‖\): (0.5 ÷ 0.71, 0.5 ÷ 0.71) ≈ **(0.71, 0.71)**.
 
 Si no se normaliza y el índice compara con producto punto, todos los puntajes de esa publicación salen multiplicados por 0.71: quedaría castigada en cada búsqueda frente a las publicaciones bien normalizadas, sin ninguna razón.
 ? [medio] Con los 8 pares revisados del ejemplo de deduplicación, ¿qué precision y recall da un umbral de 0.92? ¿Lo usarías para limpiar un dataset antes de repartirlo? ¿Y para moderar?
 Con 0.92 se marcan los pares con coseno de 0.92 o más: 1, 2, 3, 4 y 5, o sea 5 pares. De esos, son duplicados de verdad 1, 2, 3 y 5: 4 aciertos.
 
-- Precision: 4 ÷ 5 = **0.8**.
-- Recall: encontró los 4 duplicados que había: 4 ÷ 4 = **1.0**.
+- Precision, \(A ÷ m\): 4 aciertos de 5 marcados, 4 ÷ 5 = **0.8**.
+- Recall, \(A ÷ R\): encontró los \(R\) = 4 duplicados que había, 4 ÷ 4 = **1.0**.
 
 Para limpiar un dataset antes de repartirlo es una buena opción: no se escapa ningún duplicado, y el error (el par 4, dos fotos distintas de los mismos tenis) solo hace que dos fotos caigan del mismo lado. Para moderar, donde una decisión se aplica a todo el grupo, es demasiado laxo: juntaría el par 4 y castigaría una foto que es otra.
-? [reto] C11 tiene 12 millones de pedazos de documentos, cada uno con un embedding de 1,024 números. (a) ¿Cuánta memoria ocupan en float32 y en float16? (b) ¿Cuántas multiplicaciones haría una búsqueda exacta? (c) Si la memoria entrega 200 GB por segundo, ¿cuánto tarda solo en leer los vectores float32 en cada búsqueda? ¿Cabe en los ≈ 50 a 150 ms que C11 estima para toda esa etapa de búsqueda?
-**(a)** 12,000,000 × 1,024 × 4 bytes = 49,152,000,000 bytes ≈ **49.2 GB** en float32. En float16, la mitad: ≈ **24.6 GB**.
+? [reto] El asistente interno de Alba, el que responde a sus empleados con los documentos de la empresa, tiene 12 millones de pedazos de documentos, cada uno con un embedding de 1,024 números. (a) ¿Cuánta memoria ocupan en float32 y en float16? (b) ¿Cuántas multiplicaciones haría una búsqueda exacta? (c) Si la memoria entrega 200 GB por segundo, ¿cuánto tarda solo en leer los vectores float32 en cada búsqueda? ¿Cabe en los ≈ 50 a 150 ms que el equipo de Alba estima para toda esa etapa de búsqueda?
+Usa las ecuaciones de la búsqueda exacta: \(Mem = N × d × bytes\), \(Mult = N × d\) y \(T = Mem ÷ V\), con \(N\) = 12,000,000 pedazos, \(d\) = 1,024 y \(V\) = 200 GB por segundo.
 
-**(b)** Un producto punto de 1,024 números por cada pedazo: 12,000,000 × 1,024 = 12,288,000,000 ≈ **12.3 mil millones** de multiplicaciones por pregunta.
+**(a)** \(Mem\) en float32: 12,000,000 × 1,024 × 4 bytes = 49,152,000,000 bytes ≈ **49.2 GB**. En float16 (\(bytes\) = 2), la mitad: ≈ **24.6 GB**.
 
-**(c)** 49.2 GB ÷ 200 GB por segundo ≈ 0.25 s = **≈ 250 ms**, solo para leer. No cabe: es más que toda la etapa. En float16 serían ≈ 123 ms: casi toda la etapa se iría solo en leer, sin contar las multiplicaciones. Por eso C11 usa un índice HNSW, aunque reciba solo ≈ 2 preguntas por segundo: el problema no es el volumen, es la latencia de cada pregunta.
+**(b)** \(Mult = N × d\), un producto punto de 1,024 números por cada pedazo: 12,000,000 × 1,024 = 12,288,000,000 ≈ **12.3 mil millones** de multiplicaciones por pregunta.
+
+**(c)** \(T = Mem ÷ V\) = 49.2 GB ÷ 200 GB por segundo ≈ 0.25 s = **≈ 250 ms**, solo para leer. No cabe: es más que toda la etapa. En float16 serían 24.6 ÷ 200 ≈ 0.123 s ≈ 123 ms: casi toda la etapa se iría solo en leer, sin contar las multiplicaciones. Por eso el asistente usa un índice HNSW, aunque reciba muy pocas preguntas: ≈ 25 mil al día son 25,000 ÷ 86,400 ≈ 0.3 por segundo en promedio. El problema no es el volumen, es la latencia de cada pregunta.
 
 Un matiz: si un filtro de permisos deja solo unos miles de pedazos (los que una persona puede ver), la búsqueda exacta sobre ese pedacito sí es barata, y los motores la usan en ese caso.
 ? [reto] Demuestra que, si a y b miden 1, la distancia euclidiana al cuadrado entre ellos es 2 − 2 × coseno. Pista: la distancia al cuadrado es (a − b) · (a − b), y el producto punto se puede repartir como una multiplicación normal.
@@ -778,17 +872,7 @@ Comprobación con tenis y botas normalizados: coseno 0.96, así que 2 − 1.92 =
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M02 · Patrones de inferencia** usa la búsqueda por embeddings como ejemplo del patrón híbrido: los embeddings del catálogo se calculan en lote; el de la consulta, en cada [[request]]. Ahí también está la cascada: un modelo barato revisa todo y uno caro, solo lo que queda en duda.
-- **M07 · Servidores de modelos** sirve los encoders y los re-rankers (en Triton, o en vLLM; son programas que ponen modelos a responder) y menciona `/v1/embeddings`, la dirección de la [[api|API]] a la que se le piden embeddings.
-- **M09 · Datos y features** deduplica por hash y por casi duplicados antes de repartir el dataset. Cita un estudio sobre CIFAR-10 y CIFAR-100, dos datasets públicos de fotos chiquitas muy usados en investigación: el 3.3 % de las fotos de examen del primero y el 10 % de las del segundo tienen un casi duplicado en el entrenamiento.
-- **M12 · Monitoreo** detecta drift en imágenes comparando embeddings de hoy contra una referencia, desde la distancia entre los promedios hasta métodos más finos.
-- Los casos **C07** (búsqueda), **C11** (RAG), **C06** (moderación) y **C08** (recomendación) hacen las cuentas de esta lección en grande: 205 GB en float32 y 51.2 GB en int8, el grafo de 25.6 GB, recall@100 ≥ 0.95, RRF con k = 60, el re-ranker de 30 contra 100 candidatos y las dos torres de 128 números.
-
-**En el Dojo:** la estación 1 (Datos y etiquetas) cruza huellas de contenido contra el [[golden-set|golden set]] para que ninguna foto del examen se cuele al entrenamiento. Es deduplicación de copias exactas; los casi duplicados son el siguiente paso, con lo que viste aquí.
-
-**En Sensei:** la siguiente lección, Transformers y LLMs, convierte cada token en un embedding, compara palabras con productos punto en la atención y usa todo lo de esta lección en RAG. Después, «Cómo guarda números una computadora» explica int8 y la cuantización; «Matrices, FLOPs y qué tan rápido calcula una GPU», por qué miles de productos punto juntos son una multiplicación de matrices, y «Comparar distribuciones», cómo se mide el drift con más cuidado que un promedio.
+La siguiente lección, Transformers y LLMs, convierte cada token en un embedding, compara palabras con productos punto en la atención y usa todo lo de esta lección en RAG. Después, «Cómo guarda números una computadora» explica int8 y la cuantización; «Matrices, FLOPs y qué tan rápido calcula una GPU», por qué miles de productos punto juntos son una multiplicación de matrices, y «Comparar distribuciones: cómo se mide el drift», cómo medirlo con más cuidado que un promedio. Más adelante, «Datos y etiquetas» compara huellas de contenido (hashes) para que ninguna foto del examen del modelo se cuele también al entrenamiento. Eso atrapa las copias exactas; los casi duplicados se encuentran con lo que viste aquí.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -806,14 +890,14 @@ Intenta responder en tu cabeza antes de abrir cada respuesta.
 ? ¿Qué es un embedding y por qué sirve para buscar cosas parecidas?
 Es el vector que un modelo produce para una cosa, de forma que cosas parecidas reciben vectores cercanos. Así, «buscar algo parecido» se vuelve «buscar el vector más cercano», que es una cuenta.
 ? Calcula la similitud coseno entre (1, 0) y (0, 2). ¿Qué significa?
-Producto punto: 1 × 0 + 0 × 2 = 0. El coseno es 0 ÷ (1 × 2) = 0. Son perpendiculares: para el modelo, no tienen nada que ver. (El largo distinto no importa: el coseno solo mira la dirección.)
+Con \(cos θ = a · b ÷ (‖a‖ × ‖b‖)\): producto punto 1 × 0 + 0 × 2 = 0; largos 1 y 2. El coseno es 0 ÷ (1 × 2) = 0. Son perpendiculares: para el modelo, no tienen nada que ver. (El largo distinto no importa: el coseno solo mira la dirección.)
 ? ¿Por qué se guardan los embeddings normalizados?
 Porque con largo 1 el coseno es solo el producto punto, una cuenta más barata, y la distancia y el coseno ordenan igual a los vecinos. Además, ningún vector «gana» solo por ser largo.
 ? ¿Por qué no se hace la búsqueda exacta sobre 100 millones de vectores?
 Porque cada búsqueda tendría que comparar contra todos: 100 M × 512 = 51.2 mil millones de multiplicaciones, y leer ≈ 205 GB de memoria. Con cientos o miles de búsquedas por segundo no hay forma de pagarlo. Un ANN revisa solo una parte bien elegida, a cambio de perder de vez en cuando algún vecino verdadero.
 ? Un índice ANN tiene recall@100 = 0.90 y te piden 0.95. ¿Qué perilla mueves y qué pagas?
 Revisar más del catálogo: más estantes en un índice por grupos, una lista de candidatos más larga (`ef_search`) en HNSW. Sube el recall, pero cada búsqueda tarda más y necesitas más máquinas para la misma cantidad de búsquedas por segundo.
-? ¿Por qué C07 no usa solo búsqueda semántica?
+? ¿Por qué la búsqueda de Alba no usa solo búsqueda semántica?
 Porque los embeddings confunden lo exacto: «iPhone 13 Pro 128» queda cerca de «iPhone 12 Pro 256». BM25 encuentra marcas, modelos y tallas; los embeddings, sinónimos y descripciones vagas. Juntas, con RRF, cada una tapa los huecos de la otra, y BM25 queda de respaldo.
 ? ¿Por qué el re-ranker solo mira los primeros candidatos y no todo el catálogo?
 Porque es caro por candidato: lee la búsqueda y cada candidato juntos. Sobre decenas de candidatos es pagable; sobre millones, imposible. El retrieval barato trae los candidatos y el re-ranker caro ordena bien los primeros.

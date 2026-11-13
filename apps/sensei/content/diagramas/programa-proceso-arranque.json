@@ -1,5 +1,5 @@
 {
-  "titulo": "De un archivo a un proceso: Triton y el gateway de C01",
+  "titulo": "De un archivo a un proceso: Triton y el gateway de Alba",
   "width": 78,
   "height": 44,
   "lanes": [
@@ -16,7 +16,7 @@
       "note": "El código fuente de Triton, escrito en C++: texto que una persona puede leer y que la CPU no entiende." },
     { "id": "comp", "label": "Compilador", "sub": "una vez, antes", "kind": "job",
       "x": 41, "y": 5, "w": 15, "h": 8,
-      "note": "El compilador traduce el programa completo a instrucciones de máquina, una sola vez, antes de correrlo: eso es [[compilar]]. NVIDIA ya lo hizo; su imagen de contenedor trae a Triton compilado, y la de C01 parte de ella." },
+      "note": "El compilador traduce el programa completo a instrucciones de máquina, una sola vez, antes de correrlo: eso es [[compilar]]. NVIDIA ya lo hizo; su imagen de contenedor trae a Triton compilado, y la de Alba parte de ella." },
     { "id": "bin", "label": "tritonserver", "sub": "binario ejecutable", "kind": "store",
       "x": 61, "y": 5, "w": 16, "h": 8,
       "note": "El [[binario-ejecutable|binario ejecutable]]: instrucciones de máquina para Linux en x86-64. En una máquina arm64 no correría, y el contenedor moriría con `exec format error`." },
@@ -25,7 +25,7 @@
       "note": "Un [[proceso]] del binario `python`. Ejecuta el bytecode de `app.py` y de uvicorn, instrucción por instrucción, en los [[nucleo|núcleos]] de la CPU. Lo pesado, como decodificar la foto, lo hacen librerías compiladas, como Pillow." },
     { "id": "kernel", "label": "Kernel", "sub": "crea los procesos", "kind": "edge",
       "x": 31, "y": 21, "w": 16, "h": 8,
-      "note": "El [[kernel]], el corazón del sistema operativo. Carga el programa en la memoria y crea el proceso: le da su [[pid|PID]], su memoria propia y un primer [[hilo]]. Después lo turna en la CPU con todos los demás. Aquí va uno solo para simplificar: en C01, el gateway y Triton corren en máquinas distintas, y cada máquina tiene su propio kernel." },
+      "note": "El [[kernel]], el corazón del sistema operativo. Carga el programa en la memoria y crea el proceso: le da su [[pid|PID]], su memoria propia y un primer [[hilo]]. Después lo turna en la CPU con todos los demás. Aquí va uno solo para simplificar: en Alba, el gateway y Triton corren en máquinas distintas, y cada máquina tiene su propio kernel." },
     { "id": "ptri", "label": "Proceso de Triton", "sub": "PID, memoria, hilos", "kind": "service",
       "x": 61, "y": 21, "w": 16, "h": 8,
       "note": "El [[proceso]] de Triton: el binario `tritonserver` corriendo, con su PID, su memoria y muchos hilos, que reciben requests, arman los batches y corren el modelo." },
@@ -46,7 +46,7 @@
     { "id": "triton", "label": "Triton: se compila antes",
       "steps": [
         { "nodes": ["cpp"], "edges": [], "text": "Triton está escrito en **C++**: texto para personas. La CPU no lo entiende." },
-        { "nodes": ["cpp", "comp"], "edges": ["cpp>comp"], "text": "El **compilador** lo traduce completo a instrucciones de máquina, una sola vez, antes de correr. NVIDIA ya lo hizo: la imagen de C01 trae el resultado." },
+        { "nodes": ["cpp", "comp"], "edges": ["cpp>comp"], "text": "El **compilador** lo traduce completo a instrucciones de máquina, una sola vez, antes de correr. NVIDIA ya lo hizo: la imagen de Alba trae el resultado." },
         { "nodes": ["comp", "bin"], "edges": ["comp>bin"], "text": "Sale `tritonserver`, un **binario ejecutable** para Linux en x86-64. Mientras está en el disco, no hace nada." },
         { "nodes": ["bin", "kernel", "ptri"], "edges": ["bin>ptri", "kernel>ptri"], "text": "Al arrancar el contenedor, el **kernel** carga el binario en la memoria y crea el proceso: PID, memoria propia y un primer hilo, que después crea más." },
         { "nodes": ["ptri", "gpu"], "edges": ["ptri>gpu"], "text": "El proceso carga el engine del modelo en la **GPU** y empieza a atender requests. Sus instrucciones las corre la CPU directo, sin traducir nada." }

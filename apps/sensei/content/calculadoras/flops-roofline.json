@@ -1,10 +1,10 @@
 {
   "titulo": "El roofline de tu GPU",
-  "intro": "Pon el pico y el [[ancho-banda-memoria|ancho de banda]] de una GPU, y la [[intensidad-aritmetica|intensidad aritmética]] de un cálculo. Sale cuántos TFLOPS puede alcanzar y qué lo limita.",
+  "intro": "Pon el pico \\(P\\) y el [[ancho-banda-memoria|ancho de banda]] \\(W\\) de una GPU, y la [[intensidad-aritmetica|intensidad aritmética]] \\(I\\) de un cálculo. La calculadora aplica \\(I_{quiebre} = P/W\\) y el roofline \\(R = min(P, I × W)\\): cuántos TFLOPS puede alcanzar y qué lo limita.",
   "entradas": [
     {
       "id": "p",
-      "label": "Pico de cálculo",
+      "label": "Pico de cálculo de la GPU, \\(P\\)",
       "unidad": "TFLOPS",
       "min": 1,
       "max": 5000,
@@ -14,7 +14,7 @@
     },
     {
       "id": "bw",
-      "label": "Ancho de banda de memoria",
+      "label": "Ancho de banda de memoria, \\(W\\)",
       "unidad": "GB/s",
       "min": 10,
       "max": 10000,
@@ -24,7 +24,7 @@
     },
     {
       "id": "i",
-      "label": "Intensidad aritmética del cálculo",
+      "label": "Intensidad aritmética del cálculo, \\(I = F/D\\)",
       "unidad": "FLOPs/B",
       "min": 1,
       "max": 2000,
@@ -48,34 +48,34 @@
   ],
   "salidas": [
     {
-      "label": "Punto de quiebre de la GPU",
+      "label": "Punto de quiebre de la GPU, \\(I_{quiebre}\\)",
       "formula": "quiebre",
       "formato": "num",
       "decimales": 0,
-      "nota": "FLOPs por byte: pico ÷ ancho de banda"
+      "nota": "FLOPs por byte: \\(I_{quiebre} = P/W\\)"
     },
     {
-      "label": "Lo que la memoria alcanza a alimentar",
+      "label": "Lo que la memoria alcanza a alimentar, \\(I × W\\)",
       "formula": "rampa",
       "formato": "num",
       "decimales": 2,
-      "nota": "TFLOPS: intensidad × ancho de banda"
+      "nota": "TFLOPS: la rampa del roofline"
     },
     {
-      "label": "TFLOPS alcanzables",
+      "label": "TFLOPS alcanzables, \\(R\\)",
       "formula": "alcanza",
       "formato": "num",
       "decimales": 2,
-      "nota": "el menor de los dos: el techo del roofline"
+      "nota": "\\(R = min(P, I × W)\\): el menor de los dos"
     },
     {
-      "label": "Parte del pico que puedes usar",
+      "label": "Parte del pico que puedes usar, \\(R/P\\)",
       "formula": "alcanza / p",
       "formato": "pct",
       "barra": true
     },
     {
-      "label": "Intensidad ÷ punto de quiebre",
+      "label": "Intensidad ÷ punto de quiebre, \\(I/I_{quiebre}\\)",
       "formula": "i / quiebre",
       "formato": "x",
       "nota": "menos de 1×: memory-bound · 1× o más: compute-bound",

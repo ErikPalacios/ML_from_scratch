@@ -1,12 +1,12 @@
 {
   "titulo": "¿Cuánto tarda una respuesta?",
-  "intro": "El [[ttft|TTFT]] es la espera en la cola más el [[prefill]] del prompt; después, cada token de la respuesta tarda un [[tpot|TPOT]]. Mueve los largos y las velocidades.",
+  "intro": "El [[ttft|TTFT]] es la espera en la cola más el [[prefill]] del prompt; después, cada token de la respuesta tarda un [[tpot|TPOT]]. La calculadora aplica \\(t_{prefill} = n_p ÷ v_p\\), \\(TTFT = t_{cola} + t_{prefill}\\), \\(TPOT = 1 ÷ v_d\\) y \\(t_{total} = TTFT + (n_r − 1) × TPOT\\). Mueve los largos y las velocidades.",
   "entradas": [
-    { "id": "p", "label": "Tokens del **prompt**", "min": 100, "max": 8000, "paso": 100, "valor": 2000 },
-    { "id": "n", "label": "Tokens de la **respuesta**", "min": 1, "max": 2000, "paso": 1, "valor": 250 },
-    { "id": "vp", "label": "Velocidad del prefill", "min": 500, "max": 30000, "paso": 500, "valor": 13000, "unidad": "tokens/s" },
-    { "id": "cola", "label": "Espera en la cola del servidor", "min": 0, "max": 3000, "paso": 50, "valor": 450, "unidad": "ms" },
-    { "id": "vd", "label": "Velocidad del decode, por conversación", "min": 5, "max": 100, "paso": 1, "valor": 25, "unidad": "tokens/s" }
+    { "id": "p", "label": "Tokens del **prompt**, \\(n_p\\)", "min": 100, "max": 8000, "paso": 100, "valor": 2000 },
+    { "id": "n", "label": "Tokens de la **respuesta**, \\(n_r\\)", "min": 1, "max": 2000, "paso": 1, "valor": 250 },
+    { "id": "vp", "label": "Velocidad del prefill, \\(v_p\\): tokens del prompt que lee por segundo", "min": 500, "max": 30000, "paso": 500, "valor": 13000, "unidad": "tokens/s" },
+    { "id": "cola", "label": "Espera en la cola del servidor, \\(t_{cola}\\)", "min": 0, "max": 3000, "paso": 50, "valor": 450, "unidad": "ms" },
+    { "id": "vd", "label": "Velocidad del decode, \\(v_d\\): tokens que escribe por segundo una conversación", "min": 5, "max": 100, "paso": 1, "valor": 25, "unidad": "tokens/s" }
   ],
   "calculos": [
     { "id": "pre", "formula": "p / vp * 1000" },
@@ -15,12 +15,12 @@
     { "id": "total", "formula": "ttft + (n - 1) * tpot" }
   ],
   "salidas": [
-    { "label": "Prefill", "formula": "pre", "formato": "ms", "nota": "tokens del prompt ÷ velocidad del prefill" },
-    { "label": "TTFT: sale el primer token", "formula": "ttft", "formato": "ms", "nota": "cola + prefill" },
-    { "label": "TPOT: cada token después", "formula": "tpot", "formato": "ms", "nota": "1 ÷ velocidad del decode" },
-    { "label": "Tiempo total", "formula": "total", "formato": "ms", "nota": "TTFT + (tokens de la respuesta − 1) × TPOT" },
-    { "label": "Parte del total que es decode", "formula": "(n - 1) * tpot / total", "formato": "pct", "barra": true },
-    { "label": "Contra alguien que lee ≈ 5 tokens por segundo", "formula": "vd / 5", "formato": "x", "decimales": 1, "nota": "más de 1× = el texto sale más rápido de lo que se lee" }
+    { "label": "Prefill, \\(t_{prefill}\\)", "formula": "pre", "formato": "ms", "nota": "\\(n_p ÷ v_p\\)" },
+    { "label": "TTFT: sale el primer token", "formula": "ttft", "formato": "ms", "nota": "\\(t_{cola} + t_{prefill}\\)" },
+    { "label": "TPOT: cada token después del primero", "formula": "tpot", "formato": "ms", "nota": "\\(1 ÷ v_d\\)" },
+    { "label": "Tiempo total, \\(t_{total}\\)", "formula": "total", "formato": "ms", "nota": "\\(TTFT + (n_r − 1) × TPOT\\)" },
+    { "label": "Parte del total que es decode", "formula": "(n - 1) * tpot / total", "formato": "pct", "barra": true, "nota": "\\((n_r − 1) × TPOT ÷ t_{total}\\)" },
+    { "label": "Contra alguien que lee ≈ 5 tokens por segundo", "formula": "vd / 5", "formato": "x", "decimales": 1, "nota": "\\(v_d ÷ 5\\); más de 1× = el texto sale más rápido de lo que se lee" }
   ],
   "nota": "Duplica el prompt: el total sube ≈ 1.5 %. Duplica la respuesta: el total casi se duplica. Lo que tarda es escribir, no leer."
 }

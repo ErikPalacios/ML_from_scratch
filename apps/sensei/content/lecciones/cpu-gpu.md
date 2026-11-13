@@ -1,22 +1,22 @@
 ---
 titulo: CPU y GPU
 en: CPU and GPU
-subtitulo: Qué hay dentro de cada chip, por qué la ResNet-50 de C01 corre en una GPU, qué cables y qué software la unen con la CPU, y qué mide de verdad el porcentaje que muestra nvidia-smi.
-pregunta: Si una CPU hace miles de millones de operaciones por segundo, ¿por qué la ResNet-50 de C01 corre en una GPU, qué hay dentro de cada chip y qué los une?
+subtitulo: Qué hay dentro de cada chip, por qué la ResNet-50 de Alba corre en una GPU, qué cables y qué software la unen con la CPU, y qué mide de verdad el porcentaje que muestra nvidia-smi.
+pregunta: Si una CPU hace miles de millones de operaciones por segundo, ¿por qué la ResNet-50 de Alba corre en una GPU, qué hay dentro de cada chip y qué los une?
 requisitos: flops, memoria
 ---
 
 :::idea
-Una CPU tiene pocos núcleos muy listos que hacen cualquier tarea, una tras otra y muy rápido. Una GPU tiene miles de carriles sencillos que hacen la misma cuenta sobre muchos números a la vez, y circuitos que multiplican bloques de matrices de un jalón. La ResNet-50 de C01 es casi pura multiplicación de matrices: por eso va en la GPU. Pero la GPU no trabaja sola: la CPU le prepara los datos y le dice qué hacer, una conexión llamada PCIe las une, y el software de NVIDIA (CUDA y el driver) las pone de acuerdo.
+Una CPU tiene pocos núcleos muy listos que hacen cualquier tarea, una tras otra y muy rápido. Una GPU tiene miles de carriles sencillos que hacen la misma cuenta sobre muchos números a la vez, y circuitos que multiplican bloques de matrices de un jalón. Alba, la empresa que seguimos en todo el curso, es un marketplace que le sugiere a quien vende la categoría de cada foto, entre 500 posibles. Su modelo, una ResNet-50, es casi pura multiplicación de matrices: por eso va en la GPU. Pero la GPU no trabaja sola: la CPU le prepara los datos y le dice qué hacer, una conexión llamada PCIe las une, y el software de NVIDIA (CUDA y el driver) las pone de acuerdo.
 :::
 
-En la lección de FLOPs contaste el trabajo: la ResNet-50 pide 8.2 GFLOPs por foto. En el pico de diseño de C01, 500 fotos por segundo, eso es:
+En la lección de FLOPs contaste el trabajo: la ResNet-50 de Alba pide \(F\) = 8.2 GFLOPs por foto. Alba responde ≈ 10 millones de fotos al día (≈ 116 por segundo en promedio) y compra sus máquinas para un **pico de diseño** de \(f\) = 500 fotos por segundo. El trabajo por segundo es \(D = f × F\):
 
-**500 × 8.2 × 10⁹ = 4.1 × 10¹² FLOPs por segundo: 4.1 [[tflops|TFLOPS]] de trabajo útil.**
+**\(D\) = 500 × 8.2 × 10⁹ = 4.1 × 10¹² FLOPs por segundo: 4.1 [[tflops|TFLOPS]] de trabajo útil.**
 
-¿Qué chip puede con eso? En «Memoria, caché y disco» viste dónde viven los bytes. Aquí abrimos los dos chips que hacen las cuentas, los cables que los unen y el software que los pone de acuerdo. Vas a seguir la foto de Ana desde que una CPU la decodifica hasta que la GPU devuelve 500 logits.
+¿Qué chip puede con eso? En «Memoria, caché y disco» viste dónde viven los bytes. Aquí abrimos los dos chips que hacen las cuentas, los cables que los unen y el software que los pone de acuerdo. Vas a seguir la foto de Ana, que vende unos tenis en Alba, desde que una CPU la decodifica hasta que la GPU devuelve 500 logits.
 
-Al final vas a poder explicar con números tres cosas que la Ronda da por sabidas: por qué C01 sirve en una T4 y no en una CPU, por qué la T4 sola no basta (alguien tiene que prepararle las fotos) y por qué su GPU marca un porcentaje que engaña.
+Al final vas a poder explicar con números tres cosas que casi siempre se dan por sabidas: por qué Alba sirve su modelo en una T4 y no en una CPU, por qué la T4 sola no basta (alguien tiene que prepararle las fotos) y por qué su GPU marca un porcentaje que engaña.
 
 ## La CPU por dentro: núcleos, hilos de hardware y vCPU {Inside the CPU: cores, hardware threads and vCPUs}
 
@@ -42,27 +42,39 @@ Los dos hilos comparten los mismos circuitos de cálculo: juntos hacen un poco m
 
 ### El vCPU: lo que renta la nube
 
-En la nube no rentas núcleos: rentas [[vcpu|vCPU]] (*virtual CPU*). En las máquinas de AWS con procesador Intel, como las dos de C01, **un vCPU es un hilo de hardware: medio núcleo físico**. En las de procesador Graviton, los chips de AWS con arquitectura Arm (la de los teléfonos), un vCPU sí es un núcleo completo, porque no tienen SMT; lo mismo en las de AMD más nuevas, como las m7a, que AWS ofrece con el SMT apagado.
+En la nube no rentas núcleos: rentas [[vcpu|vCPU]] (*virtual CPU*). En las máquinas de AWS con procesador Intel, como las dos que usa Alba, **un vCPU es un hilo de hardware: medio núcleo físico**. En las de procesador Graviton, los chips de AWS con arquitectura Arm (la de los teléfonos), un vCPU sí es un núcleo completo, porque no tienen SMT; lo mismo en las de AMD más nuevas, como las m7a, que AWS ofrece con el SMT apagado.
 
-Dos máquinas de C01, en AWS:
+Las dos máquinas que Alba renta en AWS:
 
 - **g4dn.xlarge**, la de la GPU: 4 vCPU (2 núcleos físicos), 16 GiB de RAM y una T4, por ≈ US$0.526 la hora.
 - **c6i.xlarge**, la del gateway, la puerta de entrada que recibe las fotos: 4 vCPU y ninguna GPU.
 
-Un vCPU de una c6i cuesta ≈ US$0.0425 la hora (la máquina entera, ≈ US$0.17, entre 4); en la g4dn sale a 0.526 ÷ 4 ≈ US$0.13, ≈ 3 veces más, porque ahí pagas también la GPU. Por eso C01 no hace en la máquina de la GPU lo que puede hacer una CPU barata.
+Un vCPU de una c6i cuesta ≈ US$0.0425 la hora (la máquina entera, ≈ US$0.17, entre 4); en la g4dn sale a 0.526 ÷ 4 ≈ US$0.13, ≈ 3 veces más, porque ahí pagas también la GPU. Por eso Alba no hace en la máquina de la GPU lo que puede hacer una CPU barata.
 
 En Kubernetes, «1 CPU» es 1 vCPU, y se cuenta como **tiempo**: un *pod* (cada copia de un programa que Kubernetes pone a correr) con un límite de 2 CPU puede usar 2 segundos de CPU por cada segundo de reloj, entre todos sus hilos; por ejemplo, 4 hilos que corren medio segundo cada uno. Si se pasa, el kernel lo frena un rato (*CPU throttling*) con el mismo [[cgroup]] que le pone su tope de memoria.
 
 ### La CPU que alimenta a la GPU
 
-Antes de que la GPU vea la foto de Ana, una CPU la decodifica, la gira según su [[exif|EXIF]], la reduce a 224 × 224 y la normaliza. En C01 eso cuesta ≈ 6 ms de CPU por foto. En el pico de diseño:
+Antes de que la GPU vea la foto de Ana, una CPU la decodifica, la gira según su [[exif|EXIF]], la reduce a 224 × 224 y la normaliza. En Alba eso cuesta ≈ 6 ms de CPU por foto. Un vCPU da 1,000 ms de CPU por cada segundo, así que la cuenta es esta:
 
-**500 fotos por segundo × 6 ms = 3,000 ms de CPU por segundo = 3 vCPU ocupados todo el tiempo.**
+:::formula vCPU para preparar las fotos
+v = frac{f × t}{1000}
+v_{prov} = frac{v}{o}
+- f: fotos por segundo que hay que preparar
+- t: ms de CPU que gasta cada foto
+- v: vCPU ocupados todo el tiempo
+- o: el uso objetivo de la CPU, como fracción: 0.6 si no quieres que pase del 60 %
+- v_{prov}: los vCPU que hay que rentar para que la CPU se quede en \(o\) y el pico no la llene
+:::
 
-Si una T4 trabajara a su máximo medido, 1,200 fotos por segundo, harían falta 1,200 × 6 ms = 7.2 vCPU solo para prepararle las fotos. La g4dn.xlarge trae 4, y Triton, el programa de NVIDIA que sirve el modelo, ya pide 2. La GPU se quedaría esperando a la CPU. Por eso C01 prepara las fotos en su propio *tier* (una capa aparte de máquinas): los pods del gateway, en máquinas c6i. A la máquina de la GPU solo le llegan tensores listos.
+En el pico de diseño, con \(f\) = 500 y \(t\) = 6:
+
+**\(v\) = 500 × 6 ÷ 1,000 = 3 vCPU ocupados todo el tiempo** (3,000 ms de CPU por cada segundo).
+
+Si una T4 trabajara a su máximo medido, 1,200 fotos por segundo, harían falta \(v\) = 1,200 × 6 ÷ 1,000 = 7.2 vCPU solo para prepararle las fotos. La g4dn.xlarge trae 4, y Triton, el programa de NVIDIA que sirve el modelo, ya pide 2. La GPU se quedaría esperando a la CPU. Por eso Alba prepara las fotos en su propio *tier* (una capa aparte de máquinas): los pods del gateway, en máquinas c6i. A la máquina de la GPU solo le llegan tensores listos.
 
 :::calculadora cpu-gpu-alimentar
-Arranca con el pico de diseño de C01. Después pon 1200, lo que pediría una T4 a su máximo: ¿cuántas c6i.xlarge hacen falta al 60 %?
+Arranca con el pico de diseño de Alba, \(f\) = 500. Después pon 1200, lo que pediría una T4 a su máximo: ¿cuántas c6i.xlarge hacen falta con \(o\) = 60 %, el uso con el que Alba agrega pods?
 :::
 
 ## SIMD: muchos números en una sola instrucción {SIMD: many numbers in a single instruction}
@@ -91,14 +103,24 @@ El mismo registro guarda más números si son más chicos: en 512 bits caben 16 
 
 ### Multiplicar y sumar de un jalón
 
-La instrucción más importante para una red es la **FMA** (*fused multiply-add*): multiplica y suma en un solo paso, d = a × b + c, en todos los carriles. Es una [[mac|MAC]] por carril, que se cuenta como 2 FLOPs. Con eso ya puedes calcular el pico de un núcleo. Los Xeon, los chips de Intel para servidor, como los de las máquinas de C01, tienen por núcleo dos unidades FMA de 512 bits: dos circuitos que hacen, cada uno, una FMA de 16 carriles en cada ciclo.
+La instrucción más importante para una red es la **FMA** (*fused multiply-add*): multiplica y suma en un solo paso, x × y + z, en todos los carriles. Es una [[mac|MAC]] por carril, que se cuenta como 2 FLOPs. Con eso ya puedes calcular el pico de un núcleo. Los Xeon, los chips de Intel para servidor, como los de las máquinas de Alba, tienen por núcleo dos unidades FMA de 512 bits: dos circuitos que hacen, cada uno, una FMA de 16 carriles en cada ciclo.
+
+El pico de cualquier chip, CPU o GPU, sale de la misma cuenta:
+
+:::formula El pico de un chip
+P = n × m × 2 × r
+- n: cuántas unidades calculan a la vez: núcleos en una CPU, SMs en una GPU
+- m: las MACs que hace cada unidad en un ciclo. Cada MAC cuenta como 2 FLOPs: de ahí el 2
+- r: el reloj, en ciclos por segundo: 3 GHz son 3 × 10⁹
+- P: el pico, en FLOPs por segundo
+:::
 
 :::cuenta El pico de un núcleo con AVX-512, en FP32
 Carriles por instrucción // 512 bits entre 32 bits | 512 ÷ 32 | 16
-FLOPs por instrucción // cada carril hace una FMA: 2 FLOPs | 16 × 2 | 32
-FLOPs por ciclo // dos unidades FMA por núcleo | 32 × 2 | 64
-Por segundo // a 3 GHz, un supuesto redondo | 64 × 3 × 10⁹ | ≈ 192 GFLOPS
-Una c6i.xlarge // 4 vCPU = 2 núcleos | 2 × 192 | ≈ 384 GFLOPS
+MACs por ciclo, \(m\) // dos unidades FMA de 16 carriles, cada una hace una MAC por carril | 2 × 16 | 32
+FLOPs por ciclo | \(m\) × 2 = 32 × 2 | 64
+Pico de un núcleo, \(P\) // \(n\) = 1; \(r\) = 3 GHz, un supuesto redondo | \(P = n × m × 2 × r\) = 1 × 32 × 2 × 3 × 10⁹ | ≈ 192 GFLOPS
+Una c6i.xlarge // 4 vCPU = 2 núcleos: \(n\) = 2 | 2 × 32 × 2 × 3 × 10⁹ | ≈ 384 GFLOPS
 = Una T4 hace 8.1 TFLOPS en FP32 y 65 en FP16: ≈ 21 y ≈ 170 veces una c6i.xlarge entera. Y el pico de la CPU, como el de cualquier chip, tampoco se alcanza.
 :::
 
@@ -106,12 +128,12 @@ Python puro no usa nada de esto: cada suma pasa por el intérprete, un número a
 
 ### INT8 en la CPU: VNNI y AMX
 
-Para INT8, los Xeon recientes traen instrucciones especiales. **VNNI** (*Vector Neural Network Instructions*, desde 2019; las c6i la tienen) hace 4 veces más MACs por instrucción que FP32. **AMX** (*Advanced Matrix Extensions*, desde 2023; la tienen las c7i, la generación que sigue a las c6i) es un circuito dentro de cada núcleo que multiplica bloques de matrices, parecido a los tensor cores de una GPU que ves en un rato. Con ellas, la distancia entre una CPU y una GPU chica se acorta mucho, y por eso la Ronda deja pendiente medir la ResNet-50 en INT8 en CPU. Sin ellas, INT8 puede ser **más lento** que FP32, como advierte la documentación de ONNX Runtime que cita M08.
+Para INT8, los Xeon recientes traen instrucciones especiales. **VNNI** (*Vector Neural Network Instructions*, desde 2019; las c6i la tienen) hace 4 veces más MACs por instrucción que FP32. **AMX** (*Advanced Matrix Extensions*, desde 2023; la tienen las c7i, la generación que sigue a las c6i) es un circuito dentro de cada núcleo que multiplica bloques de matrices, parecido a los tensor cores de una GPU que ves en un rato. Con ellas, la distancia entre una CPU y una GPU chica se acorta mucho, y por eso el equipo de Alba tiene pendiente medir su ResNet-50 en INT8 en CPU. Sin ellas, INT8 puede ser **más lento** que FP32, como advierte la documentación de ONNX Runtime.
 
 :::profundo VNNI, AMX y cómo saber qué tiene tu CPU
 VNNI multiplica, en cada carril de 32 bits, 4 pares de INT8 y los suma en un solo paso: con 512 bits son 64 MACs por instrucción, contra 16 en FP32. AMX multiplica bloques de INT8 o de BF16; según Intel, hace 2,048 operaciones INT8 por ciclo por núcleo, 8 veces VNNI.
 
-En Linux, `lscpu` lista las instrucciones del chip en su renglón *Flags*: busca `avx512f` (AVX-512), `avx512_vnni` (VNNI) y `amx_int8` (AMX). Dentro de un contenedor ves las del chip de la máquina, porque el contenedor no cambia el procesador. Y una laptop no se parece a un servidor: un chip de Apple tiene NEON y su propia unidad de matrices, y por eso sus tiempos no sirven para dimensionar una máquina x86 (M08 lo muestra con números).
+En Linux, `lscpu` lista las instrucciones del chip en su renglón *Flags*: busca `avx512f` (AVX-512), `avx512_vnni` (VNNI) y `amx_int8` (AMX). Dentro de un contenedor ves las del chip de la máquina, porque el contenedor no cambia el procesador. Y una laptop no se parece a un servidor: un chip de Apple tiene NEON y su propia unidad de matrices, y por eso sus tiempos no sirven para dimensionar una máquina x86.
 :::
 
 ## La GPU por dentro: SMs, warps y miles de hilos {Inside the GPU: SMs, warps and thousands of threads}
@@ -130,7 +152,7 @@ Dentro de cada SM de la T4 hay 64 carriles para FP32 y 8 [[tensor-core|tensor co
 Arriba, una CPU de 8 núcleos grandes, cada uno con su caché y 32 carriles FP32. Abajo, la T4: 40 SMs, una caché L2 para todos y la VRAM afuera. Al final, un SM de cerca, con sus 64 carriles, sus 8 tensor cores y sus hilos en grupos de 32, los warps. Compara los carriles: 256 contra 2,560.
 :::
 
-De ahí salen los 8.1 TFLOPS en FP32 de la lección de FLOPs: 40 SMs × 64 carriles × 2 FLOPs por FMA × 1.59 × 10⁹ ciclos por segundo (el reloj de la T4 a toda velocidad) ≈ 8.1 × 10¹².
+De ahí salen los 8.1 TFLOPS en FP32 de la lección de FLOPs, con la fórmula del pico, \(P = n × m × 2 × r\): \(n\) = 40 SMs, \(m\) = 64 MACs por ciclo (una FMA por carril) y \(r\) = 1.59 × 10⁹ ciclos por segundo, el reloj de la T4 a toda velocidad. \(P\) = 40 × 64 × 2 × 1.59 × 10⁹ ≈ 8.1 × 10¹².
 
 ### El warp: 32 hilos que marchan juntos
 
@@ -194,15 +216,15 @@ Con sus carriles normales, una T4 hace 8.1 TFLOPS: unas 21 veces una c6i.xlarge.
 
 ### Un circuito para multiplicar bloques
 
-Un [[tensor-core|tensor core]] es un circuito dentro del SM que hace una sola cosa: multiplica dos bloques chicos de matrices y le suma el resultado a un tercero, **D = A × B + C**, como una sola operación. En la T4, cada tensor core multiplica en cada ciclo un bloque de 4 × 4 por otro de 4 × 4, en FP16. El resultado tiene 4 × 4 = 16 casillas, y cada una es un producto punto de 4 pares: 16 × 4 = 64 MACs. Las sumas se acumulan en FP32, como viste en «Cómo guarda números una computadora».
+Un [[tensor-core|tensor core]] es un circuito dentro del SM que hace una sola cosa: multiplica dos bloques chicos de matrices y le suma el resultado a un tercero, **X × Y + Z**, como una sola operación. En la T4, cada tensor core multiplica en cada ciclo un bloque de 4 × 4 por otro de 4 × 4, en FP16. El resultado tiene 4 × 4 = 16 casillas, y cada una es un producto punto de 4 pares: 16 × 4 = 64 MACs. Las sumas se acumulan en FP32, como viste en «Cómo guarda números una computadora».
 
 Una multiplicación grande se parte en esos bloques, y cada SM los despacha con sus 8 tensor cores:
 
 :::cuenta Los 65 TFLOPS de la T4
-MACs por ciclo en un SM, con tensor cores // 8 tensor cores × 64 MACs | 8 × 64 | 512
+MACs por ciclo en un SM, con tensor cores, \(m\) // 8 tensor cores × 64 MACs | 8 × 64 | 512
 Contra sus carriles normales // 64 carriles, una FMA cada uno | 512 ÷ 64 | 8 veces más
-FLOPs por ciclo en un SM | 512 × 2 | 1,024
-Toda la T4, por segundo // 40 SMs a 1.59 GHz | 1,024 × 40 × 1.59 × 10⁹ | ≈ 65 TFLOPS
+FLOPs por ciclo en un SM | \(m\) × 2 = 512 × 2 | 1,024
+Toda la T4, \(P\) // \(n\) = 40 SMs, \(r\) = 1.59 GHz | \(P = n × m × 2 × r\) = 40 × 512 × 2 × 1.59 × 10⁹ | ≈ 65 TFLOPS
 = Son las 8 veces de la lección de FLOPs (65 contra 8.1 TFLOPS), con su origen: en cada ciclo, un SM hace 512 MACs en sus tensor cores y solo 64 en sus carriles.
 :::
 
@@ -221,7 +243,7 @@ Son rapidísimos, pero exigentes:
 | H100 (Hopper, 2022) y L4 (Ada, 2023) | además, FP8 (la H100 ya no trae INT4) |
 | B200 (Blackwell, 2024) | además, FP6 y FP4 |
 
-### La respuesta para C01
+### La respuesta para Alba
 
 Ya puedes poner los números juntos. Esta es la tabla de la lección: cuántas operaciones hace cada pieza en **un ciclo** de su reloj.
 
@@ -235,18 +257,18 @@ Ya puedes poner los números juntos. Esta es la tabla de la lección: cuántas o
 
 Fíjate: en FP32, un SM hace por ciclo apenas el doble que un núcleo de CPU, y a la mitad del reloj; con AMX, un núcleo iguala a un SM en INT8. La GPU gana porque trae 40 SMs (132 en una H100 SXM), porque sus tensor cores multiplican 8 veces más que sus carriles y porque mantiene miles de hilos listos para no esperar.
 
-:::cuenta ¿Quién da los 4.1 TFLOPS de C01?
-Lo que pide C01 en el pico de diseño // 500 fotos por segundo × 8.2 GFLOPs | 500 × 8.2 × 10⁹ | 4.1 TFLOPS
-Lo que da una T4, medido // ≈ 1,200 fotos por segundo: el 15 % de su pico | 1,200 × 8.2 × 10⁹ | ≈ 9.8 TFLOPS
+:::cuenta ¿Quién da los 4.1 TFLOPS de Alba?
+Lo que pide Alba en el pico de diseño, \(D\) // \(f\) = 500 fotos por segundo, \(F\) = 8.2 GFLOPs por foto | \(D = f × F\) = 500 × 8.2 × 10⁹ | 4.1 TFLOPS
+Lo que da una T4, medido // ≈ 1,200 fotos por segundo: el 15 % de su pico de 65 TFLOPS | 1,200 × 8.2 × 10⁹ | ≈ 9.8 TFLOPS
 Margen de una sola T4 // contra el pico de diseño | 1,200 ÷ 500 | 2.4 veces
-Núcleos de CPU en FP32, con eficiencia perfecta // 192 GFLOPS cada uno, algo que nunca pasa | 4.1 × 10¹² ÷ (192 × 10⁹) | ≈ 21 núcleos
+Núcleos de CPU en FP32, con eficiencia perfecta // \(P\) = 192 GFLOPS cada uno, algo que nunca se logra | \(D ÷ P\) = 4.1 × 10¹² ÷ (192 × 10⁹) | ≈ 21 núcleos
 Esos núcleos, en dinero // 2 vCPU por núcleo en una c6i, a ≈ US$0.0425 cada uno | 21 × 2 × 0.0425 | ≈ US$1.8 la hora
 = Una sola T4, por US$0.526 la hora, da más del doble del pico de diseño. La CPU en FP32 costaría ≈ 3.4 veces más solo por el modelo, y eso con una eficiencia perfecta que nunca logra: en la práctica, varias veces más. Aparte van los núcleos que preparan las fotos.
 :::
 
-Esa es la respuesta corta: la ResNet-50 es casi pura multiplicación de matrices, y una GPU con tensor cores la hace varias veces más barato por foto que una CPU en FP32, siempre que la GPU tenga trabajo. La letra chica: las T4 de C01 trabajan en promedio al ≈ 5 % de su capacidad, y con la GPU casi vacía la CPU en INT8 vuelve a ser candidata (la cuenta está en «En la vida real»).
+Esa es la respuesta corta: la ResNet-50 es casi pura multiplicación de matrices, y una GPU con tensor cores la hace varias veces más barato por foto que una CPU en FP32, siempre que la GPU tenga trabajo. La letra chica: las dos T4 de Alba trabajan en promedio al ≈ 5 % de su capacidad (a cada una le llegan 58 fotos por segundo, contra ≈ 1,200 que aguanta), y con la GPU casi vacía la CPU en INT8 vuelve a ser candidata (la cuenta está en «En la vida real»).
 
-¿Dónde gana la CPU? En lo que tiene muchas decisiones y poco cálculo repetido: los árboles de decisión, cadenas de preguntas de sí o no (como el modelo de C14), los modelos chicos o con poco tráfico, el preprocesamiento y todo el código que no es el modelo. ¿Y la GPU? En las CNNs con tráfico alto, en los [[llm|LLMs]] y en casi todo el entrenamiento.
+¿Dónde gana la CPU? En lo que tiene muchas decisiones y poco cálculo repetido: los árboles de decisión, cadenas de preguntas de sí o no (como los que pronostican la demanda de una tienda), los modelos chicos o con poco tráfico, el preprocesamiento y todo el código que no es el modelo. ¿Y la GPU? En las CNNs con tráfico alto, en los [[llm|LLMs]] y en casi todo el entrenamiento.
 
 ## CUDA y los kernels: cómo la CPU le da trabajo a la GPU {CUDA and kernels: how the CPU gives the GPU work}
 
@@ -259,7 +281,7 @@ La GPU no corre Python ni el sistema operativo, ni decide nada sola: hace lo que
 - **cuBLAS**, para multiplicar matrices.
 - **cuDNN**, para convoluciones y otras capas de redes.
 - **NCCL**, para que varias GPUs se pasen datos.
-- **TensorRT**, el compilador que convierte un modelo en un *engine* hecho a la medida de un tipo de GPU, como el de C01 para la T4 (en otro tipo no carga: lo ves en la sección extra del driver).
+- **TensorRT**, el compilador que convierte un modelo en un *engine* hecho a la medida de un tipo de GPU, como el de Alba para la T4 (en otro tipo no carga: lo ves en la sección extra del driver).
 
 Casi nunca escribes CUDA: cuando PyTorch multiplica dos tensores en la GPU, llama a cuBLAS. CUDA solo funciona en GPUs de NVIDIA; AMD tiene su propia plataforma (ROCm), y las TPUs, los chips que Google diseñó para ML, otra (XLA). Casi veinte años de bibliotecas y código escritos para CUDA son buena parte de por qué casi todo el ML corre en NVIDIA.
 
@@ -325,16 +347,16 @@ for nombre, d in (("56 kernels de 50 µs", 50), ("56 kernels de 3 µs", 3)):
 56 kernels de 3 µs: 283 µs en total · la GPU trabajó el 59% del tiempo
 ```
 
-Mientras cada kernel tarde en la GPU más de lo que la CPU tarda en lanzar el siguiente, el costo se esconde: la CPU va adelante, llenando la fila. Con kernels de 3 µs pasa lo contrario: la CPU no alcanza a la GPU, que pasa cuatro de cada diez microsegundos esperando. Eso pasa con modelos chicos, con batches de 1 y con PyTorch corriendo operación por operación desde Python, que le agrega su propio costo a cada una. La Ronda (M07) estima que C01 sacaría del orden de 100 fotos por segundo por proceso con PyTorch sin optimizar en una T4, contra ≈ 1,200 con Triton y TensorRT: el salto junta el engine en FP16, la fusión y el batching.
+Mientras cada kernel tarde en la GPU más de lo que la CPU tarda en lanzar el siguiente, el costo se esconde: la CPU va adelante, llenando la fila. Con kernels de 3 µs pasa lo contrario: la CPU no alcanza a la GPU, que pasa cuatro de cada diez microsegundos esperando. Eso pasa con modelos chicos, con batches de 1 y con PyTorch corriendo operación por operación desde Python, que le agrega su propio costo a cada una. El equipo de Alba estima que su modelo sacaría del orden de 100 fotos por segundo por proceso con PyTorch sin optimizar en una T4, contra ≈ 1,200 con Triton y TensorRT: el salto junta el engine en FP16, la fusión y el batching.
 
 ### Tres remedios
 
 - **Menos kernels:** fusionar capas, lo primero que hace TensorRT.
 - **Kernels más grandes:** el [[batch|batching]]. Un batch de 32 lanza los mismos 56 kernels que una foto sola, cada uno con 32 veces más trabajo.
-- **Un solo lanzamiento:** un *CUDA graph* graba una vez la secuencia completa de kernels y después la relanza de un jalón. Lo usa `torch.compile`, el compilador de PyTorch, en su modo `reduce-overhead`, y los servidores de LLMs como vLLM lo preparan al arrancar (C10 lo menciona).
+- **Un solo lanzamiento:** un *CUDA graph* graba una vez la secuencia completa de kernels y después la relanza de un jalón. Lo usa `torch.compile`, el compilador de PyTorch, en su modo `reduce-overhead`, y los servidores de LLMs como vLLM lo preparan al arrancar.
 
 :::profundo Varios hilos no hacen un batch
-Si tu servidor atiende requests con varios hilos de Python y cada uno llama al modelo de PyTorch con su foto, parece que la GPU recibe trabajo en paralelo. No: por omisión, los kernels de todos van a la misma fila y la GPU los corre uno tras otro, cada uno con una foto. La GPU sigue viendo batches de 1. Para juntar fotos hace falta alguien que las junte antes de llamar al modelo: el *dynamic batching* de Triton, que en C01 espera hasta 2 ms para juntar hasta 32. En CPU es distinto: ahí varios hilos sí suman, hasta llenar los núcleos (M07). Por qué, con el [[gil|GIL]] de Python de por medio, lo ves en la lección de async.
+Si tu servidor atiende requests con varios hilos de Python y cada uno llama al modelo de PyTorch con su foto, parece que la GPU recibe trabajo en paralelo. No: por omisión, los kernels de todos van a la misma fila y la GPU los corre uno tras otro, cada uno con una foto. La GPU sigue viendo batches de 1. Para juntar fotos hace falta alguien que las junte antes de llamar al modelo: el *dynamic batching* de Triton, que en Alba espera hasta 2 ms para juntar hasta 32. En CPU es distinto: ahí varios hilos sí suman, hasta llenar los núcleos. Por qué, con el [[gil|GIL]] de Python de por medio, lo ves en la lección de async.
 :::
 
 ## La memoria de la GPU y los cables: HBM, PCIe y NVLink {GPU memory and the wires: HBM, PCIe and NVLink}
@@ -352,11 +374,18 @@ La T4 tiene 8 chips de GDDR6 alrededor de la GPU. Cada chip se conecta con 32 ca
 Arriba, la T4: 8 chips GDDR6 alrededor de la GPU, 256 cables a 10 Gb/s. Abajo, la H100 SXM: 5 pilas de HBM3 pegadas al chip, 5,120 cables a ≈ 5.23 Gb/s. Fíjate en la cuenta: veinte veces más cables, cada uno a la mitad de velocidad.
 :::
 
+:::formula Ancho de banda de una memoria
+W = frac{L × g}{8}
+- L: cuántos cables (líneas) de datos tiene la memoria
+- g: los gigabits que pasan por cada cable en un segundo, en Gb/s
+- W: el ancho de banda, en GB/s. El ÷ 8 pasa de bits a bytes
+:::
+
 :::cuenta Ancho de banda = cables × velocidad de cada cable
-T4, GDDR6 // 8 chips × 32 cables | 256 × 10 Gb/s ÷ 8 | 320 GB/s
-H100 SXM, HBM3 // 5 pilas × 1,024 cables, a ≈ 5.23 Gb/s cada uno | 5,120 × 5.23 Gb/s ÷ 8 | ≈ 3,350 GB/s
+T4, GDDR6 // \(L\) = 8 chips × 32 cables = 256; \(g\) = 10 Gb/s | \(W = L × g ÷ 8\) = 256 × 10 ÷ 8 | 320 GB/s
+H100 SXM, HBM3 // \(L\) = 5 pilas × 1,024 cables = 5,120; \(g\) ≈ 5.23 Gb/s | 5,120 × 5.23 ÷ 8 | ≈ 3,350 GB/s
 Cuántas veces más | 3,350 ÷ 320 | ≈ 10
-= Diez veces más rápida, no por cables más veloces sino por más cables. El ÷ 8 pasa de bits a bytes.
+= Diez veces más rápida, no por cables más veloces sino por más cables.
 :::
 :::
 
@@ -372,12 +401,14 @@ La GPU es una tarjeta conectada a la máquina por [[pcie|PCIe]] (*PCI Express*),
 
 Las dos direcciones van a la vez, y NVIDIA suele anunciarlas sumadas: 32 GB/s para la T4 y 64 para la L4.
 
+Lo que tarda algo en cruzar una conexión es su tamaño entre el ancho de banda: \(t_{cruce} = S ÷ W\), con el tamaño \(S\) en bytes y \(W\) en bytes por segundo, en un sentido.
+
 :::cuenta El tensor de Ana cruza PCIe
-Tamaño // 150,528 números en float32 | 150,528 × 4 B | 602,112 B
-Ancho de banda // PCIe Gen3 x16, en un sentido | 16 carriles × ≈ 0.985 GB/s | ≈ 15.75 GB/s
-Tiempo | 602,112 B ÷ 15.75 GB/s | ≈ 38 µs
-Contra la red // del gateway a Triton | dato de la Ronda | 2 a 4 ms
-Contra el cálculo // TensorRT en FP16, una foto sola | dato de la Ronda | ≈ 3 ms
+Tamaño, \(S\) // 3 × 224 × 224 = 150,528 números en float32, de 4 B cada uno | 150,528 × 4 B | 602,112 B
+Ancho de banda, \(W\) // PCIe Gen3 x16, en un sentido | 16 carriles × ≈ 0.985 GB/s | ≈ 15.75 GB/s
+Tiempo, \(t_{cruce}\) | \(t_{cruce} = S ÷ W\) = 602,112 B ÷ 15.75 GB/s | ≈ 38 µs
+Contra la red // del gateway a Triton | dato de Alba | 2 a 4 ms
+Contra el cálculo // TensorRT en FP16, una foto sola | dato de Alba | ≈ 3 ms
 = PCIe se lleva ≈ 1 % del tiempo de la GPU: mover el tensor cuesta en la red, no en PCIe. De vuelta viajan 500 logits, 2 KB.
 :::
 
@@ -392,23 +423,23 @@ canales = {"red 5 Gb/s": 5 / 8, "PCIe Gen3": 15.75, "PCIe Gen4": 31.5, "NVLink":
 cosas = {
     "tensor de Ana, float32": 602_112,
     "tensor de Ana, uint8": 150_528,
-    "ResNet-50 de C01, FP16": 49e6,          # 24.5 M pesos × 2 B
+    "ResNet-50 de Alba, FP16": 49e6,         # 24.5 M pesos × 2 B
     "Llama 3 8B en BF16": 16.06e9,
 }
-print(f"{'':<23}" + "".join(f"{c:>11}" for c in canales))
+print(f"{'':<24}" + "".join(f"{c:>11}" for c in canales))
 for cosa, b in cosas.items():
-    print(f"{cosa:<23}" + "".join(f"{tiempo(b, v):>11}" for v in canales.values()))
+    print(f"{cosa:<24}" + "".join(f"{tiempo(b, v):>11}" for v in canales.values()))
 ```
 
 ```salida
-                        red 5 Gb/s  PCIe Gen3  PCIe Gen4     NVLink
-tensor de Ana, float32    963.4 µs    38.2 µs    19.1 µs     1.3 µs
-tensor de Ana, uint8      240.8 µs     9.6 µs     4.8 µs     0.3 µs
-ResNet-50 de C01, FP16     78.4 ms     3.1 ms     1.6 ms   108.9 µs
-Llama 3 8B en BF16          25.7 s      1.0 s   509.8 ms    35.7 ms
+                         red 5 Gb/s  PCIe Gen3  PCIe Gen4     NVLink
+tensor de Ana, float32     963.4 µs    38.2 µs    19.1 µs     1.3 µs
+tensor de Ana, uint8       240.8 µs     9.6 µs     4.8 µs     0.3 µs
+ResNet-50 de Alba, FP16     78.4 ms     3.1 ms     1.6 ms   108.9 µs
+Llama 3 8B en BF16           25.7 s      1.0 s   509.8 ms    35.7 ms
 ```
 
-La primera columna es la red de la g4dn.xlarge; la última, en un sentido, NVLink, la conexión directa entre GPUs que ves en un momento. Los pesos de la ResNet-50 cruzan PCIe una vez, al arrancar: 3 ms; los de un LLM de 8B, un segundo. Lo que sí nota PCIe es el video 4K sin comprimir, o un modelo con una capa que no corre en la GPU y manda tensores de ida y vuelta a la CPU en cada foto (M08 lo cuenta de ONNX Runtime).
+La primera columna es la red de la g4dn.xlarge; la última, en un sentido, NVLink, la conexión directa entre GPUs que ves en un momento. Los pesos de la ResNet-50 cruzan PCIe una vez, al arrancar: 3 ms; los de un LLM de 8B, un segundo. Lo que sí nota PCIe es el video 4K sin comprimir, o un modelo con una capa que no corre en la GPU y manda tensores de ida y vuelta a la CPU en cada foto (le pasa a ONNX Runtime cuando una capa no tiene versión para la GPU: la corre en la CPU).
 
 :::diagrama cpu-gpu-viaje
 Toca cada caja para ver qué hace y cuánto tarda. Sigue «La foto de Ana», luego «Arrancar el servidor» y «Si la GPU preparara sus fotos».
@@ -416,10 +447,10 @@ Toca cada caja para ver qué hace y cuánto tarda. Sigue «La foto de Ana», lue
 
 ### NVLink: de una GPU a otra
 
-Cuando un modelo no cabe en una GPU, se parte entre varias, que en cada capa se pasan resultados parciales: por PCIe, cada paso se alargaría. [[nvlink|NVLink]] es una conexión directa entre GPUs de NVIDIA, que no pasa por PCIe: en una H100 SXM da 450 GB/s en cada sentido (900 sumados), unas 7 veces PCIe Gen5. En las máquinas de 8 GPUs, como la p5.48xlarge de AWS, unos chips llamados NVSwitch conectan las 8 entre sí a esa velocidad. La T4, la L4 y la A10G no tienen NVLink. Cómo lo usa C10 está en «En la vida real».
+Cuando un modelo no cabe en una GPU, se parte entre varias, que en cada capa se pasan resultados parciales: por PCIe, cada paso se alargaría. [[nvlink|NVLink]] es una conexión directa entre GPUs de NVIDIA, que no pasa por PCIe: en una H100 SXM da 450 GB/s en cada sentido (900 sumados), unas 7 veces PCIe Gen5. En las máquinas de 8 GPUs, como la p5.48xlarge de AWS, unos chips llamados NVSwitch conectan las 8 entre sí a esa velocidad. La T4, la L4 y la A10G no tienen NVLink. Cómo se usa para servir un LLM grande está en «En la vida real».
 
 :::profundo Memoria fijada y DMA
-La CPU no copia el tensor byte por byte: lo copia un circuito que lee directo de la RAM (DMA, *direct memory access*) mientras la CPU sigue con otra cosa. Para eso, el tensor tiene que estar en memoria **fijada** (*pinned*): RAM que el sistema operativo promete no mover ni mandar al disco, cosa que la [[memoria-virtual|memoria virtual]] sí podría hacer. Si no está fijada, el driver primero la copia a un *buffer* fijado, y tarda más: por eso los servidores de modelos usan *buffers* fijados, y PyTorch tiene `pin_memory=True`. La GPU tiene además sus propios motores de copia, así que puede copiar el siguiente batch mientras calcula el actual. C01 lo aprovecha con dos instancias del modelo, dos copias cargadas en la misma T4: mientras una copia datos, la otra calcula.
+La CPU no copia el tensor byte por byte: lo copia un circuito que lee directo de la RAM (DMA, *direct memory access*) mientras la CPU sigue con otra cosa. Para eso, el tensor tiene que estar en memoria **fijada** (*pinned*): RAM que el sistema operativo promete no mover ni mandar al disco, cosa que la [[memoria-virtual|memoria virtual]] sí podría hacer. Si no está fijada, el driver primero la copia a un *buffer* fijado, y tarda más: por eso los servidores de modelos usan *buffers* fijados, y PyTorch tiene `pin_memory=True`. La GPU tiene además sus propios motores de copia, así que puede copiar el siguiente batch mientras calcula el actual. Alba lo aprovecha con dos instancias del modelo, dos copias cargadas en la misma T4: mientras una copia datos, la otra calcula.
 :::
 
 ## Qué mide de verdad la utilización de GPU {What GPU utilization really measures}
@@ -439,7 +470,7 @@ Imagina un estacionamiento de 40 lugares y un vigilante que solo anota, minuto a
 :::
 
 :::figura cpu-gpu-utilizacion
-Tres GPUs, cada una durante un segundo. Lo ancho de cada barra es tiempo; lo alto, cuántos SMs usa. nvidia-smi solo mide lo ancho: marca 100 % con un kernel chiquito que nunca para, y 17 % con las fotos de C01, aunque las dos estén lejos de su capacidad.
+Tres GPUs, cada una durante un segundo. Lo ancho de cada barra es tiempo; lo alto, cuántos SMs usa. nvidia-smi solo mide lo ancho: marca 100 % con un kernel chiquito que nunca para, y 17 % con las fotos de Alba, aunque las dos estén lejos de su capacidad.
 :::
 
 En código, medir el tiempo o medir el chip es una línea de diferencia:
@@ -467,32 +498,51 @@ medio segundo con la GPU llena         nvidia-smi  50% · SMs ocupados  50%
 58 fotos de 3 ms, la mitad de los SMs  nvidia-smi  17% · SMs ocupados   9%
 ```
 
-La tercera fila usa dos supuestos: que una foto sola ocupa la GPU ≈ 3 ms (lo que dice la Ronda para TensorRT con batches chicos) y que usa la mitad de sus SMs.
+La tercera fila usa dos supuestos: que una foto sola ocupa la GPU ≈ 3 ms (el extremo bajo de los 3 a 6 ms que tarda la GPU de Alba con TensorRT y batches chicos) y que usa la mitad de sus SMs.
 
 ### Tres números para la misma T4
 
-:::cuenta La T4 de C01 en un momento promedio
-Fotos por segundo, por GPU // 116 en promedio (10 millones al día ÷ 86,400 s), repartidas entre 2 GPUs | 116 ÷ 2 | 58
-Carga: contra el máximo medido // la parte de su capacidad que usa de verdad | 58 ÷ 1,200 | ≈ 5 %
-nvidia-smi // 58 batches de una foto, de ≈ 3 ms cada uno (supuesto) | 58 × 3 ms = 174 ms por segundo | ≈ 17 %
+Para hacer las cuentas sirve un modelo sencillo: cada batch tarda unos ms fijos, tenga las fotos que tenga (lanzar kernels, capas que no llenan la GPU), más unos ms por cada foto. Con 2.2 ms fijos y 0.77 por foto, dos supuestos, da ≈ 3 ms con una foto sola y ≈ 1,200 fotos por segundo con batches de 32, lo que mide Alba. Las letras:
+
+:::formula Lo que marca nvidia-smi y la carga
+t_b = a + c × k
+U = frac{f}{k} × frac{t_b}{1000}
+f_{max} = frac{1000 × k}{t_b}
+C = frac{f}{f_{32}}
+- f: fotos por segundo que llegan a esta GPU
+- k: fotos por batch, en promedio. Entonces llegan \(f/k\) batches por segundo
+- a: ms fijos que tarda cada batch
+- c: ms que agrega cada foto del batch
+- t_b: ms de GPU que tarda un batch
+- U: lo que marca nvidia-smi: la fracción de cada segundo (1,000 ms) con algún kernel corriendo. Si da más de 1, la GPU no alcanza: marca 100 % y la cola crece
+- f_{max}: las fotos por segundo que aguanta la GPU con batches de \(k\)
+- f_{32}: el máximo de la GPU: \(f_{max}\) con batches de 32 (≈ 1,200 en la T4)
+- C: la **carga**, la parte de su capacidad que usa de verdad: \(f\) contra \(f_{32}\)
+:::
+
+:::cuenta La T4 de Alba en un momento promedio
+Fotos por segundo a esta GPU, \(f\) // 116 en promedio (10 millones al día ÷ 86,400 s), repartidas entre 2 GPUs | 116 ÷ 2 | 58
+Carga, \(C\) // contra el máximo medido, \(f_{32}\) ≈ 1,200 fotos por segundo | \(C = f ÷ f_{32}\) = 58 ÷ 1,200 | ≈ 5 %
+ms por batch, \(t_b\) // una foto por batch: \(k\) = 1 | \(t_b = a + c × k\) = 2.2 + 0.77 × 1 | ≈ 3 ms
+nvidia-smi, \(U\) // 58 batches de ≈ 3 ms: 174 ms de cada segundo | \(U = f/k × t_b ÷ 1000\) = 58 × 3 ÷ 1,000 | ≈ 17 %
 SMs ocupados // si cada foto usa la mitad de los 40 SMs (supuesto) | 17 % × ½ | ≈ 9 %
-= La misma GPU, en el mismo segundo, «está» al 5 %, al 17 % o al 9 % según qué preguntes. El ≈ 5 % de la Ronda es la carga, no lo que marca nvidia-smi.
+= La misma GPU, en el mismo segundo, «está» al 5 %, al 17 % o al 9 % según qué preguntes. El ≈ 5 % que se dice de las T4 de Alba es la carga, no lo que marca nvidia-smi.
 :::
 
 ### Falla en las dos direcciones
 
-La Ronda (M06) lo resume así:
+En resumen:
 
 - **Marca mucho con poco trabajo.** Con batches de 1, nvidia-smi puede marcar 30 o 40 % cuando la GPU haría varias veces más con batches grandes.
 - **Se queda en 100 % aunque falte capacidad.** Cuando la GPU está ocupada todo el tiempo, marca ≈ 100 % igual con 2 requests en la cola que con 200. No dice cuánto esperan ni cuánto [[throughput]] queda si los batches crecen.
 
 :::calculadora cpu-gpu-utilizacion
-Arranca con la T4 de C01 en un momento promedio. Sube las fotos a 250, el pico de diseño de cada GPU: con batches de 1, nvidia-smi marca 74 %; con batches de 3, 38 %, con las mismas fotos. Después prueba 500 fotos con batches de 1: la GPU no alcanza, la cola crece y nvidia-smi se queda en 100 %.
+Arranca con la T4 de Alba en un momento promedio, \(f\) = 58. Sube las fotos a 250, el pico de diseño de cada GPU: con batches de 1, nvidia-smi marca 74 %; con batches de 3, 38 %, con las mismas fotos. Después prueba 500 fotos con batches de 1: la GPU no alcanza, la cola crece y nvidia-smi se queda en 100 %.
 :::
 
 ### Qué mirar en su lugar
 
-- **Para saber si falta capacidad:** el throughput contra el máximo medido con una prueba de carga, el tiempo que las requests pasan en la cola de Triton y el tamaño promedio de los batches. C01 escala por el tiempo en cola.
+- **Para saber si falta capacidad:** el throughput contra el máximo medido con una prueba de carga, el tiempo que las requests pasan en la cola de Triton y el tamaño promedio de los batches. Alba escala por el tiempo en cola.
 - **Para saber cuánto del chip trabaja:** las métricas de perfilado de DCGM, que miden por dentro del chip. *SM activity* promedia, sobre todos los SMs, la parte del tiempo con algún warp activo; *tensor activity*, la de los ciclos con los tensor cores trabajando. Si sirves en FP16 y la segunda está cerca de 0, tu engine no usa los tensor cores.
 - **Para saber si la GPU baja el ritmo:** la potencia y el reloj. La T4, una tarjeta de 70 W sin ventilador propio, baja su reloj cuando llega a su tope de potencia o se calienta (*throttling* otra vez, ahora por calor o potencia y no por un límite de Kubernetes): la misma utilización, menos trabajo hecho.
 
@@ -517,7 +567,7 @@ El driver vive en la **máquina** (el *host*), no en tu [[contenedor]]. Cuando u
 
 ### Qué pone cada quien
 
-| Pieza | Dónde vive | En C01 |
+| Pieza | Dónde vive | En Alba |
 |---|---|---|
 | La GPU y su arquitectura | El hardware | T4 (sm_75) |
 | El driver: módulo y `libcuda` | La máquina | El que venga instalado en los nodos g4dn |
@@ -548,11 +598,11 @@ Resuélvelo con lápiz antes de abrir la solución:
 
 Cada generación de GPUs entiende sus propias instrucciones, y NVIDIA le pone un número, la *compute capability*: 7.5 para la T4 (se escribe sm_75), 8.0 para la A100, 8.6 para la A10G, 8.9 para la L4 y 9.0 para la H100. Es la misma idea que la arquitectura de una CPU, x86-64 o arm64: lo que se compila para una no corre en otra. Los kernels se compilan para una o varias de esas arquitecturas. Si tu programa no trae kernels para la tuya, falla con «no kernel image is available for execution on the device».
 
-TensorRT es más estricto: el engine eligió sus kernels cronometrándolos en **esa** GPU y quedó guardado en el formato de **esa** versión de TensorRT. El engine de C01, construido para la T4 con TensorRT 10.3, no carga en una L4. Por eso la Ronda (M15) pide construir de antemano un engine por cada tipo de GPU que podrías usar si te mudas de región (otro grupo de centros de datos de la nube, en otra parte del mundo), y por eso cambiar de GPU o de versión del contenedor de NVIDIA obliga a reconstruirlo.
+TensorRT es más estricto: el engine eligió sus kernels cronometrándolos en **esa** GPU y quedó guardado en el formato de **esa** versión de TensorRT. El engine de Alba, construido para la T4 con TensorRT 10.3, no carga en una L4. Por eso conviene construir de antemano un engine por cada tipo de GPU que podrías usar si te mudas de región (otro grupo de centros de datos de la nube, en otra parte del mundo), y por eso cambiar de GPU o de versión del contenedor de NVIDIA obliga a reconstruirlo.
 
 ### Fallar temprano
 
-Lo peor no es el error: es que no haya error. Si un pod arranca sin GPU asignada y el código usa la GPU solo cuando la encuentra, PyTorch corre el modelo en la CPU, decenas de veces más lento, y nadie se entera hasta que el p99 explota. La regla de la Ronda (M05): pide siempre la GPU, verifica al arrancar que la ves (`torch.cuda.is_available()`) y termina el proceso si falta.
+Lo peor no es el error: es que no haya error. Si un pod arranca sin GPU asignada y el código usa la GPU solo cuando la encuentra, PyTorch corre el modelo en la CPU, decenas de veces más lento, y nadie se entera hasta que el p99 explota. La regla: pide siempre la GPU, verifica al arrancar que la ves (`torch.cuda.is_available()`) y termina el proceso si falta.
 
 ## Errores comunes {Common mistakes}
 
@@ -566,7 +616,7 @@ Una c6i.xlarge de «4 vCPU» tiene 2 núcleos físicos. Si mides tu servicio en 
 
 Decodificar y preparar las fotos en la máquina de la GPU «porque ahí ya hay CPU». Una g4dn.xlarge trae 4 vCPU; una T4 a su máximo pediría ≈ 7 solo para preparar fotos. La GPU se queda esperando y parece lenta.
 
-**Cómo evitarlo:** haz la cuenta de la CPU aparte, como C01: el preproceso en su propio tier de CPU barata, y a la GPU, tensores listos.
+**Cómo evitarlo:** haz la cuenta de la CPU aparte, como Alba: el preproceso en su propio tier de CPU barata, y a la GPU, tensores listos.
 
 ### 3. Medir la GPU con el reloj de la CPU
 
@@ -594,53 +644,53 @@ Construir el engine de TensorRT en una laptop o en una L4 y servirlo en la T4, o
 
 ## En la vida real {In real life} [extra]
 
-### C01: dos T4 al 5 %, y la CPU que las alimenta
+### Alba: dos T4 al 5 %, y la CPU que las alimenta
 
-C01 tiene dos T4 en dos [[zona-disponibilidad|zonas]] distintas (centros de datos separados de la nube), para seguir respondiendo si se cae una. Cada una aguanta ≈ 1,200 fotos por segundo; en promedio, a cada una le llegan 58. La decisión la tomó la disponibilidad, no el cálculo, y la Ronda lo dice claro: en promedio pagas dos GPUs al ≈ 5 % de su capacidad, ≈ US$768 al mes.
+Alba tiene dos T4 en dos [[zona-disponibilidad|zonas]] distintas (centros de datos separados de la nube), para seguir respondiendo si se cae una. Cada una aguanta ≈ 1,200 fotos por segundo; en promedio, a cada una le llegan 58. La decisión la tomó la disponibilidad, no el cálculo: en promedio, Alba paga dos GPUs al ≈ 5 % de su capacidad, 2 × US$0.526 la hora × 730 horas ≈ US$768 al mes.
 
 Todo lo de esta lección aparece en el camino de cada foto. La CPU de los pods del gateway, en máquinas c6i, gasta ≈ 6 ms por foto en decodificar y preparar: ≈ 3 vCPU en el pico de diseño. El tensor de 602 KB cruza la red (2 a 4 ms) y PCIe (≈ 38 µs). Triton junta las fotos que llegan en 2 ms, hasta 32, y corre el engine de TensorRT en FP16 en los tensor cores, con dos instancias del modelo (dos copias cargadas en la misma T4) para que una copie datos mientras la otra calcula.
 
-La Ronda deja anotadas dos mejoras que salen de esta lección:
+El equipo de Alba tiene anotadas dos mejoras que salen de esta lección:
 
 - **Mandar la entrada en uint8** y normalizar dentro del modelo: 4 veces menos bytes por la red. A su máximo, una T4 pediría 1,200 × 602 KB ≈ 5.8 Gb/s de tensores en float32, más que los ≈ 5 Gb/s que sostiene la red de su g4dn.xlarge: la red la limitaría antes que la GPU.
 - **Medir la ResNet-50 en INT8 en CPU**, en una c7i con AMX:
 
 :::cuenta ¿CPU en INT8 o dos T4?
-La meta de la medición // sin perder más de 0.5 puntos en el golden set | supuesto de la Ronda | ≈ 15 ms de un vCPU por imagen
-vCPU ocupados en el pico de diseño | 500 × 15 ms | 7.5
-A provisionar en el pico // C01 agrega pods antes de que la CPU pase del 60 % | 7.5 ÷ 0.6 | ≈ 13 vCPU
-A provisionar en promedio // 116 fotos por segundo | 116 × 15 ms ÷ 0.6 | ≈ 3 vCPU
-Al mes, con 4 a 8 vCPU facturados en promedio // la estimación de la Ronda, con lo que no baja de noche (pods mínimos, máquinas enteras); a ≈ US$0.0446 por vCPU-hora, el de una c7i | (4 a 8) × 0.0446 × 730 | ≈ US$130 a 260
-Las dos T4 | 2 × 0.526 × 730 | ≈ US$768
-= Si la medición da lo que la Ronda espera, la CPU sale de 3 a 6 veces más barata y elimina un tier entero, el de las GPUs. Si da 30 o 50 ms por imagen, hacen falta de 2 a 3 veces más vCPU y el ahorro se achica. Por eso se mide antes de decidir.
+La meta de la medición, \(t\) // sin perder más de 0.5 puntos en el golden set | supuesto del equipo de Alba | ≈ 15 ms de un vCPU por imagen
+vCPU ocupados en el pico de diseño, \(v\) // \(f\) = 500 | \(v = f × t ÷ 1000\) = 500 × 15 ÷ 1,000 | 7.5
+A provisionar en el pico, \(v_{prov}\) // Alba agrega pods antes de que la CPU pase del 60 %: \(o\) = 0.6 | \(v_{prov} = v ÷ o\) = 7.5 ÷ 0.6 | ≈ 13 vCPU
+A provisionar en promedio // \(f\) = 116 fotos por segundo | 116 × 15 ÷ 1,000 ÷ 0.6 | ≈ 3 vCPU
+Al mes, con 4 a 8 vCPU facturados en promedio // la estimación del equipo de Alba, con lo que no baja de noche (pods mínimos, máquinas enteras); a ≈ US$0.0446 por vCPU-hora, el de una c7i | (4 a 8) × 0.0446 × 730 | ≈ US$130 a 260
+Las dos T4 // US$0.526 la hora cada una, 730 horas al mes | 2 × 0.526 × 730 | ≈ US$768
+= Si la medición da lo que el equipo espera, la CPU sale de 3 a 6 veces más barata y elimina un tier entero, el de las GPUs. Si da 30 o 50 ms por imagen, hacen falta de 2 a 3 veces más vCPU y el ahorro se achica. Por eso se mide antes de decidir.
 :::
 
-### C10: un LLM partido en dos H100
+### Servir un LLM propio: partido en dos H100
 
-C10 sirve un modelo de 70,600 millones de parámetros en FP8: ≈ 70.6 GB, que en una H100 de 80 GB casi no dejan lugar para el [[kv-cache|KV cache]]. Cada réplica (una copia completa del servicio) lo parte entre 2 H100 con *tensor parallelism*: cada capa se divide en dos mitades, cada GPU calcula la suya y, dos veces por capa, las dos juntan sus resultados (un *all-reduce*). Con 80 capas, son 160 intercambios por token.
+Imagina un servicio que sirve su propio [[llm|LLM]], un modelo de 70,600 millones de parámetros en FP8: ≈ 70.6 GB, que en una H100 de 80 GB casi no dejan lugar para el [[kv-cache|KV cache]]. Cada réplica (una copia completa del servicio) lo parte entre 2 H100 con *tensor parallelism*: cada capa se divide en dos mitades, cada GPU calcula la suya y, dos veces por capa, las dos juntan sus resultados (un *all-reduce*). Con 80 capas, son 160 intercambios por token.
 
 :::cuenta Lo que se pasan las dos H100 en un paso de decode (una estimación)
 Datos por intercambio, por conversación // el vector del token en esa capa: 8,192 números en BF16 | 8,192 × 2 B | ≈ 16 KB
 Por token // 2 intercambios × 80 capas | 160 × 16 KB | ≈ 2.6 MB
-Por paso, con 40 conversaciones | 40 × 2.6 MB | ≈ 105 MB
-Por NVLink // 450 GB/s en un sentido | 105 MB ÷ 450 GB/s | ≈ 0.23 ms
-Por PCIe Gen5 // ≈ 64 GB/s en un sentido | 105 MB ÷ 64 GB/s | ≈ 1.6 ms
-= Contra un paso de ≈ 15 ms, NVLink agrega ≈ 1.5 % y PCIe, ≈ 11 %. Entre dos máquinas, por la red, sería más lento y con 160 esperas por token: por eso C10 nunca reparte una réplica entre nodos.
+Por paso, con 40 conversaciones, \(S\) | 40 × 2.6 MB | ≈ 105 MB
+Por NVLink // \(W\) = 450 GB/s en un sentido | \(t_{cruce} = S ÷ W\) = 105 MB ÷ 450 GB/s | ≈ 0.23 ms
+Por PCIe Gen5 // \(W\) ≈ 64 GB/s en un sentido | 105 MB ÷ 64 GB/s | ≈ 1.6 ms
+= Contra un paso de ≈ 15 ms, NVLink agrega ≈ 1.5 % y PCIe, ≈ 11 %. Entre dos máquinas, por la red, sería más lento y con 160 esperas por token: por eso un servicio así nunca reparte una réplica entre nodos.
 :::
 
 Las 8 H100 de una p5.48xlarge, unidas por NVSwitch, dan 4 réplicas por máquina, y cualquier par de GPUs sirve para una réplica. El [[decode]] es memory-bound, así que lo que más pesa en cada paso es la HBM: cada H100 lee su mitad de los pesos, 35.3 GB, a 3,350 GB/s, como calculaste en la lección de FLOPs.
 
-### C02: el video se decodifica en la GPU
+### Video de muchas cámaras: se decodifica en la GPU
 
-En C02, cada centro de distribución tiene una caja con una L4 para 40 cámaras, cada una a 5 fotogramas por segundo: 200 por sitio. En la CPU, decodificar tanto video y copiar cada fotograma sería el cuello de botella; la L4 lo hace en circuitos dedicados, los NVDEC: trae 4, que juntos dan un techo teórico de ≈ 3,600 fotogramas 1080p (de 1920 × 1080 pixeles) por segundo, según la Ronda. Ahí, la «CPU que alimenta a la GPU» de C01 se vuelve un circuito dentro de la propia GPU. Y como la caja vive en un cuarto del sitio, la Ronda advierte que, si no tiene clima, la GPU baja su reloj en verano: el throttling de la sección de utilización.
+Piensa en un sistema que analiza en tiempo real el video de varias cámaras, como en este ejemplo: cada centro de distribución tiene una caja con una L4 para 40 cámaras, cada una a 5 fotogramas por segundo: 200 por sitio. En la CPU, decodificar tanto video y copiar cada fotograma sería el cuello de botella; la L4 lo hace en circuitos dedicados, los NVDEC: trae 4, que juntos dan un techo teórico de ≈ 3,600 fotogramas 1080p (de 1920 × 1080 pixeles) por segundo: ≈ 900 cada uno, un supuesto del orden de lo que NVIDIA publica para H.264. Ahí, la «CPU que alimenta a la GPU» de Alba se vuelve un circuito dentro de la propia GPU. Y como la caja vive en un cuarto del sitio, si no tiene clima, la GPU baja su reloj en verano: el throttling de la sección de utilización.
 
-### C14: cuando la CPU gana
+### Pronóstico de demanda: cuando la CPU gana
 
-El pronóstico de demanda de C14 no usa una red sino árboles de decisión, y se entrena en CPU: ≈ 490 millones de filas en una máquina de 96 vCPU, unas 2 a 3 horas cada domingo. Los árboles son puras decisiones («¿es fin de semana?») y casi nada de multiplicación de matrices: el terreno de los núcleos listos, no de los carriles.
+Un pronóstico de demanda, como el de este ejemplo, no usa una red sino árboles de decisión, y se entrena en CPU: ≈ 490 millones de filas en una máquina de 96 vCPU, unas 2 a 3 horas cada domingo. Los árboles son puras decisiones («¿es fin de semana?») y casi nada de multiplicación de matrices: el terreno de los núcleos listos, no de los carriles.
 
 ### Fuera de ML: contraseñas y GPUs
 
-Muchos sitios guardan de cada contraseña solo su *hash*: una huella de tamaño fijo que sale de una cuenta fácil de hacer y casi imposible de revertir. Quien roba esos hashes prueba contraseñas candidatas, una tras otra: la misma cuenta repetida sobre datos distintos, justo lo que una GPU hace bien. La Ronda (M15) dice que una RTX 4090, una tarjeta de videojuegos, calcula del orden de 2 × 10¹⁰ hashes SHA-256 por segundo. Por eso los sitios serios no guardan las contraseñas con un hash rápido, sino con funciones hechas a propósito para ser lentas, como bcrypt, o lentas y hambrientas de memoria, como Argon2: le quitan a la GPU la ventaja de sus miles de hilos.
+Muchos sitios guardan de cada contraseña solo su *hash*: una huella de tamaño fijo que sale de una cuenta fácil de hacer y casi imposible de revertir. Quien roba esos hashes prueba contraseñas candidatas, una tras otra: la misma cuenta repetida sobre datos distintos, justo lo que una GPU hace bien. Una RTX 4090, una tarjeta de videojuegos, calcula del orden de 2 × 10¹⁰ hashes SHA-256 por segundo. Por eso los sitios serios no guardan las contraseñas con un hash rápido, sino con funciones hechas a propósito para ser lentas, como bcrypt, o lentas y hambrientas de memoria, como Argon2: le quitan a la GPU la ventaja de sus miles de hilos.
 
 ## Ejercicios {Exercises}
 
@@ -649,56 +699,47 @@ Resuélvelos con lápiz antes de abrir la solución. Los de vCPU y de utilizaci�
 :::ejercicios
 ? [facil] Una c6i.2xlarge tiene 8 vCPU de un Xeon con hyperthreading. ¿Cuántos núcleos físicos son? Si tu servicio gasta 6 ms de CPU por foto, ¿cuántas fotos por segundo aguanta, como máximo? ¿Y si no quieres pasar del 60 %?
 - Núcleos: 8 vCPU ÷ 2 hilos por núcleo = **4 núcleos físicos**.
-- Máximo: 8 vCPU × 1,000 ms ÷ 6 ms ≈ **1,333 fotos por segundo**, con la CPU al 100 %.
-- Al 60 %: 0.6 × 1,333 = **800 fotos por segundo**.
+- Máximo: de \(v = f × t ÷ 1000\) despejas \(f = 1000 × v ÷ t\). Con \(v\) = 8 y \(t\) = 6: 1,000 × 8 ÷ 6 ≈ **1,333 fotos por segundo**, con la CPU al 100 %.
+- Al 60 %: ahora solo usas \(v\) = 8 × 0.6 = 4.8 vCPU, y \(f\) = 1,000 × 4.8 ÷ 6 = **800 fotos por segundo**.
 ? [facil] Un registro AVX2 mide 256 bits. ¿Cuántos números FP32 caben? ¿Cuántos INT8? Si un núcleo tiene dos unidades FMA de 256 bits y corre a 3 GHz, ¿cuál es su pico en FP32?
 - FP32: 256 ÷ 32 = **8**. INT8: 256 ÷ 8 = **32**.
-- Por ciclo: 2 unidades × 8 carriles × 2 FLOPs = 32 FLOPs.
-- Pico: 32 × 3 × 10⁹ = **96 GFLOPS**, la mitad que con AVX-512.
-? [facil] ¿Cuánto tarda el tensor de Ana (602,112 bytes en float32) en cruzar PCIe Gen4 x16, a ≈ 31.5 GB/s en un sentido? ¿Y en uint8?
-- float32: 602,112 ÷ (31.5 × 10⁹) ≈ **19 µs**, la mitad que en la T4.
+- Con \(P = n × m × 2 × r\): \(n\) = 1 núcleo; \(m\) = 2 unidades × 8 carriles = 16 MACs por ciclo; \(r\) = 3 × 10⁹.
+- Pico: \(P\) = 1 × 16 × 2 × 3 × 10⁹ = **96 GFLOPS**, la mitad que con AVX-512.
+? [facil] ¿Cuánto tarda el tensor de Ana (602,112 bytes en float32) en cruzar PCIe Gen4 x16, el de una L4, a ≈ 31.5 GB/s en un sentido? ¿Y en uint8?
+- Con \(t_{cruce} = S ÷ W\) y \(W\) = 31.5 × 10⁹ B/s. float32: 602,112 ÷ (31.5 × 10⁹) ≈ **19 µs**, la mitad que en el PCIe Gen3 de la T4 (≈ 38 µs).
 - uint8: 150,528 ÷ (31.5 × 10⁹) ≈ **4.8 µs**.
 - Nada, contra los 2 a 4 ms de la red: mandar uint8 ahorra en la red, no en PCIe.
 ? [facil] Una L4 tiene 58 SMs con 128 carriles FP32 cada uno. ¿Cuántos «CUDA cores» anuncia? Para sumar dos vectores de un millón de números, con un hilo por número, ¿cuántos warps hacen falta?
-- CUDA cores: 58 × 128 = **7,424**.
-- Warps: 1,000,000 ÷ 32 = **31,250**. No caben vivos a la vez: con hasta 1,536 hilos por SM, la L4 tiene 58 × 48 = 2,784 warps a la vez, y los demás esperan su tanda.
+- CUDA cores = SMs × carriles por SM = 58 × 128 = **7,424**.
+- Warps = hilos ÷ 32 = 1,000,000 ÷ 32 = **31,250**. No caben vivos a la vez: con hasta 1,536 hilos por SM, cada SM tiene 1,536 ÷ 32 = 48 warps, y la L4, 58 × 48 = 2,784 a la vez. Los demás esperan su tanda.
 ? [medio] El ancho de banda de una memoria es cables × velocidad de cada cable ÷ 8. La A10G usa GDDR6 con 384 cables a 12.5 Gb/s. La A100 de 40 GB usa 5 pilas de HBM2, de 1,024 cables cada una, a ≈ 2.43 Gb/s. Calcula los dos anchos de banda y di cuál daría más tokens por segundo con Llama 3 8B en BF16 (≈ 16.06 GB).
-- A10G: 384 × 12.5 ÷ 8 = **600 GB/s**.
-- A100: 5 × 1,024 × 2.43 ÷ 8 ≈ **1,555 GB/s**.
-- Techo del decode: A10G, 600 ÷ 16.06 ≈ **37 tokens por segundo**; A100, 1,555 ÷ 16.06 ≈ **97**. Gana la A100 por tener más cables, aunque cada uno va 5 veces más lento.
+- Con \(W = L × g ÷ 8\). A10G: \(L\) = 384, \(g\) = 12.5: 384 × 12.5 ÷ 8 = **600 GB/s**.
+- A100: \(L\) = 5 × 1,024 = 5,120, \(g\) ≈ 2.43: 5,120 × 2.43 ÷ 8 ≈ **1,555 GB/s**.
+- Techo del decode: en cada token se leen todos los pesos, así que tokens por segundo ≤ \(W\) ÷ bytes de pesos. A10G, 600 ÷ 16.06 ≈ **37 tokens por segundo**; A100, 1,555 ÷ 16.06 ≈ **97**. Gana la A100 por tener más cables, aunque cada uno va 5 veces más lento.
 ? [medio] Una versión sin fusionar de un modelo lanza 174 kernels por batch, y la CPU tarda 5 µs en lanzar cada uno. Con batch 1, cada kernel tarda ≈ 3 µs en la GPU. (a) ¿Cuánto tarda el batch, como mínimo? (b) ¿Qué parte del tiempo trabaja la GPU? (c) Con batch 32, cada kernel tarda ≈ 60 µs: ¿quién espera ahora?
-- (a) La CPU va más lento que la GPU, así que manda el lanzamiento: 174 × 5 µs, más los 3 µs del último kernel: **≈ 873 µs**.
-- (b) La GPU trabaja 174 × 3 = 522 µs de ≈ 873: **≈ 60 %**. nvidia-smi marcaría ese 60 % con la GPU esperando a la CPU.
+- (a) La CPU va más lento que la GPU (5 µs por lanzamiento contra 3 µs por kernel), así que manda el lanzamiento. Con \(q\) kernels, cada uno lanzado en \(t_{lanzar}\) y corrido en \(t_{kernel}\), el total son los \(q\) lanzamientos más el último kernel: ≈ \(q × t_{lanzar} + t_{kernel}\) = 174 × 5 + 3 = **≈ 873 µs**.
+- (b) La GPU trabaja \(q × t_{kernel}\) = 174 × 3 = 522 µs de ≈ 873: 522 ÷ 873 ≈ **60 %**. nvidia-smi marcaría ese 60 % con la GPU esperando a la CPU.
 - (c) Ahora espera la CPU, que va adelante: la GPU no para. Son ≈ 174 × 60 µs ≈ **10.4 ms** por 32 fotos, ≈ 0.33 ms por foto, y el costo de lanzar quedó escondido.
 ? [medio] Con el modelo de la calculadora de utilización (cada batch tarda 2.2 ms fijos más 0.77 ms por foto), a una T4 le llegan 175 fotos por segundo, su parte de la hora pico. ¿Qué marca nvidia-smi con batches de 1? ¿Y con batches de 2? ¿Cuál es su carga contra el máximo con batches de 32?
-- Batch 1: 175 batches de 2.97 ms = 520 ms por segundo: nvidia-smi **≈ 52 %**.
-- Batch 2: 87.5 batches de 2.2 + 1.54 = 3.74 ms = 327 ms por segundo: **≈ 33 %**.
-- Máximo con batches de 32: 32 ÷ 26.84 ms ≈ 1,192 fotos por segundo. Carga: 175 ÷ 1,192 ≈ **15 %** en los dos casos. El mismo tráfico marca 52 % o 33 % según el batching.
-? [reto] Se cae una de las dos T4 de C01 en el pico de diseño, y a la que queda le llegan 500 fotos por segundo. Con el mismo modelo (2.2 ms fijos más 0.77 ms por foto): (a) ¿aguanta con batches de 1? (b) ¿Con qué batch promedio deja de crecer la cola? (c) ¿Qué marca nvidia-smi con batches de 2 y con batches de 4?
-- (a) Con batches de 1 aguanta 1,000 ÷ 2.97 ≈ 337 fotos por segundo: **no**. Faltan ≈ 163 por segundo, la cola crece sin fin y nvidia-smi marca **100 %**, igual que con cualquier exceso.
-- (b) Con batches de b aguanta 1,000 × b ÷ (2.2 + 0.77 b). Para que llegue a 500: 1,000 b ≥ 500 × (2.2 + 0.77 b), es decir, b × (1,000 − 385) ≥ 1,100, y b ≥ 1.79. Con **batches de 2** ya aguanta: 2,000 ÷ 3.74 ≈ 535 fotos por segundo.
-- (c) Batches de 2: 250 batches × 3.74 ms = 935 ms por segundo, **≈ 94 %**. Batches de 4, lo que el dynamic batching junta cuando hay cola: 125 × 5.28 ms = 660 ms, **≈ 66 %**.
+- Usa las fórmulas de «Tres números para la misma T4»: \(t_b = a + c × k\), \(U = f/k × t_b ÷ 1000\) y \(C = f ÷ f_{32}\), con \(f\) = 175, \(a\) = 2.2 y \(c\) = 0.77.
+- Batch 1: \(t_b\) = 2.2 + 0.77 = 2.97 ms; \(U\) = 175 × 2.97 ÷ 1,000 = 0.52: nvidia-smi **≈ 52 %**.
+- Batch 2: \(t_b\) = 2.2 + 0.77 × 2 = 3.74 ms; \(U\) = 175 ÷ 2 × 3.74 ÷ 1,000 = 87.5 × 3.74 ÷ 1,000 ≈ 0.33: **≈ 33 %**.
+- Máximo con batches de 32: \(t_b\) = 2.2 + 0.77 × 32 = 26.84 ms, y \(f_{32}\) = 1,000 × 32 ÷ 26.84 ≈ 1,192 fotos por segundo. Carga: \(C\) = 175 ÷ 1,192 ≈ **15 %** en los dos casos. El mismo tráfico marca 52 % o 33 % según el batching.
+? [reto] Se cae una de las dos T4 de Alba en el pico de diseño, y a la que queda le llegan 500 fotos por segundo. Con el mismo modelo (2.2 ms fijos más 0.77 ms por foto): (a) ¿aguanta con batches de 1? (b) ¿Con qué batch promedio deja de crecer la cola? (c) ¿Qué marca nvidia-smi con batches de 2 y con batches de 4?
+- (a) Con \(f_{max} = 1000 × k ÷ t_b\) y \(t_b = a + c × k\): con batches de 1, \(t_b\) = 2.97 ms y aguanta 1,000 × 1 ÷ 2.97 ≈ 337 fotos por segundo: **no**. Faltan ≈ 163 por segundo, la cola crece sin fin y nvidia-smi marca **100 %**, igual que con cualquier exceso.
+- (b) Con batches de \(k\) aguanta \(f_{max}\) = 1,000 × \(k\) ÷ (2.2 + 0.77 × \(k\)). Para que llegue a 500: 1,000 × \(k\) ≥ 500 × (2.2 + 0.77 × \(k\)) = 1,100 + 385 × \(k\), es decir, \(k\) × (1,000 − 385) ≥ 1,100, y \(k\) ≥ 1,100 ÷ 615 ≈ 1.79. Con **batches de 2** ya aguanta: 2,000 ÷ 3.74 ≈ 535 fotos por segundo.
+- (c) Con \(U = f/k × t_b ÷ 1000\). Batches de 2: 500 ÷ 2 = 250 batches × 3.74 ms = 935 ms por segundo, **≈ 94 %**. Batches de 4, lo que el dynamic batching junta cuando hay cola: \(t_b\) = 2.2 + 0.77 × 4 = 5.28 ms, y 500 ÷ 4 = 125 batches × 5.28 ms = 660 ms, **≈ 66 %**.
 - Con cola, el dynamic batching sube el batch solo y la GPU rinde más. nvidia-smi no ve ese margen; la cola, sí.
 ? [reto] Un equipo quiere servir un detector de 20 GFLOPs por imagen a 300 imágenes por segundo, y duda entre CPU en FP32 y una T4. (a) ¿Cuántos TFLOPS pide? (b) ¿Cuántos núcleos con AVX-512 (192 GFLOPS de pico) necesitaría, si lograra el 50 % de ese pico? ¿Cuántos vCPU de una máquina de Intel son? (c) Si la T4 logra el 15 % de sus 65 TFLOPS, ¿cuántas imágenes por segundo daría? (d) ¿Qué más tienes que revisar antes de decidir?
-- (a) 300 × 20 × 10⁹ = **6 TFLOPS**.
-- (b) Cada núcleo daría 0.5 × 192 = 96 GFLOPS: 6 × 10¹² ÷ (96 × 10⁹) ≈ **63 núcleos**, ≈ **125 vCPU** con hyperthreading. Varias máquinas grandes solo para el modelo.
-- (c) 0.15 × 65 = 9.75 TFLOPS, y 9.75 × 10¹² ÷ (20 × 10⁹) ≈ **490 imágenes por segundo**: una T4 alcanza, con margen.
+- (a) Con \(D = f × F\): 300 × 20 × 10⁹ = **6 TFLOPS**.
+- (b) Cada núcleo daría 0.5 × \(P\) = 0.5 × 192 = 96 GFLOPS. Núcleos = \(D\) ÷ 96 GFLOPS = 6 × 10¹² ÷ (96 × 10⁹) = 62.5, ≈ **63 núcleos**: × 2 vCPU por núcleo, ≈ **125 vCPU** con hyperthreading. Varias máquinas grandes solo para el modelo.
+- (c) Lo que logra: 0.15 × 65 = 9.75 TFLOPS. De \(D = f × F\) despejas \(f = D ÷ F\) = 9.75 × 10¹² ÷ (20 × 10⁹) ≈ **490 imágenes por segundo**: una T4 alcanza, con margen.
 - (d) La CPU que prepara las imágenes, aparte; la red, si el tensor es grande; que el modelo use formatos de los tensor cores; que quepa en 16 GB con su batch; la disponibilidad (una sola GPU no sobrevive a una falla); y una prueba de carga, porque el 15 % es un supuesto.
 :::
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M04 · Hardware para inferencia** compara CPU, GPU y aceleradores (AVX-512 y AMX contra carriles y tensor cores), dibuja el nodo de inferencia con su CPU, PCIe, VRAM y SMs, y pone lado a lado la T4, la L4, la A10G, la A100 y la H100.
-- **M06 · Orquestación y escalado** pide GPUs enteras en Kubernetes con el device plugin y explica por qué escalar Triton por CPU o por utilización no sirve.
-- **M07 · Servidores de modelos** parte de la GPU al ≈ 5 %, los hilos cuyos kernels van a la misma fila y el engine atado a sm_75.
-- **M08 · Optimización de modelos** fusiona kernels con TensorRT, usa CUDA graphs y mide la inferencia en CPU con VNNI y AMX, contando cada vCPU como medio núcleo.
-- También: **M05** (el driver en la máquina, el CUDA en la imagen), **M12** (las métricas de DCGM) y **M14** con **C10** (NVLink).
-
-**En el Dojo:** la estación 7, «Empaquetado (Docker)», ya abierta, la toca de lado: en C01, Triton carga el engine en la GPU antes de estar listo. Cuando abra la 5, «Export, engine y paridad», ahí vas a construir el engine para la T4, y en la 9, «Kubernetes», a poner a Triton en nodos con GPU.
-
-**En Sensei:** sigue «El sistema operativo: Linux, archivos y permisos», con el kernel de Linux, donde vive el driver, y los cgroups que limitan la CPU de un pod. Después, «Hacer varias cosas a la vez» explica cuándo varios hilos de Python llenan una CPU, y «Máquinas, GPUs y cómo se cobran» les pone precio.
+Sigue «El sistema operativo: Linux, archivos y permisos», con el kernel de Linux, donde vive el driver, y los cgroups que limitan la CPU de un pod. Después, «Hacer varias cosas a la vez» explica cuándo varios hilos de Python llenan una CPU, y «Máquinas, GPUs y cómo se cobran» les pone precio. Más adelante, «Export, engine y paridad» construye el engine de TensorRT para la T4, y «Kubernetes» pone a Triton en nodos con GPU.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -723,8 +764,8 @@ La misma operación sobre todos los números de un registro ancho, en una instru
 De los tensor cores: en cada ciclo, un SM hace 512 MACs en FP16 con sus 8 tensor cores, y solo 64 en FP32 con sus carriles.
 ? ¿Cuánto tarda el tensor de Ana en cruzar PCIe en la T4, y por qué no importa?
 ≈ 38 µs (602 KB a ≈ 16 GB/s), contra 2 a 4 ms de red y ≈ 3 de cálculo: ≈ 1 %.
-? ¿Qué mide la utilización de nvidia-smi, y qué es el «5 %» de las T4 de C01?
-La parte del tiempo con al menos un kernel corriendo, no cuánto del chip trabaja. El ≈ 5 % de C01 es la carga, 58 fotos por segundo contra ≈ 1,200; nvidia-smi marcaría ≈ 17 %.
-? ¿Por qué el engine de TensorRT de C01 no carga en una L4?
+? ¿Qué mide la utilización de nvidia-smi, y qué es el «5 %» de las T4 de Alba?
+La parte del tiempo con al menos un kernel corriendo, no cuánto del chip trabaja. El ≈ 5 % de Alba es la carga, 58 fotos por segundo contra ≈ 1,200; nvidia-smi marcaría ≈ 17 %.
+? ¿Por qué el engine de TensorRT de Alba no carga en una L4?
 Porque TensorRT lo construyó a la medida de la T4 (su arquitectura, sm_75) y de una versión de TensorRT. La L4 es otra arquitectura (sm_89): hace falta otro engine.
 :::

@@ -1,10 +1,10 @@
 {
   "titulo": "Entropía en bits",
-  "intro": "Reparte la probabilidad entre cuatro resultados (la calculadora la ajusta para que sume 100 %). La [[entropia|entropía]] es la sorpresa promedio de cada resultado.",
+  "intro": "Reparte la probabilidad entre cuatro resultados (la calculadora la ajusta para que sume 100 %). La [[entropia|entropía]] es la sorpresa promedio: la calculadora aplica \\(H = sum p_i × log_2(1/p_i)\\), con \\(p_i\\) la probabilidad de cada resultado como fracción.",
   "entradas": [
     {
       "id": "a",
-      "label": "Resultado **A**",
+      "label": "Resultado **A**: cuántas veces sale de cada 100, \\(p_A\\) en %",
       "min": 0,
       "max": 100,
       "paso": 1,
@@ -12,7 +12,7 @@
     },
     {
       "id": "b",
-      "label": "Resultado **B**",
+      "label": "Resultado **B**: cuántas veces sale de cada 100, \\(p_B\\) en %",
       "min": 0,
       "max": 100,
       "paso": 1,
@@ -20,7 +20,7 @@
     },
     {
       "id": "c",
-      "label": "Resultado **C**",
+      "label": "Resultado **C**: cuántas veces sale de cada 100, \\(p_C\\) en %",
       "min": 0,
       "max": 100,
       "paso": 1,
@@ -28,7 +28,7 @@
     },
     {
       "id": "d",
-      "label": "Resultado **D**",
+      "label": "Resultado **D**: cuántas veces sale de cada 100, \\(p_D\\) en %",
       "min": 0,
       "max": 100,
       "paso": 1,
@@ -79,50 +79,50 @@
   ],
   "salidas": [
     {
-      "label": "**Entropía**",
+      "label": "**Entropía** \\(H\\), en bits",
       "formula": "h",
       "formato": "num",
       "decimales": 3,
-      "nota": "bits de sorpresa, en promedio"
+      "nota": "\\(H = sum p_i × log_2(1/p_i)\\): la sorpresa promedio"
     },
     {
-      "label": "Equivale a elegir al azar entre",
+      "label": "Equivale a elegir al azar entre \\(2^H\\)",
       "formula": "pow(2, h)",
       "formato": "num",
       "decimales": 2,
       "nota": "opciones igual de probables"
     },
     {
-      "label": "Sorpresa si sale A",
+      "label": "Sorpresa si sale A, \\(log_2(1/p_A)\\)",
       "formula": "log2(1 / pa)",
       "formato": "num",
       "decimales": 2,
       "nota": "bits; «—» si A es imposible"
     },
     {
-      "label": "P(A)",
+      "label": "\\(p_A\\): probabilidad de A",
       "formula": "pa",
       "formato": "pct",
       "barra": true
     },
     {
-      "label": "P(B)",
+      "label": "\\(p_B\\): probabilidad de B",
       "formula": "pb",
       "formato": "pct",
       "barra": true
     },
     {
-      "label": "P(C)",
+      "label": "\\(p_C\\): probabilidad de C",
       "formula": "pc",
       "formato": "pct",
       "barra": true
     },
     {
-      "label": "P(D)",
+      "label": "\\(p_D\\): probabilidad de D",
       "formula": "pd",
       "formato": "pct",
       "barra": true
     }
   ],
-  "nota": "Así empieza, una moneda justa: 1 bit. Sube C y D a 50: cuatro resultados parejos, 2 bits, el máximo posible con cuatro. Pon 94, 3, 2 y 1, la foto segura de C01: 0.41 bits. Y pon 100, 0, 0, 0: nada que sorprenda, 0 bits."
+  "nota": "Así empieza, una moneda justa: 1 bit. Sube C y D a 50: cuatro resultados parejos, 2 bits, el máximo posible con cuatro. Pon 94, 3, 2 y 1, una foto de la que el modelo de Alba está seguro: 0.41 bits. Y pon 100, 0, 0, 0: nada que sorprenda, 0 bits."
 }

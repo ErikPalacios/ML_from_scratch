@@ -1,10 +1,10 @@
 {
   "titulo": "¿Cabe el gateway en su límite de memoria?",
-  "intro": "Si los procesos de un [[cgroup]] pasan de su límite de memoria, el kernel mata uno. Arranca con el gateway de C01 en el peor caso, como en «Programa, proceso e hilo»: ≈ 80 MB de Python, 2 decodificaciones a la vez de ≈ 320 MB (un PNG de 40 megapíxeles) y 16 requests en vuelo de hasta 10 MB.",
+  "intro": "Si los procesos de un [[cgroup]] pasan de su límite de memoria, el kernel mata uno. La calculadora aplica \\(M = B + c × d + r × b\\) y compara \\(M\\) con el límite \\(L\\) en bytes, con las mismas letras de la lección. Arranca con el gateway de Alba en el peor caso: ≈ 80 MB de Python, 2 decodificaciones a la vez de ≈ 320 MB (un PNG de 40 megapíxeles) y 16 requests en vuelo de hasta 10 MB.",
   "entradas": [
     {
       "id": "base",
-      "label": "Python y librerías",
+      "label": "Memoria de Python y sus librerías, \\(B\\)",
       "min": 20,
       "max": 1000,
       "paso": 10,
@@ -13,7 +13,7 @@
     },
     {
       "id": "c",
-      "label": "Decodificaciones a la vez (PREPROCESS_CONCURRENCY)",
+      "label": "Decodificaciones a la vez, \\(c\\) (PREPROCESS_CONCURRENCY)",
       "min": 1,
       "max": 8,
       "paso": 1,
@@ -21,7 +21,7 @@
     },
     {
       "id": "d",
-      "label": "Memoria de cada decodificación en el peor caso",
+      "label": "Memoria de cada decodificación en el peor caso, \\(d\\)",
       "min": 10,
       "max": 1000,
       "paso": 10,
@@ -30,7 +30,7 @@
     },
     {
       "id": "r",
-      "label": "Requests en vuelo (MAX_INFLIGHT)",
+      "label": "Requests en vuelo, \\(r\\) (MAX_INFLIGHT)",
       "min": 0,
       "max": 64,
       "paso": 1,
@@ -38,7 +38,7 @@
     },
     {
       "id": "b",
-      "label": "Tamaño máximo de cada request",
+      "label": "Tamaño máximo de cada request, \\(b\\)",
       "min": 0,
       "max": 50,
       "paso": 1,
@@ -47,7 +47,7 @@
     },
     {
       "id": "lim",
-      "label": "Límite de memoria del contenedor (memory.max de su cgroup)",
+      "label": "Límite de memoria del contenedor, \\(L\\), en GiB (memory.max de su cgroup)",
       "min": 0.25,
       "max": 8,
       "paso": 0.25,
@@ -67,29 +67,30 @@
   ],
   "salidas": [
     {
-      "label": "Memoria en el peor caso",
+      "label": "Memoria en el peor caso, \\(M\\)",
+      "nota": "\\(M = B + c × d + r × b\\), con 1 MB = 10⁶ bytes",
       "formula": "tot",
       "formato": "bytes"
     },
     {
-      "label": "Límite del cgroup",
+      "label": "Límite del cgroup, \\(L\\)",
       "formula": "L",
       "formato": "bytes",
-      "nota": "1 GiB = 2³⁰ bytes ≈ 1.07 GB"
+      "nota": "\\(L\\) = GiB × 2³⁰ bytes; 1 GiB ≈ 1.07 GB"
     },
     {
-      "label": "Parte del límite que usa",
+      "label": "Parte del límite que usa, \\(M/L\\)",
       "formula": "tot / L",
       "formato": "pct",
       "barra": true,
       "nota": "más de 100 %: OOMKilled, código 137"
     },
     {
-      "label": "Margen",
+      "label": "Margen, \\(L − M\\)",
       "formula": "L - tot",
       "formato": "bytes",
       "nota": "negativo: el kernel mata el proceso"
     }
   ],
-  "nota": "Con 3 decodificaciones a la vez son 1.2 GB, que no caben en 1 GiB; con un límite de 1.5 GiB quedan en 75 %. Con 4 son 1.52 GB: por eso la Ronda dice que con 4 el límite sube a 2 GiB. La RAM libre del nodo no cuenta: el tope es del contenedor."
+  "nota": "Con 3 decodificaciones a la vez son 1.2 GB, que no caben en 1 GiB; con un límite de 1.5 GiB quedan en 75 %. Con 4 son 1.52 GB: por eso, con 4, el límite tiene que subir a 2 GiB. La RAM libre del nodo no cuenta: el tope es del contenedor."
 }

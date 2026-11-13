@@ -1,66 +1,229 @@
 {
-  "nota": "Los módulos de la Ronda de Diseño (apps/ml-system-design/js/content/catalog.js, campo short). Cada lección de Sensei dice en su encabezado (ronda: m01, m03) a cuáles prepara; la página /ronda/ lo junta.",
+  "nota": "Solo para la página final «¿Qué sigue después de Sensei?» (/que-sigue/): los 15 módulos de la Ronda de Diseño (apps/ml-system-design/js/content/catalog.js, campo short) y, en «lecciones», las de Sensei que conviene repasar antes de cada uno. Las lecciones nunca mencionan la Ronda.",
   "url": "https://ronda-diseno-ml.vercel.app",
   "modulos": [
     {
       "id": "m01",
-      "titulo": "El mapa y la entrevista"
+      "titulo": "El mapa y la entrevista",
+      "lecciones": [
+        "camino-completo",
+        "modelo",
+        "imagenes",
+        "ejemplos",
+        "aprendio",
+        "unidades",
+        "formatos"
+      ]
     },
     {
       "id": "m02",
-      "titulo": "Patrones de inferencia"
+      "titulo": "Patrones de inferencia",
+      "lecciones": [
+        "embeddings",
+        "async",
+        "red",
+        "http",
+        "apis",
+        "fallas-red",
+        "bases-de-datos",
+        "colas",
+        "tiempo-hash"
+      ]
     },
     {
       "id": "m03",
-      "titulo": "Latencia y capacidad"
+      "titulo": "Latencia y capacidad",
+      "lecciones": [
+        "redes",
+        "unidades",
+        "percentiles",
+        "probabilidad",
+        "programa-proceso",
+        "async",
+        "balanceo",
+        "fallas-red",
+        "latencia",
+        "e06-serving",
+        "e11-request"
+      ]
     },
     {
       "id": "m04",
-      "titulo": "Hardware para inferencia"
+      "titulo": "Hardware para inferencia",
+      "lecciones": [
+        "aprender",
+        "redes",
+        "llms",
+        "unidades",
+        "numeros-maquina",
+        "flops",
+        "memoria",
+        "cpu-gpu",
+        "maquinas"
+      ]
     },
     {
       "id": "m05",
-      "titulo": "Contenedores"
+      "titulo": "Contenedores",
+      "lecciones": [
+        "memoria",
+        "sistema-operativo",
+        "terminal",
+        "python-ecosistema",
+        "git",
+        "config",
+        "ataques",
+        "e07-empaquetado",
+        "e08-cicd"
+      ]
     },
     {
       "id": "m06",
-      "titulo": "Orquestación y escalado"
+      "titulo": "Orquestación y escalado",
+      "lecciones": [
+        "programa-proceso",
+        "cpu-gpu",
+        "sistema-operativo",
+        "red",
+        "balanceo",
+        "colas",
+        "terminal",
+        "config",
+        "regiones",
+        "gestionados",
+        "e09-kubernetes"
+      ]
     },
     {
       "id": "m07",
-      "titulo": "Servidores de modelos"
+      "titulo": "Servidores de modelos",
+      "lecciones": [
+        "modelo",
+        "imagenes",
+        "redes",
+        "embeddings",
+        "llms",
+        "programa-proceso",
+        "cpu-gpu",
+        "async",
+        "http",
+        "apis",
+        "python-ecosistema",
+        "pytorch",
+        "identidad",
+        "e06-serving"
+      ]
     },
     {
       "id": "m08",
-      "titulo": "Optimización de modelos"
+      "titulo": "Optimización de modelos",
+      "lecciones": [
+        "redes",
+        "numeros-maquina",
+        "flops",
+        "cpu-gpu",
+        "pytorch",
+        "e05-export"
+      ]
     },
     {
       "id": "m09",
-      "titulo": "Datos y features"
+      "titulo": "Datos y features",
+      "lecciones": [
+        "imagenes",
+        "ejemplos",
+        "embeddings",
+        "formatos",
+        "bases-de-datos",
+        "almacenamiento",
+        "tiempo-hash",
+        "git",
+        "privacidad",
+        "e01-datos",
+        "e02-versionado"
+      ]
     },
     {
       "id": "m10",
-      "titulo": "MLOps"
+      "titulo": "MLOps",
+      "lecciones": [
+        "aprender",
+        "aprendio",
+        "ruido",
+        "python-ecosistema",
+        "git",
+        "pruebas-ci",
+        "e02-versionado",
+        "e03-entrenamiento",
+        "e04-gate",
+        "e08-cicd"
+      ]
     },
     {
       "id": "m11",
-      "titulo": "Despliegue seguro"
+      "titulo": "Despliegue seguro",
+      "lecciones": [
+        "aprendio",
+        "ruido",
+        "balanceo",
+        "pruebas-ci",
+        "e04-gate",
+        "e10-rollout"
+      ]
     },
     {
       "id": "m12",
-      "titulo": "Monitoreo"
+      "titulo": "Monitoreo",
+      "lecciones": [
+        "embeddings",
+        "percentiles",
+        "distribuciones",
+        "formatos",
+        "colas",
+        "e11-request",
+        "e12-monitoreo"
+      ]
     },
     {
       "id": "m13",
-      "titulo": "Nube"
+      "titulo": "Nube",
+      "lecciones": [
+        "unidades",
+        "red",
+        "almacenamiento",
+        "nube",
+        "regiones",
+        "maquinas",
+        "redes-nube",
+        "gestionados"
+      ]
     },
     {
       "id": "m14",
-      "titulo": "Sistemas con LLMs"
+      "titulo": "Sistemas con LLMs",
+      "lecciones": [
+        "llms",
+        "apis"
+      ]
     },
     {
       "id": "m15",
-      "titulo": "Seguridad y confiabilidad"
+      "titulo": "Seguridad y confiabilidad",
+      "lecciones": [
+        "probabilidad",
+        "sistema-operativo",
+        "http",
+        "fallas-red",
+        "tiempo-hash",
+        "pytorch",
+        "config",
+        "regiones",
+        "gestionados",
+        "cifrado",
+        "identidad",
+        "privacidad",
+        "ataques"
+      ]
     }
   ]
 }

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 380" role="img" aria-labelledby="f-modelo-baseline-t" class="f-svg" style="max-width:420px">
-<title id="f-modelo-baseline-t">Una cuadrícula de 1,250 cuadritos, uno por pago. Todos son pagos buenos menos uno, marcado en naranja: el fraude, 0.08 % de los pagos, como en C09. El modelo que aprueba todo sin mirar nada acierta 1,249 de 1,250, un 99.92 % de accuracy, y atrapa 0 de 1 fraudes. Ese 99.92 % es el piso que cualquier modelo tiene que superar.</title>
+<title id="f-modelo-baseline-t">Una cuadrícula de 1,250 cuadritos, uno por pago. Todos son pagos buenos menos uno, marcado en naranja: el fraude, 0.08 % de los pagos, la tasa del ejemplo. El modelo que aprueba todo sin mirar nada acierta 1,249 de 1,250, un 99.92 % de accuracy, y atrapa 0 de 1 fraudes. Ese 99.92 % es el piso que cualquier modelo tiene que superar.</title>
 <rect class="f-card" x="10" y="10" width="340" height="360" rx="16"/>
 <text class="f-l" x="28" y="38">1,250 PAGOS · 1 ES FRAUDE (0.08 %)</text>
 <line x1="30" y1="58" x2="330" y2="58" style="stroke:var(--g);stroke-width:5;stroke-dasharray:5 1;opacity:.5"/>

@@ -48,7 +48,7 @@
         { "nodes": ["gpu", "quiebre"], "edges": ["gpu>quiebre"], "text": "La L4: ≈ 121 TFLOPS y 300 GB/s. Su quiebre es ≈ **403**." },
         { "nodes": ["intens", "quiebre", "comparar", "mb"], "edges": ["intens>comparar", "quiebre>comparar", "comparar>mb"], "text": "1 contra 403: **memory-bound**, unas 400 veces por debajo. Las palancas son de bytes: batching (≈ 59 tokens/s con 4 conversaciones), pesos en INT8 (≈ 37 tokens/s por conversación) o una GPU con más GB/s." }
       ] },
-    { "id": "cabeza", "label": "La capa final de C01, con batch 32",
+    { "id": "cabeza", "label": "La capa final de Alba, con batch 32",
       "steps": [
         { "nodes": ["flops", "bytes", "intens"], "edges": ["flops>intens", "bytes>intens"], "text": "(32 × 2,048) · (2,048 × 500) en FP16: ≈ 65.5 MFLOPs y ≈ 2.2 MB. Intensidad ≈ **30**." },
         { "nodes": ["gpu", "quiebre", "intens", "comparar", "mb"], "edges": ["gpu>quiebre", "intens>comparar", "quiebre>comparar", "comparar>mb"], "text": "30 contra 203 de la T4: **memory-bound**." },

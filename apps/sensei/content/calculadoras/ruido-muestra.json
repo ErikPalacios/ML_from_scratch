@@ -1,11 +1,11 @@
 {
   "titulo": "Tamaño de muestra de un A/B",
-  "intro": "Cuántas unidades necesita cada brazo para ver un efecto. Empieza en C01: aceptación de 70 %, un efecto mínimo de 1 punto, α = 0.05 de dos colas y potencia de 80 %.",
+  "intro": "Cuántas unidades necesita cada brazo para ver un efecto. Aplica la fórmula completa de dos proporciones, \\(n = (s_α + s_β)^2 ÷ (p_2 − p_1)^2\\), con \\(p_1\\) la tasa del control y \\(p_2 = p_1 + δ\\), y la compara con la regla rápida \\(n ≈ 2 × (z_α + z_β)^2 × p_1 × (1 − p_1) ÷ δ^2\\). Empieza con los números de Alba, el marketplace que sigue el curso: aceptación de 70 %, un efecto mínimo de 1 punto, α = 0.05 de dos colas y potencia de 80 %.",
   "entradas": [
-    { "id": "base", "label": "Tasa del control (la de hoy)", "min": 1, "max": 95, "paso": 0.5, "valor": 70, "unidad": "%" },
-    { "id": "mde", "label": "Efecto mínimo que quieres ver (MDE)", "min": 0.1, "max": 10, "paso": 0.1, "valor": 1, "unidad": "puntos" },
-    { "id": "pot", "label": "Potencia", "min": 50, "max": 99, "paso": 1, "valor": 80, "unidad": "%" },
-    { "id": "alfa", "label": "Significancia α", "min": 0.1, "max": 20, "paso": 0.1, "valor": 5, "unidad": "%" }
+    { "id": "base", "label": "Tasa del control, la de hoy, \\(p_1\\)", "min": 1, "max": 95, "paso": 0.5, "valor": 70, "unidad": "%" },
+    { "id": "mde", "label": "Efecto mínimo que quieres ver, el MDE \\(δ\\)", "min": 0.1, "max": 10, "paso": 0.1, "valor": 1, "unidad": "puntos" },
+    { "id": "pot", "label": "Potencia, \\(1 − β\\)", "min": 50, "max": 99, "paso": 1, "valor": 80, "unidad": "%" },
+    { "id": "alfa", "label": "Significancia \\(α\\), de dos colas", "min": 0.1, "max": 20, "paso": 0.1, "valor": 5, "unidad": "%" }
   ],
   "calculos": [
     { "id": "p1", "formula": "base / 100" },
@@ -22,12 +22,13 @@
     { "id": "n", "formula": "pow(za * sqrt(2 * pm * (1 - pm)) + zb * sqrt(p1 * (1 - p1) + p2 * (1 - p2)), 2) / max(pow(p2 - p1, 2), 1e-12)" }
   ],
   "salidas": [
-    { "label": "Unidades por brazo", "formula": "ceil(n)", "formato": "int", "barra": true, "nota": "la fórmula de dos proporciones" },
-    { "label": "En los dos brazos", "formula": "2 * ceil(n)", "formato": "int" },
-    { "label": "Regla rápida, con el factor exacto", "formula": "2 * pow(za + zb, 2) * p1 * (1 - p1) / pow(p2 - p1, 2)", "formato": "int", "barra": true, "nota": "2 × (z de α + z de potencia)² × p(1 − p) ÷ MDE²; con 5 % y 80 % el factor es 15.7, que la regla de bolsillo redondea a 16" },
-    { "label": "z de α", "formula": "za", "decimales": 2, "nota": "1.96 con α = 5 %" },
-    { "label": "z de la potencia", "formula": "zb + 0", "decimales": 2, "nota": "0.84 con 80 %" },
-    { "label": "Horas para juntarla en C01, al 50/50", "formula": "2 * ceil(n) / (2500000 / 24)", "decimales": 1, "nota": "con ≈ 2.5 M publicaciones al día" }
+    { "label": "Unidades por brazo, \\(n\\)", "formula": "ceil(n)", "formato": "int", "barra": true, "nota": "\\(n = (s_α + s_β)^2 ÷ (p_2 − p_1)^2\\), con \\(s_α = z_α × √(2 × p_m × (1 − p_m))\\), \\(s_β = z_β × √(p_1(1 − p_1) + p_2(1 − p_2))\\) y \\(p_m = (p_1 + p_2) ÷ 2\\), redondeado hacia arriba" },
+    { "label": "En los dos brazos, \\(2n\\)", "formula": "2 * ceil(n)", "formato": "int" },
+    { "label": "Regla rápida, con el factor exacto", "formula": "2 * pow(za + zb, 2) * p1 * (1 - p1) / pow(p2 - p1, 2)", "formato": "int", "barra": true, "nota": "\\(2 × (z_α + z_β)^2 × p_1(1 − p_1) ÷ δ^2\\); con 5 % y 80 %, el factor 2 × (1.96 + 0.84)² ≈ 15.7, que la regla de bolsillo redondea a 16" },
+    { "label": "\\(z_α\\), la raya de significancia", "formula": "za", "decimales": 2, "nota": "1.96 con α = 5 % de dos colas: deja 2.5 % en cada orilla" },
+    { "label": "\\(z_β\\), el de la potencia", "formula": "zb + 0", "decimales": 2, "nota": "0.84 con 80 %: deja 20 % (β) del lado que se escapa" },
+    { "label": "Horas para juntarla en Alba, al 50/50", "formula": "2 * ceil(n) / (2500000 / 24)", "decimales": 1, "nota": "\\(2n ÷ 104,167\\) publicaciones por hora: Alba recibe ≈ 2.5 M al día, y 2,500,000 ÷ 24 ≈ 104,167" }
   ],
-  "nota": "n crece con 1 ÷ efecto²: divide el MDE entre 2 y la muestra se multiplica por 4. Y aunque la muestra se junte en horas, el A/B de C01 corre semanas completas."
+  "nota": "n crece con 1 ÷ δ²: divide el MDE entre 2 y la muestra se multiplica por 2² = 4. Y aunque la muestra se junte en horas, el A/B de Alba corre semanas completas."
+
 }

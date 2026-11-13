@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 540" role="img" aria-labelledby="f-unidades-tiempo-t" class="f-svg" style="max-width:420px">
-<title id="f-unidades-tiempo-t">Una regla de tiempo en potencias de diez, de 1 nanosegundo arriba a 1 día abajo; cada marca vale 10 veces la anterior: 1 ns, 10 ns, 100 ns, 1 microsegundo, y así hasta 10 a la 5 segundos. Junto a la regla, lo que pasa a cada escala: leer la caché del CPU tarda cerca de 1 ns, el tiempo en que la luz avanza 30 cm; leer la RAM, cerca de 100 ns; copiar la foto de C01 a la GPU, cerca de 40 microsegundos; ir y volver por la red dentro del centro de datos, de 0.1 a 0.5 ms; la ResNet-50 calcula en la GPU en 3 a 6 ms; un cuadro de video a 30 fps dura 33 ms; la promesa de C01 es de 200 ms y el marketplace espera hasta 300 ms; 1 minuto son 60 s, 1 hora 3,600 s, el reentrenamiento mensual de C01 tarda de 3 a 4 horas y 1 día son 86,400 s, casi 10 a la 5.</title>
+<title id="f-unidades-tiempo-t">Una regla de tiempo en potencias de diez, de 1 nanosegundo arriba a 1 día abajo; cada marca vale 10 veces la anterior: 1 ns, 10 ns, 100 ns, 1 microsegundo, y así hasta 10 a la 5 segundos. Junto a la regla, lo que pasa a cada escala: leer la caché del CPU tarda cerca de 1 ns, el tiempo en que la luz avanza 30 cm; leer la RAM, cerca de 100 ns; copiar la foto de Alba a la GPU, cerca de 40 microsegundos; ir y volver por la red dentro del centro de datos, de 0.1 a 0.5 ms; la ResNet-50 calcula en la GPU en 3 a 6 ms; un cuadro de video a 30 fps dura 33 ms; la promesa de Alba es de 200 ms y el marketplace espera hasta 300 ms; 1 minuto son 60 s, 1 hora 3,600 s, el reentrenamiento mensual de Alba tarda de 3 a 4 horas y 1 día son 86,400 s, casi 10 a la 5.</title>
 <rect class="f-card" x="10" y="10" width="340" height="520" rx="16"/>
 <text class="f-l" x="28" y="36">DE 1 NANOSEGUNDO A 1 DÍA</text>
 <text class="f-s" x="28" y="56" style="font-size:12px">cada marca vale 10 veces la de arriba</text>
@@ -49,16 +49,16 @@
 <circle class="f-p" cx="92" cy="304.2" r="5"/>
 <text class="f-s" x="108" y="308.7">33 ms: un cuadro de video a 30 fps</text>
 <rect class="f-b" x="88" y="326.7" width="8" height="5.1" rx="3"/>
-<text class="f-s" x="108" y="333.8">200–300 ms: la promesa de C01</text>
+<text class="f-s" x="108" y="333.8">200–300 ms: la promesa de Alba</text>
 <text class="f-s" x="108" y="350.3" style="font-size:12px;fill:var(--muted)">y lo que espera el marketplace</text>
 <circle class="f-ink" cx="92" cy="398.6" r="5"/>
 <text class="f-s" x="108" y="403.1">1 min = 60 s</text>
 <circle class="f-ink" cx="92" cy="450.1" r="5"/>
 <text class="f-s" x="108" y="454.6">1 h = 3,600 s</text>
 <circle class="f-y" cx="92" cy="465.9" r="5"/>
-<text class="f-s" x="108" y="470.4">3–4 h: el reentrenamiento de C01</text>
+<text class="f-s" x="108" y="470.4">3–4 h: el reentrenamiento de Alba</text>
 <circle class="f-ink" cx="92" cy="490.2" r="5"/>
 <text class="f-s" x="108" y="494.7">1 día = 86,400 s ≈ 10⁵ s</text>
-<circle class="f-b" cx="34" cy="514" r="5"/><text class="f-s" x="46" y="518" style="font-size:12px">una request de C01</text>
+<circle class="f-b" cx="34" cy="514" r="5"/><text class="f-s" x="46" y="518" style="font-size:12px">una request de Alba</text>
 <circle class="f-y" cx="170" cy="514" r="5"/><text class="f-s" x="182" y="518" style="font-size:12px">el camino offline</text>
 </svg>

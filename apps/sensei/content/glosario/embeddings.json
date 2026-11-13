@@ -7,7 +7,7 @@
       "en": "vector",
       "corto": "Una lista ordenada de números. Si tiene 2 números se puede dibujar como un punto (o una flecha) en un plano; si tiene 512, es un punto en un espacio de 512 dimensiones.",
       "largo": "Cada número es una coordenada, y su posición en la lista importa: (4, 3) no es lo mismo que (3, 4). La cantidad de números se llama la [[dimensionalidad|dimensión]] del vector. Un vector es un [[tensor]] de una sola dimensión, una fila de números; ojo, que en un tensor «dimensión» cuenta las direcciones de la tabla, y en un vector, cuántos números trae.",
-      "ejemplo": "(4, 3) es un vector de dimensión 2: un punto 4 pasos a la derecha y 3 hacia arriba. El [[embedding]] de un producto en C07 de la Ronda es un vector de dimensión 512.",
+      "ejemplo": "(4, 3) es un vector de dimensión 2: un punto 4 pasos a la derecha y 3 hacia arriba. El [[embedding]] de una publicación en la búsqueda de Alba, el marketplace del curso, es un vector de dimensión 512.",
       "ver": ["embedding", "producto-punto", "dimensionalidad"],
       "leccion": "embeddings"
     },
@@ -18,7 +18,7 @@
       "corto": "El vector que produce un modelo para representar algo (una foto, una frase, un producto) de forma que las cosas parecidas queden cerca.",
       "largo": "Lo produce una red ya entrenada: entra la foto o el texto y sale una lista de, por ejemplo, 512 números. Cada número por separado no significa nada que se pueda nombrar; lo que importa es la distancia entre vectores. Dos embeddings solo se pueden comparar si los produjo el mismo modelo, en la misma versión.",
       "analogia": "Como las coordenadas de una ciudad en un mapa: ciudades cercanas tienen coordenadas parecidas. Se rompe en que un mapa tiene 2 ejes con nombre (latitud y longitud) y un embedding tiene cientos de ejes sin nombre.",
-      "ejemplo": "CLIP ViT-B/32 convierte una foto o un texto en 512 números; BERT-base convierte un texto en vectores de 768; la ResNet-50 de C01, justo antes de su última capa, produce 2,048.",
+      "ejemplo": "CLIP ViT-B/32 convierte una foto o un texto en 512 números; BERT-base convierte un texto en vectores de 768; la ResNet-50 con la que Alba, el marketplace del curso, clasifica sus fotos produce 2,048 justo antes de su última capa.",
       "ver": ["vector", "similitud-coseno", "vecinos-cercanos", "multimodal"],
       "leccion": "embeddings"
     },
@@ -79,7 +79,7 @@
       "en": "semantic search",
       "corto": "Buscar por significado y no por palabras: se compara el embedding de la consulta con los de los documentos y se devuelven los más cercanos.",
       "largo": "Encuentra sinónimos («chamarra» y «chaqueta»), descripciones vagas («algo para ir a la playa») y, con un modelo [[multimodal]], fotos a partir de un texto. Falla con lo exacto: un modelo, una talla o un código quedan cerca de otros parecidos. Por eso casi siempre va junto con [[bm25|BM25]] en una [[busqueda-hibrida|búsqueda híbrida]]. Por debajo es una búsqueda de [[vecinos-cercanos|vecinos más cercanos]] sobre un [[indice-vectorial|índice vectorial]].",
-      "ejemplo": "En C07 de la Ronda, «tenis blancos» se convierte en un vector de 512 números y el índice devuelve las publicaciones más cercanas de entre 100 millones, en milisegundos.",
+      "ejemplo": "En la búsqueda de Alba, el marketplace del curso, «tenis blancos» se convierte en un vector de 512 números y el índice devuelve las publicaciones más cercanas de entre ≈ 100 millones de publicaciones activas, en milisegundos.",
       "ver": ["busqueda-hibrida", "vecinos-cercanos", "embedding"],
       "leccion": "embeddings"
     },
@@ -100,7 +100,7 @@
       "corto": "Buscar los vecinos más cercanos sin compararse contra todos: se revisa solo una parte bien elegida de la colección. Es muchísimo más rápido, a cambio de perder de vez en cuando algún vecino verdadero.",
       "largo": "Cuánto se pierde se mide con el recall contra la búsqueda exacta: de los 100 vecinos verdaderos, cuántos encontró el ANN. Mirar más de la colección sube el recall y baja la velocidad: es una perilla, no un defecto. Las técnicas más usadas son los grafos ([[hnsw|HNSW]]) y los grupos o «estantes» (IVF).",
       "analogia": "Una biblioteca ordenada por estantes de tema: para buscar un libro de cocina vas directo al estante de cocina y no revisas los otros. Se rompe en que un libro que quedó en el estante de al lado (un libro de nutrición con recetas) no lo vas a ver, aunque fuera el que querías.",
-      "ejemplo": "En C07 de la Ronda se pide recall@100 ≥ 0.95: de los 100 vecinos exactos, el ANN tiene que encontrar al menos 95.",
+      "ejemplo": "En la búsqueda de Alba, el marketplace del curso, se pide recall@100 ≥ 0.95: de los 100 vecinos exactos, el ANN tiene que encontrar al menos 95 (\\(text{recall@}k = h ÷ k\\), con \\(h\\) los que halló).",
       "ver": ["vecinos-cercanos", "indice-vectorial", "hnsw"],
       "leccion": "embeddings"
     },
@@ -110,7 +110,7 @@
       "en": "vector index",
       "corto": "Una estructura de datos que guarda millones de vectores ya organizados (en grupos o en un grafo) para encontrar los más cercanos a uno nuevo sin revisarlos todos.",
       "largo": "Se construye antes, sin prisa, y se consulta en milisegundos. Los más usados, como HNSW, viven en la memoria: 100 millones de vectores de 512 números pesan ≈ 205 GB en float32. Lo ofrecen librerías (FAISS), bases de datos vectoriales y motores de búsqueda (OpenSearch k-NN). Cada uno trae perillas que cambian velocidad, memoria y recall.",
-      "ejemplo": "En C07 de la Ronda: un índice [[hnsw|HNSW]] con los vectores guardados en int8 (51.2 GB) más el grafo (≈ 25.6 GB), partido en 4 pedazos.",
+      "ejemplo": "En la búsqueda de Alba, el marketplace del curso: un índice [[hnsw|HNSW]] con ≈ 100 M vectores de 512 números guardados en int8 (100 M × 512 × 1 byte = 51.2 GB) más el grafo (≈ 25.6 GB), partido en 4 pedazos.",
       "ver": ["ann", "hnsw", "retrieval"],
       "leccion": "embeddings"
     },
@@ -121,7 +121,7 @@
       "corto": "Un índice de vecinos aproximados muy usado: conecta cada vector con unos cuantos vecinos y busca saltando de vecino en vecino hacia la consulta, con niveles de atajos para llegar rápido.",
       "largo": "Arriba hay pocos puntos unidos por saltos largos; abajo, todos los puntos con caminos cortos. La búsqueda empieza arriba, baja de nivel y termina con pasos finos, así que el trabajo crece muy despacio con el tamaño del catálogo (como log N). Sus perillas: M, cuántos vecinos guarda cada punto (más recall y más memoria), y ef_search, cuántos candidatos mantiene mientras busca (más recall y más latencia). Vive en memoria y borrar de él es caro. Lo propusieron Malkov y Yashunin en 2016.",
       "analogia": "Manejar a otra ciudad: autopista hasta la ciudad correcta y luego calles hasta la puerta. Se rompe en que HNSW no lleva mapa: en cada punto solo ve a sus vecinos, y por eso a veces se queda con uno que no es el más cercano de todos.",
-      "ejemplo": "En C07 de la Ronda, con M = 32 el grafo guarda hasta 64 vecinos por vector en el nivel de abajo: 64 × 4 bytes = 256 bytes; para 100 M vectores, ≈ 25.6 GB además de los vectores.",
+      "ejemplo": "En la búsqueda de Alba, el marketplace del curso, con M = 32 el grafo guarda hasta \\(2M\\) = 64 vecinos por vector en el nivel de abajo: \\(2M × 4\\) = 64 × 4 bytes = 256 bytes; para \\(N\\) = 100 M vectores, \\(N × 2M × 4\\) ≈ 25.6 GB además de los vectores.",
       "ver": ["ann", "indice-vectorial", "vecinos-cercanos"],
       "leccion": "embeddings"
     },
@@ -131,7 +131,7 @@
       "en": "dimensionality · embedding dimension",
       "corto": "Cuántos números tiene un vector. En un embedding es una decisión de diseño: más números dan lugar a más detalle, pero la memoria y el trabajo de cada búsqueda crecen en proporción.",
       "largo": "Un embedding de 1,024 números ocupa el doble de memoria y cuesta el doble por comparación que uno de 512. Cada duplicación suele ayudar menos que la anterior, así que se busca la dimensión más chica que cumpla con la calidad. En muchas dimensiones pasan cosas raras: dos vectores al azar salen casi perpendiculares (en 512 dimensiones, su coseno típico es ≈ 0.04), así que la escala de los cosenos depende de cada modelo.",
-      "ejemplo": "En la Ronda, C08 usa 128 (100 M vectores en int8 = 12.8 GB), C07 usa 512 (51.2 GB en int8) y C11 usa 1,024 (12 M pedazos de documentos = 49.2 GB en float32).",
+      "ejemplo": "Con \\(Mem = N × d × bytes\\), en Alba, el marketplace del curso: la recomendación usa 128 (100 M × 128 × 1 byte = 12.8 GB en int8), la búsqueda usa 512 (100 M × 512 × 1 = 51.2 GB en int8) y el asistente interno que responde con documentos usa 1,024 (12 M pedazos × 1,024 × 4 ≈ 49.2 GB en float32).",
       "ver": ["vector", "embedding", "indice-vectorial"],
       "leccion": "embeddings"
     },
@@ -141,7 +141,7 @@
       "en": "BM25 · Okapi BM25",
       "corto": "La fórmula clásica para ordenar documentos por las palabras de la búsqueda: premia las palabras que coinciden, más si son raras, sin premiar de más la repetición ni los textos largos.",
       "largo": "Funciona sobre un índice invertido: para cada palabra, la lista de documentos que la contienen. El peso de una palabra (su IDF) crece mientras más rara es: en 1,000,000 de documentos, una palabra que está en 500 pesa ≈ ln 2,000 ≈ 7.6 y una que está en 100,000, ≈ ln 10 ≈ 2.3. Repetir una palabra se satura: con k1 = 1.2, diez repeticiones valen menos del doble que una. Es la búsqueda por defecto de Lucene, Elasticsearch y OpenSearch. Es muy buena con marcas, modelos, tallas y códigos, y mala con sinónimos y descripciones vagas; por eso se combina con embeddings en la [[busqueda-hibrida|búsqueda híbrida]].",
-      "ejemplo": "En C07 de la Ronda, BM25 en OpenSearch es la búsqueda de hoy: falla con «chamarra» contra «chaqueta» (≈ 8 % de las búsquedas no dan resultados), pero encuentra «iPhone 13 Pro 128» exacto. Se queda como parte del híbrido y como respaldo.",
+      "ejemplo": "En Alba, el marketplace del curso, BM25 en OpenSearch es la búsqueda de hoy: falla con «chamarra» contra «chaqueta» (≈ 8 % de las búsquedas no dan resultados), pero encuentra «iPhone 13 Pro 128» exacto. Se queda como parte del híbrido y como respaldo.",
       "ver": ["busqueda-hibrida", "busqueda-semantica", "retrieval"],
       "leccion": "embeddings"
     },
@@ -151,7 +151,7 @@
       "en": "hybrid search",
       "corto": "Correr una búsqueda por palabras (BM25) y una por significado (embeddings) en paralelo sobre el mismo catálogo y juntar sus listas. Cada una tapa los huecos de la otra.",
       "largo": "Las listas se juntan casi siempre con RRF (*Reciprocal Rank Fusion*, Cormack y otros, 2009): cada lista le da a cada documento 1 ÷ (k + su posición), con k = 60, y se suman. Usa solo posiciones, así que no hay que comparar puntajes de escalas distintas. Si la parte semántica falla, la de palabras sigue respondiendo sola.",
-      "ejemplo": "Con RRF (k = 60), una publicación 1.ª en la lista semántica y 3.ª en la de BM25 suma 1/61 + 1/63 ≈ 0.0323; una 1.ª solo en BM25, 1/61 ≈ 0.0164. C07 y C11 de la Ronda la usan.",
+      "ejemplo": "Con RRF (k = 60), una publicación 1.ª en la lista semántica y 3.ª en la de BM25 suma 1/61 + 1/63 ≈ 0.0323; una 1.ª solo en BM25, 1/61 ≈ 0.0164. La búsqueda de Alba y su asistente interno con documentos la usan.",
       "ver": ["bm25", "busqueda-semantica", "retrieval"],
       "leccion": "embeddings"
     },
@@ -161,7 +161,7 @@
       "en": "retrieval · candidate generation",
       "corto": "La primera etapa de una búsqueda: traer rápido y barato unos cientos de candidatos de entre millones, aunque el orden no sea perfecto.",
       "largo": "Suele ser una búsqueda en un [[indice-vectorial|índice vectorial]], muchas veces junto con una búsqueda por palabras ([[bm25|BM25]]): eso es la [[busqueda-hibrida|búsqueda híbrida]]. Su trabajo es no dejar fuera lo bueno; ordenarlo bien le toca al [[re-ranking]]. En RAG es la parte que busca los documentos antes de que el LLM responda.",
-      "ejemplo": "En C07 de la Ronda, el índice vectorial aporta ≈ 200 candidatos y BM25 otros ≈ 200, de entre 100 millones de publicaciones, en unas decenas de milisegundos. El re-ranker solo ve los 30 primeros.",
+      "ejemplo": "En la búsqueda de Alba, el marketplace del curso, el índice vectorial aporta ≈ 200 candidatos y BM25 otros ≈ 200, de entre 100 millones de publicaciones, en unas decenas de milisegundos. El re-ranker solo ve los 30 primeros.",
       "ver": ["re-ranking", "indice-vectorial", "busqueda-hibrida"],
       "leccion": "embeddings"
     },
@@ -171,7 +171,7 @@
       "en": "re-ranking · reranker",
       "corto": "La segunda etapa de una búsqueda: después de una primera búsqueda rápida, un modelo más caro y más preciso vuelve a calificar solo los primeros candidatos y los reordena.",
       "largo": "Puede darse el lujo de ser lento por candidato porque mira pocos (decenas, no millones). Un re-ranker típico (un *cross-encoder*) lee la consulta y el candidato juntos, en vez de comparar dos vectores calculados por separado, como hace un modelo de [[dos-torres|dos torres]]. Cuántos candidatos reordenar es una decisión de costo.",
-      "ejemplo": "En C07 de la Ronda, reordenar los 100 primeros de cada búsqueda de texto pediría ≈ 24 GPUs L4; los 30 primeros, ≈ 8.",
+      "ejemplo": "En la búsqueda de Alba, el marketplace del curso, reordenar los 100 primeros de cada búsqueda de texto pediría ≈ 24 GPUs L4; los 30 primeros, ≈ 8.",
       "ver": ["retrieval", "dos-torres"],
       "leccion": "embeddings"
     },
@@ -181,7 +181,7 @@
       "en": "multimodal",
       "corto": "Que trabaja con más de un tipo de dato a la vez, como texto e imágenes. Un embedding multimodal pone fotos y textos en el mismo espacio, para compararlos directamente.",
       "largo": "CLIP (OpenAI, 2021) tiene dos redes, una para imágenes y otra para texto, entrenadas juntas con [[aprendizaje-contrastivo|aprendizaje contrastivo]] sobre unos 400 millones de pares (imagen, texto) para que una foto y su descripción queden cerca. Así, el vector de «tenis blancos» queda cerca del vector de la foto de unos tenis blancos.",
-      "ejemplo": "En C07 de la Ronda, un encoder tipo CLIP (512 dimensiones) permite buscar productos con texto o subiendo una foto.",
+      "ejemplo": "En la búsqueda de Alba, el marketplace del curso, un encoder tipo CLIP (512 dimensiones) permite buscar productos con texto o subiendo una foto.",
       "ver": ["embedding", "aprendizaje-contrastivo", "dos-torres"],
       "leccion": "embeddings"
     },
@@ -202,7 +202,7 @@
       "en": "two-tower model · dual encoder · bi-encoder",
       "corto": "Un modelo con dos redes que convierten por separado dos tipos de cosas (consultas y productos, o usuarios y publicaciones) en vectores del mismo espacio. El parecido es el producto punto entre ellos.",
       "largo": "Como cada lado se calcula por separado, los vectores del catálogo se calculan antes, en lote, y en cada consulta solo se calcula uno: eso permite buscar entre millones con un [[ann|ANN]]. Es más rápido y menos preciso que un *cross-encoder*, que lee la consulta y el candidato juntos; por eso se combinan: dos torres para el [[retrieval]] y cross-encoder para el [[re-ranking]]. Se entrena con [[aprendizaje-contrastivo|aprendizaje contrastivo]]. Las dos torres se publican juntas, con la misma versión.",
-      "ejemplo": "En C08 de la Ronda, la torre de usuario calcula un vector de 128 números en cada visita al inicio de la app, y el índice que llenó la torre de publicaciones devuelve ≈ 500 candidatos de entre 100 M. En C07, el encoder tipo CLIP tiene una torre de imagen y una de texto.",
+      "ejemplo": "En la recomendación de Alba, el marketplace del curso, la torre de usuario calcula un vector de 128 números en cada visita al inicio de la app, y el índice que llenó la torre de publicaciones devuelve ≈ 500 candidatos de entre 100 M. En la búsqueda de Alba, el encoder tipo CLIP tiene una torre de imagen y una de texto.",
       "ver": ["aprendizaje-contrastivo", "retrieval", "re-ranking"],
       "leccion": "embeddings"
     }

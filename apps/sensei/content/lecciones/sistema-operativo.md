@@ -10,9 +10,9 @@ requisitos: programa-proceso, memoria, cpu-gpu
 Un programa nunca toca la máquina: le pide todo al kernel, el corazón del sistema operativo, que reparte la CPU y la memoria, guarda los archivos y revisa los permisos. Linux es ese kernel en casi todos los servidores. Y un contenedor no es una máquina aparte: es un proceso normal al que el kernel le enseña solo su pedazo del sistema y le pone límites.
 :::
 
-Cuando Ana sube la foto de sus tenis, la atienden dos programas de C01: el gateway, que la decodifica, y Triton, que corre el modelo. En la lección «Programa, proceso e hilo» viste que cada uno es un [[proceso]]: un programa que está corriendo. Los dos viven en máquinas con Linux en la nube, y antes de la primera foto esas máquinas ya respondieron muchas preguntas. ¿Dónde está el archivo del modelo? ¿Quién lo puede leer? ¿Cuánta memoria puede usar el gateway antes de que lo maten? ¿Para qué CPU se compiló cada programa?
+Alba, la empresa que seguimos en todo el curso, es un marketplace: recibe ≈ 2.5 millones de publicaciones al día y le sugiere a quien vende la categoría de cada foto, entre 500 posibles. Cuando Ana sube la foto de sus tenis, la atienden dos programas de Alba: el gateway, que la decodifica, y Triton, que corre el modelo. En la lección «Programa, proceso e hilo» viste que cada uno es un [[proceso]]: un programa que está corriendo. Los dos viven en máquinas con Linux en la nube de AWS: Triton, en dos máquinas con una GPU T4 cada una; el gateway, en otras dos sin GPU. Antes de la primera foto esas máquinas ya respondieron muchas preguntas. ¿Dónde está el archivo del modelo? ¿Quién lo puede leer? ¿Cuánta memoria puede usar el gateway antes de que lo maten? ¿Para qué CPU se compiló cada programa?
 
-Todas las responde el sistema operativo. En la Ronda, M05 lo dice en una frase: «Un contenedor no es una VM: todos los contenedores del nodo comparten el kernel del host». Al terminar esta lección vas a entender cada palabra.
+Todas las responde el sistema operativo. Hay una frase que resume la lección: «Un contenedor no es una VM: todos los contenedores del nodo comparten el kernel del host». Al terminar esta lección vas a entender cada palabra.
 
 ## El sistema operativo y el kernel {The operating system and the kernel}
 
@@ -53,7 +53,7 @@ Linux tiene más de 300. Estas son las que vas a oír:
 
 Hasta un `print("hola")` termina en una syscall: `write(1, "hola\n", 5)`, «escribe estos 5 bytes (las 4 letras y `\n`, el salto de línea) en el archivo número 1». El kernel numera los archivos que tiene abiertos cada proceso, y a cada número le dice **descriptor**; el 1 es la salida del programa, lo que ves en la terminal o en los logs. Python no hace la syscall solo: se la encarga a la **biblioteca de C**, unas funciones para pedirle cosas al kernel que usan casi todos los programas (la sección que sigue la presenta).
 
-El diagrama sigue a Triton cuando abre su engine, el modelo de C01 ya convertido por TensorRT para la T4.
+El diagrama sigue a Triton cuando abre su engine, el modelo de Alba ya convertido por TensorRT para la T4.
 
 :::diagrama sistema-operativo-syscall
 Fíjate en que Triton nunca toca el disco: su petición cruza al kernel por una sola puerta, la syscall. Usa «Recorrer» para seguir la lectura del engine y dos maneras de fallar.
@@ -103,7 +103,7 @@ buffer de     0 bytes:  1000 llamadas a write para 15,000 bytes
 buffer de  8192 bytes:     2 llamadas a write para 15,000 bytes
 ```
 
-El buffer tiene un costo: lo que está ahí todavía no llegó al kernel. Si el proceso muere de golpe, se pierde. Por eso el gateway de C01 arranca con `PYTHONUNBUFFERED=1`, una variable de entorno (un ajuste que el proceso recibe al arrancar) que le pide a Python no usar buffer en lo que imprime: cada línea de log sale al instante, con más syscalls, pero sin perder las últimas líneas cuando el proceso cae.
+El buffer tiene un costo: lo que está ahí todavía no llegó al kernel. Si el proceso muere de golpe, se pierde. Por eso el gateway de Alba arranca con `PYTHONUNBUFFERED=1`, una variable de entorno (un ajuste que el proceso recibe al arrancar) que le pide a Python no usar buffer en lo que imprime: cada línea de log sale al instante, con más syscalls, pero sin perder las últimas líneas cuando el proceso cae.
 :::
 
 ## Linux y sus distribuciones {Linux and its distributions}
@@ -114,18 +114,18 @@ En sentido estricto, Linux es solo el kernel. Lo que se instala es una **distrib
 
 | Distribución | Dónde la vas a ver |
 |---|---|
-| Ubuntu | Laptops, servidores y la imagen de Triton de C01 (Ubuntu 22.04, la versión de abril de 2022) |
-| Debian | La base de las imágenes `python:3.13-slim`, como la del gateway de C01 |
+| Ubuntu | Laptops, servidores y la imagen de Triton de Alba (Ubuntu 22.04, la versión de abril de 2022) |
+| Debian | La base de las imágenes `python:3.13-slim`, como la del gateway de Alba |
 | Alpine | Imágenes diminutas; usa otra biblioteca de C, musl, y para ML no sirve |
-| Amazon Linux 2023 | Los nodos con GPU de C01, que arrancan con la AMI acelerada de EKS |
+| Amazon Linux 2023 | Los nodos con GPU de Alba, que arrancan con la AMI acelerada de EKS |
 | Bottlerocket | Un sistema mínimo de AWS hecho solo para correr contenedores |
 | Jetson Linux (L4T) | Los Jetson; viene en JetPack, el software de NVIDIA para esos equipos, y en JetPack 6.2 está basado en Ubuntu 22.04 |
 
-Unas palabras de la tabla. Una **imagen** es el paquete de archivos del que nace un [[contenedor]]. Un **nodo** es cada máquina donde Kubernetes, el [[orquestacion|orquestador]] de C01, corre contenedores. Y una AMI (*Amazon Machine Image*) es la imagen de disco con la que arranca una máquina de AWS; la de EKS, el Kubernetes de AWS, ya trae lo necesario para la GPU.
+Unas palabras de la tabla. Una **imagen** es el paquete de archivos del que nace un [[contenedor]]. Un **nodo** es cada máquina donde Kubernetes, el [[orquestacion|orquestador]] que usa Alba, corre contenedores. Y una AMI (*Amazon Machine Image*) es la imagen de disco con la que arranca una máquina de AWS; la de EKS, el Kubernetes de AWS, ya trae lo necesario para la GPU.
 
 ### La biblioteca de C: la que hace las syscalls
 
-Casi ningún programa hace syscalls a mano. Usa la **biblioteca de C** (*C library*; está escrita en C, el lenguaje de Linux), que trae funciones como `open()` y, por dentro, hace las syscalls. La de casi todas las distribuciones es **glibc**; Alpine usa **musl**, más chica. Hacen lo mismo, pero un programa [[compilar|compilado]] contra una no siempre corre con la otra. Por eso Alpine no sirve para ML: torch y buena parte de las librerías de ML publican sus versiones compiladas para glibc y no para musl (M05).
+Casi ningún programa hace syscalls a mano. Usa la **biblioteca de C** (*C library*; está escrita en C, el lenguaje de Linux), que trae funciones como `open()` y, por dentro, hace las syscalls. La de casi todas las distribuciones es **glibc**; Alpine usa **musl**, más chica. Hacen lo mismo, pero un programa [[compilar|compilado]] contra una no siempre corre con la otra. Por eso Alpine no sirve para ML: torch y buena parte de las librerías de ML publican sus versiones compiladas para glibc y no para musl.
 
 ### Por qué una imagen de Ubuntu corre en un nodo de Amazon Linux
 
@@ -143,19 +143,19 @@ Un disco, por dentro, es una fila enorme de bloques de bytes numerados: en «Mem
 
 En Windows, cada disco tiene su letra: C:, D:. En Linux no: todo cuelga de un solo árbol que empieza en la **raíz**, que se escribe `/`. Un disco nuevo no aparece como «D:», sino como una carpeta más del árbol (cómo se pega, en la sección de [[montaje]]).
 
-La dirección de un archivo en el árbol es su [[ruta]] (*path*): las carpetas desde la raíz, separadas por `/`. El engine de C01 vive en `/models/classifier/1/model.plan`: en la carpeta `models` de la raíz, dentro de `classifier`, dentro de `1`.
+La dirección de un archivo en el árbol es su [[ruta]] (*path*): las carpetas desde la raíz, separadas por `/`. El engine de Alba vive en `/models/classifier/1/model.plan`: en la carpeta `models` de la raíz, dentro de `classifier`, dentro de `1`.
 
 ### Rutas absolutas y relativas
 
 - Una ruta **absoluta** empieza con `/`. Es el camino completo desde la raíz y significa lo mismo desde cualquier lugar.
 - Una ruta **relativa** no empieza con `/`. Se lee desde la **carpeta de trabajo** (*working directory*) del proceso: la carpeta donde arrancó, si nadie la cambió después, y la que muestra el comando `pwd`.
 
-Cada proceso tiene la suya y la hereda de quien lo lanzó. El comando `cd` cambia la de la shell (con la syscall `chdir`), y los programas que lances desde ahí arrancan en esa carpeta. En una imagen, la fija la línea `WORKDIR` de su Dockerfile, la receta con la que se arma: el gateway de C01 arranca en `/srv`.
+Cada proceso tiene la suya y la hereda de quien lo lanzó. El comando `cd` cambia la de la shell (con la syscall `chdir`), y los programas que lances desde ahí arrancan en esa carpeta. En una imagen, la fija la línea `WORKDIR` de su Dockerfile, la receta con la que se arma: el gateway de Alba arranca en `/srv`.
 
 Dos nombres especiales sirven para moverse: `.` es la carpeta donde estás y `..` es la de arriba. Parado en `/opt/tritonserver`, la ruta `../../models/classifier/1/model.plan` sube a `/opt`, sube a `/` y baja hasta el engine. Hay un tercero, `~`, tu carpeta personal, pero ese lo traduce la shell y no el kernel: en Python, `open("~/x")` no lo entiende.
 
 :::figura sistema-operativo-arbol
-El árbol del contenedor de Triton en C01. Sigue las dos rutas al engine: la absoluta empieza en / y baja; la relativa, para un proceso parado en /opt/tritonserver, sube dos veces con .. hasta la raíz y después baja por el mismo camino.
+El árbol del contenedor de Triton en Alba. Sigue las dos rutas al engine: la absoluta empieza en / y baja; la relativa, para un proceso parado en /opt/tritonserver, sube dos veces con .. hasta la raíz y después baja por el mismo camino.
 :::
 
 Una diferencia que muerde: en Linux, `Model.plan` y `model.plan` son dos archivos distintos. En una Mac con la configuración de fábrica, o en Windows, son el mismo, porque su disco no distingue mayúsculas de minúsculas. Un programa que abre `Model.plan` cuando el archivo se llama `model.plan` funciona en tu Mac y falla en el contenedor.
@@ -208,7 +208,7 @@ La última línea depende de dónde lo corras: en una Mac imprime `True`; en Lin
 
 ### Casi todo es un archivo
 
-Lo de `/proc` y `/dev` es una idea central de Linux: casi todo se ve como un archivo. La GPU es `/dev/nvidia0`, la memoria libre se lee en `/proc/meminfo` y el límite de memoria de un contenedor, en `/sys/fs/cgroup/memory.max`. A todos se les aplican las mismas syscalls: se abren con `openat` y se usan con `read` y `write` o, para darle órdenes a un dispositivo, con `ioctl`. Por eso, para darle la GPU a un contenedor, el NVIDIA Container Toolkit de «CPU y GPU» le pone en su árbol (le monta, como verás en la sección 5), entre otras cosas, tres archivos: `/dev/nvidia0`, `/dev/nvidiactl` y `/dev/nvidia-uvm` (M05).
+Lo de `/proc` y `/dev` es una idea central de Linux: casi todo se ve como un archivo. La GPU es `/dev/nvidia0`, la memoria libre se lee en `/proc/meminfo` y el límite de memoria de un contenedor, en `/sys/fs/cgroup/memory.max`. A todos se les aplican las mismas syscalls: se abren con `openat` y se usan con `read` y `write` o, para darle órdenes a un dispositivo, con `ioctl`. Por eso, para darle la GPU a un contenedor, el NVIDIA Container Toolkit de «CPU y GPU» le pone en su árbol (le monta, como verás en la sección 5), entre otras cosas, tres archivos: `/dev/nvidia0`, `/dev/nvidiactl` y `/dev/nvidia-uvm`.
 
 ### Archivos ocultos
 
@@ -250,7 +250,7 @@ En una carpeta, las letras cambian de sentido: **r** deja ver los nombres de ade
 
 ### Los permisos en octal
 
-Cada juego son 3 bits, y 3 bits son un número del 0 al 7: es el [[binario]] de la lección de números, con posiciones que valen 4, 2 y 1. Por eso r vale 4, w vale 2 y x vale 1, y cada juego se escribe con un solo dígito. Con tres dígitos (dueño, grupo y demás) se dice todo; a esa forma se le llama **octal**, base 8, porque cada dígito va del 0 al 7.
+Cada juego son 3 bits, y 3 bits son un número del 0 al 7: es el [[binario]] de la lección de números, con posiciones que valen 4, 2 y 1. Por eso r vale 4, w vale 2 y x vale 1, y cada juego se escribe con un solo dígito: \( d = 4 × r + 2 × w + 1 × x \), donde \(r\), \(w\) y \(x\) valen 1 si la letra está y 0 si hay un guion. Con tres dígitos (dueño, grupo y demás) se dice todo; a esa forma se le llama **octal**, base 8, porque cada dígito va del 0 al 7.
 
 :::cuenta rwxr-x--- en octal
 Dueño // rwx: los tres bits prendidos | 4 + 2 + 1 | 7
@@ -310,13 +310,13 @@ En Linux y en macOS sale igual, salvo como root: root lee el archivo aunque sus 
 
 ### Root: el usuario que se salta las reglas
 
-El usuario con UID 0 se llama [[root]] («raíz», aunque no tiene que ver con la carpeta raíz, `/`): el superusuario. Para él, el kernel se salta casi todas las revisiones: lee y cambia cualquier archivo, mata cualquier proceso, monta discos y carga drivers. Para usar ese poder en un solo comando se escribe `sudo` antes: en un Jetson, cambiar el modo de energía es `sudo nvpmodel`, porque toca el hardware (M04).
+El usuario con UID 0 se llama [[root]] («raíz», aunque no tiene que ver con la carpeta raíz, `/`): el superusuario. Para él, el kernel se salta casi todas las revisiones: lee y cambia cualquier archivo, mata cualquier proceso, monta discos y carga drivers. Para usar ese poder en un solo comando se escribe `sudo` antes: en un Jetson, cambiar el modo de energía es `sudo nvpmodel`, porque toca el hardware.
 
-¿Por qué no correr todo como root? Porque los programas tienen errores. Si alguien encuentra uno que le deje ejecutar su propio código dentro de tu proceso, obtiene **exactamente los permisos de tu proceso**. El gateway de C01 es justo ese riesgo: decodifica fotos que manda cualquiera, y una foto armada para explotar (aprovechar) un error de Pillow, la librería que lee las imágenes, podría tomar el control. La regla se llama **mínimo privilegio**: cada proceso con lo que necesita y nada más.
+¿Por qué no correr todo como root? Porque los programas tienen errores. Si alguien encuentra uno que le deje ejecutar su propio código dentro de tu proceso, obtiene **exactamente los permisos de tu proceso**. El gateway de Alba es justo ese riesgo: decodifica fotos que manda cualquiera, y una foto armada para explotar (aprovechar) un error de Pillow, la librería que lee las imágenes, podría tomar el control. La regla se llama **mínimo privilegio**: cada proceso con lo que necesita y nada más.
 
-En un contenedor pesa más de lo que parece. Si la imagen no dice otra cosa, el proceso corre como root, y ese UID 0 es el mismo root del nodo, solo que encerrado y con menos poderes. (Linux puede darle al contenedor su propia numeración de usuarios, con un root que no es el del nodo, pero en Kubernetes eso es estable apenas desde la versión 1.36, de 2026, y hay que pedirlo para cada *pod*, la unidad con la que Kubernetes corre contenedores.) M05 lo resume: quien tome el control del proceso es root dentro del contenedor, «un paso menos para llegar al nodo».
+En un contenedor pesa más de lo que parece. Si la imagen no dice otra cosa, el proceso corre como root, y ese UID 0 es el mismo root del nodo, solo que encerrado y con menos poderes. (Linux puede darle al contenedor su propia numeración de usuarios, con un root que no es el del nodo, pero en Kubernetes eso es estable apenas desde la versión 1.36, de 2026, y hay que pedirlo para cada *pod*, la unidad con la que Kubernetes corre contenedores.) Dicho de otro modo: quien tome el control del proceso es root dentro del contenedor y le queda un paso menos para llegar al nodo.
 
-C01 se defiende en dos lugares:
+Alba se defiende en dos lugares:
 
 - **En la imagen.** Su Dockerfile da de alta un usuario sin privilegios con `useradd --uid 10001` y lo usa con `USER 10001`. El código se copia con dueño root y solo lectura para ese usuario: el proceso ni siquiera puede modificarse a sí mismo.
 - **En Kubernetes.** Con `runAsNonRoot: true`, Kubernetes se niega a arrancar el contenedor si fuera a correr como root. Para revisarlo necesita un número: no abre el `/etc/passwd` de la imagen, así que con `USER app` no sabría si `app` es el 0 y se negaría a arrancar. El archivo de Kubernetes del gateway, su **manifiesto**, fija además `runAsUser: 10001`.
@@ -336,7 +336,7 @@ Lo que se monta no siempre es un disco:
 
 ### Solo lectura
 
-Cada montaje es de lectura y escritura (*rw*) o de **solo lectura** (*ro*). En uno de solo lectura, el kernel rechaza cualquier escritura con el error 30, «Read-only file system». Suena a limitación, pero protege: ni un error del programa ni un atacante pueden cambiar lo que está ahí, y muchos procesos comparten la misma copia sin pisarse. M05 lo propone para los pesos de un modelo grande: bajarlos una vez a un disco compartido que muchos pods montan en solo lectura. Kubernetes puede montar así hasta la raíz del contenedor, con `readOnlyRootFilesystem: true`, y el gateway de C01 lo hace: no necesita escribir nada. Solo le deja escribible `/tmp`, una carpeta vacía de 64 MiB montada aparte (un `emptyDir`, en la tabla de abajo), por si alguna librería necesita temporales.
+Cada montaje es de lectura y escritura (*rw*) o de **solo lectura** (*ro*). En uno de solo lectura, el kernel rechaza cualquier escritura con el error 30, «Read-only file system». Suena a limitación, pero protege: ni un error del programa ni un atacante pueden cambiar lo que está ahí, y muchos procesos comparten la misma copia sin pisarse. Por eso conviene para los pesos de un modelo grande: bajarlos una vez a un disco compartido que muchos pods montan en solo lectura. Kubernetes puede montar así hasta la raíz del contenedor, con `readOnlyRootFilesystem: true`, y el gateway de Alba lo hace: no necesita escribir nada. Solo le deja escribible `/tmp`, una carpeta vacía de 64 MiB montada aparte (un `emptyDir`, en la tabla de abajo), por si alguna librería necesita temporales.
 
 ### El árbol de un contenedor, armado con montajes
 
@@ -345,11 +345,11 @@ El árbol propio de un contenedor se arma montando:
 1. **La imagen, como raíz.** Una imagen es una pila de **capas** de archivos de solo lectura: cada paso del Dockerfile que cambia archivos agrega una capa con lo que cambió. Linux las apila con un sistema de archivos hecho para eso, *overlayfs*, y el contenedor las ve como un solo `/`. Encima va una capa vacía de lectura y escritura, la del contenedor, que **se borra con él**.
 2. **Lo que llega de afuera, en su carpeta.** A lo que se monta así, desde fuera de la imagen, se le llama **volumen** (*volume*). En Docker, `docker run -v /pesos:/models:ro` monta la carpeta `/pesos` de la máquina en `/models`, en solo lectura. En Kubernetes son dos piezas: `volumes` dice qué se monta y `volumeMounts` dice dónde, con `readOnly: true` para solo lectura.
 
-| Qué se monta | Para qué | En la Ronda |
+| Qué se monta | Para qué | Un ejemplo |
 |---|---|---|
-| Un Secret o un ConfigMap (dos objetos de Kubernetes) | Contraseñas y configuración, como archivos | M15 prefiere un secreto montado como archivo a uno guardado en la imagen |
-| `emptyDir` | Una carpeta vacía que dura lo que dura el pod, en el disco del nodo o en memoria | C10, el caso del LLM, copia ahí sus 70.6 GB de pesos, sobre el disco NVMe del nodo |
-| `/dev/shm` en memoria | Memoria compartida entre procesos | Docker trae 64 MiB; C01 le da 1 GiB a Triton y C10, 16 GiB a vLLM, el programa que sirve su LLM |
+| Un Secret o un ConfigMap (dos objetos de Kubernetes) | Contraseñas y configuración, como archivos | Un secreto montado como archivo, mejor que uno guardado en la imagen (error 7 de «Errores comunes») |
+| `emptyDir` | Una carpeta vacía que dura lo que dura el pod, en el disco del nodo o en memoria | Un servicio que sirve su propio LLM copia ahí sus 70.6 GB de pesos, sobre el disco NVMe del nodo |
+| `/dev/shm` en memoria | Memoria compartida entre procesos | Docker trae 64 MiB; Alba le da 1 GiB a Triton, y un servicio que sirve su propio LLM le da 16 GiB a vLLM, el programa con que lo sirve |
 | Un disco persistente | Datos que sobreviven al pod | Casi nunca en serving: el modelo no cambia |
 
 Lo importante: lo que un contenedor escribe fuera de un volumen se pierde cuando el contenedor se reemplaza, y en Kubernetes cada reinicio crea un contenedor nuevo, con su capa escribible vacía. Un log o un modelo descargado en la capa del contenedor no sobrevive. Ese error está en «Errores comunes».
@@ -362,7 +362,7 @@ Dos familias dominan:
 
 | Arquitectura | Otros nombres | Dónde está |
 |---|---|---|
-| x86-64 | amd64, x64 | La mayoría de los servidores de la nube (como las g4dn de Triton y las c6i del gateway en C01), las PC con Windows y las Mac con chip Intel |
+| x86-64 | amd64, x64 | La mayoría de los servidores de la nube (como las g4dn de Triton y las c6i del gateway de Alba), las PC con Windows y las Mac con chip Intel |
 | ARM64 | aarch64, arm64 | Las Mac con Apple Silicon, los chips M de Apple (desde 2020), los Graviton de AWS (más de la mitad de la CPU nueva que instala AWS cada año desde 2023, según AWS), los Jetson y casi todos los teléfonos |
 
 x86-64 lo diseñó AMD como la versión de 64 bits del x86 de Intel (una CPU de 64 bits maneja números y direcciones de memoria de 64 bits); por eso también se llama amd64, aunque hoy lo usan las dos. El mismo programa, compilado para cada familia, queda escrito en bytes distintos. En la figura, cada byte va en **hexadecimal**: dos símbolos, del 0 al 9 y de la A (10) a la F (15).
@@ -376,13 +376,13 @@ Arriba, la misma orden, «regresa de esta función», en los dos idiomas: un byt
 Antes de correr un programa, el kernel lee su **cabecera** (*header*), los primeros bytes del archivo. Un ejecutable de Linux empieza con 4 bytes fijos, `7F 45 4C 46`: una marca y las letras E, L y F, el nombre del formato de los ejecutables de Linux. En los bytes 18 y 19 trae un número que dice para qué CPU se compiló: 62 si es x86-64, 183 si es ARM64. Si no coincide con la CPU de la máquina, el kernel se niega con el error 8: **exec format error**. En un contenedor, el log dice algo como `exec /usr/local/bin/python: exec format error`, y el contenedor muere al arrancar. Un script de arranque (un programa escrito como texto) da el mismo error si le falta su primera línea, la que empieza con `#!` y dice qué intérprete lo corre.
 
 :::profundo Los bytes de la cabecera, uno por uno
-En hexadecimal, el primer símbolo de un byte vale 16 veces su número y el segundo, su número: `C3` es 12 × 16 + 3 = 195. Cada letra se guarda como un número (la E es el 69, que es 4 × 16 + 5, o `45`), y por eso Python escribe los 4 bytes del principio como `\x7fELF`. El número de la CPU ocupa dos bytes y va al revés de como lo escribirías: primero el byte que vale menos.
+En hexadecimal, el primer símbolo de un byte vale 16 veces su número y el segundo, su número: \( v = 16 × a + b \), con \(a\) y \(b\) los valores de los dos símbolos. `C3` es 16 × 12 + 3 = 195. Cada letra se guarda como un número (la E es el 69, que es 16 × 4 + 5, o `45`), y por eso Python escribe los 4 bytes del principio como `\x7fELF`. El número de la CPU ocupa dos bytes y va al revés de como lo escribirías: primero el byte que vale menos. Así que el número es \( n = B_{18} + 256 × B_{19} \), con \(B_{18}\) y \(B_{19}\) los valores de los bytes 18 y 19.
 
 :::cuenta Los bytes 18 y 19, en decimal
-Byte 18 en x86-64 // 3E; la E vale 14 | 3 × 16 + 14 | 62
-Byte 19 // 00; el segundo byte vale 256 veces su número | 0 × 256 | 0
-Número de la CPU | 62 + 0 | 62: x86-64
-Byte 18 en ARM64 // B7, con 00 en el byte 19; la B vale 11 | 11 × 16 + 7 | 183: ARM64
+Byte 18 en x86-64, \(B_{18}\) // 3E; la E vale 14 | \(v = 16 × a + b\) = 16 × 3 + 14 | 62
+Byte 19, \(B_{19}\) // 00 | 16 × 0 + 0 | 0
+Número de la CPU, \(n\) // el byte 19 vale 256 veces su número | \(n = B_{18} + 256 × B_{19}\) = 62 + 256 × 0 | 62: x86-64
+Byte 18 en ARM64 // B7, con 00 en el byte 19; la B vale 11 | 16 × 11 + 7 = 183; 183 + 256 × 0 | 183: ARM64
 = x86-64 trae 3E 00 (62) y ARM64, B7 00 (183). El kernel compara ese número con el de su CPU.
 :::
 
@@ -420,11 +420,11 @@ Tu Mac guarda a veces dos idiomas en un solo archivo: el comando `file`, que dic
 
 ### El código de Python no depende de la CPU; sus librerías, sí
 
-Tu archivo `.py` no depende de la CPU: lo lee el [[interprete|intérprete]]. Pero el intérprete mismo (`python3`) es un programa compilado, y también las partes rápidas de torch, NumPy o Pillow, escritas en C y C++. Por eso pip, el programa que instala librerías de Python, baja una versión distinta para cada **plataforma**: cada combinación de sistema operativo y arquitectura. De los 37 paquetes del gateway de C01, los que traen partes compiladas (NumPy, Pillow y otros) se instalan en versión `manylinux x86_64`, para Linux en x86-64; en ARM64 serían las `aarch64`. Los de puro Python sirven en cualquier CPU.
+Tu archivo `.py` no depende de la CPU: lo lee el [[interprete|intérprete]]. Pero el intérprete mismo (`python3`) es un programa compilado, y también las partes rápidas de torch, NumPy o Pillow, escritas en C y C++. Por eso pip, el programa que instala librerías de Python, baja una versión distinta para cada **plataforma**: cada combinación de sistema operativo y arquitectura. De los 37 paquetes del gateway de Alba, los que traen partes compiladas (NumPy, Pillow y otros) se instalan en versión `manylinux x86_64`, para Linux en x86-64; en ARM64 serían las `aarch64`. Los de puro Python sirven en cualquier CPU.
 
 ### Las imágenes tienen plataforma
 
-Una imagen de Docker se construye para una plataforma: `linux/amd64` o `linux/arm64`. La trampa clásica, en M05: construyes en una Mac con Apple Silicon, la imagen sale `linux/arm64`, la subes al **registro** (el almacén de imágenes de donde los nodos las bajan) y los nodos de C01, que son x86-64, no la pueden correr. Hay dos salidas:
+Una imagen de Docker se construye para una plataforma: `linux/amd64` o `linux/arm64`. La trampa clásica: construyes en una Mac con Apple Silicon, la imagen sale `linux/arm64`, la subes al **registro** (el almacén de imágenes de donde los nodos las bajan) y los nodos de Alba, que son x86-64, no la pueden correr. Hay dos salidas:
 
 - **Construir para la plataforma de los nodos**: en CI (las máquinas que construyen y prueban tu código cada vez que lo subes), con `--platform linux/amd64`.
 - **Una imagen multi-arquitectura**: un índice que, bajo un solo *tag* (el nombre de una versión de la imagen, como `3f9c2ab`), apunta a una imagen por plataforma. Cada máquina baja la suya. Si el índice no trae la de tu máquina, la descarga falla con «no match for platform».
@@ -454,7 +454,7 @@ Kubernetes también tiene *namespaces*: carpetas para agrupar sus objetos, como 
 
 ### Un kernel para todos
 
-Todos los contenedores de un nodo comparten **el mismo kernel**: el del nodo, al que la Ronda llama el *host* (la máquina anfitriona). Es la frase de M05 con la que empezó la lección, y tiene consecuencias:
+Todos los contenedores de un nodo comparten **el mismo kernel**: el del nodo, al que se le llama el *host* (la máquina anfitriona). Es la frase con la que empezó la lección, y tiene consecuencias:
 
 - **La imagen no trae kernel.** Trae el espacio de usuario de una distribución. Triton ve Ubuntu 22.04, pero le habla al kernel de Amazon Linux 2023 de su nodo, el mismo que usa el contenedor de al lado: el *device plugin* de NVIDIA, el programa que le anuncia a Kubernetes la GPU del nodo. El gateway, con su Debian, vive en otras máquinas, sin GPU, y le habla al kernel de la suya.
 - **El driver de la GPU lo pone el nodo.** El [[driver]] de NVIDIA tiene una parte que vive dentro del kernel (el módulo `nvidia.ko`: una pieza que se le agrega al kernel ya encendido, hecha para esa versión del kernel), así que no puede ir en la imagen. La imagen trae las librerías de [[cuda|CUDA]]; el nodo, el driver.
@@ -469,7 +469,7 @@ Fíjate en la banda del medio: los dos contenedores, cada uno con su propia vist
 Una [[contenedor-vs-vm|máquina virtual]] (VM, *virtual machine*) es otra idea. Un programa llamado **hipervisor** (*hypervisor*) parte una computadora física en varias computadoras simuladas, cada una con sus CPU, su memoria y su disco virtuales. En cada VM arranca un sistema operativo completo, **con su propio kernel**.
 
 :::figura sistema-operativo-capas
-Arriba, contenedores: los del docker compose de C01, el archivo que, para probar, levanta juntos en una sola máquina con GPU el gateway, Triton y Prometheus, el programa que junta las métricas. Hay un solo kernel, el de la máquina, y cada contenedor trae solo su espacio de usuario: Debian, Ubuntu o BusyBox, uno mínimo. Abajo, máquinas virtuales: el hipervisor reparte el hardware y cada VM arranca su propio kernel y su sistema completo.
+Arriba, contenedores: los del docker compose de Alba, el archivo que, para probar, levanta juntos en una sola máquina con GPU el gateway, Triton y Prometheus, el programa que junta las métricas. Hay un solo kernel, el de la máquina, y cada contenedor trae solo su espacio de usuario: Debian, Ubuntu o BusyBox, uno mínimo. Abajo, máquinas virtuales: el hipervisor reparte el hardware y cada VM arranca su propio kernel y su sistema completo.
 :::
 
 | | Contenedor | Máquina virtual |
@@ -481,11 +481,23 @@ Arriba, contenedores: los del docker compose de C01, el archivo que, para probar
 | Memoria de más | Casi nada | La de su kernel y su sistema |
 | Qué aísla | Lo que ve y cuánto usa | También el kernel: hay que romper el hipervisor |
 
-Las dos se usan juntas. Cada máquina que rentas en EC2, el servicio de AWS que renta computadoras (le dice *instancia*), **es una VM**, como la g4dn.xlarge de C01: el hipervisor de AWS, Nitro, parte un servidor físico entre clientes, y la T4 se le entrega a la VM directo. Dentro de la VM corre Linux, y dentro de Linux, los contenedores. La VM separa a un cliente de AWS de otro; los contenedores, los servicios de un mismo equipo.
+Las dos se usan juntas. Cada máquina que rentas en EC2, el servicio de AWS que renta computadoras (le dice *instancia*), **es una VM**, como las g4dn.xlarge de Alba: el hipervisor de AWS, Nitro, parte un servidor físico entre clientes, y la T4 se le entrega a la VM directo. Dentro de la VM corre Linux, y dentro de Linux, los contenedores. La VM separa a un cliente de AWS de otro; los contenedores, los servicios de un mismo equipo.
 
 ### El límite de memoria vive en el cgroup
 
-En «Programa, proceso e hilo» hiciste la cuenta del gateway de C01 en su peor momento: ≈ 80 MB de Python, dos PNG gigantes de ≈ 320 MB decodificándose a la vez y 160 MB de requests en vuelo suman 880 MB, el 82 % de su límite de 1 GiB. Ese límite es un número del cgroup del contenedor, en bytes: 1 GiB = 2³⁰ = 1,073,741,824.
+En «Programa, proceso e hilo» hiciste la cuenta del gateway de Alba en su peor momento. Aquí va con letras, las mismas de la calculadora de abajo:
+
+:::formula Memoria del gateway en el peor caso
+M = B + c × d + r × b
+- M: la memoria que usa el contenedor en el peor caso, en MB (1 MB = 10⁶ bytes)
+- B: la base: Python y sus librerías, en MB
+- c: cuántas fotos se decodifican a la vez
+- d: la memoria de una decodificación en el peor caso, en MB
+- r: cuántas requests puede tener en vuelo a la vez
+- b: el tamaño máximo de cada request, en MB
+:::
+
+Con ≈ 80 MB de Python, dos PNG gigantes de ≈ 320 MB decodificándose a la vez y 16 requests en vuelo de hasta 10 MB, \( M = 80 + 2 × 320 + 16 × 10 = 880 \) MB. Su límite \(L\) es de 1 GiB, y es un número del cgroup del contenedor, en bytes: 1 GiB = 2³⁰ = 1,073,741,824. El gateway usa \( M/L = 880,000,000 ÷ 1,073,741,824 ≈ 82 \) % de su límite.
 
 Si los procesos del grupo lo pasan, no hay negociación: el kernel mata al proceso con SIGKILL, y Kubernetes lo reporta como `OOMKilled`, con código de salida 137 (128 + 9): el [[oom|OOM]] de esa lección. Y mata solo ahí: los demás contenedores, cada uno en su cgroup, ni se enteran, aunque a la máquina le sobre RAM. La CPU, en cambio, no mata a nadie: un contenedor con límite de CPU que se acaba su parte se queda congelado unos milisegundos (*throttling*). La sección extra que sigue abre los dos límites con números.
 
@@ -502,11 +514,11 @@ cat /sys/fs/cgroup/cpu.stat        # nr_throttled: cuántas ventanas lo congelar
 
 ### Lo que se reserva y lo que se corta
 
-El manifiesto de cada pod le da a cada contenedor dos números por recurso, en sus partes *requests* y *limits*. Lo que va en *requests* es lo que se **reserva**: Kubernetes solo pone el pod en un nodo donde quede eso libre. Lo que va en *limits* es el **techo**, y termina en el cgroup como `memory.max` y `cpu.max`. La reserva de CPU también llega al cgroup, como un peso (`cpu.weight`) que decide cómo se reparte la CPU cuando no alcanza para todos. En C01, el gateway reserva 1 CPU y 1 GiB, con un techo de memoria de 1 GiB y ninguno de CPU. Cada Triton reserva 2 CPU, 6 GiB y una GPU entera, también con el techo de memoria igual a lo que reserva (M06). Al pasarse del techo, la memoria y la CPU reaccionan muy distinto.
+El manifiesto de cada pod le da a cada contenedor dos números por recurso, en sus partes *requests* y *limits*. Lo que va en *requests* es lo que se **reserva**: Kubernetes solo pone el pod en un nodo donde quede eso libre. Lo que va en *limits* es el **techo**, y termina en el cgroup como `memory.max` y `cpu.max`. La reserva de CPU también llega al cgroup, como un peso (`cpu.weight`) que decide cómo se reparte la CPU cuando no alcanza para todos. En Alba, el gateway reserva 1 CPU y 1 GiB, con un techo de memoria de 1 GiB y ninguno de CPU. Cada Triton reserva 2 CPU, 6 GiB y una GPU entera, también con el techo de memoria igual a lo que reserva. Al pasarse del techo, la memoria y la CPU reaccionan muy distinto.
 
 ### La memoria: un tope duro
 
-`memory.max` es un tope. Cuando los procesos del grupo llegan a él, el kernel primero intenta liberar lo que no es indispensable, como las copias de archivos que ya leyó (su [[page-cache|page cache]]). Si no alcanza, el **OOM killer** (*out of memory*, sin memoria) mata con SIGKILL a un proceso del grupo; en Kubernetes, desde la versión 1.28, a todos los procesos del contenedor de un jalón. No hay excepción que atrapar ni mensaje de despedida: el proceso desaparece. Por eso C01 pone el límite de memoria igual a lo que reserva: si se pasa, el resultado es un `OOMKilled` claro de ese contenedor, en vez de quitarle al resto del nodo memoria que nadie le reservó (M06).
+`memory.max` es un tope. Cuando los procesos del grupo llegan a él, el kernel primero intenta liberar lo que no es indispensable, como las copias de archivos que ya leyó (su [[page-cache|page cache]]). Si no alcanza, el **OOM killer** (*out of memory*, sin memoria) mata con SIGKILL a un proceso del grupo; en Kubernetes, desde la versión 1.28, a todos los procesos del contenedor de un jalón. No hay excepción que atrapar ni mensaje de despedida: el proceso desaparece. Por eso Alba pone el límite de memoria igual a lo que reserva: si se pasa, el resultado es un `OOMKilled` claro de ese contenedor, en vez de quitarle al resto del nodo memoria que nadie le reservó.
 
 :::calculadora sistema-operativo-memoria
 Es la cuenta del gateway de «Programa, proceso e hilo», con el límite tal como lo guarda el cgroup. Sube las decodificaciones a 3 y mira cómo el margen se vuelve negativo; después sube el límite hasta que quepan con margen.
@@ -516,15 +528,34 @@ Es la cuenta del gateway de «Programa, proceso e hilo», con el límite tal com
 
 La CPU no tiene tope duro: tiene **cuota**. Un «ms de CPU» es un milisegundo de trabajo de un núcleo: 4 hilos que corren 1 ms en 4 núcleos gastan 4 ms de CPU. Con un límite de 1 CPU, el grupo puede usar 100 ms de CPU en cada ventana de 100 ms, **sumando todos sus hilos**. Con `500m` (500 milésimas de CPU, medio CPU), 50 ms por ventana. Si el grupo se acaba la cuota antes de que termine la ventana, el kernel lo congela hasta la siguiente. Eso es el *throttling*: el proceso no muere, se vuelve lento a ráfagas.
 
-M06 lo cuenta con el gateway (si leíste la sección extra de «Programa, proceso e hilo», ya viste esta cuenta; aquí va con el mecanismo completo):
+Con letras, para que la rehagas con cualquier número. Supone que las fotos llegan justo al empezar una ventana, que el nodo tiene un núcleo libre para cada hilo y que llegan al menos tantas fotos como CPU de límite (\(h ≥ L\)). Con menos fotos, la cuota nunca se acaba y cada foto tarda sus \(w\) ms:
+
+:::formula Lo que tarda cada foto con una cuota de CPU
+Q = L × V
+T = h × w
+k = ⌈frac{T}{Q}⌉ − 1
+t = k × V + frac{T − k × Q}{h}
+- L: el límite de CPU del contenedor, en CPU (1, o 0.5 si dice `500m`)
+- V: la ventana, 100 ms
+- Q: la **cuota**: los ms de CPU que el grupo puede usar en cada ventana
+- h: cuántas fotos llegan a la vez, cada una con su hilo
+- w: los ms de CPU que necesita cada foto
+- T: los ms de CPU que piden entre todas
+- k: cuántas ventanas se gastan la cuota completa y dejan a las fotos congeladas: \(T/Q\) redondeado hacia arriba, menos 1 (0 si la cuota alcanza)
+- t: lo que tarda cada foto, en ms de reloj
+:::
+
+Con el gateway (si leíste la sección extra de «Programa, proceso e hilo», ya viste esta cuenta; aquí va con el mecanismo completo):
 
 :::cuenta Cuatro fotos a la vez con un límite de 1 CPU
-Cuota por ventana // límite de 1 CPU, ventana de 100 ms | 1 × 100 ms | 100 ms de CPU
-CPU que piden las 4 fotos // 40 ms de CPU cada una, un hilo por foto | 4 × 40 ms | 160 ms de CPU
-Cuándo se acaba la cuota // 4 hilos gastan 4 ms de CPU por cada ms de reloj | 100 ÷ 4 | a los 25 ms
+Cuota por ventana, \(Q\) // límite \(L\) = 1 CPU, ventana \(V\) = 100 ms | \(Q = L × V\) = 1 × 100 ms | 100 ms de CPU
+CPU que piden las 4 fotos, \(T\) // \(h\) = 4 fotos, \(w\) = 40 ms de CPU cada una | \(T = h × w\) = 4 × 40 ms | 160 ms de CPU
+Ventanas que se gastan la cuota, \(k\) // 160 ÷ 100 = 1.6, que hacia arriba es 2 | \(k = ⌈T/Q⌉ − 1\) = 2 − 1 | 1
+Cuándo se acaba la cuota // 4 hilos gastan 4 ms de CPU por cada ms de reloj | \(Q ÷ h\) = 100 ÷ 4 | a los 25 ms
 Congelado | del ms 25 al 100 | 75 ms sin correr
-Lo que falta // a cada foto le faltan 40 − 25 = 15 ms de CPU | 4 × 15 ms ÷ 4 hilos | 15 ms más
-= Cada foto tarda 100 + 15 = 115 ms en vez de 40. Y una gráfica que promedia el uso de cada minuto ve poca CPU, porque las ráfagas duran milisegundos. Por eso C01 no le pone límite de CPU al gateway ni a Triton: lo que reservan, con su peso en el cgroup, ya les garantiza su parte.
+Lo que falta // a cada foto le faltan 40 − 25 = 15 ms de CPU | \((T − k × Q)/h\) = (160 − 100) ÷ 4 | 15 ms más
+Lo que tarda cada foto, \(t\) | \(t = k × V + (T − k × Q)/h\) = 1 × 100 + 15 | 115 ms
+= Cada foto tarda 115 ms en vez de 40. Y una gráfica que promedia el uso de cada minuto ve poca CPU, porque las ráfagas duran milisegundos. Por eso Alba no le pone límite de CPU al gateway ni a Triton: lo que reservan, con su peso en el cgroup, ya les garantiza su parte.
 :::
 
 El mismo cálculo, para más fotos a la vez. Supone que llegan justo al empezar una ventana y que el nodo tiene núcleos de sobra:
@@ -561,19 +592,20 @@ Resuélvelo con lápiz y compruébalo con la calculadora:
 
 :::ejercicios
 ? [medio] Un pod tiene un límite de 2 CPU. Llegan 8 fotos a la vez, cada una con 40 ms de CPU y su propio hilo. ¿Cuánto tarda cada una? ¿Y sin límite, con 8 núcleos libres?
-- Cuota: 2 × 100 = 200 ms de CPU por ventana. Piden 8 × 40 = 320 ms.
-- 8 hilos gastan 8 ms de CPU por ms: la cuota se acaba a los 200 ÷ 8 = 25 ms y quedan 120 ms de CPU.
-- Congeladas hasta el ms 100; luego 120 ÷ 8 = 15 ms más. **115 ms** cada una.
-- Sin límite: **40 ms**. Con un límite de 4 CPU, la cuota de 400 ms alcanza y también serían 40.
+- Usa las letras de la sección: \(Q = L × V\), \(T = h × w\), \(k = ⌈T/Q⌉ − 1\) y \(t = k × V + (T − k × Q)/h\).
+- Cuota: \(Q\) = 2 × 100 = 200 ms de CPU por ventana. Piden \(T\) = 8 × 40 = 320 ms.
+- \(k\) = ⌈320 ÷ 200⌉ − 1 = 2 − 1 = 1. Los 8 hilos gastan 8 ms de CPU por ms: la cuota se acaba a los 200 ÷ 8 = 25 ms y quedan 320 − 200 = 120 ms de CPU.
+- Congeladas hasta el ms 100; luego 120 ÷ 8 = 15 ms más: \(t\) = 1 × 100 + 15 = **115 ms** cada una.
+- Sin límite: **40 ms**. Con un límite de 4 CPU, \(Q\) = 400 alcanza para los 320, \(k\) = 0 y \(t\) = 320 ÷ 8 = 40 ms.
 :::
 
 :::nota El nombre CFS
-La Ronda llama a esta cuota «la de CFS», el planificador de Linux que la introdujo. Desde la versión 6.6 del kernel (2023) el planificador es otro (EEVDF), pero la cuota funciona igual y las métricas siguen diciendo `cfs`.
+A esta cuota se le llama «la de CFS», por el planificador de Linux que la introdujo. Desde la versión 6.6 del kernel (2023) el planificador es otro (EEVDF), pero la cuota funciona igual y las métricas siguen diciendo `cfs`.
 :::
 
 ### El contenedor no sabe cuántas CPU tiene
 
-Un detalle que muerde: dentro de un contenedor, `os.cpu_count()` de Python, y muchas librerías, cuentan los núcleos **del nodo**, no la cuota del cgroup. En un nodo de 64 núcleos con un límite de 4 CPU, una librería que arma un hilo por núcleo lanza 64 hilos a pelear por 4 CPU de cuota: throttling y un [[p99]] peor. M08 lo pregunta con ONNX Runtime, un programa para correr modelos que se usa mucho en CPU, y la respuesta es fijar el número de hilos a mano, según el límite del pod.
+Un detalle que muerde: dentro de un contenedor, `os.cpu_count()` de Python, y muchas librerías, cuentan los núcleos **del nodo**, no la cuota del cgroup. En un nodo de 64 núcleos con un límite de 4 CPU, una librería que arma un hilo por núcleo lanza 64 hilos a pelear por 4 CPU de cuota: throttling y un [[p99]] peor. Le pasa, por ejemplo, a ONNX Runtime, un programa para correr modelos que se usa mucho en CPU, y la respuesta es fijar el número de hilos a mano, según el límite del pod.
 
 ## Errores comunes {Common mistakes}
 
@@ -615,43 +647,43 @@ Logs, cachés o modelos descargados en la capa escribible se pierden cuando Kube
 
 ### 7. Un secreto en una capa de la imagen
 
-Copiar el archivo de secretos a la imagen (`COPY .env`) lo deja guardado en una capa, y pasarle al build un token (una contraseña para programas, como el `HF_TOKEN` que deja bajar modelos de Hugging Face) como argumento (`ARG HF_TOKEN`) lo deja en el historial de la imagen. Borrarlo en una línea posterior del Dockerfile no lo quita: la capa de antes sigue ahí, y cualquiera que pueda bajar la imagen lo lee (M15).
+Copiar el archivo de secretos a la imagen (`COPY .env`) lo deja guardado en una capa, y pasarle al build un token (una contraseña para programas, como el `HF_TOKEN` que deja bajar modelos de Hugging Face) como argumento (`ARG HF_TOKEN`) lo deja en el historial de la imagen. Borrarlo en una línea posterior del Dockerfile no lo quita: la capa de antes sigue ahí, y cualquiera que pueda bajar la imagen lo lee.
 
 **Cómo evitarlo:** que el secreto nunca entre a la imagen (`.env` en `.dockerignore`; si el build lo necesita, `RUN --mount=type=secret`, que no deja rastro en ninguna capa) y que en producción llegue montado como archivo, o que no haga falta porque el pod tiene su propia identidad en la nube, con permisos y sin contraseña.
 
 ## En la vida real {In real life} [extra]
 
-### C01: los nodos de punta a punta
+### Alba: los nodos de punta a punta
 
-Triton corre en una g4dn.xlarge: una VM sobre Nitro, con una CPU x86-64 (un Intel Xeon), 4 [[vcpu|vCPU]], 16 GiB de RAM y una T4 que se le entrega directo. Arranca con Amazon Linux 2023 y la AMI acelerada de EKS, que ya trae el driver de NVIDIA y el Container Toolkit (M06). El gateway vive aparte, en máquinas sin GPU (dos c6i.xlarge), también x86-64. Las dos imágenes son `linux/amd64`:
+Triton corre en una g4dn.xlarge: una VM sobre Nitro, con una CPU x86-64 (un Intel Xeon), 4 [[vcpu|vCPU]], 16 GiB de RAM y una T4 que se le entrega directo. Arranca con Amazon Linux 2023 y la AMI acelerada de EKS, que ya trae el driver de NVIDIA y el Container Toolkit. El gateway vive aparte, en máquinas sin GPU (dos c6i.xlarge), también x86-64. Las dos imágenes son `linux/amd64`:
 
 - **El gateway:** Debian con Python 3.13, UID 10001, raíz de solo lectura (`readOnlyRootFilesystem: true`) con `/tmp` en un `emptyDir`, sin ninguna capacidad de root (`drop: ["ALL"]`), el filtro seccomp por omisión (Docker lo aplica siempre; Kubernetes, solo si el pod lo pide con `seccompProfile: RuntimeDefault`, como aquí), 1 GiB de memoria y sin límite de CPU. Escucha en el puerto 8080, que no pide ningún poder: en Linux, por omisión, abrir un puerto menor que 1024, como el 80, es uno de los poderes de root (Docker, desde 2020, y containerd, desde su versión 2.0, lo permiten dentro de sus contenedores).
-- **Triton:** Ubuntu 22.04, con el engine horneado (copiado dentro de la imagen) en `/models/classifier/1/model.plan`, `/dev/nvidia0` montado por el toolkit y 6 GiB de memoria. La imagen de NVIDIA corre como root si nadie dice otra cosa, así que el manifiesto de Kubernetes de C01 la arranca como el UID 1000, el usuario `triton-server` que la imagen ya trae, con `runAsNonRoot: true` y sin capacidades de root.
+- **Triton:** Ubuntu 22.04, con el engine horneado (copiado dentro de la imagen) en `/models/classifier/1/model.plan`, `/dev/nvidia0` montado por el toolkit y 6 GiB de memoria. La imagen de NVIDIA corre como root si nadie dice otra cosa, así que el manifiesto de Kubernetes de Alba la arranca como el UID 1000, el usuario `triton-server` que la imagen ya trae, con `runAsNonRoot: true` y sin capacidades de root.
 
-### C01: ¿y si fuera ARM64?
+### Alba: ¿y si fuera ARM64?
 
-AWS ofrece la misma T4 en una máquina ARM64 más barata, la g5g.xlarge, con un Graviton2; a su GPU la Ronda la llama T4G. La Ronda la pone junto a la g4dn.xlarge que eligió C01. Un mes son 730 horas (24 × 365 ÷ 12):
+AWS ofrece la misma T4 en una máquina ARM64 más barata, la g5g.xlarge, con un Graviton2. A la GPU de la g5g, AWS la llama T4G: es una T4 hecha para trabajar con una CPU ARM. ¿Le convendría a Alba, que eligió la g4dn.xlarge? Un mes son 730 horas (24 × 365 ÷ 12). Al mes, \(m\) máquinas a \(p\) dólares la hora cuestan \( C = m × p × 730 \). Y en el pico, cada uno de los \(m\) nodos de Triton recibe \( R = λ × s × 8 ÷ m \) bits por segundo, con \(λ\) fotos por segundo, \(s\) bytes por tensor y 8 bits por byte:
 
 :::cuenta Dos T4 al mes: x86-64 contra ARM64
-Dos g4dn.xlarge // x86-64 · 16 GiB de RAM | 2 × US$0.526/h × 730 h | ≈ US$768
-Dos g5g.xlarge // ARM64 (Graviton2) · la misma T4 · 8 GiB de RAM | 2 × US$0.42/h × 730 h | ≈ US$613
+Dos g4dn.xlarge, \(C\) // x86-64 · 16 GiB de RAM · \(m\) = 2, \(p\) = US$0.526/h | \(C = m × p × 730\) = 2 × 0.526 × 730 | ≈ US$768
+Dos g5g.xlarge, \(C\) // ARM64 (Graviton2) · la misma T4 · 8 GiB de RAM · \(p\) = US$0.42/h | \(C = m × p × 730\) = 2 × 0.42 × 730 | ≈ US$613
 Ahorro // 155 ÷ 768 ≈ 20 % | 768 − 613 | ≈ US$155 al mes
-Red sostenida de cada g5g // el dato de AWS que usa la Ronda | — | ≈ 1.25 Gb/s
-Lo que recibe cada nodo en el pico // 500 fotos/s, cada una un tensor de 602 KB, repartidas entre dos | 500 × 602 KB × 8 bits ÷ 2 | ≈ 1.2 Gb/s
-= Ahorra 20 %, pero cada nodo quedaría en el límite de su red, con la mitad de RAM, y habría que reconstruir la imagen de Triton para arm64 y el engine en la T4G (y la del gateway, si sus máquinas también se mudaran a Graviton). C01 se quedó en x86-64.
+Red sostenida de cada g5g // dato de AWS | — | ≈ 1.25 Gb/s
+Lo que recibe cada nodo en el pico, \(R\) // \(λ\) = 500 fotos/s, el pico de diseño de Alba; \(s\) = 602 KB, el tensor de cada foto; \(m\) = 2 nodos | \(R = λ × s × 8 ÷ m\) = 500 × 602 KB × 8 ÷ 2 | ≈ 1.2 Gb/s
+= Ahorra 20 %, pero cada nodo quedaría en el límite de su red, con la mitad de RAM, y habría que reconstruir la imagen de Triton para arm64 y el engine en la T4G (y la del gateway, si sus máquinas también se mudaran a Graviton). Alba se quedó en x86-64.
 :::
 
-### C10: un LLM de 70.6 GB
+### Un LLM de 70.6 GB
 
-C10 sirve con vLLM un modelo de ≈ 70,600 millones de parámetros en [[fp8|FP8]], un byte por parámetro: 70.6 GB. Casi todo su arranque es sistema operativo. Un contenedor que corre y termina antes que vLLM copia los pesos de S3 al disco NVMe del nodo, en un `emptyDir`, y revisa cada archivo contra su huella (sha256), un número que cambia si cambia un solo byte. `/dev/shm` va en memoria con 16 GiB, que cuentan contra el límite del contenedor: vLLM corre un proceso por GPU, y esos procesos se coordinan por memoria compartida. Los pesos van en safetensors, que no ejecuta código al cargarse (un *pickle*, el formato que PyTorch usa si no le pides otro, sí puede) y se puede leer con [[mmap]]: el kernel trae del disco cada pedazo cuando se lee.
+Un servicio que sirve su propio LLM lo hace con vLLM: un modelo de ≈ 70,600 millones de parámetros en [[fp8|FP8]], un byte por parámetro: 70.6 GB. Casi todo su arranque es sistema operativo. Un contenedor que corre y termina antes que vLLM copia los pesos de S3 al disco NVMe del nodo, en un `emptyDir`, y revisa cada archivo contra su huella (sha256), un número que cambia si cambia un solo byte. `/dev/shm` va en memoria con 16 GiB, que cuentan contra el límite del contenedor: vLLM corre un proceso por GPU, y esos procesos se coordinan por memoria compartida. Los pesos van en safetensors, que no ejecuta código al cargarse (un *pickle*, el formato que PyTorch usa si no le pides otro, sí puede) y se puede leer con [[mmap]]: el kernel trae del disco cada pedazo cuando se lee.
 
-### C02: una caja con GPU en cada centro de distribución
+### Una caja con GPU en cada centro de distribución
 
-En C02, cada centro tiene su propia caja con una GPU L4 de NVIDIA que vigila sus cámaras. La contraseña de las cámaras nunca está en el código: el *forwarder*, el programa que le pide a cada cámara sus fotos y arma los eventos, la lee de un secreto montado como archivo. Y el archivo de configuración de DeepStream (el programa de NVIDIA que procesa el video), que solo acepta la contraseña escrita dentro de la dirección de la cámara, se genera en la caja al instalarla, con permisos 0600 (el 0 de adelante solo avisa que el número va en octal): solo su dueño lo puede leer. Antes de activar una imagen nueva, la caja revisa su firma, una marca que solo el equipo puede producir con su llave privada: nada que no salió del equipo llega a correr ahí.
+En un sistema de video en tiempo real con varias cámaras, como uno que vigila centros de distribución, cada centro tiene su propia caja con una GPU L4 de NVIDIA que vigila sus cámaras. La contraseña de las cámaras nunca está en el código: el *forwarder*, el programa que le pide a cada cámara sus fotos y arma los eventos, la lee de un secreto montado como archivo. Y el archivo de configuración de DeepStream (el programa de NVIDIA que procesa el video), que solo acepta la contraseña escrita dentro de la dirección de la cámara, se genera en la caja al instalarla, con permisos 0600 (el 0 de adelante solo avisa que el número va en octal): solo su dueño lo puede leer. Antes de activar una imagen nueva, la caja revisa su firma, una marca que solo el equipo puede producir con su llave privada: nada que no salió del equipo llega a correr ahí.
 
-### C03: un Jetson en cada línea de producción
+### Un Jetson en cada línea de producción
 
-En la planta de C03, cada línea tiene un Jetson Orin NX: ARM64 con Jetson Linux (L4T) sobre Ubuntu 22.04 en JetPack 6.2. Sus imágenes son `linux/arm64` y, regla de M04, usan la misma versión de L4T que el equipo. El engine se construye en un Orin NX igual a los de la línea, con el mismo JetPack, y el modo de energía se fija con `sudo nvpmodel`. Actualizar el JetPack de la flota se hace a distancia (OTA, *over the air*), obliga a reconstruir los engines y lleva un plan para regresar a la versión anterior (M04).
+En una planta con inspección visual en la línea de manufactura, cada línea tiene un Jetson Orin NX: ARM64 con Jetson Linux (L4T) sobre Ubuntu 22.04 en JetPack 6.2. Sus imágenes son `linux/arm64` y usan la misma versión de L4T que el equipo. El engine se construye en un Orin NX igual a los de la línea, con el mismo JetPack, y el modo de energía se fija con `sudo nvpmodel`. Actualizar el JetPack de la flota se hace a distancia (OTA, *over the air*), obliga a reconstruir los engines y lleva un plan para regresar a la versión anterior.
 
 ### Fuera de ML
 
@@ -670,7 +702,7 @@ Resuélvelos con lápiz antes de abrir la solución. Hay uno más, de la cuota d
 - (b) Es relativa, así que se pega a la carpeta de trabajo: **`/opt/tritonserver/bin/tritonserver`**.
 - (c) Solo **`/models/x`**, la que empieza con `/`. Las otras dos son la misma ruta relativa: `/opt/tritonserver/models/x`.
 ? [facil] (a) Escribe `rw-r-----` en octal. (b) Escribe 755 en letras. (c) ¿Quién puede leer un archivo con permisos 600?
-- (a) `rw-` = 4 + 2 + 0 = 6; `r--` = 4; `---` = 0. **640**.
+- (a) Cada dígito es \( d = 4 × r + 2 × w + 1 × x \). `rw-` = 4 + 2 + 0 = 6; `r--` = 4; `---` = 0. **640**.
 - (b) 7 = rwx y 5 = r-x: **rwxr-xr-x**.
 - (c) **Solo su dueño**, y root, que se salta los permisos.
 ? [facil] ¿Qué pasó en cada caso? (a) `PermissionError: [Errno 13] Permission denied: '/models/classifier/1/model.plan'`. (b) `FileNotFoundError: [Errno 2] No such file or directory: 'models/model.plan'`. (c) `OSError: [Errno 30] Read-only file system: '/srv/app/cache.json'`. (d) `exec /usr/local/bin/python: exec format error`.
@@ -691,31 +723,25 @@ Resuélvelos con lápiz antes de abrir la solución. Hay uno más, de la cuota d
 ? [medio] Un servidor de modelos tiene tres cosas en su contenedor: (a) su log, en `/var/log/app.log`, en la capa escribible; (b) los pesos, en un volumen montado en `/models` con `readOnly: true`; (c) 512 MiB de datos que sus procesos se pasan entre sí, en `/dev/shm`. Kubernetes reinicia el contenedor: ¿qué pasa con (a) y con (b)? ¿Y si el programa intenta escribir en `/models`? ¿Contra qué cuentan los 512 MiB de (c)?
 - (a) **Se pierde**: cada reinicio crea un contenedor nuevo, con la capa escribible vacía. Por eso los logs van a *stdout*.
 - (b) **Sigue ahí.** El volumen no es parte del contenedor: se vuelve a montar en el nuevo. Escribir en `/models` falla con el error 30, «Read-only file system»: el kernel rechaza la escritura y nadie puede corromper los pesos.
-- (c) `/dev/shm` vive en la RAM, así que sus 512 MiB **cuentan contra el límite de memoria del contenedor**, como el de Triton y el de C10. Si el proceso ya usa 5.7 GiB y el límite es de 6 GiB, esos 0.5 GiB lo pasan del tope (5.7 + 0.5 = 6.2): `OOMKilled`, código 137.
-? [reto] Construyes la imagen del gateway en tu MacBook con un chip M3 y la subes. En los nodos de C01, el pod muere al arrancar. (a) ¿Qué pasó y qué dice el log? (b) Da dos arreglos. (c) Si C01 se mudara a máquinas con Graviton, ¿qué cambiaría?
-- (a) Docker construyó para la plataforma de tu Mac: `linux/arm64`. Los nodos de C01, las c6i del gateway y las g4dn de Triton, son x86-64. Al arrancar, el kernel lee la cabecera de `python`, ve el 183 de ARM64 en vez del 62 y se niega: **`exec format error`**. Si el registro guardó un índice sin amd64, ni siquiera baja: «no match for platform».
+- (c) `/dev/shm` vive en la RAM, así que sus 512 MiB **cuentan contra el límite de memoria del contenedor**, como el de Triton o el de vLLM al servir un LLM. Si el proceso ya usa 5.7 GiB y el límite es de 6 GiB, la memoria que cuenta es la del proceso más la de `/dev/shm`: 5.7 + 0.5 = 6.2 GiB, más que los 6 del tope: `OOMKilled`, código 137.
+? [reto] Construyes la imagen del gateway en tu MacBook con un chip M3 y la subes. En los nodos de Alba, el pod muere al arrancar. (a) ¿Qué pasó y qué dice el log? (b) Da dos arreglos. (c) Si Alba se mudara a máquinas con Graviton, ¿qué cambiaría?
+- (a) Docker construyó para la plataforma de tu Mac: `linux/arm64`. Los nodos de Alba, las c6i del gateway y las g4dn de Triton, son x86-64. Al arrancar, el kernel lee la cabecera de `python`, ve el 183 de ARM64 en vez del 62 y se niega: **`exec format error`**. Si el registro guardó un índice sin amd64, ni siquiera baja: «no match for platform».
 - (b) Construir en CI con `--platform linux/amd64`. O una imagen multi-arquitectura con las dos plataformas bajo el mismo tag. Y revisar con `docker image inspect` antes de desplegar.
 - (c) En nodos ARM64 esa imagen sí correría: el gateway en máquinas de CPU con Graviton y Triton en las g5g, las máquinas ARM64 de AWS con la misma T4 (la T4G). Pero harían falta una imagen arm64 de Triton, un engine construido en la T4G y las librerías del gateway en `aarch64`, y aceptar en las g5g la mitad de RAM y una red justa para el pico («En la vida real» trae la cuenta).
-? [reto] El gateway de C01 lleva `USER 10001` en su Dockerfile y esto en Kubernetes: `runAsNonRoot: true`, `readOnlyRootFilesystem: true` y `capabilities: drop: ["ALL"]`. Explica qué protege cada línea. Un día alguien agrega código que guarda un caché (una copia de resultados, para no recalcularlos) en `/srv/app/cache.json`: ¿qué pasa y cómo se arregla sin quitar nada?
+? [reto] El gateway de Alba lleva `USER 10001` en su Dockerfile y esto en Kubernetes: `runAsNonRoot: true`, `readOnlyRootFilesystem: true` y `capabilities: drop: ["ALL"]`. Explica qué protege cada línea. Un día alguien agrega código que guarda un caché (una copia de resultados, para no recalcularlos) en `/srv/app/cache.json`: ¿qué pasa y cómo se arregla sin quitar nada?
 - `USER 10001`: el proceso corre como un usuario sin privilegios. Si una foto maliciosa explota un error de Pillow, el atacante tiene los permisos del UID 10001, no los de root.
 - `runAsNonRoot: true`: Kubernetes se niega a arrancar el contenedor si fuera a correr como root; con el UID numérico lo puede verificar.
 - `readOnlyRootFilesystem: true`: la raíz se monta en solo lectura. Nadie puede cambiar el código ni dejar herramientas instaladas.
 - `drop: ["ALL"]`: aunque algo corriera como root, no tendría sus poderes especiales. El gateway no necesita ninguno: escucha en el 8080.
-- El caché falla con «Read-only file system» (errno 30): `/srv/app` es parte de la raíz, que está en solo lectura. Arreglo: escribirlo en `/tmp`, el `emptyDir` de 64 MiB que C01 ya monta (escribible, y se borra con el pod), o montar otro `emptyDir` solo para el caché. Lo demás sigue en solo lectura.
+- El caché falla con «Read-only file system» (errno 30): `/srv/app` es parte de la raíz, que está en solo lectura. Arreglo: escribirlo en `/tmp`, el `emptyDir` de 64 MiB que Alba ya monta (escribible, y se borra con el pod), o montar otro `emptyDir` solo para el caché. Lo demás sigue en solo lectura.
 :::
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M05 · Contenedores** es esta lección aplicada: qué viaja en la imagen y qué no (el kernel y el driver son del nodo), el usuario no root con UID numérico, la trampa de construir en la Mac y las capas de solo lectura con una escribible encima.
-- **M06 · Orquestación y escalado** convierte lo que reserva y lo que limita cada pod en números del cgroup (la cuota de 100 ms, el `OOMKilled` con código 137) y usa los volúmenes, los Secrets montados como archivos y las AMI de los nodos con GPU.
-- **M15 · Seguridad y confiabilidad** usa el mínimo privilegio en cada componente, los secretos que no van en una capa de la imagen y los pesos en safetensors en vez de pickles.
-- **También:** M04 (Jetson con ARM64, L4T y `sudo nvpmodel`) y M08 (los hilos de ONNX Runtime contra el límite del pod).
-
-**En el Dojo:** la estación 7, «Empaquetado (Docker)», ya está abierta. Ahí el model server corre como `USER 10001:10001`, te topas con la diferencia entre la imagen arm64 de tu Mac y la amd64 de un servidor, y montas el modelo en un volumen de solo lectura (`:ro`). La estación 9, «Kubernetes», todavía no abre.
-
-**En Sensei:** la siguiente lección, «Hacer varias cosas a la vez: async, event loop y GIL», empieza donde terminan las syscalls: qué hace un programa mientras espera a que el kernel le traiga un archivo o una respuesta de la red, sin quedarse [[bloqueo|bloqueado]]. La fase 5, con «Cómo viaja un mensaje: IP, puertos y DNS», abre la red. Más adelante, «La terminal y la shell» practica `ls`, `cd` y `chmod` con las manos, y «Empaquetado con Docker» arma las imágenes de C01 capa por capa.
+- La siguiente lección, «Hacer varias cosas a la vez: async, event loop y GIL», empieza donde terminan las syscalls: qué hace un programa mientras espera a que el kernel le traiga un archivo o una respuesta de la red, sin quedarse [[bloqueo|bloqueado]].
+- «Cómo viaja un mensaje: IP, puertos y DNS» abre la red.
+- «La terminal y la shell» practica `ls`, `cd` y `chmod` con las manos.
+- «Empaquetado con Docker» arma las imágenes de Alba capa por capa, con el usuario sin privilegios, la plataforma correcta y los pesos en solo lectura. «Kubernetes» convierte lo que reserva y limita cada pod en los números del cgroup que viste aquí.
 
 ## Palabras que vas a oír {Words you will hear}
 

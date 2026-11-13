@@ -1,20 +1,20 @@
 {
   "titulo": "Promedio contra p99",
-  "intro": "Un servicio con dos tipos de requests: las normales y unas cuantas lentas. Mueve qué porcentaje es lento y cuánto tarda, y compara el [[promedio]] con el [[p99]].",
+  "intro": "Un servicio con dos tipos de requests: las normales, que tardan \\(t_{normal}\\), y unas cuantas lentas, que tardan \\(t_{lenta}\\) y son el \\(s\\) % del total. Mueve qué porcentaje es lento y cuánto tarda, y compara el [[promedio]], \\(((100 − s) × t_{normal} + s × t_{lenta}) ÷ 100\\), con el [[p99]].",
   "entradas": [
-    { "id": "r", "label": "Latencia de las normales", "min": 5, "max": 200, "paso": 1, "valor": 30, "unidad": "ms" },
-    { "id": "s", "label": "Requests lentas", "min": 0, "max": 10, "paso": 0.1, "valor": 2, "unidad": "%" },
-    { "id": "l", "label": "Latencia de las lentas", "min": 200, "max": 10000, "paso": 50, "valor": 3000, "unidad": "ms" }
+    { "id": "r", "label": "Latencia de las normales, \\(t_{normal}\\)", "min": 5, "max": 200, "paso": 1, "valor": 30, "unidad": "ms" },
+    { "id": "s", "label": "Porcentaje de requests lentas, \\(s\\)", "min": 0, "max": 10, "paso": 0.1, "valor": 2, "unidad": "%" },
+    { "id": "l", "label": "Latencia de las lentas, \\(t_{lenta}\\)", "min": 200, "max": 10000, "paso": 50, "valor": 3000, "unidad": "ms" }
   ],
   "calculos": [
     { "id": "prom", "formula": "((100 - s) * r + s * l) / 100" }
   ],
   "salidas": [
-    { "label": "Promedio", "formula": "prom", "formato": "ms", "decimales": 1, "barra": true, "nota": "se mueve poquito con cada cambio" },
-    { "label": "p50", "formula": "s > 50 ? l : r", "formato": "ms", "barra": true, "nota": "la típica: aquí siempre es normal" },
-    { "label": "p95", "formula": "s > 5 ? l : r", "formato": "ms", "barra": true, "nota": "lenta en cuanto las lentas pasan del 5 %" },
-    { "label": "p99", "formula": "s > 1 ? l : r", "formato": "ms", "barra": true, "nota": "lenta en cuanto las lentas pasan del 1 %" },
-    { "label": "Requests lentas al día, con 10 millones", "formula": "s / 100 * 10000000", "formato": "int" }
+    { "label": "Promedio", "formula": "prom", "formato": "ms", "decimales": 1, "barra": true, "nota": "\\(((100 − s) × t_{normal} + s × t_{lenta}) ÷ 100\\): se mueve poquito con cada cambio" },
+    { "label": "p50", "formula": "s > 50 ? l : r", "formato": "ms", "barra": true, "nota": "\\(t_{lenta}\\) solo si \\(s\\) > 50 %; si no, \\(t_{normal}\\): la típica" },
+    { "label": "p95", "formula": "s > 5 ? l : r", "formato": "ms", "barra": true, "nota": "\\(t_{lenta}\\) en cuanto \\(s\\) pasa de 5 %; si no, \\(t_{normal}\\)" },
+    { "label": "p99", "formula": "s > 1 ? l : r", "formato": "ms", "barra": true, "nota": "\\(t_{lenta}\\) en cuanto \\(s\\) pasa de 1 %; si no, \\(t_{normal}\\)" },
+    { "label": "Requests lentas al día, con los 10 millones de Alba", "formula": "s / 100 * 10000000", "formato": "int", "nota": "\\(s/100 × 10,000,000\\)" }
   ],
   "nota": "El p99 no es una mezcla: es un umbral. Brinca de golpe cuando las lentas pasan del 1 %, y el p95 cuando pasan del 5 %. El promedio nunca dice cuántas personas esperaron de más."
 }

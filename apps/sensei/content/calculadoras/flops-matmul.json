@@ -1,10 +1,10 @@
 {
   "titulo": "FLOPs de una multiplicación de matrices",
-  "intro": "Escribe los tamaños: A mide n × k y B mide k × m. La calculadora cuenta las [[mac|MACs]] y los [[flop|FLOPs]], y el tiempo mínimo si la GPU fuera a su pico.",
+  "intro": "Escribe los tamaños: A mide \\(n × k\\) y B mide \\(k × m\\). La calculadora aplica \\(text{MACs} = n × m × k\\), \\(F = 2 × n × m × k\\) y el tiempo mínimo \\(t_{mín} = F/P\\), si la GPU fuera a su pico. Cuenta las [[mac|MACs]] y los [[flop|FLOPs]].",
   "entradas": [
     {
       "id": "n",
-      "label": "**n**: filas de A (por ejemplo, las fotos del batch)",
+      "label": "Filas de A, \\(n\\) (por ejemplo, las fotos del batch)",
       "min": 1,
       "max": 100000,
       "paso": 1,
@@ -13,7 +13,7 @@
     },
     {
       "id": "k",
-      "label": "**k**: columnas de A, que son las filas de B",
+      "label": "Columnas de A, que son las filas de B, \\(k\\): el largo de cada producto punto",
       "min": 1,
       "max": 100000,
       "paso": 1,
@@ -22,7 +22,7 @@
     },
     {
       "id": "m",
-      "label": "**m**: columnas de B",
+      "label": "Columnas de B, \\(m\\)",
       "min": 1,
       "max": 100000,
       "paso": 1,
@@ -31,7 +31,7 @@
     },
     {
       "id": "p",
-      "label": "Pico de la GPU",
+      "label": "Pico de la GPU, \\(P\\)",
       "unidad": "TFLOPS",
       "min": 1,
       "max": 1000,
@@ -51,41 +51,42 @@
   ],
   "salidas": [
     {
-      "label": "Tamaño del resultado",
+      "label": "Tamaño del resultado, \\(n × m\\)",
       "formula": "n * m",
       "formato": "int",
-      "nota": "n × m casillas, cada una un producto punto de k números"
+      "nota": "casillas; cada una es un producto punto de \\(k\\) números"
     },
     {
       "label": "MACs",
       "formula": "macs",
       "formato": "int",
-      "nota": "n × m × k"
+      "nota": "\\(n × m × k\\)"
     },
     {
-      "label": "FLOPs",
+      "label": "FLOPs \\(F\\)",
       "formula": "fl",
       "formato": "int",
-      "nota": "2 × n × m × k"
+      "nota": "\\(F = 2 × n × m × k\\)"
     },
     {
-      "label": "En GFLOPs",
+      "label": "\\(F\\) en GFLOPs",
       "formula": "fl / 1e9",
       "formato": "num",
       "decimales": 3,
-      "nota": "miles de millones"
+      "nota": "\\(F ÷ 10^9\\): miles de millones"
     },
     {
-      "label": "Tiempo mínimo a ese pico",
+      "label": "Tiempo mínimo a ese pico, \\(t_{mín}\\)",
       "formula": "fl / (p * 1e12) * 1000",
       "formato": "ms",
       "decimales": 4,
-      "nota": "FLOPs ÷ FLOPS"
+      "nota": "\\(t_{mín} = F/P\\)"
     },
     {
       "label": "Multiplicaciones así por segundo, como techo",
       "formula": "p * 1e12 / fl",
-      "formato": "int"
+      "formato": "int",
+      "nota": "\\(P/F\\)"
     }
   ],
   "nota": "Duplica cualquiera de los tres tamaños y el trabajo se duplica; duplica los tres y se multiplica por 8. El tiempo es un piso: supone que la memoria entrega los números a tiempo, y eso lo decide la intensidad aritmética, que ves en la sección de la memoria."

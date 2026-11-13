@@ -14,7 +14,7 @@
     { "id": "backprop", "label": "Backpropagation", "sub": "reparte la culpa", "badge": "3", "kind": "job", "x": 60, "y": 25, "w": 18, "h": 9,
       "note": "Está aquí para saber qué perilla mover y hacia dónde. La [[backpropagation]] recorre el modelo de atrás hacia adelante y calcula el [[gradiente]]: para cada una de las 24.5 millones de perillas, hacia dónde girarla." },
     { "id": "optim", "label": "Optimizador", "sub": "gira las perillas", "badge": "4", "kind": "service", "x": 31, "y": 25, "w": 18, "h": 9,
-      "note": "Es el único paso que cambia el modelo. El [[optimizador]] (Adam en C01) mueve cada perilla un poquito en contra de su gradiente. Qué tan grande es el paso lo decide el [[learning-rate]]." },
+      "note": "Es el único paso que cambia el modelo. El [[optimizador]] (Adam, en el modelo de Alba) mueve cada perilla un poquito en contra de su gradiente. Qué tan grande es el paso lo decide el [[learning-rate]]." },
     { "id": "ckpt", "label": "Checkpoint", "sub": "cada 15 minutos", "kind": "store", "x": 2, "y": 25, "w": 18, "h": 9,
       "note": "Está aquí porque las máquinas fallan: cada 15 minutos se guarda un [[checkpoint]] de ≈ 294 MB: las perillas, el estado de Adam y en qué paso iba. Si la máquina se cae, se sigue desde ahí." }
   ],
@@ -32,7 +32,7 @@
       { "nodes": ["modelo", "loss"], "edges": ["modelo>loss"], "text": "**2 · Pérdida.** Se compara cada predicción con su etiqueta y se promedia: sale un número, por ejemplo 1.12." },
       { "nodes": ["loss", "backprop"], "edges": ["loss>backprop"], "text": "**3 · Backpropagation.** De la pérdida hacia atrás, se calcula cuánta culpa tiene cada perilla: el gradiente." },
       { "nodes": ["backprop", "optim"], "edges": ["backprop>optim"], "text": "**4 · Ajuste.** El optimizador recibe el gradiente y decide cuánto girar cada perilla." },
-      { "nodes": ["optim", "modelo"], "edges": ["optim>modelo"], "text": "**Y otra vez.** El modelo, con sus perillas un poquito distintas, recibe el siguiente batch. En C01 esto se repite 28,754 veces por época." }
+      { "nodes": ["optim", "modelo"], "edges": ["optim>modelo"], "text": "**Y otra vez.** El modelo, con sus perillas un poquito distintas, recibe el siguiente batch. En Alba, con 1,840,211 fotos de train en batches de 64, esto se repite 28,754 veces por época." }
     ] },
     { "id": "caida", "label": "Si la máquina se cae", "steps": [
       { "nodes": ["optim", "ckpt"], "edges": ["optim>ckpt"], "text": "Cada 15 minutos, aparte, se guarda un checkpoint con todo lo necesario para seguir." },

@@ -49,7 +49,7 @@
       "en": "prompt",
       "corto": "El texto que se le da al modelo de lenguaje para que continúe: la pregunta, las instrucciones y, a veces, documentos o ejemplos.",
       "largo": "El modelo lo lee completo antes de escribir el primer token de la respuesta (el [[prefill]]). En una app suele tener partes: el [[system-prompt|system prompt]], ejemplos [[few-shot]], documentos y la pregunta. Un prompt largo cuesta más dinero, ocupa más [[kv-cache|KV cache]] y tarda más en dar el primer token.",
-      "ejemplo": "En C10 de la Ronda, un prompt típico tiene ≈ 2,000 tokens y la respuesta ≈ 250.",
+      "ejemplo": "En el LLM que sirve Alba (el marketplace del curso), un prompt típico tiene ≈ 2,000 tokens y la respuesta ≈ 250.",
       "ver": [
         "token",
         "system-prompt",
@@ -132,7 +132,7 @@
       "en": "prefill",
       "corto": "La primera fase de cada request a un LLM: leer todo el prompt de una sola pasada, en paralelo, y guardar su K y su V en el KV cache. Termina con el primer token de la respuesta.",
       "largo": "Como todos los tokens del prompt ya existen, se procesan juntos: cada peso que llega de la memoria se usa para miles de tokens a la vez, así que lo que manda es la velocidad de cálculo de la GPU ([[compute-bound]]). Su duración crece con el largo del prompt y, junto con la espera en la cola, forma el [[ttft|TTFT]]. El [[prefix-caching|prefix caching]] se salta la parte del prompt que ya se calculó antes.",
-      "ejemplo": "En C10 de la Ronda, el prefill de un prompt de 2,000 tokens ocupa ≈ 150 ms de una réplica de 2 H100.",
+      "ejemplo": "En el LLM que sirve Alba (el marketplace del curso), el prefill de un prompt de 2,000 tokens ocupa ≈ 150 ms de una réplica de 2 H100.",
       "ver": [
         "decode",
         "ttft",
@@ -161,8 +161,8 @@
       "termino": "TTFT (tiempo al primer token)",
       "en": "time to first token",
       "corto": "Lo que tarda un LLM, desde que llega la request, en mandar el primer token de la respuesta. Es lo que la persona siente como «tardó en contestar».",
-      "largo": "Suma la espera en la cola del servidor y el [[prefill]] del prompt. Crece con prompts más largos y, sobre todo, cuando el servidor está saturado: en la Ronda, la cola rompe el TTFT antes que cualquier otra cosa. Con *streaming*, es el número que decide si la app se siente rápida.",
-      "ejemplo": "En C10 de la Ronda, la meta es que 95 de cada 100 requests vean su primer token en 1 s o menos; una típica lo ve a los ≈ 0.6 s.",
+      "largo": "Suma la espera en la cola del servidor y el [[prefill]] del prompt. Crece con prompts más largos y, sobre todo, cuando el servidor está saturado: con mucha carga, la cola rompe el TTFT antes que cualquier otra cosa. Con *streaming*, es el número que decide si la app se siente rápida.",
+      "ejemplo": "En el LLM que sirve Alba (el marketplace del curso), la meta es que 95 de cada 100 requests vean su primer token en 1 s o menos; una típica lo ve a los ≈ 0.6 s.",
       "ver": [
         "tpot",
         "prefill",
@@ -176,7 +176,7 @@
       "en": "time per output token",
       "corto": "Lo que tarda un LLM en escribir cada token de la respuesta después del primero, en promedio. Es el ritmo al que aparece el texto.",
       "largo": "Es la duración de un paso de [[decode]]. La respuesta completa tarda [[ttft|TTFT]] + (tokens de salida − 1) × TPOT. Sube un poco con cada conversación que el servidor junta en el mismo paso. Mientras el texto salga más rápido de lo que una persona lee (≈ 4 a 7 tokens por segundo), nadie lo nota.",
-      "ejemplo": "En C10, el TPOT típico es 40 ms (25 tokens por segundo): una respuesta de 250 tokens tarda 0.6 + 249 × 0.04 ≈ 10.6 s, pero se empieza a leer a los 0.6 s.",
+      "ejemplo": "En el LLM que sirve Alba (el marketplace del curso), el TPOT típico es 40 ms (1 ÷ 0.04 = 25 tokens por segundo): una respuesta de 250 tokens tarda \\(TTFT + (text{tokens} − 1) × TPOT\\) = 0.6 + 249 × 0.04 ≈ 10.6 s, pero se empieza a leer a los 0.6 s.",
       "ver": [
         "ttft",
         "decode"
@@ -347,7 +347,7 @@
       "en": "system prompt",
       "corto": "Las instrucciones que la app le da al LLM al principio de cada conversación, antes de lo que escribe la persona: qué papel tiene, qué reglas sigue y en qué formato contesta.",
       "largo": "En la plantilla de chat ocupa el rol «system», separado del «user» con tokens especiales. El modelo aprendió a darle más peso en el [[instruction-tuning|ajuste con instrucciones]], pero no es una barrera de seguridad: una persona o un documento pueden convencer al modelo de ignorarlo o de repetirlo completo. Por eso no lleva secretos. Como es igual en todas las requests de un producto, va primero y el [[prefix-caching|prefix caching]] lo reutiliza.",
-      "ejemplo": "En C10 de la Ronda, cada producto tiene un prefijo fijo de ≈ 1,000 tokens (instrucciones y políticas) que se guarda con versión, como el código.",
+      "ejemplo": "En el LLM que sirve Alba (el marketplace del curso), cada producto tiene un prefijo fijo de ≈ 1,000 tokens (instrucciones y políticas) que se guarda con versión, como el código.",
       "ver": [
         "prompt",
         "few-shot",
@@ -375,7 +375,7 @@
       "en": "prefix caching",
       "corto": "Reutilizar el KV cache del inicio de un prompt que ya se calculó en una request anterior, para no repetir su prefill. Solo sirve si los tokens son idénticos desde el principio.",
       "largo": "Muchas requests de un producto empiezan igual: el [[system-prompt|system prompt]], los ejemplos [[few-shot]], las políticas. El servidor guarda el [[kv-cache|KV cache]] de esos tokens y, si el siguiente prompt empieza exactamente igual, se salta esa parte del [[prefill]]: baja el [[ttft|TTFT]] y el cómputo. Basta un token distinto al principio (la fecha, el nombre de la persona) para que ya no sirva: lo fijo va primero y lo variable al final.",
-      "ejemplo": "En C10 de la Ronda, la mitad de un prompt de 2,000 tokens es el prefijo fijo del producto: con prefix caching, el prefill solo calcula los ≈ 1,000 tokens restantes.",
+      "ejemplo": "En el LLM que sirve Alba (el marketplace del curso), la mitad de un prompt de 2,000 tokens es el prefijo fijo del producto: con prefix caching, el prefill solo calcula los ≈ 1,000 tokens restantes.",
       "ver": [
         "kv-cache",
         "prefill",

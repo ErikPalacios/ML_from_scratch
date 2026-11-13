@@ -7,7 +7,7 @@
       "en": "model",
       "corto": "Un programa que aprendió de ejemplos a convertir una entrada (una foto) en una respuesta (su categoría).",
       "largo": "No lo escribe una persona regla por regla. Una persona elige su forma y los ejemplos, y el [[entrenamiento]] ajusta sus [[parametro|parámetros]] hasta que acierta. Por dentro es una función matemática muy grande: entran números (los píxeles de la foto) y salen números (qué tan probable es cada categoría).",
-      "ejemplo": "En C01 el modelo es una ResNet-50: recibe la foto de una publicación y devuelve qué tan probable es cada una de 500 categorías.",
+      "ejemplo": "En Alba el modelo es una ResNet-50: recibe la foto de una publicación y devuelve qué tan probable es cada una de 500 categorías.",
       "ver": [
         "parametro",
         "entrenamiento",
@@ -21,7 +21,7 @@
       "en": "parameter · weight",
       "corto": "Cada uno de los números internos de un modelo que el entrenamiento ajusta. Son sus «perillas».",
       "largo": "Una combinación de valores de los parámetros hace que el modelo responda de una forma, y otra combinación, de otra. Entrenar es buscar la combinación con la que el modelo se equivoca menos. En inglés también se les dice *weights* (pesos).",
-      "ejemplo": "La ResNet-50 de C01 tiene unos 24.5 millones de parámetros con sus 500 categorías (25.6 millones en la versión original, de 1000).",
+      "ejemplo": "La ResNet-50 de Alba tiene unos 24.5 millones de parámetros con sus 500 categorías (25.6 millones en la versión original, de 1000).",
       "ver": [
         "modelo",
         "entrenamiento"
@@ -34,7 +34,7 @@
       "en": "training",
       "corto": "Mostrarle al modelo muchos ejemplos con su respuesta correcta y ajustar sus parámetros, poco a poco, para que se equivoque menos.",
       "largo": "El modelo adivina, se compara con la [[etiqueta]] correcta y mueve sus [[parametro|parámetros]] un poquito en la dirección que reduce el error. Eso se repite millones de veces. Es lento y caro, y se hace de vez en cuando, no con cada uso.",
-      "ejemplo": "En C01 el modelo se reentrena una vez al mes con las fotos nuevas del mes.",
+      "ejemplo": "En Alba el modelo se reentrena una vez al mes con las fotos nuevas del mes.",
       "ver": [
         "inferencia",
         "etiqueta",
@@ -48,7 +48,7 @@
       "en": "inference",
       "corto": "Usar un modelo ya entrenado para responder sobre un caso nuevo. Los parámetros no cambian: el modelo solo calcula.",
       "largo": "Es el otro momento en la vida de un modelo, después del [[entrenamiento]]. Cada respuesta que da es una [[prediccion|predicción]]. Es rápida y pasa todo el tiempo: es lo que hace el modelo en [[produccion|producción]].",
-      "ejemplo": "Cada vez que alguien sube una foto al marketplace de C01, el modelo hace una inferencia. Son millones al día.",
+      "ejemplo": "Cada vez que alguien sube una foto a Alba, el modelo hace una inferencia. Son millones al día.",
       "ver": [
         "prediccion",
         "entrenamiento",
@@ -75,7 +75,7 @@
       "en": "dataset · conjunto de datos",
       "corto": "Una colección de ejemplos, guardada y ordenada, con la que se entrena o se evalúa un modelo.",
       "largo": "Cada ejemplo trae la entrada (la foto) y, casi siempre, su [[etiqueta]] (la categoría correcta). En producción no basta con tenerlo: hay que poder decir exactamente con cuál dataset se entrenó cada modelo.",
-      "ejemplo": "El dataset de un mes en C01 son las fotos de publicaciones con su categoría revisada.",
+      "ejemplo": "El dataset de un mes en Alba son las fotos de publicaciones con su categoría revisada.",
       "ver": [
         "etiqueta",
         "entrenamiento"
@@ -86,14 +86,14 @@
       "id": "etiqueta",
       "termino": "Etiqueta",
       "en": "label",
-      "corto": "La respuesta correcta de un ejemplo: la que el modelo debería dar. En C01, la categoría real de una foto.",
+      "corto": "La respuesta correcta de un ejemplo: la que el modelo debería dar. En Alba, la categoría real de una foto.",
       "largo": "Muchas veces la pone una persona a mano, y por eso cuesta tiempo y dinero. Con etiquetas malas, el modelo aprende mal, aunque todo lo demás esté perfecto.",
       "ver": [
         "dataset",
         "entrenamiento"
       ],
       "leccion": "ejemplos",
-      "ejemplo": "Una foto de unos tenis con la etiqueta «Calzado › Tenis». En C01 las etiquetas salen de tres lugares: la categoría que eligió quien vende, las correcciones de moderadores y unas 5 mil fotos al mes revisadas a mano."
+      "ejemplo": "Una foto de unos tenis con la etiqueta «Calzado › Tenis». En Alba las etiquetas salen de tres lugares: la categoría que eligió quien vende, las correcciones de moderadores y unas 5 mil fotos al mes revisadas a mano."
     },
     {
       "id": "produccion",
@@ -106,7 +106,7 @@
         "monitoreo"
       ],
       "leccion": "camino-completo",
-      "ejemplo": "El modelo de C01 está en producción: cada foto que alguien sube al marketplace pasa por él, de día y de noche. Si deja de responder, miles de personas tienen que buscar la categoría a mano."
+      "ejemplo": "El modelo de Alba está en producción: cada foto que alguien sube al marketplace pasa por él, de día y de noche. Si deja de responder, miles de personas tienen que buscar la categoría a mano."
     },
     {
       "id": "deploy",
@@ -114,7 +114,7 @@
       "en": "deployment · desplegar",
       "corto": "Poner a responder a la gente de verdad una versión nueva de un modelo o de un programa, en lugar de la anterior.",
       "largo": "Es el puente del [[camino-offline]] al [[camino-online]]: la única forma en que lo que se entrenó le llega a alguien. Casi nunca se hace de golpe: primero la versión nueva atiende una fracción chica del tráfico, se vigila y, si todo va bien, recibe más. Si algo empeora, se regresa a la versión anterior (*rollback*).",
-      "ejemplo": "En C01, un modelo aprobado responde primero 5 de cada 100 fotos, luego 25 y luego todas. Si suben la latencia o los errores, se regresa solo a la versión anterior.",
+      "ejemplo": "En Alba, un modelo aprobado responde primero 5 de cada 100 fotos, luego 25 y luego todas. Si suben la latencia o los errores, se regresa solo a la versión anterior.",
       "ver": [
         "produccion",
         "camino-offline",
@@ -146,7 +146,7 @@
         "pipeline"
       ],
       "leccion": "camino-completo",
-      "ejemplo": "En C01, el ML engineer no inventa la ResNet-50: se encarga de que las fotos le lleguen bien preparadas, de que responda en menos de 200 ms, de que una versión nueva salga sin romper nada y de notar cuando empieza a fallar."
+      "ejemplo": "En Alba, el ML engineer no inventa la ResNet-50: se encarga de que las fotos le lleguen bien preparadas, de que responda en menos de 200 ms, de que una versión nueva salga sin romper nada y de notar cuando empieza a fallar."
     },
     {
       "id": "pipeline",
@@ -154,7 +154,7 @@
       "en": "pipeline",
       "corto": "Una cadena de pasos donde lo que sale de uno es lo que entra al siguiente, y que se puede volver a correr igual.",
       "analogia": "Una línea de ensamblaje: cada estación hace una cosa y le pasa la pieza a la siguiente.",
-      "ejemplo": "El camino de C01 es un pipeline: datos → modelo → API → contenedor → orquestación → monitoreo.",
+      "ejemplo": "El camino de Alba es un pipeline: datos → modelo → API → contenedor → orquestación → monitoreo.",
       "ver": [
         "ml-engineer"
       ],
@@ -172,7 +172,7 @@
         "api"
       ],
       "leccion": "http",
-      "ejemplo": "La API de C01 corre en varios servidores en la nube que responden millones de fotos al día. Si uno se apaga, los demás siguen respondiendo."
+      "ejemplo": "La API de Alba corre en varios servidores en la nube que responden millones de fotos al día. Si uno se apaga, los demás siguen respondiendo."
     },
     {
       "id": "request",
@@ -201,7 +201,7 @@
         "serving"
       ],
       "leccion": "http",
-      "ejemplo": "La API de C01 recibe una foto y regresa las 5 categorías más probables, cada una con su porcentaje. El marketplace no necesita saber que adentro hay una ResNet-50."
+      "ejemplo": "La API de Alba recibe una foto y regresa las 5 categorías más probables, cada una con su porcentaje. El marketplace no necesita saber que adentro hay una ResNet-50."
     },
     {
       "id": "serving",
@@ -214,7 +214,7 @@
       ],
       "leccion": "e06-serving",
       "largo": "Es la etapa 3 del camino: un programa carga el modelo una vez, al arrancar, y desde ahí responde cada [[request]]. Lo difícil no es que responda una vez, sino que responda rápido y sin caerse, muchas veces por segundo, con la foto preparada igual que cuando se entrenó.",
-      "ejemplo": "En C01, el serving es la API que recibe la foto de Ana, la prepara y se la pasa al modelo, que vive en un servidor con GPU (Triton, en la Ronda)."
+      "ejemplo": "En Alba, el serving es la API que recibe la foto de Ana, la prepara y se la pasa al modelo, que corre en un servidor con GPU dentro de Triton, un programa hecho para servir modelos."
     },
     {
       "id": "contenedor",
@@ -227,7 +227,7 @@
         "orquestacion"
       ],
       "leccion": "e07-empaquetado",
-      "ejemplo": "El contenedor de la API de C01 lleva la versión exacta de Python, las librerías y el código. El mismo contenedor que se probó es el que corre en cada servidor."
+      "ejemplo": "El contenedor de la API de Alba lleva la versión exacta de Python, las librerías y el código. El mismo contenedor que se probó es el que corre en cada servidor."
     },
     {
       "id": "orquestacion",
@@ -240,7 +240,7 @@
         "servidor"
       ],
       "leccion": "e09-kubernetes",
-      "ejemplo": "En C01, Kubernetes mantiene varias copias de la API encendidas, agrega copias cuando sube el tráfico de la hora pico y, si una copia falla, levanta otra sola."
+      "ejemplo": "En Alba, Kubernetes mantiene varias copias de la API encendidas, agrega copias cuando sube el tráfico de la hora pico y, si una copia falla, levanta otra sola."
     },
     {
       "id": "monitoreo",
@@ -255,7 +255,7 @@
         "psi"
       ],
       "leccion": "e12-monitoreo",
-      "ejemplo": "En C01 se vigila que 99 de cada 100 respuestas tarden menos de 200 ms, cuántas fallan y si cambia cuáles categorías predice más seguido el modelo, que es una señal temprana de drift."
+      "ejemplo": "En Alba se vigila que 99 de cada 100 respuestas tarden menos de 200 ms, cuántas fallan y si cambia cuáles categorías predice más seguido el modelo, que es una señal temprana de drift."
     },
     {
       "id": "drift",
@@ -263,7 +263,7 @@
       "en": "data drift · deriva",
       "corto": "Cuando los datos que llegan en producción dejan de parecerse a los del entrenamiento. Por eso el modelo puede empezar a fallar más aunque nadie lo haya tocado.",
       "largo": "El modelo no se descompone: el mundo cambia a su alrededor. Llegan productos nuevos, cambian las modas, las cámaras de los celulares toman fotos distintas. Ojo: drift no siempre quiere decir que el modelo empeoró (con fotos mejor iluminadas hasta puede acertar más). Por eso el drift abre una investigación, y lo que decide si hay que reentrenar son las etiquetas nuevas.",
-      "ejemplo": "Salen modelos nuevos de tenis y los celulares toman fotos con otra luz: las fotos que llegan se parecen cada vez menos a las del entrenamiento, y el modelo acierta un poco menos cada mes. Una categoría nueva (como «bolsas» en el Dojo) es otra cosa: ahí el modelo ni siquiera tiene esa respuesta.",
+      "ejemplo": "Salen modelos nuevos de tenis y los celulares toman fotos con otra luz: las fotos que llegan se parecen cada vez menos a las del entrenamiento, y el modelo acierta un poco menos cada mes. Una categoría nueva (como «bolsas», que Alba agrega el 1 de octubre) es otra cosa: ahí el modelo ni siquiera tiene esa respuesta.",
       "ver": [
         "monitoreo",
         "reentrenamiento",
@@ -285,7 +285,7 @@
         "entrenamiento"
       ],
       "leccion": "e12-monitoreo",
-      "ejemplo": "C01 reentrena cada mes con las fotos nuevas, y antes si el monitoreo detecta drift o si el negocio agrega una categoría, como «bolsas» en el Dojo."
+      "ejemplo": "Alba reentrena cada mes con las fotos nuevas, y antes si el monitoreo detecta drift o si el negocio agrega una categoría, como «bolsas» el 1 de octubre."
     },
     {
       "id": "latencia",
@@ -293,7 +293,7 @@
       "en": "latency",
       "corto": "Cuánto tarda en llegar la respuesta desde que se hace la petición.",
       "largo": "Se mide en [[ms|milisegundos]]. No basta con el promedio: importa sobre todo qué tan lentas son las respuestas más lentas, porque a esas personas la app se les traba.",
-      "ejemplo": "C01 se compromete a que 99 de cada 100 sugerencias tarden menos de 200 ms.",
+      "ejemplo": "Alba se compromete a que 99 de cada 100 sugerencias tarden menos de 200 ms.",
       "ver": [
         "ms",
         "request"
@@ -310,7 +310,7 @@
       ],
       "leccion": "unidades",
       "largo": "Un segundo tiene 1,000 milisegundos. Es la unidad natural del [[camino-online|camino online]]: la respuesta de un modelo se mide en decenas o cientos de ms.",
-      "ejemplo": "La promesa de C01 es de 200 ms, un quinto de segundo. El marketplace espera como máximo 300 ms, tres décimas de segundo."
+      "ejemplo": "La promesa de Alba es de 200 ms, un quinto de segundo. El marketplace espera como máximo 300 ms, tres décimas de segundo."
     },
     {
       "id": "camino-online",
@@ -318,7 +318,7 @@
       "en": "online path · serving path",
       "corto": "Todo lo que pasa mientras alguien espera una respuesta: llega la request, se prepara la entrada, el modelo calcula y sale la respuesta. Su reloj son los milisegundos.",
       "largo": "Corre por cada [[request]], a cualquier hora, y si falla se nota al instante. Por eso vive con un presupuesto de [[latencia]], un tiempo máximo de espera y un [[fallback]]. Crece con el tráfico: más requests por segundo piden más copias encendidas. La pregunta que lo define: ¿alguien está esperando la respuesta?",
-      "ejemplo": "En C01: la foto de Ana entra a la API, se prepara, el modelo hace la inferencia y regresa las 5 categorías más probables. 99 de cada 100 veces, en menos de 200 ms.",
+      "ejemplo": "En Alba: la foto de Ana entra a la API, se prepara, el modelo hace la inferencia y regresa las 5 categorías más probables. 99 de cada 100 veces, en menos de 200 ms.",
       "ver": [
         "camino-offline",
         "inferencia",
@@ -334,7 +334,7 @@
       "en": "offline path · training path",
       "corto": "Todo lo que prepara la siguiente versión del modelo sin que nadie esté esperando: juntar y etiquetar datos, entrenar, examinar y aprobar. Su reloj son las horas, los días y las semanas.",
       "largo": "Corre por calendario o cuando algo lo dispara, como el [[drift]] o una categoría nueva. Si falla, nadie lo nota ese día: el modelo actual sigue respondiendo, solo que envejece. Se une al [[camino-online]] por dos puentes: el registro de cada predicción (de online a offline) y el [[deploy]] (de offline a online).",
-      "ejemplo": "En C01, cada mes: se guarda una muestra de las fotos, se juntan sus categorías (unas 5 mil revisadas a mano), se reentrena en unas horas de GPU, se examina contra el modelo actual y, si no es peor, se despliega.",
+      "ejemplo": "En Alba, cada mes: se guarda una muestra de las fotos, se juntan sus categorías (unas 5 mil revisadas a mano), se reentrena en unas horas de GPU, se examina contra el modelo actual y, si no es peor, se despliega.",
       "ver": [
         "camino-online",
         "entrenamiento",
@@ -350,7 +350,7 @@
       "en": "fallback · plan B",
       "corto": "Lo que hace el sistema cuando el modelo no responde a tiempo o falla: una respuesta más simple que no depende de él, para que la persona pueda seguir.",
       "largo": "Todo lo que está en el [[camino-online]] falla alguna vez. El fallback convierte esa falla en una molestia chica en vez de una pantalla trabada: el sistema se degrada, pero no se cae. Va junto con un tiempo máximo de espera (*timeout*): pasado ese tiempo, se deja de esperar y se usa el plan B.",
-      "ejemplo": "En C01, si la API no contesta en 300 ms, el marketplace le muestra a Ana el selector de categorías para elegirla a mano. En el caso de fraude de la Ronda, si el modelo no responde, deciden reglas fijas.",
+      "ejemplo": "En Alba, si la API no contesta en 300 ms, el marketplace le muestra a Ana el selector de categorías para elegirla a mano. En un sistema que detecta fraude en pagos con tarjeta, si el modelo no responde, deciden reglas fijas.",
       "ver": [
         "camino-online",
         "latencia",

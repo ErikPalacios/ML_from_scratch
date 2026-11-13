@@ -32,7 +32,7 @@
       "y": 6,
       "w": 20,
       "h": 8,
-      "note": "Los [[parametro|parámetros]] del modelo. La ResNet-50 de C01 en FP16 ocupa ≈ 49 MB; Llama 3 8B en BF16, ≈ 16 GB. Viven en la [[vram|VRAM]], y para usarlos hay que traerlos al chip."
+      "note": "Los [[parametro|parámetros]] del modelo. La ResNet-50 de Alba en FP16 ocupa ≈ 49 MB; Llama 3 8B en BF16, ≈ 16 GB. Viven en la [[vram|VRAM]], y para usarlos hay que traerlos al chip."
     },
     {
       "id": "entradas",

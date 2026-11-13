@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 450" role="img" aria-labelledby="f-unidades-dia-t" class="f-svg" style="max-width:420px">
-<title id="f-unidades-dia-t">Una gráfica de barras con las 24 horas de un día de C01, con un perfil ilustrativo: cuántas fotos por segundo llegan en cada hora. De madrugada llegan menos de 20 por segundo; a mediodía, unas 130; a las 20 horas, la hora pico, unas 347. Tres líneas horizontales: el promedio del día, unas 116 por segundo; el pico, unas 350, tres veces el promedio; y el pico de diseño, 500, con margen. Las 24 barras suman los 10 millones de fotos del día, y la hora pico lleva 1 de cada 8: 1.25 millones de fotos entre 3,600 segundos, unas 347 por segundo.</title>
+<title id="f-unidades-dia-t">Una gráfica de barras con las 24 horas de un día de Alba, con un perfil ilustrativo: cuántas fotos por segundo llegan en cada hora. De madrugada llegan menos de 20 por segundo; a mediodía, unas 130; a las 20 horas, la hora pico, unas 347. Tres líneas horizontales: el promedio del día, unas 116 por segundo; el pico, unas 350, tres veces el promedio; y el pico de diseño, 500, con margen. Las 24 barras suman los 10 millones de fotos del día, y la hora pico lleva 1 de cada 8: 1.25 millones de fotos entre 3,600 segundos, unas 347 por segundo.</title>
 <rect class="f-card" x="10" y="10" width="340" height="430" rx="16"/>
-<text class="f-l" x="28" y="36">UN DÍA DE C01, HORA POR HORA</text>
+<text class="f-l" x="28" y="36">UN DÍA DE ALBA, HORA POR HORA</text>
 <text class="f-s" x="28" y="56" style="font-size:12px">fotos por segundo en cada hora · perfil ilustrativo</text>
 <line class="f-linea" x1="52" y1="334" x2="340" y2="334" style="opacity:.25"/>
 <text class="f-l" x="46" y="338" text-anchor="end">0</text>

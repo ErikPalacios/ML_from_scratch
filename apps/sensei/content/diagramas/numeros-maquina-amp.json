@@ -52,7 +52,7 @@
       "y": 5,
       "w": 19,
       "h": 8,
-      "note": "El [[optimizador]] (en C01, [[adam|Adam]]) calcula cuánto mover cada peso y se lo suma a los pesos maestros. Su estado, los promedios m y v, también vive en FP32."
+      "note": "El [[optimizador]] (Alba usa [[adam|Adam]]) calcula cuánto mover cada peso y se lo suma a los pesos maestros. Su estado, los promedios m y v, también vive en FP32."
     },
     {
       "id": "copia",

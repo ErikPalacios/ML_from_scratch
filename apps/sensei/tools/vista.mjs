@@ -30,7 +30,8 @@ const piezas = [
   ...[...html.matchAll(/<div class="dg-mount" data-dg="([^"]+)"[\s\S]*?<\/figure>\n<\/div>/g)].map((m) => ['diagrama', m[1], m[0]]),
   ...[...html.matchAll(/<figure class="cx-calc" id="calc-([^"]+)"[\s\S]*?\n<\/figure>/g)].map((m) => ['calculadora', m[1], m[0]]),
   ...[...html.matchAll(/<figure class="calc">[\s\S]*?<\/figure>/g)].map((m, k) => ['cuenta', String(k + 1), m[0]]),
-].filter(([, nombre]) => !filtro || nombre.includes(filtro));
+  ...[...html.matchAll(/<figure class="formula">[\s\S]*?<\/figure>/g)].map((m, k) => ['formula', String(k + 1), m[0]]),
+].filter(([tipo, nombre]) => !filtro || nombre.includes(filtro) || tipo === filtro);
 const datos = (html.match(/<script type="application\/json" id="g-datos">[\s\S]*?<\/script>/) || [''])[0];
 const dir = join(base, 'vistas');
 rmSync(dir, { recursive: true, force: true });

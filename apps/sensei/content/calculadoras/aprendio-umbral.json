@@ -1,9 +1,9 @@
 {
   "titulo": "El umbral: cambiar un error por otro",
-  "intro": "Un modelo de juguete le da a cada una de 1,000 fotos un puntaje de 0 a 1 para «tenis». A los tenis casi siempre les toca un puntaje alto y a lo demás uno bajo, pero en medio se enciman. Mueve el [[umbral]] y mira qué cambias.",
+  "intro": "Un modelo de juguete le da a cada una de 1,000 fotos un puntaje de 0 a 1 para «tenis». A los tenis casi siempre les toca un puntaje alto y a lo demás uno bajo, pero en medio se enciman. Mueve el [[umbral]] y mira qué cambias. El recall y la tasa de falsos positivos (FPR) de cada umbral salen de dos curvas inventadas para el juguete; con ellas, \\(TP = text{recall} × text{tenis}\\), \\(FP = text{FPR} × (1,000 − text{tenis})\\) y \\(FN = text{tenis} − TP\\), y luego las ecuaciones de la lección: \\(text{precision} = TP/(TP + FP)\\) y \\(F_1 = 2 × TP/(2 × TP + FP + FN)\\).",
   "entradas": [
-    { "id": "t", "label": "Umbral: dice «tenis» si el puntaje es igual o mayor", "min": 0.05, "max": 0.95, "paso": 0.01, "valor": 0.5 },
-    { "id": "pos", "label": "Tenis entre las 1,000 fotos", "min": 1, "max": 500, "paso": 1, "valor": 100 }
+    { "id": "t", "label": "Umbral \\(t\\): dice «tenis» si el puntaje es \\(t\\) o más (de 0 a 1)", "min": 0.05, "max": 0.95, "paso": 0.01, "valor": 0.5 },
+    { "id": "pos", "label": "Tenis entre las 1,000 fotos (los positivos, \\(TP + FN\\))", "min": 1, "max": 500, "paso": 1, "valor": 100 }
   ],
   "calculos": [
     { "id": "rec", "formula": "1 - pow(t, 2.321928)" },
@@ -13,12 +13,12 @@
     { "id": "fn", "formula": "pos - tp" }
   ],
   "salidas": [
-    { "label": "Fotos a las que dice «tenis»", "formula": "tp + fp", "formato": "int" },
-    { "label": "**Recall**", "formula": "rec", "formato": "pct", "barra": true, "nota": "de los tenis, cuántos encontró" },
-    { "label": "**Precision**", "formula": "tp / max(tp + fp, 1e-9)", "formato": "pct", "barra": true, "nota": "de lo que dijo «tenis», cuánto era" },
-    { "label": "Falsas alarmas (FP)", "formula": "fp", "formato": "int" },
-    { "label": "Tenis que se le escapan (FN)", "formula": "fn", "formato": "int" },
-    { "label": "**F1**", "formula": "2 * tp / max(2 * tp + fp + fn, 1e-9)", "formato": "num", "decimales": 3 }
+    { "label": "Fotos a las que dice «tenis»", "formula": "tp + fp", "formato": "int", "nota": "\\(TP + FP\\): los positivos que marcó, buenos y malos" },
+    { "label": "**Recall**", "formula": "rec", "formato": "pct", "barra": true, "nota": "\\(TP/(TP + FN)\\): de los tenis, cuántos encontró" },
+    { "label": "**Precision**", "formula": "tp / max(tp + fp, 1e-9)", "formato": "pct", "barra": true, "nota": "\\(TP/(TP + FP)\\): de lo que dijo «tenis», cuánto era" },
+    { "label": "Falsas alarmas (FP)", "formula": "fp", "formato": "int", "nota": "\\(FP = text{FPR} × (1,000 − text{tenis})\\)" },
+    { "label": "Tenis que se le escapan (FN)", "formula": "fn", "formato": "int", "nota": "\\(FN = text{tenis} − TP\\)" },
+    { "label": "**F1**", "formula": "2 * tp / max(2 * tp + fp + fn, 1e-9)", "formato": "num", "decimales": 3, "nota": "\\(2 × TP/(2 × TP + FP + FN)\\)" }
   ],
   "nota": "Con el umbral en 0.50 y 100 tenis sale justo la matriz de antes: 80 encontrados, 40 falsas alarmas y 20 que se escapan. Sube el umbral a 0.70: la precision pasa a 93 % y el recall baja a 56 %. Luego vuelve a 0.50 y deja solo 10 tenis: la precision cae a 15 %, con el mismo modelo."
 }

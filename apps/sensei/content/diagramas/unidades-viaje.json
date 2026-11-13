@@ -10,7 +10,7 @@
     { "id": "cel", "label": "Celular de Ana", "sub": "JPEG ≈ 200 KB", "kind": "client", "x": 3, "y": 7, "w": 18, "h": 9,
       "note": "La app achica la foto a 1024 píxeles de lado largo antes de subirla: ≈ 200 KB, que son 1.6 megabits (× 8). Con una subida de 10 Mb/s, por ejemplo, tarda ≈ 0.16 s. Ese tramo no entra en la promesa de 200 ms: es la red de Ana y nadie del servidor la controla." },
     { "id": "gw", "label": "Gateway", "sub": "CPU: decodifica, ≈ 6 ms", "kind": "service", "x": 30, "y": 7, "w": 18, "h": 9,
-      "note": "Abre el JPEG, lo achica y lo normaliza: ≈ 6 ms de CPU en promedio (estimación de la Ronda). Sale un tensor de 150,528 números en [[float32]]: 602,112 bytes ≈ **602 KB**, tres veces lo que pesaba el JPEG." },
+      "note": "Abre el JPEG, lo achica y lo normaliza: ≈ 6 ms de CPU en promedio (estimación del equipo de Alba). Sale un tensor de 150,528 números en [[float32]]: 602,112 bytes ≈ **602 KB**, tres veces lo que pesaba el JPEG." },
     { "id": "triton", "label": "Triton", "sub": "RAM del servidor de GPU", "kind": "service", "x": 57, "y": 7, "w": 18, "h": 9,
       "note": "El servidor del modelo recibe el tensor por la red interna. Una foto sola tarda pocos milisegundos en ese tramo, pero 500 por segundo son 301 MB/s ≈ **2.4 Gb/s**: el [[ancho-banda|ancho de banda]] es lo que se aprieta." },
     { "id": "gpu", "label": "T4", "sub": "VRAM: 320 GB/s", "kind": "gpu", "x": 57, "y": 29, "w": 18, "h": 9,

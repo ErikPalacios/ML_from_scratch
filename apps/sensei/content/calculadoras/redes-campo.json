@@ -1,21 +1,21 @@
 {
   "titulo": "Cuánto de la foto ve una neurona",
-  "intro": "Una pila de capas iguales, todas con el mismo filtro y el mismo stride. En cada capa, el campo crece (k − 1) × salto, y el salto se multiplica por el stride.",
+  "intro": "Una pila de \\(L\\) capas iguales, todas con el mismo filtro y el mismo stride. Empieza en \\(r\\) = 1 y \\(j\\) = 1 y en cada capa aplica \\(r_{nuevo} = r + (k − 1) × j\\) y \\(j_{nuevo} = j × s\\).",
   "entradas": [
-    { "id": "L", "label": "Número de capas", "min": 1, "max": 12, "paso": 1, "valor": 3 },
-    { "id": "k", "label": "Lado del filtro (k)", "min": 1, "max": 7, "paso": 2, "valor": 3 },
-    { "id": "s", "label": "Stride de cada capa (s)", "min": 1, "max": 2, "paso": 1, "valor": 1 },
-    { "id": "n", "label": "Lado de la foto", "min": 32, "max": 1024, "paso": 32, "valor": 224 }
+    { "id": "L", "label": "Número de capas \\(L\\)", "min": 1, "max": 12, "paso": 1, "valor": 3 },
+    { "id": "k", "label": "Lado del filtro \\(k\\), en píxeles", "min": 1, "max": 7, "paso": 2, "valor": 3 },
+    { "id": "s", "label": "Stride \\(s\\) de cada capa", "min": 1, "max": 2, "paso": 1, "valor": 1 },
+    { "id": "n", "label": "Lado de la foto \\(n\\), en píxeles", "min": 32, "max": 1024, "paso": 32, "valor": 224 }
   ],
   "calculos": [
     { "id": "j", "formula": "pow(s, L)" },
     { "id": "r", "formula": "s == 1 ? 1 + L * (k - 1) : 1 + (k - 1) * (j - 1) / (s - 1)" }
   ],
   "salidas": [
-    { "label": "Campo receptivo de la última capa", "formula": "r", "formato": "int", "nota": "píxeles de lado" },
-    { "label": "Salto entre dos neuronas vecinas", "formula": "j", "formato": "int", "nota": "stride elevado al número de capas" },
-    { "label": "Lado del último mapa", "formula": "ceil(n / j)", "formato": "int", "nota": "con el padding que conserva el tamaño" },
-    { "label": "Parte del lado de la foto que ve", "formula": "min(1, r / n)", "formato": "pct", "barra": true }
+    { "label": "Campo receptivo \\(r\\) de la última capa", "formula": "r", "formato": "int", "nota": "píxeles de lado. Con stride 1: \\(1 + L × (k − 1)\\); si no, \\(1 + (k − 1) × (s^L − 1) ÷ (s − 1)\\), que es sumar \\((k − 1) × j\\) capa por capa" },
+    { "label": "Salto \\(j\\) entre dos neuronas vecinas", "formula": "j", "formato": "int", "nota": "\\(j = s^L\\): el stride multiplicado \\(L\\) veces" },
+    { "label": "Lado del último mapa", "formula": "ceil(n / j)", "formato": "int", "nota": "\\(n ÷ j\\), redondeado hacia arriba, con el padding que conserva el tamaño" },
+    { "label": "Parte del lado de la foto que ve", "formula": "min(1, r / n)", "formato": "pct", "barra": true, "nota": "\\(r ÷ n\\), hasta 100 %" }
   ],
   "nota": "Con stride 1, cada capa de 3 × 3 suma apenas 2 píxeles. Con stride 2 en todas, 5 capas ya ven 63 píxeles y el último mapa de una foto de 224 mide 7: el mismo que el de la ResNet-50."
 }

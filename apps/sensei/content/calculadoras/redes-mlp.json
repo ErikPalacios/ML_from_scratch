@@ -1,10 +1,10 @@
 {
   "titulo": "Un MLP que recibe la foto entera",
-  "intro": "Una capa oculta densa y una de salida. Mueve el tamaño de la foto y mira cómo crecen los [[parametro|parámetros]] de la primera capa: cada píxel de cada canal necesita un peso por cada neurona oculta.",
+  "intro": "Una capa oculta densa y una de salida. A cada una le aplica \\(P = N_{ent} × N_{sal} + N_{sal}\\) y \\(M = N_{ent} × N_{sal}\\): en la oculta, \\(N_{ent} = n × n × c\\) y \\(N_{sal} = h\\); en la de salida, \\(N_{ent} = h\\) y \\(N_{sal} = o\\). Mueve el tamaño de la foto y mira cómo crecen los [[parametro|parámetros]] de la primera capa: cada píxel de cada canal necesita un peso por cada neurona oculta.",
   "entradas": [
     {
       "id": "n",
-      "label": "Lado de la foto, en píxeles",
+      "label": "Lado de la foto \\(n\\), en píxeles",
       "min": 8,
       "max": 512,
       "paso": 4,
@@ -12,7 +12,7 @@
     },
     {
       "id": "c",
-      "label": "Canales (1 = gris, 3 = color)",
+      "label": "Canales \\(c\\) (1 = gris, 3 = color)",
       "min": 1,
       "max": 3,
       "paso": 2,
@@ -20,7 +20,7 @@
     },
     {
       "id": "h",
-      "label": "Neuronas de la capa oculta",
+      "label": "Neuronas de la capa oculta \\(h\\)",
       "min": 16,
       "max": 4096,
       "paso": 16,
@@ -28,7 +28,7 @@
     },
     {
       "id": "o",
-      "label": "Salidas (una por categoría)",
+      "label": "Salidas \\(o\\) (una por categoría)",
       "min": 2,
       "max": 1000,
       "paso": 1,
@@ -51,30 +51,31 @@
   ],
   "salidas": [
     {
-      "label": "Entradas",
+      "label": "Entradas \\(N_{ent}\\) de la capa oculta",
       "formula": "e",
       "formato": "int",
-      "nota": "lado × lado × canales"
+      "nota": "\\(N_{ent} = n × n × c\\)"
     },
     {
       "label": "Parámetros de la capa oculta",
       "formula": "p1",
       "formato": "int",
-      "nota": "entradas × ocultas + ocultas"
+      "nota": "\\(N_{ent} × h + h\\)"
     },
     {
       "label": "Parámetros de la capa de salida",
       "formula": "p2",
       "formato": "int",
-      "nota": "ocultas × salidas + salidas"
+      "nota": "\\(h × o + o\\)"
     },
     {
       "label": "Parámetros en total",
       "formula": "p1 + p2",
-      "formato": "int"
+      "formato": "int",
+      "nota": "la suma de las dos capas"
     },
     {
-      "label": "Tamaño contra la ResNet-50 de C01",
+      "label": "Tamaño contra la ResNet-50 de Alba",
       "formula": "(p1 + p2) / 24532532",
       "formato": "pct",
       "barra": true,
@@ -85,13 +86,13 @@
       "label": "Memoria en float32",
       "formula": "(p1 + p2) * 4",
       "formato": "bytes",
-      "nota": "4 bytes por parámetro"
+      "nota": "parámetros en total × 4 bytes"
     },
     {
       "label": "MACs por foto",
       "formula": "e * h + h * o",
       "formato": "int",
-      "nota": "una por peso"
+      "nota": "\\(N_{ent} × h + h × o\\): una por peso"
     }
   ],
   "nota": "Con 224 × 224 en color y solo 128 ocultas, la primera capa ya tiene 19.3 millones de parámetros, y cada peso conecta un solo número de la foto (un píxel de un color) con una sola neurona."

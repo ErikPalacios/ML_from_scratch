@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 410" role="img" aria-labelledby="f-cpu-gpu-utilizacion-t" class="f-svg" style="max-width:420px">
-<title id="f-cpu-gpu-utilizacion-t">Un segundo en la vida de tres GPUs de 40 SMs. Cada franja gris es la capacidad: lo ancho es el tiempo, de 0 a 1 segundo, y lo alto, los 40 SMs. Lo azul es lo que trabajó. Primera: un kernel chiquito que nunca para, una línea delgada a lo largo de todo el segundo; nvidia-smi marca 100 % y los SMs ocupados son 5 %. Segunda: medio segundo con la GPU llena, un bloque que cubre la mitad izquierda de la franja; nvidia-smi marca 50 % y los SMs ocupados, 50 %. Tercera: C01 con 58 fotos de 3 ms cada una, rayitas delgadas a la mitad de la altura repartidas en el segundo; nvidia-smi marca 17 % y los SMs ocupados son cerca de 9 %, con el supuesto de que cada foto usa la mitad de los SMs. nvidia-smi solo mide lo ancho.</title>
+<title id="f-cpu-gpu-utilizacion-t">Un segundo en la vida de tres GPUs de 40 SMs. Cada franja gris es la capacidad: lo ancho es el tiempo, de 0 a 1 segundo, y lo alto, los 40 SMs. Lo azul es lo que trabajó. Primera: un kernel chiquito que nunca para, una línea delgada a lo largo de todo el segundo; nvidia-smi marca 100 % y los SMs ocupados son 5 %. Segunda: medio segundo con la GPU llena, un bloque que cubre la mitad izquierda de la franja; nvidia-smi marca 50 % y los SMs ocupados, 50 %. Tercera: Alba con 58 fotos de 3 ms cada una, rayitas delgadas a la mitad de la altura repartidas en el segundo; nvidia-smi marca 17 % y los SMs ocupados son cerca de 9 %, con el supuesto de que cada foto usa la mitad de los SMs. nvidia-smi solo mide lo ancho.</title>
 <defs>
 <pattern id="f-cpu-gpu-utilizacion-p" x="40" y="324" width="4.8276" height="24" patternUnits="userSpaceOnUse"><rect x="0" y="0" width="1" height="24" class="f-b"/></pattern>
 </defs>
@@ -17,7 +17,7 @@
 <rect class="f-b" x="40" y="196" width="140" height="48"/>
 <text class="f-s" x="40" y="262" style="font-size:12px">nvidia-smi: <tspan style="font-weight:700">50 %</tspan> · SMs ocupados: <tspan style="font-weight:700">50 %</tspan></text>
 
-<text class="f-t" x="40" y="292" style="font-size:13px">C01: 58 fotos de 3 ms cada una</text>
+<text class="f-t" x="40" y="292" style="font-size:13px">Alba: 58 fotos de 3 ms cada una</text>
 <rect class="f-off" x="40" y="300" width="280" height="48" rx="3"/>
 <rect x="40" y="324" width="280" height="24" fill="url(#f-cpu-gpu-utilizacion-p)"/>
 <text class="f-s" x="40" y="366" style="font-size:12px">nvidia-smi: <tspan style="font-weight:700">17 %</tspan> · SMs ocupados: <tspan style="font-weight:700">≈ 9 %</tspan> (supuesto)</text>

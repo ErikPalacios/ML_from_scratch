@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 528" role="img" aria-labelledby="f-programa-proceso-anatomia-t" class="f-svg" style="max-width:420px">
-<title id="f-programa-proceso-anatomia-t">El proceso del gateway de C01, por dentro. Arriba, su nombre: python, el intérprete, corriendo uvicorn y app.py, con PID 1 porque es el programa principal de su contenedor. En medio, su memoria, que es solo suya: el código (python, uvicorn, app.py y Pillow), los datos que comparten sus hilos (las fotos a medio decodificar y el cliente de Triton) y tres pilas, una por hilo. Debajo, tres de sus hilos: uno atiende las requests y dos decodifican fotos; cada uno usa su propia pila y comparte todo lo demás. Al final, sus archivos abiertos (la entrada, la salida y los errores, el puerto 8080 y la conexión con Triton) y su entorno (PREPROCESS_CONCURRENCY=2 y el usuario número 10001).</title>
+<title id="f-programa-proceso-anatomia-t">El proceso del gateway de Alba, por dentro. Arriba, su nombre: python, el intérprete, corriendo uvicorn y app.py, con PID 1 porque es el programa principal de su contenedor. En medio, su memoria, que es solo suya: el código (python, uvicorn, app.py y Pillow), los datos que comparten sus hilos (las fotos a medio decodificar y el cliente de Triton) y tres pilas, una por hilo. Debajo, tres de sus hilos: uno atiende las requests y dos decodifican fotos; cada uno usa su propia pila y comparte todo lo demás. Al final, sus archivos abiertos (la entrada, la salida y los errores, el puerto 8080 y la conexión con Triton) y su entorno (PREPROCESS_CONCURRENCY=2 y el usuario número 10001).</title>
 <rect class="f-card" x="10" y="10" width="340" height="508" rx="16"/>
 <text class="f-l" x="26" y="36">UN PROCESO POR DENTRO</text>
-<text class="f-t" x="26" y="60">python: el gateway de C01</text>
+<text class="f-t" x="26" y="60">python: el gateway de Alba</text>
 <rect class="f-b" x="272" y="44" width="62" height="24" rx="12"/>
 <text class="f-pill-t" x="303" y="61" text-anchor="middle" style="font:800 13px var(--sans)">PID 1</text>
 <text class="f-s" x="26" y="80" style="font-size:12px">el intérprete, corriendo uvicorn y app.py</text>

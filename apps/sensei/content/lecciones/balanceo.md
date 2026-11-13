@@ -30,7 +30,7 @@ Para eso existe el [[balanceador]] de carga (*load balancer*): un programa, o un
 
 En C01, la puerta es un **ALB** (*Application Load Balancer*), el balanceador de AWS que entiende HTTP. No es una máquina que tú administras: AWS lo corre en varias máquinas, con presencia en las dos zonas de C01, y lo cobra por hora y por tráfico. Cuesta poco tiempo: la Ronda (M03) le pone de 1 a 3 ms a la request típica (el [[percentil|p50]]), con las conexiones ya abiertas. Y conviene aun con una sola copia detrás: da el cifrado en un solo lugar, los health checks y un punto estable para cambiar lo de atrás sin tocar a quien llama.
 
-:::diagrama balanceo-c01
+:::diagrama balanceo-alba
 La entrada de C01, de afuera hacia adentro. Toca cada caja para ver por qué está ahí y usa «Recorrer» para seguir una request normal, un pod que se cuelga y un cliente que se pasa de su cuota.
 :::
 

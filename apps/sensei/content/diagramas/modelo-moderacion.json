@@ -1,5 +1,5 @@
 {
-  "titulo": "Un modelo multietiqueta decide qué pasa con un post (C06)",
+  "titulo": "Un modelo multietiqueta decide qué pasa con un post",
   "width": 78,
   "height": 54,
   "lanes": [
@@ -8,7 +8,7 @@
   ],
   "nodes": [
     { "id": "post", "label": "Post", "sub": "texto de quien publica", "kind": "client", "x": 24, "y": 6, "w": 18, "h": 8,
-      "note": "Está aquí porque hay que revisarlo antes de que alguien lo vea. En C06 llegan ≈ 30 millones de posts y 150 millones de comentarios al día, y el chequeo tiene un p99 de 150 ms: el 99 % de las veces termina en 150 ms o menos." },
+      "note": "Está aquí porque hay que revisarlo antes de que alguien lo vea. En la red social del ejemplo llegan ≈ 30 millones de posts y 150 millones de comentarios al día, y el chequeo tiene un p99 de 150 ms: el 99 % de las veces termina en 150 ms o menos." },
     { "id": "modelo", "label": "Modelo", "sub": "un logit por política", "kind": "model", "x": 24, "y": 18, "w": 18, "h": 8,
       "note": "Un solo modelo de texto, [[multietiqueta]]: en una pasada da un [[logit]] por cada una de las 7 políticas. Agregar una política es agregarle una salida y reentrenar, no poner otro modelo en el camino." },
     { "id": "sigm", "label": "7 sigmoides", "sub": "un % por política", "kind": "service", "x": 24, "y": 30, "w": 18, "h": 8,
@@ -18,9 +18,9 @@
     { "id": "config", "label": "Config de política", "sub": "umbrales con versión", "kind": "store", "x": 2, "y": 42, "w": 18, "h": 8,
       "note": "Los umbrales viven fuera del código, en una configuración con versión: por política, por gravedad y por superficie (post o comentario). Cada versión del modelo trae los suyos, porque cada versión reparte sus scores distinto." },
     { "id": "publica", "label": "Se publica", "sub": "lo normal", "kind": "client", "x": 54, "y": 8, "w": 22, "h": 8,
-      "note": "Casi todo lo que llega no viola nada: en C06, ≈ 0.5 % de lo publicado viola alguna política. Por eso lo que depende del modelo falla abierto: si no contesta a tiempo, el post se publica y se puntúa después." },
+      "note": "Casi todo lo que llega no viola nada: en la red social del ejemplo, ≈ 0.5 % de lo publicado viola alguna política. Por eso lo que depende del modelo falla abierto: si no contesta a tiempo, el post se publica y se puntúa después." },
     { "id": "revision", "label": "Revisión", "sub": "una persona decide", "kind": "human", "x": 54, "y": 24, "w": 22, "h": 8,
-      "note": "Una persona mira el post. En C06 hay ≈ 600 moderadores para ≈ 216 mil revisiones al día, y esa capacidad es la que fija qué tan bajos pueden ser los umbrales de revisión." },
+      "note": "Una persona mira el post. En la red social del ejemplo hay ≈ 600 moderadores para ≈ 216 mil revisiones al día, y esa capacidad es la que fija qué tan bajos pueden ser los umbrales de revisión." },
     { "id": "bloquea", "label": "No se publica", "sub": "solo con score muy alto", "kind": "service", "x": 54, "y": 42, "w": 22, "h": 8,
       "note": "Aquí el sistema actúa solo, sin que nadie mire. Por eso su umbral es muy alto y se fija por [[precision]] (de lo que bloquea, qué parte de verdad viola): un error castiga a alguien que no hizo nada." }
   ],
@@ -43,7 +43,7 @@
     { "id": "doble", "label": "Spam y violento a la vez", "steps": [
       { "nodes": ["post", "modelo", "sigm"], "edges": ["post>modelo", "modelo>sigm"], "text": "Un mensaje que vende seguidores falsos y amenaza a quien lo reporte. Logits: spam 2.0, violencia 1.0, odio −3.0." },
       { "nodes": ["sigm"], "edges": [], "text": "Con una sigmoide por política: spam **0.88**, violencia **0.73**, odio 0.05. No compiten: el post puede ser las dos cosas." },
-      { "nodes": ["sigm", "decide", "config"], "edges": ["sigm>decide", "config>decide"], "text": "Spam bloquea solo desde 0.98: 0.88 no alcanza. Violencia manda a revisión desde ≈ 0.5: 0.73 sí (umbrales ilustrativos de la Ronda)." },
+      { "nodes": ["sigm", "decide", "config"], "edges": ["sigm>decide", "config>decide"], "text": "Spam bloquea solo desde 0.98: 0.88 no alcanza. Violencia manda a revisión desde ≈ 0.5: 0.73 sí (umbrales ilustrativos)." },
       { "nodes": ["decide", "publica", "revision"], "edges": ["decide>publica", "decide>revision"], "text": "Se publica y una persona lo revisa con prioridad. Con **softmax**, la violencia habría quedado en 0.27, debajo de la línea, y nadie lo habría visto." }
     ] },
     { "id": "obvio", "label": "Spam obvio", "steps": [

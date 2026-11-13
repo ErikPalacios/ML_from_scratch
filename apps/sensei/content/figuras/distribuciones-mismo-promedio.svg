@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 500" role="img" aria-labelledby="f-distribuciones-mismo-promedio-t" class="f-svg" style="max-width:420px">
-<title id="f-distribuciones-mismo-promedio-t">Dos histogramas del brillo de las fotos de C01, en 5 bins de 0 a 255. Arriba, octubre, la referencia: 10, 20, 40, 20 y 10 por ciento, con la mayoría en el bin de en medio; desviación estándar de unos 56 niveles. Abajo, una semana rara: 30, 15, 10, 15 y 30 por ciento, con la mayoría en los extremos, muy oscuras y muy claras; desviación de unos 84. Las dos tienen el mismo promedio, unos 128, marcado con una línea punteada.</title>
+<title id="f-distribuciones-mismo-promedio-t">Dos histogramas del brillo de las fotos de Alba, en 5 bins de 0 a 255. Arriba, octubre, la referencia: 10, 20, 40, 20 y 10 por ciento, con la mayoría en el bin de en medio; desviación estándar de unos 56 niveles. Abajo, una semana rara: 30, 15, 10, 15 y 30 por ciento, con la mayoría en los extremos, muy oscuras y muy claras; desviación de unos 84. Las dos tienen el mismo promedio, unos 128, marcado con una línea punteada.</title>
 <rect class="f-card" x="10" y="10" width="340" height="480" rx="16"/>
 <text class="f-l" x="28.0" y="36.0">BRILLO DE LAS FOTOS · DOS SEMANAS</text>
 <text class="f-t" x="28.0" y="62.0" style="font-size:14px">Octubre: la referencia</text>

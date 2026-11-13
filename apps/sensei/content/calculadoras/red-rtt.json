@@ -1,21 +1,21 @@
 {
   "titulo": "Lo que la distancia le cobra a una request",
-  "intro": "La luz en la fibra recorre ≈ 200 km por milisegundo. Elige la distancia y cuántas idas y vueltas ([[rtt|RTT]]) pide cada request. Arranca con la Ciudad de México y el norte de Virginia, donde vive C01, en línea recta y con una conexión nueva.",
+  "intro": "La luz en la fibra recorre ≈ 200 km por milisegundo. Aplica \\(RTT = 2 × d × f ÷ v\\), con \\(v\\) = 200 km/ms, y \\(T = k × RTT\\), con \\(k = n × (1 + c)\\) idas y vueltas ([[rtt|RTT]]): las mismas letras de la lección. Arranca con la Ciudad de México y el norte de Virginia, donde están las máquinas de Alba, en línea recta y con una conexión nueva.",
   "entradas": [
-    { "id": "d", "label": "Distancia en línea recta, en km (3012 = CDMX a Virginia · 184 = CDMX a Querétaro · 9063 = CDMX a Madrid)", "min": 1, "max": 20000, "paso": 1, "valor": 3012, "tipo": "numero" },
-    { "id": "f", "label": "Cuánto más larga es la ruta real que la línea recta (1 = el mínimo físico)", "min": 1, "max": 3, "paso": 0.1, "valor": 1 },
-    { "id": "c", "label": "Conexión: 0 = ya abierta · 1 = nueva, con TCP · 2 = nueva, con TCP y TLS", "min": 0, "max": 2, "paso": 1, "valor": 1 },
-    { "id": "n", "label": "Requests una detrás de otra", "min": 1, "max": 20, "paso": 1, "valor": 1 }
+    { "id": "d", "label": "Distancia en línea recta, \\(d\\), en km (3012 = CDMX a Virginia · 184 = CDMX a Querétaro · 9063 = CDMX a Madrid)", "min": 1, "max": 20000, "paso": 1, "valor": 3012, "tipo": "numero" },
+    { "id": "f", "label": "Factor de la ruta, \\(f\\): cuántas veces más larga es la ruta real que la línea recta (1 = el mínimo físico; ≈ 1.5 una ruta típica)", "min": 1, "max": 3, "paso": 0.1, "valor": 1 },
+    { "id": "c", "label": "Conexión, \\(c\\): 0 = ya abierta · 1 = nueva, con TCP · 2 = nueva, con TCP y TLS", "min": 0, "max": 2, "paso": 1, "valor": 1 },
+    { "id": "n", "label": "Requests una detrás de otra, \\(n\\)", "min": 1, "max": 20, "paso": 1, "valor": 1 }
   ],
   "calculos": [
     { "id": "rtt", "formula": "2 * d * f / 200" },
     { "id": "vueltas", "formula": "n * (1 + c)" }
   ],
   "salidas": [
-    { "label": "RTT por la distancia", "formula": "rtt", "formato": "ms", "decimales": 1, "nota": "ida y vuelta, solo lo que tarda la luz en la fibra por esa ruta" },
-    { "label": "Idas y vueltas que pagan las requests", "formula": "vueltas", "formato": "int", "nota": "1 por request, más 1 por TCP y 1 por TLS si la conexión es nueva" },
-    { "label": "Tiempo de red, como mínimo", "formula": "vueltas * rtt", "formato": "ms", "decimales": 1 },
-    { "label": "Parte de una promesa de 200 ms", "formula": "vueltas * rtt / 200", "formato": "pct", "barra": true, "nota": "más de 100 %: la luz sola ya no cabe" }
+    { "label": "RTT por la distancia", "formula": "rtt", "formato": "ms", "decimales": 1, "nota": "\\(RTT = 2 × d × f ÷ 200\\): ida y vuelta, solo lo que tarda la luz en la fibra por esa ruta" },
+    { "label": "Idas y vueltas que pagan las requests, \\(k\\)", "formula": "vueltas", "formato": "int", "nota": "\\(k = n × (1 + c)\\): 1 por request, más 1 por TCP y 1 por TLS si la conexión es nueva" },
+    { "label": "Tiempo de red, como mínimo, \\(T\\)", "formula": "vueltas * rtt", "formato": "ms", "decimales": 1, "nota": "\\(T = k × RTT\\)" },
+    { "label": "Parte de una promesa de 200 ms", "formula": "vueltas * rtt / 200", "formato": "pct", "barra": true, "nota": "\\(T ÷ 200\\), con \\(T\\) en ms. Más de 100 %: la luz sola ya no cabe" }
   ],
   "nota": "Prueba Madrid con conexión nueva y TLS: 3 idas y vueltas de ≈ 91 ms ya pasan de 270 ms antes de que el servidor haga nada. Luego pon la conexión en 0: reusarla ahorra 2 de cada 3."
 }

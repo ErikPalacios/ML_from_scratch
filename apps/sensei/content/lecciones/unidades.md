@@ -12,7 +12,7 @@ Casi todas las decisiones de un sistema salen de unas pocas cuentas con números
 
 ## Notación científica, órdenes de magnitud y tiempo {Scientific notation, orders of magnitude and time}
 
-En las lecciones anteriores ya aparecieron números así: la ResNet-50 de C01 tiene 24,532,532 [[parametro|parámetros]], la foto entra como 150,528 números, el modelo hace unos 4,100,000,000 de multiplicaciones por foto y C01 recibe 10,000,000 de fotos al día. También hay números diminutos: copiar la foto a la [[gpu|GPU]] tarda 0.00004 segundos. Contar ceros es lento, y un cero de menos es un error de 10 veces.
+Un sistema de ML está lleno de números así. Alba, la empresa que seguimos en todo el curso, es un marketplace en línea: recibe ≈ 2.5 millones de publicaciones nuevas al día y, para cada foto, le sugiere a quien vende la categoría, entre 500 posibles. Su modelo, una ResNet-50, tiene 24,532,532 [[parametro|parámetros]]; la foto entra como 150,528 números; el modelo hace unos 4,100,000,000 de multiplicaciones por foto, y el servicio recibe 10,000,000 de fotos al día (≈ 3 por publicación, más las que piden otros equipos de Alba). También hay números diminutos: copiar la foto a la [[gpu|GPU]] tarda 0.00004 segundos. Contar ceros es lento, y un cero de menos es un error de 10 veces.
 
 ### Una cifra por una potencia de diez
 
@@ -26,17 +26,17 @@ La cifra de adelante se llama **mantisa**, y el número chiquito arriba del 10, 
 
 | Número | En notación científica | Qué es |
 |---|---|---|
-| 10,000,000 | 1 × 10⁷ | fotos al día en C01 |
-| 24,532,532 | ≈ 2.45 × 10⁷ | parámetros de la ResNet-50 de C01 |
+| 10,000,000 | 1 × 10⁷ | fotos al día en Alba |
+| 24,532,532 | ≈ 2.45 × 10⁷ | parámetros de la ResNet-50 de Alba |
 | 4,100,000,000 | 4.1 × 10⁹ | multiplicaciones con su suma ([[mac\|MACs]]) por foto |
 | 86,400 | 8.64 × 10⁴ | segundos en un día |
-| 0.2 | 2 × 10⁻¹ | la promesa de C01, en segundos |
+| 0.2 | 2 × 10⁻¹ | la promesa de Alba, en segundos |
 | 0.00004 | 4 × 10⁻⁵ | copiar la foto a la GPU, en segundos |
 
 La ventaja aparece al hacer cuentas. Para multiplicar, se multiplican las mantisas y se **suman** los exponentes; para dividir, se dividen las mantisas y se **restan**.
 
-:::cuenta Dos cuentas de C01 con potencias de diez
-Logs de un día // 10⁷ fotos, ≈ 300 bytes por cada una | 1 × 10⁷ × 3 × 10² B | 3 × 10⁹ B = 3 GB
+:::cuenta Dos cuentas de Alba con potencias de diez
+Logs de un día // 10⁷ fotos, ≈ 300 bytes de log por cada una | 1 × 10⁷ × 3 × 10² B | 3 × 10⁹ B = 3 GB
 Fotos por segundo // se dividen las mantisas y se restan los exponentes | 1 × 10⁷ ÷ (8.64 × 10⁴ s) = (1 ÷ 8.64) × 10⁷⁻⁴ | ≈ 0.116 × 10³
 Acomodado // con la mantisa entre 1 y 10 | 0.116 × 10³ = 1.16 × 10² | ≈ 116 por segundo
 = Los exponentes se suman o se restan de memoria; solo queda una cuenta chica con las mantisas.
@@ -67,7 +67,7 @@ Para redondear se mira la mantisa: si es menor que √10 ≈ 3.16, el orden es s
 
 Hay otra costumbre: llamar orden de magnitud solo al exponente, sin redondear. Con ella, 86,400 es del orden de 10⁴. Las dos se usan; en esta lección, la potencia más cercana.
 
-¿Por qué importa? Porque en un diseño las decisiones cambian por órdenes de magnitud. La Ronda lo dice así: si te equivocas por 2 veces y la decisión no cambia, no importa; si te equivocas por 10, pasas de «un par de máquinas» a «un cluster». Una [[estimacion|estimación]] de servilleta no busca decimales: busca atinarle al orden de magnitud.
+¿Por qué importa? Porque en un diseño las decisiones cambian por órdenes de magnitud. Dicho de otro modo: si te equivocas por 2 veces y la decisión no cambia, no importa; si te equivocas por 10, pasas de «un par de máquinas» a «un cluster». Una [[estimacion|estimación]] de servilleta no busca decimales: busca atinarle al orden de magnitud.
 
 ### Los prefijos: kilo, mega, giga
 
@@ -79,12 +79,12 @@ Para no escribir la potencia cada vez, el Sistema Internacional de unidades (SI)
 | mega | M | 10⁶ | una foto de 12 MP tiene 12 millones de píxeles |
 | giga | G | 10⁹ | 4.1 GMACs por foto |
 | tera | T | 10¹² | una T4 hace ≈ 65 TFLOPS en float16 |
-| peta | P | 10¹⁵ | un mes del audio sin comprimir de C13: ≈ 1.7 PB |
+| peta | P | 10¹⁵ | un mes de audio sin comprimir de un servicio de subtítulos en vivo: ≈ 1.7 PB |
 | mili | m | 10⁻³ | la promesa de 200 ms |
 | micro | µ | 10⁻⁶ | copiar la foto: 40 µs |
 | nano | n | 10⁻⁹ | leer la RAM: 100 ns |
 
-(El SI escribe el kilo con k minúscula; en computación casi siempre vas a ver KB, y así lo escribe la Ronda.) En ML vas a ver además letras sueltas: «25.6 M parámetros» (la ResNet-50 original, la de 1,000 categorías) son 25.6 millones, «5k fotos» son 5 mil y un LLM «de 8B» tiene 8 *billion*: **8 mil millones**.
+(El SI escribe el kilo con k minúscula; en computación casi siempre vas a ver KB, y así lo escribe este curso.) En ML vas a ver además letras sueltas: «25.6 M parámetros» (la ResNet-50 original, la de 1,000 categorías) son 25.6 millones, «5k fotos» son 5 mil y un LLM «de 8B» tiene 8 *billion*: **8 mil millones**.
 
 :::ojo Un billón no es un billion
 En español, un billón es un millón de millones, 10¹²; en inglés, *billion* es mil millones, 10⁹. Un modelo «de 8B», como Llama 3 8B, tiene ≈ 8 × 10⁹ parámetros: leerlo como «8 billones» es equivocarse por mil. Y *trillion* es nuestro billón.
@@ -94,7 +94,7 @@ En español, un billón es un millón de millones, 10¹²; en inglés, *billion*
 
 El tiempo se mide en segundos, y casi todo lo interesante de una computadora pasa en pedacitos de segundo. Los tres que vas a usar siempre:
 
-- **Milisegundo** ([[ms]]): una milésima de segundo, 10⁻³ s. Es la unidad de la red y de los modelos: la promesa de C01 es que el [[p99]] quede bajo 200 ms, es decir, que 99 de cada 100 requests tarden 200 ms o menos.
+- **Milisegundo** ([[ms]]): una milésima de segundo, 10⁻³ s. Es la unidad de la red y de los modelos: la promesa de Alba es que el [[p99]] quede en 200 ms o menos, es decir, que 99 de cada 100 requests tarden 200 ms o menos.
 - **Microsegundo** (µs): una millonésima, 10⁻⁶ s. La µ es la letra griega «mu»; cuando no se puede escribir, se pone `us`. Es la escala de copiar datos y de leer un disco rápido.
 - **Nanosegundo** (ns): una milmillonésima, 10⁻⁹ s. Es la escala de lo que pasa dentro del chip.
 
@@ -104,11 +104,11 @@ Cada uno es mil veces el siguiente: 1 s = 1,000 ms = 1,000,000 µs = 10⁹ ns. P
 El tiempo en una regla de potencias de diez, del nanosegundo al día. Entre leer la RAM y la promesa de 200 ms hay más de seis marcas: más de un millón de veces.
 :::
 
-La regla muestra lo que los números sueltos esconden: cosas que «son rápidas» pueden estar a miles de veces una de otra. Leer la [[ram|RAM]], la memoria de trabajo de la computadora (≈ 100 ns), contra la promesa de C01 (200 ms) es 0.2 ÷ 10⁻⁷ = 2 × 10⁶: dos millones de veces. Por eso, cuando un servicio tarda, rara vez es por una suma de más en el código: suele ser la espera por la red, el disco o la GPU, que viven varias marcas más abajo.
+La regla muestra lo que los números sueltos esconden: cosas que «son rápidas» pueden estar a miles de veces una de otra. Leer la [[ram|RAM]], la memoria de trabajo de la computadora (≈ 100 ns), contra la promesa de Alba (200 ms) es 0.2 ÷ 10⁻⁷ = 2 × 10⁶: dos millones de veces. Por eso, cuando un servicio tarda, rara vez es por una suma de más en el código: suele ser la espera por la red, el disco o la GPU, que viven varias marcas más abajo.
 
 ### Los números del reloj
 
-Para los números grandes de tiempo, la Ronda usa siempre los mismos:
+Para los números grandes de tiempo, este curso usa siempre los mismos:
 
 :::cuenta Los números del reloj que vas a usar siempre
 Un día | 24 × 60 × 60 | 86,400 s
@@ -119,7 +119,7 @@ Un año // 31,536,000 s | 365 × 86,400 | ≈ 3.15 × 10⁷ s
 = Un día ≈ 10⁵ s, un mes ≈ 2.6 × 10⁶ s y un año ≈ π × 10⁷ s: con tres números redondos sale casi cualquier cuenta de tiempo.
 :::
 
-¿Por qué dos meses? Las nubes dan el precio de sus máquinas por hora, y un mes promedio del año tiene 8,760 ÷ 12 = 730 horas: **costo al mes = precio por hora × 730**. Las promesas de [[disponibilidad]] (qué parte del tiempo funciona bien el servicio), en cambio, suelen contarse en ventanas de 30 días, 43,200 minutos, para que todas las ventanas valgan igual; así las cuenta la Ronda. Entre 730 h y 720 h hay 1.4 %: no cambia ninguna decisión, pero en una misma cuenta se usa uno solo.
+¿Por qué dos meses? Las nubes dan el precio de sus máquinas por hora, y un mes promedio del año tiene 8,760 ÷ 12 = 730 horas: **costo al mes = precio por hora × 730**. Las promesas de [[disponibilidad]] (qué parte del tiempo funciona bien el servicio), en cambio, suelen contarse en ventanas de 30 días, 43,200 minutos, para que todas las ventanas valgan igual; así las cuenta Alba. Entre 730 h y 720 h hay 1.4 %: no cambia ninguna decisión, pero en una misma cuenta se usa uno solo.
 
 :::ojo El atajo, para la cabeza; 86,400, para el número final
 10 M ÷ 10⁵ = 100 req/s, pero el número real es 116: el atajo se queda 13.6 % abajo. Para explorar sirve; para comprar máquinas, usa 86,400.
@@ -153,10 +153,10 @@ Lo que un canal puede mover por segundo es su [[ancho-banda|ancho de banda]]; ti
 Con los bytes pasa lo mismo que con el tiempo: lo que maneja un sistema de ML ocupa 15 órdenes de magnitud.
 
 :::figura unidades-bytes
-Lo que ocupa cada cosa, del byte al petabyte. En verde, las piezas más chicas; en azul, la foto de Ana y su viaje; en ámbar, lo que C01 guarda; en naranja, el modelo y la GPU; en violeta, otros casos de la Ronda.
+Lo que ocupa cada cosa, del byte al petabyte. En verde, las piezas más chicas; en azul, la foto de Ana y su viaje; en ámbar, lo que Alba guarda; en naranja, el modelo y la GPU; en violeta, ejemplos de otros sistemas: el buscador con embeddings y el audio de unos subtítulos en vivo.
 :::
 
-Del log de una predicción (≈ 300 B) a un año de logs de C01 (1.1 TB) hay casi diez marcas: ≈ 3.65 × 10⁹ veces, que son justo las predicciones de un año. Un atajo de la Ronda para estas cuentas: **1 millón de cosas de 1 KB son 1 GB**, porque 10⁶ × 10³ = 10⁹. Con él, 10 M logs de 300 B son 10 × 0.3 = 3 GB sin hacer la cuenta larga.
+Del log de una predicción (≈ 300 B) a un año de logs de Alba (1.1 TB) hay casi diez marcas: ≈ 3.65 × 10⁹ veces, que son justo sus predicciones de un año (10 M al día × 365). Un atajo útil para estas cuentas: **1 millón de cosas de 1 KB son 1 GB**, porque 10⁶ × 10³ = 10⁹. Con él, 10 M logs de 300 B son 10 × 0.3 = 3 GB sin hacer la cuenta larga.
 
 ### KB contra KiB: los dos kilos
 
@@ -179,7 +179,7 @@ Las tres ideas de esta sección. Arriba, un byte por dentro: cada casilla vale e
 ¿Quién usa cuál?
 
 - **Decimal:** los fabricantes de [[disco|discos]], las velocidades de red y macOS (desde 2009).
-- **Binario:** la RAM (un módulo «de 16 GB» trae 16 GiB), AWS al describir la memoria de sus máquinas (una g4dn.xlarge, la máquina con una T4 que usa C01, trae 16 GiB), Windows (que escribe «GB» pero divide entre 2³⁰), `df -h` en Linux, `nvidia-smi` y PyTorch.
+- **Binario:** la RAM (un módulo «de 16 GB» trae 16 GiB), AWS al describir la memoria de sus máquinas (una g4dn.xlarge, la máquina con una T4 que usa Alba, trae 16 GiB), Windows (que escribe «GB» pero divide entre 2³⁰), `df -h` en Linux, `nvidia-smi` y PyTorch.
 
 :::cuenta Un disco de 1 TB, visto por Windows
 Lo que vende el fabricante | 1 TB = 10¹² bytes | 1,000,000,000,000 B
@@ -202,7 +202,7 @@ KiB, MiB, GiB, TiB = 2**10, 2**20, 2**30, 2**40   # binarios (IEC)
 disco = 1 * TB
 print(f"1 TB = {disco:,} bytes = {disco / GiB:.1f} GiB = {disco / TiB:.3f} TiB")
 
-tensor = 3 * 224 * 224 * 4          # la foto de C01 en float32
+tensor = 3 * 224 * 224 * 4          # la foto de Alba en float32
 print(f"tensor: {tensor:,} B = {tensor / KB:.0f} KB = {tensor / KiB:.0f} KiB")
 print(f"        {tensor * 8:,} bits")
 
@@ -234,15 +234,22 @@ Entre las dos hay un 8. Lo primero en cualquier cuenta es pasar todo a la misma 
 
 El tiempo de mandar algo es **su tamaño entre el ancho de banda**, con las unidades parejas.
 
-:::ejemplo La imagen de Triton y los pesos del modelo
-La imagen de Docker del servidor Triton (el paquete de su [[contenedor]]) pesa del orden de 10 GB comprimida, que es como viaja (el Dojo la menciona en la estación 7). Por una red de 1 Gb/s: 10 GB × 8 = 80 Gb, y 80 Gb ÷ 1 Gb/s = **80 s**. Por una de 10 Gb/s, 8 s. Es parte de por qué una máquina nueva tarda en estar lista: antes de responder la primera foto tiene que bajar esos bytes.
-
-Los pesos de la ResNet-50 de C01 en float32 son ≈ 98 MB. Por la red de 1 Gb/s tardan ≈ 0.8 s; por [[pcie|PCIe]], el bus que une la CPU con la GPU (≈ 16 GB/s), ≈ 6 ms; leídos de la [[vram|VRAM]] de una T4 (320 GB/s), ≈ 0.3 ms.
+:::formula Tiempo de transferencia
+t = frac{S}{B}
+- S: el tamaño de lo que mandas, en bits o en bytes
+- B: el ancho de banda del canal, en la **misma** unidad por segundo: si \(B\) está en Gb/s, pasa \(S\) a gigabits (× 8 si venía en bytes)
+- t: cuánto tarda en pasar todo, en segundos, en el mejor caso
 :::
 
-Cada canal vive en otro orden de magnitud. En la tabla hay dos máquinas de AWS: la c6i.xlarge, sin GPU, es la del gateway de C01, y la g4dn.xlarge trae la T4. «Sostenida» es lo que aguantan todo el tiempo; el «hasta» del catálogo es varias veces más, pero solo dura un rato (de 5 a 60 minutos, según la Ronda). El tensor de 602 KB de C01, por cada canal:
+:::ejemplo La imagen de Triton y los pesos del modelo
+La imagen de Docker del servidor Triton (el paquete de su [[contenedor]]) pesa del orden de 10 GB comprimida, que es como viaja. Por una red de 1 Gb/s: \(S\) = 10 GB × 8 = 80 Gb, y \(t = S/B\) = 80 Gb ÷ 1 Gb/s = **80 s**. Por una de 10 Gb/s, 80 ÷ 10 = 8 s. Es parte de por qué una máquina nueva tarda en estar lista: antes de responder la primera foto tiene que bajar esos bytes.
 
-| Canal | Ancho de banda | Mover 602 KB |
+Los pesos de la ResNet-50 de Alba en float32 son ≈ 98 MB (24.5 M parámetros × 4 bytes). Por la red de 1 Gb/s: 98 MB × 8 = 784 Mb, y 784 Mb ÷ 1,000 Mb/s ≈ 0.8 s. Por [[pcie|PCIe]], el bus que une la CPU con la GPU (≈ 16 GB/s): 98 MB ÷ 16,000 MB/s ≈ 6 ms. Leídos de la [[vram|VRAM]] de una T4 (320 GB/s): 98 MB ÷ 320,000 MB/s ≈ 0.3 ms.
+:::
+
+Cada canal vive en otro orden de magnitud. En la tabla hay dos máquinas de AWS: la c6i.xlarge, sin GPU, es la del gateway de Alba, y la g4dn.xlarge trae la T4. «Sostenida» es lo que aguantan todo el tiempo; el «hasta» del catálogo es varias veces más, pero solo dura un rato (de 5 a 60 minutos, según el tamaño de la máquina). El tensor de 602 KB de Alba (4.8 Mb), por cada canal, con \(t = S/B\):
+
+| Canal | Ancho de banda \(B\) | Mover 602 KB: \(t = S/B\) |
 |---|---|---|
 | La subida de un celular (un ejemplo) | 10 Mb/s | ≈ 0.48 s |
 | La red de una c6i.xlarge, sostenida | ≈ 1.56 Gb/s | ≈ 3.1 ms |
@@ -251,7 +258,7 @@ Cada canal vive en otro orden de magnitud. En la tabla hay dos máquinas de AWS:
 | La VRAM de una T4 | 320 GB/s | ≈ 1.9 µs |
 | La VRAM de una H100 | 3.35 TB/s | ≈ 0.18 µs |
 
-Del celular a la memoria de una H100 hay más de seis órdenes de magnitud. Los números de las máquinas son los que usa la Ronda (de las tablas de AWS y de NVIDIA); la memoria de la GPU tiene su propia historia en «Matrices, FLOPs y qué tan rápido calcula una GPU» ([[ancho-banda-memoria]]).
+Del celular a la memoria de una H100 hay más de seis órdenes de magnitud. Los números de las máquinas salen de las tablas de AWS y de NVIDIA; la memoria de la GPU tiene su propia historia en «Matrices, FLOPs y qué tan rápido calcula una GPU» ([[ancho-banda-memoria]]).
 
 ### Ancho de banda no es latencia
 
@@ -261,29 +268,29 @@ Imagina una camioneta con 100 discos duros de 20 TB que maneja 10 horas hasta ot
 **Dónde se rompe:** una red manda un flujo continuo y el primer byte llega en milisegundos; la camioneta es todo o nada. Pero la idea sirve: el ancho de banda dice cuánto cabe por segundo y la latencia, cuánto tarda en llegar lo primero. Son dos números distintos, y un canal puede tener uno bueno y el otro malo.
 :::
 
-La latencia tiene además un piso físico. En 1 ns la luz avanza unos 30 cm, y dentro de una fibra óptica, unos 20: 100 km de fibra son ≈ 0.5 ms de ida y otro tanto de vuelta. La Ronda usa la regla de **≥ 1 ms de ida y vuelta por cada 100 km**. Más ancho de banda no la baja; solo acercarse.
+La latencia tiene además un piso físico. En 1 ns la luz avanza unos 30 cm, y dentro de una fibra óptica, unos 20: 100 km de fibra son ≈ 0.5 ms de ida y otro tanto de vuelta. De ahí sale una regla práctica: **≥ 1 ms de ida y vuelta por cada 100 km**. Más ancho de banda no la baja; solo acercarse.
 
-### La red de C01
+### La red de Alba
 
-En la entrevista, la cuenta de la red no va en los primeros cinco minutos: la Ronda la deja para cuando el entrevistador pide profundizar. Pero es la que distingue a quien la hace.
+En una entrevista de diseño, la cuenta de la red no va en los primeros cinco minutos: se deja para cuando el entrevistador pide profundizar. Pero es la que distingue a quien la hace. El ancho de banda que hace falta es \(B = R × S\): cuántas cosas pasan por segundo, \(R\), por lo que pesa cada una, \(S\).
 
-:::cuenta Lo que viaja del gateway a las GPUs en C01
-Tensor por foto // 150,528 números en float32 | 150,528 × 4 B | 602,112 B ≈ 602 KB
-En el pico de diseño | 602 KB × 500 por segundo | ≈ 301 MB/s
+:::cuenta Lo que viaja del gateway a las GPUs en Alba
+Tensor por foto, \(S\) // 150,528 números en float32 | 150,528 × 4 B | 602,112 B ≈ 602 KB
+En el pico de diseño // \(R\) = 500 fotos por segundo, el tráfico para el que Alba compra máquinas (de dónde sale, más abajo) | \(B = R × S\) = 500 × 602 KB | ≈ 301 MB/s
 En bits por segundo | 301 MB/s × 8 | ≈ 2.4 Gb/s
-Por nodo del gateway // la Ronda pone dos | 2.4 ÷ 2 | ≈ 1.2 Gb/s
-Contra lo que sostiene una c6i.xlarge | 1.2 ÷ 1.56 | ≈ 77 %
+Por nodo del gateway // Alba tiene dos, uno en cada zona | 2.4 ÷ 2 | ≈ 1.2 Gb/s
+Contra lo que sostiene una c6i.xlarge // ≈ 1.56 Gb/s, de la tabla de arriba | 1.2 ÷ 1.56 | ≈ 77 %
 Mandando uint8 en vez de float32 // 1 byte por número: 4 veces menos | 2.4 ÷ 4 | ≈ 0.6 Gb/s
-= En el gateway, la red se aprieta antes que la CPU, que en cada nodo va al ≈ 40 %. Mandar la foto en uint8 y normalizar ya dentro del modelo divide el tráfico entre 4.
+= En el gateway, la red se aprieta antes que la CPU, que en cada nodo va al ≈ 40 % (500 fotos/s × ≈ 0.006 s de CPU por foto = 3 [[vcpu|vCPU]] ocupados, de los 8 que suman sus dos nodos: 3 ÷ 8 = 37.5 %). Mandar la foto en uint8 y normalizar ya dentro del modelo divide el tráfico entre 4.
 :::
 
-Los bytes también cuestan dinero. En un mes viajan 602 KB × 10 M × 30 ≈ 180 TB de tensores. En AWS, pasar datos de una zona a otra cuesta ≈ US$0.01 por GB en cada sentido; si la mitad de ese tráfico cruzara de zona, serían ≈ 90 TB × US$0.02 ≈ **US$1,800 al mes**, más que las dos GPUs. Por eso la Ronda manda cada request a la GPU de su misma zona.
+Los bytes también cuestan dinero. En un mes de costos (30.4 días) viajan 602 KB × 10 M × 30.4 ≈ 183 TB de tensores. En AWS, pasar datos de una zona a otra cuesta ≈ US$0.01 por GB en cada sentido; si la mitad de ese tráfico cruzara de zona, serían ≈ 91,500 GB × US$0.02 ≈ **US$1,830 al mes**, más que las dos GPUs (≈ US$768). Por eso Alba manda cada request a la GPU de su misma zona.
 
 :::diagrama unidades-viaje
 Toca cada caja para ver sus números y usa «Recorrer» para seguir la foto. Cada tramo tiene su unidad: KB y Mb/s afuera, Gb/s en la red interna, GB/s y µs hacia la GPU, ms en el cálculo.
 :::
 
-El video es el caso extremo. Las cámaras de C02 mandan 1080p a 15 [[fps]]. Un cuadro sin comprimir pesa 1,920 × 1,080 × 3 ≈ 6.2 MB; 15 por segundo son ≈ 93 MB/s, ≈ 0.75 Gb/s por cámara. Comprimido con H.264, el formato más común, viaja a ≈ 4 Mb/s: unas 190 veces menos. Por eso el video viaja comprimido y se descomprime junto al modelo.
+El video es el caso extremo. Piensa en un sistema de video en tiempo real, con cámaras que mandan 1080p a 15 [[fps]] (supuesto del ejemplo). Un cuadro sin comprimir pesa 1,920 × 1,080 × 3 ≈ 6.2 MB; 15 por segundo son ≈ 93 MB/s, ≈ 0.75 Gb/s por cámara. Comprimido con H.264, el formato más común, viaja a ≈ 4 Mb/s: unas 190 veces menos. Por eso el video viaja comprimido y se descomprime junto al modelo.
 
 ## De eventos por día a requests por segundo {From events per day to requests per second}
 
@@ -293,34 +300,46 @@ Los negocios hablan por día («recibimos 10 millones de fotos al día»); las m
 
 El [[throughput]] es cuánto trabajo termina un sistema por unidad de tiempo: requests por segundo, fotos por segundo, tokens por segundo. No es lo mismo que la [[latencia]], que es cuánto tarda **una** request: un servicio puede atender 500 por segundo aunque cada una tarde 50 ms, porque atiende muchas a la vez.
 
-Para un servicio que responde requests, el throughput se dice en **req/s** o [[qps|QPS]] (*queries per second*, consultas por segundo; el nombre viene de los buscadores). La cuenta base es una división:
-
-**req/s de promedio = eventos al día ÷ 86,400**
+Para un servicio que responde requests, el throughput se dice en **req/s** o [[qps|QPS]] (*queries per second*, consultas por segundo; el nombre viene de los buscadores). La cuenta base es una división: \(R_{prom} = E ÷ 86,400\), los eventos al día \(E\) entre los segundos de un día.
 
 Un número para memorizar: **1 millón al día ≈ 11.6 por segundo** (10⁶ ÷ 86,400 = 11.57). Con él, 10 M al día son ≈ 116 por segundo y 100 M, ≈ 1,157. «Un millón al día» suena a muchísimo; «doce por segundo», a poco. Las dos frases dicen lo mismo.
 
 ### El promedio esconde el pico
 
-Nadie sube fotos a las 4 de la mañana como a las 8 de la noche. Si C01 recibiera sus 10 millones parejos, llegarían 116 por segundo a toda hora. No es así:
+Nadie sube fotos a las 4 de la mañana como a las 8 de la noche. Si Alba recibiera sus 10 millones de fotos al día parejas, llegarían 116 por segundo a toda hora. No es así:
 
 :::figura unidades-dia
-Un día ilustrativo de C01: cada barra es una hora. Entre todas suman los 10 M de fotos; la más alta, a las 20 h, lleva 1/8 del día.
+Un día ilustrativo de Alba: cada barra es una hora. Entre todas suman los 10 M de fotos; la más alta, a las 20 h, lleva 1/8 del día.
 :::
 
 El [[factor-pico|factor de pico]] (*peak factor*) es el pico dividido entre el [[promedio]]: cuántas veces el promedio llega en el momento de más tráfico. Hay una forma sencilla de estimarlo: si la hora pico lleva una fracción *f* del tráfico del día, el factor es **24 × f**. Con 1/8 (12.5 %), 24 × 1/8 = 3. Con 10 %, 2.4; con 20 %, 4.8. En apps que usan personas en una sola zona horaria suele estar entre 2 y 5; en un proceso automático que trabaja parejo día y noche, cerca de 1.
 
-Al pico se le agrega un **margen de diseño** (de 1.3 a 1.5 veces) para lo que no sabes: picos de unos minutos, crecimiento del negocio, el error de tu propia estimación. El resultado se redondea hacia arriba a un número fácil de decir. Ese es el **pico de diseño**, para el que se compran las máquinas.
+Al pico se le agrega un **margen de diseño** (de 1.3 a 1.5 veces) para lo que no sabes: picos de unos minutos, crecimiento del negocio, el error de tu propia estimación. El resultado se redondea hacia arriba a un número fácil de decir. Ese es el **pico de diseño**, para el que se compran las máquinas. Las tres cuentas juntas:
 
-:::cuenta De fotos al día a pico de diseño en C01
-Promedio | 10,000,000 ÷ 86,400 s | ≈ 116 req/s
-Factor de pico // supuesto: la hora pico lleva 1/8 del día | 24 × 1/8 | 3
-Pico | 116 × 3 | ≈ 350 req/s
-Pico de diseño // con margen y redondeado hacia arriba | 350 × ≈ 1.4 ≈ 490 | 500 req/s
-= C01 se diseña para 500 req/s. El promedio de 116 es el que paga la factura: lo que se cobra por volumen (logs, red, cada predicción) sigue al promedio, y la mayor parte del día las máquinas trabajan muy por debajo de lo que pueden.
+:::formula Del día al pico de diseño
+R_{prom} = frac{E}{86,400}
+k = 24 × f
+R_{pico} = k × R_{prom}
+R_{diseño} = m × R_{pico}
+- E: los eventos (fotos, requests) que llegan en un día
+- R_{prom}: el promedio, en req/s; 86,400 son los segundos de un día
+- f: la fracción del tráfico del día que llega en la hora pico: 1/8 si esa hora lleva 12.5 %
+- k: el factor de pico, cuántas veces el promedio llega en la hora pico (24 horas × \(f\))
+- R_{pico}: el pico de un día normal, en req/s
+- m: el margen de diseño, de 1.3 a 1.5
+- R_{diseño}: el pico de diseño, en req/s: un número redondo, hacia arriba
+:::
+
+:::cuenta De fotos al día a pico de diseño en Alba
+Promedio \(R_{prom}\) // \(E\) = 10 M fotos al día, dato de Alba | \(E ÷ 86,400\) = 10,000,000 ÷ 86,400 | ≈ 116 req/s
+Factor de pico \(k\) // supuesto: la hora pico lleva \(f\) = 1/8 del día | \(24 × f\) = 24 × 1/8 | 3
+Pico \(R_{pico}\) | \(k × R_{prom}\) = 3 × 116 | ≈ 350 req/s
+Pico de diseño \(R_{diseño}\) // margen \(m\) ≈ 1.4, y hacia arriba a un número redondo | \(m × R_{pico}\) = 1.4 × 350 ≈ 490 | 500 req/s
+= Alba diseña su sistema para 500 req/s. El promedio de 116 es el que paga la factura: lo que se cobra por volumen (logs, red, cada predicción) sigue al promedio, y la mayor parte del día las máquinas trabajan muy por debajo de lo que pueden.
 :::
 
 :::calculadora unidades-por-dia
-Pon factor 1 y margen 1.3: el tráfico parejo de un proceso automático. Después prueba 50 millones al día con factor 3: las búsquedas de C07, ≈ 1,750 por segundo en el pico.
+Pon factor 1 y margen 1.3: el tráfico parejo de un proceso automático. Después prueba 50 millones al día con factor 3: las de un buscador con 50 M de búsquedas al día (supuesto del ejemplo), ≈ 1,740 por segundo en el pico.
 :::
 
 ## Cuántas máquinas y cuánto cuestan {How many machines, and what they cost}
@@ -329,13 +348,21 @@ Con el pico de diseño ya se pueden contar máquinas. Hacen falta dos números m
 
 ### Capacidad medida y utilización objetivo
 
-La **capacidad** de una máquina es cuántas requests por segundo aguanta cumpliendo la promesa de latencia. No se adivina: se mide con una **prueba de carga** (*load test*), mandándole cada vez más tráfico hasta que la latencia se pasa del límite. Para una T4 que sirve la ResNet-50 de C01 ya optimizada, la Ronda usa ≈ 1,200 fotos por segundo. En una entrevista es una estimación; en el trabajo, es lo primero que se mide.
+La **capacidad** de una máquina es cuántas requests por segundo aguanta cumpliendo la promesa de latencia. No se adivina: se mide con una **prueba de carga** (*load test*), mandándole cada vez más tráfico hasta que la latencia se pasa del límite. Para una T4 que sirve la ResNet-50 de Alba ya optimizada, el equipo de Alba midió ≈ 1,200 fotos por segundo. En una entrevista es una estimación; en el trabajo, es lo primero que se mide.
 
-Además, no se planea al 100 %. Cerca del límite, las requests empiezan a esperar en cola y la latencia se dispara; y si llega un pico, hace falta aire mientras se encienden más máquinas. Por eso se fija una **utilización objetivo** de ≈ 50 a 70 %. C01 planea al 50 %: cada T4 cuenta por 1,200 × 0.5 = **600** fotos por segundo.
+Además, no se planea al 100 %. Cerca del límite, las requests empiezan a esperar en cola y la latencia se dispara; y si llega un pico, hace falta aire mientras se encienden más máquinas. Por eso se fija una **utilización objetivo** de ≈ 50 a 70 %. Alba planea al 50 %: cada T4 cuenta por 1,200 × 0.5 = **600** fotos por segundo.
 
 ### Siempre hacia arriba, y una de repuesto
 
-**máquinas = ⌈pico de diseño ÷ (capacidad medida × utilización)⌉ + repuesto**
+:::formula Cuántas máquinas
+M = ⌈frac{R_{diseño}}{c × u}⌉ + s
+- R_{diseño}: el pico de diseño, en req/s
+- c: la capacidad **medida** de una máquina, en req/s (de la prueba de carga)
+- u: la utilización objetivo, como fracción: 0.5 para 50 %
+- c × u: la capacidad planeada de cada máquina, en req/s
+- s: las máquinas de repuesto: 1 para N+1
+- M: las máquinas que pides, en total
+:::
 
 Los corchetes ⌈ ⌉ quieren decir [[ceil|redondear hacia arriba]]: ⌈0.83⌉ = 1 y ⌈2.1⌉ = 3. Media máquina no existe, y la fracción que falta es tráfico sin atender. El repuesto es **N+1**: si necesitas N máquinas, pones una más, en otra zona de disponibilidad (otro centro de datos de la misma región, a algunos kilómetros del primero), para que la caída de una no se note. Es la forma más simple de [[redundancia]].
 
@@ -360,19 +387,19 @@ print(round(2.5), round(3.5))            # ¡ojo!: round va al par más cercano
 2 4
 ```
 
-`floor` (hacia abajo) daría cero máquinas para C01. `round` (al más cercano) acierta con 0.83, pero con 2.08 pide 2 cuando hacen falta 3, y con 2.5 da 2, porque Python redondea los empates al número par. Para capacidad, solo `math.ceil`.
+`floor` (hacia abajo) daría cero máquinas para Alba. `round` (al más cercano) acierta con 0.83, pero con 2.08 pide 2 cuando hacen falta 3, y con 2.5 da 2, porque Python redondea los empates al número par. Para capacidad, solo `math.ceil`.
 
 ### El costo al mes
 
-Las nubes dan el precio de las máquinas por hora (aunque muchas cobran por segundo), así que el costo de tenerlas encendidas todo el mes es **máquinas × precio por hora × 730**.
+Las nubes dan el precio de las máquinas por hora (aunque muchas cobran por segundo), así que el costo de tenerlas encendidas todo el mes es \(G = M × h × 730\): las máquinas \(M\), por el precio por máquina y hora \(h\) en US$, por las 730 horas de un mes. \(G\) sale en US$ al mes.
 
-:::cuenta Cuántas T4 necesita C01, y cuánto cuestan
-Capacidad planeada por T4 | 1,200 × 0.5 | 600 fotos/s
-Por tráfico | ⌈500 ÷ 600⌉ = ⌈0.83⌉ | 1
-Con repuesto // N+1, una en cada zona | 1 + 1 | 2 T4
-Una, todo el mes // precio de lista aproximado de una g4dn.xlarge (on demand, en us-east-1) | US$0.526 × 730 h | ≈ US$384
-Las dos | 2 × US$384 | ≈ US$768 al mes
-Carga promedio de cada una // contra su máximo medido | (116 ÷ 2) ÷ 1,200 | ≈ 5 %
+:::cuenta Cuántas T4 necesita Alba, y cuánto cuestan
+Capacidad planeada por T4 \(c × u\) // \(c\) = 1,200 fotos/s medidas, \(u\) = 0.5 | 1,200 × 0.5 | 600 fotos/s
+Por tráfico // \(R_{diseño}\) = 500 req/s, de la cuenta de arriba | \(⌈R_{diseño} ÷ (c × u)⌉\) = ⌈500 ÷ 600⌉ = ⌈0.83⌉ | 1
+Con repuesto, \(M\) // \(s\) = 1: N+1, una en cada zona | 1 + 1 | 2 T4
+Una, todo el mes // \(h\) = US$0.526: precio de lista aproximado de una g4dn.xlarge (on demand, en us-east-1) | \(h × 730\) = US$0.526 × 730 h | ≈ US$384
+Las dos, \(G\) | \(G = M × h × 730\) = 2 × US$384 | ≈ US$768 al mes
+Carga promedio de cada una // \(R_{prom}\) = 116 req/s repartidas entre las 2, contra su máximo medido \(c\) | \((R_{prom} ÷ M) ÷ c\) = (116 ÷ 2) ÷ 1,200 | ≈ 5 %
 = Una GPU alcanza para el tráfico; la segunda la pide la disponibilidad. Y en promedio las dos trabajan al 5 %: es la primera pregunta de costo que te van a hacer.
 :::
 
@@ -388,73 +415,78 @@ Los porcentajes están en todas partes: la utilización de una GPU, la accuracy 
 
 ### Por ciento: siempre «de qué»
 
-Un por ciento es una parte de cien, y siempre es parte de algo. «Cada GPU de C01 trabaja al 5 %» es cierto contra su máximo medido (58 de 1,200 fotos por segundo); contra la capacidad planeada (600) es ≈ 10 %. Un porcentaje sin su base no dice nada.
+Un por ciento es una parte de cien, y siempre es parte de algo. «Cada GPU de Alba trabaja al 5 %» es cierto contra su máximo medido (58 de 1,200 fotos por segundo: sus 116 de promedio entre 2 GPUs); contra la capacidad planeada (600) es ≈ 10 %. Un porcentaje sin su base no dice nada.
 
 ### Puntos porcentuales
 
 Cuando un porcentaje cambia, hay dos maneras de decir cuánto:
 
-- **La resta:** de 85 % a 87 % son **2 [[punto-porcentual|puntos porcentuales]]** (*percentage points*, pp).
-- **El cambio relativo:** 2 ÷ 85 ≈ **2.4 %** más.
+- **La resta:** \(p_2 − p_1\), si el porcentaje pasa de \(p_1\) a \(p_2\). De 85 % a 87 % son 87 − 85 = **2 [[punto-porcentual|puntos porcentuales]]** (*percentage points*, pp).
+- **El cambio relativo:** \((p_2 − p_1)/p_1\). 2 ÷ 85 ≈ **2.4 %** más.
 
-Y si miras los errores, que son los que sufre quien recibe una sugerencia mala, bajaron de 15 % a 13 %: 2 ÷ 15 ≈ **13 % menos**. El mismo cambio, tres números distintos. Ninguno está mal; lo malo es no decir cuál.
+Y si miras los errores, que son los que sufre quien recibe una sugerencia mala, bajaron de 100 − 85 = 15 % a 100 − 87 = 13 %: con la misma cuenta relativa, 2 ÷ 15 ≈ **13 % menos**. El mismo cambio, tres números distintos. Ninguno está mal; lo malo es no decir cuál.
 
-El gate de C01 está escrito en puntos: el modelo nuevo no puede quedar más de 0.3 puntos abajo del actual en el [[golden-set|golden set]]. Si el actual saca 96 % de top-5, el nuevo pasa con 95.7 % y no pasa con 95.6 %. Si alguien lo leyera como «0.3 % de 96», el límite sería 95.712: otra regla.
+El gate de Alba, el examen que tiene que pasar un modelo nuevo antes de salir, está escrito en puntos: el modelo nuevo no puede quedar más de 0.3 puntos abajo del actual en el [[golden-set|golden set]]. Si el actual saca 96 % de top-5, el nuevo pasa con 95.7 % y no pasa con 95.6 %. Si alguien lo leyera como «0.3 % de 96», el límite sería 95.712: otra regla.
 
 ### Los nueves
 
 La [[disponibilidad]] es el porcentaje del tiempo (o de las requests) en que el servicio funciona bien. Se dice en «[[nueves]]»: 99.9 % son «tres nueves». La cuenta de cuánto puede fallar es:
 
-**caída permitida = (1 − disponibilidad) × duración de la ventana**
+:::formula Caída permitida
+D = (1 − A) × T
+- A: la disponibilidad prometida, como fracción: 0.999 para 99.9 %
+- T: la duración de la ventana, en minutos (o en requests, si la promesa se cuenta en requests)
+- D: lo que el servicio puede fallar en esa ventana, en la misma unidad que \(T\)
+:::
 
 :::cuenta Cuánta caída permite cada nueve en un mes de 30 días
-La ventana | 30 × 24 × 60 | 43,200 min
-99 % // dos nueves | 0.01 × 43,200 | 432 min = 7.2 h
-99.9 % // tres nueves, la promesa de C01 | 0.001 × 43,200 | 43.2 min
+La ventana \(T\) | 30 × 24 × 60 | 43,200 min
+99 % // dos nueves: \(1 − A\) = 0.01 | \(D = (1 − A) × T\) = 0.01 × 43,200 | 432 min = 7.2 h
+99.9 % // tres nueves, la promesa de Alba | 0.001 × 43,200 | 43.2 min
 99.99 % // cuatro nueves | 0.0001 × 43,200 | ≈ 4.3 min
 = De 99.9 % a 99.99 % son solo 0.09 puntos porcentuales, pero el margen para fallar se divide entre 10. Cada nueve de más deja 10 veces menos aire.
 :::
 
-Si tomas el mes de 730 h, como M01, salen 7.3 h, 43.8 min y 4.4 min: es la diferencia de 1.4 % entre los dos meses, no un error.
+Si tomas el mes de 730 h, el de los costos, \(T\) = 43,800 min y salen 7.3 h, 43.8 min y 4.4 min: es la diferencia de 1.4 % entre los dos meses, no un error.
 
-Contada en requests, la promesa de C01 deja fallar 0.1 % de ≈ 300 M al mes: 300,000 fotos sin sugerencia, que reciben el selector de categorías. Ese presupuesto para fallar se llama [[error-budget|error budget]].
+Contada en requests, la promesa de Alba deja fallar 0.1 % de ≈ 300 M al mes (10 M al día × 30 días): \(D\) = 0.001 × 300 M = 300,000 fotos sin sugerencia, que reciben el selector de categorías. Ese presupuesto para fallar se llama [[error-budget|error budget]].
 
 ### Veces, «por ciento más» y el interés compuesto
 
 - **«3 veces el promedio»** es multiplicar por 3. **«300 % más»** es sumarle el 300 %: multiplicar por 4. En español, «tres veces más» se usa para las dos cosas; para no dudar, di «el triple» o «× 3».
-- **Crecer 10 % al mes** no es crecer 120 % en un año. Cada mes crece sobre lo que ya creció: 1.1¹² ≈ 3.14 veces, no 2.2. Un atajo, la **regla del 72**: algo que crece g % por periodo se duplica cada ≈ 72 ÷ g periodos. Con 10 % al mes, cada ≈ 7.2 meses.
+- **Crecer 10 % al mes** no es crecer 120 % en un año. Cada mes crece sobre lo que ya creció: \((1 + g)^n\) con \(g\) = 0.10 y \(n\) = 12 meses, 1.1¹² ≈ 3.14 veces, no 2.2. Un atajo, la **regla del 72**: algo que crece g % por periodo se duplica cada ≈ 72 ÷ g periodos. Con 10 % al mes, cada ≈ 7.2 meses.
 
-## C01 en una servilleta: la estimación completa {C01 on a napkin: the full estimate}
+## Alba en una servilleta: la estimación completa {Alba on a napkin: the full estimate}
 
-Ya tienes todas las piezas. En una entrevista de diseño, el paso 3 de la Ronda son estas cuentas: cinco minutos, números redondos y una decisión por número. Esta es la de C01.
+Ya tienes todas las piezas. En una entrevista de diseño, uno de los primeros pasos son estas cuentas: cinco minutos, números redondos y una decisión por número. Esta es la de Alba, con las letras de las fórmulas de arriba.
 
 :::pasos
 1. Escribe lo que te dan y lo que supones
-≈ 2.5 M publicaciones × ≈ 3 fotos, más lo que piden otros equipos: ≈ 10 M fotos al día, una por request. Dilo en voz alta: es un supuesto.
+≈ 2.5 M publicaciones × ≈ 3 fotos = 7.5 M, más ≈ 2.5 M que piden otros equipos (moderación, búsqueda): \(E\) ≈ 10 M fotos al día, una por request. Dilo en voz alta: es un supuesto.
 2. Pásalo a por segundo
-10,000,000 ÷ 86,400 ≈ 116 req/s de promedio.
+\(R_{prom} = E ÷ 86,400\) = 10,000,000 ÷ 86,400 ≈ 116 req/s de promedio.
 3. Del promedio al pico y al diseño
-× 3 por la hora pico ≈ 350 req/s; × ≈ 1.4 y hacia arriba: 500 req/s.
+\(R_{pico} = k × R_{prom}\) = 3 × 116 ≈ 350 req/s, con \(k\) = 24 × 1/8 = 3 si la hora pico lleva 1/8 del día. \(R_{diseño} = m × R_{pico}\) = 1.4 × 350 ≈ 490, y hacia arriba: 500 req/s.
 4. Cuenta las máquinas
-⌈500 ÷ (1,200 × 0.5)⌉ + 1 = 2 T4.
+\(M = ⌈R_{diseño} ÷ (c × u)⌉ + s\) = ⌈500 ÷ (1,200 × 0.5)⌉ + 1 = 1 + 1 = 2 T4.
 5. Revisa que el modelo quepa
-24.5 M parámetros × 2 bytes en float16 ≈ 49 MB, en una GPU de 16 GB: sobra.
+Pesos = parámetros × bytes por número: 24.5 M × 2 bytes en float16 ≈ 49 MB, en una GPU de 16 GB: sobra.
 6. Ponle precio
-2 × US$0.526 la hora × 730 h ≈ US$768 al mes de GPUs.
+\(G = M × h × 730\) = 2 × US$0.526 la hora × 730 h ≈ US$768 al mes de GPUs.
 7. Cuenta lo que se queda guardado
-300 B de log × 10 M = 3 GB al día, ≈ 1.1 TB al año. Las fotos serían 10 M × 200 KB = 2 TB **al día**: por eso se guarda solo una referencia a cada una.
+Log al día = \(E\) × bytes por log = 10 M × 300 B = 3 GB al día; × 365 ≈ 1.1 TB al año. Las fotos serían 10 M × 200 KB = 2 TB **al día**: por eso se guarda solo una referencia a cada una.
 :::
 
 :::diagrama unidades-estimacion
 Toca cada caja para ver de dónde sale su número y usa «Recorrer» para hacer la servilleta paso a paso. Cada flecha es una multiplicación o una división.
 :::
 
-La misma servilleta en Python, con los números de la Ronda:
+La misma servilleta en Python, con los números de Alba:
 
 ```python
 import math
 
-# La servilleta de C01, con los números de la Ronda
+# La servilleta de Alba
 fotos_dia = 10_000_000               # ≈ 2.5 M publicaciones × 3 fotos + otros equipos
 promedio  = fotos_dia / 86_400       # req/s
 pico      = promedio * 3             # la hora pico lleva 1/8 del día
@@ -492,7 +524,7 @@ Lo que depende del hardware (las 1,200 fotos por segundo) o del negocio (el fact
 
 ## Estimar lo que no sabes {Estimating what you don't know} [extra]
 
-En C01 te dieron el dato del negocio: 2.5 M publicaciones al día. Muchas veces no te lo dan, o llega en otra forma. Cuatro herramientas para esos casos.
+En la servilleta de Alba, el dato del negocio venía dado: 2.5 M publicaciones al día. Muchas veces no te lo dan, o llega en otra forma. Cuatro herramientas para esos casos.
 
 ### Que las unidades hagan la cuenta
 
@@ -502,7 +534,7 @@ Las unidades se multiplican y se cancelan como si fueran números. Si escribes c
 - US$/h × h/mes = US$/mes.
 - Si te sale «fotos × segundos», multiplicaste donde ibas a dividir.
 
-Un ejemplo con C07: entran ≈ 2.5 M publicaciones nuevas al día, salen más o menos las mismas, y hay ≈ 100 M activas. ¿Cuánto vive una publicación? Las unidades lo dicen: publicaciones ÷ (publicaciones/día) = días. 100 M ÷ 2.5 M por día = **40 días** en promedio. Es la cuenta que la Ronda llama ley de Little (M03), con otros nombres.
+Un ejemplo con el catálogo de Alba: entran ≈ 2.5 M publicaciones nuevas al día, salen más o menos las mismas, y hay ≈ 100 M activas. ¿Cuánto vive una publicación? Las unidades lo dicen: publicaciones ÷ (publicaciones/día) = días. \(W = L ÷ λ\), con \(L\) = 100 M activas (lo que hay adentro) y \(λ\) (la letra griega lambda) = 2.5 M que entran por día: \(W\) = **40 días** en promedio. A esta relación, \(L = λ × W\) (lo que hay adentro = lo que entra por unidad de tiempo × cuánto se queda cada uno), se le llama **[[ley-little|ley de Little]]**.
 
 ### Partir lo que no sabes en factores
 
@@ -515,9 +547,9 @@ Supuestos, cada uno dicho en voz alta:
 
 - Habitantes: ≈ 130 millones. Con celular y cámara, digamos **100 M**.
 - Fotos por persona al día: entre 1 y 10, así que √(1 × 10) ≈ **3**.
-- Peso de una foto original de celular: **≈ 3 MB**, como los originales web de C01.
+- Peso de una foto original de celular: **≈ 3 MB**, como la foto de 12 megapíxeles que Ana toma antes de que la app de Alba la achique.
 
-Fotos: 100 M × 3 = 3 × 10⁸ al día, ≈ 3,500 por segundo. Bytes: 3 × 10⁸ × 3 × 10⁶ B ≈ 9 × 10¹⁴ B: **del orden de 1 PB al día**.
+Fotos = personas × fotos por persona: 100 M × 3 = 3 × 10⁸ al día; ÷ 86,400 ≈ 3,500 por segundo. Bytes = fotos × peso: 3 × 10⁸ × 3 × 10⁶ B ≈ 9 × 10¹⁴ B: **del orden de 1 PB al día**.
 
 Ninguno de los factores es exacto, pero los errores suelen compensarse en parte y el resultado suele quedar en el orden correcto. Si una decisión depende de él, después se mide.
 :::
@@ -532,8 +564,8 @@ Cuando una cuenta da un número que no conoces, compáralo con algo que sí:
 
 ### Otras formas de llegar al número
 
-- **Desde los usuarios:** eventos al día = usuarios activos al día × acciones de cada uno. 5 millones de usuarios que suben 4 fotos son 20 M al día: ≈ 231 req/s de promedio.
-- **Requests contra fotos:** en C01 son lo mismo porque va una foto por request. Si la app mandara juntas las 3 fotos de una publicación, las mismas 116 fotos/s llegarían en ≈ 39 req/s: el gateway trabaja por requests y la GPU por fotos. Cuando te den un número, pregunta de cuál de los dos habla.
+- **Desde los usuarios:** \(E = U × a\), los eventos al día \(E\) son los usuarios activos al día \(U\) por las acciones de cada uno \(a\). 5 millones de usuarios que suben 4 fotos son 20 M al día: \(R_{prom}\) = 20,000,000 ÷ 86,400 ≈ 231 req/s de promedio.
+- **Requests contra fotos:** en Alba son lo mismo porque va una foto por request. Si la app mandara juntas las 3 fotos de una publicación, las mismas 116 fotos/s llegarían en 116 ÷ 3 ≈ 39 req/s: el gateway trabaja por requests y la GPU por fotos. Cuando te den un número, pregunta de cuál de los dos habla.
 
 :::ojo El pico de un día no es el pico de un minuto
 Las gráficas de tráfico suelen promediar por minuto, y aun así esconden ráfagas: 500 req/s no son 5 requests cada 10 ms exactos. Las ráfagas de segundos las absorben las colas y el margen; los eventos (un Buen Fin, una notificación a millones de personas) se planean aparte. En «En la vida real» verás uno.
@@ -553,11 +585,11 @@ Las trampas que más se repiten, y cómo evitarlas.
 
 El disco «al que le faltan 69 GB» es el caso inofensivo. El caro es sumar los MiB de `nvidia-smi` con los MB de tus cuentas, o comprar memoria «justa» con una regla y llenarla con la otra: en giga hay 7.4 % de diferencia; en tera, 10 %.
 
-**Cómo evitarlo:** anota qué regla usa cada fuente y no mezcles dos en una cuenta; como dice la Ronda en M04, usa el total que reporta tu GPU. Si el margen es chico, haz la cuenta en bytes.
+**Cómo evitarlo:** anota qué regla usa cada fuente y no mezcles dos en una cuenta; para la memoria de una GPU, usa el total que reporta la propia GPU. Si el margen es chico, haz la cuenta en bytes.
 
 ### 3. Diseñar para el promedio
 
-Con el promedio todo cabe. En C01, el gateway a 116 req/s ocupa ≈ 0.7 [[vcpu|vCPU]] (116 × ≈ 6 ms; un vCPU es la unidad de CPU que renta la nube); si le das uno «porque sobra», a las 8 de la noche llegan 350 req/s, que piden ≈ 2.1, y la latencia explota.
+Con el promedio todo cabe. En Alba, el gateway a 116 req/s ocupa ≈ 0.7 [[vcpu|vCPU]] (116 × ≈ 6 ms de CPU por foto = 0.7 s de CPU por segundo; un vCPU es la unidad de CPU que renta la nube); si le das uno «porque sobra», a las 8 de la noche llegan 350 req/s, que piden 350 × 0.006 ≈ 2.1, y la latencia explota.
 
 **Cómo evitarlo:** promedio, pico y pico de diseño, siempre los tres. Y pregunta por los eventos (un Buen Fin, una campaña), además del pico de cada día.
 
@@ -581,72 +613,72 @@ Dividir entre 10⁵ en el número final (13.6 % menos tráfico), multiplicar un 
 
 ## En la vida real {In real life} [extra]
 
-### C01: un minuto de Hot Sale
+### Alba: un minuto de Hot Sale
 
-Marketing manda una notificación del Hot Sale a 5 millones de personas, y una parte abre la app y publica algo en el primer minuto. La Ronda (M03) hace la cuenta con un supuesto ilustrativo:
+El equipo de marketing de Alba manda una notificación del Hot Sale a 5 millones de personas, y una parte abre la app y publica algo en el primer minuto. El equipo de Alba hace la cuenta con un supuesto ilustrativo:
 
-:::cuenta Un minuto de notificación en C01
+:::cuenta Un minuto de notificación en Alba
 Personas que la reciben | dato de marketing | 5 M
 Suben una foto en el primer minuto // supuesto: ≈ 2 % | 5 M × 0.02 | 100,000
 Tasa durante ese minuto | 100,000 ÷ 60 s | ≈ 1,670 req/s
-Contra el pico de un día normal | 1,670 ÷ 350 | ≈ 4.8 veces
-Las dos T4 // contra su máximo medido | 1,670 ÷ (2 × 1,200) | ≈ 70 %
-CPU del gateway // ≈ 6 ms por foto, contra los 8 núcleos de sus dos nodos | 1,670 × 0.006 s | ≈ 10 núcleos
-Red del gateway // contra ≈ 3.1 Gb/s sostenidos de sus dos nodos | 1,670 × 602 KB × 8 | ≈ 8 Gb/s
+Contra el pico de un día normal // \(R_{pico}\) = 350 req/s | 1,670 ÷ 350 | ≈ 4.8 veces
+Las dos T4 // contra su máximo medido, \(c\) = 1,200 cada una | 1,670 ÷ (2 × 1,200) | ≈ 70 %
+CPU del gateway // ≈ 6 ms por foto, contra los 8 vCPU de sus dos nodos | 1,670 × 0.006 s | ≈ 10 vCPU
+Red del gateway // \(B = R × S\), contra ≈ 3.1 Gb/s sostenidos de sus dos nodos (2 × 1.56) | 1,670 × 602 KB × 8 | ≈ 8 Gb/s
 = Las GPUs, planeadas al 50 %, aguantarían; lo que se satura primero es el gateway: su CPU y, más todavía, su red. Cada parte se dimensiona aparte, y los eventos conocidos se preparan con tiempo.
 :::
 
 El promedio diario de ese día casi no cambia: es un minuto. Por eso los eventos no se ven en las cuentas por día, y por eso se pregunta por ellos.
 
-La factura completa de C01 también sale de esta lección. Las GPUs son solo una parte: con el gateway, el balanceador y los logs, la Ronda llega a ≈ US$1.75k al mes de infraestructura, dentro del presupuesto de US$3k. Repartido entre las ≈ 304 M fotos de un mes (10 M × 30.4 días), sale a ≈ US$0.006 por cada mil predicciones.
+La factura completa de Alba también sale de esta lección. Las GPUs (≈ US$768) son solo una parte: con el gateway, el balanceador, los logs y la red, el equipo de Alba llega a ≈ US$1.8k al mes de infraestructura (≈ US$1,829), dentro de su presupuesto de US$3k. Repartido entre las ≈ 304 M fotos de un mes (10 M × 30.4 días), sale a 1,829 ÷ 304 M × 1,000 ≈ US$0.006 por cada mil predicciones.
 
-### C02: video que no duerme
+### Video que no duerme
 
-C02 vigila zonas restringidas con 1,000 cámaras en 25 centros de distribución. Su tráfico se cuenta en cuadros por segundo, no en requests, y no tiene hora pico: las cámaras graban igual a las 4 de la mañana. Si se analizara todo, serían 1,000 × 15 fps = **15,000 cuadros por segundo** las 24 horas, con factor de pico 1: aquí el promedio sí dimensiona. Y a ≈ 4 Mb/s por cámara son ≈ 4 Gb/s de video continuo, 4 × 10⁹ × 86,400 ÷ 8 ≈ **43 TB al día**, que no se mandan a la nube sin pensarlo: la Ronda analiza cada sitio en el sitio.
+Un sistema de video en tiempo real vigila zonas restringidas con 1,000 cámaras en 25 centros de distribución (supuestos del ejemplo). Su tráfico se cuenta en cuadros por segundo, no en requests, y no tiene hora pico: las cámaras graban igual a las 4 de la mañana. Si se analizara todo, serían 1,000 × 15 fps = **15,000 cuadros por segundo** las 24 horas, con factor de pico 1: aquí el promedio sí dimensiona. Y a ≈ 4 Mb/s por cámara son 1,000 × 4 Mb/s ≈ 4 Gb/s de video continuo; bytes al día = bits por segundo × 86,400 ÷ 8 = 4 × 10⁹ × 86,400 ÷ 8 ≈ **43 TB al día**, que no se mandan a la nube sin pensarlo: un sistema así analiza el video de cada sitio en el mismo sitio.
 
-### C07: cuánto pesa un índice de búsqueda
+### Cuánto pesa un índice de búsqueda
 
-C07 busca entre ≈ 100 M publicaciones activas usando [[embedding|embeddings]] de 512 números, guardados en un [[indice-vectorial|índice vectorial]] que tiene que vivir en RAM.
+El buscador de Alba busca entre sus ≈ 100 M publicaciones activas usando [[embedding|embeddings]] de 512 números, guardados en un [[indice-vectorial|índice vectorial]] que tiene que vivir en RAM.
 
-:::cuenta El índice de C07
+:::cuenta El índice de búsqueda de Alba
 Los vectores en float32 // ≈ 190.7 GiB | 100 M × 512 × 4 B | 204.8 GB
 En int8 // 1 byte por número | 100 M × 512 × 1 B | 51.2 GB
 El grafo del índice // ≈ 256 B por vector, en un HNSW | 100 M × 256 B | 25.6 GB
 Lo que tiene que vivir en RAM // cada búsqueda salta solo por una parte, pero no sabes cuál | 51.2 + 25.6 | ≈ 77 GB
-En 4 pedazos // la Ronda les dice shards | 77 ÷ 4 | ≈ 19 GB cada uno
-= Una máquina con 384 GiB (≈ 412 GB) lo cargaría entero, aun con los float32 que la Ronda guarda aparte para reordenar los mejores resultados (≈ 300 GB en total); la Ronda lo parte en 4 por operación, no por memoria. Y nota el GiB: comparar 204.8 GB con 384 GiB exige pasar los dos a la misma regla.
+En 4 pedazos // a cada pedazo se le dice *shard* | 77 ÷ 4 | ≈ 19 GB cada uno
+= Una máquina con 384 GiB (≈ 412 GB) lo cargaría entero, aun con los float32 que se guardan aparte para reordenar los mejores resultados (204.8 + 51.2 + 25.6 ≈ 282 GB en total); se parte en 4 por operación, no por memoria. Y nota el GiB: comparar 204.8 GB con 384 GiB exige pasar los dos a la misma regla.
 :::
 
-Las búsquedas también se cuentan como en esta lección: 50 M al día son ≈ 579 por segundo, y con factor 3, ≈ 1,750 en el pico.
+Las búsquedas también se cuentan como en esta lección: si llegaran 50 M al día (supuesto del ejemplo), \(R_{prom}\) = 50,000,000 ÷ 86,400 ≈ 579 por segundo, y con factor \(k\) = 3, 3 × 579 ≈ 1,740 en el pico.
 
-### C13: el ancho de banda de la voz
+### El ancho de banda de la voz
 
-C13 pone subtítulos en vivo en videollamadas. En el pico hay ≈ 60,000 personas hablando a la vez, y el audio llega al modelo como **PCM**: el sonido sin comprimir, 16,000 muestras por segundo de 16 bits cada una.
+Un servicio de voz a texto en tiempo real pone subtítulos en vivo en videollamadas. Supón que en el pico hay ≈ 60,000 personas hablando a la vez, y el audio llega al modelo como **PCM**: el sonido sin comprimir, 16,000 muestras por segundo de 16 bits cada una.
 
-:::cuenta El audio de C13
-Una persona hablando // 256,000 bits por segundo | 16,000 muestras/s × 16 bits | 256 kb/s
+:::cuenta El audio de los subtítulos en vivo
+Una persona hablando // bits por segundo = muestras por segundo × bits por muestra | 16,000 muestras/s × 16 bits | 256 kb/s
 En bytes | 256 kb/s ÷ 8 | 32 KB/s
 Todo el pico | 60,000 × 256 kb/s | ≈ 15.4 Gb/s ≈ 1.9 GB/s
 Comprimido // con Opus, el códec de voz de muchas videollamadas (un códec comprime y descomprime): ≈ 32 kb/s | 256 ÷ 32 | 8 veces menos
-Un mes de PCM hacia el modelo // al promedio, un tercio del pico, durante 730 h | ≈ 5.1 Gb/s × 2.63 × 10⁶ s ÷ 8 | ≈ 1.7 PB
-= Una voz suena «ligera», pero 60,000 a la vez llenan una red. Y aquí manda la b chiquita: los códecs de audio se miden en kb/s. (La Ronda suma también el audio comprimido que llega antes al gateway, y da ≈ 2.7 PB al mes.)
+Un mes de PCM hacia el modelo // al promedio, un tercio del pico (15.4 ÷ 3 ≈ 5.1 Gb/s), durante 730 h = 2.63 × 10⁶ s; ÷ 8 para pasar a bytes | ≈ 5.1 Gb/s × 2.63 × 10⁶ s ÷ 8 | ≈ 1.7 PB
+= Una voz suena «ligera», pero 60,000 a la vez llenan una red. Y aquí manda la b chiquita: los códecs de audio se miden en kb/s.
 :::
 
-### C10: tokens por segundo
+### Tokens por segundo
 
-C10 sirve un [[llm|LLM]] propio que recibe ≈ 1.5 M requests al día, cada una con ≈ 2,000 [[token|tokens]] de entrada y ≈ 250 de salida. Aquí el throughput se mide en tokens por segundo, y hay dos:
+Piensa en un servicio que sirve su propio [[llm|LLM]] y recibe ≈ 1.5 M requests al día (supuestos del ejemplo), cada una con ≈ 2,000 [[token|tokens]] de entrada y ≈ 250 de salida. Aquí el throughput se mide en tokens por segundo, y hay dos:
 
-:::cuenta Los tokens de C10
-Requests por segundo, promedio | 1.5 M ÷ 86,400 | ≈ 17.4
-Pico de diseño // el pico, con margen para picos de minutos | 3 × 17.4 ≈ 52 | 60 req/s
-Tokens de salida por segundo en el pico | 60 × 250 | 15,000
-Tokens de entrada por segundo en el pico | 60 × 2,000 | 120,000
+:::cuenta Los tokens de un LLM propio
+Requests por segundo, promedio \(R_{prom}\) | \(E ÷ 86,400\) = 1.5 M ÷ 86,400 | ≈ 17.4
+Pico de diseño \(R_{diseño}\) // primero \(R_{pico} = k × R_{prom}\), con \(k\) = 3; luego un margen chico para picos de minutos, hacia arriba a un número redondo | 3 × 17.4 ≈ 52, y hacia arriba | 60 req/s
+Tokens de salida por segundo en el pico // \(R_{diseño}\) × 250 tokens de salida por request | 60 × 250 | 15,000
+Tokens de entrada por segundo en el pico // \(R_{diseño}\) × 2,000 tokens de entrada por request | 60 × 2,000 | 120,000
 Lo que ve cada persona // un token nuevo cada ≤ 50 ms | 1 ÷ 0.05 s | ≥ 20 tokens/s
-Lo que lee una persona // ≈ 200 a 300 palabras por minuto, en inglés | dato de referencia de la Ronda | ≈ 4–7 tokens/s
+Lo que lee una persona // ≈ 200 a 300 palabras por minuto, en inglés, y ≈ 1.3 tokens por palabra | (200 a 300) ÷ 60 × 1.3 | ≈ 4–7 tokens/s
 = Dos throughputs: el que siente cada persona (≥ 20 tokens/s, más rápido de lo que lee) y el de toda la flota de GPUs (15,000 tokens/s de salida), que es el que se paga.
 :::
 
-En la Ronda, ese tiempo por token se llama [[tpot|TPOT]], y M04 muestra por qué el techo de tokens por segundo lo pone el ancho de banda de la memoria de la GPU, no sus TFLOPS.
+A ese tiempo por token se le llama [[tpot|TPOT]] (*time per output token*). Por qué el techo de tokens por segundo lo pone el ancho de banda de la memoria de la GPU, y no sus TFLOPS, lo ves en «Matrices, FLOPs y qué tan rápido calcula una GPU».
 
 ### Fuera de ML: tu internet y tu memoria USB
 
@@ -660,61 +692,59 @@ Resuélvelos con lápiz antes de abrir la solución; las calculadoras de la lecc
 
 :::ejercicios
 ? [facil] Escribe en notación científica y di el orden de magnitud de cada número: (a) 2,500,000 publicaciones al día; (b) 602,112 bytes; (c) 0.0000001 segundos.
+- La regla: escribe el número como \(text{mantisa} × 10^e\), con la mantisa entre 1 y 10. El orden es \(10^e\) si la mantisa es menor que 3.16 (≈ √10), y \(10^{e+1}\) si no.
 - (a) 2.5 × 10⁶. La mantisa, 2.5, es menor que 3.16: orden **10⁶**.
 - (b) ≈ 6.02 × 10⁵. Como 6.02 > 3.16, el orden es **10⁶**: casi un megabyte.
 - (c) 1 × 10⁻⁷ s = 100 ns: orden **10⁻⁷**, lo que tarda leer la RAM.
 ? [facil] Un servicio recibe 5 millones de requests al día. ¿Cuántas llegan por segundo en promedio? ¿Y con el atajo de 10⁵ s?
-- 5,000,000 ÷ 86,400 ≈ **57.9 req/s**. Con la regla de memoria: 5 × 11.6 = 58.
+- \(R_{prom} = E ÷ 86,400\) = 5,000,000 ÷ 86,400 ≈ **57.9 req/s**. Con la regla de memoria: 5 × 11.6 = 58.
 - Con el atajo: 5 × 10⁶ ÷ 10⁵ = **50 req/s**, 13.6 % abajo.
 ? [facil] Compras un disco de 4 TB. ¿Cuántos GiB y cuántos TiB muestra tu computadora con Windows?
+- Para pasar bytes a binario: GiB = bytes ÷ 2³⁰ y TiB = bytes ÷ 2⁴⁰.
 - 4 TB = 4 × 10¹² bytes.
 - En GiB: 4 × 10¹² ÷ 2³⁰ ≈ **3,725 GiB**, que Windows escribe como «3,725 GB».
 - En TiB: 4 × 10¹² ÷ 2⁴⁰ ≈ **3.64 TiB**. No falta nada: es la regla de 1,024.
 ? [facil] Tu internet es de 200 Mb/s. ¿Cuánto tarda, en el mejor caso, en bajar una imagen de Docker de 10 GB? ¿Cuánto dirías si confundieras bits con bytes?
-- 10 GB × 8 = 80 Gb = 80,000 Mb.
-- 80,000 Mb ÷ 200 Mb/s = **400 s ≈ 6.7 minutos**.
+- \(t = S/B\), con \(S\) y \(B\) en bits: \(S\) = 10 GB × 8 = 80 Gb = 80,000 Mb.
+- \(t\) = 80,000 Mb ÷ 200 Mb/s = **400 s ≈ 6.7 minutos**.
 - Confundiendo: 10,000 MB ÷ 200 = 50 s. Te quedarías corto por 8.
 ? [medio] Una app recibe 20 M fotos al día. La hora pico lleva 1/6 del tráfico y quieres un margen de 1.3. Calcula el promedio, el factor de pico, el pico y el pico de diseño.
-- Promedio: 20,000,000 ÷ 86,400 ≈ **231 req/s**.
-- Factor: 24 × 1/6 = **4**.
-- Pico: 231.5 × 4 ≈ **926 req/s** (con el promedio sin redondear; 231 × 4 daría 924).
-- Diseño: 926 × 1.3 ≈ 1,204, redondeado hacia arriba a la centena: **1,300 req/s**.
+- Las fórmulas de «Del día al pico de diseño», con \(E\) = 20 M, \(f\) = 1/6 y \(m\) = 1.3.
+- Promedio: \(R_{prom} = E ÷ 86,400\) = 20,000,000 ÷ 86,400 ≈ **231 req/s**.
+- Factor: \(k = 24 × f\) = 24 × 1/6 = **4**.
+- Pico: \(R_{pico} = k × R_{prom}\) = 4 × 231.5 ≈ **926 req/s** (con el promedio sin redondear; 231 × 4 daría 924).
+- Diseño: \(R_{diseño} = m × R_{pico}\) = 1.3 × 926 ≈ 1,204, redondeado hacia arriba a la centena: **1,300 req/s**.
 ? [medio] El pico de diseño es 1,200 req/s. Cada máquina sostiene 800 req/s medidas, planeas al 60 %, quieres N+1 y cada máquina cuesta US$0.80 la hora. ¿Cuántas máquinas pides y cuánto cuestan al mes? ¿Qué pasaría si usaras `round` de Python?
-- Capacidad planeada: 800 × 0.6 = 480 req/s.
-- Por tráfico: 1,200 ÷ 480 = 2.5 → ⌈2.5⌉ = 3. Con N+1: **4 máquinas**.
-- Costo: 4 × US$0.80 × 730 = **US$2,336 al mes**.
+- \(M = ⌈R_{diseño} ÷ (c × u)⌉ + s\) y \(G = M × h × 730\), con \(R_{diseño}\) = 1,200, \(c\) = 800, \(u\) = 0.6, \(s\) = 1 y \(h\) = US$0.80.
+- Capacidad planeada: \(c × u\) = 800 × 0.6 = 480 req/s.
+- Por tráfico: 1,200 ÷ 480 = 2.5 → ⌈2.5⌉ = 3. Con N+1: \(M\) = 3 + 1 = **4 máquinas**.
+- Costo: \(G\) = 4 × US$0.80 × 730 = **US$2,336 al mes**.
 - `round(2.5)` da 2 en Python: pedirías 3 en total. Si se cae una, las 2 que quedan suman 960 req/s planeadas, menos que 1,200: trabajarían al 75 % de su máximo medido (1,200 ÷ 1,600), muy arriba del 60 % que planeaste.
 ? [medio] El top-5 de un modelo sube de 96 % a 96.5 %. ¿Cuántos puntos porcentuales subió? ¿Qué cambio relativo es? ¿Cuánto bajaron los errores?
-- Subió **0.5 puntos porcentuales**.
+- Con \(p_1\) = 96 y \(p_2\) = 96.5: puntos = \(p_2 − p_1\); cambio relativo = \((p_2 − p_1)/p_1\).
+- \(p_2 − p_1\) = 96.5 − 96: subió **0.5 puntos porcentuales**.
 - Relativo: 0.5 ÷ 96 ≈ **0.52 %** más.
-- Errores: de 4 % a 3.5 %, 0.5 ÷ 4 = **12.5 % menos**. Tres maneras de contar el mismo cambio: di cuál usas.
+- Errores: de 100 − 96 = 4 % a 100 − 96.5 = 3.5 %, 0.5 ÷ 4 = **12.5 % menos**. Tres maneras de contar el mismo cambio: di cuál usas.
 ? [medio] Un servicio hace 50 M predicciones al día y guarda un log de 500 B por cada una. ¿Cuánto ocupa al día y al año? Si los discos se compran en TiB, ¿cuántos TiB al año?
+- Bytes al día = predicciones al día × bytes por log.
 - Al día: 5 × 10⁷ × 500 B = 2.5 × 10¹⁰ B = **25 GB**.
 - Al año: 25 GB × 365 = 9,125 GB ≈ **9.1 TB**.
 - En TiB: 9.125 × 10¹² ÷ 2⁴⁰ ≈ **8.3 TiB**. Antes de comprimir.
 ? [reto] Un servicio de lectura de documentos (OCR) recibe 3 M documentos al día de ≈ 2 páginas. El pico es 3× el promedio y el margen, 1.4. Una GPU procesa 50 páginas por segundo medidas; planeas al 50 % con N+1, a US$0.526 la hora. (a) ¿Páginas por segundo de promedio, pico y diseño? (b) ¿GPUs y costo al mes? (c) Si los documentos pueden esperar unas horas y entran a una cola que se procesa pareja, ¿cuántas GPUs?
-- (a) 6 M páginas al día ÷ 86,400 ≈ **69 páginas/s**; pico ≈ **208**; diseño 208 × 1.4 ≈ 292 → **300**.
-- (b) Capacidad planeada: 50 × 0.5 = 25 por GPU. ⌈300 ÷ 25⌉ = 12, más 1: **13 GPUs**. 13 × 0.526 × 730 ≈ **US$4,992 al mes**.
-- (c) La cola reparte el pico en las horas tranquilas: dimensionas con el promedio y un margen, 69 × 1.3 ≈ 90 páginas/s. ⌈90 ÷ 25⌉ = 4, más 1: **5 GPUs ≈ US$1,920**, ≈ 62 % menos. Y como esperar en la cola ya no rompe ninguna promesa, podrías planear más cerca del 100 %, como un trabajo batch (M03): ⌈90 ÷ 50⌉ + 1 = 3. Es la razón de los patrones asíncronos de la Ronda (M02).
+- Se usan \(R_{prom} = E ÷ 86,400\), \(R_{pico} = k × R_{prom}\), \(R_{diseño} = m × R_{pico}\), \(M = ⌈R_{diseño} ÷ (c × u)⌉ + s\) y \(G = M × h × 730\).
+- (a) \(E\) = 3 M documentos × 2 páginas = 6 M páginas al día; \(R_{prom}\) = 6,000,000 ÷ 86,400 ≈ **69 páginas/s**; \(R_{pico}\) = 3 × 69.4 ≈ **208**; \(R_{diseño}\) = 1.4 × 208 ≈ 292 → **300**.
+- (b) Capacidad planeada: \(c × u\) = 50 × 0.5 = 25 por GPU. ⌈300 ÷ 25⌉ = 12, más 1: \(M\) = **13 GPUs**. \(G\) = 13 × 0.526 × 730 ≈ **US$4,992 al mes**.
+- (c) La cola reparte el pico en las horas tranquilas: dimensionas con el promedio y un margen, 69 × 1.3 ≈ 90 páginas/s. ⌈90 ÷ 25⌉ = 4, más 1: **5 GPUs**, 5 × 0.526 × 730 ≈ **US$1,920**, ≈ 62 % menos. Y como esperar en la cola ya no rompe ninguna promesa, podrías planear más cerca del 100 %, como un trabajo batch (\(u\) = 1): ⌈90 ÷ 50⌉ + 1 = 3. Por eso, cuando nadie espera la respuesta en vivo, se pone una cola entre quien pide y quien procesa.
 ? [reto] Un centro de distribución tiene 40 cámaras que mandan video 1080p a 15 fps, y su internet sube entre 20 y 50 Mb/s. (a) Sin comprimir, ¿cuántos Gb/s producen entre todas? (b) Comprimido a ≈ 4 Mb/s por cámara, ¿cuántos Mb/s y cuántos TB al día? (c) ¿Cabe ese video en el internet del sitio? ¿Qué harías?
+- Ancho de banda = cámaras × bits por segundo de cada una; bytes al día = bits por segundo × 86,400 ÷ 8.
 - (a) Un cuadro: 1,920 × 1,080 × 3 B ≈ 6.22 MB. × 15 ≈ 93 MB/s, × 8 ≈ 0.75 Gb/s por cámara. × 40 ≈ **30 Gb/s**.
 - (b) 40 × 4 Mb/s = **160 Mb/s**. Al día: 160 × 10⁶ × 86,400 ÷ 8 ≈ 1.73 × 10¹² B ≈ **1.7 TB**.
-- (c) **No cabe:** 160 Mb/s contra 20 a 50, y tampoco con un video más ligero de ≈ 1.5 Mb/s por cámara (60 Mb/s). Se analiza **en el sitio**, con una GPU junto a las cámaras, y a la nube solo van los eventos: la decisión de C02 en la Ronda sale de una división.
+- (c) **No cabe:** 160 Mb/s contra 20 a 50, y tampoco con un video más ligero de ≈ 1.5 Mb/s por cámara (60 Mb/s). Se analiza **en el sitio**, con una GPU junto a las cámaras, y a la nube solo van los eventos: la decisión de dónde analizar el video sale de una división.
 :::
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M01 · El mapa y la entrevista.** Sus «estimaciones express» son esta lección en una tabla: 86,400 s, 1 M al día ≈ 12 req/s, el pico de 2 a 5 veces, 730 h, los nueves y el ejemplo completo de C01 con la fórmula de GPUs. Y pide decir cada número con su decisión.
-- **M03 · Latencia y capacidad.** El promedio, el pico y el pico de diseño a fondo; de dónde sale cada factor; las ráfagas dentro de un segundo; y la ley de Little, que une throughput, latencia y requests en curso: 500 req/s × 0.05 s = 25 requests a la vez.
-- **M04 · Hardware para inferencia.** Bytes por parámetro, GB contra GiB en `nvidia-smi`, los GB/s de la VRAM y de PCIe y el techo de tokens por segundo de un LLM.
-- **M13 · Nube.** Precio por hora × 730, lo que cuesta cada GB que cruza la red y cuánto pagas por máquinas que pasan casi todo el día muy por debajo de su capacidad.
-- **Los casos.** El paso de estimaciones de cada caso son estas cuentas: C01 (tráfico, GPUs, logs, red y costo), C07 (el tamaño del índice), C13 (el ancho de banda del audio) y C10 (tokens al día y al mes).
-
-**En el Dojo:** la estación 7, Empaquetado, trabaja con imágenes de Docker de varios GB: cuánto pesan comprimidas y descomprimidas, y cuánto disco piden al bajarlas. Ahí vas a usar los GB, los GiB y los Gb/s de esta lección.
-
-**En Sensei:** «Promedios, medianas y percentiles» explica por qué la promesa es sobre el p99 y no sobre el promedio. «Probabilidad para sistemas que fallan» calcula cuánto vale de verdad el repuesto N+1 y de dónde salen los nueves. «Cómo guarda números una computadora» abre el binario, float32, float16 e int8. «Matrices, FLOPs y qué tan rápido calcula una GPU» convierte TFLOPS y GB/s en milisegundos. Y «Qué tan rápido y cuánto: latencia y throughput» junta todo con las colas.
+«Promedios, medianas y percentiles» explica por qué la promesa es sobre el p99 y no sobre el promedio. «Probabilidad para sistemas que fallan» calcula cuánto vale de verdad el repuesto N+1 y de dónde salen los nueves. «Cómo guarda números una computadora» abre el binario, float32, float16 e int8. «Matrices, FLOPs y qué tan rápido calcula una GPU» convierte TFLOPS y GB/s en milisegundos, y muestra el techo de tokens por segundo de un LLM. «Qué tan rápido y cuánto: latencia y throughput» junta todo con las colas y la ley de Little. Y «Máquinas, GPUs y cómo se cobran» y «Redes en la nube: VPC, subredes y egress» vuelven al precio por hora × 730 y a lo que cuesta cada GB que cruza la red.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -736,7 +766,7 @@ Son 100 megabits por segundo, y un byte tiene 8 bits: 100 ÷ 8 = 12.5 MB/s.
 ? Un disco de 1 TB aparece como 931 GB. ¿Qué pasó?
 Nada se perdió: el disco trae 10¹² bytes, y Windows los divide entre 2³⁰ (un GiB) aunque escriba «GB»: 10¹² ÷ 2³⁰ ≈ 931.
 ? ¿Por qué se diseña para el pico de diseño y no para el promedio?
-Porque en la hora pico llegan varias veces más requests que en promedio (3 veces en C01): con capacidad para el promedio, la latencia explotaría. El promedio paga la factura; el pico de diseño decide las máquinas.
+Porque en la hora pico llegan varias veces más requests que en promedio (3 veces en Alba): con capacidad para el promedio, la latencia explotaría. El promedio paga la factura; el pico de diseño decide las máquinas.
 ? Una cuenta dice que hacen falta 2.1 máquinas. ¿Cuántas pides con N+1?
 ⌈2.1⌉ = 3 por tráfico, más 1 de repuesto: 4. Nunca hacia abajo.
 ? La accuracy pasa de 85 % a 87 %. ¿Subió 2 %?

@@ -1,10 +1,10 @@
 {
   "titulo": "De por día a por segundo",
-  "intro": "Escribe cuántos eventos llegan al día y cómo es el pico. Empieza en C01: 10 millones de fotos, una hora pico con 1/8 del tráfico del día (3×) y un margen de 1.4.",
+  "intro": "Escribe cuántos eventos llegan al día y cómo es el pico. La calculadora aplica \\(R_{prom} = E ÷ 86,400\\), \\(R_{pico} = k × R_{prom}\\) y \\(R_{diseño} = m × R_{pico}\\). Empieza con los números de Alba: 10 millones de fotos al día, una hora pico con 1/8 del tráfico del día (\\(k\\) = 3) y un margen de 1.4.",
   "entradas": [
-    { "id": "m", "label": "Eventos al día", "min": 0.1, "max": 1000, "paso": 0.1, "valor": 10, "unidad": "millones", "tipo": "numero" },
-    { "id": "k", "label": "**Factor de pico**: cuántas veces el promedio llega en la hora pico", "min": 1, "max": 6, "paso": 0.1, "valor": 3 },
-    { "id": "g", "label": "**Margen** para lo inesperado y para crecer", "min": 1, "max": 2, "paso": 0.05, "valor": 1.4 }
+    { "id": "m", "label": "Eventos al día, \\(E\\)", "min": 0.1, "max": 1000, "paso": 0.1, "valor": 10, "unidad": "millones", "tipo": "numero" },
+    { "id": "k", "label": "**Factor de pico** \\(k\\): cuántas veces el promedio llega en la hora pico", "min": 1, "max": 6, "paso": 0.1, "valor": 3 },
+    { "id": "g", "label": "**Margen** de diseño \\(m\\), para lo inesperado y para crecer", "min": 1, "max": 2, "paso": 0.05, "valor": 1.4 }
   ],
   "calculos": [
     { "id": "prom", "formula": "m * 1e6 / 86400" },
@@ -12,13 +12,13 @@
     { "id": "dis", "formula": "pico * g" }
   ],
   "salidas": [
-    { "label": "Promedio, en req/s", "formula": "prom", "barra": true, "nota": "eventos ÷ 86,400 s" },
-    { "label": "Pico, en req/s", "formula": "pico", "barra": true, "nota": "promedio × factor de pico" },
-    { "label": "Pico de diseño, en req/s", "formula": "dis", "barra": true, "nota": "pico × margen" },
-    { "label": "El número que dices en voz alta", "formula": "ceil(dis / 100) * 100", "formato": "int", "nota": "el pico de diseño, redondeado hacia arriba a la centena" },
-    { "label": "Promedio con el atajo de 10⁵ s", "formula": "m * 1e6 / 1e5", "nota": "13.6 % menos que con 86,400: sirve para la cabeza, no para el número final" },
-    { "label": "Parte del día que cae en la hora pico", "formula": "k / 24", "formato": "pct", "nota": "factor de pico ÷ 24" },
-    { "label": "Eventos en la hora pico", "formula": "pico * 3600", "formato": "int" }
+    { "label": "Promedio \\(R_{prom}\\), en req/s", "formula": "prom", "barra": true, "nota": "\\(R_{prom} = E ÷ 86,400\\)" },
+    { "label": "Pico \\(R_{pico}\\), en req/s", "formula": "pico", "barra": true, "nota": "\\(R_{pico} = k × R_{prom}\\)" },
+    { "label": "Pico de diseño \\(m × R_{pico}\\), en req/s", "formula": "dis", "barra": true, "nota": "pico × margen, sin redondear" },
+    { "label": "El número que dices en voz alta", "formula": "ceil(dis / 100) * 100", "formato": "int", "nota": "\\(R_{diseño}\\): \\(m × R_{pico}\\) redondeado hacia arriba a la centena" },
+    { "label": "Promedio con el atajo de 10⁵ s", "formula": "m * 1e6 / 1e5", "nota": "\\(E ÷ 100,000\\): 13.6 % menos que con 86,400; sirve para la cabeza, no para el número final" },
+    { "label": "Parte del día que cae en la hora pico, \\(f\\)", "formula": "k / 24", "formato": "pct", "nota": "\\(f = k ÷ 24\\)" },
+    { "label": "Eventos en la hora pico", "formula": "pico * 3600", "formato": "int", "nota": "\\(R_{pico}\\) × 3,600 s" }
   ],
   "nota": "Con factor 1 el tráfico es parejo, como un proceso que trabaja día y noche: ahí el promedio sí sirve para dimensionar. Sube el factor a 5: el promedio no se mueve, pero las máquinas que necesitas sí."
 }

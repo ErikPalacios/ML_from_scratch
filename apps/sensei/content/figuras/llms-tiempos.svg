@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 388" role="img" aria-labelledby="f-llms-tiempos-t" class="f-svg" style="max-width:420px">
-<title id="f-llms-tiempos-t">Una request de C10 en el tiempo. Arriba, completa: la cola y el prefill ocupan los primeros 0.6 segundos, que son el TTFT, y después vienen 249 pasos de decode de 40 milisegundos cada uno, el TPOT, hasta terminar a los 10.6 segundos. Abajo, el primer segundo con lupa: 0.45 segundos de cola, 0.15 de prefill y, desde los 0.6 segundos, un token cada 40 milisegundos. Total: 0.6 más 249 por 0.04, aproximadamente 10.6 segundos.</title>
-<text class="f-l" x="14" y="24">UNA REQUEST DE C10, EN EL TIEMPO</text>
+<title id="f-llms-tiempos-t">Una request del LLM de Alba en el tiempo. Arriba, completa: la cola y el prefill ocupan los primeros 0.6 segundos, que son el TTFT, y después vienen 249 pasos de decode de 40 milisegundos cada uno, el TPOT, hasta terminar a los 10.6 segundos. Abajo, el primer segundo con lupa: 0.45 segundos de cola, 0.15 de prefill y, desde los 0.6 segundos, un token cada 40 milisegundos. Total: 0.6 más 249 por 0.04, aproximadamente 10.6 segundos.</title>
+<text class="f-l" x="14" y="24">UNA REQUEST DEL LLM DE ALBA, EN EL TIEMPO</text>
 <rect class="f-card" x="10" y="36" width="340" height="118" rx="16"/>
 <text class="f-l" x="26" y="60">COMPLETO</text>
 <rect class="f-off" x="26" y="70" width="12.6" height="24"/>

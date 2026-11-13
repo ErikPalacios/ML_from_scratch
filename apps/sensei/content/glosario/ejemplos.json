@@ -7,7 +7,7 @@
       "en": "example · sample · instance",
       "corto": "Un caso del que ya sabes la respuesta: la entrada (lo que ve el modelo) junto con su etiqueta (la respuesta correcta).",
       "largo": "Un [[modelo]] aprende de muchos ejemplos. En un [[dataset]] cada ejemplo es una fila: sus [[feature|features]] y su [[etiqueta]]. A aprender de ejemplos que ya traen su respuesta se le llama aprendizaje supervisado.",
-      "ejemplo": "La foto de los tenis de Ana junto con «Calzado › Tenis» es un ejemplo. El dataset de septiembre de C01 trae casi 2 millones. En C09, un ejemplo es un pago con su respuesta: fue fraude o no.",
+      "ejemplo": "La foto de los tenis de Ana junto con «Calzado › Tenis» es un ejemplo. El dataset de septiembre de Alba, el marketplace que sigue el curso, trae casi 2 millones: 1,840,211 + 92,417 = 1,932,628. En un sistema de fraude, un ejemplo es un pago con su respuesta: fue fraude o no.",
       "ver": [
         "feature",
         "etiqueta",
@@ -21,7 +21,7 @@
       "en": "feature · característica · variable",
       "corto": "Cada dato de la entrada que el modelo usa para decidir. En una tabla, una columna; en una foto, cada píxel.",
       "largo": "En datos tabulares las features las elige una persona (el monto, el giro del comercio, la hora); a eso se le llama *feature engineering*. Pueden ser números o categorías, y las categorías hay que convertirlas en números ([[codificacion]]). En imágenes la entrada son los píxeles crudos y el modelo arma por dentro sus propias features útiles. Una feature solo sirve si existe en el momento de predecir; si no, es [[leakage]].",
-      "ejemplo": "Un pago de C09: monto US$45, giro «videojuegos», hora 03:12 y 4 intentos de la tarjeta en el último minuto. Son cuatro features.",
+      "ejemplo": "Un pago, en un sistema de detección de fraude: monto US$45, giro «videojuegos», hora 03:12 y 4 intentos de la tarjeta en el último minuto. Son cuatro features.",
       "ver": [
         "ejemplo",
         "codificacion",
@@ -35,7 +35,7 @@
       "en": "encoding",
       "corto": "Convertir un dato que no es un número (una categoría, un texto) en números que el modelo pueda usar, sin inventarle relaciones que no tiene.",
       "largo": "Un modelo solo multiplica y suma, así que todo le tiene que llegar como número. Para una categoría hay varias formas: [[one-hot]] (una columna de 0 y 1 por valor), números en orden (solo si el orden existe de verdad, como las tallas chica, mediana y grande), hashing (una fórmula fija manda cada valor a una de un número fijo de casillas, útil cuando hay millones de valores) y [[embedding|embeddings]] (una lista de números aprendida para cada valor). La codificación se decide con train y se usa idéntica al servir.",
-      "ejemplo": "El giro del comercio en C09: supermercado = [1, 0, 0], gasolinera = [0, 1, 0], videojuegos = [0, 0, 1]. En C15, el id de cada anuncio cae por hashing en una de 2²⁴ = 16,777,216 casillas.",
+      "ejemplo": "El giro del comercio en un modelo de fraude: supermercado = [1, 0, 0], gasolinera = [0, 1, 0], videojuegos = [0, 0, 1]. En uno de clics en anuncios, el id de cada anuncio cae por hashing en una de 2²⁴ = 16,777,216 casillas.",
       "ver": [
         "one-hot",
         "feature",
@@ -63,7 +63,7 @@
       "en": "missing value · NaN",
       "corto": "Un dato que debía estar y no está: la feature quedó vacía para ese ejemplo. Antes de entrenar hay que decidir qué hacer con ella, y hacer lo mismo al servir.",
       "largo": "Tres salidas: quitar el ejemplo o la columna (fácil, pero si lo que falta no falta al azar, quitas justo un tipo de caso), rellenar o imputar (con la mediana de train o una regla del negocio, y marcar la fila con una columna «rellenado») o dejarlo como «no sé», NaN (*not a number*), para un modelo que lo sepa usar, como los de árboles de decisión con gradient boosting. Nunca rellenar con 0 si 0 significa otra cosa: «cero compras» es un dato; «no sé cuántas», otro.",
-      "ejemplo": "C09: si un pago llega sin el SDK que identifica al dispositivo, sus features de dispositivo valen NaN, no 0. C14: un producto sin ventas ayer pudo haber vendido cero, estar agotado o no tener dato, y son tres cosas distintas.",
+      "ejemplo": "En fraude: si un pago llega sin el SDK que identifica al dispositivo, sus features de dispositivo valen NaN, no 0. En un pronóstico de ventas: un producto sin ventas ayer pudo haber vendido cero, estar agotado o no tener dato, y son tres cosas distintas.",
       "ver": [
         "feature",
         "leakage"
@@ -90,7 +90,7 @@
       "en": "data split · partición",
       "corto": "Repartir el dataset en partes que no se mezclan: una para aprender (train), una para decidir (validación) y una para el examen final (test).",
       "largo": "No basta con la proporción (80/10/10, por ejemplo). Importa la unidad: si las fotos vienen en familias (del mismo vendedor, o la misma foto en varias publicaciones), la familia entera va a un solo lado ([[split-por-grupo]]); si el modelo va a predecir el futuro, se reparte por fecha ([[split-temporal]]). Si no, hay [[leakage]].",
-      "ejemplo": "C01 reparte por vendedor: ≈ 95 % a train y ≈ 5 % a validación (1,840,211 y 92,417 fotos en el dataset de septiembre). El examen final es el [[golden-set]], que se arma aparte.",
+      "ejemplo": "Alba, el marketplace del curso, reparte por vendedor: ≈ 95 % a train y ≈ 5 % a validación (1,840,211 y 92,417 fotos en el dataset de septiembre). El examen final es el [[golden-set]], que se arma aparte.",
       "ver": [
         "train-set",
         "validation-set",
@@ -113,7 +113,7 @@
         "split"
       ],
       "leccion": "ejemplos",
-      "ejemplo": "Con 50,000 fotos y un reparto 80/10/10, train son 50,000 × 0.80 = 40,000 fotos. En el dataset de septiembre de C01 son 1,840,211, ≈ 95 % del total."
+      "ejemplo": "Con 50,000 fotos y un reparto 80/10/10, train son 50,000 × 0.80 = 40,000 fotos. En el dataset de septiembre de Alba, el marketplace del curso, son 1,840,211, ≈ 95 % del total."
     },
     {
       "id": "validation-set",
@@ -121,7 +121,7 @@
       "en": "validation set · dev set",
       "corto": "Una parte del dataset de la que el modelo no aprende y que tú miras mientras desarrollas, para decidir: cuándo parar, qué ajustes usar, qué versión es mejor.",
       "largo": "Como con ella tomas decisiones, poco a poco su resultado se vuelve optimista: elegiste justo lo que mejor le fue ahí. Por eso hace falta además un [[test-set]] que no se toca.",
-      "ejemplo": "En el dataset de septiembre de C01 son 92,417 fotos, ≈ 5 % del total.",
+      "ejemplo": "En el dataset de septiembre de Alba, el marketplace del curso, son 92,417 fotos, ≈ 5 % del total.",
       "ver": [
         "train-set",
         "test-set",
@@ -134,7 +134,7 @@
       "termino": "Test",
       "en": "test set · held-out set",
       "corto": "La parte que se guarda bajo llave y se usa al final, una vez, para estimar qué tan bien le irá al modelo con datos que nunca vio.",
-      "largo": "Si miras el test, cambias algo y vuelves a mirar, el test se convirtió en validación y ya no tienes un número honesto. En C01 el papel del test lo hace el [[golden-set]].",
+      "largo": "Si miras el test, cambias algo y vuelves a mirar, el test se convirtió en validación y ya no tienes un número honesto. En Alba, el marketplace del curso, el papel del test lo hace el [[golden-set]].",
       "ver": [
         "validation-set",
         "golden-set",
@@ -178,7 +178,7 @@
       "en": "temporal split · time-based split",
       "corto": "Repartir por fecha: entrenar con lo que pasó antes de un corte y evaluar con lo que pasó después. Es obligatorio cuando el modelo va a predecir el futuro.",
       "largo": "Un split al azar mezcla días: el modelo ve el lunes y el miércoles y lo examinas con el martes, así que interpola en vez de predecir. Con un corte, el examen se parece a producción: el modelo solo sabe lo que se sabía en esa fecha. Si las etiquetas tardan en llegar (un contracargo puede tardar meses), además hay que esperar a que maduren. Repetir el corte en varias fechas y promediar se llama backtest.",
-      "ejemplo": "C14 entrena con las ventas hasta una fecha de corte y evalúa los 14 días siguientes, en 8 cortes semanales. La regla de la Ronda: si entrenas con datos hasta el 5 de enero, evalúa desde el 6.",
+      "ejemplo": "Un pronóstico de ventas de supermercado entrena con las ventas hasta una fecha de corte y evalúa los 14 días siguientes, en 8 cortes semanales. La regla: si entrenas con datos hasta el 5 de enero, evalúa desde el 6.",
       "ver": [
         "split",
         "leakage",
@@ -192,7 +192,7 @@
       "en": "group split · entity split",
       "corto": "Repartir por grupos completos (vendedor, cliente, cámara, paciente) en vez de por ejemplos sueltos, para que todos los ejemplos de un grupo queden del mismo lado.",
       "largo": "Si los ejemplos de un grupo se parecen entre sí (el mismo fondo, la misma luz, el mismo cliente), repartirlos al azar deja gemelos en train y en test, y el modelo aprende a reconocer el grupo en vez de la tarea. Un truco común: calcular un hash del id del grupo y decidir con él (por ejemplo, hash mod 100 < 95 → train). Así el mismo grupo cae siempre del mismo lado, mes tras mes, sin guardar ninguna lista. El hash tiene que ser estable, como sha256 de `hashlib`, no el `hash()` de Python.",
-      "ejemplo": "C01 reparte por vendedor: hash(seller_id) mod 100 < 95 va a train y el resto a validación. Un vendedor con 400 fotos sobre la misma mesa queda entero de un lado. C04, en patología, reparte por paciente.",
+      "ejemplo": "Alba, el marketplace del curso, reparte por vendedor: hash(seller_id) mod 100 < 95 va a train y el resto a validación. Un vendedor con 400 fotos sobre la misma mesa queda entero de un lado. Un sistema de patología reparte por paciente.",
       "ver": [
         "split",
         "split-temporal",
@@ -206,7 +206,7 @@
       "en": "near-duplicate",
       "corto": "Dos ejemplos que no son el mismo archivo pero muestran lo mismo: la misma foto recortada, vuelta a comprimir o más clara. Un hash normal no los detecta; una huella perceptual o una comparación de embeddings, sí.",
       "largo": "Si un casi duplicado queda en train y su gemelo en test, el modelo acierta de memoria: es [[leakage]]. Para copias exactas basta un hash del archivo, como sha256, que cambia por completo si cambia un solo byte. Para casi copias se usa una huella perceptual (el average hash, pHash y parientes): se calcula sobre una versión diminuta de la imagen, en gris, y cambia poco si la imagen cambia poco. Dos fotos son casi duplicadas si sus huellas difieren en pocos bits. También se pueden comparar sus [[embedding|embeddings]] con [[similitud-coseno]].",
-      "ejemplo": "Barz y Denzler (2020) encontraron que el 3.3 % de las imágenes de test de CIFAR-10 y el 10 % de las de CIFAR-100 tenían un casi duplicado en train. En C01, la misma foto en tres publicaciones.",
+      "ejemplo": "Barz y Denzler (2020) encontraron que el 3.3 % de las imágenes de test de CIFAR-10 y el 10 % de las de CIFAR-100 tenían un casi duplicado en train. En Alba, el marketplace del curso, la misma foto en tres publicaciones.",
       "ver": [
         "leakage",
         "split-por-grupo",
@@ -220,7 +220,7 @@
       "en": "labeling · annotation",
       "corto": "El proceso de ponerle a cada ejemplo su respuesta correcta: quién etiqueta, con qué guía, cómo se revisa la calidad y cuánto cuesta. La etiqueta es el dato más caro por unidad.",
       "largo": "Lo hacen proveedores, un equipo propio, expertos para los casos difíciles, o la gente dentro de su trabajo (moderadores, inspectores). Se apoya en una guía escrita y versionada, con ejemplos y contraejemplos de cada clase, los casos límite decididos por escrito y una salida para «no sé». La calidad se mide con doble anotación: una parte la etiquetan dos personas, se mide su acuerdo ([[kappa]]) y un experto decide los desacuerdos. Qué ejemplos etiquetar lo decide el [[active-learning]].",
-      "ejemplo": "C01: ≈ 5,000 fotos al mes a US$0.05–0.10 cada una, con 10 % de doble anotación: ≈ US$250–500 al mes, más ≈ US$25–50 por la doble. El golden set, 50,000 fotos con doble anotación, cuesta ≈ US$5–10 mil una sola vez.",
+      "ejemplo": "Alba, el marketplace del curso: ≈ 5,000 fotos al mes a US$0.05–0.10 cada una, con 10 % de doble anotación: ≈ US$250–500 al mes, más ≈ US$25–50 por la doble. El golden set, 50,000 fotos con doble anotación, cuesta ≈ US$5–10 mil una sola vez.",
       "ver": [
         "etiqueta",
         "kappa",
@@ -235,7 +235,7 @@
       "en": "active learning",
       "corto": "Elegir qué ejemplos etiquetar en vez de etiquetar al azar: sobre todo los que el modelo tiene más dudosos, porque son los que más le enseñan por cada etiqueta pagada.",
       "largo": "Estrategias: incertidumbre (la [[confianza]] del primer lugar es baja, o el primero y el segundo casi empatan), desacuerdo (una persona eligió otra cosa que el modelo), diversidad (cubrir tipos distintos de fotos) y categorías nuevas. Siempre se guarda una parte al azar: es lo único que dice cuánto se equivoca el modelo en el tráfico real. Se entrena con todo lo etiquetado, pero se evalúa con el [[golden-set|golden set]] y con la parte al azar, nunca con lo que eligió el active learning, que es a propósito más difícil que lo normal.",
-      "ejemplo": "C01: fotos con top-1 menor que 0.3 o con margen chico entre el primero y el segundo, desacuerdos con quien vende y 20–30 % al azar, ≈ 5,000 al mes.",
+      "ejemplo": "Alba, el marketplace del curso: fotos con top-1 menor que 0.3 o con margen chico entre el primero y el segundo, desacuerdos con quien vende y 20–30 % al azar, ≈ 5,000 al mes.",
       "ver": [
         "etiquetado",
         "confianza",
@@ -249,7 +249,7 @@
       "en": "label noise",
       "corto": "Etiquetas equivocadas dentro del dataset. Siempre hay algunas: por cansancio, por una guía ambigua o porque la fuente automática se equivoca o llega tarde.",
       "largo": "En train, el ruido le enseña cosas falsas al modelo. En evaluación es peor: el modelo «falla» donde la etiqueta estaba mal y la métrica mide parte del ruido, así que pone un techo a lo que puedes medir. Northcutt, Athalye y Mueller (2021) estimaron al menos 3.3 % de etiquetas erróneas en promedio en los test sets de 10 datasets conocidos, y ≈ 6 % en la validación de ImageNet. Lo sospechoso (donde el modelo contradice la etiqueta con mucha seguridad) se manda a revisión humana; no se borra automáticamente.",
-      "ejemplo": "C09: según la suposición de la Ronda, a los 30 días solo ha llegado ≈ 60 % de los contracargos. En los pagos de hace 30 días, ≈ 4 de cada 10 fraudes todavía están etiquetados como pagos buenos; en los de la semana pasada, muchos más.",
+      "ejemplo": "En fraude en pagos, con un supuesto típico, a los 30 días solo ha llegado ≈ 60 % de los contracargos. En los pagos de hace 30 días, ≈ 4 de cada 10 fraudes todavía están etiquetados como pagos buenos; en los de la semana pasada, muchos más.",
       "ver": [
         "etiqueta",
         "etiquetado",
@@ -263,7 +263,7 @@
       "en": "Cohen's kappa · κ",
       "corto": "Un número que mide qué tanto coinciden dos personas al etiquetar, descontando lo que coincidirían por puro azar. 1 es acuerdo perfecto; 0, lo mismo que el azar.",
       "largo": "κ = (pₒ − pₑ) ÷ (1 − pₑ), donde pₒ es la fracción de ejemplos en que coincidieron y pₑ la que esperarías si cada quien etiquetara al azar con sus propias proporciones. Importa cuando una clase domina: dos personas que casi siempre dicen «bueno» coinciden mucho sin ponerse de acuerdo en lo difícil. Una escala muy citada (Landis y Koch, 1977) llama «moderado» a 0.41–0.60, «sustancial» a 0.61–0.80 y «casi perfecto» a más de 0.80. Con más de dos personas se usan parientes suyos, como la kappa de Fleiss.",
-      "ejemplo": "Dos inspectores de C03 coinciden en 970 de 1,000 piezas (97 %), pero casi todas son buenas y el azar ya daba 95.125 %: κ = (0.97 − 0.95125) ÷ (1 − 0.95125) ≈ 0.38.",
+      "ejemplo": "Dos inspectores de piezas en una fábrica coinciden en 970 de 1,000 piezas (97 %), pero casi todas son buenas y el azar ya daba 95.125 %: κ = (0.97 − 0.95125) ÷ (1 − 0.95125) ≈ 0.38.",
       "ver": [
         "etiquetado",
         "ruido-etiquetas"
@@ -276,7 +276,7 @@
       "en": "class imbalance",
       "corto": "Cuando unas clases tienen muchísimos más ejemplos que otras. El modelo tiende a favorecer a las grandes, y el promedio esconde que falla en las chicas.",
       "largo": "La [[accuracy]] engaña: un modelo que siempre dice la clase grande acierta mucho sin aprender nada. Se mide cada clase por separado ([[recall]] por clase, [[macro-promedio]]), se estratifica el split y se etiqueta más donde hay poco.",
-      "ejemplo": "950 fotos de tenis y 50 de botas: un modelo que siempre dice «tenis» acierta 95 % y nunca reconoce unas botas. En C09, 1 pago de cada 1,250 es fraude: decir siempre «no» acierta 99.92 %.",
+      "ejemplo": "950 fotos de tenis y 50 de botas: un modelo que siempre dice «tenis» acierta 95 % y nunca reconoce unas botas. En fraude en pagos, 1 pago de cada 1,250 es fraude: decir siempre «no» acierta 99.92 %.",
       "ver": [
         "long-tail",
         "estratificado"
@@ -288,8 +288,8 @@
       "termino": "Cola larga",
       "en": "long tail",
       "corto": "Cuando hay muchas categorías y la mayoría tiene pocos ejemplos: unas cuantas tienen decenas de miles y muchas, apenas cientos o decenas. Ordenadas de mayor a menor, forman una gráfica con una «cola» baja y larga.",
-      "largo": "El nombre viene de la gráfica: si ordenas las categorías de la más grande a la más chica, la curva cae rápido y luego sigue, baja y larga. Las grandes son la cabeza (*head*). En la Ronda se miden la cabeza y la cola por separado, porque un modelo nuevo suele ganar en una y perder en la otra.",
-      "ejemplo": "C01 tiene 500 categorías y ≈ 1.84 M fotos de entrenamiento: 3,680 por categoría si se repartieran parejo, pero casi ninguna está cerca de ese promedio.",
+      "largo": "El nombre viene de la gráfica: si ordenas las categorías de la más grande a la más chica, la curva cae rápido y luego sigue, baja y larga. Las grandes son la cabeza (*head*). Conviene medir la cabeza y la cola por separado, porque un modelo nuevo suele ganar en una y perder en la otra.",
+      "ejemplo": "Alba, el marketplace del curso, tiene 500 categorías y ≈ 1.84 M fotos de entrenamiento: 3,680 por categoría si se repartieran parejo, pero casi ninguna está cerca de ese promedio.",
       "ver": [
         "desbalance",
         "golden-set"
@@ -315,7 +315,7 @@
       "en": "golden set",
       "corto": "Un conjunto de evaluación de la mejor calidad: etiquetado con cuidado por personas, congelado y que jamás se usa para entrenar. Es la regla fija con la que se comparan los modelos.",
       "largo": "Congelado quiere decir que no cambia: dos modelos de meses distintos se examinan con exactamente las mismas fotos, así que la diferencia es del modelo y no del examen. Si hay que cambiarlo (porque llegaron categorías nuevas), se hace una versión nueva y se vuelve a examinar ahí al modelo que está en producción. Cada dataset nuevo se revisa por hash contra él, para que ninguna de sus fotos se cuele al entrenamiento.",
-      "ejemplo": "En C01: ≈ 50 mil imágenes, cada una etiquetada por dos personas, con al menos ≈ 50 por categoría y repartidas entre fotos de celular y de web. Cuesta ≈ US$5–10 mil, una sola vez.",
+      "ejemplo": "En Alba, el marketplace del curso: ≈ 50 mil imágenes, cada una etiquetada por dos personas, con al menos ≈ 50 por categoría y repartidas entre fotos de celular y de web. Cuesta ≈ US$5–10 mil, una sola vez.",
       "ver": [
         "test-set",
         "slice",

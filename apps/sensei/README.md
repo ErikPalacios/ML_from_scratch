@@ -1,8 +1,8 @@
 # Sensei
 
-Es la teoría de cada paso para llevar un modelo de AI o ML a producción, explicada desde cero, como a alguien que apenas entra a la universidad. Trae diagramas, analogías donde ayudan y el mismo caso del Dojo (C01) de principio a fin. Las palabras del glosario abren su definición ahí mismo, sin salir de la página. El plan completo está en [docs/plan-sensei.md](../../docs/plan-sensei.md).
+Es la teoría de cada paso para llevar un modelo de AI o ML a producción, explicada desde cero, como a alguien que apenas entra a la universidad. Trae diagramas, analogías donde ayudan y una misma empresa ficticia de principio a fin: **Alba**, un marketplace que sugiere la categoría de cada foto. Sus números viven en `content/empresa.json`. Las palabras del glosario abren su definición ahí mismo, sin salir de la página. El plan completo está en [docs/plan-sensei.md](../../docs/plan-sensei.md).
 
-Es la capa de **entender**. El [Dojo](../taller-ai) es la de **practicar** y la [Ronda de Diseño](../ml-system-design) la de **defender** el diseño en una entrevista. La meta es que, después de Sensei, la Ronda se lea completa sin atorarse: cada lección dice a qué módulos de la Ronda prepara, y `/ronda/` lo junta.
+Es la capa de **entender**. El [Dojo](../taller-ai) es la de **practicar** y la [Ronda de Diseño](../ml-system-design) la de **defender** el diseño en una entrevista. La meta es que, después de Sensei, la Ronda se lea completa sin atorarse. Pero **Sensei es independiente**: las lecciones nunca nombran la Ronda, el Dojo ni sus códigos (M01–M15, C01–C15). Los dos aparecen solo en la página final, «¿Qué sigue después de Sensei?» (`/que-sigue/`, que reemplaza a `/ronda/`), y en la tarjeta de la estación del Dojo al cierre de una lección.
 
 El formato de lectura es el de la Ronda: barra lateral con el índice, la lección como una hoja con secciones numeradas y «En esta página». Los diagramas usan el motor de la Ronda.
 
@@ -13,8 +13,9 @@ El formato de lectura es el de la Ronda: barra lateral con el índice, la lecci�
 | Carpeta o archivo | Qué es |
 |---|---|
 | `content/sitio.json` | Nombre, dirección y textos de la portada. El nombre de la app se cambia aquí. |
-| `content/temario.json` | Los módulos y sus lecciones, en orden de lectura, con los módulos de la Ronda a los que prepara cada una (`ronda`). Una lección existe cuando está su `.md`; mientras no, sale como «próximamente» con su fase. |
-| `content/ronda.json` | Los 15 módulos de la Ronda (de su `catalog.js`). |
+| `content/temario.json` | Los módulos y sus lecciones, en orden de lectura. Una lección existe cuando está su `.md`; mientras no, sale como «próximamente» con su fase. |
+| `content/empresa.json` | La ficha de Alba, la empresa del curso: cada número que usan las lecciones, con su nota y las lecciones que lo usan. |
+| `content/ronda.json` | Los 15 módulos de la Ronda (de su `catalog.js`) y las lecciones que conviene repasar antes de cada uno. Solo lo usa `/que-sigue/`. |
 | `content/glosario/<lección>.json` | Los conceptos que presenta cada lección. El build los junta y falla si uno se repite. |
 | `content/lecciones/<id>.md` | Cada lección: un encabezado `---` con `titulo`, `subtitulo`, `pregunta`, `minutos` y `requisitos` opcionales, y el cuerpo en Markdown con los bloques de `tools/md.mjs`. |
 | `content/diagramas/<id>.json` | Diagramas en el formato del motor de la Ronda (carriles, cajas, flechas y recorridos; ver `tools/diagrama.mjs` y la guía). |
@@ -35,7 +36,7 @@ El formato de lectura es el de la Ronda: barra lateral con el índice, la lecci�
 
 El build falla si un `[[id]]` no existe, si un concepto se presenta dos veces o si falta un diagrama o una figura. También lista los **adelantos**: palabras que una lección usa antes de que alguna lección las presente. Salen en su globo con la definición, pero conviene que sean pocas.
 
-**La regla de las dudas:** cuando surja una duda en el Dojo o en la Ronda, la respuesta se agrega o se mejora en `content/glosario.json`.
+**La regla de las dudas:** cuando surja una duda en el Dojo o en la Ronda, la respuesta se agrega o se mejora en `content/glosario/` (sin nombrar de dónde vino).
 
 ## Comandos
 

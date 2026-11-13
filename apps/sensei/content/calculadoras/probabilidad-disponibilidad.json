@@ -1,11 +1,11 @@
 {
   "titulo": "Disponibilidad compuesta",
-  "intro": "Un sistema de **piezas en serie** (la request necesita todas) donde cada pieza tiene **réplicas en paralelo** (basta con una). La **causa común** es lo que tumba todo a la vez, como un deploy malo.",
+  "intro": "Un sistema de **piezas en serie** (la request necesita todas) donde cada pieza tiene **réplicas en paralelo** (basta con una). La **causa común** es lo que tumba todo a la vez, como un deploy malo. La calculadora aplica \\( A_{pieza} = 1 − (1 − a)^k \\) a cada pieza, \\( A = A_{pieza}^n × (1 − c) \\) al sistema y \\( m = (1 − A) × 43,200 \\) para los minutos.",
   "entradas": [
-    { "id": "a", "label": "Disponibilidad de **una réplica**", "min": 90, "max": 99.99, "paso": 0.01, "valor": 99.5, "unidad": "%" },
-    { "id": "k", "label": "**Réplicas en paralelo** por pieza", "min": 1, "max": 4, "paso": 1, "valor": 2 },
-    { "id": "n", "label": "**Piezas en serie**", "min": 1, "max": 10, "paso": 1, "valor": 1 },
-    { "id": "c", "label": "**Causa común**: % del tiempo en que todo cae a la vez", "min": 0, "max": 1, "paso": 0.01, "valor": 0, "unidad": "%" }
+    { "id": "a", "label": "Disponibilidad de **una réplica**, \\( a \\)", "min": 90, "max": 99.99, "paso": 0.01, "valor": 99.5, "unidad": "%" },
+    { "id": "k", "label": "**Réplicas en paralelo** por pieza, \\( k \\)", "min": 1, "max": 4, "paso": 1, "valor": 2 },
+    { "id": "n", "label": "**Piezas en serie**, \\( n \\)", "min": 1, "max": 10, "paso": 1, "valor": 1 },
+    { "id": "c", "label": "**Causa común**, \\( c \\): % del tiempo en que todo cae a la vez", "min": 0, "max": 1, "paso": 0.01, "valor": 0, "unidad": "%" }
   ],
   "calculos": [
     { "id": "af", "formula": "a / 100" },
@@ -13,11 +13,11 @@
     { "id": "total", "formula": "pow(pieza, n) * (1 - c / 100)" }
   ],
   "salidas": [
-    { "label": "Una pieza con sus réplicas", "formula": "pieza", "formato": "pct", "decimales": 4, "nota": "1 − (1 − a)^k" },
-    { "label": "Todo el sistema", "formula": "total", "formato": "pct", "decimales": 4, "nota": "pieza^N × (1 − causa común)" },
-    { "label": "Minutos caído al mes (30 días)", "formula": "(1 - total) * 43200", "formato": "num", "decimales": 1, "barra": true, "nota": "(1 − total) × 43,200" },
-    { "label": "Lo mismo con una réplica por pieza y sin causa común", "formula": "(1 - pow(af, n)) * 43200", "formato": "num", "decimales": 1, "barra": true, "nota": "minutos al mes, para comparar" },
-    { "label": "Nueves", "formula": "-log10(max(1 - total, 1e-12))", "formato": "num", "decimales": 1, "nota": "3 es 99.9 %; 4, 99.99 %" }
+    { "label": "Una pieza con sus réplicas, \\( A_{pieza} \\)", "formula": "pieza", "formato": "pct", "decimales": 4, "nota": "\\( A_{pieza} = 1 − (1 − a)^k \\)" },
+    { "label": "Todo el sistema, \\( A \\)", "formula": "total", "formato": "pct", "decimales": 4, "nota": "\\( A = A_{pieza}^n × (1 − c) \\): las n piezas en serie, y la causa común encima" },
+    { "label": "Minutos caído al mes (30 días), \\( m \\)", "formula": "(1 - total) * 43200", "formato": "num", "decimales": 1, "barra": true, "nota": "\\( m = (1 − A) × 43,200 \\); 43,200 son los minutos de 30 días" },
+    { "label": "Lo mismo con una réplica por pieza y sin causa común", "formula": "(1 - pow(af, n)) * 43200", "formato": "num", "decimales": 1, "barra": true, "nota": "\\( (1 − a^n) × 43,200 \\) minutos al mes, para comparar" },
+    { "label": "Nueves", "formula": "-log10(max(1 - total, 1e-12))", "formato": "num", "decimales": 1, "nota": "\\( −log_{10}(1 − A) \\): 3 es 99.9 %; 4, 99.99 %" }
   ],
   "nota": "Con dos zonas al 99.5 %, Triton queda en ≈ 1 minuto al mes, contra 216 de una sola. Sube la causa común a 0.1 %: ≈ 44 minutos, y más réplicas ya casi no lo bajan."
 }

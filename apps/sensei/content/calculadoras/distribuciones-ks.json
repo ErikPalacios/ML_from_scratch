@@ -1,10 +1,10 @@
 {
   "titulo": "KS a ojo",
-  "intro": "Cinco fotos de la [[referencia]] y cinco de esta semana, con su brillo de 0 a 255. La calculadora arma las dos curvas acumuladas y busca dónde se separan más: esa distancia es D. Abajo, la D mínima que la [[prueba-ks|prueba KS]] llamaría «significativa» si cada lado tuviera n datos.",
+  "intro": "Cinco fotos de la [[referencia]] y cinco de esta semana, con su brillo de 0 a 255. La calculadora arma las dos curvas acumuladas y busca dónde se separan más: esa distancia es D. La calculadora aplica \\(D = max_{x} |F_{ref}(x) − F_{act}(x)|\\): en cada brillo \\(x\\), la fracción de fotos de cada lado con ese brillo o menos, y la diferencia más grande. Abajo, la D mínima que la [[prueba-ks|prueba KS]] llamaría «significativa» si cada lado tuviera \\(n\\) datos, \\(D_{min} ≈ 1.36 × sqrt{2/n}\\).",
   "entradas": [
     {
       "id": "r1",
-      "label": "Referencia, foto 1",
+      "label": "Referencia, foto 1: brillo de 0 a 255",
       "min": 0,
       "max": 255,
       "paso": 1,
@@ -12,7 +12,7 @@
     },
     {
       "id": "r2",
-      "label": "Referencia, foto 2",
+      "label": "Referencia, foto 2: brillo de 0 a 255",
       "min": 0,
       "max": 255,
       "paso": 1,
@@ -20,7 +20,7 @@
     },
     {
       "id": "r3",
-      "label": "Referencia, foto 3",
+      "label": "Referencia, foto 3: brillo de 0 a 255",
       "min": 0,
       "max": 255,
       "paso": 1,
@@ -28,7 +28,7 @@
     },
     {
       "id": "r4",
-      "label": "Referencia, foto 4",
+      "label": "Referencia, foto 4: brillo de 0 a 255",
       "min": 0,
       "max": 255,
       "paso": 1,
@@ -36,7 +36,7 @@
     },
     {
       "id": "r5",
-      "label": "Referencia, foto 5",
+      "label": "Referencia, foto 5: brillo de 0 a 255",
       "min": 0,
       "max": 255,
       "paso": 1,
@@ -44,7 +44,7 @@
     },
     {
       "id": "s1",
-      "label": "**Esta semana**, foto 1",
+      "label": "**Esta semana**, foto 1: brillo de 0 a 255",
       "min": 0,
       "max": 255,
       "paso": 1,
@@ -52,7 +52,7 @@
     },
     {
       "id": "s2",
-      "label": "**Esta semana**, foto 2",
+      "label": "**Esta semana**, foto 2: brillo de 0 a 255",
       "min": 0,
       "max": 255,
       "paso": 1,
@@ -60,7 +60,7 @@
     },
     {
       "id": "s3",
-      "label": "**Esta semana**, foto 3",
+      "label": "**Esta semana**, foto 3: brillo de 0 a 255",
       "min": 0,
       "max": 255,
       "paso": 1,
@@ -68,7 +68,7 @@
     },
     {
       "id": "s4",
-      "label": "**Esta semana**, foto 4",
+      "label": "**Esta semana**, foto 4: brillo de 0 a 255",
       "min": 0,
       "max": 255,
       "paso": 1,
@@ -76,7 +76,7 @@
     },
     {
       "id": "s5",
-      "label": "**Esta semana**, foto 5",
+      "label": "**Esta semana**, foto 5: brillo de 0 a 255",
       "min": 0,
       "max": 255,
       "paso": 1,
@@ -84,7 +84,7 @@
     },
     {
       "id": "n",
-      "label": "Datos por lado, si fueran muestras grandes",
+      "label": "Datos por lado, \\(n\\), si fueran muestras grandes",
       "min": 5,
       "max": 10000000,
       "paso": 1,
@@ -147,17 +147,18 @@
       "label": "D, la distancia vertical más grande",
       "formula": "D",
       "formato": "num",
-      "decimales": 2
+      "decimales": 2,
+      "nota": "\\(max_{x} |F_{ref}(x) − F_{act}(x)|\\), de 0 a 1"
     },
     {
-      "label": "D mínima para «significativo» con ese n",
+      "label": "D mínima para «significativo» con ese \\(n\\), \\(D_{min}\\)",
       "formula": "u",
       "formato": "num",
       "decimales": 4,
-      "nota": "1.36 × √(2 ÷ n), al 5 %"
+      "nota": "\\(D_{min} ≈ 1.36 × sqrt{2/n}\\), al 5 %"
     },
     {
-      "label": "¿La prueba diría «cambió»?",
+      "label": "¿La prueba diría «cambió»? (\\(D > D_{min}\\))",
       "formula": "D > u ? 1 : 0",
       "formato": "int",
       "nota": "1 = sí · 0 = no"

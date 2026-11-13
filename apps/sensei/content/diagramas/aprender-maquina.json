@@ -15,7 +15,7 @@
     { "id": "nucleos", "label": "Núcleos de la GPU", "sub": "forward, backward, Adam", "kind": "gpu", "x": 30, "y": 28, "w": 18, "h": 10,
       "note": "Aquí pasa el cálculo: miles de núcleos de la [[gpu|GPU]] hacen a la vez las multiplicaciones con su suma del [[forward-pass]], de la [[backpropagation]] y del paso de [[adam|Adam]]. Solo trabajan con lo que está en la VRAM." },
     { "id": "vram", "label": "VRAM", "sub": "perillas, gradientes, Adam, activaciones", "kind": "store", "x": 58, "y": 28, "w": 18, "h": 10,
-      "note": "La [[vram|VRAM]] tiene que guardar todo a la vez: perillas, gradientes y los dos promedios de Adam (≈ 16 bytes por perilla, ≈ 392 MB en C01) y las activaciones del batch (≈ 3 GB con 64 fotos, una estimación). Si no cabe, el entrenamiento se detiene con un error de memoria." },
+      "note": "La [[vram|VRAM]] tiene que guardar todo a la vez: perillas, gradientes y los dos promedios de Adam (≈ 16 bytes por perilla, ≈ 392 MB con los 24.5 M de perillas del modelo de Alba) y las activaciones del batch (≈ 3 GB con 64 fotos, una estimación). Si no cabe, el entrenamiento se detiene con un error de memoria." },
     { "id": "ckpt", "label": "Checkpoint", "sub": "S3, cada 15 min", "kind": "store", "x": 2, "y": 28, "w": 18, "h": 10,
       "note": "Una copia del estado, fuera de la máquina: perillas, estado de Adam, paso y semillas, ≈ 294 MB. Si la máquina se apaga, otra sigue desde aquí." }
   ],
@@ -32,7 +32,7 @@
       { "nodes": ["cpu", "lote"], "edges": ["cpu>lote"], "text": "**2 · Sale el batch.** Un tensor de [64, 3, 224, 224]: ≈ 9.6 millones de números, ≈ 38.5 MB en float32." },
       { "nodes": ["lote", "vram"], "edges": ["lote>vram"], "text": "**3 · Se copia a la GPU.** Viaja por PCIe, el cable entre la tarjeta de la GPU y el resto de la computadora, y queda en la VRAM." },
       { "nodes": ["vram", "nucleos"], "edges": ["vram>nucleos"], "text": "**4 · La GPU calcula.** Forward pass, pérdida, backpropagation y el paso de Adam: miles de millones de multiplicaciones con su suma, leyendo y escribiendo en la VRAM. Las perillas nuevas se quedan ahí mismo." },
-      { "nodes": ["cpu", "nucleos"], "edges": [], "text": "**Y otra vez.** Mientras la GPU calculaba, la CPU ya preparó el siguiente batch. En C01, 28,754 vueltas por época." }
+      { "nodes": ["cpu", "nucleos"], "edges": [], "text": "**Y otra vez.** Mientras la GPU calculaba, la CPU ya preparó el siguiente batch. En Alba, 28,754 vueltas por época: 1,840,211 fotos de train ÷ 64, redondeado hacia arriba." }
     ] },
     { "id": "vram", "label": "Qué ocupa la VRAM", "steps": [
       { "nodes": ["vram"], "edges": [], "text": "**Lo fijo.** Perillas (98 MB en float32), sus gradientes (98 MB) y los dos promedios de Adam (196 MB): ≈ 392 MB, 16 bytes por perilla." },

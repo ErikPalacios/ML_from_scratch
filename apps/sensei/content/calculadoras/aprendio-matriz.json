@@ -1,22 +1,22 @@
 {
   "titulo": "Matriz de confusión en vivo",
-  "intro": "Escribe las cuatro casillas de una matriz de 2 × 2 y mira cómo salen las métricas. Empieza con la del modelo de tenis: 80, 40, 20 y 860.",
+  "intro": "Escribe las cuatro casillas de una matriz de 2 × 2 y mira cómo salen las métricas. Aplica las ecuaciones de la lección: \\(text{accuracy} = (TP + TN)/N\\), con \\(N = TP + FP + FN + TN\\); \\(text{precision} = TP/(TP + FP)\\); \\(text{recall} = TP/(TP + FN)\\), y \\(F_1 = 2 × TP/(2 × TP + FP + FN)\\). Empieza con la del modelo de tenis: 80, 40, 20 y 860.",
   "entradas": [
-    { "id": "tp", "label": "**TP** · era «sí» y dijo «sí»", "min": 0, "max": 1000000, "paso": 1, "valor": 80, "tipo": "numero" },
-    { "id": "fp", "label": "**FP** · era «no» y dijo «sí»", "min": 0, "max": 1000000, "paso": 1, "valor": 40, "tipo": "numero" },
-    { "id": "fn", "label": "**FN** · era «sí» y dijo «no»", "min": 0, "max": 1000000, "paso": 1, "valor": 20, "tipo": "numero" },
-    { "id": "tn", "label": "**TN** · era «no» y dijo «no»", "min": 0, "max": 1000000, "paso": 1, "valor": 860, "tipo": "numero" }
+    { "id": "tp", "label": "**TP**, verdaderos positivos · era «sí» y dijo «sí» (fotos)", "min": 0, "max": 1000000, "paso": 1, "valor": 80, "tipo": "numero" },
+    { "id": "fp", "label": "**FP**, falsos positivos · era «no» y dijo «sí» (fotos)", "min": 0, "max": 1000000, "paso": 1, "valor": 40, "tipo": "numero" },
+    { "id": "fn", "label": "**FN**, falsos negativos · era «sí» y dijo «no» (fotos)", "min": 0, "max": 1000000, "paso": 1, "valor": 20, "tipo": "numero" },
+    { "id": "tn", "label": "**TN**, verdaderos negativos · era «no» y dijo «no» (fotos)", "min": 0, "max": 1000000, "paso": 1, "valor": 860, "tipo": "numero" }
   ],
   "calculos": [
     { "id": "n", "formula": "tp + fp + fn + tn" }
   ],
   "salidas": [
-    { "label": "**Accuracy**", "formula": "(tp + tn) / max(n, 1e-9)", "formato": "pct", "barra": true, "nota": "todos los aciertos entre todas las fotos" },
-    { "label": "**Precision**", "formula": "tp / max(tp + fp, 1e-9)", "formato": "pct", "barra": true, "nota": "de lo que dijo «sí», cuánto era" },
-    { "label": "**Recall**", "formula": "tp / max(tp + fn, 1e-9)", "formato": "pct", "barra": true, "nota": "de lo que era «sí», cuánto encontró" },
-    { "label": "**F1**", "formula": "2 * tp / max(2 * tp + fp + fn, 1e-9)", "formato": "num", "decimales": 3, "nota": "2·TP ÷ (2·TP + FP + FN)" },
-    { "label": "Tasa de falsos positivos", "formula": "fp / max(fp + tn, 1e-9)", "formato": "pct", "nota": "de lo que era «no», a cuánto le dijo «sí»" },
-    { "label": "Accuracy de decir siempre «no»", "formula": "(fp + tn) / max(n, 1e-9)", "formato": "pct", "nota": "el baseline flojo, para comparar" }
+    { "label": "**Accuracy**", "formula": "(tp + tn) / max(n, 1e-9)", "formato": "pct", "barra": true, "nota": "\\((TP + TN)/N\\): todos los aciertos entre todas las fotos" },
+    { "label": "**Precision**", "formula": "tp / max(tp + fp, 1e-9)", "formato": "pct", "barra": true, "nota": "\\(TP/(TP + FP)\\): de lo que dijo «sí», cuánto era" },
+    { "label": "**Recall**", "formula": "tp / max(tp + fn, 1e-9)", "formato": "pct", "barra": true, "nota": "\\(TP/(TP + FN)\\): de lo que era «sí», cuánto encontró" },
+    { "label": "**F1**", "formula": "2 * tp / max(2 * tp + fp + fn, 1e-9)", "formato": "num", "decimales": 3, "nota": "\\(2 × TP/(2 × TP + FP + FN)\\), igual a \\(2 × P × R/(P + R)\\)" },
+    { "label": "Tasa de falsos positivos, FPR", "formula": "fp / max(fp + tn, 1e-9)", "formato": "pct", "nota": "\\(FP/(FP + TN)\\): de lo que era «no», a cuánto le dijo «sí»" },
+    { "label": "Accuracy de decir siempre «no»", "formula": "(fp + tn) / max(n, 1e-9)", "formato": "pct", "nota": "\\((FP + TN)/N\\): el baseline flojo, para comparar" }
   ],
   "nota": "Prueba esto: cambia TN de 860 a 9,860, como si llegaran 9,000 fotos más que no son tenis. La accuracy sube de 94 % a 99.4 %, y precision, recall y F1 no se mueven: el modelo no mejoró en nada."
 }

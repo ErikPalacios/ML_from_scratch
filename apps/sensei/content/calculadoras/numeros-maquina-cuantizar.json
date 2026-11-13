@@ -1,10 +1,10 @@
 {
   "titulo": "Cuantizar un número",
-  "intro": "En la [[cuantizacion|cuantización]] simétrica, **escala = rango ÷ el entero más grande** y **entero = redondear(valor ÷ escala)**. Para usarlo, **valor ≈ entero × escala**. Empieza con el ejemplo de la lección: el 0.1 de una capa cuyos pesos van de −2.5 a 2.5, en [[int8|INT8]].",
+  "intro": "En la [[cuantizacion|cuantización]] simétrica, la escala es \\(s = m ÷ q_{max}\\), el entero guardado es \\(q\\) = redondear(\\(x ÷ s\\)) y, para usarlo, el valor de vuelta es \\(v = q × s\\). Empieza con el ejemplo de la lección: el 0.1 de una capa cuyos pesos van de −2.5 a 2.5, en [[int8|INT8]].",
   "entradas": [
-    { "id": "x", "label": "Valor que quieres guardar", "min": -30, "max": 30, "paso": 0.001, "valor": 0.1, "tipo": "numero" },
-    { "id": "m", "label": "Rango: el valor más grande del grupo, sin signo (2.5 = la capa del ejemplo · 25 = con un peso atípico)", "min": 0.1, "max": 30, "paso": 0.1, "valor": 2.5 },
-    { "id": "b", "label": "Bits del entero (8 = INT8 · 4 = INT4)", "min": 2, "max": 16, "paso": 1, "valor": 8 }
+    { "id": "x", "label": "Valor que quieres guardar, \\(x\\)", "min": -30, "max": 30, "paso": 0.001, "valor": 0.1, "tipo": "numero" },
+    { "id": "m", "label": "Rango \\(m\\): el valor más grande del grupo, sin signo (2.5 = la capa del ejemplo · 25 = con un peso atípico)", "min": 0.1, "max": 30, "paso": 0.1, "valor": 2.5 },
+    { "id": "b", "label": "Bits del entero, \\(n\\) (8 = INT8 · 4 = INT4)", "min": 2, "max": 16, "paso": 1, "valor": 8 }
   ],
   "calculos": [
     { "id": "qmax", "formula": "pow(2, b - 1) - 1" },
@@ -14,13 +14,13 @@
     { "id": "e", "formula": "abs(y - x)" }
   ],
   "salidas": [
-    { "label": "Entero más grande que se usa", "formula": "qmax", "formato": "int", "nota": "127 en INT8 · 7 en INT4" },
-    { "label": "Escala", "formula": "s", "formato": "num", "decimales": 4, "nota": "lo que vale cada escalón" },
-    { "label": "Entero guardado", "formula": "q", "formato": "int", "nota": "si el valor se sale del rango, se queda en el más grande" },
-    { "label": "Valor de vuelta", "formula": "y", "formato": "num", "decimales": 4, "nota": "entero × escala" },
-    { "label": "Error", "formula": "e", "formato": "num", "decimales": 4, "nota": "a lo mucho media escala, si el valor está dentro del rango" },
-    { "label": "Error en proporción al valor", "formula": "e / max(abs(x), 1e-9)", "formato": "pct", "barra": true },
-    { "label": "Bytes por número", "formula": "b / 8", "formato": "num", "decimales": 2, "nota": "más la escala, que comparte todo el grupo" }
+    { "label": "Entero más grande que se usa, \\(q_{max}\\)", "formula": "qmax", "formato": "int", "nota": "\\(2^{n−1} − 1\\): 127 en INT8 · 7 en INT4" },
+    { "label": "Escala \\(s\\)", "formula": "s", "formato": "num", "decimales": 4, "nota": "\\(s = m ÷ q_{max}\\): lo que vale cada escalón" },
+    { "label": "Entero guardado \\(q\\)", "formula": "q", "formato": "int", "nota": "redondear(\\(x ÷ s\\)); si el valor se sale del rango, se queda en \\(q_{max}\\) o en \\(−q_{max}\\)" },
+    { "label": "Valor de vuelta \\(v\\)", "formula": "y", "formato": "num", "decimales": 4, "nota": "\\(v = q × s\\)" },
+    { "label": "Error", "formula": "e", "formato": "num", "decimales": 4, "nota": "\\(v − x\\), sin signo: a lo mucho \\(s ÷ 2\\), si el valor está dentro del rango" },
+    { "label": "Error en proporción al valor", "formula": "e / max(abs(x), 1e-9)", "formato": "pct", "barra": true, "nota": "el error ÷ \\(x\\), sin signo" },
+    { "label": "Bytes por número", "formula": "b / 8", "formato": "num", "decimales": 2, "nota": "\\(n ÷ 8\\), más la escala, que comparte todo el grupo" }
   ],
   "nota": "Sube el rango a 25, como si la capa tuviera un solo peso atípico: el mismo 0.1 vuelve como 0.1969, casi el doble. Regresa el rango a 2.5 y baja a 4 bits: el 0.1 se vuelve 0. Por eso INT4 lleva una escala por cada grupo chico de pesos."
 }

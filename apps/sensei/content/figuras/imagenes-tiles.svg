@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 528" role="img" aria-labelledby="f-imagenes-tiles-t" class="f-svg" style="max-width:420px">
-<title id="f-imagenes-tiles-t">La imagen de la cámara de C03, de 2,448 por 2,048 píxeles en un solo canal, partida en 20 tiles de 512 por 512: 5 a lo ancho y 4 a lo alto. Una grieta en naranja cae dentro de uno de los tiles. Abajo, la misma grieta de 0.2 milímetros vista de cerca a tres resoluciones: con 2,448 píxeles de ancho mide 3.3 píxeles y se ve; con 1,024 mide 1.4 píxeles y apenas se ve; con 224 mide 0.3 píxeles y se pierde.</title>
+<title id="f-imagenes-tiles-t">La imagen de una cámara que inspecciona piezas metálicas, de 2,448 por 2,048 píxeles en un solo canal, partida en 20 tiles de 512 por 512: 5 a lo ancho y 4 a lo alto. Una grieta en naranja cae dentro de uno de los tiles. Abajo, la misma grieta de 0.2 milímetros vista de cerca a tres resoluciones: con 2,448 píxeles de ancho mide 3.3 píxeles y se ve; con 1,024 mide 1.4 píxeles y apenas se ve; con 224 mide 0.3 píxeles y se pierde.</title>
 <rect class="f-card" x="10" y="10" width="340" height="242" rx="16"/>
-<text class="f-l" x="28" y="36">C03 · 2,448 × 2,048 · UN CANAL</text>
+<text class="f-l" x="28" y="36">INSPECCIÓN · 2,448 × 2,048 · UN CANAL</text>
 <rect class="f-off" x="28" y="50" width="196" height="164" rx="4"/>
 <rect class="f-chip" x="46" y="76" width="160" height="112" rx="14" style="stroke:var(--muted);stroke-opacity:.5;stroke-width:1.5"/>
 <circle class="f-off" cx="84" cy="132" r="13" style="stroke:var(--muted);stroke-opacity:.5;stroke-width:1.5"/>

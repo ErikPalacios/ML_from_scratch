@@ -1,23 +1,23 @@
 {
   "titulo": "El límite de CPU: cuota y throttling",
-  "intro": "Con un límite de CPU, el [[cgroup]] da una **cuota**: tantos ms de CPU por cada ventana de 100 ms, sumando todos los hilos. Arranca con el ejemplo de M06: 4 fotos a la vez, 40 ms de CPU cada una y un límite de 1 CPU.",
+  "intro": "Con un límite de CPU, el [[cgroup]] da una **cuota**: tantos ms de CPU por cada ventana de 100 ms, sumando todos los hilos. La calculadora aplica \\(Q = L × V\\), \\(T = h × w\\), \\(k = ⌈T/Q⌉ − 1\\) y \\(t = k × V + (T − k × Q)/h\\), con la ventana \\(V\\) = 100 ms, las mismas letras de la lección. Arranca con el gateway de Alba: 4 fotos a la vez, 40 ms de CPU cada una y un límite de 1 CPU.",
   "entradas": [
-    { "id": "lim", "label": "Límite de CPU del contenedor (1 = 100 ms por ventana · 0.5 = «500m»)", "min": 0.1, "max": 8, "paso": 0.1, "valor": 1 },
-    { "id": "h", "label": "Fotos que llegan a la vez, un hilo cada una", "min": 1, "max": 16, "paso": 1, "valor": 4 },
-    { "id": "w", "label": "CPU que necesita cada foto", "min": 5, "max": 200, "paso": 5, "valor": 40, "unidad": "ms" }
+    { "id": "lim", "label": "Límite de CPU del contenedor, \\(L\\), en CPU (1 = 100 ms por ventana · 0.5 = «500m»)", "min": 0.1, "max": 8, "paso": 0.1, "valor": 1 },
+    { "id": "h", "label": "Fotos que llegan a la vez, \\(h\\), un hilo cada una", "min": 1, "max": 16, "paso": 1, "valor": 4 },
+    { "id": "w", "label": "ms de CPU que necesita cada foto, \\(w\\)", "min": 5, "max": 200, "paso": 5, "valor": 40, "unidad": "ms" }
   ],
   "calculos": [
     { "id": "Q", "formula": "round(lim * 100)" },
     { "id": "T", "formula": "h * w" },
-    { "id": "k", "formula": "max(ceil(T / Q) - 1, 0)" },
+    { "id": "k", "formula": "h <= lim ? 0 : max(ceil(T / Q) - 1, 0)" },
     { "id": "fin", "formula": "k * 100 + (T - k * Q) / h" }
   ],
   "salidas": [
-    { "label": "Cuota por ventana de 100 ms", "formula": "Q", "formato": "ms", "nota": "de CPU, sumando todos los hilos" },
-    { "label": "CPU que piden entre todas", "formula": "T", "formato": "ms" },
-    { "label": "Ventanas enteras en que se congelan", "formula": "k", "formato": "int" },
-    { "label": "Lo que tarda cada foto", "formula": "fin", "formato": "ms", "decimales": 1, "barra": true },
-    { "label": "Veces lo que tardaría sin límite", "formula": "fin / w", "formato": "x", "decimales": 1, "nota": "1.0× = el límite alcanza" }
+    { "label": "Cuota por ventana, \\(Q\\)", "formula": "Q", "formato": "ms", "nota": "\\(Q = L × 100\\) ms de CPU, sumando todos los hilos" },
+    { "label": "CPU que piden entre todas, \\(T\\)", "formula": "T", "formato": "ms", "nota": "\\(T = h × w\\), en ms de CPU" },
+    { "label": "Ventanas que se gastan la cuota, \\(k\\)", "formula": "k", "formato": "int", "nota": "\\(k = ⌈T/Q⌉ − 1\\): en cada una quedan congeladas hasta que empieza la siguiente. Si \\(h ≤ L\\), la cuota nunca se acaba y \\(k\\) = 0" },
+    { "label": "Lo que tarda cada foto, \\(t\\)", "formula": "fin", "formato": "ms", "decimales": 1, "barra": true, "nota": "\\(t = k × 100 + (T − k × Q)/h\\), en ms de reloj" },
+    { "label": "Veces lo que tardaría sin límite, \\(t/w\\)", "formula": "fin / w", "formato": "x", "decimales": 1, "nota": "1.0× = el límite alcanza" }
   ],
-  "nota": "Supone que las fotos llegan justo al empezar una ventana y que el nodo tiene un núcleo libre para cada hilo. Si llegan a media ventana, puede ir mejor o peor: depende de cuánta cuota quede."
+  "nota": "Supone que las fotos llegan justo al empezar una ventana y que el nodo tiene un núcleo libre para cada hilo. Con tantas fotos como CPU de límite o menos (\\(h ≤ L\\)), la cuota no se acaba y cada foto tarda \\(w\\). Si llegan a media ventana, puede ir mejor o peor: depende de cuánta cuota quede."
 }

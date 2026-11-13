@@ -1,5 +1,5 @@
 {
-  "titulo": "Cómo se revisa el SLO de latencia de C01",
+  "titulo": "Cómo se revisa el SLO de latencia de Alba",
   "width": 78,
   "height": 60,
   "lanes": [
@@ -18,7 +18,7 @@
     },
     {
       "id": "servicio",
-      "label": "Servicio de C01",
+      "label": "Servicio de Alba",
       "sub": "mide cada request",
       "kind": "service",
       "x": 28, "y": 4, "w": 20, "h": 8,
@@ -70,7 +70,7 @@
       "sub": "sigue el runbook",
       "kind": "human",
       "x": 4, "y": 50, "w": 18, "h": 8,
-      "note": "La persona de guardia (*on-call*). El *runbook* de C01, su manual de qué hacer con cada alerta, le dice qué revisar primero: qué tramo subió (preprocesamiento, cola o cálculo en la GPU), si hubo un deploy y si falta capacidad."
+      "note": "La persona de guardia (*on-call*). El *runbook* de Alba, su manual de qué hacer con cada alerta, le dice qué revisar primero: qué tramo subió (preprocesamiento, cola o cálculo en la GPU), si hubo un deploy y si falta capacidad."
     },
     {
       "id": "equipo",

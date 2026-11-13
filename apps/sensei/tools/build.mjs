@@ -3,7 +3,8 @@
 //   index.html            inicio: el camino, tu avance, la ruta TrueML y el temario
 //   <leccion>/index.html  una página por cada content/lecciones/<id>.md que exista
 //   glosario/index.html   todos los conceptos, con buscador
-//   ronda/index.html      «Para leer la Ronda»: qué lecciones preparan para cada módulo de la Ronda de Diseño
+//   que-sigue/index.html  «¿Qué sigue después de Sensei?»: el Dojo y la Ronda de Diseño. Es el único lugar del sitio que
+//                         los nombra (y el cierre de una lección, con su estación del Dojo); las lecciones no.
 //   indice.json           lo que busca el buscador de la barra lateral (lecciones y conceptos)
 //   sw.js, sensei.css…    modo sin conexión, estilos y el motor de diagramas de la Ronda
 //
@@ -39,8 +40,7 @@ const fail = (msg) => { console.error('[build] ERROR: ' + msg); process.exit(1);
 
 const SITIO = json(join(C, 'sitio.json'));
 const TEMARIO = json(join(C, 'temario.json'));
-const RONDA = json(join(C, 'ronda.json'));
-const RMOD = new Map(RONDA.modulos.map((m) => [m.id, m]));
+const RONDA = json(join(C, 'ronda.json'));   // solo para /que-sigue/
 const DOJO = existsSync(join(C, 'dojo.json')) ? json(join(C, 'dojo.json')) : { estaciones: [] };   // lo escribe apps/trueml/sync.mjs
 
 // ---------------------------------------------------------------- glosario: un archivo por lección en content/glosario/
@@ -73,8 +73,6 @@ TEMARIO.modulos.forEach((m, k) => {
   m.num = k;
   for (const l of m.lecciones) {
     etapasDe(l.etapas);
-    for (const r of l.ronda || []) if (!RMOD.has(r)) errores.push(`temario ${l.id}: «ronda» menciona «${r}», que no está en content/ronda.json`);
-    l.ronda = l.ronda || [];
     l.modulo = m;
     l.url = `/${l.id}/`;
     l.archivo = join(C, 'lecciones', `${l.id}.md`);
@@ -174,7 +172,6 @@ const TEMA = `<div class="tema" role="group" aria-label="Tema">${[['auto', 'Sist
   .map(([t, l]) => `<button type="button" data-tema="${t}" aria-pressed="false">${l}</button>`).join('')}</div>`;
 const dojoDe = (num) => DOJO.estaciones.find((s) => s.num === num);
 const rondaUrl = (id) => `${RONDA.url}/#${id}`;
-const chipRonda = (id) => `<a class="chip" href="${rondaUrl(id)}"><b>${id.toUpperCase()}</b>${esc(RMOD.get(id).titulo)}</a>`;
 const marcaLink = (sub) => `<a class="brand" href="/"><span class="brand__mark">${marcaChica}</span><span class="brand__txt"><span class="brand__name">${esc(SITIO.nombre)}</span><span class="brand__sub">${esc(sub)}</span></span></a>`;
 
 // La franja de avance: una celda por lección (lista, leída —la pinta app.js— o próximamente).
@@ -189,13 +186,13 @@ function sidebar(actual) {
       : `<li><span class="nav__item is-soon" data-buscar="${esc(l.titulo.toLowerCase())}"><span class="nav__num">${l.n}</span><span class="nav__title">${esc(l.titulo)}</span><span class="nav__mk"></span></span></li>`)).join('');
     return `<details class="nav__group"${abierto ? ' open' : ''}><summary><span class="nav__label">${m.num} · ${esc(m.titulo)}</span><span class="nav__fase${listas === m.lecciones.length ? ' is-lista' : ''}">${listas === m.lecciones.length ? 'Listo' : listas ? `${listas}/${m.lecciones.length}` : `Fase ${m.fase}`}</span></summary><ol class="nav__list">${items}</ol></details>`;
   }).join('');
-  const top = [['/', ICO.casa, 'Inicio', 'inicio'], ['/ronda/', ICO.ronda, 'Para leer la Ronda', 'ronda'], ['/glosario/', ICO.libro, `Glosario`, 'glosario']]
+  const top = [['/', ICO.casa, 'Inicio', 'inicio'], ['/glosario/', ICO.libro, `Glosario`, 'glosario']]
     .map(([href, ico, t, id]) => `<a class="nav__item" href="${href}"${id === actual ? ' aria-current="page"' : ''}>${ico}<span>${t}</span>${id === 'glosario' ? `<span class="nav__count">${REALES().length}</span>` : '<span></span>'}</a>`).join('');
   return `<aside class="sidebar" id="sidebar" aria-label="Índice">
   <div class="sidebar__head">${marcaLink('TrueML · teoría desde cero')}<button type="button" class="btn-ico sidebar__close" aria-label="Cerrar el índice" data-cajon="cerrar">${ICO.x}</button></div>
   <div class="side-search" role="search"><input type="search" placeholder="Buscar lecciones y conceptos…" aria-label="Buscar lecciones y conceptos" autocomplete="off" data-buscar-nav><kbd aria-hidden="true">/</kbd><ul class="side-res" hidden></ul></div>
   <div class="side-prog"><div class="side-prog__row"><span class="lbl">Progreso</span><b data-prog>0/${LISTAS.length}</b></div>${strip(ORDEN)}</div>
-  <nav class="nav"><div class="nav__top">${top}</div>${grupos}</nav>
+  <nav class="nav"><div class="nav__top">${top}</div>${grupos}<div class="nav__top nav__fin"><a class="nav__item" href="/que-sigue/"${actual === 'que-sigue' ? ' aria-current="page"' : ''}>${ICO.ronda}<span>¿Qué sigue después de Sensei?</span><span></span></a></div></nav>
   <div class="sidebar__foot">
     <div class="tema-row"><span class="lbl">Tema</span>${TEMA}</div>
     <span>Tu avance se guarda solo en este navegador.</span>
@@ -205,7 +202,7 @@ function sidebar(actual) {
 }
 
 const pie = `<footer class="pie">
-  <p>© ${new Date().getFullYear()} Erik Palacios · Contenido bajo <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es">CC BY-NC-ND 4.0</a> · <a href="${SITIO.portada}">TrueML</a> · <a href="${SITIO.dojo}">Dojo</a> · <a href="${RONDA.url}">Ronda de Diseño</a> · <a href="${SITIO.issues}">Reportar un error</a></p>
+  <p>© ${new Date().getFullYear()} Erik Palacios · Contenido bajo <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es">CC BY-NC-ND 4.0</a> · <a href="${SITIO.portada}">TrueML</a> · <a href="/que-sigue/">Después de Sensei</a> · <a href="${SITIO.issues}">Reportar un error</a></p>
   <p>Después de la primera visita, ${esc(SITIO.nombre)} abre sin conexión.</p>
 </footer>`;
 
@@ -290,7 +287,6 @@ function paginaLeccion(l) {
     ? `Antes de esta lección: ${req.map((r) => (r.lista ? `<a href="${r.url}">${esc(r.titulo)}</a>` : `${esc(r.titulo)} (próximamente)`)).join(', ')}.`
     : 'No necesitas saber nada antes. Empieza aquí.';
   const secciones = l.secciones.map((x, k) => `<li><a class="toc__link${x.extra ? ' is-extra' : ''}" href="#${x.id}"><span class="toc__n">${String(k + 1).padStart(2, '0')}</span><span>${esc(x.t)}${x.extra ? ' <small>extra</small>' : ''}</span></a></li>`).join('');
-  const conecta = (l.ronda.length || est) ? `<div class="conecta"><span class="lbl">Te prepara para</span>${l.ronda.map(chipRonda).join('')}${est ? `<a class="chip chip--dojo" href="${est.url || SITIO.dojo}"><b>DOJO</b>Estación ${est.num} · ${esc(est.titulo)}</a>` : ''}</div>` : '';
   const contenido = `<article class="page">
   <header class="phead">
     <p class="eyebrow"><a href="/#m-${mod.id}">${mod.num} · ${esc(mod.titulo)}</a><span aria-hidden="true">·</span><span>Lección ${mod.lecciones.indexOf(l) + 1} de ${mod.lecciones.length}</span></p>
@@ -298,7 +294,6 @@ function paginaLeccion(l) {
     ${m.en ? `<p class="phead__en">${esc(m.en)}</p>` : ''}
     <p class="phead__summary">${esc(m.subtitulo)}</p>
     <div class="phead__meta"><span>⏱ ${l.min.esencial < l.min.todo ? `${l.min.esencial} min lo esencial · ${l.min.todo} min todo` : `${l.min.todo} min de lectura`}</span><span>${l.conceptos.length} conceptos nuevos</span>${l.cuenta.calculadoras ? `<span>${l.cuenta.calculadoras} calculadora${l.cuenta.calculadoras > 1 ? 's' : ''}</span>` : ''}${l.cuenta.ejercicios ? `<span>${l.cuenta.ejercicios} ejercicios</span>` : ''}<span>${miniT(l.etapas)}</span></div>
-    ${conecta}
     <details class="page-toc"><summary>${ICO.chev}<span class="lbl">Secciones</span><span class="page-toc__count">${l.secciones.length}</span></summary><ol>${secciones}</ol></details>
   </header>
   <div class="prose">
@@ -308,8 +303,8 @@ function paginaLeccion(l) {
   <section class="cierre" aria-label="Al terminar">
     <button type="button" class="btn c-leida" data-leida="${l.id}" aria-pressed="false"><span class="no">Marcar como leída</span><span class="si">Leída ✓</span></button>
     ${siguiente ? `<a class="card${siguiente.lista ? '' : ' card--pronto'}" href="${siguiente.lista ? siguiente.url : '/#temario'}"><span class="lbl">Sigue · ${siguiente.n}</span><b>${esc(siguiente.titulo)}</b><span class="txt">${siguiente.lista ? esc(siguiente.modulo.titulo) : `Próximamente · ${esc(siguiente.modulo.titulo)} (fase ${siguiente.modulo.fase})`}</span></a>` : ''}
-    ${est ? `<a class="card card--dojo" href="${est.url || SITIO.dojo}"><span class="lbl">Practícalo en el Dojo</span><b>Estación ${est.num} · ${esc(est.titulo)}</b><span class="txt">${est.lista ? 'Construye, rehaz y rompe esta estación con Claude Code.' : 'La estación del Dojo todavía no está lista.'}</span></a>` : ''}
-    ${l.ronda.length ? `<a class="card card--ronda" href="${rondaUrl(l.ronda[0])}"><span class="lbl">Léelo en la Ronda</span><b>${l.ronda[0].toUpperCase()} · ${esc(RMOD.get(l.ronda[0]).titulo)}</b><span class="txt">Lo que acabas de leer, con el ojo del entrevistador.</span></a>` : ''}
+    ${siguiente ? '' : `<a class="card card--ronda" href="/que-sigue/"><span class="lbl">Terminaste el curso</span><b>¿Qué sigue después de Sensei?</b><span class="txt">Practicar con código y defender el diseño en una entrevista.</span></a>`}
+    ${est ? `<a class="card card--dojo" href="${est.url || SITIO.dojo}"><span class="lbl">Practícalo con código</span><b>Estación ${est.num} del Dojo: ${esc(est.titulo)}</b><span class="txt">${est.lista ? 'El Dojo es la parte de TrueML donde construyes, rehaces y rompes cada pieza del sistema de Alba con Claude Code.' : 'El Dojo es la parte de TrueML donde practicas con código. Esta estación todavía no está lista.'}</span></a>` : ''}
     ${anterior ? `<a class="c-ant" href="${anterior.url}">← ${anterior.n} · ${esc(anterior.titulo)}</a>` : ''}
   </section>
 </article>`;
@@ -339,7 +334,7 @@ function portada() {
     <h1>${esc(SITIO.nombre)}</h1>
     <p class="titular">${esc(SITIO.titular)}</p>
     <p class="lead">${esc(SITIO.lead)}</p>
-    <div class="btns"><a class="btn" href="${primera.url}" data-seguir>Empezar: ${esc(primera.titulo)}</a><a class="btn btn--2" href="/ronda/">Para leer la Ronda</a></div>
+    <div class="btns"><a class="btn" href="${primera.url}" data-seguir>Empezar: ${esc(primera.titulo)}</a><a class="btn btn--2" href="#temario">Ver el temario</a></div>
   </div>
   <div class="home-t">${marca({ etiquetas: true, maxAltura: '420px', clave: 'p' })}</div>
 </section>
@@ -348,14 +343,6 @@ function portada() {
   <div class="prog"><span class="prog__big"><span data-prog-n>0</span> <small>de ${LISTAS.length} leídas</small></span>${strip(ORDEN)}
     <div class="prog__ley"><span><i style="background:var(--g)"></i>Leída</span><span><i style="background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)"></i>Lista para leer</span><span><i style="background:repeating-linear-gradient(135deg,var(--tm-off) 0 2px,transparent 2px 4px)"></i>Próximamente</span><span>${LISTAS.length} de ${ORDEN.length} lecciones publicadas</span></div></div>
 </section>
-<section class="home-sec" aria-labelledby="h-ruta">
-  <h2 id="h-ruta">Dónde cae Sensei en TrueML</h2>
-  <ol class="ruta">
-    <li><div class="card card--ronda"><span class="n">1</span><b>Entender · ${esc(SITIO.nombre)}</b><span class="txt">Cada paso desde cero: qué es, por qué existe, cómo se conecta. Aquí estás.</span></div></li>
-    <li><a class="card card--dojo" href="${SITIO.dojo}"><span class="n">2</span><b>Practicar · Dojo</b><span class="txt">Construir, rehacer y romper cada estación con Claude Code.</span></a></li>
-    <li><a class="card" href="${RONDA.url}"><span class="n">3</span><b>Defender · Ronda de Diseño</b><span class="txt">Diseñar el sistema completo como en una entrevista de ML System Design.</span></a></li>
-  </ol>
-</section>
 <section class="home-sec" aria-labelledby="h-camino">
   <h2 id="h-camino">El camino de un modelo</h2>
   <p>Todo lo que hay que hacer para que un modelo responda en una app de verdad cabe en seis etapas, y la última regresa a la primera. Toca cada caja para ver qué es, o recórrelo paso a paso.</p>
@@ -363,8 +350,9 @@ function portada() {
 </section>
 <section class="home-sec" id="temario" aria-labelledby="h-temario">
   <h2 id="h-temario">Temario</h2>
-  <p>Primero el mapa. Luego los cimientos de verdad: lo básico de ML, los números, la computadora, la red, los datos, las herramientas, la nube y la seguridad. Al final, una lección por cada estación de C01, en el orden del Dojo. Las que todavía no están dicen en qué fase llegan.</p>
+  <p>Primero el mapa. Luego los cimientos de verdad: lo básico de ML, los números, la computadora, la red, los datos, las herramientas, la nube y la seguridad. Al final, una lección por cada una de las 12 estaciones del sistema de Alba, la empresa que seguimos en todo el curso. Las que todavía no están dicen en qué fase llegan.</p>
   <ol class="mods">${mods}</ol>
+  <a class="card card--ronda" href="/que-sigue/"><span class="lbl">Al terminar</span><b>¿Qué sigue después de Sensei?</b><span class="txt">Las dos herramientas de TrueML para practicar lo que aprendiste y defenderlo en una entrevista.</span></a>
 </section>
 <section class="home-sec" aria-labelledby="h-como">
   <h2 id="h-como">Cómo se lee</h2>
@@ -396,7 +384,7 @@ function paginaGlosario() {
   <p class="eyebrow">Referencia</p>
   <h1 class="phead__title" id="titulo">Glosario</h1>
   <p class="phead__en">Glossary · español–English</p>
-  <p class="phead__summary">${REALES().length} conceptos, cada uno en un solo lugar, con su nombre en inglés y las lecciones que lo usan. Cuando te surja una duda en el Dojo o en la Ronda, la respuesta se agrega aquí.</p>
+  <p class="phead__summary">${REALES().length} conceptos, cada uno en un solo lugar, con su nombre en inglés y las lecciones que lo usan. Cuando a alguien le surge una duda, la respuesta se agrega o se mejora aquí.</p>
   <label class="buscar"><span class="lbl">Buscar</span><input type="search" placeholder="modelo, softmax, latencia…" autocomplete="off" data-buscar-en=".gent"></label>
   <nav class="letras" aria-label="Letras">${letras.map((x) => `<a href="#l-${x}">${x}</a>`).join('')}</nav>
   <p class="c-req c-sin" hidden>Nada coincide. Si falta un concepto, <a href="${SITIO.issues}">dímelo en GitHub</a> y lo agrego.</p>
@@ -406,35 +394,52 @@ ${letras.map((x) => `<section class="letra" id="l-${x}"><h2>${x}</h2><div class=
     actual: 'glosario', contenido, ancho: true, globos: REALES().map((g) => g.id) });
 }
 
-// ================================================================ para leer la Ronda
-function paginaRonda() {
-  const mods = RONDA.modulos.map((rm) => {
-    const ls = ORDEN.filter((l) => l.ronda.includes(rm.id));
-    const listas = ls.filter((l) => l.lista).length;
-    const items = ls.map((l) => (l.lista
+// ================================================================ ¿qué sigue después de Sensei?
+// El único lugar del sitio que presenta el Dojo y la Ronda de Diseño, con sus códigos (C01, M01…).
+function paginaQueSigue() {
+  const leccion = (id) => {
+    const l = POR_ID.get(id);
+    return l.lista
       ? `<li><a class="tl" href="${l.url}" data-leccion="${l.id}"><span class="tl__n">${l.n}</span><span>${esc(l.titulo)}</span><span class="tl__ok" aria-label="leída">✓</span></a></li>`
-      : `<li><span class="tl is-soon"><span class="tl__n">${l.n}</span><span>${esc(l.titulo)} · fase ${l.modulo.fase}</span><span></span></span></li>`)).join('');
+      : `<li><span class="tl is-soon"><span class="tl__n">${l.n}</span><span>${esc(l.titulo)} · fase ${l.modulo.fase}</span><span></span></span></li>`;
+  };
+  const mods = RONDA.modulos.map((rm) => {
+    const ls = rm.lecciones.filter((id) => POR_ID.has(id));
     return `<li class="rmod" id="r-${rm.id}">
-      <div class="rmod__h"><a href="${rondaUrl(rm.id)}"><b>${rm.id.toUpperCase()}</b>${esc(rm.titulo)}</a><span class="rmod__cob">${listas}/${ls.length} listas</span></div>
-      ${strip(ls)}
-      <ol class="tls">${items}</ol>
+      <div class="rmod__h"><a href="${rondaUrl(rm.id)}"><b>${rm.id.toUpperCase()}</b>${esc(rm.titulo)}</a><span class="rmod__cob">${ls.length} lecciones</span></div>
+      <ol class="tls">${ls.map(leccion).join('')}</ol>
     </li>`;
   }).join('\n');
+  const estaciones = DOJO.estaciones.map((e) => (e.lista && e.url
+    ? `<li><a class="tl" href="${e.url}"><span class="tl__n">${String(e.num).padStart(2, '0')}</span><span>${esc(e.titulo)}</span><span class="tl__ok" style="opacity:1">→</span></a></li>`
+    : `<li><span class="tl is-soon"><span class="tl__n">${String(e.num).padStart(2, '0')}</span><span>${esc(e.titulo)} · próximamente</span><span></span></span></li>`)).join('');
   const contenido = `<header class="phead">
-  <p class="eyebrow">El puente con la Ronda de Diseño</p>
-  <h1 class="phead__title" id="titulo">Para leer la Ronda</h1>
-  <p class="phead__en">What to read before each Ronda module</p>
-  <p class="phead__summary">La Ronda de Diseño explica todo lo que rodea al modelo en producción, como lo evalúa un entrevistador, y da por sabidos cientos de conceptos. Aquí está, módulo por módulo, qué lecciones de ${esc(SITIO.nombre)} leer antes para entenderla completa.</p>
-  <div class="conecta"><a class="btn btn--2" href="${RONDA.url}">Abrir la Ronda de Diseño →</a></div>
+  <p class="eyebrow">Después del curso</p>
+  <h1 class="phead__title" id="titulo">¿Qué sigue después de ${esc(SITIO.nombre)}?</h1>
+  <p class="phead__en">What comes after ${esc(SITIO.nombre)}</p>
+  <p class="phead__summary">${esc(SITIO.nombre)} es la teoría: qué es cada pieza, por qué existe y cómo se calcula. TrueML tiene dos herramientas más para lo que sigue: el Dojo, para practicarlo con código, y la Ronda de Diseño, para defender el diseño completo en una entrevista.</p>
 </header>
-<section class="home-sec"><h2>Los 15 módulos de la Ronda</h2><p>Cada tarjeta lista las lecciones que preparan para ese módulo, en orden de lectura. Las que ya leíste se marcan con ✓.</p><ol class="rmods">${mods}</ol></section>`;
-  return pagina({ path: '/ronda/', title: `Para leer la Ronda · ${SITIO.nombre} · TrueML`, desc: 'Qué lecciones de Sensei leer antes de cada módulo de la Ronda de Diseño ML.', actual: 'ronda', contenido, ancho: true });
+<section class="home-sec" aria-labelledby="h-dojo">
+  <h2 id="h-dojo">Practicar: el Dojo</h2>
+  <p>En el Dojo construyes, rehaces y rompes un mini-proyecto por cada estación del sistema de Alba, con Claude Code como compañero. Es el mismo caso que leíste aquí, con los mismos números. Allá se llama <b>C01</b>: es el caso 1 de la Ronda de Diseño, que viene abajo.</p>
+  <p>Un buen ritmo: lee la lección de una estación aquí y, en cuanto la termines, practícala en el Dojo.</p>
+  <ol class="tls">${estaciones}</ol>
+  <div class="conecta"><a class="btn btn--2" href="${SITIO.dojo}">Abrir el Dojo →</a></div>
+</section>
+<section class="home-sec" aria-labelledby="h-ronda">
+  <h2 id="h-ronda">Defender: la Ronda de Diseño</h2>
+  <p>La Ronda de Diseño ML enseña a diseñar el sistema completo como en una entrevista de ML System Design. Tiene 15 módulos, de M01 a M15, y 15 casos, de C01 a C15: C01 es el de Alba, y los demás van del video en tiempo real y el fraude a los sistemas con LLMs. Da por sabidos cientos de conceptos, y todos están en ${esc(SITIO.nombre)}.</p>
+  <p>Cada tarjeta lista las lecciones que conviene repasar antes de ese módulo, en orden de lectura. Las que ya leíste se marcan con ✓.</p>
+  <ol class="rmods">${mods}</ol>
+  <div class="conecta"><a class="btn btn--2" href="${RONDA.url}">Abrir la Ronda de Diseño →</a></div>
+</section>`;
+  return pagina({ path: '/que-sigue/', title: `¿Qué sigue después de ${SITIO.nombre}? · TrueML`, desc: 'Después del curso de teoría: practicar con código en el Dojo y defender el diseño en la Ronda de Diseño ML.', actual: 'que-sigue', contenido, ancho: true });
 }
 
 // ================================================================ escribir
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
-const pages = SOLO ? {} : { '/': portada(), '/glosario/': paginaGlosario(), '/ronda/': paginaRonda() };
+const pages = SOLO ? {} : { '/': portada(), '/glosario/': paginaGlosario(), '/que-sigue/': paginaQueSigue() };
 for (const l of LISTAS) pages[l.url] = paginaLeccion(l);
 for (const [path, html] of Object.entries(pages)) {
   mkdirSync(join(OUT, path), { recursive: true });

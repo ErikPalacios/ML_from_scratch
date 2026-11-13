@@ -1,5 +1,5 @@
 {
-  "titulo": "El job de drift de C01, una vez al día",
+  "titulo": "El job de drift de Alba, una vez al día",
   "width": 78,
   "height": 52,
   "lanes": [
@@ -85,7 +85,7 @@
       "y": 26,
       "w": 18,
       "h": 8,
-      "note": "Un programa que corre una vez al día y termina. En la Ronda, el de C01 calcula el [[psi|PSI]] de la mezcla de categorías predichas contra las 4 semanas previas, la tasa de aceptación de las sugerencias y las re-categorizaciones de los moderadores. El brillo de esta lección es la misma cuenta sobre una entrada."
+      "note": "Un programa que corre una vez al día y termina. El de Alba calcula el [[psi|PSI]] de la mezcla de categorías predichas contra las 4 semanas previas, la tasa de aceptación de las sugerencias y las re-categorizaciones de los moderadores. El brillo de esta lección es la misma cuenta sobre una entrada."
     },
     {
       "id": "met",
@@ -107,7 +107,7 @@
       "y": 41.5,
       "w": 18,
       "h": 8,
-      "note": "En C01: PSI mayor que 0.2 sostenido 3 días, o la aceptación cae más de 3 puntos semana contra semana. Pedir 3 días seguidos quita casi todas las falsas alarmas de un día raro."
+      "note": "En Alba: PSI mayor que 0.2 sostenido 3 días, o la aceptación cae más de 3 puntos semana contra semana. Pedir 3 días seguidos quita casi todas las falsas alarmas de un día raro."
     },
     {
       "id": "ticket",

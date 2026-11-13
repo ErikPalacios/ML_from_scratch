@@ -1,0 +1,2070 @@
+{
+ "nota": "La ficha de Alba, la empresa ficticia que sigue todo el curso: cada número que usan las lecciones vive aquí. Una lección usa estos valores tal cual; si necesita uno que falta, se agrega aquí con su nota y se usa igual en todas. «lecciones» dice cuáles lo usan; «conflictos» guarda cómo se resolvió cada diferencia que había entre lecciones (2026-11-13).",
+ "empresa": "Alba",
+ "presenta": "camino-completo",
+ "grupos": {
+  "negocio": {
+   "descripcion": "Qué es Alba y su escala de negocio",
+   "hechos": [
+    {
+     "id": "empresa",
+     "dato": "Qué es Alba",
+     "valor": "marketplace en línea (una tienda donde cualquiera publica lo que vende); al publicar, sugiere la categoría de cada foto",
+     "unidad": "—",
+     "nota": "Ficticia. Es la única empresa con nombre en el curso; la presenta la lección «El camino completo».",
+     "lecciones": [
+      "camino-completo"
+     ]
+    },
+    {
+     "id": "publicaciones_dia",
+     "dato": "Publicaciones nuevas al día",
+     "valor": "≈ 2.5 M",
+     "unidad": "publicaciones/día",
+     "nota": "Dato de negocio del que parte toda la cuenta (≈ 104,000/h; ≈ 29/s).",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "flops",
+      "distribuciones",
+      "probabilidad",
+      "numeros-maquina",
+      "redes",
+      "ruido",
+      "pruebas-ci",
+      "bases-de-datos"
+     ]
+    },
+    {
+     "id": "publicaciones_hora_prom",
+     "dato": "Publicaciones por hora, en promedio",
+     "valor": "≈ 104,000",
+     "unidad": "publicaciones/h",
+     "nota": "2.5 M ÷ 24.",
+     "lecciones": [
+      "ruido"
+     ]
+    },
+    {
+     "id": "publicaciones_por_segundo",
+     "dato": "Publicaciones por segundo, en promedio",
+     "valor": "≈ 29",
+     "unidad": "publicaciones/s",
+     "nota": "2,500,000 ÷ 86,400.",
+     "lecciones": [
+      "camino-completo"
+     ]
+    },
+    {
+     "id": "publicaciones_anio",
+     "dato": "Publicaciones en un año",
+     "valor": "≈ 900 M",
+     "unidad": "publicaciones/año",
+     "nota": "2.5 M × 365 ≈ 912 M, redondeado.",
+     "lecciones": [
+      "bases-de-datos"
+     ]
+    },
+    {
+     "id": "fotos_por_publicacion",
+     "dato": "Fotos por publicación",
+     "valor": "≈ 3",
+     "unidad": "fotos",
+     "nota": "Supuesto del caso.",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "distribuciones",
+      "flops",
+      "numeros-maquina",
+      "probabilidad"
+     ]
+    },
+    {
+     "id": "fotos_de_publicaciones_dia",
+     "dato": "Fotos al día que vienen de publicaciones",
+     "valor": "≈ 7.5 M",
+     "unidad": "fotos/día",
+     "nota": "2.5 M × 3.",
+     "lecciones": [
+      "camino-completo"
+     ]
+    },
+    {
+     "id": "otros_equipos_fotos_dia",
+     "dato": "Fotos al día que piden otros equipos (moderación, búsqueda)",
+     "valor": "≈ 2.5 M",
+     "unidad": "fotos/día",
+     "nota": "Derivado: 10 M − 7.5 M. Ninguna lección lo da como cifra propia; solo dicen «más las de otros equipos».",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "distribuciones"
+     ]
+    },
+    {
+     "id": "fotos_dia_total",
+     "dato": "Fotos (= requests) que responde el servicio al día",
+     "valor": "≈ 10 M",
+     "unidad": "fotos/día",
+     "nota": "Una foto por request. 7.5 M de las publicaciones más ≈ 2.5 M que piden otros equipos (moderación, búsqueda), redondeado.",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "distribuciones",
+      "flops",
+      "numeros-maquina",
+      "pruebas-ci",
+      "probabilidad",
+      "colas",
+      "almacenamiento"
+     ]
+    },
+    {
+     "id": "categorias",
+     "dato": "Categorías entre las que elige el modelo",
+     "valor": "500",
+     "unidad": "categorías",
+     "nota": "El 1 de octubre el negocio agrega «bolsas»: pasa a 501 y obliga a reentrenar antes de lo planeado.",
+     "lecciones": [
+      "camino-completo",
+      "modelo",
+      "aprendio",
+      "redes",
+      "apis"
+     ]
+    },
+    {
+     "id": "categorias_padre",
+     "dato": "Categorías padre que se usan para monitoreo",
+     "valor": "≈ 30",
+     "unidad": "categorías",
+     "nota": "Para no pelear con 500 bins en el PSI.",
+     "lecciones": [
+      "distribuciones"
+     ]
+    },
+    {
+     "id": "categorias_top_trafico",
+     "dato": "Categorías con más tráfico que vigila el gate",
+     "valor": "100",
+     "unidad": "categorías",
+     "nota": "Recall de cada una no puede caer > 5 puntos.",
+     "lecciones": [
+      "aprendio",
+      "ruido"
+     ]
+    },
+    {
+     "id": "catalogo_historico_fotos",
+     "dato": "Fotos viejas del catálogo (backfill)",
+     "valor": "≈ 200 M",
+     "unidad": "fotos",
+     "nota": "Fotos viejas, publicadas antes de que existiera el modelo (las del backfill). No confundir con publicaciones_activas.",
+     "lecciones": [
+      "camino-completo",
+      "almacenamiento",
+      "colas"
+     ]
+    },
+    {
+     "id": "publicaciones_activas",
+     "dato": "Publicaciones activas en el catálogo (las que se buscan)",
+     "valor": "≈ 100 M",
+     "unidad": "publicaciones",
+     "nota": "Con ≈ 3 fotos cada una; las que indexa la búsqueda con embeddings.",
+     "lecciones": [
+      "embeddings",
+      "unidades"
+     ]
+    },
+    {
+     "id": "empleados",
+     "dato": "Empleados del marketplace",
+     "valor": "≈ 8,000",
+     "unidad": "personas",
+     "nota": "Usan un asistente interno que responde con los documentos de la empresa (RAG): ≈ 25 mil preguntas al día.",
+     "lecciones": [
+      "camino-completo"
+     ]
+    },
+    {
+     "id": "equipo_ml",
+     "dato": "Tamaño del equipo que opera Alba",
+     "valor": "5",
+     "unidad": "personas",
+     "nota": "El equipo de ML y plataforma que opera el sistema. Resuelto (conflicto 8): «gestionados» decía 3; ahí se dice «un equipo chico, sin nadie que sepa Kubernetes».",
+     "lecciones": [
+      "git",
+      "gestionados"
+     ]
+    },
+    {
+     "id": "ubicacion_vendedora",
+     "dato": "Dónde vive Ana",
+     "valor": "Ciudad de México",
+     "unidad": "—",
+     "nota": "Las máquinas están en us-east-1 (Virginia), ≈ 3,000 km.",
+     "lecciones": [
+      "red",
+      "tiempo-hash",
+      "regiones"
+     ]
+    },
+    {
+     "id": "hora_pico",
+     "dato": "Hora del pico diario",
+     "valor": "20 h; esa hora lleva 1/8 del día",
+     "unidad": "—",
+     "nota": "Ilustrativo.",
+     "lecciones": [
+      "colas",
+      "unidades"
+     ]
+    },
+    {
+     "id": "presupuesto_infra",
+     "dato": "Presupuesto mensual de infraestructura",
+     "valor": "US$3k",
+     "unidad": "USD/mes",
+     "nota": "Solo en unidades; la factura real ≈ US$1.8k queda dentro.",
+     "lecciones": [
+      "unidades"
+     ]
+    },
+    {
+     "id": "tasa_aceptacion_base",
+     "dato": "Tasa de aceptación de sugerencias (base de ejemplo del A/B)",
+     "valor": "≈ 70 %",
+     "unidad": "%",
+     "nota": "Supuesto para la cuenta del A/B, no medición.",
+     "lecciones": [
+      "ruido"
+     ]
+    },
+    {
+     "id": "hot_sale_notificacion",
+     "dato": "Notificación del Hot Sale",
+     "valor": "a 5 M de personas; ≈ 100,000 requests en el primer minuto",
+     "unidad": "—",
+     "nota": "Ráfaga de un minuto: ≈ 1,670 req/s. Distinta de la campaña sostenida hipotética de 2,500 req/s (conflicto 2).",
+     "lecciones": [
+      "unidades"
+     ]
+    }
+   ]
+  },
+  "trafico": {
+   "descripcion": "Cuántas requests llegan y cuándo",
+   "hechos": [
+    {
+     "id": "dias_mes",
+     "dato": "Cuántos días tiene «un mes» en las cuentas",
+     "valor": "30 días para el SLO y el presupuesto de error; 30.4 días (730 h) para costos",
+     "unidad": "",
+     "nota": "Una sola regla para todas las lecciones (conflicto 3).",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "probabilidad",
+      "pruebas-ci",
+      "nube",
+      "almacenamiento",
+      "gestionados",
+      "redes-nube"
+     ]
+    },
+    {
+     "id": "requests_dia",
+     "dato": "Requests al día",
+     "valor": "≈ 10 M",
+     "unidad": "requests/día",
+     "nota": "= fotos_dia_total.",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "colas",
+      "numeros-maquina",
+      "pruebas-ci"
+     ]
+    },
+    {
+     "id": "requests_mes_30",
+     "dato": "Requests al mes (mes de 30 días)",
+     "valor": "≈ 300 M",
+     "unidad": "requests/mes",
+     "nota": "Mes de 30 días: se usa para el SLO y el presupuesto de error (conflicto 3).",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "probabilidad",
+      "pruebas-ci"
+     ]
+    },
+    {
+     "id": "requests_mes_30_4",
+     "dato": "Requests al mes (30.4 días)",
+     "valor": "≈ 304 M",
+     "unidad": "requests/mes",
+     "nota": "Mes de 30.4 días (730 h): se usa para costos (conflicto 3).",
+     "lecciones": [
+      "nube",
+      "almacenamiento",
+      "gestionados",
+      "unidades"
+     ]
+    },
+    {
+     "id": "segundos_dia",
+     "dato": "Segundos en un día",
+     "valor": "86,400",
+     "unidad": "s",
+     "nota": "",
+     "lecciones": [
+      "camino-completo",
+      "unidades"
+     ]
+    },
+    {
+     "id": "rps_promedio",
+     "dato": "Requests por segundo, promedio",
+     "valor": "≈ 116",
+     "unidad": "req/s",
+     "nota": "10 M ÷ 86,400.",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "colas",
+      "latencia",
+      "maquinas",
+      "numeros-maquina",
+      "pruebas-ci",
+      "async",
+      "balanceo"
+     ]
+    },
+    {
+     "id": "factor_pico",
+     "dato": "Factor de pico de la hora pico",
+     "valor": "3",
+     "unidad": "× promedio",
+     "nota": "Supuesto: la hora pico lleva 1/8 del día.",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "colas",
+      "balanceo"
+     ]
+    },
+    {
+     "id": "rps_pico_dia",
+     "dato": "Pico de un día normal",
+     "valor": "≈ 350",
+     "unidad": "req/s",
+     "nota": "116 × 3.",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "colas",
+      "balanceo",
+      "latencia",
+      "async"
+     ]
+    },
+    {
+     "id": "margen_pico_diseno",
+     "dato": "Margen para picos raros y crecimiento",
+     "valor": "≈ 1.4",
+     "unidad": "×",
+     "nota": "350 × 1.4 ≈ 490 → 500.",
+     "lecciones": [
+      "camino-completo",
+      "unidades"
+     ]
+    },
+    {
+     "id": "rps_pico_diseno",
+     "dato": "Pico de diseño (para el que se compran máquinas)",
+     "valor": "500",
+     "unidad": "req/s",
+     "nota": "Es la cifra que más repiten las lecciones.",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "async",
+      "balanceo",
+      "latencia",
+      "cpu-gpu",
+      "config",
+      "fallas-red",
+      "regiones",
+      "imagenes"
+     ]
+    },
+    {
+     "id": "rps_por_pod_gateway",
+     "dato": "Requests por pod del gateway en el pico de diseño",
+     "valor": "≈ 100",
+     "unidad": "req/s",
+     "nota": "500 ÷ 5 pods.",
+     "lecciones": [
+      "async",
+      "config",
+      "latencia",
+      "balanceo"
+     ]
+    },
+    {
+     "id": "rps_hot_sale_minuto",
+     "dato": "Ráfaga del Hot Sale (un minuto, tras una notificación a 5 M de personas)",
+     "valor": "≈ 1,670",
+     "unidad": "req/s",
+     "nota": "≈ 100,000 requests en un minuto ÷ 60 s; 4.8 × el pico de un día normal (350).",
+     "lecciones": [
+      "unidades",
+      "latencia"
+     ]
+    },
+    {
+     "id": "rps_hot_sale_regiones",
+     "dato": "Campaña sostenida hipotética (× 5 el pico de diseño)",
+     "valor": "2,500",
+     "unidad": "req/s",
+     "nota": "Escenario de «Regiones y zonas» para dimensionar con una zona caída: 6 T4. No es la ráfaga de un minuto.",
+     "lecciones": [
+      "regiones"
+     ]
+    },
+    {
+     "id": "fotos_bytes_dia",
+     "dato": "Bytes de fotos que entran al día",
+     "valor": "≈ 2 TB",
+     "unidad": "TB/día",
+     "nota": "10 M × 200 KB.",
+     "lecciones": [
+      "almacenamiento",
+      "unidades",
+      "redes-nube"
+     ]
+    },
+    {
+     "id": "fotos_bytes_mes",
+     "dato": "Bytes de fotos que pasan por el ALB al mes",
+     "valor": "≈ 61 TB",
+     "unidad": "TB/mes",
+     "nota": "10 M × 200 KB × 30.4.",
+     "lecciones": [
+      "redes-nube",
+      "balanceo"
+     ]
+    },
+    {
+     "id": "red_tensores_pico",
+     "dato": "Tensores gateway → Triton en el pico (FP32)",
+     "valor": "≈ 301 MB/s ≈ 2.4 Gb/s",
+     "unidad": "Gb/s",
+     "nota": "JSON: ≈ 12 Gb/s; uint8: ≈ 0.6 Gb/s; por nodo del gateway ≈ 1.2 Gb/s (77 % de 1.56 sostenidos).",
+     "lecciones": [
+      "unidades",
+      "apis",
+      "imagenes",
+      "flops"
+     ]
+    },
+    {
+     "id": "req_vs_fotos",
+     "dato": "Requests contra fotos",
+     "valor": "1 foto por request",
+     "unidad": "—",
+     "nota": "Si la app mandara las 3 fotos juntas: ≈ 39 req/s.",
+     "lecciones": [
+      "unidades"
+     ]
+    },
+    {
+     "id": "canary_trafico_pico",
+     "dato": "Tráfico del canary al 5 % en la hora pico",
+     "valor": "17.5 req/s (350 × 5 %)",
+     "unidad": "req/s",
+     "nota": "Con pesos en el ALB, no por número de pods.",
+     "lecciones": [
+      "balanceo"
+     ]
+    }
+   ]
+  },
+  "promesas": {
+   "descripcion": "Lo que Alba promete (SLO, timeouts, contrato de la API)",
+   "hechos": [
+    {
+     "id": "slo_latencia",
+     "dato": "SLO de latencia",
+     "valor": "p99 ≤ 200 ms (al menos 99 % de las requests en 200 ms o menos)",
+     "unidad": "ms",
+     "nota": "Del lado del servidor: desde que llega la request completa hasta que sale la respuesta; sin la subida del celular. Ventana de 30 días; se vigila en ventanas de 5 min.",
+     "lecciones": [
+      "camino-completo",
+      "percentiles",
+      "unidades",
+      "latencia",
+      "modelo",
+      "flops",
+      "redes",
+      "gestionados",
+      "llms"
+     ]
+    },
+    {
+     "id": "p50_esperado",
+     "dato": "p50 esperado",
+     "valor": "≈ 20–50",
+     "unidad": "ms",
+     "nota": "≈ 20 ms con poco tráfico; ≈ 50 ms de promedio en el pico de diseño (conflicto 5).",
+     "lecciones": [
+      "percentiles"
+     ]
+    },
+    {
+     "id": "slo_disponibilidad",
+     "dato": "SLO de disponibilidad",
+     "valor": "99.9 % de requests sin error del servidor y en < 300 ms",
+     "unidad": "%",
+     "nota": "Presupuesto de error: 43.2 min/mes (30 días) o 300,000 requests/mes. Los 4xx no cuentan.",
+     "lecciones": [
+      "camino-completo",
+      "percentiles",
+      "http",
+      "regiones",
+      "probabilidad",
+      "unidades",
+      "pruebas-ci"
+     ]
+    },
+    {
+     "id": "presupuesto_error_requests",
+     "dato": "Requests sin sugerencia que permite el SLO al mes",
+     "valor": "300,000",
+     "unidad": "requests/mes",
+     "nota": "0.001 × 300 M.",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "probabilidad",
+      "pruebas-ci"
+     ]
+    },
+    {
+     "id": "timeout_caller",
+     "dato": "Timeout del backend al llamar a Alba",
+     "valor": "300 ms",
+     "unidad": "ms",
+     "nota": "Si se cumple → selector manual (fallback).",
+     "lecciones": [
+      "camino-completo",
+      "http",
+      "fallas-red",
+      "async",
+      "probabilidad",
+      "percentiles",
+      "redes",
+      "modelo"
+     ]
+    },
+    {
+     "id": "deadline_gateway",
+     "dato": "Deadline del gateway",
+     "valor": "250 ms",
+     "unidad": "ms",
+     "nota": "Cadena 300 → 250 → 150 → 100 ms.",
+     "lecciones": [
+      "fallas-red",
+      "http"
+     ]
+    },
+    {
+     "id": "timeout_triton",
+     "dato": "Timeout del gateway hacia Triton (INFER_TIMEOUT_S)",
+     "valor": "0.15 s (150 ms)",
+     "unidad": "s",
+     "nota": "Con Triton trabado: 500 × 0.15 = 75 llamadas colgadas.",
+     "lecciones": [
+      "config",
+      "async",
+      "fallas-red",
+      "http",
+      "git",
+      "pruebas-ci",
+      "latencia",
+      "balanceo",
+      "apis",
+      "pytorch"
+     ]
+    },
+    {
+     "id": "fila_triton_rechazo",
+     "dato": "La fila de Triton rechaza lo que esperó más de",
+     "valor": "100 ms",
+     "unidad": "ms",
+     "nota": "Último eslabón de la cadena de deadlines.",
+     "lecciones": [
+      "fallas-red"
+     ]
+    },
+    {
+     "id": "max_inflight",
+     "dato": "Requests en vuelo por pod del gateway (MAX_INFLIGHT)",
+     "valor": "16",
+     "unidad": "requests/pod",
+     "nota": "La 17 recibe 503 al instante.",
+     "lecciones": [
+      "config",
+      "async",
+      "fallas-red",
+      "http"
+     ]
+    },
+    {
+     "id": "reintentos",
+     "dato": "Reintentos en el camino de Ana",
+     "valor": "ninguno",
+     "unidad": "—",
+     "nota": "Un segundo intento tardaría ≈ 80 ms.",
+     "lecciones": [
+      "fallas-red"
+     ]
+    },
+    {
+     "id": "top_k",
+     "dato": "Sugerencias que se muestran",
+     "valor": "5 (top_k=5; el contrato acepta 1 a 20)",
+     "unidad": "sugerencias",
+     "nota": "",
+     "lecciones": [
+      "camino-completo",
+      "aprendio",
+      "modelo",
+      "http",
+      "apis"
+     ]
+    },
+    {
+     "id": "umbral_baja_confianza",
+     "dato": "Umbral de baja confianza",
+     "valor": "0.3",
+     "unidad": "probabilidad",
+     "nota": "Top-1 < 0.3 → foto dudosa (va a etiquetar). No cambia lo que ve Ana.",
+     "lecciones": [
+      "config",
+      "modelo",
+      "distribuciones",
+      "numeros-maquina"
+     ]
+    },
+    {
+     "id": "foto_max_bytes",
+     "dato": "Tamaño máximo de foto que acepta el gateway",
+     "valor": "10 MB y 40 MP (JPEG, PNG, WebP)",
+     "unidad": "MB",
+     "nota": "413 si pasa de 10 MB; 415 si no es imagen.",
+     "lecciones": [
+      "http",
+      "formatos",
+      "programa-proceso"
+     ]
+    },
+    {
+     "id": "alb_headers_tope",
+     "dato": "Tope de headers en el ALB",
+     "valor": "64 KB (400 si se pasa)",
+     "unidad": "KB",
+     "nota": "El ALB no limita el body.",
+     "lecciones": [
+      "http"
+     ]
+    },
+    {
+     "id": "alerta_p99",
+     "dato": "Alerta de latencia",
+     "valor": "p99 > 200 ms durante 10 min seguidos",
+     "unidad": "—",
+     "nota": "Histograma de 11 bordes de 10 ms a 2.5 s (150, 200 y 300 incluidos).",
+     "lecciones": [
+      "percentiles"
+     ]
+    },
+    {
+     "id": "rollback_auto",
+     "dato": "Rollback automático del canary",
+     "valor": "5xx > 0.5 % o p99 > 200 ms",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "pruebas-ci"
+     ]
+    },
+    {
+     "id": "contrato_api",
+     "dato": "Endpoint",
+     "valor": "POST /v1/classify?top_k=5, body = bytes JPEG; respuesta JSON con score y model_version",
+     "unidad": "—",
+     "nota": "Se versiona el contrato, no el modelo.",
+     "lecciones": [
+      "apis",
+      "http"
+     ]
+    },
+    {
+     "id": "codigos",
+     "dato": "Códigos de error propios",
+     "valor": "400, 405, 413, 415, 422, 500, 503 (+Retry-After), 504",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "http",
+      "apis"
+     ]
+    },
+    {
+     "id": "disp_componentes",
+     "dato": "Disponibilidad por componente",
+     "valor": "ALB 99.99 %; gateway 99.95 % por zona; Triton 99.5 % por zona",
+     "unidad": "%",
+     "nota": "Cadena en dos zonas ≈ 99.99 % ≈ 5 min/mes; Triton con causa común 0.1 % → ≈ 43 min.",
+     "lecciones": [
+      "probabilidad",
+      "regiones",
+      "balanceo"
+     ]
+    }
+   ]
+  },
+  "foto_y_preproceso": {
+   "descripcion": "De la foto del celular al tensor",
+   "hechos": [
+    {
+     "id": "foto_lado_largo",
+     "dato": "Lado largo máximo tras achicar en la app",
+     "valor": "1024 px",
+     "unidad": "px",
+     "nota": "",
+     "lecciones": [
+      "camino-completo",
+      "http",
+      "imagenes"
+     ]
+    },
+    {
+     "id": "foto_peso",
+     "dato": "Peso de la foto que sube la app",
+     "valor": "≈ 200 KB (150 a 250 KB)",
+     "unidad": "KB",
+     "nota": "Original del celular ≈ 3 MB (12 MP, 3024 × 4032). La de Ana: 214,836 B.",
+     "lecciones": [
+      "camino-completo",
+      "almacenamiento",
+      "balanceo",
+      "http",
+      "imagenes",
+      "red",
+      "formatos"
+     ]
+    },
+    {
+     "id": "resize_crop",
+     "dato": "Preproceso",
+     "valor": "lado corto a 256 → recorte central 224 × 224 → normalizar",
+     "unidad": "px",
+     "nota": "El mismo paquete preprocess.py en entrenamiento y gateway.",
+     "lecciones": [
+      "imagenes",
+      "pruebas-ci",
+      "pytorch",
+      "git"
+     ]
+    },
+    {
+     "id": "tensor_numeros",
+     "dato": "Números del tensor",
+     "valor": "3 × 224 × 224 = 150,528",
+     "unidad": "números",
+     "nota": "",
+     "lecciones": [
+      "imagenes",
+      "apis",
+      "flops",
+      "ejemplos"
+     ]
+    },
+    {
+     "id": "tensor_fp32",
+     "dato": "Tensor en float32",
+     "valor": "602,112 B ≈ 602 KB",
+     "unidad": "B",
+     "nota": "Así viaja hoy gateway → Triton.",
+     "lecciones": [
+      "apis",
+      "imagenes",
+      "cpu-gpu",
+      "git"
+     ]
+    },
+    {
+     "id": "tensor_uint8",
+     "dato": "Tensor en uint8 (mejora anotada)",
+     "valor": "150,528 B",
+     "unidad": "B",
+     "nota": "4 veces menos red.",
+     "lecciones": [
+      "gestionados",
+      "imagenes",
+      "cpu-gpu"
+     ]
+    },
+    {
+     "id": "tensor_json_base64",
+     "dato": "Tensor como JSON / base64",
+     "valor": "≈ 3.07 MB / 803 KB",
+     "unidad": "B",
+     "nota": "",
+     "lecciones": [
+      "apis",
+      "formatos"
+     ]
+    },
+    {
+     "id": "cpu_preproceso",
+     "dato": "CPU por foto en el gateway",
+     "valor": "≈ 6 ms (promedio)",
+     "unidad": "ms",
+     "nota": "Promedio. En el caso lento (p99), el preproceso tarda ≈ 52 ms (50 + 2). Una foto web de 12 MP sin draft mode: 40–80 ms; con draft ≈ 18 ms.",
+     "lecciones": [
+      "async",
+      "latencia",
+      "cpu-gpu",
+      "unidades",
+      "programa-proceso",
+      "imagenes"
+     ]
+    },
+    {
+     "id": "decodes_simultaneos",
+     "dato": "Decodes simultáneos por pod (PREPROCESS_CONCURRENCY)",
+     "valor": "2",
+     "unidad": "fotos",
+     "nota": "PNG de 40 MP ≈ 320 MB al decodificar.",
+     "lecciones": [
+      "config",
+      "programa-proceso",
+      "async"
+     ]
+    },
+    {
+     "id": "gateway_memoria",
+     "dato": "Memoria del gateway",
+     "valor": "límite 1 GiB; en el peor momento ≈ 880 MB (82 % de 1 GiB)",
+     "unidad": "MiB",
+     "nota": "",
+     "lecciones": [
+      "programa-proceso",
+      "sistema-operativo"
+     ]
+    }
+   ]
+  },
+  "modelo": {
+   "descripcion": "El modelo y su servidor",
+   "hechos": [
+    {
+     "id": "arquitectura",
+     "dato": "Arquitectura",
+     "valor": "ResNet-50 con cabeza de 500 clases; fine-tuning desde ImageNet",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "modelo",
+      "redes",
+      "pytorch",
+      "aprender"
+     ]
+    },
+    {
+     "id": "parametros",
+     "dato": "Parámetros",
+     "valor": "24,532,532 (≈ 24.5 M)",
+     "unidad": "parámetros",
+     "nota": "La ResNet-50 original (1,000 clases) tiene 25.6 M; con la cabeza de 500 quedan 24.5 M. Resuelto (conflicto 13): ya no «unos 25 millones».",
+     "lecciones": [
+      "camino-completo",
+      "unidades",
+      "redes",
+      "modelo",
+      "flops",
+      "llms",
+      "pytorch"
+     ]
+    },
+    {
+     "id": "macs_flops",
+     "dato": "Cuentas por foto",
+     "valor": "≈ 4.1 GMACs = 8.2 GFLOPs",
+     "unidad": "por foto",
+     "nota": "",
+     "lecciones": [
+      "flops",
+      "redes",
+      "cpu-gpu",
+      "unidades"
+     ]
+    },
+    {
+     "id": "peso_fp32",
+     "dato": "Archivo de pesos / ONNX (FP32)",
+     "valor": "≈ 98 MB (checkpoint 98.4 MB)",
+     "unidad": "MB",
+     "nota": "24.5 M × 4 B.",
+     "lecciones": [
+      "almacenamiento",
+      "aprender",
+      "git",
+      "numeros-maquina",
+      "memoria",
+      "pytorch",
+      "formatos"
+     ]
+    },
+    {
+     "id": "peso_fp16",
+     "dato": "Engine TensorRT FP16",
+     "valor": "≈ 49 MB de pesos (el engine completo, ≈ 50 a 150 MB, según lo que TensorRT agregue)",
+     "unidad": "MB",
+     "nota": "Estimación; se mide al construirlo.",
+     "lecciones": [
+      "numeros-maquina",
+      "unidades",
+      "memoria",
+      "redes"
+     ]
+    },
+    {
+     "id": "peso_int8",
+     "dato": "INT8 (por medir)",
+     "valor": "≈ 25.1 MB",
+     "unidad": "MB",
+     "nota": "",
+     "lecciones": [
+      "numeros-maquina"
+     ]
+    },
+    {
+     "id": "t4_throughput",
+     "dato": "Máximo medido de una T4 (TensorRT FP16)",
+     "valor": "≈ 1,200",
+     "unidad": "fotos/s",
+     "nota": "Pico FP16 de la T4: 65 TFLOPS; logrado ≈ 15 %.",
+     "lecciones": [
+      "maquinas",
+      "cpu-gpu",
+      "latencia",
+      "flops",
+      "regiones",
+      "fallas-red"
+     ]
+    },
+    {
+     "id": "batch_max",
+     "dato": "Batch máximo / espera máxima",
+     "valor": "32 / 2 ms",
+     "unidad": "—",
+     "nota": "En el pico de diseño el batch real es ≈ 1–3.",
+     "lecciones": [
+      "cpu-gpu",
+      "latencia",
+      "apis",
+      "pytorch"
+     ]
+    },
+    {
+     "id": "instancias_modelo",
+     "dato": "Instancias del modelo por GPU",
+     "valor": "2 (dos copias en la misma T4)",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "cpu-gpu"
+     ]
+    },
+    {
+     "id": "gpu_ms",
+     "dato": "Cómputo en la GPU",
+     "valor": "≈ 3–6 ms (≈ 4 ms típico; 15 ms en el caso lento)",
+     "unidad": "ms",
+     "nota": "La GPU sola; el paso del modelo completo en el caso lento son 27 ms.",
+     "lecciones": [
+      "redes",
+      "latencia",
+      "cpu-gpu",
+      "imagenes",
+      "camino-completo"
+     ]
+    },
+    {
+     "id": "logits",
+     "dato": "Salida",
+     "valor": "500 logits FP32 = 2,000 B",
+     "unidad": "B",
+     "nota": "labels.json con su huella.",
+     "lecciones": [
+      "modelo",
+      "apis"
+     ]
+    },
+    {
+     "id": "calidad_modelo",
+     "dato": "Calidad esperada",
+     "valor": "top-1 ≈ 85 %, top-5 ≈ 96 % (golden set: 85.23 % en el ejemplo de aprender)",
+     "unidad": "%",
+     "nota": "",
+     "lecciones": [
+      "modelo",
+      "aprendio",
+      "aprender",
+      "unidades"
+     ]
+    },
+    {
+     "id": "versiones_software",
+     "dato": "Pila de software",
+     "valor": "Triton 24.08 (Ubuntu 22.04, CUDA 12.6), TensorRT 10.3, gateway en python:3.13-slim + FastAPI/uvicorn",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "cpu-gpu",
+      "sistema-operativo",
+      "python-ecosistema",
+      "pytorch"
+     ]
+    },
+    {
+     "id": "model_version_ejemplo",
+     "dato": "Nombre de versión del modelo",
+     "valor": "resnet50-2026-10-01",
+     "unidad": "—",
+     "nota": "Resuelto (conflicto 9): «almacenamiento» usaba v13.",
+     "lecciones": [
+      "config",
+      "formatos",
+      "git",
+      "terminal",
+      "pruebas-ci",
+      "tiempo-hash"
+     ]
+    },
+    {
+     "id": "warmup",
+     "dato": "Warmup de Triton",
+     "valor": "3 corridas con batch de 32 en ceros",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "pytorch"
+     ]
+    }
+   ]
+  },
+  "servicio": {
+   "descripcion": "Dónde y cómo corre",
+   "hechos": [
+    {
+     "id": "region",
+     "dato": "Región y zonas",
+     "valor": "AWS us-east-1; zonas us-east-1a y us-east-1b",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "redes-nube",
+      "regiones",
+      "red"
+     ]
+    },
+    {
+     "id": "orquestador",
+     "dato": "Orquestación",
+     "valor": "Kubernetes (EKS), namespace classifier, Service triton",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "config",
+      "redes-nube"
+     ]
+    },
+    {
+     "id": "triton_nodos",
+     "dato": "Triton",
+     "valor": "2 pods/nodos g4dn.xlarge, una T4 cada uno (4 vCPU, 16 GiB RAM, 16 GB VRAM, ≈ 125 GB NVMe), una por zona",
+     "unidad": "—",
+     "nota": "Resuelto (conflicto 4): 2 pods en operación normal; 4 es el tope del autoscaler.",
+     "lecciones": [
+      "maquinas",
+      "cpu-gpu",
+      "regiones",
+      "balanceo",
+      "memoria"
+     ]
+    },
+    {
+     "id": "triton_limites",
+     "dato": "Triton: memoria y /dev/shm",
+     "valor": "6 GiB de memoria; 1 GiB de /dev/shm; puertos 8000 (HTTP) y 8001 (gRPC)",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "sistema-operativo",
+      "apis"
+     ]
+    },
+    {
+     "id": "autoscaler_t4",
+     "dato": "Tope del autoscaler de T4",
+     "valor": "4 (cuota de 28 vCPU)",
+     "unidad": "T4",
+     "nota": "Hot Sale hipotético: 6 T4 y ≈ 36 vCPU.",
+     "lecciones": [
+      "maquinas",
+      "regiones"
+     ]
+    },
+    {
+     "id": "gateway_nodos",
+     "dato": "Nodos del gateway",
+     "valor": "2 × c6i.xlarge (4 vCPU cada una = 8 vCPU, 4 núcleos físicos), una por zona",
+     "unidad": "—",
+     "nota": "Sin IP pública. Se dice «8 vCPU», no «8 núcleos» (conflicto 15).",
+     "lecciones": [
+      "maquinas",
+      "unidades",
+      "latencia",
+      "redes-nube"
+     ]
+    },
+    {
+     "id": "gateway_pods",
+     "dato": "Pods del gateway (HPA al 60 % de CPU)",
+     "valor": "3 a 12; 3 en promedio, 4 en hora pico, 5 en el pico de diseño",
+     "unidad": "pods",
+     "nota": "1 proceso uvicorn por pod, 1 vCPU, puerto 8080.",
+     "lecciones": [
+      "balanceo",
+      "async",
+      "latencia",
+      "programa-proceso",
+      "http",
+      "terminal"
+     ]
+    },
+    {
+     "id": "alb",
+     "dato": "Balanceador",
+     "valor": "ALB, termina TLS, presente en las dos zonas; pesos para canary",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "balanceo",
+      "http"
+     ]
+    },
+    {
+     "id": "vpc",
+     "dato": "Red",
+     "valor": "VPC 10.0.0.0/16, 4 subredes /20 (pública y privada por zona), NAT por zona, gateway endpoint de S3",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "redes-nube"
+     ]
+    },
+    {
+     "id": "gracia_apagado",
+     "dato": "Plazos de gracia al apagar",
+     "valor": "Triton 60 s; gateway 45 s",
+     "unidad": "s",
+     "nota": "",
+     "lecciones": [
+      "programa-proceso"
+     ]
+    },
+    {
+     "id": "tests_gateway",
+     "dato": "Pruebas automáticas del gateway",
+     "valor": "26",
+     "unidad": "tests",
+     "nota": "",
+     "lecciones": [
+      "git",
+      "pruebas-ci"
+     ]
+    },
+    {
+     "id": "ci_runner",
+     "dato": "Runner de CI",
+     "valor": "propio con T4, efímero, < US$10/mes",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "pruebas-ci"
+     ]
+    },
+    {
+     "id": "utilizacion",
+     "dato": "Utilización objetivo",
+     "valor": "GPU ≈ 50 % (planeada); ≤ 70 % con una zona caída; CPU del gateway ≈ 60 %",
+     "unidad": "%",
+     "nota": "Tres recursos distintos, cada uno con su nombre (conflicto 18). Promedio real de las T4: ≈ 5 % (58 de 1,200 fotos/s).",
+     "lecciones": [
+      "unidades",
+      "latencia",
+      "regiones",
+      "async",
+      "cpu-gpu"
+     ]
+    },
+    {
+     "id": "graceful",
+     "dato": "Entrega de versión",
+     "valor": "preStop 10 s + drenado 30 s + margen 20 s",
+     "unidad": "s",
+     "nota": "",
+     "lecciones": [
+      "programa-proceso"
+     ]
+    },
+    {
+     "id": "red_rtt",
+     "dato": "Ida y vuelta (RTT) del celular de Ana a us-east-1",
+     "valor": "≈ 60",
+     "unidad": "ms",
+     "nota": "≈ 45 ms de la ruta Ciudad de México–Virginia más lo que sume la red celular; el piso físico es ≈ 30 ms. Resuelto (conflicto 11).",
+     "lecciones": [
+      "red",
+      "regiones",
+      "http"
+     ]
+    },
+    {
+     "id": "pcie_t4",
+     "dato": "Bus PCIe de la T4",
+     "valor": "Gen3 x16, ≈ 16 GB/s por sentido",
+     "unidad": "GB/s",
+     "nota": "Resuelto (conflicto 14): no Gen4 (≈ 31.5 GB/s).",
+     "lecciones": [
+      "memoria",
+      "unidades",
+      "cpu-gpu"
+     ]
+    }
+   ]
+  },
+  "datos_y_entrenamiento": {
+   "descripcion": "Datos, etiquetas, entrenamiento y despliegue",
+   "hechos": [
+    {
+     "id": "dataset_train",
+     "dato": "Dataset de septiembre: train",
+     "valor": "1,840,211",
+     "unidad": "fotos",
+     "nota": "Split por seller_id (hash mod 100 < 95 → train).",
+     "lecciones": [
+      "ejemplos",
+      "aprender",
+      "flops"
+     ]
+    },
+    {
+     "id": "dataset_val",
+     "dato": "Dataset de septiembre: validación",
+     "valor": "92,417",
+     "unidad": "fotos",
+     "nota": "Total 1,932,628.",
+     "lecciones": [
+      "ejemplos",
+      "aprendio"
+     ]
+    },
+    {
+     "id": "fuentes_etiquetas",
+     "dato": "Origen de las etiquetas",
+     "valor": "72 % vendedor (filtrada) · 7 % moderadores · 21 % a mano",
+     "unidad": "%",
+     "nota": "Resuelto (conflicto 6): «pruebas-ci» decía 85 % débiles; ahí se usa este reparto o se dice que es un snapshot de ejemplo.",
+     "lecciones": [
+      "ejemplos"
+     ]
+    },
+    {
+     "id": "golden_set",
+     "dato": "Golden set",
+     "valor": "50,000 fotos, doble anotación, ≥ 50 por categoría, congelado",
+     "unidad": "fotos",
+     "nota": "≈ 10 GB; costo ≈ US$5–10 mil; ≈ 3.5–5 personas-mes, una sola vez.",
+     "lecciones": [
+      "ejemplos",
+      "camino-completo",
+      "aprendio",
+      "ruido",
+      "almacenamiento"
+     ]
+    },
+    {
+     "id": "etiquetado_mes",
+     "dato": "Fotos que revisan personas al mes",
+     "valor": "≈ 5,000 (10 % con doble anotación)",
+     "unidad": "fotos/mes",
+     "nota": "5–10 ¢ por foto → ≈ US$250–500/mes; 20–30 s por foto → ≈ 31–46 h/mes.",
+     "lecciones": [
+      "camino-completo",
+      "ejemplos",
+      "colas",
+      "almacenamiento"
+     ]
+    },
+    {
+     "id": "active_learning",
+     "dato": "Cómo se eligen las fotos a etiquetar",
+     "valor": "baja confianza < 0.3, desacuerdos, categorías nuevas (200–500 fotos), 20–30 % al azar",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "ejemplos"
+     ]
+    },
+    {
+     "id": "muestra_logs",
+     "dato": "Fotos que se guardan de muestra",
+     "valor": "≈ 1 de cada 100 ≈ 100 mil al día",
+     "unidad": "fotos/día",
+     "nota": "",
+     "lecciones": [
+      "camino-completo"
+     ]
+    },
+    {
+     "id": "respuestas_por_etiqueta",
+     "dato": "Respuestas del modelo por foto revisada",
+     "valor": "≈ 60 mil",
+     "unidad": "—",
+     "nota": "300 M ÷ 5 mil.",
+     "lecciones": [
+      "camino-completo"
+     ]
+    },
+    {
+     "id": "receta_entrenamiento",
+     "dato": "Receta del reentrenamiento",
+     "valor": "Adam, lr 3e-4, batch 64, 8 épocas (28,754 pasos/época), semilla 17, precisión mixta, 8 workers de DataLoader",
+     "unidad": "—",
+     "nota": "Parte del modelo en producción.",
+     "lecciones": [
+      "aprender",
+      "redes",
+      "pytorch"
+     ]
+    },
+    {
+     "id": "frecuencia_reentrena",
+     "dato": "Frecuencia del reentrenamiento",
+     "valor": "mensual",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "camino-completo",
+      "aprender",
+      "redes"
+     ]
+    },
+    {
+     "id": "duracion_reentrena",
+     "dato": "Duración y costo del reentrenamiento",
+     "valor": "≈ 3–4 h en una GPU; ≈ US$10–50; ≈ 3.6 × 10¹⁷ FLOPs",
+     "unidad": "—",
+     "nota": "El fine-tune de 40 h de «Máquinas» es un ejemplo genérico, no el de Alba.",
+     "lecciones": [
+      "aprender",
+      "camino-completo",
+      "flops"
+     ]
+    },
+    {
+     "id": "gate",
+     "dato": "Gate de evaluación",
+     "valor": "top-1 y top-5 no bajan > 0.3 puntos vs el actual (pareado); recall de las 100 categorías ≥ −5 puntos; macro-recall de la cola larga; slices; ECE ≤ 0.05; también vs el modelo de hace 3 meses",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "aprendio",
+      "ruido",
+      "unidades"
+     ]
+    },
+    {
+     "id": "paridad",
+     "dato": "Paridad del engine FP16 vs PyTorch FP32",
+     "valor": "top-1 ≥ 99.5 %; top-5 ≥ 99 %; diferencia de logits ≈ 0.01",
+     "unidad": "%",
+     "nota": "Examen sobre un subconjunto de ≈ 10,000 fotos del golden set (conflicto 7).",
+     "lecciones": [
+      "numeros-maquina",
+      "pytorch",
+      "modelo"
+     ]
+    },
+    {
+     "id": "rollout",
+     "dato": "Rollout de una versión",
+     "valor": "shadow 1–2 días; canary 5 % → 25 % → 100 %; versión anterior viva 24–48 h",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "camino-completo",
+      "pruebas-ci",
+      "balanceo",
+      "tiempo-hash"
+     ]
+    },
+    {
+     "id": "ab_test",
+     "dato": "A/B",
+     "valor": "por vendedor (hash con sal); ≈ 33,000 publicaciones por brazo; 1–2 semanas completas",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "ruido"
+     ]
+    },
+    {
+     "id": "backfill",
+     "dato": "Backfill del catálogo",
+     "valor": "200 M fotos en ≈ 2,000 shards de ≈ 100,000; 4 máquinas × 1,000 fotos/s ≈ 14 h",
+     "unidad": "—",
+     "nota": "200 M GET ≈ US$80.",
+     "lecciones": [
+      "almacenamiento",
+      "colas"
+     ]
+    },
+    {
+     "id": "categoria_nueva",
+     "dato": "Categoría nueva",
+     "valor": "«bolsas», 1 de octubre; obliga a reentrenar antes de lo planeado",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "camino-completo",
+      "distribuciones",
+      "modelo"
+     ]
+    }
+   ]
+  },
+  "almacenamiento": {
+   "descripcion": "Qué se guarda y por cuánto tiempo",
+   "hechos": [
+    {
+     "id": "log_linea",
+     "dato": "Línea de log por predicción",
+     "valor": "≈ 300 B (JSON)",
+     "unidad": "B",
+     "nota": "",
+     "lecciones": [
+      "formatos",
+      "almacenamiento",
+      "terminal"
+     ]
+    },
+    {
+     "id": "log_dia",
+     "dato": "Log crudo al día",
+     "valor": "≈ 3 GB (10 M líneas)",
+     "unidad": "GB/día",
+     "nota": "≈ 1.1 TB al año.",
+     "lecciones": [
+      "almacenamiento",
+      "formatos",
+      "unidades"
+     ]
+    },
+    {
+     "id": "log_parquet",
+     "dato": "Log en Parquet al día",
+     "valor": "≈ 0.3–0.6 GB (≈ 0.5); 4 archivos de ≈ 125 MB",
+     "unidad": "GB/día",
+     "nota": "5–10 veces menos que el JSON. Una consulta que lee 2 de 30 columnas lee ≈ 40 MB, no el archivo entero (conflicto 17).",
+     "lecciones": [
+      "almacenamiento",
+      "formatos"
+     ]
+    },
+    {
+     "id": "log_retencion",
+     "dato": "Retención del log",
+     "valor": "90 días; agregados para siempre",
+     "unidad": "días",
+     "nota": "",
+     "lecciones": [
+      "almacenamiento"
+     ]
+    },
+    {
+     "id": "log_particion",
+     "dato": "Partición del log",
+     "valor": "dt=YYYY-MM-DD / model_version=…",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "almacenamiento",
+      "formatos"
+     ]
+    },
+    {
+     "id": "fotos_etiquetar",
+     "dato": "Fotos a etiquetar (bucket restringido, sin EXIF)",
+     "valor": "≈ 5,000/mes ≈ 1 GB, 90 días",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "almacenamiento"
+     ]
+    },
+    {
+     "id": "golden_bucket",
+     "dato": "Golden set (bucket restringido)",
+     "valor": "≈ 10 GB, sin caducar, ≈ US$0.23/mes",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "almacenamiento"
+     ]
+    },
+    {
+     "id": "pesos_bucket",
+     "dato": "Pesos por versión",
+     "valor": "≈ 98 MB (ONNX)",
+     "unidad": "MB",
+     "nota": "El engine no se versiona en git.",
+     "lecciones": [
+      "almacenamiento",
+      "git"
+     ]
+    },
+    {
+     "id": "almacen_costo",
+     "dato": "Costo de lo propio del clasificador en S3",
+     "valor": "< US$10 al mes",
+     "unidad": "USD/mes",
+     "nota": "El log en objetos sueltos costaría ≈ US$1,650/mes.",
+     "lecciones": [
+      "almacenamiento"
+     ]
+    },
+    {
+     "id": "url_prefirmada",
+     "dato": "URL prefirmada de subida",
+     "valor": "15 min",
+     "unidad": "min",
+     "nota": "",
+     "lecciones": [
+      "almacenamiento"
+     ]
+    },
+    {
+     "id": "fotos_cuenta",
+     "dato": "Fotos del producto (las guarda el marketplace, no el clasificador)",
+     "valor": "2 TB/día, 730 TB al año",
+     "unidad": "TB",
+     "nota": "Ciclo de vida: 30 días Standard + Glacier IR.",
+     "lecciones": [
+      "almacenamiento"
+     ]
+    }
+   ]
+  },
+  "monitoreo": {
+   "descripcion": "Qué se vigila",
+   "hechos": [
+    {
+     "id": "drift_psi",
+     "dato": "Drift diario",
+     "valor": "PSI de la mezcla de categorías predichas vs las 4 semanas previas; ticket si > 0.2 tres días seguidos",
+     "unidad": "PSI",
+     "nota": "Semana normal ≈ 0.002. Lectura: < 0.1 estable, 0.1–0.25 moderado.",
+     "lecciones": [
+      "distribuciones",
+      "camino-completo"
+     ]
+    },
+    {
+     "id": "drift_canary",
+     "dato": "PSI del canary",
+     "valor": "umbral 0.1, con ≥ 5,000 predicciones en la ventana, sobre ≈ 30 categorías padre",
+     "unidad": "PSI",
+     "nota": "",
+     "lecciones": [
+      "distribuciones"
+     ]
+    },
+    {
+     "id": "baja_confianza_alerta",
+     "dato": "Alerta de baja confianza",
+     "valor": "tasa > 2 × su línea base de 7 días durante 30 min",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "modelo"
+     ]
+    },
+    {
+     "id": "metricas_negocio",
+     "dato": "Métricas",
+     "valor": "tasa de aceptación (primaria); guardrails: p99, errores, % de publicaciones completadas",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "ruido",
+      "aprendio"
+     ]
+    },
+    {
+     "id": "senales_doradas",
+     "dato": "Señales doradas",
+     "valor": "latencia, tráfico, errores, saturación",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "latencia"
+     ]
+    }
+   ]
+  },
+  "costos": {
+   "descripcion": "Costos mensuales (precios on-demand us-east-1, noviembre 2026)",
+   "hechos": [
+    {
+     "id": "infra_total",
+     "dato": "Infraestructura del clasificador",
+     "valor": "≈ US$1.8k al mes (suma: 1,689 + ≈ 140 = ≈ 1,829)",
+     "unidad": "USD/mes",
+     "nota": "Resuelto (conflicto 1): ya no ≈ US$1.75k.",
+     "lecciones": [
+      "nube",
+      "gestionados",
+      "redes-nube",
+      "unidades"
+     ]
+    },
+    {
+     "id": "costo_gpu",
+     "dato": "2 × g4dn.xlarge (T4)",
+     "valor": "≈ US$768",
+     "unidad": "USD/mes",
+     "nota": "2 × 0.526 × 730; ≈ 42 % del total.",
+     "lecciones": [
+      "maquinas",
+      "nube",
+      "cpu-gpu",
+      "flops",
+      "gestionados",
+      "redes-nube"
+     ]
+    },
+    {
+     "id": "costo_gateway",
+     "dato": "2 × c6i.xlarge",
+     "valor": "≈ US$248",
+     "unidad": "USD/mes",
+     "nota": "≈ US$0.17/h.",
+     "lecciones": [
+      "nube",
+      "maquinas"
+     ]
+    },
+    {
+     "id": "costo_eks",
+     "dato": "EKS",
+     "valor": "≈ US$73",
+     "unidad": "USD/mes",
+     "nota": "0.10 × 730.",
+     "lecciones": [
+      "nube"
+     ]
+    },
+    {
+     "id": "costo_alb",
+     "dato": "ALB",
+     "valor": "≈ US$500 (≈ 27 %)",
+     "unidad": "USD/mes",
+     "nota": "Cobra por bytes: 83 LCU. Con llave en vez de bytes: ≈ US$20 + ≈ US$120 de GET.",
+     "lecciones": [
+      "nube",
+      "redes-nube",
+      "balanceo"
+     ]
+    },
+    {
+     "id": "costo_logs",
+     "dato": "Logs, métricas y S3",
+     "valor": "≈ US$100",
+     "unidad": "USD/mes",
+     "nota": "",
+     "lecciones": [
+      "nube"
+     ]
+    },
+    {
+     "id": "costo_red",
+     "dato": "NAT, IPv4, cruce de zona, endpoints",
+     "valor": "≈ US$140",
+     "unidad": "USD/mes",
+     "nota": "Con ruteo por zona; sin él ≈ US$3.6k.",
+     "lecciones": [
+      "nube",
+      "redes-nube"
+     ]
+    },
+    {
+     "id": "costo_hora_t4",
+     "dato": "Hora de T4 (g4dn.xlarge)",
+     "valor": "US$0.526",
+     "unidad": "USD/h",
+     "nota": "730 h al mes.",
+     "lecciones": [
+      "maquinas",
+      "cpu-gpu",
+      "nube"
+     ]
+    },
+    {
+     "id": "costo_por_mil",
+     "dato": "Costo por 1,000 predicciones",
+     "valor": "≈ US$0.006",
+     "unidad": "USD",
+     "nota": "1,829 ÷ 304 M × 1,000.",
+     "lecciones": [
+      "nube",
+      "unidades",
+      "maquinas"
+     ]
+    },
+    {
+     "id": "costo_gestionado",
+     "dato": "Alternativa SageMaker AI",
+     "valor": "≈ US$3.3k/mes (GPUs 1,075 + datos 737 + endpoint 475) vs ≈ US$1.8k",
+     "unidad": "USD/mes",
+     "nota": "",
+     "lecciones": [
+      "gestionados"
+     ]
+    },
+    {
+     "id": "costo_vcpu_c7i",
+     "dato": "vCPU-hora de c7i",
+     "valor": "US$0.0446",
+     "unidad": "USD/h",
+     "nota": "Para la opción INT8 en CPU (por medir).",
+     "lecciones": [
+      "cpu-gpu"
+     ]
+    }
+   ]
+  },
+  "personas_y_ejemplos": {
+   "descripcion": "Ejemplos recurrentes",
+   "hechos": [
+    {
+     "id": "ana",
+     "dato": "Vendedora de ejemplo",
+     "valor": "Ana, Ciudad de México; sube unos tenis; recibe «Calzado › Tenis»",
+     "unidad": "—",
+     "nota": "Su foto: 214,836 B, 3024 × 4032, 8:03 am del 6 de noviembre de 2026.",
+     "lecciones": [
+      "camino-completo",
+      "http",
+      "imagenes",
+      "red",
+      "tiempo-hash"
+     ]
+    },
+    {
+     "id": "ana_score",
+     "dato": "Confianza de Ana",
+     "valor": "94 %",
+     "unidad": "",
+     "nota": "Top-1 «Calzado › Tenis» para la foto de Ana (conflicto 12). Otros porcentajes (90 %, 84.4 %, 0.83…) son de otras fotos o de ejemplos de 3 categorías, y no se llaman «la foto de Ana».",
+     "lecciones": [
+      "camino-completo",
+      "aprender",
+      "modelo",
+      "aprendio",
+      "terminal"
+     ]
+    },
+    {
+     "id": "llave_ana",
+     "dato": "Llave del objeto",
+     "valor": "fotos/2026/11/06/ana-tenis.jpg",
+     "unidad": "—",
+     "nota": "Otros: beto-bici.jpg, caro-lampara.jpg.",
+     "lecciones": [
+      "almacenamiento"
+     ]
+    },
+    {
+     "id": "ids_ejemplo",
+     "dato": "Ids de ejemplo",
+     "valor": "request_id r-001, 9f2c41d0; imagen classifier-gateway:3f9c2ab; commit 8d41e07; modelo registrado: salió del commit c3f2fc2",
+     "unidad": "—",
+     "nota": "Ilustrativos.",
+     "lecciones": [
+      "formatos",
+      "apis",
+      "git"
+     ]
+    }
+   ]
+  },
+  "presupuesto_latencia": {
+   "descripcion": "Presupuestos de latencia (tres relojes distintos)",
+   "hechos": [
+    {
+     "id": "lat_caso_lento",
+     "dato": "Presupuesto del caso lento (p99 por paso)",
+     "valor": "40 + 52 + 27 + 3 + 30 = 152 ms; margen 48 ms (≈ 50)",
+     "unidad": "ms",
+     "nota": "Red 10+30; preproceso 50+2; modelo 10+2+15; respuesta 3; el programa 30.",
+     "lecciones": [
+      "camino-completo"
+     ]
+    },
+    {
+     "id": "lat_tipica",
+     "dato": "Request típica con poco tráfico",
+     "valor": "3 + 0 + 6 + 3 + 2 + 4 + 1 + 1 = 20 ms (18–20)",
+     "unidad": "ms",
+     "nota": "",
+     "lecciones": [
+      "latencia",
+      "async"
+     ]
+    },
+    {
+     "id": "lat_promedio_pico",
+     "dato": "Latencia promedio en el pico de diseño",
+     "valor": "≈ 50 ms",
+     "unidad": "ms",
+     "nota": "Incluye esperas en fila.",
+     "lecciones": [
+      "async",
+      "fallas-red",
+      "programa-proceso"
+     ]
+    },
+    {
+     "id": "lat_p99_pod",
+     "dato": "p99 de un pod del gateway en el pico de diseño",
+     "valor": "≈ 69 ms (ρ = 0.6, espera ≈ 15 ms)",
+     "unidad": "ms",
+     "nota": "",
+     "lecciones": [
+      "latencia"
+     ]
+    },
+    {
+     "id": "lat_gpu_parte",
+     "dato": "Paso del modelo en el caso lento (p99)",
+     "valor": "27 ms (10 + 2 + 15; la GPU calcula 15)",
+     "unidad": "ms",
+     "nota": "Resuelto (conflicto 5): ya no «30 ms de la GPU». Los 30 ms del presupuesto son del propio programa, no de la GPU.",
+     "lecciones": [
+      "latencia",
+      "bases-de-datos"
+     ]
+    },
+    {
+     "id": "lat_cache",
+     "dato": "Caché de predicciones (supuesto)",
+     "valor": "20 % de aciertos; acierto ≈ 1 ms; fallo 31 ms",
+     "unidad": "—",
+     "nota": "No se quita ninguna GPU.",
+     "lecciones": [
+      "bases-de-datos"
+     ]
+    }
+   ]
+  }
+ },
+ "conflictos": [
+  {
+   "n": 1,
+   "tema": "Total de infraestructura",
+   "resolucion": "≈ US$1.8k al mes (1,689 + ≈ 140 = ≈ 1,829). Cambiar los ≈ US$1.75k.",
+   "cambiar": [
+    "nube:452",
+    "unidades:601"
+   ],
+   "como": "En redes-nube:20, el ≈ US$1,830 del cruce de zona sin ruteo es otra cuenta: que no se lea como el total."
+  },
+  {
+   "n": 2,
+   "tema": "Hot Sale",
+   "resolucion": "Dos escenarios con nombre distinto: «ráfaga de un minuto» ≈ 1,670 req/s (unidades, latencia) y «campaña sostenida hipotética × 5» = 2,500 req/s (regiones).",
+   "cambiar": [
+    "regiones:252-262"
+   ],
+   "como": ""
+  },
+  {
+   "n": 3,
+   "tema": "Días de un mes",
+   "resolucion": "30 días para SLO y presupuesto de error (≈ 300 M requests, 300,000, 43.2 min); 30.4 días / 730 h para costos (≈ 304 M).",
+   "cambiar": [],
+   "como": "Decirlo cuando una cuenta lo use."
+  },
+  {
+   "n": 4,
+   "tema": "Pods de Triton",
+   "resolucion": "2 en operación normal, una T4 por zona; 4 es el tope del autoscaler.",
+   "cambiar": [
+    "balanceo:596"
+   ],
+   "como": "Ese ejercicio dice «con el autoscaler en 4» o se rehace con 2 pods."
+  },
+  {
+   "n": 5,
+   "tema": "Relojes de latencia",
+   "resolucion": "Tres con nombre: típica ≈ 20 ms; promedio en el pico de diseño ≈ 50 ms; caso lento p99 = 152 ms. El paso del modelo en el caso lento son 27 ms (la GPU, 15).",
+   "cambiar": [
+    "latencia:237",
+    "bases-de-datos:573",
+    "percentiles:544"
+   ],
+   "como": "«30 ms de la GPU» → el paso del modelo son 27 ms (15 de GPU). p50 ≈ 20–50 ms."
+  },
+  {
+   "n": 6,
+   "tema": "Etiquetas y snapshot",
+   "resolucion": "72 % vendedor · 7 % moderación · 21 % a mano; dataset de septiembre 1,840,211 + 92,417.",
+   "cambiar": [
+    "pruebas-ci:877"
+   ],
+   "como": "Usar estos números o decir que es un snapshot de ejemplo."
+  },
+  {
+   "n": 7,
+   "tema": "Golden set",
+   "resolucion": "50,000 fotos; el examen de paridad usa un subconjunto de ≈ 10,000.",
+   "cambiar": [
+    "numeros-maquina:649-652",
+    "numeros-maquina:815"
+   ],
+   "como": ""
+  },
+  {
+   "n": 8,
+   "tema": "Tamaño del equipo",
+   "resolucion": "5 personas.",
+   "cambiar": [
+    "gestionados:202",
+    "gestionados:564"
+   ],
+   "como": "«un equipo chico, sin nadie que sepa Kubernetes»."
+  },
+  {
+   "n": 9,
+   "tema": "Versión del modelo",
+   "resolucion": "resnet50-2026-10-01.",
+   "cambiar": [
+    "almacenamiento:401"
+   ],
+   "como": ""
+  },
+  {
+   "n": 10,
+   "tema": "Catálogo",
+   "resolucion": "≈ 200 M fotos viejas (backfill) y ≈ 100 M publicaciones activas: dos datos distintos.",
+   "cambiar": [
+    "embeddings:305",
+    "embeddings:696"
+   ],
+   "como": "Decir «publicaciones activas»."
+  },
+  {
+   "n": 11,
+   "tema": "RTT de Ana",
+   "resolucion": "≈ 60 ms.",
+   "cambiar": [
+    "http:505",
+    "http:572",
+    "red:506"
+   ],
+   "como": "Puede quedar otro valor si se dice que es un supuesto distinto."
+  },
+  {
+   "n": 12,
+   "tema": "Confianza de la foto de Ana",
+   "resolucion": "94 %.",
+   "cambiar": [
+    "aprendio:481",
+    "modelo:392"
+   ],
+   "como": "Los otros porcentajes son de otras fotos: no llamarlas «la foto de Ana»."
+  },
+  {
+   "n": 13,
+   "tema": "Parámetros",
+   "resolucion": "≈ 24.5 M.",
+   "cambiar": [
+    "camino-completo:36"
+   ],
+   "como": ""
+  },
+  {
+   "n": 14,
+   "tema": "PCIe de la T4",
+   "resolucion": "Gen3 x16, ≈ 16 GB/s.",
+   "cambiar": [
+    "cpu-gpu:658"
+   ],
+   "como": ""
+  },
+  {
+   "n": 15,
+   "tema": "Núcleos del gateway",
+   "resolucion": "8 vCPU (4 núcleos físicos).",
+   "cambiar": [
+    "latencia:267",
+    "unidades:594"
+   ],
+   "como": ""
+  },
+  {
+   "n": 16,
+   "tema": "Gateway: nodos y pods",
+   "resolucion": "2 nodos; 3 a 12 pods (5 en el pico de diseño).",
+   "cambiar": [],
+   "como": ""
+  },
+  {
+   "n": 17,
+   "tema": "Log en Parquet",
+   "resolucion": "≈ 0.5 GB al día; una consulta de 2 columnas lee ≈ 40 MB.",
+   "cambiar": [
+    "formatos:1039"
+   ],
+   "como": ""
+  },
+  {
+   "n": 18,
+   "tema": "Utilización",
+   "resolucion": "GPU ≈ 50 % planeada; ≤ 70 % con una zona caída; CPU del gateway ≈ 60 %: tres recursos.",
+   "cambiar": [],
+   "como": ""
+  }
+ ]
+}

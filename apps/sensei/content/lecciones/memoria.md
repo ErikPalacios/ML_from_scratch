@@ -12,7 +12,7 @@ Una computadora guarda los bytes en una escalera de memorias. Arriba, las caché
 
 En la lección de FLOPs viste que una GPU puede pasar más tiempo esperando bytes que calculando. Aquí abrimos la computadora completa para ver dónde esperan esos bytes.
 
-Piensa en el servidor de GPU de C01. El modelo es un archivo de ≈ 50 a 150 MB guardado en un disco, y para responder tiene que estar en la memoria de la GPU. La foto de Ana hace otro viaje: nunca toca un disco. Llega por la red, vive unos milisegundos en la memoria y desaparece.
+Piensa en Alba, la empresa que seguimos en todo el curso: un marketplace que recibe ≈ 2.5 millones de publicaciones al día y le sugiere a quien vende la categoría de cada foto, entre 500 posibles. Para eso corre un modelo en servidores de GPU, máquinas con una tarjeta T4 de NVIDIA. En cada uno, el modelo es un archivo de ≈ 50 a 150 MB guardado en un disco, y para responder tiene que estar en la memoria de la GPU. La foto de Ana, una vendedora que publica unos tenis, hace otro viaje: nunca toca un disco. Llega por la red, vive unos milisegundos en la memoria y desaparece.
 
 Al terminar vas a poder contestar preguntas de todos los días en producción. ¿Por qué recorrer una tabla en orden es varias veces más rápido? ¿Por qué un LLM tarda minutos en arrancar la primera vez y segundos la segunda? ¿Por qué a veces un servidor al que le falta memoria no se cae, sino que se vuelve lentísimo? ¿Y por qué un contenedor muere con «OOMKilled» aunque a la máquina le sobre memoria?
 
@@ -45,11 +45,11 @@ El [[disco]] guarda los archivos aunque se apague la computadora: el sistema, lo
 
 ¿Por qué no usar solo una? Porque no existe una memoria rápida, grande, barata y que no olvide. La RAM es rápida, pero olvida y es cara; el disco recuerda y es barato, pero es demasiado lento para calcular con él. Así que cada máquina tiene las dos, y una regla manda: **la CPU solo calcula con lo que está en la RAM**. Todo programa y todo archivo se **carga**, se copia del disco a la RAM, antes de usarse. Es lo que pasa en los segundos que tarda en abrir una app.
 
-La [[gpu|GPU]] tiene además su propia memoria, la [[vram|VRAM]], aparte de la RAM. Para que calcule, los bytes tienen que cruzar a ella por [[pcie|PCIe]], el camino que une la CPU con la GPU (≈ 16 GB/s en la T4 de C01).
+La [[gpu|GPU]] tiene además su propia memoria, la [[vram|VRAM]], aparte de la RAM. Para que calcule, los bytes tienen que cruzar a ella por [[pcie|PCIe]], el camino que une la CPU con la GPU (≈ 16 GB/s en la T4, la GPU de los servidores de Alba).
 
-### Dónde viven los bytes de C01
+### Dónde viven los bytes de Alba
 
-Junta las piezas en el servidor de GPU de C01, una máquina que en Kubernetes se llama **nodo**. El modelo es un archivo, el *engine* de TensorRT (la ResNet-50 ya convertida para correr rápido en una GPU de NVIDIA). Vive en el disco, dentro de la imagen de Docker de Triton, el programa que sirve el modelo (la imagen es el paquete con el que se arma su contenedor). Al arrancar, Triton lo lee a la RAM y copia los pesos a la VRAM: ≈ 49 MB (24.5 millones de parámetros de 2 bytes, en FP16), que se quedan ahí mientras el servidor viva.
+Junta las piezas en un servidor de GPU de Alba, una máquina que en Kubernetes se llama **nodo**. El modelo es un archivo, el *engine* de TensorRT (la ResNet-50 ya convertida para correr rápido en una GPU de NVIDIA). Vive en el disco, dentro de la imagen de Docker de Triton, el programa que sirve el modelo (la imagen es el paquete con el que se arma su contenedor). Al arrancar, Triton lo lee a la RAM y copia los pesos a la VRAM: ≈ 49 MB (24.5 millones de parámetros de 2 bytes, en FP16), que se quedan ahí mientras el servidor viva.
 
 La foto de Ana hace otro viaje, y nunca toca un disco. El gateway ya la decodificó y la preparó: llega por la red como un tensor de 602 KB, pasa por la RAM y por la VRAM y, unos milisegundos después, ya no existe.
 
@@ -85,14 +85,28 @@ Cuando el núcleo necesita un dato, lo busca primero en la L1. Si está, es un *
 
 La caché nunca trae un byte suelto. Trae un bloque de **64 bytes seguidos**, una **línea de caché** (*cache line*); en los chips de Apple, 128. Un float32 ocupa 4 bytes, así que una línea trae 16: pides uno y llegan sus 15 vecinos. Nadie lo pide: el hardware hace todo esto solo, sin que el programa se entere.
 
-¿Cuánto pesan los fallos? Supón, para el ejemplo, que 95 de cada 100 lecturas aciertan en la L1 y que las otras 5 van hasta la RAM (para simplificar, sin contar la L2 ni la L3):
+¿Cuánto pesan los fallos? El promedio pesa cada tiempo por la fracción de lecturas que lo pagan:
+
+:::formula Tiempo promedio de una lectura
+t_{prom} = a × t_{acierto} + (1 − a) × t_{fallo}
+f = frac{(1 − a) × t_{fallo}}{t_{prom}}
+- a: la fracción de lecturas que aciertan, entre 0 y 1 (0.95 = 95 de cada 100)
+- t_{acierto}: lo que tarda una lectura que encuentra el dato en la memoria rápida, en ns
+- t_{fallo}: lo que tarda una que tiene que ir a la memoria lenta, en ns
+- t_{prom}: lo que tarda una lectura en promedio, en ns
+- f: la parte del tiempo total que se va en los fallos, entre 0 y 1 (0.84 = 84 %)
+:::
+
+Supón, para el ejemplo, que 95 de cada 100 lecturas aciertan en la L1 y que las otras 5 van hasta la RAM (para simplificar, sin contar la L2 ni la L3):
 
 :::cuenta Cuánto tarda una lectura, en promedio
-Las 95 de cada 100 que aciertan // en la L1 | 95 × 1 ns | 95 ns
-Las 5 que fallan // van a la RAM | 5 × 100 ns | 500 ns
-Las 100 juntas | 95 + 500 | 595 ns
-Promedio | 595 ÷ 100 | ≈ 6 ns
-= Con 95 % de aciertos, una lectura tarda en promedio 6 veces lo de un acierto, y el 84 % del tiempo se va en ese 5 % de fallos. Con 99 %, el promedio baja a ≈ 2 ns.
+Aciertos \(a\) // 95 de cada 100 | 95 ÷ 100 | 0.95
+Un acierto \(t_{acierto}\) y un fallo \(t_{fallo}\) // la L1 y la RAM | de la tabla de arriba | 1 ns y 100 ns
+Lo que ponen los aciertos | \(a × t_{acierto}\) = 0.95 × 1 ns | 0.95 ns
+Lo que ponen los fallos | \((1 − a) × t_{fallo}\) = 0.05 × 100 ns | 5 ns
+Promedio \(t_{prom}\) | 0.95 + 5 | 5.95 ≈ 6 ns
+Parte del tiempo en fallos \(f\) | 5 ÷ 5.95 | ≈ 84 %
+= Con 95 % de aciertos, una lectura tarda en promedio 6 veces lo de un acierto, y el 84 % del tiempo se va en ese 5 % de fallos. Con 99 %, \(t_{prom}\) = 0.99 × 1 + 0.01 × 100 = 1.99 ≈ 2 ns.
 :::
 
 :::calculadora memoria-aciertos
@@ -143,13 +157,24 @@ La cabeza viaja hasta la pista del dato. Se llama *seek* y, en un disco de 7,200
 La cabeza ya está en la pista, pero el dato puede venir del otro lado del plato. En promedio hay que esperar media vuelta.
 :::
 
+:::formula Una lectura al azar en un disco duro
+t_{vuelta} = frac{60}{R}
+t_{lectura} ≈ t_{seek} + frac{t_{vuelta}}{2}
+IOPS ≈ frac{1}{t_{lectura}}
+- R: la velocidad de giro, en vueltas por minuto (rpm); el 60 pasa los minutos a segundos
+- t_{vuelta}: lo que tarda el plato en dar una vuelta completa, en s (× 1,000 para pasarlo a ms y sumarlo con \(t_{seek}\))
+- t_{seek}: lo que tarda en promedio mover el brazo hasta la pista, en ms (dato del fabricante)
+- t_{lectura}: lo que tarda una lectura al azar, en ms: el brazo más media vuelta de espera
+- IOPS: cuántas lecturas al azar da por segundo (con \(t_{lectura}\) en s)
+:::
+
 :::cuenta Una lectura al azar en un disco duro de 7,200 rpm
-Una vuelta | 60 s ÷ 7,200 | 8.33 ms
-Media vuelta // la espera promedio | 8.33 ÷ 2 | ≈ 4.2 ms
-Mover el brazo // el *seek* promedio | dato del fabricante | ≈ 8 ms
-Una lectura al azar | 8 + 4.2 | ≈ 12 ms
-Lecturas al azar por segundo | 1 s ÷ 12.2 ms | ≈ 80
-Leer 1 GB a saltos de 4 KiB // 10⁹ B ÷ 4,096 B = 244,141 lecturas | 244,141 × 12.2 ms | ≈ 50 minutos
+Una vuelta \(t_{vuelta}\) // \(R\) = 7,200 rpm | \(60/R\) = 60 s ÷ 7,200 | 8.33 ms
+Media vuelta // la espera promedio del giro | \(t_{vuelta}/2\) = 8.33 ÷ 2 | ≈ 4.2 ms
+Mover el brazo \(t_{seek}\) // el promedio | dato del fabricante | ≈ 8 ms
+Una lectura al azar \(t_{lectura}\) | \(t_{seek} + t_{vuelta}/2\) = 8 + 4.2 | ≈ 12.2 ms
+Lecturas al azar por segundo, IOPS | \(1/t_{lectura}\) = 1 s ÷ 12.2 ms | ≈ 82, unas 80
+Leer 1 GB a saltos de 4 KiB // 10⁹ B ÷ 4,096 B = 244,141 lecturas | 244,141 × \(t_{lectura}\) = 244,141 × 12.2 ms ≈ 2,979 s | ≈ 50 minutos
 Leer 1 GB de corrido // ≈ 250 MB/s, ya en posición | 1 GB ÷ 250 MB/s | ≈ 4 s
 = El mismo GB tarda 4 segundos de corrido y casi una hora a saltos. Un disco duro es bueno leyendo seguido y pésimo saltando.
 :::
@@ -184,10 +209,10 @@ Para un disco, «rápido» no dice nada si no dices para qué: para leer un arch
 
 En AWS hay dos tipos de disco para una máquina:
 
-- **Local** (*instance store*): un NVMe pegado a la máquina, rápido. Pero se borra cuando la máquina se detiene: sirve para copias de trabajo, no para guardar. La g4dn.xlarge, la máquina con una T4 de C01, trae ≈ 125 GB.
+- **Local** (*instance store*): un NVMe pegado a la máquina, rápido. Pero se borra cuando la máquina se detiene: sirve para copias de trabajo, no para guardar. La g4dn.xlarge, la máquina con una T4 que usa Alba, trae ≈ 125 GB.
 - **De red** (EBS, *Elastic Block Store*): un disco que vive en otro lado del centro de datos y se conecta por la red. Sobrevive a la máquina, pero cada lectura cruza la red, con una latencia de un dígito de milisegundos. El más común, **gp3**, da de base 3,000 IOPS y 125 MiB/s (≈ 131 MB/s); pagando más, hasta 2,000 MiB/s.
 
-El gp3 es el disco raíz típico (el disco con el que arranca la máquina) de los nodos de Kubernetes en AWS, y sus 125 MiB/s de base son justo el número que la Ronda (M05) señala como el cuello de botella al bajar imágenes y pesos.
+El gp3 es el disco raíz típico (el disco con el que arranca la máquina) de los nodos de Kubernetes en AWS, y sus 125 MiB/s de base suelen ser el cuello de botella cuando un nodo nuevo baja imágenes de Docker y pesos de modelos.
 
 ## Localidad: por qué recorrer en orden es más rápido {Locality: why going in order is faster}
 
@@ -200,24 +225,32 @@ La caché aprovecha las dos: guarda lo reciente y trae líneas completas. Ademá
 
 ### Una matriz se guarda fila tras fila
 
-La memoria es una sola fila de casillas, así que una tabla de dos dimensiones hay que aplanarla. NumPy (la librería de Python para arreglos de números) y PyTorch, como el lenguaje C, guardan una fila completa y luego la siguiente: es el orden *row-major* («por filas»). En una matriz de float32 con 1,024 columnas, el número de la fila i y la columna j está en:
+La memoria es una sola fila de casillas, así que una tabla de dos dimensiones hay que aplanarla. NumPy (la librería de Python para arreglos de números) y PyTorch, como el lenguaje C, guardan una fila completa y luego la siguiente: es el orden *row-major* («por filas»). Así, cada número tiene una dirección que se calcula:
 
-**dirección = inicio + (i × 1,024 + j) × 4 bytes**
+:::formula Dónde está cada número de una matriz guardada por filas
+d = d_0 + (i × K + j) × s
+- d_0: la dirección donde empieza la matriz, en bytes
+- i, j: la fila y la columna del número, contando desde 0
+- K: cuántas columnas tiene la matriz
+- s: cuántos bytes ocupa cada número (4 en float32)
+- d: la dirección del número, en bytes
+:::
 
-El de la fila 2 y la columna 5, por ejemplo, está (2 × 1,024 + 5) × 4 = 8,212 bytes después del inicio. Recorrer por filas es avanzar de 4 en 4 bytes: cada línea trae 16 números seguidos. Recorrer por columnas es brincar 1,024 × 4 = 4,096 bytes en cada paso, una fila entera: cada lectura cae en una línea distinta. Ojo: la RAM sí tarda casi lo mismo con cualquier dirección; lo que cambia es cuántas veces hay que ir a ella.
+En una matriz de float32 con \(K\) = 1,024 columnas, el de la fila \(i\) = 2 y la columna \(j\) = 5 está \((i × K + j) × s\) = (2 × 1,024 + 5) × 4 = 8,212 bytes después del inicio. Recorrer por filas es avanzar de 4 en 4 bytes: cada línea trae 16 números seguidos. Recorrer por columnas es brincar 1,024 × 4 = 4,096 bytes en cada paso, una fila entera: cada lectura cae en una línea distinta. Ojo: la RAM sí tarda casi lo mismo con cualquier dirección; lo que cambia es cuántas veces hay que ir a ella.
 
 :::figura memoria-lineas
 La misma matriz, recorrida de dos maneras. Por filas, cada línea que llega trae los siguientes 3 números (15 en una CPU real). Por columnas, cada lectura pide una línea nueva, y si la matriz no cabe en la caché, la línea ya se fue cuando el recorrido vuelve por ella.
 :::
 
 :::cuenta Recorrer una matriz de 1,024 × 1,024 float32 con una caché de 32 KiB
-Bytes de la matriz | 1,048,576 × 4 B | 4 MiB
-Por filas: líneas que llegan // 64 B cada una | 4 MiB ÷ 64 B | 65,536 fallos
-Aciertos por filas | 1 − 65,536 ÷ 1,048,576 | 93.75 %
-Por columnas // la caché guarda 32 KiB ÷ 64 B = 512 líneas, y cada columna toca 1,024: al volver, ya se fueron | 1,048,576 lecturas | 1,048,576 fallos
-Promedio por filas // 15 de cada 16 aciertan: 1 ns por acierto, 100 ns por fallo | 15/16 × 1 + 1/16 × 100 | ≈ 7.19 ns
-Tiempo por filas | 1,048,576 × 7.19 ns | ≈ 7.5 ms
-Tiempo por columnas | 1,048,576 × 100 ns | ≈ 105 ms
+Lecturas // una por número: 1,024 × 1,024 | 1,024 × 1,024 | 1,048,576
+Bytes de la matriz // \(s\) = 4 B por número | 1,048,576 × 4 B = 4,194,304 B | 4 MiB
+Por filas: fallos // uno por cada línea de 64 B que llega | 4,194,304 B ÷ 64 B | 65,536 fallos
+Aciertos por filas \(a\) | 1 − 65,536 ÷ 1,048,576 = 15/16 | 93.75 %
+Por columnas: fallos // la caché guarda 32 KiB ÷ 64 B = 512 líneas, y cada columna toca 1,024: al volver, ya se fueron | uno por lectura, \(a\) = 0 | 1,048,576 fallos
+Promedio por filas \(t_{prom}\) // \(t_{acierto}\) = 1 ns, \(t_{fallo}\) = 100 ns | \(a × t_{acierto} + (1 − a) × t_{fallo}\) = 15/16 × 1 + 1/16 × 100 | ≈ 7.19 ns
+Tiempo por filas // lecturas × \(t_{prom}\) | 1,048,576 × 7.19 ns | ≈ 7.5 ms
+Tiempo por columnas // con \(a\) = 0, cada lectura cuesta \(t_{fallo}\) | 1,048,576 × 100 ns | ≈ 105 ms
 = Los mismos números, leídos en otro orden: 16 veces más fallos y ≈ 14 veces más tiempo.
 :::
 
@@ -306,7 +339,21 @@ La solución es la [[memoria-virtual|memoria virtual]] (*virtual memory*). Cada 
 
 Traducir byte por byte sería carísimo, así que se traduce por bloques, las **páginas** (*pages*): 4 KiB en casi todo Linux y 16 KiB en las Mac con chip de Apple. Cada proceso tiene una **tabla de páginas** que dice, para cada página suya, en qué **marco** (*frame*) de la RAM de verdad está. Dos procesos pueden usar la misma dirección virtual y caer en marcos distintos: nunca se pisan.
 
-Un ejemplo con la figura de abajo y páginas de 4 KiB (4,096 bytes). El proceso A lee su dirección virtual 4,100. La CPU divide: 4,100 ÷ 4,096 da 1 y sobran 4, así que es el byte 4 de su página 1. La tabla de A dice que esa página está en el marco 2, y el byte de verdad está en 2 × 4,096 + 4 = 8,196. Si B lee la misma dirección, 4,100, cae en su propia página 1, que todavía no tiene marco.
+La traducción es una división con residuo:
+
+:::formula De dirección virtual a dirección de verdad
+k = floor(frac{d_{virt}}{P})
+b = d_{virt} − k × P
+d_{real} = F × P + b
+- d_{virt}: la dirección virtual que pide el proceso, en bytes
+- P: el tamaño de página, en bytes (4,096 en casi todo Linux)
+- k: el número de página: el cociente de la división, sin decimales (floor = quitarle los decimales)
+- b: en qué byte de esa página cae: el residuo
+- F: el marco donde está la página \(k\), según la tabla de páginas del proceso
+- d_{real}: la dirección de verdad en la RAM, en bytes
+:::
+
+Un ejemplo con la figura de abajo y páginas de \(P\) = 4,096 bytes. El proceso A lee su dirección virtual \(d_{virt}\) = 4,100. La CPU divide: \(k\) = floor(4,100 ÷ 4,096) = 1 y \(b\) = 4,100 − 1 × 4,096 = 4, así que es el byte 4 de su página 1. La tabla de A dice que esa página está en el marco \(F\) = 2, y el byte de verdad está en \(d_{real}\) = 2 × 4,096 + 4 = 8,196. Si B lee la misma dirección, 4,100, cae en su propia página 1, que todavía no tiene marco.
 
 :::figura memoria-paginas
 Dos procesos con sus propios mapas. Cada flecha es una línea de su tabla de páginas: una página puede estar en un marco de la RAM, compartida con otro proceso, en el disco o en ningún lado todavía. La página 1 de A, en el marco 2, es la del ejemplo.
@@ -382,7 +429,7 @@ Eso le da tres ventajas a quien carga un modelo:
 - **Una sola copia en la RAM:** la de la page cache.
 - **Se comparte:** dos procesos que abren el mismo archivo usan los mismos marcos.
 
-Para eso existe el formato *safetensors*: un encabezado en JSON (un formato de texto con nombres y valores, como `{"dtype": "F32"}`) que dice dónde está cada tensor y, después, los números tal cual, sin nada que interpretar. Además, abrirlo no puede ejecutar código escondido, cosa que sí puede pasar con un *pickle*, el formato que usa PyTorch si no le pides otro. `torch.load(..., mmap=True)` abre con mmap los archivos de PyTorch, y vLLM, el programa que sirve el LLM de C10, lee sus safetensors con mmap. Este bloque arma un archivo de «pesos» al estilo safetensors y lo abre así:
+Para eso existe el formato *safetensors*: un encabezado en JSON (un formato de texto con nombres y valores, como `{"dtype": "F32"}`) que dice dónde está cada tensor y, después, los números tal cual, sin nada que interpretar. Además, abrirlo no puede ejecutar código escondido, cosa que sí puede pasar con un *pickle*, el formato que usa PyTorch si no le pides otro. `torch.load(..., mmap=True)` abre con mmap los archivos de PyTorch, y vLLM, un programa muy usado para servir LLMs, lee sus safetensors con mmap. Este bloque arma un archivo de «pesos» al estilo safetensors y lo abre así:
 
 ```python
 import json, mmap, os, resource, struct, sys, tempfile
@@ -427,21 +474,33 @@ Ya puedes seguir los pesos de un LLM desde que el nodo nace hasta que responde. 
 Sigue «Primer arranque en un nodo nuevo» y compáralo con «Reinicio en el mismo nodo». «Con una lectura normal» muestra la copia de más que evita mmap.
 :::
 
+En cada tramo, el tiempo es cuántos bytes hay que mover entre qué tan rápido se mueven:
+
+:::formula Cuánto tarda en cargar un modelo
+B = N × s
+t = frac{B}{v}
+- N: cuántos parámetros tiene el modelo
+- s: cuántos bytes ocupa cada uno (2 en BF16 o FP16, 1 en FP8, 4 en FP32)
+- B: los bytes de los pesos, en GB (bytes ÷ 10⁹)
+- v: cuántos GB por segundo da ese tramo leyendo de corrido (su throughput), en GB/s
+- t: el tiempo del tramo, en s
+:::
+
 :::cuenta Cargar Llama 3 8B en BF16, 16.06 GB
-Los pesos // 8,030 millones de parámetros de 2 bytes | 8.03 × 10⁹ × 2 B | 16.06 GB
-Desde S3, por la red // M05: ≈ 0.2 a 1 GB/s por nodo | 16.06 GB ÷ (0.2 a 1 GB/s) | ≈ 16 a 80 s
-Desde un disco gp3 de base // 125 MiB/s ≈ 131 MB/s | 16.06 GB ÷ 131 MB/s | ≈ 123 s ≈ 2 min
-Desde un NVMe local // ≈ 2 GB/s | 16.06 GB ÷ 2 GB/s | ≈ 8 s
+Los pesos \(B\) // \(N\) = 8,030 millones de parámetros, \(s\) = 2 bytes | \(N × s\) = 8.03 × 10⁹ × 2 B | 16.06 GB
+Desde S3, por la red // \(v\) ≈ 0.2 a 1 GB/s por nodo, con supuestos típicos | \(B/v\) = 16.06 GB ÷ (0.2 a 1 GB/s) | ≈ 16 a 80 s
+Desde un disco gp3 de base // \(v\) = 125 MiB/s ≈ 131 MB/s = 0.131 GB/s | 16.06 GB ÷ 0.131 GB/s | ≈ 123 s ≈ 2 min
+Desde un NVMe local // \(v\) ≈ 2 GB/s | 16.06 GB ÷ 2 GB/s | ≈ 8 s
 Desde la page cache // un reinicio en el mismo nodo | sin tocar el disco | segundos
-A la VRAM, por PCIe // ≈ 16 a 32 GB/s | 16.06 GB ÷ (16 a 32 GB/s) | ≈ 0.5 a 1 s
+A la VRAM, por PCIe // \(v\) ≈ 16 a 32 GB/s | 16.06 GB ÷ (16 a 32 GB/s) | ≈ 0.5 a 1 s
 = El disco decide: el mismo modelo tarda 2 minutos u 8 segundos en salir del disco, y casi nada si ya estaba en la page cache. Cruzar a la GPU es lo de menos.
 :::
 
 :::calculadora memoria-carga
-Prueba también el engine de C01, 0.15 GB, con el gp3 de base: ≈ 1 s. A C01 le preocupa bajar la imagen de Triton, de varios GB, no su modelo.
+Prueba también el engine del modelo de Alba, \(B\) = 0.15 GB, con el gp3 de base: 0.15 ÷ 0.131 ≈ 1 s. A Alba le preocupa bajar la imagen de Triton, de varios GB, no su modelo.
 :::
 
-En C10, que sirve un LLM propio con 70.6 GB de pesos, la Ronda pone el arranque completo en ≈ 5 a 10 minutos: conseguir la máquina, bajar la imagen, copiar los pesos de S3 al NVMe y cargarlos a las GPUs. Leerlos de un gp3 de base tardaría ≈ 9 minutos, contra ≈ 35 segundos del NVMe.
+Ahora un servicio que sirve su propio LLM, de 70,600 millones de parámetros en FP8 (1 byte cada uno): 70.6 GB de pesos. Con supuestos típicos, su arranque completo toma ≈ 5 a 10 minutos: conseguir la máquina, bajar la imagen, copiar los pesos de S3 al NVMe y cargarlos a las GPUs. Con \(t = B/v\), leerlos de un gp3 de base tardaría 70.6 GB ÷ 0.131 GB/s ≈ 539 s ≈ 9 minutos, contra 70.6 ÷ 2 ≈ 35 segundos del NVMe.
 
 ## Cuando la RAM se acaba: swap y OOM {When RAM runs out: swap and OOM}
 
@@ -455,13 +514,16 @@ Ahora imagina que los procesos de una máquina necesitan más RAM de la que hay:
 
 El swap evita matar a alguien, pero cobra. Cuando un proceso toca una página que se fue al swap, hay un fallo de página de los caros: el sistema la lee del disco. Desde un SSD tarda ≈ 100 µs, mil veces lo de la RAM; desde un disco duro, ≈ 10 ms, cien mil veces.
 
+Es la misma fórmula de los aciertos de la caché, un piso más abajo: \(t_{prom} = a × t_{acierto} + (1 − a) × t_{fallo}\), donde ahora un «acierto» es una lectura que sale de la RAM y un «fallo», una que sale del swap.
+
 :::cuenta Un servidor que saca 1 de cada 100 lecturas del swap
-99 lecturas de la RAM | 99 × 100 ns | 9,900 ns
-1 lectura del swap, en un SSD | 1 × 100 µs | 100,000 ns
-Promedio por lectura | (9,900 + 100,000) ÷ 100 | ≈ 1,099 ns
-Comparado con todo en la RAM | 1,099 ÷ 100 | ≈ 11 veces más lento
-Con el swap en un disco duro | (9,900 + 10,000,000) ÷ 100 | ≈ 100,099 ns: ≈ 1,000 veces
-= Basta 1 % de lecturas en el swap para que todo vaya 11 veces más lento. Es la cuenta de los aciertos de la caché, un piso más abajo: pruébala en la calculadora con 99 %, 100 y 100000.
+Aciertos \(a\) // lecturas que salen de la RAM: 99 de cada 100 | 99 ÷ 100 | 0.99
+Lo que pone la RAM // \(t_{acierto}\) = 100 ns | \(a × t_{acierto}\) = 0.99 × 100 ns | 99 ns
+Lo que pone el swap, en un SSD // \(t_{fallo}\) = 100 µs = 100,000 ns | \((1 − a) × t_{fallo}\) = 0.01 × 100,000 ns | 1,000 ns
+Promedio \(t_{prom}\) | 99 + 1,000 | 1,099 ns
+Comparado con todo en la RAM | \(t_{prom} ÷ t_{acierto}\) = 1,099 ÷ 100 | ≈ 11 veces
+Con el swap en un disco duro // \(t_{fallo}\) = 10 ms = 10,000,000 ns | 99 + 0.01 × 10,000,000 = 100,099 ns, y 100,099 ÷ 100 | ≈ 1,000 veces
+= Basta 1 % de lecturas en el swap para que todo vaya 11 veces más lento. Pruébalo en la calculadora de los aciertos con 99 %, 100 y 100000.
 :::
 
 Y puede ser peor. Si lo que los programas usan todo el tiempo no cabe en la RAM, el sistema saca una página, el programa la pide de vuelta, el sistema saca otra… y se pasa la vida moviendo páginas. Se llama *thrashing* («dar tumbos»): la máquina no se cae, pero se arrastra.
@@ -474,7 +536,7 @@ En un servidor que responde requests es al revés. Un servidor lento es peor que
 
 ### El límite de un contenedor
 
-En la lección anterior viste que un [[contenedor]] tiene su propio tope de memoria, que el sistema operativo hace cumplir con un [[cgroup]]: si sus procesos lo pasan, los mata aunque a la máquina le sobre RAM, y Kubernetes lo reporta como **OOMKilled**, con [[codigo-salida|código de salida]] 137, el de la [[senal|señal]] SIGKILL. En C01, el contenedor de Triton pide 6 GiB y tiene ese mismo límite: si se pasa, muere de golpe y se reinicia, en vez de ponerse lento.
+En la lección anterior viste que un [[contenedor]] tiene su propio tope de memoria, que el sistema operativo hace cumplir con un [[cgroup]]: si sus procesos lo pasan, los mata aunque a la máquina le sobre RAM, y Kubernetes lo reporta como **OOMKilled**, con [[codigo-salida|código de salida]] 137, el de la [[senal|señal]] SIGKILL. En Alba, el contenedor de Triton, el programa que sirve su modelo en cada servidor de GPU, pide 6 GiB y tiene ese mismo límite: si se pasa, muere de golpe y se reinicia, en vez de ponerse lento.
 
 Con lo de esta lección ya puedes decir qué cuenta contra ese tope: la memoria propia de sus procesos y las páginas de archivos que usan activamente, como unos pesos abiertos con mmap. La page cache que nadie usa se puede soltar, y no lo mata.
 
@@ -486,14 +548,26 @@ En un servidor con Linux, la VRAM no tiene un piso de abajo. Si un tensor no cab
 
 ### N workers, N copias
 
-Un servidor de Python suele correr varias copias de sí mismo para usar varios núcleos: `uvicorn --workers 4` (uvicorn es el programa que corre servidores de Python como el gateway) arranca 4 procesos, cada uno un [[worker]] que atiende requests. Cada uno tiene su propia memoria virtual. Si cada uno carga el modelo con un `torch.load` normal, hay 4 copias en la RAM. La Ronda lo advierte en M05: varios workers dentro de un contenedor «duplican la memoria».
+Un servidor de Python suele correr varias copias de sí mismo para usar varios núcleos: `uvicorn --workers 4` (uvicorn es el programa que corre servidores de Python como el gateway) arranca 4 procesos, cada uno un [[worker]] que atiende requests. Cada uno tiene su propia memoria virtual. Si cada uno carga el modelo con un `torch.load` normal, hay 4 copias en la RAM. Es un aviso clásico al empaquetar un servidor: varios workers dentro de un contenedor multiplican la memoria.
+
+:::formula La memoria de un contenedor con workers
+M_{copias} = n × (r + m)
+M_{mmap} = n × r + m
+- n: cuántos workers corren en el contenedor
+- r: la memoria propia de cada worker (Python, librerías y datos de trabajo), en GB
+- m: lo que pesan los pesos del modelo, en GB
+- M_{copias}: el total si cada worker carga su propia copia del modelo, en GB
+- M_{mmap}: el total si todos abren el modelo con mmap y comparten una sola copia, en GB
+:::
+
+Caben si el total no pasa del límite del contenedor, \(L\). Ojo con las unidades: el límite se da en GiB, y 1 GiB = 1,073,741,824 bytes ≈ 1.07 GB.
 
 :::cuenta Cuatro workers en un contenedor de 4 GiB
-El límite // 4 GiB | 4 × 1,073,741,824 B | ≈ 4.29 GB
-Memoria propia de cada worker // Python y librerías | un supuesto | ≈ 0.4 GB
-Pesos del modelo // ≈ 300 millones de parámetros en FP32 | 300 M × 4 B | 1.2 GB
-Cada worker con su copia | 4 × (0.4 + 1.2) | 6.4 GB: OOMKilled
-Con mmap, una sola copia | 4 × 0.4 + 1.2 | 2.8 GB: cabe
+El límite \(L\) // 4 GiB | 4 × 1,073,741,824 B | ≈ 4.29 GB
+Memoria propia de cada worker \(r\) // Python y librerías | un supuesto | ≈ 0.4 GB
+Pesos del modelo \(m\) // ≈ 300 millones de parámetros en FP32, 4 bytes cada uno | 300 M × 4 B | 1.2 GB
+Cada worker con su copia, \(M_{copias}\) // \(n\) = 4 | \(n × (r + m)\) = 4 × (0.4 + 1.2) | 6.4 GB: OOMKilled
+Con mmap, una sola copia, \(M_{mmap}\) | \(n × r + m\) = 4 × 0.4 + 1.2 | 2.8 GB: cabe
 = El mismo modelo y los mismos workers: con 4 copias no caben; con mmap caben y sobra un tercio del límite.
 :::
 
@@ -501,7 +575,7 @@ Con mmap, una sola copia | 4 × 0.4 + 1.2 | 2.8 GB: cabe
 Busca cuántos workers caben con cada forma de cargar el modelo.
 :::
 
-C01 evita el problema de raíz: corre un solo proceso de uvicorn por contenedor y, si hace falta más, Kubernetes agrega réplicas (M05). Con GPU hay otra razón: cada worker carga además su propia copia de los pesos en la VRAM y su propio contexto de [[cuda|CUDA]], lo que el software de NVIDIA aparta en la GPU para cada proceso, de 0.3 a 1 GB cada uno. Ahí mmap no ayuda (M07).
+Alba evita el problema de raíz: su gateway, el servicio en Python que recibe cada foto y la prepara, corre un solo proceso de uvicorn por contenedor y, si hace falta más, Kubernetes agrega réplicas, más contenedores iguales. Con GPU hay otra razón: cada worker carga además su propia copia de los pesos en la VRAM y su propio contexto de [[cuda|CUDA]], lo que el software de NVIDIA aparta en la GPU para cada proceso, de 0.3 a 1 GB cada uno. Ahí mmap no ayuda.
 
 ### Sumar la RSS engaña
 
@@ -545,7 +619,7 @@ Nada falla, pero la latencia sube de a poco y el p99 se dispara con más carga. 
 
 Hay dos errores opuestos. Sumar la RSS de 4 workers que comparten un modelo abierto con mmap y concluir que no caben. O suponer que comparten el modelo cuando cada uno cargó su copia, y llevarse un OOMKilled.
 
-**Cómo evitarlo:** mide el total del contenedor (lo que reporta Kubernetes, o en Linux la PSS, que reparte cada página compartida entre quienes la usan) y decide a propósito cómo se carga el modelo: mmap, `--preload` (cargarlo antes de crear a los workers) o un solo proceso por contenedor, como hace C01.
+**Cómo evitarlo:** mide el total del contenedor (lo que reporta Kubernetes, o en Linux la PSS, que reparte cada página compartida entre quienes la usan) y decide a propósito cómo se carga el modelo: mmap, `--preload` (cargarlo antes de crear a los workers) o un solo proceso por contenedor, como hace Alba.
 
 ### 5. Recorrer los datos contra su orden
 
@@ -557,45 +631,45 @@ Un ciclo que va por columnas en una matriz guardada por filas, un tensor transpu
 
 Los pesos de un LLM en el gp3 de base con el que arranca la máquina, a 125 MiB/s: los 141 GB de Llama 3 70B en BF16 (70,600 millones de parámetros de 2 bytes) tardan ≈ 18 minutos solo en leerse. Una réplica nueva, que se arrancó porque subió el tráfico, tarda esos 18 minutos de más en ayudar.
 
-**Cómo evitarlo:** copia los pesos a un NVMe local, paga más throughput en el disco o bájalos al nodo antes de que se necesiten. Y si el modelo es chico, como el de C01, mételo en la imagen.
+**Cómo evitarlo:** copia los pesos a un NVMe local, paga más throughput en el disco o bájalos al nodo antes de que se necesiten. Y si el modelo es chico, como el de Alba (≈ 50 a 150 MB), mételo en la imagen.
 
 ## En la vida real {In real life} [extra]
 
-### C01: el servidor de la T4
+### Alba: el servidor de la T4
 
-El servidor de GPU de C01 es una g4dn.xlarge: 4 [[vcpu|vCPU]] (la unidad de CPU que renta la nube; en estas máquinas de Intel, cada uno es medio núcleo), 16 GiB de RAM, una T4 con 16 GB de VRAM y ≈ 125 GB de NVMe local. El engine de la ResNet-50, de ≈ 50 a 150 MB, va dentro de la imagen de Triton, y cargarlo de cualquier disco toma ≈ 1 s. Lo que tarda es bajar la imagen, de varios GB: ≈ 2 a 5 minutos, según la Ronda. El contenedor de Triton tiene 6 GiB de RAM, que se van sobre todo en las librerías de CUDA y los *buffers* (la memoria donde se acomodan los datos que van y vienen); el modelo vive en la GPU.
+Cada servidor de GPU de Alba es una g4dn.xlarge: 4 [[vcpu|vCPU]] (la unidad de CPU que renta la nube; en estas máquinas de Intel, cada uno es medio núcleo), 16 GiB de RAM, una T4 con 16 GB de VRAM y ≈ 125 GB de NVMe local. El engine de la ResNet-50, de ≈ 50 a 150 MB, va dentro de la imagen de Triton, y cargarlo de cualquier disco toma ≈ 1 s. Lo que tarda es bajar la imagen, de varios GB: ≈ 2 a 5 minutos, según estima el equipo de Alba. El contenedor de Triton tiene 6 GiB de RAM, que se van sobre todo en las librerías de CUDA y los *buffers* (la memoria donde se acomodan los datos que van y vienen); el modelo vive en la GPU.
 
 Y la foto de Ana nunca toca un disco. El gateway la decodifica en su RAM, pero antes de abrirla revisa su tamaño y rechaza las de más de 40 MP: una de 40 millones de píxeles abierta en RGB ocupa 40 M × 3 bytes = 120 MB.
 
-### C07: 51 GB servidos desde la page cache
+### La búsqueda de Alba: 51 GB servidos desde la page cache
 
-C07 busca entre 100 millones de publicaciones. Cada máquina guarda en un disco de red gp3 los vectores en FP32 de su pedazo del índice, uno de 4: 25 millones de vectores de 512 números de 4 bytes, 51.2 GB. Con ellos revisa con precisión los 200 mejores candidatos de cada búsqueda. ¿Se pueden leer del disco en cada búsqueda?
+Alba también tiene una búsqueda con *embeddings*: cada publicación se resume en un vector de 512 números, y buscar es encontrar los vectores más parecidos al de la consulta. Busca entre sus ≈ 100 millones de publicaciones activas. Cada máquina guarda en un disco de red gp3 los vectores en FP32 de su pedazo del índice, uno de 4: 25 millones de vectores de 512 números de 4 bytes, 51.2 GB. Con ellos revisa con precisión los 200 mejores candidatos de cada búsqueda. ¿Se pueden leer del disco en cada búsqueda?
 
-:::cuenta Por qué los vectores de C07 tienen que estar en la page cache
-Búsquedas por máquina en el pico // cada búsqueda pasa por los 4 pedazos, y cada pedazo tiene 2 copias | 1,750 ÷ 2 copias | ≈ 875 por segundo
-Lecturas al azar // 200 candidatos por búsqueda | 875 × 200 | 175,000 por segundo
+:::cuenta Por qué los vectores de la búsqueda tienen que estar en la page cache
+Búsquedas por máquina en el pico // el pico es de 1,750 búsquedas por segundo; cada una pasa por los 4 pedazos, y cada pedazo tiene 2 copias que se reparten las búsquedas | 1,750 ÷ 2 copias | ≈ 875 por segundo
+Lecturas al azar // una por cada uno de los 200 candidatos de cada búsqueda | 875 × 200 | 175,000 por segundo
 Lo que aguanta el disco de red // el techo de EBS de esa máquina | dato de AWS | 40,000 por segundo
 Faltan | 175,000 ÷ 40,000 | ≈ 4.4 veces
-Precalentar // leer los 51.2 GB de corrido, si el volumen da sus 125 MiB/s de base | 51.2 GB ÷ 131 MB/s | ≈ 6.5 minutos
-= Del disco no salen. Por eso C07 usa máquinas de 128 GiB, donde los 51.2 GB caben en la page cache, y una copia nueva lee sus vectores de corrido antes de recibir tráfico. Un NVMe local quitaría el precalentamiento.
+Precalentar // leer los 51.2 GB de corrido: \(t = B/v\), si el volumen da sus 125 MiB/s ≈ 0.131 GB/s de base | 51.2 GB ÷ 0.131 GB/s ≈ 391 s | ≈ 6.5 minutos
+= Del disco no salen. Por eso la búsqueda usa máquinas de 128 GiB, donde los 51.2 GB caben en la page cache, y una copia nueva lee sus vectores de corrido antes de recibir tráfico. Un NVMe local quitaría el precalentamiento.
 :::
 
-La Ronda lo dice con una frase que resume esta lección: dentro del índice, «un fallo de página en medio del grafo es un acceso a disco».
+Dicho en una frase que resume esta lección: el índice se recorre saltando de un vector a otro, y cada salto que cae en una página que no está en la RAM es un fallo de página que va al disco.
 
-### C10: 70.6 GB al NVMe, leídos con mmap
+### Un LLM propio: 70.6 GB al NVMe, leídos con mmap
 
-C10 sirve un LLM de 70,600 millones de parámetros en FP8, en máquinas con 8 H100 y 2 TiB de RAM. Al arrancar, un primer contenedor copia los 70.6 GB de pesos de S3 al NVMe local, en ≈ 1 a 2 minutos, y verifica que ningún archivo venga alterado; luego vLLM los abre con [[mmap]]. Por eso la memoria que pide cada servidor, 256 GiB, cuenta la page cache de esos archivos, además del `/dev/shm` y los buffers. Y por eso su `/dev/shm` es grande: con los 64 MiB de siempre, los procesos de vLLM no se pueden coordinar.
+Piensa en un servicio que sirve su propio LLM, de 70,600 millones de parámetros en FP8, en máquinas con 8 GPUs H100 y 2 TiB de RAM (supuestos del ejemplo). Al arrancar, un primer contenedor copia los 70.6 GB de pesos de S3 al NVMe local, en ≈ 1 a 2 minutos, y verifica que ningún archivo venga alterado; luego vLLM los abre con [[mmap]]. Por eso la memoria que pide cada servidor, 256 GiB, cuenta la page cache de esos archivos, además del `/dev/shm` y los buffers. Y por eso su `/dev/shm` es grande: con los 64 MiB de siempre, los procesos de vLLM no se pueden coordinar.
 
-En la GPU, C10 vive al borde de la VRAM. Cada conversación ocupa su [[kv-cache|KV cache]], la memoria donde el LLM guarda lo que ya calculó de ella, y cuando ya no caben, vLLM saca algunas y las recalcula después, cuando hay lugar: la persona ve una pausa y la GPU repite trabajo. Antes, vLLM también podía guardar esos bloques en la RAM de la CPU en vez de tirarlos, un «swap» un piso más arriba; la versión de hoy prefiere recalcular, porque le cuesta menos (M14). Por eso, dice la Ronda en C10, en un LLM la memoria es la capacidad: contar las conversaciones que se sacan avisa del problema antes que la latencia.
+En la GPU, un servicio así vive al borde de la VRAM. Cada conversación ocupa su [[kv-cache|KV cache]], la memoria donde el LLM guarda lo que ya calculó de ella, y cuando ya no caben, vLLM saca algunas y las recalcula después, cuando hay lugar: la persona ve una pausa y la GPU repite trabajo. Antes, vLLM también podía guardar esos bloques en la RAM de la CPU en vez de tirarlos, un «swap» un piso más arriba; la versión de hoy prefiere recalcular, porque le cuesta menos. Por eso, en un LLM la memoria es la capacidad: contar las conversaciones que se sacan avisa del problema antes que la latencia.
 
 ### El Jetson y tu Mac: una sola memoria
 
-En un Jetson, el equipo chico de NVIDIA para el *edge* (el cómputo junto a donde nacen los datos, como una cámara), la CPU y la GPU comparten la misma RAM: no hay VRAM aparte. Un Orin Nano de 8 GB, con el sistema y la app usando ≈ 2.5 GB, le deja al modelo ≈ 5.5 GB como máximo (M04). Las Mac con chip de Apple hacen lo mismo con su «memoria unificada»: la GPU de la M4 usa los mismos 16 GB que la CPU. La ventaja es que no hay copia por PCIe; el costo, que todo compite por la misma memoria y por el mismo ancho de banda.
+En un Jetson, el equipo chico de NVIDIA para el *edge* (el cómputo junto a donde nacen los datos, como una cámara), la CPU y la GPU comparten la misma RAM: no hay VRAM aparte. Un Orin Nano de 8 GB, con el sistema y la app usando ≈ 2.5 GB, le deja al modelo 8 − 2.5 = 5.5 GB como máximo. Las Mac con chip de Apple hacen lo mismo con su «memoria unificada»: la GPU de la M4 usa los mismos 16 GB que la CPU. La ventaja es que no hay copia por PCIe; el costo, que todo compite por la misma memoria y por el mismo ancho de banda.
 
 ### Fuera de ML
 
 - **Tu celular** cierra las apps que dejaste atrás cuando le falta memoria: al volver a una, empieza desde cero. Es un OOM a propósito, para que la app que estás usando no se arrastre.
-- **Redis**, una base de datos que guarda todo en la RAM, responde en microsegundos, pero si se reinicia pierde lo que no haya escrito al disco. La Ronda (M02) lo apunta al elegir una cola: «durabilidad según cómo persista Redis».
+- **Redis**, una base de datos que guarda todo en la RAM, responde en microsegundos, pero si se reinicia pierde lo que no haya escrito al disco. Por eso, si una cola de trabajos vive en Redis, que no se pierda ninguno depende de cada cuánto Redis guarda en el disco.
 - **Postgres**, una de las bases de datos más usadas, guarda en su propia RAM las páginas de las tablas que más lee y deja el resto a la page cache del sistema. Su documentación sugiere darle para eso ≈ 25 % de la RAM de la máquina: la page cache hace lo demás.
 - **Los videojuegos** tienen pantallas de carga porque copian del disco a la RAM y a la VRAM. El SSD del PlayStation 5, de 5.5 GB/s, casi hizo desaparecer las que el PlayStation 4 sufría con su disco duro.
 
@@ -605,64 +679,63 @@ Resuélvelos con lápiz antes de abrir la solución. Los de aciertos, carga y wo
 
 :::ejercicios
 ? [facil] A escala humana (1 ns = 1 s), ¿cuánto tardan una lectura de la L2 (≈ 4 ns), una de la RAM (≈ 100 ns), una lectura al azar de un NVMe (≈ 80 µs) y una de un disco duro (≈ 12 ms)?
+- Cada tiempo se multiplica por 10⁹: \(t_{humano} = t × 10^9\), con \(t\) en segundos.
 - L2: 4 ns × 10⁹ = **4 s**.
 - RAM: 100 ns × 10⁹ = 100 s = **1 min 40 s**.
 - NVMe: 80 µs = 80,000 ns → 80,000 s; entre 3,600 s por hora, **≈ 22 horas**.
 - Disco duro: 12 ms = 12,000,000 ns → 12,000,000 s; entre 86,400 s por día, **≈ 139 días**, unos 4 meses y medio.
 ? [facil] Una línea de caché mide 64 bytes. ¿Cuántos float32 trae? ¿Cuántos píxeles RGB en uint8? ¿Cuántas líneas ocupa una fila de 224 números float32?
+- Cuántos caben en una línea: 64 ÷ \(s\), con \(s\) los bytes de cada uno.
 - float32: 64 ÷ 4 = **16**.
 - Un píxel RGB en uint8 son 3 bytes: 64 ÷ 3 = 21.3, así que **21 píxeles completos** y un pedazo del siguiente.
 - Una fila de 224 float32: 224 × 4 = 896 bytes, y 896 ÷ 64 = **14 líneas**.
-? [facil] Se va la luz en el servidor de GPU de C01. ¿Qué se pierde y qué se queda: el engine en el disco, los pesos en la VRAM, el tensor de una foto a la mitad y una línea de log que el servidor acaba de escribir?
+? [facil] Se va la luz en un servidor de GPU de Alba. ¿Qué se pierde y qué se queda: el engine en el disco, los pesos en la VRAM, el tensor de una foto a la mitad y una línea de log que el servidor acaba de escribir?
 - Se queda **el engine**, que está en el disco.
 - Se pierden **los pesos en la VRAM** y **el tensor**, que estaban en la VRAM y en la RAM. Al volver, el servidor repite el arranque, y alguien tiene que reintentar esa request.
 - La línea de log, **depende**: si ya llegó al disco, se queda; si seguía en la page cache esperando a escribirse, también se pierde.
-? [facil] El ONNX de C01 en FP32 pesa ≈ 98 MB. ¿Cuánto tarda en leerse de un disco gp3 de base (125 MiB/s) y de un NVMe a 2 GB/s? ¿Y los 141 GB de Llama 3 70B en BF16, del mismo gp3?
-- gp3: 125 MiB/s = 125 × 1,048,576 ≈ 131 MB/s, y 98 ÷ 131 ≈ **0.75 s**.
+? [facil] El modelo de Alba en FP32, en formato ONNX, pesa ≈ 98 MB. ¿Cuánto tarda en leerse de un disco gp3 de base (125 MiB/s) y de un NVMe a 2 GB/s? ¿Y los 141 GB de Llama 3 70B en BF16, del mismo gp3?
+- Usa \(t = B/v\).
+- gp3: \(v\) = 125 MiB/s = 125 × 1,048,576 B/s ≈ 131 MB/s, y 98 MB ÷ 131 MB/s ≈ **0.75 s**.
 - NVMe: 98 MB ÷ 2,000 MB/s ≈ **0.05 s**.
 - Llama 3 70B: 141,000 MB ÷ 131 MB/s ≈ 1,076 s ≈ **18 minutos**. Para un modelo chico, el disco no importa; para un LLM, decide el arranque.
 ? [medio] Una lectura acierta en la L1 (1 ns) el 98 % de las veces y las demás van a la RAM (100 ns). ¿Cuánto tarda en promedio? ¿Y con 90 %? ¿Qué parte del tiempo se va en fallos en cada caso?
+- Usa \(t_{prom} = a × t_{acierto} + (1 − a) × t_{fallo}\) y \(f = (1 − a) × t_{fallo} / t_{prom}\), con \(t_{acierto}\) = 1 ns y \(t_{fallo}\) = 100 ns.
 - 98 %: 0.98 × 1 + 0.02 × 100 = 0.98 + 2 = **2.98 ns**. Los fallos se llevan 2 ÷ 2.98 ≈ **67 %** del tiempo.
 - 90 %: 0.9 × 1 + 0.1 × 100 = 0.9 + 10 = **10.9 ns**, casi 11 veces lo de un acierto. Los fallos se llevan 10 ÷ 10.9 ≈ **92 %**.
-- Bajar de 98 % a 90 % de aciertos hace cada lectura ≈ 3.7 veces más lenta.
+- Bajar de 98 % a 90 % de aciertos hace cada lectura 10.9 ÷ 2.98 ≈ 3.7 veces más lenta.
 ? [medio] Una imagen en escala de grises de 2,000 × 2,000 píxeles en float32 se guarda por filas, y una caché de 32 KiB la recorre. ¿Cuántos bytes ocupa? ¿Cuántos fallos hay por filas? ¿Y por columnas, si cada lectura cae en una línea que ya se fue? ¿Cuánto tarda cada recorrido con 1 ns por acierto y 100 ns por fallo?
-- Bytes: 2,000 × 2,000 × 4 = **16,000,000 B**, 16 MB: no cabe en 32 KiB.
-- Por filas: 16,000,000 ÷ 64 = **250,000 fallos**, uno cada 16 lecturas.
-- Por columnas: cada una de las 4,000,000 lecturas es un fallo: **4,000,000**, 16 veces más.
-- Tiempo por filas: cada lectura promedia 15/16 × 1 + 1/16 × 100 ≈ 7.19 ns, y 4,000,000 × 7.19 ns ≈ **29 ms**. Por columnas: 4,000,000 × 100 ns = **400 ms**.
+- Lecturas: 2,000 × 2,000 = 4,000,000, una por píxel.
+- Bytes: 4,000,000 × 4 = **16,000,000 B**, 16 MB: no cabe en 32 KiB.
+- Por filas, un fallo por línea: bytes ÷ 64 = 16,000,000 ÷ 64 = **250,000 fallos**, uno cada 16 lecturas, así que \(a\) = 15/16.
+- Por columnas: cada una de las 4,000,000 lecturas es un fallo: **4,000,000**, 16 veces más, con \(a\) = 0.
+- Tiempo = lecturas × \(t_{prom}\). Por filas: \(t_{prom} = a × t_{acierto} + (1 − a) × t_{fallo}\) = 15/16 × 1 + 1/16 × 100 ≈ 7.19 ns, y 4,000,000 × 7.19 ns ≈ **29 ms**. Por columnas: 4,000,000 × 100 ns = **400 ms**.
 ? [medio] En el código de la memoria virtual, cambia el `4096` por `16384`: un byte cada 16 KiB. ¿Cuánto crece la RAM en Linux, con páginas de 4 KiB? ¿Y en una Mac con chip de Apple, con páginas de 16 KiB?
+- La RAM crece de página en página: RAM ≈ páginas tocadas × \(P\).
 - Escribes 400,000,000 ÷ 16,384 ≈ 24,414 bytes, uno cada 16 KiB.
-- **Linux, páginas de 4 KiB:** cada byte cae en una página distinta, pero solo tocas 1 de cada 4 páginas. Crece ≈ **100 MB**.
-- **Mac, páginas de 16 KiB:** tocas todas las páginas. Crece ≈ **400 MB**, igual que antes.
+- **Linux, \(P\) = 4 KiB:** cada byte cae en una página distinta, pero solo tocas 1 de cada 4 páginas: 24,414 × 4,096 B ≈ **100 MB**.
+- **Mac, \(P\) = 16 KiB:** tocas todas las páginas: 24,414 × 16,384 B ≈ **400 MB**, igual que antes.
 - La memoria se entrega de página en página: no cuentan los bytes que escribes, sino cuántas páginas tocas.
 ? [medio] Un servidor saca de la RAM (100 ns) el 99.9 % de sus lecturas y el 0.1 % del swap en un SSD (100 µs). ¿Cuánto tarda una lectura en promedio, y cuántas veces más que si todo estuviera en la RAM? ¿Y con el swap en un disco duro (10 ms)?
-- SSD: 0.999 × 100 + 0.001 × 100,000 = 99.9 + 100 = **199.9 ns**: **≈ 2 veces** más lento.
-- Disco duro: 99.9 + 0.001 × 10,000,000 = 99.9 + 10,000 = **10,099.9 ns**: **≈ 101 veces**.
+- Usa \(t_{prom} = a × t_{acierto} + (1 − a) × t_{fallo}\), con \(a\) = 0.999 y \(t_{acierto}\) = 100 ns; «veces más» es \(t_{prom} ÷ t_{acierto}\).
+- SSD, \(t_{fallo}\) = 100,000 ns: 0.999 × 100 + 0.001 × 100,000 = 99.9 + 100 = **199.9 ns**: **≈ 2 veces** más lento.
+- Disco duro, \(t_{fallo}\) = 10,000,000 ns: 99.9 + 0.001 × 10,000,000 = 99.9 + 10,000 = **10,099.9 ns**: **≈ 101 veces**.
 - Hasta 0.1 % de swap duplica el promedio. Y el promedio esconde lo peor: esa lectura de cada mil tarda mil veces más y le cae a alguna request, justo en su p99.
 ? [reto] Un contenedor con límite de 8 GiB sirve con uvicorn un modelo de 2 GB en CPU. Cada worker usa ≈ 500 MB propios. (a) Si cada worker carga su copia, ¿cuántos caben? (b) ¿Y si abren el modelo con mmap? (c) Con 6 workers y mmap, ¿cuánto da la suma de sus RSS y cuánto ocupan de verdad?
-- El límite: 8 × 1,073,741,824 B ≈ **8.59 GB**.
-- (a) Cada worker ocupa 0.5 + 2 = 2.5 GB, y 8.59 ÷ 2.5 = 3.4: caben **3**. Con 4 serían 10 GB: OOMKilled.
-- (b) El modelo va una sola vez: quedan 8.59 − 2 = 6.59 GB para los workers, y 6.59 ÷ 0.5 = 13.2: caben **13**.
-- (c) Cada RSS marca 0.5 + 2 = 2.5 GB, y la suma de 6 da **15 GB**, casi el doble del límite. De verdad ocupan 6 × 0.5 + 2 = **5 GB**. Por eso se mide el total del contenedor, no la suma de las RSS.
-? [reto] C10 arranca una réplica en una máquina nueva, con 70.6 GB de pesos. (a) ¿Cuánto tarda en leerlos de un disco gp3 de base y de un NVMe a 2 GB/s? (b) Bajarlos de S3 al NVMe toma ≈ 1 a 2 minutos: ¿a qué ritmo? (c) Si la réplica se reinicia en la misma máquina y los pesos siguen en la page cache, ¿qué paso desaparece? (d) ¿Por qué C10 no mete los pesos en la imagen de Docker, como C01?
-- (a) gp3: 70.6 GB ÷ 131 MB/s ≈ 539 s, **≈ 9 minutos**. NVMe: 70.6 ÷ 2 ≈ **35 s**.
-- (b) 70.6 GB en 60 a 120 s son **≈ 0.6 a 1.2 GB/s**: el ritmo de bajar de S3 con muchas descargas en paralelo.
-- (c) Desaparece leer el disco: los pesos salen de la RAM. Quedan cargarlos a las GPUs y preparar el servidor, ≈ 1 a 2 minutos según la Ronda.
-- (d) Una imagen de más de 70 GB sería lentísima de bajar y de descomprimir en cada máquina, y cada versión del modelo pediría otra imagen gigante. Además, en ECR, el registro de imágenes de AWS, cada capa tiene un tope de ≈ 54.5 GB (M05). C01 sí puede, porque su engine pesa ≈ 50 a 150 MB.
+- Usa \(M_{copias} = n × (r + m)\) y \(M_{mmap} = n × r + m\), con \(r\) = 0.5 GB y \(m\) = 2 GB. Caben si el total no pasa del límite \(L\).
+- El límite: \(L\) = 8 × 1,073,741,824 B ≈ **8.59 GB**.
+- (a) Cada worker ocupa \(r + m\) = 0.5 + 2 = 2.5 GB, y \(L ÷ (r + m)\) = 8.59 ÷ 2.5 = 3.4: caben **3**. Con 4, \(M_{copias}\) = 4 × 2.5 = 10 GB: OOMKilled.
+- (b) El modelo va una sola vez: quedan \(L − m\) = 8.59 − 2 = 6.59 GB para los workers, y 6.59 ÷ \(r\) = 6.59 ÷ 0.5 = 13.2: caben **13**.
+- (c) Cada RSS marca \(r + m\) = 0.5 + 2 = 2.5 GB, y la suma de 6 da 6 × 2.5 = **15 GB**, casi el doble del límite. De verdad ocupan \(M_{mmap}\) = 6 × 0.5 + 2 = **5 GB**. Por eso se mide el total del contenedor, no la suma de las RSS.
+? [reto] Un servicio que sirve su propio LLM arranca una réplica en una máquina nueva, con 70.6 GB de pesos. (a) ¿Cuánto tarda en leerlos de un disco gp3 de base y de un NVMe a 2 GB/s? (b) Bajarlos de S3 al NVMe toma ≈ 1 a 2 minutos: ¿a qué ritmo? (c) Si la réplica se reinicia en la misma máquina y los pesos siguen en la page cache, ¿qué paso desaparece? (d) ¿Por qué no mete los pesos en la imagen de Docker, como hace Alba con su modelo de ≈ 50 a 150 MB?
+- (a) Con \(t = B/v\). gp3: 70.6 GB ÷ 0.131 GB/s ≈ 539 s, **≈ 9 minutos**. NVMe: 70.6 GB ÷ 2 GB/s ≈ **35 s**.
+- (b) Despeja la velocidad: \(v = B/t\). 70.6 GB en 60 a 120 s son 70.6 ÷ 120 a 70.6 ÷ 60, **≈ 0.6 a 1.2 GB/s**: el ritmo de bajar de S3 con muchas descargas en paralelo.
+- (c) Desaparece leer el disco: los pesos salen de la RAM. Quedan cargarlos a las GPUs y preparar el servidor, ≈ 1 a 2 minutos con supuestos típicos.
+- (d) Una imagen de más de 70 GB sería lentísima de bajar y de descomprimir en cada máquina, y cada versión del modelo pediría otra imagen gigante. Además, en ECR, el registro de imágenes de AWS, cada capa tiene un tope de ≈ 54.5 GB. Alba sí puede, porque su engine pesa ≈ 50 a 150 MB.
 :::
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M04 · Hardware para inferencia** separa la RAM del *host*, la máquina donde va la GPU, de la VRAM: la primera es mucha, barata y con poco ancho de banda. También explica la memoria fijada para copiar a la GPU, la memoria unificada del Jetson y la memoria rápida dentro del chip.
-- **M05 · Contenedores** trae los 125 MiB/s del gp3 como cuello de botella, el NVMe local, la decisión de meter los pesos en la imagen o bajarlos al arrancar, el `/dev/shm` de 64 MiB y los workers que duplican la memoria.
-- **M06 · Orquestación** pone el límite de memoria de cada contenedor y explica el OOMKilled; **M07 · Servidores de modelos** cuenta las copias que hace `uvicorn --workers`.
-- **Los casos.** C01 (el engine en la imagen y el límite de 6 GiB), C07 (la page cache y el precalentamiento) y C10 (de S3 al NVMe, con mmap).
-
-**En el Dojo:** la estación 7, «Empaquetado», hace la cuenta del disco antes de bajar una imagen: la de Triton pesa ≈ 10 GB comprimida y pide ≈ 30 GB mientras se descomprime. Ahí decides si el modelo va dentro de la imagen.
-
-**En Sensei:** la siguiente lección, «CPU y GPU», abre los núcleos de cada chip, PCIe y la memoria de las GPUs grandes. Después, «El sistema operativo» explica los archivos, los montajes y los cgroups que ponen el límite de un contenedor, y «Hacer varias cosas a la vez» vuelve a los workers.
+La siguiente lección, «CPU y GPU», abre los núcleos de cada chip, PCIe y la memoria de las GPUs grandes. Después, «El sistema operativo» explica los archivos, los montajes y los cgroups que ponen el límite de un contenedor, y «Hacer varias cosas a la vez» vuelve a los workers. Más adelante, «Empaquetado con Docker» decide si los pesos van dentro de la imagen, y «Kubernetes» pone el límite de memoria de cada contenedor.
 
 ## Palabras que vas a oír {Words you will hear}
 

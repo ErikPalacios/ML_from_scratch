@@ -423,7 +423,7 @@ El `-1` es el eje del [[batch]]: Triton acepta de 1 a 32 fotos juntas, así que 
 
 C01 manda el tensor a Triton **por HTTP, con la extensión binaria**, usando el cliente asíncrono de Triton (`tritonclient.http.aio`). El tensor viaja en bruto, igual de chico que con gRPC; la parte JSON se puede revisar con `curl`, y el balanceo es más sencillo. gRPC queda como alternativa si una medición muestra que su menor costo por request importa. La Ronda marca como respuesta débil «gRPC siempre es más rápido que REST»: con la extensión binaria, la diferencia suele ser chica frente a los 150 ms que el gateway le da a Triton.
 
-:::diagrama apis-c01
+:::diagrama apis-alba
 Toca cada caja para ver qué formato habla. «Recorrer» sigue una foto de ida y vuelta, y el otro recorrido muestra qué pasaría si el tensor viajara como JSON.
 :::
 

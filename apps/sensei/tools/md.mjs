@@ -1,9 +1,10 @@
 // El Markdown de las lecciones: un subconjunto chico más los bloques propios de Sensei. Sin dependencias.
 //
 // En línea:  **negritas** · *itálicas* · `código` · [texto](url) · [[id]] o [[id|texto]] (una palabra del glosario)
+//            \( fórmula \) (una ecuación en línea, con la notación de mate.mjs)
 // Bloques:   ## y ### · párrafos · listas (- y 1.) · tablas (| … |) · ```código``` · > cita
 // Propios:   :::idea · :::analogia [título] · :::ojo · :::nota [etiqueta] · :::ejemplo [título] · :::profundo título · :::diagrama id
-//            :::figura id · :::calculadora id · :::cuenta título · :::conceptos · :::chequeo · :::ejercicios · :::pasos
+//            :::figura id · :::calculadora id · :::cuenta título · :::formula [título] · :::conceptos · :::chequeo · :::ejercicios · :::pasos
 //            (cada uno se cierra con ::: solo en su línea)
 // Secciones: «## Título {English title}» abre una sección numerada; «## Título {English} [extra]» la marca como extra
 //            (para una segunda pasada). Sin marca, la sección es esencial.
@@ -11,6 +12,8 @@
 //
 // crear({ glosario, diagrama, figura, calculadora }) devuelve render(texto) → { html, secciones, terminos, conceptos, cuenta }.
 // secciones: [{ id, t, extra, palabras }]; cuenta: cuántos diagramas, figuras, calculadoras, cuentas y ejercicios trae.
+
+import { mate } from './mate.mjs';
 
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 export const slug = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -66,6 +69,7 @@ export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }
     const guardado = [];
     const guarda = (html) => `\u0000${guardado.push(html) - 1}\u0000`;
     s = s.replace(/`([^`]+)`/g, (_, c) => guarda(`<code>${esc(c)}</code>`));
+    s = s.replace(/\\\((.+?)\\\)/g, (_, f) => guarda(`<span class="m">${mate(f, fallar)}</span>`));
     s = s.replace(/\[\[([a-z0-9-]+)(?:\|([^\]]+))?\]\]/g, (_, id, txt) => {
       const g = glosario.get(id);
       if (!g) fallar(`[[${id}]] no está en el glosario`);
@@ -218,8 +222,24 @@ export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }
         estado.cuenta.cuentas++;
         const I = (x) => inline(x, estado.terminos);
         return `<figure class="calc"><figcaption class="calc__head"><span class="calc__icon" aria-hidden="true">≈</span><span class="calc__title">${I(arg)}</span><span class="calc__tag">La cuenta</span></figcaption><div class="calc__rows">${filas.map((f) =>
-          `<div class="calc__row"><div class="calc__label">${I(f.et)}${f.nota ? `<span class="calc__note">${I(f.nota)}</span>` : ''}</div><div class="calc__expr">${I(f.ex)}</div><div class="calc__value">${/^[≈~<>≤≥]/.test(f.v.trim().replace(/^[*_`]+/, '')) ? '' : '<span class="calc__eq" aria-hidden="true">=</span>'}${I(f.v)}</div></div>`).join('')}</div>${
+          `<div class="calc__row"><div class="calc__label"><span>${I(f.et)}</span>${f.nota ? `<span class="calc__note">${I(f.nota)}</span>` : ''}</div><div class="calc__expr">${I(f.ex)}</div><div class="calc__value">${/^[≈~<>≤≥]/.test(f.v.trim().replace(/^[*_`]+/, '')) ? '' : '<span class="calc__eq" aria-hidden="true">=</span>'}${I(f.v)}</div></div>`).join('')}</div>${
           res.length ? `<div class="calc__result"><span class="calc__result-k">Resultado</span><div class="calc__result-v">${I(res.join(' '))}</div></div>` : ''}</figure>`;
+      }
+      case 'formula': {
+        // una o más líneas con la ecuación (notación de mate.mjs) y, debajo, «- símbolo: qué es» por cada letra
+        const eqs = [], vars = [];
+        for (const l of dentro.split('\n')) {
+          if (!l.trim()) continue;
+          const v = l.match(/^- (.+?):\s+(.+)$/);
+          if (v) vars.push(v.slice(1));
+          else if (l.startsWith('- ')) fallar(`:::formula: cada letra va como «- símbolo: qué es» (vino: ${l})`);
+          else if (vars.length) fallar(`:::formula: la ecuación va antes de la lista de letras (vino: ${l})`);
+          else eqs.push(l.trim());
+        }
+        if (!eqs.length) fallar(':::formula sin ecuación');
+        const I = (x) => inline(x, estado.terminos);
+        return `<figure class="formula">${arg ? `<figcaption class="formula__t">${I(arg)}</figcaption>` : ''}<div class="formula__eqs">${eqs.map((e) => `<div class="m m--bloque">${mate(e, fallar)}</div>`).join('')}</div>${
+          vars.length ? `<dl class="formula__vars"><span class="formula__donde">donde</span>${vars.map(([k, d]) => `<div><dt><span class="m">${mate(k, fallar)}</span></dt><dd>${I(d)}</dd></div>`).join('')}</dl>` : ''}</figure>`;
       }
       case 'calculadora': {
         if (!arg) fallar(':::calculadora necesita el id');

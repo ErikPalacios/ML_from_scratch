@@ -16,10 +16,12 @@ Para mejorar algo necesitas medirlo. Para entrenar un modelo hace falta un solo 
 
 ### La entropía cruzada, para un ejemplo
 
-En una [[clasificacion|clasificación]] como C01, el modelo no da una sola respuesta: da una [[probabilidad]] para cada una de las 500 categorías, y suman 100 %. La pérdida más usada se llama [[entropia-cruzada|entropía cruzada]] (*cross-entropy*) y funciona así:
+Alba, la empresa que seguimos en todo el curso, es un marketplace, una tienda en línea donde cualquiera publica lo que vende: recibe ≈ 2.5 millones de publicaciones al día y, cuando alguien sube la foto de lo que vende, le sugiere su categoría entre 500 posibles. A Ana, que sube la foto de sus tenis, le sugiere «Calzado › Tenis». Su modelo es una [[resnet|ResNet-50]], una red neuronal para fotos, con unos 24.5 millones de perillas (los [[parametro|parámetros]], los números que el entrenamiento ajusta), y se reentrena cada mes.
 
-1. Mira solo la probabilidad que el modelo le dio a la **respuesta correcta**. Llámala p.
-2. La pérdida es −ln(p).
+En una [[clasificacion|clasificación]] como la de Alba, el modelo no da una sola respuesta: da una [[probabilidad]] para cada una de las 500 categorías, y suman 100 %. La pérdida más usada se llama [[entropia-cruzada|entropía cruzada]] (*cross-entropy*) y funciona así:
+
+1. Mira solo la probabilidad que el modelo le dio a la **respuesta correcta**. Llámala \( p \).
+2. La pérdida es \( L = −ln(p) \).
 
 «ln» es el logaritmo natural, la tecla «ln» de la calculadora. No necesitas saber más que dos cosas: ln(1) = 0, y mientras p se hace más chica, −ln(p) se hace más grande, sin tope.
 
@@ -59,7 +61,7 @@ El logaritmo convierte el producto en una suma: −ln(0.36) = −ln(0.9) − ln(
 
 ### Para un grupo de fotos: el promedio
 
-Al entrenar no se mira una foto a la vez sino un grupo, y la pérdida del grupo es el promedio.
+Al entrenar no se mira una foto a la vez sino un grupo, y la pérdida del grupo es el promedio: con \(n\) fotos, \( L_{grupo} = (L_1 + L_2 + … + L_n) ÷ n \).
 
 :::ejemplo Cuatro fotos
 El modelo le dio a la respuesta correcta de cada foto 94 %, 80 %, 30 % y 5 %:
@@ -69,12 +71,22 @@ El modelo le dio a la respuesta correcta de cada foto 94 %, 80 %, 30 % y 5 %:
 - −ln(0.30) ≈ 1.204
 - −ln(0.05) ≈ 2.996
 
-Suma: 4.485. Promedio: 4.485 ÷ 4 ≈ **1.12**. La foto del 5 % aporta 2.996 de los 4.485, dos terceras partes del total: la pérdida se fija sobre todo en lo que peor va.
+Suma: 4.485. Promedio, con \(n\) = 4: 4.485 ÷ 4 ≈ **1.12**. La foto del 5 % aporta 2.996 de los 4.485, dos terceras partes del total: la pérdida se fija sobre todo en lo que peor va.
 :::
 
 ### Para predecir un número: el error cuadrático
 
 Muchos modelos no eligen una categoría sino que predicen un número: cuántos kilos de jitomate va a vender una tienda mañana, cuánto va a tardar un pedido. Eso es una [[regresion|regresión]], y ahí no hay «probabilidad de la respuesta correcta». La pérdida más usada es el [[mse|error cuadrático medio]] (*mean squared error*, MSE): para cada ejemplo, el error al cuadrado, (predicción − respuesta)², y luego el promedio.
+
+:::formula Error cuadrático medio
+MSE = frac{1}{n} × sum_{i=1}^{n} (y_i − r_i)^2
+RMSE = sqrt{MSE}
+- n: cuántos ejemplos hay (días, pedidos…)
+- y_i: lo que predijo el modelo para el ejemplo número \(i\)
+- r_i: la respuesta correcta de ese ejemplo, lo que de verdad pasó
+- MSE: el promedio de los errores al cuadrado, en unidades al cuadrado (kg²)
+- RMSE: su raíz, de vuelta en las unidades originales (kg)
+:::
 
 :::ejemplo Cuatro días de jitomate
 | Día | Pronóstico (kg) | Se vendió (kg) | Error | Error al cuadrado |
@@ -85,7 +97,7 @@ Muchos modelos no eligen una categoría sino que predicen un número: cuántos k
 | Jueves | 40 | 37 | +3 | 9 |
 
 - Suma de los cuadrados: 4 + 1 + 36 + 9 = 50.
-- MSE: 50 ÷ 4 = **12.5**. Está en kilos al cuadrado, una unidad rara; su raíz, √12.5 ≈ **3.5 kg**, vuelve a kilos y se llama RMSE.
+- MSE, con \(n\) = 4 días: 50 ÷ 4 = **12.5**. Está en kilos al cuadrado, una unidad rara; su raíz, √12.5 ≈ **3.5 kg**, vuelve a kilos y se llama RMSE.
 - El miércoles, con un error de 6 kg, aporta 36 de los 50: el **72 %**.
 :::
 
@@ -95,13 +107,13 @@ Cada error, dibujado como un cuadrado: su área es el error al cuadrado. El erro
 
 ¿Por qué al cuadrado? Quita el signo (pasarse 2 kg y quedarse corto 2 kg cuentan igual) y castiga mucho más los errores grandes: uno de 6 pesa 36 veces lo que uno de 1.
 
-Y una consecuencia que conviene saber: **el número que hace más chico el MSE es el promedio.** Si un producto vendió 2, 3, 3, 4 y 13 kilos en cinco días, la predicción fija con menor MSE es 5, el promedio (MSE de 16.4), y no 3, el valor de en medio (MSE de 20.4): el día de 13 kilos jala la respuesta hacia arriba. Entrenar con MSE es pedirle el promedio; para otra cosa, como un número que alcance 9 de cada 10 días, hace falta otra pérdida (C14, en «En la vida real»).
+Y una consecuencia que conviene saber: **el número que hace más chico el MSE es el promedio.** Si un producto vendió 2, 3, 3, 4 y 13 kilos en cinco días, la predicción fija con menor MSE es 5, el promedio (MSE de 16.4), y no 3, el valor de en medio (MSE de 20.4): el día de 13 kilos jala la respuesta hacia arriba. Entrenar con MSE es pedirle el promedio; para otra cosa, como un número que alcance 9 de cada 10 días, hace falta otra pérdida (la de cuantiles, con un pronóstico de demanda, en «En la vida real»).
 
 | Lo que predice el modelo | Ejemplo | Pérdida usual |
 |---|---|---|
-| Una de varias categorías | C01: 500 categorías | Entropía cruzada, sobre el [[softmax]] |
-| Sí o no | C15: ¿le darán clic al anuncio? | Entropía cruzada de dos clases (*log loss*) |
-| Un número | C14: kilos que se van a vender | MSE, error absoluto o cuantiles |
+| Una de varias categorías | Alba: 500 categorías | Entropía cruzada, sobre el [[softmax]] |
+| Sí o no | Anuncios: ¿le darán clic? | Entropía cruzada de dos clases (*log loss*) |
+| Un número | Pronóstico de demanda: kilos que se van a vender | MSE, error absoluto o cuantiles |
 
 :::nota ¿De dónde salen esas probabilidades?
 El modelo, por dentro, produce un número cualquiera para cada categoría (un [[logit]]), y una función llamada [[softmax]] los convierte en probabilidades que suman 100 %. Lo viste en la lección «Qué es un modelo». En el código, a la función de pérdida casi siempre se le dan los logits directo: ella aplica el softmax por dentro.
@@ -126,7 +138,7 @@ Con w = 0 la predicción es 0 × 2 = 0, el error es 0 − 6 = −6 y la pérdida
 - Error: 0.02 − 6 = −5.98.
 - Pérdida: (−5.98)² = 35.7604.
 
-La pérdida bajó 36 − 35.7604 = 0.2396 por mover la perilla 0.01. Por cada unidad, eso es 0.2396 ÷ 0.01 = 23.96, y como bajó, se escribe con signo menos: la pendiente es ≈ **−24**.
+La pendiente medida a mano es lo que cambió la pérdida entre lo que moviste la perilla: \( (L_{después} − L_{antes}) ÷ 0.01 \). La pérdida bajó 36 − 35.7604 = 0.2396 por mover la perilla 0.01. Por cada unidad, eso es 0.2396 ÷ 0.01 = 23.96, y como bajó, se escribe con signo menos: la pendiente es ≈ **−24**.
 :::
 
 Ese −24 es el gradiente de la perilla w en el punto w = 0. Se lee en dos partes:
@@ -134,9 +146,21 @@ Ese −24 es el gradiente de la perilla w en el punto w = 0. Se lee en dos parte
 - **El signo dice la dirección.** Negativo quiere decir que si subes la perilla, la pérdida baja. Así que hay que subirla. La regla general: mover cada perilla **en contra** de su gradiente.
 - **El tamaño dice qué tan empinado está.** 24 es mucho: cerca de aquí, cualquier cambio de la perilla mueve mucho la pérdida.
 
-Para este modelo hay una fórmula que da la pendiente exacta sin mover nada: 2 × error × entrada = 2 × (−6) × 2 = −24. Sale de la derivada, una herramienta del cálculo, pero basta con la idea de «mueve un poquito y mira qué pasa».
+Para este modelo hay una fórmula que da la pendiente exacta sin mover nada: 2 × error × entrada = 2 × (−6) × 2 = −24. Sale de la derivada, una herramienta del cálculo, pero basta con la idea de «mueve un poquito y mira qué pasa». Con letras, el juguete completo es:
 
-La ResNet-50 de C01 tiene unos 24.5 millones de perillas, así que su gradiente es una lista de 24.5 millones de números. Medirlo moviendo cada perilla por separado exigiría pasar las fotos por el modelo 24.5 millones de veces **para un solo paso**. En la sección siguiente verás cómo se calcula todo de una vez.
+:::formula El modelo de juguete
+y = w × x
+L = (y − r)^2
+g = 2 × (y − r) × x
+- w: la perilla
+- x: la entrada (2 en el ejemplo)
+- r: la respuesta correcta (6)
+- y: la predicción
+- L: la pérdida
+- g: el gradiente de \(w\): cuánto cambia \(L\) por cada unidad que mueves \(w\)
+:::
+
+La ResNet-50 de Alba tiene unos 24.5 millones de perillas, así que su gradiente es una lista de 24.5 millones de números. Medirlo moviendo cada perilla por separado exigiría pasar las fotos por el modelo 24.5 millones de veces **para un solo paso**. En la sección siguiente verás cómo se calcula todo de una vez.
 
 :::analogia Bajar un cerro con niebla
 Estás en un cerro con una niebla tan espesa que no ves el valle. Lo único que sientes es la inclinación del suelo bajo tus pies. Para bajar, das un paso hacia donde el suelo baja, vuelves a sentir y das otro. Tu posición son las perillas, la altura es la pérdida y la inclinación es el gradiente.
@@ -148,16 +172,22 @@ Estás en un cerro con una niebla tan espesa que no ves el valle. Lo único que 
 
 Con el gradiente en la mano, la regla para mejorar es simple y se llama [[descenso-gradiente|descenso de gradiente]] (*gradient descent*):
 
-> perilla nueva = perilla − learning rate × gradiente
+:::formula Descenso de gradiente
+w_{nueva} = w − lr × g
+- w: la perilla, antes del paso
+- g: su gradiente en ese punto
+- lr: el learning rate: cuánto avanzas por cada unidad de gradiente
+- w_{nueva}: la perilla después del paso
+:::
 
 El [[learning-rate|learning rate]] (tasa de aprendizaje, o *lr*) es un número chico que decide **qué tan grande es cada paso**. El signo menos es el «en contra»: si el gradiente es negativo, la perilla sube; si es positivo, baja.
 
 :::cuenta Un paso de descenso de gradiente, con la perilla de juguete
-Predicción // con la perilla en w = 0 | 0 × 2 | 0
-Error // predicción menos respuesta | 0 − 6 | −6
-Pérdida | (−6)² | 36
-Gradiente // 2 × error × entrada | 2 × (−6) × 2 | −24
-Perilla nueva // learning rate = 0.05 | 0 − 0.05 × (−24) | **1.2**
+Predicción \(y = w × x\) // con la perilla en \(w\) = 0 y la entrada \(x\) = 2 | 0 × 2 | 0
+Error \(y − r\) // predicción menos la respuesta correcta, \(r\) = 6 | 0 − 6 | −6
+Pérdida \(L = (y − r)^2\) | (−6)² | 36
+Gradiente \(g = 2 × (y − r) × x\) | 2 × (−6) × 2 | −24
+Perilla nueva \(w_{nueva} = w − lr × g\) // learning rate \(lr\) = 0.05 | 0 − 0.05 × (−24) | **1.2**
 = Con w = 1.2 la predicción es 2.4 y la pérdida baja de 36 a **12.96**.
 :::
 
@@ -187,11 +217,21 @@ Si la pérdida sube en vez de bajar, o salta a `NaN`, lo primero que se sospecha
 
 ### Juega con el learning rate
 
-En esta parábola hay un atajo para hacer todos los pasos de golpe. El gradiente es 2 × (2w − 6) × 2 = 8 × (w − 3): ocho veces la distancia al fondo. Si llamas *distancia* a w − 3, cada paso hace:
+En esta parábola hay un atajo para hacer todos los pasos de golpe. El gradiente es 2 × (2w − 6) × 2 = 8 × (w − 3): ocho veces la distancia al fondo. Si llamas \(d\) (distancia) a \(w − 3\), cada paso hace:
 
-> distancia nueva = distancia − lr × 8 × distancia = (1 − 8 × lr) × distancia
+:::formula Atajo de la parábola
+d = w − 3
+d_{nueva} = d − lr × 8 × d = f × d
+f = 1 − 8 × lr
+d_t = d_0 × f^t
+- d: la distancia de la perilla al fondo, que está en \(w = 3\)
+- f: el factor por paso: cada paso multiplica la distancia por \(f\)
+- d_0: la distancia al empezar: con \(w = 0\), \(d_0 = −3\)
+- t: cuántos pasos llevas
+- d_t: la distancia después de \(t\) pasos; la perilla queda en \(w = 3 + d_t\)
+:::
 
-Con lr = 0.05 el factor es 1 − 0.4 = 0.6, y la distancia pasa de −3 a −1.8, a −1.08, a −0.648: los mismos 1.2, 1.92 y 2.352 de antes. Ese es el atajo: después de n pasos, la distancia es −3 × 0.6ⁿ, sin dar los pasos uno por uno. Si el factor está entre −1 y 1, la perilla se acerca al fondo; si es negativo, brinca al otro lado en cada paso; si se sale de ese rango, se aleja.
+Con lr = 0.05 el factor es \(f\) = 1 − 8 × 0.05 = 1 − 0.4 = 0.6, y la distancia pasa de −3 a −1.8, a −1.08, a −0.648: los mismos 1.2, 1.92 y 2.352 de antes. Ese es el atajo: después de \(t\) pasos, \(d_t = −3 × 0.6^t\), sin dar los pasos uno por uno. Si el factor está entre −1 y 1, la perilla se acerca al fondo; si es negativo, brinca al otro lado en cada paso; si se sale de ese rango, se aleja.
 
 :::calculadora aprender-descenso
 Con lr = 0.2 el factor es −0.6: baja igual de rápido que con 0.05, pero brincando de un lado al otro del valle.
@@ -231,9 +271,9 @@ learning rate = 0.3
   paso 5:  w =  19.135   pérdida =  1041.32
 ```
 
-### El learning rate de C01
+### El learning rate de Alba
 
-C01 entrena con lr = 3e-4, que quiere decir 3 × 10⁻⁴ = 3 ÷ 10,000 = **0.0003**. Es mucho más chico que el 0.05 del juguete por dos razones: hay millones de perillas moviéndose a la vez, y C01 no empieza de cero sino desde un modelo que ya sabe mucho ([[fine-tuning]]: ajustar un modelo ya entrenado), así que solo quiere ajustarlo con suavidad. La primera versión de C01 partió de una ResNet-50 entrenada con ImageNet; desde entonces, cada reentrenamiento mensual parte del modelo que está en producción. No existe un learning rate correcto universal: depende del modelo, del optimizador y del tamaño del batch, y se encuentra probando.
+El modelo de Alba se entrena con lr = 3e-4, que quiere decir 3 × 10⁻⁴ = 3 ÷ 10,000 = **0.0003**. Es mucho más chico que el 0.05 del juguete por dos razones: hay millones de perillas moviéndose a la vez, y Alba no empieza de cero sino desde un modelo que ya sabe mucho ([[fine-tuning]]: ajustar un modelo ya entrenado), así que solo quiere ajustarlo con suavidad. La primera versión del modelo de Alba partió de una ResNet-50 entrenada con ImageNet; desde entonces, cada reentrenamiento mensual parte del modelo que está en producción. No existe un learning rate correcto universal: depende del modelo, del optimizador y del tamaño del batch, y se encuentra probando.
 
 ## Backpropagation y el ciclo de entrenamiento {Backpropagation and the training loop}
 
@@ -300,7 +340,7 @@ for fotos, etiquetas in batches:              # un grupo de fotos con sus respue
 
 ¿Con cuántas fotos se calcula la pérdida en cada vuelta? Hay dos extremos y los dos son malos:
 
-- **Con todas las fotos de train a la vez.** Son casi 2 millones en C01: no caben juntas en la memoria de la [[gpu|GPU]], y darías un solo paso cada vez que las procesas todas.
+- **Con todas las fotos de train a la vez.** Son casi 2 millones en Alba (1,840,211): no caben juntas en la memoria de la [[gpu|GPU]], y darías un solo paso cada vez que las procesas todas.
 - **Con una foto a la vez.** El gradiente de una sola foto es muy ruidoso (lo que ayuda a esa foto puede empeorar a otras) y desperdicia la GPU, que está hecha para calcular muchas cosas en paralelo.
 
 El punto medio es el [[batch]] (lote): un grupo de fotos, por ejemplo 64, que se procesan juntas. La pérdida es el promedio de las 64, y con su gradiente se da un paso. Dos palabras más:
@@ -312,14 +352,25 @@ El punto medio es el [[batch]] (lote): un grupo de fotos, por ejemplo 64, que se
 El ciclo de un paso. Sigue el recorrido «Un paso» y luego «Si la máquina se cae».
 :::
 
-Con 50,000 fotos en batches de 64: 50,000 ÷ 64 = 781.25. Son 781 batches completos (49,984 fotos) y uno más con las 16 que sobran: **782 pasos por época**. Es redondear hacia arriba, lo que en programación se llama *ceil* (techo): ⌈781.25⌉ = 782. Si se tira el batch incompleto (en PyTorch, `drop_last=True`), son 781.
+:::formula Pasos de un entrenamiento
+T_{época} = ⌈N ÷ B⌉
+T = T_{época} × E
+- N: las fotos de train
+- B: el tamaño del batch, en fotos
+- ⌈ ⌉: redondear hacia arriba (*ceil*, techo), porque el último batch puede venir incompleto
+- E: cuántas épocas se entrena
+- T_{época}: los pasos de una época
+- T: el total de pasos de todo el entrenamiento
+:::
 
-:::cuenta Los pasos de un entrenamiento de C01
-Fotos de train | según la Ronda | 1,840,211
-Batches completos de 64 | 1,840,211 ÷ 64 = 28,753.3 | 28,753
+Con \(N\) = 50,000 fotos en batches de \(B\) = 64: 50,000 ÷ 64 = 781.25. Son 781 batches completos (49,984 fotos) y uno más con las 16 que sobran: **782 pasos por época**. Es redondear hacia arriba, lo que en programación se llama *ceil* (techo): ⌈781.25⌉ = 782. Si se tira el batch incompleto (en PyTorch, `drop_last=True`), son 781.
+
+:::cuenta Los pasos de un entrenamiento de Alba
+Fotos de train, \(N\) // el dataset de septiembre de Alba | dato de Alba | 1,840,211
+Batches completos de \(B\) = 64 // la receta de Alba | 1,840,211 ÷ 64 = 28,753.3 | 28,753
 Fotos que sobran // van en un último batch chico | 1,840,211 − 28,753 × 64 | 19
-Pasos por época // redondear hacia arriba | ⌈28,753.3⌉ | 28,754
-Pasos en 8 épocas | 28,754 × 8 | **230,032**
+Pasos por época, \(T_{época} = ⌈N ÷ B⌉\) // redondear hacia arriba | ⌈28,753.3⌉ | 28,754
+Pasos en \(E\) = 8 épocas, \(T = T_{época} × E\) | 28,754 × 8 | **230,032**
 = Cada foto pasa 8 veces por el modelo, una por época, y cada vez con variaciones al azar distintas (la [[augmentation]] de la lección anterior).
 :::
 
@@ -329,7 +380,7 @@ Dos detalles que vas a oír:
 - **El gradiente de un batch es una estimación.** 64 fotos son una muestra de todo el train; otro batch daría un gradiente un poco distinto. Por eso el descenso con batches al azar se llama *estocástico*, que quiere decir «con algo de azar». Batches más grandes dan una estimación menos ruidosa, pero ocupan más memoria.
 
 :::ojo
-La palabra **batch** también se usa en producción, con otro sentido. En C01, el servidor del modelo (Triton) junta las fotos que llegan casi al mismo tiempo de personas distintas para calcularlas juntas en la GPU. Es batching en **inferencia**: sin pérdida ni gradiente, solo forward pass. Cuando la Ronda dice «dynamic batching», habla de eso.
+La palabra **batch** también se usa en producción, con otro sentido. En Alba, el servidor del modelo (Triton) junta las fotos que llegan casi al mismo tiempo de personas distintas para calcularlas juntas en la GPU. Es batching en **inferencia**: sin pérdida ni gradiente, solo forward pass. A eso se le llama *dynamic batching* (batching dinámico).
 :::
 
 ## Backpropagation a mano, y gradientes que se apagan o explotan {Backpropagation by hand, and vanishing or exploding gradients} [extra]
@@ -346,6 +397,18 @@ Una notación antes de empezar: «cuánto cambia la pérdida L si mueves w1 un p
 Los valores bajan por la izquierda (forward) y los gradientes suben por la derecha (backward). Cada perilla toma su gradiente del eslabón donde se usa.
 :::
 
+:::formula Backpropagation en la red de dos perillas
+L = (y − r)^2
+frac{∂L}{∂y} = 2 × (y − r)
+frac{∂L}{∂w_2} = frac{∂L}{∂y} × h
+frac{∂L}{∂w_1} = frac{∂L}{∂y} × w_2 × s × x
+- x: la entrada (2)
+- r: la respuesta correcta (6)
+- w_1, w_2: las dos perillas
+- z, h, y: lo que sale de cada eslabón del forward: \(z = w_1 × x\), \(h = ReLU(z)\), \(y = w_2 × h\)
+- s: lo que deja pasar la ReLU hacia atrás: 1 si \(z > 0\), 0 si no
+:::
+
 :::cuenta Backpropagation a mano, eslabón por eslabón
 z = w1 × x // forward | 0.5 × 2 | 1
 h = ReLU(z) // 1 no es negativo: pasa igual | ReLU(1) | 1
@@ -354,9 +417,9 @@ Pérdida L = (y − 6)² | (2 − 6)² | 16
 ∂L/∂y // backward: empieza en la pérdida | 2 × (y − 6) = 2 × (−4) | −8
 ∂L/∂w2 // y = w2 × h: mover w2 mueve y en h veces | −8 × h = −8 × 1 | **−8**
 ∂L/∂h // mover h mueve y en w2 veces | −8 × w2 = −8 × 2 | −16
-∂L/∂z // la ReLU deja pasar todo si z > 0 | −16 × 1 | −16
+∂L/∂z // la ReLU deja pasar todo si z > 0: \(s\) = 1 | −16 × 1 | −16
 ∂L/∂w1 // z = w1 × x: mover w1 mueve z en x veces | −16 × x = −16 × 2 | **−32**
-= Con lr = 0.01: w1 = 0.5 − 0.01 × (−32) = **0.82** y w2 = 2 − 0.01 × (−8) = **2.08**. Ahora y = 2.08 × 1.64 = 3.41 y la pérdida baja de 16 a **6.70**.
+= Con \(w_{nueva} = w − lr × g\) y lr = 0.01: w1 = 0.5 − 0.01 × (−32) = **0.82** y w2 = 2 − 0.01 × (−8) = **2.08**. Ahora y = 2.08 × 1.64 = 3.41 y la pérdida baja de 16 a **6.70**.
 :::
 
 Tres cosas que se ven en esta cuenta y que pasan igual en la ResNet-50:
@@ -412,11 +475,11 @@ A los dos problemas juntos se les llama [[gradiente-inestable|gradientes inestab
 - **La ReLU**, que deja pasar el gradiente sin achicarlo cuando su entrada es positiva (multiplica por 1).
 - **Buena inicialización** de las perillas, para que al principio cada capa ni agrande ni achique la señal.
 - **[[batchnorm|BatchNorm]]**, que mantiene los números de cada capa en una escala razonable, y **las conexiones residuales** de la [[resnet|ResNet]], que le dan al gradiente un atajo directo hacia las primeras capas. Las ves en la lección de redes.
-- **Recortar el gradiente** (*gradient clipping*): si el gradiente completo mide más que un tope, se escala para que mida el tope. Un gradiente (30, 40) mide √(30² + 40²) = 50; con tope 1 se multiplica por 1/50 y queda (0.6, 0.8): la misma dirección, con un paso controlado.
+- **Recortar el gradiente** (*gradient clipping*): si el gradiente completo mide más que un tope, se escala para que mida el tope: \( g_{recortado} = g × tope ÷ ‖g‖ \), donde \(‖g‖\) es lo que mide \(g\), la raíz de la suma de sus números al cuadrado. Un gradiente (30, 40) mide √(30² + 40²) = 50; con tope 1 se multiplica por 1/50 y queda (0.6, 0.8): la misma dirección, con un paso controlado.
 - **Un learning rate más chico al principio**, el *warmup* de la sección del learning rate en el tiempo.
 
 :::nota Otro gradiente que se apaga: el de los números chicos
-Al entrenar en precisión mixta (muchas cuentas en números de 16 bits; C01 lo hace con AMP, la precisión mixta automática de PyTorch), un gradiente muy pequeño puede redondearse a 0 porque ese formato no alcanza a representarlo. Por eso PyTorch multiplica la pérdida por un número grande antes de la backpropagation (al principio, 65,536) y divide el gradiente por lo mismo después. Lo hace una pieza llamada GradScaler, y su estado también se guarda en el checkpoint. Lo ves con calma en la lección «Cómo guarda números una computadora».
+Al entrenar en precisión mixta (muchas cuentas en números de 16 bits; Alba lo hace con AMP, la precisión mixta automática de PyTorch), un gradiente muy pequeño puede redondearse a 0 porque ese formato no alcanza a representarlo. Por eso PyTorch multiplica la pérdida por un número grande antes de la backpropagation (al principio, 65,536) y divide el gradiente por lo mismo después. Lo hace una pieza llamada GradScaler, y su estado también se guarda en el checkpoint. Lo ves con calma en la lección «Cómo guarda números una computadora».
 :::
 
 ## El optimizador: SGD, momentum y Adam {The optimizer: SGD, momentum and Adam}
@@ -431,12 +494,19 @@ La pieza que toma el gradiente y decide cuánto girar cada perilla se llama [[op
 
 El [[momentum]] (inercia) arregla las dos cosas con una idea: cada paso arrastra parte de la dirección de los anteriores. Para cada perilla lleva una **velocidad** v:
 
-> v nueva = 0.9 × v + gradiente, y luego: perilla nueva = perilla − lr × v nueva
+:::formula Momentum
+v_{nueva} = β × v + g
+w_{nueva} = w − lr × v_{nueva}
+- v: la velocidad de la perilla; empieza en 0
+- g: el gradiente de este paso
+- β: cuánto se recuerda del pasado (beta); el valor usual es 0.9
+- w, lr: la perilla y el learning rate, como en el descenso de gradiente
+:::
 
-El 0.9 es el valor usual y dice cuánto se recuerda del pasado.
+Con \(β\) = 0.9, cada paso conserva el 90 % de la velocidad anterior y le suma el gradiente nuevo.
 
 :::ejemplo La velocidad, con números
-**Un gradiente que insiste.** Si el gradiente es −5 en tres pasos seguidos, la velocidad va −5, luego 0.9 × (−5) − 5 = −9.5, luego 0.9 × (−9.5) − 5 = −13.55. Los pasos crecen: en una dirección constante, el momentum acelera hasta 10 veces el gradiente (porque 1 ÷ (1 − 0.9) = 10).
+**Un gradiente que insiste.** Si el gradiente es −5 en tres pasos seguidos, la velocidad va −5, luego 0.9 × (−5) − 5 = −9.5, luego 0.9 × (−9.5) − 5 = −13.55. Los pasos crecen: en una dirección constante, el momentum acelera hasta 10 veces el gradiente (porque \(1 ÷ (1 − β)\) = 1 ÷ (1 − 0.9) = 10).
 
 **Un gradiente que zigzaguea.** Si el gradiente es +10, −10, +10, la velocidad va 10, luego 0.9 × 10 − 10 = −1, luego 0.9 × (−1) + 10 = 9.1. El brinco de ida y vuelta casi se cancela en el segundo paso.
 :::
@@ -449,21 +519,35 @@ Una pelota que baja por una barranca no se detiene en cada piedrita, y en una ba
 
 ### Adam: un paso a la medida de cada perilla
 
-[[adam|Adam]] (Kingma y Ba, 2014) es el optimizador que más se usa por defecto, y el de C01. Para cada perilla lleva **dos** promedios:
+[[adam|Adam]] (Kingma y Ba, 2014) es el optimizador que más se usa por defecto, y el que usa Alba. Para cada perilla lleva **dos** promedios:
 
 - **m**, el promedio de sus gradientes recientes: hacia dónde ha empujado, como el momentum.
 - **v**, el promedio de sus gradientes **al cuadrado**: qué tan grandes suelen ser.
 
-El paso es lr × m ÷ √v. Dividir entre √v, que mide el tamaño típico del gradiente de esa perilla, **iguala los pasos**: una perilla con gradientes enormes y otra con gradientes chiquitos avanzan parecido, del orden del learning rate. Al principio m y v valen 0, así que Adam los corrige para que los primeros promedios no salgan demasiado chicos; a los ya corregidos se les escribe con gorrito, m̂ y v̂.
+:::formula Adam
+m_t = β_1 × m_{t−1} + (1 − β_1) × g
+v_t = β_2 × v_{t−1} + (1 − β_2) × g^2
+m̂ = frac{m_t}{1 − β_1^t}
+v̂ = frac{v_t}{1 − β_2^t}
+w_{nueva} = w − lr × frac{m̂}{sqrt{v̂} + ε}
+- g: el gradiente de la perilla en este paso
+- t: el número de paso: 1, 2, 3…
+- m_t, v_t: los dos promedios después del paso \(t\); empiezan en 0. Esta \(v\) no es la velocidad del momentum
+- β_1, β_2: cuánto recuerda cada promedio; por defecto, 0.9 y 0.999
+- m̂, v̂: los promedios corregidos del arranque
+- ε: un número diminuto (0.00000001) para no dividir entre 0
+:::
+
+En resumen, el paso es \(lr × m̂ ÷ sqrt{v̂}\). Dividir entre \(sqrt{v̂}\), que mide el tamaño típico del gradiente de esa perilla, **iguala los pasos**: una perilla con gradientes enormes y otra con gradientes chiquitos avanzan parecido, del orden del learning rate. Al principio m y v valen 0, así que Adam los corrige para que los primeros promedios no salgan demasiado chicos; a los ya corregidos se les escribe con gorrito, m̂ y v̂.
 
 :::cuenta Un paso de Adam con dos perillas, lr = 0.0003
-Gradiente de cada perilla // A muy empinada, B casi plana | A: 100 · B: 0.01 | 100 · 0.01
-m // primer paso: 0.1 × gradiente | 0.1 × 100 · 0.1 × 0.01 | 10 · 0.001
-v // primer paso: 0.001 × gradiente² | 0.001 × 100² · 0.001 × 0.01² | 10 · 0.0000001
-m̂ // corrige el arranque: m ÷ 0.1 | 10 ÷ 0.1 · 0.001 ÷ 0.1 | 100 · 0.01
-√v̂ // corrige el arranque: √(v ÷ 0.001) | √10,000 · √0.0001 | 100 · 0.01
-Paso de Adam // lr × m̂ ÷ √v̂ | 0.0003 × 100 ÷ 100 · 0.0003 × 0.01 ÷ 0.01 | **0.0003 · 0.0003**
-Paso de SGD, para comparar // lr × gradiente | 0.0003 × 100 · 0.0003 × 0.01 | 0.03 · 0.000003
+Gradiente \(g\) de cada perilla // A muy empinada, B casi plana | A: 100 · B: 0.01 | 100 · 0.01
+\(m_1\) // primer paso, con \(m_0\) = 0: (1 − 0.9) × \(g\) = 0.1 × \(g\) | 0.1 × 100 · 0.1 × 0.01 | 10 · 0.001
+\(v_1\) // con \(v_0\) = 0: (1 − 0.999) × \(g^2\) = 0.001 × \(g^2\) | 0.001 × 100² · 0.001 × 0.01² | 10 · 0.0000001
+\(m̂\) // corrige el arranque: \(m_1 ÷ (1 − 0.9^1)\) = \(m_1\) ÷ 0.1 | 10 ÷ 0.1 · 0.001 ÷ 0.1 | 100 · 0.01
+√v̂ // corrige el arranque: \(v̂ = v_1 ÷ (1 − 0.999^1)\) = \(v_1\) ÷ 0.001, y luego la raíz | √10,000 · √0.0001 | 100 · 0.01
+Paso de Adam // \(lr × m̂ ÷ sqrt{v̂}\); \(ε\) es tan chico que no cambia nada | 0.0003 × 100 ÷ 100 · 0.0003 × 0.01 ÷ 0.01 | **0.0003 · 0.0003**
+Paso de SGD, para comparar // \(lr × g\) | 0.0003 × 100 · 0.0003 × 0.01 | 0.03 · 0.000003
 = Con Adam las dos perillas avanzan **0.0003**. Con SGD, una avanzaría 10,000 veces más que la otra.
 :::
 
@@ -489,21 +573,21 @@ gradiente   0.01:  SGD mueve 0.000003   Adam mueve 0.000300
 
 Dos consecuencias prácticas. Con Adam, el learning rate es casi **cuánto se mueve cada perilla por paso**: con 0.0003, del orden de 0.0003. Y si el gradiente de una perilla cambia de signo a cada rato (puro ruido), m se cancela y el paso se achica solo. Por eso funciona bien sin tanto ajuste fino; PyTorch trae 0.001 por defecto y 0.0003 es otro punto de partida muy usado.
 
-El precio: m y v son **dos números extra por perilla**, que viven en memoria todo el entrenamiento. En C01 son 24.5 millones × 2 = 49 millones de números más. El momentum de SGD pide uno; SGD solo, ninguno. Los vas a volver a ver en el checkpoint y en la memoria de la GPU.
+El precio: m y v son **dos números extra por perilla**, que viven en memoria todo el entrenamiento. En Alba son 24.5 millones × 2 = 49 millones de números más. El momentum de SGD pide uno; SGD solo, ninguno. Los vas a volver a ver en el checkpoint y en la memoria de la GPU.
 
 ### Parámetros contra hiperparámetros
 
-Son dos palabras que se confunden mucho y que la Ronda usa a cada rato:
+Son dos palabras que se confunden mucho y que vas a oír a cada rato:
 
 | | Parámetros | Hiperparámetros |
 |---|---|---|
 | Qué son | Las perillas del modelo | Las decisiones de cómo entrenar |
 | Quién los decide | El entrenamiento, con el optimizador | Tú, antes de entrenar |
-| Cuántos son | Millones (24.5 M en C01) | Unos cuantos |
+| Cuántos son | Millones (24.5 M en el modelo de Alba) | Unos cuantos |
 | Ejemplos | Cada número de cada capa | Learning rate, tamaño del batch, épocas, optimizador, qué augmentations |
 | Dónde quedan | En el archivo del modelo | En la configuración y en el registro del experimento |
 
-Los [[hiperparametro|hiperparámetros]] de C01, según la Ronda: Adam, learning rate 3e-4, batch 64, 8 épocas y [[semilla]] 17 (el número que fija el azar del entrenamiento). ¿Cómo se eligen? Probando varias opciones y comparando cómo le va a cada una en **validación**, nunca en el test (ya viste por qué en la lección anterior).
+Los [[hiperparametro|hiperparámetros]] del reentrenamiento de Alba: Adam, learning rate 3e-4, batch 64, 8 épocas y [[semilla]] 17 (el número que fija el azar del entrenamiento). ¿Cómo se eligen? Probando varias opciones y comparando cómo le va a cada una en **validación**, nunca en el test (ya viste por qué en la lección anterior).
 
 ## El learning rate en el tiempo, cuándo parar y cómo no memorizar {Schedules, warmup, early stopping and regularization} [extra]
 
@@ -512,15 +596,35 @@ Los [[hiperparametro|hiperparámetros]] de C01, según la Ronda: Adam, learning 
 Un mismo learning rate de principio a fin casi nunca es lo mejor. Al principio conviene avanzar rápido; al final, dar pasos finos para asentarse en el fondo sin brincar de un lado al otro. El plan de cómo cambia se llama [[scheduler-lr|scheduler]] (calendario) del learning rate. Dos formas muy comunes:
 
 - **Escalones.** Se divide entre 10 cuando la validación deja de mejorar. Así entrenaron la ResNet original en 2015: SGD con momentum 0.9, learning rate que empezaba en 0.1 y se dividía entre 10 al estancarse, batches de 256.
-- **Coseno.** Baja suave, como media ola, desde el máximo hasta casi 0 al final: en el paso t de un total de T, lr = máximo × ½ × (1 + cos(π × t ÷ T)).
+- **Coseno.** Baja suave, como media ola, desde el máximo hasta casi 0 al final, con esta fórmula:
 
-La Ronda no dice qué calendario usa C01, así que supón uno de coseno para hacer la cuenta: con máximo 0.0003 y 230,032 pasos, a la mitad (paso 115,016) el coseno vale 0, así que el lr es 0.0003 × ½ = 0.00015; a tres cuartos, 0.0003 × ½ × (1 − 0.707) ≈ 0.000044; al final, 0.
+:::formula Calendario coseno
+lr_t = lr_{máx} × frac{1}{2} × (1 + cos θ)
+θ = π × frac{t}{T}
+- t: el paso en el que vas
+- T: el total de pasos del entrenamiento
+- lr_{máx}: el learning rate más alto, el del arranque
+- lr_t: el learning rate en el paso \(t\)
+- θ: el ángulo (theta), que va de 0 al empezar a π ≈ 3.1416 al final
+- cos: el coseno (la tecla «cos» de la calculadora, en radianes): vale 1 en 0 y −1 en π
+:::
+
+La receta de Alba no dice qué calendario usa, así que supón uno de coseno para hacer la cuenta, con \(lr_{máx}\) = 0.0003 (el learning rate de Alba) y \(T\) = 230,032 pasos (los de sus 8 épocas):
+
+:::cuenta El calendario coseno, con los números de Alba
+A la mitad // \(t = T ÷ 2\) | 230,032 ÷ 2 | paso 115,016
+El coseno a la mitad // \(θ = π × t ÷ T = π ÷ 2\) | cos(π ÷ 2) | 0
+\(lr_t\) a la mitad | 0.0003 × ½ × (1 + 0) | 0.00015
+El coseno a tres cuartos // \(θ = π × t ÷ T = 3π ÷ 4\) | cos(3π ÷ 4) | ≈ −0.707
+\(lr_t\) a tres cuartos | 0.0003 × ½ × (1 − 0.707) | ≈ 0.000044
+\(lr_t\) al final // \(t = T\), \(θ = π\); cos(π) = −1 | 0.0003 × ½ × (1 − 1) | 0
+:::
 
 ### Warmup: arrancar despacio
 
-Los primeros pasos son los más peligrosos. Las perillas están lejos de lo bueno; si se estrena una última capa al azar, como en la primera versión de C01, sus gradientes son grandes y desordenados; y Adam todavía tiene muy pocos gradientes para promediar. Un paso grande ahí puede deshacer lo que el modelo ya sabía o hacer explotar la pérdida.
+Los primeros pasos son los más peligrosos. Las perillas están lejos de lo bueno; si se estrena una última capa al azar, como en la primera versión del modelo de Alba, sus gradientes son grandes y desordenados; y Adam todavía tiene muy pocos gradientes para promediar. Un paso grande ahí puede deshacer lo que el modelo ya sabía o hacer explotar la pérdida.
 
-El [[warmup]] (calentamiento) empieza con un learning rate casi 0 y lo sube en línea recta durante los primeros cientos o miles de pasos. Con un warmup de 1,000 pasos hasta 0.0003: en el paso 100 vale 0.00003, en el 500 vale 0.00015 y en el 1,000 llega a 0.0003. Después sigue el calendario.
+El [[warmup]] (calentamiento) empieza con un learning rate casi 0 y lo sube en línea recta durante los primeros cientos o miles de pasos. En el paso \(t\) del warmup, \( lr_t = lr_{máx} × t ÷ W \), donde \(W\) es el número de pasos que dura. Con \(W\) = 1,000 pasos y \(lr_{máx}\) = 0.0003: en el paso 100 vale 0.0003 × 100 ÷ 1,000 = 0.00003, en el 500 vale 0.0003 × 500 ÷ 1,000 = 0.00015 y en el 1,000 llega a 0.0003. Después sigue el calendario.
 
 :::figura aprender-calendario
 Un calendario típico: warmup en línea recta y luego coseno hasta 0. Comparado con un learning rate fijo, da pasos chicos al arrancar y al terminar.
@@ -552,7 +656,7 @@ El [[early-stopping|early stopping]] (parada temprana) mide la validación al fi
 Se para al final de la época 7 y se usa el checkpoint de la época 5. Las épocas 6 y 7 se gastaron solo para estar seguros de que la 5 era el mejor momento.
 :::
 
-C01 entrena 8 épocas fijas, pero registra la validación de cada época: con esa curva se ve si alguna época anterior salió mejor o si convendría parar antes. Es la misma idea, revisada a mano.
+Alba entrena 8 épocas fijas, pero registra la validación de cada época: con esa curva se ve si alguna época anterior salió mejor o si convendría parar antes. Es la misma idea, revisada a mano.
 
 ### Regularización y weight decay
 
@@ -560,31 +664,38 @@ C01 entrena 8 épocas fijas, pero registra la validación de cada época: con es
 
 Otra muy usada vive dentro del optimizador: el [[weight-decay|weight decay]] (decaimiento de pesos). En cada paso, además del paso del gradiente, encoge cada perilla un poquito hacia 0:
 
-> perilla nueva = perilla − lr × λ × perilla
+:::formula Weight decay
+w_{nueva} = w − lr × λ × w
+w_{nueva} = (1 − lr × λ) × w
+w_t = w_0 × (1 − lr × λ)^t
+- λ: cuánto encoge (lambda)
+- w_0: la perilla al empezar
+- w_t: la perilla después de \(t\) pasos, si ningún gradiente la sostiene
+:::
 
 λ (lambda) es otro hiperparámetro. La idea: una perilla solo se queda grande si el gradiente la sostiene, porque de verdad ayuda; las que no sirven se van apagando. Un modelo con perillas chicas suele ser más «suave» y memoriza menos.
 
 :::ejemplo Cuánto encoge
-Perilla w = 2, lr = 0.01, λ = 0.1. Cada paso le quita 2 × 0.01 × 0.1 = 0.002: queda en 1.998. Parece nada, pero se acumula: sin un gradiente que la sostenga, después de 1,000 pasos bajaría a 2 × 0.999¹⁰⁰⁰ ≈ **0.74**.
+Perilla \(w_0\) = 2, lr = 0.01, λ = 0.1. Cada paso le quita \(lr × λ × w\) = 0.01 × 0.1 × 2 = 0.002: queda en 1.998. Parece nada, pero se acumula. El factor por paso es 1 − 0.01 × 0.1 = 0.999, así que, sin un gradiente que la sostenga, después de \(t\) = 1,000 pasos bajaría a \(w_t\) = 2 × 0.999¹⁰⁰⁰ ≈ **0.74**.
 :::
 
 Los valores típicos dependen del optimizador. La ResNet original usó λ = 0.0001 con SGD. Con Adam, sumar el encogimiento al gradiente no funciona igual, porque Adam lo divide entre √v; por eso existe **AdamW** (Loshchilov y Hutter), que lo aplica aparte. En PyTorch, AdamW trae λ = 0.01 por defecto.
 
 ## Checkpoints y semillas {Checkpoints and seeds} [extra]
 
-Un entrenamiento de C01 dura horas. Si la máquina se apaga en la hora tres, ¿empiezas de cero? No, si guardaste un [[checkpoint]]: un archivo con todo el estado del entrenamiento en un momento dado. Lleva las perillas, el estado del optimizador (los dos promedios de Adam), la época y el paso, el estado del calendario del learning rate y el del azar.
+Un entrenamiento de Alba dura horas: unas 3 a 4 en una GPU. Si la máquina se apaga en la hora tres, ¿empiezas de cero? No, si guardaste un [[checkpoint]]: un archivo con todo el estado del entrenamiento en un momento dado. Lleva las perillas, el estado del optimizador (los dos promedios de Adam), la época y el paso, el estado del calendario del learning rate y el del azar.
 
 ¿Por qué se guarda a media corrida, y no solo al final?
 
 - **Las máquinas fallan, o te las quitan.** En la nube (computadoras que se rentan por hora, por ejemplo a AWS, la de Amazon) hay máquinas mucho más baratas, llamadas *spot*, que el proveedor puede reclamar cuando las necesita (en AWS, con un aviso de apenas dos minutos). Con checkpoints, perder la máquina cuesta minutos, no la corrida entera.
 - **Para quedarte con la mejor versión.** A veces la época 6 sale mejor en validación que la 8 (es el early stopping).
-- **Para seguir después.** El modelo de C01 de cada mes empieza desde el que está en producción, no desde cero.
+- **Para seguir después.** Cada mes, el modelo nuevo de Alba empieza desde el que está en producción, no desde cero.
 
-:::cuenta ¿Cuánto pesa un checkpoint de C01?
-Las perillas // cada una en 4 bytes ([[float32]]) | 24.5 M × 4 B | 98 MB
-Los dos promedios de Adam // m y v, uno por perilla cada uno | 2 × 98 MB | 196 MB
-Checkpoint completo | 98 + 196 | **≈ 294 MB**
-= C01 guarda uno cada 15 minutos. Si la máquina se cae, se pierden como mucho 15 minutos de trabajo.
+:::cuenta ¿Cuánto pesa un checkpoint de Alba?
+Las perillas, \(P × 4\) B // \(P\) = 24.5 M parámetros del modelo de Alba, cada uno en 4 bytes ([[float32]]) | 24.5 M × 4 B | 98 MB
+Los dos promedios de Adam, \(2 × P × 4\) B // m y v, uno por perilla cada uno | 2 × 98 MB | 196 MB
+Checkpoint completo, \(3 × P × 4\) B | 98 + 196 | **≈ 294 MB**
+= Alba guarda uno cada 15 minutos. Si la máquina se cae, se pierden como mucho 15 minutos de trabajo.
 :::
 
 :::ojo
@@ -595,12 +706,12 @@ Checkpoint completo | 98 + 196 | **≈ 294 MB**
 
 Entrena dos veces el mismo modelo, con los mismos datos y la misma configuración, y no vas a obtener exactamente el mismo resultado, porque el entrenamiento tiene azar en varios lugares:
 
-- Los valores iniciales de las perillas nuevas. Cuando el modelo de C01 se entrenó por primera vez a partir de un modelo genérico, su última capa, la de las 500 categorías, empezó con números al azar; y cuando se agrega una categoría, sus perillas nuevas también.
+- Los valores iniciales de las perillas nuevas. Cuando el modelo de Alba se entrenó por primera vez a partir de un modelo genérico, su última capa, la de las 500 categorías, empezó con números al azar; y cuando se agrega una categoría, sus perillas nuevas también.
 - El orden en que se revuelven las fotos en cada época, que cambia qué fotos van juntas en cada batch.
 - Las variaciones de la augmentation: qué foto se voltea, cuánto se recorta.
 - El dropout, si el modelo lo usa.
 
-Una computadora no tira dados de verdad: genera números que parecen al azar a partir de un número inicial, la [[semilla]] (*seed*). Con la misma semilla sale exactamente la misma secuencia de «azares». C01 fija la semilla 17.
+Una computadora no tira dados de verdad: genera números que parecen al azar a partir de un número inicial, la [[semilla]] (*seed*). Con la misma semilla sale exactamente la misma secuencia de «azares». Alba fija la semilla 17.
 
 :::nota La semilla no se «busca»
 La semilla se anota con los hiperparámetros, pero no se elige probando. Entrenar con diez semillas y quedarte con la que mejor salió es elegir por suerte, no por mérito.
@@ -608,7 +719,7 @@ La semilla se anota con los hiperparámetros, pero no se elige probando. Entrena
 
 Pero en una GPU, ni con la misma semilla sale idéntico: hace millones de sumas en paralelo, no siempre en el mismo orden, y con decimales el orden de una suma puede cambiar un poquito el resultado. Repetido millones de veces, dos entrenamientos se separan un poco (el ejemplo con números está en la sección de la máquina).
 
-¿Cuánto se separan? La Ronda trae un ejemplo con números ilustrativos: la misma receta de C01 entrenada con 5 semillas da 85.21 %, 85.34 %, 85.12 %, 85.29 % y 85.18 % de aciertos en el [[golden-set|golden set]]. El promedio es 426.14 ÷ 5 ≈ 85.23 %, y entre el mejor y el peor hay 85.34 − 85.12 = 0.22 **puntos porcentuales** (puntos de diferencia entre dos porcentajes). La lección: si dos corridas difieren en 0.2 puntos, eso no dice nada; puede ser pura semilla. Por eso «reproducible», en producción, quiere decir «el mismo resultado dentro del ruido», no idéntico.
+¿Cuánto se separan? Un ejemplo con números ilustrativos: la misma receta de Alba entrenada con 5 semillas da 85.21 %, 85.34 %, 85.12 %, 85.29 % y 85.18 % de aciertos en el [[golden-set|golden set]]. El promedio es la suma entre 5: (85.21 + 85.34 + 85.12 + 85.29 + 85.18) ÷ 5 = 426.14 ÷ 5 ≈ 85.23 %, y entre el mejor y el peor hay 85.34 − 85.12 = 0.22 **puntos porcentuales** (puntos de diferencia entre dos porcentajes). La lección: si dos corridas difieren en 0.2 puntos, eso no dice nada; puede ser pura semilla. Por eso «reproducible», en producción, quiere decir «el mismo resultado dentro del ruido», no idéntico.
 
 ## La máquina que entrena: CPU, GPU y VRAM {The machine that trains: CPU, GPU and VRAM} [extra]
 
@@ -617,9 +728,9 @@ Pero en una GPU, ni con la misma semilla sale idéntico: hace millones de sumas 
 Casi todo el trabajo de esta lección, el forward pass y la backpropagation, es una sola operación: **multiplicar dos números y sumar el resultado**, repetida miles de millones de veces sobre tablas enormes. El paso de Adam, en comparación, es poquito. Hay dos tipos de chip para hacerlo:
 
 - La [[cpu|CPU]], el procesador normal de una computadora, tiene pocos núcleos muy capaces: de 8 a 16 en una laptop, decenas en un servidor. Cada uno hace cualquier tipo de trabajo, muy rápido, uno tras otro.
-- La [[gpu|GPU]] tiene miles de núcleos sencillos que hacen **la misma operación sobre muchos números a la vez**. La T4 con la que C01 sirve su modelo tiene 2,560 núcleos CUDA (los núcleos normales de una GPU de NVIDIA) y 320 *tensor cores*, núcleos especiales para multiplicar tablas de números.
+- La [[gpu|GPU]] tiene miles de núcleos sencillos que hacen **la misma operación sobre muchos números a la vez**. La T4 con la que Alba sirve su modelo tiene 2,560 núcleos CUDA (los núcleos normales de una GPU de NVIDIA) y 320 *tensor cores*, núcleos especiales para multiplicar tablas de números.
 
-Para multiplicar y sumar tablas, la GPU gana por mucho. Por eso el entrenamiento de C01 tarda horas en una GPU, y en una CPU tardaría de días a semanas, según cuántos núcleos tenga la máquina. Lo ves a fondo en la lección «CPU y GPU».
+Para multiplicar y sumar tablas, la GPU gana por mucho. Por eso el entrenamiento de Alba tarda horas en una GPU (unas 3 a 4), y en una CPU tardaría de días a semanas, según cuántos núcleos tenga la máquina. Lo ves a fondo en la lección «CPU y GPU».
 
 :::diagrama aprender-maquina
 Dónde pasa cada parte de un paso. Sigue «Un paso, en la máquina», luego «Qué ocupa la VRAM» y «Si la CPU no alcanza».
@@ -634,17 +745,17 @@ Sumar en paralelo tiene una consecuencia rara. Con números [[float32]], que gua
 - (100,000,000 + 1) − 100,000,000 da **0**, porque 100,000,001 no cabe y se redondea a 100,000,000 antes de restar.
 - (100,000,000 − 100,000,000) + 1 da **1**.
 
-La misma cuenta en otro orden da otro resultado. La GPU reparte cada suma grande entre miles de núcleos y no siempre las junta en el mismo orden, así que dos corridas con la misma semilla se separan un poquito. Por eso la Ronda define «reproducible» como «dentro del ruido medido entre semillas».
+La misma cuenta en otro orden da otro resultado. La GPU reparte cada suma grande entre miles de núcleos y no siempre las junta en el mismo orden, así que dos corridas con la misma semilla se separan un poquito. Por eso, en producción, «reproducible» se define como «dentro del ruido medido entre semillas».
 
-:::ejemplo Responder contra entrenar, en C01
-**Responder (inferencia).** Una foto, un forward pass. La ResNet-50 hace unos 4,100 millones de multiplicaciones con su suma por foto. En la GPU de producción de C01, ese cálculo tarda del orden de 3 a 6 milisegundos.
+:::ejemplo Responder contra entrenar, en Alba
+**Responder (inferencia).** Una foto, un forward pass. La ResNet-50 hace unos 4,100 millones de multiplicaciones con su suma por foto. En la GPU de producción de Alba, una T4, ese cálculo tarda del orden de 3 a 6 milisegundos.
 
 **Entrenar.** Cada foto de train pasa por el modelo una vez por época:
 
 - 1,840,211 fotos × 8 épocas = 14,721,688 pasadas.
 - Cada una con forward pass y backpropagation, que cuesta unas 3 veces un forward pass solo: ≈ 44 millones de «respuestas» de trabajo.
 
-La Ronda dice que el entrenamiento mensual de C01 tarda unas 3 a 4 horas en una GPU y cuesta del orden de US$10 a 50. Haz la cuenta al revés: 4 horas son 4 × 3,600 = 14,400 segundos, y 14,721,688 ÷ 14,400 ≈ 1,000 fotos por segundo. Es la velocidad que tiene que sostener la GPU. Es razonable para una GPU moderna, pero varía mucho con el modelo de GPU y la configuración: tómala como un orden de magnitud, no como un dato.
+El equipo de Alba estima que su entrenamiento mensual tarda unas 3 a 4 horas en una GPU y cuesta del orden de US$10 a 50. Haz la cuenta al revés: fotos por segundo = \(N × E\) ÷ segundos que dura, con \(N\) las fotos de train y \(E\) las épocas. 4 horas son 4 × 3,600 = 14,400 segundos, así que 1,840,211 × 8 ÷ 14,400 = 14,721,688 ÷ 14,400 ≈ 1,000 fotos por segundo. Es la velocidad que tiene que sostener la GPU. Es razonable para una GPU moderna, pero varía mucho con el modelo de GPU y la configuración: tómala como un orden de magnitud, no como un dato.
 :::
 
 ### Lo que tiene que caber en la VRAM
@@ -664,18 +775,30 @@ Las tres primeras de la lista son fijas: dependen solo de cuántas perillas tien
 Lo que ocupa cada parámetro según lo que hagas con él. Entrenar con Adam pide 16 bytes, con o sin precisión mixta; servir en FP16, 2.
 :::
 
-:::cuenta La memoria de entrenar C01, contra la de servirlo
-Lo fijo para entrenar // perillas, gradientes, m y v | 24.5 M × 16 B | ≈ 392 MB
-Activaciones con batch 64 // estimación: ≈ 11 M números por foto, guardados ≈ 2 veces, en 2 bytes | 64 × ≈ 44 MB | ≈ 3 GB
-Entrenar, sin contar el runtime | 0.39 + 3 | ≈ 3.4 GB
-Servir: solo los pesos en FP16 | 24.5 M × 2 B | ≈ 49 MB
-= En una red para fotos como la de C01 (una [[cnn|CNN]]), lo que más ocupa al entrenar son las **activaciones**, y todo cabe holgado en una GPU de 16 GB. La cifra de activaciones es una estimación: se mide con `torch.cuda.max_memory_allocated()`.
+:::formula Memoria de la GPU para entrenar y para servir
+M_{fijo} = P × b
+M_{entrenar} = M_{fijo} + A
+M_{servir} = P × 2
+- P: los parámetros (perillas) del modelo
+- b: los bytes por parámetro: ≈ 16 al entrenar con Adam
+- A: las activaciones: crecen con el batch y se miden
+- M_{servir}: solo los pesos en FP16, 2 bytes por parámetro
+- M: memoria en bytes, sin contar el runtime (≈ 0.3 a 1 GB más)
 :::
 
-En un LLM la historia cambia: un modelo de 8,000 millones de parámetros pide 8 × 10⁹ × 16 B = **128 GB** solo de lo fijo, más de lo que tiene una H100. Lo vas a ver en la [lección de LLMs](/llms/), junto con la salida más común: [[lora|LoRA]], que deja quietas las perillas originales y entrena solo unas tablas chiquitas.
+:::cuenta La memoria de entrenar el modelo de Alba, contra la de servirlo
+Lo fijo para entrenar, \(M_{fijo} = P × b\) // perillas, gradientes, m y v: \(P\) = 24.5 M, \(b\) = 16 | 24.5 M × 16 B | ≈ 392 MB
+Activaciones de una foto // estimación: ≈ 11 M números, guardados ≈ 2 veces, en 2 bytes | 11 M × 2 × 2 B | ≈ 44 MB
+Activaciones con batch 64, \(A\) // estimación | 64 × ≈ 44 MB | ≈ 3 GB
+Entrenar, \(M_{entrenar} = M_{fijo} + A\) // sin contar el runtime | 0.39 + 3 | ≈ 3.4 GB
+Servir, \(M_{servir} = P × 2\) // solo los pesos en FP16 | 24.5 M × 2 B | ≈ 49 MB
+= En una red para fotos como la de Alba (una [[cnn|CNN]]), lo que más ocupa al entrenar son las **activaciones**, y todo cabe holgado en una GPU de 16 GB. La cifra de activaciones es una estimación: se mide con `torch.cuda.max_memory_allocated()`.
+:::
+
+En un LLM la historia cambia: un modelo de 8,000 millones de parámetros pide \(M_{fijo} = P × b\) = 8 × 10⁹ × 16 B = **128 GB** solo de lo fijo, más de lo que tiene una H100. Lo vas a ver en la [lección de LLMs](/llms/), junto con la salida más común: [[lora|LoRA]], que deja quietas las perillas originales y entrena solo unas tablas chiquitas.
 
 :::calculadora aprender-memoria
-Arranca con los números de C01. Luego escribe 8000 millones de parámetros y 0 GB de activaciones, y mira cuántas GPUs de 80 GB pediría solo lo fijo.
+Arranca con los números de Alba: 24.5 millones de parámetros, ≈ 3 GB de activaciones y una T4 de 16 GB. Luego escribe 8000 millones de parámetros y 0 GB de activaciones, y mira cuántas GPUs de 80 GB pediría solo lo fijo.
 :::
 
 ## Errores comunes {Common mistakes}
@@ -690,35 +813,56 @@ Arranca con los números de C01. Luego escribe 8000 millones de parámetros y 0 
 
 ## En la vida real {In real life} [extra]
 
-### C01: un fine-tune al mes
+### Alba: un fine-tune al mes
 
-Cada mes, C01 parte del modelo que está en producción y lo ajusta con las fotos nuevas: Adam con lr 3e-4, batches de 64, 8 épocas (28,754 pasos cada una), semilla 17 y precisión mixta. Guarda un checkpoint de ≈ 294 MB cada 15 minutos, tarda unas 3 a 4 horas en una GPU y cuesta del orden de US$10 a 50. Registra la pérdida y la validación de cada época, y el modelo nuevo solo pasa a producción si **no es peor** que el actual en el golden set. Como arranca de un modelo que ya sabe, su pérdida no empieza en 6.21: eso solo le pasó a la primera versión, cuando su última capa era nueva.
+Cada mes, Alba parte del modelo que está en producción y lo ajusta con las fotos nuevas: Adam con lr 3e-4, batches de 64, 8 épocas (28,754 pasos cada una), semilla 17 y precisión mixta. Guarda un checkpoint de ≈ 294 MB cada 15 minutos, tarda unas 3 a 4 horas en una GPU y cuesta del orden de US$10 a 50. Registra la pérdida y la validación de cada época, y el modelo nuevo solo pasa a producción si **no es peor** que el actual en el golden set. Como arranca de un modelo que ya sabe, su pérdida no empieza en 6.21: eso solo le pasó a la primera versión, cuando su última capa era nueva.
 
-### C14: pronosticar demanda, donde la pérdida decide qué predices
+### Pronosticar demanda, donde la pérdida decide qué predices
 
 Un supermercado pronostica, para cada tienda y producto, cuánto se va a vender en los próximos 14 días: ≈ 4.8 millones de series. Es una regresión, y con MSE el modelo aprendería el **promedio**. Pero el sistema de pedidos necesita dos números: uno central y uno alto, que alcance 9 de cada 10 días, para el colchón. Pasarse con un fresco cuesta merma (lo que se tira); quedarse corto cuesta una venta perdida. Los costos no son iguales, y el MSE los trata igual.
 
-Por eso C14 entrena dos modelos con una pérdida de **cuantiles** (*pinball*): una para el P50, el valor de en medio, y otra para el P90. La del P90 castiga distinto cada lado: si se vende 2 kg más de lo pronosticado, la pérdida es 0.9 × 2 = 1.8; si se vende 15 kg menos, es 0.1 × 15 = 1.5. Quedarse corto pesa 9 veces más que pasarse, y el modelo aprende a pronosticar alto.
+Por eso ese pronóstico se entrena con dos modelos con una pérdida de **cuantiles** (*pinball*): una para el P50, el valor de en medio, y otra para el P90.
+
+:::formula Pérdida de cuantiles (pinball)
+L = τ × (r − y)  text{ si } r ≥ y
+L = (1 − τ) × (y − r)  text{ si } r < y
+- τ: el cuantil que buscas, como fracción (tau): 0.9 para el P90, 0.5 para el P50
+- y: el pronóstico, en kg (la predicción)
+- r: lo que de verdad se vendió, en kg (la respuesta correcta)
+- L: la pérdida de ese día
+:::
+
+La del P90, con \(τ\) = 0.9, castiga distinto cada lado: si se vende 2 kg más de lo pronosticado, \(L = τ × (r − y)\) = 0.9 × 2 = 1.8; si se vende 15 kg menos, \(L = (1 − τ) × (y − r)\) = 0.1 × 15 = 1.5. Por kilo, quedarse corto pesa 0.9 ÷ 0.1 = 9 veces más que pasarse, y el modelo aprende a pronosticar alto.
 
 El modelo no es una red sino *gradient boosting*: muchos árboles de decisión (cadenas de preguntas de sí o no, como «¿es fin de semana?», que terminan en un número), cada uno agregado para corregir lo que les faltó a los anteriores, en la dirección contraria al gradiente de la pérdida. Con MSE, ese gradiente es el error de cada fila (por 2), así que cada árbol nuevo aprende a predecir lo que los anteriores fallaron. Es descenso de gradiente con árboles en vez de perillas. Y se entrena en CPU, no en GPU: ≈ 490 millones de filas en una máquina de 96 vCPU (núcleos virtuales), unas 2 a 3 horas cada domingo.
 
-### C15: la probabilidad de un clic, entropía cruzada con dos respuestas
+### La probabilidad de un clic en un anuncio: entropía cruzada con dos respuestas
 
-Un medio de noticias decide qué anuncio mostrar multiplicando lo que paga cada anunciante por la probabilidad de clic que predice el modelo (pCTR). La respuesta es sí o no, y la pérdida es la entropía cruzada de dos clases, la *log loss*: si hubo clic, −ln(p); si no, −ln(1 − p).
+Un medio de noticias decide qué anuncio mostrar multiplicando lo que paga cada anunciante por la probabilidad de clic que predice el modelo (pCTR). La respuesta es sí o no, y la pérdida es la entropía cruzada de dos clases, la *log loss*:
+
+:::formula Log loss y normalized entropy
+L = −ln(p)  text{ si hubo clic}
+L = −ln(1 − p)  text{ si no hubo clic}
+NE = frac{LL_{modelo}}{LL_{promedio}}
+- p: la probabilidad de clic que predice el modelo (pCTR)
+- LL: la log loss promedio, sobre todos los anuncios mostrados
+- LL_{promedio}: la de decir siempre el CTR promedio, sin modelo
+- NE: la *normalized entropy*: menos de 1 es mejor que adivinar el promedio
+:::
 
 - El CTR (*click-through rate*: de cada 100 anuncios mostrados, en cuántos se da clic) promedio es ≈ 0.35 %. Si el modelo dice 0.35 % y sí hubo clic: −ln(0.0035) ≈ 5.65. Si no hubo clic: −ln(0.9965) ≈ 0.0035.
-- Decir 0.35 % para todo da una log loss promedio de 0.02329. Un modelo con 0.0210 tiene una *normalized entropy* (NE) de 0.0210 ÷ 0.02329 ≈ 0.90: ≈ 10 % mejor que adivinar el promedio.
+- Decir 0.35 % para todo da una log loss promedio de 0.0035 × 5.655 + 0.9965 × 0.00351 ≈ 0.02329: el 0.35 % de los anuncios tuvo clic y el resto no. Un modelo con 0.0210 tiene \(NE\) = 0.0210 ÷ 0.02329 ≈ 0.90: ≈ 10 % mejor que adivinar el promedio.
 
-Aquí las probabilidades honestas son dinero: el precio que paga el anunciante depende del pCTR, así que un pCTR inflado cobra de menos. El modelo se reentrena cada día partiendo del de ayer, con sus pesos **y el estado de su optimizador**, igual que al reanudar desde un checkpoint. Reentrenar seguido paga: en el estudio de Facebook que cita la Ronda (He y otros, 2014), pasar de entrenar cada semana a cada día mejoró la NE ≈ 1 %, en sus datos.
+Aquí las probabilidades honestas son dinero: el precio que paga el anunciante depende del pCTR, así que un pCTR inflado cobra de menos. El modelo se reentrena cada día partiendo del de ayer, con sus pesos **y el estado de su optimizador**, igual que al reanudar desde un checkpoint. Reentrenar seguido paga: en un estudio de Facebook (He y otros, 2014), pasar de entrenar cada semana a cada día mejoró la NE ≈ 1 %, en sus datos.
 
-### C10: la escala de preentrenar un LLM
+### Un LLM propio: la escala de preentrenarlo
 
-C10 sirve un [[llm|LLM]] abierto de ≈ 70,600 millones de parámetros en GPUs H100 (la Ronda hace las cuentas con la arquitectura de Llama 3.3 70B, de Meta). No lo entrena: el modelo ya viene entrenado por otros, y verlo en números explica por qué.
+Piensa en un servicio que sirve su propio [[llm|LLM]]: uno abierto de ≈ 70,600 millones de parámetros, en GPUs H100 (las cuentas usan la arquitectura de Llama 3.3 70B, de Meta). No lo entrena: el modelo ya viene entrenado por otros, y verlo en números explica por qué.
 
 - Según Meta, se preentrenó con ≈ 15 billones (15 × 10¹²) de [[token|tokens]], los pedazos de texto que lee un LLM, y el de 70B usó ≈ 7 millones de horas de GPU H100.
-- Una regla común para LLMs: entrenar cuesta ≈ 6 operaciones por parámetro por token, contando cada multiplicación y cada suma por separado (2 del forward y 4 de la backpropagation). Para este modelo: 6 × 70.6 × 10⁹ × 15 × 10¹² ≈ **6.4 × 10²⁴** operaciones.
-- Con 1,000 H100 trabajando a la vez, 7 millones de horas serían 7,000 horas: casi 10 meses.
-- Solo ajustarlo completo con Adam pediría 70.6 × 10⁹ × 16 B ≈ **1.13 TB** de lo fijo: al menos 15 H100 de 80 GB antes de contar activaciones. Servirlo en FP8 (1 byte por parámetro) ocupa ≈ 70.6 GB.
+- Una regla común para LLMs: entrenar cuesta ≈ 6 operaciones por parámetro por token, contando cada multiplicación y cada suma por separado (2 del forward y 4 de la backpropagation): \( C ≈ 6 × P × D \), con \(P\) los parámetros y \(D\) los tokens. Para este modelo: 6 × 70.6 × 10⁹ × 15 × 10¹² ≈ **6.4 × 10²⁴** operaciones.
+- Con 1,000 H100 trabajando a la vez, 7 millones de horas serían 7,000,000 ÷ 1,000 = 7,000 horas: casi 10 meses (7,000 ÷ 730 horas por mes ≈ 9.6).
+- Solo ajustarlo completo con Adam pediría \(M_{fijo} = P × b\) = 70.6 × 10⁹ × 16 B ≈ **1.13 TB** de lo fijo: al menos 15 H100 de 80 GB (1,130 ÷ 80 ≈ 14.1, redondeado hacia arriba) antes de contar activaciones. Servirlo en FP8 (1 byte por parámetro) ocupa ≈ 70.6 GB.
 
 ### Fuera de ML: la regadera
 
@@ -734,36 +878,45 @@ Intenta cada uno con lápiz antes de abrir la solución.
 
 :::ejercicios
 ? [facil] El modelo le da 25 % a la categoría correcta. ¿Cuál es su pérdida? Si después de entrenar le da 50 %, ¿cuánto bajó?
+- La ecuación: \( L = −ln(p) \).
 - Antes: −ln(0.25) ≈ 1.386.
 - Después: −ln(0.50) ≈ 0.693.
 - Bajó exactamente a la mitad: 1.386 ÷ 2 = 0.693. Pasa porque 0.25 = 0.5 × 0.5, y el logaritmo convierte esa multiplicación en una suma: ln(0.25) = 2 × ln(0.5).
 ? [facil] Un modelo predice 10, 12 y 8 minutos de entrega, y los pedidos tardaron 11, 15 y 8. ¿Cuál es el MSE?
-- Errores: 10 − 11 = −1, 12 − 15 = −3 y 8 − 8 = 0.
+- La ecuación: \( MSE = (1/n) × sum (y_i − r_i)^2 \), con \(n\) = 3 pedidos.
+- Errores \(y_i − r_i\): 10 − 11 = −1, 12 − 15 = −3 y 8 − 8 = 0.
 - Al cuadrado: 1, 9 y 0. Suma: 10.
-- MSE: 10 ÷ 3 ≈ **3.33** minutos al cuadrado. Su raíz, √3.33 ≈ 1.83 minutos, es el RMSE.
+- MSE: 10 ÷ 3 ≈ **3.33** minutos al cuadrado. Su raíz es el RMSE: \(RMSE = sqrt{MSE}\) = √3.33 ≈ 1.83 minutos.
 ? [facil] Una perilla vale 1.5, su gradiente es 4 y el learning rate es 0.1. ¿Cuánto vale después de un paso de descenso de gradiente? ¿Hacia dónde se movió y por qué?
+- La ecuación: \( w_{nueva} = w − lr × g \).
 - Perilla nueva = 1.5 − 0.1 × 4 = 1.5 − 0.4 = **1.1**.
 - Bajó. El gradiente positivo dice que subir la perilla sube la pérdida, así que hay que moverla en contra: hacia abajo.
 ? [facil] Tienes 120,000 fotos de train y batches de 256. ¿Cuántos pasos hay por época? ¿Y en 5 épocas?
+- Las ecuaciones: \( T_{época} = ⌈N ÷ B⌉ \) y \( T = T_{época} × E \), con \(N\) = 120,000, \(B\) = 256 y \(E\) = 5.
 - 120,000 ÷ 256 = 468.75: 468 batches completos (119,808 fotos) y uno más con las 192 que sobran.
 - **469 pasos por época**, redondeando hacia arriba. En 5 épocas, 469 × 5 = **2,345** (o 468 × 5 = 2,340 si se tira el batch incompleto).
 ? [medio] Usa la regla de la cadena: u = 5 × x − 2 y y = 4 × u. ¿Cuánto cambia y por cada pedacito que cambie x? Compruébalo moviendo x de 1 a 1.01.
+- La ecuación, la regla de la cadena: \( frac{dy}{dx} = frac{dy}{du} × frac{du}{dx} \).
 - Cada eslabón: u cambia 5 por cada unidad de x; y cambia 4 por cada unidad de u.
 - La cadena: 4 × 5 = **20**.
 - Con x = 1: u = 3 y y = 12. Con x = 1.01: u = 3.05 y y = 12.2. Cambió 0.2 por un cambio de 0.01: 0.2 ÷ 0.01 = 20.
 ? [medio] En la parábola de la lección (pérdida 4 × (w − 3)², perilla que empieza en 0), ¿dónde queda la perilla después de 2 pasos con lr = 0.1? ¿Con qué learning rate rebotaría para siempre?
-- El factor por paso es 1 − 8 × 0.1 = 0.2.
-- La distancia al fondo empieza en −3 y en dos pasos queda en −3 × 0.2 × 0.2 = −0.12. La perilla queda en 3 − 0.12 = **2.88**.
+- La ecuación, el atajo: \( d_t = d_0 × f^t \), con \( f = 1 − 8 × lr \) y \( d_0 = −3 \).
+- El factor por paso es \(f\) = 1 − 8 × 0.1 = 0.2.
+- La distancia al fondo empieza en −3 y en dos pasos queda en \(d_2\) = −3 × 0.2² = −0.12. La perilla queda en \(w = 3 + d_2\) = 3 − 0.12 = **2.88**.
 - Rebota para siempre cuando el factor es exactamente −1: 1 − 8 × lr = −1, o sea lr = **0.25**. La perilla brinca entre 0 y 6, y la pérdida se queda en 36.
 ? [medio] Dos perillas tienen gradientes 50 y −0.5 en el primer paso. ¿Cuánto se mueve cada una con SGD y con Adam, los dos con lr = 0.001?
+- Las ecuaciones: SGD mueve \( lr × g \); Adam, \( lr × m̂ ÷ sqrt{v̂} \).
 - SGD: 0.001 × 50 = 0.05 y 0.001 × (−0.5) = −0.0005. La primera baja 0.05; la segunda sube 0.0005: cien veces menos.
 - Adam, primer paso: después de corregir el arranque, m̂ es el gradiente y √v̂ su tamaño, así que el paso es lr × gradiente ÷ tamaño del gradiente = 0.001 con el signo del gradiente.
 - La primera baja **0.001** y la segunda sube **0.001**: el mismo tamaño de paso.
 ? [medio] Quieres ajustar completo, con Adam en precisión mixta, un modelo de 1,000 millones de parámetros en una L4 de 24 GB. ¿Cuánta memoria fija pide? ¿Cuánto ocuparía solo para servirlo en FP16?
+- Las ecuaciones: \( M_{fijo} = P × b \), con \(b\) = 16 bytes, y \( M_{servir} = P × 2 \) bytes.
 - Lo fijo: 1,000,000,000 × 16 B = **16 GB**.
 - En la L4 quedarían ≈ 8 GB para las activaciones y el runtime (≈ 0.3 a 1 GB). Cabe, pero con un batch chico: con un modelo así, las activaciones de un batch grande pasan fácil de 8 GB.
 - Servir en FP16: 1,000,000,000 × 2 B = **2 GB** de pesos. Ocho veces menos.
 ? [reto] En la red y = w2 × ReLU(w1 × x), con x = 2, respuesta correcta 1, w1 = 1 y w2 = 1.5, calcula todos los gradientes con backpropagation, da un paso con lr = 0.01 y di si la pérdida bajó.
+- Las ecuaciones: las de la red de dos perillas, \( ∂L/∂y = 2 × (y − r) \), \( ∂L/∂w_2 = ∂L/∂y × h \) y \( ∂L/∂w_1 = ∂L/∂y × w_2 × s × x \); y el paso, \( w_{nueva} = w − lr × g \).
 - Forward: z = 1 × 2 = 2; h = ReLU(2) = 2; y = 1.5 × 2 = 3; L = (3 − 1)² = **4**.
 - ∂L/∂y = 2 × (3 − 1) = 4.
 - ∂L/∂w2 = 4 × h = 4 × 2 = **8**.
@@ -772,20 +925,17 @@ Intenta cada uno con lápiz antes de abrir la solución.
 - Paso: w1 = 1 − 0.01 × 12 = 0.88 y w2 = 1.5 − 0.01 × 8 = 1.42.
 - Nuevo forward: z = 1.76, h = 1.76, y = 1.42 × 1.76 ≈ 2.499, L = (2.499 − 1)² ≈ **2.25**. Bajó de 4 a 2.25: los gradientes eran positivos porque el modelo predecía de más, y las dos perillas bajaron.
 ? [reto] Otra parábola, mucho más empinada: pérdida 25 × (w − 1)². ¿A partir de qué learning rate diverge el descenso de gradiente? ¿Qué te dice eso de un modelo con millones de perillas?
-- El gradiente es 2 × 25 × (w − 1) = 50 × (w − 1). Cada paso: distancia nueva = (1 − 50 × lr) × distancia.
+- La ecuación: como en el atajo de la lección, \( d_{nueva} = f × d \), ahora con \(d = w − 1\).
+- El gradiente es 2 × 25 × (w − 1) = 50 × (w − 1). Cada paso: \(d_{nueva}\) = (1 − 50 × lr) × \(d\), así que \(f = 1 − 50 × lr\).
 - Diverge si el factor sale de [−1, 1]: 1 − 50 × lr < −1, o sea **lr > 0.04**. En la parábola de la lección (gradiente 8 × (w − 3)) el límite era 0.25.
 - Un modelo real tiene direcciones planas y direcciones muy empinadas a la vez, y un solo learning rate tiene que servir para todas. Lo fija la más empinada, y las planas avanzan lento. Adam lo corrige en parte, al dar a cada perilla un paso a la medida de su gradiente.
 :::
 
 ## Lo que sigue {What comes next}
 
-- **M04 · Hardware para inferencia** hace las cuentas de memoria de la GPU para servir: pesos (2 bytes por parámetro en FP16), activaciones, runtime y margen, para ver qué cabe en una T4, una L4 o una H100. Los ≈ 16 bytes por parámetro de entrenar con Adam (el artículo de ZeRO) los menciona en una nota.
-- **M10 · MLOps** registra cada entrenamiento con sus hiperparámetros (lr, épocas, semilla) y su validación por época, guarda el checkpoint de 294 MB cada 15 minutos para poder usar máquinas spot (más baratas, pero el proveedor te las puede quitar), y explica por qué en GPU «misma semilla» no alcanza.
-- **El caso C01** describe el reentrenamiento mensual: un fine-tune desde el modelo en producción, unas horas en una GPU, con precisión mixta, semillas y configuración fijadas, que solo pasa a producción si no empeora en el golden set.
-- **Los casos C14 y C15** eligen su pérdida por el negocio: cuantiles para el colchón de inventario y log loss calibrada para cobrar bien un clic.
-- **M03 · Latencia y capacidad** y **M07 · Servidores de modelos** usan «batch» en el otro sentido: el dynamic batching de Triton, que junta peticiones en inferencia.
-- **En el Dojo**, la estación 3, «Entrenamiento», es la de esta lección; todavía está en preparación.
-- **En Sensei**, «¿Aprendió de verdad?» mide si lo que aprendió sirve con fotos nuevas (overfitting, curvas, métricas); «Redes neuronales y CNNs» abre las capas por las que pasa la backpropagation; «Cómo guarda números una computadora» explica FP16, BF16 y la precisión mixta; y «CPU y GPU» abre la máquina.
+- **«¿Aprendió de verdad?»** mide si lo que aprendió sirve con fotos nuevas: overfitting, curvas y métricas.
+- **«Redes neuronales y CNNs»** abre las capas por las que pasa la backpropagation; **«Cómo guarda números una computadora»** explica FP16, BF16 y la precisión mixta; y **«CPU y GPU»** abre la máquina.
+- **«Entrenamiento y experimentos»** lleva esta lección al reentrenamiento mensual de Alba: registrar cada corrida con sus hiperparámetros (lr, épocas, semilla) y su validación por época, y guardar el checkpoint de ≈ 294 MB cada 15 minutos para poder usar máquinas *spot* (más baratas, pero el proveedor te las puede quitar).
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -809,9 +959,9 @@ Un learning rate demasiado grande: cada paso se pasa del fondo del valle al otro
 ? ¿Qué hace la backpropagation, en una frase?
 Aplica la regla de la cadena de la pérdida hacia atrás: multiplica la sensibilidad de cada capa para obtener, en una sola pasada, el gradiente de todas las perillas.
 ? ¿Por qué Adam ocupa más memoria que SGD?
-Porque guarda dos números por perilla, el promedio de sus gradientes (m) y el de sus gradientes al cuadrado (v). En C01 son 49 millones de números, ≈ 196 MB en float32. SGD solo no guarda nada extra; con momentum, uno por perilla.
+Porque guarda dos números por perilla, el promedio de sus gradientes (m) y el de sus gradientes al cuadrado (v). En Alba son 24.5 millones × 2 = 49 millones de números, ≈ 196 MB en float32. SGD solo no guarda nada extra; con momentum, uno por perilla.
 ? Entrenas dos veces con la misma configuración y sale 85.3 % y 85.1 %. ¿El segundo modelo es peor?
-No se puede decir. El entrenamiento tiene azar (perillas iniciales, orden de las fotos, augmentation, sumas en paralelo en la GPU) y, con números como los de la Ronda, la diferencia entre semillas ya es de unos 0.2 puntos. Para comparar recetas hay que medir cuánto varía el resultado entre semillas.
-? ¿Por qué un checkpoint de C01 pesa ≈ 294 MB si el modelo solo pesa 98 MB?
+No se puede decir. El entrenamiento tiene azar (perillas iniciales, orden de las fotos, augmentation, sumas en paralelo en la GPU) y, en el ejemplo de la lección con 5 semillas (de 85.12 % a 85.34 %), la diferencia entre semillas ya es de unos 0.2 puntos. Para comparar recetas hay que medir cuánto varía el resultado entre semillas.
+? ¿Por qué un checkpoint del modelo de Alba pesa ≈ 294 MB si el modelo solo pesa 98 MB?
 Porque además de las perillas guarda el estado de Adam: dos promedios por perilla, 2 × 98 MB = 196 MB. Sin ellos, reanudar no sería seguir el mismo entrenamiento.
 :::

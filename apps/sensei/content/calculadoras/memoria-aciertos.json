@@ -1,20 +1,20 @@
 {
   "titulo": "Aciertos y fallos: el tiempo promedio de una lectura",
-  "intro": "De cada 100 lecturas, unas encuentran el dato en la memoria rápida (un **acierto**) y otras tienen que ir a la lenta (un **fallo**). Arranca con el ejemplo del texto: 95 % de aciertos en la [[cache-cpu|caché]] a 1 ns y fallos que van a la [[ram|RAM]], a 100 ns.",
+  "intro": "De cada 100 lecturas, unas encuentran el dato en la memoria rápida (un **acierto**) y otras tienen que ir a la lenta (un **fallo**). Arranca con el ejemplo del texto: 95 % de aciertos en la [[cache-cpu|caché]] a 1 ns y fallos que van a la [[ram|RAM]], a 100 ns. La calculadora aplica \\(t_{prom} = a × t_{acierto} + (1 − a) × t_{fallo}\\) y \\(f = (1 − a) × t_{fallo} / t_{prom}\\).",
   "entradas": [
-    { "id": "p", "label": "Aciertos: lecturas que encuentran el dato en la memoria rápida", "min": 0, "max": 100, "paso": 0.25, "valor": 95, "unidad": "%" },
-    { "id": "r", "label": "Tiempo de un acierto, en ns (1 = L1 · 100 = RAM)", "min": 0.1, "max": 1000000, "paso": 0.1, "valor": 1, "tipo": "numero" },
-    { "id": "l", "label": "Tiempo de un fallo, en ns (100 = RAM · 100000 = SSD, 0.1 ms · 10000000 = disco duro, 10 ms)", "min": 1, "max": 100000000, "paso": 1, "valor": 100, "tipo": "numero" }
+    { "id": "p", "label": "Aciertos \\(a\\): de cada 100 lecturas, cuántas encuentran el dato en la memoria rápida", "min": 0, "max": 100, "paso": 0.25, "valor": 95, "unidad": "%" },
+    { "id": "r", "label": "Tiempo de un acierto \\(t_{acierto}\\), en ns (1 = L1 · 100 = RAM)", "min": 0.1, "max": 1000000, "paso": 0.1, "valor": 1, "tipo": "numero" },
+    { "id": "l", "label": "Tiempo de un fallo \\(t_{fallo}\\), en ns (100 = RAM · 100000 = SSD, 0.1 ms · 10000000 = disco duro, 10 ms)", "min": 1, "max": 100000000, "paso": 1, "valor": 100, "tipo": "numero" }
   ],
   "calculos": [
     { "id": "a", "formula": "p / 100" },
     { "id": "prom", "formula": "a * r + (1 - a) * l" }
   ],
   "salidas": [
-    { "label": "Tiempo promedio por lectura, en ns", "formula": "prom", "formato": "num", "decimales": 2 },
-    { "label": "Veces más lento que si todo acertara", "formula": "prom / r", "formato": "x", "decimales": 1 },
-    { "label": "Parte del tiempo que se va en los fallos", "formula": "(1 - a) * l / prom", "formato": "pct", "barra": true, "nota": "aunque sean pocos, mandan" },
-    { "label": "Un millón de lecturas tardan", "formula": "prom", "formato": "ms", "nota": "un millón de ns es 1 ms" }
+    { "label": "Tiempo promedio por lectura \\(t_{prom}\\), en ns", "formula": "prom", "formato": "num", "decimales": 2, "nota": "\\(a × t_{acierto} + (1 − a) × t_{fallo}\\), con \\(a\\) = aciertos ÷ 100" },
+    { "label": "Veces más lento que si todo acertara", "formula": "prom / r", "formato": "x", "decimales": 1, "nota": "\\(t_{prom} ÷ t_{acierto}\\)" },
+    { "label": "Parte del tiempo que se va en los fallos, \\(f\\)", "formula": "(1 - a) * l / prom", "formato": "pct", "barra": true, "nota": "\\((1 − a) × t_{fallo} ÷ t_{prom}\\): aunque sean pocos, mandan" },
+    { "label": "Un millón de lecturas tardan", "formula": "prom", "formato": "ms", "nota": "\\(10^6 × t_{prom}\\): un millón de ns es 1 ms" }
   ],
   "nota": "Pon 99 %: el promedio baja a ≈ 2 ns. Vas a volver aquí dos veces más: en «Localidad», con 93.75 % y con 0 % (recorrer una matriz por filas y por columnas), y en «Cuando la RAM se acaba», con 99 %, 100 de acierto (la RAM) y 100000 de fallo (un SSD)."
 }

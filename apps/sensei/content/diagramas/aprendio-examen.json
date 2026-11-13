@@ -74,7 +74,7 @@
       "y": 35,
       "w": 17.5,
       "h": 8,
-      "note": "La métrica principal de C01 es la [[top-k-accuracy|top-5]], porque la app muestra 5 sugerencias. El modelo actual saca ≈ 85 % de top-1 y ≈ 96 % de top-5. El nuevo no puede quedar más de 0.3 puntos abajo."
+      "note": "La métrica principal de Alba es la [[top-k-accuracy|top-5]], porque la app muestra 5 sugerencias. El modelo actual saca ≈ 85 % de top-1 y ≈ 96 % de top-5. El nuevo no puede quedar más de 0.3 puntos abajo."
     },
     {
       "id": "clases",
@@ -107,7 +107,7 @@
       "y": 35,
       "w": 17.5,
       "h": 8,
-      "note": "Que «90 %» quiera decir 90 %. En C01 el número ordena las sugerencias y podría decidir una preselección, así que tiene que significar algo. Se mide con el [[ece|ECE]], después de [[temperature-scaling]]."
+      "note": "Que «90 %» quiera decir 90 %. En Alba el número ordena las sugerencias y podría decidir una preselección, así que tiene que significar algo. Se mide con el [[ece|ECE]], después de [[temperature-scaling]]."
     },
     {
       "id": "actual",
@@ -246,7 +246,7 @@
           "edges": [
             "predecir>topk"
           ],
-          "text": "**¿Cuánto acierta?** Top-1 y top-5. En C01 manda la top-5, porque la app muestra 5 sugerencias."
+          "text": "**¿Cuánto acierta?** Top-1 y top-5. En Alba manda la top-5, porque la app muestra 5 sugerencias."
         },
         {
           "nodes": [

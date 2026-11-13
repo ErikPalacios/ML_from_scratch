@@ -19,7 +19,7 @@ const BC = join(ROOT, '..', 'ml-system-design', 'tools', 'browser-check.mjs');
 if (!existsSync(join(DIST, 'index.html'))) { console.error('[check] falta dist/: corre antes node tools/build.mjs'); process.exit(1); }
 // las páginas: la portada, el glosario y cada lección que existe
 const LECCIONES = readdirSync(join(ROOT, 'content', 'lecciones')).filter((f) => f.endsWith('.md')).map((f) => `/${f.slice(0, -3)}/`);
-const PAGES = ['/', '/glosario/', '/ronda/', ...LECCIONES];
+const PAGES = ['/', '/glosario/', '/que-sigue/', ...LECCIONES];
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 
 let offline = false;
