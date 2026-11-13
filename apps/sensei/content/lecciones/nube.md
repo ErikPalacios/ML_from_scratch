@@ -446,10 +446,10 @@ EKS (el cluster de Kubernetes) | 0.10 × 730 | ≈ US$73
 ALB (el balanceador) // cobra por los bytes que pasan: las fotos van en el [[body]] | — | ≈ US$500
 Logs, métricas y S3 | — | ≈ US$100
 Suma | 768 + 248 + 73 + 500 + 100 | ≈ US$1,689
-Más discos, NAT y transferencia // ≈ US$60; poco, porque cada llamada se queda en su zona (ruteo por zona) | 1,689 + ≈ 60 | **≈ US$1.75k al mes**
-Parte de las GPUs | 768 ÷ 1,750 | ≈ 44 %
-Por cada 1,000 predicciones // ≈ 10 M predicciones al día × 30.4 días ≈ 304 M al mes | 1,750 ÷ 304,000,000 × 1,000 | **≈ US$0.006**
-= Las GPUs son menos de la mitad. El balanceador, él solo, es casi un tercio.
+Más NAT, IPv4, cruce de zona y endpoints // ≈ US$140; poco, porque cada llamada se queda en su zona (ruteo por zona). La cuenta, renglón por renglón, está en la lección de redes en la nube | 1,689 + ≈ 140 | **≈ US$1.8k al mes**
+Parte de las GPUs | 768 ÷ 1,829 | ≈ 42 %
+Por cada 1,000 predicciones // ≈ 10 M predicciones al día × 30.4 días ≈ 304 M al mes | 1,829 ÷ 304,000,000 × 1,000 | **≈ US$0.006**
+= Las GPUs son menos de la mitad. El balanceador, él solo, es más de la cuarta parte (≈ 27 %). La Ronda redondea el total a ≈ US$1.75k.
 :::
 
 Todo lo que no es GPU son costos que nadie pidió como «una máquina», y por eso se escapan. Son de las otras lecciones del módulo: el balanceador cobra por bytes procesados; el [[nat|NAT]], la puerta por la que las máquinas sin dirección pública salen a internet, cobra por cada GB que pasa; los datos que cruzan de una zona a otra se cobran por GB, y los que salen a internet también (el [[egress]]). La lección de redes en la nube les pone número. Los logs, en el servicio de logs del proveedor, pueden costar mucho más que guardar el mismo GB en S3.
@@ -470,7 +470,7 @@ En las empresas medianas y grandes, eso lo hace un **[[equipo-plataforma|equipo 
 
 La Ronda dice que la primera de las preguntas para elegir entre algo gestionado y algo propio casi siempre gana: **¿quién lo va a operar?** C01 usa EKS porque la empresa ya tiene un equipo que opera EKS: agregar dos máquinas con GPU a un cluster que ya existe cuesta poco. La misma Ronda dice: sin plataforma y con un equipo chico, SageMaker AI sería la respuesta pragmática, aunque cueste más por hora.
 
-El sueldo de un ingeniero con experiencia es mayor que los ≈ US$1.75k al mes de toda la infraestructura de C01: en México, un ingeniero de software senior gana del orden de MX$95,000 al mes (≈ US$5k; mediana de Levels.fyi, noviembre de 2026), y en Estados Unidos, varias veces eso. Por eso **comparar solo la factura es comparar la mitad**. La cuenta completa de gestionado contra propio está en la lección de [[gestionado-vs-propio|servicios gestionados]].
+El sueldo de un ingeniero con experiencia es mayor que los ≈ US$1.8k al mes de toda la infraestructura de C01: en México, un ingeniero de software senior gana del orden de MX$95,000 al mes (≈ US$5k; mediana de Levels.fyi, noviembre de 2026), y en Estados Unidos, varias veces eso. Por eso **comparar solo la factura es comparar la mitad**. La cuenta completa de gestionado contra propio está en la lección de [[gestionado-vs-propio|servicios gestionados]].
 
 ## Lock-in, neoclouds y cuándo no conviene la nube {Lock-in, neoclouds and when the cloud is not the answer} [extra]
 
@@ -483,44 +483,7 @@ Mientras más usas los servicios propios de un proveedor, más cuesta irte. Esa 
 - **Los datos y su salida.** Meter datos a la nube no se cobra; sacarlos sí. Esto se llama [[egress]]. Desde 2024, AWS, Google Cloud y Azure perdonan ese cobro si te vas por completo y lo pides, pero no cuando copias datos afuera y te quedas.
 - **Los descuentos.** Un compromiso de gasto de tres años te ata por contrato.
 
-:::cuenta Mover un dataset de 50 TB a otro proveedor
-Los primeros 10 TB del mes // ≈ US$0.09 por GB en us-east-1; sin restar los 100 GB gratis | 10,000 GB × 0.09 | US$900
-Los siguientes 40 TB // ≈ US$0.085 por GB | 40,000 GB × 0.085 | US$3,400
-Total, por copia | 900 + 3,400 | **≈ US$4.3k**
-= Cada vez que copias el dataset afuera. Si entrenas en otro lado cada mes, cada mes.
-:::
-
-:::profundo El egress se cobra por tramos
-El precio por GB que sale a internet baja mientras más sacas en el mes: los primeros 100 GB son gratis, los siguientes 10 TB a ≈ US$0.09, los siguientes 40 TB a ≈ US$0.085, y así. Este programa calcula la cuenta completa con los cuatro tramos de us-east-1, tomados de la lista de precios de AWS (noviembre de 2026): ≈ US$0.09, 0.085, 0.07 y 0.05 por GB. Los dos últimos no están en la Ronda.
-
-```python
-# tramos de egress a internet en us-east-1 (lista de precios de AWS, noviembre de 2026): tamaño del tramo en GB, US$ por GB
-# AWS cuenta cada TB de estos tramos como 1,024 GB
-TRAMOS = [(10_240, 0.09), (40_960, 0.085), (102_400, 0.07), (float("inf"), 0.05)]
-
-def egress(gb, gratis=100):
-    gb = max(gb - gratis, 0)          # los primeros 100 GB del mes no se cobran
-    total = 0.0
-    for tamano, precio in TRAMOS:
-        usa = min(gb, tamano)
-        total += usa * precio
-        gb -= usa
-    return total
-
-for tb in (1, 5, 50, 200):
-    costo = egress(tb * 1000)
-    print(f"{tb:>4} TB → US${costo:>8,.0f}   (US${costo / (tb * 1000):.3f} por GB en promedio)")
-```
-
-```salida
-   1 TB → US$      81   (US$0.081 por GB en promedio)
-   5 TB → US$     441   (US$0.088 por GB en promedio)
-  50 TB → US$   4,293   (US$0.086 por GB en promedio)
- 200 TB → US$  13,886   (US$0.069 por GB en promedio)
-```
-
-Para cuentas rápidas, ≈ US$0.09 por GB alcanza: el promedio no baja mucho hasta que sacas cientos de TB al mes. Los 50 TB dan ≈ US$4,293 y no US$4,300 porque aquí se restan los 100 GB gratis y el primer tramo es de 10,240 GB, no de 10,000.
-:::
+Sacar datos a internet cuesta ≈ US$0.09 por GB en us-east-1, un poco menos mientras más sacas en el mes. Mover un dataset de 50 TB a otro proveedor cuesta ≈ **US$4.3k por copia**. Y cada vez que copias el dataset afuera, se vuelve a cobrar: si entrenas en otro lado cada mes, cada mes. La tarifa completa, por escalones, está en la lección de redes en la nube ([[egress]]).
 
 El remedio es usar **piezas estándar** donde importa: contenedores, Kubernetes, MLflow para registrar modelos, [[parquet|Parquet]] para los datos, la API de S3 (que muchos otros almacenes imitan). Así, si un día te mudas, mueves las piezas y no las reescribes.
 
@@ -537,7 +500,7 @@ Lo que cuesta una hora de una GPU H100 SXM (la versión para servidores, que va 
 ¿Dónde está la letra chica?
 
 - **Menos servicios alrededor.** Tienes la máquina con GPU, pero no la cola, la base de datos, el registro de imágenes y los permisos integrados de una nube grande.
-- **Tus datos están en otro lado.** Si el dataset vive en S3, llevarlo a la neocloud cuesta egress cada vez (la cuenta de arriba).
+- **Tus datos están en otro lado.** Si el dataset vive en S3, llevarlo a la neocloud cuesta egress cada vez (≈ US$4.3k por cada 50 TB, como viste arriba).
 - **Capacidad y promesas distintas.** Algunas ofertas son más baratas porque te pueden quitar la máquina, o porque la disponibilidad y el soporte prometidos son menores.
 
 Por eso la Ronda dice: **no hay una nube barata, hay precios por GPU y por región**. Una neocloud puede ser la respuesta para un entrenamiento grande y aislado; casi nunca para servir un modelo que vive pegado al resto de tu sistema.
@@ -585,7 +548,7 @@ Una VM con GPU tarda minutos en servir, tu cuenta tiene una cuota y una zona se 
 
 ## En la vida real {In real life} [extra]
 
-**C01 · Clasificación de fotos.** AWS, `us-east-1`, en la misma región que el backend que lo llama. EKS, porque la empresa ya tiene un equipo de plataforma que opera Kubernetes. La factura de infraestructura es ≈ US$1.75k al mes, de los cuales las GPUs son ≈ 44 %. El costo que reporta no es «tanto al mes» sino ≈ US$0.006 por 1,000 predicciones, que el negocio puede comparar con lo que gana por publicación.
+**C01 · Clasificación de fotos.** AWS, `us-east-1`, en la misma región que el backend que lo llama. EKS, porque la empresa ya tiene un equipo de plataforma que opera Kubernetes. La factura de infraestructura es ≈ US$1.8k al mes, de los cuales las GPUs son ≈ 42 %. El costo que reporta no es «tanto al mes» sino ≈ US$0.006 por 1,000 predicciones, que el negocio puede comparar con lo que gana por publicación.
 
 **C05 · OCR de documentos.** Para leer el texto de ≈ 186,000 páginas al mes, la Ronda compara Textract, un servicio casi SaaS que cobra US$1.50 por 1,000 páginas (≈ US$279 al mes), contra correr un OCR propio en máquinas sin GPU (≈ US$248, sin contar a la persona que lo opera) o en 2 T4 (≈ US$768). Gana el gestionado: cuesta casi lo mismo que las máquinas de la opción propia más barata y nadie del equipo tiene que operarlo (con esa persona, el propio sube a ≈ US$548; lo ves en el último ejercicio). Además, el OCR es ≈ 3 % del costo del sistema.
 
@@ -627,7 +590,7 @@ Usa precios de lista de us-east-1 (noviembre de 2026) y meses de 730 horas.
 - CloudWatch → **Cloud Monitoring y Cloud Logging** / **Azure Monitor**.
 - SQS → **Pub/Sub** / **Service Bus** o **Queue Storage**.
 - El diagrama de C01 no cambia; cambian los nombres. Lo que sí hay que revisar es qué GPUs hay en la región elegida.
-? [medio] En la cuenta de comprar o rentar (servidor de ≈ US$24,400, 3 años, ≈ US$310 al mes de luz, espacio y mantenimiento), ¿cuántas horas al mes es el equilibrio si rentas la misma GPU en una neocloud a ≈ US$2.69 por hora, en vez de US$4.50? ¿Y si el servidor dura 5 años y rentas a US$4.50?
+? [medio] En la cuenta de comprar o rentar (servidor de ≈ US$24,400, 3 años, ≈ US$310 al mes de luz, espacio y mantenimiento), ¿cuántas horas al mes es el equilibrio si rentas la misma GPU en una neocloud a ≈ US$2.69 por hora (el *Secure Cloud* de RunPod), en vez de US$4.50? ¿Y si el servidor dura 5 años y rentas a US$4.50?
 - El propio sigue costando 24,400 ÷ 36 + 310 ≈ US$988 al mes.
 - Neocloud: 988 ÷ 2.69 ≈ **367 h al mes**, ≈ **50 %** del mes. Con una renta más barata, necesitas usar mucho más el servidor propio para que compense.
 - A 5 años: 24,400 ÷ 60 + 310 ≈ US$717 al mes; 717 ÷ 4.50 ≈ **159 h**, ≈ **22 %**. Si el servidor dura más, comprar gana antes. Pero en GPUs la vida útil es corta: en 5 años habrá GPUs mucho mejores por el mismo dinero.
@@ -642,15 +605,15 @@ Usa precios de lista de us-east-1 (noviembre de 2026) y meses de 730 horas.
 - Las dos T4 de C01 cuestan ≈ US$768 al mes: 3,468 ÷ 768 ≈ **4.5 meses** de GPUs de C01 en un fin de semana.
 - El remedio: alertas de presupuesto y apagado automático de lo que lleva la etiqueta de prueba.
 ? [medio] La Ronda propone bajar la factura de C01 mandando al modelo la llave de S3 de la foto (su nombre dentro del bucket) en vez de los bytes de la foto, para que el balanceador ya no cobre por ellos. Ahorra ≈ US$360 netos al mes (ya restado lo que cuesta leer cada foto de S3). ¿Cuánto queda la infraestructura? ¿Qué porcentaje son ahora las GPUs? ¿Cuánto cuesta cada 1,000 predicciones?
-- 1,750 − 360 = **≈ US$1,390** al mes.
-- GPUs: 768 ÷ 1,390 ≈ **55 %**. La GPU pesa más en la factura sin que haya cambiado: bajó lo demás.
-- Por 1,000 predicciones: 1,390 ÷ 304,000,000 × 1,000 ≈ **US$0.0046**.
-? [reto] Tu dataset de 50 TB vive en S3. Un entrenamiento usa 1,000 GPU-horas de H100. En AWS, la GPU-hora de H100 cuesta ≈ US$6.88; en una neocloud, ≈ US$4.39. ¿Conviene llevar el entrenamiento a la neocloud? ¿Y si el dataset fuera de 5 TB?
+- 1,829 − 360 = **≈ US$1,470** al mes.
+- GPUs: 768 ÷ 1,469 ≈ **52 %**. La GPU pesa más en la factura sin que haya cambiado: bajó lo demás.
+- Por 1,000 predicciones: 1,469 ÷ 304,000,000 × 1,000 ≈ **US$0.0048**.
+? [reto] Tu dataset de 50 TB vive en S3. Un entrenamiento usa 1,000 GPU-horas de H100. En AWS, la GPU-hora de H100 cuesta ≈ US$6.88; en una neocloud, ≈ US$4.39 (el *Secure Cloud* de RunPod). ¿Conviene llevar el entrenamiento a la neocloud? ¿Y si el dataset fuera de 5 TB?
 - En AWS: 1,000 × 6.88 = **US$6,880**. En la neocloud: 1,000 × 4.39 = **US$4,390**. Ahorro en GPUs: **US$2,490**.
-- Sacar 50 TB de AWS: 10,000 × 0.09 + 40,000 × 0.085 ≈ **US$4,300** por copia. Pierdes ≈ US$1,810: **no conviene** para un solo entrenamiento.
-- Con 5 TB: 5,000 × 0.09 = **US$450** de egress. Ahorras 2,490 − 450 ≈ **US$2,040**: sí conviene, si los datos pueden salir y la neocloud tiene las GPUs cuando las necesitas.
+- Sacar 50 TB de AWS: ≈ **US$4.3k** por copia, la cuenta de la lección. Pierdes ≈ US$1,810: **no conviene** para un solo entrenamiento.
+- Con 5 TB: 5,000 × 0.09 ≈ **US$450** de egress. Ahorras 2,490 − 450 ≈ **US$2,040**: sí conviene, si los datos pueden salir y la neocloud tiene las GPUs cuando las necesitas.
 - La lección general: el precio por GPU-hora no decide solo. Pesa dónde están los datos.
-? [reto] C05 lee ≈ 186,000 páginas al mes. Textract cobra US$1.50 por 1,000 páginas. Un OCR propio corre en 2 `c6i.xlarge` (≈ US$248 al mes) y pide ≈ 10 horas de una persona al mes para operarlo, a ≈ US$30 la hora (supuesto). ¿Cuál cuesta menos hoy? ¿A partir de cuántas páginas al mes ganaría el propio, si las dos máquinas alcanzan?
+? [reto] C05 lee ≈ 186,000 páginas al mes. Textract cobra US$1.50 por 1,000 páginas. Un OCR propio, supón que en CPU, corre en 2 `c6i.xlarge` (≈ US$248 al mes) y pide ≈ 10 horas de una persona al mes para operarlo, a ≈ US$30 la hora (supuesto). ¿Cuál cuesta menos hoy? ¿A partir de cuántas páginas al mes ganaría el propio, si las dos máquinas alcanzan?
 - Textract: 186,000 × 1.50 ÷ 1,000 = **US$279** al mes.
 - Propio: 248 + 10 × 30 = **US$548** al mes. Hoy gana Textract por casi el doble.
 - Textract cuesta US$0.0015 por página; el propio, US$548 fijos. Se igualan en 548 ÷ 0.0015 ≈ **365,000 páginas al mes**, ≈ 2 veces el volumen de hoy.

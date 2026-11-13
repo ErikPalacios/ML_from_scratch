@@ -249,7 +249,7 @@ Cuando el dominio que quieres sobrevivir es la zona, el «+1» no es una máquin
 
 Con dos zonas, cada una tiene que poder con el 100 % del pico: pagas el **doble** de lo que el tráfico pide. Con tres zonas, al caer una quedan dos, así que cada una necesita la mitad del pico: tres mitades son **1.5 veces** el pico. En general, con Z zonas, al caer una quedan Z − 1, cada zona carga 1 ÷ (Z − 1) del pico, y las Z juntas suman Z ÷ (Z − 1) veces el pico.
 
-El pico de diseño de C01 (500 fotos por segundo) no enseña la diferencia, porque una T4 por zona sobra. Míralo en el Hot Sale, la campaña de ventas en línea de cada año en México, cuando el tráfico se multiplica por 5.
+El pico de diseño de C01 (500 fotos por segundo) no enseña la diferencia, porque una T4 por zona sobra. Míralo en un Hot Sale hipotético (la campaña anual de ventas en línea de México), con el tráfico × 5. Pediría subir el tope del [[autoscaling|autoscaler]] de C01 de 4 a 6 T4 y su [[cuota-servicio|cuota]] de 28 a ≈ 36 [[vcpu|vCPU]], con la de sobra al desplegar, staging y CI.
 
 Falta una regla para la cuenta: ninguna GPU debe pasar del 70 % de su máximo, ni siquiera con una zona caída. Ese margen ([[headroom]]) existe porque cerca del 100 % las requests empiezan a hacer fila y la latencia se dispara.
 
@@ -260,11 +260,9 @@ T4 para aguantar el pico con una zona caída | 2,500 ÷ 840 = 2.98, hacia arriba
 Con dos zonas: 3 en cada una | 3 × 2 | **6 T4**
 Uso en el pico del Hot Sale, con las dos zonas arriba | 2,500 ÷ (6 × 1,200) | ≈ 35 %
 Uso si cae una zona // quedan 3 | 2,500 ÷ (3 × 1,200) | ≈ 69 %
-Costo de las 6 // ≈ US$384 al mes cada una | 6 × 384 | ≈ US$2,304 al mes
+Costo de las 6 // la `g4dn.xlarge`, con una T4: 0.526 × 730 ≈ US$384 al mes | 6 × 384 | ≈ US$2,304 al mes
 = La mitad de esas GPUs, ≈ US$1,152 al mes, existe solo para el día que cae una zona.
 :::
-
-Los US$384 salen del precio de una `g4dn.xlarge` (la máquina de AWS con una T4, que la lección de máquinas desarma) en `us-east-1`: ≈ US$0.526 por hora (noviembre de 2026) × 730 horas.
 
 ¿Y con tres zonas? Depende del tamaño. Con pocas réplicas, el redondeo manda: no existe media GPU, así que cada zona lleva al menos una. Con 500 fotos por segundo, tres zonas cuestan **más** (3 T4 contra 2). Con muchas, gana la regla: a 12,000 por segundo, tres zonas piden 24 T4 y dos zonas piden 30. Seis GPUs de diferencia son ≈ US$2,300 al mes.
 
@@ -511,20 +509,20 @@ El peor caso es el intervalo entero y el promedio, la mitad.
 
 ### Las cuatro estrategias
 
-La guía de AWS sobre recuperación ordena los planes en cuatro **[[estrategia-dr|estrategias de DR]]**, de la más barata y lenta a la más cara y rápida. La columna de costo es la cuenta de la Ronda para C01, cuya infraestructura cuesta ≈ US$1,750 al mes.
+La guía de AWS sobre recuperación ordena los planes en cuatro **[[estrategia-dr|estrategias de DR]]**, de la más barata y lenta a la más cara y rápida. La columna de costo es la cuenta de la Ronda para C01, cuya infraestructura cuesta ≈ US$1.8k al mes.
 
 | Estrategia | Qué hay en la segunda región | RTO típico | Costo para C01 |
 |---|---|---|---|
 | **Copia y restauración** (*backup and restore*) | Solo copias de los datos y los artefactos | Horas | Decenas de US$ al mes |
 | **Llama piloto** (*pilot light*) | Los datos replicados y lo mínimo creado, pero **apagado** | Decenas de minutos | ≈ US$200 al mes |
 | **Espera tibia** (*warm standby*) | Una versión chica del sistema, **encendida** | Minutos | ≈ US$600 al mes |
-| **Activo/activo** (*multi-site active/active*) | Todo, atendiendo tráfico | Casi cero | ≈ +US$1,750 al mes |
+| **Activo/activo** (*multi-site active/active*) | Todo, atendiendo tráfico | Casi cero | ≈ +US$1.8k al mes |
 
 El nombre *pilot light* viene del calentador de gas: la llama piloto es la flamita que se queda prendida para encender el quemador en cuanto hace falta. En la nube, lo que se queda «prendido» son los datos replicados y lo mínimo creado; las máquinas que atienden están apagadas, y encenderlas tarda minutos, no un instante como el quemador.
 
 La diferencia entre las dos del medio es la que más se pregunta: con *pilot light*, la segunda región **no puede atender** sin que antes prendas las máquinas. Con *warm standby* ya atiende, a capacidad reducida, y solo hay que agrandarla.
 
-Para C01, un *warm standby* cuesta ≈ US$600 al mes, un 34 % más de factura, todos los meses, para proteger una sugerencia que tiene un plan B gratis.
+Para C01, un *warm standby* cuesta ≈ US$600 al mes, un 33 % más de factura, todos los meses, para proteger una sugerencia que tiene un plan B gratis.
 
 :::profundo De dónde salen los US$600 del warm standby
 :::cuenta Un warm standby para C01
@@ -533,7 +531,7 @@ Un gateway // la mitad de los ≈ US$248 que C01 paga por sus dos gateways | 248
 El plano de control de Kubernetes // US$0.10 por hora | 0.10 × 730 | ≈ US$73
 Un balanceador casi sin tráfico | — | ≈ US$16
 Total al mes | 384 + 124 + 73 + 16 | **≈ US$600**
-Contra la infraestructura de C01 | 600 ÷ 1,750 | ≈ 34 %
+Contra la infraestructura de C01 | 600 ÷ 1,829 | ≈ 33 %
 = Un tercio más de factura, todos los meses, para proteger una sugerencia que tiene un plan B gratis.
 :::
 :::
@@ -563,7 +561,7 @@ En 15 minutos // la ventana que promete RTC | 714 ÷ 4 | **≈ 180 documentos**
 = En el peor caso, a ≈ 180 clientes habría que pedirles su identificación otra vez. El negocio decide si lo acepta o si escribe en las dos regiones antes de responder.
 :::
 
-Replicar cuesta, y la cuenta dice qué vale la pena. Los pesos de C01 son ≈ 98 MB por versión: replicarlos cuesta centavos. Sus fotos son 2 TB al día: ≈ 60 TB al mes × US$0.02 por GB ≈ **US$1,200 al mes** solo de transferencia, más guardarlas dos veces. C01 replica los pesos, no las fotos.
+Replicar cuesta, y la cuenta dice qué vale la pena. Los pesos de C01 son ≈ 98 MB por versión: replicarlos cuesta centavos. Sus fotos son 2 TB al día: ≈ 61 TB al mes × US$0.02 por GB ≈ **US$1,200 al mes** solo de transferencia, más guardarlas dos veces. C01 replica los pesos, no las fotos.
 
 :::ojo
 **Replicar no es respaldar.** La replicación copia todo, también los errores. Si un script sobrescribe los pesos con un archivo corrupto, la copia de la otra región queda corrupta segundos después. Contra eso hay que guardar el pasado: versiones del bucket o un [[snapshot]], con su [[retencion|retención]]. Una copia en otra región protege del lugar; las versiones protegen de ti.
@@ -677,7 +675,7 @@ Si hubieran empezado por el precio, habrían diseñado todo en Virginia y descub
 
 ## En la vida real {In real life} [extra]
 
-**C01 · Clasificación de fotos.** Una región (`us-east-1`), dos zonas, una T4 por zona, ruteo por zona desde el día 1 y un fallback manual. Sin segunda región: el *warm standby* costaría ≈ US$600 al mes, 34 % más, para proteger una sugerencia. Su DR es copiar los pesos y reconstruir desde archivos.
+**C01 · Clasificación de fotos.** Una región (`us-east-1`), dos zonas, una T4 por zona, ruteo por zona desde el día 1 y un fallback manual. Sin segunda región: el *warm standby* costaría ≈ US$600 al mes, 33 % más, para proteger una sugerencia. Su DR es copiar los pesos y reconstruir desde archivos.
 
 **C10 · Asistente con un LLM.** Usa tres zonas de `us-east-1`. Con GPUs grandes, que escasean, más zonas son también más lugares donde puede aparecer una libre. La Ronda advierte que tener cuota no garantiza conseguir esas GPUs el día que las pides.
 
@@ -782,7 +780,7 @@ Créditos en la factura si un servicio suyo baja de cierto porcentaje. No promet
 ? ¿Qué preguntan el RPO y el RTO?
 RPO: cuántos datos, en tiempo, aceptas perder. RTO: cuánto tiempo aceptas estar caído hasta volver a atender.
 ? ¿Por qué C01 no usa una segunda región?
-Porque su SLO de 99.9 % se cumple con dos zonas y tiene un fallback manual que no depende de la región. Un *warm standby* costaría ≈ 34 % más para proteger una sugerencia.
+Porque su SLO de 99.9 % se cumple con dos zonas y tiene un fallback manual que no depende de la región. Un *warm standby* costaría ≈ 33 % más para proteger una sugerencia.
 ? ¿En qué orden se elige una región?
 Residencia de datos, catálogo (GPUs y servicios), latencia a quien llama y, al final, precio.
 :::

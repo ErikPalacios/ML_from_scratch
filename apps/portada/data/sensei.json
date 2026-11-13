@@ -351,8 +351,8 @@
       "modulo": "7 · La nube",
       "fase": 8,
       "etapa": "orquestacion",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/nube/"
     },
     {
       "id": "regiones",
@@ -360,8 +360,8 @@
       "modulo": "7 · La nube",
       "fase": 8,
       "etapa": "orquestacion",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/regiones/"
     },
     {
       "id": "maquinas",
@@ -369,8 +369,8 @@
       "modulo": "7 · La nube",
       "fase": 8,
       "etapa": "modelo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/maquinas/"
     },
     {
       "id": "redes-nube",
@@ -378,8 +378,8 @@
       "modulo": "7 · La nube",
       "fase": 8,
       "etapa": "orquestacion",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/redes-nube/"
     },
     {
       "id": "gestionados",
@@ -387,8 +387,8 @@
       "modulo": "7 · La nube",
       "fase": 8,
       "etapa": "orquestacion",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/gestionados/"
     },
     {
       "id": "cifrado",

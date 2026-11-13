@@ -148,13 +148,15 @@ Además hay **3 reinicios manuales**:
 
    | Trabajo | Modelo | Por qué |
    |---|---|---|
-   | Escribir lecciones (lo que más gasta: 16 de 21 puntos en la fase 7 de Sensei) | El que salga mejor en la calibración (regla 2), esfuerzo medio | Es el gasto más grande; aquí se decide la semana |
-   | Revisión de fondo: hechos, claridad y conocimiento supuesto | Opus o Fable, esfuerzo alto | Es lo que da la calidad y no se recorta |
-   | Figuras a mano y diagramas | Opus o Fable | No se recortan |
+   | Escribir lecciones (lo que más gasta: 16 de 21 puntos en la fase 7 de Sensei; 3 de 9 en la fase 8, ya con esfuerzo medio) | **Opus, esfuerzo medio** (calibrado en la fase 8 de Sensei, regla 2) | Es el gasto más grande; aquí se decide la semana |
+   | Revisión de fondo: hechos, claridad y conocimiento supuesto | Opus, esfuerzo alto | Es lo que da la calidad y no se recorta. Fable cuesta ≈ 3.4 veces más del total por la misma tarea; no se ha probado aquí |
+   | Figuras a mano y diagramas | Opus | No se recortan (en Sensei las hace el escritor) |
    | Lo mecánico: recalcular números, comparar código con su salida, revisar capturas, consistencia | Sonnet o Haiku, esfuerzo bajo | Es donde sí se ahorra: cuesta mucho menos del total |
    | Código de la app y de las herramientas | Opus, esfuerzo medio | Se verifica corriéndolo |
 
 2. **Calibrar Fable en la primera fase con lecciones.** Una lección la escribe Fable y otra Opus, con el mismo esfuerzo. Se mide para cada una cuánto subió el límite total (leyendo el uso antes y después) y cuántas correcciones hizo la revisión de fondo. Gana el que da menos correcciones por punto gastado, y la tabla se ajusta.
+
+   **Resultado (fase 8 de Sensei, 2026-11-13):** gana Opus. Con esfuerzo medio y tokens parecidos (≈ 245k), el escritor en Fable subió la ventana de 5 horas 12 puntos y el límite semanal total ≈ 1. Cada escritor en Opus la subió ≈ 3.5 y ≈ 0.5: Fable cuesta **≈ 3.4 veces más del total** por lección. Su borrador tampoco salió mejor: 27 correcciones de hechos (3 graves) contra 18.75 de Opus en promedio (1 grave), y los mismos cambios de claridad (76 contra 76.5). Fable queda solo para pruebas puntuales donde una mejora de calidad clara pague ese costo; con lo medido, ningún trabajo del flujo de lecciones. La barra de Fable no frena (una lección la subió 4 %), así que sus 2 reinicios no hacen falta mientras esto siga así. El detalle está en [plan-sensei.md](plan-sensei.md), sección 4.
 
 3. **Ahorrar donde no se toca la calidad:**
    - Lo mecánico siempre en modelos chicos.

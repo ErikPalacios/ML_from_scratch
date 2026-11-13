@@ -381,7 +381,7 @@ AWS anuncia descuentos de spot «de hasta 90 %», Google «de hasta 91 %» y Azu
 | `g6e.xlarge` (L40S) | ≈ 1.861 | ≈ 1.84 | ≈ 1 % |
 | `p5.48xlarge` (8 × H100) | ≈ 55.04 | ≈ 21.5 | ≈ 61 % |
 
-Es una foto de un día, no un promedio: el precio spot lo fija el proveedor según cuánta capacidad le sobra, y cambia. Las GPUs que todos quieren (como la L40S ese día) casi no tienen descuento. Un rango honesto para GPUs de inferencia es ≈ 25–55 %, y hay que **restarle el trabajo repetido**.
+Es una foto de un día, no un promedio: el precio spot lo fija el proveedor según cuánta capacidad le sobra, y cambia. Las GPUs que todos quieren (como la L40S ese día) casi no tienen descuento; las demás de inferencia, de ≈ 25 a ≈ 54 %; la `p5` (8 H100), 61 %. Hay que **restarle el trabajo repetido**.
 
 Un ejemplo: un [[fine-tuning|fine-tune]] (seguir entrenando un modelo ya entrenado, con tus propios datos) de 40 horas, en una A10G.
 
@@ -448,7 +448,7 @@ Si pides una máquina y te pasas, el error llega al instante y no se arregla esp
 La cuota se pide **para el máximo**, no para el promedio, y **antes** del lanzamiento. En C01:
 
 :::cuenta La cuota de C01
-Máximo del autoscaler | 4 | 4 máquinas
+Máximo del autoscaler // para el pico de diseño | 4 | 4 máquinas
 Más una de sobra al desplegar una versión nueva // el *surge*: la versión nueva arranca antes de apagar la vieja | 4 + 1 | 5 máquinas
 Más staging y CI // una para cada uno | 5 + 1 + 1 | 7 máquinas
 Total | 7 × 4 vCPU | 28 vCPU de instancias G
@@ -488,7 +488,7 @@ Para eso hay dos productos:
 | Producto | ¿Baja el precio? | ¿Garantiza máquinas? | ¿Pagas si no la usas? |
 |---|---|---|---|
 | On-demand | No | No | No |
-| Spot | Sí, ≈ 25–55 % en GPUs | No, y te la quitan | No |
+| Spot | Sí, ≈ 25–55 % (inferencia), a veces nada | No, y te la quitan | No |
 | Savings Plan, RI regional, CUD flexible | Sí, ≈ 35–37 % a 1 año | **No** | Sí, el compromiso |
 | Reserva de capacidad | No (salvo que la combines con un Savings Plan) | **Sí** | Sí |
 | Bloque de capacidad | Precio propio | Sí, en sus fechas | Sí, por adelantado |
@@ -555,7 +555,7 @@ Esa cuenta completa (con luz, servidor, depreciación y cuántos usuarios atiend
 ### «Spot ahorra 90 %»
 
 **Qué pasa:** se planea el presupuesto con el descuento máximo anunciado.
-**Cómo evitarlo:** usa el descuento que observas en tu tipo y tu región (en GPUs, ≈ 25–55 %, y a veces casi nada) y réstale el trabajo repetido. Y nunca pongas en spot lo que un usuario ve fallar.
+**Cómo evitarlo:** usa el descuento que observas en tu tipo y tu región (en GPUs de inferencia, ≈ 25–55 %, a veces casi nada) y réstale el trabajo repetido. Y nunca pongas en spot lo que un usuario ve fallar.
 
 ### Comprometer el máximo del autoscaler
 
@@ -574,7 +574,7 @@ Esa cuenta completa (con luz, servidor, depreciación y cuántos usuarios atiend
 
 ## En la vida real {In real life} [extra]
 
-**C01, el marketplace.** Dos `g4dn.xlarge` on-demand, una por zona: ≈ US$768 al mes. No son por el tráfico (una sola aguanta el pico de 500 fotos por segundo) sino por la disponibilidad. Trabajan al ≈ 5 %, y la predicción sale en ≈ US$0.0025 por 1,000. La Ronda compara con 2 L4: ≈ US$1,175 al mes, 53 % más por hora. Hoy gana la T4; la L4 ganaría si el tráfico creciera de 3 a 5 veces y una prueba de carga confirmara que atiende ≈ 2.5 veces más (si atendiera solo 1.25 veces más, no le alcanzaría para pagar su precio, ≈ 1.53 veces el de la T4).
+**C01, el marketplace.** Dos `g4dn.xlarge` on-demand, una por zona: ≈ US$768 al mes. No son por el tráfico (una sola aguanta el pico de 500 fotos por segundo) sino por la disponibilidad. Trabajan al ≈ 5 %, y la predicción sale en ≈ US$0.0025 por 1,000 solo de GPUs (≈ US$0.006 con toda la infraestructura). La Ronda compara con 2 L4: ≈ US$1,175 al mes, 53 % más por hora. Hoy gana la T4; la L4 ganaría si el tráfico creciera de 3 a 5 veces y una prueba de carga confirmara que atiende ≈ 2.5 veces más (si atendiera solo 1.25 veces más, no le alcanzaría para pagar su precio, ≈ 1.53 veces el de la T4).
 
 En C01, spot queda solo para el backfill del catálogo (4 `g4dn.2xlarge` durante ≈ 14 h: ≈ 56 GPU-horas, ≈ US$42 on-demand a US$0.752 la hora) y el entrenamiento. La base (≈ US$1,016 al mes) va a un Savings Plan de 1 año. Si la zona anda escasa de T4, las 2 mínimas pueden ir además con reserva de capacidad. Cuota pedida: 28 vCPU.
 

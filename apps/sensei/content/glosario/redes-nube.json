@@ -199,7 +199,7 @@
    "en": "cross-AZ data transfer",
    "corto": "Lo que cobra la nube por cada GB que va de una zona a otra de la misma región: en AWS ≈ US$0.01 al salir y US$0.01 al entrar, US$0.02 por GB cruzado. Dentro de la misma zona es gratis.",
    "largo": "Existe porque las zonas son edificios distintos unidos por fibra del proveedor. La latencia extra es ≈ 1 ms, poca cosa; la razón para evitarlo es el costo, que crece con los bytes por request. El antídoto es el [[ruteo-por-zona|ruteo por zona]]. También cruza lo que no se dibuja: un NAT compartido entre zonas, las réplicas de una cola o una base de datos repartidas en zonas. En Cost Explorer aparece como `DataTransfer-Regional-Bytes`.",
-   "ejemplo": "C01 sin ruteo por zona: 304 M tensores × 602,112 B ≈ 183 TB al mes; la mitad cruza: 91.5 TB × 0.02 ≈ US$1,830 al mes, más del doble de sus dos GPUs.",
+   "ejemplo": "C01 sin ruteo por zona: 304 M tensores × 602,112 B ≈ 183 TB al mes; la mitad cruza: 91.5 TB × 0.02 ≈ US$1,830 al mes (≈ 90 TB y ≈ US$1,800 con meses de 30 días), más del doble de sus dos GPUs.",
    "ver": [
     "ruteo-por-zona",
     "zona-disponibilidad",
@@ -227,7 +227,7 @@
    "en": "Application Load Balancer",
    "corto": "El balanceador gestionado de AWS que entiende HTTP: recibe las conexiones HTTPS, las descifra y reparte las requests entre copias sanas en varias zonas. Cobra por hora (≈ US$0.0225) y por LCU.",
    "largo": "Es un [[balanceador]] de capa 7 que vive en las subredes de varias zonas a la vez. Su cobro sorprende: además de la hora, cobra ≈ US$0.008 por [[lcu|LCU]]-hora, y cuando las requests llevan fotos en el body manda la dimensión de bytes, así que paga ≈ US$0.008 por GB que pasa. Mandar la llave de S3 en vez de los bytes baja ese cobro. En Google Cloud el equivalente es su Application Load Balancer (antes «balanceador HTTP(S)»), y en Azure, Application Gateway.",
-   "ejemplo": "El ALB de C01: ≈ 83 GB/h de fotos ≈ 83 LCU → 83.3 × 0.008 × 730 + 0.0225 × 730 ≈ US$503 al mes, casi 30 % de la infraestructura.",
+   "ejemplo": "El ALB de C01: ≈ 83 GB/h de fotos ≈ 83 LCU → 83.3 × 0.008 × 730 + 0.0225 × 730 ≈ US$503 al mes, ≈ 27 % de la infraestructura (más de la cuarta parte).",
    "ver": [
     "balanceador",
     "lcu",

@@ -83,7 +83,7 @@
    "en": "multi-region",
    "corto": "Tener el sistema, o al menos sus datos, en dos o más regiones. Protege de la caída de una región, de un borrado y de una cuenta comprometida, pero es caro.",
    "largo": "Entre regiones hay decenas de milisegundos y casi nada se comparte. Cuesta cuatro cosas: cuota y capacidad en la segunda región, datos replicados (≈ US$0.02 por GB más guardarlos otra vez), artefactos que coincidan (el engine de TensorRT depende de la GPU) y operar dos lugares. La pregunta no es «¿multi-región sí o no?», sino cuánto puedes perder ([[rpo|RPO]]) y cuánto puedes tardar ([[rto|RTO]]). Y no salva de un deploy malo que llega a las dos regiones.",
-   "ejemplo": "C01 no lo necesita: su SLO de 99.9 % se cumple con dos zonas y tiene un fallback manual. Un warm standby costaría ≈ US$600 al mes, 34 % más.",
+   "ejemplo": "C01 no lo necesita: su SLO de 99.9 % se cumple con dos zonas y tiene un fallback manual. Un warm standby costaría ≈ US$600 al mes, 33 % más.",
    "ver": [
     "region",
     "recuperacion-desastres",
@@ -98,7 +98,7 @@
    "en": "N+1 redundancy",
    "corto": "Tener una réplica más de las N que pide el tráfico, para que perder una no se note. Contado por zona: si cae una zona, las que quedan aguantan el pico completo.",
    "largo": "El «+1» tiene que estar en otro [[dominio-falla|dominio de falla]] y tiene que estar encendido: una GPU nueva tarda de 5 a 13 minutos en servir, y el día que cae una zona puede no haber. Por zona, con Z zonas se paga Z ÷ (Z − 1) veces lo que pide el tráfico: el doble con dos zonas, 1.5 veces con tres. Con pocas réplicas el redondeo manda. Es la forma práctica de la [[redundancia]].",
-   "ejemplo": "C01 necesita 1 T4 para 500 fotos por segundo y tiene 2, una por zona: si cae una zona, la otra queda al ≈ 42 %. En el Hot Sale (2,500 por segundo) son 3 por zona, 6 en total, y con una zona caída quedan al ≈ 69 %.",
+   "ejemplo": "C01 necesita 1 T4 para 500 fotos por segundo y tiene 2, una por zona: si cae una zona, la otra queda al ≈ 42 %. En un Hot Sale hipotético (2,500 por segundo) serían 3 por zona, 6 en total, y con una zona caída quedarían al ≈ 69 %; habría que subir el máximo del autoscaler (hoy 4) y la cuota.",
    "ver": [
     "redundancia",
     "zona-disponibilidad",
@@ -190,7 +190,7 @@
    "en": "backup and restore · pilot light · warm standby · active/active",
    "corto": "Cuatro planes de recuperación, del más barato y lento al más caro y rápido: copia y restauración (solo copias), pilot light (datos listos, máquinas apagadas), warm standby (una versión chica encendida) y activo/activo (todo encendido en las dos regiones).",
    "largo": "**Copia y restauración**: solo hay copias en la otra región; volver toma horas. **Pilot light** (llama piloto): datos replicados y lo mínimo creado pero apagado; decenas de minutos, y no atiende sin encender. **Warm standby** (espera tibia): una versión chica encendida, que ya atiende a capacidad reducida; minutos. **Activo/activo**: todo en las dos regiones, atendiendo; casi cero, pero cuesta el doble y complica todo lo que guarda estado. Se elige la más barata que cumpla el [[rpo|RPO]] y el [[rto|RTO]].",
-   "ejemplo": "Para C01 (≈ US$1,750 al mes de infraestructura): copia y restauración, decenas de dólares; pilot light, ≈ US$200; warm standby, 384 + 124 + 73 + 16 ≈ US$600 (34 % más); activo/activo, ≈ US$1,750 más. C01 se queda con la primera.",
+   "ejemplo": "Para C01 (≈ US$1.8k al mes de infraestructura): copia y restauración, decenas de dólares; pilot light, ≈ US$200; warm standby, 384 + 124 + 73 + 16 ≈ US$600 (33 % más); activo/activo, ≈ US$1.8k más. C01 se queda con la primera.",
    "ver": [
     "recuperacion-desastres",
     "rto",
@@ -219,7 +219,7 @@
    "en": "cross-region replication · CRR",
    "corto": "Una regla que copia a otra región cada dato nuevo: objetos de un bucket, imágenes de contenedor o cambios de una base de datos. Casi siempre es asíncrona: la copia llega después del original.",
    "largo": "Ese atraso define el [[rpo|RPO]]: lo que iba en camino cuando cayó la región se pierde. Sin garantía, la mayoría de los objetos de S3 llega en menos de 15 minutos; la opción Replication Time Control está diseñada para replicar el 99.99 % en menos de 15 minutos, y su SLA promete el 99.9 %. Cuesta la transferencia (≈ US$0.02 por GB desde `us-east-1`) más guardar los datos dos veces. Y no es un respaldo: copia también los borrados y los archivos corruptos, así que se combina con versiones o [[snapshot|snapshots]].",
-   "ejemplo": "C01 replica sus pesos (≈ 98 MB por versión, centavos) y no sus fotos: 60 TB al mes × US$0.02 por GB ≈ US$1,200 al mes solo de transferencia.",
+   "ejemplo": "C01 replica sus pesos (≈ 98 MB por versión, centavos) y no sus fotos: ≈ 61 TB al mes × US$0.02 por GB ≈ US$1,200 al mes solo de transferencia.",
    "ver": [
     "rpo",
     "recuperacion-desastres",

@@ -103,9 +103,42 @@ Para la fase 8:
 - **Presupuesto con Fable y reinicios (2026-11-12):** las reglas están en [plan-ia-privada.md](plan-ia-privada.md), sección 8. En corto: Fable también gasta del límite semanal total, así que cada trabajo va al modelo que dé más calidad por punto del total. La fase 8 es la primera con lecciones desde entonces y hace la calibración: una lección la escribe Fable y otra Opus, con el mismo esfuerzo, y se compara lo gastado y las correcciones de la revisión de fondo. Antes de lanzar se lee el uso de cada límite.
 - **Dejar listos los números para IA Privada:** la lección «Máquinas, GPUs y precios» es la base de las calculadoras de IA Privada (fases 1–2). Sus datos de GPUs (VRAM, ancho de banda, consumo y precio por hora en la nube, con fecha y fuente) se guardan también en un archivo de datos aparte que esa app pueda leer, por ejemplo `apps/sensei/content/datos/gpus.json`.
 
+**Fase 8 (2026-11-13): ≈ 1.8 % por lección, con la calibración Fable contra Opus.** El límite semanal pasó de 3 % a 12 %, y todo cupo en una ventana de 5 horas, que pasó de 4 % a 72 %. Por pieza:
+
+| Pieza | Modelo y esfuerzo | Semanal | Ventana de 5 h |
+|---|---|---|---|
+| Paquetes de la Ronda y datos verificados de GPUs (`content/datos/gpus.json`, con web) | Sonnet, bajo y medio | < 1 punto | 6 → 10 % |
+| Escritor de `regiones` | **Fable**, medio | ≈ 1 punto | 10 → 22 % (12 puntos) |
+| Escritores de las otras 4 lecciones, en paralelo | **Opus**, medio | 2 puntos (≈ 0.5 por lección) | 22 → 36 % (≈ 3.5 puntos por lección) |
+| Revisión mecánica, las 5 | Sonnet, bajo | 1 punto | 36 → 40 % |
+| Pasadas de fondo: hechos y claridad, las 5 | Opus, alto | 3 puntos | 40 → 68 % |
+| Consistencia, integración y navegador | Sonnet bajo y Opus medio | 1 punto | 68 → 72 % |
+
+Los escritores con esfuerzo medio tardaron 15–18 min y generaron 235–267 mil tokens cada uno, contra 3 horas y 290–380 mil en la fase 7. Las pasadas de fondo no se recortaron: la de hechos hizo 102 correcciones en las lecciones y 5 en `gpus.json`, y la de claridad, 382 cambios. La consistencia encontró 13 diferencias entre lecciones. La más grande: la infraestructura de C01 sumaba ≈ US$1.75k en una lección y ≈ US$1.83k contando la red fila por fila, así que ahora se usa ≈ US$1.8k.
+
+**La calibración: Fable no gana para escribir lecciones.** La misma tarea, el mismo encargo y el mismo esfuerzo (medio), escrita por Fable y por Opus, con los mismos revisores (Opus, esfuerzo alto):
+
+| | Fable (`regiones`) | Opus (promedio de 4) |
+|---|---|---|
+| Límite total gastado (ventana de 5 h, la lectura más fina) | 12 puntos | ≈ 3.5 puntos |
+| Límite semanal total | ≈ 1 punto | ≈ 0.5 puntos |
+| Barra semanal de Fable | 0 → 4 % | — |
+| Tokens del escritor y tiempo | 244k, 18 min | 235–267k, 15–18 min |
+| Hallazgos de la revisión mecánica | 9 | 9.25 (8–11) |
+| Correcciones de hechos (graves / medias / menores) | **27** (3 / 10 / 14) | **18.75** (1 / 6.25 / 11.5) |
+| Cambios de claridad (de ellos, conocimiento supuesto) | 76 (23) | 76.5 (36) |
+| Dudas del escritor que resultaron correctas | 88 % (38 de 43) | 81 % (147 de 182) |
+
+Con tokens parecidos, Fable gastó ≈ 3.4 veces más del límite total por lección, y su borrador no salió mejor. Tuvo más correcciones de hechos, tres de ellas graves (un porcentaje de uso de las T4 tomado del pico como si fuera un día normal, fotos confundidas con tensores y tiempos de failover de más). En claridad quedó igual, con menos conceptos sin explicar. Por punto gastado, Opus da más de 3 veces más lección revisada. **Decisión: los escritores van en Opus con esfuerzo medio.** Es una sola lección contra cuatro y de temas distintos, así que la diferencia de calidad es una señal y no una prueba. La diferencia de costo sí es clara. La barra de Fable no frena: una lección la subió 4 %.
+
+Para la fase 9:
+- Repetir el flujo de esta fase tal cual, con todos los escritores en Opus, esfuerzo medio.
+- Dejar en el encargo del escritor los «datos comunes de la fase» y el alcance de cada lección (`reparto.md`). Aun con ellos, los totales de C01 se contaron distinto entre lecciones: conviene que el reparto traiga cada total ya sumado partida por partida.
+- Las 30 correcciones que las revisiones de hechos encontraron para la Ronda (NAT regional, cobro de Cloud Run, CUD con reserva, egress al salir del proveedor, la infraestructura de C01, etc.) están juntas en las notas de la sesión. Conviene aplicarlas en una sesión aparte.
+
 ## 5. Las fases
 
-Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, y la 5, la 6 y la 7 desde el 2026-11-06: 38 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) y las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
+Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, la 5, la 6 y la 7 desde el 2026-11-06 y la 8 desde el 2026-11-13: 43 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) y las 5 de la fase 8 (9.4–10.3k palabras, 60–61 min lo esencial y 70–75 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
 
 | Fase | Módulo | Lecciones | Prepara para la Ronda |
 |---|---|---|---|
@@ -116,7 +149,7 @@ Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 
 | 5 ✓ | La red y la web | IP, puertos y DNS · HTTP · APIs: REST, JSON, gRPC y streaming · Balanceadores y gateways · Timeouts, reintentos e idempotencia · Latencia y throughput | M02, M03, M06, M07, M11, M13–M15 |
 | 6 ✓ | Datos y almacenamiento | Formatos · Bases de datos · Object storage, data lakes y warehouses · Colas y streams · Tiempo, hashes e identificadores | M01, M02, M06, M09, M12, M13, M15 |
 | 7 ✓ | Herramientas del oficio | La terminal · Python y sus paquetes · PyTorch para producción · Git · Pruebas y CI/CD · Configuración y secretos | M05–M11, M15 |
-| 8 | La nube | Qué es la nube · Regiones y zonas · Máquinas, GPUs y precios · Redes en la nube · Servicios gestionados y permisos | M04, M06, M13, M15 · base de IA Privada |
+| 8 ✓ | La nube | Qué es la nube · Regiones y zonas · Máquinas, GPUs y precios · Redes en la nube · Servicios gestionados y permisos | M04, M06, M13, M15 · base de IA Privada (`content/datos/gpus.json`) |
 | 9 | Seguridad | Cifrado, llaves y certificados · Autenticación y permisos · Datos personales y la ley · Ataques y cadena de suministro | M05, M07, M09, M15 |
 | 10 | Estaciones · Datos | Estación 1 y 2 de C01 | M09, M10 |
 | 11 | Estaciones · Modelo | Estación 3, 4 y 5 | M08, M10, M11 |

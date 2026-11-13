@@ -218,7 +218,7 @@ export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }
         estado.cuenta.cuentas++;
         const I = (x) => inline(x, estado.terminos);
         return `<figure class="calc"><figcaption class="calc__head"><span class="calc__icon" aria-hidden="true">≈</span><span class="calc__title">${I(arg)}</span><span class="calc__tag">La cuenta</span></figcaption><div class="calc__rows">${filas.map((f) =>
-          `<div class="calc__row"><div class="calc__label">${I(f.et)}${f.nota ? `<span class="calc__note">${I(f.nota)}</span>` : ''}</div><div class="calc__expr">${I(f.ex)}</div><div class="calc__value">${/^[≈~<>≤≥]/.test(f.v.trim()) ? '' : '<span class="calc__eq" aria-hidden="true">=</span>'}${I(f.v)}</div></div>`).join('')}</div>${
+          `<div class="calc__row"><div class="calc__label">${I(f.et)}${f.nota ? `<span class="calc__note">${I(f.nota)}</span>` : ''}</div><div class="calc__expr">${I(f.ex)}</div><div class="calc__value">${/^[≈~<>≤≥]/.test(f.v.trim().replace(/^[*_`]+/, '')) ? '' : '<span class="calc__eq" aria-hidden="true">=</span>'}${I(f.v)}</div></div>`).join('')}</div>${
           res.length ? `<div class="calc__result"><span class="calc__result-k">Resultado</span><div class="calc__result-v">${I(res.join(' '))}</div></div>` : ''}</figure>`;
       }
       case 'calculadora': {

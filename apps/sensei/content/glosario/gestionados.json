@@ -78,7 +78,7 @@
    "en": "managed endpoint",
    "corto": "Una dirección de una plataforma de ML que recibe requests y contesta predicciones, con las máquinas operadas por el proveedor: las prende, las cambia si se caen y agrega copias.",
    "largo": "A cambio de no operar nodos, aceptas tres cosas: un sobreprecio por hora (≈ 40 % en GPU en SageMaker AI), un cobro por cada GB que entra y sale, y un contrato para tu contenedor (en SageMaker AI: puerto 8080, `POST /invocations`, `GET /ping`, cuerpo de hasta 6 MiB y respuesta en 60 s). Con payloads grandes y mucho tráfico, los cobros por GB pesan más que el sobreprecio.",
-   "ejemplo": "C01 en SageMaker AI: máquinas ≈ US$1,075 + datos procesados ≈ US$737 + endpoint de interfaz ≈ US$475 ≈ US$2,287 al mes, contra ≈ US$768 de dos T4 propias.",
+   "ejemplo": "C01 en SageMaker AI: máquinas ≈ US$1,075 + datos procesados ≈ US$737 + endpoint de interfaz ≈ US$475 ≈ US$2,287 al mes, contra ≈ US$768 de dos T4 propias, con el tensor en UINT8. C01 hoy lo manda en FP32: solo los datos procesados de entrada subirían a ≈ US$2,929.",
    "ver": [
     "plataforma-ml",
     "endpoint",

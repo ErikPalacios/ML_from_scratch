@@ -205,7 +205,7 @@
    "en": "cloud bill",
    "corto": "El cobro mensual de una cuenta, con un renglón por cada servicio y unidad: horas de cada máquina, GB guardados, requests, GB transferidos, GB de logs.",
    "largo": "Lo que sorprende es que la de un sistema de ML rara vez es solo GPU: el balanceador, los logs, el tráfico entre zonas y el [[egress]] pueden pesar tanto como las máquinas. Para que sirva para decidir, cada recurso lleva una [[etiqueta-costos|etiqueta]] y la factura se agrupa por proyecto; se ponen alertas de presupuesto para no enterarse a fin de mes. En entrevista se reporta en US$ al mes con su supuesto, y por 1,000 predicciones.",
-   "ejemplo": "C01: GPUs ≈ US$768, gateway ≈ US$248, EKS ≈ US$73, ALB ≈ US$500, logs y S3 ≈ US$100, más discos y red: ≈ US$1.75k al mes, ≈ US$0.006 por 1,000 predicciones. Las GPUs son ≈ 44 %.",
+   "ejemplo": "C01: GPUs ≈ US$768, gateway ≈ US$248, EKS ≈ US$73, ALB ≈ US$500, logs y S3 ≈ US$100, más NAT, IPv4, cruce de zona y endpoints ≈ US$140: ≈ US$1.8k al mes (la Ronda redondea a ≈ US$1.75k), ≈ US$0.006 por 1,000 predicciones. Las GPUs son ≈ 42 %.",
    "ver": [
     "pago-por-uso",
     "etiqueta-costos",
@@ -247,7 +247,7 @@
    "en": "GPU neocloud",
    "corto": "Un proveedor especializado en rentar GPUs, como Lambda, RunPod o CoreWeave. Suele cobrar menos por GPU-hora que AWS, Google Cloud o Azure, pero ofrece pocos servicios alrededor.",
    "largo": "Vende casi solo [[gpu-hora|GPU-horas]]. La letra chica: no trae la cola, la base de datos ni los permisos integrados de una nube grande; si tus datos viven en otra nube, llevarlos cuesta [[egress]] cada vez; y algunas ofertas baratas te pueden quitar la máquina o prometen menos disponibilidad. Conviene para entrenamientos grandes y aislados; casi nunca para servir un modelo pegado al resto del sistema. «No hay una nube barata, hay precios por GPU y por región.»",
-   "ejemplo": "Una H100 SXM por hora, on-demand, noviembre de 2026: ≈ US$6.88 en AWS (us-east-1), ≈ US$4.89 en Lambda y ≈ US$4.39 en RunPod.",
+   "ejemplo": "Una H100 SXM por hora, on-demand, noviembre de 2026: ≈ US$6.88 en AWS (us-east-1), ≈ US$4.89 en Lambda y ≈ US$4.39 en RunPod (su Secure Cloud).",
    "ver": [
     "proveedor-nube",
     "dependencia-proveedor",

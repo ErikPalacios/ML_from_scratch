@@ -176,11 +176,11 @@ A cambio, la plataforma te pide tres cosas:
 - **Un cobro por cada GB.** SageMaker AI cobra ≈ US$0.016 por GB que entra al endpoint y por GB que sale ([[cargo-datos-procesados|datos procesados]]). Azure ML es la excepción: no cobra un extra propio por la plataforma; pagas las máquinas y los demás servicios que use, como el almacenamiento y el registro de imágenes.
 - **Un contrato.** Tu contenedor escucha en el puerto 8080 y contesta `POST /invocations` (la predicción) y `GET /ping` (si está vivo), acepta conexiones en 250 ms y responde en 60 s. El cuerpo de cada request, el *payload* (los datos que mandas), mide como máximo 6 MiB (6,291,456 bytes).
 
-El gateway de C01 ya escucha en el 8080, pero sus rutas (las direcciones dentro del servidor) son `/v1/classify`, `/healthz` y `/readyz`. Habría que agregar dos rutas. Y algunas fotos de las publicaciones pesan hasta 10 MB: no caben en 6 MiB tal cual. Nada de esto es difícil. Es el tipo de detalle que convierte «lo subo a SageMaker» en una semana de trabajo que nadie estimó.
+El gateway de C01 ya escucha en el 8080, pero sus rutas (las direcciones dentro del servidor) son `/v1/classify`, `/healthz` y `/readyz`. Habría que agregar dos rutas. Y algunas fotos de las publicaciones pesan hasta 10 MB: no caben en 6 MiB tal cual. Nada de esto es difícil. Es el tipo de detalle que convierte «lo subo a SageMaker AI» en una semana de trabajo que nadie estimó.
 
 ### La cuenta de C01 en un endpoint gestionado
 
-C01 recibe ≈ 10 millones de fotos al día: 10 M × 30.4 días ≈ 304 millones de requests al mes. El gateway es el servicio de C01 que recibe la foto, la revisa y la prepara para el modelo. Para no castigar al lado gestionado, la Ronda supone que el gateway manda la imagen ya preparada: un [[tensor]] de 3 × 224 × 224 enteros de un byte ([[uint8|UINT8]]), 150,528 bytes por request.
+C01 recibe ≈ 10 millones de fotos al día: 10 M × 30.4 días ≈ 304 millones de requests al mes. El gateway es el servicio de C01 que recibe la foto, la revisa y la prepara para el modelo. Para no castigar al lado gestionado, la Ronda supone que el gateway manda la imagen ya preparada: un [[tensor]] de 3 × 224 × 224 enteros de un byte ([[uint8|UINT8]]), 150,528 bytes por request. C01 hoy manda [[float32|FP32]] (602 KB); UINT8 es lo que haría al crecer.
 
 Hay un cobro más. El gateway vive en tu red privada de la nube ([[vpc|VPC]]). Para llegar a SageMaker AI sin salir a internet, el tensor viaja por un camino privado, un [[privatelink|endpoint de interfaz]], que también cobra por GB.
 
@@ -190,10 +190,10 @@ Gestionado: 2 × ml.g4dn.xlarge // ≈ US$0.736/h | 2 × 0.736 × 730 | ≈ US$1
 GB que entran al endpoint // 304 M requests de 150,528 B | 304 M × 150,528 B | ≈ 45,760 GB
 Datos procesados // entrada más ≈ 304 GB de respuestas, a US$0.016/GB | (45,760 + 304) × 0.016 | ≈ US$737
 El camino privado hasta SageMaker AI // [[privatelink\|endpoint de interfaz]]: US$0.01/GB más su hora en 2 zonas | 46,064 × 0.01 + 2 × 0.01 × 730 | ≈ US$475
-= Gestionado: 1,075 + 737 + 475 ≈ US$2,287 contra ≈ US$768. Con el resto de la infraestructura (gateway, EKS, ALB y logs: ≈ US$921), ≈ US$3.2k contra ≈ US$1.7k: ≈ 1.9 veces.
+= Gestionado: 1,075 + 737 + 475 ≈ US$2,287 contra ≈ US$768. Con el resto en ambos (gateway, EKS, ALB, logs y red: ≈ US$1,061): ≈ US$3.3k contra ≈ US$1.8k, ≈ 1.8 veces.
 :::
 
-Fíjate de dónde sale la diferencia: el sobreprecio de las máquinas son ≈ US$307 al mes. Los dos cobros por GB, ≈ US$1,212. Con imágenes, lo que pesa es lo que se cobra por byte. En los ejercicios verás qué pasa si el tensor viaja en [[float32|FP32]].
+Fíjate de dónde sale la diferencia: el sobreprecio de las máquinas son ≈ US$307 al mes. Los dos cobros por GB, ≈ US$1,212. Con imágenes, lo que pesa es lo que se cobra por byte. En los ejercicios verás que con FP32 solo la entrada costaría ≈ US$2,929.
 
 :::diagrama gestionados-c01
 Sigue «Una request», luego «Lo que se cobra por GB» y al final «Lo que no ves». Toca cada caja para ver quién la opera.
@@ -640,7 +640,7 @@ Resuélvelos con lápiz antes de abrir la solución. Usa los precios de la lecci
 ? [facil] Fluent Bit, el programa que junta los logs de C01, escribe los archivos de logs de predicciones en el prefijo `predicciones/` del bucket `c01-logs`. Escribe su permiso como (efecto, acción, recurso). ¿Debería poder leer o borrar?
 - (`Allow`, `s3:PutObject`, `arn:aws:s3:::c01-logs/predicciones/*`).
 - No necesita leer ni borrar: solo escribe archivos nuevos. Darle `s3:GetObject` o `s3:DeleteObject` solo aumenta el daño si alguien lo compromete.
-? [medio] El OCR propio de C05 en CPU cuesta ≈ US$248 al mes (2 × `c6i.xlarge`). ¿Cuál es el punto de equilibrio contra Textract (US$1.50 por 1,000 páginas) solo por factura? ¿Y si sumas ≈ US$2,500 de ingeniería, sabiendo que arriba de 1 M de páginas Textract cobra US$0.60 por 1,000?
+? [medio] Supón un OCR propio de C05 en CPU: 2 × `c6i.xlarge`, ≈ US$248 al mes. ¿Cuál es el punto de equilibrio contra Textract (US$1.50 por 1,000 páginas) solo por factura? ¿Y si sumas ≈ US$2,500 de ingeniería, sabiendo que arriba de 1 M de páginas Textract cobra US$0.60 por 1,000?
 - Solo factura: 248 ÷ 1.50 × 1,000 ≈ **165,000 páginas**. C05 procesa 186,000: por factura, ya ganaría el OCR propio en CPU.
 - Con la gente: 2,748 al mes. El primer millón de páginas cuesta 1,500 en Textract; faltan 1,248, a 0.60 por 1,000: 1,248 ÷ 0.60 × 1,000 = 2.08 M.
 - Equilibrio: 1 M + 2.08 M ≈ **3.08 M páginas**, ≈ 16.6 veces el volumen de C05. Con la gente contada, Textract sigue ganando.

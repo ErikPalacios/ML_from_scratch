@@ -346,13 +346,13 @@ Subir fotos, datasets o pesos a AWS desde internet no cuesta nada por GB: se lla
 
 ¿Por qué esa asimetría? Una parte es costo real: la nube paga por conectarse con el resto de internet. La otra es negocio: si meter es gratis y sacar cuesta, una vez que tus datos están adentro, te quedas. Es parte de la [[dependencia-proveedor|dependencia del proveedor]] que viste en la lección de la nube: llevarte 50 TB a otro proveedor tiene precio.
 
-Los escalones se cobran como los impuestos por tramos: cada GB paga el precio de su tramo, no el del último. Si en un mes sacas 12 TB, los primeros 100 GB no pagan, los siguientes 10,000 GB pagan 0.09 (US$900) y solo los 1,900 GB que sobran pagan 0.085 (US$161.50): ≈ US$1,062 en total.
+Los escalones se cobran como los impuestos por tramos: cada GB paga el precio de su tramo, no el del último. Si en un mes sacas 12 TB, los primeros 100 GB no pagan, los siguientes 10,240 GB pagan 0.09 (aquí AWS cuenta 1 TB como 1,024 GB) y los 1,660 que sobran, 0.085: ≈ US$1,063 en total.
 
 :::profundo Los escalones, en código
-El código cobra un mes de egress tramo por tramo (aquí 1 TB = 1,000 GB, para que la cuenta se siga con lápiz; AWS corta los tramos en múltiplos de 1,024 GB, y la diferencia es menor al 1 %):
+El código cobra un mes de egress tramo por tramo, con los escalones como los corta AWS: 10 TB son 10,240 GB, 40 TB son 40,960 GB y 100 TB son 102,400 GB. Lo que le das son GB normales, de 1,000 en 1,000.
 
 ```python
-ESCALONES = [(10_000, 0.09), (40_000, 0.085), (100_000, 0.07), (float("inf"), 0.05)]  # GB, US$/GB
+ESCALONES = [(10_240, 0.09), (40_960, 0.085), (102_400, 0.07), (float("inf"), 0.05)]  # GB, US$/GB
 
 def egress(gb_mes, gratis=100):
     resto, total = max(gb_mes - gratis, 0), 0.0
@@ -370,8 +370,8 @@ for nombre, gb in (("respuestas de C01", 304), ("un dataset de 2 TB", 2_000),
 ```salida
 respuestas de C01              304 GB → US$       18  (US$0.060 por GB)
 un dataset de 2 TB           2,000 GB → US$      171  (US$0.086 por GB)
-copiar 50 TB a otra nube    50,000 GB → US$    4,292  (US$0.086 por GB)
-200 TB al mes              200,000 GB → US$   13,795  (US$0.069 por GB)
+copiar 50 TB a otra nube    50,000 GB → US$    4,293  (US$0.086 por GB)
+200 TB al mes              200,000 GB → US$   13,886  (US$0.069 por GB)
 ```
 :::
 
@@ -399,7 +399,7 @@ El cruce de zona tiene una trampa de lectura: la tarifa dice «US$0.01 por GB»,
 
 **La latencia no es la razón.** Cruzar de zona agrega ≈ 1 ms por salto: el [[rtt|RTT]] (el tiempo de ida y vuelta de un paquete) en la misma zona es ≈ 0.1–0.5 ms y entre zonas ≈ 0.4–2.5 ms. Para C01, con un [[slo|SLO]] de cientos de milisegundos, un milisegundo no importa. **La razón para no cruzar es el costo por GB, no la latencia.** Y el costo depende de cuántos bytes cruzan, que en C01 son muchos.
 
-¿Por qué cruzarían? Entre el gateway y Triton está el [[service-k8s|Service]] de Kubernetes, que reparte cada tensor entre las copias de Triton. Por omisión no mira en qué zona está cada copia: con dos zonas, la mitad de los tensores cae en la otra.
+¿Por qué cruzarían? Entre el gateway y Triton está el [[service-k8s|Service]] de Kubernetes, que reparte cada tensor entre las copias de Triton. Por omisión no mira en qué zona está cada copia: con dos zonas, la mitad de los tensores cae en la otra: ≈ 90 TB y ≈ **US$1,800 al mes** con meses de 30 días (abajo, con 30.4, ≈ 91 TB y ≈ US$1.83k).
 
 :::cuenta C01 sin ruteo por zona
 Bytes de un tensor FP32 // 224 × 224 × 3 números de 4 bytes | 224 × 224 × 3 × 4 | 602,112 B ≈ 602 KB
@@ -450,7 +450,7 @@ LCUs en promedio // la dimensión de bytes gana | 83 GB/h ÷ 1 GB/h | ≈ 83 LCU
 Costo de las LCU al mes | 83.3 × 0.008 × 730 | ≈ US$486.5
 Hora fija del ALB | 0.0225 × 730 | ≈ US$16.4
 Total | 486.5 + 16.4 | **≈ US$503 al mes**
-= Casi el 30 % de la infraestructura de C01 (≈ US$1.75k al mes), por una pieza que la gente estima en «US$30 de load balancer».
+= ≈ 27 % de la infraestructura de C01 (≈ US$1.8k al mes), por una pieza que la gente estima en «US$30 de load balancer».
 :::
 
 El ALB cobra por bytes, no por request, y C01 mueve 61 TB al mes de fotos a través de él. Si el 15 % de las fotos llegara como original de la web (≈ 3 MB en vez de 200 KB), los bytes se triplicarían y el ALB pasaría a ≈ US$1.5k al mes.
@@ -569,7 +569,7 @@ Lee la tabla con calma, porque enseña tres cosas.
 
 **Lo grande que queda es el ALB.** ≈ US$503 de ≈ US$643. La siguiente palanca es la de la sección del ALB: mandar la llave de S3 en vez de la foto.
 
-En la infraestructura de C01, ≈ US$1.75k al mes, ya van incluidos el NAT y la transferencia **con** ruteo por zona. Sin él, la misma infraestructura subiría ≈ US$1.8k: más de lo que cuestan las dos GPUs.
+La factura de C01 (≈ US$1.8k al mes) ya trae estos ≈ US$140 **con** ruteo por zona, aparte del ALB; sin él, serían ≈ US$3.6k.
 
 :::profundo Dónde lo ves en la factura
 En AWS Cost Explorer, el NAT aparece dentro del servicio «EC2 - Other» como `NatGateway-Bytes` (y `NatGateway-Hours`), y el cruce de zona como `DataTransfer-Regional-Bytes`. Ninguno dice «S3» ni «Triton». Por eso se encuentran con la cuenta de bytes, con [[etiqueta-costos|etiquetas de costos]] por componente y con presupuestos que avisan cuando una línea crece.
@@ -671,7 +671,7 @@ Resuélvelos con lápiz antes de abrir la solución. Usa los precios de la lecci
 - Con llaves: 5,000,000 × 100 B = 0.5 GB al día, ≈ 0.02 GB/h. La dimensión de bytes casi desaparece y manda otra: conexiones nuevas o reglas. Si cada request abre una conexión, 5,000,000 ÷ 86,400 s ≈ 58 conexiones nuevas por segundo; 58 ÷ 25 ≈ 2.3 LCU. LCU: 2.3 × 0.008 × 730 ≈ US$13. Más la hora, 16.4. Total ≈ **US$30** al mes.
 ? [medio] Quieres bajar de AWS a tu laptop un dataset de 3 TB en un mes en que no sacaste nada más. ¿Cuánto pagas de egress? ¿Y si son 15 TB?
 - 3 TB: (3,000 − 100) × 0.09 = **US$261**.
-- 15 TB: los primeros 100 GB gratis; 10,000 GB a 0.09 = US$900; los 4,900 restantes a 0.085 = US$416.50. Total ≈ **US$1,317**.
+- 15 TB: los primeros 100 GB gratis; 10,240 GB a 0.09 = US$921.60; los 4,660 restantes a 0.085 = US$396.10. Total ≈ **US$1,318**.
 ? [medio] El pico de un servicio es 800 requests por segundo y cada una manda 300 KB del gateway al modelo. El gateway corre en 2 × `c6i.xlarge` (1.56 Gb/s sostenidos). ¿Qué porcentaje del sostenido usa cada nodo? ¿Y si cae una zona y queda uno?
 - Total: 800 × 300,000 × 8 = 1,920,000,000 bits/s ≈ **1.92 Gb/s**.
 - Cada nodo: 0.96 Gb/s ÷ 1.56 ≈ **62 %**.
