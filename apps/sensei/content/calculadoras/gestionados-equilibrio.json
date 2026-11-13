@@ -1,0 +1,25 @@
+{
+  "titulo": "Textract contra OCR propio: ¿cuándo conviene operarlo tú?",
+  "intro": "Compara el OCR [[servicio-gestionado|gestionado]], que cobra por página, contra dos GPUs propias más la gente que las opera. Los precios son de us-east-1, noviembre de 2026.",
+  "entradas": [
+    { "id": "n", "label": "**Páginas al mes**", "min": 0, "max": 6000000, "paso": 1000, "valor": 186000, "tipo": "numero" },
+    { "id": "p1", "label": "Precio del OCR gestionado por 1,000 páginas, hasta 1 M", "min": 0.5, "max": 5, "paso": 0.05, "valor": 1.5, "unidad": "US$" },
+    { "id": "p2", "label": "Precio por 1,000 páginas arriba de 1 M", "min": 0.1, "max": 3, "paso": 0.05, "valor": 0.6, "unidad": "US$" },
+    { "id": "infra", "label": "Máquinas propias al mes (2 × g4dn.xlarge ≈ 768; en CPU ≈ 248)", "min": 0, "max": 5000, "paso": 10, "valor": 768, "unidad": "US$" },
+    { "id": "gente", "label": "**Gente** que opera el OCR propio, al mes", "min": 0, "max": 15000, "paso": 100, "valor": 2500, "unidad": "US$" }
+  ],
+  "calculos": [
+    { "id": "ges", "formula": "min(n, 1000000) * p1 / 1000 + max(n - 1000000, 0) * p2 / 1000" },
+    { "id": "prop", "formula": "infra + gente" },
+    { "id": "umbral", "formula": "1000000 * p1 / 1000" },
+    { "id": "be", "formula": "min(prop / p1 * 1000, 1000000) + max(prop - umbral, 0) / p2 * 1000" }
+  ],
+  "salidas": [
+    { "label": "Gestionado al mes, en US$", "formula": "ges", "formato": "int", "nota": "por página, con el precio que baja arriba de 1 M" },
+    { "label": "Propio al mes, en US$", "formula": "prop", "formato": "int", "nota": "máquinas + gente" },
+    { "label": "Lo que ahorras con el gestionado, en US$", "formula": "prop - ges", "formato": "int", "nota": "si sale negativo, gana el propio" },
+    { "label": "Punto de equilibrio, en páginas al mes", "formula": "be", "formato": "int", "nota": "donde los dos cuestan lo mismo" },
+    { "label": "Veces tu volumen actual", "formula": "be / max(n, 1)", "formato": "x", "decimales": 1 }
+  ],
+  "nota": "Con la gente en 0 y las máquinas en 768, el equilibrio baja a ≈ 512,000 páginas: la factura sola engaña. Con ≈ US$2,500 de gente, se va a ≈ 3.9 M."
+}

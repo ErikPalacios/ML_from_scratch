@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 470" role="img" aria-labelledby="f-redes-nube-vpc-t" class="f-svg" style="max-width:420px">
+<title id="f-redes-nube-vpc-t">La VPC de C01 en la región us-east-1. Arriba, internet se conecta con la VPC por el internet gateway. La VPC tiene el rango 10.0.0.0/16 y se parte en dos zonas, 1a y 1b. Cada zona tiene una subred pública (10.0.0.0/20 en 1a y 10.0.16.0/20 en 1b) donde viven el balanceador ALB y un NAT gateway, y una subred privada (10.0.32.0/20 y 10.0.48.0/20) donde viven el gateway y el Triton con su GPU T4, sin IP pública. Abajo, fuera de la VPC, está S3, un servicio regional, al que las subredes privadas llegan gratis por el gateway endpoint.</title>
+<rect class="f-card" x="10" y="10" width="340" height="450" rx="16"/>
+<text class="f-l" x="26" y="36">LA RED DE C01 · us-east-1</text>
+<rect class="f-chip" x="130" y="46" width="100" height="26" rx="13"/>
+<text class="f-s" x="180" y="64" text-anchor="middle" style="font-size:12px">Internet</text>
+<line class="f-flecha" x1="180" y1="72" x2="180" y2="90"/>
+<rect class="f-dark" x="115" y="90" width="130" height="26" rx="6"/>
+<text class="f-dark-t" x="180" y="108" text-anchor="middle" style="font-size:12px">internet gateway</text>
+<line class="f-flecha" x1="180" y1="116" x2="180" y2="134"/>
+<rect class="f-linea" x="22" y="134" width="316" height="254" rx="12" style="fill:none" stroke-dasharray="5 4"/>
+<text class="f-l" x="32" y="152">VPC 10.0.0.0/16</text>
+<text class="f-l" x="36" y="172">ZONA 1A</text>
+<rect class="f-b2" x="34" y="180" width="132" height="80" rx="8"/>
+<text class="f-t" x="42" y="198" style="font-size:13px">Pública</text>
+<text class="f-s" x="42" y="214" style="font-size:12px">10.0.0.0/20</text>
+<rect class="f-card" x="42" y="224" width="54" height="26" rx="6"/><text class="f-s" x="69" y="242" text-anchor="middle" style="font-size:12px">ALB</text>
+<rect class="f-card" x="104" y="224" width="54" height="26" rx="6"/><text class="f-s" x="131" y="242" text-anchor="middle" style="font-size:12px">NAT</text>
+<rect class="f-chip" x="34" y="268" width="132" height="110" rx="8"/>
+<text class="f-t" x="42" y="286" style="font-size:13px">Privada</text>
+<text class="f-s" x="42" y="302" style="font-size:12px">10.0.32.0/20</text>
+<rect class="f-card" x="42" y="312" width="116" height="26" rx="6"/><text class="f-s" x="100" y="330" text-anchor="middle" style="font-size:12px">Gateway</text>
+<rect class="f-dark" x="42" y="344" width="116" height="26" rx="6"/><text class="f-dark-t" x="100" y="362" text-anchor="middle" style="font-size:12px">Triton · T4</text>
+<text class="f-l" x="196" y="172">ZONA 1B</text>
+<rect class="f-b2" x="194" y="180" width="132" height="80" rx="8"/>
+<text class="f-t" x="202" y="198" style="font-size:13px">Pública</text>
+<text class="f-s" x="202" y="214" style="font-size:12px">10.0.16.0/20</text>
+<rect class="f-card" x="202" y="224" width="54" height="26" rx="6"/><text class="f-s" x="229" y="242" text-anchor="middle" style="font-size:12px">ALB</text>
+<rect class="f-card" x="264" y="224" width="54" height="26" rx="6"/><text class="f-s" x="291" y="242" text-anchor="middle" style="font-size:12px">NAT</text>
+<rect class="f-chip" x="194" y="268" width="132" height="110" rx="8"/>
+<text class="f-t" x="202" y="286" style="font-size:13px">Privada</text>
+<text class="f-s" x="202" y="302" style="font-size:12px">10.0.48.0/20</text>
+<rect class="f-card" x="202" y="312" width="116" height="26" rx="6"/><text class="f-s" x="260" y="330" text-anchor="middle" style="font-size:12px">Gateway</text>
+<rect class="f-dark" x="202" y="344" width="116" height="26" rx="6"/><text class="f-dark-t" x="260" y="362" text-anchor="middle" style="font-size:12px">Triton · T4</text>
+<line class="f-flecha" x1="180" y1="388" x2="180" y2="404"/><path class="f-punta" d="M174 402 L186 402 L180 411 Z"/>
+<rect class="f-y" x="80" y="412" width="200" height="40" rx="8"/>
+<text class="f-t" x="180" y="428" text-anchor="middle" style="font-size:13px">S3 · regional, fuera de la VPC</text>
+<text class="f-s" x="180" y="445" text-anchor="middle" style="font-size:12px">gateway endpoint: gratis</text>
+</svg>

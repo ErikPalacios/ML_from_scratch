@@ -1,0 +1,279 @@
+{
+ "titulo": "Cómo obtiene Triton permiso para leer sus pesos, sin llaves guardadas",
+ "width": 78,
+ "height": 70,
+ "lanes": [
+  {
+   "id": "k8s",
+   "label": "Cluster EKS",
+   "kind": "online",
+   "x": 3,
+   "y": 0,
+   "w": 75,
+   "h": 21
+  },
+  {
+   "id": "iam",
+   "label": "IAM y STS",
+   "kind": "monitor",
+   "x": 3,
+   "y": 24,
+   "w": 75,
+   "h": 21
+  },
+  {
+   "id": "s3",
+   "label": "S3 y el resto del mundo",
+   "kind": "neutral",
+   "x": 3,
+   "y": 48,
+   "w": 75,
+   "h": 22
+  }
+ ],
+ "nodes": [
+  {
+   "id": "pod",
+   "label": "Pod de Triton",
+   "sub": "con el SDK de AWS",
+   "kind": "service",
+   "x": 6,
+   "y": 7,
+   "w": 18,
+   "h": 8,
+   "note": "No trae ninguna llave en su imagen, ni en variables de entorno, ni en un Secret. Solo sabe con qué [[cuenta-servicio|cuenta de servicio]] corre."
+  },
+  {
+   "id": "sa",
+   "label": "Cuenta de servicio",
+   "sub": "classifier/triton",
+   "kind": "store",
+   "x": 33,
+   "y": 7,
+   "w": 18,
+   "h": 8,
+   "note": "La identidad del programa dentro de Kubernetes. Kubernetes monta en el pod un token firmado que dice «soy classifier/triton», y lo renueva antes de que venza."
+  },
+  {
+   "id": "oidc",
+   "label": "Emisor OIDC",
+   "sub": "del cluster",
+   "kind": "edge",
+   "x": 57,
+   "y": 7,
+   "w": 19,
+   "h": 8,
+   "note": "El cluster firma los tokens de sus cuentas de servicio. AWS tiene registrado este emisor y puede revisar la firma: así sabe que el token no es falso."
+  },
+  {
+   "id": "sts",
+   "label": "STS",
+   "sub": "da credenciales",
+   "kind": "service",
+   "x": 6,
+   "y": 31,
+   "w": 18,
+   "h": 8,
+   "note": "El servicio de AWS que cambia una prueba de identidad por [[credenciales-temporales|credenciales temporales]] de un rol. Caducan solas, normalmente en una hora."
+  },
+  {
+   "id": "rol",
+   "label": "Rol c01-triton",
+   "sub": "confianza + política",
+   "kind": "store",
+   "x": 33,
+   "y": 31,
+   "w": 18,
+   "h": 8,
+   "note": "Su **política de confianza** dice quién puede asumirlo: solo tokens de `classifier/triton` de este cluster. Su [[politica-permisos|política de permisos]] dice qué puede hacer: leer `triton/*`."
+  },
+  {
+   "id": "bucket",
+   "label": "S3",
+   "sub": "c01-artefactos",
+   "kind": "store",
+   "x": 6,
+   "y": 55,
+   "w": 18,
+   "h": 8,
+   "note": "En cada `GetObject`, IAM revisa que las credenciales sean válidas y que la política del rol permita leer esa llave. Si no, 403."
+  },
+  {
+   "id": "ladron",
+   "label": "Alguien de fuera",
+   "sub": "con credenciales robadas",
+   "kind": "external",
+   "x": 57,
+   "y": 55,
+   "w": 19,
+   "h": 8,
+   "note": "Copió las credenciales de un log. Le sirven solo hasta que vencen, y solo para lo que el rol permite."
+  }
+ ],
+ "edges": [
+  {
+   "from": "sa",
+   "to": "pod",
+   "kind": "online",
+   "label": "token",
+   "fromSide": "l",
+   "toSide": "r"
+  },
+  {
+   "from": "pod",
+   "to": "sts",
+   "kind": "online",
+   "label": "token",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "sts",
+   "to": "rol",
+   "kind": "monitor",
+   "label": "¿puede?",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "oidc",
+   "to": "rol",
+   "kind": "monitor",
+   "label": "firma",
+   "fromSide": "b",
+   "toSide": "r",
+   "dashed": true,
+   "via": [
+    [
+     66.5,
+     35
+    ]
+   ]
+  },
+  {
+   "from": "pod",
+   "to": "bucket",
+   "kind": "online",
+   "label": "GetObject",
+   "fromSide": "l",
+   "toSide": "l",
+   "via": [
+    [
+     1,
+     11
+    ],
+    [
+     1,
+     59
+    ]
+   ]
+  },
+  {
+   "from": "ladron",
+   "to": "bucket",
+   "kind": "async",
+   "label": "vencidas: 403",
+   "fromSide": "l",
+   "toSide": "r"
+  }
+ ],
+ "flows": [
+  {
+   "id": "pide",
+   "label": "El pod pide permiso",
+   "steps": [
+    {
+     "nodes": [
+      "sa",
+      "pod"
+     ],
+     "edges": [
+      "sa>pod"
+     ],
+     "text": "Kubernetes le da al pod un **token firmado** de su cuenta de servicio, `classifier/triton`."
+    },
+    {
+     "nodes": [
+      "pod",
+      "sts"
+     ],
+     "edges": [
+      "pod>sts"
+     ],
+     "text": "El SDK de AWS, dentro de Triton, manda ese token a **STS** y pide asumir el rol `c01-triton`."
+    },
+    {
+     "nodes": [
+      "sts",
+      "rol",
+      "oidc"
+     ],
+     "edges": [
+      "sts>rol",
+      "oidc>rol"
+     ],
+     "text": "STS revisa la firma del token con el emisor del cluster y la **política de confianza** del rol: ¿esta cuenta de servicio puede asumirlo? Sí."
+    },
+    {
+     "nodes": [
+      "sts",
+      "pod"
+     ],
+     "edges": [
+      "pod>sts"
+     ],
+     "text": "STS le regresa **credenciales temporales**: un identificador, una clave y un token de sesión que vencen en ≈ 1 hora."
+    },
+    {
+     "nodes": [
+      "pod",
+      "bucket"
+     ],
+     "edges": [
+      "pod>bucket"
+     ],
+     "text": "Triton lee sus pesos de `triton/` con esas credenciales. IAM revisa la **política de permisos** del rol en cada llamada."
+    }
+   ]
+  },
+  {
+   "id": "renueva",
+   "label": "Una hora después",
+   "steps": [
+    {
+     "nodes": [
+      "pod",
+      "sts"
+     ],
+     "edges": [
+      "pod>sts"
+     ],
+     "text": "Antes de que venzan, el SDK pide credenciales nuevas con el token, que Kubernetes también renovó. Nadie hace nada a mano y no hay nada que rotar."
+    }
+   ]
+  },
+  {
+   "id": "robo",
+   "label": "Si alguien roba las credenciales",
+   "steps": [
+    {
+     "nodes": [
+      "ladron"
+     ],
+     "edges": [],
+     "text": "Las credenciales se colaron en un log y alguien las copió."
+    },
+    {
+     "nodes": [
+      "ladron",
+      "bucket"
+     ],
+     "edges": [
+      "ladron>bucket"
+     ],
+     "text": "Mientras no venzan, solo puede leer `triton/*`: el [[minimo-privilegio|mínimo privilegio]] limita el daño. Al vencer, S3 contesta 403. Una llave estática le habría servido meses."
+    }
+   ]
+  }
+ ]
+}

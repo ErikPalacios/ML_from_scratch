@@ -1,0 +1,59 @@
+{
+  "titulo": "C01 servido desde un endpoint de SageMaker AI",
+  "width": 78,
+  "height": 64,
+  "lanes": [
+    { "id": "vpc", "label": "Tu VPC · lo operas tú", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 30 },
+    { "id": "sm", "label": "SageMaker AI · lo opera AWS", "kind": "online", "x": 0, "y": 33, "w": 78, "h": 31 }
+  ],
+  "nodes": [
+    { "id": "backend", "label": "Backend", "sub": "de publicaciones", "kind": "client", "x": 2, "y": 6, "w": 16, "h": 8,
+      "note": "El servicio del marketplace que llama a C01 con la foto de Ana. No cambia nada para él: sigue llamando a la misma dirección." },
+    { "id": "alb", "label": "ALB", "sub": "la puerta", "kind": "edge", "x": 30, "y": 6, "w": 16, "h": 8,
+      "note": "El [[balanceador]] de entrada. Verifica el token del backend antes de dejar pasar la request." },
+    { "id": "gateway", "label": "Gateway", "sub": "foto → tensor", "kind": "service", "x": 58, "y": 6, "w": 18, "h": 8,
+      "note": "Lo sigues operando tú, en tus máquinas. Decodifica la foto y la convierte en un tensor de 3 × 224 × 224 enteros de un byte: **150,528 bytes** por request." },
+    { "id": "pl", "label": "Endpoint de interfaz", "sub": "camino privado", "kind": "edge", "x": 58, "y": 19, "w": 18, "h": 8,
+      "note": "Para llegar a SageMaker AI sin salir a internet, la VPC usa un [[privatelink|endpoint de interfaz]]. Cobra ≈ US$0.01 por GB más su hora en cada zona: ≈ **US$475** al mes para C01." },
+    { "id": "ep", "label": "Endpoint", "sub": "POST /invocations", "kind": "service", "x": 58, "y": 39, "w": 18, "h": 8,
+      "note": "El [[endpoint-gestionado|endpoint gestionado]]: una dirección y nada más. Acepta cuerpos de hasta 6 MiB y espera la respuesta 60 s. Cobra ≈ US$0.016 por cada GB que entra y que sale." },
+    { "id": "gpu", "label": "2 × ml.g4dn", "sub": "una T4 por zona", "kind": "gpu", "x": 30, "y": 39, "w": 18, "h": 8,
+      "note": "Las mismas T4, ≈ 40 % más caras por hora: ≈ US$0.736 contra ≈ US$0.526. No puedes entrar a ellas ni correr `nvidia-smi`; AWS las cambia si se caen." },
+    { "id": "s3", "label": "S3", "sub": "model.tar.gz", "kind": "store", "x": 2, "y": 39, "w": 16, "h": 8,
+      "note": "Los pesos y la configuración de Triton, empacados en un archivo que la plataforma baja cada vez que prende una máquina." },
+    { "id": "cw", "label": "CloudWatch", "sub": "logs y métricas", "kind": "monitor", "x": 2, "y": 52, "w": 16, "h": 8,
+      "note": "Lo único que ves de las máquinas: los logs y las métricas que publica la plataforma. Depurar un arranque lento desde aquí es más difícil que en tu cluster." },
+    { "id": "cobro", "label": "Cobro por GB", "sub": "≈ US$737 al mes", "kind": "monitor", "x": 58, "y": 52, "w": 18, "h": 8,
+      "note": "[[cargo-datos-procesados|Datos procesados]]: (45,760 GB de entrada + ≈ 304 GB de respuestas) × US$0.016 ≈ **US$737** al mes. Crece con cada request: con el tensor en FP32 serían ≈ US$2.9k." }
+  ],
+  "edges": [
+    { "from": "backend", "to": "alb", "kind": "online", "label": "foto", "fromSide": "r", "toSide": "l" },
+    { "from": "alb", "to": "gateway", "kind": "online", "fromSide": "r", "toSide": "l" },
+    { "from": "gateway", "to": "pl", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "pl", "to": "ep", "kind": "online", "label": "150 KB", "fromSide": "b", "toSide": "t" },
+    { "from": "ep", "to": "gpu", "kind": "online", "label": "reparte", "fromSide": "l", "toSide": "r" },
+    { "from": "s3", "to": "gpu", "kind": "offline", "label": "pesos", "fromSide": "r", "toSide": "l" },
+    { "from": "gpu", "to": "cw", "kind": "monitor", "label": "métricas", "fromSide": "b", "toSide": "r", "via": [[39, 56]] },
+    { "from": "ep", "to": "cobro", "kind": "monitor", "fromSide": "b", "toSide": "t", "dashed": true }
+  ],
+  "flows": [
+    { "id": "request", "label": "Una request",
+      "steps": [
+        { "nodes": ["backend", "alb"], "edges": ["backend>alb"], "text": "El backend manda la foto de Ana. El ALB verifica quién llama y la deja pasar." },
+        { "nodes": ["gateway"], "edges": ["alb>gateway"], "text": "El **gateway**, que sigues operando tú, convierte la foto en un tensor de 150,528 bytes." },
+        { "nodes": ["pl", "ep"], "edges": ["gateway>pl", "pl>ep"], "text": "El tensor viaja por el **endpoint de interfaz**, sin salir a internet, hasta el endpoint de SageMaker AI." },
+        { "nodes": ["gpu"], "edges": ["ep>gpu"], "text": "La plataforma lo manda a una de las dos T4. Tú no eliges cuál ni ves la máquina: solo recibes la respuesta." }
+      ] },
+    { "id": "cobros", "label": "Lo que se cobra por GB",
+      "steps": [
+        { "nodes": ["gpu"], "edges": [], "text": "Las máquinas: 2 × 0.736 × 730 ≈ **US$1,075** al mes, contra ≈ US$768 en EC2. Son ≈ US$307 de diferencia." },
+        { "nodes": ["ep", "cobro"], "edges": ["ep>cobro"], "text": "Cada GB que entra y sale del endpoint: ≈ **US$737** al mes, con 304 millones de requests." },
+        { "nodes": ["pl"], "edges": [], "text": "El camino privado cobra otra vez por GB: ≈ **US$475**. Juntos, los cobros por byte pesan ≈ 4 veces más que el sobreprecio de las máquinas." }
+      ] },
+    { "id": "ciego", "label": "Lo que no ves",
+      "steps": [
+        { "nodes": ["s3", "gpu"], "edges": ["s3>gpu"], "text": "Cuando la plataforma prende una máquina, baja los pesos de S3. Si tarda 8 minutos, ¿fue la imagen, el modelo o la falta de capacidad?" },
+        { "nodes": ["cw"], "edges": ["gpu>cw"], "text": "Solo lo sabes por los logs y las métricas de **CloudWatch**. Ese es el precio de no operar las máquinas." }
+      ] }
+  ]
+}

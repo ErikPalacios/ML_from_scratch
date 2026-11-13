@@ -1,0 +1,24 @@
+{
+  "titulo": "Comprar o rentar un servidor con GPU",
+  "intro": "Compara lo que cuesta al mes un servidor propio, con la compra [[capex-opex|amortizada]], contra rentar la misma GPU en la nube por hora. Los valores iniciales son los de la cuenta: una RTX PRO 6000 Blackwell y su servidor, contra ≈ US$4.50 por hora en Google Cloud (noviembre de 2026).",
+  "entradas": [
+    { "id": "compra", "label": "**Compra** del servidor, en US$", "min": 1000, "max": 400000, "paso": 100, "valor": 24400, "tipo": "numero" },
+    { "id": "vida", "label": "Vida útil", "min": 12, "max": 72, "paso": 6, "valor": 36, "unidad": "meses" },
+    { "id": "op", "label": "Luz, espacio y mantenimiento al mes, en US$", "min": 0, "max": 5000, "paso": 10, "valor": 310 },
+    { "id": "precio", "label": "Precio de la nube, US$ por hora", "min": 0.1, "max": 100, "paso": 0.01, "valor": 4.5, "tipo": "numero" },
+    { "id": "horas", "label": "**Horas de uso** al mes", "min": 0, "max": 730, "paso": 10, "valor": 730, "unidad": "h" }
+  ],
+  "calculos": [
+    { "id": "propio", "formula": "compra / vida + op" },
+    { "id": "nube", "formula": "precio * horas" },
+    { "id": "eq", "formula": "propio / max(precio, 1e-9)" }
+  ],
+  "salidas": [
+    { "label": "Propio, al mes (US$)", "formula": "propio", "formato": "int", "nota": "compra ÷ vida + operación; cuesta igual lo uses o no" },
+    { "label": "Nube, al mes (US$)", "formula": "nube", "formato": "int", "nota": "precio × horas de uso" },
+    { "label": "La nube cuesta, frente al propio", "formula": "nube / max(propio, 1e-9)", "formato": "x", "decimales": 2, "nota": "menos de 1×: gana rentar" },
+    { "label": "Horas al mes del equilibrio", "formula": "eq", "formato": "int", "nota": "propio ÷ precio por hora" },
+    { "label": "Equilibrio como parte del mes", "formula": "min(eq / 730, 1)", "formato": "pct", "decimales": 0, "barra": true, "nota": "si usas más que esto, comprar sale más barato" }
+  ],
+  "nota": "No incluye a las personas que operan el servidor propio, ni los descuentos por compromiso de la nube, ni que la GPU que compras hoy valdrá mucho menos en tres años. Los tres pueden cambiar la respuesta."
+}

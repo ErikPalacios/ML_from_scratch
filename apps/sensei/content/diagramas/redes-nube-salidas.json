@@ -1,0 +1,55 @@
+{
+  "titulo": "Las tres salidas de un nodo en una subred privada",
+  "width": 78,
+  "height": 46,
+  "lanes": [
+    { "id": "priv", "label": "Subred privada · 1a", "kind": "online", "x": 0, "y": 0, "w": 24, "h": 46 },
+    { "id": "salidas", "label": "Salidas de la VPC", "kind": "neutral", "x": 26, "y": 0, "w": 24, "h": 46 },
+    { "id": "fuera", "label": "Fuera de la VPC", "kind": "offline", "x": 52, "y": 0, "w": 26, "h": 46 }
+  ],
+  "nodes": [
+    { "id": "nodo", "label": "Nodo de Triton", "sub": "10.0.37.9 · sin IP pública", "kind": "gpu", "x": 3, "y": 20, "w": 18, "h": 8,
+      "note": "Vive en una [[subred-privada|subred privada]]: desde internet nadie llega a él. Para salir, su [[tabla-rutas|tabla de rutas]] le da tres caminos, y la regla más específica decide cuál toma cada paquete." },
+    { "id": "nat", "label": "NAT gateway", "sub": "US$0.045/h + US$0.045/GB", "kind": "edge", "x": 29, "y": 5, "w": 18, "h": 8,
+      "note": "La salida por omisión: `0.0.0.0/0 → NAT`. Cobra por hora y por cada GB que pasa, **en cualquier dirección**. Es para lo chico: parches y llamadas a terceros. Ver [[nat]]." },
+    { "id": "gwe", "label": "Gateway endpoint", "sub": "S3 · gratis", "kind": "edge", "x": 29, "y": 20, "w": 18, "h": 8,
+      "note": "No es una máquina: es una regla en la tabla de rutas que manda los rangos de S3 por un camino privado. Sin cargo por hora ni por GB. Ver [[vpc-endpoint]]." },
+    { "id": "ecre", "label": "Endpoints de ECR", "sub": "ecr.api + ecr.dkr", "kind": "edge", "x": 29, "y": 35, "w": 18, "h": 8,
+      "note": "Dos interface endpoints ([[privatelink|PrivateLink]]), uno por zona cada uno: ≈ US$0.01 por hora y ≈ US$0.01 por GB. Solo entregan el manifiesto y la API; las capas no pasan por aquí." },
+    { "id": "internet", "label": "Internet", "sub": "parches, APIs externas", "kind": "external", "x": 56, "y": 5, "w": 19, "h": 8,
+      "note": "Lo que de verdad está fuera de AWS: repositorios de paquetes, la API de un tercero. Solo se llega por el NAT." },
+    { "id": "s3", "label": "S3", "sub": "pesos, logs, capas", "kind": "store", "x": 56, "y": 20, "w": 19, "h": 8,
+      "note": "Un servicio regional, fuera de tu VPC y con IPs públicas. Por eso, sin endpoint, el tráfico a S3 cae en `0.0.0.0/0` y se va por el NAT." },
+    { "id": "ecr", "label": "ECR", "sub": "registro de imágenes", "kind": "store", "x": 56, "y": 35, "w": 19, "h": 8,
+      "note": "El [[registro-imagenes|registro]] donde viven las imágenes de contenedor. Guarda el manifiesto; las [[capa-imagen|capas]], los GB de verdad, las guarda **en S3**." }
+  ],
+  "edges": [
+    { "from": "nodo", "to": "nat", "kind": "neutral", "fromSide": "t", "toSide": "l", "via": [[12, 9]] },
+    { "from": "nat", "to": "internet", "kind": "neutral", "fromSide": "r", "toSide": "l" },
+    { "from": "nat", "to": "s3", "kind": "neutral", "dashed": true, "fromSide": "r", "toSide": "t", "via": [[50, 9], [50, 16], [65, 16]], "label": "por inercia" },
+    { "from": "nodo", "to": "gwe", "kind": "offline", "fromSide": "r", "toSide": "l" },
+    { "from": "gwe", "to": "s3", "kind": "offline", "fromSide": "r", "toSide": "l" },
+    { "from": "nodo", "to": "ecre", "kind": "offline", "fromSide": "b", "toSide": "l", "via": [[12, 39]] },
+    { "from": "ecre", "to": "ecr", "kind": "offline", "fromSide": "r", "toSide": "l", "label": "manifiesto" },
+    { "from": "ecr", "to": "s3", "kind": "async", "dashed": true, "fromSide": "t", "toSide": "b", "label": "capas" }
+  ],
+  "flows": [
+    { "id": "inercia", "label": "Pesos por inercia", "steps": [
+      { "nodes": ["nodo"], "edges": [], "text": "Arranca una réplica y tiene que bajar el modelo de S3. Nadie creó endpoints: la tabla solo tiene `local` y `0.0.0.0/0 → NAT`." },
+      { "nodes": ["nodo", "nat"], "edges": ["nodo>nat"], "text": "Las IPs de S3 no están en `10.0.0.0/16`, así que caen en la ruta por omisión: **el NAT**." },
+      { "nodes": ["nat", "s3"], "edges": ["nat>s3"], "text": "El NAT cobra **US$0.045 por cada GB** que pasa. Un modelo de 141 GB: ≈ US$6.30 por réplica que arranca. Y en la factura aparece como «NAT», no como «S3»." }
+    ] },
+    { "id": "endpoint", "label": "Pesos con endpoint", "steps": [
+      { "nodes": ["gwe"], "edges": [], "text": "Se crea el gateway endpoint de S3: una regla nueva en la tabla, con los rangos de S3. Ningún programa cambia." },
+      { "nodes": ["nodo", "gwe", "s3"], "edges": ["nodo>gwe", "gwe>s3"], "text": "La regla de S3 es más específica que `0.0.0.0/0`, así que gana. Los mismos 141 GB bajan por el atajo: **US$0**." }
+    ] },
+    { "id": "imagen", "label": "Pull de una imagen", "steps": [
+      { "nodes": ["nodo", "ecre", "ecr"], "edges": ["nodo>ecre", "ecre>ecr"], "text": "Para bajar la imagen de Triton, el nodo pide primero el **manifiesto** a ECR, por sus interface endpoints. Son unos KB." },
+      { "nodes": ["ecr", "s3"], "edges": ["ecr>s3"], "text": "El manifiesto dice qué capas bajar, y las capas **viven en S3**: 9.2 GB." },
+      { "nodes": ["nodo", "gwe", "s3"], "edges": ["nodo>gwe", "gwe>s3"], "text": "Con el gateway endpoint de S3, las capas bajan gratis. Sin él, irían por el NAT (≈ US$0.41 por arranque) o, si no hay NAT, el *pull* fallaría." }
+    ] },
+    { "id": "parches", "label": "Lo que sí va por el NAT", "steps": [
+      { "nodes": ["nodo", "nat", "internet"], "edges": ["nodo>nat", "nat>internet"], "text": "Parches del sistema operativo o la API de un tercero: poco tráfico que **tiene** que ir a internet. Para esto existe el NAT. Las respuestas regresan por el mismo camino; nadie de afuera puede abrir una conexión hacia el nodo." }
+    ] }
+  ]
+}

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 380" role="img" aria-labelledby="f-regiones-rpo-rto-t" class="f-svg" style="max-width:420px">
+<title id="f-regiones-rpo-rto-t">La línea del tiempo de un desastre, con tres momentos. A las 02:00 se hizo la última copia de los datos. A las 14:00 ocurre el desastre. A las 15:30 el servicio vuelve a atender. Entre la última copia y el desastre pasaron 12 horas: lo que se escribió en ese tiempo se pierde, y eso es el RPO, cuánto puedes perder; se baja copiando más seguido. Entre el desastre y la vuelta pasó hora y media: ese tiempo caído es el RTO, cuánto puedes tardar; se baja teniendo más cosas ya encendidas.</title>
+<rect class="f-card" x="10" y="10" width="340" height="360" rx="16"/>
+<text class="f-l" x="26" y="36">LA LÍNEA DEL TIEMPO DE UN DESASTRE</text>
+<text class="f-t" x="135" y="84" text-anchor="middle" style="font-size:13px">RPO: 12 h de datos</text>
+<text class="f-t" x="248" y="84" text-anchor="middle" style="font-size:13px">RTO: 1.5 h</text>
+<rect class="f-o" x="70" y="94" width="129" height="18" rx="4"/>
+<rect class="f-b" x="201" y="94" width="95" height="18" rx="4"/>
+<line class="f-linea" x1="70" y1="112" x2="70" y2="140" stroke-dasharray="3 3"/>
+<line class="f-linea" x1="200" y1="112" x2="200" y2="140" stroke-dasharray="3 3"/>
+<line class="f-linea" x1="296" y1="112" x2="296" y2="140" stroke-dasharray="3 3"/>
+<line class="f-flecha" x1="28" y1="140" x2="326" y2="140"/><path class="f-punta" d="M324 134 L324 146 L334 140 Z"/>
+<circle class="f-g" cx="70" cy="140" r="7"/>
+<circle class="f-o" cx="200" cy="140" r="7"/>
+<circle class="f-b" cx="296" cy="140" r="7"/>
+<text class="f-t" x="70" y="166" text-anchor="middle" style="font-size:12px">última copia</text>
+<text class="f-s" x="70" y="182" text-anchor="middle" style="font-size:12px">02:00</text>
+<text class="f-t" x="200" y="166" text-anchor="middle" style="font-size:12px">desastre</text>
+<text class="f-s" x="200" y="182" text-anchor="middle" style="font-size:12px">14:00</text>
+<text class="f-t" x="296" y="166" text-anchor="middle" style="font-size:12px">de vuelta</text>
+<text class="f-s" x="296" y="182" text-anchor="middle" style="font-size:12px">15:30</text>
+<rect class="f-chip" x="22" y="204" width="316" height="70" rx="10"/>
+<rect class="f-o" x="34" y="217" width="12" height="12" rx="3"/>
+<text class="f-t" x="54" y="228" style="font-size:13px">RPO · ¿cuánto puedes perder?</text>
+<text class="f-s" x="34" y="247" style="font-size:12px">Lo escrito desde la última copia se pierde.</text>
+<text class="f-s" x="34" y="263" style="font-size:12px">Se baja copiando más seguido.</text>
+<rect class="f-chip" x="22" y="284" width="316" height="70" rx="10"/>
+<rect class="f-b" x="34" y="297" width="12" height="12" rx="3"/>
+<text class="f-t" x="54" y="308" style="font-size:13px">RTO · ¿cuánto puedes tardar?</text>
+<text class="f-s" x="34" y="327" style="font-size:12px">El tiempo caído hasta volver a atender.</text>
+<text class="f-s" x="34" y="343" style="font-size:12px">Se baja teniendo más cosas ya encendidas.</text>
+</svg>

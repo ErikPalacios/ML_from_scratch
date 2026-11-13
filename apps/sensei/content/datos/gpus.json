@@ -1,0 +1,1406 @@
+{
+  "nota": "Datos de GPUs para Sensei (lección maquinas) y las calculadoras de IA Privada. Especificaciones de la hoja de datos del fabricante; precios on-demand por hora, en US$, sin impuestos. Los precios cambian: cada uno trae su fecha y fuente. Cómputo en TFLOPS/TOPS DENSOS (sin sparsity); donde el fabricante publica 'con sparsity' se dividió entre 2 y se dice en notas. GB = 10^9 bytes en VRAM y ancho de banda; las GiB de RAM de AWS/Azure son 2^30.",
+  "actualizado": "2026-11-13",
+  "moneda": "USD",
+  "horas_mes": 730,
+  "gpus": [
+    {
+      "id": "t4",
+      "nombre": "NVIDIA T4",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Turing",
+      "anio": 2018,
+      "segmento": "centro-de-datos",
+      "formato": "PCIe (bajo perfil, 1 ranura)",
+      "vram_gb": 16,
+      "memoria": "GDDR6",
+      "ancho_banda_gbs": 320,
+      "potencia_w": 70,
+      "fp16_tflops_denso": 65,
+      "fp8_tflops_denso": null,
+      "int8_tops_denso": 130,
+      "bf16": false,
+      "fp8": false,
+      "fp4": false,
+      "mig": 0,
+      "interconexion": "PCIe Gen3 x16",
+      "notas": "NVIDIA publica 'Mixed Precision (FP16/FP32) 65 TFLOPS' e INT8 130 TOPS sin sparsity (Turing no tiene sparsity 2:4): ya es denso. Ancho de banda publicado como '320+ GB/s'. Sin BF16 ni FP8 (Turing).",
+      "fuente": {
+        "url": "https://www.nvidia.com/en-us/data-center/tesla-t4/",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "nube": [
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "g4dn.xlarge",
+          "gpus": 1,
+          "vcpu": 4,
+          "ram_gib": 16,
+          "region": "us-east-1",
+          "usd_hora_instancia": 0.526,
+          "usd_gpu_hora": 0.526,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "g4dn.12xlarge",
+          "gpus": 4,
+          "vcpu": 48,
+          "ram_gib": 192,
+          "region": "us-east-1",
+          "usd_hora_instancia": 3.912,
+          "usd_gpu_hora": 0.978,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Azure",
+          "tipo": "hiperescala",
+          "instancia": "NC4as_T4_v3",
+          "gpus": 1,
+          "vcpu": 4,
+          "ram_gib": 28,
+          "region": "eastus",
+          "usd_hora_instancia": 0.526,
+          "usd_gpu_hora": 0.526,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://prices.azure.com/api/retail/prices?$filter=serviceName eq 'Virtual Machines' and armRegionName eq 'eastus' and armSkuName eq 'Standard_NC4as_T4_v3'",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Google Cloud",
+          "tipo": "hiperescala",
+          "instancia": "GPU T4 adjunta a una VM N1 (la VM se cobra aparte)",
+          "gpus": 1,
+          "vcpu": null,
+          "ram_gib": null,
+          "region": "us-central1",
+          "usd_hora_instancia": null,
+          "usd_gpu_hora": 0.35,
+          "gpu_cobrada_aparte": true,
+          "fuente": {
+            "url": "https://cloud.google.com/products/compute/gpus-pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Solo el precio de la GPU (US$0.35/h); la VM N1 que la hospeda se suma. No verifiqué el precio de esa VM."
+        }
+      ],
+      "compra_usd": null
+    },
+    {
+      "id": "l4",
+      "nombre": "NVIDIA L4",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Ada Lovelace",
+      "anio": 2023,
+      "segmento": "centro-de-datos",
+      "formato": "PCIe (bajo perfil, 1 ranura)",
+      "vram_gb": 24,
+      "memoria": "GDDR6",
+      "ancho_banda_gbs": 300,
+      "potencia_w": 72,
+      "fp16_tflops_denso": 121,
+      "fp8_tflops_denso": 242,
+      "int8_tops_denso": 242,
+      "bf16": true,
+      "fp8": true,
+      "fp4": false,
+      "mig": 0,
+      "interconexion": "PCIe Gen4 x16, 64 GB/s",
+      "notas": "La página de NVIDIA publica FP16/BF16 242 TFLOPS, FP8 485 y INT8 485 'con sparsity' (asterisco): denso = la mitad (121 / 242.5 / 242.5). Sin MIG ni NVLink.",
+      "fuente": {
+        "url": "https://www.nvidia.com/en-us/data-center/l4/",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "nube": [
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "g6.xlarge",
+          "gpus": 1,
+          "vcpu": 4,
+          "ram_gib": 16,
+          "region": "us-east-1",
+          "usd_hora_instancia": 0.8048,
+          "usd_gpu_hora": 0.8048,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "g6.48xlarge",
+          "gpus": 8,
+          "vcpu": 192,
+          "ram_gib": 768,
+          "region": "us-east-1",
+          "usd_hora_instancia": 13.3504,
+          "usd_gpu_hora": 1.6688,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Google Cloud",
+          "tipo": "hiperescala",
+          "instancia": "g2-standard-4",
+          "gpus": 1,
+          "vcpu": 4,
+          "ram_gib": 16,
+          "region": "us-central1",
+          "usd_hora_instancia": 0.706832276,
+          "usd_gpu_hora": 0.7068,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://cloud.google.com/products/compute/pricing/accelerator-optimized",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "GPU incluida en el precio de la máquina (familia G2)."
+        },
+        {
+          "proveedor": "RunPod",
+          "tipo": "neocloud",
+          "instancia": "Pod L4 (1 GPU)",
+          "gpus": 1,
+          "vcpu": 12,
+          "ram_gb": 50,
+          "region": "varias (30+ regiones)",
+          "usd_hora_instancia": 0.69,
+          "usd_gpu_hora": 0.69,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://www.runpod.io/pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+        }
+      ],
+      "compra_usd": null
+    },
+    {
+      "id": "a10g",
+      "nombre": "NVIDIA A10G (AWS)",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Ampere",
+      "anio": 2021,
+      "segmento": "centro-de-datos",
+      "formato": "PCIe (2 ranuras, variante para AWS)",
+      "vram_gb": 24,
+      "memoria": "GDDR6",
+      "ancho_banda_gbs": 600,
+      "potencia_w": 300,
+      "fp16_tflops_denso": 70,
+      "fp8_tflops_denso": null,
+      "int8_tops_denso": 140,
+      "bf16": true,
+      "fp8": false,
+      "fp4": false,
+      "mig": 0,
+      "interconexion": "PCIe Gen4",
+      "notas": "NVIDIA no publica hoja de datos de la A10G (solo de la A10: 125 TFLOPS FP16 denso, 150 W). Los 24 GB los confirma AWS; ancho de banda, 70 TFLOPS, 140 TOPS y 300 W salen de un blog técnico de Baseten (secundaria, nov-2023). No confundir con la A10: mismo ancho de banda, mucho menos cómputo tensor.",
+      "fuente": {
+        "url": "https://baseten.co/blog/nvidia-a10-vs-a10g-for-ml-model-inference",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "secundaria"
+      },
+      "fuente_vram": {
+        "url": "https://aws.amazon.com/ec2/instance-types/g5/",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "nube": [
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "g5.xlarge",
+          "gpus": 1,
+          "vcpu": 4,
+          "ram_gib": 16,
+          "region": "us-east-1",
+          "usd_hora_instancia": 1.006,
+          "usd_gpu_hora": 1.006,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "g5.48xlarge",
+          "gpus": 8,
+          "vcpu": 192,
+          "ram_gib": 768,
+          "region": "us-east-1",
+          "usd_hora_instancia": 16.288,
+          "usd_gpu_hora": 2.036,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        }
+      ],
+      "compra_usd": null
+    },
+    {
+      "id": "l40s",
+      "nombre": "NVIDIA L40S",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Ada Lovelace",
+      "anio": 2023,
+      "segmento": "centro-de-datos",
+      "formato": "PCIe (2 ranuras, pasiva)",
+      "vram_gb": 48,
+      "memoria": "GDDR6 con ECC",
+      "ancho_banda_gbs": 864,
+      "potencia_w": 350,
+      "fp16_tflops_denso": 366.5,
+      "fp8_tflops_denso": 733,
+      "int8_tops_denso": 733,
+      "bf16": true,
+      "fp8": true,
+      "fp4": false,
+      "mig": 0,
+      "interconexion": "PCIe Gen4 x16, 64 GB/s bidireccional; sin NVLink",
+      "notas": "La página de NVIDIA publica FP16 733 y FP8 1,466 TFLOPS 'con sparsity'; denso = la mitad (366.5 y 733). INT8 denso asumido igual a FP8 (no listado en la página). Sin MIG.",
+      "fuente": {
+        "url": "https://www.nvidia.com/en-us/data-center/l40s/",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "nube": [
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "g6e.xlarge",
+          "gpus": 1,
+          "vcpu": 4,
+          "ram_gib": 32,
+          "region": "us-east-1",
+          "usd_hora_instancia": 1.861,
+          "usd_gpu_hora": 1.861,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "g6e.12xlarge",
+          "gpus": 4,
+          "vcpu": 48,
+          "ram_gib": 384,
+          "region": "us-east-1",
+          "usd_hora_instancia": 10.49264,
+          "usd_gpu_hora": 2.6232,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "g6e.48xlarge",
+          "gpus": 8,
+          "vcpu": 192,
+          "ram_gib": 1536,
+          "region": "us-east-1",
+          "usd_hora_instancia": 30.13118,
+          "usd_gpu_hora": 3.7664,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "RunPod",
+          "tipo": "neocloud",
+          "instancia": "Pod L40S (1 GPU)",
+          "gpus": 1,
+          "vcpu": 16,
+          "ram_gb": 94,
+          "region": "varias (30+ regiones)",
+          "usd_hora_instancia": 1.09,
+          "usd_gpu_hora": 1.09,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://www.runpod.io/pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+        }
+      ],
+      "compra_usd": null
+    },
+    {
+      "id": "a100-40gb",
+      "nombre": "NVIDIA A100 40 GB (SXM4)",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Ampere",
+      "anio": 2020,
+      "segmento": "centro-de-datos",
+      "formato": "SXM4 (también hay PCIe de 40 GB)",
+      "vram_gb": 40,
+      "memoria": "HBM2",
+      "ancho_banda_gbs": 1555,
+      "potencia_w": 400,
+      "fp16_tflops_denso": 312,
+      "fp8_tflops_denso": null,
+      "int8_tops_denso": 624,
+      "bf16": true,
+      "fp8": false,
+      "fp4": false,
+      "mig": 7,
+      "interconexion": "NVLink 3, 600 GB/s (SXM); PCIe Gen4 64 GB/s",
+      "notas": "Hoja de datos de NVIDIA: FP16/BF16 312 TFLOPS denso (624 con sparsity); TDP 250 W en PCIe y 400 W en SXM; MIG hasta 7 instancias de 5 GB. Sin FP8.",
+      "fuente": {
+        "url": "https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "nube": [
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "p4d.24xlarge",
+          "gpus": 8,
+          "vcpu": 96,
+          "ram_gib": 1152,
+          "region": "us-east-1",
+          "usd_hora_instancia": 21.957642,
+          "usd_gpu_hora": 2.7447,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Azure",
+          "tipo": "hiperescala",
+          "instancia": "ND96asr_v4",
+          "gpus": 8,
+          "vcpu": 96,
+          "ram_gib": 900,
+          "region": "eastus",
+          "usd_hora_instancia": 27.197,
+          "usd_gpu_hora": 3.3996,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://prices.azure.com/api/retail/prices?$filter=serviceName eq 'Virtual Machines' and armRegionName eq 'eastus' and armSkuName eq 'Standard_ND96asr_v4'",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Google Cloud",
+          "tipo": "hiperescala",
+          "instancia": "a2-highgpu-1g",
+          "gpus": 1,
+          "vcpu": 12,
+          "ram_gib": 85,
+          "region": "us-central1",
+          "usd_hora_instancia": 3.673385,
+          "usd_gpu_hora": 3.6734,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://cloud.google.com/products/compute/pricing/accelerator-optimized",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Google Cloud",
+          "tipo": "hiperescala",
+          "instancia": "a2-highgpu-8g",
+          "gpus": 8,
+          "vcpu": 96,
+          "ram_gib": 680,
+          "region": "us-central1",
+          "usd_hora_instancia": 29.38708,
+          "usd_gpu_hora": 3.6734,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://cloud.google.com/products/compute/pricing/accelerator-optimized",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        }
+      ],
+      "compra_usd": null
+    },
+    {
+      "id": "a100-80gb",
+      "nombre": "NVIDIA A100 80 GB (SXM4)",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Ampere",
+      "anio": 2020,
+      "segmento": "centro-de-datos",
+      "formato": "SXM4 (también hay PCIe de 80 GB, 300 W, 1,935 GB/s)",
+      "vram_gb": 80,
+      "memoria": "HBM2e",
+      "ancho_banda_gbs": 2039,
+      "potencia_w": 400,
+      "fp16_tflops_denso": 312,
+      "fp8_tflops_denso": null,
+      "int8_tops_denso": 624,
+      "bf16": true,
+      "fp8": false,
+      "fp4": false,
+      "mig": 7,
+      "interconexion": "NVLink 3, 600 GB/s (SXM); PCIe Gen4 64 GB/s",
+      "notas": "Hoja de NVIDIA: igual cómputo que la de 40 GB; la versión SXM sube a 2,039 GB/s y la PCIe es 1,935 GB/s. MIG hasta 7 de 10 GB. TDP 400 W (HGX con refrigeración a medida: hasta 500 W). Azure NC A100 v4 usa la PCIe de 80 GB.",
+      "fuente": {
+        "url": "https://www.nvidia.com/en-us/data-center/a100/",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "nube": [
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "p4de.24xlarge",
+          "gpus": 8,
+          "vcpu": 96,
+          "ram_gib": 1152,
+          "region": "us-east-1",
+          "usd_hora_instancia": 27.44705,
+          "usd_gpu_hora": 3.4309,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Azure",
+          "tipo": "hiperescala",
+          "instancia": "ND96amsr_A100_v4",
+          "gpus": 8,
+          "vcpu": 96,
+          "ram_gib": 1900,
+          "region": "eastus",
+          "usd_hora_instancia": 32.77,
+          "usd_gpu_hora": 4.0963,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://prices.azure.com/api/retail/prices?$filter=serviceName eq 'Virtual Machines' and armRegionName eq 'eastus' and armSkuName eq 'Standard_ND96amsr_A100_v4'",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Azure",
+          "tipo": "hiperescala",
+          "instancia": "NC24ads_A100_v4",
+          "gpus": 1,
+          "vcpu": 24,
+          "ram_gib": 220,
+          "region": "eastus",
+          "usd_hora_instancia": 3.673,
+          "usd_gpu_hora": 3.673,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://prices.azure.com/api/retail/prices?$filter=serviceName eq 'Virtual Machines' and armRegionName eq 'eastus' and armSkuName eq 'Standard_NC24ads_A100_v4'",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Esta instancia trae la A100 80 GB en formato PCIe."
+        },
+        {
+          "proveedor": "Google Cloud",
+          "tipo": "hiperescala",
+          "instancia": "a2-ultragpu-1g",
+          "gpus": 1,
+          "vcpu": 12,
+          "ram_gb": 170,
+          "region": "us-central1",
+          "usd_hora_instancia": 5.06879789,
+          "usd_gpu_hora": 5.0688,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://cloud.google.com/products/compute/pricing/accelerator-optimized",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Memoria listada como 170 GB (la página usa GB, no GiB)."
+        },
+        {
+          "proveedor": "Google Cloud",
+          "tipo": "hiperescala",
+          "instancia": "a2-ultragpu-8g",
+          "gpus": 8,
+          "vcpu": 96,
+          "ram_gb": 1360,
+          "region": "us-central1",
+          "usd_hora_instancia": 40.550383123,
+          "usd_gpu_hora": 5.0688,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://cloud.google.com/products/compute/pricing/accelerator-optimized",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Memoria listada como 1,360 GB."
+        },
+        {
+          "proveedor": "Lambda",
+          "tipo": "neocloud",
+          "instancia": "8x HGX A100 80 GB",
+          "gpus": 8,
+          "vcpu": 240,
+          "ram_gib": 1800,
+          "region": "varias",
+          "usd_hora_instancia": 25.52,
+          "usd_gpu_hora": 3.19,
+          "gpu_cobrada_aparte": false,
+          "vigente_desde": "2026-11-16",
+          "fuente": {
+            "url": "https://lambda.ai/instances",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos."
+        },
+        {
+          "proveedor": "RunPod",
+          "tipo": "neocloud",
+          "instancia": "Pod A100 SXM 80 GB (1 GPU)",
+          "gpus": 1,
+          "vcpu": 16,
+          "ram_gb": 125,
+          "region": "varias (30+ regiones)",
+          "usd_hora_instancia": 2.19,
+          "usd_gpu_hora": 2.19,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://www.runpod.io/pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+        },
+        {
+          "proveedor": "RunPod",
+          "tipo": "neocloud",
+          "instancia": "Pod A100 PCIe 80 GB (1 GPU)",
+          "gpus": 1,
+          "vcpu": 8,
+          "ram_gb": 117,
+          "region": "varias (30+ regiones)",
+          "usd_hora_instancia": 2.09,
+          "usd_gpu_hora": 2.09,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://www.runpod.io/pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+        }
+      ],
+      "compra_usd": null
+    },
+    {
+      "id": "h100-sxm",
+      "nombre": "NVIDIA H100 SXM",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Hopper",
+      "anio": 2022,
+      "segmento": "centro-de-datos",
+      "formato": "SXM5",
+      "vram_gb": 80,
+      "memoria": "HBM3",
+      "ancho_banda_gbs": 3350,
+      "potencia_w": 700,
+      "fp16_tflops_denso": 989.5,
+      "fp8_tflops_denso": 1979,
+      "int8_tops_denso": 1979,
+      "bf16": true,
+      "fp8": true,
+      "fp4": false,
+      "mig": 7,
+      "interconexion": "NVLink 4, 900 GB/s; PCIe Gen5 128 GB/s",
+      "notas": "La página de NVIDIA publica FP16/BF16 1,979, FP8 3,958 e INT8 3,958 'con sparsity'; denso = la mitad. TDP hasta 700 W (configurable). MIG hasta 7 de 10 GB.",
+      "fuente": {
+        "url": "https://www.nvidia.com/en-us/data-center/h100/",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "nube": [
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "p5.48xlarge",
+          "gpus": 8,
+          "vcpu": 192,
+          "ram_gib": 2048,
+          "region": "us-east-1",
+          "usd_hora_instancia": 55.04,
+          "usd_gpu_hora": 6.88,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "p5.4xlarge",
+          "gpus": 1,
+          "vcpu": 16,
+          "ram_gib": 256,
+          "region": "us-east-1",
+          "usd_hora_instancia": 6.88,
+          "usd_gpu_hora": 6.88,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Azure",
+          "tipo": "hiperescala",
+          "instancia": "ND96isr_H100_v5",
+          "gpus": 8,
+          "vcpu": 96,
+          "ram_gib": 1900,
+          "region": "eastus",
+          "usd_hora_instancia": 98.32,
+          "usd_gpu_hora": 12.29,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://prices.azure.com/api/retail/prices?$filter=serviceName eq 'Virtual Machines' and armRegionName eq 'eastus' and armSkuName eq 'Standard_ND96isr_H100_v5'",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Google Cloud",
+          "tipo": "hiperescala",
+          "instancia": "a3-highgpu-8g",
+          "gpus": 8,
+          "vcpu": 208,
+          "ram_gb": 1871,
+          "region": "us-central1",
+          "usd_hora_instancia": 88.49,
+          "usd_gpu_hora": 11.0612,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://cloud.google.com/products/compute/pricing/accelerator-optimized",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Memoria listada como 1,871 GB."
+        },
+        {
+          "proveedor": "Lambda",
+          "tipo": "neocloud",
+          "instancia": "8x HGX H100",
+          "gpus": 8,
+          "vcpu": 208,
+          "ram_gib": 1800,
+          "region": "varias",
+          "usd_hora_instancia": 36.72,
+          "usd_gpu_hora": 4.59,
+          "gpu_cobrada_aparte": false,
+          "vigente_desde": "2026-11-16",
+          "fuente": {
+            "url": "https://lambda.ai/instances",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos."
+        },
+        {
+          "proveedor": "Lambda",
+          "tipo": "neocloud",
+          "instancia": "1x H100 SXM",
+          "gpus": 1,
+          "vcpu": 26,
+          "ram_gib": 225,
+          "region": "varias",
+          "usd_hora_instancia": 4.89,
+          "usd_gpu_hora": 4.89,
+          "gpu_cobrada_aparte": false,
+          "vigente_desde": "2026-11-16",
+          "fuente": {
+            "url": "https://lambda.ai/instances",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos."
+        },
+        {
+          "proveedor": "RunPod",
+          "tipo": "neocloud",
+          "instancia": "Pod H100 SXM (1 GPU)",
+          "gpus": 1,
+          "vcpu": 20,
+          "ram_gb": 125,
+          "region": "varias (30+ regiones)",
+          "usd_hora_instancia": 4.39,
+          "usd_gpu_hora": 4.39,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://www.runpod.io/pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+        }
+      ],
+      "compra_usd": null
+    },
+    {
+      "id": "h100-nvl",
+      "nombre": "NVIDIA H100 NVL",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Hopper",
+      "anio": 2023,
+      "segmento": "centro-de-datos",
+      "formato": "PCIe (2 ranuras), se vende en pares con puente NVLink",
+      "vram_gb": 94,
+      "memoria": "HBM3",
+      "ancho_banda_gbs": 3900,
+      "potencia_w": 400,
+      "fp16_tflops_denso": 835.5,
+      "fp8_tflops_denso": 1670.5,
+      "int8_tops_denso": 1670.5,
+      "bf16": true,
+      "fp8": true,
+      "fp4": false,
+      "mig": 7,
+      "interconexion": "NVLink por puente, 600 GB/s; PCIe Gen5 128 GB/s",
+      "notas": "Es la H100 'PCIe' vigente en la página de NVIDIA (94 GB, 3.9 TB/s); TDP 350-400 W configurable; sparsity: la página publica 1,671 / 3,341 / 3,341 y el denso es la mitad. MIG hasta 7 de 12 GB. Azure NC H100 v5 y RunPod 'H100 NVL' usan esta.",
+      "fuente": {
+        "url": "https://www.nvidia.com/en-us/data-center/h100/",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "nube": [
+        {
+          "proveedor": "Azure",
+          "tipo": "hiperescala",
+          "instancia": "NC40ads_H100_v5",
+          "gpus": 1,
+          "vcpu": 40,
+          "ram_gib": 320,
+          "region": "eastus",
+          "usd_hora_instancia": 6.98,
+          "usd_gpu_hora": 6.98,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://prices.azure.com/api/retail/prices?$filter=serviceName eq 'Virtual Machines' and armRegionName eq 'eastus' and armSkuName eq 'Standard_NC40ads_H100_v5'",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Azure",
+          "tipo": "hiperescala",
+          "instancia": "NC80adis_H100_v5",
+          "gpus": 2,
+          "vcpu": 80,
+          "ram_gib": 640,
+          "region": "eastus",
+          "usd_hora_instancia": 13.96,
+          "usd_gpu_hora": 6.98,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://prices.azure.com/api/retail/prices?$filter=serviceName eq 'Virtual Machines' and armRegionName eq 'eastus' and armSkuName eq 'Standard_NC80adis_H100_v5'",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "RunPod",
+          "tipo": "neocloud",
+          "instancia": "Pod H100 NVL (1 GPU)",
+          "gpus": 1,
+          "vcpu": 16,
+          "ram_gb": 94,
+          "region": "varias (30+ regiones)",
+          "usd_hora_instancia": 3.19,
+          "usd_gpu_hora": 3.19,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://www.runpod.io/pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+        }
+      ],
+      "compra_usd": null
+    },
+    {
+      "id": "h100-pcie",
+      "nombre": "NVIDIA H100 PCIe (80 GB)",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Hopper",
+      "anio": 2022,
+      "segmento": "centro-de-datos",
+      "formato": "PCIe (2 ranuras)",
+      "vram_gb": 80,
+      "memoria": "HBM2e",
+      "ancho_banda_gbs": 2000,
+      "potencia_w": 350,
+      "fp16_tflops_denso": null,
+      "fp8_tflops_denso": null,
+      "int8_tops_denso": null,
+      "bf16": true,
+      "fp8": true,
+      "fp4": false,
+      "mig": 7,
+      "interconexion": "PCIe Gen5; puentes NVLink",
+      "notas": "Salió de la página actual de NVIDIA (la reemplazó la NVL). Memoria, ancho de banda 2,000 GB/s, 350 W y MIG vienen del product brief PB-11133-001 (nov-2022); ese documento no trae TFLOPS, así que van en null. Se sigue rentando (Lambda, RunPod).",
+      "fuente": {
+        "url": "https://www.nvidia.com/content/dam/en-zz/Solutions/gtcs22/data-center/h100/PB-11133-001_v01.pdf",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "nube": [
+        {
+          "proveedor": "Lambda",
+          "tipo": "neocloud",
+          "instancia": "1x H100 PCIe",
+          "gpus": 1,
+          "vcpu": 26,
+          "ram_gib": 225,
+          "region": "varias",
+          "usd_hora_instancia": 3.79,
+          "usd_gpu_hora": 3.79,
+          "gpu_cobrada_aparte": false,
+          "vigente_desde": "2026-11-16",
+          "fuente": {
+            "url": "https://lambda.ai/instances",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos."
+        },
+        {
+          "proveedor": "RunPod",
+          "tipo": "neocloud",
+          "instancia": "Pod H100 PCIe (1 GPU)",
+          "gpus": 1,
+          "vcpu": 16,
+          "ram_gb": 188,
+          "region": "varias (30+ regiones)",
+          "usd_hora_instancia": 2.89,
+          "usd_gpu_hora": 2.89,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://www.runpod.io/pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+        }
+      ],
+      "compra_usd": null
+    },
+    {
+      "id": "h200",
+      "nombre": "NVIDIA H200 SXM",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Hopper",
+      "anio": 2024,
+      "segmento": "centro-de-datos",
+      "formato": "SXM5",
+      "vram_gb": 141,
+      "memoria": "HBM3e",
+      "ancho_banda_gbs": 4800,
+      "potencia_w": 700,
+      "fp16_tflops_denso": 989.5,
+      "fp8_tflops_denso": 1979,
+      "int8_tops_denso": 1979,
+      "bf16": true,
+      "fp8": true,
+      "fp4": false,
+      "mig": 7,
+      "interconexion": "NVLink 4, 900 GB/s; PCIe Gen5 128 GB/s",
+      "notas": "Mismo cómputo que la H100 SXM con más memoria y ancho de banda. La página marca 1,979 / 3,958 'con sparsity'. MIG hasta 7 de 18 GB. Existe la H200 NVL (PCIe, hasta 600 W, 1,671 FP16 con sparsity), no incluida. El cómputo de la H200 se ve igual que el de la H100: el cambio es memoria.",
+      "fuente": {
+        "url": "https://www.nvidia.com/en-us/data-center/h200/",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "nube": [
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "p5en.48xlarge",
+          "gpus": 8,
+          "vcpu": 192,
+          "ram_gib": 2048,
+          "region": "us-east-1",
+          "usd_hora_instancia": 63.296,
+          "usd_gpu_hora": 7.912,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Azure",
+          "tipo": "hiperescala",
+          "instancia": "ND96isr_H200_v5",
+          "gpus": 8,
+          "vcpu": 96,
+          "ram_gib": 1850,
+          "region": "eastus2",
+          "usd_hora_instancia": 84.8,
+          "usd_gpu_hora": 10.6,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://prices.azure.com/api/retail/prices?$filter=serviceName eq 'Virtual Machines' and armRegionName eq 'eastus2' and armSkuName eq 'Standard_ND96isr_H200_v5'",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "No está en East US en la API; precio de eastus2."
+        },
+        {
+          "proveedor": "Google Cloud",
+          "tipo": "hiperescala",
+          "instancia": "a3-ultragpu-8g",
+          "gpus": 8,
+          "vcpu": 224,
+          "ram_gb": 2952,
+          "region": "us-central1",
+          "usd_hora_instancia": 84.806908493,
+          "usd_gpu_hora": 10.6009,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://cloud.google.com/products/compute/pricing/accelerator-optimized",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Memoria listada como 2,952 GB. Cuesta menos por GPU que la a3-highgpu (H100) en la página de hoy."
+        },
+        {
+          "proveedor": "RunPod",
+          "tipo": "neocloud",
+          "instancia": "Pod H200 (1 GPU)",
+          "gpus": 1,
+          "vcpu": 24,
+          "ram_gb": 276,
+          "region": "varias (30+ regiones)",
+          "usd_hora_instancia": 5.29,
+          "usd_gpu_hora": 5.29,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://www.runpod.io/pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+        }
+      ],
+      "compra_usd": null
+    },
+    {
+      "id": "b200",
+      "nombre": "NVIDIA B200 (HGX, SXM)",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Blackwell",
+      "anio": 2024,
+      "segmento": "centro-de-datos",
+      "formato": "SXM (baseboard HGX de 8 GPUs)",
+      "vram_gb": 180,
+      "memoria": "HBM3e",
+      "ancho_banda_gbs": 8000,
+      "potencia_w": 1000,
+      "fp16_tflops_denso": 2250,
+      "fp8_tflops_denso": 4500,
+      "fp4_tflops_denso": 9000,
+      "int8_tops_denso": null,
+      "bf16": true,
+      "fp8": true,
+      "fp4": true,
+      "mig": null,
+      "interconexion": "NVLink 5, 1.8 TB/s por GPU",
+      "notas": "NVIDIA publica cifras del sistema de 8 GPUs: FP4 144 PFLOPS con sparsity | 72 densos; FP8 72 y FP16/BF16 36 PFLOPS 'con sparsity'. Por GPU y denso: FP16/BF16 36/2/8 = 2,250; FP8 4,500; FP4 9,000 TFLOPS. Memoria 1.44 TB por nodo = 180 GB/GPU (AWS la lista como 1,432 GB en total; NVIDIA en la página HGX dice '1.4 TB'); ancho de banda 'hasta 8 TB/s'; TDP configurable hasta 1,000 W. MIG no verificado.",
+      "fuente": {
+        "url": "https://www.nvidia.com/en-us/data-center/hgx/",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "fuente_extra": [
+        {
+          "url": "https://www.nvidia.com/en-us/data-center/dgx-b200/",
+          "consultado": "2026-11-13",
+          "fuente_tipo": "oficial"
+        },
+        {
+          "url": "https://docs.nvidia.com/enterprise-reference-architectures/hgx-ai-factory-h100-h200-b200/latest/components.html",
+          "consultado": "2026-11-13",
+          "fuente_tipo": "oficial"
+        },
+        {
+          "url": "https://images.nvidia.com/aem-dam/Solutions/documents/HGX-B200-PCF-Summary.pdf",
+          "consultado": "2026-11-13",
+          "fuente_tipo": "oficial"
+        }
+      ],
+      "nube": [
+        {
+          "proveedor": "AWS",
+          "tipo": "hiperescala",
+          "instancia": "p6-b200.48xlarge",
+          "gpus": 8,
+          "vcpu": 192,
+          "ram_gib": 2048,
+          "region": "us-east-1",
+          "usd_hora_instancia": 113.9328,
+          "usd_gpu_hora": 14.2416,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.json",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          }
+        },
+        {
+          "proveedor": "Lambda",
+          "tipo": "neocloud",
+          "instancia": "8x HGX B200",
+          "gpus": 8,
+          "vcpu": 208,
+          "ram_gib": 2900,
+          "region": "varias",
+          "usd_hora_instancia": 61.52,
+          "usd_gpu_hora": 7.69,
+          "gpu_cobrada_aparte": false,
+          "vigente_desde": "2026-11-16",
+          "fuente": {
+            "url": "https://lambda.ai/instances",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos."
+        },
+        {
+          "proveedor": "RunPod",
+          "tipo": "neocloud",
+          "instancia": "Pod B200 (1 GPU)",
+          "gpus": 1,
+          "vcpu": 28,
+          "ram_gb": 283,
+          "region": "varias (30+ regiones)",
+          "usd_hora_instancia": 7.99,
+          "usd_gpu_hora": 7.99,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://www.runpod.io/pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+        }
+      ],
+      "compra_usd": null,
+      "nota_nube": "Google Cloud (a4-highgpu-8g, 8 x B200) no ofrece precio on-demand en la página de hoy: solo Flex-start (US$64.44/h, 8.06 por GPU), calendario, spot y compromisos. Azure no lista B200 suelta (solo GB200). Por eso no hay fila para ninguno."
+    },
+    {
+      "id": "mi300x",
+      "nombre": "AMD Instinct MI300X",
+      "fabricante": "AMD",
+      "arquitectura": "CDNA 3",
+      "anio": 2023,
+      "segmento": "centro-de-datos",
+      "formato": "OAM",
+      "vram_gb": 192,
+      "memoria": "HBM3",
+      "ancho_banda_gbs": 5300,
+      "potencia_w": 750,
+      "fp16_tflops_denso": 1300,
+      "fp8_tflops_denso": 2610,
+      "int8_tops_denso": 2600,
+      "bf16": true,
+      "fp8": true,
+      "fp4": false,
+      "mig": null,
+      "interconexion": "Infinity Fabric: 8 enlaces de 128 GB/s; PCIe 5.0 x16",
+      "notas": "AMD publica por separado las cifras con y sin sparsity: FP16/BF16 1.3 PFLOPS denso (2.61 con sparsity), FP8 2.61 PFLOPS denso (5.22 con sparsity), INT8 2.6 POPS. 750 W es la 'Typical Board Power' pico. No tiene MIG; AMD ofrece particiones de GPU por otro mecanismo (no verificado). Ecosistema ROCm.",
+      "fuente": {
+        "url": "https://www.amd.com/en/products/accelerators/instinct/mi300/mi300x.html",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "nube": [
+        {
+          "proveedor": "Azure",
+          "tipo": "hiperescala",
+          "instancia": "ND96isr_MI300X_v5",
+          "gpus": 8,
+          "vcpu": 96,
+          "ram_gib": 1850,
+          "region": "eastus2",
+          "usd_hora_instancia": 48.0,
+          "usd_gpu_hora": 6.0,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://prices.azure.com/api/retail/prices?$filter=serviceName eq 'Virtual Machines' and armRegionName eq 'eastus2' and armSkuName eq 'Standard_ND96isr_MI300X_v5'",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "No está en East US en la API; precio de eastus2."
+        }
+      ],
+      "compra_usd": null
+    },
+    {
+      "id": "rtx-4090",
+      "nombre": "NVIDIA GeForce RTX 4090",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Ada Lovelace",
+      "anio": 2022,
+      "segmento": "workstation",
+      "formato": "PCIe (tarjeta de consumo, 3-4 ranuras)",
+      "vram_gb": 24,
+      "memoria": "GDDR6X",
+      "ancho_banda_gbs": 1008,
+      "potencia_w": 450,
+      "fp16_tflops_denso": 165.2,
+      "fp8_tflops_denso": 330.3,
+      "int8_tops_denso": 330.3,
+      "bf16": true,
+      "fp8": true,
+      "fp4": false,
+      "mig": 0,
+      "interconexion": "PCIe Gen4 x16; sin NVLink",
+      "notas": "Whitepaper de Ada: FP16/BF16 tensor con acumulación FP32 = 165.2 TFLOPS denso (330.4 con sparsity); con acumulación FP16 sube al doble (330.3), un modo que no sirve para entrenar. FP8 con acumulación FP32: 330.3 denso (660.6 con sparsity). La página del producto da 1,321 AI TOPS (FP8, sparse). TGP 450 W. Su licencia de GeForce prohíbe el uso en centros de datos.",
+      "fuente": {
+        "url": "https://images.nvidia.com/aem-dam/Solutions/Data-Center/l4/nvidia-ada-gpu-architecture-whitepaper-v2.1.pdf",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "fuente_extra": [
+        {
+          "url": "https://www.nvidia.com/en-us/geforce/graphics-cards/40-series/rtx-4090/",
+          "consultado": "2026-11-13",
+          "fuente_tipo": "oficial"
+        }
+      ],
+      "nube": [
+        {
+          "proveedor": "RunPod",
+          "tipo": "neocloud",
+          "instancia": "Pod RTX 4090 (1 GPU)",
+          "gpus": 1,
+          "vcpu": 6,
+          "ram_gb": 41,
+          "region": "varias (30+ regiones)",
+          "usd_hora_instancia": 0.89,
+          "usd_gpu_hora": 0.89,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://www.runpod.io/pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+        }
+      ],
+      "compra_usd": 4800,
+      "compra_detalle": {
+        "descripcion": "Precio nuevo más bajo en EE. UU. hoy; MSRP de lanzamiento US$1,599; mediana de 12 meses US$3,300 (mínimo US$2,110). Mercado volátil y muy por encima del MSRP; usadas por mucho menos.",
+        "fuente": {
+          "url": "https://gpuprix.com/us/gpus/geforce-rtx-4090",
+          "consultado": "2026-11-13",
+          "fuente_tipo": "secundaria"
+        }
+      }
+    },
+    {
+      "id": "rtx-6000-ada",
+      "nombre": "NVIDIA RTX 6000 Ada Generation",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Ada Lovelace",
+      "anio": 2022,
+      "segmento": "workstation",
+      "formato": "PCIe (2 ranuras, ventilador activo)",
+      "vram_gb": 48,
+      "memoria": "GDDR6 con ECC",
+      "ancho_banda_gbs": 960,
+      "potencia_w": 300,
+      "fp16_tflops_denso": null,
+      "fp8_tflops_denso": 728.5,
+      "int8_tops_denso": null,
+      "bf16": true,
+      "fp8": true,
+      "fp4": false,
+      "mig": 0,
+      "interconexion": "PCIe Gen4 x16; sin NVLink",
+      "notas": "La hoja de datos solo publica 'Tensor performance 1,457 TFLOPS' = FP8 con sparsity; denso = 728.5. FP16 tensor no está publicado en la hoja (por el patrón del whitepaper de Ada, con acumulación FP16 sería la mitad del FP8, ≈ 364, y con FP32 la mitad de eso; no verificado). Total board power 300 W.",
+      "fuente": {
+        "url": "https://www.nvidia.com/en-us/design-visualization/rtx-6000/",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "fuente_extra": [
+        {
+          "url": "https://www.nvidia.com/content/dam/en-zz/Solutions/design-visualization/rtx-6000/proviz-print-rtx6000-datasheet-web-2504660.pdf",
+          "consultado": "2026-11-13",
+          "fuente_tipo": "oficial"
+        }
+      ],
+      "nube": [
+        {
+          "proveedor": "RunPod",
+          "tipo": "neocloud",
+          "instancia": "Pod RTX 6000 Ada (1 GPU)",
+          "gpus": 1,
+          "vcpu": 10,
+          "ram_gb": 167,
+          "region": "varias (30+ regiones)",
+          "usd_hora_instancia": 1.09,
+          "usd_gpu_hora": 1.09,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://www.runpod.io/pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+        }
+      ],
+      "compra_usd": null,
+      "compra_detalle": {
+        "descripcion": "No pude abrir ningún precio vigente de una tienda grande (CDW y Thinkmate bloquearon la descarga); en búsquedas aparecen ≈ US$8,700-9,000 en EE. UU., sin verificar.",
+        "fuente": null
+      }
+    },
+    {
+      "id": "rtx-pro-6000-blackwell",
+      "nombre": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+      "fabricante": "NVIDIA",
+      "arquitectura": "Blackwell",
+      "anio": 2025,
+      "segmento": "workstation",
+      "formato": "PCIe Gen5 (2 ranuras)",
+      "vram_gb": 96,
+      "memoria": "GDDR7 con ECC",
+      "ancho_banda_gbs": 1792,
+      "potencia_w": 600,
+      "fp16_tflops_denso": null,
+      "fp8_tflops_denso": null,
+      "fp4_tflops_denso": 2000,
+      "int8_tops_denso": null,
+      "bf16": true,
+      "fp8": true,
+      "fp4": true,
+      "mig": 4,
+      "interconexion": "PCIe Gen5 x16; sin NVLink",
+      "notas": "La página y la hoja de datos solo publican 4,000 AI TOPS = FP4 con sparsity; denso = 2,000. FP8 y FP16 no están publicados. MIG: hasta 4 instancias de 24 GB (hoja de datos). 600 W; existen variantes Max-Q de menor potencia.",
+      "fuente": {
+        "url": "https://www.nvidia.com/en-us/products/workstations/professional-desktop-gpus/rtx-pro-6000/",
+        "consultado": "2026-11-13",
+        "fuente_tipo": "oficial"
+      },
+      "fuente_extra": [
+        {
+          "url": "https://www.nvidia.com/content/dam/en-zz/Solutions/data-center/rtx-pro-6000-blackwell-workstation-edition/workstation-blackwell-rtx-pro-6000-workstation-edition-nvidia-us-3519208-web.pdf",
+          "consultado": "2026-11-13",
+          "fuente_tipo": "oficial"
+        }
+      ],
+      "nube": [
+        {
+          "proveedor": "Google Cloud",
+          "tipo": "hiperescala",
+          "instancia": "g4-standard-48",
+          "gpus": 1,
+          "vcpu": 48,
+          "ram_gib": 180,
+          "region": "us-central1",
+          "usd_hora_instancia": 4.49993,
+          "usd_gpu_hora": 4.4999,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://cloud.google.com/products/compute/pricing/accelerator-optimized",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "GPU incluida; familia G4. Hay fracciones: g4-standard-6 (1/8 de GPU) US$0.64688/h."
+        },
+        {
+          "proveedor": "RunPod",
+          "tipo": "neocloud",
+          "instancia": "Pod RTX PRO 6000 (1 GPU)",
+          "gpus": 1,
+          "vcpu": 16,
+          "ram_gb": 188,
+          "region": "varias (30+ regiones)",
+          "usd_hora_instancia": 2.69,
+          "usd_gpu_hora": 2.69,
+          "gpu_cobrada_aparte": false,
+          "fuente": {
+            "url": "https://www.runpod.io/pricing",
+            "consultado": "2026-11-13",
+            "fuente_tipo": "oficial"
+          },
+          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+        }
+      ],
+      "compra_usd": 16399,
+      "compra_detalle": {
+        "descripcion": "Newegg, 'en stock', visto hoy en el agregador BuildCores. Otros listados: Amazon US$19,499.95; B&H US$3,421.95 (casi seguro un error). NVIDIA Marketplace pidió US$16,000 según Igor's Lab (14-ago-2026), no disponible. Subió desde ≈ US$8,500 en el lanzamiento.",
+        "fuente": {
+          "url": "https://www.buildcores.com/products/GPU/eblltkoej/NVIDIA-RTX-PRO-6000-Blackwell-Workstation-Edition-96GB-GDDR7",
+          "consultado": "2026-11-13",
+          "fuente_tipo": "secundaria"
+        }
+      }
+    }
+  ]
+}

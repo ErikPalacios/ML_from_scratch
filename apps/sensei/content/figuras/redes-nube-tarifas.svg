@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 424" role="img" aria-labelledby="f-redes-nube-tarifas-t" class="f-svg" style="max-width:420px">
+<title id="f-redes-nube-tarifas-t">Cuánto cuesta mover un gigabyte por cada camino en AWS us-east-1, de lo gratis a lo caro. Gratis: subir datos a la nube, moverlos dentro de la misma zona con IP privada y pasar por el gateway endpoint de S3. Unos 0.008 dólares por el ALB cuando ganan los bytes; 0.01 por un interface endpoint; 0.02 por cruzar de zona, contando salida y entrada; 0.02 entre regiones; 0.045 por el NAT gateway en cualquier sentido; y 0.09 por salir a internet. Los dos más caros, el NAT y la salida a internet, son los que se toman sin pensar.</title>
+<rect class="f-card" x="10" y="10" width="340" height="404" rx="16"/>
+<text class="f-l" x="26" y="36">US$ POR GB MOVIDO · us-east-1</text>
+<text class="f-s" x="26" y="62" style="font-size:12px">Subir a la nube (ingress)</text>
+<rect class="f-g" x="26" y="68" width="6" height="12" rx="3"/>
+<text class="f-t" x="40" y="79" style="font-size:12px">gratis</text>
+<text class="f-s" x="26" y="100" style="font-size:12px">Misma zona, IP privada</text>
+<rect class="f-g" x="26" y="106" width="6" height="12" rx="3"/>
+<text class="f-t" x="40" y="117" style="font-size:12px">gratis</text>
+<text class="f-s" x="26" y="138" style="font-size:12px">Gateway endpoint de S3</text>
+<rect class="f-g" x="26" y="144" width="6" height="12" rx="3"/>
+<text class="f-t" x="40" y="155" style="font-size:12px">gratis</text>
+<text class="f-s" x="26" y="176" style="font-size:12px">ALB, cuando ganan los bytes</text>
+<rect class="f-b" x="26" y="182" width="20" height="12" rx="3"/>
+<text class="f-t" x="54" y="193" style="font-size:12px">≈ US$0.008</text>
+<text class="f-s" x="26" y="214" style="font-size:12px">Interface endpoint (PrivateLink)</text>
+<rect class="f-b" x="26" y="220" width="26" height="12" rx="3"/>
+<text class="f-t" x="60" y="231" style="font-size:12px">≈ US$0.01</text>
+<text class="f-s" x="26" y="252" style="font-size:12px">Cruce de zona (salir + entrar)</text>
+<rect class="f-y" x="26" y="258" width="51" height="12" rx="3"/>
+<text class="f-t" x="85" y="269" style="font-size:12px">≈ US$0.02</text>
+<text class="f-s" x="26" y="290" style="font-size:12px">Entre regiones, desde us-east-1</text>
+<rect class="f-y" x="26" y="296" width="51" height="12" rx="3"/>
+<text class="f-t" x="85" y="307" style="font-size:12px">≈ US$0.02</text>
+<text class="f-s" x="26" y="328" style="font-size:12px">NAT gateway, cualquier sentido</text>
+<rect class="f-o" x="26" y="334" width="115" height="12" rx="3"/>
+<text class="f-t" x="149" y="345" style="font-size:12px">≈ US$0.045</text>
+<text class="f-s" x="26" y="366" style="font-size:12px">Salir a internet (egress)</text>
+<rect class="f-o" x="26" y="372" width="230" height="12" rx="3"/>
+<text class="f-t" x="264" y="383" style="font-size:12px">≈ US$0.09</text>
+</svg>

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 380" role="img" aria-labelledby="f-nube-responsabilidad-t" class="f-svg" style="max-width:420px">
+<title id="f-nube-responsabilidad-t">Una tabla de quién cuida cada capa de un sistema. Las filas, de arriba hacia abajo: datos y acceso, tu código, el runtime, el sistema operativo, el hipervisor, el hardware y el edificio. Las columnas: on-premises, IaaS, PaaS y SaaS. En on-premises las siete capas son tuyas. En IaaS son tuyas las cuatro de arriba, hasta el sistema operativo, y el proveedor cuida hipervisor, hardware y edificio. En PaaS son tuyos solo los datos y el código. En SaaS solo los datos y quién tiene acceso. La fila de arriba, tus datos y quién los puede ver, es tuya en las cuatro columnas.</title>
+<rect class="f-card" x="10" y="10" width="340" height="360" rx="16"/>
+<text class="f-l" x="26" y="36">¿QUIÉN CUIDA CADA CAPA?</text>
+<text class="f-t" x="149" y="64" text-anchor="middle" style="font-size:12px">On-prem</text>
+<text class="f-t" x="203" y="64" text-anchor="middle" style="font-size:12px">IaaS</text>
+<text class="f-t" x="257" y="64" text-anchor="middle" style="font-size:12px">PaaS</text>
+<text class="f-t" x="311" y="64" text-anchor="middle" style="font-size:12px">SaaS</text>
+<text class="f-s" x="26" y="94" style="font-size:12px">Datos y acceso</text>
+<rect class="f-b" x="124" y="76" width="50" height="26" rx="5"/>
+<rect class="f-b" x="178" y="76" width="50" height="26" rx="5"/>
+<rect class="f-b" x="232" y="76" width="50" height="26" rx="5"/>
+<rect class="f-b" x="286" y="76" width="50" height="26" rx="5"/>
+<text class="f-s" x="26" y="124" style="font-size:12px">Tu código</text>
+<rect class="f-b" x="124" y="106" width="50" height="26" rx="5"/>
+<rect class="f-b" x="178" y="106" width="50" height="26" rx="5"/>
+<rect class="f-b" x="232" y="106" width="50" height="26" rx="5"/>
+<rect class="f-off" x="286" y="106" width="50" height="26" rx="5"/>
+<text class="f-s" x="26" y="154" style="font-size:12px">Runtime</text>
+<rect class="f-b" x="124" y="136" width="50" height="26" rx="5"/>
+<rect class="f-b" x="178" y="136" width="50" height="26" rx="5"/>
+<rect class="f-off" x="232" y="136" width="50" height="26" rx="5"/>
+<rect class="f-off" x="286" y="136" width="50" height="26" rx="5"/>
+<text class="f-s" x="26" y="184" style="font-size:12px">Sist. operativo</text>
+<rect class="f-b" x="124" y="166" width="50" height="26" rx="5"/>
+<rect class="f-b" x="178" y="166" width="50" height="26" rx="5"/>
+<rect class="f-off" x="232" y="166" width="50" height="26" rx="5"/>
+<rect class="f-off" x="286" y="166" width="50" height="26" rx="5"/>
+<text class="f-s" x="26" y="214" style="font-size:12px">Hipervisor</text>
+<rect class="f-b" x="124" y="196" width="50" height="26" rx="5"/>
+<rect class="f-off" x="178" y="196" width="50" height="26" rx="5"/>
+<rect class="f-off" x="232" y="196" width="50" height="26" rx="5"/>
+<rect class="f-off" x="286" y="196" width="50" height="26" rx="5"/>
+<text class="f-s" x="26" y="244" style="font-size:12px">Hardware</text>
+<rect class="f-b" x="124" y="226" width="50" height="26" rx="5"/>
+<rect class="f-off" x="178" y="226" width="50" height="26" rx="5"/>
+<rect class="f-off" x="232" y="226" width="50" height="26" rx="5"/>
+<rect class="f-off" x="286" y="226" width="50" height="26" rx="5"/>
+<text class="f-s" x="26" y="274" style="font-size:12px">Edificio</text>
+<rect class="f-b" x="124" y="256" width="50" height="26" rx="5"/>
+<rect class="f-off" x="178" y="256" width="50" height="26" rx="5"/>
+<rect class="f-off" x="232" y="256" width="50" height="26" rx="5"/>
+<rect class="f-off" x="286" y="256" width="50" height="26" rx="5"/>
+<line class="f-linea" x1="22" y1="104" x2="338" y2="104" stroke-dasharray="3 3"/>
+<rect class="f-b" x="26" y="296" width="14" height="14" rx="3"/>
+<text class="f-s" x="46" y="308" style="font-size:12px">lo cuidas tú</text>
+<rect class="f-off" x="150" y="296" width="14" height="14" rx="3"/>
+<text class="f-s" x="170" y="308" style="font-size:12px">lo cuida el proveedor</text>
+<text class="f-t" x="26" y="336" style="font-size:13px">La fila de arriba es tuya siempre,</text>
+<text class="f-s" x="26" y="354" style="font-size:12px">incluso en SaaS: tus datos y quién los puede ver.</text>
+</svg>

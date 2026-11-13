@@ -1,0 +1,291 @@
+{
+ "titulo": "De dónde sale cada renglón de la factura de C01",
+ "width": 78,
+ "height": 60,
+ "lanes": [
+  {
+   "id": "hora",
+   "label": "Se cobra por hora encendida",
+   "kind": "online",
+   "x": 0,
+   "y": 0,
+   "w": 38,
+   "h": 42
+  },
+  {
+   "id": "uso",
+   "label": "Se cobra por uso: GB y requests",
+   "kind": "offline",
+   "x": 40,
+   "y": 0,
+   "w": 38,
+   "h": 42
+  },
+  {
+   "id": "suma",
+   "label": "Una sola cuenta, un mes",
+   "kind": "monitor",
+   "x": 5,
+   "y": 44,
+   "w": 68,
+   "h": 16
+  }
+ ],
+ "nodes": [
+  {
+   "id": "gpus",
+   "label": "2 × g4dn.xlarge",
+   "sub": "Triton · ≈ US$768",
+   "kind": "gpu",
+   "x": 6,
+   "y": 5,
+   "w": 28,
+   "h": 8,
+   "note": "Las dos máquinas con GPU T4, una por [[zona-disponibilidad|zona]]. 2 × 0.526 × 730 ≈ US$768. Es el renglón más grande, pero no llega a la mitad de la factura."
+  },
+  {
+   "id": "gw",
+   "label": "2 × c6i.xlarge",
+   "sub": "gateway · ≈ US$248",
+   "kind": "service",
+   "x": 6,
+   "y": 18,
+   "w": 28,
+   "h": 8,
+   "note": "Las máquinas sin GPU donde corre el gateway, que valida y prepara cada foto. 2 × 0.17 × 730 ≈ US$248."
+  },
+  {
+   "id": "eks",
+   "label": "EKS",
+   "sub": "el cluster · ≈ US$73",
+   "kind": "service",
+   "x": 6,
+   "y": 31,
+   "w": 28,
+   "h": 8,
+   "note": "El precio fijo del cluster de Kubernetes gestionado: US$0.10 por hora, ≈ US$73 al mes, haya una máquina o cien. Las máquinas se cobran aparte, arriba."
+  },
+  {
+   "id": "alb",
+   "label": "ALB",
+   "sub": "por bytes · ≈ US$500",
+   "kind": "edge",
+   "x": 44,
+   "y": 5,
+   "w": 28,
+   "h": 8,
+   "note": "El [[balanceador]] cobra una hora fija pequeña y, sobre todo, por capacidad usada: como cada foto viaja en el body del request, paga por los bytes. Por eso es ≈ 29 % de la factura. Lo explica la lección de redes en la nube."
+  },
+  {
+   "id": "logs",
+   "label": "Logs, métricas, S3",
+   "sub": "por GB · ≈ US$100",
+   "kind": "store",
+   "x": 44,
+   "y": 18,
+   "w": 28,
+   "h": 8,
+   "note": "Los GB de logs que entran a CloudWatch, las métricas y los pesos del modelo en S3. Con poco volumen es poco; con mucho, el servicio de logs del proveedor puede costar mucho más que guardar lo mismo en S3."
+  },
+  {
+   "id": "red",
+   "label": "Discos, NAT, red",
+   "sub": "por GB · ≈ US$60",
+   "kind": "service",
+   "x": 44,
+   "y": 31,
+   "w": 28,
+   "h": 8,
+   "note": "Los discos de las VMs, el NAT por el que salen a internet y los GB que cruzan de zona. Con [[ruteo-por-zona|ruteo por zona]] es poco; sin él, el cruce de zona solo costaría ≈ US$1,800 al mes."
+  },
+  {
+   "id": "factura",
+   "label": "Factura de C01",
+   "sub": "≈ US$1.75k al mes",
+   "kind": "store",
+   "x": 25,
+   "y": 48,
+   "w": 28,
+   "h": 9,
+   "note": "La suma: ≈ US$1.75k al mes de infraestructura, ≈ US$0.006 por cada 1,000 predicciones. Para saber que todo esto es de C01 y no de otro equipo, cada recurso lleva la [[etiqueta-costos|etiqueta]] `proyecto=c01`."
+  }
+ ],
+ "edges": [
+  {
+   "from": "gpus",
+   "to": "factura",
+   "kind": "online",
+   "fromSide": "l",
+   "toSide": "l",
+   "via": [
+    [
+     2,
+     9
+    ],
+    [
+     2,
+     52
+    ]
+   ]
+  },
+  {
+   "from": "gw",
+   "to": "factura",
+   "kind": "online",
+   "fromSide": "l",
+   "toSide": "l",
+   "via": [
+    [
+     2,
+     22
+    ],
+    [
+     2,
+     52
+    ]
+   ]
+  },
+  {
+   "from": "eks",
+   "to": "factura",
+   "kind": "online",
+   "fromSide": "l",
+   "toSide": "l",
+   "via": [
+    [
+     2,
+     35
+    ],
+    [
+     2,
+     52
+    ]
+   ]
+  },
+  {
+   "from": "alb",
+   "to": "factura",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "r",
+   "via": [
+    [
+     76,
+     9
+    ],
+    [
+     76,
+     52
+    ]
+   ]
+  },
+  {
+   "from": "logs",
+   "to": "factura",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "r",
+   "via": [
+    [
+     76,
+     22
+    ],
+    [
+     76,
+     52
+    ]
+   ]
+  },
+  {
+   "from": "red",
+   "to": "factura",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "r",
+   "via": [
+    [
+     76,
+     35
+    ],
+    [
+     76,
+     52
+    ]
+   ]
+  }
+ ],
+ "flows": [
+  {
+   "id": "horas",
+   "label": "Lo que se cobra por hora",
+   "steps": [
+    {
+     "nodes": [
+      "gpus"
+     ],
+     "edges": [
+      "gpus>factura"
+     ],
+     "text": "Las dos T4: ≈ **US$768**. Se cobran por hora encendida, trabajen o no."
+    },
+    {
+     "nodes": [
+      "gw",
+      "eks"
+     ],
+     "edges": [
+      "gw>factura",
+      "eks>factura"
+     ],
+     "text": "El gateway (≈ US$248) y el cluster de EKS (≈ US$73). Este lado de la factura se calcula con una multiplicación: **precio por hora × 730**."
+    }
+   ]
+  },
+  {
+   "id": "uso",
+   "label": "Lo que se cobra por uso",
+   "steps": [
+    {
+     "nodes": [
+      "alb"
+     ],
+     "edges": [
+      "alb>factura"
+     ],
+     "text": "El balanceador: ≈ **US$500**, casi un tercio. Crece con los bytes que pasan, no con las horas."
+    },
+    {
+     "nodes": [
+      "logs",
+      "red"
+     ],
+     "edges": [
+      "logs>factura",
+      "red>factura"
+     ],
+     "text": "Logs, métricas, S3, discos, NAT y red: ≈ US$160 entre todos. Este lado crece con el tráfico, y es el que **sorprende**: nadie lo pidió como «una máquina»."
+    }
+   ]
+  },
+  {
+   "id": "suma",
+   "label": "La suma",
+   "steps": [
+    {
+     "nodes": [
+      "factura"
+     ],
+     "edges": [
+      "gpus>factura",
+      "gw>factura",
+      "eks>factura",
+      "alb>factura",
+      "logs>factura",
+      "red>factura"
+     ],
+     "text": "Todo junto: ≈ **US$1.75k al mes**. Las GPUs son ≈ 44 %. Dicho como lo pide la Ronda: ≈ **US$0.006 por cada 1,000 predicciones**."
+    }
+   ]
+  }
+ ]
+}

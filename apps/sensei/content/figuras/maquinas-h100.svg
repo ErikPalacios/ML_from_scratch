@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 348" role="img" aria-labelledby="f-maquinas-h100-t" class="f-svg" style="max-width:420px">
+<title id="f-maquinas-h100-t">Precio on-demand de una hora de la misma GPU H100 SXM según el proveedor, en dólares por GPU-hora, noviembre de 2026. Azure, East US: 12.29. Google Cloud, us-central1: 11.06. AWS, us-east-1: 6.88. Lambda, vigente desde el 16 de noviembre: 4.59. RunPod: 4.39. Las tres primeras son nubes de hiperescala y las dos últimas, neoclouds. Una H100 todo el mes cuesta cerca de 8,972 dólares en Azure y cerca de 3,205 en RunPod.</title>
+<rect class="f-card" x="10" y="10" width="340" height="328" rx="16"/>
+<text class="f-l" x="28" y="36" style="font-size:12px">LA MISMA H100 SXM, CINCO PRECIOS</text>
+<text class="f-s" x="28" y="56" style="font-size:12px">US$ por GPU-hora, on-demand, nov. 2026</text>
+
+<text class="f-t" x="28" y="92" style="font-size:14px">Azure</text>
+<text class="f-l" x="28" y="106" style="font-size:11px">HIPERESCALA</text>
+<rect class="f-b" x="124" y="80" width="153.6" height="22" rx="4"/>
+<text class="f-t" x="285.6" y="96" style="font-size:14px">12.29</text>
+
+<text class="f-t" x="28" y="136" style="font-size:14px">Google</text>
+<text class="f-l" x="28" y="150" style="font-size:11px">HIPERESCALA</text>
+<rect class="f-b" x="124" y="124" width="138.2" height="22" rx="4"/>
+<text class="f-t" x="270.2" y="140" style="font-size:14px">11.06</text>
+
+<text class="f-t" x="28" y="180" style="font-size:14px">AWS</text>
+<text class="f-l" x="28" y="194" style="font-size:11px">HIPERESCALA</text>
+<rect class="f-b" x="124" y="168" width="86.0" height="22" rx="4"/>
+<text class="f-t" x="218.0" y="184" style="font-size:14px">6.88</text>
+
+<text class="f-t" x="28" y="224" style="font-size:14px">Lambda</text>
+<text class="f-l" x="28" y="238" style="font-size:11px">NEOCLOUD</text>
+<rect class="f-g" x="124" y="212" width="57.4" height="22" rx="4"/>
+<text class="f-t" x="189.4" y="228" style="font-size:14px">4.59</text>
+
+<text class="f-t" x="28" y="268" style="font-size:14px">RunPod</text>
+<text class="f-l" x="28" y="282" style="font-size:11px">NEOCLOUD</text>
+<rect class="f-g" x="124" y="256" width="54.9" height="22" rx="4"/>
+<text class="f-t" x="186.9" y="272" style="font-size:14px">4.39</text>
+
+<text class="f-s" x="28" y="306" style="font-size:12px">Todo el mes: ≈ US$8,972 en Azure, ≈ 3,205 en RunPod.</text>
+<text class="f-s" x="28" y="326" style="font-size:12px">Lambda: precio vigente desde el 16 de noviembre.</text>
+</svg>

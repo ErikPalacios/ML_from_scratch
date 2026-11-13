@@ -1,0 +1,291 @@
+{
+ "terminos": [
+  {
+   "id": "servicio-gestionado",
+   "termino": "Servicio gestionado",
+   "en": "managed service",
+   "corto": "Un servicio de la nube donde el proveedor opera una parte de la pila por ti: la instala, la actualiza, la repara y la escala. Tú lo usas por su API y pagas más por unidad.",
+   "largo": "Operar es todo lo que hay que hacer para que algo siga funcionando: parches, máquinas descompuestas, escalar, guardias de noche. Un servicio gestionado se lleva ese trabajo y lo cobra dentro del precio. Va de poco (Kubernetes gestionado: el proveedor opera solo el [[plano-de-control|plano de control]]) a todo (un producto listo como Textract). Cada escalón quita trabajo y control, y suele cobrar más por unidad. Es la versión práctica de la escalera [[iaas-paas-saas|IaaS, PaaS y SaaS]].",
+   "analogia": "Pedir comida a domicilio en vez de cocinar: pagas más por plato y no lavas trastes. Se rompe porque algunos servicios cobran además por cada GB que les mandas.",
+   "ejemplo": "Textract lee páginas a ≈ US$1.50 por 1,000 (noviembre de 2026): C05 paga ≈ US$279 al mes y no opera ninguna GPU.",
+   "ver": [
+    "gestionado-vs-propio",
+    "iaas-paas-saas",
+    "responsabilidad-compartida"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "gestionado-vs-propio",
+   "termino": "Gestionado contra propio",
+   "en": "managed vs self-hosted",
+   "corto": "La decisión de pagarle al proveedor para que opere una pieza o operarla tú. Se decide con cuatro preguntas, y la primera casi siempre gana: ¿quién lo va a operar?",
+   "largo": "Las cuatro preguntas de la Ronda: (1) ¿quién lo opera?; (2) ¿cuánto volumen y qué tamaño tiene cada request?; (3) ¿qué tan especial es lo que corre?; (4) ¿qué tan rápido hay que salir y qué piden los datos? Gestionado cobra más por unidad y ahorra gente; propio es más barato por unidad y necesita un [[equipo-plataforma|equipo]] que lo opere. La cuenta honesta suma la factura y la gente de cada lado.",
+   "ejemplo": "OCR de C05: Textract ≈ US$279 al mes contra ≈ US$768 de dos GPUs propias. Por factura, lo propio gana arriba de ≈ 512,000 páginas; con ≈ US$2,500 de gente, arriba de ≈ 3.9 M.",
+   "ver": [
+    "servicio-gestionado",
+    "equipo-plataforma",
+    "dependencia-proveedor"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "kubernetes-gestionado",
+   "termino": "Kubernetes gestionado",
+   "en": "managed Kubernetes (EKS / GKE / AKS)",
+   "corto": "Kubernetes donde el proveedor opera el plano de control y tú operas las máquinas que hacen el trabajo. En AWS se llama EKS; en Google Cloud, GKE, y en Azure, AKS.",
+   "largo": "Kubernetes tiene un cerebro, el [[plano-de-control|plano de control]], y unos [[nodo|nodos]] donde corren los [[pod|pods]]. Operar el cerebro a mano es delicado: su base de datos guarda todo el cluster. Con Kubernetes gestionado el proveedor lo corre en varias zonas, lo actualiza y lo respalda. Tú sigues operando los grupos de nodos, los drivers de la GPU y tus programas.",
+   "ejemplo": "El plano de control de EKS cuesta ≈ US$0.10 por hora, ≈ US$73 al mes (noviembre de 2026); con una versión vieja en soporte extendido, ≈ US$0.60 por hora.",
+   "ver": [
+    "plano-de-control",
+    "orquestacion",
+    "nodo"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "plano-de-control",
+   "termino": "Plano de control",
+   "en": "control plane",
+   "corto": "La parte de Kubernetes que guarda el estado deseado del cluster y lo hace cumplir: recibe lo que pides por su API y manda crear o quitar pods. No corre tus programas.",
+   "largo": "Guarda lo que pediste («2 copias de Triton») y unos controladores comparan sin parar lo que hay contra lo que se pidió. En [[kubernetes-gestionado|Kubernetes gestionado]] lo opera el proveedor. Su [[sla|SLA]] cubre su API, no tus pods: si un nodo se queda sin memoria, el proveedor cumplió y tu servicio está caído. Si el plano de control se cae un rato, lo que ya corre sigue corriendo, pero nada nuevo se crea.",
+   "analogia": "El gerente de un restaurante: tiene la lista de lo que debe haber y manda a reponerlo, pero no cocina. Se rompe porque si el gerente se va un rato, la cocina sigue sirviendo.",
+   "ejemplo": "EKS promete 99.95 %: hasta ≈ 21.6 minutos al mes con la API caída, sin que tus pods dejen de atender.",
+   "ver": [
+    "kubernetes-gestionado",
+    "sla",
+    "orquestacion"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "plataforma-ml",
+   "termino": "Plataforma de ML gestionada",
+   "en": "managed ML platform (SageMaker AI / Agent Platform / Azure ML)",
+   "corto": "Una caja de servicios de la nube para entrenar, servir y registrar modelos sin operar servidores: Amazon SageMaker AI, Agent Platform de Google Cloud (antes Vertex AI) y Azure Machine Learning.",
+   "largo": "Trae piezas sueltas: jobs de entrenamiento, endpoints de tiempo real, inferencia asíncrona, serverless, batch, pipelines, [[registro-modelos|registro de modelos]], [[feature-store|feature store]] y monitoreo. Nadie usa todas. Para entrenar casi siempre conviene: cobra por segundo y apaga las máquinas sola. Para servir, depende: sobreprecio por hora, cobros por GB, límites de payload y menos visibilidad. Sus máquinas salen de la misma capacidad que las normales y tienen cuotas propias.",
+   "ejemplo": "El fine-tune mensual de C01 corre como job gestionado por ≈ US$10–50; el serving se queda en EKS porque el endpoint gestionado costaría ≈ 1.9× la infraestructura.",
+   "ver": [
+    "endpoint-gestionado",
+    "inferencia-asincrona",
+    "registro-modelos"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "endpoint-gestionado",
+   "termino": "Endpoint gestionado",
+   "en": "managed endpoint",
+   "corto": "Una dirección de una plataforma de ML que recibe requests y contesta predicciones, con las máquinas operadas por el proveedor: las prende, las cambia si se caen y agrega copias.",
+   "largo": "A cambio de no operar nodos, pides tres cosas: un sobreprecio por hora (≈ 40 % en GPU en SageMaker AI), un cobro por cada GB que entra y sale, y un contrato para tu contenedor (en SageMaker AI: puerto 8080, `POST /invocations`, `GET /ping`, cuerpo de hasta 6 MiB y respuesta en 60 s). Con payloads grandes y mucho tráfico, los cobros por GB pesan más que el sobreprecio.",
+   "ejemplo": "C01 en SageMaker AI: máquinas ≈ US$1,075 + datos procesados ≈ US$737 + endpoint de interfaz ≈ US$475 ≈ US$2,287 al mes, contra ≈ US$768 de dos T4 propias.",
+   "ver": [
+    "plataforma-ml",
+    "endpoint",
+    "cargo-datos-procesados"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "inferencia-asincrona",
+   "termino": "Inferencia asíncrona gestionada",
+   "en": "asynchronous inference",
+   "corto": "Un modo de endpoint para requests grandes o lentas: subes el archivo a S3, pides la predicción y el resultado aparece en S3 minutos después. Puede bajar a cero máquinas.",
+   "largo": "En SageMaker AI acepta archivos de hasta 1 GB y trabajos de hasta 1 hora; los trabajos esperan en una cola interna. Como nadie espera en segundos, puede [[scale-to-zero|escalar a cero]] y pagar el [[cold-start|arranque en frío]] solo cuando llega trabajo. Agent Platform y Azure ML no tienen un modo igual: se arma con una cola y [[worker|workers]] o con batch.",
+   "ejemplo": "Láminas de cientos de MB con promesa de 60 minutos (C04): un arranque de 3–5 minutos no importa, y de noche no se paga GPU.",
+   "ver": [
+    "endpoint-gestionado",
+    "scale-to-zero",
+    "cola-mensajes"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "serverless",
+   "termino": "Serverless",
+   "en": "serverless",
+   "corto": "Una forma de usar la nube donde pagas por uso (por segundo o por request) y el proveedor escala por ti, a veces hasta cero. Sí hay servidores: no los ves ni los pagas parados.",
+   "largo": "Viene en dos formas: [[funcion-serverless|funciones]] (código suelto que corre con cada evento, como Lambda) y [[contenedor-serverless|contenedores]] (tu imagen completa, como Cloud Run). Hay que hacerse dos preguntas separadas: ¿tiene la GPU que necesito?, y ¿su modo de cobrar y de arrancar encaja con mi tráfico? Gana con tráfico esporádico; pierde con tráfico 24/7 y con latencia estricta desde cero.",
+   "analogia": "Un taxi contra un coche propio: pagas solo los viajes, más caro por kilómetro. Se rompe porque el taxi a veces tarda en llegar: ese es el arranque en frío.",
+   "ejemplo": "Una L4 en Cloud Run (≈ US$1.05 por hora activa) gana a una dedicada (≈ US$588 al mes) mientras trabaje menos de ≈ 18.4 horas al día.",
+   "ver": [
+    "funcion-serverless",
+    "contenedor-serverless",
+    "scale-to-zero",
+    "pago-por-uso"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "funcion-serverless",
+   "termino": "Función serverless",
+   "en": "serverless function (AWS Lambda)",
+   "corto": "Un pedazo de código que el proveedor corre cada vez que llega un evento (una request, un archivo nuevo, un mensaje) y que cobras por milisegundos de ejecución. La más conocida es AWS Lambda.",
+   "largo": "Sus límites deciden para qué sirve. Lambda: sin GPU, hasta 10,240 MB de memoria, 15 minutos por llamada, imagen de hasta 10 GB sin comprimir y 6 MB de payload síncrono. Es ideal para el pegamento (redimensionar una foto, validar un archivo, mandar una notificación) y mala para servir modelos grandes en GPU.",
+   "ejemplo": "Las fotos de C01 de hasta 10 MB no caben en los 6 MB de Lambda, y la ResNet-50 necesitaría GPU para su volumen.",
+   "ver": [
+    "serverless",
+    "contenedor-serverless"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "contenedor-serverless",
+   "termino": "Contenedor serverless",
+   "en": "serverless container (Cloud Run / Container Apps)",
+   "corto": "Un servicio que corre tu imagen de contenedor completa, con su servidor web, y la escala según las requests, hasta cero. Cloud Run y Azure Container Apps, además, ofrecen GPU.",
+   "largo": "A diferencia de una [[funcion-serverless|función]], corre lo que quieras dentro de tu imagen. Cloud Run ofrece L4 y RTX PRO 6000, una por instancia, en regiones limitadas; Container Apps, T4 y A100. Cobra más por hora que una GPU dedicada, pero solo las horas que trabaja. Las instancias mínimas quitan el [[cold-start|arranque en frío]] y se pagan siempre.",
+   "ejemplo": "Herramienta interna de moderación con ≈ 2 h de GPU al día: ≈ US$64 al mes en Cloud Run contra ≈ US$588 de una L4 dedicada.",
+   "ver": [
+    "serverless",
+    "imagen-contenedor",
+    "cold-start"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "autoscaling",
+   "termino": "Autoscaling",
+   "en": "autoscaling",
+   "corto": "Ajustar solo cuánta capacidad corre según la carga. En Kubernetes son dos lazos: copias de un programa, en segundos, y máquinas, en minutos.",
+   "largo": "Un lazo agrega o quita réplicas según una métrica (uso de GPU, requests por segundo, mensajes en cola): en Kubernetes, HPA o KEDA. El otro pide o devuelve [[nodo|nodos]] a la nube cuando las réplicas no caben o sobran: Karpenter o el Cluster Autoscaler. «Los pods no escalan más allá de los nodos que existen.» Sirve para cambios que duran horas; los picos de segundos se cubren con capacidad de sobra ya prendida. La mecánica fina es de la estación 9 del Dojo.",
+   "ejemplo": "C04 escala sus workers con KEDA de 0 a 4, a 15 mensajes por worker: con 45 en la cola, corre 3.",
+   "ver": [
+    "cold-start",
+    "scale-to-zero",
+    "elasticidad"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "cold-start",
+   "termino": "Arranque en frío",
+   "en": "cold start",
+   "corto": "El tiempo desde que el sistema decide agregar una copia hasta que esa copia contesta su primera request: prender la máquina, bajar la imagen, cargar el modelo y pasar la prueba de listo.",
+   "largo": "En C01, con un nodo nuevo: detectar 0.5–1.5 min, nodo 2–5, imagen 2–5, engine 10–60 s, listo 5–15 s: ≈ 5 a 13 minutos. Por eso el [[autoscaling]] no absorbe picos de segundos. En [[serverless]] es al revés de lo que parece: escalar hasta cero es lo que crea el arranque en frío, y lo que lo elimina (instancias mínimas, concurrencia aprovisionada) se paga siempre.",
+   "analogia": "Prender el boiler cuando ya te quieres bañar: el agua sale fría un rato. Se rompe porque aquí el «rato» puede ser de minutos, y la request ya se cansó de esperar.",
+   "ejemplo": "A 500 requests por segundo, 13 minutos de arranque son 390,000 requests que tienen que atender las réplicas que ya estaban prendidas.",
+   "ver": [
+    "scale-to-zero",
+    "autoscaling",
+    "latencia"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "scale-to-zero",
+   "termino": "Escalar a cero",
+   "en": "scale to zero",
+   "corto": "Dejar que las copias de un servicio bajen hasta 0 cuando no hay trabajo. Ahorra la máquina entera en las horas sin tráfico; el siguiente request paga un arranque en frío completo.",
+   "largo": "Conviene donde nadie espera la respuesta en segundos: [[worker|workers]] de una cola, backfills, herramientas internas, [[inferencia-asincrona|inferencia asíncrona]]. No conviene en un servicio online con latencia estricta. Ojo con los valores por omisión: KEDA tiene `minReplicaCount` en 0.",
+   "ejemplo": "Los workers del backfill de C01 y el tier de GPU de C04 bajan a cero; el Triton online de C01 nunca.",
+   "ver": [
+    "cold-start",
+    "autoscaling",
+    "serverless"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "iam",
+   "termino": "IAM",
+   "en": "IAM (Identity and Access Management)",
+   "corto": "El sistema de la nube que decide quién puede hacer qué acción sobre qué recurso. Toda llamada a la API de la nube, de una persona o de un programa, pasa por él.",
+   "largo": "Resuelve dos preguntas distintas: autenticación (¿quién eres?) y autorización (¿qué puedes hacer?). Las identidades son usuarios, [[rol-iam|roles]] y, en Kubernetes, [[cuenta-servicio|cuentas de servicio]] conectadas a roles. Lo que se puede hacer lo dicen las [[politica-permisos|políticas]]. Por omisión todo se niega. Es lo que en Linux hacen los [[permisos]], llevado a toda la nube.",
+   "ejemplo": "Cuando Triton pide `s3:GetObject` de `c01-artefactos/triton/modelo.plan`, IAM revisa quién lo pide y si alguna política se lo permite.",
+   "ver": [
+    "rol-iam",
+    "politica-permisos",
+    "minimo-privilegio",
+    "permisos"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "politica-permisos",
+   "termino": "Política de permisos",
+   "en": "IAM policy",
+   "corto": "Un documento con reglas de qué acciones se permiten o se niegan sobre qué recursos. Cada regla tiene un efecto (Allow o Deny), unas acciones y unos recursos.",
+   "largo": "En AWS se escribe en JSON. Se evalúa con tres reglas: por omisión, todo se niega; un `Allow` que coincide lo permite; un `Deny` explícito gana siempre. Los recursos se nombran con ARN y pueden acotarse por prefijo (`c01-artefactos/triton/*`). Hay más capas (reglas de la organización, políticas del bucket), pero estas tres son el corazón.",
+   "ejemplo": "`{\"Effect\": \"Allow\", \"Action\": \"s3:GetObject\", \"Resource\": \"arn:aws:s3:::c01-artefactos/triton/*\"}`: leer, solo bajo `triton/`, de ese bucket.",
+   "ver": [
+    "iam",
+    "rol-iam",
+    "minimo-privilegio"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "rol-iam",
+   "termino": "Rol de IAM",
+   "en": "IAM role",
+   "corto": "Una identidad de la nube con políticas pegadas que no pertenece a nadie: se asume. Quien lo asume recibe sus permisos por un rato, con credenciales temporales.",
+   "largo": "Un usuario es una persona con contraseña; un rol es un gafete que se presta. Cada rol tiene dos políticas: la de **confianza** (quién puede asumirlo) y la de **permisos** (qué puede hacer). Lo normal es un rol por componente: la API, el worker, el job de entrenamiento.",
+   "analogia": "Un gafete de visitante: te lo prestan en la entrada, abre solo ciertas puertas y caduca al final del día. Se rompe porque aquí el gafete se renueva solo mientras el programa lo necesite.",
+   "ejemplo": "C05: `docs-api` escribe originales y no lee resultados; `doc-worker` lee originales, escribe resultados y tiene prohibido escribir originales.",
+   "ver": [
+    "iam",
+    "politica-permisos",
+    "credenciales-temporales"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "minimo-privilegio",
+   "termino": "Mínimo privilegio",
+   "en": "least privilege",
+   "corto": "Dar a cada componente solo los permisos que necesita, sobre solo los recursos que necesita. No evita un ataque: limita el daño cuando pasa.",
+   "largo": "La regla práctica de la Ronda: un [[rol-iam|rol]] por componente, acotado por prefijo, escrito como infraestructura como código para revisarlo como cualquier cambio. Lo contrario, un rol para todo o `s3:*` sobre `*`, hace que un pod comprometido herede todos los buckets.",
+   "ejemplo": "Si el gateway de C01 no tiene permisos de S3, un atacante que entra a su pod no lee nada de S3; con `s3:*` sobre `*`, leería pesos, logs y fotos.",
+   "ver": [
+    "rol-iam",
+    "politica-permisos",
+    "iam"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "cuenta-servicio",
+   "termino": "Cuenta de servicio",
+   "en": "service account",
+   "corto": "La identidad de un programa, no de una persona. En Kubernetes es un objeto con nombre (`classifier/triton`) con el que corre cada pod, que recibe un token firmado.",
+   "largo": "Un programa no debe usar el usuario de una persona: si ella se va, el servicio se cae, y si el programa se compromete, el atacante actúa como ella. En Google Cloud también se llaman cuentas de servicio; en AWS ese papel lo hace un [[rol-iam|rol]]. Con la [[identidad-workload|identidad del workload]], la cuenta de servicio de Kubernetes se conecta con un rol de la nube.",
+   "ejemplo": "El pod de Triton corre con la cuenta `triton` del *namespace* `classifier`; solo esa cuenta puede asumir el rol `c01-triton`.",
+   "ver": [
+    "identidad-workload",
+    "rol-iam",
+    "pod"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "credenciales-temporales",
+   "termino": "Credenciales temporales",
+   "en": "temporary credentials",
+   "corto": "Credenciales que la nube entrega al asumir un rol y que caducan solas, normalmente en una hora. El programa pide unas nuevas antes de que venzan.",
+   "largo": "Lo contrario de una credencial estática (una llave de acceso que vale hasta que alguien la borre). Si se filtran, sirven minutos y no meses, y solo para lo que permite el rol. En AWS las da STS. Son el último escalón de la escalera de [[secreto|secretos]]: «la mejor forma de manejar un secreto es no tenerlo».",
+   "ejemplo": "Una llave de AWS en un repositorio sirve hasta que alguien la rote; unas credenciales temporales copiadas de un log vencen en ≈ 1 hora.",
+   "ver": [
+    "identidad-workload",
+    "rol-iam",
+    "rotacion-secretos"
+   ],
+   "leccion": "gestionados"
+  },
+  {
+   "id": "identidad-workload",
+   "termino": "Identidad del workload",
+   "en": "workload identity (IRSA / EKS Pod Identity)",
+   "corto": "Conectar la cuenta de servicio de un pod con un rol de la nube, para que el pod reciba credenciales temporales sin que nadie guarde una llave. En EKS: IRSA o Pod Identity.",
+   "largo": "Con IRSA, Kubernetes da al pod un token firmado de su [[cuenta-servicio|cuenta de servicio]]; el SDK de AWS lo cambia en STS por [[credenciales-temporales|credenciales temporales]] del [[rol-iam|rol]], cuya política de confianza solo acepta esa cuenta de servicio. Pod Identity hace lo mismo con un agente en el nodo. En Google Cloud es Workload Identity Federation; en Azure, Entra Workload ID. El código no cambia: el SDK encuentra y renueva las credenciales solo.",
+   "ejemplo": "La cuenta `classifier/triton` lleva la anotación del rol `c01-triton`; Triton lee sus pesos de S3 sin ninguna llave en la imagen ni en un Secret.",
+   "ver": [
+    "cuenta-servicio",
+    "credenciales-temporales",
+    "rol-iam",
+    "secreto"
+   ],
+   "leccion": "gestionados"
+  }
+ ]
+}

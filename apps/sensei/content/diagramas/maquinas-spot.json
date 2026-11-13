@@ -1,0 +1,43 @@
+{
+  "titulo": "Trabajo en spot: cola, checkpoint y otra máquina",
+  "width": 78,
+  "height": 47,
+  "lanes": [
+    { "id": "cola", "label": "Lo que falta por hacer", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 14 },
+    { "id": "workers", "label": "Workers spot", "kind": "neutral", "x": 0, "y": 16, "w": 78, "h": 14 },
+    { "id": "nube", "label": "La nube", "kind": "neutral", "x": 0, "y": 32, "w": 26, "h": 15 },
+    { "id": "guarda", "label": "Lo que se guarda", "kind": "offline", "x": 28, "y": 32, "w": 50, "h": 15 }
+  ],
+  "nodes": [
+    { "id": "cola", "label": "Cola", "sub": "un mensaje por pedazo", "kind": "queue", "x": 30, "y": 4, "w": 18, "h": 8,
+      "note": "Cada mensaje es un pedazo de trabajo: una imagen, mil fotos del backfill o una época del entrenamiento. Mientras un worker lo procesa, el mensaje queda invisible; si nadie lo borra antes de su [[visibility-timeout|visibility timeout]], reaparece." },
+    { "id": "wa", "label": "Worker A", "sub": "g4dn.xlarge · zona 1a", "kind": "gpu", "x": 4, "y": 20, "w": 20, "h": 8,
+      "note": "Una instancia [[spot]]: ≈ 48 % más barata ese día, pero la nube se la puede llevar con 2 minutos de aviso." },
+    { "id": "wb", "label": "Worker B", "sub": "g5.xlarge · zona 1b", "kind": "gpu", "x": 54, "y": 20, "w": 20, "h": 8,
+      "note": "Otro tipo en otra zona: **diversificar** hace que una interrupción no se lleve a todos los workers juntos. Ojo: un engine de TensorRT compilado para T4 no corre en su A10G; hace falta uno para cada GPU." },
+    { "id": "ec2", "label": "EC2", "sub": "recupera la máquina", "kind": "external", "x": 4, "y": 36, "w": 18, "h": 8,
+      "note": "Cuando alguien que paga precio completo necesita la máquina, la nube manda el [[aviso-interrupcion|aviso de interrupción]]: 2 minutos en AWS, 30 segundos en Google Cloud y Azure. Es *best effort*: casi siempre llega, pero no se promete." },
+    { "id": "s3", "label": "S3", "sub": "checkpoints y salidas", "kind": "store", "x": 30, "y": 36, "w": 18, "h": 8,
+      "note": "Lo que no se puede perder vive fuera del worker: los [[checkpoint|checkpoints]] y las salidas de cada pedazo, cada una en una llave fija para que repetir un pedazo no haga daño." }
+  ],
+  "edges": [
+    { "from": "cola", "to": "wa", "kind": "offline", "fromSide": "l", "toSide": "t", "label": "pedazo" },
+    { "from": "cola", "to": "wb", "kind": "offline", "fromSide": "r", "toSide": "t", "label": "reaparece" },
+    { "from": "wa", "to": "s3", "kind": "offline", "fromSide": "r", "toSide": "t", "label": "checkpoint" },
+    { "from": "s3", "to": "wb", "kind": "offline", "fromSide": "r", "toSide": "b", "label": "lo lee" },
+    { "from": "ec2", "to": "wa", "kind": "async", "fromSide": "t", "toSide": "b", "dashed": true, "label": "aviso" }
+  ],
+  "flows": [
+    { "id": "normal", "label": "Un pedazo normal", "steps": [
+      { "nodes": ["cola", "wa"], "edges": ["cola>wa"], "text": "El worker A toma un pedazo de la cola. El mensaje queda **invisible** mientras lo procesa." },
+      { "nodes": ["wa", "s3"], "edges": ["wa>s3"], "text": "Mientras trabaja guarda checkpoints, y al terminar escribe la salida en S3, en una llave fija." },
+      { "nodes": ["cola", "wa"], "edges": [], "text": "Solo entonces **borra el mensaje**. Si se cayera antes de borrarlo, el pedazo se repetiría completo, sin hacer daño: es idempotente." }
+    ] },
+    { "id": "interrupcion", "label": "Llega el aviso", "steps": [
+      { "nodes": ["ec2", "wa"], "edges": ["ec2>wa"], "text": "A la mitad de un pedazo, EC2 avisa: **en 2 minutos** se lleva al worker A." },
+      { "nodes": ["wa", "s3"], "edges": ["wa>s3"], "text": "El worker deja de pedir trabajo y, si le da tiempo, guarda un último checkpoint. **No borra** el mensaje." },
+      { "nodes": ["cola", "wb"], "edges": ["cola>wb"], "text": "Vence el visibility timeout y el mensaje **reaparece**. Lo toma el worker B, de otro tipo y en otra zona." },
+      { "nodes": ["s3", "wb"], "edges": ["s3>wb"], "text": "B carga el checkpoint y sigue desde ahí. Lo único que se pagó dos veces es el trabajo posterior al último checkpoint, más el arranque." }
+    ] }
+  ]
+}

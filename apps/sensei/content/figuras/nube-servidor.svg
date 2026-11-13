@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 384" role="img" aria-labelledby="f-nube-servidor-t" class="f-svg" style="max-width:420px">
+<title id="f-nube-servidor-t">Un servidor físico de un centro de datos, partido en tres máquinas virtuales de tres clientes distintos. Abajo está el hardware: CPUs, RAM, discos, red y una GPU. Encima corre el hipervisor, que en AWS se llama Nitro. Encima del hipervisor, tres máquinas virtuales: la del cliente A, con 4 vCPU y Linux; la del cliente B, con 8 vCPU y Windows; y la del cliente C, con 4 vCPU, Linux y la GPU completa, que el hipervisor le entrega directo. Cada máquina virtual tiene su propio sistema operativo con su kernel y su programa, y ninguna ve a las otras.</title>
+<rect class="f-card" x="10" y="10" width="340" height="364" rx="16"/>
+<text class="f-l" x="26" y="36">UN SERVIDOR, TRES CLIENTES</text>
+<rect class="f-chip" x="22" y="50" width="100" height="134" rx="10"/>
+<text class="f-t" x="72" y="72" text-anchor="middle" style="font-size:13px">Cliente A</text>
+<text class="f-s" x="72" y="89" text-anchor="middle" style="font-size:12px">4 vCPU</text>
+<rect class="f-b" x="30" y="100" width="84" height="32" rx="6"/>
+<text class="f-pill-t" x="72" y="121" text-anchor="middle" style="font-size:12px">su programa</text>
+<rect class="f-card" x="30" y="140" width="84" height="32" rx="6"/>
+<text class="f-s" x="72" y="161" text-anchor="middle" style="font-size:12px">Linux</text>
+<rect class="f-chip" x="130" y="50" width="100" height="134" rx="10"/>
+<text class="f-t" x="180" y="72" text-anchor="middle" style="font-size:13px">Cliente B</text>
+<text class="f-s" x="180" y="89" text-anchor="middle" style="font-size:12px">8 vCPU</text>
+<rect class="f-g" x="138" y="100" width="84" height="32" rx="6"/>
+<text class="f-pill-t" x="180" y="121" text-anchor="middle" style="font-size:12px">su programa</text>
+<rect class="f-card" x="138" y="140" width="84" height="32" rx="6"/>
+<text class="f-s" x="180" y="161" text-anchor="middle" style="font-size:12px">Windows</text>
+<rect class="f-chip" x="238" y="50" width="100" height="134" rx="10"/>
+<text class="f-t" x="288" y="72" text-anchor="middle" style="font-size:13px">Cliente C</text>
+<text class="f-s" x="288" y="89" text-anchor="middle" style="font-size:12px">4 vCPU + GPU</text>
+<rect class="f-p" x="246" y="100" width="84" height="32" rx="6"/>
+<text class="f-pill-t" x="288" y="121" text-anchor="middle" style="font-size:12px">Triton</text>
+<rect class="f-card" x="246" y="140" width="84" height="32" rx="6"/>
+<text class="f-s" x="288" y="161" text-anchor="middle" style="font-size:12px">Linux</text>
+<text class="f-l" x="26" y="204">CADA VM: SU SISTEMA Y SU KERNEL</text>
+<rect class="f-dark" x="22" y="214" width="316" height="34" rx="8"/>
+<text class="f-dark-t" x="180" y="236" text-anchor="middle" style="font-weight:700">Hipervisor · Nitro en AWS</text>
+<rect class="f-chip" x="22" y="258" width="316" height="58" rx="10"/>
+<text class="f-t" x="36" y="281" style="font-size:13px">Hardware del servidor</text>
+<text class="f-s" x="36" y="300" style="font-size:12px">CPUs · RAM · discos · red</text>
+<rect class="f-o" x="252" y="266" width="72" height="42" rx="6"/>
+<text class="f-pill-t" x="288" y="292" text-anchor="middle" style="font-size:13px">GPU T4</text>
+<line class="f-flecha" x1="288" y1="264" x2="288" y2="190" stroke-dasharray="4 3"/>
+<path class="f-punta" d="M282 192 L294 192 L288 184 Z"/>
+<text class="f-s" x="26" y="342" style="font-size:12px">Ninguna VM ve a las otras: el hipervisor es la pared.</text>
+<text class="f-s" x="26" y="360" style="font-size:12px">La GPU no se parte: va completa a una sola VM.</text>
+</svg>

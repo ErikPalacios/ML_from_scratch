@@ -1,0 +1,334 @@
+{
+ "titulo": "Dos regiones: la primaria y un warm standby",
+ "width": 78,
+ "height": 61,
+ "lanes": [
+  {
+   "id": "fuera",
+   "label": "Fuera de las dos regiones",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 13
+  },
+  {
+   "id": "ra",
+   "label": "Primaria · us-east-1",
+   "kind": "online",
+   "x": 0,
+   "y": 19,
+   "w": 38,
+   "h": 42
+  },
+  {
+   "id": "rb",
+   "label": "Respaldo · us-west-2",
+   "kind": "monitor",
+   "x": 40,
+   "y": 19,
+   "w": 38,
+   "h": 42
+  }
+ ],
+ "nodes": [
+  {
+   "id": "cliente",
+   "label": "Quien llama",
+   "sub": "api.tienda.com",
+   "kind": "client",
+   "x": 3,
+   "y": 3,
+   "w": 17,
+   "h": 8,
+   "note": "Usa un nombre, no una dirección fija. Eso es lo que permite mandarlo a otra región sin que cambie nada de su lado."
+  },
+  {
+   "id": "dns",
+   "label": "DNS",
+   "sub": "con health checks",
+   "kind": "edge",
+   "x": 30,
+   "y": 3,
+   "w": 18,
+   "h": 8,
+   "note": "Contesta con la dirección de la región sana. Vive fuera de las dos regiones: si viviera en la primaria, caería con ella. Cada cliente guarda la respuesta durante el [[ttl|TTL]], así que el cambio no es instantáneo."
+  },
+  {
+   "id": "guardia",
+   "label": "Guardia",
+   "sub": "decide el failover",
+   "kind": "human",
+   "x": 58,
+   "y": 3,
+   "w": 17,
+   "h": 8,
+   "note": "Entre regiones, muchas empresas dejan la decisión a una persona: un health check que se equivoca puede mandar todo a una región que no estaba lista."
+  },
+  {
+   "id": "sa",
+   "label": "Servicio",
+   "sub": "completo · 2 zonas",
+   "kind": "service",
+   "x": 10,
+   "y": 24,
+   "w": 18,
+   "h": 8,
+   "note": "El sistema de todos los días: dos zonas, dos T4, dos gateways. Atiende todo el tráfico."
+  },
+  {
+   "id": "da",
+   "label": "S3",
+   "sub": "pesos y datos",
+   "kind": "store",
+   "x": 10,
+   "y": 37,
+   "w": 18,
+   "h": 8,
+   "note": "Los datos de la primaria. Una regla de [[replicacion-regional|replicación]] copia cada objeto nuevo a la otra región."
+  },
+  {
+   "id": "ia",
+   "label": "ECR",
+   "sub": "imágenes",
+   "kind": "store",
+   "x": 10,
+   "y": 50,
+   "w": 18,
+   "h": 8,
+   "note": "El registro donde viven las imágenes de contenedor. También se replica: sin imagen, la otra región no tiene qué correr."
+  },
+  {
+   "id": "sb",
+   "label": "Warm standby",
+   "sub": "1 T4 · 1 gateway",
+   "kind": "service",
+   "x": 50,
+   "y": 24,
+   "w": 18,
+   "h": 8,
+   "note": "Una versión chica del sistema, **encendida**. Puede atender ya, a capacidad reducida. Para C01 cuesta ≈ US$600 al mes, 34 % más. Con *pilot light*, esta caja estaría apagada."
+  },
+  {
+   "id": "db",
+   "label": "S3",
+   "sub": "la copia",
+   "kind": "store",
+   "x": 50,
+   "y": 37,
+   "w": 18,
+   "h": 8,
+   "note": "La copia llega **después** del original: segundos normalmente, hasta 15 minutos con garantía. Lo que iba en camino cuando cayó la primaria es lo que se pierde: tu [[rpo|RPO]]."
+  },
+  {
+   "id": "ib",
+   "label": "ECR",
+   "sub": "la copia",
+   "kind": "store",
+   "x": 50,
+   "y": 50,
+   "w": 18,
+   "h": 8,
+   "note": "Las mismas imágenes, ya en la región de respaldo, listas para arrancar más réplicas."
+  }
+ ],
+ "edges": [
+  {
+   "from": "cliente",
+   "to": "dns",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "nombre"
+  },
+  {
+   "from": "dns",
+   "to": "sa",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "normal",
+   "via": [
+    [
+     19,
+     16
+    ]
+   ]
+  },
+  {
+   "from": "dns",
+   "to": "sb",
+   "kind": "online",
+   "dashed": true,
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "failover",
+   "via": [
+    [
+     59,
+     16
+    ]
+   ]
+  },
+  {
+   "from": "guardia",
+   "to": "dns",
+   "kind": "neutral",
+   "fromSide": "l",
+   "toSide": "r",
+   "label": "botón"
+  },
+  {
+   "from": "da",
+   "to": "db",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "replica"
+  },
+  {
+   "from": "ia",
+   "to": "ib",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "replica"
+  },
+  {
+   "from": "db",
+   "to": "sb",
+   "kind": "offline",
+   "fromSide": "t",
+   "toSide": "b"
+  }
+ ],
+ "flows": [
+  {
+   "id": "normal",
+   "label": "Un día normal",
+   "steps": [
+    {
+     "nodes": [
+      "cliente",
+      "dns",
+      "sa"
+     ],
+     "edges": [
+      "cliente>dns",
+      "dns>sa"
+     ],
+     "text": "El DNS contesta con la dirección de la **primaria**, que atiende todo."
+    },
+    {
+     "nodes": [
+      "da",
+      "db",
+      "ia",
+      "ib"
+     ],
+     "edges": [
+      "da>db",
+      "ia>ib"
+     ],
+     "text": "Mientras tanto, cada objeto y cada imagen nuevos **se copian** a la región de respaldo. Cada GB que cruza paga ≈ US$0.02."
+    },
+    {
+     "nodes": [
+      "sb"
+     ],
+     "edges": [],
+     "text": "El *warm standby* está encendido y casi sin trabajo. Es lo que se paga todos los meses para que el día malo tome minutos y no horas."
+    }
+   ]
+  },
+  {
+   "id": "desastre",
+   "label": "El día del desastre",
+   "steps": [
+    {
+     "nodes": [
+      "sa",
+      "da",
+      "ia"
+     ],
+     "edges": [],
+     "text": "La región primaria deja de contestar. Los health checks del DNS empiezan a fallar."
+    },
+    {
+     "nodes": [
+      "guardia",
+      "dns"
+     ],
+     "edges": [
+      "guardia>dns"
+     ],
+     "text": "La persona de guardia confirma que no es una falsa alarma y **ordena el failover**."
+    },
+    {
+     "nodes": [
+      "dns",
+      "sb",
+      "cliente"
+     ],
+     "edges": [
+      "cliente>dns",
+      "dns>sb"
+     ],
+     "text": "El DNS empieza a contestar con la región de respaldo. Los clientes cambian conforme vence su TTL: uno o dos minutos."
+    },
+    {
+     "nodes": [
+      "sb",
+      "db",
+      "ib"
+     ],
+     "edges": [
+      "db>sb"
+     ],
+     "text": "El standby **crece** hasta el tamaño completo con las imágenes y los pesos que ya tiene. Necesita cuota y GPUs disponibles en esa región. El tiempo hasta aquí es el [[rto|RTO]]."
+    },
+    {
+     "nodes": [
+      "db"
+     ],
+     "edges": [],
+     "text": "Lo que no alcanzó a copiarse se perdió. Eso es el **RPO**, y hay que saber cuánto es antes del desastre, no después."
+    }
+   ]
+  },
+  {
+   "id": "pilot",
+   "label": "Lo que cambia con pilot light",
+   "steps": [
+    {
+     "nodes": [
+      "db",
+      "ib"
+     ],
+     "edges": [
+      "da>db",
+      "ia>ib"
+     ],
+     "text": "Los datos y las imágenes se replican igual. Eso no cambia."
+    },
+    {
+     "nodes": [
+      "sb"
+     ],
+     "edges": [],
+     "text": "Pero el servicio está **apagado**: no hay ni una T4 corriendo. Cuesta ≈ US$200 al mes en lugar de ≈ US$600."
+    },
+    {
+     "nodes": [
+      "sb",
+      "db"
+     ],
+     "edges": [
+      "db>sb"
+     ],
+     "text": "El día del desastre hay que **prender todo desde cero**: máquinas, GPUs, modelo cargado y caliente. El RTO pasa de minutos a decenas de minutos, si hay GPUs."
+    }
+   ]
+  }
+ ]
+}

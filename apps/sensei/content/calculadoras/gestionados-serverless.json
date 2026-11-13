@@ -1,0 +1,23 @@
+{
+  "titulo": "Serverless contra GPU dedicada",
+  "intro": "Un [[contenedor-serverless|contenedor serverless]] cobra solo las horas que trabaja, pero más caro por hora; la GPU dedicada cobra las 24 horas. Mueve las horas activas al día y mira dónde se cruzan. Precios de la lección (noviembre de 2026).",
+  "entradas": [
+    { "id": "h", "label": "**Horas de GPU activa** al día", "min": 0, "max": 24, "paso": 0.5, "valor": 2, "unidad": "h" },
+    { "id": "ps", "label": "Serverless, US$ por hora activa (L4 en Cloud Run ≈ 1.05)", "min": 0.1, "max": 10, "paso": 0.01, "valor": 1.05, "unidad": "US$" },
+    { "id": "pd", "label": "Dedicada, US$ por hora (g6.xlarge ≈ 0.805)", "min": 0.1, "max": 10, "paso": 0.005, "valor": 0.805, "unidad": "US$" },
+    { "id": "m", "label": "Instancias mínimas siempre prendidas (0 = escala a cero)", "min": 0, "max": 1, "paso": 1, "valor": 0 }
+  ],
+  "calculos": [
+    { "id": "hs", "formula": "max(h, m * 24)" },
+    { "id": "cs", "formula": "ps * hs * 30.4" },
+    { "id": "cd", "formula": "pd * 730" }
+  ],
+  "salidas": [
+    { "label": "Serverless al mes, en US$", "formula": "cs", "formato": "int", "nota": "US$/h × horas cobradas al día × 30.4 días" },
+    { "label": "Dedicada al mes, en US$", "formula": "cd", "formato": "int", "nota": "US$/h × 730 h, la uses o no" },
+    { "label": "Lo que ahorra serverless, en US$", "formula": "cd - cs", "formato": "int", "nota": "si sale negativo, gana la dedicada" },
+    { "label": "Cruce, en horas activas al día", "formula": "24 * pd / ps", "formato": "num", "decimales": 1, "nota": "24 × dedicada ÷ serverless" },
+    { "label": "Qué tanto trabajaría la GPU dedicada", "formula": "h / 24", "formato": "pct", "decimales": 0, "barra": true }
+  ],
+  "nota": "Pon una instancia mínima: el arranque en frío desaparece, pero pagas las 24 horas a precio de serverless, más que la dedicada."
+}

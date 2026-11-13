@@ -22,7 +22,7 @@
     "cpu-gpu": ["nucleo", "vcpu", "simd", "cuda", "kernel-gpu", "tensor-core", "hbm", "pcie", "nvlink", "driver", "utilizacion-gpu", "sm", "warp"],
     "sistema-operativo": ["sistema-operativo", "kernel", "linux", "sistema-archivos", "ruta", "permisos", "root", "montaje", "arquitectura-cpu", "contenedor-vs-vm", "syscall", "cgroup"],
     "async": ["io", "bloqueo", "cpu-bound", "io-bound", "async", "event-loop", "corrutina", "gil", "threadpool", "multiproceso", "worker", "ley-little"],
-    "regiones": ["region", "zona-disponibilidad", "sla"],
+    "regiones": ["region", "zona-disponibilidad", "sla", "dominio-falla", "multi-az", "multi-region", "n-mas-uno", "ruteo-por-zona", "failover", "recuperacion-desastres", "rpo", "rto", "estrategia-dr", "residencia-datos", "replicacion-regional", "game-day"],
     "red": ["protocolo", "paquete-red", "direccion-ip", "ip-privada", "puerto", "socket", "localhost", "cliente", "tcp", "udp", "handshake", "rtt", "dns", "ttl", "capas-red"],
     "http": ["http", "url", "metodo-http", "header", "body", "codigo-estado", "https", "keep-alive", "pool-conexiones", "http2", "cookie"],
     "apis": ["endpoint", "rest", "json", "serializacion", "esquema-api", "versionado-api", "grpc", "protobuf", "streaming", "sse", "websocket", "polling", "webhook", "base64", "protocolo-inferencia"],
@@ -34,7 +34,7 @@
     "almacenamiento": ["object-storage", "bucket-objetos", "url-prefirmada", "durabilidad", "clase-almacenamiento", "ciclo-vida", "almacenamiento-bloques", "data-lake", "data-warehouse", "oltp-olap", "lakehouse", "particion-datos", "snapshot", "retencion", "feature-store", "backfill"],
     "colas": ["cola-mensajes", "productor", "consumidor", "broker", "stream-eventos", "topico", "particion-topico", "offset", "grupo-consumidores", "at-least-once", "at-most-once", "exactly-once", "visibility-timeout", "dlq", "lag-consumidor", "cdc"],
     "tiempo-hash": ["timestamp", "tiempo-unix", "utc", "iso-8601", "reloj-monotonico", "desfase-reloj", "event-time", "ventana-tiempo", "watermark", "point-in-time", "funcion-hash", "hash-criptografico", "checksum", "sharding", "asignacion-hash", "uuid", "request-id"],
-    "redes-nube": ["vpc", "nat", "egress"],
+    "redes-nube": ["vpc", "nat", "egress", "subred", "subred-privada", "vpc-endpoint", "privatelink", "transferencia-entre-zonas", "transferencia-entre-regiones", "cargo-datos-procesados", "lcu", "alb", "ip-publica", "ancho-banda-baseline", "cidr", "tabla-rutas", "grupo-seguridad", "internet-gateway"],
     "cifrado": ["tls", "mtls", "hmac", "kms"],
     "identidad": ["jwt", "api-key"],
     "e10-rollout": ["canary", "blue-green", "shadow"],
@@ -51,7 +51,9 @@
     "e07-empaquetado": ["imagen-contenedor", "dockerfile", "capa-imagen", "digest-imagen"],
     "e08-cicd": ["registro-imagenes"],
     "e09-kubernetes": ["pod", "deployment-k8s"],
-    "gestionados": ["iam"],
-    "ataques": ["cadena-suministro", "sbom"]
+    "gestionados": ["iam", "rol-iam", "politica-permisos", "minimo-privilegio", "identidad-workload", "cuenta-servicio", "credenciales-temporales", "servicio-gestionado", "gestionado-vs-propio", "plataforma-ml", "endpoint-gestionado", "inferencia-asincrona", "serverless", "funcion-serverless", "contenedor-serverless", "scale-to-zero", "cold-start", "autoscaling", "kubernetes-gestionado", "plano-de-control"],
+    "ataques": ["cadena-suministro", "sbom"],
+    "nube": ["nube", "proveedor-nube", "capex-opex", "pago-por-uso", "elasticidad", "on-premises", "centro-de-datos", "cuenta-nube", "api-nube", "dependencia-proveedor", "neocloud", "equipo-plataforma", "factura-nube", "precio-lista", "maquina-virtual", "hipervisor", "responsabilidad-compartida", "iaas-paas-saas"],
+    "maquinas": ["instancia", "familia-instancia", "gpu-hora", "hora-facturada", "on-demand", "spot", "aviso-interrupcion", "savings-plan", "instancia-reservada", "reserva-capacidad", "capacity-block", "cuota-servicio", "error-capacidad", "right-sizing", "costo-por-prediccion", "nodo", "acelerador-propio", "mig", "fraccion-gpu", "etiqueta-costos"]
   }
 }

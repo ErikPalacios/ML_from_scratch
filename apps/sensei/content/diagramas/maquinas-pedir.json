@@ -1,0 +1,57 @@
+{
+  "titulo": "De «necesito otra GPU» a «la GPU ya atiende»",
+  "width": 78,
+  "height": 47,
+  "lanes": [
+    { "id": "pide", "label": "Quien pide", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 14 },
+    { "id": "filtros", "label": "Dos filtros", "kind": "online", "x": 0, "y": 16, "w": 78, "h": 14 },
+    { "id": "obtienes", "label": "Lo que obtienes", "kind": "neutral", "x": 0, "y": 32, "w": 78, "h": 15 }
+  ],
+  "nodes": [
+    { "id": "autoscaler", "label": "Autoscaler", "sub": "pide 1 g4dn.xlarge", "kind": "client", "x": 4, "y": 4, "w": 20, "h": 8,
+      "note": "Puede ser una persona en la consola o el programa del cluster que agrega [[nodo|nodos]] cuando faltan GPUs. Los dos hacen lo mismo: una llamada a la API de la nube que dice qué [[instancia]], en qué zona y cuántas." },
+    { "id": "planb", "label": "Plan B", "sub": "otra zona u otro tipo", "kind": "service", "x": 56, "y": 4, "w": 20, "h": 8,
+      "note": "Si la zona no tiene T4 libres, se pide en `us-east-1b` o se pide una `g4dn.2xlarge`, que trae **la misma T4**. Pedir una L4 también sirve, pero solo si hay un engine compilado para ella." },
+    { "id": "cuota", "label": "Cuota", "sub": "28 vCPU de instancias G", "kind": "service", "x": 4, "y": 20, "w": 20, "h": 8,
+      "note": "La [[cuota-servicio|cuota]] es un límite de tu cuenta en la región. AWS la cuenta en vCPU: cada `g4dn.xlarge` gasta 4. Si te pasas, el error llega al instante y solo se arregla pidiendo más, lo que puede tardar días." },
+    { "id": "capacidad", "label": "Capacidad", "sub": "¿hay T4 libres en 1a?", "kind": "gpu", "x": 32, "y": 20, "w": 18, "h": 8,
+      "note": "Las GPUs son físicas: la zona tiene un número fijo. Si están ocupadas, la nube responde `InsufficientInstanceCapacity`, el [[error-capacidad|error de capacidad]]. No es tu cuota y no se arregla pagando más." },
+    { "id": "reserva", "label": "Reserva", "sub": "2 T4 apartadas", "kind": "store", "x": 56, "y": 20, "w": 20, "h": 8,
+      "note": "Una [[reserva-capacidad|reserva de capacidad]] aparta máquinas en una zona y se paga se usen o no. Es lo único que garantiza que el mínimo arranque. Un Savings Plan **no** hace esto." },
+    { "id": "factura", "label": "Factura", "sub": "corre el reloj", "kind": "monitor", "x": 4, "y": 36, "w": 20, "h": 8,
+      "note": "Desde que la instancia arranca se cobra cada segundo que está encendida, trabaje o no: es la [[hora-facturada|hora facturada]]. A ≈ US$0.526 la hora, ≈ US$384 al mes." },
+    { "id": "instancia", "label": "Instancia", "sub": "arranca en minutos", "kind": "gpu", "x": 32, "y": 36, "w": 18, "h": 8,
+      "note": "La máquina virtual con sus 4 vCPU, 16 GiB y su T4. Arrancar, bajar la imagen de Triton y cargar el modelo toma minutos, no segundos." },
+    { "id": "nodo", "label": "Nodo", "sub": "Triton ya atiende", "kind": "service", "x": 56, "y": 36, "w": 20, "h": 8,
+      "note": "La instancia se une al cluster como [[nodo]] y el cluster le pone una copia de Triton. Hasta aquí, la GPU nueva no ayudó en nada al pico que la pidió." }
+  ],
+  "edges": [
+    { "from": "autoscaler", "to": "cuota", "kind": "online", "fromSide": "b", "toSide": "t", "label": "pide" },
+    { "from": "cuota", "to": "capacidad", "kind": "online", "fromSide": "r", "toSide": "l", "label": "cabe" },
+    { "from": "reserva", "to": "capacidad", "kind": "neutral", "fromSide": "l", "toSide": "r", "dashed": true, "label": "apartada" },
+    { "from": "capacidad", "to": "planb", "kind": "neutral", "fromSide": "t", "toSide": "l", "dashed": true, "label": "ICE" },
+    { "from": "capacidad", "to": "instancia", "kind": "online", "fromSide": "b", "toSide": "t", "label": "hay" },
+    { "from": "instancia", "to": "nodo", "kind": "online", "fromSide": "r", "toSide": "l", "label": "se une" },
+    { "from": "instancia", "to": "factura", "kind": "monitor", "fromSide": "l", "toSide": "r", "label": "cobra" }
+  ],
+  "flows": [
+    { "id": "feliz", "label": "Todo sale bien", "steps": [
+      { "nodes": ["autoscaler", "cuota"], "edges": ["autoscaler>cuota"], "text": "Llega un pico y el autoscaler pide una tercera `g4dn.xlarge`. La nube revisa la **cuota**: la cuenta ya usa 8 vCPU de 28; con 4 más, cabe." },
+      { "nodes": ["cuota", "capacidad"], "edges": ["cuota>capacidad"], "text": "Luego revisa la **capacidad**: en `us-east-1a` hay servidores con T4 libres." },
+      { "nodes": ["capacidad", "instancia", "factura"], "edges": ["capacidad>instancia", "instancia>factura"], "text": "La instancia arranca y **desde ese segundo se cobra**, aunque todavía no atienda nada." },
+      { "nodes": ["instancia", "nodo"], "edges": ["instancia>nodo"], "text": "Se une al cluster, baja la imagen de Triton y carga el modelo. Pasaron **minutos**: por eso el autoscaling de nodos no absorbe picos de segundos." }
+    ] },
+    { "id": "cuota", "label": "Te pasas de la cuota", "steps": [
+      { "nodes": ["autoscaler", "cuota"], "edges": ["autoscaler>cuota"], "text": "Alguien dejó encendidas 6 `g4dn.xlarge` de pruebas: 24 vCPU. El autoscaler pide 2 más (8 vCPU) y la cuenta llegaría a 32, más que los 28 de la cuota." },
+      { "nodes": ["cuota"], "edges": [], "text": "El error llega **al instante**. Esperar no sirve: hay que apagar lo que sobra o pedir más cuota, y eso puede tardar días. Por eso se pide para el máximo **antes** de lanzar." }
+    ] },
+    { "id": "ice", "label": "La zona no tiene T4", "steps": [
+      { "nodes": ["autoscaler", "cuota", "capacidad"], "edges": ["autoscaler>cuota", "cuota>capacidad"], "text": "La cuota alcanza, pero hoy todos quieren T4 en `us-east-1a`. La nube responde `InsufficientInstanceCapacity`." },
+      { "nodes": ["capacidad", "planb"], "edges": ["capacidad>planb"], "text": "El autoscaler prueba el **plan B**: otra zona, o una `g4dn.2xlarge` con la misma T4. Si el cluster solo permite un tipo en una zona, se queda esperando." }
+    ] },
+    { "id": "reserva", "label": "Con reserva", "steps": [
+      { "nodes": ["reserva", "capacidad"], "edges": ["reserva>capacidad"], "text": "Si C01 reserva sus **2 T4 mínimas**, una por zona, esas máquinas quedan apartadas: se pagan aunque no se usen." },
+      { "nodes": ["capacidad", "instancia", "nodo"], "edges": ["capacidad>instancia", "instancia>nodo"], "text": "Si el cluster se reinicia en un mal día, el mínimo arranca seguro. Las réplicas extra del pico no van reservadas: se arriesgan al plan B." }
+    ] }
+  ]
+}

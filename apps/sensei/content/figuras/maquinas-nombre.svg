@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 372" role="img" aria-labelledby="f-maquinas-nombre-t" class="f-svg" style="max-width:420px">
+<title id="f-maquinas-nombre-t">Cómo se lee el nombre de una instancia de AWS. Primer ejemplo, g4dn.xlarge, partido en cuatro piezas: g es la familia, GPUs para inferencia; 4 es la generación; dn son extras, d de disco NVMe local y n de red más rápida; xlarge es el tamaño, 4 vCPU. Segundo ejemplo, p5.48xlarge: p es la familia de GPUs grandes; 5 es la generación; 48xlarge es el tamaño, 48 por 4 igual a 192 vCPU, con 8 GPUs H100.</title>
+<rect class="f-card" x="10" y="10" width="340" height="352" rx="16"/>
+<text class="f-l" x="28" y="36" style="font-size:12px">CÓMO SE LEE EL NOMBRE</text>
+
+<rect class="f-chip" x="40" y="52" width="40" height="44" rx="8"/>
+<rect class="f-o" x="40" y="91" width="40" height="5" rx="2"/>
+<text class="f-t" x="60" y="82" text-anchor="middle" style="font-size:24px;font-family:var(--mono, monospace)">g</text>
+<rect class="f-chip" x="86" y="52" width="40" height="44" rx="8"/>
+<rect class="f-y" x="86" y="91" width="40" height="5" rx="2"/>
+<text class="f-t" x="106" y="82" text-anchor="middle" style="font-size:24px;font-family:var(--mono, monospace)">4</text>
+<rect class="f-chip" x="132" y="52" width="56" height="44" rx="8"/>
+<rect class="f-g" x="132" y="91" width="56" height="5" rx="2"/>
+<text class="f-t" x="160" y="82" text-anchor="middle" style="font-size:24px;font-family:var(--mono, monospace)">dn</text>
+<text class="f-t" x="198" y="82" text-anchor="middle" style="font-size:24px;font-family:var(--mono, monospace)">.</text>
+<rect class="f-chip" x="208" y="52" width="112" height="44" rx="8"/>
+<rect class="f-b" x="208" y="91" width="112" height="5" rx="2"/>
+<text class="f-t" x="264" y="82" text-anchor="middle" style="font-size:24px;font-family:var(--mono, monospace)">xlarge</text>
+
+<rect class="f-o" x="40" y="114" width="12" height="12" rx="3"/>
+<text class="f-s" x="60" y="124"><tspan style="font-weight:700">g</tspan> · familia: GPUs para inferencia</text>
+<rect class="f-y" x="40" y="136" width="12" height="12" rx="3"/>
+<text class="f-s" x="60" y="146"><tspan style="font-weight:700">4</tspan> · generación (la 6 es más nueva)</text>
+<rect class="f-g" x="40" y="158" width="12" height="12" rx="3"/>
+<text class="f-s" x="60" y="168"><tspan style="font-weight:700">dn</tspan> · extras: disco NVMe local, red rápida</text>
+<rect class="f-b" x="40" y="180" width="12" height="12" rx="3"/>
+<text class="f-s" x="60" y="190"><tspan style="font-weight:700">xlarge</tspan> · tamaño: 4 vCPU, 1 T4</text>
+
+<line class="f-linea" x1="28" y1="212" x2="332" y2="212" style="stroke-dasharray:4 4"/>
+
+<rect class="f-chip" x="40" y="228" width="40" height="44" rx="8"/>
+<rect class="f-o" x="40" y="267" width="40" height="5" rx="2"/>
+<text class="f-t" x="60" y="258" text-anchor="middle" style="font-size:24px;font-family:var(--mono, monospace)">p</text>
+<rect class="f-chip" x="86" y="228" width="40" height="44" rx="8"/>
+<rect class="f-y" x="86" y="267" width="40" height="5" rx="2"/>
+<text class="f-t" x="106" y="258" text-anchor="middle" style="font-size:24px;font-family:var(--mono, monospace)">5</text>
+<text class="f-t" x="136" y="258" text-anchor="middle" style="font-size:24px;font-family:var(--mono, monospace)">.</text>
+<rect class="f-chip" x="146" y="228" width="140" height="44" rx="8"/>
+<rect class="f-b" x="146" y="267" width="140" height="5" rx="2"/>
+<text class="f-t" x="216" y="258" text-anchor="middle" style="font-size:24px;font-family:var(--mono, monospace)">48xlarge</text>
+
+<rect class="f-o" x="40" y="290" width="12" height="12" rx="3"/>
+<text class="f-s" x="60" y="300"><tspan style="font-weight:700">p</tspan> · familia: GPUs grandes</text>
+<rect class="f-y" x="40" y="312" width="12" height="12" rx="3"/>
+<text class="f-s" x="60" y="322"><tspan style="font-weight:700">5</tspan> · generación</text>
+<rect class="f-b" x="40" y="334" width="12" height="12" rx="3"/>
+<text class="f-s" x="60" y="344"><tspan style="font-weight:700">48xlarge</tspan> · 48 × 4 = 192 vCPU, 8 H100</text>
+</svg>

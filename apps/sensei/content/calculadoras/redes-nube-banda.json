@@ -1,0 +1,23 @@
+{
+  "titulo": "¿Le alcanza la red al gateway?",
+  "intro": "Cuántos Gb/s manda el gateway hacia el modelo y qué parte del [[ancho-banda-baseline|ancho de banda sostenido]] de cada nodo ocupa, en un día normal y si se cae una zona.",
+  "entradas": [
+    { "id": "r", "label": "**Pico**, en requests por segundo", "min": 10, "max": 5000, "paso": 10, "valor": 500 },
+    { "id": "kb", "label": "**Bytes por request** hacia el modelo, en KB", "min": 1, "max": 3000, "paso": 1, "valor": 602 },
+    { "id": "n", "label": "**Nodos** del gateway (uno por zona)", "min": 1, "max": 4, "paso": 1, "valor": 2 },
+    { "id": "b", "label": "Ancho de banda **sostenido** de un nodo", "min": 0.5, "max": 50, "paso": 0.01, "valor": 1.56, "unidad": "Gb/s", "tipo": "numero" },
+    { "id": "rf", "label": "Ancho de banda de **ráfaga** de un nodo", "min": 0.5, "max": 100, "paso": 0.5, "valor": 12.5, "unidad": "Gb/s", "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "gbps", "formula": "r * kb * 1000 * 8 / 1000000000" },
+    { "id": "uno", "formula": "gbps / n" },
+    { "id": "caida", "formula": "gbps / max(n - 1, 1)" }
+  ],
+  "salidas": [
+    { "label": "Lo que se manda en total, en Gb/s", "formula": "gbps", "formato": "num", "decimales": 2, "nota": "requests × KB × 1,000 × 8 bits" },
+    { "label": "Cada nodo, en un día normal", "formula": "uno / b", "formato": "pct", "decimales": 0, "barra": true, "nota": "del sostenido" },
+    { "label": "Cada nodo, si cae una zona", "formula": "caida / b", "formato": "pct", "decimales": 0, "barra": true, "nota": "quedan n − 1 nodos (con 1 nodo, no hay a quién pasarle)" },
+    { "label": "Lo mismo, contra la ráfaga", "formula": "caida / rf", "formato": "pct", "decimales": 0, "barra": true, "nota": "aguanta solo unos minutos" }
+  ],
+  "nota": "Más de 100 % del sostenido funciona mientras duren los créditos de ráfaga; después, la máquina encola o tira paquetes. Prueba 150 KB (UINT8) y 200 KB (el JPEG)."
+}

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 384" role="img" aria-labelledby="f-regiones-dominios-t" class="f-svg" style="max-width:420px">
+<title id="f-regiones-dominios-t">Cuatro dominios de falla, uno dentro de otro, como muñecas rusas. El de afuera es la región: falla muy rara vez y la defensa es otra región. Adentro está la zona: falla rara vez, pero pasa, y la defensa son réplicas en otra zona. Adentro de la zona está el nodo, una máquina: falla de vez en cuando y la defensa es una réplica de más en otra máquina, el N+1. Y adentro del nodo está el pod, tu programa: falla seguido y Kubernetes lo reinicia solo. Cuanto más grande es el dominio, menos seguido falla y más se lleva.</title>
+<rect class="f-card" x="10" y="10" width="340" height="364" rx="16"/>
+<text class="f-l" x="26" y="36">DOMINIOS DE FALLA: UNO DENTRO DE OTRO</text>
+<rect class="f-chip" x="22" y="48" width="316" height="246" rx="14"/>
+<text class="f-t" x="36" y="70" style="font-size:13px">Región · muy rara</text>
+<text class="f-s" x="36" y="87" style="font-size:12px">defensa: otra región</text>
+<rect class="f-card" x="36" y="98" width="288" height="184" rx="12"/>
+<text class="f-t" x="50" y="120" style="font-size:13px">Zona · rara, pero pasa</text>
+<text class="f-s" x="50" y="137" style="font-size:12px">defensa: réplicas en otra zona</text>
+<rect class="f-chip" x="50" y="148" width="260" height="122" rx="10"/>
+<text class="f-t" x="64" y="170" style="font-size:13px">Nodo (una máquina) · ocasional</text>
+<text class="f-s" x="64" y="187" style="font-size:12px">defensa: una réplica de más (N+1)</text>
+<rect class="f-b" x="64" y="198" width="232" height="60" rx="8"/>
+<text class="f-pill-t" x="78" y="222" style="font-size:13px">Pod (tu programa) · común</text>
+<text class="f-pill-t" x="78" y="242" style="font-size:12px;font-weight:500">defensa: Kubernetes lo reinicia solo</text>
+<text class="f-t" x="26" y="320" style="font-size:13px">Más grande: falla menos, pero se lleva más.</text>
+<text class="f-s" x="26" y="340" style="font-size:12px">Tus réplicas van en dominios distintos del tamaño</text>
+<text class="f-s" x="26" y="356" style="font-size:12px">que quieres sobrevivir.</text>
+</svg>

@@ -1,0 +1,61 @@
+{
+  "titulo": "C01 en una región y dos zonas",
+  "width": 78,
+  "height": 62,
+  "lanes": [
+    { "id": "entrada", "label": "Región us-east-1 · la entrada", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 14 },
+    { "id": "za", "label": "Zona us-east-1a", "kind": "online", "x": 0, "y": 16, "w": 38, "h": 31 },
+    { "id": "zb", "label": "Zona us-east-1b", "kind": "online", "x": 40, "y": 16, "w": 38, "h": 31 },
+    { "id": "regional", "label": "Regional: repartido por el proveedor", "kind": "offline", "x": 0, "y": 49, "w": 78, "h": 13 }
+  ],
+  "nodes": [
+    { "id": "backend", "label": "Backend", "sub": "de publicación", "kind": "client", "x": 4, "y": 4, "w": 18, "h": 8,
+      "note": "El programa del marketplace que recibe la publicación de Ana y le pide a C01 la categoría. Vive **en la misma región**: su llamada viaja metros, no miles de kilómetros." },
+    { "id": "alb", "label": "Balanceador", "sub": "ALB · en las 2 zonas", "kind": "edge", "x": 30, "y": 4, "w": 18, "h": 8,
+      "note": "El [[balanceador]] es un recurso que el proveedor reparte en las zonas que eliges. Vigila a cada gateway con [[health-check|health checks]] y deja de mandarle tráfico al que no contesta. Así el [[failover]] entre zonas toma segundos y nadie lo ordena." },
+    { "id": "gwa", "label": "Gateway", "sub": "zona 1a", "kind": "service", "x": 10, "y": 21, "w": 18, "h": 8,
+      "note": "Recibe la foto, la valida y la prepara. Hay uno por zona. Con [[ruteo-por-zona|ruteo por zona]], le habla al Triton de **su** zona." },
+    { "id": "tra", "label": "Triton", "sub": "T4 · zona 1a", "kind": "gpu", "x": 10, "y": 36, "w": 18, "h": 8,
+      "note": "El servidor que corre la ResNet-50 en una GPU T4. Una sola aguanta el pico de 500 fotos por segundo: la otra es el [[n-mas-uno|N+1]]. En un día normal trabaja al ≈ 21 % de su máximo." },
+    { "id": "gwb", "label": "Gateway", "sub": "zona 1b", "kind": "service", "x": 50, "y": 21, "w": 18, "h": 8,
+      "note": "La copia del gateway en la otra [[zona-disponibilidad|zona]]: otro edificio, otra electricidad, otra red." },
+    { "id": "trb", "label": "Triton", "sub": "T4 · zona 1b", "kind": "gpu", "x": 50, "y": 36, "w": 18, "h": 8,
+      "note": "La segunda T4. No está por el tráfico: está para que, si cae una zona, la otra aguante sola al ≈ 42 %. Tiene que estar **encendida y atendiendo**: una GPU nueva tarda de 5 a 13 minutos en servir." },
+    { "id": "s3", "label": "S3", "sub": "pesos y engine", "kind": "store", "x": 30, "y": 52, "w": 18, "h": 8,
+      "note": "El [[object-storage|object storage]] es regional: guarda copias en varias zonas sin que hagas nada. Si cae una zona, los pesos siguen ahí para la otra." }
+  ],
+  "edges": [
+    { "from": "backend", "to": "alb", "kind": "online", "fromSide": "r", "toSide": "l", "label": "foto" },
+    { "from": "alb", "to": "gwa", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "alb", "to": "gwb", "kind": "online", "fromSide": "b", "toSide": "t" },
+    { "from": "gwa", "to": "tra", "kind": "online", "fromSide": "b", "toSide": "t", "label": "misma zona" },
+    { "from": "gwb", "to": "trb", "kind": "online", "fromSide": "b", "toSide": "t", "label": "misma zona" },
+    { "from": "gwb", "to": "tra", "kind": "neutral", "dashed": true, "fromSide": "l", "toSide": "r", "label": "cruce" },
+    { "from": "s3", "to": "tra", "kind": "offline", "fromSide": "l", "toSide": "b" },
+    { "from": "s3", "to": "trb", "kind": "offline", "fromSide": "r", "toSide": "b" }
+  ],
+  "flows": [
+    { "id": "normal", "label": "Un día normal",
+      "steps": [
+        { "nodes": ["backend", "alb"], "edges": ["backend>alb"], "text": "El backend manda la foto de Ana. Está en la misma región: la llamada tarda menos de 1 ms en llegar." },
+        { "nodes": ["alb", "gwa", "gwb"], "edges": ["alb>gwa", "alb>gwb"], "text": "El balanceador reparte: más o menos **la mitad a cada zona**." },
+        { "nodes": ["gwa", "tra", "gwb", "trb"], "edges": ["gwa>tra", "gwb>trb"], "text": "Cada gateway llama al Triton **de su zona**. Nada cruza: no hay milisegundo extra ni cargo por GB. Cada T4 trabaja al ≈ 21 %." }
+      ] },
+    { "id": "zona", "label": "Se cae la zona 1b",
+      "steps": [
+        { "nodes": ["gwb", "trb"], "edges": [], "text": "La zona `1b` se queda sin red. Su gateway y su Triton dejan de contestar." },
+        { "nodes": ["alb", "gwa"], "edges": ["alb>gwa"], "text": "Los health checks del balanceador fallan dos o tres veces y **en segundos** todo el tráfico va a `1a`. Las requests que iban en camino a `1b` fallan y se reintentan." },
+        { "nodes": ["gwa", "tra"], "edges": ["gwa>tra"], "text": "La T4 de `1a` atiende sola las 500 fotos por segundo, al ≈ 42 % de su máximo. Para eso era el N+1. El gateway de `1a` sí nota el doble de trabajo: Kubernetes le agrega copias." },
+        { "nodes": ["s3", "tra"], "edges": ["s3>tra"], "text": "Los pesos siguen disponibles, porque S3 es regional. Cuando `1b` regresa, sus réplicas vuelven a arrancar y el balanceador las incluye otra vez." }
+      ] },
+    { "id": "triton", "label": "Solo falla el Triton de 1b",
+      "steps": [
+        { "nodes": ["trb"], "edges": [], "text": "La zona está bien, pero el Triton de `1b` se cuelga. Su gateway sigue recibiendo fotos." },
+        { "nodes": ["gwb", "tra"], "edges": ["gwb>tra"], "text": "El ruteo por zona **prefiere** la misma zona, no la exige. Como en `1b` no hay un Triton listo, el gateway cruza a `1a`: ≈ 1 ms más y un cargo por GB mientras dure. **Degrada, no se cae.**" }
+      ] },
+    { "id": "sin", "label": "Sin ruteo por zona",
+      "steps": [
+        { "nodes": ["gwa", "gwb", "tra", "trb"], "edges": ["gwa>tra", "gwb>trb", "gwb>tra"], "text": "Si cada gateway reparte entre los dos Tritons sin mirar la zona, **la mitad de las fotos cruza**, todos los días. Son ≈ 90 TB al mes: ≈ US$1,800, casi otra infraestructura completa." }
+      ] }
+  ]
+}

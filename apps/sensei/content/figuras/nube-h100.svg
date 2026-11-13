@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 384" role="img" aria-labelledby="f-nube-h100-t" class="f-svg" style="max-width:420px">
+<title id="f-nube-h100-t">Barras con el precio de una hora de una GPU H100 SXM, on-demand, en noviembre de 2026. En las nubes de hiperescala: AWS, en una p5 de us-east-1, ≈ 6.88 dólares; Google Cloud, en una a3 de us-central1, ≈ 11.06; Azure, en una ND H100 v5 de eastus, ≈ 12.29. En dos neoclouds: Lambda, ≈ 4.89, y RunPod, ≈ 4.39. La más cara cuesta casi el triple que la más barata, por la misma GPU.</title>
+<rect class="f-card" x="10" y="10" width="340" height="364" rx="16"/>
+<text class="f-l" x="26" y="36">UNA HORA DE H100, US$ (NOV. 2026)</text>
+<text class="f-l" x="26" y="66">HIPERESCALA</text>
+<text class="f-t" x="26" y="93" style="font-size:13px">AWS</text>
+<text class="f-s" x="26" y="109" style="font-size:12px">p5 · us-east-1</text>
+<rect class="f-b" x="140" y="84" width="72.8" height="20" rx="4"/>
+<text class="f-t" x="218.8" y="99" style="font-size:13px">≈ 6.88</text>
+<text class="f-t" x="26" y="137" style="font-size:13px">Google Cloud</text>
+<text class="f-s" x="26" y="153" style="font-size:12px">a3 · us-central1</text>
+<rect class="f-b" x="140" y="128" width="117.0" height="20" rx="4"/>
+<text class="f-t" x="263.0" y="143" style="font-size:13px">≈ 11.06</text>
+<text class="f-t" x="26" y="181" style="font-size:13px">Azure</text>
+<text class="f-s" x="26" y="197" style="font-size:12px">ND v5 · eastus</text>
+<rect class="f-b" x="140" y="172" width="130.0" height="20" rx="4"/>
+<text class="f-t" x="276.0" y="187" style="font-size:13px">≈ 12.29</text>
+<text class="f-l" x="26" y="220">NEOCLOUD</text>
+<text class="f-t" x="26" y="247" style="font-size:13px">Lambda</text>
+<text class="f-s" x="26" y="263" style="font-size:12px">1 GPU</text>
+<rect class="f-g" x="140" y="238" width="51.7" height="20" rx="4"/>
+<text class="f-t" x="197.7" y="253" style="font-size:13px">≈ 4.89</text>
+<text class="f-t" x="26" y="291" style="font-size:13px">RunPod</text>
+<text class="f-s" x="26" y="307" style="font-size:12px">1 GPU</text>
+<rect class="f-g" x="140" y="282" width="46.5" height="20" rx="4"/>
+<text class="f-t" x="192.4" y="297" style="font-size:13px">≈ 4.39</text>
+<text class="f-s" x="26" y="334" style="font-size:12px">Misma GPU, casi el triple de precio.</text>
+<text class="f-s" x="26" y="352" style="font-size:12px">On-demand, por GPU; los precios cambian.</text>
+</svg>

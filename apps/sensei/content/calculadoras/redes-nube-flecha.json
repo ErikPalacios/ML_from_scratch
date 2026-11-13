@@ -1,0 +1,27 @@
+{
+  "titulo": "Una flecha, seis caminos: lo que cuesta al mes",
+  "intro": "Pon cuántos bytes lleva cada request y cuántas requests hay. La calculadora te dice cuánto costaría al mes que esos bytes pasaran por cada camino, con los precios de `us-east-1`. Solo el cruce de zona usa la fracción que cruza.",
+  "entradas": [
+    { "id": "kb", "label": "**Bytes por request**, en KB", "min": 0.1, "max": 5000, "paso": 0.1, "valor": 602, "tipo": "numero" },
+    { "id": "m", "label": "**Requests al día**, en millones", "min": 0.1, "max": 100, "paso": 0.1, "valor": 10 },
+    { "id": "f", "label": "Fracción que **cruza de zona**", "min": 0, "max": 100, "paso": 1, "valor": 50, "unidad": "%" }
+  ],
+  "calculos": [
+    { "id": "gb", "formula": "kb * 1000 * m * 1000000 * 30.4 / 1000000000" },
+    { "id": "e", "formula": "max(gb - 100, 0)" },
+    { "id": "t1", "formula": "min(e, 10000)" },
+    { "id": "t2", "formula": "min(max(e - 10000, 0), 40000)" },
+    { "id": "t3", "formula": "min(max(e - 50000, 0), 100000)" },
+    { "id": "t4", "formula": "max(e - 150000, 0)" }
+  ],
+  "salidas": [
+    { "label": "GB al mes por esta flecha", "formula": "gb", "formato": "int", "nota": "KB × requests al día × 30.4" },
+    { "label": "Misma zona o gateway endpoint de S3, en US$", "formula": "0", "formato": "int", "nota": "gratis" },
+    { "label": "Cruce de zona, en US$", "formula": "gb * f / 100 * 0.02", "formato": "int", "nota": "GB × fracción × 0.02 (salir + entrar)" },
+    { "label": "Interface endpoint (PrivateLink), en US$", "formula": "gb * 0.01", "formato": "int", "nota": "GB × 0.01, más sus horas" },
+    { "label": "Por el ALB, en US$", "formula": "gb * 0.008", "formato": "int", "nota": "GB × 0.008 cuando ganan los bytes, más su hora" },
+    { "label": "Por el NAT gateway, en US$", "formula": "gb * 0.045", "formato": "int", "nota": "GB × 0.045, en cualquier dirección" },
+    { "label": "Saliendo a internet (egress), en US$", "formula": "t1 * 0.09 + t2 * 0.085 + t3 * 0.07 + t4 * 0.05", "formato": "int", "nota": "por escalones, con 100 GB gratis" }
+  ],
+  "nota": "Aquí 1 TB = 1,000 GB y un mes = 30.4 días. Las horas fijas del NAT, del ALB y de los endpoints no están incluidas: esto es solo lo que cobra cada GB."
+}

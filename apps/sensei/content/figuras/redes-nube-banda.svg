@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 372" role="img" aria-labelledby="f-redes-nube-banda-t" class="f-svg" style="max-width:420px">
+<title id="f-redes-nube-banda-t">El ancho de banda de red de tres instancias de AWS, en gigabits por segundo. Cada barra tiene una parte oscura, el sostenido, que la máquina aguanta todo el tiempo, y una parte clara, la ráfaga, que aguanta solo por ratos. c6i.xlarge, la del gateway de C01: 1.56 sostenidos y hasta 12.5 de ráfaga. g5.xlarge y g6.xlarge: 2.5 y hasta 10. g4dn.xlarge, la de Triton: 5 y hasta 25. Dos líneas marcan lo que manda un nodo del gateway de C01: a, 1.2 Gb/s en un día normal, dentro del sostenido; b, 2.4 Gb/s si cae una zona, por encima del sostenido de la c6i.xlarge.</title>
+<rect class="f-card" x="10" y="10" width="340" height="352" rx="16"/>
+<text class="f-l" x="26" y="34">RED DE LA INSTANCIA · SOSTENIDO Y RÁFAGA</text>
+<text class="f-t" x="330" y="70" text-anchor="end" style="font-size:13px">c6i.xlarge · gateway</text>
+<rect class="f-b2" x="30" y="78" width="288" height="22" rx="4"/>
+<rect class="f-b" x="30" y="78" width="36" height="22" rx="4"/>
+<text class="f-s" x="312" y="94" text-anchor="end" style="font-size:12px">ráfaga 12.5</text>
+<text class="f-s" x="330" y="116" text-anchor="end" style="font-size:12px">sostenido 1.56 Gb/s</text>
+<text class="f-t" x="330" y="142" text-anchor="end" style="font-size:13px">g5.xlarge / g6.xlarge</text>
+<rect class="f-b2" x="30" y="150" width="231" height="22" rx="4"/>
+<rect class="f-b" x="30" y="150" width="58" height="22" rx="4"/>
+<text class="f-s" x="255" y="166" text-anchor="end" style="font-size:12px">ráfaga 10</text>
+<text class="f-s" x="330" y="188" text-anchor="end" style="font-size:12px">sostenido 2.5 Gb/s</text>
+<text class="f-t" x="330" y="214" text-anchor="end" style="font-size:13px">g4dn.xlarge · Triton</text>
+<rect class="f-b2" x="30" y="222" width="300" height="22" rx="4"/>
+<rect class="f-b" x="30" y="222" width="115" height="22" rx="4"/>
+<text class="f-s" x="324" y="238" text-anchor="end" style="font-size:12px">ráfaga 25 →</text>
+<text class="f-s" x="330" y="260" text-anchor="end" style="font-size:12px">sostenido 5 Gb/s</text>
+<line class="f-linea" x1="57.7" y1="56" x2="57.7" y2="276" stroke-dasharray="3 3" style="stroke:var(--o)"/>
+<circle class="f-o" cx="57.7" cy="50" r="8"/><text class="f-pill-t" x="57.7" y="54" text-anchor="middle" style="font-size:11px">a</text>
+<line class="f-linea" x1="85.4" y1="56" x2="85.4" y2="276" stroke-dasharray="3 3" style="stroke:var(--o)"/>
+<circle class="f-o" cx="85.4" cy="50" r="8"/><text class="f-pill-t" x="85.4" y="54" text-anchor="middle" style="font-size:11px">b</text>
+<line class="f-linea" x1="30" y1="276" x2="330" y2="276"/>
+<text class="f-s" x="30" y="292" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="76" y="292" text-anchor="middle" style="font-size:12px">2</text>
+<text class="f-s" x="122" y="292" text-anchor="middle" style="font-size:12px">4</text>
+<text class="f-s" x="168" y="292" text-anchor="middle" style="font-size:12px">6</text>
+<text class="f-s" x="215" y="292" text-anchor="middle" style="font-size:12px">8</text>
+<text class="f-s" x="261" y="292" text-anchor="middle" style="font-size:12px">10</text>
+<text class="f-s" x="307" y="292" text-anchor="middle" style="font-size:12px">12</text>
+<text class="f-l" x="330" y="308" text-anchor="end">Gb/s</text>
+<circle class="f-o" cx="34" cy="324" r="8"/><text class="f-pill-t" x="34" y="328" text-anchor="middle" style="font-size:11px">a</text>
+<text class="f-s" x="48" y="328" style="font-size:12px">1.2 Gb/s: un nodo del gateway, día normal</text>
+<circle class="f-o" cx="34" cy="346" r="8"/><text class="f-pill-t" x="34" y="350" text-anchor="middle" style="font-size:11px">b</text>
+<text class="f-s" x="48" y="350" style="font-size:12px">2.4 Gb/s: el mismo nodo si cae una zona</text>
+</svg>

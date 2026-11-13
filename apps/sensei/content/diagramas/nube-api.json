@@ -1,0 +1,316 @@
+{
+ "titulo": "De «quiero una máquina» a una VM prendida, y el medidor",
+ "width": 78,
+ "height": 64,
+ "lanes": [
+  {
+   "id": "tu",
+   "label": "Tu lado",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 15
+  },
+  {
+   "id": "prov",
+   "label": "El proveedor · región us-east-1",
+   "kind": "online",
+   "x": 0,
+   "y": 17,
+   "w": 78,
+   "h": 31
+  },
+  {
+   "id": "cobro",
+   "label": "La factura",
+   "kind": "monitor",
+   "x": 0,
+   "y": 50,
+   "w": 78,
+   "h": 14
+  }
+ ],
+ "nodes": [
+  {
+   "id": "tu",
+   "label": "Tú",
+   "sub": "o tu programa",
+   "kind": "human",
+   "x": 4,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "Quien pide la máquina: una persona en la consola o un programa, como un pipeline de despliegue. Para la nube los dos son lo mismo: una identidad con credenciales."
+  },
+  {
+   "id": "cli",
+   "label": "Consola, CLI o SDK",
+   "sub": "aws · gcloud · boto3",
+   "kind": "client",
+   "x": 32,
+   "y": 4,
+   "w": 24,
+   "h": 8,
+   "note": "Tres caras de lo mismo. La consola es una página web con botones; la CLI, un comando de la [[terminal]]; el SDK, una biblioteca para tu código. Las tres arman el mismo request y lo firman con tus credenciales."
+  },
+  {
+   "id": "api",
+   "label": "API de EC2",
+   "sub": "ec2.us-east-1…",
+   "kind": "edge",
+   "x": 32,
+   "y": 21,
+   "w": 24,
+   "h": 8,
+   "note": "La puerta de entrada: un [[endpoint]] [[http|HTTP]] por servicio y por [[region|región]]. Todo lo que la consola sabe hacer pasa por aquí. Esto es la [[api-nube|API de la nube]]."
+  },
+  {
+   "id": "check",
+   "label": "Permisos y cuota",
+   "sub": "IAM · tope por región",
+   "kind": "service",
+   "x": 4,
+   "y": 21,
+   "w": 20,
+   "h": 8,
+   "note": "Antes de crear nada, la nube revisa dos cosas: que tu identidad tenga permiso para esa acción ([[iam|IAM]]) y que no pases tu [[cuota-servicio|cuota]], el tope de máquinas de ese tipo en la región. Si falla cualquiera, el request regresa con un error y no se cobra nada."
+  },
+  {
+   "id": "plano",
+   "label": "Plano de control",
+   "sub": "elige un servidor",
+   "kind": "service",
+   "x": 32,
+   "y": 36,
+   "w": 24,
+   "h": 8,
+   "note": "El sistema del proveedor que decide **dónde**: busca un servidor físico con espacio libre y una GPU T4 en la zona que pediste, y le ordena al hipervisor crear la VM. Si la zona se quedó sin ese tipo, falla aquí ([[error-capacidad]])."
+  },
+  {
+   "id": "vm",
+   "label": "Tu VM",
+   "sub": "g4dn.xlarge · T4",
+   "kind": "gpu",
+   "x": 4,
+   "y": 36,
+   "w": 20,
+   "h": 8,
+   "note": "Una [[maquina-virtual|máquina virtual]] en un servidor de alguien más, partido por el [[hipervisor]]. Arranca su sistema operativo en uno o dos minutos. Desde que queda en estado *running*, se cobra."
+  },
+  {
+   "id": "medidor",
+   "label": "Medidor",
+   "sub": "segundos encendida",
+   "kind": "monitor",
+   "x": 32,
+   "y": 53,
+   "w": 24,
+   "h": 8,
+   "note": "Cuenta el tiempo que la VM está prendida, trabaje o no. Al apagarla (*terminate* o *stop*) deja de contar la máquina; el disco, si lo conservas, se sigue cobrando por GB al mes."
+  },
+  {
+   "id": "factura",
+   "label": "Factura",
+   "sub": "de la cuenta",
+   "kind": "store",
+   "x": 60,
+   "y": 53,
+   "w": 16,
+   "h": 8,
+   "note": "Todo lo que miden los medidores se junta en la [[factura-nube|factura]] de la [[cuenta-nube|cuenta]], un renglón por servicio y por unidad. Llega una vez al mes, pero se puede consultar casi al día."
+  }
+ ],
+ "edges": [
+  {
+   "from": "tu",
+   "to": "cli",
+   "kind": "neutral",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "run-instances"
+  },
+  {
+   "from": "cli",
+   "to": "api",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "request firmado"
+  },
+  {
+   "from": "api",
+   "to": "check",
+   "kind": "online",
+   "fromSide": "l",
+   "toSide": "r"
+  },
+  {
+   "from": "check",
+   "to": "plano",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t",
+   "via": [
+    [
+     14,
+     32.5
+    ],
+    [
+     44,
+     32.5
+    ]
+   ]
+  },
+  {
+   "from": "plano",
+   "to": "vm",
+   "kind": "online",
+   "fromSide": "l",
+   "toSide": "r",
+   "dashed": true
+  },
+  {
+   "from": "api",
+   "to": "tu",
+   "kind": "neutral",
+   "fromSide": "r",
+   "toSide": "b",
+   "dashed": true,
+   "label": "id i-0abc…",
+   "via": [
+    [
+     66,
+     25
+    ],
+    [
+     66,
+     14
+    ],
+    [
+     13,
+     14
+    ]
+   ]
+  },
+  {
+   "from": "vm",
+   "to": "medidor",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "l",
+   "via": [
+    [
+     14,
+     57
+    ]
+   ]
+  },
+  {
+   "from": "medidor",
+   "to": "factura",
+   "kind": "monitor",
+   "fromSide": "r",
+   "toSide": "l"
+  }
+ ],
+ "flows": [
+  {
+   "id": "pedir",
+   "label": "Pedir una máquina",
+   "steps": [
+    {
+     "nodes": [
+      "tu",
+      "cli"
+     ],
+     "edges": [
+      "tu>cli"
+     ],
+     "text": "Escribes `aws ec2 run-instances … --instance-type g4dn.xlarge`, o aprietas «Launch» en la consola. Es la misma petición."
+    },
+    {
+     "nodes": [
+      "cli",
+      "api"
+     ],
+     "edges": [
+      "cli>api"
+     ],
+     "text": "La CLI arma un **request HTTP** al endpoint de EC2 de us-east-1 y lo firma con tus credenciales, para que la nube sepa quién pide."
+    },
+    {
+     "nodes": [
+      "api",
+      "check"
+     ],
+     "edges": [
+      "api>check"
+     ],
+     "text": "La API revisa **permisos** (¿esta identidad puede crear máquinas?) y **cuota** (¿le quedan vCPU de este tipo en la región?). Si algo falla, regresa un error y no se cobra nada."
+    },
+    {
+     "nodes": [
+      "check",
+      "plano",
+      "vm"
+     ],
+     "edges": [
+      "check>plano",
+      "plano>vm"
+     ],
+     "text": "El **plano de control** busca un servidor con una T4 libre en tu zona y le pide al hipervisor que cree la VM. Arranca Linux en uno o dos minutos."
+    },
+    {
+     "nodes": [
+      "api",
+      "tu"
+     ],
+     "edges": [
+      "api>tu"
+     ],
+     "text": "Casi de inmediato, la API te contesta con el **id** de la máquina (`i-0abc…`). La VM todavía está arrancando: el id no quiere decir que ya sirva."
+    }
+   ]
+  },
+  {
+   "id": "cobro",
+   "label": "El medidor",
+   "steps": [
+    {
+     "nodes": [
+      "vm",
+      "medidor"
+     ],
+     "edges": [
+      "vm>medidor"
+     ],
+     "text": "Desde que la VM está *running*, el medidor cuenta. Le da igual si Triton atiende 500 fotos por segundo o ninguna."
+    },
+    {
+     "nodes": [
+      "medidor",
+      "factura"
+     ],
+     "edges": [
+      "medidor>factura"
+     ],
+     "text": "Cada hora se vuelve un renglón: ≈ US$0.526 por hora de `g4dn.xlarge` en us-east-1 (noviembre de 2026), ≈ US$384 si se queda prendida el mes."
+    },
+    {
+     "nodes": [
+      "tu",
+      "cli",
+      "api",
+      "vm"
+     ],
+     "edges": [
+      "tu>cli",
+      "cli>api"
+     ],
+     "text": "El medidor solo se detiene con otro request: `terminate-instances`. **Nadie lo apaga por ti.**"
+    }
+   ]
+  }
+ ]
+}
