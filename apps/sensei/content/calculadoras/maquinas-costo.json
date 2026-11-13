@@ -16,10 +16,10 @@
   "salidas": [
     { "label": "Factura al mes, en US$", "formula": "mes", "formato": "num", "decimales": 0, "nota": "precio × 730 h × GPUs; no depende del tráfico" },
     { "label": "Predicciones al mes", "formula": "hechas", "formato": "int" },
-    { "label": "Utilización de las GPUs", "formula": "min(t / (n * m), 1)", "formato": "pct", "barra": true, "nota": "si llega a 100 %, faltan GPUs: lo que sobra no se atiende" },
+    { "label": "Utilización de las GPUs", "formula": "min(t / (n * m), 1)", "formato": "pct", "barra": true, "nota": "tráfico ÷ lo que aguantan todas juntas; si llega a 100 %, faltan GPUs y lo que sobra no se atiende" },
     { "label": "US$ por 1,000 predicciones, con este tráfico", "formula": "real", "formato": "num", "decimales": 5 },
     { "label": "US$ por 1,000 si la GPU trabajara a tope", "formula": "tope", "formato": "num", "decimales": 5 },
     { "label": "Cuántas veces más caro que a tope", "formula": "real / max(tope, 1e-9)", "formato": "x", "decimales": 1 }
   ],
-  "nota": "No cuenta el gateway, la red ni el almacenamiento: solo las GPUs. El máximo por GPU sale de una prueba de carga con tu modelo; los 1,200 de la T4 y los ≈ 1,500 de la L4 con la ResNet-50 son los de la Ronda. En la práctica se planea a ≈ 50 % del máximo para dejar margen."
+  "nota": "No cuenta el gateway, la red ni el almacenamiento: solo las GPUs. El máximo por GPU sale de una prueba de carga con tu modelo; los ≈ 1,200 de la T4 con la ResNet-50 son los medidos en la Ronda; para la L4, la Ronda supone ≈ 2.5 veces la T4 (≈ 1,500 planificadas, ≈ 3,000 de máximo), un supuesto que hay que confirmar con una prueba de carga. En la práctica se planea a ≈ 50 % del máximo para dejar margen."
 }

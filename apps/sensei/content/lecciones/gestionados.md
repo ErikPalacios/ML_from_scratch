@@ -10,19 +10,19 @@ requisitos: nube, maquinas, config
 En la nube puedes rentar una máquina y operarla tú, o pagar más por unidad para que el proveedor opere una parte o todo. Esa decisión se gana casi siempre con una pregunta: ¿quién lo va a operar? Y todo lo que corre en la nube, tuyo o del proveedor, necesita permiso para cada cosa que toca: lo mejor es que cada programa tenga solo el suyo y con llaves que caducan solas.
 :::
 
-En la lección de la nube viste que puedes rentar una [[maquina-virtual|máquina virtual]] por hora y que la nube ordena sus servicios en una escalera: máquinas que rentas, plataformas y productos ([[iaas-paas-saas|IaaS, PaaS y SaaS]]). En la de máquinas viste cuánto cuesta una `g4dn.xlarge` con su T4: ≈ US$0.526 por hora en us-east-1 (noviembre de 2026), ≈ US$384 al mes.
+En la lección de la nube viste que puedes rentar una [[maquina-virtual|máquina virtual]] por hora y que la nube ordena sus servicios en una escalera: máquinas que rentas, plataformas y productos ([[iaas-paas-saas|IaaS, PaaS y SaaS]]). En la de máquinas viste cuánto cuesta una `g4dn.xlarge` con su GPU T4: ≈ US$0.526 por hora en us-east-1 (noviembre de 2026), ≈ US$384 al mes.
 
-C01 corre su modelo en dos de esas máquinas, una por zona, dentro de Kubernetes. Alguien tiene que instalar los drivers de la GPU, actualizar el sistema operativo, decidir cuántas copias del modelo correr y despertarse a las 3 de la mañana si un nodo se cae. AWS podría hacer casi todo eso por ti, y te cobraría más. ¿Vale la pena?
+C01 corre su modelo en dos de esas máquinas, una por zona, dentro de Kubernetes, el sistema que reparte los programas entre un grupo de máquinas. Alguien tiene que instalar los [[driver|drivers]] de la GPU, actualizar el sistema operativo, decidir cuántas copias del modelo correr y despertarse a las 3 de la mañana si una de esas máquinas se cae. AWS podría hacer casi todo eso por ti, y te cobraría más. ¿Vale la pena?
 
-Esta lección responde tres preguntas. Primero, qué cambia cuando el proveedor opera una pieza y cuándo conviene pagarlo, con la cuenta completa. Segundo, qué es *serverless*, por qué ahorra tanto en unos casos y por qué en otros es lo más caro, y qué es el arranque en frío. Tercero, cómo decide la nube quién puede hacer qué: IAM, roles, políticas y la identidad de un programa sin contraseñas guardadas.
+Esta lección responde tres preguntas. Primero, qué cambia cuando el proveedor opera una pieza y cuándo conviene pagarlo, con la cuenta completa. Segundo, qué es *serverless*, por qué ahorra tanto en unos casos y por qué en otros es lo más caro, y qué es el arranque en frío. Tercero, cómo decide la nube quién puede hacer qué: IAM (su sistema de permisos), roles, políticas y la identidad de un programa sin contraseñas guardadas.
 
 ## Quién opera qué: el servicio gestionado {Who runs what: managed services}
 
-Un **[[servicio-gestionado|servicio gestionado]]** (*managed service*) es uno donde el proveedor de la nube opera una parte de la pila por ti: la instala, la actualiza, la repara, la escala y la vigila. Tú usas el resultado por su [[api-nube|API]] y pagas por usarlo.
+Un **[[servicio-gestionado|servicio gestionado]]** (*managed service*) es uno donde el proveedor de la nube opera una parte de la **pila** por ti. La pila (*stack*) son las capas que hacen funcionar un servicio, de abajo hacia arriba: la máquina, el sistema operativo, los drivers, el programa que sirve el modelo y el modelo mismo. El proveedor opera algunas de esas capas: las instala, las actualiza, las repara, las escala y las vigila. Tú usas el resultado por su [[api-nube|API]] y pagas por usarlo.
 
 «Operar» es todo lo que hay que hacer para que algo siga funcionando después de instalarlo. Para el servidor de modelos de C01, eso incluye:
 
-- Actualizar el sistema operativo y los drivers de la GPU cuando sale un parche de seguridad.
+- Actualizar el sistema operativo y los drivers de la GPU cuando sale un parche de seguridad (una corrección para un hueco por donde podrían atacarte).
 - Cambiar una máquina que se descompuso.
 - Agregar copias cuando sube el tráfico y quitarlas cuando baja.
 - Mirar las alertas y contestar el teléfono cuando algo falla, de día o de noche.
@@ -37,10 +37,10 @@ Para clasificar la foto de Ana hay cuatro maneras, de más a menos trabajo tuyo:
 Cuatro formas de servir un modelo, de izquierda a derecha. En cada columna, las capas que operas tú (en naranja) y las que opera el proveedor (en azul). Mientras más a la derecha, menos operas y menos controlas.
 :::
 
-1. **Máquinas solas (EC2).** Rentas [[instancia|instancias]] con GPU y haces todo lo demás: el sistema operativo, los drivers, el programa que sirve el modelo, cuántas copias correr y cómo repartir el tráfico.
-2. **Kubernetes gestionado (EKS).** AWS opera el «cerebro» del cluster, y tú operas las máquinas que hacen el trabajo. Es lo que usa C01.
-3. **Un endpoint de una plataforma de ML (SageMaker AI).** Le das el modelo y un [[contenedor]]; AWS prende las máquinas, las cambia si se caen y agrega copias. Tú no ves ningún nodo.
-4. **Un producto listo (como Textract, el OCR de AWS).** Ni siquiera traes el modelo: mandas un documento y te regresa el texto. Pagas por página.
+1. **Máquinas solas (EC2, el servicio de máquinas virtuales de AWS).** Rentas [[instancia|instancias]] con GPU y haces todo lo demás: el sistema operativo, los drivers, el programa que sirve el modelo, cuántas copias correr y cómo repartir el tráfico.
+2. **Kubernetes gestionado (EKS).** Al grupo de máquinas que maneja Kubernetes se le llama *cluster*. AWS opera el «cerebro» del cluster, y tú operas las máquinas que hacen el trabajo (en su modo normal; EKS también tiene un modo, Auto Mode, en el que AWS opera también esas máquinas). Es lo que usa C01.
+3. **Un [[endpoint]] de una plataforma de ML (SageMaker AI).** Un endpoint es una dirección a la que le mandas datos y te contesta la predicción. Le das el modelo y un [[contenedor]]; AWS prende las máquinas, las cambia si se caen y agrega copias. Tú no ves ninguna máquina.
+4. **Un producto listo (como Textract, el servicio de AWS que lee el texto de un documento escaneado).** Ni siquiera traes el modelo: mandas un documento y te regresa el texto. Pagas por página.
 
 Cada escalón te quita trabajo y te quita control. En el primero puedes ajustar cualquier cosa; en el cuarto, solo lo que la API deja. Y cada escalón cobra más por unidad de trabajo: el proveedor te cobra su gente, su software y su margen dentro del precio.
 
@@ -58,7 +58,7 @@ El **[[plano-de-control|plano de control]]** (*control plane*) es el cerebro. Gu
 
 Los **[[nodo|nodos]]** son las máquinas que hacen el trabajo: ahí corren los [[pod|pods]], los grupos de contenedores de tus programas.
 
-Operar un plano de control a mano es delicado: su base de datos guarda todo el cluster, y si se corrompe, Kubernetes ya no sabe qué debería existir. Por eso las tres nubes venden **[[kubernetes-gestionado|Kubernetes gestionado]]**: EKS en AWS, GKE en Google Cloud y AKS en Azure. El proveedor opera el plano de control, en varias zonas; tú operas los grupos de nodos.
+Operar un plano de control a mano es delicado: su base de datos guarda todo el cluster, y si se corrompe, Kubernetes ya no sabe qué debería existir. Por eso las tres nubes venden **[[kubernetes-gestionado|Kubernetes gestionado]]**: EKS en AWS, GKE en Google Cloud y AKS en Azure. El proveedor opera el plano de control (EKS lo corre en varias zonas; en GKE y AKS depende del tipo de cluster que elijas); tú operas los grupos de nodos.
 
 :::cuenta El plano de control de EKS
 Precio por hora del cluster // us-east-1, noviembre de 2026 | US$0.10 × 730 h | ≈ US$73 al mes
@@ -67,32 +67,37 @@ Lo que promete el SLA // 99.95 % del mes | 0.05 % × 30 días × 1,440 min | ≈
 = Pagas ≈ US$73 al mes por no operar el cerebro. Su promesa cubre la API del cluster, no tus pods.
 :::
 
+El segundo renglón es un castigo por no actualizar. Kubernetes saca versiones nuevas varias veces al año, y AWS da soporte normal a cada una por un tiempo. Si tu cluster se queda en una versión que ya salió de ese soporte, AWS cobra seis veces más por hora (0.60 ÷ 0.10) mientras no la actualices.
+
 Ese último renglón es una trampa común. El [[sla|SLA]] de EKS dice que el endpoint de la API de Kubernetes contesta el 99.95 % del tiempo. No dice nada de tus pods: si tu nodo con la T4 se queda sin memoria, o tu imagen trae un error, AWS cumplió su promesa y tu servicio está caído. La [[disponibilidad]] de C01 la sigues construyendo tú, con dos réplicas en dos zonas ([[n-mas-uno|N+1]]).
 
 ## Gestionado contra propio: cuatro preguntas y una cuenta {Managed vs self-hosted: four questions and one calculation}
 
 La decisión de **[[gestionado-vs-propio|gestionado contra propio]]** (*managed vs self-hosted*) aparece en cada diseño. La Ronda la resume en cuatro preguntas, en orden:
 
-1. **¿Quién lo opera?** Si no hay un equipo que sepa operar GPUs, drivers y autoscaling, la respuesta suele ser gestionado, sin más cuentas.
-2. **¿Cuánto volumen y qué tamaño tiene cada request?** Muchos GB o millones de llamadas al mes hacen que los cobros por unidad crezcan.
-3. **¿Qué tan especial es lo que corre?** Un engine de TensorRT armado para una T4 concreta, o un servidor con batching propio, pueden no caber en el contenedor que acepta la plataforma.
-4. **¿Qué tan rápido hay que salir, y qué piden los datos?** Un prototipo para la próxima semana pide gestionado. Datos que no pueden salir de cierto lugar pueden prohibirlo.
+1. **¿Quién lo opera?** Si no hay un equipo que sepa operar GPUs, drivers y el autoscaling (agregar y quitar copias solas según el tráfico; lo verás más abajo), la respuesta suele ser gestionado, sin más cuentas.
+2. **¿Cuánto volumen y qué tamaño tiene cada [[request]]?** Muchos GB o millones de llamadas al mes hacen que los cobros por unidad crezcan.
+3. **¿Qué tan especial es lo que corre?** C01 compila su modelo con TensorRT, la herramienta de NVIDIA que lo optimiza para un modelo de GPU concreto; el resultado se llama *engine*. Un engine armado para una T4, o un servidor que junta requests en lotes a su manera ([[batching-dinamico|batching]]), pueden no caber en el contenedor que acepta la plataforma.
+4. **¿Qué tan rápido hay que salir, y qué piden los datos?** Un prototipo para la próxima semana pide gestionado. Datos que no pueden salir de cierto país o región ([[residencia-datos|residencia de datos]]) pueden prohibirlo.
 
-La primera casi siempre gana. «Gestionado cobra más por unidad y te ahorra gente», dice la Ronda. Una persona de ingeniería en Estados Unidos cuesta varios miles de dólares al mes: si un servicio gestionado te ahorra un cuarto de su tiempo, puede costar más en la factura y salir más barato en total.
+La primera casi siempre gana. «Gestionado cobra más por unidad y te ahorra gente», dice la Ronda. Una persona de ingeniería en Estados Unidos cuesta del orden de US$10,000 al mes o más, contando sueldo y prestaciones (la Ronda usa ≈ US$2,500 por un cuarto de persona): si un servicio gestionado te ahorra un cuarto de su tiempo, puede costar más en la factura y salir más barato en total.
 
 ### La cuenta de C05: Textract contra un OCR propio
 
-C05 lee documentos (facturas, recibos) y extrae sus campos. El primer paso es un **OCR** (*optical character recognition*), un modelo que convierte la imagen de una página en texto. Puede usar Textract, el OCR gestionado de AWS, o servir uno propio.
+El caso C05 de la Ronda lee documentos (facturas, identificaciones, comprobantes de domicilio, estados de cuenta) y extrae sus campos. El primer paso es un **[[ocr|OCR]]** (*optical character recognition*, reconocimiento óptico de caracteres), un modelo que convierte la imagen de una página en texto. Puede usar Textract, el OCR gestionado de AWS, o servir uno propio.
 
 :::cuenta Textract contra OCR propio, al mes
 Textract, solo texto // US$1.50 por 1,000 páginas (noviembre de 2026) | 186,000 × 1.50 ÷ 1,000 | ≈ US$279
 OCR propio en GPU // 2 × g4dn.xlarge, una por zona | 2 × 0.526 × 730 | ≈ US$768
 Punto de equilibrio, solo factura // páginas donde cuestan lo mismo | 768 ÷ 1.50 × 1,000 | ≈ 512,000 páginas
-Con ¼ de persona operándolo // ≈ US$2,500 al mes; arriba de 1 M de páginas Textract baja a US$0.60 | 1 M + (3,268 − 1,500) ÷ 0.60 × 1,000 | ≈ 3.9 M páginas
+Propio con ¼ de persona // ≈ US$2,500 al mes de gente | 768 + 2,500 | ≈ US$3,268
+El primer millón en Textract // a US$1.50 por 1,000 | 1,000,000 × 1.50 ÷ 1,000 | US$1,500
+Lo que falta, a US$0.60 // arriba de 1 M de páginas, Textract cobra menos | (3,268 − 1,500) ÷ 0.60 × 1,000 | ≈ 2.9 M páginas más
+Punto de equilibrio con la gente | 1 M + 2.9 M | ≈ 3.9 M páginas
 = C05 tendría que procesar ≈ 21 veces su volumen para que el OCR propio salga más barato.
 :::
 
-El OCR propio solo gana por factura arriba de ≈ 512,000 páginas al mes, casi 2.75 veces el volumen de C05. Y en cuanto cuentas a la persona que lo opera, el punto de equilibrio se va a ≈ 3.9 millones de páginas. Además, el OCR es ≈ 3 % del costo de C05; las personas son ≈ 80–90 %. Ahorrar en el 3 % complicando la vida del 80 % es mal negocio.
+El OCR propio solo gana por factura arriba de ≈ 512,000 páginas al mes, ≈ 2.75 veces el volumen de C05. Y en cuanto cuentas a la persona que lo opera, el punto de equilibrio se va a ≈ 3.9 millones de páginas. Además, el OCR es ≈ 3 % de lo que cuesta C05 en total; el sueldo del equipo es ≈ 80–90 %. Ahorrar en el 3 % complicando la vida del 80 % es mal negocio.
 
 :::profundo La misma cuenta en Python
 Así se ve la tabla con unos cuantos volúmenes. Cópialo y córrelo:
@@ -122,28 +127,28 @@ La columna del medio miente: nadie opera dos GPUs gratis. La última es la que s
 :::
 
 :::calculadora gestionados-equilibrio
-Empieza con los valores de C05. Sube el costo de la gente a cero y mira cómo el punto de equilibrio baja a ≈ 512,000 páginas; súbelo a una persona completa y mira cómo se aleja.
+Empieza con los valores de C05. Baja el costo de la gente a cero y mira cómo el punto de equilibrio baja a ≈ 512,000 páginas; súbelo a una persona completa y mira cómo se aleja.
 :::
 
 ### Y luego, lo que no está en la factura
 
-Que algo sea gestionado no quiere decir que no te cueste nada fuera de la factura:
+Gestionado también cuesta fuera de la factura:
 
 - **[[dependencia-proveedor|Dependencia del proveedor]]** (*lock-in*): un sistema escrito contra la API de Textract no se mueve a Google Cloud cambiando una línea.
 - **Límites**: cada servicio pone topes de tamaño, de tiempo y de requests por segundo. C05 tuvo que pedir un aumento de [[cuota-servicio|cuota]] de requests por segundo del OCR y programar [[reintento|reintentos]] con [[backoff-exponencial|backoff]].
 - **Menos visibilidad**: cuando algo falla, ves los logs que el proveedor publica, no la máquina.
 
-Y «equivalente» no es «idéntico»: la tabla de equivalencias de la lección de la nube junta servicios que se parecen, pero cada uno tiene sus límites. Cloud Run no es Fargate, y Pub/Sub no es Kafka.
+Y «equivalente» no es «idéntico»: la tabla de equivalencias de la lección de la nube junta servicios que se parecen, pero cada uno tiene sus límites. Cloud Run (de Google) y Fargate (de AWS) corren contenedores los dos, con topes distintos; Pub/Sub y Kafka son colas de mensajes los dos y no garantizan lo mismo.
 
 ## Plataformas de ML y endpoints gestionados {Managed ML platforms and endpoints}
 
-Las tres nubes venden una **[[plataforma-ml|plataforma de ML gestionada]]**: **Amazon SageMaker AI**, **Agent Platform** de Google Cloud (antes Vertex AI) y **Azure Machine Learning**. Las tres venden lo mismo: entrenar, servir y registrar modelos sin operar servidores.
+Las tres nubes venden una **[[plataforma-ml|plataforma de ML gestionada]]**: **Amazon SageMaker AI**, **Gemini Enterprise Agent Platform** de Google Cloud (Agent Platform, para abreviar; antes Vertex AI) y **Azure Machine Learning**. Las tres venden lo mismo: entrenar, servir y registrar modelos sin operar servidores.
 
 No son un solo producto, sino una caja de piezas. Nadie usa todas:
 
 | Pieza | Qué resuelve | En SageMaker AI |
 |---|---|---|
-| Entrenamiento | Correr un job de entrenamiento en máquinas que se prenden y se apagan solas | Training jobs |
+| Entrenamiento | Correr el entrenamiento en máquinas que se prenden y se apagan solas | Training jobs |
 | Serving en tiempo real | Un modelo que contesta cada request en milisegundos | Real-time endpoints |
 | Asíncrono | Requests grandes o lentas que contestan en minutos | Asynchronous Inference |
 | Serverless | Pagar solo por request, sin GPU | Serverless Inference |
@@ -157,39 +162,41 @@ Agent Platform y Azure ML tienen casi todas las mismas piezas con otros nombres.
 
 ### Para entrenar casi siempre conviene
 
-Entrenar es un trabajo que arranca y termina. Un job gestionado prende las máquinas, corre tu código, guarda el modelo en S3 y **apaga las máquinas solo**. Cobra por segundo. Si usas máquinas [[spot]] (las sobrantes, con descuento, que te pueden quitar), el job guarda [[checkpoint|checkpoints]] y retoma donde se quedó.
+Entrenar es un trabajo (*job*) que arranca y termina. Un job gestionado prende las máquinas, corre tu código, guarda el modelo en S3 (el [[object-storage|almacén de objetos]] de AWS) y **apaga las máquinas solo**. Cobra por segundo. Si usas máquinas [[spot]] (las sobrantes, con descuento, que te pueden quitar), el job guarda [[checkpoint|checkpoints]] y retoma donde se quedó.
 
-El fine-tune mensual de C01 cuesta ≈ US$10–50 como job gestionado. Nadie tiene que acordarse de apagar una GPU un viernes en la noche. Por eso la Ronda lo marca como «elegido»: es la parte de las plataformas que casi siempre conviene.
+El [[fine-tuning|fine-tune]] mensual de C01 (volver a entrenar el modelo un poco con datos nuevos) cuesta ≈ US$10–50 como job gestionado. Nadie tiene que acordarse de apagar una GPU un viernes en la noche. Por eso la Ronda lo marca como «elegido»: es la parte de las plataformas que casi siempre conviene.
 
 ### El endpoint gestionado
 
-Un **[[endpoint-gestionado|endpoint gestionado]]** (*managed endpoint*) es la pieza de serving: una dirección a la que mandas una [[request]] con los datos y te contesta la predicción. Detrás hay máquinas, pero no las ves. La plataforma las prende, las reparte por zona, las cambia si se caen, agrega copias según el tráfico y hace [[canary|canaries]] de versiones nuevas.
+Un **[[endpoint-gestionado|endpoint gestionado]]** (*managed endpoint*) es la pieza de serving: una dirección a la que mandas una [[request]] con los datos y te contesta la predicción. Detrás hay máquinas, pero no las ves. La plataforma las prende, las reparte por zona, las cambia si se caen, agrega copias según el tráfico y hace [[canary|canaries]]: manda una parte chica del tráfico a la versión nueva del modelo para probarla antes de pasarle todo.
 
-A cambio pides tres cosas:
+A cambio, la plataforma te pide tres cosas:
 
 - **Un sobreprecio por hora.** Una `ml.g4dn.xlarge` (la misma T4 dentro de SageMaker AI) cuesta ≈ US$0.736 por hora contra ≈ US$0.526 la `g4dn.xlarge` normal, en us-east-1 (noviembre de 2026): ≈ 40 % más. En CPU, ≈ 20 % más.
-- **Un cobro por cada GB.** SageMaker AI cobra ≈ US$0.016 por GB que entra al endpoint y por GB que sale ([[cargo-datos-procesados|datos procesados]]). Azure ML es la excepción: dice no cobrar nada aparte de las máquinas.
-- **Un contrato.** Tu contenedor escucha en el puerto 8080 y contesta `POST /invocations` (la predicción) y `GET /ping` (si está vivo), acepta conexiones en 250 ms y responde en 60 s. El cuerpo de cada request mide como máximo 6 MiB (6,291,456 bytes).
+- **Un cobro por cada GB.** SageMaker AI cobra ≈ US$0.016 por GB que entra al endpoint y por GB que sale ([[cargo-datos-procesados|datos procesados]]). Azure ML es la excepción: no cobra un extra propio por la plataforma; pagas las máquinas y los demás servicios que use, como el almacenamiento y el registro de imágenes.
+- **Un contrato.** Tu contenedor escucha en el puerto 8080 y contesta `POST /invocations` (la predicción) y `GET /ping` (si está vivo), acepta conexiones en 250 ms y responde en 60 s. El cuerpo de cada request, el *payload* (los datos que mandas), mide como máximo 6 MiB (6,291,456 bytes).
 
-El gateway de C01 ya escucha en el 8080, pero sus rutas son `/v1/classify`, `/healthz` y `/readyz`. Habría que agregar dos rutas. Y algunas fotos de las publicaciones pesan hasta 10 MB: no caben en 6 MiB tal cual. Nada de esto es difícil. Es el tipo de detalle que convierte «lo subo a SageMaker» en una semana de trabajo que nadie estimó.
+El gateway de C01 ya escucha en el 8080, pero sus rutas (las direcciones dentro del servidor) son `/v1/classify`, `/healthz` y `/readyz`. Habría que agregar dos rutas. Y algunas fotos de las publicaciones pesan hasta 10 MB: no caben en 6 MiB tal cual. Nada de esto es difícil. Es el tipo de detalle que convierte «lo subo a SageMaker» en una semana de trabajo que nadie estimó.
 
 ### La cuenta de C01 en un endpoint gestionado
 
-C01 recibe ≈ 10 millones de fotos al día: ≈ 304 millones de requests al mes. Para no castigar al lado gestionado, la Ronda supone que el gateway manda la imagen ya preparada, en enteros de un byte (UINT8): 3 × 224 × 224 = 150,528 bytes por request.
+C01 recibe ≈ 10 millones de fotos al día: 10 M × 30.4 días ≈ 304 millones de requests al mes. El gateway es el servicio de C01 que recibe la foto, la revisa y la prepara para el modelo. Para no castigar al lado gestionado, la Ronda supone que el gateway manda la imagen ya preparada: un [[tensor]] de 3 × 224 × 224 enteros de un byte ([[uint8|UINT8]]), 150,528 bytes por request.
 
-:::cuenta El tier de GPU de C01, propio contra gestionado
+Hay un cobro más. El gateway vive en tu red privada de la nube ([[vpc|VPC]]). Para llegar a SageMaker AI sin salir a internet, el tensor viaja por un camino privado, un [[privatelink|endpoint de interfaz]], que también cobra por GB.
+
+:::cuenta La capa de GPU de C01, propio contra gestionado
 Propio: 2 × g4dn.xlarge // ≈ US$0.526/h × 730 h | 2 × 0.526 × 730 | ≈ US$768
 Gestionado: 2 × ml.g4dn.xlarge // ≈ US$0.736/h | 2 × 0.736 × 730 | ≈ US$1,075
 GB que entran al endpoint // 304 M requests de 150,528 B | 304 M × 150,528 B | ≈ 45,760 GB
 Datos procesados // entrada más ≈ 304 GB de respuestas, a US$0.016/GB | (45,760 + 304) × 0.016 | ≈ US$737
 El camino privado hasta SageMaker AI // [[privatelink\|endpoint de interfaz]]: US$0.01/GB más su hora en 2 zonas | 46,064 × 0.01 + 2 × 0.01 × 730 | ≈ US$475
-= Gestionado: 1,075 + 737 + 475 ≈ US$2,287 contra ≈ US$768. Con el resto de la infraestructura (≈ US$924), ≈ US$3.2k contra ≈ US$1.7k: ≈ 1.9 veces.
+= Gestionado: 1,075 + 737 + 475 ≈ US$2,287 contra ≈ US$768. Con el resto de la infraestructura (gateway, EKS, ALB y logs: ≈ US$921), ≈ US$3.2k contra ≈ US$1.7k: ≈ 1.9 veces.
 :::
 
-Fíjate de dónde sale la diferencia: el sobreprecio de las máquinas son ≈ US$307 al mes. Los dos cobros por GB, ≈ US$1,212. Con imágenes, lo que pesa es lo que se cobra por byte. Si el gateway mandara el tensor en FP32 (4 bytes por número, 602,112 bytes por request), solo los datos procesados serían ≈ US$2.9k al mes.
+Fíjate de dónde sale la diferencia: el sobreprecio de las máquinas son ≈ US$307 al mes. Los dos cobros por GB, ≈ US$1,212. Con imágenes, lo que pesa es lo que se cobra por byte. En los ejercicios verás qué pasa si el tensor viaja en [[float32|FP32]].
 
 :::diagrama gestionados-c01
-Sigue «Una request» y luego «Lo que se cobra por GB». Toca cada caja para ver quién la opera.
+Sigue «Una request», luego «Lo que se cobra por GB» y al final «Lo que no ves». Toca cada caja para ver quién la opera.
 :::
 
 ¿Entonces SageMaker AI está mal para C01? No por sí solo. La diferencia es de ≈ US$1.5k al mes. Para un equipo de 3 personas sin Kubernetes, eso es una fracción de lo que costaría una persona operando EKS. La Ronda lo dice directo: «sin plataforma de Kubernetes y con un equipo chico, SageMaker sería la respuesta pragmática». C01 corre su propio Triton porque la empresa **ya** opera EKS (la primera pregunta) y porque su payload es grande (la segunda).
@@ -204,16 +211,16 @@ Los Savings Plans de EC2, los descuentos por comprometer un gasto por hora duran
 
 ## Inferencia asíncrona: requests grandes y respuestas en minutos {Asynchronous inference} [extra]
 
-Hay modelos que no caben en el contrato de un endpoint de tiempo real: el archivo pesa cientos de MB, o la predicción tarda 10 minutos. C04, por ejemplo, analiza láminas de microscopio enteras; cada una pesa cientos de MB y su promesa ([[slo|SLO]]) es entregar el resultado en 60 minutos.
+Hay modelos que no caben en el contrato de un endpoint de tiempo real: el archivo pesa cientos de MB, o la predicción tarda 10 minutos. C04, por ejemplo, analiza láminas de microscopio enteras; cada archivo pesa ≈ 1 GB (algunos, 3 GB) y su promesa ([[slo|SLO]]) es entregar el resultado en 60 minutos.
 
 Para eso existe la **[[inferencia-asincrona|inferencia asíncrona gestionada]]** (*asynchronous inference*). En SageMaker AI funciona así:
 
 :::pasos
 1. Subes el archivo
-Lo pones en un bucket de S3, no en el cuerpo de la request. Puede pesar hasta 1 GB.
+Lo pones en un [[bucket-objetos|bucket]] de S3, no en el cuerpo de la request. Puede pesar hasta 1 GB.
 2. Pides la predicción
 Llamas al endpoint con la dirección del archivo. Te contesta de inmediato con un número de trabajo y la dirección donde quedará el resultado.
-3. La plataforma lo forma en una fila
+3. La plataforma lo pone en una fila
 Si las máquinas están ocupadas, el trabajo espera en una [[cola-mensajes|cola]] interna. Cada uno puede tardar hasta 1 hora.
 4. El resultado aparece en S3
 Cuando termina, escribe la respuesta en S3 y, si lo pediste, te avisa con una notificación.
@@ -221,13 +228,13 @@ Cuando termina, escribe la respuesta en S3 y, si lo pediste, te avisa con una no
 
 Lo mejor: cuando la cola está vacía, el endpoint puede bajar a **0 máquinas**, y no pagas GPU. Cuando llega un trabajo, prende una. Esa primera tarda minutos, pero con un SLO de 60 minutos no importa. La Ronda lo dice de C04: un arranque en frío de 3 a 5 minutos «no es problema con un SLO de 60 min; en uno síncrono sería inaceptable».
 
-Agent Platform y Azure ML no tienen un modo asíncrono igual (la Ronda no conoce uno): ahí se arma con una cola y workers, o con su modo batch. Ese patrón, cola más [[worker|workers]] que escalan a cero, es justo el que C04 corre en su propio cluster.
+Agent Platform y Azure ML no tienen un modo asíncrono equivalente: ahí se arma con una cola y workers, o con su modo batch. Ese patrón, cola más [[worker|workers]] que escalan a cero, es justo el que C04 corre en su propio cluster. Y le conviene: sus láminas de ≈ 1 GB quedan en el límite de la asíncrona de SageMaker AI, y las de 3 GB no caben.
 
 ### El primo: batch
 
 Si no hay requests sueltas sino un archivo enorme, como «clasifica las 200 millones de fotos del catálogo», la pieza es **batch** (Batch Transform en SageMaker AI). Le das la carpeta de S3 con las entradas; la plataforma prende las máquinas, reparte los archivos, escribe los resultados en otra carpeta y apaga todo al terminar. Es un job, como el entrenamiento: no hay endpoint esperando.
 
-La diferencia con la asíncrona es quién manda el trabajo. En la asíncrona llegan trabajos sueltos a lo largo del día, y el endpoint vive (a veces con cero máquinas) esperando el siguiente. En batch, tú decides cuándo empieza y todo el trabajo existe desde el principio. El backfill del catálogo de C01 es batch; los estudios que llegan de uno en uno a un hospital son asíncronos.
+La diferencia con la asíncrona es quién manda el trabajo. En la asíncrona llegan trabajos sueltos a lo largo del día, y el endpoint vive (a veces con cero máquinas) esperando el siguiente. En batch, tú decides cuándo empieza y todo el trabajo existe desde el principio. El [[backfill]] del catálogo de C01 (reclasificar las fotos viejas con el modelo nuevo) es batch; los estudios que llegan de uno en uno a un hospital son asíncronos.
 
 ## Serverless: pagar solo lo que corre {Serverless: pay only for what runs}
 
@@ -250,7 +257,7 @@ Sus límites deciden para qué sirve:
 | Memoria | Hasta 10,240 MB | Modelos chicos |
 | Tiempo por llamada | 15 min | Nada de entrenamientos largos |
 | Imagen de contenedor | Hasta 10 GB sin comprimir | Cabe un modelo mediano con sus bibliotecas |
-| Payload síncrono | 6 MB | Las fotos de 10 MB de C01 no caben |
+| Payload de una llamada síncrona (la que espera su respuesta) | 6 MB | Las fotos de 10 MB de C01 no caben |
 
 Lambda es buenísima para el pegamento: redimensionar una foto cuando llega a S3, mandar una notificación, validar un archivo. No es para servir una ResNet-50 en GPU.
 
@@ -268,11 +275,15 @@ Tener GPU no basta. Son dos preguntas separadas: ¿tiene la GPU que necesito? ¿
 
 ### La cuenta: horas de GPU al día
 
-Una L4 en Cloud Run cuesta ≈ US$1.05 por hora mientras atiende, según la Ronda. La misma L4 en una máquina dedicada (`g6.xlarge`) cuesta ≈ US$0.80 por hora en us-east-1 (noviembre de 2026), pero la pagas las 24 horas. Cloud Run cobra ≈ 30 % más por hora, y solo las horas que trabaja.
+Una L4 en Cloud Run cuesta ≈ US$1.05 por hora prendida: ≈ US$0.67 de la GPU más ≈ US$0.37 de los 4 vCPU y 16 GiB que pide como mínimo. Ese precio es de us-central1 y sin redundancia zonal. La redundancia zonal aparta capacidad en otra zona para que tu servicio se mueva ahí si la suya falla; viene prendida por omisión, y con ella la hora sube a ≈ US$1.42.
+
+La misma L4 en una máquina dedicada (`g6.xlarge`) cuesta ≈ US$0.805 por hora en us-east-1 (noviembre de 2026), pero la pagas las 24 horas. Son regiones distintas, así que la comparación es aproximada: Cloud Run cobra ≈ 30 % más por hora, y solo las horas que la instancia está prendida.
+
+Ojo con «prendida»: Cloud Run con GPU cobra toda la vida de la instancia, y después de la última request la deja esperando hasta ≈ 10 minutos por si llega otra. Si las 20,000 imágenes de abajo llegan regadas en el día, la GPU queda prendida muchas más horas que las 2 de trabajo (el juguete de Python de más abajo lo muestra). Por eso, de aquí en adelante, «horas activas» quiere decir horas con la instancia prendida, y la cuenta supone que el trabajo llega junto, en lotes.
 
 :::cuenta Una herramienta interna de moderación
-Lo que hace // 20,000 imágenes al día, ≈ 2 h de GPU activa | — | —
-En Cloud Run // ≈ US$1.05 por hora activa, 30.4 días | 1.05 × 2 × 30.4 | ≈ US$64 al mes
+GPU prendida // 20,000 imágenes al día, juntas en lotes; supuesto: ≈ 0.36 s por imagen | 20,000 × 0.36 s ÷ 3,600 | ≈ 2 h al día
+En Cloud Run // ≈ US$1.05 por hora activa; un mes son 730 h ÷ 24 ≈ 30.4 días | 1.05 × 2 × 30.4 | ≈ US$64 al mes
 Una L4 dedicada // ≈ US$0.805 × 730 h | 0.805 × 730 | ≈ US$588 al mes
 Punto de equilibrio // horas activas al día que cuestan lo mismo | 24 × 0.805 ÷ 1.05 | ≈ 18.4 h
 = Con menos de ≈ 18 horas de GPU activa al día, serverless sale más barato.
@@ -282,7 +293,7 @@ Punto de equilibrio // horas activas al día que cuestan lo mismo | 24 × 0.805 
 El costo al mes contra las horas de GPU activa al día. La dedicada es una línea plana: la pagas la uses o no. Serverless sube con las horas y la cruza cerca de las 18.
 :::
 
-C01 está en el otro extremo: su tráfico nunca baja de decenas de requests por segundo, ni de noche, así que su GPU trabaja las 24 horas. Una instancia de Cloud Run siempre prendida costaría ≈ US$766 al mes, ≈ 30 % más que la misma L4 dedicada (≈ US$588). La Ronda lo llama la señal *senior*: **el perfil de carga (horas de GPU al día) decide el costo**. C01 pierde esa cuenta.
+C01 está en el otro extremo: su tráfico nunca baja de decenas de requests por segundo, ni de noche, así que su GPU trabaja las 24 horas. Una instancia de Cloud Run siempre prendida costaría ≈ US$766 al mes, ≈ 30 % más que la misma L4 dedicada (≈ US$588). La Ronda lo marca como lo que distingue a alguien con experiencia (*senior*): saber que **el perfil de carga (horas de GPU al día) decide el costo**. C01 pierde esa cuenta.
 
 :::calculadora gestionados-serverless
 Empieza con la herramienta de moderación: 2 horas al día. Sube las horas hasta que serverless cueste lo mismo que la dedicada.
@@ -290,14 +301,14 @@ Empieza con la herramienta de moderación: 2 horas al día. Sube las horas hasta
 
 ## Escalar a cero, arranque en frío y autoscaling {Scale to zero, cold starts and autoscaling}
 
-La otra pregunta de serverless es la del primer request. Para entenderla hacen falta tres ideas.
+La otra pregunta de serverless es la de la primera request: ¿cuánto espera si no hay ninguna copia lista? Para entenderla hacen falta tres ideas.
 
 ### Autoscaling: dos lazos de distinta velocidad
 
-El **[[autoscaling]]** es ajustar solo cuánta capacidad corre según la carga. En Kubernetes son dos lazos, uno dentro del otro:
+El **[[autoscaling]]** es ajustar solo cuánta capacidad corre según la carga. Funciona como un lazo de control, igual que un termostato: mide, compara con una meta y corrige, una y otra vez. En Kubernetes son dos lazos, uno dentro del otro:
 
-- **Réplicas, en segundos.** Una regla mira una métrica (uso de GPU, requests por segundo, mensajes en una cola) y agrega o quita copias del programa. En Kubernetes, el HPA o KEDA.
-- **Nodos, en minutos.** Si una copia nueva no cabe en ninguna máquina, otro programa pide una máquina nueva a la nube. En AWS, Karpenter o el Cluster Autoscaler.
+- **Réplicas, en segundos.** Una regla mira una métrica (uso de GPU, requests por segundo, mensajes en una cola) y agrega o quita copias del programa. En Kubernetes lo hace el HPA (*Horizontal Pod Autoscaler*, el que ya trae Kubernetes) o KEDA (uno que escala con eventos, como los mensajes que esperan en una cola).
+- **Nodos, en minutos.** Si una copia nueva no cabe en ninguna máquina, otro programa pide una máquina nueva a la nube. En AWS, ese programa suele ser Karpenter o el Cluster Autoscaler.
 
 La frase de la Ronda: «los pods no escalan más allá de los nodos que existen». Si hay una T4 libre, la copia nueva de Triton arranca en segundos. Si no, espera la máquina.
 
@@ -307,12 +318,12 @@ La mecánica fina (las métricas, cuánto esperar antes de quitar copias) es de 
 
 El **[[cold-start|arranque en frío]]** (*cold start*) es el tiempo desde que el sistema decide agregar una copia hasta que esa copia contesta su primera request. Ya lo viste con los pesos de un LLM en la lección de memoria. Para Triton en C01, cuando no hay nodo libre, la Ronda lo parte así:
 
-:::cuenta Un scale-out de Triton sin nodo libre
+:::cuenta Agregar una copia de Triton sin nodo libre (scale-out)
 Detectar que falta capacidad // la métrica tarda en subir | — | 0.5 a 1.5 min
 Pedir y arrancar el nodo // una g4dn nueva | — | 2 a 5 min
-Bajar la imagen // varios GB desde el registro | — | 2 a 5 min
-Cargar el engine en la GPU // — | — | 10 a 60 s
-Pasar la prueba de «listo» // readiness | — | 5 a 15 s
+Bajar la imagen // varios GB desde el [[registro-imagenes\|registro de imágenes]] | — | 2 a 5 min
+Cargar el engine en la GPU // el modelo compilado con TensorRT | — | 10 a 60 s
+Pasar la prueba de «listo» // readiness: el [[health-check\|chequeo]] que dice que ya puede recibir tráfico | — | 5 a 15 s
 = Total: 4.75 a 12.75 min, ≈ 5 a 13 minutos.
 :::
 
@@ -320,9 +331,9 @@ Un pico de tráfico dura segundos. El autoscaling tarda minutos. Por eso **el au
 
 ### Escalar a cero
 
-**[[scale-to-zero|Escalar a cero]]** (*scale to zero*) es dejar que el número de copias baje hasta 0 cuando no hay trabajo. Ahorra la GPU completa durante las horas sin tráfico. El precio: el siguiente request paga un arranque en frío entero.
+**[[scale-to-zero|Escalar a cero]]** (*scale to zero*) es dejar que el número de copias baje hasta 0 cuando no hay trabajo. Ahorra la GPU completa durante las horas sin tráfico. El precio: la siguiente request paga un arranque en frío entero.
 
-¿Cuándo conviene? Cuando nadie espera la respuesta en segundos. Los workers del backfill de C01, que reclasifican el catálogo viejo desde una cola, pueden bajar a cero. C04 baja a cero su tier de GPU: «la capa de GPU es desechable y escala a cero; los resultados son durables». El **Triton online de C01 nunca baja a cero**: su [[p99]] tiene que quedar en 200 ms, y un arranque de segundos a minutos no cabe.
+¿Cuándo conviene? Cuando nadie espera la respuesta en segundos. Los workers del backfill de C01, que reclasifican el catálogo viejo desde una cola, pueden bajar a cero. C04 baja a cero su capa de GPU (el *tier*, como le dice la Ronda): «la capa de GPU es desechable y escala a cero; los resultados son durables». El **Triton online de C01 nunca baja a cero**: su [[p99]] tiene que quedar en 200 ms, y un arranque de segundos a minutos no cabe.
 
 :::ojo
 «Con serverless no hay arranque en frío porque escala solo.» Es al revés: escalar solo y hasta cero es justo lo que crea el arranque en frío. Lo que lo elimina (en Lambda, la *provisioned concurrency*; en Cloud Run, las instancias mínimas) son copias que se quedan prendidas, y se pagan siempre.
@@ -367,8 +378,8 @@ dedicada 24 h: ≈ US$19.32 al día
 Esperar poco ahorra horas pero multiplica los arranques en frío: con 1 minuto, la mitad de las requests encuentra la máquina apagada. Esperar mucho casi los elimina, y se acerca al costo de la dedicada. Es el mismo trueque de siempre, en un número. El modelo es de juguete: los proveedores reales cobran el tiempo prendido de distintas maneras, y aquí no se cobra el arranque mismo.
 :::
 
-:::nota KEDA y el número que no escribiste
-KEDA, el autoscaler de Kubernetes que escala con la longitud de una cola, tiene `minReplicaCount` en **0** por omisión. Si lo usas para un servicio online y no escribes ese número, tu servicio puede bajar a cero sin que nadie lo decida. En C04, los workers van de 0 a 4 con una meta de 15 mensajes por worker: con 45 mensajes en la cola, corre ⌈45 ÷ 15⌉ = 3.
+:::profundo KEDA y el número que no escribiste
+KEDA, el autoscaler de Kubernetes que escala con la longitud de una cola, tiene `minReplicaCount` en **0** por omisión. Si lo usas para un servicio online y no escribes ese número, tu servicio puede bajar a cero sin que nadie lo decida. En C04, los workers van de 0 a 4 con una meta de 15 mensajes por worker: con 45 mensajes en la cola, corre ⌈45 ÷ 15⌉ = 3 (⌈ ⌉ es [[ceil|redondear hacia arriba]]).
 :::
 
 ## IAM: quién puede hacer qué {IAM: who can do what}
@@ -379,7 +390,7 @@ En Linux, los [[permisos]] dicen qué usuario puede leer qué archivo. En la nub
 
 Son dos preguntas distintas que se confunden siempre:
 
-- **Autenticación**: ¿quién eres? Se demuestra con algo que tienes: una contraseña, una llave, un token firmado.
+- **Autenticación**: ¿quién eres? Se demuestra con algo que tienes: una contraseña, una llave o un token firmado (un texto con una firma digital que prueba quién lo emitió y que nadie lo cambió).
 - **Autorización**: ¿qué puedes hacer? Se decide con reglas escritas.
 
 IAM hace las dos para todo lo que pasa dentro de la nube. Cómo se identifica un cliente de fuera ante tu API ([[jwt|JWT]], [[api-key|API keys]]) es de la fase de seguridad.
@@ -403,7 +414,7 @@ Una **[[politica-permisos|política de permisos]]** (*policy*) es un documento c
 }
 ```
 
-Se lee así: Triton puede **leer** objetos cuya llave empieza con `triton/` en el bucket `c01-artefactos`, y **listar** solo ese prefijo. No puede escribir, ni borrar, ni ver otro bucket. El `arn:aws:s3:::…` es un ARN (*Amazon Resource Name*): el nombre completo y único de un recurso en AWS. Y la `Version` es la versión del lenguaje de políticas, no una fecha que tú elijas.
+Se lee así: Triton puede **leer** objetos cuya llave (su nombre dentro del bucket) empieza con `triton/` en el bucket `c01-artefactos`, y **listar** solo ese prefijo. Un prefijo es el principio del nombre: funciona como una carpeta. No puede escribir, ni borrar, ni ver otro bucket. El `arn:aws:s3:::…` es un ARN (*Amazon Resource Name*): el nombre completo y único de un recurso en AWS. Y la `Version` es la versión del lenguaje de políticas, no una fecha que tú elijas.
 
 Para decidir, AWS sigue tres reglas, en este orden:
 
@@ -427,7 +438,10 @@ Para que algo se permita, ninguna capa puede negarlo y la que corresponde tiene 
 
 Un **[[rol-iam|rol de IAM]]** (*IAM role*) es una identidad con políticas pegadas, que no pertenece a nadie en particular: se **asume**. Quien lo asume recibe sus permisos por un rato. Un usuario es una persona con su contraseña; un rol es un gafete que se presta y se devuelve.
 
-C05 tiene un rol por componente. Así se ve la regla de los tres pasos con un evaluador de juguete:
+C05 tiene un rol por componente. La API de documentos (`docs-api`) escribe los originales y no lee los resultados. El worker (`doc-worker`) lee los originales, escribe los resultados y, por si alguien le agrega un permiso de más, tiene un `Deny` explícito para escribir en los originales. El peligro es lo contrario: un rol con `s3:*` («todas las acciones de S3») sobre `*` («todos los recursos») puede borrar cualquier cosa.
+
+:::profundo Las tres reglas en Python
+Así se ven las tres reglas con un evaluador de juguete y los roles de C05. Cópialo y córrelo:
 
 ```python
 from fnmatch import fnmatch
@@ -462,7 +476,8 @@ doc-worker  s3:PutObject     docs/raw/f-881.pdf         → DENEGADO (un Deny ex
 rol-de-todo s3:DeleteObject  docs/raw/f-881.pdf         → permitido
 ```
 
-La API de documentos escribe los originales y no lee los resultados. El worker lee los originales, escribe los resultados y, por si alguien le agrega un permiso de más, tiene prohibido escribir en los originales. El último renglón es el peligro: un rol con `s3:*` sobre `*` puede borrar cualquier cosa.
+Cada renglón aplica las tres reglas en orden. En el cuarto decide el `Deny`; el último es el rol para todo, que deja hasta borrar.
+:::
 
 ### Mínimo privilegio
 
@@ -472,7 +487,7 @@ La API de documentos escribe los originales y no lee los resultados. El worker l
 Arriba, un rol para todo: si un atacante entra a un solo pod, alcanza todos los buckets. Abajo, un rol por componente: el mismo ataque solo alcanza lo que ese pod podía tocar, y el gateway no podía tocar nada de S3.
 :::
 
-Piensa en un pod comprometido: alguien encontró un error en una biblioteca y ya corre su código adentro. Si todos los pods usan el mismo rol, o el rol de la máquina, con `s3:*` sobre `*`, el atacante hereda todos los buckets: las fotos, los logs, los documentos de C05 con datos personales. Si cada componente tiene su rol acotado por prefijo, solo ve lo que ese pod veía.
+Piensa en un pod comprometido: alguien encontró una falla de seguridad en una biblioteca y ya corre su código adentro. Si todos los pods usan el mismo rol, o el rol de la máquina (el que tiene el nodo mismo y que puede usar cualquier pod que corra en él), con `s3:*` sobre `*`, el atacante hereda todos los buckets: las fotos, los logs, los documentos de C05 con datos personales. Si cada componente tiene su rol acotado por prefijo, solo ve lo que ese pod veía.
 
 ¿Cuánto cuesta hacerlo bien? La Ronda: «un rol por componente, acotado por prefijo, cuesta una tarde de infraestructura como código». La **infraestructura como código** (IaC) es escribir los recursos de la nube, roles incluidos, en archivos que viven en Git, con herramientas como Terraform. Así los permisos se revisan como cualquier cambio de código.
 
@@ -484,13 +499,13 @@ Ya sabes qué permisos tiene el rol de Triton. Falta lo más delicado: ¿cómo d
 
 Una persona entra con su usuario. Un programa no debería usar el usuario de una persona: si Ana se va de la empresa y se borra su usuario, el servicio se cae; y si el programa se compromete, el atacante actúa como Ana. Un programa tiene su propia identidad: una **[[cuenta-servicio|cuenta de servicio]]** (*service account*).
 
-En Kubernetes, una cuenta de servicio es un objeto con nombre, como `triton` en el *namespace* `classifier`. Cada pod corre con una, y Kubernetes le da al pod un token firmado que dice «soy `classifier/triton`». En Google Cloud también se llaman cuentas de servicio; en AWS, ese papel lo hace un rol.
+En Kubernetes, una cuenta de servicio es un objeto con nombre, como `triton` en el *namespace* `classifier` (la carpeta de Kubernetes que agrupa los objetos de un equipo, como viste en la lección de configuración). Cada pod corre con una, y Kubernetes le da al pod un token firmado que dice «soy `classifier/triton`». En Google Cloud también se llaman cuentas de servicio; en AWS, ese papel lo hace un rol.
 
 ### La llave que caduca sola
 
 La forma ingenua de darle permisos a Triton es crear una llave de acceso (un identificador y una clave secreta que no caducan) y meterla en un [[secret-k8s|Secret]]. Funciona. Pero esa llave es una **credencial estática**: vale hasta que alguien la borre. Si se filtra, por un log, por un repositorio o por una laptop robada, sirve meses después, desde cualquier lugar.
 
-Las **[[credenciales-temporales|credenciales temporales]]** (*temporary credentials*) son lo contrario. AWS las entrega a quien asume un rol, y caducan solas, normalmente en una hora. El programa pide unas nuevas antes de que venzan, sin que nadie haga nada. Si alguien se roba unas, le sirven minutos.
+Las **[[credenciales-temporales|credenciales temporales]]** (*temporary credentials*) son lo contrario. AWS las entrega, con su servicio STS (*Security Token Service*), a quien asume un rol, y caducan solas, normalmente en una hora. El programa pide unas nuevas antes de que venzan, sin que nadie haga nada. Si alguien se roba unas, le sirven minutos.
 
 En la lección de configuración viste la escalera de dónde guardar un [[secreto]], de peor a mejor: en la imagen o en el repositorio (nunca), en una [[variable-entorno|variable de entorno]] (aceptable), en un archivo que llega de un [[gestor-secretos|gestor de secretos]] (bueno) y, en el escalón más alto, **no tenerlo**. «La mejor forma de manejar un secreto es no tenerlo», dice la Ronda. Este es ese escalón.
 
@@ -502,7 +517,10 @@ La **[[identidad-workload|identidad del workload]]** (*workload identity*) conec
 Sigue «El pod pide permiso» y luego «Una hora después». Al final, «Si alguien roba las credenciales» muestra por qué esto es mejor que una llave guardada.
 :::
 
-Con IRSA, la conexión se declara en la cuenta de servicio. Una ilustración en YAML (el número de cuenta es inventado):
+Con IRSA, la cuenta de servicio lleva escrito qué rol de IAM le toca. Y del lado de AWS, el rol `c01-triton` tiene una segunda política, la **política de confianza** (*trust policy*). No dice qué puede hacer el rol, sino quién puede asumirlo: solo los tokens de la cuenta de servicio `classifier/triton` de ese cluster. Un pod de otro *namespace*, con otra cuenta de servicio, no puede asumirlo aunque conozca el nombre del rol.
+
+:::profundo Cómo se escribe con IRSA
+La conexión se declara en la cuenta de servicio con una anotación, una nota de texto pegada al objeto. Una ilustración en [[yaml|YAML]] (el número de cuenta es inventado):
 
 ```yaml
 apiVersion: v1
@@ -514,7 +532,8 @@ metadata:
     eks.amazonaws.com/role-arn: arn:aws:iam::111122223333:role/c01-triton
 ```
 
-Y del lado de AWS, el rol `c01-triton` dice en su **política de confianza** quién puede asumirlo: solo los tokens de la cuenta de servicio `classifier/triton` de ese cluster. Un pod de otro *namespace*, con otra cuenta de servicio, no puede asumirlo aunque conozca el nombre del rol.
+La última línea dice qué rol usa. La política de confianza del rol, del lado de AWS, cierra el círculo: nombra a `classifier/triton` como el único que puede asumirlo.
+:::
 
 En el código de Triton o del gateway no cambia nada: el SDK de AWS (la biblioteca que usa el programa para hablarle a la nube) encuentra las credenciales solo y las renueva solo.
 
@@ -527,7 +546,7 @@ Para quien escribe el programa, da igual: el SDK encuentra las credenciales en l
 :::
 
 :::profundo Cuando sí hace falta un secreto
-La identidad del workload funciona para hablar con la propia nube: S3, SageMaker AI, un gestor de secretos. Para la contraseña de una base de datos de otro proveedor, o la API key de un servicio externo, sigue haciendo falta un secreto. Entonces el pod usa su identidad para leer ese secreto de un gestor de secretos: AWS Secrets Manager cobra ≈ US$0.40 por secreto al mes más US$0.05 por cada 10,000 lecturas (noviembre de 2026). Diez secretos, ≈ US$4 al mes. El secreto vive en un solo lugar, se [[rotacion-secretos|rota]] ahí, y cada lectura queda registrada.
+La identidad del workload funciona para hablar con la propia nube: S3, SageMaker AI, un gestor de secretos. Para la contraseña de una base de datos de otro proveedor, o la API key de un servicio externo, sigue haciendo falta un secreto. Entonces el pod usa su identidad para leer ese secreto de un gestor de secretos: AWS Secrets Manager cobra ≈ US$0.40 por secreto al mes más US$0.05 por cada 10,000 lecturas (noviembre de 2026). Diez secretos, ≈ US$4 al mes, más las lecturas. El secreto vive en un solo lugar, se [[rotacion-secretos|rota]] ahí, y cada lectura queda registrada.
 :::
 
 La misma idea llega más allá de Kubernetes. Un job de [[ci|CI]] que hace [[deploy]] en la nube puede recibir credenciales de corta vida por OIDC, un estándar para que un sistema le demuestre a otro quién es con un token firmado, en vez de guardar una llave de AWS en la configuración del repositorio. La Ronda lo resume como «sin llaves guardadas».
@@ -548,9 +567,9 @@ Elegir el lado propio porque la factura es menor, en un equipo de tres personas 
 
 ### 3. Usar escala a cero en un servicio con latencia estricta
 
-Poner el modelo online en Cloud Run con mínimo 0 instancias, o dejar KEDA con su `minReplicaCount` por omisión. La primera request de la mañana espera segundos o minutos.
+Poner el modelo online en Cloud Run con mínimo 0 instancias, o dejar KEDA con su `minReplicaCount` por omisión, que es 0. La primera request de la mañana espera segundos o minutos.
 
-**Cómo evitarlo:** escala a cero solo donde el SLO es de minutos (backfill, colas, herramientas internas). En lo online, un mínimo explícito de réplicas, escrito en el manifiesto.
+**Cómo evitarlo:** escala a cero solo donde el SLO es de minutos (backfill, colas, herramientas internas). En lo online, un mínimo explícito de réplicas, escrito en el manifiesto (el archivo que describe el servicio).
 
 ### 4. Confiar en el autoscaling para los picos
 
@@ -580,7 +599,7 @@ Una llave de AWS en una variable de entorno, en el repositorio o en la imagen de
 | Nodos con T4 y Triton | El equipo de C01 | La empresa ya opera EKS y el payload es grande: el endpoint gestionado costaría ≈ 1.9× |
 | Fine-tune mensual | AWS (job de SageMaker AI) | ≈ US$10–50 al mes, se apaga solo |
 | Workers del backfill | El equipo, con KEDA | Bajan a cero: nadie espera su respuesta en segundos |
-| Permisos | IAM, con IRSA o Pod Identity | Triton lee sus pesos de S3, Fluent Bit escribe los logs en su prefijo y el job de etiquetado lee las fotos seleccionadas; nadie guarda llaves |
+| Permisos | IAM, con IRSA o Pod Identity | Triton lee sus pesos de S3, Fluent Bit (el programa que junta los logs) escribe los logs en su prefijo y el job de etiquetado lee las fotos seleccionadas; nadie guarda llaves |
 
 Al ALB, la puerta de entrada, le llega un token firmado del backend que llama ([[jwt|JWT]]), y lo verifica. El gateway usa el cliente que viene en ese token verificado, nunca un dato que el cliente escribe en un header. Y Triton no tiene entrada desde afuera del cluster: solo lo llama el gateway.
 
@@ -594,7 +613,7 @@ C04 analiza láminas de microscopio con una promesa de 60 minutos. Sus workers l
 
 ### Los LLM: alquilar el modelo completo
 
-C10, C11 y C12 usan modelos de lenguaje. La pregunta gestionado contra propio aparece en grande: correr el modelo propio en EKS con vLLM (un servidor de LLMs) o pagar una API por token. Entre los dos extremos hay servicios como Bedrock en AWS, que sirve modelos abiertos totalmente gestionados. Las mismas cuatro preguntas deciden; el volumen de tokens hace la cuenta.
+C10, C11 y C12 usan modelos de lenguaje. La pregunta gestionado contra propio aparece en grande: correr el modelo propio en EKS con vLLM (un servidor de LLMs) o pagar una API por [[token]]. Entre los dos extremos hay servicios como Bedrock en AWS, que sirve modelos abiertos totalmente gestionados. Las mismas cuatro preguntas deciden; el volumen de tokens hace la cuenta.
 
 ### C06: cuando la gente pesa más que las GPUs
 
@@ -609,15 +628,11 @@ Tener lavadora en casa conviene si lavas todos los días: la máquina es tuya, l
 Resuélvelos con lápiz antes de abrir la solución. Usa los precios de la lección (us-east-1, noviembre de 2026) y 730 horas al mes.
 
 :::ejercicios
-? [facil] Una `g5.xlarge` cuesta ≈ US$1.006 por hora y la `ml.g5.xlarge` de SageMaker AI ≈ US$1.408. ¿Cuánto más cuesta por hora, en porcentaje? ¿Cuánto más al mes, una máquina prendida todo el mes?
-- Porcentaje: 1.408 ÷ 1.006 ≈ 1.40: **≈ 40 % más**.
-- Al mes: 1.006 × 730 ≈ US$734; 1.408 × 730 ≈ US$1,028.
-- Diferencia: (1.408 − 1.006) × 730 ≈ **US$293 al mes** por máquina, antes de los cobros por GB.
 ? [facil] El SLA de EKS promete 99.95 %. ¿Cuántos minutos puede estar caído en un mes de 30 días? Si en esos minutos tus pods siguen corriendo, ¿qué deja de funcionar y qué no?
 - 0.05 % × 30 × 1,440 = **21.6 minutos al mes**.
 - Lo que cubre es la API de Kubernetes: mientras está caída no puedes desplegar, escalar ni ver el estado del cluster.
 - Los pods que ya corren siguen atendiendo; los nodos no se apagan. Pero si un pod se cae en ese rato, nadie crea otro hasta que la API vuelva. Tu disponibilidad no es la de ese SLA.
-? [facil] Alguien propone servir el modelo de C01 en AWS Lambda «para no operar nada». Da tres razones de la tabla de límites por las que no funciona.
+? [facil] Alguien propone servir el modelo de C01 en AWS Lambda «para no operar nada». Da tres razones por las que no funciona; dos salen de la tabla de límites.
 - **Sin GPU**: la ResNet-50 en CPU tardaría mucho más y necesitaría muchas más copias para 10 M de fotos al día.
 - **Payload síncrono de 6 MB**: algunas fotos pesan hasta 10 MB.
 - **Tráfico 24/7**: Lambda brilla cuando hay ratos sin tráfico; C01 nunca baja de decenas de requests por segundo, así que paga por uso todo el día.
@@ -637,11 +652,7 @@ Resuélvelos con lápiz antes de abrir la solución. Usa los precios de la lecci
 - 0 mensajes: **0 workers**. 10: ⌈10 ÷ 15⌉ = **1**. 45: ⌈45 ÷ 15⌉ = **3**. 200: ⌈200 ÷ 15⌉ = 14, pero el tope es **4**.
 - Con 200 la cola tarda más en vaciarse: el máximo es una decisión de costo.
 - El primer mensaje de la mañana espera un arranque en frío completo, de ≈ 3–5 minutos en C04. Con un SLO de 60 minutos, no importa.
-? [medio] C01 recibe 500 requests por segundo en su pico. Un scale-out de Triton sin nodo libre tarda de 5 a 13 minutos. ¿Cuántas requests pasan antes de que llegue la copia nueva, en cada extremo? ¿Qué conclusión sacas?
-- 5 min: 500 × 60 × 5 = **150,000 requests**. 13 min: 500 × 60 × 13 = **390,000**.
-- Todas las atienden las réplicas que ya estaban prendidas. Si no les sobraba capacidad, esas requests se encolan, se tardan o fallan.
-- Conclusión: los picos de segundos o de pocos minutos se cubren con capacidad de sobra ya corriendo; el autoscaling es para lo que dura horas.
-? [reto] Repite la cuenta del tier de GPU de C01 en SageMaker AI, pero con el tensor en FP32: 3 × 224 × 224 números de 4 bytes. ¿Cuánto pesa cada request? ¿Cuánto cuestan solo los datos procesados de entrada? ¿Cuántas veces el costo de las dos T4 propias?
+? [reto] Repite la cuenta de la capa de GPU de C01 en SageMaker AI, pero con el tensor en FP32: 3 × 224 × 224 números de 4 bytes. ¿Cuánto pesa cada request? ¿Cuánto cuestan solo los datos procesados de entrada? ¿Cuántas veces el costo de las dos T4 propias?
 - Por request: 3 × 224 × 224 × 4 = **602,112 bytes**, 4 veces el UINT8.
 - Al mes: 304 M × 602,112 B ≈ 183,000 GB. Por 0.016 ≈ **US$2,929**.
 - Contra las dos T4 propias (≈ US$768): ≈ **3.8 veces**, solo en esa línea. Y el endpoint de interfaz también cobra por GB: subiría a ≈ US$1,848.

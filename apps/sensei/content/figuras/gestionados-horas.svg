@@ -27,7 +27,7 @@
 <text class="f-t" x="182" y="248" style="font-size:12px;fill:var(--o)">US$1.05/h</text>
 <line class="f-linea" x1="266.1" y1="130.9" x2="266.1" y2="300" stroke-dasharray="3 3"/>
 <circle class="f-ink" cx="266.1" cy="130.9" r="5"/>
-<text class="f-t" x="272" y="146" style="font-size:12px">cruce ≈ 18.4 h</text>
+<text class="f-t" x="260" y="272" text-anchor="end" style="font-size:12px">cruce ≈ 18.4 h</text>
 <circle class="f-o" cx="78.8" cy="281.6" r="5"/>
 <text class="f-s" x="92" y="293" style="font-size:12px">moderación: 2 h, ≈ 64</text>
 <circle class="f-o" cx="330.0" cy="79.8" r="5"/>

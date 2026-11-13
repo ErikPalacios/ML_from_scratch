@@ -34,6 +34,6 @@
 <rect class="f-dark" x="202" y="344" width="116" height="26" rx="6"/><text class="f-dark-t" x="260" y="362" text-anchor="middle" style="font-size:12px">Triton · T4</text>
 <line class="f-flecha" x1="180" y1="388" x2="180" y2="404"/><path class="f-punta" d="M174 402 L186 402 L180 411 Z"/>
 <rect class="f-y" x="80" y="412" width="200" height="40" rx="8"/>
-<text class="f-t" x="180" y="428" text-anchor="middle" style="font-size:13px">S3 · regional, fuera de la VPC</text>
-<text class="f-s" x="180" y="445" text-anchor="middle" style="font-size:12px">gateway endpoint: gratis</text>
+<text class="f-t" x="180" y="428" text-anchor="middle" style="font-size:13px;fill:#0E1530">S3 · regional, fuera de la VPC</text>
+<text class="f-s" x="180" y="445" text-anchor="middle" style="font-size:12px;fill:#3A4364">gateway endpoint: gratis</text>
 </svg>

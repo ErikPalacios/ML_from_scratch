@@ -18,7 +18,7 @@
     { "label": "Réplicas por zona", "formula": "pz", "formato": "int", "nota": "pico ÷ ((zonas − 1) × réplica × tope), hacia arriba" },
     { "label": "Réplicas en total", "formula": "tot", "formato": "int", "nota": "por zona × zonas" },
     { "label": "Las que pediría solo el tráfico", "formula": "mn", "formato": "int", "nota": "sin pensar en zonas" },
-    { "label": "Uso en un día normal", "formula": "p / (tot * c)", "formato": "pct", "decimales": 0, "barra": true },
+    { "label": "Uso en el pico, con todas las zonas arriba", "formula": "p / (tot * c)", "formato": "pct", "decimales": 0, "barra": true },
     { "label": "Uso si cae una zona", "formula": "p / ((tot - pz) * c)", "formato": "pct", "decimales": 0, "barra": true },
     { "label": "Costo al mes, en US$", "formula": "tot * m", "formato": "int", "nota": "total × costo de una réplica" },
     { "label": "De eso, lo que es solo repuesto, en US$", "formula": "(tot - mn) * m", "formato": "int", "nota": "(total − las del tráfico) × costo" }

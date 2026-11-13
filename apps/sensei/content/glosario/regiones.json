@@ -52,7 +52,7 @@
    "en": "failure domain · fault domain",
    "corto": "Todo lo que se cae junto cuando falla una sola cosa: un pod, una máquina, una zona, una región. Dos réplicas en el mismo dominio de falla se caen juntas.",
    "largo": "Los dominios van uno dentro de otro: el pod dentro del nodo, el nodo dentro de la zona, la zona dentro de la región. Los chicos fallan seguido y se llevan poco; los grandes fallan rara vez y se llevan todo lo que contienen. Cada uno tiene su defensa: reiniciar el pod, una réplica de más en otra máquina, réplicas en otra zona, otra región. Diseñar es decidir hasta qué dominio se cubre, porque cada escalón cuesta más. Compartir un dominio es la forma más común de [[falla-correlacionada|falla correlacionada]].",
-   "analogia": "Muñecas rusas: si se rompe la de afuera, se rompen todas las de adentro.",
+   "analogia": "Muñecas rusas: la región guarda zonas, la zona guarda máquinas y la máquina corre pods. Se rompe en la falla: una muñeca rota deja sanas a las de adentro, pero un dominio que falla se lleva todo lo que contiene.",
    "ejemplo": "En la tabla de M06: el pod falla de forma común y Kubernetes lo reinicia; el nodo, de forma ocasional; la zona, «rara, pero pasa»; la región, muy rara. Dos T4 en la misma zona no sobreviven a esa zona.",
    "ver": [
     "zona-disponibilidad",
@@ -67,7 +67,7 @@
    "termino": "Multi-AZ (varias zonas)",
    "en": "multi-AZ · multi-zone",
    "corto": "Tener réplicas de cada pieza en dos o más zonas de la misma región, de modo que cualquiera pueda atender sola. Es barato y casi siempre se quiere: protege del centro de datos que se apaga.",
-   "largo": "Funciona porque las zonas están a ≈ 1 ms y comparten red: no cambia el diseño, y el balanceador y Kubernetes ya saben repartir por zona. Pide tres cuidados: capacidad de repuesto ya encendida ([[n-mas-uno|N+1]] por zona), [[ruteo-por-zona|ruteo por zona]] para no pagar el tráfico que cruza, y cambios de versión de a poco, porque un deploy malo llega a todas las zonas. No protege de una caída de región, de un borrado ni de una cuenta robada: eso es [[multi-region|multi-región]] y [[recuperacion-desastres|DR]].",
+   "largo": "Funciona porque las zonas están a ≈ 1 ms y comparten red: no cambia el diseño, y el balanceador y Kubernetes ya saben repartir por zona. Pide tres cuidados: capacidad de repuesto ya encendida ([[n-mas-uno|N+1]] por zona), [[ruteo-por-zona|ruteo por zona]] para no pagar el tráfico que cruza, y cambios de versión poco a poco, porque un deploy malo llega a todas las zonas. No protege de una caída de región, de un borrado ni de una cuenta robada: eso es [[multi-region|multi-región]] y [[recuperacion-desastres|DR]].",
    "ejemplo": "C01 cumple su 99.9 % con dos zonas: la cadena completa pierde ≈ 5 minutos al mes por fallas independientes. La segunda zona le compra a Triton 215 minutos al mes.",
    "ver": [
     "zona-disponibilidad",
@@ -113,7 +113,7 @@
    "en": "zone-aware routing · topology-aware routing",
    "corto": "Hacer que cada llamada interna prefiera una réplica de su misma zona, y solo cruce a otra si en la suya no hay ninguna lista. Ahorra el milisegundo y el cargo por GB de cruzar de zona.",
    "largo": "Sin él, un Service de Kubernetes reparte entre todas las réplicas, y con dos zonas la mitad del tráfico cruza. En Kubernetes se pide con `trafficDistribution: PreferSameZone` en el Service. Es una preferencia, no una obligación: si la réplica de la zona falla, la llamada cruza y el sistema degrada en lugar de caerse. Supone tráfico y capacidad parejos entre zonas; si no, una zona se satura mientras la otra descansa. El cobro del cruce es la [[transferencia-entre-zonas]].",
-   "ejemplo": "En C01, sin ruteo por zona cruzarían ≈ 90 TB al mes: a US$0.02 por GB de ida y vuelta, ≈ US$1,800 al mes, casi tanto como toda la infraestructura.",
+   "ejemplo": "En C01, sin ruteo por zona cruzarían ≈ 90 TB al mes: a US$0.02 por GB (US$0.01 al salir de una zona y US$0.01 al entrar a la otra), ≈ US$1,800 al mes, casi tanto como toda la infraestructura.",
    "ver": [
     "zona-disponibilidad",
     "transferencia-entre-zonas",
@@ -126,7 +126,7 @@
    "id": "failover",
    "termino": "Failover (conmutación por falla)",
    "en": "failover",
-   "corto": "Pasar el tráfico de la copia que falló a la que sigue viva. Entre zonas lo hace el balanceador en segundos; entre regiones hay que decidir cómo: por DNS, por IP anycast o a mano.",
+   "corto": "Pasar el tráfico de la copia que falló a la que sigue viva. Entre zonas lo hace el balanceador, en segundos o en un minuto según sus health checks; entre regiones hay que decidir cómo: por DNS (cambiar a dónde apunta el nombre), por IP anycast (la misma dirección anunciada desde varias regiones) o a mano.",
    "largo": "Por [[dns|DNS]], un [[health-check|health check]] vigila la región y el nombre empieza a apuntar a la otra; el cambio tarda la detección más el [[ttl|TTL]]. Por IP anycast, la misma dirección se anuncia desde varias regiones y la red lleva cada paquete a la sana más cercana, en segundos. A mano, una persona decide: es lento, pero evita que una falsa alarma mande todo a una región que no estaba lista. El regreso a la región original se llama *failback*.",
    "ejemplo": "Con un health check cada 30 segundos, 3 fallas para declarar la caída y un TTL de 60 segundos, el último cliente cambia hasta 150 segundos después.",
    "ver": [
@@ -143,7 +143,7 @@
    "en": "disaster recovery · DR",
    "corto": "El plan para el día en que se pierde algo grande: una región, una cuenta o una base de datos borrada. Se define con dos números: cuánto puedes perder (RPO) y cuánto puedes tardar (RTO).",
    "largo": "Se decide por artefacto, no por sistema: lo que se puede recalcular aguanta perder horas; lo que escribió una persona, casi nada. Con el [[rpo|RPO]] y el [[rto|RTO]] de cada cosa se elige la [[estrategia-dr|estrategia]] más barata que los cumpla, se pone la [[replicacion-regional|replicación]] que haga falta y se ensaya en un [[game-day|game day]]. Replicar no basta: contra un borrado o un archivo corrupto hacen falta versiones o snapshots.",
-   "ejemplo": "El DR de C01 es el más barato: pesos e imágenes copiados a otra región, código en git e infraestructura descrita en archivos. Si la región cae mucho tiempo, se reconstruye en horas; mientras, la vendedora elige la categoría a mano.",
+   "ejemplo": "El DR de C01 es el más barato: pesos e imágenes de contenedor copiados a otra región, código en git e infraestructura descrita en archivos. Si la región cae mucho tiempo, se reconstruye en horas; mientras, la vendedora elige la categoría a mano.",
    "ver": [
     "rpo",
     "rto",
@@ -188,7 +188,7 @@
    "id": "estrategia-dr",
    "termino": "Estrategias de DR",
    "en": "backup and restore · pilot light · warm standby · active/active",
-   "corto": "Cuatro planes de recuperación, del más barato y lento al más caro y rápido: copia y restauración, pilot light, warm standby y activo/activo.",
+   "corto": "Cuatro planes de recuperación, del más barato y lento al más caro y rápido: copia y restauración (solo copias), pilot light (datos listos, máquinas apagadas), warm standby (una versión chica encendida) y activo/activo (todo encendido en las dos regiones).",
    "largo": "**Copia y restauración**: solo hay copias en la otra región; volver toma horas. **Pilot light** (llama piloto): datos replicados y lo mínimo creado pero apagado; decenas de minutos, y no atiende sin encender. **Warm standby** (espera tibia): una versión chica encendida, que ya atiende a capacidad reducida; minutos. **Activo/activo**: todo en las dos regiones, atendiendo; casi cero, pero cuesta el doble y complica todo lo que guarda estado. Se elige la más barata que cumpla el [[rpo|RPO]] y el [[rto|RTO]].",
    "ejemplo": "Para C01 (≈ US$1,750 al mes de infraestructura): copia y restauración, decenas de dólares; pilot light, ≈ US$200; warm standby, 384 + 124 + 73 + 16 ≈ US$600 (34 % más); activo/activo, ≈ US$1,750 más. C01 se queda con la primera.",
    "ver": [
@@ -218,7 +218,7 @@
    "termino": "Replicación entre regiones",
    "en": "cross-region replication · CRR",
    "corto": "Una regla que copia a otra región cada dato nuevo: objetos de un bucket, imágenes de contenedor o cambios de una base de datos. Casi siempre es asíncrona: la copia llega después del original.",
-   "largo": "Ese atraso define el [[rpo|RPO]]: lo que iba en camino cuando cayó la región se pierde. En S3, la opción Replication Time Control compromete el 99.99 % de los objetos nuevos en menos de 15 minutos. Cuesta la transferencia (≈ US$0.02 por GB desde `us-east-1`) más guardar los datos dos veces. Y no es un respaldo: copia también los borrados y los archivos corruptos, así que se combina con versiones o [[snapshot|snapshots]].",
+   "largo": "Ese atraso define el [[rpo|RPO]]: lo que iba en camino cuando cayó la región se pierde. Sin garantía, la mayoría de los objetos de S3 llega en menos de 15 minutos; la opción Replication Time Control está diseñada para replicar el 99.99 % en menos de 15 minutos, y su SLA promete el 99.9 %. Cuesta la transferencia (≈ US$0.02 por GB desde `us-east-1`) más guardar los datos dos veces. Y no es un respaldo: copia también los borrados y los archivos corruptos, así que se combina con versiones o [[snapshot|snapshots]].",
    "ejemplo": "C01 replica sus pesos (≈ 98 MB por versión, centavos) y no sus fotos: 60 TB al mes × US$0.02 por GB ≈ US$1,200 al mes solo de transferencia.",
    "ver": [
     "rpo",
@@ -234,7 +234,7 @@
    "en": "game day · disaster recovery drill",
    "corto": "Un ensayo programado en el que se provoca una falla a propósito (apagar una zona, cortar una región) para ver si el plan funciona y medir cuánto tarda de verdad.",
    "largo": "Se escribe antes qué se espera, se provoca la falla con un límite de tiempo y una forma de deshacerla, se mide cuánto tardó en notarse y en recuperarse, y se arregla lo que salió. Deja un [[rto|RTO]] medido y descubre lo que nadie sabía: una cuota en cero en la otra región, un permiso que faltaba, una [[falla-correlacionada|causa común]] escondida. La Ronda lo resume: un DR que no se ensayó no existe.",
-   "ejemplo": "Se apaga la zona `1b` de C01 un martes a las 6 de la mañana. Se espera que los errores suban menos de 30 segundos y que la T4 de `1a` llegue a ≈ 42 %. Si en cambio el gateway de `1a` se satura, eso se arregla antes de que pase de verdad.",
+   "ejemplo": "Se apaga la zona `1b` de C01 un martes a las 6 de la mañana. Se espera que los errores suban durante menos de un minuto y que la T4 de `1a` llegue a ≈ 42 %. Si en cambio el gateway de `1a` se satura, eso se arregla antes de que pase de verdad.",
    "ver": [
     "recuperacion-desastres",
     "rto",

@@ -1,5 +1,5 @@
 {
-  "nota": "Datos de GPUs para Sensei (lección maquinas) y las calculadoras de IA Privada. Especificaciones de la hoja de datos del fabricante; precios on-demand por hora, en US$, sin impuestos. Los precios cambian: cada uno trae su fecha y fuente. Cómputo en TFLOPS/TOPS DENSOS (sin sparsity); donde el fabricante publica 'con sparsity' se dividió entre 2 y se dice en notas. GB = 10^9 bytes en VRAM y ancho de banda; las GiB de RAM de AWS/Azure son 2^30.",
+  "nota": "Datos de GPUs para Sensei (lección maquinas) y las calculadoras de IA Privada. Especificaciones de la hoja de datos del fabricante; precios on-demand por hora, en US$, sin impuestos. Los precios cambian: cada uno trae su fecha y fuente. Cómputo en TFLOPS/TOPS DENSOS (sin sparsity); donde el fabricante publica 'con sparsity' se dividió entre 2 y se dice en notas. GB = 10^9 bytes en VRAM y ancho de banda; las GiB de RAM de AWS/Azure son 2^30. 'anio' = año del anuncio oficial del fabricante (no el de las primeras entregas).",
   "actualizado": "2026-11-13",
   "moneda": "USD",
   "horas_mes": 730,
@@ -80,7 +80,8 @@
             "url": "https://prices.azure.com/api/retail/prices?$filter=serviceName eq 'Virtual Machines' and armRegionName eq 'eastus' and armSkuName eq 'Standard_NC4as_T4_v3'",
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
-          }
+          },
+          "nota": "Revisado en la API el 2026-11-13: Linux on-demand US$0.526 desde 2021-11-01. Coincide con la g4dn.xlarge de AWS: es real, no un error de copia."
         },
         {
           "proveedor": "Google Cloud",
@@ -198,7 +199,8 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+          "nota": "Precio de Secure Cloud (centros de datos certificados), de la página 'Updated November 12, 2026'. En Community Cloud (máquinas de terceros) cuesta US$0.44/h, según los datos estructurados de la misma página.",
+          "usd_gpu_hora_community": 0.44
         }
       ],
       "compra_usd": null
@@ -284,7 +286,7 @@
       "memoria": "GDDR6 con ECC",
       "ancho_banda_gbs": 864,
       "potencia_w": 350,
-      "fp16_tflops_denso": 366.5,
+      "fp16_tflops_denso": 362.05,
       "fp8_tflops_denso": 733,
       "int8_tops_denso": 733,
       "bf16": true,
@@ -292,7 +294,7 @@
       "fp4": false,
       "mig": 0,
       "interconexion": "PCIe Gen4 x16, 64 GB/s bidireccional; sin NVLink",
-      "notas": "La página de NVIDIA publica FP16 733 y FP8 1,466 TFLOPS 'con sparsity'; denso = la mitad (366.5 y 733). INT8 denso asumido igual a FP8 (no listado en la página). Sin MIG.",
+      "notas": "La página de NVIDIA (revisada 2026-11-13) publica las dos cifras: FP16 y BF16 362.05 | 733 con sparsity; FP8, INT8 e INT4 733 | 1,466 con sparsity. Densos: FP16 362.05 (no 366.5: el denso publicado no es exactamente la mitad), FP8 733, INT8 733. Sin MIG.",
       "fuente": {
         "url": "https://www.nvidia.com/en-us/data-center/l40s/",
         "consultado": "2026-11-13",
@@ -366,7 +368,8 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+          "nota": "Precio de Secure Cloud (centros de datos certificados), de la página 'Updated November 12, 2026'. En Community Cloud (máquinas de terceros) cuesta US$0.79/h, según los datos estructurados de la misma página.",
+          "usd_gpu_hora_community": 0.79
         }
       ],
       "compra_usd": null
@@ -447,7 +450,8 @@
             "url": "https://cloud.google.com/products/compute/pricing/accelerator-optimized",
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
-          }
+          },
+          "nota": "Revisado en la página el 2026-11-13: US$3.673385/h en us-central1. Casi idéntico al NC24ads_A100_v4 de Azure (3.673, A100 80 GB PCIe): coincidencia real."
         },
         {
           "proveedor": "Google Cloud",
@@ -546,7 +550,7 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Esta instancia trae la A100 80 GB en formato PCIe."
+          "nota": "Esta instancia trae la A100 80 GB en formato PCIe. Revisado en la API el 2026-11-13: Linux on-demand US$3.673 desde 2022-06-01. Coincide casi exacto con la a2-highgpu-1g de Google (3.673385, A100 de 40 GB): es real."
         },
         {
           "proveedor": "Google Cloud",
@@ -597,11 +601,11 @@
           "gpu_cobrada_aparte": false,
           "vigente_desde": "2026-11-16",
           "fuente": {
-            "url": "https://lambda.ai/instances",
+            "url": "https://lambda.com/instances",
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos."
+          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos. lambda.ai redirige a lambda.com (revisado 2026-11-13; el aviso de vigencia sigue igual)."
         },
         {
           "proveedor": "RunPod",
@@ -619,7 +623,8 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+          "nota": "Precio de Secure Cloud (centros de datos certificados), de la página 'Updated November 12, 2026'. En Community Cloud (máquinas de terceros) cuesta US$1.39/h, según los datos estructurados de la misma página.",
+          "usd_gpu_hora_community": 1.39
         },
         {
           "proveedor": "RunPod",
@@ -637,7 +642,8 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+          "nota": "Precio de Secure Cloud (centros de datos certificados), de la página 'Updated November 12, 2026'. En Community Cloud (máquinas de terceros) cuesta US$1.19/h, según los datos estructurados de la misma página.",
+          "usd_gpu_hora_community": 1.19
         }
       ],
       "compra_usd": null
@@ -751,11 +757,11 @@
           "gpu_cobrada_aparte": false,
           "vigente_desde": "2026-11-16",
           "fuente": {
-            "url": "https://lambda.ai/instances",
+            "url": "https://lambda.com/instances",
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos."
+          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos. lambda.ai redirige a lambda.com (revisado 2026-11-13; el aviso de vigencia sigue igual)."
         },
         {
           "proveedor": "Lambda",
@@ -770,11 +776,11 @@
           "gpu_cobrada_aparte": false,
           "vigente_desde": "2026-11-16",
           "fuente": {
-            "url": "https://lambda.ai/instances",
+            "url": "https://lambda.com/instances",
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos."
+          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos. lambda.ai redirige a lambda.com (revisado 2026-11-13; el aviso de vigencia sigue igual)."
         },
         {
           "proveedor": "RunPod",
@@ -792,7 +798,8 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+          "nota": "Precio de Secure Cloud (centros de datos certificados), de la página 'Updated November 12, 2026'. En Community Cloud (máquinas de terceros) cuesta US$2.69/h, según los datos estructurados de la misma página.",
+          "usd_gpu_hora_community": 2.69
         }
       ],
       "compra_usd": null
@@ -874,7 +881,8 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+          "nota": "Precio de Secure Cloud (centros de datos certificados), de la página 'Updated November 12, 2026'. En Community Cloud (máquinas de terceros) cuesta US$2.59/h, según los datos estructurados de la misma página.",
+          "usd_gpu_hora_community": 2.59
         }
       ],
       "compra_usd": null
@@ -919,11 +927,11 @@
           "gpu_cobrada_aparte": false,
           "vigente_desde": "2026-11-16",
           "fuente": {
-            "url": "https://lambda.ai/instances",
+            "url": "https://lambda.com/instances",
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos."
+          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos. lambda.ai redirige a lambda.com (revisado 2026-11-13; el aviso de vigencia sigue igual)."
         },
         {
           "proveedor": "RunPod",
@@ -941,7 +949,8 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+          "nota": "Precio de Secure Cloud (centros de datos certificados), de la página 'Updated November 12, 2026'. En Community Cloud (máquinas de terceros) cuesta US$1.99/h, según los datos estructurados de la misma página.",
+          "usd_gpu_hora_community": 1.99
         }
       ],
       "compra_usd": null
@@ -951,7 +960,7 @@
       "nombre": "NVIDIA H200 SXM",
       "fabricante": "NVIDIA",
       "arquitectura": "Hopper",
-      "anio": 2024,
+      "anio": 2023,
       "segmento": "centro-de-datos",
       "formato": "SXM5",
       "vram_gb": 141,
@@ -966,7 +975,7 @@
       "fp4": false,
       "mig": 7,
       "interconexion": "NVLink 4, 900 GB/s; PCIe Gen5 128 GB/s",
-      "notas": "Mismo cómputo que la H100 SXM con más memoria y ancho de banda. La página marca 1,979 / 3,958 'con sparsity'. MIG hasta 7 de 18 GB. Existe la H200 NVL (PCIe, hasta 600 W, 1,671 FP16 con sparsity), no incluida. El cómputo de la H200 se ve igual que el de la H100: el cambio es memoria.",
+      "notas": "Mismo cómputo que la H100 SXM con más memoria y ancho de banda. La página marca 1,979 / 3,958 'con sparsity'. MIG hasta 7 de 18 GB. Existe la H200 NVL (PCIe, hasta 600 W, 1,671 FP16 con sparsity), no incluida. El cómputo de la H200 se ve igual que el de la H100: el cambio es memoria. Año: NVIDIA la anunció el 13-nov-2023 (SC23); los sistemas con H200 se entregaron desde 2024 (comunicado 'NVIDIA Supercharges Hopper', nasdaq.com/press-release/nvidia-supercharges-hopper-the-worlds-leading-ai-computing-platform-2023-11-13; revisado 2026-11-13).",
       "fuente": {
         "url": "https://www.nvidia.com/en-us/data-center/h200/",
         "consultado": "2026-11-13",
@@ -1042,7 +1051,8 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+          "nota": "Precio de Secure Cloud (centros de datos certificados), de la página 'Updated November 12, 2026'. En Community Cloud (máquinas de terceros) cuesta US$3.59/h, según los datos estructurados de la misma página.",
+          "usd_gpu_hora_community": 3.59
         }
       ],
       "compra_usd": null
@@ -1122,11 +1132,11 @@
           "gpu_cobrada_aparte": false,
           "vigente_desde": "2026-11-16",
           "fuente": {
-            "url": "https://lambda.ai/instances",
+            "url": "https://lambda.com/instances",
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos."
+          "nota": "La página publica estos precios por GPU-hora 'a partir del 16-nov-2026 00:00 UTC'; hasta entonces el precio vigente solo se ve con sesión iniciada. Más impuestos. lambda.ai redirige a lambda.com (revisado 2026-11-13; el aviso de vigencia sigue igual)."
         },
         {
           "proveedor": "RunPod",
@@ -1144,7 +1154,8 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+          "nota": "Precio de Secure Cloud (centros de datos certificados), de la página 'Updated November 12, 2026'. En Community Cloud (máquinas de terceros) cuesta US$5.98/h, según los datos estructurados de la misma página.",
+          "usd_gpu_hora_community": 5.98
         }
       ],
       "compra_usd": null,
@@ -1248,14 +1259,20 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+          "nota": "Precio de Secure Cloud (centros de datos certificados), de la página 'Updated November 12, 2026'. En Community Cloud (máquinas de terceros) cuesta US$0.34/h, según los datos estructurados de la misma página.",
+          "usd_gpu_hora_community": 0.34
         }
       ],
-      "compra_usd": 4800,
+      "compra_usd": 3400,
       "compra_detalle": {
-        "descripcion": "Precio nuevo más bajo en EE. UU. hoy; MSRP de lanzamiento US$1,599; mediana de 12 meses US$3,300 (mínimo US$2,110). Mercado volátil y muy por encima del MSRP; usadas por mucho menos.",
+        "descripcion": "Aproximado y muy volátil. ≈ US$3,300-3,400: mediana de 12 meses en gpuprix (US$3,300; mínimo US$2,110) y promedio de los 3 listados más baratos de eBay en nov-2026 según gpupoet (US$3,424; entre 3,133 y 3,816; nuevas y usadas mezcladas). El listado NUEVO más barato que muestra gpuprix hoy es una ASUS ROG Strix OC en Amazon a US$4,800: un modelo premium, no representativo (antes estaba aquí como 'compra_usd'). Usadas desde ≈ US$1,700. Dejó de fabricarse a fines de 2024 (reportes de prensa): lo nuevo es inventario sobrante. MSRP de lanzamiento US$1,599: hoy ≈ 2x el MSRP, no 3x.",
         "fuente": {
           "url": "https://gpuprix.com/us/gpus/geforce-rtx-4090",
+          "consultado": "2026-11-13",
+          "fuente_tipo": "secundaria"
+        },
+        "fuente_extra": {
+          "url": "https://gpupoet.com/gpu/learn/price/november-2026/nvidia-geforce-rtx-4090",
           "consultado": "2026-11-13",
           "fuente_tipo": "secundaria"
         }
@@ -1311,7 +1328,8 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+          "nota": "Precio de Secure Cloud (centros de datos certificados), de la página 'Updated November 12, 2026'. En Community Cloud (máquinas de terceros) cuesta US$0.74/h, según los datos estructurados de la misma página.",
+          "usd_gpu_hora_community": 0.74
         }
       ],
       "compra_usd": null,
@@ -1389,12 +1407,13 @@
             "consultado": "2026-11-13",
             "fuente_tipo": "oficial"
           },
-          "nota": "Precio de lista de Pods en la página (actualizada 12-nov-2026); el texto no distingue Community de Secure Cloud."
+          "nota": "Precio de Secure Cloud (centros de datos certificados), de la página 'Updated November 12, 2026'. En Community Cloud (máquinas de terceros) cuesta US$1.69/h, según los datos estructurados de la misma página.",
+          "usd_gpu_hora_community": 1.69
         }
       ],
       "compra_usd": 16399,
       "compra_detalle": {
-        "descripcion": "Newegg, 'en stock', visto hoy en el agregador BuildCores. Otros listados: Amazon US$19,499.95; B&H US$3,421.95 (casi seguro un error). NVIDIA Marketplace pidió US$16,000 según Igor's Lab (14-ago-2026), no disponible. Subió desde ≈ US$8,500 en el lanzamiento.",
+        "descripcion": "Newegg, 'en stock', visto hoy en el agregador BuildCores. Otros listados: Amazon US$19,499.95; B&H US$3,421.95 (casi seguro un error). NVIDIA Marketplace pidió US$16,000 según Igor's Lab (14-ago-2026), no disponible. Subió desde ≈ US$8,500 en el lanzamiento. Confirmado 2026-11-13: Newegg US$16,399 en BuildCores; la NVIDIA Marketplace la lista en US$16,000 desde el 12-ago-2026 (Tom's Hardware, PCMag; antes US$13,250); precio de lanzamiento en tienda de EE. UU. US$8,565 (Tom's Hardware, 2025). gpuprix muestra hoy US$17,496 (versión Max-Q) y una mediana de 12 meses de US$10,999.",
         "fuente": {
           "url": "https://www.buildcores.com/products/GPU/eblltkoej/NVIDIA-RTX-PRO-6000-Blackwell-Workstation-Edition-96GB-GDDR7",
           "consultado": "2026-11-13",

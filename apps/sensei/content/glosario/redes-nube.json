@@ -49,7 +49,7 @@
    "id": "subred-privada",
    "termino": "Subred privada y pública",
    "en": "private / public subnet",
-   "corto": "Una subred pública tiene ruta directa a internet (por el internet gateway); una privada no. Lo que vive en una privada no se alcanza desde internet.",
+   "corto": "Una subred pública tiene ruta directa a internet, por el internet gateway (la puerta de la red privada hacia internet); una privada no. Lo que vive en una privada no se alcanza desde internet.",
    "largo": "Lo que hace pública o privada a una [[subred]] es su [[tabla-rutas|tabla de rutas]], no su nombre: si `0.0.0.0/0` apunta a un [[internet-gateway|internet gateway]], es pública. Una privada, si necesita salir a internet, lo hace por un [[nat|NAT gateway]], que solo deja salir. Regla de diseño: en las públicas va solo lo que recibe tráfico de internet (el balanceador, los NAT); todo lo demás, en privadas.",
    "ejemplo": "En C01, el ALB y los dos NAT viven en las subredes públicas; los nodos del gateway y de Triton, en las privadas, sin IP pública. Aunque Triton tuviera un error, desde internet no hay camino hasta él.",
    "ver": [
@@ -64,7 +64,7 @@
    "id": "internet-gateway",
    "termino": "Internet gateway",
    "en": "internet gateway",
-   "corto": "La puerta de una VPC hacia internet. Una subred cuya tabla manda `0.0.0.0/0` a él es pública.",
+   "corto": "La puerta de una VPC (tu red privada en la nube) hacia internet. Una subred cuya tabla de rutas manda a él todo lo que no es de la VPC (`0.0.0.0/0`) es pública.",
    "largo": "Se pega a la [[vpc|VPC]] entera, no a una zona, y no cobra por hora ni por GB (lo que sale sí paga [[egress]]). Traduce entre la IP privada de una máquina y su [[ip-publica|IP pública]]. Una máquina en una subred privada no lo usa directo: sale por un [[nat|NAT gateway]], que a su vez sale por él.",
    "ejemplo": "La tabla de las subredes públicas de C01 tiene dos reglas: `10.0.0.0/16 → local` y `0.0.0.0/0 → igw` (el internet gateway).",
    "ver": [
@@ -108,7 +108,7 @@
    "id": "grupo-seguridad",
    "termino": "Grupo de seguridad",
    "en": "security group",
-   "corto": "Un firewall pegado a cada máquina (a su tarjeta de red) con una lista de las conexiones que acepta. Lo que no está en la lista no entra.",
+   "corto": "Un *firewall* (un filtro de conexiones) pegado a cada máquina de la nube, en su tarjeta de red, con una lista de las conexiones que acepta. Lo que no está en la lista no entra.",
    "largo": "Solo tiene reglas de permitir: protocolo, [[puerto]] y origen. El origen puede ser un rango [[cidr|CIDR]] u **otro grupo de seguridad** («acepta a quien lleve el grupo `gateway`»), que sigue valiendo aunque cambien las IPs. Recuerda las conexiones (*stateful*): las respuestas pasan sin otra regla. Un grupo nuevo no acepta entrada y deja salir todo. En Kubernetes, la misma idea por pod es la *NetworkPolicy*. En Google Cloud se llaman reglas de firewall de la VPC; en Azure, *network security groups*.",
    "analogia": "Como la lista de invitados en la puerta de cada salón: sin tu nombre (o sin el gafete del grupo correcto) no entras. Se rompe en que la lista no dice por qué pasillo llegar: eso es de la tabla de rutas.",
    "ejemplo": "En C01: `alb` acepta 443 de `0.0.0.0/0`; `gateway` acepta 8080 solo del grupo `alb`; `triton` acepta 8000 y 8001 solo del grupo `gateway`.",
@@ -124,7 +124,7 @@
    "termino": "NAT gateway",
    "en": "NAT gateway",
    "corto": "El servicio que deja salir a internet a las máquinas de una subred privada, sin dejar que nadie de afuera entre. En AWS cobra ≈ US$0.045 por hora y ≈ US$0.045 por GB que pasa, en cualquier dirección.",
-   "largo": "Hace lo mismo que el router de tu casa (NAT, *network address translation*): cambia la IP privada de cada paquete por su [[ip-publica|IP pública]] y regresa las respuestas. Vive en una [[subred-privada|subred pública]] de una sola zona; el estándar es uno por zona. Su cobro por GB es un [[cargo-datos-procesados|cargo por datos procesados]], y como es la salida por omisión, por inercia pasan por él S3, imágenes y pesos. Lo que debe pasar: parches y llamadas a terceros. Lo pesado va por [[vpc-endpoint|endpoints]].",
+   "largo": "Hace lo mismo que el router de tu casa (NAT, *network address translation*): cambia la IP privada de cada paquete por su [[ip-publica|IP pública]] y regresa las respuestas. El NAT clásico (zonal) vive en una [[subred-privada|subred pública]] de una sola zona, y el estándar es uno por zona; desde noviembre de 2025 AWS ofrece también un NAT regional que se extiende solo a cada zona y cobra la misma hora por zona. Su cobro por GB es un [[cargo-datos-procesados|cargo por datos procesados]], y como es la salida por omisión, por inercia pasan por él S3, imágenes y pesos. Lo que debe pasar: parches y llamadas a terceros. Lo pesado va por [[vpc-endpoint|endpoints]].",
    "analogia": "Una caseta de cobro a la salida del fraccionamiento: deja salir a los vecinos y no deja entrar a extraños, pero cobra a cada coche que pasa, salga o regrese. Se rompe en que la caseta real cobra por coche; el NAT cobra por GB.",
    "ejemplo": "c04 baja 36 TB al mes de láminas por el NAT: 36,000 × 0.045 ≈ US$1,620, 3.7 veces sus GPUs. Por un gateway endpoint de S3: US$0.",
    "ver": [
@@ -139,7 +139,7 @@
    "id": "cargo-datos-procesados",
    "termino": "Cargo por datos procesados",
    "en": "data processing charge",
-   "corto": "Lo que cobra un servicio gestionado por cada GB que pasa por él, aparte de sus horas. Lo cobran el NAT, los interface endpoints y SageMaker AI, entre otros.",
+   "corto": "Lo que cobra un servicio de la nube por cada GB que pasa por él, aparte de sus horas, salga o no el dato de la nube. Lo cobran el NAT gateway, los endpoints privados de pago (interface endpoints) y SageMaker AI, entre otros.",
    "largo": "No es [[egress]]: se cobra aunque los datos no salgan de la nube y en cualquier dirección. Tarifas en `us-east-1`: [[nat|NAT gateway]] ≈ US$0.045 por GB; [[privatelink|interface endpoint]] ≈ US$0.01; SageMaker AI hosting ≈ US$0.016 de entrada y de salida. El [[alb|ALB]] cobra algo parecido por sus [[lcu|LCU]] (≈ US$0.008 por GB cuando ganan los bytes). Se encuentra multiplicando bytes por request × requests al mes en cada flecha.",
    "ejemplo": "Bajar una imagen de 9.2 GB por el NAT: 9.2 × 0.045 ≈ US$0.41 por arranque; 60 arranques al mes ≈ US$25.",
    "ver": [
@@ -213,7 +213,7 @@
    "en": "inter-region data transfer",
    "corto": "Lo que cobra la nube por cada GB que se copia de una región a otra: desde `us-east-1`, ≈ US$0.02 por GB a casi cualquier región (≈ US$0.01 a `us-east-2`).",
    "largo": "La cobra la región de donde salen los datos. Es lo que pagan la [[replicacion-regional|replicación entre regiones]], un respaldo en otra región o un servicio que lee un bucket de otra región. Un [[vpc-endpoint|gateway endpoint de S3]] no la evita: solo sirve para buckets de la misma región. Por eso se replica lo chico y valioso (pesos) y se piensa dos veces lo grande (fotos).",
-   "ejemplo": "Replicar las fotos de C01, ≈ 60 TB al mes: 60,000 × 0.02 ≈ US$1,200 al mes. Replicar los pesos de ≈ 98 MB por versión: centavos.",
+   "ejemplo": "Replicar las fotos de C01, ≈ 61 TB al mes: 60,800 × 0.02 ≈ US$1,200 al mes. Replicar los pesos de ≈ 98 MB por versión: centavos.",
    "ver": [
     "transferencia-entre-zonas",
     "replicacion-regional",
@@ -225,8 +225,8 @@
    "id": "alb",
    "termino": "ALB (Application Load Balancer)",
    "en": "Application Load Balancer",
-   "corto": "El balanceador gestionado de AWS que entiende HTTP: termina HTTPS y reparte requests entre copias sanas en varias zonas. Cobra por hora (≈ US$0.0225) y por LCU.",
-   "largo": "Es un [[balanceador]] de capa 7 que vive en las subredes de varias zonas a la vez. Su cobro sorprende: además de la hora, cobra ≈ US$0.008 por [[lcu|LCU]]-hora, y cuando las requests llevan fotos en el body manda la dimensión de bytes, así que paga ≈ US$0.008 por GB que pasa. Mandar la llave de S3 en vez de los bytes baja ese cobro. En Google Cloud y Azure el equivalente es su balanceador HTTP(S) y Application Gateway.",
+   "corto": "El balanceador gestionado de AWS que entiende HTTP: recibe las conexiones HTTPS, las descifra y reparte las requests entre copias sanas en varias zonas. Cobra por hora (≈ US$0.0225) y por LCU.",
+   "largo": "Es un [[balanceador]] de capa 7 que vive en las subredes de varias zonas a la vez. Su cobro sorprende: además de la hora, cobra ≈ US$0.008 por [[lcu|LCU]]-hora, y cuando las requests llevan fotos en el body manda la dimensión de bytes, así que paga ≈ US$0.008 por GB que pasa. Mandar la llave de S3 en vez de los bytes baja ese cobro. En Google Cloud el equivalente es su Application Load Balancer (antes «balanceador HTTP(S)»), y en Azure, Application Gateway.",
    "ejemplo": "El ALB de C01: ≈ 83 GB/h de fotos ≈ 83 LCU → 83.3 × 0.008 × 730 + 0.0225 × 730 ≈ US$503 al mes, casi 30 % de la infraestructura.",
    "ver": [
     "balanceador",
@@ -254,7 +254,7 @@
    "termino": "Ancho de banda sostenido y de ráfaga",
    "en": "baseline / burst network bandwidth",
    "corto": "Cada instancia trae un ancho de banda de red que aguanta todo el tiempo (sostenido) y uno más alto que aguanta solo por ratos (ráfaga). Para diseñar cuenta el sostenido.",
-   "largo": "AWS suele anunciar la ráfaga con un «hasta» («hasta 12.5 Gb/s»); cuando se acaban los créditos, la máquina baja al sostenido y empieza a encolar o tirar paquetes. Está en bits por segundo: 1 Gb/s = 125 MB/s. Con tensores grandes se rebasa fácil, sobre todo cuando cae una zona y un nodo hace el trabajo de dos. Salidas: payloads más chicos (UINT8, JPEG), más nodos o una [[instancia]] con más red. Ver [[ancho-banda]].",
+   "largo": "AWS suele anunciar la ráfaga con un «hasta» («hasta 12.5 Gb/s»); la ráfaga dura típicamente de 5 a 60 minutos, sin garantía, y cuando se acaban los créditos, la máquina baja al sostenido y empieza a encolar o tirar paquetes. Está en bits por segundo: 1 Gb/s = 125 MB/s. Con tensores grandes se rebasa fácil, sobre todo cuando cae una zona y un nodo hace el trabajo de dos. Salidas: payloads más chicos (UINT8, JPEG), más nodos o una [[instancia]] con más red. Ver [[ancho-banda]].",
    "ejemplo": "Gateway de C01 en `c6i.xlarge` (1.56 Gb/s sostenidos, hasta 12.5): 500 req/s × 602,112 B × 8 ≈ 2.4 Gb/s. Con dos nodos, 77 % cada uno; si cae una zona, 154 % del sostenido.",
    "ver": [
     "ancho-banda",

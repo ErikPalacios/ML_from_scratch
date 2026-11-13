@@ -33,7 +33,7 @@ Una **[[region|región]]** (*region*) es un área geográfica donde un [[proveed
 | Azure | `eastus` | Virginia, Estados Unidos |
 | Azure | `mexicocentral` | Querétaro, México |
 
-Cada uno de los tres grandes tiene decenas de regiones repartidas por el mundo, y abren nuevas cada año.
+Cada uno de los tres grandes (AWS, Google Cloud y Azure) tiene decenas de regiones repartidas por el mundo, y abren nuevas cada año.
 
 Lo importante es que las regiones están **separadas a propósito**. Una máquina que creas en `us-east-1` no existe en `us-west-2`. Un [[bucket-objetos|bucket]] vive en una región y sus bytes no salen de ahí si tú no los mandas. Cuando le hablas a la [[api-nube|API de la nube]], le hablas a la de una región. Esa separación es la que permite que un problema en Virginia no tumbe a Oregón.
 
@@ -42,11 +42,13 @@ Por eso «¿en qué región?» es de las primeras preguntas de un diseño. La re
 - **La distancia** a tus usuarios y a los sistemas que te llaman, que se convierte en latencia.
 - **El catálogo.** No todas las regiones tienen todas las máquinas ni todos los servicios. Una [[gpu|GPU]] nueva llega primero a unas pocas.
 - **El precio.** La misma máquina cuesta distinto en cada región.
-- **La ley.** Los datos guardados en una región están físicamente en ese país.
+- **La ley.** Los datos guardados en una región están físicamente en ese país, y les aplican sus leyes.
 - **Tus límites.** Tu [[cuota-servicio|cuota]] (cuántas máquinas te deja prender el proveedor) se cuenta por región.
 
+Cuando hay que elegir, esas cosas se revisan en orden. Primero la ley: si un contrato exige que ciertos datos no salgan del país (la [[residencia-datos|residencia de datos]]), las regiones de fuera quedan descartadas sin mirar nada más. Luego el catálogo: ¿tiene la GPU que necesitas? Luego la distancia a quien te llama. Y al final, el precio. La sección «Cómo elegir región» lo desarrolla.
+
 :::figura regiones-mapa
-Una región es un grupo de zonas cercanas entre sí, unidas por fibra propia. Otra región queda a cientos o miles de kilómetros. La distancia se nota en los milisegundos.
+Una región es un grupo de zonas cercanas entre sí, unidas por fibra propia (`us-east-1` tiene seis; aquí se dibujan tres). Otra región queda a cientos o miles de kilómetros. La distancia se nota en los milisegundos.
 :::
 
 :::analogia Una cadena de supermercados
@@ -59,14 +61,14 @@ Piensa en una cadena de supermercados. En cada ciudad grande tiene varias sucurs
 
 En la lección de red viste el [[rtt|RTT]] (*round-trip time*): lo que tarda un mensaje en ir y volver. Hay una parte del RTT que ningún ingeniero puede bajar, porque es física.
 
-Los datos viajan como luz dentro de fibra óptica. En el vacío, la luz recorre ≈ 300,000 km por segundo. Dentro del vidrio de la fibra va a unos dos tercios de eso: ≈ 200,000 km por segundo, o **≈ 200 km por milisegundo**. Como el RTT es ida y vuelta, la regla práctica es: **al menos 1 ms de RTT por cada 100 km**.
+Entre ciudades, los datos viajan por **fibra óptica**: hilos de vidrio muy delgados por los que van pulsos de luz. En el vacío, la luz recorre ≈ 300,000 km por segundo. Dentro del vidrio de la fibra va a unos dos tercios de eso: ≈ 200,000 km por segundo, o **≈ 200 km por milisegundo**. Entonces 100 km de ida toman 0.5 ms, y la ida y vuelta, 1 ms. De ahí la regla práctica: **al menos 1 ms de RTT por cada 100 km**.
 
 :::cuenta De la Ciudad de México al norte de Virginia
 Distancia en línea recta // sobre la superficie de la Tierra | — | ≈ 3,000 km
 Solo de ida // a 200 km por ms | 3,000 ÷ 200 | 15 ms
 Ida y vuelta: el RTT mínimo posible | 2 × 15 | **30 ms**
 RTT real // los cables no van en línea recta y hay equipos en medio: ≈ el doble | ≈ 2 × 30 | **≈ 60 ms**
-De un SLO de 300 ms, lo que se va solo en el viaje | 60 ÷ 300 | 20 %
+Lo que se va solo en el viaje // de la meta de 300 ms de C01, su [[slo\|SLO]] | 60 ÷ 300 | 20 %
 = Antes de que el modelo haga nada, una quinta parte del tiempo ya se gastó en kilómetros.
 :::
 
@@ -118,16 +120,16 @@ Fíjate en São Paulo: está en Latinoamérica, pero queda más del doble de lej
 
 Un dato que sorprende: desde la Ciudad de México, São Paulo queda a ≈ 7,400 km y Virginia a ≈ 3,000. «La región de mi continente» no siempre es la más cercana.
 
+Dos cosas hacen que la distancia pese más de lo que parece:
+
+- **Una conexión nueva da varias vueltas.** Antes de mandar la foto hay que abrir la conexión (el saludo inicial, o [[handshake]]) y acordar el cifrado de [[https|HTTPS]]. Son ≈ 3 idas y vueltas: con 60 ms cada una, 180 ms antes de empezar. Por eso se reusan las conexiones abiertas ([[keep-alive]]).
+- **Lo que importa es quién te llama, no dónde está el usuario final.** A C01 no lo llama el teléfono de Ana: lo llama el *backend* de publicación (el programa del marketplace que recibe la publicación), que vive en la misma región. Esa llamada viaja metros, no miles de kilómetros. Los 60 ms entre el teléfono de Ana y Virginia se gastan antes, cuando la app le habla al backend, y no entran en el presupuesto de 300 ms del modelo.
+
+De ahí sale una regla de diseño: **pon el modelo junto a quien lo llama y junto a sus datos**. Si el backend y las fotos están en `us-east-1`, el modelo va en `us-east-1`.
+
 :::calculadora regiones-distancia
 Arranca con la cuenta de arriba: 3,000 km, el doble de la física y una sola ida y vuelta. Sube las idas y vueltas a 3 para ver lo que cuesta abrir una conexión nueva desde lejos.
 :::
-
-Dos cosas hacen que la distancia pese más de lo que parece:
-
-- **Una conexión nueva da varias vueltas.** Antes de mandar la foto hay que abrir la conexión ([[handshake]]) y acordar el cifrado. Son ≈ 3 idas y vueltas: con 60 ms cada una, 180 ms antes de empezar. Por eso se reusan las conexiones ([[keep-alive]]).
-- **Lo que importa es quién te llama, no dónde está el usuario final.** A C01 no lo llama el teléfono de Ana: lo llama el *backend* de publicación (el programa del marketplace que recibe la publicación), que vive en la misma región. Esa llamada viaja metros, no miles de kilómetros. Los 60 ms de Ana hasta Virginia los paga el backend, y no entran al presupuesto de 300 ms del modelo.
-
-De ahí sale una regla de diseño: **pon el modelo junto a quien lo llama y junto a sus datos**. Si el backend y las fotos están en `us-east-1`, el modelo va en `us-east-1`.
 
 ## Zonas y dominios de falla {Zones and failure domains}
 
@@ -138,7 +140,7 @@ Dentro de una región, los centros de datos no están todos en el mismo edificio
 - **Están separadas** por kilómetros, para que un incendio, una inundación o un apagón no les pegue a dos a la vez. En AWS, según su documentación, quedan a menos de 100 km unas de otras.
 - **Están unidas** por fibra del propio proveedor. Por eso el RTT entre dos zonas es de ≈ 1 ms: lo bastante cerca para trabajar como si fueran una sola red.
 - **Se nombran** con el nombre de la región y una letra: `us-east-1a`, `us-east-1b`. En Google Cloud, `us-central1-a`. En Azure se numeran: zona 1, 2 y 3.
-- **Casi todas las regiones tienen tres o más.** `us-east-1` tiene seis. Un diseño usa dos o tres: C01 usa dos y C10, el asistente con un LLM, usa tres.
+- **En AWS y en Google Cloud, cada región tiene tres o más.** `us-east-1` tiene seis. En Azure no todas: varias regiones no tienen zonas, y hay que revisarlo antes de elegir una. Un diseño usa dos o tres: C01 usa dos y C10, el asistente que contesta con un modelo grande de lenguaje ([[llm|LLM]]), usa tres.
 
 ### Lo que vive en una zona y lo que vive en la región
 
@@ -147,18 +149,20 @@ No todo lo que rentas está repartido. Hay recursos **zonales**, que existen en 
 | Recurso | Dónde vive | Si cae su zona |
 |---|---|---|
 | Una máquina virtual ([[instancia]]) | Una zona | Se cae con ella |
-| Un disco de red ([[almacenamiento-bloques\|EBS]]) | Una zona | No se puede conectar a una máquina de otra zona |
+| Un disco de red ([[almacenamiento-bloques\|EBS]], en AWS) | Una zona | Se queda atrapado: no se puede conectar a una máquina de otra zona |
 | Una [[subred]] (un pedazo de tu red privada) | Una zona | Queda sin máquinas |
-| El [[object-storage\|object storage]] (S3 Standard) | La región: copias en al menos 3 zonas | Sigue respondiendo |
-| El [[balanceador]] (ALB) | Las zonas que tú elijas | Atiende desde las demás |
+| El [[object-storage\|object storage]] (S3 Standard, en AWS) | La región: copias en al menos 3 zonas | Sigue respondiendo |
+| El [[balanceador]] (el ALB, en AWS) | Las zonas que tú elijas | Atiende desde las demás |
 | El [[plano-de-control\|plano de control]] de Kubernetes gestionado | La región | Sigue respondiendo |
 
-La consecuencia práctica: **las máquinas son tuyas de repartir**. El proveedor reparte S3 por ti, pero si pones tus dos servidores en `us-east-1a`, los dos se caen juntos, y nadie te avisa al crearlos.
+En la última fila, el **plano de control** es la parte de Kubernetes que recibe tus órdenes y decide en qué máquina corre cada cosa. Es **gestionado** cuando lo opera el proveedor por ti: en AWS ese servicio se llama EKS, y AWS reparte el plano de control entre varias zonas.
+
+La consecuencia práctica: **repartir las máquinas te toca a ti**. El proveedor reparte S3 por ti, pero si pones tus dos servidores en `us-east-1a`, los dos se caen juntos, y nadie te avisa al crearlos.
 
 :::profundo Tu «us-east-1a» no es la mía
-En las regiones más viejas de AWS, la letra de la zona se asigna **por cuenta**. Tu `us-east-1a` y la de otra empresa pueden ser edificios distintos. AWS lo hizo para que no todo el mundo eligiera la «a» y la llenara. El nombre que sí es igual para todos es el **id de zona**, como `use1-az4`.
+En nueve regiones viejas de AWS, `us-east-1` entre ellas, la letra de la zona se asignó **por cuenta**. Tu `us-east-1a` y la de otra empresa pueden ser edificios distintos. AWS lo hizo para que no todo el mundo eligiera la «a» y la llenara. Las regiones abiertas después de 2012 usan las mismas letras para todos, y en esas nueve las cuentas creadas desde noviembre de 2025 también. El nombre que sí es igual para todos es el **id de zona**, como `use1-az4`.
 
-Así se ve en la terminal de alguien que pregunta qué zonas tiene su región, con los dos nombres. Es una ilustración: necesita una [[cuenta-nube|cuenta]] de AWS y su herramienta de línea de comandos.
+Así se ve en la terminal de alguien que pregunta qué zonas tiene su región, con los dos nombres. Es una ilustración: necesita una [[cuenta-nube|cuenta]] de AWS y su programa para la [[terminal]], el `aws`.
 
 ```bash
 aws ec2 describe-availability-zones --region us-east-1 \
@@ -166,15 +170,17 @@ aws ec2 describe-availability-zones --region us-east-1 \
 # us-east-1a   use1-az4   available
 # us-east-1b   use1-az6   available
 # us-east-1c   use1-az1   available
+# … y tres líneas más: us-east-1 tiene seis zonas
 ```
- Importa cuando dos cuentas quieren estar en la misma zona física, para que su tráfico no cruce de zona, o cuando un aviso de falla dice «afectada: `use1-az4`» y tienes que saber cuál de tus letras es.
+
+El id de zona importa cuando dos cuentas quieren estar en la misma zona física, para que su tráfico no cruce de zona, o cuando un aviso de falla dice «afectada: `use1-az4`» y tienes que saber cuál de tus letras es.
 :::
 
 ### Dominios de falla
 
 Un **[[dominio-falla|dominio de falla]]** (*failure domain*) es todo lo que se cae junto cuando falla una sola cosa. Una máquina es un dominio de falla: si se quema su fuente de poder, se cae todo lo que corre en ella. Una zona es otro, más grande: si se queda sin luz, se caen todas sus máquinas.
 
-Los dominios van uno dentro de otro, como muñecas rusas.
+Los dominios van uno dentro de otro, como muñecas rusas: la región guarda zonas, cada zona guarda máquinas y cada máquina corre pods. La comparación sirve para el acomodo, no para la falla: una muñeca rota deja sanas a las de adentro, pero cuando falla un dominio se cae todo lo que lleva adentro.
 
 :::figura regiones-dominios
 Cuatro dominios de falla, uno dentro de otro. Los de adentro fallan seguido y se llevan poco. Los de afuera fallan rara vez y se llevan todo lo que contienen.
@@ -189,13 +195,13 @@ La Ronda (M06) los ordena así. Un **pod** es la unidad en la que Kubernetes, el
 | Una GPU (errores de hardware) | Ocasional | Lo que corría en esa GPU | Sacar ese nodo y reemplazarlo |
 | Una zona | Rara, pero pasa | Todo lo zonal de esa zona | Réplicas en otra zona |
 | Una región | Muy rara | Todo | Otra región |
-| Mantenimiento planeado | Frecuente | Los nodos que se actualizan | Actualizar de a uno, con un mínimo siempre arriba |
+| Mantenimiento planeado | Frecuente | Los nodos que se actualizan | Actualizar uno por uno, con un mínimo siempre arriba |
 
 De la tabla salen dos ideas.
 
 **Tus réplicas tienen que estar en dominios distintos del tamaño que quieres sobrevivir.** Dos réplicas en la misma máquina no sobreviven a la máquina. Dos réplicas en máquinas distintas de la misma zona no sobreviven a la zona. En la lección de probabilidad lo viste con números: la redundancia solo suma contra fallas [[independencia|independientes]], y compartir un dominio de falla es la forma más común de no serlo.
 
-**Cada dominio más grande cuesta más de cubrir.** Reiniciar un pod es gratis. Una máquina de más cuesta una máquina. Otra zona cuesta un poco de red. Otra región cuesta, como vas a ver, cerca de un tercio de toda la infraestructura. Por eso no se cubre «todo»: se decide hasta qué dominio.
+**Cada dominio más grande cuesta más de cubrir.** Reiniciar un pod es gratis. Una máquina de más cuesta una máquina. Poner esa máquina de más en otra zona cuesta lo mismo, más un poco de red. Otra región cuesta, como vas a ver, cerca de un tercio de toda la infraestructura. Por eso no se cubre «todo»: se decide hasta qué dominio.
 
 :::profundo Las fallas grises
 Una zona casi nunca falla como en las películas, con todo apagado. Lo normal es una falla **parcial**: la red de la zona pierde paquetes, o no se pueden crear máquinas nuevas, o un servicio contesta lento. Tus réplicas de esa zona siguen «vivas» pero funcionan mal. Por eso la defensa no es «detectar que la zona murió», sino [[health-check|health checks]] que saquen a cada réplica que deja de contestar bien, sea cual sea la causa.
@@ -214,7 +220,7 @@ Una zona casi nunca falla como en las películas, con todo apagado. Lo normal es
 Así queda C01:
 
 :::diagrama regiones-c01
-C01 en una región y dos zonas. Toca cada caja para ver por qué está ahí, y usa «Recorrer» para ver un día normal, la caída de una zona y lo que pasa si las requests cruzan de zona.
+Toca cada caja para ver por qué está ahí, y usa «Recorrer» para ver un día normal, la caída de una zona y lo que pasa si las requests cruzan de zona.
 :::
 
 :::profundo Cómo se pide en Kubernetes
@@ -241,24 +247,26 @@ Cuando el dominio que quieres sobrevivir es la zona, el «+1» no es una máquin
 
 > Si cae una zona, las que quedan tienen que aguantar el pico completo.
 
-Con dos zonas, cada una tiene que poder con el 100 % del pico: pagas el **doble** de lo que el tráfico pide. Con tres zonas, al caer una quedan dos, así que cada una necesita la mitad del pico: pagas **1.5 veces**. En general, con Z zonas pagas Z ÷ (Z − 1).
+Con dos zonas, cada una tiene que poder con el 100 % del pico: pagas el **doble** de lo que el tráfico pide. Con tres zonas, al caer una quedan dos, así que cada una necesita la mitad del pico: tres mitades son **1.5 veces** el pico. En general, con Z zonas, al caer una quedan Z − 1, cada zona carga 1 ÷ (Z − 1) del pico, y las Z juntas suman Z ÷ (Z − 1) veces el pico.
 
-El día normal de C01 no enseña la diferencia, porque una T4 por zona sobra. Míralo en el Hot Sale, la campaña de ventas en línea de cada año en México, cuando el tráfico se multiplica por 5:
+El pico de diseño de C01 (500 fotos por segundo) no enseña la diferencia, porque una T4 por zona sobra. Míralo en el Hot Sale, la campaña de ventas en línea de cada año en México, cuando el tráfico se multiplica por 5.
+
+Falta una regla para la cuenta: ninguna GPU debe pasar del 70 % de su máximo, ni siquiera con una zona caída. Ese margen ([[headroom]]) existe porque cerca del 100 % las requests empiezan a hacer fila y la latencia se dispara.
 
 :::cuenta El Hot Sale de C01: 2,500 fotos por segundo
 Lo que aguanta una T4 al máximo // medido en la Ronda | — | ≈ 1,200 por segundo
 Tope que aceptamos en emergencia // con una zona caída, sin pasar de 70 % | 0.70 × 1,200 | 840 por segundo
-T4 para aguantar el pico sin una zona | 2,500 ÷ 840 = 2.98, hacia arriba | 3
+T4 para aguantar el pico con una zona caída | 2,500 ÷ 840 = 2.98, hacia arriba | 3
 Con dos zonas: 3 en cada una | 3 × 2 | **6 T4**
-Uso en un día normal del Hot Sale | 2,500 ÷ (6 × 1,200) | ≈ 35 %
+Uso en el pico del Hot Sale, con las dos zonas arriba | 2,500 ÷ (6 × 1,200) | ≈ 35 %
 Uso si cae una zona // quedan 3 | 2,500 ÷ (3 × 1,200) | ≈ 69 %
 Costo de las 6 // ≈ US$384 al mes cada una | 6 × 384 | ≈ US$2,304 al mes
 = La mitad de esas GPUs, ≈ US$1,152 al mes, existe solo para el día que cae una zona.
 :::
 
-Los US$384 salen del precio de una `g4dn.xlarge` en `us-east-1`: ≈ US$0.526 por hora (noviembre de 2026) × 730 horas.
+Los US$384 salen del precio de una `g4dn.xlarge` (la máquina de AWS con una T4, que la lección de máquinas desarma) en `us-east-1`: ≈ US$0.526 por hora (noviembre de 2026) × 730 horas.
 
-¿Y con tres zonas? Depende del tamaño. Con pocas réplicas, el redondeo manda: con 500 fotos por segundo, tres zonas cuestan **más** (3 T4 contra 2). Con muchas, gana la regla: a 12,000 por segundo, tres zonas piden 24 T4 y dos zonas piden 30. Seis GPUs de diferencia son ≈ US$2,300 al mes.
+¿Y con tres zonas? Depende del tamaño. Con pocas réplicas, el redondeo manda: no existe media GPU, así que cada zona lleva al menos una. Con 500 fotos por segundo, tres zonas cuestan **más** (3 T4 contra 2). Con muchas, gana la regla: a 12,000 por segundo, tres zonas piden 24 T4 y dos zonas piden 30. Seis GPUs de diferencia son ≈ US$2,300 al mes.
 
 :::profundo La misma cuenta, en un programa
 El programa hace la cuenta para dos y tres zonas, con tres tamaños de pico:
@@ -292,11 +300,11 @@ pico   zonas  por zona  total  sin N+1  normal  si cae una
 12,000     3        8      24      15      42%       62%
 ```
 
-La columna «sin N+1» es lo que pediría el tráfico solo, y las dos últimas, el uso de cada GPU en un día normal y con una zona caída.
+La columna «sin N+1» es lo que pediría el tráfico solo, y las dos últimas, el uso de cada GPU en el pico, con todas las zonas arriba («normal») y con una zona caída.
 :::
 
 :::calculadora regiones-zonas
-Arranca con el Hot Sale de C01. Baja el pico a 500 para ver el día normal (una T4 por zona), o súbelo a 12,000 y cambia de 2 a 3 zonas para ver cómo baja el sobrecosto.
+Arranca con el Hot Sale de C01. Baja el pico a 500 para ver el pico de diseño de C01 (una T4 por zona), o súbelo a 12,000 y cambia de 2 a 3 zonas para ver cómo baja el sobrecosto.
 :::
 
 ### Por qué el repuesto tiene que estar encendido
@@ -304,23 +312,23 @@ Arranca con el Hot Sale de C01. Baja el pico a 500 para ver el día normal (una 
 Podrías pensar: «no pago el repuesto; cuando caiga una zona, prendo máquinas en la otra». No alcanza el tiempo. Esto pasa cuando una zona deja de contestar:
 
 :::pasos
-1. Segundos
-Los health checks del balanceador fallan dos o tres veces seguidas y deja de mandar tráfico a esa zona. Todo el tráfico cae sobre la zona sana.
-2. Hasta 5 minutos
-Kubernetes espera antes de dar por perdidos los pods de un nodo que no contesta: por omisión, 300 segundos. Recién entonces intenta crearlos en otro lado.
+1. De segundos a un minuto
+Los health checks del balanceador fallan varias veces seguidas, y el balanceador deja de mandar tráfico a esa zona. Con los valores por omisión del ALB (un check cada 30 segundos, 2 fallas) es ≈ 1 minuto; ajustados, ≈ 10 segundos. Todo el tráfico cae sobre la zona sana.
+2. ≈ 6 minutos
+Kubernetes tarda ≈ 50 segundos en marcar como perdido un nodo que no contesta, y luego espera, por omisión, 300 segundos más antes de dar por perdidos sus pods. Solo entonces intenta crearlos en otro lado.
 3. De 5 a 13 minutos más
-Si en la zona sana no hay una máquina libre, hay que pedirla. Un nodo con GPU tarda ≈ 5–13 minutos en servir su primera request, según la Ronda: arranca la máquina, baja la imagen del contenedor, carga el modelo en la GPU y lo calienta. Es el [[cold-start|arranque en frío]].
+Si en la zona sana no hay una máquina libre, hay que pedirla. Un nodo con GPU tarda ≈ 5–13 minutos en servir su primera request, según la Ronda: arranca la máquina, baja la imagen del contenedor, carga el modelo en la GPU y lo calienta ([[warmup-inferencia|warmup]]: unas predicciones de prueba para que las primeras requests reales no salgan lentas). Es el [[cold-start|arranque en frío]].
 4. O nunca
 En una falla de zona, **todos** los clientes de esa zona piden máquinas en las otras al mismo tiempo. Puede que no haya de tu tipo: es el [[error-capacidad|error de capacidad]], que ves en la lección de máquinas.
 :::
 
-Sumado, son de 10 a 18 minutos sin capacidad, de un presupuesto de 43 minutos al mes. Por eso el repuesto no se «prende cuando haga falta»: ya está corriendo y atendiendo tráfico. El [[autoscaling]] sirve para el crecimiento de la tarde, no para la zona que se cayó.
+Sumado, son de 11 a 19 minutos sin capacidad suficiente: la zona sana recibe todo el tráfico con la mitad de las máquinas, y las requests que no caben fallan. Un SLO de 99.9 % deja estar caído 43 minutos al mes (su [[error-budget|presupuesto de error]]): una sola falla de zona se comería entre un cuarto y casi la mitad. Por eso el repuesto no se «prende cuando haga falta»: ya está corriendo y atendiendo tráfico. El [[autoscaling]] (agregar o quitar máquinas según la carga) sirve para el crecimiento de la tarde, no para la zona que se cayó.
 
 ### Ruteo por zona
 
-C01 tiene un *gateway* (el programa que recibe la foto y la prepara) y un Triton (el servidor que corre el modelo) en cada zona. Cuando el gateway de la zona `1a` llama a Triton, ¿a cuál le toca? Sin decir nada, el [[service-k8s|Service]] de Kubernetes reparte entre todos: la mitad de las llamadas se queda en `1a` y la otra mitad cruza a `1b`.
+C01 tiene un *gateway* (el programa que recibe la foto y la prepara) y un Triton (el servidor que corre el modelo) en cada zona. Cuando el gateway de la zona `1a` llama a Triton, ¿a cuál le toca? Si no le dices nada, el [[service-k8s|Service]] de Kubernetes reparte entre todos: la mitad de las llamadas se queda en `1a` y la otra mitad cruza a `1b`.
 
-Cruzar de zona tiene dos costos. Uno es tiempo: ≈ 1 ms más por salto. El otro es dinero: la nube cobra cada GB que cruza de una zona a otra, ≈ US$0.01 por GB en cada sentido. Con las fotos de C01 serían ≈ 90 TB al mes cruzando: ≈ **US$1,800 al mes**, casi tanto como toda la infraestructura. Esa factura es de la lección de redes en la nube ([[transferencia-entre-zonas]]); aquí importa el remedio.
+Cruzar de zona tiene dos costos. Uno es tiempo: ≈ 1 ms más por salto. El otro es dinero: la nube cobra cada GB que cruza de una zona a otra, ≈ US$0.01 al salir de una zona y otro US$0.01 al entrar a la otra, o sea US$0.02 por GB. El gateway de C01 le manda a Triton la foto ya convertida en números, un [[tensor]] de 602 KB. Con ≈ 10 millones de fotos al día, eso suma 10,000,000 × 602 KB × 30 días ≈ 180 TB al mes. Si la mitad cruza, son ≈ 90 TB, o 90,000 GB × US$0.02 ≈ **US$1,800 al mes**, casi tanto como toda la infraestructura. Esa factura se desarma en la lección de redes en la nube ([[transferencia-entre-zonas]]); aquí importa el remedio.
 
 El remedio es el **[[ruteo-por-zona|ruteo por zona]]** (*zone-aware routing*): cada llamada prefiere una réplica de su propia zona, y solo cruza si en la suya no hay ninguna lista. En Kubernetes es una línea en el Service: `trafficDistribution: PreferSameZone`.
 
@@ -353,19 +361,21 @@ Hay tres razones, y las tres salen en entrevistas.
 Minutos del mes // 30 días | 30 × 24 × 60 | 43,200
 Disponibilidad del balanceador ese mes | 1 − 120 ÷ 43,200 | ≈ 99.72 %
 ¿Cumplió su SLA de 99.99 %? | 99.72 < 99.99 | No
-Crédito // supón 10 % de lo pagado por ese servicio: ≈ US$500 al mes | 0.10 × 500 | **US$50**
+Crédito // entre 99.0 % y 99.99 %, el SLA del balanceador devuelve 10 % de lo pagado por él; supón ≈ US$500 al mes | 0.10 × 500 | **US$50**
 Presupuesto de error de C01 // 99.9 % en 30 días | 0.001 × 43,200 | 43.2 min
 Lo que se gastó | 120 ÷ 43.2 | ≈ 2.8 presupuestos
 = El proveedor te devuelve US$50. Tú gastaste en una tarde el presupuesto de error de casi tres meses.
 :::
 
-**Dos: cubre su pieza, no tu cadena.** El SLA de 99.95 % de EKS cubre el *endpoint* de la API de Kubernetes, la «oficina» que recibe órdenes. No cubre tus pods, ni tus máquinas, ni tu modelo. Si tu Triton se cuelga, EKS cumplió su SLA perfectamente. Y tu sistema es una cadena de piezas en serie, que multiplica las [[disponibilidad|disponibilidades]]: el conjunto siempre queda por debajo de su peor pieza.
+**Dos: cubre su pieza, no tu cadena.** El SLA de 99.95 % de EKS cubre el *endpoint* de la API de Kubernetes, la «oficina» que recibe órdenes. No cubre tus pods, ni tus máquinas, ni tu modelo. Si tu Triton se cuelga, EKS cumplió su SLA perfectamente. Y tu sistema es una cadena de piezas en serie, que multiplica las [[disponibilidad|disponibilidades]]: el conjunto siempre queda por debajo de su peor pieza. Tres piezas de 99.9 % en serie dan 0.999 × 0.999 × 0.999 ≈ 99.7 %.
 
-**Tres: suele pedir que tú hagas tu parte.** Muchos SLA solo aplican si repartiste en dos o más zonas. Con todo en una zona, el contrato del proveedor te cubre mucho menos, o nada.
+**Tres: suele pedir que tú hagas tu parte.** Muchos SLA solo aplican si repartiste en dos o más zonas. Con todo en una zona, el contrato del proveedor te cubre mucho menos, o nada: el 99.99 % del balanceador de AWS es para uno repartido en dos o más zonas; en una sola, promete 99.9 %.
 
 ### La cuenta, con zonas
 
 La disponibilidad real se calcula, pieza por pieza, con las reglas de la lección de probabilidad. Estos son los números de la Ronda para Triton, la pieza más frágil de C01. Los porcentajes de cada pieza son supuestos para diseñar; en tu sistema se miden.
+
+Con Triton en dos zonas independientes, el servicio solo se cae si fallan las dos a la vez: 0.005 × 0.005 = 0.005². Una **causa común** tumba las dos zonas al mismo tiempo, como una versión rota que llega a ambas. Mientras dura, la segunda zona no ayuda, así que entra como otra pieza en serie: activa el 0.1 % del tiempo, multiplica por 0.999.
 
 | Cómo está Triton | Cuenta | Disponibilidad | Caído al mes |
 |---|---|---|---|
@@ -379,7 +389,7 @@ Lee la tabla como un mapa de qué compra cada cosa:
 
 - La segunda zona compra **215 minutos al mes**. Es la mejor compra de toda la lección.
 - Una tercera zona compraría segundos. Ya no es por disponibilidad: es por costo, como viste en el N+1.
-- Los 43 minutos de la causa común, casi siempre un [[deploy]] malo que llega a las dos zonas, no los toca ninguna zona. Es la [[falla-correlacionada|falla correlacionada]], y se ataca cambiando de versión de a poco.
+- Los 43 minutos de la causa común, casi siempre un [[deploy]] malo que llega a las dos zonas, no los toca ninguna zona. Es la [[falla-correlacionada|falla correlacionada]], y se ataca cambiando de versión poco a poco: primero en una parte chica del tráfico o en una sola zona, y en el resto solo si ahí salió bien.
 
 ¿Y una segunda región? Compra los minutos de las caídas de región, que son muy pocos al año, a un precio muy alto. Eso sigue.
 
@@ -402,12 +412,12 @@ Entre zonas hay 1 ms y la misma red. Entre regiones hay decenas de milisegundos 
 
 - **Cuota y capacidad, otra vez.** Tu cuota es por región: en la segunda empiezas con la que tengas ahí, que puede ser cero para GPUs. Y que el tipo de GPU exista allá no está garantizado.
 - **Datos replicados.** Cada GB que copias a la otra región paga transferencia, ≈ US$0.02 por GB desde `us-east-1`, y luego paga almacenamiento allá.
-- **Artefactos que coincidan.** La imagen del contenedor y los pesos tienen que estar en las dos. Y hay sorpresas: un *engine* de TensorRT (el modelo ya optimizado para una GPU concreta) solo sirve en el mismo modelo de GPU. Si en la otra región consigues una GPU distinta, hay que volver a generarlo.
+- **Artefactos que coincidan.** Los artefactos son los archivos que tu sistema necesita para correr: la imagen del contenedor y los pesos del modelo. Tienen que estar en las dos regiones. Y hay sorpresas: un *engine* de TensorRT (el modelo ya optimizado para una GPU concreta) solo sirve en el mismo modelo de GPU. Si en la otra región consigues una GPU distinta, hay que volver a generarlo.
 - **Operación doble.** Dos despliegues, dos juegos de alertas, dos redes, dos lugares donde algo puede quedar desactualizado.
 
 ### Failover: mover el tráfico
 
-**[[failover|Failover]]** (conmutación por falla) es pasar el tráfico de la copia que falló a la que sigue viva. Entre zonas lo hace el balanceador en segundos y no te enteras. Entre regiones hay que decidir cómo se mueve el tráfico. Hay tres maneras: por [[dns|DNS]], que cambia a dónde apunta el nombre y tarda uno o dos minutos; por una dirección IP que la red lleva sola a la región sana, en segundos; o a mano, cuando una persona de guardia lo ordena.
+**[[failover|Failover]]** (conmutación por falla) es pasar el tráfico de la copia que falló a la que sigue viva. Entre zonas lo hace el balanceador solo, en segundos o en un minuto según sus health checks, y no te enteras. Entre regiones hay que decidir cómo se mueve el tráfico. Hay tres maneras: por [[dns|DNS]], que cambia a dónde apunta el nombre y tarda de uno a pocos minutos; por una dirección IP que la red lleva sola a la región sana, en segundos; o a mano, cuando lo ordena la persona de guardia (la del equipo a la que le toca atender las emergencias esa semana).
 
 :::profundo Las tres maneras, con sus tiempos
 - **Por DNS.** El nombre `api.tienda.com` apunta a la región A. Un [[health-check|health check]] la vigila; si falla, el [[dns|DNS]] empieza a contestar con la dirección de la región B. El detalle es el [[ttl|TTL]]: cada cliente guarda la respuesta vieja durante ese tiempo. Con un health check cada 30 segundos, 3 fallas seguidas para declarar la caída y un TTL de 60 segundos, pasan hasta 90 + 60 = 150 segundos antes de que el último cliente cambie.
@@ -416,10 +426,10 @@ Entre zonas hay 1 ms y la misma red. Entre regiones hay decenas de milisegundos 
 
 :::
 
-Si la segunda región solo espera, el esquema es **activo/pasivo**. Si las dos atienden tráfico todo el tiempo, es **activo/activo**: no hay nada que «prender», pero los datos tienen que escribirse en dos lugares a decenas de milisegundos de distancia, y eso complica todo lo que guarda estado.
+Si la segunda región solo espera, el esquema es **activo/pasivo**. Si las dos atienden tráfico todo el tiempo, es **activo/activo**: no hay nada que «prender», pero los datos tienen que escribirse en dos lugares a decenas de milisegundos de distancia, y eso complica todo lo que guarda **estado** (datos que cambian y que hay que recordar, como una base de datos): si las dos regiones aceptan cambios, hay que decidir qué pasa cuando se contradicen.
 
 :::ojo
-Una segunda región no te salva de un deploy malo. Si publicas la versión rota en las dos regiones el mismo día, caen las dos: es la misma causa común de antes, ahora más cara. Multi-región solo suma si las regiones reciben los cambios **de a una**.
+Una segunda región no te salva de un deploy malo. Si publicas la versión rota en las dos regiones el mismo día, caen las dos: es la misma causa común de antes, ahora más cara. Multi-región solo suma si las regiones reciben los cambios **una por una**.
 :::
 
 ### C01 no lo necesita
@@ -430,7 +440,7 @@ La respuesta de la Ronda para C01 es quedarse en una región, y decirlo es seña
 - Hay un [[fallback]] que no depende de nada de la región: si el modelo no contesta, la vendedora elige la categoría a mano. Nadie deja de publicar.
 - Lo que se protege es una sugerencia, no un pago.
 
-Si la región se cae un día entero, ese mes C01 no cumple su SLO, y el negocio lo aceptó de antemano. La frase que la Ronda propone para la entrevista: *«the seller picks the category manually; we would redeploy from IaC if the outage were long»*. **IaC** (*infrastructure as code*) son archivos que describen todas las máquinas y redes, de modo que se pueden volver a crear en otra región con un comando.
+Si la región se cae un día entero, ese mes C01 no cumple su SLO, y el negocio lo aceptó de antemano. **IaC** (*infrastructure as code*, infraestructura como código) son archivos que describen todas las máquinas y redes, de modo que se pueden volver a crear en otra región con un comando. La frase que la Ronda propone para la entrevista: *«the seller picks the category manually; we would redeploy from IaC if the outage were long»* («la vendedora elige la categoría a mano; si la caída fuera larga, volveríamos a crear todo desde IaC»).
 
 Cambiaría la respuesta si no hubiera fallback, si se pidiera 99.99 %, o si los usuarios estuvieran en varios continentes.
 
@@ -442,7 +452,7 @@ La **[[recuperacion-desastres|recuperación ante desastres]]** (*disaster recove
 - **¿Cuánto puedes tardar?** Eso es el **[[rto|RTO]]** (*recovery time objective*, objetivo de tiempo de recuperación): cuánto tiempo aceptas estar caído hasta volver a atender.
 
 :::figura regiones-rpo-rto
-El RPO mira hacia atrás desde el desastre: lo que se había escrito desde la última copia se pierde. El RTO mira hacia adelante: el tiempo hasta volver a atender.
+El RPO mira hacia atrás desde el desastre: lo que se había escrito desde la última copia se pierde. El RTO mira hacia adelante: el tiempo hasta volver a atender. Este desastre perdió 12 horas, pero con una copia cada noche el peor caso es casi 24: ese peor caso es el RPO que puedes prometer.
 :::
 
 :::analogia El punto de guardado de un videojuego
@@ -455,13 +465,15 @@ Juegas dos horas y se va la luz. Al volver, cargas el último punto de guardado.
 
 Un sistema no tiene «un» RPO. Cada cosa que guarda tiene el suyo, porque no todo vale lo mismo ni cuesta lo mismo rehacerlo.
 
+La tabla usa C01 y dos casos más de la Ronda: C04, un modelo que revisa imágenes de biopsias junto con médicos patólogos, y C05, que verifica documentos de identidad.
+
 | Qué | Si se pierde… | RPO razonable |
 |---|---|---|
 | C01 · pesos del modelo y su engine | Se vuelven a generar desde el entrenamiento, en horas | Horas |
-| C01 · log de predicciones | Se pierde un pedazo del historial para reentrenar | Horas |
+| C01 · log de predicciones (cada foto con la categoría que se sugirió) | Se pierde un pedazo del historial para reentrenar | Horas |
 | C01 · el código y la configuración | Están en [[git]], fuera de la región | ≈ 0, sin hacer nada |
 | C04 · resultados del modelo sobre biopsias | Se recalculan corriendo el modelo otra vez | Horas (RTO ≈ 1 día) |
-| C04 · anotaciones de patólogos | Trabajo experto que nadie va a repetir: ≈ US$4,000 al mes | ≈ 0 |
+| C04 · anotaciones de patólogos (lo que marcan a mano en cada imagen) | Trabajo experto que nadie va a repetir: ≈ US$4,000 al mes | ≈ 0 |
 | C05 · documentos de identidad ya aceptados | Habría que pedírselos otra vez a cada cliente | ≈ 0 |
 
 La regla que deja la tabla: **lo que se puede recalcular aguanta un RPO flojo; lo que escribió una persona, no.**
@@ -508,19 +520,25 @@ La guía de AWS sobre recuperación ordena los planes en cuatro **[[estrategia-d
 | **Espera tibia** (*warm standby*) | Una versión chica del sistema, **encendida** | Minutos | ≈ US$600 al mes |
 | **Activo/activo** (*multi-site active/active*) | Todo, atendiendo tráfico | Casi cero | ≈ +US$1,750 al mes |
 
+El nombre *pilot light* viene del calentador de gas: la llama piloto es la flamita que se queda prendida para encender el quemador en cuanto hace falta. En la nube, lo que se queda «prendido» son los datos replicados y lo mínimo creado; las máquinas que atienden están apagadas, y encenderlas tarda minutos, no un instante como el quemador.
+
 La diferencia entre las dos del medio es la que más se pregunta: con *pilot light*, la segunda región **no puede atender** sin que antes prendas las máquinas. Con *warm standby* ya atiende, a capacidad reducida, y solo hay que agrandarla.
 
+Para C01, un *warm standby* cuesta ≈ US$600 al mes, un 34 % más de factura, todos los meses, para proteger una sugerencia que tiene un plan B gratis.
+
+:::profundo De dónde salen los US$600 del warm standby
 :::cuenta Un warm standby para C01
 Una T4 encendida // ≈ US$0.526 por hora × 730 | 0.526 × 730 | ≈ US$384
-Un gateway // la mitad de los ≈ US$248 de los dos | 248 ÷ 2 | ≈ US$124
+Un gateway // la mitad de los ≈ US$248 que C01 paga por sus dos gateways | 248 ÷ 2 | ≈ US$124
 El plano de control de Kubernetes // US$0.10 por hora | 0.10 × 730 | ≈ US$73
 Un balanceador casi sin tráfico | — | ≈ US$16
 Total al mes | 384 + 124 + 73 + 16 | **≈ US$600**
 Contra la infraestructura de C01 | 600 ÷ 1,750 | ≈ 34 %
 = Un tercio más de factura, todos los meses, para proteger una sugerencia que tiene un plan B gratis.
 :::
+:::
 
-Por eso el plan de C01 es el primero de la tabla, y casi gratis: los pesos y las imágenes copiados a otra región, el código en git y la infraestructura descrita en archivos. Si la región muere por mucho tiempo, se reconstruye en horas. Mientras tanto, Ana elige la categoría a mano.
+Por eso el plan de C01 es el primero de la tabla, y casi gratis: los pesos y las imágenes de contenedor copiados a otra región, el código en git y la infraestructura descrita en archivos. Si la región muere por mucho tiempo, se reconstruye en horas. Mientras tanto, Ana elige la categoría a mano.
 
 ## Replicación entre regiones y ensayos {Cross-region replication and game days} [extra]
 
@@ -528,7 +546,7 @@ Por eso el plan de C01 es el primero de la tabla, y casi gratis: los pesos y las
 
 Cualquier estrategia de DR empieza por lo mismo: que los datos ya estén en la otra región. La **[[replicacion-regional|replicación entre regiones]]** (*cross-region replication*) es una regla que le dice a un servicio: «cada cosa nueva que llegue aquí, cópiala allá».
 
-- **En S3**, la regla copia cada objeto nuevo a un bucket de otra región. Es **asíncrona**: tu `PUT` termina primero y la copia viaja después. Normalmente tarda segundos, pero sin garantía. Con la opción *Replication Time Control* (RTC), AWS se compromete a replicar el 99.99 % de los objetos nuevos en menos de 15 minutos.
+- **En S3**, la regla copia cada objeto nuevo a un bucket de otra región. Es **asíncrona**: tu `PUT` (la request que sube el objeto) termina primero y la copia viaja después. La mayoría de los objetos llega en menos de 15 minutos, pero sin garantía: uno grande puede tardar horas. Con la opción *Replication Time Control* (RTC), la mayoría llega en segundos; AWS la diseña para replicar el 99.99 % de los objetos nuevos en menos de 15 minutos, y en su SLA se compromete al 99.9 %.
 - **En el registro de imágenes** (ECR, donde viven las imágenes de contenedor), otra regla copia cada imagen nueva. Sin ella, el día del desastre la otra región no tiene qué correr.
 - **En una base de datos**, una réplica en otra región recibe los cambios con segundos de atraso. Es la [[replica-lectura|réplica de lectura]] que ya conoces, más lejos.
 
@@ -539,7 +557,7 @@ Una región primaria y una de respaldo en *warm standby*. Usa «Recorrer» para 
 :::
 
 :::cuenta C05: cuántos documentos quedan en riesgo con RTC
-Documentos al día // en 14 horas hábiles | 5,000 ÷ 14 | ≈ 357 por hora
+Documentos por hora // 5,000 al día, en 14 horas hábiles | 5,000 ÷ 14 | ≈ 357 por hora
 En la hora pico // el doble | 2 × 357 | ≈ 714 por hora
 En 15 minutos // la ventana que promete RTC | 714 ÷ 4 | **≈ 180 documentos**
 = En el peor caso, a ≈ 180 clientes habría que pedirles su identificación otra vez. El negocio decide si lo acepta o si escribe en las dos regiones antes de responder.
@@ -559,7 +577,7 @@ Un **[[game-day|game day]]** es un ensayo programado: se provoca la falla a prop
 
 :::pasos
 1. Se escribe qué se espera
-«Al apagar la zona 1b, los errores suben menos de 30 segundos y la T4 de 1a llega a ≈ 42 %.»
+«Al apagar la zona 1b, los errores suben durante menos de un minuto y la T4 de 1a llega a ≈ 42 %.»
 2. Se provoca la falla
 En un horario de poco tráfico, con un límite de tiempo y una forma de deshacerla.
 3. Se mide
@@ -574,7 +592,7 @@ El ensayo también descubre las causas comunes escondidas: lo que las dos zonas 
 Describir la infraestructura en archivos (IaC) ayuda mucho, pero no es un plan de DR. Los archivos crean las máquinas; no traen los datos, ni la cuota de GPUs, ni el engine para la GPU de la otra región. Solo el ensayo dice qué falta.
 :::
 
-## Cómo elegir región {How to choose a region}
+## Cómo elegir región {How to choose a region} [extra]
 
 La Ronda (M13) da cuatro preguntas, **en este orden**. El orden importa: una pregunta de arriba puede dejarte sin opciones antes de llegar a las de abajo.
 
@@ -602,7 +620,7 @@ Cuando pides una GPU y la nube dice que no, hay tres causas distintas, con remed
 
 ### 3. ¿Qué tan lejos queda de quien te llama?
 
-Con las regiones que pasaron los dos filtros, haz la cuenta de distancia de la primera sección. Recuerda que cuenta quién **llama** a tu servicio y dónde están los datos que lee. Para un agente de voz, donde cada 100 ms se sienten en la conversación, esta pregunta pesa mucho. Para un trabajo por lotes que corre de noche, casi nada.
+Con las regiones que pasaron los dos filtros, haz la cuenta de distancia de la primera sección. Recuerda que cuenta quién **llama** a tu servicio y dónde están los datos que lee. Para un agente de voz (un programa que platica contigo por teléfono), donde cada 100 ms se sienten en la conversación, esta pregunta pesa mucho. Para un trabajo por lotes (*batch job*) que procesa muchos datos de noche, sin nadie esperando la respuesta, casi nada.
 
 ### 4. ¿Cuánto cuesta ahí?
 
@@ -649,7 +667,7 @@ Si hubieran empezado por el precio, habrían diseñado todo en Virginia y descub
 
 **Qué pasa:** hay copia en otra región, alguien borra o corrompe el original, y la copia queda igual de borrada.
 
-**Cómo evitarlo:** además de replicar, guarda versiones o snapshots por un tiempo. Y prueba restaurar una.
+**Cómo evitarlo:** además de replicar, guarda versiones o snapshots por un tiempo. Y prueba restaurar uno.
 
 ### Dejar que las llamadas crucen de zona
 
@@ -665,7 +683,7 @@ Si hubieran empezado por el precio, habrían diseñado todo en Virginia y descub
 
 **C04 · Patología digital.** El mismo sistema, dos RPO. Los resultados del modelo se recalculan: RPO de horas y RTO de un día. Las anotaciones de los patólogos son trabajo experto: RPO ≈ 0, replicadas en cuanto se escriben.
 
-**C05 · Verificación de documentos.** La región la eligió legal antes que ingeniería. Los documentos aceptados no se pueden perder: con replicación de 15 minutos quedan ≈ 180 en riesgo en el peor caso, y ese número se lleva a la mesa.
+**C05 · Verificación de documentos.** La región la eligió el área legal antes que ingeniería. Los documentos aceptados no se pueden perder: con replicación de 15 minutos quedan ≈ 180 en riesgo en el peor caso, y ese número se lleva a la mesa.
 
 **C02 · Video en centros de distribución.** Aquí el «dominio de falla» no es una zona de la nube: es cada uno de los 25 centros, con su cámara, su caja de cómputo y su enlace a internet. La meta es 99.5 % de alertas **por sitio**, y el diseño supone que el enlace a la nube se cae: cada sitio tiene que seguir alertando solo.
 
@@ -688,7 +706,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de distancia y los de N
 - Realista, cerca del doble: **≈ 80 ms**.
 - Conexión nueva: 3 × 80 = **≈ 240 ms** antes de empezar. Reusar la conexión lo baja a una sola vuelta.
 ? [facil] Una zona estuvo caída 3 horas en todo un año, y tu servicio vivía solo en ella. ¿Qué disponibilidad tuvo en el año? ¿Y en el mes de la caída? ¿Cuántos presupuestos de error de un SLO de 99.9 % mensual se gastó?
-- Año: 1 − 3 ÷ 8,760 ≈ **99.966 %**. Suena bien.
+- Un año tiene 365 × 24 = 8,760 horas. Año: 1 − 3 ÷ 8,760 ≈ **99.966 %**. Suena bien.
 - Mes de la caída: 1 − 180 ÷ 43,200 ≈ **99.58 %**. No cumple 99.9 %.
 - Presupuesto: 180 ÷ 43.2 ≈ **4.2 presupuestos** en una tarde.
 - La misma caída se ve muy distinta según la ventana. Di siempre en cuánto tiempo se mide.
@@ -705,23 +723,23 @@ Resuélvelos con lápiz antes de abrir la solución. Los de distancia y los de N
 - Detección: 3 × 10 = 30 s. Más el TTL: 30 + 60 = **90 segundos** para el último cliente.
 - Hasta atender todo el tráfico: 90 s + 240 s = 330 s ≈ **5.5 minutos** de RTO.
 - Disponibilidad del mes: 1 − 5.5 ÷ 43,200 ≈ **99.987 %**. Cumple 99.9 %, no 99.99 %.
-- Para 99.99 % (4.3 minutos) habría que tener la segunda región ya a tamaño completo: activo/activo.
+- Un SLO de 99.99 % deja 0.0001 × 43,200 ≈ 4.3 minutos al mes. Para cumplirlo habría que tener la segunda región ya a tamaño completo: activo/activo.
 ? [medio] Un sistema escribe 500 GB nuevos al día y los replica a otra región, donde los guarda 30 días. La transferencia cuesta US$0.02 por GB y guardar, US$0.023 por GB al mes. ¿Cuánto cuesta al mes? Si la replicación garantiza 15 minutos, ¿cuántos GB quedan en riesgo, suponiendo que se escribe parejo todo el día?
 - Al mes: 500 × 30 = 15,000 GB.
 - Transferencia: 15,000 × 0.02 = **US$300**.
 - Guardado en la segunda región: 15,000 × 0.023 = **US$345**.
 - Total: ≈ **US$645 al mes**.
-- En riesgo: 500 ÷ 24 ÷ 4 ≈ **5.2 GB**, lo de 15 minutos.
+- En riesgo: lo escrito en 15 minutos, la cuarta parte de una hora. Por hora se escriben 500 ÷ 24 ≈ 20.8 GB; en 15 minutos, 20.8 ÷ 4 ≈ **5.2 GB**.
 ? [reto] Un equipo etiqueta 2,000 imágenes al día, en 8 horas, a US$0.50 cada una. Las etiquetas viven en una base de datos. Compara tres planes: (a) una copia cada 24 horas, gratis; (b) una copia cada hora, gratis; (c) replicación continua a otra región, US$40 al mes. Supón un desastre cada 5 años. Para cada plan: el peor caso, la pérdida promedio por desastre y la pérdida esperada al año. ¿Cuál eliges? ¿Qué cambiaría si quienes etiquetan fueran patólogos?
 - (a) Peor caso: un día, 2,000 × 0.50 = US$1,000. Promedio: la mitad, US$500. Esperado al año: 500 × 1⁄5 = **US$100**.
 - (b) En una hora se etiquetan 2,000 ÷ 8 = 250. Peor caso: 250 × 0.50 = US$125. Promedio: US$62.50. Esperado al año: **US$12.50**.
 - (c) Pérdida ≈ 0, pero cuesta 40 × 12 = **US$480 al año**.
-- Gana **(b)**: casi toda la protección, sin costo. La replicación cuesta 38 veces más de lo que ahorra respecto a (b).
+- Gana **(b)**: casi toda la protección, sin costo. Respecto a (b), la replicación ahorra US$12.50 al año y cuesta US$480: 480 ÷ 12.5 ≈ 38 veces más de lo que ahorra.
 - Con patólogos cambia el precio de rehacer (trabajo experto, que además retrasa a pacientes) y deja de ser una cuenta de promedios: ahí se justifica (c), un RPO ≈ 0.
-? [reto] La cadena de C01 en dos zonas pierde ≈ 5 minutos al mes por fallas independientes y ≈ 43 por deploys malos que llegan a las dos zonas. Supón además que la región se cae 6 horas una vez cada 4 años. (a) ¿Cuántos minutos al mes pone la región, en promedio? (b) ¿Cuánto suma todo, y cumple 99.9 %? (c) Tienes dinero para una sola mejora: un *warm standby* (US$600 al mes) o cambiar de versión de a poco, que evita 9 de cada 10 deploys malos. ¿Cuál eliges?
-- (a) 360 minutos ÷ 48 meses = **7.5 minutos al mes** en promedio.
+? [reto] La cadena de C01 en dos zonas pierde ≈ 5 minutos al mes por fallas independientes y ≈ 43 por deploys malos que llegan a las dos zonas. Supón además que la región se cae 6 horas una vez cada 4 años. (a) ¿Cuántos minutos al mes pone la región, en promedio? (b) ¿Cuánto suma todo, y cumple 99.9 %? (c) Tienes dinero para una sola mejora: un *warm standby* (US$600 al mes) o cambiar de versión poco a poco, que evita 9 de cada 10 deploys malos. ¿Cuál eliges?
+- (a) 6 horas son 360 minutos, y 4 años son 48 meses: 360 ÷ 48 = **7.5 minutos al mes** en promedio.
 - (b) 5 + 43 + 7.5 = **≈ 56 minutos**. No cumple: el presupuesto es 43.2.
-- (c) El *warm standby* quita, cuando mucho, los 7.5 de la región: quedan ≈ 48, y sigue sin cumplir. Los cambios de a poco bajan los 43 a ≈ 4: quedan 5 + 4 + 7.5 ≈ **17 minutos**. Cumple, y cuesta mucho menos.
+- (c) El *warm standby* quita, cuando mucho, los 7.5 de la región: quedan ≈ 48, y sigue sin cumplir. Los cambios poco a poco evitan 9 de cada 10 deploys malos, así que los 43 bajan a 43 × 0.1 ≈ 4: quedan 5 + 4 + 7.5 ≈ **17 minutos**. Cumple, y cuesta mucho menos.
 - La región es el dominio que más asusta, pero aquí es el que menos minutos pone. Ataca primero la fuente más grande.
 ? [reto] Diseña la ubicación de un agente de voz para un banco mexicano. Datos: los audios traen datos personales y el contrato exige que se procesen en México; el modelo necesita una GPU; en una conversación, cada 100 ms de más se notan. Tienes tres opciones: una región en México, `us-east-1` (≈ 60 ms de RTT desde la Ciudad de México) y São Paulo (≈ 150 ms). Decide con las cuatro preguntas en orden y di qué tendrías que verificar antes de comprometerte.
 - **Residencia:** el contrato deja solo la región en México. `us-east-1` y São Paulo quedan fuera en la primera pregunta, sin mirar latencia ni precio.
@@ -731,7 +749,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de distancia y los de N
 - **Zonas:** dos o tres dentro de esa región, con N+1 por zona. Una segunda región en México puede no existir: el plan de DR se discute con el banco, con un RPO y un RTO escritos.
 :::
 
-## Lo que sigue {What comes next}
+## Lo que sigue {What comes next} [extra]
 
 **En la Ronda:**
 

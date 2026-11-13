@@ -74,7 +74,7 @@
    "y": 5,
    "w": 28,
    "h": 8,
-   "note": "El [[balanceador]] cobra una hora fija pequeña y, sobre todo, por capacidad usada: como cada foto viaja en el body del request, paga por los bytes. Por eso es ≈ 29 % de la factura. Lo explica la lección de redes en la nube."
+   "note": "El [[balanceador]] cobra una hora fija pequeña y, sobre todo, por lo que procesa: como cada foto viaja en el [[body]] de la request, paga por sus bytes. Por eso es ≈ 29 % de la factura. Lo explica la lección de redes en la nube."
   },
   {
    "id": "logs",
@@ -96,7 +96,7 @@
    "y": 31,
    "w": 28,
    "h": 8,
-   "note": "Los discos de las VMs, el NAT por el que salen a internet y los GB que cruzan de zona. Con [[ruteo-por-zona|ruteo por zona]] es poco; sin él, el cruce de zona solo costaría ≈ US$1,800 al mes."
+   "note": "Los discos de las VMs, el NAT por el que salen a internet y los GB que cruzan de zona. Con [[ruteo-por-zona|ruteo por zona]] es poco; sin él, el cruce de zona, por sí solo, costaría ≈ US$1,800 al mes."
   },
   {
    "id": "factura",

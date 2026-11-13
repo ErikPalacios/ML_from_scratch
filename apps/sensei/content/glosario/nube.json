@@ -34,7 +34,7 @@
    "id": "centro-de-datos",
    "termino": "Centro de datos",
    "en": "data center",
-   "corto": "Un edificio lleno de servidores en racks, con electricidad de respaldo, enfriamiento y varias conexiones de fibra. La nube vive ahí: son las computadoras de alguien más.",
+   "corto": "Un edificio lleno de servidores acomodados en racks (estantes metálicos), con electricidad de respaldo, enfriamiento y varias conexiones de fibra. La nube vive ahí: son las computadoras de alguien más.",
    "largo": "Resuelve lo que una oficina no resuelve: electricidad que llega por más de una línea, baterías y generadores para cuando se va, enfriamiento para miles de servidores que se calientan, y fibra por caminos distintos. Un proveedor agrupa sus centros de datos en [[zona-disponibilidad|zonas]] (uno o más edificios con luz y red propias) y las zonas en [[region|regiones]]. También se renta espacio dentro de uno para poner servidores propios (*colocation*).",
    "ejemplo": "Cuando C01 dice «us-east-1a», habla de uno o más centros de datos reales en el norte de Virginia, donde están sus máquinas.",
    "ver": [
@@ -48,7 +48,7 @@
    "id": "maquina-virtual",
    "termino": "Máquina virtual (VM)",
    "en": "virtual machine (VM)",
-   "corto": "Una computadora simulada por software sobre una computadora real: tiene sus propias vCPU, memoria, disco y sistema operativo con su kernel. Es lo que de verdad rentas cuando pides una máquina en la nube.",
+   "corto": "Una computadora simulada por software sobre una computadora real: tiene sus propios procesadores virtuales (vCPU), memoria, disco y sistema operativo con su kernel. Es lo que de verdad rentas cuando pides una máquina en la nube.",
    "largo": "El [[hipervisor]] parte un servidor físico en varias VMs y las aísla entre sí, aunque sean de clientes distintos. Cada VM arranca su propio [[sistema-operativo|sistema operativo]], por eso tarda minutos en arrancar y aísla más que un contenedor (la comparación está en [[contenedor-vs-vm]]). En la nube, a una VM rentada se le dice [[instancia]]. Una GPU no se parte entre VMs: se le entrega completa a una (salvo tecnologías especiales como [[mig|MIG]]).",
    "ejemplo": "Una `g4dn.xlarge` es una VM con 4 vCPU, 16 GiB de RAM y una GPU T4 completa, sobre un servidor de AWS que comparte con otros clientes.",
    "ver": [
@@ -63,7 +63,7 @@
    "termino": "Hipervisor",
    "en": "hypervisor",
    "corto": "El programa que corre debajo de las máquinas virtuales: parte un servidor físico en varias VMs, le da a cada una su CPU, memoria y disco, y no deja que una vea a otra.",
-   "largo": "Es la pared entre clientes en la nube: varios desconocidos (*tenants*, inquilinos) comparten el mismo servidor, y para que uno lea la memoria de otro tendría que romper el hipervisor. También es lo que hace rápido crear una máquina: es correr un programa, no instalar hardware. En AWS se llama Nitro y descarga parte del trabajo en tarjetas de hardware propias. Lo que no parte perfecto (la red, las cachés) produce el efecto del vecino ruidoso.",
+   "largo": "Es la pared entre clientes en la nube: varios desconocidos (*tenants*, inquilinos) comparten el mismo servidor, y para que uno lea la memoria de otro tendría que encontrarle una falla al hipervisor o al procesador (ha pasado, y se parcha). También es lo que hace rápido crear una máquina: es correr un programa, no instalar hardware. En AWS se llama Nitro y descarga parte del trabajo en tarjetas de hardware propias. Lo que no parte perfecto (la red, las cachés) produce el efecto del vecino ruidoso.",
    "ejemplo": "Un servidor con 96 vCPU se puede rentar como 24 VMs de 4 vCPU; el hipervisor decide qué núcleos y qué memoria le tocan a cada una.",
    "ver": [
     "maquina-virtual",
@@ -78,7 +78,7 @@
    "en": "on-premises",
    "corto": "Máquinas que la empresa compra y opera ella misma, en su edificio o en un espacio rentado en un centro de datos. Es lo contrario de rentar en la nube.",
    "largo": "Se paga por adelantado ([[capex-opex|CapEx]]) y cuesta lo mismo se use o no, pero no lleva el margen del proveedor. Suele ganar con uso alto y parejo durante años, cuando los datos no pueden salir de la empresa (salud, banca, gobierno), en el borde (una caja junto a una cámara que tiene que seguir funcionando sin internet) y a escala muy grande. A cambio, la empresa pone a la gente que lo opera, compra para el pico y tarda semanas en crecer. Muchas empresas combinan on-prem y nube (híbrido).",
-   "ejemplo": "Un servidor con una GPU de ≈ US$24,400, amortizado en 3 años con ≈ US$310 al mes de luz y espacio, cuesta ≈ US$988 al mes; rentado 24/7 a ≈ US$4.50 por hora serían ≈ US$3,285. Si solo lo usas 4 horas al día, rentar gana.",
+   "ejemplo": "Un servidor con una GPU de ≈ US$24,400, amortizado en 3 años con ≈ US$310 al mes de luz, espacio y mantenimiento, cuesta ≈ US$988 al mes; rentado 24/7 a ≈ US$4.50 por hora serían ≈ US$3,285. Si solo lo usas 4 horas al día, rentar gana.",
    "ver": [
     "capex-opex",
     "nube",
@@ -92,7 +92,7 @@
    "en": "capex vs opex",
    "corto": "CapEx es una compra grande que se usa varios años y se reparte (amortiza) en ellos, como un servidor. OpEx es el gasto que se paga mes con mes, como la luz o la renta de la nube.",
    "largo": "La nube convierte CapEx en OpEx: no pones el dinero por adelantado ni apuestas a cuánta capacidad necesitarás en tres años. A cambio, pagas el margen del proveedor y el gasto sigue mientras uses. La comparación honesta pone las dos cosas en la misma unidad, US$ al mes: compra ÷ meses de vida + operación, contra precio por hora × horas de uso. El punto donde se igualan dice cuántas horas al mes necesitas usar lo propio para que convenga.",
-   "ejemplo": "Un servidor de US$24,000 que dura 36 meses es CapEx de ≈ US$667 al mes en los libros. Las dos T4 de C01 son OpEx: ≈ US$768 cada mes que estén prendidas.",
+   "ejemplo": "Un servidor de ≈ US$24,400 que dura 36 meses es CapEx de ≈ US$678 al mes en los libros. Las dos T4 de C01 son OpEx: ≈ US$768 cada mes que estén prendidas.",
    "ver": [
     "on-premises",
     "pago-por-uso",
@@ -134,7 +134,7 @@
    "en": "elasticity",
    "corto": "Poder subir y bajar la capacidad según la demanda, en minutos, y pagar solo por lo que tuviste prendido.",
    "largo": "Es lo que hace que la nube ahorre con picos: en vez de comprar para el día más ocupado, prendes máquinas cuando sube la carga y las apagas cuando baja. Es una posibilidad, no algo automático: alguien tiene que decidir cuándo (el [[autoscaling]]), una VM con GPU tarda minutos en servir, tu [[cuota-servicio|cuota]] pone un tope y una zona se puede quedar sin capacidad. Un pico de segundos se cubre con máquinas ya prendidas.",
-   "ejemplo": "2 máquinas de base y 10 durante 96 horas de Buen Fin, a ≈ US$0.526 por hora: fijas para el pico cuestan ≈ US$3,840 al mes; elásticas, ≈ US$1,172.",
+   "ejemplo": "2 máquinas de base y 10 durante 96 horas de ofertas (cuatro días), a ≈ US$0.526 por hora: fijas para el pico cuestan ≈ US$3,840 al mes; elásticas, ≈ US$1,172.",
    "ver": [
     "pago-por-uso",
     "autoscaling",
@@ -147,7 +147,7 @@
    "termino": "IaaS, PaaS y SaaS",
    "en": "IaaS / PaaS / SaaS",
    "corto": "Tres niveles de lo que rentas: IaaS es infraestructura (máquinas, discos, red); PaaS, una plataforma que corre tu código; SaaS, un producto terminado. Mientras más subes, menos operas y más pagas por unidad.",
-   "largo": "En IaaS el proveedor cuida hasta el [[hipervisor]] y tú, del sistema operativo para arriba (una VM de EC2). En PaaS le das tu código o contenedor y no ves la máquina (Cloud Run, un endpoint de SageMaker AI). En SaaS usas el producto y solo pones datos y configuración (Gmail, una API de un modelo de lenguaje). Muchos servicios son mezclas: en Kubernetes gestionado, el proveedor opera el plano de control y tú los nodos. Cada nivel mueve la línea de la [[responsabilidad-compartida]]. Lo que el proveedor opera por ti es un [[servicio-gestionado]].",
+   "largo": "En IaaS el proveedor cuida hasta el [[hipervisor]] y tú, del sistema operativo para arriba (una VM de EC2). En PaaS le das tu código o contenedor y no ves la máquina (Cloud Run, un endpoint de SageMaker AI). En SaaS usas el producto y solo pones datos y configuración (Gmail, una API de un modelo de lenguaje). Muchos servicios son mezclas: en Kubernetes gestionado, el proveedor opera el [[plano-de-control|plano de control]] y tú las máquinas donde corre tu código. Cada nivel mueve la línea de la [[responsabilidad-compartida]]. Lo que el proveedor opera por ti es un [[servicio-gestionado]].",
    "analogia": "Hacer pizza en casa (on-prem), rentar una cocina y llevar tus ingredientes (IaaS), mandar tu receta a una cocina que la hace (PaaS) o pedirla a domicilio (SaaS). Se rompe en que en la nube las fronteras se mezclan y sacar tus cosas se cobra.",
    "ejemplo": "Para leer texto de documentos, C05 puede rentar VMs y correr su OCR (IaaS) o pagar Textract por página (casi SaaS): ≈ US$279 al mes por 186,000 páginas y nadie que lo opere.",
    "ver": [
@@ -189,8 +189,8 @@
    "id": "api-nube",
    "termino": "Consola, CLI y API de la nube",
    "en": "console / CLI / API",
-   "corto": "Las tres maneras de pedirle cosas a la nube. Por debajo, todo es una API: cada acción es un request HTTP firmado a un endpoint del proveedor; la consola web y la CLI solo lo arman por ti.",
-   "largo": "La consola es una página con botones, buena para explorar y mala para repetir. La CLI es un comando de la [[terminal]] (`aws`, `gcloud`, `az`). El SDK es una biblioteca para tu programa (`boto3` en Python). Cada request pasa por permisos ([[iam|IAM]]) y cuota antes de crear algo, y la API es por [[region|región]] (`ec2.us-east-1.amazonaws.com`). Como todo es API, la infraestructura se puede escribir en archivos y crear con una herramienta (infraestructura como código, como Terraform).",
+   "corto": "Las tres maneras de pedirle cosas a la nube. Por debajo, todo es una API: cada acción es una request HTTP firmada a un endpoint del proveedor; la consola web y la CLI solo lo arman por ti.",
+   "largo": "La consola es una página con botones, buena para explorar y mala para repetir. La CLI es un comando de la [[terminal]] (`aws`, `gcloud`, `az`). El SDK es una biblioteca para tu programa (`boto3` en Python). Cada request pasa por permisos ([[iam|IAM]]) y cuota antes de crear algo, y la de EC2 es por [[region|región]] (`ec2.us-east-1.amazonaws.com`); algunas, como la de IAM, son globales. Como todo es API, la infraestructura se puede escribir en archivos y crear con una herramienta (infraestructura como código, como Terraform).",
    "ejemplo": "`aws ec2 run-instances --instance-type g4dn.xlarge …` crea la VM de C01; `aws ec2 terminate-instances --instance-ids i-0123…` la apaga y detiene el cobro.",
    "ver": [
     "cuenta-nube",
@@ -232,7 +232,7 @@
    "termino": "Dependencia del proveedor (lock-in)",
    "en": "vendor lock-in",
    "corto": "Lo que te cuesta irte de un proveedor de nube: reescribir lo que usa sus APIs propias, rehacer procesos y pagar por sacar tus datos.",
-   "largo": "Te atan las APIs propias (un servicio que no existe en otra nube), los formatos y procesos (permisos, alarmas, despliegues), el [[egress]] de los datos y los compromisos de gasto. Se acota con piezas estándar donde importa: contenedores, Kubernetes, MLflow, Parquet, la API de S3. Pero ser 100 % portable también cuesta, porque renuncias a servicios gestionados; la pregunta es cuánto costaría salir y si lo vas a necesitar.",
+   "largo": "Te atan las APIs propias (un servicio que no existe en otra nube), los formatos y procesos (permisos, alarmas, despliegues), el [[egress]] de los datos y los compromisos de gasto. Desde 2024, los tres grandes perdonan el egress si te vas por completo y lo pides; si solo copias datos afuera y te quedas, se cobra. Se acota con piezas estándar donde importa: contenedores, Kubernetes, MLflow, Parquet, la API de S3. Pero ser 100 % portable también cuesta, porque renuncias a servicios gestionados; la pregunta es cuánto costaría salir y si lo vas a necesitar.",
    "ejemplo": "Copiar un dataset de 50 TB de S3 a otro proveedor cuesta ≈ 10,000 × 0.09 + 40,000 × 0.085 ≈ US$4.3k de egress, cada vez.",
    "ver": [
     "proveedor-nube",

@@ -37,7 +37,7 @@
     { "id": "inercia", "label": "Pesos por inercia", "steps": [
       { "nodes": ["nodo"], "edges": [], "text": "Arranca una réplica y tiene que bajar el modelo de S3. Nadie creó endpoints: la tabla solo tiene `local` y `0.0.0.0/0 → NAT`." },
       { "nodes": ["nodo", "nat"], "edges": ["nodo>nat"], "text": "Las IPs de S3 no están en `10.0.0.0/16`, así que caen en la ruta por omisión: **el NAT**." },
-      { "nodes": ["nat", "s3"], "edges": ["nat>s3"], "text": "El NAT cobra **US$0.045 por cada GB** que pasa. Un modelo de 141 GB: ≈ US$6.30 por réplica que arranca. Y en la factura aparece como «NAT», no como «S3»." }
+      { "nodes": ["nat", "s3"], "edges": ["nat>s3"], "text": "El NAT cobra **US$0.045 por cada GB** que pasa. Un modelo de 141 GB: ≈ US$6.35 por réplica que arranca. Y en la factura aparece como «NAT», no como «S3»." }
     ] },
     { "id": "endpoint", "label": "Pesos con endpoint", "steps": [
       { "nodes": ["gwe"], "edges": [], "text": "Se crea el gateway endpoint de S3: una regla nueva en la tabla, con los rangos de S3. Ningún programa cambia." },

@@ -52,7 +52,7 @@
    "y": 4,
    "w": 24,
    "h": 8,
-   "note": "Tres caras de lo mismo. La consola es una página web con botones; la CLI, un comando de la [[terminal]]; el SDK, una biblioteca para tu código. Las tres arman el mismo request y lo firman con tus credenciales."
+   "note": "Tres caras de lo mismo. La consola es una página web con botones; la CLI, un comando de la [[terminal]]; el SDK, una biblioteca para tu código. Las tres arman la misma request y la firman con tus credenciales, la llave secreta que prueba quién eres."
   },
   {
    "id": "api",
@@ -74,7 +74,7 @@
    "y": 21,
    "w": 20,
    "h": 8,
-   "note": "Antes de crear nada, la nube revisa dos cosas: que tu identidad tenga permiso para esa acción ([[iam|IAM]]) y que no pases tu [[cuota-servicio|cuota]], el tope de máquinas de ese tipo en la región. Si falla cualquiera, el request regresa con un error y no se cobra nada."
+   "note": "Antes de crear nada, la nube revisa dos cosas: que tu identidad tenga permiso para esa acción ([[iam|IAM]]) y que no pases tu [[cuota-servicio|cuota]], el tope de máquinas de ese tipo en la región. Si falla cualquiera, la request regresa con un error y no se cobra nada."
   },
   {
    "id": "plano",
@@ -136,7 +136,7 @@
    "kind": "online",
    "fromSide": "b",
    "toSide": "t",
-   "label": "request firmado"
+   "label": "request firmada"
   },
   {
    "from": "api",
@@ -172,10 +172,10 @@
   },
   {
    "from": "api",
-   "to": "tu",
+   "to": "cli",
    "kind": "neutral",
    "fromSide": "r",
-   "toSide": "b",
+   "toSide": "r",
    "dashed": true,
    "label": "id i-0abc…",
    "via": [
@@ -185,11 +185,7 @@
     ],
     [
      66,
-     14
-    ],
-    [
-     13,
-     14
+     8
     ]
    ]
   },
@@ -237,7 +233,7 @@
      "edges": [
       "cli>api"
      ],
-     "text": "La CLI arma un **request HTTP** al endpoint de EC2 de us-east-1 y lo firma con tus credenciales, para que la nube sepa quién pide."
+     "text": "La CLI arma una **request HTTP** al endpoint de EC2 de us-east-1 y la firma con tus credenciales, para que la nube sepa quién pide."
     },
     {
      "nodes": [
@@ -264,12 +260,13 @@
     {
      "nodes": [
       "api",
+      "cli",
       "tu"
      ],
      "edges": [
-      "api>tu"
+      "api>cli"
      ],
-     "text": "Casi de inmediato, la API te contesta con el **id** de la máquina (`i-0abc…`). La VM todavía está arrancando: el id no quiere decir que ya sirva."
+     "text": "Casi de inmediato, la API contesta con el **id** de la máquina (`i-0abc…`), y la CLI te lo muestra. La VM todavía está arrancando: tener el id no quiere decir que ya sirva."
     }
    ]
   },
@@ -308,7 +305,7 @@
       "tu>cli",
       "cli>api"
      ],
-     "text": "El medidor solo se detiene con otro request: `terminate-instances`. **Nadie lo apaga por ti.**"
+     "text": "El medidor solo se detiene con otra request: `terminate-instances` (la borra) o `stop-instances` (la apaga y conserva el disco, que se sigue cobrando). **Nadie lo apaga por ti.**"
     }
    ]
   }

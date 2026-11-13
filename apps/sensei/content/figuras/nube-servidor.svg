@@ -34,5 +34,5 @@
 <line class="f-flecha" x1="288" y1="264" x2="288" y2="190" stroke-dasharray="4 3"/>
 <path class="f-punta" d="M282 192 L294 192 L288 184 Z"/>
 <text class="f-s" x="26" y="342" style="font-size:12px">Ninguna VM ve a las otras: el hipervisor es la pared.</text>
-<text class="f-s" x="26" y="360" style="font-size:12px">La GPU no se parte: va completa a una sola VM.</text>
+<text class="f-s" x="26" y="360" style="font-size:12px">Aquí la GPU no se parte: va completa a una VM.</text>
 </svg>

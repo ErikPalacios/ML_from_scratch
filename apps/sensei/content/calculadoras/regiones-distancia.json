@@ -3,7 +3,7 @@
   "intro": "La luz en la fibra recorre ≈ 200 km por milisegundo. Pon la **distancia** entre quien llama y la [[region|región]], y mira cuánto del presupuesto de [[latencia]] se va solo en el viaje.",
   "entradas": [
     { "id": "d", "label": "**Distancia**, en km", "min": 0, "max": 20000, "paso": 50, "valor": 3000 },
-    { "id": "f", "label": "Cuántas veces la física tarda la ruta real", "min": 1, "max": 3, "paso": 0.1, "valor": 2 },
+    { "id": "f", "label": "Factor de la ruta real: cuántas veces el mínimo físico", "min": 1, "max": 3, "paso": 0.1, "valor": 2 },
     { "id": "v", "label": "**Idas y vueltas** por request (3 si abre una conexión nueva)", "min": 1, "max": 6, "paso": 1, "valor": 1 },
     { "id": "s", "label": "Presupuesto de latencia (SLO), en ms", "min": 50, "max": 2000, "paso": 10, "valor": 300 }
   ],
@@ -18,5 +18,5 @@
     { "label": "Tiempo en la red por request", "formula": "tot", "formato": "ms", "nota": "RTT × idas y vueltas" },
     { "label": "Parte del presupuesto que se va en el viaje", "formula": "tot / s", "formato": "pct", "decimales": 0, "barra": true, "nota": "tiempo en la red ÷ presupuesto" }
   ],
-  "nota": "De la Ciudad de México a Virginia: ≈ 60 ms, el 20 % de un SLO de 300 ms. Con 3 idas y vueltas, 180 ms: el 60 %. Entre dos zonas (≈ 50 km) no llega a 1 ms."
+  "nota": "De la Ciudad de México a Virginia: ≈ 60 ms, el 20 % de un SLO de 300 ms. Con 3 idas y vueltas, 180 ms: el 60 %. Entre dos zonas (≈ 50 km), ≈ 1 ms."
 }

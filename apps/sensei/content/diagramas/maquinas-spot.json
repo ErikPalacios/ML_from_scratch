@@ -12,13 +12,13 @@
     { "id": "cola", "label": "Cola", "sub": "un mensaje por pedazo", "kind": "queue", "x": 30, "y": 4, "w": 18, "h": 8,
       "note": "Cada mensaje es un pedazo de trabajo: una imagen, mil fotos del backfill o una época del entrenamiento. Mientras un worker lo procesa, el mensaje queda invisible; si nadie lo borra antes de su [[visibility-timeout|visibility timeout]], reaparece." },
     { "id": "wa", "label": "Worker A", "sub": "g4dn.xlarge · zona 1a", "kind": "gpu", "x": 4, "y": 20, "w": 20, "h": 8,
-      "note": "Una instancia [[spot]]: ≈ 48 % más barata ese día, pero la nube se la puede llevar con 2 minutos de aviso." },
+      "note": "Un [[worker]]: un programa que toma pedazos de la cola y los procesa, en una instancia [[spot]]. Esa instancia sale ≈ 49 % más barata el día de la foto de la Ronda, pero la nube se la puede llevar con 2 minutos de aviso." },
     { "id": "wb", "label": "Worker B", "sub": "g5.xlarge · zona 1b", "kind": "gpu", "x": 54, "y": 20, "w": 20, "h": 8,
       "note": "Otro tipo en otra zona: **diversificar** hace que una interrupción no se lleve a todos los workers juntos. Ojo: un engine de TensorRT compilado para T4 no corre en su A10G; hace falta uno para cada GPU." },
     { "id": "ec2", "label": "EC2", "sub": "recupera la máquina", "kind": "external", "x": 4, "y": 36, "w": 18, "h": 8,
-      "note": "Cuando alguien que paga precio completo necesita la máquina, la nube manda el [[aviso-interrupcion|aviso de interrupción]]: 2 minutos en AWS, 30 segundos en Google Cloud y Azure. Es *best effort*: casi siempre llega, pero no se promete." },
+      "note": "EC2 es el servicio de máquinas virtuales de AWS. Cuando alguien que paga precio completo necesita la máquina, manda el [[aviso-interrupcion|aviso de interrupción]]: 2 minutos en AWS, 30 segundos en Google Cloud y Azure. Es *best effort*: casi siempre llega, pero no se promete." },
     { "id": "s3", "label": "S3", "sub": "checkpoints y salidas", "kind": "store", "x": 30, "y": 36, "w": 18, "h": 8,
-      "note": "Lo que no se puede perder vive fuera del worker: los [[checkpoint|checkpoints]] y las salidas de cada pedazo, cada una en una llave fija para que repetir un pedazo no haga daño." }
+      "note": "S3 es el almacén de archivos de AWS. Lo que no se puede perder vive ahí, fuera del worker: los [[checkpoint|checkpoints]] y las salidas de cada pedazo, cada una en una llave fija para que repetir un pedazo no haga daño." }
   ],
   "edges": [
     { "from": "cola", "to": "wa", "kind": "offline", "fromSide": "l", "toSide": "t", "label": "pedazo" },

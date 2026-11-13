@@ -3,14 +3,14 @@
   "width": 78,
   "height": 62,
   "lanes": [
-    { "id": "entrada", "label": "Subredes públicas · la entrada y la salida", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 14 },
+    { "id": "entrada", "label": "La entrada y la salida · ALB y NAT en subredes públicas", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 14 },
     { "id": "za", "label": "Privada · 1a", "kind": "online", "x": 0, "y": 16, "w": 38, "h": 31 },
     { "id": "zb", "label": "Privada · 1b", "kind": "online", "x": 40, "y": 16, "w": 38, "h": 31 },
     { "id": "regional", "label": "Servicios regionales, por endpoints", "kind": "offline", "x": 0, "y": 49, "w": 78, "h": 13 }
   ],
   "nodes": [
     { "id": "backend", "label": "Backend", "sub": "foto de ≈ 200 KB", "kind": "client", "x": 3, "y": 4, "w": 18, "h": 8,
-      "note": "El backend del marketplace, en la misma región, manda la foto de Ana en el body. Que la foto entre a AWS no cuesta: subir datos es gratis." },
+      "note": "El backend del marketplace: el sistema de la empresa que llama a C01. No vive en esta VPC, pero sí en la misma región. Manda la foto de Ana en el body." },
     { "id": "alb", "label": "ALB", "sub": "≈ US$0.008 por GB", "kind": "edge", "x": 30, "y": 4, "w": 18, "h": 8,
       "note": "El [[alb|ALB]] cobra su hora y sus [[lcu|LCU]]. Con fotos en el body gana la dimensión de bytes: 2 TB al día ≈ 83 LCU ≈ **US$503 al mes**. Es la línea más grande de la red de C01." },
     { "id": "nat", "label": "NAT", "sub": "uno por zona · parches", "kind": "edge", "x": 57, "y": 4, "w": 18, "h": 8,
@@ -22,7 +22,7 @@
     { "id": "gwb", "label": "Gateway", "sub": "c6i.xlarge · 1b", "kind": "service", "x": 50, "y": 20, "w": 18, "h": 8,
       "note": "La copia del gateway en la otra zona. Con [[ruteo-por-zona|ruteo por zona]], le habla al Triton de `1b`." },
     { "id": "trb", "label": "Triton", "sub": "T4 · 1b", "kind": "gpu", "x": 50, "y": 36, "w": 18, "h": 8,
-      "note": "La segunda T4, la del N+1. Si recibe tensores de `1a`, cada GB paga [[transferencia-entre-zonas|transferencia entre zonas]]: US$0.01 al salir y US$0.01 al entrar." },
+      "note": "La segunda T4, la del [[n-mas-uno|N+1]]: la copia de sobra para que, si cae una zona, la otra siga. Si recibe tensores de `1a`, cada GB paga [[transferencia-entre-zonas|transferencia entre zonas]]: US$0.01 al salir y US$0.01 al entrar." },
     { "id": "s3", "label": "S3", "sub": "pesos, engine, logs", "kind": "store", "x": 10, "y": 52, "w": 18, "h": 8,
       "note": "Por el [[vpc-endpoint|gateway endpoint]]: pesos y engine al arrancar, logs de predicción (≈ 3 GB al día) de ida. Todo a **US$0** de red; S3 solo cobra lo guardado y las requests." },
     { "id": "ecr", "label": "ECR", "sub": "imágenes de contenedor", "kind": "store", "x": 50, "y": 52, "w": 18, "h": 8,
@@ -41,7 +41,7 @@
   ],
   "flows": [
     { "id": "foto", "label": "La foto de Ana", "steps": [
-      { "nodes": ["backend", "alb"], "edges": ["backend>alb"], "text": "La foto, ≈ 200 KB, llega al ALB. Entrar a AWS es gratis, pero el ALB cobra ≈ **US$0.008 por GB** que procesa: con 10 millones de fotos al día, ≈ US$503 al mes." },
+      { "nodes": ["backend", "alb"], "edges": ["backend>alb"], "text": "La foto, ≈ 200 KB, llega del backend al ALB. El ALB cobra ≈ **US$0.008 por GB** que procesa: con 10 millones de fotos al día, ≈ US$503 al mes." },
       { "nodes": ["alb", "gwa"], "edges": ["alb>gwa"], "text": "El ALB la pasa a un gateway sano. Esta vez, al de `1a`." },
       { "nodes": ["gwa", "tra"], "edges": ["gwa>tra"], "text": "El gateway manda el tensor de 602 KB al Triton **de su misma zona**: US$0 y ≈ 0.1–0.5 ms de ida y vuelta. La respuesta, ≈ 1 KB, regresa por el mismo camino." }
     ] },

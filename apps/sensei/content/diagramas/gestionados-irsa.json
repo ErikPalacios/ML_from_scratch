@@ -63,7 +63,7 @@
    "y": 7,
    "w": 19,
    "h": 8,
-   "note": "El cluster firma los tokens de sus cuentas de servicio. AWS tiene registrado este emisor y puede revisar la firma: así sabe que el token no es falso."
+   "note": "OIDC (*OpenID Connect*) es un estándar para que un sistema le demuestre a otro quién es con un token firmado. El cluster firma los tokens de sus cuentas de servicio. AWS tiene registrado este emisor y puede revisar la firma: así sabe que el token no es falso."
   },
   {
    "id": "sts",
@@ -74,7 +74,7 @@
    "y": 31,
    "w": 18,
    "h": 8,
-   "note": "El servicio de AWS que cambia una prueba de identidad por [[credenciales-temporales|credenciales temporales]] de un rol. Caducan solas, normalmente en una hora."
+   "note": "STS (*Security Token Service*) es el servicio de AWS que cambia una prueba de identidad por [[credenciales-temporales|credenciales temporales]] de un rol. Caducan solas, normalmente en una hora."
   },
   {
    "id": "rol",
@@ -172,7 +172,7 @@
    "from": "ladron",
    "to": "bucket",
    "kind": "async",
-   "label": "vencidas: 403",
+   "label": "vencidas: rechazo",
    "fromSide": "l",
    "toSide": "r"
   }
@@ -271,7 +271,7 @@
      "edges": [
       "ladron>bucket"
      ],
-     "text": "Mientras no venzan, solo puede leer `triton/*`: el [[minimo-privilegio|mínimo privilegio]] limita el daño. Al vencer, S3 contesta 403. Una llave estática le habría servido meses."
+     "text": "Mientras no venzan, solo puede leer `triton/*`: el [[minimo-privilegio|mínimo privilegio]] limita el daño. Al vencer, S3 rechaza cada llamada con el error `ExpiredToken`. Una llave estática le habría servido meses."
     }
    ]
   }

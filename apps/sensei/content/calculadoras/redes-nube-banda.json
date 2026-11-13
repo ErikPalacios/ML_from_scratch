@@ -17,7 +17,7 @@
     { "label": "Lo que se manda en total, en Gb/s", "formula": "gbps", "formato": "num", "decimales": 2, "nota": "requests × KB × 1,000 × 8 bits" },
     { "label": "Cada nodo, en un día normal", "formula": "uno / b", "formato": "pct", "decimales": 0, "barra": true, "nota": "del sostenido" },
     { "label": "Cada nodo, si cae una zona", "formula": "caida / b", "formato": "pct", "decimales": 0, "barra": true, "nota": "quedan n − 1 nodos (con 1 nodo, no hay a quién pasarle)" },
-    { "label": "Lo mismo, contra la ráfaga", "formula": "caida / rf", "formato": "pct", "decimales": 0, "barra": true, "nota": "aguanta solo unos minutos" }
+    { "label": "Si cae una zona, contra la ráfaga", "formula": "caida / rf", "formato": "pct", "decimales": 0, "barra": true, "nota": "aguanta solo un rato: de 5 a 60 minutos, sin garantía" }
   ],
   "nota": "Más de 100 % del sostenido funciona mientras duren los créditos de ráfaga; después, la máquina encola o tira paquetes. Prueba 150 KB (UINT8) y 200 KB (el JPEG)."
 }

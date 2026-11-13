@@ -90,7 +90,7 @@
   {
    "id": "ia",
    "label": "ECR",
-   "sub": "imágenes",
+   "sub": "imágenes de contenedor",
    "kind": "store",
    "x": 10,
    "y": 50,
@@ -118,7 +118,7 @@
    "y": 37,
    "w": 18,
    "h": 8,
-   "note": "La copia llega **después** del original: segundos normalmente, hasta 15 minutos con garantía. Lo que iba en camino cuando cayó la primaria es lo que se pierde: tu [[rpo|RPO]]."
+   "note": "La copia llega **después** del original: la mayoría en menos de 15 minutos, sin garantía; con RTC, el 99.99 % en menos de 15 minutos. Lo que iba en camino cuando cayó la primaria es lo que se pierde: tu [[rpo|RPO]]."
   },
   {
    "id": "ib",
