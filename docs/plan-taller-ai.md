@@ -90,8 +90,9 @@ Sigue la decisión 4.1 del plan de lanzamiento: **todo funciona sin cuenta, y la
   - La cheat sheet del recorrido ya marca, por patrón, qué estación «cambia», «desaparece» o queda «igual».
   - En la mayoría de los patrones casi todas las estaciones «cambian» en algo. Por eso la rama no repite las 12. Elige las **4 a 6 estaciones donde la habilidad es de verdad otra**; en las demás, la app solo pone una nota de qué cambia respecto al tronco.
   - Ejemplo para LLM/RAG: ingestión y chunking, índice y embeddings, evaluación de retrieval, serving del LLM y guardrails.
-  - Los modelos son chicos para que corran en la Mac: un LLM de unos 0.5–1.5 B parámetros y embeddings pequeños. Los modelos exactos se eligen y verifican en la fase de esa rama.
-- **Orden propuesto de las ramas:** LLM/RAG primero, por interés; después batch, asíncrono, híbrido, streaming y edge. Se puede cambiar.
+  - **La rama LLM/RAG se fusionó con la rama IA Privada (2026-11-12).** Es una sola rama, planeada en [plan-ia-privada.md](plan-ia-privada.md), sección 6: cubre el patrón LLM/RAG (C11) completo y además el serving en hardware propio. Así no se construyen dos veces el serving del LLM ni el RAG.
+  - Los modelos son chicos para que corran en la Mac: un LLM de unos 0.5–1.5 B parámetros y embeddings pequeños. Los modelos exactos se eligen y verifican en la fase de esa rama. La rama IA Privada además usa una GPU rentada por horas en algunas estaciones.
+- **Orden propuesto de las ramas:** IA Privada (que incluye LLM/RAG) primero, por interés y por negocio; después batch, asíncrono, híbrido, streaming y edge. Se puede cambiar.
 - **Relación con la Fase 6 del plan de lanzamiento (kata de Docker):** la estación 7 del tronco, Empaquetado, usa el lab de Iris. La kata con cronómetro puede vivir ahí en lugar de en las cheat sheets.
 
 ## 8. La estación 1, «Datos y etiquetas», en pequeño
@@ -147,6 +148,7 @@ La fase 5 va antes de seguir con el tronco a propósito: probar el molde contigo
 - La app vive en este repo; los mini-proyectos van fuera.
 - La app es información y prompts; nada corre dentro de ella.
 - Un mini-proyecto por patrón, con tronco y ramas.
+- La rama LLM/RAG y la rama IA Privada son una sola (2026-11-12), planeada en [plan-ia-privada.md](plan-ia-privada.md).
 - El progreso va en el tablero de cada persona, local primero y sincronizado cuando haya cuentas.
 - Fashion-MNIST para la estación 1 (cualquier dataset sirve; este tiene ambigüedad real y es ligero).
 

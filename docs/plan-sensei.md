@@ -100,6 +100,8 @@ Para la fase 8:
 - Escritores con esfuerzo «medio», o con un tope de bloques de código.
 - Lanzar los escritores solo al inicio de una ventana nueva, nunca con la ventana a medias.
 - Que cada escritor guarde sus pendientes en disco conforme avanza, no solo en el reporte final.
+- **Presupuesto con Fable y reinicios (2026-11-12):** las reglas están en [plan-ia-privada.md](plan-ia-privada.md), sección 8. En corto: Fable también gasta del límite semanal total, así que cada trabajo va al modelo que dé más calidad por punto del total. La fase 8 es la primera con lecciones desde entonces y hace la calibración: una lección la escribe Fable y otra Opus, con el mismo esfuerzo, y se compara lo gastado y las correcciones de la revisión de fondo. Antes de lanzar se lee el uso de cada límite.
+- **Dejar listos los números para IA Privada:** la lección «Máquinas, GPUs y precios» es la base de las calculadoras de IA Privada (fases 1–2). Sus datos de GPUs (VRAM, ancho de banda, consumo y precio por hora en la nube, con fecha y fuente) se guardan también en un archivo de datos aparte que esa app pueda leer, por ejemplo `apps/sensei/content/datos/gpus.json`.
 
 ## 5. Las fases
 
@@ -114,7 +116,7 @@ Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 
 | 5 ✓ | La red y la web | IP, puertos y DNS · HTTP · APIs: REST, JSON, gRPC y streaming · Balanceadores y gateways · Timeouts, reintentos e idempotencia · Latencia y throughput | M02, M03, M06, M07, M11, M13–M15 |
 | 6 ✓ | Datos y almacenamiento | Formatos · Bases de datos · Object storage, data lakes y warehouses · Colas y streams · Tiempo, hashes e identificadores | M01, M02, M06, M09, M12, M13, M15 |
 | 7 ✓ | Herramientas del oficio | La terminal · Python y sus paquetes · PyTorch para producción · Git · Pruebas y CI/CD · Configuración y secretos | M05–M11, M15 |
-| 8 | La nube | Qué es la nube · Regiones y zonas · Máquinas, GPUs y precios · Redes en la nube · Servicios gestionados y permisos | M04, M06, M13, M15 |
+| 8 | La nube | Qué es la nube · Regiones y zonas · Máquinas, GPUs y precios · Redes en la nube · Servicios gestionados y permisos | M04, M06, M13, M15 · base de IA Privada |
 | 9 | Seguridad | Cifrado, llaves y certificados · Autenticación y permisos · Datos personales y la ley · Ataques y cadena de suministro | M05, M07, M09, M15 |
 | 10 | Estaciones · Datos | Estación 1 y 2 de C01 | M09, M10 |
 | 11 | Estaciones · Modelo | Estación 3, 4 y 5 | M08, M10, M11 |
