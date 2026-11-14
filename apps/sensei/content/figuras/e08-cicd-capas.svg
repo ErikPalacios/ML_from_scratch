@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 400" role="img" aria-labelledby="f-e08-cicd-capas-t" class="f-svg" style="max-width:420px">
+<title id="f-e08-cicd-capas-t">El repositorio classifier-gateway con 200 imágenes. Todas comparten dos capas guardadas una sola vez: la base python:3.13-slim de 43 MB y el entorno de Python de 44 MB. Cada imagen agrega solo su capa de código, de 48 KB. Si cada imagen se guardara entera, serían 200 por 87 MB, unos 17.4 GB; con capas compartidas son unos 97 MB.</title>
+<rect class="f-card" x="10" y="10" width="340" height="380" rx="16"/>
+<text class="f-l" x="26" y="36">CLASSIFIER-GATEWAY · 200 IMÁGENES</text>
+<rect class="f-b2" x="26" y="56" width="308" height="44" rx="8"/>
+<text class="f-t" x="40" y="76" style="font-size:14px">base python:3.13-slim</text>
+<text class="f-s" x="40" y="92" style="font-size:12px">43 MB · una vez</text>
+<rect class="f-b2" x="26" y="108" width="308" height="44" rx="8"/>
+<text class="f-t" x="40" y="128" style="font-size:14px">entorno de Python (/opt/venv)</text>
+<text class="f-s" x="40" y="144" style="font-size:12px">44 MB · una vez</text>
+<rect class="f-y" x="26" y="168" width="40" height="34" rx="6"/>
+<rect class="f-y" x="74" y="168" width="40" height="34" rx="6"/>
+<rect class="f-y" x="122" y="168" width="40" height="34" rx="6"/>
+<rect class="f-y" x="170" y="168" width="40" height="34" rx="6"/>
+<text class="f-t" x="238" y="190" text-anchor="middle" style="font-size:14px">…</text>
+<rect class="f-y" x="266" y="168" width="68" height="34" rx="6"/>
+<text class="f-pill-t" x="46" y="189" text-anchor="middle" style="font-size:11px">1</text>
+<text class="f-pill-t" x="94" y="189" text-anchor="middle" style="font-size:11px">2</text>
+<text class="f-pill-t" x="142" y="189" text-anchor="middle" style="font-size:11px">3</text>
+<text class="f-pill-t" x="190" y="189" text-anchor="middle" style="font-size:11px">4</text>
+<text class="f-pill-t" x="300" y="189" text-anchor="middle" style="font-size:11px">3f9c2ab</text>
+<text class="f-s" x="26" y="224" style="font-size:12px">una capa de código de 48 KB por imagen</text>
+<line class="f-linea" x1="26" y1="244" x2="334" y2="244"/>
+<text class="f-l" x="26" y="270">SI CADA IMAGEN SE GUARDARA ENTERA</text>
+<rect class="f-o" x="26" y="280" width="308" height="14" rx="4"/>
+<text class="f-s" x="26" y="312" style="font-size:12px">200 × 87 MB ≈ 17.4 GB</text>
+<text class="f-l" x="26" y="338">CON CAPAS COMPARTIDAS</text>
+<rect class="f-g" x="26" y="348" width="2" height="14"/>
+<text class="f-s" x="38" y="360" style="font-size:12px">87 + 200 × 0.048 ≈ 97 MB</text>
+<text class="f-s" x="26" y="380" style="font-size:12px">A escala: la barra verde mide 1/180 de la naranja.</text>
+</svg>

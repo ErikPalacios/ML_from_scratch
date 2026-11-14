@@ -1,0 +1,19 @@
+{
+  "titulo": "Cuánto tarda en bajar una imagen",
+  "intro": "Aplica la ecuación de la lección, \\(P = (S − S_c)/v\\): solo se baja lo que el nodo no tiene. Arranca con la imagen de Triton de Alba en un nodo vacío.",
+  "entradas": [
+    { "id": "S", "label": "Lo que pesa la imagen comprimida, \\(S\\), en GB", "min": 0.01, "max": 100, "paso": 0.001, "valor": 9.2, "tipo": "numero" },
+    { "id": "Sc", "label": "Lo que ya está en el nodo, \\(S_c\\), en GB", "min": 0, "max": 100, "paso": 0.001, "valor": 0, "tipo": "numero" },
+    { "id": "v", "label": "Ritmo efectivo de bajar y descomprimir, \\(v\\), en GB/s", "min": 0.01, "max": 1, "paso": 0.01, "valor": 0.06 }
+  ],
+  "calculos": [
+    { "id": "falta", "formula": "max(S - Sc, 0)" },
+    { "id": "tp", "formula": "falta / v" }
+  ],
+  "salidas": [
+    { "label": "Lo que falta bajar, \\(S − S_c\\), en GB", "formula": "falta", "formato": "num", "decimales": 3 },
+    { "label": "Tiempo de pull, \\(P\\), en s", "formula": "tp", "formato": "num", "decimales": 1, "nota": "\\(P = (S − S_c)/v\\)" },
+    { "label": "Tiempo de pull, en min", "formula": "tp / 60", "formato": "num", "decimales": 2 }
+  ],
+  "nota": "El equipo de Alba estima \\(v\\) entre ≈ 0.03 y 0.09 GB/s. Si \\(S_c\\) pasa de \\(S\\), se toma como 0 lo que falta."
+}

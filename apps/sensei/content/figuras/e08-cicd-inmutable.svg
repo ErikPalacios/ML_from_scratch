@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" role="img" aria-labelledby="f-e08-cicd-inmutable-t" class="f-svg" style="max-width:420px">
+<title id="f-e08-cicd-inmutable-t">El mismo tag, 3f9c2ab, en dos registros. Arriba, con tags que se pueden mover: el lunes apunta a la imagen sha256:7bec, la que se probó; el martes alguien reconstruye y el tag pasa a apuntar a sha256:9e7f, que nadie probó, y un nodo que baja por tag recibe esa. Abajo, con tags inmutables: el tag sigue apuntando a sha256:7bec y el push del martes se rechaza. En los dos casos, bajar por digest da la imagen del lunes.</title>
+<defs><marker id="fe8i-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="400" rx="16"/>
+<text class="f-l" x="26" y="36">TAG QUE SE PUEDE MOVER</text>
+<rect class="f-chip" x="26" y="66" width="96" height="34" rx="17"/>
+<text class="f-t" x="74" y="88" text-anchor="middle" style="font-size:14px">3f9c2ab</text>
+<rect class="f-g" x="198" y="50" width="136" height="40" rx="8"/>
+<text class="f-pill-t" x="266" y="67" text-anchor="middle" style="font-size:12px">sha256:7bec…</text>
+<text class="f-pill-t" x="266" y="83" text-anchor="middle" style="font-size:11px">LUNES · PROBADA</text>
+<rect class="f-o" x="198" y="104" width="136" height="40" rx="8"/>
+<text class="f-pill-t" x="266" y="121" text-anchor="middle" style="font-size:12px">sha256:9e7f…</text>
+<text class="f-pill-t" x="266" y="137" text-anchor="middle" style="font-size:11px">MARTES · SIN PROBAR</text>
+<line class="f-linea" x1="122" y1="80" x2="190" y2="70" style="stroke-dasharray:4 4"/>
+<text class="f-s" x="150" y="64" text-anchor="middle" style="font-size:12px">antes</text>
+<line class="f-flecha" x1="122" y1="88" x2="190" y2="120" marker-end="url(#fe8i-a)"/>
+<text class="f-s" x="146" y="126" text-anchor="middle" style="font-size:12px">ahora</text>
+<text class="f-s" x="26" y="172" style="font-size:12px">Un nodo que baja «3f9c2ab» recibe la del martes.</text>
+<line class="f-linea" x1="26" y1="192" x2="334" y2="192"/>
+<text class="f-l" x="26" y="220">TAG INMUTABLE</text>
+<rect class="f-chip" x="26" y="250" width="96" height="34" rx="17"/>
+<text class="f-t" x="74" y="272" text-anchor="middle" style="font-size:14px">3f9c2ab</text>
+<rect class="f-g" x="198" y="234" width="136" height="40" rx="8"/>
+<text class="f-pill-t" x="266" y="251" text-anchor="middle" style="font-size:12px">sha256:7bec…</text>
+<text class="f-pill-t" x="266" y="267" text-anchor="middle" style="font-size:11px">LUNES · PROBADA</text>
+<line class="f-flecha" x1="122" y1="264" x2="190" y2="256" marker-end="url(#fe8i-a)"/>
+<rect class="f-card" x="198" y="292" width="136" height="40" rx="8" style="stroke:var(--muted);stroke-dasharray:4 4"/>
+<text class="f-s" x="266" y="309" text-anchor="middle" style="font-size:12px">push del martes</text>
+<text class="f-l" x="266" y="325" text-anchor="middle">RECHAZADO</text>
+<text class="f-s" x="26" y="312" style="font-size:12px">El nombre sigue</text>
+<text class="f-s" x="26" y="328" style="font-size:12px">diciendo la verdad.</text>
+<rect class="f-dark" x="22" y="350" width="316" height="44" rx="10"/>
+<text class="f-dark-l" x="38" y="368">EN LOS DOS CASOS</text>
+<text class="f-dark-t" x="38" y="386" style="font-size:13px">bajar por digest da la imagen del lunes</text>
+</svg>

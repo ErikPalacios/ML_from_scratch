@@ -1,0 +1,218 @@
+{
+  "titulo": "El compose de Alba: una máquina, dos servicios y sus chequeos",
+  "width": 78,
+  "height": 48,
+  "lanes": [
+    {
+      "id": "maq",
+      "label": "Una máquina con GPU NVIDIA (docker compose)",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 48
+    }
+  ],
+  "nodes": [
+    {
+      "id": "curl",
+      "label": "curl con la foto",
+      "sub": "localhost:8080",
+      "kind": "client",
+      "x": 1,
+      "y": 20,
+      "w": 18,
+      "h": 8,
+      "note": "La prueba: `curl -H \"Content-Type: image/jpeg\" --data-binary @tenis.jpg \"localhost:8080/v1/classify?top_k=5\"`. Llega al gateway por el puerto **publicado** con `ports`."
+    },
+    {
+      "id": "gw",
+      "label": "gateway",
+      "sub": ":8080 · UID 10001",
+      "kind": "service",
+      "x": 29,
+      "y": 20,
+      "w": 20,
+      "h": 8,
+      "note": "El contenedor de `classifier-gateway`. Escucha en `0.0.0.0:8080` y llama a Triton en `triton:8000`: dentro de compose, el nombre del servicio es su dirección."
+    },
+    {
+      "id": "tr",
+      "label": "triton",
+      "sub": ":8000 · gracia 60 s",
+      "kind": "model",
+      "x": 58,
+      "y": 20,
+      "w": 19,
+      "h": 8,
+      "note": "El contenedor de `classifier-triton:resnet50-2026-10-01`, con 1 GB de memoria compartida. Tarda ≈ 10–60 s en cargar el engine y calentarlo antes de decirse listo."
+    },
+    {
+      "id": "lab",
+      "label": "labels.json",
+      "sub": "montado de solo lectura",
+      "kind": "store",
+      "x": 1,
+      "y": 36,
+      "w": 18,
+      "h": 8,
+      "note": "Las 500 categorías en el orden de las salidas del modelo. El gateway las lee al arrancar, en `/etc/classifier/labels.json`, y verifica que sean 500."
+    },
+    {
+      "id": "dk",
+      "label": "Docker",
+      "sub": "chequeos y reinicio",
+      "kind": "monitor",
+      "x": 29,
+      "y": 4,
+      "w": 20,
+      "h": 8,
+      "note": "Corre los dos [[healthcheck-docker|chequeos]]: `/healthz` del gateway cada 10 s y `/v2/health/ready` de Triton cada 5 s. Con `depends_on … service_healthy` no arranca el gateway hasta que Triton está sano."
+    },
+    {
+      "id": "gpu",
+      "label": "T4",
+      "sub": "1 GPU reservada",
+      "kind": "gpu",
+      "x": 58,
+      "y": 36,
+      "w": 19,
+      "h": 8,
+      "note": "La GPU que compose le reserva a Triton con `deploy.resources.reservations.devices`. Hace falta el driver de NVIDIA y el NVIDIA Container Toolkit en la máquina."
+    }
+  ],
+  "edges": [
+    {
+      "from": "curl",
+      "to": "gw",
+      "kind": "online",
+      "label": "POST /v1/classify",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "gw",
+      "to": "tr",
+      "kind": "online",
+      "label": "triton:8000",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "tr",
+      "to": "gpu",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "lab",
+      "to": "gw",
+      "kind": "neutral",
+      "label": ":ro",
+      "fromSide": "r",
+      "toSide": "b",
+      "via": [
+        [
+          39,
+          40
+        ]
+      ]
+    },
+    {
+      "from": "dk",
+      "to": "gw",
+      "kind": "monitor",
+      "label": "/healthz",
+      "fromSide": "b",
+      "toSide": "t",
+      "dashed": true
+    },
+    {
+      "from": "dk",
+      "to": "tr",
+      "kind": "monitor",
+      "label": "/v2/health/ready",
+      "fromSide": "r",
+      "toSide": "t",
+      "dashed": true,
+      "via": [
+        [
+          67.5,
+          8
+        ]
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "up",
+      "label": "Un docker compose up desde cero",
+      "steps": [
+        {
+          "nodes": [
+            "tr",
+            "gpu"
+          ],
+          "edges": [
+            "tr>gpu"
+          ],
+          "text": "`docker compose up --build` construye las dos imágenes y arranca **triton** primero, con su GPU. El gateway espera: su `depends_on` pide a Triton sano."
+        },
+        {
+          "nodes": [
+            "dk",
+            "tr"
+          ],
+          "edges": [
+            "dk>tr"
+          ],
+          "text": "Docker pregunta a `/v2/health/ready` cada 5 s. Mientras Triton carga el engine, el chequeo falla, pero en los primeros **60 s** de gracia las fallas no cuentan."
+        },
+        {
+          "nodes": [
+            "tr"
+          ],
+          "edges": [],
+          "text": "A los ≈ 10–60 s Triton termina el warmup y responde 200: queda **sano**. Si tardara más de ≈ 75 s (60 de gracia + 3 chequeos × 5 s), quedaría enfermo y el gateway no arrancaría."
+        },
+        {
+          "nodes": [
+            "gw",
+            "lab",
+            "dk"
+          ],
+          "edges": [
+            "lab>gw",
+            "dk>gw"
+          ],
+          "text": "Arranca el **gateway**: lee `labels.json`, crea su cliente de Triton y su `/healthz` responde. Docker lo revisa cada 10 s."
+        },
+        {
+          "nodes": [
+            "curl",
+            "gw",
+            "tr",
+            "gpu"
+          ],
+          "edges": [
+            "curl>gw",
+            "gw>tr",
+            "tr>gpu"
+          ],
+          "text": "La foto de prueba entra por el puerto publicado 8080, el gateway la prepara y llama a `triton:8000`; la respuesta trae `model_version: resnet50-2026-10-01`."
+        },
+        {
+          "nodes": [
+            "dk",
+            "gw"
+          ],
+          "edges": [
+            "dk>gw"
+          ],
+          "text": "Si el gateway se cuelga, Docker lo marca enfermo en a lo más 3 × (10 + 2) = **36 s**. Si el proceso muere, `restart: unless-stopped` lo levanta otra vez."
+        }
+      ]
+    }
+  ]
+}

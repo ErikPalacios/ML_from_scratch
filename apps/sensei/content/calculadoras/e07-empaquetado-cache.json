@@ -1,0 +1,116 @@
+{
+  "titulo": "Lo que cuesta un día de builds, en los dos órdenes",
+  "intro": "Aplica la ecuación de la lección, \\(T = t_0 + sum_{k=j}^{K} t_k\\) y \\(Z = sum_{k=j}^{K} z_k\\), a un día de \\(n\\) builds de la imagen del gateway, de los que el \\(f\\) % cambian `requirements.txt`: en el orden de Alba, cambiar el código solo rehace la última capa; con `COPY . .` antes de instalar, cada build rehace el `pip install`. Cambiar `requirements.txt` rehace la instalación en los dos.",
+  "entradas": [
+    {
+      "id": "n",
+      "label": "Builds en el día, \\(n\\)",
+      "min": 1,
+      "max": 200,
+      "paso": 1,
+      "valor": 30
+    },
+    {
+      "id": "f",
+      "label": "Builds que cambian `requirements.txt`, \\(f\\), en %",
+      "min": 0,
+      "max": 100,
+      "paso": 1,
+      "valor": 5
+    },
+    {
+      "id": "t0",
+      "label": "Lo fijo de cada build, \\(t_0\\), en s",
+      "min": 0,
+      "max": 20,
+      "paso": 0.5,
+      "valor": 3
+    },
+    {
+      "id": "td",
+      "label": "Tiempo del `pip install`, \\(t_k\\) de esa capa, en s",
+      "min": 5,
+      "max": 300,
+      "paso": 1,
+      "valor": 40
+    },
+    {
+      "id": "zd",
+      "label": "Capa de dependencias en disco, \\(z_k\\) de esa capa, en MB",
+      "min": 10,
+      "max": 5000,
+      "paso": 10,
+      "valor": 160
+    },
+    {
+      "id": "zc",
+      "label": "Capa del código, \\(z_k\\) de esa capa, en MB",
+      "min": 0.01,
+      "max": 1,
+      "paso": 0.001,
+      "valor": 0.048
+    }
+  ],
+  "calculos": [
+    {
+      "id": "fr",
+      "formula": "f / 100"
+    },
+    {
+      "id": "tb",
+      "formula": "n * (t0 + fr * td)"
+    },
+    {
+      "id": "tm",
+      "formula": "n * (t0 + td)"
+    },
+    {
+      "id": "zb",
+      "formula": "n * (fr * zd + zc)"
+    },
+    {
+      "id": "zm",
+      "formula": "n * (zd + zc)"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Tiempo del día, orden de Alba, en min",
+      "formula": "tb / 60",
+      "formato": "num",
+      "decimales": 1,
+      "nota": "\\(n × (t_0 + f/100 × t_k)\\): la instalación solo cuando cambian las dependencias",
+      "barra": true
+    },
+    {
+      "label": "Tiempo del día, con `COPY . .` antes, en min",
+      "formula": "tm / 60",
+      "formato": "num",
+      "decimales": 1,
+      "nota": "\\(n × (t_0 + t_k)\\): la instalación en cada build",
+      "barra": true
+    },
+    {
+      "label": "Veces más lento el atajo",
+      "formula": "tm / max(tb, 1e-9)",
+      "formato": "x",
+      "decimales": 1,
+      "barra": false
+    },
+    {
+      "label": "Capas nuevas en el día, orden de Alba, en MB (la suma de los \\(Z\\) de cada build)",
+      "formula": "zb",
+      "formato": "num",
+      "decimales": 1,
+      "nota": "n × (f/100 × capa de dependencias + capa del código)"
+    },
+    {
+      "label": "Capas nuevas en el día, con `COPY . .` antes, en MB (la suma de los \\(Z\\) de cada build)",
+      "formula": "zm",
+      "formato": "num",
+      "decimales": 0,
+      "nota": "n × (capa de dependencias + capa del código)"
+    }
+  ],
+  "nota": "Se ignoran los ≈ 0.1 s de cada `COPY`. Los 30 builds y el 5 % son supuestos del ejemplo; los ≈ 40 s y ≈ 160 MB del `pip install` y los ≈ 48 KB del código son los del gateway de Alba."
+}

@@ -222,11 +222,32 @@ Lo que encontraron las revisiones:
 
 Para la fase 12: mismo flujo. Con una sola lección (e06), los costos fijos pesan más: conviene juntarla con la 13 si caben en una ventana. Lo que la Ronda tiene mal de esta fase está en `.solo/fase11/revision/*-hechos.md`, sección «Para la Ronda» (MLflow 3 y `log_model`, el ECE leído como error fijo, el descuento spot de la g5, la portabilidad de un engine).
 
+**Fases 12 y 13 (2026-11-14): ≈ 2 % por lección, 3 lecciones de estación en una sola tanda.** «Código de serving» (estación 6), «Empaquetado con Docker» (estación 7) y «CI/CD y registro de imágenes» (estación 8). La fase 12 tenía una sola lección y se juntó con la 13 para repartir los costos fijos. La sesión empezó con una ventana nueva (2 %) y todo cupo en ella, hasta ≈ 50 %. El límite semanal pasó de 47 % a 53 %. Por pieza:
+
+| Pieza | Modelo y esfuerzo | Semanal | Ventana de 5 h |
+|---|---|---|---|
+| Paquetes (≈ 19 min, 516k tokens), ficha `estaciones_api` y `estaciones_contenedor` (46 datos, conflictos 44–45), reparto y encargos | Sonnet bajo y la sesión | ≈ 1 punto | 2 → 8 % |
+| Escritores de las 3 lecciones, en paralelo (21–25 min, 314–365k tokens cada uno), más decisiones de integración | Opus, medio | ≈ 2 puntos (≈ 0.7 por lección) | 8 → 24 % (≈ 5.3 por lección) |
+| Mecánica (3) y hechos (3), en tubería, más el ALB en modo `ip` y la ficha con los CORRIGE | Sonnet bajo y Opus alto | ≈ 2 puntos | 24 → 36 % |
+| Claridad (3), consistencia (13 hallazgos) y aplicarla | Opus alto, Sonnet bajo y Opus medio | ≈ 1 punto | 36 → 48 % |
+| `npm run check`, navegador, plan, commit y deploy | La sesión | < 1 punto | 48 → ≈ 50 % |
+
+Lo que encontraron las revisiones:
+- **Huecos de la ficha que decidió la integración.** Ninguna fuente traía los workflows de Alba, la retención del registro, quién aprueba ni dónde vive `labels.json` al servir. Ahora: el workflow es el de «Pruebas y CI/CD», completado con el push a ECR, el digest y la aprobación; ECR guarda 200 imágenes del gateway y 12 de Triton; aprueba una persona del equipo en el environment `produccion` (Alba tiene GitHub Enterprise, conflicto 50); `labels.json` viaja con el modelo en un ConfigMap por versión (conflicto 45); la tercera paridad corre en el runner con T4 antes de staging (conflicto 46). El camino del merge a producción es ≈ 17.5 min, no 12.5, porque la paridad ocupa ≈ 5 min con la T4 efímera (conflicto 49).
+- **Hechos: 85 correcciones (4 graves).** Las graves: con el controlador del balanceador de AWS en modo `ip`, un pod que falla su readiness sale del target group, así que si caen todos el ALB contesta 503 él mismo (no «falla abierto», conflicto 47, corregido también en «Balanceadores»); la forma shell de `CMD` no siempre pierde la señal, porque el `sh` de Debian (dash) se reemplaza por el último comando (conflicto 48, corregido en «Programa, proceso e hilo» y «La terminal»); `concurrency` de GitHub Actions no pone las corridas en fila: la nueva cancela a la que esperaba; y la paridad en la T4 efímera tarda ≈ 5 min, no 1. De las 97 dudas de los escritores, 80 (82 %) estaban bien tal cual.
+- **Claridad: 367 cambios**, 184 de conocimiento supuesto (clúster, nodo, pod, PID 1, SIGTERM, release de NGC, `${{ }}`…) y 35 de letras.
+- **Mecánica: 44 hallazgos**, casi todos de cuentas y orígenes (un PNG de 48 MP que «pesa menos que 2 fotos», un `.dockerignore` «de 25 líneas» con 19 patrones).
+- **Consistencia: 13 hallazgos**, todos en lecciones anteriores o en la ficha: `programa-proceso`, `terminal`, `pruebas-ci`, `git` y `ataques`. También la línea de log: la revisión de e06 midió ≈ 450 B con sus campos, y se decidió usar la misma línea compacta de «Formatos» (≈ 300 B), que usan 8 lecciones.
+- **Un arreglo del build:** `tools/mate.mjs` dibujaba `t_{prod}` como ∏; ahora un subíndice que es solo «sum» o «prod» sale como palabra.
+- `programa-proceso` (63 min) y `terminal` (62 min) ya pasaban de 60 min de lo esencial antes de esta fase; siguen así.
+
+Para la fase 14: mismo flujo, con las estaciones 9 y 10 (Kubernetes y rollout). Lo que la Ronda y el Dojo tienen mal de estas fases está en `.solo/fase12-13/revision/*-hechos.md`, sección «Para la Ronda» (el 503 del ALB en modo `ip` sí lo dice bien la Ronda; la forma shell, `concurrency` en la hoja de Git, `python:3.13-slim` en Debian 13, los «10 s» del Dojo sin medir).
+
 **Lección aprendida: las esperas entre ventanas van en una sesión nueva y corta.** Una sesión larga gasta ≈ 2 % de la ventana por turno solo en releer su contexto. Una sesión que espera el reinicio y despierta con cada agente que termina se come la ventana sin hacer trabajo. Lo barato es cerrar la sesión larga y que una sesión nueva, con un encargo corto, haga la espera y lance la tanda siguiente.
 
 ## 5. Las fases
 
-Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, la 5, la 6 y la 7 desde el 2026-11-06 la 8 desde el 2026-11-13 y la 9, la 10 y la 11 desde el 2026-11-14: 52 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) las 5 de la fase 8 (9.4–10.3k palabras, 60–61 min lo esencial y 70–75 min todo) las 4 de la fase 9 (10.1–10.6k palabras, 60 min lo esencial y 72–76 min todo) las 2 de la fase 10 (10.8–11.0k palabras, 59–60 min lo esencial y 78 min todo) y las 3 de la fase 11 (9.1–10.3k palabras, 59–60 min lo esencial y 67–73 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
+Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, la 5, la 6 y la 7 desde el 2026-11-06 la 8 desde el 2026-11-13 y la 9, la 10, la 11, la 12 y la 13 desde el 2026-11-14: 55 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) las 5 de la fase 8 (9.4–10.3k palabras, 60–61 min lo esencial y 70–75 min todo) las 4 de la fase 9 (10.1–10.6k palabras, 60 min lo esencial y 72–76 min todo) las 2 de la fase 10 (10.8–11.0k palabras, 59–60 min lo esencial y 78 min todo) las 3 de la fase 11 (9.1–10.3k palabras, 59–60 min lo esencial y 67–73 min todo) y las 3 de las fases 12 y 13 (9.8–10.0k palabras, 59–60 min lo esencial y 71–76 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
 
 | Fase | Módulo | Lecciones | Prepara para la Ronda (nota interna, no va en la app) |
 |---|---|---|---|
@@ -241,8 +262,8 @@ Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 
 | 9 ✓ | Seguridad | Cifrado, llaves y certificados · Autenticación y permisos · Datos personales y la ley · Ataques y cadena de suministro | M05, M07, M09, M15 |
 | 10 ✓ | Estaciones · Datos | Estaciones 1 y 2 de Alba | M09, M10 |
 | 11 ✓ | Estaciones · Modelo | Estaciones 3, 4 y 5 de Alba | M08, M10, M11 |
-| 12 | Estaciones · API | Estación 6 | M03, M07 |
-| 13 | Estaciones · Contenedor | Estación 7 y 8 | M05, M10 |
+| 12 ✓ | Estaciones · API | Estación 6 | M03, M07 |
+| 13 ✓ | Estaciones · Contenedor | Estación 7 y 8 | M05, M10 |
 | 14 | Estaciones · Orquestación | Estación 9 y 10 | M06, M11 |
 | 15 | Estaciones · Monitoreo | Estación 11 y 12 | M03, M12 |
 | 16 | Integración | El Dojo y la Ronda enlazan desde sus propias apps a las lecciones de Sensei (Sensei solo los enlaza desde `/que-sigue/`), hay repaso con tarjetas del glosario y una revisión final de hechos | Todo |

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 394" role="img" aria-labelledby="f-e06-serving-ventana-t" class="f-svg" style="max-width:420px">
+<title id="f-e06-serving-ventana-t">Veinte milisegundos de una T4 de Alba con el batching dinámico de 2 milisegundos. Llegan seis fotos, a los 1, 2.4, 6, 9.7, 10.9 y 15.5 milisegundos. Cada foto que encuentra la fila vacía abre una ventana de 2 milisegundos; la que llega en el milisegundo 1 atrapa a la del 2.4, y la del 9.7 a la del 10.9. La GPU corre cuatro batches, de 2, 1, 2 y 1 fotos, de unos 4 milisegundos cada uno, repartidos entre sus 2 copias del modelo: 6 fotos en 4 batches, 1.5 en promedio, lo mismo que da 1 más 250 por 0.002.</title>
+<rect class="f-card" x="10" y="10" width="340" height="374" rx="16"/>
+<text class="f-l" x="26" y="36">UNA T4 CON VENTANA DE 2 MS</text>
+<line class="f-linea" x1="34.0" y1="70" x2="34.0" y2="76"/>
+<text class="f-l" x="34.0" y="64" text-anchor="middle">0 ms</text>
+<line class="f-linea" x1="100.0" y1="70" x2="100.0" y2="76"/>
+<text class="f-l" x="100.0" y="64" text-anchor="middle">5 ms</text>
+<line class="f-linea" x1="166.0" y1="70" x2="166.0" y2="76"/>
+<text class="f-l" x="166.0" y="64" text-anchor="middle">10 ms</text>
+<line class="f-linea" x1="232.0" y1="70" x2="232.0" y2="76"/>
+<text class="f-l" x="232.0" y="64" text-anchor="middle">15 ms</text>
+<line class="f-linea" x1="298.0" y1="70" x2="298.0" y2="76"/>
+<text class="f-l" x="298.0" y="64" text-anchor="middle">20 ms</text>
+<line class="f-linea" x1="34.0" y1="76" x2="324.4" y2="76"/>
+<text class="f-l" x="26" y="104">LLEGAN FOTOS</text>
+<polygon class="f-ink" points="41.2,112 53.2,112 47.2,122"/>
+<polygon class="f-ink" points="59.7,112 71.7,112 65.7,122"/>
+<polygon class="f-ink" points="107.2,112 119.2,112 113.2,122"/>
+<polygon class="f-ink" points="156.0,112 168.0,112 162.0,122"/>
+<polygon class="f-ink" points="171.9,112 183.9,112 177.9,122"/>
+<polygon class="f-ink" points="232.6,112 244.6,112 238.6,122"/>
+<text class="f-l" x="26" y="152">LA FILA ESPERA 2 MS</text>
+<rect class="f-y" x="47.2" y="160" width="26.4" height="22" rx="4"/>
+<rect class="f-y" x="113.2" y="160" width="26.4" height="22" rx="4"/>
+<rect class="f-y" x="162.0" y="160" width="26.4" height="22" rx="4"/>
+<rect class="f-y" x="238.6" y="160" width="26.4" height="22" rx="4"/>
+<text class="f-l" x="26" y="212">LA GPU, EN SUS 2 COPIAS</text>
+<text class="f-l" x="26" y="238">1</text>
+<text class="f-l" x="26" y="268">2</text>
+<rect class="f-b" x="73.6" y="222" width="52.8" height="24" rx="4"/>
+<text class="f-pill-t" x="100.0" y="239" text-anchor="middle" style="font-size:12px">2 fotos</text>
+<rect class="f-b" x="139.6" y="222" width="52.8" height="24" rx="4"/>
+<text class="f-pill-t" x="166.0" y="239" text-anchor="middle" style="font-size:12px">1 foto</text>
+<rect class="f-b" x="188.4" y="252" width="52.8" height="24" rx="4"/>
+<text class="f-pill-t" x="214.8" y="269" text-anchor="middle" style="font-size:12px">2 fotos</text>
+<rect class="f-b" x="265.0" y="222" width="52.8" height="24" rx="4"/>
+<text class="f-pill-t" x="291.4" y="239" text-anchor="middle" style="font-size:12px">1 foto</text>
+<text class="f-s" x="26" y="306">6 fotos en 4 batches: 1.5 en promedio.</text>
+<text class="f-s" x="26" y="326">La ventana atrapa a una segunda foto</text>
+<text class="f-s" x="26" y="344">solo si llega a menos de 2 ms de la primera.</text>
+<text class="f-s" x="26" y="370" style="font-size:12px">Batch promedio: 1 + 250 × 0.002 = 1.5 fotos</text>
+</svg>

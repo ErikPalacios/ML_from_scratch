@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 380" role="img" aria-labelledby="f-e07-empaquetado-tamanos-t" class="f-svg" style="max-width:420px">
+<title id="f-e07-empaquetado-tamanos-t">Las imágenes de Alba a la misma escala, con su tiempo de pull a 0.03 a 0.09 GB por segundo. La de Triton, de unos 9.2 GB, ocupa toda la barra y tarda de 2 a 5 minutos en un nodo vacío. La del gateway, de unos 87 MB, es una raya casi invisible y tarda de 1 a 3 segundos. Una versión nueva de Triton en un nodo que ya tiene la anterior solo baja el engine, de 50 a 150 MB, en unos segundos. Los gigabytes están en la imagen de Triton.</title>
+<rect class="f-card" x="10" y="10" width="340" height="360" rx="16"/>
+<text class="f-l" x="26" y="36">A LA MISMA ESCALA</text>
+<text class="f-t" x="26" y="70" style="font-size:14px">classifier-triton, nodo vacío</text>
+<rect class="f-dark" x="26" y="80" width="308" height="30" rx="5"/>
+<text class="f-dark-t" x="38" y="100" style="font-size:12px">≈ 9.2 GB</text>
+<text class="f-s" x="26" y="130" style="font-size:12px">pull ≈ 2–5 min</text>
+<text class="f-t" x="26" y="168" style="font-size:14px">classifier-gateway</text>
+<rect class="f-o" x="26" y="178" width="3" height="30" rx="1"/>
+<rect class="f-linea" x="26" y="178" width="308" height="30" rx="5" style="fill:none;stroke-dasharray:4 4"/>
+<text class="f-s" x="40" y="198" style="font-size:12px">≈ 87 MB: menos de 1 % de la barra</text>
+<text class="f-s" x="26" y="228" style="font-size:12px">pull ≈ 1–3 s</text>
+<text class="f-t" x="26" y="266" style="font-size:14px">Triton nueva, nodo con la anterior</text>
+<rect class="f-o" x="26" y="276" width="5" height="30" rx="1"/>
+<rect class="f-linea" x="26" y="276" width="308" height="30" rx="5" style="fill:none;stroke-dasharray:4 4"/>
+<text class="f-s" x="40" y="296" style="font-size:12px">solo el engine: 50–150 MB</text>
+<text class="f-s" x="26" y="326" style="font-size:12px">pull: unos segundos</text>
+<text class="f-s" x="26" y="354" style="font-size:12px">Los GB están en la base de Triton, no en el gateway.</text>
+</svg>

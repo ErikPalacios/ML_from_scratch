@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 448" role="img" aria-labelledby="f-e06-serving-embudo-t" class="f-svg" style="max-width:420px">
+<title id="f-e06-serving-embudo-t">El embudo de la revisión del gateway de Alba, en siete pasos, del más barato al más caro. 1, el tipo: comparar un texto; si falla, 415. 2, el Content-Length: leer un header; 413. 3, leer el body hasta 10 MB; 413. 4, body vacío; 400. 5, los píxeles: leer el encabezado de la imagen; 413 si pasa de 40 megapíxeles. 6, la forma: una multiplicación; 400 si es más alargada que 1 a 8. 7, el decode: unos 6 milisegundos, y cientos de milisegundos si la foto es de 40 megapíxeles; 400 si el archivo está corrupto. La foto de Ana pasa los siete y se vuelve un tensor: 200.</title>
+<rect class="f-card" x="10" y="10" width="340" height="428" rx="16"/>
+<text class="f-l" x="26" y="36">LA REVISIÓN, DE LO BARATO A LO CARO</text>
+<text class="f-l" x="26" y="60">PASO · LO QUE CUESTA</text>
+<text class="f-l" x="311" y="60" text-anchor="middle">SI FALLA</text>
+<rect class="f-chip" x="20" y="72" width="246" height="36" rx="8"/>
+<rect class="f-g" x="20" y="72" width="6" height="36" rx="3"/>
+<text class="f-s" x="34" y="88">1 · Tipo</text>
+<text class="f-l" x="34" y="102">COMPARAR UN TEXTO</text>
+<rect class="f-off" x="287" y="77" width="48" height="26" rx="13"/>
+<text class="f-t" x="311" y="95" text-anchor="middle" style="font-size:14px">415</text>
+<rect class="f-chip" x="20" y="114" width="233" height="36" rx="8"/>
+<rect class="f-g" x="20" y="114" width="6" height="36" rx="3"/>
+<text class="f-s" x="34" y="130">2 · Content-Length</text>
+<text class="f-l" x="34" y="144">LEER UN HEADER</text>
+<rect class="f-off" x="287" y="119" width="48" height="26" rx="13"/>
+<text class="f-t" x="311" y="137" text-anchor="middle" style="font-size:14px">413</text>
+<rect class="f-chip" x="20" y="156" width="220" height="36" rx="8"/>
+<rect class="f-y" x="20" y="156" width="6" height="36" rx="3"/>
+<text class="f-s" x="34" y="172">3 · Leer el body</text>
+<text class="f-l" x="34" y="186">HASTA 10 MB</text>
+<rect class="f-off" x="287" y="161" width="48" height="26" rx="13"/>
+<text class="f-t" x="311" y="179" text-anchor="middle" style="font-size:14px">413</text>
+<rect class="f-chip" x="20" y="198" width="207" height="36" rx="8"/>
+<rect class="f-g" x="20" y="198" width="6" height="36" rx="3"/>
+<text class="f-s" x="34" y="214">4 · ¿Vacío?</text>
+<text class="f-l" x="34" y="228">NADA</text>
+<rect class="f-off" x="287" y="203" width="48" height="26" rx="13"/>
+<text class="f-t" x="311" y="221" text-anchor="middle" style="font-size:14px">400</text>
+<rect class="f-chip" x="20" y="240" width="194" height="36" rx="8"/>
+<rect class="f-y" x="20" y="240" width="6" height="36" rx="3"/>
+<text class="f-s" x="34" y="256">5 · Píxeles</text>
+<text class="f-l" x="34" y="270">LEER EL ENCABEZADO</text>
+<rect class="f-off" x="287" y="245" width="48" height="26" rx="13"/>
+<text class="f-t" x="311" y="263" text-anchor="middle" style="font-size:14px">413</text>
+<rect class="f-chip" x="20" y="282" width="181" height="36" rx="8"/>
+<rect class="f-y" x="20" y="282" width="6" height="36" rx="3"/>
+<text class="f-s" x="34" y="298">6 · Forma, 1:8</text>
+<text class="f-l" x="34" y="312">UNA MULTIPLICACIÓN</text>
+<rect class="f-off" x="287" y="287" width="48" height="26" rx="13"/>
+<text class="f-t" x="311" y="305" text-anchor="middle" style="font-size:14px">400</text>
+<rect class="f-chip" x="20" y="324" width="168" height="36" rx="8"/>
+<rect class="f-o" x="20" y="324" width="6" height="36" rx="3"/>
+<text class="f-s" x="34" y="340">7 · Decode</text>
+<text class="f-l" x="34" y="354">DE 6 A CIENTOS DE MS</text>
+<rect class="f-off" x="287" y="329" width="48" height="26" rx="13"/>
+<text class="f-t" x="311" y="347" text-anchor="middle" style="font-size:14px">400</text>
+<rect class="f-b" x="20" y="374" width="246" height="30" rx="8"/>
+<text class="f-pill-t" x="143" y="394" text-anchor="middle" style="font-size:13px">Ana pasa los 7 → tensor</text>
+<rect class="f-g" x="287" y="376" width="48" height="26" rx="13"/>
+<text class="f-t" x="311" y="394" text-anchor="middle" style="font-size:14px">200</text>
+<rect class="f-g" x="26" y="416" width="12" height="12" rx="3"/><text class="f-s" x="44" y="426" style="font-size:12px">casi gratis</text>
+<rect class="f-y" x="110" y="416" width="12" height="12" rx="3"/><text class="f-s" x="128" y="426" style="font-size:12px">poco</text>
+<rect class="f-o" x="214" y="416" width="12" height="12" rx="3"/><text class="f-s" x="232" y="426" style="font-size:12px">CPU y memoria</text>
+</svg>

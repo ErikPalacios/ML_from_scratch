@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 422" role="img" aria-labelledby="f-e06-serving-plazos-t" class="f-svg" style="max-width:420px">
+<title id="f-e06-serving-plazos-t">Los cuatro plazos de Alba sobre una regla de 0 a 300 milisegundos. La app espera 300; el gateway se da 250; la llamada a Triton tiene un tope de 150, que en la request de Ana empieza a los 9 milisegundos; la fila de Triton tira lo que espere 100. Abajo, la foto de Ana: 3 de subida, 6 de decode, 10 de Triton y 1 de respuesta, 20 milisegundos en total y código 200. Y una subida lenta de 200 milisegundos: tras 6 de decode le quedan 44 para Triton; con Triton trabado, la llamada se corta y el gateway contesta 504 a los 250 milisegundos, antes de los 300 de la app.</title>
+<rect class="f-card" x="10" y="10" width="340" height="402" rx="16"/>
+<text class="f-l" x="26" y="36">CUATRO PLAZOS, UNO DENTRO DEL OTRO</text>
+<line class="f-linea" x1="34.0" y1="58" x2="34.0" y2="64"/>
+<text class="f-l" x="34.0" y="54" text-anchor="middle">0</text>
+<line class="f-linea" x1="84.0" y1="58" x2="84.0" y2="64"/>
+<text class="f-l" x="84.0" y="54" text-anchor="middle">50</text>
+<line class="f-linea" x1="134.0" y1="58" x2="134.0" y2="64"/>
+<text class="f-l" x="134.0" y="54" text-anchor="middle">100</text>
+<line class="f-linea" x1="184.0" y1="58" x2="184.0" y2="64"/>
+<text class="f-l" x="184.0" y="54" text-anchor="middle">150</text>
+<line class="f-linea" x1="234.0" y1="58" x2="234.0" y2="64"/>
+<text class="f-l" x="234.0" y="54" text-anchor="middle">200</text>
+<line class="f-linea" x1="284.0" y1="58" x2="284.0" y2="64"/>
+<text class="f-l" x="284.0" y="54" text-anchor="middle">250</text>
+<line class="f-linea" x1="334.0" y1="58" x2="334.0" y2="64"/>
+<text class="f-l" x="334.0" y="54" text-anchor="middle">300</text>
+<line class="f-linea" x1="34.0" y1="64" x2="334.0" y2="64"/>
+<rect class="f-b2" x="34.0" y="76" width="300" height="24" rx="5"/>
+<text class="f-s" x="42.0" y="93">App · 300 ms</text>
+<rect class="f-b2" x="34.0" y="106" width="250" height="24" rx="5"/>
+<text class="f-s" x="42.0" y="123">Gateway · 250 ms</text>
+<rect class="f-b2" x="43.0" y="136" width="150" height="24" rx="5"/>
+<text class="f-s" x="51.0" y="153">Llamada · 150 ms</text>
+<rect class="f-b2" x="46.0" y="166" width="100" height="24" rx="5"/>
+<text class="f-s" x="54.0" y="183">Fila · 100 ms</text>
+<text class="f-s" x="26" y="214" style="font-size:12px">Barras de arriba: hasta dónde llega cada plazo.</text>
+<text class="f-t" x="26" y="238" style="font-size:14px">Ana: 20 ms, 200</text>
+<rect class="f-b" x="34.0" y="246" width="3" height="18" rx="2"/>
+<rect class="f-y" x="37.0" y="246" width="6" height="18" rx="2"/>
+<rect class="f-g" x="43.0" y="246" width="10" height="18" rx="2"/>
+<rect class="f-p" x="53.0" y="246" width="1.5" height="18" rx="2"/>
+<text class="f-s" x="62.0" y="260" style="font-size:12px">gasta 9 ms antes de Triton</text>
+<text class="f-t" x="26" y="292" style="font-size:14px">Subida lenta, Triton trabado: 504</text>
+<rect class="f-b" x="34.0" y="300" width="200" height="18" rx="2"/>
+<text class="f-pill-t" x="134.0" y="313" text-anchor="middle" style="font-size:12px">subida 200 ms</text>
+<rect class="f-y" x="234.0" y="300" width="6" height="18" rx="2"/>
+<rect class="f-o" x="240.0" y="300" width="44" height="18" rx="2"/>
+<line class="f-flecha" x1="284.0" y1="322" x2="284.0" y2="336"/>
+<text class="f-s" x="278.0" y="334" text-anchor="end" style="font-size:12px">Triton recibe solo 44 ms</text>
+<text class="f-s" x="278.0" y="350" text-anchor="end" style="font-size:12px">y el gateway contesta 504 a los 250</text>
+<rect class="f-b" x="26" y="368" width="12" height="12" rx="3"/><text class="f-s" x="44" y="378" style="font-size:12px">subir el body</text>
+<rect class="f-y" x="150" y="368" width="12" height="12" rx="3"/><text class="f-s" x="168" y="378" style="font-size:12px">decode</text>
+<rect class="f-g" x="236" y="368" width="12" height="12" rx="3"/><text class="f-s" x="254" y="378" style="font-size:12px">Triton</text>
+<rect class="f-p" x="26" y="390" width="12" height="12" rx="3"/><text class="f-s" x="44" y="400" style="font-size:12px">responder</text>
+<rect class="f-o" x="150" y="390" width="12" height="12" rx="3"/><text class="f-s" x="168" y="400" style="font-size:12px">plazo que se corta</text>
+</svg>

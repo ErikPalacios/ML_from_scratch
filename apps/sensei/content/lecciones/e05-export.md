@@ -382,7 +382,7 @@ Alba corre la paridad tres veces, en tres lugares, porque cada una ve cosas que 
 
 - **En CPU, con ONNX Runtime** (paso 2 de esta estación): FP32 contra FP32. Atrapa un export roto: el modelo sin `eval()`, un eje de batch que quedó fijo, un opset que cambió.
 - **El engine en Triton, en la T4** (paso 5): FP16 contra FP32, con las ≈ 10,000 fotos. Atrapa lo que hizo TensorRT: una capa que se desborda en FP16, un engine mal construido. Y como corre contra Triton y no contra el `.plan` suelto, también revisa el contrato con el servidor: que la entrada se llame `input`, sea FP32 con forma `[3, 224, 224]` por foto, y que la salida sean los 500 `logits`.
-- **De punta a punta, por el gateway, en staging** (en «CI/CD y registro de imágenes»). [[ambiente|Staging]] es una copia completa del sistema, sin gente real, para probar antes de producción. Esta paridad manda fotos JPEG reales por el camino de Ana. Atrapa lo que ninguna de las dos anteriores puede ver, porque las dos reciben la foto ya preparada: un preprocesamiento distinto (los colores en otro orden, otra normalización), un [[labels-json|`labels.json`]] en otro orden (la lista que dice qué categoría es cada una de las 500 salidas), un tipo de dato distinto en el gateway.
+- **De punta a punta, por el gateway real, antes de staging** (en «CI/CD y registro de imágenes»). Corre en el runner de CI con T4, con el gateway y el Triton de verdad, justo antes de pasar a [[ambiente|staging]] (una copia completa del sistema, sin gente real, para probar antes de producción). Esta paridad manda fotos JPEG reales por el camino de Ana. Atrapa lo que ninguna de las dos anteriores puede ver, porque las dos reciben la foto ya preparada: un preprocesamiento distinto (los colores en otro orden, otra normalización), un [[labels-json|`labels.json`]] en otro orden (la lista que dice qué categoría es cada una de las 500 salidas), un tipo de dato distinto en el gateway.
 
 :::figura e05-export-paridades
 Qué bug atrapa cada paridad. Ninguna sola atrapa todos: por eso son tres.
@@ -673,7 +673,7 @@ Resuélvelos con lápiz antes de abrir la solución. Usa las letras de la lecci�
 ## Lo que sigue {What comes next}
 
 - «Código de serving» toma el contrato que fijó esta estación (`input` FP32 de `[3, 224, 224]` por foto, `logits` de 500, batch hasta 32) y escribe el `config.pbtxt` de Triton y el gateway que lo usa.
-- «Empaquetado con Docker» cuenta cómo se arma esa imagen: capas, digest y tag. «CI/CD y registro de imágenes» corre la tercera paridad, de punta a punta por el gateway, en staging.
+- «Empaquetado con Docker» cuenta cómo se arma esa imagen: capas, digest y tag. «CI/CD y registro de imágenes» corre la tercera paridad, de punta a punta por el gateway real, antes de staging.
 - «Kubernetes» manda cada imagen al tipo de GPU de su engine, y «Rollout seguro» prueba al `challenger` con tráfico real antes de moverle el alias `champion`.
 
 ## Palabras que vas a oír {Words you will hear}

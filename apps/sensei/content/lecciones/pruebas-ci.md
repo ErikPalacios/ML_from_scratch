@@ -625,7 +625,7 @@ Cuando un job termina, su máquina se borra. Lo que queda es lo que guardaste a 
 - **Los artefactos de la corrida.** La acción `actions/upload-artifact` guarda archivos que se pueden bajar después: el reporte de las pruebas, el de cobertura, un wheel. GitHub los borra solos después de un tiempo: por omisión, 90 días, y cada paso puede pedir menos con `retention-days`.
 - **La caché.** `cache: pip` guarda los paquetes ya bajados para la siguiente corrida, con una llave que sale del archivo de dependencias: si las dependencias no cambiaron, la instalación tarda segundos.
 
-Dos detalles más que ahorran tiempo. Con `concurrency` y `cancel-in-progress: true`, un push nuevo al mismo PR cancela la corrida vieja, que ya no le importa a nadie (sin esa segunda línea, la nueva solo espera su turno). Y con `timeout-minutes`, un job que se atora muere a los minutos que digas en lugar de esperar horas: por omisión son 360 minutos, 6 horas, que en los runners de GitHub es además el máximo por job.
+Dos detalles más que ahorran tiempo. Con `concurrency` y `cancel-in-progress: true`, un push nuevo al mismo PR cancela la corrida vieja, que ya no le importa a nadie (sin esa segunda línea, la nueva espera a que termine la vieja; y si ya había otra esperando, esa se cancela). Y con `timeout-minutes`, un job que se atora muere a los minutos que digas en lugar de esperar horas: por omisión son 360 minutos, 6 horas, que en los runners de GitHub es además el máximo por job.
 
 ### El runner: de GitHub o propio
 
@@ -734,7 +734,7 @@ Funciona solo si se preparó antes:
 En Kubernetes, `kubectl` es el comando de la terminal con el que se le dan órdenes al clúster, y `kubectl rollout undo deployment/gateway` regresa un despliegue a su versión anterior (es una ilustración: necesita un clúster). Para no tener que revertir todo de golpe, las versiones nuevas reciben primero una parte chica del tráfico, el [[canary]], o se preparan completas al lado de la vieja y el tráfico se cambia de una vez, el [[blue-green|blue-green]]. Las dos las cuenta a fondo la lección «Rollout seguro».
 
 :::profundo GitOps: desplegar con un pull request
-En la lección de Git viste [[gitops|GitOps]]: el estado que debe tener el clúster vive en un repositorio, y una herramienta como Argo CD o Flux hace que el clúster se parezca a lo que dice ese repositorio. Con GitOps, el último paso de CD no ejecuta comandos contra el clúster: abre un PR que cambia el digest de la imagen en un archivo. Juntarlo es desplegar, y el rollback es revertir ese commit. La ventaja: la historia de Git dice qué versión servía producción en cada momento y quién la aprobó. Lo que no hace sola es promover de staging a producción ni el canary: eso lo hace tu pipeline, o herramientas como Argo Rollouts.
+En la lección de Git viste [[gitops|GitOps]]: el estado que debe tener el clúster vive en un repositorio, y una herramienta como Argo CD o Flux hace que el clúster se parezca a lo que dice ese repositorio. Con GitOps, el último paso de CD no ejecuta comandos contra el clúster: abre un PR que cambia el digest de la imagen en un archivo. Juntarlo es desplegar, y el rollback es revertir ese commit. La ventaja: la historia de Git dice qué versión servía producción en cada momento y quién la pidió. Lo que no hace sola es promover de staging a producción ni el canary: eso lo hace tu pipeline, o herramientas como Argo Rollouts.
 :::
 
 ### El camino completo de Alba
@@ -745,11 +745,11 @@ Así llega el cambio del martes, ya arreglado, del commit al clúster. Los tiemp
 Lint, formato y tipos, \(t_{lint}\) // al mismo tiempo que las pruebas | ruff y mypy | ≈ 1 min
 Pruebas unitarias y de integración, \(t_{pruebas}\) // las 26 del gateway | pytest | ≈ 2 min
 Construir la imagen // de 30 a 60 s desde cero | docker build | ≈ 1 min
-Paridad de punta a punta // las 20 fotos por el gateway real | runner con T4 | ≈ 1 min
+Paridad de punta a punta // las 20 fotos por el gateway real; el examen, sin contar prender la T4 | runner con T4 | ≈ 1 min
 Desplegar en staging y prueba de humo // ≈ 3 min de pods nuevos + ≈ 30 s de humo | pods nuevos, health check y una foto | ≈ 3.5 min
 Desplegar en producción // de pod en pod, sin apagar el servicio | rollout | ≈ 5 min
 Total, con lint y pruebas a la vez // \(max(t_{lint}, t_{pruebas})\) + imagen + paridad + staging + producción | max(1, 2) + 1 + 1 + 3.5 + 5 | ≈ 12.5 min
-= Unos 12 minutos después del merge, la versión nueva está en el clúster, y nadie copió un archivo. Desde ahí, el canary decide en horas cuándo recibe todo el tráfico.
+= Unos 12 minutos después del merge, la versión nueva está en el clúster, y nadie copió un archivo. Desde ahí, el canary decide en horas cuándo recibe todo el tráfico. Es la cuenta de un camino con la máquina ya prendida y sin subir la imagen: con el push y los ≈ 4 min de prender la T4 y bajar las imágenes, son ≈ 17.5 min; la lección «CI/CD y registro de imágenes» la rehace completa.
 :::
 
 :::diagrama pruebas-ci-pipeline
@@ -911,9 +911,10 @@ def precio(base, con_envio):
 - En el pico, el rollback rápido y el canary dejan de ser lujos.
 ? [reto] Diseña el CI de Alba con un límite: el PR tiene que tener respuesta en menos de 10 minutos. Tienes linter (1 min), unitarias (0.5 min), las 26 de integración (2 min), la paridad del preprocesamiento (0.5 min), construir la imagen (1 min), la paridad de punta a punta en la T4 (1 min, más ≈ 5 min si hay que prender la máquina) y una prueba de humo (0.5 min). ¿Qué corre en cada PR, qué solo en `main` y cuánto tarda cada uno?
 - La regla para sumar tiempos: los jobs que corren a la vez cuentan lo que tarda el más lento, \(max(t_{lint}, t_{pruebas})\); los que corren uno tras otro se suman.
+- Las 26 de integración tardan ≈ 2 min; aquí se suman las unitarias y la paridad del preprocesamiento.
 - **En cada PR**, lo que no necesita GPU, en dos jobs a la vez: el linter, \(t_{lint}\) = 1 min, y las pruebas, \(t_{pruebas}\) = unitarias + integración + paridad del preprocesamiento = 0.5 + 2 + 0.5 = 3 min. Tarda max(1, 3) = **3 min**.
 - **En `main`**, después: la imagen (1 min) y el humo contra la imagen (0.5 min), y luego la paridad de punta a punta en la T4: 1 + 5 = 6 min si la máquina estaba apagada. Desde el merge: 3 + 1 + 0.5 + 6 = **10.5 min**.
-- Si el equipo quiere la paridad de punta a punta en el PR, puede correrla solo cuando el PR toca `preprocess.py` o el cliente de Triton (con `paths` en el YAML), y aceptar esos minutos ahí.
+- Si el equipo quiere avisar antes del merge, ya tiene en el PR la paridad del preprocesamiento (en CPU, 0.5 min). La de punta a punta en la T4 se queda en `main`, como en Alba, porque el runner con GPU tiene permisos en AWS y no debe correr código de un PR.
 - Lo que nunca entra: entrenar el modelo. Eso es otro pipeline.
 ? [reto] Un snapshot de ejemplo (no el de Alba) tiene este mes 1.2 millones de filas, y el anterior tenía 1.0 millones. El 85 % de las etiquetas son débiles (salen de lo que eligió quien vende, sin revisar), y el tope acordado es 80 %. (El de septiembre de Alba tiene 1,932,628 fotos, y el 72 % de sus etiquetas sale de lo que eligió quien vende, ya filtrado.) (a) ¿Pasa la regla de volumen? ¿Y si tuviera 0.7 millones? (b) ¿La regla de etiquetas débiles debería bloquear o avisar? (c) ¿Qué pasa con el modelo en producción si la prueba bloquea?
 - (a) La regla de volumen pide \(0.8 ≤ N_{ahora}/N_{antes} ≤ 1.5\). Con \(N_{ahora}\) = 1.2 y \(N_{antes}\) = 1.0 millones: 1.2 ÷ 1.0 = 1.2, dentro de 0.8 a 1.5: **pasa**. Con 0.7 millones, 0.7 ÷ 1.0 = 0.7 < 0.8: **falla**. Puede ser un job que se cortó a medias.

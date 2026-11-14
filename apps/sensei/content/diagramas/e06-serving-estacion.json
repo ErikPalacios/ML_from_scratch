@@ -1,0 +1,420 @@
+{
+ "titulo": "La estación 6: la foto de Ana por el gateway y por Triton",
+ "width": 78,
+ "height": 66,
+ "lanes": [
+  {
+   "id": "fuera",
+   "label": "Fuera de los pods",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 14
+  },
+  {
+   "id": "gw",
+   "label": "Pod del gateway · CPU (1 vCPU, 1 GiB)",
+   "kind": "online",
+   "x": 0,
+   "y": 16,
+   "w": 78,
+   "h": 32
+  },
+  {
+   "id": "tr",
+   "label": "Pod de Triton · GPU T4",
+   "kind": "online",
+   "x": 0,
+   "y": 50,
+   "w": 78,
+   "h": 16
+  }
+ ],
+ "nodes": [
+  {
+   "id": "app",
+   "label": "App de Ana",
+   "sub": "POST /v1/classify",
+   "kind": "client",
+   "x": 1,
+   "y": 3,
+   "w": 20,
+   "h": 8,
+   "note": "La app sube los bytes de la foto (≈ 200 KB; la de Ana, 214,836 B) con `Content-Type: image/jpeg` y espera **300 ms**. Si no llega respuesta, muestra el selector manual."
+  },
+  {
+   "id": "alb",
+   "label": "ALB",
+   "sub": "TLS · verifica el token",
+   "kind": "edge",
+   "x": 29,
+   "y": 3,
+   "w": 20,
+   "h": 8,
+   "note": "El balanceador de AWS recibe la conexión cifrada (TLS) y la descifra, verifica el token de quien llama y manda la request a una copia del gateway. Solo deja pasar `/v1/classify`."
+  },
+  {
+   "id": "rastro",
+   "label": "Log y métricas",
+   "sub": "1 línea JSON · /metrics",
+   "kind": "monitor",
+   "x": 57,
+   "y": 3,
+   "w": 20,
+   "h": 8,
+   "note": "Una [[log-estructurado|línea de log]] por request, también en los errores, y los contadores que Prometheus lee en `/metrics`. Sus nombres son un contrato con las alertas."
+  },
+  {
+   "id": "revisar",
+   "label": "Revisar",
+   "sub": "tipo → bytes → píxeles",
+   "kind": "service",
+   "x": 1,
+   "y": 21,
+   "w": 20,
+   "h": 8,
+   "note": "De lo barato a lo caro: **415** si no es JPEG, PNG ni WebP; **413** si pasa de 10 MB o de 40 MP; **400** si está vacía, corrupta o más alargada que 1:8. El tope de [[requests-en-vuelo|16 en vuelo]] se revisa antes de todo.",
+   "badge": "1"
+  },
+  {
+   "id": "decode",
+   "label": "Decodificar",
+   "sub": "semáforo de 2 · 50 ms",
+   "kind": "service",
+   "x": 29,
+   "y": 21,
+   "w": 20,
+   "h": 8,
+   "note": "Toma uno de los 2 lugares del [[semaforo|semáforo]] (o 503 si espera más de 50 ms) y decodifica en un hilo: ≈ 6 ms. Sale el tensor de 3 × 224 × 224 en FP32.",
+   "badge": "2"
+  },
+  {
+   "id": "llamada",
+   "label": "Llamar a Triton",
+   "sub": "plazo min(150, lo que queda)",
+   "kind": "service",
+   "x": 57,
+   "y": 21,
+   "w": 20,
+   "h": 8,
+   "note": "Un solo [[cliente-triton|cliente]] por proceso, por HTTP con la [[extension-binaria|extensión binaria]]. El plazo es lo menor entre 150 ms y lo que le queda de los 250. Tarde → **504**; sin conexión → **503**.",
+   "badge": "3"
+  },
+  {
+   "id": "labels",
+   "label": "labels.json",
+   "sub": "500 categorías · ConfigMap",
+   "kind": "store",
+   "x": 1,
+   "y": 36,
+   "w": 20,
+   "h": 8,
+   "note": "Las 500 categorías en el orden de las salidas del modelo. El [[lifespan]] revisa su huella SHA-256 y que sean 500 antes de atender."
+  },
+  {
+   "id": "respuesta",
+   "label": "Responder",
+   "sub": "softmax · top-k · guardia",
+   "kind": "service",
+   "x": 29,
+   "y": 36,
+   "w": 20,
+   "h": 8,
+   "note": "Revisa que los logits sean finitos (si no, **500**), calcula el softmax estable y el top-k, y les pone nombre con `labels.json`. Devuelve `model_version`, `predictions` y `latency_ms`.",
+   "badge": "4"
+  },
+  {
+   "id": "repo",
+   "label": "Model repository",
+   "sub": "config.pbtxt · 1/model.plan",
+   "kind": "store",
+   "x": 1,
+   "y": 54,
+   "w": 20,
+   "h": 8,
+   "note": "La carpeta `classifier/`: el [[config-pbtxt|config.pbtxt]] y el engine en `1/model.plan`. Triton la carga al arrancar y corre el warmup: 3 batches de 32 en ceros en cada copia."
+  },
+  {
+   "id": "modelo",
+   "label": "Engine en la T4",
+   "sub": "2 copias · FP16",
+   "kind": "gpu",
+   "x": 29,
+   "y": 54,
+   "w": 20,
+   "h": 8,
+   "note": "El engine de TensorRT, con 2 copias en la misma T4 ([[instance-group|grupo de instancias]]). Un batch de 1 a 3 fotos tarda ≈ 4 ms."
+  },
+  {
+   "id": "fila",
+   "label": "Fila de Triton",
+   "sub": "espera 2 ms · REJECT a 100",
+   "kind": "queue",
+   "x": 57,
+   "y": 54,
+   "w": 20,
+   "h": 8,
+   "note": "El [[batching-dinamico|batching dinámico]] espera hasta **2 ms** por más fotos para correrlas juntas. Lo que lleve **100 ms** en la fila se rechaza ([[politica-cola|política de la fila]])."
+  }
+ ],
+ "edges": [
+  {
+   "from": "app",
+   "to": "alb",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "foto"
+  },
+  {
+   "from": "alb",
+   "to": "revisar",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t",
+   "via": [
+    [
+     39,
+     15
+    ],
+    [
+     11,
+     15
+    ]
+   ]
+  },
+  {
+   "from": "revisar",
+   "to": "decode",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "decode",
+   "to": "llamada",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "llamada",
+   "to": "fila",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "602 KB"
+  },
+  {
+   "from": "fila",
+   "to": "modelo",
+   "kind": "online",
+   "fromSide": "l",
+   "toSide": "r",
+   "label": "batch"
+  },
+  {
+   "from": "repo",
+   "to": "modelo",
+   "kind": "neutral",
+   "fromSide": "r",
+   "toSide": "l",
+   "dashed": true
+  },
+  {
+   "from": "modelo",
+   "to": "respuesta",
+   "kind": "online",
+   "fromSide": "t",
+   "toSide": "b",
+   "label": "logits"
+  },
+  {
+   "from": "labels",
+   "to": "respuesta",
+   "kind": "neutral",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "respuesta",
+   "to": "rastro",
+   "kind": "monitor",
+   "fromSide": "r",
+   "toSide": "b",
+   "via": [
+    [
+     53,
+     40
+    ],
+    [
+     53,
+     14
+    ],
+    [
+     67,
+     14
+    ]
+   ],
+   "dashed": true
+  }
+ ],
+ "flows": [
+  {
+   "id": "ana",
+   "label": "La foto de Ana",
+   "steps": [
+    {
+     "nodes": [
+      "app",
+      "alb"
+     ],
+     "edges": [
+      "app>alb"
+     ],
+     "text": "La app de Ana sube los 214,836 B de sus tenis. El ALB verifica el token y la manda a una copia del gateway."
+    },
+    {
+     "nodes": [
+      "revisar"
+     ],
+     "edges": [
+      "alb>revisar"
+     ],
+     "text": "Hay 5 requests en vuelo, menos que 16. Es `image/jpeg`, 214,836 B < 10 MB, 768 × 1,024 píxeles < 40 MP y menos alargada que 1:8: pasa los seis primeros pasos. La subida llevó **3 ms**."
+    },
+    {
+     "nodes": [
+      "decode"
+     ],
+     "edges": [
+      "revisar>decode"
+     ],
+     "text": "Hay un lugar libre en el semáforo. El decode y el preproceso tardan **6 ms** en un hilo del pool."
+    },
+    {
+     "nodes": [
+      "llamada",
+      "fila"
+     ],
+     "edges": [
+      "decode>llamada",
+      "llamada>fila"
+     ],
+     "text": "Gastó 9 ms: le quedan 241, así que la llamada recibe su tope de **150 ms**. El tensor de 602,112 B viaja a la Triton de su zona."
+    },
+    {
+     "nodes": [
+      "fila",
+      "modelo",
+      "repo"
+     ],
+     "edges": [
+      "fila>modelo",
+      "repo>modelo"
+     ],
+     "text": "Espera 2 ms en la fila sin que llegue otra foto y corre sola en una de las 2 copias del engine: ≈ 4 ms. Triton contesta en **10 ms** contando la red."
+    },
+    {
+     "nodes": [
+      "respuesta",
+      "labels"
+     ],
+     "edges": [
+      "modelo>respuesta",
+      "labels>respuesta"
+     ],
+     "text": "500 logits finitos: softmax, top-5 y nombres. «Calzado › Tenis» con **94 %**. Responde 200 a los ≈ 20 ms."
+    },
+    {
+     "nodes": [
+      "rastro"
+     ],
+     "edges": [
+      "respuesta>rastro"
+     ],
+     "text": "En el `finally`, una línea de log con `request_id`, versión, tiempos, top-k y `status` 200, y los contadores suben en 1."
+    }
+   ]
+  },
+  {
+   "id": "trabado",
+   "label": "Una GPU trabada",
+   "steps": [
+    {
+     "nodes": [
+      "app",
+      "alb",
+      "revisar",
+      "decode"
+     ],
+     "edges": [
+      "app>alb",
+      "alb>revisar",
+      "revisar>decode"
+     ],
+     "text": "Una foto normal pasa la revisión y el decode en ≈ 9 ms, como la de Ana."
+    },
+    {
+     "nodes": [
+      "llamada",
+      "fila"
+     ],
+     "edges": [
+      "decode>llamada",
+      "llamada>fila"
+     ],
+     "text": "La T4 de su zona está trabada. La foto entra a la fila y no sale."
+    },
+    {
+     "nodes": [
+      "fila"
+     ],
+     "edges": [],
+     "text": "A los 100 ms en la fila, Triton la **rechaza**. Si la red se cortó y no llega ni el rechazo, el plazo de la llamada se acaba a los 150 ms."
+    },
+    {
+     "nodes": [
+      "llamada",
+      "rastro"
+     ],
+     "edges": [],
+     "text": "El gateway contesta **503** (rechazo) o **504** (plazo), mucho antes de los 300 ms de la app, que muestra el selector manual. El log anota el código y el error."
+    }
+   ]
+  },
+  {
+   "id": "grande",
+   "label": "Una foto de 48 MP",
+   "steps": [
+    {
+     "nodes": [
+      "app",
+      "alb"
+     ],
+     "edges": [
+      "app>alb"
+     ],
+     "text": "Llega un PNG de 1.9 MB: pasa por el ALB, que no revisa el tamaño del body."
+    },
+    {
+     "nodes": [
+      "revisar"
+     ],
+     "edges": [
+      "alb>revisar"
+     ],
+     "text": "Tipo bien, 1.9 MB < 10 MB. Pillow lee el **encabezado**: 8,000 × 6,000 = 48 MP > 40. **413**, sin decodificar nada."
+    },
+    {
+     "nodes": [
+      "rastro"
+     ],
+     "edges": [],
+     "text": "Una línea de log con 413. No entra al histograma de latencia, porque los 4xx no cuentan para el p99."
+    }
+   ]
+  }
+ ]
+}

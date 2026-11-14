@@ -1,0 +1,272 @@
+{
+ "titulo": "Vivo y listo: quién pregunta qué",
+ "width": 78,
+ "height": 46,
+ "lanes": [
+  {
+   "id": "gw",
+   "label": "Pod del gateway",
+   "kind": "online",
+   "x": 0,
+   "y": 14,
+   "w": 52,
+   "h": 32
+  },
+  {
+   "id": "tr",
+   "label": "Pod de Triton",
+   "kind": "neutral",
+   "x": 54,
+   "y": 14,
+   "w": 24,
+   "h": 32
+  }
+ ],
+ "nodes": [
+  {
+   "id": "kube",
+   "label": "Kubernetes",
+   "sub": "pregunta a cada copia",
+   "kind": "monitor",
+   "x": 29,
+   "y": 2,
+   "w": 20,
+   "h": 8,
+   "note": "Pregunta a cada copia del gateway por su salud: a `/healthz` cada 10 s y a `/readyz` cada 5 s, con 2 s para contestar. Son los [[health-check|health checks]] de «Balanceadores, proxies y gateways»."
+  },
+  {
+   "id": "alb",
+   "label": "ALB",
+   "sub": "reparte a los listos",
+   "kind": "edge",
+   "x": 57,
+   "y": 2,
+   "w": 20,
+   "h": 8,
+   "note": "Solo le manda fotos a las copias que están en su lista. Cada copia que falla su `/readyz` sale de la lista; si salen todas, el ALB contesta él mismo el 503, y ese no aparece en las métricas del gateway."
+  },
+  {
+   "id": "healthz",
+   "label": "/healthz",
+   "sub": "¿sigues vivo?",
+   "kind": "service",
+   "x": 1,
+   "y": 19,
+   "w": 20,
+   "h": 8,
+   "note": "Contesta `{\"status\": \"ok\"}` si el proceso y su event loop responden. **No pregunta a nadie más.** Tres fallos seguidos → Kubernetes reinicia la copia."
+  },
+  {
+   "id": "readyz",
+   "label": "/readyz",
+   "sub": "¿te mando tráfico?",
+   "kind": "service",
+   "x": 29,
+   "y": 19,
+   "w": 20,
+   "h": 8,
+   "note": "Le pregunta a Triton si `classifier` está listo, con tope de 0.5 s. Dos fallos seguidos → la copia sale del reparto **sin reiniciarse**."
+  },
+  {
+   "id": "lifespan",
+   "label": "Lifespan",
+   "sub": "labels · cliente · semáforo",
+   "kind": "job",
+   "x": 29,
+   "y": 34,
+   "w": 20,
+   "h": 8,
+   "note": "Corre una vez al arrancar: revisa `labels.json`, crea el cliente de Triton, revisa que el modelo dé 500 logits y crea los topes. Hasta que termina, `/readyz` no puede dar 200."
+  },
+  {
+   "id": "triton",
+   "label": "Triton",
+   "sub": "/v2/health/ready",
+   "kind": "gpu",
+   "x": 57,
+   "y": 19,
+   "w": 20,
+   "h": 8,
+   "note": "Su ruta `/v2/health/ready` es la pregunta «¿estás listo?» del protocolo v2. Dice «listo» solo cuando cargó el engine y corrió el warmup (≈ 10 a 60 s tras arrancar), porque arranca con `--strict-readiness=true`."
+  }
+ ],
+ "edges": [
+  {
+   "from": "kube",
+   "to": "healthz",
+   "kind": "monitor",
+   "fromSide": "l",
+   "toSide": "t",
+   "label": "10 s",
+   "via": [
+    [
+     11,
+     6
+    ]
+   ]
+  },
+  {
+   "from": "kube",
+   "to": "readyz",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "5 s"
+  },
+  {
+   "from": "kube",
+   "to": "alb",
+   "kind": "monitor",
+   "fromSide": "r",
+   "toSide": "l",
+   "dashed": true
+  },
+  {
+   "from": "readyz",
+   "to": "triton",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "0.5 s"
+  },
+  {
+   "from": "lifespan",
+   "to": "readyz",
+   "kind": "neutral",
+   "fromSide": "t",
+   "toSide": "b",
+   "dashed": true
+  },
+  {
+   "from": "lifespan",
+   "to": "triton",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "b",
+   "via": [
+    [
+     67,
+     38
+    ]
+   ]
+  }
+ ],
+ "flows": [
+  {
+   "id": "arranque",
+   "label": "El arranque",
+   "steps": [
+    {
+     "nodes": [
+      "lifespan",
+      "triton"
+     ],
+     "edges": [
+      "lifespan>triton"
+     ],
+     "text": "El lifespan revisa la huella de `labels.json`, crea el cliente y le pide a Triton los metadatos del modelo: 500 logits = 500 labels."
+    },
+    {
+     "nodes": [
+      "lifespan",
+      "readyz"
+     ],
+     "edges": [
+      "lifespan>readyz"
+     ],
+     "text": "Termina el lifespan: la aplicación empieza a atender."
+    },
+    {
+     "nodes": [
+      "kube",
+      "readyz",
+      "triton"
+     ],
+     "edges": [
+      "kube>readyz",
+      "readyz>triton"
+     ],
+     "text": "Kubernetes pregunta a `/readyz`; Triton dice que `classifier` está listo: **200**."
+    },
+    {
+     "nodes": [
+      "kube",
+      "alb"
+     ],
+     "edges": [
+      "kube>alb"
+     ],
+     "text": "La copia entra al reparto y el ALB empieza a mandarle fotos."
+    }
+   ]
+  },
+  {
+   "id": "cae",
+   "label": "Triton se cae",
+   "steps": [
+    {
+     "nodes": [
+      "kube",
+      "healthz"
+     ],
+     "edges": [
+      "kube>healthz"
+     ],
+     "text": "`/healthz` sigue dando **200**: el proceso vive. Kubernetes no reinicia nada."
+    },
+    {
+     "nodes": [
+      "kube",
+      "readyz",
+      "triton"
+     ],
+     "edges": [
+      "kube>readyz",
+      "readyz>triton"
+     ],
+     "text": "`/readyz` no recibe respuesta de Triton en 0.5 s: **503**, dos veces seguidas."
+    },
+    {
+     "nodes": [
+      "kube",
+      "alb"
+     ],
+     "edges": [
+      "kube>alb"
+     ],
+     "text": "La copia sale del reparto, viva, esperando. Cuando Triton vuelve, `/readyz` da 200 en la siguiente pregunta (cada 5 s) y la copia regresa sin haber arrancado de nuevo; el ALB puede tardar un poco más en volver a contarla."
+    }
+   ]
+  },
+  {
+   "id": "congelado",
+   "label": "El event loop congelado",
+   "steps": [
+    {
+     "nodes": [
+      "healthz"
+     ],
+     "edges": [],
+     "text": "Alguien metió un decode dentro de `async def` sin mandarlo a un hilo. Con fotos grandes, el loop se congela segundos."
+    },
+    {
+     "nodes": [
+      "kube",
+      "healthz"
+     ],
+     "edges": [
+      "kube>healthz"
+     ],
+     "text": "`/healthz` no contesta en 2 s, tres veces seguidas: el proceso no está muerto, pero no responde."
+    },
+    {
+     "nodes": [
+      "kube"
+     ],
+     "edges": [],
+     "text": "Kubernetes **reinicia** la copia. Es la pregunta correcta: ninguna dependencia está mal, el problema es de esta copia."
+    }
+   ]
+  }
+ ]
+}

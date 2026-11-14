@@ -277,7 +277,7 @@ La readiness es el health check del balanceo: un pod que no está listo sale de 
 El ALB, además, tiene sus propios health checks, que no son los de Kubernetes: son dos jueces distintos, con sus propios tiempos. Si nadie los cambia, el ALB pregunta cada 30 s y saca al destino tras 2 fallas, hasta un minuto; el controlador de AWS que lo arma desde Kubernetes (un programa dentro del clúster que crea y ajusta el ALB; lo ves con el Ingress) pone, por omisión, cada 15 s y 2 fallas. En Alba manda el que avise primero: si el chequeo del ALB falla, el ALB deja de mandarle; si falla la readiness, el controlador de AWS da de baja al pod en el ALB. Y ninguno dice que las respuestas sean buenas. La readiness pregunta «¿el proceso está vivo y cargó el modelo?», no «¿las predicciones son buenas?»: eso se vigila con las métricas del modelo, no con el balanceador.
 
 :::profundo Cuando todos fallan: el balanceador falla abierto
-Una readiness que pregunta por una dependencia es un arma de doble filo. Si Triton se cae, **todos** los gateways fallan su `/readyz` a la vez. ¿Qué hace un balanceador sin ningún destino sano? El ALB, en ese caso, se porta de forma **abierta** ([[fail-open]]): manda el tráfico a todos los destinos de todos modos. Parece raro, pero tiene lógica: si el chequeo está mal (por ejemplo, depende de algo que se cayó para todos), apagar todo convertiría una falla parcial en una total. La lección que sigue desarrolla cuándo conviene fallar abierto y cuándo cerrado.
+Una readiness que pregunta por una dependencia es un arma de doble filo. Si Triton se cae, **todos** los gateways fallan su `/readyz` a la vez. ¿Qué hace un balanceador sin ningún destino sano? Depende de quién lo saca. Si los destinos siguen registrados y fallan el chequeo del propio ALB, se porta de forma **abierta** ([[fail-open]]): manda el tráfico a todos de todos modos. Parece raro, pero tiene lógica: si el chequeo está mal (por ejemplo, depende de algo que se cayó para todos), apagar todo convertiría una falla parcial en una total. Pero en Alba los pods del gateway entran al ALB por su IP, y Kubernetes saca de la lista a cada pod que falla su readiness: si fallan todos, la lista queda vacía y el ALB contesta él mismo un 503, que no aparece en las métricas del gateway. La lección que sigue desarrolla cuándo conviene fallar abierto y cuándo cerrado.
 :::
 
 ## Rate limiting con un token bucket {Rate limiting with a token bucket}
@@ -577,7 +577,7 @@ Todos reciben las mismas requests, pero no el mismo trabajo, y la fila crece det
 
 Si la liveness del gateway revisa a Triton, cuando Triton cae el kubelet (el agente de Kubernetes en cada máquina) reinicia gateways sanos, que no arreglan nada.
 
-**Cómo evitarlo:** la liveness solo pregunta si el proceso responde. Las dependencias van en la readiness (sabiendo que, si todos fallan a la vez, el ALB falla abierto) o en las respuestas: un 503 con `Retry-After`.
+**Cómo evitarlo:** la liveness solo pregunta si el proceso responde. Las dependencias van en la readiness (sabiendo que, si todos fallan a la vez, salen todos del balanceo y el ALB contesta 503 él mismo) o en las respuestas: un 503 con `Retry-After`.
 
 ### 4. Un rate limit por pod, por IP o con 503
 

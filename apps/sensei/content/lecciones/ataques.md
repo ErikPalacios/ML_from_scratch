@@ -508,12 +508,12 @@ Que la imagen esté limpia no dice **quién** la armó. Alguien con acceso al re
 Ojo al verificar: «está firmada» no basta; hay que verificar «la firmó el pipeline de Alba».
 
 :::profundo Firmar sin guardar una llave, y la trampa de verificarlo
-Con cosign se puede firmar sin guardar una llave privada (*keyless*): el CI recibe un [[certificado]] de vida corta (un documento firmado que une su identidad con una llave), firma, y la firma queda en un registro público. Aquí está la trampa: **cualquiera** puede firmar así con **su** identidad. Verificar «está firmada» no sirve; hay que verificar «la firmó el pipeline de Alba». Así se ve esa verificación (ilustración: las direcciones, el registro y el digest son de ejemplo):
+Con cosign se puede firmar sin guardar una llave privada (*keyless*): el CI recibe un [[certificado]] de vida corta (un documento firmado que une su identidad con una llave), firma, y la firma queda en un registro público. Aquí está la trampa: **cualquiera** puede firmar así con **su** identidad. Verificar «está firmada» no sirve; hay que verificar «la firmó el pipeline de Alba». Así se ve esa verificación (ilustración: el registro y el digest son de ejemplo; la identidad es la del workflow de GitHub Actions que arma la imagen del gateway):
 
 ```
 cosign verify \
-  --certificate-identity "https://ci.alba.example/classifier/release" \
-  --certificate-oidc-issuer "https://ci.alba.example" \
+  --certificate-identity "https://github.com/alba/classifier/.github/workflows/gateway.yml@refs/heads/main" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
   registro/classifier-gateway@sha256:…
 ```
 

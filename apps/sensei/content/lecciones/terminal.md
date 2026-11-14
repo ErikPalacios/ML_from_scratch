@@ -814,7 +814,7 @@ El reporte trae el id `9f2c41d0`, que viaja en el header `X-Request-ID`. Esa req
 `kubectl port-forward -n classifier svc/triton 8002:8002` abre un túnel al puerto de métricas, y `curl -sS localhost:8002/metrics | grep nv_inference_queue` muestra cuánto esperan las requests en la cola de Triton.
 :::
 
-La lección de procesos te contó otra historia del gateway de Alba que es de shell: el `CMD` del Dockerfile en forma shell deja a `/bin/sh` como PID 1, y `sh` no le pasa el SIGTERM a uvicorn. Ahora sabes qué es esa `sh`: una shell, lanzada solo para leer una línea.
+La lección de procesos te contó otra historia del gateway de Alba que es de shell: el `CMD` del Dockerfile en forma shell arranca `/bin/sh -c …`, y si esa `sh` se queda como PID 1 (con un tubo, por ejemplo), no le pasa el SIGTERM a uvicorn. Ahora sabes qué es esa `sh`: una shell, lanzada solo para leer una línea.
 
 ### CI: scripts que corre una máquina
 

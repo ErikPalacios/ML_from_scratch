@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 410" role="img" aria-labelledby="f-e07-empaquetado-cache-t" class="f-svg" style="max-width:420px">
+<title id="f-e07-empaquetado-cache-t">El mismo cambio de una línea en main.py con dos órdenes del Dockerfile. Con el orden de Alba (FROM python:3.13-slim, COPY requirements.txt, RUN pip install, COPY app/), los tres primeros pasos salen de la caché y solo se rehace COPY app/: unos 3 segundos y unos 48 KB nuevos. Con COPY . . antes de instalar (FROM, COPY . ., RUN pip install), el COPY . . cambia porque copia main.py, y la caché se rompe hacia abajo: se rehacen COPY . . y el pip install, unos 43 segundos y unos 160 MB nuevos.</title>
+<rect class="f-card" x="10" y="10" width="340" height="390" rx="16"/>
+<text class="f-l" x="26" y="36">CAMBIAS UNA LÍNEA DE MAIN.PY</text>
+<text class="f-t" x="96" y="66" text-anchor="middle" style="font-size:14px">Orden de Alba</text>
+<text class="f-t" x="264" y="66" text-anchor="middle" style="font-size:14px">COPY . . antes</text>
+<rect class="f-chip" x="20" y="80" width="152" height="34" rx="6"/>
+<text class="f-s" x="30" y="102" style="font-size:12px">FROM python:3.13-slim</text>
+<rect class="f-chip" x="20" y="120" width="152" height="34" rx="6"/>
+<text class="f-s" x="30" y="142" style="font-size:12px">COPY requirements.txt</text>
+<rect class="f-chip" x="20" y="160" width="152" height="34" rx="6"/>
+<text class="f-s" x="30" y="182" style="font-size:12px">RUN pip install</text>
+<rect class="f-o" x="20" y="200" width="152" height="34" rx="6"/>
+<text class="f-pill-t" x="30" y="222" style="font-size:12px">COPY app/</text>
+<rect class="f-chip" x="188" y="80" width="152" height="34" rx="6"/>
+<text class="f-s" x="198" y="102" style="font-size:12px">FROM python:3.13-slim</text>
+<rect class="f-o" x="188" y="120" width="152" height="34" rx="6"/>
+<text class="f-pill-t" x="198" y="142" style="font-size:12px">COPY . .  (lee main.py)</text>
+<rect class="f-o" x="188" y="160" width="152" height="34" rx="6"/>
+<text class="f-pill-t" x="198" y="182" style="font-size:12px">RUN pip install</text>
+<text class="f-l" x="264" y="222" text-anchor="middle">SE ROMPE HACIA ABAJO</text>
+<rect class="f-g" x="20" y="252" width="152" height="54" rx="10"/>
+<text class="f-pill-t" x="96" y="275" text-anchor="middle" style="font-size:14px">≈ 3 s</text>
+<text class="f-pill-t" x="96" y="295" text-anchor="middle" style="font-size:12px">≈ 48 KB nuevos</text>
+<rect class="f-o" x="188" y="252" width="152" height="54" rx="10"/>
+<text class="f-pill-t" x="264" y="275" text-anchor="middle" style="font-size:14px">≈ 43 s</text>
+<text class="f-pill-t" x="264" y="295" text-anchor="middle" style="font-size:12px">≈ 160 MB nuevos</text>
+<rect class="f-chip" x="26" y="328" width="18" height="14" rx="3"/>
+<text class="f-s" x="52" y="340" style="font-size:12px">sale de la caché</text>
+<rect class="f-o" x="186" y="328" width="18" height="14" rx="3"/>
+<text class="f-s" x="212" y="340" style="font-size:12px">se rehace</text>
+<text class="f-s" x="26" y="370" style="font-size:12px">La llave de cada paso lleva la del anterior: si uno</text>
+<text class="f-s" x="26" y="388" style="font-size:12px">cambia, todos los de abajo se rehacen.</text>
+</svg>

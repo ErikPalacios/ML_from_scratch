@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" role="img" aria-labelledby="f-e07-empaquetado-capas-t" class="f-svg" style="max-width:420px">
+<title id="f-e07-empaquetado-capas-t">Las dos imágenes de Alba como pilas de capas, sin escala. A la izquierda, classifier-gateway de unos 87 MB comprimida: abajo la base python:3.13-slim (Debian y Python) de 43 MB, encima el entorno /opt/venv con 37 paquetes de 44 MB, y hasta arriba el código app/ de unos 48 KB, que es lo que cambia en cada commit. A la derecha, classifier-triton de unos 9.2 GB: abajo la base de NVIDIA tritonserver:24.08-py3, con Ubuntu 22.04, CUDA 12.6 y TensorRT 10.3, en varias capas que suman unos 9.2 GB y cuya capa más grande pesa unos 4.3 GB; hasta arriba el engine model.plan de 50 a 150 MB, que cambia cada mes. Lo que cambia más seguido va hasta arriba.</title>
+<defs><marker id="fe7c-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="400" rx="16"/>
+<text class="f-l" x="26" y="36">DOS IMÁGENES, CAPA POR CAPA</text>
+<text class="f-t" x="95" y="66" text-anchor="middle" style="font-size:14px">classifier-gateway</text>
+<text class="f-s" x="95" y="84" text-anchor="middle" style="font-size:12px">≈ 87 MB comprimida</text>
+<text class="f-t" x="265" y="66" text-anchor="middle" style="font-size:14px">classifier-triton</text>
+<text class="f-s" x="265" y="84" text-anchor="middle" style="font-size:12px">≈ 9.2 GB comprimida</text>
+<text class="f-l" x="95" y="112" text-anchor="middle">CADA COMMIT</text>
+<line class="f-flecha" x1="95" y1="118" x2="95" y2="134" marker-end="url(#fe7c-a)"/>
+<rect class="f-o" x="22" y="140" width="146" height="30" rx="6"/>
+<text class="f-pill-t" x="95" y="160" text-anchor="middle" style="font-size:12px">app/ · ≈ 48 KB</text>
+<rect class="f-b2" x="22" y="174" width="146" height="72" rx="6"/>
+<text class="f-t" x="95" y="204" text-anchor="middle" style="font-size:13px">/opt/venv</text>
+<text class="f-s" x="95" y="222" text-anchor="middle" style="font-size:12px">37 paquetes · ≈ 44 MB</text>
+<rect class="f-chip" x="22" y="250" width="146" height="72" rx="6"/>
+<text class="f-t" x="95" y="280" text-anchor="middle" style="font-size:13px">python:3.13-slim</text>
+<text class="f-s" x="95" y="298" text-anchor="middle" style="font-size:12px">Debian · ≈ 43 MB</text>
+<text class="f-l" x="265" y="112" text-anchor="middle">CADA MES</text>
+<line class="f-flecha" x1="265" y1="118" x2="265" y2="134" marker-end="url(#fe7c-a)"/>
+<rect class="f-o" x="192" y="140" width="146" height="30" rx="6"/>
+<text class="f-pill-t" x="265" y="160" text-anchor="middle" style="font-size:12px">engine · 50–150 MB</text>
+<rect class="f-dark" x="192" y="174" width="146" height="148" rx="6"/>
+<text class="f-dark-l" x="204" y="196">BASE DE NVIDIA</text>
+<text class="f-dark-t" x="204" y="218" style="font-size:13px">tritonserver:24.08</text>
+<text class="f-dark-t" x="204" y="240" style="font-size:12px">Ubuntu · CUDA 12.6</text>
+<text class="f-dark-t" x="204" y="258" style="font-size:12px">TensorRT 10.3</text>
+<text class="f-dark-t" x="204" y="284" style="font-size:12px">varias capas, ≈ 9.2 GB</text>
+<text class="f-dark-t" x="204" y="302" style="font-size:12px">la mayor: ≈ 4.3 GB</text>
+<text class="f-s" x="26" y="352" style="font-size:12px">Sin escala: la de Triton pesa ≈ 100 veces la del</text>
+<text class="f-s" x="26" y="370" style="font-size:12px">gateway. En las dos, lo que cambia más seguido va</text>
+<text class="f-s" x="26" y="388" style="font-size:12px">hasta arriba: es lo único que se rehace y se baja.</text>
+</svg>

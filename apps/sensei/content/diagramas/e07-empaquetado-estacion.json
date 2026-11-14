@@ -1,0 +1,325 @@
+{
+  "titulo": "Del repositorio a dos imágenes probadas",
+  "width": 78,
+  "height": 60,
+  "lanes": [
+    {
+      "id": "repo",
+      "label": "Lo que entra",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 14
+    },
+    {
+      "id": "build",
+      "label": "docker build: una receta por imagen",
+      "kind": "offline",
+      "x": 0,
+      "y": 16,
+      "w": 78,
+      "h": 28
+    },
+    {
+      "id": "sale",
+      "label": "Prueba local y entrega",
+      "kind": "online",
+      "x": 0,
+      "y": 46,
+      "w": 78,
+      "h": 14
+    }
+  ],
+  "nodes": [
+    {
+      "id": "gwcod",
+      "label": "Código del gateway",
+      "sub": "app/ · 37 deps · Dockerfile",
+      "kind": "store",
+      "x": 1,
+      "y": 4,
+      "w": 22,
+      "h": 8,
+      "note": "La carpeta `gateway/` del repositorio `classifier`: el código en `app/` (≈ 48 KB), `requirements.txt` con las 37 dependencias fijadas con `==`, las 26 pruebas en `tests/`, el [[dockerfile|Dockerfile]] y el [[dockerignore|.dockerignore]]."
+    },
+    {
+      "id": "repomod",
+      "label": "Repositorio de modelos",
+      "sub": "config.pbtxt, sin engine",
+      "kind": "store",
+      "x": 28,
+      "y": 4,
+      "w": 22,
+      "h": 8,
+      "note": "`triton/model_repository/classifier/`: el `config.pbtxt` está en Git; la carpeta `1/` espera el `model.plan`, que **no** está en Git. Junto está `triton/Dockerfile`."
+    },
+    {
+      "id": "registro",
+      "label": "Registro de modelos",
+      "sub": "model.plan de la v14",
+      "kind": "store",
+      "x": 55,
+      "y": 4,
+      "w": 22,
+      "h": 8,
+      "note": "El [[registro-modelos|registro de modelos]] guarda el engine de `resnet50-2026-10-01` (versión 14, alias `challenger`) con su SHA-256. Lo construyó «Export, engine y paridad»."
+    },
+    {
+      "id": "bgw",
+      "label": "Build del gateway",
+      "sub": "2 etapas · ≈ 30–60 s",
+      "badge": "1",
+      "kind": "job",
+      "x": 1,
+      "y": 21,
+      "w": 22,
+      "h": 8,
+      "note": "`docker build -t classifier-gateway:3f9c2ab gateway/`. Desde cero tarda ≈ 30–60 s; si solo cambió el código, ≈ 2–5 s, gracias a la [[cache-build|caché]] y al orden de las capas."
+    },
+    {
+      "id": "btr",
+      "label": "Build de Triton",
+      "sub": "en la T4 · test -f",
+      "badge": "2",
+      "kind": "job",
+      "x": 44,
+      "y": 21,
+      "w": 22,
+      "h": 8,
+      "note": "El workflow `triton-modelo` (los pasos automáticos de CI), en el runner con T4, la máquina de CI con la misma GPU que producción: baja el engine, verifica su SHA-256, lo pone en `classifier/1/` y corre `docker build`. El `RUN test -f` hace fallar el build si falta el engine."
+    },
+    {
+      "id": "igw",
+      "label": "classifier-gateway",
+      "sub": "3f9c2ab · ≈ 87 MB",
+      "kind": "store",
+      "x": 1,
+      "y": 33,
+      "w": 22,
+      "h": 8,
+      "note": "≈ 87 MB comprimida: 43 de `python:3.13-slim`, 44 del entorno y 0.048 del código. Usuario 10001, forma exec, `HEALTHCHECK` y plataforma `linux/amd64`."
+    },
+    {
+      "id": "itr",
+      "label": "classifier-triton",
+      "sub": "resnet50-2026-10-01 · ≈ 9.2 GB",
+      "kind": "store",
+      "x": 44,
+      "y": 33,
+      "w": 22,
+      "h": 8,
+      "note": "≈ 9.2 GB comprimida, casi todo la base `tritonserver:24.08-py3`. El engine va en la última capa: los [[pesos-horneados|pesos horneados]]. El tag es la versión del modelo."
+    },
+    {
+      "id": "compose",
+      "label": "docker compose up",
+      "sub": "los dos juntos, 1 GPU",
+      "badge": "3",
+      "kind": "service",
+      "x": 18,
+      "y": 49,
+      "w": 24,
+      "h": 8,
+      "note": "[[docker-compose|Compose]] levanta Triton y el gateway en una máquina con GPU; el gateway espera a que Triton esté sano. Una foto de prueba por `curl` cierra el ciclo."
+    },
+    {
+      "id": "e08",
+      "label": "CI/CD y registro",
+      "sub": "build en CI · digest",
+      "kind": "external",
+      "x": 55,
+      "y": 49,
+      "w": 22,
+      "h": 8,
+      "note": "La estación siguiente construye las mismas recetas en CI, sube las imágenes al registro y despliega por [[digest-imagen|digest]]."
+    }
+  ],
+  "edges": [
+    {
+      "from": "gwcod",
+      "to": "bgw",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "repomod",
+      "to": "btr",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          39,
+          17
+        ],
+        [
+          50,
+          17
+        ]
+      ]
+    },
+    {
+      "from": "registro",
+      "to": "btr",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          66,
+          17
+        ],
+        [
+          60,
+          17
+        ]
+      ]
+    },
+    {
+      "from": "bgw",
+      "to": "igw",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "btr",
+      "to": "itr",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "igw",
+      "to": "compose",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "l",
+      "via": [
+        [
+          12,
+          53
+        ]
+      ]
+    },
+    {
+      "from": "itr",
+      "to": "compose",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          55,
+          45
+        ],
+        [
+          30,
+          45
+        ]
+      ]
+    },
+    {
+      "from": "compose",
+      "to": "e08",
+      "kind": "neutral",
+      "label": "probadas",
+      "fromSide": "r",
+      "toSide": "l"
+    }
+  ],
+  "flows": [
+    {
+      "id": "gateway",
+      "label": "La imagen del gateway",
+      "steps": [
+        {
+          "nodes": [
+            "gwcod"
+          ],
+          "edges": [],
+          "text": "Alguien cambia una línea de `app/main.py`. El **contexto** es la carpeta `gateway/`, menos lo que lista el `.dockerignore`: ni pruebas, ni `.git`, ni `.env`, ni modelos."
+        },
+        {
+          "nodes": [
+            "gwcod",
+            "bgw"
+          ],
+          "edges": [
+            "gwcod>bgw"
+          ],
+          "text": "`docker build` recorre el Dockerfile. La base, `requirements.txt` y el `pip install` salen de la caché: sus llaves no cambiaron. Solo se rehace `COPY app/`: ≈ 2–5 s."
+        },
+        {
+          "nodes": [
+            "bgw",
+            "igw"
+          ],
+          "edges": [
+            "bgw>igw"
+          ],
+          "text": "Sale `classifier-gateway:3f9c2ab`, ≈ 87 MB comprimida. Solo su capa de código (≈ 48 KB) es nueva; las otras tienen la misma huella que antes."
+        },
+        {
+          "nodes": [
+            "igw",
+            "compose"
+          ],
+          "edges": [
+            "igw>compose"
+          ],
+          "text": "En compose, el gateway arranca **después** de que Triton está sano y llama a `triton:8000` por nombre."
+        }
+      ]
+    },
+    {
+      "id": "triton",
+      "label": "La imagen de Triton con su engine",
+      "steps": [
+        {
+          "nodes": [
+            "registro"
+          ],
+          "edges": [],
+          "text": "El pipeline mensual registra `resnet50-2026-10-01` como `challenger`. Eso dispara el workflow `triton-modelo` en el runner con T4."
+        },
+        {
+          "nodes": [
+            "repomod",
+            "registro",
+            "btr"
+          ],
+          "edges": [
+            "repomod>btr",
+            "registro>btr"
+          ],
+          "text": "Baja el engine, verifica su SHA-256 y lo deja en `classifier/1/model.plan`, junto al `config.pbtxt`. `docker build` copia todo a `/models` y `RUN test -f` confirma que el engine está."
+        },
+        {
+          "nodes": [
+            "btr",
+            "itr"
+          ],
+          "edges": [
+            "btr>itr"
+          ],
+          "text": "Sale `classifier-triton:resnet50-2026-10-01`, ≈ 9.2 GB. Las capas de la base son las de siempre; la única nueva es la del engine, ≈ 50–150 MB."
+        },
+        {
+          "nodes": [
+            "itr",
+            "compose",
+            "e08"
+          ],
+          "edges": [
+            "itr>compose",
+            "compose>e08"
+          ],
+          "text": "Se prende para ver que Triton cargue y quede listo. Con las dos imágenes probadas, la estación siguiente las publica y despliega por digest."
+        }
+      ]
+    }
+  ]
+}

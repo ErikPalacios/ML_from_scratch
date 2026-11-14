@@ -1,0 +1,109 @@
+{
+ "titulo": "El plazo que recibe la llamada a Triton",
+ "intro": "Aplica las dos ecuaciones de la lección: \\(R = P − g\\), lo que le queda a la request, y \\(T_e = min(T, R)\\), el plazo que recibe la llamada. Lo gastado es \\(g = g_s + g_c + g_p\\): subir el body, esperar lugar de CPU y decodificar. Arranca con la request de Ana.",
+ "entradas": [
+  {
+   "id": "p",
+   "label": "Plazo total del gateway, \\(P\\), en ms",
+   "min": 100,
+   "max": 300,
+   "paso": 10,
+   "valor": 250
+  },
+  {
+   "id": "t",
+   "label": "Tope de la llamada a Triton, \\(T\\), en ms",
+   "min": 50,
+   "max": 300,
+   "paso": 10,
+   "valor": 150
+  },
+  {
+   "id": "gs",
+   "label": "Subir el body, \\(g_s\\), en ms",
+   "min": 0,
+   "max": 300,
+   "paso": 1,
+   "valor": 3
+  },
+  {
+   "id": "gc",
+   "label": "Esperar lugar de CPU, \\(g_c\\), en ms (más de 50 = 503)",
+   "min": 0,
+   "max": 50,
+   "paso": 1,
+   "valor": 0
+  },
+  {
+   "id": "gp",
+   "label": "Decodificar y preparar, \\(g_p\\), en ms",
+   "min": 1,
+   "max": 100,
+   "paso": 1,
+   "valor": 6
+  },
+  {
+   "id": "dt",
+   "label": "Lo que tarda Triton de verdad, \\(t_{Tr}\\), en ms",
+   "min": 1,
+   "max": 300,
+   "paso": 1,
+   "valor": 10
+  }
+ ],
+ "calculos": [
+  {
+   "id": "g",
+   "formula": "gs + gc + gp"
+  },
+  {
+   "id": "r",
+   "formula": "p - g"
+  },
+  {
+   "id": "te",
+   "formula": "max(min(t, r), 0)"
+  },
+  {
+   "id": "fin",
+   "formula": "g + min(dt, te)"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "Lo gastado, \\(g\\)",
+   "formula": "g",
+   "formato": "ms",
+   "nota": "\\(g = g_s + g_c + g_p\\)",
+   "decimales": 0
+  },
+  {
+   "label": "Lo que queda, \\(R = P − g\\)",
+   "formula": "r",
+   "formato": "ms",
+   "nota": "si es 0 o menos, 504 sin llamar a Triton",
+   "decimales": 0
+  },
+  {
+   "label": "Plazo de la llamada, \\(T_e = min(T, R)\\)",
+   "formula": "te",
+   "formato": "ms",
+   "decimales": 0
+  },
+  {
+   "label": "Margen de la llamada, \\(T_e − t_{Tr}\\)",
+   "formula": "te - dt",
+   "formato": "ms",
+   "nota": "negativo: la llamada se corta y sale 504",
+   "decimales": 0
+  },
+  {
+   "label": "Cuándo vuelve la llamada o se corta, contando desde que llegó la request",
+   "formula": "fin",
+   "formato": "ms",
+   "nota": "\\(g + t_{Tr}\\) si alcanza; \\(g + T_e\\) si se corta. Falta ≈ 1 ms para responder; la app espera 300",
+   "decimales": 0
+  }
+ ],
+ "nota": "Sin la parte de \\(R\\), la llamada recibiría siempre \\(T\\) = 150 ms, y una request que ya gastó mucho contestaría después de que la app se rindió."
+}

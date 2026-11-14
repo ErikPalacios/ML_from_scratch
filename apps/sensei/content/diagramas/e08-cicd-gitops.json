@@ -1,0 +1,279 @@
+{
+  "titulo": "El digest viaja por Git: CI escribe, Argo CD aplica",
+  "width": 78,
+  "height": 48,
+  "lanes": [
+    {
+      "id": "gh",
+      "label": "GitHub Actions",
+      "kind": "offline",
+      "x": 0,
+      "y": 0,
+      "w": 21,
+      "h": 48
+    },
+    {
+      "id": "git",
+      "label": "Git y Argo CD",
+      "kind": "neutral",
+      "x": 30,
+      "y": 0,
+      "w": 20,
+      "h": 48
+    },
+    {
+      "id": "k8s",
+      "label": "AWS · registro y clúster",
+      "kind": "online",
+      "x": 57,
+      "y": 0,
+      "w": 21,
+      "h": 48
+    }
+  ],
+  "nodes": [
+    {
+      "id": "imagen",
+      "label": "job imagen",
+      "sub": "outputs.digest",
+      "kind": "job",
+      "x": 1,
+      "y": 5,
+      "w": 19,
+      "h": 8,
+      "note": "Deja el digest como [[outputs-job|salida del job]]: `digest=sha256:…`. Los jobs de abajo lo leen como `needs.imagen.outputs.digest`."
+    },
+    {
+      "id": "prodjob",
+      "label": "job produccion",
+      "sub": "environment · concurrency",
+      "kind": "job",
+      "x": 1,
+      "y": 21,
+      "w": 19,
+      "h": 8,
+      "note": "Espera la aprobación del [[environment-actions|environment]] `produccion` y corre solo uno a la vez, por su grupo de [[concurrency-actions|concurrency]]."
+    },
+    {
+      "id": "persona",
+      "label": "Quien revisa",
+      "sub": "no hizo el cambio",
+      "kind": "human",
+      "x": 1,
+      "y": 37,
+      "w": 19,
+      "h": 8,
+      "note": "Una de las 5 personas del equipo de ML, distinta de quien escribió el cambio. Su «Approve» queda en GitHub con nombre y hora."
+    },
+    {
+      "id": "app",
+      "label": "GitHub App",
+      "sub": "token de 1 h",
+      "kind": "external",
+      "x": 31,
+      "y": 5,
+      "w": 18,
+      "h": 8,
+      "note": "La [[github-app|GitHub App]] instalada solo en `alba/despliegue`, con permiso para abrir y juntar PR ahí y nada más. El token del workflow no sirve fuera de `alba/classifier`."
+    },
+    {
+      "id": "repo",
+      "label": "alba/despliegue",
+      "sub": "la línea image:",
+      "kind": "store",
+      "x": 31,
+      "y": 21,
+      "w": 18,
+      "h": 8,
+      "note": "El archivo del gateway queda con `classifier-gateway:3f9c2ab@sha256:…`. Cada despliegue es un PR juntado, con su autor y su hora: [[gitops|GitOps]]."
+    },
+    {
+      "id": "argo",
+      "label": "Argo CD",
+      "sub": "compara y aplica",
+      "kind": "service",
+      "x": 31,
+      "y": 37,
+      "w": 18,
+      "h": 8,
+      "note": "[[argo-cd|Argo CD]] corre dentro del clúster: lee `main` del repositorio de despliegue y cambia lo que no coincide. El CI nunca entra al clúster."
+    },
+    {
+      "id": "ecr",
+      "label": "ECR",
+      "sub": "classifier-gateway",
+      "kind": "store",
+      "x": 58,
+      "y": 5,
+      "w": 19,
+      "h": 8,
+      "note": "Las imágenes, con [[tag-inmutable|tags inmutables]]. Aquí sigue la versión anterior, gracias a la [[politica-retencion-imagenes|retención]] de las últimas 200."
+    },
+    {
+      "id": "prod",
+      "label": "producción",
+      "sub": "namespace classifier",
+      "kind": "service",
+      "x": 58,
+      "y": 37,
+      "w": 19,
+      "h": 8,
+      "note": "En el *namespace* `classifier`, el apartado de producción dentro del clúster, las copias del gateway bajan la imagen **por digest** y reemplazan a las viejas una por una. Cómo lo hace Kubernetes lo cuenta «Kubernetes»."
+    }
+  ],
+  "edges": [
+    {
+      "from": "imagen",
+      "to": "prodjob",
+      "kind": "offline",
+      "label": "digest",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "persona",
+      "to": "prodjob",
+      "kind": "neutral",
+      "label": "Approve",
+      "fromSide": "t",
+      "toSide": "b"
+    },
+    {
+      "from": "app",
+      "to": "repo",
+      "kind": "neutral",
+      "label": "token",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "prodjob",
+      "to": "repo",
+      "kind": "offline",
+      "label": "PR y merge",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "repo",
+      "to": "argo",
+      "kind": "online",
+      "label": "lee main",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "argo",
+      "to": "prod",
+      "kind": "online",
+      "label": "aplica",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "prod",
+      "to": "ecr",
+      "kind": "async",
+      "label": "pull por digest",
+      "fromSide": "t",
+      "toSide": "b"
+    }
+  ],
+  "flows": [
+    {
+      "id": "deploy",
+      "label": "Despliegue a producción",
+      "steps": [
+        {
+          "nodes": [
+            "imagen",
+            "prodjob"
+          ],
+          "edges": [
+            "imagen>prodjob"
+          ],
+          "text": "Staging ya pasó con el digest de `3f9c2ab`. El job **produccion** lo recibe del job `imagen` y se queda esperando."
+        },
+        {
+          "nodes": [
+            "persona",
+            "prodjob"
+          ],
+          "edges": [
+            "persona>prodjob"
+          ],
+          "text": "Una **persona** que no escribió el cambio aprieta «Approve». Ahora el job corre, y nadie más despliega a la vez."
+        },
+        {
+          "nodes": [
+            "app",
+            "repo",
+            "prodjob"
+          ],
+          "edges": [
+            "app>repo",
+            "prodjob>repo"
+          ],
+          "text": "El job pide un token a la **GitHub App**, abre un PR en `alba/despliegue` y lo junta: la línea `image:` pasa a `3f9c2ab@sha256:…`."
+        },
+        {
+          "nodes": [
+            "repo",
+            "argo"
+          ],
+          "edges": [
+            "repo>argo"
+          ],
+          "text": "GitHub avisa a **Argo CD** con un webhook. Argo CD ve que el repositorio pide otro digest que el que corre el clúster."
+        },
+        {
+          "nodes": [
+            "argo",
+            "prod",
+            "ecr"
+          ],
+          "edges": [
+            "argo>prod",
+            "prod>ecr"
+          ],
+          "text": "Argo CD aplica el cambio; las copias nuevas **bajan por digest** de ECR y reemplazan a las viejas. ≈ 5 min."
+        }
+      ]
+    },
+    {
+      "id": "rollback",
+      "label": "Rollback: revertir el commit",
+      "steps": [
+        {
+          "nodes": [
+            "prod"
+          ],
+          "edges": [],
+          "text": "Los errores 504 (se acabó el tiempo de espera) se disparan después del despliegue. Primero revertir, después investigar."
+        },
+        {
+          "nodes": [
+            "persona",
+            "repo"
+          ],
+          "edges": [],
+          "text": "Alguien del equipo hace `git revert` del commit que pidió el digest nuevo, en un PR que se aprueba rápido. La línea vuelve a pedir el digest anterior."
+        },
+        {
+          "nodes": [
+            "repo",
+            "argo",
+            "prod",
+            "ecr"
+          ],
+          "edges": [
+            "repo>argo",
+            "argo>prod",
+            "prod>ecr"
+          ],
+          "text": "Argo CD aplica la línea vieja y las copias bajan la imagen anterior, que **sigue en ECR**. Nadie reconstruye nada."
+        }
+      ]
+    }
+  ]
+}

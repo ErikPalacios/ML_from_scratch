@@ -1,0 +1,23 @@
+{
+  "titulo": "El runner con T4: propio, prendido todo el mes o rentado",
+  "intro": "Aplica las ecuaciones de la lección: \\(H = J × t_{on} ÷ 60\\), las horas prendida; \\(C = p × H\\), lo que cuesta el runner propio; \\(C_{siempre} = p × 730\\), lo que costaría prendido todo el mes; y \\(C_{gh} = p_{min} × J × t_{on}\\), lo mismo en el runner con GPU que renta GitHub. Arranca con los supuestos de Alba.",
+  "entradas": [
+    { "id": "n", "label": "Jobs al mes, \\(J\\)", "min": 1, "max": 2000, "paso": 1, "valor": 120 },
+    { "id": "ton", "label": "Minutos prendida por job, \\(t_{on}\\) (arrancar, bajar las imágenes y correr)", "min": 1, "max": 120, "paso": 1, "valor": 5 },
+    { "id": "p", "label": "Precio de la máquina, \\(p\\), en US$ por hora (g4dn.xlarge)", "min": 0.1, "max": 5, "paso": 0.001, "valor": 0.526 },
+    { "id": "pm", "label": "Precio del runner de GitHub con GPU, \\(p_{min}\\), en US$ por minuto", "min": 0.001, "max": 0.5, "paso": 0.001, "valor": 0.052 }
+  ],
+  "calculos": [
+    { "id": "h", "formula": "n * ton / 60" },
+    { "id": "cc", "formula": "p * h" },
+    { "id": "cg", "formula": "pm * n * ton" }
+  ],
+  "salidas": [
+    { "label": "Horas prendida al mes, \\(H\\)", "formula": "h", "formato": "num", "decimales": 1, "nota": "\\(H = J × t_{on} ÷ 60\\)" },
+    { "label": "Runner propio, \\(C\\), en US$ al mes", "formula": "cc", "formato": "num", "decimales": 2, "nota": "\\(C = p × H\\)" },
+    { "label": "La misma máquina prendida todo el mes, \\(C_{siempre}\\), en US$", "formula": "p * 730", "formato": "num", "decimales": 0, "nota": "\\(C_{siempre} = p × 730\\); 730 h = un mes" },
+    { "label": "Runner de GitHub con GPU, \\(C_{gh}\\), en US$ al mes", "formula": "cg", "formato": "num", "decimales": 2, "nota": "\\(C_{gh} = p_{min} × J × t_{on}\\)" },
+    { "label": "Cuántas veces más cuesta el de GitHub, \\(C_{gh} ÷ C\\)", "formula": "cg / max(cc, 1e-9)", "formato": "x", "decimales": 1 }
+  ],
+  "nota": "Los 120 jobs (4 merges al día con su paridad) y los 5 minutos prendida son supuestos de la lección; los precios son de noviembre de 2026 y cambian. Si \\(H\\) pasa de 730, ni prendida todo el mes alcanza: harían falta dos máquinas."
+}

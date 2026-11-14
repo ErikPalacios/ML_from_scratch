@@ -1,0 +1,60 @@
+{
+  "titulo": "Del PR a producción: los dos workflows de Alba y el registro en medio",
+  "width": 78,
+  "height": 66,
+  "lanes": [
+    { "id": "ci", "label": "GitHub Actions · repositorio alba/classifier", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 29 },
+    { "id": "reg", "label": "Registro de imágenes (ECR)", "kind": "neutral", "x": 0, "y": 30, "w": 78, "h": 18 },
+    { "id": "dep", "label": "Despliegue por GitOps", "kind": "online", "x": 0, "y": 50, "w": 78, "h": 16 }
+  ],
+  "nodes": [
+    { "id": "pr", "label": "Un PR o un merge", "sub": "al código del gateway", "kind": "client", "x": 1, "y": 5, "w": 20, "h": 8,
+      "note": "Lo que dispara `gateway.yml`: cada [[pull-request|PR]] y cada push a `main`. El workflow no filtra por carpetas, para que el [[check-obligatorio|check obligatorio]] siempre reporte." },
+    { "id": "pruebas", "label": "lint y pruebas", "sub": "a la vez · ≈ 2 min", "badge": "1", "kind": "job", "x": 29, "y": 5, "w": 20, "h": 8,
+      "note": "Dos [[job-actions|jobs]] a la vez en runners de GitHub: ruff y mypy (≈ 1 min) y las 26 pruebas con un Triton falso (≈ 2 min). En un PR, aquí termina todo." },
+    { "id": "imagen", "label": "imagen", "sub": "build · humo · escaneo · push", "badge": "2", "kind": "job", "x": 57, "y": 5, "w": 20, "h": 8,
+      "note": "Solo después del merge. Construye para `linux/amd64`, prueba un contenedor, saca el SBOM y escanea; si hay un CVE crítico con parche, falla antes del push. Sube, firma el digest y lo deja como [[outputs-job|salida]]. ≈ 2 min." },
+    { "id": "tritonwf", "label": "triton-modelo", "sub": "por botón · runner T4", "kind": "job", "x": 1, "y": 20, "w": 20, "h": 8,
+      "note": "El otro workflow, una vez al mes: baja el engine de la versión 14, verifica su sha256, arma la imagen de Triton, comprueba que queda lista y la sube como `classifier-triton:resnet50-2026-10-01`." },
+    { "id": "paridad", "label": "paridad de punta a punta", "sub": "20 fotos · runner T4 · ≈ 5 min", "badge": "4", "kind": "gpu", "x": 57, "y": 20, "w": 20, "h": 8,
+      "note": "En el [[runner-self-hosted|runner propio]] con T4: el gateway de ese digest y el Triton real responden las 20 fotos de referencia. Top-1 igual y scores a ≤ 0.01. Prender la máquina y bajar las imágenes tarda ≈ 4 min; el examen, ≈ 1 min." },
+    { "id": "ecr", "label": "ECR", "sub": "2 repositorios · tags inmutables", "badge": "3", "kind": "store", "x": 29, "y": 38, "w": 20, "h": 8,
+      "note": "`classifier-gateway` y `classifier-triton`, con [[tag-inmutable|tags inmutables]], escaneo al subir y retención: las últimas 200 del gateway y 12 de Triton." },
+    { "id": "staging", "label": "staging", "sub": "classifier-staging · humo", "badge": "5", "kind": "service", "x": 57, "y": 55, "w": 20, "h": 8,
+      "note": "El job `staging` cambia la línea `image:` en el repositorio de despliegue; [[argo-cd|Argo CD]] la aplica en el namespace `classifier-staging`, con su propia T4, y corre la prueba de humo. ≈ 3.5 min." },
+    { "id": "aprueba", "label": "Una persona aprueba", "sub": "environment produccion", "badge": "6", "kind": "human", "x": 29, "y": 55, "w": 20, "h": 8,
+      "note": "El [[environment-actions|environment]] `produccion` exige que apruebe alguien del equipo de ML que no hizo el cambio. Es la única espera humana del camino." },
+    { "id": "prod", "label": "producción", "sub": "mismo digest · ≈ 5 min", "badge": "7", "kind": "service", "x": 1, "y": 55, "w": 20, "h": 8,
+      "note": "El mismo digest que pasó por staging, sin reconstruir: [[promocion-imagen|promoción]]. Las copias se reemplazan una por una, sin apagar el servicio." }
+  ],
+  "edges": [
+    { "from": "pr", "to": "pruebas", "kind": "offline", "fromSide": "r", "toSide": "l" },
+    { "from": "pruebas", "to": "imagen", "kind": "offline", "label": "solo en main", "fromSide": "r", "toSide": "l" },
+    { "from": "imagen", "to": "ecr", "kind": "offline", "label": "push · digest", "fromSide": "b", "toSide": "t", "via": [[67, 17], [39, 17]] },
+    { "from": "tritonwf", "to": "ecr", "kind": "offline", "label": "1 al mes", "fromSide": "r", "toSide": "l", "via": [[25, 24], [25, 42]] },
+    { "from": "ecr", "to": "paridad", "kind": "async", "label": "pull", "fromSide": "r", "toSide": "l", "via": [[53, 42], [53, 24]] },
+    { "from": "paridad", "to": "staging", "kind": "online", "label": "digest", "fromSide": "b", "toSide": "t" },
+    { "from": "staging", "to": "aprueba", "kind": "online", "fromSide": "l", "toSide": "r" },
+    { "from": "aprueba", "to": "prod", "kind": "online", "fromSide": "l", "toSide": "r" }
+  ],
+  "flows": [
+    { "id": "pr", "label": "Un PR", "steps": [
+      { "nodes": ["pr"], "edges": [], "text": "Una persona abre un **PR** que cambia `gateway/app/main.py`. GitHub prueba un merge de prueba de esa rama con `main`." },
+      { "nodes": ["pr", "pruebas"], "edges": ["pr>pruebas"], "text": "**lint** y **pruebas** corren a la vez. En ≈ 2 min el PR queda en verde o en rojo; `pruebas` es obligatorio, así que en rojo no se puede juntar." },
+      { "nodes": ["pruebas"], "edges": [], "text": "Aquí termina un PR: `imagen` tiene `if` de push y sale en **gris**, y con él todo lo que depende de ella. Ninguna imagen sale de un PR." }
+    ]},
+    { "id": "merge", "label": "Un merge a main", "steps": [
+      { "nodes": ["pr", "pruebas"], "edges": ["pr>pruebas"], "text": "El PR se junta: el commit `3f9c2ab` llega a `main` y las pruebas corren **otra vez**, ahora sobre ese commit real." },
+      { "nodes": ["pruebas", "imagen"], "edges": ["pruebas>imagen"], "text": "**imagen** construye, prueba el contenedor y escanea. Si todo pasa, sube `classifier-gateway:3f9c2ab`." },
+      { "nodes": ["imagen", "ecr"], "edges": ["imagen>ecr"], "text": "ECR guarda las capas nuevas (casi solo la del código, ≈ 48 KB) y responde el **digest**. El job lo firma y lo deja como salida. Van ≈ 4 min desde el merge." },
+      { "nodes": ["ecr", "paridad"], "edges": ["ecr>paridad"], "text": "El runner con T4 arranca, baja esa imagen **por digest** y pasa las 20 fotos por el gateway real con el Triton real." },
+      { "nodes": ["paridad", "staging"], "edges": ["paridad>staging"], "text": "**staging** recibe el mismo digest y responde su prueba de humo." },
+      { "nodes": ["staging", "aprueba"], "edges": ["staging>aprueba"], "text": "El job `produccion` **espera**. Otra persona del equipo revisa y aprueba." },
+      { "nodes": ["aprueba", "prod"], "edges": ["aprueba>prod"], "text": "**Producción** pasa al mismo digest. Del merge a aquí, ≈ 17.5 min más la espera de la aprobación." }
+    ]},
+    { "id": "modelo", "label": "Un modelo nuevo", "steps": [
+      { "nodes": ["tritonwf"], "edges": [], "text": "El pipeline mensual registra `resnet50-2026-10-01` como `challenger` y aprieta el botón de **triton-modelo**." },
+      { "nodes": ["tritonwf", "ecr"], "edges": ["tritonwf>ecr"], "text": "La imagen de Triton llega a `classifier-triton`. Solo viaja la capa del engine: la base ya estaba. Llevarla al tráfico es trabajo de «Rollout seguro»." }
+    ]}
+  ]
+}

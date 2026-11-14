@@ -856,7 +856,7 @@
      "dato": "CPU por foto en el gateway",
      "valor": "≈ 6 ms (promedio)",
      "unidad": "ms",
-     "nota": "Promedio. En el caso lento (p99), el preproceso tarda ≈ 52 ms (50 + 2). Una foto web de 12 MP sin draft mode: 40–80 ms; con draft ≈ 18 ms.",
+     "nota": "Promedio. En el caso lento (p99), el preproceso tarda ≈ 52 ms (50 + 2). Una foto web de 12 MP sin draft mode: 40–80 ms; con draft ≈ 18 ms. Es una foto de 12 MP; una de 40 MP (el máximo aceptado) tarda más: ≈ 80 ms un JPEG y ≈ 350 ms un PNG en una laptop rápida, más en 1 vCPU (revisión de hechos de e06, nov. 2026).",
      "lecciones": [
       "async",
       "latencia",
@@ -3681,7 +3681,7 @@
     {
      "id": "paridad_etapas",
      "dato": "Las tres paridades",
-     "valor": "en CPU con ONNX Runtime (en el export); FP16 contra FP32 con Triton en la T4 (esta estación); de punta a punta por el gateway en staging (la estación de CI/CD)",
+     "valor": "en CPU con ONNX Runtime (en el export); FP16 contra FP32 con Triton en la T4 (esta estación); de punta a punta por el gateway real, en el runner con T4 antes de staging (la estación de CI/CD)",
      "unidad": "—",
      "nota": "",
      "lecciones": [
@@ -3928,6 +3928,635 @@
      "nota": "Supuesto del curso.",
      "lecciones": [
       "e05-export"
+     ]
+    }
+   ]
+  },
+  "estaciones_api": {
+   "descripcion": "Estación 6: el código de serving, el gateway y su llamada a Triton (fase 12)",
+   "hechos": [
+    {
+     "id": "gateway_nombre",
+     "dato": "Nombre del servicio del gateway",
+     "valor": "Deployment y Service gateway en el namespace classifier, puerto 8080; el ALB apunta a las IPs de los pods y solo expone /v1/classify",
+     "unidad": "—",
+     "nota": "Las demás rutas no salen del cluster.",
+     "lecciones": [
+      "e06-serving",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "gateway_rutas",
+     "dato": "Rutas del gateway",
+     "valor": "POST /v1/classify?top_k=5 · GET /healthz (vivo) · GET /readyz (listo) · GET /metrics (métricas para Prometheus, solo dentro del cluster)",
+     "unidad": "—",
+     "nota": "El /v1 es la versión del contrato.",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "gateway_codigo",
+     "dato": "Dónde vive el código del gateway",
+     "valor": "repositorio classifier, carpeta gateway/: app/main.py (crea el servidor y las rutas), app/preprocess.py (decodifica y redimensiona), tests/ (las 26 pruebas), requirements.txt (las 37 dependencias fijadas) y Dockerfile",
+     "unidad": "—",
+     "nota": "Mismo árbol que «Python y sus paquetes»; arranca con uvicorn app.main:app.",
+     "lecciones": [
+      "e06-serving",
+      "e07-empaquetado",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "gateway_framework",
+     "dato": "Framework y servidor del gateway",
+     "valor": "FastAPI sobre uvicorn, Python 3.13; 1 proceso (--workers 1) por pod, un event loop",
+     "unidad": "—",
+     "nota": "Versiones fijadas en requirements.txt (nov. 2026; las revisa la lección). Se escala con más pods, no con más procesos por pod.",
+     "lecciones": [
+      "e06-serving",
+      "e07-empaquetado"
+     ]
+    },
+    {
+     "id": "uvicorn_flags",
+     "dato": "Cómo arranca uvicorn",
+     "valor": "uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1 --timeout-keep-alive 75 --timeout-graceful-shutdown 20 --no-access-log",
+     "unidad": "—",
+     "nota": "75 s de keep-alive, más que los 60 s del ALB, para que el ALB cierre primero; el log de cada request lo escribe el código, no uvicorn.",
+     "lecciones": [
+      "e06-serving",
+      "e07-empaquetado"
+     ]
+    },
+    {
+     "id": "arranque_gateway",
+     "dato": "Qué hace el gateway al arrancar (lifespan)",
+     "valor": "crea un solo cliente de Triton con su pool de conexiones, el semáforo de 2 decodes y el contador de requests en vuelo; lee labels.json y verifica su sha256 y que sean 500 (= logits del modelo según los metadatos de Triton); solo entonces /readyz responde 200",
+     "unidad": "—",
+     "nota": "Si algo falla, el proceso sale con error y el pod no recibe tráfico.",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "labels_gateway",
+     "dato": "De dónde lee el gateway labels.json",
+     "valor": "de un ConfigMap por versión del modelo (classifier-labels-14 para resnet50-2026-10-01), montado en /etc/classifier/labels.json; su sha256 esperado y MODEL_VERSION llegan como variables de entorno en el mismo cambio del repositorio de despliegue",
+     "unidad": "—",
+     "nota": "Decisión del curso: labels.json viaja con el modelo (registry_contenido), no dentro de la imagen del gateway. ≈ 20 KB, cabe en un ConfigMap (tope ≈ 1 MiB).",
+     "lecciones": [
+      "e06-serving",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "foto_validacion_orden",
+     "dato": "Qué valida el gateway, en orden, antes de la GPU",
+     "valor": "tipo (image/jpeg, png o webp; si no, 415) → Content-Length > 10 MB (413 sin leer el body) → lee en pedazos y corta a los 10 MB (413) → body vacío (400) → lee el encabezado de la imagen: > 40 MP (413), lado largo > 8 × lado corto (400) → decodifica con el semáforo de 2: archivo corrupto o truncado (400)",
+     "unidad": "—",
+     "nota": "De lo más barato a lo más caro: cada paso rechaza antes de gastar en el siguiente.",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "foto_aspecto_max",
+     "dato": "Relación de aspecto máxima",
+     "valor": "1:8 (el lado largo ≤ 8 × el lado corto)",
+     "unidad": "—",
+     "nota": "Una foto de 1 × 4,000 px pesa < 200 B y, redimensionada a lado corto 256, quedaría de 256 × 1,024,000 px.",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "triton_llamada",
+     "dato": "Cómo llama el gateway a Triton",
+     "valor": "HTTP con el protocolo de inferencia v2 y la extensión binaria (el tensor viaja como bytes, no como JSON); un cliente asíncrono por proceso con keep-alive; el plazo de 150 ms (promesas.timeout_triton) se pone con asyncio.wait_for alrededor de la llamada",
+     "unidad": "—",
+     "nota": "No gRPC: dentro del cluster la diferencia es chica y HTTP se depura con curl. Un tensor de 3 × 224 × 224 en FP32 son 602,112 B ≈ 602 KB en binario; en JSON, ≈ 3 MB de texto.",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "triton_modelo_io",
+     "dato": "El modelo como lo ve el gateway",
+     "valor": "modelo classifier; entrada input FP32 [3, 224, 224] por foto; salida logits FP32 [500]; max_batch_size 32; plataforma tensorrt_plan",
+     "unidad": "—",
+     "nota": "Coincide con estaciones_modelo.export_firma (sin el eje del batch, que pone Triton).",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "config_pbtxt",
+     "dato": "El config.pbtxt de Alba",
+     "valor": "classifier/config.pbtxt junto a classifier/1/model.plan: dynamic_batching con max_queue_delay_microseconds 2000 y preferred_batch_size 16 y 32; cola con default_timeout_microseconds 100000 y acción REJECT; instance_group 2 copias en la GPU; warmup de 3 corridas con un batch de 32 de ceros",
+     "unidad": "—",
+     "nota": "Lo escribe el repositorio en model_repository/classifier/; el engine lo pone el pipeline del modelo (estaciones_modelo.engine_ubicacion).",
+     "lecciones": [
+      "e06-serving",
+      "e07-empaquetado"
+     ]
+    },
+    {
+     "id": "cadena_plazos",
+     "dato": "La cadena de plazos de una request",
+     "valor": "app ≈ 300 ms → plazo total del gateway 250 ms → llamada a Triton 150 ms → espera máxima en la cola de Triton 100 ms",
+     "unidad": "ms",
+     "nota": "Cada eslabón es menor que el de afuera, para que el de adentro se rinda primero y el de afuera aún pueda responder.",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "triton_arranque",
+     "dato": "Cuándo está listo Triton",
+     "valor": "carga el engine y corre el warmup antes de marcarse listo: ≈ 10–60 s después de que el contenedor arranca",
+     "unidad": "s",
+     "nota": "Supuesto del curso. Es otro reloj que el de leer el archivo del disco (≈ 1 s) y que el del pod completo (servicio.arranque_pod_triton, ≈ 5–13 min, casi todo bajar la imagen).",
+     "lecciones": [
+      "e06-serving",
+      "e07-empaquetado"
+     ]
+    },
+    {
+     "id": "triton_flags",
+     "dato": "Cómo arranca Triton",
+     "valor": "tritonserver --model-repository=/models --model-control-mode=none --disable-auto-complete-config --exit-on-error=true --strict-readiness=true --exit-timeout-secs=30; puertos 8000 (HTTP), 8001 (gRPC) y 8002 (métricas)",
+     "unidad": "—",
+     "nota": "Lo que significa cada flag lo cuenta «Código de serving»; dónde se escribe (el CMD de la imagen), «Empaquetado con Docker».",
+     "lecciones": [
+      "e06-serving",
+      "e07-empaquetado"
+     ]
+    },
+    {
+     "id": "respuesta_campos",
+     "dato": "Lo que devuelve el gateway",
+     "valor": "{\"model_version\": \"resnet50-2026-10-01\", \"predictions\": [{\"label\": …, \"score\": …} × top_k], \"latency_ms\": …}; label es la ruta legible de la categoría y score con 4 decimales; el header X-Request-ID va en cada respuesta",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "request_id_regla",
+     "dato": "De dónde sale el request_id",
+     "valor": "del header X-Request-ID si el que llama lo manda; si no, el gateway genera uno (uuid4)",
+     "unidad": "—",
+     "nota": "Viaja en el log, en la respuesta y a Triton.",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "source_header",
+     "dato": "Header X-Client-Source",
+     "valor": "mobile, web, internal u other (lista cerrada); lo escribe el que llama, así que sirve para partir las métricas y nunca para decidir permisos ni cuotas",
+     "unidad": "—",
+     "nota": "La identidad sale del client_id del token verificado (seguridad.auth_callers).",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "log_campos",
+     "dato": "Los campos de la línea de log de cada request",
+     "valor": "la línea de «Formatos», ≈ 300 B: request_id, caller (client_id del token), model_version, top5 como [[id, score], …], ms (pre, triton, post, total), bytes, sha256 (prefijo de 12 hex) y status; más source y, en los errores, error; a la salida estándar, una línea JSON también en los errores",
+     "unidad": "—",
+     "nota": "Los campos de seguridad.log_privacidad; ≈ 300 B por línea (almacenamiento.log_linea). La revisión de hechos de e06 midió ≈ 450 B con nombres largos y más campos; se decidió conservar la forma compacta de «Formatos».",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "metricas_gateway",
+     "dato": "Métricas del gateway",
+     "valor": "classifier_requests_total por status, source y model_version; histogramas de latencia total, de preprocesamiento y de inferencia; histograma del score top-1 (para la alerta de baja confianza) y del tamaño de la foto",
+     "unidad": "—",
+     "nota": "Las lee Prometheus en /metrics; el monitoreo a fondo es de estaciones posteriores.",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "codigo_499",
+     "dato": "Código cuando el cliente corta la subida",
+     "valor": "499 (el cliente cerró la conexión); cuenta con los 4xx, fuera de la tasa de 5xx",
+     "unidad": "—",
+     "nota": "No es un código del estándar HTTP: lo usa nginx y lo copia el gateway.",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "readyz_regla",
+     "dato": "Qué revisa cada ruta de salud",
+     "valor": "/healthz responde 200 si el proceso y su event loop viven, sin preguntar a nadie; /readyz pregunta a Triton si está listo, con tope de 0.5 s, y responde 503 si no",
+     "unidad": "—",
+     "nota": "Si /healthz preguntara a Triton, una caída de Triton reiniciaría todos los gateways sin arreglar nada.",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "pruebas_cobertura",
+     "dato": "Qué prueban las 26 pruebas del gateway",
+     "valor": "200 con top_k y otros formatos; request_id; 415; 413 por bytes, sin Content-Length y por píxeles; 400 por aspecto, archivo corrupto, truncado y vacío; 422 (top_k fuera de 1–20); 499; 500 (logits NaN); 503 (Triton caído, error de Triton, sobrecarga); 504 (Triton lento, plazo total); /healthz, /readyz y /metrics",
+     "unidad": "pruebas",
+     "nota": "Con un Triton falso, sin GPU (servicio.tests_gateway).",
+     "lecciones": [
+      "e06-serving",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "sin_cache_prediccion",
+     "dato": "Caché de predicciones",
+     "valor": "Alba no tiene: queda como candidata en Redis (llave sha256 de la foto + versión del modelo) solo si los logs muestran que la tasa de aciertos lo justifica",
+     "unidad": "—",
+     "nota": "Con 20 % de aciertos no se quita ninguna T4 (presupuesto_latencia.lat_cache).",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "gateway_memoria_base",
+     "dato": "Memoria del gateway sin trabajar",
+     "valor": "≈ 80 MB (Python, FastAPI y las bibliotecas cargadas)",
+     "unidad": "MB",
+     "nota": "Mismo número que «Ataques». El peor momento es foto_y_preproceso.gateway_memoria (≈ 880 MB de 1 GiB).",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "readyz_probe",
+     "dato": "Cada cuánto pregunta Kubernetes si el gateway está listo",
+     "valor": "cada 5 s, espera 2 s, 2 fallos seguidos lo sacan del balanceo",
+     "unidad": "s",
+     "nota": "Del lado del clúster lo cuenta la estación de Kubernetes; la liveness es servicio.health_check.",
+     "lecciones": [
+      "e06-serving"
+     ]
+    },
+    {
+     "id": "triton_pool",
+     "dato": "Conexiones del cliente de Triton",
+     "valor": "hasta 64 por proceso del gateway",
+     "unidad": "conexiones",
+     "nota": "",
+     "lecciones": [
+      "e06-serving"
+     ]
+    }
+   ]
+  },
+  "estaciones_contenedor": {
+   "descripcion": "Estaciones 7 y 8: las imágenes de contenedor, el CI/CD y el registro de imágenes (fase 13)",
+   "hechos": [
+    {
+     "id": "imagen_gateway_capas",
+     "dato": "Tamaño de la imagen del gateway",
+     "valor": "≈ 87 MB comprimida = 43 (base python:3.13-slim) + 44 (entorno de /opt/venv con 37 paquetes) + 0.048 (el código); el entorno ocupa ≈ 160 MB en disco; la base python:3.13 completa pesa ≈ 0.4 GB",
+     "unidad": "MB",
+     "nota": "Mismo número que «Python y sus paquetes».",
+     "lecciones": [
+      "e07-empaquetado"
+     ]
+    },
+    {
+     "id": "imagen_gateway_receta",
+     "dato": "La receta (Dockerfile) del gateway",
+     "valor": "dos etapas: builder (crea /opt/venv e instala requirements.txt con --only-binary=:all:) y runtime (otra python:3.13-slim que copia /opt/venv y el código); PYTHONUNBUFFERED=1; usuario app con UID 10001; WORKDIR /srv; EXPOSE 8080; HEALTHCHECK cada 10 s con 2 s de espera, 10 s de gracia y 3 reintentos; CMD en forma exec con uvicorn; .dockerignore de 19 patrones (pruebas, cachés, entornos, .git, .env, llaves, fotos y modelos)",
+     "unidad": "—",
+     "nota": "Primero se copia requirements.txt y se instala; el código va al final, para que un cambio de código no rehaga la capa de dependencias.",
+     "lecciones": [
+      "e07-empaquetado"
+     ]
+    },
+    {
+     "id": "bases_fijadas",
+     "dato": "Cómo se fijan las imágenes base",
+     "valor": "por tag y digest (python:3.13-slim@sha256:…); un bot abre un PR cuando sale una base nueva y pasa por CI como cualquier cambio",
+     "unidad": "—",
+     "nota": "Decisión del curso. El digest de ejemplo en las lecciones es de juguete.",
+     "lecciones": [
+      "e07-empaquetado",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "imagen_triton",
+     "dato": "La imagen de Triton",
+     "valor": "FROM nvcr.io/nvidia/tritonserver:24.08-py3 (la misma release de NGC que el tensorrt:24.08-py3 que construyó el engine), ≈ 9.2 GB comprimida (27 capas, la mayor ≈ 4.3 GB; manifest amd64, nov. 2026); COPY model_repository /models; RUN test -f /models/classifier/1/model.plan (el build falla si falta el engine); CMD tritonserver con los flags de estaciones_api.triton_flags; ≈ 100 veces la del gateway",
+     "unidad": "GB",
+     "nota": "La base de NGC corre como root; el pod fija un usuario sin privilegios. El engine (≈ 50–150 MB) va en la última capa.",
+     "lecciones": [
+      "e07-empaquetado",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "imagen_triton_tag",
+     "dato": "Cómo se llama la imagen de Triton",
+     "valor": "classifier-triton:resnet50-2026-10-01 (el tag es la versión del modelo)",
+     "unidad": "—",
+     "nota": "La versión 14 del registry.",
+     "lecciones": [
+      "e07-empaquetado",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "quien_hornea",
+     "dato": "Quién arma la imagen de Triton",
+     "valor": "el workflow triton-modelo del repositorio classifier, en el runner propio con T4: baja el engine del registry, verifica su sha256, arma la imagen, la prueba (Triton carga y queda listo) y la sube",
+     "unidad": "—",
+     "nota": "Lo dispara el pipeline mensual al registrar la versión como challenger. e05 construye el engine; e07 cuenta la receta; e08, el workflow.",
+     "lecciones": [
+      "e07-empaquetado",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "build_gateway_tiempos",
+     "dato": "Cuánto tarda armar la imagen del gateway",
+     "valor": "desde cero ≈ 30–60 s; si solo cambió app/main.py ≈ 2–5 s (una capa nueva de ≈ 48 KB); con COPY . . antes de instalar, cualquier cambio rehace las dependencias: ≈ 30–60 s y una capa de ≈ 160 MB",
+     "unidad": "s",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e07-empaquetado",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "pull_tiempos",
+     "dato": "Cuánto tarda bajar cada imagen a un nodo",
+     "valor": "gateway ≈ 1–3 s; Triton ≈ 2–5 min",
+     "unidad": "—",
+     "nota": "A ≈ 0.03–0.09 GB/s efectivos (bajar y descomprimir capas). Supuesto del curso, igual que servicio.arranque_pod_triton.",
+     "lecciones": [
+      "e07-empaquetado"
+     ]
+    },
+    {
+     "id": "compose_local",
+     "dato": "Cómo se prueba todo en una máquina",
+     "valor": "docker-compose.yml con triton (1 GPU, shm de 1 GB, healthcheck a /v2/health/ready cada 5 s con 60 s de gracia) y gateway (TRITON_URL=triton:8000, arranca cuando triton está sano)",
+     "unidad": "—",
+     "nota": "Solo para desarrollo, en una máquina con GPU; en el cluster manda Kubernetes.",
+     "lecciones": [
+      "e07-empaquetado"
+     ]
+    },
+    {
+     "id": "plataforma_imagen",
+     "dato": "Para qué arquitectura se arman las imágenes",
+     "valor": "linux/amd64, la de los nodos g4dn y c6i",
+     "unidad": "—",
+     "nota": "Una imagen armada en una Mac con chip de Apple sale arm64 y en el nodo falla con exec format error.",
+     "lecciones": [
+      "e07-empaquetado",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "ecr_repos",
+     "dato": "El registro de imágenes de Alba",
+     "valor": "Amazon ECR en us-east-1: repositorios classifier-gateway y classifier-triton (y la imagen de entrenamiento), con tags inmutables y escaneo al subir; dirección 123456789012.dkr.ecr.us-east-1.amazonaws.com/<repositorio> (cuenta de juguete)",
+     "unidad": "—",
+     "nota": "Los nodos lo alcanzan por endpoints de VPC (ecr.api, ecr.dkr y el de S3, donde viven las capas).",
+     "lecciones": [
+      "e07-empaquetado",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "ecr_retencion",
+     "dato": "Cuántas imágenes se guardan",
+     "valor": "las sin tag se borran a 1 día; del gateway se guardan las últimas 200; de Triton, las últimas 12 (un año de modelos)",
+     "unidad": "—",
+     "nota": "Decisión del curso. Con ≈ 3–5 merges al día, 200 imágenes son ≈ 40–67 días (200 ÷ 5 a 200 ÷ 3): la que corre y la anterior siempre están.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "tag_gateway",
+     "dato": "Cómo se nombra la imagen del gateway",
+     "valor": "los 7 primeros caracteres del commit: classifier-gateway:3f9c2ab; se sube solo desde main",
+     "unidad": "—",
+     "nota": "Igual que «Git». Con tags inmutables, volver a subir el mismo tag falla.",
+     "lecciones": [
+      "e07-empaquetado",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "workflow_gateway",
+     "dato": "El workflow del gateway",
+     "valor": ".github/workflows/gateway.yml: en cada PR, lint y pruebas; en cada merge a main, además imagen (build, humo, SBOM y escaneo, push a ECR, firma y el digest como salida del job) → paridad de punta a punta en el runner con T4 → staging → producción con aprobación",
+     "unidad": "—",
+     "nota": "Completa el de «Pruebas y CI/CD», que se detenía antes de subir la imagen.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "ci_duraciones",
+     "dato": "Cuánto tarda cada job",
+     "valor": "lint ≈ 1 min y pruebas ≈ 2 min, a la vez; imagen ≈ 1 min más ≈ 1 min de push; paridad ≈ 5 min (≈ 4 de prender la T4 efímera y bajar las imágenes + ≈ 1 de examen); staging ≈ 3.5 min; producción ≈ 5 min; del merge a producción ≈ 17.5 min más lo que tarde la aprobación",
+     "unidad": "min",
+     "nota": "«Pruebas y CI/CD» cuenta ≈ 12.5 min con solo el minuto del examen y sin el push. Supuestos del curso.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "ci_runner_gateway",
+     "dato": "Dónde corren los jobs del gateway",
+     "valor": "lint, pruebas e imagen en runners de GitHub con Linux x64 (amd64, sin emulación); paridad en el runner propio con T4 (servicio.ci_runner)",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "ci_credenciales",
+     "dato": "Cómo entra el CI a AWS",
+     "valor": "con OIDC: GitHub firma un token por job y AWS lo cambia por credenciales temporales de un rol que solo acepta workflows de la rama main del repositorio classifier; sin llaves guardadas",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "digest_despliegue",
+     "dato": "Cómo llega la imagen al cluster",
+     "valor": "el job imagen publica el digest; un job abre un PR en el repositorio de despliegue que cambia image: a classifier-gateway:3f9c2ab@sha256:…; Argo CD aplica lo que dice main de ese repositorio",
+     "unidad": "—",
+     "nota": "GitOps, como en «Git». Kubernetes baja por el digest; el tag es para que lo lea una persona.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "aprobacion_prod",
+     "dato": "Quién aprueba producción",
+     "valor": "una persona del equipo de ML que no hizo el cambio aprueba el job produccion (environment produccion de GitHub, con revisor obligatorio y sin autoaprobación); después, la GitHub App abre y junta el PR del repositorio de despliegue",
+     "unidad": "—",
+     "nota": "Decisión del curso: el equipo es de 5 personas y Alba tiene GitHub Enterprise, el único plan con revisores obligatorios de un environment en repositorios privados (nov. 2026). Sin Enterprise, la aprobación iría en la revisión del PR de despliegue.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "staging_lugar",
+     "dato": "Dónde vive staging",
+     "valor": "el mismo cluster, namespace classifier-staging, con su propia T4 prendida ≈ 60 h por semana (≈ US$137 al mes)",
+     "unidad": "—",
+     "nota": "Decisión del curso.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "paridad_e2e",
+     "dato": "La paridad de punta a punta",
+     "valor": "20 fotos de referencia mandadas por el gateway real (con el Triton real) en el runner con T4; cada top-1 igual al guardado y los scores a ≤ 0.01; el examen tarda ≈ 1 min; con prender la T4 y bajar las imágenes, ≈ 5 min",
+     "unidad": "—",
+     "nota": "La tercera paridad (estaciones_modelo.paridad_etapas).",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "controles_cadena",
+     "dato": "Dónde corre cada control de la cadena de suministro",
+     "valor": "en el job imagen: SBOM y escaneo (falla con un CVE crítico con parche) antes del push, y la firma del digest después; al desplegar, la política de admisión del cluster rechaza lo que no está firmado",
+     "unidad": "—",
+     "nota": "Los controles de seguridad.release_cadena, ubicados en el pipeline.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "base_debian",
+     "dato": "Debian de la base python:3.13-slim",
+     "valor": "Debian 13 (trixie); ≈ 43 MB comprimida en amd64; la python:3.13 completa ≈ 414 MB",
+     "unidad": "—",
+     "nota": "Verificado en Docker Hub el 2026-11-14.",
+     "lecciones": [
+      "e07-empaquetado"
+     ]
+    },
+    {
+     "id": "imagen_gateway_usuario",
+     "dato": "El usuario de la imagen del gateway",
+     "valor": "app, UID y GID 10001, sin home, shell /usr/sbin/nologin; el código es de root y app solo lo lee; el HEALTHCHECK usa Python (urllib a 127.0.0.1:8080/healthz, 1 s), porque la slim no trae curl",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e07-empaquetado"
+     ]
+    },
+    {
+     "id": "github_repos",
+     "dato": "Repositorios en GitHub",
+     "valor": "alba/classifier (gateway/, model_repository/, triton/ y los workflows) y alba/despliegue (los manifests que aplica Argo CD)",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e07-empaquetado",
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "merges_dia",
+     "dato": "Merges a main del gateway por día",
+     "valor": "≈ 3–5 (4 en las cuentas)",
+     "unidad": "merges/día",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "ci_roles_iam",
+     "dato": "Los roles de AWS del CI",
+     "valor": "gha-classifier-gateway (acepta solo repo:alba/classifier:ref:refs/heads/main y sube a classifier-gateway) y otro rol para el job de producción",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "runner_t4_job",
+     "dato": "Lo que gasta el runner con T4 por job de paridad",
+     "valor": "≈ 5 min prendida → ≈ 120 jobs y ≈ 10 h al mes, ≈ US$5.3",
+     "unidad": "—",
+     "nota": "Con 4 merges al día; g4dn.xlarge on-demand a US$0.526/h.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "triton_modelo_duracion",
+     "dato": "Cuánto tarda el workflow triton-modelo",
+     "valor": "≈ 15 min (tope de 45), ≈ US$0.13 por corrida",
+     "unidad": "min",
+     "nota": "Supuesto del curso: el engine ya viene construido del pipeline mensual.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "ecr_costo",
+     "dato": "Lo que cuesta guardar las imágenes",
+     "valor": "≈ US$0.10 por GB al mes; el gateway ocupa ≈ 97 MB (87 + 200 × 0.048, las capas iguales se guardan una vez) y Triton ≈ 10.3 GB (9.1 + 12 × 0.1): ≈ US$1 al mes",
+     "unidad": "USD/mes",
+     "nota": "Precio de ECR, nov. 2026.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "argo_sincroniza",
+     "dato": "Cada cuánto se entera Argo CD de un cambio",
+     "valor": "al instante con el webhook de GitHub; sin él, por omisión cada 2 a 3 minutos",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "github_app",
+     "dato": "Quién escribe en alba/despliegue",
+     "valor": "una GitHub App instalada solo ahí, que abre el PR; sus tokens duran 1 h; su llave privada es un secreto del repositorio (la única llave larga del camino)",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e08-cicd"
+     ]
+    },
+    {
+     "id": "escaneo_excepciones",
+     "dato": "Excepciones del escaneo",
+     "valor": "un archivo del repositorio con el CVE, el motivo y una fecha de vencimiento, que entra por PR",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e08-cicd"
      ]
     }
    ]
@@ -4313,6 +4942,68 @@
     "pruebas-ci"
    ],
    "como": "«Pruebas y CI/CD» decía que solo se guarda en el registro lo que pasa el gate."
+  },
+  {
+   "n": 44,
+   "tema": "Nombre de la imagen del gateway",
+   "resolucion": "classifier-gateway:3f9c2ab en ECR (estaciones_contenedor.tag_gateway y ecr_repos).",
+   "cambiar": [
+    "formatos"
+   ],
+   "como": "formatos.md usaba registry.example.com/alba/gateway:1.4.2 en el manifest de ejemplo."
+  },
+  {
+   "n": 45,
+   "tema": "Dónde vive labels.json al servir",
+   "resolucion": "Viaja con el modelo: un ConfigMap por versión, montado en el gateway y cambiado en el mismo PR de despliegue que la imagen de Triton (estaciones_api.labels_gateway).",
+   "cambiar": [],
+   "como": "El código de referencia lo metía en la imagen del gateway."
+  },
+  {
+   "n": 46,
+   "tema": "Dónde corre la tercera paridad",
+   "resolucion": "En el runner de CI con T4, por el gateway y el Triton reales, antes de staging (estaciones_modelo.paridad_etapas y estaciones_contenedor.paridad_e2e).",
+   "cambiar": [
+    "e05-export"
+   ],
+   "como": "e05-export (texto y figura de las tres paridades) decía «por el gateway, en staging»."
+  },
+  {
+   "n": 47,
+   "tema": "Qué hace el ALB si ningún gateway está listo",
+   "resolucion": "Con el controlador del balanceador de AWS en modo ip, cada pod que falla su readiness sale del target group; si salen todos, el ALB contesta 503 él mismo (no aparece en las métricas del gateway). Fallar abierto solo pasa con destinos registrados que fallan el health check del ALB.",
+   "cambiar": [
+    "balanceo"
+   ],
+   "como": "«Balanceadores» decía que, con Triton caído, el ALB falla abierto y manda tráfico a todos los gateways."
+  },
+  {
+   "n": 48,
+   "tema": "La forma shell de CMD y la señal",
+   "resolucion": "La forma shell arranca /bin/sh -c; el sh de Debian (dash) se reemplaza por el último comando cuando puede, así que con un comando solo el programa sí recibe el SIGTERM. La señal se pierde con un tubo o un script sin exec. La regla sigue siendo la forma exec (estaciones_contenedor.imagen_gateway_receta).",
+   "cambiar": [
+    "programa-proceso"
+   ],
+   "como": "programa-proceso decía que con la forma shell el PID 1 siempre es /bin/sh y la señal siempre se pierde."
+  },
+  {
+   "n": 49,
+   "tema": "El camino del merge a producción y concurrency",
+   "resolucion": "≈ 17.5 min más la aprobación (estaciones_contenedor.ci_duraciones): la paridad ocupa ≈ 5 min con la T4 efímera y falta el push. La paridad de punta a punta corre solo en main, nunca con código de un PR. Con concurrency, la corrida nueva espera a la vieja, y si ya había otra esperando, esa se cancela.",
+   "cambiar": [
+    "pruebas-ci"
+   ],
+   "como": "pruebas-ci contaba ≈ 12.5 min con la paridad en 1 min, proponía la paridad en la T4 dentro del PR y decía que sin cancel-in-progress la nueva solo espera su turno."
+  },
+  {
+   "n": 50,
+   "tema": "Quién aprueba un despliegue",
+   "resolucion": "La aprobación humana está en el environment produccion del pipeline (estaciones_contenedor.aprobacion_prod); el PR del repositorio de despliegue lo abre y junta una GitHub App, y cambia la imagen con tag y digest. El revert de un rollback sí va por un PR que aprueba una persona.",
+   "cambiar": [
+    "git",
+    "pruebas-ci"
+   ],
+   "como": "git y pruebas-ci leían como si desplegar fuera un PR que una persona revisa y aprueba, y decían que cambia solo el tag o solo el digest."
   }
  ]
 }

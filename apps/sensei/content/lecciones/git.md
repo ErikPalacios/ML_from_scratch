@@ -746,9 +746,9 @@ Alba corre en Kubernetes, el sistema de [[orquestacion|orquestación]] que decid
 
 En [[gitops|GitOps]] (el nombre lo puso la empresa Weaveworks en 2017), esos manifests viven en un repositorio, y un programa dentro del clúster, Argo CD o Flux (dos proyectos de la CNCF, la fundación que también cuida Kubernetes), compara sin parar lo que dice el repositorio con lo que corre de verdad y aplica la diferencia. Las consecuencias:
 
-- **Desplegar es un PR** que cambia el tag de la imagen, con revisión, como cualquier cambio.
+- **Desplegar es un PR** que cambia la imagen (el tag y el digest), y la historia queda en Git. La aprobación humana puede estar en la revisión de ese PR o en el pipeline antes de juntarlo (lo ves en «CI/CD y registro de imágenes»).
 - **El rollback es un revert**, que también pasa por PR.
-- **La historia del repositorio es la historia de producción**: quién desplegó qué, cuándo y quién lo aprobó.
+- **La historia del repositorio es la historia de producción**: quién desplegó qué, quién lo pidió y cuándo se aplicó.
 - **Un cambio a mano no dura.** Si alguien cambia el clúster sin pasar por Git, el clúster ya no coincide con el repositorio (*configuration drift*, deriva de configuración; no es el [[drift]] de los datos, aunque comparta la palabra). Si además de la sincronización automática está prendida la autorreparación (*self-heal*, apagada por omisión), Argo CD lo regresa solo a lo que dice Git; si no, lo marca como distinto y lo pisa en la siguiente sincronización.
 
 Así se ve, en pequeño, el repositorio de despliegue de Alba (`sed -i` cambia un texto dentro del archivo; en macOS se escribe `sed -i ''`, y `8d41e07` es un commit de ejemplo):

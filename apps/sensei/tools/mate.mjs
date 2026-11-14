@@ -29,6 +29,8 @@ function grupo(s, i, error) {
 }
 
 export function mate(s, error = (m) => { throw new Error(m); }) {
+  // «sum» o «prod» solos (un subíndice como t_{prod}) son palabras, no Σ ni Π
+  if (/^(sum|prod)$/.test(s.trim())) return `<span class="m-t">${esc(s.trim())}</span>`;
   let out = '';
   let i = 0;
   // un argumento de _ o ^: un grupo {…} o un solo carácter

@@ -387,7 +387,7 @@ spec:
     spec:
       containers:
         - name: gateway
-          image: registry.example.com/alba/gateway:1.4.2
+          image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway:3f9c2ab
           env:
             - name: TOP_K
               value: "5"

@@ -411,7 +411,7 @@ Un servidor bien hecho hace eso al recibir SIGTERM: deja de aceptar requests nue
 
 Dentro de un contenedor, el PID 1 tiene una regla especial: el kernel **no** le aplica la acción por omisión, salvo la de un SIGKILL que llegue de fuera del contenedor. Es una protección: si el PID 1 muere, mueren con él todos los procesos del contenedor. Si el PID 1 no tiene un manejador de SIGTERM, la señal se ignora. Por eso el servidor tiene que ser el PID 1 y manejar SIGTERM, o tener delante un *init*: un programa chiquito que hace de PID 1 y le pasa las señales.
 
-En el Dockerfile (la receta con la que se arma la imagen del contenedor), la línea `CMD` dice qué comando arranca el contenedor. Para que el servidor sea el PID 1, se escribe en *forma exec*, como lista: `CMD ["uvicorn", "app:app"]`. En *forma shell*, `CMD uvicorn app:app`, el PID 1 es `/bin/sh`, una *shell*: el programa que lee comandos escritos como texto, el que trabaja detrás de una terminal. Esa shell no le pasa la señal a uvicorn. La sección extra 9 cuenta qué pasa entonces.
+En el Dockerfile (la receta con la que se arma la imagen del contenedor), la línea `CMD` dice qué comando arranca el contenedor. Para que el servidor sea el PID 1, se escribe en *forma exec*, como lista: `CMD ["uvicorn", "app:app"]`. En *forma shell*, `CMD uvicorn app:app`, Docker arranca primero una *shell* (`/bin/sh -c …`): el programa que lee comandos escritos como texto, el que trabaja detrás de una terminal. La shell arranca a uvicorn. Según el shell y el comando, la shell puede quedarse como PID 1, y entonces no le pasa la señal a uvicorn. La forma exec no depende de esa suerte. La sección extra 9 cuenta qué pasa entonces.
 
 ### El apagado ordenado, en cuatro pasos
 
@@ -627,11 +627,13 @@ Así se ve cada forma en un Dockerfile, que lleva un solo `CMD` (si hay dos, cue
 # Forma exec: uvicorn es el PID 1 y recibe el SIGTERM
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-graceful-shutdown", "20"]
 
-# Forma shell: el PID 1 es /bin/sh, que no le pasa el SIGTERM a uvicorn
-CMD uvicorn app:app --host 0.0.0.0 --port 8080 --timeout-graceful-shutdown 20
+# Forma shell: arranca /bin/sh -c …; con el tubo, el shell queda como PID 1 y no le pasa el SIGTERM a uvicorn
+CMD uvicorn app:app --host 0.0.0.0 --port 8080 --timeout-graceful-shutdown 20 | tee /tmp/gateway.log
 ```
 
-Con la forma shell, el SIGTERM se pierde. Uvicorn sigue atendiendo como si nada hasta que, a los 45 s, el SIGKILL corta lo que tenga a medias y el contenedor termina con 137. Cada deploy tarda 45 s por pod y corta requests, sin que nadie vea un error en el código.
+Con la forma shell **y un shell que se queda como PID 1**, como aquí por el tubo (`| tee`, que copia la salida a un archivo), el SIGTERM se pierde. Uvicorn sigue atendiendo como si nada hasta que, a los 45 s, el SIGKILL corta lo que tenga a medias y el contenedor termina con 137. Cada deploy tarda 45 s por pod y corta requests, sin que nadie vea un error en el código.
+
+El `sh` de Debian se reemplaza por el último comando cuando puede: sin el tubo, con la línea de uvicorn sola, uvicorn sí sería el PID 1. Basta un tubo o un script de arranque sin `exec` para que no. Por eso la regla es la forma exec: no depende de esa suerte (lo cuenta «Empaquetado con Docker»).
 
 Si de verdad necesitas un *script* (un archivo de comandos para la shell) como PID 1, por ejemplo para preparar algo antes de arrancar, hay dos salidas. La sencilla: que su última línea sea `exec uvicorn …`, que cambia el script por uvicorn sin cambiar el PID. La otra, un init mínimo como **tini**: un programa chiquito que se queda como PID 1, le pasa las señales a tu proceso y recoge a los procesos hijos que terminan. Docker lo trae con la opción `--init`.
 
@@ -651,7 +653,7 @@ Las tres defensas: un plazo de gracia mayor que el trabajo más largo; un worker
 
 ### 1. El SIGTERM que nunca llega
 
-`CMD` en forma shell, o un script propio como PID 1 sin manejador. El pod espera todo el plazo de gracia y muere con SIGKILL, con requests a medias.
+`CMD` en forma shell con un tubo, o un script propio como PID 1 sin `exec` ni manejador. El pod espera todo el plazo de gracia y muere con SIGKILL, con requests a medias.
 
 **Cómo evitarlo:** forma exec y un servidor que maneje SIGTERM (uvicorn, Triton); si hace falta un script, que acabe con `exec`, o tini. Pruébalo con `docker stop`: el contenedor debe cerrar en segundos, no esperar los 10 s de Docker.
 
@@ -793,7 +795,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de requests por segundo
 - La lección: el límite de CPU es un precipicio. O no pasa nada, o pagas el resto de la ventana.
 ? [reto] Cada deploy del gateway tarda 45 s por pod, y durante los deploys los clientes ven errores. Los pods viejos terminan con Exit Code 137, sin OOMKilled, y en sus logs no aparece el mensaje de apagado de uvicorn. ¿Qué pasa? ¿Cómo lo confirmas y cómo lo arreglas?
 - 137 sin OOMKilled es un SIGKILL del kubelet: el proceso seguía vivo al vencer el plazo de **45 s**. Eso explica los 45 s por pod.
-- Uvicorn sabe apagarse en orden con SIGTERM y no lo hizo: no le llegó. La sospecha principal es un `CMD` en forma shell, con `/bin/sh` como PID 1, que no reenvía la señal.
+- Uvicorn sabe apagarse en orden con SIGTERM y no lo hizo: no le llegó. La sospecha principal es que el PID 1 sea un shell (un `CMD` en forma shell con un tubo, o un script sin `exec`) que no reenvía la señal.
 - Para confirmarlo: `docker top` muestra qué es el PID 1 del contenedor (o, desde adentro, `cat /proc/1/cmdline`, si la imagen no trae `ps`), y `docker stop` en tu máquina tarda los 10 s completos en vez de cerrar al instante.
 - El arreglo: `CMD` en forma exec, para que uvicorn sea el PID 1. Si hace falta un script, que acabe con `exec`, o tini. Después, el deploy tarda lo que el preStop y el drenado, y no se corta nada.
 :::

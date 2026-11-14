@@ -1,0 +1,110 @@
+{
+ "titulo": "¿Cabe el peor momento en la memoria de la copia?",
+ "intro": "Aplica la ecuación de la lección: \\(M = M_0 + I × F + k × D\\), y la fracción \\(u = M ÷ M_{lim}\\). Arranca con una copia del gateway de Alba: 80 MB de base, 16 requests en vuelo de hasta 10 MB, 2 decodes de PNG de 40 MP (≈ 320 MB cada uno) y 1 GiB de límite.",
+ "entradas": [
+  {
+   "id": "m0",
+   "label": "Base sin trabajar, \\(M_0\\), en MB",
+   "min": 40,
+   "max": 300,
+   "paso": 10,
+   "valor": 80
+  },
+  {
+   "id": "i",
+   "label": "Tope de requests en vuelo, \\(I\\)",
+   "min": 1,
+   "max": 64,
+   "paso": 1,
+   "valor": 16
+  },
+  {
+   "id": "f",
+   "label": "Body más grande aceptado, \\(F\\), en MB",
+   "min": 1,
+   "max": 50,
+   "paso": 1,
+   "valor": 10
+  },
+  {
+   "id": "k",
+   "label": "Decodes a la vez (lugares del semáforo), \\(k\\)",
+   "min": 1,
+   "max": 8,
+   "paso": 1,
+   "valor": 2
+  },
+  {
+   "id": "d",
+   "label": "Memoria de un decode en su peor momento, \\(D\\), en MB",
+   "min": 20,
+   "max": 640,
+   "paso": 10,
+   "valor": 320
+  },
+  {
+   "id": "g",
+   "label": "Límite de la copia, en GiB (la salida \\(M_{lim}\\) lo da en MB)",
+   "min": 0.5,
+   "max": 4,
+   "paso": 0.5,
+   "valor": 1
+  }
+ ],
+ "calculos": [
+  {
+   "id": "cuerpos",
+   "formula": "i * f"
+  },
+  {
+   "id": "decodes",
+   "formula": "k * d"
+  },
+  {
+   "id": "m",
+   "formula": "m0 + cuerpos + decodes"
+  },
+  {
+   "id": "lim",
+   "formula": "g * 1073.741824"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "Peor momento, \\(M\\), en MB",
+   "formula": "m",
+   "formato": "num",
+   "decimales": 0,
+   "nota": "\\(M = M_0 + I × F + k × D\\)"
+  },
+  {
+   "label": "Bodies en vuelo, \\(I × F\\), en MB",
+   "formula": "cuerpos",
+   "formato": "num",
+   "decimales": 0
+  },
+  {
+   "label": "Decodes, \\(k × D\\), en MB",
+   "formula": "decodes",
+   "formato": "num",
+   "decimales": 0,
+   "nota": "casi siempre el término más grande"
+  },
+  {
+   "label": "Límite, \\(M_{lim}\\), en MB",
+   "formula": "lim",
+   "formato": "num",
+   "decimales": 0,
+   "nota": "1 GiB = 1,073,741,824 B ≈ 1,074 MB"
+  },
+  {
+   "label": "Fracción del límite, \\(u = M ÷ M_{lim}\\)",
+   "formula": "m / lim",
+   "formato": "pct",
+   "decimales": 0,
+   "barra": true,
+   "nota": "arriba de 100 %, la peor ráfaga mata el proceso por OOM"
+  }
+ ],
+ "nota": "El peor momento se calcula con los máximos (el body más grande, la foto de más píxeles), no con los promedios: es lo que pasa cuando alguien manda fotos caras a propósito."
+}

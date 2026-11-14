@@ -1,0 +1,93 @@
+{
+  "titulo": "Cuánto cubre y cuánto ocupa la retención",
+  "intro": "Aplica las ecuaciones de la lección: \\(d = N ÷ m\\), los días que alcanza la lista; \\(S = A + N × δ\\), lo que ocupa el repositorio con capas compartidas; \\(S_{entera} = N × (A + δ)\\), lo que ocuparía sin compartirlas; y \\(C_{ecr} = S × p_{GB}\\), lo que cuesta guardarlo. Arranca con el gateway de Alba (el precio por GB es el de lista de ECR en noviembre de 2026).",
+  "entradas": [
+    {
+      "id": "n",
+      "label": "Imágenes que guarda la regla, \\(N\\)",
+      "min": 1,
+      "max": 1000,
+      "paso": 1,
+      "valor": 200
+    },
+    {
+      "id": "m",
+      "label": "Imágenes nuevas al día, \\(m\\) (merges a main)",
+      "min": 0.01,
+      "max": 50,
+      "paso": 0.01,
+      "valor": 4
+    },
+    {
+      "id": "a",
+      "label": "Capas compartidas, \\(A\\), en MB (base + entorno)",
+      "min": 0,
+      "max": 10000,
+      "paso": 1,
+      "valor": 87
+    },
+    {
+      "id": "dl",
+      "label": "Capa propia de cada imagen, \\(δ\\), en MB",
+      "min": 0.001,
+      "max": 200,
+      "paso": 0.001,
+      "valor": 0.048
+    },
+    {
+      "id": "c",
+      "label": "Precio de guardar, \\(p_{GB}\\), en US$ por GB al mes",
+      "min": 0.01,
+      "max": 1,
+      "paso": 0.01,
+      "valor": 0.1
+    }
+  ],
+  "calculos": [
+    {
+      "id": "s",
+      "formula": "a + n * dl"
+    },
+    {
+      "id": "entera",
+      "formula": "n * (a + dl)"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Días que cubre la lista, \\(d\\)",
+      "formula": "n / m",
+      "formato": "num",
+      "decimales": 0,
+      "nota": "\\(d = N ÷ m\\)"
+    },
+    {
+      "label": "Lo que ocupa el repositorio, \\(S\\), en MB",
+      "formula": "s",
+      "formato": "num",
+      "decimales": 1,
+      "nota": "\\(S = A + N × δ\\)"
+    },
+    {
+      "label": "Si cada imagen se guardara entera, \\(S_{entera}\\), en MB",
+      "formula": "entera",
+      "formato": "num",
+      "decimales": 0,
+      "nota": "\\(S_{entera} = N × (A + δ)\\)"
+    },
+    {
+      "label": "Cuántas veces menos ocupa con capas compartidas, \\(S_{entera} ÷ S\\)",
+      "formula": "entera / s",
+      "formato": "x",
+      "decimales": 0
+    },
+    {
+      "label": "Lo que cuesta guardarlo al mes, \\(C_{ecr}\\)",
+      "formula": "s / 1000 * c",
+      "formato": "num",
+      "decimales": 2,
+      "nota": "\\(C_{ecr} = S × p_{GB}\\), en US$, con \\(S\\) en GB"
+    }
+  ],
+  "nota": "Para Triton pon \\(N\\) = 12, \\(m\\) = 0.033 (uno al mes), \\(A\\) = 9100 y \\(δ\\) = 100: ≈ 10,300 MB. Los 200 y los 12 son la regla de Alba; los 3 a 5 merges al día, su ritmo."
+}
