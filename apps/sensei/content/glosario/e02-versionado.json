@@ -242,7 +242,7 @@
       "en": "DAG (directed acyclic graph)",
       "corto": "Un grafo dirigido acíclico: pasos unidos por flechas que dicen «este va después de aquel», sin ciclos. Es como se describe un pipeline.",
       "largo": "Dirigido, porque cada flecha tiene sentido (de una dependencia a quien la necesita); acíclico, porque un paso no puede esperar, aunque sea de rebote, a uno que lo espera a él: nadie empezaría. Con el DAG, el [[orquestador-pipelines|orquestador]] sabe qué pasos pueden correr a la vez (los que no dependen entre sí) y cuál es el camino más largo, que fija cuánto tarda todo.",
-      "ejemplo": "El pipeline mensual de Alba: validar datos → armar snapshot → fine-tune → evaluar → gate → construir el engine en una T4 → paridad → registrar. 8 pasos en fila, 2 en GPU.",
+      "ejemplo": "El pipeline mensual de Alba: validar datos → armar snapshot → fine-tune → evaluar → gate → construir el engine en una T4 → paridad → registrar. 8 pasos en fila, 4 con GPU (dos en una A10G y dos en una T4).",
       "ver": [
         "orquestador-pipelines",
         "pipeline"

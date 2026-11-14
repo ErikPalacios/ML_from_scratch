@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 540" role="img" aria-labelledby="f-e03-entrenamiento-curvas-t" class="f-svg" style="max-width:420px">
+<title id="f-e03-entrenamiento-curvas-t">Tres curvas de val_top1 por época, de la 1 a la 8, con números ilustrativos. Sana: sube de 78.9 a 85.4 por ciento y se aplana al final. Overfitting: sube hasta 84.8 en la época 5 y luego baja hasta 82.9 en la 8, mientras la pérdida de entrenamiento sigue bajando. Learning rate roto: se queda en 0.2 por ciento, una de 500, lo que acierta el azar, y la pérdida no baja de 6.21.</title>
+<rect class="f-card" x="10" y="10" width="340" height="520" rx="16"/>
+<text class="f-l" x="26" y="40">1 · SANA</text>
+<text class="f-s" x="330" y="40" text-anchor="end" style="font-size:12px">se aplana: lista para el gate</text>
+<line class="f-linea" x1="44" y1="144" x2="330" y2="144"/>
+<line class="f-linea" x1="44" y1="68" x2="44" y2="144"/>
+<text class="f-s" x="52" y="162" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="90" y="162" text-anchor="middle" style="font-size:12px">2</text>
+<text class="f-s" x="128" y="162" text-anchor="middle" style="font-size:12px">3</text>
+<text class="f-s" x="166" y="162" text-anchor="middle" style="font-size:12px">4</text>
+<text class="f-s" x="204" y="162" text-anchor="middle" style="font-size:12px">5</text>
+<text class="f-s" x="242" y="162" text-anchor="middle" style="font-size:12px">6</text>
+<text class="f-s" x="280" y="162" text-anchor="middle" style="font-size:12px">7</text>
+<text class="f-s" x="318" y="162" text-anchor="middle" style="font-size:12px">8</text>
+<polyline style="stroke:var(--b);stroke-width:2.5;fill:none" points="52,130.1 90,106.5 128,94.2 166,86.4 204,80.3 242,76.8 280,74.1 318,73.2"/>
+<circle class="f-b" cx="52" cy="130.1" r="3.5"/>
+<circle class="f-b" cx="90" cy="106.5" r="3.5"/>
+<circle class="f-b" cx="128" cy="94.2" r="3.5"/>
+<circle class="f-b" cx="166" cy="86.4" r="3.5"/>
+<circle class="f-b" cx="204" cy="80.3" r="3.5"/>
+<circle class="f-b" cx="242" cy="76.8" r="3.5"/>
+<circle class="f-b" cx="280" cy="74.1" r="3.5"/>
+<circle class="f-b" cx="318" cy="73.2" r="3.5"/>
+<text class="f-s" x="318" y="95.2" text-anchor="middle" style="font-size:12px">85.4 %</text>
+<text class="f-s" x="60" y="134.1" style="font-size:12px">78.9 %</text>
+<text class="f-l" x="26" y="206">2 · OVERFITTING</text>
+<text class="f-s" x="330" y="206" text-anchor="end" style="font-size:12px">la mejor fue la época 5</text>
+<line class="f-linea" x1="44" y1="310" x2="330" y2="310"/>
+<line class="f-linea" x1="44" y1="234" x2="44" y2="310"/>
+<text class="f-s" x="52" y="328" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="90" y="328" text-anchor="middle" style="font-size:12px">2</text>
+<text class="f-s" x="128" y="328" text-anchor="middle" style="font-size:12px">3</text>
+<text class="f-s" x="166" y="328" text-anchor="middle" style="font-size:12px">4</text>
+<text class="f-s" x="204" y="328" text-anchor="middle" style="font-size:12px">5</text>
+<text class="f-s" x="242" y="328" text-anchor="middle" style="font-size:12px">6</text>
+<text class="f-s" x="280" y="328" text-anchor="middle" style="font-size:12px">7</text>
+<text class="f-s" x="318" y="328" text-anchor="middle" style="font-size:12px">8</text>
+<polyline style="stroke:var(--b);stroke-width:2.5;fill:none" points="52,290.9 90,265.5 128,252.4 166,246.3 204,244.5 242,248.9 280,255.0 318,261.1"/>
+<circle class="f-b" cx="52" cy="290.9" r="3.5"/>
+<circle class="f-b" cx="90" cy="265.5" r="3.5"/>
+<circle class="f-b" cx="128" cy="252.4" r="3.5"/>
+<circle class="f-b" cx="166" cy="246.3" r="3.5"/>
+<circle class="f-b" cx="204" cy="244.5" r="3.5"/>
+<circle class="f-b" cx="242" cy="248.9" r="3.5"/>
+<circle class="f-b" cx="280" cy="255.0" r="3.5"/>
+<circle class="f-b" cx="318" cy="261.1" r="3.5"/>
+<circle class="f-acc" cx="204" cy="244.5" r="6"/>
+<text class="f-s" x="204" y="268.5" text-anchor="middle" style="font-size:12px">84.8 %</text>
+<text class="f-s" x="318" y="281.1" text-anchor="middle" style="font-size:12px">82.9 %</text>
+<text class="f-l" x="26" y="372">3 · LEARNING RATE ROTO</text>
+<line class="f-linea" x1="44" y1="476" x2="330" y2="476"/>
+<line class="f-linea" x1="44" y1="400" x2="44" y2="476"/>
+<text class="f-s" x="52" y="494" text-anchor="middle" style="font-size:12px">1</text>
+<text class="f-s" x="90" y="494" text-anchor="middle" style="font-size:12px">2</text>
+<text class="f-s" x="128" y="494" text-anchor="middle" style="font-size:12px">3</text>
+<text class="f-s" x="166" y="494" text-anchor="middle" style="font-size:12px">4</text>
+<text class="f-s" x="204" y="494" text-anchor="middle" style="font-size:12px">5</text>
+<text class="f-s" x="242" y="494" text-anchor="middle" style="font-size:12px">6</text>
+<text class="f-s" x="280" y="494" text-anchor="middle" style="font-size:12px">7</text>
+<text class="f-s" x="318" y="494" text-anchor="middle" style="font-size:12px">8</text>
+<polyline style="stroke:var(--o);stroke-width:2.5;fill:none" points="52,470 318,470"/>
+<text class="f-s" x="56" y="422" style="font-size:12px">val_top1 ≈ 0.2 % (1 de 500: el azar)</text>
+<text class="f-s" x="56" y="442" style="font-size:12px">pérdida pegada en ≈ 6.21 o NaN</text>
+<text class="f-s" x="187" y="520" text-anchor="middle" style="font-size:12px">época</text>
+</svg>

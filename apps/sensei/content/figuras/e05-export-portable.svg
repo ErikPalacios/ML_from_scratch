@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" role="img" aria-labelledby="f-e05-export-portable-t" class="f-svg" style="max-width:420px">
+<title id="f-e05-export-portable-t">Un mismo model.onnx se compila tres veces. Primero, en una T4 con TensorRT 10.3: el engine carga en el Triton de Alba, que es la release 24.08 en una T4. Segundo, en una L4 con TensorRT 10.3: sus kernels son para sm_89 y no carga en la T4, que es sm_75. Tercero, en una T4 con otra versión de TensorRT: el formato del archivo es otro y tampoco carga. El pod que no carga se reinicia y el despliegue se detiene; los pods viejos siguen sirviendo.</title>
+<defs><marker id="fe5p-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="400" rx="16"/>
+<text class="f-l" x="26" y="36">UN ONNX, TRES BUILDS</text>
+<rect class="f-chip" x="110" y="50" width="140" height="32" rx="16"/>
+<text class="f-t" x="180" y="71" text-anchor="middle" style="font-size:14px">model.onnx</text>
+<line class="f-flecha" x1="150" y1="82" x2="66" y2="114" marker-end="url(#fe5p-a)"/>
+<line class="f-flecha" x1="180" y1="82" x2="180" y2="114" marker-end="url(#fe5p-a)"/>
+<line class="f-flecha" x1="210" y1="82" x2="294" y2="114" marker-end="url(#fe5p-a)"/>
+<rect class="f-card" x="22" y="120" width="96" height="58" rx="8"/>
+<text class="f-t" x="70" y="144" text-anchor="middle" style="font-size:14px">T4</text>
+<text class="f-s" x="70" y="164" text-anchor="middle" style="font-size:12px">TensorRT 10.3</text>
+<rect class="f-card" x="132" y="120" width="96" height="58" rx="8"/>
+<text class="f-t" x="180" y="144" text-anchor="middle" style="font-size:14px">L4</text>
+<text class="f-s" x="180" y="164" text-anchor="middle" style="font-size:12px">TensorRT 10.3</text>
+<rect class="f-card" x="242" y="120" width="96" height="58" rx="8"/>
+<text class="f-t" x="290" y="144" text-anchor="middle" style="font-size:14px">T4</text>
+<text class="f-s" x="290" y="164" text-anchor="middle" style="font-size:12px">otra versión</text>
+<text class="f-s" x="70" y="200" text-anchor="middle" style="font-size:12px">sm_75</text>
+<text class="f-s" x="180" y="200" text-anchor="middle" style="font-size:12px">sm_89</text>
+<text class="f-s" x="290" y="200" text-anchor="middle" style="font-size:12px">otro formato</text>
+<line class="f-flecha" x1="70" y1="210" x2="70" y2="244" marker-end="url(#fe5p-a)"/>
+<line class="f-flecha" x1="180" y1="210" x2="180" y2="244" marker-end="url(#fe5p-a)"/>
+<line class="f-flecha" x1="290" y1="210" x2="290" y2="244" marker-end="url(#fe5p-a)"/>
+<rect class="f-g" x="34" y="250" width="72" height="34" rx="17"/>
+<text class="f-pill-t" x="70" y="272" text-anchor="middle" style="font-size:13px">carga</text>
+<rect class="f-o" x="144" y="250" width="72" height="34" rx="17"/>
+<text class="f-pill-t" x="180" y="272" text-anchor="middle" style="font-size:13px">no carga</text>
+<rect class="f-o" x="254" y="250" width="72" height="34" rx="17"/>
+<text class="f-pill-t" x="290" y="272" text-anchor="middle" style="font-size:13px">no carga</text>
+<rect class="f-dark" x="22" y="300" width="316" height="44" rx="10"/>
+<text class="f-dark-l" x="38" y="318">EL TRITON DE ALBA</text>
+<text class="f-dark-t" x="38" y="336" style="font-size:13px">release 24.08 · TensorRT 10.3 · T4 (sm_75)</text>
+<text class="f-s" x="26" y="370" style="font-size:12px">Si no carga, el pod se reinicia, el despliegue se</text>
+<text class="f-s" x="26" y="388" style="font-size:12px">detiene y los pods viejos siguen sirviendo.</text>
+</svg>

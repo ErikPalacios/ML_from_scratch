@@ -1,0 +1,57 @@
+{
+  "titulo": "La vida de una versión en el registro de Alba",
+  "width": 78,
+  "height": 52,
+  "lanes": [
+    { "id": "armar", "label": "Estaciones 3 a 5: se arma el candidato", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 15 },
+    { "id": "registro", "label": "El registro: modelo registrado classifier", "kind": "neutral", "x": 0, "y": 16, "w": 78, "h": 18 },
+    { "id": "despliegue", "label": "Despliegue: estaciones 7 a 10", "kind": "online", "x": 0, "y": 35, "w": 78, "h": 17 }
+  ],
+  "nodes": [
+    { "id": "corrida", "label": "Corrida", "sub": "resnet50-2026-11-01", "badge": "1", "kind": "job", "x": 1, "y": 5, "w": 20, "h": 8,
+      "note": "La [[corrida]] de MLflow del entrenamiento: parámetros, métricas, el checkpoint y los punteros (snapshot `ds-2026-10-01`, commit, imagen). Todavía no es una versión del registro." },
+    { "id": "gate", "label": "Gate", "sub": "aprueba", "badge": "2", "kind": "job", "x": 29, "y": 5, "w": 20, "h": 8,
+      "note": "El [[quality-gate|gate de calidad]] de esta lección. Aprueba el checkpoint y deja su reporte en la corrida, pero **no registra**." },
+    { "id": "e05", "label": "Engine y paridad", "sub": "estación 5", "badge": "3", "kind": "job", "x": 57, "y": 5, "w": 20, "h": 8,
+      "note": "Convierte el modelo a ONNX (un formato estándar para guardar redes) y al engine (la versión optimizada para la T4), comprueba que responde igual y mide la latencia (cuánto tarda en responder). Si todo pasa, **registra** la versión." },
+    { "id": "v14", "label": "Versión 14", "sub": "resnet50-2026-10-01", "kind": "store", "x": 1, "y": 22, "w": 20, "h": 8,
+      "note": "Una [[version-modelo|versión]] que no cambia nunca: sus archivos, su `labels.json` con huella, su reporte y sus punteros quedan como estaban el día que se registró." },
+    { "id": "champion", "label": "Alias champion", "sub": "la que atiende", "kind": "queue", "x": 29, "y": 22, "w": 20, "h": 8,
+      "note": "Un [[alias-modelo|alias]]: un nombre que se mueve. Hoy señala a la 14. Lo mueve el pipeline de despliegue al terminar el canary; una persona, solo con aprobación registrada." },
+    { "id": "v15", "label": "Versión 15", "sub": "resnet50-2026-11-01", "kind": "store", "x": 57, "y": 22, "w": 20, "h": 8,
+      "note": "Nace al final de la estación 5 con sus [[tag-modelo|tags]]: `gate=passed`, el nombre con la fecha, la GPU y la versión del software de NVIDIA con que se construyó el engine." },
+    { "id": "cd", "label": "Despliega la imagen", "sub": "lee champion una vez", "kind": "service", "x": 1, "y": 41, "w": 20, "h": 8,
+      "note": "El pipeline de despliegue lee el alias **una sola vez**, toma la imagen del servidor que trae esa versión adentro y la despliega. Ningún servidor pregunta por el alias al arrancar." },
+    { "id": "canary", "label": "Shadow y canary", "sub": "5 % → 25 % → 100 %", "kind": "monitor", "x": 29, "y": 41, "w": 20, "h": 8,
+      "note": "La segunda mitad de la decisión, que cuenta «Rollout seguro»: en la sombra (*shadow*) el modelo nuevo recibe una copia de las fotos sin que nadie vea sus respuestas, y en el canary atiende a una parte chica del tráfico real que va creciendo. El gate dijo que es seguro **probar**; aquí se decide si se **queda**." },
+    { "id": "challenger", "label": "Alias challenger", "sub": "la que se prueba", "kind": "queue", "x": 57, "y": 41, "w": 20, "h": 8,
+      "note": "El otro alias. Queda en la 15 al final de la estación 5, con la paridad y la latencia en verde." }
+  ],
+  "edges": [
+    { "from": "corrida", "to": "gate", "kind": "offline", "label": "checkpoint", "fromSide": "r", "toSide": "l" },
+    { "from": "gate", "to": "e05", "kind": "offline", "label": "aprobado", "fromSide": "r", "toSide": "l" },
+    { "from": "e05", "to": "v15", "kind": "offline", "label": "registra", "fromSide": "b", "toSide": "t" },
+    { "from": "champion", "to": "v14", "kind": "neutral", "label": "señala", "fromSide": "l", "toSide": "r" },
+    { "from": "champion", "to": "v15", "kind": "neutral", "dashed": true, "label": "después", "fromSide": "r", "toSide": "l" },
+    { "from": "challenger", "to": "v15", "kind": "neutral", "label": "señala", "fromSide": "t", "toSide": "b" },
+    { "from": "challenger", "to": "canary", "kind": "online", "fromSide": "l", "toSide": "r" },
+    { "from": "canary", "to": "champion", "kind": "online", "label": "mueve", "fromSide": "t", "toSide": "b" },
+    { "from": "v14", "to": "cd", "kind": "online", "fromSide": "b", "toSide": "t" }
+  ],
+  "flows": [
+    { "id": "normal", "label": "Un mes normal",
+      "steps": [
+        { "nodes": ["corrida", "gate"], "edges": ["corrida>gate"], "text": "El 1 de noviembre de 2026 la corrida `resnet50-2026-11-01` entrega su checkpoint y el **gate** lo aprueba." },
+        { "nodes": ["gate", "e05"], "edges": ["gate>e05"], "text": "La estación 5 lo convierte para la T4 y comprueba que responde igual: ≈ 20–30 min." },
+        { "nodes": ["e05", "v15", "challenger"], "edges": ["e05>v15", "challenger>v15"], "text": "Nace la **versión 15**, con `gate=passed` y su nombre como tag, y `challenger → 15`. La 14 sigue intacta." },
+        { "nodes": ["challenger", "canary"], "edges": ["challenger>canary"], "text": "La 15 pasa por shadow y canary con tráfico real, con la 14 viva por si hay que volver." },
+        { "nodes": ["canary", "champion", "v15"], "edges": ["canary>champion", "champion>v15"], "text": "Termina el canary: el pipeline de despliegue mueve **`champion → 15`**. Promover es mover un alias." }
+      ] },
+    { "id": "volver", "label": "Volver atrás",
+      "steps": [
+        { "nodes": ["champion", "v15"], "edges": ["champion>v15"], "text": "Dos días después, la aceptación de sugerencias cae. La 15 es el champion." },
+        { "nodes": ["champion", "v14"], "edges": ["champion>v14"], "text": "La guardia no sube un modelo sin gate: mueve **`champion` de regreso a 14**, con su aprobación registrada." },
+        { "nodes": ["v14", "cd"], "edges": ["v14>cd"], "text": "El despliegue vuelve a poner la **imagen de la 14**, que sigue guardada. Nada se reentrena ni se borra: la 15 queda en el registro para investigar." }
+      ] }
+  ]
+}

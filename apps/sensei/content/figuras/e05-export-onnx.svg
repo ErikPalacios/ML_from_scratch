@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 452" role="img" aria-labelledby="f-e05-export-onnx-t" class="f-svg" style="max-width:420px">
+<title id="f-e05-export-onnx-t">Lo que hay dentro del archivo model.onnx de Alba, de ≈ 98 MB. Arriba, la firma: la entrada input, FP32, con forma batch por 3 por 224 por 224, y la salida logits, FP32, con forma batch por 500. En medio, el grafo: una cadena de operadores, resumida: Conv, Relu y MaxPool, después 16 bloques con más convoluciones y la suma residual Add, luego GlobalAveragePool y al final Gemm; la primera convolución lleva 9,408 pesos más 64 de la BatchNorm que el export le fundió, Gemm 1,024,500, y en total son ≈ 24.5 millones de números en FP32. Abajo, el opset 17, que dice qué versión de cada operador se usó y que quien lea el archivo debe conocer.</title>
+<defs><marker id="fe5o-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="432" rx="16"/>
+<text class="f-l" x="26" y="36">DENTRO DE model.onnx · ≈ 98 MB</text>
+<rect class="f-chip" x="22" y="50" width="316" height="72" rx="10"/>
+<text class="f-l" x="34" y="70">1 · LA FIRMA</text>
+<text class="f-l" x="34" y="92">ENTRA</text><text class="f-s" x="92" y="92">input · FP32 · [batch, 3, 224, 224]</text>
+<text class="f-l" x="34" y="112">SALE</text><text class="f-s" x="92" y="112">logits · FP32 · [batch, 500]</text>
+<text class="f-l" x="26" y="148">2 · EL GRAFO, RESUMIDO</text>
+<rect class="f-b" x="34" y="160" width="128" height="28" rx="14"/>
+<text class="f-pill-t" x="98" y="179" text-anchor="middle" style="font-size:13px">Conv</text>
+<line class="f-flecha" x1="98" y1="188" x2="98" y2="200" marker-end="url(#fe5o-a)"/>
+<rect class="f-b" x="34" y="204" width="128" height="28" rx="14"/>
+<text class="f-pill-t" x="98" y="223" text-anchor="middle" style="font-size:13px">Relu · MaxPool</text>
+<line class="f-flecha" x1="98" y1="232" x2="98" y2="244" marker-end="url(#fe5o-a)"/>
+<rect class="f-off" x="34" y="248" width="128" height="28" rx="14"/>
+<text class="f-s" x="98" y="267" text-anchor="middle" style="font-size:12px">16 bloques · Add</text>
+<line class="f-flecha" x1="98" y1="276" x2="98" y2="288" marker-end="url(#fe5o-a)"/>
+<rect class="f-b" x="34" y="292" width="128" height="28" rx="14"/>
+<text class="f-pill-t" x="98" y="311" text-anchor="middle" style="font-size:11px">GlobalAveragePool</text>
+<line class="f-flecha" x1="98" y1="320" x2="98" y2="332" marker-end="url(#fe5o-a)"/>
+<rect class="f-b" x="34" y="336" width="128" height="28" rx="14"/>
+<text class="f-pill-t" x="98" y="355" text-anchor="middle" style="font-size:13px">Gemm</text>
+<line class="f-linea" x1="166" y1="174" x2="190" y2="174" style="stroke-dasharray:3 3"/>
+<rect class="f-y" x="192" y="160" width="140" height="28" rx="6"/>
+<text class="f-s" x="262" y="179" text-anchor="middle" style="fill:var(--navy);font-size:12px">9,408 pesos + 64</text>
+<line class="f-linea" x1="166" y1="262" x2="190" y2="262" style="stroke-dasharray:3 3"/>
+<rect class="f-y" x="192" y="248" width="140" height="28" rx="6"/>
+<text class="f-s" x="262" y="267" text-anchor="middle" style="fill:var(--navy);font-size:12px">casi todos los pesos</text>
+<line class="f-linea" x1="166" y1="350" x2="190" y2="350" style="stroke-dasharray:3 3"/>
+<rect class="f-y" x="192" y="336" width="140" height="28" rx="6"/>
+<text class="f-s" x="262" y="355" text-anchor="middle" style="fill:var(--navy);font-size:12px">1,024,500 pesos</text>
+<text class="f-s" x="192" y="214" style="font-size:12px">en total: ≈ 24.5 M</text>
+<text class="f-s" x="192" y="230" style="font-size:12px">números en FP32</text>
+<circle class="f-acc" cx="52" cy="400" r="22"/>
+<text class="f-acc-t" x="52" y="405" text-anchor="middle" style="font-size:14px">17</text>
+<text class="f-l" x="86" y="390">3 · EL OPSET</text>
+<text class="f-s" x="86" y="410" style="font-size:12px">qué versión de cada operador se usó;</text>
+<text class="f-s" x="86" y="426" style="font-size:12px">quien lea el archivo debe conocerla</text>
+</svg>

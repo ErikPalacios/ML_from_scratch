@@ -1,0 +1,21 @@
+{
+  "titulo": "El gate de latencia de una T4",
+  "intro": "Aplica las dos ecuaciones de la lección: \\(t_{lim} = (1 + g) × t_{champ}\\), el p99 más alto que puede tener el challenger, y \\(ρ = λ ÷ X\\), qué fracción de la T4 usa la prueba. Arranca con la prueba a 500 peticiones por segundo de octubre (los p99 son supuestos del ejemplo).",
+  "entradas": [
+    { "id": "tc", "label": "p99 del champion, \\(t_{champ}\\), en ms", "min": 1, "max": 50, "paso": 0.1, "valor": 12.5 },
+    { "id": "tn", "label": "p99 del challenger, \\(t_{nuevo}\\), en ms", "min": 1, "max": 50, "paso": 0.1, "valor": 13.1 },
+    { "id": "g", "label": "Holgura permitida, \\(g\\), en % (10 en Alba)", "min": 0, "max": 50, "paso": 1, "valor": 10 },
+    { "id": "lam", "label": "Tasa de la prueba, \\(λ\\), en peticiones por segundo", "min": 10, "max": 1500, "paso": 10, "valor": 500 },
+    { "id": "x", "label": "Máximo de una T4 con el engine FP16, \\(X\\), en fotos por segundo", "min": 100, "max": 3000, "paso": 50, "valor": 1200 }
+  ],
+  "calculos": [
+    { "id": "lim", "formula": "(1 + g / 100) * tc" }
+  ],
+  "salidas": [
+    { "label": "p99 máximo permitido, \\(t_{lim}\\)", "formula": "lim", "formato": "ms", "decimales": 2, "nota": "\\(t_{lim} = (1 + g) × t_{champ}\\)" },
+    { "label": "Margen que queda, \\(t_{lim} − t_{nuevo}\\)", "formula": "lim - tn", "formato": "ms", "decimales": 2, "nota": "positivo: pasa · negativo: falla y sigue el champion" },
+    { "label": "Cuánto más lento es el challenger, \\(t_{nuevo} ÷ t_{champ} − 1\\)", "formula": "tn / tc - 1", "formato": "pct", "decimales": 1, "nota": "pasa si no supera \\(g\\)" },
+    { "label": "Uso de la T4 en la prueba, \\(ρ\\)", "formula": "lam / x", "formato": "pct", "decimales": 0, "barra": true, "nota": "\\(ρ = λ ÷ X\\)" }
+  ],
+  "nota": "El gate corre esta comparación dos veces, a 250 y a 500 peticiones por segundo, y el challenger tiene que pasar las dos. El ≈ 1,200 de \\(X\\) es el máximo que da una T4 de Alba con TensorRT FP16; los p99 de 12.5 y 13.1 ms son supuestos del ejemplo."
+}

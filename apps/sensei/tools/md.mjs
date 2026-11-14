@@ -65,8 +65,8 @@ export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }
   const fallar = (msg) => { throw new Error(`${contexto}: ${msg}`); };
 
   // ------------------------------------------------------------ en línea
-  function inline(s, usados) {
-    const guardado = [];
+  function inline(s, usados, guardado = []) {
+    // guardado se comparte con las llamadas anidadas: el texto de un [[id|`código`]] trae marcas del nivel de arriba.
     const guarda = (html) => `\u0000${guardado.push(html) - 1}\u0000`;
     s = s.replace(/`([^`]+)`/g, (_, c) => guarda(`<code>${esc(c)}</code>`));
     s = s.replace(/\\\((.+?)\\\)/g, (_, f) => guarda(`<span class="m">${mate(f, fallar)}</span>`));
@@ -74,9 +74,9 @@ export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }
       const g = glosario.get(id);
       if (!g) fallar(`[[${id}]] no está en el glosario`);
       usados?.add(id);
-      return guarda(`<a class="g" href="/glosario/#g-${id}" data-g="${id}">${inline(txt || g.termino.toLowerCase(), usados)}</a>`);
+      return guarda(`<a class="g" href="/glosario/#g-${id}" data-g="${id}">${inline(txt || g.termino.toLowerCase(), usados, guardado)}</a>`);
     });
-    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, txt, url) => guarda(`<a href="${esc(url)}"${/^https?:/.test(url) ? ' rel="noopener"' : ''}>${inline(txt, usados)}</a>`));
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, txt, url) => guarda(`<a href="${esc(url)}"${/^https?:/.test(url) ? ' rel="noopener"' : ''}>${inline(txt, usados, guardado)}</a>`));
     s = esc(s);
     s = s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, '$1<i>$2</i>');
     return s.replace(/\u0000(\d+)\u0000/g, (_, i) => guardado[+i]);

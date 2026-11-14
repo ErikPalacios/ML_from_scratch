@@ -1,0 +1,249 @@
+{
+  "terminos": [
+    {
+      "id": "onnx",
+      "termino": "ONNX",
+      "en": "ONNX (Open Neural Network Exchange)",
+      "corto": "Un formato de archivo para modelos que leen muchas herramientas, no solo PyTorch. Guarda el grafo de operaciones, los pesos y la firma de la entrada y la salida, y abrirlo no corre código.",
+      "largo": "Entrenar y servir viven en mundos distintos: PyTorch y Python de un lado, un servidor en C++ como Triton del otro. ONNX es el formato de entrega entre los dos. Un archivo `.onnx` es un mensaje de [[protobuf]] con tres partes: el [[grafo-modelo|grafo]] (operadores como `Conv`, `Relu`, `Add`), los pesos y la firma (nombre, tipo y forma de cada entrada y salida). Declara su [[opset]], la versión de los operadores que usa. Lo pueden correr [[onnx-runtime|ONNX Runtime]] y otros, y lo puede compilar [[tensorrt|TensorRT]]. A diferencia de un [[pickle]], es solo datos.",
+      "ejemplo": "El `model.onnx` de Alba pesa ≈ 98 MB (≈ 24.5 millones de pesos × 4 bytes en FP32), está en opset 17 y su firma es `input` FP32 `[batch, 3, 224, 224]` → `logits` FP32 `[batch, 500]`.",
+      "ver": [
+        "grafo-modelo",
+        "opset",
+        "onnx-runtime",
+        "engine-tensorrt"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "opset",
+      "termino": "Opset",
+      "en": "opset",
+      "corto": "El número de versión del conjunto de operadores que usa un archivo ONNX. Quien lo lee tiene que conocer esa versión; es parte del contrato del modelo.",
+      "largo": "Los operadores de ONNX cambian con el tiempo: una versión nueva de un operador acepta otra opción o cambia un valor por omisión. Cada archivo declara su opset, y el programa que lo lee (ONNX Runtime, TensorRT) tiene que soportarlo. Por eso el opset se **fija** al exportar y se **lee del archivo** después: un exportador puede escribir uno distinto al pedido sin dar error. Cambiar de opset es un cambio del modelo, con su propia [[paridad-engine|paridad]].",
+      "ejemplo": "Alba exporta en opset 17 con el exportador viejo (`dynamo=False`). Con el exportador nuevo de PyTorch, pedir opset 17 puede dejar el archivo en 18, y el chequeo del script lo atrapa porque compara el opset escrito con 17.",
+      "ver": [
+        "onnx",
+        "grafo-modelo"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "grafo-modelo",
+      "termino": "Grafo del modelo",
+      "en": "model graph",
+      "corto": "La lista de operaciones de una red y cómo se conectan: qué salida entra a qué operación. Es lo que guarda un ONNX en vez de código.",
+      "largo": "Una red neuronal, vista por dentro, es una cadena de operaciones: convolución, ReLU, suma, promedio, multiplicación de matrices. El grafo las nombra (cada una es un **operador**) y dice de dónde viene cada entrada. Con el grafo y los pesos, cualquier programa puede hacer las mismas cuentas sin el código de Python que las escribió. Un compilador como [[tensorrt|TensorRT]] lee el grafo, lo simplifica y junta operaciones ([[fusion-capas|fusión]]).",
+      "analogia": "Una receta escrita como diagrama: cada caja es un paso (picar, freír, mezclar) y cada flecha dice qué ingrediente pasa al paso siguiente. Dónde se rompe: la receta no dice cuánto tarda cada paso en tu estufa; eso lo decide quien la compila para su cocina.",
+      "ejemplo": "En el grafo de la ResNet-50 de Alba, la salida de una convolución entra a una ReLU, y la de la ReLU a la siguiente convolución o a la suma de la conexión residual; al final, un promedio y una multiplicación de matrices dan los 500 logits.",
+      "ver": [
+        "onnx",
+        "opset",
+        "fusion-capas"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "eje-batch-dinamico",
+      "termino": "Eje de batch dinámico",
+      "en": "dynamic batch axis",
+      "corto": "Declarar, al exportar un modelo, que la primera dimensión de la entrada y de la salida (cuántas fotos van juntas) puede cambiar. Sin eso, el archivo solo acepta un tamaño de batch.",
+      "largo": "Al exportar, el modelo se corre una vez con un ejemplo, y las formas de ese ejemplo pueden quedar fijas. El eje de batch dinámico le pone nombre a la dimensión 0 (`batch`) en vez de un número, en la entrada y en la salida. Es una propiedad del archivo; no es el [[batching-dinamico|batching dinámico]], que es lo que hace el servidor al juntar peticiones. Entre qué valores puede ir el batch lo fija después el [[perfil-optimizacion|perfil de optimización]] del engine.",
+      "ejemplo": "Alba exporta con un ejemplo de batch 2 y `dynamic_axes={\"input\": {0: \"batch\"}, \"logits\": {0: \"batch\"}}`, y el chequeo del script corre batch 1 y batch 32 para comprobar que la dimensión de verdad cambia.",
+      "ver": [
+        "batching-dinamico",
+        "perfil-optimizacion",
+        "onnx"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "onnx-runtime",
+      "termino": "ONNX Runtime",
+      "en": "ONNX Runtime (ORT)",
+      "corto": "Un programa que carga un archivo ONNX y lo corre, en CPU o en GPU. Reparte las operaciones entre sus proveedores de ejecución (*execution providers*: CPU, CUDA, TensorRT…), y lo que uno no soporta cae a la CPU sin error.",
+      "largo": "ONNX Runtime (ORT) sirve para correr un ONNX sin PyTorch. Optimiza el grafo y reparte sus nodos entre los *execution providers* que le pidas: CPU, CUDA, TensorRT, OpenVINO. Un nodo que el provider elegido no soporta se corre en la CPU, y el modelo sigue respondiendo bien, solo más lento: un fallo silencioso que solo delata la latencia. Se usa para servir modelos chicos en CPU y para revisar un export: correr el ONNX y compararlo con PyTorch.",
+      "ejemplo": "En el export de Alba, ORT corre el ONNX en CPU sobre 512 fotos, en batch 1 y 32, y lo compara con PyTorch: mismo top-1 en todas y una diferencia de logits del orden de 0.0001. No necesita GPU.",
+      "ver": [
+        "onnx",
+        "paridad-engine",
+        "engine-tensorrt"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "tensorrt",
+      "termino": "TensorRT",
+      "en": "TensorRT",
+      "corto": "El compilador de modelos de NVIDIA: lee un ONNX y produce un engine, el modelo listo para correr rápido en una GPU concreta, con operaciones juntadas, cuentas en FP16 y la forma más rápida de hacer cada capa en ese chip.",
+      "largo": "TensorRT toma el [[grafo-modelo|grafo]] de un [[onnx|ONNX]] y lo compila. Su **builder** simplifica el grafo, junta operaciones ([[fusion-capas|fusión]]), elige la precisión de cada capa (FP16 donde puede), cronometra varias implementaciones de cada capa en **esa** GPU y guarda las ganadoras en un [[engine-tensorrt|engine]]. El engine queda atado a la GPU y a la versión de TensorRT. Se usa desde la línea de comandos con [[trtexec]] o desde Python.",
+      "analogia": "Un sastre que toma el patrón de un traje y lo corta a la medida de una persona: queda mejor que uno de talla, pero no le queda a otra. Dónde se rompe: el sastre mide a la persona una vez; TensorRT cronometra en la GPU, y dos cronometradas pueden dar trajes un poco distintos.",
+      "ejemplo": "Alba compila su ResNet-50 con TensorRT 10.3, dentro de la imagen `nvcr.io/nvidia/tensorrt:24.08-py3`, en una T4: el engine FP16 lleva ≈ 49 MB de pesos y una T4 llega con él a ≈ 1,200 fotos por segundo.",
+      "ver": [
+        "engine-tensorrt",
+        "onnx",
+        "trtexec",
+        "fusion-capas"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "engine-tensorrt",
+      "termino": "Engine de TensorRT",
+      "en": "TensorRT engine (.plan)",
+      "corto": "El modelo compilado por TensorRT para una GPU y una versión concretas, guardado en un archivo `.plan`. Corre mucho más rápido que el modelo original, pero no carga en otra GPU ni con otra versión de TensorRT.",
+      "largo": "Un engine es el resultado del builder de [[tensorrt|TensorRT]]: el grafo ya fusionado, la precisión de cada capa, los kernels elegidos cronometrando en la GPU y los pesos (en FP16 si se pidió). Acepta las formas de su [[perfil-optimizacion|perfil]]. Por omisión no es portable: depende de la [[compute-capability|compute capability]] de la GPU y del formato de esa versión de TensorRT ([[release-ngc|release]]). Por eso se construye en CI, en la GPU de destino, y se verifica con su huella antes de servirlo. Como sus números cambian un poco, pasa una [[paridad-engine|paridad]] contra el modelo original.",
+      "ejemplo": "El `model.plan` de Alba se construye en una T4 con TensorRT 10.3, en FP16, con perfil 1/16/32; pesa de ≈ 50 a 150 MB y vive en `classifier/1/model.plan`, horneado en la imagen de Triton. En una L4 no carga.",
+      "ver": [
+        "tensorrt",
+        "paridad-engine",
+        "compute-capability",
+        "release-ngc"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "fusion-capas",
+      "termino": "Fusión de capas",
+      "en": "layer fusion",
+      "corto": "Juntar varias operaciones seguidas de una red (una convolución, su BatchNorm, su ReLU) en un solo kernel: un solo programa que corre en la GPU. Se lanzan menos kernels y los resultados intermedios no van y vuelven de la memoria.",
+      "largo": "Sin fusionar, cada operación es al menos un [[kernel-gpu|kernel]]: la CPU lo lanza, la GPU lo corre y escribe su resultado en memoria para que el siguiente lo lea. Fusionar junta varias en una: un kernel que hace la convolución, aplica la BatchNorm y la ReLU y suma la conexión residual de un jalón. Lo hacen los compiladores como [[tensorrt|TensorRT]] y `torch.compile`. Ahorra lanzamientos y viajes a memoria; las cuentas son las mismas, aunque en otro orden.",
+      "ejemplo": "En PyTorch, sin fusionar, la ResNet-50 de Alba son 174 operaciones por batch; el engine de TensorRT las deja en ≈ 56 kernels.",
+      "ver": [
+        "tensorrt",
+        "kernel-gpu",
+        "engine-tensorrt"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "perfil-optimizacion",
+      "termino": "Perfil de optimización",
+      "en": "optimization profile",
+      "corto": "Las tres formas de entrada que se le dan a TensorRT para un eje variable: la mínima, la óptima y la máxima. El engine acepta cualquier forma entre la mínima y la máxima, y elige cómo hacer cada capa pensando en la óptima.",
+      "largo": "Un ONNX con [[eje-batch-dinamico|batch dinámico]] acepta cualquier batch, pero un engine necesita un rango, porque elige sus kernels cronometrando tamaños concretos. El perfil da tres: **mínima** (lo más chico que acepta), **óptima** (para la que se cronometra) y **máxima** (lo más grande; un batch mayor no entra). La máxima debe coincidir con el batch máximo del servidor. Si el tráfico real trae batches muy distintos de la óptima, conviene probar otra y quedarse con la de mejor p99.",
+      "ejemplo": "El engine de Alba tiene mínima 1, óptima 16 y máxima 32 (`--minShapes=input:1x3x224x224`, `--optShapes=input:16x3x224x224`, `--maxShapes=input:32x3x224x224`). En la hora pico los batches reales son de ≈ 1 a 3, así que el 16 es un punto de partida, no un dato.",
+      "ver": [
+        "engine-tensorrt",
+        "eje-batch-dinamico",
+        "trtexec"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "trtexec",
+      "termino": "trtexec",
+      "en": "trtexec",
+      "corto": "La herramienta de línea de comandos de TensorRT: construye un engine desde un ONNX y lo mide. Su número mide el engine solo, sin la fila del servidor ni la red.",
+      "largo": "`trtexec` recibe un ONNX y opciones (`--fp16`, el [[perfil-optimizacion|perfil]] con `--minShapes`, `--optShapes` y `--maxShapes`) y guarda el [[engine-tensorrt|engine]] con `--saveEngine`. Al final corre un benchmark con la forma de `--shapes`. Ese número sirve como chequeo de sanidad (el engine no está roto), pero no decide capacidad: no incluye la fila ni el batching del servidor, y a veces mide batches que online no llegan. Para eso está [[perf-analyzer|perf_analyzer]].",
+      "ejemplo": "En Alba, `build_engine.sh` corre `trtexec --onnx=model.onnx --saveEngine=model.plan --fp16` con el perfil 1/16/32 y un benchmark en batch 16, dentro de la imagen de TensorRT 24.08, en la T4 del runner; tarda ≈ 2–5 min.",
+      "ver": [
+        "tensorrt",
+        "engine-tensorrt",
+        "perf-analyzer"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "compute-capability",
+      "termino": "Compute capability",
+      "en": "compute capability",
+      "corto": "El número con que NVIDIA identifica la arquitectura de cada generación de GPUs: 7.5 para la T4 (sm_75), 8.9 para la L4. Un engine de TensorRT construido para una no carga en otra.",
+      "largo": "Cada generación de GPUs de NVIDIA entiende su propio juego de instrucciones, y se identifica con un número: 7.5 la T4, 8.0 la A100, 8.6 la A10G, 8.9 la L4, 9.0 la H100. Se escribe también sm_75, sm_89… Los kernels se compilan para una o varias de esas arquitecturas. Un [[engine-tensorrt|engine]] es más estricto todavía: sus kernels se eligieron cronometrando en **esa** GPU. Por eso un engine se construye para cada tipo de GPU donde se va a servir.",
+      "ejemplo": "El engine de Alba es para sm_75, la T4. Si Alba agregara L4 (sm_89), haría falta un segundo engine, otra imagen y una regla para mandar cada imagen a su tipo de máquina.",
+      "ver": [
+        "engine-tensorrt",
+        "gpu",
+        "release-ngc"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "release-ngc",
+      "termino": "Release de NGC",
+      "en": "NGC release",
+      "corto": "Una entrega mensual de los contenedores de NVIDIA (TensorRT, Triton, PyTorch), nombrada por año y mes, como 24.08. Los de una misma release comparten la base: la misma CUDA y la misma TensorRT.",
+      "largo": "NVIDIA publica sus programas en contenedores listos en su catálogo NGC, con una release al mes que se nombra `AA.MM`. Dentro de una release, el contenedor de TensorRT y el de Triton traen la misma versión de TensorRT y de CUDA. Para un [[engine-tensorrt|engine]], eso es lo que importa: si se construye con la release del servidor, el servidor lo puede cargar. Cambiar de release es un cambio del modelo: engine nuevo, paridad y latencia.",
+      "ejemplo": "Alba construye con `nvcr.io/nvidia/tensorrt:24.08-py3` (TensorRT 10.3) y sirve con `tritonserver:24.08-py3` (Ubuntu 22.04, CUDA 12.6). `build_engine.sh` fija `NGC_RELEASE=24.08`, y la release queda como tag de la versión en el registry.",
+      "ver": [
+        "engine-tensorrt",
+        "huella-build",
+        "compute-capability"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "paridad-engine",
+      "termino": "Paridad del engine",
+      "en": "engine parity",
+      "corto": "El examen que comprueba que el modelo convertido que se va a servir responde lo mismo que el modelo que se evaluó: el mismo top-1 en casi todas las fotos y logits casi iguales. No mide si el modelo es bueno, sino si es el mismo.",
+      "largo": "Convertir un modelo (a ONNX, a un engine FP16) mueve un poco sus números. La paridad corre el original y el convertido sobre las mismas fotos y compara tres cosas: el [[acuerdo-top1|acuerdo top-1]], el solapamiento de las 5 primeras sugerencias y la [[diferencia-logits|diferencia máxima de logits]]. Si pasa, lo que midió el gate de calidad sigue valiendo para el engine. Es distinta de la [[prueba-paridad|prueba de paridad]] del preprocesamiento. Se corre en tres lugares: en CPU al exportar, con el engine en el servidor y de punta a punta por el gateway.",
+      "analogia": "La prueba de imprenta de un libro: la editorial compara lo impreso con el archivo aprobado antes del tiraje. Dónde se rompe: la prueba se espera idéntica; el engine no, y por eso la paridad mide cuánto cambia con umbrales.",
+      "ejemplo": "Alba corre el engine FP16 en Triton contra PyTorch FP32 en ≈ 10,000 fotos del golden set: top-1 igual en ≥ 99.5 % (a lo más 50 fotos cambian), top-5 que coincide en ≥ 99 % y diferencia máxima de logits ≤ 0.5 (lo normal es ≈ 0.01). Si falla, no se registra la versión y sigue el champion.",
+      "ver": [
+        "acuerdo-top1",
+        "diferencia-logits",
+        "prueba-paridad",
+        "engine-tensorrt"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "acuerdo-top1",
+      "termino": "Acuerdo top-1",
+      "en": "top-1 agreement",
+      "corto": "La fracción de fotos en que dos versiones de un modelo dan la misma primera sugerencia. Es el número de la paridad que más se parece a lo que ve la persona usuaria.",
+      "largo": "Se calcula como \\(a_1 = N_{igual} ÷ N\\): fotos con el mismo top-1 entre fotos del examen. No compara contra la etiqueta real (eso es la exactitud), sino una versión contra otra. Un engine FP16 sano cambia solo unas pocas fotos casi empatadas. Hace falta un examen grande: con pocas fotos, un solo empate tumba el porcentaje, y el examen falla por mala suerte.",
+      "ejemplo": "En Alba, \\(a_1\\) ≥ 99.5 % sobre ≈ 10,000 fotos: 9,950 deben coincidir. Un engine con 97 % no es redondeo, es un bug.",
+      "ver": [
+        "paridad-engine",
+        "diferencia-logits",
+        "argmax"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "diferencia-logits",
+      "termino": "Diferencia máxima de logits",
+      "en": "max logit difference",
+      "corto": "La diferencia más grande, sin signo, entre un logit (la puntuación cruda de cada categoría) del modelo convertido y el del original, buscando en todas las fotos y todas las categorías. Delata un bug antes de que cambie una respuesta.",
+      "largo": "Se calcula como \\(d = max |u_{ik} − v_{ik}|\\) sobre todas las fotos \\(i\\) y categorías \\(k\\). Tiene escalas conocidas: FP32 contra FP32 da del orden de 0.0001; un engine FP16 sano, del orden de 0.01. Un salto de varios órdenes de magnitud no es redondeo: es un export o un build roto, aunque el top-1 todavía coincida.",
+      "ejemplo": "En Alba, el chequeo del export (FP32 contra FP32) espera ≈ 0.0001, y la paridad del engine FP16 ve ≈ 0.01 con un tope de 0.5 para no dar falsas alarmas y atrapar un engine roto.",
+      "ver": [
+        "paridad-engine",
+        "logit",
+        "acuerdo-top1"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "perf-analyzer",
+      "termino": "perf_analyzer",
+      "en": "perf_analyzer",
+      "corto": "La herramienta de NVIDIA que mide un servidor Triton desde afuera, como un cliente: manda peticiones a una tasa fija y reporta la latencia (p50, p99…) y el throughput. Su p99 es el que decide si un modelo cabe.",
+      "largo": "`perf_analyzer` le habla a Triton por la red y mide cada petición de ida y vuelta, así que incluye la fila del servidor, la espera del [[batching-dinamico|batching dinámico]] y el cómputo. Con una tasa fija ([[carga-abierta|carga abierta]]) mide lo que vivirá el gateway. Es la base de un **gate de latencia**: el p99 del modelo nuevo, a las tasas de diseño, comparado con el del modelo actual medido igual. No confundir con [[trtexec]], que mide el engine solo.",
+      "ejemplo": "Alba corre `perf_analyzer` contra la imagen nueva de Triton en la T4 a 250 peticiones por segundo (la parte de una T4 en el pico de diseño) y a 500 (una zona caída). Pasa si el p99 no sube más de 10 % sobre el del champion a las dos tasas; también anota el throughput máximo, la VRAM y el tiempo de carga.",
+      "ver": [
+        "trtexec",
+        "p99",
+        "batching-dinamico"
+      ],
+      "leccion": "e05-export"
+    },
+    {
+      "id": "huella-build",
+      "termino": "Huellas del build",
+      "en": "build fingerprint",
+      "corto": "Lo que identifica un artefacto compilado y cómo se fabricó: la huella SHA-256 de cada archivo, la GPU y las versiones del software. Van al registro de modelos (*registry*) con la versión del modelo.",
+      "largo": "Un [[engine-tensorrt|engine]] depende de su ONNX, de la GPU y de la [[release-ngc|release]] con que se construyó. Las huellas guardan todo eso: el SHA-256 del ONNX y del `.plan` (para verificar que el archivo que se carga es el que pasó la paridad; un byte distinto da otra huella) y la GPU y las versiones (para saber, meses después, por qué no carga en una máquina nueva y para reconstruirlo igual). Si hubiera datos de calibración, su huella también.",
+      "ejemplo": "Las huellas de la versión 14 de Alba son el SHA-256 del ONNX y del plan, la GPU (T4, sm_75) y la release de NGC (24.08, TensorRT 10.3). Los pesos se verifican con su SHA-256 al cargarlos.",
+      "ver": [
+        "hash-criptografico",
+        "engine-tensorrt",
+        "release-ngc",
+        "linaje"
+      ],
+      "leccion": "e05-export"
+    }
+  ]
+}

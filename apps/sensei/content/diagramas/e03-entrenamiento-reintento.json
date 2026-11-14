@@ -1,0 +1,48 @@
+{
+  "titulo": "Una caída a media corrida: reintentar es reanudar",
+  "width": 78,
+  "height": 44,
+  "lanes": [
+    { "id": "orq", "label": "Orquestador", "kind": "neutral", "x": 0, "y": 0, "w": 22, "h": 44 },
+    { "id": "gpu", "label": "Nodos con GPU", "kind": "offline", "x": 24, "y": 0, "w": 26, "h": 44 },
+    { "id": "guarda", "label": "Lo que se guarda", "kind": "monitor", "x": 52, "y": 0, "w": 26, "h": 44 }
+  ],
+  "nodes": [
+    { "id": "argo", "label": "Argo", "sub": "lanza el paso", "badge": "1", "kind": "service", "x": 2, "y": 5, "w": 18, "h": 8,
+      "note": "Lanza el fine-tune de `resnet50-2026-10-01` con sus parámetros. Lleva la cuenta de los intentos: el primero y hasta 3 reintentos." },
+    { "id": "int1", "label": "Intento 1", "sub": "se cae a las 2 h 10", "badge": "2", "kind": "gpu", "x": 28, "y": 5, "w": 18, "h": 8,
+      "note": "El nodo falla con 2 horas y 10 minutos de trabajo, en el paso ≈ 124,600. Lo que no quedó en un checkpoint se pierde: los últimos 10 minutos." },
+    { "id": "ckpt", "label": "paso-115016.pt", "sub": "el de las 2 h", "kind": "store", "x": 56, "y": 5, "w": 18, "h": 8,
+      "note": "El checkpoint más reciente de **esta** corrida, en `s3://ml-datos/checkpoints/resnet50-2026-10-01/`. Lleva el número de paso en el nombre: nunca se escribe encima de otro." },
+    { "id": "espera", "label": "Espera 120 s", "sub": "reintento 1 de 3", "badge": "3", "kind": "job", "x": 2, "y": 20, "w": 18, "h": 8,
+      "note": "El [[reintento]] no es inmediato: da tiempo a que la causa pase (un nodo que se reemplaza, una red que se recupera). Si ya fuera el cuarto fallo, avisaría a la guardia." },
+    { "id": "int2", "label": "Intento 2", "sub": "nodo nuevo", "badge": "4", "kind": "gpu", "x": 28, "y": 20, "w": 18, "h": 8,
+      "note": "Un pod nuevo en un nodo nuevo. Busca el último checkpoint de su corrida, carga las seis piezas ([[reanudar-entrenamiento|reanudar]]) y sigue desde el paso 115,017, con el mismo lr y el mismo azar." },
+    { "id": "guardia", "label": "Guardia", "sub": "tras 3 reintentos", "kind": "human", "x": 2, "y": 34, "w": 18, "h": 8,
+      "note": "Recibe el aviso de «pipeline fallido» solo si también falla el tercer reintento. Mientras tanto, el modelo actual sigue atendiendo." },
+    { "id": "final", "label": "Checkpoint final", "sub": "paso 230,032", "kind": "store", "x": 28, "y": 34, "w": 18, "h": 8,
+      "note": "Los pesos del candidato. Se suben como artefacto a la corrida; los checkpoints intermedios se borran solos a los 30 días." },
+    { "id": "mlflow", "label": "MLflow", "sub": "la misma corrida", "badge": "5", "kind": "store", "x": 56, "y": 34, "w": 18, "h": 8,
+      "note": "El intento 2 **reanuda la misma corrida**, no abre otra. La corrida termina con su curva completa de 8 épocas y la nota de que hubo dos intentos." }
+  ],
+  "edges": [
+    { "from": "argo", "to": "int1", "kind": "offline", "fromSide": "r", "toSide": "l", "label": "lanza" },
+    { "from": "int1", "to": "ckpt", "kind": "offline", "fromSide": "r", "toSide": "l", "label": "cada 15 min" },
+    { "from": "int1", "to": "espera", "kind": "monitor", "fromSide": "b", "toSide": "t", "dashed": true, "via": [[37, 16.5], [11, 16.5]] },
+    { "from": "espera", "to": "int2", "kind": "offline", "fromSide": "r", "toSide": "l", "label": "relanza" },
+    { "from": "ckpt", "to": "int2", "kind": "offline", "fromSide": "b", "toSide": "r", "via": [[65, 24]], "label": "lee" },
+    { "from": "espera", "to": "guardia", "kind": "monitor", "fromSide": "b", "toSide": "t", "dashed": true },
+    { "from": "int2", "to": "final", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "final", "to": "mlflow", "kind": "offline", "fromSide": "r", "toSide": "l", "label": "artefacto" }
+  ],
+  "flows": [
+    { "id": "caida", "label": "Una caída a las 2 h 10",
+      "steps": [
+        { "nodes": ["argo", "int1"], "edges": ["argo>int1"], "text": "A las ≈ 03:30 UTC, **Argo** lanza el intento 1 del fine-tune en un nodo g5.xlarge." },
+        { "nodes": ["int1", "ckpt"], "edges": ["int1>ckpt"], "text": "Cada 15 minutos escribe un **checkpoint** con el número de paso en el nombre. El de las 2 h es `paso-115016.pt`." },
+        { "nodes": ["int1", "espera"], "edges": ["int1>espera"], "text": "A las 2 h 10 el nodo **falla**. Argo marca el intento 1 como fallido y **espera 120 s**: es el reintento 1 de 3, todavía no avisa a nadie." },
+        { "nodes": ["espera", "int2", "ckpt"], "edges": ["espera>int2", "ckpt>int2"], "text": "Lanza el **intento 2** en un nodo nuevo. El pod lee `paso-115016.pt` completo (pesos, Adam, paso, scheduler, GradScaler y azar) y sigue en el paso 115,017. Se perdieron 10 minutos, más el arranque del nodo." },
+        { "nodes": ["int2", "final", "mlflow"], "edges": ["int2>final", "final>mlflow"], "text": "Termina los 230,032 pasos y sube el **checkpoint final** a la **misma corrida** de MLflow. Si también hubiera fallado el tercer reintento, la **guardia** habría recibido el aviso." }
+      ] }
+  ]
+}

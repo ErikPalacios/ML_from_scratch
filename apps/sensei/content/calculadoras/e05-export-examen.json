@@ -1,0 +1,88 @@
+{
+  "titulo": "¿Pasa por margen o por suerte? El examen de paridad",
+  "intro": "Aplica las tres ecuaciones de la lección: \\(L\\), los cambios de top-1 que caben; \\(σ\\), cuánto se mueve el número de cambios de un examen a otro; y \\(D\\), el margen en desviaciones (cada salida dice su fórmula). Arranca con el examen de Alba (10,000 fotos, 99.5 %) y un engine FP16 sano que cambia el 0.2 % de las fotos (un supuesto del ejemplo).",
+  "entradas": [
+    {
+      "id": "n",
+      "label": "Fotos del examen, \\(N\\)",
+      "min": 100,
+      "max": 50000,
+      "paso": 1,
+      "valor": 10000,
+      "tipo": "numero"
+    },
+    {
+      "id": "f",
+      "label": "Fotos que el engine cambia de verdad, \\(f\\), en %",
+      "min": 0.05,
+      "max": 5,
+      "paso": 0.05,
+      "valor": 0.2
+    },
+    {
+      "id": "a",
+      "label": "Acuerdo top-1 mínimo, \\(a_{min}\\), en %",
+      "min": 95,
+      "max": 99.95,
+      "paso": 0.05,
+      "valor": 99.5
+    }
+  ],
+  "calculos": [
+    {
+      "id": "fr",
+      "formula": "f / 100"
+    },
+    {
+      "id": "lim",
+      "formula": "(1 - a / 100) * n"
+    },
+    {
+      "id": "esp",
+      "formula": "n * fr"
+    },
+    {
+      "id": "sd",
+      "formula": "sqrt(n * fr * (1 - fr))"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Cambios que caben, \\(L\\)",
+      "formula": "lim",
+      "formato": "num",
+      "decimales": 1,
+      "nota": "\\(L = (1 − a_{min}) × N\\); el examen falla con más de \\(L\\)"
+    },
+    {
+      "label": "Cambios esperados, \\(N × f\\)",
+      "formula": "esp",
+      "formato": "num",
+      "decimales": 1,
+      "nota": "lo que da en promedio"
+    },
+    {
+      "label": "Cuánto se mueve de un examen a otro, \\(σ\\)",
+      "formula": "sd",
+      "formato": "num",
+      "decimales": 2,
+      "nota": "\\(σ = sqrt{N × f × (1 − f)}\\), en fotos"
+    },
+    {
+      "label": "Margen en desviaciones, \\(D\\)",
+      "formula": "(lim - esp) / max(sd, 1e-9)",
+      "formato": "num",
+      "decimales": 1,
+      "nota": "\\(D = (L − N × f) ÷ σ\\). Con 3 o más, casi nunca se equivoca; cerca de 0, es un volado; negativo, falla casi siempre"
+    },
+    {
+      "label": "Acuerdo esperado del engine, \\(1 − f\\)",
+      "formula": "1 - fr",
+      "formato": "pct",
+      "decimales": 2,
+      "barra": true,
+      "nota": "el \\(a_1\\) que daría en promedio"
+    }
+  ],
+  "nota": "Supone que cada foto cambia o no con la misma probabilidad \\(f\\), sin depender de las demás, y usa la aproximación normal; con pocas fotos esperadas (menos de ≈ 10) la cuenta exacta, la binomial, se aleja un poco. El 0.2 % de un engine sano es un supuesto del ejemplo, no una medición de Alba."
+}

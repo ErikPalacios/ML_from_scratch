@@ -1,0 +1,64 @@
+{
+  "titulo": "La estación 4: de tres modelos y un examen a un veredicto",
+  "width": 78,
+  "height": 66,
+  "lanes": [
+    { "id": "eval", "label": "Evaluar · en la A10G, ≈ 15 min", "kind": "offline", "x": 0, "y": 0, "w": 78, "h": 16 },
+    { "id": "decidir", "label": "Decidir · el gate, < 1 min", "kind": "neutral", "x": 0, "y": 17, "w": 78, "h": 33 },
+    { "id": "despues", "label": "Después del veredicto", "kind": "online", "x": 0, "y": 51, "w": 78, "h": 15 }
+  ],
+  "nodes": [
+    { "id": "modelos", "label": "Tres modelos", "sub": "nuevo · champion 14 · versión 12", "badge": "1", "kind": "model", "x": 1, "y": 5, "w": 21, "h": 8,
+      "note": "El candidato `resnet50-2026-11-01`, el **champion** como versión fija (`champion_version=14`, leída una sola vez del registro) y el modelo de hace 3 meses, la versión 12. Los tres en PyTorch, tal como salieron de su entrenamiento." },
+    { "id": "evaluar", "label": "Evaluar", "sub": "las mismas 50,000 fotos", "badge": "2", "kind": "job", "x": 29, "y": 5, "w": 20, "h": 8,
+      "note": "Cada modelo responde cada foto del examen. No se guardan promedios: se guardan las 5 sugerencias de cada modelo **por foto**, porque la [[prueba-pareada|prueba pareada]] necesita los pares." },
+    { "id": "golden", "label": "golden-v3", "sub": "50,000 fotos congeladas", "kind": "store", "x": 57, "y": 5, "w": 20, "h": 8,
+      "note": "El [[golden-set|golden set]]: etiquetado por dos personas, con al menos ≈ 50 fotos por categoría y la misma mezcla de fotos de celular y de web que el tráfico real. Antes de usarlo se comprueba que está completo y que ninguna de sus fotos entró al entrenamiento." },
+    { "id": "reglas", "label": "gate.yaml", "sub": "escrito antes · PR propio", "kind": "store", "x": 1, "y": 22, "w": 21, "h": 8,
+      "note": "Los [[umbrales-gate|umbrales]]: margen de −0.3 puntos en top-1 y top-5, las 100 categorías con McNemar y Holm, la cola larga, cuatro slices y ECE ≤ 0.05. Solo cambian en un pull request propio, antes de la corrida siguiente." },
+    { "id": "gate", "label": "Gate", "sub": "una regla a la vez", "badge": "3", "kind": "job", "x": 29, "y": 22, "w": 20, "h": 8,
+      "note": "Primero la integridad del examen; luego cada regla contra el champion y contra el de hace 3 meses. Si una falla, el programa **sale con error**: regresar `False` no detendría nada." },
+    { "id": "pred", "label": "Predicciones", "sub": "150,000 filas · Parquet", "kind": "store", "x": 57, "y": 22, "w": 20, "h": 8,
+      "note": "3 modelos × 50,000 fotos, ≈ 5–10 MB. Con ellas se cuentan las discrepancias \\(b\\) y \\(c\\) de cada comparación, y cualquiera puede abrir después las fotos donde el nuevo falla." },
+    { "id": "rojo", "label": "En rojo", "sub": "avisa a la guardia", "kind": "monitor", "x": 1, "y": 39, "w": 21, "h": 8,
+      "note": "El motivo queda en la corrida, el pipeline se pone en rojo y la persona de guardia recibe el aviso. **El champion sigue atendiendo**: nada se apaga." },
+    { "id": "reporte", "label": "Reporte del gate", "sub": "en la corrida de MLflow", "badge": "4", "kind": "store", "x": 29, "y": 39, "w": 20, "h": 8,
+      "note": "El [[reporte-gate|reporte]]: métricas globales, por categoría y por slice de los tres modelos, el veredicto de cada regla con sus números, y la versión y la huella del champion contra el que se comparó." },
+    { "id": "aprobado", "label": "Aprobado", "sub": "checkpoint aprobado", "kind": "service", "x": 57, "y": 39, "w": 20, "h": 8,
+      "note": "Lo que sale de la estación si todo pasa. Todavía **no** está en el registro de modelos." },
+    { "id": "e05", "label": "Estación 5", "sub": "engine · paridad · registro", "kind": "external", "x": 57, "y": 56, "w": 20, "h": 8,
+      "note": "«Export, engine y paridad» convierte el modelo para la T4, comprueba que responde igual y al final registra la versión 15 como `challenger`." },
+    { "id": "champ", "label": "Champion 14", "sub": "sigue atendiendo", "kind": "model", "x": 1, "y": 56, "w": 21, "h": 8,
+      "note": "Pase lo que pase en el gate, la versión 14 atiende a Ana hasta que una versión nueva termine su canary." }
+  ],
+  "edges": [
+    { "from": "modelos", "to": "evaluar", "kind": "offline", "fromSide": "r", "toSide": "l" },
+    { "from": "golden", "to": "evaluar", "kind": "offline", "fromSide": "l", "toSide": "r" },
+    { "from": "evaluar", "to": "pred", "kind": "offline", "fromSide": "b", "toSide": "t", "via": [[39, 17], [67, 17]] },
+    { "from": "pred", "to": "gate", "kind": "neutral", "label": "pares", "fromSide": "l", "toSide": "r" },
+    { "from": "reglas", "to": "gate", "kind": "neutral", "label": "umbrales", "fromSide": "r", "toSide": "l" },
+    { "from": "gate", "to": "reporte", "kind": "neutral", "fromSide": "b", "toSide": "t" },
+    { "from": "gate", "to": "rojo", "kind": "monitor", "label": "falla", "fromSide": "b", "toSide": "t", "via": [[33, 34], [11, 34]] },
+    { "from": "gate", "to": "aprobado", "kind": "online", "label": "pasa", "fromSide": "b", "toSide": "t", "via": [[45, 34], [67, 34]] },
+    { "from": "aprobado", "to": "e05", "kind": "online", "label": "checkpoint", "fromSide": "b", "toSide": "t" },
+    { "from": "rojo", "to": "champ", "kind": "monitor", "dashed": true, "fromSide": "b", "toSide": "t" }
+  ],
+  "flows": [
+    { "id": "pasa", "label": "Noviembre: pasa",
+      "steps": [
+        { "nodes": ["modelos"], "edges": [], "text": "El 1 de noviembre de 2026 termina el entrenamiento de `resnet50-2026-11-01`. El paso lee `champion` **una vez**: versión 14. El de hace 3 meses es la versión 12." },
+        { "nodes": ["modelos", "evaluar", "golden"], "edges": ["modelos>evaluar", "golden>evaluar"], "text": "Los tres modelos responden las mismas **50,000 fotos** de `golden-v3`, en la A10G, en ≈ 15 min." },
+        { "nodes": ["evaluar", "pred"], "edges": ["evaluar>pred"], "text": "Se guardan las predicciones **por foto**: 150,000 filas. Contra el champion, el nuevo acierta solo en 1,040 fotos y el champion solo en 1,060." },
+        { "nodes": ["reglas", "pred", "gate"], "edges": ["reglas>gate", "pred>gate"], "text": "El gate aplica `gate.yaml`. Top-1 contra el champion: \\(Δ\\) = −0.04 y \\(Δ_{min}\\) ≈ −0.22, mayor que −0.3: **pasa**. Contra la versión 12, ≈ −0.25: pasa. Categorías, slices y ECE, también." },
+        { "nodes": ["gate", "reporte", "aprobado"], "edges": ["gate>reporte", "gate>aprobado"], "text": "El reporte queda en la corrida y el checkpoint sale **aprobado**." },
+        { "nodes": ["aprobado", "e05"], "edges": ["aprobado>e05"], "text": "La estación 5 lo convierte, comprueba la paridad y lo registra: versión 15, `challenger → 15`. `champion` sigue en 14." }
+      ] },
+    { "id": "falla", "label": "Un mes que no pasa",
+      "steps": [
+        { "nodes": ["pred", "gate"], "edges": ["pred>gate"], "text": "Otro candidato: «Zapatos de vestir» cae 6 puntos de recall con 400 fotos, y McNemar con Holm dice que no es azar." },
+        { "nodes": ["gate", "reporte"], "edges": ["gate>reporte"], "text": "El reporte guarda **qué regla** falló y con qué números: lo primero que lee quien investiga." },
+        { "nodes": ["gate", "rojo"], "edges": ["gate>rojo"], "text": "El gate sale con error: el pipeline se pone **en rojo** y avisa a la guardia. No hay engine ni registro." },
+        { "nodes": ["rojo", "champ"], "edges": ["rojo>champ"], "text": "Y Ana no nota nada: la **versión 14** sigue atendiendo, como el mes pasado." }
+      ] }
+  ]
+}

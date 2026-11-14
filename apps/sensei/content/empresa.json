@@ -970,7 +970,7 @@
      "dato": "INT8 (por medir)",
      "valor": "≈ 25.1 MB",
      "unidad": "MB",
-     "nota": "",
+     "nota": "Es más que 24.5 MB (1 byte × 24,532,532) porque el archivo INT8 guarda escalas y deja partes en más bits; salió de ONNX Runtime en CPU, no de un engine de TensorRT.",
      "lecciones": [
       "numeros-maquina"
      ]
@@ -1469,7 +1469,7 @@
      "dato": "Duración y costo del reentrenamiento",
      "valor": "≈ 3–4 h en una GPU; ≈ US$10–50; ≈ 3.6 × 10¹⁷ FLOPs",
      "unidad": "—",
-     "nota": "El fine-tune de 40 h de «Máquinas» es un ejemplo genérico, no el de Alba.",
+     "nota": "El fine-tune de 40 h de «Máquinas» es un ejemplo genérico, no el de Alba. Conflicto 40: la corrida es en una A10G (g5.xlarge) y cuesta ≈ US$4–5; el ≈ US$10–50 es el gasto del mes en entrenar (estaciones_modelo.entreno_costo_corrida).",
      "lecciones": [
       "aprender",
       "camino-completo",
@@ -1481,7 +1481,7 @@
      "dato": "Gate de evaluación",
      "valor": "top-1 y top-5 no bajan > 0.3 puntos vs el actual (pareado); recall de las 100 categorías ≥ −5 puntos; macro-recall de la cola larga; slices; ECE ≤ 0.05; también vs el modelo de hace 3 meses",
      "unidad": "—",
-     "nota": "",
+     "nota": "El detalle de cada regla está en estaciones_modelo (gate_*); el recall de una categoría falla solo si la caída también es significativa (conflicto 42).",
      "lecciones": [
       "aprendio",
       "ruido",
@@ -2973,7 +2973,7 @@
      "dato": "Pasos del pipeline mensual",
      "valor": "validar datos → armar snapshot → fine-tune → evaluar → gate → engine en una T4 → paridad → registrar; un contenedor por paso, 2 pasos en GPU",
      "unidad": "—",
-     "nota": "",
+     "nota": "Conflicto 41: son 4 pasos con GPU en dos tipos (estaciones_modelo.pipeline_gpu).",
      "lecciones": [
       "e02-versionado"
      ]
@@ -3148,6 +3148,786 @@
      "lecciones": [
       "e01-datos",
       "e02-versionado"
+     ]
+    }
+   ]
+  },
+  "estaciones_modelo": {
+   "descripcion": "Estaciones 3, 4 y 5: entrenamiento, gate, registry, export, engine y paridad (fase 11)",
+   "hechos": [
+    {
+     "id": "entreno_maquina",
+     "dato": "Dónde corre el fine-tune",
+     "valor": "un pod de Kubernetes en un nodo g5.xlarge (una GPU NVIDIA A10G de 24 GB, 4 vCPU, 16 GiB) on-demand, que se crea para la corrida y se apaga al terminar; ≈ US$1.006 por hora",
+     "unidad": "—",
+     "nota": "Decisión del curso (conflicto 40). La T4 de producción entrenaría a ≈ 400 fotos/s y tardaría ≈ 10 h. Los ≈ 1,000–1,400 fotos/s de la A10G son supuesto del curso (AWS anuncia hasta 3.3× la T4 en entrenamiento; con 4 vCPU para decodificar JPEG puede ser menos): se mide en la primera corrida. Precio de lista on-demand en us-east-1, noviembre de 2026.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_pasos_total",
+     "dato": "Pasos totales del fine-tune",
+     "valor": "230,032 (28,754 × 8)",
+     "unidad": "pasos",
+     "nota": "De receta_entrenamiento.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_fotos_vistas",
+     "dato": "Fotos procesadas en una corrida",
+     "valor": "14,721,688 (1,840,211 × 8)",
+     "unidad": "fotos",
+     "nota": "",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_fotos_por_s",
+     "dato": "Fotos por segundo al entrenar",
+     "valor": "≈ 1,022 si dura 4 h; ≈ 1,363 si dura 3 h",
+     "unidad": "fotos/s",
+     "nota": "14,721,688 ÷ 14,400 s y ÷ 10,800 s.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_memoria_gpu",
+     "dato": "Memoria de GPU al entrenar",
+     "valor": "≈ 3.4 GB (392 MB fijos de pesos, gradientes y momentos de Adam + ≈ 3 GB de activaciones con batch 64)",
+     "unidad": "GB",
+     "nota": "Como en «Cómo aprende un modelo». Cabe de sobra en los 24 GB de la A10G.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_costo_corrida",
+     "dato": "Costo de GPU de una corrida",
+     "valor": "≈ US$3–4: ≈ 3–4 h de fine-tune + ≈ 15 min de evaluar en la A10G (3.25–4.25 h × US$1.006 ≈ US$3.3–4.3)",
+     "unidad": "US$",
+     "nota": "Conflicto 40: el «≈ US$10–50» de duracion_reentrena es el gasto del mes en entrenar (la corrida mensual, las de prueba y las repetidas), no el de una sola corrida.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_corridas_mes",
+     "dato": "Corridas al mes",
+     "valor": "1 corrida candidata del pipeline + ≈ 2–10 corridas de prueba (cambios de receta, la prueba de reproducibilidad, reintentos)",
+     "unidad": "corridas",
+     "nota": "Supuesto del curso; explica el ≈ US$10–50 al mes.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_modo",
+     "dato": "Cómo se paga el entrenamiento",
+     "valor": "on-demand; Alba no usa spot para entrenar: ahorraría ≈ US$2 por corrida y complica el pipeline; spot se queda como palanca si el entrenamiento crece",
+     "unidad": "—",
+     "nota": "Para la g5.xlarge en us-east-1, el Spot Instance Advisor (2026) da ≈ 56 % de ahorro y la frecuencia de interrupción más alta (> 20 %); por zona, ≈ 18–49 % menos. El ahorro por corrida sigue en ≈ US$2. Decisión del curso.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "ckpt_frecuencia",
+     "dato": "Cada cuánto guarda checkpoint",
+     "valor": "cada 15 min (≈ 16 en una corrida de 4 h); lo máximo que se pierde por una caída son 15 min",
+     "unidad": "min",
+     "nota": "Coincide con modelo.checkpoint_entrenamiento.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "ckpt_escritura",
+     "dato": "Cuánto cuesta guardarlo",
+     "valor": "≈ 1.5–3 s por checkpoint de ≈ 294 MB a ≈ 100–200 MB/s; 16 en 4 h ≈ 1 min (< 1 % del tiempo)",
+     "unidad": "s",
+     "nota": "294 ÷ 200 ≈ 1.5 s; 294 ÷ 100 ≈ 2.9 s.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "ckpt_contenido",
+     "dato": "Qué lleva el checkpoint para reanudar",
+     "valor": "pesos, los dos momentos de Adam, época, paso, estado del scheduler de lr, el GradScaler de la precisión mixta y el estado de los generadores aleatorios (Python, PyTorch y el del DataLoader)",
+     "unidad": "—",
+     "nota": "Sin todo eso, reanudar no es seguir: es otra corrida.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "ckpt_ubicacion",
+     "dato": "Dónde se guardan los checkpoints",
+     "valor": "s3://ml-datos/checkpoints/<nombre de la corrida>/; los intermedios se borran a los 30 días (lifecycle); el final queda como artefacto de la corrida en MLflow",
+     "unidad": "—",
+     "nota": "Decisión del curso.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_reintentos",
+     "dato": "Reintentos del paso de fine-tune",
+     "valor": "hasta 3 reintentos (4 intentos en total), con espera de 120 s; cada reintento reanuda desde el último checkpoint",
+     "unidad": "—",
+     "nota": "Lo hace el orquestador (estaciones_datos.orquestador).",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_prueba_humo",
+     "dato": "Prueba de humo del entrenamiento",
+     "valor": "sobreajustar un batch de 32 fotos hasta que la pérdida baje a casi cero; < 1 min en el runner de CI; en cada commit al código de entrenamiento",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_imagen",
+     "dato": "Imagen de entrenamiento",
+     "valor": "una sola imagen de contenedor, fijada por digest (ejemplo: sha256:b71e04d2…), para todos los pasos de Python del pipeline; Python, torch, CUDA, cuDNN y Pillow con versión exacta",
+     "unidad": "—",
+     "nota": "El digest b71e04d2… es de juguete y distinto del request_id 9f2c41d0.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_commit_limpio",
+     "dato": "Regla del commit",
+     "valor": "las candidatas se entrenan solo desde el pipeline, que parte de un commit limpio: si `git status --porcelain` no sale vacío, el paso falla",
+     "unidad": "—",
+     "nota": "MLflow guarda el commit aunque haya cambios sin commit: por eso la regla.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "mlflow_servidor",
+     "dato": "Cómo está montado MLflow",
+     "valor": "un servidor de MLflow (UI y API REST) en el cluster de Alba; metadatos en Postgres (RDS) y artefactos en s3://ml-datos/mlflow/; lo opera el equipo de ML",
+     "unidad": "—",
+     "nota": "Supuesto del curso; la versión de MLflow la confirma la revisión de hechos.",
+     "lecciones": [
+      "e03-entrenamiento",
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "mlflow_nombres",
+     "dato": "Nombres en MLflow",
+     "valor": "experimento classifier-mensual; cada corrida del pipeline se llama como el modelo que produce (resnet50-2026-10-01); las de prueba llevan el sufijo -prueba-N",
+     "unidad": "—",
+     "nota": "Decisión del curso.",
+     "lecciones": [
+      "e03-entrenamiento",
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "mlflow_params",
+     "dato": "Parámetros que registra cada corrida",
+     "valor": "lr, épocas, batch, augmentations, semilla, id del snapshot y su rows_sha256",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "mlflow_metricas",
+     "dato": "Métricas que registra",
+     "valor": "pérdida y val_top1 por época (con su paso); al final top-1, top-5, recall por clase y ECE en validación",
+     "unidad": "—",
+     "nota": "El golden set lo mide el gate, no la corrida.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "mlflow_tags",
+     "dato": "Tags de la corrida",
+     "valor": "commit del código (lo pone MLflow solo), digest de la imagen de entrenamiento, versión del preproceso (1.4.0), snapshot",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "mlflow_artefactos",
+     "dato": "Artefactos de la corrida",
+     "valor": "checkpoint final, labels.json, matriz de confusión y reporte por slice de validación",
+     "unidad": "—",
+     "nota": "El ONNX, el engine y el reporte del gate se agregan a la versión del registry (estaciones 4 y 5).",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "preproceso_version",
+     "dato": "Versión del paquete de preprocesamiento",
+     "valor": "1.4.0, la misma en entrenamiento, evaluación y gateway",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e03-entrenamiento",
+      "e04-gate",
+      "e05-export"
+     ]
+    },
+    {
+     "id": "pipeline_tiempos",
+     "dato": "Cuánto tarda cada paso del pipeline mensual",
+     "valor": "validar ≈ 10 min · armar snapshot ≈ 20 min · fine-tune ≈ 3–4 h · evaluar ≈ 15 min · gate < 1 min · engine ≈ 5–10 min · paridad ≈ 10 min · registrar < 1 min; ≈ 4–5 h en total",
+     "unidad": "—",
+     "nota": "Supuesto del curso. El paso del engine (≈ 5–10 min) incluye bajar la imagen, la guardia de la GPU y el build con trtexec (≈ 2–5 min, engine_build).",
+     "lecciones": [
+      "e03-entrenamiento",
+      "e04-gate",
+      "e05-export"
+     ]
+    },
+    {
+     "id": "pipeline_gpu",
+     "dato": "Qué pasos usan GPU",
+     "valor": "4 pasos en dos tipos de GPU: fine-tune y evaluar en la A10G (g5.xlarge); engine y paridad en una T4 (g4dn.xlarge), porque el engine solo sirve en el tipo de GPU donde se construyó",
+     "unidad": "—",
+     "nota": "Conflicto 41: estaciones_datos.pipeline_mensual decía «2 pasos en GPU».",
+     "lecciones": [
+      "e03-entrenamiento",
+      "e04-gate",
+      "e05-export"
+     ]
+    },
+    {
+     "id": "entreno_disparadores",
+     "dato": "Qué adelanta el reentrenamiento",
+     "valor": "además del calendario mensual: una categoría nueva en el árbol, o una caída de aceptación > 3 puntos semana contra semana",
+     "unidad": "—",
+     "nota": "La decisión de adelantarlo es de la estación de monitoreo.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_desde_champion",
+     "dato": "Desde dónde arranca el fine-tune",
+     "valor": "desde los pesos de ImageNet con la receta fija, no desde el champion del mes anterior",
+     "unidad": "—",
+     "nota": "Decisión del curso: así cada modelo depende solo de su snapshot, su commit y su imagen, y el linaje no encadena meses. Arrancar desde el champion es más barato, pero hereda sus errores.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "gate_margen",
+     "dato": "Margen de no inferioridad",
+     "valor": "−0.3 puntos, del tamaño del ruido del golden: 1.96 × √(0.85 × 0.15 ÷ 50,000) ≈ 0.31 puntos",
+     "unidad": "puntos",
+     "nota": "",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "gate_top1_top5",
+     "dato": "Regla de top-1 y top-5",
+     "valor": "la diferencia pareada en el golden set (el nuevo menos el otro) es ≥ −0.3 puntos contra el champion y contra el modelo de hace 3 meses",
+     "unidad": "puntos",
+     "nota": "Con las predicciones por foto de los dos modelos.",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "gate_recall_regla",
+     "dato": "Regla del recall por categoría",
+     "valor": "en las 100 categorías con más tráfico, ninguna cae más de 5 puntos con una caída significativa (McNemar por categoría, corregido con Holm sobre las 100); el macro-recall de la cola larga no empeora",
+     "unidad": "puntos",
+     "nota": "Conflicto 42: datos_y_entrenamiento.gate decía solo «≥ −5 puntos».",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "gate_ece",
+     "dato": "Calibración",
+     "valor": "ECE ≤ 0.05 en el golden set, después de temperature scaling",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "gate_slices",
+     "dato": "Slices que revisa",
+     "valor": "celular contra web, poca luz, fotos chicas; ninguno cae más que su intervalo (≈ 1–2 puntos)",
+     "unidad": "puntos",
+     "nota": "",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "golden_error_slice",
+     "dato": "Qué tan fino mide el golden por pedazo",
+     "valor": "global ±0.3 puntos; poca luz (2,500 fotos, 77.4 %) ±1.6; una categoría con 60 fotos ±9",
+     "unidad": "puntos",
+     "nota": "Como en «Ruido, muestras y pruebas A/B».",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "gate_champion",
+     "dato": "Contra quién compara y cómo se asegura",
+     "valor": "el champion se lee del alias al empezar y se pasa como versión fija; el reporte guarda su número de versión y el sha256 de su ONNX, y el paso falla si no coinciden con el registry",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "gate_erosion",
+     "dato": "Por qué también contra el de hace 3 meses",
+     "valor": "−0.2 puntos al mes pueden pasar el margen de −0.3, y en 12 meses suman −2.4",
+     "unidad": "puntos",
+     "nota": "Que pasen depende de lo angosto del intervalo pareado: con ≈ 500 fotos en que los modelos no coinciden pasa; con ≈ 2,000, el límite inferior queda bajo −0.3 y no pasa (fase 11, e04).",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "gate_umbrales",
+     "dato": "Dónde viven los umbrales",
+     "valor": "en gate.yaml del repo ml-catalogo; solo cambian en un PR propio, con motivo, antes de la corrida siguiente",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "gate_reporte",
+     "dato": "Reporte del gate",
+     "valor": "las predicciones top-5 por foto de los 3 modelos (nuevo, champion y de hace 3 meses): 150,000 filas, ≈ 5–10 MB en Parquet; métricas globales, por categoría y por slice; el veredicto de cada regla",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "gate_falla",
+     "dato": "Qué pasa si no pasa",
+     "valor": "el motivo queda en la corrida, el paso termina en rojo, avisa a la guardia y sigue el champion",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "gate_override",
+     "dato": "Override",
+     "valor": "solo para un slice, el ECE o la regla contra el de hace 3 meses: lo firman la persona dueña del clasificador y la de producto del flujo de publicar; tag con autor, motivo y ticket. Sin override: top-1/top-5 contra el champion y la integridad del examen (golden completo, labels.json correcto, sin fotos del golden en el entrenamiento). Tampoco tienen override el recall de una de las 100 categorías ni el macro-recall de la cola larga: si una categoría cayó de verdad, es un problema del modelo; si el golden quedó atrasado, se corrige el golden en su propio PR",
+     "unidad": "—",
+     "nota": "Decisión del curso. En una emergencia se vuelve a la versión anterior, nunca a un modelo sin gate.",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "registry_piezas",
+     "dato": "Piezas del registry",
+     "valor": "modelo registrado classifier; versiones numeradas e inmutables (la versión 12 es resnet50-2026-08-01, la 13 resnet50-2026-09-01, la 14 resnet50-2026-10-01 y la 15 resnet50-2026-11-01, con el nombre como tag); alias champion y challenger; tags gate=passed, approved_by",
+     "unidad": "—",
+     "nota": "Decisión del curso: MLflow numera; el nombre con fecha va en un tag.",
+     "lecciones": [
+      "e04-gate",
+      "e05-export"
+     ]
+    },
+    {
+     "id": "registry_contenido",
+     "dato": "Qué guarda una versión",
+     "valor": "ONNX y engine (con GPU T4/sm_75 y release de NGC 24.08 como tags), labels.json con su hash, versión del preproceso, firma de entrada y salida, reporte del gate, resultado de la paridad, y los punteros de la corrida (snapshot, commit, digest)",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e04-gate",
+      "e05-export"
+     ]
+    },
+    {
+     "id": "registry_tamano",
+     "dato": "Peso de una versión",
+     "valor": "≈ 150–250 MB (ONNX ≈ 98 MB + engine ≈ 50–150 MB)",
+     "unidad": "MB",
+     "nota": "almacenamiento.pesos_bucket (≈ 98 MB) cuenta solo el ONNX.",
+     "lecciones": [
+      "e04-gate",
+      "e05-export"
+     ]
+    },
+    {
+     "id": "registry_orden",
+     "dato": "Cuándo se registra y quién mueve los alias",
+     "valor": "la versión se registra y queda como challenger al final de la estación 5, con la paridad y la latencia en verde; champion lo mueve el pipeline de despliegue al terminar el canary; una persona solo con aprobación registrada",
+     "unidad": "—",
+     "nota": "Conflicto 43: «Pruebas y CI/CD» dice que solo se guarda lo que pasa el gate; lo exacto es que el gate aprueba y el registro se hace con el artefacto probado.",
+     "lecciones": [
+      "e04-gate",
+      "e05-export"
+     ]
+    },
+    {
+     "id": "registry_stages",
+     "dato": "Stages de MLflow",
+     "valor": "deprecados (desde MLflow 2.9); Alba usa alias y tags",
+     "unidad": "—",
+     "nota": "La revisión de hechos lo confirma.",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "model_card",
+     "dato": "Qué lleva la ficha del modelo",
+     "valor": "para qué sirve y para qué no, datos (snapshot), métricas globales y por slice, limitaciones, dueña; frase de Alba: «sugiere categorías; no está validado para moderar publicaciones sin revisión humana»",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "labels_json",
+     "dato": "labels.json",
+     "valor": "las 500 categorías en el orden de las salidas del modelo; con su hash en el registry; el gateway lo verifica al arrancar (500 = número de logits)",
+     "unidad": "—",
+     "nota": "Un labels.json desordenado da categorías equivocadas con buena confianza.",
+     "lecciones": [
+      "e04-gate",
+      "e05-export"
+     ]
+    },
+    {
+     "id": "export_opset",
+     "dato": "Opset y exportador",
+     "valor": "opset 17, con el exportador de TorchScript (`torch.onnx.export(..., dynamo=False)`); migrar al exportador nuevo es un cambio aparte, con su propia paridad",
+     "unidad": "—",
+     "nota": "La revisión de hechos confirma el estado de los exportadores en noviembre de 2026.",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "export_firma",
+     "dato": "Firma del ONNX",
+     "valor": "entrada input FP32 [batch, 3, 224, 224]; salida logits FP32 [batch, 500]; eje 0 dinámico, hasta 32",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "export_chequeos",
+     "dato": "Chequeos del script de export",
+     "valor": "onnx.checker con full_check; el opset del archivo es el pedido; ONNX Runtime contra PyTorch en batch 1 y 32 sobre 512 fotos: mismo top-1 en todas y diferencia máxima de logits ≈ 1e-4",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "paridad_umbrales",
+     "dato": "Umbrales de la paridad del engine",
+     "valor": "sobre ≈ 10,000 fotos del golden set: top-1 igual ≥ 99.5 %; top-5 que coincide ≥ 99 %; diferencia máxima de logits ≤ 0.5 (lo normal en FP16 es ≈ 0.01)",
+     "unidad": "—",
+     "nota": "Concreta datos_y_entrenamiento.paridad: el ≈ 0.01 es lo típico y el 0.5 es el tope que atrapa un engine roto.",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "paridad_falla",
+     "dato": "Si la paridad falla",
+     "valor": "el paso sale con error: no se registra la versión y sigue el champion",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "paridad_etapas",
+     "dato": "Las tres paridades",
+     "valor": "en CPU con ONNX Runtime (en el export); FP16 contra FP32 con Triton en la T4 (esta estación); de punta a punta por el gateway en staging (la estación de CI/CD)",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "engine_build",
+     "dato": "Dónde y con qué se construye el engine",
+     "valor": "en el runner de CI con T4 (g4dn.xlarge), con la imagen nvcr.io/nvidia/tensorrt:24.08-py3 (TensorRT 10.3, la misma release que tritonserver:24.08-py3) y trtexec en FP16; el script aborta si nvidia-smi no dice T4; tarda ≈ 2–5 min",
+     "unidad": "—",
+     "nota": "El tiempo es supuesto del curso.",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "engine_perfil",
+     "dato": "Perfil de batch del engine",
+     "valor": "mínimo 1, óptimo 16, máximo 32 (= max_batch_size de Triton); en la hora pico los batches reales son ≈ 1–3",
+     "unidad": "batch",
+     "nota": "",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "engine_ubicacion",
+     "dato": "Dónde queda el engine",
+     "valor": "model.plan en el model repository de Triton (classifier/1/model.plan), horneado en la imagen de Triton (el tag es la versión del modelo); no va en git; su sha256 queda en el registry",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "engine_huellas",
+     "dato": "Huellas del build",
+     "valor": "sha256 del ONNX y del plan, tipo de GPU (T4, sm_75) y release de NGC (24.08)",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "engine_no_portable",
+     "dato": "Si cambia la GPU o TensorRT",
+     "valor": "se reconstruye el engine; un engine de otra GPU o de otra versión no carga: el pod falla al arrancar y el rollout se detiene; con T4 y L4 serían dos engines y dos imágenes",
+     "unidad": "—",
+     "nota": "Vale por omisión: TensorRT tiene modos de compatibilidad entre versiones y entre GPUs (este, solo de Ampere en adelante, no la T4). Alba no los usa.",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "latencia_gate",
+     "dato": "Gate de latencia",
+     "valor": "perf_analyzer contra Triton en la T4 a 250 peticiones/s (diseño) y a 500 (una zona caída): el p99 del modelo no sube más de 10 % sobre el del champion; también throughput máximo, VRAM y tiempo de carga",
+     "unidad": "—",
+     "nota": "El 10 % es decisión del equipo y vive en el repo; cambia en un PR propio, como los umbrales del gate.",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "int8_estado",
+     "dato": "INT8",
+     "valor": "no se usa: las 2 T4 van a ≈ 5 % de su capacidad en promedio y FP16 sobra; se consideraría con ≈ 10× el tráfico; calibraría con ≈ 500–1,000 fotos del tráfico reciente",
+     "unidad": "—",
+     "nota": "peso_int8 (≈ 25.1 MB) es una estimación, no un engine construido.",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "export_tiempo",
+     "dato": "Del checkpoint aprobado a challenger",
+     "valor": "≈ 20–30 min: export y chequeos, engine, paridad, latencia y registro",
+     "unidad": "min",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "entreno_receta_archivo",
+     "dato": "Dónde vive la receta",
+     "valor": "ml-catalogo/model/receta.yaml; cambia solo con pull request",
+     "unidad": "—",
+     "nota": "Supuesto del curso (fase 11).",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "entreno_augmentations",
+     "dato": "Augmentations de la receta",
+     "valor": "recorte aleatorio y volteo horizontal",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "ckpt_nombre",
+     "dato": "Nombre de cada checkpoint",
+     "valor": "paso-<número>.pt (ej. paso-115016.pt); nunca se escribe encima de «el último»",
+     "unidad": "—",
+     "nota": "Así un reintento no pisa un checkpoint bueno.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "mlflow_url",
+     "dato": "Dirección del servidor de MLflow",
+     "valor": "http://mlflow.ml.svc:5000 (dentro del cluster)",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e03-entrenamiento",
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "mlflow_reintento",
+     "dato": "Un reintento en MLflow",
+     "valor": "reanuda la misma corrida y anota cuántos intentos hubo",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e03-entrenamiento"
+     ]
+    },
+    {
+     "id": "gate_integridad",
+     "dato": "Qué revisa el gate antes de las reglas",
+     "valor": "golden completo con la huella de su manifest, labels.json con la huella registrada, ninguna foto del golden en el snapshot",
+     "unidad": "—",
+     "nota": "Concreta la «integridad del examen» de gate_override.",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "override_revision",
+     "dato": "Revisión de los overrides",
+     "valor": "cada override se revisa en la reunión mensual del equipo",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "model_card_limitacion",
+     "dato": "Limitaciones en la ficha del modelo",
+     "valor": "fotos con poca luz ≈ 8 puntos menos de top-1 (77.4 % contra ≈ 85 %); categorías con < 50 fotos en el golden no se miden una por una",
+     "unidad": "—",
+     "nota": "Derivado de golden_error_slice y golden_version.",
+     "lecciones": [
+      "e04-gate"
+     ]
+    },
+    {
+     "id": "latencia_p99_champion",
+     "dato": "p99 del champion con perf_analyzer en la T4 del runner",
+     "valor": "≈ 9.6 ms a 250 peticiones/s; ≈ 12.5 ms a 500",
+     "unidad": "ms",
+     "nota": "Supuesto del curso, del orden de servicio.triton_espera (5–12 ms). El challenger de octubre: ≈ 9.7 y ≈ 13.1 ms (pasa).",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "paridad_cambio_sano",
+     "dato": "Fotos que un engine FP16 sano cambia de top-1",
+     "valor": "≈ 0.2 % (≈ 20 de 10,000)",
+     "unidad": "%",
+     "nota": "Supuesto del ejemplo, no medición de Alba.",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "export_checkpoint",
+     "dato": "Qué carga el export del checkpoint",
+     "valor": "el checkpoint final trae pesos y estado de entrenamiento (≈ 294 MB); el export carga solo los pesos (ckpt[\"model\"]) en un modelo en eval()",
+     "unidad": "—",
+     "nota": "Decisión del curso (fase 11).",
+     "lecciones": [
+      "e03-entrenamiento",
+      "e05-export"
+     ]
+    },
+    {
+     "id": "int8_escala_trafico",
+     "dato": "T4 necesarias a ≈ 10× el tráfico (5,000 peticiones/s)",
+     "valor": "≈ 10 en FP16 contra ≈ 6–7 en INT8; quitar 3–4 T4 ahorraría ≈ US$1,150–1,540 al mes (3–4 × 0.526 × 730)",
+     "unidad": "T4",
+     "nota": "Estimación del equipo de Alba: 5,000 ÷ 600 planeadas por T4 ≈ 8.3, + 1 de reserva; INT8 da ≈ 1.5–2× más por T4.",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "onnx_numeros",
+     "dato": "Números guardados en el ONNX",
+     "valor": "24,505,972 (≈ 98.0 MB en FP32): el exportador funde cada BatchNorm en su convolución; la primera conv queda con 9,408 pesos + 64 de bias",
+     "unidad": "números",
+     "nota": "24,532,532 − 53,120 (γ y β de las BatchNorm) + 26,560 (bias nuevos). peso_fp32 (≈ 98 MB) sigue valiendo.",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "latencia_p99_challenger_oct",
+     "dato": "p99 del challenger de octubre con perf_analyzer",
+     "valor": "≈ 9.7 ms a 250 peticiones/s; ≈ 13.1 ms a 500",
+     "unidad": "ms",
+     "nota": "Supuesto del curso. Límites: 9.6 × 1.1 = 10.56 y 12.5 × 1.1 = 13.75 ms: pasa.",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "export_chequeos_tiempo",
+     "dato": "Export y sus tres chequeos",
+     "valor": "unos minutos",
+     "unidad": "min",
+     "nota": "Supuesto del curso; parte de export_tiempo (≈ 20–30 min en total).",
+     "lecciones": [
+      "e05-export"
+     ]
+    },
+    {
+     "id": "latencia_gate_tiempo",
+     "dato": "Duración del gate de latencia",
+     "valor": "unos minutos",
+     "unidad": "min",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e05-export"
      ]
     }
    ]
@@ -3497,6 +4277,42 @@
     "privacidad"
    ],
    "como": "privacidad decía que los snapshots viejos salen de circulación cuando vence su retención."
+  },
+  {
+   "n": 40,
+   "tema": "Costo y máquina del entrenamiento",
+   "resolucion": "Una corrida entrena en una g5.xlarge (A10G) on-demand y cuesta ≈ US$3–4 de GPU; el ≈ US$10–50 es el gasto del mes en entrenar (la corrida candidata más las de prueba). La T4 de producción tardaría ≈ 10 h.",
+   "cambiar": [
+    "aprender",
+    "camino-completo",
+    "flops"
+   ],
+   "como": "duracion_reentrena decía «≈ 3–4 h en una GPU; ≈ US$10–50» sin decir qué GPU ni si era por corrida; 3–4 h en una T4 a US$0.526 no daban US$10. aprender.md decía además que cada mes se parte del modelo en producción; se corrigió (arranca de ImageNet)."
+  },
+  {
+   "n": 41,
+   "tema": "Pasos con GPU del pipeline",
+   "resolucion": "4 pasos con GPU en dos tipos: fine-tune y evaluar en la A10G; engine y paridad en una T4.",
+   "cambiar": [
+    "e02-versionado"
+   ],
+   "como": "pipeline_mensual decía «2 pasos en GPU»."
+  },
+  {
+   "n": 42,
+   "tema": "Regla del recall por categoría",
+   "resolucion": "Una categoría de las 100 falla si cae más de 5 puntos y la caída es significativa (McNemar con Holm sobre 100).",
+   "cambiar": [],
+   "como": "datos_y_entrenamiento.gate decía solo «≥ −5 puntos»."
+  },
+  {
+   "n": 43,
+   "tema": "Cuándo se registra la versión",
+   "resolucion": "El gate aprueba el checkpoint; la versión se registra como challenger al final de la estación 5, con paridad y latencia en verde.",
+   "cambiar": [
+    "pruebas-ci"
+   ],
+   "como": "«Pruebas y CI/CD» decía que solo se guarda en el registro lo que pasa el gate."
   }
  ]
 }

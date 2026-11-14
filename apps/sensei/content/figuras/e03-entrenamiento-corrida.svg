@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 540" role="img" aria-labelledby="f-e03-entrenamiento-corrida-t" class="f-svg" style="max-width:420px">
+<title id="f-e03-entrenamiento-corrida-t">La corrida resnet50-2026-10-01 del experimento classifier-mensual, con sus cuatro tipos de cosa. Parámetros: lr 3e-4, 8 épocas, batch 64, semilla 17, el snapshot ds-2026-09-01 y su rows_sha256. Métricas: pérdida y val_top1 por época, con una curva que sube de 78.9 a 85.4 por ciento, y al final top-1, top-5, recall por clase y ECE. Tags: commit c3f2fc2, digest de la imagen sha256:b71e04d2 y preproceso 1.4.0. Artefactos: checkpoint final de 294 MB, labels.json, matriz de confusión y reporte por slice. Parámetros, métricas y tags van a Postgres; los artefactos, a S3.</title>
+<rect class="f-card" x="10" y="10" width="340" height="520" rx="16"/>
+<text class="f-l" x="26" y="36">EXPERIMENTO classifier-mensual</text>
+<rect class="f-dark" x="22" y="46" width="316" height="40" rx="10"/>
+<text class="f-dark-t" x="36" y="71" style="font-size:14px">corrida resnet50-2026-10-01</text>
+<text class="f-l" x="26" y="112">PARÁMETROS · antes de empezar</text>
+<rect class="f-b2" x="22" y="120" width="316" height="58" rx="8"/>
+<text class="f-s" x="34" y="142" style="font-size:12px">lr 3e-4 · épocas 8 · batch 64 · semilla 17</text>
+<text class="f-s" x="34" y="164" style="font-size:12px">snapshot ds-2026-09-01 · rows_sha256</text>
+<text class="f-l" x="26" y="202">MÉTRICAS · val_top1 por época</text>
+<rect class="f-b2" x="22" y="210" width="316" height="96" rx="8"/>
+<polyline class="f-linea" style="stroke-width:2.5" fill="none" points="44,284 74,264 104,253 134,247 164,242 194,239 224,236 254,236"/>
+<circle class="f-acc" cx="254" cy="236" r="5"/>
+<text class="f-s" x="264" y="241" style="font-size:12px">85.4 %</text>
+<text class="f-s" x="34" y="232" style="font-size:12px">78.9 → 85.4</text>
+<text class="f-s" x="34" y="298" style="font-size:12px">al final: top-1, top-5, recall, ECE</text>
+<text class="f-l" x="26" y="330">TAGS · para encontrar y explicar</text>
+<rect class="f-b2" x="22" y="338" width="316" height="58" rx="8"/>
+<text class="f-s" x="34" y="360" style="font-size:12px">commit c3f2fc2 · preproceso 1.4.0</text>
+<text class="f-s" x="34" y="382" style="font-size:12px">imagen sha256:b71e04d2…</text>
+<text class="f-l" x="26" y="420">ARTEFACTOS · archivos</text>
+<rect class="f-y" x="22" y="428" width="316" height="58" rx="8" style="opacity:.45"/>
+<text class="f-s" x="34" y="450" style="font-size:12px">final.pt (294 MB) · labels.json</text>
+<text class="f-s" x="34" y="472" style="font-size:12px">matriz de confusión · reporte por slice</text>
+<rect class="f-chip" x="22" y="494" width="154" height="28" rx="8"/>
+<text class="f-s" x="99" y="513" text-anchor="middle" style="font-size:12px">↑ los 3 azules: Postgres</text>
+<rect class="f-chip" x="184" y="494" width="154" height="28" rx="8"/>
+<text class="f-s" x="261" y="513" text-anchor="middle" style="font-size:12px">el amarillo: S3</text>
+</svg>

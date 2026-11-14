@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 400" role="img" aria-labelledby="f-e04-gate-margen-t" class="f-svg" style="max-width:420px">
+<title id="f-e04-gate-margen-t">Tres candidatos contra la raya de −0.3 puntos, en una escala de −0.6 a +0.6 puntos de diferencia de top-1 contra el champion. Noviembre: diferencia −0.04, intervalo de −0.22 a +0.14; el extremo de abajo queda a la derecha de la raya y pasa, aunque el punto está debajo de cero. Otro candidato: diferencia −0.20, intervalo de −0.38 a −0.02; el extremo de abajo cruza la raya y no pasa. Un candidato que mejora: diferencia +0.40, intervalo de +0.22 a +0.58; pasa, y además es mejor de forma significativa porque todo el intervalo queda arriba de cero.</title>
+<rect class="f-card" x="10" y="10" width="340" height="380" rx="16"/>
+<text class="f-l" x="26" y="36">DIFERENCIA PAREADA Δ, EN PUNTOS</text>
+<rect class="f-chip" x="40" y="56" width="66.9" height="252" rx="4"/>
+<text class="f-s" x="73" y="76" text-anchor="middle" style="font-size:12px">no pasa</text>
+<line class="f-linea" x1="173.8" y1="56" x2="173.8" y2="308" style="stroke-dasharray:4 4"/>
+<line x1="106.9" y1="56" x2="106.9" y2="308" style="stroke:var(--o);stroke-width:2.5"/>
+<text class="f-s" x="112" y="76" style="font-size:12px;fill:var(--o)">−m = −0.3</text>
+<text class="f-s" x="178" y="96" style="font-size:12px">0: empate</text>
+<text class="f-t" x="26" y="128" style="font-size:14px">Noviembre</text>
+<line class="f-linea" x1="124.8" y1="146" x2="205.1" y2="146" style="stroke-width:3"/>
+<line class="f-linea" x1="124.8" y1="139" x2="124.8" y2="153" style="stroke-width:3"/>
+<line class="f-linea" x1="205.1" y1="139" x2="205.1" y2="153" style="stroke-width:3"/>
+<circle class="f-g" cx="164.9" cy="146" r="6"/>
+<text class="f-s" x="214" y="151" style="font-size:12px">pasa: −0.22</text>
+<text class="f-t" x="26" y="190" style="font-size:14px">Otro candidato</text>
+<line class="f-linea" x1="89.1" y1="208" x2="169.4" y2="208" style="stroke-width:3"/>
+<line class="f-linea" x1="89.1" y1="201" x2="89.1" y2="215" style="stroke-width:3"/>
+<line class="f-linea" x1="169.4" y1="201" x2="169.4" y2="215" style="stroke-width:3"/>
+<circle class="f-o" cx="129.2" cy="208" r="6"/>
+<text class="f-s" x="178" y="213" style="font-size:12px">no pasa: −0.38</text>
+<text class="f-t" x="26" y="252" style="font-size:14px">Uno que mejora</text>
+<line class="f-linea" x1="222.9" y1="270" x2="303.2" y2="270" style="stroke-width:3"/>
+<line class="f-linea" x1="222.9" y1="263" x2="222.9" y2="277" style="stroke-width:3"/>
+<line class="f-linea" x1="303.2" y1="263" x2="303.2" y2="277" style="stroke-width:3"/>
+<circle class="f-b" cx="263.1" cy="270" r="6"/>
+<text class="f-s" x="196" y="296" style="font-size:12px">pasa, y es mejor: +0.22</text>
+<line class="f-linea" x1="40" y1="308" x2="320" y2="308"/>
+<text class="f-l" x="40" y="326" text-anchor="middle">−0.6</text>
+<text class="f-l" x="106.9" y="326" text-anchor="middle">−0.3</text>
+<text class="f-l" x="173.8" y="326" text-anchor="middle">0</text>
+<text class="f-l" x="240.8" y="326" text-anchor="middle">+0.3</text>
+<text class="f-l" x="307.7" y="326" text-anchor="middle">+0.6</text>
+<text class="f-s" x="26" y="354" style="font-size:12px">El punto es Δ; la barra, su intervalo de 95 %.</text>
+<text class="f-s" x="26" y="372" style="font-size:12px">Decide el extremo izquierdo, Δ_min, contra la raya.</text>
+</svg>

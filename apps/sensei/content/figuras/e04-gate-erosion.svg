@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 410" role="img" aria-labelledby="f-e04-gate-erosion-t" class="f-svg" style="max-width:420px">
+<title id="f-e04-gate-erosion-t">Una escalera que baja 0.2 puntos cada mes durante 12 meses, de 0 a −2.4 puntos de top-1. Cada escalón, comparado solo contra el champion del mes anterior, mide 0.2 puntos y cabe en la franja del margen de 0.3: pasa. Al mes 3, la comparación contra el modelo de hace 3 meses junta tres escalones, −0.6 puntos, que no caben en el margen (desde el mes 2, dos escalones, −0.4, tampoco caben). Sin esa comparación, la escalera llega a −2.4 puntos en un año.</title>
+<rect class="f-card" x="10" y="10" width="340" height="390" rx="16"/>
+<text class="f-l" x="26" y="36">TOP-1 PERDIDO, EN PUNTOS · 0.2 POR MES</text>
+<rect class="f-chip" x="50" y="60" width="280" height="25" rx="3"/>
+<text class="f-s" x="326" y="78" text-anchor="end" style="font-size:12px">margen: 0.3</text>
+<line class="f-linea" x1="50" y1="60" x2="50" y2="268"/>
+<line class="f-linea" x1="50" y1="268" x2="330" y2="268"/>
+<text class="f-l" x="44" y="64" text-anchor="end">0</text>
+<text class="f-l" x="44" y="164" text-anchor="end">−1.2</text>
+<text class="f-l" x="44" y="264" text-anchor="end">−2.4</text>
+<polyline points="50.0,60.0 73.3,60.0 73.3,76.7 96.7,76.7 96.7,93.3 120.0,93.3 120.0,110.0 143.3,110.0 143.3,126.7 166.7,126.7 166.7,143.3 190.0,143.3 190.0,160.0 213.3,160.0 213.3,176.7 236.7,176.7 236.7,193.3 260.0,193.3 260.0,210.0 283.3,210.0 283.3,226.7 306.7,226.7 306.7,243.3 330.0,243.3 330.0,260.0" style="fill:none;stroke:var(--b);stroke-width:3"/>
+<circle class="f-g" cx="73.3" cy="76.7" r="4"/>
+<circle class="f-g" cx="96.7" cy="93.3" r="4"/>
+<circle class="f-o" cx="120" cy="110" r="7"/>
+<circle class="f-g" cx="143.3" cy="126.7" r="4"/>
+<circle class="f-g" cx="166.7" cy="143.3" r="4"/>
+<circle class="f-g" cx="190" cy="160" r="4"/>
+<circle class="f-g" cx="213.3" cy="176.7" r="4"/>
+<circle class="f-g" cx="236.7" cy="193.3" r="4"/>
+<circle class="f-g" cx="260" cy="210" r="4"/>
+<circle class="f-g" cx="283.3" cy="226.7" r="4"/>
+<circle class="f-g" cx="306.7" cy="243.3" r="4"/>
+<circle class="f-o" cx="330" cy="260" r="5"/>
+<line x1="128" y1="60" x2="128" y2="110" style="stroke:var(--o);stroke-width:2.5"/>
+<line x1="123" y1="60" x2="133" y2="60" style="stroke:var(--o);stroke-width:2.5"/>
+<line x1="123" y1="110" x2="133" y2="110" style="stroke:var(--o);stroke-width:2.5"/>
+<text class="f-s" x="138" y="80" style="font-size:12px;fill:var(--o)">−0.6 contra el de</text>
+<text class="f-s" x="138" y="95" style="font-size:12px;fill:var(--o)">hace 3 meses: rojo</text>
+<text class="f-s" x="196" y="252" style="font-size:12px">−2.4 en 12 meses</text>
+<text class="f-l" x="50" y="286" text-anchor="middle">0</text>
+<text class="f-l" x="120" y="286" text-anchor="middle">3</text>
+<text class="f-l" x="190" y="286" text-anchor="middle">6</text>
+<text class="f-l" x="260" y="286" text-anchor="middle">9</text>
+<text class="f-l" x="330" y="286" text-anchor="middle">12</text>
+<text class="f-l" x="190" y="304" text-anchor="middle">MESES</text>
+<circle class="f-g" cx="34" cy="332" r="5"/>
+<text class="f-s" x="46" y="337" style="font-size:12px">Contra el champion: cada escalón de 0.2 pasa</text>
+<circle class="f-o" cx="34" cy="360" r="5"/>
+<text class="f-s" x="46" y="365" style="font-size:12px">Contra el de hace 3 meses: tres escalones</text>
+<text class="f-s" x="46" y="381" style="font-size:12px">juntos no caben y el gate se detiene</text>
+</svg>

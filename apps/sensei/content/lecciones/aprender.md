@@ -689,7 +689,7 @@ Un entrenamiento de Alba dura horas: unas 3 a 4 en una GPU. Si la máquina se ap
 
 - **Las máquinas fallan, o te las quitan.** En la nube (computadoras que se rentan por hora, por ejemplo a AWS, la de Amazon) hay máquinas mucho más baratas, llamadas *spot*, que el proveedor puede reclamar cuando las necesita (en AWS, con un aviso de apenas dos minutos). Con checkpoints, perder la máquina cuesta minutos, no la corrida entera.
 - **Para quedarte con la mejor versión.** A veces la época 6 sale mejor en validación que la 8 (es el early stopping).
-- **Para seguir después.** Cada mes, el modelo nuevo de Alba empieza desde el que está en producción, no desde cero.
+- **Para seguir después.** Si la corrida se corta, se reanuda desde el último checkpoint y no desde cero. Lo ves a fondo en «Entrenamiento y experimentos».
 
 :::cuenta ¿Cuánto pesa un checkpoint de Alba?
 Las perillas, \(P × 4\) B // \(P\) = 24.5 M parámetros del modelo de Alba, cada uno en 4 bytes ([[float32]]) | 24.5 M × 4 B | 98 MB
@@ -755,7 +755,7 @@ La misma cuenta en otro orden da otro resultado. La GPU reparte cada suma grande
 - 1,840,211 fotos × 8 épocas = 14,721,688 pasadas.
 - Cada una con forward pass y backpropagation, que cuesta unas 3 veces un forward pass solo: ≈ 44 millones de «respuestas» de trabajo.
 
-El equipo de Alba estima que su entrenamiento mensual tarda unas 3 a 4 horas en una GPU y cuesta del orden de US$10 a 50. Haz la cuenta al revés: fotos por segundo = \(N × E\) ÷ segundos que dura, con \(N\) las fotos de train y \(E\) las épocas. 4 horas son 4 × 3,600 = 14,400 segundos, así que 1,840,211 × 8 ÷ 14,400 = 14,721,688 ÷ 14,400 ≈ 1,000 fotos por segundo. Es la velocidad que tiene que sostener la GPU. Es razonable para una GPU moderna, pero varía mucho con el modelo de GPU y la configuración: tómala como un orden de magnitud, no como un dato.
+El equipo de Alba estima que su entrenamiento mensual tarda unas 3 a 4 horas en una GPU A10G y cuesta ≈ US$3 a 4 de GPU por corrida (≈ US$10 a 50 al mes, contando las corridas de prueba). Haz la cuenta al revés: fotos por segundo = \(N × E\) ÷ segundos que dura, con \(N\) las fotos de train y \(E\) las épocas. 4 horas son 4 × 3,600 = 14,400 segundos, así que 1,840,211 × 8 ÷ 14,400 = 14,721,688 ÷ 14,400 ≈ 1,000 fotos por segundo. Es la velocidad que tiene que sostener la GPU. Es razonable para una GPU moderna, pero varía mucho con el modelo de GPU y la configuración: tómala como un orden de magnitud, no como un dato.
 :::
 
 ### Lo que tiene que caber en la VRAM
@@ -815,7 +815,7 @@ Arranca con los números de Alba: 24.5 millones de parámetros, ≈ 3 GB de acti
 
 ### Alba: un fine-tune al mes
 
-Cada mes, Alba parte del modelo que está en producción y lo ajusta con las fotos nuevas: Adam con lr 3e-4, batches de 64, 8 épocas (28,754 pasos cada una), semilla 17 y precisión mixta. Guarda un checkpoint de ≈ 294 MB cada 15 minutos, tarda unas 3 a 4 horas en una GPU y cuesta del orden de US$10 a 50. Registra la pérdida y la validación de cada época, y el modelo nuevo solo pasa a producción si **no es peor** que el actual en el golden set. Como arranca de un modelo que ya sabe, su pérdida no empieza en 6.21: eso solo le pasó a la primera versión, cuando su última capa era nueva.
+Cada mes, Alba parte de los pesos de ImageNet (no del modelo en producción, para que cada modelo dependa solo de sus datos y su código) y los ajusta con el snapshot del mes: Adam con lr 3e-4, batches de 64, 8 épocas (28,754 pasos cada una), semilla 17 y precisión mixta. Guarda un checkpoint de ≈ 294 MB cada 15 minutos, tarda unas 3 a 4 horas en una GPU A10G y cuesta ≈ US$3 a 4 de GPU por corrida (≈ US$10 a 50 al mes, contando las corridas de prueba). Registra la pérdida y la validación de cada época, y el modelo nuevo solo pasa a producción si **no es peor** que el actual en el golden set. Como su última capa (la de las 500 categorías) es nueva cada mes, su pérdida empieza cerca de 6.21, pero baja rápido porque el resto de la red ya sabe ver fotos.
 
 ### Pronosticar demanda, donde la pérdida decide qué predices
 

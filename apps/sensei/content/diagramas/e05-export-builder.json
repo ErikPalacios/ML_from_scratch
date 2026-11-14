@@ -1,0 +1,253 @@
+{
+  "titulo": "Dentro del builder de TensorRT: del ONNX al model.plan",
+  "width": 78,
+  "height": 48,
+  "lanes": [
+    {
+      "id": "b",
+      "label": "Builder de TensorRT 10.3, dentro de tensorrt:24.08-py3",
+      "kind": "offline",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 48
+    }
+  ],
+  "nodes": [
+    {
+      "id": "onnx",
+      "label": "model.onnx",
+      "sub": "grafo · pesos FP32",
+      "kind": "store",
+      "x": 1,
+      "y": 6,
+      "w": 16,
+      "h": 8,
+      "note": "El [[onnx|ONNX]] que salió del export: el [[grafo-modelo|grafo]] de operadores, los pesos en FP32 y la firma."
+    },
+    {
+      "id": "leer",
+      "label": "Leer el grafo",
+      "sub": "operadores",
+      "badge": "1",
+      "kind": "job",
+      "x": 21,
+      "y": 6,
+      "w": 16,
+      "h": 8,
+      "note": "Carga el ONNX y revisa que cada operador sea uno que sabe compilar, en el [[opset]] del archivo. Si no, el build falla aquí."
+    },
+    {
+      "id": "simpl",
+      "label": "Simplificar",
+      "sub": "quita y precalcula",
+      "badge": "2",
+      "kind": "job",
+      "x": 41,
+      "y": 6,
+      "w": 16,
+      "h": 8,
+      "note": "Quita operaciones que no hacen nada y precalcula las partes que solo dependen de pesos."
+    },
+    {
+      "id": "fusion",
+      "label": "Fusionar",
+      "sub": "174 → ≈ 56 kernels",
+      "badge": "3",
+      "kind": "job",
+      "x": 61,
+      "y": 6,
+      "w": 16,
+      "h": 8,
+      "note": "[[fusion-capas|Fusión de capas]]: cada convolución con su BatchNorm, su ReLU y la suma residual se vuelve un solo [[kernel-gpu|kernel]]. Menos lanzamientos y menos viajes a memoria."
+    },
+    {
+      "id": "prec",
+      "label": "Elegir precisión",
+      "sub": "FP16 donde se puede",
+      "badge": "4",
+      "kind": "job",
+      "x": 61,
+      "y": 22,
+      "w": 16,
+      "h": 8,
+      "note": "Con `--fp16`, cada capa va en FP16 si tiene versión en FP16 y conviene; si no, se queda en FP32. Una capa que se desborda en FP16 (sus números pasan de ≈ 65,504, el máximo de FP16) es la que hay que dejar en FP32 a mano."
+    },
+    {
+      "id": "tact",
+      "label": "Cronometrar tácticas",
+      "sub": "en esta GPU",
+      "badge": "5",
+      "kind": "job",
+      "x": 41,
+      "y": 22,
+      "w": 16,
+      "h": 8,
+      "note": "Una táctica es una forma concreta de hacer la cuenta de una capa. Para cada capa prueba varias, las mide en la GPU que tiene enfrente y se queda con la más rápida, para las formas del [[perfil-optimizacion|perfil]]. Por eso el engine depende de la GPU, y dos builds pueden salir un poco distintos."
+    },
+    {
+      "id": "guardar",
+      "label": "Guardar el engine",
+      "sub": "pesos en FP16",
+      "badge": "6",
+      "kind": "job",
+      "x": 21,
+      "y": 22,
+      "w": 16,
+      "h": 8,
+      "note": "Escribe en un solo archivo (a esto se le llama serializar) el grafo fusionado, la precisión de cada capa, las tácticas elegidas y los pesos, en el formato de esta versión de TensorRT."
+    },
+    {
+      "id": "plan",
+      "label": "model.plan",
+      "sub": "≈ 50–150 MB",
+      "kind": "store",
+      "x": 1,
+      "y": 22,
+      "w": 16,
+      "h": 8,
+      "note": "El [[engine-tensorrt|engine]]: ≈ 49 MB de pesos FP16 más lo que agrega TensorRT. Atado a sm_75 y a TensorRT 10.3."
+    },
+    {
+      "id": "gpu",
+      "label": "La T4 y el perfil",
+      "sub": "sm_75 · batch 1/16/32",
+      "kind": "gpu",
+      "x": 41,
+      "y": 37,
+      "w": 16,
+      "h": 8,
+      "note": "La GPU real donde se cronometra (la guardia revisa que sea T4, [[compute-capability|compute capability]] 7.5) y el perfil que le pasa `trtexec`: mínimo 1, óptimo 16, máximo 32."
+    }
+  ],
+  "edges": [
+    {
+      "from": "onnx",
+      "to": "leer",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "leer",
+      "to": "simpl",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "simpl",
+      "to": "fusion",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "fusion",
+      "to": "prec",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "prec",
+      "to": "tact",
+      "kind": "offline",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "gpu",
+      "to": "tact",
+      "kind": "neutral",
+      "fromSide": "t",
+      "toSide": "b"
+    },
+    {
+      "from": "tact",
+      "to": "guardar",
+      "kind": "offline",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "guardar",
+      "to": "plan",
+      "kind": "offline",
+      "fromSide": "l",
+      "toSide": "r"
+    }
+  ],
+  "flows": [
+    {
+      "id": "t4",
+      "label": "El engine de Alba en la T4",
+      "steps": [
+        {
+          "nodes": [
+            "onnx",
+            "leer"
+          ],
+          "edges": [
+            "onnx>leer"
+          ],
+          "text": "`trtexec` recibe el `model.onnx` de ≈ 98 MB y el builder **lee el grafo**: todos sus operadores existen en opset 17."
+        },
+        {
+          "nodes": [
+            "leer",
+            "simpl"
+          ],
+          "edges": [
+            "leer>simpl"
+          ],
+          "text": "**Simplifica**: quita lo que no hace nada y precalcula lo constante."
+        },
+        {
+          "nodes": [
+            "simpl",
+            "fusion"
+          ],
+          "edges": [
+            "simpl>fusion"
+          ],
+          "text": "**Fusiona**: las 174 operaciones por batch de la ResNet-50 en PyTorch quedan en ≈ 56 kernels (cada BatchNorm ya venía metida en su convolución desde el export)."
+        },
+        {
+          "nodes": [
+            "fusion",
+            "prec"
+          ],
+          "edges": [
+            "fusion>prec"
+          ],
+          "text": "**Elige la precisión**: con `--fp16`, casi todo va en FP16."
+        },
+        {
+          "nodes": [
+            "prec",
+            "tact",
+            "gpu"
+          ],
+          "edges": [
+            "prec>tact",
+            "gpu>tact"
+          ],
+          "text": "**Cronometra tácticas** en la T4 del runner, para el perfil 1/16/32. Esta es la parte que ata el engine a la GPU."
+        },
+        {
+          "nodes": [
+            "tact",
+            "guardar",
+            "plan"
+          ],
+          "edges": [
+            "tact>guardar",
+            "guardar>plan"
+          ],
+          "text": "**Guarda** el engine en `model.plan`: ≈ 49 MB de pesos en FP16 dentro de un archivo de ≈ 50–150 MB. Al terminar, el script imprime la GPU, la release y las dos huellas SHA-256."
+        }
+      ]
+    }
+  ]
+}

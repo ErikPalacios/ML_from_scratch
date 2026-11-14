@@ -1,0 +1,356 @@
+{
+  "titulo": "Del checkpoint aprobado a la versión challenger, en siete pasos",
+  "width": 78,
+  "height": 66,
+  "lanes": [
+    {
+      "id": "cpu",
+      "label": "En CPU: cualquier máquina",
+      "kind": "offline",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 16
+    },
+    {
+      "id": "t4",
+      "label": "En el runner de CI con una T4",
+      "kind": "offline",
+      "x": 0,
+      "y": 18,
+      "w": 78,
+      "h": 30
+    },
+    {
+      "id": "reg",
+      "label": "Registry de modelos",
+      "kind": "neutral",
+      "x": 0,
+      "y": 50,
+      "w": 78,
+      "h": 16
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ckpt",
+      "label": "Checkpoint aprobado",
+      "sub": "≈ 294 MB · se usan los pesos",
+      "kind": "store",
+      "x": 1,
+      "y": 5,
+      "w": 20,
+      "h": 8,
+      "note": "Lo que aprobó el gate: el checkpoint de `resnet50-2026-10-01`, en PyTorch: ≈ 294 MB, porque también trae el estado del entrenamiento. De él solo se usan los pesos (`ckpt[\"model\"]`), ≈ 98 MB en FP32."
+    },
+    {
+      "id": "export",
+      "label": "Exportar a ONNX",
+      "sub": "opset 17 · 3 chequeos",
+      "badge": "1",
+      "kind": "job",
+      "x": 29,
+      "y": 5,
+      "w": 20,
+      "h": 8,
+      "note": "`export_onnx.py` carga los pesos con `weights_only=True`, pone el modelo en `eval()` y exporta con `dynamo=False`, [[opset]] 17 y el [[eje-batch-dinamico|eje de batch dinámico]]. Revisa el archivo con `onnx.checker` y lee su opset real."
+    },
+    {
+      "id": "ort",
+      "label": "Paridad en CPU",
+      "sub": "ONNX Runtime · 512 fotos",
+      "badge": "2",
+      "kind": "job",
+      "x": 57,
+      "y": 5,
+      "w": 20,
+      "h": 8,
+      "note": "[[onnx-runtime|ONNX Runtime]] en CPU contra PyTorch, en batch 1 y 32: mismo top-1 en las 512 fotos y diferencia de logits del orden de 0.0001. Es FP32 contra FP32: atrapa un export roto."
+    },
+    {
+      "id": "engine",
+      "label": "Construir el engine",
+      "sub": "trtexec FP16 · 1/16/32",
+      "badge": "3",
+      "kind": "job",
+      "x": 1,
+      "y": 23,
+      "w": 20,
+      "h": 8,
+      "note": "`build_engine.sh` revisa que `nvidia-smi` diga T4 y corre [[trtexec]] con la imagen `tensorrt:24.08-py3` (TensorRT 10.3), en FP16 y con [[perfil-optimizacion|perfil]] 1/16/32. Tarda ≈ 2–5 min."
+    },
+    {
+      "id": "imagen",
+      "label": "Triton con el engine",
+      "sub": "release 24.08 · horneado",
+      "badge": "4",
+      "kind": "service",
+      "x": 29,
+      "y": 23,
+      "w": 20,
+      "h": 8,
+      "note": "El `model.plan` queda dentro de la imagen de Triton (`tritonserver:24.08-py3`, la misma release), en `classifier/1/model.plan`. El tag de la imagen es la versión del modelo. Aquí se prende en la T4 del runner para los dos exámenes que siguen."
+    },
+    {
+      "id": "paridad",
+      "label": "Paridad del engine",
+      "sub": "FP16 contra FP32",
+      "badge": "5",
+      "kind": "job",
+      "x": 57,
+      "y": 23,
+      "w": 20,
+      "h": 8,
+      "note": "La [[paridad-engine|paridad del engine]]: Triton y PyTorch FP32 responden las mismas fotos. Pasa con top-1 igual en ≥ 99.5 %, top-5 que coincide en ≥ 99 % y diferencia máxima de logits ≤ 0.5."
+    },
+    {
+      "id": "champ",
+      "label": "p99 del champion",
+      "sub": "medido igual",
+      "kind": "store",
+      "x": 1,
+      "y": 37,
+      "w": 20,
+      "h": 8,
+      "note": "El p99 del modelo actual a 250 y a 500 peticiones por segundo, medido con [[perf-analyzer|perf_analyzer]] en el mismo tipo de máquina. Es contra lo que se compara el challenger en el gate de latencia."
+    },
+    {
+      "id": "lat",
+      "label": "Gate de latencia",
+      "sub": "perf_analyzer · 250 y 500/s",
+      "badge": "6",
+      "kind": "job",
+      "x": 29,
+      "y": 37,
+      "w": 20,
+      "h": 8,
+      "note": "[[perf-analyzer|perf_analyzer]] manda peticiones a tasa fija contra la imagen nueva. Pasa si el p99 no sube más de 10 % sobre el del champion, a las dos tasas."
+    },
+    {
+      "id": "golden",
+      "label": "Golden set",
+      "sub": "≈ 10,000 de 50,000",
+      "kind": "store",
+      "x": 57,
+      "y": 37,
+      "w": 20,
+      "h": 8,
+      "note": "Un subconjunto de ≈ 10,000 fotos del [[golden-set|golden set]], ya preparadas con el preprocesamiento 1.4.0, el mismo del gateway."
+    },
+    {
+      "id": "reg",
+      "label": "Versión 14",
+      "sub": "challenger · huellas",
+      "badge": "7",
+      "kind": "store",
+      "x": 29,
+      "y": 54,
+      "w": 20,
+      "h": 8,
+      "note": "Con los dos exámenes en verde se registra la versión 14 del modelo `classifier`: ONNX, engine, [[huella-build|huellas]], reportes y punteros. Recibe el alias `challenger`."
+    }
+  ],
+  "edges": [
+    {
+      "from": "ckpt",
+      "to": "export",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "export",
+      "to": "ort",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "ort",
+      "to": "engine",
+      "kind": "offline",
+      "label": "model.onnx",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          67,
+          17
+        ],
+        [
+          11,
+          17
+        ]
+      ]
+    },
+    {
+      "from": "engine",
+      "to": "imagen",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "imagen",
+      "to": "paridad",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "golden",
+      "to": "paridad",
+      "kind": "offline",
+      "fromSide": "t",
+      "toSide": "b"
+    },
+    {
+      "from": "imagen",
+      "to": "lat",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "champ",
+      "to": "lat",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "lat",
+      "to": "reg",
+      "kind": "offline",
+      "label": "todo en verde",
+      "fromSide": "b",
+      "toSide": "t"
+    }
+  ],
+  "flows": [
+    {
+      "id": "octubre",
+      "label": "Octubre: todo en verde",
+      "steps": [
+        {
+          "nodes": [
+            "ckpt",
+            "export"
+          ],
+          "edges": [
+            "ckpt>export"
+          ],
+          "text": "El 1 de octubre de 2026, el gate aprueba `resnet50-2026-10-01`. El orquestador pide el runner con T4 y el paso 1 **exporta** el checkpoint: `[export] opset=17 input=input[batch,3,224,224] output=logits`."
+        },
+        {
+          "nodes": [
+            "export",
+            "ort"
+          ],
+          "edges": [
+            "export>ort"
+          ],
+          "text": "**Paridad en CPU**: ONNX Runtime y PyTorch coinciden en el top-1 de las 512 fotos, en batch 1 y en batch 32. La diferencia máxima de logits es del orden de 0.0001."
+        },
+        {
+          "nodes": [
+            "ort",
+            "engine"
+          ],
+          "edges": [
+            "ort>engine"
+          ],
+          "text": "`nvidia-smi` dice T4: la guardia deja pasar. **TensorRT construye el engine** FP16 con perfil 1/16/32 en unos minutos."
+        },
+        {
+          "nodes": [
+            "engine",
+            "imagen"
+          ],
+          "edges": [
+            "engine>imagen"
+          ],
+          "text": "El `model.plan` se **hornea** en la imagen de Triton de la release 24.08, y la imagen se prende en la T4."
+        },
+        {
+          "nodes": [
+            "imagen",
+            "paridad",
+            "golden"
+          ],
+          "edges": [
+            "imagen>paridad",
+            "golden>paridad"
+          ],
+          "text": "**Paridad del engine** con ≈ 10,000 fotos del golden set: el top-1 coincide en más de 99.5 %, el top-5 en más de 99 % y la diferencia máxima de logits ronda 0.01."
+        },
+        {
+          "nodes": [
+            "imagen",
+            "lat",
+            "champ"
+          ],
+          "edges": [
+            "imagen>lat",
+            "champ>lat"
+          ],
+          "text": "**Gate de latencia**: a 250 por segundo, 9.7 ms contra 9.6 del champion; a 500, 13.1 contra 12.5. Los dos quedan debajo del límite de 10 % más."
+        },
+        {
+          "nodes": [
+            "lat",
+            "reg"
+          ],
+          "edges": [
+            "lat>reg"
+          ],
+          "text": "Se **registra** la versión 14 con sus huellas y el alias `challenger`. El runner se apaga. ≈ 20–30 min en total."
+        }
+      ]
+    },
+    {
+      "id": "falla",
+      "label": "Un engine que no pasa",
+      "steps": [
+        {
+          "nodes": [
+            "export",
+            "ort"
+          ],
+          "edges": [
+            "export>ort"
+          ],
+          "text": "El export y la paridad en CPU pasan: el ONNX es el mismo modelo."
+        },
+        {
+          "nodes": [
+            "engine",
+            "imagen"
+          ],
+          "edges": [
+            "engine>imagen"
+          ],
+          "text": "El engine se construye sin error y Triton lo carga."
+        },
+        {
+          "nodes": [
+            "paridad",
+            "golden"
+          ],
+          "edges": [
+            "imagen>paridad",
+            "golden>paridad"
+          ],
+          "text": "Pero la paridad da **97 %** de top-1 igual y una diferencia máxima de logits de 3.4: ≈ 300 fotos cambiaron. Eso no es redondeo, es un bug, probablemente una capa que se desborda en FP16."
+        },
+        {
+          "nodes": [
+            "paridad"
+          ],
+          "edges": [],
+          "text": "El paso **sale con error**. No se mide la latencia, no se registra nada, avisa a la persona de guardia y el champion sigue atendiendo a Ana."
+        }
+      ]
+    }
+  ]
+}

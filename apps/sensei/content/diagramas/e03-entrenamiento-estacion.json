@@ -1,0 +1,57 @@
+{
+  "titulo": "La estación 3: del snapshot al checkpoint candidato",
+  "width": 78,
+  "height": 47,
+  "lanes": [
+    { "id": "entra", "label": "Entra", "kind": "neutral", "x": 0, "y": 0, "w": 78, "h": 13 },
+    { "id": "corre", "label": "Corre el día 1, unas horas", "kind": "offline", "x": 0, "y": 15, "w": 78, "h": 15 },
+    { "id": "queda", "label": "Queda", "kind": "monitor", "x": 0, "y": 32, "w": 78, "h": 15 }
+  ],
+  "nodes": [
+    { "id": "repo", "label": "Repositorio", "sub": "commit + receta", "badge": "1", "kind": "store", "x": 1, "y": 3, "w": 17, "h": 8,
+      "note": "El código de entrenamiento en un [[commit]] exacto (`c3f2fc2` en el ejemplo) y, en el mismo commit, la [[receta-entrenamiento|receta]]: Adam, lr 3e-4, batch 64, 8 épocas, semilla 17, precisión mixta, 8 workers." },
+    { "id": "snap", "label": "Snapshot", "sub": "ds-2026-09-01", "kind": "store", "x": 21, "y": 3, "w": 17, "h": 8,
+      "note": "El [[snapshot]] de septiembre: 1,932,628 filas, 1,840,211 de train y 92,417 de validación, con su huella `rows_sha256`. La estación no elige datos: recibe el id como parámetro." },
+    { "id": "img", "label": "Imagen", "sub": "por digest", "kind": "store", "x": 41, "y": 3, "w": 17, "h": 8,
+      "note": "La imagen de [[contenedor]] de entrenamiento, fijada por su [[digest-imagen|digest]] (`sha256:b71e04d2…`, de juguete): Python, PyTorch, CUDA y las bibliotecas que leen las fotos, cada una con su versión exacta. Es el ingrediente «entorno»." },
+    { "id": "inet", "label": "Pesos ImageNet", "sub": "punto de partida", "kind": "store", "x": 61, "y": 3, "w": 16, "h": 8,
+      "note": "Una ResNet-50 que ya aprendió a ver fotos con ImageNet. El fine-tune arranca de aquí cada mes, **no** del modelo actual ([[warm-start]]): así el modelo depende solo de su snapshot, su commit y su imagen." },
+    { "id": "ci", "label": "Prueba de humo", "sub": "CI · < 1 min", "badge": "2", "kind": "job", "x": 1, "y": 18, "w": 17, "h": 8,
+      "note": "En cada commit al código de entrenamiento, el runner de CI [[prueba-humo-entrenamiento|sobreajusta un batch]] de 32 fotos: la pérdida debe bajar casi a cero. Si no, el código está roto y nadie gasta GPU." },
+    { "id": "argo", "label": "Argo Workflows", "sub": "día 1 · 03:00 UTC", "badge": "3", "kind": "service", "x": 21, "y": 18, "w": 17, "h": 8,
+      "note": "El [[orquestador-pipelines|orquestador]]. Lanza el paso con sus parámetros (snapshot, commit, digest) y, si falla, espera 120 s y lo reintenta hasta 3 veces, reanudando del último checkpoint." },
+    { "id": "pod", "label": "Fine-tune", "sub": "A10G · 3–4 h", "badge": "4", "kind": "gpu", "x": 41, "y": 18, "w": 17, "h": 8,
+      "note": "Un [[job-entrenamiento|job]]: un pod en un nodo g5.xlarge on-demand (una A10G de 24 GB) que se crea para la corrida y se apaga al terminar. Comprueba el árbol limpio, entrena 230,032 pasos y cuesta ≈ US$3.3–4.3." },
+    { "id": "guardia", "label": "Guardia", "sub": "tras 3 reintentos", "kind": "human", "x": 1, "y": 35, "w": 15, "h": 8,
+      "note": "Si también falla el tercer reintento (4 intentos en total), el pipeline termina en rojo y avisa a la persona de guardia. El modelo actual sigue atendiendo: no se entrenó nada nuevo, nada se rompió para la gente." },
+    { "id": "gate", "label": "Gate", "sub": "estación siguiente", "kind": "external", "x": 19, "y": 35, "w": 17, "h": 8,
+      "note": "Recibe el checkpoint candidato y la corrida. Decide si el modelo es seguro de probar: lo cuenta «Gate de evaluación y registry». Esta estación no despliega nada." },
+    { "id": "mlflow", "label": "MLflow", "sub": "la corrida", "badge": "5", "kind": "store", "x": 41, "y": 35, "w": 17, "h": 8,
+      "note": "La [[corrida]] `resnet50-2026-10-01` en el experimento `classifier-mensual`: parámetros, pérdida y `val_top1` por época, tags (commit, digest, preproceso 1.4.0) y artefactos (checkpoint final, `labels.json`, matriz de confusión)." },
+    { "id": "ckpt", "label": "Checkpoints", "sub": "S3 · cada 15 min", "kind": "store", "x": 61, "y": 35, "w": 16, "h": 8,
+      "note": "≈ 294 MB cada 15 min en `s3://ml-datos/checkpoints/resnet50-2026-10-01/`: pesos, Adam, paso, scheduler, GradScaler y azar. Un reintento lee el último; los intermedios se borran a los 30 días." }
+  ],
+  "edges": [
+    { "from": "repo", "to": "ci", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "ci", "to": "argo", "kind": "offline", "fromSide": "r", "toSide": "l" },
+    { "from": "snap", "to": "argo", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "argo", "to": "pod", "kind": "offline", "fromSide": "r", "toSide": "l" },
+    { "from": "img", "to": "pod", "kind": "offline", "fromSide": "b", "toSide": "t" },
+    { "from": "inet", "to": "pod", "kind": "offline", "fromSide": "b", "toSide": "r", "via": [[69, 22]] },
+    { "from": "pod", "to": "mlflow", "kind": "offline", "fromSide": "b", "toSide": "t", "label": "anota" },
+    { "from": "pod", "to": "ckpt", "kind": "offline", "fromSide": "b", "toSide": "t", "via": [[52, 31], [69, 31]], "bidir": true },
+    { "from": "mlflow", "to": "gate", "kind": "offline", "fromSide": "l", "toSide": "r" },
+    { "from": "argo", "to": "guardia", "kind": "monitor", "fromSide": "b", "toSide": "t", "dashed": true, "via": [[25, 31], [8.5, 31]] }
+  ],
+  "flows": [
+    { "id": "mes", "label": "La corrida del 1 de octubre",
+      "steps": [
+        { "nodes": ["repo", "ci"], "edges": ["repo>ci"], "text": "Días antes, alguien cambió el código de entrenamiento. Al hacer commit, el runner de CI **sobreajustó un batch** de 32 fotos en menos de un minuto: el código puede aprender. El commit `c3f2fc2` quedó en verde." },
+        { "nodes": ["snap", "argo", "ci"], "edges": ["snap>argo", "ci>argo"], "text": "El 1 de octubre a las 03:00 UTC, **Argo** arranca el pipeline. Los dos primeros pasos validan los datos y arman `ds-2026-09-01`. A las ≈ 03:30 llega el turno del fine-tune, con el id del snapshot y el commit como parámetros." },
+        { "nodes": ["argo", "pod", "img", "inet"], "edges": ["argo>pod", "img>pod", "inet>pod"], "text": "El cluster crea un nodo **g5.xlarge** y corre el pod con la imagen por digest. Lo primero: `git status --porcelain` debe salir vacío. Luego carga los pesos de **ImageNet** y empieza: 28,754 pasos por época, 8 épocas." },
+        { "nodes": ["pod", "ckpt"], "edges": ["pod>ckpt"], "text": "Cada 15 minutos escribe un **checkpoint** de ≈ 294 MB a S3, en ≈ 1.5–3 s. Si el nodo se cae, el reintento leerá el último y perderá a lo más 15 minutos." },
+        { "nodes": ["pod", "mlflow"], "edges": ["pod>mlflow"], "text": "Al final de cada época anota en **MLflow** la pérdida y `val_top1`. Al terminar sube el checkpoint final, `labels.json` y la matriz de confusión. El nodo se apaga: ≈ 3–4 h de GPU, ≈ US$3.3–4.3." },
+        { "nodes": ["mlflow", "gate"], "edges": ["mlflow>gate"], "text": "El **gate** recibe el candidato y su corrida. Si el paso hubiera fallado también en su tercer reintento, en vez de esto la **guardia** recibiría el aviso, y el modelo actual seguiría como si nada." }
+      ] }
+  ]
+}

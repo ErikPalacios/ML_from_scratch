@@ -202,11 +202,31 @@ Lo que encontraron las revisiones:
 
 Para la fase 11: mismo flujo. Con 3 lecciones, los costos fijos pesan menos. Las «Decisiones de la integración» (§5 del reparto) funcionaron: cuando los escritores destapan un hueco de la ficha, la sesión lo decide una vez y las revisiones de hechos lo aplican en cada lección. Lo que la Ronda tiene mal de esta fase está en `.solo/fase10/revision/*-hechos.md`, sección «Para la Ronda».
 
+**Fase 11 (2026-11-14): ≈ 1.7 % por lección, 3 lecciones de estación.** «Entrenamiento y experimentos», «Gate de evaluación y registry» y «Export, engine y paridad». La sesión empezó con una ventana nueva (2 %) y todo cupo en ella, hasta 40 %. El límite semanal pasó de 42 % a 47 %. Por pieza:
+
+| Pieza | Modelo y esfuerzo | Semanal | Ventana de 5 h |
+|---|---|---|---|
+| Paquetes (≈ 16 min), ficha `estaciones_modelo` (60 datos, conflictos 40–43), reparto y encargos | Sonnet bajo y la sesión | < 1 punto | 2 → 6 % |
+| Escritores de las 3 lecciones, en paralelo (19–22 min, 285–320k tokens cada uno), más decisiones de integración | Opus, medio | ≈ 2 puntos (≈ 0.7 por lección) | 6 → 20 % (≈ 4.7 por lección) |
+| Mecánica (3) y hechos (3), en tubería | Sonnet bajo y Opus alto | ≈ 1 punto | 20 → 29 % |
+| Claridad (3), consistencia (17 hallazgos) y aplicarla | Opus alto, Sonnet bajo y Opus medio | ≈ 2 puntos | 29 → 39 % |
+| `npm run check`, navegador, arreglo del build, plan, commit y deploy | La sesión | < 1 punto | 39 → 40 % |
+
+Lo que encontraron las revisiones:
+- **Huecos de la ficha que decidió la integración.** Ninguna fuente decía en qué GPU entrena Alba, y «≈ 3–4 h, ≈ US$10–50» no cuadraba con una T4 (≈ US$2). Ahora (conflicto 40) entrena en una A10G (g5.xlarge) on-demand: una corrida cuesta ≈ US$3–4 de GPU y los ≈ US$10–50 son el gasto del mes con las corridas de prueba. Además: arranca de ImageNet y no del champion (`aprender.md` decía lo contrario y se corrigió), son 4 pasos con GPU en dos tipos de tarjeta (conflicto 41), el recall de una categoría falla solo si la caída es significativa (conflicto 42), y el gate aprueba pero la versión se registra como `challenger` al final del export (conflicto 43). Las versiones del registry quedaron numeradas: 14 = `resnet50-2026-10-01`.
+- **Hechos: 82 correcciones (3 graves).** Las graves: un genérico se aprueba por bioequivalencia, no por no inferioridad (la analogía de e04 estaba mal); con `dynamo=False` el exportador ya pone el modelo en eval por su cuenta, el riesgo es del exportador nuevo; y la velocidad de la A10G no tiene benchmark público (ahora es estimación a medir). De las 75 dudas de los escritores, 61 (81 %) estaban bien tal cual.
+- **Claridad: 230 cambios**, 102 de conocimiento supuesto y 24 de letras.
+- **Mecánica: 38 hallazgos**, casi todos de redondeo y coherencia (30 de 36 discrepancias escritas como 24; «US$2 al mes» que era por corrida).
+- **Consistencia: 17 hallazgos.** Los más útiles: las lecciones anteriores que los conflictos 40–43 mandaban cambiar (`e02-versionado`, `pruebas-ci`, `camino-completo`, `flops`), el no determinismo de CUDA y la tabla de paridad explicados otra vez a fondo (ahora son recordatorios con enlace), y quién hornea el engine en la imagen (es de «Empaquetado con Docker»).
+- **Un bug del build que ya estaba publicado:** un enlace del glosario con código en su texto (por ejemplo `[[labels-json|…]]` con `labels.json` entre comillas de código) salía como «undefined» en 5 lecciones publicadas (`pytorch`, `balanceo`, `privacidad`, `python-ecosistema`, `identidad`) y en el glosario. La llamada anidada de `inline` en `tools/md.mjs` usaba otro arreglo de marcas; ahora lo comparte.
+
+Para la fase 12: mismo flujo. Con una sola lección (e06), los costos fijos pesan más: conviene juntarla con la 13 si caben en una ventana. Lo que la Ronda tiene mal de esta fase está en `.solo/fase11/revision/*-hechos.md`, sección «Para la Ronda» (MLflow 3 y `log_model`, el ECE leído como error fijo, el descuento spot de la g5, la portabilidad de un engine).
+
 **Lección aprendida: las esperas entre ventanas van en una sesión nueva y corta.** Una sesión larga gasta ≈ 2 % de la ventana por turno solo en releer su contexto. Una sesión que espera el reinicio y despierta con cada agente que termina se come la ventana sin hacer trabajo. Lo barato es cerrar la sesión larga y que una sesión nueva, con un encargo corto, haga la espera y lance la tanda siguiente.
 
 ## 5. Las fases
 
-Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, la 5, la 6 y la 7 desde el 2026-11-06 la 8 desde el 2026-11-13 y la 9 y la 10 desde el 2026-11-14: 49 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) las 5 de la fase 8 (9.4–10.3k palabras, 60–61 min lo esencial y 70–75 min todo) las 4 de la fase 9 (10.1–10.6k palabras, 60 min lo esencial y 72–76 min todo) y las 2 de la fase 10 (10.8–11.0k palabras, 59–60 min lo esencial y 78 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
+Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, la 5, la 6 y la 7 desde el 2026-11-06 la 8 desde el 2026-11-13 y la 9, la 10 y la 11 desde el 2026-11-14: 52 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) las 5 de la fase 8 (9.4–10.3k palabras, 60–61 min lo esencial y 70–75 min todo) las 4 de la fase 9 (10.1–10.6k palabras, 60 min lo esencial y 72–76 min todo) las 2 de la fase 10 (10.8–11.0k palabras, 59–60 min lo esencial y 78 min todo) y las 3 de la fase 11 (9.1–10.3k palabras, 59–60 min lo esencial y 67–73 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
 
 | Fase | Módulo | Lecciones | Prepara para la Ronda (nota interna, no va en la app) |
 |---|---|---|---|
@@ -220,7 +240,7 @@ Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 
 | 8 ✓ | La nube | Qué es la nube · Regiones y zonas · Máquinas, GPUs y precios · Redes en la nube · Servicios gestionados y permisos | M04, M06, M13, M15 · base de IA Privada (`content/datos/gpus.json`) |
 | 9 ✓ | Seguridad | Cifrado, llaves y certificados · Autenticación y permisos · Datos personales y la ley · Ataques y cadena de suministro | M05, M07, M09, M15 |
 | 10 ✓ | Estaciones · Datos | Estaciones 1 y 2 de Alba | M09, M10 |
-| 11 | Estaciones · Modelo | Estación 3, 4 y 5 | M08, M10, M11 |
+| 11 ✓ | Estaciones · Modelo | Estaciones 3, 4 y 5 de Alba | M08, M10, M11 |
 | 12 | Estaciones · API | Estación 6 | M03, M07 |
 | 13 | Estaciones · Contenedor | Estación 7 y 8 | M05, M10 |
 | 14 | Estaciones · Orquestación | Estación 9 y 10 | M06, M11 |

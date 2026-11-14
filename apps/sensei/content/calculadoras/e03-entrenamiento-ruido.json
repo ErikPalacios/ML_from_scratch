@@ -1,0 +1,23 @@
+{
+  "titulo": "¿Regresión o ruido?",
+  "intro": "Aplica la regla de la lección, \\(Δ = x_B − x_A\\) contra \\(τ = 3 × σ\\), y el margen del golden set, \\(ε = 1.96 × sqrt{a(1 − a)/G}\\). Arranca con las dos corridas de la cuenta: 85.3 % y 85.1 %.",
+  "entradas": [
+    { "id": "xa", "label": "Exactitud de la corrida de referencia, \\(x_A\\), en %", "min": 80, "max": 90, "paso": 0.01, "valor": 85.3 },
+    { "id": "xb", "label": "Exactitud de la corrida nueva, \\(x_B\\), en %", "min": 80, "max": 90, "paso": 0.01, "valor": 85.1 },
+    { "id": "s", "label": "Ruido entre semillas, \\(σ\\), en puntos", "min": 0.01, "max": 0.5, "paso": 0.001, "valor": 0.088 },
+    { "id": "a", "label": "Exactitud para el margen, \\(a\\), como fracción", "min": 0.5, "max": 0.99, "paso": 0.01, "valor": 0.85 },
+    { "id": "g", "label": "Fotos del golden set, \\(G\\)", "min": 500, "max": 200000, "paso": 500, "valor": 50000 }
+  ],
+  "calculos": [
+    { "id": "dl", "formula": "xb - xa" },
+    { "id": "tau", "formula": "3 * s" },
+    { "id": "eps", "formula": "1.96 * sqrt(a * (1 - a) / g) * 100" }
+  ],
+  "salidas": [
+    { "label": "Diferencia, \\(Δ\\), en puntos", "formula": "dl", "formato": "num", "decimales": 2, "nota": "\\(x_B − x_A\\); negativa si la nueva salió más baja" },
+    { "label": "Tolerancia, \\(τ\\), en puntos", "formula": "tau", "formato": "num", "decimales": 2, "nota": "\\(3 × σ\\)" },
+    { "label": "\\(|Δ| ÷ τ\\): hasta 1 es ruido, más de 1 es «algo cambió»", "formula": "abs(dl) / tau", "formato": "x", "decimales": 2, "nota": "\\(|Δ| ≤ τ\\) es lo mismo que este número ≤ 1" },
+    { "label": "Margen del golden set, \\(ε\\), en puntos", "formula": "eps", "formato": "num", "decimales": 2, "nota": "\\(1.96 × sqrt{a(1 − a)/G}\\), × 100 para pasarlo a puntos" }
+  ],
+  "nota": "\\(τ\\) mide el ruido del entrenamiento (otra semilla); \\(ε\\), el de la evaluación (otra muestra de fotos). Son dos ruidos distintos: una diferencia que cabe en los dos no dice nada de la receta. Decidir si un modelo nuevo es mejor se hace con la prueba pareada del gate, no con esta regla."
+}

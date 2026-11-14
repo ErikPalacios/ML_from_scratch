@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 406" role="img" aria-labelledby="f-e05-export-paridades-t" class="f-svg" style="max-width:420px">
+<title id="f-e05-export-paridades-t">Qué bug atrapa cada una de las tres paridades de Alba. La de CPU, con ONNX Runtime; la del engine, en Triton en la T4; la de punta a punta, por el gateway en staging. Exportar sin eval(): la atrapan CPU, engine, gateway. Batch fijo en el ONNX: la atrapan CPU, engine. Capa desbordada en FP16: la atrapan engine, gateway. Otro nombre de entrada en Triton: la atrapan engine, gateway. Colores BGR en el gateway: la atrapa gateway. labels.json en otro orden: la atrapa gateway. Las dos primeras reciben la foto ya preparada; solo la del gateway ve el preprocesamiento y el orden de los labels.</title>
+<rect class="f-card" x="10" y="10" width="340" height="386" rx="16"/>
+<text class="f-l" x="26" y="36">QUÉ ATRAPA CADA PARIDAD</text>
+<text class="f-l" x="200" y="74" text-anchor="middle">CPU</text>
+<text class="f-l" x="252" y="74" text-anchor="middle">ENGINE</text>
+<text class="f-l" x="315" y="74" text-anchor="middle">GATEWAY</text>
+<text class="f-l" x="26" y="74">EL BUG</text>
+<rect class="f-chip" x="20" y="92" width="320" height="36" rx="8"/>
+<text class="f-s" x="28" y="114" style="font-size:12px">Exportar sin eval()</text>
+<circle class="f-g" cx="200" cy="110" r="9"/>
+<circle class="f-g" cx="252" cy="110" r="9"/>
+<circle class="f-g" cx="315" cy="110" r="9"/>
+<text class="f-s" x="28" y="154" style="font-size:12px">Batch fijo en el ONNX</text>
+<circle class="f-g" cx="200" cy="150" r="9"/>
+<circle class="f-g" cx="252" cy="150" r="9"/>
+<circle class="f-linea" cx="315" cy="150" r="8" style="fill:none"/>
+<rect class="f-chip" x="20" y="172" width="320" height="36" rx="8"/>
+<text class="f-s" x="28" y="194" style="font-size:12px">Capa desbordada en FP16</text>
+<circle class="f-linea" cx="200" cy="190" r="8" style="fill:none"/>
+<circle class="f-g" cx="252" cy="190" r="9"/>
+<circle class="f-g" cx="315" cy="190" r="9"/>
+<text class="f-s" x="28" y="234" style="font-size:12px">Otra entrada en Triton</text>
+<circle class="f-linea" cx="200" cy="230" r="8" style="fill:none"/>
+<circle class="f-g" cx="252" cy="230" r="9"/>
+<circle class="f-g" cx="315" cy="230" r="9"/>
+<rect class="f-chip" x="20" y="252" width="320" height="36" rx="8"/>
+<text class="f-s" x="28" y="274" style="font-size:12px">Colores BGR en el gateway</text>
+<circle class="f-linea" cx="200" cy="270" r="8" style="fill:none"/>
+<circle class="f-linea" cx="252" cy="270" r="8" style="fill:none"/>
+<circle class="f-g" cx="315" cy="270" r="9"/>
+<text class="f-s" x="28" y="314" style="font-size:12px">labels.json en otro orden</text>
+<circle class="f-linea" cx="200" cy="310" r="8" style="fill:none"/>
+<circle class="f-linea" cx="252" cy="310" r="8" style="fill:none"/>
+<circle class="f-g" cx="315" cy="310" r="9"/>
+<circle class="f-g" cx="34" cy="350" r="7"/><text class="f-s" x="48" y="355" style="font-size:12px">la atrapa</text>
+<circle class="f-linea" cx="130" cy="350" r="6" style="fill:none"/><text class="f-s" x="142" y="355" style="font-size:12px">no la ve</text>
+<text class="f-s" x="26" y="380" style="font-size:12px">Cada columna es más cara y más lenta que la anterior.</text>
+</svg>

@@ -401,7 +401,7 @@ Respuestas por cada foto revisada // las 300 M de la primera fila ÷ las 5 mil r
 = Por cada foto que revisa una persona, el modelo respondió unas **60 mil**.
 :::
 
-Las etiquetas buenas son lo escaso del camino offline, y lo escaso cuesta. Según el equipo de Alba, el reentrenamiento mensual son unas horas de una GPU (≈ 3 a 4 horas): unas decenas de dólares (≈ US$10 a 50). Es caro al lado de responder una foto, pero barato al lado de etiquetar con cuidado esas ≈ 5 mil fotos, que cuesta cientos de dólares: a unos 5 o 10 centavos de dólar por foto, \( 5,000 × 0.05 = 250 \) y \( 5,000 × 0.10 = 500 \), así que US$250 a 500 al mes. En el camino offline, el dinero y la calidad están en qué fotos se etiquetan, no en la máquina que entrena.
+Las etiquetas buenas son lo escaso del camino offline, y lo escaso cuesta. Según el equipo de Alba, el reentrenamiento mensual son unas horas de una GPU (≈ 3 a 4 horas en una A10G, ≈ US$3 a 4 por corrida): unas decenas de dólares al mes si se cuentan las corridas de prueba (≈ US$10 a 50). Es caro al lado de responder una foto, pero barato al lado de etiquetar con cuidado esas ≈ 5 mil fotos, que cuesta cientos de dólares: a unos 5 o 10 centavos de dólar por foto, \( 5,000 × 0.05 = 250 \) y \( 5,000 × 0.10 = 500 \), así que US$250 a 500 al mes. En el camino offline, el dinero y la calidad están en qué fotos se etiquetan, no en la máquina que entrena.
 
 Compara los relojes: un mes son 30 × 86,400 = 2,592,000 segundos, y una request de 200 ms cabe 2,592,000 ÷ 0.2 ≈ 13 millones de veces. Por eso los dos caminos no pueden tener las mismas reglas: en uno, 50 ms de más rompen la promesa; en el otro, una hora de más ni se nota.
 

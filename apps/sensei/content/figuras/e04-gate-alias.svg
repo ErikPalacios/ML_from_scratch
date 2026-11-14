@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 454" role="img" aria-labelledby="f-e04-gate-alias-t" class="f-svg" style="max-width:420px">
+<title id="f-e04-gate-alias-t">El modelo registrado classifier en noviembre de 2026, con tres versiones que no cambian: la 13, la 14 (resnet50-2026-10-01) y la 15 (resnet50-2026-11-01), cada una con sus tags, como gate=passed y el nombre con la fecha. Arriba, dos alias que se mueven: champion señala a la 14 y challenger a la 15. Al terminar el canary, champion pasa a la 15; para volver atrás, regresa a la 14. Las versiones nunca se editan: cambiar algo es crear otra.</title>
+<defs><marker id="fe4a-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="434" rx="16"/>
+<text class="f-l" x="26" y="36">MODELO REGISTRADO · classifier</text>
+<rect class="f-b" x="130" y="56" width="100" height="30" rx="15"/>
+<text class="f-pill-t" x="180" y="76" text-anchor="middle" style="font-size:13px">champion</text>
+<rect class="f-p" x="238" y="56" width="100" height="30" rx="15"/>
+<text class="f-pill-t" x="288" y="76" text-anchor="middle" style="font-size:13px">challenger</text>
+<line class="f-flecha" x1="180" y1="88" x2="180" y2="146" marker-end="url(#fe4a-a)"/>
+<line class="f-flecha" x1="314" y1="88" x2="314" y2="146" marker-end="url(#fe4a-a)"/>
+<path class="f-flecha" d="M222,88 C 226,120 256,112 262,146" style="stroke-dasharray:4 4;fill:none" marker-end="url(#fe4a-a)"/>
+<rect class="f-card" x="203" y="106" width="76" height="20" rx="8"/>
+<text class="f-s" x="241" y="120" text-anchor="middle" style="font-size:11px">tras el canary</text>
+<rect class="f-off" x="22" y="152" width="100" height="150" rx="10"/>
+<text class="f-t" x="72" y="176" text-anchor="middle" style="font-size:14px">Versión 13</text>
+<text class="f-s" x="72" y="196" text-anchor="middle" style="font-size:12px">2026-09-01</text>
+<rect class="f-dark" x="130" y="152" width="100" height="150" rx="10" style="stroke:var(--b);stroke-width:2.5"/>
+<text class="f-dark-t" x="180" y="176" text-anchor="middle" style="font-size:14px">Versión 14</text>
+<text class="f-dark-t" x="180" y="196" text-anchor="middle" style="font-size:12px;font-weight:400">2026-10-01</text>
+<rect class="f-chip" x="238" y="152" width="100" height="150" rx="10"/>
+<text class="f-t" x="288" y="176" text-anchor="middle" style="font-size:14px">Versión 15</text>
+<text class="f-s" x="288" y="196" text-anchor="middle" style="font-size:12px">2026-11-01</text>
+<text class="f-s" x="30" y="224" style="font-size:12px">gate=passed</text>
+<text class="f-s" x="30" y="244" style="font-size:12px">ONNX · engine</text>
+<text class="f-s" x="30" y="264" style="font-size:12px">labels.json</text>
+<text class="f-s" x="30" y="284" style="font-size:12px">sin alias</text>
+<text class="f-dark-t" x="138" y="224" style="font-size:12px;font-weight:400">gate=passed</text>
+<text class="f-dark-t" x="138" y="244" style="font-size:12px;font-weight:400">ONNX · engine</text>
+<text class="f-dark-t" x="138" y="264" style="font-size:12px;font-weight:400">labels.json</text>
+<text class="f-dark-t" x="138" y="284" style="font-size:12px;font-weight:400">atiende a Ana</text>
+<text class="f-s" x="246" y="224" style="font-size:12px">gate=passed</text>
+<text class="f-s" x="246" y="244" style="font-size:12px">ONNX · engine</text>
+<text class="f-s" x="246" y="264" style="font-size:12px">labels.json</text>
+<text class="f-s" x="246" y="284" style="font-size:12px">en canary</text>
+<rect class="f-chip" x="22" y="320" width="316" height="110" rx="8"/>
+<text class="f-t" x="34" y="346" style="font-size:14px">Promover: champion → 15</text>
+<text class="f-t" x="34" y="372" style="font-size:14px">Volver atrás: champion → 14</text>
+<text class="f-s" x="34" y="398" style="font-size:12px">Las versiones no se editan: un cambio,</text>
+<text class="f-s" x="34" y="416" style="font-size:12px">aunque sea a labels.json, es otra versión.</text>
+</svg>

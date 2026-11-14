@@ -1,0 +1,28 @@
+{
+  "titulo": "Cuánto tarda y cuánto cuesta una corrida",
+  "intro": "Aplica las dos ecuaciones de la lección, \\(t_f = N × E ÷ (3,600 × v)\\) y \\(C = (t_f + t_e) × p\\), y la de spot, \\(C_{spot} = C × (1 − d) × r\\). Arranca con la corrida de Alba en la A10G, en el caso lento (≈ 4 h).",
+  "entradas": [
+    { "id": "n", "label": "Fotos de entrenamiento, \\(N\\), en millones", "min": 0.1, "max": 50, "paso": 0.01, "valor": 1.84, "tipo": "numero" },
+    { "id": "e", "label": "Épocas de la receta, \\(E\\)", "min": 1, "max": 30, "paso": 1, "valor": 8 },
+    { "id": "v", "label": "Velocidad de la GPU al entrenar, \\(v\\), en fotos/s", "min": 100, "max": 3000, "paso": 1, "valor": 1022 },
+    { "id": "te", "label": "Horas del paso de evaluar en la misma GPU, \\(t_e\\) (0.25 = 15 min)", "min": 0, "max": 2, "paso": 0.05, "valor": 0.25 },
+    { "id": "p", "label": "Precio de la máquina, \\(p\\), en US$ por hora", "min": 0.1, "max": 10, "paso": 0.001, "valor": 1.006, "tipo": "numero" },
+    { "id": "d", "label": "Descuento de spot, \\(d\\), como fracción (0.49 = 49 % menos)", "min": 0, "max": 0.9, "paso": 0.01, "valor": 0.49 },
+    { "id": "r", "label": "Horas pagadas ÷ horas de trabajo en spot, \\(r\\) (1 = sin interrupciones)", "min": 1, "max": 2, "paso": 0.01, "valor": 1.03 },
+    { "id": "k", "label": "Corridas al mes (la candidata más las de prueba)", "min": 1, "max": 100, "paso": 1, "valor": 11 }
+  ],
+  "calculos": [
+    { "id": "tf", "formula": "n * 1e6 * e / (3600 * v)" },
+    { "id": "c", "formula": "(tf + te) * p" },
+    { "id": "cs", "formula": "c * (1 - d) * r" }
+  ],
+  "salidas": [
+    { "label": "Horas del fine-tune, \\(t_f\\)", "formula": "tf", "formato": "num", "decimales": 1, "nota": "\\(N × E ÷ (3,600 × v)\\)" },
+    { "label": "Costo on-demand de una corrida, \\(C\\), en US$", "formula": "c", "formato": "num", "decimales": 2, "nota": "\\((t_f + t_e) × p\\)" },
+    { "label": "Costo en spot, \\(C_{spot}\\), en US$", "formula": "cs", "formato": "num", "decimales": 2, "nota": "\\(C × (1 − d) × r\\)" },
+    { "label": "Ahorro de spot por corrida, en US$", "formula": "c - cs", "formato": "num", "decimales": 2, "nota": "\\(C − C_{spot}\\)" },
+    { "label": "Gasto del mes en on-demand, en US$", "formula": "k * c", "formato": "num", "decimales": 0, "nota": "corridas × \\(C\\)" },
+    { "label": "Ahorro del mes con spot, en US$", "formula": "k * (c - cs)", "formato": "num", "decimales": 0, "nota": "corridas × \\((C − C_{spot})\\)" }
+  ],
+  "nota": "El precio de la g5.xlarge on-demand (≈ US$1.006 la hora) y el descuento de spot (49 %; el asesor de spot de AWS daba ≈ 56 % en us-east-1 en 2026, y por zona va de ≈ 20 a ≈ 50 %) son aproximados y cambian seguido. La velocidad \\(v\\) es un estimado del equipo de Alba, no una medición: 1,022 fotos/s si la corrida dura 4 h, 1,363 si dura 3. Cuenta solo la GPU, no el arranque del nodo ni la persona que revisa."
+}

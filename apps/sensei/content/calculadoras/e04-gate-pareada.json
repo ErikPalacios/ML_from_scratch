@@ -1,0 +1,24 @@
+{
+  "titulo": "No inferioridad pareada en el golden set",
+  "intro": "Aplica \\(Δ = (b − c) ÷ N × 100\\), \\(SE_Δ = sqrt{b + c} ÷ N × 100\\) (los dos en puntos) y \\(Δ_{min} = Δ − 1.96 × SE_Δ\\); pasa si \\(Δ_{min} ≥ −m\\). Los valores iniciales son el candidato de noviembre de Alba, el marketplace del curso, contra su champion, en las 50,000 fotos de `golden-v3`.",
+  "entradas": [
+    { "id": "b", "label": "Fotos donde solo acierta el modelo nuevo, \\(b\\)", "min": 0, "max": 5000, "paso": 10, "valor": 1040, "tipo": "numero" },
+    { "id": "c", "label": "Fotos donde solo acierta el champion, \\(c\\)", "min": 0, "max": 5000, "paso": 10, "valor": 1060, "tipo": "numero" },
+    { "id": "n", "label": "Fotos del examen, \\(N\\) (50,000 = `golden-v3`)", "min": 1000, "max": 200000, "paso": 1000, "valor": 50000, "tipo": "numero" },
+    { "id": "m", "label": "Margen de no inferioridad, \\(m\\), en puntos (0.3 en Alba)", "min": 0.05, "max": 2, "paso": 0.05, "valor": 0.3, "unidad": "puntos" }
+  ],
+  "calculos": [
+    { "id": "d", "formula": "(b - c) / n * 100" },
+    { "id": "se", "formula": "sqrt(b + c) / n * 100" },
+    { "id": "dmin", "formula": "d - 1.96 * se" },
+    { "id": "z", "formula": "(b - c) / sqrt(max(b + c, 1))" }
+  ],
+  "salidas": [
+    { "label": "Diferencia pareada, \\(Δ\\), en puntos", "formula": "d", "formato": "num", "decimales": 3, "nota": "\\(Δ = (b − c) ÷ N × 100\\)" },
+    { "label": "Error estándar, \\(SE_Δ\\), en puntos", "formula": "se", "formato": "num", "decimales": 3, "nota": "\\(SE_Δ = sqrt{b + c} ÷ N × 100\\)" },
+    { "label": "Extremo de abajo, \\(Δ_{min}\\), en puntos", "formula": "dmin", "formato": "num", "decimales": 3, "nota": "\\(Δ − 1.96 × SE_Δ\\)" },
+    { "label": "Holgura contra el margen, \\(Δ_{min} + m\\), en puntos", "formula": "dmin + m", "formato": "num", "decimales": 3, "nota": "positiva o cero: **pasa**; negativa: no pasa" },
+    { "label": "Desviaciones del empate, \\(z\\) (McNemar)", "formula": "z", "formato": "num", "decimales": 2, "nota": "\\(z = (b − c) ÷ sqrt{b + c}\\); para «mejor de forma significativa» haría falta \\(z\\) ≥ 1.96" }
+  ],
+  "nota": "Con 1,040 contra 1,060 el modelo nuevo acierta 20 fotos menos y pasa con 0.08 puntos de holgura; su \\(z\\) es −0.44, así que la regla de «mejora significativa» lo habría bloqueado. Fíjate en que \\(SE_Δ\\) depende de \\(b + c\\), no de \\(N\\) solo: dos modelos que discrepan poco se comparan con más precisión."
+}

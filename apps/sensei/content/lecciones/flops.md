@@ -725,7 +725,7 @@ Una T4 a lo medido // \(N_{día} ÷ x\), con \(x\) ≈ 1,200 fotos por segundo |
 :::profundo Cuánto cuesta entrenar
 Entrenar suma la [[backpropagation]], que cuesta unas dos veces el [[forward-pass|forward pass]]: calcula gradientes para las activaciones y para los pesos. Por eso un paso de entrenamiento cuesta ≈ 3 veces responder, como viste en la lección de cómo aprende un modelo.
 
-La cuenta es \(F_{entrenar} ≈ 3 × F × N_{fotos} × E\): \(F\) los FLOPs de responder una foto, \(N_{fotos}\) las fotos de entrenamiento y \(E\) las épocas (las vueltas completas a los datos). En Alba: 3 × 8.2 GFLOPs × 1,840,211 fotos × 8 épocas ≈ 3.6 × 10¹⁷ FLOPs por cada entrenamiento mensual.
+La cuenta es \(F_{entrenar} ≈ 3 × F × N_{fotos} × E\): \(F\) los FLOPs de responder una foto, \(N_{fotos}\) las fotos de entrenamiento y \(E\) las épocas (las vueltas completas a los datos). En Alba: 3 × 8.2 GFLOPs × 1,840,211 fotos × 8 épocas ≈ 3.6 × 10¹⁷ FLOPs por cada entrenamiento mensual. En la A10G con que Alba entrena (≈ 1,000 a 1,400 fotos por segundo, una estimación) son ≈ 3 a 4 horas; en una T4, como las de producción, tardaría ≈ 10 horas.
 
 Para los LLMs se usa la misma regla escrita de otra forma: entrenar cuesta \(F_{entrenar} ≈ 6 × N_{param} × N_{tokens}\), con \(N_{param}\) los parámetros y \(N_{tokens}\) los tokens de entrenamiento: 2 FLOPs del forward y ≈ 4 de la backpropagation por cada parámetro y cada token. Es la cuenta que se usa para estimar cuántas GPUs y cuántas semanas pide un modelo nuevo.
 :::

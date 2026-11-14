@@ -1,0 +1,25 @@
+{
+  "titulo": "La erosión que se cuela por el gate",
+  "intro": "Un modelo que pierde \\(r\\) puntos cada mes. Contra el champion, la diferencia es \\(Δ = −r\\); contra el de hace 3 meses, \\(Δ = −3 × r\\). En las dos, \\(Δ_{min} = Δ − 1.96 × SE_Δ\\), con \\(SE_Δ = sqrt{b + c} ÷ N × 100\\) en puntos, y pasa si \\(Δ_{min} ≥ −m\\). Los valores iniciales son el ejemplo de la erosión de Alba, el marketplace del curso.",
+  "entradas": [
+    { "id": "r", "label": "Pérdida real por mes, \\(r\\), en puntos", "min": 0, "max": 1, "paso": 0.01, "valor": 0.2, "unidad": "puntos" },
+    { "id": "disc", "label": "Discrepancias de cada comparación, \\(b + c\\), en fotos (se supone igual contra los dos)", "min": 50, "max": 5000, "paso": 50, "valor": 500, "tipo": "numero" },
+    { "id": "n", "label": "Fotos del examen, \\(N\\) (50,000 = `golden-v3`)", "min": 1000, "max": 200000, "paso": 1000, "valor": 50000, "tipo": "numero" },
+    { "id": "m", "label": "Margen de no inferioridad, \\(m\\), en puntos (0.3 en Alba)", "min": 0.05, "max": 2, "paso": 0.05, "valor": 0.3, "unidad": "puntos" }
+  ],
+  "calculos": [
+    { "id": "se", "formula": "sqrt(disc) / n * 100" },
+    { "id": "h1", "formula": "-r - 1.96 * se + m" },
+    { "id": "h3", "formula": "-3 * r - 1.96 * se + m" },
+    { "id": "rmax", "formula": "max((m - 1.96 * se) / 3, 0)" }
+  ],
+  "salidas": [
+    { "label": "Error estándar de cada comparación, \\(SE_Δ\\), en puntos", "formula": "se", "formato": "num", "decimales": 3, "nota": "\\(SE_Δ = sqrt{b + c} ÷ N × 100\\)" },
+    { "label": "Holgura contra el champion, en puntos", "formula": "h1", "formato": "num", "decimales": 3, "nota": "\\(−r − 1.96 × SE_Δ + m\\): positiva o cero, pasa" },
+    { "label": "Pérdida en 12 meses si solo existiera esa comparación, en puntos", "formula": "12 * r", "formato": "num", "decimales": 2, "nota": "12 × \\(r\\), mientras cada mes pase" },
+    { "label": "Holgura contra el de hace 3 meses, en puntos", "formula": "h3", "formato": "num", "decimales": 3, "nota": "\\(−3 × r − 1.96 × SE_Δ + m\\): negativa, el gate se pone en rojo" },
+    { "label": "Erosión más grande que pasa las dos, en puntos por mes", "formula": "rmax", "formato": "num", "decimales": 3, "nota": "\\(r ≤ (m − 1.96 × SE_Δ) ÷ 3\\)" },
+    { "label": "Esa erosión en un año, en puntos", "formula": "12 * rmax", "formato": "num", "decimales": 2, "nota": "lo que el gate no puede ver: lo vigila el monitoreo" }
+  ],
+  "nota": "Con 0.2 puntos al mes y 500 discrepancias, cada mes pasa contra el champion (holgura +0.01) y en un año serían 2.4 puntos; contra el de hace 3 meses la holgura es −0.39 y el gate se detiene. Lo que sí se cuela son ≈ 0.07 puntos al mes, ≈ 0.85 al año."
+}

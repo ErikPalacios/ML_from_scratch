@@ -373,7 +373,7 @@ Al modelo no se le puede pedir que acierte cada foto: ningún modelo lo hace. Se
 2. **Que el modelo que se sirve es el que se evaluó.** La otra paridad: el [[engine-tensorrt|engine de TensorRT]] en FP16 (el modelo convertido para la T4) contra el modelo de PyTorch en FP32, con ≈ 10,000 fotos del [[golden-set|golden set]]; tienen que coincidir en el top-1, la categoría con más score, al menos en 99.5 % de las fotos.
 3. **Que el modelo nuevo no salió peor.** El examen completo, en el golden set, por categoría y por [[slice]], contra el modelo que está en producción.
 
-El tercero tiene nombre: es el [[quality-gate|gate de calidad]] (*quality gate*), una lista de umbrales escrita antes de ver los resultados que decide si un modelo puede reemplazar al actual. Solo el que pasa se guarda en el [[registro-modelos|registro de modelos]] (*model registry*) con su reporte. Los dos tienen su propia lección, «Gate de evaluación y registry»; aquí basta saber que son pruebas como las otras: si fallan, el camino se detiene.
+El tercero tiene nombre: es el [[quality-gate|gate de calidad]] (*quality gate*), una lista de umbrales escrita antes de ver los resultados que decide si un modelo puede reemplazar al actual. Si lo aprueba, el modelo todavía no entra al registro: se convierte, se prueba que responde igual y solo entonces se registra como candidato (*challenger*), con su reporte, en el [[registro-modelos|registro de modelos]] (*model registry*). Los dos tienen su propia lección, «Gate de evaluación y registry»; aquí basta saber que son pruebas como las otras: si fallan, el camino se detiene.
 
 ## Pruebas que mienten: flaky y cobertura {Tests that lie: flaky tests and coverage} [extra]
 

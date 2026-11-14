@@ -570,9 +570,9 @@ Alba usa **Argo Workflows**, que corre en su mismo cluster de Kubernetes, ese gr
 
 ### El DAG: pasos y flechas
 
-Un pipeline se describe como un [[dag|DAG]] (*directed acyclic graph*, grafo dirigido acíclico): pasos unidos por flechas que dicen «este va después de aquel», sin ciclos, porque un paso no puede esperar a uno que lo espera a él. El de Alba tiene 8 pasos, 2 en GPU:
+Un pipeline se describe como un [[dag|DAG]] (*directed acyclic graph*, grafo dirigido acíclico): pasos unidos por flechas que dicen «este va después de aquel», sin ciclos, porque un paso no puede esperar a uno que lo espera a él. El de Alba tiene 8 pasos, 4 de ellos con GPU en dos tipos de tarjeta (el fine-tune y evaluar, en una A10G; el engine y la paridad, en una T4):
 
-validar datos → armar snapshot → fine-tune (GPU) → evaluar → gate → construir el engine en una T4 (GPU) → paridad → registrar
+validar datos → armar snapshot → fine-tune (GPU) → evaluar (GPU) → gate → construir el engine en una T4 (GPU) → paridad (GPU) → registrar
 
 El [[fine-tuning|fine-tune]] ajusta a las 500 categorías de Alba, con el snapshot nuevo, una ResNet-50 que ya viene entrenada con millones de fotos genéricas. El gate decide si el modelo nuevo es mejor que el actual. El engine es el modelo convertido para correr rápido en la GPU de producción, una NVIDIA T4. La [[prueba-paridad|paridad]] comprueba que el engine responda lo mismo que el modelo original. Cada uno tiene su lección; aquí importa el orden.
 
