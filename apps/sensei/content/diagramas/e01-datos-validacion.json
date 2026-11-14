@@ -1,0 +1,398 @@
+{
+  "titulo": "Los cuatro puntos donde Alba revisa los datos",
+  "width": 78,
+  "height": 60,
+  "lanes": [
+    {
+      "id": "req",
+      "label": "En cada request",
+      "kind": "online",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 13
+    },
+    {
+      "id": "mes",
+      "label": "Cada día y cada mes",
+      "kind": "offline",
+      "x": 0,
+      "y": 15,
+      "w": 78,
+      "h": 30
+    },
+    {
+      "id": "alerta",
+      "label": "Cuando algo falla",
+      "kind": "monitor",
+      "x": 0,
+      "y": 47,
+      "w": 78,
+      "h": 13
+    }
+  ],
+  "nodes": [
+    {
+      "id": "app",
+      "label": "App de Ana",
+      "sub": "sube la foto",
+      "kind": "client",
+      "x": 2,
+      "y": 3,
+      "w": 18,
+      "h": 8,
+      "note": "La app manda los bytes de la foto al servicio de clasificación."
+    },
+    {
+      "id": "gateway",
+      "label": "Revisión en la puerta",
+      "sub": "400 · 413 · 415",
+      "badge": "3",
+      "kind": "service",
+      "x": 27,
+      "y": 3,
+      "w": 22,
+      "h": 8,
+      "note": "El servicio rechaza lo que no es una foto válida antes de que llegue al modelo: 400 si la request está mal, 413 si pasa de 10 MB, 415 si no es una imagen ([[codigo-estado|códigos de estado]]). Y escribe su línea de log."
+    },
+    {
+      "id": "modelo",
+      "label": "Modelo",
+      "sub": "sugiere 5",
+      "kind": "model",
+      "x": 56,
+      "y": 3,
+      "w": 20,
+      "h": 8,
+      "note": "La ResNet-50 de Alba responde las 5 sugerencias. Solo ve fotos que ya pasaron la puerta."
+    },
+    {
+      "id": "particion",
+      "label": "Partición nueva",
+      "sub": "un día de log",
+      "kind": "store",
+      "x": 2,
+      "y": 19,
+      "w": 18,
+      "h": 8,
+      "note": "Cada día llega una [[particion-datos|partición]] del log (`dt=YYYY-MM-DD`), un lote de eventos y uno de correcciones. Cada una tiene un dueño."
+    },
+    {
+      "id": "entrada",
+      "label": "Revisión al entrar",
+      "sub": "esquema · rango · UTC",
+      "badge": "1",
+      "kind": "job",
+      "x": 27,
+      "y": 19,
+      "w": 22,
+      "h": 8,
+      "note": "Las [[prueba-datos|pruebas de datos]] del contrato corren sobre cada partición al llegar. Si falla, esa partición sola va a cuarentena; las demás siguen."
+    },
+    {
+      "id": "lake",
+      "label": "Data lake",
+      "sub": "particiones buenas",
+      "kind": "store",
+      "x": 56,
+      "y": 19,
+      "w": 20,
+      "h": 8,
+      "note": "El [[data-lake|data lake]]: el almacén de archivos donde se juntan los datos de la empresa. Aquí llegan las particiones que pasaron, y de aquí lee la estación cuando arma los labels del mes."
+    },
+    {
+      "id": "contrato",
+      "label": "Contrato completo",
+      "sub": "bloquea",
+      "badge": "2",
+      "kind": "job",
+      "x": 56,
+      "y": 33,
+      "w": 20,
+      "h": 8,
+      "note": "El día 1, en tres momentos. Antes de armar el snapshot, sobre los labels del mes: esquema, rango de `label_id`, horas en UTC y frescura < 48 h. Al armar: el corte, la regla de 30 días y los duplicados por huella. Ya armado, antes de entrenar: ninguna foto en dos splits ni del golden, volumen entre 0.8 y 1.5 veces el anterior y labels débiles ≤ 80 %. Si falla, **no se entrena**."
+    },
+    {
+      "id": "train",
+      "label": "Entrenar",
+      "sub": "el modelo nuevo",
+      "kind": "gpu",
+      "x": 27,
+      "y": 33,
+      "w": 22,
+      "h": 8,
+      "note": "Solo corre si el contrato pasó. Lo cuenta «Entrenamiento y experimentos»."
+    },
+    {
+      "id": "gate",
+      "label": "Gate",
+      "sub": "nuevo contra actual",
+      "badge": "4",
+      "kind": "monitor",
+      "x": 2,
+      "y": 33,
+      "w": 18,
+      "h": 8,
+      "note": "El examen del modelo nuevo contra el de producción, con el golden set. Si los datos se colaron rotos, aquí se nota en el modelo. Lo cuenta «Gate de evaluación y registry»."
+    },
+    {
+      "id": "dueno",
+      "label": "Dueño de los datos",
+      "sub": "recibe el aviso",
+      "kind": "human",
+      "x": 2,
+      "y": 49,
+      "w": 18,
+      "h": 8,
+      "note": "Cada partición tiene dueño: los eventos son del backend de publicaciones. Recibe el aviso, corrige y vuelve a mandar. Un cambio que rompe el esquema se avisa con 2 semanas."
+    },
+    {
+      "id": "cuarentena",
+      "label": "Cuarentena",
+      "sub": "aparte, sin borrar",
+      "kind": "store",
+      "x": 27,
+      "y": 49,
+      "w": 22,
+      "h": 8,
+      "note": "La [[cuarentena-datos|cuarentena]]: la partición que falló se aparta donde nada la lee. No se borra, para poder investigarla; si el dueño la corrige, se revisa otra vez y entra."
+    },
+    {
+      "id": "actual",
+      "label": "Sigue el actual",
+      "sub": "nada se apaga",
+      "kind": "model",
+      "x": 56,
+      "y": 49,
+      "w": 20,
+      "h": 8,
+      "note": "Un [[chequeo-bloqueante|chequeo que bloquea]] detiene el modelo nuevo, no el servicio: la gente sigue recibiendo sugerencias del modelo que ya estaba."
+    }
+  ],
+  "edges": [
+    {
+      "from": "app",
+      "to": "gateway",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "gateway",
+      "to": "modelo",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "gateway",
+      "to": "particion",
+      "kind": "async",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          38,
+          14
+        ],
+        [
+          16,
+          14
+        ]
+      ]
+    },
+    {
+      "from": "particion",
+      "to": "entrada",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "entrada",
+      "to": "lake",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l",
+      "label": "pasa"
+    },
+    {
+      "from": "lake",
+      "to": "contrato",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "contrato",
+      "to": "train",
+      "kind": "offline",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "train",
+      "to": "gate",
+      "kind": "offline",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "entrada",
+      "to": "cuarentena",
+      "kind": "monitor",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          30,
+          29.5
+        ],
+        [
+          23.5,
+          29.5
+        ],
+        [
+          23.5,
+          45.5
+        ],
+        [
+          33,
+          45.5
+        ]
+      ]
+    },
+    {
+      "from": "cuarentena",
+      "to": "dueno",
+      "kind": "monitor",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "contrato",
+      "to": "actual",
+      "kind": "monitor",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "t",
+      "label": "bloquea"
+    }
+  ],
+  "flows": [
+    {
+      "id": "rota",
+      "label": "Una partición rota",
+      "steps": [
+        {
+          "nodes": [
+            "gateway",
+            "particion"
+          ],
+          "edges": [
+            "gateway>particion"
+          ],
+          "text": "Llega la partición de un día. Un export la mandó con la **hora local, sin zona**."
+        },
+        {
+          "nodes": [
+            "particion",
+            "entrada"
+          ],
+          "edges": [
+            "particion>entrada"
+          ],
+          "text": "La **revisión al entrar** corre el contrato sobre esa partición: el esquema exige horas en UTC, y falla."
+        },
+        {
+          "nodes": [
+            "entrada",
+            "cuarentena"
+          ],
+          "edges": [
+            "entrada>cuarentena"
+          ],
+          "text": "La partición va a **cuarentena**: aparte, sin borrarla. Las de los otros días siguen al lake."
+        },
+        {
+          "nodes": [
+            "cuarentena",
+            "dueno"
+          ],
+          "edges": [
+            "cuarentena>dueno"
+          ],
+          "text": "Se **avisa a su dueño**. Si la corrige a tiempo, se revisa otra vez y entra; si no, ese día falta en el mes."
+        }
+      ]
+    },
+    {
+      "id": "snapshot",
+      "label": "El snapshot del mes",
+      "steps": [
+        {
+          "nodes": [
+            "entrada",
+            "lake"
+          ],
+          "edges": [
+            "entrada>lake"
+          ],
+          "text": "Las particiones buenas llegan al **lake**."
+        },
+        {
+          "nodes": [
+            "lake",
+            "contrato"
+          ],
+          "edges": [
+            "lake>contrato"
+          ],
+          "text": "El día 1, el **contrato completo** revisa los labels del mes que acaba de terminar, antes, durante y después de armar el snapshot. Si el `request_id` cambió de formato y el join perdió la mitad, el volumen da \\(v\\) ≈ 0.5."
+        },
+        {
+          "nodes": [
+            "contrato",
+            "actual"
+          ],
+          "edges": [
+            "contrato>actual"
+          ],
+          "text": "**Bloquea**: no se entrena, y la gente sigue con el modelo actual. Nada se apaga."
+        },
+        {
+          "nodes": [
+            "contrato",
+            "train",
+            "gate"
+          ],
+          "edges": [
+            "contrato>train",
+            "train>gate"
+          ],
+          "text": "Si pasa, se **entrena**, y el **gate** compara al modelo nuevo contra el actual: el último punto donde un dato roto puede notarse."
+        }
+      ]
+    },
+    {
+      "id": "puerta",
+      "label": "En la puerta",
+      "steps": [
+        {
+          "nodes": [
+            "app",
+            "gateway",
+            "modelo"
+          ],
+          "edges": [
+            "app>gateway",
+            "gateway>modelo"
+          ],
+          "text": "En cada request, el servicio revisa la foto **antes** del modelo: lo que pasa de 10 MB recibe 413; lo que no es imagen, 415."
+        }
+      ]
+    }
+  ]
+}

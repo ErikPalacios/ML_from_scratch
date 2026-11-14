@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 474" role="img" aria-labelledby="f-e02-versionado-manifest-t" class="f-svg" style="max-width:420px">
+<title id="f-e02-versionado-manifest-t">Cómo está hecho un snapshot de Alba. Arriba, el manifest: una tabla con una fila por foto, con la llave de la foto, su huella SHA-256, su etiqueta y su split; en total 1,932,628 filas y unos 100 MB en Parquet. En medio, las fotos: unos 400 GB que se quedan en el almacenamiento del producto y que el manifest cita por llave y huella, sin copiarlas. Abajo, la huella de toda la lista, rows_sha256, que se guarda en la tarjeta del snapshot y en el modelo. Si cambia una sola etiqueta, la huella cambia.</title>
+<defs><marker id="fe2m-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="454" rx="16"/>
+<text class="f-l" x="26" y="36">EL MANIFEST: UNA FILA POR FOTO</text>
+<rect class="f-chip" x="22" y="48" width="316" height="26" rx="6"/>
+<text class="f-l" x="32" y="66">LLAVE</text>
+<text class="f-l" x="140" y="66">HUELLA</text>
+<text class="f-l" x="222" y="66">LABEL</text>
+<text class="f-l" x="282" y="66">SPLIT</text>
+<text class="f-s" x="32" y="96" style="font-size:12px">…/08/02/a01.jpg</text><text class="f-s" x="140" y="96" style="font-size:12px">9b1e…</text><text class="f-s" x="222" y="96" style="font-size:12px">17</text><text class="f-s" x="282" y="96" style="font-size:12px">train</text>
+<text class="f-s" x="32" y="120" style="font-size:12px">…/08/03/b11.jpg</text><text class="f-s" x="140" y="120" style="font-size:12px">e2a0…</text><text class="f-s" x="222" y="120" style="font-size:12px">233</text><text class="f-s" x="282" y="120" style="font-size:12px">val</text>
+<rect x="22" y="128" width="316" height="22" rx="4" style="fill:var(--o);opacity:.18"/>
+<text class="f-s" x="32" y="144" style="font-size:12px">…/08/04/c31.jpg</text><text class="f-s" x="140" y="144" style="font-size:12px">71f5…</text><text class="f-t" x="222" y="144" style="font-size:12px">233</text><text class="f-s" x="282" y="144" style="font-size:12px">train</text>
+<text class="f-s" x="32" y="168" style="font-size:12px">…/08/05/d07.jpg</text><text class="f-s" x="140" y="168" style="font-size:12px">0d93…</text><text class="f-s" x="222" y="168" style="font-size:12px">90</text><text class="f-s" x="282" y="168" style="font-size:12px">train</text>
+<text class="f-s" x="32" y="194" style="font-size:12px;font-weight:700">… 1,932,628 filas · ≈ 100 MB en Parquet</text>
+<text class="f-l" x="26" y="230">CITA LAS FOTOS, NO LAS COPIA</text>
+<rect class="f-b2" x="28" y="244" width="34" height="34" rx="5"/>
+<rect class="f-b2" x="68" y="244" width="34" height="34" rx="5"/>
+<rect class="f-b2" x="108" y="244" width="34" height="34" rx="5"/>
+<rect class="f-b2" x="148" y="244" width="34" height="34" rx="5"/>
+<text class="f-s" x="194" y="258" style="font-size:12px">≈ 400 GB, en el bucket</text>
+<text class="f-s" x="194" y="274" style="font-size:12px">del producto</text>
+<text class="f-s" x="26" y="300" style="font-size:12px">El manifest pesa ≈ 0.1 % de lo que cita.</text>
+<text class="f-l" x="26" y="334">LA HUELLA DE TODA LA LISTA</text>
+<rect class="f-chip" x="22" y="344" width="316" height="34" rx="8"/>
+<text class="f-t" x="34" y="366" style="font-size:13px">rows_sha256 = 5d1f…e7a2</text>
+<line class="f-flecha" x1="96" y1="380" x2="96" y2="398" marker-end="url(#fe2m-a)"/>
+<line class="f-flecha" x1="262" y1="380" x2="262" y2="398" marker-end="url(#fe2m-a)"/>
+<rect class="f-card" x="22" y="404" width="148" height="34" rx="8"/>
+<text class="f-s" x="96" y="426" text-anchor="middle" style="font-size:12px">snapshot.json la guarda</text>
+<rect class="f-dark" x="190" y="404" width="148" height="34" rx="8"/>
+<text class="f-dark-t" x="264" y="426" text-anchor="middle" style="font-size:12px">el modelo la guarda</text>
+<text class="f-s" x="26" y="456" style="font-size:12px">Cambia la etiqueta resaltada y la huella es otra.</text>
+</svg>

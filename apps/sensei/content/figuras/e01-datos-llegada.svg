@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 400" role="img" aria-labelledby="f-e01-datos-llegada-t" class="f-svg" style="max-width:420px">
+<title id="f-e01-datos-llegada-t">Una línea de tiempo de 0 a 35 días con cuatro fuentes de labels. Quien vende elige en minutos, el día 0, pero su elección madura hasta el día 30 sin corrección y solo entonces cuenta como label. Moderación corrige en días. La cola humana tarda unos 5 días hábiles con el proveedor, unos 7 días de calendario, más hasta 3 días hábiles de adjudicación. El golden set se etiquetó una sola vez y está congelado</title>
+<rect class="f-card" x="10" y="10" width="340" height="380" rx="16"/>
+<text class="f-l" x="26" y="36">CUÁNDO LLEGA CADA LABEL</text>
+<text class="f-s" x="26" y="56" style="font-size:12px">días desde que empieza su camino · ilustrativo</text>
+<path class="f-linea" d="M40 330 L330 330"/>
+<path class="f-linea" d="M40 324 L40 336 M123 324 L123 336 M206 324 L206 336 M289 324 L289 336"/>
+<text class="f-l" x="36" y="352">0</text>
+<text class="f-l" x="117" y="352">10</text>
+<text class="f-l" x="200" y="352">20</text>
+<text class="f-l" x="283" y="352">30</text>
+<text class="f-s" x="26" y="376" style="font-size:12px">días</text>
+<text class="f-t" x="26" y="88">Quien vende</text>
+<rect class="f-y" x="40" y="98" width="249" height="16" rx="8"/>
+<circle class="f-acc" cx="40" cy="106" r="7"/>
+<circle class="f-g" cx="289" cy="106" r="8"/>
+<text class="f-s" x="50" y="132">elige en minutos · madura 30 días</text>
+<text class="f-s" x="210" y="150">cuenta el día 30</text>
+<text class="f-t" x="26" y="182">Moderación</text>
+<rect class="f-o" x="48" y="192" width="58" height="16" rx="8"/>
+<text class="f-s" x="114" y="205">corrige en días</text>
+<text class="f-t" x="26" y="238">Cola humana</text>
+<rect class="f-b" x="40" y="248" width="58" height="16" rx="8"/>
+<rect class="f-p" x="98" y="248" width="34" height="16" rx="8"/>
+<text class="f-s" x="140" y="261">≈ 5 días hábiles + ≤ 3</text>
+<text class="f-s" x="50" y="282" style="font-size:12px">proveedor · adjudicación</text>
+<text class="f-t" x="26" y="310">Golden set</text>
+<text class="f-s" x="118" y="310">una sola vez, congelado</text>
+</svg>

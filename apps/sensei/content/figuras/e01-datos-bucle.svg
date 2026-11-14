@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 478" role="img" aria-labelledby="f-e01-datos-bucle-t" class="f-svg" style="max-width:420px">
+<title id="f-e01-datos-bucle-t">El feedback loop de Alba como un círculo de cuatro pasos: el modelo sugiere 5 categorías; quien vende acepta la primera, incluso cuando está mal, y solo corrige 1 de cada 3 errores; esa elección se vuelve label; con esos labels se entrena y se mide el modelo siguiente. Medido así, el modelo parece de 95 %. Abajo, la misma exactitud medida dos veces: contra lo que eligió quien vende, 95 %; con la muestra al azar de la cola y el golden set, etiquetados por personas que no vieron sugerencias, 85 %</title>
+<rect class="f-card" x="10" y="10" width="340" height="458" rx="16"/>
+<text class="f-l" x="26" y="36">EL MODELO SE MIDE A SÍ MISMO</text>
+<rect class="f-dark" x="110" y="52" width="140" height="40" rx="10"/>
+<text class="f-dark-t" x="180" y="77" text-anchor="middle">Modelo sugiere 5</text>
+<rect class="f-chip" x="200" y="128" width="140" height="52" rx="10"/>
+<text class="f-t" x="270" y="150" text-anchor="middle" style="font-size:14px">Quien vende</text>
+<text class="f-s" x="270" y="169" text-anchor="middle">acepta la 1.ª</text>
+<rect class="f-chip" x="110" y="214" width="140" height="40" rx="10"/>
+<text class="f-t" x="180" y="239" text-anchor="middle" style="font-size:14px">Elección = label</text>
+<rect class="f-chip" x="20" y="128" width="140" height="52" rx="10"/>
+<text class="f-t" x="90" y="150" text-anchor="middle" style="font-size:14px">Entrena y mide</text>
+<text class="f-s" x="90" y="169" text-anchor="middle">el modelo siguiente</text>
+<path class="f-flecha" d="M250 80 Q284 92 284 118"/><path class="f-punta" d="M279 116 L284 126 L289 116 Z"/>
+<path class="f-flecha" d="M270 180 Q270 226 258 232"/><path class="f-punta" d="M261 227 L250 234 L262 238 Z"/>
+<path class="f-flecha" d="M110 234 Q90 226 90 190"/><path class="f-punta" d="M85 192 L90 182 L95 192 Z"/>
+<path class="f-flecha" d="M76 128 Q76 92 100 80"/><path class="f-punta" d="M97 75 L109 77 L101 85 Z"/>
+<text class="f-s" x="26" y="286">Corrige solo 1 de cada 3 errores:</text>
+<text class="f-s" x="26" y="304">los otros 2 cuentan como «aciertos».</text>
+<path class="f-linea" d="M26 322 L334 322"/>
+<text class="f-l" x="26" y="346">LA MISMA EXACTITUD, MEDIDA DOS VECES</text>
+<text class="f-s" x="26" y="378">Contra lo que eligió quien vende</text>
+<rect class="f-o" x="26" y="386" width="247" height="16" rx="8"/>
+<text class="f-t" x="281" y="399" style="font-size:14px">95 %</text>
+<text class="f-s" x="26" y="430">Con la muestra al azar y el golden</text>
+<rect class="f-g" x="26" y="438" width="221" height="16" rx="8"/>
+<text class="f-t" x="255" y="451" style="font-size:14px">85 %</text>
+</svg>

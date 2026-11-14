@@ -179,11 +179,34 @@ Lo que encontraron las revisiones:
 
 Para la fase 10: mismo flujo. Lo que la Ronda tiene mal de seguridad (remisión contra transferencia, ShellTorch como grupo de fallos, el ALB y `aud`, la vida típica de los tokens) está en `revision/*-hechos.md` de la carpeta de la fase, sección «Para la Ronda».
 
+**Fase 10 (2026-11-14): ≈ 2.5 % por lección, 2 lecciones de estación.** Son las primeras lecciones por estación: «Datos y etiquetas» y «Versionado y linaje». Cada una cuenta un paso del sistema de Alba como trabajo completo (qué entra, qué sale, cada decisión con su número y qué se rompe) y recuerda con enlace lo que ya enseñaron `ejemplos`, `almacenamiento`, `tiempo-hash` y `pruebas-ci`. El límite semanal pasó de 37 % a 42 %. Todo cupo en la ventana de 5 horas que empezó a las 06:50, que pasó de 27 % a 59 % (el usuario ya había pedido no esperar el reinicio, porque lo que sobra de una ventana se pierde). Por pieza:
+
+| Pieza | Modelo y esfuerzo | Semanal | Ventana de 5 h |
+|---|---|---|---|
+| Paquetes, reparto, encargos y grupo `estaciones_datos` de la ficha (41 datos) | Sonnet bajo y la sesión | ≈ 1 punto | 27 → 31 % |
+| Escritores de las 2 lecciones, en paralelo (≈ 22 min, ≈ 311k tokens cada uno), más decidir la línea de tiempo del snapshot | Opus, medio | ≈ 1 punto (≈ 0.5 por lección) | 31 → 40 % (≈ 4 por lección) |
+| Revisión mecánica, las 2 | Sonnet, bajo | < 1 punto | 40 → 41 % |
+| Hechos y claridad, las 2, en tubería (cada lección pasa a la siguiente revisión al terminar la anterior) | Opus, alto | 2 puntos | 41 → 54 % |
+| Consistencia (15 hallazgos) | Sonnet, bajo | < 1 punto | 54 → 55 % |
+| Aplicar la consistencia y bajar los minutos, `npm run check`, navegador, plan, commit y deploy | Opus medio y la sesión | ≈ 1 punto | 55 → 59 % |
+
+Sale más caro por lección que la fase 9 (≈ 1.5 %) porque los costos fijos de la fase (paquetes, ficha, reparto, consistencia y cierre) se reparten entre 2 lecciones y no entre 4 o 5. Las piezas por lección costaron lo mismo que en las fases 8 y 9.
+
+Lo que encontraron las revisiones:
+- **La línea de tiempo del snapshot.** Las fuentes no decían cuándo se arma un snapshot. Los dos borradores lo armaban el día que dice su nombre, y así la cadena del borrado de Ana de «Datos personales y la ley» no cuadraba. Se fijó en la ficha (conflicto 36): `ds-2026-09-01` es el snapshot de septiembre y lo arma la corrida del 1 de octubre, que ese mismo día entrena `resnet50-2026-10-01`. Las revisiones de hechos corrigieron cada fecha que dependía de eso.
+- **Hechos: 101 correcciones (7 graves).** Las graves: publicar un snapshot copiando (`CopyObject`) hacia un prefijo que exige `If-None-Match` falla siempre según AWS, así que se publica con `PUT`; Delta Lake no tiene etiquetas e Iceberg sí tiene ramas; una URL prefirmada de 15 minutos se firma cuando la persona abre la foto, no al mandar la cola. De las 38 dudas de los escritores, 28 estaban bien tal cual.
+- **Claridad: 209 cambios**, 115 de conocimiento supuesto. También 24 de letras: la \(a\) y la \(b\) de kappa chocaban con las personas A y B, y «margen» tenía dos sentidos.
+- **Mecánica: 29 hallazgos**, casi todos de la línea de tiempo y de redondeo (105 contra 106 días, σ escrita de tres formas).
+- **Consistencia: 15 hallazgos.** Los más útiles: cómo salen 1.93 M de filas de ≈ 75 M de publicaciones al mes (ahora `snapshot_composicion`); dónde corre cada chequeo, que estaba contado de tres maneras; `privacidad` decía que los snapshots caducan (conflicto 39); y repeticiones de `formatos`, `pruebas-ci` y `almacenamiento`, que ahora son recordatorios con enlace.
+- Se corrigieron de paso `git.md` (Alba no usa DVC, conflicto 38), `almacenamiento.md` («Lo que sigue» y Object Lock) y `privacidad.md` (los snapshots no caducan).
+
+Para la fase 11: mismo flujo. Con 3 lecciones, los costos fijos pesan menos. Las «Decisiones de la integración» (§5 del reparto) funcionaron: cuando los escritores destapan un hueco de la ficha, la sesión lo decide una vez y las revisiones de hechos lo aplican en cada lección. Lo que la Ronda tiene mal de esta fase está en `.solo/fase10/revision/*-hechos.md`, sección «Para la Ronda».
+
 **Lección aprendida: las esperas entre ventanas van en una sesión nueva y corta.** Una sesión larga gasta ≈ 2 % de la ventana por turno solo en releer su contexto. Una sesión que espera el reinicio y despierta con cada agente que termina se come la ventana sin hacer trabajo. Lo barato es cerrar la sesión larga y que una sesión nueva, con un encargo corto, haga la espera y lance la tanda siguiente.
 
 ## 5. Las fases
 
-Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, la 5, la 6 y la 7 desde el 2026-11-06 la 8 desde el 2026-11-13 y la 9 desde el 2026-11-14: 47 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) las 5 de la fase 8 (9.4–10.3k palabras, 60–61 min lo esencial y 70–75 min todo) y las 4 de la fase 9 (10.1–10.6k palabras, 60 min lo esencial y 72–76 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
+Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, la 5, la 6 y la 7 desde el 2026-11-06 la 8 desde el 2026-11-13 y la 9 y la 10 desde el 2026-11-14: 49 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) las 5 de la fase 8 (9.4–10.3k palabras, 60–61 min lo esencial y 70–75 min todo) las 4 de la fase 9 (10.1–10.6k palabras, 60 min lo esencial y 72–76 min todo) y las 2 de la fase 10 (10.8–11.0k palabras, 59–60 min lo esencial y 78 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
 
 | Fase | Módulo | Lecciones | Prepara para la Ronda (nota interna, no va en la app) |
 |---|---|---|---|
@@ -196,7 +219,7 @@ Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 
 | 7 ✓ | Herramientas del oficio | La terminal · Python y sus paquetes · PyTorch para producción · Git · Pruebas y CI/CD · Configuración y secretos | M05–M11, M15 |
 | 8 ✓ | La nube | Qué es la nube · Regiones y zonas · Máquinas, GPUs y precios · Redes en la nube · Servicios gestionados y permisos | M04, M06, M13, M15 · base de IA Privada (`content/datos/gpus.json`) |
 | 9 ✓ | Seguridad | Cifrado, llaves y certificados · Autenticación y permisos · Datos personales y la ley · Ataques y cadena de suministro | M05, M07, M09, M15 |
-| 10 | Estaciones · Datos | Estaciones 1 y 2 de Alba | M09, M10 |
+| 10 ✓ | Estaciones · Datos | Estaciones 1 y 2 de Alba | M09, M10 |
 | 11 | Estaciones · Modelo | Estación 3, 4 y 5 | M08, M10, M11 |
 | 12 | Estaciones · API | Estación 6 | M03, M07 |
 | 13 | Estaciones · Contenedor | Estación 7 y 8 | M05, M10 |

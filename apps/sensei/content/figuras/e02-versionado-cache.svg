@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 446" role="img" aria-labelledby="f-e02-versionado-cache-t" class="f-svg" style="max-width:420px">
+<title id="f-e02-versionado-cache-t">La caché de un pipeline y la trampa de latest. Arriba, la entrada se llama datasets/latest: en octubre y en noviembre la llave de la caché sale igual, porque se calcula con el nombre y no con el contenido; en noviembre el paso no corre y se reusa el modelo de octubre. Abajo, la entrada es el id del snapshot: ds-2026-09-01 en octubre y ds-2026-10-01 en noviembre dan llaves distintas, y el paso corre cada mes.</title>
+<defs><marker id="fe2c-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="426" rx="16"/>
+<text class="f-l" x="26" y="36">LLAVE = H(CÓDIGO + PARÁMETROS + ENTRADAS)</text>
+<text class="f-t" x="26" y="70" style="font-size:14px">Con «datasets/latest»</text>
+<text class="f-l" x="28" y="98">1 OCT</text>
+<rect class="f-chip" x="74" y="82" width="120" height="26" rx="6"/>
+<text class="f-s" x="134" y="100" text-anchor="middle" style="font-size:12px">llave 10d32e…</text>
+<line class="f-flecha" x1="200" y1="95" x2="226" y2="95" marker-end="url(#fe2c-a)"/>
+<text class="f-s" x="234" y="100" style="font-size:12px">entrena</text>
+<text class="f-l" x="28" y="138">1 NOV</text>
+<rect class="f-o" x="74" y="122" width="120" height="26" rx="6"/>
+<text class="f-pill-t" x="134" y="140" text-anchor="middle" style="font-size:12px">llave 10d32e…</text>
+<line class="f-flecha" x1="200" y1="135" x2="226" y2="135" marker-end="url(#fe2c-a)"/>
+<text class="f-t" x="234" y="140" style="font-size:12px">reusa octubre</text>
+<text class="f-s" x="26" y="174" style="font-size:12px">La carpeta cambió de contenido, pero no de</text>
+<text class="f-s" x="26" y="190" style="font-size:12px">nombre: la llave es la misma y el paso no corre.</text>
+<line class="f-linea" x1="26" y1="214" x2="334" y2="214"/>
+<text class="f-t" x="26" y="246" style="font-size:14px">Con el id del snapshot</text>
+<text class="f-l" x="28" y="274">1 OCT</text>
+<rect class="f-chip" x="74" y="258" width="120" height="26" rx="6"/>
+<text class="f-s" x="134" y="276" text-anchor="middle" style="font-size:12px">ds-2026-09-01</text>
+<line class="f-flecha" x1="200" y1="271" x2="226" y2="271" marker-end="url(#fe2c-a)"/>
+<text class="f-s" x="234" y="276" style="font-size:12px">llave 4dec1a…</text>
+<text class="f-l" x="28" y="314">1 NOV</text>
+<rect class="f-g" x="74" y="298" width="120" height="26" rx="6"/>
+<text class="f-pill-t" x="134" y="316" text-anchor="middle" style="font-size:12px">ds-2026-10-01</text>
+<line class="f-flecha" x1="200" y1="311" x2="226" y2="311" marker-end="url(#fe2c-a)"/>
+<text class="f-s" x="234" y="316" style="font-size:12px">llave 7262ec…</text>
+<text class="f-s" x="26" y="350" style="font-size:12px">Otra llave cada mes: el paso corre y entrena</text>
+<text class="f-s" x="26" y="366" style="font-size:12px">con los datos nuevos.</text>
+<rect class="f-chip" x="22" y="386" width="316" height="36" rx="8"/>
+<text class="f-s" x="34" y="409" style="font-size:12px;font-weight:700">Lo que cambia el resultado va como parámetro.</text>
+</svg>

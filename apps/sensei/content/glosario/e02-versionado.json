@@ -1,0 +1,267 @@
+{
+  "terminos": [
+    {
+      "id": "versionado-datos",
+      "termino": "Versionado de datos",
+      "en": "data versioning",
+      "corto": "Guardar cada versión de un dataset con un nombre que no cambia, de modo que se pueda volver a leer exactamente igual meses después. Git lo hace con el código; los datos no se versionan solos.",
+      "largo": "Un modelo depende de su código y de sus datos. Git guarda cada versión del código, pero no sirve para millones de fotos. El versionado de datos congela cada dataset en un [[snapshot]] con un id (como `ds-2026-09-01`), lo protege para que nadie lo cambie ([[inmutabilidad]]) y deja que cada modelo apunte a él ([[linaje]]). Hay cuatro formas comunes: prefijos inmutables con un [[manifest]], [[dvc|DVC]], [[lakefs|lakeFS]] y tablas con [[time-travel|time travel]]. Sin versionado, «¿con qué datos se entrenó este modelo?» no tiene respuesta.",
+      "ejemplo": "Alba arma un snapshot cada mes, el día 1, con el mes que acaba de terminar: la corrida del 1 de octubre arma `ds-2026-09-01`, con 1,932,628 fotos etiquetadas. Si en octubre se corrige una etiqueta, no se toca el de septiembre: la corrección entra a `ds-2026-10-01`, que se arma el 1 de noviembre.",
+      "ver": [
+        "snapshot",
+        "manifest",
+        "inmutabilidad",
+        "linaje"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "manifest",
+      "termino": "Manifest",
+      "en": "manifest",
+      "corto": "Un archivo que lista los elementos de un conjunto, cada uno con lo necesario para encontrarlo y comprobarlo. Un snapshot de fotos es un manifest: una fila por foto con su llave (su nombre en el almacén) y su huella SHA-256 (un resumen de sus bytes que cambia si cambia la foto).",
+      "largo": "En ML, el manifest es la forma barata de versionar archivos grandes: en vez de copiar cada foto, se guarda una lista que la cita por su llave en el [[object-storage|object storage]] y por su [[hash-criptografico|huella SHA-256]]. La huella detecta si la foto cambió o desapareció. El manifest mismo tiene su huella (en Alba, `rows_sha256`), que guarda cada modelo: si alguien cambia una fila, la huella ya no coincide. Pesa una fracción mínima de lo que cita: bytes por fila ÷ bytes por foto.",
+      "analogia": "El índice de una biblioteca: no tiene los libros, dice dónde está cada uno y cuál es su edición. Donde se rompe: si alguien se lleva un libro, el índice no lo impide; solo deja ver que falta.",
+      "ejemplo": "El manifest de `ds-2026-09-01` es un Parquet con 1,932,628 filas y 10 columnas (`image_key`, `image_sha256`, `seller_id`, `label_id`, `label_source`…). Pesa ≈ 400 MB sin comprimir y ≈ 100 MB en Parquet; las fotos que cita, ≈ 400 GB.",
+      "ver": [
+        "snapshot",
+        "hash-criptografico",
+        "versionado-datos",
+        "ficha-dataset"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "inmutabilidad",
+      "termino": "Inmutabilidad (de un snapshot)",
+      "en": "immutability",
+      "corto": "Que algo, una vez escrito, ya no se pueda cambiar: ni borrar, ni reemplazar, ni agregarle nada. Un cambio es una versión nueva con otro nombre.",
+      "largo": "Un [[snapshot]] solo sirve si es inmutable: el modelo dice «me entrené con este», y si alguien lo reescribe después, el puntero miente. En object storage, un PUT a una llave que existe reemplaza el objeto en silencio, así que la inmutabilidad hay que imponerla: con la [[escritura-condicional|escritura condicional]] exigida por la política del bucket, con permisos que no dejan borrar, y con la huella del [[manifest]] para detectar si algo cambió. Inmutable no es eterno: cuando hay que borrar datos de una persona, se anota el borrado en vez de reescribir.",
+      "ejemplo": "`s3://ml-datos/datasets/ds-2026-09-01/` se escribe una vez, el 1 de octubre de 2026. Un error encontrado en octubre se corrige en `ds-2026-10-01`, no ahí.",
+      "ver": [
+        "escritura-condicional",
+        "object-lock",
+        "snapshot",
+        "versionado-datos"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "escritura-condicional",
+      "termino": "Escritura condicional (If-None-Match)",
+      "en": "conditional write",
+      "corto": "Una escritura (un PUT, la petición que guarda un archivo) que solo se cumple si se cumple una condición. Con el header If-None-Match: *, S3, el almacén de archivos de AWS, guarda el objeto solo si no existe nada con ese nombre; si existe, responde con el error 412 y no toca nada.",
+      "largo": "Sin condición, en un [[object-storage|object storage]] gana el último PUT y el anterior se pierde sin aviso. La escritura condicional cambia eso: `If-None-Match: *` quiere decir «solo si la llave está vacía». S3 la acepta desde agosto de 2024. Como el header lo pone quien escribe, para que sea obligatoria se exige en la política del bucket (*bucket policy*): se niega cualquier PUT bajo el prefijo que no lo traiga. Es lo que vuelve real la [[inmutabilidad]] de un prefijo; el versionado del bucket y [[object-lock|Object Lock]] no la dan.",
+      "ejemplo": "Un job de Alba que por error intenta escribir otra vez `datasets/ds-2026-09-01/rows.parquet` recibe 412 *Precondition Failed*; el snapshot de septiembre sigue igual.",
+      "ver": [
+        "inmutabilidad",
+        "object-lock",
+        "header",
+        "codigo-estado"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "object-lock",
+      "termino": "Object Lock",
+      "en": "Object Lock",
+      "corto": "Una función de S3, el almacén de archivos de AWS, que bloquea cada versión de un objeto durante un plazo: nadie la puede borrar ni cambiar mientras dure. No impide escribir otra versión en la misma llave.",
+      "largo": "Object Lock trabaja sobre el versionado del bucket: cada PUT crea una versión, y la versión bloqueada no se puede borrar hasta que venza su plazo (en el modo más estricto, ni quien administra la cuenta). Sirve para que un borrado por error o malicioso no destruya datos. Su hueco: protege **versiones**, no la llave. Un PUT nuevo a la misma llave crea otra versión que pasa a ser la que se lee, y quien pide el objeto sin decir qué versión recibe la nueva. Para impedir eso hace falta la [[escritura-condicional|escritura condicional]]; para detectarlo, la huella del [[manifest]].",
+      "ejemplo": "Con Object Lock y sin escritura condicional, un PUT a `rows.parquet` de septiembre «funciona»: la versión vieja sigue guardada, pero el entrenamiento lee la nueva. El `rows_sha256` del modelo ya no coincide, y así se descubre.",
+      "ver": [
+        "escritura-condicional",
+        "inmutabilidad",
+        "bucket-objetos"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "write-audit-publish",
+      "termino": "Escribir, auditar, publicar",
+      "en": "write-audit-publish",
+      "corto": "Un patrón para publicar datos sin que nadie vea algo a medias o sin revisar: se escribe aparte, se corren los chequeos y solo si pasan se publica, de golpe.",
+      "largo": "Si un job escribe directo donde los demás leen y se cae a la mitad, o escribe datos malos, quien lea en ese momento usa basura. Con este patrón, el job escribe en un lugar aislado (un prefijo temporal o una rama de [[lakefs|lakeFS]]), corren los chequeos del [[contrato-datos|contrato de datos]] y, si pasan, un último paso publica todo de una vez (subir los archivos al prefijo final y escribir la tarjeta al final, o hacer merge). Si fallan, no se publica nada y el resto del sistema sigue con la versión anterior.",
+      "ejemplo": "Alba escribe el manifest en `staging/ds-2026-09-01/`, corre los chequeos del manifest ya armado (que ninguna foto esté en train y en validación, que no haya fotos del golden set, volumen entre 0.8 y 1.5 veces el snapshot anterior, labels débiles en 80 % o menos; el esquema y el rango de labels se revisaron antes de armar) y solo entonces sube los archivos a `datasets/` con `PUT` (la política del bucket no deja copiar dentro de S3) y escribe `snapshot.json` al final. Un snapshot sin tarjeta no existe.",
+      "ver": [
+        "contrato-datos",
+        "inmutabilidad",
+        "lakefs",
+        "prueba-datos"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "label-evento",
+      "termino": "Labels como eventos",
+      "en": "append-only labels",
+      "corto": "Guardar cada etiqueta como una fila nueva que nunca se edita, con su autor, su fuente y su hora. Corregir es agregar otra más nueva; un snapshot es la consulta «labels vigentes a tal fecha».",
+      "largo": "Si la tabla de labels guarda una fila por foto y cada corrección la reescribe, se pierde qué label había antes, y un dataset viejo ya no se puede explicar. Con eventos de solo agregar (*append-only*), la historia completa sobrevive: para armar el snapshot de una fecha se toma, para cada foto, el evento más reciente anterior a ese corte. Es el [[point-in-time|point-in-time]] aplicado a las etiquetas: el snapshot con corte el 1 de octubre no puede ver un label que llegó el 4.",
+      "ejemplo": "Una foto tiene «Tenis» de quien vende el 25 de junio y «Botas» de moderación el 10 de agosto. El snapshot de julio (corte 1 de agosto) trae «Tenis»; el de agosto (corte 1 de septiembre), «Botas»; los dos eventos siguen en la tabla.",
+      "ver": [
+        "point-in-time",
+        "versionado-datos",
+        "upsert",
+        "guia-etiquetado"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "split-estable",
+      "termino": "Split estable",
+      "en": "stable split",
+      "corto": "Un reparto de los datos en el que cada ejemplo cae en train o en validación una vez y se queda ahí en todas las versiones. Los nuevos se reparten sin mover a los viejos.",
+      "largo": "Si cada versión del dataset sortea el [[split]] otra vez, fotos que validaron al modelo viejo entrenan al nuevo, y ya no se pueden comparar. Se logra decidiendo el lado con un hash de algo fijo: un hash no cambia, así que el mismo grupo cae siempre en el mismo lado ([[asignacion-hash|asignación con hash]]). Si se repartiera al azar cada mes, con 95 % a train, la fracción de fotos que pasa por validación al menos una vez en un año sería \\(1 − 0.95^{12}\\) ≈ 46 %.",
+      "ejemplo": "Alba: cubeta = SHA-256(`seller_id`) mod 100; train si es menor que 95. El vendedor `s-309` cae en la cubeta 95: validación, hoy y siempre. Sortear cada mes movería ≈ 87,796 de las 92,417 fotos de validación de septiembre a train en octubre.",
+      "ver": [
+        "split",
+        "asignacion-hash",
+        "leakage",
+        "golden-set"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "ficha-dataset",
+      "termino": "Ficha del dataset",
+      "en": "datasheet / data card",
+      "corto": "El documento que acompaña a un dataset: qué contiene, de dónde salió, cómo se etiquetó y dividió, y para qué no sirve. Hay una versión para máquinas (la tarjeta) y otra para personas.",
+      "largo": "Un [[manifest]] dice qué filas hay, pero no por qué. La ficha lo cuenta. La parte para máquinas (en Alba, `snapshot.json`) guarda el id, el padre, la fecha, la huella del manifest, los conteos, la mezcla de fuentes, la regla del split, el commit del código que lo armó y el estado de la validación. La parte para personas, que viene de la propuesta de *datasheets for datasets*, explica los límites: qué sesgos tiene, qué no se debe medir con él.",
+      "ejemplo": "La tarjeta de `ds-2026-09-01` dice: padre `ds-2026-08-01`, 72 % de labels de quien vende filtrados, 7 % de moderación, 21 % a mano; split por `seller_id`; código `ml-catalogo` en el commit `4be1d0a`. La ficha para personas avisa que el 72 % no sirve para medir el modelo: lo influyó su propia sugerencia.",
+      "ver": [
+        "manifest",
+        "snapshot",
+        "linaje"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "dvc",
+      "termino": "DVC",
+      "en": "DVC (Data Version Control)",
+      "corto": "Una herramienta de código abierto que versiona datos junto con Git: guarda en Git un archivo chiquito con la huella de cada dataset, y los datos de verdad en un almacén aparte, como S3.",
+      "largo": "DVC calcula la huella de cada archivo o carpeta de datos y la escribe en un archivo `.dvc` de texto, que sí entra a [[git|Git]]. Los datos suben a un *remote* (un bucket, por ejemplo). Hacer checkout de un commit viejo y luego `dvc checkout` trae los datos de ese commit. Es la idea de [[git-lfs|Git LFS]], pensada para datasets, y además describe pasos de pipeline. Va bien con equipos chicos y miles o cientos de miles de archivos; con millones de archivos chicos, calcular y comparar huellas se vuelve lento.",
+      "ejemplo": "Un proyecto de escuela con 30,000 fotos: `dvc add fotos/` crea `fotos.dvc` con la huella, ese archivo va al commit, y `dvc push` sube las fotos al bucket. Alba no lo usa: prefiere prefijos inmutables con manifest.",
+      "ver": [
+        "git-lfs",
+        "versionado-datos",
+        "lakefs"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "lakefs",
+      "termino": "lakeFS",
+      "en": "lakeFS",
+      "corto": "Un sistema que pone ramas, commits y merges, como los de Git, encima de un bucket de object storage, sin copiar los datos.",
+      "largo": "lakeFS guarda, para cada commit, la lista de qué objetos forman el bucket en ese momento. Crear una rama no copia nada: la rama nueva apunta al mismo commit, así que tarda lo mismo con 1 KB que con 400 GB. Su uso estrella es [[write-audit-publish|escribir, auditar, publicar]]: un job escribe en su rama, unos chequeos corren antes del merge y el merge publica todo de golpe. Hay que operarlo: es un servidor más, con su base de datos. Desde la versión 1.87.0 (septiembre de 2026) su licencia es la BSL 1.1, ya no Apache 2.0: se usa gratis dentro de la empresa sin modificarlo, pero no se puede ofrecer como servicio. Le conviene a equipos grandes con muchos jobs que escriben al mismo lake.",
+      "ejemplo": "Un equipo de 40 personas: cada job de ingesta escribe en su rama, y solo lo que pasa los chequeos llega a `main`. Alba, con 5 personas, no lo necesita todavía.",
+      "ver": [
+        "dvc",
+        "write-audit-publish",
+        "versionado-datos"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "formato-tabla",
+      "termino": "Formato de tabla (Delta, Iceberg)",
+      "en": "table format",
+      "corto": "Una capa sobre archivos de datos (Parquet) que los convierte en una tabla con transacciones y versiones: un registro aparte dice qué archivos forman la tabla en cada versión. Los más usados son Delta Lake y Apache Iceberg.",
+      "largo": "Es la pieza que hace posible el [[lakehouse]]. Cada escritura sube archivos nuevos y, al final, agrega al registro una entrada con la lista de archivos de la versión nueva: quien lee nunca ve una tabla a medias. Como las versiones viejas siguen listadas mientras sus archivos existan, se puede leer el pasado: el [[time-travel|time travel]]. Le conviene a datos tabulares que cambian fila por fila (transacciones, precios, features).",
+      "ejemplo": "Un sistema de pronóstico de demanda guarda sus ventas en una tabla Iceberg; cada entrenamiento nocturno lee la versión del momento en que arranca y registra su número con el modelo.",
+      "ver": [
+        "lakehouse",
+        "time-travel",
+        "parquet",
+        "snapshot"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "time-travel",
+      "termino": "Time travel de una tabla",
+      "en": "time travel",
+      "corto": "Leer una tabla como estaba en una versión o una fecha pasada. Lo dan los formatos de tabla, pero solo mientras la limpieza no borre esa versión: no es un archivo para siempre.",
+      "largo": "Un [[formato-tabla|formato de tabla]] guarda qué archivos formaban cada versión, y con eso se puede pedir `VERSION AS OF` o `TIMESTAMP AS OF`. Para no pagar archivos viejos para siempre, la limpieza borra las versiones que pasan de cierta edad: en Delta, por omisión, el registro guarda 30 días, pero `VACUUM`, si corre, borra los archivos de las versiones de más de 7; en Iceberg, la limpieza borra por omisión los snapshots de más de 5 días. Una versión se puede releer si su edad \\(E\\) es menor o igual que su retención \\(L\\). Para reproducir un modelo, la versión que usó se guarda aparte: en Iceberg, con un *tag* (un nombre fijo para esa versión) de retención larga; en Delta, que no tiene tags, con una retención más larga en la tabla o una copia.",
+      "ejemplo": "Un modelo se entrenó con una tabla Iceberg al 1 de septiembre de 2026. El 15 de diciembre, \\(E\\) = 105 días: con la limpieza de 5 días, lo más probable es que ya se haya borrado. Con un tag `RETAIN 365 DAYS` en esa versión, se puede hasta el 1 de septiembre de 2027.",
+      "ver": [
+        "formato-tabla",
+        "retencion",
+        "reproducibilidad"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "linaje",
+      "termino": "Linaje",
+      "en": "lineage",
+      "corto": "La cadena de qué salió de qué: este modelo salió de este snapshot, armado por este código, con fotos que tienen estas huellas. Se guarda como punteros, no como copias.",
+      "largo": "Con linaje, las preguntas de producción son mecánicas: con qué datos se entrenó un modelo, si cambió el código o los datos entre dos versiones, en qué modelos está una foto que hay que borrar. En Alba, cada modelo registrado guarda tres punteros: el [[snapshot]] (id y huella), el [[commit]] del código de entrenamiento y el [[digest-imagen|digest]] (la huella) de la imagen de [[contenedor]] donde corrió el entrenamiento; además, `labels.json` con su huella y la versión del preprocesamiento. El snapshot, a su vez, apunta al commit que lo armó y a cada foto por su huella. Sin linaje, cada pregunta es una semana de arqueología.",
+      "ejemplo": "`resnet50-2026-10-01` → `ds-2026-09-01` (y su `rows_sha256`) → manifest → la foto de Ana por su SHA-256; y del otro lado, el commit `c3f2fc2` y el digest de la imagen. El snapshot apunta a `4be1d0a`, el código que lo armó.",
+      "ver": [
+        "versionado-datos",
+        "reproducibilidad",
+        "procedencia",
+        "registro-modelos"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "reproducibilidad",
+      "termino": "Reproducibilidad",
+      "en": "reproducibility",
+      "corto": "Poder volver a entrenar un modelo y obtener el mismo resultado. Exige fijar cinco ingredientes: código, datos, configuración, entorno y aleatoriedad.",
+      "largo": "Cada ingrediente se fija con un puntero: el código con un [[commit]] (con el árbol limpio), los datos con un [[snapshot]] y su huella, la configuración en el mismo commit, el entorno con el digest (la huella) de la imagen de contenedor y la aleatoriedad con la [[semilla]]. Aun así, en una GPU dos corridas casi nunca dan los mismos bits ([[determinismo]]), por eso hay tres niveles: bit a bit, dentro de tolerancia (métricas que difieren tan poco como dos semillas) y estadístico. Lo normal en producción es el segundo.",
+      "ejemplo": "Alba entrenó la misma receta con 5 semillas: 85.12 a 85.34 %, promedio 85.23 %, σ ≈ 0.088 puntos. Su tolerancia es 3σ ≈ 0.26: una repetición que da 85.41 % se reprodujo; una que da 85.71 %, no.",
+      "ver": [
+        "linaje",
+        "semilla",
+        "determinismo",
+        "desviacion-estandar"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "orquestador-pipelines",
+      "termino": "Orquestador de pipelines",
+      "en": "workflow orchestrator",
+      "corto": "El programa que corre los pasos de un pipeline: decide cuándo y en qué orden, reintenta el que falla, guarda qué entró y salió de cada uno y avisa si algo se rompe. No procesa datos: los procesan los pasos.",
+      "largo": "Un [[pipeline]] de ML (validar, armar el snapshot, entrenar, evaluar, registrar) no se corre a mano: lo corre un orquestador como Argo Workflows, Airflow, Dagster o Kubeflow Pipelines. El pipeline se describe como un [[dag|DAG]]; cada paso suele ser un contenedor con entradas explícitas. El orquestador da reintentos por paso, [[cache-pipeline|caché]], historial, parámetros y disparadores (una hora, un evento). No es la [[orquestacion|orquestación]] de Kubernetes, que mantiene vivos los contenedores de un servicio: este corre tareas que empiezan y terminan.",
+      "ejemplo": "En Alba, un CronWorkflow de Argo Workflows dispara el pipeline mensual el día 1 a las 03:00 UTC, en el mismo cluster de Kubernetes; si un paso falla, avisa a la persona de guardia.",
+      "ver": [
+        "dag",
+        "cache-pipeline",
+        "pipeline",
+        "backfill"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "dag",
+      "termino": "DAG",
+      "en": "DAG (directed acyclic graph)",
+      "corto": "Un grafo dirigido acíclico: pasos unidos por flechas que dicen «este va después de aquel», sin ciclos. Es como se describe un pipeline.",
+      "largo": "Dirigido, porque cada flecha tiene sentido (de una dependencia a quien la necesita); acíclico, porque un paso no puede esperar, aunque sea de rebote, a uno que lo espera a él: nadie empezaría. Con el DAG, el [[orquestador-pipelines|orquestador]] sabe qué pasos pueden correr a la vez (los que no dependen entre sí) y cuál es el camino más largo, que fija cuánto tarda todo.",
+      "ejemplo": "El pipeline mensual de Alba: validar datos → armar snapshot → fine-tune → evaluar → gate → construir el engine en una T4 → paridad → registrar. 8 pasos en fila, 2 en GPU.",
+      "ver": [
+        "orquestador-pipelines",
+        "pipeline"
+      ],
+      "leccion": "e02-versionado"
+    },
+    {
+      "id": "cache-pipeline",
+      "termino": "Caché de pasos de un pipeline",
+      "en": "step cache",
+      "corto": "Guardar la salida de cada paso y reusarla si el paso vuelve a correr con las mismas entradas. Si una entrada llega como una ruta (el nombre de una carpeta), la llave usa el nombre y no lo que hay dentro: por eso una carpeta «latest», que cambia de contenido cada mes, la engaña.",
+      "largo": "La llave es \\(H\\)(código + parámetros + entradas). Si coincide con una guardada, el paso no corre y se usa la salida vieja: ahorra horas de GPU. Pero cuando una entrada llega como una ruta de texto, el orquestador hashea la ruta, no lo que hay en ella. Si una se llama `datasets/latest` y su contenido cambió, la llave no cambia y se reusa un resultado viejo, con el pipeline en verde. La regla: toda entrada que cambia el resultado va como parámetro o artefacto con nombre fijo.",
+      "ejemplo": "Con `datasets/latest`, la corrida del 1 de noviembre de Alba «entrena» en segundos y registra el modelo de octubre otra vez. Con `ds-2026-10-01` como parámetro, la llave cambia y el fine-tune corre.",
+      "ver": [
+        "orquestador-pipelines",
+        "funcion-hash",
+        "cache"
+      ],
+      "leccion": "e02-versionado"
+    }
+  ]
+}

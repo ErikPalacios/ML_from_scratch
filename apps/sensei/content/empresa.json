@@ -1402,7 +1402,7 @@
      "dato": "Fotos que revisan personas al mes",
      "valor": "≈ 5,000 (10 % con doble anotación)",
      "unidad": "fotos/mes",
-     "nota": "5–10 ¢ por foto → ≈ US$250–500/mes; 20–30 s por foto → ≈ 31–46 h/mes.",
+     "nota": "5,000 fotos + 500 dobles = 5,500 anotaciones × 5–10 ¢ → ≈ US$275–550/mes (US$250–500 sin las dobles); × 20–30 s → ≈ 31–46 h/mes (conflicto 31).",
      "lecciones": [
       "camino-completo",
       "ejemplos",
@@ -2391,7 +2391,7 @@
      "dato": "Ataques plausibles",
      "valor": "poco incentivo para engañar la sugerencia (la vendedora puede cambiarla a mano); sí para tumbar el servicio con fotos caras y para envenenar etiquetas (el 72 % viene de vendedores)",
      "unidad": "—",
-     "nota": "Defensas: tope de 10 MB y 40 MP, 2 decodes a la vez, gate contra el golden set de moderadores, snapshots inmutables.",
+     "nota": "Defensas: tope de 10 MB y 40 MP, 2 decodes a la vez, gate contra el golden set adjudicado por moderación, snapshots inmutables.",
      "lecciones": [
       "ataques"
      ]
@@ -2569,6 +2569,585 @@
      "nota": "Por eso una cara en una foto es dato personal, pero no biométrico sensible.",
      "lecciones": [
       "privacidad"
+     ]
+    }
+   ]
+  },
+  "estaciones_datos": {
+   "descripcion": "Estaciones 1 y 2: datos, etiquetas, snapshots y linaje (fase 10)",
+   "hechos": [
+    {
+     "id": "holdout",
+     "dato": "Holdout sin sugerencias",
+     "valor": "≈ 1 % de las cuentas de vendedor (por hash del seller_id) no ve sugerencias y elige la categoría a mano",
+     "unidad": "—",
+     "nota": "Es el mismo 1 % de negocio.vendedores_sin_sugerencias. Sus labels no los influyó el modelo: sirven para medir el error real de las fuentes débiles y el valor de la sugerencia.",
+     "lecciones": [
+      "e01-datos",
+      "ejemplos"
+     ]
+    },
+    {
+     "id": "holdout_volumen",
+     "dato": "Labels que da el holdout",
+     "valor": "1 % de ≈ 2.5 M ≈ 25 mil publicaciones al día ≈ 750 mil al mes",
+     "unidad": "publicaciones",
+     "nota": "2,500,000 × 0.01 = 25,000; × 30 = 750,000.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "join_llave",
+     "dato": "Cómo se une el log con lo que eligió quien vende",
+     "valor": "por request_id: el backend guarda el request_id de cada foto con el borrador de la publicación",
+     "unidad": "—",
+     "nota": "El log de predicciones trae request_id y model_version; el evento de publicación trae listing_id, request_id y la categoría elegida.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "eventos_caller",
+     "dato": "Eventos que manda el backend de publicaciones",
+     "valor": "suggestion_shown (request_id, model_version, las 5 categorías mostradas) solo si la pantalla las pintó; category_selected (listing_id, categoría, posición elegida o null, vía: sugerencia, búsqueda o árbol)",
+     "unidad": "—",
+     "nota": "Sin suggestion_shown no se sabe si la persona vio la sugerencia.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "join_tipos",
+     "dato": "Tipo de cada unión",
+     "valor": "log con publicación: JOIN por request_id; correcciones de moderación: LEFT JOIN, la más reciente por publicación",
+     "unidad": "—",
+     "nota": "Una publicación tiene ≈ 3 fotos: el join es de una publicación a varias filas del log.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "maduracion_dias",
+     "dato": "Cuándo cuenta una sugerencia aceptada como label",
+     "valor": "después de 30 días sin corrección de moderación",
+     "unidad": "días",
+     "nota": "Regla de maduración. Las correcciones mandan sobre la elección de quien vende.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "llegada_labels",
+     "dato": "Cuánto tarda en llegar cada label",
+     "valor": "quien vende: minutos (pero madura 30 días); moderación: días; cola humana: ≈ 5 días hábiles; golden: una sola vez",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "exactitud_fuentes",
+     "dato": "Exactitud de cada fuente de labels (medida contra la muestra al azar de la cola, ya adjudicada)",
+     "valor": "sugerencia aceptada sin filtrar ≈ 90 %; quien vende, filtrada (madura) ≈ 95 %; moderación ≈ 97 %; cola humana adjudicada ≈ 98 %",
+     "unidad": "%",
+     "nota": "Supuesto del curso (las fuentes no dan número para Alba). Con el reparto 72 / 7 / 21 % da ≈ 4 % de labels mal en el snapshot: 0.72 × 5 + 0.07 × 3 + 0.21 × 2 ≈ 4.2 %.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "cola_mezcla",
+     "dato": "Mezcla de la cola mensual de ≈ 5,000 fotos",
+     "valor": "25 % al azar (1,250); 40 % incertidumbre (2,000); 25 % desacuerdos (1,250); 10 % categorías nuevas (500)",
+     "unidad": "fotos/mes",
+     "nota": "Supuesto del curso dentro de datos_y_entrenamiento.active_learning (20–30 % al azar; 200–500 por categoría nueva). La muestra al azar se sortea primero y es la única con la que se estima el error.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "umbral_margen",
+     "dato": "Incertidumbre",
+     "valor": "top-1 < 0.3 o margen (top-1 − top-2) < 0.1",
+     "unidad": "—",
+     "nota": "El 0.1 es supuesto del curso.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "quien_etiqueta",
+     "dato": "Quién etiqueta la cola",
+     "valor": "un proveedor gestionado (encargado), en su herramienta; ve cada foto por una URL prefirmada de 15 min que se firma cuando la persona abre la foto; regresa en ≈ 5 días hábiles",
+     "unidad": "—",
+     "nota": "Retención y privacidad: seguridad.proveedor_etiquetado_retencion.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "guia_etiquetado",
+     "dato": "Guía de etiquetado",
+     "valor": "guia-v4 (vigente en noviembre de 2026); cada label guarda la versión de la guía con que se hizo; los desacuerdos resueltos se vuelven ejemplos de la guía siguiente",
+     "unidad": "—",
+     "nota": "Supuesto del curso. Casos límite de ejemplo: foto con varios productos (manda el principal), producto en su caja, tenis contra zapatos de vestir.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "doble_por_categoria",
+     "dato": "Dobles por categoría al mes",
+     "valor": "500 dobles ÷ 500 categorías ≈ 1",
+     "unidad": "fotos",
+     "nota": "Con 1 al mes no hay kappa por clase: se acumulan meses o se mide en las categorías grandes y en los pares que se confunden.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "kappa_objetivo",
+     "dato": "Kappa que pide Alba",
+     "valor": "≥ 0.8 en global cada mes; por clase, alerta si baja de 0.6 en una clase con ≥ 30 casos dobles acumulados",
+     "unidad": "—",
+     "nota": "Supuesto del curso; la escala de Landis y Koch es una convención.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "adjudicacion",
+     "dato": "Quién decide los desacuerdos",
+     "valor": "2 personas expertas del equipo de moderación, en ≤ 3 días hábiles",
+     "unidad": "—",
+     "nota": "Supuesto del curso. Lo que deciden alimenta la guía siguiente.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "preguntas_control",
+     "dato": "Control de cada anotador",
+     "valor": "≈ 250 al mes (≈ 5 % de lo que recibe el proveedor), encima de las 5,000 de la cola: fotos del golden set con respuesta conocida, mezcladas sin aviso",
+     "unidad": "—",
+     "nota": "Supuesto del curso. No se vuelven labels nuevos. Su costo (≈ US$13–25) va aparte de los US$275–550.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "golden_quien",
+     "dato": "Quién etiquetó el golden set",
+     "valor": "dos personas del proveedor por foto, y moderación adjudicó cada desacuerdo",
+     "unidad": "—",
+     "nota": "Por eso seguridad.amenazas habla de un golden «adjudicado por moderación».",
+     "lecciones": [
+      "e01-datos",
+      "ataques"
+     ]
+    },
+    {
+     "id": "golden_version",
+     "dato": "Versión vigente del golden set",
+     "valor": "golden-v3: 50,000 fotos, estratificado por categoría (piso de ≈ 50) y por origen (celular y web), congelado",
+     "unidad": "—",
+     "nota": "Al refrescarlo se crea golden-v4 y se vuelve a evaluar al modelo actual.",
+     "lecciones": [
+      "e01-datos",
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "golden_precision",
+     "dato": "Qué tan fino mide el golden set",
+     "valor": "± 0.3 puntos en la exactitud global (p ≈ 0.85, 50,000 fotos); ≈ ± 10 puntos en una categoría con 50 fotos",
+     "unidad": "puntos porcentuales",
+     "nota": "Intervalo del 95 %: 1.96 × raíz(0.85 × 0.15 / n).",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "golden_contra_cola",
+     "dato": "Que el golden no se cuele",
+     "valor": "antes de guardar los labels del mes se cruzan los SHA-256 de sus fotos con el manifest de golden-v3; si aparece uno, el paso se detiene",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e01-datos",
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "humanos_acumulados",
+     "dato": "De dónde salen las ≈ 406 mil etiquetas humanas del snapshot de septiembre",
+     "valor": "≈ 345 mil de un proyecto inicial de etiquetado con el proveedor (2025) y ≈ 60 mil de 12 meses de cola",
+     "unidad": "fotos",
+     "nota": "21 % × 1,932,628 ≈ 405,852. Supuesto del curso. El golden set no entra al entrenamiento.",
+     "lecciones": [
+      "e01-datos",
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "bucket_cola",
+     "dato": "Bucket de las fotos de la cola",
+     "valor": "acceso público bloqueado; fotos copiadas sin EXIF; lifecycle que las borra a los 90 días; el proveedor las ve por una URL prefirmada de 15 min que se firma cuando la persona abre la foto",
+     "unidad": "—",
+     "nota": "Mismas cifras que almacenamiento.fotos_etiquetar.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "validacion_chequeos",
+     "dato": "Chequeos antes de armar el snapshot",
+     "valor": "esquema exacto; label_id entre 0 y 499 (0 y 500 desde «bolsas»); ancho y alto ≥ 64 px; image_sha256 sin repetir y sin cruzar splits; timestamps en UTC; volumen entre 0.8 y 1.5 veces el snapshot anterior; datos de hace < 48 h; labels débiles ≤ 80 %",
+     "unidad": "—",
+     "nota": "Umbrales del equipo de Alba.",
+     "lecciones": [
+      "e01-datos",
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "validacion_bloquea",
+     "dato": "Qué chequeo bloquea",
+     "valor": "esquema roto, labels fuera de rango, una foto en dos splits, volumen fuera de 0.8–1.5×, datos viejos, labels débiles > 80 %",
+     "unidad": "—",
+     "nota": "Si bloquea, no se entrena y sigue el modelo actual.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "validacion_avisa",
+     "dato": "Qué chequeo solo avisa",
+     "valor": "una categoría que creció > 30 %, un slice que quedó con menos fotos que el piso; todo chequeo nuevo empieza avisando",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "validacion_donde",
+     "dato": "Dónde corren los chequeos",
+     "valor": "al entrar los datos (la partición mala va a cuarentena y se avisa a su dueño); antes de entrenar (bloquea); en serving (400, 413, 415); después de entrenar (el gate)",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "contrato_publicaciones",
+     "dato": "Contrato de datos con el equipo de publicaciones",
+     "valor": "dueño de los eventos suggestion_shown y category_selected; esquema versionado; un cambio que rompe se avisa con 2 semanas",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e01-datos",
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "snapshot_id",
+     "dato": "Snapshot de septiembre",
+     "valor": "ds-2026-09-01: el snapshot de septiembre; padre ds-2026-08-01; lo arma la corrida del 1 de octubre (creado el 2026-10-01T03:12:44Z) con los labels vigentes al corte 2026-10-01T00:00Z; 1,932,628 filas (1,840,211 train y 92,417 validación)",
+     "unidad": "—",
+     "nota": "Regla de nombres (conflicto 36): un snapshot lleva la fecha del primer día del mes que cubre y se arma el día 1 del mes siguiente. Ese mismo día se entrena el modelo, que lleva la fecha de la corrida: ds-2026-09-01 → resnet50-2026-10-01.",
+     "lecciones": [
+      "e02-versionado",
+      "almacenamiento"
+     ]
+    },
+    {
+     "id": "snapshot_ruta",
+     "dato": "Dónde vive el snapshot",
+     "valor": "s3://ml-datos/datasets/ds-2026-09-01/ con rows.parquet (el manifest), snapshot.json (la tarjeta) y validation.json; las fotos no se copian: se citan por llave y SHA-256",
+     "unidad": "—",
+     "nota": "s3://ml-datos/labeled/ es solo la copia de trabajo de la cola para el proveedor (sin EXIF, 90 días). Los snapshots citan todas sus fotos, también las de labels humanos, en el almacenamiento del producto, por llave y SHA-256.",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "manifest_columnas",
+     "dato": "Columnas del manifest",
+     "valor": "image_key, image_sha256, seller_id, label_id, label_source (humano, moderador, vendedor_filtrado), guia_version, split, width, height, created_at (UTC)",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "snapshot_tarjeta",
+     "dato": "Tarjeta del snapshot (snapshot.json)",
+     "valor": "snapshot_id, parent, created_at, rows_path, rows_sha256, counts, label_sources, split (seller_id, hash mod 100 < 95 → train), code (repo ml-catalogo, commit 4be1d0a), validation (status y reporte)",
+     "unidad": "—",
+     "nota": "4be1d0a es el commit del código que armó el snapshot; c3f2fc2 (personas_y_ejemplos.ids_ejemplo) es el del código que entrenó el modelo.",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "snapshot_tamano",
+     "dato": "Cuánto pesa un snapshot",
+     "valor": "manifest ≈ 400 MB sin comprimir (≈ 2 M filas × ≈ 200 B), ≈ 100 MB en Parquet (con zstd; el SHA-256 no baja de sus 32 B; con snappy serían ≈ 200 MB); fotos citadas ≈ 400 GB (≈ 2 M × 200 KB) que no se copian",
+     "unidad": "—",
+     "nota": "Los ≈ 100 MB son «megabytes» como dice almacenamiento.",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "snapshot_proteccion",
+     "dato": "Cómo se impide pisar un snapshot",
+     "valor": "el prefijo solo acepta escrituras nuevas (PUT con If-None-Match: *, exigido por la política del bucket; ver politica_bucket); el modelo guarda el rows_sha256; S3 Versioning guarda versiones viejas, pero no impide escribir otra",
+     "unidad": "—",
+     "nota": "La revisión de hechos verifica el detalle de S3.",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "snapshot_retencion",
+     "dato": "Cuánto duran los snapshots",
+     "valor": "manifests y tarjetas sin caducar; borrado por huella: una foto borrada se quita de los snapshots siguientes y queda anotada en los viejos",
+     "unidad": "—",
+     "nota": "Igual que almacenamiento (tabla «Snapshots de entrenamiento»).",
+     "lecciones": [
+      "e02-versionado",
+      "almacenamiento"
+     ]
+    },
+    {
+     "id": "versionado_herramienta",
+     "dato": "Cómo versiona Alba",
+     "valor": "prefijos inmutables en S3 + manifest en Parquet + tarjeta; sin DVC ni lakeFS (equipo de 5 personas; se reconsideran si crece)",
+     "unidad": "—",
+     "nota": "Decisión del curso.",
+     "lecciones": [
+      "e02-versionado",
+      "almacenamiento"
+     ]
+    },
+    {
+     "id": "punteros_modelo",
+     "dato": "Qué guarda cada modelo registrado",
+     "valor": "snapshot de datos (id y rows_sha256), commit del código de entrenamiento y digest de la imagen de entrenamiento; además labels.json con su hash y la versión del preproceso",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e02-versionado",
+      "git"
+     ]
+    },
+    {
+     "id": "modelo_snapshot",
+     "dato": "Qué snapshot entrenó a qué modelo",
+     "valor": "resnet50-2026-10-01 ← ds-2026-09-01 (entrenado el 1 de octubre); resnet50-2026-11-01 ← ds-2026-10-01 (entrenado el 1 de noviembre)",
+     "unidad": "—",
+     "nota": "Coincide con personas_y_ejemplos.borrado_ana y con la figura de privacidad: Ana pide el borrado el 20 de octubre; el snapshot de octubre, armado el 1 de noviembre, ya no la trae; el modelo de octubre sigue en producción hasta que lo reemplaza el de noviembre (más 24–48 h viva por si hay que regresar).",
+     "lecciones": [
+      "e02-versionado",
+      "privacidad"
+     ]
+    },
+    {
+     "id": "orquestador",
+     "dato": "Quién corre el pipeline mensual",
+     "valor": "Argo Workflows en el cluster de Kubernetes de Alba, con un CronWorkflow el día 1 de cada mes a las 03:00 UTC: arma el snapshot del mes anterior, entrena, evalúa y registra; si falla un paso, avisa a la persona de guardia",
+     "unidad": "—",
+     "nota": "Decisión del curso.",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "pipeline_mensual",
+     "dato": "Pasos del pipeline mensual",
+     "valor": "validar datos → armar snapshot → fine-tune → evaluar → gate → engine en una T4 → paridad → registrar; un contenedor por paso, 2 pasos en GPU",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "registry",
+     "dato": "Registro de modelos",
+     "valor": "MLflow; modelo classifier con alias champion y challenger",
+     "unidad": "—",
+     "nota": "Lo explica a fondo la estación del gate.",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "ruido_semilla",
+     "dato": "Ruido entre semillas (ilustrativo)",
+     "valor": "5 semillas → 85.12–85.34 %, media 85.23 %, desviación ≈ 0.09 puntos",
+     "unidad": "puntos porcentuales",
+     "nota": "Números ilustrativos. Contra ± 0.3 puntos de ruido del golden set.",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "corte_maduracion",
+     "dato": "Última elección de quien vende que entra a un snapshot",
+     "valor": "30 días antes del corte: para ds-2026-09-01 (corte 2026-10-01T00:00Z), las hechas hasta el 1 de septiembre",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e01-datos",
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "correccion_errores",
+     "dato": "Fracción de los errores del modelo que quien vende corrige al publicar",
+     "valor": "≈ 1/3",
+     "unidad": "fracción",
+     "nota": "Supuesto del curso, despejado de la exactitud top-1 ≈ 85 % (modelo.calidad_modelo) y de la sugerencia aceptada sin filtrar ≈ 90 %: (1 − 0.85) × (1 − c) = 0.10.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "exactitud_medida_vendedor",
+     "dato": "Exactitud del modelo medida contra lo que elige quien vende, sin filtrar",
+     "valor": "≈ 95 % (contra ≈ 85 % real): ≈ 10 puntos de optimismo",
+     "unidad": "%",
+     "nota": "Es el feedback loop: 0.85 + 0.10.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "labels_mal_snapshot",
+     "dato": "Labels mal en ds-2026-09-01",
+     "valor": "≈ 4.2 % ≈ 82 mil; ≈ 7.8 % (≈ 151 mil) sin el filtro de maduración",
+     "unidad": "labels",
+     "nota": "0.0423 × 1,932,628 ≈ 81,750.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "margen_muestra_azar",
+     "dato": "Qué tan fino mide la muestra al azar de la cola",
+     "valor": "± 2.0 puntos con 1,250 fotos (un mes); ± 0.8 con 7,500 (6 meses)",
+     "unidad": "puntos porcentuales",
+     "nota": "1.96 × raíz(0.85 × 0.15 / n).",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "validacion_hora_sin_zona",
+     "dato": "Una hora sin zona (sin «Z»)",
+     "valor": "cuenta como esquema roto: bloquea",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "validacion_foto_chica",
+     "dato": "Una foto de menos de 64 px de ancho o alto",
+     "valor": "se saca la fila y se avisa; no bloquea el lote",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "listing_caro",
+     "dato": "Publicación de ejemplo de Caro (una lámpara)",
+     "valor": "listing 8813, request_id r-005 y r-006; moderación la corrige a «Lámparas» (2026-10-05) y a «Iluminación» (2026-10-09)",
+     "unidad": "—",
+     "nota": "Ilustrativo. Ana es 8811 (r-001 a r-003) y Beto 8812 (r-004).",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "kappa_ejemplo_calzado",
+     "dato": "30 fotos dobles de calzado (ejemplo)",
+     "valor": "acuerdo bruto 83 %; kappa global 0.76; «zapatos de vestir» 0.35",
+     "unidad": "—",
+     "nota": "Ilustrativo, para la kappa por clase.",
+     "lecciones": [
+      "e01-datos"
+     ]
+    },
+    {
+     "id": "registro_borrados",
+     "dato": "Registro de borrados",
+     "valor": "lista de solo agregar con la huella SHA-256, la fecha y el motivo; los snapshots viejos no se reescriben; todo entrenamiento salta las filas cuya huella está ahí, y el modelo guarda cuántas saltó y hasta qué fecha leyó el registro",
+     "unidad": "—",
+     "nota": "Supuesto del curso; concreta snapshot_retencion.",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "staging",
+     "dato": "Dónde se escribe un snapshot antes de auditarlo",
+     "valor": "s3://ml-datos/staging/ds-2026-09-01/; se publica subiendo cada archivo a datasets/ (PUT, o subida en partes que se cierra con If-None-Match) y escribiendo snapshot.json al final: un snapshot sin tarjeta no existe",
+     "unidad": "—",
+     "nota": "Escribir, auditar, publicar. Copiar (CopyObject) hacia un prefijo que exige escrituras condicionales falla siempre (doc. de AWS, nov. 2026).",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "politica_bucket",
+     "dato": "Política del bucket bajo datasets/",
+     "valor": "niega s3:PutObject sin If-None-Match (llave s3:if-none-match, operador Null, junto con s3:ObjectCreationOperation = true para no bloquear las subidas en partes) y niega s3:DeleteObject y s3:DeleteObjectVersion",
+     "unidad": "—",
+     "nota": "Verificado contra la documentación de AWS (nov. 2026).",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "tolerancia_reproduccion",
+     "dato": "Cuándo un entrenamiento «se reprodujo»",
+     "valor": "diferencia en el golden set ≤ 3 σ de las semillas ≈ 0.26 puntos (σ ≈ 0.088 con las 5 semillas de ruido_semilla)",
+     "unidad": "puntos porcentuales",
+     "nota": "Supuesto del curso; del orden del ± 0.3 del golden set.",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "manifest_parquet_factor",
+     "dato": "Cuánto comprime Parquet el manifest",
+     "valor": "≈ 4 veces (400 MB → 100 MB)",
+     "unidad": "veces",
+     "nota": "De snapshot_tamano.",
+     "lecciones": [
+      "e02-versionado"
+     ]
+    },
+    {
+     "id": "snapshot_composicion",
+     "dato": "Qué trae un snapshot (no es todo el tráfico)",
+     "valor": "el conjunto de entrenamiento acumulado: todos los labels humanos (≈ 406 mil, 21 %), todas las correcciones de moderación (≈ 135 mil, 7 %) y una muestra de ≈ 1.39 M labels maduros de quien vende (72 %), con tope por categoría y por vendedor, que se renueva cada mes",
+     "unidad": "filas",
+     "nota": "Supuesto del curso (consistencia de la fase 10). De ≈ 75 M publicaciones al mes no se entrena con todo: los «labels del mes» son lo que se agrega o renueva ese mes. 0.21 × 1,932,628 ≈ 405,852; 0.07 × … ≈ 135,284; 0.72 × … ≈ 1,391,492.",
+     "lecciones": [
+      "e01-datos",
+      "e02-versionado"
      ]
     }
    ]
@@ -2846,6 +3425,78 @@
     "terminal"
    ],
    "como": ""
+  },
+  {
+   "n": 31,
+   "tema": "Costo y horas del etiquetado mensual",
+   "resolucion": "Las 31–46 h y los US$275–550 son de 5,500 anotaciones (5,000 + 500 dobles); US$250–500 es sin las dobles.",
+   "cambiar": [],
+   "como": "Nota de etiquetado_mes corregida."
+  },
+  {
+   "n": 32,
+   "tema": "Qué snapshot entrenó a resnet50-2026-10-01",
+   "resolucion": "ds-2026-09-01 (el de septiembre), como dice borrado_ana; una fuente decía ds-2026-10-01.",
+   "cambiar": [],
+   "como": "estaciones_datos.modelo_snapshot."
+  },
+  {
+   "n": 33,
+   "tema": "Dos commits distintos",
+   "resolucion": "4be1d0a es el código que armó el snapshot (repo ml-catalogo); c3f2fc2 es el código que entrenó el modelo.",
+   "cambiar": [],
+   "como": ""
+  },
+  {
+   "n": 34,
+   "tema": "Golden set «de moderadores»",
+   "resolucion": "Lo etiquetaron dos personas del proveedor por foto y moderación adjudicó; se dice «adjudicado por moderación».",
+   "cambiar": [],
+   "como": "seguridad.amenazas corregida."
+  },
+  {
+   "n": 35,
+   "tema": "Herramienta de versionado",
+   "resolucion": "Alba usa prefijos inmutables + manifest en Parquet; DVC y lakeFS son alternativas, no lo que usa.",
+   "cambiar": [
+    "almacenamiento"
+   ],
+   "como": "«Lo que sigue» de almacenamiento decía «los versiona con DVC o lakeFS»."
+  },
+  {
+   "n": 36,
+   "tema": "Cuándo se arma un snapshot y cómo se llaman snapshot y modelo",
+   "resolucion": "El snapshot lleva la fecha del primer día del mes que cubre y se arma el día 1 del mes siguiente (ds-2026-09-01 se arma el 1 de octubre, corte 2026-10-01T00:00Z); el modelo se entrena ese mismo día y lleva su fecha (resnet50-2026-10-01). Así cuadra la cadena del borrado de Ana de privacidad.",
+   "cambiar": [
+    "e01-datos",
+    "e02-versionado"
+   ],
+   "como": "Los borradores de la fase 10 decían que ds-2026-09-01 se arma el 1 de septiembre y que el modelo pasa un mes probándose."
+  },
+  {
+   "n": 37,
+   "tema": "s3://ml-datos/labeled/",
+   "resolucion": "Es solo la copia de 90 días de la cola para el proveedor; los snapshots citan las fotos del producto por llave y SHA-256.",
+   "cambiar": [],
+   "como": ""
+  },
+  {
+   "n": 38,
+   "tema": "DVC en git",
+   "resolucion": "Alba no usa DVC: el tag de Git del primer dataset amarra el commit del código que armó el snapshot y la tarjeta con su rows_sha256.",
+   "cambiar": [
+    "git"
+   ],
+   "como": "git.md decía «en Git queda el archivo chico de DVC con su hash»."
+  },
+  {
+   "n": 39,
+   "tema": "Los snapshots caducan o no",
+   "resolucion": "No caducan ni se reescriben: la huella de lo borrado entra al registro de borrados y el entrenamiento la salta (estaciones_datos.snapshot_retencion y registro_borrados).",
+   "cambiar": [
+    "privacidad"
+   ],
+   "como": "privacidad decía que los snapshots viejos salen de circulación cuando vence su retención."
   }
  ]
 }

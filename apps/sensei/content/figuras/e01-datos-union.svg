@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 452" role="img" aria-labelledby="f-e01-datos-union-t" class="f-svg" style="max-width:420px">
+<title id="f-e01-datos-union-t">La publicación 8813 tiene 2 fotos, r-005 y r-006, y 2 correcciones de moderación: Lámparas el 5 de octubre e Iluminación el 9 de octubre. Arriba, un join directo une cada foto con las dos correcciones: salen 4 filas para 2 fotos. Abajo, primero se queda la corrección más reciente, Iluminación, y el LEFT JOIN da 2 filas, una por foto</title>
+<rect class="f-card" x="10" y="10" width="340" height="208" rx="16"/>
+<text class="f-l" x="26" y="36">JOIN DIRECTO · PUBLICACIÓN 8813</text>
+<text class="f-l" x="26" y="62">FOTOS</text>
+<text class="f-l" x="200" y="62">CORRECCIONES</text>
+<rect class="f-chip" x="26" y="72" width="88" height="30" rx="8"/>
+<text class="f-t" x="40" y="92" style="font-size:14px">r-005</text>
+<rect class="f-chip" x="26" y="122" width="88" height="30" rx="8"/>
+<text class="f-t" x="40" y="142" style="font-size:14px">r-006</text>
+<rect class="f-y" x="200" y="72" width="134" height="30" rx="8" style="opacity:.4"/>
+<text class="f-s" x="210" y="92">10-05 · Lámparas</text>
+<rect class="f-y" x="200" y="122" width="134" height="30" rx="8" style="opacity:.4"/>
+<text class="f-s" x="210" y="142">10-09 · Iluminación</text>
+<path class="f-linea" d="M114 87 L200 87"/>
+<path class="f-linea" d="M114 87 L200 137"/>
+<path class="f-linea" d="M114 137 L200 87"/>
+<path class="f-linea" d="M114 137 L200 137"/>
+<text class="f-t" x="26" y="182">= 4 filas para 2 fotos</text>
+<text class="f-s" x="26" y="203">cada foto se repite una vez por corrección</text>
+<rect class="f-card" x="10" y="232" width="340" height="210" rx="16"/>
+<text class="f-l" x="26" y="258">PRIMERO, LA CORRECCIÓN MÁS RECIENTE</text>
+<text class="f-l" x="26" y="284">FOTOS</text>
+<text class="f-l" x="200" y="284">CORRECCIONES</text>
+<rect class="f-chip" x="26" y="294" width="88" height="30" rx="8"/>
+<text class="f-t" x="40" y="314" style="font-size:14px">r-005</text>
+<rect class="f-chip" x="26" y="344" width="88" height="30" rx="8"/>
+<text class="f-t" x="40" y="364" style="font-size:14px">r-006</text>
+<rect class="f-off" x="200" y="294" width="134" height="30" rx="8"/>
+<text class="f-s" x="210" y="314">10-05 · descartada</text>
+<rect class="f-g" x="200" y="344" width="134" height="30" rx="8" style="opacity:.4"/>
+<text class="f-s" x="210" y="364">10-09 · Iluminación</text>
+<path class="f-flecha" d="M114 309 L192 355"/><path class="f-punta" d="M190 350 L199 358 L187 360 Z"/>
+<path class="f-flecha" d="M114 359 L192 359"/><path class="f-punta" d="M192 354 L200 359 L192 364 Z"/>
+<text class="f-t" x="26" y="406">= 2 filas, una por foto</text>
+<text class="f-s" x="26" y="427">las dos fotos quedan con «Iluminación»</text>
+</svg>

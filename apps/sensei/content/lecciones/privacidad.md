@@ -404,7 +404,7 @@ Borrar una fila de una base de datos es un `DELETE`, una orden de [[sql|SQL]]. B
 1. Encontrar todo por id
 El backend de publicaciones sabe qué publicaciones son de Ana y qué `request_id` tuvo cada foto. Con esos ids y el hash de cada foto se buscan las copias: en el log, en el bucket de fotos a etiquetar, en el golden set y en los manifests de los snapshots: el manifest es la lista de qué fotos forman cada snapshot.
 2. Borrar y sacar de los manifests
-Las fotos se borran de los buckets. Los manifests dicen en qué snapshots aparece cada una; el siguiente snapshot ya no las incluye. Los snapshots viejos son inmutables (no se pueden cambiar) a propósito; se sacan de circulación cuando vence su retención.
+Las fotos se borran de los buckets. Los manifests dicen en qué snapshots aparece cada una; el siguiente snapshot ya no las incluye. Los snapshots viejos son inmutables (no se pueden cambiar) a propósito: no se reescriben ni caducan. La huella de lo borrado se anota en un registro de borrados, y todo entrenamiento salta esas filas. Lo ves a fondo en [«Versionado y linaje»](/e02-versionado/).
 3. Decidir qué pasa con el modelo
 El modelo ya entrenado no se «desentrena»: no guarda las fotos, sino millones de [[parametro|parámetros]] (los números que aprendió) que cada foto movió un poco, así que no hay una fila que borrar. Se documenta, y el siguiente [[reentrenamiento]] mensual ya no incluye esas fotos. Qué tan pronto hay que llegar ahí lo decide legal.
 4. Dejar constancia, sin repetir los datos
@@ -418,7 +418,7 @@ Lo que dispara una solicitud de borrado. Las flechas punteadas son lo que no se 
 El log de predicciones merece una nota. Sus líneas no traen la foto ni el nombre de Ana, solo el `request_id` y un prefijo de hash, y caducan solas a los 90 días. Hay dos opciones: reescribir las [[particion-datos|particiones]] (los pedazos del log, uno por día) de los días donde aparece, sin esas líneas, o dejar que caduquen y decirlo. Cuál vale la decide legal; lo que pone ML es que las dos sean posibles: un log particionado por día, con una regla de borrado a los 90 días, y la forma de encontrar las líneas de una persona.
 
 :::ojo Inmutable no quiere decir eterno
-Los snapshots de los datasets son inmutables para que cada modelo se pueda reproducir: saber con qué fotos exactas se entrenó. Eso es bueno, pero un snapshot que nunca se borra guarda para siempre las fotos de quien pidió que lo borraran. La salida es darles una retención y un índice de qué modelo usó cada snapshot.
+Los snapshots de los datasets son inmutables para que cada modelo se pueda reproducir: saber con qué fotos exactas se entrenó. Eso es bueno, pero un snapshot que nunca se borra parece guardar para siempre a quien pidió que lo borraran. La salida no es darle fecha de caducidad: las fotos se borran del almacén, la huella de lo borrado se anota en un registro de borrados que todo entrenamiento respeta, y un índice dice qué modelo usó cada snapshot.
 :::
 
 ### Decisiones que toma solo un modelo

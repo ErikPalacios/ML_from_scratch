@@ -1,0 +1,345 @@
+{
+  "titulo": "El linaje de un modelo: de la respuesta en producción a cada foto",
+  "width": 78,
+  "height": 62,
+  "lanes": [
+    {
+      "id": "modelo",
+      "label": "El modelo y sus punteros",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 30
+    },
+    {
+      "id": "datos",
+      "label": "Los datos",
+      "kind": "offline",
+      "x": 0,
+      "y": 32,
+      "w": 78,
+      "h": 30
+    }
+  ],
+  "nodes": [
+    {
+      "id": "resp",
+      "label": "Respuesta",
+      "sub": "model_version",
+      "kind": "client",
+      "x": 1,
+      "y": 4,
+      "w": 20,
+      "h": 8,
+      "note": "Cada respuesta del servicio y cada línea del log llevan `model_version: resnet50-2026-10-01`. Es la punta del hilo: el nombre del modelo que contestó."
+    },
+    {
+      "id": "reg",
+      "label": "Modelo registrado",
+      "sub": "resnet50-2026-10-01",
+      "kind": "model",
+      "x": 29,
+      "y": 4,
+      "w": 20,
+      "h": 8,
+      "note": "En el [[registro-modelos|registro de modelos]], la versión guarda tres punteros (snapshot, commit, digest) y `labels.json`. No copia nada: apunta."
+    },
+    {
+      "id": "labels",
+      "label": "labels.json",
+      "sub": "id → categoría, con huella",
+      "kind": "store",
+      "x": 57,
+      "y": 4,
+      "w": 20,
+      "h": 8,
+      "note": "Traduce cada `label_id` a su nombre. Su huella va con el modelo: si alguien cambia el orden de las categorías, se nota."
+    },
+    {
+      "id": "commit",
+      "label": "Commit c3f2fc2",
+      "sub": "código que entrenó",
+      "kind": "store",
+      "x": 1,
+      "y": 19,
+      "w": 20,
+      "h": 8,
+      "note": "El [[commit]] del código de entrenamiento, con el árbol limpio: el pipeline clona ese commit y nada más."
+    },
+    {
+      "id": "snap",
+      "label": "Tarjeta del snapshot",
+      "sub": "ds-2026-09-01 · rows_sha256",
+      "kind": "store",
+      "x": 29,
+      "y": 19,
+      "w": 20,
+      "h": 8,
+      "note": "El modelo guarda el id y la huella del manifest. Antes de usarlo, se recalcula la huella: si no coincide, el snapshot cambió."
+    },
+    {
+      "id": "digest",
+      "label": "Imagen de entrenamiento",
+      "sub": "fijada por su digest",
+      "kind": "store",
+      "x": 57,
+      "y": 19,
+      "w": 20,
+      "h": 8,
+      "note": "No es una foto: es la imagen de un [[contenedor]], el paquete con el entorno exacto (Python, PyTorch y CUDA) donde corrió el entrenamiento, identificada por su [[digest-imagen|digest]], su huella SHA-256."
+    },
+    {
+      "id": "code4",
+      "label": "Commit 4be1d0a",
+      "sub": "código que armó el snapshot",
+      "kind": "store",
+      "x": 1,
+      "y": 37,
+      "w": 20,
+      "h": 8,
+      "note": "Otro programa, otro commit: el que armó el snapshot, en el repositorio `ml-catalogo`. Lo dice la tarjeta en `code`."
+    },
+    {
+      "id": "man",
+      "label": "Manifest",
+      "sub": "rows.parquet · 1,932,628 filas",
+      "kind": "store",
+      "x": 29,
+      "y": 37,
+      "w": 20,
+      "h": 8,
+      "note": "Una fila por foto, con su llave, su huella SHA-256, su label, su fuente, la versión de la guía y su split."
+    },
+    {
+      "id": "foto",
+      "label": "Una foto de Ana",
+      "sub": "llave + SHA-256",
+      "kind": "store",
+      "x": 29,
+      "y": 52,
+      "w": 20,
+      "h": 8,
+      "note": "Vive en el almacenamiento del producto; el manifest la cita. Al leerla, el entrenamiento comprueba que su huella sea la del manifest."
+    },
+    {
+      "id": "borr",
+      "label": "Registro de borrados",
+      "sub": "huellas, fecha, motivo",
+      "kind": "queue",
+      "x": 57,
+      "y": 52,
+      "w": 20,
+      "h": 8,
+      "note": "Una lista de solo agregar. Los snapshots viejos no se reescriben: el entrenamiento salta las filas cuya huella está aquí."
+    }
+  ],
+  "edges": [
+    {
+      "from": "resp",
+      "to": "reg",
+      "kind": "online",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "reg",
+      "to": "labels",
+      "kind": "neutral",
+      "dashed": true,
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "reg",
+      "to": "commit",
+      "kind": "neutral",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          39,
+          16
+        ],
+        [
+          11,
+          16
+        ]
+      ]
+    },
+    {
+      "from": "reg",
+      "to": "snap",
+      "kind": "neutral",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "reg",
+      "to": "digest",
+      "kind": "neutral",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          39,
+          16
+        ],
+        [
+          67,
+          16
+        ]
+      ]
+    },
+    {
+      "from": "snap",
+      "to": "man",
+      "kind": "offline",
+      "label": "rows_path",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "snap",
+      "to": "code4",
+      "kind": "offline",
+      "dashed": true,
+      "fromSide": "l",
+      "toSide": "r",
+      "via": [
+        [
+          25,
+          23
+        ],
+        [
+          25,
+          41
+        ]
+      ]
+    },
+    {
+      "from": "man",
+      "to": "foto",
+      "kind": "offline",
+      "label": "image_key",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "borr",
+      "to": "foto",
+      "kind": "offline",
+      "dashed": true,
+      "label": "anota",
+      "fromSide": "l",
+      "toSide": "r"
+    }
+  ],
+  "flows": [
+    {
+      "id": "datos",
+      "label": "¿Con qué datos se entrenó?",
+      "steps": [
+        {
+          "nodes": [
+            "resp"
+          ],
+          "edges": [],
+          "text": "Una respuesta rara llega con `model_version: resnet50-2026-10-01`."
+        },
+        {
+          "nodes": [
+            "resp",
+            "reg"
+          ],
+          "edges": [
+            "resp>reg"
+          ],
+          "text": "En el **registro**, esa versión tiene su ficha con los punteros."
+        },
+        {
+          "nodes": [
+            "reg",
+            "snap",
+            "commit",
+            "digest"
+          ],
+          "edges": [
+            "reg>snap",
+            "reg>commit",
+            "reg>digest"
+          ],
+          "text": "Tres punteros: el snapshot `ds-2026-09-01` con su huella, el commit `c3f2fc2` y el digest de la imagen. Con los tres se puede repetir el entrenamiento."
+        },
+        {
+          "nodes": [
+            "snap",
+            "man"
+          ],
+          "edges": [
+            "snap>man"
+          ],
+          "text": "La tarjeta dice dónde está el **manifest**. Se recalcula su huella y coincide con la del modelo: es el mismo de septiembre."
+        },
+        {
+          "nodes": [
+            "man",
+            "foto"
+          ],
+          "edges": [
+            "man>foto"
+          ],
+          "text": "Cada fila lleva a una **foto** por su llave, y su huella confirma que es la misma con que se entrenó."
+        }
+      ]
+    },
+    {
+      "id": "ana",
+      "label": "¿En qué modelos está la foto de Ana?",
+      "steps": [
+        {
+          "nodes": [
+            "foto"
+          ],
+          "edges": [],
+          "text": "Ana pide borrar sus datos el 20 de octubre de 2026. Del producto salen las huellas SHA-256 de sus fotos."
+        },
+        {
+          "nodes": [
+            "foto",
+            "man"
+          ],
+          "edges": [
+            "man>foto"
+          ],
+          "text": "Se busca cada huella en la columna `image_sha256` de los **manifests**: aparece en `ds-2026-09-01` (y en los anteriores que la traigan). El de octubre todavía no existe."
+        },
+        {
+          "nodes": [
+            "man",
+            "snap",
+            "reg"
+          ],
+          "edges": [
+            "snap>man",
+            "reg>snap"
+          ],
+          "text": "Cada snapshot apunta a los modelos que lo usaron: `ds-2026-09-01` entrenó a `resnet50-2026-10-01`, que está en producción."
+        },
+        {
+          "nodes": [
+            "borr",
+            "foto"
+          ],
+          "edges": [
+            "borr>foto"
+          ],
+          "text": "Las huellas entran al **registro de borrados**. El snapshot de octubre, `ds-2026-10-01`, se arma el 1 de noviembre y ya no las trae; ese día se entrena con él `resnet50-2026-11-01`, que reemplaza al de octubre."
+        }
+      ]
+    }
+  ]
+}

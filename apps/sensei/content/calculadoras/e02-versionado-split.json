@@ -1,0 +1,19 @@
+{
+  "titulo": "Sortear el split cada mes contra un split por hash",
+  "intro": "Aplica las ecuaciones de la lección, \\(Y = V × u/100\\) y \\(W = 1 − (u/100)^T\\): cuántas fotos de validación pasarían a train si el split se sorteara otra vez cada mes, y qué fracción de las fotos pasaría por validación alguna vez. Arranca con la validación de septiembre de Alba y un año.",
+  "entradas": [
+    { "id": "v", "label": "Fotos de validación del snapshot viejo, \\(V\\)", "min": 100, "max": 1000000, "paso": 1, "valor": 92417, "tipo": "numero" },
+    { "id": "u", "label": "Umbral de cubeta, \\(u\\) (porcentaje que va a train)", "min": 50, "max": 99, "paso": 1, "valor": 95 },
+    { "id": "m", "label": "Meses sorteando otra vez, \\(T\\)", "min": 1, "max": 36, "paso": 1, "valor": 12 }
+  ],
+  "calculos": [
+    { "id": "p", "formula": "u / 100" }
+  ],
+  "salidas": [
+    { "label": "Fotos de validación que pasan a train en un mes, \\(Y\\)", "formula": "v * p", "formato": "int", "nota": "\\(Y = V × u/100\\)" },
+    { "label": "Fracción que pasó por validación alguna vez, \\(W\\)", "formula": "1 - pow(p, m)", "formato": "pct", "barra": true, "nota": "\\(W = 1 − (u/100)^T\\)" },
+    { "label": "Fracción que nunca estuvo en validación", "formula": "pow(p, m)", "formato": "pct", "nota": "\\((u/100)^T\\)" },
+    { "label": "Fotos que se mueven con el split por hash", "formula": "0 * v", "formato": "int", "nota": "el mismo vendedor cae siempre en la misma cubeta" }
+  ],
+  "nota": "Supone que cada sorteo es independiente y que las fotos viejas siguen en el dataset. El sorteo es por foto; si fuera por vendedor, la fracción sería la misma, pero se moverían vendedores enteros."
+}

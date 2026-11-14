@@ -1,0 +1,469 @@
+{
+  "titulo": "La estación 1 de Alba: de cuatro datos sueltos a los labels del mes",
+  "width": 78,
+  "height": 60,
+  "lanes": [
+    {
+      "id": "entra",
+      "label": "Entra",
+      "kind": "online",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 13
+    },
+    {
+      "id": "mes",
+      "label": "Cada mes",
+      "kind": "offline",
+      "x": 0,
+      "y": 15,
+      "w": 78,
+      "h": 30
+    },
+    {
+      "id": "sale",
+      "label": "Sale",
+      "kind": "monitor",
+      "x": 0,
+      "y": 47,
+      "w": 78,
+      "h": 13
+    }
+  ],
+  "nodes": [
+    {
+      "id": "log",
+      "label": "Log",
+      "sub": "≈ 10 M líneas/día",
+      "kind": "store",
+      "x": 2,
+      "y": 3,
+      "w": 17,
+      "h": 8,
+      "note": "Una línea por foto, de ≈ 300 bytes: `request_id`, `model_version`, las 5 sugerencias con su [[confianza]] y un prefijo del SHA-256. En [[parquet|Parquet]], por día, 90 días. Sin la foto y sin datos de quien vende."
+    },
+    {
+      "id": "eventos",
+      "label": "Eventos",
+      "sub": "shown · selected",
+      "kind": "queue",
+      "x": 21,
+      "y": 3,
+      "w": 17,
+      "h": 8,
+      "note": "Los manda el backend de publicaciones: `suggestion_shown` (la pantalla pintó las sugerencias) y `category_selected` (qué categoría, en qué posición y por qué vía). Traen el `request_id` de cada foto."
+    },
+    {
+      "id": "correc",
+      "label": "Correcciones",
+      "sub": "de moderación",
+      "kind": "human",
+      "x": 40,
+      "y": 3,
+      "w": 17,
+      "h": 8,
+      "note": "Una fila cada vez que moderación cambia la categoría de una publicación. Muy buenas, pero solo existen donde alguien revisó: [[sesgo-seleccion|sesgo de selección]]."
+    },
+    {
+      "id": "fotos",
+      "label": "Fotos",
+      "sub": "con EXIF",
+      "kind": "store",
+      "x": 59,
+      "y": 3,
+      "w": 17,
+      "h": 8,
+      "note": "Las originales, en el almacén del producto. Traen [[exif|EXIF]]: el GPS, el modelo del teléfono, la hora. Solo salen de ahí las de la cola del mes."
+    },
+    {
+      "id": "join",
+      "label": "Unir",
+      "sub": "por request_id",
+      "badge": "1",
+      "kind": "job",
+      "x": 2,
+      "y": 19,
+      "w": 22,
+      "h": 8,
+      "note": "Log con publicación por `request_id` (una fila por foto), y LEFT JOIN con la corrección **más reciente** de cada publicación, para no multiplicar filas. Cuenta cuántas entran y cuántas salen."
+    },
+    {
+      "id": "debil",
+      "label": "Labels débiles",
+      "sub": "maduran 30 días",
+      "badge": "2",
+      "kind": "job",
+      "x": 29,
+      "y": 19,
+      "w": 20,
+      "h": 8,
+      "note": "La elección de quien vende cuenta solo tras 30 días sin corrección ([[regla-maduracion|regla de maduración]]); la corrección de moderación manda. Cada label lleva su fuente."
+    },
+    {
+      "id": "cola",
+      "label": "Cola del mes",
+      "sub": "≈ 5,000 · azar primero",
+      "badge": "3",
+      "kind": "job",
+      "x": 56,
+      "y": 19,
+      "w": 20,
+      "h": 8,
+      "note": "25 % al azar (se sortea primero), 40 % dudas, 25 % desacuerdos y 10 % categorías nuevas. Es la [[cola-etiquetado|cola de etiquetado]]: ≈ US$275–550 al mes."
+    },
+    {
+      "id": "bucket",
+      "label": "Bucket restringido",
+      "sub": "sin EXIF · 90 días",
+      "badge": "4",
+      "kind": "store",
+      "x": 56,
+      "y": 33,
+      "w": 20,
+      "h": 8,
+      "note": "Solo las fotos de la cola, copiadas sin metadatos a `s3://ml-datos/labeled/`: acceso público bloqueado, un ciclo de vida que las borra a los 90 días y un solo job con permiso de leer. Es solo la copia de trabajo: el label apunta a la foto original del almacén del producto."
+    },
+    {
+      "id": "prov",
+      "label": "Proveedor",
+      "sub": "≈ 5 días hábiles",
+      "badge": "5",
+      "kind": "external",
+      "x": 29,
+      "y": 33,
+      "w": 20,
+      "h": 8,
+      "note": "Personas de un proveedor gestionado etiquetan con la guía `guia-v4`. Ven cada foto por una [[url-prefirmada|URL prefirmada]] de 15 minutos, firmada al abrirla, sin el nombre de quien vende. El 10 % va doble, y encima de las ≈ 5,000 recibe ≈ 250 preguntas de control (≈ 5 %), que cuestan ≈ US$13–25 aparte."
+    },
+    {
+      "id": "adjud",
+      "label": "Doble y adjudicación",
+      "sub": "kappa por clase",
+      "badge": "6",
+      "kind": "human",
+      "x": 2,
+      "y": 33,
+      "w": 22,
+      "h": 8,
+      "note": "Con las 500 fotos dobles se mide la [[kappa-por-clase|kappa por clase]]. Dos personas expertas de moderación deciden los desacuerdos en hasta 3 días hábiles, y lo que deciden entra a la guía siguiente."
+    },
+    {
+      "id": "reporte",
+      "label": "Reporte",
+      "sub": "kappa · cada fuente",
+      "kind": "monitor",
+      "x": 2,
+      "y": 49,
+      "w": 22,
+      "h": 8,
+      "note": "Cada mes: la kappa por clase y cuánto acierta cada fuente de labels contra la muestra al azar ya adjudicada. Es lo que deja ver si una fuente se echa a perder."
+    },
+    {
+      "id": "labels",
+      "label": "Labels del mes",
+      "sub": "cada uno con su fuente",
+      "badge": "7",
+      "kind": "store",
+      "x": 29,
+      "y": 49,
+      "w": 20,
+      "h": 8,
+      "note": "Los débiles maduros y los de la cola, adjudicados, cada uno con su fuente y su `guia_version`. Antes se cruzan sus SHA-256 con el golden. De aquí sale el [[snapshot]] del mes, en «Versionado y linaje»."
+    },
+    {
+      "id": "golden",
+      "label": "Golden y holdout",
+      "sub": "no se tocan",
+      "kind": "store",
+      "x": 56,
+      "y": 49,
+      "w": 20,
+      "h": 8,
+      "note": "El [[golden-set|golden set]] `golden-v3` (50,000 fotos, congelado) y el [[holdout-sin-sugerencias|holdout]] (≈ 1 % de las cuentas, sin sugerencias). Los únicos que miden sin la huella del modelo: la estación no los mezcla con nada."
+    }
+  ],
+  "edges": [
+    {
+      "from": "log",
+      "to": "join",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "eventos",
+      "to": "join",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          29.5,
+          14
+        ],
+        [
+          18,
+          14
+        ]
+      ]
+    },
+    {
+      "from": "correc",
+      "to": "join",
+      "kind": "online",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          48.5,
+          16.5
+        ],
+        [
+          21,
+          16.5
+        ]
+      ]
+    },
+    {
+      "from": "fotos",
+      "to": "bucket",
+      "kind": "offline",
+      "dashed": true,
+      "fromSide": "r",
+      "toSide": "r",
+      "via": [
+        [
+          77.5,
+          7
+        ],
+        [
+          77.5,
+          37
+        ]
+      ]
+    },
+    {
+      "from": "join",
+      "to": "debil",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "debil",
+      "to": "cola",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "cola",
+      "to": "bucket",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "bucket",
+      "to": "prov",
+      "kind": "offline",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "prov",
+      "to": "adjud",
+      "kind": "offline",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "adjud",
+      "to": "reporte",
+      "kind": "monitor",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          15,
+          45.5
+        ]
+      ]
+    },
+    {
+      "from": "adjud",
+      "to": "labels",
+      "kind": "offline",
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          21,
+          45.5
+        ],
+        [
+          33,
+          45.5
+        ]
+      ]
+    },
+    {
+      "from": "debil",
+      "to": "labels",
+      "kind": "offline",
+      "dashed": true,
+      "fromSide": "b",
+      "toSide": "t",
+      "via": [
+        [
+          45,
+          29.5
+        ],
+        [
+          51.5,
+          29.5
+        ],
+        [
+          51.5,
+          45.5
+        ],
+        [
+          45,
+          45.5
+        ]
+      ]
+    },
+    {
+      "from": "golden",
+      "to": "labels",
+      "kind": "monitor",
+      "dashed": true,
+      "fromSide": "l",
+      "toSide": "r"
+    }
+  ],
+  "flows": [
+    {
+      "id": "mes",
+      "label": "Un mes de la estación",
+      "steps": [
+        {
+          "nodes": [
+            "log",
+            "eventos",
+            "correc"
+          ],
+          "edges": [],
+          "text": "Entran tres registros de producción: el **log** (≈ 10 M líneas al día), los **eventos** del backend de publicaciones y las **correcciones** de moderación."
+        },
+        {
+          "nodes": [
+            "log",
+            "eventos",
+            "correc",
+            "join"
+          ],
+          "edges": [
+            "log>join",
+            "eventos>join",
+            "correc>join"
+          ],
+          "text": "Se **unen por `request_id`**: una fila por foto, con la corrección más reciente de su publicación. Se cuentan las filas que entran y las que salen."
+        },
+        {
+          "nodes": [
+            "join",
+            "debil"
+          ],
+          "edges": [
+            "join>debil"
+          ],
+          "text": "Los **labels débiles**: la elección de quien vende cuenta solo después de **30 días sin corrección**; la corrección de moderación manda."
+        },
+        {
+          "nodes": [
+            "debil",
+            "cola"
+          ],
+          "edges": [
+            "debil>cola"
+          ],
+          "text": "La **cola del mes**: primero se sortean 1,250 fotos al azar; después, 2,000 dudas, 1,250 desacuerdos y 500 de categorías nuevas."
+        },
+        {
+          "nodes": [
+            "fotos",
+            "cola",
+            "bucket"
+          ],
+          "edges": [
+            "fotos>bucket",
+            "cola>bucket"
+          ],
+          "text": "Solo las fotos de la cola salen del almacén del producto, **sin EXIF**, a un **bucket restringido** que las borra a los 90 días."
+        },
+        {
+          "nodes": [
+            "bucket",
+            "prov"
+          ],
+          "edges": [
+            "bucket>prov"
+          ],
+          "text": "El **proveedor** las ve por URLs que vencen en 15 minutos y las etiqueta con `guia-v4` en ≈ 5 días hábiles."
+        },
+        {
+          "nodes": [
+            "prov",
+            "adjud",
+            "reporte"
+          ],
+          "edges": [
+            "prov>adjud",
+            "adjud>reporte"
+          ],
+          "text": "Con las 500 fotos dobles se mide la **kappa por clase**; moderación **adjudica** los desacuerdos en hasta 3 días hábiles. El **reporte** dice cuánto acierta cada fuente."
+        },
+        {
+          "nodes": [
+            "adjud",
+            "debil",
+            "labels",
+            "golden"
+          ],
+          "edges": [
+            "adjud>labels",
+            "debil>labels",
+            "golden>labels"
+          ],
+          "text": "Los **labels del mes** juntan los débiles maduros y los de la cola. Antes de guardarlos se cruzan sus SHA-256 con el **golden set**: si aparece una foto del examen, el paso se detiene."
+        }
+      ]
+    },
+    {
+      "id": "intocables",
+      "label": "Lo que no se toca",
+      "steps": [
+        {
+          "nodes": [
+            "golden",
+            "labels"
+          ],
+          "edges": [
+            "golden>labels"
+          ],
+          "text": "El **golden set** y el **holdout** miden sin la huella del modelo. La estación no los usa para entrenar ni para elegir la cola: solo cruza los SHA-256 del golden contra los labels del mes."
+        },
+        {
+          "nodes": [
+            "golden",
+            "prov"
+          ],
+          "edges": [],
+          "text": "Del golden solo salen, mezcladas sin aviso, las **preguntas de control** (≈ 250 al mes, encima de las 5,000 de la cola). Se marcan y no se vuelven labels nuevos."
+        }
+      ]
+    }
+  ]
+}

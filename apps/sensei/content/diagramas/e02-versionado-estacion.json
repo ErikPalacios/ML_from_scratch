@@ -1,0 +1,316 @@
+{
+  "titulo": "El día 1 de cada mes: de los labels al snapshot publicado",
+  "width": 78,
+  "height": 47,
+  "lanes": [
+    {
+      "id": "armar",
+      "label": "Se arma aparte, donde nadie lo busca",
+      "kind": "offline",
+      "x": 0,
+      "y": 0,
+      "w": 78,
+      "h": 30
+    },
+    {
+      "id": "publico",
+      "label": "Publicado: lo que leen los entrenamientos",
+      "kind": "neutral",
+      "x": 0,
+      "y": 32,
+      "w": 78,
+      "h": 15
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ent",
+      "label": "Labels del mes",
+      "sub": "tabla de eventos",
+      "badge": "1",
+      "kind": "store",
+      "x": 1,
+      "y": 5,
+      "w": 20,
+      "h": 8,
+      "note": "Cada label es un evento que nunca se edita, con su fuente, su autor, su hora y la versión de la guía ([[label-evento]]). Aquí llegan las ≈ 5,000 fotos del mes revisadas por personas y los labels débiles filtrados."
+    },
+    {
+      "id": "val",
+      "label": "Validar",
+      "sub": "contrato de datos",
+      "badge": "2",
+      "kind": "job",
+      "x": 29,
+      "y": 5,
+      "w": 20,
+      "h": 8,
+      "note": "Los chequeos de entrada del [[contrato-datos|contrato de datos]]: esquema exacto (las columnas y sus tipos), `label_id` entre 0 y 499, horas en UTC y datos al día: lo más nuevo tiene menos de 48 h. Si algo rompe, se detiene antes de gastar nada."
+    },
+    {
+      "id": "armar",
+      "label": "Armar el manifest",
+      "sub": "corte · split · huellas",
+      "badge": "3",
+      "kind": "job",
+      "x": 57,
+      "y": 5,
+      "w": 20,
+      "h": 8,
+      "note": "Toma, para cada foto, el label más reciente que ya existía a la hora del corte ([[point-in-time]]); una elección de quien vende solo cuenta si ya pasaron 30 días sin corrección. Reparte por hash del `seller_id` (mod 100 < 95 → train), quita duplicados por huella y escribe una fila por foto con su SHA-256."
+    },
+    {
+      "id": "golden",
+      "label": "golden-v3",
+      "sub": "50,000 fotos · aparte",
+      "kind": "store",
+      "x": 1,
+      "y": 20,
+      "w": 20,
+      "h": 8,
+      "note": "El [[golden-set|golden set]] congelado. Nunca entra al entrenamiento: sus huellas se cruzan contra el manifest, y si aparece una, se detiene."
+    },
+    {
+      "id": "audit",
+      "label": "Auditar",
+      "sub": "validation.json",
+      "badge": "5",
+      "kind": "job",
+      "x": 29,
+      "y": 20,
+      "w": 20,
+      "h": 8,
+      "note": "Los chequeos sobre el snapshot ya armado: ninguna foto en dos splits, ninguna del golden, volumen entre 0.8 y 1.5 veces el del padre, labels débiles en 80 % o menos. El resultado queda en `validation.json`."
+    },
+    {
+      "id": "staging",
+      "label": "Prefijo temporal",
+      "sub": "staging/ds-2026-09-01/",
+      "badge": "4",
+      "kind": "store",
+      "x": 57,
+      "y": 20,
+      "w": 20,
+      "h": 8,
+      "note": "Donde se escribe primero: ningún entrenamiento busca aquí. Es el «escribir» de [[write-audit-publish|escribir, auditar, publicar]]."
+    },
+    {
+      "id": "train",
+      "label": "Fine-tune",
+      "sub": "lee la tarjeta primero",
+      "kind": "job",
+      "x": 1,
+      "y": 37,
+      "w": 20,
+      "h": 8,
+      "note": "El entrenamiento solo acepta un snapshot con tarjeta, y comprueba su `rows_sha256` y la huella de cada foto al leer."
+    },
+    {
+      "id": "pub",
+      "label": "Publicar",
+      "sub": "datasets/ds-2026-09-01/",
+      "badge": "6",
+      "kind": "store",
+      "x": 29,
+      "y": 37,
+      "w": 20,
+      "h": 8,
+      "note": "Se suben `rows.parquet` y `validation.json` al prefijo definitivo con PUT y **escritura condicional**: la política del bucket rechaza cualquier PUT sin `If-None-Match: *`, y por eso tampoco deja copiar dentro de S3."
+    },
+    {
+      "id": "tarjeta",
+      "label": "Tarjeta",
+      "sub": "snapshot.json, al final",
+      "badge": "7",
+      "kind": "store",
+      "x": 57,
+      "y": 37,
+      "w": 20,
+      "h": 8,
+      "note": "Lo último que se escribe. Un snapshot sin tarjeta no existe: si el job se cae antes, queda un manifest huérfano que nadie lee."
+    }
+  ],
+  "edges": [
+    {
+      "from": "ent",
+      "to": "val",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "val",
+      "to": "armar",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "armar",
+      "to": "staging",
+      "kind": "offline",
+      "label": "escribe",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "staging",
+      "to": "audit",
+      "kind": "offline",
+      "fromSide": "l",
+      "toSide": "r"
+    },
+    {
+      "from": "golden",
+      "to": "audit",
+      "kind": "offline",
+      "label": "huellas",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "audit",
+      "to": "pub",
+      "kind": "offline",
+      "label": "pasa",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "pub",
+      "to": "tarjeta",
+      "kind": "offline",
+      "fromSide": "r",
+      "toSide": "l"
+    },
+    {
+      "from": "pub",
+      "to": "train",
+      "kind": "neutral",
+      "label": "lee",
+      "fromSide": "l",
+      "toSide": "r",
+      "dashed": true
+    }
+  ],
+  "flows": [
+    {
+      "id": "septiembre",
+      "label": "El snapshot de septiembre",
+      "steps": [
+        {
+          "nodes": [
+            "ent",
+            "val"
+          ],
+          "edges": [
+            "ent>val"
+          ],
+          "text": "El 1 de octubre de 2026 a las 03:00 UTC, el orquestador arranca para armar el snapshot de septiembre. Primero **valida** los labels que llegaron: esquema, rangos, horas."
+        },
+        {
+          "nodes": [
+            "val",
+            "armar"
+          ],
+          "edges": [
+            "val>armar"
+          ],
+          "text": "Arma el **manifest**: para cada foto, el label vigente antes del corte, las 00:00 UTC del 1 de octubre, y de quien vende solo las elecciones de hasta el 1 de septiembre, que ya maduraron 30 días; el split por hash del `seller_id`; la huella SHA-256. Salen 1,932,628 filas."
+        },
+        {
+          "nodes": [
+            "armar",
+            "staging"
+          ],
+          "edges": [
+            "armar>staging"
+          ],
+          "text": "Lo escribe en el **prefijo temporal**. Todavía no existe para nadie."
+        },
+        {
+          "nodes": [
+            "staging",
+            "audit",
+            "golden"
+          ],
+          "edges": [
+            "staging>audit",
+            "golden>audit"
+          ],
+          "text": "**Audita**: ninguna foto en dos splits, ninguna de las 50,000 de `golden-v3`, volumen razonable contra `ds-2026-08-01`. Pasa."
+        },
+        {
+          "nodes": [
+            "audit",
+            "pub"
+          ],
+          "edges": [
+            "audit>pub"
+          ],
+          "text": "**Publica** en `datasets/ds-2026-09-01/` con escritura condicional."
+        },
+        {
+          "nodes": [
+            "pub",
+            "tarjeta"
+          ],
+          "edges": [
+            "pub>tarjeta"
+          ],
+          "text": "Escribe la **tarjeta** al final, a las 03:12:44 UTC. Desde ese momento, el snapshot existe."
+        },
+        {
+          "nodes": [
+            "tarjeta",
+            "train"
+          ],
+          "edges": [
+            "pub>train"
+          ],
+          "text": "El **fine-tune** lee la tarjeta, comprueba la huella del manifest y empieza a entrenar."
+        }
+      ]
+    },
+    {
+      "id": "falla",
+      "label": "Una auditoría que falla",
+      "steps": [
+        {
+          "nodes": [
+            "armar",
+            "staging"
+          ],
+          "edges": [
+            "armar>staging"
+          ],
+          "text": "El 1 de noviembre, al armar el snapshot de octubre, un cambio en los eventos de publicaciones repite filas, y el manifest sale con 3.1 millones."
+        },
+        {
+          "nodes": [
+            "audit"
+          ],
+          "edges": [
+            "staging>audit"
+          ],
+          "text": "La auditoría compara contra el padre, `ds-2026-09-01`, con 1,932,628 filas: 3.1 ÷ 1.93 ≈ 1.6 veces, por encima del tope de 1.5; además, miles de huellas repetidas. **Se detiene.**"
+        },
+        {
+          "nodes": [
+            "pub",
+            "tarjeta"
+          ],
+          "edges": [],
+          "text": "No se publica nada: no hay tarjeta, así que no hay snapshot nuevo. Ese mes no se entrena y sigue el modelo actual."
+        },
+        {
+          "nodes": [
+            "train"
+          ],
+          "edges": [],
+          "text": "El orquestador avisa a la persona de guardia. Lo que quedó en el prefijo temporal sirve para investigar, y no daña a nadie."
+        }
+      ]
+    }
+  ]
+}

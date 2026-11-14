@@ -827,7 +827,7 @@ Hugging Face, el sitio donde se publican modelos abiertos, guarda cada modelo co
 
 ### Los datos también apuntan al código
 
-En Alba, la tarjeta de un snapshot de datos dice de qué código salió: `"code": {"repo": "ml-catalogo", "commit": "4be1d0a"}`. Si el dataset trae un error, se sabe exactamente qué versión del código que lo armó hay que revisar. Y su primer dataset queda amarrado con un tag de Git, `dataset-v1`: los datos viven en S3, y en Git queda el archivo chico de DVC con su hash.
+En Alba, la tarjeta de un snapshot de datos dice de qué código salió: `"code": {"repo": "ml-catalogo", "commit": "4be1d0a"}`. Si el dataset trae un error, se sabe exactamente qué versión del código que lo armó hay que revisar. Y su primer dataset queda amarrado con un tag de Git, `dataset-v1`: los datos viven en S3, y el tag marca el commit del código que lo armó, cuya tarjeta guarda la huella del manifest.
 
 ### Uber, 2016: una llave en un repositorio
 

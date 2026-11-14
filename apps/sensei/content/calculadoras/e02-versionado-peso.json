@@ -1,0 +1,104 @@
+{
+  "titulo": "Cuánto pesa versionar: citar contra copiar",
+  "intro": "Aplica las cuatro ecuaciones de la lección (\\(M = N × r\\), \\(F = N × f\\) y los dos costos) y compara guardar \\(k\\) snapshots que **citan** las fotos (un manifest en Parquet, comprimido \\(z\\) veces) contra copiar las fotos en cada uno. Arranca con el snapshot de septiembre de Alba y un año de snapshots, a \\(c\\) = US$0.023 por GB al mes (S3 Standard).",
+  "entradas": [
+    {
+      "id": "n",
+      "label": "Filas del manifest, \\(N\\), en millones (una por foto)",
+      "min": 0.01,
+      "max": 50,
+      "paso": 0.0001,
+      "valor": 1.9326,
+      "tipo": "numero"
+    },
+    {
+      "id": "r",
+      "label": "Bytes por fila del manifest sin comprimir, \\(r\\), en B",
+      "min": 50,
+      "max": 1000,
+      "paso": 10,
+      "valor": 200
+    },
+    {
+      "id": "f",
+      "label": "Bytes por foto, \\(f\\), en KB",
+      "min": 10,
+      "max": 5000,
+      "paso": 10,
+      "valor": 200,
+      "tipo": "numero"
+    },
+    {
+      "id": "z",
+      "label": "Cuántas veces comprime Parquet el manifest, \\(z\\)",
+      "min": 1,
+      "max": 10,
+      "paso": 0.5,
+      "valor": 4
+    },
+    {
+      "id": "k",
+      "label": "Snapshots guardados, \\(k\\) (12 = un año, uno por mes)",
+      "min": 1,
+      "max": 120,
+      "paso": 1,
+      "valor": 12
+    }
+  ],
+  "calculos": [
+    {
+      "id": "m",
+      "formula": "n * 1e6 * r"
+    },
+    {
+      "id": "fb",
+      "formula": "n * 1e6 * f * 1e3"
+    },
+    {
+      "id": "mz",
+      "formula": "m / z"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Manifest sin comprimir, \\(M\\)",
+      "formula": "m",
+      "formato": "bytes",
+      "nota": "\\(M = N × r\\)"
+    },
+    {
+      "label": "Manifest en Parquet, \\(M ÷ z\\)",
+      "formula": "mz",
+      "formato": "bytes",
+      "nota": "lo que de verdad se guarda por snapshot"
+    },
+    {
+      "label": "Fotos citadas, \\(F\\)",
+      "formula": "fb",
+      "formato": "bytes",
+      "nota": "\\(F = N × f\\): se quedan donde están"
+    },
+    {
+      "label": "Manifest contra fotos, \\(M ÷ F\\)",
+      "formula": "m / max(fb, 1e-9)",
+      "formato": "pct",
+      "decimales": 2,
+      "nota": "\\(r ÷ f\\): no depende de \\(N\\)"
+    },
+    {
+      "label": "Costo de citar: guardar los \\(k\\) manifests, en US$ al mes",
+      "formula": "k * mz / 1e9 * 0.023",
+      "formato": "num",
+      "decimales": 2,
+      "nota": "\\(text{costo}_{citar} = k × M ÷ z × c\\)"
+    },
+    {
+      "label": "Costo de copiar: una copia de las fotos por snapshot, en US$ al mes",
+      "formula": "k * fb / 1e9 * 0.023",
+      "formato": "num",
+      "decimales": 0,
+      "nota": "\\(text{costo}_{copiar} = k × F × c\\)"
+    }
+  ],
+  "nota": "Cuenta solo el almacenamiento en S3 Standard, a US$0.023 por GB al mes (precio de lista de us-east-1, noviembre de 2026), sin el cobro por cada petición ni copias en otra región. El ≈ 4 de Parquet es un estimado del equipo de Alba con compresión zstd: cada huella SHA-256 no baja de sus 32 B; con la compresión más ligera (snappy) el manifest pesaría casi el doble."
+}

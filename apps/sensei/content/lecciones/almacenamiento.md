@@ -575,7 +575,7 @@ Un objeto por predicción, por evento o por fila. Guardarlos es barato; subirlos
 
 La durabilidad protege de discos rotos, no de un `DELETE`, de una regla de ciclo de vida mal escrita o de un script con el prefijo equivocado.
 
-**Cómo evitarlo:** versionado del bucket en lo que no se puede perder, Object Lock en lo que nadie debe borrar (el golden set, los snapshots de modelos en producción) y permisos que no dejen borrar a quien solo necesita leer.
+**Cómo evitarlo:** versionado del bucket en lo que no se puede perder, Object Lock en lo que nadie debe borrar (el golden set, los snapshots de modelos en producción; y, para que nadie pise una llave, la escritura condicional de «Versionado y linaje») y permisos que no dejen borrar a quien solo necesita leer.
 
 ### 4. Hacer público un bucket para «compartir rápido»
 
@@ -698,7 +698,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de costo se pueden comp
 
 - La siguiente lección, «Colas y streams», cuenta cómo llegan los eventos al lake, y «Tiempo, hashes e identificadores» explica las huellas de los manifests, el *event time* y el point-in-time join.
 - Más adelante, «Regiones, zonas y disponibilidad» y «Redes en la nube: VPC, subredes y egress» explican por qué cuesta sacar datos de una región y por qué los pesos se leen de S3 por un camino privado y no por internet.
-- «Datos y etiquetas» copia, sin EXIF, a un bucket restringido las fotos de Alba que hay que etiquetar, y «Versionado y linaje» arma los snapshots con manifest y los versiona con DVC o lakeFS.
+- «Datos y etiquetas» copia, sin EXIF, a un bucket restringido las fotos de Alba que hay que etiquetar, y «Versionado y linaje» arma los snapshots con manifest, los ata a cada modelo y cuenta cuándo convienen herramientas como DVC o lakeFS.
 
 ## Palabras que vas a oír {Words you will hear}
 

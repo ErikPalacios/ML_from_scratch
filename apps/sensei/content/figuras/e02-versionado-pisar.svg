@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 452" role="img" aria-labelledby="f-e02-versionado-pisar-t" class="f-svg" style="max-width:420px">
+<title id="f-e02-versionado-pisar-t">El mismo PUT a una llave que ya existe, rows.parquet, en tres buckets. Primero, sin protección: el objeto viejo se reemplaza en silencio y se pierde. Segundo, con versiones u Object Lock: la versión vieja sobrevive, pero la nueva pasa a ser la que se lee, y el entrenamiento recibe la nueva; solo la huella guardada por el modelo lo delata. Tercero, con escritura condicional If-None-Match exigida por la política del bucket: S3 responde 412 y no cambia nada.</title>
+<defs><marker id="fe2p-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<rect class="f-card" x="10" y="10" width="340" height="432" rx="16"/>
+<text class="f-l" x="26" y="36">UN PUT A rows.parquet, QUE YA EXISTE</text>
+<text class="f-t" x="26" y="72" style="font-size:14px">1 · Sin protección</text>
+<rect class="f-off" x="28" y="86" width="96" height="34" rx="6"/>
+<text class="f-s" x="76" y="108" text-anchor="middle" style="font-size:12px">v. septiembre</text>
+<line class="f-flecha" x1="130" y1="103" x2="166" y2="103" marker-end="url(#fe2p-a)"/>
+<rect class="f-o" x="172" y="86" width="96" height="34" rx="6"/>
+<text class="f-pill-t" x="220" y="108" text-anchor="middle" style="font-size:12px">otra</text>
+<text class="f-s" x="26" y="142" style="font-size:12px">La vieja se pierde. Nadie se entera.</text>
+<text class="f-t" x="26" y="182" style="font-size:14px">2 · Con versiones u Object Lock</text>
+<rect class="f-b" x="28" y="196" width="96" height="34" rx="6"/>
+<text class="f-pill-t" x="76" y="218" text-anchor="middle" style="font-size:12px">v. septiembre</text>
+<rect class="f-o" x="172" y="196" width="160" height="34" rx="6"/>
+<text class="f-pill-t" x="252" y="218" text-anchor="middle" style="font-size:12px">otra · la que se lee</text>
+<line class="f-flecha" x1="130" y1="213" x2="166" y2="213" marker-end="url(#fe2p-a)"/>
+<text class="f-s" x="26" y="252" style="font-size:12px">La vieja sobrevive, pero el entrenamiento lee</text>
+<text class="f-s" x="26" y="268" style="font-size:12px">la nueva. Solo la huella del modelo lo delata.</text>
+<text class="f-t" x="26" y="308" style="font-size:14px">3 · Escritura condicional</text>
+<rect class="f-g" x="28" y="322" width="96" height="34" rx="6"/>
+<text class="f-pill-t" x="76" y="344" text-anchor="middle" style="font-size:12px">v. septiembre</text>
+<line class="f-flecha" x1="166" y1="339" x2="130" y2="339" marker-end="url(#fe2p-a)"/>
+<circle class="f-acc" cx="204" cy="339" r="20"/>
+<text class="f-acc-t" x="204" y="344" text-anchor="middle" style="font-size:13px">412</text>
+<text class="f-s" x="232" y="336" style="font-size:12px">«ya existe»:</text>
+<text class="f-s" x="232" y="352" style="font-size:12px">no cambia nada</text>
+<rect class="f-chip" x="22" y="380" width="316" height="48" rx="8"/>
+<text class="f-s" x="34" y="400" style="font-size:12px">La política del bucket niega todo PUT bajo</text>
+<text class="f-s" x="34" y="418" style="font-size:12px">datasets/ que no traiga If-None-Match: *</text>
+</svg>

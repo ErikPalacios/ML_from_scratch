@@ -1,0 +1,20 @@
+{
+  "titulo": "Qué tan fino mide una muestra",
+  "intro": "Aplica \\(δ = 1.96 × sqrt{q × (1 − q) ÷ n}\\), con \\(n\\) = fotos por mes × meses. Los valores iniciales son la muestra al azar de un mes de la cola de Alba, el marketplace del curso: 1,250 fotos, con una exactitud de ≈ 85 %.",
+  "entradas": [
+    { "id": "q", "label": "Exactitud del modelo, \\(q\\), en % (85 % = 0.85)", "min": 50, "max": 99, "paso": 1, "valor": 85, "unidad": "%" },
+    { "id": "m", "label": "Fotos con label confiable por mes (1,250 = el 25 % al azar de la cola)", "min": 50, "max": 20000, "paso": 50, "valor": 1250, "tipo": "numero" },
+    { "id": "t", "label": "Meses que acumulas", "min": 1, "max": 24, "paso": 1, "valor": 1 }
+  ],
+  "calculos": [
+    { "id": "n", "formula": "m * t" },
+    { "id": "d", "formula": "1.96 * sqrt((q / 100) * (1 - q / 100) / max(n, 1))" }
+  ],
+  "salidas": [
+    { "label": "Fotos de la muestra, \\(n\\)", "formula": "n", "formato": "int", "nota": "fotos por mes × meses" },
+    { "label": "Margen, \\(δ\\), en puntos porcentuales", "formula": "d * 100", "formato": "num", "decimales": 2, "nota": "\\(δ = 1.96 × sqrt{q × (1 − q) ÷ n}\\)" },
+    { "label": "Intervalo del 95 %: desde", "formula": "max(q / 100 - d, 0)", "formato": "pct", "decimales": 1 },
+    { "label": "hasta", "formula": "min(q / 100 + d, 1)", "formato": "pct", "decimales": 1 }
+  ],
+  "nota": "Para bajar el margen a la mitad necesitas 4 veces las fotos. El golden set de Alba, con 50,000 fotos, mide con ≈ ± 0.3 puntos; una sola categoría con 50 fotos, con ≈ ± 10 (con tan pocas, la fórmula ya es solo aproximada). Si repitieras la muestra muchas veces, 95 de cada 100 intervalos así atraparían la exactitud real."
+}

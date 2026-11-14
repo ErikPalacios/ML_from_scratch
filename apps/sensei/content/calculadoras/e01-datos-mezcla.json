@@ -1,0 +1,24 @@
+{
+  "titulo": "Cuántos labels mal trae el snapshot",
+  "intro": "Aplica \\(E = Σ w_i × e_i\\) y \\(F = E × R\\). Los valores iniciales son el snapshot de septiembre de Alba, `ds-2026-09-01`: 72 % de quien vende (filtrada), 7 % de moderación y el resto de la cola humana, con el error de cada fuente que supone el curso.",
+  "entradas": [
+    { "id": "wv", "label": "Parte de quien vende, \\(w_{vende}\\), en %", "min": 0, "max": 100, "paso": 1, "valor": 72, "unidad": "%" },
+    { "id": "wm", "label": "Parte de moderación, \\(w_{mod}\\), en %", "min": 0, "max": 100, "paso": 1, "valor": 7, "unidad": "%" },
+    { "id": "ev", "label": "Error de quien vende, \\(e_{vende}\\), en % (5 filtrada, 10 sin filtrar)", "min": 0, "max": 30, "paso": 0.5, "valor": 5, "unidad": "%" },
+    { "id": "em", "label": "Error de moderación, \\(e_{mod}\\), en %", "min": 0, "max": 30, "paso": 0.5, "valor": 3, "unidad": "%" },
+    { "id": "eh", "label": "Error de la cola humana, \\(e_{cola}\\), en %", "min": 0, "max": 30, "paso": 0.5, "valor": 2, "unidad": "%" },
+    { "id": "r", "label": "Filas del snapshot, \\(R\\)", "min": 1000, "max": 10000000, "paso": 1, "valor": 1932628, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "wh", "formula": "max(100 - wv - wm, 0)" },
+    { "id": "tot", "formula": "max(wv + wm + wh, 1e-9)" },
+    { "id": "e", "formula": "(wv * ev + wm * em + wh * eh) / tot / 100" }
+  ],
+  "salidas": [
+    { "label": "Parte de la cola humana, \\(w_{cola}\\), en %", "formula": "wh", "formato": "num", "decimales": 0, "nota": "lo que falta para 100 %" },
+    { "label": "Error de la mezcla, \\(E\\)", "formula": "e", "formato": "pct", "decimales": 2, "barra": true, "nota": "\\(E = Σ w_i × e_i\\)" },
+    { "label": "Labels mal, \\(F\\)", "formula": "e * r", "formato": "int", "nota": "\\(F = E × R\\)" },
+    { "label": "Uno de cada … labels está mal", "formula": "1 / max(e, 1e-9)", "formato": "num", "decimales": 0 }
+  ],
+  "nota": "Si las partes de quien vende y moderación suman más de 100 %, la calculadora las reparte en proporción. Los errores de cada fuente son un supuesto del curso: en un sistema real se miden con la muestra al azar ya adjudicada."
+}
