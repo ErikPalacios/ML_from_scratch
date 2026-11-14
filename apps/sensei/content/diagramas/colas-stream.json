@@ -1,5 +1,5 @@
 {
- "titulo": "Un stream de eventos en C07: un tópico, varios grupos",
+ "titulo": "Un stream de eventos en la búsqueda de Alba: un tópico, varios grupos",
  "width": 78,
  "height": 46,
  "lanes": [
@@ -32,7 +32,7 @@
    "y": 5,
    "w": 19,
    "h": 8,
-   "note": "Ana vendió sus tenis y lo marca en la app. Desde ahí, C07 promete que la publicación desaparezca de la búsqueda en un minuto."
+   "note": "Ana vendió sus tenis y lo marca en la app. Desde ahí, Alba promete que la publicación desaparezca de la búsqueda en un minuto."
   },
   {
    "id": "svc",

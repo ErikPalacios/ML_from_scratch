@@ -21,7 +21,7 @@
       "note": "El [[fallback]]: Ana elige la categoría a mano. Peor que una sugerencia, mucho mejor que una pantalla esperando." },
     { "id": "error", "label": "503 rápido", "sub": "«no puedo: no esperes»", "kind": "monitor",
       "x": 30, "y": 22, "w": 18, "h": 8,
-      "note": "El [[backpressure]] de C01: un 503, el [[codigo-estado|código]] de «servicio no disponible», que cuesta microsegundos y le dice a quien llama que no puede más. Rechazar a propósito lo que no cabe es [[load-shedding]]." }
+      "note": "El [[backpressure]] de Alba: un 503, el [[codigo-estado|código]] de «servicio no disponible», que cuesta microsegundos y le dice a quien llama que no puede más. Rechazar a propósito lo que no cabe es [[load-shedding]]." }
   ],
   "edges": [
     { "from": "backend", "to": "gw", "kind": "online", "label": "foto", "fromSide": "r", "toSide": "l" },
@@ -33,7 +33,7 @@
   "flows": [
     { "id": "normal", "label": "Carga normal",
       "steps": [
-        { "nodes": ["backend", "gw"], "edges": ["backend>gw"], "text": "La foto entra al pod. En el pico de diseño hay ≈ 5 en vuelo por pod (100 por segundo × los ≈ 50 ms de promedio que usa la Ronda, la cuenta de la lección de async): de los 16 lugares sobran 11." },
+        { "nodes": ["backend", "gw"], "edges": ["backend>gw"], "text": "La foto entra al pod. En el pico de diseño hay ≈ 5 en vuelo por pod (Little: 100 por segundo × los ≈ 50 ms de promedio que usa el equipo de Alba, la cuenta de la lección de async): de los 16 lugares sobran 11." },
         { "nodes": ["gw", "filatr"], "edges": ["gw>filatr"], "text": "El tensor llega a Triton. La T4 va al ≈ 21 % de su máximo: la fila espera ≈ 1 a 3 ms. Ningún tope se toca, y nadie lo nota." }
       ] },
     { "id": "contope", "label": "Sobrecarga con topes",

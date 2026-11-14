@@ -12,7 +12,7 @@
     { "id": "cola", "label": "Cola", "sub": "un mensaje por pedazo", "kind": "queue", "x": 30, "y": 4, "w": 18, "h": 8,
       "note": "Cada mensaje es un pedazo de trabajo: una imagen, mil fotos del backfill o una época del entrenamiento. Mientras un worker lo procesa, el mensaje queda invisible; si nadie lo borra antes de su [[visibility-timeout|visibility timeout]], reaparece." },
     { "id": "wa", "label": "Worker A", "sub": "g4dn.xlarge · zona 1a", "kind": "gpu", "x": 4, "y": 20, "w": 20, "h": 8,
-      "note": "Un [[worker]]: un programa que toma pedazos de la cola y los procesa, en una instancia [[spot]]. Esa instancia sale ≈ 49 % más barata el día de la foto de la Ronda, pero la nube se la puede llevar con 2 minutos de aviso." },
+      "note": "Un [[worker]]: un programa que toma pedazos de la cola y los procesa, en una instancia [[spot]]. Esa instancia sale ≈ 49 % más barata en la foto de precios de un día de octubre de 2026 (una `g4dn.xlarge`: ≈ 0.27 contra 0.526 US$/h), pero la nube se la puede llevar con 2 minutos de aviso." },
     { "id": "wb", "label": "Worker B", "sub": "g5.xlarge · zona 1b", "kind": "gpu", "x": 54, "y": 20, "w": 20, "h": 8,
       "note": "Otro tipo en otra zona: **diversificar** hace que una interrupción no se lleve a todos los workers juntos. Ojo: un engine de TensorRT compilado para T4 no corre en su A10G; hace falta uno para cada GPU." },
     { "id": "ec2", "label": "EC2", "sub": "recupera la máquina", "kind": "external", "x": 4, "y": 36, "w": 18, "h": 8,

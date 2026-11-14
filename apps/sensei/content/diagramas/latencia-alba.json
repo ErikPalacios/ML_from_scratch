@@ -1,9 +1,9 @@
 {
-  "titulo": "Dónde se va el tiempo de una foto de C01",
+  "titulo": "Dónde se va el tiempo de una foto de Alba",
   "width": 78,
   "height": 47,
   "lanes": [
-    { "id": "req", "label": "Una request de C01: viajar, esperar y trabajar", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 47 }
+    { "id": "req", "label": "Una request de Alba: viajar, esperar y trabajar", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 47 }
   ],
   "nodes": [
     { "id": "caller", "label": "Backend", "sub": "pide la categoría", "kind": "client",
@@ -11,13 +11,13 @@
       "note": "El **backend del marketplace** manda la foto de Ana y espera como máximo 300 ms. Reusa conexiones abiertas ([[keep-alive]]), así que no paga un [[handshake]] en cada foto." },
     { "id": "alb", "label": "Balanceador", "sub": "viajar: ≈ 3 ms", "kind": "edge",
       "x": 30, "y": 5, "w": 18, "h": 8,
-      "note": "**Viajar.** El balanceador recibe la request y la pasa a un pod; el gateway lee los ≈ 200 KB de la foto. En una request típica, ≈ 2 a 6 ms (M03). Aquí **arranca el reloj del SLO**: cuando la request completa ya llegó." },
+      "note": "**Viajar.** El balanceador recibe la request y la pasa a un pod; el gateway lee los ≈ 200 KB de la foto. En una request típica, ≈ 2 a 6 ms. Aquí **arranca el reloj del SLO**: cuando la request completa ya llegó." },
     { "id": "filagw", "label": "Fila del pod", "sub": "esperar un lugar de CPU", "kind": "queue",
       "x": 59, "y": 5, "w": 18, "h": 8,
-      "note": "**Esperar.** Si el núcleo del pod está decodificando otras fotos, esta espera. Con poco tráfico, ≈ 0 ms. Con el núcleo al 90 %, ≈ 54 ms en promedio: es la [[tiempo-en-cola|espera]] que más crece cerca del pico." },
+      "note": "**Esperar.** Si el núcleo del pod está decodificando otras fotos, esta espera. Con poco tráfico, ≈ 0 ms. Con el núcleo al 90 %, \\(W_q = ρ × S ÷ (1 − ρ)\\) = 0.9 × 6 ÷ 0.1 = 54 ms en promedio: es la [[tiempo-en-cola|espera]] que más crece cerca del pico." },
     { "id": "slo", "label": "Reloj del SLO", "sub": "p99 ≤ 200 ms", "kind": "monitor",
       "x": 30, "y": 21, "w": 18, "h": 8,
-      "note": "El [[slo|SLO]] de C01 mide la [[latencia-punta-a-punta|latencia de punta a punta]] del lado del servidor: desde que el balanceador tiene la request completa hasta que sale la respuesta. La subida desde el celular de Ana queda fuera." },
+      "note": "El [[slo|SLO]] de Alba, p99 ≤ 200 ms, mide la [[latencia-punta-a-punta|latencia de punta a punta]] del lado del servidor: desde que el balanceador tiene la request completa hasta que sale la respuesta. La subida desde el celular de Ana queda fuera." },
     { "id": "decode", "label": "Preproceso", "sub": "trabajar: ≈ 6 ms de CPU", "kind": "service",
       "x": 59, "y": 21, "w": 18, "h": 8,
       "note": "**Trabajar.** Decode del JPEG, resize, crop y normalización: el [[tiempo-servicio|tiempo de servicio]] de la CPU, ≈ 6 ms por foto en promedio. Una foto web de 12 MP cuesta mucho más." },
@@ -56,7 +56,7 @@
         { "nodes": ["filagw"], "edges": [], "text": "**Esperar: ≈ 54 ms en promedio.** Cada pod recibe 150 por segundo de 6 ms: su núcleo trabaja el 90 % del tiempo. Las ráfagas ya no se deshacen y la fila crece." },
         { "nodes": ["decode"], "edges": ["filagw>decode"], "text": "**Trabajar: 6 ms.** Exactamente lo mismo que con poco tráfico: el trabajo no cambió." },
         { "nodes": ["filatr", "gpu"], "edges": ["decode>filatr", "filatr>gpu"], "text": "Triton casi no lo nota: cada T4 va lejos de su máximo. La fila que creció es la del gateway, su cuello de botella." },
-        { "nodes": ["salida", "caller", "slo"], "edges": ["gpu>salida", "salida>caller"], "text": "**Total ≈ 75 ms en promedio** (20 + 54), y el p99 de la parte del pod, ≈ 276 ms: la promesa de 200 ms se rompe. La diferencia con la tarde es pura espera." }
+        { "nodes": ["salida", "caller", "slo"], "edges": ["gpu>salida", "salida>caller"], "text": "**Total ≈ 75 ms en promedio** (los 20 de la request tranquila + 54 de fila), y el p99 de la parte del pod, ≈ 4.6 × 60 ≈ 276 ms: la promesa de 200 ms se rompe. La diferencia con la tarde es pura espera." }
       ] }
   ]
 }

@@ -637,7 +637,7 @@ Los pesos de un LLM en el gp3 de base con el que arranca la máquina, a 125 MiB/
 
 ### Alba: el servidor de la T4
 
-Cada servidor de GPU de Alba es una g4dn.xlarge: 4 [[vcpu|vCPU]] (la unidad de CPU que renta la nube; en estas máquinas de Intel, cada uno es medio núcleo), 16 GiB de RAM, una T4 con 16 GB de VRAM y ≈ 125 GB de NVMe local. El engine de la ResNet-50, de ≈ 50 a 150 MB, va dentro de la imagen de Triton, y cargarlo de cualquier disco toma ≈ 1 s. Lo que tarda es bajar la imagen, de varios GB: ≈ 2 a 5 minutos, según estima el equipo de Alba. El contenedor de Triton tiene 6 GiB de RAM, que se van sobre todo en las librerías de CUDA y los *buffers* (la memoria donde se acomodan los datos que van y vienen); el modelo vive en la GPU.
+Cada servidor de GPU de Alba es una g4dn.xlarge: 4 [[vcpu|vCPU]] (la unidad de CPU que renta la nube; en estas máquinas de Intel, cada uno es medio núcleo), 16 GiB de RAM, una T4 con 16 GB de VRAM y ≈ 125 GB de NVMe local. El engine de la ResNet-50, de ≈ 50 a 150 MB, va dentro de la imagen de Triton, y cargarlo de cualquier disco toma ≈ 1 s. Lo que tarda es bajar la imagen, de varios GB: ≈ 2 a 5 minutos de los ≈ 5 a 13 que tarda en total un pod nuevo de Triton en estar listo (nodo, imagen y modelo), según estima el equipo de Alba. El contenedor de Triton tiene 6 GiB de RAM, que se van sobre todo en las librerías de CUDA y los *buffers* (la memoria donde se acomodan los datos que van y vienen); el modelo vive en la GPU.
 
 Y la foto de Ana nunca toca un disco. El gateway la decodifica en su RAM, pero antes de abrirla revisa su tamaño y rechaza las de más de 40 MP: una de 40 millones de píxeles abierta en RGB ocupa 40 M × 3 bytes = 120 MB.
 

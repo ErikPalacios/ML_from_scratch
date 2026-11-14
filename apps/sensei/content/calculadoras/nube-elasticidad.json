@@ -1,11 +1,11 @@
 {
   "titulo": "Capacidad fija contra elástica",
-  "intro": "Un mes con una carga de base y un pico que dura unas horas. Compara tener prendidas todo el mes las máquinas del pico contra prender las de más solo durante el pico: la [[elasticidad]].",
+  "intro": "Un mes con una carga de base y un pico que dura unas horas. Compara tener prendidas todo el mes las máquinas del pico contra prender las de más solo durante el pico: la [[elasticidad]]. Aplica \\(F = m_p × 730 × c\\), \\(E = m_b × 730 × c + (m_p − m_b) × t_p × c\\) y \\(u = E ÷ F\\), las mismas letras de la lección.",
   "entradas": [
-    { "id": "base", "label": "Máquinas que pide la **base**", "min": 1, "max": 50, "paso": 1, "valor": 2 },
-    { "id": "pico", "label": "Máquinas que pide el **pico**", "min": 1, "max": 200, "paso": 1, "valor": 10 },
-    { "id": "hp", "label": "Horas de pico al mes", "min": 0, "max": 730, "paso": 1, "valor": 96, "unidad": "h" },
-    { "id": "precio", "label": "Precio de una máquina, US$ por hora", "min": 0.01, "max": 60, "paso": 0.001, "valor": 0.526, "tipo": "numero" }
+    { "id": "base", "label": "Máquinas que pide la **base**, \\(m_b\\)", "min": 1, "max": 50, "paso": 1, "valor": 2 },
+    { "id": "pico", "label": "Máquinas que pide el **pico**, \\(m_p\\)", "min": 1, "max": 200, "paso": 1, "valor": 10 },
+    { "id": "hp", "label": "Horas que dura el pico en el mes, \\(t_p\\)", "min": 0, "max": 730, "paso": 1, "valor": 96, "unidad": "h" },
+    { "id": "precio", "label": "Precio de una máquina, \\(c\\), en US$ por hora", "min": 0.01, "max": 60, "paso": 0.001, "valor": 0.526, "tipo": "numero" }
   ],
   "calculos": [
     { "id": "pk", "formula": "max(pico, base)" },
@@ -13,11 +13,11 @@
     { "id": "helas", "formula": "base * 730 + (pk - base) * hp" }
   ],
   "salidas": [
-    { "label": "Fija para el pico, al mes (US$)", "formula": "hfijo * precio", "formato": "int", "nota": "máquinas del pico × 730 h × precio" },
-    { "label": "Elástica, al mes (US$)", "formula": "helas * precio", "formato": "int", "nota": "(base × 730 + extra × horas de pico) × precio" },
-    { "label": "Ahorro de la elástica (US$)", "formula": "(hfijo - helas) * precio", "formato": "int" },
-    { "label": "La fija cuesta, frente a la elástica", "formula": "hfijo / max(helas, 1e-9)", "formato": "x", "decimales": 1 },
-    { "label": "Uso promedio de la flota fija", "formula": "helas / hfijo", "formato": "pct", "decimales": 0, "barra": true, "nota": "máquina-horas que sí se necesitan ÷ las que se pagan" }
+    { "label": "Fija para el pico al mes, \\(F\\) (US$)", "formula": "hfijo * precio", "formato": "int", "nota": "\\(F = m_p × 730 × c\\)" },
+    { "label": "Elástica al mes, \\(E\\) (US$)", "formula": "helas * precio", "formato": "int", "nota": "\\(E = m_b × 730 × c + (m_p − m_b) × t_p × c\\)" },
+    { "label": "Ahorro de la elástica, \\(F − E\\) (US$)", "formula": "(hfijo - helas) * precio", "formato": "int" },
+    { "label": "La fija frente a la elástica, \\(F ÷ E\\)", "formula": "hfijo / max(helas, 1e-9)", "formato": "x", "decimales": 1 },
+    { "label": "Uso promedio de la flota fija, \\(u\\)", "formula": "helas / hfijo", "formato": "pct", "decimales": 0, "barra": true, "nota": "\\(u = E ÷ F\\): máquina-horas que sí se necesitan ÷ las que se pagan" }
   ],
   "nota": "La cuenta supone que las máquinas extra llegan a tiempo. Una VM con GPU tarda minutos en servir, y tu cuota o la capacidad de la zona pueden no alcanzar: un pico de segundos se cubre con máquinas ya prendidas."
 }

@@ -1,14 +1,14 @@
 {
   "titulo": "Cuánto lee una consulta: por filas o por columnas",
-  "intro": "El job de drift de C01 lee 2 de 30 columnas de un día de logs. Por filas hay que leerlo todo; en [[parquet|Parquet]], solo esas columnas, comprimidas, y sin los row groups que se pueden saltar.",
+  "intro": "El job de drift de Alba lee 2 de 30 columnas de un día de logs. Por filas hay que leerlo todo; en [[parquet|Parquet]], solo esas columnas, comprimidas, y sin los row groups que se pueden saltar. La calculadora aplica \\(L_{filas} = N × C × u\\), \\(L_{col} = N × k × u ÷ r\\) y \\(t = L ÷ v\\). Si se salta la fracción \\(f\\) de los row groups, en Parquet lee \\(L_{col} × (1 − f)\\).",
   "entradas": [
-    { "id": "f", "label": "Filas, en millones", "min": 0.1, "max": 1000, "paso": 0.1, "valor": 10, "tipo": "numero" },
-    { "id": "c", "label": "Columnas de la tabla", "min": 1, "max": 200, "paso": 1, "valor": 30 },
-    { "id": "k", "label": "Columnas que lee la consulta", "min": 1, "max": 200, "paso": 1, "valor": 2 },
-    { "id": "v", "label": "Bytes por valor, en promedio, sin comprimir", "min": 1, "max": 100, "paso": 1, "valor": 10 },
-    { "id": "r", "label": "Veces que comprime Parquet", "min": 1, "max": 20, "paso": 0.5, "valor": 5 },
-    { "id": "s", "label": "Row groups que se salta por sus estadísticas (%)", "min": 0, "max": 99, "paso": 1, "valor": 0, "unidad": "%" },
-    { "id": "vel", "label": "Velocidad de lectura, en MB/s", "min": 10, "max": 5000, "paso": 10, "valor": 500, "tipo": "numero" }
+    { "id": "f", "label": "Filas de la tabla, \\(N\\), en millones", "min": 0.1, "max": 1000, "paso": 0.1, "valor": 10, "tipo": "numero" },
+    { "id": "c", "label": "Columnas de la tabla, \\(C\\)", "min": 1, "max": 200, "paso": 1, "valor": 30 },
+    { "id": "k", "label": "Columnas que lee la consulta, \\(k\\)", "min": 1, "max": 200, "paso": 1, "valor": 2 },
+    { "id": "v", "label": "Bytes por valor, \\(u\\), en promedio, sin comprimir", "min": 1, "max": 100, "paso": 1, "valor": 10 },
+    { "id": "r", "label": "Veces que comprime Parquet, \\(r\\)", "min": 1, "max": 20, "paso": 0.5, "valor": 5 },
+    { "id": "s", "label": "Row groups que se salta por sus estadísticas, \\(f\\), en % (90 % es \\(f\\) = 0.9)", "min": 0, "max": 99, "paso": 1, "valor": 0, "unidad": "%" },
+    { "id": "vel", "label": "Velocidad de lectura del disco, \\(v\\), en MB/s", "min": 10, "max": 5000, "paso": 10, "valor": 500, "tipo": "numero" }
   ],
   "calculos": [
     { "id": "kk", "formula": "min(k, c)" },
@@ -16,12 +16,12 @@
     { "id": "pq", "formula": "f * 1e6 * kk * v / r * (1 - s / 100)" }
   ],
   "salidas": [
-    { "label": "Por filas (JSON Lines o CSV), lee", "formula": "todo", "formato": "bytes", "barra": true },
-    { "label": "En Parquet, lee", "formula": "pq", "formato": "bytes", "barra": true },
-    { "label": "Veces menos bytes", "formula": "todo / max(pq, 1e-9)", "formato": "x" },
-    { "label": "Parte de las columnas que se leen", "formula": "kk / c", "formato": "pct" },
-    { "label": "Tiempo de lectura por filas", "formula": "todo / (vel * 1e6) * 1000", "formato": "ms" },
-    { "label": "Tiempo de lectura en Parquet", "formula": "pq / (vel * 1e6) * 1000", "formato": "ms", "nota": "más lo que tarda leer el pie de cada archivo" }
+    { "label": "Por filas (JSON Lines o CSV), lee \\(L_{filas}\\)", "formula": "todo", "formato": "bytes", "barra": true, "nota": "\\(L_{filas} = N × C × u\\)" },
+    { "label": "En Parquet, lee \\(L_{col} × (1 − f)\\)", "formula": "pq", "formato": "bytes", "barra": true, "nota": "\\(L_{col} = N × k × u ÷ r\\), por \\((1 − f)\\): sin los row groups que se salta" },
+    { "label": "Veces menos bytes", "formula": "todo / max(pq, 1e-9)", "formato": "x", "nota": "\\(L_{filas} ÷ (L_{col} × (1 − f))\\); con \\(f\\) = 0, \\(L_{filas} ÷ L_{col}\\)" },
+    { "label": "Parte de las columnas que se leen", "formula": "kk / c", "formato": "pct", "nota": "\\(k ÷ C\\); si pides más columnas de las que hay, cuenta \\(C\\)" },
+    { "label": "Tiempo de lectura por filas, \\(t\\)", "formula": "todo / (vel * 1e6) * 1000", "formato": "ms", "nota": "\\(t = L_{filas} ÷ v\\)" },
+    { "label": "Tiempo de lectura en Parquet, \\(t\\)", "formula": "pq / (vel * 1e6) * 1000", "formato": "ms", "nota": "\\(t = L_{col} × (1 − f) ÷ v\\), más lo que tarda leer el pie de cada archivo" }
   ],
-  "nota": "Con 2 de 30 columnas y compresión de 5, son 75 veces menos bytes: de 6 s a 80 ms. Si la consulta lee las 30 columnas, solo queda la ventaja de la compresión."
+  "nota": "Con 2 de 30 columnas y compresión de 5, son 3 GB ÷ 40 MB = 75 veces menos bytes: de 6 s a 80 ms. Si la consulta lee las 30 columnas, solo queda la ventaja de la compresión."
 }

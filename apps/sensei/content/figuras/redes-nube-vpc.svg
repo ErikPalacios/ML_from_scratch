@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 470" role="img" aria-labelledby="f-redes-nube-vpc-t" class="f-svg" style="max-width:420px">
-<title id="f-redes-nube-vpc-t">La VPC de C01 en la región us-east-1. Arriba, internet se conecta con la VPC por el internet gateway. La VPC tiene el rango 10.0.0.0/16 y se parte en dos zonas, 1a y 1b. Cada zona tiene una subred pública (10.0.0.0/20 en 1a y 10.0.16.0/20 en 1b) donde viven el balanceador ALB y un NAT gateway, y una subred privada (10.0.32.0/20 y 10.0.48.0/20) donde viven el gateway y el Triton con su GPU T4, sin IP pública. Abajo, fuera de la VPC, está S3, un servicio regional, al que las subredes privadas llegan gratis por el gateway endpoint.</title>
+<title id="f-redes-nube-vpc-t">La VPC de Alba en la región us-east-1. Arriba, internet se conecta con la VPC por el internet gateway. La VPC tiene el rango 10.0.0.0/16 y se parte en dos zonas, 1a y 1b. Cada zona tiene una subred pública (10.0.0.0/20 en 1a y 10.0.16.0/20 en 1b) donde viven el balanceador ALB y un NAT gateway, y una subred privada (10.0.32.0/20 y 10.0.48.0/20) donde viven el gateway y el Triton con su GPU T4, sin IP pública. Abajo, fuera de la VPC, está S3, un servicio regional, al que las subredes privadas llegan gratis por el gateway endpoint.</title>
 <rect class="f-card" x="10" y="10" width="340" height="450" rx="16"/>
-<text class="f-l" x="26" y="36">LA RED DE C01 · us-east-1</text>
+<text class="f-l" x="26" y="36">LA RED DE ALBA · us-east-1</text>
 <rect class="f-chip" x="130" y="46" width="100" height="26" rx="13"/>
 <text class="f-s" x="180" y="64" text-anchor="middle" style="font-size:12px">Internet</text>
 <line class="f-flecha" x1="180" y1="72" x2="180" y2="90"/>

@@ -1,10 +1,10 @@
 {
   "titulo": "Cuántas páginas lee una búsqueda",
-  "intro": "**Niveles del árbol B = log(filas) ÷ log(ramas por página), redondeado hacia arriba.** Con [[indice-bd|índice]] se lee una página por nivel y una de la tabla; sin índice, la tabla entera. Arranca con la tabla de 10 M de publicaciones de la lección.",
+  "intro": "Aplica \\(k = ⌈log(N) ÷ log(b)⌉\\) (los niveles del árbol B, redondeados hacia arriba), \\(P_{índice} = k + 1\\) y \\(P_{recorrido} = N/f\\). Con [[indice-bd|índice]] se lee una página por nivel y una de la tabla; sin índice, la tabla entera. Arranca con la tabla de 10 M de publicaciones de la lección.",
   "entradas": [
     {
       "id": "n",
-      "label": "Filas de la tabla, en millones (10 = cuatro días de C01 · 900 = un año)",
+      "label": "Filas de la tabla \\(N\\), en millones (10 = cuatro días de publicaciones de Alba · 900 = un año)",
       "min": 0.1,
       "max": 1000000,
       "paso": 0.1,
@@ -13,7 +13,7 @@
     },
     {
       "id": "b",
-      "label": "Ramas por página del árbol (≈ 300 en una página de 4 KiB · 2 = un árbol binario)",
+      "label": "Ramas por página del árbol \\(b\\) (≈ 300 en una página de 4 KiB · 2 = un árbol binario)",
       "min": 2,
       "max": 1000,
       "paso": 1,
@@ -21,7 +21,7 @@
     },
     {
       "id": "f",
-      "label": "Filas por página de la tabla (≈ 20 con filas de 200 bytes)",
+      "label": "Filas por página de la tabla \\(f\\) (≈ 20 con filas de 200 bytes)",
       "min": 1,
       "max": 500,
       "paso": 1,
@@ -29,7 +29,7 @@
     },
     {
       "id": "t",
-      "label": "Lectura al azar de una página, en ms (0.1 = SSD · 0.001 = RAM)",
+      "label": "Lo que tarda leer una página al azar, en ms (0.1 = SSD · 0.001 = RAM)",
       "min": 0.001,
       "max": 20,
       "paso": 0.001,
@@ -38,7 +38,7 @@
     },
     {
       "id": "g",
-      "label": "Lectura de corrido, en GB/s (2 = un SSD NVMe)",
+      "label": "Velocidad de lectura de corrido, en GB/s (2 = un SSD NVMe)",
       "min": 0.1,
       "max": 100,
       "paso": 0.1,
@@ -61,46 +61,48 @@
   ],
   "salidas": [
     {
-      "label": "Niveles del árbol",
+      "label": "Niveles del árbol \\(k\\)",
       "formula": "niv",
-      "formato": "int"
+      "formato": "int",
+      "nota": "\\(⌈log(N) ÷ log(b)⌉\\): el \\(k\\) más chico con \\(b^k ≥ N\\)"
     },
     {
-      "label": "Páginas que lee con el índice",
+      "label": "Páginas que lee con el índice, \\(P_{índice}\\)",
       "formula": "niv + 1",
       "formato": "int",
-      "nota": "una por nivel y la de la tabla"
+      "nota": "\\(k + 1\\): una por nivel y la de la tabla"
     },
     {
-      "label": "Páginas que lee sin índice",
+      "label": "Páginas que lee sin índice, \\(P_{recorrido}\\)",
       "formula": "pag",
       "formato": "int",
-      "nota": "toda la tabla"
+      "nota": "\\(N/f\\): toda la tabla"
     },
     {
       "label": "Bytes que lee sin índice",
       "formula": "pag * 4096",
       "formato": "bytes",
-      "nota": "en páginas de 4 KiB"
+      "nota": "\\(P_{recorrido}\\) × 4,096 bytes, en páginas de 4 KiB"
     },
     {
       "label": "Veces menos lecturas con el índice",
       "formula": "pag / (niv + 1)",
       "formato": "x",
-      "decimales": 0
+      "decimales": 0,
+      "nota": "\\(P_{recorrido} ÷ P_{índice}\\)"
     },
     {
       "label": "Tiempo con el índice",
       "formula": "(niv + 1) * t",
       "formato": "ms",
-      "nota": "si ninguna página está en la RAM"
+      "nota": "\\(P_{índice}\\) × la lectura al azar, si ninguna página está en la RAM"
     },
     {
       "label": "Tiempo sin índice",
       "formula": "pag * 4096 / (g * 1e9) * 1000",
       "formato": "ms",
-      "nota": "leyendo de corrido"
+      "nota": "los bytes sin índice ÷ la velocidad de corrido"
     }
   ],
-  "nota": "Escribe 900 en las filas: un año de C01 pide un solo nivel más. Y con 2 ramas, el árbol binario necesita 24 niveles para 10 M: por eso cada nodo del árbol B es una página entera."
+  "nota": "Escribe 900 en las filas: un año de publicaciones de Alba (≈ 2.5 M al día × 365) pide un solo nivel más. Y con 2 ramas, el árbol binario necesita 24 niveles para 10 M: por eso cada nodo del árbol B es una página entera."
 }

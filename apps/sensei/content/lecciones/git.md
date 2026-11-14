@@ -2,7 +2,7 @@
 titulo: Git: versiones del código
 en: Git: versioning your code
 subtitulo: Cómo guarda Git cada versión de un proyecto con un nombre que no se puede falsificar, cómo trabajan varias personas en el mismo código sin pisarse y cómo se vuelve a la versión de ayer cuando la de hoy truena.
-pregunta: El modelo de C01 que está en producción salió de cierto código; ¿cómo sé exactamente cuál era, cómo trabajamos cinco personas en el mismo gateway sin pisarnos y cómo regreso a la versión de ayer si la de hoy falla?
+pregunta: El modelo de Alba que está en producción salió de cierto código; ¿cómo sé exactamente cuál era, cómo trabajamos cinco personas en el mismo gateway sin pisarnos y cómo regreso a la versión de ayer si la de hoy falla?
 requisitos: terminal, tiempo-hash
 ---
 
@@ -10,13 +10,13 @@ requisitos: terminal, tiempo-hash
 Git guarda fotos completas de un proyecto, una tras otra, y nombra cada foto con el hash de todo lo que contiene, incluido el nombre de la foto anterior. Por eso un id corto como `3f9c2ab` dice exactamente qué código corre en producción, las ramas dejan trabajar a cinco personas a la vez sin pisarse, y volver a ayer es pedirle a Git una foto que ya tiene.
 :::
 
-El gateway de C01 es un programa en Python: recibe los bytes de la foto que manda la app, los convierte en un tensor de 602,112 bytes y se lo manda a Triton, el servidor que corre el modelo. Lo mantienen cinco personas, y cada semana cambia algo: un [[timeout]] (cuánto espera a Triton antes de rendirse), un límite, una línea de log.
+Alba, la empresa que seguimos en todo el curso, es un marketplace: recibe ≈ 2.5 millones de publicaciones al día y le sugiere a quien vende la categoría de cada foto, entre 500 posibles. El modelo corre en Triton, un servidor de modelos, y delante tiene un gateway: un programa en Python que recibe los bytes de la foto que manda la app, los convierte en un tensor de 602,112 bytes y se lo manda a Triton. Lo mantienen las cinco personas del equipo de ML de Alba, y cada semana cambia algo: un [[timeout]] (cuánto espera a Triton antes de rendirse), un límite, una línea de log.
 
 Un martes a las 11 de la noche, la versión nueva empieza a responder errores. Para arreglarlo hay que contestar tres preguntas, y rápido. ¿Qué código exacto está corriendo? ¿Qué cambió desde ayer, y quién lo cambió? ¿Cómo vuelvo a lo de ayer sin perder lo de hoy?
 
 Sin una herramienta, la respuesta es una carpeta llena de copias: `gateway_final.py`, `gateway_final2.py`, `gateway_ahora_si.py`. Nadie sabe cuál está en el servidor ni en qué se distinguen. La herramienta que usa casi todo el mundo para no llegar ahí se llama Git.
 
-En esta lección vas a armar repositorios desde cero, con comandos que puedes copiar a tu [[terminal]]: guardar versiones, crear ramas, unirlas, chocar con un conflicto y resolverlo, subir a un servidor, marcar una versión y deshacer un error. Al final vas a poder seguir el hilo de C01 de punta a punta: del modelo que está en producción al commit exacto que lo produjo.
+En esta lección vas a armar repositorios desde cero, con comandos que puedes copiar a tu [[terminal]]: guardar versiones, crear ramas, unirlas, chocar con un conflicto y resolverlo, subir a un servidor, marcar una versión y deshacer un error. Al final vas a poder seguir el hilo del sistema de Alba de punta a punta: del modelo que está en producción al commit exacto que lo produjo.
 
 ## Qué es Git y qué guarda un repositorio {What Git is and what a repository holds}
 
@@ -139,7 +139,7 @@ El commit entero son unas cuantas líneas de texto. La fecha va en tiempo Unix, 
 
 ### El id es la huella de todo lo anterior
 
-¿De dónde sale el id? Git junta el tipo de objeto, su tamaño en bytes y su contenido, y les calcula un [[hash-criptografico|hash criptográfico]], la huella de la lección de tiempo y hashes. Por omisión usa SHA-1, de 160 bits, que se escribe con 40 caracteres hexadecimales (cada uno, del 0 al 9 o de la a a la f, vale 4 bits). Si cambia un solo byte, cambia toda la huella.
+¿De dónde sale el id? Git junta el tipo de objeto, su tamaño en bytes y su contenido, y les calcula un [[hash-criptografico|hash criptográfico]], la huella de la lección de tiempo y hashes: \(text{id} = text{SHA-1}(text{encabezado} + text{contenido})\), donde el encabezado es el tipo, un espacio, el tamaño y un byte en cero. Por omisión usa SHA-1, de 160 bits, que se escribe con 40 caracteres hexadecimales (cada uno, del 0 al 9 o de la a a la f, vale 4 bits). Si cambia un solo byte, cambia toda la huella.
 
 Lo puedes comprobar sin Git, con `hashlib`, que viene con Python:
 
@@ -215,22 +215,34 @@ En la lección de bases de datos, `COMMIT` cierra una [[transaccion|transacción
 
 ### El hash corto
 
-Nadie escribe 40 caracteres. Git acepta el principio del id mientras ningún otro objeto empiece igual, y casi siempre muestra 7: `1e53ceb`. El gateway de C01 usa esos 7 caracteres como nombre de su imagen (el paquete del que nacen sus contenedores, de la lección del sistema operativo): en la Ronda se llama `classifier-gateway:3f9c2ab`.
+Nadie escribe 40 caracteres. Git acepta el principio del id mientras ningún otro objeto empiece igual, y casi siempre muestra 7: `1e53ceb`. El gateway de Alba usa esos 7 caracteres como nombre de su imagen (el paquete del que nacen sus contenedores, de la lección del sistema operativo): se llama `classifier-gateway:3f9c2ab`.
 
 :::cuenta ¿Cuántos ids caben en 7 caracteres?
 Un carácter hexadecimal // del 0 al 9 y de la a a la f | 16 valores | 4 bits
-7 caracteres | 7 × 4 bits | 28 bits
-Combinaciones | 16⁷ | 268,435,456
+Bits de \(k\) = 7 caracteres // \(k\): los caracteres del id corto | \(4 × k\) = 7 × 4 bits | 28 bits
+Combinaciones \(M\) // los prefijos distintos que caben en \(k\) caracteres | \(M = 16^k\) = 16⁷ | 268,435,456
 El id completo // 40 caracteres | 16⁴⁰ = 2¹⁶⁰ | ≈ 1.5 × 10⁴⁸
 = Con 7 caracteres caben ≈ 268 millones de prefijos distintos. Parece muchísimo, pero en un proyecto grande dos objetos empiezan igual antes de lo que crees: lo ves en el bloque de abajo.
 :::
 
 :::profundo ¿Cuándo dejan de alcanzar 7 caracteres?
-Es el problema del cumpleaños: en un salón de 23 personas, la probabilidad de que dos cumplan el mismo día ya pasa de 50 %, porque lo que crece rápido es el número de **parejas**. Con n objetos hay n × (n − 1) ÷ 2 parejas, y cada pareja empieza igual con probabilidad 1 ÷ 16⁷. La probabilidad de que alguna pareja choque es, muy aproximadamente, 1 − e^(−parejas ÷ 16⁷).
+Es el problema del cumpleaños: en un salón de 23 personas, la probabilidad de que dos cumplan el mismo día ya pasa de 50 %, porque lo que crece rápido es el número de **parejas**. Con \(n\) objetos hay \(P\) parejas, y cada pareja empieza igual con probabilidad \(1/M\). La probabilidad de que alguna pareja choque es, muy aproximadamente:
 
-Con 10,000 objetos hay 49,995,000 parejas: 49,995,000 ÷ 268,435,456 ≈ 0.186, y 1 − e^(−0.186) ≈ **17 %**. Con 50,000 objetos, ≈ **99 %**. Y los objetos no son solo commits: cada versión de cada archivo es un blob y cada carpeta de cada commit es un árbol, así que un proyecto con unos miles de commits ya tiene decenas de miles.
+:::formula Probabilidad de que dos ids cortos empiecen igual
+M = 16^k
+P = frac{n × (n − 1)}{2}
+Pr ≈ 1 − e^{−P/M}
+- k: los caracteres del id corto (7 casi siempre)
+- M: los prefijos distintos que caben en \(k\) caracteres
+- n: los objetos del repositorio (commits, árboles y blobs)
+- P: las parejas de objetos que se pueden formar
+- Pr: la probabilidad de que al menos una pareja empiece igual, de 0 a 1
+- e: el número 2.718…, la base de los logaritmos naturales
+:::
 
-Cuando dos objetos empiezan igual, Git alarga el id de esos dos lo necesario. Además, desde la versión 2.11 elige solo cuántos caracteres mostrar según el tamaño del repositorio: en uno enorme, como el de Linux, muestra unos 12. Por eso la Ronda escribe que `git rev-parse --short=7 HEAD` da «los 7 caracteres del tag de CI, o más, si otro objeto empieza igual». (CI es el sistema que prueba y empaqueta solo cada cambio; lo ves en la lección siguiente.)
+Con \(n\) = 10,000 objetos y \(k\) = 7: \(P\) = 10,000 × 9,999 ÷ 2 = 49,995,000 parejas; \(P/M\) = 49,995,000 ÷ 268,435,456 ≈ 0.186, y \(Pr ≈ 1 − e^{−0.186}\) ≈ **17 %**. Con 50,000 objetos, ≈ **99 %** (el ejercicio de los 50,000 objetos lo hace paso a paso). Y los objetos no son solo commits: cada versión de cada archivo es un blob y cada carpeta de cada commit es un árbol, así que un proyecto con unos miles de commits ya tiene decenas de miles.
+
+Cuando dos objetos empiezan igual, Git alarga el id de esos dos lo necesario. Además, desde la versión 2.11 elige solo cuántos caracteres mostrar según el tamaño del repositorio: en uno enorme, como el de Linux, muestra unos 12. Por eso `git rev-parse --short=7 HEAD`, el comando con el que Alba nombra sus imágenes, da 7 caracteres, o más si otro objeto empieza igual. (CI es el sistema que prueba y empaqueta solo cada cambio; lo ves en la lección siguiente.)
 
 Y el SHA-1 de 40 caracteres, ¿no está roto? En la lección de hashes viste que en 2017 se fabricó el primer choque. Git respondió ese mismo año (en la versión 2.13, de mayo de 2017) con una versión de SHA-1 que detecta los choques fabricados así. Además, desde la 2.29 (2020) puede crear repositorios con SHA-256, que desde la 2.42 (2023) ya no se marcan como experimentales; pero los repositorios de SHA-1 y los de SHA-256 todavía no se hablan entre sí, y GitHub aún no los acepta (noviembre de 2026). Git 3.0, que todavía no tiene fecha, planea usar SHA-256 por omisión en los repositorios nuevos. Para que dos commits distintos tengan el mismo id completo por accidente, haría falta una cantidad de objetos que ningún repositorio va a tener.
 
@@ -370,7 +382,7 @@ Un archivo con `<<<<<<<` adentro no es Python válido. Si llega así a un commit
 `git commit` crea el commit de merge; con `--no-edit` acepta el mensaje que Git propone. Si te arrepientes antes, `git merge --abort` deja todo como estaba.
 :::
 
-Lo difícil de un conflicto casi nunca es Git: es la decisión. Que el gateway espere a Triton 0.10 o 0.25 segundos antes de rendirse es una pregunta de diseño, y se contesta hablando, no eligiendo al azar. Aquí lo dejaron en 0.15, el valor de C01. Y los conflictos se evitan con ramas cortas, cambios chicos y trayendo lo nuevo de `main` seguido: dos ramas que se separan una semana chocan mucho más que dos que se separan una hora.
+Lo difícil de un conflicto casi nunca es Git: es la decisión. Que el gateway espere a Triton 0.10 o 0.25 segundos antes de rendirse es una pregunta de diseño, y se contesta hablando, no eligiendo al azar. Aquí lo dejaron en 0.15, el valor que usa Alba: 150 ms. Y los conflictos se evitan con ramas cortas, cambios chicos y trayendo lo nuevo de `main` seguido: dos ramas que se separan una semana chocan mucho más que dos que se separan una hora.
 
 ### Rebase: poner tus commits encima
 
@@ -489,7 +501,7 @@ La [[revision-codigo|revisión de código]] (*code review*) es que otra persona 
 - **¿Mete algo que no debe?** Una contraseña, un archivo de pesos, una [[dependencia]] nueva sin razón.
 - **En ML, además:** ¿cambia el preprocesamiento? Si cambia en el gateway y no en el entrenamiento, el modelo recibe entradas distintas de las que vio al aprender: el [[training-serving-skew]].
 
-Lo que puede revisar una máquina, lo revisa una máquina. En cada PR corren solas las pruebas automáticas, la [[ci|integración continua]] (CI) de la lección siguiente; en C01, las 26 pruebas automáticas (*tests*) del gateway. La persona se concentra en lo que la máquina no ve.
+Lo que puede revisar una máquina, lo revisa una máquina. En cada PR corren solas las pruebas automáticas, la [[ci|integración continua]] (CI) de la lección siguiente; en Alba, las 26 pruebas automáticas (*tests*) del gateway. La persona se concentra en lo que la máquina no ve.
 
 :::diagrama git-camino-cambio
 El camino de un cambio en un equipo. Toca cada caja para ver por qué está ahí, o usa «Recorrer» para seguir un cambio que entra y uno que se detiene en la revisión.
@@ -508,7 +520,7 @@ No todo lo que hay en la carpeta del proyecto debe entrar al historial. Lo que c
 - **`.venv/`**: el [[entorno-virtual|entorno virtual]] con las librerías instaladas. Se reconstruye en cualquier máquina a partir del [[lock-file|lock file]], que sí se versiona.
 - **`__pycache__/`**: archivos que Python genera solo para arrancar más rápido.
 - **`.env`**: el [[archivo-env|archivo .env]], con ajustes del programa y muchas veces con contraseñas (la lección de configuración lo presenta).
-- **Pesos**: `*.pt` (el formato de PyTorch), `*.onnx` y `model.plan` (el modelo exportado para servirlo: [[onnx|ONNX]] y el [[engine-tensorrt|engine de TensorRT]] de la estación 5). La Ronda lo dice de C01: «`model.plan` no se versiona en git».
+- **Pesos**: `*.pt` (el formato de PyTorch), `*.onnx` y `model.plan` (el modelo exportado para servirlo: [[onnx|ONNX]] y el [[engine-tensorrt|engine de TensorRT]], de la lección «Export, engine y paridad»). Alba, por ejemplo, no versiona su `model.plan` en Git.
 - **Datos**: fotos, CSV, Parquet.
 
 El archivo [[gitignore|.gitignore]], en la raíz del repositorio, lista patrones de lo que Git debe hacer como que no existe. Una línea que termina en `/` ignora una carpeta entera; con el [[comodin|comodín]] `*`, `*.pyc` ignoraría todo lo que termine en `.pyc`. `git check-ignore -v` dice qué línea ignora a cada archivo.
@@ -551,17 +563,30 @@ Borrar un archivo en un commit nuevo no lo saca de la historia: cualquiera que c
 
 ### Archivos grandes: por qué los pesos no van en Git
 
-Git guarda cada versión completa de cada archivo, y cada `clone` baja toda la historia. Con código no importa: un archivo de Python pesa kilobytes y se comprime muy bien. Con los pesos de un modelo, sí.
+Git guarda cada versión completa de cada archivo, y cada `clone` baja toda la historia. Con código no importa: un archivo de Python pesa kilobytes y se comprime muy bien. Con los pesos de un modelo, sí. Lo que pesa esa historia sale de tres multiplicaciones:
 
-:::cuenta Los pesos de C01 dentro de Git, dos años
-Un checkpoint de la ResNet-50 en FP32 // 24.5 M parámetros con su capa final de 500 categorías, 4 bytes cada uno | 24.5 M × 4 bytes | ≈ 98 MB
-Versiones // un fine-tune al mes, durante dos años | 12 × 2 | 24
-El historial // los pesos casi no se comprimen: son números que parecen al azar | 24 × 98 MB | ≈ 2.35 GB
-Lo que baja cada clone // una persona nueva, o CI | toda la historia | ≈ 2.35 GB
+:::formula Lo que pesa la historia de los pesos
+s = w × d
+V = v × a
+H = V × s
+- w: los parámetros del modelo
+- d: los bytes de cada parámetro (4 en FP32)
+- s: lo que pesa una versión de los pesos, en MB
+- v: las versiones nuevas por año
+- a: los años de historia
+- V: las versiones guardadas
+- H: lo que pesa el historial de ese archivo, en MB; es también lo que baja cada clone
+:::
+
+:::cuenta Los pesos de Alba dentro de Git, dos años
+Una versión \(s\) // la ResNet-50 de Alba en FP32: 24.5 millones de parámetros con su capa final de 500 categorías, 4 bytes cada uno | \(s = w × d\) = 24.5 millones × 4 bytes | ≈ 98 MB
+Versiones \(V\) // un fine-tune al mes (\(v\) = 12) durante dos años (\(a\) = 2) | \(V = v × a\) = 12 × 2 | 24
+El historial \(H\) // los pesos casi no se comprimen: son números que parecen al azar | \(H = V × s\) = 24 × 98 MB | ≈ 2.35 GB
+Lo que baja cada clone // una persona nueva, o CI: toda la historia | \(H\) | ≈ 2.35 GB
 = Para usar los 98 MB de los pesos de hoy, cada clone baja 24 veces más. Y la historia nunca adelgaza: borrar el archivo no borra sus versiones.
 :::
 
-GitHub, además, pone límites (según su documentación, en noviembre de 2026): avisa cuando subes un archivo de más de 50 MiB, rechaza los de más de 100 MiB y recomienda que el repositorio completo pese idealmente menos de 1 GB, y de preferencia menos de 5 GB. Los ≈ 2.35 GB de la cuenta ya se pasan del primero. Un MiB son 1,048,576 bytes (2²⁰), un poco más que un MB (1,000,000), así que los 98 MB de C01 son 98,000,000 ÷ 1,048,576 ≈ 93.5 MiB: entrarían, con aviso. Los pesos de casi cualquier LLM, no.
+GitHub, además, pone límites (según su documentación, en noviembre de 2026): avisa cuando subes un archivo de más de 50 MiB, rechaza los de más de 100 MiB y recomienda que el repositorio completo pese idealmente menos de 1 GB, y de preferencia menos de 5 GB. Los ≈ 2.35 GB de la cuenta ya se pasan del primero. Un MiB son 1,048,576 bytes (2²⁰), un poco más que un MB (1,000,000), así que los pesos de Alba, \(s\) = 98 MB = 98,000,000 bytes, son 98,000,000 ÷ 1,048,576 ≈ 93.5 MiB: entrarían, con aviso. Los pesos de casi cualquier LLM, no.
 
 [[git-lfs|Git LFS]] (*Large File Storage*, almacén de archivos grandes) es una extensión de Git para estos archivos. El repositorio guarda, en lugar del archivo, un **puntero**: un texto de tres líneas con el hash SHA-256 del archivo y su tamaño. El archivo de verdad vive en un servidor aparte, y Git LFS lo baja solo cuando pides esa versión. Ojo: ese servidor sí guarda todas las versiones, y GitHub las cobra aparte. En noviembre de 2026, el plan gratuito incluye 10 GiB de almacenamiento y 10 GiB de descargas al mes, y cada archivo puede pesar hasta 2 GB (5 GB en el plan más caro).
 
@@ -599,9 +624,9 @@ git add .gitattributes
 Prueba con un LLM chico: 16,000 MB (unos 8 mil millones de parámetros en BF16) y una versión al mes. ¿Qué pasa con el límite de GitHub?
 :::
 
-LFS resuelve el tamaño, pero en un sistema de ML los datos y los pesos suelen ir mejor en otro lado: en [[object-storage|object storage]] (como S3), en rutas que nunca se reescriben, y en Git solo una referencia con su hash. La Ronda (M09) lo resume: «Git versiona tu código; nada versiona tus datos a menos que lo diseñes». DVC, por ejemplo, guarda en Git un archivo chico con el hash y deja los datos en S3; lakeFS da ramas y commits sobre el object storage mismo. Cómo se versionan los datos, el [[versionado-datos|versionado de datos]], y cómo se sigue de dónde salió cada cosa, el [[linaje]], es la estación 2 del Dojo.
+LFS resuelve el tamaño, pero en un sistema de ML los datos y los pesos suelen ir mejor en otro lado: en [[object-storage|object storage]] (como S3), en rutas que nunca se reescriben, y en Git solo una referencia con su hash. Dicho corto: Git versiona tu código; nada versiona tus datos a menos que lo diseñes. DVC, por ejemplo, guarda en Git un archivo chico con el hash y deja los datos en S3; lakeFS da ramas y commits sobre el object storage mismo. Cómo se versionan los datos, el [[versionado-datos|versionado de datos]], y cómo se sigue de dónde salió cada cosa, el [[linaje]], lo ves en la lección «Versionado y linaje».
 
-## Tags, revert y la trazabilidad de C01 {Tags, revert and C01's traceability}
+## Tags, revert y la trazabilidad de Alba {Tags, revert and Alba's traceability}
 
 ### Tags: un nombre que no se mueve
 
@@ -657,19 +682,19 @@ La regla: **revert para lo que ya se compartió; reset solo para tu trabajo loca
 Casi nunca de inmediato. Git anota en el **reflog** (*reference log*) cada lugar al que apuntó HEAD, y los commits que quedaron sin rama siguen en `.git` hasta que una limpieza los borra: por omisión, el reflog los recuerda 30 días, y pasado ese plazo la siguiente limpieza (`git gc`, que Git corre solo de vez en cuando) ya puede borrarlos. `git reflog` los lista, y `git branch rescate 6dcfb7f` los recupera con una rama nueva. Lo que sí se pierde para siempre con `reset --hard` son los cambios que nunca entraron a un commit.
 :::
 
-### La trazabilidad de C01
+### La trazabilidad de Alba
 
 Ahora puedes contestar la primera pregunta de la lección: ¿qué código exacto corre en producción?
 
-En C01, cada vez que un cambio entra a `main`, CI construye la imagen del gateway (la imagen de un [[contenedor]], el paquete con el programa y todo lo que necesita para correr) y la nombra con el commit: `TAG=$(git rev-parse --short=7 HEAD)` da `3f9c2ab`, y la imagen se llama `classifier-gateway:3f9c2ab`. Nunca `:latest`, que cambia de contenido cada vez que alguien sube otra imagen. Con ese nombre, `git show 3f9c2ab` enseña el código exacto, y `git log 3f9c2ab..8d41e07` (con `8d41e07` como ejemplo de la versión nueva) lista todo lo que cambió entre dos versiones. La imagen tiene además su propia huella, su [[digest-imagen|digest]], que ves en la estación 7.
+En Alba, cada vez que un cambio entra a `main`, CI construye la imagen del gateway (la imagen de un [[contenedor]], el paquete con el programa y todo lo que necesita para correr) y la nombra con el commit: `TAG=$(git rev-parse --short=7 HEAD)` da `3f9c2ab`, y la imagen se llama `classifier-gateway:3f9c2ab`. Nunca `:latest`, que cambia de contenido cada vez que alguien sube otra imagen. Con ese nombre, `git show 3f9c2ab` enseña el código exacto, y `git log 3f9c2ab..8d41e07` (con `8d41e07` como ejemplo de la versión nueva) lista todo lo que cambió entre dos versiones. La imagen tiene además su propia huella, su [[digest-imagen|digest]], que ves en la lección «Empaquetado con Docker».
 
-Con el modelo pasa lo mismo, con más ingredientes. La Ronda lo dice así: «Cada modelo registrado guarda tres punteros: snapshot de datos, commit de código y digest del contenedor de entrenamiento». El [[snapshot]] es la foto fija de los datos con que se entrenó (por ejemplo, `ds-2026-09-01`); el commit, el código de entrenamiento; el digest, el entorno exacto donde corrió. El lugar donde se guardan los modelos con esos punteros es el [[registro-modelos|registro de modelos]], de la estación 4. Con los tres, cualquiera puede contestar de dónde salió `resnet50-2026-10-01`, y volver a entrenarlo.
+Con el modelo pasa lo mismo, con más ingredientes. En Alba, cada modelo registrado guarda tres punteros: el snapshot de datos, el commit de código y el digest del contenedor de entrenamiento. El [[snapshot]] es la foto fija de los datos con que se entrenó (por ejemplo, `ds-2026-09-01`); el commit, el código de entrenamiento; el digest, el entorno exacto donde corrió. El lugar donde se guardan los modelos con esos punteros es el [[registro-modelos|registro de modelos]], de la lección «Gate de evaluación y registry». Con los tres, cualquiera puede contestar de dónde salió `resnet50-2026-10-01`, y volver a entrenarlo.
 
 :::diagrama git-trazabilidad
 Del modelo que responde en producción hacia atrás, hasta el código, los datos y el entorno que lo produjeron. Usa «Recorrer» para seguir la pregunta «¿de dónde salió?» y la vuelta a la versión de ayer.
 :::
 
-Hay una trampa. Herramientas como MLflow, que anotan cada entrenamiento, guardan solas el commit de donde corrió el script. Pero si cambiaste el script y no hiciste commit, anotan el commit de antes: la Ronda (M10) lo llama una «falsa tranquilidad», porque el código que produjo ese modelo no existe en Git. La defensa es entrenar solo con el árbol limpio. `git status --porcelain` imprime lo mismo que `--short`, en un formato pensado para programas; si no imprime nada, no hay cambios sin commit:
+Hay una trampa. Herramientas como MLflow, que anotan cada entrenamiento, guardan solas el commit de donde corrió el script. Pero si cambiaste el script y no hiciste commit, anotan el commit de antes: es una falsa tranquilidad, porque el código que produjo ese modelo no existe en Git. La defensa es entrenar solo con el árbol limpio. `git status --porcelain` imprime lo mismo que `--short`, en un formato pensado para programas; si no imprime nada, no hay cambios sin commit:
 
 ```bash
 git init -q entrenamiento && cd entrenamiento
@@ -688,7 +713,7 @@ porcelain vacío: árbol limpio, se puede entrenar
 árbol sucio: el pipeline se niega a entrenar
 ```
 
-`test -z` es verdad si el texto está vacío. El pipeline de C01 hace esa revisión antes de entrenar a un candidato (un modelo nuevo que aspira a producción): si hay cambios sin commit, falla.
+`test -z` es verdad si el texto está vacío. El pipeline de Alba hace esa revisión antes de entrenar a un candidato (un modelo nuevo que aspira a producción): si hay cambios sin commit, falla.
 
 ## Cómo trabaja un equipo: trunk-based, monorepo y GitOps {How a team works: trunk-based, monorepo and GitOps} [extra]
 
@@ -698,13 +723,13 @@ Git da las piezas. Cómo se usan en un equipo es una decisión, y de estas tres 
 
 En el [[trunk-based|desarrollo trunk-based]] (*trunk-based development*, «sobre el tronco»), todos integran a `main`, el tronco, seguido: las ramas viven horas o uno o dos días, y cada PR es chico. `main` siempre está lista para publicarse. Lo que aún no se termina entra apagado detrás de una [[feature-flag|feature flag]], un interruptor de la configuración que lo deja oculto hasta que se prende.
 
-**Gitflow**, el modelo que Vincent Driessen publicó en 2010, usa ramas largas: `main` con lo publicado, `develop` con lo que viene, y ramas `feature/`, `release/` y `hotfix/` que salen de ellas y vuelven. Sirve para software que se publica por versiones numeradas, como una app que pasa por la tienda o una librería. El mismo Driessen agregó en 2020 una nota a su artículo: para una app web que se entrega todo el tiempo, recomienda algo más simple. Para un servicio que se despliega varias veces al día, como el gateway de C01, es pesado: las ramas largas se separan, y cada merge grande trae conflictos grandes.
+**Gitflow**, el modelo que Vincent Driessen publicó en 2010, usa ramas largas: `main` con lo publicado, `develop` con lo que viene, y ramas `feature/`, `release/` y `hotfix/` que salen de ellas y vuelven. Sirve para software que se publica por versiones numeradas, como una app que pasa por la tienda o una librería. El mismo Driessen agregó en 2020 una nota a su artículo: para una app web que se entrega todo el tiempo, recomienda algo más simple. Para un servicio que se despliega varias veces al día, como el gateway de Alba, es pesado: las ramas largas se separan, y cada merge grande trae conflictos grandes.
 
-C01 trabaja trunk-based: ramas cortas, PR con revisión y CI, y `main` siempre desplegable.
+Alba trabaja trunk-based: ramas cortas, PR con revisión y CI, y `main` siempre desplegable.
 
 ### Monorepo contra varios repositorios
 
-Un [[monorepo]] es un solo repositorio con varios proyectos: en C01 serían el gateway, el código de entrenamiento, el preprocesamiento compartido y la infraestructura. La alternativa es un repositorio por proyecto (a veces se le dice *polyrepo*).
+Un [[monorepo]] es un solo repositorio con varios proyectos: en Alba serían el gateway, el código de entrenamiento, el preprocesamiento compartido y la infraestructura. La alternativa es un repositorio por proyecto (a veces se le dice *polyrepo*).
 
 | | Monorepo | Un repo por proyecto |
 |---|---|---|
@@ -713,11 +738,11 @@ Un [[monorepo]] es un solo repositorio con varios proyectos: en C01 serían el g
 | Lo que cuesta | El repo crece, y CI tiene que correr solo lo que cambió | Cada equipo decide solo, pero coordinar es más trabajo |
 | Permisos | Más gruesos: todos ven todo | Cada repo con los suyos |
 
-En ML el monorepo tiene un premio concreto. La Ronda pide para C01 un solo paquete de preprocesamiento que usen el entrenamiento y el gateway. En un monorepo, un cambio al preprocesamiento entra a los dos en el mismo commit, y el training-serving skew no tiene por dónde colarse. Google guarda casi todo su código en un solo repositorio gigante, con un sistema propio en lugar de Git.
+En ML el monorepo tiene un premio concreto. Alba usa un solo paquete de preprocesamiento, `preprocess.py`, en el entrenamiento y en el gateway. En un monorepo, un cambio al preprocesamiento entra a los dos en el mismo commit, y el training-serving skew no tiene por dónde colarse. Google guarda casi todo su código en un solo repositorio gigante, con un sistema propio en lugar de Git.
 
 ### GitOps: el clúster lee el repositorio
 
-C01 corre en Kubernetes, el sistema de [[orquestacion|orquestación]] que decide cuántas copias de cada programa correr y en qué máquinas (lo ves a fondo en la estación 9). Kubernetes se maneja con archivos de texto en [[yaml|YAML]] llamados **manifests**, que describen lo que debe correr: qué imagen, cuántas copias, con qué memoria.
+Alba corre en Kubernetes, el sistema de [[orquestacion|orquestación]] que decide cuántas copias de cada programa correr y en qué máquinas (lo ves a fondo en la lección «Kubernetes»). Kubernetes se maneja con archivos de texto en [[yaml|YAML]] llamados **manifests**, que describen lo que debe correr: qué imagen, cuántas copias, con qué memoria.
 
 En [[gitops|GitOps]] (el nombre lo puso la empresa Weaveworks en 2017), esos manifests viven en un repositorio, y un programa dentro del clúster, Argo CD o Flux (dos proyectos de la CNCF, la fundación que también cuida Kubernetes), compara sin parar lo que dice el repositorio con lo que corre de verdad y aplica la diferencia. Las consecuencias:
 
@@ -726,7 +751,7 @@ En [[gitops|GitOps]] (el nombre lo puso la empresa Weaveworks en 2017), esos man
 - **La historia del repositorio es la historia de producción**: quién desplegó qué, cuándo y quién lo aprobó.
 - **Un cambio a mano no dura.** Si alguien cambia el clúster sin pasar por Git, el clúster ya no coincide con el repositorio (*configuration drift*, deriva de configuración; no es el [[drift]] de los datos, aunque comparta la palabra). Si además de la sincronización automática está prendida la autorreparación (*self-heal*, apagada por omisión), Argo CD lo regresa solo a lo que dice Git; si no, lo marca como distinto y lo pisa en la siguiente sincronización.
 
-Así se ve, en pequeño, el repositorio de despliegue de C01 (`sed -i` cambia un texto dentro del archivo; en macOS se escribe `sed -i ''`, y `8d41e07` es un commit de ejemplo):
+Así se ve, en pequeño, el repositorio de despliegue de Alba (`sed -i` cambia un texto dentro del archivo; en macOS se escribe `sed -i ''`, y `8d41e07` es un commit de ejemplo):
 
 ```bash
 git init -q despliegue && cd despliegue         # el repo que Argo CD vigila
@@ -788,21 +813,21 @@ A medianoche alguien cambia la imagen directo en el clúster para salir del prob
 
 ## En la vida real {In real life} [extra]
 
-### C01: la noche del timeout
+### Alba: la noche del timeout
 
-Así contestaría C01 el martes de la introducción. La historia es un ejemplo armado con las piezas de la Ronda, no un incidente real.
+Así contestaría Alba el martes de la introducción. La historia es un ejemplo armado con las piezas de su sistema, no un incidente real.
 
 A las 23:05 suena la alerta: el gateway responde errores 504 (el [[codigo-estado|código de estado]] de «me cansé de esperar»). La primera pregunta, qué corre, se contesta en el repositorio de despliegue: desde las 22:40 pide `classifier-gateway:8d41e07`, y ayer pedía `3f9c2ab`. La segunda, qué cambió, la contesta `git log 3f9c2ab..8d41e07`: tres commits, y uno se llama «Ajusta el timeout». La tercera, cómo volver: un revert en el repositorio de despliegue, aprobado en dos minutos. Argo CD lo aplica y el clúster vuelve a la imagen de ayer, que ya existía. Rollback primero, investigar después.
 
 A la mañana siguiente, el arreglo de verdad entra por PR al gateway, con una prueba que falla si el timeout queda por debajo de lo que tarda Triton en el [[p99]] (el tiempo que no pasa el 99 % de las requests). Nada se perdió: el commit malo, su revert y el arreglo están en la historia, con autor, hora y quién los aprobó.
 
-### C10 y los modelos de Hugging Face
+### Un LLM propio y los modelos de Hugging Face
 
-Hugging Face, el sitio donde se publican modelos abiertos, guarda cada modelo como un repositorio de Git, con los pesos en archivos grandes fuera del historial normal: primero con Git LFS y, desde 2025, con su propio sistema, Xet, que sigue la misma idea. Su rama `main` puede cambiar: el dueño sube pesos nuevos y el mismo nombre ya es otro modelo. Por eso la Ronda (M15) pide fijar «la revisión exacta (el commit del repo del hub, no "main")»: las librerías aceptan una revisión, y un servidor como el de C10, que sirve un LLM a varios equipos, carga siempre ese commit.
+Hugging Face, el sitio donde se publican modelos abiertos, guarda cada modelo como un repositorio de Git, con los pesos en archivos grandes fuera del historial normal: primero con Git LFS y, desde 2025, con su propio sistema, Xet, que sigue la misma idea. Su rama `main` puede cambiar: el dueño sube pesos nuevos y el mismo nombre ya es otro modelo. Por eso, quien sirve su propio LLM fija la revisión exacta: el commit del repositorio en Hugging Face, no `main`. Las librerías aceptan una revisión, y un servidor que sirve un LLM a varios equipos carga siempre ese commit.
 
 ### Los datos también apuntan al código
 
-En M09, la tarjeta de un snapshot de datos dice de qué código salió: `"code": {"repo": "ml-catalogo", "commit": "4be1d0a"}`. Si el dataset trae un error, se sabe exactamente qué versión del código que lo armó hay que revisar. Y en el Dojo, la primera práctica de la estación 1 deja los datos en un S3 local, guarda en Git el archivo chico de DVC con su hash y amarra todo con un tag, `dataset-v1`.
+En Alba, la tarjeta de un snapshot de datos dice de qué código salió: `"code": {"repo": "ml-catalogo", "commit": "4be1d0a"}`. Si el dataset trae un error, se sabe exactamente qué versión del código que lo armó hay que revisar. Y su primer dataset queda amarrado con un tag de Git, `dataset-v1`: los datos viven en S3, y en Git queda el archivo chico de DVC con su hash.
 
 ### Uber, 2016: una llave en un repositorio
 
@@ -834,6 +859,7 @@ Resuélvelos antes de abrir la solución. Los que tienen comandos los puedes com
 - (b) **Commit de merge**: cada rama tiene commits que la otra no; el commit nuevo tiene dos padres.
 - (c) **Fast-forward** otra vez, con `git merge` en tu terminal: después del rebase, tus commits quedaron encima del último de `main`, como si hubieras empezado hoy. Por eso muchos equipos hacen rebase antes de unir. (El botón «Create a merge commit» de GitHub crea un commit de merge siempre, aunque se pudiera adelantar.)
 ? [medio] Un archivo `respuesta.py` contiene una sola línea, `TOP_K = 5`, con su salto de línea al final. ¿Qué bytes exactos le pasa Git a SHA-1 para calcular su id? Comprueba el id con Python.
+- La regla de la sección 2: \(text{id} = text{SHA-1}(text{encabezado} + text{contenido})\), con el encabezado `blob`, un espacio, el tamaño y un byte en cero.
 - El contenido son 10 bytes: los 9 caracteres de `TOP_K = 5` más el salto de línea.
 - Git calcula el SHA-1 de `blob 10`, un byte en cero y los 10 bytes: `b"blob 10\0TOP_K = 5\n"`.
 - Con la función `id_git` de la sección 2, `id_git("blob", b"TOP_K = 5\n")` da `1e0b1ade696068e087656f8ae5e859fe92aef3b8`, lo mismo que `git hash-object respuesta.py`.
@@ -844,15 +870,16 @@ Resuélvelos antes de abrir la solución. Los que tienen comandos los puedes com
 - `git add config.py` para marcarlo resuelto y `git commit` para terminar el merge.
 - Antes de subir, corre las pruebas: un merge resuelto a mano es código nuevo que nadie ha probado.
 ? [medio] Un repositorio tiene 50,000 objetos (commits, árboles y blobs). Con prefijos de 7 caracteres, ¿qué tan probable es que al menos dos empiecen igual? ¿Y con 8?
-- Parejas: 50,000 × 49,999 ÷ 2 = **1,249,975,000**.
-- 7 caracteres: 16⁷ = 268,435,456. Parejas ÷ combinaciones ≈ 4.66, y 1 − e^(−4.66) ≈ **99 %**: es casi seguro que hay un choque.
-- 8 caracteres: 16⁸ = 4,294,967,296. 1,249,975,000 ÷ 4,294,967,296 ≈ 0.291, y 1 − e^(−0.291) ≈ **25 %**.
+- Las fórmulas de la sección 2: \(M = 16^k\), \(P = n × (n − 1)/2\) y \(Pr ≈ 1 − e^{−P/M}\), con \(n\) = 50,000.
+- Parejas: \(P\) = 50,000 × 49,999 ÷ 2 = **1,249,975,000**.
+- 7 caracteres: \(M\) = 16⁷ = 268,435,456. \(P/M\) = 1,249,975,000 ÷ 268,435,456 ≈ 4.66, y \(Pr ≈ 1 − e^{−4.66}\) ≈ **99 %**: es casi seguro que hay un choque.
+- 8 caracteres: \(M\) = 16⁸ = 4,294,967,296. \(P/M\) = 1,249,975,000 ÷ 4,294,967,296 ≈ 0.291, y \(Pr ≈ 1 − e^{−0.291}\) ≈ **25 %**.
 - Por eso Git alarga solo los ids que chocan, y en repositorios grandes muestra más de 7. Un script que corta siempre a 7 puede dar un id ambiguo; `git rev-parse --short=7` da 7 **o más**, los que hagan falta.
-? [reto] Son las 23:00. El repositorio de despliegue de C01 (con GitOps) tiene, del más nuevo al más viejo: `b41c` «Gateway 8d41e07», `a7e2` «Sube las réplicas a 6» (las copias del gateway que corren a la vez) y `9d03` «Gateway 3f9c2ab». Desde `b41c`, los errores 504 se dispararon. Una persona propone `git reset --hard 9d03` y `git push --force`. ¿Qué haces tú, y por qué?
+? [reto] Son las 23:00. El repositorio de despliegue de Alba (con GitOps) tiene, del más nuevo al más viejo: `b41c` «Gateway 8d41e07», `a7e2` «Sube las réplicas a 6» (las copias del gateway que corren a la vez) y `9d03` «Gateway 3f9c2ab». Desde `b41c`, los errores 504 se dispararon. Una persona propone `git reset --hard 9d03` y `git push --force`. ¿Qué haces tú, y por qué?
 - El problema llegó con `b41c`, la imagen nueva del gateway. `a7e2`, las réplicas, es un cambio aparte que funcionaba.
 - `reset --hard 9d03` se llevaría también `a7e2`, y el push con `--force` reescribiría `main` del repositorio de despliegue: los demás quedan con una historia que ya no existe, y se pierde el registro de qué pasó.
 - Lo correcto es **`git revert b41c`** en un PR, aprobado rápido. Deshace solo la imagen nueva, conserva las 6 réplicas, deja escrito el rollback y se sube con un push normal.
-- Argo CD ve el cambio y regresa el clúster a `3f9c2ab`, que ya existe en el [[registro-imagenes|registro de imágenes]], el almacén de imágenes de la estación 8. Al día siguiente: `git log 3f9c2ab..8d41e07` en el gateway para encontrar la causa, y un PR con el arreglo y una prueba.
+- Argo CD ve el cambio y regresa el clúster a `3f9c2ab`, que ya existe en el [[registro-imagenes|registro de imágenes]], el almacén de imágenes que ves en la lección «CI/CD y registro de imágenes». Al día siguiente: `git log 3f9c2ab..8d41e07` en el gateway para encontrar la causa, y un PR con el arreglo y una prueba.
 ? [reto] MLflow dice que el modelo `resnet50-2026-10-01` salió del commit `c3f2fc2`. Lo reentrenas desde ese commit con el mismo snapshot de datos y la misma imagen, y el resultado es distinto: el [[top-k-accuracy|top-1]] en el [[golden-set|golden set]] baja 2 puntos. (a) ¿Cuál es la causa más probable que tiene que ver con Git? (b) ¿Cómo lo confirmas? (c) ¿Qué cambias para que no vuelva a pasar?
 - (a) Que el modelo original se entrenó con **cambios sin commit**: el script estaba modificado y MLflow anotó el commit de antes, `c3f2fc2`. El código que lo produjo no existe en Git.
 - (b) Busca en MLflow si la corrida guardó algo más que el commit (los parámetros, la configuración, una copia del script) y compáralo con `git show c3f2fc2:train.py`. Si el learning rate o el número de [[epoch|epochs]] no coinciden, ahí está. Descarta también lo que no es Git: la [[semilla]], y las variaciones normales de la GPU.
@@ -861,16 +888,9 @@ Resuélvelos antes de abrir la solución. Los que tienen comandos los puedes com
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
+La siguiente lección, «Pruebas y CI/CD», es lo que corre en cada PR: las pruebas, la integración continua y el despliegue. Después, «Configuración: YAML, variables de entorno y secretos» explica dónde va lo que no entra al repositorio.
 
-- **M05 · Contenedores** etiqueta la imagen con el commit (`git rev-parse --short=7 HEAD`), deja `.git` fuera de la imagen con `.dockerignore` (el `.gitignore` de las imágenes) y explica por qué cada tag debe nombrar un solo contenido para siempre.
-- **M09 · Datos** abre su sección de versionado con «Git versiona tu código; nada versiona tus datos a menos que lo diseñes», compara DVC y lakeFS, y amarra cada snapshot al commit que lo armó.
-- **M10 · MLOps** registra el commit de cada corrida, pide entrenar desde un árbol limpio, cambia los umbrales del examen de un modelo en un PR propio y despliega con GitOps: el rollback es un revert.
-- **M06 · Orquestación** y **M15 · Seguridad** vuelven a GitOps y a la regla de que el historial de Git es para siempre: sin secretos en repositorios.
-
-**En el Dojo:** la estación 1 ya usa un tag de Git (`dataset-v1`) para amarrar datos, etiquetas y código. La estación 2, «Versionado y linaje», es el resto de la historia de los datos; la 8, «CI/CD y registro de imágenes», construye la imagen con el SHA como tag, y la 10, «Rollout seguro», despliega y vuelve atrás.
-
-**En Sensei:** la siguiente lección, «Pruebas y CI/CD», es lo que corre en cada PR: las pruebas, la integración continua y el despliegue. Después, «Configuración: YAML, variables de entorno y secretos» explica dónde va lo que no entra al repositorio.
+Más adelante, «Versionado y linaje» amarra cada snapshot de datos al commit que lo armó, y «Rollout seguro» despliega con GitOps y vuelve atrás con un revert.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -897,6 +917,6 @@ Fast-forward cuando la rama de destino no avanzó desde que saliste: solo se ade
 No reescribir commits que otros ya bajaron: rebase en tu rama antes de compartirla, nunca en `main`.
 ? ¿Revert o reset para deshacer un error que ya está en `main`?
 Revert: crea un commit nuevo que lo deshace, sin reescribir la historia, y se sube con un push normal. Reset es para tu trabajo local.
-? ¿Qué tres punteros guarda cada modelo registrado de C01?
+? ¿Qué tres punteros guarda cada modelo registrado de Alba?
 El snapshot de datos, el commit del código y el digest del contenedor de entrenamiento. Con ellos se sabe de dónde salió y se puede volver a entrenar.
 :::

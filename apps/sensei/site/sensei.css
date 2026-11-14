@@ -531,7 +531,9 @@ a.tl:hover { box-shadow: 0 0 0 2px var(--accent); }
 .c-salida pre code { background: none; padding: 0; font: inherit; overflow-wrap: normal; }
 
 /* ================================================================ ecuaciones (tools/mate.mjs) y el bloque :::formula */
-.m { font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Times New Roman", Georgia, serif; font-size: 1.08em; font-style: normal; white-space: nowrap; color: var(--ink); }
+.m { font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Times New Roman", Georgia, serif; font-size: 1.08em; font-style: normal; white-space: normal; color: var(--ink); }
+/* una ecuación en línea larga puede partirse en los espacios de su texto; sus piezas (subíndices, fracciones, raíces) nunca */
+.m sub, .m sup, .m-frac, .m-raiz, .m-op-g, .m--bloque { white-space: nowrap; }
 .m i.m-v { font-style: italic; padding: 0 .04em; }
 .m .m-w, .m .m-t { font-style: normal; }
 .m .m-t { font-family: var(--sans); font-size: .86em; }

@@ -1,5 +1,5 @@
 {
-  "titulo": "Los bytes de C01 y lo que cuesta cada flecha",
+  "titulo": "Los bytes de Alba y lo que cuesta cada flecha",
   "width": 78,
   "height": 62,
   "lanes": [
@@ -10,11 +10,11 @@
   ],
   "nodes": [
     { "id": "backend", "label": "Backend", "sub": "foto de ≈ 200 KB", "kind": "client", "x": 3, "y": 4, "w": 18, "h": 8,
-      "note": "El backend del marketplace: el sistema de la empresa que llama a C01. No vive en esta VPC, pero sí en la misma región. Manda la foto de Ana en el body." },
+      "note": "El backend del marketplace: el sistema de Alba que llama al clasificador. No vive en esta VPC, pero sí en la misma región. Manda la foto de Ana en el body." },
     { "id": "alb", "label": "ALB", "sub": "≈ US$0.008 por GB", "kind": "edge", "x": 30, "y": 4, "w": 18, "h": 8,
-      "note": "El [[alb|ALB]] cobra su hora y sus [[lcu|LCU]]. Con fotos en el body gana la dimensión de bytes: 2 TB al día ≈ 83 LCU ≈ **US$503 al mes**. Es la línea más grande de la red de C01." },
+      "note": "El [[alb|ALB]] cobra su hora y sus [[lcu|LCU]]. Con fotos en el body gana la dimensión de bytes: 2 TB al día ≈ 83 LCU ≈ **US$503 al mes**. Es la línea más grande de la red de Alba." },
     { "id": "nat", "label": "NAT", "sub": "uno por zona · parches", "kind": "edge", "x": 57, "y": 4, "w": 18, "h": 8,
-      "note": "Un [[nat|NAT]] por zona, ≈ US$33 al mes cada uno más US$3.65 de su IP pública. En C01 solo pasan parches: unos 20 GB al mes, ≈ US$1." },
+      "note": "Un [[nat|NAT]] por zona, ≈ US$33 al mes cada uno más US$3.65 de su IP pública. En Alba solo pasan parches: unos 20 GB al mes, ≈ US$1." },
     { "id": "gwa", "label": "Gateway", "sub": "c6i.xlarge · 1a", "kind": "service", "x": 10, "y": 20, "w": 18, "h": 8,
       "note": "Recibe la foto, la decodifica y la vuelve un tensor FP32 de 602,112 bytes: tres veces la foto. Desde aquí, los bytes que se mueven son los del tensor." },
     { "id": "tra", "label": "Triton", "sub": "T4 · 1a", "kind": "gpu", "x": 10, "y": 36, "w": 18, "h": 8,

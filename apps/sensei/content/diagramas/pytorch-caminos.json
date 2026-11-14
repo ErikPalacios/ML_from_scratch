@@ -32,7 +32,7 @@
       "y": 20,
       "w": 18,
       "h": 9,
-      "note": "El punto de partida: la ResNet-50 de C01 como [[nn-module|nn.Module]], con su state_dict cargado y **en eval**. Todo camino captura el modelo tal como está: en modo train, la BatchNorm se captura con las estadísticas del batch."
+      "note": "El punto de partida: la ResNet-50 de Alba como [[nn-module|nn.Module]], con su state_dict cargado y **en eval**. Todo camino captura el modelo tal como está: en modo train, la BatchNorm se captura con las estadísticas del batch."
     },
     {
       "id": "compile",
@@ -54,7 +54,7 @@
       "y": 3,
       "w": 19,
       "h": 8,
-      "note": "El código compilado vale mientras sus **guardas** se cumplan: si llega otra forma, recompila. En la Ronda (M08), la primera llamada de la ResNet-50 en CPU tardó ≈ 17 s, y cada proceso nuevo la vuelve a pagar."
+      "note": "El código compilado vale mientras sus **guardas** se cumplan: si llega otra forma, recompila. En las mediciones de Alba, la primera llamada de la ResNet-50 en CPU tardó ≈ 17 s, y cada proceso nuevo la vuelve a pagar."
     },
     {
       "id": "script",
@@ -65,7 +65,7 @@
       "y": 16,
       "w": 20,
       "h": 8,
-      "note": "[[torchscript|TorchScript]], el camino viejo. `trace` graba lo que pasó con una entrada de ejemplo y pierde los `if` que dependen de los datos; `script` lee el código. Desde 2025, la documentación de PyTorch lo marca como obsoleto. El exportador viejo a ONNX, el que usa C01, traza con él."
+      "note": "[[torchscript|TorchScript]], el camino viejo. `trace` graba lo que pasó con una entrada de ejemplo y pierde los `if` que dependen de los datos; `script` lee el código. Desde 2025, la documentación de PyTorch lo marca como obsoleto. El exportador viejo a ONNX, el que usa Alba, traza con él."
     },
     {
       "id": "pt",
@@ -87,7 +87,7 @@
       "y": 35,
       "w": 20,
       "h": 8,
-      "note": "[[torch-export|torch.export]] captura el modelo **completo** antes de producción, o falla. Declaras qué dimensiones cambian (el batch, de 1 a 32) y regresa un programa con la gráfica, los pesos y esas formas. En M08, la Ronda lo llama con un ejemplo de batch 2 para compilar con AOTInductor."
+      "note": "[[torch-export|torch.export]] captura el modelo **completo** antes de producción, o falla. Declaras qué dimensiones cambian (el batch, de 1 a 32) y regresa un programa con la gráfica, los pesos y esas formas. Alba lo llama con un ejemplo de batch 2 para compilar con AOTInductor."
     },
     {
       "id": "pt2",
@@ -109,7 +109,7 @@
       "y": 29,
       "w": 19,
       "h": 8,
-      "note": "[[onnx|ONNX]] es un formato de modelo que leen muchas herramientas, no solo PyTorch. Desde PyTorch 2.9, `torch.onnx.export` parte de `torch.export` por omisión. C01 todavía usa el exportador viejo (`dynamo=False`), que traza con TorchScript. Lo ves en la estación de exportar."
+      "note": "[[onnx|ONNX]] es un formato de modelo que leen muchas herramientas, no solo PyTorch. Desde PyTorch 2.9, `torch.onnx.export` parte de `torch.export` por omisión. Alba todavía usa el exportador viejo (`dynamo=False`), que traza con TorchScript. Lo ves a fondo en la lección «Export, engine y paridad»."
     },
     {
       "id": "trt",
@@ -120,7 +120,7 @@
       "y": 53,
       "w": 19,
       "h": 8,
-      "note": "De ONNX, C01 construye un [[engine-tensorrt|engine de TensorRT]] en FP16, hecho para su GPU. Antes de publicarlo, la paridad lo compara con el modelo en FP32: el top-1 tiene que coincidir en 99.5 % o más."
+      "note": "De ONNX, Alba construye un [[engine-tensorrt|engine de TensorRT]] en FP16, hecho para su GPU. Antes de publicarlo, la paridad lo compara con el modelo en FP32: el top-1 tiene que coincidir en 99.5 % o más."
     },
     {
       "id": "triton",
@@ -131,7 +131,7 @@
       "y": 53,
       "w": 20,
       "h": 8,
-      "note": "El servidor de modelos de C01 carga el engine, corre tres batches de 32 de warmup y solo entonces se declara listo. Es el camino de C01: sin PyTorch en el camino de cada request."
+      "note": "El servidor de modelos de Alba carga el engine, corre tres batches de 32 de warmup y solo entonces se declara listo. Es el camino de Alba: sin PyTorch en el camino de cada request."
     }
   ],
   "edges": [
@@ -278,8 +278,8 @@
   ],
   "flows": [
     {
-      "id": "c01",
-      "label": "El camino de C01",
+      "id": "alba",
+      "label": "El camino de Alba",
       "steps": [
         {
           "nodes": [
@@ -298,7 +298,7 @@
             "modelo>script",
             "script>onnx"
           ],
-          "text": "C01 exporta con `torch.onnx.export` y **dynamo=False**, el exportador viejo: traza el modelo con TorchScript, con un ejemplo de batch 2, y escribe un **ONNX** con el batch dinámico de 1 a 32."
+          "text": "Alba exporta con `torch.onnx.export` y **dynamo=False**, el exportador viejo: traza el modelo con TorchScript, con un ejemplo de batch 2, y escribe un **ONNX** con el batch dinámico de 1 a 32."
         },
         {
           "nodes": [
@@ -310,7 +310,7 @@
             "modelo>export",
             "export>onnx"
           ],
-          "text": "Desde PyTorch 2.9, el exportador por omisión parte de **torch.export**: es el plan de migración que la Ronda deja anotado para C01."
+          "text": "Desde PyTorch 2.9, el exportador por omisión parte de **torch.export**: es el plan de migración que el equipo de Alba tiene anotado."
         },
         {
           "nodes": [
@@ -356,7 +356,7 @@
           "edges": [
             "compile>compilado"
           ],
-          "text": "La primera llamada compila (≈ 17 s en la Ronda) y cada forma nueva recompila. Sin warmup, eso lo paga el primer usuario de cada pod."
+          "text": "La primera llamada compila (≈ 17 s en la medición de Alba) y cada forma nueva recompila. Sin warmup, eso lo paga el primer usuario de cada pod."
         },
         {
           "nodes": [

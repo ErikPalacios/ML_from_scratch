@@ -32,7 +32,7 @@
       "y": 19,
       "w": 17,
       "h": 8,
-      "note": "El [[state-dict|state_dict]] de C01: 320 tensores con nombre, sin la receta del modelo. Se lee con `torch.load(ruta, map_location=\"cpu\", weights_only=True)` y entra directo a `load_state_dict`: la arquitectura no sale del archivo."
+      "note": "El [[state-dict|state_dict]] de la ResNet-50 de Alba: 320 tensores con nombre, sin la receta del modelo. Se lee con `torch.load(ruta, map_location=\"cpu\", weights_only=True)` y entra directo a `load_state_dict`: la arquitectura no sale del archivo."
     },
     {
       "id": "arq",
@@ -43,7 +43,7 @@
       "y": 4,
       "w": 17,
       "h": 8,
-      "note": "**Primero la arquitectura**: `resnet50(num_classes=500)`, vacía. En C01, una sola función la arma, y la usan el servidor, el export y la paridad."
+      "note": "**Primero la arquitectura**: `resnet50(num_classes=500)`, vacía. En Alba, una sola función la arma, y la usan el servidor, el export y la paridad."
     },
     {
       "id": "carga",
@@ -98,7 +98,7 @@
       "y": 37,
       "w": 16,
       "h": 8,
-      "note": "La foto de ≈ 200 KB llega con su request. Si el gateway corta a los 0.15 s, como en C01, el modelo tiene que responder antes."
+      "note": "La foto de ≈ 200 KB llega con su request. Si el gateway corta a los 0.15 s, como en Alba, el modelo tiene que responder antes."
     },
     {
       "id": "pre",
@@ -327,7 +327,7 @@
             "modelo"
           ],
           "edges": [],
-          "text": "Ahí autograd sigue prendido: la salida trae `requires_grad=True` y cada request guarda su gráfica. La Ronda (M07) lo midió."
+          "text": "Ahí autograd sigue prendido: la salida trae `requires_grad=True` y cada request guarda su gráfica."
         }
       ]
     },

@@ -1,20 +1,20 @@
 {
   "titulo": "¿Alcanzan 7 caracteres?",
-  "intro": "Con **n** objetos en el repositorio (commits, árboles y blobs) y prefijos de **k** caracteres hexadecimales, ¿qué tan probable es que dos empiecen igual? Es el problema del cumpleaños: lo que crece rápido es el número de parejas. Arranca con 10,000 objetos y 7 caracteres.",
+  "intro": "Con \\(n\\) objetos en el repositorio (commits, árboles y blobs) y prefijos de \\(k\\) caracteres hexadecimales, ¿qué tan probable es que dos empiecen igual? Es el problema del cumpleaños: lo que crece rápido es el número de parejas. La calculadora aplica \\(M = 16^k\\), \\(P = n × (n − 1)/2\\) y \\(Pr ≈ 1 − e^{−P/M}\\). Arranca con 10,000 objetos y 7 caracteres.",
   "entradas": [
-    { "id": "n", "label": "Objetos en el repositorio", "min": 2, "max": 100000000, "paso": 1, "valor": 10000, "tipo": "numero" },
-    { "id": "k", "label": "Caracteres del hash corto", "min": 4, "max": 40, "paso": 1, "valor": 7 }
+    { "id": "n", "label": "Objetos en el repositorio, \\(n\\)", "min": 2, "max": 100000000, "paso": 1, "valor": 10000, "tipo": "numero" },
+    { "id": "k", "label": "Caracteres del hash corto, \\(k\\)", "min": 4, "max": 40, "paso": 1, "valor": 7 }
   ],
   "calculos": [
     { "id": "comb", "formula": "pow(16, k)" },
     { "id": "pares", "formula": "n * (n - 1) / 2" }
   ],
   "salidas": [
-    { "label": "Bits del prefijo", "formula": "4 * k", "formato": "int", "nota": "cada carácter hexadecimal vale 4 bits" },
-    { "label": "Prefijos posibles", "formula": "comb", "formato": "sci", "nota": "16 elevado a k" },
-    { "label": "Parejas de objetos", "formula": "pares", "formato": "sci", "nota": "n × (n − 1) ÷ 2" },
-    { "label": "Probabilidad de que al menos dos empiecen igual", "formula": "1 - exp(-pares / comb)", "formato": "pct", "barra": true },
-    { "label": "Probabilidad de que un objeto nuevo choque con alguno", "formula": "min(1, n / comb)", "formato": "pct", "decimales": 4 }
+    { "label": "Bits del prefijo", "formula": "4 * k", "formato": "int", "nota": "\\(4 × k\\): cada carácter hexadecimal vale 4 bits" },
+    { "label": "Prefijos posibles, \\(M\\)", "formula": "comb", "formato": "sci", "nota": "\\(M = 16^k\\)" },
+    { "label": "Parejas de objetos, \\(P\\)", "formula": "pares", "formato": "sci", "nota": "\\(P = n × (n − 1)/2\\)" },
+    { "label": "Probabilidad de que al menos dos empiecen igual, \\(Pr\\)", "formula": "1 - exp(-pares / comb)", "formato": "pct", "barra": true, "nota": "\\(Pr ≈ 1 − e^{−P/M}\\)" },
+    { "label": "Probabilidad de que un objeto nuevo choque con alguno", "formula": "min(1, n / comb)", "formato": "pct", "decimales": 4, "nota": "\\(n/M\\), como máximo 100 %: la fracción de los prefijos que ya están ocupados" }
   ],
   "nota": "Con 10,000 objetos y 7 caracteres, la probabilidad de un choque ya es ≈ 17 %; con 50,000, ≈ 99 %. Por eso Git alarga los ids que chocan y, en repositorios grandes, muestra más de 7 caracteres."
 }

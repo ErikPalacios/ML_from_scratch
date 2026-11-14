@@ -1,8 +1,8 @@
 ---
 titulo: Redes en la nube: VPC, subredes y egress
 en: Cloud networking: VPCs, subnets and egress
-subtitulo: Cómo se arma la red privada donde viven las máquinas de C01, por qué cada caja tiene la salida que tiene y cómo se convierte cada GB que se mueve en una línea de la factura.
-pregunta: Las máquinas de C01 viven en una red privada dentro de AWS. ¿Cómo se arma esa red, por dónde sale cada byte y por qué la red puede costar más que las GPUs?
+subtitulo: Cómo se arma la red privada donde viven las máquinas de Alba, por qué cada caja tiene la salida que tiene y cómo se convierte cada GB que se mueve en una línea de la factura.
+pregunta: Las máquinas de Alba viven en una red privada dentro de AWS. ¿Cómo se arma esa red, por dónde sale cada byte y por qué la red puede costar más que las GPUs?
 requisitos: red, balanceo, almacenamiento, regiones
 ---
 
@@ -10,18 +10,20 @@ requisitos: red, balanceo, almacenamiento, regiones
 En la nube, tus máquinas viven en una red privada que tú dibujas: la VPC, partida en subredes por zona. Cada byte que se mueve tiene un camino, y cada camino tiene precio: dentro de la zona es gratis, cruzar de zona cuesta, salir por el NAT o a internet cuesta más. La red no se ve en el diagrama de arquitectura, pero puede costar más que las GPUs.
 :::
 
-Cuando Ana sube la foto de sus tenis, la foto hace un viaje que ya conoces: entra por el balanceador, pasa al gateway y llega a Triton, que corre el modelo en una GPU. En la lección de red viste cómo viaja cada paquete. En la de regiones viste que C01 vive en `us-east-1`, repartido en dos zonas, `us-east-1a` y `us-east-1b`.
+Alba, la empresa que seguimos en todo el curso, es un marketplace, una tienda en línea donde cualquiera publica lo que vende: recibe ≈ 2.5 millones de publicaciones al día y le sugiere a quien vende la categoría de cada foto, entre 500 posibles. Su sistema clasifica ≈ 10 millones de fotos al día y corre en AWS, en la región `us-east-1` (Virginia), repartido en dos zonas, `us-east-1a` y `us-east-1b`.
+
+Cuando Ana sube la foto de sus tenis, la foto hace un viaje que ya conoces: entra por el balanceador, pasa al gateway (el programa de Alba que recibe la foto y la vuelve un tensor) y llega a Triton, que corre el modelo en una GPU. En la lección de red viste cómo viaja cada paquete; en la de regiones, por qué el sistema se reparte en dos zonas.
 
 Falta una pregunta: **¿dónde, exactamente, viven esas máquinas?** No están sueltas en internet. Viven en una red privada que la empresa arma dentro de AWS, con direcciones como `10.0.37.9`. Esa red tiene paredes (quién puede entrar), puertas (por dónde se sale) y atajos (caminos privados a S3). Y cada vez que un byte cruza una de esas puertas, alguien anota un cargo.
 
 Esto importa por dos razones.
 
 - **Seguridad.** El servidor de Triton no debería poder recibir una conexión de cualquier computadora del mundo. La red decide quién puede hablar con quién.
-- **Dinero.** En la nube se cobra por mover datos. Con las fotos de C01, una decisión de red mal tomada suma ≈ US$1.8k al mes, más de lo que cuestan las dos GPUs juntas (≈ US$768).
+- **Dinero.** En la nube se cobra por mover datos. Con las fotos de Alba, una sola decisión de red mal tomada (dejar que los tensores crucen de una zona a otra) suma ≈ US$1,830 al mes, más del doble de lo que cuestan sus dos GPUs juntas (≈ US$768 al mes).
 
-En esta lección vas a armar la red de C01 pieza por pieza: la VPC, las subredes, las tablas de rutas, los grupos de seguridad, el NAT y los endpoints. Después vas a ponerle precio a cada camino y, al final, vas a recorrer cada byte de C01 para escribir su factura de red.
+En esta lección vas a armar la red de Alba pieza por pieza: la VPC, las subredes, las tablas de rutas, los grupos de seguridad, el NAT y los endpoints. Después vas a ponerle precio a cada camino y, al final, vas a recorrer cada byte de Alba para escribir su factura de red.
 
-Todos los precios son de AWS en `us-east-1`, tomados de la Ronda, con «≈» porque cambian. Las ideas valen igual en Google Cloud y Azure: cambian los nombres, no el diseño.
+Todos los precios son de AWS en `us-east-1`, con «≈» porque cambian. Las ideas valen igual en Google Cloud y Azure: cambian los nombres, no el diseño.
 
 ## La VPC: tu red privada dentro de la nube {The VPC: your private network inside the cloud}
 
@@ -47,11 +49,13 @@ Ya viste esta notación en la lección de red. Se llama **[[cidr|CIDR]]** (*Clas
 - `/20` deja libres 12 bits: 2¹² = **4,096** direcciones.
 - `/24` deja libre el último byte: 2⁸ = **256** direcciones.
 
+En general, un rango `/p` tiene \( D = 2^{32 − p} \) direcciones, donde \(p\) es el número después de la diagonal.
+
 Cada bit de más en la diagonal parte el rango a la mitad. Un `/17` es la mitad de un `/16`; un `/18`, un cuarto.
 
 ¿Por qué importa el rango? Por dos razones. Primero, no se puede encoger después: si te quedas sin direcciones, agregar otro rango es trabajo y a veces implica mover máquinas. Segundo, si un día conectas tu VPC con otra (la de otro equipo, o la red de la oficina), los rangos **no pueden encimarse**: si las dos usan `10.0.0.0/16`, una dirección como `10.0.3.15` existiría en las dos redes y nadie sabría a cuál mandar el paquete. Por eso las empresas reparten los rangos con un plan: `10.0.0.0/16` para producción, `10.1.0.0/16` para pruebas, y así.
 
-En AWS, una VPC acepta rangos de `/16` (la más grande) a `/28` (16 direcciones). Para C01 se usa `10.0.0.0/16`: 65,536 direcciones, muchas más de las que hacen falta, y es justo lo que quieres.
+En AWS, una VPC acepta rangos de `/16` (la más grande) a `/28` (16 direcciones). Alba usa `10.0.0.0/16`: 65,536 direcciones, muchas más de las que hacen falta, y es justo lo que quieres.
 
 ### Subredes: la VPC partida por zona
 
@@ -61,7 +65,7 @@ Cuando creas una máquina, eliges su subred. Con eso eliges dos cosas a la vez: 
 
 Las subredes de una VPC no se enciman entre sí, y cada una cabe completa dentro del rango de la VPC. En AWS, además, cada subred aparta **5 direcciones** que no puedes usar: las 4 primeras (la de la red, que nombra a la subred entera; la del router de la VPC; la del DNS, y una reservada) y la última.
 
-El código parte la VPC de C01 en bloques `/20`. Corre tal cual con Python, sin instalar nada:
+El código parte la VPC de Alba en bloques `/20`. Corre tal cual con Python, sin instalar nada:
 
 ```python
 import ipaddress
@@ -88,9 +92,9 @@ privada-1b  10.0.48.0/20   10.0.48.0 a 10.0.63.255  usables: 4,091
 10.0.37.9 vive en ['privada-1a']
 ```
 
-C01 usa 4 de los 16 bloques. Los otros 12 quedan libres para crecer: una tercera zona, o subredes para otra cosa.
+Alba usa 4 de los 16 bloques. Los otros 12 quedan libres para crecer: una tercera zona, o subredes para otra cosa.
 
-¿Para qué 4,091 direcciones por subred, si C01 tiene 4 máquinas? Porque en Kubernetes en AWS cada [[pod|pod]] recibe, por omisión, su propia IP **de la subred**. Un pod es lo que Kubernetes arranca y mueve como una unidad: uno o varios contenedores que corren juntos, por ejemplo una copia del gateway (lo ves a fondo en la estación de Kubernetes). Un [[nodo]] con 30 pods gasta al menos 31 direcciones: una suya y una por pod. Una subred `/24` (251 usables) se acaba antes del noveno nodo así (8 × 31 = 248), y a partir de ahí los pods nuevos no arrancan. Por eso las subredes de los nodos se hacen grandes.
+¿Para qué 4,091 direcciones por subred, si Alba tiene 4 máquinas (dos del gateway y dos de Triton)? Porque en Kubernetes en AWS cada [[pod|pod]] recibe, por omisión, su propia IP **de la subred**. Un pod es lo que Kubernetes arranca y mueve como una unidad: uno o varios contenedores que corren juntos, por ejemplo una copia del gateway (lo ves a fondo en la lección «Kubernetes»). Un [[nodo]] con 30 pods gasta al menos 31 direcciones: una suya y una por pod. Una subred `/24` (251 usables) se acaba antes del noveno nodo así (8 × 31 = 248), y a partir de ahí los pods nuevos no arrancan. Por eso las subredes de los nodos se hacen grandes.
 
 :::profundo Por qué en la práctica se gastan más
 El plugin de red de AWS (el programa que le asigna su IP a cada pod) aparta IPs de reserva en cada nodo, para que un pod nuevo arranque sin esperar a que le consigan una. Esas IPs de reserva también salen de la subred, aunque ningún pod las use todavía. Por eso un nodo con 30 pods gasta más de 31 direcciones, y la `/24` se acaba aún antes.
@@ -98,21 +102,21 @@ El plugin de red de AWS (el programa que le asigna su IP a cada pod) aparta IPs 
 
 ### Subredes públicas y privadas
 
-Las cuatro subredes de C01 se llaman «pública» y «privada», y esa es la diferencia más importante de toda la red.
+Las cuatro subredes de Alba se llaman «pública» y «privada», y esa es la diferencia más importante de toda la red.
 
 Una **subred pública** es la que tiene un camino directo a internet: lo que pongas ahí puede tener una IP pública y recibir conexiones desde fuera. Una **[[subred-privada|subred privada]]** no tiene ese camino: lo que vive ahí no se alcanza desde internet, aunque quisieras. Lo que hace a una subred pública o privada no es su nombre ni su rango: es su **tabla de rutas**, que ves en la siguiente sección.
 
-La regla es simple: **en la subred pública va solo lo que tiene que recibir tráfico de internet.** En C01 eso es el balanceador ([[alb|ALB]]) y los NAT gateways, que ves más adelante. Todo lo demás, los nodos del gateway y de Triton, va en las subredes privadas. Así, aunque alguien encuentre una falla de seguridad en Triton, no puede llegar a él desde fuera: no hay camino.
+La regla es simple: **en la subred pública va solo lo que tiene que recibir tráfico de internet.** En Alba eso es el balanceador ([[alb|ALB]]) y los NAT gateways, que ves más adelante. Todo lo demás, los nodos del gateway y de Triton, va en las subredes privadas. Así, aunque alguien encuentre una falla de seguridad en Triton, no puede llegar a él desde fuera: no hay camino.
 
 :::figura redes-nube-vpc
-La VPC de C01: un rango `10.0.0.0/16` en la región `us-east-1`, partido en cuatro subredes, una pública y una privada en cada zona. Lo único que da a internet (el balanceador y los NAT) vive en las públicas.
+La VPC de Alba: un rango `10.0.0.0/16` en la región `us-east-1`, partido en cuatro subredes, una pública y una privada en cada zona. Lo único que da a internet (el balanceador y los NAT) vive en las públicas.
 :::
 
 ### La IP pública cuesta
 
 Una máquina en una subred pública puede tener una **[[ip-publica|IP pública]]**: una dirección IPv4 única en el mundo, alcanzable desde internet. Las direcciones IPv4 son escasas (2³² ≈ 4,300 millones para todo el planeta), y desde febrero de 2024 AWS cobra cada IPv4 pública: ≈ US$0.005 por hora, ≈ US$3.65 al mes cada una, la uses o no.
 
-Parece poco, y lo es, hasta que alguien crea los nodos de un cluster con IP pública «por si acaso». Cien nodos con IP pública son ≈ US$365 al mes por algo que, además, los expone. Los nodos de C01 no tienen IP pública: no la necesitan para nada.
+Parece poco, y lo es, hasta que alguien crea los nodos de un cluster con IP pública «por si acaso». Cien nodos con IP pública son 100 × 0.005 × 730 h ≈ US$365 al mes por algo que, además, los expone. Los nodos de Alba no tienen IP pública: no la necesitan para nada.
 
 ## Tablas de rutas y grupos de seguridad: por dónde y quién {Route tables and security groups: which way and who}
 
@@ -122,7 +126,7 @@ Una red necesita responder dos preguntas por cada paquete. **¿Por dónde va?** 
 
 Una **[[tabla-rutas|tabla de rutas]]** (*route table*) es una lista de reglas que dice, para cada destino, a dónde mandar el paquete. Cada subred tiene asociada una. Cada regla tiene dos partes: un rango de destino, en notación CIDR, y un «siguiente salto» (*target*): a quién se le entrega el paquete.
 
-La tabla de una subred privada de C01 se ve así:
+La tabla de una subred privada de Alba se ve así:
 
 | Destino | Siguiente salto | Qué significa |
 |---|---|---|
@@ -168,7 +172,7 @@ Ahora sí: ¿qué hace pública a una subred? Que su tabla de rutas tenga la reg
 El **[[internet-gateway|internet gateway]]** es la puerta de la VPC hacia internet. Se pega a la VPC entera (no a una zona), no cobra por hora ni por GB, y traduce entre la IP privada de una máquina y su IP pública. Una máquina de la subred pública con IP pública sale y entra por él directo.
 
 :::nota Muchos «gateways»
-En AWS, «gateway» (puerta) aparece en varios nombres: internet gateway, NAT gateway, gateway endpoint. Ninguno es el gateway de C01, el programa que recibe la foto y arma el tensor. Aquí, «el gateway» a secas siempre es el de C01.
+En AWS, «gateway» (puerta) aparece en varios nombres: internet gateway, NAT gateway, gateway endpoint. Ninguno es el gateway de Alba, el programa que recibe la foto y arma el tensor. Aquí, «el gateway» a secas siempre es el de Alba.
 :::
 
 Una subred privada no tiene esa regla. Su `0.0.0.0/0` apunta al NAT, o a nada. Sin ruta, el paquete no tiene a dónde ir: la máquina simplemente no llega a internet, y desde internet nadie llega a ella.
@@ -189,7 +193,7 @@ Para eso está el **[[grupo-seguridad|grupo de seguridad]]** (*security group*):
 
 El origen «otro grupo» es el truco que lo hace manejable. Las IPs de los pods y de los nodos cambian cada vez que se recrean. Una regla que dice «acepta a quien lleve el grupo `gateway`» sigue valiendo aunque mañana el gateway tenga otras IPs.
 
-Los grupos de C01 quedan así:
+Los grupos de Alba quedan así:
 
 | Grupo | Acepta entrada de | Puerto | Por qué |
 |---|---|---|---|
@@ -210,7 +214,7 @@ aws ec2 authorize-security-group-ingress \
   --source-group sg-0gateway123456789
 ```
 
-**Dentro de Kubernetes.** Un grupo de seguridad trabaja a nivel de máquina (o de tarjeta de red). Dentro de Kubernetes, donde muchos pods comparten un nodo, la misma idea se escribe por pod con una *NetworkPolicy*: «Triton solo acepta tráfico de los pods del gateway». La Ronda la menciona en M15, y la vas a escribir en la estación de Kubernetes del Dojo. Las dos capas se usan juntas.
+**Dentro de Kubernetes.** Un grupo de seguridad trabaja a nivel de máquina (o de tarjeta de red). Dentro de Kubernetes, donde muchos pods comparten un nodo, la misma idea se escribe por pod con una *NetworkPolicy*: «Triton solo acepta tráfico de los pods del gateway». La vas a ver en la lección «Kubernetes». Las dos capas se usan juntas.
 :::
 
 :::profundo La otra lista: las ACL de red
@@ -219,7 +223,7 @@ AWS tiene un segundo filtro, la *network ACL*, pegado a la subred entera en luga
 
 ## Salir a internet: el NAT gateway {Going out: the NAT gateway}
 
-Los nodos de C01 viven en subredes privadas: nadie llega a ellos desde internet. Pero ellos sí necesitan salir de vez en cuando: bajar parches del sistema operativo, instalar un paquete de Python, llamar a la API de un tercero. ¿Cómo sale una máquina que no tiene IP pública ni ruta al internet gateway?
+Los nodos de Alba viven en subredes privadas: nadie llega a ellos desde internet. Pero ellos sí necesitan salir de vez en cuando: bajar parches del sistema operativo, instalar un paquete de Python, llamar a la API de un tercero. ¿Cómo sale una máquina que no tiene IP pública ni ruta al internet gateway?
 
 Por el **[[nat|NAT gateway]]**. En la lección de red viste el NAT de tu casa: el router cambia la IP privada de cada paquete por su IP pública, anota el cambio y, cuando llega la respuesta, la regresa al aparato correcto. El NAT gateway hace exactamente eso, como servicio de la nube:
 
@@ -234,7 +238,7 @@ Lo importante es la dirección: **solo deja salir**. Una conexión que nace afue
 
 Aquí empieza el tema de dinero. Un NAT gateway en AWS cobra dos cosas:
 
-- **Por hora**, exista tráfico o no: ≈ US$0.045 por hora, ≈ US$33 al mes cada uno.
+- **Por hora**, exista tráfico o no: ≈ US$0.045 por hora, 0.045 × 730 h ≈ US$33 al mes cada uno.
 - **Por cada GB que pasa por él**, en cualquier dirección: ≈ US$0.045 por GB.
 
 :::analogia La caseta de la salida
@@ -247,15 +251,29 @@ El cobro por GB tiene nombre: **[[cargo-datos-procesados|cargo por datos procesa
 
 «En cualquier dirección» es la trampa. Bajar un archivo de 1 GB por el NAT paga 1 GB procesado, aunque meter datos a la nube desde internet no se cobre (lo ves en la sección de egress). La caseta cobra a todos los que pasan, entren o salgan.
 
-Un caso de la Ronda muestra cuánto suma. En la segmentación de imágenes médicas (c04), los nodos bajan de S3 láminas de patología: fotos de microscopio de ≈ 1 GB. Sin endpoint, todas pasan por el NAT.
+Toda cuenta de red de esta lección es la misma: cuántos bytes pasan por una flecha del diagrama al mes, por la tarifa de ese camino.
 
-:::cuenta Las láminas de patología de c04, por el NAT
-Lo que baja cada lámina // imagen de microscopio completa (WSI, *whole-slide image*), de la Ronda | — | ≈ 1 GB
-Láminas al día | — | 1,200
-GB al mes // con 30 días, como en la Ronda | 1,200 × 1 × 30 | 36,000 GB = 36 TB
-Cargo del NAT // US$0.045 por GB procesado | 36,000 × 0.045 | **≈ US$1,620 al mes**
-Lo que cuestan sus GPUs al mes // de la Ronda | — | ≈ US$441
-Lo mismo por un endpoint de S3 // sin cargo por GB | 36,000 × 0 | **US$0**
+:::formula Lo que cobra una flecha al mes
+G = frac{b × R}{10^9}
+c = G × t
+- b: los bytes que lleva cada request (o cada descarga) por esa flecha
+- R: cuántas requests (o descargas) pasan por ella al mes
+- G: los GB al mes que pasan por la flecha (1 GB = 10⁹ bytes); si \(b\) ya está en GB, basta \(G = b × R\)
+- t: la tarifa del camino, en US$ por GB: 0 en la misma zona o por el gateway endpoint, 0.045 por el NAT, y las demás que ves más adelante
+- c: lo que cobra esa flecha al mes, en US$, sin contar las horas fijas
+:::
+
+Un ejemplo muestra cuánto suma. Un sistema de segmentación de imágenes médicas baja de S3 láminas de patología: fotos de microscopio de ≈ 1 GB. Sin endpoint, todas pasan por el NAT. Los números son supuestos del ejemplo.
+
+:::cuenta Las láminas de patología, por el NAT
+Lo que baja cada lámina, \(b\) // imagen de microscopio completa (WSI, *whole-slide image*), supuesto del ejemplo | — | ≈ 1 GB
+Láminas al día // supuesto del ejemplo | — | 1,200
+Láminas al mes, \(R\) // con meses de 30 días | 1,200 × 30 | 36,000
+GB al mes, \(G = b × R\) // \(b\) ya está en GB | 1 GB × 36,000 | 36,000 GB = 36 TB
+Cargo del NAT, \(c = G × t\) // \(t\) = US$0.045 por GB procesado | 36,000 × 0.045 | **≈ US$1,620 al mes**
+Lo que cuestan sus GPUs al mes // supuesto del ejemplo | — | ≈ US$441
+Lo mismo por un endpoint de S3 // \(t\) = 0: sin cargo por GB | 36,000 × 0 | **US$0**
+NAT contra GPUs | 1,620 ÷ 441 | ≈ 3.7 veces
 = Por inercia, la caseta cobra ≈ 3.7 veces lo que cuestan las GPUs. Un cambio en la tabla de rutas lo deja en cero.
 :::
 
@@ -263,7 +281,7 @@ Lo mismo por un endpoint de S3 // sin cargo por GB | 36,000 × 0 | **US$0**
 
 ### Un NAT por zona
 
-El NAT gateway clásico (el «zonal», el que usa C01) vive en **una** zona. Si C01 pone un solo NAT en `1a` para ahorrarse las horas del segundo (≈ US$33 al mes), pasan dos cosas malas:
+El NAT gateway clásico (el «zonal», el que usa Alba) vive en **una** zona. Si Alba pone un solo NAT en `1a` para ahorrarse las horas del segundo (≈ US$33 al mes), pasan dos cosas malas:
 
 - Todo lo que sale de `1b` cruza a `1a` para llegar al NAT, y ese cruce se cobra aparte (lo ves más adelante, en «Cruzar de zona y de región»).
 - Si cae `1a`, las máquinas de `1b` se quedan sin salida a internet, justo cuando estás en emergencia.
@@ -288,9 +306,9 @@ Entonces, ¿cómo llega un nodo de una subred privada a S3? Sin nada especial, p
 
 El **gateway endpoint** existe solo para dos servicios: **S3 y DynamoDB** (una base de datos de AWS). No es una máquina ni vive en una zona. Es una regla nueva en tus tablas de rutas: «los rangos de S3 van por aquí». Viste esa regla en el código de la sección anterior: la más específica gana, así que todo el tráfico a S3 deja de ir al NAT.
 
-Y lo mejor: **no cobra ni por hora ni por GB**. Es, como dice la Ronda, la línea más barata de toda la factura y la que más se olvida.
+Y lo mejor: **no cobra ni por hora ni por GB**. Es la línea más barata de toda la factura y la que más se olvida.
 
-Crearlo es un solo comando, y ningún programa cambia: el gateway de C01 sigue pidiendo `s3://...` como antes, y los paquetes ahora toman el atajo.
+Crearlo es un solo comando, y ningún programa cambia: el gateway de Alba sigue pidiendo `s3://...` como antes, y los paquetes ahora toman el atajo.
 
 :::profundo El comando
 Así se crea con la CLI, en una ilustración (no la vas a correr aquí; los ids son inventados):
@@ -317,7 +335,7 @@ La tecnología que lo hace se llama **[[privatelink|PrivateLink]]**. Este sí co
 Su cobro por GB es menos de una cuarta parte del que cobra el NAT (0.01 ÷ 0.045 ≈ 22 %). Por eso, para un servicio con mucho tráfico, el interface endpoint ahorra. Para uno con poco tráfico, sus horas pueden costar más que lo que ahorra: dos zonas × US$0.01 × 730 h ≈ US$14.60 al mes por endpoint, aunque no pase nada.
 
 :::ojo La trampa de ECR
-Para bajar una imagen de contenedor desde una subred privada sin NAT, C01 crea los interface endpoints `ecr.api` y `ecr.dkr`. Y el *pull* (la descarga de la imagen) falla. ¿Por qué? Una imagen se guarda en pedazos llamados [[capa-imagen|capas]]: una con el sistema base, otra con las bibliotecas, otra con tu código. Esos endpoints solo entregan el **manifiesto**, la lista de capas de la imagen. Las capas, los GB de verdad, ECR las guarda **en S3**, y el nodo las baja de S3. Sin el gateway endpoint de S3, esas descargas buscan el NAT; si no hay NAT, fallan, y si hay, pagan US$0.045 por GB. La receta completa: `ecr.api` + `ecr.dkr` + el gateway endpoint de S3.
+Para bajar una imagen de contenedor desde una subred privada sin NAT, Alba crea los interface endpoints `ecr.api` y `ecr.dkr`. Y el *pull* (la descarga de la imagen) falla. ¿Por qué? Una imagen se guarda en pedazos llamados [[capa-imagen|capas]]: una con el sistema base, otra con las bibliotecas, otra con tu código. Esos endpoints solo entregan el **manifiesto**, la lista de capas de la imagen. Las capas, los GB de verdad, ECR las guarda **en S3**, y el nodo las baja de S3. Sin el gateway endpoint de S3, esas descargas buscan el NAT; si no hay NAT, fallan, y si hay, pagan US$0.045 por GB. La receta completa: `ecr.api` + `ecr.dkr` + el gateway endpoint de S3.
 :::
 
 :::diagrama redes-nube-salidas
@@ -346,7 +364,19 @@ Subir fotos, datasets o pesos a AWS desde internet no cuesta nada por GB: se lla
 
 ¿Por qué esa asimetría? Una parte es costo real: la nube paga por conectarse con el resto de internet. La otra es negocio: si meter es gratis y sacar cuesta, una vez que tus datos están adentro, te quedas. Es parte de la [[dependencia-proveedor|dependencia del proveedor]] que viste en la lección de la nube: llevarte 50 TB a otro proveedor tiene precio.
 
-Los escalones se cobran como los impuestos por tramos: cada GB paga el precio de su tramo, no el del último. Si en un mes sacas 12 TB, los primeros 100 GB no pagan, los siguientes 10,240 GB pagan 0.09 (aquí AWS cuenta 1 TB como 1,024 GB) y los 1,660 que sobran, 0.085: ≈ US$1,063 en total.
+Los escalones se cobran como los impuestos por tramos: cada GB paga el precio de su tramo, no el del último. Para cortar los tramos, AWS cuenta 1 TB como 1,024 GB: el primer escalón son 10,240 GB.
+
+:::formula Egress de un mes, por escalones
+c = 0.09 × G_1 + 0.085 × G_2
++ 0.07 × G_3 + 0.05 × G_4
+- G_1: los GB del mes que caen en el primer escalón: lo que pasa de los 100 GB gratis, hasta 10,240 GB
+- G_2: lo que sigue, hasta 40,960 GB más
+- G_3: lo que sigue, hasta 102,400 GB más
+- G_4: lo que pasa de esos tres escalones
+- c: lo que cuesta el egress del mes, en US$
+:::
+
+Si en un mes sacas 12 TB (12,000 GB), quedan 12,000 − 100 = 11,900 GB que pagan. \(G_1\) = 10,240 y \(G_2\) = 11,900 − 10,240 = 1,660. \(c\) = 0.09 × 10,240 + 0.085 × 1,660 = 921.60 + 141.10 ≈ **US$1,063** en total.
 
 :::profundo Los escalones, en código
 El código cobra un mes de egress tramo por tramo, con los escalones como los corta AWS: 10 TB son 10,240 GB, 40 TB son 40,960 GB y 100 TB son 102,400 GB. Lo que le das son GB normales, de 1,000 en 1,000.
@@ -362,23 +392,23 @@ def egress(gb_mes, gratis=100):
         resto -= tramo
     return total
 
-for nombre, gb in (("respuestas de C01", 304), ("un dataset de 2 TB", 2_000),
+for nombre, gb in (("respuestas de Alba", 304), ("un dataset de 2 TB", 2_000),
                    ("copiar 50 TB a otra nube", 50_000), ("200 TB al mes", 200_000)):
     print(f"{nombre:25} {gb:>8,} GB → US${egress(gb):>9,.0f}  (US${egress(gb) / gb:.3f} por GB)")
 ```
 
 ```salida
-respuestas de C01              304 GB → US$       18  (US$0.060 por GB)
+respuestas de Alba             304 GB → US$       18  (US$0.060 por GB)
 un dataset de 2 TB           2,000 GB → US$      171  (US$0.086 por GB)
 copiar 50 TB a otra nube    50,000 GB → US$    4,293  (US$0.086 por GB)
 200 TB al mes              200,000 GB → US$   13,886  (US$0.069 por GB)
 ```
 :::
 
-Fíjate en C01: sus respuestas son pequeñas. Cada una es un JSON de ≈ 1 KB con la categoría y su probabilidad. En C01 van al backend, que está en la misma región, así que ni siquiera son egress. Pero aunque todas salieran a internet, serían 304 millones de respuestas al mes × 1 KB ≈ 304 GB, ≈ US$18 al mes (≈ US$27 si no existieran los 100 GB gratis). Lo que entra es grande (fotos de 200 KB); lo que sale, chiquito. **En casi todo sistema de ML que recibe fotos, audio o video, el egress no es el problema.**
+Fíjate en Alba: sus respuestas son pequeñas. Cada una es un JSON de ≈ 1 KB con la categoría y su probabilidad. En Alba van al backend, que está en la misma región, así que ni siquiera son egress. Pero aunque todas salieran a internet, serían 304 millones de respuestas al mes (10 millones al día × 30.4) × 1 KB ≈ 304 GB: \(c\) = (304 − 100) × 0.09 ≈ US$18 al mes (304 × 0.09 ≈ US$27 si no existieran los 100 GB gratis). Lo que entra es grande (fotos de 200 KB); lo que sale, chiquito. **En casi todo sistema de ML que recibe fotos, audio o video, el egress no es el problema.**
 
 :::ojo «El problema es el egress»
-En el caso c02 de la Ronda (video de 1,000 cámaras de seguridad), es tentador decir «mandar el video a la nube cuesta mucho de egress». Pero subir video **no** es egress: entrar es gratis. Lo que cuesta es el ancho de banda de internet del sitio, la ingesta y el cómputo. Antes de decir «egress», pregúntate en qué dirección van los bytes.
+En un sistema de video en tiempo real con 1,000 cámaras de seguridad, es tentador decir «mandar el video a la nube cuesta mucho de egress». Pero subir video **no** es egress: entrar es gratis. Lo que cuesta es el ancho de banda de internet del sitio, la ingesta y el cómputo. Antes de decir «egress», pregúntate en qué dirección van los bytes.
 :::
 
 Donde sí duele el egress es cuando lo grande va **hacia fuera**: servir video o imágenes a usuarios (por eso existen las [[cdn|CDN]], que además cobran menos por GB), entregarle un dataset grande a un cliente, o copiar todo a otra nube.
@@ -393,42 +423,42 @@ Depende de dónde estén:
 - **En zonas distintas** de la misma región: ≈ US$0.01 por GB **al salir** de una zona y otros ≈ US$0.01 por GB **al entrar** a la otra. Es la **[[transferencia-entre-zonas|transferencia entre zonas]]** (*cross-AZ data transfer*).
 - **En regiones distintas**: ≈ US$0.02 por GB desde `us-east-1` a casi cualquier otra región (≈ US$0.01 a `us-east-2`, la de Ohio). Es la **[[transferencia-entre-regiones|transferencia entre regiones]]** (*inter-region transfer*). Lo cobra la región de donde salen los datos.
 
-El cruce de zona tiene una trampa de lectura: la tarifa dice «US$0.01 por GB», pero **cada GB que cruza se cobra dos veces**: una al salir de `1a` y otra al entrar a `1b`, las dos en tu factura. Por eso las cuentas usan **US$0.02 por GB cruzado**.
+El cruce de zona tiene una trampa de lectura: la tarifa dice «US$0.01 por GB», pero **cada GB que cruza se cobra dos veces**: una al salir de `1a` y otra al entrar a `1b`, las dos en tu factura. Por eso las cuentas usan **US$0.02 por GB cruzado**. Si solo cruza una fracción \(f\) de los bytes de una flecha, la cuenta es \( c = G × f × 0.02 \).
 
 ¿Por qué se cobra, si está «en la misma red»? Porque físicamente no lo está. En la lección de regiones viste que las zonas son edificios distintos, a kilómetros, unidos por fibra que el proveedor tendió y mantiene. Ese tráfico usa esa fibra. Dentro de la zona, el tráfico se queda en el edificio.
 
-**La latencia no es la razón.** Cruzar de zona agrega ≈ 1 ms por salto: el [[rtt|RTT]] (el tiempo de ida y vuelta de un paquete) en la misma zona es ≈ 0.1–0.5 ms y entre zonas ≈ 0.4–2.5 ms. Para C01, con un [[slo|SLO]] de cientos de milisegundos, un milisegundo no importa. **La razón para no cruzar es el costo por GB, no la latencia.** Y el costo depende de cuántos bytes cruzan, que en C01 son muchos.
+**La latencia no es la razón.** Cruzar de zona agrega ≈ 1 ms por salto: el [[rtt|RTT]] (el tiempo de ida y vuelta de un paquete) en la misma zona es ≈ 0.1–0.5 ms y entre zonas ≈ 0.4–2.5 ms. Para Alba, que promete responder el 99 % de las requests en 200 ms o menos (su [[slo|SLO]]), un milisegundo no importa. **La razón para no cruzar es el costo por GB, no la latencia.** Y el costo depende de cuántos bytes cruzan, que en Alba son muchos.
 
 ¿Por qué cruzarían? Entre el gateway y Triton está el [[service-k8s|Service]] de Kubernetes, que reparte cada tensor entre las copias de Triton. Por omisión no mira en qué zona está cada copia: con dos zonas, la mitad de los tensores cae en la otra: ≈ 90 TB y ≈ **US$1,800 al mes** con meses de 30 días (abajo, con 30.4, ≈ 91 TB y ≈ US$1.83k).
 
-:::cuenta C01 sin ruteo por zona
-Bytes de un tensor FP32 // 224 × 224 × 3 números de 4 bytes | 224 × 224 × 3 × 4 | 602,112 B ≈ 602 KB
-Requests al mes // 10 millones al día × 30.4 días | 10,000,000 × 30.4 | 304 millones
-Tensores al mes, gateway → Triton | 304 M × 602,112 B | ≈ 183 TB
-Fracción que cruza de zona // el Service reparte entre 2 zonas sin mirar dónde está | — | ≈ 50 %
-TB que cruzan al mes | 183 × 0.5 | ≈ 91.5 TB
-Costo // US$0.01 al salir + US$0.01 al entrar | 91,500 GB × 0.02 | **≈ US$1,830 al mes**
-Las dos GPUs T4 de C01 // de la lección de máquinas | — | ≈ US$768 al mes
+:::cuenta Alba sin ruteo por zona
+Bytes de un tensor FP32, \(b\) // 224 × 224 × 3 números de 4 bytes | 224 × 224 × 3 × 4 | 602,112 B ≈ 602 KB
+Requests al mes, \(R\) // 10 millones al día × 30.4 días, dato de Alba | 10,000,000 × 30.4 | 304 millones
+GB de tensores al mes, gateway → Triton, \(G = b × R ÷ 10^9\) | 304 M × 602,112 B ÷ 10⁹ | ≈ 183,000 GB ≈ 183 TB
+Fracción que cruza de zona, \(f\) // el Service reparte entre 2 zonas sin mirar dónde está | — | ≈ 50 %
+TB que cruzan al mes, \(G × f\) | 183 × 0.5 | ≈ 91.5 TB
+Costo, \(c = G × f × 0.02\) // US$0.01 al salir + US$0.01 al entrar | 91,500 GB × 0.02 | **≈ US$1,830 al mes**
+Las dos GPUs T4 de Alba // 2 máquinas × US$0.526 la hora × 730 h | 2 × 0.526 × 730 | ≈ US$768 al mes
 = Mover los tensores de una zona a otra costaría más del doble que las GPUs que los procesan.
 :::
 
-El remedio ya lo viste en la lección de regiones: el **[[ruteo-por-zona|ruteo por zona]]**. Cada gateway llama al Triton de su propia zona y solo cruza si el suyo no está listo. Con eso, el cruce casi desaparece. C01 lo activa desde el primer día. Aquí solo le pusiste precio a lo que evita.
+El remedio ya lo viste en la lección de regiones: el **[[ruteo-por-zona|ruteo por zona]]**. Cada gateway llama al Triton de su propia zona y solo cruza si el suyo no está listo. Con eso, el cruce casi desaparece. Alba lo activa desde el primer día. Aquí solo le pusiste precio a lo que evita.
 
-Fíjate qué hace grande la cuenta: no son los requests, son los **bytes por request**. Si el gateway mandara el tensor en [[uint8]] (150,528 B, un byte por número, como hace C01 cuando crece), el mismo cruce costaría la cuarta parte. Si mandara solo el JPEG de 200 KB y Triton hiciera el preproceso, un tercio. Por eso la Ronda pide preguntar primero por el *payload*: los bytes que lleva cada request.
+Fíjate qué hace grande la cuenta: no son los requests, son los **bytes por request**. Si el gateway mandara el tensor en [[uint8]] (150,528 B, un byte por número, una mejora que Alba tiene anotada para cuando crezca), el mismo cruce costaría la cuarta parte: 150,528 ÷ 602,112 = 0.25. Si mandara solo el JPEG de 200 KB y Triton hiciera el preproceso, un tercio: 200 ÷ 602 ≈ 0.33. Por eso, en una entrevista de diseño, lo primero que conviene preguntar es el *payload*: los bytes que lleva cada request.
 
-**Entre regiones.** Copiar a otra región cuesta ≈ US$0.02 por GB, igual que un GB cruzado entre zonas. La diferencia está en lo que se copia. Entre zonas, el tráfico de cada request. Entre regiones, normalmente, una copia de seguridad o una réplica: en la lección de regiones viste que replicar las fotos de C01 (≈ 61 TB al mes) costaría ≈ US$1,200 al mes solo de transferencia, y por eso C01 replica los pesos, que son centavos, y no las fotos.
+**Entre regiones.** Copiar a otra región cuesta ≈ US$0.02 por GB, igual que un GB cruzado entre zonas. La diferencia está en lo que se copia. Entre zonas, el tráfico de cada request. Entre regiones, normalmente, una copia de seguridad o una réplica: en la lección de regiones viste que replicar las fotos de Alba (≈ 61 TB al mes, 60,800 GB) costaría 60,800 × 0.02 ≈ US$1,200 al mes solo de transferencia, y por eso Alba replica los pesos, que son centavos, y no las fotos.
 
 :::figura redes-nube-tarifas
 Cuánto cuesta mover 1 GB por cada camino, en `us-east-1`. Lo gratis está arriba; lo caro, abajo. Los dos caminos más caros son también los que se toman sin pensar: el NAT y la salida a internet.
 :::
 
 :::calculadora redes-nube-flecha
-Arranca con los tensores de C01: 602 KB, 10 millones al día y la mitad cruzando de zona. Baja el cruce a 1 % para ver el ruteo por zona, o pon 200 KB para ver lo que costaría mandar el JPEG.
+Arranca con los tensores de Alba: 602 KB, 10 millones al día y la mitad cruzando de zona. Baja el cruce a 1 % para ver el ruteo por zona, o pon 200 KB para ver lo que costaría mandar el JPEG.
 :::
 
 ## El balanceador cobra por bytes: ALB y LCU {The load balancer bills by bytes: ALB and LCU}
 
-En la lección de balanceo viste qué hace un [[balanceador]]: recibe las requests y las reparte entre varias copias sanas. En AWS, el que usa C01 es el **[[alb|ALB]]** (*Application Load Balancer*): un balanceador gestionado que entiende HTTP y vive en las subredes públicas de varias zonas a la vez. Además, «termina» el HTTPS: recibe la conexión cifrada y la descifra, para poder leer cada request y decidir a qué máquina pasarla.
+En la lección de balanceo viste qué hace un [[balanceador]]: recibe las requests y las reparte entre varias copias sanas. En AWS, el que usa Alba es el **[[alb|ALB]]** (*Application Load Balancer*): un balanceador gestionado que entiende HTTP y vive en las subredes públicas de varias zonas a la vez. Además, «termina» el HTTPS: recibe la conexión cifrada y la descifra, para poder leer cada request y decidir a qué máquina pasarla.
 
 Lo que nadie espera es cómo cobra. Además de su hora (≈ US$0.0225, ≈ US$16 al mes), cobra por **[[lcu|LCU]]** (*Load Balancer Capacity Unit*, unidad de capacidad del balanceador): ≈ US$0.008 por LCU-hora (cada LCU usada durante una hora, como el kilowatt-hora de la luz).
 
@@ -443,24 +473,34 @@ Una LCU mide cuánto trabajo hizo el ALB en una hora. Tiene cuatro dimensiones, 
 
 Para un sistema que manda fotos en el *body* de la request, casi siempre gana la dimensión de bytes (cuentan los bytes de la request y de la respuesta). Y ahí sale una regla útil: si 1 LCU = 1 GB en una hora y cuesta US$0.008 por hora, entonces **el ALB cobra ≈ US$0.008 por cada GB que pasa**, como otra caseta, más su hora.
 
-:::cuenta El ALB de C01
-Fotos que entran al día // 10 millones × 200 KB | 10,000,000 × 200 KB | 2 TB = 2,000 GB
-GB por hora, en promedio // GB del mes ÷ horas del mes | 2,000 × 30.4 ÷ 730 | ≈ 83 GB/h
-LCUs en promedio // la dimensión de bytes gana | 83 GB/h ÷ 1 GB/h | ≈ 83 LCU
-Costo de las LCU al mes | 83.3 × 0.008 × 730 | ≈ US$486.5
-Hora fija del ALB | 0.0225 × 730 | ≈ US$16.4
-Total | 486.5 + 16.4 | **≈ US$503 al mes**
-= ≈ 27 % de la infraestructura de C01 (≈ US$1.8k al mes), por una pieza que la gente estima en «US$30 de load balancer».
+:::formula Lo que cobra el ALB al mes, cuando ganan los bytes
+L = frac{G}{H}
+c_{ALB} = (0.008 × L + 0.0225) × H
+- G: los GB al mes que pasan por el ALB (la \(G\) de la fórmula de una flecha)
+- H: las horas del mes: 730
+- L: las LCU de una hora promedio; con la dimensión de bytes, son los GB por hora, porque 1 LCU = 1 GB por hora
+- c_{ALB}: lo que cobra el ALB al mes, en US$: US$0.008 por cada LCU-hora más US$0.0225 por cada hora fija
 :::
 
-El ALB cobra por bytes, no por request, y C01 mueve 61 TB al mes de fotos a través de él. Si el 15 % de las fotos llegara como original de la web (≈ 3 MB en vez de 200 KB), los bytes se triplicarían y el ALB pasaría a ≈ US$1.5k al mes.
+:::cuenta El ALB de Alba
+Fotos que entran al día // 10 millones × 200 KB, datos de Alba | 10,000,000 × 200 KB | 2 TB = 2,000 GB
+GB al mes, \(G\) // con 30.4 días | 2,000 × 30.4 | 60,800 GB
+LCUs en promedio, \(L = G ÷ H\) // la dimensión de bytes gana; \(H\) = 730 h | 60,800 ÷ 730 | ≈ 83.3 LCU
+Costo de las LCU al mes, \(0.008 × L × H\) | 83.3 × 0.008 × 730 | ≈ US$486.5
+Hora fija del ALB, \(0.0225 × H\) | 0.0225 × 730 | ≈ US$16.4
+Total, \(c_{ALB}\) | 486.5 + 16.4 | **≈ US$503 al mes**
+Parte de la infraestructura de Alba // ≈ US$1,829 al mes en total | 503 ÷ 1,829 | ≈ 27 %
+= Más de la cuarta parte de la infraestructura de Alba, por una pieza que la gente estima en «US$30 de load balancer».
+:::
+
+El ALB cobra por bytes, no por request, y Alba mueve 61 TB al mes de fotos a través de él. Si el 15 % de las fotos llegara como original de la web (≈ 3 MB en vez de 200 KB), la foto promedio pesaría 0.85 × 200 + 0.15 × 3,000 = 620 KB, 3.1 veces más (620 ÷ 200). Como \(L × H = G\), las LCU cuestan 0.008 × \(G\), y \(G\) crece 3.1 veces: el ALB pasaría a 0.008 × 60,800 × 3.1 + 16.4 ≈ US$1.5k al mes.
 
 :::profundo La palanca: mandar la llave, no los bytes
-¿Cómo baja esa línea? Que la foto no pase por el ALB. El backend de publicaciones ya guarda la foto de Ana en S3. En lugar de mandarle a C01 los 200 KB, le manda la **llave** del objeto, `fotos/2026/11/06/ana-tenis.jpg`, unas decenas de bytes. El gateway baja la foto de S3 por el gateway endpoint, gratis.
+¿Cómo baja esa línea? Que la foto no pase por el ALB. El backend de publicaciones ya guarda la foto de Ana en S3. En lugar de mandarle al clasificador de Alba los 200 KB, le manda la **llave** del objeto, `fotos/2026/11/06/ana-tenis.jpg`, unas decenas de bytes. El gateway baja la foto de S3 por el gateway endpoint, gratis.
 
-Según la Ronda, el ALB baja de ≈ US$500 a ≈ US$20 al mes, y aparecen 304 millones de GET a S3, ≈ US$120 al mes. Ahorro neto: ≈ US$360 al mes. Con dos condiciones:
+El equipo de Alba estima que el ALB baja de ≈ US$500 a ≈ US$20 al mes (casi solo su hora fija), y aparecen 304 millones de GET a S3: a ≈ US$0.0004 por cada 1,000 GET, 304,000 × 0.0004 ≈ US$120 al mes. Ahorro neto: 500 − 20 − 120 ≈ US$360 al mes. Con dos condiciones:
 
-- **Que exista el gateway endpoint de S3.** Sin él, esos 61 TB al mes pasarían por el NAT: ≈ US$2.7k al mes. La palanca se volvería un desastre.
+- **Que exista el gateway endpoint de S3.** Sin él, esos 61 TB al mes pasarían por el NAT: 60,800 × 0.045 ≈ US$2.7k al mes. La palanca se volvería un desastre.
 - **Que el GET extra quepa en la latencia.** Un GET de un objeto chico a S3 tarda decenas de milisegundos en la mediana, y más en la cola. Hay que medir el [[p99]] antes de cambiar.
 
 Es un buen ejemplo de cómo funciona el costo de red: cambiar **por dónde** van los bytes mueve cientos de dólares, sin tocar el modelo.
@@ -479,8 +519,8 @@ Las tablas de AWS suelen anunciar el número grande con un «hasta»: «hasta 12
 
 | Instancia | Sostenido | Ráfaga |
 |---|---|---|
-| `c6i.xlarge` (gateway de C01) | 1.56 Gb/s | hasta 12.5 Gb/s |
-| `g4dn.xlarge` (Triton de C01, T4) | 5 Gb/s | hasta 25 Gb/s |
+| `c6i.xlarge` (gateway de Alba) | 1.56 Gb/s | hasta 12.5 Gb/s |
+| `g4dn.xlarge` (Triton de Alba, T4) | 5 Gb/s | hasta 25 Gb/s |
 | `g5.xlarge` y `g6.xlarge` | 2.5 Gb/s | hasta 10 Gb/s |
 
 Las unidades son [[bit|bits]] por segundo, no bytes: 1 Gb/s = 125 MB/s. Es el error de conversión más común de esta lección.
@@ -488,44 +528,57 @@ Las unidades son [[bit|bits]] por segundo, no bytes: 1 Gb/s = 125 MB/s. Es el er
 El límite vale **por separado** para lo que entra y lo que sale: una máquina de «hasta 10 Gb/s» puede recibir 10 y, al mismo tiempo, mandar 10.
 
 :::figura redes-nube-banda
-Sostenido contra ráfaga de las tres instancias. Las líneas a y b marcan lo que tiene que mandar un nodo del gateway de C01: 1.2 Gb/s en un día normal, 2.4 Gb/s si cae una zona.
+Sostenido contra ráfaga de las tres instancias. Las líneas a y b marcan lo que tiene que mandar un nodo del gateway de Alba: 1.2 Gb/s en un día normal, 2.4 Gb/s si cae una zona.
 :::
 
-### El gateway de C01, al límite
+### El gateway de Alba, al límite
 
-En el pico, C01 recibe 500 fotos por segundo. Cada una sale del gateway como un tensor FP32 de 602,112 bytes:
+Alba compra sus máquinas para un pico de diseño de 500 fotos por segundo. Cada una sale del gateway como un tensor FP32 de 602,112 bytes. Para saber si la red alcanza, se calcula cuánto manda el gateway y qué parte del sostenido de cada nodo ocupa:
 
-500 × 602,112 × 8 bits ≈ **2.4 Gb/s** entre el gateway y Triton.
+:::formula Lo que manda el gateway y cuánto de su red ocupa
+v = frac{Q × b × 8}{10^9}
+u = frac{v}{N × S}
+u_{caída} = frac{v}{(N − 1) × S}
+- Q: el pico, en requests por segundo
+- b: los bytes que lleva cada request hacia el modelo (la misma \(b\) de la fórmula de una flecha)
+- v: lo que manda el gateway en total, en Gb/s: × 8 pasa de bytes a bits, y ÷ 10⁹, de bits a gigabits
+- N: cuántos nodos del gateway se reparten el tráfico
+- S: el ancho de banda sostenido de un nodo, en Gb/s
+- u: la fracción del sostenido que usa cada nodo; arriba de 100 % solo aguanta mientras dure la ráfaga
+- u_{caída}: lo mismo con una zona caída, cuando quedan \(N − 1\) nodos
+:::
 
-Con dos nodos de gateway, uno por zona, cada uno manda ≈ 1.2 Gb/s: el 77 % de su sostenido de 1.56. (Las fotos que le entran, 500 × 200 KB × 8 ≈ 0.8 Gb/s en total, van por el otro sentido y no le restan.) Apretado, pero cabe. Ahora cae una zona: el nodo que queda manda los 2.4 Gb/s solo, el **154 %** de su sostenido. Aguanta mientras dure la ráfaga, de minutos a una hora y sin garantía, y luego empieza a tirar paquetes o a encolarlos. La latencia sube justo durante la emergencia.
+Con \(Q\) = 500 y \(b\) = 602,112: \(v\) = 500 × 602,112 × 8 ÷ 10⁹ ≈ **2.4 Gb/s** entre el gateway y Triton.
 
-Tres salidas, de la Ronda:
+Con dos nodos de gateway, uno por zona, cada uno manda ≈ 1.2 Gb/s: \(u\) = 2.4 ÷ (2 × 1.56) ≈ 77 % de su sostenido de 1.56. (Las fotos que le entran, 500 × 200 KB × 8 ≈ 0.8 Gb/s en total, van por el otro sentido y no le restan.) Apretado, pero cabe. Ahora cae una zona: el nodo que queda manda los 2.4 Gb/s solo, \(u_{caída}\) = 2.4 ÷ (1 × 1.56) ≈ **154 %** de su sostenido. Aguanta mientras dure la ráfaga, de minutos a una hora y sin garantía, y luego empieza a tirar paquetes o a encolarlos. La latencia sube justo durante la emergencia.
 
-1. **Tensores más chicos.** En UINT8 son 150,528 B: la red baja a la cuarta parte, ≈ 0.6 Gb/s en total. Es la que usa C01 al crecer.
+Hay tres salidas:
+
+1. **Tensores más chicos.** En UINT8 son 150,528 B: la red baja a la cuarta parte, 500 × 150,528 × 8 ÷ 10⁹ ≈ 0.6 Gb/s en total. Es la mejora que Alba tiene anotada para cuando crezca.
 2. **Más nodos de gateway**, o uno más grande con más red.
 3. **Mandar el JPEG** y que Triton haga el preproceso: 200 KB en vez de 602.
 
-En el sistema de recomendación de la Ronda (el caso c08) pasa lo mismo con una máquina de GPU: una `g6.xlarge` tiene 2.5 Gb/s sostenidos y su pico usa el 100 %. La salida fue subir a `g6.2xlarge` (5 Gb/s) por ≈ US$126 al mes más por nodo. No por la GPU, que era la misma: por la red.
+A un sistema de recomendación le puede pasar lo mismo con una máquina de GPU. En un ejemplo con supuestos típicos, una `g6.xlarge` tiene 2.5 Gb/s sostenidos y su pico usa el 100 %. La salida es subir a `g6.2xlarge` (5 Gb/s) por ≈ US$126 al mes más por nodo. No por la GPU, que era la misma: por la red.
 
 :::calculadora redes-nube-banda
-Arranca con el pico de C01 en FP32. El renglón «si cae una zona» ya muestra lo que pasa con un nodo menos. Pon 150 KB para ver UINT8, o sube los nodos a 3 para ver cuánto alivia un nodo extra.
+Arranca con el pico de diseño de Alba en FP32. El renglón «si cae una zona» ya muestra lo que pasa con un nodo menos. Pon 150 KB para ver UINT8, o sube los nodos a 3 para ver cuánto alivia un nodo extra.
 :::
 
-## Recorrer cada byte: la factura de red de C01 {Walking every byte: C01's network bill}
+## Recorrer cada byte: la factura de red de Alba {Walking every byte: Alba's network bill}
 
-Ya tienes todas las piezas. La Ronda (M13) da una técnica para encontrar los costos de red antes de que lleguen en la factura: **recorre cada byte**. Para cada flecha del diagrama pregúntate tres cosas:
+Ya tienes todas las piezas. Hay una técnica para encontrar los costos de red antes de que lleguen en la factura: **recorre cada byte**. Para cada flecha del diagrama pregúntate tres cosas:
 
-1. **¿Quién lo mueve, y cuántos bytes por request?**
-2. **¿Cuántas veces al mes?** Bytes por request × requests al mes.
-3. **¿Por dónde pasa?** Misma zona, otra zona, NAT, endpoint, ALB o internet. Cada camino tiene su tarifa.
+1. **¿Quién lo mueve, y cuántos bytes por request?** Esa es \(b\).
+2. **¿Cuántas veces al mes?** Esa es \(R\), y los GB del mes son \( G = b × R ÷ 10^9 \).
+3. **¿Por dónde pasa?** Misma zona, otra zona, NAT, endpoint, ALB o internet. Cada camino tiene su tarifa \(t\).
 
-Multiplica, y tienes la línea de la factura. La señal de alguien con experiencia es preguntar por el payload **antes** que por la GPU: «¿cuántos bytes por request y a dónde van?».
+Multiplica, \( c = G × t \) (la fórmula de la sección del NAT), y tienes la línea de la factura. La señal de alguien con experiencia es preguntar por el payload **antes** que por la GPU: «¿cuántos bytes por request y a dónde van?».
 
 :::diagrama redes-nube-bytes
 Toca cada caja para ver qué pasa por ahí. Usa «Recorrer» para seguir la foto de Ana, ver lo que pasa sin ruteo por zona y ver lo que mueve una réplica nueva al arrancar.
 :::
 
-El código hace el recorrido completo para un mes de C01 en dos versiones: **por inercia** (sin ruteo por zona y con todo lo de afuera pasando por el NAT) y **bien hecha** (ruteo por zona, endpoints para S3 y ECR, el NAT solo para parches). Supone que con ruteo por zona solo el 1 % de los tensores cruza (cuando una réplica se reinicia o se cae) y unos 20 GB al mes de parches; los demás números son de la Ronda.
+El código hace el recorrido completo para un mes de Alba en dos versiones: **por inercia** (sin ruteo por zona y con todo lo de afuera pasando por el NAT) y **bien hecha** (ruteo por zona, endpoints para S3 y ECR, el NAT solo para parches). Supone que con ruteo por zona solo el 1 % de los tensores cruza (cuando una réplica se reinicia o se cae) y unos 20 GB al mes de parches; los demás números son datos de Alba o salen de las secciones de arriba.
 
 ```python
 MES, GB = 730, 1e9                          # horas en un mes, bytes en un GB
@@ -563,13 +616,13 @@ total               US$ 2,436   US$   643
 
 Lee la tabla con calma, porque enseña tres cosas.
 
-**Una línea manda.** Por inercia, el cruce de zona es tres cuartas partes de la factura de red. Una línea en la configuración del Service de Kubernetes (`trafficDistribution: PreferSameZone`, «prefiere la misma zona») la baja de ≈ US$1,830 a ≈ US$37. Ninguna otra decisión de red de C01 pesa tanto.
+**Una línea manda.** Por inercia, el cruce de zona es tres cuartas partes de la factura de red. Una línea en la configuración del Service de Kubernetes (`trafficDistribution: PreferSameZone`, «prefiere la misma zona») la baja de ≈ US$1,830 a ≈ US$37. Ninguna otra decisión de red de Alba pesa tanto.
 
-**Algunas líneas suben.** Los endpoints de ECR cuestan ≈ US$29 al mes que antes no existían. Aquí valen la pena más por orden que por ahorro: dejan el NAT solo para lo chico. Con imágenes de 9.2 GB, cada arranque por el NAT paga ≈ US$0.41. En C01 la cuenta es casi pareja; con cientos de nodos que arrancan, los endpoints ganan de lejos.
+**Algunas líneas suben.** Los endpoints de ECR cuestan ≈ US$29 al mes que antes no existían. Aquí valen la pena más por orden que por ahorro: dejan el NAT solo para lo chico. Con imágenes de 9.2 GB, cada arranque por el NAT paga 9.2 × 0.045 ≈ US$0.41. En Alba la cuenta es casi pareja; con cientos de nodos que arrancan, los endpoints ganan de lejos.
 
 **Lo grande que queda es el ALB.** ≈ US$503 de ≈ US$643. La siguiente palanca es la de la sección del ALB: mandar la llave de S3 en vez de la foto.
 
-La factura de C01 (≈ US$1.8k al mes) ya trae estos ≈ US$140 **con** ruteo por zona, aparte del ALB; sin él, serían ≈ US$3.6k.
+La factura de infraestructura de Alba (≈ US$1.8k al mes en total) ya trae estos 643 − 503 ≈ US$140 **con** ruteo por zona, aparte del ALB; sin él, se sumarían los 2,436 − 643 ≈ US$1,790 de diferencia y serían ≈ US$3.6k.
 
 :::profundo Dónde lo ves en la factura
 En AWS Cost Explorer, el NAT aparece dentro del servicio «EC2 - Other» como `NatGateway-Bytes` (y `NatGateway-Hours`), y el cruce de zona como `DataTransfer-Regional-Bytes`. Ninguno dice «S3» ni «Triton». Por eso se encuentran con la cuenta de bytes, con [[etiqueta-costos|etiquetas de costos]] por componente y con presupuestos que avisan cuando una línea crece.
@@ -578,9 +631,9 @@ En AWS Cost Explorer, el NAT aparece dentro del servicio «EC2 - Other» como `N
 :::profundo Los otros bytes que se mueven sin que nadie los dibuje
 El recorrido de arriba solo mira el camino de cada request. Hay más:
 
-- **Logs.** Si cada request escribiera ≈ 5 KB de log de depuración a CloudWatch (≈ US$0.50 por GB que entra), serían 304 M × 5 KB = 1,520 GB al mes, ≈ US$760. La Ronda: «un flag de debug olvidado cuesta 2 T4». C01 manda los logs de predicción a S3 por el gateway endpoint y solo los del servicio a CloudWatch.
-- **Réplicas de una cola.** Un Kafka propio con 3 copias en 3 zonas copia cada mensaje de una zona a otra varias veces. En c06, ≈ 5.5 TB al mes de mensajes terminan en ≈ US$438 al mes solo de cruce de zona.
-- **Pesos al arrancar.** Un modelo de 141 GB (un LLM grande) por el NAT cuesta ≈ US$6.35 cada vez que arranca una réplica. Con autoscaling que sube y baja diez veces al día, ya son ≈ US$1,930 al mes.
+- **Logs.** Si cada request escribiera ≈ 5 KB de log de depuración a CloudWatch (≈ US$0.50 por GB que entra), serían 304 M × 5 KB = 1,520 GB al mes: 1,520 × 0.50 ≈ US$760, casi lo que cuestan las dos T4 de Alba (≈ US$768). Un flag de debug olvidado cuesta dos GPUs. Alba manda los logs de predicción a S3 por el gateway endpoint y solo los del servicio a CloudWatch.
+- **Réplicas de una cola.** Un Kafka propio con 3 copias en 3 zonas copia cada mensaje de una zona a otra varias veces. En un sistema de moderación de contenido, con supuestos típicos, ≈ 5.5 TB al mes de mensajes terminan en ≈ US$438 al mes solo de cruce de zona.
+- **Pesos al arrancar.** Un modelo de 141 GB (un LLM grande) por el NAT cuesta 141 × 0.045 ≈ US$6.35 cada vez que arranca una réplica. Con autoscaling que sube y baja diez veces al día, 10 × 30.4 × 6.35 ≈ US$1,930 al mes.
 
 Ninguno aparece en el diagrama de arquitectura. Todos aparecen en la factura.
 :::
@@ -607,7 +660,7 @@ Ninguno aparece en el diagrama de arquitectura. Todos aparecen en la factura.
 
 ### Creer que el ALB cobra por request
 
-**El error:** «el balanceador cuesta US$30». Con fotos en el body, cobra ≈ US$0.008 por GB y en C01 son ≈ US$500 al mes.
+**El error:** «el balanceador cuesta US$30». Con fotos en el body, cobra ≈ US$0.008 por GB y en Alba son ≈ US$500 al mes.
 
 **Cómo evitarlo:** calcula las LCU por la dimensión de bytes: GB por hora = LCUs. Si los bytes pesan, considera mandar la llave del objeto en lugar del contenido.
 
@@ -631,13 +684,13 @@ Ninguno aparece en el diagrama de arquitectura. Todos aparecen en la factura.
 
 ## En la vida real {In real life} [extra]
 
-**C01, el marketplace.** Una VPC `10.0.0.0/16` en `us-east-1`, con una subred pública y una privada en cada una de sus dos zonas. El ALB y los NAT en las públicas; los nodos del gateway y de Triton en las privadas, sin IP pública. Triton no tiene ingress ni balanceador: solo un Service interno y una NetworkPolicy que acepta al gateway. Pesos, engine y logs de predicción por el gateway endpoint de S3; imágenes por los endpoints de ECR más el de S3. Ruteo por zona desde el primer día. La factura de red con todo eso: ≈ US$640 al mes, la mayor parte del ALB.
+**Alba, el marketplace.** Una VPC `10.0.0.0/16` en `us-east-1`, con una subred pública y una privada en cada una de sus dos zonas. El ALB y los NAT en las públicas; los nodos del gateway y de Triton en las privadas, sin IP pública. Triton no tiene ingress ni balanceador: solo un Service interno y una NetworkPolicy que acepta al gateway. Pesos, engine y logs de predicción por el gateway endpoint de S3; imágenes por los endpoints de ECR más el de S3. Ruteo por zona desde el primer día. La factura de red con todo eso: ≈ US$640 al mes, la mayor parte del ALB.
 
-**Patología digital (c04).** Cada lámina pesa ≈ 1 GB y se procesan 1,200 al día. Por el NAT, ≈ US$1,620 al mes, 3.7 veces sus GPUs. Por el gateway endpoint de S3, cero. El mismo caso tiene otra trampa de «bytes que se mueven»: guardar cada pedazo de la lámina como un objeto aparte serían ≈ 3.6 millones de PUT al día, ≈ US$547 al mes. Se guarda un archivo por lámina.
+**Patología digital.** Cada lámina pesa ≈ 1 GB y se procesan 1,200 al día. Por el NAT, ≈ US$1,620 al mes, 3.7 veces sus GPUs. Por el gateway endpoint de S3, cero. El mismo caso tiene otra trampa de «bytes que se mueven»: guardar cada pedazo de la lámina como un objeto aparte serían ≈ 3.6 millones de PUT al día, ≈ US$547 al mes. Se guarda un archivo por lámina.
 
-**Moderación de contenido (c06).** Los eventos viajan por Kafka. Un Kafka propio en 3 zonas copia cada mensaje entre zonas: ≈ US$438 al mes de cruce. Y mandar sus 5,472 GB de logs a CloudWatch costaría ≈ US$2.7k al mes, contra ≈ US$126 en S3.
+**Moderación de contenido.** Los eventos viajan por Kafka. Un Kafka propio en 3 zonas copia cada mensaje entre zonas: ≈ US$438 al mes de cruce. Y mandar sus 5,472 GB de logs a CloudWatch costaría ≈ US$2.7k al mes, contra ≈ US$126 en S3.
 
-**Asistentes con LLM propio (c10, c12 y M14 de la Ronda).** Aquí la VPC no es tema de costo sino de privacidad: «los datos no salen de la VPC». Si el modelo corre en tus máquinas, en subredes privadas, el texto del usuario nunca cruza a internet. Si llamas a una API externa, el prompt sale. Ese requisito, por sí solo, decide si se puede usar una API.
+**Asistentes con LLM propio.** Piensa en un servicio que sirve su propio LLM: un asistente que responde con documentos internos (el de Alba lo usan sus ≈ 8,000 empleados) o un agente con herramientas. Aquí la VPC no es tema de costo sino de privacidad: «los datos no salen de la VPC». Si el modelo corre en tus máquinas, en subredes privadas, el texto del usuario nunca cruza a internet. Si llamas a una API externa, el prompt sale. Ese requisito, por sí solo, decide si se puede usar una API.
 
 **Fuera de ML.** Cualquier empresa que sirve video conoce el egress de memoria: cada GB que mira un usuario es un GB que sale. Por eso existen las CDN, y por eso los proveedores de video negocian el precio del egress antes que el de las máquinas. Y una empresa que quiere cambiarse de nube descubre el otro lado: sacar 50 TB cuesta ≈ US$4.3k por copia.
 
@@ -647,43 +700,49 @@ Resuélvelos con lápiz antes de abrir la solución. Usa los precios de la lecci
 
 :::ejercicios
 ? [facil] Una VPC tiene el rango `10.20.0.0/16`. ¿Cuántas direcciones tiene? ¿Cuántas subredes `/24` caben? ¿Cuántas IPs usables tiene cada `/24` en AWS?
-- La VPC deja libres 32 − 16 = 16 bits: 2¹⁶ = **65,536** direcciones.
-- Una `/24` deja libres 8 bits: 256 direcciones. Caben 65,536 ÷ 256 = **256** subredes `/24`.
+- Con \( D = 2^{32 − p} \) y \(p\) = 16: la VPC deja libres 32 − 16 = 16 bits, 2¹⁶ = **65,536** direcciones.
+- Una `/24` (\(p\) = 24) deja libres 8 bits: 2⁸ = 256 direcciones. Caben 65,536 ÷ 256 = **256** subredes `/24`.
 - AWS aparta 5 en cada subred: 256 − 5 = **251** usables.
 ? [facil] La tabla de rutas de una subred tiene `10.0.0.0/16 → local` y `0.0.0.0/0 → igw-…` (un internet gateway). ¿Es pública o privada? ¿Y si la segunda regla apuntara a un NAT gateway?
 - Con `0.0.0.0/0 → internet gateway`, es **pública**: lo que tenga IP pública puede recibir conexiones de internet.
 - Con `0.0.0.0/0 → NAT`, es **privada**: las máquinas pueden salir a internet, pero nadie de afuera puede abrir una conexión hacia ellas.
 - El nombre de la subred no importa: lo decide la tabla.
 ? [facil] Un nodo en una subred privada baja 400 GB al mes de S3. ¿Cuánto paga si va por el NAT? ¿Y por un gateway endpoint? ¿Y si los subiera a S3 en lugar de bajarlos?
-- Por el NAT: 400 × 0.045 = **US$18** al mes de datos procesados (más la hora del NAT, que se paga de todos modos).
-- Por el gateway endpoint: **US$0**.
+- Con \( c = G × t \): por el NAT, \(t\) = 0.045, así que 400 × 0.045 = **US$18** al mes de datos procesados (más la hora del NAT, que se paga de todos modos).
+- Por el gateway endpoint, \(t\) = 0: **US$0**.
 - Subiéndolos: igual. El NAT cobra en cualquier dirección: **US$18** por el NAT, **US$0** por el endpoint. Que subir a S3 sea gratis no te salva de la caseta.
 ? [facil] Un cluster tiene 40 nodos, todos con IPv4 pública «por si acaso». ¿Cuánto cuestan esas IPs al mes? ¿Las necesitan?
-- 40 × 0.005 × 730 = **US$146** al mes.
+- IPs × US$0.005 por hora × 730 h: 40 × 0.005 × 730 = **US$146** al mes.
 - No. Los nodos van en subredes privadas y salen por el NAT. Además, una IP pública es una puerta más desde internet.
 ? [medio] Un servicio manda 2 MB por request de una zona a otra, 1 millón de veces al día. ¿Cuánto cuesta al mes el cruce? ¿Y si con ruteo por zona solo cruza el 2 %?
-- GB al mes: 2 MB × 1,000,000 × 30.4 = 60,800,000 MB = **60,800 GB**.
-- Todo cruzando: 60,800 × 0.02 = **US$1,216** al mes (0.01 al salir + 0.01 al entrar).
-- Con 2 % cruzando: 60,800 × 0.02 × 0.02 ≈ **US$24** al mes.
+- Usa \( G = b × R ÷ 10^9 \) y \( c = G × f × 0.02 \) (0.01 al salir + 0.01 al entrar).
+- GB al mes: \(b\) = 2 MB = 2,000,000 B y \(R\) = 1,000,000 × 30.4 = 30,400,000, así que \(G\) = 2,000,000 × 30,400,000 ÷ 10⁹ = **60,800 GB**.
+- Todo cruzando, \(f\) = 1: 60,800 × 1 × 0.02 = **US$1,216** al mes.
+- Con 2 % cruzando, \(f\) = 0.02: 60,800 × 0.02 × 0.02 ≈ **US$24** al mes.
 ? [medio] Un ALB recibe 500 GB al día de imágenes en el body. ¿Cuántas LCU usa en promedio? ¿Cuánto cuesta al mes? ¿Cuánto si en lugar de imágenes recibiera llaves de 100 bytes, con el mismo número de requests (5 millones al día)?
-- GB por hora: 500 × 30.4 ÷ 730 ≈ **20.8 GB/h** → ≈ 20.8 LCU.
-- LCU: 20.8 × 0.008 × 730 ≈ US$121.6. Más la hora: 16.4. Total ≈ **US$138** al mes.
+- Usa \( L = G ÷ H \) y \( c_{ALB} = (0.008 × L + 0.0225) × H \), con \(H\) = 730 h.
+- GB al mes: \(G\) = 500 × 30.4 = 15,200 GB. LCU: \(L\) = 15,200 ÷ 730 ≈ **20.8 GB/h** → ≈ 20.8 LCU.
+- LCU: 20.8 × 0.008 × 730 ≈ US$121.6. Más la hora: 0.0225 × 730 ≈ 16.4. Total ≈ **US$138** al mes.
 - Con llaves: 5,000,000 × 100 B = 0.5 GB al día, ≈ 0.02 GB/h. La dimensión de bytes casi desaparece y manda otra: conexiones nuevas o reglas. Si cada request abre una conexión, 5,000,000 ÷ 86,400 s ≈ 58 conexiones nuevas por segundo; 58 ÷ 25 ≈ 2.3 LCU. LCU: 2.3 × 0.008 × 730 ≈ US$13. Más la hora, 16.4. Total ≈ **US$30** al mes.
 ? [medio] Quieres bajar de AWS a tu laptop un dataset de 3 TB en un mes en que no sacaste nada más. ¿Cuánto pagas de egress? ¿Y si son 15 TB?
-- 3 TB: (3,000 − 100) × 0.09 = **US$261**.
-- 15 TB: los primeros 100 GB gratis; 10,240 GB a 0.09 = US$921.60; los 4,660 restantes a 0.085 = US$396.10. Total ≈ **US$1,318**.
+- Usa \( c = 0.09 × G_1 + 0.085 × G_2 + … \), después de quitar los 100 GB gratis.
+- 3 TB: pagan 3,000 − 100 = 2,900 GB, todos en el primer escalón: \(G_1\) = 2,900. \(c\) = 0.09 × 2,900 = **US$261**.
+- 15 TB: pagan 15,000 − 100 = 14,900 GB. \(G_1\) = 10,240 y \(G_2\) = 14,900 − 10,240 = 4,660. \(c\) = 0.09 × 10,240 + 0.085 × 4,660 = 921.60 + 396.10 ≈ **US$1,318**.
 ? [medio] El pico de un servicio es 800 requests por segundo y cada una manda 300 KB del gateway al modelo. El gateway corre en 2 × `c6i.xlarge` (1.56 Gb/s sostenidos). ¿Qué porcentaje del sostenido usa cada nodo? ¿Y si cae una zona y queda uno?
-- Total: 800 × 300,000 × 8 = 1,920,000,000 bits/s ≈ **1.92 Gb/s**.
-- Cada nodo: 0.96 Gb/s ÷ 1.56 ≈ **62 %**.
-- Con uno: 1.92 ÷ 1.56 ≈ **123 %**. Aguanta solo mientras dure la ráfaga; hay que tener un tercer nodo, uno más grande o payloads más chicos.
+- Usa \( v = Q × b × 8 ÷ 10^9 \), \( u = v ÷ (N × S) \) y \( u_{caída} = v ÷ ((N − 1) × S) \).
+- Total, con \(Q\) = 800 y \(b\) = 300,000 B: \(v\) = 800 × 300,000 × 8 = 1,920,000,000 bits/s ≈ **1.92 Gb/s**.
+- Cada nodo, con \(N\) = 2 y \(S\) = 1.56: \(u\) = 1.92 ÷ (2 × 1.56) = 0.96 ÷ 1.56 ≈ **62 %**.
+- Con uno: \(u_{caída}\) = 1.92 ÷ (1 × 1.56) ≈ **123 %**. Aguanta solo mientras dure la ráfaga; hay que tener un tercer nodo, uno más grande o payloads más chicos.
 ? [reto] Un equipo baja de ECR, por el NAT, una imagen de 6 GB cada vez que arranca un nodo, y arrancan 300 nodos al mes. Evalúa tres opciones: (a) dejarlo así; (b) endpoints `ecr.api` y `ecr.dkr` en 3 zonas más el gateway endpoint de S3; (c) solo los endpoints de ECR, sin el de S3. ¿Cuál conviene?
-- (a) 6 × 300 = 1,800 GB × 0.045 = **US$81** al mes.
+- Usa \( c = G × t \) para los GB y suma las horas de los endpoints (US$0.01 por hora en cada zona).
+- (a) \(G\) = 6 GB × 300 arranques = 1,800 GB; por el NAT, 1,800 × 0.045 = **US$81** al mes.
 - (b) Endpoints: 2 × 3 zonas × 0.01 × 730 = US$43.80 al mes. Lo que pasa por ellos es el manifiesto (KB) y la API: ≈ US$0. Las capas, 1,800 GB por el endpoint de S3: US$0. Total ≈ **US$44** al mes. Ahorra ≈ US$37.
 - (c) Las capas viven en S3: sin el endpoint de S3, los 1,800 GB siguen yendo por el NAT (US$81) y además pagas los endpoints (US$43.80): ≈ **US$125**, peor que no hacer nada. Si quitaras el NAT, el *pull* fallaría.
 - Conviene (b). Con imágenes más chicas o menos arranques, (a) podría ganar: compara siempre las horas de los endpoints contra los GB que dejan de pasar por el NAT.
 ? [reto] Un LLM de 141 GB se baja de S3 cada vez que arranca una réplica. El autoscaling arranca 8 réplicas al día. Compara el costo al mes por el NAT y por el gateway endpoint. Después, si las réplicas estuvieran en `us-east-1` y el bucket en `us-west-2`, ¿cuánto costaría la transferencia entre regiones?
-- Arranques al mes: 8 × 30.4 ≈ 243. GB al mes: 243.2 × 141 ≈ **34,291 GB**.
-- Por el NAT: 34,291 × 0.045 ≈ **US$1,543** al mes.
+- Usa \( G = b × R \) (con \(b\) ya en GB) y \( c = G × t \), con \(b\) = 141 GB por arranque.
+- Arranques al mes: \(R\) = 8 × 30.4 ≈ 243.2. GB al mes: \(G\) = 243.2 × 141 ≈ **34,291 GB**.
+- Por el NAT, \(t\) = 0.045: 34,291 × 0.045 ≈ **US$1,543** al mes.
 - Por el gateway endpoint: **US$0**.
 - Entre regiones: la región de donde salen los datos cobra ≈ 0.02 por GB: 34,291 × 0.02 ≈ **US$686** al mes, aunque haya endpoint. El gateway endpoint de S3 solo sirve para buckets de la misma región, así que esos GB además toman la ruta por omisión: si es el NAT, se suman sus ≈ US$1,543, ≈ **US$2,229** al mes en total. La solución es una copia del modelo en `us-east-1`.
 ? [reto] Diseña la red de un servicio nuevo en `us-east-1`, con 3 zonas: un ALB público, 6 nodos de API, 3 GPUs, pesos y logs en S3, imágenes en ECR, y una llamada a una API externa de pagos. Di cuántas subredes y de qué tipo, qué va en cada una, qué dice cada tabla de rutas, qué grupos de seguridad hay y qué endpoints creas. ¿Por dónde pasa la llamada a pagos?
@@ -698,17 +757,8 @@ Resuélvelos con lápiz antes de abrir la solución. Usa los precios de la lecci
 
 ## Lo que sigue {What comes next} [extra]
 
-**En la Ronda:**
-
-- **M13 · Costos y nube** es donde vive todo esto: la sección de costos ocultos recorre los bytes de C01 con su diagrama de red, cobra el NAT, los endpoints, el cruce de zona, el ALB y los logs, y compara la red de un endpoint gestionado contra la de Kubernetes propio. Ahora la puedes leer sin atorarte en «subred privada» ni en «gateway endpoint».
-- **M06 · Orquestación y escalado** usa el ruteo por zona y explica por qué el cruce de zona se paga en GB.
-- **M15 · Seguridad** da por sabido que Triton no se expone: solo un Service interno y una NetworkPolicy.
-- **Los casos c10 y c12 y M14** usan «los datos no salen de la VPC» como requisito de privacidad.
-- La **hoja de números** trae las tarifas de red, las latencias dentro de la VPC y el ancho de banda de cada instancia.
-
-**En el Dojo:** cuando el Dojo tenga su estación en AWS (está planeada), vas a crear la VPC, las subredes y el gateway endpoint de S3, y vas a mirar en Cost Explorer cuánto pasa por el NAT.
-
-**En Sensei:** la siguiente lección, «Servicios gestionados, serverless y permisos», explica qué opera el proveedor por ti, cuánto cobra por eso (incluido el cargo por datos procesados de SageMaker AI) y cómo se le dan permisos a cada pieza con IAM. Más adelante, la fase de seguridad explica el cifrado que termina el ALB (TLS) y cómo se protege lo que vive dentro de la VPC.
+- La siguiente lección, «Servicios gestionados, serverless y permisos», explica qué opera el proveedor por ti, cuánto cobra por eso (incluido el cargo por datos procesados de SageMaker AI) y cómo se le dan permisos a cada pieza con IAM. Más adelante, «Cifrado, llaves y certificados» explica el cifrado que termina el ALB (TLS), y las otras lecciones de seguridad, cómo se protege lo que vive dentro de la VPC.
+- La lección «Kubernetes» retoma lo que aquí quedó apuntado: el Service que reparte entre las copias de Triton, el ruteo por zona y la NetworkPolicy que deja que solo el gateway le hable a Triton.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -732,5 +782,5 @@ La tabla, por dónde va un paquete. El grupo de seguridad, si una conexión tien
 ? ¿Por qué el cruce de zona se cuenta a US$0.02 por GB si la tarifa dice US$0.01?
 Porque cada GB se cobra al salir de una zona y otra vez al entrar a la otra.
 ? ¿Cómo cobra el ALB cuando las fotos van en el body?
-Por LCU, y gana la dimensión de bytes: 1 LCU = 1 GB por hora, así que paga ≈ US$0.008 por GB más su hora. En C01, ≈ US$500 al mes.
+Por LCU, y gana la dimensión de bytes: 1 LCU = 1 GB por hora, así que paga ≈ US$0.008 por GB más su hora. En Alba, ≈ US$500 al mes.
 :::

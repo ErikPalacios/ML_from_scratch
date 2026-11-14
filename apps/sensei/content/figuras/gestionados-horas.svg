@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 390" role="img" aria-labelledby="f-gestionados-horas-t" class="f-svg" style="max-width:420px">
-<title id="f-gestionados-horas-t">Una gráfica del costo al mes contra las horas de GPU activa al día, de 0 a 24. Una L4 dedicada cuesta lo mismo con cualquier número de horas: una línea plana en unos 588 dólares. Una L4 en Cloud Run cuesta 1.05 dólares por hora activa: una línea que sale de cero y sube hasta unos 766 dólares a las 24 horas. Se cruzan cerca de las 18.4 horas. La herramienta de moderación, con 2 horas al día, cuesta unos 64 dólares en Cloud Run. C01, que trabaja las 24 horas, queda del lado donde gana la dedicada.</title>
+<title id="f-gestionados-horas-t">Una gráfica del costo al mes contra las horas de GPU activa al día, de 0 a 24. Una L4 dedicada cuesta lo mismo con cualquier número de horas: una línea plana en unos 588 dólares. Una L4 en Cloud Run cuesta 1.05 dólares por hora activa: una línea que sale de cero y sube hasta unos 766 dólares a las 24 horas. Se cruzan cerca de las 18.4 horas. La herramienta de moderación, con 2 horas al día, cuesta unos 64 dólares en Cloud Run. Alba, que trabaja las 24 horas, queda del lado donde gana la dedicada.</title>
 <rect class="f-card" x="10" y="10" width="340" height="370" rx="16"/>
 <text class="f-l" x="24" y="36">US$ AL MES CONTRA HORAS ACTIVAS AL DÍA</text>
 <line class="f-linea" x1="56" y1="300.0" x2="330" y2="300.0" style="opacity:.35"/>
@@ -31,6 +31,6 @@
 <circle class="f-o" cx="78.8" cy="281.6" r="5"/>
 <text class="f-s" x="92" y="293" style="font-size:12px">moderación: 2 h, ≈ 64</text>
 <circle class="f-o" cx="330.0" cy="79.8" r="5"/>
-<text class="f-s" x="322" y="64" text-anchor="end" style="font-size:12px">C01: 24 h, ≈ 766</text>
+<text class="f-s" x="322" y="64" text-anchor="end" style="font-size:12px">Alba: 24 h, ≈ 766</text>
 <text class="f-t" x="120" y="180" text-anchor="middle" style="font-size:12px;fill:var(--g)">gana serverless</text>
 </svg>

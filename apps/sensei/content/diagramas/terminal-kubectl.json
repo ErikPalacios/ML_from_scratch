@@ -109,7 +109,7 @@
    "y": 47,
    "w": 30,
    "h": 8,
-   "note": "El gateway de C01 escribe una línea JSON por request en su stdout, con `PYTHONUNBUFFERED=1` para que salga al instante. No sabe que alguien la está leyendo."
+   "note": "El gateway de Alba escribe una línea JSON por request en su stdout, con `PYTHONUNBUFFERED=1` para que salga al instante. No sabe que alguien la está leyendo."
   }
  ],
  "edges": [
@@ -221,7 +221,7 @@
      "edges": [
       "terminal>shell"
      ],
-     "text": "Ana teclea `kubectl logs -n classifier gateway-7f9c` y aprieta Enter. La **terminal** le pasa la línea a la **shell**."
+     "text": "Marta teclea `kubectl logs -n classifier gateway-7f9c` y aprieta Enter. La **terminal** le pasa la línea a la **shell**."
     },
     {
      "nodes": [

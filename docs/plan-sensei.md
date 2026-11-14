@@ -8,9 +8,11 @@ Sensei es **el curso de teoría de TrueML** y, junto con el Dojo, su app princip
 
 **La meta principal es aprender de verdad:** entender cada concepto lo suficiente para razonar con él, calcularlo y explicarlo. Lo demás es consecuencia de aprenderlo bien:
 
-- Leer la **Ronda de Diseño ML** completa sin atorarse. Un inventario de sus 15 módulos encontró unos 300 conceptos que da por sabidos, y el temario los cubre todos. Cada lección dice para qué módulos de la Ronda prepara.
+- Leer la **Ronda de Diseño ML** completa sin atorarse. Un inventario de sus 15 módulos encontró unos 300 conceptos que da por sabidos, y el temario los cubre todos. Para qué módulos prepara cada lección es una nota interna de este plan (sección 5) y de `content/ronda.json`; la app no la muestra en las lecciones.
 - Practicar en el **Dojo** sabiendo qué se hace y por qué.
 - Llegar a una entrevista con bases sólidas.
+
+**Sensei es independiente (desde el 2026-11-13).** Se lee solo, sin haber abierto otra app. Las lecciones no citan la Ronda, el Dojo, «C01» ni códigos de módulo (M01–M15) o de caso (C02–C15): si algo se explicaba «en otro lado», se cuenta ahí mismo o se quita. La Ronda y el Dojo aparecen solo al final, en la página «¿Qué sigue después de Sensei?» (`/que-sigue/`). La única excepción es el cierre de cada lección, que enlaza su estación del Dojo con su nombre («Estación 1 del Dojo: Datos y etiquetas»).
 
 | Herramienta | Para qué sirve |
 |---|---|
@@ -18,7 +20,7 @@ Sensei es **el curso de teoría de TrueML** y, junto con el Dojo, su app princip
 | Dojo | Construir, rehacer y romper un mini-proyecto de cada paso. |
 | Ronda de Diseño | Defender el diseño completo en una entrevista. |
 
-**Por qué se subió el estándar (2026-11-04).** La primera versión de la fase 2 dejaba cada lección en introducción: ≈ 4,300 palabras, 1 diagrama, sin calculadoras ni ejercicios. Un módulo de la Ronda trae ≈ 14,000 palabras, ≈ 7 calculadoras, ≈ 18 tablas y ≈ 31 recuadros. El estándar nuevo de una lección es de 8,000 a 11,000 palabras (al principio se fijó en 7,000 a 10,000), en dos pasadas (lo esencial y lo extra). Trae al menos 2 diagramas, 3 figuras, 2 calculadoras interactivas, 3 cuentas paso a paso, código con su salida real, errores comunes, el concepto en otros casos además de C01, y de 8 a 12 ejercicios con solución. Está en [apps/sensei/GUIA-CONTENIDO.md](../apps/sensei/GUIA-CONTENIDO.md), sección 3.
+**Por qué se subió el estándar (2026-11-04).** La primera versión de la fase 2 dejaba cada lección en introducción: ≈ 4,300 palabras, 1 diagrama, sin calculadoras ni ejercicios. Un módulo de la Ronda trae ≈ 14,000 palabras, ≈ 7 calculadoras, ≈ 18 tablas y ≈ 31 recuadros. El estándar nuevo de una lección es de 8,000 a 11,000 palabras (al principio se fijó en 7,000 a 10,000), en dos pasadas (lo esencial y lo extra). Trae al menos 2 diagramas, 3 figuras, 2 calculadoras interactivas, 3 cuentas paso a paso, código con su salida real, errores comunes, el concepto en otros casos además de Alba, y de 8 a 12 ejercicios con solución. Está en [apps/sensei/GUIA-CONTENIDO.md](../apps/sensei/GUIA-CONTENIDO.md), sección 3.
 
 ## 2. Las reglas del contenido
 
@@ -26,7 +28,9 @@ Las reglas completas, los formatos y la lista de revisión están en [apps/sense
 
 - No asumir nada.
 - Analogías donde ayuden, nunca forzadas, y diciendo dónde se rompen.
-- Números con la cuenta a la vista.
+- Números con la cuenta a la vista **y con su ecuación**: cada método lleva un bloque `:::formula` con cada letra definida y su unidad, cada fila de una cuenta dice qué letra es y de dónde sale su número, y las calculadoras usan las mismas letras con etiquetas sin ambigüedad. Una letra significa una sola cosa en toda la lección. El modelo es «Buckets: percentiles sin guardar cada número» en `percentiles.md` (pedido del usuario, 2026-11-13).
+- **Alba como hilo:** la empresa del curso es **Alba**, un marketplace ficticio fijo (antes «el caso C01»). Todos sus números viven en una sola ficha, `apps/sensei/content/empresa.json`, con sus conflictos resueltos; `camino-completo` la presenta con la tabla «Alba en números». Cada lección presenta a Alba la primera vez que la nombra y repite los números que usa, sin suponer que se leyó otra lección. Un dato nuevo de Alba se agrega primero a la ficha. Los otros sistemas (búsqueda, recomendaciones, asistente con RAG, LLM propio, agente, moderación) también son de Alba; los demás casos se nombran por lo que son, sin empresas reales.
+- **Sin citas a otras apps:** `grep -rnE 'Ronda|\bC0[1-9]\b|\bC1[0-5]\b|\bc01\b|\bM(0[1-9]|1[0-5])\b|Dojo'` sobre `content/lecciones`, `glosario`, `diagramas`, `figuras`, `calculadoras` y `empresa.json` sale vacío en cada fase.
 - Al menos un diagrama con recorrido y una figura por lección.
 - El término en inglés al lado del español.
 - Hechos verificados.
@@ -40,9 +44,10 @@ Las reglas completas, los formatos y la lista de revisión están en [apps/sense
   - «En esta página» a la derecha en pantallas anchas, y un cajón con menú en el celular.
 - **Diagramas con el motor de la Ronda:** `vendor/ronda/diagram.js`, copiado por `node apps/trueml/sync.mjs`. Trae carriles, cajas con forma según su tipo, recorridos paso a paso, «Ampliar» y «por qué está aquí» al tocar cada caja.
 - **Glosario con globos:** cada concepto vive en un solo lugar (`content/glosario/<lección>.json`) y se abre ahí mismo, también dentro de los diagramas.
-- **Para leer la Ronda** (`/ronda/`): los 15 módulos de la Ronda, cada uno con las lecciones que preparan para él.
-- **El cierre de cada lección:** marcar como leída, la siguiente lección, la estación del Dojo y el módulo de la Ronda.
-- **La regla de las dudas:** cuando surja una duda en el Dojo o en la Ronda, la respuesta se agrega o se mejora en el glosario.
+- **¿Qué sigue después de Sensei?** (`/que-sigue/`, antes `/ronda/`, que redirige ahí): la única página que habla del Dojo y de la Ronda. Lista las estaciones del Dojo y los 15 módulos de la Ronda, cada uno con las lecciones que conviene repasar (`content/ronda.json`, campo `lecciones`). La barra lateral y el pie la enlazan al final.
+- **El cierre de cada lección:** marcar como leída, la siguiente lección (o `/que-sigue/` en la última) y la estación del Dojo por su nombre, sin C01.
+- **Ecuaciones sin dependencias:** `tools/mate.mjs` dibuja fracciones, raíces, subíndices, sumas y letras griegas; en línea se escriben `\( … \)` y en bloque con `:::formula` (ver la guía).
+- **La regla de las dudas:** cuando a alguien le surge una duda, la respuesta se agrega o se mejora en el glosario.
 
 ## 4. Cómo se trabaja cada fase (proceso ahorrador, desde la fase 4)
 
@@ -50,7 +55,7 @@ En la fase 3 cada lección costó ≈ 1.75 % del límite semanal del plan Max, y
 
 1. **Una sesión nueva por fase**, que parte del plan, la guía y los commits, no de una conversación larga.
 2. **Tandas del tamaño de una ventana:** unas 5 lecciones. Cada escritor lleva un **presupuesto de palabras por sección** desde el principio (8,000 a 11,000 en total), para no escribir de más y recortar después.
-3. **Paquetes de datos de la Ronda:** al empezar la fase, un paso barato extrae por lección los números, definiciones y frases de la Ronda que necesita. Escritores y revisores leen el paquete en lugar de módulos enteros, y pueden buscar en la Ronda lo que falte.
+3. **Paquetes de datos de la Ronda:** al empezar la fase, un paso barato extrae por lección los números, definiciones y frases de la Ronda que necesita. Escritores y revisores leen el paquete en lugar de módulos enteros, y pueden buscar en la Ronda lo que falte. La Ronda es fuente, nunca cita: lo que se toma de ella se cuenta en la lección, y sus números del caso se pasan por `content/empresa.json`.
 4. **Cada modelo en su trabajo:**
    - El modelo grande escribe y hace la **revisión de fondo**: hechos, claridad y conocimiento supuesto. Esa es la prioridad y no se recorta.
    - Un modelo chico, con esfuerzo bajo, hace lo mecánico: correr los scripts que recalculan cada número, comparar cada bloque de código con su salida y revisar las capturas. Reporta lo que encuentra.
@@ -133,14 +138,33 @@ Con tokens parecidos, Fable gastó ≈ 3.4 veces más del límite total por lecc
 
 Para la fase 9:
 - Repetir el flujo de esta fase tal cual, con todos los escritores en Opus, esfuerzo medio.
-- Dejar en el encargo del escritor los «datos comunes de la fase» y el alcance de cada lección (`reparto.md`). Aun con ellos, los totales de C01 se contaron distinto entre lecciones: conviene que el reparto traiga cada total ya sumado partida por partida.
+- Dejar en el encargo del escritor los «datos comunes de la fase» y el alcance de cada lección (`reparto.md`). Aun con ellos, los totales del caso se contaron distinto entre lecciones: ahora los datos comunes salen de la ficha `content/empresa.json`, con cada total ya sumado partida por partida.
+- Seguir las reglas nuevas desde el borrador: Alba (ficha), una ecuación por método con sus letras definidas, nada de Ronda, Dojo ni códigos. La revisión mecánica corre el grep de la sección 2 y la de claridad revisa que cada letra signifique una sola cosa.
 - Las 30 correcciones que las revisiones de hechos encontraron para la Ronda (NAT regional, cobro de Cloud Run, CUD con reserva, egress al salir del proveedor, la infraestructura de C01, etc.) están juntas en las notas de la sesión. Conviene aplicarlas en una sesión aparte.
+
+**Limpieza: Alba, sin Ronda y con ecuaciones (2026-11-13/14).** Las 43 lecciones dejaron de citar la Ronda, el Dojo, «C01» y los códigos M01–M15 y C02–C15. El caso C01 ahora es Alba, con sus números en `content/empresa.json`. Cada método tiene su ecuación en un bloque `:::formula`, con cada letra definida. Cada lección pasó por un editor (Opus, medio) y una revisión de claridad (Opus, alto). Al final, una pasada de consistencia revisó las 43 juntas. Gasto por pieza:
+
+| Pieza | Modelo y esfuerzo | Semanal | Ventana de 5 h |
+|---|---|---|---|
+| Ficha `content/empresa.json` (18 conflictos resueltos) | Sonnet | < 1 punto | < 1 punto |
+| Tandas 1 y 2: 22 lecciones (fases 1–4 y `red`), editor y claridad | Opus, medio y alto | 13 → 22 % (≈ 0.4 por lección) | 6 → 73 % en una ventana (≈ 3 puntos por lección: ≈ 2.3 del editor y ≈ 1 de la revisión) |
+| Tanda 3: 21 lecciones (fases 5–8), editor y claridad, hasta 20 agentes a la vez | Opus, medio y alto | 23 → 30 % (≈ 0.33 por lección) | 0 → 57 % en ≈ 25 min (≈ 2.7 puntos por lección) |
+| Consistencia de las 43 (+27 datos en la ficha, conflictos 19–30) | Sonnet, bajo | < 1 punto | ≈ 1 punto |
+| Cierre: revisión mecánica, navegador, plan, commit y deploy | Opus (la sesión) | < 1 punto | ≈ 1–2 puntos |
+
+Lo que encontraron las revisiones:
+- Lo más común fue una letra con dos significados: una \(s\) que choca con la unidad «s», una \(D\) para bytes junto a «el día D», o una letra distinta en el texto y en la calculadora. Por eso el encargo de claridad lo pone primero.
+- Hubo pocos errores de cuenta, ≈ 1 de cada 3 lecciones, y todos chicos (US$45 → 44, 1.9× → 1.8×).
+- El check del navegador encontró ecuaciones en línea demasiado largas que se salían del ancho. Ahora `tools/mate.mjs` pone un punto de corte (`<wbr>`) después de cada operador, y `.m` ya no es `nowrap`. Los subíndices, las fracciones y las raíces siguen sin partirse.
+- Los editores en paralelo compartían la carpeta temporal y uno corrió por error el script de otro, que no cambió nada. En los encargos en paralelo, cada agente guarda sus scripts en una subcarpeta con el nombre de su lección.
+
+**Lección aprendida: las esperas entre ventanas van en una sesión nueva y corta.** Una sesión larga gasta ≈ 2 % de la ventana por turno solo en releer su contexto. Una sesión que espera el reinicio y despierta con cada agente que termina se come la ventana sin hacer trabajo. Lo barato es cerrar la sesión larga y que una sesión nueva, con un encargo corto, haga la espera y lance la tanda siguiente.
 
 ## 5. Las fases
 
 Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, la 5, la 6 y la 7 desde el 2026-11-06 y la 8 desde el 2026-11-13: 43 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) y las 5 de la fase 8 (9.4–10.3k palabras, 60–61 min lo esencial y 70–75 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
 
-| Fase | Módulo | Lecciones | Prepara para la Ronda |
+| Fase | Módulo | Lecciones | Prepara para la Ronda (nota interna, no va en la app) |
 |---|---|---|---|
 | 1 ✓ | El mapa | El camino completo | M01 |
 | 2 ✓ (profundizada) | Lo básico de ML | Qué es un modelo · Una foto, vista por un modelo · Datos, ejemplos, features y etiquetas · Cómo aprende un modelo · ¿Aprendió de verdad? · Redes neuronales y CNNs · Embeddings · Transformers y LLMs | M01, M04, M07–M12, M14 |
@@ -151,12 +175,12 @@ Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 
 | 7 ✓ | Herramientas del oficio | La terminal · Python y sus paquetes · PyTorch para producción · Git · Pruebas y CI/CD · Configuración y secretos | M05–M11, M15 |
 | 8 ✓ | La nube | Qué es la nube · Regiones y zonas · Máquinas, GPUs y precios · Redes en la nube · Servicios gestionados y permisos | M04, M06, M13, M15 · base de IA Privada (`content/datos/gpus.json`) |
 | 9 | Seguridad | Cifrado, llaves y certificados · Autenticación y permisos · Datos personales y la ley · Ataques y cadena de suministro | M05, M07, M09, M15 |
-| 10 | Estaciones · Datos | Estación 1 y 2 de C01 | M09, M10 |
+| 10 | Estaciones · Datos | Estaciones 1 y 2 de Alba | M09, M10 |
 | 11 | Estaciones · Modelo | Estación 3, 4 y 5 | M08, M10, M11 |
 | 12 | Estaciones · API | Estación 6 | M03, M07 |
 | 13 | Estaciones · Contenedor | Estación 7 y 8 | M05, M10 |
 | 14 | Estaciones · Orquestación | Estación 9 y 10 | M06, M11 |
 | 15 | Estaciones · Monitoreo | Estación 11 y 12 | M03, M12 |
-| 16 | Integración | Cada estación del Dojo y cada módulo de la Ronda enlaza a sus lecciones de Sensei, hay repaso con tarjetas del glosario y una revisión final de hechos | Todo |
+| 16 | Integración | El Dojo y la Ronda enlazan desde sus propias apps a las lecciones de Sensei (Sensei solo los enlaza desde `/que-sigue/`), hay repaso con tarjetas del glosario y una revisión final de hechos | Todo |
 
 Los módulos 1 a 9 van antes que las estaciones porque son los cimientos de verdad. Sin ellos, la lección de la estación 1 tendría que suponer qué es un modelo, una API o un bucket.

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 486" role="img" aria-labelledby="f-apis-anatomia-t" class="f-svg" style="max-width:420px">
-<title id="f-apis-anatomia-t">La request de C01 y su respuesta, por partes. La request: el método POST, la ruta /v1/classify y la query top_k igual a 5; los headers Host y Content-Type image/jpeg; y el body, que son los bytes crudos del JPEG, de unos 200 KB, sin JSON. La respuesta: el código de estado 200 OK, el header Content-Type application/json y el body en JSON, con model_version, la lista predictions con label y score, y latency_ms.</title>
+<title id="f-apis-anatomia-t">La request de Alba y su respuesta, por partes. La request: el método POST, la ruta /v1/classify y la query top_k igual a 5; los headers Host y Content-Type image/jpeg; y el body, que son los bytes crudos del JPEG, de unos 200 KB, sin JSON. La respuesta: el código de estado 200 OK, el header Content-Type application/json y el body en JSON, con model_version, la lista predictions con label y score, y latency_ms.</title>
 <rect class="f-card" x="10" y="10" width="340" height="466" rx="16"/>
 <text class="f-l" x="28" y="36">LA REQUEST: DEL BACKEND AL GATEWAY</text>
 <rect class="f-chip" x="24" y="48" width="312" height="166" rx="10"/>
@@ -20,7 +20,7 @@
 <text class="f-l" x="38" y="344">HEADERS</text>
 <text x="38" y="362" style="fill:var(--ink-2);font:500 12px var(--mono)">Content-Type: <tspan style="fill:var(--g);font-weight:700">application/json</tspan></text>
 <text class="f-l" x="38" y="386">BODY, EN JSON</text>
-<text x="38" y="404" style="fill:var(--ink);font:500 12px var(--mono)">{"model_version": "2026-09-01-…",</text>
+<text x="38" y="404" style="fill:var(--ink);font:500 12px var(--mono)">{"model_version": "resnet50-2026-10-01",</text>
 <text x="45" y="420" style="fill:var(--ink);font:500 12px var(--mono)">"predictions": [</text>
 <text x="55" y="436" style="fill:var(--ink);font:500 12px var(--mono)">{"label": "Tenis", "score": 0.83}, …],</text>
 <text x="45" y="452" style="fill:var(--ink);font:500 12px var(--mono)">"latency_ms": 41.2}</text>

@@ -68,15 +68,15 @@
       "note": "Un [[bucket-objetos|bucket]] privado del producto. Recibe el `PUT`, recalcula la firma, revisa que no haya vencido y guarda el objeto con [[durabilidad]] de once nueves. Una regla de [[ciclo-vida|ciclo de vida]] lo mueve de clase cuando envejece."
     },
     {
-      "id": "c01",
-      "label": "Gateway de C01",
+      "id": "gateway",
+      "label": "Gateway de Alba",
       "sub": "variante: la llave",
       "kind": "service",
       "x": 29,
       "y": 38,
       "w": 20,
       "h": 8,
-      "note": "En la variante que propone M13 para ahorrar, la request a C01 lleva **la llave, no los bytes** (en el diseño base, el gateway recibe la foto). El gateway lee la foto del bucket con el permiso de su propio rol, que solo deja leer el prefijo de fotos: un `GET` por foto, ≈ 304 millones al mes."
+      "note": "En una variante para ahorrar, la request al clasificador de Alba lleva **la llave, no los bytes** (en el diseño base, el gateway recibe la foto). El gateway lee la foto del bucket con el permiso de su propio rol, que solo deja leer el prefijo de fotos: un `GET` por foto: 10 M al día × 30.4 días ≈ 304 millones al mes."
     },
     {
       "id": "lake",
@@ -87,7 +87,7 @@
       "y": 38,
       "w": 20,
       "h": 8,
-      "note": "El log de cada predicción anota la llave de la foto, la categoría y la confianza: ≈ 300 bytes. La foto ya vive en el bucket del producto; copiarla «por si acaso» serían ≈ 60 TB más cada mes."
+      "note": "El log de cada predicción anota la llave de la foto, la categoría y la confianza: ≈ 300 bytes. La foto ya vive en el bucket del producto; copiarla «por si acaso» serían 2 TB al día × 30 ≈ 60 TB más cada mes."
     }
   ],
   "edges": [
@@ -136,14 +136,14 @@
     },
     {
       "from": "api",
-      "to": "c01",
+      "to": "gateway",
       "kind": "online",
       "label": "la llave",
       "fromSide": "b",
       "toSide": "t"
     },
     {
-      "from": "c01",
+      "from": "gateway",
       "to": "s3",
       "kind": "online",
       "label": "GET",
@@ -151,7 +151,7 @@
       "toSide": "r"
     },
     {
-      "from": "c01",
+      "from": "gateway",
       "to": "lake",
       "kind": "async",
       "label": "log",
@@ -215,30 +215,30 @@
         {
           "nodes": [
             "api",
-            "c01"
+            "gateway"
           ],
           "edges": [
-            "api>c01"
+            "api>gateway"
           ],
-          "text": "El marketplace le pide a C01 una categoría. En la variante de M13, la request lleva **la llave**, unos cuantos bytes, en vez de los 200 KB."
+          "text": "El marketplace le pide una categoría al clasificador de Alba. En la variante para ahorrar, la request lleva **la llave**, unos cuantos bytes, en vez de los 200 KB."
         },
         {
           "nodes": [
-            "c01",
+            "gateway",
             "s3"
           ],
           "edges": [
-            "c01>s3"
+            "gateway>s3"
           ],
           "text": "El gateway hace un `GET` con el permiso de su propio rol. No usa URLs prefirmadas: es un servicio de confianza, con permiso de leer ese prefijo."
         },
         {
           "nodes": [
-            "c01",
+            "gateway",
             "lake"
           ],
           "edges": [
-            "c01>lake"
+            "gateway>lake"
           ],
           "text": "La predicción queda en el log, **con la llave de la foto y no sus bytes**, y llega al lake en archivos grandes, no uno por predicción."
         }

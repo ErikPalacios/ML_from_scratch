@@ -1,10 +1,10 @@
 {
  "titulo": "La fila de un servidor (M/M/1)",
- "intro": "Un servidor con una fila: llegan λ requests por segundo y cada una le cuesta S de [[tiempo-servicio|tiempo de servicio]]. Arranca en un pod del gateway de C01 en el pico de diseño.",
+ "intro": "Un servidor con una fila (M/M/1): llegan \\(λ\\) requests por segundo y cada una le cuesta \\(S\\) de [[tiempo-servicio|tiempo de servicio]]. Aplica \\(ρ = λ × S\\), \\(W = S ÷ (1 − ρ)\\), \\(W_q = W − S\\) y \\(L = λ × W\\), con las letras de «Fila M/M/1». Arranca en un pod del gateway de Alba en el pico de diseño: 500 req/s entre 5 pods, 100 cada uno.",
  "entradas": [
   {
    "id": "s",
-   "label": "Tiempo de servicio S (6 = la CPU del gateway por foto)",
+   "label": "Tiempo de servicio \\(S\\), en ms (6 = la CPU del gateway de Alba por foto)",
    "min": 1,
    "max": 50,
    "paso": 0.5,
@@ -13,7 +13,7 @@
   },
   {
    "id": "lam",
-   "label": "Llegadas λ, en requests por segundo (100 = un pod en el pico de diseño)",
+   "label": "Llegadas \\(λ\\), en requests por segundo (100 = un pod de Alba en el pico de diseño)",
    "min": 1,
    "max": 400,
    "paso": 1,
@@ -28,45 +28,46 @@
  ],
  "salidas": [
   {
-   "label": "Utilización ρ = λ × S",
+   "label": "Utilización \\(ρ\\)",
    "formula": "rho",
    "formato": "pct",
    "barra": true,
-   "nota": "más de 100 %: llega más trabajo del que cabe"
+   "nota": "\\(ρ = λ × S\\), con \\(S\\) en segundos; más de 100 %: llega más trabajo del que cabe"
   },
   {
-   "label": "Tiempo promedio en el sistema, W = S ÷ (1 − ρ)",
+   "label": "Tiempo promedio en el sistema \\(W\\)",
    "formula": "s / max(1 - rho, 0)",
    "formato": "ms",
    "decimales": 1,
-   "nota": "solo existe si ρ es menor que 100 %; arriba sale «—»"
+   "nota": "\\(W = S ÷ (1 − ρ)\\); solo existe si \\(ρ\\) es menor que 100 %; arriba sale «—»"
   },
   {
-   "label": "Espera promedio en la fila",
+   "label": "Espera promedio en la fila \\(W_q\\)",
    "formula": "s / max(1 - rho, 0) - s",
    "formato": "ms",
    "decimales": 1,
-   "nota": "W − S: lo que no es trabajo"
+   "nota": "\\(W_q = W − S\\): lo que no es trabajo"
   },
   {
-   "label": "p99 ≈ 4.6 × W",
+   "label": "p99 del tiempo en el sistema",
    "formula": "s / max(1 - rho, 0) * log(100)",
    "formato": "ms",
    "decimales": 0,
-   "nota": "en M/M/1, W × ln(100)"
+   "nota": "\\(W × ln(100) ≈ 4.6 × W\\), en M/M/1"
   },
   {
-   "label": "Requests adentro, en promedio (Little: λ × W)",
+   "label": "Requests adentro, en promedio, \\(L\\)",
    "formula": "lam * s / max(1 - rho, 0) / 1000",
    "formato": "num",
-   "decimales": 1
+   "decimales": 1,
+   "nota": "Ley de Little: \\(L = λ × W\\), con \\(W\\) en segundos"
   },
   {
    "label": "Lo que crece la fila cada segundo",
    "formula": "max(lam - 1000 / s, 0)",
    "formato": "int",
-   "nota": "0 mientras ρ sea menor que 100 %; arriba, la fila no tiene fondo"
+   "nota": "\\(λ − 1 ÷ S\\), con \\(S\\) en segundos: lo que llega menos lo que el servidor termina. 0 mientras \\(ρ\\) sea menor que 100 %; arriba, la fila no tiene fondo"
   }
  ],
- "nota": "Prueba S = 3 con 150 llegadas: con la mitad de trabajo por foto, el núcleo baja a 45 % y el p99 a ≈ 25 ms. Bajar el tiempo de servicio también baja la utilización."
+ "nota": "Prueba \\(S\\) = 3 con 150 llegadas: con la mitad de trabajo por foto, el núcleo baja a 150 × 0.003 = 45 % y el p99 a ≈ 25 ms. Bajar el tiempo de servicio también baja la utilización."
 }

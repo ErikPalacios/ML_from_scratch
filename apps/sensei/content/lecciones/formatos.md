@@ -2,7 +2,7 @@
 titulo: Archivos y formatos: JSON, CSV, Parquet y YAML
 en: Files and formats: JSON, CSV, Parquet and YAML
 subtitulo: Cómo se escriben los datos en bytes para que otro programa, otro día, los lea igual: texto o binario, UTF-8, CSV, JSON Lines, YAML, compresión, Parquet por columnas, esquemas que cambian sin romper a nadie y archivos de pesos que no ejecutan nada al abrirse.
-pregunta: La foto de Ana, cada predicción y el modelo entrenado terminan en archivos. ¿Cómo se escriben esos bytes para que otro programa los lea igual, y por qué el log de predicciones de C01 va en Parquet y no en CSV?
+pregunta: La foto de Ana, cada predicción y el modelo entrenado terminan en archivos. ¿Cómo se escriben esos bytes para que otro programa los lea igual, y por qué el log de predicciones de Alba va en Parquet y no en CSV?
 requisitos: apis, sistema-operativo
 ---
 
@@ -10,11 +10,11 @@ requisitos: apis, sistema-operativo
 Un archivo es solo una fila de bytes; el formato es el acuerdo que dice qué significa cada uno. Los formatos de texto (CSV, JSON, YAML) se leen a simple vista, pero ocupan más y adivinan los tipos. Los binarios (Parquet, Avro, safetensors) son compactos y traen su esquema. Para millones de registros que después se consultan por columnas, gana Parquet.
 :::
 
-Ana sube la foto de sus tenis y, en el camino de C01, esa foto deja varios archivos. El JPEG de ≈ 200 KB que mandó la app se guarda. La predicción se escribe como una línea de *log* (el registro de lo que pasó) de unos 300 bytes. Y el modelo que la contestó vive en un archivo de pesos de ≈ 98 MB que alguien entrenó semanas antes.
+Ana sube la foto de sus tenis a Alba, la empresa que seguimos en todo el curso: un marketplace en línea que recibe ≈ 2.5 millones de publicaciones al día y le sugiere a quien vende la categoría de cada foto, entre 500 posibles. Su servicio contesta ≈ 10 millones de fotos al día, y en ese camino la foto de Ana deja varios archivos. El JPEG de ≈ 200 KB que mandó la app se guarda. La predicción se escribe como una línea de *log* (el registro de lo que pasó) de unos 300 bytes. Y el modelo que la contestó vive en un archivo de pesos de ≈ 98 MB que alguien entrenó semanas antes.
 
 Cada archivo lo escribe un programa y lo lee otro, a veces meses después y en otro lenguaje. Para que funcione, los dos tienen que estar de acuerdo, byte por byte, en qué significa cada cosa. Ese acuerdo es el formato.
 
-Al final de la lección vas a poder contestar la pregunta del título con números: los ≈ 3 GB diarios de logs de C01 bajan a unos cientos de MB en Parquet, y la revisión diaria de [[drift]] lee apenas una parte de eso.
+Al final de la lección vas a poder contestar la pregunta del título con números: los ≈ 3 GB diarios de logs de Alba (10 millones de líneas de ≈ 300 bytes) bajan a unos cientos de MB en Parquet, y la revisión diaria de [[drift]] lee apenas una parte de eso.
 
 ## Un archivo es una fila de bytes {A file is a row of bytes}
 
@@ -88,7 +88,7 @@ labels.json  5b 22 54 65  → probablemente JSON
 
 JSON no tiene firma: un `{` al principio es solo una buena pista. Un `.gz` es un archivo comprimido con gzip, que verás en la sección de compresión. Y el `.pt` de PyTorch resulta ser un zip, varios archivos empacados en uno (un zip puede comprimirlos, pero PyTorch guarda los tensores sin comprimir, para leerlos directo); en la sección de pesos verás qué hay adentro.
 
-Esto se usa en la puerta de C01. El gateway acepta JPEG, PNG o WebP (otro formato de imagen, de Google) de hasta 10 MB, y no le cree al nombre del archivo: revisa la firma antes de gastar CPU en decodificar, y si no es de un formato aceptado, contesta 415, el [[codigo-estado|código de estado]] HTTP de «tipo de contenido no soportado». La Ronda (M01) avisa que llegan de todo: PNG con transparencia, fotos de 40 megapíxeles y archivos corruptos.
+Esto se usa en la puerta de Alba. El gateway, el programa que recibe cada foto, acepta JPEG, PNG o WebP (otro formato de imagen, de Google) de hasta 10 MB, y no le cree al nombre del archivo: revisa la firma antes de gastar CPU en decodificar, y si no es de un formato aceptado, contesta 415, el [[codigo-estado|código de estado]] HTTP de «tipo de contenido no soportado». Y llega de todo: PNG con transparencia, fotos de 40 megapíxeles y archivos corruptos.
 
 Un detalle que aprovechan Parquet y safetensors: un programa no tiene que leer un archivo de principio a fin. Puede pedir «los bytes del 4,000,000 al 4,000,100» (en Python, `f.seek(4_000_000)` y `f.read(100)`), y solo esos viajan desde el disco.
 
@@ -159,7 +159,7 @@ leídos al revés (byte grande primero): -2016013824
 | Rapidez | Hay que convertir letras en números | Se copian los bytes |
 | Si se daña un byte | Se ve y a veces se arregla a mano | Puede arruinar el resto |
 
-En la lección de APIs viste el caso grande: el tensor de la foto de Ana ocupa 602,112 bytes en float32 y ≈ 3.07 MB como JSON, cinco veces más. Texto para lo chico que leen personas; binario para lo grande que solo leen máquinas.
+En la lección de APIs viste el caso grande: el tensor de la foto de Ana ocupa 602,112 bytes en float32 (3 × 224 × 224 números × 4 bytes) y ≈ 3.07 MB como JSON: 3.07 MB ÷ 602 KB ≈ 5 veces más. Texto para lo chico que leen personas; binario para lo grande que solo leen máquinas.
 
 ### Las letras también son números: UTF-8
 
@@ -290,7 +290,7 @@ CSV sirve para tablas chicas, para pasarle datos a una persona con una hoja de c
 
 Lo que no da: un esquema. Nada revisa que `score` sea siempre un número.
 
-Así escribe C01 su log de predicciones. El gateway imprime una línea JSON por request a su salida estándar (*stdout*, la salida de texto del programa, la que verías en la terminal), y otro programa, Fluent Bit, la recoge y la manda a S3, el almacén de archivos de AWS, la nube de Amazon (lo verás en «Object storage, data lakes y warehouses»). Son unos 300 bytes; la hora la agrega quien guarda el log. Aquí, partida para que se lea (en el archivo va en una sola línea):
+Así escribe Alba su log de predicciones. El gateway imprime una línea JSON por request a su salida estándar (*stdout*, la salida de texto del programa, la que verías en la terminal), y otro programa, Fluent Bit, la recoge y la manda a S3, el almacén de archivos de AWS, la nube de Amazon (lo verás en «Object storage, data lakes y warehouses»). Son unos 300 bytes; la hora la agrega quien guarda el log. Aquí, partida para que se lea (en el archivo va en una sola línea):
 
 ```text
 {"request_id": "9f2c41d0", "caller": "app-ios",
@@ -302,12 +302,24 @@ Así escribe C01 su log de predicciones. El gateway imprime una línea JSON por 
 
 Campo por campo: quién llamó (`caller`), qué versión del modelo contestó, las cinco categorías más probables con su número y su score (`top5`), los milisegundos de cada paso (`ms`), el tamaño de la foto, el principio de su huella digital (`sha256`, un hash que verás en «Tiempo, hashes e identificadores») y el código de estado HTTP de la respuesta.
 
-:::cuenta Los logs de C01 en JSON Lines
-Predicciones al día // una por foto: ≈ 10 M fotos | — | ≈ 10,000,000
-Bytes por línea | — | ≈ 300 B
-Al día | 10⁷ × 300 B | ≈ 3 GB
-Con 90 días de retención // lo que se guarda antes de borrar | 3 GB × 90 | ≈ 270 GB
-Al segundo, en el pico de diseño | 500 × 300 B | ≈ 150 KB/s
+¿Cuánto ocupa eso? Es una multiplicación por líneas y otra por días:
+
+:::formula Cuánto pesa el log
+S_{día} = N × b
+S_{ret} = S_{día} × d
+- N: líneas de log al día: una por predicción
+- b: bytes por línea, en B
+- d: días de retención: cuántos días se guarda el log antes de borrarlo
+- S_{día}: lo que ocupa el log de un día, en bytes
+- S_{ret}: lo que ocupa el log de toda la retención, en bytes
+:::
+
+:::cuenta Los logs de Alba en JSON Lines
+Predicciones al día \(N\) // una por foto: Alba contesta ≈ 10 M fotos al día | — | ≈ 10,000,000
+Bytes por línea \(b\) // lo que mide la línea JSON de arriba | — | ≈ 300 B
+Al día, \(S_{día} = N × b\) | 10⁷ × 300 B | ≈ 3 GB
+Con \(d\) = 90 días de retención, \(S_{ret} = S_{día} × d\) // lo que se guarda antes de borrar | 3 GB × 90 | ≈ 270 GB
+Al segundo, en el pico de diseño // Alba compra máquinas para 500 requests por segundo, y cada request escribe una línea | 500 × 300 B | ≈ 150 KB/s
 = Escribir no cuesta: 150 KB por segundo no es nada para un disco. Lo caro es guardar 270 GB y leerlos cada día.
 :::
 
@@ -355,16 +367,16 @@ el arreglo cortado no se lee: Expecting property name enclosed in double quotes
 
 ## YAML: configuración que escriben personas {YAML: configuration people write} [extra]
 
-Hay archivos que no escribe un programa, sino una persona: cuántas réplicas del servidor correr, qué imagen usar, cuándo mandar una alerta. Para eso se usa casi siempre [[yaml|YAML]] (las letras quieren decir, en broma, *YAML Ain't Markup Language*, «YAML no es un lenguaje de marcado»). En C01 lo vas a ver en tres lugares:
+Hay archivos que no escribe un programa, sino una persona: cuántas réplicas del servidor correr, qué imagen usar, cuándo mandar una alerta. Para eso se usa casi siempre [[yaml|YAML]] (las letras quieren decir, en broma, *YAML Ain't Markup Language*, «YAML no es un lenguaje de marcado»). En Alba lo vas a ver en tres lugares:
 
-- Los **manifiestos de Kubernetes**, el [[orquestacion|orquestador]] que corre los contenedores de C01: en YAML se declara el estado que quieres («2 réplicas de esta imagen, con una GPU cada una») y Kubernetes lo hace realidad.
+- Los **manifiestos de Kubernetes**, el [[orquestacion|orquestador]] que corre los contenedores de Alba: en YAML se declara el estado que quieres («2 réplicas de esta imagen, con una GPU cada una») y Kubernetes lo hace realidad.
 - El **docker-compose.yml**, que levanta juntos los contenedores en una sola máquina para probar.
 - Las **reglas de alertas** de Prometheus, el sistema que guarda las métricas.
 
 Un pedazo de manifiesto se ve así:
 
 ```yaml
-# Un Deployment de C01, recortado: cuántas copias del gateway correr y con qué imagen
+# Un Deployment de Alba, recortado: cuántas copias del gateway correr y con qué imagen
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -375,7 +387,7 @@ spec:
     spec:
       containers:
         - name: gateway
-          image: registry.example.com/c01/gateway:1.4.2
+          image: registry.example.com/alba/gateway:1.4.2
           env:
             - name: TOP_K
               value: "5"
@@ -387,7 +399,7 @@ Se lee casi como una lista del súper, y esa es la idea. Las reglas son pocas:
 - `nombre: valor` es un campo; una línea que empieza con `- ` es un elemento de una lista.
 - `#` empieza un comentario. JSON no tiene comentarios; YAML sí, y en una configuración importan.
 - YAML acepta JSON: `{"replicas": 2}` también es YAML válido.
-- `---` en su propia línea separa dos documentos dentro del mismo archivo. Así, un solo `.yaml` puede traer el Deployment de C01 (qué contenedores correr) y su Service (la dirección fija por la que se llega a ellos).
+- `---` en su propia línea separa dos documentos dentro del mismo archivo. Así, un solo `.yaml` puede traer el Deployment del gateway de Alba (qué contenedores correr) y su Service (la dirección fija por la que se llega a ellos).
 - `|` al final de una línea guarda el texto de abajo tal cual, con sus saltos de línea: sirve para meter un script o un archivo de configuración completo dentro del YAML.
 
 ¿Por qué no configurar en JSON? Se puede, y algunas herramientas lo aceptan, pero JSON no admite comentarios, pide comillas y llaves en todo, y una coma de más al final rompe el archivo. Y al revés: ¿por qué no guardar datos en YAML? Porque su lector es lento, adivina los tipos y la indentación se rompe al editar a mano un archivo de un millón de líneas. YAML es para lo que escriben y revisan personas, casi siempre guardado en Git, el programa que lleva la historia del código, junto al código.
@@ -415,7 +427,7 @@ Usa siempre `safe_load`. El `load` completo de PyYAML, con el cargador que no es
 
 ## Compresión: lo repetido se escribe una vez {Compression: write the repeated part once}
 
-Los 3 GB diarios de logs de C01 están llenos de repeticiones. Cada línea dice `"model_version": "resnet50-2026-10-01"`, los mismos 38 bytes diez millones de veces. Cada línea repite los nombres de los campos. La [[compresion|compresión]] (*compression*) aprovecha eso: escribe los datos con menos bytes y, al leerlos, los reconstruye.
+Los ≈ 3 GB diarios de logs de Alba (10 millones de líneas de ≈ 300 bytes) están llenos de repeticiones. Cada línea dice `"model_version": "resnet50-2026-10-01"`, los mismos 38 bytes diez millones de veces. Cada línea repite los nombres de los campos. La [[compresion|compresión]] (*compression*) aprovecha eso: escribe los datos con menos bytes y, al leerlos, los reconstruye.
 
 La idea más común, la del algoritmo LZ77 (1977) que usan gzip y zlib, es cambiar lo repetido por una referencia: «aquí van otra vez los 38 bytes que aparecieron hace 300 bytes». Una referencia ocupa 2 o 3 bytes en vez de 38. Después, los símbolos que más aparecen se escriben con menos bits.
 
@@ -465,7 +477,7 @@ bytes al azar       nivel 9: 1,149,280 → 1,149,641 B  (   1.0 veces)
 bytes por línea: 115
 ```
 
-Tres cosas que notar. Lo repetido desaparece casi por completo. Los bytes al azar **crecen** un poco: el compresor agrega su encabezado y no encuentra nada que quitar. Y estos logs de mentiras comprimen más que los de verdad: aquí los `request_id` van en orden (`r-000001`, `r-000002`…), y en C01 son al azar, igual que el hash de cada imagen. En la sección de Parquet vas a ver un log más realista.
+Tres cosas que notar. Lo repetido desaparece casi por completo. Los bytes al azar **crecen** un poco: el compresor agrega su encabezado y no encuentra nada que quitar. Y estos logs de mentiras comprimen más que los de verdad: aquí los `request_id` van en orden (`r-000001`, `r-000002`…), y en Alba son al azar, igual que el hash de cada imagen. En la sección de Parquet vas a ver un log más realista.
 
 :::nota El precio: tiempo de CPU
 Comprimir más cuesta más CPU. El nivel 9 de zlib sale más chico que el 1, pero tarda varias veces más; cuánto, depende de la máquina. Por eso hay varios compresores, cada uno con su punto entre tamaño y velocidad.
@@ -482,15 +494,15 @@ Comprimir más cuesta más CPU. El nivel 9 de zlib sale más chico que el 1, per
 La regla para elegir: si se lee muchas veces y se escribe una, conviene comprimir más (zstd con un nivel alto); si se escribe sin parar y se lee poco, conviene lo rápido (snappy o lz4). Y un JPEG, un MP4 o un zip no se vuelven a comprimir: ya no hay nada que quitar.
 :::
 
-¿Cuánto ahorra comprimir los logs de C01? La Ronda estima que en Parquet comprimido ocupan de 5 a 10 veces menos que el JSON crudo. Juega con la cuenta:
+¿Cuánto ahorra comprimir los logs de Alba? Su equipo estima que en Parquet comprimido ocupan de 5 a 10 veces menos que el JSON crudo. Llama \(r\) a esas veces que comprime: un día de log pasa de \(S_{día}\) a \(S_{día} ÷ r\), y con \(r\) = 5, de 3 GB a 3 GB ÷ 5 = 600 MB. Juega con la cuenta:
 
 :::calculadora formatos-logs
-Prueba con 5 y con 10 veces: el log de 90 días pasa de 270 GB a entre 54 y 27 GB. Sube la retención a 365 días: en JSON Lines ya pasa de 1 TB.
+Prueba con \(r\) = 5 y con 10: el log de 90 días pasa de 270 GB a \(S_{ret} ÷ r\), entre 270 ÷ 5 = 54 y 270 ÷ 10 = 27 GB. Sube la retención a \(d\) = 365 días: en JSON Lines, 3 GB × 365 ≈ 1,095 GB, ya pasa de 1 TB.
 :::
 
 ## Por filas o por columnas: Parquet {Rows or columns: Parquet}
 
-Piensa en el log de C01 ya convertido en una tabla: una fila por predicción, una columna por campo. Hay dos maneras de poner esa tabla en una fila de bytes.
+Piensa en el log de Alba ya convertido en una tabla: una fila por predicción, una columna por campo. Hay dos maneras de poner esa tabla en una fila de bytes.
 
 - **Por filas** (*row-oriented*): todos los campos de la primera predicción, luego todos los de la segunda, y así. Es lo que hacen CSV y JSON Lines.
 - **Por columnas**: todos los `request_id`, luego todos los `top1`, luego todos los `score`… Es un [[formato-columnar|formato columnar]] (*columnar format*).
@@ -499,18 +511,39 @@ Piensa en el log de C01 ya convertido en una tabla: una fila por predicción, un
 La misma tabla de cuatro predicciones y cuatro columnas, escrita por filas y por columnas. Para sacar `top1` y `score`, por filas hay que leer los 16 valores; por columnas, solo dos tramos seguidos de 4.
 :::
 
-¿Por qué importa? Cada día, el job de drift de C01 (el programa que revisa si las predicciones de hoy se parecen a las de antes) cuenta cuántas veces salió cada categoría y cómo se reparte el score. Lee **dos columnas**, `top1` y `score`, de diez millones de filas.
+¿Por qué importa? Cada día, el job de drift de Alba (el programa que revisa si las predicciones de hoy se parecen a las de antes) cuenta cuántas veces salió cada categoría y cómo se reparte el score. Lee **dos columnas**, `top1` y `score`, de diez millones de filas.
 
 Por filas, para sacar dos campos hay que leer todo, porque están intercalados. Por columnas, cada columna es un tramo seguido del archivo: el programa salta con `seek` a los dos tramos que necesita y no toca lo demás.
 
+Cuánto lee cada uno se calcula así, con las mismas \(N\) y \(r\) de antes:
+
+:::formula Cuánto lee una consulta
+L_{filas} = N × C × u
+L_{col} = frac{N × k × u}{r}
+t = frac{L}{v}
+- N: filas de la tabla: las líneas de log de un día
+- C: columnas de la tabla
+- k: columnas que lee la consulta
+- u: bytes por valor, en promedio, sin comprimir
+- r: veces que comprime Parquet
+- L_{filas}: bytes que lee por filas (todo el archivo)
+- L_{col}: bytes que lee por columnas, comprimidas
+- v: velocidad de lectura del disco, en MB/s
+- L: lo que lee la consulta, \(L_{filas}\) o \(L_{col}\), pasado a MB para dividir entre \(v\)
+- t: tiempo que tarda en leerlo, en segundos
+:::
+
 :::cuenta Leer 2 de 30 columnas de un día de logs
-Filas // un día de C01 | — | 10,000,000
-Columnas // una suposición redonda: el top-5 y las latencias, cada valor en su columna | — | ≈ 30
-Bytes por valor, en promedio // 30 × 10 B = los 300 B de la línea | — | ≈ 10 B
-Por filas, en JSON Lines | 10⁷ × 30 × 10 B | 3 GB
-Por columnas, solo 2 // 2 de 30 es ≈ 6.7 % | 10⁷ × 2 × 10 B | 200 MB
-Y comprimidas // la Ronda: de 5 a 10 veces; aquí, 5 | 200 MB ÷ 5 | 40 MB
-= 75 veces menos bytes. Al leer a 500 MB/s, 6 segundos contra 0.08 segundos.
+Filas \(N\) // un día de Alba: una por predicción | — | 10,000,000
+Columnas \(C\) // una suposición redonda: el top-5 y las latencias, cada valor en su columna | — | ≈ 30
+Bytes por valor \(u\) // en promedio, para que sumen los 300 B de la línea | \(u = b ÷ C\) = 300 B ÷ 30 | ≈ 10 B
+Por filas, en JSON Lines, \(L_{filas}\) | \(N × C × u\) = 10⁷ × 30 × 10 B | 3 GB
+Por columnas, solo \(k\) = 2 // 2 de 30 es ≈ 6.7 % | \(N × k × u\) = 10⁷ × 2 × 10 B | 200 MB
+Y comprimidas, \(L_{col}\) // Alba estima que Parquet comprime de 5 a 10 veces; aquí, \(r\) = 5 | 200 MB ÷ 5 | 40 MB
+Veces menos bytes | \(L_{filas} ÷ L_{col}\) = 3,000 MB ÷ 40 MB | 75
+Tiempo por filas, \(t = L ÷ v\) // supuesto: el disco lee a \(v\) = 500 MB/s | 3,000 MB ÷ 500 MB/s | 6 s
+Tiempo por columnas | 40 MB ÷ 500 MB/s | 0.08 s
+= 75 veces menos bytes: 6 segundos contra 0.08 segundos.
 :::
 
 ### Tres ventajas más de ir por columnas
@@ -519,14 +552,14 @@ Y comprimidas // la Ronda: de 5 a 10 veces; aquí, 5 | 200 MB ÷ 5 | 40 MB
 2. **Cada columna se escribe en su tipo.** Los `score` van como float32, 4 bytes cada uno, y no como letras.
 3. **Se pueden saltar pedazos.** Lo ves en un momento, con los *row groups*.
 
-Este programa lo comprueba con Python puro. Arma 10,000 filas parecidas al log de C01, con ids al azar, y las mide de tres maneras: como JSON Lines, por filas sin los nombres (como un CSV) y por columnas, cada una comprimida aparte con zlib:
+Este programa lo comprueba con Python puro. Arma 10,000 filas parecidas al log de Alba, con ids al azar, y las mide de tres maneras: como JSON Lines, por filas sin los nombres (como un CSV) y por columnas, cada una comprimida aparte con zlib:
 
 ```python
 import json, random, zlib
 
 random.seed(7)
 n = 10_000
-tabla = {                                    # un log de C01 de mentiras, ya como columnas
+tabla = {                                    # un log de Alba de mentiras, ya como columnas
     "request_id": [random.randbytes(8).hex() for _ in range(n)],
     "caller": [random.choice(["app-ios", "app-android", "web"]) for _ in range(n)],
     "model_version": ["resnet50-2026-10-01"] * n,
@@ -568,7 +601,7 @@ por columnas: 180 KB con zlib, sumando las 8
 para leer top1 y score: 33 KB por columnas, 220 KB por filas
 ```
 
-Del JSON Lines crudo (1,666 KB) a las columnas comprimidas (180 KB) hay ≈ 9 veces: dentro del «de 5 a 10» de la Ronda. El `request_id`, al azar, apenas baja a la mitad. Y lo más grande no es la compresión: para leer `top1` y `score` bastan 33 KB en vez de 220.
+Del JSON Lines crudo (1,666 KB) a las columnas comprimidas (180 KB) hay \(r\) = 1,666 ÷ 180 ≈ 9 veces: dentro del «de 5 a 10» que estima Alba. El `request_id`, al azar, apenas baja a la mitad. Y lo más grande no es la compresión: para leer `top1` y `score` bastan 33 KB en vez de 220.
 
 ### Parquet
 
@@ -588,26 +621,26 @@ Un archivo de ocho row groups, con el máximo de la columna `ms` de cada uno. Pa
 
 Funciona cuando los valores parecidos quedan juntos: si las latencias altas están regadas por todos los row groups, no se salta nada.
 
-El precio de ir por columnas: **no se puede añadir una fila suelta**. Para escribir un row group hay que juntar antes muchas filas, y cambiar una fila obliga a reescribir el archivo. Por eso C01 no escribe Parquet en cada request: escribe JSON Lines, que se añade al final, y después un proceso junta muchas líneas y las convierte en Parquet.
+El precio de ir por columnas: **no se puede añadir una fila suelta**. Para escribir un row group hay que juntar antes muchas filas, y cambiar una fila obliga a reescribir el archivo. Por eso Alba no escribe Parquet en cada request: escribe JSON Lines, que se añade al final, y después un proceso junta muchas líneas y las convierte en Parquet.
 
 :::profundo Parquet por dentro: páginas, diccionarios y archivos chicos
 Parquet nació en 2013, de Twitter y Cloudera, inspirado en un artículo de Google sobre su sistema Dremel, y hoy es un proyecto de la fundación Apache.
 
-Dentro de cada row group, cada columna (su *column chunk*) se parte en **páginas**: la documentación de Parquet recomienda 8 KB, y pyarrow usa 1 MB por omisión. Los row groups son mucho más grandes: la misma documentación recomienda de 512 MB a 1 GB, y pyarrow corta uno cada 1,048,576 filas (unos diez para un día de C01). Cada página se codifica antes de comprimirse. Dos codificaciones hacen casi todo el trabajo:
+Dentro de cada row group, cada columna (su *column chunk*) se parte en **páginas**: la documentación de Parquet recomienda 8 KB, y pyarrow usa 1 MB por omisión. Los row groups son mucho más grandes: la misma documentación recomienda de 512 MB a 1 GB, y pyarrow corta uno cada 1,048,576 filas (unos diez para un día de Alba: 10,000,000 ÷ 1,048,576 ≈ 9.5). Cada página se codifica antes de comprimirse. Dos codificaciones hacen casi todo el trabajo:
 
 - **Diccionario** (*dictionary encoding*): los valores distintos de la columna se escriben una vez, en una lista, y cada fila guarda solo su posición. Los tres `caller` («app-ios», «app-android», «web») son 0, 1 y 2, y cada fila necesita 2 bits en vez de 3 a 11 letras.
 - **Repeticiones** (*run-length encoding*): «el valor 0, 40,000 veces seguidas» se escribe como un par de números. Diez millones de `model_version` iguales quedan en unos cuantos bytes.
 
 Después de eso se comprime cada página con snappy, zstd o gzip. Por eso un Parquet real gana más que el zlib de nuestro programa: primero quita lo repetido con conocimiento del tipo, y después comprime.
 
-Una trampa conocida: **los archivos chicos**. Cada Parquet tiene su pie y cada lectura empieza por pedirlo. Mil archivos de 100 KB son mil pies que leer y mil viajes al almacén; un archivo de 100 MB es uno. Por eso la conversión de C01 junta los logs de muchas horas en pocos archivos grandes por día, y la Ronda (M13) recomienda agrupar en archivos grandes.
+Una trampa conocida: **los archivos chicos**. Cada Parquet tiene su pie y cada lectura empieza por pedirlo. Mil archivos de 100 KB son mil pies que leer y mil viajes al almacén; un archivo de 100 MB es uno. Por eso la conversión de Alba junta los logs de muchas horas en pocos archivos grandes: ≈ 4 archivos de ≈ 125 MB por día.
 :::
 
 :::diagrama formatos-logs
 Toca cada caja para ver qué formato tiene ahí el log de Ana. «Recorrer» sigue una predicción desde el gateway hasta Parquet, y el otro recorrido, la revisión diaria de drift.
 :::
 
-Los Parquet de C01 quedan, además, en carpetas por fecha y por versión del modelo: `logs/fecha=2026-11-05/model_version=…/`. Así, el job de drift ni siquiera abre los archivos de otros días. Es una [[particion-datos|partición]], y la vas a ver a fondo en «Object storage, data lakes y warehouses».
+Los Parquet de Alba quedan, además, en carpetas por fecha y por versión del modelo: `logs/dt=2026-11-05/model_version=…/`. Así, el job de drift ni siquiera abre los archivos de otros días. Es una [[particion-datos|partición]], y la vas a ver a fondo en «Object storage, data lakes y warehouses».
 
 En Python, Parquet se lee con **pyarrow** (o con pandas, que lo usa por dentro). No viene con Python, así que es una ilustración, sin salida:
 
@@ -615,19 +648,19 @@ En Python, Parquet se lee con **pyarrow** (o con pandas, que lo usa por dentro).
 import pyarrow.parquet as pq
 
 # solo dos columnas y solo las filas con ms > 500: los row groups que no pueden tenerlas ni se leen
-tabla = pq.read_table("logs/fecha=2026-11-05/part-0.parquet",
+tabla = pq.read_table("logs/dt=2026-11-05/part-0.parquet",
                       columns=["top1", "score"], filters=[("ms", ">", 500)])
 print(tabla.num_rows, tabla.schema)
 pq.write_table(tabla, "lentas.parquet", compression="zstd")
 ```
 
 :::calculadora formatos-consulta
-Sube las columnas que lee la consulta a 30, como una consulta que pide todas las columnas: la ventaja de las columnas se reduce a la compresión. Y prueba saltarte el 90 % de los row groups.
+La calculadora agrega lo que se salta por las estadísticas: si se salta la fracción \(f\) de los row groups (0.9 = el 90 %), lee \(L_{col} × (1 − f)\). Sube las columnas que lee la consulta a \(k\) = 30, como una consulta que pide todas las columnas: la ventaja de las columnas se reduce a la compresión. Y prueba saltarte el 90 % de los row groups.
 :::
 
 ## El esquema y cómo cambia {The schema and how it changes}
 
-Un log de C01 escrito hoy lo va a leer un job de entrenamiento dentro de seis meses. Ese job necesita saber qué columnas hay, de qué tipo es cada una y cuáles pueden faltar. Esa descripción es el [[esquema-datos|esquema]] de los datos (*schema*). Aquí va el de un log simplificado, con solo la categoría ganadora y su score en vez del top-5:
+Un log de Alba escrito hoy lo va a leer un job de entrenamiento dentro de seis meses. Ese job necesita saber qué columnas hay, de qué tipo es cada una y cuáles pueden faltar. Esa descripción es el [[esquema-datos|esquema]] de los datos (*schema*). Aquí va el de un log simplificado, con solo la categoría ganadora y su score en vez del top-5:
 
 | Columna | Tipo | ¿Puede faltar? |
 |---|---|---|
@@ -653,7 +686,7 @@ Por eso un Parquet que recibes de otro equipo «se explica solo»: abres el pie 
 
 ### La evolución del esquema
 
-Los datos cambian de forma. Un día C01 quiere guardar también qué GPU contestó; otro, alguien quiere llamar `confianza` al `score`. Cambiar el esquema de algo que ya está guardado y que otros leen es la [[evolucion-esquema|evolución del esquema]] (*schema evolution*), y la pregunta es siempre la misma: ¿quién se rompe? Hay dos direcciones:
+Los datos cambian de forma. Un día Alba quiere guardar también qué GPU contestó; otro, alguien quiere llamar `confianza` al `score`. Cambiar el esquema de algo que ya está guardado y que otros leen es la [[evolucion-esquema|evolución del esquema]] (*schema evolution*), y la pregunta es siempre la misma: ¿quién se rompe? Hay dos direcciones:
 
 - **Compatible hacia atrás** (*backward compatible*): el lector **nuevo** puede leer los datos **viejos**. El job de entrenamiento de hoy lee los logs de hace seis meses.
 - **Compatible hacia adelante** (*forward compatible*): el lector **viejo** puede leer los datos **nuevos**. El dashboard (el tablero de gráficas) que nadie ha actualizado sigue funcionando con los logs de hoy.
@@ -717,7 +750,7 @@ score como texto         ✗ «score» debería ser float
 El lector v2 lee lo viejo (hacia atrás) e ignora el campo de la v3 (hacia adelante). El renombre y el cambio de tipo lo rompen. Mejor que rompa así, con un error claro, que en silencio.
 
 :::ojo
-Un esquema revisa la forma, no el significado. La Ronda (M09) da el ejemplo: si un equipo cambia una medida de centímetros a milímetros, la columna sigue siendo un float, sin nulos, con el mismo nombre. Pasa cualquier validación de esquema y el modelo recibe números diez veces más grandes. Las unidades y lo que significa cada campo también son parte del contrato, aunque ningún formato las revise.
+Un esquema revisa la forma, no el significado. Un ejemplo: si un equipo cambia una medida de centímetros a milímetros, la columna sigue siendo un float, sin nulos, con el mismo nombre. Pasa cualquier validación de esquema y el modelo recibe números diez veces más grandes. Las unidades y lo que significa cada campo también son parte del contrato, aunque ningún formato las revise.
 :::
 
 ### Avro: filas binarias con el esquema aparte
@@ -743,7 +776,7 @@ Un archivo Avro lleva su esquema en el encabezado, una vez, y después miles de 
 
 Al leer, Avro junta dos esquemas: el del que escribió y el del que lee. Empareja los campos **por nombre**; si al que lee le falta uno, lo salta, y si el que lee espera uno que no viene, usa su `default`. Es la tabla de compatibilidad de arriba, hecha regla.
 
-Y los bytes. Cada texto va como su largo seguido de sus bytes de UTF-8, y cada float como sus 4 bytes little-endian. El largo va en un entero de tamaño variable con un truco para los negativos (*zigzag*): el 5 se escribe como 10 (0x0A), y el 3, como 6. La predicción `("r-001", 0.83, "web")` queda así:
+Y los bytes. Cada texto va como su largo seguido de sus bytes de UTF-8, y cada float como sus 4 bytes little-endian. El largo va en un entero de tamaño variable con un truco para los negativos (*zigzag*): un número que no es negativo se escribe como su doble, así que el 5 va como 2 × 5 = 10 (0x0A), y el 3, como 2 × 3 = 6. La predicción `("r-001", 0.83, "web")` queda así:
 
 | Valor | Bytes | Cuántos |
 |---|---|---|
@@ -753,7 +786,7 @@ Y los bytes. Cada texto va como su largo seguido de sus bytes de UTF-8, y cada f
 | largo de «web» | `06` | 1 |
 | «web» | `77 65 62` | 3 |
 
-Son 14 bytes. La misma predicción en JSON, `{"request_id": "r-001", "score": 0.83, "caller": "web"}`, mide 55: los nombres viajan en cada mensaje.
+Son 1 + 5 + 4 + 1 + 3 = 14 bytes. La misma predicción en JSON, `{"request_id": "r-001", "score": 0.83, "caller": "web"}`, mide 55: los nombres viajan en cada mensaje.
 :::
 
 ## Archivos de pesos: pickle y safetensors {Weight files: pickle and safetensors}
@@ -849,7 +882,7 @@ primeros 8 bytes: 7e 00 00 00 00 00 00 00 → el encabezado mide 126 bytes
 fc.weight: [0.12, -0.5, 0.3, 0.0, 1.5, -1.0] · archivo de 170 bytes
 ```
 
-El 0x7E es 126. La librería real, además, rellena el encabezado con espacios hasta un múltiplo de 8; el formato lo permite y no cambia nada más. Los `data_offsets` cuentan desde donde termina el encabezado: `fc.weight` va después de los 12 bytes de `fc.bias` (3 números × 4 bytes).
+El 0x7E es 7 × 16 + 14 = 126. La librería real, además, rellena el encabezado con espacios hasta un múltiplo de 8; el formato lo permite y no cambia nada más. Los `data_offsets` cuentan desde donde termina el encabezado: `fc.weight` va después de los 12 bytes de `fc.bias` (3 números × 4 bytes).
 
 :::diagrama formatos-pesos
 Dos maneras de cargar unos pesos. Toca cada caja; «Recorrer» sigue un `.pt` con trampa y un safetensors.
@@ -869,7 +902,7 @@ modelo.load_state_dict(load_file("modelo.safetensors", device="cpu"))
 
 Y una costumbre que vale para cualquier formato: guarda el hash de cada archivo de pesos en el registro de modelos (el catálogo de las versiones del modelo) y compruébalo antes de cargarlo. Un [[hash-criptografico|hash criptográfico]] es una huella del contenido que cambia si cambia un solo byte; lo vas a ver en «Tiempo, hashes e identificadores».
 
-En su primera versión, el MVP de la Ronda, C01 cargaba el `.pt` del notebook al arrancar. La versión final ya no: lo exporta a [[onnx|ONNX]], un formato para correr el modelo fuera de PyTorch, y de ahí arma un [[engine-tensorrt|engine de TensorRT]] compilado para su GPU. Esos dos son de la estación de exportar del Dojo, y ninguno usa pickle.
+En su primera versión, el sistema de Alba cargaba el `.pt` del notebook al arrancar. La versión final ya no: lo exporta a [[onnx|ONNX]], un formato para correr el modelo fuera de PyTorch, y de ahí arma un [[engine-tensorrt|engine de TensorRT]] compilado para su GPU. Ninguno de los dos usa pickle; los vas a ver en la lección «Export, engine y paridad».
 
 :::profundo Otros archivos de pesos que vas a encontrar
 - **`.pth` y `.bin`**: los mismos zip con pickle de PyTorch, con otra extensión. Muchos modelos viejos de Hugging Face vienen como `pytorch_model.bin`.
@@ -887,7 +920,7 @@ La pregunta para cada uno es la misma: ¿al abrirlo se ejecuta algo? Si sí, sol
 
 Un `.jpg` que en realidad es un HEIC (el formato de fotos del iPhone), un `.csv` separado con punto y coma, un `.json` que es JSON Lines. El programa truena lejos del problema, o no truena y lee basura.
 
-**Cómo evitarlo:** revisar los bytes mágicos en la puerta (como el gateway de C01) y leer con el lector del formato real. En los datos, declarar el formato y el separador por escrito.
+**Cómo evitarlo:** revisar los bytes mágicos en la puerta (como el gateway de Alba) y leer con el lector del formato real. En los datos, declarar el formato y el separador por escrito.
 
 ### 2. Leer con la codificación equivocada
 
@@ -921,7 +954,7 @@ Cambiar `score` por `confianza` en el log rompe a la vez el job de drift, el das
 
 ## En la vida real {In real life} [extra]
 
-### C01: un formato para cada cosa
+### Alba: un formato para cada cosa
 
 | Qué | Formato | Por qué ese |
 |---|---|---|
@@ -932,19 +965,19 @@ Cambiar `score` por `confianza` en el log rompe a la vez el job de drift, el das
 | Manifiestos, compose y alertas | YAML | Los escriben y revisan personas |
 | Los pesos | `.pt` al entrenar → ONNX → engine de TensorRT | El `.pt` es un pickle: nunca sale del pipeline propio |
 
-El *manifest* de un dataset (nada que ver con los manifiestos de Kubernetes) es su lista de imágenes: una fila por foto, con su hash, dónde está guardada y su etiqueta. Es un buen ejemplo de por qué no se copian las fotos. Según la Ronda (M09), cada fila mide ≈ 200 B sin comprimir: 2 M filas son ≈ 400 MB, contra ≈ 400 GB de las fotos que referencia. Un dataset nuevo cuesta el 0.1 % de copiar las imágenes. Y la estación 1 del Dojo, «Datos y etiquetas», lee los logs de C01 tal como quedan: `data/logs/fecha=AAAA-MM-DD/part-0.parquet`, con DuckDB, un programa que hace consultas en SQL (el lenguaje de las bases de datos) directo sobre archivos Parquet.
+El *manifest* de un dataset (nada que ver con los manifiestos de Kubernetes) es su lista de imágenes: una fila por foto, con su hash, dónde está guardada y su etiqueta. Es un buen ejemplo de por qué no se copian las fotos. El equipo de Alba estima que cada fila mide ≈ 200 B sin comprimir: 2 M filas × 200 B ≈ 400 MB, contra 2 M fotos × ≈ 200 KB ≈ 400 GB de las fotos que referencia. Un dataset nuevo cuesta 400 MB ÷ 400 GB = 0.1 % de copiar las imágenes. Y Alba consulta los logs tal como quedan, `logs/dt=AAAA-MM-DD/part-0.parquet`, con DuckDB, un programa que hace consultas en SQL (el lenguaje de las bases de datos) directo sobre archivos Parquet.
 
-### C09: los pagos como eventos en Avro
+### Fraude: los pagos como eventos en Avro
 
-El sistema de fraude de C09 recibe ≈ 10 millones de pagos al día. Cada pago entra como un evento de ≈ 1 KB en Avro a un [[stream-eventos|stream]] de Kafka (el sistema por donde viajan sus eventos) llamado `txn-events`: ≈ 10 GB al día. Avro tiene sentido ahí: los eventos se escriben uno por uno, ocupan poco y el registro de esquemas impide que un equipo publique un evento con un campo renombrado que rompería al modelo. Lo vas a ver en «Colas y streams».
+Un sistema de detección de fraude en tiempo real recibe, en este ejemplo, ≈ 10 millones de pagos al día. Cada pago entra como un evento de ≈ 1 KB en Avro a un [[stream-eventos|stream]] de Kafka (el sistema por donde viajan sus eventos) llamado `txn-events`: 10 M × 1 KB ≈ 10 GB al día. Avro tiene sentido ahí: los eventos se escriben uno por uno, ocupan poco y el registro de esquemas impide que un equipo publique un evento con un campo renombrado que rompería al modelo. Lo vas a ver en «Colas y streams».
 
-### C07: 100 millones de embeddings en Parquet
+### Búsqueda: 100 millones de embeddings en Parquet
 
-C07 guarda cada versión de sus [[embedding|embeddings]] en Parquet: 100 M vectores de 512 números en float32 son 100 M × 512 × 4 B ≈ 205 GB. En JSON, con los ≈ 20.4 bytes por número que mediste en la lección de APIs, serían ≈ 1 TB, cinco veces más. Y comprimirlos ayuda poco: los últimos bits de cada float son casi al azar.
+La búsqueda con embeddings de Alba guarda cada versión de sus [[embedding|embeddings]] en Parquet: uno por cada una de sus ≈ 100 M publicaciones activas, de 512 números en float32. Son 100 M × 512 × 4 B ≈ 205 GB. En JSON, con los ≈ 20.4 bytes por número que mediste en la lección de APIs, serían 100 M × 512 × 20.4 B ≈ 1 TB, cinco veces más. Y comprimirlos ayuda poco: los últimos bits de cada float son casi al azar.
 
 ### Los LLMs: safetensors partidos en pedazos
 
-Los modelos de lenguaje abiertos se publican en safetensors, partidos en varios archivos de unos cuantos GB (*shards*) con un JSON índice que dice en cuál va cada tensor. vLLM, el programa que sirve el LLM de C10, los abre con mmap, y la Ronda le pide cargar solo safetensors: un `.bin` de PyTorch es un pickle.
+Los modelos de lenguaje abiertos se publican en safetensors, partidos en varios archivos de unos cuantos GB (*shards*) con un JSON índice que dice en cuál va cada tensor. vLLM, un programa con el que se sirve un LLM propio, los abre con mmap. Y conviene que cargue solo safetensors: un `.bin` de PyTorch es un pickle.
 
 ### Fuera de ML: genes, hojas de cálculo y ceros
 
@@ -972,29 +1005,29 @@ Resuélvelos con lápiz antes de abrir la solución. Los de logs y consultas se 
 - **3 campos**: `012`, `Botas, negras` y `1200`. Las comillas protegen la coma.
 - Con `split(",")` salen **4 pedazos**: `012`, `"Botas`, ` negras"` y `1200`.
 - Convertida en número, la primera columna vale **12**: el cero se perdió.
-? [medio] C01 guarda 10 M líneas de log al día, de ≈ 300 B, durante 90 días. ¿Cuánto ocupa en JSON Lines? Si en Parquet ocupa 6 veces menos, ¿cuánto se ahorra?
-- Al día: 10⁷ × 300 B = **3 GB**. En 90 días: 3 × 90 = **270 GB**.
-- En Parquet: 3 GB ÷ 6 = **0.5 GB al día**, y 0.5 × 90 = **45 GB**.
-- Ahorro: 270 − 45 = **225 GB**. Y cada lectura del job de drift también baja, porque lee solo sus columnas.
+? [medio] Alba guarda 10 M líneas de log al día, de ≈ 300 B, durante 90 días. ¿Cuánto ocupa en JSON Lines? Si en Parquet ocupa 6 veces menos, ¿cuánto se ahorra?
+- Con \(S_{día} = N × b\) y \(S_{ret} = S_{día} × d\): al día, 10⁷ × 300 B = **3 GB**. En 90 días: 3 GB × 90 = **270 GB**.
+- En Parquet, \(S_{día} ÷ r\) con \(r\) = 6: 3 GB ÷ 6 = **0.5 GB al día**, y 0.5 GB × 90 = **45 GB**.
+- Ahorro, \(S_{ret} − S_{ret} ÷ r\): 270 − 45 = **225 GB**. Y cada lectura del job de drift también baja, porque lee solo sus columnas.
 ? [medio] Una tabla de 10 M filas tiene 30 columnas de ≈ 10 bytes cada una. Una consulta lee 3 columnas. ¿Cuántos bytes lee por filas y cuántos en Parquet, si comprime 5 veces? ¿Cuántas veces menos?
-- Por filas, todo: 10⁷ × 30 × 10 B = **3 GB**.
-- En Parquet: 10⁷ × 3 × 10 B = 300 MB, y ÷ 5 = **60 MB**.
-- 3,000 MB ÷ 60 MB = **50 veces menos**.
+- Por filas, todo: \(L_{filas} = N × C × u\) = 10⁷ × 30 × 10 B = **3 GB**.
+- En Parquet: \(L_{col} = N × k × u ÷ r\) = 10⁷ × 3 × 10 B ÷ 5 = 300 MB ÷ 5 = **60 MB**.
+- \(L_{filas} ÷ L_{col}\) = 3,000 MB ÷ 60 MB = **50 veces menos**.
 ? [medio] Un Parquet tiene 8 row groups. El máximo de `ms` en cada uno es 180, 210, 950, 190, 205, 230, 175 y 640. Para «ms > 500», ¿cuántos se leen? ¿Y para «ms < 20», si el mínimo de todos es 25 o más?
 - «ms > 500»: solo los que tienen máximo arriba de 500, el de 950 y el de 640: **2 de 8**, el 25 %.
 - «ms < 20»: si ningún row group tiene mínimo menor que 20, ninguno puede tener una fila así: **0 de 8**. La respuesta sale del pie, sin leer datos.
 - Ojo: un row group que se lee no garantiza filas que cumplan. Las estadísticas solo descartan.
-? [medio] El log de C01 está en la versión 1: `request_id`, `top1` y `score`. Clasifica estos cambios: (a) agregar `caller` opcional, con «desconocido» por omisión; (b) renombrar `score` a `confianza`; (c) cambiar `top1` del nombre de la categoría a su número; (d) agregar `gpu` obligatorio.
+? [medio] El log de Alba está en la versión 1: `request_id`, `top1` y `score`. Clasifica estos cambios: (a) agregar `caller` opcional, con «desconocido» por omisión; (b) renombrar `score` a `confianza`; (c) cambiar `top1` del nombre de la categoría a su número; (d) agregar `gpu` obligatorio.
 - (a) **Compatible en las dos direcciones**: el lector nuevo usa «desconocido» en lo viejo y el viejo ignora el campo nuevo.
 - (b) **Rompe las dos**: el lector viejo no encuentra `score` y el nuevo no encuentra `confianza` en lo viejo.
 - (c) **Rompe las dos**: cambió el tipo, y además el significado.
 - (d) **Hacia adelante sí, hacia atrás no**: el lector viejo lo ignora, pero el nuevo no lo encuentra en los logs viejos.
 ? [reto] Un safetensors empieza con `B4 00 00 00 00 00 00 00`. ¿Cuánto mide el encabezado? Si dice que `fc.weight` es F32 de shape [500, 2048] y `fc.bias` es F32 de shape [500], ¿cuántos bytes miden los datos y el archivo completo? ¿En qué byte del archivo empieza `fc.bias`, si va después de `fc.weight`?
 - El largo es un entero little-endian: el byte más chico es `B4` y los demás valen 0. 0xB4 = 11 × 16 + 4 = **180 bytes**.
-- `fc.weight`: 500 × 2048 × 4 B = **4,096,000 bytes**. `fc.bias`: 500 × 4 B = **2,000 bytes**. Datos: 4,098,000.
-- Archivo: 8 + 180 + 4,098,000 = **4,098,188 bytes**.
+- Un tensor F32 mide \(text{bytes} = text{elementos} × 4\), y los elementos son el producto de su shape. `fc.weight`: 500 × 2048 × 4 B = **4,096,000 bytes**. `fc.bias`: 500 × 4 B = **2,000 bytes**. Datos: 4,096,000 + 2,000 = 4,098,000.
+- Archivo: 8 bytes del largo + 180 del encabezado + 4,098,000 de datos = **4,098,188 bytes**.
 - `fc.bias` empieza en el offset 4,096,000 de los datos, que en el archivo es 8 + 180 + 4,096,000 = **byte 4,096,188**. Con `seek` se salta directo ahí.
-? [reto] Un compañero te pasa `resnet_final.pt`, que bajó de un foro, y te pide que lo cargues en el servidor de C01 «para probar». ¿Qué haces, y en qué orden?
+? [reto] Un compañero te pasa `resnet_final.pt`, que bajó de un foro, y te pide que lo cargues en el servidor de Alba «para probar». ¿Qué haces, y en qué orden?
 - No lo cargas en el servidor. Un `.pt` es un zip con un pickle: cargarlo puede ejecutar cualquier código con los permisos del servidor.
 - Primero, de dónde viene: si existe una versión publicada por una organización conocida, de preferencia en safetensors, se usa esa, en una revisión fijada, y se guarda su hash.
 - Si solo existe el `.pt`, se abre en una máquina aislada, sin credenciales ni red, con PyTorch al día y `weights_only=True`. Si la carga se niega, es una alarma: el archivo pide algo más que tensores.
@@ -1003,16 +1036,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de logs y consultas se 
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M01 · El mapa y la entrevista** trae, entre sus estimaciones exprés, el log de una predicción en JSON (≈ 300 B) y avisa que en Parquet comprimido ocupa menos.
-- **M09 · Datos y features** guarda el manifest de cada dataset en Parquet, valida los esquemas con un contrato ejecutable (tipos, rangos, nulos, frescura) y particiona por fecha en el [[data-lake|data lake]].
-- **M12 · Monitoreo** recorre el log de predicciones: JSON a stdout, Fluent Bit, S3 y Parquet particionado por fecha y `model_version`, para que el job de drift lea solo un día.
-- **M15 · Seguridad y confiabilidad** explica por qué un `.pt` es código, `weights_only` y safetensors.
-
-**En el Dojo:** la estación 1, «Datos y etiquetas», ya trabaja con los logs de C01 en Parquet, particionados por fecha, y los consulta con DuckDB. La estación 5, «Export, engine y paridad», convierte los pesos a ONNX y a un engine.
-
-**En Sensei:** las siguientes lecciones de esta fase usan estos archivos. «Bases de datos» guarda filas que se cambian una por una, lo que Parquet no hace bien. «Object storage, data lakes y warehouses» pone los Parquet en S3 y los particiona. «Colas y streams» lleva los eventos Avro por Kafka. Y «Tiempo, hashes e identificadores» explica la hora que el log no trae y el hash que identifica cada foto.
+Las siguientes lecciones de esta fase usan estos archivos. «Bases de datos» guarda filas que se cambian una por una, lo que Parquet no hace bien. «Object storage, data lakes y warehouses» pone los Parquet en S3 y los particiona. «Colas y streams» lleva los eventos Avro por Kafka. Y «Tiempo, hashes e identificadores» explica la hora que el log no trae y el hash que identifica cada foto. Más adelante, «Datos y etiquetas» consulta estos Parquet con DuckDB, y «Export, engine y paridad» convierte los pesos a ONNX y a un engine.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -1033,10 +1057,10 @@ Nada: la extensión es parte del nombre. Los bytes siguen empezando con `FF D8 F
 Dos: C3 B1. Latin-1 lee cada byte como una letra y sale «Ã±»: «niño» se vuelve «niÃ±o».
 ? Da tres maneras en que un CSV cambia datos sin avisar.
 Un campo con coma o salto de línea partido a mano; un 007 que se vuelve 7; una fecha que se voltea.
-? ¿Por qué C01 escribe sus logs en JSON Lines y no directamente en Parquet?
+? ¿Por qué Alba escribe sus logs en JSON Lines y no directamente en Parquet?
 JSON Lines se añade línea por línea, y una línea rota pierde solo un registro. Parquet necesita juntar muchas filas para cada row group. Se escribe en JSON Lines y se convierte a Parquet en lotes.
 ? ¿Por qué el job de drift lee mucho menos en Parquet que en JSON Lines?
-Lee solo sus columnas (2 de 30), comprimidas y en su tipo, y se salta row groups y particiones. En el ejemplo de un día de C01, 40 MB en vez de 3 GB.
+Lee solo sus columnas (2 de 30), comprimidas y en su tipo, y se salta row groups y particiones. En un día de Alba, ≈ 40 MB en vez de 3 GB.
 ? ¿Qué cambios de esquema no rompen a nadie?
 Agregar un campo opcional con valor por omisión: el lector nuevo lo rellena en lo viejo y el viejo lo ignora. Renombrar o cambiar el tipo rompe a los dos lados.
 ? ¿Por qué safetensors es más seguro que un `.pt`?

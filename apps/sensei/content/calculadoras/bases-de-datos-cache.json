@@ -1,23 +1,23 @@
 {
   "titulo": "Lo que ahorra un caché",
-  "intro": "**Latencia promedio = aciertos × acierto + fallos × (acierto + trabajo completo).** Un fallo paga la revisión del [[cache|caché]] y además el trabajo. Arranca con el caché de predicciones de C01.",
+  "intro": "Aplica \\(T = h × a + (1 − h) × (a + w)\\) y \\(q_{trabajo} = q × (1 − h)\\): un acierto paga solo la revisión del [[cache|caché]], \\(a\\), y un fallo paga la revisión y además el trabajo, \\(a + w\\). Arranca con el caché de predicciones de Alba: 20 % de aciertos, 1 ms por acierto, 30 ms de trabajo y 500 pedidos por segundo.",
   "entradas": [
-    { "id": "h", "label": "Tasa de aciertos, en % (20 = el supuesto de la Ronda para C01)", "min": 0, "max": 100, "paso": 1, "valor": 20 },
-    { "id": "a", "label": "Lo que tarda un acierto, en ms (1 = leer de Redis)", "min": 0.1, "max": 50, "paso": 0.1, "valor": 1 },
-    { "id": "m", "label": "Lo que tarda el trabajo sin caché, en ms (30 = la parte de la GPU en C01)", "min": 1, "max": 5000, "paso": 1, "valor": 30, "tipo": "numero" },
-    { "id": "q", "label": "Pedidos por segundo (500 = el pico de diseño de C01)", "min": 1, "max": 1000000, "paso": 1, "valor": 500, "tipo": "numero" }
+    { "id": "h", "label": "Tasa de aciertos \\(h\\), en % de los pedidos (20 = el supuesto del equipo de Alba)", "min": 0, "max": 100, "paso": 1, "valor": 20 },
+    { "id": "a", "label": "Lo que tarda un acierto \\(a\\), en ms (1 = leer de Redis)", "min": 0.1, "max": 50, "paso": 0.1, "valor": 1 },
+    { "id": "m", "label": "Lo que tarda el trabajo sin caché \\(w\\), en ms (30 ≈ el paso del modelo en Alba, redondeado)", "min": 1, "max": 5000, "paso": 1, "valor": 30, "tipo": "numero" },
+    { "id": "q", "label": "Pedidos por segundo \\(q\\) (500 = el pico de diseño de Alba)", "min": 1, "max": 1000000, "paso": 1, "valor": 500, "tipo": "numero" }
   ],
   "calculos": [
     { "id": "hh", "formula": "h / 100" },
     { "id": "prom", "formula": "hh * a + (1 - hh) * (a + m)" }
   ],
   "salidas": [
-    { "label": "Latencia promedio con caché", "formula": "prom", "formato": "ms" },
-    { "label": "Latencia sin caché", "formula": "m", "formato": "ms" },
-    { "label": "Lo que ahorra cada pedido, en promedio", "formula": "m - prom", "formato": "ms", "nota": "negativo: el caché cuesta más de lo que ahorra" },
-    { "label": "Pedidos por segundo que llegan al trabajo caro", "formula": "q * (1 - hh)", "formato": "int" },
-    { "label": "Parte del trabajo que se evita", "formula": "hh", "formato": "pct", "barra": true },
-    { "label": "Tasa de aciertos mínima para que convenga", "formula": "a / m", "formato": "pct", "decimales": 1, "nota": "abajo de esto, el caché hace más lento el promedio" }
+    { "label": "Latencia promedio con caché \\(T\\)", "formula": "prom", "formato": "ms", "nota": "\\(h × a + (1 − h) × (a + w)\\)" },
+    { "label": "Latencia sin caché \\(w\\)", "formula": "m", "formato": "ms" },
+    { "label": "Lo que ahorra cada pedido, en promedio, \\(w − T\\)", "formula": "m - prom", "formato": "ms", "nota": "negativo: el caché cuesta más de lo que ahorra" },
+    { "label": "Pedidos por segundo que llegan al trabajo caro, \\(q_{trabajo}\\)", "formula": "q * (1 - hh)", "formato": "int", "nota": "\\(q × (1 − h)\\): solo los fallos" },
+    { "label": "Parte del trabajo que se evita, \\(h\\)", "formula": "hh", "formato": "pct", "barra": true },
+    { "label": "Tasa de aciertos mínima para que convenga", "formula": "a / m", "formato": "pct", "decimales": 1, "nota": "\\(a/w\\): abajo de esto, el caché hace más lento el promedio" }
   ],
-  "nota": "Con 20 %, C01 baja de 30 a 25 ms y le llegan 400 fotos por segundo a la GPU en vez de 500: ninguna GPU sobra. Un caché paga cuando el trabajo es caro, los pedidos se repiten y el acierto es mucho más barato que el fallo."
+  "nota": "Con 20 %, Alba baja de 30 a 25 ms y le llegan 400 fotos por segundo al modelo en vez de 500: ninguna GPU sobra. Un caché paga cuando el trabajo es caro, los pedidos se repiten y el acierto es mucho más barato que el fallo."
 }

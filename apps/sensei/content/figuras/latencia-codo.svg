@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 440" role="img" aria-labelledby="f-latencia-codo-t" class="f-svg" style="max-width:420px">
-<title id="f-latencia-codo-t">La curva de una fila M/M/1 para un pod del gateway con 6 milisegundos de servicio. A lo ancho, la utilización de 0 a 100 por ciento; a lo alto, milisegundos de 0 a 300. La curva azul es el tiempo promedio en el pod, W igual a 6 entre 1 menos rho: 12 milisegundos al 50 por ciento, 60 al 90 y 120 al 95. La curva naranja es su p99, 4.6 veces W: 55 milisegundos al 50 por ciento, 138 al 80 y 276 al 90; al 95 ya son 553 y salen de la gráfica. Una línea punteada marca 200 milisegundos, toda la promesa de C01: el p99 del pod la cruza cerca del 86 por ciento. Una banda verde entre 50 y 70 por ciento marca donde se planea un servicio online. Las dos curvas casi no se mueven hasta el 50 por ciento y después suben como palo de hockey.</title>
+<title id="f-latencia-codo-t">La curva de una fila M/M/1 para un pod del gateway con 6 milisegundos de servicio. A lo ancho, la utilización de 0 a 100 por ciento; a lo alto, milisegundos de 0 a 300. La curva azul es el tiempo promedio en el pod, W igual a 6 entre 1 menos rho: 12 milisegundos al 50 por ciento, 60 al 90 y 120 al 95. La curva naranja es su p99, 4.6 veces W: 55 milisegundos al 50 por ciento, 138 al 80 y 276 al 90; al 95 ya son 553 y salen de la gráfica. Una línea punteada marca 200 milisegundos, toda la promesa de Alba: el p99 del pod la cruza cerca del 86 por ciento. Una banda verde entre 50 y 70 por ciento marca donde se planea un servicio online. Las dos curvas casi no se mueven hasta el 50 por ciento y después suben como palo de hockey.</title>
 <rect class="f-card" x="10" y="10" width="340" height="420" rx="16"/>
 <text class="f-l" x="28" y="36">LA FILA DE UN POD (S = 6 MS)</text>
 <line x1="28" y1="56" x2="50" y2="56" style="stroke:var(--b);stroke-width:3;stroke-linecap:round"/>
@@ -7,7 +7,7 @@
 <line x1="28" y1="76" x2="50" y2="76" style="stroke:var(--o);stroke-width:3;stroke-linecap:round"/>
 <text class="f-s" x="58" y="80" style="font-size:12px">p99 ≈ 4.6 × W</text>
 <line x1="28" y1="96" x2="50" y2="96" style="stroke:var(--tm-ink3);stroke-width:2;stroke-dasharray:5 4"/>
-<text class="f-s" x="58" y="100" style="font-size:12px">200 ms: toda la promesa de C01</text>
+<text class="f-s" x="58" y="100" style="font-size:12px">200 ms: toda la promesa de Alba</text>
 
 <rect class="f-g" x="195" y="118" width="51.6" height="200" style="opacity:.16"/>
 <text class="f-s" x="220.8" y="134" text-anchor="middle" style="font-size:12px;font-weight:700">se planea</text>

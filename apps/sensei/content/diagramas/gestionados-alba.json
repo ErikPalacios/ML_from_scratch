@@ -1,5 +1,5 @@
 {
-  "titulo": "C01 servido desde un endpoint de SageMaker AI",
+  "titulo": "El modelo de Alba servido desde un endpoint de SageMaker AI",
   "width": 78,
   "height": 64,
   "lanes": [
@@ -8,13 +8,13 @@
   ],
   "nodes": [
     { "id": "backend", "label": "Backend", "sub": "de publicaciones", "kind": "client", "x": 2, "y": 6, "w": 16, "h": 8,
-      "note": "El servicio del marketplace que llama a C01 con la foto de Ana. No cambia nada para él: sigue llamando a la misma dirección." },
+      "note": "El servicio del marketplace que llama al clasificador de Alba con la foto de Ana. No cambia nada para él: sigue llamando a la misma dirección." },
     { "id": "alb", "label": "ALB", "sub": "la puerta", "kind": "edge", "x": 30, "y": 6, "w": 16, "h": 8,
       "note": "El [[balanceador]] de entrada. Verifica el token firmado que prueba que quien llama es el backend, y solo entonces deja pasar la request." },
     { "id": "gateway", "label": "Gateway", "sub": "foto → tensor", "kind": "service", "x": 58, "y": 6, "w": 18, "h": 8,
       "note": "Lo sigues operando tú, en tus máquinas. Decodifica la foto y la convierte en un tensor de 3 × 224 × 224 enteros de un byte: **150,528 bytes** por request." },
     { "id": "pl", "label": "Endpoint de interfaz", "sub": "camino privado", "kind": "edge", "x": 58, "y": 19, "w": 18, "h": 8,
-      "note": "Para llegar a SageMaker AI sin salir a internet, la VPC usa un [[privatelink|endpoint de interfaz]]. Cobra ≈ US$0.01 por GB más su hora en cada zona: ≈ **US$475** al mes para C01." },
+      "note": "Para llegar a SageMaker AI sin salir a internet, la VPC usa un [[privatelink|endpoint de interfaz]]. Cobra ≈ US$0.01 por GB más su hora en cada zona: ≈ **US$475** al mes para Alba." },
     { "id": "ep", "label": "Endpoint", "sub": "POST /invocations", "kind": "service", "x": 58, "y": 39, "w": 18, "h": 8,
       "note": "El [[endpoint-gestionado|endpoint gestionado]]: una dirección y nada más. Acepta cuerpos de hasta 6 MiB y espera la respuesta 60 s. Cobra ≈ US$0.016 por cada GB que entra y que sale." },
     { "id": "gpu", "label": "2 × ml.g4dn", "sub": "una T4 por zona", "kind": "gpu", "x": 30, "y": 39, "w": 18, "h": 8,

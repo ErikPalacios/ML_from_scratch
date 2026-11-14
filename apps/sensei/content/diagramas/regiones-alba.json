@@ -1,5 +1,5 @@
 {
-  "titulo": "C01 en una región y dos zonas",
+  "titulo": "Alba en una región y dos zonas",
   "width": 78,
   "height": 62,
   "lanes": [
@@ -10,7 +10,7 @@
   ],
   "nodes": [
     { "id": "backend", "label": "Backend", "sub": "de publicación", "kind": "client", "x": 4, "y": 4, "w": 18, "h": 8,
-      "note": "El programa del marketplace que recibe la publicación de Ana y le pide a C01 la categoría. Vive **en la misma región**: su llamada viaja metros, no miles de kilómetros." },
+      "note": "El programa de Alba que recibe la publicación de Ana y le pide al modelo la categoría. Vive **en la misma región**: su llamada viaja metros, no miles de kilómetros." },
     { "id": "alb", "label": "Balanceador", "sub": "ALB · en las 2 zonas", "kind": "edge", "x": 30, "y": 4, "w": 18, "h": 8,
       "note": "El [[balanceador]] es un recurso que el proveedor reparte en las zonas que eliges. Vigila a cada gateway con [[health-check|health checks]] y deja de mandarle tráfico al que no contesta. Así el [[failover]] entre zonas toma de segundos a un minuto, según cómo se configuren los checks, y nadie lo ordena." },
     { "id": "gwa", "label": "Gateway", "sub": "zona 1a", "kind": "service", "x": 10, "y": 21, "w": 18, "h": 8,

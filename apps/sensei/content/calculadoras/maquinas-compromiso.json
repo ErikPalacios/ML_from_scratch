@@ -1,12 +1,12 @@
 {
   "titulo": "On-demand, compromiso o spot",
-  "intro": "Una instancia, tres maneras de pagarla. Arranca con una `g4dn.xlarge` (≈ US$0.526 la hora en us-east-1, noviembre de 2026) que se usa 500 horas al mes, con los descuentos que observó la Ronda: 37 % por un compromiso de 1 año y ≈ 49 % en spot.",
+  "intro": "Una instancia, tres maneras de pagarla. Arranca con una `g4dn.xlarge` (≈ US$0.526 la hora en us-east-1, noviembre de 2026) que se usa 500 horas al mes, con los descuentos de la lección: 37 % por un compromiso de 1 año y ≈ 49 % en spot. La calculadora aplica \\(F_{od} = P × h\\), \\(F_c = P × (1 − d) × 730\\), \\(F_s = P × (1 − s) × (h + h_{rep})\\) y \\(h^{*} = 730 × (1 − d)\\).",
   "entradas": [
-    { "id": "p", "label": "Precio on-demand, en US$ por hora", "min": 0.05, "max": 60, "paso": 0.001, "valor": 0.526, "tipo": "numero" },
-    { "id": "h", "label": "Horas que de verdad la usas al mes (730 = siempre encendida)", "min": 0, "max": 730, "paso": 10, "valor": 500 },
-    { "id": "d", "label": "Descuento del compromiso, en %", "min": 0, "max": 72, "paso": 1, "valor": 37 },
-    { "id": "s", "label": "Descuento de spot, en %", "min": 0, "max": 90, "paso": 1, "valor": 49 },
-    { "id": "r", "label": "Trabajo que se repite en spot por interrupciones, en %", "min": 0, "max": 100, "paso": 1, "valor": 10 }
+    { "id": "p", "label": "Precio on-demand, \\(P\\), en US$ por hora", "min": 0.05, "max": 60, "paso": 0.001, "valor": 0.526, "tipo": "numero" },
+    { "id": "h", "label": "Horas que de verdad la usas al mes, \\(h\\) (730 = siempre encendida)", "min": 0, "max": 730, "paso": 10, "valor": 500 },
+    { "id": "d", "label": "Descuento del compromiso, \\(d\\), en % (37 = 0.37)", "min": 0, "max": 72, "paso": 1, "valor": 37 },
+    { "id": "s", "label": "Descuento de spot, \\(s\\), en %", "min": 0, "max": 90, "paso": 1, "valor": 49 },
+    { "id": "r", "label": "Trabajo que se repite en spot por interrupciones, en % de \\(h\\) (\\(h_{rep}\\) = ese % × \\(h\\))", "min": 0, "max": 100, "paso": 1, "valor": 10 }
   ],
   "calculos": [
     { "id": "od", "formula": "p * h" },
@@ -14,12 +14,12 @@
     { "id": "sp", "formula": "p * (1 - s / 100) * h * (1 + r / 100)" }
   ],
   "salidas": [
-    { "label": "On-demand, en US$ al mes", "formula": "od", "formato": "num", "decimales": 0, "nota": "solo las horas que usas" },
-    { "label": "Comprometida, en US$ al mes", "formula": "com", "formato": "num", "decimales": 0, "nota": "las 730 horas, la uses o no" },
-    { "label": "Spot, en US$ al mes", "formula": "sp", "formato": "num", "decimales": 0, "nota": "solo si el trabajo aguanta que te quiten la máquina" },
-    { "label": "Uso del mes", "formula": "h / 730", "formato": "pct", "barra": true },
-    { "label": "El compromiso gana desde estas horas al mes", "formula": "730 * (1 - d / 100)", "formato": "int", "nota": "730 × (1 − descuento)" },
-    { "label": "Lo que ahorra el compromiso contra on-demand", "formula": "1 - com / max(od, 1e-9)", "formato": "pct", "nota": "negativo: pagas por horas que no usas" }
+    { "label": "On-demand, \\(F_{od}\\), en US$ al mes", "formula": "od", "formato": "num", "decimales": 0, "nota": "\\(F_{od} = P × h\\): solo las horas que usas" },
+    { "label": "Comprometida, \\(F_c\\), en US$ al mes", "formula": "com", "formato": "num", "decimales": 0, "nota": "\\(F_c = P × (1 − d) × 730\\): las 730 horas, la uses o no" },
+    { "label": "Spot, \\(F_s\\), en US$ al mes", "formula": "sp", "formato": "num", "decimales": 0, "nota": "\\(F_s = P × (1 − s) × (h + h_{rep})\\); solo si el trabajo aguanta que te quiten la máquina" },
+    { "label": "Uso del mes", "formula": "h / 730", "formato": "pct", "barra": true, "nota": "\\(h ÷ 730\\)" },
+    { "label": "El compromiso gana desde estas horas al mes, \\(h^{*}\\)", "formula": "730 * (1 - d / 100)", "formato": "int", "nota": "\\(h^{*} = 730 × (1 − d)\\)" },
+    { "label": "Lo que ahorra el compromiso contra on-demand", "formula": "1 - com / max(od, 1e-9)", "formato": "pct", "nota": "\\(1 − F_c ÷ F_{od}\\); negativo: pagas por horas que no usas" }
   ],
-  "nota": "Un compromiso baja el precio pero no aparta máquinas, y spot puede no tener capacidad el día que la pidas. Los descuentos varían por tipo, región y día: los de spot de la Ronda son una foto de octubre de 2026 en us-east-1 (≈ 25–55 % en GPUs de inferencia), y los del compromiso, a 1 año sin pago adelantado."
+  "nota": "Un compromiso baja el precio pero no aparta máquinas, y spot puede no tener capacidad el día que la pidas. Los descuentos varían por tipo, región y día: los de spot son una foto de un día de octubre de 2026 en us-east-1 (≈ 25–55 % en GPUs de inferencia), y los del compromiso, a 1 año sin pago adelantado."
 }

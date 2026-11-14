@@ -1,10 +1,10 @@
 {
   "titulo": "Cuánto pesa un tensor según cómo lo mandes",
-  "intro": "Elige cuántos números lleva el [[tensor]], cuántos bytes ocupa cada uno en binario y cuántas letras en [[json|JSON]]. Arranca con la foto de Ana en C01, a 500 requests por segundo.",
+  "intro": "Elige cuántos números lleva el [[tensor]], cuántos bytes ocupa cada uno en binario y cuántas letras en [[json|JSON]]. Aplica \\(S = N × b\\), \\(S_{64} = 4 × ⌈S ÷ 3⌉\\) y \\(R = 8 × S × f\\). Arranca con la foto de Ana: 150,528 números en FP32, a 500 requests por segundo, el pico de diseño de Alba.",
   "entradas": [
     {
       "id": "n",
-      "label": "Números del tensor (150528 = la foto de C01 · 768 = un embedding)",
+      "label": "Números del tensor, \\(N\\) (150528 = la foto de Ana · 768 = un embedding)",
       "min": 1,
       "max": 100000000,
       "paso": 1,
@@ -13,7 +13,7 @@
     },
     {
       "id": "b",
-      "label": "Bytes por número en binario: 1 = uint8 · 2 = FP16 · 4 = FP32",
+      "label": "Bytes por número en binario, \\(b\\): 1 = uint8 · 2 = FP16 · 4 = FP32",
       "min": 1,
       "max": 8,
       "paso": 1,
@@ -21,7 +21,7 @@
     },
     {
       "id": "j",
-      "label": "Bytes por número en JSON (≈ 20.4 con todas las cifras · ≈ 8.35 con 4 decimales)",
+      "label": "Bytes por número en JSON, el \\(b\\) del texto (≈ 20.4 con todas las cifras · ≈ 8.35 con 4 decimales)",
       "min": 2,
       "max": 25,
       "paso": 0.1,
@@ -29,7 +29,7 @@
     },
     {
       "id": "q",
-      "label": "Requests por segundo",
+      "label": "Requests por segundo, \\(f\\)",
       "min": 1,
       "max": 5000,
       "paso": 1,
@@ -53,47 +53,51 @@
   ],
   "salidas": [
     {
-      "label": "En binario",
+      "label": "En binario, \\(S\\)",
       "formula": "bin",
       "formato": "bytes",
-      "nota": "la extensión binaria de Triton o gRPC"
+      "nota": "\\(S = N × b\\): así viaja con la extensión binaria de Triton o con gRPC"
     },
     {
-      "label": "En base64, dentro de un JSON",
+      "label": "En base64, dentro de un JSON, \\(S_{64}\\)",
       "formula": "b64",
       "formato": "bytes",
-      "nota": "4 letras por cada 3 bytes"
+      "nota": "\\(S_{64} = 4 × ⌈S ÷ 3⌉\\): 4 letras por cada 3 bytes del binario"
     },
     {
-      "label": "En JSON, como texto",
+      "label": "En JSON, como texto, \\(S\\)",
       "formula": "js",
-      "formato": "bytes"
+      "formato": "bytes",
+      "nota": "\\(S = N × b\\), con el \\(b\\) del JSON"
     },
     {
       "label": "JSON contra binario",
       "formula": "js / bin",
       "formato": "x",
-      "decimales": 1
+      "decimales": 1,
+      "nota": "el \\(S\\) del JSON ÷ el \\(S\\) del binario"
     },
     {
-      "label": "Red en binario, en Gb/s",
+      "label": "Red en binario, \\(R\\), en Gb/s",
       "formula": "bin * q * 8 / 1e9",
       "formato": "num",
-      "decimales": 2
+      "decimales": 2,
+      "nota": "\\(R = 8 × S × f\\), con el \\(S\\) del binario"
     },
     {
-      "label": "Red en base64, en Gb/s",
+      "label": "Red en base64, \\(R\\), en Gb/s",
       "formula": "b64 * q * 8 / 1e9",
       "formato": "num",
-      "decimales": 2
+      "decimales": 2,
+      "nota": "\\(R = 8 × S_{64} × f\\)"
     },
     {
-      "label": "Red en JSON, en Gb/s",
+      "label": "Red en JSON, \\(R\\), en Gb/s",
       "formula": "js * q * 8 / 1e9",
       "formato": "num",
       "decimales": 2,
-      "nota": "cada una de las dos máquinas del gateway de C01 sostiene ≈ 1.56 Gb/s"
+      "nota": "\\(R = 8 × S × f\\), con el \\(S\\) del JSON. Cada una de las dos máquinas del gateway de Alba sostiene ≈ 1.56 Gb/s"
     }
   ],
-  "nota": "Pon 1 byte por número (uint8) y mira la red en binario: ≈ 0.6 Gb/s, la mejora que la Ronda deja anotada para C01. En JSON, los píxeles como enteros de 0 a 255 ocupan ≈ 4.6 letras cada uno: pon 4.6 en la tercera entrada y compara."
+  "nota": "Pon 1 byte por número (uint8) y mira la red en binario: ≈ 0.6 Gb/s, la mejora que el equipo de Alba deja anotada. En JSON, los píxeles como enteros de 0 a 255 ocupan ≈ 4.6 letras cada uno: pon 4.6 en la tercera entrada y compara."
 }

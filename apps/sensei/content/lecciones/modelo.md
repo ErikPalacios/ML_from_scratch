@@ -20,7 +20,7 @@ Un modelo es exactamente eso: entran números y salen números. Tiene dos difere
 
 ### Un modelo de dos perillas
 
-Imagina que el marketplace quiere sugerirle a Ana un precio para sus tenis usados. Un modelo muy chico podría ser:
+Imagina que Alba, la empresa que seguimos en todo el curso (un marketplace con ≈ 2.5 millones de publicaciones al día), quiere sugerirle a Ana, una vendedora, un precio para sus tenis usados. Un modelo muy chico podría ser:
 
 :::formula Modelo lineal de una entrada
 y = w × x + b

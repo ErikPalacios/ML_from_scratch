@@ -17,7 +17,7 @@
     { "id": "rev", "label": "Revisión", "sub": "Ana lee el diff", "kind": "human", "badge": "4", "x": 56, "y": 17, "w": 20, "h": 8,
       "note": "La [[revision-codigo|revisión de código]]: otra persona lee el cambio. ¿Hace lo que dice? ¿Tiene pruebas? ¿Mete un secreto o un archivo de pesos? ¿Cambia el preprocesamiento?" },
     { "id": "ci", "label": "CI", "sub": "los 26 tests del gateway", "kind": "job", "badge": "4", "x": 56, "y": 27, "w": 20, "h": 8,
-      "note": "La [[ci|integración continua]] corre sola en cada PR: en C01, los 26 tests del gateway. Si uno falla, el botón de merge se queda bloqueado. Es el tema de la lección siguiente." },
+      "note": "La [[ci|integración continua]] corre sola en cada PR: en Alba, los 26 tests del gateway. Si uno falla, el botón de merge se queda bloqueado. Es el tema de la lección siguiente." },
     { "id": "main", "label": "main", "sub": "un commit nuevo", "kind": "store", "badge": "5", "x": 56, "y": 41, "w": 20, "h": 8,
       "note": "Con la aprobación y CI en verde, el botón hace el [[merge]]. `main` avanza a un commit nuevo, con su id: el nombre exacto de esta versión del código." },
     { "id": "img", "label": "Imagen del gateway", "sub": "tag = hash corto", "kind": "job", "badge": "6", "x": 29, "y": 41, "w": 20, "h": 8,

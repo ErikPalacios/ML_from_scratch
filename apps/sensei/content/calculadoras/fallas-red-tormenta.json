@@ -1,12 +1,12 @@
 {
   "titulo": "Cuánto multiplican los reintentos",
-  "intro": "**Con L capas que reintentan r veces, al fondo le llegan hasta (1 + r)ᴸ intentos por request.** Con una sola capa y un [[presupuesto-reintentos|presupuesto]], la carga sube a lo más ese porcentaje. Arranca con el ejemplo de M03 y el pico de C01.",
+  "intro": "Con \\(m\\) capas que reintentan \\(r\\) veces cada una, aplica \\(A = (1 + r)^m\\) intentos al fondo por request y \\(F = λ × A\\) intentos por segundo, en el peor caso. Con una sola capa y un [[presupuesto-reintentos|presupuesto]] \\(β\\), la carga es a lo más \\(λ × (1 + β)\\). Arranca con el ejemplo de la lección y el pico de Alba.",
   "entradas": [
-    { "id": "q", "label": "Requests por segundo que entran", "min": 1, "max": 1000000, "paso": 1, "valor": 500, "tipo": "numero" },
-    { "id": "L", "label": "Capas que reintentan", "min": 1, "max": 5, "paso": 1, "valor": 3 },
-    { "id": "r", "label": "Reintentos en cada capa", "min": 0, "max": 5, "paso": 1, "valor": 3 },
-    { "id": "p", "label": "Presupuesto de reintentos, en %", "min": 0, "max": 50, "paso": 1, "valor": 10 },
-    { "id": "k", "label": "Lo que aguanta el fondo, en requests por segundo (2,400 = las dos T4 de C01)", "min": 1, "max": 1000000, "paso": 1, "valor": 2400, "tipo": "numero" }
+    { "id": "q", "label": "Requests por segundo que entran, \\(λ\\) (500 = el pico de Alba)", "min": 1, "max": 1000000, "paso": 1, "valor": 500, "tipo": "numero" },
+    { "id": "L", "label": "Capas que reintentan, \\(m\\)", "min": 1, "max": 5, "paso": 1, "valor": 3 },
+    { "id": "r", "label": "Reintentos en cada capa, \\(r\\)", "min": 0, "max": 5, "paso": 1, "valor": 3 },
+    { "id": "p", "label": "Presupuesto de reintentos \\(β\\), en % (10 = 0.10)", "min": 0, "max": 50, "paso": 1, "valor": 10 },
+    { "id": "k", "label": "Lo que aguanta el fondo \\(K\\), en requests por segundo (2,400 = las dos T4 de Alba, ≈ 1,200 cada una)", "min": 1, "max": 1000000, "paso": 1, "valor": 2400, "tipo": "numero" }
   ],
   "calculos": [
     { "id": "a", "formula": "pow(1 + r, L)" },
@@ -14,12 +14,12 @@
     { "id": "conp", "formula": "q * (1 + p / 100)" }
   ],
   "salidas": [
-    { "label": "Intentos por llamada en cada capa", "formula": "1 + r", "formato": "int", "nota": "el original más los reintentos" },
-    { "label": "Intentos al fondo por cada request, en el peor caso", "formula": "a", "formato": "x", "decimales": 0 },
-    { "label": "Requests por segundo al fondo, si todo falla", "formula": "fondo", "formato": "int" },
-    { "label": "Contra lo que aguanta el fondo", "formula": "fondo / k", "formato": "pct", "barra": true, "nota": "más de 100 %: la tormenta lo mantiene saturado" },
-    { "label": "Con una sola capa y el presupuesto", "formula": "conp", "formato": "int", "nota": "requests por segundo, a lo más" },
-    { "label": "Contra lo que aguanta el fondo, con presupuesto", "formula": "conp / k", "formato": "pct", "barra": true }
+    { "label": "Intentos por llamada en cada capa, \\(1 + r\\)", "formula": "1 + r", "formato": "int", "nota": "el original más los reintentos" },
+    { "label": "Intentos al fondo por cada request, en el peor caso, \\(A\\)", "formula": "a", "formato": "x", "decimales": 0, "nota": "\\(A = (1 + r)^m\\)" },
+    { "label": "Intentos por segundo al fondo, si todo falla, \\(F\\)", "formula": "fondo", "formato": "int", "nota": "\\(F = λ × A\\)" },
+    { "label": "\\(F\\) contra lo que aguanta el fondo", "formula": "fondo / k", "formato": "pct", "barra": true, "nota": "\\(F ÷ K\\). Más de 100 %: la tormenta lo mantiene saturado" },
+    { "label": "Con una sola capa y el presupuesto", "formula": "conp", "formato": "int", "nota": "\\(λ × (1 + β)\\): requests por segundo, a lo más" },
+    { "label": "Eso contra lo que aguanta el fondo", "formula": "conp / k", "formato": "pct", "barra": true, "nota": "\\(λ × (1 + β) ÷ K\\)" }
   ],
   "nota": "Con 0 reintentos, la carga es la que entra. Con 1 reintento y 4 capas, ya es 16 veces. El presupuesto no depende de cuántas capas haya: por eso se reintenta en una sola."
 }

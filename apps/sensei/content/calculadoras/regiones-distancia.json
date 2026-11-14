@@ -1,11 +1,11 @@
 {
   "titulo": "De kilómetros a milisegundos",
-  "intro": "La luz en la fibra recorre ≈ 200 km por milisegundo. Pon la **distancia** entre quien llama y la [[region|región]], y mira cuánto del presupuesto de [[latencia]] se va solo en el viaje.",
+  "intro": "Aplica las ecuaciones de la lección: \\(RTT_{min} = 2 × d ÷ v\\), con \\(v\\) ≈ 200 km por milisegundo (la luz en la fibra); \\(RTT ≈ f × RTT_{min}\\); y \\(t_{red} = k × RTT\\). Pon la **distancia** entre quien llama y la [[region|región]], y mira cuánto de la meta de [[latencia]] \\(S\\) se va solo en el viaje.",
   "entradas": [
-    { "id": "d", "label": "**Distancia**, en km", "min": 0, "max": 20000, "paso": 50, "valor": 3000 },
-    { "id": "f", "label": "Factor de la ruta real: cuántas veces el mínimo físico", "min": 1, "max": 3, "paso": 0.1, "valor": 2 },
-    { "id": "v", "label": "**Idas y vueltas** por request (3 si abre una conexión nueva)", "min": 1, "max": 6, "paso": 1, "valor": 1 },
-    { "id": "s", "label": "Presupuesto de latencia (SLO), en ms", "min": 50, "max": 2000, "paso": 10, "valor": 300 }
+    { "id": "d", "label": "**Distancia** \\(d\\), en km", "min": 0, "max": 20000, "paso": 50, "valor": 3000 },
+    { "id": "f", "label": "Factor de la ruta real \\(f\\): cuántas veces el mínimo físico", "min": 1, "max": 3, "paso": 0.1, "valor": 2 },
+    { "id": "v", "label": "**Idas y vueltas** por request, \\(k\\) (1 con la conexión abierta, 3 si abre una nueva)", "min": 1, "max": 6, "paso": 1, "valor": 1 },
+    { "id": "s", "label": "Meta de latencia \\(S\\) (el SLO), en ms", "min": 50, "max": 2000, "paso": 10, "valor": 300 }
   ],
   "calculos": [
     { "id": "fis", "formula": "2 * d / 200" },
@@ -13,10 +13,10 @@
     { "id": "tot", "formula": "real * v" }
   ],
   "salidas": [
-    { "label": "RTT mínimo que permite la física", "formula": "fis", "formato": "ms", "nota": "2 × distancia ÷ 200" },
-    { "label": "RTT estimado", "formula": "real", "formato": "ms", "nota": "mínimo × factor de la ruta" },
-    { "label": "Tiempo en la red por request", "formula": "tot", "formato": "ms", "nota": "RTT × idas y vueltas" },
-    { "label": "Parte del presupuesto que se va en el viaje", "formula": "tot / s", "formato": "pct", "decimales": 0, "barra": true, "nota": "tiempo en la red ÷ presupuesto" }
+    { "label": "RTT mínimo que permite la física, \\(RTT_{min}\\)", "formula": "fis", "formato": "ms", "nota": "\\(2 × d ÷ 200\\)" },
+    { "label": "RTT real estimado, \\(RTT\\)", "formula": "real", "formato": "ms", "nota": "\\(f × RTT_{min}\\)" },
+    { "label": "Tiempo en la red por request, \\(t_{red}\\)", "formula": "tot", "formato": "ms", "nota": "\\(k × RTT\\)" },
+    { "label": "Parte de la meta que se va en el viaje", "formula": "tot / s", "formato": "pct", "decimales": 0, "barra": true, "nota": "\\(t_{red} ÷ S\\)" }
   ],
-  "nota": "De la Ciudad de México a Virginia: ≈ 60 ms, el 20 % de un SLO de 300 ms. Con 3 idas y vueltas, 180 ms: el 60 %. Entre dos zonas (≈ 50 km), ≈ 1 ms."
+  "nota": "De la Ciudad de México a Virginia: ≈ 60 ms, el 20 % de una meta de 300 ms como la de Alba. Con \\(k\\) = 3 idas y vueltas, 3 × 60 = 180 ms: el 60 %. Entre dos zonas (≈ 50 km): 2 × 50 ÷ 200 = 0.5 ms de mínimo, ≈ 1 ms real."
 }

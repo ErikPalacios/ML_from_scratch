@@ -251,6 +251,26 @@
      "lecciones": [
       "unidades"
      ]
+    },
+    {
+     "id": "vendedores_sin_sugerencias",
+     "dato": "Vendedores sin sugerencias",
+     "valor": "≈ 1 %",
+     "unidad": "%",
+     "nota": "Supuesto de la lección de ejemplos.",
+     "lecciones": [
+      "ejemplos"
+     ]
+    },
+    {
+     "id": "categorias_grandes",
+     "dato": "Categorías que dominan el promedio",
+     "valor": "unas 50 categorías grandes",
+     "unidad": "categorías",
+     "nota": "Del ejemplo de ejemplos; las 500 incluyen una cola larga.",
+     "lecciones": [
+      "ejemplos"
+     ]
     }
    ]
   },
@@ -1068,6 +1088,16 @@
      "lecciones": [
       "pytorch"
      ]
+    },
+    {
+     "id": "checkpoint_entrenamiento",
+     "dato": "Checkpoint de entrenamiento (pesos + 2 momentos de Adam)",
+     "valor": "≈ 294 MB (3 × 98)",
+     "unidad": "MB",
+     "nota": "Distinto del archivo de pesos (98.4 MB). Se guarda cada 15 min.",
+     "lecciones": [
+      "aprender"
+     ]
     }
    ]
   },
@@ -1230,9 +1260,9 @@
     {
      "id": "graceful",
      "dato": "Entrega de versión",
-     "valor": "preStop 10 s + drenado 30 s + margen 20 s",
+     "valor": "Triton: plazo 60 s = preStop 10 + drenado 30 + margen 20; gateway: plazo 45 s = preStop 15 + drenado 20 + margen 10",
      "unidad": "s",
-     "nota": "",
+     "nota": "Dos plazos distintos, uno por programa (el ALB tarda más que kube-proxy en sacar al gateway del balanceo).",
      "lecciones": [
       "programa-proceso"
      ]
@@ -1259,6 +1289,60 @@
       "memoria",
       "unidades",
       "cpu-gpu"
+     ]
+    },
+    {
+     "id": "arranque_pod_triton",
+     "dato": "Un pod nuevo de Triton, de pedir el nodo a servir",
+     "valor": "≈ 5 a 13 min (de ellos, ≈ 2 a 5 min solo en bajar la imagen; cargar el modelo desde disco ≈ 1 s)",
+     "unidad": "min",
+     "nota": "Estimación del equipo de Alba. Son dos relojes con nombre: pod listo ≈ 5–13 min; solo la imagen ≈ 2–5 min. En una prueba de CI el pod arranca igual: ≈ 5–13 min.",
+     "lecciones": [
+      "memoria",
+      "nube",
+      "pruebas-ci",
+      "latencia",
+      "regiones"
+     ]
+    },
+    {
+     "id": "health_check",
+     "dato": "Salud del pod en Kubernetes",
+     "valor": "cada 10 s, espera la respuesta 2 s; 3 fallos seguidos lo dan por muerto",
+     "unidad": "s",
+     "nota": "Da el riesgo de congelar el loop más de 2 s.",
+     "lecciones": [
+      "async"
+     ]
+    },
+    {
+     "id": "mvp_rps",
+     "dato": "Tráfico del MVP del gateway",
+     "valor": "≈ 35",
+     "unidad": "req/s",
+     "nota": "Versión inicial del gateway, antes del pico de diseño.",
+     "lecciones": [
+      "async"
+     ]
+    },
+    {
+     "id": "semaforo_espera",
+     "dato": "Espera máxima del semáforo de decodes",
+     "valor": "≈ 50",
+     "unidad": "ms",
+     "nota": "Supuesto de la lección de async.",
+     "lecciones": [
+      "async"
+     ]
+    },
+    {
+     "id": "triton_espera",
+     "dato": "Espera de la respuesta de Triton en un hilo",
+     "valor": "≈ 5 a 12 ms (10 ms como número redondo)",
+     "unidad": "ms",
+     "nota": "GPU ≈ 4 ms más fila y red; el caso lento son 27 ms.",
+     "lecciones": [
+      "programa-proceso"
      ]
     }
    ]
@@ -1583,6 +1667,17 @@
      "lecciones": [
       "almacenamiento"
      ]
+    },
+    {
+     "id": "particion_nota",
+     "dato": "Nombre de la partición en las lecciones",
+     "valor": "dt=YYYY-MM-DD en todas (formatos incluida)",
+     "unidad": "—",
+     "nota": "Antes formatos decía fecha=.",
+     "lecciones": [
+      "formatos",
+      "almacenamiento"
+     ]
     }
    ]
   },
@@ -1623,7 +1718,7 @@
     {
      "id": "metricas_negocio",
      "dato": "Métricas",
-     "valor": "tasa de aceptación (primaria); guardrails: p99, errores, % de publicaciones completadas",
+     "valor": "tasa de aceptación (primaria); guardrails: p99, errores, % de publicaciones que un moderador recategoriza después y tiempo para llenar el formulario (también se vigila el % de publicaciones completadas)",
      "unidad": "—",
      "nota": "",
      "lecciones": [
@@ -1722,7 +1817,7 @@
      "dato": "NAT, IPv4, cruce de zona, endpoints",
      "valor": "≈ US$140",
      "unidad": "USD/mes",
-     "nota": "Con ruteo por zona; sin él ≈ US$3.6k.",
+     "nota": "Con ruteo por zona (cada llamada se queda en su zona). Sin él ver costo_cruce_zona: no es el mismo número que el total de la infraestructura sin ruteo.",
      "lecciones": [
       "nube",
       "redes-nube"
@@ -1771,6 +1866,40 @@
      "lecciones": [
       "cpu-gpu"
      ]
+    },
+    {
+     "id": "costo_cruce_zona",
+     "dato": "Cruce de zona sin ruteo por zona",
+     "valor": "≈ US$1,830 al mes (≈ US$1,800 con meses de 30 días)",
+     "unidad": "USD/mes",
+     "nota": "304 M tensores × 602,112 B ≈ 183 TB; la mitad cruza: 91.5 TB × US$0.02 = 1,830. Mide solo el cruce.",
+     "lecciones": [
+      "redes-nube",
+      "regiones",
+      "unidades",
+      "maquinas"
+     ]
+    },
+    {
+     "id": "costo_infra_sin_ruteo",
+     "dato": "Infraestructura total si no hubiera ruteo por zona",
+     "valor": "≈ US$3.6k al mes (1,829 + 1,790)",
+     "unidad": "USD/mes",
+     "nota": "Es el total de toda la factura sin ruteo; no es el costo de la red sola.",
+     "lecciones": [
+      "redes-nube",
+      "maquinas"
+     ]
+    },
+    {
+     "id": "estimaciones_pruebas",
+     "dato": "Estimaciones del equipo en pruebas de CI",
+     "valor": "pruebas ≈ 2 min; staging ≈ US$137",
+     "unidad": "—",
+     "nota": "Del equipo de Alba, en la lección de pruebas.",
+     "lecciones": [
+      "pruebas-ci"
+     ]
     }
    ]
   },
@@ -1782,7 +1911,7 @@
      "dato": "Vendedora de ejemplo",
      "valor": "Ana, Ciudad de México; sube unos tenis; recibe «Calzado › Tenis»",
      "unidad": "—",
-     "nota": "Su foto: 214,836 B, 3024 × 4032, 8:03 am del 6 de noviembre de 2026.",
+     "nota": "Ana es siempre la vendedora. La persona de guardia (terminal) es Marta (marta@laptop, marta@gw-node).",
      "lecciones": [
       "camino-completo",
       "http",
@@ -1825,6 +1954,16 @@
       "formatos",
       "apis",
       "git"
+     ]
+    },
+    {
+     "id": "persona_guardia",
+     "dato": "Ingeniera de guardia",
+     "valor": "Marta (marta@laptop, marta@gw-node)",
+     "unidad": "—",
+     "nota": "Para que Ana siga siendo solo la vendedora.",
+     "lecciones": [
+      "terminal"
      ]
     }
    ]
@@ -1894,6 +2033,176 @@
      "nota": "No se quita ninguna GPU.",
      "lecciones": [
       "bases-de-datos"
+     ]
+    }
+   ]
+  },
+  "busqueda": {
+   "descripcion": "La búsqueda con embeddings de Alba (parte de Alba, no un caso aparte)",
+   "hechos": [
+    {
+     "id": "busq_publicaciones",
+     "dato": "Publicaciones que indexa",
+     "valor": "≈ 100 M activas",
+     "unidad": "publicaciones",
+     "nota": "Son las activas, no las ≈ 200 M fotos viejas.",
+     "lecciones": [
+      "embeddings",
+      "memoria",
+      "numeros-maquina"
+     ]
+    },
+    {
+     "id": "busq_dims",
+     "dato": "Números por vector",
+     "valor": "512",
+     "unidad": "números",
+     "nota": "",
+     "lecciones": [
+      "embeddings",
+      "unidades",
+      "memoria"
+     ]
+    },
+    {
+     "id": "busq_trafico",
+     "dato": "Búsquedas por día (supuesto) y pico",
+     "valor": "50 M al día; ≈ 579/s promedio; pico ≈ 1,750/s (3 × 579 = 1,737)",
+     "unidad": "búsquedas",
+     "nota": "El curso redondea el pico a 1,750 en todas las lecciones.",
+     "lecciones": [
+      "unidades",
+      "embeddings",
+      "memoria"
+     ]
+    },
+    {
+     "id": "busq_promesa",
+     "dato": "Promesas",
+     "valor": "p99 < 300 ms; recall@100 ≥ 0.95",
+     "unidad": "—",
+     "nota": "Para búsquedas de texto.",
+     "lecciones": [
+      "embeddings"
+     ]
+    },
+    {
+     "id": "busq_indice",
+     "dato": "Índice HNSW en int8",
+     "valor": "vectores 51.2 GB + grafo 25.6 GB ≈ 77 GB, en 4 pedazos × 2 copias",
+     "unidad": "GB",
+     "nota": "Es el índice completo. Aparte, los vectores float32 de UN pedazo (25 M × 512 × 4 B) también son 51.2 GB: coincidencia de la cuenta, memoria usa ese.",
+     "lecciones": [
+      "embeddings",
+      "memoria",
+      "unidades",
+      "numeros-maquina"
+     ]
+    },
+    {
+     "id": "busq_maquinas",
+     "dato": "Máquinas de la búsqueda",
+     "valor": "128 GiB de RAM (los 51.2 GB caben en la page cache)",
+     "unidad": "GiB",
+     "nota": "",
+     "lecciones": [
+      "memoria"
+     ]
+    },
+    {
+     "id": "busq_candidatos",
+     "dato": "Candidatos por búsqueda",
+     "valor": "≈ 200 del índice vectorial + ≈ 200 de BM25 = ≈ 400; el re-ranker ve los 30 primeros",
+     "unidad": "candidatos",
+     "nota": "Por eso memoria dice 200 (solo los vectoriales) y bases-de-datos ≈ 400 (los dos).",
+     "lecciones": [
+      "embeddings",
+      "memoria",
+      "bases-de-datos"
+     ]
+    },
+    {
+     "id": "busq_lapidas",
+     "dato": "Lápidas en Redis",
+     "valor": "≈ 2.5 M vendidas al día × TTL 7 días ≈ 17.5 M llaves ≈ 2 GB",
+     "unidad": "—",
+     "nota": "Una por publicación vendida; un MGET por búsqueda.",
+     "lecciones": [
+      "bases-de-datos"
+     ]
+    },
+    {
+     "id": "busq_frescura",
+     "dato": "Colas de la búsqueda",
+     "valor": "promesa de frescura de 1 a 5 min; alerta si el lag pasa de 3 min durante 10 min",
+     "unidad": "min",
+     "nota": "",
+     "lecciones": [
+      "colas"
+     ]
+    }
+   ]
+  },
+  "otros_sistemas": {
+   "descripcion": "Otros sistemas de Alba que usan las lecciones, con sus números",
+   "hechos": [
+    {
+     "id": "reco",
+     "dato": "Recomendaciones",
+     "valor": "vectores de 128 números; 100 M en int8 = 12.8 GB + grafo 25.6 GB ≈ 38 GB; ≈ 500 candidatos; ≈ 3,100/s en el pico",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "embeddings",
+      "numeros-maquina"
+     ]
+    },
+    {
+     "id": "rag",
+     "dato": "Asistente interno con RAG",
+     "valor": "≈ 8,000 empleados; ≈ 25 mil preguntas al día (≈ 0.3/s promedio); 1.5 M documentos en 12 M pedazos de 1,024 números (float32 ≈ 49.2 GB); búsqueda 50–150 ms; si el re-ranker no responde en 400 ms se usa el orden de la búsqueda",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "embeddings",
+      "percentiles",
+      "async",
+      "llms"
+     ]
+    },
+    {
+     "id": "llm",
+     "dato": "LLM propio (≈ 70B)",
+     "valor": "FP8 en 2 H100 (160 GB) por réplica: pesos 70.6 GB, programa ≈ 5 GB, KV cache libre 68.4 GB; 320 KiB por token; conversación típica 2,250 tokens ≈ 0.737 GB → ≈ 93 (92 enteras) por réplica; 16 réplicas = 32 H100; TTFT ≤ 1 s, TPOT ≤ 50 ms",
+     "unidad": "—",
+     "nota": "Lo usan el asistente de soporte, el de publicaciones y la extracción nocturna.",
+     "lecciones": [
+      "llms",
+      "numeros-maquina",
+      "flops",
+      "unidades"
+     ]
+    },
+    {
+     "id": "agente",
+     "dato": "Agente de soporte",
+     "valor": "≈ 6 llamadas al LLM por conversación; los reembolsos de más de US$50 los aprueba una persona",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "llms",
+      "fallas-red"
+     ]
+    },
+    {
+     "id": "moderacion",
+     "dato": "Moderación de contenido",
+     "valor": "cuota del equipo de moderación: 50 por segundo, balde de 100",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "balanceo",
+      "gestionados"
      ]
     }
    ]
@@ -2064,6 +2373,112 @@
    "tema": "Utilización",
    "resolucion": "GPU ≈ 50 % planeada; ≤ 70 % con una zona caída; CPU del gateway ≈ 60 %: tres recursos.",
    "cambiar": [],
+   "como": ""
+  },
+  {
+   "n": 19,
+   "tema": "Cruce de zona sin ruteo",
+   "resolucion": "Dos números con nombre: el cruce solo ≈ US$1,830 (≈ 1,800 con 30 días) y la infraestructura total sin ruteo ≈ US$3.6k.",
+   "cambiar": [
+    "maquinas:693"
+   ],
+   "como": ""
+  },
+  {
+   "n": 20,
+   "tema": "Arranque de Triton",
+   "resolucion": "Pod nuevo listo ≈ 5–13 min; solo bajar la imagen ≈ 2–5 min.",
+   "cambiar": [
+    "memoria:640",
+    "pruebas-ci:279"
+   ],
+   "como": ""
+  },
+  {
+   "n": 21,
+   "tema": "Checkpoint",
+   "resolucion": "Pesos 98.4 MB; checkpoint de entrenamiento con Adam ≈ 294 MB.",
+   "cambiar": [],
+   "como": ""
+  },
+  {
+   "n": 22,
+   "tema": "Pico de la búsqueda",
+   "resolucion": "≈ 1,750/s en todas (3 × 579 = 1,737 redondeado).",
+   "cambiar": [
+    "unidades:342",
+    "unidades:652"
+   ],
+   "como": ""
+  },
+  {
+   "n": 23,
+   "tema": "Índice de la búsqueda",
+   "resolucion": "77 GB = int8 51.2 + grafo 25.6 en 4 pedazos; 51.2 GB de memoria son los float32 de un pedazo.",
+   "cambiar": [],
+   "como": ""
+  },
+  {
+   "n": 24,
+   "tema": "Plazos de apagado",
+   "resolucion": "Triton 60 = 10+30+20; gateway 45 = 15+20+10.",
+   "cambiar": [],
+   "como": ""
+  },
+  {
+   "n": 25,
+   "tema": "Partición de logs",
+   "resolucion": "dt=YYYY-MM-DD en todas.",
+   "cambiar": [
+    "formatos:643",
+    "formatos:651",
+    "formatos:968",
+    "colas:356"
+   ],
+   "como": ""
+  },
+  {
+   "n": 26,
+   "tema": "Guardrails del A/B",
+   "resolucion": "Se listan recategorización, tiempo del formulario, p99, errores y % de completadas.",
+   "cambiar": [],
+   "como": ""
+  },
+  {
+   "n": 27,
+   "tema": "Respuesta de http",
+   "resolucion": "model_version resnet50-2026-10-01; score 0.94; el ejercicio de 8 M requests es un día tranquilo, dicho en el texto.",
+   "cambiar": [
+    "http:72",
+    "http:74"
+   ],
+   "como": ""
+  },
+  {
+   "n": 28,
+   "tema": "Decode de CPU",
+   "resolucion": "6 ms (gateway); el DataLoader de pytorch usa 6 + 4 = 10 ms.",
+   "cambiar": [
+    "pytorch:448"
+   ],
+   "como": ""
+  },
+  {
+   "n": 29,
+   "tema": "RTT de red-arranque",
+   "resolucion": "Valor inicial 60 ms; la nota ahora dice 240 ms.",
+   "cambiar": [
+    "red-arranque"
+   ],
+   "como": ""
+  },
+  {
+   "n": 30,
+   "tema": "Ana de guardia",
+   "resolucion": "La de guardia en terminal es Marta; Ana es la vendedora. Git queda con Ana como autora fija de sus commits (cambiarla altera sus ids).",
+   "cambiar": [
+    "terminal"
+   ],
    "como": ""
   }
  ]

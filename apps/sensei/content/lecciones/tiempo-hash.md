@@ -2,7 +2,7 @@
 titulo: Tiempo, hashes e identificadores
 en: Time, hashes and identifiers
 subtitulo: Cómo se escribe una hora para que nadie la malinterprete, por qué un modelo no puede entrenar con datos del futuro y cómo un número que sale de un texto reparte usuarios, máquinas y experimentos, siempre igual.
-pregunta: Cada predicción de C01 lleva una hora y un identificador. ¿Cómo se escribe una hora para que no se confunda entre países y máquinas, por qué no se puede entrenar con datos «del futuro» y cómo un hash decide, siempre igual, a qué grupo de un A/B o a qué máquina va cada usuario?
+pregunta: Cada predicción del clasificador de fotos de Alba lleva una hora y un identificador. ¿Cómo se escribe una hora para que no se confunda entre países y máquinas, por qué no se puede entrenar con datos «del futuro» y cómo un hash decide, siempre igual, a qué grupo de un A/B o a qué máquina va cada usuario?
 requisitos: numeros-maquina, bases-de-datos, colas
 ---
 
@@ -10,7 +10,9 @@ requisitos: numeros-maquina, bases-de-datos, colas
 Una hora se guarda como un número que todos cuentan igual (segundos desde 1970, en UTC) y se escribe en un formato que no deja dudas (ISO 8601, con su zona). Un hash convierte cualquier cosa en un número de tamaño fijo, siempre el mismo: sirve de huella para reconocer contenido y de sorteo repetible para repartir usuarios y datos sin guardar ninguna tabla. Y un identificador por request une todo lo que pasó con ella.
 :::
 
-Ana sube la foto de sus tenis a las 8:03 de la mañana, en la Ciudad de México. El gateway de C01 la clasifica y deja una línea en su *log*, el registro de texto donde un programa anota lo que hace:
+Alba, la empresa que seguimos en todo el curso, es un marketplace: recibe ≈ 2.5 millones de publicaciones al día y, con un modelo, le sugiere a quien vende la categoría de cada foto, entre 500 posibles. En total clasifica ≈ 10 millones de fotos al día.
+
+Ana sube la foto de sus tenis a las 8:03 de la mañana, en la Ciudad de México. El gateway de Alba, el servicio que recibe la foto y se la pasa al modelo, la clasifica y deja una línea en su *log*, el registro de texto donde un programa anota lo que hace:
 
 ```json
 {"ts": "2026-11-06T14:03:05.412Z",
@@ -22,7 +24,7 @@ Ana sube la foto de sus tenis a las 8:03 de la mañana, en la Ciudad de México.
 
 Es una versión corta: la línea completa, con el top-5 y los milisegundos de cada paso, está en la lección de formatos. La hora la pone quien guarda el log, y el vendedor y el brazo del A/B los anota el backend. Casi cada campo de esa línea es esta lección. La hora dice 14:03, no 8:03, y termina en una Z: ¿por qué? El `request_id` es un nombre que nadie más tiene: ¿quién lo inventó sin preguntarle a nadie? El `sha256` es una huella de la foto. Y el brazo «A» del [[ab-test|experimento A/B]] salió de otra huella, la del vendedor.
 
-Con esas piezas vas a responder tres preguntas que la Ronda hace todo el tiempo: qué hora es «la hora» de algo, cómo armar un dataset sin colarle el futuro y cómo repartir al azar, pero siempre igual.
+Con esas piezas vas a responder tres preguntas que salen todo el tiempo al diseñar un sistema de ML: qué hora es «la hora» de algo, cómo armar un dataset sin colarle el futuro y cómo repartir al azar, pero siempre igual.
 
 ## Escribir la hora: tiempo Unix, UTC e ISO 8601 {Writing the time: Unix time, UTC and ISO 8601}
 
@@ -44,7 +46,7 @@ Un número así no dice en qué unidad está. 1,793,973,785 leído como milisegu
 
 :::cuenta El problema del año 2038
 El int32 más grande | 2³¹ − 1 | 2,147,483,647 s
-En años // un año tiene ≈ 31,557,600 s | 2,147,483,647 ÷ 31,557,600 | ≈ 68 años
+En años // un año tiene 365.25 × 86,400 = 31,557,600 s | 2,147,483,647 ÷ 31,557,600 | ≈ 68 años
 Desde 1970 | 1970 + 68 | 2038
 El instante exacto // a las 03:14:07 UTC | 1970-01-01 + 2,147,483,647 s | 19 de enero de 2038
 Un segundo después // un [[overflow]]: el int32 más negativo, el 13 de diciembre de 1901 | −2,147,483,648 s | 1901
@@ -82,7 +84,7 @@ El tiempo Unix cuenta desde una hora fija del planeta, no desde la de un país. 
 
 Ese «en verano» es el **horario de verano** (*daylight saving time*): adelantar el reloj una hora en primavera y regresarla en otoño. México lo quitó con la Ley de los Husos Horarios de 2022 (el último cambio general fue el 30 de octubre de ese año), pero los municipios de la franja fronteriza del norte, entre ellos todo Baja California, lo conservan para ir al parejo de Estados Unidos. Por eso Tijuana cambia y la Ciudad de México no. Las reglas de cada zona, con todos sus cambios históricos, viven en una base de datos pública, la *tz database*, que traen el sistema operativo y Python (`zoneinfo`). Sus zonas tienen nombres como `America/Mexico_City`.
 
-Esto lleva a la regla de oro: **guarda en UTC y muestra en la hora local**. Las horas de los logs, de las bases de datos y de los datasets van en UTC; la conversión a la hora de cada persona se hace una sola vez, en la pantalla. Una hora sin zona se llama *naive* (ingenua): `2026-11-06 08:03:05` no dice si es de CDMX, de Tijuana o de Madrid. La Ronda (M09) lo resume así: un timestamp sin zona es la hora local «de quién sabe dónde».
+Esto lleva a la regla de oro: **guarda en UTC y muestra en la hora local**. Las horas de los logs, de las bases de datos y de los datasets van en UTC; la conversión a la hora de cada persona se hace una sola vez, en la pantalla. Una hora sin zona se llama *naive* (ingenua): `2026-11-06 08:03:05` no dice si es de CDMX, de Tijuana o de Madrid. Dicho corto: un timestamp sin zona es la hora local «de quién sabe dónde».
 
 ### La hora que no existe y la que se repite
 
@@ -145,7 +147,7 @@ De lo grande a lo chico: año, mes, día, una T que separa la fecha de la hora, 
 ISO 8601 permite muchas formas, incluso horas sin zona. Por eso los protocolos de internet usan un perfil más estricto, el **RFC 3339** (de 2002; un RFC es uno de los documentos en los que la IETF publica los estándares de internet): la zona es obligatoria (la Z o un offset), el año lleva 4 cifras y los decimales van con punto. Cuando una API o un log dicen «ISO 8601», casi siempre quieren decir esta forma.
 :::
 
-Ese orden de lo grande a lo chico tiene un premio: **si todas las horas están en UTC y con el mismo formato, ordenarlas como texto las ordena en el tiempo**. «2026-10-31T23:59:59Z» va antes que «2026-11-06T09:30:00Z» letra por letra. Por eso los nombres de archivos, de carpetas y de [[snapshot|snapshots]] llevan la fecha así, como el `ds-2026-09-01` de C01. Con el formato día/mes/año no funciona: «01/01/2027» empieza con 01 y «06/11/2026» con 06, así que el 1 de enero de 2027 quedaría antes que el 6 de noviembre de 2026.
+Ese orden de lo grande a lo chico tiene un premio: **si todas las horas están en UTC y con el mismo formato, ordenarlas como texto las ordena en el tiempo**. «2026-10-31T23:59:59Z» va antes que «2026-11-06T09:30:00Z» letra por letra. Por eso los nombres de archivos, de carpetas y de [[snapshot|snapshots]] llevan la fecha así, como el `ds-2026-09-01` con que Alba nombra su dataset de septiembre. Con el formato día/mes/año no funciona: «01/01/2027» empieza con 01 y «06/11/2026» con 06, así que el 1 de enero de 2027 quedaría antes que el 6 de noviembre de 2026.
 
 :::profundo Los segundos intercalares
 La Tierra no gira con la regularidad de un reloj atómico: se frena un poco y a destiempo. Para que UTC no se separe del Sol, desde 1972 se han agregado 27 **segundos intercalares** (*leap seconds*): un 23:59:60 al final de algunos días, el último el 31 de diciembre de 2016. El tiempo Unix hace como si no existieran: cada día tiene exactamente 86,400 segundos, y en un segundo intercalar el reloj repite un segundo o lo reparte en pedacitos a lo largo del día (*leap smear*). En 2022, la Conferencia General de Pesas y Medidas acordó dejar de agregarlos a más tardar en 2035, y en octubre de 2026 fijó la fecha: desde el 20 de mayo de 2027, UTC corre sin segundos intercalares, y su diferencia con la hora que marca el giro de la Tierra puede crecer hasta una hora. Para casi todo en ML no importan; importa saber que «restar tiempos Unix» puede equivocarse por un segundo cuando pasa uno.
@@ -210,7 +212,7 @@ De ahí salen tres consecuencias:
 
 - **No ordenes eventos de dos máquinas por su hora.** Si los milisegundos importan, el orden lo da quién llamó a quién. Para seguir una request por varios saltos se usa su identificador, que ves en la sección de UUID.
 - **No midas una latencia restando horas de dos máquinas.** Cada máquina mide su parte con su monotónico. Por eso, entre máquinas, un deadline viaja como «te quedan 190 ms» y no como «termina a las 14:03:05.290».
-- **Vigila el desfase.** En la Ronda, C02, que vigila con cámaras unos centros de distribución, corre NTP en cada caja de cómputo de sus sitios y compara su hora con la del servidor en cada latido (*heartbeat*); si se separan más de 2 segundos, lo registra. Un reloj corrido por días rompe hasta las conexiones cifradas ([[tls|TLS]], en la lección de cifrado), porque revisan que el certificado del otro lado no esté vencido.
+- **Vigila el desfase.** Un sistema de video que vigila con cámaras unos centros de distribución, por ejemplo, corre NTP en cada caja de cómputo de sus sitios y compara su hora con la del servidor en cada latido (*heartbeat*); si se separan más de 2 segundos, lo registra. Un reloj corrido por días rompe hasta las conexiones cifradas ([[tls|TLS]], en la lección de cifrado), porque revisan que el certificado del otro lado no esté vencido.
 
 ## Cuándo pasó y cuándo llegó: event time, ventanas y watermark {Event time, windows and watermarks}
 
@@ -223,7 +225,7 @@ La foto de Ana tiene varias horas, y no son la misma:
 3. **Cuándo se procesó.** El gateway y Triton la clasifican unos milisegundos después. Si hubiera pasado por una [[cola-mensajes|cola]], podrían ser minutos.
 4. **Cuándo llegó su etiqueta.** Ana elige la categoría final un par de minutos más tarde; un moderador podría corregirla días después.
 
-La hora en que algo pasó en el mundo es su [[event-time|event time]] (tiempo del evento). La hora en que un sistema lo procesa es su *processing time* (tiempo de procesamiento). Casi siempre van juntas, pero no siempre. La Ronda (M02) da el ejemplo clásico: un celular sin señal en el metro registra un pago a las 10:00:05, y el evento llega al sistema a las 10:07. Pasó a las 10:00; llegó siete minutos tarde.
+La hora en que algo pasó en el mundo es su [[event-time|event time]] (tiempo del evento). La hora en que un sistema lo procesa es su *processing time* (tiempo de procesamiento). Casi siempre van juntas, pero no siempre. El ejemplo clásico: un celular sin señal en el metro registra un pago a las 10:00:05, y el evento llega al sistema a las 10:07. Pasó a las 10:00; llegó siete minutos tarde.
 
 ¿Por qué importa? Porque las preguntas son sobre el mundo, no sobre tu sistema. «¿Cuántos pagos hizo esta tarjeta entre las 10:00 y las 10:05?» se responde con el event time. Por processing time, el pago del metro caería en la cuenta de 10:05 a 10:10, y un retraso de la red cambiaría tus features.
 
@@ -239,19 +241,19 @@ Muchas features son conteos o sumas sobre un rato: pagos de la tarjeta en 10 min
 Los pagos de una tarjeta sobre el eje del event time. Las ventanas fijas de 5 minutos cuentan 3, 2 y 1. Las deslizantes de 10 minutos, cada 5, se enciman: cuentan 5 y 3. El watermark llega a las 10:05:50 y cierra la primera ventana fija con 2 pagos; el del metro, de las 10:00:05, llega después: tarde.
 :::
 
-Una ventana «de 24 horas» en una feature de fraude no es «el día de hoy». C09, el caso de fraude con tarjetas, la define anclada al evento: los pagos con event time entre t − 24 h y t, sin contar el pago que se está decidiendo.
+Una ventana «de 24 horas» en una feature de fraude no es «el día de hoy». Un sistema de detección de fraude con tarjetas la define anclada al evento: los pagos con event time entre t − 24 h y t, con t la hora del pago que se está decidiendo, sin contar ese pago.
 
 ### El watermark: cuánto esperar a los que llegan tarde
 
 Un programa que cuenta en ventanas mientras llegan los eventos (un *job de streaming*, que lee un [[stream-eventos|stream de eventos]] de la lección de colas) tiene un problema: ¿cuándo da por cerrada la ventana de 10:00 a 10:05? Si la cierra a las 10:05 en punto, el pago del metro no entra. Si espera una hora, sus features llegan una hora tarde.
 
-El [[watermark]] es la respuesta: una hora de event time que dice «ya creo haber recibido todo lo anterior a esto». Lo más común es calcularlo como el event time más nuevo que se ha visto, menos un margen. Cuando el watermark pasa el final de una ventana, la ventana se cierra y emite su resultado.
+El [[watermark]] es la respuesta: una hora de event time que dice «ya creo haber recibido todo lo anterior a esto». Lo más común es calcularlo como el event time más nuevo que se ha visto, \(t_{max}\), menos un margen \(m\): \(W = t_{max} − m\), con \(W\) el watermark. Cuando el watermark pasa el final de una ventana, la ventana se cierra y emite su resultado.
 
 :::cuenta El pago del metro, con un margen de 1 minuto
-Llega un pago a tiempo // es el event time más nuevo que se ha visto | — | 10:06:50
-Watermark | 10:06:50 − 1 min | 10:05:50
-¿Cierra la ventana de 10:00 a 10:05? // el watermark ya pasó de 10:05 | 10:05:50 > 10:05 | sí: emite 2 pagos
-Llega el pago del metro // a las 10:07, con event time 10:00:05 | 10:00:05 < 10:05:50 | tarde
+Event time más nuevo, \(t_{max}\) // el de un pago que llega a tiempo | — | 10:06:50
+Watermark \(W\) // con un margen \(m\) de 1 min | \(W = t_{max} − m\) = 10:06:50 − 1 min | 10:05:50
+¿Cierra la ventana de 10:00 a 10:05? // se cierra cuando \(W\) pasa su final | \(W\) = 10:05:50 > 10:05 | sí: emite 2 pagos
+Llega el pago del metro // a las 10:07, con event time 10:00:05 | 10:00:05 < \(W\) = 10:05:50 | tarde
 = Con 1 minuto de margen, el pago del metro llega tarde y la ventana dijo 2, no 3. Con 10 minutos de margen habría entrado, pero cada ventana tardaría 10 minutos en dar su cuenta.
 :::
 
@@ -275,7 +277,7 @@ Si pones el valor que la feature tiene hoy, le das al modelo información que no
 
 La regla se llama [[point-in-time|point-in-time correctness]] (corrección al instante): **cada fila lleva el valor que cada feature tenía en el momento de la predicción, no el de hoy**. La herramienta es un [[join]] *as-of* («a la fecha de»), una unión de dos tablas por hora: para cada evento, el último valor de la feature con timestamp menor o igual al del evento.
 
-:::cuenta Un join as-of, con las horas de M09
+:::cuenta Un join as-of, con horas de ejemplo
 Valores de «pagos en 1 h» // de ejemplo, calculados a las 09:00, 10:00, 10:30 y 11:00 | — | 2, 3, 7 y 4
 Decisión de las 10:10 // el último con hora ≤ 10:10 es el de las 10:00 | as-of(10:10) | 3
 Decisión de las 10:35 // el último con hora ≤ 10:35 es el de las 10:30 | as-of(10:35) | 7
@@ -289,9 +291,9 @@ Arriba, la feature como escalera: vale 2 desde las 9:00, 3 desde las 10:00, 7 de
 
 ### La hora que importa: cuándo estuvo disponible
 
-Hay un detalle más fino. La Ronda (M09) lo dice así: el timestamp que importa no es cuándo terminó la ventana, sino **cuándo el valor estuvo disponible para el servicio**. Si el valor de las 10:30 tarda 2 minutos en llegar a la base de datos que lee el modelo, una decisión de las 10:31 todavía vio el de las 10:00. Un join as-of con la hora de cálculo le daría 7; el correcto, con la hora de disponibilidad, le da 3.
+Hay un detalle más fino: el timestamp que importa no es cuándo terminó la ventana, sino **cuándo el valor estuvo disponible para el servicio**. Si el valor de las 10:30 tarda 2 minutos en llegar a la base de datos que lee el modelo, una decisión de las 10:31 todavía vio el de las 10:00. Un join as-of con la hora de cálculo le daría 7; el correcto, con la hora de disponibilidad, le da 3.
 
-En pandas, la biblioteca de tablas de Python, la misma operación es `pd.merge_asof`, con un `tolerance` que pone un límite de antigüedad: en M09, ningún valor de más de 2 horas cuenta.
+En pandas, la biblioteca de tablas de Python, la misma operación es `pd.merge_asof`, con un `tolerance` que pone un límite de antigüedad: por ejemplo, con 2 horas, ningún valor más viejo que eso cuenta.
 
 :::profundo El join as-of en código
 Las dos cuentas de arriba, con la biblioteca estándar:
@@ -328,9 +330,9 @@ a las 10:31, el servicio todavía veía el valor de las 10:00 = 3
 
 ### Tres reglas para no colar el futuro
 
-- **Las etiquetas también tienen fecha.** Un contracargo (cuando el dueño de la tarjeta desconoce un cargo) llega semanas después del pago. C09 guarda las dos fechas, la del pago y la de llegada, y una feature como «contracargos de la tarjeta en 90 días» solo cuenta los que ya habían **llegado** antes de t.
+- **Las etiquetas también tienen fecha.** Un contracargo (cuando el dueño de la tarjeta desconoce un cargo) llega semanas después del pago. Un sistema de fraude guarda las dos fechas, la del pago y la de llegada, y una feature como «contracargos de la tarjeta en 90 días» solo cuenta los que ya habían **llegado** antes de t.
 - **Nada de `now()` dentro de una feature.** «Compras de los últimos 30 días» calculada con la hora actual funciona en la corrida diaria y está mal en cualquier [[backfill]], el recálculo de días pasados. La fecha de referencia llega como parámetro.
-- **Guarda lo que el modelo vio.** C08 escribe, con el `request_id` de cada recomendación, las features exactas que leyó el modelo, y el training set las une por ese id: entrenar y servir ven lo mismo. Un [[feature-store]], el almacén de features de la lección de almacenamiento, hace el join as-of por ti.
+- **Guarda lo que el modelo vio.** Un sistema de recomendación escribe, con el `request_id` de cada recomendación, las features exactas que leyó el modelo, y el training set las une por ese id: entrenar y servir ven lo mismo. Un [[feature-store]], el almacén de features de la lección de almacenamiento, hace el join as-of por ti.
 
 :::profundo El join as-of en Feast
 En Feast, un feature store de código abierto, le das la tabla de eventos con su hora y `get_historical_features` busca, para cada fila, el último valor de cada feature con hora menor o igual, sin pasar del `ttl` de la feature: el mismo límite de antigüedad de `tolerance`. Ojo: Feast usa la hora del evento de la feature, no la de disponibilidad; si el valor tarda en llegar al servicio, ese retraso lo tienes que modelar tú.
@@ -385,24 +387,37 @@ Hay infinitas entradas posibles y solo 2²⁵⁶ huellas, así que tiene que hab
 
 Empieza por un grupo de personas. ¿Cuántas hacen falta para que dos cumplan años el mismo día con probabilidad de 50 %? Con 365 días, la intuición dice unas 180. Son **23**. El truco es que no se compara una persona contra las demás, sino cada par: 23 personas forman 253 pares, y cada par tiene su oportunidad. Es la **paradoja del cumpleaños**.
 
-Con hashes pasa igual: cada huella posible es una casilla, como cada día del año. Con huellas de b bits hay N = 2ᵇ casillas, y la primera colisión se vuelve probable alrededor de **√N** elementos, no de N. Una huella de 32 bits tiene 4,294,967,296 casillas, pero con ≈ 77,000 elementos ya hay 50 % de que dos choquen.
+Con hashes pasa igual: cada huella posible es una casilla, como cada día del año. Con huellas de \(b\) bits hay \(K = 2^b\) casillas, y la primera colisión se vuelve probable alrededor de **\(sqrt{K}\)** elementos, no de \(K\). Una huella de 32 bits tiene 4,294,967,296 casillas, pero con ≈ 77,000 elementos ya hay 50 % de que dos choquen. Las cuentas, con sus letras:
 
-:::cuenta Si C01 nombrara cada foto con un hash de 32 bits
-Fotos al día | — | 10,000,000
-Pares de fotos // cada par puede chocar | 10⁷ × (10⁷ − 1) ÷ 2 | ≈ 5 × 10¹³
-Casillas con 32 bits | 2³² | ≈ 4.3 × 10⁹
-Choques esperados al día | 5 × 10¹³ ÷ 4.3 × 10⁹ | ≈ 11,600
-Con 64 bits | 5 × 10¹³ ÷ 1.8 × 10¹⁹ | ≈ 0.0000027 al día
-Con SHA-256 | 5 × 10¹³ ÷ 1.2 × 10⁷⁷ | ≈ 4 × 10⁻⁶⁴
+:::formula Choques entre huellas (la paradoja del cumpleaños)
+text{pares} = frac{n × (n − 1)}{2}
+c ≈ frac{text{pares}}{K} ≈ frac{n^2}{2K}
+P ≈ 1 − e^{−c}
+n_{50} ≈ 1.18 × sqrt{K}
+- n: cuántas cosas hasheas (fotos, ids, archivos)
+- b: los bits de la huella: 32 en CRC32, 256 en SHA-256
+- K: las casillas, es decir, las huellas distintas posibles: \(K = 2^b\)
+- c: los choques esperados: cuántos pares de cosas distintas comparten huella
+- P: la probabilidad de que haya al menos un choque
+- n_{50}: cuántas cosas hacen falta para que \(P\) llegue a 50 %
+:::
+
+:::cuenta Si Alba nombrara cada foto con un hash de 32 bits
+Fotos al día, \(n\) // las que clasifica Alba | — | 10,000,000
+Pares de fotos // cada par puede chocar | \(n × (n − 1) ÷ 2\) = 10⁷ × (10⁷ − 1) ÷ 2 | ≈ 5 × 10¹³
+Casillas con 32 bits, \(K\) | \(K = 2^b\) = 2³² | ≈ 4.3 × 10⁹
+Choques esperados al día, \(c\) | \(c ≈ text{pares} ÷ K\) = 5 × 10¹³ ÷ 4.3 × 10⁹ | ≈ 11,600
+\(c\) con 64 bits // \(K\) = 2⁶⁴ ≈ 1.8 × 10¹⁹ | 5 × 10¹³ ÷ 1.8 × 10¹⁹ | ≈ 0.0000027 al día
+\(c\) con SHA-256 // \(K\) = 2²⁵⁶ ≈ 1.2 × 10⁷⁷ | 5 × 10¹³ ÷ 1.2 × 10⁷⁷ | ≈ 4 × 10⁻⁶⁴
 = Con 32 bits, cada día ≈ 11,600 pares de fotos distintas tendrían el mismo nombre. Con 256, no pasaría ni una vez en la vida del universo.
 :::
 
 :::calculadora tiempo-hash-choques
-Prueba 64 bits: con 10 millones de cosas casi no hay choques, pero con 5,000 millones (≈ 500 días de fotos de C01) ya hay 50 %.
+Prueba 64 bits: con 10 millones de cosas casi no hay choques, pero con 5,000 millones (≈ 500 días de fotos de Alba, a 10 millones por día) ya hay 50 %.
 :::
 
 :::profundo De dónde sale la raíz cuadrada
-Con n elementos hay n(n − 1)/2 pares, y cada par choca con probabilidad 1/N. Los choques esperados son ≈ n²/(2N). La probabilidad de que no haya ninguno es ≈ e^(−n²/2N), así que la de al menos uno es ≈ 1 − e^(−n²/2N). Vale 50 % cuando n²/2N = ln 2, es decir, con n ≈ 1.18 √N. Para los cumpleaños: 1.18 × √365 ≈ 22.5. Para 32 bits: 1.18 × 65,536 ≈ 77,000.
+Con \(n\) elementos hay \(n(n − 1)/2\) pares, y cada par choca con probabilidad \(1/K\). Los choques esperados son \(c ≈ n^2/(2K)\). La probabilidad de que no haya ninguno es ≈ \(e^{−c}\), así que la de al menos uno es \(P ≈ 1 − e^{−c}\). Vale 50 % cuando \(e^{−c}\) = 0.5, o sea \(c\) = ln 2 ≈ 0.69, es decir, con \(n ≈ sqrt{2 ln 2} × sqrt{K} ≈ 1.18 × sqrt{K}\). Para los cumpleaños: 1.18 × √365 ≈ 22.5. Para 32 bits: 1.18 × 65,536 ≈ 77,000.
 :::
 
 ### Dos familias: hashes criptográficos y checksums
@@ -423,18 +438,28 @@ Cuando los datos no caben en una máquina, o el tráfico es demasiado para una s
 
 donde N es el número de máquinas y «mod» es el residuo de dividir (17 mod 5 = 2). Como el hash se ve al azar, los residuos se reparten parejos. Y como es determinista, cualquier programa que quiera leer el listing (la publicación) 8841 calcula el mismo shard sin preguntarle a nadie.
 
-En la Ronda, C07 reparte su índice de búsqueda en 4 shards por hash del `listing_id`, y explica por qué no por rangos (del 1 al millón aquí, del millón al dos millones allá): con el hash, los shards quedan parejos y ninguno se «calienta» (recibe mucho más tráfico que los demás) cuando algo se pone de moda. Es la misma cuenta que reparte los mensajes de un tópico, el registro de mensajes de la lección de colas, entre sus pedazos, cada uno una [[particion-topico|partición]]. El cliente de Kafka para Java, por ejemplo, calcula el hash *murmur2* de la llave y se queda con el residuo entre el número de particiones. C09 usa la tarjeta como llave para que todos los pagos de una tarjeta caigan en la misma partición, en orden.
+La búsqueda de Alba, que encuentra publicaciones por su significado con [[embedding|embeddings]], reparte su índice de las ≈ 100 millones de publicaciones activas en 4 shards por hash del `listing_id`, y no por rangos (del 1 al millón aquí, del millón al dos millones allá): con el hash, los shards quedan parejos y ninguno se «calienta» (recibe mucho más tráfico que los demás) cuando algo se pone de moda. Es la misma cuenta que reparte los mensajes de un tópico, el registro de mensajes de la lección de colas, entre sus pedazos, cada uno una [[particion-topico|partición]]. El cliente de Kafka para Java, por ejemplo, calcula el hash *murmur2* de la llave y se queda con el residuo entre el número de particiones. Un sistema de fraude con tarjetas usa la tarjeta como llave para que todos los pagos de una tarjeta caigan en la misma partición, en orden.
 
 ### El problema: cambiar N
 
-Ahora C07 crece y pasa de 4 a 5 shards. Con mod N, ¿cuántas llaves cambian de máquina?
+Ahora la búsqueda de Alba crece y pasa de 4 a 5 shards. Con mod N, ¿cuántas llaves cambian de máquina? La respuesta general, que la cuenta de abajo comprueba con 4 y 5:
+
+:::formula Lo que se mueve al pasar de N a N + 1 máquinas, con mod N
+f_{mod} = frac{N}{N + 1}
+M = f_{mod} × L × v
+- N: las máquinas que hay ahora
+- f_{mod}: la fracción de las llaves que cambia de máquina
+- L: cuántas llaves hay
+- v: los bytes que viajan con cada llave
+- M: los bytes que se mudan de máquina en total
+:::
 
 :::cuenta De 4 a 5 shards, con mod N
-Una llave se queda si su residuo no cambia // h mod 4 = h mod 5; los dos residuos se repiten cada 4 × 5 = 20 números, y de 0 a 19 solo coinciden en 0, 1, 2 y 3 | 4 de cada 20 | 20 %
+Una llave se queda si su residuo no cambia // con \(h\) el hash de la llave: \(h\) mod 4 = \(h\) mod 5; los dos residuos se repiten cada 4 × 5 = 20 números, y de 0 a 19 solo coinciden en 0, 1, 2 y 3 | 4 de cada 20 | 20 %
 Llaves que se mueven | 1 − 0.2 | 80 %
-En general, de N a N + 1 | N ÷ (N + 1) | 4 ÷ 5
-Listings de C07 que se mueven // 100 millones, cada uno con su vector de 512 floats | 0.8 × 100,000,000 | 80 millones
-Datos que viajan // 512 × 4 bytes = 2,048 bytes por listing | 80 × 10⁶ × 2,048 B | ≈ 164 GB
+Con la fórmula, \(f_{mod}\) // \(N\) = 4 | \(N ÷ (N + 1)\) = 4 ÷ 5 | 80 %
+Publicaciones que se mueven // \(L\) ≈ 100 millones de publicaciones activas en el índice de Alba | \(f_{mod} × L\) = 0.8 × 100,000,000 | 80 millones
+Datos que viajan, \(M\) // cada publicación lleva su vector de 512 floats: \(v\) = 512 × 4 bytes = 2,048 B | \(M = f_{mod} × L × v\) = 80 × 10⁶ × 2,048 B | ≈ 164 GB
 = Agregar una máquina mueve el 80 % de todo, cuando bastaría mover el 20 %: lo que le toca a la nueva.
 :::
 
@@ -448,17 +473,17 @@ El arreglo se llama **hashing consistente** (*consistent hashing*). En vez de di
 Cuatro máquinas en el anillo, A, B, C y D, y las llaves como puntos. Cada llave va a la primera máquina en el sentido del reloj. Al agregar E entre A y B, solo las dos llaves del arco naranja cambian de dueño, de B a E. Con mod N, de 4 a 5 máquinas se movería el 80 %.
 :::
 
-Con N máquinas que pasan a N + 1, se mueve en promedio ≈ 1/(N + 1) de las llaves: lo justo. Así reparten sus datos bases de datos distribuidas como Cassandra. El anillo en código, por qué cada máquina va en muchos puntos y una calculadora para comparar están en la sección extra «Hashes a fondo».
+Con \(N\) máquinas que pasan a \(N + 1\), se mueve en promedio \(f_{anillo} ≈ 1/(N + 1)\) de las llaves: lo justo, la parte que le toca a la nueva. Así reparten sus datos bases de datos distribuidas como Cassandra. El anillo en código, por qué cada máquina va en muchos puntos y una calculadora para comparar están en la sección extra «Hashes a fondo».
 
 ### La asignación de un A/B, con la misma cuenta
 
-En «Ruido, muestras y pruebas A/B» viste que C01 reparte a los vendedores de un [[ab-test|A/B]] por vendedor, su [[unidad-aleatorizacion|unidad de aleatorización]], con un hash. Esta es la [[asignacion-hash|asignación con hash]]:
+En «Ruido, muestras y pruebas A/B» viste que Alba reparte a los vendedores de un [[ab-test|A/B]] por vendedor, su [[unidad-aleatorizacion|unidad de aleatorización]], con un hash. Esta es la [[asignacion-hash|asignación con hash]]:
 
 **cubeta = hash(sal + seller_id) mod 100**; la cubeta (*bucket*) es un número de 0 a 99, y las cubetas de 0 a 49 van a A y las de 50 a 99 a B.
 
 La **sal** (*salt*) es un texto que cambia en cada experimento, como «umbral-oct». Por qué así y no con una tabla que diga «vend-00024 → A»:
 
-- **Siempre igual, en todas partes.** El backend, el job que mide los resultados y un analista con Python calculan el mismo brazo para Ana, hoy y en tres semanas, sin consultar nada. C01 lo calcula en el backend y lo manda en un header, `X-Model-Arm`.
+- **Siempre igual, en todas partes.** El backend, el job que mide los resultados y un analista con Python calculan el mismo brazo para Ana, hoy y en tres semanas, sin consultar nada. Alba lo calcula en el backend y lo manda en un header, `X-Model-Arm`.
 - **No hay tabla que guardar ni sincronizar.** Con millones de vendedores, eso es una base de datos y una fuente de errores menos.
 - **Las rampas son ordenadas.** Un [[canary]] (mandar primero el modelo nuevo a una parte chica del tráfico) al 5 % son las cubetas de 0 a 4; al subir a 25 %, las de 0 a 24. Quien ya estaba adentro se queda adentro.
 - **Cada experimento sortea distinto.** Con otra sal, los vendedores se revuelven. Sin sal, los mismos caerían en el tratamiento de todos los experimentos y arrastrarían efectos de uno al otro.
@@ -495,7 +520,7 @@ en B en los dos experimentos: 2561
 
 ### El problema de los nombres
 
-Cada foto, cada request y cada evento necesita un nombre que nadie más tenga. Lo obvio es un contador: 1, 2, 3… Pero un contador vive en un solo lugar, y cada copia del gateway, cada teléfono y cada job tendría que preguntarle «¿qué número sigue?». Con 500 requests por segundo en el pico de C01, es un cuello de botella que, si se cae, para todo. Lo que se usa es un número tan grande y tan al azar que cada quien lo inventa sin chocar.
+Cada foto, cada request y cada evento necesita un nombre que nadie más tenga. Lo obvio es un contador: 1, 2, 3… Pero un contador vive en un solo lugar, y cada copia del gateway, cada teléfono y cada job tendría que preguntarle «¿qué número sigue?». Con 500 requests por segundo en el pico de diseño de Alba (el tráfico para el que calcula cuántas máquinas necesita), es un cuello de botella que, si se cae, para todo. Lo que se usa es un número tan grande y tan al azar que cada quien lo inventa sin chocar.
 
 ### UUID: 128 bits que no se repiten
 
@@ -503,21 +528,21 @@ Un [[uuid|UUID]] (*universally unique identifier*, identificador único universa
 
 **La versión 4** es casi toda al azar: de los 128 bits, 6 son fijos (dicen la versión y la variante, la familia de UUID a la que pertenece), y **122** salen al azar. ¿Qué tan seguido chocan? Es la paradoja del cumpleaños otra vez:
 
-:::cuenta ¿Chocarían los UUID v4 de C01?
-Ids al día // uno por foto | — | 10,000,000
-En 100 años | 10⁷ × 365 × 100 | 3.65 × 10¹¹
-Casillas // 122 bits al azar | 2¹²² | ≈ 5.3 × 10³⁶
-Probabilidad de algún choque | ≈ n² ÷ (2 × 2¹²²) | ≈ 1.3 × 10⁻¹⁴
-Con 64 bits al azar // para comparar | n² ÷ (2 × 2⁶⁴) ≈ 3,600 choques esperados | casi seguro
-= En un siglo de C01, la probabilidad de que dos UUID v4 choquen es de una en 80 billones. Con 64 bits al azar habría miles de choques: por eso un UUID usa 128.
+:::cuenta ¿Chocarían los UUID v4 de Alba?
+Ids al día // uno por foto: Alba clasifica ≈ 10 millones al día | — | 10,000,000
+Ids en 100 años, \(n\) | 10⁷ × 365 × 100 | 3.65 × 10¹¹
+Casillas, \(K\) // 122 bits al azar | \(K = 2^{122}\) | ≈ 5.3 × 10³⁶
+Choques esperados, \(c\) // tan chico que es también la probabilidad de algún choque, \(P\) | \(c ≈ n^2 ÷ (2K)\) = (3.65 × 10¹¹)² ÷ (2 × 5.3 × 10³⁶) | ≈ 1.3 × 10⁻¹⁴
+\(c\) con 64 bits al azar // para comparar: \(K\) = 2⁶⁴ ≈ 1.8 × 10¹⁹; con miles de choques esperados, alguno es casi seguro | (3.65 × 10¹¹)² ÷ (2 × 1.8 × 10¹⁹) | ≈ 3,600
+= En un siglo al ritmo de Alba, la probabilidad de que dos UUID v4 choquen es de una en 80 billones. Con 64 bits al azar habría miles de choques: por eso un UUID usa 128.
 :::
 
 **La versión 7** pone al principio la hora: los primeros 48 bits son el tiempo Unix en milisegundos, y el resto, fuera de los 6 de versión y variante, va al azar o lleva un contador que mantiene el orden dentro del mismo milisegundo. Así, ordenarlos los ordena por fecha de creación. Eso importa en una base de datos: un [[indice-bd|índice]], la estructura con la que una base de datos encuentra rápido una fila, se guarda ordenado, y con UUID v4 cada id nuevo cae en un lugar al azar del índice; con v7, todos caen al final, en la parte que la base de datos ya tiene en memoria. A cambio, delata cuándo se creó cada cosa. La versión 7 se estandarizó en mayo de 2024, en el RFC 9562 (los RFC son los documentos donde se publican los estándares de internet), que reemplazó al RFC 4122 de 2005.
 
-:::profundo Otros ids: uuid5 en C02, ULID y Snowflake
+:::profundo Otros ids: uuid5, ULID y Snowflake
 Hay una tercera versión útil, la **versión 5**, que no es al azar: sale del hash SHA-1 (un hash más viejo, primo de SHA-256) de un texto y de un *espacio de nombres*, un UUID fijo que dice de qué tipo de texto se trata (por ejemplo, URLs). El mismo texto da siempre el mismo UUID.
 
-C02 usa la versión 5 para el id de cada alerta, hecho con el sitio, la cámara, el objeto, la zona y la ventana de 10 minutos. Si la caja reintenta, manda el mismo id y la nube no crea otra alerta: es una [[llave-idempotencia|llave de idempotencia]] que sale de los datos.
+Un sistema de video que vigila con cámaras unos centros de distribución usa la versión 5 para el id de cada alerta, hecho con el sitio, la cámara, el objeto, la zona y la ventana de 10 minutos. Si la caja reintenta, manda el mismo id y la nube no crea otra alerta: es una [[llave-idempotencia|llave de idempotencia]] que sale de los datos.
 
 Dos primos de los UUID que vas a ver. **ULID** son 128 bits con la misma idea de v7: 48 bits de milisegundos y 80 al azar, escritos en 26 letras y números que se ordenan como texto. **Snowflake**, el que presentó Twitter en 2010, cabe en 64 bits: uno que siempre vale 0, 41 de milisegundos desde una fecha propia, 10 del número de máquina y 12 de un contador, así que cada máquina puede crear 4,096 ids por milisegundo sin chocar con las demás. Es más corto que un UUID, pero cada máquina necesita su propio número.
 :::
@@ -553,18 +578,18 @@ Los UUID v4 y v7 cambian en cada corrida; por eso el programa imprime solo su ve
 
 ### El request ID: el hilo que une los logs
 
-Una request de C01 pasa por la app, el backend, el balanceador, el gateway y Triton. Cada uno escribe su log, con su reloj. Si algo sale mal, ¿cómo encuentras las cinco líneas de **esa** request entre millones?
+Una request de Alba pasa por la app, el backend, el balanceador, el gateway y Triton. Cada uno escribe su log, con su reloj. Si algo sale mal, ¿cómo encuentras las cinco líneas de **esa** request entre millones?
 
-Con un [[request-id|request ID]]: un identificador que se inventa una sola vez, al entrar, y que viaja con la request en un [[header]], como el `X-Request-ID: 9f2c41d0` de la lección de HTTP. En C01 lo pone el backend, y el gateway lo escribe en cada línea de su log y lo devuelve en la respuesta. Buscar «9f2c41d0» en los logs de todos los saltos da la historia completa.
+Con un [[request-id|request ID]]: un identificador que se inventa una sola vez, al entrar, y que viaja con la request en un [[header]], como el `X-Request-ID: 9f2c41d0` de la lección de HTTP. En Alba lo pone el backend, y el gateway lo escribe en cada línea de su log y lo devuelve en la respuesta. Buscar «9f2c41d0» en los logs de todos los saltos da la historia completa.
 
-El mismo id sirve para algo más que buscar fallas. La etiqueta de una foto llega minutos o días después, y se une a su predicción por ese id. La Ronda (M12) lo dice sin rodeos: si no guardaste el id en el momento de la predicción, no hay unión posible.
+El mismo id sirve para algo más que buscar fallas. La etiqueta de una foto llega minutos o días después, y se une a su predicción por ese id. Dicho sin rodeos: si no guardaste el id en el momento de la predicción, no hay unión posible.
 
 :::diagrama tiempo-hash-request
-El request ID de C01: nace en el backend, viaja en un header y queda en cada log. Días después, une la predicción con su etiqueta. Toca cada caja o usa «Recorrer».
+El request ID de Alba: nace en el backend, viaja en un header y queda en cada log. Días después, une la predicción con su etiqueta. Toca cada caja o usa «Recorrer».
 :::
 
 :::profundo X-Request-ID y traceparent
-En los sistemas grandes, esta idea crece hasta el **trazado distribuido** (*distributed tracing*): cada request lleva un *trace ID*, y cada salto anota cuánto tardó su parte y quién lo llamó. Así se dibuja el árbol de llamadas de una request. Lo vas a ver en el monitoreo de la Ronda (M12).
+En los sistemas grandes, esta idea crece hasta el **trazado distribuido** (*distributed tracing*): cada request lleva un *trace ID*, y cada salto anota cuánto tardó su parte y quién lo llamó. Así se dibuja el árbol de llamadas de una request.
 
 `X-Request-ID` no es un estándar, sino una costumbre muy extendida (la «X-» marca un header inventado por fuera de los estándares): cada equipo decide su nombre y su formato, y lo importante es que todas las piezas usen el mismo. Para el trazado distribuido sí hay estándar: el **W3C Trace Context** (recomendación del W3C desde 2020) define el header `traceparent`, que lleva un trace ID de 16 bytes, escrito con 32 caracteres hexadecimales, y el id del salto que llamó. Herramientas como OpenTelemetry lo propagan solas.
 :::
@@ -630,22 +655,22 @@ Cuando alguien encuentra la manera de romper la tercera, el hash se considera **
 
 La consecuencia más poderosa: **la huella de un archivo puede ser su nombre**. Si el nombre sale del contenido, el mismo contenido tiene siempre el mismo nombre, y otro contenido no puede usarlo. Lo vas a ver por todas partes:
 
-- **Quitar copias.** Fotos con el mismo SHA-256 son la misma foto: C01 deja una sola antes de repartir train y test. Para recortes y recompresiones, que cambian los bytes, hacen falta huellas perceptuales, como las de los [[duplicado-cercano|casi duplicados]].
-- **Verificar descargas.** C10 revisa el sha256 de cada archivo de pesos antes de cargarlo; M15 pide guardar ese hash en el registro de modelos y revisarlo en el servidor.
+- **Quitar copias.** Fotos con el mismo SHA-256 son la misma foto: Alba deja una sola antes de repartir train y test. Para recortes y recompresiones, que cambian los bytes, hacen falta huellas perceptuales, como las de los [[duplicado-cercano|casi duplicados]].
+- **Verificar descargas.** Un servicio que sirve su propio LLM revisa el sha256 de cada archivo de pesos antes de cargarlo. Lo sano es guardar ese hash en el registro de modelos y revisarlo en el servidor.
 - **Imágenes de contenedor y commits.** Una imagen de Docker se identifica por su *digest*, `sha256:` seguido de 64 caracteres, y pedirla por digest garantiza que sea byte por byte la que probaste. Git, el programa de versiones del código, nombra cada versión con un hash.
-- **Llaves de caché.** La Ronda (M02) arma la llave de un resultado con `sha256(bytes) + model_version`: la misma foto con el mismo modelo da siempre la misma llave.
+- **Llaves de caché.** Una caché de predicciones arma la llave de un resultado con `sha256(bytes) + model_version`: la misma foto con el mismo modelo da siempre la misma llave.
 
 :::ejemplo ¿Basta con un pedazo de la huella?
-Para ahorrar espacio, el log de C01 podría guardar solo los primeros 12 caracteres hexadecimales del sha256 de cada foto. ¿Cuántos bits son, cuántos choques habría y para qué sirve ese prefijo?
+Para ahorrar espacio, el log de Alba podría guardar solo los primeros 12 caracteres hexadecimales del sha256 de cada foto. ¿Cuántos bits son, cuántos choques habría y para qué sirve ese prefijo?
 
-- 12 × 4 = **48 bits**: N = 2⁴⁸ ≈ 2.8 × 10¹⁴ casillas.
-- En un día de 10 millones de fotos hay ≈ 5 × 10¹³ pares: 5 × 10¹³ ÷ 2.8 × 10¹⁴ ≈ **0.18 choques**. Casi nunca.
-- 50 % con ≈ 1.18 × √(2.8 × 10¹⁴) ≈ 1.18 × 1.68 × 10⁷ ≈ **20 millones** de fotos: dos días de C01.
-- En un año, 3.65 × 10⁹ fotos: (3.65 × 10⁹)² ÷ 2 ÷ 2.8 × 10¹⁴ ≈ **24,000 choques**, y cada uno haría pasar dos fotos distintas por la misma. Para buscar una foto en los logs, el prefijo basta (y si hay dos candidatas, se revisa el hash completo); para quitar duplicados o nombrar el contenido, **el sha256 completo**.
+- Bits: 4 por carácter hexadecimal, \(b\) = 12 × 4 = **48 bits**, así que \(K = 2^{48}\) ≈ 2.8 × 10¹⁴ casillas.
+- Choques en un día, con \(c ≈ n^2/(2K)\): \(n\) = 10 millones de fotos forman ≈ 5 × 10¹³ pares, y 5 × 10¹³ ÷ 2.8 × 10¹⁴ ≈ **0.18 choques**. Casi nunca.
+- 50 % de choque con \(n_{50} ≈ 1.18 × sqrt{K}\) = 1.18 × √(2.8 × 10¹⁴) ≈ 1.18 × 1.68 × 10⁷ ≈ **20 millones** de fotos: dos días de Alba.
+- En un año, \(n\) = 10⁷ × 365 = 3.65 × 10⁹ fotos: \(c\) ≈ (3.65 × 10⁹)² ÷ (2 × 2.8 × 10¹⁴) ≈ **24,000 choques**, y cada uno haría pasar dos fotos distintas por la misma. Para buscar una foto en los logs, el prefijo basta (y si hay dos candidatas, se revisa el hash completo); para quitar duplicados o nombrar el contenido, **el sha256 completo**.
 :::
 
 :::ojo
-Un hash sin llave **no anonimiza**. El mismo email da siempre el mismo hash, y cualquiera con una lista de emails los hashea y los cruza en segundos. Para un seudónimo estable se usa un hash con una llave secreta, el [[hmac|HMAC]], que verás en la lección de cifrado (M15 lo pide así).
+Un hash sin llave **no anonimiza**. El mismo email da siempre el mismo hash, y cualquiera con una lista de emails los hashea y los cruza en segundos. Para un seudónimo estable se usa un hash con una llave secreta, el [[hmac|HMAC]], que verás en la lección de cifrado.
 :::
 
 ### Checksums: detectar el daño, no al atacante
@@ -695,7 +720,7 @@ Los dos detectan el bit dañado. Pero el choque de CRC32 apareció en una fracci
 
 ### 1. Guardar horas sin zona
 
-Un pipeline guarda `2026-11-06 08:03:05` sin zona, y otro lo lee como UTC. Todas las features quedan corridas 6 horas, como en el ejemplo de M09: «compras de la mañana» cuenta las de la madrugada.
+Un pipeline guarda `2026-11-06 08:03:05` sin zona, y otro lo lee como UTC. Todas las features quedan corridas 6 horas, la diferencia entre CDMX (UTC−6) y UTC: «compras de la mañana» cuenta las de la madrugada.
 
 **Cómo evitarlo:** timestamps con zona en todo el pipeline, en UTC; convertir a la hora local en un solo lugar, al mostrar. Que la validación de datos rechace horas sin zona.
 
@@ -737,33 +762,33 @@ Ordenar como texto funciona solo si todas las horas tienen la misma zona y la mi
 
 ## En la vida real {In real life} [extra]
 
-### C01: la línea de cada predicción
+### Alba: la línea de cada predicción
 
-La línea del principio es una versión simplificada de la de la Ronda, que pide que cada predicción de C01 deje su `request_id`, la versión del modelo, la huella de la foto, el top-5 y la latencia. El log no guarda la foto, solo su hash, y cuando un vendedor pide borrar sus datos, el borrado se encuentra por `request_id` y por hash. El A/B asigna el brazo con un hash del `seller_id`, y el reparto entre train y validación usa otro: «hash mod 100 < 95 → train». Cada snapshot del dataset se nombra con su fecha, `ds-2026-09-01`, y el puntero a su manifiesto (la lista de sus archivos) lleva el sha256 de esa lista: si alguien la reescribe, la huella ya no coincide. Un detalle: en la Ronda, la hora de cada línea de log ni siquiera la escribe el programa; la agrega el runtime del contenedor al guardarla.
+La línea del principio es una versión simplificada de la que Alba pide a cada predicción: su `request_id`, la versión del modelo, la huella de la foto, el top-5 y la latencia. El log no guarda la foto, solo su hash, y cuando un vendedor pide borrar sus datos, el borrado se encuentra por `request_id` y por hash. El A/B asigna el brazo con un hash del `seller_id`, y el reparto entre train y validación usa otro: «hash mod 100 < 95 → train». Cada snapshot del dataset se nombra con su fecha, `ds-2026-09-01`, y el puntero a su manifiesto (la lista de sus archivos) lleva el sha256 de esa lista: si alguien la reescribe, la huella ya no coincide. Un detalle: en Alba, la hora de cada línea de log ni siquiera la escribe el programa; la agrega el runtime del contenedor al guardarla.
 
-### C09: un fraude con dos fechas
+### Fraude con tarjetas: un pago con dos fechas
 
-En C09, un contracargo llega semanas después del pago: el 3 de agosto alguien paga, y el 17 de septiembre el banco avisa que fue fraude. Se guarda con las dos fechas. Una feature de la tarjeta, calculada el 3 de agosto a las 14:05, vale 1 compra en 24 horas; recalculada con un join descuidado, puede contar las compras de las 14:30 y dar 3. Su exploración (a ≈ 1 % de los pagos que el modelo rechazaría con riesgo medio les pide una verificación extra en vez de rechazarlos, para saber cuántos eran buenos) se decide con un hash de la sal y el `payment_id`, para que un reintento caiga del mismo lado y una auditoría pueda reproducirla. La sal se cambia cada trimestre. Y el email y el teléfono se usan como llaves con un HMAC, no en claro.
+En un sistema de detección de fraude con tarjetas, un contracargo llega semanas después del pago: el 3 de agosto alguien paga, y el 17 de septiembre el banco avisa que fue fraude. Se guarda con las dos fechas. Una feature de la tarjeta, calculada el 3 de agosto a las 14:05, vale 1 compra en 24 horas; recalculada con un join descuidado, puede contar las compras de las 14:30 y dar 3. Su exploración (a ≈ 1 % de los pagos que el modelo rechazaría con riesgo medio les pide una verificación extra en vez de rechazarlos, para saber cuántos eran buenos) se decide con un hash de la sal y el `payment_id`, para que un reintento caiga del mismo lado y una auditoría pueda reproducirla. La sal se cambia cada trimestre. Y el email y el teléfono se usan como llaves con un HMAC, no en claro.
 
-### C02: cajas con reloj propio
+### Video en centros de distribución: cajas con reloj propio
 
-Las cajas de C02 en cada centro de distribución corren NTP contra un servidor del sitio, y cada latido compara la hora de la caja con la de la nube. La latencia de punta a punta se mide con la hora del evento en la caja contra la de la alerta en la nube: con el reloj corrido, esa métrica miente. Cada alerta lleva un id uuid5 hecho con el sitio, la cámara, el objeto, la zona y la ventana de 10 minutos, así que una alerta repetida se reconoce sola.
+Un sistema de video vigila con cámaras varios centros de distribución, y en cada uno tiene cajas de cómputo. Esas cajas corren NTP contra un servidor del sitio, y cada latido compara la hora de la caja con la de la nube. La latencia de punta a punta se mide con la hora del evento en la caja contra la de la alerta en la nube: con el reloj corrido, esa métrica miente. Cada alerta lleva un id uuid5 hecho con el sitio, la cámara, el objeto, la zona y la ventana de 10 minutos, así que una alerta repetida se reconoce sola.
 
-### C08: un watermark de días
+### Recomendación: un watermark de días
 
-Las ventanas y los watermarks no son solo de streaming. C08 arma su training con las impresiones del día D, de 00:00 a 24:00, y su etiqueta es si hubo contacto en las 24 horas siguientes a cada impresión. Una impresión de las 23:59 del día D puede recibir su contacto hasta el final del día D+1, y se deja una hora de gracia, hasta la 1:00 del día D+2: ≈ 25 horas después del final del día D. El job que cierra el día D corre a las 03:00 del día D+2. Es un watermark de un día y pico, en un job que corre una vez al día. Por eso el modelo que sirve el día D+2 aprendió de datos que terminan ≈ 24 a 48 horas antes.
+Las ventanas y los watermarks no son solo de streaming. Un sistema de recomendación arma su training con las impresiones del día D, de 00:00 a 24:00, y su etiqueta es si hubo contacto en las 24 horas siguientes a cada impresión. Una impresión de las 23:59 del día D puede recibir su contacto hasta el final del día D+1, y se deja una hora de gracia, hasta la 1:00 del día D+2: ≈ 25 horas después del final del día D. El job que cierra el día D corre a las 03:00 del día D+2. Es un watermark de un día y pico, en un job que corre una vez al día. Por eso el modelo que sirve el día D+2 aprendió de datos que terminan ≈ 24 a 48 horas antes.
 
-### M15: la ventana de un límite por minuto
+### La ventana de un límite por minuto
 
-Un cliente tiene un límite de 3,000 requests por minuto: 50 por segundo. Con ventanas fijas de un minuto, puede mandar 3,000 entre las 12:00:59 y las 12:01:00, y otras 3,000 en el segundo siguiente, que ya es otra ventana: 3,000 por segundo, 60 veces el ritmo pactado. Con una ventana deslizante, que siempre mira los últimos 60 segundos, las 3,000 que mandó entre las 12:00:59 y las 12:01:00 siguen dentro de la ventana durante el segundo siguiente, así que casi nada más pasa. La versión que usan muchos limitadores (*sliding window counter*) no guarda la hora de cada request: pondera el conteo del minuto anterior por la parte que todavía cae en la ventana. A las 12:01:01, eso es 3,000 × 59/60 = 2,950, y quedan 50 de cupo: ≈ 3,050 en esos 2 segundos, no 6,000. La Ronda lo usa para explicar por qué el tipo de ventana importa tanto como su largo.
+Un cliente tiene un límite de 3,000 requests por minuto: 50 por segundo. Con ventanas fijas de un minuto, puede mandar 3,000 entre las 12:00:59 y las 12:01:00, y otras 3,000 en el segundo siguiente, que ya es otra ventana: 3,000 por segundo, 60 veces el ritmo pactado. Con una ventana deslizante, que siempre mira los últimos 60 segundos, las 3,000 que mandó entre las 12:00:59 y las 12:01:00 siguen dentro de la ventana durante el segundo siguiente, así que casi nada más pasa. La versión que usan muchos limitadores (*sliding window counter*) no guarda la hora de cada request: pondera el conteo del minuto anterior por la parte que todavía cae en la ventana. A las 12:01:01 ya pasó 1 segundo del minuto nuevo, así que la ventana todavía cubre 59 de los 60 segundos del anterior: 3,000 × 59/60 = 2,950, y quedan 50 de cupo: ≈ 3,050 en esos 2 segundos, no 6,000. Por eso el tipo de ventana importa tanto como su largo.
 
-### C07 y C08: shards y semillas
+### Shards y semillas
 
-C07 reparte su índice en 4 shards por hash del `listing_id`. C08 hace algo curioso: cuando explora con un poco de azar, la semilla del azar es un hash del `request_id`, así que cualquier recomendación se puede reproducir al revisar un reclamo.
+La búsqueda de Alba reparte su índice en 4 shards por hash del `listing_id`. Un sistema de recomendación hace algo curioso: cuando explora con un poco de azar, la semilla del azar es un hash del `request_id`, así que cualquier recomendación se puede reproducir al revisar un reclamo.
 
 ### Fuera de ML
 
-- **Las facturas en México.** Cada factura electrónica de México (un CFDI), al timbrarse, recibe un folio fiscal que es un UUID: con él se consulta en el sistema del SAT si la factura existe y sigue vigente. En la Ronda, C05 lo lee del código QR de la factura.
+- **Las facturas en México.** Cada factura electrónica de México (un CFDI), al timbrarse, recibe un folio fiscal que es un UUID: con él se consulta en el sistema del SAT si la factura existe y sigue vigente. Un sistema que procesa documentos con OCR (lectura del texto de una imagen) lo lee del código QR de la factura.
 - **El segundo intercalar de 2012.** El 30 de junio de 2012 se agregó un segundo, y un error de Linux al manejarlo dejó varios servidores atorados y con el procesador al máximo; varios sitios grandes reportaron caídas esa noche.
 - **Las contraseñas.** Un sitio serio no guarda tu contraseña, sino un hash hecho a propósito lento y con sal, para que robar la base no regale las contraseñas.
 
@@ -773,52 +798,46 @@ Resuélvelos con lápiz antes de abrir la solución. Los de choques y de shards 
 
 :::ejercicios
 ? [facil] Un evento tiene el tiempo Unix 1,793,973,785. ¿Cuántos días han pasado desde 1970? ¿Cómo se escribe ese instante en milisegundos? Si un sistema lo lee como milisegundos por error, ¿qué fecha cree que es, aproximadamente?
-- Días: 1,793,973,785 ÷ 86,400 ≈ **20,764**, unos 56.8 años: noviembre de 2026.
+- Días: \(d = t ÷ 86,400\), con \(t\) el tiempo Unix en segundos y 86,400 los segundos de un día: 1,793,973,785 ÷ 86,400 ≈ **20,764**. Entre 365.25 días por año, unos 56.8 años: noviembre de 2026.
 - En milisegundos: **1,793,973,785,000**, tres ceros más.
-- Leído como milisegundos, son 1,793,973 segundos ≈ 20.8 días después del 1 de enero de 1970: **el 21 de enero de 1970**. Por eso la unidad va en el contrato, o la hora viaja en ISO 8601.
+- Leído como milisegundos, son 1,793,973,785 ÷ 1,000 ≈ 1,793,973 segundos, y 1,793,973 ÷ 86,400 ≈ 20.8 días después del 1 de enero de 1970: **el 21 de enero de 1970**. Por eso la unidad va en el contrato, o la hora viaja en ISO 8601.
 ? [facil] Ana sube una foto a las 8:03 en CDMX el 6 de noviembre de 2026. (a) Escríbela en ISO 8601, en UTC y con su offset. (b) ¿Qué hora era en Tijuana? (c) Un programa ordena como texto `2026-11-06T09:30:00Z`, la hora de Ana con su offset y `2026-11-06T14:00:00Z`. ¿Acierta el orden?
-- (a) CDMX es UTC−6: 8:03 + 6 h = 14:03 UTC. **`2026-11-06T14:03:00Z`**, o con su offset, **`2026-11-06T08:03:00-06:00`**. Es el mismo instante.
-- (b) Tijuana, el 6 de noviembre, ya está en horario de invierno, UTC−8: 14:03 − 8 h = **6:03**.
+- (a) Hora UTC = hora local − offset. CDMX es UTC−6: 8:03 − (−6 h) = 8:03 + 6 h = 14:03 UTC. **`2026-11-06T14:03:00Z`**, o con su offset, **`2026-11-06T08:03:00-06:00`**. Es el mismo instante.
+- (b) Tijuana, el 6 de noviembre, ya está en horario de invierno, UTC−8. Hora local = hora UTC + offset: 14:03 + (−8 h) = **6:03**.
 - (c) Letra por letra, la de Ana (`…T08:03:00-06:00`) queda primero. Pero en UTC es 14:03: es la **última**. **No acierta**, porque no todas están en UTC: ordenar como texto solo vale con la misma zona y el mismo formato.
 ? [facil] Un SHA-256 escrito en hexadecimal tiene 64 caracteres. ¿Cuántos bits y cuántos bytes son? ¿Por qué no usas `hash(texto)` de Python para guardar huellas?
-- Cada carácter hexadecimal son 4 bits: 64 × 4 = **256 bits**, o 256 ÷ 8 = **32 bytes**. Escrito como texto ocupa el doble, 64 bytes.
+- Bits = caracteres × 4, porque cada carácter hexadecimal son 4 bits: 64 × 4 = **256 bits**. Bytes = bits ÷ 8: 256 ÷ 8 = **32 bytes**. Escrito como texto ocupa el doble, 64 bytes.
 - `hash()` de textos cambia en cada corrida de Python (salvo que fijes `PYTHONHASHSEED`): una huella guardada hoy no coincidiría mañana. Para huellas, `hashlib`.
 ? [medio] Una feature se calculó a las 08:00 (vale 5), 08:45 (vale 9), 09:30 (vale 6) y 10:15 (vale 2), y cada valor tarda 3 minutos en estar disponible. ¿Qué valor le toca a decisiones de las 08:46, 09:20 y 09:32? ¿Y a una de las 12:40 si el límite de antigüedad es de 2 horas?
-- Disponibles a las 08:03, 08:48, 09:33 y 10:18.
+- Hora de disponibilidad = hora de cálculo + 3 min: 08:03, 08:48, 09:33 y 10:18.
 - 08:46: el último disponible es el de las 08:03 → **5** (el de las 08:45 todavía no llegaba).
 - 09:20: el último es el de las 08:48 → **9**.
 - 09:32: el de las 09:30 llega a las 09:33, un minuto tarde → todavía **9**.
-- 12:40: el último es el de las 10:15 (disponible desde las 10:18), calculado hace 2 h 25 min: pasa del límite → **ninguno** (un nulo, que el modelo tiene que saber manejar).
+- 12:40: el último es el de las 10:15 (disponible desde las 10:18), calculado hace 12:40 − 10:15 = 2 h 25 min: pasa del límite → **ninguno** (un nulo, que el modelo tiene que saber manejar).
 ? [medio] Un sistema de eventos cuenta en ventanas fijas de 5 minutos, con un watermark igual al event time más nuevo visto menos 2 minutos. Ya vio un evento de las 10:16:30. ¿Qué ventanas están cerradas? Llega un evento con event time 10:12: ¿entra?
-- Watermark = 10:16:30 − 2 min = **10:14:30**.
+- \(W = t_{max} − m\) = 10:16:30 − 2 min = **10:14:30**.
 - Cerradas: todas las que terminan antes de 10:14:30, es decir, hasta la de **10:05 a 10:10**. La de 10:10 a 10:15 sigue abierta.
 - El evento de las 10:12 cae en la de 10:10 a 10:15, que sigue abierta: **sí entra**. Si hubiera llegado después de que el watermark pasara 10:15, ya sería tarde.
 ? [medio] Un servicio con 8 shards por `hash mod 8` pasa a 9. Tiene 200 millones de llaves. ¿Cuántas se mueven? ¿Y con hashing consistente?
-- Con mod N, de N a N + 1 se mueve N ÷ (N + 1) = 8 ÷ 9 ≈ **88.9 %**: ≈ **178 millones** de llaves.
-- Con hashing consistente, ≈ 1 ÷ 9 ≈ **11.1 %**: ≈ **22 millones**, las que le tocan a la máquina nueva. Ocho veces menos.
-? [reto] C01 lanza un modelo nuevo como canary al 5 % de los vendedores y planea subirlo a 25 % y luego a 100 %, como en la Ronda. Escribe la regla con hash. ¿Quiénes del primer 5 % siguen en el canary al subir? ¿Qué pasaría si a media rampa alguien cambia la sal?
+- Con mod N: \(f_{mod} = N ÷ (N + 1)\) = 8 ÷ 9 ≈ **88.9 %**, y \(f_{mod} × L\) = 0.889 × 200 millones ≈ **178 millones** de llaves.
+- Con hashing consistente: \(f_{anillo} ≈ 1 ÷ (N + 1)\) = 1 ÷ 9 ≈ **11.1 %**, y 0.111 × 200 millones ≈ **22 millones**, las que le tocan a la máquina nueva. Ocho veces menos.
+? [reto] Alba lanza un modelo nuevo como canary al 5 % de los vendedores y planea subirlo a 25 % y luego a 100 %, como hace con cada versión. Escribe la regla con hash. ¿Quiénes del primer 5 % siguen en el canary al subir? ¿Qué pasaría si a media rampa alguien cambia la sal?
 - Regla: cubeta = sha256(sal + ":" + seller_id) mod 100; está en el canary si **cubeta < porcentaje**.
 - Al subir de 5 a 25 %, las cubetas 0 a 4 siguen siendo menores que 25: **todos los del 5 % se quedan**, y entran los de las cubetas 5 a 24. Al pasar a 100 %, entran todos los demás. Nadie entra y sale.
-- Con otra sal, las cubetas se revuelven: de los vendedores que estaban en el canary al 25 %, solo ≈ 25 % seguiría adentro, y ≈ 75 % regresaría al modelo viejo de golpe. Vería cambiar sus sugerencias y las métricas mezclarían dos grupos. La sal se fija al empezar el experimento y no se toca.
-? [reto] Un equipo propone ids de 64 bits al azar en vez de UUID, «para ahorrar espacio», para los 10 millones de fotos diarias de C01 durante 100 años. ¿Cuántos choques esperas? ¿Y con UUID v4? ¿Qué propones si de verdad quieren 64 bits?
-- n = 10⁷ × 365 × 100 = 3.65 × 10¹¹ ids.
-- Con 64 bits: n² ÷ (2 × 2⁶⁴) ≈ 1.33 × 10²³ ÷ 3.7 × 10¹⁹ ≈ **3,600 choques** esperados. Ya en el primer año serían ≈ 0.36, y la probabilidad de algún choque, ≈ 30 %.
-- Con UUID v4 (122 bits al azar): ≈ 1.3 × 10⁻¹⁴: nunca.
+- Con otra sal, las cubetas se revuelven: de los vendedores que estaban en el canary al 25 %, solo ≈ 25 % seguiría adentro (cada uno cae en una cubeta nueva al azar, y 25 de las 100 cubetas están adentro), y ≈ 75 % regresaría al modelo viejo de golpe. Vería cambiar sus sugerencias y las métricas mezclarían dos grupos. La sal se fija al empezar el experimento y no se toca.
+? [reto] Un equipo propone ids de 64 bits al azar en vez de UUID, «para ahorrar espacio», para los 10 millones de fotos diarias de Alba durante 100 años. ¿Cuántos choques esperas? ¿Y con UUID v4? ¿Qué propones si de verdad quieren 64 bits?
+- \(n\) = 10⁷ × 365 × 100 = 3.65 × 10¹¹ ids.
+- Con 64 bits: \(c ≈ n^2 ÷ (2K)\), con \(K = 2^{64}\): (3.65 × 10¹¹)² ÷ (2 × 2⁶⁴) ≈ 1.33 × 10²³ ÷ 3.7 × 10¹⁹ ≈ **3,600 choques** esperados. Ya en el primer año, con \(n\) = 3.65 × 10⁹, serían \(c\) ≈ 0.36, y la probabilidad de algún choque, \(P ≈ 1 − e^{−c}\) = \(1 − e^{−0.36}\) ≈ 30 %.
+- Con UUID v4, \(K = 2^{122}\): \(c\) ≈ 1.33 × 10²³ ÷ (2 × 5.3 × 10³⁶) ≈ 1.3 × 10⁻¹⁴: nunca.
 - Si quieren 64 bits, que no sean al azar: un esquema tipo Snowflake (hora en milisegundos + número de máquina + contador) no choca por construcción, porque cada máquina tiene su número y su contador. El precio es asignar y cuidar esos números de máquina.
 :::
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M02 · Patrones de inferencia** usa todo esto en el streaming: event time, ventanas, watermark y particiones por llave. También arma llaves de caché y de idempotencia con `sha256` y la versión del modelo.
-- **M09 · Datos y features** pide timestamps con zona (CDMX, UTC−6), el join point-in-time del feature store con su tolerancia y la hora de disponibilidad, el split por hash del vendedor y la deduplicación por sha256.
-- **M15 · Seguridad y confiabilidad** explica por qué un hash no anonimiza, cuándo hace falta un HMAC, cómo se verifica el sha256 de unos pesos y por qué una ventana deslizante evita el doble de tráfico en el borde de un límite por minuto.
-- **M12 · Monitoreo** une predicciones y etiquetas por request ID.
-
-**En el Dojo:** la estación 1, «Datos y etiquetas», usa el sha256 de cada foto para revisar que ninguna del [[golden-set|golden set]] se cuele en las etiquetas. La 2, «Versionado y linaje», nombrará los datos por su huella cuando abra.
-
-**En Sensei:** «Git: versiones del código» nombra cada versión con un hash; «Cifrado, llaves y certificados» presenta el HMAC, y «Ataques y cadena de suministro» verifica con hashes lo que descargas.
+- «Datos y etiquetas» usa el sha256 de cada foto de Alba para revisar que ninguna del [[golden-set|golden set]], el examen fijo de 50,000 fotos con que se califica cada modelo, se cuele en las etiquetas.
+- «Versionado y linaje» nombra cada versión de los datos por su huella.
+- «Monitoreo, drift y reentrenamiento» une cada predicción con su etiqueta por request ID.
+- «Git: versiones del código» nombra cada versión con un hash; «Cifrado, llaves y certificados» presenta el HMAC, y «Ataques y cadena de suministro» verifica con hashes lo que descargas.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -845,6 +864,6 @@ Event time es cuándo pasó; processing time, cuándo lo procesó el sistema. El
 Unir a cada evento el último valor de cada feature disponible antes de su hora. Así el training set ve lo que vio el modelo, sin futuro.
 ? ¿Por qué con 32 bits de hash ya hay choques con unas 77,000 cosas, si hay 4,300 millones de casillas?
 Por la paradoja del cumpleaños: chocan los pares, y n cosas forman ≈ n²/2 pares. La primera colisión se vuelve probable cerca de la raíz de las casillas.
-? ¿Cómo asigna C01 un vendedor a un brazo del A/B, y por qué así?
+? ¿Cómo asigna Alba un vendedor a un brazo del A/B, y por qué así?
 Con cubeta = hash(sal + seller_id) mod 100: de 0 a 49 a A, de 50 a 99 a B. Es determinista, sin tabla, y con otra sal cada experimento sortea distinto.
 :::

@@ -12,7 +12,7 @@ Un modelo aprendió de verdad cuando acierta en datos que nunca vio. Y para sabe
 
 ## Memorizar no es aprender {Memorizing is not learning}
 
-En la lección anterior viste cómo aprende un modelo: adivina, mide qué tanto se equivocó con la [[loss]] y mueve sus [[parametro|parámetros]] para equivocarse menos. Pero fíjate en lo que eso promete: se equivoca menos **en las fotos con las que entrena**. A nosotros nos importa otra cosa: que acierte con la foto de Ana, que nunca vio.
+En la lección anterior viste cómo aprende un modelo: adivina, mide qué tanto se equivocó con la [[loss]] y mueve sus [[parametro|parámetros]] para equivocarse menos. Pero fíjate en lo que eso promete: se equivoca menos **en las fotos con las que entrena**. A nosotros nos importa otra cosa: que acierte con la foto de Ana, una vendedora de Alba (la empresa que seguimos en todo el curso, un marketplace de ≈ 2.5 millones de publicaciones al día), que nunca vio.
 
 A esa capacidad se le llama [[generalizacion|generalización]]: acertar en ejemplos nuevos, parecidos a los del entrenamiento pero no iguales.
 
@@ -681,7 +681,7 @@ La cadena de métricas de Alba, del golden set al negocio. Prueba los dos recorr
 La cadena se puede romper. Un ejemplo con los números de Alba: un modelo nuevo gana **1.5 puntos de top-5** en el golden set de 50,000 fotos, y en un A/B de dos semanas la tasa de aceptación **baja 0.4 puntos**. Hay tres razones y ninguna es un bug: ganó en los lugares 4 y 5 de la lista y perdió un poco en el 1, y la gente casi siempre elige el primero o el segundo; el golden set tenía 8 meses y la ganancia estaba en categorías que hoy casi no se usan, y el modelo era más pesado, así que en el pico más vendedores se quedaban sin sugerencias a tiempo.
 
 :::ojo
-Pasar el examen offline no prueba que el modelo funcione con gente real. El golden set es una foto del pasado y, con el [[drift]], el mundo se va alejando de él. Por eso, después del gate, el modelo nuevo primero recibe una copia de las fotos sin que nadie vea sus respuestas (*shadow*), luego responde de verdad a una parte chica del tráfico (*canary*) y, si el cambio es grande, pasa por un [[ab-test|A/B test]] sobre la tasa de aceptación. Y el [[monitoreo]] sigue midiendo. Eso lo verás en las estaciones de Orquestación y Monitoreo.
+Pasar el examen offline no prueba que el modelo funcione con gente real. El golden set es una foto del pasado y, con el [[drift]], el mundo se va alejando de él. Por eso, después del gate, el modelo nuevo primero recibe una copia de las fotos sin que nadie vea sus respuestas (*shadow*), luego responde de verdad a una parte chica del tráfico (*canary*) y, si el cambio es grande, pasa por un [[ab-test|A/B test]] sobre la tasa de aceptación. Y el [[monitoreo]] sigue midiendo. Eso lo verás en las lecciones sobre Kubernetes y monitoreo.
 :::
 
 En fraude la cadena es más corta, porque la métrica de negocio es dinero: lo que se pierde por fraude contra lo que cuesta molestar a clientes buenos. La cuenta completa está en «En la vida real».

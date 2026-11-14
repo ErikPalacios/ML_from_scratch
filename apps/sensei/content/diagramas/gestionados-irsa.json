@@ -78,7 +78,7 @@
   },
   {
    "id": "rol",
-   "label": "Rol c01-triton",
+   "label": "Rol alba-triton",
    "sub": "confianza + política",
    "kind": "store",
    "x": 33,
@@ -90,7 +90,7 @@
   {
    "id": "bucket",
    "label": "S3",
-   "sub": "c01-artefactos",
+   "sub": "alba-artefactos",
    "kind": "store",
    "x": 6,
    "y": 55,
@@ -200,7 +200,7 @@
      "edges": [
       "pod>sts"
      ],
-     "text": "El SDK de AWS, dentro de Triton, manda ese token a **STS** y pide asumir el rol `c01-triton`."
+     "text": "El SDK de AWS, dentro de Triton, manda ese token a **STS** y pide asumir el rol `alba-triton`."
     },
     {
      "nodes": [

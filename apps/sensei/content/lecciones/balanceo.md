@@ -2,7 +2,7 @@
 titulo: Balanceadores, proxies y gateways
 en: Load balancers, proxies and gateways
 subtitulo: Quién decide a qué copia va cada request, quién la deja entrar y qué pasa cuando una copia se cae: balanceadores L4 y L7 y sus algoritmos, proxies inversos, API gateways, health checks, rate limits y el reparto dentro de Kubernetes.
-pregunta: C01 tiene varios pods del gateway y de Triton. ¿Quién decide a cuál va cada request, quién la deja entrar y qué pasa si un pod se cae?
+pregunta: El sistema que clasifica las fotos de Alba tiene varios pods del gateway y de Triton. ¿Quién decide a cuál va cada request, quién la deja entrar y qué pasa si un pod se cae?
 requisitos: http
 ---
 
@@ -10,7 +10,9 @@ requisitos: http
 Entre quien pide y quien responde casi siempre hay intermediarios. Un balanceador reparte las requests entre las copias sanas de un servicio; un proxy inverso da la cara por los servidores, y un API gateway, además, revisa quién llama y cuánto puede pedir. Cada uno ve una parte distinta de la request, y lo que ve decide lo que puede hacer.
 :::
 
-Ana sube la foto de sus tenis. La app se la pasa al *backend* del marketplace, el programa que arma la publicación, y el backend le pide la categoría a C01 con una [[request]] [[http|HTTP]]. Esa request va a **una sola dirección**. Detrás de esa dirección, sin embargo, no hay una máquina: en el pico de diseño de 500 requests por segundo hay 5 copias del gateway (el programa que prepara la foto) y 2 de Triton (el servidor que corre la ResNet-50 en una [[gpu|GPU]]). En Kubernetes, el [[orquestacion|orquestador]] que corre C01 («El camino completo»), cada copia es un *pod*: uno o varios [[contenedor|contenedores]] que viven juntos en una máquina.
+Alba, la empresa que seguimos en todo el curso, es un marketplace: recibe ≈ 2.5 millones de publicaciones al día y le sugiere a quien vende la categoría de cada foto, entre 500 posibles. Para eso atiende ≈ 10 millones de requests al día, una por foto: ≈ 3 fotos por publicación, más las que piden otros equipos, como moderación. Y diseña su sistema para un pico de 500 requests por segundo.
+
+Ana sube la foto de sus tenis. La app se la pasa al *backend* del marketplace, el programa que arma la publicación, y el backend le pide la categoría al clasificador de Alba con una [[request]] [[http|HTTP]]. Esa request va a **una sola dirección**. Detrás de esa dirección, sin embargo, no hay una máquina: en el pico de diseño de 500 requests por segundo hay 5 copias del gateway (el programa que prepara la foto) y 2 de Triton (el servidor que corre la ResNet-50 en una [[gpu|GPU]]). En Kubernetes, el [[orquestacion|orquestador]] que corre el sistema de Alba («El camino completo»), cada copia es un *pod*: uno o varios [[contenedor|contenedores]] que viven juntos en una máquina.
 
 Eso abre tres preguntas. ¿Quién decide a qué copia va cada request? ¿Quién la deja entrar, y cuántas le acepta a cada quien? ¿Qué pasa si una copia se cae a media tarde?
 
@@ -18,7 +20,7 @@ Las responden unas piezas que casi nunca salen en un diagrama de ML, pero que es
 
 ## Muchas copias, una puerta: el balanceador {Many copies, one door: the load balancer}
 
-¿Por qué hay varias copias? En «Hacer varias cosas a la vez» viste que un pod del gateway de C01 aguanta ≈ 100 requests por segundo: para 500 hacen falta 5. Y en «Probabilidad para sistemas que fallan», que aunque una copia bastara se pone otra en otra [[zona-disponibilidad|zona]], por si una se cae. Además, las copias cambian todo el tiempo: el autoscaler (la regla que agrega o quita pods según su CPU) mueve el gateway entre 3 y 12 pods, y cada versión nueva reemplaza pods.
+¿Por qué hay varias copias? En «Hacer varias cosas a la vez» viste que un pod del gateway de Alba aguanta ≈ 100 requests por segundo: para 500 hacen falta 5. Y en «Probabilidad para sistemas que fallan», que aunque una copia bastara se pone otra en otra [[zona-disponibilidad|zona]], por si una se cae. Además, las copias cambian todo el tiempo: el autoscaler (la regla que agrega o quita pods según su CPU) mueve el gateway entre 3 y 12 pods, y cada versión nueva reemplaza pods.
 
 Cada pod tiene su propia [[direccion-ip|dirección IP]], y el que lo reemplaza tiene otra. El backend del marketplace no puede llevar esa lista al día, ni debería.
 
@@ -28,13 +30,13 @@ Para eso existe el [[balanceador]] de carga (*load balancer*): un programa, o un
 - **Esconde.** Quien llama ve una sola dirección, con un nombre que resuelve el [[dns|DNS]]. Puedes pasar de 3 a 12 copias, o cambiarlas todas por una versión nueva, sin avisarle a nadie.
 - **Vigila.** Pregunta seguido a cada destino si está sano, y deja de mandarle tráfico al que no contesta. Lo ves en la sección de health checks.
 
-En C01, la puerta es un **ALB** (*Application Load Balancer*), el balanceador de AWS que entiende HTTP. No es una máquina que tú administras: AWS lo corre en varias máquinas, con presencia en las dos zonas de C01, y lo cobra por hora y por tráfico. Cuesta poco tiempo: la Ronda (M03) le pone de 1 a 3 ms a la request típica (el [[percentil|p50]]), con las conexiones ya abiertas. Y conviene aun con una sola copia detrás: da el cifrado en un solo lugar, los health checks y un punto estable para cambiar lo de atrás sin tocar a quien llama.
+En Alba, la puerta es un **ALB** (*Application Load Balancer*), el balanceador de AWS que entiende HTTP. No es una máquina que tú administras: AWS lo corre en varias máquinas, con presencia en las dos zonas de Alba, y lo cobra por hora y por tráfico. Cuesta poco tiempo: el equipo de Alba le calcula de 1 a 3 ms a la request típica (el [[percentil|p50]]), con las conexiones ya abiertas. Y conviene aun con una sola copia detrás: da el cifrado en un solo lugar, los health checks y un punto estable para cambiar lo de atrás sin tocar a quien llama.
 
 :::diagrama balanceo-alba
-La entrada de C01, de afuera hacia adentro. Toca cada caja para ver por qué está ahí y usa «Recorrer» para seguir una request normal, un pod que se cuelga y un cliente que se pasa de su cuota.
+La entrada del sistema de Alba, de afuera hacia adentro. Toca cada caja para ver por qué está ahí y usa «Recorrer» para seguir una request normal, un pod que se cuelga y un cliente que se pasa de su cuota.
 :::
 
-Ojo con la «puerta única»: el balanceador está **en serie** con todo lo demás. Si falla, falla todo, aunque haya 12 gateways sanos detrás. Por eso un balanceador serio nunca es una sola máquina. Y aun así, en «Probabilidad para sistemas que fallan» viste que pone 4 de los 5 minutos de falla que se esperan al mes en toda la cadena de C01: su 99.99 % es la única pieza que entra a la cuenta sin una copia en paralelo.
+Ojo con la «puerta única»: el balanceador está **en serie** con todo lo demás. Si falla, falla todo, aunque haya 12 gateways sanos detrás. Por eso un balanceador serio nunca es una sola máquina. Y aun así, en «Probabilidad para sistemas que fallan» viste que pone 4 de los 5 minutos de falla que se esperan al mes en toda la cadena de Alba: su 99.99 % es la única pieza que entra a la cuenta sin una copia en paralelo.
 
 ### L4 y L7: lo que ve cada balanceador
 
@@ -46,7 +48,7 @@ En «Cómo viaja un mensaje» viste que un mensaje viaja en [[capas-red|capas]],
 Un balanceador se llama L4 o L7 (de *layer*, capa) según la capa más alta que lee: hasta dónde abre el sobre.
 
 :::figura balanceo-capas
-La misma request de C01, por capas. Un balanceador L4 lee solo las dos de afuera: direcciones y puertos. Un L7 descifra el HTTPS y lee la request completa: el método, la ruta, los headers y el tamaño del body.
+La request de Ana, por capas. Un balanceador L4 lee solo las dos de afuera: direcciones y puertos. Un L7 descifra el HTTPS y lee la request completa: el método, la ruta, los headers y el tamaño del body.
 :::
 
 Un balanceador **L4** decide una vez por conexión. Ve llegar una conexión nueva, elige un destino y, desde ese momento, pasa todos los bytes de esa conexión al mismo destino. No sabe si por ahí viajan una request o diez mil. No puede leer la ruta ni los headers, y si el tráfico es [[https|HTTPS]], ni siquiera podría: va cifrado.
@@ -88,15 +90,26 @@ Un [[algoritmo-balanceo|algoritmo de balanceo]] es la regla con la que el balanc
 
 ### Por qué round-robin falla
 
-Round-robin reparte **requests**, no **trabajo**. Si todas tardan lo mismo, es perfecto. Pero en C01 una foto de 200 KB del celular y una de 10 MB de la web no cuestan lo mismo, y en un [[llm|LLM]] una respuesta de 50 [[token|tokens]] y una de 2,000 tardan ≈ 40 veces distinto (2,000 ÷ 50), porque el modelo escribe un token tras otro. Round-robin no lo sabe, y sigue mandando su turno a la copia que se quedó atorada con la pesada.
+Round-robin reparte **requests**, no **trabajo**. Si todas tardan lo mismo, es perfecto. Pero en Alba una foto de 200 KB del celular y una de 10 MB de la web no cuestan lo mismo, y en un [[llm|LLM]] una respuesta de 50 [[token|tokens]] y una de 2,000 tardan ≈ 40 veces distinto (2,000 ÷ 50), porque el modelo escribe un token tras otro. Round-robin no lo sabe, y sigue mandando su turno a la copia que se quedó atorada con la pesada.
+
+:::formula Espera en la fila de un pod
+text{inicio} = max(text{llegada}, text{libre})
+text{espera} = text{inicio} − text{llegada}
+- text{llegada}: el momento en que llega la request, en ms
+- text{libre}: el momento en que el pod termina lo que ya tenía, en ms
+- text{inicio}: el momento en que el pod empieza a atenderla, en ms
+- text{espera}: lo que pasa en la fila, en ms; 0 si el pod estaba libre
+:::
+
+Cada pod atiende de una en una: una request empieza al llegar o cuando el pod se libera, lo que pase después.
 
 :::cuenta Dos pods, una request pesada: round-robin contra least-connections
-Llegadas // una cada 10 ms; cada pod atiende de una en una | R1 a R10, en 0, 10, … 90 ms | 10
+Llegadas // una cada 10 ms | R1 a R10, en 0, 10, … 90 ms | 10
 Lo que tardan // la primera es pesada | R1: 100 ms · las otras 9: 8 ms | —
-Round-robin: el pod A // le tocan las impares: la R3, R5, R7 y R9 esperan detrás de la R1 | R3 llega a los 20 y empieza a los 100 | 80 ms
-Round-robin: las demás de A // cada una espera a la anterior | R5, R7 y R9 | 68, 56 y 44 ms
-Round-robin: el pod B // le tocan las pares, y nunca espera | 5 × 8 ms de trabajo en 100 ms | 40 % ocupado
-Least-connections // A tiene 1 en vuelo y B tiene 0: la R2 a la R10 van a B | 9 × 8 ms, al llegar | 0 ms de espera
+Round-robin: el pod A // le tocan las impares; la R1 lo ocupa de 0 a 100 ms | R3: max(20, 100) − 20 = 100 − 20 | espera 80 ms
+Round-robin: las demás de A // cada una empieza al acabar la anterior, 8 ms después: a los 108, 116 y 124 ms | R5: 108 − 40 · R7: 116 − 60 · R9: 124 − 80 | 68, 56 y 44 ms
+Round-robin: el pod B // le tocan las pares, y nunca espera | 5 × 8 ms de trabajo ÷ 100 ms | 40 % ocupado
+Least-connections // A tiene 1 en vuelo y B tiene 0: la R2 a la R10 van a B; cada una acaba antes de que llegue la siguiente | inicio = llegada | 0 ms de espera
 = Con round-robin, 4 de las 9 requests ligeras esperan entre 44 y 80 ms en fila detrás de la pesada, mientras B pasa ocioso más de la mitad del tiempo. Con least-connections, ninguna espera.
 :::
 
@@ -120,10 +133,10 @@ Las dos opciones al azar evitan la manada: cada uno sortea dos candidatos distin
 
 ¿Y con muchas requests, no solo diez? Una simulación con 100,000 requests en 4 pods, con 1 de cada 10 pesada, mide cuánto espera cada request en fila. El [[p99]] de esa espera queda en ≈ 332 ms con round-robin, ≈ 436 ms al azar, ≈ 136 ms con least-connections y ≈ 186 ms con dos opciones al azar. Least-connections lo baja a menos de la mitad, y dos opciones queda cerca con mucha menos información.
 
-La razón es la idea de M03: mandar cada request al menos ocupado se porta casi como **una sola fila compartida**, la del banco. Con dos servidores ocupados al 80 % y 10 ms por request (otra carga, no la de esta simulación), la espera promedio baja de 40 ms, cada uno con su fila, a ≈ 18 ms con una fila compartida. «Qué tan rápido y cuánto» explica por qué.
+La razón: mandar cada request al menos ocupado se porta casi como **una sola fila compartida**, la del banco. Con dos servidores ocupados al 80 % del tiempo (su ocupación, \(ρ\) = 0.8) y 10 ms por request (otra carga, no la de esta simulación), cada uno con su fila espera en promedio \(ρ ÷ (1 − ρ)\) × 10 ms, lo que tarda cada request: 0.8 ÷ 0.2 × 10 = 40 ms. Con una fila compartida, la espera baja a ≈ 18 ms: sale de la fórmula de Erlang C. «Qué tan rápido y cuánto» explica las dos.
 
 :::profundo La simulación, en código
-Las requests llegan a 150 por segundo y al azar, como llegan las reales ([[poisson]]); 1 de cada 10 tarda 100 ms y el resto, 10. En promedio, una request tarda 0.1 × 100 + 0.9 × 10 = 19 ms, así que a 150 por segundo hay 150 × 0.019 = 2.85 pods ocupados de 4: ≈ 71 % del tiempo. El programa mide cuánto espera cada request en fila antes de que la atiendan:
+Las requests llegan a 150 por segundo y al azar, como llegan las reales ([[poisson]]); 1 de cada 10 tarda 100 ms y el resto, 10. En promedio, una request tarda 0.1 × 100 + 0.9 × 10 = 19 ms, así que a 150 por segundo hay 150 × 0.019 = 2.85 pods ocupados de 4. La ocupación de cada pod es \(ρ\) = 2.85 ÷ 4 ≈ 0.71: ≈ 71 % del tiempo. El programa mide cuánto espera cada request en fila antes de que la atiendan:
 
 ```python
 import random
@@ -187,10 +200,10 @@ Un [[proxy-inverso|proxy inverso]] (*reverse proxy*) se pone del lado de los ser
 Los más usados son NGINX, HAProxy y Envoy; los de la nube, como el ALB, hacen lo mismo como servicio.
 
 :::ojo
-El *buffering* ayuda con las fotos y estorba con el [[streaming]]. Muchos proxies inversos, si nadie lo cambia, juntan la respuesta en un buffer antes de mandarla (en NGINX, `proxy_buffering` viene encendido). Con un LLM que manda cada token apenas sale, el streaming se pierde: el usuario ve el texto a pedazos grandes, o todo de golpe al final. La Ronda (M14) lo marca como una causa típica de un [[ttft|TTFT]] malo en producción.
+El *buffering* ayuda con las fotos y estorba con el [[streaming]]. Muchos proxies inversos, si nadie lo cambia, juntan la respuesta en un buffer antes de mandarla (en NGINX, `proxy_buffering` viene encendido). Con un LLM que manda cada token apenas sale, el streaming se pierde: el usuario ve el texto a pedazos grandes, o todo de golpe al final. Es una causa típica de un [[ttft|TTFT]] malo en producción (el tiempo hasta que llega el primer token).
 :::
 
-Terminar TLS cuesta: una conexión cifrada nueva pide una o dos [[rtt|idas y vueltas]] más por la red que la de TCP, según la versión de TLS, y cuentas de criptografía. La Ronda (M03) le pone al ALB, con TLS, de 5 a 10 ms en el p99; con las conexiones ya abiertas y reutilizadas, la request típica (el p50) paga de 1 a 3 ms. Por eso los clientes mantienen sus conexiones abiertas en un [[pool-conexiones|pool de conexiones]].
+Terminar TLS cuesta: una conexión cifrada nueva pide una o dos [[rtt|idas y vueltas]] más por la red que la de TCP, según la versión de TLS, y cuentas de criptografía. El equipo de Alba le calcula al ALB, con TLS, de 5 a 10 ms en el p99; con las conexiones ya abiertas y reutilizadas, la request típica (el p50) paga de 1 a 3 ms. Por eso los clientes mantienen sus conexiones abiertas en un [[pool-conexiones|pool de conexiones]].
 
 ### El API gateway: un proxy inverso con reglas
 
@@ -204,11 +217,11 @@ Un [[api-gateway|API gateway]] es un proxy inverso que conoce las reglas de la [
 
 Sin un gateway, cada servicio reimplementa la autenticación y el rate limit, y cada uno a su manera. Con uno, se hace en un lugar.
 
-### Los dos «gateway» de C01
+### Los dos «gateway» de Alba
 
-Aquí la palabra se presta a confusión. En C01, «el gateway» es el programa en Python que recibe la foto, la valida, la decodifica, la redimensiona, la normaliza y llama a Triton. Eso no es un proxy: es un servicio con lógica de ML, el preprocesamiento. Pero ese mismo programa **también** hace trabajo de API gateway: aplica la cuota de cada cliente, rechaza bodies de más de 10 MB leyendo el header `Content-Length` antes de recibirlos y pone el límite de tiempo de toda la request.
+Aquí la palabra se presta a confusión. En Alba, «el gateway» es el programa en Python que recibe la foto, la valida, la decodifica, la redimensiona, la normaliza y llama a Triton. Eso no es un proxy: es un servicio con lógica de ML, el preprocesamiento. Pero ese mismo programa **también** hace trabajo de API gateway: aplica la cuota de cada cliente, rechaza bodies de más de 10 MB leyendo el header `Content-Length` antes de recibirlos y pone el límite de tiempo de toda la request.
 
-| Pieza de C01 | Qué hace | ¿Es un API gateway? |
+| Pieza de Alba | Qué hace | ¿Es un API gateway? |
 |---|---|---|
 | ALB | Termina TLS, verifica el token, reparte con pesos | En parte: entrada, autenticación y ruteo |
 | Gateway, como puerta | Cuota por cliente, tope de 10 MB, límite de tiempo | Sí: reglas de la API |
@@ -217,7 +230,7 @@ Aquí la palabra se presta a confusión. En C01, «el gateway» es el programa e
 
 Lo de «verifica el token» lo hace el propio ALB: desde noviembre de 2025 puede revisar un token [[jwt|JWT]] (su firma, su vencimiento y lo que dice) antes de pasar la request, sin código en el gateway. Lo que el ALB no hace es contar cuánto pide cada cliente: eso queda en el gateway.
 
-En la Ronda, cuando leas «gateway» en C01, piensa en las dos cosas. Cuando leas «API gateway» en general, piensa en la puerta: productos como Kong, Envoy Gateway o el API Gateway de AWS. Y en C10, el caso de la Ronda de un LLM que sirve a varios equipos de una empresa, el «llm-gateway» es una puerta pura: no prepara nada, pero revisa la llave de cada equipo, cobra su cuota en tokens y elige la réplica del modelo.
+Cuando leas «gateway» en el sistema de Alba, piensa en las dos cosas. Cuando leas «API gateway» en general, piensa en la puerta: productos como Kong, Envoy Gateway o el API Gateway de AWS. Y en un servicio que sirve su propio LLM a varios equipos de una empresa, el «llm-gateway» es una puerta pura: no prepara nada, pero revisa la llave de cada equipo, cobra su cuota en tokens y elige la réplica del modelo.
 
 ## Health checks: saber quién está sano {Health checks: knowing who is healthy}
 
@@ -228,12 +241,22 @@ El balanceador solo debe mandar tráfico a destinos que puedan contestar. Para s
 
 Los dos se complementan. Un pod cuyo programa se murió, en una máquina que sigue viva, rechaza las conexiones al instante, y el chequeo pasivo lo nota en milisegundos. Uno que se **cuelga** (acepta la conexión, pero no contesta) es peor: cada request espera hasta su timeout, y el chequeo activo tarda varios periodos en sacarlo.
 
+:::formula Requests que recibe un pod colgado antes de salir
+τ = Δ × F
+m = λ × τ
+- Δ: cada cuánto pregunta el health check, en s
+- F: cuántas fallas seguidas hacen falta para sacarlo
+- τ: cuánto tarda el pod en salir del reparto, en s
+- λ: las requests por segundo que le tocan al pod
+- m: las requests que le llegan en ese tiempo y se quedan sin respuesta
+:::
+
 :::cuenta Un pod del gateway que se cuelga en el pico
-Lo que le toca a cada pod // 500 requests por segundo entre 5 pods | 500 ÷ 5 | 100 por s
-Tiempo para sacarlo // supón una pregunta cada 5 s y 3 fallas seguidas | 5 s × 3 | 15 s
-Requests que le llegan mientras // todas se quedan colgadas hasta que quien llamó se rinde, a los 300 ms | 100 × 15 | ≈ 1,500
-Con los valores por omisión de Kubernetes // cada 10 s, 3 fallas | 100 × 10 × 3 | ≈ 3,000
-Parte del [[error-budget\|presupuesto de errores]] del mes // el SLO de C01 permite ≈ 300,000 requests fallidas en 30 días | 1,500 ÷ 300,000 | 0.5 %
+Lo que le toca a cada pod, \(λ\) // las 500 requests por segundo del pico de diseño de Alba, entre 5 pods | 500 ÷ 5 | 100 por s
+Tiempo para sacarlo, \(τ = Δ × F\) // supón una pregunta cada 5 s y 3 fallas seguidas | 5 s × 3 | 15 s
+Requests que le llegan mientras, \(m = λ × τ\) // todas se quedan colgadas hasta que quien llamó se rinde, a los 300 ms | 100 × 15 | ≈ 1,500
+Con los valores por omisión de Kubernetes // \(Δ\) = 10 s, \(F\) = 3 | 100 × 10 × 3 | ≈ 3,000
+Parte del [[error-budget\|presupuesto de errores]] del mes // el SLO de Alba permite ≈ 300,000 requests fallidas en 30 días | \(m\) ÷ 300,000 = 1,500 ÷ 300,000 | 0.5 %
 = Un pod colgado se come 1,500 requests antes de salir, más lo que tarde la baja en llegar a cada balanceador. Un chequeo pasivo lo saca después de unos pocos errores.
 :::
 
@@ -249,17 +272,17 @@ Kubernetes hace sus propias preguntas a cada pod, las *probes*, y en «Programa,
 | Liveness | «¿Sigues vivo?» | Reinicia el contenedor |
 | Readiness | «¿Te mando tráfico?» | Saca al pod del reparto, **sin reiniciarlo** |
 
-La readiness es el health check del balanceo: un pod que no está listo sale de la lista de destinos y sigue vivo, esperando. C01 las separa en dos rutas. `/healthz` es la liveness: solo dice si el proceso responde y no pregunta por nadie más. `/readyz` es la readiness: da 200 solo si el modelo está cargado y listo en Triton. Y Triton, que tarda en cargar su *engine* (el modelo ya convertido para correr rápido en la T4, que viste en «CPU y GPU»), tiene una startup probe que le da hasta 5 minutos (60 intentos, cada 5 s).
+La readiness es el health check del balanceo: un pod que no está listo sale de la lista de destinos y sigue vivo, esperando. Alba las separa en dos rutas. `/healthz` es la liveness: solo dice si el proceso responde y no pregunta por nadie más. `/readyz` es la readiness: da 200 solo si el modelo está cargado y listo en Triton. Y Triton, que tarda en cargar su *engine* (el modelo ya convertido para correr rápido en la T4, que viste en «CPU y GPU»), tiene una startup probe que le da hasta 5 minutos (60 intentos, cada 5 s).
 
-El ALB, además, tiene sus propios health checks, que no son los de Kubernetes: son dos jueces distintos, con sus propios tiempos. Si nadie los cambia, el ALB pregunta cada 30 s y saca al destino tras 2 fallas, hasta un minuto; el controlador de AWS que lo arma desde Kubernetes (un programa dentro del clúster que crea y ajusta el ALB; lo ves con el Ingress) pone, por omisión, cada 15 s y 2 fallas. En C01 manda el que avise primero: si el chequeo del ALB falla, el ALB deja de mandarle; si falla la readiness, el controlador de AWS da de baja al pod en el ALB. Y ninguno dice que las respuestas sean buenas. La readiness pregunta «¿el proceso está vivo y cargó el modelo?», no «¿las predicciones son buenas?» (M11).
+El ALB, además, tiene sus propios health checks, que no son los de Kubernetes: son dos jueces distintos, con sus propios tiempos. Si nadie los cambia, el ALB pregunta cada 30 s y saca al destino tras 2 fallas, hasta un minuto; el controlador de AWS que lo arma desde Kubernetes (un programa dentro del clúster que crea y ajusta el ALB; lo ves con el Ingress) pone, por omisión, cada 15 s y 2 fallas. En Alba manda el que avise primero: si el chequeo del ALB falla, el ALB deja de mandarle; si falla la readiness, el controlador de AWS da de baja al pod en el ALB. Y ninguno dice que las respuestas sean buenas. La readiness pregunta «¿el proceso está vivo y cargó el modelo?», no «¿las predicciones son buenas?»: eso se vigila con las métricas del modelo, no con el balanceador.
 
 :::profundo Cuando todos fallan: el balanceador falla abierto
-Una readiness que pregunta por una dependencia es un arma de doble filo, dice la Ronda. Si Triton se cae, **todos** los gateways fallan su `/readyz` a la vez. ¿Qué hace un balanceador sin ningún destino sano? El ALB, en ese caso, se porta de forma **abierta** ([[fail-open]]): manda el tráfico a todos los destinos de todos modos. Parece raro, pero tiene lógica: si el chequeo está mal (por ejemplo, depende de algo que se cayó para todos), apagar todo convertiría una falla parcial en una total. La lección que sigue desarrolla cuándo conviene fallar abierto y cuándo cerrado.
+Una readiness que pregunta por una dependencia es un arma de doble filo. Si Triton se cae, **todos** los gateways fallan su `/readyz` a la vez. ¿Qué hace un balanceador sin ningún destino sano? El ALB, en ese caso, se porta de forma **abierta** ([[fail-open]]): manda el tráfico a todos los destinos de todos modos. Parece raro, pero tiene lógica: si el chequeo está mal (por ejemplo, depende de algo que se cayó para todos), apagar todo convertiría una falla parcial en una total. La lección que sigue desarrolla cuándo conviene fallar abierto y cuándo cerrado.
 :::
 
 ## Rate limiting con un token bucket {Rate limiting with a token bucket}
 
-C01 no solo atiende al backend del marketplace. También lo llaman otros equipos: moderación, por ejemplo, que revisa publicaciones en tandas. Si un programa de moderación con un error manda 3,000 requests por segundo, se come la GPU de todos, y Ana espera.
+El clasificador de Alba no solo atiende al backend del marketplace. También lo llaman otros equipos: moderación, por ejemplo, que revisa publicaciones en tandas. Si un programa de moderación con un error manda 3,000 requests por segundo, se come la GPU de todos, y Ana espera.
 
 Un [[rate-limit|rate limit]] (límite de ritmo) es un tope de cuántas requests acepta el sistema de cada cliente por unidad de tiempo. Lo que pase del tope recibe al instante un **429** (*Too Many Requests*, «demasiadas requests»), con un header [[retry-after|`Retry-After`]] que dice en cuántos segundos vale la pena volver a intentar.
 
@@ -268,7 +291,7 @@ Un [[rate-limit|rate limit]] (límite de ritmo) es un tope de cuántas requests 
 :::
 
 :::profundo La ventana fija y su orilla
-La manera más simple de limitar es un contador por minuto: «3,000 requests por minuto», y el contador vuelve a 0 al empezar cada minuto. Tiene un hueco en la orilla: un cliente puede mandar 3,000 a las 12:00:59 y otras 3,000 a las 12:01:00. Son 6,000 en 2 segundos, 60 veces el ritmo de 50 por segundo que esa cuota parecía prometer (M15). Un límite por minuto protege la factura del mes, no la GPU en esos dos segundos.
+La manera más simple de limitar es un contador por minuto: «3,000 requests por minuto», y el contador vuelve a 0 al empezar cada minuto. Tiene un hueco en la orilla: un cliente puede mandar 3,000 a las 12:00:59 y otras 3,000 a las 12:01:00. Son 6,000 en 2 segundos, 60 veces el ritmo de 50 por segundo que esa cuota parecía prometer (3,000 ÷ 60 s = 50). Un límite por minuto protege la factura del mes, no la GPU en esos dos segundos.
 :::
 
 ### El token bucket
@@ -284,15 +307,27 @@ Cada segundo caen r fichas nuevas, hasta que el balde se llena. Lo que sobra se 
 Si hay ficha, la request pasa. Si el balde está vacío, recibe 429, y el `Retry-After` dice cuánto falta para la siguiente ficha.
 :::
 
-Así, un cliente que manda menos de r por segundo nunca recibe un 429. Uno que estuvo tranquilo puede mandar una ráfaga (*burst*) de hasta B de golpe. Y nadie sostiene más de r por segundo.
+Así, un cliente que manda menos de r por segundo nunca recibe un 429. Uno que estuvo tranquilo puede mandar una ráfaga (*burst*) de hasta B de golpe. Y nadie sostiene más de r por segundo. Para una ráfaga que llega con el balde lleno, la cuenta es esta:
+
+:::formula Cuántas requests pasan de una ráfaga
+A = min(N, B + r × T)
+- B: el tamaño del balde, en fichas: la ráfaga que toleras
+- r: el ritmo sostenido, en fichas por segundo
+- N: cuántas requests trae la ráfaga
+- T: cuánto dura la ráfaga, en s
+- A: cuántas pasan: las \(B\) del balde más las \(r × T\) que caen mientras dura, sin pasar de \(N\). Las otras \(N − A\) reciben 429
+:::
+
+Si la ráfaga llega más rápido que el ritmo, \(N/T > r\), el balde baja \(N/T − r\) fichas por segundo y se vacía en \(B ÷ (N/T − r)\) segundos. Si el cliente se calma, se vuelve a llenar en \(B ÷ r\) segundos.
 
 :::cuenta El equipo de moderación: 50 por segundo, con ráfagas de 100
-Ritmo y balde // el ejemplo de la Ronda (M15); el balde empieza lleno | r = 50 por s · B = 100 | 100 fichas
-Llega una ráfaga // un programa con un error | 300 requests en 1 s | —
-Pasan con las fichas del balde | — | 100
-Pasan con las que caen en ese segundo | 50 por s × 1 s | 50
-Reciben 429 | 300 − 100 − 50 | ≈ 150
-Tiempo para volver a llenar el balde // si se calma | 100 ÷ 50 por s | 2 s
+Ritmo y balde // la cuota del equipo de moderación de Alba; el balde empieza lleno | \(r\) = 50 por s · \(B\) = 100 | 100 fichas
+Llega una ráfaga // un programa con un error | \(N\) = 300 requests en \(T\) = 1 s | —
+Pasan con las fichas del balde | \(B\) | 100
+Pasan con las que caen en ese segundo | \(r × T\) = 50 por s × 1 s | 50
+Pasan en total, \(A\) | min(300, 100 + 50) | 150
+Reciben 429 | \(N − A\) = 300 − 150 | ≈ 150
+Tiempo para volver a llenar el balde // si se calma | \(B ÷ r\) = 100 ÷ 50 por s | 2 s
 = De 300, pasan ≈ 150 y ≈ 150 reciben 429. Ningún cliente pasa de B + r en un segundo, ni de r sostenido.
 :::
 
@@ -340,21 +375,21 @@ Salen 149 y no 150 porque la última request llega a los 0.997 s, un poquito ant
 Prueba una ráfaga de 300 en 3 segundos en vez de en 1: el ritmo de llegada baja a 100 por segundo y ya pasan 250. ¿Con qué B pasarían todas?
 :::
 
-El balde va por **identidad verificada**, no por dirección IP: muchos clientes pueden salir por la misma IP, y uno solo puede usar muchas. En C01, la identidad sale del token que el ALB ya verificó.
+El balde va por **identidad verificada**, no por dirección IP: muchos clientes pueden salir por la misma IP, y uno solo puede usar muchas. En Alba, la identidad sale del token que el ALB ya verificó.
 
 :::profundo Dónde vive el balde
-Un balde por cliente, ¿pero en qué máquina? Si cada uno de los 5 pods del gateway tiene su propio balde, el cliente recibe en la práctica 5 veces su cuota. Hay dos salidas: dividir la cuota entre los pods, o guardar los baldes en un almacén compartido y rápido, como Redis, que es lo que hace C10. La otra opción de C01 es una regla del filtro de tráfico de AWS (WAF, *web application firewall*) junto al ALB, que cuenta las requests de cada cliente en ventanas gruesas, los últimos 1, 2, 5 o 10 minutos, y revisa la cuenta cada ≈ 10 s: protege la factura, no el segundo.
+Un balde por cliente, ¿pero en qué máquina? Si cada uno de los 5 pods del gateway tiene su propio balde, el cliente recibe en la práctica 5 veces su cuota. Hay dos salidas: dividir la cuota entre los pods, o guardar los baldes en un almacén compartido y rápido, como Redis, que es lo que hace un servicio que sirve su propio LLM a varios equipos. La otra opción de Alba es una regla del filtro de tráfico de AWS (WAF, *web application firewall*) junto al ALB, que cuenta las requests de cada cliente en ventanas gruesas, los últimos 1, 2, 5 o 10 minutos, y revisa la cuenta cada ≈ 10 s: protege la factura, no el segundo.
 
-Lo de la IP compartida pasa, por ejemplo, detrás de un [[nat|NAT]], la pieza que comparte una dirección pública entre muchas máquinas. Y en C10 la cuota se cuenta en **tokens del LLM por minuto**, no en requests, porque una request de 50 tokens y una de 5,000 no cuestan lo mismo.
+Lo de la IP compartida pasa, por ejemplo, detrás de un [[nat|NAT]], la pieza que comparte una dirección pública entre muchas máquinas. Y en un servicio así, de LLM, la cuota se cuenta en **tokens del LLM por minuto**, no en requests, porque una request de 50 tokens y una de 5,000 no cuestan lo mismo.
 :::
 
 ## Dentro de Kubernetes: Service, Ingress y Gateway API {Inside Kubernetes: Service, Ingress and Gateway API}
 
-Kubernetes, el programa de [[orquestacion|orquestación]] de C01, corre los contenedores en *pods* repartidos por un clúster: el grupo de máquinas que maneja. Cada pod recibe su propia IP, y la pierde cuando muere. ¿Cómo encuentra el gateway a Triton, si los pods de Triton van y vienen?
+Kubernetes, el programa de [[orquestacion|orquestación]] de Alba, corre los contenedores en *pods* repartidos por un clúster: el grupo de máquinas que maneja. Cada pod recibe su propia IP, y la pierde cuando muere. ¿Cómo encuentra el gateway a Triton, si los pods de Triton van y vienen?
 
 ### El Service: una IP que no cambia
 
-Un [[service-k8s|Service]] es un objeto de Kubernetes que le da a un grupo de pods **un nombre y una IP estables**. El gateway de C01 llama a `triton`, y el DNS del clúster lo traduce a una IP virtual, la *ClusterIP*, que no pertenece a ningún pod. El Service elige sus pods por sus etiquetas (por ejemplo, `app: triton`) y guarda la lista de sus pods, con una marca de cuáles están **listos** (los que pasan su readiness), en unos objetos llamados *EndpointSlices*. Un pod que falla su readiness queda marcado como no listo, y el reparto lo salta.
+Un [[service-k8s|Service]] es un objeto de Kubernetes que le da a un grupo de pods **un nombre y una IP estables**. El gateway de Alba llama a `triton`, y el DNS del clúster lo traduce a una IP virtual, la *ClusterIP*, que no pertenece a ningún pod. El Service elige sus pods por sus etiquetas (por ejemplo, `app: triton`) y guarda la lista de sus pods, con una marca de cuáles están **listos** (los que pasan su readiness), en unos objetos llamados *EndpointSlices*. Un pod que falla su readiness queda marcado como no listo, y el reparto lo salta.
 
 ¿Quién reparte? **kube-proxy**, un programa que corre en cada máquina del clúster. No recibe las requests: le escribe al [[kernel]] de Linux unas reglas para que, cada vez que alguien abre una conexión a la ClusterIP, el kernel la reescriba hacia la IP de uno de los pods listos. En su modo más común, el de iptables (el sistema de reglas de red del kernel), elige **al azar**. Y elige **por conexión**: es L4. Nunca ve una request HTTP.
 
@@ -366,11 +401,22 @@ kube-proxy tiene otros dos modos. El de nftables, el sucesor de iptables, es est
 
 Ahora junta las piezas. Con gRPC, cada pod del gateway abriría **una** conexión HTTP/2 a Triton y la usaría para miles de requests, durante horas. kube-proxy elige el pod de Triton una sola vez, al abrir la conexión, y ahí se queda.
 
+¿Qué tan chueco queda? Cada conexión es un volado entre los dos Tritons, así que se cuentan combinaciones:
+
+:::formula Probabilidad de un reparto de conexiones
+P = frac{2 × text{maneras}}{2^g}
+text{maneras} = frac{g!}{k! × (g − k)!}
+- g: las conexiones abiertas, una por gateway (aquí, un número impar)
+- k: cuántas caen en el Triton que más recibe: más de la mitad
+- text{maneras}: de cuántas formas se eligen cuáles \(k\) de las \(g\) conexiones caen juntas. \(g!\) es \(g × (g − 1) × … × 1\), y 0! = 1
+- P: la probabilidad de ese reparto. Se multiplica por 2 porque el Triton que más recibe puede ser cualquiera de los dos, y se divide entre \(2^g\), todas las combinaciones posibles
+:::
+
 :::cuenta Cinco gateways con una conexión cada uno y dos Tritons
-Cada conexión elige un Triton al azar | 2 opciones por conexión, 5 conexiones: 2⁵ | 32 combinaciones
-Reparto 3 y 2 // 60 % y 40 % del tráfico | 20 de 32 | 62.5 %
-Reparto 4 y 1 // 80 % y 20 % | 10 de 32 | 31.25 %
-Reparto 5 y 0 // un Triton con todo y el otro sin nada | 2 de 32 | 6.25 %
+Cada conexión elige un Triton al azar // \(g\) = 5 | 2 opciones por conexión: \(2^g\) = 2⁵ | 32 combinaciones
+Reparto 3 y 2, \(k\) = 3 // 60 % y 40 % del tráfico | maneras = 5! ÷ (3! × 2!) = 10; \(P\) = 2 × 10 ÷ 32 | 62.5 %
+Reparto 4 y 1, \(k\) = 4 // 80 % y 20 % | maneras = 5! ÷ (4! × 1!) = 5; \(P\) = 2 × 5 ÷ 32 | 31.25 %
+Reparto 5 y 0, \(k\) = 5 // un Triton con todo y el otro sin nada | maneras = 5! ÷ (5! × 0!) = 1; \(P\) = 2 × 1 ÷ 32 | 6.25 %
 Llega un tercer Triton // lo acaba de crear el autoscaler porque la fila creció | conexiones nuevas: ninguna | 0 %
 = El reparto queda como cayeron cinco volados, y el pod nuevo no recibe nada hasta que alguna conexión se cierre y se vuelva a abrir. La fila sigue alta, y el autoscaler pide todavía más pods que tampoco reciben tráfico.
 :::
@@ -379,7 +425,7 @@ Llega un tercer Triton // lo acaba de crear el autoscaler porque la fila creció
 Arriba, el Service reparte por conexión: tres conexiones largas de los gateways caen en los dos primeros Tritons, y el tercero, recién creado, queda ocioso. Abajo, un balanceo por request: cada request elige su destino, y el tercero recibe su parte desde la primera.
 :::
 
-C01 usa HTTP entre el gateway y Triton, con un pool de varias conexiones que se renuevan, y ahí el efecto existe pero es menor. Por eso la Ronda dice que gRPC solo entra si se mide una ganancia clara, y con alguna de estas salidas:
+Alba usa HTTP entre el gateway y Triton, con un pool de varias conexiones que se renuevan, y ahí el efecto existe pero es menor. Por eso su equipo solo pasaría a gRPC si mide una ganancia clara, y con alguna de estas salidas:
 
 - **Un Service *headless*** (sin cabeza: sin ClusterIP). El DNS devuelve las IPs de todos los pods, y el cliente de gRPC reparte él mismo, request por request.
 - **Un balanceo L7 entre servicios**, que es lo que da un service mesh: la sección extra.
@@ -387,15 +433,15 @@ C01 usa HTTP entre el gateway y Triton, con un pool de varias conexiones que se 
 
 ### Ingress y Gateway API: la entrada desde afuera
 
-El Service conecta pods con pods. Para que el tráfico de **afuera** entre al clúster existe el [[ingress|Ingress]]: un objeto de Kubernetes con reglas HTTP de entrada, como «lo que llegue a `api.ejemplo.com/v1/classify`, mándalo al Service del gateway». El Ingress es solo la regla escrita. Lo aplica un **controlador** de Ingress, que es un proxy inverso de verdad, como NGINX, o un programa que configura uno de la nube. En C01, el controlador de AWS lee el Ingress del gateway y arma el ALB. Con `target-type: ip`, el ALB manda cada request directo a la IP de un pod del gateway: reparte él, por request, y kube-proxy no interviene en esa entrada.
+El Service conecta pods con pods. Para que el tráfico de **afuera** entre al clúster existe el [[ingress|Ingress]]: un objeto de Kubernetes con reglas HTTP de entrada, como «lo que llegue a `api.ejemplo.com/v1/classify`, mándalo al Service del gateway». El Ingress es solo la regla escrita. Lo aplica un **controlador** de Ingress, que es un proxy inverso de verdad, como NGINX, o un programa que configura uno de la nube. En Alba, el controlador de AWS lee el Ingress del gateway y arma el ALB. Con `target-type: ip`, el ALB manda cada request directo a la IP de un pod del gateway: reparte él, por request, y kube-proxy no interviene en esa entrada.
 
-Su sucesor es **Gateway API**, estable desde octubre de 2023, con pesos y condiciones por header ya incluidos. La documentación de Kubernetes y la Ronda (M06) dicen lo mismo: Ingress sigue funcionando, pero su API está congelada (no recibe funciones nuevas), y los diseños nuevos van con Gateway API.
+Su sucesor es **Gateway API**, estable desde octubre de 2023, con pesos y condiciones por header ya incluidos. La documentación de Kubernetes lo dice así: Ingress sigue funcionando, pero su API está congelada (no recibe funciones nuevas), y los diseños nuevos van con Gateway API.
 
 :::profundo Por qué Ingress se quedó corto
 El Ingress no sabe de pesos, de headers ni de otros protocolos, y cada controlador lo extendía con sus propias anotaciones (notas de configuración pegadas al objeto), distintas en cada uno. Gateway API lo reparte en varios objetos: un `Gateway` para la puerta, que maneja el equipo de la plataforma, y unas rutas, como `HTTPRoute`, que maneja cada equipo, con pesos y condiciones escritas igual para cualquier controlador. Además, el controlador comunitario ingress-nginx, uno de los más usados, se retiró: Kubernetes lo anunció en noviembre de 2025, y desde marzo de 2026 no recibe versiones nuevas ni parches de seguridad. Las instalaciones que ya existían siguen funcionando, pero sin arreglos.
 :::
 
-| Tramo de C01 | Quién reparte | Cómo |
+| Tramo en Alba | Quién reparte | Cómo |
 |---|---|---|
 | De afuera del clúster al gateway | El ALB, configurado por el Ingress | L7, por request, directo a las IPs de los pods |
 | Gateway → Triton | kube-proxy, por el Service `triton` | L4, por conexión, al azar |
@@ -405,16 +451,29 @@ El Ingress no sabe de pesos, de headers ni de otros protocolos, y cada controlad
 
 Hasta aquí, el balanceador trata igual a todas las copias. A veces no quieres eso: quieres mandar una parte exacta del tráfico a una versión.
 
-Cuando sale una versión nueva del modelo, C01 no se la da a todo el mundo de golpe. Primero le manda una parte chica del tráfico, el 5 %, y vigila sus errores: es un [[canary]], y tiene su lección en la fase de despliegue. Para eso hace falta [[ruteo-por-peso|ruteo por peso]]: repartir el tráfico entre versiones según porcentajes fijados en la configuración. En el ALB, cada target group lleva un peso de 0 a 999, y cada request cae en uno u otro en proporción.
+Cuando sale una versión nueva del modelo, Alba no se la da a todo el mundo de golpe. Primero le manda una parte chica del tráfico, el 5 %, y vigila sus errores: es un [[canary]], y tiene su lección en la fase de despliegue. Para eso hace falta [[ruteo-por-peso|ruteo por peso]]: repartir el tráfico entre versiones según porcentajes fijados en la configuración. En el ALB, cada target group lleva un peso de 0 a 999, y cada request cae en uno u otro en proporción.
 
-Aquí hay una trampa. Kubernetes, por sí solo, reparte por pods: si el estable tiene 2 pods de Triton y le agregas 1 del canary, el Service le manda al canary ≈ **1 de cada 3** requests, no el 5 %. Para un 5 % por pods harían falta 19 pods estables por cada canary. El porcentaje lo tiene que poner un proxy: el ALB, Gateway API o un service mesh.
+Aquí hay una trampa. Kubernetes, por sí solo, reparte por pods: si el estable tiene 2 pods de Triton y le agregas 1 del canary, el Service le manda al canary ≈ **1 de cada 3** requests, no el 5 %. Para un 5 % por pods harían falta 19 pods estables por cada canary: 1 ÷ (19 + 1) = 5 %. El porcentaje lo tiene que poner un proxy: el ALB, Gateway API o un service mesh.
+
+:::formula Cuánto le toca a un canary
+Q_c = Q × frac{w}{100}
+E = Q_c × 60 × v
+x = frac{c}{s + c}
+- Q: el tráfico total, en requests por segundo
+- w: el peso del canary, en %
+- Q_c: lo que va al canary con pesos, en requests por segundo
+- v: la ventana para decidir, en minutos (× 60 la pasa a segundos)
+- E: las requests del canary en la ventana: la evidencia para decidir
+- s, c: los pods estables y los pods del canary
+- x: la parte que le toca al canary si se reparte por pods
+:::
 
 :::cuenta Cuánto ve un canary al 5 %
-Tráfico de C01 en el pico de un día normal // de «Números grandes»: 116 por s en promedio, × 3 en la hora pico (el de diseño, 500, lleva margen) | 116 × 3 | ≈ 350 por s
-Lo que va al canary | 350 × 5 % | 17.5 por s
-En una ventana de 10 minutos | 17.5 × 600 s | 10,500
-Al 1 % | 350 × 1 % × 600 | 2,100
-Por pods, con 2 estables y 1 canary | 1 ÷ (2 + 1) | ≈ 33 %
+Tráfico de Alba en el pico de un día normal, \(Q\) // de «Números grandes»: 10 M requests al día ÷ 86,400 s ≈ 116 por segundo en promedio, × 3 en la hora pico (el de diseño, 500, lleva margen) | 116 × 3 | ≈ 350 por segundo
+Lo que va al canary, \(Q_c = Q × w/100\) // \(w\) = 5 | 350 × 5 ÷ 100 | 17.5 por segundo
+En una ventana de 10 minutos, \(E = Q_c × 60 × v\) // \(v\) = 10 | 17.5 × 60 × 10 | 10,500
+Al 1 % // \(w\) = 1 | 350 × 1 ÷ 100 × 60 × 10 | 2,100
+Por pods, \(x = c/(s + c)\) // \(s\) = 2 pods estables y \(c\) = 1 pod canary | 1 ÷ (2 + 1) | ≈ 33 %
 = Al 5 %, un modelo malo afecta a 1 de cada 20 requests, y en 10 minutos de pico ya juntas ≈ 10,000 para decidir. Repartir por pods le daría al canary casi siete veces más.
 :::
 
@@ -460,13 +519,13 @@ Se usa `hashlib` y no la función `hash()` de Python a propósito: para textos, 
 
 Una [[sticky-session|sticky session]] (sesión pegajosa), o afinidad, es mandar todas las requests de un mismo cliente o sesión a la misma copia. Hay tres maneras comunes:
 
-- **Una [[cookie]] del balanceador.** En la primera respuesta, el balanceador agrega una cookie que dice a qué destino tocó; el navegador la manda de vuelta y el balanceador la respeta. El ALB lo hace así, con una cookie cifrada que se llama `AWSALB`, y su documentación lo advierte: el cliente tiene que guardar cookies. Pero un programa que llama a otro, como el backend de C01, normalmente no guarda cookies: ahí no sirve.
+- **Una [[cookie]] del balanceador.** En la primera respuesta, el balanceador agrega una cookie que dice a qué destino tocó; el navegador la manda de vuelta y el balanceador la respeta. El ALB lo hace así, con una cookie cifrada que se llama `AWSALB`, y su documentación lo advierte: el cliente tiene que guardar cookies. Pero un programa que llama a otro, como el backend de Alba, normalmente no guarda cookies: ahí no sirve.
 - **Un hash de la IP de origen.** Simple y frágil: muchos clientes detrás de una misma IP caen juntos.
 - **Un hash de un id** que venga en la request: el usuario, la conversación, la cámara.
 
-¿Cuándo vale la pena? Cuando la copia guarda en su memoria algo caro de rehacer. En un LLM, es el [[kv-cache|KV cache]]: lo que el modelo ya calculó de una conversación. Si el siguiente mensaje de esa conversación cae en otra réplica, todo eso se recalcula desde cero. C10 tiene 16 réplicas: repartido al azar, el siguiente mensaje cae en la réplica que ya tiene su prefijo guardado ([[prefix-caching]]) ≈ 1 de cada 16 veces, el 6.25 %. Con afinidad por conversación, casi siempre. En C02, el video en tiempo real de las cámaras de un centro de distribución, cada cámara se asigna a una GPU, porque seguir a una persona de un [[frame]] al siguiente necesita estado: se balancea por stream, no por request.
+¿Cuándo vale la pena? Cuando la copia guarda en su memoria algo caro de rehacer. En un LLM, es el [[kv-cache|KV cache]]: lo que el modelo ya calculó de una conversación. Si el siguiente mensaje de esa conversación cae en otra réplica, todo eso se recalcula desde cero. Piensa en un servicio que sirve su propio LLM con 16 réplicas (supuesto del ejemplo): repartido al azar, el siguiente mensaje cae en la réplica que ya tiene su prefijo guardado ([[prefix-caching]]) ≈ 1 de cada 16 veces, el 6.25 %. Con afinidad por conversación, casi siempre. En un sistema de video en tiempo real con varias cámaras, como las de un centro de distribución, cada cámara se asigna a una GPU, porque seguir a una persona de un [[frame]] al siguiente necesita estado: se balancea por stream, no por request.
 
-La afinidad tiene costos. Un cliente pesado pegado a una copia la satura mientras las demás descansan; si esa copia muere, se pierde su estado; y una copia nueva recibe poco, porque todos ya tienen la suya. Por eso C10 usa una regla mixta: afinidad por conversación **si hay lugar**, y si no, la réplica con menos requests en vuelo. Lo mejor, cuando se puede, es no necesitarla: copias sin estado, como el gateway de C01.
+La afinidad tiene costos. Un cliente pesado pegado a una copia la satura mientras las demás descansan; si esa copia muere, se pierde su estado; y una copia nueva recibe poco, porque todos ya tienen la suya. Por eso un servicio de LLM así usa una regla mixta: afinidad por conversación **si hay lugar**, y si no, la réplica con menos requests en vuelo. Lo mejor, cuando se puede, es no necesitarla: copias sin estado, como el gateway de Alba.
 
 ## Service mesh, sidecar y CDN {Service mesh, sidecar and CDN} [extra]
 
@@ -487,18 +546,18 @@ Lo valioso es lo que da **sin tocar el código** de los servicios:
 - **Pesos y copias de tráfico** para canaries y para el *shadow*: mandar una copia de requests reales a la versión nueva y tirar su respuesta.
 
 :::diagrama balanceo-mesh
-Dos pods de C01 dentro de una malla. Toca cada caja y usa «Recorrer» para seguir una request entre sidecars y un cambio de pesos que llega desde el plano de control.
+Dos pods de Alba dentro de una malla. Toca cada caja y usa «Recorrer» para seguir una request entre sidecars y un cambio de pesos que llega desde el plano de control.
 :::
 
 El precio es real. Cada llamada pasa por **dos** proxies más (el del que llama y el del que recibe), y cada uno suma un poco de latencia y de CPU. Cada pod carga un contenedor más con su memoria. Y hay una pieza más que entender cuando algo falla: si el mesh hace hasta 3 intentos por llamada y el código también, una falla se vuelve 3 × 3 = 9 llamadas. Istio ofrece además un modo sin sidecars, el *ambient mode*, estable desde Istio 1.24 (noviembre de 2024): un proxy por máquina, ztunnel, para el cifrado, y proxies L7, los *waypoints*, solo donde se piden. Ojo: sin un waypoint, ztunnel trabaja en L4, y el reparto vuelve a ser por conexión.
 
-¿Lo necesita C01? Con dos servicios, un mesh es mucha maquinaria: la Ronda lo pone como una de tres salidas para el balanceo de gRPC, junto al Service headless y la vida máxima de conexión. En un sistema de decenas de servicios y varios equipos, que exige cifrado entre todos, el mesh se paga solo.
+¿Lo necesita Alba? Con dos servicios, un mesh es mucha maquinaria: es una de las tres salidas para el balanceo de gRPC, junto al Service headless y la vida máxima de conexión. En un sistema de decenas de servicios y varios equipos, que exige cifrado entre todos, el mesh se paga solo.
 
 ### La CDN, de pasada
 
 Una [[cdn|CDN]] (*content delivery network*, red de entrega de contenido) es una red de servidores repartidos por el mundo que guardan copias de contenido y lo entregan desde el más cercano al usuario. Es un proxy inverso con cache, puesto en el borde de internet. Si un archivo vive en Virginia y Ana está en Monterrey, cada ida y vuelta cruza miles de kilómetros; con una copia en una ciudad cercana, el viaje se acorta a una fracción.
 
-Sirve para lo **público y repetido**: las fotos de las publicaciones que ve todo el mundo, el código de la página, los videos, el archivo de un modelo que se descarga una app. No sirve para la request de clasificación de C01: cada foto es nueva, es privada y su respuesta depende de ella. De paso, la CDN aguanta picos y ataques de tráfico lejos de tus servidores.
+Sirve para lo **público y repetido**: las fotos de las publicaciones que ve todo el mundo, el código de la página, los videos, el archivo de un modelo que se descarga una app. No sirve para la request de clasificación de Alba: cada foto es nueva, es privada y su respuesta depende de ella. De paso, la CDN aguanta picos y ataques de tráfico lejos de tus servidores.
 
 ## Errores comunes {Common mistakes}
 
@@ -536,33 +595,45 @@ Uno de tres pods es 33 %, no 5 %.
 
 El ALB cierra las conexiones que pasan 60 s sin tráfico. Si el servidor de atrás las cierra antes, el ALB a veces manda una request por una conexión que el servidor acaba de cerrar, y el cliente recibe un 502 que nadie entiende.
 
-**Cómo evitarlo:** que el servidor espere más que el balanceador, como recomienda AWS. uvicorn, si nadie lo cambia, cierra a los 5 s; el gateway de C01 lo corre con `--timeout-keep-alive 75`, más que los 60 del ALB.
+**Cómo evitarlo:** que el servidor espere más que el balanceador, como recomienda AWS. uvicorn, si nadie lo cambia, cierra a los 5 s; el gateway de Alba lo corre con `--timeout-keep-alive 75`, más que los 60 del ALB.
 
 ## En la vida real {In real life} [extra]
 
-### C01: la request de Ana, intermediario por intermediario
+### Alba: la request de Ana, intermediario por intermediario
 
 La request del backend llega al ALB, que termina TLS y verifica el token del cliente. Su regla de pesos decide: el 95 % al gateway estable, el 5 % al canary, si hay uno en curso. Dentro del grupo elegido, el ALB manda la request directo a la IP de un pod del gateway listo. El gateway revisa el balde de ese cliente, el tamaño del body y el tiempo que queda, prepara la foto y llama al Service `triton`, donde kube-proxy ya había elegido un pod cuando se abrió la conexión. Triton junta la foto con otras en un batch y responde. En el camino hubo tres repartos (los pesos del ALB, el ALB entre los gateways y el Service entre los Tritons), cada uno con su propia lista de destinos sanos.
 
-La puerta también se paga, y no es barata. Los precios de abajo son los de AWS en Virginia (us-east-1), consultados en noviembre de 2026; cambian por región y con el tiempo:
+La puerta también se paga, y no es barata. El ALB cobra por «LCU» (*Load Balancer Capacity Unit*, unidad de capacidad): cada hora cuenta la medida más alta entre conexiones nuevas, conexiones abiertas, bytes y reglas. Con fotos, mandan los bytes: 1 LCU es 1 GB por hora. Los precios de abajo son los de AWS en Virginia (us-east-1), consultados en noviembre de 2026; cambian por región y con el tiempo:
 
-:::cuenta Lo que cuesta el ALB de C01 (M13)
-Bytes que pasan // ≈ 10 M fotos al día de ≈ 200 KB, durante ≈ 30.4 días | 10 M × 200 KB × 30.4 | ≈ 61 TB
-LCU en promedio // el ALB cobra por «LCU» (*Load Balancer Capacity Unit*, unidad de capacidad), y cada hora cuenta la medida más alta (conexiones nuevas, conexiones abiertas, bytes o reglas); con fotos, mandan los bytes: 1 LCU es 1 GB por hora | 61 TB ÷ 730 h ≈ 83 GB por hora | ≈ 83 LCU
-Costo de las LCU | 83 × US$0.008 × 730 h | ≈ US$485
-Cargo fijo por hora, en un mes | US$0.0225 × 730 h | ≈ US$16
-= ≈ US$500 al mes: casi un 30 % de la infraestructura de C01, más que cualquier otra pieza salvo las GPUs. Por el balanceador pasan las fotos completas, y se cobra por byte.
+:::formula La factura mensual del ALB
+text{LCU} = frac{text{GB al mes}}{730}
+text{por hora} = text{LCU} × 0.008 + 0.0225
+text{costo} = text{por hora} × 730
+- text{GB al mes}: los bytes que pasan por el ALB en un mes de 30.4 días, que son 730 h
+- text{LCU}: las unidades de capacidad que se cobran cada hora, en promedio
+- 0.008: el precio de una LCU por hora, en US$
+- 0.0225: el cargo fijo por hora, en US$
+- text{por hora}: lo que cobra el ALB en una hora, en US$
+- text{costo}: lo que cobra en el mes, en US$
 :::
 
-Por eso la Ronda anota una salida: si el p99 lo aguanta, mandar una referencia a la foto (su ubicación en el almacenamiento de archivos) en vez de los bytes.
+:::cuenta Lo que cuesta el ALB de Alba
+Bytes que pasan, GB al mes // ≈ 10 M fotos al día de ≈ 200 KB, durante ≈ 30.4 días | 10 M × 200 KB × 30.4 | ≈ 61 TB = 61,000 GB
+LCU en promedio // 1 LCU = 1 GB por hora | 61,000 GB ÷ 730 h ≈ 83 GB por hora | ≈ 83 LCU
+Costo de las LCU | 83 × US$0.008 × 730 h | ≈ US$485
+Cargo fijo por hora, en un mes | US$0.0225 × 730 h | ≈ US$16
+= ≈ US$500 al mes: ≈ 27 % de los ≈ US$1.8k al mes que cuesta toda la infraestructura de Alba (500 ÷ 1,829), más que cualquier otra pieza salvo las GPUs. Por el balanceador pasan las fotos completas, y se cobra por byte.
+:::
 
-### C10: un llm-gateway que decide todo
+Por eso el equipo de Alba anota una salida: si el p99 lo aguanta, mandar una referencia a la foto (su ubicación en el almacenamiento de archivos) en vez de los bytes.
 
-El LLM de C10 sirve a varios equipos de una empresa. Sus 4 réplicas del gateway revisan la llave de cada equipo, cobran su cuota de un token bucket en tokens por minuto (en un almacén compartido, como Redis, para que las 4 vean el mismo balde), separan lo interactivo de los trabajos en tanda y resuelven el alias `chat-default` a la revisión actual del modelo. Después eligen una de las 16 réplicas de vLLM, el programa que sirve el modelo: la que ya tiene esa conversación, si tiene lugar, y si no, la que tiene menos requests en vuelo. Su canary va por hash del usuario, para que una conversación no cambie de modelo a la mitad. Y un equipo que se pasa recibe 429 él solo, sin tumbar a los demás.
+### Un llm-gateway que decide todo
 
-### C02 y C13: repartir lo que tiene estado
+Piensa en un servicio que sirve su propio LLM a varios equipos de una empresa (los números son supuestos del ejemplo). Sus 4 réplicas del gateway revisan la llave de cada equipo, cobran su cuota de un token bucket en tokens por minuto (en un almacén compartido, como Redis, para que las 4 vean el mismo balde), separan lo interactivo de los trabajos en tanda y resuelven el alias `chat-default` a la revisión actual del modelo. Después eligen una de las 16 réplicas de vLLM, el programa que sirve el modelo: la que ya tiene esa conversación, si tiene lugar, y si no, la que tiene menos requests en vuelo. Su canary va por hash del usuario, para que una conversación no cambie de modelo a la mitad. Y un equipo que se pasa recibe 429 él solo, sin tumbar a los demás.
 
-En C02, cada cámara de un centro de distribución tiene su GPU asignada: seguir a alguien entre frames necesita la memoria de los frames anteriores, así que se reparte por stream. En C13, la transcripción de audio, los trabajos van a workers, y para no mandar todo al mismo en el mismo segundo la Ronda usa dos opciones al azar.
+### Video y voz: repartir lo que tiene estado
+
+En un sistema de video en tiempo real con varias cámaras, como las de un centro de distribución, cada cámara tiene su GPU asignada: seguir a alguien entre frames necesita la memoria de los frames anteriores, así que se reparte por stream. En uno de voz a texto en tiempo real, los trabajos de transcripción van a workers, y para no mandar todo al mismo en el mismo segundo se usan dos opciones al azar.
 
 ### Fuera de ML
 
@@ -577,8 +648,8 @@ Resuélvelos con lápiz antes de abrir la solución. El de token bucket y el de 
 
 :::ejercicios
 ? [facil] Un balanceador reparte 500 requests por segundo entre dos pods: uno con el doble de CPU que el otro. ¿Cuánto recibe cada uno con round-robin? ¿Y por peso, con pesos 2 y 1?
-- Round-robin: **250 y 250**, sin importar el tamaño. El pod chico recibe lo mismo con la mitad de CPU.
-- Por peso 2 y 1: el grande recibe 2 de cada 3: 500 × 2/3 ≈ **333**; el chico, 500 × 1/3 ≈ **167**.
+- Round-robin: cada pod recibe \(Q ÷ text{pods}\), con \(Q\) = 500 el tráfico total: 500 ÷ 2 = **250 y 250**, sin importar el tamaño. El pod chico recibe lo mismo con la mitad de CPU.
+- Por peso: cada pod recibe \(Q × text{su peso} ÷ text{suma de pesos}\). El grande, 500 × 2 ÷ (2 + 1) ≈ **333**; el chico, 500 × 1 ÷ 3 ≈ **167**.
 - Así, los dos quedan igual de ocupados en proporción a su CPU.
 ? [facil] ¿L4 o L7? (a) Mandar `/v2/` a la versión nueva. (b) Repartir el video por UDP de unas cámaras. (c) Respetar la cookie de afinidad. (d) Que el cifrado llegue intacto hasta el servidor.
 - (a) **L7**: hay que leer la ruta.
@@ -586,48 +657,39 @@ Resuélvelos con lápiz antes de abrir la solución. El de token bucket y el de 
 - (c) **L7**: la cookie es un header de la request.
 - (d) **L4**: un L7 tendría que descifrar para leer; un L4 pasa los bytes sin abrirlos.
 ? [facil] ¿Qué probe falla y qué pasa? (a) Triton sigue cargando su engine. (b) El proceso del gateway se trabó y no contesta nada. (c) El gateway está bien, pero Triton no responde.
-- (a) La **startup**: Kubernetes espera (hasta 5 minutos en C01) y no le manda tráfico. Si nunca termina, lo reinicia.
+- (a) La **startup**: Kubernetes espera (hasta 5 minutos en Alba) y no le manda tráfico. Si nunca termina, lo reinicia.
 - (b) La **liveness**: el kubelet reinicia el contenedor. Mientras tanto, también falla la readiness y sale del reparto.
 - (c) Solo la **readiness** del gateway (`/readyz`): sale del reparto sin reiniciarse. Reiniciarlo no arreglaría a Triton.
 ? [medio] Un token bucket da 20 fichas por segundo y guarda hasta 40. Con el balde lleno llegan 100 requests en medio segundo. ¿Cuántas pasan? ¿Cuánto tarda en llenarse otra vez?
-- Pasan las del balde, **40**, más las que caen en medio segundo: 20 × 0.5 = **10**. En total, **≈ 50**; las otras ≈ 50 reciben 429.
-- Para llenarse: 40 ÷ 20 = **2 s** sin pedir nada.
+- Con \(A = min(N, B + r × T)\), \(B\) = 40, \(r\) = 20, \(N\) = 100 y \(T\) = 0.5 s: pasan las del balde, **40**, más las que caen en medio segundo, \(r × T\) = 20 × 0.5 = **10**. \(A\) = min(100, 40 + 10) = **≈ 50**; las otras \(N − A\) = 100 − 50 ≈ 50 reciben 429.
+- Para llenarse: \(B ÷ r\) = 40 ÷ 20 = **2 s** sin pedir nada.
 - Compruébalo con la calculadora: ritmo 20, balde 40, 100 requests en 0.5 s.
-? [medio] El estable de C01 tiene 4 pods de Triton y quieres un canary al 5 % en el pico de diseño de 500 requests por segundo. (a) Si agregas 1 pod canary al mismo Service, ¿qué porcentaje y cuántas requests por segundo recibe? (b) ¿Y con pesos en el ALB? (c) ¿Aguanta un solo pod?
-- (a) Por pods: 1 ÷ (4 + 1) = **20 %**: 500 × 0.2 = **100 por segundo**. Cuatro veces lo que querías.
-- (b) Con pesos: 500 × 5 % = **25 por segundo**.
-- (c) Sí: la Ronda cuenta con ≈ 1,200 imágenes por segundo por T4, y 25 le sobran. Un canary puede tener un solo pod si aguanta su parte con margen.
+? [medio] En operación normal, Alba tiene 2 pods de Triton; con el autoscaler en su tope, 4. Con esos 4 estables, quieres un canary al 5 % en el pico de diseño de 500 requests por segundo. (a) Si agregas 1 pod canary al mismo Service, ¿qué porcentaje y cuántas requests por segundo recibe? (b) ¿Y con pesos en el ALB? (c) ¿Aguanta un solo pod?
+- (a) Por pods, \(x = c/(s + c)\) con \(s\) = 4 pods estables y \(c\) = 1 pod canary: 1 ÷ (4 + 1) = **20 %**. Recibe \(Q × x\) = 500 × 0.2 = **100 por segundo**. Cuatro veces lo que querías.
+- (b) Con pesos, \(Q_c = Q × w/100\) = 500 × 5 ÷ 100 = **25 por segundo**.
+- (c) Sí. El pod canary corre en una T4, y Alba midió con una prueba de carga que una T4 aguanta ≈ 1,200 fotos por segundo cumpliendo su presupuesto de latencia: su capacidad, que «Qué tan rápido y cuánto» explica. Cada request lleva una foto, así que 25 requests por segundo son 25 ÷ 1,200 ≈ 2 % de eso. Un canary puede tener un solo pod si aguanta su parte con margen.
 ? [medio] Un pod del gateway, con 100 requests por segundo, se cuelga. Su readiness usa los valores de Kubernetes si nadie los cambia: cada 10 s, 3 fallas. ¿Cuántas requests se pierden antes de que salga? ¿Y con cada 5 s y 2 fallas? ¿Qué arriesgas al bajarlo?
-- Por omisión: 10 × 3 = 30 s, y 100 × 30 = **3,000 requests**.
-- Con 5 s y 2: 10 s, **1,000 requests**.
+- Con \(τ = Δ × F\) y \(m = λ × τ\), por omisión: \(τ\) = 10 × 3 = 30 s, y \(m\) = 100 × 30 = **3,000 requests**.
+- Con 5 s y 2: \(τ\) = 5 × 2 = 10 s, y \(m\) = 100 × 10 = **1,000 requests**.
 - Lo que arriesgas: sacar pods sanos que tuvieron un mal momento, cargar más a los demás y causar una cascada. Por eso se combina con un chequeo pasivo.
 ? [medio] Tres pods del gateway abren una conexión gRPC cada uno al Service de Triton, que tiene 2 pods. (a) ¿Qué tan probable es que un Triton se quede sin tráfico? (b) El autoscaler agrega un tercero: ¿qué recibe? (c) Con una vida máxima de conexión, cada conexión se cierra y se vuelve a abrir: ¿cuántas conexiones espera tener el nuevo después?
-- (a) Cada conexión elige al azar entre 2: hay 2³ = 8 combinaciones, y en 2 de ellas las 3 caen en el mismo. **2 ÷ 8 = 25 %**.
+- (a) Con la fórmula de reparto, \(g\) = 3 y \(k\) = 3: hay \(2^g\) = 2³ = 8 combinaciones, maneras = 3! ÷ (3! × 0!) = 1, y \(P\) = 2 × 1 ÷ 8 = **25 %**.
 - (b) **Nada**: las conexiones ya están abiertas. Recibe 0 % hasta que alguna se reconecte.
-- (c) Cada conexión que se reabre elige entre 3: el nuevo espera 3 × 1/3 = **1 conexión**. Con tan pocas, el reparto sigue chueco; por request, cada uno recibiría un tercio.
-? [reto] Un pod del gateway de C01 se cuelga en el pico de diseño. El ALB pregunta cada 10 s y lo saca a las 2 fallas; la readiness de Kubernetes lo marca como no listo a los 15 s. (a) ¿Cuántas requests recibe antes de salir? (b) ¿Qué parte del presupuesto mensual de ≈ 300,000 fallas es? (c) ¿Cuántas requests hay colgadas en ese pod a la vez, si quien llama se rinde a los 300 ms? (d) ¿Qué agregarías?
-- (a) Lo saca el primero que se entere. El chequeo del ALB tarda 10 × 2 = 20 s; la readiness, 15 s, y cuando falla, el controlador de AWS da de baja al pod en el ALB. Gana la readiness: 100 × 15 = **≈ 1,500 requests**, más los segundos que tarde la baja en llegar al ALB. Sin la readiness serían 100 × 20 = 2,000.
-- (b) 1,500 ÷ 300,000 = **0.5 %** del presupuesto del mes, por un solo pod. Diez incidentes así son 5 %.
-- (c) Con la [[ley-little|Ley de Little]]: 100 por segundo × 0.3 s = **30 colgadas a la vez**. Es más que `MAX_INFLIGHT = 16`, el tope que rechazaría la 17 con un 503 si el pod funcionara; pero un pod colgado no corre ni ese código, así que no rechaza nada: todas esperan.
-- (d) Un chequeo pasivo: sacar al pod tras unos cuantos errores o timeouts seguidos, que a 100 por segundo se juntan en menos de un segundo. Y timeouts cortos, como los 300 ms de C01, para que ninguna espere más.
+- (c) Cada conexión que se reabre elige entre 3 Tritons: el nuevo espera \(g × 1/3\) = 3 × 1/3 = **1 conexión**. Con tan pocas, el reparto sigue chueco; por request, cada uno recibiría un tercio.
+? [reto] Un pod del gateway de Alba se cuelga en el pico de diseño. El ALB pregunta cada 10 s y lo saca a las 2 fallas; la readiness de Kubernetes lo marca como no listo a los 15 s. (a) ¿Cuántas requests recibe antes de salir? (b) ¿Qué parte del presupuesto mensual de ≈ 300,000 fallas es? (c) ¿Cuántas requests hay colgadas en ese pod a la vez, si quien llama se rinde a los 300 ms? (d) ¿Qué agregarías?
+- (a) Con \(τ = Δ × F\) y \(m = λ × τ\), y \(λ\) = 500 ÷ 5 = 100 por segundo. Lo saca el primero que se entere. El chequeo del ALB tarda \(τ\) = 10 × 2 = 20 s; la readiness, 15 s, y cuando falla, el controlador de AWS da de baja al pod en el ALB. Gana la readiness: \(m\) = 100 × 15 = **≈ 1,500 requests**, más los segundos que tarde la baja en llegar al ALB. Sin la readiness serían 100 × 20 = 2,000.
+- (b) \(m\) ÷ 300,000 = 1,500 ÷ 300,000 = **0.5 %** del presupuesto del mes, por un solo pod. Diez incidentes así son 10 × 0.5 = 5 %.
+- (c) Con la [[ley-little|Ley de Little]], \(L = λ × W\): \(L\) son las requests en el pod a la vez, \(λ\) = 100 por segundo y \(W\) = 0.3 s, lo que espera cada una antes de que quien llama se rinda. \(L\) = 100 × 0.3 = **30 colgadas a la vez**. Es más que `MAX_INFLIGHT = 16`, el tope que rechazaría la 17 con un 503 si el pod funcionara; pero un pod colgado no corre ni ese código, así que no rechaza nada: todas esperan.
+- (d) Un chequeo pasivo: sacar al pod tras unos cuantos errores o timeouts seguidos, que a 100 por segundo se juntan en menos de un segundo. Y timeouts cortos, como los 300 ms de Alba, para que ninguna espere más.
 ? [reto] Un cliente tiene una cuota de 3,000 requests por minuto con una ventana fija. (a) ¿Cuántas puede mandar en 2 segundos, y a qué ritmo, comparado con 50 por segundo? (b) Diseña un token bucket con el mismo ritmo sostenido que no deje pasar más de 250 en esos 2 segundos. (c) ¿Qué mide cada uno?
 - (a) 3,000 al final de un minuto y 3,000 al principio del siguiente: **6,000 en 2 s**, 3,000 por segundo: **60 veces** el ritmo de 50 por segundo.
-- (b) El ritmo sostenido es 3,000 ÷ 60 = **50 por segundo**. En 2 s pasan B + 50 × 2 = B + 100. Para que no pasen de 250: **B = 150**.
+- (b) El ritmo sostenido es \(r\) = 3,000 ÷ 60 = **50 por segundo**. Con el balde lleno, en \(T\) = 2 s llegan \(N\) = 6,000, muchas más de las que caben, así que \(A = min(N, B + r × T)\) = B + 50 × 2 = B + 100. Para que no pasen de 250: B + 100 = 250, así que **B = 150**.
 - (c) La ventana fija controla el total de cada minuto, para la factura. El token bucket controla el ritmo instante a instante, para la capacidad: aguanta una ráfaga de 150 y nada más.
 :::
 
 ## Lo que sigue {What comes next} [extra]
 
-**En la Ronda:**
-
-- **M03 · Latencia y capacidad** le pone de 1 a 3 ms al ALB en el presupuesto de la request y explica por qué *least outstanding requests* se porta como una fila compartida, y el reparto al azar de un Service, como filas separadas.
-- **M06 · Orquestación y escalado** usa las probes, el Service, el Ingress y Gateway API, y las conexiones pegadas cuando se agrega un pod de Triton.
-- **M11 · Despliegue seguro** reparte el canary con pesos en el ALB, explica por qué un pod de tres no es un 5 % y usa el hash de un id para un A/B por vendedor.
-- También: **M07** (gRPC y el balanceo por conexión), **M13** (la factura del ALB), **M14** (el llm-gateway y la afinidad) y **M15** (el token bucket, 429 contra 503).
-
-**En el Dojo:** cuando abran, la estación 6, «Código de serving», escribe `/healthz`, `/readyz` y la cuota del gateway; la 9, «Kubernetes», el Service, el Ingress y las probes, y la 10, «Rollout seguro», el canary con pesos.
-
-**En Sensei:** la siguiente lección, «Timeouts, reintentos e idempotencia», sigue con lo que pasa cuando un destino no contesta: cuánto esperar, cuándo reintentar y cuándo cortar. Después, «Qué tan rápido y cuánto» explica por qué una fila compartida espera menos. Más adelante vienen TLS y mTLS, en la fase de seguridad, y los tokens con los que el gateway sabe quién llama, en la de identidad.
+La siguiente lección, «Timeouts, reintentos e idempotencia», sigue con lo que pasa cuando un destino no contesta: cuánto esperar, cuándo reintentar y cuándo cortar. Después, «Qué tan rápido y cuánto» explica por qué una fila compartida espera menos. Más adelante, «Cifrado, llaves y certificados» explica TLS y mTLS, y «Autenticación y permisos», los tokens con los que el gateway sabe quién llama.
 
 ## Palabras que vas a oír {Words you will hear}
 

@@ -12,7 +12,7 @@ Un LLM hace una sola cosa: dado un texto, calcula qué tan probable es cada peda
 
 ## El texto, en pedacitos: tokens {Text as tokens}
 
-Un modelo solo sabe de números. Antes de que un modelo de lenguaje pueda leer «Ana vende sus tenis blancos», alguien tiene que convertir ese texto en números. Eso lo hace el [[tokenizer]].
+Un modelo solo sabe de números. Antes de que un modelo de lenguaje pueda leer una frase como «Ana vende sus tenis blancos» (Ana es una vendedora de Alba, la empresa que seguimos en todo el curso: un marketplace con ≈ 2.5 millones de publicaciones al día), alguien tiene que convertir ese texto en números. Eso lo hace el [[tokenizer]].
 
 El tokenizer parte el texto en pedacitos llamados [[token|tokens]]. Un token puede ser una palabra completa, un trozo de palabra o un signo de puntuación. Luego cambia cada token por su número en una lista fija, el **vocabulario**. A ese número se le llama el **id** del token.
 

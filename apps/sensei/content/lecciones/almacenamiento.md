@@ -2,7 +2,7 @@
 titulo: Object storage, data lakes y warehouses
 en: Object storage, data lakes and warehouses
 subtitulo: Dónde viven las fotos, los datasets, los pesos y los logs de un sistema de ML, cuánto cuesta guardarlos un año y cómo los encuentra después un analista o un job de entrenamiento.
-pregunta: C01 guarda millones de fotos, el dataset para reentrenar, los pesos del modelo y un log de cada predicción. ¿Dónde va cada cosa, cuánto cuesta guardarla un año y cómo la encuentra después quien la necesita?
+pregunta: Alba, un marketplace, guarda millones de fotos, el dataset para reentrenar, los pesos del modelo y un log de cada predicción. ¿Dónde va cada cosa, cuánto cuesta guardarla un año y cómo la encuentra después quien la necesita?
 requisitos: formatos, bases-de-datos
 ---
 
@@ -10,7 +10,7 @@ requisitos: formatos, bases-de-datos
 Casi todo lo que guarda un sistema de ML termina como objetos en un *object storage*: bytes con una llave, baratos y casi imposibles de perder. Encima se organizan el data lake (archivos por fecha), el warehouse (SQL para analizar) y el lakehouse (tablas con versiones). Lo que cuesta no es solo cuántos GB guardas: también cuántas requests haces y cuánto tiempo decides conservarlo.
 :::
 
-Cada día, C01 recibe ≈ 10 millones de fotos, de ≈ 200 KB cada una: 10 M × 200 KB = 2 TB al día. Cada mes se reentrena con un [[dataset]] nuevo. Cada versión del modelo deja un archivo de pesos de ≈ 98 MB. Y cada predicción deja una línea de **log** (*log*: el registro de lo que pasó, como qué foto llegó, qué categoría salió y a qué hora) de ≈ 300 bytes: 10 M × 300 B = 3 GB al día.
+Alba, la empresa que seguimos en todo el curso, es un marketplace: recibe ≈ 2.5 millones de publicaciones al día, con ≈ 3 fotos cada una, y a quien vende le sugiere la categoría de cada foto, entre 500 posibles. Su servicio de clasificación, el clasificador, responde ≈ 10 millones de fotos al día: 2.5 M × 3 = 7.5 millones de las publicaciones, más ≈ 2.5 millones que le piden otros equipos, de ≈ 200 KB cada una: 10 M × 200 KB = 2 TB al día. Cada mes se reentrena con un [[dataset]] nuevo. Cada versión del modelo deja un archivo de pesos de ≈ 98 MB. Y cada predicción deja una línea de **log** (*log*: el registro de lo que pasó, como qué foto llegó, qué categoría salió y a qué hora) de ≈ 300 bytes: 10 M × 300 B = 3 GB al día.
 
 Son cuatro cosas muy distintas. Unas son enormes y se leen poco; otras son chiquitas y se escriben millones de veces. Unas tienen que durar años; otras conviene borrarlas a los 90 días, porque traen datos de personas.
 
@@ -63,7 +63,7 @@ Arriba, lo que enseña la consola: carpetas. Abajo, lo que de verdad hay: una li
 Esto tiene consecuencias. Listar con un prefijo es rápido, porque las llaves están ordenadas, y S3 te las da de 1,000 en 1,000. Pero «renombrar una carpeta» no existe: hay que copiar cada objeto a su llave nueva y borrar el viejo. Con un millón de objetos son dos millones de requests.
 
 :::profundo Cuántas requests aguanta un prefijo
-El prefijo también reparte la carga. Según AWS, S3 aguanta al menos 3,500 escrituras y 5,500 lecturas por segundo por prefijo, y escala de a poco: mientras crece, puede responder 503 (*Slow Down*, «más despacio»), y el cliente reintenta. Los 500 `GET` por segundo del pico de C01 quedan lejos de ese techo.
+El prefijo también reparte la carga. Según AWS, S3 aguanta al menos 3,500 escrituras y 5,500 lecturas por segundo por prefijo, y escala de a poco: mientras crece, puede responder 503 (*Slow Down*, «más despacio»), y el cliente reintenta. Alba diseña su sistema para un pico de 500 requests por segundo: aunque cada una pidiera una foto, esos 500 `GET` por segundo quedan lejos de ese techo.
 :::
 
 El juguete de abajo es un object storage hecho con un diccionario de Python: las llaves son texto y no hay carpetas. Fíjate en cuántas requests cuesta cambiar un byte y mover dos fotos.
@@ -131,9 +131,9 @@ El tercero es una carpeta compartida por la red, que muchas máquinas montan a l
 | Editar a la mitad | Sí | Sí | No: se reemplaza entero |
 | Latencia típica | Menos de 1 ms a pocos ms | ≈ 1 ms al leer, ≈ 3 ms al escribir | ≈ 100 a 200 ms por request, según AWS |
 | Precio aproximado (us-east-1, 2026) | ≈ US$0.08 por GB-mes reservado (gp3) | ≈ US$0.30 por GB-mes (Standard) | ≈ US$0.023 por GB-mes (Standard) |
-| En C01 | El disco de cada nodo | — | Fotos, logs, datasets y pesos |
+| En Alba | El disco de cada nodo | — | Fotos, logs, datasets y pesos |
 
-Con 100 GB al mes: ≈ US$8 en EBS, ≈ US$30 en EFS y ≈ US$2.30 en S3. Por eso la regla de la Ronda (M13) es sencilla: lo que vive con una máquina va en su disco; lo que se comparte o tiene que durar va al object storage. C07, la búsqueda por foto, guarda sus vectores ([[embedding|embeddings]]) en un disco gp3 porque los lee el [[page-cache|page cache]] de una sola máquina; C10, el chat con un LLM, baja sus pesos de S3 al disco local de cada máquina nueva.
+Con 100 GB al mes: ≈ US$8 en EBS, ≈ US$30 en EFS y ≈ US$2.30 en S3. Por eso la regla es sencilla: lo que vive con una máquina va en su disco; lo que se comparte o tiene que durar va al object storage. Un servicio de búsqueda por foto guarda sus vectores ([[embedding|embeddings]]) en un disco gp3 porque los lee el [[page-cache|page cache]] de una sola máquina; un servicio que sirve su propio LLM baja sus pesos de S3 al disco local de cada máquina nueva.
 
 :::ojo
 EBS también tiene *snapshots*: una copia del disco, guardada por dentro en S3. Es la misma idea que el [[snapshot]] de datos de la sección 7, una foto fija de un momento, pero de otra cosa: los bloques de un disco, no las filas de una tabla.
@@ -141,7 +141,7 @@ EBS también tiene *snapshots*: una copia del disco, guardada por dentro en S3. 
 
 ## La URL prefirmada: un permiso de un rato, dentro de la dirección {Presigned URLs: a short-lived permission inside the address}
 
-Ana toca «publicar», y la foto de 200 KB tiene que quedar guardada en un bucket del marketplace, para mostrarla en la publicación. La Ronda no dice cómo la sube la app: lo que sigue es el diseño más común, como supuesto, porque explica bien la idea. Hay dos caminos malos.
+Ana toca «publicar», y la foto de 200 KB tiene que quedar guardada en un bucket del marketplace, para mostrarla en la publicación. Cómo la sube la app de Alba no está fijado: lo que sigue es el diseño más común, como supuesto, porque explica bien la idea. Hay dos caminos malos.
 
 - **Que pase por tu API.** La foto cruza tu [[balanceador]] y tus servidores solo para que ellos la vuelvan a subir a S3. A 500 fotos por segundo, eso son ≈ 100 MB/s de bytes que no necesitabas mover.
 - **Darle a la app las credenciales de S3**, la clave secreta que da permiso de entrar al bucket. Cualquiera que abra la app podría sacarlas y leer o borrar todo el bucket. Nunca.
@@ -154,17 +154,17 @@ Tu servidor sí tiene permiso de escribir en el bucket. Con su clave secreta cal
 
 La URL de una subida trae, entre otras, estas partes:
 
-- El bucket y la llave: `c01-subidas.s3.amazonaws.com` y `/fotos/8f3a.jpg`.
+- El bucket y la llave: `alba-subidas.s3.amazonaws.com` y `/fotos/8f3a.jpg`.
 - `X-Amz-Credential`: quién firmó, sin su secreto. Puede ser un usuario o un **rol** (una identidad de AWS con sus permisos, que usa un programa en vez de una persona).
 - `X-Amz-Date` y `X-Amz-Expires=900`: cuándo se firmó y cuántos segundos vale.
 - `X-Amz-Signature`: la firma.
 
 Cuando llega el `PUT`, S3 recalcula la firma. Si alguien cambió la llave, el método o la hora, no coincide y responde 403. Si coincide, revisa que no haya vencido y que quien firmó **todavía** tenga permiso de hacer eso. Como el permiso viaja en la URL, esa request no lleva header `Authorization`.
 
-Lo que permite una URL prefirmada es **una operación** (un `PUT` o un `GET`) **sobre una llave**, **durante un rato** que elige quien firma: en este ejemplo, 15 minutos, igual que en C02 (las cámaras de los centros de distribución). En S3, como mucho 7 días, y menos si se firmó con credenciales temporales (las que caducan solas, como las de un rol), porque vence cuando ellas vencen.
+Lo que permite una URL prefirmada es **una operación** (un `PUT` o un `GET`) **sobre una llave**, **durante un rato** que elige quien firma: en este ejemplo, 15 minutos, lo mismo que usa el sistema de video con cámaras del final de la lección para subir sus clips. En S3, como mucho 7 días, y menos si se firmó con credenciales temporales (las que caducan solas, como las de un rol), porque vence cuando ellas vencen.
 
 :::profundo Lo que una firma puede amarrar, y lo que no
-Quien firma puede amarrar más cosas. En C02, la firma también cubre el tipo del archivo (`Content-Type: video/mp4`): si la «caja», la computadora del sitio conectada a las cámaras, manda otro, S3 lo rechaza. Lo que una URL de `PUT` no limita es un tamaño máximo (solo se puede firmar uno exacto); para eso hay otra variante, un formulario firmado (`POST` con una *policy*) que sí pone un máximo de bytes.
+Quien firma puede amarrar más cosas. En un sistema de video con varias cámaras, como el del final de la lección, la firma también cubre el tipo del archivo (`Content-Type: video/mp4`): si la «caja», la computadora del sitio conectada a las cámaras, manda otro, S3 lo rechaza. Lo que una URL de `PUT` no limita es un tamaño máximo (solo se puede firmar uno exacto); para eso hay otra variante, un formulario firmado (`POST` con una *policy*) que sí pone un máximo de bytes.
 :::
 
 :::ejemplo La subida de Ana, en cuatro requests
@@ -175,10 +175,10 @@ Quien firma puede amarrar más cosas. En C02, la firma también cubre el tipo de
 :::
 
 :::diagrama almacenamiento-subida
-La foto de Ana va directo de su app al bucket, con un permiso de 15 minutos que firmó la API. Después, C01 recibe solo la llave y lee la foto con su propio permiso. Esa última parte es una variante que M13 propone para ahorrar: en el diseño base de C01, el gateway recibe los bytes de la foto, como viste en la lección de HTTP. Usa «Recorrer» para seguir la subida y la clasificación.
+La foto de Ana va directo de su app al bucket, con un permiso de 15 minutos que firmó la API. Después, el clasificador de Alba recibe solo la llave y lee la foto con su propio permiso. Esa última parte es una variante para ahorrar: en el diseño base de Alba, el gateway (la puerta de entrada del clasificador) recibe los bytes de la foto, como viste en la lección de HTTP. Usa «Recorrer» para seguir la subida y la clasificación.
 :::
 
-Sirve igual para bajar. En la Ronda, M02 lo usa en los trabajos largos: el resultado (un JSON enorme, una máscara, un PDF) se guarda en el bucket, y el cliente lo baja con una URL prefirmada de `GET` que vence en minutos.
+Sirve igual para bajar. Así se entregan los trabajos largos, los que no se responden en la misma request: el resultado (un JSON enorme, una máscara, un PDF) se guarda en el bucket, y el cliente lo baja con una URL prefirmada de `GET` que vence en minutos.
 
 :::ojo
 Una URL prefirmada es como un boleto: **quien la tenga, entra**. No pregunta quién eres. Si se filtra en un log, en un correo o en un chat, sirve hasta que vence. Y es peor que un boleto: no se rompe al usarla, así que sirve muchas veces mientras no venza. Por eso se firma para una sola llave, con vencimiento corto, y no se escribe completa en los logs.
@@ -192,25 +192,33 @@ Guardaste la foto de Ana. ¿Qué tan seguro es que siga ahí dentro de un año?
 
 La [[durabilidad]] (*durability*) es la probabilidad de que un objeto que guardaste siga ahí, intacto, después de un año. S3 está diseñado para 99.999999999 % al año: once nueves. Dicho al revés, la probabilidad de perder un objeto dado en un año es 0.000000001 %, es decir, 10⁻¹¹.
 
-Es un número tan chico que conviene traducirlo a objetos.
+Es un número tan chico que conviene traducirlo a objetos. Si guardas \(N\) objetos y cada uno se pierde en un año con probabilidad \(P\), esperas perder \(N × P\) objetos al año: uno cada \(1 ÷ (N × P)\) años.
 
 :::cuenta Cuántos objetos perderías al año con once nueves
-Perder un objeto dado en un año // una en cien mil millones | 1 − 0.99999999999 | 10⁻¹¹
-Con 10 millones de objetos // el ejemplo de AWS | 10⁷ × 10⁻¹¹ | 0.0001 al año
-Cada cuánto se pierde uno | 1 ÷ 0.0001 | 1 cada 10,000 años
-Las fotos de un año del marketplace // 10 M al día × 365 | 3.65 × 10⁹ × 10⁻¹¹ | 0.0365 al año
-Cada cuánto se pierde una | 1 ÷ 0.0365 | ≈ 1 cada 27 años
+Perder un objeto dado en un año, \(P\) // una en cien mil millones | \(P\) = 1 − 0.99999999999 | 10⁻¹¹
+Perdidos al año con \(N\) = 10 millones // el ejemplo de AWS | \(N × P\) = 10⁷ × 10⁻¹¹ | 0.0001 al año
+Cada cuánto se pierde uno | \(1 ÷ (N × P)\) = 1 ÷ 0.0001 | 1 cada 10,000 años
+Perdidos al año con las fotos de un año del marketplace // \(N\) = 10 M al día × 365 = 3.65 × 10⁹ | \(N × P\) = 3.65 × 10⁹ × 10⁻¹¹ | 0.0365 al año
+Cada cuánto se pierde una | \(1 ÷ (N × P)\) = 1 ÷ 0.0365 | ≈ 1 cada 27 años
 = Con 3,650 millones de fotos, esperarías perder una cada ≈ 27 años por culpa del almacenamiento. Por culpa de un `DELETE` equivocado se pierden muchas más.
 :::
 
 ¿Cómo se logra? En S3 Standard (y en las demás clases de la tabla de abajo), cada objeto se guarda repartido en muchos discos, en al menos tres zonas de disponibilidad (centros de datos separados por kilómetros) de la región. Cada pedazo lleva una huella para detectar si un bit se dañó. Y cuando un disco muere, el sistema rehace sus pedazos con los demás antes de que muera otro.
 
 :::profundo Por qué tres copias dan tantos nueves
-Con números de juguete: un disco pierde sus datos con probabilidad 1 % al año, y una copia perdida se rehace en un día.
+Con números de juguete: un disco pierde sus datos con probabilidad \(f\) = 1 % = 10⁻² al año, y una copia perdida se rehace en un día. Que otro disco muera justo en ese día tiene probabilidad \(f ÷ 365\). Con \(n\) copias, perder el objeto pide que la primera muera en el año y que cada una de las otras \(n − 1\) muera ese mismo día:
 
-- **Una copia:** pierdes 1 de cada 100 objetos al año: 10⁻².
-- **Dos copias:** para perder el objeto, la segunda tiene que morir el mismo día que la primera: 10⁻² × (10⁻² ÷ 365) ≈ 2.7 × 10⁻⁷.
-- **Tres copias:** además, la tercera, ese mismo día: 10⁻² × (10⁻² ÷ 365)² ≈ 7.5 × 10⁻¹².
+:::formula Probabilidad de perder un objeto con n copias
+P_n ≈ f × (frac{f}{365})^{n − 1}
+- f: la probabilidad de que un disco pierda sus datos en un año (aquí, 10⁻²)
+- n: cuántas copias hay, cada una en un disco distinto
+- 365: los días del año; una copia perdida se rehace en un día
+- P_n: la probabilidad de perder el objeto en un año, la \(P\) de la cuenta de arriba
+:::
+
+- **Una copia:** \(P_1 = f\): pierdes 1 de cada 100 objetos al año, 10⁻².
+- **Dos copias:** la segunda tiene que morir el mismo día que la primera: \(P_2\) ≈ 10⁻² × (10⁻² ÷ 365) ≈ 2.7 × 10⁻⁷.
+- **Tres copias:** además, la tercera, ese mismo día: \(P_3\) ≈ 10⁻² × (10⁻² ÷ 365)² ≈ 7.5 × 10⁻¹².
 
 Ignorando factores de 2 o 3, eso ya son ≈ 11 nueves. Las copias tienen que fallar **por separado**: tres discos en el mismo estante, con la misma fuente de luz, no cuentan como tres (en la lección de probabilidad lo viste como falla correlacionada). S3 no guarda tres copias completas, sino pedazos con información extra (*erasure coding*), que dan la misma protección con menos bytes.
 :::
@@ -271,7 +279,7 @@ Antes de escribir la regla hay que decidir la [[retencion|retención]] (*retenti
 - **La ley y la privacidad.** Las fotos y los logs traen datos de personas: caras, placas, ubicaciones en el [[exif|EXIF]] (los datos que la cámara esconde dentro del JPEG). Las leyes de datos personales piden guardar solo lo necesario y borrar cuando alguien lo pide. Cuanto más guardas, más puedes filtrar.
 - **El ML.** Para reentrenar, buscar [[drift]] y comparar modelos de meses distintos hace falta historia.
 
-En C01, la Ronda las reparte así: los logs de predicción duran 90 días; las copias de fotos que van a etiquetar, también 90; los agregados diarios (cuántas predicciones por categoría, por ejemplo) se guardan para siempre, porque no traen datos de nadie. El [[golden-set|golden set]] (las fotos fijas, bien etiquetadas, con las que se examina cada modelo) y los snapshots de entrenamiento (la lista exacta de datos con que se entrenó cada modelo, en la sección 7) no caducan: si el golden set se borrara a los 90 días, ya no podrías comparar el modelo de marzo con el de octubre sobre las mismas fotos. Pero cuando alguien pide que borren su foto, se busca por su huella en todos ellos.
+Alba las reparte así: los logs de predicción duran 90 días; las copias de fotos que van a etiquetar, también 90; los agregados diarios (cuántas predicciones por categoría, por ejemplo) se guardan para siempre, porque no traen datos de nadie. El [[golden-set|golden set]] (las fotos fijas, bien etiquetadas, con las que se examina cada modelo) y los snapshots de entrenamiento (la lista exacta de datos con que se entrenó cada modelo, en la sección 7) no caducan: si el golden set se borrara a los 90 días, ya no podrías comparar el modelo de marzo con el de octubre sobre las mismas fotos. Pero cuando alguien pide que borren su foto, se busca por su huella en todos ellos.
 
 :::nota La retención real
 Es la del artefacto que más dura. Si el bucket borra a los 90 días pero la foto también está en un snapshot de marzo, en una copia de respaldo en otra región y en un CSV que alguien bajó a su laptop, la foto sigue existiendo. Un dataset no puede ser la puerta trasera de la retención.
@@ -284,18 +292,47 @@ S3 cobra con dos medidores.
 - **GB-mes:** guardar 1 GB durante un mes. En Standard, ≈ US$0.023. Guardar 2 GB durante medio mes también es 1 GB-mes.
 - **Requests:** en Standard, US$0.005 por cada 1,000 `PUT` (y `COPY` y `LIST`), y US$0.0004 por cada 1,000 `GET`. Los `DELETE` son gratis. Cuando una regla mueve un objeto de clase, eso también es una request (una *transición*): US$0.01 por cada 1,000 objetos hacia Standard-IA, US$0.02 hacia Glacier Instant Retrieval y US$0.05 hacia Deep Archive.
 
-Para pasar de días a meses, las cuentas usan 30.4 días por mes (365 ÷ 12).
+Para pasar de días a meses, las cuentas usan 30.4 días por mes (365 ÷ 12). Juntos, los dos medidores dan la cuenta de todo lo que sigue:
 
-Una equivalencia para recordar: **un PUT cuesta lo mismo que guardar ≈ 217 KB durante un mes** (0.000005 ÷ 0.023 GB). Con una foto de 200 KB, subirla cuesta como un mes de guardarla. Con un log de 300 bytes, subirlo cuesta como guardarlo 60 años.
+:::formula Lo que cobra S3 al mes
+costo = G × c_G + frac{R}{1,000} × c_R
+- G: los GB-mes: cuántos GB hay guardados, en promedio, durante el mes
+- c_G: el precio por GB-mes de la clase, en US$ (0.023 en Standard)
+- R: cuántas requests de un tipo se hacen en el mes; si hay varios tipos (PUT, GET, transiciones), va un término así por cada uno
+- c_R: el precio por cada 1,000 requests de ese tipo, en US$ (0.005 los PUT, 0.0004 los GET)
+- costo: lo que se paga, en US$ al mes
+:::
+
+Una equivalencia para recordar: **un PUT cuesta lo mismo que guardar ≈ 217 KB durante un mes**. Un PUT cuesta \(c_R ÷ 1,000\) = 0.005 ÷ 1,000 = US$0.000005, y eso alcanza para 0.000005 ÷ 0.023 ≈ 0.000217 GB-mes. Con una foto de 200 KB, subirla cuesta como un mes de guardarla. Con un log de 300 bytes, subirlo cuesta como guardarlo 60 años.
+
+Con una regla que mueve cada foto a una clase fría después de unos días y la borra al cumplir la retención, el bucket se llena y cada mes cuesta lo mismo. Las letras \(G\), \(c_G\), \(R\) y \(c_R\) son las de la fórmula de S3; aquí cada una lleva el nombre de su parte:
+
+:::formula Un bucket con ciclo de vida, ya lleno
+G_d = F × s
+G_S = G_d × D_S
+G_F = G_d × (D_R − D_S)
+costo = G_S × c_S + G_F × c_F
+     + frac{F × 30.4}{1,000} × c_T
+- F: fotos que entran al día
+- s: el tamaño de cada foto, en GB (200 KB = 0.0002 GB)
+- G_d: los GB que entran al día
+- D_S: los días que cada foto pasa en Standard antes de moverla
+- D_R: la retención: los días hasta borrarla
+- G_S, G_F: los GB que hay en Standard y en la clase fría con el bucket lleno
+- c_S, c_F: el precio por GB-mes (\(c_G\)) de Standard (US$0.023) y de la clase fría (US$0.004 en Glacier IR)
+- c_T: el precio por cada 1,000 fotos que se mueven de clase (el \(c_R\) de las transiciones: US$0.02 hacia Glacier IR); cada mes se mueven las fotos de 30.4 días, \(F × 30.4\)
+:::
 
 :::cuenta Un año de fotos del marketplace, con y sin ciclo de vida
-Fotos que entran cada día // 10 M × 200 KB | 2,000 GB | 2 TB al día
-Guardado después de un año | 2 TB × 365 | 730 TB
-Todo en Standard, cada mes // ya lleno | 730,000 GB × 0.023 | ≈ US$16,790
-Con ciclo: los últimos 30 días en Standard | 60,000 GB × 0.023 | US$1,380
-Los 335 días anteriores en Glacier IR | 670,000 GB × 0.004 | US$2,680
-Mover cada foto cobra una request // US$0.02 por 1,000 | 10 M × 30.4 × 0.02 ÷ 1,000 | US$6,080
-Con ciclo, cada mes | 1,380 + 2,680 + 6,080 | ≈ US$10,140
+GB que entran al día, \(G_d\) // \(F\) = 10 M fotos de \(s\) = 200 KB | \(G_d = F × s\) = 10 M × 200 KB | 2,000 GB = 2 TB
+Guardado después de un año, \(G\) // \(D_R\) = 365 días | \(G = G_d × D_R\) = 2 TB × 365 | 730 TB
+Todo en Standard, cada mes // ya lleno | \(G × c_S\) = 730,000 GB × 0.023 | ≈ US$16,790
+Con ciclo: en Standard, \(G_S\) // los últimos \(D_S\) = 30 días | \(G_S = G_d × D_S\) = 2,000 GB × 30 | 60,000 GB
+Guardar en Standard | \(G_S × c_S\) = 60,000 GB × 0.023 | US$1,380
+En Glacier IR, \(G_F\) // los 335 días anteriores: \(D_R − D_S\) = 365 − 30 | \(G_F = G_d × (D_R − D_S)\) = 2,000 GB × 335 | 670,000 GB
+Guardar en Glacier IR | \(G_F × c_F\) = 670,000 GB × 0.004 | US$2,680
+Mover las fotos // una request por foto, \(c_T\) = US$0.02 por 1,000 | \(F × 30.4 ÷ 1,000 × c_T\) = 10 M × 30.4 ÷ 1,000 × 0.02 | US$6,080
+Con ciclo, cada mes // Standard + Glacier IR + mover | 1,380 + 2,680 + 6,080 | ≈ US$10,140
 = El ciclo de vida ahorra ≈ 40 %, y la línea más cara ya no son los GB: son las 304 millones de transiciones al mes. Con objetos chicos, hasta mover cuesta.
 :::
 
@@ -303,21 +340,23 @@ Con ciclo, cada mes | 1,380 + 2,680 + 6,080 | ≈ US$10,140
 La cuenta usa US$0.023 para todo. Con el descuento por volumen, «todo en Standard» bajaría a ≈ US$15,900 y el ahorro, a ≈ 36 %: la conclusión no cambia. AWS conoce bien el problema de mover objetos chicos: desde septiembre de 2024, una regla nueva no mueve objetos de menos de 128 KB, a menos que se lo pidas.
 :::
 
-Esa cuenta es la del bucket del producto, el del marketplace. C01 no guarda su propia copia de cada foto: la foto ya vive ahí, y C01 solo anota su llave. Si la copiara «por si acaso», la Ronda (M12) calcula ≈ 60 TB más cada mes: ≈ US$1,380 el primer mes, US$2,760 el segundo, y así cada mes más, con datos personales y sin dueño.
+Esa cuenta es la del bucket del producto, el del marketplace. El clasificador de Alba no guarda su propia copia de cada foto: la foto ya vive ahí, y el clasificador solo anota su llave. Si la copiara «por si acaso», serían 2 TB × 30 días ≈ 60 TB más cada mes: 60,000 GB × 0.023 ≈ US$1,380 el primer mes, US$2,760 el segundo, y así cada mes más, con datos personales y sin dueño.
 
 :::calculadora almacenamiento-anio
 Prueba Deep Archive (precio 0.001, mover 0.05): sale más caro que dejar todo en Standard. Después pon la retención en 90 días: «Todo en Standard» baja de ≈ US$16,790 a ≈ US$4,140, y mover a Glacier ya no conviene. Borrar a tiempo ahorra más que cualquier clase.
 :::
 
-Con objetos grandes, el costo son los GB. Con millones de objetos chicos, mandan las requests. El log de C01 lo muestra.
+Con objetos grandes, el costo son los GB. Con millones de objetos chicos, mandan las requests. El log del clasificador de Alba lo muestra. Si llegan \(r\) registros al día y se juntan de a \(k\) en cada objeto, cada día se suben \(r ÷ k\) objetos, y al mes son \(R = r ÷ k × 30.4\) PUT, uno por objeto. Leer el último mes, objeto por objeto, son otros tantos GET.
 
-:::cuenta El log de C01: un objeto por predicción o un archivo por minuto
-Predicciones al día // ≈ 300 B cada una | 10 M × 300 B | 3 GB al día
-Guardar 90 días de log | 270 GB × 0.023 | ≈ US$6 al mes
-Un objeto por predicción: PUT al mes | 10 M × 30.4 × 0.005 ÷ 1,000 | ≈ US$1,520
-Leerlo una vez al mes, objeto por objeto | 304 M × 0.0004 ÷ 1,000 | ≈ US$122
-Un archivo por minuto: PUT al mes | 1,440 × 30.4 × 0.005 ÷ 1,000 | ≈ US$0.22
-= Los mismos 3 GB al día cuestan ≈ US$1,650 al mes en objetos sueltos o ≈ US$6 en archivos de un minuto. Por eso C01 solo imprime sus logs, como texto, y otro programa los junta y los sube a S3 en archivos grandes.
+:::cuenta El log del clasificador de Alba: un objeto por predicción o un archivo por minuto
+GB al día // \(r\) = 10 M predicciones de ≈ 300 B cada una | 10 M × 300 B | 3 GB al día
+Guardar 90 días de log, \(G × c_G\) // \(G\) = 3 GB × 90 días = 270 GB | 270 GB × 0.023 | ≈ US$6 al mes
+Un objeto por predicción: PUT al mes, \(R\) // \(k\) = 1 | \(R = r ÷ k × 30.4\) = 10 M ÷ 1 × 30.4 | 304 M
+Costo de esos PUT // \(c_R\) = US$0.005 por 1,000 | \(R ÷ 1,000 × c_R\) = 304 M ÷ 1,000 × 0.005 | ≈ US$1,520
+Leerlo una vez al mes, objeto por objeto // \(R\) = 304 M GET, \(c_R\) = US$0.0004 por 1,000 | \(R ÷ 1,000 × c_R\) = 304 M ÷ 1,000 × 0.0004 | ≈ US$122
+Un archivo por minuto: PUT al mes, \(R\) // \(k\) = 10 M ÷ 1,440 minutos ≈ 6,944, así que \(r ÷ k\) = 1,440 archivos al día | \(R = r ÷ k × 30.4\) = 1,440 × 30.4 | 43,776
+Costo de esos PUT | \(R ÷ 1,000 × c_R\) = 43,776 ÷ 1,000 × 0.005 | ≈ US$0.22
+= Los mismos 3 GB al día cuestan ≈ US$1,650 al mes en objetos sueltos o ≈ US$6 en archivos de un minuto. Por eso el clasificador de Alba solo imprime sus logs, como texto, y otro programa los junta y los sube a S3 en archivos grandes.
 :::
 
 :::calculadora almacenamiento-requests
@@ -332,16 +371,16 @@ Ya tienes dónde guardar. Ahora falta **organizar**, para que alguien encuentre 
 
 Un [[data-lake|data lake]] es un object storage donde llega todo el dato de la empresa como archivos: logs, eventos de la app, etiquetas, copias de tablas. Se guarda tal como llegó y también ya procesado, y lo lee cualquier herramienta: Spark (un programa que reparte el trabajo de leer y transformar datos entre muchas máquinas), DuckDB (una base de datos chiquita para analizar, que corre en tu laptop), Athena (consultas [[sql|SQL]] directo sobre los archivos de S3) o un script de Python.
 
-La Ronda lo llama la **fuente de verdad** del [[camino-offline|camino offline]], el que prepara el siguiente modelo sin que nadie espere: todo dataset de entrenamiento y todo recálculo del pasado salen de ahí. Casi siempre se organiza en zonas, cada una con su prefijo:
+Se le llama la **fuente de verdad** del [[camino-offline|camino offline]], el que prepara el siguiente modelo sin que nadie espere: todo dataset de entrenamiento y todo recálculo del pasado salen de ahí. Casi siempre se organiza en zonas, cada una con su prefijo:
 
 - **Crudo** (*raw*): tal como llegó, por ejemplo [[json-lines|JSON lines]] del log. No se toca: si un paso posterior tenía un bug, se puede rehacer desde aquí.
-- **Procesado** (*processed*): limpio, con tipos correctos, en [[parquet|Parquet]]. Es [[formato-columnar|columnar]] y viene [[compresion|comprimido]]: los 3 GB diarios de log de C01 quedan en ≈ 0.3 a 0.6 GB.
+- **Procesado** (*processed*): limpio, con tipos correctos, en [[parquet|Parquet]]. Es [[formato-columnar|columnar]] y viene [[compresion|comprimido]]: los 3 GB diarios de log del clasificador de Alba quedan en ≈ 0.3 a 0.6 GB.
 - **Curado** (*curated*): tablas listas para usar, como un dataset de entrenamiento o los agregados diarios.
 
-Así se vería el lake de C01, con un bucket y un prefijo por zona (un ejemplo; cada equipo elige sus nombres):
+Así se vería el lake de Alba, con un bucket y un prefijo por zona (un ejemplo; cada equipo elige sus nombres):
 
 ```text
-s3://c01-lake/
+s3://alba-lake/
   crudo/predicciones/dt=2026-11-06/...        JSON lines, como llegaron
   procesado/predicciones/dt=2026-11-06/...    Parquet, una fila por predicción
   curado/agregados_diarios/dt=2026-11-06/...  conteos por categoría
@@ -356,10 +395,10 @@ Si todo el log de un año estuviera en un solo prefijo, preguntar «¿cuántas f
 
 `logs/predicciones/dt=2026-11-06/part-0000.parquet`
 
-El pedazo `dt=2026-11-06` es una convención (`columna=valor`) que entienden Spark, Athena, DuckDB y los warehouses. `dt` es solo el nombre de la columna, por *date*; en la lección de formatos la viste como `fecha=2026-11-05/`, y funciona igual. Cuando la consulta dice «solo el 6 de noviembre», el motor lista ese prefijo y no abre nada más. Se llama *partition pruning*: podar las particiones que no sirven.
+El pedazo `dt=2026-11-06` es una convención (`columna=valor`) que entienden Spark, Athena, DuckDB y los warehouses. `dt` es solo el nombre de la columna, por *date*; en la lección de formatos la viste con el mismo nombre, en las carpetas de los logs. Cuando la consulta dice «solo el 6 de noviembre», el motor lista ese prefijo y no abre nada más. Se llama *partition pruning*: podar las particiones que no sirven.
 
 :::figura almacenamiento-particiones
-Un mes de log de C01, una partición por día. La consulta de un día abre 4 archivos; la de una semana, 28; sin particiones, habría que abrir los 120 del mes.
+Un mes de log del clasificador de Alba, una partición por día. La consulta de un día abre 4 archivos; la de una semana, 28; sin particiones, habría que abrir los 120 del mes.
 :::
 
 El lake de juguete de abajo tiene un mes de log: 4 archivos Parquet por día, de ≈ 125 MB cada uno. Leer «un día» es listar su prefijo.
@@ -398,7 +437,7 @@ Leer un día abre 4 de los 120 archivos: un trigésimo del mes. La última líne
 
 Particionar también hace que **cada corrida procese una partición**. El job de cada noche escribe solo `dt=2026-11-06/`. Si tenía un bug, se reescribe esa partición y nada más. Lo contrario, una tabla única que se reescribe entera cada noche, obliga a reprocesar todo para arreglar un día.
 
-Se puede particionar por más de una columna, una dentro de otra. El log de predicciones de la Ronda (M12) va por día y por versión del modelo, `dt=2026-11-06/model_version=v13/`, para que el job que compara la versión nueva con la vieja lea solo las dos que le tocan. La columna que va primero es la que más se filtra.
+Se puede particionar por más de una columna, una dentro de otra. El log de predicciones de Alba va por día y por versión del modelo, `dt=2026-11-06/model_version=resnet50-2026-10-01/`, para que el job que compara la versión nueva con la vieja lea solo las dos que le tocan. La columna que va primero es la que más se filtra.
 
 Tres reglas para que funcione:
 
@@ -422,13 +461,13 @@ Un [[data-warehouse|data warehouse]] es una base de datos hecha para OLAP: guard
 
 ```sql
 SELECT categoria, COUNT(*) AS fotos, AVG(CAST(aceptada AS INT64)) AS tasa_aceptacion
-FROM c01.predicciones
+FROM alba.predicciones
 WHERE dt BETWEEN '2026-10-01' AND '2026-10-31'
 GROUP BY categoria
 ORDER BY fotos DESC;
 ```
 
-Se lee casi en español: de la tabla `c01.predicciones`, toma las filas de octubre (`WHERE`), júntalas por categoría (`GROUP BY`) y, para cada grupo, cuenta las fotos y saca el promedio de `aceptada`, que vale 1 si la persona aceptó la categoría sugerida y 0 si no: ese promedio es la tasa de aceptación. Toca millones de filas, pero solo tres columnas: `categoria`, `aceptada` y `dt`.
+Se lee casi en español: de la tabla `alba.predicciones`, toma las filas de octubre (`WHERE`), júntalas por categoría (`GROUP BY`) y, para cada grupo, cuenta las fotos y saca el promedio de `aceptada`, que vale 1 si la persona aceptó la categoría sugerida y 0 si no: ese promedio es la tasa de aceptación. Toca millones de filas, pero solo tres columnas: `categoria`, `aceptada` y `dt`.
 
 BigQuery, en su modo por consulta, cobra por los bytes que lee: US$6.25 por TiB en su precio de lista de 2026, con el primer TiB de cada mes gratis. Ahí las particiones y las columnas se vuelven dinero. Si la consulta leyera el log crudo, como archivos JSON sin particiones, pagaría el año entero: ≈ 1.1 TB, ≈ US$6 por consulta. En Parquet, las tres columnas que usa esa consulta en las particiones de un mes son unos pocos GB: centavos.
 
@@ -454,19 +493,19 @@ Con eso se puede:
 
 Un [[snapshot]] es una foto fija de los datos en un momento: lo que había, y que ya no cambia aunque la tabla siga creciendo. En Iceberg, cada escritura crea uno. Para ML es la pieza que hace **repetible** un entrenamiento: el modelo de octubre guarda con qué snapshot se entrenó, y dentro de seis meses alguien puede volver a leer exactamente esas filas.
 
-C01 lo hace sin copiar fotos. Su snapshot es un **manifest**: un archivo Parquet que lista la llave de cada foto, su etiqueta y una huella de su contenido (un [[hash-criptografico|hash]] SHA-256, que cambia si cambia un solo byte). Vive en un prefijo que no se reescribe, como `datasets/ds-2026-09-01/`, y el modelo guarda la huella del propio manifest. Un manifest pesa megabytes, así que puedes tener uno por mes durante años.
+Alba lo hace sin copiar fotos. Su snapshot es un **manifest**: un archivo Parquet que lista la llave de cada foto, su etiqueta y una huella de su contenido (un [[hash-criptografico|hash]] SHA-256, que cambia si cambia un solo byte). Vive en un prefijo que no se reescribe, como `datasets/ds-2026-09-01/`, y el modelo guarda la huella del propio manifest. Un manifest pesa megabytes, así que puedes tener uno por mes durante años.
 
 :::profundo El time travel no es para siempre
 En Delta Lake, por omisión, el historial dura 30 días y la limpieza (`VACUUM`) puede borrar los archivos viejos pasados 7; en Iceberg, la limpieza de snapshots (`expire_snapshots`) borra por omisión los de más de 5 días. Ninguna de las dos borra sola: corren cuando alguien las programa, y se programan para no pagar archivos viejos para siempre. Un snapshot que tiene que durar (el de un modelo en producción) se marca aparte, con su propia retención.
 :::
 
-Llevar la cuenta de qué snapshot, qué código y qué contenedor produjeron cada modelo es el [[versionado-datos|versionado de datos]] y el [[linaje]]: los verás a fondo en la estación 2 del Dojo, con DVC y lakeFS.
+Llevar la cuenta de qué snapshot, qué código y qué contenedor produjeron cada modelo es el [[versionado-datos|versionado de datos]] y el [[linaje]]: los verás a fondo en la lección «Versionado y linaje», con DVC y lakeFS.
 
 ## Feature store y backfill {Feature stores and backfills} [extra]
 
 ### El mismo número en dos lugares
 
-Un modelo de fraude, como el de C09, usa [[feature|features]] como «cuántas compras hizo esta tarjeta en las últimas 24 horas». Ese número se necesita en dos momentos muy distintos:
+Un modelo de detección de fraude en tiempo real usa [[feature|features]] como «cuántas compras hizo esta tarjeta en las últimas 24 horas». Ese número se necesita en dos momentos muy distintos:
 
 - **Para entrenar:** para cada transacción del pasado, el valor que tenía **en ese momento**. Son millones de filas, y se leen de una vez, en horas.
 - **Para servir:** para la transacción de ahora, el valor de **ahora**, en un par de milisegundos.
@@ -496,7 +535,7 @@ El offline store guarda la feature «compras en 24 h» de la tarjeta 77 cada vez
 
 El online store solo guarda el presente, así que cada llave lleva un tiempo de vida ([[ttl|TTL]]): si una tarjeta no se usa en meses, su fila se borra sola y la memoria no crece sin fin.
 
-¿C01 necesita un feature store? La Ronda dice que no: en visión pura, una foto entra y una categoría sale, y la feature es la imagen misma. Sí lo necesitan C08 (recomendación) y C09 (fraude), donde el modelo vive de la historia de cada usuario.
+¿El clasificador de Alba necesita un feature store? No: en visión pura, una foto entra y una categoría sale, y la feature es la imagen misma. Sí lo necesitan un sistema de recomendación o uno de detección de fraude, donde el modelo vive de la historia de cada usuario.
 
 ### Backfill: recalcular el pasado
 
@@ -504,17 +543,19 @@ Inventas una feature nueva: «fotos que subió este vendedor en los últimos 7 d
 
 Gracias a las particiones, un backfill es la misma corrida diaria, repetida una vez por cada día viejo.
 
+Con \(d\) particiones (una por día), cada una de \(t_p\) minutos, y \(j\) corridas a la vez, el backfill tarda \(t = d × t_p ÷ j\).
+
 :::cuenta El backfill de una feature nueva, 90 días
-Particiones que hay que procesar | 90 días × 1 | 90 corridas
-Tiempo por partición // supuesto: lo que tarda la corrida diaria | — | ≈ 20 min
-En serie, una tras otra | 90 × 20 min | 1,800 min = 30 h
-Con 10 corridas a la vez | 30 h ÷ 10 | ≈ 3 h
+Particiones que hay que procesar, \(d\) // una por día | 90 días × 1 | 90 corridas
+Tiempo por partición, \(t_p\) // supuesto: lo que tarda la corrida diaria | — | ≈ 20 min
+En serie, una tras otra // \(j\) = 1 | \(t = d × t_p\) = 90 × 20 min | 1,800 min = 30 h
+Con \(j\) = 10 corridas a la vez | \(t = d × t_p ÷ j\) = 30 h ÷ 10 | ≈ 3 h
 = Como cada corrida escribe solo su partición y escribirla dos veces da lo mismo ([[idempotencia]]), si una se cae a la mitad se repite esa y ya.
 :::
 
 Dos cuidados. El backfill corre **el mismo código** que la corrida diaria, no un script aparte escrito con prisa: si no, la historia y el presente vuelven a ser números distintos. Y escribe en el offline store, no en el online: a las requests de hoy no les sirve el valor de hace 90 días.
 
-El backfill de C01 es otro: clasificar con el modelo las ≈ 200 millones de fotos que ya había en el catálogo. La Ronda lo parte en ≈ 2,000 pedazos de 100,000 fotos, cada uno con su archivo de salida. Al reanudar, se saltan los pedazos que ya tienen salida. Leer las 200 millones de fotos son 200 millones de `GET`: 200 M × US$0.0004 ÷ 1,000 = **US$80**.
+El backfill de Alba es otro: clasificar con el modelo las ≈ 200 millones de fotos que ya había en el catálogo. El equipo de Alba lo parte en ≈ 2,000 pedazos de 100,000 fotos, cada uno con su archivo de salida. Al reanudar, se saltan los pedazos que ya tienen salida. Leer las 200 millones de fotos son \(R\) = 200 millones de `GET`, a \(c_R\) = US$0.0004 por cada 1,000: \(R ÷ 1,000 × c_R\) = 200 M ÷ 1,000 × 0.0004 = **US$80**.
 
 ## Errores comunes {Common mistakes}
 
@@ -526,7 +567,7 @@ Abrir un objeto para agregarle una línea, editarlo a la mitad o «renombrar una
 
 ### 2. Millones de objetos chiquitos
 
-Un objeto por predicción, por evento o por fila. Guardarlos es barato; subirlos, listarlos, moverlos de clase y leerlos, no. El log de C01 así cuesta ≈ US$1,650 al mes en vez de ≈ US$6.
+Un objeto por predicción, por evento o por fila. Guardarlos es barato; subirlos, listarlos, moverlos de clase y leerlos, no. El log del clasificador de Alba así cuesta ≈ US$1,650 al mes en vez de ≈ US$6.
 
 **Cómo evitarlo:** juntar en archivos de ≈ 100 MB a 1 GB (Parquet, o pedazos de muchas fotos para entrenar). Y antes de una regla de ciclo de vida, contar los objetos, no solo los GB.
 
@@ -556,44 +597,44 @@ El bucket borra a los 90 días, pero las fotos siguen en snapshots, en copias y 
 
 ## En la vida real {In real life} [extra]
 
-### C01: dónde va cada cosa
+### Alba: dónde va cada cosa
 
-Ya puedes responder la pregunta de la lección. Las cuentas son de la Ronda, con precios de S3 Standard.
+Ya puedes responder la pregunta de la lección. Las cuentas son del equipo de Alba, con precios de S3 Standard.
 
 | Qué | Dónde | Cuánto | Retención | Al mes |
 |---|---|---|---|---|
-| Fotos de las publicaciones | Bucket del producto, no de C01 | 2 TB al día | La del producto | La paga el marketplace |
+| Fotos de las publicaciones | Bucket del producto, no del clasificador | 2 TB al día | La del producto | La paga el marketplace |
 | Log de cada predicción | Lake, Parquet por `dt=` | 3 GB al día crudo | 90 días; agregados para siempre | ≈ US$6 |
 | Fotos que van a etiquetar | Bucket restringido, sin EXIF | ≈ 5,000 al mes, ≈ 1 GB | 90 días | Centavos |
 | Golden set | Bucket restringido | 50,000 fotos, ≈ 10 GB | Sin caducar, borrado por huella | ≈ US$0.23 |
 | Snapshots de entrenamiento | Prefijos fijos, manifest en Parquet | Megabytes cada uno | Sin caducar, borrado por huella | Centavos |
 | Pesos de cada versión | Bucket de artefactos, junto al registro de modelos | ≈ 98 MB el ONNX | Las versiones que puedan volver | Centavos |
 
-Todo lo propio de C01 cabe en menos de US$10 al mes. La Ronda lo resume en una frase: el almacenamiento es barato; lo caro es la privacidad de lo que guardas.
+Todo lo propio del clasificador de Alba cabe en menos de US$10 al mes. Se resume en una frase: el almacenamiento es barato; lo caro es la privacidad de lo que guardas.
 
-Lo que sí se nota son las requests y la red. En el diseño base, el gateway recibe los bytes de cada foto. M13 propone que la request a C01 lleve la llave de la foto y no sus bytes, si el `GET` extra cabe en el p99. Con esa variante, el gateway lee cada foto de S3 con un `GET`: 304 millones al mes, ≈ US$122. Y M13 advierte que si esos `GET` salieran por el [[nat|NAT]] (la puerta que deja a las máquinas privadas llegar a internet, y que cobra por GB), los ≈ 61 TB al mes costarían ≈ US$2.7 mil más; por un camino privado hacia S3, nada. Lo verás en la lección de redes en la nube.
+Lo que sí se nota son las requests y la red. En el diseño base, el gateway recibe los bytes de cada foto. Una variante para ahorrar es que la request al clasificador lleve la llave de la foto y no sus bytes, si el `GET` extra cabe en su meta de p99 ≤ 200 ms (el p99 es el tiempo en que ya respondió el 99 % de las requests). Con esa variante, el gateway lee cada foto de S3 con un `GET`: 10 M × 30.4 días = 304 millones al mes, y 304 M ÷ 1,000 × 0.0004 ≈ US$122. Pero ojo: si esos `GET` salieran por el [[nat|NAT]] (la puerta que deja a las máquinas privadas llegar a internet, y que cobra por GB, ≈ US$0.045 en us-east-1), los 10 M × 200 KB × 30.4 ≈ 61 TB al mes costarían ≈ 61,000 GB × 0.045 ≈ US$2.7 mil más; por un camino privado hacia S3, nada. Lo verás en la lección «Redes en la nube: VPC, subredes y egress».
 
-Los pesos, además, van horneados (copiados adentro) en la imagen del [[contenedor]] del servicio, y la estación 7 del Dojo lo explica: el nombre de versión de la imagen (su *tag*) es la versión del modelo.
+Los pesos, además, van horneados (copiados adentro) en la imagen del [[contenedor]] del servicio, y el nombre de versión de la imagen (su *tag*) es la versión del modelo.
 
-### C02: cámaras que suben clips
+### Video con cámaras: clips que suben solos
 
-Las cajas de C02, en cada centro de distribución, suben fotos y clips de cada evento con una URL prefirmada de 15 minutos, directo a S3: los megabytes de video no cruzan la API. Los clips se guardan 30 días, porque traen personas. Si cada sitio mandara el video continuo de sus 40 cámaras serían ≈ 1.7 TB al día; solo con los clips de eventos, de ≈ 5 MB, son ≈ 10 GB.
+En un sistema de video en tiempo real con varias cámaras, como el de unos centros de distribución, las cajas de cada sitio (la computadora conectada a sus cámaras) suben fotos y clips de cada evento con una URL prefirmada de 15 minutos, directo a S3: los megabytes de video no cruzan la API. Los clips se guardan 30 días, porque traen personas. Si cada sitio mandara el video continuo de sus 40 cámaras serían ≈ 1.7 TB al día; solo con los clips de eventos, de ≈ 5 MB, son ≈ 10 GB.
 
-### C07 y C08: copias para reconstruir y lagos para aprender
+### Búsqueda y recomendación: copias para reconstruir y lagos para aprender
 
-C07, la búsqueda por foto, guarda en S3 una copia de cada vector que calcula, en Parquet por versión del modelo: ≈ 205 GB por versión, ≈ US$5 al mes. Con ella reconstruye el índice sin volver a usar la GPU. Los vectores que lee en cada búsqueda, en cambio, viven en un disco gp3 de cada máquina.
+Un servicio de búsqueda por foto, con embeddings, guarda en S3 una copia de cada vector que calcula, en Parquet por versión del modelo: ≈ 205 GB por versión, ≈ US$5 al mes. Con ella reconstruye el índice sin volver a usar la GPU. Los vectores que lee en cada búsqueda, en cambio, viven en un disco gp3 de cada máquina.
 
-C08, la recomendación, guarda en su lake 90 días del log de lo que mostró, de los eventos de la app y de la historia de sus features (su offline store), particionado por día y hora. Solo el log, en Parquet, son ≈ 18 a 36 TB: ≈ US$0.4 a 0.8 mil al mes en Standard. Con los eventos y la historia de features, la Ronda calcula ≈ US$0.5 a 1 mil al mes.
+Un sistema de recomendación guarda en su lake 90 días del log de lo que mostró, de los eventos de la app y de la historia de sus features (su offline store), particionado por día y hora. Solo el log, en Parquet, son ≈ 18 a 36 TB: ≈ US$0.4 a 0.8 mil al mes en Standard. Con los eventos y la historia de features, con supuestos típicos, son ≈ US$0.5 a 1 mil al mes.
 
-### C09: el lake que espera 90 días
+### Fraude: el lake que espera 90 días
 
-En el fraude, la etiqueta llega tarde. Cada transacción y la decisión del modelo entran al lake el mismo día, pero solo se sabe si era fraude cuando el dueño de la tarjeta reclama un cargo (un contracargo), y eso puede tardar semanas. La Ronda usa una regla: si en 90 días no apareció un contracargo, la fila ya es un ejemplo negativo «maduro». Aquí la retención del lake no la pone solo el costo: sin 90 días de historia no hay etiquetas.
+En la detección de fraude en tiempo real, la etiqueta llega tarde. Cada transacción y la decisión del modelo entran al lake el mismo día, pero solo se sabe si era fraude cuando el dueño de la tarjeta reclama un cargo (un contracargo), y eso puede tardar semanas. Una regla común: si en 90 días no apareció un contracargo, la fila ya es un ejemplo negativo «maduro». Aquí la retención del lake no la pone solo el costo: sin 90 días de historia no hay etiquetas.
 
-El cálculo en vivo de C09 guarda su estado, ≈ 24 GB de contadores (80 millones de tarjetas × ≈ 300 bytes), en el disco local de sus máquinas, y cada tanto deja en S3 un checkpoint: una copia de ese estado de la que puede volver a arrancar (el programa puede subir solo lo que cambió desde el checkpoint anterior). Es el mismo reparto de la sección extra de bloques: el disco para trabajar rápido, el object storage para no perder nada si la máquina muere.
+El cálculo en vivo de ese sistema de fraude guarda su estado, ≈ 24 GB de contadores (80 millones de tarjetas × ≈ 300 bytes), en el disco local de sus máquinas, y cada tanto deja en S3 un checkpoint: una copia de ese estado de la que puede volver a arrancar (el programa puede subir solo lo que cambió desde el checkpoint anterior). Es el mismo reparto de la sección extra de bloques: el disco para trabajar rápido, el object storage para no perder nada si la máquina muere.
 
-### C06: el mismo log en dos servicios
+### Moderación: el mismo log en dos servicios
 
-M13 compara dónde mandar ≈ 5.5 TB al mes de logs de C06, el caso de moderación de contenido. En CloudWatch Logs, el servicio de logs de AWS, cuesta US$0.50 por GB al recibirlos: 5,472 GB × 0.50 ≈ **US$2,700** al mes. En S3, 5,472 GB × 0.023 ≈ **US$126**. Los mismos bytes, veinte veces de diferencia. Por eso C01 manda a CloudWatch solo los logs del servicio (errores, arranques), y los de cada predicción, a S3.
+Un sistema de moderación de contenido genera, con supuestos típicos, ≈ 180 GB de logs al día: 180 × 30.4 = 5,472 GB ≈ 5.5 TB al mes. ¿Dónde mandarlos? En CloudWatch Logs, el servicio de logs de AWS, cuesta US$0.50 por GB al recibirlos: 5,472 GB × 0.50 ≈ **US$2,700** al mes. En S3, 5,472 GB × 0.023 ≈ **US$126**. Los mismos bytes, veinte veces de diferencia. Por eso el clasificador de Alba manda a CloudWatch solo los logs del servicio (errores, arranques), y los de cada predicción, a S3.
 
 ### Fuera de ML: el archivo que nadie lee
 
@@ -608,58 +649,56 @@ Resuélvelos con lápiz antes de abrir la solución. Los de costo se pueden comp
 - Bucket: `ml-datos`. Llave: `logs/dt=2026-11-06/part-0003.parquet`, todo lo que sigue.
 - El LIST devuelve las llaves de los días 1 al 9 de noviembre de 2026: un prefijo no tiene que terminar en «/».
 - Renombrar no existe: 50,000 `COPY` y 50,000 `DELETE`, más 50 LIST de 1,000 llaves. Son ≈ **100,050 requests**.
-- Las COPY y los LIST se cobran como PUT: 50,050 × 0.005 ÷ 1,000 ≈ **US$0.25**. Los DELETE son gratis. Barato, pero no instantáneo, y quien lea a la mitad ve una parte en cada lado.
+- Costo: \(R ÷ 1,000 × c_R\). Las COPY y los LIST se cobran como PUT, \(c_R\) = US$0.005: \(R\) = 50,000 + 50 = 50,050, y 50,050 ÷ 1,000 × 0.005 ≈ **US$0.25**. Los DELETE son gratis. Barato, pero no instantáneo, y quien lea a la mitad ve una parte en cada lado.
 ? [facil] Un equipo guarda mil millones de objetos en S3, con once nueves de durabilidad. ¿Cuántos esperaría perder al año? Y si el servicio tiene 99.99 % de disponibilidad, ¿cuántos minutos al año puede no contestar? ¿Se pierde algo en esos minutos?
-- Durabilidad: 10⁹ × 10⁻¹¹ = **0.01 objetos al año**: uno cada 100 años.
-- Disponibilidad: 0.01 % de 525,600 minutos ≈ **53 minutos al año**.
+- Durabilidad: perdidos al año = \(N × P\) = 10⁹ × 10⁻¹¹ = **0.01 objetos al año**: uno cada \(1 ÷ (N × P)\) = 100 años.
+- Disponibilidad: minutos sin contestar = (1 − 0.9999) × minutos del año = 0.0001 × 525,600 ≈ **53 minutos al año** (un año son 365 × 24 × 60 = 525,600 minutos).
 - En esos minutos no se pierde nada: las requests fallan, se reintenta y los objetos siguen ahí. Son dos medidas distintas.
 ? [facil] Un millón de registros de 1 KB: ¿cuánto cuesta guardarlos un mes y cuánto subirlos, si cada uno es un objeto? ¿Y si los juntas en un solo archivo de 1 GB?
-- Guardar: 1 GB × 0.023 = **US$0.023** en los dos casos.
-- Subir un millón de objetos: 10⁶ × 0.005 ÷ 1,000 = **US$5**, 217 veces lo que cuesta guardarlos un mes.
+- Con la fórmula de S3, \(costo = G × c_G + R ÷ 1,000 × c_R\). Guardar: \(G\) = 10⁶ × 1 KB = 1 GB, y \(G × c_G\) = 1 × 0.023 = **US$0.023** en los dos casos.
+- Subir un millón de objetos: \(R\) = 10⁶ PUT, y \(R ÷ 1,000 × c_R\) = 10⁶ ÷ 1,000 × 0.005 = **US$5**: 5 ÷ 0.023 ≈ 217 veces lo que cuesta guardarlos un mes.
 - Un solo archivo: un PUT (en la práctica, unas pocas partes), ≈ **US$0.000005**.
-? [facil] La API de C02 firma una URL de `PUT` para la llave `sitio-07/clips/e-31.mp4`, válida 15 minutos. ¿Qué puede hacer quien la tenga? ¿Puede leer otros clips, o subir uno a otra llave? ¿Y a los 20 minutos?
+? [facil] La API de un sistema de video con cámaras firma una URL de `PUT` para la llave `sitio-07/clips/e-31.mp4`, válida 15 minutos. ¿Qué puede hacer quien la tenga? ¿Puede leer otros clips, o subir uno a otra llave? ¿Y a los 20 minutos?
 - Puede subir un archivo a **esa llave**, una o varias veces, durante 15 minutos (900 segundos). Si sube dos veces, el segundo reemplaza al primero.
 - No puede leer nada (la firma es para `PUT`), ni escribir en otra llave: cambiar la llave rompe la firma y S3 responde 403.
 - A los 20 minutos ya venció: 403. La caja (la computadora del sitio) pide una URL nueva.
 - Ojo: cualquiera que la copie puede hacer lo mismo durante esos 15 minutos. Por eso no se escribe en los logs.
 ? [medio] Guardas 1 TB de datos temporales que vas a borrar a los 10 días. ¿Sale más barato en Standard o en Standard-IA? ¿Y si los guardaras 60 días?
-- Standard, 10 días: 1,000 GB × 0.023 × 10 ÷ 30.4 ≈ **US$7.57**.
-- Standard-IA cobra mínimo 30 días: 1,000 × 0.0125 = **US$12.50**. Sale más caro, aunque su precio por GB es casi la mitad.
-- A 60 días: Standard, 1,000 × 0.023 × 2 ≈ US$46; IA, 1,000 × 0.0125 × 2 = **US$25**, si no se lee. Leerlo todo una vez sumaría 1,000 × 0.01 = US$10, y todavía gana IA.
-? [medio] El log de C01 en Parquet pesa ≈ 0.5 GB al día. Un analista corre cada mañana una consulta sobre los últimos 7 días. ¿Cuántos GB lee con particiones por día? ¿Y si la tabla no tuviera particiones y guardara un año? ¿Cuántas veces más?
-- Con particiones: 7 × 0.5 = **3.5 GB**.
-- Sin particiones, el motor no sabe dónde está cada fecha y abre todo el año: 365 × 0.5 = **182.5 GB**.
+- Guardar \(G\) GB durante unos días cuesta \(G × c_G × días ÷ 30.4\), porque \(c_G\) es por mes. Aquí \(G\) = 1,000 GB.
+- Standard, 10 días: 1,000 × 0.023 × 10 ÷ 30.4 ≈ **US$7.57**.
+- Standard-IA cobra mínimo 30 días, aunque lo borres a los 10: 1,000 × 0.0125 × 30 ÷ 30.4 ≈ **US$12.34**. Sale más caro, aunque su precio por GB es casi la mitad.
+- A 60 días: Standard, 1,000 × 0.023 × 60 ÷ 30.4 ≈ US$45.39; IA, 1,000 × 0.0125 × 60 ÷ 30.4 ≈ **US$24.67**, si no se lee. Leerlo todo una vez sumaría 1,000 GB × US$0.01 = US$10, y todavía gana IA.
+? [medio] El log del clasificador de Alba en Parquet pesa ≈ 0.5 GB al día. Un analista corre cada mañana una consulta sobre los últimos 7 días. ¿Cuántos GB lee con particiones por día? ¿Y si la tabla no tuviera particiones y guardara un año? ¿Cuántas veces más?
+- Lo que se lee es \(d\) × 0.5 GB, con \(d\) los días (las particiones) que abre la consulta.
+- Con particiones, \(d\) = 7: 7 × 0.5 = **3.5 GB**.
+- Sin particiones, el motor no sabe dónde está cada fecha y abre todo el año, \(d\) = 365: 365 × 0.5 = **182.5 GB**.
 - 182.5 ÷ 3.5 ≈ **52 veces más**, cada mañana. En BigQuery, que cobra por bytes leídos, es ≈ 52 veces el precio.
-? [medio] C07 guarda una copia de sus vectores en S3: ≈ 205 GB por versión del modelo. Quiere conservar las últimas 6 versiones. ¿Cuánto cuesta al mes en Standard y en Glacier Instant Retrieval? ¿Cuánto cuesta leer una versión completa desde Glacier IR para reconstruir un índice?
-- 6 × 205 = 1,230 GB.
-- Standard: 1,230 × 0.023 ≈ **US$28** al mes.
-- Glacier IR: 1,230 × 0.004 ≈ **US$4.92** al mes.
-- Leer una versión desde Glacier IR: 205 × 0.03 ≈ **US$6.15**. Si las versiones viejas se leen menos de una vez al mes, conviene: deja la actual en Standard y las otras 5 en Glacier IR.
-? [reto] Diseña el almacenamiento del log de C01 para un año, con la Ronda: filas crudas 90 días, agregados para siempre. Compara: (a) un objeto por predicción, en Standard; (b) un archivo por minuto. Para cada uno: GB guardados, costo de guardar, de los PUT y de leerlo una vez al mes. ¿Qué regla de ciclo de vida escribes?
-- Guardado en los dos: 3 GB × 90 = 270 GB, ≈ **US$6.2** al mes.
-- (a) PUT: 10 M × 30.4 × 0.005 ÷ 1,000 ≈ **US$1,520** al mes. Leer un mes: 304 M × 0.0004 ÷ 1,000 ≈ **US$122**. Total ≈ US$1,650.
-- (b) PUT: 1,440 × 30.4 = 43,776 al mes, ≈ **US$0.22**. Leer un mes, 43,776 GET: ≈ US$0.02. Total ≈ US$6.4.
+? [medio] Un servicio de búsqueda por foto guarda una copia de sus vectores en S3: ≈ 205 GB por versión del modelo. Quiere conservar las últimas 6 versiones. ¿Cuánto cuesta al mes en Standard y en Glacier Instant Retrieval? ¿Cuánto cuesta leer una versión completa desde Glacier IR para reconstruir un índice?
+- Guardar cuesta \(G × c_G\); leer desde Glacier IR, los GB leídos × US$0.03.
+- \(G\) = 6 × 205 = 1,230 GB.
+- Standard, \(c_G\) = 0.023: 1,230 × 0.023 ≈ **US$28** al mes.
+- Glacier IR, \(c_G\) = 0.004: 1,230 × 0.004 ≈ **US$4.92** al mes.
+- Leer una versión desde Glacier IR: 205 GB × 0.03 ≈ **US$6.15**. Si las versiones viejas se leen menos de una vez al mes, conviene: deja la actual en Standard y las otras 5 en Glacier IR.
+? [reto] Diseña el almacenamiento del log del clasificador de Alba para un año, con sus reglas: filas crudas 90 días, agregados para siempre. El log son 10 millones de predicciones al día, de ≈ 300 bytes. Compara: (a) un objeto por predicción, en Standard; (b) un archivo por minuto. Para cada uno: GB guardados, costo de guardar, de los PUT y de leerlo una vez al mes. ¿Qué regla de ciclo de vida escribes?
+- Las ecuaciones: \(G\) = 3 GB al día × 90 días; \(R = r ÷ k × 30.4\) PUT al mes, y otros tantos GET si se lee una vez; cada parte cuesta \(G × c_G\) o \(R ÷ 1,000 × c_R\).
+- Guardado en los dos: \(G\) = 3 GB × 90 = 270 GB, y 270 × 0.023 ≈ **US$6.2** al mes.
+- (a) \(k\) = 1: \(R\) = 10 M × 30.4 = 304 M. PUT: 304 M ÷ 1,000 × 0.005 ≈ **US$1,520** al mes. Leer un mes: 304 M ÷ 1,000 × 0.0004 ≈ **US$122**. Total ≈ US$1,650.
+- (b) \(k\) ≈ 6,944, un archivo por minuto: \(R\) = 1,440 × 30.4 = 43,776 al mes. PUT: 43,776 ÷ 1,000 × 0.005 ≈ **US$0.22**. Leer un mes, 43,776 GET: 43,776 ÷ 1,000 × 0.0004 ≈ US$0.02. Total ≈ US$6.4.
 - La regla: borrar a los 90 días el prefijo de las filas crudas (`Expiration`, 90 días) y ninguna regla sobre el de los agregados. No vale la pena mover el log a una clase fría: pesa poco y se lee para cada reentrenamiento.
-- En Parquet serían ≈ 0.3–0.6 GB al día: el guardado bajaría a ≈ 27–54 GB, ≈ US$1 al mes.
-? [reto] El backfill del catálogo de C01: 200 millones de fotos, partidas en 2,000 pedazos iguales. Cada GPU T4 clasifica ≈ 1,000 fotos por segundo, y hay 4. (a) ¿Cuántas fotos lleva cada pedazo? (b) ¿Cuánto tarda todo? (c) ¿Cuánto cuestan los GET? (d) El pedazo 1,234 se cae a la mitad: ¿qué se repite, y qué tiene que cumplir cada pedazo para que repetirlo no haga daño?
+- En Parquet serían ≈ 0.3–0.6 GB al día: \(G\) bajaría a 90 × 0.3 = 27 a 90 × 0.6 = 54 GB, ≈ US$1 al mes.
+? [reto] El backfill del catálogo de Alba: 200 millones de fotos, partidas en 2,000 pedazos iguales. Cada GPU T4 clasifica ≈ 1,000 fotos por segundo, y hay 4. (a) ¿Cuántas fotos lleva cada pedazo? (b) ¿Cuánto tarda todo? (c) ¿Cuánto cuestan los GET? (d) El pedazo 1,234 se cae a la mitad: ¿qué se repite, y qué tiene que cumplir cada pedazo para que repetirlo no haga daño?
+- Las ecuaciones, con \(C\) = 200 M fotos del catálogo, \(g\) = 4 GPUs y \(v\) = 1,000 fotos por segundo cada una: fotos por pedazo = \(C ÷ 2,000\); tiempo \(t = C ÷ (g × v)\); GET: \(R ÷ 1,000 × c_R\), con \(R = C\).
 - (a) 200,000,000 ÷ 2,000 = **100,000 fotos** por pedazo.
-- (b) 200 M ÷ (4 × 1,000 por segundo) = 50,000 s ≈ **14 horas**.
-- (c) 200 M × 0.0004 ÷ 1,000 = **US$80**.
+- (b) \(t\) = 200 M ÷ (4 × 1,000 por segundo) = 50,000 s; 50,000 ÷ 3,600 ≈ **14 horas**.
+- (c) 200 M ÷ 1,000 × 0.0004 = **US$80**.
 - (d) Solo el pedazo 1,234: el job ve que no tiene archivo de salida y lo vuelve a correr. Para que eso sea seguro, cada pedazo escribe su salida en una llave fija, como `.../shard-01234.parquet`, y solo al terminar: si se repite, reescribe el mismo objeto con lo mismo. Es idempotente.
 :::
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M09 · Datos** es esta lección hecha diseño: el data lake en Parquet particionado por `dt=`, cada corrida sobre una partición, los backfills de 180 días, los snapshots con manifest y prefijos que no se pisan, Delta e Iceberg con su time travel, y el feature store con sus dos almacenes.
-- **M13 · Nube** recorre los bytes para encontrar los costos ocultos: S3 por GB y por request, objetos chicos contra Parquet, las equivalencias entre AWS, Google y Azure (S3, Cloud Storage, Blob; EBS, Persistent Disk; Redshift, BigQuery) y por qué los pesos se leen de S3 por un camino privado y no por internet.
-- **M12 · Monitoreo** guarda el log de predicciones con retención escalonada (filas 90 días, agregados para siempre) y advierte la trampa de loguear la imagen «por si acaso».
-- **M02 · Patrones** usa la URL prefirmada en los trabajos asíncronos y los pedazos con salida fija en el batch.
-
-**En el Dojo:** la estación 1, «Datos y etiquetas», ya copia de S3 las fotos que hay que etiquetar, sin EXIF, a un bucket restringido. La estación 2, «Versionado y linaje», cuando abra, va a armar los snapshots con manifest y a versionarlos con DVC o lakeFS.
-
-**En Sensei:** la siguiente lección, «Colas y streams», cuenta cómo llegan los eventos al lake, y «Tiempo, hashes e identificadores» explica las huellas de los manifests, el *event time* y el point-in-time join. Más adelante, las lecciones de regiones y redes en la nube explican por qué cuesta sacar datos de una región.
+- La siguiente lección, «Colas y streams», cuenta cómo llegan los eventos al lake, y «Tiempo, hashes e identificadores» explica las huellas de los manifests, el *event time* y el point-in-time join.
+- Más adelante, «Regiones, zonas y disponibilidad» y «Redes en la nube: VPC, subredes y egress» explican por qué cuesta sacar datos de una región y por qué los pesos se leen de S3 por un camino privado y no por internet.
+- «Datos y etiquetas» copia, sin EXIF, a un bucket restringido las fotos de Alba que hay que etiquetar, y «Versionado y linaje» arma los snapshots con manifest y los versiona con DVC o lakeFS.
 
 ## Palabras que vas a oír {Words you will hear}
 

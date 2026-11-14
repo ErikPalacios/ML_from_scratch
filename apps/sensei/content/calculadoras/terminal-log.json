@@ -1,10 +1,10 @@
 {
  "titulo": "Buscar en un log grande: allá o en tu laptop",
- "intro": "Un log de [[json-lines|JSON Lines]] tiene una línea por request. Para encontrar una sola request, `grep` lee el archivo completo. Compara leerlo **en el servidor** contra **bajarlo** a tu laptop. Arranca con el día de C01.",
+ "intro": "Un log de [[json-lines|JSON Lines]] tiene una línea por request. Para encontrar una sola request, `grep` lee el archivo completo. Compara leerlo **en el servidor** contra **bajarlo** a tu laptop. Arranca con un día de Alba: ≈ 10 millones de requests, de ≈ 300 B cada una. La calculadora aplica \\(S = R × b × D\\), \\(t_{leer} = S ÷ v_{leer}\\) y \\(t_{bajar} = 8 × S ÷ v_{red}\\).",
  "entradas": [
   {
    "id": "d",
-   "label": "Requests al día, en millones (10 = C01)",
+   "label": "Requests al día, \\(R\\), en millones (10 = Alba)",
    "min": 0.1,
    "max": 100,
    "paso": 0.1,
@@ -12,7 +12,7 @@
   },
   {
    "id": "b",
-   "label": "Bytes por línea (≈ 300 en C01)",
+   "label": "Bytes por línea, \\(b\\) (≈ 300 en Alba)",
    "min": 50,
    "max": 2000,
    "paso": 10,
@@ -20,7 +20,7 @@
   },
   {
    "id": "n",
-   "label": "Días de log",
+   "label": "Días de log, \\(D\\)",
    "min": 1,
    "max": 90,
    "paso": 1,
@@ -28,7 +28,7 @@
   },
   {
    "id": "lect",
-   "label": "Lectura de disco y grep, en MB por segundo (una suposición)",
+   "label": "Velocidad de lectura del disco y grep, \\(v_{leer}\\), en MB por segundo (una suposición)",
    "min": 50,
    "max": 3000,
    "paso": 50,
@@ -36,7 +36,7 @@
   },
   {
    "id": "red",
-   "label": "Tu red, en Mb por segundo (megabits)",
+   "label": "Velocidad de tu red, \\(v_{red}\\), en Mb por segundo (megabits)",
    "min": 5,
    "max": 1000,
    "paso": 5,
@@ -59,36 +59,39 @@
  ],
  "salidas": [
   {
-   "label": "Tamaño del log",
+   "label": "Tamaño del log, \\(S\\)",
    "formula": "tam",
+   "nota": "\\(S = R × b × D\\)",
    "formato": "bytes"
   },
   {
    "label": "Líneas que grep tiene que leer",
    "formula": "d * 1e6 * n",
+   "nota": "\\(R × D\\): una por request",
    "formato": "int"
   },
   {
-   "label": "Leerlo en el servidor, en segundos",
+   "label": "Leerlo en el servidor, \\(t_{leer}\\), en segundos",
    "formula": "leer",
    "formato": "num",
    "decimales": 1,
-   "nota": "con ssh: corre el comando donde están los datos"
+   "nota": "\\(t_{leer} = S ÷ v_{leer}\\); con ssh: corre el comando donde están los datos"
   },
   {
-   "label": "Bajarlo a tu laptop, en minutos",
+   "label": "Bajarlo a tu laptop, \\(t_{bajar}\\), en minutos",
    "formula": "bajar / 60",
    "formato": "num",
    "decimales": 1,
-   "nota": "un byte son 8 bits"
+   "nota": "\\(t_{bajar} = 8 × S ÷ v_{red}\\), entre 60 para pasarlo a minutos; un byte son 8 bits"
   },
   {
    "label": "Cuántas veces más lento es bajarlo",
    "formula": "bajar / max(leer, 1e-9)",
    "formato": "x",
    "decimales": 0,
+   "nota": "\\(t_{bajar} ÷ t_{leer}\\)",
    "barra": false
   }
  ],
- "nota": "La red casi siempre es más lenta que el disco: por eso se lleva el comando a los datos. Con 30 días, el log de C01 pesa 90 GB, y bajarlo tarda horas aunque grep lo lea en 3 minutos."
+ "nota": "La red casi siempre es más lenta que el disco: por eso se lleva el comando a los datos. Con 30 días, el log de Alba pesa 90 GB, y bajarlo tarda horas aunque grep lo lea en 3 minutos."
 }

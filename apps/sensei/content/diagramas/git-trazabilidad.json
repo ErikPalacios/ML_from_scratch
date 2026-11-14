@@ -1,5 +1,5 @@
 {
-  "titulo": "La trazabilidad de C01: del modelo en producción a su origen",
+  "titulo": "La trazabilidad de Alba: del modelo en producción a su origen",
   "width": 78,
   "height": 46,
   "lanes": [
@@ -12,7 +12,7 @@
     { "id": "snap", "label": "Snapshot de datos", "sub": "ds-2026-09-01", "kind": "store", "x": 28, "y": 4, "w": 22, "h": 8,
       "note": "El [[snapshot]]: la lista fija de datos con que se entrenó, en object storage, en un prefijo que no se reescribe. Git no versiona datos: el snapshot sí." },
     { "id": "digest", "label": "Imagen de entrenamiento", "sub": "fijada por su digest", "kind": "store", "x": 55, "y": 4, "w": 22, "h": 8,
-      "note": "El entorno exacto donde corrió el entrenamiento: la imagen de contenedor, identificada por su [[digest-imagen|digest]], la huella SHA-256 de su contenido. Lo ves en la estación 7." },
+      "note": "El entorno exacto donde corrió el entrenamiento: la imagen de contenedor, identificada por su [[digest-imagen|digest]], la huella SHA-256 de su contenido. Lo ves en la lección «Empaquetado con Docker»." },
     { "id": "reg", "label": "Modelo registrado", "sub": "resnet50-2026-10-01", "kind": "store", "x": 28, "y": 16, "w": 22, "h": 8,
       "note": "En el [[registro-modelos|registro de modelos]], cada versión guarda **tres punteros**: commit, snapshot y digest. No copia nada: apunta. Con los tres, el modelo se puede explicar y volver a entrenar." },
     { "id": "dep", "label": "Repo de despliegue", "sub": "qué imagen y qué modelo", "kind": "store", "x": 1, "y": 33, "w": 22, "h": 8,

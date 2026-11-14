@@ -10,7 +10,7 @@ requisitos: formatos
 Una base de datos es un programa que guarda datos sin perderlos y deja que muchos programas los lean y los cambien a la vez. Tres herramientas la hacen rápida y segura: el índice encuentra una fila entre millones en unos pocos pasos, la transacción hace que un cambio de varias partes pase completo o no pase, y el caché guarda cerca una copia de lo que se pide mucho.
 :::
 
-Ana sube la foto de sus tenis, el modelo sugiere «tenis», ella acepta, pone el precio y toca «Publicar». En ese instante pasan tres cosas que esta lección abre una por una. La publicación tiene que quedar guardada aunque el servidor se apague un segundo después. Tiene que poder encontrarse entre cientos de millones, en milisegundos, cuando alguien abra su página. Y si Ana cambia el precio justo cuando otro programa también lo toca, nada debe quedar a medias.
+Ana sube la foto de sus tenis a Alba, la empresa que seguimos en todo el curso (un marketplace que recibe ≈ 2.5 millones de publicaciones al día); el modelo sugiere «tenis», ella acepta, pone el precio y toca «Publicar». En ese instante pasan tres cosas que esta lección abre una por una. La publicación tiene que quedar guardada aunque el servidor se apague un segundo después. Tiene que poder encontrarse entre cientos de millones, en milisegundos, cuando alguien abra su página. Y si Ana cambia el precio justo cuando otro programa también lo toca, nada debe quedar a medias.
 
 En la lección de formatos viste cómo se guardan datos en un [[archivo]]: un CSV, un JSON, un Parquet. Un archivo sirve para guardar un dataset y pasarlo de mano en mano. Para los datos vivos de una app, que cambian miles de veces por segundo y que leen muchos programas a la vez, hace falta otra cosa: una base de datos.
 
@@ -18,7 +18,7 @@ El recorrido: qué es una base de datos, cómo se le pregunta (SQL), cómo encue
 
 ## Qué es una base de datos {What a database is}
 
-Imagina que el backend de C01, el programa del marketplace que recibe las publicaciones, las guardara en un CSV, una línea por publicación. Funcionaría el primer día. Después, tres problemas:
+Alba, la empresa que seguimos en todo el curso, es un marketplace en línea: recibe ≈ 2.5 millones de publicaciones nuevas al día y, al publicar, le sugiere a quien vende la categoría de cada foto, entre 500 posibles. Ana es una de sus vendedoras. Imagina que el backend de Alba, el programa que recibe las publicaciones, las guardara en un CSV, una línea por publicación. Funcionaría el primer día. Después, tres problemas:
 
 - **Buscar es lento.** Para encontrar la publicación 4,242,424 hay que leer el archivo desde el principio. Con ≈ 2.5 M publicaciones nuevas al día, en un año son ≈ 900 millones de líneas.
 - **Cambiar es peligroso.** Para cambiar un precio hay que reescribir el archivo. Si el servidor se apaga a la mitad, queda un archivo roto.
@@ -34,7 +34,7 @@ La forma más común de ordenar los datos es la [[tabla]] (*table*): una cuadrí
 
 A diferencia de una hoja de cálculo, cada columna tiene un tipo fijo, declarado al crear la tabla: `precio` es un entero, `titulo` es texto. Esa lista de columnas con sus tipos es el [[esquema-datos|esquema]] de la tabla, como el de un Parquet. Si alguien quiere guardar «novecientos» en `precio`, PostgreSQL, una de las bases más usadas (la verás en la sección siguiente), lo rechaza. SQLite, la base que vamos a usar en el código, es más tolerante y lo guarda como texto, salvo que la tabla se declare `STRICT` (una opción que existe desde SQLite 3.37, de 2021).
 
-C01 tiene varias tablas: `usuarios`, `publicaciones` y `fotos`. Ojo con la última: guarda **dónde** está cada foto y de qué publicación es, no la foto. Los ≈ 200 KB de cada foto viven en el [[object-storage|object storage]], un almacén de archivos de la nube que es tema de la lección siguiente. Una base de datos guarda bien millones de filas chicas; los archivos grandes, no.
+Alba tiene varias tablas: `usuarios`, `publicaciones` y `fotos`. Ojo con la última: guarda **dónde** está cada foto y de qué publicación es, no la foto. Los ≈ 200 KB de cada foto viven en el [[object-storage|object storage]], un almacén de archivos de la nube que es tema de la lección siguiente. Una base de datos guarda bien millones de filas chicas; los archivos grandes, no.
 
 :::figura bases-de-datos-tabla
 La tabla `publicaciones`: cada fila es una publicación y cada columna, un dato con su tipo. La columna `id` es la llave primaria: distinta en cada fila y nunca vacía. Si llega otra fila con `id = 1`, la base la rechaza.
@@ -52,7 +52,7 @@ Otras tablas apuntan a una fila guardando su llave. La tabla `fotos` tiene una c
 
 Una [[base-relacional|base relacional]] (*relational database*) guarda todo en tablas que se relacionan por sus llaves. La idea la publicó Edgar F. Codd, de IBM, en 1970, y sigue siendo la forma más común de guardar los datos de una app. Las más conocidas:
 
-- **PostgreSQL** (o Postgres): un servidor de código abierto. En las encuestas de Stack Overflow de 2023, 2024 y 2025 fue la base que más programadores dijeron usar. La Ronda lo nombra seguido como la «base operacional»: la que guarda publicaciones, usuarios y pagos.
+- **PostgreSQL** (o Postgres): un servidor de código abierto. En las encuestas de Stack Overflow de 2023, 2024 y 2025 fue la base que más programadores dijeron usar. Alba lo usa como su «base operacional»: así se le llama a la base que atiende la app y guarda publicaciones, usuarios y pagos.
 - **MySQL**: otro servidor de código abierto, muy usado.
 - **SQLite**: no es un servidor, sino una biblioteca. La base vive dentro del programa que la usa, en un solo archivo. Viene en los teléfonos, en los navegadores y en Python.
 
@@ -155,7 +155,7 @@ Fíjate en los `?` del `INSERT`. Son huecos que la biblioteca llena con cada val
 
 ## JOIN: unir dos tablas por su llave {JOIN: joining two tables on a key}
 
-Las preguntas interesantes casi siempre cruzan dos tablas. C01 quiere saber qué tan seguido acierta el modelo: comparar la categoría que sugirió con la que Ana dejó al final. La sugerencia (la categoría *top-1*, la primera de la lista del modelo) vive en un lugar, el registro de predicciones, y la publicación en otro. Las une el `request_id`: el identificador de cada request que el backend guarda junto con la foto (es el header `X-Request-ID` de la lección de HTTP; su tarjeta es [[request-id]]). En C01 las predicciones viven en un *log*, un archivo al que se le agrega una línea por predicción, y no en una tabla; pero la unión es la misma.
+Las preguntas interesantes casi siempre cruzan dos tablas. Alba quiere saber qué tan seguido acierta el modelo: comparar la categoría que sugirió con la que Ana dejó al final. La sugerencia (la categoría *top-1*, la primera de la lista del modelo) vive en un lugar, el registro de predicciones, y la publicación en otro. Las une el `request_id`: el identificador de cada request que el backend guarda junto con la foto (es el header `X-Request-ID` de la lección de HTTP; su tarjeta es [[request-id]]). En Alba las predicciones viven en un *log*, un archivo al que se le agrega una línea por predicción, y no en una tabla; pero la unión es la misma.
 
 Un [[join|JOIN]] («unir») combina las filas de dos tablas cuyas llaves coinciden:
 
@@ -224,12 +224,12 @@ Si la llave se repite en una tabla, el JOIN repite filas. Una publicación con d
 :::
 
 :::profundo Unir con el pasado
-La Ronda (M09) agrega una trampa más fina. Unir los eventos de hace meses con la tabla de usuarios **de hoy** mete en el entrenamiento datos que no existían cuando pasó cada evento: un [[leakage]]. Si un usuario verificó su cuenta en octubre, sus compras de marzo aparecerían como «de cuenta verificada». La solución es unir con el valor que cada dato tenía en ese instante, un join [[point-in-time]], de la lección «Tiempo, hashes e identificadores».
+Hay una trampa más fina. Unir los eventos de hace meses con la tabla de usuarios **de hoy** mete en el entrenamiento datos que no existían cuando pasó cada evento: un [[leakage]]. Si un usuario verificó su cuenta en octubre, sus compras de marzo aparecerían como «de cuenta verificada». La solución es unir con el valor que cada dato tenía en ese instante, un join [[point-in-time]], de la lección «Tiempo, hashes e identificadores».
 :::
 
 ## Índices: encontrar una fila entre 10 millones {Indexes: finding one row among 10 million}
 
-Ana abre su publicación y la app pide `SELECT * FROM publicaciones WHERE id = 4242424`. Supón una tabla de 10 millones de filas: cuatro días de C01. ¿Cómo encuentra la base esa fila?
+Ana abre su publicación y la app pide `SELECT * FROM publicaciones WHERE id = 4242424`. Supón una tabla de 10 millones de filas: cuatro días de publicaciones de Alba, a ≈ 2.5 M por día. ¿Cómo encuentra la base esa fila?
 
 La forma tonta es leerlas todas y quedarse con la que coincide: un **recorrido completo** (*full scan*). Los datos de una tabla viven en el disco en **páginas** (*pages*), bloques de tamaño fijo: 4 [[prefijo-binario|KiB]] (4,096 bytes) por omisión en SQLite (desde su versión 3.12, de 2016) y 8 KiB en PostgreSQL. La base siempre lee páginas completas, nunca una fila suelta.
 
@@ -251,18 +251,36 @@ El **árbol B** (*B-tree*), que usan casi todas las bases relacionales, hace cad
 Un árbol B de 10 millones de llaves, con 2 llaves por página para que se pueda dibujar (las de verdad traen ≈ 300). Buscar el 4,242,424 lee una página por nivel: la raíz manda al tramo de en medio, ese nodo manda a una hoja, y la hoja dice dónde está la fila.
 :::
 
+Llama \(b\) a las ramas que salen de cada página (≈ 300) y \(k\) a los niveles del árbol. Cada nivel multiplica por \(b\) las llaves que caben, así que con \(k\) niveles caben \(b^k\). La cuenta de cuántas páginas lee cada camino:
+
+:::formula Páginas que lee una búsqueda
+b^k ≥ N  →  k = ⌈frac{log(N)}{log(b)}⌉
+P_{índice} = k + 1
+P_{recorrido} = frac{N}{f}
+- N: las filas de la tabla
+- b: las ramas que salen de cada página del árbol (≈ 300 en una página de 4 KiB)
+- k: los niveles del árbol: el número más chico de niveles con el que \(b^k\) llega a \(N\). Los corchetes ⌈ ⌉ quieren decir «redondea hacia arriba»
+- f: las filas que caben en una página de la tabla
+- P_{índice}: las páginas que lee la búsqueda con índice: una por nivel y una de la tabla, donde está la fila
+- P_{recorrido}: las páginas que lee el recorrido completo: todas las de la tabla
+:::
+
 :::cuenta Encontrar una fila entre 10 millones
-Filas por página // un supuesto: filas de ≈ 200 bytes en páginas de 4 KiB | 4,096 ÷ 200 | ≈ 20
-Sin índice: páginas que se leen // todas: ≈ 2 GB | 10,000,000 ÷ 20 | 500,000
-Llaves que caben en 3 niveles // ≈ 300 ramas por página | 300 × 300 × 300 | 27,000,000
-Con índice: páginas que se leen // 3 del árbol y 1 de la tabla | 3 + 1 | 4
+Filas de la tabla \(N\) // cuatro días de publicaciones de Alba | 4 × 2,500,000 | 10,000,000
+Filas por página \(f\) // un supuesto: filas de ≈ 200 bytes en páginas de 4 KiB (4,096 bytes) | 4,096 ÷ 200 | ≈ 20
+Sin índice: \(P_{recorrido} = N/f\) // todas las páginas: 500,000 × 4,096 bytes ≈ 2 GB | 10,000,000 ÷ 20 | 500,000
+Ramas por página \(b\) // cada rama, llave + dirección, ocupa ≈ 10 a 15 bytes; en números redondos | 4,096 ÷ (10 a 15) = 270 a 410 | ≈ 300
+Con 2 niveles caben \(b^2\) // no alcanza para 10 M | 300 × 300 | 90,000
+Con 3 niveles caben \(b^3\) // ya pasa de 10 M | 300 × 300 × 300 | 27,000,000
+Niveles \(k\) // el primero con \(b^k ≥ N\) | — | 3
+Con índice: \(P_{índice} = k + 1\) // 3 del árbol y 1 de la tabla | 3 + 1 | 4
 = 4 páginas en vez de 500,000: ≈ 125,000 veces menos. Con los números del SSD de la lección de memoria (≈ 0.1 ms por lectura al azar, ≈ 2 GB/s de corrido): ≈ 0.4 ms contra ≈ 1 s. Y las páginas de arriba del árbol casi siempre ya están en la RAM.
 :::
 
-Lo mejor es que el árbol crece muy despacio. Cada nivel multiplica por ≈ 300 lo que cabe: con 4 niveles caben 300⁴ = 8,100 millones de llaves. Un año de C01, ≈ 900 millones de publicaciones, cabe en 4 niveles. Pasar de 10 millones a 900 millones de filas cuesta una lectura más.
+Lo mejor es que el árbol crece muy despacio. Cada nivel multiplica por \(b\) ≈ 300 lo que cabe: con 4 niveles caben \(b^4\) = 300⁴ = 8,100 millones de llaves. Un año de publicaciones de Alba, ≈ 2.5 M al día × 365 ≈ 900 millones, cabe en 4 niveles. Pasar de 10 millones a 900 millones de filas cuesta una lectura más.
 
 :::calculadora bases-de-datos-indice
-Prueba un año de C01 (900) con filas de 2 KB, 2 por página: el índice lee 5 páginas y el recorrido completo, 450 millones.
+Prueba un año de publicaciones de Alba (\(N\) = 900 millones) con filas de 2 KB, \(f\) = 2 por página: el índice lee \(P_{índice}\) = 5 páginas y el recorrido completo, \(P_{recorrido}\) = 450 millones.
 :::
 
 ### Lo que cuesta un índice
@@ -332,9 +350,9 @@ Sin índice, encontrar las 10 publicaciones de un vendedor costó 3 millones de 
 Publicar, en el ejemplo de esta lección, son dos escrituras: la fila de la publicación y la fila de la predicción que se le sugirió, para poder medir después. ¿Qué pasa si el servidor se cae justo entre las dos?
 
 :::cuenta Publicaciones a medias, sin transacción
-Publicaciones al día // C01 | — | ≈ 2.5 M
-Las que se cortan entre las dos escrituras // un supuesto: 1 de cada 10,000 (un pod que se reinicia, un timeout) | 2,500,000 ÷ 10,000 | 250 al día
-En un año | 250 × 365 | ≈ 91,000
+Publicaciones al día // dato de Alba | — | ≈ 2.5 M
+Las que se cortan entre las dos escrituras // un supuesto: 1 de cada 10,000 (un pod que se reinicia, un timeout) | publicaciones al día ÷ 10,000 = 2,500,000 ÷ 10,000 | 250 al día
+En un año // las del día × 365 días | 250 × 365 | ≈ 91,000
 = Cada una es una publicación sin su predicción. Ningún error lo avisa: aparecen meses después, cuando una cuenta no cuadra.
 :::
 
@@ -408,7 +426,7 @@ Queda 810: el cambio de Ana se perdió. Si hubieran ido uno tras otro, el result
 
 - **Hacer la cuenta dentro de la base:** `UPDATE publicaciones SET precio = precio - 100 WHERE id = 1`. La base lee y escribe en un solo paso.
 - **Apartar la fila:** en PostgreSQL, `SELECT … FOR UPDATE` bloquea la fila hasta que termina la transacción (con `COMMIT` o `ROLLBACK`); el otro espera su turno.
-- **Escribir con condición** (*compare-and-set*): cada fila lleva un número de versión, y se escribe `UPDATE … SET precio = 800, version = 8 WHERE id = 1 AND version = 7`. Si cambió 0 filas, alguien se adelantó: se vuelve a leer y se intenta otra vez. La Ronda lo usa en M02 para el estado de cada trabajo («solo pasa a *running* si sigue en *queued*»).
+- **Escribir con condición** (*compare-and-set*): cada fila lleva un número de versión, y se escribe `UPDATE … SET precio = 800, version = 8 WHERE id = 1 AND version = 7`. Si cambió 0 filas, alguien se adelantó: se vuelve a leer y se intenta otra vez. Así se cambia también el estado de un trabajo en una fila de espera: «solo pasa a *running* (corriendo) si sigue en *queued* (en espera)».
 
 Las bases dejan elegir cuánto aislamiento pagar. PostgreSQL, por omisión, usa *read committed*: cada consulta ve lo ya confirmado, pero dos lecturas en la misma transacción pueden ver cosas distintas. El nivel más estricto, *serializable*, garantiza el «como si fueran una tras otra», a cambio de rechazar a veces una transacción que hay que reintentar.
 :::
@@ -432,7 +450,7 @@ ON CONFLICT (vendedor) DO UPDATE SET ventas_7d = excluded.ventas_7d;
 
 Hay dos detalles que deciden si de verdad es idempotente:
 
-- **Escribir el valor, no el cambio.** «Ana lleva 12 ventas» se puede escribir diez veces. «Súmale 3 a Ana» no: cada repetición suma otra vez. La Ronda (C08) lo dice así: si escribes con `INCR` (el comando de Redis que suma 1, dos secciones adelante), un reproceso, volver a procesar los mismos datos, cuenta dos veces.
+- **Escribir el valor, no el cambio.** «Ana lleva 12 ventas» se puede escribir diez veces. «Súmale 3 a Ana» no: cada repetición suma otra vez. Con un contador pasa igual: si escribes con `INCR` (el comando de Redis que suma 1, dos secciones adelante), un reproceso, volver a procesar los mismos datos, cuenta dos veces.
 - **`DO NOTHING` para lo que solo debe pasar una vez.** `ON CONFLICT DO NOTHING` guarda la primera y descarta las demás. Así se guarda una [[llave-idempotencia|llave de idempotencia]]: la base no acepta la misma llave dos veces, y el segundo intento se entera de que ya se hizo.
 
 ```python
@@ -491,7 +509,7 @@ En un guardarropa entregas tu chamarra y te dan una ficha con un número. Al sal
 **Dónde se rompe:** al encargado le puedes preguntar «¿cuántas chamarras azules hay?», y aunque tarde, las cuenta. A una base llave-valor, no: no sabe nada de lo que hay dentro de los valores, y esa pregunta obliga a leerlo todo. Si no tienes la llave, no tienes nada.
 :::
 
-Por eso, en una base llave-valor, **la llave es la consulta**, y se diseña antes de escribir el primer dato. Se arman con un prefijo que dice qué es y el id: `user:123` para las recomendaciones de un usuario en M02, o `f:card:<token>` para las features de una tarjeta en C09.
+Por eso, en una base llave-valor, **la llave es la consulta**, y se diseña antes de escribir el primer dato. Se arman con un prefijo que dice qué es y el id: `user:123` para las recomendaciones guardadas de un usuario, o `f:card:<token>` para las features de una tarjeta en un sistema de detección de fraude.
 
 ¿Para qué sirve algo tan limitado? Para el camino online del modelo. Cuando llega una request, el modelo necesita las [[feature|features]] de **una** entidad: las de la tarjeta 42, las del vendedor de Ana. Siempre por su llave, siempre en milisegundos. Esa es la parte online de un [[feature-store|feature store]], el sistema que guarda las features para entrenar y para servir, de la lección siguiente: Redis, DynamoDB o Bigtable con el valor más reciente de cada entidad.
 
@@ -499,37 +517,37 @@ Por eso, en una base llave-valor, **la llave es la consulta**, y se diseña ante
 
 ### Redis: llave-valor en la memoria
 
-[[redis|Redis]] (de *Remote Dictionary Server*) es una base llave-valor que guarda todo en la RAM. Leer de la RAM toma ≈ 100 ns; de un SSD, ≈ 0.1 ms. Por eso lo que tarda una lectura de Redis es casi pura red: dentro de la misma zona, un `GET` toma ≈ 0.3 ms contando la ida y la vuelta, según la Ronda (C08).
+[[redis|Redis]] (de *Remote Dictionary Server*) es una base llave-valor que guarda todo en la RAM. Leer de la RAM toma ≈ 100 ns; de un SSD, ≈ 0.1 ms. Por eso lo que tarda una lectura de Redis es casi pura red: dentro de la misma zona, un `GET` toma ≈ 0.3 ms contando la ida y la vuelta, un valor típico.
 
 Sus valores no son solo texto: también pueden ser un diccionario de campos (Redis lo llama *hash*, aunque no tiene que ver con la [[funcion-hash|función hash]] de la lección «Tiempo, hashes e identificadores»), una lista, un conjunto o un conjunto ordenado, cada uno con sus comandos.
 
-:::profundo Las estructuras de Redis, con su uso en la Ronda
-| Estructura | Qué guarda | Comandos | En la Ronda |
+:::profundo Las estructuras de Redis, con un uso de cada una
+| Estructura | Qué guarda | Comandos | Un uso |
 |---|---|---|---|
-| String | un texto o un número | `GET`, `SET`, `INCR` | la predicción guardada de C01; la cuota de un rate limit |
-| Hash | campos dentro de una llave, como un diccionario | `HSET`, `HGETALL` | las features de una tarjeta en C09 |
+| String | un texto o un número | `GET`, `SET`, `INCR` | la predicción guardada de una foto en Alba; la cuota de un rate limit |
+| Hash | campos dentro de una llave, como un diccionario | `HSET`, `HGETALL` | las features de una tarjeta, en un sistema de fraude |
 | List | una lista en orden | `LPUSH`, `RPOP` | una cola de trabajos sencilla |
 | Set | un conjunto sin repetidos | `SADD`, `SISMEMBER` | los ids que ya se vieron |
-| Sorted set | un conjunto ordenado por un puntaje | `ZADD`, `ZRANGE … BYSCORE` | los eventos de una tarjeta ordenados por su hora (M02) |
+| Sorted set | un conjunto ordenado por un puntaje | `ZADD`, `ZRANGE … BYSCORE` | los eventos de una tarjeta ordenados por su hora |
 :::
 
 Tres cosas más hacen a Redis tan común:
 
 - **Vencimiento.** Cada llave puede llevar un [[ttl|TTL]]: `SET llave valor EX 3600` la borra sola en una hora. Es la misma idea del TTL del DNS: cuánto tiempo vale una copia.
-- **Un comando a la vez.** Redis ejecuta los comandos de uno en uno, en un solo hilo (desde Redis 6 puede usar otros hilos para leer y escribir en la red, pero los comandos siguen en uno), así que dos `INCR` al mismo tiempo nunca pierden una cuenta. Por eso guarda el balde del [[rate-limit|rate limit]] que comparten las 4 copias del [[api-gateway|gateway]] de C10, como viste en la lección de balanceo.
+- **Un comando a la vez.** Redis ejecuta los comandos de uno en uno, en un solo hilo (desde Redis 6 puede usar otros hilos para leer y escribir en la red, pero los comandos siguen en uno), así que dos `INCR` al mismo tiempo nunca pierden una cuenta. Por eso guarda el balde del [[rate-limit|rate limit]] que comparten las 4 copias del [[api-gateway|gateway]] de un servicio que sirve su propio LLM, como viste en la lección «Balanceadores, proxies y gateways».
 - **Persistencia opcional.** Si Redis se reinicia, la RAM se borra. Puede guardar copias en el disco, pero aun así puede perder desde un segundo hasta varios minutos de escrituras (el bloque de abajo dice cuánto). Por eso suele guardar cosas que se pueden reconstruir, no el único registro de un pago.
 
 :::profundo Cuánto puede perder Redis al reiniciarse
 Hay dos formas de guardar en el disco. La primera es una foto de todo cada cierto tiempo (RDB, de *Redis Database*; es lo que trae encendido por omisión): si se reinicia, pierde los minutos desde la última foto. La segunda, que se suma a la primera, anota cada escritura al final de un archivo (AOF, *append-only file*, «archivo al que solo se le agrega»); con su ajuste por omisión (`appendfsync everysec`, bajarlo al disco cada segundo) puede perder hasta ≈ 1 segundo.
 :::
 
-La lección de su velocidad es que lo caro es el viaje, no la lectura. C07, el buscador de un marketplace, junta en cada búsqueda ≈ 400 publicaciones candidatas y revisa en Redis si alguna ya se vendió. C08, la página de inicio (*home*) de una app de recomendaciones, lee 800 llaves:
+La lección de su velocidad es que lo caro es el viaje, no la lectura. La búsqueda de Alba, la que encuentra publicaciones parecidas con embeddings, junta en cada búsqueda ≈ 400 publicaciones candidatas y revisa en Redis si alguna ya se vendió. Un sistema de recomendación que arma la página de inicio (*home*) de una app, en otro ejemplo, lee 800 llaves. Pedir \(m\) llaves de una en una cuesta \(m\) idas y vueltas: el tiempo total es \(t ≈ m × RTT\), donde \(RTT\) (*round-trip time*) es lo que tarda una ida y vuelta por la red, ≈ 0.3 ms aquí.
 
 :::cuenta 400 llaves: una por una o de un jalón
-Un GET por llave // cada uno es una ida y vuelta | 400 × 0.3 ms | 120 ms
-MGET // las 400 llaves en un solo viaje (C07) | 1 ida y vuelta + 400 lecturas en RAM | ≈ 1–2 ms
-C08, con 800 llaves de una en una | 800 × 0.3 ms | 240 ms
-= El home de C08 tiene 200 ms para todo: de una en una, las lecturas solas ya se lo comen. Juntar llaves en un solo viaje, con `MGET` o con *pipelining* (mandar muchos comandos sin esperar cada respuesta), es lo primero que se hace.
+Un GET por llave // \(t ≈ m × RTT\), con \(m\) = 400 llaves | 400 × 0.3 ms | 120 ms
+MGET // las 400 llaves en un solo viaje: 1 sola ida y vuelta | 0.3 ms + 400 lecturas en RAM de ≈ 100 ns + el trabajo de Redis | ≈ 1–2 ms
+El home de recomendación, de una en una // \(m\) = 800 llaves | 800 × 0.3 ms | 240 ms
+= Ese home tiene 200 ms para todo (un supuesto del ejemplo): de una en una, las lecturas solas ya se lo comen. Juntar llaves en un solo viaje, con `MGET` o con *pipelining* (mandar muchos comandos sin esperar cada respuesta), es lo primero que se hace.
 :::
 
 :::profundo Redis desde Python
@@ -558,19 +576,31 @@ Cada vez que pides algo, pasa una de dos:
 - **Acierto** (*hit*): la copia está y se usa. Rápido.
 - **Fallo** (*miss*): no está. Se hace el trabajo completo y, de paso, se guarda la copia para la próxima.
 
-La **tasa de aciertos** (*hit rate*) es la fracción de pedidos que fueron aciertos. Con ella se calcula lo que el caché ahorra.
+La **tasa de aciertos** (*hit rate*) es la fracción de pedidos que fueron aciertos. Con ella se calcula lo que el caché ahorra: los aciertos pagan solo la revisión, y los fallos pagan la revisión más el trabajo completo.
 
-:::cuenta Lo que ahorra un caché de predicciones en C01
-Tasa de aciertos // un supuesto de la Ronda (M02): hay que medirla en los logs | — | 20 %
-Acierto // leer de Redis | — | ≈ 1 ms
-Fallo // revisar Redis y luego ir a la GPU | 1 ms + 30 ms | 31 ms
-Latencia promedio // contra 30 ms sin caché | 0.2 × 1 + 0.8 × 31 | 25 ms
-Inferencias que se evitan al día // de las ≈ 10 M fotos diarias | 10 M × 0.2 | 2 M
-Fotos por segundo a la GPU, en el pico | 500 × 0.8 | 400
+:::formula Latencia promedio con caché
+T = h × a + (1 − h) × (a + w)
+q_{trabajo} = q × (1 − h)
+- h: la tasa de aciertos, como fracción: 0.2 si 20 % de los pedidos encuentra la copia
+- a: lo que tarda un acierto, en ms: revisar el caché y leer la copia
+- w: lo que tarda el trabajo completo sin caché, en ms. Un fallo tarda \(a + w\)
+- T: la latencia promedio con caché, en ms. Sin caché sería \(w\)
+- q: los pedidos por segundo que llegan
+- q_{trabajo}: los pedidos por segundo que sí llegan al trabajo caro: solo los fallos
+:::
+
+:::cuenta Lo que ahorra un caché de predicciones en Alba
+Tasa de aciertos \(h\) // un supuesto del equipo de Alba: hay que medirla en los logs | — | 20 % = 0.2
+Acierto \(a\) // leer de Redis | — | ≈ 1 ms
+Trabajo sin caché \(w\) // el paso del modelo: 27 ms en las requests más lentas de Alba, redondeado | — | ≈ 30 ms
+Fallo \(a + w\) // revisar Redis y luego correr el modelo | 1 ms + 30 ms | 31 ms
+Latencia promedio \(T\) // contra \(w\) = 30 ms sin caché | \(T = h × a + (1 − h) × (a + w)\) = 0.2 × 1 + 0.8 × 31 = 0.2 + 24.8 | 25 ms
+Inferencias que se evitan al día // de las ≈ 10 M fotos que Alba clasifica al día, la fracción \(h\) | 10 M × 0.2 | 2 M
+Fotos por segundo al modelo, en el pico: \(q_{trabajo}\) // \(q\) = 500 requests por segundo, el pico de diseño de Alba | \(q × (1 − h)\) = 500 × 0.8 | 400
 = Ahorra 5 ms en promedio y una de cada cinco inferencias. El fallo sale 1 ms más caro que no tener caché: con una tasa baja, el caché puede costar más de lo que ahorra.
 :::
 
-Los 30 ms son la parte del presupuesto que la Ronda (M03) le da a la GPU.
+Los 30 ms son un supuesto redondo para el trabajo que el caché se salta, el paso del modelo: en las requests más lentas de Alba (≈ 152 ms de punta a punta), ese paso tarda 27 ms, y 15 de ellos son la GPU calculando. ¿Desde qué tasa conviene un caché? Si juntas las dos \(a\) de la fórmula, queda \(T = a + (1 − h) × w\): todos los pedidos pagan la revisión, y solo los fallos pagan además el trabajo. Así que el promedio baja de \(w\) solo si \(h × w > a\), es decir, si \(h > a/w\). Con \(a\) = 1 ms y \(w\) = 30 ms, basta con más de 1 ÷ 30 ≈ 3.3 % de aciertos.
 
 ### Cómo se usa: primero el caché
 
@@ -587,7 +617,7 @@ Consulta la base o corre el modelo.
 Un `SET` con vencimiento, para que el siguiente pedido sea un acierto.
 :::
 
-La llave tiene que incluir **todo lo que cambia la respuesta**. La Ronda (M02) propone que C01 guarde cada predicción bajo el [[funcion-hash|hash]] de los bytes de la foto (un resumen corto que cambia si cambia un solo byte) más la versión del modelo. Si solo usara el hash, al salir un modelo nuevo el caché seguiría dando las respuestas del viejo.
+La llave tiene que incluir **todo lo que cambia la respuesta**. El equipo de Alba propone guardar cada predicción bajo el [[funcion-hash|hash]] de los bytes de la foto (un resumen corto que cambia si cambia un solo byte) más la versión del modelo. Si solo usara el hash, al salir un modelo nuevo el caché seguiría dando las respuestas del viejo.
 
 :::diagrama bases-de-datos-cache
 Toca cada caja para ver por qué está ahí, o usa «Recorrer» para seguir un acierto, un fallo y un cambio de precio.
@@ -597,7 +627,7 @@ Toca cada caja para ver por qué está ahí, o usa «Recorrer» para seguir un a
 
 El problema de toda copia es que el original cambia. Si Ana baja el precio y el caché sigue con el viejo, la página muestra 900 cuando ya cuesta 850. Hay dos herramientas, y casi siempre se usan las dos:
 
-- **El [[ttl|TTL]]:** la copia caduca sola, como la respuesta del DNS de la lección de red. Un TTL de 5 minutos promete que nadie ve algo más viejo que 5 minutos. Es lo que hace el caché de consultas de C07.
+- **El [[ttl|TTL]]:** la copia caduca sola, como la respuesta del DNS de la lección de red. Un TTL de 5 minutos promete que nadie ve algo más viejo que 5 minutos. Es lo que hace, por ejemplo, el caché de las consultas de un buscador.
 - **Borrar al escribir** (*invalidar*): quien cambia el dato borra su llave del caché, y el siguiente pedido trae el valor nuevo.
 
 :::profundo ¿Por qué borrar la copia y no actualizarla?
@@ -639,10 +669,10 @@ Guardar solo 50 fotos, el 1 % de las distintas, ya da 35 % de aciertos, porque l
 :::
 
 :::calculadora bases-de-datos-cache
-Pon la tasa en 90 % y el trabajo en 5 ms, como un caché frente a una consulta de la base: el promedio baja de 5 a 1.5 ms. Luego baja la tasa a 3 % con el trabajo en 30: el caché ya cuesta más de lo que ahorra.
+Pon la tasa \(h\) en 90 % y el trabajo \(w\) en 5 ms, como un caché frente a una consulta de la base: el promedio baja de 5 a 1.5 ms. Luego baja la tasa a 3 % con el trabajo en 30: el caché ya cuesta más de lo que ahorra.
 :::
 
-Para C01, la Ronda (M02) concluye algo que vale para cualquier caché: lo que importa no es la tasa de aciertos, sino **cuánta capacidad te deja quitar**. Las dos GPUs T4 de C01 (una en cada zona) están ahí por si se cae una zona, y en promedio trabajan al ≈ 5 %; con 20 % de aciertos, al ≈ 4 %. No se puede quitar ninguna, y el caché agrega una pieza más que puede fallar.
+Para Alba, el equipo concluye algo que vale para cualquier caché: lo que importa no es la tasa de aciertos, sino **cuánta capacidad te deja quitar**. Alba tiene dos GPUs T4, una en cada zona, por si se cae una zona. En promedio llegan 10 M fotos al día ÷ 86,400 s ≈ 116 fotos por segundo, ≈ 58 a cada una, y una T4 aguanta ≈ 1,200 fotos por segundo: trabajan al 58 ÷ 1,200 ≈ 5 %. Con 20 % de aciertos, al 58 × 0.8 ÷ 1,200 ≈ 4 %. No se puede quitar ninguna, y el caché agrega una pieza más que puede fallar.
 
 ## Copias de la base: réplicas, consistencia eventual y tombstones {Copies of the database: replicas, eventual consistency and tombstones} [extra]
 
@@ -666,7 +696,7 @@ Para un comprador, ver el precio viejo unos milisegundos no importa. Para Ana, s
 - La app le muestra a Ana el valor que ella acaba de mandar, sin volver a leerlo.
 - La app recuerda hasta qué punto del registro llegó la escritura y lee de una réplica que ya pasó de ahí.
 
-La Ronda lo aplica en C09: las features que escribe el motor de streaming se leen de una réplica en la misma zona, porque toleran milisegundos de atraso; los contadores de los que depende la siguiente decisión van siempre a la primaria.
+Un sistema de detección de fraude en tiempo real lo aplica así: las features que escribe el motor de streaming se leen de una réplica en la misma zona, porque toleran milisegundos de atraso; los contadores de los que depende la siguiente decisión van siempre a la primaria.
 
 ### Consistencia eventual
 
@@ -722,7 +752,7 @@ con tombstone
   después:              A = no existe · B = no existe
 ```
 
-Los tombstones también sirven cuando borrar de verdad es lento. C07, la búsqueda de un marketplace, tiene sus publicaciones en un índice vectorial donde borrar es caro, y promete que una publicación vendida desaparece de los resultados en menos de un minuto. El índice se rehace cada cierto tiempo, y una copia de hace unos días puede seguir sirviendo. Su solución: al venderse, escribe en Redis una llave `tomb:{id}` que vence en 7 días, más que la edad máxima de una copia del índice. En cada búsqueda revisa sus ≈ 400 candidatos con un solo `MGET` de ≈ 1–2 ms y oculta los que tienen lápida. Son ≈ 17.5 M llaves por semana, ≈ 2 GB. C08 hace lo mismo para su home.
+Los tombstones también sirven cuando borrar de verdad es lento. La búsqueda de Alba tiene sus publicaciones en un índice vectorial donde borrar es caro, y promete que una publicación vendida desaparece de los resultados en menos de un minuto. El índice se rehace cada cierto tiempo, y una copia de hace unos días puede seguir sirviendo. Su solución: al venderse, escribe en Redis una llave `tomb:{id}` que vence en 7 días, más que la edad máxima de una copia del índice. En cada búsqueda revisa sus ≈ 400 candidatos con un solo `MGET` de ≈ 1–2 ms y oculta los que tienen lápida. Con ≈ 2.5 M publicaciones vendidas o retiradas al día y un TTL de 7 días, hay 2.5 M × 7 ≈ 17.5 M llaves vivas, ≈ 2 GB. Un sistema de recomendación hace lo mismo para que su home no muestre lo que ya se vendió.
 
 ## Errores comunes {Common mistakes}
 
@@ -742,7 +772,7 @@ La consulta vuela en la computadora de quien la escribió, con 1,000 filas, y en
 
 La publicación se guarda y su predicción no; el pago se registra y la orden no. Ningún error lo avisa.
 
-**Cómo evitarlo:** todo lo que debe pasar junto va en una transacción. Y si una parte vive fuera de la base (mandar un mensaje, llamar a otro servicio), se escribe la intención en la misma transacción y otro proceso la ejecuta después: es el patrón *outbox* de la Ronda (M02).
+**Cómo evitarlo:** todo lo que debe pasar junto va en una transacción. Y si una parte vive fuera de la base (mandar un mensaje, llamar a otro servicio), se escribe la intención en la misma transacción y otro proceso la ejecuta después: es el patrón *outbox* («bandeja de salida»).
 
 ### 4. Reintentar escrituras que no son idempotentes
 
@@ -764,33 +794,33 @@ El caché sigue dando el precio viejo o, peor, las predicciones del modelo anter
 
 ## En la vida real {In real life} [extra]
 
-### C01: el viaje de la publicación de Ana
+### Alba: el viaje de la publicación de Ana
 
 Ana toca «Publicar». El backend abre una transacción en PostgreSQL, la base operacional: inserta la publicación con su `request_id`, la fila de cada foto con la dirección donde quedó en el object storage, y hace `COMMIT`. Si algo falla a la mitad, no queda nada y la app puede reintentar con la misma [[llave-idempotencia|llave de idempotencia]].
 
-Cuando un comprador abre la publicación, la app la busca por su llave primaria: 4 páginas en un árbol B, casi siempre ya en la RAM. Las búsquedas por categoría o por vendedor usan sus propios índices. Y la Ronda deja como candidato un caché de predicciones en Redis, con llave hash de la foto más versión del modelo, que solo se pone si los logs muestran que la tasa de aciertos lo justifica.
+Cuando un comprador abre la publicación, la app la busca por su llave primaria: 4 páginas en un árbol B, casi siempre ya en la RAM. Las búsquedas por categoría o por vendedor usan sus propios índices. Y el equipo de Alba deja como candidato un caché de predicciones en Redis, con llave hash de la foto más versión del modelo, que solo se pone si los logs muestran que la tasa de aciertos lo justifica.
 
-Para medir el modelo, un job une cada día las publicaciones con las predicciones por `request_id` y cuenta en cuántas el top-1 fue la categoría final. No lo hace contra la base operacional: la Ronda (M09) advierte que «180 jobs a la vez contra la misma base operacional es un incidente para otro equipo». Los datos se copian cada día a un almacén para análisis, que es la diferencia entre [[oltp-olap|OLTP y OLAP]] (*online transaction processing*, muchas operaciones chicas, contra *online analytical processing*, pocas preguntas que leen muchísimo): la base que atiende la app contra la que responde preguntas grandes. Es tema de la lección siguiente.
+Para medir el modelo, un job une cada día las publicaciones con las predicciones por `request_id` y cuenta en cuántas el top-1 fue la categoría final. No lo hace contra la base operacional: si muchos jobs de análisis (180, por ejemplo) leyeran a la vez la misma base que atiende la app, la frenarían para todos, y el incidente le caería a otro equipo, el dueño de la app. Los datos se copian cada día a un almacén para análisis, que es la diferencia entre [[oltp-olap|OLTP y OLAP]] (*online transaction processing*, muchas operaciones chicas, contra *online analytical processing*, pocas preguntas que leen muchísimo): la base que atiende la app contra la que responde preguntas grandes. Es tema de la lección siguiente.
 
-### M02: predicciones de noche, servidas por llave
+### Predicciones de noche, servidas por llave
 
-Un patrón de M02: en vez de llamar al modelo en cada visita, un job nocturno calcula las recomendaciones de los 50 M de usuarios y las deja en un llave-valor; el camino online solo hace `GET user:123`.
+Un patrón común en sistemas de recomendación: en vez de llamar al modelo en cada visita, un job nocturno calcula las recomendaciones de todos los usuarios (50 M en este ejemplo) y las deja en un llave-valor; el camino online solo hace `GET user:123`. Cada costo de la cuenta es cantidad × precio por unidad.
 
 :::cuenta Lo que cuesta escribir 50 M de filas cada noche
-Escrituras al mes | 50,000,000 × 30 noches | 1,500 millones
-En DynamoDB por demanda // ≈ US$0.625 por millón de escrituras de hasta 1 KB (us-east-1, desde noviembre de 2024; la Ronda, M02) | 1,500 × 0.625 | ≈ US$940 al mes
-La GPU del job, en cambio // 2.8 h × ≈ US$0.526 por hora (una g4dn.xlarge, la máquina de AWS con una T4, en us-east-1) × 30 noches, según la Ronda | — | ≈ US$45 al mes
-Usuarios que entran cada día // de los 50 M | — | ≈ 5 M
-= Escribir las predicciones cuesta ≈ 20 veces más que calcularlas, y el 90 % de esas filas nadie las lee ese día. La base no se elige solo por su velocidad: también por lo que cuesta cada escritura.
+Escrituras al mes // una por usuario, cada noche | 50,000,000 × 30 noches | 1,500 millones
+En DynamoDB por demanda // ≈ US$0.625 por millón de escrituras de hasta 1 KB (us-east-1, desde noviembre de 2024) | 1,500 millones de escrituras × US$0.625 por millón | ≈ US$940 al mes
+La GPU del job, en cambio // un supuesto del ejemplo: 2.8 h por noche en una g4dn.xlarge, la máquina de AWS con una T4, a ≈ US$0.526 por hora en us-east-1 | 2.8 h × US$0.526 × 30 noches | ≈ US$44 al mes
+Usuarios que entran cada día // un supuesto del ejemplo: 1 de cada 10 de los 50 M | 50 M ÷ 10 | ≈ 5 M
+= Escribir las predicciones cuesta 940 ÷ 44 ≈ 20 veces más que calcularlas, y el 90 % de esas filas nadie las lee ese día. La base no se elige solo por su velocidad: también por lo que cuesta cada escritura.
 :::
 
-### C09: el online store de un sistema de fraude
+### El online store de un sistema de fraude
 
-C09 decide en milisegundos si un pago es fraude. Sus features (cuántas compras hizo la tarjeta en la última hora, cuánto gastó en 24 horas) viven en Redis, una llave por entidad (`f:card:<token>`, `f:ip:<hash>`) con un hash de sus features. Son ≈ 80 M de llaves de tarjetas, dispositivos, IPs, correos y comercios, con ≈ 40 features de 4 bytes cada una más ≈ 100 bytes de llave y estructura: 80 M × 260 B ≈ 21 GB. Con las features diarias (≈ 10 GB), los contadores y un caché de decisiones, ≈ 35 GB; con ≈ 30 % extra que la propia estructura de Redis ocupa, ≈ 46 GB, repartidos en 4 pedazos ([[sharding|shards]]), cada uno con su primaria y una réplica en otra zona: 8 máquinas. Las escrituras van a la primaria; las lecturas de features, a la réplica de la misma zona.
+Un sistema de detección de fraude en tiempo real decide en milisegundos si un pago es fraude. Sus features (cuántas compras hizo la tarjeta en la última hora, cuánto gastó en 24 horas) viven en Redis, una llave por entidad (`f:card:<token>`, `f:ip:<hash>`) con un hash de sus features. Son ≈ 80 M de llaves de tarjetas, dispositivos, IPs, correos y comercios, con ≈ 40 features de 4 bytes cada una más ≈ 100 bytes de llave y estructura: 80 M × 260 B ≈ 21 GB. Con las features diarias (≈ 10 GB), los contadores y un caché de decisiones, ≈ 35 GB; con ≈ 30 % extra que la propia estructura de Redis ocupa, ≈ 46 GB, repartidos en 4 pedazos ([[sharding|shards]]), cada uno con su primaria y una réplica en otra zona: 8 máquinas. Las escrituras van a la primaria; las lecturas de features, a la réplica de la misma zona.
 
-### C12 y C15: Postgres, lejos de cada request
+### Un agente y un sistema de anuncios: Postgres, lejos de cada request
 
-C12, un agente de atención a clientes, guarda en Postgres una bitácora de cada conversación: los mensajes, las herramientas que llamó y lo que decidió, ≈ 20 KB por conversación. Con ≈ 150,000 conversaciones al día son ≈ 3 GB diarios y ≈ 90 GB en 30 días, y la Ronda lo resume así: «90 GB caliente es un Postgres normal» (*caliente*: los datos que se consultan seguido). C15, un sistema de anuncios, guarda campañas, presupuestos y pausas en Postgres, pero no lo consulta en cada request: cada pod rehace cada minuto una copia en su memoria. Es un caché que se renueva cada minuto, y por eso pausar una campaña tarda hasta un minuto en notarse.
+Un agente de atención a clientes (un programa con un LLM que llama herramientas por su cuenta) guarda en Postgres una bitácora de cada conversación: los mensajes, las herramientas que llamó y lo que decidió, ≈ 20 KB por conversación. Con ≈ 150,000 conversaciones al día son 20 KB × 150,000 ≈ 3 GB diarios y ≈ 90 GB en 30 días. 90 GB de datos calientes (*caliente*: los datos que se consultan seguido) caben en un Postgres normal, sin nada especial. Un sistema de predicción de clics en anuncios guarda campañas, presupuestos y pausas en Postgres, pero no lo consulta en cada request: cada pod rehace cada minuto una copia en su memoria. Es un caché que se renueva cada minuto, y por eso pausar una campaña tarda hasta un minuto en notarse.
 
 ### Fuera de ML: el banco y el carrito
 
@@ -812,8 +842,8 @@ Resuélvelos con lápiz antes de abrir la solución. Los de índices y caché se
 - `ORDER BY` va de menor a mayor si no dices `DESC`.
 - Sale una sola fila: **('Botas de lluvia', 450)**. Las de piel cuestan 1,500.
 ? [facil] Un caché recibió 1,000 pedidos y acertó 850. Un acierto tarda 1 ms; un fallo, 1 ms de revisar más 20 ms de ir a la base. ¿Cuál es la tasa de aciertos y la latencia promedio?
-- Tasa: 850 ÷ 1,000 = **85 %**.
-- Promedio: 0.85 × 1 + 0.15 × 21 = 0.85 + 3.15 = **4 ms**, contra 20 ms sin caché.
+- Tasa: \(h\) = aciertos ÷ pedidos = 850 ÷ 1,000 = **85 %** = 0.85.
+- Promedio, con \(T = h × a + (1 − h) × (a + w)\), \(a\) = 1 ms y \(w\) = 20 ms: un fallo tarda \(a + w\) = 21 ms, y \(T\) = 0.85 × 1 + 0.15 × 21 = 0.85 + 3.15 = **4 ms**, contra \(w\) = 20 ms sin caché.
 - La base recibe solo 150 de cada 1,000 pedidos.
 ? [facil] ¿Cuáles de estas preguntas puede responder bien una base llave-valor, con llaves `f:card:<token>`? (a) Las features de la tarjeta 42. (b) Todas las tarjetas con más de 3 compras en la última hora. (c) Las features de 300 tarjetas a la vez.
 - (a) **Sí**: es un `GET` (o un `HGETALL`) de la llave `f:card:42`.
@@ -826,39 +856,31 @@ Resuélvelos con lápiz antes de abrir la solución. Los de índices y caché se
 - Comprueba: 1,500 + 1,800 + 1,650 = 4,950, la suma de los seis precios.
 ? [medio] Ayer hubo 1,000 publicaciones; 950 tienen su predicción y en 760 el top-1 fue la categoría final. ¿Cuántas filas da el INNER JOIN y cuántas el LEFT JOIN? ¿Qué tasa de aciertos reportas, y qué más reportas?
 - INNER: **950** filas. LEFT: **1,000**; las 50 de más traen `NULL` en la predicción.
-- Aciertos: 760 ÷ 950 = **80 %** de las que tuvieron sugerencia.
+- Tasa de aciertos = aciertos ÷ filas del INNER JOIN = 760 ÷ 950 = **80 %** de las que tuvieron sugerencia.
 - Reporta también el 5 % sin sugerencia (50 ÷ 1,000): son las veces que se usó el fallback. Si solo miras el INNER JOIN, esas 50 desaparecen.
 ? [medio] Una tabla de 1,000 millones de filas tiene un árbol B con ≈ 400 ramas por página. ¿Cuántos niveles necesita? ¿Cuántas páginas lee una búsqueda por llave, contando la de la tabla?
-- 400² = 160,000; 400³ = 64 millones; 400⁴ = 25,600 millones. 1,000 millones no caben en 3 niveles, sí en **4**.
-- Con logaritmos: log(10⁹) ÷ log(400) ≈ 3.46, y se redondea hacia arriba.
-- Páginas: 4 del árbol + 1 de la tabla = **5**. Compruébalo en la calculadora: 1,000 millones de filas y 400 ramas por página.
+- Se busca el \(k\) más chico con \(b^k ≥ N\), con \(b\) = 400 y \(N\) = 1,000 millones: \(b^2\) = 160,000; \(b^3\) = 64 millones; \(b^4\) = 25,600 millones. 1,000 millones no caben en 3 niveles, sí en **4**.
+- Con logaritmos: \(k = ⌈log(N) ÷ log(b)⌉\) = ⌈log(10⁹) ÷ log(400)⌉ = ⌈9 ÷ 2.60⌉ = ⌈3.46⌉ = 4.
+- Páginas: \(P_{índice} = k + 1\) = 4 del árbol + 1 de la tabla = **5**. Compruébalo en la calculadora: 1,000 millones de filas y 400 ramas por página.
 ? [medio] Un job escribe cada noche las ventas de la semana de cada vendedor con `UPDATE ventas SET ventas_7d = ventas_7d + :hoy`. Un día falla a la mitad y Airflow (el programa que agenda los jobs) lo reintenta completo. ¿Qué pasa? ¿Cómo lo arreglas?
 - Los vendedores que ya se habían procesado antes de la falla reciben la suma **dos veces**: sus ventas quedan infladas, sin ningún error.
 - Arreglo: calcular el valor absoluto de la ventana (las ventas de los últimos 7 días, contadas desde los datos) y escribirlo con upsert: `ON CONFLICT (vendedor) DO UPDATE SET ventas_7d = excluded.ventas_7d`. Repetirlo deja lo mismo.
-- Mejor aún: todo en una transacción, o escribir una versión nueva de la tabla y, al final, hacer que la app lea esa (M02 lo llama mover el «puntero»).
+- Mejor aún: todo en una transacción, o escribir una versión nueva de la tabla y, al final, hacer que la app lea esa (a eso se le llama mover el «puntero»).
 ? [reto] Ana cambia el precio a las 12:00:00.000. Su página lee de una réplica con 500 ms de retraso, y la app recarga a los 200 ms. ¿Qué ve? Propón dos arreglos y di qué cuesta cada uno.
 - La réplica aplica el cambio a las 12:00:00.500. A los 200 ms todavía dice **el precio viejo**.
 - Arreglo 1: durante unos segundos después de que Ana escribe, sus lecturas van a la primaria. Cuesta carga extra en la primaria, aunque es poca: solo las de quien acaba de escribir.
 - Arreglo 2: la app muestra el precio que Ana mandó, sin volver a leerlo. No cuesta nada en la base, pero si la escritura falló, Ana ve algo que no se guardó: hay que avisarle del error.
 - Lo que no arregla nada: esperar 200 ms más. El retraso cambia con la carga.
-? [reto] El sistema de búsqueda de C07 escribe una llave `tomb:{id}` por cada publicación vendida o retirada, con TTL de 7 días. Si se venden o retiran ≈ 2.5 M al día, ¿cuántas llaves vivas hay? Si ocupan ≈ 2 GB, ¿cuánto pesa cada una? ¿Por qué no un TTL de 1 día, y por qué no sin TTL?
-- Llaves vivas: 2.5 M × 7 días = **17.5 M**.
-- Cada una: 2,000,000,000 B ÷ 17,500,000 ≈ **114 bytes**, contando la llave, el valor y lo que Redis ocupa por cada una.
+? [reto] La búsqueda de Alba escribe una llave `tomb:{id}` por cada publicación vendida o retirada, con TTL de 7 días. Si se venden o retiran ≈ 2.5 M al día, ¿cuántas llaves vivas hay? Si ocupan ≈ 2 GB, ¿cuánto pesa cada una? ¿Por qué no un TTL de 1 día, y por qué no sin TTL?
+- Cada llave vive lo que dura su TTL, así que las vivas son \(V = D × τ\), con \(D\) las llaves nuevas al día y \(τ\) el TTL en días: \(V\) = 2.5 M × 7 = **17.5 M**.
+- Cada una: memoria total ÷ \(V\) = 2,000,000,000 B ÷ 17,500,000 ≈ **114 bytes**, contando la llave, el valor y lo que Redis ocupa por cada una.
 - 1 día no alcanza: el TTL tiene que durar más que la copia más vieja del índice que pueda estar sirviendo. Si una copia de hace 3 días trae la publicación vendida y la lápida ya venció, la publicación reaparece.
-- Sin TTL, la lista crece para siempre (≈ 900 M llaves al año, ≈ 100 GB) y casi todas ya no sirven, porque el índice ya se rehízo sin esas publicaciones.
+- Sin TTL, la lista crece para siempre (2.5 M × 365 ≈ 900 M llaves al año; × 114 bytes ≈ 100 GB) y casi todas ya no sirven, porque el índice ya se rehízo sin esas publicaciones.
 :::
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M02 · Patrones de inferencia** usa todo esto: el llave-valor donde un job deja las predicciones nocturnas, el caché de predicciones con hash más versión, la tabla de deduplicación con `ON CONFLICT DO NOTHING`, el estado de cada trabajo con escritura condicional y el patrón *outbox*.
-- **M09 · Datos** separa la base operacional del lago de datos, explica por qué no se entrena leyendo la base directo, pide que cada job sea idempotente (upsert o sobrescribir la partición, nunca agregar a ciegas) y arma el feature store con su parte online en un llave-valor.
-- **Los casos.** C07 y C08 (tombstones en Redis y `MGET`), C09 (online store en Redis con réplicas por zona) y C01 (el join por `request_id`).
-
-**En el Dojo:** la estación 1, «Datos y etiquetas», ya está abierta y usa SQL en casi cada paso: con DuckDB, una base para análisis que lee archivos Parquet directamente, juntas los logs del gateway con las publicaciones por `request_id`, cuentas con `GROUP BY` y cazas duplicados.
-
-**En Sensei:** la siguiente lección, «Object storage, data lakes y warehouses», guarda lo que no cabe en una base: las fotos, los logs y los datasets, y separa la base de la app de la de análisis. Después, «Colas y streams» lleva los cambios de una base a otros sistemas, y «Tiempo, hashes e identificadores» explica los hashes, los UUID y el join *point-in-time*.
+La siguiente lección, «Object storage, data lakes y warehouses», guarda lo que no cabe en una base: las fotos, los logs y los datasets, y separa la base de la app de la de análisis. Después, «Colas y streams» lleva los cambios de una base a otros sistemas, y «Tiempo, hashes e identificadores» explica los hashes, los UUID y el join *point-in-time*.
 
 ## Palabras que vas a oír {Words you will hear}
 

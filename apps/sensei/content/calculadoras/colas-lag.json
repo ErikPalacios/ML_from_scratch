@@ -1,12 +1,12 @@
 {
   "titulo": "El lag de un grupo de consumidores",
-  "intro": "Un tópico con particiones y un grupo que las lee. **Cada partición la lee un solo consumidor del grupo.** Arranca con el ejemplo de M02: 20,000 eventos por segundo y 12 particiones de ≈ 1,500.",
+  "intro": "Un tópico con particiones y un grupo que las lee. **Cada partición la lee un solo consumidor del grupo.** La calculadora aplica \\(μ = min(w, P) × c\\), \\(Q = (λ − μ) × T\\) y \\(A = Q/λ\\). Arranca con el ejemplo de la lección: \\(λ\\) = 20,000 eventos por segundo, \\(P\\) = 12 particiones y 12 consumidores de \\(c\\) ≈ 1,500 por segundo.",
   "entradas": [
-    { "id": "llega", "label": "Eventos que llegan por segundo", "min": 100, "max": 100000, "paso": 100, "valor": 20000, "tipo": "numero" },
-    { "id": "parts", "label": "Particiones del tópico", "min": 1, "max": 64, "paso": 1, "valor": 12 },
-    { "id": "cons", "label": "Consumidores en el grupo", "min": 1, "max": 64, "paso": 1, "valor": 12 },
-    { "id": "rapidez", "label": "Eventos por segundo que procesa cada consumidor", "min": 100, "max": 5000, "paso": 100, "valor": 1500 },
-    { "id": "minutos", "label": "Minutos que dura así", "min": 1, "max": 120, "paso": 1, "valor": 10, "unidad": "min" }
+    { "id": "llega", "label": "Eventos que llegan por segundo, \\(λ\\)", "min": 100, "max": 100000, "paso": 100, "valor": 20000, "tipo": "numero" },
+    { "id": "parts", "label": "Particiones del tópico, \\(P\\)", "min": 1, "max": 64, "paso": 1, "valor": 12 },
+    { "id": "cons", "label": "Consumidores en el grupo, \\(w\\)", "min": 1, "max": 64, "paso": 1, "valor": 12 },
+    { "id": "rapidez", "label": "Eventos por segundo que procesa cada consumidor, \\(c\\)", "min": 100, "max": 5000, "paso": 100, "valor": 1500 },
+    { "id": "minutos", "label": "Minutos que dura el déficit, \\(T\\)", "min": 1, "max": 120, "paso": 1, "valor": 10, "unidad": "min" }
   ],
   "calculos": [
     { "id": "activos", "formula": "min(cons, parts)" },
@@ -14,12 +14,12 @@
     { "id": "lag", "formula": "max(llega - proc, 0) * minutos * 60" }
   ],
   "salidas": [
-    { "label": "Consumidores que leen algo", "formula": "activos", "formato": "int" },
-    { "label": "Consumidores sin partición", "formula": "max(cons - parts, 0)", "formato": "int", "nota": "esperan por si otro se cae" },
-    { "label": "Lo que procesa el grupo, por segundo", "formula": "proc", "formato": "int" },
-    { "label": "Lo que crece el lag, por segundo", "formula": "max(llega - proc, 0)", "formato": "int", "nota": "0: el grupo va al día" },
-    { "label": "Lag al final, en eventos", "formula": "lag", "formato": "int", "barra": true },
-    { "label": "Lag al final, en segundos", "formula": "lag / llega", "formato": "num", "decimales": 0, "nota": "cuántos segundos de eventos le faltan por leer" }
+    { "label": "Consumidores que leen algo", "formula": "activos", "formato": "int", "nota": "\\(min(w, P)\\)" },
+    { "label": "Consumidores sin partición", "formula": "max(cons - parts, 0)", "formato": "int", "nota": "\\(w − P\\) si sobran: esperan por si otro se cae" },
+    { "label": "Lo que procesa el grupo, por segundo, \\(μ\\)", "formula": "proc", "formato": "int", "nota": "\\(μ = min(w, P) × c\\)" },
+    { "label": "Lo que crece el lag, por segundo, \\(λ − μ\\)", "formula": "max(llega - proc, 0)", "formato": "int", "nota": "0 si el grupo va al día" },
+    { "label": "Lag al final, en eventos, \\(Q\\)", "formula": "lag", "formato": "int", "barra": true, "nota": "\\(Q = (λ − μ) × T\\), con \\(T\\) en segundos" },
+    { "label": "Lag al final, en segundos, \\(A\\)", "formula": "lag / llega", "formato": "num", "decimales": 0, "nota": "\\(A = Q/λ\\): cuántos segundos de eventos le faltan por leer" }
   ],
   "nota": "Con los valores iniciales, el lag en segundos crece 6 s por minuto: pasa de 60 s a los 10 minutos y, si sigue así, una alerta de «más de 60 s durante 5 minutos» suena a los ≈ 15."
 }

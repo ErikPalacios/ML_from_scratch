@@ -2,7 +2,7 @@
 titulo: Qué es la nube
 en: What the cloud is
 subtitulo: Qué rentas de verdad cuando «subes algo a la nube», cómo se cobra, quién cuida cada pieza, cómo se llaman las mismas cosas en AWS, Google Cloud y Azure, y cuándo conviene más tener máquinas propias.
-pregunta: La Ronda dice que C01 corre «en AWS, us-east-1, con EKS y dos g4dn.xlarge». Ninguna de esas máquinas es de la empresa. ¿De quién son, dónde están, cómo se cobran y qué tiene que cuidar el equipo de ML?
+pregunta: El clasificador de fotos de Alba, el marketplace que sigue el curso, corre «en AWS, us-east-1, con EKS y dos g4dn.xlarge». Ninguna de esas máquinas es de Alba. ¿De quién son, dónde están, cómo se cobran y qué tiene que cuidar el equipo de ML?
 requisitos: camino-completo, sistema-operativo, red
 ---
 
@@ -10,9 +10,9 @@ requisitos: camino-completo, sistema-operativo, red
 La nube es rentar computadoras, discos y servicios que viven en el centro de datos de otra empresa, pidiéndolos por software y pagando solo por el tiempo o los GB que usas. Cambias una compra grande por un gasto que sube y baja contigo. A cambio, pagas el margen del proveedor, te atas un poco a él y sigues siendo responsable de todo lo que pones encima.
 :::
 
-En la Ronda, C01 se describe en una línea: «AWS, `us-east-1`, Kubernetes gestionado (EKS), Triton en dos `g4dn.xlarge`, un ALB delante, los pesos en S3». Es la frase de alguien que diseña sistemas todos los días. Para quien empieza, casi cada palabra es una pregunta.
+Alba, la empresa que seguimos en todo el curso, es un marketplace en línea: recibe ≈ 2.5 millones de publicaciones al día y le sugiere a quien vende la categoría de cada foto, entre 500 posibles, con un modelo que corre en GPUs (≈ 10 millones de fotos al día). Su equipo describe dónde corre ese sistema en una línea: «AWS, `us-east-1`, Kubernetes gestionado (EKS), Triton en dos `g4dn.xlarge`, un ALB delante, los pesos en S3». Es la frase de alguien que diseña sistemas todos los días. Para quien empieza, casi cada palabra es una pregunta.
 
-Ninguna de esas máquinas es de la empresa del marketplace. Nadie de ese equipo las ha visto. Están en un edificio en el norte de Virginia, y la empresa paga por ellas cada hora, como quien paga la luz. Si mañana el tráfico se duplica, piden más con un comando. Si el proyecto se cancela, las devuelven y dejan de pagar.
+Ninguna de esas máquinas es de Alba. Nadie de su equipo las ha visto. Están en un edificio en el norte de Virginia, y Alba paga por ellas cada hora, como quien paga la luz. Si mañana el tráfico se duplica, piden más con un comando. Si el proyecto se cancela, las devuelven y dejan de pagar.
 
 En esta lección vas a ver qué hay detrás de esa frase: qué se renta de verdad, cómo se cobra, qué cuida el proveedor y qué cuidas tú, cómo se llaman las mismas piezas en las tres nubes grandes y cuándo **no** conviene la nube. Las lecciones que siguen en este módulo entran al detalle: dónde está físicamente (regiones y zonas), qué máquinas hay y cuánto cuestan, cómo es su red y qué servicios te dan ya hechos.
 
@@ -90,7 +90,7 @@ Casi nunca rentas un servidor completo. Rentas un **pedazo**, que se comporta co
 El programa que parte el servidor en VMs es el **[[hipervisor]]** (*hypervisor*). Corre debajo de todas las VMs y le da a cada una sus [[vcpu|vCPU]], su memoria y su disco virtuales. Cada VM cree que tiene una computadora para ella sola. En AWS, el hipervisor se llama Nitro: parte del trabajo lo hacen tarjetas de hardware propias, para que casi toda la máquina quede para los clientes.
 
 :::figura nube-servidor
-Un servidor físico, partido por el hipervisor en tres máquinas virtuales de tres clientes distintos. Cada VM tiene su sistema operativo y su kernel; ninguna ve a las otras. En este servidor, la GPU no se parte: se le entrega completa a una sola VM, como en la `g4dn.xlarge` de C01.
+Un servidor físico, partido por el hipervisor en tres máquinas virtuales de tres clientes distintos. Cada VM tiene su sistema operativo y su kernel; ninguna ve a las otras. En este servidor, la GPU no se parte: se le entrega completa a una sola VM, como en la `g4dn.xlarge` de Alba.
 :::
 
 ### Por qué partirlo
@@ -101,7 +101,7 @@ El hipervisor resuelve tres problemas a la vez:
 - **Aislamiento.** A cada uno de esos clientes se le llama *inquilino* (*tenant*), y la nube es *multi-inquilino* (*multi-tenant*): desconocidos comparten el mismo fierro (el mismo hardware). El hipervisor es la pared entre ellos. Para que una VM lea la memoria de otra, alguien tendría que encontrarle una falla al hipervisor o al procesador. El hipervisor está diseñado justo para impedirlo, y cuando aparece una falla así (ha pasado, con los procesadores), el proveedor la corrige con una actualización, un *parche*.
 - **Rapidez.** Crear una VM es correr un programa, no mandar un camión. Por eso la tienes en minutos y no en semanas.
 
-La `g4dn.xlarge` de C01 es una VM: 4 vCPU, 16 GiB de RAM y una GPU T4 completa. Cuando la apagas, ese pedazo del servidor vuelve al fondo y otro cliente lo puede usar en cuanto lo pida.
+La `g4dn.xlarge` de Alba es una VM: 4 vCPU, 16 GiB de RAM y una GPU T4 completa. Cuando la apagas, ese pedazo del servidor vuelve al fondo y otro cliente lo puede usar en cuanto lo pida.
 
 :::profundo El vecino ruidoso
 Las VMs de un servidor comparten cosas que el hipervisor no parte perfecto: la red del servidor, sus [[cache-cpu|cachés]], a veces el disco. Si la VM de al lado se pone a trabajar a tope, la tuya puede ir un poco más lenta. Se le dice *noisy neighbor* (vecino ruidoso).
@@ -130,16 +130,34 @@ La nube convierte CapEx en OpEx. No pones el dinero por adelantado y no apuestas
 
 Pero el servidor que compraste cuesta lo mismo lo uses o no, y el que rentas cuesta según lo uses. Esa es la pregunta: **¿cuántas horas al mes lo vas a usar de verdad?**
 
+La cuenta pone las dos opciones en la misma unidad, US$ al mes, y busca cuántas horas de uso las igualan. Estas son las letras:
+
+:::formula Comprar o rentar: el equilibrio
+P = frac{K}{V} + O
+R = c × h
+h^{*} = frac{P}{c}
+- K: lo que cuesta comprar el servidor, en US$
+- V: los meses en que se amortiza la compra (36 = 3 años)
+- O: lo que cuesta operarlo al mes (luz, espacio, red y mantenimiento), en US$
+- P: lo que cuesta el servidor propio al mes, en US$; es el mismo lo uses o no
+- c: el precio por hora de rentar una máquina en la nube (aquí, la misma GPU), en US$ por hora
+- h: las horas al mes que usas la máquina (730 = todo el mes)
+- R: lo que cuesta rentarla al mes, en US$
+- h^{*}: el **equilibrio**: las horas de uso al mes en que \(R\) llega a \(P\)
+:::
+
 :::cuenta Un servidor con una GPU: comprarlo o rentarlo
-Compra // la GPU RTX PRO 6000 Blackwell ≈ US$16,399 en una tienda en línea (noviembre de 2026; el precio de estas tarjetas sube y baja mucho) + el resto del servidor, ≈ US$8,000 (supuesto) | 16,399 + 8,000 | ≈ US$24,400
-Amortizada en 3 años | 24,400 ÷ 36 | ≈ US$678 al mes
-Luz // ≈ 1 kW prendido todo el mes a US$0.15 por kWh (supuesto) | 1 × 730 × 0.15 | ≈ US$110 al mes
+Compra \(K\) // la GPU RTX PRO 6000 Blackwell ≈ US$16,399 en una tienda en línea (noviembre de 2026; el precio de estas tarjetas sube y baja mucho) + el resto del servidor, ≈ US$8,000 (supuesto) | 16,399 + 8,000 | ≈ US$24,400
+Amortizada en \(V\) = 36 meses (3 años) | \(K ÷ V\) = 24,400 ÷ 36 | ≈ US$678 al mes
+Luz // ≈ 1 kW prendido las 730 h del mes a US$0.15 por kWh (supuesto) | 1 kW × 730 h × 0.15 | ≈ US$110 al mes
 Espacio, red y mantenimiento // supuesto | — | ≈ US$200 al mes
-Propio, al mes | 678 + 110 + 200 | **≈ US$988**
-Rentado las 24 horas, los 7 días (24/7) // la misma GPU en Google Cloud, `g4-standard-48`, ≈ US$4.50/h en us-central1 | 4.50 × 730 | **≈ US$3,285**
-Horas al mes en que cuestan igual // cuántas horas de renta suman lo mismo que el propio | 988 ÷ 4.50 | ≈ 220 h
-Como fracción del mes | 220 ÷ 730 | ≈ 30 %
-= Si lo vas a usar más de ≈ 30 % del tiempo durante tres años, comprar sale más barato en esta cuenta. Si lo usas 4 horas al día (≈ 122 h al mes), rentar gana por mucho.
+Operación \(O\) // luz + espacio, red y mantenimiento | 110 + 200 | ≈ US$310 al mes
+Propio, al mes, \(P\) | \(P = K ÷ V + O\) = 678 + 310 | **≈ US$988**
+Precio de la nube \(c\) // la misma GPU en Google Cloud, `g4-standard-48`, en us-central1 | — | ≈ US$4.50 por hora
+Rentado las 24 horas, los 7 días (24/7), \(R\) // \(h\) = 730, todo el mes | \(R = c × h\) = 4.50 × 730 | **≈ US$3,285**
+Equilibrio \(h^{*}\) // las horas de renta que suman lo mismo que el propio | \(h^{*} = P ÷ c\) = 988 ÷ 4.50 | ≈ 220 h al mes
+Como fracción del mes | \(h^{*} ÷ 730\) = 220 ÷ 730 | ≈ 30 %
+= Si lo vas a usar más de ≈ 30 % del tiempo durante tres años, comprar sale más barato en esta cuenta. Si lo usas 4 horas al día (4 × 30.4 días ≈ 122 h al mes, menos que las ≈ 220 del equilibrio), rentar gana por mucho.
 :::
 
 Esta cuenta deja fuera cosas que casi siempre cambian la respuesta, y conviene decirlas en voz alta:
@@ -155,7 +173,7 @@ Un servidor puede seguir prendido diez años, pero en ML deja de valer mucho ant
 :::
 
 :::calculadora nube-comprar-rentar
-Mueve las horas de uso al mes: si quedan por debajo de las horas del equilibrio, gana rentar; si quedan arriba, comprar. Luego alarga la vida del servidor a 60 meses (5 años) y mira cómo bajan las horas del equilibrio. Los valores iniciales son los de la cuenta.
+Mueve las horas de uso al mes, \(h\): si quedan por debajo del equilibrio \(h^{*}\), gana rentar; si quedan arriba, comprar. Luego alarga la vida del servidor a 60 meses (5 años) y mira cómo bajan las horas del equilibrio. Los valores iniciales son los de la cuenta.
 :::
 
 :::ojo
@@ -177,14 +195,14 @@ En la nube, cada cosa que rentas tiene su unidad de cobro. Esto es el **pago por
 | Kubernetes gestionado | Hora por cluster | EKS, US$0.10 por hora |
 | Un modelo de lenguaje por API | Millón de tokens | Varía por modelo |
 
-Las máquinas se cobran por hora encendida, pero para planear se habla de meses. La Ronda, y casi todo el que hace cuentas de nube, usa un mes de **730 horas**.
+Las máquinas se cobran por hora encendida, pero para planear se habla de meses. Casi todo el que hace cuentas de nube usa un mes de **730 horas**; Alba también, para sus costos.
 
-:::cuenta El mes de 730 horas y la T4 de C01
+:::cuenta El mes de 730 horas y las T4 de Alba
 Horas en un año | 365 × 24 | 8,760 h
 Horas en un mes promedio | 8,760 ÷ 12 | **730 h**
-Una `g4dn.xlarge` todo el mes // ≈ US$0.526 por hora en us-east-1, noviembre de 2026 | 0.526 × 730 | ≈ US$384
-Las dos de C01 | 2 × 384 | **≈ US$768 al mes**
-= Para pasar de US$ por hora a US$ por mes, multiplica por 730. La frase que la Ronda pone en boca del candidato es «two g4dn.xlarge, about US$770 a month in GPUs».
+Una `g4dn.xlarge` todo el mes // precio por hora \(c\) ≈ US$0.526 en us-east-1, noviembre de 2026; horas \(h\) = 730 | \(R = c × h\) = 0.526 × 730 | ≈ US$384
+Las dos de Alba // una por zona | 2 × 384 | **≈ US$768 al mes**
+= Para pasar de US$ por hora a US$ por mes, multiplica por 730: es la misma \(R = c × h\) de la cuenta de comprar o rentar, con la máquina prendida todo el mes. En una entrevista de diseño se dice así: «two g4dn.xlarge, about US$770 a month in GPUs».
 :::
 
 El número que usaste, US$0.526, es el **[[precio-lista|precio de lista]]** (*list price*): lo que el proveedor publica para cualquiera que pide la máquina sin compromiso, el precio [[on-demand]]. Es la base contra la que se miden todos los descuentos: capacidad sobrante que te pueden quitar ([[spot]]), compromisos de gasto de uno o tres años ([[savings-plan|Savings Plans]]). La lección de máquinas los compara.
@@ -226,10 +244,24 @@ elástico: 67 máquina-horas → US$33.50 al día
 la flota fija trabaja, en promedio, al 56%
 ```
 
-Con un pico diario suave, la elasticidad ahorra ≈ 44 %: de US$60 a US$33.50 al día, y 1 − 33.5 ÷ 60 ≈ 0.44. Con un pico raro y alto, como el Buen Fin, ahorra mucho más: el pico dura unos días (el Buen Fin de 2026 va del 13 al 17 de noviembre, cinco días) y el resto del mes te sobran máquinas. Pruébalo en la calculadora.
+Con un pico diario suave, la elasticidad ahorra ≈ 44 %: de US$60 a US$33.50 al día, y 1 − 33.5 ÷ 60 ≈ 0.44. Con un pico raro y alto, como el Buen Fin, ahorra mucho más: el pico dura unos días (el Buen Fin de 2026 va del 13 al 17 de noviembre, cinco días) y el resto del mes te sobran máquinas. Pruébalo en la calculadora. Para un mes con una carga de base y un pico, la cuenta es esta:
+
+:::formula Capacidad fija contra elástica, en un mes
+F = m_p × 730 × c
+E = m_b × 730 × c +
+(m_p − m_b) × t_p × c
+u = frac{E}{F}
+- m_b: las máquinas que pide la carga de base, todo el mes
+- m_p: las máquinas que pide el pico
+- t_p: las horas que dura el pico en el mes
+- c: el precio de una máquina, en US$ por hora (la misma \(c\) de comprar o rentar)
+- F: lo que cuesta al mes la flota **fija**: las \(m_p\) máquinas del pico, prendidas las 730 h, en US$
+- E: lo que cuesta al mes la flota **elástica**: la base todo el mes y las \(m_p − m_b\) de más solo durante el pico, en US$
+- u: el uso promedio de la flota fija: qué fracción de lo que pagas se necesita de verdad
+:::
 
 :::calculadora nube-elasticidad
-Un mes con una base de 2 máquinas y un pico de 10 que dura 96 horas (cuatro días de ofertas; el Buen Fin de 2026 dura cinco, 120 horas). Sube las horas de pico hasta 730 y mira cómo el ahorro desaparece: si el pico dura todo el mes, ya no es pico.
+Un mes con una base de \(m_b\) = 2 máquinas y un pico de \(m_p\) = 10 que dura \(t_p\) = 96 horas (cuatro días de ofertas; el Buen Fin de 2026 dura cinco, 120 horas). Sube las horas de pico hasta 730 y mira cómo el ahorro desaparece: si el pico dura todo el mes, ya no es pico.
 :::
 
 ### Lo que la elasticidad no es
@@ -237,7 +269,7 @@ Un mes con una base de 2 máquinas y un pico de 10 que dura 96 horas (cuatro dí
 La elasticidad es la *posibilidad* de crecer. Para que de verdad pase hacen falta tres cosas más:
 
 - **Alguien que decida cuándo.** Un programa que mira la carga y pide máquinas: el [[autoscaling]]. La nube te da la palanca; el autoscaling la mueve.
-- **Tiempo.** Una VM nueva tarda minutos en arrancar. Una con GPU, que además baja la [[imagen-contenedor|imagen del contenedor]] (el paquete con tu programa) y carga el modelo, tarda más: para Triton en C01, la Ronda lo estima en 5 a 13 minutos hasta servir. Un pico que sube en segundos no se absorbe con máquinas nuevas: se absorbe con las que ya están prendidas.
+- **Tiempo.** Una VM nueva tarda minutos en arrancar. Una con GPU, que además baja la [[imagen-contenedor|imagen del contenedor]] (el paquete con tu programa) y carga el modelo, tarda más: para Triton, el servidor de modelos de Alba, su equipo estima de 5 a 13 minutos hasta servir. Un pico que sube en segundos no se absorbe con máquinas nuevas: se absorbe con las que ya están prendidas.
 - **Que haya.** El fondo es enorme, pero no infinito. Tu cuenta tiene un tope de máquinas por región, la [[cuota-servicio|cuota]], y a veces una zona se queda sin el tipo de GPU que pides ([[error-capacidad]]). Las dos cosas son de la lección de máquinas.
 
 :::ojo
@@ -248,7 +280,7 @@ La elasticidad solo ahorra si **apagas**. Una máquina que nadie usa y nadie apa
 
 ### Las capas de un sistema
 
-Para que el modelo de C01 conteste una foto, alguien tiene que encargarse de todas estas capas, de abajo hacia arriba:
+Para que el modelo de Alba conteste una foto, alguien tiene que encargarse de todas estas capas, de abajo hacia arriba:
 
 1. El edificio: luz, aire, seguridad física.
 2. El hardware: servidores, discos, red.
@@ -295,7 +327,7 @@ La franja de arriba, **tus datos y quién puede tocarlos**, nunca pasa al provee
 
 Tres proveedores concentran la mayor parte del mercado:
 
-- **AWS** (*Amazon Web Services*): la primera y la más grande. La Ronda usa AWS en todos sus casos porque es la que más aparece en entrevistas.
+- **AWS** (*Amazon Web Services*): la primera y la más grande. Alba corre en AWS, y es la nube que más aparece en entrevistas de diseño.
 - **Google Cloud** (GCP, *Google Cloud Platform*): fuerte en datos (BigQuery, su [[data-warehouse]]) y en Kubernetes, que nació en Google. Tiene sus propios chips de IA, las TPU.
 - **Microsoft Azure**: muy usada por empresas que ya viven en productos de Microsoft. Fue por años la única nube grande que rentaba los modelos comerciales de OpenAI (los GPT); desde abril de 2026 ya no es exclusiva (también llegaron a AWS), pero sigue siendo donde salen primero.
 
@@ -303,7 +335,7 @@ Por su tamaño se les dice **de hiperescala** (*hyperscalers*). Hay otras: Oracl
 
 ### Mismo bloque, tres nombres
 
-La frase de la Ronda es: **cambian los nombres, no el diseño**. Una cola es una cola en las tres. Lo que cambia es cómo se llama y algunos detalles. Esta tabla es la que vas a usar todo el módulo (nombres de noviembre de 2026):
+La regla es: **cambian los nombres, no el diseño**. Una cola es una cola en las tres. Lo que cambia es cómo se llama y algunos detalles. Esta tabla es la que vas a usar todo el módulo (nombres de noviembre de 2026):
 
 | Categoría | AWS | Google Cloud | Azure |
 |---|---|---|---|
@@ -324,7 +356,7 @@ Casi todas las filas son piezas que ya viste en Sensei. Una es nueva: las **[[fu
 
 ### Equivalente no es idéntico
 
-La tabla empareja **categorías**, no comportamientos: dos servicios de la misma fila pueden funcionar distinto. La Ronda lo marca como trampa con este ejemplo: **Pub/Sub no es Kafka.** Pub/Sub hace de cola y de [[stream-eventos|stream]] a la vez, pero no te deja manejar [[particion-topico|particiones]] ni regresar a una posición exacta del registro (un [[offset]]) como Kafka.
+La tabla empareja **categorías**, no comportamientos: dos servicios de la misma fila pueden funcionar distinto. La trampa clásica es esta: **Pub/Sub no es Kafka.** Pub/Sub hace de cola y de [[stream-eventos|stream]] a la vez, pero no te deja manejar [[particion-topico|particiones]] ni regresar a una posición exacta del registro (un [[offset]]) como Kafka.
 
 :::profundo Dos trampas más
 - **Lo más que regresa Pub/Sub** es a una fecha o a una foto guardada de la suscripción (un *snapshot*), no a un offset exacto.
@@ -344,7 +376,7 @@ Además, los nombres cambian: los proveedores renombran productos seguido (Verte
 | Azure AI Foundry | Microsoft Foundry | noviembre de 2025 (en contratos, enero de 2026) |
 :::
 
-No vale la pena memorizar las tres columnas. Aprende la de la nube que usa tu empresa (o la de AWS, si no sabes) y para las otras di la categoría: «la cola gestionada de tu proveedor». Por eso la primera pregunta de un diseño en la Ronda es **«¿en qué nube están?»**: la respuesta cambia los nombres, los precios y qué GPUs hay, aunque no cambie las cajas del diagrama.
+No vale la pena memorizar las tres columnas. Aprende la de la nube que usa tu empresa (o la de AWS, si no sabes) y para las otras di la categoría: «la cola gestionada de tu proveedor». Por eso la primera pregunta en una entrevista de diseño es **«¿en qué nube están?»**: la respuesta cambia los nombres, los precios y qué GPUs hay, aunque no cambie las cajas del diagrama.
 
 ## Cuenta, consola, CLI y API: cómo le hablas a la nube {Account, console, CLI and API: how you talk to the cloud}
 
@@ -388,11 +420,11 @@ En Google Cloud, el primero sería `gcloud compute instances create …`; en Azu
 Lo que pasa entre «pido una máquina» y «ya está prendida», y dónde empieza a correr el medidor. Toca cada caja para ver qué hace.
 :::
 
-Que todo sea una API tiene una consecuencia enorme: **la infraestructura se puede escribir como código**. En lugar de apretar botones, escribes en un archivo qué máquinas, redes y buckets quieres, y una herramienta como Terraform hace las llamadas a la API por ti. Eso se llama infraestructura como código (*IaC*, *infrastructure as code*) y lo vas a practicar en las estaciones del Dojo.
+Que todo sea una API tiene una consecuencia enorme: **la infraestructura se puede escribir como código**. En lugar de apretar botones, escribes en un archivo qué máquinas, redes y buckets quieres, y una herramienta como Terraform hace las llamadas a la API por ti. Eso se llama infraestructura como código (*IaC*, *infrastructure as code*).
 
 ### El medidor
 
-Cada request que crea algo prende un medidor, y cada request que lo borra lo apaga. El programa de abajo es una nube de juguete: guarda qué máquinas están prendidas y, al apagarlas, escribe un renglón de la factura. Usa dos máquinas, con su precio de lista en us-east-1: la `g4dn.xlarge` de C01 y una `p5.48xlarge`, una máquina para entrenar con 8 GPUs H100, de ≈ US$55 por hora. Las horas se cuentan desde el lunes a las 00:00.
+Cada request que crea algo prende un medidor, y cada request que lo borra lo apaga. El programa de abajo es una nube de juguete: guarda qué máquinas están prendidas y, al apagarlas, escribe un renglón de la factura. Usa dos máquinas, con su precio de lista en us-east-1: la `g4dn.xlarge` de Alba y una `p5.48xlarge`, una máquina para entrenar con 8 GPUs H100, de ≈ US$55 por hora. Las horas se cuentan desde el lunes a las 00:00.
 
 ```python
 import itertools
@@ -437,30 +469,32 @@ La `p5.48xlarge` que nadie apagó el viernes es el **85 %** de la factura de la 
 
 La **[[factura-nube|factura de la nube]]** (*cloud bill*) llega cada mes con un renglón por cada servicio y cada unidad: horas de cada tipo de máquina, GB guardados, requests, GB que cruzaron de zona, GB de logs. Una empresa mediana puede tener miles de renglones.
 
-Lo primero que sorprende es que **la factura de un sistema de ML rara vez es solo GPU**. Mira la de C01:
+Lo primero que sorprende es que **la factura de un sistema de ML rara vez es solo GPU**. Mira la de Alba:
 
-:::cuenta La factura mensual de C01
-2 × `g4dn.xlarge` (Triton, una T4 cada una) | 2 × 0.526 × 730 | ≈ US$768
-2 × `c6i.xlarge` (el gateway) // ≈ US$0.17 por hora | 2 × 0.17 × 730 | ≈ US$248
-EKS (el cluster de Kubernetes) | 0.10 × 730 | ≈ US$73
-ALB (el balanceador) // cobra por los bytes que pasan: las fotos van en el [[body]] | — | ≈ US$500
-Logs, métricas y S3 | — | ≈ US$100
-Suma | 768 + 248 + 73 + 500 + 100 | ≈ US$1,689
-Más NAT, IPv4, cruce de zona y endpoints // ≈ US$140; poco, porque cada llamada se queda en su zona (ruteo por zona). La cuenta, renglón por renglón, está en la lección de redes en la nube | 1,689 + ≈ 140 | **≈ US$1.8k al mes**
-Parte de las GPUs | 768 ÷ 1,829 | ≈ 42 %
-Por cada 1,000 predicciones // ≈ 10 M predicciones al día × 30.4 días ≈ 304 M al mes | 1,829 ÷ 304,000,000 × 1,000 | **≈ US$0.006**
-= Las GPUs son menos de la mitad. El balanceador, él solo, es más de la cuarta parte (≈ 27 %). La Ronda redondea el total a ≈ US$1.75k.
+:::cuenta La factura mensual de Alba
+GPUs \(G\): 2 × `g4dn.xlarge` (Triton, una T4 cada una) // \(c\) = US$0.526 por hora, \(h\) = 730 | 2 × 0.526 × 730 | ≈ US$768
+2 × `c6i.xlarge` (el gateway) // \(c\) ≈ US$0.17 por hora, \(h\) = 730 | 2 × 0.17 × 730 | ≈ US$248
+EKS (el cluster de Kubernetes) // US$0.10 por hora, 730 h | 0.10 × 730 | ≈ US$73
+ALB (el balanceador) // dato de la factura de Alba: cobra por los bytes que pasan, y las fotos van en el [[body]]; la cuenta está en la lección «Redes en la nube» | — | ≈ US$500
+Logs, métricas y S3 // dato de la factura de Alba | — | ≈ US$100
+Suma de estos cinco | 768 + 248 + 73 + 500 + 100 | ≈ US$1,689
+Total \(T\): más NAT, IPv4, cruce de zona y endpoints // ≈ US$140; poco, porque cada llamada se queda en su zona (ruteo por zona). La cuenta, renglón por renglón, está en la lección «Redes en la nube» | 1,689 + 140 = 1,829 | **≈ US$1.8k al mes**
+Parte de las GPUs | \(G ÷ T\) = 768 ÷ 1,829 | ≈ 42 %
+Parte del balanceador | 500 ÷ 1,829 | ≈ 27 %
+Predicciones al mes \(Q\) // ≈ 10 M al día, una por foto, × 30.4 días (el mes de 730 h) | 10,000,000 × 30.4 | ≈ 304 M
+Por cada 1,000 predicciones | \(T ÷ Q × 1,000\) = 1,829 ÷ 304,000,000 × 1,000 | **≈ US$0.006**
+= Las GPUs son menos de la mitad. El balanceador, él solo, es más de la cuarta parte.
 :::
 
 Todo lo que no es GPU son costos que nadie pidió como «una máquina», y por eso se escapan. Son de las otras lecciones del módulo: el balanceador cobra por bytes procesados; el [[nat|NAT]], la puerta por la que las máquinas sin dirección pública salen a internet, cobra por cada GB que pasa; los datos que cruzan de una zona a otra se cobran por GB, y los que salen a internet también (el [[egress]]). La lección de redes en la nube les pone número. Los logs, en el servicio de logs del proveedor, pueden costar mucho más que guardar el mismo GB en S3.
 
 :::diagrama nube-factura
-De dónde sale cada renglón de la factura de C01: lo que se cobra por hora encendida, lo que se cobra por uso y cómo se junta en una sola cuenta.
+De dónde sale cada renglón de la factura de Alba: lo que se cobra por hora encendida, lo que se cobra por uso y cómo se junta en una sola cuenta.
 :::
 
-Para que la factura sirva para decidir, hay que poder decir «este modelo cuesta X al mes». Para eso se le pone a cada recurso una etiqueta, como `proyecto=c01`, y la factura se agrupa por etiqueta: es la [[etiqueta-costos|etiqueta de asignación de costos]], de la lección de máquinas. Y para no enterarse a fin de mes, se ponen alertas de presupuesto: «avísame si este mes vamos a pasar de US$2,500».
+Para que la factura sirva para decidir, hay que poder decir «este modelo cuesta X al mes». Para eso se le pone a cada recurso una etiqueta, como `proyecto=clasificador-fotos`, y la factura se agrupa por etiqueta: es la [[etiqueta-costos|etiqueta de asignación de costos]], de la lección de máquinas. Y para no enterarse a fin de mes, se ponen alertas de presupuesto: «avísame si este mes vamos a pasar de US$2,500».
 
-Así se dice un costo en una entrevista, con las tres partes que pide la Ronda: **el servicio, por qué y el orden de magnitud con su supuesto**. «Dos g4dn.xlarge, una por zona por disponibilidad, unos US$770 al mes en GPUs, suponiendo precio on-demand en us-east-1.» «Por disponibilidad» quiere decir que la segunda máquina no está ahí por el tráfico, sino para que, si se cae una zona, la otra siga contestando.
+Así se dice un costo en una entrevista, con tres partes: **el servicio, por qué y el orden de magnitud con su supuesto**. «Dos g4dn.xlarge, una por zona por disponibilidad, unos US$770 al mes en GPUs, suponiendo precio on-demand en us-east-1.» «Por disponibilidad» quiere decir que la segunda máquina no está ahí por el tráfico, sino para que, si se cae una zona, la otra siga contestando.
 
 ### ¿Quién lo va a operar?
 
@@ -468,9 +502,9 @@ La factura de la nube es la mitad de la cuenta. La otra mitad son las personas. 
 
 En las empresas medianas y grandes, eso lo hace un **[[equipo-plataforma|equipo de plataforma]]** (*platform team*): un equipo que opera la infraestructura común (los clusters de Kubernetes, las redes, el registro de imágenes, el monitoreo) para que los equipos de producto, como el de ML, la usen sin operarla.
 
-La Ronda dice que la primera de las preguntas para elegir entre algo gestionado y algo propio casi siempre gana: **¿quién lo va a operar?** C01 usa EKS porque la empresa ya tiene un equipo que opera EKS: agregar dos máquinas con GPU a un cluster que ya existe cuesta poco. La misma Ronda dice: sin plataforma y con un equipo chico, SageMaker AI sería la respuesta pragmática, aunque cueste más por hora.
+Para elegir entre algo gestionado y algo propio hay varias preguntas (las ves en la lección «Servicios gestionados, serverless y permisos»), y la primera casi siempre decide: **¿quién lo va a operar?** Alba usa EKS porque ya tiene un equipo que opera EKS: agregar dos máquinas con GPU a un cluster que ya existe cuesta poco. Sin plataforma y con un equipo chico, SageMaker AI sería la respuesta pragmática, aunque cueste más por hora.
 
-El sueldo de un ingeniero con experiencia es mayor que los ≈ US$1.8k al mes de toda la infraestructura de C01: en México, un ingeniero de software senior gana del orden de MX$95,000 al mes (≈ US$5k; mediana de Levels.fyi, noviembre de 2026), y en Estados Unidos, varias veces eso. Por eso **comparar solo la factura es comparar la mitad**. La cuenta completa de gestionado contra propio está en la lección de [[gestionado-vs-propio|servicios gestionados]].
+El sueldo de un ingeniero con experiencia es mayor que los ≈ US$1.8k al mes de toda la infraestructura del clasificador de Alba: en México, un ingeniero de software senior gana del orden de MX$95,000 al mes (≈ US$5k; mediana de Levels.fyi, noviembre de 2026), y en Estados Unidos, varias veces eso. Por eso **comparar solo la factura es comparar la mitad**. La cuenta completa de gestionado contra propio está en la lección de [[gestionado-vs-propio|servicios gestionados]].
 
 ## Lock-in, neoclouds y cuándo no conviene la nube {Lock-in, neoclouds and when the cloud is not the answer} [extra]
 
@@ -483,7 +517,7 @@ Mientras más usas los servicios propios de un proveedor, más cuesta irte. Esa 
 - **Los datos y su salida.** Meter datos a la nube no se cobra; sacarlos sí. Esto se llama [[egress]]. Desde 2024, AWS, Google Cloud y Azure perdonan ese cobro si te vas por completo y lo pides, pero no cuando copias datos afuera y te quedas.
 - **Los descuentos.** Un compromiso de gasto de tres años te ata por contrato.
 
-Sacar datos a internet cuesta ≈ US$0.09 por GB en us-east-1, un poco menos mientras más sacas en el mes. Mover un dataset de 50 TB a otro proveedor cuesta ≈ **US$4.3k por copia**. Y cada vez que copias el dataset afuera, se vuelve a cobrar: si entrenas en otro lado cada mes, cada mes. La tarifa completa, por escalones, está en la lección de redes en la nube ([[egress]]).
+Sacar datos a internet cuesta ≈ US$0.09 por GB en us-east-1, un poco menos mientras más sacas en el mes. Mover un dataset de 50 TB a otro proveedor cuesta ≈ **US$4.3k por copia**: los primeros 10 TB (10,000 GB) a US$0.09 y los otros 40,000 GB a ≈ US$0.085, 10,000 × 0.09 + 40,000 × 0.085 ≈ 4,300. Y cada vez que copias el dataset afuera, se vuelve a cobrar: si entrenas en otro lado cada mes, cada mes. La tarifa completa, por escalones, está en la lección de redes en la nube ([[egress]]).
 
 El remedio es usar **piezas estándar** donde importa: contenedores, Kubernetes, MLflow para registrar modelos, [[parquet|Parquet]] para los datos, la API de S3 (que muchos otros almacenes imitan). Así, si un día te mudas, mueves las piezas y no las reescribes.
 
@@ -503,7 +537,7 @@ Lo que cuesta una hora de una GPU H100 SXM (la versión para servidores, que va 
 - **Tus datos están en otro lado.** Si el dataset vive en S3, llevarlo a la neocloud cuesta egress cada vez (≈ US$4.3k por cada 50 TB, como viste arriba).
 - **Capacidad y promesas distintas.** Algunas ofertas son más baratas porque te pueden quitar la máquina, o porque la disponibilidad y el soporte prometidos son menores.
 
-Por eso la Ronda dice: **no hay una nube barata, hay precios por GPU y por región**. Una neocloud puede ser la respuesta para un entrenamiento grande y aislado; casi nunca para servir un modelo que vive pegado al resto de tu sistema.
+Por eso conviene decirlo así: **no hay una nube barata, hay precios por GPU y por región**. Una neocloud puede ser la respuesta para un entrenamiento grande y aislado; casi nunca para servir un modelo que vive pegado al resto de tu sistema.
 
 ### Cuándo conviene más on-premises
 
@@ -511,10 +545,10 @@ La nube no es la respuesta a todo. Hay cuatro situaciones donde las máquinas pr
 
 1. **Uso alto, parejo y largo.** Si una GPU va a trabajar casi todo el día durante años, comprarla sale más barato, como viste en la cuenta de CapEx y OpEx. La elasticidad no te sirve si nunca bajas.
 2. **Datos que no pueden salir.** Hay leyes y contratos que piden que ciertos datos (historias clínicas, datos de clientes de un banco) no salgan de las instalaciones de la empresa, o que nadie de afuera tenga acceso al hardware.
-3. **El borde** (*edge*). Si el modelo tiene que contestar en milisegundos al lado de una cámara, o seguir funcionando cuando se cae internet, corre en una caja local. Es lo que hace C02 en cada centro de distribución.
+3. **El borde** (*edge*). Si el modelo tiene que contestar en milisegundos al lado de una cámara, o seguir funcionando cuando se cae internet, corre en una caja local. Es lo que hace un sistema de video en tiempo real con cámaras en 25 centros de distribución, el ejemplo de «En la vida real».
 4. **Escala muy grande.** Con suficiente volumen, tener tus propios centros de datos puede costar menos que el margen del proveedor. Dropbox movió más del 90 % de los archivos de sus usuarios de AWS a su propia infraestructura entre 2015 y 2016 (para algunas regiones sigue usando AWS).
 
-Muchas empresas terminan en un **híbrido**: lo estable y sensible en máquinas propias, lo que sube y baja en la nube. Llevar modelos a las máquinas propias de una empresa (qué GPUs comprar, cuántas, cómo operarlas) es el tema de **IA Privada**, la app de TrueML que viene después de Sensei.
+Muchas empresas terminan en un **híbrido**: lo estable y sensible en máquinas propias, lo que sube y baja en la nube. Llevar modelos a las máquinas propias de una empresa (qué GPUs comprar, cuántas, cómo operarlas) es un tema completo, con sus propias cuentas.
 
 ## Errores comunes {Common mistakes}
 
@@ -527,7 +561,7 @@ La nube cobra lo que está encendido, no lo que trabaja. Una máquina de entrena
 *Cómo evitarlo:* alertas de presupuesto desde el primer día, etiquetas con el dueño de cada recurso y apagado automático de lo que es de prueba.
 
 **3. Comparar solo el precio por hora.**
-La GPU es la línea más visible, pero en C01 es menos de la mitad. El balanceador, los logs, el tráfico entre zonas y el egress pueden pesar tanto como ella. Y las personas no salen en la factura.
+La GPU es la línea más visible, pero en Alba es menos de la mitad (768 ÷ 1,829 ≈ 42 % de su factura). El balanceador, los logs, el tráfico entre zonas y el egress pueden pesar tanto como ella. Y las personas no salen en la factura.
 *Cómo evitarlo:* escribe la factura completa, renglón por renglón, y súmale quién lo opera.
 
 **4. Creer que el proveedor cuida tu seguridad y tus datos.**
@@ -535,7 +569,7 @@ El proveedor cuida el edificio, el hardware y el hipervisor. El Linux de tu VM, 
 *Cómo evitarlo:* para cada pieza, pregunta «¿esto es IaaS, PaaS o SaaS?» y ubica la línea de la responsabilidad compartida.
 
 **5. Nombrar servicios sin porqué ni costo.**
-En una entrevista, «uso SageMaker, Kinesis, DynamoDB y Lambda» sin explicar por qué abre una pregunta por cada nombre. La Ronda lo llama *name-dropping*.
+En una entrevista, «uso SageMaker, Kinesis, DynamoDB y Lambda» sin explicar por qué abre una pregunta por cada nombre. A esto se le llama *name-dropping*.
 *Cómo evitarlo:* di la categoría, el porqué y el orden de magnitud del costo; el nombre del servicio es un detalle.
 
 **6. Tratar «equivalente» como «idéntico», o usar nombres viejos.**
@@ -548,17 +582,17 @@ Una VM con GPU tarda minutos en servir, tu cuenta tiene una cuota y una zona se 
 
 ## En la vida real {In real life} [extra]
 
-**C01 · Clasificación de fotos.** AWS, `us-east-1`, en la misma región que el backend que lo llama. EKS, porque la empresa ya tiene un equipo de plataforma que opera Kubernetes. La factura de infraestructura es ≈ US$1.8k al mes, de los cuales las GPUs son ≈ 42 %. El costo que reporta no es «tanto al mes» sino ≈ US$0.006 por 1,000 predicciones, que el negocio puede comparar con lo que gana por publicación.
+**Alba · Clasificación de fotos.** AWS, `us-east-1`, en la misma región que el backend que lo llama. EKS, porque Alba ya tiene un equipo de plataforma que opera Kubernetes. La factura de infraestructura es ≈ US$1.8k al mes, de los cuales las GPUs son ≈ 42 %. El costo que reporta no es «tanto al mes» sino ≈ US$0.006 por 1,000 predicciones, que el negocio puede comparar con lo que gana por publicación.
 
-**C05 · OCR de documentos.** Para leer el texto de ≈ 186,000 páginas al mes, la Ronda compara Textract, un servicio casi SaaS que cobra US$1.50 por 1,000 páginas (≈ US$279 al mes), contra correr un OCR propio en máquinas sin GPU (≈ US$248, sin contar a la persona que lo opera) o en 2 T4 (≈ US$768). Gana el gestionado: cuesta casi lo mismo que las máquinas de la opción propia más barata y nadie del equipo tiene que operarlo (con esa persona, el propio sube a ≈ US$548; lo ves en el último ejercicio). Además, el OCR es ≈ 3 % del costo del sistema.
+**OCR de documentos.** Un sistema que lee el texto de ≈ 186,000 páginas al mes (supuesto del ejemplo) compara Textract, un servicio casi SaaS que cobra US$1.50 por 1,000 páginas (≈ US$279 al mes), contra correr un OCR propio en máquinas sin GPU (≈ US$248, sin contar a la persona que lo opera) o en 2 T4 (≈ US$768). Gana el gestionado: cuesta casi lo mismo que las máquinas de la opción propia más barata y nadie del equipo tiene que operarlo (con esa persona, el propio sube a ≈ US$548; lo ves en el último ejercicio). Además, el OCR es ≈ 3 % del costo del sistema.
 
-**C06 · Moderación de contenido.** 10 máquinas `g6.xlarge` (con GPU L4) cuestan ≈ US$5.9k al mes. Pero el sistema tiene ≈ 600 moderadores humanos, ≈ US$900k al mes. Esas GPUs son menos del 1 % del costo, y toda la infraestructura junta, ≈ 2 %: optimizarla es lo último que hay que hacer.
+**Moderación de contenido.** 10 máquinas `g6.xlarge` (con GPU L4) cuestan ≈ US$5.9k al mes. Pero el sistema tiene ≈ 600 moderadores humanos, ≈ US$900k al mes. Esas GPUs son menos del 1 % del costo, y toda la infraestructura junta, ≈ 2 %: optimizarla es lo último que hay que hacer.
 
-**C10 · Un LLM propio.** ≈ 32 GPUs H100 en 4 máquinas `p5.48xlarge` cuestan ≈ US$160k al mes, contra ≈ US$442k al mes de pagar una API por tokens para el mismo tráfico. Aquí la nube como IaaS gana a la nube como SaaS, porque el volumen es enorme y estable.
+**Un LLM propio.** ≈ 32 GPUs H100 en 4 máquinas `p5.48xlarge` cuestan ≈ US$160k al mes, contra ≈ US$442k al mes de pagar una API por tokens para el mismo tráfico. Aquí la nube como IaaS gana a la nube como SaaS, porque el volumen es enorme y estable.
 
-**C02 · Video en centros de distribución.** Aquí manda lo híbrido. Cada uno de los 25 centros tiene su cámara y su caja de cómputo local, que detecta y alerta aunque se caiga internet. A la nube solo suben los clips. Una trampa que marca la Ronda: decir «el problema es el egress». Subir datos a AWS no se cobra; lo que cuesta es el enlace de internet de cada sitio, el servicio que recibe el video y el cómputo.
+**Video en tiempo real en centros de distribución.** Aquí manda lo híbrido. Cada uno de los 25 centros tiene su cámara y su caja de cómputo local, que detecta y alerta aunque se caiga internet. A la nube solo suben los clips. Una trampa común: decir «el problema es el egress». Subir datos a AWS no se cobra; lo que cuesta es el enlace de internet de cada sitio, el servicio que recibe el video y el cómputo.
 
-**C14 · Pronóstico de demanda.** El entrenamiento corre de noche, unas horas, en máquinas spot (capacidad sobrante con descuento). Cada noche cuesta ≈ US$15–40, ≈ US$450–1,200 al mes. Es el uso ideal del pago por uso: nada prendido de día, y un trabajo que puede repetirse si le quitan la máquina.
+**Pronóstico de demanda.** El entrenamiento corre de noche, unas horas, en máquinas spot (capacidad sobrante con descuento). Cada noche cuesta ≈ US$15–40, ≈ US$450–1,200 al mes. Es el uso ideal del pago por uso: nada prendido de día, y un trabajo que puede repetirse si le quitan la máquina.
 
 **Fuera de ML.** Una tienda en línea mexicana tiene su pico en el Buen Fin y en el Hot Sale: elasticidad pura. Un hospital que guarda historias clínicas puede estar obligado a tenerlas en servidores propios. Netflix corre casi toda su plataforma en AWS; Dropbox sacó de AWS más del 90 % de los archivos de sus usuarios para guardarlos en máquinas propias. Las dos decisiones tienen sentido para cada empresa.
 
@@ -567,10 +601,11 @@ Una VM con GPU tarda minutos en servir, tu cuenta tiene una cuota y una zona se 
 Usa precios de lista de us-east-1 (noviembre de 2026) y meses de 730 horas.
 
 :::ejercicios
-? [facil] El gateway de C01 corre en máquinas `c6i.xlarge` de ≈ US$0.17 por hora. ¿Cuánto cuesta una prendida todo el mes? ¿Y las dos? ¿Y una que solo prendes de 9:00 a 18:00 en 22 días hábiles?
-- Una, todo el mes: 0.17 × 730 ≈ **US$124.1**.
-- Las dos: 2 × 124.1 ≈ **US$248**, el renglón del gateway en la factura de C01.
-- Solo en horario de oficina: 9 h × 22 días = 198 h; 198 × 0.17 ≈ **US$33.66**. Poco más de una cuarta parte, porque está prendida 198 ÷ 730 ≈ 27 % del mes. Sirve para una máquina de pruebas; no para el gateway, que atiende a toda hora.
+? [facil] El gateway de Alba corre en máquinas `c6i.xlarge` de ≈ US$0.17 por hora. ¿Cuánto cuesta una prendida todo el mes? ¿Y las dos? ¿Y una que solo prendes de 9:00 a 18:00 en 22 días hábiles?
+- La ecuación es la de rentar: \(R = c × h\), con \(c\) = US$0.17 por hora.
+- Una, todo el mes (\(h\) = 730): 0.17 × 730 ≈ **US$124.1**.
+- Las dos: 2 × 124.1 ≈ **US$248**, el renglón del gateway en la factura de Alba.
+- Solo en horario de oficina: \(h\) = 9 h × 22 días = 198 h; 0.17 × 198 ≈ **US$33.66**. Poco más de una cuarta parte, porque está prendida 198 ÷ 730 ≈ 27 % del mes. Sirve para una máquina de pruebas; no para el gateway, que atiende a toda hora.
 ? [facil] Clasifica como IaaS, PaaS o SaaS: (a) una VM de EC2; (b) Cloud Run, al que le das un contenedor; (c) una API de un modelo de lenguaje que cobra por token; (d) Gmail; (e) EKS.
 - (a) **IaaS**: rentas la máquina y desde el sistema operativo para arriba es tuyo.
 - (b) **PaaS**: das el contenedor y el proveedor lo corre; no ves la máquina.
@@ -582,55 +617,53 @@ Usa precios de lista de us-east-1 (noviembre de 2026) y meses de 730 horas.
 - (b) **Tuyo**: en IaaS, el sistema operativo es tuyo.
 - (c) **Tuyo**: S3 hizo lo que le configuraron. Tus datos y quién los puede ver son tuyos siempre.
 - (d) **Del proveedor** el edificio; **tuyo**, haber puesto réplicas en otra zona para seguir funcionando. Eso es la lección de regiones.
-? [facil] Traduce las piezas de C01 a Google Cloud y a Azure: EKS, S3, ECR, ALB, CloudWatch y SQS (la cola del backfill).
+? [facil] Traduce las piezas de Alba a Google Cloud y a Azure: EKS, S3, ECR, ALB, CloudWatch y SQS (la cola del backfill).
 - EKS → **GKE** / **AKS**.
 - S3 → **Cloud Storage** / **Blob Storage**.
 - ECR → **Artifact Registry** / **Azure Container Registry**.
 - ALB → **Cloud Load Balancing** / **Application Gateway**.
 - CloudWatch → **Cloud Monitoring y Cloud Logging** / **Azure Monitor**.
 - SQS → **Pub/Sub** / **Service Bus** o **Queue Storage**.
-- El diagrama de C01 no cambia; cambian los nombres. Lo que sí hay que revisar es qué GPUs hay en la región elegida.
+- El diagrama de Alba no cambia; cambian los nombres. Lo que sí hay que revisar es qué GPUs hay en la región elegida.
 ? [medio] En la cuenta de comprar o rentar (servidor de ≈ US$24,400, 3 años, ≈ US$310 al mes de luz, espacio y mantenimiento), ¿cuántas horas al mes es el equilibrio si rentas la misma GPU en una neocloud a ≈ US$2.69 por hora (el *Secure Cloud* de RunPod), en vez de US$4.50? ¿Y si el servidor dura 5 años y rentas a US$4.50?
-- El propio sigue costando 24,400 ÷ 36 + 310 ≈ US$988 al mes.
-- Neocloud: 988 ÷ 2.69 ≈ **367 h al mes**, ≈ **50 %** del mes. Con una renta más barata, necesitas usar mucho más el servidor propio para que compense.
-- A 5 años: 24,400 ÷ 60 + 310 ≈ US$717 al mes; 717 ÷ 4.50 ≈ **159 h**, ≈ **22 %**. Si el servidor dura más, comprar gana antes. Pero en GPUs la vida útil es corta: en 5 años habrá GPUs mucho mejores por el mismo dinero.
+- Las ecuaciones son las de comprar o rentar: \(P = K ÷ V + O\) y \(h^{*} = P ÷ c\), con \(K\) = 24,400, \(V\) = 36 y \(O\) = 310.
+- El propio sigue costando \(P\) = 24,400 ÷ 36 + 310 ≈ US$988 al mes.
+- Neocloud, \(c\) = 2.69: \(h^{*}\) = 988 ÷ 2.69 ≈ **367 h al mes**; 367 ÷ 730 ≈ **50 %** del mes. Con una renta más barata, necesitas usar mucho más el servidor propio para que compense.
+- A 5 años, \(V\) = 60 y \(c\) = 4.50: \(P\) = 24,400 ÷ 60 + 310 ≈ US$717 al mes; \(h^{*}\) = 717 ÷ 4.50 ≈ **159 h**; 159 ÷ 730 ≈ **22 %**. Si el servidor dura más, comprar gana antes. Pero en GPUs la vida útil es corta: en 5 años habrá GPUs mucho mejores por el mismo dinero.
 ? [medio] Una tienda necesita 2 máquinas de ≈ US$0.526 por hora todo el mes, y 10 durante 96 horas de ofertas (cuatro días). Compara tenerlas fijas para el pico con prenderlas solo cuando hacen falta. ¿Cuánto ahorras y a qué porcentaje trabaja en promedio la flota fija?
-- Fijas para el pico: 10 × 730 × 0.526 ≈ **US$3,840**.
-- Elásticas: (2 × 730 + 8 × 96) × 0.526 = 2,228 × 0.526 ≈ **US$1,172**.
-- Ahorro: 3,840 − 1,172 ≈ **US$2,668** al mes, ≈ 3.3 veces menos.
-- Uso promedio de la flota fija: 2,228 máquina-horas usadas ÷ 7,300 pagadas ≈ **31 %**.
-? [medio] Alguien prende una `p5.48xlarge` (≈ US$55.04 por hora) el viernes a las 18:00 para una prueba y se olvida de ella hasta el lunes a las 9:00. ¿Cuánto cuesta? ¿Cuántos meses de las dos T4 de C01 son?
-- Del viernes 18:00 al lunes 9:00: 6 h del viernes + 48 h del fin de semana + 9 h del lunes = **63 h**.
-- 63 × 55.04 ≈ **US$3,468**.
-- Las dos T4 de C01 cuestan ≈ US$768 al mes: 3,468 ÷ 768 ≈ **4.5 meses** de GPUs de C01 en un fin de semana.
+- Las ecuaciones son las de capacidad fija contra elástica, con \(m_b\) = 2, \(m_p\) = 10, \(t_p\) = 96 h y \(c\) = 0.526.
+- Fijas para el pico: \(F = m_p × 730 × c\) = 10 × 730 × 0.526 ≈ **US$3,840**.
+- Elásticas: \(E = m_b × 730 × c + (m_p − m_b) × t_p × c\) = (2 × 730 + 8 × 96) × 0.526 = 2,228 × 0.526 ≈ **US$1,172**.
+- Ahorro: \(F − E\) = 3,840 − 1,172 ≈ **US$2,668** al mes; la fija cuesta 3,840 ÷ 1,172 ≈ 3.3 veces más.
+- Uso promedio de la flota fija: \(u = E ÷ F\), que es lo mismo que 2,228 máquina-horas usadas ÷ 7,300 pagadas (10 × 730) ≈ **31 %**.
+? [medio] Alguien prende una `p5.48xlarge` (≈ US$55.04 por hora) el viernes a las 18:00 para una prueba y se olvida de ella hasta el lunes a las 9:00. ¿Cuánto cuesta? ¿Cuántos meses de las dos T4 de Alba son?
+- La ecuación es \(R = c × h\), con \(c\) = 55.04 y \(h\) las horas prendida.
+- Del viernes 18:00 al lunes 9:00: 6 h del viernes (18:00 a 24:00) + 48 h del sábado y el domingo + 9 h del lunes = **63 h**.
+- 55.04 × 63 ≈ **US$3,468**.
+- Las dos T4 de Alba cuestan 2 × 0.526 × 730 ≈ US$768 al mes: 3,468 ÷ 768 ≈ **4.5 meses** de GPUs de Alba en un fin de semana.
 - El remedio: alertas de presupuesto y apagado automático de lo que lleva la etiqueta de prueba.
-? [medio] La Ronda propone bajar la factura de C01 mandando al modelo la llave de S3 de la foto (su nombre dentro del bucket) en vez de los bytes de la foto, para que el balanceador ya no cobre por ellos. Ahorra ≈ US$360 netos al mes (ya restado lo que cuesta leer cada foto de S3). ¿Cuánto queda la infraestructura? ¿Qué porcentaje son ahora las GPUs? ¿Cuánto cuesta cada 1,000 predicciones?
-- 1,829 − 360 = **≈ US$1,470** al mes.
-- GPUs: 768 ÷ 1,469 ≈ **52 %**. La GPU pesa más en la factura sin que haya cambiado: bajó lo demás.
-- Por 1,000 predicciones: 1,469 ÷ 304,000,000 × 1,000 ≈ **US$0.0048**.
+? [medio] El equipo de Alba estudia bajar su factura (≈ US$1,829 al mes; ≈ US$768 de GPUs; ≈ 304 M predicciones al mes) mandando al modelo la llave de S3 de la foto (su nombre dentro del bucket) en vez de los bytes de la foto, para que el balanceador ya no cobre por ellos. Ahorra ≈ US$360 netos al mes (ya restado lo que cuesta leer cada foto de S3). ¿Cuánto queda la infraestructura? ¿Qué porcentaje son ahora las GPUs? ¿Cuánto cuesta cada 1,000 predicciones?
+- Con las letras de la factura: el total nuevo es \(T − 360\), la parte de las GPUs es \(G ÷ T\) y el costo por 1,000 es \(T ÷ Q × 1,000\).
+- Total nuevo: 1,829 − 360 = 1,469, **≈ US$1,470** al mes.
+- GPUs: \(G ÷ T\) = 768 ÷ 1,469 ≈ **52 %**. La GPU pesa más en la factura sin que haya cambiado: bajó lo demás.
+- Por 1,000 predicciones: \(T ÷ Q × 1,000\) = 1,469 ÷ 304,000,000 × 1,000 ≈ **US$0.0048**.
 ? [reto] Tu dataset de 50 TB vive en S3. Un entrenamiento usa 1,000 GPU-horas de H100. En AWS, la GPU-hora de H100 cuesta ≈ US$6.88; en una neocloud, ≈ US$4.39 (el *Secure Cloud* de RunPod). ¿Conviene llevar el entrenamiento a la neocloud? ¿Y si el dataset fuera de 5 TB?
+- Las cuentas: costo de GPUs = GPU-horas × precio por GPU-hora; egress = GB que salen × ≈ US$0.09 por GB (un poco menos arriba de 10 TB); conviene si el ahorro en GPUs es mayor que el egress.
 - En AWS: 1,000 × 6.88 = **US$6,880**. En la neocloud: 1,000 × 4.39 = **US$4,390**. Ahorro en GPUs: **US$2,490**.
-- Sacar 50 TB de AWS: ≈ **US$4.3k** por copia, la cuenta de la lección. Pierdes ≈ US$1,810: **no conviene** para un solo entrenamiento.
-- Con 5 TB: 5,000 × 0.09 ≈ **US$450** de egress. Ahorras 2,490 − 450 ≈ **US$2,040**: sí conviene, si los datos pueden salir y la neocloud tiene las GPUs cuando las necesitas.
+- Sacar 50 TB de AWS: los primeros 10,000 GB a US$0.09 y los otros 40,000 a ≈ US$0.085, 10,000 × 0.09 + 40,000 × 0.085 ≈ **US$4.3k** por copia. Ahorro menos egress: 2,490 − 4,300 ≈ −1,810, pierdes ≈ US$1,810: **no conviene** para un solo entrenamiento.
+- Con 5 TB, todo en el primer escalón: 5,000 × 0.09 ≈ **US$450** de egress. Ahorras 2,490 − 450 ≈ **US$2,040**: sí conviene, si los datos pueden salir y la neocloud tiene las GPUs cuando las necesitas.
 - La lección general: el precio por GPU-hora no decide solo. Pesa dónde están los datos.
-? [reto] C05 lee ≈ 186,000 páginas al mes. Textract cobra US$1.50 por 1,000 páginas. Un OCR propio, supón que en CPU, corre en 2 `c6i.xlarge` (≈ US$248 al mes) y pide ≈ 10 horas de una persona al mes para operarlo, a ≈ US$30 la hora (supuesto). ¿Cuál cuesta menos hoy? ¿A partir de cuántas páginas al mes ganaría el propio, si las dos máquinas alcanzan?
-- Textract: 186,000 × 1.50 ÷ 1,000 = **US$279** al mes.
-- Propio: 248 + 10 × 30 = **US$548** al mes. Hoy gana Textract por casi el doble.
-- Textract cuesta US$0.0015 por página; el propio, US$548 fijos. Se igualan en 548 ÷ 0.0015 ≈ **365,000 páginas al mes**, ≈ 2 veces el volumen de hoy.
+? [reto] Un sistema que procesa documentos con OCR lee ≈ 186,000 páginas al mes (supuesto del ejemplo). Textract cobra US$1.50 por 1,000 páginas. Un OCR propio, supón que en CPU, corre en 2 `c6i.xlarge` (≈ US$248 al mes) y pide ≈ 10 horas de una persona al mes para operarlo, a ≈ US$30 la hora (supuesto). ¿Cuál cuesta menos hoy? ¿A partir de cuántas páginas al mes ganaría el propio, si las dos máquinas alcanzan?
+- Las cuentas: Textract = páginas × precio por página; propio = máquinas + horas de la persona × su tarifa, fijo; se igualan en páginas del equilibrio = propio ÷ precio por página.
+- Textract: el precio por página es 1.50 ÷ 1,000 = US$0.0015; 186,000 × 0.0015 = **US$279** al mes.
+- Propio: 248 + 10 × 30 = **US$548** al mes. Hoy gana Textract: 548 ÷ 279 ≈ 2, casi el doble.
+- Equilibrio: 548 ÷ 0.0015 ≈ **365,000 páginas al mes**; 365,000 ÷ 186,000 ≈ 2 veces el volumen de hoy.
 - Si el volumen crece más allá de eso, hay que volver a medir: quizá dos máquinas ya no alcancen, y entonces el propio sube de escalón.
 :::
 
 ## Lo que sigue {What comes next} [extra]
 
-**En la Ronda:**
-
-- **M13 · Costos y nube** da por sabido todo lo de esta lección. Abre con la frase de C01 («two g4dn.xlarge… about US$770 a month»), trae la tabla de equivalencias completa con sus notas, la de renombres y la comparación de gestionado contra propio con sus cuatro preguntas.
-- **C01, sección de costo**, arma la factura que viste aquí y la reporta por 1,000 predicciones. En su sección de tradeoffs está la frase «Elegimos EKS asumiendo que la empresa ya opera Kubernetes».
-- En los demás casos, la primera aclaración casi siempre es «¿en qué nube están y quién opera la plataforma?».
-
-**En el Dojo:** las estaciones de despliegue usan una cuenta de nube, la CLI y archivos de infraestructura como código. La estación de AWS está planeada.
-
-**En Sensei:** la siguiente lección, «Regiones, zonas y disponibilidad», explica dónde están físicamente las máquinas de C01 y por qué hay dos. Después, «Máquinas, GPUs y cómo se cobran» explica qué es exactamente una `g4dn.xlarge` y todos los descuentos sobre el precio de lista; «Redes en la nube» le pone precio a cada GB que se mueve; y «Servicios gestionados, serverless y permisos» entra a lo que el proveedor opera por ti y a IAM.
+La siguiente lección, «Regiones, zonas y disponibilidad», explica dónde están físicamente las máquinas de Alba y por qué hay dos. Después, «Máquinas, GPUs y cómo se cobran» explica qué es exactamente una `g4dn.xlarge` y todos los descuentos sobre el precio de lista; «Redes en la nube» le pone precio a cada GB que se mueve; y «Servicios gestionados, serverless y permisos» entra a lo que el proveedor opera por ti y a IAM.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -647,7 +680,7 @@ Lo pides tú solo por software, en minutos (por una API); pagas por uso (hora, G
 Una máquina virtual: un pedazo de un servidor físico de AWS, partido por el hipervisor (Nitro), con 4 vCPU, 16 GiB de RAM y una GPU T4 completa.
 ? ¿Qué es CapEx, qué es OpEx y cuál de los dos es la nube?
 CapEx es una compra grande que se usa años y se amortiza (un servidor). OpEx es el gasto que se paga mes con mes (la luz, la renta). La nube convierte CapEx en OpEx.
-? ¿Cómo pasas de US$ por hora a US$ por mes? ¿Cuánto cuestan las dos T4 de C01?
+? ¿Cómo pasas de US$ por hora a US$ por mes? ¿Cuánto cuestan las dos T4 de Alba?
 Multiplicas por 730 horas. 2 × 0.526 × 730 ≈ US$768 al mes.
 ? En IaaS, ¿de quién es parchar el sistema operativo de la VM? ¿Y en SaaS, de quién son tus datos?
 En IaaS, tuyo. En SaaS, tus datos y quién puede verlos siguen siendo tuyos: esa franja nunca pasa al proveedor.

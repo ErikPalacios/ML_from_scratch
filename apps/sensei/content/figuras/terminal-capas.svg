@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 470" role="img" aria-labelledby="f-terminal-capas-t" class="f-svg" style="max-width:420px">
-<title id="f-terminal-capas-t">Tres programas distintos, uno dentro del otro. Arriba, la terminal: la ventana que dibuja letras y pasa lo que tecleas, con un prompt como ana@gw-node:~$ ls /models. Lo que tecleas baja a la shell y lo que responde sube a la ventana. En medio, la shell, bash o zsh: lee la línea y lanza los programas, en cinco pasos: lee, parte en palabras, busca el programa, lo lanza y espera a que termine. Con fork y exec crea los procesos de abajo, como kubectl, grep y wc. Cada uno hereda, copiadas de la shell, tres cosas: la carpeta, las variables y los tres flujos.</title>
+<title id="f-terminal-capas-t">Tres programas distintos, uno dentro del otro. Arriba, la terminal: la ventana que dibuja letras y pasa lo que tecleas, con un prompt como marta@gw-node:~$ ls /models. Lo que tecleas baja a la shell y lo que responde sube a la ventana. En medio, la shell, bash o zsh: lee la línea y lanza los programas, en cinco pasos: lee, parte en palabras, busca el programa, lo lanza y espera a que termine. Con fork y exec crea los procesos de abajo, como kubectl, grep y wc. Cada uno hereda, copiadas de la shell, tres cosas: la carpeta, las variables y los tres flujos.</title>
 <rect class="f-card" x="10" y="10" width="340" height="450" rx="16"/>
 <text class="f-l" x="26" y="36" style="font-size:12px">TRES PROGRAMAS DISTINTOS</text>
 <rect class="f-chip" x="26" y="50" width="308" height="96" rx="12"/>
 <text class="f-t" x="40" y="76">Terminal</text>
 <text class="f-s" x="40" y="96" style="font-size:12px">La ventana: dibuja letras y pasa lo que tecleas.</text>
 <rect class="f-dark" x="40" y="106" width="280" height="28" rx="6"/>
-<text class="f-dark-t" x="52" y="125" style="font:600 13px var(--mono)">ana@gw-node:~$ ls /models</text>
+<text class="f-dark-t" x="52" y="125" style="font:600 13px var(--mono)">marta@gw-node:~$ ls /models</text>
 <line class="f-flecha" x1="60" y1="150" x2="60" y2="168"/>
 <polygon class="f-punta" points="54,167 66,167 60,177"/>
 <text class="f-s" x="72" y="168" style="font-size:12px">lo que tecleas</text>

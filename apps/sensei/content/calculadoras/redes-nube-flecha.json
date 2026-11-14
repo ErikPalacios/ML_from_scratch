@@ -1,10 +1,10 @@
 {
   "titulo": "Una flecha, seis caminos: lo que cuesta al mes",
-  "intro": "Pon cuántos bytes lleva cada request y cuántas requests hay. La calculadora te dice cuánto costaría al mes que esos bytes pasaran por cada camino, con los precios de `us-east-1`. Solo el cruce de zona usa la fracción que cruza.",
+  "intro": "Pon cuántos bytes lleva cada request y cuántas requests hay. La calculadora aplica \\(G = b × R ÷ 10^9\\) y \\(c = G × t\\), con la tarifa \\(t\\) de cada camino en `us-east-1`: lo que costaría al mes que esos bytes pasaran por él. Solo el cruce de zona usa la fracción que cruza: \\(c = G × f × 0.02\\).",
   "entradas": [
-    { "id": "kb", "label": "**Bytes por request**, en KB", "min": 0.1, "max": 5000, "paso": 0.1, "valor": 602, "tipo": "numero" },
-    { "id": "m", "label": "**Requests al día**, en millones", "min": 0.1, "max": 100, "paso": 0.1, "valor": 10 },
-    { "id": "f", "label": "Fracción que **cruza de zona**", "min": 0, "max": 100, "paso": 1, "valor": 50, "unidad": "%" }
+    { "id": "kb", "label": "**Bytes por request**, \\(b\\), en KB (602 = el tensor FP32)", "min": 0.1, "max": 5000, "paso": 0.1, "valor": 602, "tipo": "numero" },
+    { "id": "m", "label": "**Requests al día**, en millones (\\(R\\) = esto × 1,000,000 × 30.4 días)", "min": 0.1, "max": 100, "paso": 0.1, "valor": 10 },
+    { "id": "f", "label": "Fracción que **cruza de zona**, \\(f\\)", "min": 0, "max": 100, "paso": 1, "valor": 50, "unidad": "%" }
   ],
   "calculos": [
     { "id": "gb", "formula": "kb * 1000 * m * 1000000 * 30.4 / 1000000000" },
@@ -15,13 +15,13 @@
     { "id": "t4", "formula": "max(e - 153600, 0)" }
   ],
   "salidas": [
-    { "label": "GB al mes por esta flecha", "formula": "gb", "formato": "int", "nota": "KB × requests al día × 30.4" },
-    { "label": "Misma zona o gateway endpoint de S3, en US$", "formula": "0", "formato": "int", "nota": "gratis" },
-    { "label": "Cruce de zona, en US$", "formula": "gb * f / 100 * 0.02", "formato": "int", "nota": "GB × fracción × 0.02 (salir + entrar)" },
-    { "label": "Interface endpoint (PrivateLink), en US$", "formula": "gb * 0.01", "formato": "int", "nota": "GB × 0.01, más sus horas" },
-    { "label": "Por el ALB, en US$", "formula": "gb * 0.008", "formato": "int", "nota": "GB × 0.008 cuando ganan los bytes, más su hora" },
-    { "label": "Por el NAT gateway, en US$", "formula": "gb * 0.045", "formato": "int", "nota": "GB × 0.045, en cualquier dirección" },
-    { "label": "Saliendo a internet (egress), en US$", "formula": "t1 * 0.09 + t2 * 0.085 + t3 * 0.07 + t4 * 0.05", "formato": "int", "nota": "por escalones, con 100 GB gratis" }
+    { "label": "GB al mes por esta flecha, \\(G\\)", "formula": "gb", "formato": "int", "nota": "\\(G = b × R ÷ 10^9\\), con \\(b\\) en bytes y \\(R\\) = requests al día × 30.4" },
+    { "label": "Misma zona o gateway endpoint de S3, en US$", "formula": "0", "formato": "int", "nota": "\\(t\\) = 0: gratis" },
+    { "label": "Cruce de zona, \\(c\\), en US$", "formula": "gb * f / 100 * 0.02", "formato": "int", "nota": "\\(c = G × f × 0.02\\) (0.01 al salir + 0.01 al entrar)" },
+    { "label": "Interface endpoint (PrivateLink), \\(c\\), en US$", "formula": "gb * 0.01", "formato": "int", "nota": "\\(c = G × 0.01\\), más sus horas" },
+    { "label": "Por el ALB, \\(c\\), en US$", "formula": "gb * 0.008", "formato": "int", "nota": "\\(c = G × 0.008\\) cuando ganan los bytes, más su hora" },
+    { "label": "Por el NAT gateway, \\(c\\), en US$", "formula": "gb * 0.045", "formato": "int", "nota": "\\(c = G × 0.045\\), en cualquier dirección" },
+    { "label": "Saliendo a internet (egress), \\(c\\), en US$", "formula": "t1 * 0.09 + t2 * 0.085 + t3 * 0.07 + t4 * 0.05", "formato": "int", "nota": "\\(c = 0.09 × G_1 + 0.085 × G_2 + 0.07 × G_3 + 0.05 × G_4\\), por escalones, con 100 GB gratis" }
   ],
   "nota": "Aquí 1 TB = 1,000 GB y un mes = 30.4 días; los escalones del egress van como los corta AWS (10,240 GB el primero). Las horas fijas del NAT, del ALB y de los endpoints no están incluidas: esto es solo lo que cobra cada GB."
 }

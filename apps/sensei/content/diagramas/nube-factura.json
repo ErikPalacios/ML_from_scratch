@@ -1,5 +1,5 @@
 {
- "titulo": "De dónde sale cada renglón de la factura de C01",
+ "titulo": "De dónde sale cada renglón de la factura de Alba",
  "width": 78,
  "height": 60,
  "lanes": [
@@ -41,7 +41,7 @@
    "y": 5,
    "w": 28,
    "h": 8,
-   "note": "Las dos máquinas con GPU T4, una por [[zona-disponibilidad|zona]]. 2 × 0.526 × 730 ≈ US$768. Es el renglón más grande, pero no llega a la mitad de la factura."
+   "note": "Las dos máquinas con GPU T4, una por [[zona-disponibilidad|zona]]. 2 máquinas × US$0.526 por hora × 730 h al mes ≈ US$768. Es el renglón más grande, pero no llega a la mitad de la factura."
   },
   {
    "id": "gw",
@@ -52,7 +52,7 @@
    "y": 18,
    "w": 28,
    "h": 8,
-   "note": "Las máquinas sin GPU donde corre el gateway, que valida y prepara cada foto. 2 × 0.17 × 730 ≈ US$248."
+   "note": "Las máquinas sin GPU donde corre el gateway, que valida y prepara cada foto. 2 máquinas × ≈ US$0.17 por hora × 730 h al mes ≈ US$248."
   },
   {
    "id": "eks",
@@ -100,14 +100,14 @@
   },
   {
    "id": "factura",
-   "label": "Factura de C01",
+   "label": "Factura de Alba",
    "sub": "≈ US$1.8k al mes",
    "kind": "store",
    "x": 25,
    "y": 48,
    "w": 28,
    "h": 9,
-   "note": "La suma: ≈ US$1.8k al mes de infraestructura (la Ronda redondea a ≈ US$1.75k), ≈ US$0.006 por cada 1,000 predicciones. Para saber que todo esto es de C01 y no de otro equipo, cada recurso lleva la [[etiqueta-costos|etiqueta]] `proyecto=c01`."
+   "note": "La suma: 768 + 248 + 73 + 500 + 100 + 140 ≈ US$1.8k al mes de infraestructura. Entre ≈ 304 M predicciones al mes (≈ 10 M al día × 30.4 días): 1,829 ÷ 304,000,000 × 1,000 ≈ US$0.006 por cada 1,000 predicciones. Para saber que todo esto es del clasificador de fotos de Alba y no de otro equipo, cada recurso lleva la [[etiqueta-costos|etiqueta]] `proyecto=clasificador-fotos`."
   }
  ],
  "edges": [
@@ -252,7 +252,7 @@
      "edges": [
       "alb>factura"
      ],
-     "text": "El balanceador: ≈ **US$500**, más de la cuarta parte. Crece con los bytes que pasan, no con las horas."
+     "text": "El balanceador: ≈ **US$500**, más de la cuarta parte (500 ÷ 1,829 ≈ 27 %). Crece con los bytes que pasan, no con las horas."
     },
     {
      "nodes": [
@@ -263,7 +263,7 @@
       "logs>factura",
       "red>factura"
      ],
-     "text": "Logs, métricas, S3, NAT y red: ≈ US$240 entre todos. Este lado crece con el tráfico, y es el que **sorprende**: nadie lo pidió como «una máquina»."
+     "text": "Logs, métricas, S3, NAT y red: 100 + 140 ≈ US$240 entre todos. Este lado crece con el tráfico, y es el que **sorprende**: nadie lo pidió como «una máquina»."
     }
    ]
   },
@@ -283,7 +283,7 @@
       "logs>factura",
       "red>factura"
      ],
-     "text": "Todo junto: ≈ **US$1.8k al mes**. Las GPUs son ≈ 42 %. Dicho como lo pide la Ronda: ≈ **US$0.006 por cada 1,000 predicciones**."
+     "text": "Todo junto: 768 + 248 + 73 + 500 + 100 + 140 ≈ **US$1.8k al mes**. Las GPUs son 768 ÷ 1,829 ≈ 42 %. Dicho como se reporta en una entrevista: 1,829 ÷ 304 M × 1,000 ≈ **US$0.006 por cada 1,000 predicciones**."
     }
    ]
   }

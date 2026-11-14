@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 424" role="img" aria-labelledby="f-http-conexion-t" class="f-svg" style="max-width:420px">
-<title id="f-http-conexion-t">La misma request con un RTT de 50 ms y 40 ms de trabajo del servidor, en dos líneas de tiempo que bajan. A la izquierda, con una conexión nueva: primero el saludo de TCP, una ida y vuelta de 50 ms; después el saludo de TLS 1.3, otra ida y vuelta; después la request, los 40 ms del servidor y la respuesta, que llega a los 190 ms. A la derecha, con una conexión que ya estaba abierta: solo la request, los 40 ms del servidor y la respuesta, que llega a los 90 ms. Se ahorran 100 ms, los dos saludos.</title>
+<title id="f-http-conexion-t">La misma request con un RTT de 60 ms y 40 ms de trabajo del servidor, en dos líneas de tiempo que bajan. A la izquierda, con una conexión nueva: primero el saludo de TCP, una ida y vuelta de 60 ms; después el saludo de TLS 1.3, otra ida y vuelta; después la request, los 40 ms del servidor y la respuesta, que llega a los 220 ms. A la derecha, con una conexión que ya estaba abierta: solo la request, los 40 ms del servidor y la respuesta, que llega a los 100 ms. Se ahorran 120 ms, los dos saludos.</title>
 <rect class="f-card" x="10" y="10" width="340" height="404" rx="16"/>
-<text class="f-l" x="26" y="36">RTT DE 50 MS · EL TIEMPO CORRE HACIA ABAJO</text>
+<text class="f-l" x="26" y="36">RTT DE 60 MS · EL TIEMPO CORRE HACIA ABAJO</text>
 <text class="f-l" x="95" y="62" text-anchor="middle">CONEXIÓN NUEVA</text>
 <text class="f-l" x="265" y="62" text-anchor="middle">YA ABIERTA</text>
 <text class="f-s" x="40" y="84" text-anchor="middle" style="font-size:12px">cliente</text>
@@ -42,13 +42,13 @@
 <text class="f-s" x="311" y="158" text-anchor="end" style="font-size:12px;font-weight:700">40 ms</text>
 <line class="f-flecha" x1="320" y1="178" x2="214" y2="207"/>
 <polygon class="f-punta" points="210,208 216.67,202.04 218.77,209.76"/>
-<text class="f-t" x="265" y="236" text-anchor="middle" style="font-size:13px">90 ms</text>
+<text class="f-t" x="265" y="236" text-anchor="middle" style="font-size:13px">100 ms</text>
 <text class="f-s" x="265" y="252" text-anchor="middle" style="font-size:12px">llega la respuesta</text>
 <rect class="f-chip" x="194" y="268" width="140" height="62" rx="8"/>
-<text class="f-s" x="264" y="290" text-anchor="middle" style="font-size:12px;font-weight:700">100 ms ahorrados:</text>
+<text class="f-s" x="264" y="290" text-anchor="middle" style="font-size:12px;font-weight:700">120 ms ahorrados:</text>
 <text class="f-s" x="264" y="306" text-anchor="middle" style="font-size:12px">los saludos de TCP</text>
 <text class="f-s" x="264" y="322" text-anchor="middle" style="font-size:12px">y TLS ya se pagaron</text>
-<text class="f-t" x="95" y="356" text-anchor="middle" style="font-size:13px">190 ms</text>
+<text class="f-t" x="95" y="356" text-anchor="middle" style="font-size:13px">220 ms</text>
 <text class="f-s" x="95" y="372" text-anchor="middle" style="font-size:12px">llega la respuesta</text>
 <rect x="26" y="390" width="12" height="12" rx="2" style="fill:var(--p);opacity:.5"/>
 <text class="f-s" x="44" y="400" style="font-size:12px">TCP</text>

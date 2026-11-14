@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 422" role="img" aria-labelledby="f-latencia-batch-t" class="f-svg" style="max-width:420px">
-<title id="f-latencia-batch-t">Batch contra throughput y latencia en una T4, con los números ilustrativos de la Ronda. Cada fila es un tamaño de batch, con una barra azul de fotos por segundo y una naranja de lo que tarda el batch en la GPU. Batch de 1: 250 fotos por segundo y 4 milisegundos. Batch de 4: unas 670 y 6 milisegundos. Batch de 8: unas 890 y 9 milisegundos. Batch de 16: unas 1,070 y 15 milisegundos. Batch de 32: unas 1,190 y 27 milisegundos. De 1 a 8, el throughput se multiplica por 3.6 con 5 milisegundos más; de 8 a 32 solo por 1.3, mientras el batch tarda el triple.</title>
+<title id="f-latencia-batch-t">Batch contra throughput y latencia en una T4, con números ilustrativos. Cada fila es un tamaño de batch, con una barra azul de fotos por segundo y una naranja de lo que tarda el batch en la GPU. Batch de 1: 250 fotos por segundo y 4 milisegundos. Batch de 4: unas 670 y 6 milisegundos. Batch de 8: unas 890 y 9 milisegundos. Batch de 16: unas 1,070 y 15 milisegundos. Batch de 32: unas 1,190 y 27 milisegundos. De 1 a 8, el throughput se multiplica por 3.6 con 5 milisegundos más; de 8 a 32 solo por 1.3, mientras el batch tarda el triple.</title>
 <rect class="f-card" x="10" y="10" width="340" height="402" rx="16"/>
-<text class="f-l" x="28" y="36">UNA T4 · NÚMEROS ILUSTRATIVOS (M03)</text>
+<text class="f-l" x="28" y="36">UNA T4 · NÚMEROS ILUSTRATIVOS</text>
 <rect class="f-b" x="28" y="50" width="14" height="14" rx="3"/>
 <text class="f-s" x="48" y="62" style="font-size:12px">fotos por segundo, como máximo</text>
 <rect class="f-o" x="28" y="70" width="14" height="14" rx="3"/>

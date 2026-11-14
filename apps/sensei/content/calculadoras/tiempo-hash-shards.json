@@ -1,10 +1,10 @@
 {
   "titulo": "Agregar una máquina: mod N contra el anillo",
-  "intro": "**De N a N + 1 máquinas, con hash(llave) mod N se mueve N ÷ (N + 1) de las llaves; con hashing consistente, ≈ 1 ÷ (N + 1).** Arranca con el índice de C07: 4 shards, 100 millones de listings y un vector de 2,048 bytes por listing.",
+  "intro": "**De \\(N\\) a \\(N + 1\\) máquinas, con hash(llave) mod N se mueve \\(f_{mod} = N ÷ (N + 1)\\) de las llaves; con hashing consistente, \\(f_{anillo} ≈ 1 ÷ (N + 1)\\).** Los bytes que viajan son \\(M = f × L × v\\), con \\(f\\) igual a \\(f_{mod}\\) o a \\(f_{anillo}\\). Arranca con el índice de búsqueda de Alba: 4 shards, ≈ 100 millones de publicaciones activas y un vector de 2,048 bytes por publicación.",
   "entradas": [
-    { "id": "N", "label": "Máquinas ahora", "min": 1, "max": 1000, "paso": 1, "valor": 4, "tipo": "numero" },
-    { "id": "L", "label": "Llaves, en millones", "min": 0.001, "max": 100000, "paso": 0.001, "valor": 100, "tipo": "numero" },
-    { "id": "kb", "label": "Datos por llave, en KB (2.048 = 512 floats de 4 bytes)", "min": 0.001, "max": 100000, "paso": 0.001, "valor": 2.048, "tipo": "numero" }
+    { "id": "N", "label": "Máquinas ahora, \\(N\\)", "min": 1, "max": 1000, "paso": 1, "valor": 4, "tipo": "numero" },
+    { "id": "L", "label": "Llaves, \\(L\\), en millones", "min": 0.001, "max": 100000, "paso": 0.001, "valor": 100, "tipo": "numero" },
+    { "id": "kb", "label": "Datos por llave, \\(v\\), en KB (2.048 = 512 floats de 4 bytes)", "min": 0.001, "max": 100000, "paso": 0.001, "valor": 2.048, "tipo": "numero" }
   ],
   "calculos": [
     { "id": "fmod", "formula": "N / (N + 1)" },
@@ -12,13 +12,13 @@
     { "id": "llaves", "formula": "L * 1e6" }
   ],
   "salidas": [
-    { "label": "Con mod N: parte de las llaves que se mueve", "formula": "fmod", "formato": "pct", "decimales": 1, "barra": true },
-    { "label": "Con mod N: llaves que se mueven", "formula": "llaves * fmod", "formato": "int" },
-    { "label": "Con mod N: datos que viajan", "formula": "llaves * fmod * kb * 1000", "formato": "bytes" },
-    { "label": "Con el anillo: parte de las llaves que se mueve", "formula": "fani", "formato": "pct", "decimales": 1, "barra": true, "nota": "solo lo que le toca a la nueva" },
-    { "label": "Con el anillo: llaves que se mueven", "formula": "llaves * fani", "formato": "int" },
-    { "label": "Con el anillo: datos que viajan", "formula": "llaves * fani * kb * 1000", "formato": "bytes" },
-    { "label": "Cuántas veces más mueve mod N", "formula": "fmod / fani", "formato": "x", "decimales": 0, "nota": "siempre N" }
+    { "label": "Con mod N: parte de las llaves que se mueve, \\(f_{mod}\\)", "formula": "fmod", "formato": "pct", "decimales": 1, "barra": true, "nota": "\\(N ÷ (N + 1)\\)" },
+    { "label": "Con mod N: llaves que se mueven", "formula": "llaves * fmod", "formato": "int", "nota": "\\(f_{mod} × L\\)" },
+    { "label": "Con mod N: datos que viajan, \\(M\\)", "formula": "llaves * fmod * kb * 1000", "formato": "bytes", "nota": "\\(M = f_{mod} × L × v\\)" },
+    { "label": "Con el anillo: parte de las llaves que se mueve, \\(f_{anillo}\\)", "formula": "fani", "formato": "pct", "decimales": 1, "barra": true, "nota": "\\(1 ÷ (N + 1)\\): solo lo que le toca a la nueva" },
+    { "label": "Con el anillo: llaves que se mueven", "formula": "llaves * fani", "formato": "int", "nota": "\\(f_{anillo} × L\\)" },
+    { "label": "Con el anillo: datos que viajan, \\(M\\)", "formula": "llaves * fani * kb * 1000", "formato": "bytes", "nota": "\\(M = f_{anillo} × L × v\\)" },
+    { "label": "Cuántas veces más mueve mod N", "formula": "fmod / fani", "formato": "x", "decimales": 0, "nota": "\\(f_{mod} ÷ f_{anillo}\\): siempre \\(N\\)" }
   ],
   "nota": "Con 4 máquinas, mod N mueve 80 % (≈ 164 GB) y el anillo, 20 % (≈ 41 GB). Con 100 máquinas, mod N mueve el 99 %: casi todo, por una sola máquina más."
 }

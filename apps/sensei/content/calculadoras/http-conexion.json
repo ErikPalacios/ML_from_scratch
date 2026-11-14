@@ -1,20 +1,20 @@
 { "titulo": "Lo que cuesta abrir una conexión",
-  "intro": "**Primera request = (1 de TCP + los de TLS + 1) × [[rtt|RTT]] + servidor.** Las siguientes, por la misma conexión, solo pagan **1 × RTT + servidor**. Arranca con el celular de Ana.",
+  "intro": "Aplica **\\(t_{nueva} = (1 + k + 1) × RTT + w\\)** para la primera request y **\\(t_{abierta} = RTT + w\\)** para las siguientes, por la misma conexión: 1 [[rtt|RTT]] del saludo de TCP, \\(k\\) del de TLS y 1 de la request con su respuesta. Arranca con el celular de Ana, en Ciudad de México, hablando con las máquinas de Alba en Virginia.",
   "entradas": [
-    { "id": "rtt", "label": "RTT, en ms (50 = un celular en 4G · 0.5 = dentro de un centro de datos)", "min": 0.1, "max": 300, "paso": 0.1, "valor": 50, "tipo": "numero" },
-    { "id": "tls", "label": "Saludo de TLS: 0 = sin TLS · 1 = TLS 1.3 · 2 = TLS 1.2", "min": 0, "max": 2, "paso": 1, "valor": 1 },
-    { "id": "srv", "label": "Tiempo del servidor, en ms", "min": 0, "max": 500, "paso": 1, "valor": 40 },
-    { "id": "n", "label": "Requests por conexión (1 = sin keep-alive)", "min": 1, "max": 1000, "paso": 1, "valor": 10, "tipo": "numero" }
+    { "id": "rtt", "label": "RTT, en ms (60 = del celular de Ana a Virginia · 0.5 = dentro de un centro de datos)", "min": 0.1, "max": 300, "paso": 0.1, "valor": 60, "tipo": "numero" },
+    { "id": "tls", "label": "RTT del saludo de TLS, \\(k\\): 0 = sin TLS · 1 = TLS 1.3 · 2 = TLS 1.2", "min": 0, "max": 2, "paso": 1, "valor": 1 },
+    { "id": "srv", "label": "Tiempo del servidor, \\(w\\), en ms", "min": 0, "max": 500, "paso": 1, "valor": 40 },
+    { "id": "n", "label": "Requests por conexión, \\(m\\) (1 = sin keep-alive)", "min": 1, "max": 1000, "paso": 1, "valor": 10, "tipo": "numero" }
   ],
   "calculos": [
     { "id": "saludo", "formula": "(1 + tls) * rtt" },
     { "id": "prom", "formula": "saludo / n + rtt + srv" }
   ],
   "salidas": [
-    { "label": "Primera request, con conexión nueva", "formula": "saludo + rtt + srv", "formato": "ms", "decimales": 1 },
-    { "label": "Las siguientes, por la conexión abierta", "formula": "rtt + srv", "formato": "ms", "decimales": 1 },
-    { "label": "Promedio por request", "formula": "prom", "formato": "ms", "decimales": 1, "nota": "los saludos se reparten entre las requests de la conexión" },
-    { "label": "Parte del tiempo que se va en saludos", "formula": "(saludo / n) / max(prom, 1e-9)", "formato": "pct", "barra": true },
-    { "label": "Ahorro por request, contra abrir una conexión cada vez", "formula": "saludo * (1 - 1 / n)", "formato": "ms", "decimales": 1 }
+    { "label": "Primera request, con conexión nueva, \\(t_{nueva}\\)", "formula": "saludo + rtt + srv", "formato": "ms", "decimales": 1, "nota": "\\(t_{nueva} = (1 + k + 1) × RTT + w\\)" },
+    { "label": "Las siguientes, por la conexión abierta, \\(t_{abierta}\\)", "formula": "rtt + srv", "formato": "ms", "decimales": 1, "nota": "\\(t_{abierta} = RTT + w\\)" },
+    { "label": "Promedio por request", "formula": "prom", "formato": "ms", "decimales": 1, "nota": "\\((1 + k) × RTT ÷ m + RTT + w\\): los saludos se reparten entre las \\(m\\) requests de la conexión" },
+    { "label": "Parte del tiempo que se va en saludos", "formula": "(saludo / n) / max(prom, 1e-9)", "formato": "pct", "barra": true, "nota": "\\((1 + k) × RTT ÷ m\\), dividido entre el promedio por request" },
+    { "label": "Ahorro por request, contra abrir una conexión cada vez", "formula": "saludo * (1 - 1 / n)", "formato": "ms", "decimales": 1, "nota": "\\((1 + k) × RTT × (1 − 1/m)\\)" }
   ],
   "nota": "Con 1 request por conexión, el ahorro es 0 y más de la mitad del tiempo son saludos. Con 0.5 ms de RTT, los saludos casi no cuestan tiempo, pero cada conexión nueva sigue costando CPU y puertos." }

@@ -102,7 +102,7 @@
       "en": "queries per second · requests per second",
       "corto": "Cuántas requests o consultas llegan por segundo. Es la unidad con la que se dimensiona un servicio.",
       "largo": "Se calcula dividiendo el volumen de un día entre 86,400 segundos: 1 millón al día son ≈ 11.6 por segundo. Ese es el promedio; para dimensionar se usan el pico y el pico de diseño (ver [[factor-pico]]). «QPS» viene de los buscadores (*queries*); «req/s» dice lo mismo para cualquier API.",
-      "ejemplo": "Alba: 10,000,000 fotos ÷ 86,400 s ≈ 116 req/s de promedio, ≈ 350 en la hora pico y 500 de diseño. Un buscador con 50 M búsquedas al día: ≈ 579 de promedio y ≈ 1,740 en el pico.",
+      "ejemplo": "Alba: 10,000,000 fotos ÷ 86,400 s ≈ 116 req/s de promedio, ≈ 350 en la hora pico y 500 de diseño. Un buscador con 50 M búsquedas al día: ≈ 579 de promedio y ≈ 1,740 en el pico (≈ 1,750 redondeado).",
       "ver": [
         "throughput",
         "factor-pico"

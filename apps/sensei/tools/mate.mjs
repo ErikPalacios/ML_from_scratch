@@ -82,8 +82,8 @@ export function mate(s, error = (m) => { throw new Error(m); }) {
       i++;
       const o = c === '-' ? '−' : c === '*' ? '×' : c;
       // un «−» al principio o después de otro operador o de «(» es un signo, no una resta
-      const signo = o === '−' && /(^|<span class="m-o">[^<]*<\/span>|\(\s*)$/.test(out);
-      out += signo ? '−' : `<span class="m-o">${esc(o)}</span>`;
+      const signo = o === '−' && /(^|<span class="m-o">[^<]*<\/span>(<wbr>)?|\(\s*)$/.test(out);
+      out += signo ? '−' : `<span class="m-o">${esc(o)}</span><wbr>`; // <wbr>: una ecuación larga en un párrafo puede partirse después de un operador
     } else if (c === ' ') {
       i++;
     } else if (c === '{' || c === '}') {

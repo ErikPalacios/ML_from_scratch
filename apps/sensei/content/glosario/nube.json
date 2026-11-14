@@ -7,7 +7,7 @@
    "corto": "Rentar computadoras, discos y servicios que viven en los centros de datos de otra empresa, pidiéndolos por software y pagando solo por lo que usas (por hora, por GB, por request).",
    "largo": "Tres rasgos la distinguen de rentar una computadora cualquiera: la pides tú solo por una [[api-nube|API]] y la tienes en minutos; pagas por uso ([[pago-por-uso]]); y sale de un fondo enorme que comparten muchos clientes, del que tomas y al que devuelves capacidad ([[elasticidad]]). Lo que se renta va de máquinas virtuales (IaaS) a productos terminados (SaaS). Convierte la compra de servidores ([[capex-opex|CapEx]]) en un gasto mensual (OpEx). Su contrario es [[on-premises]].",
    "analogia": "Como la red eléctrica: en vez de tener tu generador, te conectas y pagas por kilowatt-hora. Se rompe en que cada proveedor tiene sus propios «enchufes» y sacar tus datos se cobra.",
-   "ejemplo": "C01 no tiene servidores propios: renta en AWS dos VMs con GPU T4 a ≈ US$0.526 por hora cada una (us-east-1, noviembre de 2026), ≈ US$768 al mes entre las dos, y las puede devolver cuando quiera.",
+   "ejemplo": "Alba, el marketplace que sigue el curso, no tiene servidores propios para su clasificador de fotos: renta en AWS dos VMs con GPU T4 a ≈ US$0.526 por hora cada una (us-east-1, noviembre de 2026), 2 × 0.526 × 730 ≈ US$768 al mes entre las dos, y las puede devolver cuando quiera.",
    "ver": [
     "proveedor-nube",
     "centro-de-datos",
@@ -21,8 +21,8 @@
    "termino": "Proveedor de nube",
    "en": "cloud provider",
    "corto": "La empresa que renta la nube: AWS (Amazon), Google Cloud y Microsoft Azure son los tres grandes, llamados de hiperescala. Hay otros más chicos y los especializados en GPUs (neoclouds).",
-   "largo": "Cada proveedor ofrece las mismas categorías con nombres distintos: máquinas virtuales (EC2, Compute Engine, Virtual Machines), Kubernetes gestionado (EKS, GKE, AKS), object storage (S3, Cloud Storage, Blob Storage). La regla de la Ronda: cambian los nombres, no el diseño. Pero equivalente no es idéntico (Pub/Sub no es Kafka), y los precios y las GPUs disponibles cambian por proveedor y por [[region|región]]. Por eso la primera pregunta de un diseño es «¿en qué nube están?».",
-   "ejemplo": "C01 en AWS usa EKS, S3 y ECR; en Google Cloud serían GKE, Cloud Storage y Artifact Registry, con el mismo diagrama.",
+   "largo": "Cada proveedor ofrece las mismas categorías con nombres distintos: máquinas virtuales (EC2, Compute Engine, Virtual Machines), Kubernetes gestionado (EKS, GKE, AKS), object storage (S3, Cloud Storage, Blob Storage). La regla: cambian los nombres, no el diseño. Pero equivalente no es idéntico (Pub/Sub no es Kafka), y los precios y las GPUs disponibles cambian por proveedor y por [[region|región]]. Por eso la primera pregunta de un diseño es «¿en qué nube están?».",
+   "ejemplo": "Alba, el marketplace que sigue el curso, usa en AWS EKS, S3 y ECR; en Google Cloud serían GKE, Cloud Storage y Artifact Registry, con el mismo diagrama.",
    "ver": [
     "nube",
     "neocloud",
@@ -36,7 +36,7 @@
    "en": "data center",
    "corto": "Un edificio lleno de servidores acomodados en racks (estantes metálicos), con electricidad de respaldo, enfriamiento y varias conexiones de fibra. La nube vive ahí: son las computadoras de alguien más.",
    "largo": "Resuelve lo que una oficina no resuelve: electricidad que llega por más de una línea, baterías y generadores para cuando se va, enfriamiento para miles de servidores que se calientan, y fibra por caminos distintos. Un proveedor agrupa sus centros de datos en [[zona-disponibilidad|zonas]] (uno o más edificios con luz y red propias) y las zonas en [[region|regiones]]. También se renta espacio dentro de uno para poner servidores propios (*colocation*).",
-   "ejemplo": "Cuando C01 dice «us-east-1a», habla de uno o más centros de datos reales en el norte de Virginia, donde están sus máquinas.",
+   "ejemplo": "Cuando el equipo de Alba, el marketplace que sigue el curso, dice «us-east-1a», habla de uno o más centros de datos reales en el norte de Virginia, donde están sus máquinas.",
    "ver": [
     "region",
     "zona-disponibilidad",
@@ -78,7 +78,7 @@
    "en": "on-premises",
    "corto": "Máquinas que la empresa compra y opera ella misma, en su edificio o en un espacio rentado en un centro de datos. Es lo contrario de rentar en la nube.",
    "largo": "Se paga por adelantado ([[capex-opex|CapEx]]) y cuesta lo mismo se use o no, pero no lleva el margen del proveedor. Suele ganar con uso alto y parejo durante años, cuando los datos no pueden salir de la empresa (salud, banca, gobierno), en el borde (una caja junto a una cámara que tiene que seguir funcionando sin internet) y a escala muy grande. A cambio, la empresa pone a la gente que lo opera, compra para el pico y tarda semanas en crecer. Muchas empresas combinan on-prem y nube (híbrido).",
-   "ejemplo": "Un servidor con una GPU de ≈ US$24,400, amortizado en 3 años con ≈ US$310 al mes de luz, espacio y mantenimiento, cuesta ≈ US$988 al mes; rentado 24/7 a ≈ US$4.50 por hora serían ≈ US$3,285. Si solo lo usas 4 horas al día, rentar gana.",
+   "ejemplo": "Un servidor con una GPU de ≈ US$24,400, amortizado en 3 años con ≈ US$310 al mes de luz, espacio y mantenimiento, cuesta 24,400 ÷ 36 + 310 ≈ US$988 al mes; rentado 24/7 a ≈ US$4.50 por hora serían 4.50 × 730 ≈ US$3,285. Si solo lo usas 4 horas al día, rentar gana.",
    "ver": [
     "capex-opex",
     "nube",
@@ -92,7 +92,7 @@
    "en": "capex vs opex",
    "corto": "CapEx es una compra grande que se usa varios años y se reparte (amortiza) en ellos, como un servidor. OpEx es el gasto que se paga mes con mes, como la luz o la renta de la nube.",
    "largo": "La nube convierte CapEx en OpEx: no pones el dinero por adelantado ni apuestas a cuánta capacidad necesitarás en tres años. A cambio, pagas el margen del proveedor y el gasto sigue mientras uses. La comparación honesta pone las dos cosas en la misma unidad, US$ al mes: compra ÷ meses de vida + operación, contra precio por hora × horas de uso. El punto donde se igualan dice cuántas horas al mes necesitas usar lo propio para que convenga.",
-   "ejemplo": "Un servidor de ≈ US$24,400 que dura 36 meses es CapEx de ≈ US$678 al mes en los libros. Las dos T4 de C01 son OpEx: ≈ US$768 cada mes que estén prendidas.",
+   "ejemplo": "Un servidor de ≈ US$24,400 que dura 36 meses es CapEx de 24,400 ÷ 36 ≈ US$678 al mes en los libros. Las dos T4 de Alba, el marketplace que sigue el curso, son OpEx: 2 × 0.526 × 730 ≈ US$768 cada mes que estén prendidas.",
    "ver": [
     "on-premises",
     "pago-por-uso",
@@ -106,7 +106,7 @@
    "en": "pay-as-you-go",
    "corto": "La forma de cobrar de la nube: cada cosa tiene su medidor y pagas solo lo que tuviste encendido o usaste, por hora, por GB al mes, por GB transferido o por request.",
    "largo": "Las máquinas se cobran por tiempo encendidas (trabajen o no), el almacenamiento por GB al mes, la red por GB que sale o cruza de zona, muchos servicios por request y los modelos de lenguaje por millón de tokens. Para planear, se convierte todo a un mes de 730 horas (8,760 ÷ 12). Pagar por uso no es pagar lo que aprovechas: una máquina olvidada se cobra igual que una que trabaja.",
-   "ejemplo": "Una `g4dn.xlarge` a ≈ US$0.526 por hora: 0.526 × 730 ≈ US$384 al mes si nunca se apaga; ≈ US$104 si solo está prendida 198 horas.",
+   "ejemplo": "Una `g4dn.xlarge` a ≈ US$0.526 por hora: 0.526 × 730 ≈ US$384 al mes si nunca se apaga; 0.526 × 198 ≈ US$104 si solo está prendida 198 horas.",
    "ver": [
     "precio-lista",
     "elasticidad",
@@ -134,7 +134,7 @@
    "en": "elasticity",
    "corto": "Poder subir y bajar la capacidad según la demanda, en minutos, y pagar solo por lo que tuviste prendido.",
    "largo": "Es lo que hace que la nube ahorre con picos: en vez de comprar para el día más ocupado, prendes máquinas cuando sube la carga y las apagas cuando baja. Es una posibilidad, no algo automático: alguien tiene que decidir cuándo (el [[autoscaling]]), una VM con GPU tarda minutos en servir, tu [[cuota-servicio|cuota]] pone un tope y una zona se puede quedar sin capacidad. Un pico de segundos se cubre con máquinas ya prendidas.",
-   "ejemplo": "2 máquinas de base y 10 durante 96 horas de ofertas (cuatro días), a ≈ US$0.526 por hora: fijas para el pico cuestan ≈ US$3,840 al mes; elásticas, ≈ US$1,172.",
+   "ejemplo": "2 máquinas de base y 10 durante 96 horas de ofertas (cuatro días), a ≈ US$0.526 por hora: fijas para el pico cuestan 10 × 730 × 0.526 ≈ US$3,840 al mes; elásticas, (2 × 730 + 8 × 96) × 0.526 ≈ US$1,172.",
    "ver": [
     "pago-por-uso",
     "autoscaling",
@@ -149,7 +149,7 @@
    "corto": "Tres niveles de lo que rentas: IaaS es infraestructura (máquinas, discos, red); PaaS, una plataforma que corre tu código; SaaS, un producto terminado. Mientras más subes, menos operas y más pagas por unidad.",
    "largo": "En IaaS el proveedor cuida hasta el [[hipervisor]] y tú, del sistema operativo para arriba (una VM de EC2). En PaaS le das tu código o contenedor y no ves la máquina (Cloud Run, un endpoint de SageMaker AI). En SaaS usas el producto y solo pones datos y configuración (Gmail, una API de un modelo de lenguaje). Muchos servicios son mezclas: en Kubernetes gestionado, el proveedor opera el [[plano-de-control|plano de control]] y tú las máquinas donde corre tu código. Cada nivel mueve la línea de la [[responsabilidad-compartida]]. Lo que el proveedor opera por ti es un [[servicio-gestionado]].",
    "analogia": "Hacer pizza en casa (on-prem), rentar una cocina y llevar tus ingredientes (IaaS), mandar tu receta a una cocina que la hace (PaaS) o pedirla a domicilio (SaaS). Se rompe en que en la nube las fronteras se mezclan y sacar tus cosas se cobra.",
-   "ejemplo": "Para leer texto de documentos, C05 puede rentar VMs y correr su OCR (IaaS) o pagar Textract por página (casi SaaS): ≈ US$279 al mes por 186,000 páginas y nadie que lo opere.",
+   "ejemplo": "Para leer texto de documentos, un sistema de OCR puede rentar VMs y correr su OCR (IaaS) o pagar Textract por página (casi SaaS): ≈ US$279 al mes por 186,000 páginas y nadie que lo opere.",
    "ver": [
     "responsabilidad-compartida",
     "servicio-gestionado",
@@ -163,7 +163,7 @@
    "en": "shared responsibility model",
    "corto": "La regla de la nube sobre quién cuida qué: el proveedor, la seguridad de la nube (edificios, hardware, hipervisor, sus servicios); tú, la seguridad en la nube (lo que pones encima y cómo lo configuras).",
    "largo": "La línea se mueve con [[iaas-paas-saas|IaaS, PaaS y SaaS]]: en IaaS el sistema operativo de tu VM y sus parches son tuyos; en PaaS ya no; en SaaS casi nada. Pero una franja es tuya siempre: tus datos, quién puede verlos ([[iam|IAM]]) y si activaste respaldos. Un bucket público por error o una tabla borrada no son culpa del proveedor.",
-   "ejemplo": "Se rompe un disco del servidor de la T4 de C01: lo cambia AWS. El Linux de esa VM queda sin parchar: es del equipo de C01.",
+   "ejemplo": "Se rompe un disco del servidor de una de las T4 de Alba, el marketplace que sigue el curso: lo cambia AWS. El Linux de esa VM queda sin parchar: es del equipo de Alba.",
    "ver": [
     "iaas-paas-saas",
     "iam",
@@ -177,7 +177,7 @@
    "en": "cloud account",
    "corto": "El contenedor donde viven tus recursos, tu factura y tus permisos en un proveedor. En AWS es una cuenta (un número de 12 dígitos); en Google Cloud, un proyecto; en Azure, una suscripción.",
    "largo": "Todo lo que creas cae en una cuenta, y todo lo que se cobra va a su factura. Las empresas usan varias (desarrollo, producción, datos sensibles) para que un error en una no toque las otras y para separar costos. El usuario dueño, que puede hacerlo todo, se guarda bajo llave; el trabajo diario se hace con identidades de permisos acotados ([[iam|IAM]]). Las [[cuota-servicio|cuotas]] se cuentan por cuenta y por región.",
-   "ejemplo": "C01 vive en la cuenta de producción del marketplace, en us-east-1; sus pruebas, en otra cuenta, para que una máquina olvidada no se mezcle con la factura de producción.",
+   "ejemplo": "El clasificador de fotos de Alba, el marketplace que sigue el curso, vive en la cuenta de producción de Alba, en us-east-1; sus pruebas, en otra cuenta, para que una máquina olvidada no se mezcle con la factura de producción.",
    "ver": [
     "api-nube",
     "factura-nube",
@@ -191,7 +191,7 @@
    "en": "console / CLI / API",
    "corto": "Las tres maneras de pedirle cosas a la nube. Por debajo, todo es una API: cada acción es una request HTTP firmada a un endpoint del proveedor; la consola web y la CLI solo lo arman por ti.",
    "largo": "La consola es una página con botones, buena para explorar y mala para repetir. La CLI es un comando de la [[terminal]] (`aws`, `gcloud`, `az`). El SDK es una biblioteca para tu programa (`boto3` en Python). Cada request pasa por permisos ([[iam|IAM]]) y cuota antes de crear algo, y la de EC2 es por [[region|región]] (`ec2.us-east-1.amazonaws.com`); algunas, como la de IAM, son globales. Como todo es API, la infraestructura se puede escribir en archivos y crear con una herramienta (infraestructura como código, como Terraform).",
-   "ejemplo": "`aws ec2 run-instances --instance-type g4dn.xlarge …` crea la VM de C01; `aws ec2 terminate-instances --instance-ids i-0123…` la apaga y detiene el cobro.",
+   "ejemplo": "`aws ec2 run-instances --instance-type g4dn.xlarge …` crea una de las VMs con GPU de Alba, el marketplace que sigue el curso; `aws ec2 terminate-instances --instance-ids i-0123…` la apaga y detiene el cobro.",
    "ver": [
     "cuenta-nube",
     "endpoint",
@@ -205,7 +205,7 @@
    "en": "cloud bill",
    "corto": "El cobro mensual de una cuenta, con un renglón por cada servicio y unidad: horas de cada máquina, GB guardados, requests, GB transferidos, GB de logs.",
    "largo": "Lo que sorprende es que la de un sistema de ML rara vez es solo GPU: el balanceador, los logs, el tráfico entre zonas y el [[egress]] pueden pesar tanto como las máquinas. Para que sirva para decidir, cada recurso lleva una [[etiqueta-costos|etiqueta]] y la factura se agrupa por proyecto; se ponen alertas de presupuesto para no enterarse a fin de mes. En entrevista se reporta en US$ al mes con su supuesto, y por 1,000 predicciones.",
-   "ejemplo": "C01: GPUs ≈ US$768, gateway ≈ US$248, EKS ≈ US$73, ALB ≈ US$500, logs y S3 ≈ US$100, más NAT, IPv4, cruce de zona y endpoints ≈ US$140: ≈ US$1.8k al mes (la Ronda redondea a ≈ US$1.75k), ≈ US$0.006 por 1,000 predicciones. Las GPUs son ≈ 42 %.",
+   "ejemplo": "Alba, el marketplace que sigue el curso: GPUs ≈ US$768, gateway ≈ US$248, EKS ≈ US$73, ALB ≈ US$500, logs y S3 ≈ US$100, más NAT, IPv4, cruce de zona y endpoints ≈ US$140: 768 + 248 + 73 + 500 + 100 + 140 ≈ US$1.8k al mes. Entre ≈ 304 M predicciones al mes: 1,829 ÷ 304,000,000 × 1,000 ≈ US$0.006 por 1,000 predicciones. Las GPUs son 768 ÷ 1,829 ≈ 42 %.",
    "ver": [
     "pago-por-uso",
     "etiqueta-costos",
@@ -219,7 +219,7 @@
    "en": "platform team",
    "corto": "El equipo que opera la infraestructura común de una empresa (clusters de Kubernetes, redes, registro de imágenes, monitoreo) para que los equipos de producto, como el de ML, la usen sin operarla.",
    "largo": "Su existencia decide muchas elecciones de nube: la pregunta que casi siempre gana entre algo gestionado y algo propio es «¿quién lo va a operar?». Si ya hay un equipo que opera Kubernetes, agregar máquinas con GPU cuesta poco; si no lo hay y el equipo es chico, un servicio gestionado sale más barato aunque cueste más por hora, porque las personas no aparecen en la factura. Ver [[gestionado-vs-propio]].",
-   "ejemplo": "C01 usa EKS porque la empresa ya tiene un equipo que lo opera. Según la Ronda, sin plataforma y con un equipo chico, SageMaker AI sería la respuesta pragmática.",
+   "ejemplo": "Alba, el marketplace que sigue el curso, usa EKS porque ya tiene un equipo que lo opera. Sin plataforma y con un equipo chico, SageMaker AI sería la respuesta pragmática.",
    "ver": [
     "gestionado-vs-propio",
     "servicio-gestionado",

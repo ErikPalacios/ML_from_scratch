@@ -7,7 +7,7 @@
    "corto": "Tu red privada dentro de una región de la nube, aislada de las de otros clientes. Ahí viven tus máquinas, balanceadores y bases de datos, cada uno con su IP privada.",
    "largo": "Al crear una VPC eliges su rango de direcciones en notación [[cidr|CIDR]], como `10.0.0.0/16`, y la partes en [[subred|subredes]], cada una en una zona. Es «virtual» porque comparte cables y switches con todos los clientes: el proveedor separa el tráfico con software. Dentro de la VPC tú decides por dónde va cada paquete ([[tabla-rutas|tablas de rutas]]) y quién puede hablar con quién ([[grupo-seguridad|grupos de seguridad]]). Se llama VPC en AWS y Google Cloud, y VNet en Azure.",
    "analogia": "Como rentar un piso en un edificio de oficinas: los pasillos y las puertas internas son tuyos, el edificio pone la luz y la vigilancia. Se rompe en que tu piso y el del vecino pueden estar en la misma máquina, separados solo por software.",
-   "ejemplo": "C01 usa la VPC `10.0.0.0/16` en `us-east-1`: 65,536 direcciones privadas, de las que usa unas pocas decenas.",
+   "ejemplo": "Alba usa la VPC `10.0.0.0/16` en `us-east-1`: 65,536 direcciones privadas, de las que usa unas pocas decenas.",
    "ver": [
     "cidr",
     "subred",
@@ -36,7 +36,7 @@
    "en": "subnet",
    "corto": "Un pedazo del rango de una VPC que vive en una sola zona de disponibilidad. Al poner una máquina en una subred eliges su zona y el rango del que sale su IP.",
    "largo": "Las subredes de una [[vpc|VPC]] no se enciman y cada una cabe dentro del rango de la VPC. Cada una tiene asociada una [[tabla-rutas|tabla de rutas]], que la hace pública o privada ([[subred-privada]]). En AWS cada subred aparta 5 direcciones. En Kubernetes en AWS, cada pod toma una IP de la subred de su nodo, así que las subredes de los nodos se hacen grandes. En Google Cloud una subred es regional, no de una zona.",
-   "ejemplo": "C01 parte `10.0.0.0/16` en cuatro `/20`: `10.0.0.0/20` (pública, 1a), `10.0.16.0/20` (pública, 1b), `10.0.32.0/20` (privada, 1a) y `10.0.48.0/20` (privada, 1b), con 4,091 IPs usables cada una.",
+   "ejemplo": "Alba parte `10.0.0.0/16` en cuatro `/20`: `10.0.0.0/20` (pública, 1a), `10.0.16.0/20` (pública, 1b), `10.0.32.0/20` (privada, 1a) y `10.0.48.0/20` (privada, 1b), con 4,091 IPs usables cada una.",
    "ver": [
     "vpc",
     "cidr",
@@ -51,7 +51,7 @@
    "en": "private / public subnet",
    "corto": "Una subred pública tiene ruta directa a internet, por el internet gateway (la puerta de la red privada hacia internet); una privada no. Lo que vive en una privada no se alcanza desde internet.",
    "largo": "Lo que hace pública o privada a una [[subred]] es su [[tabla-rutas|tabla de rutas]], no su nombre: si `0.0.0.0/0` apunta a un [[internet-gateway|internet gateway]], es pública. Una privada, si necesita salir a internet, lo hace por un [[nat|NAT gateway]], que solo deja salir. Regla de diseño: en las públicas va solo lo que recibe tráfico de internet (el balanceador, los NAT); todo lo demás, en privadas.",
-   "ejemplo": "En C01, el ALB y los dos NAT viven en las subredes públicas; los nodos del gateway y de Triton, en las privadas, sin IP pública. Aunque Triton tuviera un error, desde internet no hay camino hasta él.",
+   "ejemplo": "En Alba, el ALB y los dos NAT viven en las subredes públicas; los nodos del gateway y de Triton, en las privadas, sin IP pública. Aunque Triton tuviera un error, desde internet no hay camino hasta él.",
    "ver": [
     "subred",
     "internet-gateway",
@@ -66,7 +66,7 @@
    "en": "internet gateway",
    "corto": "La puerta de una VPC (tu red privada en la nube) hacia internet. Una subred cuya tabla de rutas manda a él todo lo que no es de la VPC (`0.0.0.0/0`) es pública.",
    "largo": "Se pega a la [[vpc|VPC]] entera, no a una zona, y no cobra por hora ni por GB (lo que sale sí paga [[egress]]). Traduce entre la IP privada de una máquina y su [[ip-publica|IP pública]]. Una máquina en una subred privada no lo usa directo: sale por un [[nat|NAT gateway]], que a su vez sale por él.",
-   "ejemplo": "La tabla de las subredes públicas de C01 tiene dos reglas: `10.0.0.0/16 → local` y `0.0.0.0/0 → igw` (el internet gateway).",
+   "ejemplo": "La tabla de las subredes públicas de Alba tiene dos reglas: `10.0.0.0/16 → local` y `0.0.0.0/0 → igw` (el internet gateway).",
    "ver": [
     "subred-privada",
     "nat",
@@ -80,7 +80,7 @@
    "en": "public IPv4 address",
    "corto": "Una dirección IPv4 única en el mundo, alcanzable desde internet. En AWS cuesta ≈ US$0.005 por hora cada una (≈ US$3.65 al mes) desde 2024.",
    "largo": "Las direcciones IPv4 son escasas (2³², ≈ 4,300 millones) y por eso se cobran, se usen o no. Solo la necesita lo que recibe conexiones de internet (un balanceador público) o lo que sale directo (un [[nat|NAT gateway]]). Los nodos de un cluster no la necesitan: van en [[subred-privada|subredes privadas]], y cada IP pública es una puerta más. Lo contrario es la [[ip-privada|IP privada]].",
-   "ejemplo": "100 nodos con IP pública «por si acaso»: 100 × 0.005 × 730 ≈ US$365 al mes. Los nodos de C01 no tienen ninguna; las únicas IPs públicas son las de los 2 NAT (≈ US$7 al mes) y las del ALB.",
+   "ejemplo": "100 nodos con IP pública «por si acaso»: 100 × 0.005 × 730 ≈ US$365 al mes. Los nodos de Alba no tienen ninguna; las únicas IPs públicas son las de los 2 NAT (≈ US$7 al mes) y las del ALB.",
    "ver": [
     "ip-privada",
     "internet-gateway",
@@ -95,7 +95,7 @@
    "corto": "La lista de reglas de una subred que dice, para cada rango de destino, a quién entregar el paquete. Si dos reglas coinciden, gana la más específica.",
    "largo": "Cada regla tiene un destino en [[cidr|CIDR]] y un siguiente salto: `local` (dentro de la VPC), un [[internet-gateway|internet gateway]], un [[nat|NAT gateway]], un [[vpc-endpoint|gateway endpoint]]… `0.0.0.0/0` es la ruta por omisión, porque contiene todo. Cuando un destino cabe en varias reglas gana la de prefijo más largo (*longest prefix match*). Responde «¿hay camino?», no «¿tiene permiso?»: eso es del [[grupo-seguridad|grupo de seguridad]].",
    "analogia": "Como los letreros en un cruce de carreteras: «Monterrey, por aquí; todo lo demás, por allá». Se rompe en que el letrero más específico siempre gana, aunque esté escrito abajo.",
-   "ejemplo": "Subred privada de C01: `10.0.0.0/16 → local`, rangos de S3 → gateway endpoint, `0.0.0.0/0 → NAT de su zona`. `10.0.37.9` va a `local`, una IP de S3 al endpoint, `8.8.8.8` al NAT.",
+   "ejemplo": "Subred privada de Alba: `10.0.0.0/16 → local`, rangos de S3 → gateway endpoint, `0.0.0.0/0 → NAT de su zona`. `10.0.37.9` va a `local`, una IP de S3 al endpoint, `8.8.8.8` al NAT.",
    "ver": [
     "cidr",
     "subred-privada",
@@ -111,7 +111,7 @@
    "corto": "Un *firewall* (un filtro de conexiones) pegado a cada máquina de la nube, en su tarjeta de red, con una lista de las conexiones que acepta. Lo que no está en la lista no entra.",
    "largo": "Solo tiene reglas de permitir: protocolo, [[puerto]] y origen. El origen puede ser un rango [[cidr|CIDR]] u **otro grupo de seguridad** («acepta a quien lleve el grupo `gateway`»), que sigue valiendo aunque cambien las IPs. Recuerda las conexiones (*stateful*): las respuestas pasan sin otra regla. Un grupo nuevo no acepta entrada y deja salir todo. En Kubernetes, la misma idea por pod es la *NetworkPolicy*. En Google Cloud se llaman reglas de firewall de la VPC; en Azure, *network security groups*.",
    "analogia": "Como la lista de invitados en la puerta de cada salón: sin tu nombre (o sin el gafete del grupo correcto) no entras. Se rompe en que la lista no dice por qué pasillo llegar: eso es de la tabla de rutas.",
-   "ejemplo": "En C01: `alb` acepta 443 de `0.0.0.0/0`; `gateway` acepta 8080 solo del grupo `alb`; `triton` acepta 8000 y 8001 solo del grupo `gateway`.",
+   "ejemplo": "En Alba: `alb` acepta 443 de `0.0.0.0/0`; `gateway` acepta 8080 solo del grupo `alb`; `triton` acepta 8000 y 8001 solo del grupo `gateway`.",
    "ver": [
     "tabla-rutas",
     "puerto",
@@ -155,7 +155,7 @@
    "en": "VPC endpoint",
    "corto": "Un camino privado de tu VPC a un servicio del proveedor (S3, ECR…) que no pasa por internet ni por el NAT. El de tipo gateway (S3 y DynamoDB) es gratis.",
    "largo": "Hay dos tipos. El **gateway endpoint**, solo para S3 y DynamoDB, es una regla en tus [[tabla-rutas|tablas de rutas]]: no vive en una zona y no cobra por hora ni por GB. El **interface endpoint** ([[privatelink|PrivateLink]]) pone una tarjeta de red con IP privada en tu subred y cobra ≈ US$0.01 por hora por zona y ≈ US$0.01 por GB. Para bajar imágenes de ECR sin NAT hacen falta `ecr.api`, `ecr.dkr` **y** el gateway de S3, porque las capas viven en S3. En Google Cloud: Private Google Access; en Azure: Private Endpoint.",
-   "ejemplo": "C01 baja pesos, engine y logs por el gateway endpoint de S3: US$0 de red. Por el NAT, cada GB pagaría US$0.045.",
+   "ejemplo": "Alba baja pesos, engine y logs por el gateway endpoint de S3: US$0 de red. Por el NAT, cada GB pagaría US$0.045.",
    "ver": [
     "nat",
     "privatelink",
@@ -184,7 +184,7 @@
    "en": "egress",
    "corto": "Los datos que salen de la nube hacia internet; se cobran por GB. Meter datos (ingress) no se cobra. En AWS `us-east-1`: ≈ US$0.09 por GB los primeros 10 TB del mes, con 100 GB gratis.",
    "largo": "La tarifa va por escalones mensuales (≈ 0.09, 0.085, 0.07 y 0.05 por GB) y cada GB paga el de su tramo. La asimetría hace que sacar tus datos tenga precio: parte del [[dependencia-proveedor|lock-in]]. En sistemas que reciben fotos o video y responden poco, el egress casi no importa; duele cuando lo grande va hacia fuera (servir video, entregar datasets, cambiar de nube). Antes de decir «egress», mira en qué dirección van los bytes. Se suele confundir con el [[cargo-datos-procesados|cargo por datos procesados]] y con la [[transferencia-entre-zonas|transferencia entre zonas]].",
-   "ejemplo": "Las respuestas de C01, ≈ 1 KB × 304 M al mes ≈ 304 GB: ≈ US$18. Copiar 50 TB a otra nube: ≈ US$4.3k por copia.",
+   "ejemplo": "Las respuestas de Alba, ≈ 1 KB × 304 M al mes ≈ 304 GB: ≈ US$18. Copiar 50 TB a otra nube: ≈ US$4.3k por copia.",
    "ver": [
     "transferencia-entre-zonas",
     "transferencia-entre-regiones",
@@ -199,7 +199,7 @@
    "en": "cross-AZ data transfer",
    "corto": "Lo que cobra la nube por cada GB que va de una zona a otra de la misma región: en AWS ≈ US$0.01 al salir y US$0.01 al entrar, US$0.02 por GB cruzado. Dentro de la misma zona es gratis.",
    "largo": "Existe porque las zonas son edificios distintos unidos por fibra del proveedor. La latencia extra es ≈ 1 ms, poca cosa; la razón para evitarlo es el costo, que crece con los bytes por request. El antídoto es el [[ruteo-por-zona|ruteo por zona]]. También cruza lo que no se dibuja: un NAT compartido entre zonas, las réplicas de una cola o una base de datos repartidas en zonas. En Cost Explorer aparece como `DataTransfer-Regional-Bytes`.",
-   "ejemplo": "C01 sin ruteo por zona: 304 M tensores × 602,112 B ≈ 183 TB al mes; la mitad cruza: 91.5 TB × 0.02 ≈ US$1,830 al mes (≈ 90 TB y ≈ US$1,800 con meses de 30 días), más del doble de sus dos GPUs.",
+   "ejemplo": "Alba sin ruteo por zona: 304 M tensores × 602,112 B ≈ 183 TB al mes; la mitad cruza: 91.5 TB × 0.02 ≈ US$1,830 al mes (≈ 90 TB y ≈ US$1,800 con meses de 30 días), más del doble de sus dos GPUs.",
    "ver": [
     "ruteo-por-zona",
     "zona-disponibilidad",
@@ -213,7 +213,7 @@
    "en": "inter-region data transfer",
    "corto": "Lo que cobra la nube por cada GB que se copia de una región a otra: desde `us-east-1`, ≈ US$0.02 por GB a casi cualquier región (≈ US$0.01 a `us-east-2`).",
    "largo": "La cobra la región de donde salen los datos. Es lo que pagan la [[replicacion-regional|replicación entre regiones]], un respaldo en otra región o un servicio que lee un bucket de otra región. Un [[vpc-endpoint|gateway endpoint de S3]] no la evita: solo sirve para buckets de la misma región. Por eso se replica lo chico y valioso (pesos) y se piensa dos veces lo grande (fotos).",
-   "ejemplo": "Replicar las fotos de C01, ≈ 61 TB al mes: 60,800 × 0.02 ≈ US$1,200 al mes. Replicar los pesos de ≈ 98 MB por versión: centavos.",
+   "ejemplo": "Replicar las fotos de Alba, ≈ 61 TB al mes: 60,800 × 0.02 ≈ US$1,200 al mes. Replicar los pesos de ≈ 98 MB por versión: centavos.",
    "ver": [
     "transferencia-entre-zonas",
     "replicacion-regional",
@@ -227,7 +227,7 @@
    "en": "Application Load Balancer",
    "corto": "El balanceador gestionado de AWS que entiende HTTP: recibe las conexiones HTTPS, las descifra y reparte las requests entre copias sanas en varias zonas. Cobra por hora (≈ US$0.0225) y por LCU.",
    "largo": "Es un [[balanceador]] de capa 7 que vive en las subredes de varias zonas a la vez. Su cobro sorprende: además de la hora, cobra ≈ US$0.008 por [[lcu|LCU]]-hora, y cuando las requests llevan fotos en el body manda la dimensión de bytes, así que paga ≈ US$0.008 por GB que pasa. Mandar la llave de S3 en vez de los bytes baja ese cobro. En Google Cloud el equivalente es su Application Load Balancer (antes «balanceador HTTP(S)»), y en Azure, Application Gateway.",
-   "ejemplo": "El ALB de C01: ≈ 83 GB/h de fotos ≈ 83 LCU → 83.3 × 0.008 × 730 + 0.0225 × 730 ≈ US$503 al mes, ≈ 27 % de la infraestructura (más de la cuarta parte).",
+   "ejemplo": "El ALB de Alba: ≈ 83 GB/h de fotos ≈ 83 LCU → 83.3 × 0.008 × 730 + 0.0225 × 730 ≈ US$503 al mes, ≈ 27 % de la infraestructura (más de la cuarta parte).",
    "ver": [
     "balanceador",
     "lcu",
@@ -255,7 +255,7 @@
    "en": "baseline / burst network bandwidth",
    "corto": "Cada instancia trae un ancho de banda de red que aguanta todo el tiempo (sostenido) y uno más alto que aguanta solo por ratos (ráfaga). Para diseñar cuenta el sostenido.",
    "largo": "AWS suele anunciar la ráfaga con un «hasta» («hasta 12.5 Gb/s»); la ráfaga dura típicamente de 5 a 60 minutos, sin garantía, y cuando se acaban los créditos, la máquina baja al sostenido y empieza a encolar o tirar paquetes. Está en bits por segundo: 1 Gb/s = 125 MB/s. Con tensores grandes se rebasa fácil, sobre todo cuando cae una zona y un nodo hace el trabajo de dos. Salidas: payloads más chicos (UINT8, JPEG), más nodos o una [[instancia]] con más red. Ver [[ancho-banda]].",
-   "ejemplo": "Gateway de C01 en `c6i.xlarge` (1.56 Gb/s sostenidos, hasta 12.5): 500 req/s × 602,112 B × 8 ≈ 2.4 Gb/s. Con dos nodos, 77 % cada uno; si cae una zona, 154 % del sostenido.",
+   "ejemplo": "Gateway de Alba en `c6i.xlarge` (1.56 Gb/s sostenidos, hasta 12.5): 500 req/s × 602,112 B × 8 ≈ 2.4 Gb/s. Con dos nodos, 77 % cada uno; si cae una zona, 154 % del sostenido.",
    "ver": [
     "ancho-banda",
     "instancia",

@@ -10,7 +10,7 @@ requisitos: apis, fallas-red, latencia
 Una cola guarda el trabajo hasta que alguien lo termina y lo confirma: si el que lo tomó se cae, el trabajo vuelve. Por eso lo normal es que un mensaje llegue **al menos una vez**, y el que lo procesa tiene que aguantar repetidos. Un stream es otra cosa: un registro que solo crece, que muchos leen a su ritmo, cada uno con su marcador.
 :::
 
-Ana publica sus tenis y, en menos de un segundo, la app le sugiere «Tenis». Eso tiene que pasar mientras ella mira la pantalla. Pero alrededor de esa respuesta hay mucho trabajo que **nadie espera**:
+Ana publica sus tenis en Alba, la empresa que seguimos en todo el curso (un marketplace que recibe ≈ 2.5 millones de publicaciones al día), y, en menos de un segundo, la app le sugiere «Tenis». Eso tiene que pasar mientras ella mira la pantalla. Pero alrededor de esa respuesta hay mucho trabajo que **nadie espera**:
 
 - Guardar una línea de log con la predicción, para el monitoreo.
 - Avisarle a Ana, horas después, que su publicación tiene 20 vistas.
@@ -19,11 +19,11 @@ Ana publica sus tenis y, en menos de un segundo, la app le sugiere «Tenis». Es
 
 Si todo eso se hiciera dentro de la request de Ana, ella esperaría minutos. Y si una máquina se apaga a la mitad, el trabajo se perdería sin que nadie lo note.
 
-Esta lección responde tres preguntas sobre ese trabajo que puede esperar: cómo se guarda sin perderlo, cómo se reparte entre muchas máquinas y qué pasa cuando una se cae a la mitad. Las respuestas son las colas y los streams. Son de las piezas que más vas a dibujar en la Ronda.
+Esta lección responde tres preguntas sobre ese trabajo que puede esperar: cómo se guarda sin perderlo, cómo se reparte entre muchas máquinas y qué pasa cuando una se cae a la mitad. Las respuestas son las colas y los streams. Son de las piezas que más vas a dibujar en un diseño de sistemas de ML.
 
 ## Trabajo que puede esperar: productor, broker y consumidor {Work that can wait: producer, broker and consumer}
 
-La primera pregunta de diseño de la Ronda (M01) es: **¿alguien espera la respuesta antes de continuar?** Si sí, la request es síncrona: el que pide se queda esperando. Si no, casi siempre es más barato y más simple hacerlo después, en segundo plano.
+La primera pregunta de cualquier diseño es: **¿alguien espera la respuesta antes de continuar?** Si sí, la request es síncrona: el que pide se queda esperando. Si no, casi siempre es más barato y más simple hacerlo después, en segundo plano.
 
 | Trabajo | ¿Alguien espera? | Cómo se hace |
 |---|---|---|
@@ -50,7 +50,7 @@ A ese truco se le llama *claim check*, como la ficha de un guardarropa: dejas el
 
 El productor **no espera** al consumidor: deja el mensaje y sigue. El consumidor trabaja **a su ritmo**: si está ocupado, el mensaje espera en la fila. Y ninguno de los dos necesita saber dónde vive el otro, cuántos son ni si están prendidos: los dos solo hablan con el broker. Si los consumidores se apagan diez minutos para instalar una versión nueva, los mensajes esperan en el broker hasta que vuelvan, y el productor ni se entera.
 
-Cuando hay varios consumidores leyendo de la misma cola, **compiten** por los mensajes: cada mensaje se lo lleva uno solo. Para procesar más rápido, se agregan consumidores. El PDF de 200 páginas, a ≈ 1 s por página, tarda ≈ 200 s con un worker. Si cada página es un mensaje y hay 20 workers, tarda ≈ 10 s (M02).
+Cuando hay varios consumidores leyendo de la misma cola, **compiten** por los mensajes: cada mensaje se lo lleva uno solo. Para procesar más rápido, se agregan consumidores. El PDF de 200 páginas, a ≈ 1 s por página, tarda ≈ 200 s con un worker. Si cada página es un mensaje y hay 20 workers, tarda ≈ 200 ÷ 20 = 10 s.
 
 ### Por qué el broker es un servicio aparte
 
@@ -105,31 +105,49 @@ Un broker resuelve las dos cosas. Guarda cada mensaje en [[disco]], casi siempre
 
 Que el productor no espere al consumidor se llama **desacoplar** (*decoupling*): cada lado tiene su propia velocidad. Su efecto más útil se ve con números.
 
-En la lección de unidades calculaste el tráfico de C01: ≈ 10 millones de fotos al día, ≈ 116 por segundo en promedio. Con un [[factor-pico|factor de pico]] de 3, la hora pico, a las 20 h, trae ≈ 350 fotos por segundo.
+Alba, la empresa que seguimos en todo el curso, es un marketplace: cuando alguien publica lo que vende, el sistema le sugiere la categoría de cada foto, entre 500 posibles. Recibe ≈ 2.5 millones de publicaciones nuevas al día y responde ≈ 10 millones de fotos al día (las de las publicaciones, ≈ 3 por cada una, más las que piden otros equipos). En la lección «Números grandes, unidades y estimaciones» calculaste su tráfico: 10,000,000 ÷ 86,400 s ≈ 116 fotos por segundo en promedio. Con un [[factor-pico|factor de pico]] de 3, la hora pico, a las 20 h, trae 116 × 3 ≈ 350 fotos por segundo.
 
-Ahora un supuesto, para el ejemplo: C01 agrega una **revisión después de publicar**, un segundo modelo que busca fotos prohibidas. Nadie espera su respuesta: si encuentra algo, se baja la publicación unos minutos después. ¿Cuántos workers compras?
+Ahora un supuesto, para el ejemplo: Alba agrega una **revisión después de publicar**, un segundo modelo que busca fotos prohibidas. Nadie espera su respuesta: si encuentra algo, se baja la publicación unos minutos después. ¿Cuántos workers compras?
 
-Si fuera síncrona, tendrías que cubrir el pico: 350 fotos por segundo. Con workers de 20 fotos por segundo cada uno (un supuesto), son 350 ÷ 20 = 17.5, o sea 18 workers. Con una cola, puedes comprar 10 y dejar que la fila absorba la hora pico:
+Si fuera síncrona, tendrías que cubrir el pico. Con una cola, puedes comprar menos workers y dejar que la fila absorba la hora pico. Estas son las letras de la cuenta:
+
+:::formula Una fila que absorbe un pico
+μ = w × c
+Q = (λ − μ) × T
+W = frac{Q}{μ}
+t_{vaciar} = frac{Q}{μ − λ_{base}}
+- λ: fotos por segundo que llegan durante el pico
+- λ_{base}: fotos por segundo que siguen llegando mientras la fila se vacía (aquí, las de fuera del pico)
+- w: cuántos workers hay
+- c: fotos por segundo que procesa un worker
+- μ: fotos por segundo que procesan todos los workers juntos
+- T: cuánto dura el pico, en s
+- Q: fotos que esperan en la fila al terminar el pico (0 si \(μ\) alcanza a \(λ\))
+- W: cuánto espera la última foto que llegó en el pico, en s
+- t_{vaciar}: cuánto tarda la fila en vaciarse después del pico, en s
+:::
+
+Sin cola, \(μ\) tendría que alcanzar a \(λ\). Con workers de \(c\) = 20 fotos por segundo cada uno (un supuesto), harían falta \(w = λ ÷ c\) = 350 ÷ 20 = 17.5, o sea 18 workers. Con una cola, puedes comprar 10:
 
 :::cuenta Una hora pico contra workers para 200 fotos por segundo
-Llegan en la hora pico // el factor de pico de 3 de la lección de unidades | 116 × 3 | ≈ 350 por segundo
-Procesan los workers // un supuesto: 10 workers de 20 fotos por segundo | 10 × 20 | 200 por segundo
-Lo que crece la fila | 350 − 200 | 150 por segundo
-Fila al terminar la hora | 150 × 3,600 s | 540,000 fotos
-Espera de la última // lo que hay delante, entre lo que sale por segundo | 540,000 ÷ 200 | 2,700 s = 45 min
-Vaciado, si después llegan 116 por segundo | 540,000 ÷ (200 − 116) | ≈ 6,400 s ≈ 1.8 h
+Llegan en la hora pico, \(λ\) // el promedio de 116 por el factor de pico de 3 | 116 × 3 | ≈ 350 por segundo
+Procesan los workers, \(μ\) // un supuesto: \(w\) = 10 workers de \(c\) = 20 fotos por segundo | \(μ = w × c\) = 10 × 20 | 200 por segundo
+Lo que crece la fila, \(λ − μ\) | 350 − 200 | 150 por segundo
+Fila al terminar la hora, \(Q\) // el pico dura \(T\) = 1 h = 3,600 s | \(Q = (λ − μ) × T\) = 150 × 3,600 | 540,000 fotos
+Espera de la última, \(W\) // lo que hay delante, entre lo que sale por segundo | \(W = Q/μ\) = 540,000 ÷ 200 | 2,700 s = 45 min
+Vaciado, \(t_{vaciar}\) // después del pico vuelven a llegar \(λ_{base}\) = 116 por segundo | \(t_{vaciar} = Q/(μ − λ_{base})\) = 540,000 ÷ (200 − 116) | ≈ 6,400 s ≈ 1.8 h
 = Con 10 workers en vez de 18, ninguna foto se pierde; la peor espera 45 minutos, y antes de la medianoche la fila está vacía.
 :::
 
-La espera de la última foto sale de dividir lo que tiene delante entre lo que sale por segundo. Es la [[ley-little|ley de Little]] despejada para el tiempo, W = L ÷ λ, con λ como el ritmo de salida. Es el [[tiempo-en-cola|tiempo en cola]] de la lección de latencia, ahora en minutos en vez de milisegundos.
+La espera de la última foto sale de dividir lo que tiene delante entre lo que sale por segundo, \(W = Q/μ\). Es la [[ley-little|ley de Little]] despejada para el tiempo: espera = lo que hay en la fila ÷ lo que sale por unidad de tiempo. Es el [[tiempo-en-cola|tiempo en cola]] de la lección de latencia, ahora en minutos en vez de milisegundos.
 
 :::figura colas-pico
-La hora pico de C01 contra workers para 200 fotos por segundo. Arriba, lo que llega y lo que sale. Abajo, la fila: crece mientras llega más de lo que sale, y se vacía cuando el tráfico baja.
+La hora pico de Alba contra workers para 200 fotos por segundo. Arriba, lo que llega y lo que sale. Abajo, la fila: crece mientras llega más de lo que sale, y se vacía cuando el tráfico baja.
 :::
 
 La cuenta dice la regla: **con una cola, la capacidad se compra para el promedio con margen, no para el pico**, siempre que el negocio aguante la espera. Si la revisión tuviera que terminar en 5 minutos, 45 no sirven, y habría que comprar más workers o escalarlos con la fila (lo verás en la sección del lag).
 
-Una condición no se negocia: **en promedio, los workers tienen que procesar más de lo que llega**. Si llegan 116 por segundo todo el día y procesan 100, la fila crece 16 por segundo para siempre: ≈ 1.4 millones de fotos atrasadas al día. Una cola esconde un pico; no esconde que falta capacidad.
+Una condición no se negocia: **en promedio, los workers tienen que procesar más de lo que llega**. Si llegan \(λ\) = 116 por segundo todo el día y los workers procesan \(μ\) = 100, la fila crece \(λ − μ\) = 16 por segundo para siempre: 16 × 86,400 s ≈ 1.4 millones de fotos atrasadas al día. Una cola esconde un pico; no esconde que falta capacidad.
 
 :::calculadora colas-pico
 Prueba una capacidad de 350: la fila nunca crece y la espera es cero, pero pagas 75 % más workers. Prueba 120: al final del pico esperan 828,000 fotos, la fila se vacía a 4 por segundo y tarda más de dos días.
@@ -168,24 +186,24 @@ Con este truco, un worker que se cae no pierde nada: el trabajo vuelve solo. Cad
 
 ### El plazo correcto
 
-El plazo tiene que ser mayor que lo que tarda el trabajo. ¿Qué pasa si no?
+El plazo tiene que ser mayor que lo que tarda el trabajo. ¿Qué pasa si no? Llama \(t_{trabajo}\) a lo que tarda un trabajo y \(V\) al visibility timeout, los dos en segundos. Si \(V\) es más corto, el mensaje reaparece cada \(V\) segundos, y mientras la primera copia termina se empiezan \(t_{trabajo} ÷ V\) copias, contando la primera:
 
-:::cuenta Un video de 10 minutos con el plazo por omisión de SQS (M02)
-Lo que tarda el trabajo | dato | 600 s
-Visibility timeout | por omisión | 30 s
+:::cuenta Un video de 10 minutos con el plazo por omisión de SQS
+Lo que tarda el trabajo, \(t_{trabajo}\) // 10 minutos | 10 × 60 s | 600 s
+Visibility timeout, \(V\) | el de SQS por omisión | 30 s
 A los 30 s // el primer worker sigue trabajando, pero no ha confirmado | — | el mensaje reaparece
-Copias empezadas antes de que termine la primera // una cada 30 s, si hay workers libres | 600 ÷ 30 | 20
+Copias empezadas, contando la primera // una cada 30 s, si hay workers libres | \(t_{trabajo} ÷ V\) = 600 ÷ 30 | 20
 = Veinte workers procesando el mismo video. Nada falla, pero la cuenta de GPU sale 20 veces más alta y la cola nunca baja.
 :::
 
-La regla de la Ronda: **visibility timeout mayor que el [[p99]] del tiempo de proceso, con margen**, por ejemplo el doble. Si el p99 de un trabajo es de 4 minutos, un plazo de 8.
+La regla: **visibility timeout mayor que el [[p99]] del tiempo de proceso, con margen**, por ejemplo el doble. Si el p99 de un trabajo es de 4 minutos, un plazo de 8.
 
 Para trabajos largos o muy variables, subir el plazo a horas tiene un costo: si el worker se muere de verdad, el mensaje tarda horas en volver. La salida es un **latido** (*heartbeat*): el worker vivo renueva su plazo cada tanto (en SQS, con `ChangeMessageVisibility`, más o menos a la mitad del plazo). Con un plazo de 2 minutos renovado cada minuto, un worker vivo conserva el mensaje lo que haga falta, y uno muerto lo libera en 2 minutos como mucho. SQS pone un techo de 12 horas contadas desde la primera recepción, y renovar el plazo no lo reinicia.
 
 :::profundo Apagarse sin dejar trabajo a medias
 Los workers también se apagan a propósito: Kubernetes quita uno cuando hay menos trabajo, o la nube reclama una máquina barata (*spot*): AWS avisa 2 minutos antes; Google Cloud, por omisión, unos 30 s. En los dos casos, el proceso recibe primero un SIGTERM, la [[senal|señal]] amable de «por favor, termina». Un worker bien hecho, al recibirlo, **termina el mensaje que tiene y no toma otro**. Si en vez de eso se muere a la mitad, el mensaje vuelve al vencer su plazo y otro empieza de cero: no se pierde, pero se paga dos veces.
 
-Kubernetes espera 30 s por omisión entre el SIGTERM y el SIGKILL, el apagado sin aviso. Si un trabajo tarda 10 minutos, ese margen no alcanza: o se sube el margen del pod, la unidad en que Kubernetes corre cada copia (`terminationGracePeriodSeconds`), o el trabajo se parte en pedazos más cortos, o se acepta repetirlo. M06 trae un caso feo: un *autoscaler* (el programa que prende y apaga copias según la carga) que baja de 8 workers a 1 de golpe manda SIGTERM a 7 que estaban a la mitad de su video.
+Kubernetes espera 30 s por omisión entre el SIGTERM y el SIGKILL, el apagado sin aviso. Si un trabajo tarda 10 minutos, ese margen no alcanza: o se sube el margen del pod, la unidad en que Kubernetes corre cada copia (`terminationGracePeriodSeconds`), o el trabajo se parte en pedazos más cortos, o se acepta repetirlo. Un caso feo: un *autoscaler* (el programa que prende y apaga copias según la carga) que baja de 8 workers a 1 de golpe manda SIGTERM a 7 que estaban a la mitad de su video.
 :::
 
 :::profundo Pedir mensajes sin gastar: el long polling
@@ -196,16 +214,16 @@ Un worker que pregunta «¿hay algo?» cada 10 ms a una cola vacía gasta CPU y,
 
 ¿Y si el trabajo no falla por mala suerte, sino porque **siempre** falla? Un PDF corrupto que tumba al worker cada vez que lo abre es un **mensaje venenoso** (*poison message*). Cada vez que vence su plazo, vuelve, tumba a otro worker y vuelve otra vez. Sin un límite, se reentrega para siempre.
 
-La cola cuenta cuántas veces entregó cada mensaje. Con una regla de reenvío (en SQS, la *redrive policy* con `maxReceiveCount`), después de N recepciones sin ack (por ejemplo, 5) el mensaje se mueve a otra cola: la [[dlq|dead-letter queue]] (DLQ, «cola de mensajes muertos»). Ahí ya no estorba. Una persona lo revisa, arregla el bug y lo reenvía a la cola original (*redrive*), o lo marca como fallido con su motivo.
+La cola cuenta cuántas veces entregó cada mensaje. Con una regla de reenvío (en SQS, la *redrive policy* con `maxReceiveCount`), después de \(R\) recepciones sin ack (por ejemplo, \(R\) = 5) el mensaje se mueve a otra cola: la [[dlq|dead-letter queue]] (DLQ, «cola de mensajes muertos»). Ahí ya no estorba. Una persona lo revisa, arregla el bug y lo reenvía a la cola original (*redrive*), o lo marca como fallido con su motivo.
 
-:::cuenta Cuánto tarda un mensaje venenoso en llegar a la DLQ (M02)
-Visibility timeout | dato | 15 min
-Intentos antes de la DLQ // maxReceiveCount | dato | 5
-Tiempo hasta la DLQ // si cada intento se cuelga hasta el plazo | 5 × 15 min | 75 min
+:::cuenta Cuánto tarda un mensaje venenoso en llegar a la DLQ
+Visibility timeout, \(V\) | dato del ejemplo | 15 min
+Intentos antes de la DLQ, \(R\) // maxReceiveCount | dato del ejemplo | 5
+Tiempo hasta la DLQ // si cada intento se cuelga hasta el plazo | \(R × V\) = 5 × 15 min | 75 min
 = Más de una hora de workers ocupados con un mensaje que nunca iba a salir. Si el worker se cae al instante, el mensaje igual espera su plazo para volver.
 :::
 
-La DLQ lleva su propia alerta: **más de 0 mensajes en la DLQ** ya es algo que alguien tiene que mirar. Un detalle de M12: en las colas estándar de SQS, un mensaje conserva su fecha de llegada original cuando pasa a la DLQ y vence contando desde ahí, así que la DLQ necesita una retención más larga que la cola de la que viene.
+La DLQ lleva su propia alerta: **más de 0 mensajes en la DLQ** ya es algo que alguien tiene que mirar. Un detalle: en las colas estándar de SQS, un mensaje conserva su fecha de llegada original cuando pasa a la DLQ y vence contando desde ahí, así que la DLQ necesita una retención más larga que la cola de la que viene.
 
 :::diagrama colas-jobs
 Toca cada caja para ver qué hace. Usa «Recorrer» para seguir un trabajo normal, un worker que se cae a la mitad y un mensaje venenoso.
@@ -227,7 +245,7 @@ Por eso SQS estándar, Pub/Sub y Kafka, en su forma normal, entregan **al menos 
 
 ### Exactamente una vez, en la práctica
 
-Un *exactly-once* de punta a punta, con efectos fuera del broker (un cobro, un correo, una fila en una base), en general no existe (M02). Lo que sí existe es el **efecto** de una sola vez: at-least-once más un consumidor [[idempotencia|idempotente]], que hace lo mismo si procesa un mensaje una vez o diez. Tres maneras, de la lección de fallas de red:
+Un *exactly-once* de punta a punta, con efectos fuera del broker (un cobro, un correo, una fila en una base), en general no existe. Lo que sí existe es el **efecto** de una sola vez: at-least-once más un consumidor [[idempotencia|idempotente]], que hace lo mismo si procesa un mensaje una vez o diez. Tres maneras, de la lección de fallas de red:
 
 - **Llevar la cuenta de lo hecho.** Cada mensaje trae un id; el consumidor guarda los ids que ya procesó y descarta los repetidos. Es la [[llave-idempotencia|llave de idempotencia]], ahora del lado del consumidor.
 - **Escribir en un lugar fijo.** El resultado del trabajo `8f3a` va siempre a `results/8f3a.json`. Si se repite, se sobrescribe con lo mismo.
@@ -290,7 +308,7 @@ Lo que sí existe son ayudas dentro de un sistema. SQS FIFO descarta los envíos
 
 Una cola de trabajos tiene una regla: cuando un mensaje se confirma, **desaparece**. Sirve para repartir trabajos. Pero hay otro problema distinto.
 
-En C07, la búsqueda del marketplace, cada vez que un vendedor publica, cambia un precio o vende algo, se produce un **evento**: un registro de algo que ya pasó, como «listing 42: vendido». Ese mismo evento le importa a tres sistemas: el que actualiza el índice de búsqueda, el que lo guarda en el [[data-lake|data lake]] (el gran almacén de archivos de la lección de almacenamiento) para entrenar, y el monitoreo. Al segundo se le llama *sink* («sumidero»): un consumidor que solo copia los eventos a otro lugar. Con una cola, el primero que lo confirma lo borra y los otros dos nunca lo ven.
+En la búsqueda de Alba, cada vez que un vendedor publica, cambia un precio o vende algo, se produce un **evento**: un registro de algo que ya pasó, como «listing 42: vendido». Ese mismo evento le importa a tres sistemas: el que actualiza el índice de búsqueda, el que lo guarda en el [[data-lake|data lake]] (el gran almacén de archivos de la lección de almacenamiento) para entrenar, y el monitoreo. Al segundo se le llama *sink* («sumidero»): un consumidor que solo copia los eventos a otro lugar. Con una cola, el primero que lo confirma lo borra y los otros dos nunca lo ven.
 
 Un [[stream-eventos|stream de eventos]] (*event stream*), también llamado log de eventos, resuelve eso. Es un registro **que solo crece** (*append-only*): cada evento nuevo se agrega al final y nada se borra al leerlo. Kafka, Amazon Kinesis y Azure Event Hubs (el de Microsoft) funcionan así.
 
@@ -306,7 +324,7 @@ Un tópico es un registro que solo crece. Cada evento tiene su offset. El indexa
 
 ### Tópicos y retención
 
-Los eventos se agrupan por tema en un [[topico|tópico]] (*topic*): `listing-events` para los cambios del catálogo, `txn-events` para los pagos con tarjeta de C09, el caso de fraude. Un tópico es un registro con nombre, al que los productores escriben y del que los consumidores leen.
+Los eventos se agrupan por tema en un [[topico|tópico]] (*topic*): `listing-events` para los cambios del catálogo, `txn-events` para los pagos con tarjeta de un sistema de detección de fraude. Un tópico es un registro con nombre, al que los productores escriben y del que los consumidores leen.
 
 Como nada se borra al leer, el log se borraría solo por tiempo o por tamaño. Esa es su **retención**: Kafka guarda 7 días por omisión (`log.retention.hours=168`); Kinesis, 24 horas por omisión, ampliable hasta 365 días (pagando más). Lo que pasa de la retención se borra por el principio, se haya leído o no.
 
@@ -316,17 +334,17 @@ Que nada se borre al leer da tres cosas que una cola no da:
 - **Releer.** Si un bug escribió mal las features de ayer, el consumidor regresa su marcador al offset de ayer y procesa otra vez (*replay*), dentro de la retención.
 - **Agregar un lector nuevo sin tocar a nadie.** Un sistema nuevo empieza a leer desde el principio de la retención o desde el final, y el productor ni se entera.
 
-Para reprocesar un año, la retención no alcanza: la fuente de verdad es el data lake, no Kafka (M09). El stream es transporte, no archivo.
+Para reprocesar un año, la retención no alcanza: la fuente de verdad es el data lake, no Kafka. El stream es transporte, no archivo.
 
 :::profundo Cómo un log no pierde lo que ya aceptó
 Kafka corre en un grupo de máquinas, un *cluster*; en su vocabulario, cada máquina del grupo es un broker. Cada pedazo del log se guarda en varias: con un **factor de replicación** de 3 (*replication factor*), hay 3 copias, casi siempre en 3 zonas distintas de la nube (centros de datos separados, cerca uno del otro). Una de las copias es la principal y las otras la siguen.
 
-El productor elige cuánto esperar antes de dar un evento por guardado, con su ajuste `acks`. Con `acks=all`, el valor por omisión desde Kafka 3.0, Kafka contesta «lo tengo» solo cuando todas las copias que van al día lo escribieron; y con `min.insync.replicas=2` (por omisión vale 1, así que hay que ponerlo), rechaza la escritura si menos de 2 copias van al día. Así, perder una máquina no pierde ningún evento que el productor dio por guardado. Lo pagas en latencia de escritura y en bytes: en C09, 6 MB/s de eventos son 18 MB/s guardados entre las 3 copias.
+El productor elige cuánto esperar antes de dar un evento por guardado, con su ajuste `acks`. Con `acks=all`, el valor por omisión desde Kafka 3.0, Kafka contesta «lo tengo» solo cuando todas las copias que van al día lo escribieron; y con `min.insync.replicas=2` (por omisión vale 1, así que hay que ponerlo), rechaza la escritura si menos de 2 copias van al día. Así, perder una máquina no pierde ningún evento que el productor dio por guardado. Lo pagas en latencia de escritura y en bytes: en un sistema de detección de fraude con tarjetas, 6 MB/s de eventos son 6 × 3 = 18 MB/s guardados entre las 3 copias.
 :::
 
 ### Dos cosas que se llaman streaming
 
-En la lección de APIs, [[streaming]] era mandar una respuesta por pedazos sobre una conexión abierta: los tokens de un LLM que van apareciendo. Aquí «streaming» quiere decir **procesar un flujo continuo de eventos guardados en un log**, sin que nadie esté esperando una respuesta. La Ronda (M02) los separa con una tabla: uno es una conexión entre dos programas; el otro, un registro durable que muchos leen. Cuando en una entrevista alguien diga «streaming», pregunta cuál de los dos.
+En la lección de APIs, [[streaming]] era mandar una respuesta por pedazos sobre una conexión abierta: los tokens de un LLM que van apareciendo. Aquí «streaming» quiere decir **procesar un flujo continuo de eventos guardados en un log**, sin que nadie esté esperando una respuesta. Los dos se distinguen así: uno es una conexión entre dos programas; el otro, un registro durable que muchos leen. Cuando en una entrevista alguien diga «streaming», pregunta cuál de los dos.
 
 ## Particiones y grupos de consumidores {Partitions and consumer groups}
 
@@ -335,7 +353,7 @@ Un solo registro tiene un límite: vive en una máquina y, para conservar su ord
 Una [[particion-topico|partición del tópico]] (*topic partition*) es uno de esos registros: un pedazo del tópico, con sus propios offsets, que vive en una de las máquinas en que corre Kafka (con copias en otras). Un tópico con 12 particiones son 12 logs que se escriben y se leen en paralelo.
 
 :::ojo
-No la confundas con la [[particion-datos|partición de datos]] de la lección de almacenamiento: partir un dataset en carpetas por fecha (`fecha=2026-11-06/`) para no leerlo completo. Las dos se llaman «partición» y las dos parten algo grande, pero la de un tópico reparte eventos que llegan, y la otra, archivos que ya están guardados.
+No la confundas con la [[particion-datos|partición de datos]] de la lección de almacenamiento: partir un dataset en carpetas por fecha (`dt=2026-11-06/`) para no leerlo completo. Las dos se llaman «partición» y las dos parten algo grande, pero la de un tópico reparte eventos que llegan, y la otra, archivos que ya están guardados.
 :::
 
 ### La llave decide la partición
@@ -383,7 +401,7 @@ Al final, los dos grupos leyeron la misma partición sin estorbarse: el indexado
 
 Fíjate en tres cosas. Los tres eventos de `listing-42` cayeron en la misma partición, en orden: alta, precio, vendido. `listing-99` cayó en la misma, por casualidad. Y la partición 0 se quedó vacía: con pocas llaves, el reparto puede salir disparejo.
 
-**El orden solo vale dentro de una partición.** Entre particiones no hay orden: el «precio 450» del listing 7 pudo procesarse antes o después que el «vendido» del 42. Casi nunca hace falta orden global; hace falta **orden por entidad**: que los eventos de un mismo listing, de una misma tarjeta, lleguen en orden. Para eso se elige la llave (M02): `listing_id` en C07, `card_id` en C09.
+**El orden solo vale dentro de una partición.** Entre particiones no hay orden: el «precio 450» del listing 7 pudo procesarse antes o después que el «vendido» del 42. Casi nunca hace falta orden global; hace falta **orden por entidad**: que los eventos de un mismo listing, de una misma tarjeta, lleguen en orden. Para eso se elige la llave: `listing_id` en la búsqueda de Alba, `card_id` en un sistema de fraude con tarjetas.
 
 :::figura colas-particiones
 Un tópico de 3 particiones y un grupo de consumidores. Arriba, con 2 consumidores: uno lee dos particiones y el otro una. Abajo, con 4: cada partición tiene el suyo y el cuarto consumidor no tiene nada que leer.
@@ -396,20 +414,20 @@ Un tópico de 3 particiones y un grupo de consumidores. Arriba, con 2 consumidor
 Dos consecuencias:
 
 - **Más consumidores que particiones no ayuda.** Con 12 particiones y 13 consumidores, uno se queda sin nada. El número de particiones es el techo de paralelismo del grupo.
-- **Cada grupo es independiente.** El indexador de C07 es un grupo; el sink al lake, otro. Cada grupo tiene sus propios offsets y recibe **todos** los eventos. Así varios sistemas leen el mismo tópico.
+- **Cada grupo es independiente.** El indexador de la búsqueda de Alba es un grupo; el sink al lake, otro. Cada grupo tiene sus propios offsets y recibe **todos** los eventos. Así varios sistemas leen el mismo tópico.
 
 Cuando un consumidor del grupo se cae, o se agrega uno, el broker vuelve a repartir las particiones: es el **rebalanceo** (*rebalance*). El que hereda una partición sigue desde su último offset confirmado.
 
 :::profundo Cuántas particiones
-Las particiones se eligen por el paralelismo que vas a necesitar, no por los bytes. En C09 el tráfico es chico (≈ 6 MB/s), y aun así el tópico lleva 48 particiones: es el número de copias de Flink que se quieren poder correr en paralelo, con margen. Tener muchas tampoco es gratis: cada partición son archivos abiertos y copias que el broker mantiene, y un rebalanceo con cientos de particiones tarda más. Y cambiar el número después cambia el residuo del hash: una llave que caía en la partición 2 puede caer en otra, y por un rato los eventos viejos y los nuevos de ese listing viven en particiones distintas, sin orden entre ellas.
+Las particiones se eligen por el paralelismo que vas a necesitar, no por los bytes. En un sistema de detección de fraude en tiempo real, con supuestos típicos, el tráfico es chico (≈ 6 MB/s), y aun así el tópico lleva 48 particiones: es el número de copias de Flink que se quieren poder correr en paralelo, con margen. Tener muchas tampoco es gratis: cada partición son archivos abiertos y copias que el broker mantiene, y un rebalanceo con cientos de particiones tarda más. Y cambiar el número después cambia el residuo del hash: una llave que caía en la partición 2 puede caer en otra, y por un rato los eventos viejos y los nuevos de ese listing viven en particiones distintas, sin orden entre ellas.
 :::
 
 ### Por qué Kafka no es una buena cola de trabajos
 
-Un consumidor de Kafka no confirma mensaje por mensaje: avanza su offset. Si un evento tarda mucho o es venenoso, **todo lo que viene detrás en esa partición espera** (*head-of-line blocking*, bloqueo en la cabeza de la fila). Por eso, para 50 trabajos de [[ocr|OCR]] por segundo (leer el texto de un documento escaneado), una cola como SQS es más simple y más correcta. Kafka gana cuando varios sistemas leen el mismo flujo o hace falta releerlo (M02).
+Un consumidor de Kafka no confirma mensaje por mensaje: avanza su offset. Si un evento tarda mucho o es venenoso, **todo lo que viene detrás en esa partición espera** (*head-of-line blocking*, bloqueo en la cabeza de la fila). Por eso, para 50 trabajos de [[ocr|OCR]] por segundo (leer el texto de un documento escaneado), una cola como SQS es más simple y más correcta. Kafka gana cuando varios sistemas leen el mismo flujo o hace falta releerlo.
 
 :::diagrama colas-stream
-Toca cada caja. Usa «Recorrer» para seguir un evento de C07 desde que el vendedor marca «vendido», un consumidor que se cae y un grupo nuevo que relee desde un offset.
+Toca cada caja. Usa «Recorrer» para seguir un evento de la búsqueda de Alba desde que el vendedor marca «vendido», un consumidor que se cae y un grupo nuevo que relee desde un offset.
 :::
 
 ## Lag del consumidor: cuánto vas atrás {Consumer lag: how far behind you are}
@@ -418,39 +436,65 @@ Una cola o un stream que funciona no hace ruido. Uno que se atrasa, tampoco: no 
 
 El [[lag-consumidor|lag del consumidor]] (*consumer lag*) es cuánto va atrás un consumidor respecto de lo último que se escribió. En mensajes, es el último offset escrito menos el offset confirmado. Más útil es **en tiempo**: cuántos segundos de eventos le faltan por leer.
 
-:::cuenta Un déficit de 10 % durante 10 minutos (M02)
-Eventos que llegan | dato | 20,000 por segundo
-Lo que procesa el grupo // 12 particiones, un consumidor cada una | 12 × ≈ 1,500 | 18,000 por segundo
-Lo que crece el lag | 20,000 − 18,000 | 2,000 por segundo
-Lag tras 10 minutos | 2,000 × 600 s | 1.2 M eventos
-Lag en tiempo // lo atrasado entre lo que llega por segundo | 1.2 M ÷ 20,000 | ≈ 60 s
-Agregar un consumidor número 13 // no hay partición que darle | — | 0 por segundo más
+El lag crece con la misma cuenta que la fila del pico, \(Q = (λ − μ) × T\), y con las mismas letras, ahora contando eventos en vez de fotos. Cambian dos cosas: cuántos consumidores leen de verdad y cómo se pasa el lag a segundos.
+
+:::formula Lag de un grupo de consumidores
+μ = min(w, P) × c
+A = frac{Q}{λ}
+- P: particiones del tópico
+- w: consumidores en el grupo; solo \(min(w, P)\) leen algo, porque cada partición la lee uno solo
+- c: eventos por segundo que procesa un consumidor
+- μ: eventos por segundo que procesa el grupo
+- λ: eventos por segundo que llegan al tópico
+- Q: el lag en eventos, lo que se juntó sin leer: \(Q = (λ − μ) × T\), con \(T\) la duración del déficit en s
+- A: el lag en tiempo (de «atraso»), en s: cuántos segundos de eventos le faltan por leer
+:::
+
+:::cuenta Un déficit de 10 % durante 10 minutos
+Eventos que llegan, \(λ\) | dato del ejemplo | 20,000 por segundo
+Lo que procesa el grupo, \(μ\) // \(P\) = 12 particiones, \(w\) = 12 consumidores de \(c\) ≈ 1,500 por segundo | \(μ = min(w, P) × c\) = 12 × 1,500 | 18,000 por segundo
+Lo que crece el lag, \(λ − μ\) | 20,000 − 18,000 | 2,000 por segundo
+Lag tras 10 minutos, \(Q\) // \(T\) = 10 × 60 s = 600 s | \(Q = (λ − μ) × T\) = 2,000 × 600 | 1.2 M eventos
+Lag en tiempo, \(A\) // lo atrasado entre lo que llega por segundo | \(A = Q/λ\) = 1.2 M ÷ 20,000 | ≈ 60 s
+Agregar un consumidor número 13 // no hay partición que darle | \(min(w, P)\) = min(13, 12) = 12 | 0 por segundo más
 = El grupo va un minuto atrás, y cada minuto se atrasa 6 s más. Ninguna línea de log dice «error».
 :::
 
-En una cola como SQS no hay offsets, y el atraso se mide con la **edad del mensaje más viejo** (en SQS, `ApproximateAgeOfOldestMessage`). La profundidad sola, cuántos mensajes esperan, engaña: 50 mensajes pueden ser 2 minutos o 2 horas de atraso, según lo que tarde cada uno (M12).
+En una cola como SQS no hay offsets, y el atraso se mide con la **edad del mensaje más viejo** (en SQS, `ApproximateAgeOfOldestMessage`). La profundidad sola, cuántos mensajes esperan, engaña: 50 mensajes pueden ser 2 minutos o 2 horas de atraso, según lo que tarde cada uno.
 
 ### La alerta
 
-Una alerta típica: **lag mayor que ≈ 60 s durante 5 minutos**. El «durante» importa: un lag que sube un momento después de un despliegue y se recupera solo no debería despertar a nadie. El umbral sale de la promesa del sistema: si C07 promete que un listing nuevo se pueda buscar en 5 minutos o menos, un lag de 3 minutos ya se come la mayor parte del margen.
+Una alerta típica: **lag mayor que ≈ 60 s durante 5 minutos**. El «durante» importa: un lag que sube un momento después de un despliegue y se recupera solo no debería despertar a nadie. El umbral sale de la promesa del sistema: si la búsqueda de Alba promete que una publicación nueva (un *listing*) se pueda buscar en 5 minutos o menos, un lag de 3 minutos ya se come la mayor parte del margen.
 
 ### Escalar con la cola
 
 El lag también sirve para decidir cuántos workers prender. En Kubernetes, el ajuste normal de copias (el HPA de la lección de async) mira la CPU, y la CPU no dice cuántos mensajes esperan. **KEDA** es un complemento que se instala en Kubernetes y escala según una métrica de afuera: la profundidad de una cola de SQS o el lag de Kafka.
 
-:::cuenta Cuántos workers pide KEDA (M06)
-Espera que se acepta en la cola // la promesa | dato | 300 s
-Lo que tarda cada trabajo | dato | ≈ 20 s
-Mensajes por worker // queueLength en KEDA | 300 ÷ 20 | 15
-Mensajes en la cola // visibles más en vuelo | dato | 120
-Workers que pide | ⌈120 ÷ 15⌉ | 8
-= Con 8 workers, el último de 15 mensajes espera 15 × 20 s ≈ 300 s: justo la promesa.
+KEDA reparte los mensajes con una meta: cuántos le tocan a cada worker. Esa meta sale de la espera que prometes:
+
+:::formula Workers que pide KEDA
+k = frac{W_{promesa}}{t_{trabajo}}
+w = ⌈frac{m}{k}⌉
+- W_{promesa}: la espera más larga que se acepta en la cola, en s
+- t_{trabajo}: lo que tarda un trabajo, en s
+- k: mensajes por worker, lo que KEDA llama `queueLength`
+- m: mensajes en la cola, visibles más en vuelo
+- w: workers que pide KEDA; los corchetes ⌈ ⌉ quieren decir «redondea hacia arriba»
 :::
 
-La regla de M12: **escalar por cantidad, alertar por edad**. La cantidad reacciona rápido y prende workers; la edad dice cuándo la promesa está en peligro. Y el techo de workers lo pone tu presupuesto o tu cuota de GPUs, no el autoscaler.
+:::cuenta Cuántos workers pide KEDA
+Espera que se acepta, \(W_{promesa}\) // la promesa | dato del ejemplo | 300 s
+Lo que tarda cada trabajo, \(t_{trabajo}\) | dato del ejemplo | ≈ 20 s
+Mensajes por worker, \(k\) // queueLength en KEDA | \(k = W_{promesa} ÷ t_{trabajo}\) = 300 ÷ 20 | 15
+Mensajes en la cola, \(m\) // visibles más en vuelo | dato del ejemplo | 120
+Workers que pide, \(w\) | \(w = ⌈m ÷ k⌉\) = ⌈120 ÷ 15⌉ | 8
+= Con 8 workers, a cada uno le tocan 120 ÷ 8 = 15 mensajes, y el último espera 15 × 20 s ≈ 300 s: justo la promesa.
+:::
+
+La regla: **escalar por cantidad, alertar por edad**. La cantidad reacciona rápido y prende workers; la edad dice cuándo la promesa está en peligro. Y el techo de workers lo pone tu presupuesto o tu cuota de GPUs, no el autoscaler.
 
 :::profundo El mensaje venenoso que no envejece la cola
-M12 trae una trampa de SQS. En una cola estándar, un mensaje que se recibió 3 o más veces sin borrarse se mueve al final de la fila y deja de contar en la edad del mensaje más viejo: la métrica pasa a mirar el siguiente. Una imagen corrupta que tumba al worker una y otra vez no hace sonar la alerta de edad, aunque esté ocupando workers. Por eso la DLQ lleva su propia alerta, y por eso también se vigilan los reintentos por mensaje: en un sistema asíncrono, los mensajes en la DLQ y los reintentos por mensaje son lo que el porcentaje de errores 5xx es en uno síncrono.
+SQS tiene una trampa. En una cola estándar, un mensaje que se recibió 3 o más veces sin borrarse se mueve al final de la fila y deja de contar en la edad del mensaje más viejo: la métrica pasa a mirar el siguiente. Una imagen corrupta que tumba al worker una y otra vez no hace sonar la alerta de edad, aunque esté ocupando workers. Por eso la DLQ lleva su propia alerta, y por eso también se vigilan los reintentos por mensaje: en un sistema asíncrono, los mensajes en la DLQ y los reintentos por mensaje son lo que el porcentaje de errores 5xx es en uno síncrono.
 :::
 
 :::calculadora colas-lag
@@ -467,7 +511,7 @@ Hay dos salidas, y las dos se apoyan en la [[transaccion|transacción]] de la ba
 
 **El patrón outbox** («buzón de salida»): el servicio escribe el listing y el evento en la **misma** transacción, en una tabla aparte de la base, la *outbox*. Un proceso separado lee esa tabla y publica cada evento en el broker. Si la publicación falla, se reintenta; si se publica dos veces, el consumidor lo aguanta, porque es at-least-once.
 
-**CDC.** El [[cdc|change data capture]] (captura de cambios) va más lejos: no toca el código del servicio. Toda base de datos seria anota cada cambio en su propio registro interno, para no perder nada si se va la luz y para que sus copias se pongan al día (en PostgreSQL es el WAL, *write-ahead log*; en MySQL, el binlog). Una herramienta de CDC, como Debezium, lee ese registro y publica cada inserción, cambio y borrado como un evento en Kafka (M09). Así, el resto del sistema se entera de lo que cambió en la base sin preguntarle cada rato y sin que el servicio publique nada.
+**CDC.** El [[cdc|change data capture]] (captura de cambios) va más lejos: no toca el código del servicio. Toda base de datos seria anota cada cambio en su propio registro interno, para no perder nada si se va la luz y para que sus copias se pongan al día (en PostgreSQL es el WAL, *write-ahead log*; en MySQL, el binlog). Una herramienta de CDC, como Debezium, lee ese registro y publica cada inserción, cambio y borrado como un evento en Kafka. Así, el resto del sistema se entera de lo que cambió en la base sin preguntarle cada rato y sin que el servicio publique nada.
 
 | | Outbox | CDC |
 |---|---|---|
@@ -485,19 +529,19 @@ Hay dos salidas, y las dos se apoyan en la [[transaccion|transacción]] de la ba
 | Retención | 4 días; hasta 14 | 7 días; hasta 31 | En una cola, hasta que se consume | 7 días; configurable | 24 h; hasta 365 días |
 | Lo que operas | Casi nada | Casi nada | Las máquinas | Un cluster, o pagas el servicio | Casi nada |
 
-La regla de la Ronda: **cola de trabajos para repartir trabajos; stream cuando varios sistemas leen lo mismo o hace falta releer**. Y no inventes infraestructura: en M01, un sistema de 5 requests por segundo (≈ 430 mil al día) no justifica Kafka, y C01, con su pico de 500, tampoco necesita un sistema de colas para el camino online.
+La regla: **cola de trabajos para repartir trabajos; stream cuando varios sistemas leen lo mismo o hace falta releer**. Y no inventes infraestructura: un sistema de 5 requests por segundo (5 × 86,400 s ≈ 430 mil al día) no justifica Kafka, y Alba, que diseña su sistema para un pico de 500 requests por segundo, tampoco necesita un sistema de colas para el camino online, el de la request que alguien está esperando.
 
-Dos matices que te pueden preguntar. Pub/Sub hace de cola y de stream, pero no tiene particiones que tú controles ni offsets que puedas regresar a cualquier punto (M13). Y Kafka trae los *share groups* (KIP-932, «colas para Kafka»; un KIP es una propuesta formal de cambio a Kafka), con ack por mensaje, conteo de entregas y más consumidores que particiones: llegaron a prueba en Kafka 4.0 (2025) y la versión 4.2 (febrero de 2026) los declaró listos para producción. Kafka empieza a funcionar también como cola de trabajos. Aun así, para 50 trabajos por segundo, una cola administrada sigue siendo más simple.
+Dos matices que te pueden preguntar. Pub/Sub hace de cola y de stream, pero no tiene particiones que tú controles ni offsets que puedas regresar a cualquier punto. Y Kafka trae los *share groups* (KIP-932, «colas para Kafka»; un KIP es una propuesta formal de cambio a Kafka), con ack por mensaje, conteo de entregas y más consumidores que particiones: llegaron a prueba en Kafka 4.0 (2025) y la versión 4.2 (febrero de 2026) los declaró listos para producción. Kafka empieza a funcionar también como cola de trabajos. Aun así, para 50 trabajos por segundo, una cola administrada sigue siendo más simple.
 
 ### Qué lleva un mensaje
 
 Un mensaje es como un sobre: adentro va el contenido (*payload*, la carga) y por fuera unos datos para el que lo recibe. Casi todos los brokers guardan, además del contenido, un id del mensaje, la hora en que llegó, cuántas veces se ha entregado y unos atributos que pone el productor, parecidos a los [[header|headers]] de HTTP. En Kafka, cada evento lleva su llave, su valor, sus headers y su hora.
 
-Tres costumbres que la Ronda da por hechas:
+Tres costumbres que en un diseño se dan por hechas:
 
 - **Un id propio en el contenido**, como el `job_id` o el id del evento. El del broker cambia si el productor reintenta; el tuyo no, y es el que sirve para descartar repetidos.
 - **La hora en que pasó**, no solo la hora en que llegó. Un pago que tardó 30 s en llegar cuenta en el minuto en que se hizo: lo verás en la lección de tiempo y hashes.
-- **Un formato con esquema.** C09 escribe sus eventos en [[avro|Avro]], un formato binario con un esquema que dice qué campos lleva cada evento (lo viste en la lección de formatos). Si el productor cambia el formato sin avisar, todos los consumidores se rompen a la vez; con un esquema versionado, se nota antes.
+- **Un formato con esquema.** Un sistema de fraude con tarjetas, por ejemplo, escribe sus eventos en [[avro|Avro]], un formato binario con un esquema que dice qué campos lleva cada evento (lo viste en la lección de formatos). Si el productor cambia el formato sin avisar, todos los consumidores se rompen a la vez; con un esquema versionado, se nota antes.
 
 ### El orden en una cola
 
@@ -505,9 +549,9 @@ Una cola estándar de SQS no promete orden: reparte los mensajes entre muchas m�
 
 ### Cuando el trabajo tiene varios pasos
 
-Un documento de C05 pasa por varias etapas: revisar la calidad de la foto, leerla con OCR, extraer los campos, consultar al SAT (el servicio de impuestos de México) y, si algo sale dudoso, esperar a que una persona lo revise. Encadenar cinco colas a mano funciona, pero nadie sabe en qué paso va cada documento ni qué reintentar.
+En un sistema que procesa documentos con OCR, un documento pasa por varias etapas: revisar la calidad de la foto, leerla con OCR, extraer los campos, consultar al SAT (el servicio de impuestos de México) y, si algo sale dudoso, esperar a que una persona lo revise. Encadenar cinco colas a mano funciona, pero nadie sabe en qué paso va cada documento ni qué reintentar.
 
-Para eso existen los **orquestadores de flujos de trabajo** (*workflow orchestrators*): Step Functions de AWS, Temporal o, para trabajos programados como el reentrenamiento de cada mes, Airflow y Argo Workflows. Guardan el estado de cada trabajo, reintentan cada paso con su propio límite y pueden esperar días a una persona. Por dentro usan colas; por fuera, te dan el trabajo completo como una sola cosa con su historial. La regla de M02: una cola para un paso; un orquestador cuando hay pasos, estados y esperas largas.
+Para eso existen los **orquestadores de flujos de trabajo** (*workflow orchestrators*): Step Functions de AWS, Temporal o, para trabajos programados como el reentrenamiento de cada mes, Airflow y Argo Workflows. Guardan el estado de cada trabajo, reintentan cada paso con su propio límite y pueden esperar días a una persona. Por dentro usan colas; por fuera, te dan el trabajo completo como una sola cosa con su historial. La regla: una cola para un paso; un orquestador cuando hay pasos, estados y esperas largas.
 
 :::profundo Celery, Redis y las colas «de mentiras»
 En Python es común repartir tareas con Celery, una biblioteca que usa [[redis|Redis]] (la base de datos llave-valor en memoria de la lección de bases de datos) o RabbitMQ como broker. Con Redis, el broker vive en la memoria de un servidor: es rápido, pero si Redis se cae sin haber guardado a disco, los mensajes se pierden. Y Celery con Redis tiene su propio visibility timeout de 1 hora: si las tareas confirman al final (`acks_late`), una que tarda más de una hora se entrega otra vez y corre dos veces. La lección es la de siempre: antes de confiar en una cola, pregunta dónde guarda los mensajes y qué pasa con uno en vuelo cuando el worker se cae.
@@ -547,37 +591,37 @@ El lag de Kafka crece y se agregan consumidores. Si ya hay uno por partición, l
 
 ### 6. Usar una cola para algo que alguien está esperando
 
-Meter la request de Ana en una cola agrega latencia, polling y piezas, para un trabajo de milisegundos con un fallback que ya existe. La Ronda lo descarta en C01.
+Meter la request de Ana en una cola agrega latencia, polling y piezas, para un trabajo de milisegundos con un fallback que ya existe. Alba lo descarta para la sugerencia de categoría de Ana.
 
 **Cómo evitarlo:** primero la pregunta «¿alguien espera?». Si sí, síncrono con timeout y fallback; la cola es para lo que puede esperar segundos, minutos u horas.
 
 ## En la vida real {In real life} [extra]
 
-### C01: la cola está en el backfill, no en el camino de Ana
+### Alba: la cola está en el backfill, no en el camino de Ana
 
-C01 responde a Ana de forma síncrona: «una cola asíncrona agregaría complejidad sin beneficio para este flujo», dice la Ronda. Pero la misma Ronda dice que **la cola sí es la forma correcta para el backfill** y para los equipos que mandan lotes.
+Alba responde a Ana de forma síncrona: ella está esperando en el formulario, y una cola asíncrona agregaría complejidad sin beneficio para ese flujo. Pero **la cola sí es la forma correcta para el backfill** (clasificar de una vez las fotos viejas del catálogo) y para los equipos que mandan lotes.
 
 El backfill clasifica ≈ 200 M de fotos viejas, en ≈ 2,000 pedazos (*shards*) de ≈ 100,000 fotos. Cada shard puede ser un mensaje en una cola. Con 4 máquinas de 1,000 fotos por segundo, el total tarda ≈ 200 M ÷ 4,000 ≈ 50,000 s ≈ 14 h, y cada shard ≈ 100 s. Las máquinas son *spot*, más baratas pero reclamables (en AWS, con 2 minutos de aviso): si una desaparece, su shard vuelve a la cola al vencer su plazo (unos minutos, con latido) y otra lo repite. Se pierden, a lo mucho, ≈ 100 s de trabajo por máquina. Como escribir la categoría de una foto es idempotente, repetir un shard no daña nada.
 
-El log de predicciones de C01 no usa un broker: cada línea va a la salida del programa y otro programa la lleva a S3, el [[object-storage|object storage]] de AWS. La respuesta no espera al log. Y el etiquetado es una cola de otro tipo: ≈ 5,000 fotos al mes que esperan a una persona.
+El log de predicciones de Alba no usa un broker: cada línea va a la salida del programa y otro programa la lleva a S3, el [[object-storage|object storage]] de AWS. La respuesta no espera al log. Y el etiquetado es una cola de otro tipo: ≈ 5,000 fotos al mes que esperan a una persona.
 
-### C07: búsqueda que se entera en minutos
+### La búsqueda de Alba: se entera en minutos
 
 Los cambios del catálogo entran a un tópico de Kafka con llave `listing_id`, así los eventos de un mismo listing llegan en orden. Cada versión del índice lee con su propio grupo de consumidores, `embed-worker-v7`; para estrenar la v8, un grupo nuevo relee desde el offset de un [[snapshot]], la foto fija del catálogo con la que se armó el índice nuevo. Una foto que no se puede bajar va a una DLQ con su motivo: un error nunca bloquea la partición. La alerta: lag de más de 3 minutos durante 10, y los workers escalan por lag.
 
-### C09 y C04: el stream chico y la cola que pagina
+### Fraude e imágenes médicas: el stream chico y la cola que pagina
 
-En C09, cada transacción deja ≈ 3 KB en Kafka entre evento y decisión. En el pico, 2,000 × 3 KB ≈ 6 MB/s, 18 MB/s con 3 copias: Kafka chico, y está bien. Lo eligen porque varios lo leen (Flink, el programa que calcula las features de fraude sobre el stream; el sink al lake; el monitoreo) y porque se puede releer durante 7 días. Flink reprocesa tras una falla (at-least-once) y escribe el valor de cada ventana, no una suma, para que repetir sea inofensivo.
+En un sistema de detección de fraude en tiempo real, con supuestos típicos, cada transacción deja ≈ 3 KB en Kafka entre evento y decisión. En el pico, 2,000 × 3 KB ≈ 6 MB/s, 18 MB/s con 3 copias: Kafka chico, y está bien. Lo eligen porque varios lo leen (Flink, el programa que calcula las features de fraude sobre el stream; el sink al lake; el monitoreo) y porque se puede releer durante 7 días. Flink reprocesa tras una falla (at-least-once) y escribe el valor de cada ventana, no una suma, para que repetir sea inofensivo.
 
-En C04, cada imagen de patología es un mensaje en la cola `slide-jobs`. Después de 3 intentos va a la DLQ, que alerta con más de 0. Y la alerta de atraso no mira cuántos mensajes hay, sino su edad: con 170 imágenes por hora, 85 en la cola son ≈ 30 minutos de espera.
+En un servicio que segmenta imágenes médicas, cada imagen de patología (una laminilla de tejido escaneada al microscopio) es un mensaje en la cola `slide-jobs`. Después de 3 intentos va a la DLQ, que alerta con más de 0. Y la alerta de atraso no mira cuántos mensajes hay, sino su edad: con 170 imágenes por hora, 85 en la cola son ≈ 30 minutos de espera.
 
-### C05: un documento que nunca se pierde
+### Documentos con OCR: ninguno se pierde
 
-C05 lee facturas y contratos: ≈ 5,000 documentos al día, ≈ 12,000 páginas, de las que solo ≈ 6,200 necesitan OCR. En el pico son ≈ 0.6 páginas por segundo: cabe en CPU, sin GPUs. Lo difícil no es la capacidad sino la promesa: **ningún documento se pierde**. Cada documento es un flujo de trabajo con su estado, reintentos por etapa, un estado de falla con su motivo y un paso que espera a una persona cuando un campo sale dudoso. Las consultas al SAT se reintentan, y el aviso al cliente es at-least-once.
+Un servicio de procesamiento de documentos con OCR lee facturas y contratos. Con supuestos del ejemplo: ≈ 5,000 documentos al día, ≈ 12,000 páginas, de las que solo ≈ 6,200 necesitan OCR. En el pico son ≈ 0.6 páginas por segundo: cabe en CPU, sin GPUs. Lo difícil no es la capacidad sino la promesa: **ningún documento se pierde**. Cada documento es un flujo de trabajo con su estado, reintentos por etapa, un estado de falla con su motivo y un paso que espera a una persona cuando un campo sale dudoso. Las consultas al SAT se reintentan, y el aviso al cliente es at-least-once.
 
-### C08: el log que entrena al modelo de mañana
+### Recomendación: el log que entrena al modelo de mañana
 
-C08 recomienda publicaciones en la portada. Cada respuesta deja un registro con las 50 publicaciones que vio el usuario y las features que usó el modelo, ≈ 22 KB. Con ≈ 90 M respuestas al día, 90 M × 22 KB ≈ 2 TB al día por Kafka. Con ese log se entrena el modelo de mañana, así que perderlo es un problema de datos, no de latencia. La respuesta no espera a Kafka: el productor guarda en un buffer en memoria y, si se llena, descarta y **cuenta** lo descartado. La Ronda avisa que esa pérdida es silenciosa y sesgada: pasa en los picos, cuando más tráfico hay. Por eso tiene su alerta: más de 0.1 % de pérdida, o el consumidor que une cada impresión con lo que el usuario hizo después (clicks, contactos) con más de 15 minutos de lag.
+Un sistema de recomendación elige qué publicaciones ve cada usuario en la portada. Con supuestos del ejemplo, cada respuesta deja un registro con las 50 publicaciones que vio el usuario y las features que usó el modelo, ≈ 22 KB. Con ≈ 90 M respuestas al día, 90 M × 22 KB ≈ 2 TB al día por Kafka. Con ese log se entrena el modelo de mañana, así que perderlo es un problema de datos, no de latencia. La respuesta no espera a Kafka: el productor guarda en un buffer en memoria y, si se llena, descarta y **cuenta** lo descartado. Esa pérdida es silenciosa y sesgada: pasa en los picos, cuando más tráfico hay. Por eso tiene su alerta: más de 0.1 % de pérdida, o el consumidor que une cada impresión con lo que el usuario hizo después (clicks, contactos) con más de 15 minutos de lag.
 
 ### Fuera de ML: la cocina de un restaurante
 
@@ -599,28 +643,30 @@ Resuélvelos con lápiz antes de abrir la solución. Los de picos y lag se puede
 ? [facil] Un tópico tiene 12 particiones. Un grupo de consumidores tiene 20 copias. ¿Cuántas leen algo? Y si otro grupo lee el mismo tópico, ¿qué eventos recibe?
 - Cada partición la lee un solo consumidor del grupo: **12 leen, 8 se quedan sin nada**.
 - El otro grupo tiene sus propios offsets y recibe **todos** los eventos del tópico, sin estorbar al primero.
-? [facil] En la cola de C04 llegan 170 imágenes por hora y hay 85 esperando. ¿Cuánto espera, más o menos, la que acaba de llegar? ¿Qué ley usaste?
-- La ley de Little: tiempo = lo que hay adentro ÷ lo que sale por unidad de tiempo. Si en equilibrio sale lo mismo que entra, 85 ÷ 170 por hora = **0.5 h ≈ 30 min**.
+? [facil] En la cola de un servicio que segmenta imágenes médicas llegan 170 imágenes por hora y hay 85 esperando. ¿Cuánto espera, más o menos, la que acaba de llegar? ¿Qué ley usaste?
+- La ley de Little, despejada para el tiempo: \(W = Q/μ\), lo que hay en la fila entre lo que sale por unidad de tiempo.
+- En equilibrio sale lo mismo que entra: \(μ\) = \(λ\) = 170 por hora. Con \(Q\) = 85, \(W\) = 85 ÷ 170 = **0.5 h ≈ 30 min**.
 ? [medio] Un trabajo de OCR tarda en su p99 4 minutos. La cola tiene el plazo por omisión de SQS, 30 s. ¿Qué pasa? ¿Qué plazo pondrías? Si a veces tarda 40 minutos, ¿qué cambias?
-- A los 30 s el mensaje reaparece aunque el worker siga trabajando: otro lo toma, y a los 60 s otro más. Hasta **8 copias** en 4 minutos (240 ÷ 30).
-- Plazo: el doble del p99, **8 minutos**.
+- Copias: \(t_{trabajo} ÷ V\) = 240 s ÷ 30 s = **8**. A los 30 s el mensaje reaparece aunque el worker siga trabajando: otro lo toma, y a los 60 s otro más, hasta 8 copias en 4 minutos.
+- Plazo: el doble del p99, \(V\) = 2 × 4 min = **8 minutos**.
 - Si a veces tarda 40, un plazo de 80 minutos haría que un worker muerto tarde 80 en liberar el mensaje. Mejor un **latido**: plazo de unos minutos, renovado a la mitad mientras el worker vive.
 ? [medio] Los workers de una cola estuvieron caídos 20 minutos mientras entraban 50 trabajos por segundo. ¿Cuántos se juntaron? Si al volver procesan 200 por segundo, ¿en cuánto se vacía la fila? ¿Y si solo procesan 60?
-- Se juntaron 50 × 1,200 s = **60,000**.
-- Mientras se vacía siguen llegando 50: el ritmo neto es 200 − 50 = 150 por segundo. 60,000 ÷ 150 = **400 s ≈ 7 min**.
-- Con 60: neto 10 por segundo. 60,000 ÷ 10 = **6,000 s = 100 min**. La capacidad de sobra es lo que vacía una fila.
+- Se juntaron \(Q = (λ − μ) × T\), con \(λ\) = 50 por segundo, \(μ\) = 0 (los workers caídos) y \(T\) = 20 × 60 s = 1,200 s: 50 × 1,200 = **60,000**.
+- Vaciado: \(t_{vaciar} = Q/(μ − λ_{base})\). Mientras se vacía siguen llegando \(λ_{base}\) = 50, así que el ritmo neto es 200 − 50 = 150 por segundo: 60,000 ÷ 150 = **400 s ≈ 7 min**.
+- Con \(μ\) = 60: neto 60 − 50 = 10 por segundo. 60,000 ÷ 10 = **6,000 s = 100 min**. La capacidad de sobra es lo que vacía una fila.
 ? [medio] Con KEDA, `queueLength` en 15 (cada trabajo tarda ≈ 20 s) y un máximo de 8 workers, llegan de golpe 400 mensajes. ¿Cuántos workers pediría KEDA sin máximo? ¿Cuánto espera el último con 8? ¿Se cumple una promesa de 300 s?
-- Sin máximo: ⌈400 ÷ 15⌉ = **27 workers**.
-- Con 8: a cada worker le tocan 400 ÷ 8 = 50 mensajes, y el último espera ≈ 50 × 20 s = **1,000 s ≈ 17 min**.
+- Sin máximo: \(w = ⌈m ÷ k⌉\) = ⌈400 ÷ 15⌉ = ⌈26.7⌉ = **27 workers**.
+- Con \(w\) = 8: a cada worker le tocan \(m ÷ w\) = 400 ÷ 8 = 50 mensajes, y el último espera ≈ 50 × \(t_{trabajo}\) = 50 × 20 s = **1,000 s ≈ 17 min**.
 - **No se cumple** la promesa de 300 s. El techo de 8 es una decisión de costo: o se sube, o se acepta el atraso y se avisa con la alerta de edad.
 ? [medio] Un mensaje venenoso vive en una cola con visibility timeout de 15 minutos y `maxReceiveCount` de 5. ¿Cuánto tarda en llegar a la DLQ si cada intento se cuelga hasta el plazo? ¿Y con un plazo de 3 minutos renovado por latido mientras el worker vive, si el worker se cae al abrir el archivo?
-- 5 × 15 min = **75 minutos** de workers ocupados.
-- Con latido, el worker muerto deja de renovar y el mensaje vuelve a los 3 minutos como mucho: 5 × 3 = **15 minutos**. El latido ayuda también aquí.
+- Tiempo hasta la DLQ: \(R × V\) = 5 × 15 min = **75 minutos** de workers ocupados.
+- Con latido, el worker muerto deja de renovar y el mensaje vuelve a los 3 minutos como mucho, así que \(V\) = 3 min: \(R × V\) = 5 × 3 min = **15 minutos**. El latido ayuda también aquí.
 ? [reto] El grupo de la sección del lag procesa 18,000 eventos por segundo con 12 particiones, y llegan 20,000. Lleva 10 minutos atrasado (1.2 M eventos). Compara dos arreglos: (a) un consumidor más rápido, de 1,800 por segundo; (b) un tópico de 24 particiones con 24 consumidores de 1,500. ¿En cuánto recupera cada uno el atraso?
-- (a) 12 × 1,800 = 21,600 por segundo. Sobran 1,600: 1.2 M ÷ 1,600 = **750 s ≈ 12.5 min**.
-- (b) 24 × 1,500 = 36,000. Sobran 16,000: 1.2 M ÷ 16,000 = **75 s**.
+- La ecuación: \(t_{vaciar} = Q/(μ − λ_{base})\), con \(Q\) = 1.2 M y \(λ_{base}\) = 20,000, porque siguen llegando los mismos. \(μ = min(w, P) × c\) cambia en cada arreglo.
+- (a) \(μ\) = 12 × 1,800 = 21,600 por segundo. Sobran 21,600 − 20,000 = 1,600: 1.2 M ÷ 1,600 = **750 s ≈ 12.5 min**.
+- (b) \(μ\) = 24 × 1,500 = 36,000. Sobran 36,000 − 20,000 = 16,000: 1.2 M ÷ 16,000 = **75 s**.
 - (b) recupera 10 veces más rápido, pero cambiar las particiones de un tópico que ya existe mueve qué llave cae en qué partición, y con eso el orden por llave durante el cambio. Por eso se eligen con margen desde el principio.
-? [reto] El sink de C09 lee pagos de Kafka y suma 1 al contador «pagos de esta tarjeta en la última hora». Después de un rebalanceo, el contador de una tarjeta marca 9 cuando hubo 6 pagos, y el modelo de fraude la bloquea. ¿Qué pasó y cómo lo arreglas?
+? [reto] El sink de un sistema de detección de fraude con tarjetas lee pagos de Kafka y suma 1 al contador «pagos de esta tarjeta en la última hora». Después de un rebalanceo, el contador de una tarjeta marca 9 cuando hubo 6 pagos, y el modelo de fraude la bloquea. ¿Qué pasó y cómo lo arreglas?
 - Un consumidor procesó 3 pagos, se cayó antes de hacer commit de su offset, y el que heredó la partición los **releyó**: at-least-once. Cada relectura sumó 1 otra vez.
 - Arreglo 1: **escribir el valor, no sumar**. El sink calcula el conteo de la ventana a partir de los eventos y escribe «6» con un upsert por (tarjeta, ventana). Repetirlo deja 6.
 - Arreglo 2: **descartar por id de evento** antes de contar, guardando el id junto con el cambio.
@@ -629,16 +675,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de picos y lag se puede
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M02 · Patrones de inferencia** dedica dos secciones a esta lección: «Asíncrona con colas» (el 202, el visibility timeout, la tabla de qué cola usar, el backlog de 60,000) y «Entrega, reintentos e idempotencia» (at-least-once, la DLQ, el orden por llave). Y «Streaming» trae el lag de 60 s.
-- **M06 · Orquestación y escalado** escala los workers con KEDA por la profundidad de SQS o el lag de Kafka, y explica el SIGTERM que termina el mensaje actual.
-- **M12 · Monitoreo** alerta por la edad del mensaje más viejo y por la DLQ, y muestra el mensaje venenoso que no envejece la cola.
-- **Los casos.** C01 (backfill en shards), C04 (cola de imágenes con DLQ), C07 (Kafka por listing y grupos por versión) y C09 (Kafka chico con Flink).
-
-**En el Dojo:** la estación 12, «Monitoreo y reentrenamiento», junta las fotos nuevas y las etiquetas para el siguiente entrenamiento, el trabajo que puede esperar por excelencia. Cuando abra, ahí lo vas a practicar.
-
-**En Sensei:** la siguiente lección, «Tiempo, hashes e identificadores», explica la función hash que decide la partición, los ids únicos que sirven para descartar repetidos y por qué un evento que llega tarde cuenta en la hora en que pasó.
+La siguiente lección, «Tiempo, hashes e identificadores», explica la función hash que decide la partición, los ids únicos que sirven para descartar repetidos y por qué un evento que llega tarde cuenta en la hora en que pasó.
 
 ## Palabras que vas a oír {Words you will hear}
 

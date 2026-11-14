@@ -1,5 +1,5 @@
 {
-  "titulo": "La cadena de relojes de C01: quién se rinde primero",
+  "titulo": "La cadena de relojes de Alba: quién se rinde primero",
   "width": 78,
   "height": 38,
   "lanes": [
@@ -14,7 +14,7 @@
     },
     {
       "id": "servicio",
-      "label": "El servicio de C01",
+      "label": "El servicio de Alba",
       "kind": "online",
       "x": 0,
       "y": 19,
@@ -43,7 +43,7 @@
       "y": 6,
       "w": 20,
       "h": 9,
-      "note": "El programa del marketplace que recibe la publicación. Le pide la categoría al gateway y espera **como máximo 300 ms**. Es el techo de todos los demás relojes: si vence, o si llega un 503 o un 504, muestra el selector."
+      "note": "El programa de Alba que recibe la publicación. Le pide la categoría al gateway y espera **como máximo 300 ms**. Es el techo de todos los demás relojes: si vence, o si llega un 503 o un 504, muestra el selector."
     },
     {
       "id": "selector",
@@ -54,7 +54,7 @@
       "y": 6,
       "w": 19,
       "h": 9,
-      "note": "El [[fallback]] de C01: Ana elige la categoría a mano. No depende del modelo, así que publicar sigue funcionando aunque Triton esté caído. Cada vez que se usa se cuenta, por motivo, para que una caída no pase en silencio."
+      "note": "El [[fallback]] de Alba: Ana elige la categoría a mano. No depende del modelo, así que publicar sigue funcionando aunque Triton esté caído. Cada vez que se usa se cuenta, por motivo, para que una caída no pase en silencio."
     },
     {
       "id": "gateway",

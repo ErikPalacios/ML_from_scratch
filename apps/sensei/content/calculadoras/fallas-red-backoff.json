@@ -1,11 +1,11 @@
 {
   "titulo": "Cuánto espera un backoff exponencial",
-  "intro": "**Espera máxima antes del reintento n = min(tope, base × 2ⁿ).** Con [[jitter|full jitter]], cada espera sale al azar entre 0 y ese máximo. Arranca con los números de la Ronda y el [[deadline]] de 300 ms del caller de C01.",
+  "intro": "Aplica \\(e_n = min(c, b × 2^n)\\) para la espera máxima antes del reintento \\(n\\), y \\(E = e_1 + … + e_r\\) para la suma de todas. Con [[jitter|full jitter]], cada espera sale al azar entre 0 y \\(e_n\\): en promedio, la suma es \\(E ÷ 2\\). Arranca con los números del ejemplo de la lección y el [[deadline]] de 300 ms del caller de Alba.",
   "entradas": [
-    { "id": "b", "label": "Base, en ms", "min": 10, "max": 60000, "paso": 10, "valor": 100, "tipo": "numero" },
-    { "id": "c", "label": "Tope de cada espera, en ms", "min": 100, "max": 600000, "paso": 100, "valor": 1000, "tipo": "numero" },
-    { "id": "n", "label": "Reintentos", "min": 1, "max": 10, "paso": 1, "valor": 3 },
-    { "id": "d", "label": "Tiempo que tienes para todo (el deadline), en ms", "min": 100, "max": 3600000, "paso": 100, "valor": 300, "tipo": "numero" }
+    { "id": "b", "label": "Base \\(b\\), en ms", "min": 10, "max": 60000, "paso": 10, "valor": 100, "tipo": "numero" },
+    { "id": "c", "label": "Tope de cada espera \\(c\\), en ms", "min": 100, "max": 600000, "paso": 100, "valor": 1000, "tipo": "numero" },
+    { "id": "n", "label": "Reintentos \\(r\\)", "min": 1, "max": 10, "paso": 1, "valor": 3 },
+    { "id": "d", "label": "Deadline \\(D\\): el tiempo que tienes para todo, en ms (300 = el caller de Alba)", "min": 100, "max": 3600000, "paso": 100, "valor": 300, "tipo": "numero" }
   ],
   "calculos": [
     { "id": "ks", "formula": "max(0, floor(log2(max(c / b, 1))))" },
@@ -13,11 +13,11 @@
     { "id": "total", "formula": "b * (pow(2, m + 1) - 2) + max(0, n - ks) * c" }
   ],
   "salidas": [
-    { "label": "Espera máxima antes del primer reintento", "formula": "min(c, 2 * b)", "formato": "ms" },
-    { "label": "Espera máxima antes del último reintento", "formula": "min(c, b * pow(2, n))", "formato": "ms", "nota": "si llega al tope, ya no crece" },
-    { "label": "Espera máxima, sumando todas", "formula": "total", "formato": "ms" },
-    { "label": "Espera promedio, sumando todas, con full jitter", "formula": "total / 2", "formato": "ms", "nota": "cada espera, en promedio, es la mitad de su máximo" },
-    { "label": "Parte del deadline que se come la espera máxima", "formula": "total / d", "formato": "pct", "barra": true, "nota": "más de 100 %: los reintentos no caben; falta sumar lo que tarda cada intento" }
+    { "label": "Espera máxima antes del primer reintento, \\(e_1\\)", "formula": "min(c, 2 * b)", "formato": "ms", "nota": "\\(e_1 = min(c, b × 2)\\)" },
+    { "label": "Espera máxima antes del último reintento, \\(e_r\\)", "formula": "min(c, b * pow(2, n))", "formato": "ms", "nota": "\\(e_r = min(c, b × 2^r)\\): si llega al tope, ya no crece" },
+    { "label": "Espera máxima, sumando todas, \\(E\\)", "formula": "total", "formato": "ms", "nota": "\\(E = e_1 + … + e_r\\)" },
+    { "label": "Espera promedio, sumando todas, con full jitter", "formula": "total / 2", "formato": "ms", "nota": "\\(E ÷ 2\\): cada espera, en promedio, es la mitad de su máximo" },
+    { "label": "Parte del deadline que se come la espera máxima", "formula": "total / d", "formato": "pct", "barra": true, "nota": "\\(E ÷ D\\). Más de 100 %: los reintentos no caben; falta sumar lo que tarda cada intento" }
   ],
   "nota": "Con 300 ms, ni el primer reintento cabe con holgura: por eso el camino de Ana no reintenta. Pon el deadline en 60,000 (un job batch con un minuto) y los 3 reintentos caben de sobra."
 }

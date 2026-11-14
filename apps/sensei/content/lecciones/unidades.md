@@ -339,7 +339,7 @@ Pico de diseño \(R_{diseño}\) // margen \(m\) ≈ 1.4, y hacia arriba a un nú
 :::
 
 :::calculadora unidades-por-dia
-Pon factor 1 y margen 1.3: el tráfico parejo de un proceso automático. Después prueba 50 millones al día con factor 3: las de un buscador con 50 M de búsquedas al día (supuesto del ejemplo), ≈ 1,740 por segundo en el pico.
+Pon factor 1 y margen 1.3: el tráfico parejo de un proceso automático. Después prueba 50 millones al día con factor 3: las de un buscador con 50 M de búsquedas al día (supuesto del ejemplo), ≈ 1,740 por segundo en el pico (el curso lo redondea a 1,750).
 :::
 
 ## Cuántas máquinas y cuánto cuestan {How many machines, and what they cost}
@@ -649,7 +649,7 @@ En 4 pedazos // a cada pedazo se le dice *shard* | 77 ÷ 4 | ≈ 19 GB cada uno
 = Una máquina con 384 GiB (≈ 412 GB) lo cargaría entero, aun con los float32 que se guardan aparte para reordenar los mejores resultados (204.8 + 51.2 + 25.6 ≈ 282 GB en total); se parte en 4 por operación, no por memoria. Y nota el GiB: comparar 204.8 GB con 384 GiB exige pasar los dos a la misma regla.
 :::
 
-Las búsquedas también se cuentan como en esta lección: si llegaran 50 M al día (supuesto del ejemplo), \(R_{prom}\) = 50,000,000 ÷ 86,400 ≈ 579 por segundo, y con factor \(k\) = 3, 3 × 579 ≈ 1,740 en el pico.
+Las búsquedas también se cuentan como en esta lección: si llegaran 50 M al día (supuesto del ejemplo), \(R_{prom}\) = 50,000,000 ÷ 86,400 ≈ 579 por segundo, y con factor \(k\) = 3, 3 × 579 ≈ 1,740 en el pico, que el curso redondea a 1,750.
 
 ### El ancho de banda de la voz
 

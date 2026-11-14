@@ -1,23 +1,23 @@
 {
   "titulo": "Cuánto pesan los logs de predicciones",
-  "intro": "Arranca con C01: ≈ 10 M predicciones al día, ≈ 300 B por línea de [[json-lines|JSON Lines]], 90 días de retención y [[parquet|Parquet]] 5 veces más chico que el JSON crudo.",
+  "intro": "Arranca con Alba: \\(N\\) ≈ 10 M predicciones al día, \\(b\\) ≈ 300 B por línea de [[json-lines|JSON Lines]], \\(d\\) = 90 días de retención y [[parquet|Parquet]] \\(r\\) = 5 veces más chico que el JSON crudo. La calculadora aplica \\(S_{día} = N × b\\) y \\(S_{ret} = S_{día} × d\\), y divide entre \\(r\\) para Parquet.",
   "entradas": [
-    { "id": "n", "label": "Predicciones al día, en millones", "min": 0.1, "max": 1000, "paso": 0.1, "valor": 10, "tipo": "numero" },
-    { "id": "b", "label": "Bytes por línea de log", "min": 50, "max": 5000, "paso": 10, "valor": 300, "tipo": "numero" },
-    { "id": "r", "label": "Veces que Parquet comprime contra el JSON crudo", "min": 1, "max": 20, "paso": 0.5, "valor": 5 },
-    { "id": "d", "label": "Días que se guardan (retención)", "min": 1, "max": 730, "paso": 1, "valor": 90 }
+    { "id": "n", "label": "Predicciones al día, \\(N\\), en millones", "min": 0.1, "max": 1000, "paso": 0.1, "valor": 10, "tipo": "numero" },
+    { "id": "b", "label": "Bytes por línea de log, \\(b\\)", "min": 50, "max": 5000, "paso": 10, "valor": 300, "tipo": "numero" },
+    { "id": "r", "label": "Veces que Parquet comprime contra el JSON crudo, \\(r\\)", "min": 1, "max": 20, "paso": 0.5, "valor": 5 },
+    { "id": "d", "label": "Días que se guardan (retención), \\(d\\)", "min": 1, "max": 730, "paso": 1, "valor": 90 }
   ],
   "calculos": [
     { "id": "dia", "formula": "n * 1e6 * b" },
     { "id": "pq", "formula": "dia / r" }
   ],
   "salidas": [
-    { "label": "JSON Lines al día", "formula": "dia", "formato": "bytes", "barra": true },
-    { "label": "Parquet al día", "formula": "pq", "formato": "bytes", "barra": true },
-    { "label": "JSON Lines guardado en toda la retención", "formula": "dia * d", "formato": "bytes" },
-    { "label": "Parquet guardado en toda la retención", "formula": "pq * d", "formato": "bytes" },
-    { "label": "Lo que se ahorra", "formula": "(dia - pq) * d", "formato": "bytes", "nota": "en almacenamiento, sin contar que cada lectura también baja" },
-    { "label": "Lo que se escribe por segundo, en promedio", "formula": "dia / 86400", "formato": "bytes", "nota": "escribir nunca es el problema" }
+    { "label": "JSON Lines al día, \\(S_{día}\\)", "formula": "dia", "formato": "bytes", "barra": true, "nota": "\\(S_{día} = N × b\\)" },
+    { "label": "Parquet al día", "formula": "pq", "formato": "bytes", "barra": true, "nota": "\\(S_{día} ÷ r\\)" },
+    { "label": "JSON Lines guardado en toda la retención, \\(S_{ret}\\)", "formula": "dia * d", "formato": "bytes", "nota": "\\(S_{ret} = S_{día} × d\\)" },
+    { "label": "Parquet guardado en toda la retención", "formula": "pq * d", "formato": "bytes", "nota": "\\(S_{ret} ÷ r\\)" },
+    { "label": "Lo que se ahorra", "formula": "(dia - pq) * d", "formato": "bytes", "nota": "\\(S_{ret} − S_{ret} ÷ r\\): en almacenamiento, sin contar que cada lectura también baja" },
+    { "label": "Lo que se escribe por segundo, en promedio", "formula": "dia / 86400", "formato": "bytes", "nota": "\\(S_{día} ÷ 86,400\\), los segundos de un día: escribir nunca es el problema" }
   ],
-  "nota": "Con los números de C01, 3 GB al día se vuelven 600 MB, y 270 GB en 90 días se vuelven 54 GB. Sube las líneas a 5,000 B, como un log de depuración, y mira cómo se dispara todo."
+  "nota": "Con los números de Alba, 3 GB al día se vuelven 3 GB ÷ 5 = 600 MB, y 270 GB en 90 días se vuelven 270 GB ÷ 5 = 54 GB. Sube las líneas a 5,000 B, como un log de depuración, y mira cómo se dispara todo."
 }

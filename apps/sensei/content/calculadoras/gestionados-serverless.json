@@ -1,23 +1,90 @@
 {
   "titulo": "Serverless contra GPU dedicada",
-  "intro": "Un [[contenedor-serverless|contenedor serverless]] cobra solo las horas que está prendido (también los minutos que espera después de la última request), pero más caro por hora; la GPU dedicada cobra las 24 horas. Mueve las horas activas al día y mira dónde se cruzan. Precios de la lección (noviembre de 2026).",
+  "intro": "Un [[contenedor-serverless|contenedor serverless]] cobra solo las horas que está prendido (también los minutos que espera después de la última request), pero más caro por hora; la GPU dedicada cobra las 24 horas. Aplica las ecuaciones de la lección: \\(C_s = s × h × 30.4\\), \\(C_d = d × 730\\) y el cruce \\(h^{*} = 24 × d ÷ s\\). Mueve las horas activas al día y mira dónde se cruzan. Precios de la lección (noviembre de 2026).",
   "entradas": [
-    { "id": "h", "label": "**Horas de GPU activa** al día", "min": 0, "max": 24, "paso": 0.5, "valor": 2, "unidad": "h" },
-    { "id": "ps", "label": "Serverless, US$ por hora activa (L4 en Cloud Run, us-central1, sin redundancia zonal ≈ 1.05)", "min": 0.1, "max": 10, "paso": 0.01, "valor": 1.05, "unidad": "US$" },
-    { "id": "pd", "label": "Dedicada, US$ por hora (g6.xlarge ≈ 0.805)", "min": 0.1, "max": 10, "paso": 0.005, "valor": 0.805, "unidad": "US$" },
-    { "id": "m", "label": "Instancias mínimas siempre prendidas (0 = escala a cero)", "min": 0, "max": 1, "paso": 1, "valor": 0 }
+    {
+      "id": "h",
+      "label": "**Horas de GPU activa** al día, \\(h\\)",
+      "min": 0,
+      "max": 24,
+      "paso": 0.5,
+      "valor": 2,
+      "unidad": "h"
+    },
+    {
+      "id": "ps",
+      "label": "Serverless, US$ por hora activa, \\(s\\) (L4 en Cloud Run, us-central1, sin redundancia zonal ≈ 1.05)",
+      "min": 0.1,
+      "max": 10,
+      "paso": 0.01,
+      "valor": 1.05,
+      "unidad": "US$"
+    },
+    {
+      "id": "pd",
+      "label": "Dedicada, US$ por hora, \\(d\\) (g6.xlarge ≈ 0.805)",
+      "min": 0.1,
+      "max": 10,
+      "paso": 0.005,
+      "valor": 0.805,
+      "unidad": "US$"
+    },
+    {
+      "id": "m",
+      "label": "Instancias mínimas siempre prendidas (0 = escala a cero; 1 = cobra las 24 horas)",
+      "min": 0,
+      "max": 1,
+      "paso": 1,
+      "valor": 0
+    }
   ],
   "calculos": [
-    { "id": "hs", "formula": "max(h, m * 24)" },
-    { "id": "cs", "formula": "ps * hs * 30.4" },
-    { "id": "cd", "formula": "pd * 730" }
+    {
+      "id": "hs",
+      "formula": "max(h, m * 24)"
+    },
+    {
+      "id": "cs",
+      "formula": "ps * hs * 30.4"
+    },
+    {
+      "id": "cd",
+      "formula": "pd * 730"
+    }
   ],
   "salidas": [
-    { "label": "Serverless al mes, en US$", "formula": "cs", "formato": "int", "nota": "US$/h × horas cobradas al día × 30.4 días" },
-    { "label": "Dedicada al mes, en US$", "formula": "cd", "formato": "int", "nota": "US$/h × 730 h, la uses o no" },
-    { "label": "Lo que ahorra serverless, en US$", "formula": "cd - cs", "formato": "int", "nota": "si sale negativo, gana la dedicada" },
-    { "label": "Cruce, en horas activas al día", "formula": "24 * pd / ps", "formato": "num", "decimales": 1, "nota": "24 × dedicada ÷ serverless" },
-    { "label": "Qué tanto trabajaría la GPU dedicada", "formula": "h / 24", "formato": "pct", "decimales": 0, "barra": true }
+    {
+      "label": "Serverless al mes, \\(C_s\\), en US$",
+      "formula": "cs",
+      "formato": "int",
+      "nota": "\\(C_s = s × h × 30.4\\); con una instancia mínima, \\(h\\) cuenta como 24"
+    },
+    {
+      "label": "Dedicada al mes, \\(C_d\\), en US$",
+      "formula": "cd",
+      "formato": "int",
+      "nota": "\\(C_d = d × 730\\), la uses o no"
+    },
+    {
+      "label": "Lo que ahorra serverless, \\(C_d − C_s\\), en US$",
+      "formula": "cd - cs",
+      "formato": "int",
+      "nota": "si sale negativo, gana la dedicada"
+    },
+    {
+      "label": "Cruce \\(h^{*}\\), en horas activas al día",
+      "formula": "24 * pd / ps",
+      "formato": "num",
+      "decimales": 1,
+      "nota": "\\(h^{*} = 24 × d ÷ s\\)"
+    },
+    {
+      "label": "Qué tanto trabajaría la GPU dedicada, \\(h ÷ 24\\)",
+      "formula": "h / 24",
+      "formato": "pct",
+      "decimales": 0,
+      "barra": true
+    }
   ],
   "nota": "Pon una instancia mínima: el arranque en frío desaparece, pero pagas las 24 horas a precio de serverless, más que la dedicada."
 }

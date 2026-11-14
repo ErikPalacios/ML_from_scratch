@@ -1,20 +1,20 @@
 { "titulo": "Lo que cuesta un despliegue malo",
-  "intro": "Mientras nadie se da cuenta, cada [[request]] que llega a la versión mala se pierde. **Requests dañadas = requests por segundo × parte del tráfico × segundos con la versión mala.** Arranca con el promedio de C01, todo el tráfico, 10 minutos para detectar y 5 para hacer el [[rollback]].",
+  "intro": "Mientras nadie se da cuenta, cada [[request]] que llega a la versión mala se pierde. La calculadora aplica \\(t_{mala} = 60 × (t_d + t_r)\\), \\(D = R × w × t_{mala}\\), \\(B = (1 − S) × M\\) y \\(G = D ÷ B\\): requests dañadas, presupuesto de error del mes y la parte que se come. Arranca con el promedio de Alba (≈ 10 millones de requests al día), todo el tráfico, 10 minutos para detectar y 5 para hacer el [[rollback]].",
   "entradas": [
-    { "id": "q", "label": "Requests por segundo (116 = promedio de C01 · 500 = pico de diseño)", "min": 1, "max": 5000, "paso": 1, "valor": 116, "tipo": "numero" },
-    { "id": "t", "label": "Parte del tráfico en la versión nueva (100 = todo · 5 = canary)", "min": 1, "max": 100, "paso": 1, "valor": 100, "unidad": "%" },
-    { "id": "d", "label": "Minutos para detectar", "min": 0, "max": 120, "paso": 1, "valor": 10, "unidad": "min" },
-    { "id": "v", "label": "Minutos para revertir", "min": 0, "max": 60, "paso": 0.5, "valor": 5, "unidad": "min" },
-    { "id": "m", "label": "Requests del mes, en millones (300 = C01: 10 M al día × 30)", "min": 1, "max": 10000, "paso": 1, "valor": 300, "tipo": "numero" },
-    { "id": "s", "label": "SLO, en %", "min": 90, "max": 99.99, "paso": 0.01, "valor": 99.9, "unidad": "%" }
+    { "id": "q", "label": "Requests por segundo, \\(R\\) (116 = promedio de Alba · 500 = su pico de diseño)", "min": 1, "max": 5000, "paso": 1, "valor": 116, "tipo": "numero" },
+    { "id": "t", "label": "Parte del tráfico en la versión nueva, \\(w\\), en % (100 = todo · 5 = canary)", "min": 1, "max": 100, "paso": 1, "valor": 100, "unidad": "%" },
+    { "id": "d", "label": "Minutos para detectar, \\(t_d\\)", "min": 0, "max": 120, "paso": 1, "valor": 10, "unidad": "min" },
+    { "id": "v", "label": "Minutos para revertir, \\(t_r\\)", "min": 0, "max": 60, "paso": 0.5, "valor": 5, "unidad": "min" },
+    { "id": "m", "label": "Requests del mes, \\(M\\), en millones (300 = Alba: 10 M al día × 30 días)", "min": 1, "max": 10000, "paso": 1, "valor": 300, "tipo": "numero" },
+    { "id": "s", "label": "SLO, \\(S\\), en % (99.9 = el de Alba)", "min": 90, "max": 99.99, "paso": 0.01, "valor": 99.9, "unidad": "%" }
   ],
   "calculos": [
     { "id": "malas", "formula": "q * (t / 100) * (d + v) * 60" },
     { "id": "presupuesto", "formula": "m * 1000000 * (1 - s / 100)" }
   ],
   "salidas": [
-    { "label": "Requests dañadas", "formula": "malas", "formato": "int" },
-    { "label": "Presupuesto de error del mes", "formula": "presupuesto", "formato": "int", "nota": "las que el SLO deja fallar en el mes; sale del tráfico de todo el mes, no del de este momento" },
-    { "label": "Parte del presupuesto que se come este despliegue", "formula": "malas / max(presupuesto, 1e-9)", "formato": "pct", "decimales": 1, "barra": true, "nota": "más de 100 %: un despliegue se comió el mes" }
+    { "label": "Requests dañadas, \\(D\\)", "formula": "malas", "formato": "int", "nota": "\\(D = R × w × t_{mala}\\), con \\(t_{mala} = 60 × (t_d + t_r)\\) segundos" },
+    { "label": "Presupuesto de error del mes, \\(B\\)", "formula": "presupuesto", "formato": "int", "nota": "\\(B = (1 − S) × M\\): las que el SLO deja fallar en el mes; sale del tráfico de todo el mes, no del de este momento" },
+    { "label": "Parte del presupuesto que se come este despliegue, \\(G\\)", "formula": "malas / max(presupuesto, 1e-9)", "formato": "pct", "decimales": 1, "barra": true, "nota": "\\(G = D ÷ B\\); más de 100 %: un despliegue se comió el mes" }
   ],
-  "nota": "El presupuesto no cambia si subes las requests por segundo: el pico de 500 dura unos minutos, y el presupuesto se cuenta sobre todo el mes. Con 116 por segundo y 15 minutos salen 104,400 dañadas (el texto redondea a ≈ 104,000). Fíjate en qué baja más el daño: dividir el tiempo entre 3, o mandar solo el 5 % del tráfico." }
+  "nota": "El presupuesto \\(B\\) no cambia si subes \\(R\\): el pico de 500 dura unos minutos, y el presupuesto se cuenta sobre todo el mes. Con 116 por segundo y 15 minutos salen 116 × 900 = 104,400 dañadas (el texto redondea a ≈ 104,000). Fíjate en qué baja más el daño: dividir el tiempo entre 3, o mandar solo el 5 % del tráfico." }

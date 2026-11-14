@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" role="img" aria-labelledby="f-gestionados-radio-t" class="f-svg" style="max-width:420px">
-<title id="f-gestionados-radio-t">Dos diagramas del mismo ataque: alguien entra al pod del gateway de C01. Arriba, un rol para todo: el gateway, Triton y Fluent Bit usan el mismo rol, con permiso s3 asterisco sobre todo, así que el atacante alcanza los tres buckets: artefactos, logs y etiquetado. Abajo, un rol por componente: el gateway no tiene permisos de S3, Triton solo lee el prefijo triton de artefactos y Fluent Bit solo escribe en logs. El mismo ataque no alcanza ningún bucket.</title>
+<title id="f-gestionados-radio-t">Dos diagramas del mismo ataque: alguien entra al pod del gateway de Alba. Arriba, un rol para todo: el gateway, Triton y Fluent Bit usan el mismo rol, con permiso s3 asterisco sobre todo, así que el atacante alcanza los tres buckets: artefactos, logs y etiquetado. Abajo, un rol por componente: el gateway no tiene permisos de S3, Triton solo lee el prefijo triton de artefactos y Fluent Bit solo escribe en logs. El mismo ataque no alcanza ningún bucket.</title>
 <rect class="f-card" x="10" y="10" width="340" height="400" rx="16"/>
 <text class="f-l" x="24" y="36">UN ROL PARA TODO</text>
 <rect class="f-o" x="22" y="50" width="84" height="26" rx="7"/>

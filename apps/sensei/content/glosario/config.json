@@ -2,7 +2,7 @@
   { "id": "configuracion", "termino": "Configuración", "en": "configuration · config",
     "corto": "Los valores que un programa lee para decidir cómo portarse y que pueden cambiar sin tocar el código: una dirección, un timeout, un umbral, una contraseña. El código dice qué hacer; la configuración, con qué valores.",
     "largo": "Lo que cambia entre [[ambiente|ambientes]] (laptop, staging, producción) o entre días se saca del código para que la misma [[imagen-contenedor|imagen]] corra en todos lados, byte por byte. Llega por [[variable-entorno|variables de entorno]], archivos (casi siempre en [[yaml|YAML]]) o flags, con una [[precedencia-config|precedencia]] clara, y se revisa completa al arrancar ([[validacion-config|validación]]). No es configuración lo que obliga a cambiar otra cosa al mismo tiempo: el preprocesamiento o el orden de las categorías son parte del código o del modelo. La parte que da acceso es un [[secreto]] y se trata aparte.",
-    "ejemplo": "El gateway de C01 lee TRITON_URL (triton.classifier:8000 en producción), INFER_TIMEOUT_S=0.15 y PREPROCESS_CONCURRENCY=2. En la laptop, el mismo código habla con otro Triton y espera más.",
+    "ejemplo": "El gateway de Alba lee TRITON_URL (triton.classifier:8000 en producción), INFER_TIMEOUT_S=0.15 y PREPROCESS_CONCURRENCY=2. En la laptop, el mismo código habla con otro Triton y espera más.",
     "ver": ["twelve-factor", "precedencia-config", "validacion-config", "secreto"],
     "leccion": "config" },
   { "id": "twelve-factor", "termino": "Twelve-factor", "en": "The Twelve-Factor App",
@@ -20,7 +20,7 @@
   { "id": "validacion-config", "termino": "Validación de configuración", "en": "config validation · fail fast",
     "corto": "Revisar toda la configuración al arrancar, antes de aceptar la primera request: que no falte nada obligatorio, que cada valor tenga su tipo y que esté en un rango con sentido. Si algo está mal, el programa no arranca.",
     "largo": "Fallar al arrancar es barato: el proceso termina con un [[codigo-salida|código de salida]] distinto de 0, en Kubernetes el pod nunca queda listo y la actualización se detiene mientras los pods viejos siguen atendiendo. Fallar a la tercera request es caro: el pod ya estaba recibiendo tráfico. Un buen validador junta todos los errores antes de rendirse. En Python se escribe a mano con la biblioteca estándar o con pydantic-settings, que se apoya en [[pydantic]]. Los archivos también se validan en el [[ci|CI]], antes de llegar al clúster.",
-    "ejemplo": "INFER_TIMEOUT_S=150, escrito pensando en milisegundos, son 150 segundos. Con Triton trabado, cada pod de C01 libera ≈ 0.11 lugares por segundo en vez de ≈ 107, y en 0.16 s se llena. Un rango de 0.01 a 2 lo rechaza al arrancar.",
+    "ejemplo": "INFER_TIMEOUT_S=150, escrito pensando en milisegundos, son 150 segundos. Con Triton trabado, cada pod de Alba, con 16 lugares, despacha 16 lugares ÷ 150 s ≈ 0.11 requests por segundo en vez de 16 ÷ 0.15 s ≈ 107, y con 100 por segundo se llena en 16 ÷ 100 = 0.16 s. Un rango de 0.01 a 2 lo rechaza al arrancar.",
     "ver": ["configuracion", "codigo-salida", "pydantic"],
     "leccion": "config" },
   { "id": "secreto", "termino": "Secreto", "en": "secret · credential",
@@ -74,7 +74,7 @@
   { "id": "feature-flag", "termino": "Feature flag", "en": "feature flag · feature toggle · kill switch",
     "corto": "Una condición en el código que se consulta mientras el programa corre contra una configuración remota: prende o apaga un comportamiento para todos, para un porcentaje o para un grupo, sin desplegar nada.",
     "largo": "Separa desplegar (poner el código en los servidores) de activar (que la gente lo use). Un flag que apaga una función entera es un kill switch, el [[rollback]] más rápido. Para un porcentaje estable se usa una [[funcion-hash|función hash]] del id del usuario con una sal propia del flag: el mismo usuario cae siempre del mismo lado, y al subir del 10 % al 20 % los que estaban adentro se quedan. El valor del flag se registra con cada predicción. No es un [[canary]]: el canary reparte tráfico entre dos versiones desplegadas; el flag reparte usuarios dentro del mismo código. Cada flag es un camino más en el código: cuando llega al 100 %, se borra.",
-    "ejemplo": "En el MVP de C01, solo el 10 % de los vendedores ve las sugerencias: en el pico de 500 requests por segundo, ≈ 50 van por el camino nuevo.",
+    "ejemplo": "En la primera versión de Alba, solo el 10 % de los vendedores ve las sugerencias: en el pico de 500 requests por segundo, 500 × 10 ÷ 100 ≈ 50 van por el camino nuevo.",
     "ver": ["configuracion", "canary", "rollback", "funcion-hash"],
     "leccion": "config" }
 ]}

@@ -1,11 +1,11 @@
 {
   "titulo": "N+1 por zona: cuántas réplicas y cuánto cuestan",
-  "intro": "La regla: si cae **una zona**, las que quedan aguantan el pico completo sin pasar del tope. Mira cuántas réplicas pide cada [[zona-disponibilidad|zona]] y cuánto de la factura es solo repuesto.",
+  "intro": "La regla: si cae **una zona**, las que quedan aguantan el pico completo sin pasar del tope. Aplica las ecuaciones de la lección, \\(R_z = ⌈P ÷ ((Z − 1) × c × u)⌉\\) y \\(R = Z × R_z\\), y mira cuántas réplicas pide cada [[zona-disponibilidad|zona]] y cuánto de la factura es solo repuesto.",
   "entradas": [
-    { "id": "p", "label": "**Pico**, en requests por segundo", "min": 100, "max": 20000, "paso": 100, "valor": 2500 },
-    { "id": "c", "label": "Lo que aguanta **una réplica** al máximo, por segundo", "min": 100, "max": 5000, "paso": 50, "valor": 1200 },
-    { "id": "z", "label": "**Zonas**", "min": 2, "max": 4, "paso": 1, "valor": 2 },
-    { "id": "u", "label": "Tope de uso con una zona caída", "min": 40, "max": 90, "paso": 5, "valor": 70, "unidad": "%" },
+    { "id": "p", "label": "**Pico** \\(P\\), en requests por segundo", "min": 100, "max": 20000, "paso": 100, "valor": 2500 },
+    { "id": "c", "label": "Lo que aguanta **una réplica** al máximo, \\(c\\), en requests por segundo", "min": 100, "max": 5000, "paso": 50, "valor": 1200 },
+    { "id": "z", "label": "**Zonas** \\(Z\\)", "min": 2, "max": 4, "paso": 1, "valor": 2 },
+    { "id": "u", "label": "Tope de uso con una zona caída, \\(u\\)", "min": 40, "max": 90, "paso": 5, "valor": 70, "unidad": "%" },
     { "id": "m", "label": "Costo de una réplica al mes, en US$", "min": 50, "max": 30000, "paso": 1, "valor": 384, "tipo": "numero" }
   ],
   "calculos": [
@@ -15,13 +15,13 @@
     { "id": "mn", "formula": "ceil(p / util)" }
   ],
   "salidas": [
-    { "label": "Réplicas por zona", "formula": "pz", "formato": "int", "nota": "pico ÷ ((zonas − 1) × réplica × tope), hacia arriba" },
-    { "label": "Réplicas en total", "formula": "tot", "formato": "int", "nota": "por zona × zonas" },
-    { "label": "Las que pediría solo el tráfico", "formula": "mn", "formato": "int", "nota": "sin pensar en zonas" },
-    { "label": "Uso en el pico, con todas las zonas arriba", "formula": "p / (tot * c)", "formato": "pct", "decimales": 0, "barra": true },
-    { "label": "Uso si cae una zona", "formula": "p / ((tot - pz) * c)", "formato": "pct", "decimales": 0, "barra": true },
-    { "label": "Costo al mes, en US$", "formula": "tot * m", "formato": "int", "nota": "total × costo de una réplica" },
-    { "label": "De eso, lo que es solo repuesto, en US$", "formula": "(tot - mn) * m", "formato": "int", "nota": "(total − las del tráfico) × costo" }
+    { "label": "Réplicas por zona, \\(R_z\\)", "formula": "pz", "formato": "int", "nota": "\\(⌈P ÷ ((Z − 1) × c × u)⌉\\): hacia arriba" },
+    { "label": "Réplicas en total, \\(R\\)", "formula": "tot", "formato": "int", "nota": "\\(Z × R_z\\)" },
+    { "label": "Las que pediría solo el tráfico", "formula": "mn", "formato": "int", "nota": "\\(⌈P ÷ (c × u)⌉\\), sin pensar en zonas" },
+    { "label": "Uso en el pico, con todas las zonas arriba, \\(ρ_{normal}\\)", "formula": "p / (tot * c)", "formato": "pct", "decimales": 0, "barra": true, "nota": "\\(P ÷ (R × c)\\)" },
+    { "label": "Uso si cae una zona, \\(ρ_{caída}\\)", "formula": "p / ((tot - pz) * c)", "formato": "pct", "decimales": 0, "barra": true, "nota": "\\(P ÷ ((R − R_z) × c)\\)" },
+    { "label": "Costo al mes, en US$", "formula": "tot * m", "formato": "int", "nota": "\\(R\\) × costo de una réplica" },
+    { "label": "De eso, lo que es solo repuesto, en US$", "formula": "(tot - mn) * m", "formato": "int", "nota": "(\\(R\\) − las que pide el tráfico) × costo de una réplica" }
   ],
   "nota": "Con dos zonas pagas el doble de lo que pide el tráfico; con tres, 1.5 veces; con cuatro, 1.33. Con pocas réplicas el redondeo puede invertirlo: prueba un pico de 500."
 }

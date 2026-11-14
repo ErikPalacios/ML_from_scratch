@@ -42,7 +42,7 @@
       { "nodes": ["instancia", "nodo"], "edges": ["instancia>nodo"], "text": "Se une al cluster, baja la imagen de Triton y carga el modelo. Pasaron **minutos**: por eso el autoscaling de nodos no absorbe picos de segundos." }
     ] },
     { "id": "cuota", "label": "Te pasas de la cuota", "steps": [
-      { "nodes": ["autoscaler", "cuota"], "edges": ["autoscaler>cuota"], "text": "Además de las 2 T4 de C01 (8 vCPU), alguien dejó encendidas 6 `g4dn.xlarge` de pruebas: 24 vCPU. El autoscaler pide 2 más (8 vCPU) y la cuenta llegaría a 40, más que los 28 de la cuota." },
+      { "nodes": ["autoscaler", "cuota"], "edges": ["autoscaler>cuota"], "text": "Además de las 2 T4 de Alba (8 vCPU), alguien dejó encendidas 6 `g4dn.xlarge` de pruebas: 24 vCPU. El autoscaler pide 2 más (8 vCPU) y la cuenta llegaría a 40, más que los 28 de la cuota." },
       { "nodes": ["cuota"], "edges": [], "text": "El error llega **al instante**. Esperar no sirve: hay que apagar lo que sobra o pedir más cuota, y eso puede tardar días. Por eso se pide para el máximo **antes** de lanzar." }
     ] },
     { "id": "ice", "label": "La zona no tiene T4", "steps": [
@@ -50,7 +50,7 @@
       { "nodes": ["capacidad", "planb"], "edges": ["capacidad>planb"], "text": "El autoscaler prueba el **plan B**: otra zona, o una `g4dn.2xlarge` con la misma T4. Si el cluster solo permite un tipo en una zona, se queda esperando." }
     ] },
     { "id": "reserva", "label": "Con reserva", "steps": [
-      { "nodes": ["reserva", "capacidad"], "edges": ["reserva>capacidad"], "text": "Si C01 reserva sus **2 T4 mínimas**, una por zona, esas máquinas quedan apartadas: se pagan aunque no se usen." },
+      { "nodes": ["reserva", "capacidad"], "edges": ["reserva>capacidad"], "text": "Si Alba reserva sus **2 T4 mínimas**, una por zona, esas máquinas quedan apartadas: se pagan aunque no se usen." },
       { "nodes": ["capacidad", "instancia", "nodo"], "edges": ["capacidad>instancia", "instancia>nodo"], "text": "Si el cluster se reinicia en un mal día, el mínimo arranca seguro. Las réplicas extra del pico no van reservadas: se arriesgan al plan B." }
     ] }
   ]

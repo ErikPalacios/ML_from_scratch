@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 336" role="img" aria-labelledby="f-apis-stream-t" class="f-svg" style="max-width:420px">
-<title id="f-apis-stream-t">La misma respuesta de C10 en una línea de tiempo de 0 a 11 segundos, dos veces. Sin streaming, la pantalla queda en blanco hasta los 10.6 segundos y entonces llega todo junto. Con streaming, después de 0.6 segundos de espera llega el primer token, y luego 25 tokens por segundo: a los 2 segundos ya hay 36 tokens en la pantalla, a los 5 segundos 111 y a los 9 segundos 211. El total es igual, unos 10.6 segundos; lo que cambia es cuándo empieza a leer la persona.</title>
+<title id="f-apis-stream-t">La misma respuesta del LLM de Alba en una línea de tiempo de 0 a 11 segundos, dos veces. Sin streaming, la pantalla queda en blanco hasta los 10.6 segundos y entonces llega todo junto. Con streaming, después de 0.6 segundos de espera llega el primer token, y luego 25 tokens por segundo: a los 2 segundos ya hay 36 tokens en la pantalla, a los 5 segundos 111 y a los 9 segundos 211. El total es igual, unos 10.6 segundos; lo que cambia es cuándo empieza a leer la persona.</title>
 <rect class="f-card" x="10" y="10" width="340" height="316" rx="16"/>
-<text class="f-l" x="28" y="36">LA MISMA RESPUESTA DE C10, DOS VECES</text>
+<text class="f-l" x="28" y="36">UNA RESPUESTA DEL LLM, DOS VECES</text>
 <text class="f-t" x="40" y="66" style="font-size:14px">Sin streaming</text>
 <text class="f-s" x="320" y="66" text-anchor="end" style="font-size:12px">todo llega a los 10.6 s</text>
 <rect class="f-off" x="40" y="76" width="279.4" height="26" rx="4"/>

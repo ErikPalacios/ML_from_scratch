@@ -1,11 +1,11 @@
 {
   "titulo": "Lo que cuesta cada predicción",
-  "intro": "La factura depende de cuántas GPUs tienes encendidas; el [[costo-por-prediccion|costo por predicción]], de cuánto trabajo les llega. Arranca con C01: 2 T4 (`g4dn.xlarge`, ≈ US$0.526 la hora en us-east-1, noviembre de 2026), que aguantan ≈ 1,200 fotos por segundo cada una, con ≈ 116 fotos por segundo en promedio.",
+  "intro": "La factura depende de cuántas GPUs tienes encendidas; el [[costo-por-prediccion|costo por predicción]], de cuánto trabajo les llega. La calculadora aplica \\(F = c × r × 730\\), \\(Q = T × 3,600 × 730\\), \\(K = F ÷ (Q ÷ 1,000)\\) y \\(u = T ÷ (r × m)\\). Arranca con Alba, el marketplace del curso: 2 T4 (`g4dn.xlarge`, ≈ US$0.526 la hora en us-east-1, noviembre de 2026), que aguantan ≈ 1,200 fotos por segundo cada una, con ≈ 116 fotos por segundo en promedio.",
   "entradas": [
-    { "id": "p", "label": "Precio por GPU-hora, en US$ (0.526 = T4 · 0.805 = L4 · 1.006 = A10G · 6.88 = H100)", "min": 0.05, "max": 15, "paso": 0.001, "valor": 0.526, "tipo": "numero" },
-    { "id": "n", "label": "GPUs encendidas todo el mes", "min": 1, "max": 16, "paso": 1, "valor": 2 },
-    { "id": "t", "label": "Tráfico promedio de todo el sistema, en predicciones por segundo", "min": 1, "max": 5000, "paso": 1, "valor": 116 },
-    { "id": "m", "label": "Máximo medido de una GPU, en predicciones por segundo", "min": 50, "max": 5000, "paso": 10, "valor": 1200, "tipo": "numero" }
+    { "id": "p", "label": "Precio por GPU-hora, \\(c\\), en US$/h (0.526 = T4 · 0.805 = L4 · 1.006 = A10G · 6.88 = H100)", "min": 0.05, "max": 15, "paso": 0.001, "valor": 0.526, "tipo": "numero" },
+    { "id": "n", "label": "GPUs encendidas todo el mes, \\(r\\)", "min": 1, "max": 16, "paso": 1, "valor": 2 },
+    { "id": "t", "label": "Tráfico promedio que llega a todo el sistema, \\(T\\), en predicciones por segundo", "min": 1, "max": 5000, "paso": 1, "valor": 116 },
+    { "id": "m", "label": "Máximo medido de una GPU, \\(m\\), en predicciones por segundo", "min": 50, "max": 5000, "paso": 10, "valor": 1200, "tipo": "numero" }
   ],
   "calculos": [
     { "id": "mes", "formula": "p * 730 * n" },
@@ -14,12 +14,12 @@
     { "id": "tope", "formula": "p / (m * 3.6)" }
   ],
   "salidas": [
-    { "label": "Factura al mes, en US$", "formula": "mes", "formato": "num", "decimales": 0, "nota": "precio × 730 h × GPUs; no depende del tráfico" },
-    { "label": "Predicciones al mes", "formula": "hechas", "formato": "int" },
-    { "label": "Utilización de las GPUs", "formula": "min(t / (n * m), 1)", "formato": "pct", "barra": true, "nota": "tráfico ÷ lo que aguantan todas juntas; si llega a 100 %, faltan GPUs y lo que sobra no se atiende" },
-    { "label": "US$ por 1,000 predicciones, con este tráfico", "formula": "real", "formato": "num", "decimales": 5 },
-    { "label": "US$ por 1,000 si la GPU trabajara a tope", "formula": "tope", "formato": "num", "decimales": 5 },
-    { "label": "Cuántas veces más caro que a tope", "formula": "real / max(tope, 1e-9)", "formato": "x", "decimales": 1 }
+    { "label": "Factura al mes, \\(F\\), en US$", "formula": "mes", "formato": "num", "decimales": 0, "nota": "\\(F = c × r × 730\\); no depende del tráfico" },
+    { "label": "Predicciones al mes, \\(Q\\)", "formula": "hechas", "formato": "int", "nota": "\\(Q = T × 3,600 × 730\\); si \\(T\\) pasa de \\(r × m\\), solo cuenta lo que las GPUs alcanzan a atender" },
+    { "label": "Utilización de las GPUs, \\(u\\)", "formula": "min(t / (n * m), 1)", "formato": "pct", "barra": true, "nota": "\\(u = T ÷ (r × m)\\): tráfico ÷ lo que aguantan todas juntas; si llega a 100 %, faltan GPUs y lo que sobra no se atiende" },
+    { "label": "US$ por 1,000 predicciones con este tráfico, \\(K\\)", "formula": "real", "formato": "num", "decimales": 5, "nota": "\\(K = F ÷ (Q ÷ 1,000)\\)" },
+    { "label": "US$ por 1,000 si la GPU trabajara a tope, \\(K_{tope}\\)", "formula": "tope", "formato": "num", "decimales": 5, "nota": "\\(K_{tope} = c ÷ (m × 3,600 ÷ 1,000)\\)" },
+    { "label": "Cuántas veces más caro que a tope", "formula": "real / max(tope, 1e-9)", "formato": "x", "decimales": 1, "nota": "\\(K ÷ K_{tope}\\)" }
   ],
-  "nota": "No cuenta el gateway, la red ni el almacenamiento: solo las GPUs. El máximo por GPU sale de una prueba de carga con tu modelo; los ≈ 1,200 de la T4 con la ResNet-50 son los medidos en la Ronda; para la L4, la Ronda supone ≈ 2.5 veces la T4 (≈ 1,500 planificadas, ≈ 3,000 de máximo), un supuesto que hay que confirmar con una prueba de carga. En la práctica se planea a ≈ 50 % del máximo para dejar margen."
+  "nota": "No cuenta el gateway, la red ni el almacenamiento: solo las GPUs. El máximo por GPU sale de una prueba de carga con tu modelo; los ≈ 1,200 de la T4 con la ResNet-50 son los que midió el equipo de Alba; para la L4, el equipo supone ≈ 2.5 veces la T4 (≈ 1,500 planificadas, ≈ 3,000 de máximo), un supuesto que hay que confirmar con una prueba de carga. En la práctica se planea a ≈ 50 % del máximo para dejar margen."
 }

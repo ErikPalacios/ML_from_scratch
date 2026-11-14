@@ -1,5 +1,5 @@
 {
-  "titulo": "Del commit al clúster: el camino de un cambio del gateway de C01",
+  "titulo": "Del commit al clúster: el camino de un cambio del gateway de Alba",
   "width": 78,
   "height": 54,
   "lanes": [
@@ -23,8 +23,8 @@
       "note": "`GET /healthz` responde 200 (el programa está vivo) y una foto conocida regresa una categoría con su score y su `model_version` (el modelo está cargado y contesta). Si falla, el pipeline se detiene: producción ni se entera." },
     { "id": "prod", "label": "Producción", "sub": "pod a pod · ≈ 5 min", "kind": "service", "x": 19, "y": 32, "w": 17, "h": 8,
       "note": "El mismo digest, con la configuración de producción. Los pods se cambian de uno en uno, sin apagar el servicio. Unos 12.5 minutos después del merge, el cambio está en el clúster." },
-    { "id": "canary", "label": "Canary", "sub": "horas · estación 10", "kind": "monitor", "x": 1, "y": 32, "w": 14, "h": 8,
-      "note": "La versión nueva recibe primero una parte del tráfico, se compara contra la estable y avanza si los criterios se cumplen. Es el freno de producción; se construye en la estación 10 del Dojo." },
+    { "id": "canary", "label": "Canary", "sub": "horas · 5 → 25 → 100 %", "kind": "monitor", "x": 1, "y": 32, "w": 14, "h": 8,
+      "note": "La versión nueva recibe primero una parte del tráfico, se compara contra la estable y avanza si los criterios se cumplen. Es el freno de producción; lo cuenta a fondo la lección «Rollout seguro»." },
     { "id": "anterior", "label": "Versión anterior", "sub": "viva 24 a 48 h", "kind": "store", "x": 19, "y": 44, "w": 17, "h": 8,
       "note": "La imagen anterior sigue en el registro, por su digest, y viva unos días. Por eso el [[rollback]] toma segundos o minutos: es mover el tráfico de vuelta, no reconstruir nada." }
   ],

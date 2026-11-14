@@ -1,10 +1,10 @@
 {
  "titulo": "Cuántas máquinas, y con cuánto margen",
- "intro": "**Máquinas = ⌈pico ÷ (capacidad medida × utilización objetivo)⌉ + repuesto.** Arranca con las T4 de C01: 500 req/s de pico de diseño, ≈ 1,200 medidas por T4, planeadas al 50 % y una de repuesto.",
+ "intro": "Aplica \\(m_0 = ⌈λ_{pico} ÷ (K × ρ_{obj})⌉\\) y \\(m = m_0 + R\\), las mismas letras de «Cuántas máquinas comprar». Arranca con las T4 de Alba: \\(λ_{pico}\\) = 500 req/s de pico de diseño, \\(K\\) ≈ 1,200 medidas por T4, \\(ρ_{obj}\\) = 50 % y \\(R\\) = 1 de repuesto.",
  "entradas": [
   {
    "id": "pico",
-   "label": "Pico de diseño, en req/s (500 = C01 · 1,670 = el minuto de Hot Sale)",
+   "label": "Pico de diseño \\(λ_{pico}\\), en req/s (500 = el de Alba · 1,670 = el minuto de Hot Sale)",
    "min": 10,
    "max": 5000,
    "paso": 10,
@@ -12,7 +12,7 @@
   },
   {
    "id": "cap",
-   "label": "[[capacidad|Capacidad]] medida por máquina, en req/s (el codo de la prueba de carga)",
+   "label": "[[capacidad|Capacidad]] medida por máquina \\(K\\), en req/s (el codo de la prueba de carga)",
    "min": 50,
    "max": 5000,
    "paso": 50,
@@ -20,7 +20,7 @@
   },
   {
    "id": "obj",
-   "label": "Utilización objetivo",
+   "label": "Utilización objetivo \\(ρ_{obj}\\): la fracción de \\(K\\) que planeas usar",
    "min": 10,
    "max": 100,
    "paso": 5,
@@ -29,7 +29,7 @@
   },
   {
    "id": "rep",
-   "label": "Máquinas de repuesto (1 = N+1)",
+   "label": "Máquinas de repuesto \\(R\\) (1 = N+1)",
    "min": 0,
    "max": 3,
    "paso": 1,
@@ -37,7 +37,7 @@
   },
   {
    "id": "precio",
-   "label": "US$ al mes por máquina (≈ 384 = una g4dn.xlarge con su T4, on demand en us-east-1, encendida 730 h)",
+   "label": "Precio por máquina, en US$ al mes (≈ 384 = una g4dn.xlarge con su T4, on demand en us-east-1: 0.526 × 730 h)",
    "min": 0,
    "max": 20000,
    "paso": 1,
@@ -61,46 +61,49 @@
  ],
  "salidas": [
   {
-   "label": "Capacidad planeada por máquina",
+   "label": "Capacidad planeada por máquina, \\(K × ρ_{obj}\\)",
    "formula": "plan",
    "formato": "int",
-   "nota": "medida × objetivo"
+   "nota": "en req/s: la medida por la utilización objetivo"
   },
   {
-   "label": "Máquinas por throughput",
+   "label": "Máquinas por throughput \\(m_0\\)",
    "formula": "n0",
-   "formato": "int"
+   "formato": "int",
+   "nota": "\\(⌈λ_{pico} ÷ (K × ρ_{obj})⌉\\), redondeado hacia arriba"
   },
   {
-   "label": "Máquinas en total, con repuesto",
+   "label": "Máquinas en total \\(m\\), con repuesto",
    "formula": "n",
-   "formato": "int"
+   "formato": "int",
+   "nota": "\\(m = m_0 + R\\)"
   },
   {
-   "label": "Carga de cada una en el pico, con todas vivas",
+   "label": "Carga de cada una en el pico, con todas vivas, \\(ρ_{pico}\\)",
    "formula": "pico / (n * cap)",
    "formato": "pct",
    "barra": true,
-   "nota": "contra su máximo medido"
+   "nota": "\\(λ_{pico} ÷ (m × K)\\): contra su máximo medido"
   },
   {
-   "label": "Carga de cada una si cae una",
+   "label": "Carga de cada una si cae una, \\(ρ_{caída}\\)",
    "formula": "pico / ((n - 1) * cap)",
    "formato": "pct",
    "barra": true,
-   "nota": "más de 100 %: no aguanta la caída; «—»: no queda ninguna"
+   "nota": "\\(λ_{pico} ÷ ((m − 1) × K)\\); más de 100 %: no aguanta la caída; «—»: no queda ninguna"
   },
   {
    "label": "Headroom en el pico",
    "formula": "1 - pico / (n * cap)",
    "formato": "pct",
-   "nota": "lo que queda libre a propósito"
+   "nota": "\\(1 − ρ_{pico}\\): lo que queda libre a propósito"
   },
   {
    "label": "Costo al mes, en US$",
    "formula": "n * precio",
-   "formato": "int"
+   "formato": "int",
+   "nota": "\\(m\\) × el precio por máquina"
   }
  ],
- "nota": "Pon el repuesto en 0: la única T4 va al ≈ 42 % en el pico, pero si cae, no queda nada. En C01, el headroom lo compra sobre todo el N+1."
+ "nota": "Pon el repuesto en 0: la única T4 va al ≈ 42 % en el pico (500 ÷ 1,200), pero si cae, no queda nada. En Alba, el headroom lo compra sobre todo el N+1."
 }

@@ -65,7 +65,7 @@
       "y": 6,
       "w": 13,
       "h": 9,
-      "note": "El servidor del modelo recibe hasta **4³ = 64** intentos por cada request de la app. Con 500 requests por segundo, 32,000: ≈ 13 veces lo que aguantan las dos T4 de C01. Así una lentitud se vuelve caída."
+      "note": "El servidor del modelo recibe hasta **4³ = 64** intentos por cada request de la app. Con las 500 requests por segundo del pico de Alba, 500 × 64 = 32,000: ≈ 13 veces lo que aguantan sus dos T4 (2 × 1,200 = 2,400 por segundo). Así una lentitud se vuelve caída."
     },
     {
       "id": "app2",

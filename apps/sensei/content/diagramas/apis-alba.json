@@ -1,5 +1,5 @@
 {
-  "titulo": "Qué formato habla cada salto de C01",
+  "titulo": "Qué formato habla cada salto de Alba",
   "width": 78,
   "height": 40,
   "lanes": [
@@ -32,7 +32,7 @@
       "y": 6,
       "w": 18,
       "h": 8,
-      "note": "La app reduce la foto antes de subirla: un JPEG de ≈ 200 KB. Le habla al backend del marketplace, no a C01 directamente."
+      "note": "La app reduce la foto antes de subirla: un JPEG de ≈ 200 KB. Le habla al backend del marketplace, no al clasificador directamente."
     },
     {
       "id": "backend",
@@ -43,11 +43,11 @@
       "y": 6,
       "w": 19,
       "h": 8,
-      "note": "El programa de otro equipo que llama a C01. Solo conoce el **contrato**: `POST /v1/classify?top_k=5` con la foto en el [[body]], y de regreso un JSON con `model_version`, `predictions` y `latency_ms`. Espera como máximo 300 ms."
+      "note": "El programa de otro equipo de Alba que llama al clasificador. Solo conoce el **contrato**: `POST /v1/classify?top_k=5` con la foto en el [[body]], y de regreso un JSON con `model_version`, `predictions` y `latency_ms`. Espera como máximo 300 ms."
     },
     {
       "id": "gw",
-      "label": "Gateway de C01",
+      "label": "Gateway de Alba",
       "sub": "FastAPI · /v1/classify",
       "kind": "service",
       "x": 30,
@@ -65,7 +65,7 @@
       "y": 28,
       "w": 18,
       "h": 8,
-      "note": "Habla el [[protocolo-inferencia|protocolo KServe v2]] por HTTP y por [[grpc|gRPC]]. C01 usa HTTP con la **extensión binaria**: un JSON corto con nombre, shape y dtype, y detrás los bytes crudos del tensor. Devuelve 500 logits, 2 KB."
+      "note": "Habla el [[protocolo-inferencia|protocolo KServe v2]] por HTTP y por [[grpc|gRPC]]. Alba usa HTTP con la **extensión binaria**: un JSON corto con nombre, shape y dtype, y detrás los bytes crudos del tensor. Devuelve 500 logits, 2 KB."
     },
     {
       "id": "logs",

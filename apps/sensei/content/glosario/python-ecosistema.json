@@ -6,7 +6,7 @@
       "en": "module",
       "corto": "Un archivo .py que otro código usa con import. Su nombre es el del archivo sin la extensión: preprocess.py es el módulo preprocess.",
       "largo": "Al hacer `import json`, Python busca el módulo en las carpetas de `sys.path`, en orden, y **gana el primero que aparece**: la carpeta del script, las de `PYTHONPATH`, la [[biblioteca-estandar|biblioteca estándar]] y `site-packages`. Lo corre una sola vez, de arriba abajo, y lo guarda en `sys.modules`: si otro archivo lo vuelve a importar, recibe el mismo objeto. Si no lo encuentra, truena con `ModuleNotFoundError`. Como la carpeta del script va primero, un `json.py` tuyo tapa al de verdad; `python -I` la deja fuera. Cada módulo sabe su nombre en `__name__`, que vale `\"__main__\"` cuando es el programa que arrancó. `python -m nombre` busca un módulo igual que `import` y lo corre como programa. Un módulo también puede ser código compilado, un `.so`: una [[extension-nativa|extensión nativa]].",
-      "ejemplo": "En el gateway de C01, `app/preprocess.py` es el módulo `app.preprocess`, el que decodifica y redimensiona la foto; `uvicorn app.main:app` quiere decir «del módulo app.main, el objeto app».",
+      "ejemplo": "En el gateway de Alba, `app/preprocess.py` es el módulo `app.preprocess`, el que decodifica y redimensiona la foto; `uvicorn app.main:app` quiere decir «del módulo app.main, el objeto app».",
       "ver": [
         "paquete-python",
         "biblioteca-estandar",
@@ -21,7 +21,7 @@
       "en": "package",
       "corto": "Una carpeta de módulos, normalmente con un archivo __init__.py adentro. Los puntos de un import son carpetas: app.preprocess es el archivo preprocess.py dentro de la carpeta app.",
       "largo": "La palabra se usa para dos cosas. El paquete que **se importa** es la carpeta de módulos. Lo que **se instala** de [[pypi|PyPI]] también se llama paquete (más exacto: *distribución*), y su nombre no siempre es el que se importa: se instala `pillow` y se importa `PIL`; se instala `scikit-learn` y se importa `sklearn`; se instala `PyYAML` y se importa `yaml`. Por eso `pip install PIL` no sirve y `import pillow` da `ModuleNotFoundError`. Lo que va entre corchetes, como `tritonclient[http]`, es un *extra*: una parte opcional con sus propias dependencias.",
-      "ejemplo": "El gateway de C01 es un paquete: la carpeta `app/` con `__init__.py`, `main.py` (crea el servidor) y `preprocess.py`. Por eso se puede escribir `from app.preprocess import preprocess`.",
+      "ejemplo": "El gateway de Alba es un paquete: la carpeta `app/` con `__init__.py`, `main.py` (crea el servidor) y `preprocess.py`. Por eso se puede escribir `from app.preprocess import preprocess`.",
       "ver": [
         "modulo-python",
         "pip",
@@ -65,7 +65,7 @@
       "en": "Python Package Index",
       "corto": "El índice público de paquetes de Python, en pypi.org: un servidor con cientos de miles de proyectos (≈ 935,000 en noviembre de 2026), cada uno con todas sus versiones y sus archivos. Es de donde pip baja por omisión.",
       "largo": "Cualquiera puede crear una cuenta y subir un paquete. Eso lo hace enorme y también riesgoso: el *typosquatting* son paquetes con nombres casi iguales a los famosos, esperando un error de dedo, y la **confusión de dependencias** (*dependency confusion*) es publicar en PyPI un paquete con el nombre de uno interno de una empresa y una versión más alta, para que `--extra-index-url` lo prefiera. Por eso las empresas suelen tener un **espejo** (*mirror*) propio, con copias revisadas, que pip usa con `--index-url`. Es parte de la [[cadena-suministro|cadena de suministro]].",
-      "ejemplo": "La Ronda registra que las versiones 1.82.7 y 1.82.8 de LiteLLM salieron comprometidas en PyPI el 24 de marzo de 2026: quien corrió `pip install litellm` sin versión en las pocas horas que estuvieron publicadas recibió el código malicioso, y quien instalaba de un lock con hashes, no.",
+      "ejemplo": "Un caso real: las versiones 1.82.7 y 1.82.8 de LiteLLM salieron comprometidas en PyPI el 24 de marzo de 2026: quien corrió `pip install litellm` sin versión en las pocas horas que estuvieron publicadas recibió el código malicioso, y quien instalaba de un lock con hashes, no.",
       "ver": [
         "pip",
         "wheel",
@@ -110,7 +110,7 @@
       "en": "dependency",
       "corto": "Un paquete que tu código necesita para correr. Si el gateway importa FastAPI, FastAPI es su dependencia.",
       "largo": "Las que tú pides por su nombre son las **directas**, y van en el [[pyproject]] con un rango de versiones que aceptas. Pero cada una pide otras, las [[dependencia-transitiva|transitivas]], y todas juntas forman un árbol. En un `site-packages` cabe **una** versión de cada paquete: si una dependencia pide `colores>=2.0` y otra `colores<2`, hay un **conflicto de dependencias** y pip se rinde. Algunas llevan una condición (*marker*) después de un `;`, como `colorama>=0.4; sys_platform == \"win32\"`: pytest la pide solo en Windows, así que el árbol cambia según la plataforma. La biblioteca estándar lee las de cada paquete con `importlib.metadata.requires()`.",
-      "ejemplo": "El gateway de C01 pide 9 directas: fastapi, uvicorn, uvloop, httptools, pillow, numpy, tritonclient, aiohttp y prometheus-client.",
+      "ejemplo": "El gateway de Alba pide 9 directas: fastapi, uvicorn, uvloop, httptools, pillow, numpy, tritonclient, aiohttp y prometheus-client.",
       "ver": [
         "dependencia-transitiva",
         "version-semantica",
@@ -154,7 +154,7 @@
       "corto": "La lista exacta de todo lo que se instala: cada paquete del árbol, directo o transitivo, con su versión exacta y, en los buenos, el hash (la huella) de cada archivo. Se genera una vez, se guarda junto al código y se instala igual en todos lados.",
       "largo": "Tiene varias formas: un `requirements.txt` fijado, con una línea `nombre==versión` por paquete (mejor si sale de `pip-compile` o de `uv pip compile`, que resuelven desde las directas y agregan hashes), `uv.lock`, `poetry.lock` o `pylock.toml`, el formato estándar del PEP 751 (2025). Un `pip freeze` no basta: copia lo que hay en **ese** entorno, en **esa** máquina, con lo que alguien instaló a mano y sin hashes. Con `pip install --require-hashes`, pip se niega a instalar un archivo cuyo [[hash-criptografico|hash]] no sea el del lock. Las reglas: el [[pyproject]] dice lo que aceptas y el lock lo que instalas; producción instala del lock, nunca de los rangos; y fijado no es congelado: el lock se actualiza a propósito, con herramientas como Dependabot o Renovate, pruebas y revisión.",
       "analogia": "La receta dice «harina»; el ticket del súper dice la marca, el lote y el precio. Con el ticket compras exactamente lo mismo.",
-      "ejemplo": "El `requirements.txt` del gateway de C01 fija las 37 dependencias con `==`. Sin lock, con 37 paquetes y 10 % de que cada uno cambie en un mes (un supuesto), reconstruir el mismo commit un mes después instala algo distinto con probabilidad 1 − 0.9³⁷ ≈ 98 %; con lock y hashes, 0 %.",
+      "ejemplo": "El `requirements.txt` del gateway de Alba fija las 37 dependencias con `==`. Sin lock, con 37 paquetes y 10 % de que cada uno cambie en un mes (un supuesto), reconstruir el mismo commit un mes después instala algo distinto con probabilidad 1 − 0.9³⁷ ≈ 98 % (1 menos la probabilidad de que no cambie ninguno: 0.9 multiplicado por sí mismo 37 veces); con lock y hashes, 0 %.",
       "ver": [
         "pyproject",
         "dependencia-transitiva",
@@ -170,7 +170,7 @@
       "corto": "Una carpeta con su propia carpeta de paquetes instalados (site-packages) y un python que es un enlace al Python de base. Cada proyecto instala ahí sus paquetes sin tocar los de otros ni los del sistema.",
       "largo": "Se crea con `python -m venv .venv`; el módulo `venv` está en la biblioteca estándar desde Python 3.3. Adentro quedan `.venv/bin/python` (en Linux y macOS, un enlace simbólico, no otra copia de Python), `.venv/lib/python3.13/site-packages` (vacío salvo por pip) y `.venv/pyvenv.cfg`, que le dice a Python dónde está su base. La biblioteca estándar sigue siendo la del Python de base, y con `include-system-site-packages = false` el entorno **no ve** lo instalado afuera. `source .venv/bin/activate` solo pone `.venv/bin` al principio del [[path-shell|PATH]]; `deactivate` lo quita, y correr `.venv/bin/python` directo es lo mismo. Un entorno no se mueve de carpeta: los scripts de `.venv/bin` llevan en su [[shebang]] la ruta completa donde se creó. Se vuelve a crear desde el [[lock-file|lock]].",
       "analogia": "Una mochila por proyecto: cada una con sus útiles, y el estante del salón (el Python del sistema) no se toca.",
-      "ejemplo": "La imagen del gateway de C01 crea el entorno en `/opt/venv` en la etapa builder, instala ahí las 37 del lock y la etapa final copia solo esa carpeta, a la misma ruta, con `PATH=\"/opt/venv/bin:$PATH\"`.",
+      "ejemplo": "La imagen del gateway de Alba crea el entorno en `/opt/venv` en la etapa builder, instala ahí las 37 del lock y la etapa final copia solo esa carpeta, a la misma ruta, con `PATH=\"/opt/venv/bin:$PATH\"`.",
       "ver": [
         "pip",
         "lock-file",
@@ -186,7 +186,7 @@
       "en": "conda",
       "corto": "Un gestor de paquetes y entornos nacido en el mundo científico cuyos paquetes no son solo de Python: también instala compiladores, librerías de C, el toolkit de CUDA, el lenguaje R y el propio Python.",
       "largo": "Cada entorno de conda es una carpeta con todo eso adentro. Los paquetes salen de **canales**: el de Anaconda, la empresa que lo creó, que según sus términos de julio de 2025 pide licencia de pago a las empresas de más de 200 personas, y conda-forge, comunitario y libre. mamba y micromamba son versiones más rápidas del mismo programa. Conviene cuando necesitas piezas que no son Python y pip no da, o en un clúster donde no eres [[root]]; casi nunca en la imagen de un servicio, porque las [[wheel|wheels]] ya traen su código compilado y la imagen slim con pip o uv es más chica. Una trampa clásica: mezclar `conda install` y `pip install` en el mismo entorno, porque conda no sabe lo que pip cambió.",
-      "ejemplo": "El gateway de C01 no usa conda: su imagen es `python:3.13-slim` con un entorno de pip en `/opt/venv`, ≈ 87 MB comprimida.",
+      "ejemplo": "El gateway de Alba no usa conda: su imagen es `python:3.13-slim` con un entorno de pip en `/opt/venv`, ≈ 87 MB comprimida.",
       "ver": [
         "entorno-virtual",
         "uv",
@@ -200,7 +200,7 @@
       "en": "uv",
       "corto": "Un gestor de paquetes y proyectos de Python escrito en Rust por la empresa Astral, publicado en 2024: un solo programa instala paquetes (como pip), crea entornos virtuales (como venv) y escribe lock files (como pip-tools); Astral dice que entre 10 y 100 veces más rápido que pip.",
       "largo": "Resuelve y baja en paralelo, y guarda un cache global del que copia o enlaza los archivos en vez de bajarlos otra vez. Se usa de dos maneras: imitando a pip (`uv venv`, `uv pip install -r requirements.txt`, `uv pip compile requirements.in --generate-hashes -o requirements.txt`) o manejando el proyecto desde el [[pyproject]] (`uv add`, `uv lock`, `uv sync --frozen`, `uv run`). Su `uv.lock` es **universal**: resuelve para todas las plataformas a la vez y anota qué [[wheel]] va en cada una, así que el mismo archivo sirve en la Mac del equipo y en el Linux del contenedor. También instala versiones de Python: `uv python install 3.13`. No viene con Python. Con `uv tool install` instala herramientas de línea de comandos, cada una en su entorno, como pipx.",
-      "ejemplo": "El comentario del `requirements.txt` del gateway de C01 dice que, en un proyecto real, ese lock se genera con `uv pip compile` o con `pip-compile --generate-hashes`; en producción se instala con `uv sync --frozen` o `pip install -r requirements.txt`.",
+      "ejemplo": "El comentario del `requirements.txt` del gateway de Alba dice que, en un proyecto real, ese lock se genera con `uv pip compile` o con `pip-compile --generate-hashes`; en producción se instala con `uv sync --frozen` o `pip install -r requirements.txt`.",
       "ver": [
         "lock-file",
         "entorno-virtual",
@@ -215,7 +215,7 @@
       "en": "pyproject.toml",
       "corto": "La ficha de un proyecto de Python, en la raíz de su carpeta: su nombre, su versión, qué Python necesita, de qué depende y cómo se configuran sus herramientas. Dice lo que el proyecto acepta, no lo que se instala.",
       "largo": "Está escrito en TOML, un formato de texto de llaves y valores parecido al [[yaml|YAML]], que la biblioteca estándar lee con `tomllib` desde Python 3.11. En `[project]` van `name`, `version`, `requires-python` y `dependencies`: solo las [[dependencia|dependencias]] directas, casi siempre con rango. En `[project.optional-dependencies]` van grupos aparte, como las de pruebas. El rango dice qué versiones **aceptas**, pero el resolvedor escoge, el día que instalas, las más nuevas que quepan: lo que **instalas** lo dice el [[lock-file|lock file]]. uv y Poetry leen el `pyproject.toml` y escriben el lock solos.",
-      "ejemplo": "Un `pyproject.toml` de ejemplo para el gateway: `name = \"gateway-c01\"`, `requires-python = \">=3.13\"` y `dependencies = [\"fastapi>=0.141\", \"uvicorn>=0.54\", \"pillow==12.3.0\", \"numpy>=2.5,<3\"]`, con Pillow fija porque el preprocesamiento del entrenamiento depende de ella. (El de la Ronda usa solo `requirements.txt`.)",
+      "ejemplo": "Un `pyproject.toml` de ejemplo para el gateway: `name = \"gateway-alba\"`, `requires-python = \">=3.13\"` y `dependencies = [\"fastapi>=0.141\", \"uvicorn>=0.54\", \"pillow==12.3.0\", \"numpy>=2.5,<3\"]`, con Pillow fija porque el preprocesamiento del entrenamiento depende de ella. (El gateway de Alba, en realidad, usa solo `requirements.txt`.)",
       "ver": [
         "lock-file",
         "dependencia",
@@ -230,7 +230,7 @@
       "en": "type hints",
       "corto": "Anotaciones que dicen qué tipo espera cada parámetro de una función y qué tipo regresa, como ancho: int o -> int. Python las guarda pero no las revisa al correr: son documentación.",
       "largo": "La sintaxis existe desde Python 3.0, y el PEP 484 (Python 3.5, 2015) acordó usarla para tipos. Python las guarda en `__annotations__` y sigue de largo aunque el tipo esté mal. Las revisan programas aparte, **antes** de correr: mypy y pyright leen el código, siguen los tipos y avisan sin ejecutar nada, y se corren en la [[ci|integración continua]] junto con las pruebas. El editor también las usa para autocompletar. Las que más vas a leer: `list[int]`, `dict[str, float]`, `str | None` (un texto, o nada: el revisor te obliga a manejar el `None`) e `int = 5` (vale 5 si no lo pasas). [[pydantic]] usa las mismas anotaciones para revisar datos mientras el programa corre.",
-      "ejemplo": "`def bytes_tensor(ancho: int, alto: int) -> int` regresa 602,112 con 224 y 224, el tensor en float32 de C01. Con `\"224\"` y 1, Python no se queja: `3 * \"224\"` repite el texto y regresa 36 letras; mypy lo habría marcado como `incompatible type \"str\"; expected \"int\"`.",
+      "ejemplo": "`def bytes_tensor(ancho: int, alto: int) -> int` regresa 602,112 con 224 y 224 (3 canales × 224 × 224 píxeles × 4 bytes), el tensor en float32 de una foto de Alba. Con `\"224\"` y 1, Python no se queja: `3 * \"224\"` repite el texto y regresa 36 letras; mypy lo habría marcado como `incompatible type \"str\"; expected \"int\"`.",
       "ver": [
         "pydantic",
         "ci"
@@ -243,7 +243,7 @@
       "en": "pydantic",
       "corto": "Una librería que usa las anotaciones de tipo para revisar datos mientras el programa corre: describes la forma de un mensaje como una clase y pydantic revisa, convierte o rechaza cada dato que la llena.",
       "largo": "Sirve para lo que ningún revisor ve antes de correr: lo que llega por la red, como el [[body]] de una request. Por omisión **convierte** lo que se puede convertir sin perder nada (el texto `\"0.93\"` a 0.93) y rechaza lo demás con un `ValidationError`; con `strict=True` no convierte nada. Con `Field(ge=0, le=1)` revisa también rangos. Desde su versión 2 (2023), su corazón es `pydantic_core`, escrito en Rust: una [[extension-nativa|extensión nativa]]. [[fastapi|FastAPI]] lo usa para validar cada request y responder **422** si algo no cumple; pydantic-settings hace lo mismo con las variables de entorno.",
-      "ejemplo": "Con `score: float = Field(ge=0, le=1)`, `Prediccion(label=\"tenis\", score=\"0.93\")` guarda 0.93 como float, y `score=1.7` falla con «Input should be less than or equal to 1». En C01, `INFER_TIMEOUT_S=0.15` llega como texto y sale como un número revisado.",
+      "ejemplo": "Con `score: float = Field(ge=0, le=1)`, `Prediccion(label=\"tenis\", score=\"0.93\")` guarda 0.93 como float, y `score=1.7` falla con «Input should be less than or equal to 1». En el gateway de Alba, `INFER_TIMEOUT_S=0.15` llega como texto y sale como un número revisado.",
       "ver": [
         "type-hints",
         "esquema-api",

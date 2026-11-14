@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 394" role="img" aria-labelledby="f-fallas-red-breaker-t" class="f-svg" style="max-width:420px">
-<title id="f-fallas-red-breaker-t">Los tres estados de un circuit breaker, con los números de ejemplo de M15. Cerrado: llama a la dependencia y cuenta las fallas. Si fallan más del 50 por ciento en los últimos 10 segundos, con al menos 20 llamadas, pasa a abierto. Abierto: no llama, y cada request recibe el plan B en un milisegundo. Cuando pasan 30 segundos, pasa a semiabierto. Semiabierto: deja pasar 5 llamadas de prueba. Si salen bien, vuelve a cerrado; si fallan, vuelve a abierto otros 30 segundos. El mínimo de 20 llamadas evita que dos fallas de tres, de madrugada, lo abran por nada.</title>
+<title id="f-fallas-red-breaker-t">Los tres estados de un circuit breaker, con números de ejemplo típicos. Cerrado: llama a la dependencia y cuenta las fallas. Si fallan más del 50 por ciento en los últimos 10 segundos, con al menos 20 llamadas, pasa a abierto. Abierto: no llama, y cada request recibe el plan B en un milisegundo. Cuando pasan 30 segundos, pasa a semiabierto. Semiabierto: deja pasar 5 llamadas de prueba. Si salen bien, vuelve a cerrado; si fallan, vuelve a abierto otros 30 segundos. El mínimo de 20 llamadas evita que dos fallas de tres, de madrugada, lo abran por nada.</title>
 <defs><marker id="fb-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
-<text class="f-l" x="14" y="22">TRES ESTADOS, CON LOS NÚMEROS DE M15</text>
+<text class="f-l" x="14" y="22">TRES ESTADOS, CON NÚMEROS DE EJEMPLO</text>
 <rect class="f-card" x="10" y="32" width="340" height="290" rx="16"/>
 <rect class="f-chip" x="24" y="46" width="160" height="54" rx="10" style="stroke:var(--g);stroke-width:2"/>
 <text class="f-t" x="36" y="68" style="font-size:14px">Cerrado</text>

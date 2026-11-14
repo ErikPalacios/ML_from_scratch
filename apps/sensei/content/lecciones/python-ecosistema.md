@@ -2,7 +2,7 @@
 titulo: Python, paquetes y entornos
 en: Python, packages and environments
 subtitulo: De dónde saca Python el código que importa, cómo se instala el código de otros, cómo se fija la versión exacta que llega a producción y por qué una imagen con PyTorch pesa gigas.
-pregunta: El gateway de C01 funciona en la laptop de quien lo escribió y en el contenedor truena con «ModuleNotFoundError», o corre con otra versión de NumPy. ¿De dónde saca Python el código que importa y cómo se asegura que a producción llegue exactamente lo que probaste?
+pregunta: El gateway de Alba funciona en la laptop de quien lo escribió y en el contenedor truena con «ModuleNotFoundError», o corre con otra versión de NumPy. ¿De dónde saca Python el código que importa y cómo se asegura que a producción llegue exactamente lo que probaste?
 requisitos: terminal, programa-proceso
 ---
 
@@ -10,7 +10,9 @@ requisitos: terminal, programa-proceso
 Un programa de Python casi nunca está solo: importa la biblioteca estándar y decenas de paquetes ajenos, cada uno con su versión y, muchas veces, con código compilado para una sola plataforma. Para que producción corra lo mismo que probaste, se escribe la lista exacta de todo (el *lock file*), se instala en una carpeta aislada (el entorno virtual) y esa carpeta viaja dentro de la imagen.
 :::
 
-Imagina al equipo de C01 el día que arma el [[contenedor]] del gateway. En la laptop de quien lo escribió, `uvicorn app.main:app`, el comando que arranca su servidor, funciona sin problema. En el contenedor, la primera línea falla:
+Alba, la empresa que seguimos en todo el curso, es un marketplace: recibe ≈ 2.5 millones de publicaciones al día y, por cada foto, le sugiere a quien vende una categoría entre 500 posibles. Con ≈ 3 fotos por publicación (≈ 7.5 millones) más las que piden otros equipos, como moderación y búsqueda, su servicio responde ≈ 10 millones de fotos al día. Cada foto entra por el **gateway**, un servidor escrito en Python que la recibe, la prepara y se la pasa al modelo.
+
+Imagina al equipo de Alba el día que arma el [[contenedor]] del gateway. En la laptop de quien lo escribió, `uvicorn app.main:app`, el comando que arranca su servidor, funciona sin problema. En el contenedor, la primera línea falla:
 
 ```text
 ModuleNotFoundError: No module named 'numpy'
@@ -28,7 +30,7 @@ Python lee tu archivo `.py` y lo ejecuta línea por línea. Cuando tu programa c
 
 Un [[modulo-python|módulo]] (*module*) es un archivo `.py`. Su nombre es el del archivo sin la extensión: `preprocess.py` es el módulo `preprocess`, y otro archivo lo usa con `import preprocess`.
 
-Un [[paquete-python|paquete]] (*package*) es una carpeta de módulos, normalmente con un archivo `__init__.py` adentro. El gateway de C01 es uno:
+Un [[paquete-python|paquete]] (*package*) es una carpeta de módulos, normalmente con un archivo `__init__.py` adentro. El gateway de Alba es uno:
 
 ```text
 gateway/
@@ -207,7 +209,7 @@ pip le pregunta a PyPI si no le dices otra cosa. Muchas empresas le dan, en camb
 :::profundo No todo sale de PyPI: espejos y confusión de dependencias
 pip pregunta por omisión a PyPI, pero se le puede dar otro índice con `--index-url`, o uno más con `--extra-index-url`. Las empresas suelen tener un índice propio: un **espejo** (*mirror*) que guarda copias revisadas de lo que se usa de PyPI, más los paquetes internos que no son públicos. Así la construcción de la imagen no depende de que PyPI responda, y nadie instala nada sin revisar.
 
-Mezclar índices tiene una trampa. Si tu empresa tiene un paquete interno llamado `c01-utils` y alguien publica en PyPI otro `c01-utils` con una versión más alta, pip con `--extra-index-url` puede preferir el público. Se llama **confusión de dependencias** (*dependency confusion*), y la Ronda la pone en M15 junto al *typosquatting*, el de los nombres casi iguales a los famosos.
+Mezclar índices tiene una trampa. Si tu empresa tiene un paquete interno llamado `alba-utils` y alguien publica en PyPI otro `alba-utils` con una versión más alta, pip con `--extra-index-url` puede preferir el público. Se llama **confusión de dependencias** (*dependency confusion*), y es pariente del *typosquatting*, el de los nombres casi iguales a los famosos. Los dos tienen su lugar en la lección «Ataques y cadena de suministro».
 :::
 
 ## Wheels y extensiones nativas {Wheels and native extensions}
@@ -319,7 +321,7 @@ El precio: el mismo `numpy==2.5.3` son archivos distintos en tu Mac y en el cont
 
 ### PyTorch: el paquete que pesa gigas
 
-PyTorch es el caso extremo. En Linux, `pip install torch` baja de PyPI una wheel que trae CUDA como dependencias: unos quince paquetes `nvidia-*` con las librerías de NVIDIA, más `triton`, un compilador de kernels (nada que ver con el servidor Triton de C01). Para torch 2.14 (septiembre de 2026) en Linux x86_64, la wheel de solo CPU pesa ≈ 196 MB; la de PyPI, ≈ 555 MB, y con sus librerías de CUDA, ≈ 3 GB, como mide la Ronda. Por eso una imagen con PyTorch y CUDA pesa gigas.
+PyTorch es el caso extremo. En Linux, `pip install torch` baja de PyPI una wheel que trae CUDA como dependencias: unos quince paquetes `nvidia-*` con las librerías de NVIDIA, más `triton`, un compilador de kernels (nada que ver con Triton, el servidor que corre el modelo de Alba). Para torch 2.14 (septiembre de 2026) en Linux x86_64, la wheel de solo CPU pesa ≈ 196 MB; la de PyPI, ≈ 555 MB, y con sus librerías de CUDA, ≈ 3 GB en total. Por eso una imagen con PyTorch y CUDA pesa gigas.
 
 Las wheels `nvidia-*` dicen `py3-none-manylinux…`: traen código compilado, pero no se atan a ningún Python (`none`), así que una sirve en cualquier 3.x.
 
@@ -342,7 +344,7 @@ Lo que pasa entre `pip install` y un import que funciona. Toca cada caja o usa �
 
 Una [[dependencia]] (*dependency*) es un paquete que tu código necesita para correr. El gateway importa FastAPI: FastAPI es su dependencia. Pero FastAPI, a su vez, necesita Starlette (la parte que habla HTTP) y Pydantic (la que valida datos), y Pydantic necesita `pydantic_core`. Esas son [[dependencia-transitiva|dependencias transitivas]] (*transitive dependencies*): las que llegan porque las pide algo que tú pediste, en cualquier nivel.
 
-:::cuenta Los paquetes del gateway de C01
+:::cuenta Los paquetes del gateway de Alba
 Directas // las que importa app/: fastapi, uvicorn, uvloop, httptools, pillow, numpy, tritonclient, aiohttp, prometheus-client | — | 9
 Transitivas // las que llegaron solas: starlette, pydantic, anyio, h11, yarl… | 37 − 9 | 28
 Total en el requirements.txt | 9 + 28 | 37
@@ -437,7 +439,7 @@ Casi todos los paquetes numeran sus versiones con la idea del [[version-semantic
 - **Las 0.x no prometen nada.** En semver, una versión 0.algo puede romper en cualquier subida. FastAPI lleva años en 0.x: el gateway usa la 0.141.
 - **No todos usan semver.** pip (26.2), certifi (2026.7.22) y attrs (26.1.0) numeran por fecha: el primer número es el año.
 - **Una MAYOR rompe de verdad.** NumPy 2.0 (2024) cambió su interfaz binaria: las extensiones compiladas contra NumPy 1.x dejaron de cargar con NumPy 2, con un error que empieza con «A module that was compiled using NumPy 1.x cannot be run in NumPy 2…».
-- **Un arreglo también cambia resultados.** La Ronda lo advierte: otra versión de Pillow puede redimensionar un poco distinto, y el [[accuracy]] baja un par de puntos sin un solo error. Es el [[training-serving-skew|training-serving skew]] de la lección de imágenes.
+- **Un arreglo también cambia resultados.** El equipo de Alba lo tiene anotado: otra versión de Pillow puede redimensionar un poco distinto, y el [[accuracy]] baja un par de puntos sin un solo error. Es el [[training-serving-skew|training-serving skew]] de la lección de imágenes.
 
 ### Cómo se escribe qué versiones aceptas
 
@@ -473,14 +475,14 @@ Hay dos listas distintas, y confundirlas causa la mitad de los «en mi máquina 
 
 ### pyproject.toml: lo que pides
 
-[[pyproject|`pyproject.toml`]] es la ficha de un proyecto de Python, en la raíz de su carpeta. Está escrito en TOML, un formato de texto de llaves y valores parecido al [[yaml|YAML]], y la biblioteca estándar lo lee con `tomllib`. Dice cómo se llama el proyecto, su versión, qué Python necesita, de qué depende y cómo se configuran sus herramientas, como pytest. Este es un `pyproject.toml` de ejemplo para el gateway (el de la Ronda usa solo `requirements.txt`):
+[[pyproject|`pyproject.toml`]] es la ficha de un proyecto de Python, en la raíz de su carpeta. Está escrito en TOML, un formato de texto de llaves y valores parecido al [[yaml|YAML]], y la biblioteca estándar lo lee con `tomllib`. Dice cómo se llama el proyecto, su versión, qué Python necesita, de qué depende y cómo se configuran sus herramientas, como pytest. Este es un `pyproject.toml` de ejemplo para el gateway (el de Alba, en realidad, usa solo `requirements.txt`):
 
 ```python
 import tomllib                       # lee TOML; viene con Python desde la 3.11
 
 pyproject = tomllib.loads('''
 [project]
-name = "gateway-c01"
+name = "gateway-alba"
 version = "1.4.0"
 requires-python = ">=3.13"
 dependencies = ["fastapi>=0.141", "uvicorn>=0.54", "pillow==12.3.0", "numpy>=2.5,<3"]
@@ -497,7 +499,7 @@ print("  y para los tests:", *proyecto["optional-dependencies"]["dev"])
 ```
 
 ```salida
-gateway-c01 1.4.0 · Python >=3.13
+gateway-alba 1.4.0 · Python >=3.13
   pide: fastapi>=0.141
   pide: uvicorn>=0.54
   pide: pillow==12.3.0
@@ -507,13 +509,24 @@ gateway-c01 1.4.0 · Python >=3.13
 
 Son solo las directas, y casi todas con rango: «cualquier FastAPI 0.141 o más nueva». Pillow va fija porque el preprocesamiento del entrenamiento depende de ella. El rango es lo correcto aquí: dice qué versiones **aceptas**. Pero no dice cuáles **vas a recibir**: el resolvedor escoge, el día que instalas, las más nuevas que quepan. Mañana pueden ser otras.
 
-¿Qué tan seguido pasa? Piensa en reconstruir la imagen del mismo *commit* (una versión guardada del código; la lección de Git lo presenta) un mes después. Si cada paquete tiene 90 % de quedarse igual, que se queden igual los 37 a la vez es multiplicar 0.9 por sí mismo 37 veces, suponiendo que cada uno cambia por su lado:
+¿Qué tan seguido pasa? Piensa en reconstruir la imagen del mismo *commit* (una versión guardada del código; la lección de Git lo presenta) un mes después. Si cada paquete tiene 90 % de quedarse igual, que se queden igual los 37 a la vez es multiplicar 0.9 por sí mismo 37 veces, suponiendo que cada uno cambia por su lado. En general:
+
+:::formula Reconstruir sin lock
+P_{igual} = (1 − f)^{k × m}
+P_{cambia} = 1 − P_{igual}
+- k: cuántos paquetes hay en el árbol, directos y transitivos
+- f: la probabilidad de que un paquete saque, en un mes, una versión nueva que cabe en su rango (0.10 = 10 %)
+- m: cuántos meses pasan entre el primer build y el nuevo
+- P_{igual}: la probabilidad de que no cambie ningún paquete
+- P_{cambia}: la probabilidad de que cambie al menos uno
+:::
 
 :::cuenta Reconstruir el mismo commit sin lock, un mes después
-Paquetes en el árbol // las 37 del gateway | — | 37
-Probabilidad de que un paquete saque, en un mes, una versión nueva que cabe en su rango // un supuesto para el ejemplo | — | 10 %
-Probabilidad de que no cambie ninguno // 0.9 × 0.9 × … 37 veces | 0.9³⁷ | ≈ 2 %
-Probabilidad de que cambie al menos uno | 1 − 0.9³⁷ | ≈ 98 %
+Paquetes en el árbol, \(k\) // las 37 del gateway | — | 37
+Probabilidad por paquete en un mes, \(f\) // un supuesto para el ejemplo | — | 10 %
+Meses, \(m\) | — | 1
+Que no cambie ninguno, \(P_{igual}\) // \(1 − f\) = 0.9, multiplicado por sí mismo \(k × m\) = 37 veces | \(P_{igual} = (1 − f)^{k × m}\) = 0.9³⁷ | ≈ 2 %
+Que cambie al menos uno, \(P_{cambia}\) | \(P_{cambia} = 1 − P_{igual}\) = 1 − 0.020 | ≈ 98 %
 = Con solo rangos, reconstruir el mismo código un mes después casi seguro instala algo distinto. Con un lock, la probabilidad es 0: se instalan los mismos archivos, con el mismo hash.
 :::
 
@@ -660,7 +673,7 @@ Un entorno no se copia de una máquina a otra ni se cambia de carpeta: se vuelve
 
 ### El /opt/venv del gateway
 
-Dentro de un contenedor solo corre una aplicación. ¿Para qué un entorno virtual? Por cómo se arma la imagen. La [[imagen-contenedor|imagen]] es el paquete congelado del que nace cada contenedor, y su receta es el [[dockerfile|Dockerfile]]; las dos se presentan a fondo en la estación de empaquetado. Para leer la receta basta saber cuatro palabras: `FROM` dice de qué imagen parte, `RUN` corre un comando, `ENV` fija una [[variable-entorno|variable de entorno]] y `COPY` copia archivos adentro. La del gateway tiene dos etapas, y cada `FROM` empieza una. Es una ilustración, recortada:
+Dentro de un contenedor solo corre una aplicación. ¿Para qué un entorno virtual? Por cómo se arma la imagen. La [[imagen-contenedor|imagen]] es el paquete congelado del que nace cada contenedor, y su receta es el [[dockerfile|Dockerfile]]; las dos se presentan a fondo en la lección «Empaquetado con Docker». Para leer la receta basta saber cuatro palabras: `FROM` dice de qué imagen parte, `RUN` corre un comando, `ENV` fija una [[variable-entorno|variable de entorno]] y `COPY` copia archivos adentro. La del gateway tiene dos etapas, y cada `FROM` empieza una. Es una ilustración, recortada:
 
 ```text
 FROM python:3.13-slim AS builder
@@ -681,7 +694,7 @@ La primera etapa crea el entorno en `/opt/venv`, lo «activa» con el PATH (sin 
 Python y Debian // la imagen base python:3.13-slim | — | ≈ 43 MB
 El entorno /opt/venv // las 37 dependencias; ≈ 160 MB descomprimido en disco | — | ≈ 44 MB
 El código, app/ | — | ≈ 0.048 MB
-Total | 43 + 44 + 0.048 | ≈ 87 MB
+Total, la imagen de hoy \(S_0\) | 43 + 44 + 0.048 | ≈ 87 MB
 = La mitad de la imagen son las dependencias, y el código del equipo es una parte en ≈ 1,800. La imagen completa python:3.13, sin slim, pesaría ≈ 0.4 GB, unas 10 veces la base slim (cifras de Docker Hub para amd64, otro nombre de x86_64, en noviembre de 2026).
 :::
 
@@ -695,7 +708,7 @@ Si en Debian 12, en Ubuntu reciente o con el Python de Homebrew escribes `pip in
 
 ## uv y conda: otros gestores {uv and conda: other managers} [extra]
 
-pip y venv vienen con Python y alcanzan para todo lo de esta lección. Pero no son los únicos, y en la Ronda y en el trabajo vas a ver otros dos muy seguido.
+pip y venv vienen con Python y alcanzan para todo lo de esta lección. Pero no son los únicos, y en tutoriales y en el trabajo vas a ver otros dos muy seguido.
 
 ### uv: pip, venv y el lock en uno
 
@@ -774,7 +787,7 @@ print(bytes_tensor.__annotations__)
 {'ancho': <class 'int'>, 'alto': <class 'int'>, 'return': <class 'int'>}
 ```
 
-El 602,112 es el tensor de la foto de Ana en float32. Pero con `"224"`, un texto, la función no se queja: `3 * "224"` repite el texto, y regresa 36 letras donde prometía un entero. Python guarda las anotaciones en `__annotations__` y **no las revisa al correr**. Son documentación.
+El 602,112 son los bytes del tensor de una foto de Alba ya preparada: 3 canales × 224 × 224 píxeles × 4 bytes de cada float32. Es una foto como la de los tenis que sube Ana, una vendedora. Pero con `"224"`, un texto, la función no se queja: `3 * "224"` repite el texto, y regresa 36 letras donde prometía un entero. Python guarda las anotaciones en `__annotations__` y **no las revisa al correr**. Son documentación.
 
 ¿Quién las revisa? Programas aparte, **antes** de correr: mypy y pyright (el que va dentro de Pylance, la extensión de Python del editor VS Code) leen tu código, siguen los tipos y avisan del error sin ejecutar nada. Con mypy, la línea de arriba daría algo como esto (es una ilustración):
 
@@ -782,7 +795,7 @@ El 602,112 es el tensor de la foto de Ana en float32. Pero con `"224"`, un texto
 error: Argument 1 to "bytes_tensor" has incompatible type "str"; expected "int"
 ```
 
-Se corren en la [[ci|integración continua]] (*CI*, el proceso automático que revisa cada cambio al código; lo ves en «Pruebas y CI/CD»), junto con las pruebas: cada cambio al código pasa por ellos antes de llegar a producción. El editor también usa los tipos para autocompletar y para avisarte mientras escribes. La Ronda los usa mucho: `def seed_everything(seed: int, deterministic: bool = False) -> torch.Generator:` dice, sin leer el cuerpo, qué entra y qué sale.
+Se corren en la [[ci|integración continua]] (*CI*, el proceso automático que revisa cada cambio al código; lo ves en «Pruebas y CI/CD»), junto con las pruebas: cada cambio al código pasa por ellos antes de llegar a producción. El editor también usa los tipos para autocompletar y para avisarte mientras escribes. Una línea anotada como `def seed_everything(seed: int, deterministic: bool = False) -> torch.Generator:` dice, sin leer el cuerpo, qué entra y qué sale.
 
 Los tipos se combinan. Los cuatro que más vas a leer:
 
@@ -860,7 +873,7 @@ Fíjate en el `"0.93"`: por omisión, pydantic **convierte** lo que se puede con
 
 Ese cambio de MAYOR también rompió cosas, como promete el semver. La versión 2 renombró los métodos de siempre: `.dict()` pasó a ser `.model_dump()`, `.json()` pasó a `.model_dump_json()` y `parse_obj()` pasó a `model_validate()`. Los nombres viejos siguen ahí, con un aviso de que se van a quitar, así que un tutorial de antes de 2023 casi corre, pero no del todo. Fíjate en qué versión de pydantic supone un ejemplo antes de copiarlo.
 
-Su uso más famoso es [[fastapi|FastAPI]], el *framework* (un armazón de código listo para escribir servidores) con que está escrito el gateway de C01, que se presenta en la estación de serving del Dojo. FastAPI lee los tipos de cada parámetro y del body, valida cada request con pydantic y, si algo no cumple, responde **422** sin llegar a tu función, como viste en la lección de APIs. En la lección de configuración vas a ver pydantic-settings, que hace lo mismo con las variables de entorno: `INFER_TIMEOUT_S=0.15` llega como texto y sale como un número revisado.
+Su uso más famoso es [[fastapi|FastAPI]], el *framework* (un armazón de código listo para escribir servidores) con que está escrito el gateway de Alba, que tiene su lección en «Código de serving». FastAPI lee los tipos de cada parámetro y del body, valida cada request con pydantic y, si algo no cumple, responde **422** sin llegar a tu función, como viste en la lección de APIs. En la lección de configuración vas a ver pydantic-settings, que hace lo mismo con las variables de entorno: `INFER_TIMEOUT_S=0.15` llega como texto y sale como un número revisado.
 
 ## Errores comunes {Common mistakes}
 
@@ -872,7 +885,7 @@ Su uso más famoso es [[fastapi|FastAPI]], el *framework* (un armazón de códig
 
 ### 2. pip install sin versiones
 
-Un *notebook* (un cuaderno de Jupyter, donde se mezclan código y texto) con `pip install torch fastapi pillow` funciona hoy. En tres meses, el mismo notebook instala otras versiones, y el modelo que entrenaste ya no se puede reproducir. La Ronda lo pone como antipatrón del Dockerfile y como trampa de seguridad.
+Un *notebook* (un cuaderno de Jupyter, donde se mezclan código y texto) con `pip install torch fastapi pillow` funciona hoy. En tres meses, el mismo notebook instala otras versiones, y el modelo que entrenaste ya no se puede reproducir. En un Dockerfile es un error clásico, y también una trampa de seguridad: sin versión, recibes lo último que se publicó, aunque venga con código malicioso.
 
 **Cómo evitarlo:** las directas en el `pyproject.toml`, todo el árbol en un lock con hashes, y producción instalando solo del lock.
 
@@ -902,13 +915,13 @@ Un servicio que corre en CPU instala `torch` desde PyPI «por si acaso» y la im
 
 ## En la vida real {In real life} [extra]
 
-### C01: la imagen del gateway y la Pillow que no se mueve
+### Alba: la imagen del gateway y la Pillow que no se mueve
 
-El gateway de C01 es el ejemplo de esta lección completa. Su `requirements.txt` fija las 37 dependencias con `==`, transitivas incluidas, y un comentario dice por qué: sin lock, reconstruir el mismo commit puede traer otra Starlette u otro NumPy y cambiar el comportamiento sin que nadie toque el código. La imagen se arma en dos etapas con `/opt/venv`, solo con wheels, y pesa ≈ 87 MB comprimida.
+El gateway de Alba es el ejemplo de esta lección completa. Su `requirements.txt` fija las 37 dependencias con `==`, transitivas incluidas, y un comentario dice por qué: sin lock, reconstruir el mismo commit puede traer otra Starlette u otro NumPy y cambiar el comportamiento sin que nadie toque el código. La imagen se arma en dos etapas con `/opt/venv`, solo con wheels, y pesa ≈ 87 MB comprimida.
 
 La dependencia más vigilada es Pillow. El gateway decodifica y redimensiona cada foto con Pillow, y el entrenamiento también. Si las dos versiones difieren, el resize puede dar píxeles un poco distintos y el modelo recibe fotos que no son como las que vio al entrenar. Por eso `pillow==12.3.0` aparece igual en el entorno del gateway y en el del job que exporta el modelo, y el preprocesamiento es un solo módulo, `app/preprocess.py`, que importan el entrenamiento, la evaluación y el gateway.
 
-Las pruebas usan las mismas versiones que producción: el `requirements-dev.txt` empieza con `-r requirements.txt` (incluye el lock de producción) y solo agrega pytest y un cliente HTTP con sus transitivas. Y el job de exportación fija `torch==2.14.0` a propósito: según la Ronda, el exportador de modelos cambia entre versiones.
+Las pruebas usan las mismas versiones que producción: el `requirements-dev.txt` empieza con `-r requirements.txt` (incluye el lock de producción) y solo agrega pytest y un cliente HTTP con sus transitivas. Y el job de exportación fija `torch==2.14.0` a propósito: el exportador de modelos (la parte de torch que guarda el modelo entrenado como un archivo ONNX, un formato para modelos) cambia entre versiones.
 
 :::calculadora python-ecosistema-imagen
 Arranca con la imagen del gateway. Prueba agregar torch solo para CPU (1) y con CUDA (2), y mira cuánto tarda cada nodo en bajarla.
@@ -916,32 +929,33 @@ Arranca con la imagen del gateway. Prueba agregar torch solo para CPU (1) y con 
 
 ### Por qué el gateway no importa torch
 
-Fíjate en lo que **no** está entre las 37: PyTorch. El gateway prepara el tensor y se lo manda a Triton, el servidor de modelos de NVIDIA, que corre el modelo en la GPU. Esa separación también es una decisión de paquetes:
+Fíjate en lo que **no** está entre las 37: PyTorch. El gateway prepara el tensor y se lo manda a Triton, el servidor de modelos de NVIDIA, que corre el modelo en la GPU. Esa separación también es una decisión de paquetes. La imagen nueva pesa lo de hoy más torch, \(S = S_0 + S_{torch}\), y un nodo tarda en bajarla \(t = S ÷ v\), con \(v\) la velocidad de su red en MB/s:
 
 :::cuenta Si el gateway importara torch con CUDA
-Imagen actual // base, entorno y código | 43 + 44 + 0.048 | ≈ 87 MB
-torch con CUDA y sus librerías // la cifra de la Ronda para torch 2.14 | — | ≈ 3,000 MB
-Imagen con torch | 87 + 3,000 | ≈ 3,087 MB
-Veces más grande | 3,087 ÷ 87 | ≈ 35.5
-Bajarla en un nodo nuevo, a 100 MB/s // un supuesto de red | 3,087 ÷ 100 | ≈ 31 s
-= Con torch, cada réplica nueva tardaría ≈ 31 s solo en bajar la imagen, contra menos de 1 s hoy. El peso de PyTorch y CUDA lo carga una sola imagen, la de Triton: la Ronda la pone en ≈ 9.2 GB comprimida, la release 24.08 de NGC para x86_64.
+Imagen actual, \(S_0\) // base, entorno y código | 43 + 44 + 0.048 | ≈ 87 MB
+torch con CUDA y sus librerías, \(S_{torch}\) // torch 2.14 de PyPI con CUDA, de la sección «PyTorch: el paquete que pesa gigas» | — | ≈ 3,000 MB
+Imagen con torch, \(S\) | \(S = S_0 + S_{torch}\) = 87 + 3,000 | ≈ 3,087 MB
+Veces más grande | \(S ÷ S_0\) = 3,087 ÷ 87 | ≈ 35.5
+Velocidad de la red del nodo, \(v\) // un supuesto de red | — | 100 MB/s
+Bajarla en un nodo nuevo, \(t\) | \(t = S ÷ v\) = 3,087 ÷ 100 | ≈ 31 s
+= Con torch, cada réplica nueva tardaría ≈ 31 s solo en bajar la imagen, contra menos de 1 s hoy (87 ÷ 100 ≈ 0.9 s). El peso de PyTorch y CUDA lo carga una sola imagen, la de Triton: ≈ 9.2 GB comprimida, la release 24.08 de NGC (el catálogo de imágenes de NVIDIA) para x86_64.
 :::
 
-Esa espera es parte del arranque en frío (*cold start*) que la Ronda mide en M05: cuando llega un pico y el sistema agrega réplicas, cada una empieza por bajar su imagen. Un gateway liviano escala en segundos.
+Esa espera es parte del arranque en frío (*cold start*): el tiempo que pasa desde que se pide una réplica nueva hasta que responde. Cuando llega un pico y el sistema agrega réplicas, cada una empieza por bajar su imagen. Un gateway liviano escala en segundos.
 
 ### LiteLLM: un día sin lock
 
-La Ronda registra un caso de 2026: las versiones 1.82.7 y 1.82.8 de LiteLLM, una librería muy usada para hablar con LLMs, salieron comprometidas en PyPI el 24 de marzo. Quien corrió `pip install litellm` sin versión en las pocas horas que estuvieron publicadas recibió el código malicioso. La 1.82.8 traía además un archivo `.pth` en `site-packages`, de los que Python lee cada vez que arranca: el código corría aunque nadie importara litellm. Quien instalaba de un lock con hashes, hecho antes, no recibió nada: pip habría rechazado cualquier archivo distinto al revisado. Es el ejemplo de por qué la Ronda pide, en M15, índices revisados y versiones fijadas con hash.
+Un caso real de 2026: las versiones 1.82.7 y 1.82.8 de LiteLLM, una librería muy usada para hablar con LLMs, salieron comprometidas en PyPI el 24 de marzo. Quien corrió `pip install litellm` sin versión en las pocas horas que estuvieron publicadas recibió el código malicioso. La 1.82.8 traía además un archivo `.pth` en `site-packages`, de los que Python lee cada vez que arranca: el código corría aunque nadie importara litellm. Quien instalaba de un lock con hashes, hecho antes, no recibió nada: pip habría rechazado cualquier archivo distinto al revisado. Por eso la defensa de la cadena de suministro pide índices revisados y versiones fijadas con hash; la ves en «Ataques y cadena de suministro».
 
-En los sistemas con LLMs (C10, C11) el problema se agranda: la pila cambia cada mes, las imágenes con vLLM y CUDA pesan varios GB, y la Ronda repite el consejo en su referencia de herramientas: fija versiones.
+En los sistemas con LLMs el problema se agranda. Pasa en un servicio que sirve su propio LLM y en el asistente interno de Alba, que responde las preguntas de sus ≈ 8,000 empleados con los documentos de la empresa: la pila cambia cada mes, las imágenes con vLLM y CUDA pesan varios GB, y el consejo es el mismo: fija versiones.
 
 ### En el edge: otro chip, otras wheels
 
-En C02, cada centro de distribución tiene su propia caja con una GPU que vigila las cámaras. Si una caja así fuera un equipo ARM, como los Jetson de NVIDIA, el mismo `requirements.txt` del servidor no serviría: pip buscaría wheels `aarch64` y, para PyTorch con CUDA en esos equipos, NVIDIA publica sus propias wheels, atadas a la versión de su sistema (JetPack). El lock del edge es otro lock, armado y probado en esa plataforma. Es la sección de wheels llevada al extremo: el nombre del archivo decide dónde corre.
+Piensa en un sistema de video en tiempo real con varias cámaras, repartido en varios centros de distribución: cada centro tiene su propia caja con una GPU que vigila las cámaras. Si una caja así fuera un equipo ARM, como los Jetson de NVIDIA, el mismo `requirements.txt` del servidor no serviría: pip buscaría wheels `aarch64` y, para PyTorch con CUDA en esos equipos, NVIDIA publica sus propias wheels, atadas a la versión de su sistema (JetPack). El lock del edge es otro lock, armado y probado en esa plataforma. Es la sección de wheels llevada al extremo: el nombre del archivo decide dónde corre.
 
 ### Reproducir un modelo meses después
 
-En M10, la Ronda cuenta los ingredientes para reproducir un entrenamiento. Uno es el entorno: la imagen identificada por su huella (su *digest*) y las dependencias fijadas. Uno de sus ejemplos de por qué: un valor por omisión cambió entre dos versiones de una librería, y el mismo código entrenó otra cosa.
+Reproducir un entrenamiento pide varios ingredientes: el mismo código, los mismos datos, la misma semilla y el mismo entorno. El entorno es la imagen identificada por su huella (su *digest*) y las dependencias fijadas; lo ves en «Versionado y linaje». Un ejemplo de por qué importa: un valor por omisión cambió entre dos versiones de una librería, y el mismo código entrenó otra cosa.
 
 ### Fuera de ML: once líneas que rompieron internet
 
@@ -977,11 +991,13 @@ Resuélvelos antes de abrir la solución. Los de tamaños y probabilidades se pu
 - `python`, con el entorno activado, es `.venv/bin/python`: ve solo el `site-packages` del entorno. **No ve** requests: `ModuleNotFoundError`.
 - Con `python -m pip install requests`, sin ruta, se habría instalado en el entorno.
 ? [medio] Un servicio en CPU tiene una imagen de ≈ 87 MB. Alguien agrega `torch` desde PyPI, con CUDA (≈ 3,000 MB), para una función auxiliar. ¿Cuánto pesa la imagen ahora? Si 10 nodos nuevos la bajan, ¿cuántos GB viajan por la red? ¿Y si usara la wheel de CPU (≈ 196 MB)?
-- Con CUDA: 87 + 3,000 ≈ **3,087 MB**, ≈ 35.5 veces más. Diez nodos: 10 × 3.087 GB ≈ **30.9 GB**.
-- Con la wheel de CPU: 87 + 196 ≈ **283 MB**; diez nodos, ≈ 2.8 GB.
+- La imagen nueva es \(S = S_0 + S_{torch}\), y lo que viaja es \(S × \text{nodos}\).
+- Con CUDA: \(S\) = 87 + 3,000 ≈ **3,087 MB**, ≈ 35.5 veces más (3,087 ÷ 87). Diez nodos: 10 × 3.087 GB ≈ **30.9 GB**.
+- Con la wheel de CPU: \(S\) = 87 + 196 ≈ **283 MB**; diez nodos, 10 × 0.283 GB ≈ 2.8 GB.
 - Y la pregunta de fondo: si la función auxiliar no necesita la GPU, quizá tampoco necesita torch.
 ? [medio] Con la calculadora del rebuild: un proyecto tiene 37 paquetes, y cada uno saca en un mes una versión nueva dentro de su rango con probabilidad de 5 % (un supuesto). ¿Qué tan probable es que reconstruir sin lock, un mes después, instale algo distinto? ¿Y con un lock con hashes?
-- Que no cambie ninguno: 0.95³⁷ ≈ 0.15. Que cambie al menos uno: 1 − 0.15 ≈ **85 %**.
+- Se usa \(P_{igual} = (1 − f)^{k × m}\) con \(k\) = 37, \(f\) = 0.05 y \(m\) = 1.
+- Que no cambie ninguno: \(P_{igual}\) = 0.95³⁷ ≈ 0.15. Que cambie al menos uno: \(P_{cambia} = 1 − P_{igual}\) = 1 − 0.15 ≈ **85 %**.
 - Con lock y hashes: **0 %**. Se instalan los mismos archivos; si uno cambiara, pip lo rechazaría.
 - Aun con un supuesto bajo, sin lock lo normal es que algo cambie.
 ? [reto] El gateway funciona en la Mac de quien lo escribió. En el contenedor arranca con un error que empieza así: «A module that was compiled using NumPy 1.x cannot be run in NumPy 2.5.3». ¿Qué pasó, y en qué orden lo revisas?
@@ -989,7 +1005,7 @@ Resuélvelos antes de abrir la solución. Los de tamaños y probabilidades se pu
 - Primero, qué hay instalado de verdad: `python -m pip freeze` dentro del contenedor, y `importlib.metadata.requires()` del sospechoso, para ver qué rango de NumPy pide.
 - Segundo, comparar con la laptop: si allá hay NumPy 1.26, el entorno de la laptop no salió del lock (alguien instaló a mano).
 - El arreglo: elegir la combinación que funciona (subir el paquete que se compiló contra 1.x, o fijar `numpy<2` si aún no hay versión nueva), regenerar el lock, correr las pruebas y construir la imagen desde el lock. Nunca «arreglarlo» con un `pip install` dentro del contenedor que está corriendo.
-? [reto] El job de entrenamiento de C01 necesita torch con CUDA; el gateway, no. Los dos usan el mismo preprocesamiento con Pillow. ¿Cómo organizas sus dependencias, sus locks y sus imágenes para que el resize sea idéntico y cada imagen pese lo justo?
+? [reto] El job de entrenamiento de Alba necesita torch con CUDA; el gateway, no. Los dos usan el mismo preprocesamiento con Pillow. ¿Cómo organizas sus dependencias, sus locks y sus imágenes para que el resize sea idéntico y cada imagen pese lo justo?
 - **Dos entornos, dos locks, dos imágenes.** El del entrenamiento lleva torch con CUDA (gigas); el del gateway, solo lo que importa `app/` (≈ 87 MB).
 - **Lo compartido, fijado igual en los dos:** `pillow==12.3.0` y NumPy con la misma versión, y el preprocesamiento como un solo módulo que los dos importan.
 - **Una prueba que lo vigile:** una [[prueba-paridad|prueba de paridad]] del preprocesamiento: las mismas fotos, por los dos entornos, deben dar tensores iguales dentro de una tolerancia. Si alguien sube Pillow en un lock y no en el otro, la prueba falla antes de llegar a producción.
@@ -998,16 +1014,7 @@ Resuélvelos antes de abrir la solución. Los de tamaños y probabilidades se pu
 
 ## Lo que sigue {What comes next}
 
-**En la Ronda:**
-
-- **M05 · Contenedores** arma la imagen del gateway: el entorno en `/opt/venv` con las 37 dependencias, `--only-binary`, slim contra Alpine (musl), torch de CPU contra CUDA y por qué un requirements sin lock no reproduce nada.
-- **M07 · Servidores de modelos** escribe el servicio con FastAPI y pydantic, y anota con qué versiones se probó cada pieza: «FastAPI 0.141, Starlette 1.7 y torch 2.14». Esas versiones son parte del resultado.
-- **M10 · MLOps** pide, para reproducir un modelo, dependencias fijadas e imagen por digest, y cuenta el caso del valor por omisión que cambió entre dos versiones.
-- **M15 · Seguridad** vuelve al lock con hashes como defensa de la cadena de suministro.
-
-**En el Dojo:** la estación 7, «Empaquetado (Docker)», construye la imagen del gateway con este mismo `/opt/venv`; ahí vas a ver sus capas y lo que pesa cada una. La estación 6, «Código de serving», usa FastAPI y pydantic.
-
-**En Sensei:** la siguiente lección, «PyTorch en lo que toca a producción», instala torch y lo usa de verdad. Después vienen «Git: versiones del código», donde se guardan el `pyproject.toml` y el lock; «Pruebas y CI/CD», donde pytest corre sobre el entorno instalado del lock; y «Configuración: YAML, variables de entorno y secretos», con pydantic-settings.
+La siguiente lección, «PyTorch en lo que toca a producción», instala torch y lo usa de verdad. Después vienen «Git: versiones del código», donde se guardan el `pyproject.toml` y el lock; «Pruebas y CI/CD», donde pytest corre sobre el entorno instalado del lock; y «Configuración: YAML, variables de entorno y secretos», con pydantic-settings. Ya en el sistema de Alba, «Empaquetado con Docker» construye la imagen del gateway con este mismo `/opt/venv` y mira lo que pesa cada capa.
 
 ## Palabras que vas a oír {Words you will hear}
 

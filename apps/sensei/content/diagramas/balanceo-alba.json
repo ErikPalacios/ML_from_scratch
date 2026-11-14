@@ -1,5 +1,5 @@
 {
-  "titulo": "La entrada de C01: quién reparte, quién deja pasar y quién vigila",
+  "titulo": "La entrada del sistema de Alba: quién reparte, quién deja pasar y quién vigila",
   "width": 78,
   "height": 70,
   "lanes": [
@@ -12,7 +12,7 @@
     { "id": "backend", "label": "Backend", "sub": "del marketplace", "kind": "client", "x": 6, "y": 4, "w": 20, "h": 8,
       "note": "El programa que arma la publicación de Ana y pide la categoría. Llama a **una sola dirección** y espera a lo más 300 ms. No sabe cuántos pods hay detrás, ni le importa." },
     { "id": "moderacion", "label": "Moderación", "sub": "llama en tandas", "kind": "client", "x": 52, "y": 4, "w": 20, "h": 8,
-      "note": "Otro equipo que usa C01. Su cuota es de 50 requests por segundo, con ráfagas de hasta 100: un [[token-bucket]] en el gateway." },
+      "note": "Otro equipo de Alba que usa el clasificador de fotos. Su cuota es de 50 requests por segundo, con ráfagas de hasta 100: un [[token-bucket]] en el gateway." },
     { "id": "alb", "label": "ALB", "sub": "TLS · token · pesos", "kind": "edge", "x": 27, "y": 18, "w": 24, "h": 8,
       "note": "El [[balanceador]] L7 de AWS. Termina TLS, verifica el token de quien llama y, si hay un canary, reparte con [[ruteo-por-peso|pesos]]. Manda cada request directo a la IP de un pod del gateway que pase sus [[health-check|health checks]]. Le suma de 1 a 3 ms a la request típica (el p50)." },
     { "id": "gwa", "label": "Gateway A", "sub": "listo", "kind": "service", "x": 2, "y": 32, "w": 20, "h": 8,
@@ -42,7 +42,7 @@
   ],
   "flows": [
     { "id": "normal", "label": "Una request normal", "steps": [
-      { "nodes": ["backend", "alb"], "edges": ["backend>alb"], "text": "El backend manda la foto de Ana por **HTTPS** a la dirección de C01. El ALB descifra (termina TLS) y verifica el token: ya sabe quién llama." },
+      { "nodes": ["backend", "alb"], "edges": ["backend>alb"], "text": "El backend manda la foto de Ana por **HTTPS** a la dirección del clasificador de Alba. El ALB descifra (termina TLS) y verifica el token: ya sabe quién llama." },
       { "nodes": ["alb", "gwb"], "edges": ["alb>gwb"], "text": "El ALB elige **un pod del gateway listo** y le pasa la request directo a su IP. Decide request por request: es L7." },
       { "nodes": ["gwb"], "edges": [], "text": "El gateway revisa el **balde** del backend, que el body no pase de 10 MB y el tiempo que queda. Todo bien: decodifica, redimensiona y normaliza la foto." },
       { "nodes": ["gwb", "svc", "ta"], "edges": ["gwb>svc", "svc>ta"], "text": "Llama a `triton`. La conexión ya estaba abierta, y **kube-proxy** eligió su pod cuando se abrió: Triton A. Triton la junta con otras en un batch y responde." },

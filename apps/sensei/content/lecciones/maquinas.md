@@ -2,7 +2,7 @@
 titulo: Máquinas, GPUs y cómo se cobran
 en: Machines, GPUs and how they are billed
 subtitulo: Qué es exactamente lo que rentas cuando pides una GPU en la nube, cómo se lee su nombre, cuánto cuesta cada hora y cada predicción, y las cuatro maneras de pagarla.
-pregunta: C01 paga ≈ US$768 al mes por dos GPUs que trabajan al 5 %. ¿Qué renta exactamente, por qué cuesta eso, y cómo se paga menos sin que un día se quede sin máquinas?
+pregunta: Alba, el marketplace que seguimos en el curso, paga ≈ US$768 al mes por dos GPUs que trabajan al 5 %. ¿Qué renta exactamente, por qué cuesta eso, y cómo se paga menos sin que un día se quede sin máquinas?
 requisitos: cpu-gpu, flops, nube
 ---
 
@@ -10,7 +10,7 @@ requisitos: cpu-gpu, flops, nube
 En la nube no compras una GPU: rentas una **instancia**, una máquina virtual con CPU, RAM, disco, red y GPUs, que se cobra por cada hora que está encendida, trabaje o no. Para comparar se divide entre sus GPUs (la **GPU-hora**) y luego entre las predicciones que de verdad hace (el **costo por predicción**). Después decides cómo pagarla: precio de lista, capacidad sobrante que te pueden quitar (spot) o un compromiso de un año. Y ninguno de los tres te garantiza que haya máquinas el día que las pidas.
 :::
 
-C01 sirve su ResNet-50 en dos máquinas `g4dn.xlarge`, una en cada [[zona-disponibilidad|zona]]. Cada una trae una GPU T4 y cuesta ≈ US$0.526 la hora en la región `us-east-1`, en Virginia (noviembre de 2026). Al mes son ≈ US$768. En un día normal, cada T4 atiende ≈ 58 fotos por segundo (la mitad de las ≈ 116 que llegan en promedio), y aguanta ≈ 1,200. Trabaja al ≈ 5 % de lo que podría (58 ÷ 1,200).
+Alba, la empresa que seguimos en todo el curso, es un marketplace: recibe ≈ 2.5 millones de publicaciones al día y le sugiere a quien vende la categoría de cada foto, entre 500 posibles. Eso son ≈ 10 millones de fotos al día, ≈ 116 por segundo en promedio (10 millones ÷ 86,400 s). Su modelo, una ResNet-50, corre en dos máquinas `g4dn.xlarge`, una en cada [[zona-disponibilidad|zona]]. Cada una trae una GPU T4 y cuesta ≈ US$0.526 la hora en la región `us-east-1`, en Virginia (noviembre de 2026). Al mes son ≈ US$768. En un día normal, cada T4 atiende ≈ 58 fotos por segundo (la mitad de las ≈ 116), y aguanta ≈ 1,200. Trabaja al ≈ 5 % de lo que podría (58 ÷ 1,200).
 
 Eso no es un error de diseño: la segunda T4 está ahí para que el sistema sobreviva si se cae una zona, como viste en la lección de [[region|regiones]]. Pero sí dice algo importante sobre cómo cobra la nube. **Te cobra la máquina encendida, no el trabajo que hace.** Una GPU al 5 % cuesta casi lo mismo que al 100 %.
 
@@ -35,10 +35,10 @@ El precio por hora cubre todo eso junto (menos el disco de red). Por eso dos ins
 AWS ordena sus instancias en **[[familia-instancia|familias]]** (*instance families*): grupos de máquinas con el mismo tipo de hardware, en varios tamaños. El nombre se lee por partes.
 
 :::figura maquinas-nombre
-El nombre de una instancia de AWS, por partes. Arriba, la de C01; abajo, la de ocho H100. La regla de los tamaños (cada «xlarge» son 4 vCPU) se cumple en las instancias de las tablas.
+El nombre de una instancia de AWS, por partes. Arriba, la de Alba; abajo, la de ocho H100. La regla de los tamaños (cada «xlarge» son 4 vCPU) se cumple en las instancias de las tablas.
 :::
 
-- **La letra** dice para qué es la familia. Las de GPU son dos: la **g** (GPUs para inferencia y gráficos: T4, A10G, L4, L40S) y la **p** (GPUs grandes para entrenar y para modelos enormes: A100, H100, H200, B200). Otras letras son de CPU: la **c** es de cómputo (el [[api-gateway|gateway]] de C01, la puerta que recibe las peticiones antes del modelo, es una `c6i.xlarge`), la **m** es de uso general y la **r** trae mucha RAM.
+- **La letra** dice para qué es la familia. Las de GPU son dos: la **g** (GPUs para inferencia y gráficos: T4, A10G, L4, L40S) y la **p** (GPUs grandes para entrenar y para modelos enormes: A100, H100, H200, B200). Otras letras son de CPU: la **c** es de cómputo (el [[api-gateway|gateway]] de Alba, la puerta que recibe las peticiones antes del modelo, es una `c6i.xlarge`), la **m** es de uso general y la **r** trae mucha RAM.
 - **El número** es la generación. Una `g6` es más nueva que una `g4dn`, y casi siempre trae otra GPU.
 - **Las letras de después** son extras. En `g4dn`, la **d** dice que trae disco NVMe local y la **n**, red más rápida. La `i` de `c6i` dice que el procesador es de Intel.
 - **Después del punto**, el tamaño. `large` son 2 vCPU y `xlarge` son 4. El número de adelante multiplica esos 4: `2xlarge` son 2 × 4 = 8, `12xlarge` son 48 y `48xlarge` son 192.
@@ -47,8 +47,8 @@ En las familias de GPU, el tamaño también decide cuántas GPUs vienen. Las `xl
 
 | Instancia | vCPU | RAM | GPUs | ≈ US$/h (us-east-1, nov. 2026) |
 |---|---|---|---|---|
-| `c6i.xlarge` (el gateway de C01) | 4 | 8 GiB | ninguna | 0.17 |
-| `g4dn.xlarge` (C01) | 4 | 16 GiB | 1 × T4 | 0.526 |
+| `c6i.xlarge` (el gateway de Alba) | 4 | 8 GiB | ninguna | 0.17 |
+| `g4dn.xlarge` (Alba) | 4 | 16 GiB | 1 × T4 | 0.526 |
 | `g6.xlarge` | 4 | 16 GiB | 1 × L4 | 0.805 |
 | `g5.xlarge` | 4 | 16 GiB | 1 × A10G | 1.006 |
 | `g6e.xlarge` | 4 | 32 GiB | 1 × L40S | 1.861 |
@@ -61,9 +61,9 @@ La RAM de las instancias de AWS y Azure viene en **GiB** (2³⁰ bytes, ≈ 1.07
 
 ### Instancias de un grupo: el nodo
 
-Las dos `g4dn.xlarge` de C01 no viven solas. Son parte de un **cluster**: un grupo de máquinas que trabajan juntas bajo un mismo programa que reparte el trabajo. En C01 ese programa es Kubernetes, el [[orquestacion|orquestador]] que decide en qué máquina corre cada programa. Cada máquina del grupo se llama **[[nodo]]** (*node*). Un nodo es una instancia vista desde el cluster: su CPU, su RAM y sus GPUs son el espacio donde el cluster acomoda programas.
+Las dos `g4dn.xlarge` de Alba no viven solas. Son parte de un **cluster**: un grupo de máquinas que trabajan juntas bajo un mismo programa que reparte el trabajo. En Alba ese programa es Kubernetes, el [[orquestacion|orquestador]] que decide en qué máquina corre cada programa. Cada máquina del grupo se llama **[[nodo]]** (*node*). Un nodo es una instancia vista desde el cluster: su CPU, su RAM y sus GPUs son el espacio donde el cluster acomoda programas.
 
-La diferencia importa por una razón: cuando el cluster necesita otra GPU, no basta con arrancar otra copia de Triton, el programa que sirve el modelo de C01. Hay que **pedirle a la nube otra instancia**, esperar a que arranque y a que se una al grupo. Eso toma minutos, no segundos. Las estaciones de Kubernetes explican quién hace ese pedido; aquí te importa lo que pasa del otro lado: si hay cuota, si hay máquinas y cuánto se cobra desde ese momento.
+La diferencia importa por una razón: cuando el cluster necesita otra GPU, no basta con arrancar otra copia de Triton, el programa que sirve el modelo de Alba. Hay que **pedirle a la nube otra instancia**, esperar a que arranque y a que se una al grupo. Eso toma minutos, no segundos. La lección «Kubernetes» explica quién hace ese pedido; aquí te importa lo que pasa del otro lado: si hay cuota, si hay máquinas y cuánto se cobra desde ese momento.
 
 ## Las GPUs que se rentan {The GPUs you can rent}
 
@@ -120,24 +120,34 @@ Fíjate en la T4 de Google: es la única fila donde **la GPU se cobra aparte**. 
 
 ## La GPU-hora: el mismo chip, muchos precios {The GPU-hour: one chip, many prices}
 
-Para comparar máquinas con distinto número de GPUs se usa una unidad: la **[[gpu-hora|GPU-hora]]** (*GPU-hour*), una GPU encendida durante una hora. Se calcula dividiendo el precio de la instancia entre sus GPUs.
+Para comparar máquinas con distinto número de GPUs se usa una unidad: la **[[gpu-hora|GPU-hora]]** (*GPU-hour*), una GPU encendida durante una hora. Se calcula dividiendo el precio de la instancia entre sus GPUs, y para el mes se multiplica por 730 horas:
+
+:::formula GPU-hora y costo al mes
+c = frac{P}{G}
+c_{mes} = c × 730
+- P: el precio por hora de la instancia completa, en US$/h
+- G: cuántas GPUs trae la instancia
+- c: el precio por **GPU-hora**: lo que cuesta una GPU encendida una hora, en US$/h
+- 730: las horas de un mes promedio (8,760 ÷ 12)
+- c_{mes}: lo que cuesta una GPU encendida todo el mes, en US$
+:::
 
 :::cuenta De la hora al mes, y de la instancia a la GPU
-Una T4 de C01 // `g4dn.xlarge`, us-east-1, nov. 2026 | 0.526 US$/h × 730 h | ≈ US$384 al mes
-Las dos de C01 // una por zona | 2 × 384 | ≈ US$768 al mes
-Ocho H100 // `p5.48xlarge` | 55.04 US$/h ÷ 8 GPUs | ≈ US$6.88 por GPU-hora
-Una H100 todo el mes | 6.88 × 730 | ≈ US$5,022
+Una T4 de Alba // `g4dn.xlarge`, us-east-1, nov. 2026: \(P\) = 0.526, \(G\) = 1 | \(c_{mes} = c × 730\) = 0.526 × 730 | ≈ US$384 al mes
+Las dos de Alba // una por zona | 2 × 384 | ≈ US$768 al mes
+Ocho H100 // `p5.48xlarge`: \(P\) = 55.04, \(G\) = 8 | \(c = P ÷ G\) = 55.04 ÷ 8 | ≈ US$6.88 por GPU-hora
+Una H100 todo el mes | \(c_{mes}\) = 6.88 × 730 | ≈ US$5,022
 = La nube cobra por hora; para planear se multiplica por 730, las horas de un mes promedio (8,760 ÷ 12).
 :::
 
-El número de 730 horas es una convención: las 8,760 horas de un año de 365 días, repartidas en 12 meses iguales. Así lo usan las calculadoras de los proveedores y la Ronda.
+El número de 730 horas es una convención: las 8,760 horas de un año de 365 días, repartidas en 12 meses iguales. Así lo usan las calculadoras de los proveedores.
 
 ### Más grande no es más barato
 
 En el súper, el paquete grande sale más barato por kilo. En la nube, casi nunca. Mira cuánto cuesta cada T4 según la instancia que la trae:
 
 - En la `g4dn.xlarge`: ≈ US$0.526 por GPU-hora.
-- En la `g4dn.12xlarge`, con cuatro: US$3.912 ÷ 4 ≈ **US$0.978** por GPU-hora. Casi el doble.
+- En la `g4dn.12xlarge`, con cuatro: \(c = P ÷ G\) = 3.912 ÷ 4 ≈ **US$0.978** por GPU-hora. Casi el doble.
 
 La T4 es la misma. Lo que pagas de más es la CPU y la RAM: la grande trae 48 vCPU y 192 GiB, doce veces más que la chica, para cuatro veces más GPUs. Con la L4 pasa lo mismo: en la `g6.xlarge` cuesta ≈ US$0.805 y en la `g6.48xlarge`, con ocho, ≈ US$1.67 cada una.
 
@@ -195,7 +205,7 @@ Y las listas de precios no siguen la lógica del hardware. En Google, una hora d
 
 ### Right-sizing: la más chica que cumple
 
-Juntando todo sale una regla que la Ronda repite: **para inferencia, gana la instancia más chica que trae tu GPU**. Eso se llama **[[right-sizing]]**: elegir el tamaño justo, ni más ni menos. Tres razones:
+Juntando todo sale una regla que vas a oír mucho: **para inferencia, gana la instancia más chica que trae tu GPU**. Eso se llama **[[right-sizing]]**: elegir el tamaño justo, ni más ni menos. Tres razones:
 
 - **Por GPU-hora, la chica es más barata**, como acabas de ver.
 - **Escalas más fino.** Con instancias de una GPU, el sistema crece de una en una. Con instancias de cuatro, cada paso es de cuatro GPUs, aunque te falte una.
@@ -205,7 +215,7 @@ Hay excepciones, y las tres tienen sentido:
 
 - **El modelo no cabe en una GPU.** Un modelo de 140 GB no entra en ninguna tarjeta de 80. Hay que repartirlo entre varias GPUs de la misma máquina, que se hablan por [[nvlink|NVLink]]: por eso las A100 y H100 vienen de a ocho.
 - **Entrenar con muchas GPUs.** Las GPUs se pasan gradientes todo el tiempo y necesitan los cables rápidos de la misma máquina.
-- **El preproceso necesita CPU.** En el caso de segmentación de imágenes médicas de la Ronda (c04), cada L4 necesita más CPU de la que trae la `g6.xlarge` para abrir y cortar en pedazos las enormes imágenes de microscopio, y se usa la `g6.2xlarge`: la misma GPU, el doble de vCPU, ≈ US$0.98 la hora. Ahí «se paga por la CPU, no por la GPU».
+- **El preproceso necesita CPU.** En un servicio de segmentación de imágenes médicas (un ejemplo con supuestos típicos), cada L4 necesita más CPU de la que trae la `g6.xlarge` para abrir y cortar en pedazos las enormes imágenes de microscopio, y se usa la `g6.2xlarge`: la misma GPU, el doble de vCPU, ≈ US$0.98 la hora. Ahí «se paga por la CPU, no por la GPU».
 
 Y el *right-sizing* tiene un paso más: elegir la GPU, no solo el tamaño. Una H100 hace todo lo que hace una T4, y más rápido. Pero si tu modelo cabe en una T4 y la T4 aguanta tu tráfico, la H100 cuesta 13 veces más por hora para hacer lo mismo. La pregunta no es «¿cuál es la mejor GPU?», sino «¿cuál es la más barata que cumple?». Y para responderla hay que medir el costo de cada predicción.
 
@@ -218,31 +228,43 @@ Por eso hay dos relojes distintos:
 - **Horas facturadas**: las que la máquina estuvo encendida.
 - **Horas trabajando**: las que de verdad hizo algo útil.
 
-La diferencia es dinero tirado. En el caso de segmentación de imágenes médicas de la Ronda (c04), los [[worker|workers]] (los programas que toman trabajo de una cola y lo hacen) procesan las imágenes de microscopio que los laboratorios suben durante el día. Trabajan ≈ 8.3 horas diarias. Pero entre que el sistema enciende máquinas, espera un rato por si llega más trabajo y las vuelve a apagar, quedan encendidas ≈ 15. Al mes, con una `g6.2xlarge` a ≈ US$0.98:
+La diferencia es dinero tirado. En el servicio de segmentación de imágenes médicas del ejemplo, los [[worker|workers]] (los programas que toman trabajo de una cola y lo hacen) procesan las imágenes de microscopio que los laboratorios suben durante el día. Trabajan ≈ 8.3 horas diarias. Pero entre que el sistema enciende máquinas, espera un rato por si llega más trabajo y las vuelve a apagar, quedan encendidas ≈ 15. Lo que cuesta un mes es \(F = P × h\): el precio por hora \(P\) de la instancia por las horas \(h\) del mes. Con una `g6.2xlarge` a \(P\) ≈ US$0.98 y meses de 30 días:
 
-- Trabajando: 8.3 h × 30 días × 0.98 ≈ **US$244**.
-- Facturado: 15 h × 30 días × 0.98 ≈ **US$441**.
+- Trabajando: \(h_{trab}\) = 8.3 h × 30 días = 249 h; \(F\) = 0.98 × 249 ≈ **US$244**.
+- Facturado: \(h_{fact}\) = 15 h × 30 días = 450 h; \(F\) = 0.98 × 450 ≈ **US$441**.
 
-Casi la mitad (≈ 45 %) es máquina encendida sin hacer nada. No es un error: bajar una GPU y volverla a subir toma minutos, y alguien decidió esperar un rato antes de apagarla. Pero es una decisión con precio, y conviene verla.
+Casi la mitad (1 − 244 ÷ 441 ≈ 45 %) es máquina encendida sin hacer nada. No es un error: bajar una GPU y volverla a subir toma minutos, y alguien decidió esperar un rato antes de apagarla. Pero es una decisión con precio, y conviene verla.
 
 ### El costo de cada predicción
 
-El precio por hora no dice si una GPU es cara. Una GPU que cuesta el doble pero atiende el triple sale más barata. Lo que importa es el **[[costo-por-prediccion|costo por predicción]]**, que se suele dar por cada 1,000:
+El precio por hora no dice si una GPU es cara. Una GPU que cuesta el doble pero atiende el triple sale más barata. Lo que importa es el **[[costo-por-prediccion|costo por predicción]]**, que se suele dar por cada 1,000. Se divide lo que pagas en un mes entre las predicciones que hiciste ese mes, en grupos de 1,000:
 
-**US$ por 1,000 predicciones = US$ por hora ÷ (predicciones por hora ÷ 1,000)**
-
-Y aquí entra la [[utilizacion|utilización]]. Las predicciones por hora no son las que la GPU *podría* hacer: son las que **de verdad le llegan**.
-
-:::cuenta Lo que cuestan 1,000 predicciones de C01
-Si la T4 trabajara a tope // ≈ 1,200 fotos/s medidas | 0.526 ÷ (1,200 × 3,600 ÷ 1,000) | ≈ US$0.00012
-A la capacidad planificada // 600 fotos/s: se planea a la mitad del máximo, para dejar margen | 0.526 ÷ (600 × 3,600 ÷ 1,000) | ≈ US$0.00024
-Lo que de verdad llega // ≈ 116 fotos/s en promedio, entre las dos | 116 × 3,600 × 730 | ≈ 304.8 M fotos al mes
-Lo que se paga // 2 T4 todo el mes | 2 × 0.526 × 730 | ≈ US$768 al mes
-Costo real | 768 ÷ (304.8 M ÷ 1,000) | ≈ US$0.0025
-= El costo real es ≈ 20 veces el de la GPU a tope, porque cada T4 trabaja al ≈ 5 %.
+:::formula Costo por 1,000 predicciones
+F = c × r × 730
+Q = T × 3,600 × 730
+K = frac{F}{Q ÷ 1,000}
+- c: el precio por GPU-hora, en US$/h (0.526 la T4 de Alba)
+- r: cuántas GPUs (réplicas del modelo) están encendidas todo el mes
+- F: la factura del mes de esas GPUs, en US$
+- T: el tráfico promedio que **de verdad llega** a todo el sistema, en predicciones por segundo
+- 3,600: los segundos de una hora
+- Q: las predicciones que se hacen en el mes
+- K: lo que cuesta cada grupo de 1,000 predicciones, en US$
 :::
 
-Ese «20 veces» no se arregla con una GPU más barata: se arregla usando mejor la que ya pagas, o aceptándolo porque compra otra cosa. En C01 compra disponibilidad: la segunda T4 está para cuando falle una zona. La cuenta no dice que esté mal; dice cuánto cuesta esa decisión.
+Y aquí entra la [[utilizacion|utilización]]: la fracción de su capacidad que de verdad usan las GPUs, \(u = T ÷ (r × m)\), donde \(m\) es el máximo de predicciones por segundo que aguanta una GPU (se mide en una prueba de carga). El \(T\) de la fórmula no es lo que la GPU *podría* hacer: es lo que **de verdad le llega**. Si trabajara a tope (\(T = r × m\)), la fórmula se simplifica a \(K_{tope} = c ÷ (m × 3,600 ÷ 1,000)\): el costo por 1,000 de una GPU a tope.
+
+:::cuenta Lo que cuestan 1,000 predicciones de Alba
+Si la T4 trabajara a tope, \(K_{tope}\) // \(m\) ≈ 1,200 fotos/s, medidas por el equipo de Alba | \(K_{tope} = c ÷ (m × 3,600 ÷ 1,000)\) = 0.526 ÷ (1,200 × 3,600 ÷ 1,000) | ≈ US$0.00012
+A la capacidad planificada // 600 fotos/s en vez de \(m\): se planea a la mitad del máximo, para dejar margen | 0.526 ÷ (600 × 3,600 ÷ 1,000) | ≈ US$0.00024
+Lo que de verdad llega, \(Q\) // \(T\) ≈ 116 fotos/s en promedio, entre las dos | \(Q = T × 3,600 × 730\) = 116 × 3,600 × 730 | ≈ 304.8 M al mes
+Lo que se paga, \(F\) // \(r\) = 2 T4 todo el mes | \(F = c × r × 730\) = 0.526 × 2 × 730 | ≈ US$768 al mes
+Costo real, \(K\) | \(K = F ÷ (Q ÷ 1,000)\) = 768 ÷ (304.8 M ÷ 1,000) | ≈ US$0.0025
+Utilización, \(u\) | \(u = T ÷ (r × m)\) = 116 ÷ (2 × 1,200) | ≈ 4.8 %
+= El costo real es ≈ 20 veces el de la GPU a tope (\(K ÷ K_{tope}\) = 0.0025 ÷ 0.00012), porque cada T4 trabaja al ≈ 5 %.
+:::
+
+Ese «20 veces» no se arregla con una GPU más barata: se arregla usando mejor la que ya pagas, o aceptándolo porque compra otra cosa. En Alba compra disponibilidad: la segunda T4 está para cuando falle una zona. La cuenta no dice que esté mal; dice cuánto cuesta esa decisión.
 
 ```python
 def costo_por_mil(usd_hora, replicas, req_s_promedio):
@@ -265,26 +287,26 @@ for req_s in (116, 600, 1200, 2400):   # tráfico promedio de todo el sistema
  2400 fotos/s  uso 100.0%  US$768/mes  US$0.000122 por 1,000
 ```
 
-La factura no se mueve: US$768 en las cuatro filas. Lo que cambia es cuánto sale cada predicción. Duplicar el tráfico divide el costo entre dos, sin tocar nada. Por eso la Ronda insiste: **di el precio por hora y luego el costo por 1,000 con tu utilización real**. Una comparación de GPUs que solo mira US$/h o TFLOPS está incompleta.
+La factura no se mueve: US$768 en las cuatro filas. Lo que cambia es cuánto sale cada predicción. Duplicar el tráfico \(T\) duplica \(Q\) y divide \(K\) entre dos, sin tocar nada. Por eso, cuando propongas una GPU (en el trabajo o en una entrevista de diseño), **di el precio por hora y luego el costo por 1,000 con tu utilización real**. Una comparación de GPUs que solo mira US$/h o TFLOPS está incompleta.
 
 :::calculadora maquinas-costo
-Sube el tráfico y mira cómo baja el costo por predicción sin que cambie la factura. Después prueba una L4: US$0.805 la hora y un máximo de ≈ 3,000 fotos por segundo. Ese máximo es un supuesto de la Ronda, que hay que confirmar con una prueba de carga.
+Sube el tráfico y mira cómo baja el costo por predicción sin que cambie la factura. Después prueba una L4: \(c\) = US$0.805 la hora y un máximo \(m\) ≈ 3,000 fotos por segundo. Ese máximo es un supuesto del equipo de Alba (≈ 2.5 veces los 1,200 de la T4), que hay que confirmar con una prueba de carga.
 :::
 
 ### ¿De quién es esta GPU? Las etiquetas
 
 Cuando una empresa tiene cien instancias, la factura dice «EC2: US$40,000» (EC2 es el servicio de máquinas virtuales de AWS). No dice qué equipo, qué modelo ni qué [[ambiente]] gastó cada dólar. (Un ambiente es una copia completa del sistema para un fin, como *staging*, la copia donde se prueba antes de pasar a producción.)
 
-Para eso existen las **[[etiqueta-costos|etiquetas de asignación de costos]]** (*cost allocation tags*): pares de llave y valor que le pegas a cada recurso, como `equipo=catalogo`, `modelo=c01-categorias` o `ambiente=staging`. Cuando las activas en la consola de facturación, la factura se puede partir por cada etiqueta.
+Para eso existen las **[[etiqueta-costos|etiquetas de asignación de costos]]** (*cost allocation tags*): pares de llave y valor que le pegas a cada recurso, como `equipo=catalogo`, `modelo=alba-categorias` o `ambiente=staging`. Cuando las activas en la consola de facturación, la factura se puede partir por cada etiqueta.
 
 El comando de abajo es solo una ilustración de cómo se pegan (no lo corras; necesita una cuenta de AWS y el id de una instancia real):
 
 ```bash
 aws ec2 create-tags --resources i-0abc123de456f7890 \
-  --tags Key=equipo,Value=catalogo Key=modelo,Value=c01-categorias Key=ambiente,Value=staging
+  --tags Key=equipo,Value=catalogo Key=modelo,Value=alba-categorias Key=ambiente,Value=staging
 ```
 
-Con etiquetas, preguntas como «¿cuánto cuesta staging?» tienen respuesta. En C01, staging es una T4 encendida 24/7: ≈ US$384 al mes. Encendida solo en horas de trabajo, ≈ 60 horas a la semana, baja a ≈ US$137. Sin etiquetas, esos US$250 al mes se esconden en una sola línea que dice «EC2».
+Con etiquetas, preguntas como «¿cuánto cuesta staging?» tienen respuesta. En Alba, staging es una T4 (`g4dn.xlarge`, US$0.526 la hora) encendida 24/7: 0.526 × 730 ≈ US$384 al mes. Encendida solo en horas de trabajo, ≈ 60 horas a la semana (60 × 52 ÷ 12 = 260 horas al mes), baja a 0.526 × 260 ≈ US$137. Sin etiquetas, esos US$250 al mes se esconden en una sola línea que dice «EC2».
 
 ## On-demand y spot {On-demand and spot}
 
@@ -310,19 +332,19 @@ Y es *best effort*: el proveedor intenta avisar, pero no lo promete. Tu programa
 Esos segundos deciden qué puede correr en spot. La pregunta no es «¿cuánto ahorro?», sino **«¿qué le pasa a mi sistema si me quitan la máquina con 2 minutos de aviso?»**:
 
 - **Si solo se repite un pedazo de trabajo, sirve.** Un entrenamiento que guarda un [[checkpoint]] cada media hora pierde, como mucho, media hora. Un [[backfill]] (volver a procesar datos viejos, como todo el catálogo) partido en pedazos repite solo el pedazo que iba.
-- **Si un usuario ve un error, no sirve.** Si la T4 que atiende a Ana desaparece, su foto falla. Por eso el mínimo de réplicas en línea de C01 (las copias del modelo que atienden en vivo) nunca va en spot.
+- **Si un usuario ve un error, no sirve.** Si la T4 que atiende a Ana desaparece, su foto falla. Por eso el mínimo de réplicas en línea de Alba (las copias del modelo que atienden en vivo) nunca va en spot.
 
 | Trabajo | ¿Spot? | Por qué |
 |---|---|---|
 | Entrenamiento con checkpoints | Sí | Pierdes lo que no estaba guardado y sigues |
-| Trabajos por lotes (*batch*) y asíncronos, [[idempotencia\|idempotentes]] (c04) | Sí | El mensaje vuelve a la cola y otro lo hace |
+| Trabajos por lotes (*batch*) y asíncronos, [[idempotencia\|idempotentes]], como la segmentación de imágenes médicas | Sí | El mensaje vuelve a la cola y otro lo hace |
 | Backfills, [[ci\|CI]], pruebas | Sí | Nadie espera la respuesta en segundos |
 | Réplicas extra para una ráfaga | Con cuidado | Si se van, las demás aguantan un rato |
-| El mínimo en línea (las 2 T4 de C01) | No | Un usuario ve el error |
+| El mínimo en línea (las 2 T4 de Alba) | No | Un usuario ve el error |
 
 ### Cómo se vuelve seguro: cola, checkpoint y otra máquina
 
-El diagrama muestra el patrón de la Ronda para los trabajos en spot. Los pedazos de trabajo esperan en una [[cola-mensajes|cola]]. Un worker en spot toma uno y, mientras lo procesa, el mensaje queda invisible por un rato (el [[visibility-timeout|visibility timeout]] de la lección de colas). Si el worker termina, borra el mensaje. Si desaparece, el mensaje reaparece y otro worker lo toma.
+El diagrama muestra el patrón más común para los trabajos en spot. Los pedazos de trabajo esperan en una [[cola-mensajes|cola]]. Un worker en spot toma uno y, mientras lo procesa, el mensaje queda invisible por un rato (el [[visibility-timeout|visibility timeout]] de la lección de colas). Si el worker termina, borra el mensaje. Si desaparece, el mensaje reaparece y otro worker lo toma.
 
 :::diagrama maquinas-spot
 Toca cada caja para ver por qué está ahí. Los dos recorridos cuentan un pedazo normal y uno que se interrumpe a la mitad.
@@ -371,7 +393,7 @@ Con checkpoints cada 15 minutos, pagas 41 horas por 40 de trabajo. Cada 12 horas
 
 ### Cuánto ahorra de verdad
 
-AWS anuncia descuentos de spot «de hasta 90 %», Google «de hasta 91 %» y Azure «de hasta 90 %». Son techos de publicidad. Lo que se observa en GPUs es otra cosa. La Ronda tomó una foto de los precios spot en `us-east-1` en octubre de 2026:
+AWS anuncia descuentos de spot «de hasta 90 %», Google «de hasta 91 %» y Azure «de hasta 90 %». Son techos de publicidad. Lo que se observa en GPUs es otra cosa. Esta es una foto de los precios spot en `us-east-1`, tomada un día de octubre de 2026. El descuento de cada fila es \(s = 1 − P_s ÷ P\): uno menos el precio spot \(P_s\) entre el on-demand \(P\) (en la T4, 1 − 0.27 ÷ 0.526 ≈ 49 %).
 
 | Instancia | On-demand | Spot observado | Descuento |
 |---|---|---|---|
@@ -383,12 +405,22 @@ AWS anuncia descuentos de spot «de hasta 90 %», Google «de hasta 91 %» y Azu
 
 Es una foto de un día, no un promedio: el precio spot lo fija el proveedor según cuánta capacidad le sobra, y cambia. Las GPUs que todos quieren (como la L40S ese día) casi no tienen descuento; las demás de inferencia, de ≈ 25 a ≈ 54 %; la `p5` (8 H100), 61 %. Hay que **restarle el trabajo repetido**.
 
-Un ejemplo: un [[fine-tuning|fine-tune]] (seguir entrenando un modelo ya entrenado, con tus propios datos) de 40 horas, en una A10G.
+Un ejemplo: un [[fine-tuning|fine-tune]] (seguir entrenando un modelo ya entrenado, con tus propios datos) de 40 horas, en una A10G. On-demand pagas las horas de trabajo a precio de lista; en spot pagas un precio más bajo, pero también las horas que se repiten:
+
+:::formula Lo que cuesta un trabajo en spot
+F_{od} = P × h
+F_s = P_s × (h + h_{rep})
+- P, P_s: el precio por hora on-demand y el spot de ese día, en US$/h
+- h: las horas de trabajo útil que necesita el trabajo
+- h_{rep}: las horas que se repiten, porque te quitaron la máquina antes de guardar
+- F_{od}, F_s: lo que pagas por el trabajo on-demand y en spot, en US$
+:::
 
 :::cuenta Un fine-tune de 40 horas en spot
-On-demand // `g5.xlarge`, us-east-1 | 40 h × 1.006 | ≈ US$40.24
-Spot, con 4 interrupciones // cada una repite ≈ 25 min | (40 + 4 × 25 ÷ 60) h × 0.462 | ≈ US$19.25
-Ahorro | 1 − 19.25 ÷ 40.24 | ≈ 52 %
+On-demand, \(F_{od}\) // `g5.xlarge`, us-east-1: \(P\) = 1.006, \(h\) = 40 | \(F_{od} = P × h\) = 1.006 × 40 | ≈ US$40.24
+Horas repetidas, \(h_{rep}\) // 4 interrupciones; cada una repite ≈ 25 min | 4 × 25 ÷ 60 | ≈ 1.67 h
+Spot, \(F_s\) // \(P_s\) ≈ 0.462 (la tabla lo redondea a 0.46) | \(F_s = P_s × (h + h_{rep})\) = 0.462 × (40 + 1.67) | ≈ US$19.25
+Ahorro | \(1 − F_s ÷ F_{od}\) = 1 − 19.25 ÷ 40.24 | ≈ 52 %
 = Del ≈ 54 % de descuento spot de ese día quedan ≈ 52 % después de repetir trabajo: sigue valiendo la pena, porque los checkpoints son frecuentes.
 :::
 
@@ -399,32 +431,45 @@ La segunda manera de pagar menos es prometer. Le dices al proveedor «voy a gast
 - **[[savings-plan|Savings Plan]]** (AWS): te comprometes a gastar un monto **por hora** (por ejemplo, US$0.70 cada hora) durante 1 o 3 años. Todo lo que uses hasta ese monto sale con descuento; lo que pase de ahí, a precio on-demand. Si usas menos, pagas el monto igual. El *Compute Savings Plan* aplica a cualquier familia y región; el *EC2 Instance Savings Plan* se amarra a una familia en una región, a cambio de más descuento.
 - **[[instancia-reservada|Instancia reservada]]** (*Reserved Instance*, RI, en AWS y Azure) y **CUD** (*Committed Use Discount*, en Google): te comprometes a una instancia o a una cantidad de recursos, no a un monto (Google también tiene un CUD flexible, por monto). El trueque es el mismo: plazo por precio.
 
-Los descuentos máximos anunciados son de «hasta 72 %» en las RIs y en el EC2 Instance Savings Plan, «hasta 66 %» en el Compute Savings Plan, «hasta 55 %» en los CUD de Google y «hasta 72 %» en Azure. Pero, como en spot, el máximo es para 3 años con pago adelantado y para ciertas máquinas. Para GPUs de inferencia a 1 año, sin pagar adelantado, la Ronda observó ≈ 35–37 % (`g4dn.xlarge` y `g5.xlarge` ≈ 37 %, `g6.xlarge` ≈ 35 %), y a 3 años ≈ 54–57 %.
+Los descuentos máximos anunciados son de «hasta 72 %» en las RIs y en el EC2 Instance Savings Plan, «hasta 66 %» en el Compute Savings Plan, «hasta 55 %» en los CUD de Google y «hasta 72 %» en Azure. Pero, como en spot, el máximo es para 3 años con pago adelantado y para ciertas máquinas. Para GPUs de inferencia a 1 año, sin pagar adelantado, en las listas de precios se observan ≈ 35–37 % (`g4dn.xlarge` y `g5.xlarge` ≈ 37 %, `g6.xlarge` ≈ 35 %), y a 3 años ≈ 54–57 %.
 
 ### La regla: comprometer la base, nunca el pico
 
-Un compromiso convierte una máquina que pagas por hora en una que pagas siempre. Con un descuento de 37 %, una T4 comprometida cuesta 0.526 × 0.63 ≈ US$0.331 la hora, **las 730 horas del mes**, la uses o no: ≈ US$242. On-demand, en cambio, pagas 0.526 por cada hora que de verdad la usas. Las dos cuentas se igualan cuando 0.526 × horas = 0.331 × 730, es decir, en 730 × 0.63 ≈ 460 horas. Por eso el compromiso conviene solo si la usarías más de:
+Un compromiso convierte una máquina que pagas por hora en una que pagas siempre. On-demand pagas el precio de lista por cada hora que de verdad la usas; comprometida, pagas un precio con descuento **las 730 horas del mes**, la uses o no. Las dos cuentas se igualan en un número de horas \(h^{*}\):
 
-**1 − descuento = 1 − 0.37 = 63 % de las horas**
+:::formula On-demand contra compromiso
+F_{od} = P × h
+F_c = P × (1 − d) × 730
+h^{*} = 730 × (1 − d)
+- P: el precio on-demand por hora, en US$/h
+- h: las horas del mes que de verdad usas la máquina
+- d: el descuento del compromiso, como fracción (0.37 = 37 %)
+- F_{od}, F_c: lo que pagas al mes on-demand y comprometida, en US$
+- h^{*}: las horas en que las dos salen igual; arriba de ellas gana el compromiso
+:::
 
-Debajo de ese uso, on-demand sale más barato. Por eso se compromete solo **la base**. La Ronda la define con una pregunta: *«¿qué parte de mi uso estoy seguro de que existirá todo el año?»*.
+Con un descuento \(d\) = 0.37, una T4 comprometida cuesta \(P × (1 − d)\) = 0.526 × 0.63 ≈ US$0.331 la hora, y \(F_c\) = 0.331 × 730 ≈ US$242 al mes. El punto de equilibrio es \(h^{*}\) = 730 × 0.63 ≈ 460 horas. Dividido entre 730, eso dice que el compromiso conviene solo si usarías la máquina más de \(1 − d\) = 63 % de las horas.
+
+Debajo de ese uso, on-demand sale más barato. Por eso se compromete solo **la base**. Se define con una pregunta: *«¿qué parte de mi uso estoy seguro de que existirá todo el año?»*.
 
 :::figura maquinas-base
 Un día de GPUs de un sistema en línea. La franja de abajo nunca se apaga: esa se compromete. Lo que sube y baja con el tráfico va on-demand. El trabajo de la madrugada, que puede repetirse, va en spot.
 :::
 
-En C01, la base son las 2 T4 y los 2 nodos del gateway, que nunca se apagan: ≈ US$768 + ≈ US$248 ≈ US$1,016 al mes. Un Savings Plan de 1 año con 30–40 % de descuento ahorra ≈ US$305–406 al mes. Lo que **no** se compromete es el máximo del autoscaler (el programa que enciende y apaga réplicas según el tráfico; lo verás en [[autoscaling]]): las réplicas que existen solo en las horas pico.
+En Alba, la base son las 2 T4 y los 2 nodos del gateway (dos `c6i.xlarge`), que nunca se apagan: ≈ US$768 de las T4 + ≈ US$248 del gateway (2 × 0.17 × 730) ≈ US$1,016 al mes. Un Savings Plan de 1 año con \(d\) entre 0.30 y 0.40 ahorra \(d × 1,016\): ≈ US$305–406 al mes. Lo que **no** se compromete es el máximo del autoscaler (el programa que enciende y apaga réplicas según el tráfico; lo verás en [[autoscaling]]): las réplicas que existen solo en las horas pico.
 
 :::cuenta El error de comprometer el pico
-El autoscaler de C01 llega a 4 T4 en el pico | 4 × 0.331 × 730 | ≈ US$967 al mes comprometidos
-Pero en promedio hay ≈ 2.33 T4 encendidas | 2.33 × 0.526 × 730 | ≈ US$895 al mes on-demand
-= Comprometer el pico cuesta ≈ US$70 más al mes que no comprometer nada. Usarías las 4 T4 solo ≈ 58 % de las horas, menos que el 63 % que pide el descuento.
+Comprometer las 4 T4 // el máximo del autoscaler de Alba; \(P × (1 − d)\) ≈ 0.331 | \(4 × F_c\) = 4 × 0.331 × 730 | ≈ US$967 al mes
+Pagarlas on-demand // en promedio hay ≈ 2.33 T4 encendidas: las 2 de siempre, más las que el autoscaler agrega unas horas al día | \(F_{od} = P × h\), por 2.33 T4 = 2.33 × 0.526 × 730 | ≈ US$895 al mes
+Diferencia | 967 − 895 | ≈ US$72 al mes
+Uso de las 4 comprometidas | 2.33 ÷ 4 | ≈ 58 %
+= Comprometer el pico cuesta ≈ US$72 más al mes que no comprometer nada. Usarías las 4 T4 solo ≈ 58 % de las horas, menos que el \(1 − d\) = 63 % que pide el descuento.
 :::
 
-Dos consejos más de la Ronda: espera de 2 a 3 meses de uso real antes de comprometer (para conocer tu base de verdad) y empieza por 1 año. Un compromiso de 3 años sobre una T4 apuesta a que tu modelo seguirá corriendo en una GPU de 2018 hasta el final del plazo.
+Dos consejos más: espera de 2 a 3 meses de uso real antes de comprometer (para conocer tu base de verdad) y empieza por 1 año. Un compromiso de 3 años sobre una T4 apuesta a que tu modelo seguirá corriendo en una GPU de 2018 hasta el final del plazo.
 
 :::calculadora maquinas-compromiso
-Mueve las horas y mira dónde el compromiso empieza a ganar: justo en 730 × (1 − descuento), ≈ 460 horas con 37 %. Luego baja el descuento de spot a 1 %, el que tenía la L40S el día de la foto.
+Mueve las horas \(h\) y mira dónde el compromiso empieza a ganar: justo en \(h^{*} = 730 × (1 − d)\), ≈ 460 horas con \(d\) = 37 %. Luego baja el descuento de spot a 1 %, el que tenía la L40S el día de la foto.
 :::
 
 ## Cuotas, capacidad y reservas {Quotas, capacity and reservations}
@@ -445,13 +490,13 @@ Una **[[cuota-servicio|cuota de servicio]]** (*service quota*) es un límite adm
 
 Si pides una máquina y te pasas, el error llega al instante y no se arregla esperando: hay que pedir más cuota, y eso puede tardar de horas a días, porque a veces la revisa una persona. En cuentas nuevas, las cuotas de GPU suelen ser chicas. Las de SageMaker AI, el servicio de AWS que entrena y sirve modelos por ti, son aparte, y muchas arrancan en 0.
 
-La cuota se pide **para el máximo**, no para el promedio, y **antes** del lanzamiento. En C01:
+La cuota se pide **para el máximo**, no para el promedio, y **antes** del lanzamiento. En AWS sale de \(text{cuota} = text{máquinas} × text{vCPU}\): las máquinas que puede haber en el peor momento, por los vCPU de cada una. En Alba:
 
-:::cuenta La cuota de C01
-Máximo del autoscaler // para el pico de diseño | 4 | 4 máquinas
+:::cuenta La cuota de Alba
+Máximo del autoscaler // para el pico de diseño, 500 fotos por segundo | 4 | 4 máquinas
 Más una de sobra al desplegar una versión nueva // el *surge*: la versión nueva arranca antes de apagar la vieja | 4 + 1 | 5 máquinas
 Más staging y CI // una para cada uno | 5 + 1 + 1 | 7 máquinas
-Total | 7 × 4 vCPU | 28 vCPU de instancias G
+Total // cada `g4dn.xlarge` gasta 4 vCPU | 7 × 4 vCPU | 28 vCPU de instancias G
 = Si el cluster puede usar también `g4dn.2xlarge` (8 vCPU, la misma T4), en el peor caso las 7 son de ese tamaño: 7 × 8 = 56 vCPU de cuota.
 :::
 
@@ -482,7 +527,7 @@ Aquí está la confusión más cara de esta lección: **un descuento no es una r
 
 Para eso hay dos productos:
 
-- **[[reserva-capacidad|Reserva de capacidad]]** (*On-Demand Capacity Reservation*, en AWS): apartas, por ejemplo, 2 `g4dn.xlarge` en `us-east-1a`. Están ahí para ti siempre, y **las pagas se usen o no**, a precio on-demand (un Savings Plan puede bajarle el precio). Sirve para el mínimo que no puede fallar: en C01, las 2 T4.
+- **[[reserva-capacidad|Reserva de capacidad]]** (*On-Demand Capacity Reservation*, en AWS): apartas, por ejemplo, 2 `g4dn.xlarge` en `us-east-1a`. Están ahí para ti siempre, y **las pagas se usen o no**, a precio on-demand (un Savings Plan puede bajarle el precio). Sirve para el mínimo que no puede fallar: en Alba, las 2 T4.
 - **[[capacity-block|Bloque de capacidad para ML]]** (*Capacity Blocks for ML*): para GPUs grandes, por días o semanas con fecha fija. Por ejemplo, 8 H100 del 3 al 10 de diciembre para un entrenamiento. Se aparta hasta 8 semanas antes, se paga por adelantado y no se cancela.
 
 | Producto | ¿Baja el precio? | ¿Garantiza máquinas? | ¿Pagas si no la usas? |
@@ -501,15 +546,15 @@ Las secciones anteriores suponen que rentas GPUs completas, de NVIDIA, a una nub
 
 Si tu modelo usa 3 GB de una GPU de 80, pagar la GPU entera es caro. Hay dos maneras de compartirla.
 
-**[[mig|MIG]]** (*Multi-Instance GPU*) parte una GPU grande en hasta 7 pedazos **con aislamiento de hardware**: cada pedazo tiene su propia memoria y sus propios [[sm|SMs]] (los bloques de cómputo de la GPU), y lo que pase en uno no frena a los otros. Existe en la A100, la H100 y la H200 (y en hasta 4 pedazos en la RTX PRO 6000, una tarjeta de escritorio que vuelve al final de esta sección). Un pedazo de H100 se llama, por ejemplo, `1g.10gb`: una séptima parte del cómputo y 10 GB. La Ronda calcula que cuesta ≈ US$6.88 ÷ 7 ≈ US$0.98 por hora: casi el doble de una T4 completa. MIG **no existe** en la T4, la L4, la A10G ni la L40S.
+**[[mig|MIG]]** (*Multi-Instance GPU*) parte una GPU grande en hasta 7 pedazos **con aislamiento de hardware**: cada pedazo tiene su propia memoria y sus propios [[sm|SMs]] (los bloques de cómputo de la GPU), y lo que pase en uno no frena a los otros. Existe en la A100, la H100 y la H200 (y en hasta 4 pedazos en la RTX PRO 6000, una tarjeta de escritorio que vuelve al final de esta sección). Un pedazo de H100 se llama, por ejemplo, `1g.10gb`: una séptima parte del cómputo y 10 GB. Si repartes el precio de la H100 (US$6.88 por GPU-hora) entre sus 7 pedazos, cada uno cuesta ≈ 6.88 ÷ 7 ≈ US$0.98 por hora: casi el doble de una T4 completa. MIG **no existe** en la T4, la L4, la A10G ni la L40S.
 
 Las **[[fraccion-gpu|fracciones de GPU]]** comparten sin aislamiento:
 
-- **Time-slicing**: varios programas se turnan la GPU. Kubernetes anuncia, por ejemplo, «4 GPUs» donde hay una. La Ronda lo resume bien: *multiplica el número anunciado, no la capacidad*. Si un programa usa mucha memoria, los otros se quedan sin ella.
+- **Time-slicing**: varios programas se turnan la GPU. Kubernetes anuncia, por ejemplo, «4 GPUs» donde hay una. Dicho corto: *multiplica el número anunciado, no la capacidad*. Si un programa usa mucha memoria, los otros se quedan sin ella.
 - **MPS** (*Multi-Process Service*): varios procesos corren a la vez en la misma GPU, con mejor uso que turnarse, pero si uno falla puede afectar a los demás.
 - **La fracción del proveedor**: AWS renta la `g6f.large`, con 1/8 de una L4 (≈ 3 GB), por ≈ US$0.20 la hora. Google tiene algo parecido con la RTX PRO 6000 (la `g4-standard-6`, 1/8 de GPU, ≈ US$0.65 la hora en us-central1).
 
-Para C01, la Ronda sugiere otra cosa: **compartir las T4 que ya paga** con modelos chicos de otros equipos, sirviendo varios modelos en el mismo Triton. Las T4 trabajan al 5 %; ahí cabe mucho. Ahorra ≈ US$250 al mes de GPUs que no hay que rentar.
+Para Alba conviene otra cosa: **compartir las T4 que ya paga** con modelos chicos de otros equipos, sirviendo varios modelos en el mismo Triton. Las T4 trabajan al ≈ 5 % (58 de las 1,200 fotos por segundo que aguantan); ahí cabe mucho. Ahorra ≈ US$250 al mes de GPUs que no hay que rentar.
 
 ### Aceleradores propios de cada nube
 
@@ -518,22 +563,22 @@ Las nubes grandes diseñan sus propios chips para ML: los **[[acelerador-propio|
 - **Google** tiene las **TPU** (*Tensor Processing Unit*), solo en Google Cloud. Se programan con XLA, un compilador que usan las bibliotecas de ML JAX, TensorFlow y PyTorch/XLA (la versión de PyTorch para TPU).
 - **AWS** tiene **Inferentia** (instancias `inf2`), para inferencia, y **Trainium** (`trn`), para entrenar. Se usan con el **Neuron SDK**, que compila el modelo para ese chip.
 
-Suelen salir más baratos por predicción que una GPU equivalente. El precio: tu modelo tiene que compilarse con otra herramienta, no todos los modelos ni todas las operaciones funcionan igual, y quedas más atado a esa nube (la [[dependencia-proveedor|dependencia del proveedor]] de la lección de la nube). La Ronda pide evaluarlos con **la misma prueba de carga** que una GPU, midiendo costo por 1,000 predicciones, no con la hoja de datos.
+Suelen salir más baratos por predicción que una GPU equivalente. El precio: tu modelo tiene que compilarse con otra herramienta, no todos los modelos ni todas las operaciones funcionan igual, y quedas más atado a esa nube (la [[dependencia-proveedor|dependencia del proveedor]] de la lección de la nube). Por eso se evalúan con **la misma prueba de carga** que una GPU, midiendo costo por 1,000 predicciones, no con la hoja de datos.
 
 ### Rentar contra comprar
 
-La última opción es no rentar: comprar la GPU. Hagamos la cuenta corta con una tarjeta de *workstation* (una computadora de escritorio muy potente, para diseño o ciencia): la RTX PRO 6000 Blackwell, con 96 GB. En noviembre de 2026 se veía en una tienda de EE. UU. en ≈ US$16,399, y la tienda de NVIDIA la pedía en US$16,000 (un precio volátil, que casi duplicó los ≈ US$8,565 de su lanzamiento). Rentada en el *Secure Cloud* de RunPod cuesta ≈ US$2.69 la hora.
+La última opción es no rentar: comprar la GPU. Hagamos la cuenta corta con una tarjeta de *workstation* (una computadora de escritorio muy potente, para diseño o ciencia): la RTX PRO 6000 Blackwell, con 96 GB. En noviembre de 2026 se veía en una tienda de EE. UU. en ≈ US$16,399, y la tienda de NVIDIA la pedía en US$16,000 (un precio volátil, que casi duplicó los ≈ US$8,565 de su lanzamiento). Rentada en el *Secure Cloud* de RunPod cuesta ≈ US$2.69 la hora. La cuenta corta es cuántas horas de renta valen lo mismo que la tarjeta: \(h_{eq} = A ÷ P\), con \(A\) el precio de compra y \(P\) la renta por hora.
 
 :::cuenta ¿Cuántas horas de renta pagan la tarjeta?
-Horas de renta que valen lo mismo | 16,399 ÷ 2.69 | ≈ 6,096 horas
+Horas de renta que valen lo mismo, \(h_{eq}\) // \(A\) = 16,399 · \(P\) = 2.69 | \(h_{eq} = A ÷ P\) = 16,399 ÷ 2.69 | ≈ 6,096 horas
 En meses, encendida 24/7 | 6,096 ÷ 730 | ≈ 8.4 meses
-Si solo la usas 8 h al día // ≈ 243 h al mes | 6,096 ÷ 243 | ≈ 25 meses
-= Comprar gana si la vas a usar casi todo el tiempo durante años. Si la usas poco, rentar gana por mucho. Y con la renta más barata (≈ US$1.69 en el *Community Cloud* de RunPod) el punto de equilibrio se aleja a ≈ 9,700 horas, más de 13 meses 24/7.
+Si solo la usas 8 h al día // 8 × 30.4 días ≈ 243 h al mes | 6,096 ÷ 243 | ≈ 25 meses
+= Comprar gana si la vas a usar casi todo el tiempo durante años. Si la usas poco, rentar gana por mucho. Y con la renta más barata (≈ US$1.69 en el *Community Cloud* de RunPod) el punto de equilibrio se aleja a 16,399 ÷ 1.69 ≈ 9,700 horas, más de 13 meses 24/7.
 :::
 
 Y la cuenta de verdad tiene más renglones: la computadora donde va la tarjeta, la luz (600 W encendida 730 horas son ≈ 438 kWh al mes), el enfriamiento, quién la repara si falla, que en 3 años habrá GPUs mucho mejores, y que una tarjeta en tu oficina no tiene zonas ni [[n-mas-uno|N+1]] (una de sobra por si falla otra). Del otro lado, comprar te da algo que la renta no: los datos y el modelo nunca salen de tu edificio.
 
-Esa cuenta completa (con luz, servidor, depreciación y cuántos usuarios atiende cada tarjeta) es el tema de **IA Privada**, la app de TrueML sobre modelos de pesos abiertos en hardware propio. Esta lección te deja la unidad con la que se hace: la GPU-hora, y el costo por predicción con la utilización de verdad.
+Esa cuenta completa (con luz, servidor, depreciación y cuántos usuarios atiende cada tarjeta) es la que hace quien monta un sistema de IA que corre en máquinas propias, sin nube, con modelos de pesos abiertos. Esta lección te deja la unidad con la que se hace: la GPU-hora, y el costo por predicción con la utilización de verdad.
 
 ## Errores comunes {Common mistakes}
 
@@ -570,23 +615,23 @@ Esa cuenta completa (con luz, servidor, depreciación y cuántos usuarios atiend
 ### Olvidar las horas encendidas sin trabajo
 
 **Qué pasa:** el staging, el [[notebook]] de alguien o el worker que espera «por si llega algo» quedan encendidos toda la noche.
-**Cómo evitarlo:** etiqueta cada recurso, revisa la factura por etiqueta y apaga lo que no trabaja. Staging de C01 en horario de oficina pasa de ≈ US$384 a ≈ US$137 al mes.
+**Cómo evitarlo:** etiqueta cada recurso, revisa la factura por etiqueta y apaga lo que no trabaja. Staging de Alba (una T4) en horario de oficina pasa de ≈ US$384 a ≈ US$137 al mes.
 
 ## En la vida real {In real life} [extra]
 
-**C01, el marketplace.** Dos `g4dn.xlarge` on-demand, una por zona: ≈ US$768 al mes. No son por el tráfico (una sola aguanta el pico de 500 fotos por segundo) sino por la disponibilidad. Trabajan al ≈ 5 %, y la predicción sale en ≈ US$0.0025 por 1,000 solo de GPUs (≈ US$0.006 con toda la infraestructura). La Ronda compara con 2 L4: ≈ US$1,175 al mes, 53 % más por hora. Hoy gana la T4; la L4 ganaría si el tráfico creciera de 3 a 5 veces y una prueba de carga confirmara que atiende ≈ 2.5 veces más (si atendiera solo 1.25 veces más, no le alcanzaría para pagar su precio, ≈ 1.53 veces el de la T4).
+**Alba, el marketplace.** Dos `g4dn.xlarge` on-demand, una por zona: ≈ US$768 al mes. No son por el tráfico (una sola aguanta el pico de 500 fotos por segundo) sino por la disponibilidad. Trabajan al ≈ 5 %, y la predicción sale en ≈ US$0.0025 por 1,000 solo de GPUs (≈ US$0.006 con toda la infraestructura). El equipo de Alba lo comparó con 2 L4: 2 × 0.805 × 730 ≈ US$1,175 al mes, 53 % más por hora (0.805 ÷ 0.526 ≈ 1.53). Hoy gana la T4; la L4 ganaría si el tráfico creciera de 3 a 5 veces y una prueba de carga confirmara que atiende ≈ 2.5 veces más (si atendiera solo 1.25 veces más, no le alcanzaría para pagar su precio, ≈ 1.53 veces el de la T4).
 
-En C01, spot queda solo para el backfill del catálogo (4 `g4dn.2xlarge` durante ≈ 14 h: ≈ 56 GPU-horas, ≈ US$42 on-demand a US$0.752 la hora) y el entrenamiento. La base (≈ US$1,016 al mes) va a un Savings Plan de 1 año. Si la zona anda escasa de T4, las 2 mínimas pueden ir además con reserva de capacidad. Cuota pedida: 28 vCPU.
+En Alba, spot queda solo para el backfill del catálogo (≈ 200 millones de fotos viejas, en 4 `g4dn.2xlarge` durante ≈ 14 h: 4 × 14 ≈ 56 GPU-horas, 56 × 0.752 ≈ US$42 on-demand) y el entrenamiento. La base (≈ US$1,016 al mes) va a un Savings Plan de 1 año. Si la zona anda escasa de T4, las 2 mínimas pueden ir además con reserva de capacidad. Cuota pedida: 28 vCPU.
 
-**Segmentación de imágenes médicas (c04).** Workers en `g6.2xlarge` (1 L4, 8 vCPU) a ≈ US$0.98 la hora, porque el cuello está en la CPU que abre y corta las imágenes de microscopio. Facturan ≈ 450 horas al mes (≈ US$441) y trabajan ≈ 249. Como el trabajo es asíncrono e idempotente, va en spot: con la cola y su visibility timeout, una interrupción solo repite un pedazo. Cuota: 4 nodos × 8 vCPU = 32, y 40 contando el *surge*.
+**Segmentación de imágenes médicas.** Workers en `g6.2xlarge` (1 L4, 8 vCPU) a ≈ US$0.98 la hora, porque el cuello está en la CPU que abre y corta las imágenes de microscopio. Facturan ≈ 450 horas al mes (≈ US$441) y trabajan ≈ 249. Como el trabajo es asíncrono e idempotente, va en spot: con la cola y su visibility timeout, una interrupción solo repite un pedazo. Cuota: 4 nodos × 8 vCPU = 32, y 40 contando el *surge*.
 
-**Video en tiempo real (c02).** Para 5,000 cuadros por segundo hacen falta 19 `g6.xlarge`, ≈ US$11.2k al mes. Aquí no hay spot: el video no espera. El ahorro viene de un compromiso sobre la base, y de medir cuántos cuadros por segundo saca de verdad cada L4.
+**Video en tiempo real con varias cámaras.** Para 5,000 cuadros por segundo hacen falta 19 `g6.xlarge`, ≈ US$11.2k al mes. Aquí no hay spot: el video no espera. El ahorro viene de un compromiso sobre la base, y de medir cuántos cuadros por segundo saca de verdad cada L4.
 
-**Recomendación (c08).** El ranker (el modelo que ordena qué recomendar primero) corre en 4 `g6.2xlarge` (≈ US$2.9k al mes). La `g6.xlarge` tenía la misma L4, pero su red sostenida (≈ 2.5 Gb/s) se saturaba con las [[feature|features]] que recibe en cada petición. Se pagó ≈ US$126 más al mes por nodo para tener más red, no más GPU. Es el mismo *right-sizing*, con otro cuello.
+**Recomendación.** El ranker (el modelo que ordena qué recomendar primero) corre en 4 `g6.2xlarge` (≈ US$2.9k al mes). La `g6.xlarge` tenía la misma L4, pero su red sostenida (≈ 2.5 Gb/s) se saturaba con las [[feature|features]] que recibe en cada petición. Se pagó ≈ US$126 más al mes por nodo para tener más red, no más GPU. Es el mismo *right-sizing*, con otro cuello.
 
-**Moderación de contenido (c06).** 10 `g6.xlarge` encendidas 24/7, ≈ US$5.9k al mes, en dos etapas: 6 para la primera (≈ US$3.5k) y 4 para la segunda (≈ US$2.35k). Como el tráfico nunca baja a cero, esas 10 son base: el candidato perfecto para un compromiso.
+**Moderación de contenido.** 10 `g6.xlarge` encendidas 24/7, ≈ US$5.9k al mes, en dos etapas: 6 para la primera (≈ US$3.5k) y 4 para la segunda (≈ US$2.35k). Como el tráfico nunca baja a cero, esas 10 son base: el candidato perfecto para un compromiso.
 
-**Un LLM propio (c10).** 32 H100 en 4 `p5.48xlarge`: ≈ US$160.7k al mes a ≈ US$6.88 por H100-hora. La alternativa era una API de un proveedor de modelos: ≈ US$442k al mes. Con GPUs tan caras, cada punto de utilización vale miles de dólares, y aquí sí se piensa en bloques de capacidad y en neoclouds.
+**Un servicio que sirve su propio LLM.** 32 H100 en 4 `p5.48xlarge`: ≈ US$160.7k al mes a ≈ US$6.88 por H100-hora. La alternativa era una API de un proveedor de modelos: ≈ US$442k al mes. Con GPUs tan caras, cada punto de utilización vale miles de dólares, y aquí sí se piensa en bloques de capacidad y en neoclouds.
 
 **Fuera de ML.** El mismo trueque existe en el transporte. Rentar un auto por día es on-demand: caro por día, sin compromiso. Un arrendamiento de 3 años es un compromiso: barato por día, lo pagas aunque no salgas. El auto de una plataforma que te cancela si aparece un viaje mejor es spot. Y comprar el auto es comprar: gana si manejas mucho, durante años. Dónde se rompe: la plataforma te cancela antes de que te subas, y spot te baja a medio camino. Y ninguna arrendadora cobra por segundo.
 
@@ -596,58 +641,56 @@ Resuélvelos con lápiz antes de abrir la solución. Usa los precios de las tabl
 
 :::ejercicios
 ? [facil] La `g6e.12xlarge` trae 4 L40S y cuesta ≈ US$10.49 la hora. ¿Cuántos vCPU tiene, según la regla de los tamaños? ¿Cuánto cuesta por GPU-hora, y cuánto más que una L40S en la `g6e.xlarge`?
-- `12xlarge` = 12 × 4 = **48 vCPU**.
-- 10.49 ÷ 4 ≈ **US$2.62** por GPU-hora.
+- La regla: vCPU = número antes de `xlarge` × 4. `12xlarge` = 12 × 4 = **48 vCPU**.
+- GPU-hora, \(c = P ÷ G\), con \(P\) = 10.49 y \(G\) = 4: 10.49 ÷ 4 ≈ **US$2.62** por GPU-hora.
 - Contra 1.861: 2.62 ÷ 1.861 ≈ 1.41, **≈ 41 % más** por la misma L40S. La diferencia es la CPU y la RAM de más.
 ? [facil] ¿Cuánto cuesta al mes una `p5.48xlarge` encendida todo el tiempo? ¿Y cada una de sus H100?
-- 55.04 × 730 ≈ **US$40,179** al mes.
-- Por H100: 55.04 ÷ 8 = 6.88 por hora; 6.88 × 730 ≈ **US$5,022** al mes.
+- La instancia completa: \(P × 730\) = 55.04 × 730 ≈ **US$40,179** al mes.
+- Por H100: \(c = P ÷ G\) = 55.04 ÷ 8 = 6.88 por hora; \(c_{mes} = c × 730\) = 6.88 × 730 ≈ **US$5,022** al mes.
 ? [facil] La `g4dn.xlarge` trae 16 GiB de RAM y una T4 de 16 GB de VRAM. ¿Son la misma cantidad de bytes? ¿Cuántos GB son 16 GiB?
-- No. 16 GiB = 16 × 2³⁰ = 17,179,869,184 bytes ≈ **17.2 GB**.
+- No. 1 GiB = 2³⁰ bytes y 1 GB = 10⁹ bytes. 16 GiB = 16 × 2³⁰ = 17,179,869,184 bytes ≈ **17.2 GB**.
 - 16 GB = 16 × 10⁹ = 16,000,000,000 bytes. La RAM tiene ≈ 7 % más bytes.
 ? [facil] Una tabla de proveedor dice que la L40S hace «733 TFLOPS en FP16, *with sparsity*». ¿Cuántos ve un modelo normal? ¿Cuántas veces es eso los 312 de la A100?
-- Denso, dividiendo: 733 ÷ 2 ≈ **366.5 TFLOPS**. La página de NVIDIA publica el denso exacto: 362.
+- La regla: denso ≈ con *sparsity* ÷ 2. 733 ÷ 2 ≈ **366.5 TFLOPS**. La página de NVIDIA publica el denso exacto: 362.
 - 362 ÷ 312 ≈ **1.16 veces**. Sin dividir, parecería 2.35 veces: la trampa duplica la ventaja.
-? [medio] C01 cambia sus 2 T4 por 2 L4 (`g6.xlarge`), con el mismo tráfico (≈ 116 fotos por segundo en promedio). ¿Cuánto paga al mes y cuánto le cuesta cada 1,000 predicciones? ¿Y si las dos GPUs trabajaran a su capacidad planificada (la mitad de su máximo): ≈ 600 fotos por segundo la T4 y, con el supuesto de la Ronda de que la L4 atiende ≈ 2.5 veces más, ≈ 1,500 la L4?
-- Al mes: 2 × 0.8048 × 730 ≈ **US$1,175**.
-- Predicciones: 116 × 3,600 × 730 ≈ 304.8 M al mes, que son 304,848 grupos de 1,000. Costo: 1,175 ÷ 304,848 ≈ **US$0.0039 por 1,000**, contra ≈ US$0.0025 con T4.
-- Planificada: en una hora, la L4 hace 1,500 × 3,600 = 5.4 M predicciones, o sea 5,400 grupos de 1,000. Costo: 0.8048 ÷ 5,400 ≈ **US$0.00015 por 1,000**. La T4, a 600 fotos por segundo, hace 2,160 grupos de 1,000 por hora: 0.526 ÷ 2,160 ≈ US$0.00024. Llena, la L4 sale ≈ 39 % más barata por predicción (1 − 0.00015 ÷ 0.00024, con los valores sin redondear); con el tráfico de hoy, la T4 gana. La L4 conviene solo si atiende más de ≈ 1.53 veces lo de una T4 (su precio entre el de la T4) **y** ese tráfico existe.
-? [medio] El caso de búsqueda por imágenes de la Ronda (c07) re-embebe su catálogo en ≈ 23 L4-horas. ¿Cuánto cuesta on-demand? ¿Y en spot, con el ≈ 25 % de descuento que se observó en la `g6.xlarge`? ¿Y si además repite ≈ 10 % del trabajo por interrupciones?
-- On-demand: 23 × 0.8048 ≈ **US$18.5**.
-- Spot: 18.5 × 0.75 ≈ **US$13.9**.
-- Con 10 % repetido: 13.9 × 1.1 ≈ **US$15.3**. El ahorro baja de US$4.6 a US$3.2. Vale la pena, pero poco: con descuentos chicos, spot apenas compensa.
-? [medio] Los workers de c04 (`g6.2xlarge`, ≈ US$0.98 la hora) facturan 450 horas al mes. ¿Conviene comprometer uno a 1 año con 35 % de descuento? ¿Desde cuántas horas al mes conviene?
-- On-demand: 450 × 0.98 = **US$441**.
-- Comprometido: 0.98 × 0.65 × 730 ≈ **US$465**, se use o no.
-- No conviene: US$24 más caro. El punto de equilibrio es 730 × (1 − 0.35) ≈ **475 horas** al mes (≈ 65 % del tiempo). Por encima, gana el compromiso.
+? [medio] Alba cambia sus 2 T4 por 2 L4 (`g6.xlarge`), con el mismo tráfico (≈ 116 fotos por segundo en promedio). ¿Cuánto paga al mes y cuánto le cuesta cada 1,000 predicciones? ¿Y si las dos GPUs trabajaran a su capacidad planificada (la mitad de su máximo): ≈ 600 fotos por segundo la T4 y, con el supuesto del equipo de Alba de que la L4 atiende ≈ 2.5 veces más, ≈ 1,500 la L4?
+- Usa las fórmulas del costo por 1,000: \(F = c × r × 730\), \(Q = T × 3,600 × 730\) y \(K = F ÷ (Q ÷ 1,000)\).
+- Al mes, con \(c\) = 0.8048 y \(r\) = 2: \(F\) = 0.8048 × 2 × 730 ≈ **US$1,175**.
+- Predicciones, con \(T\) = 116: \(Q\) = 116 × 3,600 × 730 ≈ 304.8 M al mes, que son 304,848 grupos de 1,000. \(K\) = 1,175 ÷ 304,848 ≈ **US$0.0039 por 1,000**, contra ≈ US$0.0025 con T4.
+- Planificada: por hora y por GPU, \(K = c ÷ (T_{GPU} × 3,600 ÷ 1,000)\), con \(T_{GPU}\) las fotos por segundo que atiende cada GPU. La L4 hace 1,500 × 3,600 = 5.4 M predicciones por hora, o sea 5,400 grupos de 1,000: \(K\) = 0.8048 ÷ 5,400 ≈ **US$0.00015 por 1,000**. La T4, a 600 fotos por segundo, hace 2,160 grupos de 1,000 por hora: 0.526 ÷ 2,160 ≈ US$0.00024. Llena, la L4 sale ≈ 39 % más barata por predicción (1 − 0.00015 ÷ 0.00024, con los valores sin redondear); con el tráfico de hoy, la T4 gana. La L4 conviene solo si atiende más de ≈ 1.53 veces lo de una T4 (su precio entre el de la T4) **y** ese tráfico existe.
+? [medio] Un servicio de búsqueda semántica con embeddings vuelve a calcular los embeddings de todo su catálogo en ≈ 23 L4-horas (un supuesto del ejemplo). ¿Cuánto cuesta on-demand? ¿Y en spot, con el ≈ 25 % de descuento que se observó en la `g6.xlarge`? ¿Y si además repite ≈ 10 % del trabajo por interrupciones?
+- Usa \(F_{od} = P × h\), \(P_s = P × (1 − s)\) y \(F_s = P_s × (h + h_{rep})\), con \(P\) = 0.8048, \(h\) = 23 y \(s\) = 0.25.
+- On-demand: \(F_{od}\) = 0.8048 × 23 ≈ **US$18.5**.
+- Spot sin repetir (\(h_{rep}\) = 0): \(P_s\) = 0.8048 × 0.75, así que \(F_s\) = 18.5 × 0.75 ≈ **US$13.9**.
+- Con 10 % repetido (\(h_{rep}\) = 0.1 × 23 = 2.3 h): \(F_s\) = 0.8048 × 0.75 × (23 + 2.3) = 13.9 × 1.1 ≈ **US$15.3**. El ahorro baja de US$4.6 a US$3.2. Vale la pena, pero poco: con descuentos chicos, spot apenas compensa.
+? [medio] Los workers de segmentación de imágenes médicas del ejemplo (`g6.2xlarge`, ≈ US$0.98 la hora) facturan 450 horas al mes. ¿Conviene comprometer uno a 1 año con 35 % de descuento? ¿Desde cuántas horas al mes conviene?
+- Usa \(F_{od} = P × h\), \(F_c = P × (1 − d) × 730\) y \(h^{*} = 730 × (1 − d)\), con \(P\) = 0.98, \(h\) = 450 y \(d\) = 0.35.
+- On-demand: \(F_{od}\) = 0.98 × 450 = **US$441**.
+- Comprometido: \(F_c\) = 0.98 × 0.65 × 730 ≈ **US$465**, se use o no.
+- No conviene: 465 − 441 = US$24 más caro. El punto de equilibrio es \(h^{*}\) = 730 × (1 − 0.35) ≈ **475 horas** al mes (≈ 65 % del tiempo). Por encima, gana el compromiso.
 ? [medio] Un sistema en `us-east-1` tiene un autoscaler que llega a 6 `g5.xlarge`, despliega con 1 de sobra, y tiene una de staging. Sus workers de batch corren en spot, 4 `g4dn.2xlarge` como máximo. ¿Qué cuotas pide y de cuántos vCPU?
-- Cuota de instancias G y VT **on-demand**: (6 + 1 + 1) × 4 = **32 vCPU**.
-- Cuota de instancias G y VT **spot**, aparte: 4 × 8 = **32 vCPU**.
+- La regla: \(text{cuota} = text{máquinas} × text{vCPU}\) (las máquinas en el peor momento, por los vCPU de cada una), una cuota por grupo de familias.
+- Cuota de instancias G y VT **on-demand**: (6 del autoscaler + 1 de sobra + 1 de staging) × 4 vCPU de cada `g5.xlarge` = **32 vCPU**.
+- Cuota de instancias G y VT **spot**, aparte: 4 máquinas × 8 vCPU de cada `g4dn.2xlarge` = **32 vCPU**.
 - Las dos se piden antes del lanzamiento, en `us-east-1`. Tenerlas no garantiza capacidad.
 ? [reto] Un modelo de lenguaje de 60 GB (pesos en BF16) tiene que servirse en una sola GPU. Al generar texto con una sola petición a la vez, cada token lee todos los pesos: los tokens por segundo ≈ ancho de banda ÷ 60 GB. Compara la A100 80 GB PCIe de Azure (US$3.673/h, 1,935 GB/s), la H100 SXM de AWS (`p5.4xlarge`, US$6.88/h, 3,350 GB/s) y la H100 NVL de Azure (US$6.98/h, 3,900 GB/s): tokens por segundo, US$ al mes y US$ por millón de tokens. ¿Cabe en una L40S?
+- Usa \(v ≈ B ÷ S\) y \(K_{tok} = P ÷ (v × 3,600) × 10^6\), con \(B\) el ancho de banda en GB/s, \(S\) = 60 GB el tamaño de los pesos, \(v\) los tokens por segundo, \(P\) el precio por hora y \(K_{tok}\) los US$ por millón de tokens. Al mes, \(P × 730\).
 - En una L40S no: tiene 48 GB.
-- A100 PCIe: 1,935 ÷ 60 ≈ **32 tokens/s**; 3.673 × 730 ≈ US$2,681 al mes; 3.673 ÷ (32.25 × 3,600) × 10⁶ ≈ **US$31.6 por millón**.
-- H100 SXM: 3,350 ÷ 60 ≈ **56 tokens/s**; ≈ US$5,022 al mes; ≈ **US$34.2 por millón**.
-- H100 NVL: 3,900 ÷ 60 = **65 tokens/s**; ≈ US$5,095 al mes; ≈ **US$29.8 por millón**.
+- A100 PCIe: \(v\) = 1,935 ÷ 60 ≈ **32 tokens/s** (32.25); 3.673 × 730 ≈ US$2,681 al mes; \(K_{tok}\) = 3.673 ÷ (32.25 × 3,600) × 10⁶ ≈ **US$31.6 por millón**.
+- H100 SXM: \(v\) = 3,350 ÷ 60 ≈ **56 tokens/s** (55.8); 6.88 × 730 ≈ US$5,022 al mes; \(K_{tok}\) = 6.88 ÷ (55.8 × 3,600) × 10⁶ ≈ **US$34.2 por millón**.
+- H100 NVL: \(v\) = 3,900 ÷ 60 = **65 tokens/s**; 6.98 × 730 ≈ US$5,095 al mes; \(K_{tok}\) = 6.98 ÷ (65 × 3,600) × 10⁶ ≈ **US$29.8 por millón**.
 - La H100 es casi el doble de rápida y casi el doble de cara: por token salen parecidas. Con una sola petición a la vez, el trabajo es memory-bound y se paga por ancho de banda. Con muchas peticiones juntas (batching) la cuenta cambia, y la H100 gana más.
 ? [reto] Una startup duda entre comprar una RTX PRO 6000 (≈ US$16,399) o rentarla en el *Secure Cloud* de RunPod (≈ US$2.69 la hora). La tarjeta gasta 600 W y la luz le cuesta US$0.15 por kWh (un supuesto). (a) Encendida 24/7, ¿cuánto cuesta la luz al mes? (b) ¿En cuántas horas de uso se paga la compra, contando la luz? (c) ¿Y si la usan 8 horas al día? (d) Di dos costos que la cuenta todavía no incluye.
-- (a) 0.6 kW × 730 h = 438 kWh; × 0.15 ≈ **US$66 al mes**.
-- (b) Cada hora propia ahorra 2.69 − 0.6 × 0.15 = US$2.60. 16,399 ÷ 2.60 ≈ **6,307 horas**: ≈ 8.6 meses 24/7.
-- (c) A ≈ 243 horas al mes: 6,307 ÷ 243 ≈ **26 meses**, más de dos años.
+- Usa \(h_{eq} = A ÷ (P − W × L)\): cada hora con la tarjeta propia te ahorra la renta \(P\) menos la luz que gasta, con \(A\) = 16,399 el precio de compra, \(W\) = 0.6 kW la potencia y \(L\) = 0.15 US$/kWh el precio de la luz.
+- (a) La luz al mes: \(W × 730 × L\) = 0.6 × 730 = 438 kWh; 438 × 0.15 ≈ **US$66 al mes**.
+- (b) Cada hora propia ahorra \(P − W × L\) = 2.69 − 0.6 × 0.15 = US$2.60. \(h_{eq}\) = 16,399 ÷ 2.60 ≈ **6,307 horas**: 6,307 ÷ 730 ≈ 8.6 meses 24/7.
+- (c) A ≈ 243 horas al mes (8 × 30.4): 6,307 ÷ 243 ≈ **26 meses**, más de dos años.
 - (d) La computadora que la hospeda (CPU, RAM, fuente de poder), el enfriamiento, el tiempo de quien la mantiene, que no tiene N+1 ni zonas, y que en tres años valdrá mucho menos.
 :::
 
 ## Lo que sigue {What comes next} [extra]
 
-**En la Ronda:**
-
-- **M04 · Hardware para inferencia** usa la tabla de GPUs (memoria, ancho de banda, BF16 y FP8, y el orden de magnitud del precio), la cuenta de costo por 1,000 predicciones con la utilización real y las maneras de compartir una GPU (MIG, time-slicing, la `g6f`).
-- **M13 · Nube** es esta lección hecha diseño: los precios de las familias, por qué gana la instancia más chica, spot con su aviso y su cola, Savings Plans y reservas («descuento no es capacidad»), cuotas por vCPU con la cuenta de C01 y las horas facturadas contra las trabajadas.
-- **M06 · Orquestación y escalado** explica qué pasa cuando el autoscaler pide un nodo y por qué tarda minutos.
-
-**En Sensei:** la siguiente lección, «Redes en la nube», cobra lo que esta no: los bytes que cruzan de zona, el NAT y la salida a internet, que en C01 suman más que las GPUs. Después, «Servicios gestionados, serverless y permisos» compara servir en tus propias instancias contra un endpoint gestionado y explica el *cold start*. Las estaciones de Kubernetes cuentan quién pide los nodos y cómo se reparten las GPUs entre pods.
-
-**En IA Privada:** la cuenta de rentar contra comprar, completa, con servidores, luz, depreciación y modelos de pesos abiertos. Sus calculadoras parten de la tabla de GPUs de esta lección.
+**En Sensei:** la siguiente lección, «Redes en la nube: VPC, subredes y egress», cobra lo que esta no: los bytes que cruzan de zona, el NAT y la salida a internet. En Alba, si cada request pudiera cruzar de una zona a otra, el cruce de zona costaría ≈ US$1.8k al mes (≈ US$3.6k con el resto de la factura), más del doble de los ≈ US$768 de sus dos T4; mandando cada request a las máquinas de su misma zona, baja a ≈ US$140 de red en total. Después, «Servicios gestionados, serverless y permisos» compara servir en tus propias instancias contra un endpoint gestionado y explica el *cold start*. La lección «Kubernetes» cuenta quién pide los nodos, por qué tarda minutos y cómo se reparten las GPUs entre los programas.
 
 ## Palabras que vas a oír {Words you will hear}
 
@@ -666,7 +709,7 @@ Intenta responder en tu cabeza antes de abrir cada respuesta.
 Una máquina virtual con 4 vCPU, 16 GiB de RAM y una T4. La `g` es la familia de GPUs para inferencia, el `4` la generación, `dn` los extras (disco NVMe local y red rápida) y `xlarge` el tamaño: 4 vCPU.
 ? ¿Por qué una T4 cuesta casi el doble en la `g4dn.12xlarge` que en la `g4dn.xlarge`?
 Porque la grande trae mucha más CPU y RAM por GPU: 3.912 ÷ 4 ≈ US$0.98 contra US$0.526. Para inferencia gana la instancia más chica que trae tu GPU.
-? C01 paga lo mismo con 116 o con 1,200 fotos por segundo. ¿Qué cambia?
+? Alba paga lo mismo con 116 o con 1,200 fotos por segundo. ¿Qué cambia?
 El costo por predicción: de ≈ US$0.0025 a ≈ US$0.00024 por 1,000. La nube cobra horas encendidas, no trabajo.
 ? ¿Qué decide si un trabajo puede ir en spot?
 Lo que pasa si te quitan la máquina con 2 minutos de aviso (30 s en Google y Azure). Si solo se repite un pedazo, sí; si un usuario ve un error, no.

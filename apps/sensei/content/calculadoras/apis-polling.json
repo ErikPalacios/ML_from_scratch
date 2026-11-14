@@ -1,10 +1,10 @@
 {
   "titulo": "Lo que cuesta el polling",
-  "intro": "Con la [[ley-little|ley de Little]], los trabajos vivos son la llegada por la duración, y cada uno pregunta por su estado cada tanto. Arranca con los números de M02.",
+  "intro": "Aplica la [[ley-little|ley de Little]], \\(L = λ × W\\): los trabajos vivos son la llegada por la duración. Cada uno pregunta por su estado cada \\(I\\) segundos, así que la API recibe \\(Q = L/I\\) consultas por segundo. Arranca con el ejemplo de OCR de la lección: 50 trabajos por segundo que viven ≈ 200 s, con polling cada 2 s.",
   "entradas": [
     {
       "id": "l",
-      "label": "Trabajos que llegan por segundo",
+      "label": "Trabajos que llegan por segundo, \\(λ\\)",
       "min": 1,
       "max": 2000,
       "paso": 1,
@@ -12,7 +12,7 @@
     },
     {
       "id": "w",
-      "label": "Duración promedio de un trabajo, en segundos (cola + proceso)",
+      "label": "Vida promedio de un trabajo, \\(W\\), en segundos (cola + proceso)",
       "min": 1,
       "max": 3600,
       "paso": 1,
@@ -21,7 +21,7 @@
     },
     {
       "id": "i",
-      "label": "Cada cuánto pregunta cada cliente, en segundos",
+      "label": "Cada cuánto pregunta cada cliente, \\(I\\), en segundos",
       "min": 0.5,
       "max": 120,
       "paso": 0.5,
@@ -41,39 +41,41 @@
   ],
   "salidas": [
     {
-      "label": "Trabajos vivos a la vez",
+      "label": "Trabajos vivos a la vez, \\(L\\)",
       "formula": "vivos",
       "formato": "int",
-      "nota": "Little: llegada × duración"
+      "nota": "\\(L = λ × W\\) (Little)"
     },
     {
-      "label": "Consultas de estado por segundo",
+      "label": "Consultas de estado por segundo, \\(Q\\)",
       "formula": "gets",
-      "formato": "int"
+      "formato": "int",
+      "nota": "\\(Q = L/I\\)"
     },
     {
-      "label": "Veces la tasa de creación",
+      "label": "Veces la tasa de creación, \\(Q/λ\\)",
       "formula": "gets / l",
       "formato": "x",
-      "decimales": 1
+      "decimales": 1,
+      "nota": "consultas por cada trabajo nuevo"
     },
     {
-      "label": "Consultas que encuentran el trabajo terminado",
+      "label": "Consultas que encuentran el trabajo terminado, \\(λ/Q\\)",
       "formula": "min(1, l / gets)",
       "formato": "pct",
       "decimales": 1,
       "barra": true,
-      "nota": "el resto contesta «todavía no»"
+      "nota": "cada trabajo termina una sola vez: \\(λ\\) de cada \\(Q\\); el resto contesta «todavía no»"
     },
     {
-      "label": "Lo que tarda en enterarse, en promedio, en segundos",
+      "label": "Lo que tarda en enterarse, en promedio, \\(I ÷ 2\\), en segundos",
       "formula": "i / 2",
       "formato": "num",
       "decimales": 1,
-      "nota": "después de que el trabajo terminó"
+      "nota": "después de que el trabajo terminó: termina, en promedio, a la mitad de un intervalo"
     },
     {
-      "label": "Avisos por segundo con webhook",
+      "label": "Avisos por segundo con webhook, \\(λ\\)",
       "formula": "l",
       "formato": "int",
       "nota": "uno por trabajo"

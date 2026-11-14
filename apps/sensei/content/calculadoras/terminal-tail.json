@@ -1,10 +1,10 @@
 {
  "titulo": "Cuánta historia trae kubectl logs",
- "intro": "`kubectl logs` lee el log de **un** pod. En el pico, el tráfico se reparte entre los pods del gateway, y cada uno escribe una línea por request. Arranca con el pico de diseño de C01 y los 5 pods que tiene en el pico.",
+ "intro": "`kubectl logs` lee el log de **un** pod. En el pico, el tráfico se reparte entre los pods del gateway, y cada uno escribe una línea por request. Arranca con el pico de diseño de Alba, 500 requests por segundo, y los 5 pods del gateway en ese pico. La calculadora aplica \\(f = λ ÷ k\\), \\(t_{tail} = m ÷ f\\) y \\(t_{rot} = M ÷ (f × b)\\).",
  "entradas": [
   {
    "id": "rps",
-   "label": "Requests por segundo en total (500 = pico de diseño de C01)",
+   "label": "Requests por segundo en total, \\(λ\\) (500 = pico de diseño de Alba)",
    "min": 10,
    "max": 2000,
    "paso": 10,
@@ -12,7 +12,7 @@
   },
   {
    "id": "pods",
-   "label": "Pods del gateway (el autoescalado va de 3 a 12)",
+   "label": "Pods del gateway, \\(k\\) (el autoescalado va de 3 a 12)",
    "min": 1,
    "max": 20,
    "paso": 1,
@@ -20,7 +20,7 @@
   },
   {
    "id": "t",
-   "label": "Líneas que pides con --tail",
+   "label": "Líneas que pides con --tail, \\(m\\)",
    "min": 10,
    "max": 2000,
    "paso": 10,
@@ -28,7 +28,7 @@
   },
   {
    "id": "b",
-   "label": "Bytes por línea",
+   "label": "Bytes por línea, \\(b\\)",
    "min": 50,
    "max": 2000,
    "paso": 10,
@@ -36,7 +36,7 @@
   },
   {
    "id": "rot",
-   "label": "Tamaño al que se rota el archivo del pod, en MiB (≈ 10 por omisión)",
+   "label": "Tamaño al que se rota el archivo del pod, \\(M\\), en MiB (10 por omisión)",
    "min": 1,
    "max": 100,
    "paso": 1,
@@ -51,34 +51,38 @@
  ],
  "salidas": [
   {
-   "label": "Líneas por segundo en cada pod",
+   "label": "Líneas por segundo en cada pod, \\(f\\)",
    "formula": "lps",
+   "nota": "\\(f = λ ÷ k\\)",
    "formato": "num",
    "decimales": 1
   },
   {
-   "label": "Segundos de tráfico que cubre --tail",
+   "label": "Segundos de tráfico que cubre --tail, \\(t_{tail}\\)",
    "formula": "t / lps",
+   "nota": "\\(t_{tail} = m ÷ f\\)",
    "formato": "num",
    "decimales": 2
   },
   {
    "label": "Líneas que escribe cada pod en 10 minutos",
    "formula": "600 * lps",
+   "nota": "600 s × \\(f\\)",
    "formato": "int"
   },
   {
    "label": "Megabytes que escribe cada pod en 10 minutos",
    "formula": "600 * lps * b / 1e6",
+   "nota": "600 s × \\(f\\) × \\(b\\), entre 10⁶",
    "formato": "num",
    "decimales": 1
   },
   {
-   "label": "Minutos que dura el archivo antes de rotar",
+   "label": "Minutos que dura el archivo antes de rotar, \\(t_{rot}\\)",
    "formula": "rot * pow(2, 20) / (lps * b) / 60",
    "formato": "num",
    "decimales": 1,
-   "nota": "lo más viejo que alcanza kubectl logs: solo lee el archivo actual"
+   "nota": "\\(t_{rot} = M ÷ (f × b)\\), con \\(M\\) en bytes (1 MiB = 2²⁰ B), entre 60; es lo más viejo que alcanza kubectl logs: solo lee el archivo actual"
   }
  ],
  "nota": "Con 12 pods, el máximo del autoescalado, el mismo --tail=50 cubre 1.2 s en vez de 0.5 s, y el archivo del pod dura ≈ 14 minutos en vez de ≈ 6. Para ir más atrás, se busca en el log del día guardado en S3."
