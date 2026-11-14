@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" role="img" aria-labelledby="f-identidad-jwt-t" class="f-svg" style="max-width:420px">
+<title id="f-identidad-jwt-t">Un JWT de moderación, por partes, en la versión de juguete del código, firmada con HS256 (el de Alba usa RS256: firma con llave privada y se verifica con la pública). Arriba, el token como texto: tres pedazos separados por puntos. Primera parte, el encabezado, en base64url: dice alg HS256 y typ JWT. Segunda parte, los claims: iss idp.alba.internal, sub moderacion, aud classifier, scope classify, iat y exp, que es iat más 900 segundos. Tercera parte, la firma: un HMAC-SHA256 del encabezado y los claims, hecho con la llave del emisor. Las dos primeras partes las lee cualquiera; la firma impide cambiarlas, porque sin la llave no se puede rehacer.</title>
+<rect class="f-card" x="10" y="10" width="340" height="400" rx="16"/>
+<text class="f-l" x="26" y="36">UN JWT, POR PARTES</text>
+<rect class="f-chip" x="22" y="48" width="316" height="34" rx="8"/>
+<text x="32" y="70" style="font-family:var(--mono,monospace);font-size:12px"><tspan style="fill:var(--o);font-weight:700">eyJhbGci…</tspan><tspan class="f-s">.</tspan><tspan style="fill:var(--p);font-weight:700">eyJpc3Mi…</tspan><tspan class="f-s">.</tspan><tspan style="fill:var(--b);font-weight:700">dGhlLXNp…</tspan></text>
+<rect x="22" y="98" width="316" height="72" rx="10" style="fill:var(--o);opacity:.14"/>
+<text class="f-l" x="34" y="120">1 · ENCABEZADO · CÓMO SE FIRMÓ</text>
+<text class="f-s" x="34" y="142" style="font-family:var(--mono,monospace);font-size:12px">{"alg": "HS256", "typ": "JWT"}</text>
+<text class="f-s" x="34" y="160" style="font-size:12px">el del código · en Alba, RS256 con su kid</text>
+<rect x="22" y="180" width="316" height="134" rx="10" style="fill:var(--p);opacity:.14"/>
+<text class="f-l" x="34" y="202">2 · CLAIMS</text>
+<text class="f-s" x="34" y="224" style="font-family:var(--mono,monospace);font-size:12px">"iss": "idp.alba.internal"</text><text class="f-s" x="236" y="224" style="font-size:12px">emisor</text>
+<text class="f-s" x="34" y="242" style="font-family:var(--mono,monospace);font-size:12px">"sub": "moderacion"</text><text class="f-s" x="236" y="242" style="font-size:12px">quién</text>
+<text class="f-s" x="34" y="260" style="font-family:var(--mono,monospace);font-size:12px">"aud": "classifier"</text><text class="f-s" x="236" y="260" style="font-size:12px">para quién</text>
+<text class="f-s" x="34" y="278" style="font-family:var(--mono,monospace);font-size:12px">"scope": "classify"</text><text class="f-s" x="236" y="278" style="font-size:12px">qué permite</text>
+<text class="f-s" x="34" y="296" style="font-family:var(--mono,monospace);font-size:12px">"exp": iat + 900</text><text class="f-s" x="236" y="296" style="font-size:12px">hasta cuándo</text>
+<rect x="22" y="324" width="316" height="72" rx="10" style="fill:var(--b);opacity:.14"/>
+<text class="f-l" x="34" y="346">3 · FIRMA</text>
+<text class="f-s" x="34" y="368" style="font-size:12px">HMAC-SHA256(encabezado.claims, llave)</text>
+<text class="f-s" x="34" y="386" style="font-size:12px;font-weight:700">sin la llave, no se puede rehacer</text>
+</svg>

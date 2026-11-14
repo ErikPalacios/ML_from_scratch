@@ -1,0 +1,71 @@
+{
+ "titulo": "Vida del token: cuánto vale uno robado y cuánto trabaja el emisor",
+ "intro": "Aplica \\(n = I × 1,440 ÷ R\\): \\(I\\) instancias, cada una con su token, que lo renuevan cada \\(R\\) minutos, piden \\(n\\) tokens al día. Un token robado vale, como mucho, su vida \\(D\\). Arranca con los 3 callers de Alba: tokens de 15 minutos y, como supuestos de la lección, renovación a los 12 minutos y 4 instancias por caller.",
+ "entradas": [
+  {
+   "id": "D",
+   "label": "Vida del token, \\(D\\), en minutos",
+   "min": 1,
+   "max": 120,
+   "paso": 1,
+   "valor": 15
+  },
+  {
+   "id": "R",
+   "label": "Renovación: cada cuántos minutos se pide otro, \\(R\\) (si pasa de \\(D\\), se usa \\(D\\))",
+   "min": 1,
+   "max": 120,
+   "paso": 1,
+   "valor": 12
+  },
+  {
+   "id": "I",
+   "label": "Instancias que piden su propio token, \\(I\\) (las de todos los callers, sumadas)",
+   "min": 1,
+   "max": 100000,
+   "paso": 1,
+   "valor": 12,
+   "tipo": "numero"
+  }
+ ],
+ "calculos": [
+  {
+   "id": "Rr",
+   "formula": "min(R, D)"
+  },
+  {
+   "id": "n",
+   "formula": "I * 1440 / max(Rr, 1e-9)"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "Tokens que se piden al día, \\(n\\)",
+   "formula": "n",
+   "formato": "int",
+   "nota": "\\(n = I × 1,440 ÷ R\\)"
+  },
+  {
+   "label": "Pedidos por segundo al emisor, \\(n ÷ 86,400\\)",
+   "formula": "n / 86400",
+   "formato": "num",
+   "decimales": 3,
+   "nota": "\\(n\\) entre los 86,400 s del día"
+  },
+  {
+   "label": "Lo que vale un token robado, como mucho, en minutos",
+   "formula": "D",
+   "formato": "num",
+   "decimales": 0,
+   "nota": "su vida \\(D\\)"
+  },
+  {
+   "label": "Margen antes de caducar, \\(D − R\\), en minutos",
+   "formula": "D - Rr",
+   "formato": "num",
+   "decimales": 0,
+   "nota": "con 0, el caller corre el riesgo de quedarse sin token válido"
+  }
+ ],
+ "nota": "Sin caché, cada request pediría un token: con las ≈ 10 M fotos al día de Alba serían ≈ 116 por segundo."
+}

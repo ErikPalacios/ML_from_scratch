@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" role="img" aria-labelledby="f-cifrado-cadena-t" class="f-svg" style="max-width:420px">
+<title id="f-cifrado-cadena-t">La cadena de confianza de un certificado, de arriba hacia abajo. La CA raíz, cuya llave pública ya viene instalada en el almacén de confianza de tu sistema y cuya llave privada se guarda fuera de línea, firma el certificado de una CA intermedia. La intermedia firma el certificado del servidor, que dice: nombre api.alba.example, una llave pública y válido 198 días. El cliente verifica de abajo hacia arriba: la firma del certificado del servidor con la llave de la intermedia, la de la intermedia con la de la raíz, y revisa que el nombre sea el que pidió y que no haya vencido.</title>
+<rect class="f-card" x="10" y="10" width="340" height="400" rx="16"/>
+<text class="f-l" x="26" y="36">LA CADENA DE CONFIANZA</text>
+<rect class="f-dark" x="40" y="52" width="216" height="74" rx="12"/>
+<text class="f-dark-l" x="56" y="74">CA RAÍZ</text>
+<text class="f-dark-t" x="56" y="96" style="font-size:14px">ya está en tu sistema</text>
+<text class="f-dark-t" x="56" y="114" style="font-size:12px;font-weight:400">su privada, fuera de línea</text>
+<rect class="f-b2" x="40" y="174" width="216" height="74" rx="12"/>
+<text class="f-l" x="56" y="196">CA INTERMEDIA</text>
+<text class="f-t" x="56" y="218" style="font-size:14px">Intermedia R2</text>
+<text class="f-s" x="56" y="236" style="font-size:12px">firmada por la raíz</text>
+<rect class="f-chip" x="40" y="296" width="216" height="98" rx="12"/>
+<text class="f-l" x="56" y="318">CERTIFICADO DEL SERVIDOR</text>
+<text class="f-t" x="56" y="340" style="font-size:14px">api.alba.example</text>
+<text class="f-s" x="56" y="358" style="font-size:12px">+ su llave pública</text>
+<text class="f-s" x="56" y="376" style="font-size:12px">válido 198 días</text>
+<path class="f-flecha" d="M100 126 L100 166"/><path class="f-punta" d="M94 165 L106 165 L100 174 Z"/>
+<text class="f-s" x="108" y="155" style="font-size:12px;font-weight:700">firma</text>
+<path class="f-flecha" d="M100 248 L100 288"/><path class="f-punta" d="M94 287 L106 287 L100 296 Z"/>
+<text class="f-s" x="108" y="277" style="font-size:12px;font-weight:700">firma</text>
+<path class="f-flecha" d="M300 345 L300 98" style="stroke:var(--g)"/><path d="M294 100 L306 100 L300 90 Z" style="fill:var(--g)"/>
+<path class="f-flecha" d="M256 345 L300 345" style="stroke:var(--g)"/>
+<text class="f-s" x="314" y="200" style="font-size:12px;font-weight:700" transform="rotate(90 314 200)" text-anchor="middle">el cliente verifica</text>
+<text class="f-s" x="262" y="372" style="font-size:12px">¿nombre?</text>
+<text class="f-s" x="262" y="388" style="font-size:12px">¿vigente?</text>
+</svg>

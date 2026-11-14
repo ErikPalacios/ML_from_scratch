@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 376" role="img" aria-labelledby="f-ataques-adversario-t" class="f-svg" style="max-width:420px">
+<title id="f-ataques-adversario-t">Un ejemplo adversario en un modelo lineal de juguete. Cada número de la foto cambia 1/255, unas 0.0039, y mueve el logit apenas 0.00002. Los 150,528 números se mueven hacia el mismo lado: el logit baja (1/255) × 150,528 × 0.005 ≈ 2.95, de z = 2, que es Tenis, a z ≈ −0.95, del otro lado de la frontera z = 0.</title>
+<rect class="f-card" x="8" y="8" width="344" height="92" rx="16"/>
+<text class="f-l" x="20" y="34">1 · UN SOLO NÚMERO</text>
+<text class="f-s" x="20" y="60">Cambia ε = 1/255 ≈ 0.0039: invisible.</text>
+<text class="f-s" x="20" y="84">Mueve el logit ε × |w<tspan dy="3" style="font-size:11px">i</tspan><tspan dy="-3">|</tspan> ≈ 0.00002.</text>
+<line class="f-flecha" x1="180" y1="104" x2="180" y2="122"/><path class="f-punta" d="M172,120 L188,120 L180,130 Z"/>
+<text class="f-s" x="196" y="121">× 150,528</text>
+<rect class="f-card" x="8" y="136" width="344" height="92" rx="16"/>
+<text class="f-l" x="20" y="162">2 · TODOS HACIA EL MISMO LADO</text>
+<text class="f-s" x="20" y="188">Δz ≈ ε × d × w<tspan dy="3" style="font-size:11px">prom</tspan></text>
+<text class="f-t" x="20" y="214">≈ (1/255) × 150,528 × 0.005 ≈ 2.95</text>
+<rect class="f-card" x="8" y="244" width="344" height="124" rx="16"/>
+<text class="f-l" x="20" y="270">3 · EL LOGIT CRUZA LA FRONTERA</text>
+<line class="f-linea" x1="30" y1="330" x2="330" y2="330"/>
+<line class="f-linea" x1="150" y1="290" x2="150" y2="342" style="stroke-dasharray:4 4"/>
+<text class="f-l" x="150" y="360" text-anchor="middle">z = 0</text>
+<text class="f-s" x="30" y="360">otra</text><text class="f-s" x="330" y="360" text-anchor="end">Tenis</text>
+<circle class="f-g" cx="270" cy="330" r="7"/><text class="f-s" x="270" y="318" text-anchor="middle">z = 2</text>
+<circle class="f-o" cx="93" cy="330" r="7"/><text class="f-s" x="93" y="318" text-anchor="middle">z ≈ −0.95</text>
+<line class="f-flecha" x1="258" y1="300" x2="112" y2="300"/><path class="f-punta" d="M114,293 L114,307 L104,300 Z"/>
+</svg>

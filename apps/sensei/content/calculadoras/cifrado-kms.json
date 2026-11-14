@@ -1,0 +1,22 @@
+{
+  "titulo": "Lo que cuesta KMS con y sin Bucket Key",
+  "intro": "Aplica la fórmula de la lección: \\(Q = W × 30.4 × (1 − F)\\) requests a KMS al mes y costo = \\(n_{llaves}\\) × US$1 + 0.03 × \\(Q\\) ÷ 10,000 (en US$) (precios de AWS KMS, noviembre de 2026: US$1 por llave antes de rotar; sin contar las 20,000 requests gratis al mes). Arranca con las ≈ 7.5 M fotos nuevas al día de Alba, sin Bucket Key.",
+  "entradas": [
+    { "id": "W", "label": "Objetos escritos o leídos al día con SSE-KMS, \\(W\\), en millones", "min": 0.01, "max": 100, "paso": 0.01, "valor": 7.5, "tipo": "numero" },
+    { "id": "F", "label": "Fracción de requests que ahorra el Bucket Key, \\(F\\) (0 = sin él · 0.99 = el máximo)", "min": 0, "max": 0.99, "paso": 0.01, "valor": 0 },
+    { "id": "nl", "label": "Llaves maestras, \\(n_{llaves}\\)", "min": 1, "max": 50, "paso": 1, "valor": 1 },
+    { "id": "D", "label": "Tamaño de un objeto, \\(D\\), en bytes (para la última salida)", "min": 1, "max": 1000000000, "paso": 1, "valor": 200000, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "Q", "formula": "W * 1e6 * 30.4 * (1 - F)" },
+    { "id": "req", "formula": "Q / 10000 * 0.03" }
+  ],
+  "salidas": [
+    { "label": "Requests a KMS al mes, \\(Q\\)", "formula": "Q", "formato": "int", "nota": "\\(W × 30.4 × (1 − F)\\)" },
+    { "label": "Costo de las requests, en US$ al mes", "formula": "req", "formato": "num", "decimales": 2, "nota": "\\(Q\\) ÷ 10,000 × 0.03" },
+    { "label": "Costo total de KMS, en US$ al mes", "formula": "nl * 1 + req", "formato": "num", "decimales": 2, "nota": "\\(n_{llaves}\\) × 1 + requests" },
+    { "label": "Parte del costo que son llaves", "formula": "nl / max(nl + req, 1e-9)", "formato": "pct", "barra": true, "nota": "\\(n_{llaves}\\) ÷ total" },
+    { "label": "Llamadas a Encrypt para cifrar un objeto directo, sin sobre, \\(n_{llamadas}\\)", "formula": "ceil(D / 4096)", "formato": "int", "nota": "\\(n_{llamadas}\\) = ⌈\\(D\\) ÷ 4,096⌉: el tope de Encrypt son 4,096 bytes" }
+  ],
+  "nota": "Con sobre, cada objeto cuesta una sola request a KMS, sin importar \\(D\\); con Bucket Key, ni siquiera eso."
+}

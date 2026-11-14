@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 352" role="img" aria-labelledby="f-identidad-sal-t" class="f-svg" style="max-width:420px">
+<title id="f-identidad-sal-t">Lo que guarda la base de cuentas de Alba para Ana y Beto, que eligieron la misma contraseña, tenis2026. Sin sal, con SHA-256, los dos hashes son idénticos, 247214dc7f0901b3, y quien robe la base ve que comparten contraseña. Con sal, cada cuenta tiene su propia sal al azar (a1b2c3d4 para Ana, 0f1e2d3c para Beto) y su hash lento: 86de24cc para Ana y e605e630 para Beto, sin ningún parecido. La sal se guarda en claro; la contraseña no se guarda.</title>
+<rect class="f-card" x="10" y="10" width="340" height="332" rx="16"/>
+<text class="f-l" x="26" y="36">LO QUE GUARDA LA BASE</text>
+<text class="f-s" x="26" y="56" style="font-size:12px">Ana y Beto eligen la misma: tenis2026</text>
+<text class="f-l" x="26" y="88">SIN SAL · SHA-256</text>
+<text class="f-l" x="26" y="108">CUENTA</text>
+<text class="f-l" x="132" y="108">HASH GUARDADO</text>
+<rect class="f-chip" x="22" y="116" width="316" height="30" rx="8"/>
+<text class="f-t" x="32" y="136" style="font-size:13px">Ana</text>
+<rect class="f-o" x="126" y="121" width="150" height="20" rx="5" style="opacity:.35"/>
+<text class="f-s" x="134" y="136" style="font-family:var(--mono,monospace);font-size:12px">247214dc7f0901b3</text>
+<rect class="f-chip" x="22" y="152" width="316" height="30" rx="8"/>
+<text class="f-t" x="32" y="172" style="font-size:13px">Beto</text>
+<rect class="f-o" x="126" y="157" width="150" height="20" rx="5" style="opacity:.35"/>
+<text class="f-s" x="134" y="172" style="font-family:var(--mono,monospace);font-size:12px">247214dc7f0901b3</text>
+<text class="f-s" x="286" y="160" style="font-size:12px;font-weight:700">iguales</text>
+<line class="f-linea" x1="22" y1="198" x2="338" y2="198" style="stroke-dasharray:3 4"/>
+<text class="f-l" x="26" y="222">CON SAL · HASH LENTO</text>
+<text class="f-l" x="26" y="242">CUENTA</text>
+<text class="f-l" x="96" y="242">SAL (EN CLARO)</text>
+<text class="f-l" x="222" y="242">HASH</text>
+<rect class="f-chip" x="22" y="250" width="316" height="30" rx="8"/>
+<text class="f-t" x="32" y="270" style="font-size:13px">Ana</text>
+<text class="f-s" x="96" y="270" style="font-family:var(--mono,monospace);font-size:12px">a1b2c3d4…</text>
+<rect class="f-g" x="216" y="255" width="96" height="20" rx="5" style="opacity:.35"/>
+<text class="f-s" x="224" y="270" style="font-family:var(--mono,monospace);font-size:12px">86de24cc…</text>
+<rect class="f-chip" x="22" y="286" width="316" height="30" rx="8"/>
+<text class="f-t" x="32" y="306" style="font-size:13px">Beto</text>
+<text class="f-s" x="96" y="306" style="font-family:var(--mono,monospace);font-size:12px">0f1e2d3c…</text>
+<rect class="f-g" x="216" y="291" width="96" height="20" rx="5" style="opacity:.35"/>
+<text class="f-s" x="224" y="306" style="font-family:var(--mono,monospace);font-size:12px">e605e630…</text>
+<text class="f-s" x="180" y="334" text-anchor="middle" style="font-size:12px">La contraseña no se guarda en ningún lado.</text>
+</svg>

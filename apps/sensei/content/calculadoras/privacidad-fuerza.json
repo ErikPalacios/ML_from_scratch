@@ -1,0 +1,83 @@
+{
+  "titulo": "¿Cuánto tarda en revertirse un hash?",
+  "intro": "Un hash sin llave se revierte probando todos los valores posibles: la misma cuenta de fuerza bruta de «Cifrado, llaves y certificados». Aplica la fórmula de la lección, \\(N = 10^d\\) y \\(t = N ÷ v\\), y la misma cuenta para una llave de HMAC de \\(L\\) bits, con \\(N = 2^L\\). Arranca con un teléfono de México (\\(d\\) = 10) y una GPU de juego (≈ 2 × 10¹⁰ SHA-256 por segundo: los ≈ 2.2 × 10¹⁰ medidos en «Cifrado, llaves y certificados», redondeados).",
+  "entradas": [
+    {
+      "id": "d",
+      "label": "Dígitos del identificador, \\(d\\) (10 = un teléfono de México)",
+      "min": 1,
+      "max": 24,
+      "paso": 1,
+      "valor": 10
+    },
+    {
+      "id": "g",
+      "label": "Velocidad del atacante, \\(v\\), en miles de hashes por segundo (20,000,000 ≈ una GPU de juego; 2,000 ≈ Python en una laptop)",
+      "min": 1,
+      "max": 100000000000,
+      "paso": 1,
+      "valor": 20000000,
+      "tipo": "numero"
+    },
+    {
+      "id": "L",
+      "label": "Largo de la llave de HMAC, \\(L\\), en bits (256 = la de la lección)",
+      "min": 8,
+      "max": 256,
+      "paso": 1,
+      "valor": 256
+    }
+  ],
+  "calculos": [
+    {
+      "id": "v",
+      "formula": "g * 1e3"
+    },
+    {
+      "id": "N",
+      "formula": "pow(10, d)"
+    },
+    {
+      "id": "t",
+      "formula": "N / v"
+    },
+    {
+      "id": "Tk",
+      "formula": "pow(2, L) / v"
+    }
+  ],
+  "salidas": [
+    {
+      "label": "Valores posibles sin llave, \\(N\\)",
+      "formula": "N",
+      "formato": "sci",
+      "nota": "\\(N = 10^d\\)"
+    },
+    {
+      "label": "Tiempo para probarlos todos, \\(t\\), en segundos",
+      "formula": "t",
+      "formato": "sci",
+      "nota": "\\(t = N ÷ v\\)"
+    },
+    {
+      "label": "El mismo \\(t\\), en minutos",
+      "formula": "t / 60",
+      "formato": "num",
+      "decimales": 3,
+      "nota": "\\(t ÷ 60\\)"
+    },
+    {
+      "label": "Con HMAC: tiempo para probar todas las llaves, \\(t\\), en segundos",
+      "formula": "Tk",
+      "formato": "sci",
+      "nota": "\\(t = 2^L ÷ v\\)"
+    },
+    {
+      "label": "El mismo tiempo con HMAC, en años",
+      "formula": "Tk / 31557600",
+      "formato": "sci",
+      "nota": "\\(2^L ÷ v\\), entre 31,557,600 segundos por año"
+    }
+  ],
+  "nota": "Sin llave, el tiempo crece 10 veces por cada dígito; con llave, se duplica por cada bit. Por eso una llave de 128 o 256 bits no se adivina, y un teléfono hasheado sí."
+}

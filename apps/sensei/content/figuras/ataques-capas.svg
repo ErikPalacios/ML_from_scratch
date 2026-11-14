@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 344" role="img" aria-labelledby="f-ataques-capas-t" class="f-svg" style="max-width:420px">
+<title id="f-ataques-capas-t">Defensa en profundidad con cuatro capas, en escala logarítmica. Llegan todos los intentos. La guarda de entrada deja pasar 0.5; Pillow sin el fallo corregido, 0.1, y queda 0.05; el pod sin root, 0.2, y queda 0.01; un permiso mal puesto, 0.05, y queda 0.0005. R = 0.5 × 0.1 × 0.2 × 0.05 = 0.0005: uno de cada 2,000 intentos cruza las cuatro.</title>
+<rect class="f-card" x="8" y="8" width="344" height="252" rx="16"/>
+<text class="f-l" x="20" y="34">LO QUE QUEDA DESPUÉS DE CADA CAPA</text>
+<text class="f-s" x="20" y="62">Llegan todos los intentos</text><text class="f-t" x="340" y="62" text-anchor="end">1</text>
+<rect class="f-b2" x="20" y="70" width="320" height="12" rx="6"/>
+<text class="f-s" x="20" y="102">1 · Guarda de entrada × 0.5</text><text class="f-t" x="340" y="102" text-anchor="end">0.5</text>
+<rect class="f-b" x="20" y="110" width="296" height="12" rx="6"/>
+<text class="f-s" x="20" y="142">2 · Pillow sin el fallo × 0.1</text><text class="f-t" x="340" y="142" text-anchor="end">0.05</text>
+<rect class="f-b" x="20" y="150" width="216" height="12" rx="6"/>
+<text class="f-s" x="20" y="182">3 · Pod sin root × 0.2</text><text class="f-t" x="340" y="182" text-anchor="end">0.01</text>
+<rect class="f-b" x="20" y="190" width="160" height="12" rx="6"/>
+<text class="f-s" x="20" y="222">4 · Permiso mal puesto × 0.05</text><text class="f-t" x="340" y="222" text-anchor="end">0.0005</text>
+<rect class="f-o" x="20" y="230" width="56" height="12" rx="6"/>
+<line class="f-linea" x1="20" y1="250" x2="340" y2="250"/>
+<line class="f-linea" x1="20" y1="246" x2="20" y2="254"/><line class="f-linea" x1="100" y1="246" x2="100" y2="254"/><line class="f-linea" x1="180" y1="246" x2="180" y2="254"/><line class="f-linea" x1="260" y1="246" x2="260" y2="254"/><line class="f-linea" x1="340" y1="246" x2="340" y2="254"/>
+<text class="f-l" x="20" y="276">0.0001</text><text class="f-l" x="100" y="276" text-anchor="middle">0.001</text><text class="f-l" x="180" y="276" text-anchor="middle">0.01</text><text class="f-l" x="260" y="276" text-anchor="middle">0.1</text><text class="f-l" x="340" y="276" text-anchor="end">1</text>
+<rect class="f-chip" x="8" y="288" width="344" height="48" rx="12"/>
+<text class="f-t" x="20" y="309">R = 0.5 × 0.1 × 0.2 × 0.05 = 0.0005</text>
+<text class="f-s" x="20" y="327">Uno de cada 2,000 intentos cruza las cuatro.</text>
+</svg>

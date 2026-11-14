@@ -1,0 +1,317 @@
+{
+ "titulo": "Por dónde podría entrar un ataque a Alba, y qué capa lo espera",
+ "width": 78,
+ "height": 58,
+ "lanes": [
+  {
+   "id": "fuera",
+   "label": "Afuera y la entrada",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 14
+  },
+  {
+   "id": "camino",
+   "label": "Red privada · cada foto",
+   "kind": "online",
+   "x": 0,
+   "y": 16,
+   "w": 78,
+   "h": 16
+  },
+  {
+   "id": "datos",
+   "label": "Datos · cada mes",
+   "kind": "offline",
+   "x": 0,
+   "y": 34,
+   "w": 78,
+   "h": 24
+  }
+ ],
+ "nodes": [
+  {
+   "id": "vendedora",
+   "label": "Vendedora",
+   "sub": "sube fotos, acepta categorías",
+   "badge": "1",
+   "kind": "client",
+   "x": 2,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "Cualquiera puede abrir una cuenta y subir fotos. Por aquí entran las **fotos caras** (una [[bomba-descompresion|bomba de descompresión]]) y las **etiquetas falsas**: cuando un vendedor acepta o corrige la categoría, eso se vuelve etiqueta."
+  },
+  {
+   "id": "backend",
+   "label": "Backend",
+   "sub": "sabe quién es cada vendedora",
+   "kind": "service",
+   "x": 30,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "El backend de publicaciones es uno de los 3 callers del clasificador. Es el único que sabe qué vendedora mandó cada foto, así que el **límite por vendedora** va aquí, no en el clasificador."
+  },
+  {
+   "id": "alb",
+   "label": "ALB",
+   "sub": "TLS · verifica el JWT",
+   "kind": "edge",
+   "x": 58,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "Lo único expuesto. Termina [[tls|TLS]] y verifica firma, emisor, audiencia y expiración del [[jwt|JWT]] de cada caller. La foto pasa tal cual: el ALB no mira lo que trae."
+  },
+  {
+   "id": "gateway",
+   "label": "Gateway",
+   "sub": "decodifica · sin root",
+   "badge": "2",
+   "kind": "service",
+   "x": 58,
+   "y": 20,
+   "w": 18,
+   "h": 8,
+   "note": "Lee e interpreta bytes que no controla: es la pieza más expuesta. Tope de 10 MB y 40 MP antes de decodificar, 2 decodes a la vez, Pillow al día, usuario UID 10001 y ningún permiso para leer fotos de S3."
+  },
+  {
+   "id": "triton",
+   "label": "Triton",
+   "sub": "solo el gateway le habla",
+   "badge": "3",
+   "kind": "gpu",
+   "x": 30,
+   "y": 20,
+   "w": 18,
+   "h": 8,
+   "note": "Sin entrada desde fuera: una regla de red de Kubernetes deja que solo el gateway le hable al puerto 8000 y solo el monitoreo lea el 8002. Una API de administración expuesta en un servidor de modelos es una puerta a correr código ajeno."
+  },
+  {
+   "id": "etiquetas",
+   "label": "Etiquetas",
+   "sub": "72 % de vendedores",
+   "badge": "4",
+   "kind": "store",
+   "x": 2,
+   "y": 40,
+   "w": 18,
+   "h": 9,
+   "note": "El 72 % viene de vendedores, el 7 % de moderadores y el 21 % de personas contratadas. Aquí apunta el [[envenenamiento-datos|envenenamiento]]: unas cuantas cuentas pueden mover una categoría chica."
+  },
+  {
+   "id": "entrena",
+   "label": "Reentrenamiento",
+   "sub": "snapshot · gate",
+   "kind": "job",
+   "x": 30,
+   "y": 40,
+   "w": 18,
+   "h": 9,
+   "note": "Cada mes, sobre un [[snapshot]] congelado con su huella. El gate compara contra el [[golden-set|golden set]] de 50,000 fotos antes de dejar salir el modelo."
+  },
+  {
+   "id": "pesos",
+   "label": "Pesos",
+   "sub": "sha256 al cargar",
+   "badge": "5",
+   "kind": "store",
+   "x": 58,
+   "y": 40,
+   "w": 18,
+   "h": 9,
+   "note": "Salen del pipeline propio de Alba, en ONNX y en el engine de la GPU, nunca como un pickle bajado de internet. Su sha256 queda en el [[registro-modelos|registro]] y se verifica al cargar."
+  }
+ ],
+ "edges": [
+  {
+   "from": "vendedora",
+   "to": "backend",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "foto"
+  },
+  {
+   "from": "backend",
+   "to": "alb",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "HTTPS"
+  },
+  {
+   "from": "alb",
+   "to": "gateway",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "gateway",
+   "to": "triton",
+   "kind": "online",
+   "fromSide": "l",
+   "toSide": "r",
+   "label": ":8000"
+  },
+  {
+   "from": "vendedora",
+   "to": "etiquetas",
+   "kind": "async",
+   "fromSide": "b",
+   "toSide": "t",
+   "dashed": true,
+   "label": "acepta",
+   "via": [
+    [
+     11,
+     14.8
+    ],
+    [
+     24,
+     14.8
+    ],
+    [
+     24,
+     38.4
+    ],
+    [
+     11,
+     38.4
+    ]
+   ]
+  },
+  {
+   "from": "etiquetas",
+   "to": "entrena",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "snapshot"
+  },
+  {
+   "from": "entrena",
+   "to": "pesos",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "gate ok"
+  },
+  {
+   "from": "pesos",
+   "to": "triton",
+   "kind": "offline",
+   "fromSide": "t",
+   "toSide": "b",
+   "via": [
+    [
+     67,
+     36
+    ],
+    [
+     39,
+     36
+    ]
+   ],
+   "label": "sha256"
+  }
+ ],
+ "flows": [
+  {
+   "id": "foto",
+   "label": "Una foto hostil",
+   "steps": [
+    {
+     "nodes": [
+      "vendedora",
+      "backend"
+     ],
+     "edges": [
+      "vendedora>backend"
+     ],
+     "text": "Alguien sube una foto hecha para costar mucho al abrirse, o para explotar un fallo del decodificador. El **backend** sabe qué vendedora la mandó: ahí va el límite por vendedora."
+    },
+    {
+     "nodes": [
+      "backend",
+      "alb"
+     ],
+     "edges": [
+      "backend>alb"
+     ],
+     "text": "El backend llama `POST /v1/classify`. El ALB termina TLS y verifica el JWT: solo pasan los 3 callers internos. La foto pasa tal cual."
+    },
+    {
+     "nodes": [
+      "alb",
+      "gateway"
+     ],
+     "edges": [
+      "alb>gateway"
+     ],
+     "text": "El gateway lee el encabezado: más de 10 MB o 40 MP → **413**, sin decodificar. Si pasa, espera uno de los 2 lugares del semáforo. Si el decodificador tuviera un fallo, el atacante quedaría en un pod sin root y sin permisos de S3."
+    },
+    {
+     "nodes": [
+      "gateway",
+      "triton"
+     ],
+     "edges": [
+      "gateway>triton"
+     ],
+     "text": "A Triton solo llega un tensor de 3 × 224 × 224 ya recortado, y solo desde el gateway. Cuatro capas distintas: entrada, biblioteca, pod y permisos."
+    }
+   ]
+  },
+  {
+   "id": "etiqueta",
+   "label": "Una etiqueta envenenada",
+   "steps": [
+    {
+     "nodes": [
+      "vendedora",
+      "etiquetas"
+     ],
+     "edges": [
+      "vendedora>etiquetas"
+     ],
+     "text": "Un vendedor con 20 cuentas acepta categorías falsas a propósito. Cada respuesta se vuelve una etiqueta, como el 72 % de las de Alba."
+    },
+    {
+     "nodes": [
+      "etiquetas",
+      "entrena"
+     ],
+     "edges": [
+      "etiquetas>entrena"
+     ],
+     "text": "Cada mes se congela un snapshot con su huella sha256: lo que entró ya no cambia. Saber de qué cuenta vino cada etiqueta permite sacarlas todas si se descubre el engaño."
+    },
+    {
+     "nodes": [
+      "entrena",
+      "pesos"
+     ],
+     "edges": [
+      "entrena>pesos"
+     ],
+     "text": "El gate: si top-1 o top-5 bajan más de **0.3 puntos** sobre el golden set, o una de las 100 categorías grandes pierde más de 5 puntos de recall, el modelo no sale. Una puerta trasera bien hecha podría pasar: el golden set no trae su disparador."
+    },
+    {
+     "nodes": [
+      "pesos",
+      "triton"
+     ],
+     "edges": [
+      "pesos>triton"
+     ],
+     "text": "Los pesos aprobados llevan su sha256 en el registro. Antes de que Triton los cargue, se revisa la huella: si cambió un byte, no arrancan."
+    }
+   ]
+  }
+ ]
+}

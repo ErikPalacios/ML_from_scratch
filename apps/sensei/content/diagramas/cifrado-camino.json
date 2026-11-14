@@ -1,0 +1,48 @@
+{
+  "titulo": "Qué va cifrado en el camino de una foto de Alba",
+  "width": 78,
+  "height": 52,
+  "lanes": [
+    { "id": "viaja", "label": "Lo que viaja en cada request", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 24 },
+    { "id": "guarda", "label": "Lo que se guarda", "kind": "offline", "x": 0, "y": 30, "w": 78, "h": 22 }
+  ],
+  "nodes": [
+    { "id": "caller", "label": "Backend", "sub": "de publicaciones", "kind": "client", "x": 1, "y": 8, "w": 13, "h": 8,
+      "note": "Uno de los 3 programas que llaman al clasificador (los otros dos son moderación y búsqueda). Abre una conexión [[tls|TLS]] a `api.alba.example`, revisa el [[certificado]] y manda la foto con su token. Reutiliza la conexión para no pagar el saludo en cada request." },
+    { "id": "alb", "label": "ALB", "sub": "termina TLS", "kind": "edge", "x": 22, "y": 8, "w": 13, "h": 8,
+      "note": "Tiene el certificado público de `api.alba.example` y su llave privada. Aquí se **descifra** la request: es la [[terminacion-tls|terminación de TLS]]. Necesita leerla para verificar el JWT, ver la ruta y repartir entre los pods del gateway." },
+    { "id": "gateway", "label": "Gateway", "sub": "FastAPI", "kind": "service", "x": 43, "y": 8, "w": 13, "h": 8,
+      "note": "Recibe HTTP simple por la red privada de Alba (la [[vpc|VPC]]). Decodifica la foto, la recorta y manda el tensor a Triton. Escribe una línea de log por predicción, sin la foto." },
+    { "id": "triton", "label": "Triton", "sub": "el modelo", "kind": "model", "x": 64, "y": 8, "w": 13, "h": 8,
+      "note": "Sin entrada desde fuera: un Service interno y una NetworkPolicy dejan que solo el gateway le hable al puerto 8000 y solo el monitoreo lea el 8002. El tramo gateway → Triton **no va cifrado**: lo protege la red. Con una malla de servicios iría con [[mtls|mTLS]]." },
+    { "id": "fluent", "label": "Fluent Bit", "sub": "junta los logs", "kind": "service", "x": 1, "y": 38, "w": 16, "h": 8,
+      "note": "El programa que recoge los logs del gateway y los sube a S3. Su rol de IAM solo escribe en el prefijo de logs. Todo lo que sale de un pod va por TLS, también esto." },
+    { "id": "s3", "label": "Buckets S3", "sub": "SSE-KMS", "kind": "store", "x": 30, "y": 38, "w": 16, "h": 8,
+      "note": "Todo bucket de Alba va cifrado en reposo con [[sse-kms|SSE-KMS]]: S3 cifra cada objeto con una [[llave-de-datos|llave de datos]] y guarda esa llave cifrada junto al objeto." },
+    { "id": "kms", "label": "KMS", "sub": "la llave de Alba", "kind": "store", "x": 58, "y": 38, "w": 16, "h": 8,
+      "note": "La [[llave-maestra|llave maestra]] de Alba para fotos y logs nunca sale de aquí. Rota sola cada año, y su [[politica-llave|política]] dice qué roles pueden descifrar. Cada uso queda anotado." }
+  ],
+  "edges": [
+    { "from": "caller", "to": "alb", "kind": "online", "label": "TLS", "fromSide": "r", "toSide": "l" },
+    { "from": "alb", "to": "gateway", "kind": "online", "label": "HTTP", "fromSide": "r", "toSide": "l" },
+    { "from": "gateway", "to": "triton", "kind": "online", "label": "HTTP", "fromSide": "r", "toSide": "l" },
+    { "from": "gateway", "to": "fluent", "kind": "async", "label": "log", "fromSide": "b", "toSide": "t", "via": [[49.5, 27], [9, 27]] },
+    { "from": "fluent", "to": "s3", "kind": "offline", "label": "TLS", "fromSide": "r", "toSide": "l" },
+    { "from": "s3", "to": "kms", "kind": "offline", "label": "llave", "fromSide": "r", "toSide": "l" }
+  ],
+  "flows": [
+    { "id": "request", "label": "Una request, tramo por tramo",
+      "steps": [
+        { "nodes": ["caller", "alb"], "edges": ["caller>alb"], "text": "El backend manda `POST /v1/classify` por **TLS**. Nadie en la red ve la foto ni el token; solo ve a qué IP va, cuánto pesa y el nombre `api.alba.example`." },
+        { "nodes": ["alb"], "edges": [], "text": "El ALB **descifra** con la llave privada de su certificado y verifica el token. Desde aquí, la request está en claro." },
+        { "nodes": ["alb", "gateway"], "edges": ["alb>gateway"], "text": "Va en **HTTP simple** por la red privada de Alba. Nadie de fuera alcanza esta red." },
+        { "nodes": ["gateway", "triton"], "edges": ["gateway>triton"], "text": "El tensor va **sin cifrar** dentro del cluster. Lo protegen que Triton no tenga entrada desde fuera y la NetworkPolicy. Es la decisión de Alba; mTLS es la mejora que se discute." }
+      ] },
+    { "id": "log", "label": "Un log que se guarda",
+      "steps": [
+        { "nodes": ["gateway", "fluent"], "edges": ["gateway>fluent"], "text": "El gateway escribe la línea de log, de ≈ 300 bytes, sin la foto. Fluent Bit la recoge." },
+        { "nodes": ["fluent", "s3"], "edges": ["fluent>s3"], "text": "Fluent Bit sube los logs a S3 **por TLS**: sale de un pod, y todo lo que sale va cifrado." },
+        { "nodes": ["s3", "kms"], "edges": ["s3>kms"], "text": "S3 pide a KMS una llave de datos, cifra el objeto y guarda la llave cifrada a su lado: **cifrado en reposo**. Leerlo después exigirá permiso sobre la llave." }
+      ] }
+  ]
+}

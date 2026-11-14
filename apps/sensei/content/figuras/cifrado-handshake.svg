@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 452" role="img" aria-labelledby="f-cifrado-handshake-t" class="f-svg" style="max-width:420px">
+<title id="f-cifrado-handshake-t">El saludo de TLS 1.3 entre el backend de Alba y el ALB, después del saludo de TCP, que cuesta una ida y vuelta. Primer mensaje, del backend al ALB: ClientHello, con el nombre api.alba.example y la mitad del acuerdo de llaves, A. Respuesta del ALB: ServerHello con su mitad, C; desde ahí todo va cifrado; en la misma respuesta vienen el certificado, la firma del saludo con su llave privada y el Finished. El saludo de TLS cuesta una ida y vuelta. Después el backend manda su Finished y la request POST /v1/classify con la foto, cifradas con AES-GCM, y el ALB contesta con la respuesta cifrada.</title>
+<rect class="f-card" x="10" y="10" width="340" height="432" rx="16"/>
+<text class="f-l" x="26" y="36">EL SALUDO DE TLS 1.3</text>
+<rect class="f-chip" x="22" y="48" width="100" height="40" rx="10"/><text class="f-t" x="72" y="73" text-anchor="middle" style="font-size:14px">Backend</text>
+<rect class="f-b2" x="238" y="48" width="100" height="40" rx="10"/><text class="f-t" x="288" y="73" text-anchor="middle" style="font-size:14px">ALB</text>
+<line class="f-linea" x1="72" y1="88" x2="72" y2="420"/><line class="f-linea" x1="288" y1="88" x2="288" y2="420"/>
+<rect x="82" y="100" width="196" height="28" rx="8" class="f-off"/><text class="f-s" x="180" y="119" text-anchor="middle" style="font-size:12px">antes: saludo de TCP, 1 RTT</text>
+<rect x="74" y="214" width="212" height="208" rx="6" style="fill:var(--g);opacity:.12"/>
+<text class="f-l" x="280" y="416" text-anchor="end">CIFRADO</text>
+<path class="f-flecha" d="M72 176 L280 176"/>
+<path class="f-punta" d="M279 170 L279 182 L288 176 Z"/>
+<text class="f-s" x="180" y="154" text-anchor="middle" style="font-size:12px;font-weight:700">ClientHello</text>
+<text class="f-s" x="180" y="169" text-anchor="middle" style="font-size:12px">api.alba.example + mitad A</text>
+<path class="f-flecha" d="M288 262 L80 262"/>
+<path class="f-punta" d="M81 256 L81 268 L72 262 Z"/>
+<text class="f-s" x="180" y="240" text-anchor="middle" style="font-size:12px;font-weight:700">ServerHello + mitad C</text>
+<text class="f-s" x="180" y="255" text-anchor="middle" style="font-size:12px">certificado + firma + Finished</text>
+<path class="f-flecha" d="M72 330 L280 330"/>
+<path class="f-punta" d="M279 324 L279 336 L288 330 Z"/>
+<text class="f-s" x="180" y="308" text-anchor="middle" style="font-size:12px;font-weight:700">Finished + POST /v1/classify</text>
+<text class="f-s" x="180" y="323" text-anchor="middle" style="font-size:12px">la foto, con AES-GCM</text>
+<path class="f-flecha" d="M288 400 L80 400"/>
+<path class="f-punta" d="M81 394 L81 406 L72 400 Z"/>
+<text class="f-s" x="180" y="378" text-anchor="middle" style="font-size:12px;font-weight:700">200 OK</text>
+<text class="f-s" x="180" y="393" text-anchor="middle" style="font-size:12px">la respuesta, cifrada</text>
+<path class="f-linea" d="M40 176 L32 176 L32 262 L40 262" style="fill:none"/>
+<text class="f-s" x="28" y="224" style="font-size:12px;font-weight:700" text-anchor="middle" transform="rotate(-90 28 224)">1 RTT</text>
+</svg>

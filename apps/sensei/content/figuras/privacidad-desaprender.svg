@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 430" role="img" aria-labelledby="f-privacidad-desaprender-t" class="f-svg" style="max-width:420px">
+<title id="f-privacidad-desaprender-t">La línea del tiempo de un borrado, de arriba hacia abajo. Fin de septiembre: el snapshot de septiembre trae la foto de Ana. 1 de octubre: el modelo resnet50-2026-10-01 se entrena con ese snapshot y aprendió de la foto. 20 de octubre: Ana pide el borrado; sus fotos salen de los buckets y quedan fuera del siguiente snapshot. Fin de octubre: el snapshot de octubre ya no trae la foto. Principios de noviembre: el modelo resnet50-2026-11-01 se entrena con él y nunca vio la foto; después de su canary, el modelo de octubre se queda vivo 24 a 48 horas por si hay que regresar, y luego se retira.</title>
+<rect class="f-card" x="10" y="10" width="340" height="410" rx="16"/>
+<text class="f-l" x="24" y="34">UN BORRADO EN EL TIEMPO</text>
+<line class="f-linea" x1="40" y1="64" x2="40" y2="342"/>
+<circle class="f-o" cx="40" cy="70" r="7"/>
+<text class="f-l" x="58" y="64">FIN DE SEPTIEMBRE</text>
+<rect class="f-chip" x="58" y="72" width="280" height="30" rx="8"/>
+<text class="f-s" x="70" y="92">Snapshot de septiembre: trae la foto</text>
+<circle class="f-o" cx="40" cy="134" r="7"/>
+<text class="f-l" x="58" y="128">1 DE OCTUBRE</text>
+<rect class="f-dark" x="58" y="136" width="280" height="30" rx="8"/>
+<text class="f-dark-t" x="70" y="156">resnet50-2026-10-01: aprendió de ella</text>
+<circle class="f-acc" cx="40" cy="198" r="9"/>
+<text class="f-l" x="58" y="192">20 DE OCTUBRE · ANA PIDE BORRAR</text>
+<rect class="f-chip" x="58" y="200" width="280" height="46" rx="8"/>
+<text class="f-s" x="70" y="219">Sus fotos salen de los buckets y</text>
+<text class="f-s" x="70" y="237">quedan fuera del siguiente snapshot</text>
+<circle class="f-g" cx="40" cy="278" r="7"/>
+<text class="f-l" x="58" y="272">FIN DE OCTUBRE</text>
+<rect class="f-chip" x="58" y="280" width="280" height="30" rx="8"/>
+<text class="f-s" x="70" y="300">Snapshot de octubre: ya sin la foto</text>
+<circle class="f-g" cx="40" cy="342" r="7"/>
+<text class="f-l" x="58" y="336">PRINCIPIOS DE NOVIEMBRE</text>
+<rect class="f-dark" x="58" y="344" width="280" height="30" rx="8"/>
+<text class="f-dark-t" x="70" y="364">resnet50-2026-11-01: nunca la vio</text>
+<text class="f-s" x="58" y="398" style="font-size:12px">El de octubre se queda 24–48 h por si hay</text>
+<text class="f-s" x="58" y="413" style="font-size:12px">que regresar, y se retira.</text>
+</svg>

@@ -158,11 +158,32 @@ Lo que encontraron las revisiones:
 - El check del navegador encontró ecuaciones en línea demasiado largas que se salían del ancho. Ahora `tools/mate.mjs` pone un punto de corte (`<wbr>`) después de cada operador, y `.m` ya no es `nowrap`. Los subíndices, las fracciones y las raíces siguen sin partirse.
 - Los editores en paralelo compartían la carpeta temporal y uno corrió por error el script de otro, que no cambió nada. En los encargos en paralelo, cada agente guarda sus scripts en una subcarpeta con el nombre de su lección.
 
+**Fase 9 (2026-11-14): ≈ 1.5 % por lección, 4 lecciones de seguridad.** Es la primera fase escrita con las reglas nuevas desde el borrador: Alba de la ficha, una ecuación por método y nada de Ronda. El límite semanal pasó de 31 % a 37 %. La ventana de 5 horas se usó en dos partes: los escritores arrancaron con la ventana vieja en 65 % (el usuario pidió no esperar el reinicio, porque lo que sobra de una ventana se pierde), la vieja llegó a 83 % y la nueva a 26 %. Por pieza:
+
+| Pieza | Modelo y esfuerzo | Semanal | Ventana de 5 h |
+|---|---|---|---|
+| Paquetes de la Ronda, reparto, encargos y grupo `seguridad` de la ficha | Sonnet bajo y la sesión | < 1 punto | 61 → 65 % |
+| Escritores de las 4 lecciones, en paralelo (≈ 25 min) | Opus, medio | 2 puntos (0.5 por lección) | 65 → 80 % (≈ 3.75 por lección) |
+| Revisión mecánica, las 4 | Sonnet, bajo | < 1 punto | 80 → 83 % |
+| Hechos, las 4 (con web; cruzó el reinicio de las 06:50) | Opus, alto | 2 puntos | 83 % → reinicio → 7 % |
+| Claridad, las 4 | Opus, alto | 1 punto | 7 → 19 % |
+| Consistencia (19 hallazgos) | Sonnet, bajo | < 1 punto | 19 → 20 % |
+| Aplicar la consistencia, ficha (+18 datos), navegador, plan, commit y deploy | Opus medio y la sesión | < 1 punto | 20 → 26 % |
+
+Lo que encontraron las revisiones:
+- **Hechos: 117 correcciones (4 graves).** Las graves: 10¹⁸ llaves/s no es «más que todas las computadoras del mundo» (la red de bitcoin calcula ≈ 10²¹ hashes/s); Argon2 y bcrypt no vienen en la biblioteca estándar de Python (sí PBKDF2 y scrypt); el ALB no agrega un header con el `client_id`, pasa el token tal cual; y mandar datos a la nube o al proveedor de etiquetado no es una «transferencia» en la ley mexicana sino una «remisión» a un encargado. De las 132 dudas de los escritores, 88 (67 %) estaban bien tal cual. Lo legal se verificó contra el DOF.
+- **Claridad: 419 cambios**, la mayoría conocimiento supuesto (siglas y piezas de Alba sin presentar: ALB, pod, EKS, IRSA, CVSS…). Las 4 lecciones quedaron en 60 min de lo esencial moviendo detalle a `:::profundo`, sin quitar ideas.
+- **Mecánica: 49 hallazgos**, casi todos de coherencia y redondeo (una figura que dibujaba HS256 cuando Alba firma con RS256, «390» contra «391» veces la edad del universo).
+- **Consistencia: 19 hallazgos.** Los más útiles: explicaciones repetidas de otras lecciones (pickle de `formatos`, token bucket de `balanceo`, fijar con hash de `python-ecosistema`) que se cortaron a un enlace; la misma GPU con tres velocidades (ahora 2.2 × 10¹⁰ medida, 2 × 10¹⁰ redondeada); y la ficha atrasada respecto a lo corregido. `http.md` dejó de leerse como si Alba usara mTLS.
+- Las fotos del producto: la ficha usa 2 TB/día (10 M × 200 KB) como cifra redonda; las fotos nuevas de publicaciones son ≈ 1.5 TB. Quedó anotado en la ficha y las lecciones siguen en 2 TB.
+
+Para la fase 10: mismo flujo. Lo que la Ronda tiene mal de seguridad (remisión contra transferencia, ShellTorch como grupo de fallos, el ALB y `aud`, la vida típica de los tokens) está en `revision/*-hechos.md` de la carpeta de la fase, sección «Para la Ronda».
+
 **Lección aprendida: las esperas entre ventanas van en una sesión nueva y corta.** Una sesión larga gasta ≈ 2 % de la ventana por turno solo en releer su contexto. Una sesión que espera el reinicio y despierta con cada agente que termina se come la ventana sin hacer trabajo. Lo barato es cerrar la sesión larga y que una sesión nueva, con un encargo corto, haga la espera y lance la tanda siguiente.
 
 ## 5. Las fases
 
-Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, la 5, la 6 y la 7 desde el 2026-11-06 y la 8 desde el 2026-11-13: 43 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) y las 5 de la fase 8 (9.4–10.3k palabras, 60–61 min lo esencial y 70–75 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
+Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, la 5, la 6 y la 7 desde el 2026-11-06 la 8 desde el 2026-11-13 y la 9 desde el 2026-11-14: 47 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) las 5 de la fase 8 (9.4–10.3k palabras, 60–61 min lo esencial y 70–75 min todo) y las 4 de la fase 9 (10.1–10.6k palabras, 60 min lo esencial y 72–76 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
 
 | Fase | Módulo | Lecciones | Prepara para la Ronda (nota interna, no va en la app) |
 |---|---|---|---|
@@ -174,7 +195,7 @@ Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 
 | 6 ✓ | Datos y almacenamiento | Formatos · Bases de datos · Object storage, data lakes y warehouses · Colas y streams · Tiempo, hashes e identificadores | M01, M02, M06, M09, M12, M13, M15 |
 | 7 ✓ | Herramientas del oficio | La terminal · Python y sus paquetes · PyTorch para producción · Git · Pruebas y CI/CD · Configuración y secretos | M05–M11, M15 |
 | 8 ✓ | La nube | Qué es la nube · Regiones y zonas · Máquinas, GPUs y precios · Redes en la nube · Servicios gestionados y permisos | M04, M06, M13, M15 · base de IA Privada (`content/datos/gpus.json`) |
-| 9 | Seguridad | Cifrado, llaves y certificados · Autenticación y permisos · Datos personales y la ley · Ataques y cadena de suministro | M05, M07, M09, M15 |
+| 9 ✓ | Seguridad | Cifrado, llaves y certificados · Autenticación y permisos · Datos personales y la ley · Ataques y cadena de suministro | M05, M07, M09, M15 |
 | 10 | Estaciones · Datos | Estaciones 1 y 2 de Alba | M09, M10 |
 | 11 | Estaciones · Modelo | Estación 3, 4 y 5 | M08, M10, M11 |
 | 12 | Estaciones · API | Estación 6 | M03, M07 |

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 448" role="img" aria-labelledby="f-ataques-pickle-t" class="f-svg" style="max-width:420px">
+<title id="f-ataques-pickle-t">Lo que alcanza un pickle hostil. Arriba: un pod abre un archivo .pt, el archivo pide correr una función y el código del atacante corre dentro del pod, con lo que el pod tiene: los permisos de su rol de IAM, su red dentro del cluster y hacia fuera, y la memoria y la GPU por donde pasan las fotos. El daño lo decide el pod, no el archivo. Abajo, lo que lo frena en Alba: un formato que no ejecuta nada (ONNX y el engine, no pickle), la huella sha256 de cada archivo verificada al cargar, que no deja arrancar un archivo con un byte distinto, y un pod con poco poder, con un rol que solo lee el modelo.</title>
+<rect class="f-card" x="8" y="8" width="344" height="252" rx="16"/>
+<text class="f-l" x="20" y="34">UN PICKLE HOSTIL, ABIERTO EN UN POD</text>
+<rect class="f-chip" x="20" y="48" width="320" height="36" rx="8"/>
+<text class="f-t" x="32" y="71">abre pesos.pt</text><text class="f-s" x="150" y="71">el archivo pide una función</text>
+<rect class="f-o" x="20" y="92" width="320" height="36" rx="8"/>
+<text class="f-t" x="32" y="115">¡corre el código del atacante!</text>
+<text class="f-s" x="20" y="150">Y alcanza todo lo que tiene el pod:</text>
+<rect class="f-chip" x="20" y="160" width="104" height="58" rx="8"/><rect class="f-p" x="20" y="160" width="104" height="6" rx="3"/>
+<text class="f-t" x="72" y="186" text-anchor="middle">permisos</text><text class="f-s" x="72" y="204" text-anchor="middle">su rol de IAM</text>
+<rect class="f-chip" x="128" y="160" width="104" height="58" rx="8"/><rect class="f-p" x="128" y="160" width="104" height="6" rx="3"/>
+<text class="f-t" x="180" y="186" text-anchor="middle">red</text><text class="f-s" x="180" y="204" text-anchor="middle">dentro y fuera</text>
+<rect class="f-chip" x="236" y="160" width="104" height="58" rx="8"/><rect class="f-p" x="236" y="160" width="104" height="6" rx="3"/>
+<text class="f-t" x="288" y="186" text-anchor="middle">memoria</text><text class="f-s" x="288" y="204" text-anchor="middle">fotos y GPU</text>
+<text class="f-s" x="20" y="242">El daño lo decide el pod, no el archivo.</text>
+<rect class="f-card" x="8" y="276" width="344" height="164" rx="16"/>
+<text class="f-l" x="20" y="302">LO QUE LO FRENA EN ALBA</text>
+<rect class="f-chip" x="20" y="314" width="320" height="34" rx="8"/><rect class="f-g" x="20" y="314" width="6" height="34" rx="3"/>
+<text class="f-t" x="36" y="336">formato</text><text class="f-s" x="124" y="336">nada que ejecutar (ONNX)</text>
+<rect class="f-chip" x="20" y="354" width="320" height="34" rx="8"/><rect class="f-g" x="20" y="354" width="6" height="34" rx="3"/>
+<text class="f-t" x="36" y="376">huella</text><text class="f-s" x="124" y="376">un byte distinto y no arranca</text>
+<rect class="f-chip" x="20" y="394" width="320" height="34" rx="8"/><rect class="f-g" x="20" y="394" width="6" height="34" rx="3"/>
+<text class="f-t" x="36" y="416">pod chico</text><text class="f-s" x="124" y="416">el rol solo lee el modelo</text>
+</svg>

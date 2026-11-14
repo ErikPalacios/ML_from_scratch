@@ -1,0 +1,266 @@
+{
+ "titulo": "Ana entra y edita: quién es y si la publicación es suya",
+ "width": 78,
+ "height": 58,
+ "lanes": [
+  {
+   "id": "a",
+   "label": "Ana, en su teléfono",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 13
+  },
+  {
+   "id": "l",
+   "label": "Entrar · una vez",
+   "kind": "online",
+   "x": 0,
+   "y": 14,
+   "w": 78,
+   "h": 14
+  },
+  {
+   "id": "p",
+   "label": "Cada request",
+   "kind": "online",
+   "x": 0,
+   "y": 29,
+   "w": 78,
+   "h": 14
+  },
+  {
+   "id": "m",
+   "label": "Lo que queda escrito",
+   "kind": "monitor",
+   "x": 0,
+   "y": 44,
+   "w": 78,
+   "h": 14
+  }
+ ],
+ "nodes": [
+  {
+   "id": "ana",
+   "label": "Ana",
+   "sub": "vendedora",
+   "kind": "client",
+   "x": 34,
+   "y": 3,
+   "w": 20,
+   "h": 8,
+   "note": "Ana vende unos tenis desde Ciudad de México. Entra con su correo y su contraseña, más un segundo factor si lo activó."
+  },
+  {
+   "id": "login",
+   "label": "Login",
+   "sub": "contraseña + código",
+   "kind": "service",
+   "x": 34,
+   "y": 18,
+   "w": 20,
+   "h": 8,
+   "note": "Toma la sal de Ana, repite el hash lento con lo que escribió y compara. Si activó el [[mfa|segundo factor]], pide también el código. Si todo sale bien, crea una [[sesion|sesión]] y la entrega en una cookie."
+  },
+  {
+   "id": "cuentas",
+   "label": "Cuentas",
+   "sub": "sal + hash, sin contraseñas",
+   "kind": "store",
+   "x": 59,
+   "y": 18,
+   "w": 18,
+   "h": 8,
+   "note": "Guarda, por cuenta, la sal y el [[contrasena-hash|hash lento]]. Ninguna contraseña en claro: si alguien roba esta base, tiene que adivinarlas una por una."
+  },
+  {
+   "id": "backend",
+   "label": "Backend",
+   "sub": "de publicaciones",
+   "kind": "service",
+   "x": 20,
+   "y": 33,
+   "w": 20,
+   "h": 8,
+   "note": "En cada request revisa dos cosas: **quién es** (la sesión de la cookie; sin ella, 401) y **si le toca** (su rol y que la publicación sea suya; si no, 403)."
+  },
+  {
+   "id": "pubs",
+   "label": "Publicaciones",
+   "sub": "cada una con su dueña",
+   "kind": "store",
+   "x": 47,
+   "y": 33,
+   "w": 22,
+   "h": 8,
+   "note": "La 8811 es de Ana (tenis blancos); la 8812, de Beto (una bici). El dueño de cada objeto es lo que revisa la autorización fina."
+  },
+  {
+   "id": "audit",
+   "label": "Auditoría",
+   "sub": "solo crece",
+   "kind": "queue",
+   "x": 20,
+   "y": 48,
+   "w": 20,
+   "h": 8,
+   "note": "El [[registro-auditoria|registro de auditoría]]: quién intentó qué, cuándo y con qué resultado. Se guarda donde nadie lo pueda editar."
+  }
+ ],
+ "edges": [
+  {
+   "from": "ana",
+   "to": "login",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "entrar"
+  },
+  {
+   "from": "login",
+   "to": "cuentas",
+   "kind": "neutral",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "compara el hash"
+  },
+  {
+   "from": "ana",
+   "to": "backend",
+   "kind": "online",
+   "fromSide": "l",
+   "toSide": "t",
+   "label": "cookie + PATCH",
+   "via": [
+    [
+     30,
+     7
+    ]
+   ]
+  },
+  {
+   "from": "backend",
+   "to": "pubs",
+   "kind": "neutral",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "¿es suya?"
+  },
+  {
+   "from": "backend",
+   "to": "audit",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t"
+  }
+ ],
+ "flows": [
+  {
+   "id": "entrar",
+   "label": "Entrar",
+   "steps": [
+    {
+     "nodes": [
+      "ana",
+      "login"
+     ],
+     "edges": [
+      "ana>login"
+     ],
+     "text": "Ana escribe su correo y su contraseña, y el código de su app si activó el segundo factor."
+    },
+    {
+     "nodes": [
+      "login",
+      "cuentas"
+     ],
+     "edges": [
+      "login>cuentas"
+     ],
+     "text": "El login toma la **sal** de Ana, repite el hash lento (≈ 50 ms) y compara con el guardado. Coincide."
+    },
+    {
+     "nodes": [
+      "login",
+      "ana"
+     ],
+     "edges": [],
+     "text": "Crea una **sesión**: un número largo al azar que guarda con «es Ana», y se lo da al navegador en una cookie `Secure` y `HttpOnly`."
+    }
+   ]
+  },
+  {
+   "id": "suya",
+   "label": "Editar su publicación",
+   "steps": [
+    {
+     "nodes": [
+      "ana",
+      "backend"
+     ],
+     "edges": [
+      "ana>backend"
+     ],
+     "text": "Ana manda `PATCH /publicaciones/8811` con la cookie. El backend busca la sesión: es Ana. **Autenticada**."
+    },
+    {
+     "nodes": [
+      "backend",
+      "pubs"
+     ],
+     "edges": [
+      "backend>pubs"
+     ],
+     "text": "Su rol, vendedora, puede editar publicaciones propias, y la 8811 es suya. **Autorizada**: se edita."
+    },
+    {
+     "nodes": [
+      "backend",
+      "audit"
+     ],
+     "edges": [
+      "backend>audit"
+     ],
+     "text": "Queda escrito: Ana editó la 8811, a tal hora."
+    }
+   ]
+  },
+  {
+   "id": "idor",
+   "label": "Cambiar el id",
+   "steps": [
+    {
+     "nodes": [
+      "ana",
+      "backend"
+     ],
+     "edges": [
+      "ana>backend"
+     ],
+     "text": "Ana escribe a mano `PATCH /publicaciones/8812`, la bici de Beto. La sesión es buena: sigue siendo Ana."
+    },
+    {
+     "nodes": [
+      "backend",
+      "pubs"
+     ],
+     "edges": [
+      "backend>pubs"
+     ],
+     "text": "El backend revisa **el dueño**: la 8812 es de Beto. Responde **403**. Sin esta revisión sería un [[idor|IDOR]]: la sesión sola no basta."
+    },
+    {
+     "nodes": [
+      "backend",
+      "audit"
+     ],
+     "edges": [
+      "backend>audit"
+     ],
+     "text": "El intento queda en el registro. Muchos intentos seguidos con ids ajenos son una señal de que alguien está buscando."
+    }
+   ]
+  }
+ ]
+}

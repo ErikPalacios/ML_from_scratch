@@ -1,0 +1,335 @@
+{
+  "terminos": [
+    {
+      "id": "cifrado",
+      "termino": "Cifrado",
+      "en": "encryption",
+      "corto": "Convertir datos legibles en bytes que parecen ruido, con una llave secreta, de forma que solo quien tiene la llave los regrese a como estaban.",
+      "largo": "Lo que se protege es el [[texto-cifrado|texto en claro]]; lo que sale, el texto cifrado. El método (el algoritmo, como [[aes|AES]]) es público: la seguridad está solo en la llave (principio de Kerckhoffs). Un cifrado básico da confidencialidad; para detectar cambios hace falta un modo autenticado (AES-GCM) o una [[firma-digital|firma]], y para saber con quién hablas, un [[certificado]]. Se aplica a lo que viaja ([[cifrado-en-transito|en tránsito]], con [[tls|TLS]]) y a lo que se guarda ([[cifrado-en-reposo|en reposo]], con [[kms|KMS]]).",
+      "analogia": "Un candado de combinación: el modelo del candado lo conoce todo el mundo; la combinación, solo tú. Dónde se rompe: un candado se puede cortar; un buen cifrado no tiene un atajo así, solo probar llaves.",
+      "ejemplo": "La foto de Ana, cifrada con AES-128 y una llave de 16 bytes, se ve como bytes al azar. Con la llave, vuelve a ser la misma foto, byte por byte.",
+      "ver": [
+        "texto-cifrado",
+        "llave-simetrica",
+        "llave-asimetrica",
+        "aes"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "texto-cifrado",
+      "termino": "Texto en claro y texto cifrado",
+      "en": "plaintext · ciphertext",
+      "corto": "El texto en claro es lo que quieres proteger, legible (aunque sea una foto); el texto cifrado es lo que sale de cifrarlo: bytes que parecen ruido y solo se regresan con la llave.",
+      "largo": "Se dice «texto» por tradición, pero puede ser cualquier serie de bytes: una foto, un archivo de pesos, una request HTTP. El texto cifrado puede viajar por cualquier red o guardarse en cualquier disco: sin la llave no dice nada, salvo su tamaño aproximado. Con AES-GCM, junto al texto cifrado viajan un nonce (un número que no se repite) y una etiqueta de 16 bytes que detecta cambios.",
+      "ejemplo": "El texto en claro «Calzado > Tenis», de 15 bytes, cifrado con una llave de juguete, da `b312e9ccf979760086e1a722089598`: los mismos 15 bytes, ilegibles.",
+      "ver": [
+        "cifrado",
+        "aes"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "llave-simetrica",
+      "termino": "Llave simétrica",
+      "en": "symmetric key",
+      "corto": "Una sola llave secreta que sirve para cifrar y para descifrar. Es rápida, pero las dos puntas tienen que tener la misma llave, y pasársela sin que nadie la copie es el problema.",
+      "largo": "El cifrado simétrico estándar es [[aes|AES]], con llaves de 128 o 256 bits. Cifra varios GB por segundo por núcleo, así que se usa para todo lo voluminoso: conexiones, discos, objetos de S3. Su debilidad es repartir la llave: por eso [[tls|TLS]] la acuerda con [[llave-asimetrica|llaves públicas]] (Diffie–Hellman) al abrir la conexión, y en la nube las llaves viven en un [[kms|KMS]] que nunca las entrega. Una llave de \\(L\\) bits tiene \\(2^L\\) valores: contra la [[fuerza-bruta|fuerza bruta]], 128 bits sobran.",
+      "analogia": "Un candado con una sola llave: quien la tenga cierra y abre. Dónde se rompe: una llave física se copia mirándola; una de 128 bits no se adivina, solo se roba.",
+      "ejemplo": "El backend de Alba y el ALB acuerdan, al abrir la conexión, una llave de AES de 128 o 256 bits que solo existe en la memoria de los dos y que se borra al cerrar.",
+      "ver": [
+        "aes",
+        "llave-asimetrica",
+        "fuerza-bruta"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "aes",
+      "termino": "AES",
+      "en": "AES · Advanced Encryption Standard",
+      "corto": "El algoritmo de cifrado simétrico estándar: la oficina de estándares de Estados Unidos (NIST) lo eligió en un concurso público en 2000 y lo publicó como estándar en 2001. Cifra bloques de 16 bytes con llaves de 128, 192 o 256 bits, y los procesadores lo aceleran con instrucciones propias.",
+      "largo": "Lo usan casi todas las conexiones [[tls|TLS]], los discos cifrados y S3. Por sí solo cifra un bloque; para un archivo se usa un modo. El más común hoy es **GCM**, un cifrado autenticado: además del [[texto-cifrado|texto cifrado]] produce una etiqueta de 16 bytes que detecta cualquier cambio. GCM exige un nonce de 12 bytes que nunca se repita con la misma llave; repetirlo deja combinar mensajes y falsificar etiquetas. El modo viejo ECB cifra igual los bloques iguales y deja ver patrones: no se usa.",
+      "ejemplo": "AES-128 con una llave de 16 bytes: probar todas sus \\(2^{128}\\) ≈ 3.4 × 10³⁸ llaves a 10¹⁸ por segundo tomaría ≈ 5.4 × 10¹² años. Cifrar una foto de 200 KB toma microsegundos.",
+      "ver": [
+        "llave-simetrica",
+        "cifrado",
+        "fuerza-bruta"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "fuerza-bruta",
+      "termino": "Fuerza bruta",
+      "en": "brute force",
+      "corto": "Probar todas las llaves (o contraseñas, o valores) posibles hasta dar con la buena. Siempre funciona en teoría; lo que decide es cuántas opciones hay: con una llave de \\(L\\) bits (\\(2^L\\) llaves posibles) y \\(v\\) intentos por segundo, tarda en promedio \\(2^L ÷ (2 × v)\\) segundos.",
+      "largo": "Cada bit de llave duplica el trabajo, por eso una llave de 128 bits es inalcanzable y una de 56 bits (DES) cae en horas con hardware dedicado. El ataque reconoce la llave correcta porque casi siempre sabe algo del texto en claro (un JPEG empieza siempre con los mismos bytes). Donde sí funciona es en espacios chicos: un PIN de 4 dígitos (10⁴ opciones) o un teléfono de 10 dígitos (10¹⁰) hasheado sin llave. Contra eso se usan límites de intentos, hashes lentos para contraseñas y [[hmac|HMAC]] con una llave secreta.",
+      "ejemplo": "Un teléfono de México tiene 10¹⁰ valores posibles. Una GPU que calcula ≈ 2.2 × 10¹⁰ SHA-256 por segundo los prueba todos en menos de un segundo (≈ 0.45 s): un hash sin llave no lo esconde.",
+      "ver": [
+        "aes",
+        "hmac",
+        "hash-criptografico"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "llave-asimetrica",
+      "termino": "Llave pública y llave privada",
+      "en": "public/private key pair · asymmetric cryptography",
+      "corto": "Un par de llaves ligadas por una cuenta: lo que una cierra, solo la otra abre. La pública se reparte a todos; la privada no sale nunca de su dueño, y no se puede calcular a partir de la pública.",
+      "largo": "Resuelve el problema de repartir una [[llave-simetrica|llave simétrica]]: cualquiera cifra con tu pública y solo tú abres. Al revés, cerrar con la privada es una [[firma-digital|firma]] que cualquiera comprueba con la pública. Los sistemas más usados son RSA (llaves de 2,048 bits o más) y las curvas elípticas (P-256, X25519, de 256 bits), mucho más chicas para la misma seguridad. Son miles de veces más lentas que AES, así que solo se usan para cosas cortas: acordar una llave (Diffie–Hellman en [[tls|TLS]]) y firmar. Falta saber de quién es una llave pública: eso lo dice un [[certificado]].",
+      "analogia": "Un buzón con ranura: cualquiera mete cartas, solo el dueño abre la puerta. Dónde se rompe: con la privada también se «cierra» algo que cualquiera abre con la pública (una firma), y un buzón no hace eso.",
+      "ejemplo": "RSA de juguete: con \\(p\\) = 61 y \\(q\\) = 53, la llave pública es \\((N, e)\\) = (3,233, 17) y la privada \\(d\\) = 2,753. El mensaje 65 se cifra como 65¹⁷ mod 3,233 = 2,790, y solo 2,790²⁷⁵³ mod 3,233 lo regresa a 65.",
+      "ver": [
+        "llave-simetrica",
+        "firma-digital",
+        "certificado"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "firma-digital",
+      "termino": "Firma digital",
+      "en": "digital signature",
+      "corto": "Una prueba de quién escribió algo y de que no cambió: el autor calcula, con su llave privada, una firma sobre la huella (el hash) del documento, y cualquiera la comprueba con su llave pública.",
+      "largo": "Si la firma cuadra, el documento salió de quien tiene la [[llave-asimetrica|llave privada]] y no cambió ni un byte (otro byte da otra [[hash-criptografico|huella]]). Da integridad y autenticidad, no confidencialidad: el documento viaja legible. Está en todas partes: un [[certificado]] es una firma de una CA; en [[tls|TLS]] el servidor firma el saludo; un [[jwt|JWT]] es un JSON firmado; las imágenes de contenedor se firman para que el cluster solo corra lo del CI propio. Si emisor y receptor comparten una llave, basta un [[hmac|HMAC]].",
+      "ejemplo": "Con la RSA de juguete, la huella 123 se firma como 123²⁷⁵³ mod 3,233 = 2,746. Cualquiera comprueba: 2,746¹⁷ mod 3,233 = 123. La firma 2,747 no regresa a 123.",
+      "ver": [
+        "llave-asimetrica",
+        "hmac",
+        "certificado"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "hmac",
+      "termino": "HMAC",
+      "en": "HMAC · hash-based message authentication code",
+      "corto": "Un hash calculado sobre un mensaje mezclado con una llave secreta. Solo quien tiene la llave produce el HMAC correcto, y cualquier cambio al mensaje lo descuadra: integridad y autor, con una llave compartida.",
+      "largo": "Es como una [[firma-digital|firma]], pero con una sola llave que tienen el emisor y el receptor: quien verifica también podría firmar. Se usa para firmar [[url-prefirmada|URLs prefirmadas]] y requests a la API de la nube, para algunos [[jwt|JWT]] (HS256) y para seudonimizar datos: el HMAC de un teléfono con una llave guardada en [[kms|KMS]] no se revierte por [[fuerza-bruta|fuerza bruta]], porque sin la llave no se puede probar. Se verifica con una comparación de tiempo constante (`hmac.compare_digest`), no con `==`, para no filtrar cuántos bytes de la etiqueta coinciden.",
+      "ejemplo": "S3 recibe una URL prefirmada con `vence=1793974685` y su HMAC. Si alguien cambia la fecha, S3 recalcula el HMAC con la llave del firmante, no le coincide y responde 403 (prohibido). El SHA-256 sin llave del mensaje alterado no le sirve al atacante.",
+      "ver": [
+        "firma-digital",
+        "hash-criptografico",
+        "url-prefirmada"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "mitm",
+      "termino": "Ataque del intermediario",
+      "en": "man-in-the-middle · MITM",
+      "corto": "Alguien que se mete entre dos puntas de una conexión y se hace pasar por cada una ante la otra: lee, y hasta cambia, lo que pasa, sin que ninguna lo note.",
+      "largo": "Puede ser el dueño de un wifi falso, un router comprometido o un DNS que miente. Cifrar no basta: el intruso tiene una conexión cifrada perfecta con cada lado, porque le entregó al cliente **su** [[llave-asimetrica|llave pública]] en lugar de la del servidor. Lo que lo evita es autenticar al servidor: un [[certificado]] firmado por una [[autoridad-certificadora|CA]] en la que el cliente confía, y la firma del saludo de [[tls|TLS]] con la llave privada de ese certificado. Por eso apagar la verificación del certificado (`verify=False`) deja la puerta abierta.",
+      "ejemplo": "En el wifi de una cafetería, un intruso contesta al saludo con su propia llave. Sin certificados, el teléfono de Ana cifraría la foto para él. Con TLS, el intruso no tiene un certificado firmado para el nombre del servidor y la conexión se corta.",
+      "ver": [
+        "certificado",
+        "tls",
+        "autoridad-certificadora"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "certificado",
+      "termino": "Certificado",
+      "en": "certificate · X.509",
+      "corto": "Un documento digital que une un nombre (como `api.alba.example`) con una llave pública, con fechas de validez, firmado por una autoridad certificadora que comprobó que quien lo pidió controla ese nombre.",
+      "largo": "Es lo que resuelve el [[mitm|ataque del intermediario]]: el cliente no acepta cualquier llave pública, solo una que venga en un certificado de una cadena que termina en una raíz de su almacén de confianza, con el nombre que pidió y sin vencer. El nombre que cuenta es el del campo *Subject Alternative Name*. Los certificados públicos duran cada vez menos: 200 días como máximo desde marzo de 2026, 47 desde marzo de 2029; por eso se renuevan solos (ACME, ACM). En [[mtls|mTLS]], también el cliente presenta uno.",
+      "analogia": "Una credencial de elector: tu nombre, tu foto y un sello del organismo que la emitió. Dónde se rompe: una credencial se revisa a ojo; un certificado lo revisa una cuenta de firmas, y se puede copiar sin problema, porque sin la llave privada no sirve de nada.",
+      "ejemplo": "El certificado de `api.alba.example`, válido del 1 de octubre de 2026 al 16 de abril de 2027 (198 días, lo que emite ACM; el máximo es 200), firmado por una CA intermedia, que a su vez está firmada por una raíz que ya trae el sistema operativo.",
+      "ver": [
+        "autoridad-certificadora",
+        "tls",
+        "firma-digital"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "autoridad-certificadora",
+      "termino": "Autoridad certificadora (CA)",
+      "en": "certificate authority · CA",
+      "corto": "Una organización que comprueba que quien pide un certificado controla el nombre que pide, y lo firma. Los sistemas operativos y los navegadores traen de fábrica las llaves públicas de las CA raíz en las que confían.",
+      "largo": "Las CA raíz casi nunca firman certificados de servidores: firman a CA intermedias, y la llave privada de la raíz se guarda apagada, fuera de línea. El cliente verifica la cadena de abajo hacia arriba: servidor → intermedia → raíz de su almacén de confianza. Comprobar el nombre suele ser poner un registro en el DNS o un archivo en el sitio. Una empresa puede tener su propia CA interna para [[mtls|mTLS]] entre sus servicios; entonces los programas tienen que confiar en esa raíz. Si una CA se compromete, los navegadores la quitan de su almacén (pasó con DigiNotar en 2011).",
+      "ejemplo": "Para darle a Alba un certificado de `api.alba.example`, la CA le pide crear un registro en el DNS de ese dominio. Si aparece, Alba controla el nombre, y la CA firma.",
+      "ver": [
+        "certificado",
+        "tls"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "tls",
+      "termino": "TLS",
+      "en": "TLS · Transport Layer Security",
+      "corto": "El protocolo que cifra una conexión y comprueba que el servidor es quien dice ser, con su certificado. HTTPS es HTTP dentro de TLS. La versión actual es TLS 1.3, de 2018.",
+      "largo": "Tiene dos partes. Un saludo (*handshake*) en el que las dos puntas acuerdan una llave con Diffie–Hellman sobre curvas elípticas, el servidor manda su [[certificado]] y firma el saludo con su llave privada, y los dos confirman con un HMAC de todo lo dicho. Después, todo viaja cifrado con [[aes|AES-GCM]] (o ChaCha20) y esa llave. El saludo de TLS 1.3 cuesta 1 [[rtt|RTT]] más que TCP (TLS 1.2 costaba 2), por eso se reutilizan las conexiones con [[keep-alive]]. Usa llaves nuevas por conexión: robar después la llave del certificado no descifra conversaciones viejas (secreto hacia adelante). El nombre del servidor (el SNI, *Server Name Indication*) viaja sin cifrar en el primer mensaje, salvo con la extensión nueva ECH (*Encrypted Client Hello*), que todavía pocos servidores usan.",
+      "ejemplo": "El backend de Alba abre una conexión al ALB en `api.alba.example`: 1 RTT de TCP, 1 de TLS 1.3 y 1 de la request. Con 60 ms de RTT, la primera request paga 180 ms de red; las siguientes, por la misma conexión, 60 ms.",
+      "ver": [
+        "https",
+        "certificado",
+        "mtls",
+        "terminacion-tls"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "mtls",
+      "termino": "mTLS (TLS mutuo)",
+      "en": "mutual TLS · mTLS",
+      "corto": "TLS en el que las dos puntas presentan certificado y firman el saludo: el servidor sabe con qué programa habla, además de cifrar la conexión.",
+      "largo": "Es la forma natural de cifrar y autenticar el tráfico interno entre servicios. Lo difícil es operarlo: alguien tiene que ser la [[autoridad-certificadora|CA]] interna, emitir un certificado por cada servicio o pod y renovarlos cada pocas horas o días. Por eso casi siempre lo hace una [[service-mesh|malla de servicios]] (Istio, Linkerd), con un proxy junto a cada pod. También se usa para dispositivos en sitios remotos: un certificado por caja, que se revoca si la roban.",
+      "ejemplo": "Alba no tiene malla de servicios: el tramo gateway → Triton va sin cifrar, protegido por la red privada y una NetworkPolicy. Con mTLS, Triton aceptaría solo al programa que presente el certificado del gateway.",
+      "ver": [
+        "tls",
+        "service-mesh",
+        "certificado"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "terminacion-tls",
+      "termino": "Terminación de TLS",
+      "en": "TLS termination",
+      "corto": "El lugar donde una conexión cifrada con TLS se descifra. Casi siempre es un balanceador o un proxy, que tiene el certificado, lee la request y la pasa al servicio por dentro.",
+      "largo": "Se termina en el balanceador porque necesita leer la request para hacer su trabajo (ver la ruta, revisar el token, repartir, mandar una parte a un canary), y así el certificado vive en un solo lugar. Lo que queda después de ese punto viaja descifrado, salvo que se vuelva a cifrar: con otro certificado hacia el servicio, con [[mtls|mTLS]] o con un balanceador de capa 4 que no descifra y deja que el servicio termine TLS. Hay que decir, tramo por tramo, qué va cifrado y qué protege lo que no.",
+      "ejemplo": "En Alba, el [[alb|ALB]] termina TLS con el certificado público de `api.alba.example`, verifica el JWT del programa que llama y pasa la request al gateway por HTTP, dentro de la VPC.",
+      "ver": [
+        "tls",
+        "alb",
+        "cifrado-en-transito"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "cifrado-en-transito",
+      "termino": "Cifrado en tránsito",
+      "en": "encryption in transit",
+      "corto": "Cifrar lo que viaja por una red, para que nadie en el camino lo lea ni lo cambie. En la práctica es TLS (o mTLS entre servicios).",
+      "largo": "La pregunta de diseño no es si se cifra, sino dónde empieza y dónde termina cada tramo cifrado, y qué protege los que no lo están (una red privada, reglas de red). Lo que sale a internet o a otra organización debe ir siempre cifrado. Dentro de una red privada es una decisión de riesgo y costo. Se complementa con el [[cifrado-en-reposo|cifrado en reposo]]: uno cuida lo que se mueve; el otro, lo guardado.",
+      "ejemplo": "En Alba van por TLS el tramo del caller al ALB y todo lo que sale de un pod (a S3, a proveedores). Del ALB al gateway y del gateway a Triton, sin cifrar dentro de la red privada.",
+      "ver": [
+        "tls",
+        "terminacion-tls",
+        "cifrado-en-reposo"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "cifrado-en-reposo",
+      "termino": "Cifrado en reposo",
+      "en": "encryption at rest",
+      "corto": "Cifrar lo guardado: objetos de S3, discos, bases de datos y respaldos. Protege contra quien se lleve el disco o un respaldo; no contra quien entra con los permisos de tu programa.",
+      "largo": "En la nube casi siempre está prendido (S3 cifra todo objeto nuevo desde enero de 2023). Su valor real no es el disco robado, sino separar dos permisos: leer los bytes y usar la llave. Con las llaves en [[kms|KMS]] y su [[politica-llave|política]], quien tenga permiso sobre el bucket todavía necesita permiso sobre la llave, y cada uso queda en un [[registro-auditoria|registro de auditoría]].",
+      "ejemplo": "Todo bucket de Alba usa [[sse-kms|SSE-KMS]] con una llave de Alba para fotos y logs. Un rol que puede leer el bucket pero no tiene `kms:Decrypt` recibe Access Denied.",
+      "ver": [
+        "kms",
+        "sse-kms",
+        "politica-llave",
+        "cifrado-en-transito"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "kms",
+      "termino": "KMS",
+      "en": "KMS · Key Management Service",
+      "corto": "Un servicio de la nube que guarda llaves maestras en hardware especial y nunca las entrega: le mandas datos chicos (hasta 4,096 bytes) y te los regresa cifrados o descifrados. Cada uso queda registrado.",
+      "largo": "Como solo cifra cosas chicas, se usa con [[cifrado-de-sobre|cifrado de sobre]]: KMS cifra [[llave-de-datos|llaves de datos]], y esas cifran los archivos. Cada [[llave-maestra|llave maestra]] tiene su [[politica-llave|política]] de quién puede cifrar, descifrar o administrarla, y rotación automática. En AWS se llama AWS KMS (en noviembre de 2026, US$1 al mes por llave, más US$1 por cada una de sus dos primeras rotaciones, y US$0.03 por cada 10,000 requests); en Google, Cloud KMS; en Azure, Key Vault. Los [[gestor-secretos|gestores de secretos]] y el cifrado de los Secrets de Kubernetes lo usan por debajo.",
+      "analogia": "La ventanilla de una caja fuerte que envuelve y desenvuelve sobres y anota a quién. Dónde se rompe: una caja fuerte te devuelve lo que guardaste; KMS nunca te da la llave maestra, ni a su dueño.",
+      "ejemplo": "Cifrar directo el archivo de pesos de Alba, de 98.4 MB, pediría ≈ 24,024 llamadas a `Encrypt`. Con sobre: una `GenerateDataKey` al guardarlo y una `Decrypt` cada vez que se carga.",
+      "ver": [
+        "llave-maestra",
+        "llave-de-datos",
+        "cifrado-de-sobre",
+        "politica-llave"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "llave-maestra",
+      "termino": "Llave maestra (de KMS)",
+      "en": "KMS key · customer master key (CMK)",
+      "corto": "La llave que vive dentro de KMS, el servicio de la nube que guarda llaves, y nunca sale de ahí: no cifra archivos, cifra (envuelve) las llaves de datos que sí los cifran.",
+      "largo": "Puede administrarla el proveedor (llave gestionada por AWS) o tu empresa (llave administrada por el cliente). Con la tuya decides su [[politica-llave|política]], su rotación y si se puede borrar; borrarla vuelve ilegible para siempre todo lo que cifró, por eso KMS obliga a esperar días antes de borrarla. Al [[rotacion-llaves|rotar]], conserva sus versiones viejas para descifrar lo viejo.",
+      "ejemplo": "Alba tiene una llave maestra suya para los datos con fotos o logs, con rotación automática cada año. Cuesta US$1 al mes el primer año; como cada una de sus dos primeras rotaciones suma US$1, desde el segundo año cuesta US$3 (noviembre de 2026).",
+      "ver": [
+        "kms",
+        "llave-de-datos",
+        "politica-llave"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "llave-de-datos",
+      "termino": "Llave de datos",
+      "en": "data key",
+      "corto": "Una llave de AES que cifra un archivo en tu máquina. Se guarda junto al archivo, pero cifrada con la llave maestra de KMS, el servicio de la nube que guarda llaves: para usarla hay que pedirle a KMS que la descifre.",
+      "largo": "KMS la crea con `GenerateDataKey` y la entrega dos veces: en claro, para cifrar en ese momento, y cifrada, para guardar. La copia en claro se borra de la memoria al terminar. Para leer, se manda a KMS la copia cifrada con `Decrypt`. Así el trabajo pesado lo hace [[aes|AES]] en la máquina, y a KMS solo viajan unos cientos de bytes.",
+      "ejemplo": "Al guardar un archivo de log en S3 con SSE-KMS, S3 pide una llave de datos de 256 bits, cifra el archivo y guarda la llave cifrada en los metadatos del objeto.",
+      "ver": [
+        "cifrado-de-sobre",
+        "llave-maestra",
+        "kms"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "cifrado-de-sobre",
+      "termino": "Cifrado de sobre",
+      "en": "envelope encryption",
+      "corto": "Cifrar cada archivo con su propia llave de datos y guardar esa llave, cifrada con la llave maestra de KMS (el servicio de la nube que guarda llaves y nunca las entrega), junto al archivo. Como meter la llave del candado en un sobre que solo KMS abre.",
+      "largo": "Existe porque KMS solo cifra hasta 4,096 bytes y cada llamada viaja por la red. Tres pasos: pedir una [[llave-de-datos|llave de datos]] (`GenerateDataKey`), cifrar localmente con AES y borrar la copia en claro, y para leer, mandar a KMS solo la llave cifrada (`Decrypt`). Cada `Decrypt` pasa por la [[politica-llave|política de la llave]] y queda en el registro. Rotar la [[llave-maestra|llave maestra]] no obliga a recifrar los archivos.",
+      "ejemplo": "Un archivo de 1 GB serían ≈ 244,141 llamadas a `Encrypt` de 4,096 bytes. Con sobre, una llamada para guardarlo y una para leerlo.",
+      "ver": [
+        "llave-de-datos",
+        "kms",
+        "sse-kms"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "sse-kms",
+      "termino": "SSE-KMS",
+      "en": "SSE-KMS · server-side encryption with KMS",
+      "corto": "El cifrado en reposo de S3, el almacén de archivos de AWS, con una llave de KMS: S3 hace el cifrado de sobre de cada objeto por ti, y para entregarlo (un GET) pide el descifrado con los permisos de quien lo pide.",
+      "largo": "Al recibir un `PUT`, S3 pide una llave de datos, cifra el objeto y guarda la llave cifrada; al recibir un `GET`, pide el `Decrypt` como quien llama. Por eso leer necesita dos permisos: `s3:GetObject` en el bucket y `kms:Decrypt` en la llave. Cada operación es una request a KMS; el **Bucket Key** de S3 reutiliza una llave por bucket por un rato y baja esas requests hasta en un 99 %. La alternativa SSE-S3 usa llaves que administra S3, sin política propia.",
+      "ejemplo": "Las ≈ 7.5 M fotos nuevas al día de Alba, sin Bucket Key, serían 228 M requests a KMS al mes, ≈ US$685; con Bucket Key, ≈ US$8.",
+      "ver": [
+        "cifrado-de-sobre",
+        "politica-llave",
+        "kms",
+        "cifrado-en-reposo"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "politica-llave",
+      "termino": "Política de la llave",
+      "en": "key policy",
+      "corto": "La lista de quién puede usar una llave de KMS (el servicio de la nube que guarda llaves) y para qué: cifrar, descifrar o administrarla. Es lo que de verdad decide quién lee un dato cifrado en reposo.",
+      "largo": "Para leer un objeto con [[sse-kms|SSE-KMS]] no basta el permiso sobre el bucket (la [[politica-permisos|política de IAM]]): también hace falta `kms:Decrypt` en la llave. Así un error en el bucket no basta para exponer los datos, y cada uso queda registrado; para eso la política nombra a los roles que descifran y no le delega ese permiso a IAM, como hace la política que KMS pone por omisión. Se escribe con [[minimo-privilegio|mínimo privilegio]]: quien solo escribe recibe `kms:GenerateDataKey`; quien lee, `kms:Decrypt`; casi nadie, permiso para administrarla o borrarla.",
+      "ejemplo": "En Alba, el rol de Fluent Bit puede pedir llaves de datos para escribir logs, pero no descifrar (sube cada archivo con un solo `PutObject`: una subida en partes también pediría `kms:Decrypt`); el rol del job de etiquetado puede descifrar las fotos a etiquetar.",
+      "ver": [
+        "kms",
+        "sse-kms",
+        "politica-permisos",
+        "minimo-privilegio"
+      ],
+      "leccion": "cifrado"
+    },
+    {
+      "id": "rotacion-llaves",
+      "termino": "Rotación de llaves",
+      "en": "key rotation",
+      "corto": "Empezar a cifrar con una llave nueva en lugar de la vieja, conservando la vieja mientras haya datos que descifrar con ella. Limita el daño de una llave filtrada sin que lo sepas.",
+      "largo": "En KMS, la rotación automática agrega una versión nueva del material de la [[llave-maestra|llave maestra]] sin cambiarle el nombre: lo nuevo se cifra con la versión nueva y lo viejo se sigue descifrando con la vieja, sin recifrar archivos. Es distinta de la [[rotacion-secretos|rotación de secretos]], donde el secreto viejo se revoca después de un periodo con dos válidos a la vez. Los [[certificado|certificados]] también se rotan, cada vez más seguido, y por eso se renuevan solos.",
+      "ejemplo": "La llave de KMS de Alba rota sola cada año. Un log cifrado en 2025 se sigue leyendo en 2026 con la versión vieja; los logs de 2026 usan la nueva.",
+      "ver": [
+        "rotacion-secretos",
+        "llave-maestra",
+        "kms"
+      ],
+      "leccion": "cifrado"
+    }
+  ]
+}

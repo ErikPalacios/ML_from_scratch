@@ -1,0 +1,21 @@
+{
+  "titulo": "¿Cuántas personas quedan solas?",
+  "intro": "Cuántas personas comparten cada combinación de cuasi-identificadores. Aplica las fórmulas de la lección: \\(C = c_1 × c_2 × c_3\\), \\(m = P ÷ C\\) y \\(u ≈ e^{−(P − 1)/C}\\), que supone que la gente se reparte al azar y parejo. Arranca con la tabla de la cuenta: 100,000 personas, 50 códigos postales, la fecha de nacimiento completa (80 años × 365 días) y el sexo.",
+  "entradas": [
+    { "id": "P", "label": "Personas en la tabla, \\(P\\)", "min": 2, "max": 300000000, "paso": 1, "valor": 100000, "tipo": "numero" },
+    { "id": "c1", "label": "Códigos postales distintos, \\(c_1\\)", "min": 1, "max": 50000, "paso": 1, "valor": 50, "tipo": "numero" },
+    { "id": "c2", "label": "Valores de la fecha de nacimiento, \\(c_2\\) (29,200 = día exacto en 80 años; 80 = solo el año; 8 = la década)", "min": 1, "max": 40000, "paso": 1, "valor": 29200, "tipo": "numero" },
+    { "id": "c3", "label": "Valores del sexo, \\(c_3\\) (1 = se quitó la columna)", "min": 1, "max": 3, "paso": 1, "valor": 2 }
+  ],
+  "calculos": [
+    { "id": "C", "formula": "c1 * c2 * c3" },
+    { "id": "u", "formula": "exp(-(P - 1) / C)" }
+  ],
+  "salidas": [
+    { "label": "Combinaciones posibles, \\(C\\)", "formula": "C", "formato": "int", "nota": "\\(c_1 × c_2 × c_3\\)" },
+    { "label": "Personas por combinación, en promedio, \\(m\\)", "formula": "P / C", "formato": "num", "decimales": 3, "nota": "\\(m = P ÷ C\\)" },
+    { "label": "Fracción de personas solas en su combinación, \\(u\\)", "formula": "u", "formato": "pct", "decimales": 2, "barra": true, "nota": "\\(u ≈ e^{−(P − 1)/C}\\)" },
+    { "label": "Personas solas, en promedio", "formula": "P * u", "formato": "int", "nota": "\\(P × u\\)" }
+  ],
+  "nota": "Si \\(m\\) es mucho menor que 1, casi todos quedan solos: quitar el nombre no esconde a nadie. Hay que generalizar hasta que \\(m\\) sea de varias personas, y aun así los grupos raros quedan chicos, porque la gente no se reparte parejo."
+}

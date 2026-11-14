@@ -1,0 +1,327 @@
+{
+ "titulo": "Cómo se identifican los callers del clasificador de Alba",
+ "width": 78,
+ "height": 58,
+ "lanes": [
+  {
+   "id": "c",
+   "label": "Los 3 callers internos",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 13
+  },
+  {
+   "id": "i",
+   "label": "Identidad",
+   "kind": "neutral",
+   "x": 0,
+   "y": 14,
+   "w": 26,
+   "h": 14
+  },
+  {
+   "id": "e",
+   "label": "La puerta",
+   "kind": "online",
+   "x": 27,
+   "y": 14,
+   "w": 51,
+   "h": 14
+  },
+  {
+   "id": "g",
+   "label": "Gateway · de 3 a 12 pods",
+   "kind": "online",
+   "x": 0,
+   "y": 29,
+   "w": 78,
+   "h": 14
+  },
+  {
+   "id": "k",
+   "label": "Dentro del clúster",
+   "kind": "neutral",
+   "x": 0,
+   "y": 44,
+   "w": 78,
+   "h": 14
+  }
+ ],
+ "nodes": [
+  {
+   "id": "moderacion",
+   "label": "Moderación",
+   "sub": "client_id propio",
+   "kind": "client",
+   "x": 2,
+   "y": 3,
+   "w": 20,
+   "h": 8,
+   "note": "Revisa en tandas (lotes sin prisa) que las publicaciones cumplan las reglas. Como los otros dos callers, tiene su `client_id` y su secreto en el gestor de secretos, y pide su token con [[client-credentials|client credentials]]."
+  },
+  {
+   "id": "backend",
+   "label": "Backend",
+   "sub": "de publicaciones",
+   "kind": "client",
+   "x": 29,
+   "y": 3,
+   "w": 20,
+   "h": 8,
+   "note": "El programa que arma la publicación de Ana y pide la categoría de su foto. Manda en cada request `Authorization: Bearer …` con el token que tiene en caché."
+  },
+  {
+   "id": "busqueda",
+   "label": "Búsqueda",
+   "sub": "client_id propio",
+   "kind": "client",
+   "x": 56,
+   "y": 3,
+   "w": 20,
+   "h": 8,
+   "note": "El tercer caller. Su token dice `sub: busqueda` y scope `classify`: puede clasificar, pero no usar ninguna ruta de administración."
+  },
+  {
+   "id": "idp",
+   "label": "Proveedor",
+   "sub": "de identidad",
+   "kind": "service",
+   "x": 2,
+   "y": 18,
+   "w": 20,
+   "h": 8,
+   "note": "El [[proveedor-identidad|proveedor de identidad]] interno de Alba. Revisa `client_id` y secreto, y firma con su llave privada un [[jwt|JWT]] de **15 minutos** con scope `classify`. Publica sus llaves públicas en su [[jwks|JWKS]]."
+  },
+  {
+   "id": "alb",
+   "label": "ALB",
+   "sub": "termina TLS, verifica",
+   "kind": "edge",
+   "x": 29,
+   "y": 18,
+   "w": 20,
+   "h": 8,
+   "note": "El *Application Load Balancer*, el [[alb|balanceador]] de AWS que es la puerta de entrada. Descifra el HTTPS y verifica el JWT: la **firma** (con el JWKS en memoria), el **emisor** (`iss`) y la **expiración** (`exp`), siempre; la **audiencia** (`aud`), porque Alba la configura como un claim extra que tiene que coincidir. Sin token válido responde 401 y la request no sigue. Si es bueno, lo pasa tal cual al gateway, que lee de él el `client_id`."
+  },
+  {
+   "id": "gw",
+   "label": "Gateway",
+   "sub": "FastAPI",
+   "kind": "service",
+   "x": 29,
+   "y": 33,
+   "w": 20,
+   "h": 8,
+   "note": "Recibe el token tal cual y lee el `client_id` de sus claims, que el ALB ya verificó. Con él decide tres cosas: si el [[scope]] alcanza (si no, 403), la [[cuota-por-cliente|cuota]] y la prioridad en la fila de Triton."
+  },
+  {
+   "id": "balde",
+   "label": "Baldes",
+   "sub": "uno por client_id",
+   "kind": "store",
+   "x": 56,
+   "y": 33,
+   "w": 20,
+   "h": 8,
+   "note": "Un [[token-bucket|token bucket]] por caller: un balde de fichas que se rellena a ritmo fijo; cada request gasta una. El de moderación: 50 requests por segundo, ráfagas de 100. Quien se pasa recibe **429** con `Retry-After`, y los demás ni se enteran."
+  },
+  {
+   "id": "triton",
+   "label": "Triton",
+   "sub": "sin entrada de fuera",
+   "kind": "model",
+   "x": 29,
+   "y": 48,
+   "w": 20,
+   "h": 8,
+   "note": "El programa que corre la ResNet-50 en la GPU. No tiene entrada desde fuera del clúster: solo el gateway le habla. No sabe nada de tokens: la identidad ya se resolvió antes."
+  }
+ ],
+ "edges": [
+  {
+   "from": "moderacion",
+   "to": "idp",
+   "kind": "neutral",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "token"
+  },
+  {
+   "from": "moderacion",
+   "to": "alb",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l",
+   "via": [
+    [
+     26.5,
+     7
+    ],
+    [
+     26.5,
+     20
+    ]
+   ]
+  },
+  {
+   "from": "idp",
+   "to": "alb",
+   "kind": "async",
+   "fromSide": "r",
+   "toSide": "l",
+   "dashed": true,
+   "label": "JWKS"
+  },
+  {
+   "from": "backend",
+   "to": "alb",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "Bearer"
+  },
+  {
+   "from": "busqueda",
+   "to": "alb",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "r",
+   "via": [
+    [
+     66,
+     22
+    ]
+   ]
+  },
+  {
+   "from": "alb",
+   "to": "gw",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "client_id"
+  },
+  {
+   "from": "gw",
+   "to": "balde",
+   "kind": "neutral",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "cuota"
+  },
+  {
+   "from": "gw",
+   "to": "triton",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "tensor"
+  }
+ ],
+ "flows": [
+  {
+   "id": "token",
+   "label": "Pedir el token",
+   "steps": [
+    {
+     "nodes": [
+      "moderacion",
+      "idp"
+     ],
+     "edges": [
+      "moderacion>idp"
+     ],
+     "text": "Moderación se presenta con su `client_id` y su secreto y pide `scope=classify`. Recibe un JWT que vale **15 minutos**. Los otros dos callers hacen lo mismo con los suyos."
+    },
+    {
+     "nodes": [
+      "moderacion"
+     ],
+     "edges": [],
+     "text": "Lo guarda en memoria y lo usa en todas sus requests. A los **12 minutos** pide otro, antes de que caduque: nunca hay un hueco, y el proveedor recibe muy pocos pedidos."
+    },
+    {
+     "nodes": [
+      "idp",
+      "alb"
+     ],
+     "edges": [
+      "idp>alb"
+     ],
+     "text": "El ALB bajó el **JWKS** del proveedor y lo tiene en memoria. Con esas llaves públicas verifica cualquier token sin llamar al emisor."
+    }
+   ]
+  },
+  {
+   "id": "foto",
+   "label": "La foto de Ana",
+   "steps": [
+    {
+     "nodes": [
+      "backend",
+      "alb"
+     ],
+     "edges": [
+      "backend>alb"
+     ],
+     "text": "El backend manda la foto de Ana con `Authorization: Bearer …`. El ALB revisa firma, emisor, audiencia y `exp`: todo bien."
+    },
+    {
+     "nodes": [
+      "alb",
+      "gw"
+     ],
+     "edges": [
+      "alb>gw"
+     ],
+     "text": "El gateway lee el `client_id` de los claims del token que el ALB ya **verificó**: backend de publicaciones. No mira ningún header que el caller haya escrito sobre sí mismo."
+    },
+    {
+     "nodes": [
+      "gw",
+      "balde"
+     ],
+     "edges": [
+      "gw>balde"
+     ],
+     "text": "Scope `classify`: sí. Le quedan fichas en su balde: sí. Prioridad alta, porque es una persona publicando."
+    },
+    {
+     "nodes": [
+      "gw",
+      "triton"
+     ],
+     "edges": [
+      "gw>triton"
+     ],
+     "text": "El gateway decodifica la foto y manda el tensor a Triton por la red privada. Triton responde y Ana ve «Calzado › Tenis»."
+    }
+   ]
+  },
+  {
+   "id": "malo",
+   "label": "Un token que ya no sirve",
+   "steps": [
+    {
+     "nodes": [
+      "busqueda",
+      "alb"
+     ],
+     "edges": [
+      "busqueda>alb"
+     ],
+     "text": "Por un error, búsqueda manda un token que caducó hace 2 minutos. La firma es buena, pero `exp` ya pasó."
+    },
+    {
+     "nodes": [
+      "alb"
+     ],
+     "edges": [],
+     "text": "El ALB responde **401** ahí mismo. La request no llega al gateway ni gasta CPU ni GPU. Búsqueda pide un token nuevo y repite."
+    }
+   ]
+  }
+ ]
+}

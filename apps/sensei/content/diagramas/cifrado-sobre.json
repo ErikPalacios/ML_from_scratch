@@ -1,0 +1,44 @@
+{
+  "titulo": "El cifrado de sobre: al guardar y al leer",
+  "width": 78,
+  "height": 44,
+  "lanes": [],
+  "nodes": [
+    { "id": "escritor", "label": "Fluent Bit", "sub": "guarda un log", "kind": "service", "x": 2, "y": 4, "w": 18, "h": 9,
+      "note": "Su rol tiene permiso de `kms:GenerateDataKey` en la llave, pero **no** de descifrar: puede escribir logs y no leerlos. Funciona porque sube cada archivo con un solo `PutObject`: una subida en partes (*multipart*) también pediría `kms:Decrypt`. Con [[sse-kms|SSE-KMS]], estos pasos los hace S3 por él, con sus permisos." },
+    { "id": "kms", "label": "KMS", "sub": "la llave maestra", "kind": "store", "x": 30, "y": 4, "w": 18, "h": 9,
+      "note": "La [[llave-maestra|llave maestra]] nunca sale. KMS solo crea, envuelve y desenvuelve [[llave-de-datos|llaves de datos]] de unos cientos de bytes, revisa la [[politica-llave|política de la llave]] y anota cada uso en el registro de auditoría." },
+    { "id": "lector", "label": "Job que lee", "sub": "con kms:Decrypt", "kind": "job", "x": 58, "y": 4, "w": 18, "h": 9,
+      "note": "Un programa cuyo rol tiene los dos permisos: `s3:GetObject` en el bucket y `kms:Decrypt` en la llave. Sin el segundo, el primero no le sirve." },
+    { "id": "s3", "label": "Bucket S3", "sub": "objeto + llave cifrada", "kind": "store", "x": 30, "y": 32, "w": 18, "h": 9,
+      "note": "Cada objeto va cifrado con su propia llave de datos, y esa llave va a su lado, cifrada con la llave maestra. Quien se lleve el disco tiene dos cosas cifradas y ninguna llave." },
+    { "id": "intruso", "label": "Otro rol", "sub": "lee el bucket, sin la llave", "kind": "external", "x": 58, "y": 32, "w": 18, "h": 9,
+      "note": "Un rol al que por error le dieron `s3:GetObject`. La política de la llave no lo incluye, así que S3 no puede descifrar por él: **Access Denied**. Es la segunda puerta." }
+  ],
+  "edges": [
+    { "from": "escritor", "to": "kms", "kind": "offline", "label": "1 · pide", "fromSide": "r", "toSide": "l" },
+    { "from": "escritor", "to": "s3", "kind": "offline", "label": "2 · guarda", "fromSide": "b", "toSide": "l", "via": [[11, 36.5]] },
+    { "from": "lector", "to": "s3", "kind": "offline", "label": "3 · GET", "fromSide": "b", "toSide": "t", "via": [[67, 22], [39, 22]] },
+    { "from": "lector", "to": "kms", "kind": "offline", "label": "4 · Decrypt", "fromSide": "l", "toSide": "r" },
+    { "from": "intruso", "to": "s3", "kind": "neutral", "dashed": true, "label": "denegado", "fromSide": "l", "toSide": "r" }
+  ],
+  "flows": [
+    { "id": "guardar", "label": "Guardar un log",
+      "steps": [
+        { "nodes": ["escritor", "kms"], "edges": ["escritor>kms"], "text": "Fluent Bit pide `GenerateDataKey` (con SSE-KMS, S3 hace estos tres pasos por él, con sus permisos). KMS revisa la política, crea una llave de AES de 256 bits y la regresa **dos veces**: en claro y cifrada con la llave maestra." },
+        { "nodes": ["escritor"], "edges": [], "text": "Cifra el log con AES-GCM y la llave en claro, en su propia memoria. Luego **borra** la llave en claro." },
+        { "nodes": ["escritor", "s3"], "edges": ["escritor>s3"], "text": "Guarda en S3 el log cifrado y, a su lado, la llave cifrada. Ninguna de las dos cosas sirve sin KMS." }
+      ] },
+    { "id": "leer", "label": "Leerlo después",
+      "steps": [
+        { "nodes": ["lector", "s3"], "edges": ["lector>s3"], "text": "El job baja el objeto y su llave cifrada (con SSE-KMS, S3 lo hace por él, con sus permisos). Tiene `s3:GetObject`: hasta aquí, solo tiene bytes ilegibles." },
+        { "nodes": ["lector", "kms"], "edges": ["lector>kms"], "text": "Manda a KMS **solo la llave cifrada**, unos cientos de bytes, con `Decrypt`. La política lo permite: KMS le regresa la llave en claro y anota quién la pidió." },
+        { "nodes": ["lector"], "edges": [], "text": "Descifra el log en su memoria con AES y borra la llave. El archivo grande nunca viajó a KMS." }
+      ] },
+    { "id": "sin-llave", "label": "Un rol sin la llave",
+      "steps": [
+        { "nodes": ["intruso", "s3"], "edges": ["intruso>s3"], "text": "Otro rol tiene `s3:GetObject` por error. Pide el objeto, y S3 intenta descifrar **con sus permisos**." },
+        { "nodes": ["intruso", "kms", "s3"], "edges": [], "text": "La política de la llave no lo incluye: KMS dice que no y S3 responde **Access Denied**. La llave fue la segunda puerta." }
+      ] }
+  ]
+}

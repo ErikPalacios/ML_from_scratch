@@ -1,0 +1,49 @@
+{
+  "titulo": "Una solicitud de borrado recorre todo el sistema",
+  "width": 78, "height": 56,
+  "lanes": [
+    { "id": "pide", "label": "La solicitud", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 18 },
+    { "id": "copias", "label": "Las copias y lo que les pasa", "kind": "offline", "x": 0, "y": 22, "w": 78, "h": 34 }
+  ],
+  "nodes": [
+    { "id": "ana", "label": "Ana", "sub": "pide borrar sus datos", "kind": "human", "x": 1, "y": 6, "w": 19, "h": 8,
+      "note": "Ejerce su [[derecho-borrado|derecho al borrado]], la «C» de los [[derechos-arco|derechos ARCO]], por el medio que dice el [[aviso-privacidad|aviso de privacidad]]." },
+    { "id": "backend", "label": "Backend de publicaciones", "sub": "sabe qué es de Ana", "kind": "service", "x": 29, "y": 6, "w": 20, "h": 8,
+      "note": "Con la cuenta de Ana encuentra sus publicaciones, el [[request-id|request_id]] de cada foto y su hash. Sin esa unión, nadie podría encontrar sus copias seudónimas." },
+    { "id": "producto", "label": "Fotos del producto", "sub": "las originales", "kind": "store", "x": 58, "y": 6, "w": 19, "h": 8,
+      "note": "El producto borra las fotos originales de las publicaciones de Ana. Si el bucket tiene versiones prendidas (guarda cada versión anterior de un archivo), también hay que borrar esas: si no, la foto sigue ahí." },
+    { "id": "log", "label": "Log de predicciones", "sub": "caduca a los 90 días", "kind": "store", "x": 1, "y": 28, "w": 19, "h": 8,
+      "note": "Sus líneas solo traen `request_id`, categorías y un prefijo del hash, y se borran solas a los 90 días. Se reescriben las particiones de esos días o se deja que caduquen, según decida legal." },
+    { "id": "job", "label": "Job de borrado", "sub": "por request_id y hash", "kind": "job", "x": 29, "y": 28, "w": 20, "h": 8,
+      "note": "Un programa que recibe la lista de ids y hashes y los busca en cada copia del [[mapa-de-datos|mapa de datos]]. Con un dataset indexado por id, borrar es una consulta y un job, no una búsqueda a ciegas." },
+    { "id": "buckets", "label": "Etiquetado y golden set", "sub": "copias sin EXIF", "kind": "store", "x": 58, "y": 28, "w": 19, "h": 8,
+      "note": "Si alguna foto de Ana estaba en el bucket de fotos a etiquetar (≈ 5,000 al mes, 90 días) o en el [[golden-set|golden set]] de 50,000, se borra de ahí. El golden set pierde unas fotos y se documenta el cambio." },
+    { "id": "modelo", "label": "Modelo en producción", "sub": "no se desentrena", "kind": "model", "x": 1, "y": 44, "w": 19, "h": 8,
+      "note": "El modelo actual aprendió de esas fotos y no se puede «borrar» de él ([[machine-unlearning]]). El siguiente reentrenamiento mensual se hace sin ellas, y el modelo viejo se retira." },
+    { "id": "snapshot", "label": "Siguiente snapshot", "sub": "ya sin las fotos", "kind": "store", "x": 29, "y": 44, "w": 20, "h": 8,
+      "note": "Los manifests dicen en qué [[snapshot|snapshots]] aparece cada foto. El siguiente ya no las incluye. Los viejos, que son inmutables para poder reproducir cada modelo, salen de circulación cuando vence su retención." },
+    { "id": "auditoria", "label": "Registro de auditoría", "sub": "qué, dónde, cuándo", "kind": "queue", "x": 58, "y": 44, "w": 19, "h": 8,
+      "note": "Se anota qué se borró, de dónde y cuándo, con los ids y **sin** las fotos: el [[registro-auditoria|registro de auditoría]] sirve para demostrarlo sin volver a guardar lo borrado." }
+  ],
+  "edges": [
+    { "from": "ana", "to": "backend", "kind": "online", "label": "solicitud", "fromSide": "r", "toSide": "l" },
+    { "from": "backend", "to": "producto", "kind": "online", "label": "borra", "fromSide": "r", "toSide": "l" },
+    { "from": "backend", "to": "job", "kind": "offline", "label": "ids y hashes", "fromSide": "b", "toSide": "t" },
+    { "from": "job", "to": "log", "kind": "async", "dashed": true, "label": "o caduca", "fromSide": "l", "toSide": "r" },
+    { "from": "job", "to": "buckets", "kind": "offline", "label": "borra", "fromSide": "r", "toSide": "l" },
+    { "from": "job", "to": "snapshot", "kind": "offline", "label": "las excluye", "fromSide": "b", "toSide": "t" },
+    { "from": "snapshot", "to": "modelo", "kind": "async", "dashed": true, "label": "reentreno", "fromSide": "l", "toSide": "r" },
+    { "from": "snapshot", "to": "auditoria", "kind": "monitor", "label": "constancia", "fromSide": "r", "toSide": "l" }
+  ],
+  "flows": [
+    { "id": "borrar", "label": "Borrar a Ana, paso a paso", "steps": [
+      { "nodes": ["ana", "backend"], "edges": ["ana>backend"], "text": "Ana pide borrar sus datos. La solicitud llega al dueño de la cuenta: el backend de publicaciones." },
+      { "nodes": ["backend", "producto"], "edges": ["backend>producto"], "text": "El producto borra las fotos originales de sus publicaciones, con sus versiones viejas." },
+      { "nodes": ["backend", "job"], "edges": ["backend>job"], "text": "**Paso 1, encontrar.** El backend saca los `request_id` y los hashes de sus fotos y se los pasa al job de borrado." },
+      { "nodes": ["job", "buckets", "log"], "edges": ["job>buckets", "job>log"], "text": "**Paso 2, borrar.** Las copias sin EXIF del bucket de etiquetado y del golden set se borran. El log se reescribe o caduca a los 90 días." },
+      { "nodes": ["job", "snapshot"], "edges": ["job>snapshot"], "text": "Los manifests dicen en qué snapshots está cada foto: el **siguiente** snapshot ya no las incluye." },
+      { "nodes": ["snapshot", "modelo"], "edges": ["snapshot>modelo"], "text": "**Paso 3, el modelo.** No se desentrena: el reentrenamiento mensual con el snapshot nuevo deja un modelo que nunca vio esas fotos." },
+      { "nodes": ["snapshot", "auditoria"], "edges": ["snapshot>auditoria"], "text": "**Paso 4, constancia.** Queda anotado qué se borró, de dónde y cuándo, con ids y sin fotos." }
+    ] }
+  ]
+}

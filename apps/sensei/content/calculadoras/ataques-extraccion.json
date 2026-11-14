@@ -1,0 +1,19 @@
+{
+  "titulo": "¿Cuánto tarda copiar un modelo por su API?",
+  "intro": "Un atacante necesita \\(Q\\) consultas para entrenar una copia y controla \\(a\\) cuentas, cada una con una cuota de \\(c\\) consultas por segundo. Aplica la ecuación de la lección, \\(T = Q ÷ (a × c)\\). El valor inicial es el ejemplo del texto: una API pública supuesta, no la de Alba.",
+  "entradas": [
+    { "id": "q", "label": "Consultas que necesita la copia, \\(Q\\) (1,840,211 = las fotos del dataset de entrenamiento de Alba)", "min": 1000, "max": 50000000, "paso": 1000, "valor": 1840211, "tipo": "numero" },
+    { "id": "a", "label": "**Cuentas** que controla el atacante, \\(a\\)", "min": 1, "max": 1000, "paso": 1, "valor": 1 },
+    { "id": "c", "label": "Cuota de cada cuenta, \\(c\\), en consultas por segundo", "min": 0.1, "max": 100, "paso": 0.1, "valor": 10 }
+  ],
+  "calculos": [
+    { "id": "t", "formula": "q / max(a * c, 1e-9)" }
+  ],
+  "salidas": [
+    { "label": "Tiempo para juntarlas, \\(T\\), en segundos", "formula": "t", "formato": "int", "nota": "\\(T = Q ÷ (a × c)\\)" },
+    { "label": "\\(T\\) en horas", "formula": "t / 3600", "formato": "num", "decimales": 1, "nota": "\\(T ÷ 3,600\\)" },
+    { "label": "\\(T\\) en días", "formula": "t / 86400", "formato": "num", "decimales": 2, "nota": "\\(T ÷ 86,400\\)" },
+    { "label": "Cuentas que haría falta para terminar en un día", "formula": "ceil(q / (c * 86400))", "formato": "int", "nota": "\\(a = Q ÷ (c × 86,400)\\), redondeado hacia arriba" }
+  ],
+  "nota": "Con una cuenta y 10 consultas por segundo son ≈ 2.1 días; con 100 cuentas, ≈ 31 minutos. La cuota sola no basta: hace falta que cada cuenta cueste algo y que alguien vigile el patrón."
+}

@@ -35,8 +35,8 @@
     "colas": ["cola-mensajes", "productor", "consumidor", "broker", "stream-eventos", "topico", "particion-topico", "offset", "grupo-consumidores", "at-least-once", "at-most-once", "exactly-once", "visibility-timeout", "dlq", "lag-consumidor", "cdc"],
     "tiempo-hash": ["timestamp", "tiempo-unix", "utc", "iso-8601", "reloj-monotonico", "desfase-reloj", "event-time", "ventana-tiempo", "watermark", "point-in-time", "funcion-hash", "hash-criptografico", "checksum", "sharding", "asignacion-hash", "uuid", "request-id"],
     "redes-nube": ["vpc", "nat", "egress", "subred", "subred-privada", "vpc-endpoint", "privatelink", "transferencia-entre-zonas", "transferencia-entre-regiones", "cargo-datos-procesados", "lcu", "alb", "ip-publica", "ancho-banda-baseline", "cidr", "tabla-rutas", "grupo-seguridad", "internet-gateway"],
-    "cifrado": ["tls", "mtls", "hmac", "kms"],
-    "identidad": ["jwt", "api-key"],
+    "cifrado": ["cifrado", "texto-cifrado", "llave-simetrica", "aes", "llave-asimetrica", "fuerza-bruta", "firma-digital", "hmac", "mitm", "certificado", "autoridad-certificadora", "tls", "mtls", "terminacion-tls", "cifrado-en-transito", "cifrado-en-reposo", "kms", "llave-maestra", "llave-de-datos", "cifrado-de-sobre", "sse-kms", "politica-llave", "rotacion-llaves"],
+    "identidad": ["autenticacion", "autorizacion", "contrasena-hash", "mfa", "sesion", "api-key", "token-acceso", "jwt", "claims", "jwks", "revocacion-token", "proveedor-identidad", "oauth", "client-credentials", "scope", "oidc", "rbac", "idor", "cuota-por-cliente", "registro-auditoria"],
     "e10-rollout": ["canary", "blue-green", "shadow"],
     "e02-versionado": ["versionado-datos", "linaje"],
     "e05-export": ["onnx", "engine-tensorrt"],
@@ -52,7 +52,8 @@
     "e08-cicd": ["registro-imagenes"],
     "e09-kubernetes": ["pod", "deployment-k8s"],
     "gestionados": ["iam", "rol-iam", "politica-permisos", "minimo-privilegio", "identidad-workload", "cuenta-servicio", "credenciales-temporales", "servicio-gestionado", "gestionado-vs-propio", "plataforma-ml", "endpoint-gestionado", "inferencia-asincrona", "serverless", "funcion-serverless", "contenedor-serverless", "scale-to-zero", "cold-start", "autoscaling", "kubernetes-gestionado", "plano-de-control"],
-    "ataques": ["cadena-suministro", "sbom"],
+    "privacidad": ["dato-personal", "pii", "dato-sensible", "seudonimizacion", "anonimizacion", "reidentificacion", "k-anonimato", "minimizacion", "finalidad", "consentimiento", "aviso-privacidad", "derechos-arco", "derecho-borrado", "mapa-de-datos", "lfpdppp", "gdpr", "transferencia-internacional", "encargado-tratamiento", "decision-automatizada", "brecha-datos", "machine-unlearning"],
+    "ataques": ["amenaza", "superficie-ataque", "defensa-en-profundidad", "cve", "ejecucion-remota-codigo", "deserializacion-insegura", "ejemplo-adversario", "envenenamiento-datos", "puerta-trasera", "extraccion-modelo", "inferencia-pertenencia", "inyeccion-prompt", "denegacion-servicio", "cadena-suministro", "typosquatting", "confusion-dependencias", "fijar-con-hash", "sbom", "escaneo-vulnerabilidades", "procedencia", "firma-imagen", "politica-admision"],
     "nube": ["nube", "proveedor-nube", "capex-opex", "pago-por-uso", "elasticidad", "on-premises", "centro-de-datos", "cuenta-nube", "api-nube", "dependencia-proveedor", "neocloud", "equipo-plataforma", "factura-nube", "precio-lista", "maquina-virtual", "hipervisor", "responsabilidad-compartida", "iaas-paas-saas"],
     "maquinas": ["instancia", "familia-instancia", "gpu-hora", "hora-facturada", "on-demand", "spot", "aviso-interrupcion", "savings-plan", "instancia-reservada", "reserva-capacidad", "capacity-block", "cuota-servicio", "error-capacidad", "right-sizing", "costo-por-prediccion", "nodo", "acelerador-propio", "mig", "fraccion-gpu", "etiqueta-costos"]
   }

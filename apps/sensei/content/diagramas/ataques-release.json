@@ -1,0 +1,327 @@
+{
+ "titulo": "Una release del gateway, de los paquetes al pod",
+ "width": 78,
+ "height": 52,
+ "lanes": [
+  {
+   "id": "ci",
+   "label": "La release, en el CI",
+   "kind": "offline",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 32
+  },
+  {
+   "id": "cluster",
+   "label": "El cluster",
+   "kind": "online",
+   "x": 0,
+   "y": 34,
+   "w": 78,
+   "h": 18
+  }
+ ],
+ "nodes": [
+  {
+   "id": "indice",
+   "label": "Índice privado",
+   "sub": "proxy de PyPI",
+   "kind": "external",
+   "x": 2,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "Un solo origen para los paquetes. Contra el [[typosquatting]] y la [[confusion-dependencias|confusión de dependencias]]: el instalador no elige entre índices."
+  },
+  {
+   "id": "build",
+   "label": "Build",
+   "sub": "lock con hashes",
+   "kind": "job",
+   "x": 30,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "Instala las 37 dependencias con `--require-hashes`: si la huella de un archivo no coincide con el [[lock-file|lock file]], se detiene. Arma la imagen en dos etapas, sin compiladores, con usuario UID 10001."
+  },
+  {
+   "id": "sbom",
+   "label": "SBOM + escaneo",
+   "sub": "falla con CVE crítico",
+   "kind": "monitor",
+   "x": 58,
+   "y": 4,
+   "w": 18,
+   "h": 8,
+   "note": "Genera el [[sbom|SBOM]] de la imagen y lo cruza con los [[cve|CVEs]] públicos. Un CVE crítico detiene la release."
+  },
+  {
+   "id": "firma",
+   "label": "Firma",
+   "sub": "del digest",
+   "kind": "job",
+   "x": 58,
+   "y": 20,
+   "w": 18,
+   "h": 8,
+   "note": "Firma el [[digest-imagen|digest]] (la huella sha256 de la imagen) con la identidad del pipeline, y deja la [[procedencia]]: de qué commit salió y quién la armó."
+  },
+  {
+   "id": "registro",
+   "label": "Registro",
+   "sub": "imágenes por digest",
+   "kind": "store",
+   "x": 30,
+   "y": 20,
+   "w": 18,
+   "h": 8,
+   "note": "Guarda la imagen y su firma. Tener permiso de subir aquí no basta para correr algo en el cluster."
+  },
+  {
+   "id": "ajena",
+   "label": "Imagen ajena",
+   "sub": "armada en una laptop",
+   "kind": "external",
+   "x": 2,
+   "y": 20,
+   "w": 18,
+   "h": 8,
+   "note": "Alguien con acceso al registro sube una imagen que no salió del CI. Puede tener hasta el mismo nombre. No tiene la firma del pipeline."
+  },
+  {
+   "id": "admision",
+   "label": "Admisión",
+   "sub": "¿la firmó el CI?",
+   "kind": "edge",
+   "x": 30,
+   "y": 38,
+   "w": 18,
+   "h": 9,
+   "note": "La [[politica-admision|política de admisión]] revisa cada pod antes de crearlo: la firma tiene que ser de la identidad exacta del pipeline de Alba."
+  },
+  {
+   "id": "pod",
+   "label": "Pod del gateway",
+   "sub": "…@sha256:",
+   "kind": "service",
+   "x": 58,
+   "y": 38,
+   "w": 18,
+   "h": 9,
+   "note": "Corre por digest, no por nombre. Volver atrás es desplegar el digest anterior, que también está firmado."
+  },
+  {
+   "id": "rechazo",
+   "label": "Rechazada",
+   "sub": "no corre",
+   "kind": "monitor",
+   "x": 2,
+   "y": 38,
+   "w": 18,
+   "h": 9,
+   "note": "El cluster no crea el pod y queda el registro de quién lo intentó."
+  }
+ ],
+ "edges": [
+  {
+   "from": "indice",
+   "to": "build",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "paquetes"
+  },
+  {
+   "from": "build",
+   "to": "sbom",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "imagen"
+  },
+  {
+   "from": "sbom",
+   "to": "firma",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "pasa"
+  },
+  {
+   "from": "firma",
+   "to": "registro",
+   "kind": "offline",
+   "fromSide": "l",
+   "toSide": "r",
+   "label": "firma"
+  },
+  {
+   "from": "ajena",
+   "to": "registro",
+   "kind": "async",
+   "fromSide": "r",
+   "toSide": "l",
+   "dashed": true,
+   "label": "sube"
+  },
+  {
+   "from": "registro",
+   "to": "admision",
+   "kind": "online",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "digest"
+  },
+  {
+   "from": "admision",
+   "to": "pod",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "corre"
+  },
+  {
+   "from": "admision",
+   "to": "rechazo",
+   "kind": "monitor",
+   "fromSide": "l",
+   "toSide": "r",
+   "dashed": true,
+   "label": "sin firma"
+  }
+ ],
+ "flows": [
+  {
+   "id": "normal",
+   "label": "Una release normal",
+   "steps": [
+    {
+     "nodes": [
+      "indice",
+      "build"
+     ],
+     "edges": [
+      "indice>build"
+     ],
+     "text": "El build baja las 37 dependencias del índice privado y revisa la huella de cada archivo contra el lock file."
+    },
+    {
+     "nodes": [
+      "build",
+      "sbom"
+     ],
+     "edges": [
+      "build>sbom"
+     ],
+     "text": "La imagen recién armada pasa por el SBOM y el escaneo. Sin CVEs críticos, sigue."
+    },
+    {
+     "nodes": [
+      "sbom",
+      "firma"
+     ],
+     "edges": [
+      "sbom>firma"
+     ],
+     "text": "El CI firma el **digest** con su identidad y registra la procedencia: commit y builder."
+    },
+    {
+     "nodes": [
+      "firma",
+      "registro"
+     ],
+     "edges": [
+      "firma>registro"
+     ],
+     "text": "La imagen y su firma quedan en el registro."
+    },
+    {
+     "nodes": [
+      "registro",
+      "admision",
+      "pod"
+     ],
+     "edges": [
+      "registro>admision",
+      "admision>pod"
+     ],
+     "text": "El despliegue pide la imagen por digest. La admisión verifica la firma y la identidad: pasa, y el pod corre."
+    }
+   ]
+  },
+  {
+   "id": "ajena",
+   "label": "Una imagen que no salió del CI",
+   "steps": [
+    {
+     "nodes": [
+      "ajena",
+      "registro"
+     ],
+     "edges": [
+      "ajena>registro"
+     ],
+     "text": "Alguien con permiso de escribir en el registro sube su propia imagen."
+    },
+    {
+     "nodes": [
+      "registro",
+      "admision"
+     ],
+     "edges": [
+      "registro>admision"
+     ],
+     "text": "Alguien intenta desplegarla. La admisión busca una firma de la identidad del pipeline de Alba y no la encuentra."
+    },
+    {
+     "nodes": [
+      "admision",
+      "rechazo"
+     ],
+     "edges": [
+      "admision>rechazo"
+     ],
+     "text": "**Rechazada.** Firmarla con otra identidad tampoco sirve: la verificación nombra la identidad exacta."
+    }
+   ]
+  },
+  {
+   "id": "cve",
+   "label": "El día que sale un CVE",
+   "steps": [
+    {
+     "nodes": [
+      "sbom"
+     ],
+     "edges": [],
+     "text": "Sale un CVE crítico en una biblioteca. Se busca en los SBOM de todas las imágenes que corren, en vez de revisar sistema por sistema."
+    },
+    {
+     "nodes": [
+      "build",
+      "sbom"
+     ],
+     "edges": [
+      "build>sbom"
+     ],
+     "text": "Se sube la versión corregida en el lock file, con su nuevo hash, y se arma una release nueva. El escaneo ya pasa."
+    },
+    {
+     "nodes": [
+      "firma",
+      "registro",
+      "admision",
+      "pod"
+     ],
+     "edges": [
+      "firma>registro",
+      "registro>admision",
+      "admision>pod"
+     ],
+     "text": "Firma, registro y admisión, como siempre. El pod nuevo corre con otro digest; el anterior queda para volver atrás si algo sale mal."
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 404" role="img" aria-labelledby="f-cifrado-llaves-t" class="f-svg" style="max-width:420px">
+<title id="f-cifrado-llaves-t">Dos formas de cifrar. Arriba, cifrado simétrico: el texto en claro se cifra con la llave A y el texto cifrado se descifra con la misma llave A, así que hay que pasarle la llave al otro sin que nadie la copie; lo usa AES y es rápido. Abajo, cifrado con llave pública: cualquiera cifra con la llave pública, que se reparte a todo el mundo, y solo la llave privada, que nunca sale de su dueño, descifra; lo usan RSA y las curvas elípticas, es lento y se usa para acordar llaves y firmar.</title>
+<rect class="f-card" x="10" y="10" width="340" height="384" rx="16"/>
+<text class="f-l" x="26" y="36">UNA LLAVE · SIMÉTRICO (AES)</text>
+<circle cx="112" cy="66" r="7" class="f-y"/><rect x="118" y="64" width="18" height="4" rx="1" class="f-y"/><rect x="130" y="67" width="3" height="6" class="f-y"/>
+<circle cx="228" cy="66" r="7" class="f-y"/><rect x="234" y="64" width="18" height="4" rx="1" class="f-y"/><rect x="246" y="67" width="3" height="6" class="f-y"/>
+<text class="f-s" x="122" y="88" text-anchor="middle" style="font-size:12px">llave A</text><text class="f-s" x="238" y="88" text-anchor="middle" style="font-size:12px">llave A</text>
+<rect class="f-chip" x="22" y="98" width="84" height="46" rx="10"/>
+<text class="f-s" x="64" y="118" text-anchor="middle">texto en</text>
+<text class="f-s" x="64" y="134" text-anchor="middle">claro</text>
+<rect class="f-o" x="138" y="98" width="84" height="46" rx="10"/>
+<text class="f-s" x="180" y="118" text-anchor="middle">texto</text>
+<text class="f-s" x="180" y="134" text-anchor="middle">cifrado</text>
+<rect class="f-chip" x="254" y="98" width="84" height="46" rx="10"/>
+<text class="f-s" x="296" y="118" text-anchor="middle">texto en</text>
+<text class="f-s" x="296" y="134" text-anchor="middle">claro</text>
+<path class="f-flecha" d="M106 121 L130 121"/>
+<path class="f-punta" d="M129 115 L129 127 L138 121 Z"/>
+<path class="f-flecha" d="M222 121 L246 121"/>
+<path class="f-punta" d="M245 115 L245 127 L254 121 Z"/>
+<text class="f-s" x="180" y="170" text-anchor="middle" style="font-size:12px">la misma llave cierra y abre: rápido,</text>
+<text class="f-s" x="180" y="186" text-anchor="middle" style="font-size:12px">pero hay que llevársela al otro</text>
+<line class="f-linea" x1="26" y1="204" x2="334" y2="204" style="stroke-dasharray:3 4"/>
+<text class="f-l" x="26" y="230">DOS LLAVES · PÚBLICA Y PRIVADA (RSA)</text>
+<circle cx="112" cy="260" r="7" class="f-g"/><rect x="118" y="258" width="18" height="4" rx="1" class="f-g"/><rect x="130" y="261" width="3" height="6" class="f-g"/>
+<circle cx="228" cy="260" r="7" class="f-p"/><rect x="234" y="258" width="18" height="4" rx="1" class="f-p"/><rect x="246" y="261" width="3" height="6" class="f-p"/>
+<text class="f-s" x="122" y="282" text-anchor="middle" style="font-size:12px">pública</text><text class="f-s" x="238" y="282" text-anchor="middle" style="font-size:12px">privada</text>
+<rect class="f-chip" x="22" y="292" width="84" height="46" rx="10"/>
+<text class="f-s" x="64" y="312" text-anchor="middle">texto en</text>
+<text class="f-s" x="64" y="328" text-anchor="middle">claro</text>
+<rect class="f-o" x="138" y="292" width="84" height="46" rx="10"/>
+<text class="f-s" x="180" y="312" text-anchor="middle">texto</text>
+<text class="f-s" x="180" y="328" text-anchor="middle">cifrado</text>
+<rect class="f-chip" x="254" y="292" width="84" height="46" rx="10"/>
+<text class="f-s" x="296" y="312" text-anchor="middle">texto en</text>
+<text class="f-s" x="296" y="328" text-anchor="middle">claro</text>
+<path class="f-flecha" d="M106 315 L130 315"/>
+<path class="f-punta" d="M129 309 L129 321 L138 315 Z"/>
+<path class="f-flecha" d="M222 315 L246 315"/>
+<path class="f-punta" d="M245 309 L245 321 L254 315 Z"/>
+<text class="f-s" x="180" y="364" text-anchor="middle" style="font-size:12px">cualquiera cierra con la pública; solo</text>
+<text class="f-s" x="180" y="380" text-anchor="middle" style="font-size:12px">la privada abre: lento, para cosas cortas</text>
+</svg>

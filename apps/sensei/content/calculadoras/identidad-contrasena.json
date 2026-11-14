@@ -1,0 +1,83 @@
+{
+ "titulo": "¿Cuánto tarda adivinar una contraseña?",
+ "intro": "Aplica las ecuaciones de la lección: \\(C = a^m\\) contraseñas posibles, \\(t = C ÷ v\\) segundos para probarlas todas y \\(t_U = U × C ÷ v\\) para \\(U\\) cuentas, cada una con su sal. Arranca con ocho minúsculas contra un hash lento. Los valores de \\(v\\) son de una RTX 4090: ≈ 2 × 10¹⁰ intentos por segundo con un hash rápido (SHA-256; los ≈ 2.2 × 10¹⁰ de «Cifrado, llaves y certificados», redondeados) y ≈ 10⁴ con uno lento (con PBKDF2 de 600,000 repeticiones da ≈ 1.5 × 10⁴). Supone contraseñas al azar: una palabra común cae con una lista en segundos.",
+ "entradas": [
+  {
+   "id": "a",
+   "label": "Símbolos posibles por carácter, \\(a\\) (26 = minúsculas · 62 = con mayúsculas y dígitos)",
+   "min": 2,
+   "max": 95,
+   "paso": 1,
+   "valor": 26
+  },
+  {
+   "id": "m",
+   "label": "Largo de la contraseña, \\(m\\), en caracteres",
+   "min": 1,
+   "max": 20,
+   "paso": 1,
+   "valor": 8
+  },
+  {
+   "id": "v",
+   "label": "Intentos por segundo del atacante, \\(v\\) (10,000 ≈ hash lento · 20,000,000,000 ≈ hash rápido en una GPU)",
+   "min": 1,
+   "max": 10000000000000,
+   "paso": 1,
+   "valor": 10000,
+   "tipo": "numero"
+  },
+  {
+   "id": "U",
+   "label": "Cuentas robadas, cada una con su sal, \\(U\\)",
+   "min": 1,
+   "max": 1000000000,
+   "paso": 1,
+   "valor": 1,
+   "tipo": "numero"
+  }
+ ],
+ "calculos": [
+  {
+   "id": "C",
+   "formula": "pow(a, m)"
+  },
+  {
+   "id": "t",
+   "formula": "C / v"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "Contraseñas posibles, \\(C\\)",
+   "formula": "C",
+   "formato": "sci",
+   "nota": "\\(C = a^m\\)"
+  },
+  {
+   "label": "Tiempo para probarlas todas, \\(t\\), en segundos",
+   "formula": "t",
+   "formato": "sci",
+   "nota": "\\(t = C ÷ v\\)"
+  },
+  {
+   "label": "El mismo \\(t\\), en días",
+   "formula": "t / 86400",
+   "formato": "sci",
+   "nota": "\\(t\\) entre 86,400 s del día; en promedio, la mitad"
+  },
+  {
+   "label": "El mismo \\(t\\), en años",
+   "formula": "t / 31557600",
+   "formato": "sci",
+   "nota": "un año ≈ 3.16 × 10⁷ s"
+  },
+  {
+   "label": "Para las \\(U\\) cuentas, \\(t_U\\), en años",
+   "formula": "U * t / 31557600",
+   "formato": "sci",
+   "nota": "\\(t_U = U × C ÷ v\\); sin sal bastaría \\(t\\) para todas"
+  }
+ ],
+ "nota": "Cada carácter más multiplica el tiempo por \\(a\\); multiplicar \\(v\\) por 10 lo divide entre 10."
+}

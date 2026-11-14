@@ -1,0 +1,18 @@
+{
+  "titulo": "¿Qué parte de una categoría controla el atacante?",
+  "intro": "Un atacante con \\(a\\) cuentas mete \\(u\\) etiquetas falsas con cada una en una categoría que ya tiene \\(N_c\\) etiquetas legítimas. Aplica la ecuación de la lección, \\(f = a × u ÷ (N_c + a × u)\\). Los valores iniciales son los de la cuenta: 20 cuentas, 10 etiquetas y una categoría nueva de Alba con 500.",
+  "entradas": [
+    { "id": "a", "label": "**Cuentas** que controla el atacante, \\(a\\)", "min": 1, "max": 500, "paso": 1, "valor": 20 },
+    { "id": "u", "label": "Etiquetas falsas por cuenta que entran al snapshot, \\(u\\) (un tope por cuenta lo limita)", "min": 1, "max": 100, "paso": 1, "valor": 10 },
+    { "id": "n", "label": "Etiquetas legítimas de la categoría, \\(N_c\\) (≈ 3,680 es el promedio de Alba: 1,840,211 ÷ 500)", "min": 50, "max": 2000000, "paso": 10, "valor": 500, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "falsas", "formula": "a * u" }
+  ],
+  "salidas": [
+    { "label": "Etiquetas falsas, \\(a × u\\)", "formula": "falsas", "formato": "int" },
+    { "label": "Fracción envenenada de la categoría, \\(f\\)", "formula": "falsas / (n + falsas)", "formato": "pct", "decimales": 1, "barra": true, "nota": "\\(f = a × u ÷ (N_c + a × u)\\)" },
+    { "label": "Las mismas falsas contra todo el dataset de Alba (1,840,211 fotos)", "formula": "falsas / (1840211 + falsas)", "formato": "pct", "decimales": 3, "nota": "\\(a × u ÷ (1,840,211 + a × u)\\)" }
+  ],
+  "nota": "Con \\(N_c\\) = 500, las 200 falsas son ≈ 28.6 % de la categoría y apenas 0.011 % del dataset. Las categorías chicas y nuevas son las más frágiles; el tope \\(u\\) baja \\(f\\) casi en proporción."
+}

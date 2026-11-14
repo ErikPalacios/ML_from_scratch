@@ -1,0 +1,21 @@
+{
+  "titulo": "Fuerza bruta: cuánto aguanta una llave",
+  "intro": "Aplica las fórmulas de la lección: \\(K = 2^L\\) llaves posibles y \\(t = K ÷ (2 × v)\\) segundos en promedio. Arranca con la cuenta: una llave de AES-128 contra un atacante enorme, que nadie tiene, de 10¹⁸ llaves por segundo.",
+  "entradas": [
+    { "id": "L", "label": "Largo de la llave, \\(L\\), en bits (128 para AES-128; 56 para DES)", "min": 4, "max": 256, "paso": 1, "valor": 128 },
+    { "id": "ev", "label": "Exponente de la velocidad del atacante: \\(v\\) = 10 elevado a este número, en llaves/s (18 → 10¹⁸)", "min": 0, "max": 24, "paso": 1, "valor": 18 }
+  ],
+  "calculos": [
+    { "id": "K", "formula": "pow(2, L)" },
+    { "id": "v", "formula": "pow(10, ev)" },
+    { "id": "t", "formula": "K / (2 * v)" }
+  ],
+  "salidas": [
+    { "label": "Llaves posibles, \\(K\\)", "formula": "K", "formato": "sci", "nota": "\\(K = 2^L\\)" },
+    { "label": "Tiempo promedio, \\(t\\), en segundos", "formula": "t", "formato": "sci", "nota": "\\(t = K ÷ (2 × v)\\)" },
+    { "label": "Tiempo promedio, en horas", "formula": "t / 3600", "formato": "sci", "nota": "\\(t\\) ÷ 3,600" },
+    { "label": "Tiempo promedio, en años", "formula": "t / 3.16e7", "formato": "sci", "nota": "\\(t\\) ÷ 3.16 × 10⁷ s por año" },
+    { "label": "Veces la edad del universo", "formula": "t / 3.16e7 / 13.8e9", "formato": "sci", "nota": "años ÷ 13.8 × 10⁹" }
+  ],
+  "nota": "Cada bit más duplica \\(t\\); multiplicar la velocidad del atacante por 1,000 (sumar 3 a la potencia) lo compensan 10 bits."
+}

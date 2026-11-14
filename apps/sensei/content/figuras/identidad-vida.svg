@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 352" role="img" aria-labelledby="f-identidad-vida-t" class="f-svg" style="max-width:420px">
+<title id="f-identidad-vida-t">Línea de tiempo de 0 a 30 minutos. Arriba, los tokens de un caller de Alba: el token 1 vale de 0 a 15 minutos, el token 2 se pide a los 12 y vale de 12 a 27, y el token 3 se pide a los 24. Siempre hay uno válido, y se traslapan 3 minutos. En medio, alguien roba el token 1 en el minuto 5: le sirve solo hasta el minuto 15, 10 minutos. Abajo, una llave de API robada en el minuto 5: sigue sirviendo después del minuto 30, hasta que alguien se dé cuenta y la cambie.</title>
+<rect class="f-card" x="10" y="10" width="340" height="332" rx="16"/>
+<text class="f-l" x="26" y="36">CUÁNTO VALE LO QUE SE ROBA</text>
+<text class="f-s" x="26" y="56" style="font-size:12px">tokens de 15 min, renovados a los 12</text>
+<line class="f-linea" x1="40" y1="76" x2="40" y2="262" style="stroke-dasharray:2 4;opacity:.5"/>
+<line class="f-linea" x1="185" y1="76" x2="185" y2="262" style="stroke-dasharray:2 4;opacity:.5"/>
+<line class="f-linea" x1="330" y1="76" x2="330" y2="262" style="stroke-dasharray:2 4;opacity:.5"/>
+<text class="f-l" x="26" y="88">TOKENS DEL CALLER</text>
+<rect class="f-b" x="40" y="96" width="145" height="16" rx="4"/>
+<text class="f-pill-t" x="48" y="108" style="font-size:11px">token 1</text>
+<rect class="f-b" x="156" y="118" width="145" height="16" rx="4" style="opacity:.75"/>
+<text class="f-pill-t" x="164" y="130" style="font-size:11px">token 2</text>
+<rect class="f-b" x="272" y="140" width="58" height="16" rx="4" style="opacity:.55"/>
+<text class="f-pill-t" x="280" y="152" style="font-size:11px">token 3</text>
+<text class="f-l" x="26" y="182">TOKEN 1 ROBADO EN EL MIN 5</text>
+<rect class="f-o" x="88" y="190" width="97" height="16" rx="4"/>
+<circle class="f-acc" cx="88" cy="198" r="6"/>
+<text class="f-s" x="194" y="203" style="font-size:12px;font-weight:700">10 min y se acaba</text>
+<text class="f-l" x="26" y="230">LLAVE DE API ROBADA EN EL MIN 5</text>
+<rect class="f-o" x="88" y="238" width="242" height="16" rx="4"/>
+<circle class="f-acc" cx="88" cy="246" r="6"/>
+<path class="f-punta" d="M330 238 L342 246 L330 254 Z"/>
+<line class="f-linea" x1="40" y1="270" x2="330" y2="270"/>
+<text class="f-s" x="40" y="288" text-anchor="middle" style="font-size:12px">0</text>
+<text class="f-s" x="185" y="288" text-anchor="middle" style="font-size:12px">15 min</text>
+<text class="f-s" x="338" y="288" text-anchor="end" style="font-size:12px">30 min</text>
+<rect class="f-chip" x="22" y="298" width="316" height="34" rx="10"/>
+<text class="f-t" x="34" y="320" style="font-size:13px">La llave sirve hasta que alguien la cambie</text>
+</svg>

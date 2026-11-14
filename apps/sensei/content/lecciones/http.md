@@ -517,7 +517,7 @@ El HTTP que viste viaja legible. Cualquiera en el camino (el wifi de una cafeter
 
 Los mensajes de HTTP no cambian en nada: la misma primera línea, los mismos headers, el mismo body. Solo viajan cifrados. Por omisión, HTTPS usa el puerto 443. Por fuera se sigue viendo a qué IP y puerto vas, cuánto pesan los mensajes y, casi siempre, el nombre del host, porque el cliente lo manda sin cifrar al saludar, para que el servidor sepa qué certificado mostrar. Hay una extensión nueva que también lo esconde, pero todavía se usa poco. La ruta, los headers y el body quedan ocultos.
 
-En Alba, el ALB **termina** TLS: descifra la request y la manda al gateway por la red privada del sistema. Alba pide además TLS en todo lo que sale de un pod y, dentro del cluster (el grupo de máquinas donde corren los pods), [[mtls|mTLS]] si hay una [[service-mesh|malla de servicios]] (proxies junto a cada pod, en la lección de balanceadores): TLS en los dos sentidos, donde también el cliente muestra su certificado.
+En Alba, el ALB **termina** TLS: descifra la request y la manda al gateway por la red privada del sistema. Alba pide además TLS en todo lo que sale de un pod y, si hubiera una [[service-mesh|malla de servicios]] (proxies junto a cada pod, en la lección de balanceadores; Alba no la tiene todavía), [[mtls|mTLS]] dentro del cluster (el grupo de máquinas donde corren los pods): TLS en los dos sentidos, donde también el cliente muestra su certificado.
 
 ### Lo que cuesta abrir una conexión
 

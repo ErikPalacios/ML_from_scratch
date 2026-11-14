@@ -1,0 +1,50 @@
+{
+  "titulo": "El mapa de datos de una foto: dónde queda cada copia",
+  "width": 78, "height": 56,
+  "lanes": [
+    { "id": "pide", "label": "Cuando Ana publica: lo que pasa en cada request", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 18 },
+    { "id": "queda", "label": "Lo que queda guardado, y cuánto tiempo", "kind": "offline", "x": 0, "y": 22, "w": 78, "h": 34 }
+  ],
+  "nodes": [
+    { "id": "app", "label": "App de Ana", "sub": "la foto, con EXIF", "kind": "client", "x": 1, "y": 6, "w": 19, "h": 8,
+      "note": "La foto de los tenis sale del teléfono con su [[exif|EXIF]]: el modelo del teléfono y, si la ubicación estaba prendida, el GPS de la casa de Ana. Al fondo se ve parte de su sala. Todo eso es [[dato-personal|dato personal]]." },
+    { "id": "backend", "label": "Backend de publicaciones", "sub": "la publicación", "kind": "service", "x": 29, "y": 6, "w": 20, "h": 8,
+      "note": "El programa del marketplace que guarda la publicación de Ana y llama al clasificador. Es el único que une el [[request-id|request_id]] de cada foto con la cuenta de Ana: por eso el log del clasificador es seudónimo, no anónimo." },
+    { "id": "gateway", "label": "Gateway del clasificador", "sub": "no guarda la foto", "kind": "service", "x": 58, "y": 6, "w": 19, "h": 8,
+      "note": "Recibe la foto, la decodifica **en memoria**, se la pasa al modelo y la suelta. No la escribe en disco ni en el log: guardarla «para depurar» sería la copia más grande y la más peligrosa." },
+    { "id": "modelo", "label": "Modelo entrenado", "sub": "parámetros, no fotos", "kind": "model", "x": 1, "y": 28, "w": 19, "h": 8,
+      "note": "Se entrena cada mes con el último snapshot. No guarda las fotos: guarda ≈ 24.5 millones de [[parametro|parámetros]] que cada foto movió un poco. Por eso no se le puede «borrar» una foto ([[machine-unlearning]])." },
+    { "id": "producto", "label": "Fotos del producto", "sub": "las guarda el marketplace", "kind": "store", "x": 29, "y": 28, "w": 20, "h": 8,
+      "note": "La foto original vive aquí porque es la publicación de Ana: ≈ 2 TB de fotos al día en todo el marketplace: ≈ 10 M fotos al día × ≈ 200 KB, la cifra redonda que usa el curso (≈ 7.5 M son de publicaciones nuevas y el resto las piden otros equipos). La borra el producto cuando Ana borra su publicación. Las otras copias salen de aquí." },
+    { "id": "log", "label": "Log de predicciones", "sub": "seudónimo · 90 días", "kind": "store", "x": 58, "y": 28, "w": 19, "h": 8,
+      "note": "Una línea de ≈ 300 bytes por foto: `request_id`, caller, versión del modelo, top-5, latencias, bytes y un prefijo del hash de la foto. Sin la foto, sin EXIF, sin el id de la vendedora. Es [[seudonimizacion|seudónimo]]: 10 M líneas al día × 90 días = 900 M vivas." },
+    { "id": "snapshot", "label": "Snapshot del dataset", "sub": "manifest · sin EXIF", "kind": "store", "x": 1, "y": 44, "w": 19, "h": 8,
+      "note": "Cada [[snapshot]] es una lista congelada (el manifest) de qué fotos y etiquetas entrenan cada modelo, con el hash de cada foto. El [[golden-set|golden set]] de 50,000 fotos también vive así, sin EXIF. Inmutable no es eterno: necesita su retención." },
+    { "id": "proveedor", "label": "Proveedor de etiquetado", "sub": "un encargado", "kind": "external", "x": 29, "y": 44, "w": 20, "h": 8,
+      "note": "Personas de otra empresa ven las fotos para ponerles la categoría correcta. Es un [[encargado-tratamiento|encargado]]: trabaja por cuenta de Alba, con un contrato que dice qué recibe, para qué y cuándo lo borra. Si trabaja desde otro país, los datos salen del país: para el GDPR es una [[transferencia-internacional|transferencia]]; para la ley mexicana, una remisión a un encargado, con su contrato." },
+    { "id": "etiquetar", "label": "Fotos a etiquetar", "sub": "sin EXIF · 90 días", "kind": "store", "x": 58, "y": 44, "w": 19, "h": 8,
+      "note": "Las dudosas (las que el modelo clasificó con [[confianza]] menor que 0.3) y otras que se eligen: ≈ 5,000 al mes. Se copian del bucket del producto **sin EXIF** a un bucket restringido, con [[cifrado-en-reposo|cifrado en reposo]], y se borran a los 90 días con una regla de [[ciclo-vida|ciclo de vida]]." }
+  ],
+  "edges": [
+    { "from": "app", "to": "backend", "kind": "online", "label": "sube la foto", "fromSide": "r", "toSide": "l" },
+    { "from": "backend", "to": "gateway", "kind": "online", "label": "classify", "fromSide": "r", "toSide": "l" },
+    { "from": "backend", "to": "producto", "kind": "offline", "label": "la guarda", "fromSide": "b", "toSide": "t" },
+    { "from": "gateway", "to": "log", "kind": "offline", "label": "una línea", "fromSide": "b", "toSide": "t" },
+    { "from": "log", "to": "etiquetar", "kind": "offline", "label": "cuáles son dudosas", "fromSide": "b", "toSide": "t" },
+    { "from": "etiquetar", "to": "proveedor", "kind": "offline", "label": "las ve", "fromSide": "l", "toSide": "r" },
+    { "from": "proveedor", "to": "snapshot", "kind": "offline", "label": "etiquetas", "fromSide": "l", "toSide": "r" },
+    { "from": "snapshot", "to": "modelo", "kind": "offline", "label": "entrena", "fromSide": "t", "toSide": "b" }
+  ],
+  "flows": [
+    { "id": "copias", "label": "Las copias de la foto de Ana", "steps": [
+      { "nodes": ["app", "backend"], "edges": ["app>backend"], "text": "Ana sube la foto. Al fondo se ve parte de su sala, y trae el **EXIF** con el GPS de su casa: todo es dato personal." },
+      { "nodes": ["backend", "producto"], "edges": ["backend>producto"], "text": "**Copia 1.** El marketplace guarda la foto original con la publicación. Esta copia es del producto, no del clasificador." },
+      { "nodes": ["backend", "gateway"], "edges": ["backend>gateway"], "text": "El backend llama al clasificador. El gateway usa la foto **en memoria** y no la guarda: la copia que no se hace no hay que borrarla." },
+      { "nodes": ["gateway", "log"], "edges": ["gateway>log"], "text": "**Copia 2.** Una línea de log de ≈ 300 bytes, sin la foto ni el EXIF. Es **seudónima**: el `request_id` lleva a Ana a través del backend. Caduca a los 90 días." },
+      { "nodes": ["log", "etiquetar"], "edges": ["log>etiquetar"], "text": "**Copia 3**, solo si la foto sale dudosa: el log dice cuáles salieron dudosas, y la foto se copia del bucket del producto **sin EXIF** a un bucket restringido y cifrado, por 90 días." },
+      { "nodes": ["etiquetar", "proveedor"], "edges": ["etiquetar>proveedor"], "text": "Las personas del proveedor de etiquetado la ven. Es un **encargado**: Alba sigue siendo la responsable." },
+      { "nodes": ["proveedor", "snapshot"], "edges": ["proveedor>snapshot"], "text": "**Copia 4.** La foto y su etiqueta entran a un **snapshot** del dataset, que se congela con su manifest." },
+      { "nodes": ["snapshot", "modelo"], "edges": ["snapshot>modelo"], "text": "El modelo del mes se entrena con ese snapshot. No guarda la foto, pero aprendió de ella: si Ana pide borrar, cambia con el **siguiente** reentrenamiento." }
+    ] }
+  ]
+}

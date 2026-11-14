@@ -1663,7 +1663,7 @@
      "dato": "Fotos del producto (las guarda el marketplace, no el clasificador)",
      "valor": "2 TB/día, 730 TB al año",
      "unidad": "TB",
-     "nota": "Ciclo de vida: 30 días Standard + Glacier IR.",
+     "nota": "Ciclo de vida: 30 días Standard + Glacier IR. Los 2 TB/día salen de 10 M fotos × 200 KB (trafico.fotos_bytes_dia); incluyen ≈ 2.5 M que otros equipos vuelven a pedir, así que las fotos nuevas de publicaciones son menos (≈ 7.5 M/día, ≈ 1.5 TB). El curso usa 2 TB como cifra redonda.",
      "lecciones": [
       "almacenamiento"
      ]
@@ -1900,6 +1900,16 @@
      "lecciones": [
       "pruebas-ci"
      ]
+    },
+    {
+     "id": "kms_precio",
+     "dato": "Precio de AWS KMS",
+     "valor": "US$1 por llave al mes (+US$1 por la 1.ª rotación y +US$1 por la 2.ª, tope US$3) · US$0.03 por 10,000 requests, 20,000 gratis al mes",
+     "unidad": "USD",
+     "nota": "Noviembre de 2026. La llave de Alba rota cada año: desde el segundo año cuesta US$3 al mes.",
+     "lecciones": [
+      "cifrado"
+     ]
     }
    ]
   },
@@ -1964,6 +1974,26 @@
      "nota": "Para que Ana siga siendo solo la vendedora.",
      "lecciones": [
       "terminal"
+     ]
+    },
+    {
+     "id": "borrado_ana",
+     "dato": "Ejemplo de solicitud de borrado de Ana",
+     "valor": "20 de octubre de 2026; resnet50-2026-10-01 (snapshot de septiembre) la incluye; resnet50-2026-11-01 (snapshot de octubre) ya no",
+     "unidad": "—",
+     "nota": "Ilustrativo.",
+     "lecciones": [
+      "privacidad"
+     ]
+    },
+    {
+     "id": "ids_privacidad",
+     "dato": "Ids de juguete de la lección de privacidad",
+     "valor": "seller_id «ana-48213», seudónimo «p-7f3a», teléfono de juguete 5512348907",
+     "unidad": "—",
+     "nota": "Solo en el código y el texto de ejemplo.",
+     "lecciones": [
+      "privacidad"
      ]
     }
    ]
@@ -2203,6 +2233,342 @@
      "lecciones": [
       "balanceo",
       "gestionados"
+     ]
+    }
+   ]
+  },
+  "seguridad": {
+   "descripcion": "Seguridad y datos personales: cifrado, identidades, permisos, privacidad y cadena de suministro (fase 9)",
+   "hechos": [
+    {
+     "id": "tls_terminacion",
+     "dato": "Dónde termina TLS",
+     "valor": "en el ALB, con un certificado público para el nombre del servicio; del ALB al gateway, HTTP por la red privada",
+     "unidad": "—",
+     "nota": "Alba no tiene malla de servicios: dentro del cluster no hay mTLS. Todo lo que sale de un pod (a S3, a terceros) va por TLS.",
+     "lecciones": [
+      "cifrado",
+      "identidad"
+     ]
+    },
+    {
+     "id": "gateway_triton_red",
+     "dato": "Cómo se protege la llamada gateway → Triton",
+     "valor": "sin cifrar dentro del cluster; Triton sin entrada desde fuera: Service interno y NetworkPolicy (solo el gateway al puerto 8000, solo el monitoreo al 8002)",
+     "unidad": "—",
+     "nota": "Decisión de Alba: la red privada y la NetworkPolicy bastan para su riesgo; mTLS con una malla de servicios es la mejora que se discute.",
+     "lecciones": [
+      "cifrado",
+      "ataques"
+     ]
+    },
+    {
+     "id": "callers",
+     "dato": "Quiénes llaman al clasificador",
+     "valor": "3 callers internos: el backend de publicaciones, moderación y búsqueda; cada uno con su client_id",
+     "unidad": "callers",
+     "nota": "",
+     "lecciones": [
+      "identidad"
+     ]
+    },
+    {
+     "id": "auth_callers",
+     "dato": "Cómo se autentica un caller",
+     "valor": "JWT pedido con OAuth client credentials al proveedor de identidad interno de Alba, con scope classify; el ALB verifica la firma, iss y exp siempre, y aud porque Alba lo configura como claim extra; pasa el token tal cual y el gateway lee el client_id de los claims",
+     "unidad": "—",
+     "nota": "Nunca un header que el caller escribe a mano: la cuota y la prioridad se deciden por el client_id del token verificado.",
+     "lecciones": [
+      "identidad",
+      "cifrado"
+     ]
+    },
+    {
+     "id": "jwt_vida",
+     "dato": "Vida del token de un caller",
+     "valor": "15 min; el caller lo cachea y pide otro antes de que caduque",
+     "unidad": "min",
+     "nota": "Fijado por el curso. Lo común es de 5 a 60 min, pero se configura (algunos proveedores dan más por omisión).",
+     "lecciones": [
+      "identidad"
+     ]
+    },
+    {
+     "id": "login_vendedores",
+     "dato": "Cómo entra una vendedora a Alba",
+     "valor": "correo y contraseña, más un segundo factor opcional; la contraseña se guarda con un hash lento con sal, nunca en claro",
+     "unidad": "—",
+     "nota": "Ana es la vendedora de ejemplo.",
+     "lecciones": [
+      "identidad"
+     ]
+    },
+    {
+     "id": "roles_pods",
+     "dato": "Permisos de los pods que llaman a AWS",
+     "valor": "sin llaves estáticas; cada pod con su cuenta de servicio ligada a un rol de IAM mínimo: Fluent Bit solo escribe en el prefijo de logs, el job de etiquetado solo lee el prefijo de fotos a etiquetar, Triton solo lee el prefijo del modelo",
+     "unidad": "—",
+     "nota": "Identidad del workload (lección «Servicios gestionados, serverless y permisos»).",
+     "lecciones": [
+      "identidad",
+      "cifrado"
+     ]
+    },
+    {
+     "id": "cifrado_reposo",
+     "dato": "Cifrado de lo guardado",
+     "valor": "todo bucket de S3 con SSE-KMS; una llave de KMS administrada por Alba para los datos con fotos o logs, con rotación automática cada año; la política de la llave dice qué roles pueden descifrar",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "cifrado",
+      "privacidad"
+     ]
+    },
+    {
+     "id": "secretos_terceros",
+     "dato": "Dónde viven los secretos",
+     "valor": "los de terceros (proveedor de etiquetado, notificaciones) en Secrets Manager, montados como archivo; se rotan con dos credenciales válidas a la vez; nada en la imagen ni en el repositorio",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "cifrado"
+     ]
+    },
+    {
+     "id": "foto_datos_personales",
+     "dato": "Qué datos personales puede traer una foto",
+     "valor": "caras, casas, placas, documentos; el EXIF puede traer GPS y el modelo del teléfono",
+     "unidad": "—",
+     "nota": "El gateway no guarda la foto.",
+     "lecciones": [
+      "privacidad"
+     ]
+    },
+    {
+     "id": "log_privacidad",
+     "dato": "Qué guarda el log de predicciones",
+     "valor": "request_id, caller, model_version, top-k con scores, latencias, bytes y un prefijo del sha256 de la foto; sin la foto, sin EXIF y sin el id de la vendedora en claro",
+     "unidad": "—",
+     "nota": "Es dato personal seudónimo: el backend une request_id con la publicación. Se guarda 90 días (almacenamiento.log_retencion).",
+     "lecciones": [
+      "privacidad"
+     ]
+    },
+    {
+     "id": "fotos_etiquetar_privacidad",
+     "dato": "Fotos que salen a etiquetar",
+     "valor": "≈ 5,000 al mes, copiadas sin EXIF, 90 días; el golden set (50,000) congelado y sin EXIF",
+     "unidad": "fotos/mes",
+     "nota": "Mismas cifras que almacenamiento.fotos_etiquetar y datos_y_entrenamiento.golden_set.",
+     "lecciones": [
+      "privacidad"
+     ]
+    },
+    {
+     "id": "borrado",
+     "dato": "Qué pasa cuando alguien pide borrar sus datos",
+     "valor": "se busca por request_id y hash; el manifest dice en qué snapshots está; se saca de los buckets y del siguiente snapshot; el modelo ya entrenado no se desentrena: el siguiente reentrenamiento mensual ya no la incluye",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "privacidad",
+      "ataques"
+     ]
+    },
+    {
+     "id": "ley",
+     "dato": "Ley de datos personales que aplica",
+     "valor": "México: la LFPDPPP nueva (DOF, 20 de marzo de 2025); si atiende personas en la Unión Europea, también el GDPR",
+     "unidad": "—",
+     "nota": "Autoridad (Secretaría Anticorrupción y Buen Gobierno), fecha y reglas de consentimiento y de brecha: en la lección «Datos personales y la ley». Plazos y multas: el equipo legal. Reforma menor del 14 de noviembre de 2025 que no toca lo que usa el curso.",
+     "lecciones": [
+      "privacidad"
+     ]
+    },
+    {
+     "id": "amenazas",
+     "dato": "Ataques plausibles",
+     "valor": "poco incentivo para engañar la sugerencia (la vendedora puede cambiarla a mano); sí para tumbar el servicio con fotos caras y para envenenar etiquetas (el 72 % viene de vendedores)",
+     "unidad": "—",
+     "nota": "Defensas: tope de 10 MB y 40 MP, 2 decodes a la vez, gate contra el golden set de moderadores, snapshots inmutables.",
+     "lecciones": [
+      "ataques"
+     ]
+    },
+    {
+     "id": "imagen_gateway",
+     "dato": "Imagen del gateway",
+     "valor": "python:3.13-slim en dos etapas, sin compiladores, usuario no root (UID 10001), 37 dependencias fijadas con == (transitivas incluidas)",
+     "unidad": "dependencias",
+     "nota": "",
+     "lecciones": [
+      "ataques"
+     ]
+    },
+    {
+     "id": "release_cadena",
+     "dato": "Controles de cada release",
+     "valor": "SBOM, escaneo que falla con un CVE crítico, firma del digest y política de admisión que rechaza lo no firmado; despliegue por digest (…@sha256:), rollback = digest anterior; los pesos se verifican con su sha256 al cargar",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "ataques",
+      "cifrado"
+     ]
+    },
+    {
+     "id": "dominio_api",
+     "dato": "Nombre del servicio en el certificado público",
+     "valor": "api.alba.example",
+     "unidad": "—",
+     "nota": "Dominio .example, reservado para ejemplos.",
+     "lecciones": [
+      "cifrado"
+     ]
+    },
+    {
+     "id": "certificado_acm",
+     "dato": "Certificado público del ALB",
+     "valor": "de ACM; dura 198 días y ACM lo renueva 45 días antes de vencer si está en uso y el CNAME de validación sigue",
+     "unidad": "días",
+     "nota": "198 días es el default de ACM desde 2026; el tope de las reglas públicas es 200 días desde marzo de 2026.",
+     "lecciones": [
+      "cifrado"
+     ]
+    },
+    {
+     "id": "kms_bucket_key",
+     "dato": "Bucket Key en los buckets con SSE-KMS",
+     "valor": "prendido",
+     "unidad": "—",
+     "nota": "Baja las llamadas a KMS: ≈ US$685 al mes sin él contra ≈ US$7.84 con él, para las 7.5 M fotos nuevas al día (cuenta de la lección).",
+     "lecciones": [
+      "cifrado"
+     ]
+    },
+    {
+     "id": "politica_llave_roles",
+     "dato": "Roles en la política de la llave de fotos y logs",
+     "valor": "Fluent Bit: kms:GenerateDataKey (escribe, no descifra) · job de etiquetado: kms:Decrypt",
+     "unidad": "—",
+     "nota": "Coherente con roles_pods. Nombres de rol y número de cuenta del JSON de la lección son ilustrativos.",
+     "lecciones": [
+      "cifrado",
+      "identidad"
+     ]
+    },
+    {
+     "id": "fluentbit_putobject",
+     "dato": "Cómo sube Fluent Bit los logs a S3",
+     "valor": "un PutObject por archivo (use_put_object), no subida en partes",
+     "unidad": "—",
+     "nota": "Con SSE-KMS, una subida en partes también exige kms:Decrypt, y Fluent Bit ya no sería «escribe pero no descifra».",
+     "lecciones": [
+      "cifrado",
+      "identidad"
+     ]
+    },
+    {
+     "id": "jwt_algoritmo",
+     "dato": "Cómo firma el proveedor de identidad",
+     "valor": "RS256 con llave RSA de 2,048 bits y kid; el ALB baja el JWKS de una URL pública; si la verificación falla, 401",
+     "unidad": "—",
+     "nota": "El ALB solo acepta RS256 y llaves de 2K (doc. de AWS, nov. 2026). El código de la lección usa HS256 con llave de juguete, y lo dice.",
+     "lecciones": [
+      "identidad",
+      "cifrado"
+     ]
+    },
+    {
+     "id": "jwt_renovacion",
+     "dato": "Cuándo renueva su token cada caller",
+     "valor": "a los 12 min, 3 min antes de que caduque el de 15",
+     "unidad": "min",
+     "nota": "",
+     "lecciones": [
+      "identidad"
+     ]
+    },
+    {
+     "id": "callers_instancias",
+     "dato": "Instancias de cada caller que piden su propio token",
+     "valor": "4 por caller, 12 en total",
+     "unidad": "instancias",
+     "nota": "12 × 1,440 ÷ 12 = 1,440 tokens al día.",
+     "lecciones": [
+      "identidad"
+     ]
+    },
+    {
+     "id": "codigos_identidad",
+     "dato": "Códigos de identidad y cuota",
+     "valor": "401 en el ALB (sin token válido); 403 en el gateway (scope sin classify); 429 + Retry-After por cuota del client_id",
+     "unidad": "—",
+     "nota": "Complementa promesas.codigos.",
+     "lecciones": [
+      "identidad"
+     ]
+    },
+    {
+     "id": "roles_vendedora_soporte",
+     "dato": "Roles de personas en el sitio",
+     "valor": "vendedora: edita sus publicaciones · soporte (Marta): lee cualquiera, no edita",
+     "unidad": "—",
+     "nota": "Ids de publicación de ejemplo: 8811 (Ana, tenis) y 8812 (Beto, bici).",
+     "lecciones": [
+      "identidad"
+     ]
+    },
+    {
+     "id": "gateway_sin_s3",
+     "dato": "Permisos de AWS del gateway",
+     "valor": "ninguno sobre el bucket de fotos: no guarda la foto ni tiene rol para leer S3",
+     "unidad": "—",
+     "nota": "Sale de roles_pods: solo Fluent Bit, el etiquetado y Triton tienen rol.",
+     "lecciones": [
+      "ataques",
+      "identidad"
+     ]
+    },
+    {
+     "id": "proveedor_etiquetado_retencion",
+     "dato": "Cuánto guarda el proveedor de etiquetado las fotos que recibe",
+     "valor": "90 días, sin EXIF, sin nombre de la vendedora ni su publicación",
+     "unidad": "días",
+     "nota": "≈ 5,000 × 3 ≈ 15,000 fotos en su poder a la vez. Es una remisión a un encargado, no una transferencia.",
+     "lecciones": [
+      "privacidad"
+     ]
+    },
+    {
+     "id": "borrado_producto",
+     "dato": "Quién borra la foto original",
+     "valor": "el producto (backend de publicaciones), con sus versiones viejas si el bucket guarda versiones",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "privacidad"
+     ]
+    },
+    {
+     "id": "borrado_log",
+     "dato": "Qué pasa con el log de predicciones ante un borrado",
+     "valor": "se reescriben las particiones de esos días o se deja que caduque a los 90 días; lo decide legal",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "privacidad"
+     ]
+    },
+    {
+     "id": "sin_reconocimiento_facial",
+     "dato": "Alba no hace reconocimiento facial",
+     "valor": "ninguna parte del sistema compara caras",
+     "unidad": "—",
+     "nota": "Por eso una cara en una foto es dato personal, pero no biométrico sensible.",
+     "lecciones": [
+      "privacidad"
      ]
     }
    ]
