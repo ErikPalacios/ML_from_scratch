@@ -907,7 +907,7 @@ class OpenSlideReader:
 
 def load_model(engine_path: str) -> Model:
     """El Model real: un engine TensorRT FP16 construido con trtexec EN una L4 (sm_89) y con el MISMO
-    TensorRT de la imagen (nvcr.io/nvidia/tensorrt:26.08-py3 → TensorRT 11.2.1.2). Un engine no es
+    TensorRT de la imagen (nvcr.io/nvidia/tensorrt:26.08-py3 → TensorRT 11.2.1.2). Por defecto, un engine no es
     portable entre versiones de TensorRT ni entre arquitecturas de GPU.
 
     No se implementa aquí a propósito: sin una L4 no se puede probar, y código de GPU sin probar no

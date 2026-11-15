@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compila classifier.onnx → model.plan (engine TensorRT FP16) para Triton (caso c01).
 # DEBE correr en una máquina con la MISMA GPU que producción (T4 → g4dn.xlarge) y con la MISMA
-# versión de TensorRT que trae la imagen de Triton. Un engine no es portable: TensorRT elige
+# versión de TensorRT que trae la imagen de Triton. Por defecto un engine no es portable (y el modo compatible entre GPUs no cubre la T4): TensorRT elige
 # kernels para una arquitectura (T4 = sm_75) y serializa en un formato atado a su versión; en otra
 # GPU u otra versión, Triton no lo carga o lo carga con kernels malos.
 # Uso (desde reference/c01):  bash model/build_engine.sh

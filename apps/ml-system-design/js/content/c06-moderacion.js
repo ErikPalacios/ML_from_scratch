@@ -284,7 +284,7 @@
       { t: 'h3', text: 'Costo mensual: GPUs contra personas' },
       { t: 'calc', title: 'Orden de magnitud (on-demand, us-east-1, ' + E('aproximado') + ')',
         rows: [
-          { label: 'GPUs: 4 texto + 2 imagen + 4 deep scorer', expr: '10 × g6.xlarge × ' + E('US$0.80/h') + ' × 730 h', value: '<b>≈ US$5.9k</b>', note: 'encendidas 24/7: el camino síncrono no escala a cero' },
+          { label: 'GPUs: 4 texto + 2 imagen + 4 deep scorer', expr: '10 × g6.xlarge × ' + E('US$0.805/h') + ' × 730 h', value: '<b>≈ US$5.9k</b>', note: 'encendidas 24/7: el camino síncrono no escala a cero' },
           { label: 'CPU: mod-gateway, consumidores, router, APIs', expr: '', value: E('≈ US$3–4k') },
           { label: 'Kafka gestionado + almacenamiento', expr: '3 brokers + ≈ 4 TB', value: E('≈ US$1k') },
           { label: 'Lake, bases de datos de decisiones y apelaciones, logs, métricas', expr: '', value: E('≈ US$2–3k') },
@@ -868,8 +868,8 @@
       { t: 'table', caption: 'Desglose mensual (' + E('aproximado') + ')',
         head: ['Concepto', 'Detalle', 'Costo'],
         rows: [
-          ['GPUs etapa 1', '6 × g6.xlarge (4 texto + 2 imagen) × ' + E('US$0.80/h') + ' × 730 h, 24/7', E('≈ US$3.5k')],
-          ['GPUs etapa 2', '4 × g6.xlarge × US$0.80/h × 730 h', E('≈ US$2.3k')],
+          ['GPUs etapa 1', '6 × g6.xlarge (4 texto + 2 imagen) × ' + E('US$0.805/h') + ' × 730 h, 24/7', E('≈ US$3.5k')],
+          ['GPUs etapa 2', '4 × g6.xlarge × US$0.805/h × 730 h', E('≈ US$2.35k')],
           ['CPU', 'mod-gateway en varias zonas, consumidores, review-router, appeals, APIs', E('≈ US$3–4k')],
           ['Kafka gestionado', '3 brokers + ≈ 4 TB', E('≈ US$1k')],
           ['Datos', 'Lake, bases de decisiones y apelaciones, logs, métricas', E('≈ US$2–3k')],
@@ -882,7 +882,7 @@
         rows: [
           { label: 'Una revisión humana', expr: 'US$900k ÷ (216k × 30)', value: E('≈ US$0.14') },
           { label: 'Un ítem por la etapa 1', expr: 'US$3.5k ÷ (180 M × 30)', value: '≈ US$0.0000006' },
-          { label: 'Un ítem por la etapa 2', expr: 'US$2.3k ÷ (5.4 M × 30)', value: '≈ US$0.000014' },
+          { label: 'Un ítem por la etapa 2', expr: 'US$2.35k ÷ (5.4 M × 30)', value: '≈ US$0.000015' },
         ],
         result: 'Una revisión cuesta ≈ 10,000× lo que cuesta pasar un ítem por el deep scorer. Cualquier cosa que evite una revisión innecesaria (mejor precision en la banda, deduplicar, cerrar reportes repetidos) vale más que cualquier optimización de GPU.' },
       { t: 'h3', text: 'Palancas' },

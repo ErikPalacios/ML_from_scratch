@@ -162,10 +162,12 @@ spec:
           env:
             - {name: TRITON_URL, value: "triton-v2:8000"}               # su propio Triton
             - {name: MODEL_VERSION, value: "2026-10-01-resnet50-fp16"}
+  rollbackWindow: {revisions: 2}         # volver a una de las 2 anteriores no repite pasos ni análisis
   strategy:
     canary:
       canaryService: gateway-canary      # Service que ve solo los pods nuevos
       stableService: gateway-stable      # Service que ve solo los pods estables
+      scaleDownDelaySeconds: 86400       # bake de 24 h: la release anterior sigue viva (por defecto, 30 s)
       trafficRouting:
         # El Ingress gateway de c01 (k8s/gateway.yaml), con el backend cambiado a gateway-stable y el
         # puerto use-annotation: Argo escribe los pesos en una anotación y el ALB los aplica exactos
@@ -362,7 +364,7 @@ print(f"{srm_p(50_150, 49_850):.2f}")  # 0.34 → normal`;
           { t: 'p', html: `¿Alcanzan? Depende de qué quieras detectar. Con el estable recibiendo 19 veces más tráfico que el canary (95/5), α = 0.05 y potencia 0.8:` },
           { t: 'calc', title: 'Cuántos requests necesita el canary para ver un problema de 5xx', rows: [
             { label: '5xx sube de 0.1 % a 0.5 % (un bug grosero)', expr: 'test de dos proporciones, estable 19× más grande', value: '≈ 1,050 requests', note: '≈ 1 min en el pico al 5 %' },
-            { label: '5xx sube de 0.1 % a 0.2 % (se duplica)', expr: 'ídem', value: '≈ 10,700 requests', note: '≈ 10 min en el pico, ≈ 31 min en el promedio' },
+            { label: '5xx sube de 0.1 % a 0.2 % (se duplica)', expr: 'ídem', value: '≈ 10,650 requests', note: '≈ 10 min en el pico, ≈ 31 min en el promedio' },
           ], result: 'Los problemas groseros saltan en minutos; los sutiles necesitan decenas de miles de requests. Por eso cada etapa dura horas y cubre al menos un pico: además del conteo, hay fallas que solo aparecen con el tiempo (una fuga de memoria, un cache que se llena) o con la carga (el p99 del pico).' },
           { t: 'callout', kind: 'why', title: 'Por qué no empezar en 1 % ni en 20 %', html: `<p>Con 1 %, en 10 minutos de pico hay ≈ 2,100 requests: un salto de 0.1 % a 0.2 % en 5xx serían ≈ 2 vs 4 errores, indistinguibles del azar; tendrías que esperar horas por etapa. Con 20 %, un modelo que rompe algo afecta a 1 de cada 5 requests antes de que salte la alarma. En un servicio con mucho más tráfico que c01, 1 % sí alcanza: el porcentaje se elige con el volumen, no por costumbre.</p>` },
           { t: 'h3', text: 'Criterios: para revertir y para avanzar' },
@@ -420,7 +422,7 @@ print(f"{srm_p(50_150, 49_850):.2f}")  # 0.34 → normal`;
             ['Canary', '5 % → 25 % → 100 %', 'El peso vuelve al estable: segundos', 'Las réplicas del canary', 'Sí, contra el estable'],
             ['Shadow', 'Copia; nadie ve la respuesta', 'Nada que revertir', 'Inferencia doble sobre la muestra', 'Sí, pareado, pero sin usuarios'],
           ] },
-          { t: 'p', html: `En la práctica se combinan. c01 hace un canary y, al promover, deja la release anterior (gateway + Triton) viva 24–48 h al mínimo: eso es un blue/green después del canary. El rollback en ese plazo es un cambio de ruteo; pasado el plazo, es redeployar la imagen anterior (${E('≈ 5–20 min')} por el cold start de nodos GPU) (<a href="#c01.fallas">fallas de c01</a>).` },
+          { t: 'p', html: `En la práctica se combinan. c01 hace un canary y, al promover, deja la release anterior (gateway + Triton) viva 24–48 h al mínimo: eso es un blue/green después del canary. El rollback en ese plazo es un cambio de ruteo de segundos si el Rollout lo permite (trampa de abajo); con GitOps súmale el revert, el PR y el sync de Argo CD (hasta ≈ 3 min): minutos. Pasado el plazo, es redeployar la imagen anterior (${E('≈ 5–20 min')} por el cold start de nodos GPU) (<a href="#c01.fallas">fallas de c01</a>).` },
           { t: 'calc', title: 'Cuánto cuesta tener blue vivo en c01', rows: [
             { label: 'Release anterior al mínimo', expr: '1 × g4dn.xlarge', value: E('≈ US$0.526/h') },
             { label: 'Bake de 24 h', expr: '0.526 × 24', value: '≈ US$13' },
@@ -434,7 +436,7 @@ print(f"{srm_p(50_150, 49_850):.2f}")  # 0.34 → normal`;
             '<b>Predicciones batch</b>: el job escribe en <code>predictions_v2</code>, validas la tabla completa (conteos, distribución, muestra revisada) y cambias el puntero o la vista que leen los consumidores. Volver es mover el puntero.',
             '<b>Tráfico muy bajo</b>: un canary a 5 % de 2 req/s no junta evidencia en días. Mejor validar green con tráfico sintético o replay y cambiar todo con el rollback listo.',
           ] },
-          { t: 'callout', kind: 'trap', title: 'Blue se apaga antes de lo que crees', html: `<p>En Argo Rollouts, la estrategia blue/green tiene <code>scaleDownDelaySeconds</code>, que por defecto es <b>30 segundos</b>: medio minuto después de promover, las réplicas de blue se reducen. Si tu plan de rollback es "volvemos a blue en segundos durante un día", súbelo y cuenta el costo. Del lado de SageMaker, blue se termina al acabar el baking period sin alarmas. Revisa siempre cuánto vive blue en la herramienta que uses.</p>` },
+          { t: 'callout', kind: 'trap', title: 'Blue se apaga antes de lo que crees', html: `<p>En Argo Rollouts, <code>scaleDownDelaySeconds</code> vale por defecto <b>30 segundos</b>, en blue/green y también en el canary con <code>trafficRouting</code> (el de c01): medio minuto después de promover, las réplicas de la versión anterior se reducen. Y volver a una versión ya promovida re-corre todos los pasos y el análisis, salvo que configures <code>rollbackWindow</code>. Si tu plan de rollback es "volvemos en segundos durante un día", sube el delay, agrega el window y cuenta el costo. Del lado de SageMaker, blue se termina al acabar el baking period sin alarmas. Revisa siempre cuánto vive blue en la herramienta que uses.</p>` },
           { t: 'h3', text: 'Lo que blue y green comparten' },
           { t: 'p', html: `Dos entornos de cómputo no significan dos mundos. Blue y green leen la misma base de datos, el mismo feature store y los mismos caches, y escriben en los mismos logs. Ahí se rompe el "switch de vuelta":` },
           { t: 'table', head: ['Recurso compartido', 'Qué puede salir mal', 'Cómo se evita'], rows: [
@@ -622,7 +624,7 @@ print(f"{srm_p(50_150, 49_850):.2f}")  # 0.34 → normal`;
           { t: 'h3', text: 'Qué tienes que guardar para volver rápido' },
           { t: 'list', items: [
             '<b>La imagen anterior por digest</b>, no por tag: un tag móvil puede apuntar a otra cosa mañana (<a href="#m05.registries">M5</a>). En c01 la imagen de Triton trae el engine horneado: volver a la imagen es volver al modelo.',
-            '<b>El engine anterior</b>, construido para el mismo hardware: un engine de TensorRT no es portable, así que no puedes "reconstruirlo rápido" en un incidente (<a href="#m08.tensorrt">M8</a>).',
+            '<b>El engine anterior</b>, construido para el mismo hardware: un engine de TensorRT no es portable por defecto, así que no puedes "reconstruirlo rápido" en un incidente (<a href="#m08.tensorrt">M8</a>).',
             '<b>La configuración anterior</b>: umbrales, top-k y <code>labels.json</code>, versionados con el modelo.',
             '<b>La release anterior viva</b> durante el bake (24–48 h en c01): convierte el rollback en un cambio de ruteo.',
             '<b>Las features que usaba</b>: si el modelo nuevo necesitó una versión nueva de una feature, la vieja sigue publicándose hasta que termine el bake.',
@@ -656,7 +658,7 @@ print(f"{srm_p(50_150, 49_850):.2f}")  # 0.34 → normal`;
               why: 'Distingue "no vi problemas" de "tuve la muestra para verlos", y no se salta la etapa intermedia.' },
             { q: 'Promoviste ayer. Hoy la tasa de aceptación bajó 2 pp. ¿Qué haces?',
               junior: 'Investigo qué pasó con el modelo para entender la causa.',
-              senior: 'Primero reviso si coincide con el deploy (y no con un cambio del caller o del producto). Si coincide, vuelvo: la release anterior sigue viva por el bake, así que es un cambio de ruteo de segundos. Confirmo que la aceptación vuelve. Después investigo sin presión: slices, desacuerdos del shadow que no revisamos, latencia en el pico. Y agrego al canary la señal que lo hubiera atrapado.',
+              senior: 'Primero reviso si coincide con el deploy (y no con un cambio del caller o del producto). Si coincide, vuelvo: la release anterior sigue viva por el bake, así que el switch es de segundos (con el revert en git y el sync de Argo CD, unos minutos). Confirmo que la aceptación vuelve. Después investigo sin presión: slices, desacuerdos del shadow que no revisamos, latencia en el pico. Y agrego al canary la señal que lo hubiera atrapado.',
               why: 'Mitigar antes de diagnosticar, con un rollback preparado de antemano.' },
             { q: '¿Cómo haces rollback si lo que cambió fue el pipeline de features, no el modelo?',
               junior: 'Vuelvo al modelo anterior.',
@@ -796,7 +798,7 @@ print(f"{srm_p(50_150, 49_850):.2f}")  # 0.34 → normal`;
       { id: 'm11-04', kind: 'trampa', q: 'Efectos secundarios que un shadow nunca debe tener.',
         a: 'Escribir en la base de datos, mandar notificaciones, cobrar, consumir cuotas o rate limits, escribir en caches o feature stores compartidos, llamar APIs de pago, actuar sobre el mundo (PLC en c03, alertas al SOC en c02), ni mezclar sus métricas con las de producción.' },
       { id: 'm11-05', kind: 'numero', q: 'Requests del canary de c01 al 5 % en 10 minutos.',
-        a: '≈ 10,500 en el pico (350 req/s) y ≈ 3,500 en el promedio (116 req/s). Con el estable 19× más grande, detectar 5xx de 0.1 % → 0.2 % pide ≈ 10,700 requests; de 0.1 % → 0.5 %, ≈ 1,050.' },
+        a: '≈ 10,500 en el pico (350 req/s) y ≈ 3,500 en el promedio (116 req/s). Con el estable 19× más grande, detectar 5xx de 0.1 % → 0.2 % pide ≈ 10,650 requests; de 0.1 % → 0.5 %, ≈ 1,050.' },
       { id: 'm11-06', kind: 'tradeoff', q: '¿Por qué el canary de c01 empieza en 5 % y no en 1 % ni 20 %?',
         a: '1 %: ≈ 2,100 requests en 10 min de pico, muy poco para ver fallas sutiles sin esperar horas. 20 %: un modelo malo afecta a 1 de cada 5 requests antes de la alarma. En servicios con mucho más tráfico, 1 % alcanza: se elige por volumen.' },
       { id: 'm11-07', kind: 'concepto', q: 'Criterios para avanzar un canary (no solo para revertir).',
@@ -808,7 +810,7 @@ print(f"{srm_p(50_150, 49_850):.2f}")  # 0.34 → normal`;
       { id: 'm11-10', kind: 'tradeoff', q: 'Blue/green vs canary.',
         a: 'Blue/green: dos entornos completos, switch atómico y vuelta en segundos, cuesta un entorno extra durante el bake; bueno si no pueden convivir versiones sobre tráfico mezclado o para batch. Canary: exposición gradual comparada contra el estable. c01 hace canary y deja la anterior viva 24–48 h (≈ US$13–25; con shadow y canary, ≈ US$25–50 por release).' },
       { id: 'm11-11', kind: 'trampa', q: 'Blue/green en Argo Rollouts: ¿cuánto sigue vivo blue después de promover por defecto?',
-        a: '30 segundos (scaleDownDelaySeconds). Si tu rollback cuenta con blue durante un día, súbelo y paga el costo.' },
+        a: '30 segundos (scaleDownDelaySeconds; igual en el canary con trafficRouting). Si tu rollback cuenta con blue durante un día, súbelo y paga el costo.' },
       { id: 'm11-12', kind: 'concepto', q: 'Lo que blue y green comparten y puede romper el switch de vuelta.',
         a: 'Esquema de la base de datos, versiones de features, prediction cache sin versión en la clave, mensajes en cola con formato nuevo y la capacidad caliente (warmup, nodos GPU con imagen).' },
       { id: 'm11-13', kind: 'numero', q: 'Tamaño de muestra del A/B de c01 (70 % → 71 %, α 0.05, potencia 0.8).',

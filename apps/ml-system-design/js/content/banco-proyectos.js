@@ -90,7 +90,7 @@
         return {
           q: `${tool[0]} quiere una herramienta interna que ${tool[1]}: un detector servido en una L4. El tráfico llega en <b>${N} tandas al día</b> que suman ≈ <b>${H} h</b> con requests; en cada tanda se facturan además ≈ <b>${E} min</b> de arranque y de rato ocioso antes de apagarse. ${wait === 'tolera'
             ? 'Quien la usa tolera esperar ≈ 1 min en el primer request de cada tanda.'
-            : 'La llama otro servicio con un timeout de 2 s, que también corre para el primer request de cada tanda, y las tandas llegan sin aviso.'} Opciones (aprox.):<ul><li>Cloud Run con L4, facturado por segundo, que escala a cero: ≈ US$1.05/h por instancia encendida.</li><li>Una g6.xlarge (1 L4) dedicada, encendida 24/7: ≈ US$0.805/h, ≈ US$588/mes.</li></ul>`,
+            : 'La llama otro servicio con un timeout de 2 s, que también corre para el primer request de cada tanda, y las tandas llegan sin aviso.'} Opciones (aprox.):<ul><li>Cloud Run con L4, facturado por segundo, que escala a cero: ≈ US$1.05/h por instancia encendida (sin redundancia zonal).</li><li>Una g6.xlarge (1 L4) dedicada, encendida 24/7: ≈ US$0.805/h, ≈ US$588/mes.</li></ul>`,
           parts: [
             {
               ask: 'Si Cloud Run escala a cero entre tandas, ¿cuántas horas de L4 factura al día?', unit: 'h/día', answer: billed, tol: 0.05,

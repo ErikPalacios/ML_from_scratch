@@ -238,7 +238,7 @@
             ['Detector a 640 px en una L4', E('≈ 250 frames/s') + ' (supuesto ilustrativo de <a href="#m03.cuantas-gpus">M3</a>)', '<code>trtexec</code> o <code>perf_analyzer</code>; el decode de video, aparte'],
             ['LLM: tokens/s por secuencia', '≲ ancho de banda ÷ bytes de pesos: 8B BF16 ≲ 19 (L4), ≲ 37 (A10G), ≲ 210 (H100)', '<code>vllm bench serve</code> (TTFT, TPOT, tokens/s de salida); AIPerf de NVIDIA, sucesor de GenAI-Perf'],
             ['LLM: tokens/s totales con batching', 'Sube con el batch hasta que el KV cache llena la VRAM: L4 ≲ 59 tokens/s con 4 secuencias de 8k (<a href="#m04.roofline">M4</a>)', 'Ídem, barriendo la concurrencia; mira el uso del KV cache del servidor'],
-            ['Red sostenida por instancia (baseline)', 'g4dn.xlarge 5 Gb/s (ráfaga hasta 25) · g5.xlarge y g6.xlarge 2.5 (hasta 10) · c6i.xlarge 1.56 (hasta 12.5)', 'Documentación de EC2; <code>iperf3</code> entre dos instancias. El <a href="#c01.estimaciones">c01</a> manda ≈ 2.4 Gb/s de tensores FP32'],
+            ['Red sostenida por instancia (baseline)', 'g4dn.xlarge 5 Gb/s (ráfaga hasta 25) · g5.xlarge y g6.xlarge 2.5 (hasta 10) · c6i.xlarge 1.56 (hasta 12.5); por sentido (entrada y salida por separado); la ráfaga dura típicamente 5–60 min y es best effort', 'Documentación de EC2; <code>iperf3</code> entre dos instancias. El <a href="#c01.estimaciones">c01</a> manda ≈ 2.4 Gb/s de tensores FP32'],
             ['Disco del nodo', 'gp3 base: 125 MiB/s y 3,000 IOPS (se provisiona hasta 2,000 MiB/s y 80,000 IOPS)', '<code>fio</code>'],
             ['Descarga desde S3 a un nodo', E('≈ 0.2–1 GB/s') + ' con partes en paralelo (<a href="#m05.pesos-modelo">M5</a>)', 'Cronometra <code>aws s3 cp</code> o el loader real'],
             ['Pull de una imagen de contenedor', E('≈ 0.03–0.09 GB/s') + ' efectivos (arriba, el benchmark de AWS con un EBS de 1,000 MiB/s; abajo, gp3 base de 125 MiB/s) → Triton de 9.2 GB en ' + E('≈ 2–5 min') + ' (<a href="#m05.tamano">M5</a>)', 'Eventos <code>Pulling</code>/<code>Pulled</code> del kubelet (<a href="#ref-comandos.autoscaling-cmds">comandos</a>)'],
@@ -296,7 +296,7 @@
             ['p5.48xlarge (8 × H100)', E('≈ 55'), E('≈ 40k'), '≈ 6.88 por GPU; p5.4xlarge trae 1'],
             ['c6i.xlarge (4 vCPU, 8 GiB)', E('≈ 0.17'), E('≈ 124'), '≈ US$0.0425 por vCPU-hora; <a href="#c01.costo">c01</a>: 2 → ≈ US$248'],
             ['g6f.large (1/8 de L4)', E('≈ 0.20'), E('≈ 146'), 'Fracción de GPU (<a href="#m04.costo-por-prediccion">M4</a>)'],
-            ['Cloud Run con L4 (4 vCPU, 16 GiB)', E('≈ 1.05'), E('≈ 764'), 'Por segundo; ese mensual es si nunca se apaga (<a href="#m06.serverless">M6</a>)'],
+            ['Cloud Run con L4 (4 vCPU, 16 GiB)', E('≈ 1.05'), E('≈ 764'), 'Por segundo, sin redundancia zonal (con ella, la opción por omisión, ≈ 1.42); cobra la instancia encendida, ociosa incluida; ese mensual es si nunca se apaga (<a href="#m06.serverless">M6</a>)'],
           ] },
           { t: 'table', caption: 'Plataforma, red, almacenamiento y datos', head: ['Concepto', 'Precio aproximado', 'Ejemplo con números del curso'], rows: [
             ['Control plane de EKS', 'US$0.10/h por cluster', '≈ US$73/mes (<a href="#c01.costo">c01</a>)'],
@@ -312,7 +312,7 @@
           ] },
           { t: 'table', caption: 'Descuentos (el detalle, en M13)', head: ['Mecanismo', 'Descuento de referencia', 'Para qué sí', 'Para qué no'], rows: [
             ['Savings Plans o reservas a 1 año', E('≈ 30–40 %') + ' (<a href="#c01.costo">c01</a>); AWS anuncia "hasta 72 %" con compromisos más largos y específicos', 'La base estable: las 2 GPUs de N+1', 'Capacidad que no sabes si vas a usar'],
-            ['Spot', E('≈ 25–55 %') + ' observado en GPUs de inferencia (≈ 25 % en g6, ≈ 48 % en g4dn, ≈ 54 % en g5; us-east-1, oct. 2026); varía mucho por familia y zona (<a href="#m13.spot">M13</a>). Los ' + E('60–70 %') + ' de <a href="#c01.costo">c01</a>, c02 y c04 son un supuesto a confirmar con el historial de precios spot; AWS anuncia "hasta 90 %"', 'Backfill, training, batch con checkpoints (aviso de ≈ 2 min)', 'El mínimo online'],
+            ['Spot', E('≈ 25–55 %') + ' observado en GPUs de inferencia (≈ 25 % en g6, ≈ 49 % en g4dn, ≈ 54 % en g5; us-east-1, oct. 2026; el Spot Instance Advisor pone la g5 en el rango de interrupción más alto, más de 20 %); varía mucho por familia y zona (<a href="#m13.spot">M13</a>). Los ' + E('60–70 %') + ' de <a href="#c01.costo">c01</a>, c02 y c04 son un supuesto a confirmar con el historial de precios spot; AWS anuncia "hasta 90 %"', 'Backfill, training, batch con checkpoints (aviso de ≈ 2 min)', 'El mínimo online'],
           ], note: 'Un Savings Plan es un descuento, no una reserva de capacidad: no te garantiza GPUs (<a href="#m06.nodos">M6</a>). Más en <a href="#m13">M13</a>.' },
           { t: 'calc', title: 'Costo por 1,000 predicciones = US$/h ÷ (predicciones/s × 3,600 ÷ 1,000)', rows: [
             { label: 'T4 a su capacidad planificada (600 img/s)', expr: '0.526 ÷ (600 × 3.6)', value: E('≈ US$0.00024') },

@@ -702,7 +702,7 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
               why: 'Convierte la pregunta de calidad en una de beneficio, y no acepta el promedio como evidencia.' },
             { q: 'Tu engine funciona en la T4 y falla al cargar en la L4 nueva. ¿Por qué?',
               junior: 'Seguramente es un problema de drivers o de CUDA en el nodo nuevo.',
-              senior: 'Un engine de TensorRT se construye para una arquitectura (T4 es sm_75, L4 sm_89) y una versión de TensorRT: no es portable. Construyo un segundo engine en CI sobre una L4 con la misma release de NGC, lo publico con su propio tag de imagen y uso nodeSelector por node pool para que cada pod caiga en su GPU. El modo de hardware compatibility ampere+ serviría para L4, A10G y A100 con algo de pérdida de rendimiento, pero no cubre la T4. Y agrego la GPU a las huellas del registry.',
+              senior: 'Un engine de TensorRT se construye para una arquitectura (T4 es sm_75, L4 sm_89) y una versión de TensorRT: por defecto no es portable. Construyo un segundo engine en CI sobre una L4 con la misma release de NGC, lo publico con su propio tag de imagen y uso nodeSelector por node pool para que cada pod caiga en su GPU. El modo de hardware compatibility ampere+ serviría para L4, A10G y A100 con algo de pérdida de rendimiento, pero no cubre la T4. Y agrego la GPU a las huellas del registry.',
               why: 'Explica el mecanismo (tácticas y kernels por arquitectura) y lo convierte en proceso de CI y de scheduling.' },
             { q: '¿torch.compile o TensorRT?',
               junior: 'TensorRT: es el más rápido en GPUs NVIDIA; torch.compile es para experimentar.',

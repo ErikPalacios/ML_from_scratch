@@ -133,8 +133,8 @@
         <ul>
           <li>g4dn.xlarge (T4) ≈ US$0.526/h (≈ 384/mes) · g6.xlarge (L4) ≈ 0.805 (≈ 588) · g5.xlarge (A10G) ≈ 1.006 (≈ 734).</li>
           <li>g6e.xlarge (L40S) ≈ 1.86 · p5.4xlarge (1 H100) ≈ 6.88 · c6i.xlarge (4 vCPU) ≈ 0.17 (≈ 0.0425 por vCPU-h).</li>
-          <li>Cloud Run con L4 ≈ US$1.05/h, por segundo.</li>
-          <li>Spot observado: g4dn ≈ 0.27 (≈ 48 % menos) · g5 ≈ 0.46 (≈ 54 %) · g6 ≈ 0.60 (≈ 25 %).</li>
+          <li>Cloud Run con L4 ≈ US$1.05/h sin redundancia zonal (≈ 1.42 con ella), por segundo de instancia encendida, ociosa incluida.</li>
+          <li>Spot observado: g4dn ≈ 0.27 (≈ 49 % menos) · g5 ≈ 0.46 (≈ 54 %) · g6 ≈ 0.60 (≈ 25 %). Interrupción (Spot Instance Advisor): g5 y g6 más de 20 %, g4dn 10–15 %.</li>
           <li>Savings Plan a 1 año ≈ 30–40 % (g4dn y g5 ≈ 37 %, g6 ≈ 35 %).</li>
           <li>S3 Standard ≈ US$0.023/GB-mes · cruce de AZ US$0.01/GB por sentido · egress ≈ US$0.09/GB · NAT US$0.045/h + 0.045/GB · CloudWatch Logs US$0.50/GB.</li>
         </ul>` },

@@ -7,7 +7,7 @@
 # ---------------------------------------------------------------- base
 # nvcr.io/nvidia/tensorrt:26.08-py3 = Ubuntu 24.04 + CUDA 13.4.1 + TensorRT 11.2.1.2 + Python 3.12
 # (leído de la configuración de la imagen en el registry de NGC y de las release notes de 26.08).
-# REGLA: el engine (.plan) se construye con trtexec DENTRO DE ESTA MISMA IMAGEN y EN una L4. Un engine
+# REGLA: el engine (.plan) se construye con trtexec DENTRO DE ESTA MISMA IMAGEN y EN una L4. Por defecto, un engine
 # no es portable entre versiones de TensorRT ni entre arquitecturas de GPU: si subes la base a 26.09
 # (TensorRT 11.3), reconstruyes y revalidas el engine; si el nodo cambia a otra GPU, también.
 # El driver lo pone el nodo, no la imagen: CUDA 13.x necesita un driver de la rama R580 o más nueva

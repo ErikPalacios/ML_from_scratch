@@ -96,7 +96,7 @@ Requisitos del host: Ubuntu 24.04, driver NVIDIA ≥ 595.58.03 (el que pide Deep
 Docker con NVIDIA Container Toolkit, NTP (chrony) activo, y el bundle del modelo en
 `/opt/c02/models/<versión>/` con `detector_b40_fp16.engine` y `libnvdsinfer_custom_impl_Yolo.so`, más un
 symlink **relativo** `current → <versión>`. El engine y el parser se construyen en una caja idéntica
-(misma L4, misma imagen de DeepStream 9.1): el engine no es portable entre GPUs ni versiones de TensorRT.
+(misma L4, misma imagen de DeepStream 9.1): por defecto, el engine no es portable entre GPUs ni versiones de TensorRT.
 
 `edge/deepstream/` es una **plantilla**: deepstream-app no tiene llaves de usuario y clave para una fuente
 RTSP, así que la clave de las cámaras solo puede ir dentro de cada `uri`. El aprovisionamiento (el mismo
