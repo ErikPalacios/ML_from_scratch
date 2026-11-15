@@ -22,7 +22,7 @@
       "sub": "mide cada request",
       "kind": "service",
       "x": 28, "y": 4, "w": 20, "h": 8,
-      "note": "Toma la hora cuando el balanceador le entrega la request completa y cuando sale la respuesta. La diferencia, por ejemplo 42 ms, suma 1 al bucket «hasta 50 ms». La latencia exacta no se guarda."
+      "note": "Toma la hora cuando el balanceador empieza a pasarle la request y cuando sale la respuesta. La diferencia, por ejemplo 42 ms, suma 1 al bucket «hasta 50 ms». La latencia exacta no se guarda."
     },
     {
       "id": "contadores",

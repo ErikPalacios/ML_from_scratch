@@ -263,11 +263,30 @@ Lo que encontraron las revisiones:
 
 Para la fase 15: mismo flujo, con las estaciones 11 y 12 (la request en vivo y el monitoreo). Lo que la Ronda tiene mal de esta fase está en `.solo/fase14/revision/*-hechos.md`, sección «Para la Ronda» (el rollback con el bake vivo «en segundos», la trampa de los 30 s también en el canary, el Xid, la cuota de 32 vCPU del Hot Sale que son 36, «8 pods al 64 %»).
 
+**Fase 15 (2026-11-14): ≈ 2.5 % por lección, 2 lecciones de estación.** «La request en vivo» (estación 11) y «Monitoreo, drift y reentrenamiento» (estación 12, la última). La ventana de 5 horas se reinició a las 02:50 UTC y la fase la llevó de 0 a ≈ 35 %. El límite semanal pasó de ≈ 58–59 % a ≈ 63 %. Por pieza:
+
+| Pieza | Modelo y esfuerzo | Semanal | Ventana de 5 h |
+|---|---|---|---|
+| Paquetes, ficha `estaciones_monitoreo`, reparto y encargos | Un agente Opus, medio | < 1 punto | 0 → 6 % |
+| Escritores de las 2 lecciones (Opus medio), mecánicas (Sonnet bajo), hechos y claridad (Opus alto), consistencia con aplicar (un agente Opus medio) | Varios | ≈ 4 puntos | 6 → 33 % |
+| `npm run check`, capturas a 375, 768 y 1024 px, plan, commit y deploy | Un agente Opus | < 1 punto | 33 → ≈ 35 % |
+
+Lo que encontraron las revisiones:
+- **Hechos: 70 correcciones (9 graves).** Las graves de `e11-request` venían de la ficha y del paquete, no de los escritores: el fin de `TargetResponseTime`, el `RequestCount` del ALB sin el 503 sin destinos (la alarma `ALB5xx` ahora suma esos 5xx al total) y el `1G` de Fluent Bit, que para S3 es `store_dir_limit_size` y no `storage.total_limit_size`. De las 37 dudas de un escritor, 33 estaban bien tal cual.
+- **Claridad: 240 cambios**, ≈ 95 de conocimiento supuesto. Para no pasar de 60 min, bloques de detalle pasaron a `:::profundo` y ejercicios a la segunda pasada, sin quitar ideas.
+- **Mecánica: 8 hallazgos**, todos en `e11-request`.
+- **Consistencia: 23 hallazgos.** La ficha tiene el grupo nuevo `estaciones_monitoreo` (49 datos) y los conflictos 54–57 (disparadores del reentrenamiento, rutas del log, la alerta de 5xx por burn rate y no por umbral fijo, `caller` y `source` en la línea de log). Se corrigieron de paso `camino-completo`, `percentiles`, `formatos`, `privacidad`, `red`, `terminal` y `e10-rollout`, y dos diagramas (`percentiles-slo`, `latencia-alba`). `formatos` y `privacidad` siguen en 61 min de lo esencial, como antes.
+- **Fórmulas con `text{…}`:** se veían pegadas a lo de al lado; `site/sensei.css` les da margen (sin margen dentro de subíndices).
+
+**Lección aprendida: si no se puede abrir una sesión nueva, la sesión principal lleva la fase con agentes.** Esta fase no pudo abrirse como sesión nueva porque la app no deja abrir sesiones desde control remoto, así que la llevó la sesión principal y cada pieza fue un agente. Funciona, pero cada turno de la sesión principal sigue costando su contexto. Y las ediciones en otro worktree necesitan Bash cuando el hook bloquea Write o Edit fuera del worktree de la sesión.
+
+Para la fase 16: la integración. Lo que la Ronda tiene mal de esta fase está en `.solo/fase15/revision/*-hechos.md`, sección «Para la Ronda» (casi nada: el ruido de 500 bins del PSI diario es despreciable con millones de predicciones).
+
 **Lección aprendida: las esperas entre ventanas van en una sesión nueva y corta.** Una sesión larga gasta ≈ 2 % de la ventana por turno solo en releer su contexto. Una sesión que espera el reinicio y despierta con cada agente que termina se come la ventana sin hacer trabajo. Lo barato es cerrar la sesión larga y que una sesión nueva, con un encargo corto, haga la espera y lance la tanda siguiente.
 
 ## 5. Las fases
 
-Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, la 5, la 6 y la 7 desde el 2026-11-06 la 8 desde el 2026-11-13 y la 9, la 10, la 11, la 12 y la 13 desde el 2026-11-14: 55 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) las 5 de la fase 8 (9.4–10.3k palabras, 60–61 min lo esencial y 70–75 min todo) las 4 de la fase 9 (10.1–10.6k palabras, 60 min lo esencial y 72–76 min todo) las 2 de la fase 10 (10.8–11.0k palabras, 59–60 min lo esencial y 78 min todo) las 3 de la fase 11 (9.1–10.3k palabras, 59–60 min lo esencial y 67–73 min todo) y las 3 de las fases 12 y 13 (9.8–10.0k palabras, 59–60 min lo esencial y 71–76 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
+Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 2026-11-05, la 5, la 6 y la 7 desde el 2026-11-06 la 8 desde el 2026-11-13 y la 9, la 10, la 11, la 12, la 13, la 14 y la 15 desde el 2026-11-14: 59 lecciones de ≈ 8.4–11.8k palabras, cada una con revisión independiente. Las 5 de la fase 4 (10.0–10.9k palabras, ≈ 59–60 min lo esencial y 74–79 min todo), las 6 de la fase 5 (9.3–10.3k palabras, 58–60 min lo esencial y 72–76 min todo) las 5 de la fase 6 (9.8–10.7k palabras, 58–59 min lo esencial y 72–76 min todo) las 6 de la fase 7 (9.4–10.3k palabras, 55–60 min lo esencial y 70–75 min todo) las 5 de la fase 8 (9.4–10.3k palabras, 60–61 min lo esencial y 70–75 min todo) las 4 de la fase 9 (10.1–10.6k palabras, 60 min lo esencial y 72–76 min todo) las 2 de la fase 10 (10.8–11.0k palabras, 59–60 min lo esencial y 78 min todo) las 3 de la fase 11 (9.1–10.3k palabras, 59–60 min lo esencial y 67–73 min todo) las 3 de las fases 12 y 13 (9.8–10.0k palabras, 59–60 min lo esencial y 71–76 min todo), las 2 de la fase 14 (11.0k palabras, 59–60 min lo esencial) y las 2 de la fase 15 (11.0k palabras, 58–59 min lo esencial y 78–80 min todo) pasaron cada una por revisión mecánica, de hechos y de claridad. Cada fase termina con la app construida, revisada en el navegador (375, 768 y 1024 px, claro y oscuro, sin conexión), con commit y publicada. Antes del commit, el contenido pasa por una revisión independiente de hechos y de conocimiento supuesto.
 
 | Fase | Módulo | Lecciones | Prepara para la Ronda (nota interna, no va en la app) |
 |---|---|---|---|
@@ -285,7 +304,7 @@ Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 
 | 12 ✓ | Estaciones · API | Estación 6 | M03, M07 |
 | 13 ✓ | Estaciones · Contenedor | Estación 7 y 8 | M05, M10 |
 | 14 ✓ | Estaciones · Orquestación | Estación 9 y 10 | M06, M11 |
-| 15 | Estaciones · Monitoreo | Estación 11 y 12 | M03, M12 |
+| 15 ✓ | Estaciones · Monitoreo | Estación 11 y 12 | M03, M12 |
 | 16 | Integración | El Dojo y la Ronda enlazan desde sus propias apps a las lecciones de Sensei (Sensei solo los enlaza desde `/que-sigue/`), hay repaso con tarjetas del glosario y una revisión final de hechos | Todo |
 
 Los módulos 1 a 9 van antes que las estaciones porque son los cimientos de verdad. Sin ellos, la lección de la estación 1 tendría que suponer qué es un modelo, una API o un bucket.

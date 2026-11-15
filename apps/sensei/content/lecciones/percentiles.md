@@ -430,7 +430,7 @@ Con todas las piezas juntas, así se revisa el SLO de latencia de Alba, de la re
 
 :::pasos
 1. Medir cada request donde se prometió
-El servicio de Alba toma la hora al recibir la request completa y al mandar la respuesta, y suma 1 al bucket donde cae la diferencia.
+El servicio de Alba toma la hora cuando el balanceador empieza a pasarle la request (la foto todavía viene en camino) y al mandar la respuesta, y suma 1 al bucket donde cae la diferencia.
 2. Juntar
 Prometheus lee los contadores de todas las copias cada 15 segundos.
 3. Calcular el SLI de cada ventana

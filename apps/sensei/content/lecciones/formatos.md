@@ -293,7 +293,7 @@ Lo que no da: un esquema. Nada revisa que `score` sea siempre un número.
 Así escribe Alba su log de predicciones. El gateway imprime una línea JSON por request a su salida estándar (*stdout*, la salida de texto del programa, la que verías en la terminal), y otro programa, Fluent Bit, la recoge y la manda a S3, el almacén de archivos de AWS, la nube de Amazon (lo verás en «Object storage, data lakes y warehouses»). Son unos 300 bytes; la hora la agrega quien guarda el log. Aquí, partida para que se lea (en el archivo va en una sola línea):
 
 ```text
-{"request_id": "9f2c41d0", "caller": "app-ios",
+{"request_id": "9f2c41d0", "caller": "backend-publicaciones",
  "model_version": "resnet50-2026-10-01",
  "top5": [[17, 0.83], [42, 0.06], [3, 0.04], [88, 0.02], [5, 0.01]],
  "ms": {"pre": 9, "triton": 24, "post": 2, "total": 41},
@@ -561,7 +561,7 @@ random.seed(7)
 n = 10_000
 tabla = {                                    # un log de Alba de mentiras, ya como columnas
     "request_id": [random.randbytes(8).hex() for _ in range(n)],
-    "caller": [random.choice(["app-ios", "app-android", "web"]) for _ in range(n)],
+    "caller": [random.choice(["backend-publicaciones", "moderacion", "busqueda"]) for _ in range(n)],
     "model_version": ["resnet50-2026-10-01"] * n,
     "top1": [random.randint(0, 499) for _ in range(n)],
     "score": [round(random.betavariate(5, 2), 3) for _ in range(n)],
@@ -587,21 +587,21 @@ print(f"para leer top1 y score: {dos / 1000:,.0f} KB por columnas, {kb(z(filas))
 ```
 
 ```salida
-JSON Lines:   1,666 KB → 252 KB con zlib
-por filas:      686 KB → 220 KB con zlib
+JSON Lines:   1,726 KB → 253 KB con zlib
+por filas:      746 KB → 220 KB con zlib
    request_id      170 KB →  99 KB (  1.7 veces)
-   caller           80 KB →   4 KB ( 19.2 veces)
+   caller          140 KB →   5 KB ( 31.0 veces)
    model_version   200 KB →   1 KB (378.1 veces)
    top1             38 KB →  15 KB (  2.4 veces)
    score            59 KB →  18 KB (  3.3 veces)
    ms               30 KB →  11 KB (  2.8 veces)
    bytes            69 KB →  32 KB (  2.1 veces)
    status           40 KB →   0 KB (130.7 veces)
-por columnas: 180 KB con zlib, sumando las 8
+por columnas: 181 KB con zlib, sumando las 8
 para leer top1 y score: 33 KB por columnas, 220 KB por filas
 ```
 
-Del JSON Lines crudo (1,666 KB) a las columnas comprimidas (180 KB) hay \(r\) = 1,666 ÷ 180 ≈ 9 veces: dentro del «de 5 a 10» que estima Alba. El `request_id`, al azar, apenas baja a la mitad. Y lo más grande no es la compresión: para leer `top1` y `score` bastan 33 KB en vez de 220.
+Del JSON Lines crudo (1,726 KB) a las columnas comprimidas (181 KB) hay \(r\) = 1,726 ÷ 181 ≈ 9.5 veces: dentro del «de 5 a 10» que estima Alba. El `request_id`, al azar, apenas baja a la mitad. Y lo más grande no es la compresión: para leer `top1` y `score` bastan 33 KB en vez de 220.
 
 ### Parquet
 
@@ -628,7 +628,7 @@ Parquet nació en 2013, de Twitter y Cloudera, inspirado en un artículo de Goog
 
 Dentro de cada row group, cada columna (su *column chunk*) se parte en **páginas**: la documentación de Parquet recomienda 8 KB, y pyarrow usa 1 MB por omisión. Los row groups son mucho más grandes: la misma documentación recomienda de 512 MB a 1 GB, y pyarrow corta uno cada 1,048,576 filas (unos diez para un día de Alba: 10,000,000 ÷ 1,048,576 ≈ 9.5). Cada página se codifica antes de comprimirse. Dos codificaciones hacen casi todo el trabajo:
 
-- **Diccionario** (*dictionary encoding*): los valores distintos de la columna se escriben una vez, en una lista, y cada fila guarda solo su posición. Los tres `caller` («app-ios», «app-android», «web») son 0, 1 y 2, y cada fila necesita 2 bits en vez de 3 a 11 letras.
+- **Diccionario** (*dictionary encoding*): los valores distintos de la columna se escriben una vez, en una lista, y cada fila guarda solo su posición. Los tres `caller` («backend-publicaciones», «moderacion», «busqueda») son 0, 1 y 2, y cada fila necesita 2 bits en vez de 8 a 21 letras.
 - **Repeticiones** (*run-length encoding*): «el valor 0, 40,000 veces seguidas» se escribe como un par de números. Diez millones de `model_version` iguales quedan en unos cuantos bytes.
 
 Después de eso se comprime cada página con snappy, zstd o gzip. Por eso un Parquet real gana más que el zlib de nuestro programa: primero quita lo repetido con conocimiento del tipo, y después comprime.
@@ -727,8 +727,8 @@ def leer(linea):
 
 lineas = {
     "v1, vieja": '{"request_id": "r-001", "top1": "Tenis", "score": 0.83}',
-    "v2": '{"request_id": "r-002", "top1": "Botas", "score": 0.61, "caller": "web"}',
-    "v3, con un campo de más": '{"request_id": "r-003", "top1": "Tenis", "score": 0.9, "caller": "web", "gpu": "t4"}',
+    "v2": '{"request_id": "r-002", "top1": "Botas", "score": 0.61, "caller": "busqueda"}',
+    "v3, con un campo de más": '{"request_id": "r-003", "top1": "Tenis", "score": 0.9, "caller": "busqueda", "gpu": "t4"}',
     "renombró score": '{"request_id": "r-004", "top1": "Tenis", "confianza": 0.9}',
     "score como texto": '{"request_id": "r-005", "top1": "Tenis", "score": "0.9"}',
 }
@@ -741,8 +741,8 @@ for nombre, linea in lineas.items():
 
 ```salida
 v1, vieja                ✓ {'request_id': 'r-001', 'top1': 'Tenis', 'score': 0.83, 'caller': 'desconocido'}
-v2                       ✓ {'request_id': 'r-002', 'top1': 'Botas', 'score': 0.61, 'caller': 'web'}
-v3, con un campo de más  ✓ {'request_id': 'r-003', 'top1': 'Tenis', 'score': 0.9, 'caller': 'web'}
+v2                       ✓ {'request_id': 'r-002', 'top1': 'Botas', 'score': 0.61, 'caller': 'busqueda'}
+v3, con un campo de más  ✓ {'request_id': 'r-003', 'top1': 'Tenis', 'score': 0.9, 'caller': 'busqueda'}
 renombró score           ✗ falta «score»
 score como texto         ✗ «score» debería ser float
 ```
@@ -776,17 +776,17 @@ Un archivo Avro lleva su esquema en el encabezado, una vez, y después miles de 
 
 Al leer, Avro junta dos esquemas: el del que escribió y el del que lee. Empareja los campos **por nombre**; si al que lee le falta uno, lo salta, y si el que lee espera uno que no viene, usa su `default`. Es la tabla de compatibilidad de arriba, hecha regla.
 
-Y los bytes. Cada texto va como su largo seguido de sus bytes de UTF-8, y cada float como sus 4 bytes little-endian. El largo va en un entero de tamaño variable con un truco para los negativos (*zigzag*): un número que no es negativo se escribe como su doble, así que el 5 va como 2 × 5 = 10 (0x0A), y el 3, como 2 × 3 = 6. La predicción `("r-001", 0.83, "web")` queda así:
+Y los bytes. Cada texto va como su largo seguido de sus bytes de UTF-8, y cada float como sus 4 bytes little-endian. El largo va en un entero de tamaño variable con un truco para los negativos (*zigzag*): un número que no es negativo se escribe como su doble, así que el 5 va como 2 × 5 = 10 (0x0A), y el 3, como 2 × 3 = 6. La predicción `("r-001", 0.83, "busqueda")` queda así:
 
 | Valor | Bytes | Cuántos |
 |---|---|---|
 | largo de «r-001» | `0A` | 1 |
 | «r-001» | `72 2D 30 30 31` | 5 |
 | 0.83 | `E1 7A 54 3F` | 4 |
-| largo de «web» | `06` | 1 |
-| «web» | `77 65 62` | 3 |
+| largo de «busqueda» | `10` | 1 |
+| «busqueda» | `62 75 73 71 75 65 64 61` | 8 |
 
-Son 1 + 5 + 4 + 1 + 3 = 14 bytes. La misma predicción en JSON, `{"request_id": "r-001", "score": 0.83, "caller": "web"}`, mide 55: los nombres viajan en cada mensaje.
+Son 1 + 5 + 4 + 1 + 8 = 19 bytes. La misma predicción en JSON, `{"request_id": "r-001", "score": 0.83, "caller": "busqueda"}`, mide 60: los nombres viajan en cada mensaje.
 :::
 
 ## Archivos de pesos: pickle y safetensors {Weight files: pickle and safetensors}

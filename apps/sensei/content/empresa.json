@@ -521,7 +521,7 @@
      "dato": "SLO de latencia",
      "valor": "p99 ≤ 200 ms (al menos 99 % de las requests en 200 ms o menos)",
      "unidad": "ms",
-     "nota": "Del lado del servidor: desde que llega la request completa hasta que sale la respuesta; sin la subida del celular. Ventana de 30 días; se vigila en ventanas de 5 min.",
+     "nota": "Del lado del servidor: desde que el gateway recibe la request, incluida la subida del body desde el ALB (los 3 ms de presupuesto_latencia.lat_tipica), hasta que sale la respuesta; sin la subida del celular. Ventana de 30 días; se vigila en ventanas de 5 min. Revisión de hechos de la fase 15 (2026-11-14): decía «desde que llega la request completa».",
      "lecciones": [
       "camino-completo",
       "percentiles",
@@ -4978,6 +4978,511 @@
      ]
     }
    ]
+  },
+  "estaciones_monitoreo": {
+   "descripcion": "Estaciones 11 y 12: la request en vivo y el monitoreo (fase 15)",
+   "hechos": [
+    {
+     "id": "camino_request",
+     "dato": "Por dónde pasa una request en vivo",
+     "valor": "app de Ana → backend de publicaciones (el caller, con su JWT) → ALB interno (termina TLS y verifica el JWT) → un pod del Rollout gateway (puerto 8080: revisa, decodifica y prepara la foto) → Service triton-v14 de su misma zona → fila de Triton (≤ 2 ms) → T4 → gateway (softmax, top-5 y labels.json) → respuesta con X-Request-ID → backend → app; al final, la línea de log a stdout y las métricas en la memoria del pod",
+     "unidad": "—",
+     "nota": "Decisión del curso: junta seguridad.callers, seguridad.auth_callers, estaciones_api y estaciones_orquestacion. La app no llama al clasificador: lo llama el backend de publicaciones.",
+     "lecciones": [
+      "e11-request"
+     ]
+    },
+    {
+     "id": "relojes_latencia",
+     "dato": "Dónde se mide cada latencia",
+     "valor": "ms.total del log y classifier_request_latency_seconds: en el gateway, desde que llegan los headers de la request (el body todavía viene en camino desde el ALB) hasta que sale la respuesta (lo que promete el SLO); TargetResponseTime del ALB: desde que la request sale del ALB hacia el pod hasta que el pod empieza a mandar los headers de su respuesta; el backend mide su espera completa contra su timeout de 300 ms",
+     "unidad": "ms",
+     "nota": "Concreta promesas.slo_latencia (del lado del servidor). Revisión de hechos de la fase 15 (2026-11-14): TargetResponseTime termina con los headers de la respuesta, no con la respuesta completa (docs.aws.amazon.com, métricas de CloudWatch del ALB).",
+     "lecciones": [
+      "e11-request"
+     ]
+    },
+    {
+     "id": "log_ana",
+     "dato": "La línea de log de la foto de Ana (ejemplo)",
+     "valor": "{\"request_id\": \"5a1e07c3\", \"caller\": \"backend-publicaciones\", \"source\": \"mobile\", \"model_version\": \"resnet50-2026-10-01\", \"top5\": [[17, 0.94], [41, 0.03], [12, 0.02], [63, 0.01], [205, 0.0]], \"ms\": {\"pre\": 6, \"triton\": 10, \"post\": 1, \"total\": 20}, \"bytes\": 214836, \"sha256\": \"3b7e0c51a9d2\", \"status\": 200}",
+     "unidad": "B",
+     "nota": "La misma de «Código de serving» (≈ 300 B). Los 20 ms son la request típica con poco tráfico (presupuesto_latencia.lat_tipica). Conflicto 57: en «Formatos», caller vale app-ios, que es un source.",
+     "lecciones": [
+      "e11-request",
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "source_valores",
+     "dato": "De dónde dice venir cada request (source)",
+     "valor": "mobile, web o internal, del header X-Client-Source que pone el caller; el log guarda lo que llegó (unknown si falta) y la métrica lo reduce a mobile, web, internal u other",
+     "unidad": "—",
+     "nota": "Así la etiqueta de la métrica tiene 4 valores fijos (cardinalidad acotada) aunque el header traiga cualquier texto.",
+     "lecciones": [
+      "e11-request",
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "status_valores",
+     "dato": "Códigos que cuenta el gateway en sus métricas",
+     "valor": "11: 200, 400, 403, 413, 415, 422, 429, 499, 500, 503 y 504; el 405 lo contesta FastAPI sin pasar por el código y no deja log ni métrica; el 401 y el 400 por headers los pone el ALB",
+     "unidad": "códigos",
+     "nota": "Sale de «Código de serving» y de seguridad.codigos_identidad (403 y 429 los pone el gateway).",
+     "lecciones": [
+      "e11-request"
+     ]
+    },
+    {
+     "id": "metricas_etiquetas",
+     "dato": "Etiquetas y bordes de cada métrica del gateway",
+     "valor": "classifier_requests_total: status, source, model_version · classifier_request_latency_seconds: source, model_version, 11 bordes de 0.01 a 2.5 s · classifier_preprocess_seconds: model_version, 8 bordes de 0.002 a 0.5 s · classifier_inference_seconds: model_version, 9 bordes de 0.005 a 0.3 s · classifier_top1_score: model_version, 10 bordes de 0.1 a 1.0 · classifier_image_bytes: source, 9 bordes de 10 KB a 10 MB",
+     "unidad": "—",
+     "nota": "Completa estaciones_api.metricas_gateway. Cada pod sirve una sola model_version: en un pod esa etiqueta tiene un valor; en el clúster, dos durante un canary. La latencia lleva model_version para que el análisis del canary compare el p99 por versión (decisión del curso). La inferencia se anota también en los 503 y 504 (un timeout es la inferencia más lenta); los 4xx no entran a la latencia.",
+     "lecciones": [
+      "e11-request",
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "series_por_pod",
+     "dato": "Series de tiempo del clasificador en un pod del gateway",
+     "valor": "≈ 239 en el peor caso: contador 11 × 4 × 2 = 88; latencia 15 × 4 = 60; preproceso 12; inferencia 13; score 14; bytes 13 × 4 = 52. ≈ 720 con 3 pods y ≈ 2,900 con 12",
+     "unidad": "series",
+     "nota": "Un histograma con b bordes da b + 4 series por combinación de etiquetas (+Inf, _sum, _count y _created); un contador, 2 (_total y _created). Sin las métricas del propio proceso que agrega el cliente de Python. Si request_id fuera etiqueta: 15 × 10 M = 150 M series nuevas al día solo en la latencia.",
+     "lecciones": [
+      "e11-request"
+     ]
+    },
+    {
+     "id": "prometheus_alba",
+     "dato": "El Prometheus de Alba",
+     "valor": "kube-prometheus-stack (Prometheus Operator) en el namespace monitoring; lee /metrics de cada pod cada 15 s, declarado con un ServiceMonitor para Triton (Service triton-v14, puerto 8002) y un PodMonitor para el gateway (pods con app.kubernetes.io/name: gateway, puerto 8080); guarda 15 días",
+     "unidad": "—",
+     "nota": "Decisión del curso; los 15 s ya están en «Percentiles». La alerta de baja confianza necesita ≥ 7 días de historia. /metrics no sale del clúster (estaciones_api.gateway_rutas). Revisión de hechos de la fase 15 (2026-11-14): era «un ServiceMonitor por servicio». El Rollout tiene gateway-stable y gateway-canary, que fuera de un canary apuntan a los mismos pods: un ServiceMonitor sobre los dos lee cada pod dos veces y duplica las sumas; sobre uno solo, no ve los pods canary durante el análisis.",
+     "lecciones": [
+      "e11-request",
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "triton_metricas",
+     "dato": "Métricas de Triton que usa Alba",
+     "valor": "nv_inference_queue_duration_us y nv_inference_compute_infer_duration_us (µs acumulados), nv_inference_request_success y nv_inference_request_failure, nv_inference_count y nv_inference_exec_count (batch promedio = su cociente), nv_gpu_utilization y nv_gpu_memory_used_bytes; en el puerto 8002",
+     "unidad": "—",
+     "nota": "Espera media en la fila = rate de queue_duration ÷ rate de request_success. La revisión de hechos verifica los nombres con la documentación de Triton 24.08.",
+     "lecciones": [
+      "e11-request",
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "logs_camino",
+     "dato": "Del stdout a S3: el camino del log",
+     "valor": "el gateway escribe cada línea a stdout; el runtime del contenedor la guarda con su hora en un archivo del nodo; Fluent Bit (un pod por nodo, DaemonSet) lee ese archivo y sube un archivo gzip cada ≈ 5 min por nodo a s3://ml-datos/logs/crudo/AAAA/MM/DD/HH/; el CronWorkflow monitoreo-diario lo pasa a Parquet en s3://ml-datos/logs/predicciones/dt=AAAA-MM-DD/model_version=…/",
+     "unidad": "—",
+     "nota": "Decisión del curso (conflicto 55). ≈ 288 archivos crudos al día por nodo; el Parquet son ≈ 4 archivos de ≈ 125 MB al día (almacenamiento.log_parquet). Fluent Bit sube con un PutObject por archivo (seguridad.fluentbit_putobject).",
+     "lecciones": [
+      "e11-request",
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "log_hora",
+     "dato": "La hora de cada línea de log",
+     "valor": "la línea no la trae: la pone el runtime del contenedor al guardarla y Fluent Bit la lleva como hora del registro, en UTC",
+     "unidad": "—",
+     "nota": "«Formatos» ya lo dice («la hora la agrega quien guarda el log»).",
+     "lecciones": [
+      "e11-request"
+     ]
+    },
+    {
+     "id": "logs_no_bloquea",
+     "dato": "Si el camino del log falla",
+     "valor": "el gateway nunca espera al log; Fluent Bit guarda en el disco del nodo hasta ≈ 1 GB (store_dir_limit_size 1G de la salida s3; para Fluent Bit 1G son 10⁹ B) mientras S3 no contesta (≈ 16 h de un nodo del gateway con el tráfico parejo, ≈ 5.3 h si fuera todo hora pico); si se llena, se pierden líneas; si el que se cae es Fluent Bit, el colchón son los archivos que rota el kubelet (5 × 10 MiB por contenedor, ≈ 1 h de un pod del gateway); LogsStale avisa si no llega un archivo nuevo a s3://ml-datos/logs/crudo/ en 30 min",
+     "unidad": "—",
+     "nota": "Decisión del curso. Un nodo del gateway escribe ≈ 1.5 GB al día (3 GB ÷ 2 nodos): 1 ÷ (1.5 ÷ 24) = 16 h. Se degrada el monitoreo del modelo, no el servicio. Revisión de hechos de la fase 15 (2026-11-14): era «≈ 1 GiB»; storage.total_limit_size no sirve con la salida a S3 (docs.fluentbit.io, «Unit sizes» y outputs/s3).",
+     "lecciones": [
+      "e11-request",
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "trazas_alba",
+     "dato": "Trazas de Alba",
+     "valor": "OpenTelemetry en el gateway (un span por la request, otro por el preproceso y otro por la llamada a Triton) y en Triton (un span por el modelo, que marca la entrada a su fila, y dentro otro por el cálculo); el gateway decide por el hash del request_id si la request se traza (≈ 1 %: ≈ 100 mil trazas al día) y solo en esas propaga el contexto; Triton arranca con --trace-config rate=0 y traza toda request que llega con contexto (desde la 24.01); se guardan en Grafana Tempo, en monitoring; el request_id va como atributo y el histograma de latencia lleva exemplars con el id de la traza",
+     "unidad": "—",
+     "nota": "Decisión del curso. Las trazas no reemplazan al log: el log tiene el 100 % de las requests. Revisión de hechos de la fase 15 (2026-11-14): Triton no decide por el hash ni tiene un span propio de la fila (docs de Triton, «Trace»).",
+     "lecciones": [
+      "e11-request"
+     ]
+    },
+    {
+     "id": "metricas_alb",
+     "dato": "Lo que mide el ALB (CloudWatch)",
+     "valor": "RequestCount (solo las requests en que el ALB pudo elegir un destino), TargetResponseTime, HTTPCode_Target_4XX_Count y HTTPCode_Target_5XX_Count (los códigos del gateway) y HTTPCode_ELB_5XX_Count (los que pone el propio ALB, como el 503 sin destinos sanos); alarma ALB5xx (page) si los 5xx del ALB pasan de 0.5 % del total en 5 min, con el total = RequestCount + HTTPCode_ELB_5XX_Count",
+     "unidad": "—",
+     "nota": "Cubre el punto ciego del gateway: si todos sus pods salen del target group, el ALB contesta 503 y el gateway no cuenta nada (conflicto 47). Revisión de hechos de la fase 15 (2026-11-14): RequestCount no cuenta el 503 sin destinos; dividir solo entre RequestCount daría 0 en el denominador justo en el caso que vigila la alarma.",
+     "lecciones": [
+      "e11-request",
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "capas_monitoreo",
+     "dato": "Las cinco capas del monitoreo de Alba",
+     "valor": "infraestructura: nodos, GPU y pods listos (segundos) · servicio: p99, 5xx, fila de Triton (segundos a minutos) · datos: bytes por source y tasas de 400, 413 y 415 (minutos) · modelo: score top-1, baja confianza y PSI de categorías (minutos a 1 día) · negocio: aceptación, recategorización de moderación y el holdout (horas a semanas)",
+     "unidad": "—",
+     "nota": "Cuanto más arriba, más lenta la señal y más cerca de lo que importa.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "alertas_alba",
+     "dato": "Las alertas de Alba",
+     "valor": "page: ClassifierHighP99Latency (p99 > 200 ms 10 min), ClassifierErrorBudgetFastBurn (14.4× en 1 h y en 5 min), TritonNotReady (menos de 2 pods listos del Triton de la release vigente durante 5 min), ALB5xx · warning: TritonQueueTimeHigh (fila > 20 ms 10 min), GPUSaturated (> 85 % 15 min), LogsStale · ticket: ClassifierErrorBudgetSlowBurn (6× en 6 h y en 30 min), ClassifierLowConfidenceSpike (monitoreo.baja_confianza_alerta), drift de categorías (monitoreo.drift_psi), caída de aceptación (> 3 puntos semana contra semana), MonitoringJobStale",
+     "unidad": "—",
+     "nota": "Decisión del curso. Los 5xx van por burn rate y no por un umbral fijo (conflicto 56). TritonNotReady mira el Deployment de la release vigente (triton-v14 hoy, conflicto 51): la regla cambia en el mismo PR que cambia de release. Los 20 ms de la fila son el doble del objetivo de KEDA (estaciones_orquestacion.keda_triton).",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "burn_rate_alba",
+     "dato": "Burn rate de los errores",
+     "valor": "presupuesto 0.1 % (SLO de 99.9 % a 30 días); page a 14.4× = 1.44 % de 5xx en 1 h y en 5 min (≈ 6,000 errores en una hora, 2 % del presupuesto; lo agotaría en 50 h); ticket a 6× = 0.6 % en 6 h y en 30 min (≈ 15,000, 5 %; lo agotaría en 5 días)",
+     "unidad": "×",
+     "nota": "≈ 416,667 requests por hora (10 M ÷ 24). Tasa = 5xx ÷ requests sin 4xx. El libro de SRE de Google pone el de 6× como page; Alba lo manda a ticket porque el marketplace tiene fallback (el selector manual). La ventana corta mide 1/12 de la larga.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "severidades",
+     "dato": "Qué significa cada severidad",
+     "valor": "page: despierta a la persona de guardia, que la reconoce en ≤ 5 min; warning: canal del equipo, en horario de trabajo; ticket: cola del equipo de ML, se revisa en la semana",
+     "unidad": "—",
+     "nota": "Decisión del curso. Page solo para lo que afecta a los usuarios ahora y alguien puede arreglar ahora.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "guardia_rotacion",
+     "dato": "La guardia",
+     "valor": "rotación semanal entre las 5 personas del equipo (Marta en los ejemplos); recibe los page; la calidad del modelo llega como ticket, en horario",
+     "unidad": "—",
+     "nota": "negocio.equipo_ml = 5; personas_y_ejemplos.persona_guardia.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "alertmanager_alba",
+     "dato": "Alertmanager",
+     "valor": "en monitoring: agrupa por alerta y namespace, calla los warning de Triton mientras TritonNotReady está activa y deja silenciar durante un mantenimiento; las reglas viven en el repositorio de despliegue como PrometheusRule",
+     "unidad": "—",
+     "nota": "Decisión del curso.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "dashboards_alba",
+     "dato": "Los dashboards de Alba (Grafana)",
+     "valor": "4: servicio (el SLO y el presupuesto que queda arriba; tasa, errores y latencia por tramo con marcas de deploy), Triton y GPU (fila contra cómputo, batch, réplicas contra el tope de KEDA), modelo (score top-1, baja confianza, top-20 categorías contra su línea base, todo por model_version) y negocio (diario: aceptación, recategorización, publicaciones completadas)",
+     "unidad": "dashboards",
+     "nota": "Un dashboard por audiencia: la guardia, el equipo de ML y producto.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "baja_confianza_base",
+     "dato": "Tasa normal de baja confianza",
+     "valor": "≈ 4 % de las fotos con top-1 < 0.3 (≈ 400 mil al día)",
+     "unidad": "%",
+     "nota": "Supuesto del curso. La alerta (monitoreo.baja_confianza_alerta, el doble de su promedio de 7 días) dispara arriba de ≈ 8 %; en el canary se compara contra el estable.",
+     "lecciones": [
+      "e11-request",
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "regla_baja_confianza",
+     "dato": "Regla de grabación de la baja confianza",
+     "valor": "classifier:low_confidence_share:rate30m, calculada cada minuto: rate del bucket le=\"0.3\" del score top-1 ÷ rate del total del histograma, en 30 min; la alerta la compara contra su promedio de 7 días y exige más de 1 request por segundo",
+     "unidad": "—",
+     "nota": "Se graba porque promediar 7 días de la expresión cruda en cada evaluación sería carísimo.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "job_monitoreo_diario",
+     "dato": "El job diario de monitoreo",
+     "valor": "CronWorkflow monitoreo-diario de Argo Workflows a las 01:00 UTC, sobre el día UTC anterior: (1) pasa el log crudo a Parquet, (2) PSI de las ≈ 30 categorías padre contra las 4 semanas previas, (3) aceptación por día y por slice, uniendo con los eventos del backend, (4) bytes y tasas de 4xx por source, (5) publica cada resultado como gauge en el Pushgateway; ≈ 20 min",
+     "unidad": "—",
+     "nota": "Decisión del curso. Distinto del job horario del canary (estaciones_orquestacion.psi_canary_job) y del reentreno-mensual (estaciones_datos.orquestador).",
+     "lecciones": [
+      "e11-request",
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "frescura_job",
+     "dato": "Monitorear al job de monitoreo",
+     "valor": "el Pushgateway guarda push_time_seconds (la hora del último envío); MonitoringJobStale (ticket) si pasan más de 26 h sin uno nuevo",
+     "unidad": "h",
+     "nota": "Sin esa alerta, si el job deja de correr, el último PSI se queda publicado para siempre y todo parece estable.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "referencia_drift",
+     "dato": "Contra qué se compara el drift",
+     "valor": "dos referencias: las 4 semanas previas (cambios de golpe; es la de la alerta) y el mes del snapshot con que se entrenó el champion (ds-2026-09-01 para la 14; cambios lentos, en el reporte mensual)",
+     "unidad": "—",
+     "nota": "Decisión del curso. Contra la ventana reciente, un drift lento nunca se ve: cada semana se parece a la anterior.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "slices_monitoreo",
+     "dato": "Slices que vigila el monitoreo",
+     "valor": "source (mobile, web, internal), las ≈ 30 categorías padre y model_version; un slice solo alerta con ≥ 5,000 publicaciones en su ventana",
+     "unidad": "publicaciones",
+     "nota": "Decisión del curso: con 5,000 y una tasa de 70 %, el intervalo al 95 % es ± 1.3 puntos, así que una caída de 3 puntos se distingue del azar.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "aceptacion_definicion",
+     "dato": "Cómo se calcula la tasa de aceptación",
+     "valor": "de las publicaciones con suggestion_shown, la fracción cuya categoría se eligió por la vía sugerencia (una de las 5); por día y por semana, con ≈ 17 M publicaciones a la semana",
+     "unidad": "%",
+     "nota": "Base ≈ 70 % (negocio.tasa_aceptacion_base, supuesto). Con ≈ 17 M a la semana, el azar mueve ± 0.02 puntos: los 3 puntos del disparador son un cambio real. 2.5 M × 0.99 (sin el holdout) × 7 ≈ 17.3 M.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "exactitud_holdout",
+     "dato": "Exactitud medida en el holdout",
+     "valor": "cada mes, top-1 del champion contra la categoría que eligió quien vende en el holdout, con labels de ≥ 30 días (≈ 750 mil publicaciones): ≈ 85 % ± 0.1 punto",
+     "unidad": "%",
+     "nota": "Supuesto del curso: coincide con el golden set (modelo.calidad_modelo). Es la medida sin el sesgo de la sugerencia; llega con ≈ 1–2 meses de retraso por la maduración. 1.96 × √(0.85 × 0.15 ÷ 750,000) ≈ 0.08 puntos.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "diagnostico_antes",
+     "dato": "Qué se descarta antes de reentrenar",
+     "valor": "(1) un deploy propio (si coincide, rollback), (2) datos rotos del lado del caller (por ejemplo, una versión nueva de la app), (3) training-serving skew (la paridad de punta a punta); solo si cambió el mundo y los labels lo confirman, se adelanta el reentrenamiento",
+     "unidad": "—",
+     "nota": "Reentrenar sobre un bug le enseña el bug al modelo.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "disparador_politica",
+     "dato": "Qué hace un disparador de reentrenamiento",
+     "valor": "abre un ticket al equipo de ML; tras el diagnóstico, una persona lanza antes la corrida (argo submit --from cronwf/reentreno-mensual) y pide a la cola una tanda extra del slice afectado si hace falta; el modelo pasa igual por el gate, el shadow y el canary; nada se despliega solo",
+     "unidad": "—",
+     "nota": "Conflicto 54. Disparadores: el calendario mensual, PSI > 0.2 tres días seguidos, caída de aceptación > 3 puntos semana contra semana y una categoría nueva en el árbol (esta última es planeada: no espera a una alerta).",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "corrida_adelantada",
+     "dato": "El snapshot de una corrida adelantada",
+     "valor": "arma un snapshot extra con la fecha del día de corte (por ejemplo ds-2026-11-18) y los labels vigentes ese día; la corrida del día 1 sigue igual",
+     "unidad": "—",
+     "nota": "Decisión del curso: excepción a la regla de nombres del conflicto 36, solo para corridas adelantadas.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "tanda_extra_etiquetado",
+     "dato": "Tanda extra de etiquetado por un ticket de drift",
+     "valor": "≈ 500 fotos del slice afectado, elegidas del log (al azar dentro del slice), encima de la cola de ≈ 5,000; ≈ US$25–50 y ≈ 5 días hábiles",
+     "unidad": "fotos",
+     "nota": "Supuesto del curso; 500 × 5–10 ¢. La cola normal sigue con su mezcla (estaciones_datos.cola_mezcla).",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "runbook_p99",
+     "dato": "Runbook de ClassifierHighP99Latency",
+     "valor": "(1) ¿qué tramo subió: preproceso, fila de Triton o cómputo? (2) ¿hubo deploy? → rollback si coincide (3) ¿KEDA en su tope de 4? → falta GPU (4) ¿un caller manda de más? → su cuota (5) escalar si en 30 min no mejora",
+     "unidad": "—",
+     "nota": "Mitigar primero, entender después.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "postmortem_regla",
+     "dato": "Postmortem",
+     "valor": "después de todo page con impacto en usuarios: sin culpables, en ≤ 5 días hábiles, con línea de tiempo, impacto, con qué señal se detectó y acciones con dueño y fecha",
+     "unidad": "—",
+     "nota": "Decisión del curso. La pregunta clave en ML: ¿qué señal lo habría detectado antes?",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "relojes_ejemplo",
+     "dato": "Diferencia entre los relojes de la request de Ana",
+     "valor": "d_a ≈ 1 ms (red ALB ↔ pod, ida y vuelta); d_b ≈ 2 ms (ALB + red backend ↔ ALB): gateway 20 ms, ALB ≈ 21 ms, backend ≈ 23 ms",
+     "unidad": "ms",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e11-request"
+     ]
+    },
+    {
+     "id": "log_linea_ana_medida",
+     "dato": "Tamaño medido de la línea de Ana",
+     "valor": "306 B con json.dumps y el salto de línea (285 B sin source)",
+     "unidad": "B",
+     "nota": "Código de la lección; coincide con los ≈ 300 B de log_ana.",
+     "lecciones": [
+      "e11-request"
+     ]
+    },
+    {
+     "id": "fluentbit_archivo",
+     "dato": "Tamaño de cada archivo crudo antes de gzip",
+     "valor": "≈ 5.2 MB por nodo cada 5 min (1.5 GB ÷ 288)",
+     "unidad": "MB",
+     "nota": "Cuenta; muy lejos del total_file_size de 100 MB, así que manda el upload_timeout de 5 min.",
+     "lecciones": [
+      "e11-request"
+     ]
+    },
+    {
+     "id": "prometheus_muestras_dia",
+     "dato": "Muestras al día del gateway con 3 pods",
+     "valor": "717 series × 5,760 lecturas al día (86,400 ÷ 15) ≈ 4.1 M",
+     "unidad": "muestras/día",
+     "nota": "Cuenta de un ejercicio.",
+     "lecciones": [
+      "e11-request"
+     ]
+    },
+    {
+     "id": "trazas_lentas_pico",
+     "dato": "Trazas de requests lentas en la hora pico",
+     "valor": "con 0.5 % de lentas: ≈ 6,300 lentas por hora y ≈ 63 con traza al 1 %",
+     "unidad": "trazas/h",
+     "nota": "Supuesto de un ejercicio (el 0.5 % de lentas).",
+     "lecciones": [
+      "e11-request"
+     ]
+    },
+    {
+     "id": "metrics_ejemplo",
+     "dato": "Valores del texto de /metrics de ejemplo",
+     "valor": "contador de 200 de mobile 957,980, menor que el _count de la latencia (958,601), que suma también los 621 5xx de mobile; buckets 41 / 612,904 / 955,377 / 958,601",
+     "unidad": "—",
+     "nota": "Ilustrativos (supuesto del curso).",
+     "lecciones": [
+      "e11-request"
+     ]
+    },
+    {
+     "id": "falla_app_nueva",
+     "dato": "Ejemplo de falla silenciosa: versión nueva de la app del celular",
+     "valor": "más compresión y un filtro de contraste: bytes de mobile de ≈ 210 KB a ≈ 140 KB de mediana; baja confianza del total de 4 % a 5.5 % (no dispara); aceptación de mobile de 70.1 % a 66.2 % semana contra semana, 6 días después → ticket; diagnóstico: datos de quien llama, no se reentrena",
+     "unidad": "KB, %",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "aceptacion_por_source_semana",
+     "dato": "Publicaciones por semana por source (ejemplo de slices)",
+     "valor": "mobile ≈ 10.4 M, web ≈ 6.1 M, de ≈ 17.3 M; el resto internal",
+     "unidad": "publicaciones/semana",
+     "nota": "Supuesto del curso (números del bloque de código).",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "slice_chico_ejemplo",
+     "dato": "Una categoría padre chica («Instrumentos»)",
+     "valor": "3,100 publicaciones a la semana (menos de las 5,000 que pide un slice); aceptación 69.0 % → 64.0 %",
+     "unidad": "publicaciones",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "espera_fila_pico_ejemplo",
+     "dato": "Espera media en la fila de Triton en un minuto tranquilo del pico",
+     "valor": "D_q = 42,000,000 µs, N_ok = 21,000 (350 req/s × 60) → 2 ms",
+     "unidad": "ms",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "pages_mes_ejemplo",
+     "dato": "Fatiga de alertas: pages del mes con acción",
+     "valor": "12 pages, 9 con acción (75 %)",
+     "unidad": "pages",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "psi_ejemplo_noviembre",
+     "dato": "Serie de PSI diario de ejemplo (3–12 de noviembre)",
+     "valor": "0.002, 0.24, 0.003, 0.21, 0.23, 0.004, 0.22, 0.26, 0.29, 0.31 → ticket el 11",
+     "unidad": "PSI",
+     "nota": "Supuesto del curso (bloque de código).",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "incidente_3pct_ejemplo",
+     "dato": "Incidente de ejemplo para la alerta multiventana",
+     "valor": "3 % de errores (β = 30) durante 40 min (minutos 0 a 39), con 0.1 % de fondo antes y después; page del minuto 27 al 42; solo con la ventana de 1 h, hasta el 72",
+     "unidad": "min",
+     "nota": "Supuesto del curso; la figura, el texto, el glosario y el código usan los mismos minutos.",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    },
+    {
+     "id": "alerta_bytes_propuesta",
+     "dato": "Alerta de datos que propone un ejercicio",
+     "valor": "mediana de bytes de un source cae > 25 % contra su promedio de 7 días durante 2 h → ticket",
+     "unidad": "—",
+     "nota": "Solo en un ejercicio reto; no es una alerta vigente de Alba (no está en alertas_alba).",
+     "lecciones": [
+      "e12-monitoreo"
+     ]
+    }
+   ]
   }
  },
  "conflictos": [
@@ -5447,6 +5952,37 @@
    "resolucion": "promesas.rollback_auto (5xx > 0.5 % o p99 > 200 ms) son los topes absolutos; el análisis del canary agrega la comparación con el estable, la baja confianza y el PSI (estaciones_orquestacion.canary_criterios).",
    "cambiar": [],
    "como": "No cambiar rollback_auto."
+  },
+  {
+   "n": 54,
+   "tema": "Disparadores del reentrenamiento",
+   "resolucion": "Los disparadores son el calendario mensual, PSI > 0.2 tres días seguidos, caída de aceptación > 3 puntos semana contra semana y una categoría nueva. Cada uno abre un ticket; adelantar la corrida lo decide una persona tras el diagnóstico (estaciones_monitoreo.disparador_politica), y nada se despliega solo.",
+   "cambiar": [],
+   "como": "estaciones_modelo.entreno_disparadores no nombraba el PSI; se lee como incompleto, no como contrario."
+  },
+  {
+   "n": 55,
+   "tema": "Rutas del log de predicciones",
+   "resolucion": "Crudo: s3://ml-datos/logs/crudo/AAAA/MM/DD/HH/ (gzip, de Fluent Bit). Parquet: s3://ml-datos/logs/predicciones/dt=AAAA-MM-DD/model_version=…/ (estaciones_monitoreo.logs_camino).",
+   "cambiar": [],
+   "como": "«logs/dt=…» en «Formatos» y en «Object storage» son la forma corta; el lago s3://alba-lake/ de «Object storage» es un ejemplo de capas, no el bucket de Alba. e11 da la ruta completa."
+  },
+  {
+   "n": 56,
+   "tema": "La alerta de 5xx",
+   "resolucion": "Los 5xx del gateway se vigilan por burn rate (page a 14.4×, ticket a 6×), no con un umbral fijo de 1 % en 5 min. promesas.rollback_auto (5xx > 0.5 %) es del canary, no una alerta.",
+   "cambiar": [],
+   "como": "Ninguna lección publicada da otra alerta de 5xx."
+  },
+  {
+   "n": 57,
+   "tema": "caller y source en la línea de log",
+   "resolucion": "caller es el client_id del token (backend-publicaciones, moderacion, busqueda); source es de dónde dice venir la foto (mobile, web, internal), del header X-Client-Source.",
+   "cambiar": [
+    "formatos",
+    "privacidad"
+   ],
+   "como": "«Formatos» usa caller = app-ios, app-android o web, que son valores de source; «Datos personales» usa caller = publicaciones. Se corrigen en la pasada de consistencia de la fase 15 si cabe; si no, quedan anotados."
   }
  ]
 }

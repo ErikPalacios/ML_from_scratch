@@ -11,7 +11,7 @@
       "note": "El **backend del marketplace** manda la foto de Ana y espera como máximo 300 ms. Reusa conexiones abiertas ([[keep-alive]]), así que no paga un [[handshake]] en cada foto." },
     { "id": "alb", "label": "Balanceador", "sub": "viajar: ≈ 3 ms", "kind": "edge",
       "x": 30, "y": 5, "w": 18, "h": 8,
-      "note": "**Viajar.** El balanceador recibe la request y la pasa a un pod; el gateway lee los ≈ 200 KB de la foto. En una request típica, ≈ 2 a 6 ms. Aquí **arranca el reloj del SLO**: cuando la request completa ya llegó." },
+      "note": "**Viajar.** El balanceador recibe la request y la pasa a un pod; el gateway lee los ≈ 200 KB de la foto. En una request típica, ≈ 2 a 6 ms. Aquí **arranca el reloj del SLO**: el balanceador ya tiene la request completa, y pasarla al pod ya cuenta." },
     { "id": "filagw", "label": "Fila del pod", "sub": "esperar un lugar de CPU", "kind": "queue",
       "x": 59, "y": 5, "w": 18, "h": 8,
       "note": "**Esperar.** Si el núcleo del pod está decodificando otras fotos, esta espera. Con poco tráfico, ≈ 0 ms. Con el núcleo al 90 %, \\(W_q = ρ × S ÷ (1 − ρ)\\) = 0.9 × 6 ÷ 0.1 = 54 ms en promedio: es la [[tiempo-en-cola|espera]] que más crece cerca del pico." },

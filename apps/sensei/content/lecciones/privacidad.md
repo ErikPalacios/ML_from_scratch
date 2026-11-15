@@ -134,7 +134,7 @@ def linea_de_log(evento):
     return {campo: evento[campo] for campo in PERMITIDOS if campo in evento}
 
 evento = {
-    "request_id": "9f2c41d0", "caller": "publicaciones", "model_version": "resnet50-2026-10-01",
+    "request_id": "9f2c41d0", "caller": "backend-publicaciones", "model_version": "resnet50-2026-10-01",
     "top_k": [["Calzado > Tenis", 0.94]], "latencia_ms": 21, "bytes": 200000,
     "sha256_prefijo": "3a7bd3e2360a3d29",
     "vendedora_id": "ana-48213",                        # no está en la lista: no pasa
@@ -148,10 +148,10 @@ print(len(json.dumps(evento)), "->", len(json.dumps(linea)), "caracteres")
 
 ```salida
 ['exif', 'foto', 'vendedora_id']
-335 -> 205 caracteres
+343 -> 213 caracteres
 ```
 
-Los tres campos que se quedaron fuera son justo los que llevan a Ana. En el evento de verdad, la foto pesaría ≈ 200 KB y no 23 caracteres. La línea de juguete mide 205 caracteres; la real, con las 5 categorías y todas las latencias, mide ≈ 300 bytes: unas 670 veces menos que la foto.
+Los tres campos que se quedaron fuera son justo los que llevan a Ana. En el evento de verdad, la foto pesaría ≈ 200 KB y no 23 caracteres. La línea de juguete mide 213 caracteres; la real, con las 5 categorías y todas las latencias, mide ≈ 300 bytes: unas 670 veces menos que la foto.
 
 ### Finalidad: para qué juntaste el dato
 

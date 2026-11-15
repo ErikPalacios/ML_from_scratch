@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 470" role="img" aria-labelledby="f-e12-monitoreo-capas-t" class="f-svg" style="max-width:420px">
+<title id="f-e12-monitoreo-capas-t">Las cinco capas del monitoreo de Alba, de arriba abajo. Infraestructura: nodos, GPU y pods listos; avisa en segundos. Servicio: p99, errores 5xx y fila de Triton; segundos a minutos. Datos: bytes de las fotos por source y tasas de 400, 413 y 415; minutos. Modelo: score top-1, tasa de baja confianza y PSI de las categorías; minutos a un día. Negocio: aceptación, recategorización de moderación y holdout; horas a semanas. Las dos de arriba son de cualquier servicio y las tres de abajo son de ML. Una flecha a la izquierda dice que hacia abajo la señal es más lenta y más cercana a lo que importa: si la sugerencia fue correcta.</title>
+<text class="f-l" x="18" y="24">MÁS RÁPIDA</text>
+<text class="f-l" x="18" y="432">MÁS CERCA DE LO QUE IMPORTA</text>
+<line class="f-flecha" x1="30" y1="44" x2="30" y2="398"/>
+<path class="f-punta" d="M24 396 L36 396 L30 408 Z"/>
+<rect class="f-card" x="48" y="40" width="296" height="66" rx="10"/>
+<rect class="f-b" x="48" y="40" width="8" height="66" rx="3"/>
+<text class="f-t" x="68" y="66">Infraestructura</text>
+<text class="f-l" x="332" y="65" text-anchor="end">SEGUNDOS</text>
+<text class="f-s" x="68" y="90" style="font-size:12.5px">nodos, GPU, pods listos</text>
+<rect class="f-card" x="48" y="116" width="296" height="66" rx="10"/>
+<rect class="f-b" x="48" y="116" width="8" height="66" rx="3"/>
+<text class="f-t" x="68" y="142">Servicio</text>
+<text class="f-l" x="332" y="141" text-anchor="end">SEG. A MIN</text>
+<text class="f-s" x="68" y="166" style="font-size:12.5px">p99, 5xx, fila de Triton</text>
+<rect class="f-card" x="48" y="192" width="296" height="66" rx="10"/>
+<rect class="f-o" x="48" y="192" width="8" height="66" rx="3"/>
+<text class="f-t" x="68" y="218">Datos</text>
+<text class="f-l" x="332" y="217" text-anchor="end">MINUTOS</text>
+<text class="f-s" x="68" y="242" style="font-size:12.5px">bytes por source; 400, 413, 415</text>
+<rect class="f-card" x="48" y="268" width="296" height="66" rx="10"/>
+<rect class="f-o" x="48" y="268" width="8" height="66" rx="3"/>
+<text class="f-t" x="68" y="294">Modelo</text>
+<text class="f-l" x="332" y="293" text-anchor="end">MIN A 1 DÍA</text>
+<text class="f-s" x="68" y="318" style="font-size:12.5px">score top-1, baja confianza, PSI</text>
+<rect class="f-card" x="48" y="344" width="296" height="66" rx="10"/>
+<rect class="f-o" x="48" y="344" width="8" height="66" rx="3"/>
+<text class="f-t" x="68" y="370">Negocio</text>
+<text class="f-l" x="332" y="369" text-anchor="end">HORAS A SEMANAS</text>
+<text class="f-s" x="68" y="394" style="font-size:12.5px">aceptación, moderación, holdout</text>
+<rect class="f-b" x="48" y="448" width="12" height="12" rx="3"/><text class="f-s" x="66" y="459" style="font-size:12px">cualquier servicio</text>
+<rect class="f-o" x="200" y="448" width="12" height="12" rx="3"/><text class="f-s" x="218" y="459" style="font-size:12px">propias de ML</text>
+</svg>

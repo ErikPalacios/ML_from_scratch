@@ -1,0 +1,24 @@
+{
+ "titulo": "Cuánto pesa, cuánto cuesta y cuánto aguanta el log",
+ "intro": "Aplica \\(V_d = R_d × w_l\\), \\(A = V_d × D\\), \\(C = A × u\\) y \\(L = G × N_n × 24 ÷ V_d\\). Arranca con el log de Alba: 10 M requests al día, líneas de ≈ 300 B, 90 días y el buffer de 1 GB de Fluent Bit en cada uno de sus 2 nodos.",
+ "entradas": [
+  { "id": "rd", "label": "Requests al día, \\(R_d\\) (millones)", "min": 0.1, "max": 100, "paso": 0.1, "valor": 10 },
+  { "id": "wl", "label": "Tamaño de una línea, \\(w_l\\) (bytes)", "min": 50, "max": 5000, "paso": 10, "valor": 300 },
+  { "id": "dd", "label": "Días que se guarda, \\(D\\)", "min": 1, "max": 400, "paso": 1, "valor": 90 },
+  { "id": "u", "label": "Precio de guardar, \\(u\\) (US$ por GB al mes)", "min": 0.001, "max": 0.1, "paso": 0.001, "valor": 0.023 },
+  { "id": "g", "label": "Buffer de Fluent Bit por nodo, \\(G\\) (GB)", "min": 0.1, "max": 20, "paso": 0.01, "valor": 1 },
+  { "id": "nn", "label": "Nodos del gateway, \\(N_n\\)", "min": 1, "max": 12, "paso": 1, "valor": 2 }
+ ],
+ "calculos": [
+  { "id": "vd", "formula": "rd * 1000000 * wl / 1000000000" },
+  { "id": "aa", "formula": "vd * dd" }
+ ],
+ "salidas": [
+  { "label": "Lo que se escribe al día, \\(V_d\\) (GB)", "formula": "vd", "formato": "num", "decimales": 2, "nota": "\\(V_d = R_d × w_l\\)" },
+  { "label": "Lo guardado, \\(A\\) (GB)", "formula": "aa", "formato": "num", "decimales": 0, "nota": "\\(A = V_d × D\\)" },
+  { "label": "Costo al mes, \\(C\\) (US$)", "formula": "aa * u", "formato": "num", "decimales": 2, "nota": "\\(C = A × u\\), sin la compresión de gzip" },
+  { "label": "Aguante del buffer de un nodo, \\(L\\) (horas)", "formula": "g * nn * 24 / max(vd, 0.000001)", "formato": "num", "decimales": 1, "nota": "\\(L = G × N_n × 24 ÷ V_d\\), con el tráfico parejo del día; el 24 pasa de días a horas" },
+  { "label": "Aguante contra los 30 min de LogsStale", "formula": "g * nn * 24 / max(vd, 0.000001) * 2", "formato": "x", "decimales": 0, "nota": "cuántas veces cabe media hora en el buffer" }
+ ],
+ "nota": "Si guardaras la foto (≈ 200 KB) en vez de la línea, \\(w_l\\) sería ≈ 200,000 B: ≈ 2 TB al día."
+}

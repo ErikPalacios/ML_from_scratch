@@ -1,0 +1,365 @@
+{
+ "titulo": "Del aviso a la decisión: diagnosticar antes de reentrenar",
+ "width": 78,
+ "height": 57,
+ "lanes": [
+  {
+   "id": "senal",
+   "label": "La señal",
+   "kind": "monitor",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 13
+  },
+  {
+   "id": "diag",
+   "label": "El diagnóstico",
+   "kind": "neutral",
+   "x": 0,
+   "y": 15,
+   "w": 78,
+   "h": 14
+  },
+  {
+   "id": "train",
+   "label": "De vuelta al entrenamiento",
+   "kind": "offline",
+   "x": 0,
+   "y": 31,
+   "w": 78,
+   "h": 26
+  }
+ ],
+ "nodes": [
+  {
+   "id": "senal",
+   "label": "señal",
+   "sub": "PSI · aceptación",
+   "kind": "monitor",
+   "x": 2,
+   "y": 3,
+   "w": 20,
+   "h": 8,
+   "note": "Un disparador: PSI > 0.2 tres días seguidos, o la aceptación cae más de 3 puntos semana contra semana en un slice con ≥ 5,000 publicaciones."
+  },
+  {
+   "id": "ticket",
+   "label": "ticket",
+   "sub": "cola de ML",
+   "kind": "queue",
+   "x": 30,
+   "y": 3,
+   "w": 18,
+   "h": 8,
+   "note": "Un disparador **abre un ticket**, no un deploy. Nada se reentrena ni se despliega solo."
+  },
+  {
+   "id": "persona",
+   "label": "persona del equipo",
+   "sub": "descarta 3 cosas",
+   "kind": "human",
+   "x": 30,
+   "y": 18,
+   "w": 18,
+   "h": 8,
+   "note": "Descarta en orden: (1) un deploy propio, (2) datos rotos de quien llama, (3) [[training-serving-skew|training-serving skew]]. Solo si cambió el mundo y los labels lo confirman, adelanta la corrida."
+  },
+  {
+   "id": "rollback",
+   "label": "rollback",
+   "sub": "si fue un deploy",
+   "kind": "service",
+   "x": 2,
+   "y": 18,
+   "w": 20,
+   "h": 8,
+   "note": "Si el cambio empezó con una release propia, se vuelve a la anterior con el [[runbook-rollback|runbook de rollback]]. Reentrenar le enseñaría el bug al modelo."
+  },
+  {
+   "id": "dueno",
+   "label": "aviso al dueño",
+   "sub": "si fue quien llama",
+   "kind": "external",
+   "x": 56,
+   "y": 18,
+   "w": 21,
+   "h": 8,
+   "note": "Si el cambio vive en un solo `source` (la app nueva), se avisa al equipo dueño de ese cambio. El modelo no tiene la culpa."
+  },
+  {
+   "id": "tanda",
+   "label": "tanda extra",
+   "sub": "≈ 500 fotos",
+   "kind": "human",
+   "x": 2,
+   "y": 34,
+   "w": 20,
+   "h": 8,
+   "note": "≈ 500 fotos del slice afectado, al azar dentro del slice, encima de la cola de ≈ 5,000: ≈ US$25–50 y ≈ 5 días hábiles."
+  },
+  {
+   "id": "corrida",
+   "label": "corrida adelantada",
+   "sub": "argo submit",
+   "kind": "job",
+   "x": 30,
+   "y": 34,
+   "w": 18,
+   "h": 8,
+   "note": "Una persona la lanza desde el CronWorkflow `reentreno-mensual`. Tarda ≈ 4–5 h y cuesta ≈ US$3–4 de GPU. La del día 1 sigue igual."
+  },
+  {
+   "id": "snap",
+   "label": "snapshot",
+   "sub": "ds-2026-11-18",
+   "kind": "store",
+   "x": 56,
+   "y": 34,
+   "w": 21,
+   "h": 8,
+   "note": "El snapshot extra lleva la fecha del día de corte y los labels vigentes ese día (aquí, si se lanzara el 18 de noviembre)."
+  },
+  {
+   "id": "cola",
+   "label": "cola del mes",
+   "sub": "estación 1",
+   "kind": "queue",
+   "x": 2,
+   "y": 46,
+   "w": 20,
+   "h": 8,
+   "note": "El ciclo vuelve a empezar: la cola de ≈ 5,000 fotos de cada mes, con las dudosas que eligió la baja confianza."
+  },
+  {
+   "id": "escalera",
+   "label": "la misma escalera",
+   "sub": "gate → canary",
+   "kind": "service",
+   "x": 56,
+   "y": 46,
+   "w": 21,
+   "h": 8,
+   "note": "El candidato pasa el gate, la paridad, el shadow de 1–2 días, el canary de 5 % y 25 % y el bake. Urgente no quiere decir sin pasos."
+  }
+ ],
+ "edges": [
+  {
+   "from": "senal",
+   "to": "ticket",
+   "kind": "monitor",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "ticket",
+   "to": "persona",
+   "kind": "neutral",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "persona",
+   "to": "rollback",
+   "kind": "neutral",
+   "fromSide": "l",
+   "toSide": "r",
+   "label": "deploy"
+  },
+  {
+   "from": "persona",
+   "to": "dueno",
+   "kind": "neutral",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "quien llama"
+  },
+  {
+   "from": "persona",
+   "to": "corrida",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "decide"
+  },
+  {
+   "from": "tanda",
+   "to": "corrida",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l",
+   "label": "labels"
+  },
+  {
+   "from": "corrida",
+   "to": "snap",
+   "kind": "offline",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "snap",
+   "to": "escalera",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "escalera",
+   "to": "cola",
+   "kind": "offline",
+   "fromSide": "l",
+   "toSide": "r",
+   "label": "el ciclo sigue",
+   "dashed": true
+  }
+ ],
+ "flows": [
+  {
+   "id": "app",
+   "label": "La app nueva: no se reentrena",
+   "steps": [
+    {
+     "nodes": [
+      "senal"
+     ],
+     "edges": [],
+     "text": "La aceptación de `source=mobile` cae de 70.1 % a 66.2 % semana contra semana: 3.9 puntos, con ± 0.03 de ruido."
+    },
+    {
+     "nodes": [
+      "senal",
+      "ticket"
+     ],
+     "edges": [
+      "senal>ticket"
+     ],
+     "text": "Se abre un **ticket** en la cola del equipo de ML."
+    },
+    {
+     "nodes": [
+      "ticket",
+      "persona"
+     ],
+     "edges": [
+      "ticket>persona"
+     ],
+     "text": "La persona descarta un deploy propio (no hubo) y mira el slice: la caída está solo en `mobile` y empezó el día que salió la versión nueva de la app, con fotos más comprimidas."
+    },
+    {
+     "nodes": [
+      "persona",
+      "dueno"
+     ],
+     "edges": [
+      "persona>dueno"
+     ],
+     "text": "**Aviso al dueño** de la app. No se reentrena: el arreglo está en la app, no en el modelo."
+    }
+   ]
+  },
+  {
+   "id": "drift",
+   "label": "Un drift real: se adelanta la corrida",
+   "steps": [
+    {
+     "nodes": [
+      "senal",
+      "ticket"
+     ],
+     "edges": [
+      "senal>ticket"
+     ],
+     "text": "El PSI pasa de 0.2 tres días seguidos y la aceptación de una categoría padre grande cae 4 puntos: un **ticket**."
+    },
+    {
+     "nodes": [
+      "persona"
+     ],
+     "edges": [
+      "ticket>persona"
+     ],
+     "text": "No hubo deploy, la caída está en todos los `source` y la paridad pasa. Cambió el mundo, y los labels lo confirman."
+    },
+    {
+     "nodes": [
+      "persona",
+      "tanda",
+      "corrida"
+     ],
+     "edges": [
+      "persona>corrida",
+      "tanda>corrida"
+     ],
+     "text": "La persona pide una **tanda extra** de ≈ 500 fotos del slice y, cuando llegan sus labels, lanza la **corrida adelantada**."
+    },
+    {
+     "nodes": [
+      "corrida",
+      "snap"
+     ],
+     "edges": [
+      "corrida>snap"
+     ],
+     "text": "La corrida arma el **snapshot** con la fecha del día de corte y entrena el candidato."
+    },
+    {
+     "nodes": [
+      "snap",
+      "escalera"
+     ],
+     "edges": [
+      "snap>escalera"
+     ],
+     "text": "El candidato sube **la misma escalera**: gate, shadow, canary y bake."
+    },
+    {
+     "nodes": [
+      "escalera",
+      "cola"
+     ],
+     "edges": [
+      "escalera>cola"
+     ],
+     "text": "Con el nuevo champion, el monitoreo vuelve a mirar y la **cola del mes** vuelve a llenarse: el ciclo sigue."
+    }
+   ]
+  },
+  {
+   "id": "deploy",
+   "label": "Fue un deploy",
+   "steps": [
+    {
+     "nodes": [
+      "senal",
+      "ticket"
+     ],
+     "edges": [
+      "senal>ticket"
+     ],
+     "text": "El PSI sube el mismo día que entró una release del gateway."
+    },
+    {
+     "nodes": [
+      "ticket",
+      "persona"
+     ],
+     "edges": [
+      "ticket>persona"
+     ],
+     "text": "Lo primero que se descarta es el deploy propio, y aquí coincide."
+    },
+    {
+     "nodes": [
+      "persona",
+      "rollback"
+     ],
+     "edges": [
+      "persona>rollback"
+     ],
+     "text": "**Rollback** con el runbook. Reentrenar sobre ese bug le enseñaría el bug al modelo."
+    }
+   ]
+  }
+ ]
+}

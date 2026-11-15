@@ -537,6 +537,8 @@ a.tl:hover { box-shadow: 0 0 0 2px var(--accent); }
 .m i.m-v { font-style: italic; padding: 0 .04em; }
 .m .m-w, .m .m-t { font-style: normal; }
 .m .m-t { font-family: var(--sans); font-size: .86em; }
+.m .m-t { margin: 0 .22em; }   /* «text{si}» no se pega a lo de al lado */
+.m sub .m-t, .m sup .m-t { margin: 0; }
 .m .m-o { padding: 0 .28em; }
 .m sub, .m sup { font-size: .72em; line-height: 0; }
 .m sub .m-w, .m sup .m-w { font-family: var(--sans); font-size: .95em; }

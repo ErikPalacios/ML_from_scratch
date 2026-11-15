@@ -1,0 +1,23 @@
+{
+ "titulo": "Burn rate: qué tan rápido se va el presupuesto",
+ "intro": "Elige el SLO, la fracción de errores y la ventana. La calculadora aplica \\(β = p ÷ (1 − S)\\), \\(f = β × t ÷ V\\) con \\(V\\) = 720 h, \\(t_a = V ÷ β\\), \\(B = (1 − S) × R × 30\\) y \\(F = R ÷ 24 × t × p\\). Arranca con el page de Alba: 1.44 % de errores durante 1 hora.",
+ "entradas": [
+  { "id": "s", "label": "SLO de disponibilidad, \\(S\\) (%)", "min": 99, "max": 99.99, "paso": 0.01, "valor": 99.9 },
+  { "id": "p", "label": "Fracción de requests con error del servidor, \\(p\\) (%)", "min": 0.01, "max": 100, "paso": 0.01, "valor": 1.44 },
+  { "id": "t", "label": "Ventana de la alerta, \\(t\\) (horas)", "min": 0.05, "max": 72, "paso": 0.05, "valor": 1 },
+  { "id": "r", "label": "Requests al día, \\(R\\) (millones)", "min": 0.1, "max": 100, "paso": 0.1, "valor": 10 }
+ ],
+ "calculos": [
+  { "id": "e", "formula": "max(1 - s / 100, 1e-9)" },
+  { "id": "beta", "formula": "(p / 100) / e" },
+  { "id": "budget", "formula": "e * r * 1000000 * 30" }
+ ],
+ "salidas": [
+  { "label": "Burn rate, \\(β\\)", "formula": "beta", "formato": "x", "decimales": 1, "nota": "\\(β = p ÷ (1 − S)\\); el page de Alba pide más de 14.4 ×, el ticket más de 6 ×" },
+  { "label": "Presupuesto gastado en la ventana, \\(f\\)", "formula": "min(beta * t / 720, 1)", "formato": "pct", "decimales": 1, "barra": true, "nota": "\\(f = β × t ÷ V\\), con \\(V\\) = 720 h (30 días); tope en 100 %" },
+  { "label": "Requests con error en la ventana, \\(F\\)", "formula": "r * 1000000 / 24 * t * p / 100", "formato": "int", "nota": "\\(F = R ÷ 24 × t × p\\)" },
+  { "label": "Presupuesto del mes, \\(B\\) (requests)", "formula": "budget", "formato": "int", "nota": "\\(B = (1 − S) × R × 30\\)" },
+  { "label": "Horas para agotar el presupuesto, \\(t_a\\)", "formula": "720 / beta", "formato": "num", "decimales": 1, "nota": "\\(t_a = V ÷ β\\)" }
+ ],
+ "nota": "Supone el mismo tráfico todas las horas. Con \\(p\\) = 0.1 % y \\(S\\) = 99.9 %, \\(β\\) = 1: el presupuesto dura justo los 30 días."
+}

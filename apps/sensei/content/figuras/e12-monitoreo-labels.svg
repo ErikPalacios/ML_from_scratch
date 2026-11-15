@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 352" role="img" aria-labelledby="f-e12-monitoreo-labels-t" class="f-svg" style="max-width:420px">
+<title id="f-e12-monitoreo-labels-t">Cuándo llega cada label de una foto subida hoy, en una línea de tiempo que va de la foto a dos meses. La aceptación llega entre minutos y horas, y está sesgada: quien vende tiende a aceptar lo que le mostraron. La recategorización de moderación llega en días y solo cubre lo que alguien revisó. El holdout, el 1 % de vendedores que nunca ve sugerencias, se cree hasta los 30 días y da la exactitud real en uno o dos meses; es la medida sin sesgo de la sugerencia.</title>
+<text class="f-l" x="18" y="22">CUÁNDO LLEGA CADA LABEL</text>
+<line x1="36" y1="52" x2="336" y2="52" style="stroke:var(--muted);stroke-width:1.5"/>
+<line x1="36" y1="46" x2="36" y2="58" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="32" y="76" text-anchor="start" style="font-size:12px">foto</text>
+<line x1="96" y1="46" x2="96" y2="58" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="96" y="76" text-anchor="middle" style="font-size:12px">min</text>
+<line x1="156" y1="46" x2="156" y2="58" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="156" y="76" text-anchor="middle" style="font-size:12px">horas</text>
+<line x1="216" y1="46" x2="216" y2="58" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="216" y="76" text-anchor="middle" style="font-size:12px">días</text>
+<line x1="276" y1="46" x2="276" y2="58" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="276" y="76" text-anchor="middle" style="font-size:12px">1 mes</text>
+<line x1="336" y1="46" x2="336" y2="58" style="stroke:var(--muted);stroke-width:1.5"/>
+<text class="f-s" x="346" y="76" text-anchor="end" style="font-size:12px">2 meses</text>
+<line x1="36" y1="116" x2="336" y2="116" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<text class="f-t" x="18" y="102">Aceptación</text>
+<rect class="f-b" x="96" y="110" width="60" height="12" rx="6"/>
+<text class="f-s" x="18" y="144" style="font-size:12.5px">rápida, pero sesgada:</text>
+<text class="f-s" x="18" y="160" style="font-size:12.5px">se acepta lo que se mostró</text>
+<line x1="36" y1="200" x2="336" y2="200" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<text class="f-t" x="18" y="186">Moderación</text>
+<rect class="f-y" x="186" y="194" width="60" height="12" rx="6"/>
+<text class="f-s" x="18" y="228" style="font-size:12.5px">en días, y solo lo que</text>
+<text class="f-s" x="18" y="244" style="font-size:12.5px">alguien reportó o revisó</text>
+<line x1="36" y1="284" x2="336" y2="284" style="stroke:var(--muted);stroke-opacity:.35;stroke-width:1"/>
+<text class="f-t" x="18" y="270">Holdout</text>
+<rect class="f-g" x="270" y="278" width="66" height="12" rx="6"/>
+<text class="f-s" x="18" y="312" style="font-size:12.5px">≈ 1 % sin sugerencias: tarda,</text>
+<text class="f-s" x="18" y="328" style="font-size:12.5px">pero es la medida limpia</text>
+<text class="f-l" x="336" y="270" text-anchor="end">MADURA A LOS 30 DÍAS</text>
+</svg>

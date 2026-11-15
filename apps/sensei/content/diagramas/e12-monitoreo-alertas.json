@@ -1,0 +1,372 @@
+{
+ "titulo": "De la métrica a la persona: el monitoreo de Alba",
+ "width": 78,
+ "height": 57,
+ "lanes": [
+  {
+   "id": "mide",
+   "label": "Lo que se mide",
+   "kind": "online",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 13
+  },
+  {
+   "id": "mon",
+   "label": "Monitoreo",
+   "kind": "monitor",
+   "x": 0,
+   "y": 15,
+   "w": 78,
+   "h": 26
+  },
+  {
+   "id": "quien",
+   "label": "Quién se entera",
+   "kind": "neutral",
+   "x": 0,
+   "y": 43,
+   "w": 78,
+   "h": 14
+  }
+ ],
+ "nodes": [
+  {
+   "id": "job",
+   "label": "monitoreo-diario",
+   "sub": "01:00 UTC",
+   "kind": "job",
+   "x": 1,
+   "y": 3,
+   "w": 18,
+   "h": 8,
+   "note": "El job diario: pasa el log a Parquet, calcula el [[psi|PSI]] de las ≈ 30 categorías padre y la aceptación por slice, y publica cada resultado como gauge (una métrica que sube y baja). Tarda ≈ 20 min."
+  },
+  {
+   "id": "pods",
+   "label": "gateway y Triton",
+   "sub": "/metrics",
+   "kind": "service",
+   "x": 23,
+   "y": 3,
+   "w": 18,
+   "h": 8,
+   "note": "Cada pod lleva sus [[metrica|métricas]] en memoria y las expone en `/metrics` (el gateway en el puerto 8080, Triton en el 8002). Si el pod muere, sus series desaparecen."
+  },
+  {
+   "id": "alb",
+   "label": "ALB",
+   "sub": "la entrada",
+   "kind": "edge",
+   "x": 60,
+   "y": 3,
+   "w": 17,
+   "h": 8,
+   "note": "El [[alb|balanceador]]. Ve lo que el gateway no: si todos los gateways salen de su lista, contesta 503 él mismo."
+  },
+  {
+   "id": "push",
+   "label": "Pushgateway",
+   "sub": "último valor",
+   "kind": "store",
+   "x": 1,
+   "y": 18,
+   "w": 18,
+   "h": 8,
+   "note": "Guarda lo que el job le empuja **hasta que alguien lo borre**, más `push_time_seconds`, la hora del último envío. Por eso existe `MonitoringJobStale` (26 h)."
+  },
+  {
+   "id": "prom",
+   "label": "Prometheus",
+   "sub": "cada 15 segundos",
+   "kind": "monitor",
+   "x": 23,
+   "y": 18,
+   "w": 18,
+   "h": 8,
+   "note": "Lee `/metrics` de cada pod cada 15 segundos (lo declaran un [[servicemonitor|ServiceMonitor]] para Triton y un PodMonitor para el gateway) y guarda 15 días. Para cada pod que lee, guarda también `up`: 1 si pudo leer, 0 si no."
+  },
+  {
+   "id": "graf",
+   "label": "Grafana",
+   "sub": "4 dashboards",
+   "kind": "monitor",
+   "x": 45,
+   "y": 18,
+   "w": 13,
+   "h": 8,
+   "note": "Los [[dashboard|dashboards]]: servicio, Triton y GPU, modelo y negocio. Consulta a Prometheus; no decide nada."
+  },
+  {
+   "id": "cw",
+   "label": "CloudWatch",
+   "sub": "alarma ALB5xx",
+   "kind": "monitor",
+   "x": 60,
+   "y": 18,
+   "w": 17,
+   "h": 8,
+   "note": "El servicio de métricas de AWS. La alarma `ALB5xx` es un page si los 5xx del propio ALB pasan de 0.5 % del total en 5 min. El total suma `RequestCount` y esos 5xx, porque `RequestCount` no cuenta las requests que no llegaron a un destino."
+  },
+  {
+   "id": "reglas",
+   "label": "reglas",
+   "sub": "grabación y alerta",
+   "kind": "monitor",
+   "x": 23,
+   "y": 30,
+   "w": 18,
+   "h": 8,
+   "note": "Las [[regla-grabacion|reglas de grabación]] precalculan las tasas de error (5 min, 30 min, 1 h, 6 h) y la baja confianza; las [[alerta|reglas de alerta]] las comparan con su umbral, su `for` y su severidad."
+  },
+  {
+   "id": "am",
+   "label": "Alertmanager",
+   "sub": "agrupa e inhibe",
+   "kind": "service",
+   "x": 45,
+   "y": 30,
+   "w": 18,
+   "h": 8,
+   "note": "[[alertmanager|Alertmanager]] vive en el namespace `monitoring`, con Prometheus y Grafana. Agrupa por alerta y namespace, deduplica, calla los warning de Triton mientras `TritonNotReady` suena y respeta los silencios de mantenimiento."
+  },
+  {
+   "id": "cola",
+   "label": "cola de ML",
+   "sub": "ticket",
+   "kind": "queue",
+   "x": 1,
+   "y": 46,
+   "w": 18,
+   "h": 8,
+   "note": "Los tickets: calidad del modelo y tendencias. Se revisan en la semana, en horario."
+  },
+  {
+   "id": "canal",
+   "label": "canal del equipo",
+   "sub": "warning",
+   "kind": "external",
+   "x": 23,
+   "y": 46,
+   "w": 18,
+   "h": 8,
+   "note": "Los warning: causas que anticipan un page, como la fila de Triton arriba de 20 ms. Se miran en horario de trabajo."
+  },
+  {
+   "id": "marta",
+   "label": "Marta",
+   "sub": "page · ≤ 5 min",
+   "kind": "human",
+   "x": 58,
+   "y": 46,
+   "w": 19,
+   "h": 8,
+   "note": "La persona de [[guardia]] de la semana. Recibe solo los page y los reconoce en ≤ 5 minutos, de día o de noche."
+  }
+ ],
+ "edges": [
+  {
+   "from": "job",
+   "to": "push",
+   "kind": "offline",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "push"
+  },
+  {
+   "from": "pods",
+   "to": "prom",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "scrape"
+  },
+  {
+   "from": "alb",
+   "to": "cw",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "métricas"
+  },
+  {
+   "from": "push",
+   "to": "prom",
+   "kind": "monitor",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "prom",
+   "to": "graf",
+   "kind": "monitor",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "prom",
+   "to": "reglas",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "reglas",
+   "to": "am",
+   "kind": "monitor",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "am",
+   "to": "cola",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "ticket"
+  },
+  {
+   "from": "am",
+   "to": "canal",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "warning"
+  },
+  {
+   "from": "am",
+   "to": "marta",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "page"
+  },
+  {
+   "from": "cw",
+   "to": "marta",
+   "kind": "monitor",
+   "fromSide": "b",
+   "toSide": "t",
+   "label": "page"
+  }
+ ],
+ "flows": [
+  {
+   "id": "noche",
+   "label": "Errores a las 3 a. m.",
+   "steps": [
+    {
+     "nodes": [
+      "pods"
+     ],
+     "edges": [],
+     "text": "Un cambio de configuración hace que el gateway conteste 503 al **3 %** de las requests. Cada pod suma esos 503 a `classifier_requests_total`."
+    },
+    {
+     "nodes": [
+      "pods",
+      "prom"
+     ],
+     "edges": [
+      "pods>prom"
+     ],
+     "text": "**Prometheus** lee los contadores cada 15 segundos."
+    },
+    {
+     "nodes": [
+      "prom",
+      "reglas"
+     ],
+     "edges": [
+      "prom>reglas"
+     ],
+     "text": "Las **reglas de grabación** recalculan cada minuto la tasa de errores en 5 min y en 1 h. Cuando las dos pasan 14.4 × 0.1 % = 1.44 %, `ClassifierErrorBudgetFastBurn` dispara."
+    },
+    {
+     "nodes": [
+      "reglas",
+      "am"
+     ],
+     "edges": [
+      "reglas>am"
+     ],
+     "text": "**Alertmanager** junta todo lo que suena por el mismo incidente en una sola notificación."
+    },
+    {
+     "nodes": [
+      "am",
+      "marta"
+     ],
+     "edges": [
+      "am>marta"
+     ],
+     "text": "Es un **page**: le llega a **Marta**, que lo reconoce en ≤ 5 min y abre el runbook enlazado."
+    },
+    {
+     "nodes": [
+      "marta",
+      "graf"
+     ],
+     "edges": [],
+     "text": "Marta mira el dashboard de servicio: el salto coincide con el cambio. Revierte, y ≈ 2 minutos después la ventana corta baja de 14.4× y la alerta se apaga."
+    }
+   ]
+  },
+  {
+   "id": "psi",
+   "label": "Un PSI que sube",
+   "steps": [
+    {
+     "nodes": [
+      "job"
+     ],
+     "edges": [],
+     "text": "A las 01:00 UTC corre **monitoreo-diario**: el PSI de ayer contra las 4 semanas previas sale 0.29, el tercer día seguido arriba de 0.2."
+    },
+    {
+     "nodes": [
+      "job",
+      "push"
+     ],
+     "edges": [
+      "job>push"
+     ],
+     "text": "El job **empuja** el PSI como gauge al Pushgateway, con su hora en `push_time_seconds`."
+    },
+    {
+     "nodes": [
+      "push",
+      "prom"
+     ],
+     "edges": [
+      "push>prom"
+     ],
+     "text": "Prometheus lo lee de ahí como de cualquier pod."
+    },
+    {
+     "nodes": [
+      "prom",
+      "reglas",
+      "am"
+     ],
+     "edges": [
+      "prom>reglas",
+      "reglas>am"
+     ],
+     "text": "La regla del drift ve tres días seguidos arriba de 0.2 y avisa a Alertmanager."
+    },
+    {
+     "nodes": [
+      "am",
+      "cola"
+     ],
+     "edges": [
+      "am>cola"
+     ],
+     "text": "Es un **ticket**: nadie se despierta. El equipo de ML lo revisa en la mañana y empieza el diagnóstico."
+    }
+   ]
+  }
+ ]
+}

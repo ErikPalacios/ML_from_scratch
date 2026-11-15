@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 410" role="img" aria-labelledby="f-e11-request-contador-t" class="f-svg" style="max-width:420px">
+<title id="f-e11-request-contador-t">Un contador de requests con 200 de un pod, leído cada 15 segundos durante un minuto: 1,000,000, 1,000,540, 1,001,080, luego el contenedor se reinicia a los 35 segundos y el contador vuelve a 0, y se lee 120 y 660. Abajo, lo que subió en cada tramo: 540, 540, 120 (el tramo del reinicio cuenta solo el valor nuevo) y 540, que suman 1,740 en 60 segundos: una tasa de 29 requests por segundo. La escala vertical de arriba está cortada.</title>
+<text class="f-l" x="18" y="22">EL CONTADOR DE UN POD, CADA 15 S</text>
+<line class="f-linea" x1="40" y1="212" x2="340" y2="212"/>
+<line class="f-linea" x1="40" y1="40" x2="40" y2="212"/>
+<polyline points="40,150 115,118 190,86 215,75" fill="none" style="stroke:var(--b);stroke-width:2.5"/>
+<line x1="215" y1="75" x2="215" y2="210" style="stroke:var(--o);stroke-width:2;stroke-dasharray:4 3"/>
+<polyline points="225,210 265,196 340,160" fill="none" style="stroke:var(--b);stroke-width:2.5"/>
+<circle class="f-ink" cx="40" cy="150" r="4"/>
+<text class="f-s" x="46" y="140" text-anchor="start" style="font-size:12px">1,000,000</text>
+<circle class="f-ink" cx="115" cy="118" r="4"/>
+<text class="f-s" x="115" y="108" text-anchor="middle" style="font-size:12px">1,000,540</text>
+<circle class="f-ink" cx="190" cy="86" r="4"/>
+<text class="f-s" x="190" y="76" text-anchor="middle" style="font-size:12px">1,001,080</text>
+<circle class="f-ink" cx="265" cy="196" r="4"/>
+<text class="f-s" x="265" y="186" text-anchor="middle" style="font-size:12px">120</text>
+<circle class="f-ink" cx="340" cy="160" r="4"/>
+<text class="f-s" x="338" y="150" text-anchor="end" style="font-size:12px">660</text>
+<text class="f-s" x="221" y="130" style="font-size:12px">reinicio</text>
+<text class="f-s" x="40" y="228" text-anchor="middle" style="font-size:12px">0 s</text>
+<text class="f-s" x="115" y="228" text-anchor="middle" style="font-size:12px">15 s</text>
+<text class="f-s" x="190" y="228" text-anchor="middle" style="font-size:12px">30 s</text>
+<text class="f-s" x="265" y="228" text-anchor="middle" style="font-size:12px">45 s</text>
+<text class="f-s" x="340" y="228" text-anchor="middle" style="font-size:12px">60 s</text>
+<text class="f-l" x="18" y="252">LO QUE SUBIÓ EN CADA TRAMO, δ</text>
+<rect class="f-b" x="48" y="278" width="59" height="60" rx="3"/>
+<text class="f-s" x="78" y="272" text-anchor="middle" style="font-size:12px">540</text>
+<rect class="f-b" x="123" y="278" width="59" height="60" rx="3"/>
+<text class="f-s" x="152" y="272" text-anchor="middle" style="font-size:12px">540</text>
+<rect class="f-o" x="198" y="325" width="59" height="13" rx="3"/>
+<text class="f-s" x="228" y="319" text-anchor="middle" style="font-size:12px">120</text>
+<rect class="f-b" x="273" y="278" width="59" height="60" rx="3"/>
+<text class="f-s" x="302" y="272" text-anchor="middle" style="font-size:12px">540</text>
+<line class="f-linea" x1="40" y1="338" x2="340" y2="338"/>
+<text class="f-s" x="18" y="364" style="font-size:12px">Bajó de 1,001,080 a 120: se lee como reinicio y</text>
+<text class="f-s" x="18" y="380" style="font-size:12px">cuenta 120. Suma 1,740 en 60 s: r = 29 por segundo.</text>
+<text class="f-s" x="18" y="396" style="font-size:12px">La escala de arriba está cortada: no es la misma.</text>
+</svg>

@@ -749,7 +749,7 @@ Resuélvelos con lápiz antes de abrir la solución. Usa las letras de la lecci�
 ## Lo que sigue {What comes next}
 
 - «La request en vivo» sigue una request por todo el camino, con su línea de log y sus métricas: las mismas `model_version` y `classifier_requests_total` que consulta el análisis del canary.
-- «Monitoreo y reentrenamiento» vigila al `champion` cuando ya no hay canary que lo compare: la baja confianza contra su semana anterior, el PSI contra el mes, las alertas de la guardia y el disparador que manda a entrenar el modelo siguiente, que volverá a subir esta escalera.
+- «Monitoreo, drift y reentrenamiento» vigila al `champion` cuando ya no hay canary que lo compare: la baja confianza contra su promedio de 7 días, el PSI contra las 4 semanas previas, las alertas de la guardia y el disparador que manda a entrenar el modelo siguiente, que volverá a subir esta escalera.
 
 ## Palabras que vas a oír {Words you will hear}
 

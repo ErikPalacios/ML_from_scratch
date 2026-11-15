@@ -1,0 +1,47 @@
+{
+ "titulo": "El camino del log: del stdout del gateway al Parquet",
+ "width": 78,
+ "height": 52,
+ "lanes": [
+  { "id": "nodo", "label": "En cada nodo", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 26 },
+  { "id": "s3", "label": "En S3, y al día siguiente", "kind": "offline", "x": 0, "y": 28, "w": 78, "h": 24 }
+ ],
+ "nodes": [
+  { "id": "gw", "label": "gateway", "sub": "escribe a stdout", "kind": "service", "x": 1, "y": 4, "w": 16, "h": 8,
+    "note": "Escribe una línea JSON por request en su [[flujos-estandar|salida estándar]] y sigue. No abre archivos ni conoce S3." },
+  { "id": "archivo", "label": "archivo del nodo", "sub": "con su hora, UTC", "kind": "store", "x": 21, "y": 4, "w": 18, "h": 8,
+    "note": "El runtime del contenedor guarda cada línea en un archivo del disco del nodo con la hora en que la recibió. La línea del gateway no trae hora: la pone quien guarda." },
+  { "id": "fb", "label": "Fluent Bit", "sub": "un pod por nodo", "kind": "service", "x": 43, "y": 4, "w": 16, "h": 8,
+    "note": "[[fluent-bit|Fluent Bit]] corre como [[daemonset|DaemonSet]]: un pod en cada nodo. Lee el archivo mientras crece y cada ≈ 5 min sube un archivo gzip. Su rol solo escribe en `logs/`." },
+  { "id": "buffer", "label": "buffer en disco", "sub": "hasta ≈ 1 GB", "kind": "store", "x": 43, "y": 15, "w": 16, "h": 8,
+    "note": "Si S3 no contesta, Fluent Bit guarda aquí lo pendiente y reintenta. Aguanta ≈ 16 h de un nodo con tráfico parejo. Si se llena, se pierden líneas; la request nunca espera." },
+  { "id": "crudo", "label": "logs/crudo/", "sub": "AAAA/MM/DD/HH/", "kind": "store", "x": 60, "y": 31, "w": 17, "h": 8,
+    "note": "`s3://ml-datos/logs/crudo/…`: un archivo gzip por nodo cada ≈ 5 min, 288 al día por nodo. Es JSON Lines tal cual." },
+  { "id": "job", "label": "monitoreo-diario", "sub": "01:00 UTC", "kind": "job", "x": 36, "y": 31, "w": 19, "h": 8,
+    "note": "El job diario lee el día UTC anterior y lo reescribe en Parquet. Después, con ese Parquet, mide el PSI y la aceptación (eso es de la última estación)." },
+  { "id": "parquet", "label": "logs/predicciones/", "sub": "por fecha y versión", "kind": "store", "x": 10, "y": 31, "w": 21, "h": 8,
+    "note": "[[parquet|Parquet]] particionado por fecha y versión del modelo: ≈ 0.5 GB al día en 4 archivos. Se guarda 90 días." },
+  { "id": "stale", "label": "LogsStale", "sub": "30 min sin archivo", "kind": "monitor", "x": 60, "y": 42, "w": 17, "h": 8,
+    "note": "Avisa al canal del equipo si en 30 minutos no llega ningún archivo nuevo a `logs/crudo/`. Así perder rastro no pasa en silencio." }
+ ],
+ "edges": [
+  { "from": "gw", "to": "archivo", "kind": "online", "label": "stdout", "fromSide": "r", "toSide": "l" },
+  { "from": "archivo", "to": "fb", "kind": "online", "label": "tail", "fromSide": "r", "toSide": "l" },
+  { "from": "fb", "to": "buffer", "kind": "async", "fromSide": "b", "toSide": "t", "dashed": true },
+  { "from": "fb", "to": "crudo", "kind": "offline", "label": "gzip / 5 min", "fromSide": "r", "toSide": "t", "via": [[68, 8]] },
+  { "from": "crudo", "to": "job", "kind": "offline", "fromSide": "l", "toSide": "r" },
+  { "from": "job", "to": "parquet", "kind": "offline", "fromSide": "l", "toSide": "r" },
+  { "from": "crudo", "to": "stale", "kind": "monitor", "fromSide": "b", "toSide": "t", "dashed": true }
+ ],
+ "flows": [
+  { "id": "linea", "label": "La línea de Ana, del pod al Parquet",
+    "steps": [
+      { "nodes": ["gw", "archivo"], "edges": ["gw>archivo"], "text": "El gateway escribe la línea de Ana en **stdout** y contesta. El runtime la guarda en el archivo del nodo con su hora en UTC." },
+      { "nodes": ["archivo", "fb"], "edges": ["archivo>fb"], "text": "**Fluent Bit**, el pod de ese nodo, la lee mientras el archivo crece y separa la hora de la línea." },
+      { "nodes": ["fb", "crudo"], "edges": ["fb>crudo"], "text": "A los ≈ 5 minutos junta lo leído, lo comprime con gzip y lo sube con un solo `PutObject` a `logs/crudo/` de la hora." },
+      { "nodes": ["fb", "buffer"], "edges": ["fb>buffer"], "text": "Si S3 no contesta, lo pendiente se queda en el **buffer en disco** y se reintenta. El gateway ni se entera." },
+      { "nodes": ["crudo", "stale"], "edges": ["crudo>stale"], "text": "Si pasan 30 minutos sin archivo nuevo, **LogsStale** avisa: hay unas 16 horas de buffer para arreglarlo." },
+      { "nodes": ["crudo", "job", "parquet"], "edges": ["crudo>job", "job>parquet"], "text": "A la 01:00 UTC, **monitoreo-diario** lee el día anterior y lo deja en **Parquet**, partido por fecha y `model_version`." }
+    ] }
+ ]
+}

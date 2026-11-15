@@ -1,0 +1,27 @@
+{
+ "titulo": "Cuántas series crean las métricas del gateway",
+ "intro": "Cada combinación de valores de [[etiqueta-metrica|etiquetas]] es una serie. La calculadora aplica \\(K = v_1 × v_2 × …\\), \\(N_s = 2 × K\\) para el contador y \\(N_s = (b + 4) × K\\) para cada histograma, y multiplica por los pods. Arranca con las seis métricas de Alba en 3 pods.",
+ "entradas": [
+  { "id": "vst", "label": "Valores de `status`, \\(v_1\\) (códigos que cuenta el gateway)", "min": 1, "max": 20, "paso": 1, "valor": 11 },
+  { "id": "vso", "label": "Valores de `source`, \\(v_2\\) (después de reducirla)", "min": 1, "max": 50, "paso": 1, "valor": 4 },
+  { "id": "vmv", "label": "Valores de `model_version` en un pod, \\(v_3\\)", "min": 1, "max": 3, "paso": 1, "valor": 1 },
+  { "id": "b", "label": "Bordes del histograma de latencia, \\(b\\)", "min": 1, "max": 30, "paso": 1, "valor": 11 },
+  { "id": "vx", "label": "Valores de una etiqueta extra en la latencia, \\(v_x\\) (1 = no hay)", "min": 1, "max": 10000000, "paso": 1, "valor": 1, "tipo": "numero" },
+  { "id": "pp", "label": "Pods del gateway, \\(P\\)", "min": 1, "max": 12, "paso": 1, "valor": 3 }
+ ],
+ "calculos": [
+  { "id": "cont", "formula": "2 * vst * vso * vmv" },
+  { "id": "lat", "formula": "(b + 4) * vso * vmv * vx" },
+  { "id": "resto", "formula": "(8 + 4) * vmv + (9 + 4) * vmv + (10 + 4) * vmv + (9 + 4) * vso" },
+  { "id": "pod", "formula": "cont + lat + resto" }
+ ],
+ "salidas": [
+  { "label": "Contador, \\(N_s\\)", "formula": "cont", "formato": "int", "nota": "\\(N_s = 2 × v_1 × v_2 × v_3\\)" },
+  { "label": "Latencia, \\(N_s\\)", "formula": "lat", "formato": "int", "nota": "\\(N_s = (b + 4) × v_2 × v_3 × v_x\\)" },
+  { "label": "Los otros cuatro histogramas", "formula": "resto", "formato": "int", "nota": "preproceso 12, inferencia 13 y score 14 por versión; bytes 13 por `source`" },
+  { "label": "Series en un pod", "formula": "pod", "formato": "int" },
+  { "label": "Series en todo el gateway, con \\(P\\) pods", "formula": "pod * pp", "formato": "int", "nota": "Alba: ≈ 720 con 3 pods y ≈ 2,900 con 12" },
+  { "label": "Contra las de Alba con 12 pods (2,868)", "formula": "pod * pp / 2868", "formato": "x", "decimales": 2 }
+ ],
+ "nota": "Con \\(v_x\\) = 10,000,000 (el `request_id` de un día) la calculadora multiplica todas las combinaciones: 15 × 4 `source` × 10 M = 600 millones en la salida «Latencia», un techo que no se alcanza. De verdad cada request trae un solo `source` y cae en un solo pod, así que en un día nacen 15 × 10 M = 150 millones de series nuevas en todo el gateway. Cualquiera de las dos cifras tumba a Prometheus."
+}

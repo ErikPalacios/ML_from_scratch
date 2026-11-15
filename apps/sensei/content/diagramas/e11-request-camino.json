@@ -1,0 +1,48 @@
+{
+ "titulo": "El viaje de la foto de Ana y lo que deja en el pod",
+ "width": 78,
+ "height": 44,
+ "lanes": [
+  { "id": "req", "label": "Cada request", "kind": "online", "x": 0, "y": 0, "w": 78, "h": 26 },
+  { "id": "rastro", "label": "Lo que deja", "kind": "monitor", "x": 0, "y": 28, "w": 78, "h": 16 }
+ ],
+ "nodes": [
+  { "id": "app", "label": "app de Ana", "sub": "sube los tenis", "kind": "client", "x": 1, "y": 4, "w": 13, "h": 8,
+    "note": "La app no llama al clasificador: le manda la foto al **backend de publicaciones**. La subida desde el celular no entra en ningún reloj del servidor." },
+  { "id": "backend", "label": "backend", "sub": "el caller, con JWT", "kind": "service", "x": 18, "y": 4, "w": 15, "h": 8,
+    "note": "Llama `POST /v1/classify?top_k=5` con su [[jwt|JWT]] de 15 minutos. Si manda `X-Request-ID`, el gateway usa ese id. Espera a lo más 300 ms." },
+  { "id": "alb", "label": "ALB", "sub": "TLS y token", "kind": "edge", "x": 37, "y": 4, "w": 14, "h": 8,
+    "note": "Termina el [[tls|TLS]] y revisa el token: firma, emisor, caducidad y destinatario. Si falla, contesta **401** él mismo. Mide `TargetResponseTime` y publica sus métricas en [[cloudwatch|CloudWatch]]." },
+  { "id": "gw", "label": "pod del gateway", "sub": "puerto 8080", "kind": "service", "x": 56, "y": 4, "w": 21, "h": 8,
+    "note": "Revisa permiso (403) y cuota (429), luego bytes, formato y píxeles (413, 415, 400). Decodifica y prepara en ≈ 6 ms. Su reloj, `ms.total`, es el que promete el SLO." },
+  { "id": "triton", "label": "triton-v14", "sub": "su misma zona", "kind": "gpu", "x": 34, "y": 16, "w": 18, "h": 8,
+    "note": "La foto espera en la fila a lo más 2 ms y la T4 calcula en ≈ 4 ms. Con la red, la llamada completa son 10 ms (`ms.triton`). Devuelve 500 logits." },
+  { "id": "prom", "label": "Prometheus", "sub": "lee cada 15 s", "kind": "monitor", "x": 3, "y": 32, "w": 18, "h": 8,
+    "note": "[[prometheus|Prometheus]] jala `/metrics` de cada pod cada 15 s ([[scrape]]). Si un pod no contesta, su serie `up` vale 0." },
+  { "id": "metricas", "label": "métricas", "sub": "en la memoria del pod", "kind": "monitor", "x": 28, "y": 32, "w": 20, "h": 8,
+    "note": "Contadores e histogramas que cada request suma en el `finally`: `classifier_requests_total`, la latencia, el preproceso, la inferencia, el score y los bytes." },
+  { "id": "log", "label": "línea de log", "sub": "a stdout, ≈ 300 B", "kind": "store", "x": 56, "y": 32, "w": 21, "h": 8,
+    "note": "Una línea de [[json-lines|JSON Lines]] con `request_id`, `model_version`, `top5`, `ms`, `status`… El gateway la escribe en stdout y sigue: nunca espera a S3." }
+ ],
+ "edges": [
+  { "from": "app", "to": "backend", "kind": "online", "fromSide": "r", "toSide": "l" },
+  { "from": "backend", "to": "alb", "kind": "online", "label": "foto", "fromSide": "r", "toSide": "l" },
+  { "from": "alb", "to": "gw", "kind": "online", "fromSide": "r", "toSide": "l" },
+  { "from": "gw", "to": "triton", "kind": "online", "label": "tensor", "fromSide": "b", "toSide": "r", "via": [[62, 20]] },
+  { "from": "gw", "to": "log", "kind": "monitor", "label": "finally", "fromSide": "b", "toSide": "t", "via": [[72, 22]] },
+  { "from": "gw", "to": "metricas", "kind": "monitor", "fromSide": "b", "toSide": "t", "via": [[58, 27], [38, 27]] },
+  { "from": "prom", "to": "metricas", "kind": "monitor", "label": "scrape", "fromSide": "r", "toSide": "l", "dashed": true }
+ ],
+ "flows": [
+  { "id": "viaje", "label": "La foto de Ana, de ida y vuelta",
+    "steps": [
+      { "nodes": ["app", "backend"], "edges": ["app>backend"], "text": "Ana sube sus tenis. La app se los manda al **backend de publicaciones**, que arma la publicación." },
+      { "nodes": ["backend", "alb"], "edges": ["backend>alb"], "text": "El backend llama al clasificador con su **JWT**. El **ALB** termina el TLS y revisa el token; con uno inválido contestaría 401 sin molestar al gateway." },
+      { "nodes": ["alb", "gw"], "edges": ["alb>gw"], "text": "Un **pod del gateway** recibe la request y empieza su reloj. Sube el body (3 ms), revisa la foto y la prepara (6 ms)." },
+      { "nodes": ["gw", "triton"], "edges": ["gw>triton"], "text": "Le pide la respuesta a **triton-v14** de su misma zona: ida, fila, cálculo en la T4 y vuelta suman 10 ms." },
+      { "nodes": ["gw", "backend"], "edges": [], "text": "El gateway saca el softmax y el top-5 (1 ms) y contesta con `X-Request-ID`. Su reloj marca **20 ms**; el backend vio un poco más." },
+      { "nodes": ["gw", "log", "metricas"], "edges": ["gw>log", "gw>metricas"], "text": "En el `finally`, pase lo que pase: una **línea de log** a stdout y las **sumas** en los contadores e histogramas del pod." },
+      { "nodes": ["prom", "metricas"], "edges": ["prom>metricas"], "text": "Cada 15 s, **Prometheus** lee `/metrics` del pod. La request de Ana ya es parte de una suma: nadie la ve sola ahí." }
+    ] }
+ ]
+}

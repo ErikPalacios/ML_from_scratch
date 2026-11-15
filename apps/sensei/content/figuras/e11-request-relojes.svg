@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 390" role="img" aria-labelledby="f-e11-request-relojes-t" class="f-svg" style="max-width:420px">
+<title id="f-e11-request-relojes-t">Tres relojes para la request de Ana, alineados en el tiempo. El backend espera unos 23 ms; el ALB mide unos 21 ms con TargetResponseTime; el gateway mide 20 ms, que es lo que promete el SLO. Debajo, los tramos del gateway: 3 ms de subida del body, 6 de preproceso, 10 de la llamada a Triton y 1 de softmax y respuesta. Los milisegundos del backend y del ALB son supuestos del ejemplo.</title>
+<text class="f-l" x="18" y="22">TRES RELOJES, UNA REQUEST</text>
+<text class="f-s" x="22" y="40" style="font-size:12px">backend: lo que espera, t_bk ≈ 23 ms</text>
+<rect class="f-b2" x="22.0" y="48" width="299.0" height="24" rx="5" style="opacity:.7"/>
+<text class="f-s" x="22" y="96" style="font-size:12px">ALB: TargetResponseTime, t_alb ≈ 21 ms</text>
+<rect class="f-p" x="35.0" y="104" width="273.0" height="24" rx="5"/>
+<text class="f-s" x="22" y="152" style="font-size:12px">gateway: ms.total, t_gw = 20 ms</text>
+<rect class="f-b" x="41.5" y="160" width="260.0" height="24" rx="5"/>
+<text class="f-l" x="18" y="214">LOS TRAMOS DEL GATEWAY</text>
+<rect class="f-b2" x="41.5" y="224" width="39.0" height="28" rx="3" style="stroke:var(--surface);stroke-width:1.5;opacity:.7"/>
+<rect class="f-y" x="80.5" y="224" width="78.0" height="28" rx="3" style="stroke:var(--surface);stroke-width:1.5"/>
+<rect class="f-g" x="158.5" y="224" width="130.0" height="28" rx="3" style="stroke:var(--surface);stroke-width:1.5"/>
+<rect class="f-o" x="288.5" y="224" width="13.0" height="28" rx="3" style="stroke:var(--surface);stroke-width:1.5"/>
+<text class="f-s" x="61.0" y="270" text-anchor="middle" style="font-size:12px">sub</text>
+<text class="f-s" x="61.0" y="286" text-anchor="middle" style="font-size:12px">3 ms</text>
+<text class="f-s" x="119.5" y="270" text-anchor="middle" style="font-size:12px">pre</text>
+<text class="f-s" x="119.5" y="286" text-anchor="middle" style="font-size:12px">6 ms</text>
+<text class="f-s" x="223.5" y="270" text-anchor="middle" style="font-size:12px">triton</text>
+<text class="f-s" x="223.5" y="286" text-anchor="middle" style="font-size:12px">10 ms</text>
+<text class="f-s" x="295.0" y="270" text-anchor="middle" style="font-size:12px">post</text>
+<text class="f-s" x="295.0" y="286" text-anchor="middle" style="font-size:12px">1 ms</text>
+<line class="f-linea" x1="41.5" y1="314" x2="301.5" y2="314"/>
+<line class="f-linea" x1="41.5" y1="310" x2="41.5" y2="318"/>
+<text class="f-s" x="41.5" y="334" text-anchor="middle" style="font-size:12px">0</text>
+<line class="f-linea" x1="106.5" y1="310" x2="106.5" y2="318"/>
+<text class="f-s" x="106.5" y="334" text-anchor="middle" style="font-size:12px">5</text>
+<line class="f-linea" x1="171.5" y1="310" x2="171.5" y2="318"/>
+<text class="f-s" x="171.5" y="334" text-anchor="middle" style="font-size:12px">10</text>
+<line class="f-linea" x1="236.5" y1="310" x2="236.5" y2="318"/>
+<text class="f-s" x="236.5" y="334" text-anchor="middle" style="font-size:12px">15</text>
+<line class="f-linea" x1="301.5" y1="310" x2="301.5" y2="318"/>
+<text class="f-s" x="301.5" y="334" text-anchor="middle" style="font-size:12px">20</text>
+<text class="f-s" x="342" y="334" text-anchor="end" style="font-size:12px">ms</text>
+<text class="f-s" x="18" y="360" style="font-size:12px">El SLO promete el reloj del gateway: del lado</text>
+<text class="f-s" x="18" y="376" style="font-size:12px">del servidor, sin la subida desde el celular.</text>
+</svg>

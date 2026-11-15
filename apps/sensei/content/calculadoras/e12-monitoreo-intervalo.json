@@ -1,0 +1,18 @@
+{
+ "titulo": "El ruido de una tasa y el n mínimo de un slice",
+ "intro": "Cuánto se mueve por azar una tasa medida con \\(n\\) publicaciones. La calculadora aplica \\(m = z × √(a × (1 − a) ÷ n)\\) con \\(z\\) = 1.96 (95 %) y \\(n_{min} = z^2 × a × (1 − a) ÷ m^2\\). Arranca con un slice de 5,000 y la aceptación de 70 %.",
+ "entradas": [
+  { "id": "a", "label": "Tasa medida, \\(a\\) (%)", "min": 1, "max": 99, "paso": 1, "valor": 70 },
+  { "id": "n", "label": "Publicaciones del slice en la ventana, \\(n\\)", "min": 100, "max": 20000000, "paso": 100, "valor": 5000, "tipo": "numero" },
+  { "id": "mo", "label": "Margen que quieres, \\(m\\) (puntos porcentuales)", "min": 0.1, "max": 10, "paso": 0.1, "valor": 1.3 }
+ ],
+ "calculos": [
+  { "id": "v", "formula": "(a / 100) * (1 - a / 100)" }
+ ],
+ "salidas": [
+  { "label": "Margen al 95 % con este \\(n\\), \\(m\\) (puntos)", "formula": "1.96 * sqrt(v / max(n, 1)) * 100", "formato": "num", "decimales": 2, "nota": "\\(m = z × √(a × (1 − a) ÷ n)\\)" },
+  { "label": "Margen de la diferencia entre dos semanas (puntos)", "formula": "1.96 * sqrt(2 * v / max(n, 1)) * 100", "formato": "num", "decimales": 2, "nota": "√2 veces el anterior; el disparador de Alba pide más de 3 puntos" },
+  { "label": "n mínimo para el margen que quieres, \\(n_{min}\\)", "formula": "ceil(1.96 * 1.96 * v / pow(mo / 100, 2))", "formato": "int", "nota": "\\(n_{min} = z^2 × a × (1 − a) ÷ m^2\\); Alba pide 5,000" }
+ ],
+ "nota": "El margen solo cubre el azar de qué publicaciones entraron. Si la tasa está sesgada (la aceptación lo está por la sugerencia), el intervalo sale igual de angosto y no lo avisa."
+}

@@ -1,0 +1,304 @@
+{
+ "terminos": [
+  {
+   "id": "observabilidad",
+   "termino": "Observabilidad: métricas, logs y trazas",
+   "en": "observability",
+   "corto": "Poder entender qué pasa dentro de un sistema mirando lo que sale de él. Se arma con tres rastros: métricas (sumas en el tiempo), logs (una fila por evento) y trazas (el recorrido de una request).",
+   "largo": "Un servicio con millones de requests no se puede mirar una por una. Cada rastro contesta una pregunta: las [[metrica|métricas]] «¿cuánto y desde cuándo?», los logs «¿qué pasó con esta?» y las [[traza-distribuida|trazas]] «¿dónde se fue el tiempo?». Se usan en ese orden (la métrica avisa, la traza señala el tramo, el log dice cuántas se parecen) y los une un id común, el [[request-id|request_id]]. Las métricas ven las fallas ruidosas; una [[falla-silenciosa|falla silenciosa]] de un modelo se ve en el log.",
+   "analogia": "Como un auto: el tablero (métricas), la bitácora de cada viaje (logs) y el video de un viaje (traza). Se rompe en que un auto hace un viaje a la vez; un servicio atiende cientos por segundo y solo graba unos pocos.",
+   "ejemplo": "En Alba, cada request deja una línea de log de ≈ 300 B, sus sumas en los contadores que Prometheus lee cada 15 s y, en ≈ 1 % de los casos, una traza en Grafana Tempo.",
+   "ver": [
+    "metrica",
+    "log-estructurado",
+    "traza-distribuida",
+    "request-id"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "metrica",
+   "termino": "Métrica (de un servicio)",
+   "en": "metric",
+   "corto": "Un número con nombre que un servicio lleva en memoria y que se lee a intervalos fijos, como cuántas requests van o cuántas tardaron menos de 200 ms. Es una suma: no recuerda ninguna request en particular.",
+   "largo": "Una métrica resume muchas requests en un número, por eso su tamaño no crece con el tráfico y de ella salen las alertas. Se parte con [[etiqueta-metrica|etiquetas]] de pocos valores (código, versión del modelo) y cada combinación es una [[serie-tiempo|serie de tiempo]]. Los tipos que importan son el [[contador-prometheus|contador]], el [[gauge-prometheus|gauge]] y el [[histograma-prometheus|histograma]]. No confundir con la [[metrica-negocio|métrica de negocio]], que mide el producto, ni con una métrica de evaluación de un modelo.",
+   "ejemplo": "`classifier_requests_total{status=\"200\", source=\"mobile\", model_version=\"resnet50-2026-10-01\"}` es una métrica del gateway de Alba: cuántas requests con 200 contó un pod desde que arrancó.",
+   "ver": [
+    "contador-prometheus",
+    "histograma-prometheus",
+    "serie-tiempo",
+    "prometheus"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "serie-tiempo",
+   "termino": "Serie de tiempo",
+   "en": "time series",
+   "corto": "Una lista de pares (hora, valor) de una métrica con una combinación fija de etiquetas. Prometheus, el programa que junta las métricas de un servicio, guarda una por cada combinación distinta.",
+   "largo": "La métrica `classifier_requests_total` no es una serie: con `status=\"200\"` es una y con `status=\"503\"` es otra, y cada pod tiene las suyas porque `pod` también es una etiqueta. Cada serie ocupa memoria y un lugar en el índice de [[prometheus|Prometheus]], y junta una muestra por cada [[scrape]]: con uno cada 15 s, 86,400 ÷ 15 = 5,760 al día. Por eso se cuida cuántas hay: es la [[cardinalidad]].",
+   "ejemplo": "Con 3 pods, el gateway de Alba tiene 717 series (≈ 720); en un día suman 717 × 5,760 ≈ 4.1 millones de muestras.",
+   "ver": [
+    "cardinalidad",
+    "etiqueta-metrica",
+    "metrica"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "prometheus",
+   "termino": "Prometheus",
+   "en": "Prometheus",
+   "corto": "Un programa de código abierto que lee las métricas de los servicios a intervalos fijos, las guarda como series de tiempo y deja preguntarles con PromQL, su lenguaje de consultas. Es el que junta los números del servicio de Alba.",
+   "largo": "Trabaja por *pull*: hace [[scrape]] de la ruta `/metrics` de cada target y guarda cada número con la hora. Si un target no contesta, su serie `up` vale 0, así que un servicio muerto se nota. Sabe qué leer gracias a objetos como el [[servicemonitor|ServiceMonitor]] y el PodMonitor (con el Prometheus Operator) y se le pregunta con [[promql|PromQL]]. De sus consultas salen las [[alerta|alertas]] y los [[dashboard|dashboards]] de Grafana. Guarda lo reciente (15 días por omisión); lo de largo plazo se guarda aparte, ya resumido.",
+   "ejemplo": "En Alba corre en el namespace `monitoring`, instalado con kube-prometheus-stack; lee el gateway (puerto 8080) y Triton (8002) cada 15 s y guarda 15 días.",
+   "ver": [
+    "scrape",
+    "promql",
+    "servicemonitor",
+    "metrica"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "scrape",
+   "termino": "Scrape",
+   "en": "scrape · pull",
+   "corto": "Cada lectura que hace Prometheus de la ruta /metrics de un servicio: le pide el texto, lo lee y guarda cada número con la hora. En Alba, cada 15 segundos.",
+   "largo": "Con *pull* (jalar), Prometheus decide cuándo leer y nota cuándo un target no contesta: la serie `up` vale 1 si el scrape salió bien y 0 si no. Con *push* (empujar), cada servicio mandaría sus números y uno muerto simplemente se callaría. El intervalo fija la resolución: con 15 s, una serie junta 5,760 muestras al día, y un pico de 5 segundos se diluye en su muestra.",
+   "ejemplo": "Si el gateway de Alba deja de contestar `/metrics`, `up{pod=\"gateway-…\"}` baja a 0 en el siguiente scrape, unos 15 s después, aunque el pod siga atendiendo fotos.",
+   "ver": [
+    "prometheus",
+    "servicemonitor",
+    "serie-tiempo"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "servicemonitor",
+   "termino": "ServiceMonitor",
+   "en": "ServiceMonitor",
+   "corto": "Un objeto de Kubernetes, del Prometheus Operator, que le dice a Prometheus qué Services (los nombres fijos que reparten el tráfico entre pods) leer, en qué puerto, en qué ruta y cada cuánto. Sin él, Prometheus no lee ese servicio.",
+   "largo": "Es un recurso nuevo que el Prometheus Operator agrega a Kubernetes: elige Services por sus etiquetas y describe el *endpoint* (`port`, `path`, `interval`). El propio ServiceMonitor necesita la etiqueta que el Prometheus busca (en kube-prometheus-stack, `release`); si no coincide o si falta, nada truena: el servicio simplemente no se lee, las [[alerta|alertas]] evalúan sobre nada y lo que dependa de esas métricas, como [[keda|KEDA]], se queda sin datos. Es una [[falla-silenciosa|falla silenciosa]]: se revisa mirando que `up` exista. Si un pod está detrás de dos Services elegidos, se lee dos veces y las sumas salen al doble; para eso está su primo, el PodMonitor, que elige los pods directo por sus etiquetas.",
+   "ejemplo": "El ServiceMonitor de Triton lee el Service `triton-v14` en su puerto de métricas, el 8002, cada 15 s. El gateway usa un PodMonitor, porque sus Services `gateway-stable` y `gateway-canary` apuntan a los mismos pods fuera de un canary.",
+   "ver": [
+    "prometheus",
+    "scrape",
+    "service-k8s"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "contador-prometheus",
+   "termino": "Contador (counter)",
+   "en": "counter",
+   "corto": "Una métrica que empieza en 0 y solo sube; vuelve a 0 si el proceso se reinicia. Su valor solo no dice mucho: lo útil es cuánto subió en un rato, con rate().",
+   "largo": "Cuenta eventos: requests, errores, bytes. Como nunca baja, una bajada se lee como reinicio: [[promql|`rate()`]] e `increase()` suman los aumentos y, si el valor cae, cuentan el nuevo valor desde 0. Lo que el proceso viejo contó entre la última lectura y su caída se pierde. En el texto de `/metrics` va con `_total`, y el cliente de Python agrega `_created`, la hora en que nació la serie. Se saca primero la tasa de cada serie y después se suma: `sum(rate(…))`, nunca `rate(sum(…))`.",
+   "ejemplo": "Muestras cada 15 s de 1,000,000, 1,000,540, 1,001,080, 120 y 660: los aumentos son 540, 540, 120 y 540; en 60 s, 1,740 ÷ 60 = 29 requests por segundo.",
+   "ver": [
+    "gauge-prometheus",
+    "histograma-prometheus",
+    "promql"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "gauge-prometheus",
+   "termino": "Gauge",
+   "en": "gauge",
+   "corto": "Una métrica que sube y baja y cuyo valor significa algo en cada momento: las requests en vuelo, las réplicas, la memoria usada. Se lee su valor, no cuánto subió.",
+   "largo": "Es lo contrario del [[contador-prometheus|contador]]: no tiene sentido sacarle `rate()`. Sirve para estados (cuántas requests hay en vuelo ahora, cuántos pods de Triton hay) y para resultados que alguien publica, como el [[psi|PSI]] del día. Un promedio de latencia guardado en un gauge es una trampa: no se puede juntar entre pods ni dice nada del [[p99]]; para eso está el [[histograma-prometheus|histograma]].",
+   "ejemplo": "Las requests en vuelo de un pod del gateway de Alba: un gauge que va de 0 a 16; la 17 recibe 503.",
+   "ver": [
+    "contador-prometheus",
+    "histograma-prometheus",
+    "metrica"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "histograma-prometheus",
+   "termino": "Histograma de Prometheus",
+   "en": "Prometheus histogram",
+   "corto": "Una métrica hecha de contadores, uno por bucket (un intervalo de valores, como de 0.15 a 0.2 s), más la suma y el total de observaciones. El servicio solo cuenta; el percentil se calcula después, sumando los buckets de todos los pods.",
+   "largo": "Con \\(b\\) bordes expone \\(b\\) buckets acumulados (etiqueta `le`), el de `+Inf`, `_sum`, `_count` y, en el cliente de Python, `_created`: \\(b + 4\\) [[serie-tiempo|series]] por cada combinación de etiquetas. Como sus partes son contadores, se pueden sumar entre pods y ventanas, y `histogram_quantile` estima el percentil; cómo se hace está en «Promedios, medianas y percentiles». El *Summary*, en cambio, calcula percentiles dentro de cada pod y no se puede juntar. Los bordes van donde se decide: uno justo en el [[slo|SLO]].",
+   "ejemplo": "La request de Ana, de 0.020 s, suma 1 a los buckets de 0.025 en adelante (no al de 0.01), 1 a `_count` y 0.020 a `_sum` de `classifier_request_latency_seconds`.",
+   "ver": [
+    "histograma",
+    "bucket",
+    "p99",
+    "contador-prometheus"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "promql",
+   "termino": "PromQL",
+   "en": "PromQL · rate()",
+   "corto": "El lenguaje con que se le pregunta a Prometheus. Sus dos piezas más usadas son rate(), la tasa por segundo de un contador, y sum by, que suma series y deja separadas las etiquetas que nombres.",
+   "largo": "`rate(serie[5m])` saca la tasa promedio de los últimos 5 minutos, manejando los reinicios del [[contador-prometheus|contador]] y estimando lo que pasó en los bordes de la ventana. `sum by (le, model_version)` suma pods y deja separadas las versiones. Los filtros van entre llaves: `status=~\"5..\"` (empieza con 5) o `status!~\"4..\"` (no empieza con 4). Las [[alerta|alertas]] y los [[dashboard|dashboards]] son consultas de PromQL.",
+   "ejemplo": "La fracción de errores del servidor de Alba: `sum(rate(classifier_requests_total{status=~\"5..\"}[5m])) / sum(rate(classifier_requests_total{status!~\"4..\"}[5m]))`.",
+   "ver": [
+    "prometheus",
+    "contador-prometheus",
+    "histograma-prometheus"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "etiqueta-metrica",
+   "termino": "Etiqueta de una métrica",
+   "en": "metric label",
+   "corto": "Un par nombre = valor que parte una métrica, como status=\"200\" o model_version=\"resnet50-2026-10-01\". Cada combinación de valores es una serie aparte, así que solo puede tomar pocos valores.",
+   "largo": "Las etiquetas permiten preguntar por partes: los 5xx de una versión, la latencia de `mobile`. El costo es que cada combinación crea una [[serie-tiempo|serie]] y la [[cardinalidad]] se multiplica. Regla: valores de una lista corta y cerrada. Lo que identifica a una request (su id, el hash de la foto) va al log. No confundir con la «etiqueta» de un ejemplo de entrenamiento ni con las etiquetas de un pod de Kubernetes.",
+   "ejemplo": "El header `X-Client-Source` puede traer cualquier texto; el gateway de Alba lo reduce a cuatro valores (`mobile`, `web`, `internal`, `other`) antes de usarlo como etiqueta.",
+   "ver": [
+    "cardinalidad",
+    "serie-tiempo",
+    "metrica"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "cardinalidad",
+   "termino": "Cardinalidad (de las métricas)",
+   "en": "cardinality",
+   "corto": "Cuántas series crea una métrica: el producto de los valores posibles de sus etiquetas, por las series de cada combinación. Una etiqueta con un valor por request la hace crecer sin techo.",
+   "largo": "Con etiquetas de \\(v_1, v_2, …\\) valores hay \\(K = v_1 × v_2 × …\\) combinaciones; un contador da \\(2 × K\\) series y un histograma de \\(b\\) bordes, \\((b + 4) × K\\). Todo se multiplica por los pods. Cada serie cuesta memoria, índice y muestras, y Prometheus se cae si crecen sin límite. No es la cardinalidad de un [[join]] (cuántas filas salen al unir dos tablas), aunque se llame igual.",
+   "ejemplo": "El gateway de Alba tiene 239 series por pod (≈ 2,900 con 12 pods). Con el `request_id` como etiqueta de la latencia serían 15 × 10 M = 150 millones de series nuevas al día.",
+   "ver": [
+    "etiqueta-metrica",
+    "serie-tiempo",
+    "histograma-prometheus"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "pipeline-logs",
+   "termino": "Camino del log",
+   "en": "log pipeline",
+   "corto": "El recorrido de cada línea de log desde que el programa la escribe hasta donde alguien la lee: stdout, el archivo del nodo, un recolector como Fluent Bit y el almacén. Nunca debe frenar la request.",
+   "largo": "El programa escribe a la [[flujos-estandar|salida estándar]] y sigue; el runtime del contenedor guarda la línea con su hora en un archivo del nodo; un recolector ([[fluent-bit|Fluent Bit]], como [[daemonset|DaemonSet]]) la lee, la junta y la sube con un buffer en disco. Si el almacén falla, se pierden líneas y se avisa, pero el servicio sigue: se degrada el monitoreo, no la respuesta. Después, un job la reescribe en [[parquet|Parquet]] para consultarla barato.",
+   "ejemplo": "En Alba: stdout → archivo del nodo → Fluent Bit → `s3://ml-datos/logs/crudo/…` (gzip cada ≈ 5 min) → `monitoreo-diario` a la 01:00 UTC → Parquet en `logs/predicciones/dt=…/model_version=…/`; `LogsStale` avisa si en 30 min no llega nada.",
+   "ver": [
+    "fluent-bit",
+    "log-estructurado",
+    "json-lines",
+    "parquet"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "fluent-bit",
+   "termino": "Fluent Bit",
+   "en": "Fluent Bit",
+   "corto": "Un programa chico, de código abierto, que lee archivos de log mientras crecen, los junta y los manda a otro lado, como S3. Guarda en disco lo que no pudo mandar y lo reintenta.",
+   "largo": "Se configura con entradas (por ejemplo `tail`, que sigue archivos), filtros y salidas (por ejemplo `s3`). En Kubernetes corre como [[daemonset|DaemonSet]], un pod por nodo, y lee los archivos donde el runtime guarda el stdout de cada contenedor. Su buffer en disco tiene un tope: si se llena porque el destino no contesta, se pierden líneas. Como es otro proceso, sus problemas no frenan al programa que escribe el log.",
+   "ejemplo": "En Alba, cada Fluent Bit sube un archivo gzip cada ≈ 5 min a `s3://ml-datos/logs/crudo/`, con un rol que solo escribe en `logs/` y un buffer de ≈ 1 GB por nodo, ≈ 16 h de tráfico parejo.",
+   "ver": [
+    "pipeline-logs",
+    "daemonset",
+    "flujos-estandar"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "daemonset",
+   "termino": "DaemonSet",
+   "en": "DaemonSet",
+   "corto": "Un objeto de Kubernetes que pone una copia de un pod en cada nodo que cumple una condición, y una más en cada nodo nuevo. Se usa para lo que tiene que estar en todas las máquinas.",
+   "largo": "Un Deployment pide N réplicas y Kubernetes elige dónde ponerlas; un DaemonSet pide «una en cada nodo». Sirve para agentes que trabajan con algo local del nodo: el recolector de logs ([[fluent-bit|Fluent Bit]]), el agente de métricas del nodo o el plugin que hace visible la GPU. Cuando el autoscaler agrega un nodo, el DaemonSet le pone su pod.",
+   "ejemplo": "Alba corre Fluent Bit como DaemonSet: cada nodo del gateway tiene el suyo leyendo los logs de ese nodo. «Kubernetes» ya mostró otro: el plugin de NVIDIA en los nodos con GPU.",
+   "ver": [
+    "pod",
+    "deployment-k8s",
+    "fluent-bit"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "traza-distribuida",
+   "termino": "Traza distribuida",
+   "en": "distributed trace",
+   "corto": "El recorrido de una sola request por todos los programas que tocó, con el tiempo de cada tramo. Contesta dónde se fue el tiempo de esa request.",
+   "largo": "Una traza se arma con [[span|spans]], uno por tramo, unidos por un id de traza que cada programa le pasa al siguiente en un header. Se dibuja como barras una debajo de otra. Son caras de guardar, así que se muestrean: se decide al principio (por ejemplo, con un hash del id) o al final, quedándose con las lentas y las de error. Las estandariza [[opentelemetry|OpenTelemetry]] y se llega a ellas desde una métrica con un [[exemplar]].",
+   "ejemplo": "Alba guarda ≈ 1 % de las requests (100 mil trazas al día), elegidas por el hash del `request_id`, en Grafana Tempo: el gateway con sus spans y Triton con los suyos.",
+   "ver": [
+    "span",
+    "opentelemetry",
+    "exemplar",
+    "observabilidad"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "span",
+   "termino": "Span",
+   "en": "span",
+   "corto": "Un tramo con nombre dentro de una traza: hora de inicio, duración y el tramo que lo contiene. Una traza son varios spans anidados.",
+   "largo": "Cada programa abre un span por el trabajo que hace y spans hijos para sus pasos. Llevan atributos (por ejemplo, el `request_id` o la versión del modelo) y un estado (bien o error). Al dibujarlos uno debajo de otro se ve qué tramo creció. Forman parte de una [[traza-distribuida|traza]].",
+   "ejemplo": "En Alba, el gateway abre un span por la request (20 ms) y, dentro, uno por el preproceso (6 ms) y otro por la llamada a Triton (10 ms); Triton agrega los suyos: uno por el modelo, que marca la entrada a su fila, y dentro otro por el cálculo.",
+   "ver": [
+    "traza-distribuida",
+    "opentelemetry"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "opentelemetry",
+   "termino": "OpenTelemetry",
+   "en": "OpenTelemetry (OTel)",
+   "corto": "Un estándar abierto, con bibliotecas para casi todos los lenguajes, para producir trazas, métricas y logs de la misma manera y mandarlos a la herramienta que se quiera.",
+   "largo": "Define cómo se crea un [[span]], cómo se pasa el id de la traza de un programa a otro (en un header) y cómo se exporta a un almacén. Así el código no queda amarrado a un producto: se puede cambiar el destino sin reescribir la instrumentación. También define cómo muestrear.",
+   "ejemplo": "El gateway de Alba y Triton se instrumentan con OpenTelemetry; las trazas van a Grafana Tempo, en `monitoring`.",
+   "ver": [
+    "traza-distribuida",
+    "span",
+    "exemplar"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "exemplar",
+   "termino": "Exemplar",
+   "en": "exemplar",
+   "corto": "El id de una traza pegado a una observación de un histograma. Permite saltar de una métrica (el p99 subió) a una request concreta que cayó en ese bucket.",
+   "largo": "Cuando una request que tiene traza suma su latencia a un bucket del [[histograma-prometheus|histograma]], el servicio anota junto a ese bucket el id de su [[traza-distribuida|traza]]. Grafana los dibuja como puntos sobre la curva; tocar uno abre la traza. Solo las requests trazadas pueden ser exemplars, así que con un muestreo del 1 % hay pocos de los casos lentos.",
+   "ejemplo": "Marta ve el p99 de Alba subir a las 14:05, toca un punto alto y abre una traza de 240 ms: dentro de Triton, el span del modelo dura ≈ 200 ms y el del cálculo solo 4; casi todo fue fila.",
+   "ver": [
+    "traza-distribuida",
+    "histograma-prometheus",
+    "p99"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "cloudwatch",
+   "termino": "CloudWatch",
+   "en": "Amazon CloudWatch",
+   "corto": "El servicio de AWS que guarda métricas y logs de sus propios productos, como el balanceador, y deja poner alarmas sobre ellas. Ve lo que pasa antes de que una request llegue a tu código.",
+   "largo": "Cada producto de AWS publica ahí sus métricas sin que hagas nada. Para un [[alb|ALB]]: `RequestCount`, `TargetResponseTime`, `HTTPCode_Target_4XX_Count` y `_5XX_Count` (lo que contestaron los pods) y `HTTPCode_ELB_5XX_Count` (lo que contestó el propio ALB). Cubre los puntos ciegos del servicio: lo que nunca llegó a sus [[metrica|métricas]].",
+   "ejemplo": "Si todos los pods del gateway de Alba fallan su readiness, el ALB contesta 503 él mismo; el gateway no cuenta nada, pero la alarma `ALB5xx` de CloudWatch despierta a la guardia al pasar de 0.5 % en 5 minutos.",
+   "ver": [
+    "alb",
+    "metrica",
+    "readiness"
+   ],
+   "leccion": "e11-request"
+  },
+  {
+   "id": "latencia-lado-servidor",
+   "termino": "Latencia del lado del servidor",
+   "en": "server-side latency",
+   "corto": "El tiempo que mide el servidor desde que recibe la request hasta que manda la respuesta, sin la red del usuario. Es lo que promete el SLO de Alba; el ALB y quien llama miden relojes más largos.",
+   "largo": "Cada participante tiene su reloj, uno dentro del otro: el servicio mide su parte; el balanceador suma la red hasta el servicio; quien llama suma además el balanceador y su propia red. Por eso se dice dónde se mide una promesa: se promete lo que se controla. Comparar relojes distintos como si fueran el mismo lleva a buscar el problema en el lugar equivocado. Ver [[latencia-punta-a-punta|latencia de punta a punta]] para el camino completo.",
+   "ejemplo": "La request de Ana: el gateway mide 20 ms (`ms.total`), el ALB ≈ 21 (`TargetResponseTime`) y el backend ≈ 23 ms; los dos últimos son supuestos del ejemplo.",
+   "ver": [
+    "latencia-punta-a-punta",
+    "slo",
+    "p99"
+   ],
+   "leccion": "e11-request"
+  }
+ ]
+}

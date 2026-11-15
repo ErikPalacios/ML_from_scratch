@@ -386,7 +386,7 @@ Por eso existe [[keep-alive]]: dejar la conexión abierta después de una reques
 Pon 184 km, Querétaro, con conexión nueva y TLS: ≈ 5.5 ms. Acercarse vale más que cualquier optimización del código.
 :::
 
-En Alba, la regla se cumple en cada salto. El backend del marketplace está en la misma región que el clasificador y llama con conexiones abiertas. El gateway y Triton están en la misma zona y también reusan conexiones: su RTT es una fracción de milisegundo. Lo que no se controla es el tramo de Ana: por eso el [[slo|SLO]] de 200 ms se mide del lado del servidor, desde que la request completa llega.
+En Alba, la regla se cumple en cada salto. El backend del marketplace está en la misma región que el clasificador y llama con conexiones abiertas. El gateway y Triton están en la misma zona y también reusan conexiones: su RTT es una fracción de milisegundo. Lo que no se controla es el tramo de Ana: por eso el [[slo|SLO]] de 200 ms se mide del lado del servidor, desde que la request completa llega al balanceador.
 
 ## DNS: del nombre a la dirección {DNS: from name to address}
 
@@ -719,7 +719,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de distancia y de arran
 - Handshake de TCP y saludo de TLS: 2 de las \(k = 3\) vueltas de una conexión nueva con TLS (la tercera es la foto misma, que va abajo): 2 × 80 = **160 ms**.
 - La foto: son 2,055 paquetes, y el arranque lento pediría \(r\) = 8 vueltas (10 × (2⁸ − 1) = 2,550 ≥ 2,055): \(t_{arranque}\) = 8 × 80 = 640 ms. Pero el ancho de banda pide \(t_{ancho}\) = 8 × 3,000,000 ÷ 10,000,000 = **2.4 s**. Manda el ancho de banda.
 - Total: ≈ 160 + 2,400 ≈ **2.6 s**, más lo que tarde en volver la respuesta.
-- El SLO de Alba (p99 ≤ 200 ms) se mide del lado del servidor, desde que la request completa llega. Estos 2.6 s dependen de la señal de Ana y de su compañía de celular, que nadie en Alba controla. Por eso, además, la app achica la foto antes de subirla: con ≈ 200 KB son 137 paquetes, \(t_{arranque}\) = 4 vueltas × 80 = 320 ms (\(t_{ancho}\) = 8 × 200,000 ÷ 10,000,000 = 0.16 s: solo 160 ms), y con los 160 ms de los saludos, ≈ 480 ms en vez de 2.6 s.
+- El SLO de Alba (p99 ≤ 200 ms) se mide del lado del servidor, desde que la request completa llega al balanceador. Estos 2.6 s dependen de la señal de Ana y de su compañía de celular, que nadie en Alba controla. Por eso, además, la app achica la foto antes de subirla: con ≈ 200 KB son 137 paquetes, \(t_{arranque}\) = 4 vueltas × 80 = 320 ms (\(t_{ancho}\) = 8 × 200,000 ÷ 10,000,000 = 0.16 s: solo 160 ms), y con los 160 ms de los saludos, ≈ 480 ms en vez de 2.6 s.
 :::
 
 ## Lo que sigue {What comes next}

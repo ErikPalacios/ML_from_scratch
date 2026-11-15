@@ -811,7 +811,7 @@ Regresa a Marta y su alerta de 504. Con lo que ya sabes, su noche se lee comando
 3. ¿Qué le pasó a la request del usuario?
 El reporte trae el id `9f2c41d0`, que viaja en el header `X-Request-ID`. Esa request es de hace dos horas: ya no está en el archivo del pod, sino en S3, donde Fluent Bit va subiendo el log en pedazos (un archivo nuevo cada pocos minutos, y aquí comprimido con gzip para que ocupe menos). Marta lee el pedazo de esa hora sin bajarlo a disco, en una tubería: `aws s3 cp s3://…/2026/11/06/01/….gz - | gunzip | grep 9f2c41d0`. `aws` es el programa de línea de comandos de AWS, y el `-` le dice que escriba en stdout en vez de en un archivo, y `gunzip` descomprime al vuelo.
 4. ¿Y Triton?
-`kubectl port-forward -n classifier svc/triton 8002:8002` abre un túnel al puerto de métricas, y `curl -sS localhost:8002/metrics | grep nv_inference_queue` muestra cuánto esperan las requests en la cola de Triton.
+`kubectl port-forward -n classifier svc/triton-v14 8002:8002` abre un túnel al puerto de métricas, y `curl -sS localhost:8002/metrics | grep nv_inference_queue` muestra cuánto esperan las requests en la fila de Triton.
 :::
 
 La lección de procesos te contó otra historia del gateway de Alba que es de shell: el `CMD` del Dockerfile en forma shell arranca `/bin/sh -c …`, y si esa `sh` se queda como PID 1 (con un tubo, por ejemplo), no le pasa el SIGTERM a uvicorn. Ahora sabes qué es esa `sh`: una shell, lanzada solo para leer una línea.
