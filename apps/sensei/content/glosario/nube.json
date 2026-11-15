@@ -175,7 +175,7 @@
    "id": "cuenta-nube",
    "termino": "Cuenta de la nube",
    "en": "cloud account",
-   "corto": "El contenedor donde viven tus recursos, tu factura y tus permisos en un proveedor. En AWS es una cuenta (un número de 12 dígitos); en Google Cloud, un proyecto; en Azure, una suscripción.",
+   "corto": "El contenedor donde viven tus recursos, tu factura y tus permisos en un proveedor. En AWS (la nube de Amazon) es una cuenta (un número de 12 dígitos); en Google Cloud, un proyecto; en Azure, una suscripción.",
    "largo": "Todo lo que creas cae en una cuenta, y todo lo que se cobra va a su factura. Las empresas usan varias (desarrollo, producción, datos sensibles) para que un error en una no toque las otras y para separar costos. El usuario dueño, que puede hacerlo todo, se guarda bajo llave; el trabajo diario se hace con identidades de permisos acotados ([[iam|IAM]]). Las [[cuota-servicio|cuotas]] se cuentan por cuenta y por región.",
    "ejemplo": "El clasificador de fotos de Alba, el marketplace que sigue el curso, vive en la cuenta de producción de Alba, en us-east-1; sus pruebas, en otra cuenta, para que una máquina olvidada no se mezcle con la factura de producción.",
    "ver": [
@@ -189,7 +189,7 @@
    "id": "api-nube",
    "termino": "Consola, CLI y API de la nube",
    "en": "console / CLI / API",
-   "corto": "Las tres maneras de pedirle cosas a la nube. Por debajo, todo es una API: cada acción es una request HTTP firmada a un endpoint del proveedor; la consola web y la CLI solo lo arman por ti.",
+   "corto": "Las tres maneras de pedirle cosas a la nube. Por debajo, todo es una API: cada acción es una request [[http|HTTP]] firmada a un [[endpoint]] del proveedor; la consola web y la CLI solo lo arman por ti.",
    "largo": "La consola es una página con botones, buena para explorar y mala para repetir. La CLI es un comando de la [[terminal]] (`aws`, `gcloud`, `az`). El SDK es una biblioteca para tu programa (`boto3` en Python). Cada request pasa por permisos ([[iam|IAM]]) y cuota antes de crear algo, y la de EC2 es por [[region|región]] (`ec2.us-east-1.amazonaws.com`); algunas, como la de IAM, son globales. Como todo es API, la infraestructura se puede escribir en archivos y crear con una herramienta (infraestructura como código, como Terraform).",
    "ejemplo": "`aws ec2 run-instances --instance-type g4dn.xlarge …` crea una de las VMs con GPU de Alba, el marketplace que sigue el curso; `aws ec2 terminate-instances --instance-ids i-0123…` la apaga y detiene el cobro.",
    "ver": [
@@ -217,7 +217,7 @@
    "id": "equipo-plataforma",
    "termino": "Equipo de plataforma",
    "en": "platform team",
-   "corto": "El equipo que opera la infraestructura común de una empresa (clusters de Kubernetes, redes, registro de imágenes, monitoreo) para que los equipos de producto, como el de ML, la usen sin operarla.",
+   "corto": "El equipo que opera la infraestructura común de una empresa (clusters de Kubernetes, redes, registro de imágenes, monitoreo) para que los equipos de producto, como el de aprendizaje automático (ML), la usen sin operarla.",
    "largo": "Su existencia decide muchas elecciones de nube: la pregunta que casi siempre gana entre algo gestionado y algo propio es «¿quién lo va a operar?». Si ya hay un equipo que opera Kubernetes, agregar máquinas con GPU cuesta poco; si no lo hay y el equipo es chico, un servicio gestionado sale más barato aunque cueste más por hora, porque las personas no aparecen en la factura. Ver [[gestionado-vs-propio]].",
    "ejemplo": "Alba, el marketplace que sigue el curso, usa EKS porque ya tiene un equipo que lo opera. Sin plataforma y con un equipo chico, SageMaker AI sería la respuesta pragmática.",
    "ver": [

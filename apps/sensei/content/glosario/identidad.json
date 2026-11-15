@@ -4,10 +4,10 @@
    "id": "autenticacion",
    "termino": "Autenticación",
    "en": "authentication (AuthN)",
-   "corto": "Comprobar quién es quien hace una request: una persona con su contraseña y un segundo factor, o un programa con un secreto o un token firmado. Si falla, el servidor responde 401.",
+   "corto": "Comprobar quién es quien hace una [[request]] (una petición): una persona con su contraseña y un segundo factor, o un programa con un secreto o un token firmado. Si falla, el servidor responde 401 (el [[codigo-estado|código]] de «no autenticado»).",
    "largo": "Responde «¿quién eres?» y nada más: no dice qué puede hacer esa identidad, eso es la [[autorizacion|autorización]]. Se basa en algo que solo el dueño puede mostrar: algo que sabe (una contraseña), algo que tiene (un teléfono, una llave física) o algo que es (una huella). Entre programas, en algo que le entregó un emisor de confianza: una [[api-key|llave de API]] o un [[token-acceso|token de acceso]] como un [[jwt|JWT]]. El código 401 se llama *Unauthorized*, pero significa «no autenticado».",
    "analogia": "El guardia de la entrada de un concierto, que revisa tu identificación. Se rompe en que una identificación no se copia con Ctrl+C, y un token sí: por eso los tokens caducan pronto.",
-   "ejemplo": "Un caller del clasificador de Alba manda un JWT que caducó hace 2 minutos: la autenticación falla y recibe 401. Pide un token nuevo al proveedor de identidad y repite.",
+   "ejemplo": "Un programa que llama al clasificador de Alba (un *caller*) manda un JWT que caducó hace 2 minutos: la autenticación falla y recibe 401. Pide un token nuevo al proveedor de identidad y repite.",
    "ver": [
     "autorizacion",
     "token-acceso",
@@ -20,7 +20,7 @@
    "id": "autorizacion",
    "termino": "Autorización",
    "en": "authorization (AuthZ)",
-   "corto": "Decidir qué puede hacer una identidad que ya se comprobó: qué rutas, qué acciones, qué objetos. Si no le toca, el servidor responde 403 (o 404, para no revelar que existe).",
+   "corto": "Decidir qué puede hacer una identidad que ya se comprobó: qué rutas, qué acciones, qué objetos. Si no le toca, el servidor responde 403, «prohibido» (o 404, «no existe», para no revelar que existe).",
    "largo": "Responde «¿qué puedes hacer?». Va después de la [[autenticacion|autenticación]] y se revisa en el servidor, en cada request, contra la identidad verificada. Tiene dos niveles: el grueso, «¿puede este tipo de identidad hacer esta acción?» (un [[scope]] del token, un rol de [[rbac|RBAC]]), y el fino, «¿este objeto en particular es suyo?». Olvidar el fino es el [[idor|IDOR]]. Esconder un botón en la pantalla no es autorizar: la request se puede escribir a mano.",
    "analogia": "La pulsera de un concierto: «general» no entra al camerino aunque nadie dude de quién eres. Se rompe en que la pulsera la revisa un guardia; en un sistema, cada puerta (cada ruta del servidor) tiene que revisarla sola.",
    "ejemplo": "Ana, con sesión válida, pide editar la publicación 8812, que es de Beto. Está autenticada, pero la revisión del dueño falla: 403.",
@@ -37,7 +37,7 @@
    "id": "contrasena-hash",
    "termino": "Hash de contraseña",
    "en": "password hash",
-   "corto": "Lo que un sistema guarda en vez de la contraseña: una sal al azar por cuenta y el resultado de una función de hash lenta a propósito (Argon2id, scrypt, bcrypt o PBKDF2). Al entrar, repite la cuenta y compara.",
+   "corto": "Lo que un sistema guarda en vez de la contraseña: una sal (un valor al azar, distinto en cada cuenta) y el resultado de una función de hash lenta a propósito (Argon2id, scrypt, bcrypt o PBKDF2). Al entrar, repite la cuenta y compara.",
    "largo": "Resuelve dos problemas de guardar un [[hash-criptografico|hash]] normal. Uno: SHA-256 es rápido, y quien roba la base prueba del orden de miles de millones de contraseñas por segundo con una GPU; una función lenta (muchas repeticiones, o mucha memoria) baja eso a miles. Dos: sin sal, la misma contraseña da el mismo hash en todas las cuentas, y una tabla precalculada sirve para cualquier base; con una sal distinta por cuenta, cada una es un problema aparte. La sal no es secreta: se guarda en claro junto al hash. El tiempo para probarlas todas es \\(t = a^m ÷ v\\), con \\(a\\) símbolos posibles por carácter, \\(m\\) caracteres de largo y \\(v\\) intentos por segundo. Nada de esto salva una contraseña común: esas caen con listas de filtraciones, y por eso se pide un [[mfa|segundo factor]].",
    "ejemplo": "Ocho minúsculas son 26⁸ ≈ 2.09 × 10¹¹ contraseñas. A ≈ 2 × 10¹⁰ intentos por segundo (hash rápido en una GPU) se prueban en ≈ 10 s; a 10⁴ (hash lento), en ≈ 242 días.",
    "ver": [
@@ -53,7 +53,7 @@
    "termino": "Autenticación multifactor (MFA)",
    "en": "multi-factor authentication (MFA, 2FA)",
    "corto": "Pedir, además de la contraseña (algo que sabes), una prueba de otro tipo: algo que tienes, como un código del teléfono o una llave física, o algo que eres, como una huella.",
-   "largo": "Existe porque las contraseñas se roban fuera del sistema: con una página falsa (*phishing*) o porque la persona la repite en otro sitio que se filtró. Las formas más comunes: un código de 6 dígitos que cambia cada 30 segundos en una app (TOTP, un HMAC de un secreto compartido con la hora); un código por SMS, el más débil, porque el número se puede pasar a otra SIM; y una llave física o una *passkey*, que firma un reto con una llave privada ligada al nombre del sitio y por eso no sirve en una página falsa.",
+   "largo": "Existe porque las contraseñas se roban fuera del sistema: con una página falsa (*phishing*) o porque la persona la repite en otro sitio que se filtró. Las formas más comunes: un código de 6 dígitos que cambia cada 30 segundos en una app (TOTP, *time-based one-time password*: un HMAC de un secreto compartido con la hora); un código por SMS, el más débil, porque el número se puede pasar a otra SIM; y una llave física o una *passkey*, que firma un reto con una llave privada ligada al nombre del sitio y por eso no sirve en una página falsa.",
    "ejemplo": "Ana entra a Alba con correo, contraseña y, si lo activó, el código de su app. Aunque alguien tenga `tenis2026`, sin su teléfono no entra.",
    "ver": [
     "autenticacion",
@@ -67,7 +67,7 @@
    "id": "sesion",
    "termino": "Sesión",
    "en": "session",
-   "corto": "Lo que recuerda un servidor después de que entraste: un número largo al azar que guarda junto con «es Ana» y que el navegador le regresa en cada request, normalmente en una cookie (un dato que el navegador guarda y regresa solo). Vale lo mismo que la contraseña mientras dure.",
+   "corto": "Lo que recuerda un servidor después de que entraste: un número largo al azar que guarda junto con «es Ana» y que el navegador le regresa en cada [[request]] (petición), normalmente en una cookie (un dato que el navegador guarda y regresa solo). Vale lo mismo que la contraseña mientras dure.",
    "largo": "Evita pedir la contraseña en cada clic. El servidor guarda el id de sesión con la identidad y la hora, y lo entrega en una [[cookie]] marcada `Secure` (solo por HTTPS), `HttpOnly` (el JavaScript de la página no la lee) y `SameSite` (no viaja, o casi no, en requests que provoca otro sitio). Como el servidor la guarda, se puede cancelar al instante: al salir, se borra. Esa es la diferencia con un [[jwt|JWT]] que se verifica sin estado, que vale hasta su `exp`.",
    "ejemplo": "Ana entra una vez; el servidor le da la cookie `sid=8f3a…` y la reconoce en cada página. Si pierde el teléfono y cierra todas sus sesiones, el servidor borra esos ids y la cookie robada deja de servir.",
    "ver": [
@@ -82,7 +82,7 @@
    "id": "api-key",
    "termino": "Llave de API",
    "en": "API key",
-   "corto": "Un texto largo al azar que un servicio le da a un cliente para que lo mande en cada request y así reconocerlo. Es simple, pero no caduca, se filtra con facilidad y cambiarla por una nueva (rotarla) obliga a actualizar cada programa que la usa.",
+   "corto": "Un texto largo al azar que un servicio le da a un cliente para que lo mande en cada [[request]] (petición) y así reconocerlo. Es simple, pero no caduca, se filtra con facilidad y cambiarla por una nueva (rotarla) obliga a actualizar cada programa que la usa.",
    "largo": "Es el mecanismo de autenticación más simple entre programas: el servidor genera la llave, la asocia a un cliente y la busca en cada request. Sus problemas: vive meses o años; termina en repositorios, logs o mensajes; no dice nada de quién es ni qué puede hacer sin buscarla. Si se usa, el servidor guarda solo su hash (basta uno rápido, porque es larga y al azar) y el cliente la guarda en un [[gestor-secretos|gestor de secretos]]. La mejora es usarla solo para pedir un [[token-acceso|token de acceso]] corto, como en [[client-credentials|client credentials]].",
    "ejemplo": "Un servicio de pago te da `ak_live_7Hq2…`. Si aparece en un repositorio público, quien la encuentre la usa hasta que la cambies; un token de 15 minutos filtrado, como mucho 15 minutos.",
    "ver": [
@@ -97,7 +97,7 @@
    "id": "token-acceso",
    "termino": "Token de acceso (Bearer)",
    "en": "access token, bearer token",
-   "corto": "Un permiso que dura poco y que el cliente manda en cada request, en el header `Authorization: Bearer …`. «Bearer» (portador) quiere decir que quien lo porta lo usa: el servidor no pregunta quién lo trae.",
+   "corto": "Un permiso que dura poco y que el cliente manda en cada [[request]] (petición), en el encabezado ([[header]]) `Authorization: Bearer …`. «Bearer» (portador) quiere decir que quien lo porta lo usa: el servidor no pregunta quién lo trae.",
    "largo": "Separa el secreto de larga vida (que se usa una vez, ante el [[proveedor-identidad|proveedor de identidad]]) de lo que viaja en cada request. Como cualquiera que lo copie puede usarlo, viaja por HTTPS (al menos por toda red que no sea de confianza), no se escribe en los logs y caduca pronto. Puede ser opaco (un número sin significado, que el servidor busca en su base) o un [[jwt|JWT]] que se verifica solo. Se obtiene con [[oauth|OAuth]], por ejemplo con [[client-credentials|client credentials]].",
    "ejemplo": "El backend de publicaciones de Alba manda `Authorization: Bearer eyJhbGciOiJSUzI1NiIs…` en cada `POST /v1/classify`. El token vale 15 minutos y el backend pide otro a los 12.",
    "ver": [
@@ -114,7 +114,7 @@
    "en": "JWT",
    "corto": "Un token con tres partes separadas por puntos, encabezado.claims.firma: dos JSON escritos en base64url (texto que cualquiera puede decodificar y leer) y una firma del emisor que impide cambiarlos. Se verifica sin preguntarle a nadie.",
    "largo": "Es un formato, no un mecanismo. El encabezado dice el algoritmo (`HS256`, un [[hmac|HMAC]] con llave compartida; `RS256` o `ES256`, una [[firma-digital|firma]] con [[llave-asimetrica|llave asimétrica]]) y el `kid` de la llave. Los [[claims]] dicen quién, para quién y hasta cuándo. Quien verifica revisa la firma con la llave pública del [[jwks|JWKS]], el `iss`, la `aud` y el `exp`, con el algoritmo que él espera: nunca el que dice el token (hubo bibliotecas que aceptaban `\"alg\": \"none\"`). Como se verifica sin estado, no se puede cancelar antes de su `exp`: por eso vive poco ([[revocacion-token|revocación]]). Los claims no van cifrados: nada secreto adentro.",
-   "ejemplo": "El token de moderación dice `{\"iss\": \"idp.alba.internal\", \"sub\": \"moderacion\", \"aud\": \"classifier\", \"scope\": \"classify\", \"exp\": …}`. Si alguien cambia `sub` a `backend-publicaciones`, la firma ya no coincide y el ALB responde 401.",
+   "ejemplo": "El token de moderación dice `{\"iss\": \"idp.alba.internal\", \"sub\": \"moderacion\", \"aud\": \"classifier\", \"scope\": \"classify\", \"exp\": …}`. Si alguien cambia `sub` a `backend-publicaciones`, la firma ya no coincide y el [[alb|ALB]] (el balanceador de entrada de Alba) responde 401.",
    "ver": [
     "claims",
     "jwks",
@@ -128,7 +128,7 @@
    "id": "claims",
    "termino": "Claims",
    "en": "claims",
-   "corto": "Lo que afirma un token: quién es (`sub`), quién lo emitió (`iss`), para quién es (`aud`), cuándo caduca (`exp`) y qué permite (`scope`), entre otros. En un JWT van en un JSON firmado.",
+   "corto": "Lo que afirma un token: quién es (`sub`), quién lo emitió (`iss`), para quién es (`aud`), cuándo caduca (`exp`) y qué permite (`scope`), entre otros. En un [[jwt|JWT]] van en un JSON firmado.",
    "largo": "Los nombres cortos vienen del estándar: `iss` (*issuer*), `sub` (*subject*), `aud` (*audience*), `exp` (*expiration*) e `iat` (*issued at*), en segundos desde 1970, y `jti`, un id único del token que sirve para revocarlo. Se pueden agregar otros, como `scope`. Revisar la `aud` evita aceptar un token que el emisor dio para otro servicio. Cualquiera que tenga el token los lee, así que no llevan secretos ni datos personales que no hagan falta.",
    "ejemplo": "Un token con `\"aud\": \"busqueda\"` llega al clasificador: la firma es buena y `exp` está en el futuro, pero no es para él. Lo rechaza con 401.",
    "ver": [
@@ -144,7 +144,7 @@
    "en": "JSON Web Key Set",
    "corto": "Un JSON que el emisor de tokens publica en una dirección fija con sus llaves públicas, cada una con su id (`kid`). Quien verifica un JWT busca ahí la llave que dice el encabezado del token.",
    "largo": "Permite que muchos servicios verifiquen tokens de un solo [[proveedor-identidad|proveedor de identidad]] sin compartir ningún secreto. Quien verifica lo guarda en memoria y lo vuelve a bajar cada tanto, o cuando ve un `kid` que no conoce; no en cada request. Así se cambian las llaves sin cortar el servicio: el emisor publica la nueva junto a la vieja, firma con la nueva y quita la vieja cuando los tokens viejos ya caducaron.",
-   "ejemplo": "El ALB de Alba baja el JWKS del proveedor de identidad interno y verifica con la llave `kid: 2026-11` cada token de los callers, sin llamar al emisor en cada request.",
+   "ejemplo": "El [[alb|ALB]] de Alba (su balanceador de entrada) baja el JWKS del proveedor de identidad interno y verifica con la llave `kid: 2026-11` cada token de los callers, sin llamar al emisor en cada request.",
    "ver": [
     "jwt",
     "llave-asimetrica",
@@ -157,7 +157,7 @@
    "termino": "Revocación de un token",
    "en": "token revocation",
    "corto": "Cancelar un token antes de que caduque. Con una sesión que guarda el servidor es fácil; con un JWT que se verifica sin estado no se puede «des-firmar», así que la salida es que dure poco.",
-   "largo": "Hay dos maneras de revocar un JWT y las dos le quitan su ventaja de verificarse solo: una lista de tokens cancelados (por `jti` o por `sub`) que cada servicio consulta, o preguntarle al emisor si el token sigue vivo (la introspección de OAuth). Lo común es una vida corta, de 5 a 60 minutos, aunque se configura (algunos proveedores dan más por omisión), con el cliente renovando desde su caché, y, cuando el riesgo lo pide, una lista chiquita que solo guarda los cancelados que todavía no caducan. La carga sobre el emisor es \\(n = I × 1,440 ÷ R\\) tokens al día, con \\(I\\) copias del programa que piden su propio token, cada una renovándolo cada \\(R\\) minutos (1,440 son los minutos de un día).",
+   "largo": "Hay dos maneras de revocar un JWT y las dos le quitan su ventaja de verificarse solo: una lista de tokens cancelados (por `jti` o por `sub`) que cada servicio consulta, o preguntarle al emisor si el token sigue vivo (la introspección de [[oauth|OAuth]]). Lo común es una vida corta, de 5 a 60 minutos, aunque se configura (algunos proveedores dan más por omisión), con el cliente renovando desde su caché, y, cuando el riesgo lo pide, una lista chiquita que solo guarda los cancelados que todavía no caducan. La carga sobre el emisor es \\(n = I × 1,440 ÷ R\\) tokens al día, con \\(I\\) copias del programa que piden su propio token, cada una renovándolo cada \\(R\\) minutos (1,440 son los minutos de un día).",
    "ejemplo": "Un token de los callers de Alba vale 15 minutos: si alguien lo roba en el minuto 5, le sirve hasta el minuto 15. Una llave de API robada sirve hasta que alguien la cambie.",
    "ver": [
     "jwt",
@@ -173,7 +173,7 @@
    "en": "identity provider (IdP)",
    "corto": "El servicio que sabe quién es quién y emite los tokens: guarda los clientes y usuarios, revisa sus credenciales y firma los tokens con su llave privada. Los demás servicios confían en lo que firma.",
    "largo": "Tener un solo emisor deja que muchos servicios acepten los mismos tokens: todos verifican con su [[jwks|JWKS]]. Implementa [[oauth|OAuth]] y [[oidc|OIDC]]. Ejemplos: Okta, Auth0, Microsoft Entra ID, Cognito de AWS o Keycloak, que una empresa instala en sus máquinas. Como todos dependen de él, conviene que los clientes cacheen sus tokens: así una caída breve del emisor no tumba a nadie.",
-   "ejemplo": "Los 3 callers de Alba piden su token al proveedor de identidad interno de Alba, con su `client_id` y scope `classify`; con caché, le piden ≈ 1,440 tokens al día en total.",
+   "ejemplo": "Los 3 programas que llaman al clasificador de Alba (sus *callers*) piden su token al proveedor de identidad interno de Alba, con su `client_id` y scope `classify`; con caché, le piden ≈ 1,440 tokens al día en total.",
    "ver": [
     "oauth",
     "client-credentials",
@@ -204,7 +204,7 @@
    "en": "client credentials grant",
    "corto": "El flujo de OAuth para máquinas: un programa se presenta ante el proveedor de identidad con su `client_id` y su secreto (o un certificado) y recibe un token de acceso, sin ninguna persona de por medio.",
    "largo": "Es la manera estándar de autenticar llamadas de servicio a servicio. El programa hace un `POST` al endpoint de tokens con `grant_type=client_credentials` y el [[scope]] que pide; la respuesta trae el `access_token`, su tipo (`Bearer`) y `expires_in`. El secreto vive en un [[gestor-secretos|gestor de secretos]] y se usa solo al renovar, no en cada request: lo que viaja es el token corto.",
-   "ejemplo": "Moderación pide su token con `grant_type=client_credentials&scope=classify` y recibe uno con `expires_in: 900`, 15 minutos. Lo usa en todas sus requests al clasificador y pide otro a los 12.",
+   "ejemplo": "El servicio de moderación de Alba pide su token con `grant_type=client_credentials&scope=classify` y recibe uno con `expires_in: 900`, 15 minutos. Lo usa en todas sus requests al clasificador y pide otro a los 12.",
    "ver": [
     "oauth",
     "token-acceso",
@@ -219,7 +219,7 @@
    "en": "scope",
    "corto": "La lista de permisos que lleva un token: qué tipo de cosas puede hacer su portador. Un token con scope `classify` sirve para pedir clasificaciones y para nada más.",
    "largo": "Es una [[autorizacion|autorización]] gruesa que viaja dentro del token, en los [[claims]]: el servicio revisa que el scope incluya la acción que se pide, y si no, responde 403. No sirve para la autorización fina («¿este objeto es tuyo?»), que depende de datos que solo tiene el servidor. Darle a cada cliente solo los scopes que necesita es [[minimo-privilegio|mínimo privilegio]] aplicado a los tokens.",
-   "ejemplo": "Los callers de Alba tienen `classify`. Una ruta para cambiar la versión del modelo pediría otro scope, como `classifier:admin`, que ninguno tiene: un token robado de búsqueda clasifica fotos, pero no cambia el modelo.",
+   "ejemplo": "Los programas que llaman al clasificador de Alba (sus *callers*) tienen `classify`. Una ruta para cambiar la versión del modelo pediría otro scope, como `classifier:admin`, que ninguno tiene: un token robado de búsqueda clasifica fotos, pero no cambia el modelo.",
    "ver": [
     "oauth",
     "claims",
@@ -233,8 +233,8 @@
    "termino": "OIDC (OpenID Connect)",
    "en": "OpenID Connect",
    "corto": "Una capa encima de OAuth que agrega identidad: además del token de acceso, el proveedor entrega un ID token, un JWT que dice quién es el usuario. Es lo que hay detrás de «Iniciar sesión con…».",
-   "largo": "OAuth da permisos; OIDC dice quién eres. La app que pide el inicio de sesión recibe un ID token firmado por el [[proveedor-identidad|proveedor]], con `sub`, correo y nombre, y lo verifica con su [[jwks|JWKS]], sin ver nunca la contraseña. También sirve para máquinas: un cluster de Kubernetes firma un JWT que dice qué cuenta de servicio tiene un pod, y la nube lo cambia por credenciales temporales (así funciona IRSA en EKS, el Kubernetes de AWS); un job de CI recibe un JWT que dice de qué repositorio y rama viene, y lo cambia por credenciales de la nube sin guardar llaves.",
-   "ejemplo": "Un pipeline de GitHub Actions pide un token OIDC que dice «repositorio de Alba, rama main», y AWS lo cambia por credenciales temporales de un rol que solo puede publicar imágenes.",
+   "largo": "OAuth da permisos; OIDC dice quién eres. La app que pide el inicio de sesión recibe un ID token firmado por el [[proveedor-identidad|proveedor]], con `sub`, correo y nombre, y lo verifica con su [[jwks|JWKS]], sin ver nunca la contraseña. También sirve para máquinas: un cluster de Kubernetes firma un JWT que dice qué cuenta de servicio tiene un pod, y la nube lo cambia por credenciales temporales (así funciona IRSA, *IAM roles for service accounts*, en EKS, el Kubernetes de AWS); un job de [[ci|CI]] recibe un JWT que dice de qué repositorio y rama viene, y lo cambia por credenciales de la nube sin guardar llaves.",
+   "ejemplo": "Un pipeline de [[github-actions|GitHub Actions]] (las automatizaciones de GitHub) pide un token OIDC que dice «repositorio de Alba, rama main», y AWS lo cambia por credenciales temporales de un rol que solo puede publicar imágenes.",
    "ver": [
     "oauth",
     "jwt",
@@ -249,7 +249,7 @@
    "termino": "RBAC (control de acceso por roles)",
    "en": "role-based access control",
    "corto": "Dar permisos a roles, no a personas o programas sueltos, y asignarle a cada identidad uno o varios roles. Cuando alguien cambia de puesto, se le cambia el rol, no decenas de permisos.",
-   "largo": "Es el patrón más común de [[autorizacion|autorización]]: un rol como «vendedora» o «soporte» junta un conjunto de permisos. Las [[politica-permisos|políticas]] de IAM y los roles de Kubernetes son variantes del mismo patrón. Responde «¿este tipo de identidad puede hacer esta acción?»; no responde «¿este objeto es suyo?», que se revisa aparte (si no, [[idor|IDOR]]). La trampa es el rol que lo puede todo «por mientras», contra el [[minimo-privilegio|mínimo privilegio]].",
+   "largo": "Es el patrón más común de [[autorizacion|autorización]]: un rol como «vendedora» o «soporte» junta un conjunto de permisos. Las [[politica-permisos|políticas]] de IAM (los permisos de AWS) y los roles de Kubernetes son variantes del mismo patrón. Responde «¿este tipo de identidad puede hacer esta acción?»; no responde «¿este objeto es suyo?», que se revisa aparte (si no, [[idor|IDOR]]). La trampa es el rol que lo puede todo «por mientras», contra el [[minimo-privilegio|mínimo privilegio]].",
    "ejemplo": "En Alba, Ana tiene el rol vendedora (editar sus publicaciones) y Marta el de soporte (leer cualquiera, no editar). Si Marta pasa a otro equipo, se le quita el rol de soporte y pierde todo de una vez.",
    "ver": [
     "autorizacion",
@@ -263,7 +263,7 @@
    "id": "idor",
    "termino": "IDOR (referencia directa insegura)",
    "en": "insecure direct object reference",
-   "corto": "El fallo de autorización en que una request pide un objeto por su id (`/publicaciones/8812`) y el servidor revisa que haya sesión, pero no que el objeto sea de quien lo pide. Cambiar el número deja ver o cambiar lo de otro.",
+   "corto": "El fallo de autorización en que una [[request]] (petición) pide un objeto por su id (`/publicaciones/8812`) y el servidor revisa que haya sesión, pero no que el objeto sea de quien lo pide. Cambiar el número deja ver o cambiar lo de otro.",
    "largo": "Es de los fallos más comunes en APIs y es difícil de ver en pruebas, porque con un solo usuario de prueba todo funciona. El arreglo va en el servidor, en cada request: además de quién eres y qué rol tienes, revisar que el objeto te toca. Esconder el botón no sirve. Los ids al azar ayudan contra la búsqueda a ciegas (un intento al azar atina con probabilidad \\(p = E ÷ K\\): los ids que existen entre los posibles), pero no sustituyen la revisión, porque los ids viajan en enlaces que se comparten. Muchos sistemas responden 404 en vez de 403 para no revelar que el objeto existe.",
    "ejemplo": "Ana edita `PATCH /publicaciones/8811`, su publicación, y prueba `8812`, la bici de Beto. Si el servidor solo revisa la sesión, la edita; si revisa el dueño, responde 403.",
    "ver": [
@@ -277,9 +277,9 @@
    "id": "cuota-por-cliente",
    "termino": "Cuota por cliente",
    "en": "per-caller quota",
-   "corto": "Un presupuesto de requests (o de tokens de un LLM) para cada identidad verificada, normalmente con un token bucket (un balde de fichas que se rellena a ritmo fijo) por cada `client_id`, el nombre del cliente. Quien se pasa recibe 429 él solo, sin afectar a los demás.",
-   "largo": "La identidad decide la cuota: sale del `client_id` del token verificado, nunca de un header que el cliente escribe ni de la IP (detrás de una red compartida hay muchos clientes, y uno solo puede usar muchas). Se implementa con un [[token-bucket|token bucket]] y responde **429** con [[retry-after|`Retry-After`]]. Si el balde vive en la memoria de cada pod, cada uno da la parte que le toca (la cuota entre el número de pods), y es aproximado; uno compartido en [[redis|Redis]] es exacto pero agrega una pieza que se puede caer. La cuota no reemplaza un tope de requests en vuelo: varios clientes dentro de su cuota pueden, juntos, saturar el servicio, y eso es un 503.",
-   "ejemplo": "Moderación tiene 50 requests por segundo con ráfagas de 100 en el clasificador de Alba. Con el gateway en 5 pods y el balde en memoria, cada pod le da 10 por segundo y ráfagas de 20.",
+   "corto": "Un presupuesto de [[request|requests]] (o de [[token|tokens]] de un modelo de lenguaje) para cada identidad verificada, normalmente con un token bucket (un balde de fichas que se rellena a ritmo fijo) por cada `client_id`, el nombre del cliente. Quien se pasa recibe 429 él solo, sin afectar a los demás.",
+   "largo": "La identidad decide la cuota: sale del `client_id` del token verificado, nunca de un header que el cliente escribe ni de la IP (detrás de una red compartida hay muchos clientes, y uno solo puede usar muchas). Se implementa con un [[token-bucket|token bucket]] y responde **429** con [[retry-after|`Retry-After`]]. Si el balde vive en la memoria de cada pod, cada uno da la parte que le toca (la cuota entre el número de pods), y es aproximado; uno compartido en [[redis|Redis]] es exacto pero agrega una pieza que se puede caer. La cuota no reemplaza un tope de requests en vuelo: varios clientes dentro de su cuota pueden, juntos, saturar el servicio, y eso es un 503 (servicio no disponible).",
+   "ejemplo": "El servicio de moderación tiene 50 requests por segundo con ráfagas de 100 en el clasificador de Alba. Con el gateway en 5 pods y el balde en memoria, cada pod le da 10 por segundo y ráfagas de 20.",
    "ver": [
     "rate-limit",
     "token-bucket",
@@ -293,7 +293,7 @@
    "termino": "Registro de auditoría",
    "en": "audit log",
    "corto": "Una lista de eventos que solo crece y que dice quién hizo qué, cuándo y desde dónde, con la identidad verificada de cada uno. Sirve para investigar después; se guarda donde nadie lo pueda editar ni borrar.",
-   "largo": "Autenticar y autorizar deciden qué pasa; el registro de auditoría permite contestar qué pasó. En AWS lo lleva CloudTrail, con las llamadas a la API (las de administración, siempre; las que leen o escriben objetos de S3, si se activan): qué rol, desde qué IP, si se permitió. Para que pruebe algo, se escribe en un lugar que ni quien lo genera pueda cambiar (por ejemplo, S3 con Object Lock). No es lo mismo que el log de predicciones de un modelo, que sirve para medir y reentrenar.",
+   "largo": "Autenticar y autorizar deciden qué pasa; el registro de auditoría permite contestar qué pasó. En AWS lo lleva CloudTrail, con las llamadas a la API (las de administración, siempre; las que leen o escriben archivos en S3 (el almacén de archivos de AWS), si se activan): qué rol, desde qué IP, si se permitió. Para que pruebe algo, se escribe en un lugar que ni quien lo genera pueda cambiar (por ejemplo, S3 con [[object-lock|Object Lock]], que impide cambiar o borrar un archivo durante un plazo). No es lo mismo que el log de predicciones de un modelo, que sirve para medir y reentrenar.",
    "ejemplo": "«Marta, rol soporte, leyó la publicación 8812 a las 10:42»: si Beto pregunta quién vio su publicación, la respuesta está ahí.",
    "ver": [
     "autorizacion",

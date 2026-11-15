@@ -4,7 +4,7 @@
    "id": "falla-silenciosa",
    "termino": "Falla silenciosa",
    "en": "silent failure",
-   "corto": "Cuando un modelo empeora sin que nada truene: el servicio sigue contestando 200 OK, igual de rápido y con la misma seguridad aparente, pero sus respuestas son peores.",
+   "corto": "Cuando un modelo empeora sin que nada truene: el servicio sigue contestando 200 OK (el [[codigo-estado|código]] de «todo bien»), igual de rápido y con la misma seguridad aparente, pero sus respuestas son peores.",
    "largo": "Un servidor web roto se nota porque deja de contestar. Un modelo roto sigue contestando. Casi nunca cambió el modelo: cambió el mundo que lo alimenta (las fotos, la gente, lo que se vende), y eso es [[drift]]. Por eso no bastan las señales de servicio: hacen falta señales del modelo y del negocio, en las cinco [[capas-monitoreo|capas del monitoreo]].",
    "analogia": "Como un termómetro que se descalibra: sigue marcando un número cada vez que lo miras, solo que ya no es la temperatura. Se rompe en que el termómetro sí cambió; en un modelo, casi siempre cambió lo que mide.",
    "ejemplo": "Una versión nueva de la app manda las fotos más comprimidas. El p99 de un pod del gateway sigue en ≈ 69 ms o menos (el de su pico de diseño) y no hay errores de más; seis días después, la aceptación de `source=mobile` cae de 70.1 % a 66.2 %.",
@@ -21,8 +21,8 @@
    "termino": "Las cinco capas del monitoreo",
    "en": "monitoring layers",
    "corto": "Infraestructura, servicio, datos, modelo y negocio: lo que se vigila de un sistema de ML, de la señal más rápida (segundos) a la más lenta y más cercana a lo que importa (semanas).",
-   "largo": "Las dos primeras capas existen en cualquier servicio (nodos, pods, latencia, errores). Las tres siguientes son propias de ML: los datos que entran (tamaño, formatos), lo que contesta el modelo (score, baja confianza, [[psi|PSI]]) y lo que pasa después (aceptación, correcciones, labels). La regla incómoda: cuanto más abajo, más lenta la señal, porque el label que dice si se acertó llega tarde.",
-   "ejemplo": "En Alba: infraestructura (pods listos, segundos) · servicio (p99, 5xx, fila de Triton) · datos (bytes por `source`, minutos) · modelo (baja confianza, PSI, hasta 1 día) · negocio (aceptación, holdout, horas a semanas).",
+   "largo": "Las dos primeras capas existen en cualquier servicio (nodos, pods, latencia, errores). Las tres siguientes son propias de ML: los datos que entran (tamaño, formatos), lo que contesta el modelo (score, baja confianza, [[psi|PSI]]) y lo que pasa después (aceptación, correcciones, labels: las respuestas correctas). La regla incómoda: cuanto más abajo, más lenta la señal, porque el label que dice si se acertó llega tarde.",
+   "ejemplo": "En Alba: infraestructura (pods listos, segundos) · servicio (p99, 5xx, fila de Triton) · datos (bytes por `source`, minutos) · modelo (baja confianza, PSI, hasta 1 día) · negocio (aceptación, [[holdout-sin-sugerencias|holdout]], horas a semanas).",
    "ver": [
     "falla-silenciosa",
     "senales-doradas",
@@ -66,7 +66,7 @@
    "termino": "Tasa de baja confianza",
    "en": "low-confidence rate",
    "corto": "La fracción de las predicciones cuya probabilidad más alta (el score top-1) queda debajo de un umbral. En Alba, la de las fotos con top-1 menor que 0.3: ≈ 4 % en un día normal.",
-   "largo": "Se calcula con dos contadores del histograma del score: el bucket del umbral entre el total, en una ventana de 30 minutos, con una [[regla-grabacion|regla de grabación]]. Se compara contra su propio promedio de 7 días, porque la tasa normal se mueve con las temporadas. Ve las dudas del modelo, no sus errores seguros: un modelo mal [[calibracion|calibrado]] puede equivocarse con 0.9.",
+   "largo": "Se calcula con dos contadores del [[histograma-prometheus|histograma]] del score: el bucket del umbral entre el total, en una ventana de 30 minutos, con una [[regla-grabacion|regla de grabación]]. Se compara contra su propio promedio de 7 días, porque la tasa normal se mueve con las temporadas. Ve las dudas del modelo, no sus errores seguros: un modelo mal [[calibracion|calibrado]] puede equivocarse con 0.9.",
    "ejemplo": "En media hora de tráfico promedio de Alba hay 208,800 requests y ≈ 8,352 fotos dudosas (4 %). El ticket `ClassifierLowConfidenceSpike` pide más del doble de su promedio de 7 días (≈ 8 %) durante 30 minutos, con más de 1 request por segundo.",
    "ver": [
     "confianza",
@@ -95,9 +95,9 @@
    "id": "referencia-drift",
    "termino": "Referencia y ventana del drift",
    "en": "reference window",
-   "corto": "Contra qué se compara la distribución de hoy para decir si hubo drift, y sobre cuánto tiempo. Cada referencia ve una cosa y se pierde otra.",
+   "corto": "Contra qué se compara la distribución de hoy para decir si hubo [[drift]], y sobre cuánto tiempo. Cada referencia ve una cosa y se pierde otra.",
    "largo": "Contra los datos de entrenamiento, la pregunta es «¿ve algo que no aprendió?», pero si el mundo se movió para siempre, la alerta suena sin parar. Contra una ventana reciente, la pregunta es «¿cambió de golpe?», pero un cambio lento nunca se ve, porque cada semana se parece a la anterior. Por eso se usan dos. Además se pide que el cambio se sostenga, para que un día raro no dispare nada.",
-   "ejemplo": "Alba compara el PSI diario contra las 4 semanas previas (la alerta, si pasa de 0.2 tres días seguidos) y contra el mes del snapshot del champion, `ds-2026-09-01` para la release 14 (el reporte mensual).",
+   "ejemplo": "Alba compara el [[psi|PSI]] diario contra las 4 semanas previas (la alerta, si pasa de 0.2 tres días seguidos) y contra el mes del snapshot del champion, `ds-2026-09-01` para la release 14 (el reporte mensual).",
    "ver": [
     "psi",
     "drift",
@@ -111,7 +111,7 @@
    "termino": "Regla de alerta",
    "en": "alerting rule",
    "corto": "Una condición que el sistema de monitoreo evalúa cada cierto tiempo y que, si se cumple el tiempo suficiente, avisa a alguien. Lleva nombre, condición, cuánto tiene que durar (`for`), severidad, dueño y runbook (la receta de qué hacer).",
-   "largo": "Se alerta por síntomas (lo que siente el usuario), no por causas. El `for` pide que la condición dure antes de disparar, para que un pico de un deploy no despierte a nadie. Hay que protegerla del tráfico bajo (un error en 20 requests es 5 %) y de las series ausentes: si el servicio muere, sus métricas desaparecen y la regla no da nada, así que se alerta también con `up == 0`, `absent()` o desde quien espera la señal. Si no hay acción posible, no es un page.",
+   "largo": "Se alerta por síntomas (lo que siente el usuario), no por causas. El `for` pide que la condición dure antes de disparar, para que un pico de un deploy no despierte a nadie. Hay que protegerla del tráfico bajo (un error en 20 requests es 5 %) y de las series ausentes: si el servicio muere, sus métricas desaparecen y la regla no da nada, así que se alerta también con `up == 0`, `absent()` o desde quien espera la señal. Si no hay acción posible, no es un page (una alerta que despierta a alguien).",
    "ejemplo": "`ClassifierHighP99Latency` de Alba: p99 > 200 ms durante 10 minutos, severidad page, para la guardia, con el runbook del p99 enlazado.",
    "ver": [
     "severidad-alerta",
@@ -125,7 +125,7 @@
    "id": "severidad-alerta",
    "termino": "Severidad de una alerta",
    "en": "alert severity",
-   "corto": "Qué tan urgente es una alerta y a quién le llega: page (despierta a la guardia), warning (canal del equipo, en horario) o ticket (trabajo de la semana).",
+   "corto": "Qué tan urgente es una alerta y a quién le llega: page (despierta a la [[guardia]]), warning (canal del equipo, en horario) o ticket (trabajo de la semana).",
    "largo": "Page solo para lo que afecta a los usuarios ahora y alguien puede arreglar ahora. Warning para una causa que anticipa un page. Ticket para la calidad del modelo y las tendencias, que se entienden mirando datos con calma. Poner todo en page lleva a la [[fatiga-alertas|fatiga de alertas]].",
    "ejemplo": "En Alba, el p99 arriba de 200 ms es page; la fila de Triton arriba de 20 ms, warning; el PSI arriba de 0.2 tres días seguidos, ticket. Nadie se despierta a las 3 de la mañana porque subió el PSI.",
    "ver": [
@@ -139,7 +139,7 @@
    "id": "alertmanager",
    "termino": "Alertmanager",
    "en": "Alertmanager",
-   "corto": "El programa que recibe las alertas que dispara Prometheus y decide a quién y cómo avisar: agrupa, deduplica, inhibe y silencia.",
+   "corto": "El programa que recibe las alertas que dispara [[prometheus|Prometheus]] y decide a quién y cómo avisar: agrupa, deduplica, inhibe y silencia.",
    "largo": "Prometheus solo decide que una alerta suena. Alertmanager **agrupa** las de un mismo incidente en una notificación, **deduplica** las que llegan repetidas de dos Prometheus iguales, **inhibe** las que son consecuencia de otra y **silencia** durante un mantenimiento. También enruta cada severidad a su canal (el teléfono de la guardia, el chat del equipo, la cola de tickets).",
    "ejemplo": "En Alba vive en el namespace `monitoring`, agrupa por alerta y namespace y calla los warning de la fila de Triton mientras `TritonNotReady` está sonando.",
    "ver": [
@@ -153,7 +153,7 @@
    "id": "regla-grabacion",
    "termino": "Regla de grabación",
    "en": "recording rule",
-   "corto": "Una expresión cara que el sistema de métricas calcula cada cierto tiempo y guarda como una serie nueva, para que las alertas y los dashboards la lean ya hecha.",
+   "corto": "Una expresión cara que el sistema de métricas calcula cada cierto tiempo y guarda como una [[serie-tiempo|serie]] nueva, para que las [[alerta|alertas]] y los [[dashboard|dashboards]] la lean ya hecha.",
    "largo": "Calcular una tasa de 6 horas o promediar 7 días suma millones de muestras; si cada alerta la recalcula en cada evaluación, el sistema trabaja de más. La regla de grabación la calcula cada cierto tiempo (en Alba, una vez por minuto) y le da un nombre propio, por costumbre de tres partes: nivel, métrica y operación (`classifier:error_ratio:rate1h`).",
    "ejemplo": "Alba graba la fracción de errores en 5 min, 30 min, 1 h y 6 h para sus alertas de [[burn-rate|burn rate]], y `classifier:low_confidence_share:rate30m` para comparar la baja confianza contra su promedio de 7 días.",
    "ver": [
@@ -167,7 +167,7 @@
    "id": "burn-rate",
    "termino": "Burn rate",
    "en": "burn rate",
-   "corto": "Qué tan rápido se gasta el presupuesto de error (lo que el SLO deja fallar), comparado con el ritmo que lo agotaría justo al final de la ventana del SLO. 1× lo gasta exacto en el mes; 14.4×, en 50 horas.",
+   "corto": "Qué tan rápido se gasta el [[error-budget|presupuesto de error]] (lo que el [[slo|SLO]], la meta del servicio, deja fallar), comparado con el ritmo que lo agotaría justo al final de la ventana del SLO. 1× lo gasta exacto en el mes; 14.4×, en 50 horas.",
    "largo": "Se calcula como \\(β = p ÷ (1 − S)\\): la fracción de errores de una ventana entre la fracción que permite el SLO. En una ventana de \\(t\\) horas se gasta \\(β × t ÷ V\\) del presupuesto, con \\(V\\) = 720 h. Alertar con el burn rate en vez de un umbral fijo mide el daño: un pico corto gasta poco aunque sea alto, y un goteo de toda la semana gasta mucho aunque sea bajo.",
    "ejemplo": "Con el SLO de 99.9 % de Alba, un 1.44 % de errores es 14.4×: en una hora se van ≈ 6,000 requests, 2 % de las 300,000 del mes. Un deploy malo con 5 % de errores es 50×: el mes duraría 14.4 horas.",
    "ver": [
@@ -182,9 +182,9 @@
    "id": "alerta-multiventana",
    "termino": "Alerta multiventana",
    "en": "multiwindow, multi-burn-rate alert",
-   "corto": "Una alerta de burn rate que mira dos ventanas a la vez, una larga y una corta (1/12 de la larga), y suena solo si las dos pasan el umbral.",
+   "corto": "Una alerta de [[burn-rate|burn rate]] que mira dos ventanas a la vez, una larga y una corta (1/12 de la larga), y suena solo si las dos pasan el umbral.",
    "largo": "La ventana larga confirma que el problema es real: un pico de dos minutos no mueve el promedio de una hora. Pero tiene memoria y seguiría arriba mucho después del arreglo. La corta casi no tiene memoria: cuando el incidente termina, baja en minutos y la alerta se apaga. Se combinan varios niveles (rápido y lento) para cubrir incidentes graves y goteos.",
-   "ejemplo": "Alba: page a 14.4× en 1 h y en 5 min; ticket a 6× en 6 h y en 30 min. Un incidente al 3 % durante 40 min, con el 0.1 % normal de fondo, hace sonar el page del minuto 27 al 42; con la ventana larga sola, sonaría hasta el 72.",
+   "ejemplo": "Alba: page a 14.4× en 1 h y en 5 min; ticket a 6× en 6 h y en 30 min. Un incidente al 3 % durante 40 min, con 0.1 % de fondo (el tope que deja el SLO; supuesto del ejemplo), hace sonar el page del minuto 27 al 42; con la ventana larga sola, sonaría hasta el 72.",
    "ver": [
     "burn-rate",
     "alerta",
@@ -196,7 +196,7 @@
    "id": "dashboard",
    "termino": "Dashboard",
    "en": "dashboard",
-   "corto": "Una página de gráficas en vivo que muestra las métricas de un sistema. En Alba se arman en Grafana, que consulta a Prometheus.",
+   "corto": "Una página de gráficas en vivo que muestra las métricas de un sistema. En Alba se arman en Grafana, un programa de gráficas que consulta a [[prometheus|Prometheus]].",
    "largo": "Un dashboard sirve si contesta rápido la pregunta de quien lo mira, así que se hace uno por audiencia: la guardia necesita ver en segundos si el SLO está en peligro; el equipo de ML, cómo se comporta el modelo por versión; producto, el negocio día a día. Uno que sirve a los tres no le sirve a ninguno. Un dashboard no avisa: para eso están las [[alerta|alertas]].",
    "ejemplo": "Los cuatro de Alba: servicio (el SLO y el presupuesto arriba, con marcas de deploy), Triton y GPU, modelo (todo por `model_version`) y negocio (diario).",
    "ver": [
@@ -255,7 +255,7 @@
    "en": "blameless postmortem",
    "corto": "El documento que se escribe después de un incidente: qué pasó, cuánto afectó, cómo se detectó y qué se hará para que no se repita, sin buscar a quién culpar.",
    "largo": "Lleva línea de tiempo, impacto, con qué señal se detectó y acciones con dueño y fecha. Es sin culpables porque busca qué dejó pasar el error, no quién lo cometió: así la gente cuenta lo que de verdad pasó. En ML la pregunta clave es qué señal lo habría detectado antes.",
-   "ejemplo": "Alba escribe uno después de cada page con impacto en usuarios, en ≤ 5 días hábiles. Si a la app nueva la detectó la aceptación seis días tarde, una acción puede ser una alerta por bytes de cada `source`.",
+   "ejemplo": "Alba escribe uno después de cada page con impacto en usuarios, en ≤ 5 días hábiles. Si una versión nueva de la app que comprimía más las fotos solo se detectó seis días después, por la caída de la aceptación, una acción puede ser una alerta por bytes de cada `source`.",
    "ver": [
     "guardia",
     "runbook",
@@ -267,7 +267,7 @@
    "id": "frescura-job",
    "termino": "Frescura de un job (y Pushgateway)",
    "en": "job freshness · Pushgateway",
-   "corto": "Cuánto tiempo hace que un job publicó su último resultado. Se vigila porque un job muerto deja su último valor publicado y todo parece estable.",
+   "corto": "Cuánto tiempo hace que un job (un programa que corre y termina) publicó su último resultado. Se vigila porque un job muerto deja su último valor publicado y todo parece estable.",
    "largo": "Prometheus lee métricas de quien está vivo; un job que corre y termina las empuja al **Pushgateway**, un programa que se queda prendido y que las guarda hasta que alguien las borre, junto con `push_time_seconds`, la hora del último envío. Si el job deja de correr, el último valor se queda para siempre. La defensa es una alerta sobre `time() - push_time_seconds`.",
    "ejemplo": "El job `monitoreo-diario` de Alba corre a las 01:00 UTC y tarda ≈ 20 minutos; `MonitoringJobStale` abre un ticket si pasan más de 26 horas sin un envío nuevo.",
    "ver": [
@@ -282,7 +282,7 @@
    "termino": "Disparador de reentrenamiento",
    "en": "retraining trigger",
    "corto": "Una condición que propone reentrenar el modelo antes del calendario. Abre un ticket para que una persona diagnostique y decida; no despliega nada solo.",
-   "largo": "Antes de adelantar se descarta lo que no es del mundo: un deploy propio, datos rotos de quien llama y el [[training-serving-skew|training-serving skew]]. Solo si cambió el mundo y los labels lo confirman, se adelanta la corrida, con una tanda extra de etiquetado del slice si hace falta, y el modelo nuevo sube la misma escalera de gate, shadow y canary.",
+   "largo": "Antes de adelantar se descarta lo que no es del mundo: un deploy propio, datos rotos de quien llama y el [[training-serving-skew|training-serving skew]]. Solo si cambió el mundo y los labels lo confirman, se adelanta la corrida, con una tanda extra de etiquetado del slice si hace falta, y el modelo nuevo sube los mismos peldaños: [[quality-gate|gate]], [[shadow]] y [[canary]].",
    "ejemplo": "En Alba: el calendario (día 1, 03:00 UTC), el PSI > 0.2 tres días seguidos, la aceptación −3 puntos semana contra semana y una categoría nueva planeada. Una persona lanza `argo submit --from cronwf/reentreno-mensual`.",
    "ver": [
     "reentrenamiento",

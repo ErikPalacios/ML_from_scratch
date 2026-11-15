@@ -67,6 +67,9 @@
   ];
   // Sitio aparte con las hojas de estudio (formulario de estimaciones, Docker…): enlace al final de la Parte 4.
   const CHEAT_SHEETS_URL = 'https://cheat-sheets-ml.vercel.app/';
+  // Sensei, el curso de teoría desde cero: cada módulo enlaza las lecciones que conviene repasar antes
+  // (js/content/sensei.js, generado por apps/trueml/sync.mjs desde el contenido de Sensei).
+  const SENSEI_URL = 'https://sensei-ml.vercel.app/';
   const STATE_LABEL = { done: 'completado', progress: 'en curso', ready: 'disponible', soon: 'próximamente' };
   const FREQ_LABEL = { alta: 'alta', media: 'media', baja: 'baja' };
   const PRIO = { core: ['prio--core', 'Esencial'], extra: ['prio--extra', 'Extra'], skip: ['prio--skip', 'Sáltate esto'] };
@@ -792,10 +795,24 @@
   }
 
   // ------------------------------------------------------------------ páginas del shell
+  // «Antes de este módulo»: las lecciones de Sensei del módulo, como enlaces que abren en otra pestaña.
+  function senseiBlock(id) {
+    const ls = safe(() => MSD.sensei.modulos[id], null);
+    if (!Array.isArray(ls) || !ls.length) return null;
+    return h('aside', { class: 'sensei-pre', 'aria-label': 'Teoría en Sensei' },
+      h('p', { class: 'sensei-pre__k' }, h('span', { class: 'sensei-pre__ico', html: icon('link') }),
+        h('b', null, 'Antes de este módulo: la teoría, en Sensei')),
+      h('p', { class: 'sensei-pre__txt' }, 'Sensei es el curso de teoría desde cero de TrueML. Si un concepto de este módulo no te queda claro, estas lecciones lo explican desde el principio, con ejemplos y números. Se abren en otra pestaña.'),
+      h('ul', { class: 'sensei-pre__list' }, ls.map((l) => h('li', null,
+        h('a', { href: l.url, target: '_blank', rel: 'noopener' }, l.titulo, h('span', { class: 'sensei-pre__ext', 'aria-hidden': 'true' }, ' ↗'))))));
+  }
+
   function renderModule(c, p) {
     const m = Object.assign({}, meta(p.id), p);
     S.page = { id: p.id, kind: 'module', sections: p.sections };
     c.appendChild(pageHeader(m, { eyebrow: ['Parte 1', 'Módulo ' + pad2(m.num || +p.id.slice(1))], stages: stagesOf(p.id), after: progressLine() }));
+    const sensei = senseiBlock(p.id);
+    if (sensei) c.appendChild(sensei);
     const drill = MSD.Drill && safe(() => MSD.Drill.hasDrill(p.id), false);
     const drillCta = () => h('div', { class: 'drill-cta' },
       h('span', { class: 'drill-cta__ico', html: icon('practice') }),
@@ -948,7 +965,10 @@
         h('p', { class: 'eyebrow' }, 'Panel de estudio'),
         h('h1', { class: 'phead__title', id: 'page-title', tabindex: '-1' }, APP_NAME),
         h('p', { class: 'phead__summary', html: summary }),
-        h('p', { class: 'home-hero__note' }, 'Del dato al monitoreo: cada módulo del curso cae en una o más etapas de la T, y cada caso las cruza todas.')),
+        h('p', { class: 'home-hero__note' }, 'Del dato al monitoreo: cada módulo del curso cae en una o más etapas de la T, y cada caso las cruza todas.'),
+        h('p', { class: 'home-hero__sensei' }, '¿Un concepto no te queda claro? ',
+          h('a', { href: SENSEI_URL, target: '_blank', rel: 'noopener' }, 'Sensei'),
+          ', el curso de teoría desde cero de TrueML, lo explica desde el principio: cada módulo de aquí te dice qué lecciones leer antes.')),
       scene));
     S.homeT = { el: scene.querySelector('.home-t__mark'), cap: scene.querySelector('.home-t__cap'), rest };
     if (root.TrueMLMark && root.TrueMLMark.play) root.TrueMLMark.play(S.homeT.el);

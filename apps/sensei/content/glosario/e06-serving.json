@@ -4,10 +4,10 @@
    "id": "servidor-modelos",
    "termino": "Servidor de modelos",
    "en": "model server",
-   "corto": "Un programa que tiene el modelo cargado y convierte tensores en tensores lo más barato posible: carga versiones, junta requests en batches y reparte el trabajo entre copias del modelo. No sabe nada del producto ni de quién llama.",
-   "largo": "Es la mitad de un sistema de serving. Un servidor de modelos se ocupa de lo que es igual para cualquier modelo: cargar el archivo y su versión, la fila de requests, el [[batching-dinamico|batching dinámico]], las copias en la GPU, el protocolo de inferencia, su salud y sus métricas. Todo lo que sabe del producto (validar bytes, nombres de categorías, cuotas, el contrato de la API) se queda en el gateway. Separarlos permite escalar CPU y GPU por separado, cambiar el producto sin tocar la imagen de la GPU y cambiar de servidor sin cambiar el contrato.",
+   "corto": "Un programa que tiene el modelo cargado y convierte [[tensor|tensores]] en tensores lo más barato posible: carga versiones, junta [[request|requests]] en [[batch|batches]] y reparte el trabajo entre copias del modelo. No sabe nada del producto ni de quién llama.",
+   "largo": "Es la mitad de un sistema de serving. Un servidor de modelos se ocupa de lo que es igual para cualquier modelo: cargar el archivo y su versión, la fila de requests, el [[batching-dinamico|batching dinámico]], las copias en la GPU, el protocolo de inferencia, su salud y sus métricas. Todo lo que sabe del producto (validar bytes, nombres de categorías, cuotas, el contrato de la API) se queda en el gateway (el servicio de enfrente, que recibe las requests). Separarlos permite escalar CPU y GPU por separado, cambiar el producto sin tocar la imagen de la GPU y cambiar de servidor sin cambiar el contrato.",
    "analogia": "La cocina de un restaurante: no habla con los clientes, solo cocina lo que le pasan y junta órdenes iguales. Se rompe en que la cocina de verdad improvisa; un servidor de modelos solo corre lo que dice su configuración.",
-   "ejemplo": "En Alba es [[triton|Triton]], en 2 T4. Recibe del gateway un tensor de 602,112 B por foto y devuelve 500 logits; no sabe que existen Ana ni sus tenis.",
+   "ejemplo": "En Alba es [[triton|Triton]], en 2 GPUs T4. Recibe del gateway un tensor de 602,112 B por foto y devuelve 500 logits; no sabe que existen Ana ni sus tenis.",
    "ver": [
     "triton",
     "serving",
@@ -19,9 +19,9 @@
    "id": "triton",
    "termino": "Triton",
    "en": "Triton Inference Server",
-   "corto": "El servidor de modelos de NVIDIA, escrito en C++: lee los modelos de una carpeta, arma batches, los corre con el motor que toque (TensorRT, ONNX Runtime, PyTorch…) y responde por HTTP y gRPC con el protocolo de inferencia estándar, el v2.",
+   "corto": "El servidor de modelos de NVIDIA, escrito en C++: lee los modelos de una carpeta, arma batches, los corre con el motor que toque (TensorRT, ONNX Runtime, PyTorch…) y responde por [[http|HTTP]] y [[grpc|gRPC]] con el [[protocolo-inferencia|protocolo de inferencia]] estándar, el v2.",
    "largo": "Triton es un [[servidor-modelos|servidor de modelos]] de código abierto. Lee un [[model-repository|model repository]], carga cada modelo según su [[config-pbtxt|config.pbtxt]], y para cada uno tiene su fila, su planificador (que arma batches) y sus copias ([[instance-group|grupo de instancias]]). Habla el [[protocolo-inferencia|protocolo de inferencia v2]] por HTTP (puerto 8000) y gRPC (8001) y publica métricas (8002). Desde marzo de 2025 NVIDIA lo presenta como parte de su plataforma Dynamo, con el nombre Dynamo-Triton, pero el programa se sigue llamando `tritonserver`.",
-   "ejemplo": "Alba corre `tritonserver` de la release 24.08 de NGC, con un solo modelo, `classifier`: el engine FP16 de la ResNet-50, 2 copias por T4, batching de 2 ms y una fila que tira lo que espere más de 100 ms.",
+   "ejemplo": "Alba corre `tritonserver` de la release 24.08 de NGC (el catálogo de contenedores de NVIDIA), con un solo modelo, `classifier`: el engine FP16 de la ResNet-50, 2 copias por T4, batching de 2 ms y una fila que tira lo que espere más de 100 ms.",
    "ver": [
     "servidor-modelos",
     "model-repository",
@@ -34,7 +34,7 @@
    "id": "servicio-sin-estado",
    "termino": "Servicio sin estado",
    "en": "stateless service",
-   "corto": "Un servicio que no guarda nada de una request para la siguiente: cualquier copia atiende cualquier request, y crecer es agregar copias.",
+   "corto": "Un servicio que no guarda nada de una [[request]] para la siguiente: cualquier copia atiende cualquier request, y crecer es agregar copias.",
    "largo": "Si un servicio recuerda algo entre requests (una sesión, un carrito, un contador por usuario), cada usuario tiene que volver a la misma copia, y perder una copia es perder datos. Uno sin estado guarda todo lo que dura en otro lado (una base de datos, un caché, el log) y no tiene preferencias: el balanceador manda cada request a cualquier copia, una copia que muere se reemplaza sin perder nada y la capacidad se suma con copias. Lo que sí tiene cada copia es estado **pasajero**: las requests en vuelo, el pool de conexiones, el semáforo.",
    "ejemplo": "El gateway de Alba: entre 3 y 12 copias, cada una con un proceso. La foto de Ana puede caer en cualquiera; lo único que queda de ella es su línea de log.",
    "ver": [
@@ -48,8 +48,8 @@
    "id": "fastapi",
    "termino": "FastAPI",
    "en": "FastAPI",
-   "corto": "Un framework de Python para escribir APIs: conecta cada ruta con su función, revisa los parámetros con pydantic (una biblioteca que revisa tipos y reglas) y arma las respuestas en JSON. Necesita un servidor aparte, como uvicorn, que abra el puerto.",
-   "largo": "Con FastAPI, una ruta se escribe como una función con un decorador (`@app.post(\"/v1/classify\")`) y sus parámetros con su tipo y sus reglas (`top_k: int = Query(5, ge=1, le=20)`). FastAPI los revisa con [[pydantic]] antes de llamar a la función, y si no cumplen responde 422. Las funciones pueden ser `async def`, que corren en el [[event-loop|event loop]], o `def`, que corren en un hilo de su [[threadpool]]. No es un servidor: necesita [[uvicorn]] u otro servidor [[asgi|ASGI]] que abra el puerto.",
+   "corto": "Un framework de Python para escribir [[api|APIs]]: conecta cada ruta con su función, revisa los parámetros con pydantic (una biblioteca que revisa tipos y reglas) y arma las respuestas en [[json|JSON]]. Necesita un servidor aparte, como [[uvicorn]], que abra el [[puerto]].",
+   "largo": "Con FastAPI, una ruta se escribe como una función con un decorador (`@app.post(\"/v1/classify\")`) y sus parámetros con su tipo y sus reglas (`top_k: int = Query(5, ge=1, le=20)`). FastAPI los revisa con [[pydantic]] antes de llamar a la función, y si no cumplen responde 422 (un [[codigo-estado|código de estado]] de datos inválidos). Las funciones pueden ser `async def`, que corren en el [[event-loop|event loop]], o `def`, que corren en un hilo de su [[threadpool]]. No es un servidor: necesita [[uvicorn]] u otro servidor [[asgi|ASGI]] que abra el puerto.",
    "ejemplo": "El gateway de Alba es una aplicación FastAPI con cuatro rutas: `POST /v1/classify`, `GET /healthz`, `GET /readyz` y `GET /metrics`.",
    "ver": [
     "uvicorn",
@@ -63,9 +63,9 @@
    "id": "uvicorn",
    "termino": "uvicorn",
    "en": "uvicorn",
-   "corto": "El servidor que corre una aplicación web asíncrona de Python (ASGI), como una de FastAPI: abre el puerto, acepta conexiones, lee HTTP y corre el event loop. Sus flags deciden procesos, keep-alive y apagado.",
+   "corto": "El servidor que corre una aplicación web asíncrona de Python ([[asgi|ASGI]]), como una de [[fastapi|FastAPI]]: abre el [[puerto]], acepta conexiones, lee [[http|HTTP]] y corre el [[event-loop|event loop]]. Sus opciones deciden procesos, [[keep-alive]] y apagado.",
    "largo": "uvicorn es la capa de afuera del gateway: el programa que arranca (`uvicorn app.main:app`), escucha en un [[puerto]], entiende HTTP y le pasa cada request a la aplicación por la interfaz [[asgi|ASGI]]. `--workers N` arranca N procesos iguales; con 1 hay un solo [[event-loop|event loop]]. `--timeout-keep-alive` dice cuánto deja abierta una conexión sin uso, y `--timeout-graceful-shutdown`, cuánto espera a las requests en curso al apagarse.",
-   "ejemplo": "Alba arranca cada copia con `--workers 1 --timeout-keep-alive 75 --timeout-graceful-shutdown 20 --no-access-log`: un proceso, 75 s de keep-alive (más que los 60 del ALB) y 20 s para terminar.",
+   "ejemplo": "Alba arranca cada copia con `--workers 1 --timeout-keep-alive 75 --timeout-graceful-shutdown 20 --no-access-log`: un proceso, 75 s de keep-alive (más que los 60 del [[alb|ALB]], el balanceador de AWS) y 20 s para terminar.",
    "ver": [
     "fastapi",
     "asgi",
@@ -78,8 +78,8 @@
    "id": "asgi",
    "termino": "ASGI",
    "en": "ASGI (Asynchronous Server Gateway Interface)",
-   "corto": "El contrato entre un servidor web de Python y una aplicación asíncrona: una función async que recibe la request y manda la respuesta por pedazos. Gracias a él, uvicorn puede correr FastAPI.",
-   "largo": "ASGI define cómo se hablan el servidor y la aplicación: la aplicación es una función `async` que recibe un diccionario con la request (`scope`) y dos funciones, una para recibir los pedazos del body y otra para mandar la respuesta. Como es asíncrona, un solo proceso atiende muchas requests a la vez en su [[event-loop|event loop]]. Es el sucesor de WSGI, que era una función normal, una request a la vez por hilo.",
+   "corto": "El contrato entre un servidor web de Python y una aplicación asíncrona: una función async que recibe la request y manda la respuesta por pedazos. Gracias a él, [[uvicorn]] puede correr [[fastapi|FastAPI]].",
+   "largo": "ASGI define cómo se hablan el servidor y la aplicación: la aplicación es una función `async` que recibe un diccionario con la request (`scope`) y dos funciones, una para recibir los pedazos del body y otra para mandar la respuesta. Como es asíncrona, un solo proceso atiende muchas requests a la vez en su [[event-loop|event loop]]. Es el sucesor de WSGI (*Web Server Gateway Interface*), que era una función normal, una request a la vez por hilo.",
    "ejemplo": "Las pruebas del gateway de Alba llaman a la aplicación ASGI directamente para simular una subida cortada a la mitad: el cliente de pruebas de FastAPI siempre entrega el body completo.",
    "ver": [
     "uvicorn",
@@ -107,7 +107,7 @@
    "termino": "Endpoints de salud (/healthz y /readyz)",
    "en": "health endpoints",
    "corto": "Dos rutas que contestan las preguntas de Kubernetes: /healthz, «¿sigues vivo?», sin preguntarle a nadie más; /readyz, «¿te mando tráfico?», que sí revisa las dependencias.",
-   "largo": "Son el lado del código de los [[health-check|health checks]]. `/healthz` responde 200 si el proceso y su [[event-loop|event loop]] responden: si falla varias veces, Kubernetes reinicia la copia. `/readyz` responde 200 solo si la copia puede atender de verdad, lo que incluye a sus dependencias: si falla, la copia sale del reparto sin reiniciarse. Poner una dependencia en `/healthz` es un error clásico: cuando la dependencia cae, se reinician todas las copias sanas y reiniciarlas no arregla nada.",
+   "largo": "Son el lado del código de los [[health-check|health checks]]. `/healthz` responde 200 (el [[codigo-estado|código]] de «todo bien») si el proceso y su [[event-loop|event loop]] responden: si falla varias veces, Kubernetes reinicia la copia. `/readyz` responde 200 solo si la copia puede atender de verdad, lo que incluye a sus dependencias: si falla, la copia sale del reparto sin reiniciarse. Poner una dependencia en `/healthz` es un error clásico: cuando la dependencia cae, se reinician todas las copias sanas y reiniciarlas no arregla nada.",
    "ejemplo": "En el gateway de Alba, `/healthz` devuelve `{\"status\": \"ok\"}` sin preguntar a nadie; `/readyz` le pregunta a Triton si `classifier` está listo, con tope de 0.5 s, y devuelve 200 o 503.",
    "ver": [
     "health-check",
@@ -122,7 +122,7 @@
    "en": "semaphore",
    "corto": "Un contador de lugares: deja pasar a tantas tareas como lugares tiene y pone a esperar a las demás hasta que alguien suelte el suyo. Sirve para acotar cuántas cosas caras corren a la vez.",
    "largo": "Una tarea toma un lugar (`acquire`), hace su trabajo y lo suelta (`release`). Si no hay lugar, espera; en asyncio espera con await, sin congelar el [[event-loop|event loop]]. Se usa para acotar un recurso: memoria, CPU, conexiones a un tercero. Con un tope de espera, una tarea que no consigue lugar a tiempo se rinde en vez de formar una fila sin fondo.",
-   "ejemplo": "El gateway de Alba usa `asyncio.Semaphore(2)`: solo 2 decodes a la vez por copia, porque un PNG de 40 MP ocupa ≈ 320 MB al decodificarse y la copia tiene 1 GiB. Quien espera más de 50 ms recibe 503 con `Retry-After: 1`.",
+   "ejemplo": "El gateway de Alba usa `asyncio.Semaphore(2)`: solo 2 decodes a la vez por copia, porque un PNG de 40 megapíxeles ocupa ≈ 320 MB al decodificarse y la copia tiene 1 GiB. Quien espera más de 50 ms recibe 503 con `Retry-After: 1`.",
    "ver": [
     "threadpool",
     "requests-en-vuelo",
@@ -134,7 +134,7 @@
    "id": "requests-en-vuelo",
    "termino": "Requests en vuelo (tope)",
    "en": "in-flight requests limit",
-   "corto": "Cuántas requests hay adentro de una copia del servicio: llegaron y todavía no salen. Con un tope, la que sobra se rechaza al instante en vez de esperar.",
+   "corto": "Cuántas [[request|requests]] hay adentro de una copia del servicio: llegaron y todavía no salen. Con un tope, la que sobra se rechaza al instante en vez de esperar.",
    "largo": "Por la [[ley-little|Ley de Little]], las requests en vuelo son las llegadas por segundo por lo que dura cada una. Cada una ocupa algo (memoria para su body, una conexión, un lugar en el loop), así que se les pone un tope por copia: la que llega con el tope lleno recibe 503 antes de leer su body. Es la forma más simple de [[load-shedding|load shedding]]: rechazar cuesta microsegundos, atender tarde no le sirve a nadie.",
    "ejemplo": "`MAX_INFLIGHT = 16` por copia en Alba. Con 100 llegadas por segundo y requests de ≈ 50 ms hay 5 adentro; con requests de 200 ms serían 20, y el tope se recorta a 16 porque cada una puede traer 10 MB de body.",
    "ver": [
@@ -148,7 +148,7 @@
    "id": "cliente-triton",
    "termino": "Cliente de Triton (tritonclient)",
    "en": "Triton client",
-   "corto": "La biblioteca de Python con que un programa le habla a Triton: arma los tensores de entrada, los manda por HTTP o gRPC y lee los de salida. Se crea uno por proceso, con su pool de conexiones.",
+   "corto": "La biblioteca de Python con que un programa le habla a [[triton|Triton]]: arma los tensores de entrada, los manda por [[http|HTTP]] o [[grpc|gRPC]] y lee los de salida. Se crea uno por proceso, con su [[pool-conexiones|pool de conexiones]].",
    "largo": "`tritonclient` trae clientes para HTTP y gRPC, normales y asíncronos. Un `InferInput` describe cada tensor (nombre, forma y tipo, como `\"input\"`, `[1, 3, 224, 224]`, `\"FP32\"`), y con `binary_data=True` lo manda con la [[extension-binaria|extensión binaria]]. Se crea **uno** al arrancar, en el [[lifespan]], y se reusa: adentro tiene un [[pool-conexiones|pool de conexiones]] con keep-alive. Trampa: el parámetro `timeout` de `infer()` no es un plazo del cliente; son microsegundos que se le mandan a Triton para su fila. El plazo real se pone con `asyncio.wait_for`.",
    "ejemplo": "El gateway de Alba crea un `InferenceServerClient` asíncrono con `conn_limit=64` y lo llama con `asyncio.wait_for(..., min(0.15, lo que queda))`. Con Triton trabado, 500 llamadas por segundo × 0.15 s = 75 llamadas abiertas a la vez, ≈ 15 por copia: caben en 64.",
    "ver": [
@@ -163,7 +163,7 @@
    "id": "extension-binaria",
    "termino": "Extensión binaria de tensores",
    "en": "binary tensor data extension",
-   "corto": "La forma de mandarle tensores a Triton por HTTP sin escribirlos como texto: un JSON corto con nombre, forma y tipo, y detrás los bytes crudos. El tensor de una foto de Alba pesa 602,112 B en vez de ≈ 3 MB.",
+   "corto": "La forma de mandarle tensores a [[triton|Triton]] por [[http|HTTP]] sin escribirlos como texto: un [[json|JSON]] corto con nombre, forma y tipo, y detrás los bytes crudos. El tensor de una foto de Alba pesa 602,112 B en vez de ≈ 3 MB.",
    "largo": "El [[protocolo-inferencia|protocolo de inferencia v2]] en JSON escribe cada número con sus cifras: lento de escribir, lento de leer y ≈ 5 veces más pesado. La extensión binaria, que definió Triton y no es parte del protocolo base, manda primero un JSON que describe los tensores y después sus bytes tal cual están en memoria. El header `Inference-Header-Content-Length` dice cuántos bytes ocupa el JSON, para saber dónde empiezan los datos.",
    "ejemplo": "La foto de Ana va del gateway a Triton como 3 × 224 × 224 = 150,528 números FP32 × 4 B = 602,112 B. A 500 fotos por segundo son ≈ 2.4 Gb/s; en JSON serían ≈ 12 Gb/s.",
    "ver": [
@@ -177,7 +177,7 @@
    "id": "log-estructurado",
    "termino": "Log estructurado",
    "en": "structured log",
-   "corto": "Un log donde cada registro es un objeto con campos fijos (normalmente una línea de JSON), en vez de una frase libre. Una máquina lo filtra y lo cuenta sin adivinar el formato.",
+   "corto": "Un log donde cada registro es un objeto con campos fijos (normalmente una línea de [[json|JSON]]), en vez de una frase libre. Una máquina lo filtra y lo cuenta sin adivinar el formato.",
    "largo": "«La request 5a1e07c3 tardó 20 ms» se lee bien, pero para contar cuántas tardaron más de 200 ms hay que adivinar dónde está el número. `{\"request_id\": \"5a1e07c3\", \"ms\": {\"total\": 20}}` se filtra por campo. Se escribe una línea por evento a la salida estándar, y otro programa la recoge y la guarda. Lo importante es decidir los campos: lo que hace falta para depurar y unir con otros datos, sin datos personales que no hagan falta.",
    "ejemplo": "El gateway de Alba escribe una línea por request, también en los errores: `request_id`, `caller`, `source`, `model_version`, `top5` (las 5 categorías con su score), `ms` (los milisegundos de cada paso y el total), `bytes`, los primeros 12 caracteres del SHA-256 de la foto y `status`; las de error llevan además `error`. Son ≈ 300 B por línea; sin la foto, sin EXIF y sin el id de la vendedora.",
    "ver": [
@@ -191,7 +191,7 @@
    "id": "manejador-errores",
    "termino": "Manejador de errores",
    "en": "exception handler",
-   "corto": "Una función que el framework llama cuando algo falla antes o fuera de la ruta, para decidir qué se responde y dejar rastro. En FastAPI se registra por tipo de error.",
+   "corto": "Una función que el framework llama cuando algo falla antes o fuera de la ruta, para decidir qué se responde y dejar rastro. En [[fastapi|FastAPI]] se registra por tipo de error.",
    "largo": "Hay errores que ocurren antes de que tu función corra: FastAPI revisa los parámetros y, si no cumplen, responde 422 sin llamarla. Otros salen de lugares que no controlas. Un manejador de errores (`@app.exception_handler(RequestValidationError)`) intercepta ese tipo de error y arma la respuesta. Sin él, esos errores no dejan línea de log ni métrica, porque el log lo escribe tu función.",
    "ejemplo": "El gateway de Alba tiene uno para el 422: cuando alguien manda `top_k=50`, responde 422 con su `X-Request-ID`, escribe su línea de log y suma 1 a `classifier_requests_total{status=\"422\"}`.",
    "ver": [
@@ -205,7 +205,7 @@
    "id": "model-repository",
    "termino": "Model repository (Triton)",
    "en": "model repository",
-   "corto": "La carpeta de donde Triton carga sus modelos: una subcarpeta por modelo, con su config.pbtxt y una subcarpeta numerada por versión con el archivo del modelo.",
+   "corto": "La carpeta de donde Triton carga sus modelos: una subcarpeta por modelo, con su [[config-pbtxt|config.pbtxt]] y una subcarpeta numerada por versión con el archivo del modelo.",
    "largo": "Triton lee la carpeta al arrancar (`--model-repository=/models`). Cada modelo es una subcarpeta con su [[config-pbtxt|config.pbtxt]] y versiones numeradas (`1/`, `2/`…), cada una con su archivo: `model.plan` para TensorRT, `model.onnx` para ONNX Runtime. El número es la versión dentro de Triton, no la del registro de modelos. Con `--model-control-mode=none`, Triton carga todo al arrancar y no deja cambiar modelos con el servidor andando.",
    "ejemplo": "El de Alba es `classifier/config.pbtxt` y `classifier/1/model.plan`, horneados en la imagen de Triton. La versión de verdad, `resnet50-2026-10-01`, es el tag de la imagen.",
    "ver": [
@@ -219,7 +219,7 @@
    "id": "config-pbtxt",
    "termino": "config.pbtxt",
    "en": "model configuration",
-   "corto": "El archivo de configuración de un modelo en Triton, en el formato de texto de protobuf: el motor, las entradas y salidas, el batch máximo, el batching, la fila, las copias y el warmup.",
+   "corto": "El archivo de configuración de un modelo en Triton, en el formato de texto de [[protobuf]]: el motor, las entradas y salidas, el batch máximo, el batching, la fila, las copias y el warmup (las corridas de calentamiento).",
    "largo": "Cada campo es una decisión. `platform` dice qué motor corre el archivo; `max_batch_size`, el batch más grande, que no puede pasar del perfil del engine; `input` y `output`, nombres, tipos y `dims` **sin** el eje del batch (Triton antepone `-1`); `dynamic_batching`, cuánto esperar para juntar requests y qué hacer con las que esperan demasiado ([[politica-cola|política de la fila]]); `instance_group`, cuántas copias y dónde ([[instance-group|grupo de instancias]]); `model_warmup`, qué correr antes de decir «listo».",
    "ejemplo": "El de Alba: `tensorrt_plan`, `max_batch_size: 32`, `input` FP32 `[3, 224, 224]`, `logits` FP32 `[500]`, batching de 2 ms con tamaños preferidos 16 y 32, fila con REJECT a 100 ms, 2 copias en la GPU y warmup de 3 corridas con un batch de 32 en ceros.",
    "ver": [
@@ -248,9 +248,9 @@
    "id": "politica-cola",
    "termino": "Política de la fila (de Triton)",
    "en": "queue policy",
-   "corto": "La regla de Triton sobre las requests que esperan en su fila: cuánto pueden esperar y qué pasa al pasarse. Alba usa REJECT a los 100 ms: la request sale con error en vez de correr tarde.",
+   "corto": "La regla de Triton sobre las [[request|requests]] que esperan en su fila: cuánto pueden esperar y qué pasa al pasarse. Alba usa REJECT a los 100 ms: la request sale con error en vez de correr tarde.",
    "largo": "Va dentro de `dynamic_batching` en el [[config-pbtxt|config.pbtxt]] (`default_queue_policy { timeout_action: REJECT default_timeout_microseconds: 100000 }`). Con `REJECT`, Triton saca de la fila lo que pasó el plazo y responde con error; con `DELAY`, la deja esperando detrás de las que todavía están a tiempo. Rechazar es una decisión de diseño: correr una request que ya esperó demasiado gasta GPU en una respuesta que llegará tarde y hace más lentas a las demás. Es el último eslabón de la cadena de [[deadline|deadlines]].",
-   "ejemplo": "En Alba: app 300 ms > gateway 250 > llamada a Triton 150 > fila de Triton 100. Bajo sobrecarga se ven 503 rápidos y el selector manual, no una fila que crece.",
+   "ejemplo": "En Alba: app 300 ms > gateway 250 > llamada a Triton 150 > fila de Triton 100. Bajo sobrecarga se ven 503 rápidos y el selector manual (la vendedora elige la categoría a mano), no una fila que crece.",
    "ver": [
     "config-pbtxt",
     "deadline",

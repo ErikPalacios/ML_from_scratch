@@ -6,7 +6,7 @@
    "en": "region",
    "corto": "Un área geográfica donde un proveedor de nube tiene un grupo de centros de datos y los opera como una unidad separada de las demás. Tiene un nombre en código, como `us-east-1` (norte de Virginia).",
    "largo": "Lo que creas en una región no existe en otra: una máquina, un [[bucket-objetos|bucket]] o una [[cuota-servicio|cuota]] son de esa región. Esa separación evita que un problema en una tumbe a las demás. La región decide cinco cosas: la distancia a quien te llama (≈ 1 ms de ida y vuelta por cada 100 km, como mínimo), el catálogo de máquinas y servicios, el precio, la ley que aplica a los datos y tus límites. Por dentro se parte en [[zona-disponibilidad|zonas de disponibilidad]]. Se elige en este orden: [[residencia-datos|residencia de datos]], catálogo, latencia y precio.",
-   "analogia": "Una cadena de supermercados: cada ciudad donde tiene tiendas es una región y cada sucursal, una zona. Los precios y lo que hay en los estantes cambian de ciudad en ciudad.",
+   "analogia": "Una cadena de supermercados: cada ciudad donde tiene tiendas es una región y cada sucursal, una zona. Los precios y lo que hay en los estantes cambian de ciudad en ciudad. Se rompe en que las sucursales de una ciudad comparten casi todo; las zonas se separan a propósito, con luz y red propias, para no caerse juntas.",
    "ejemplo": "Alba, el marketplace que sigue el curso, tiene su modelo en `us-east-1` porque ahí está el backend que lo llama: la llamada viaja metros. Desde la Ciudad de México hay ≈ 3,000 km: \\( 2 × 3,000 ÷ 200 \\) = 30 ms de ida y vuelta como mínimo físico, ≈ 60 ms en la práctica.",
    "ver": [
     "zona-disponibilidad",
@@ -158,7 +158,7 @@
    "en": "RPO · recovery point objective",
    "corto": "Cuántos datos, medidos en tiempo, aceptas perder en un desastre. Un RPO de 1 hora dice: al volver, puede faltar hasta la última hora de datos.",
    "largo": "Lo fija cada cuánto copias o qué tan atrasada va la [[replicacion-regional|replicación]]: con una copia cada noche, el peor caso es casi un día. Se promete con el peor caso, no con el promedio, que es la mitad. Cada artefacto tiene el suyo. Un RPO de cero pide escribir en dos lugares antes de responder, y eso cuesta latencia y complejidad.",
-   "analogia": "El último punto de guardado de un videojuego: lo que avanzaste desde ahí se pierde.",
+   "analogia": "El último punto de guardado de un videojuego: lo que avanzaste desde ahí se pierde. Se rompe en que en el juego tú decides cuándo guardar; en un sistema lo decide cada cuánto corre la copia o qué tan atrasada va la réplica.",
    "ejemplo": "Un servicio que verifica documentos de identidad los replica con garantía de 15 minutos. En la hora pico entran ≈ 714 por hora (supuesto del ejemplo): 714 por hora × 0.25 horas ≈ 180 documentos en riesgo en el peor caso.",
    "ver": [
     "rto",
@@ -174,7 +174,7 @@
    "en": "RTO · recovery time objective",
    "corto": "Cuánto tiempo aceptas estar caído, desde el desastre hasta volver a atender.",
    "largo": "Suma detectar la falla, decidir, mover el tráfico ([[failover]]) y tener capacidad lista. Lo baja tener más cosas ya encendidas, y eso es lo que encarece cada [[estrategia-dr|estrategia de DR]]. El RTO real no es el del documento: es el que se mide en un [[game-day|ensayo]].",
-   "analogia": "En el videojuego, lo que tardas en prender la consola, cargar la partida y llegar a donde ibas.",
+   "analogia": "En el videojuego, lo que tardas en prender la consola, cargar la partida y llegar a donde ibas. Se rompe en que la consola tarda siempre lo mismo; el RTO de verdad depende de si hay máquinas listas y de cuánto se tarda la gente en decidir.",
    "ejemplo": "Detección de 30 segundos, TTL de 60 segundos y un warm standby que tarda 4 minutos en crecer: ≈ 5.5 minutos. Cumple un SLO de 99.9 % mensual, pero no uno de 99.99 % (4.3 minutos).",
    "ver": [
     "rpo",

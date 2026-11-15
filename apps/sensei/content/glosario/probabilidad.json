@@ -21,9 +21,9 @@
     "leccion": "probabilidad" },
 
   { "id": "fan-out", "termino": "Fan-out", "en": "fan-out",
-    "corto": "Cuando una request llama a N servicios a la vez y espera a todos. Basta con que uno tarde para que la request tarde: si cada uno es lento con probabilidad p, la request lo es con 1 − (1 − p)^N.",
+    "corto": "Cuando una [[request]] llama a N servicios a la vez y espera a todos. Basta con que uno tarde para que la request tarde: si cada uno es lento con probabilidad p, la request lo es con 1 − (1 − p)^N.",
     "largo": "Pasa en buscadores con el índice repartido en pedazos, en páginas armadas con muchos bloques y en sistemas con muchos servicios chicos. Con N servicios que superan su [[p99]] el 1 % de las veces, la request toca la cola con probabilidad 1 % si N = 1, ≈ 9.6 % si N = 10 y ≈ 63.4 % si N = 100: el p99 de cada pieza se vuelve la latencia típica del conjunto. Para que el 99 % de las requests sean rápidas, cada servicio tiene que cumplir su percentil 0.99^(1/N) ≈ 1 − 0.01 ÷ N: con 10, su p99.9. Las salidas: menos servicios, colas más cortas, responder con lo que llegó a tiempo o mandar una copia a otra réplica (*hedging*).",
-    "analogia": "Una mesa de restaurante donde nadie empieza a comer hasta que llegan todos los platos: basta con que uno se retrase para que la cena entera se retrase, y con muchos platos casi siempre hay uno que se retrasa.",
+    "analogia": "Una mesa de restaurante donde nadie empieza a comer hasta que llegan todos los platos: basta con que uno se retrase para que la cena entera se retrase, y con muchos platos casi siempre hay uno que se retrasa. Se rompe en que los platos salen de la misma cocina y suelen atrasarse juntos; la cuenta del fan-out supone que cada servicio se atrasa por su cuenta.",
     "ejemplo": "En el asistente interno de Alba, que responde a sus empleados con los documentos de la empresa, cada pregunta busca por palabras y por significado al mismo tiempo y espera a las dos búsquedas: un fan-out de dos. Con 10 servicios en paralelo, cada uno lento el 1 % de las veces, la request es lenta con probabilidad \\( 1 − 0.99^{10} \\) ≈ 9.6 %: casi 1 de cada 10 requests toca el p99 de alguno.",
     "ver": ["p99", "complemento", "cola-distribucion"],
     "leccion": "probabilidad" },
@@ -43,7 +43,7 @@
     "leccion": "probabilidad" },
 
   { "id": "error-budget", "termino": "Presupuesto de error", "en": "error budget",
-    "corto": "Lo que un SLO te deja fallar: 1 − SLO. Con 99.9 % en 30 días son 43.2 minutos, o 1 de cada 1,000 requests. Es un presupuesto para gastarlo en cambios y experimentos, no para guardarlo.",
+    "corto": "Lo que un [[slo|SLO]] (la meta de un servicio) te deja fallar: 1 − SLO. Con 99.9 % en 30 días son 43.2 minutos, o 1 de cada 1,000 requests. Es un presupuesto para gastarlo en cambios y experimentos, no para guardarlo.",
     "largo": "La idea viene de la ingeniería de confiabilidad de Google (SRE). Se convierte en una política escrita antes de los problemas y acordada con producto: con presupuesto de sobra se lanza normal; con poco, con más cuidado; agotado, se congela lo que no sea para mejorar la confiabilidad. Las alertas se arman con la velocidad a la que se gasta (*burn rate*): con 5 % de errores contra un SLO de 99.9 % se gasta 50 veces más rápido de lo permitido, y el presupuesto del mes dura 14.4 horas.",
     "ejemplo": "Alba, el marketplace que sigue el curso, recibe ≈ 10 millones de requests al día: \\( (1 − 0.999) × 10,000,000 × 30 \\) = 300,000 requests fallidas permitidas al mes. Un deploy que hace fallar el 5 % durante 2 horas se come ≈ 41,667, el 14 % del mes.",
     "ver": ["slo", "disponibilidad", "nueves"],
@@ -52,22 +52,22 @@
   { "id": "redundancia", "termino": "Redundancia", "en": "redundancy · replicas · N+1",
     "corto": "Tener más de una copia de una pieza para que, si una falla, otra responda. Con k réplicas independientes de disponibilidad a, la pieza falla solo con probabilidad (1 − a)^k.",
     "largo": "Cada copia es una réplica: el mismo programa en otra máquina. La regla más común es N+1: N réplicas para el tráfico y una de repuesto, de modo que perder una no se note, y la que queda tiene que aguantar el pico sola. El repuesto tiene que estar donde no le pegue lo mismo: otra máquina, otra zona. Las cuentas en el papel son enormes (dos réplicas al 99 % dan 99.99 %), pero solo valen contra fallas independientes; contra una [[falla-correlacionada]] más copias de lo mismo no ayudan. Un reintento es redundancia en el tiempo, con la misma letra chica.",
-    "ejemplo": "Alba, el marketplace que sigue el curso, necesita una sola T4 para su pico de diseño de 500 fotos por segundo, y tiene dos, una por zona: si cae una zona, la otra queda al ≈ 42 % de su máximo. Con cada zona al 99.5 %, las dos dan 1 − 0.005² = 99.9975 %, ≈ 1 minuto al mes.",
+    "ejemplo": "Alba, el marketplace que sigue el curso, necesita una sola GPU T4 para su pico de diseño de 500 fotos por segundo, y tiene dos, una por zona: si cae una zona, la otra queda al ≈ 42 % de su máximo. Con cada zona al 99.5 %, las dos dan 1 − 0.005² = 99.9975 %, ≈ 1 minuto al mes.",
     "ver": ["disponibilidad", "falla-correlacionada", "independencia"],
     "leccion": "probabilidad" },
 
   { "id": "falla-correlacionada", "termino": "Falla correlacionada", "en": "correlated failure · common-cause failure",
-    "corto": "Fallas que llegan juntas porque tienen la misma causa: el mismo deploy malo en todas las réplicas, una zona entera que se cae, una dependencia que todas comparten. Rompen la independencia, y con ella la cuenta de la redundancia.",
+    "corto": "Fallas que llegan juntas porque tienen la misma causa: el mismo [[deploy]] malo en todas las copias del servicio, una zona entera que se cae, una dependencia que todas comparten. Rompen la independencia, y con ella la cuenta de la redundancia.",
     "largo": "Las causas típicas: el mismo error o la misma configuración aplicados a todas las réplicas a la vez; un dominio de falla compartido (la misma máquina, rack, zona o región); una dependencia común (la misma base de datos, caché o certificado); la sobrecarga que se contagia cuando una réplica cae y la otra no aguanta el doble, y los reintentos en manada. La defensa no es agregar réplicas iguales, sino que la causa no llegue a todas a la vez: cambios de a poco y una zona a la vez (*canary*), planes B que no compartan nada y ensayos de falla programados.",
-    "analogia": "Dos despertadores eléctricos en el mismo enchufe: cada uno falla poco, pero un apagón los apaga juntos. Lo difícil en un sistema es que el «enchufe» casi nunca se ve.",
-    "ejemplo": "Triton en dos zonas al 99.5 % da 99.9975 % (≈ 1 minuto al mes). Si un deploy malo tumba las dos zonas el 0.1 % del tiempo, queda en ≈ 99.90 % (≈ 44 minutos): 43 de esos minutos son de la causa común.",
+    "analogia": "Dos despertadores eléctricos en el mismo enchufe: cada uno falla poco, pero un apagón los apaga juntos. Se rompe en que, en un sistema, el «enchufe» casi nunca se ve.",
+    "ejemplo": "El servidor del modelo de Alba (Triton) en dos zonas al 99.5 % da 99.9975 % (≈ 1 minuto al mes). Si un deploy malo tumba las dos zonas el 0.1 % del tiempo, queda en ≈ 99.90 % (≈ 44 minutos): 43 de esos minutos son de la causa común.",
     "ver": ["independencia", "redundancia", "deploy"],
     "leccion": "probabilidad" },
 
   { "id": "valor-esperado", "termino": "Valor esperado", "en": "expected value · expectation",
     "corto": "El promedio a la larga: cada resultado posible multiplicado por su probabilidad, y todo sumado. Es lo que saldría en promedio por vez si repitieras lo mismo muchísimas veces.",
     "largo": "No es lo que va a salir: el valor esperado de un dado es 3.5 y ningún dado saca 3.5. Con N repeticiones independientes de algo de probabilidad p se esperan N × p; los minutos caídos esperados en un mes son 43,200 × (1 − disponibilidad). Sirve para decidir con dinero: se elige la acción con menor costo esperado, y por eso las probabilidades tienen que estar calibradas. Ojo: dos riesgos con el mismo valor esperado pueden ser muy distintos si uno de ellos es raro y catastrófico.",
-    "ejemplo": "En un sistema de detección de fraude, un pago de US$30 con probabilidad de fraude 0.05: aprobar cuesta en promedio 0.05 × 45 = US$2.25; rechazar, 0.95 × 7.5 ≈ US$7.13, y pedir verificación, ≈ US$1.52. Gana la verificación.",
+    "ejemplo": "En un sistema de detección de fraude, un pago de US$30 con probabilidad de fraude 0.05: si aprobar un fraude cuesta US$45 (el monto más ≈ US$15 de comisión) y rechazar a un cliente bueno ≈ US$7.5 (supuestos del ejemplo), aprobar cuesta en promedio 0.05 × 45 = US$2.25; rechazar, 0.95 × 7.5 ≈ US$7.13, y pedir verificación, ≈ US$1.52. Gana la verificación.",
     "ver": ["probabilidad", "umbral", "metrica-negocio"],
     "leccion": "probabilidad" },
 
@@ -81,7 +81,7 @@
   { "id": "poisson", "termino": "Llegadas de Poisson", "en": "Poisson arrivals · Poisson distribution",
     "corto": "El modelo estándar de llegadas al azar: muchos usuarios que no se ponen de acuerdo, cada uno con una probabilidad chica de pedir algo. Con un promedio de λ por intervalo, lo que llega se aleja del promedio, normalmente, en ≈ √λ.",
     "largo": "La probabilidad de que lleguen exactamente k es λ^k × e^(−λ) ÷ k!. Mientras más chico el intervalo, más saltos en proporción: con 10 por segundo, ≈ 8 % de los segundos traen 15 o más. Supone llegadas independientes, y se rompe cuando no lo son: una notificación a millones de personas, tareas programadas a la hora en punto, reintentos en manada. Lo que no es aleatorio se suma encima. Lleva el nombre del matemático francés Siméon Denis Poisson.",
-    "ejemplo": "Cada Triton de Alba, el marketplace que sigue el curso, espera hasta 2 ms por compañía para formar un batch. Con 250 requests por segundo llegan en promedio 0.5 en esos 2 ms, y la probabilidad de que no llegue ninguno es e^(−0.5) ≈ 61 %.",
+    "ejemplo": "Cada Triton de Alba, el marketplace que sigue el curso, espera hasta 2 ms a que lleguen más fotos para juntarlas en un [[batch]]. Con 250 requests por segundo llegan en promedio 0.5 en esos 2 ms, y la probabilidad de que no llegue ninguno es e^(−0.5) ≈ 61 %.",
     "ver": ["tasa", "batch", "independencia"],
     "leccion": "probabilidad" }
 ]}

@@ -22,7 +22,8 @@ El formato de lectura es el de la Ronda: barra lateral con el índice, la lecci�
 | `content/figuras/<id>.svg` | Figuras hechas a mano, con las clases `f-*` de `site/sensei.css` para que se vean en claro y en oscuro. Diseñadas a 360 px de ancho para leerse en el celular. |
 | `content/dojo.json` | Las estaciones del Dojo y cuáles ya están listas. Lo escribe `node apps/trueml/sync.mjs`; no se edita a mano. |
 | `vendor/trueml/`, `vendor/ronda/` | Copias del sistema de diseño TrueML y del motor de diagramas de la Ronda (`diagram.js` y `components.css`). Las escribe `node apps/trueml/sync.mjs`; no se editan a mano. |
-| `site/` | Estilos, script, service worker, ícono e imagen para redes. |
+| `/repaso/` (en `dist/`) | Las tarjetas del glosario con repetición espaciada (Leitner, 5 cajas: vuelven a los 0, 1, 3, 7 y 16 días). Los datos los arma el build en `repaso/tarjetas.json` (el texto ya en HTML); la lógica vive en `site/repaso.js` y el avance en `localStorage`. Funciona sin conexión. Cada lección enlaza a `/repaso/?l=<id>` en su cierre. |
+| `site/` | Estilos, scripts (`app.js` en todas las páginas, `repaso.js` en `/repaso/`), service worker, ícono e imagen para redes. |
 | `tools/` | `build.mjs`, `md.mjs`, `diagrama.mjs` y `check.mjs`. |
 
 ## Cómo se escribe una lección

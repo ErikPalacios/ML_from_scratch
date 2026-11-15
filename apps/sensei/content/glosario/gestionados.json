@@ -4,7 +4,7 @@
    "id": "servicio-gestionado",
    "termino": "Servicio gestionado",
    "en": "managed service",
-   "corto": "Un servicio de la nube donde el proveedor opera por ti una parte de lo que hace funcionar un servicio (máquinas, sistema operativo, software): la instala, la actualiza, la repara y la escala. Tú lo usas por su API y pagas más por unidad.",
+   "corto": "Un servicio de la nube donde el proveedor opera por ti una parte de lo que hace funcionar un servicio (máquinas, sistema operativo, software): la instala, la actualiza, la repara y la escala. Tú lo usas por su [[api|API]] y pagas más por unidad.",
    "largo": "Operar es todo lo que hay que hacer para que algo siga funcionando: parches, máquinas descompuestas, escalar, guardias de noche. Un servicio gestionado se lleva ese trabajo y lo cobra dentro del precio. Va de poco (Kubernetes gestionado: el proveedor opera solo el [[plano-de-control|plano de control]]) a todo (un producto listo como Textract). Cada escalón quita trabajo y control, y suele cobrar más por unidad. Es la versión práctica de la escalera [[iaas-paas-saas|IaaS, PaaS y SaaS]].",
    "analogia": "Pedir comida a domicilio en vez de cocinar: pagas más por plato y no lavas trastes. Se rompe porque algunos servicios cobran además por cada GB que les mandas.",
    "ejemplo": "Textract lee páginas a ≈ US$1.50 por 1,000 (noviembre de 2026): un servicio de documentos con 186,000 páginas al mes paga ≈ US$279 y no opera ninguna GPU.",
@@ -34,7 +34,7 @@
    "termino": "Kubernetes gestionado",
    "en": "managed Kubernetes (EKS / GKE / AKS)",
    "corto": "Kubernetes (el sistema que reparte programas entre un grupo de máquinas) en el que el proveedor opera el cerebro, el plano de control, y tú operas las máquinas que hacen el trabajo. En AWS se llama EKS; en Google Cloud, GKE, y en Azure, AKS.",
-   "largo": "Kubernetes tiene un cerebro, el [[plano-de-control|plano de control]], y unos [[nodo|nodos]] donde corren los [[pod|pods]]. Operar el cerebro a mano es delicado: su base de datos guarda todo el cluster. Con Kubernetes gestionado el proveedor lo corre (EKS, en varias zonas), lo actualiza y lo respalda. Tú sigues operando los grupos de nodos, los drivers de la GPU y tus programas.",
+   "largo": "Kubernetes tiene un cerebro, el [[plano-de-control|plano de control]], y unos [[nodo|nodos]] donde corren los [[pod|pods]]. Operar el cerebro a mano es delicado: su base de datos guarda todo el clúster. Con Kubernetes gestionado el proveedor lo corre (EKS, en varias zonas), lo actualiza y lo respalda. Tú sigues operando los grupos de nodos, los drivers de la GPU y tus programas.",
    "ejemplo": "El plano de control de EKS cuesta ≈ US$0.10 por hora, ≈ US$73 al mes (noviembre de 2026); con una versión vieja en soporte extendido, ≈ US$0.60 por hora.",
    "ver": [
     "plano-de-control",
@@ -76,7 +76,7 @@
    "id": "endpoint-gestionado",
    "termino": "Endpoint gestionado",
    "en": "managed endpoint",
-   "corto": "Una dirección de una plataforma de ML que recibe requests y contesta predicciones, con las máquinas operadas por el proveedor: las prende, las cambia si se caen y agrega copias.",
+   "corto": "Una dirección de una [[plataforma-ml|plataforma de ML]] (aprendizaje automático) que recibe requests y contesta predicciones, con las máquinas operadas por el proveedor: las prende, las cambia si se caen y agrega copias.",
    "largo": "A cambio de no operar nodos, aceptas tres cosas: un sobreprecio por hora (≈ 40 % en GPU en SageMaker AI), un cobro por cada GB que entra y sale, y un contrato para tu contenedor (en SageMaker AI: puerto 8080, `POST /invocations`, `GET /ping`, cuerpo de hasta 6 MiB y respuesta en 60 s). Con payloads grandes y mucho tráfico, los cobros por GB pesan más que el sobreprecio.",
    "ejemplo": "Alba en SageMaker AI: máquinas ≈ US$1,075 + datos procesados ≈ US$737 + endpoint de interfaz ≈ US$475 ≈ US$2,287 al mes, contra ≈ US$768 de dos T4 propias, con el tensor en UINT8. Alba hoy lo manda en FP32: solo los datos procesados de entrada subirían a ≈ US$2,929.",
    "ver": [
@@ -90,7 +90,7 @@
    "id": "inferencia-asincrona",
    "termino": "Inferencia asíncrona gestionada",
    "en": "asynchronous inference",
-   "corto": "Un modo de endpoint para requests grandes o lentas: subes el archivo a un almacén (S3, en AWS), pides la predicción y el resultado aparece ahí minutos después. Puede bajar a cero máquinas.",
+   "corto": "Un modo de endpoint para requests grandes o lentas: subes el archivo a un almacén (como S3, en la nube de Amazon), pides la predicción y el resultado aparece ahí minutos después. Puede bajar a cero máquinas.",
    "largo": "En SageMaker AI acepta archivos de hasta 1 GB y trabajos de hasta 1 hora; los trabajos esperan en una cola interna. Como nadie espera en segundos, puede [[scale-to-zero|escalar a cero]] y pagar el [[cold-start|arranque en frío]] solo cuando llega trabajo. Agent Platform y Azure ML no tienen un modo igual: se arma con una cola y [[worker|workers]] o con batch.",
    "ejemplo": "Estudios grandes con promesa de 60 minutos, como las láminas de microscopio de un servicio de imágenes médicas: un arranque de 3–5 minutos no importa, y de noche no se paga GPU. Ojo: esas láminas pesan ≈ 1 GB (algunas, 3 GB), en el límite de la asíncrona o arriba; por eso ese servicio usa su propia cola y workers.",
    "ver": [
@@ -120,7 +120,7 @@
    "id": "funcion-serverless",
    "termino": "Función serverless",
    "en": "serverless function (AWS Lambda)",
-   "corto": "Un pedazo de código que el proveedor corre cada vez que llega un evento (una request, un archivo nuevo, un mensaje) y que te cobran por milisegundos de ejecución. La más conocida es AWS Lambda.",
+   "corto": "Un pedazo de código que el proveedor corre cada vez que llega un evento (una request, un archivo nuevo, un mensaje) y que te cobran por milisegundos de ejecución. La más conocida es AWS Lambda, de la nube de Amazon.",
    "largo": "Sus límites deciden para qué sirve. Lambda: sin GPU, hasta 10,240 MB de memoria, 15 minutos por llamada, imagen de hasta 10 GB sin comprimir y 6 MB de payload síncrono. Es ideal para el pegamento (redimensionar una foto, validar un archivo, mandar una notificación) y mala para servir modelos grandes en GPU.",
    "ejemplo": "Las fotos de Alba de hasta 10 MB no caben en los 6 MB de Lambda, y la ResNet-50 necesitaría GPU para su volumen.",
    "ver": [
@@ -276,7 +276,7 @@
    "id": "identidad-workload",
    "termino": "Identidad del workload",
    "en": "workload identity (IRSA / EKS Pod Identity)",
-   "corto": "Conectar la cuenta de servicio de un pod con un rol de la nube, para que el pod reciba credenciales temporales sin que nadie guarde una llave. En EKS: IRSA o Pod Identity.",
+   "corto": "Conectar la cuenta de servicio de un pod con un rol de la nube, para que el pod reciba credenciales temporales sin que nadie guarde una llave. En EKS, el Kubernetes gestionado de Amazon, se hace con IRSA (*IAM Roles for Service Accounts*) o con Pod Identity.",
    "largo": "Con IRSA, Kubernetes da al pod un token firmado de su [[cuenta-servicio|cuenta de servicio]]; el SDK de AWS lo cambia en STS por [[credenciales-temporales|credenciales temporales]] del [[rol-iam|rol]], cuya política de confianza solo acepta esa cuenta de servicio. Pod Identity hace lo mismo con un agente en el nodo. En Google Cloud es Workload Identity Federation; en Azure, Entra Workload ID. El código no cambia: el SDK encuentra y renueva las credenciales solo.",
    "ejemplo": "La cuenta `classifier/triton` lleva la anotación del rol `alba-triton`; Triton lee sus pesos de S3 sin ninguna llave en la imagen ni en un Secret.",
    "ver": [

@@ -417,3 +417,11 @@ details[open] > summary .d-mas i, .d-arreglo[open] summary i { transform: rotate
 .d-orden h3 { font: 800 20px/1.25 var(--sans); color: #fff; }
 .d-orden p { margin: 0; font: 15px/1.6 var(--sans); color: #C9D0EE; }
 .d-orden .d-btn { margin-top: 4px; font-size: 15px; padding: 15px 20px; }
+
+/* La teoría, en Sensei: tarjeta en la página de la estación y enlace bajo cada estación de la portada */
+.d-sensei { box-shadow: var(--tm-sh), inset 4px 0 0 var(--g); }
+.d-sensei-l { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 14px; background: var(--tm-chip); text-decoration: none; color: inherit !important; }
+.d-sensei-l b { font: 800 17px/1.3 var(--sans); color: var(--tm-ink); }
+.d-sensei-l:hover { box-shadow: 0 0 0 2px var(--g); opacity: 1; }
+.d-est-sensei { display: block; margin: -6px 0 6px 62px; padding: 2px 12px 8px 0; font: 600 12.5px/1.4 var(--sans); color: var(--tm-acc); text-decoration: none; }
+.d-est-sensei:hover { text-decoration: underline; opacity: 1; }

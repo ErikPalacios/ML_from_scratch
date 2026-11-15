@@ -273,7 +273,7 @@ learning rate = 0.3
 
 ### El learning rate de Alba
 
-El modelo de Alba se entrena con lr = 3e-4, que quiere decir 3 × 10⁻⁴ = 3 ÷ 10,000 = **0.0003**. Es mucho más chico que el 0.05 del juguete por dos razones: hay millones de perillas moviéndose a la vez, y Alba no empieza de cero sino desde un modelo que ya sabe mucho ([[fine-tuning]]: ajustar un modelo ya entrenado), así que solo quiere ajustarlo con suavidad. La primera versión del modelo de Alba partió de una ResNet-50 entrenada con ImageNet; desde entonces, cada reentrenamiento mensual parte del modelo que está en producción. No existe un learning rate correcto universal: depende del modelo, del optimizador y del tamaño del batch, y se encuentra probando.
+El modelo de Alba se entrena con lr = 3e-4, que quiere decir 3 × 10⁻⁴ = 3 ÷ 10,000 = **0.0003**. Es mucho más chico que el 0.05 del juguete por dos razones: hay millones de perillas moviéndose a la vez, y Alba no empieza de cero sino desde un modelo que ya sabe mucho ([[fine-tuning]]: ajustar un modelo ya entrenado), así que solo quiere ajustarlo con suavidad. Ese modelo es una ResNet-50 entrenada con ImageNet, y cada reentrenamiento mensual vuelve a partir de esos pesos, no del modelo que está en producción. No existe un learning rate correcto universal: depende del modelo, del optimizador y del tamaño del batch, y se encuentra probando.
 
 ## Backpropagation y el ciclo de entrenamiento {Backpropagation and the training loop}
 

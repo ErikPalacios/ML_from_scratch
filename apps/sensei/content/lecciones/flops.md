@@ -203,7 +203,7 @@ Estas son las GPUs que más vas a oír, con sus números principales:
 | Ancho de banda de memoria | 320 GB/s | 300 GB/s | 1,555 GB/s (40 GB)\n2,039 GB/s (80 GB) | 3,350 GB/s |
 | Precio en AWS, por GPU y hora | ≈ US$0.53 | ≈ US$0.80 | ≈ US$2.75 (40 GB)\n≈ US$3.43 (80 GB) | ≈ US$6.88 |
 
-La H100 es la versión SXM, un módulo que va montado en la placa del servidor; la que viene en tarjeta (PCIe) es más lenta. Los precios son aproximados, de septiembre de 2026. Para leer la tabla:
+La H100 es la versión SXM, un módulo que va montado en la placa del servidor; la que viene en tarjeta (PCIe) es más lenta. Los precios son aproximados, on-demand en us-east-1, de noviembre de 2026. Para leer la tabla:
 
 - **Denso.** NVIDIA suele publicar también el doble, *with sparsity*: supone un modelo podado con un patrón especial que casi ningún modelo cumple (lo ves en una sección extra). Divide entre 2. La T4 no tiene sparsity: sus números ya son densos.
 - **TOPS.** Con enteros como INT8 no son operaciones de punto flotante; se dice TOPS, *tera operations per second*.

@@ -53,7 +53,7 @@
       "y": 3,
       "w": 22,
       "h": 8,
-      "note": "El servicio rechaza lo que no es una foto válida antes de que llegue al modelo: 400 si la request está mal, 413 si pasa de 10 MB, 415 si no es una imagen ([[codigo-estado|códigos de estado]]). Y escribe su línea de log."
+      "note": "El servicio rechaza lo que no es una foto válida antes de que llegue al modelo: 415 si no dice ser JPEG, PNG ni WebP, 413 si pasa de 10 MB, 400 si la request está mal o la foto no se puede leer ([[codigo-estado|códigos de estado]]). Y escribe su línea de log."
     },
     {
       "id": "modelo",

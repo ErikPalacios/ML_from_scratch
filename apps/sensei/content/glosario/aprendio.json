@@ -36,7 +36,7 @@
       "id": "curva-aprendizaje",
       "termino": "Curva de aprendizaje",
       "en": "learning curve · training curve",
-      "corto": "La gráfica de la loss (o de una métrica) en entrenamiento y en validación al final de cada época. Muestra si el modelo aprende, si memoriza o si no aprende nada.",
+      "corto": "La gráfica de la pérdida (*loss*, el número que mide qué tan equivocado está el modelo) o de una métrica, en entrenamiento y en validación al final de cada época. Muestra si el modelo aprende, si memoriza o si no aprende nada.",
       "largo": "Si las dos líneas bajan juntas, aprende. Si la de entrenamiento baja y la de validación sube, hay [[overfitting]]. Si las dos se quedan altas, [[underfitting]]. Se guarda con cada entrenamiento porque un número final solo no muestra nada de eso.",
       "ejemplo": "Loss de validación: 2.15 en la época 1, 0.80 en la 8 (su punto más bajo) y 1.15 en la 20. El mejor [[checkpoint]] es el de la época 8.",
       "ver": ["overfitting", "underfitting", "loss", "epoch"],
@@ -128,7 +128,7 @@
       "termino": "F1",
       "en": "F1 score",
       "corto": "Un solo número que junta precision y recall con su media armónica. Sale bajo si cualquiera de las dos es mala.",
-      "largo": "F1 = 2 × precision × recall / (precision + recall), o directo de la tabla: 2·TP / (2·TP + FP + FN). No usa los verdaderos negativos, así que la clase grande no lo infla. No sirve para elegir el [[umbral]] cuando los errores tienen costos muy distintos: ahí se decide con el costo de cada uno.",
+      "largo": "F1 = 2 × precision × recall / (precision + recall), o directo de la tabla, con TP los verdaderos positivos, FP los falsos positivos y FN los falsos negativos: 2·TP / (2·TP + FP + FN). No usa los verdaderos negativos, así que la clase grande no lo infla. No sirve para elegir el [[umbral]] cuando los errores tienen costos muy distintos: ahí se decide con el costo de cada uno.",
       "ejemplo": "Precision 66.7 % y recall 80 %: F1 = 2 × 0.667 × 0.80 / 1.467 ≈ 0.727. El promedio simple daría 73.3 %.",
       "ver": ["precision", "recall"],
       "leccion": "aprendio"
@@ -158,7 +158,7 @@
       "termino": "Curva ROC",
       "en": "ROC curve · receiver operating characteristic",
       "corto": "La gráfica de qué fracción de los «sí» encuentra el modelo (recall) contra qué fracción de los «no» marca por error, para todos los umbrales posibles.",
-      "largo": "Cada [[umbral]] es un punto: a lo ancho, la tasa de [[falso-positivo|falsos positivos]], FP / (FP + TN); a lo alto, el [[recall]]. Un modelo al azar va por la diagonal; uno perfecto sube pegado a la izquierda. Como divide entre todos los negativos, con clases muy desbalanceadas se ve demasiado bien: ahí conviene la [[curva-pr|curva PR]]. El nombre viene de los radares de la Segunda Guerra Mundial.",
+      "largo": "Cada [[umbral]] es un punto: a lo ancho, la tasa de [[falso-positivo|falsos positivos]], FP / (FP + TN): los falsos positivos (FP) entre todos los negativos, que son los FP más los verdaderos negativos (TN); a lo alto, el [[recall]]. Un modelo al azar va por la diagonal; uno perfecto sube pegado a la izquierda. Como divide entre todos los negativos, con clases muy desbalanceadas se ve demasiado bien: ahí conviene la [[curva-pr|curva PR]]. El nombre viene de los radares de la Segunda Guerra Mundial.",
       "ejemplo": "Con 10 fotos (4 de tenis): umbral 0.80 → 0 % de falsos positivos y 50 % de recall; 0.50 → 17 % y 75 %; 0.30 → 33 % y 100 %.",
       "ver": ["auc", "umbral", "recall", "curva-pr"],
       "leccion": "aprendio"
@@ -198,7 +198,7 @@
       "termino": "mAP",
       "en": "mean average precision",
       "corto": "La calificación más usada de un detector de objetos: para cada clase se calcula el área bajo su curva precision–recall (la AP) y se promedian las clases.",
-      "largo": "Las cajas del modelo se ordenan por [[confianza]]; cada una es un acierto si su [[iou|IoU]] con una caja real todavía sin pareja llega a un mínimo (0.5 es la regla clásica), y una falsa alarma si no. Recorriendo la lista sale la [[curva-pr|curva PR]] de la clase; su área es la AP. La versión de COCO, más exigente, promedia además 10 mínimos de IoU, de 0.50 a 0.95. Mide si el detector ve los objetos, no si el sistema sirve: un sistema de video con cámaras de seguridad, por ejemplo, lo reporta pero decide con el recall por evento.",
+      "largo": "Las cajas del modelo se ordenan por [[confianza]]; cada una es un acierto si su [[iou|IoU]] con una caja real todavía sin pareja llega a un mínimo (0.5 es la regla clásica), y una falsa alarma si no. Recorriendo la lista sale la [[curva-pr|curva PR]] de la clase; su área es la AP. La versión de COCO (un dataset público muy usado para detección), más exigente, promedia además 10 mínimos de IoU, de 0.50 a 0.95. Mide si el detector ve los objetos, no si el sistema sirve: un sistema de video con cámaras de seguridad, por ejemplo, lo reporta pero decide con el recall por evento.",
       "ejemplo": "3 personas reales y 5 cajas ordenadas por confianza: acierto, acierto, falsa alarma, acierto, falsa alarma. La AP es (1 + 1 + 0.75) / 3 ≈ 0.92. Si otra clase tiene AP de 0.70, el mAP es (0.92 + 0.70) / 2 ≈ 0.81.",
       "ver": ["iou", "curva-pr", "deteccion"],
       "leccion": "aprendio"
@@ -218,7 +218,7 @@
       "termino": "ECE",
       "en": "expected calibration error",
       "corto": "Un número que resume qué tan honesta es la seguridad de un modelo: agrupa las predicciones por confianza y promedia la distancia entre lo que dijo y lo que acertó, pesada por cuántas hay en cada grupo. 0 es perfecto.",
-      "largo": "Se calcula con datos que el modelo no vio: se parten las predicciones en grupos por [[confianza]] (por ejemplo, de 0.0 a 0.1, de 0.1 a 0.2…), en cada grupo se compara la confianza promedio con la fracción de aciertos y se suman las distancias, cada una multiplicada por la fracción de ejemplos del grupo. Un promedio que pasa puede esconder un grupo que no, por eso conviene mirar también la tabla. El gate de Alba, el marketplace del curso, pide ECE ≤ 0.05 después de [[temperature-scaling]].",
+      "largo": "Se calcula con datos que el modelo no vio: se parten las predicciones en grupos por [[confianza]] (por ejemplo, de 0.0 a 0.1, de 0.1 a 0.2…), en cada grupo se compara la confianza promedio con la fracción de aciertos y se suman las distancias, cada una multiplicada por la fracción de ejemplos del grupo. Un promedio que pasa puede esconder un grupo que no, por eso conviene mirar también la tabla. El gate de Alba, el marketplace del curso (el examen que decide si un modelo nuevo reemplaza al actual), pide ECE ≤ 0.05 después de [[temperature-scaling]].",
       "ejemplo": "1,000 fotos en cuatro grupos: dijo 50 % y acertó 45 % (100 fotos), 70 % y 64 % (100), 90 % y 82 % (300), 99 % y 99 % (500). ECE = 0.10 × 0.05 + 0.10 × 0.06 + 0.30 × 0.08 + 0.50 × 0 = 0.035.",
       "ver": ["calibracion", "temperature-scaling", "confianza"],
       "leccion": "aprendio"
@@ -228,7 +228,7 @@
       "termino": "Temperature scaling",
       "en": "temperature scaling",
       "corto": "Un arreglo de la calibración: dividir todos los logits entre un mismo número T antes del softmax. Con T mayor que 1, el modelo baja su seguridad; el orden de las clases no cambia.",
-      "largo": "T es un solo número que se elige con el [[validation-set|set de validación]]: el que hace más honestas las probabilidades, por ejemplo el que deja más baja la [[loss|pérdida]] de validación. Como dividir entre un número positivo no cambia qué [[logit]] es más grande, la top-1 y la top-5 quedan idénticas: solo cambia qué tan seguro dice estar. Es la misma [[temperatura]] de los LLMs, usada para otra cosa. Se popularizó con un estudio de 2017 (Guo y otros) que mostró que las redes modernas suelen ser demasiado confiadas.",
+      "largo": "T es un solo número que se elige con el [[validation-set|set de validación]]: el que hace más honestas las probabilidades, por ejemplo el que deja más baja la [[loss|pérdida]] de validación. Como dividir entre un número positivo no cambia qué [[logit]] es más grande, la top-1 y la top-5 quedan idénticas: solo cambia qué tan seguro dice estar. Es la misma [[temperatura]] de los [[llm|LLMs]] (los modelos grandes de lenguaje), usada para otra cosa. Se popularizó con un estudio de 2017 (Guo y otros) que mostró que las redes modernas suelen ser demasiado confiadas.",
       "ejemplo": "Logits 3, 1 y 0: el softmax da 84.4 %, 11.4 % y 4.2 %. Con T = 1.5 quedan 2, 0.67 y 0, y el softmax da 71.5 %, 18.8 % y 9.7 %: la misma clase primero, con menos seguridad.",
       "ver": ["calibracion", "ece", "softmax", "temperatura"],
       "leccion": "aprendio"
@@ -239,7 +239,7 @@
       "en": "business metric · online metric · guardrail",
       "corto": "El número que dice si el sistema le sirve a la empresa y a la gente: publicaciones completadas, dinero que se deja de perder. La métrica del modelo, que se mide offline, es solo su aproximación.",
       "largo": "Se baja por una cadena: negocio → online (cómo reacciona la gente real; por ejemplo, cuántos aceptan la sugerencia) → offline (lo que se mide con datos guardados, como la top-5 en el [[golden-set|golden set]]). Cada eslabón es un *proxy* del de arriba, y la cadena se puede romper: un modelo que gana offline puede perder online. Por eso los cambios grandes se prueban con gente real en un [[ab-test|A/B test]], con *guardrails*: métricas que no tienen que mejorar pero no pueden empeorar, como la latencia.",
-      "ejemplo": "En Alba, el marketplace del curso: negocio, tasa de publicaciones completadas; online, tasa de aceptación de la categoría sugerida; offline, top-5 en el golden set; guardrails, p99 de latencia, tasa de errores, publicaciones que moderación recategoriza y tiempo para llenar el formulario.",
+      "ejemplo": "En Alba, el marketplace del curso: negocio, tasa de publicaciones completadas; online, tasa de aceptación de la categoría sugerida; offline, top-5 en el golden set; guardrails, p99 de latencia (el tiempo que no pasan 99 de cada 100 respuestas), tasa de errores, publicaciones que moderación recategoriza y tiempo para llenar el formulario.",
       "ver": ["top-k-accuracy", "golden-set", "equidad"],
       "leccion": "aprendio"
     },

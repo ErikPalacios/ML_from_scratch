@@ -63,7 +63,7 @@
       "y": 4.5,
       "w": 20,
       "h": 8,
-      "note": "La regla de Kubernetes que agrega o quita pods según su CPU: apunta a 60 % de un núcleo por pod. En el pico de diseño, 500 × 6 ms = 3 núcleos ocupados, y bastan ≈ 5 pods."
+      "note": "La regla de Kubernetes que agrega o quita pods según su CPU: apunta a 60 % de un núcleo por pod. En el pico de diseño, 500 × 6 ms = 3 vCPU ocupadas, y bastan ≈ 5 pods."
     },
     {
       "id": "loop",

@@ -63,7 +63,7 @@
    "termino": "Directorio de trabajo",
    "en": "working directory · current directory",
    "corto": "La carpeta donde está parado un proceso: desde ahí se leen las rutas relativas, las que no empiezan con `/`. En la terminal, `pwd` la muestra y `cd` la cambia.",
-   "largo": "Cada [[proceso]] tiene el suyo y lo hereda de quien lo lanzó, así que un programa arranca en la carpeta donde estaba la [[shell]]. Una [[ruta]] relativa como `datos/train.csv` se busca ahí, no junto al archivo del programa. `cd ..` sube una carpeta, `cd` solo va a la carpeta personal (`~`) y `cd -` regresa a la anterior. Como cada proceso tiene su copia, un `cd` dentro de un hijo o de una subshell `( … )` no mueve al padre. En una imagen de contenedor, lo fija la línea `WORKDIR`. La lección del sistema operativo le dice «carpeta de trabajo».",
+   "largo": "Cada [[proceso]] tiene el suyo y lo hereda de quien lo lanzó, así que un programa arranca en la carpeta donde estaba la [[shell]]. Una [[ruta]] relativa como `datos/train.csv` se busca ahí, no junto al archivo del programa. `cd ..` sube una carpeta, `cd` solo va a la carpeta personal (`~`) y `cd -` regresa a la anterior. Como cada proceso tiene su copia, un `cd` dentro de un hijo o de una subshell `( … )` no mueve al padre. En una imagen de contenedor, lo fija la línea `WORKDIR`. También se le dice «carpeta de trabajo».",
    "ejemplo": "Parada en `/home/ana/trabajo`, `python3 entrenar.py` abre `datos/train.csv` como `/home/ana/trabajo/datos/train.csv`. `(cd /tmp && pwd)` imprime `/tmp`, y el `pwd` siguiente vuelve a dar `/home/ana/trabajo`.",
    "ver": [
     "ruta",
@@ -163,7 +163,7 @@
    "termino": "Script de shell",
    "en": "shell script",
    "corto": "Un archivo de texto con comandos, uno por línea, que la shell corre de arriba abajo como si los fueras tecleando. Sirve para repetir una receta igual cada vez.",
-   "largo": "Dentro se usan las mismas cosas de la terminal, más `\"$@\"` (los argumentos del script), `for`, `if` y la sustitución `$( … )`. Se corre con `bash script.sh`, o con `./script.sh` si tiene [[shebang]] y permiso de ejecución. Por omisión, bash sigue aunque un comando falle; por eso los scripts serios empiezan con `set -euo pipefail`: `-e` se detiene en el primer error, `-u` prohíbe variables que no existen (una vacía sí pasa) y `-o pipefail` hace que una [[pipe|tubería]] falle si falla cualquiera de sus comandos. `bash -n` revisa la sintaxis sin correrlo y ShellCheck encuentra trampas comunes. Cada paso `run:` de un CI es un script.",
+   "largo": "Dentro se usan las mismas cosas de la terminal, más `\"$@\"` (los argumentos del script), `for`, `if` y la sustitución `$( … )`. Se corre con `bash script.sh`, o con `./script.sh` si tiene [[shebang]] y permiso de ejecución. Por omisión, bash sigue aunque un comando falle; por eso los scripts serios empiezan con `set -euo pipefail`: `-e` se detiene en el primer error, `-u` prohíbe variables que no existen (una vacía sí pasa) y `-o pipefail` hace que una [[pipe|tubería]] falle si falla cualquiera de sus comandos. `bash -n` revisa la sintaxis sin correrlo y ShellCheck encuentra trampas comunes. Cada paso `run:` de un [[ci|CI]] (las pruebas automáticas de cada cambio) es un script.",
    "ejemplo": "En Alba, `bash model/build_engine.sh` construye el engine de TensorRT y se niega a correr si la GPU no es una T4. Sin `pipefail`, `grep x no-existe.log | wc -l` termina con 0 aunque `grep` haya fallado.",
    "ver": [
     "shebang",
@@ -177,7 +177,7 @@
    "termino": "Shebang",
    "en": "shebang · hashbang · #!",
    "corto": "La primera línea de un script (un archivo de comandos) que empieza con `#!` y dice con qué programa se corre, como `#!/usr/bin/env bash`. La lee el kernel al ejecutar el archivo.",
-   "largo": "Al ejecutar un archivo de texto, el kernel ve los caracteres `#!`, toma el resto de la línea como el intérprete y lo lanza con el script como argumento. `#!/bin/bash` pide exactamente esa bash (en una Mac, una muy vieja, de la serie 3.2); `#!/usr/bin/env bash` busca `bash` en [[path-shell|PATH]], y es la forma más portátil; `#!/bin/sh` pide la shell básica, que en Debian es `dash` y no entiende todo lo de bash. Para que `./script.sh` funcione, el archivo necesita el [[permisos|permiso]] `x` (`chmod +x`); sin él, sale «Permission denied» con el código 126. El nombre viene de *sharp* (`#`) y *bang* (`!`).",
+   "largo": "Al ejecutar un archivo de texto, el kernel ve los caracteres `#!`, toma el resto de la línea como el intérprete y lo lanza con el script como argumento. `#!/bin/bash` pide exactamente esa bash (en una Mac, una muy vieja, de la serie 3.2); `#!/usr/bin/env bash` busca `bash` en [[path-shell|PATH]], y es la forma más portátil; `#!/bin/sh` pide la shell básica, que en Debian es `dash` y no entiende todo lo de bash. Para que `./script.sh` funcione, el archivo necesita el [[permisos|permiso]] `x` (`chmod +x`); sin él, sale «Permission denied» con el código 126. El nombre probablemente viene de *sharp* o *hash* (`#`) y *bang* (`!`); su origen exacto no se sabe.",
    "ejemplo": "Un `contar.sh` que empieza con `#!/usr/bin/env bash`: `./contar.sh tres.txt` da 126 hasta que `chmod +x contar.sh` lo vuelve ejecutable (`-rwxr-xr-x`). `bash contar.sh` funciona siempre, porque ahí el programa que corre es bash.",
    "ver": [
     "script-shell",
@@ -192,7 +192,7 @@
    "en": "sudo · superuser do",
    "corto": "El comando para correr otro comando como root, el usuario que puede todo, sin entrar como root: `sudo systemctl restart docker`. Pide tu contraseña, revisa si tienes permiso y anota quién hizo qué.",
    "largo": "Entrar a un servidor como [[root]] le da poder total a cualquier error de dedo; con `sudo`, el poder se pide comando por comando y queda registrado. En un [[contenedor]] casi nunca hay `sudo`: la imagen ya trae lo que necesita y el proceso corre con el usuario que dice su receta (root si no dice otra cosa; mejor, uno sin privilegios). Agregarlo solo le daría a un atacante una forma de subir de privilegios. Nunca se corre con `sudo` un comando pegado de internet sin entenderlo.",
-   "ejemplo": "En un nodo con GPU, `sudo systemctl restart docker` reinicia Docker después de instalar el NVIDIA Container Toolkit. En el contenedor de la lección, `sudo` da `command not found` y el código 127.",
+   "ejemplo": "En un nodo con GPU, `sudo systemctl restart docker` reinicia Docker después de instalar el NVIDIA Container Toolkit. En un contenedor típico, que no trae `sudo`, el comando da `command not found` y el código 127.",
    "ver": [
     "root",
     "permisos",

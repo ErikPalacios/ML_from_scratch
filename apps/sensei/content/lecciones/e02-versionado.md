@@ -215,7 +215,7 @@ Una [[escritura-condicional|escritura condicional]] es un `PUT` que solo se cump
 
 Pero un header lo pone quien escribe: un script que no lo pone escribe igual. Para que deje de ser opcional, la regla va en la política del bucket (*bucket policy*): un documento JSON, pegado al bucket, con reglas de quién puede hacer qué, y que S3 aplica a todos sin excepción. La de Alba dice dos cosas sobre el prefijo `datasets/`: niega cualquier `PUT` que no traiga el header, y niega borrar. Con eso, un snapshot nuevo se escribe sin problema, y uno viejo no se puede pisar ni borrar para volverlo a escribir.
 
-Esta regla tiene un costo: bajo ese prefijo ya no se puede **copiar** un archivo de otro lugar del mismo S3. AWS documenta que, con una política así, una copia (`CopyObject`) hacia el prefijo falla siempre, traiga o no el header. Por eso el snapshot se publica subiendo los archivos con `PUT`, no copiándolos.
+Con la **copia** hay que tener cuidado. La guía de AWS todavía avisa que, con una política así, una copia (`CopyObject`) hacia el prefijo falla, aunque desde octubre de 2025 `CopyObject` acepta el mismo header. Como AWS se contradice, Alba no se apoya en la copia: el snapshot se publica subiendo los archivos con `PUT`.
 
 :::profundo Cómo se escribe la regla
 Esta es una ilustración de la parte que niega el `PUT` sin header, sin correrla:
@@ -267,7 +267,7 @@ El job escribe el manifest en un prefijo temporal, `s3://ml-datos/staging/ds-202
 2. Auditar
 Corren los chequeos del [[contrato-datos|contrato de datos]], las reglas que los datos cumplen antes de entrenar, sobre el manifest ya armado: ninguna foto en dos splits, ninguna huella del golden set, volumen entre 0.8 y 1.5 veces el del snapshot padre, labels débiles en 80 % o menos. Antes de armar ya pasaron los de los labels del mes (esquema exacto, `label_id` entre 0 y 499, horas en UTC, frescura), y al armar se aplicaron el corte, la regla de 30 días y los duplicados por huella. El resultado va a `validation.json`.
 3. Publicar o detenerse
-Si todo pasa, se suben con `PUT` el manifest y el reporte a `datasets/ds-2026-09-01/`, y **al final** la tarjeta, todo con escritura condicional (copiar dentro de S3 no se puede: la política lo bloquea). Si algo falla, no se publica nada: el entrenamiento de ese mes no corre y sigue el modelo actual.
+Si todo pasa, se suben con `PUT` el manifest y el reporte a `datasets/ds-2026-09-01/`, y **al final** la tarjeta, todo con escritura condicional (no se copian dentro de S3, por lo que viste en la defensa 1). Si algo falla, no se publica nada: el entrenamiento de ese mes no corre y sigue el modelo actual.
 :::
 
 La tarjeta es la última en escribirse a propósito: **un snapshot sin tarjeta no existe**. Quien entrena lee siempre la tarjeta primero; si no está, no hay snapshot, aunque haya un `rows.parquet` huérfano en el prefijo. Así, la escritura completa pasa o no pasa, como en una [[transaccion|transacción]] de base de datos (un grupo de cambios que se aplica completo o no se aplica), aunque S3 no tenga transacciones.

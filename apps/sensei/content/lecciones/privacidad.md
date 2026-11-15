@@ -437,7 +437,7 @@ Un modelo no guarda las fotos con las que se entrenó. El de Alba, una [[resnet|
 
 Lo que piden quienes quieren «borrar a alguien del modelo» se llama **[[machine-unlearning|machine unlearning]]** (desaprendizaje automático): conseguir un modelo que se comporte como si esa persona nunca hubiera estado en los datos. La única forma segura de lograrlo es **reentrenar sin sus datos**. Hay técnicas de investigación que intentan hacerlo más barato, pero en noviembre de 2026 no son una herramienta estándar ni un método con garantía que se pueda prometer.
 
-En Alba, reentrenar ya es rutina: cada mes, en ≈ 3 a 4 horas de una GPU y ≈ US$10–50. Así que la promesa honesta es la que ya hace: el siguiente modelo mensual no incluye las fotos borradas, y el de antes se retira.
+En Alba, reentrenar ya es rutina: cada mes, una corrida de ≈ 3 a 4 horas de una GPU cuesta ≈ US$3–4 (≈ US$10–50 al mes, con las corridas de prueba). Así que la promesa honesta es la que ya hace: el siguiente modelo mensual no incluye las fotos borradas, y el de antes se retira.
 
 :::figura privacidad-desaprender
 La línea del tiempo de un borrado. El modelo de octubre se entrenó con el snapshot de septiembre, que tiene la foto de Ana. Ana pide el borrado el 20 de octubre; el snapshot de octubre ya no la trae, y el modelo de noviembre se entrena sin ella.
@@ -449,7 +449,7 @@ La línea del tiempo de un borrado. El modelo de octubre se entrenó con el snap
 
 Una de las ideas de investigación más conocidas para abaratarlo (la publicaron en 2021 con el nombre SISA) es fácil de contar con números. En vez de un solo modelo con todas las fotos, entrenas 8 modelos chicos, cada uno con un octavo de los datos, y al predecir los juntas (por ejemplo, promediando sus probabilidades). Si Ana pide borrar una foto, solo reentrenas el pedazo donde estaba: ≈ 1/8 del trabajo. Si además cada pedazo guarda [[checkpoint|checkpoints]] (copias del modelo a mitad del entrenamiento), puedes regresar al checkpoint de antes de que entrara la foto y seguir desde ahí.
 
-El costo está en la calidad: 8 modelos que vieron un octavo de los datos cada uno suelen equivocarse más que uno que vio todo, y predecir con 8 modelos cuesta más cómputo en cada request. Para Alba, que ya reentrena todo cada mes por ≈ US$10–50, no vale la pena. Para un modelo que cuesta millones entrenar, la cuenta cambia, y por eso se investiga.
+El costo está en la calidad: 8 modelos que vieron un octavo de los datos cada uno suelen equivocarse más que uno que vio todo, y predecir con 8 modelos cuesta más cómputo en cada request. Para Alba, que ya reentrena todo cada mes por ≈ US$3–4 la corrida, no vale la pena. Para un modelo que cuesta millones entrenar, la cuenta cambia, y por eso se investiga.
 
 ### Lo que sí guarda una fila por foto
 
@@ -614,7 +614,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de fuerza bruta y combi
 - Luego medir el \(k\) de la tabla con los cuasi-identificadores que queden, y quitar los grupos chicos. Aun así, con fotos públicas que se pueden buscar por imagen, la anonimización es muy difícil: lo prudente es no publicarlo, o publicar solo estadísticas.
 ? [reto] Alba recibe una solicitud de borrado el 20 de octubre. El modelo en producción, `resnet50-2026-10-01`, se entrenó con el snapshot de septiembre. Se reentrena una vez al mes, en ≈ 3–4 horas, y la versión anterior se queda viva 24–48 horas por si hay que regresar. (a) ¿Cuándo deja de haber en producción un modelo entrenado con la foto? (b) ¿Qué harías si legal pide que pase en menos de 7 días? (c) ¿Por qué no basta con reentrenar solo la última capa?
 - (a) El snapshot de octubre ya no trae la foto, y el modelo `resnet50-2026-11-01` se entrena con él a principios de noviembre. Antes de quedarse con todo el tráfico pasa 1–2 días en *shadow* (recibe copias de las requests sin contestar) y su *canary* (atiende una parte del tráfico que va creciendo: 5 % → 25 % → 100 %), y el de octubre sigue vivo 24–48 horas más por si hay que regresar. Hacia la **primera semana de noviembre** ya no hay ninguno con la foto: ≈ 2 semanas después de la solicitud.
-- (b) Adelantar un reentrenamiento: cuesta ≈ 3–4 horas de una GPU y ≈ US$10–50, más pasar el *gate* de evaluación (el examen que el modelo nuevo debe pasar antes de salir) y el despliegue gradual. Si las solicitudes son frecuentes, se juntan por semana y se reentrena con ese ritmo.
+- (b) Adelantar un reentrenamiento: cuesta ≈ 3–4 horas de una GPU y ≈ US$3–4 por corrida, más pasar el *gate* de evaluación (el examen que el modelo nuevo debe pasar antes de salir) y el despliegue gradual. Si las solicitudes son frecuentes, se juntan por semana y se reentrena con ese ritmo.
 - (c) Porque la foto movió todos los parámetros, no solo los de la última capa: las capas de antes también aprendieron de ella. Reentrenar solo la [[cabeza]] (la última capa, la que elige la categoría) deja esa huella en el resto. La garantía está solo en reentrenar todo sin el dato.
 :::
 

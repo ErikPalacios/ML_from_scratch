@@ -20,7 +20,7 @@ Esta lección las junta. Vas a desarmar la latencia en sus partes, ver por qué 
 
 La [[latencia-punta-a-punta|latencia de punta a punta]] (*end-to-end latency*) es el tiempo total de una request entre dos puntos que tú nombras, sumando todo lo que pasa en medio. «Punta a punta» no dice nada si no dices cuáles puntas.
 
-En Alba están escritas en su SLO, p99 ≤ 200 ms, como viste en la lección de percentiles: el reloj arranca cuando el [[balanceador]] de carga (la puerta que reparte las requests entre los pods) tiene la request completa y para cuando sale la respuesta. Es una medida del lado del servidor (*server-side*). La subida de la foto desde el celular de Ana, por 4G, queda fuera: depende de su señal, no del servicio.
+En Alba están escritas en su SLO, p99 ≤ 200 ms, como viste en la lección de percentiles: el reloj arranca cuando el gateway recibe la request que le pasa el [[balanceador]] de carga (la puerta que reparte las requests entre los pods), incluidos los ≈ 3 ms en que la foto termina de pasar, y para cuando sale la respuesta. Es una medida del lado del servidor (*server-side*). La subida de la foto desde el celular de Ana, por 4G, queda fuera: depende de su señal, no del servicio.
 
 ### Tres maneras de gastar el tiempo
 

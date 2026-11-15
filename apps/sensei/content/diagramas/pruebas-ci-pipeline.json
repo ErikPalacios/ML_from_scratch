@@ -22,7 +22,7 @@
     { "id": "humo", "label": "Prueba de humo", "sub": "healthz + foto · ≈ 30 s", "kind": "monitor", "x": 40, "y": 32, "w": 16, "h": 8,
       "note": "`GET /healthz` responde 200 (el programa está vivo) y una foto conocida regresa una categoría con su score y su `model_version` (el modelo está cargado y contesta). Si falla, el pipeline se detiene: producción ni se entera." },
     { "id": "prod", "label": "Producción", "sub": "pod a pod · ≈ 5 min", "kind": "service", "x": 19, "y": 32, "w": 17, "h": 8,
-      "note": "El mismo digest, con la configuración de producción. Los pods se cambian de uno en uno, sin apagar el servicio. Unos 12.5 minutos después del merge, el cambio está en el clúster." },
+      "note": "El mismo digest, con la configuración de producción. Los pods se cambian de uno en uno, sin apagar el servicio. Unos 12.5 minutos después del merge, el cambio está en el clúster (≈ 17.5 contando el push y prender la T4)." },
     { "id": "canary", "label": "Canary", "sub": "horas · 5 → 25 → 100 %", "kind": "monitor", "x": 1, "y": 32, "w": 14, "h": 8,
       "note": "La versión nueva recibe primero una parte del tráfico, se compara contra la estable y avanza si los criterios se cumplen. Es el freno de producción; lo cuenta a fondo la lección «Rollout seguro»." },
     { "id": "anterior", "label": "Versión anterior", "sub": "viva 24 a 48 h", "kind": "store", "x": 19, "y": 44, "w": 17, "h": 8,
@@ -47,7 +47,7 @@
         { "nodes": ["lint", "pruebas", "imagen"], "edges": ["lint>imagen", "pruebas>imagen"], "text": "Ya en main, se construye la **imagen** una sola vez, nombrada con el commit (≈ 1 min). Van ≈ 3 minutos." },
         { "nodes": ["imagen", "paridad"], "edges": ["imagen>paridad"], "text": "La **paridad de punta a punta** corre en el runner con T4 (≈ 1 min): el gateway nuevo se porta igual que el evaluado." },
         { "nodes": ["paridad", "staging", "humo"], "edges": ["paridad>staging", "staging>humo"], "text": "El mismo digest llega a **staging** y pasa la **prueba de humo** (≈ 3.5 min en total)." },
-        { "nodes": ["humo", "prod"], "edges": ["humo>prod"], "text": "**Producción**, de pod en pod (≈ 5 min). Unos 12.5 minutos después del merge, el cambio está en el clúster." },
+        { "nodes": ["humo", "prod"], "edges": ["humo>prod"], "text": "**Producción**, de pod en pod (≈ 5 min). Unos 12.5 minutos después del merge, el cambio está en el clúster (≈ 17.5 contando el push y prender la T4)." },
         { "nodes": ["prod", "canary"], "edges": ["prod>canary"], "text": "El **canary** decide en horas cuándo recibe todo el tráfico." }
       ] },
     { "id": "martes", "label": "El cambio del martes",

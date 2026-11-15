@@ -575,7 +575,7 @@ La BatchNorm calcula \(x_{norm} = (x − μ) ÷ σ\): a cada número \(x\) le re
 
 En un batch de 4 fotos, el canal da 2, 4, 6 y 8. Promedio: \(μ\) = (2 + 4 + 6 + 8) ÷ 4 = 5. La varianza es el promedio de las distancias al promedio, al cuadrado: (9 + 1 + 1 + 9) / 4 = 5, así que la desviación estándar es \(σ\) = √5 ≈ 2.24. La foto que dio 4 queda en \(x_{norm}\) = (4 − 5) / 2.24 ≈ **−0.45**.
 
-Ahora esa misma foto llega sola a producción, en un batch de 1, con el modelo en modo entrenamiento. El promedio del batch es 4, ella misma, así que queda en (4 − 4) / … = **0**. La misma foto dio −0.45 y ahora da 0, y ese cambio viaja por todas las capas que siguen.
+Ahora esa misma foto llega sola a producción, en un batch de 1, con el modelo en modo entrenamiento. El promedio del batch es 4, ella misma, así que queda en (4 − 4) / … = **0** (en este juguete de un número por foto; en una CNN real el promedio junta todos los píxeles del canal y no da 0, pero sí cambia). La misma foto dio −0.45 y ahora da 0, y ese cambio viaja por todas las capas que siguen.
 
 Peor: si el servidor junta la foto de Ana con otras para aprovechar la GPU (el servidor de Alba lo hace, en batches de hasta 32 fotos), su respuesta depende de **qué otras fotos le tocaron en el batch**.
 

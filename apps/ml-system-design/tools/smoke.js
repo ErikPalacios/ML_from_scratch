@@ -183,6 +183,14 @@
       ok('m01: quiz revela veredicto', !!$('#page .quiz__fb.is-right, #page .quiz__fb.is-wrong'));
     }
     ok('m01: tablas en contenedor desplazable', $$('#page .b-table').every((f) => !!$('.scroll-x', f)));
+    // La teoría en Sensei: el bloque sale antes de las secciones, con las lecciones del módulo en otra pestaña.
+    const sp = $('#page .sensei-pre');
+    const spLinks = $$('#page .sensei-pre a');
+    const spWant = ((MSD.sensei || {}).modulos || {}).m01 || [];
+    ok('m01: bloque «Antes de este módulo» de Sensei', visible(sp) && spWant.length > 0 && spLinks.length === spWant.length, spLinks.length + '/' + spWant.length);
+    ok('m01: enlaces a Sensei en otra pestaña', spLinks.length > 0 && spLinks.every((a) => a.target === '_blank' && /^https:\/\/sensei-ml\.vercel\.app\/[a-z0-9-]+\/$/.test(a.href)));
+    const sec1 = $('#page .sec');
+    ok('m01: el bloque de Sensei va antes de la primera sección', !!sp && !!sec1 && !!(sp.compareDocumentPosition(sec1) & Node.DOCUMENT_POSITION_FOLLOWING));
 
     // Marcar una sección como leída → progreso en el índice y en el uptime compacto.
     const p = MSD.getPage('m01');

@@ -96,7 +96,7 @@
       "id": "request",
       "label": "Una request",
       "steps": [
-        { "nodes": ["ana", "servicio"], "edges": ["ana>servicio"], "text": "**Llega la foto de los tenis.** Desde que el balanceador tiene la request completa empieza a correr el reloj del SLO." },
+        { "nodes": ["ana", "servicio"], "edges": ["ana>servicio"], "text": "**Llega la foto de los tenis.** Desde que el servicio empieza a recibir la request del balanceador corre el reloj del SLO." },
         { "nodes": ["servicio", "contadores"], "edges": ["servicio>contadores"], "text": "**Se cuenta, no se guarda.** Tardó 42 ms: el servicio suma 1 al bucket «hasta 50 ms» (y, como son acumulados, a todos los de arriba). La latencia exacta se tira." }
       ]
     },

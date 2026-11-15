@@ -426,7 +426,7 @@ Cuando un porcentaje cambia, hay dos maneras de decir cuánto:
 
 Y si miras los errores, que son los que sufre quien recibe una sugerencia mala, bajaron de 100 − 85 = 15 % a 100 − 87 = 13 %: con la misma cuenta relativa, 2 ÷ 15 ≈ **13 % menos**. El mismo cambio, tres números distintos. Ninguno está mal; lo malo es no decir cuál.
 
-El gate de Alba, el examen que tiene que pasar un modelo nuevo antes de salir, está escrito en puntos: el modelo nuevo no puede quedar más de 0.3 puntos abajo del actual en el [[golden-set|golden set]]. Si el actual saca 96 % de top-5, el nuevo pasa con 95.7 % y no pasa con 95.6 %. Si alguien lo leyera como «0.3 % de 96», el límite sería 95.712: otra regla.
+El gate de Alba, el examen que tiene que pasar un modelo nuevo antes de salir, está escrito en puntos: el modelo nuevo no puede quedar más de 0.3 puntos abajo del actual en el [[golden-set|golden set]]. Si el actual saca 96 % de top-5, la raya queda en 95.7 %; el gate se la exige al extremo de abajo del [[intervalo-confianza|intervalo de 95 %]] del nuevo, no al número suelto (lo ves en «Gate de evaluación y registry»). Si alguien lo leyera como «0.3 % de 96», el límite sería 95.712: otra regla.
 
 ### Los nueves
 

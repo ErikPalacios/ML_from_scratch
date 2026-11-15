@@ -110,6 +110,19 @@ function indiceConceptos(e, aqui) {
     ...e.practicas.flatMap((q) => q.conceptos.map((c) => [c.id, { termino: c.termino, url: `${aqui === q.url ? '' : q.url}#k-${c.id}` }]))]);
 }
 
+// «La teoría, en Sensei»: la lección de la estación y las que conviene leer antes (abren en otra pestaña).
+const fuera = (url) => `href="${esc(url)}" target="_blank" rel="noopener"`;
+function tarjetaSensei(x, num) {
+  if (!x) return '';
+  return `<div class="d-card d-sensei">
+    <h3>La teoría, en Sensei</h3>
+    <p class="d-txt">Sensei es el curso de teoría desde cero de TrueML. Su lección de esta estación explica el porqué de lo que aquí construyes; léela antes o vuelve a ella cuando algo no cierre.</p>
+    <a class="d-sensei-l" ${fuera(x.leccion.url)}><span class="d-lbl">Lección de la estación ${num}</span><b>${esc(x.leccion.titulo)}</b><span class="d-ir">Leer en Sensei ↗</span></a>
+    ${x.requisitos.length ? `<span class="d-lbl">Si te falta base, lee antes</span>
+    <div class="d-chips">${x.requisitos.map((r) => `<a ${fuera(r.url)}>${esc(r.titulo)} ↗</a>`).join('')}</div>` : ''}
+  </div>`;
+}
+
 const TIPO = { mundo: 'd-t-mundo', config: 'd-t-config', infra: 'd-t-infra', entorno: 'd-t-entorno' };
 
 // Etiquetas de un camino: en qué momento pasa (antes o en producción) y si usa el kit.
@@ -184,6 +197,7 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
   </div>
   <div class="d-tabla"><table><thead><tr><th></th><th>En C01</th><th class="d-th-dojo">En el dojo</th></tr></thead><tbody>${e.mapa.escala.map((r) => `<tr><th scope="row">${esc(r.que)}</th><td>${r.c01}</td><td>${r.taller}</td></tr>`).join('')}</tbody></table></div>
   ${e.mapa.hoja ? `<p class="d-nota">La estación completa, con su lugar en el mapa: <a href="${esc(e.mapa.hoja)}">cheat sheet «Del dato a producción»</a>.</p>` : ''}
+  ${tarjetaSensei(e.sensei, e.num)}
 </section>`,
     conceptos: `<section class="d-sec" id="conceptos">
   ${titulo('Conceptos exprés', String(e.conceptos.length))}
@@ -443,7 +457,7 @@ function metroVertical(estaciones, enlace, lista) {
 }
 
 // tronco: content/tronco.json · lista: Map id → estación lista (con url y prácticas) · mapa: content/mapa-c01.json
-export function cuerpoPortada({ tronco, lista, mapa, hoja }) {
+export function cuerpoPortada({ tronco, lista, mapa, hoja, sensei = new Map() }) {
   const enlace = (s) => (lista.has(s.id) ? lista.get(s.id).url : `${hoja}#est-${s.id}`);
   const primera = tronco.estaciones.find((s) => lista.has(s.id));
   const listas = tronco.estaciones.filter((s) => lista.has(s.id)).length;
@@ -454,7 +468,7 @@ export function cuerpoPortada({ tronco, lista, mapa, hoja }) {
   const grupos = ETAPAS.map(([a, b], i) => {
     const filas = tronco.estaciones.filter((s) => s.num >= a && s.num <= b).map((s) => {
       const e = lista.get(s.id);
-      return `<a class="d-est${e ? ' lista' : ''}" href="${enlace(s)}"><span class="d-est-n">${s.num}</span><span class="d-est-t"><span>${esc(s.titulo)}</span><span>sale: ${esc(s.sale)}</span>${e && e.practicas.length ? `<span class="d-est-x">+ ${e.practicas.length} prácticas desde cero</span>` : ''}</span>${e ? '<span class="d-est-b">Entrar →</span>' : '<span class="d-est-p">próximamente <br>hoja ↗</span>'}</a>`;
+      return `<a class="d-est${e ? ' lista' : ''}" href="${enlace(s)}"><span class="d-est-n">${s.num}</span><span class="d-est-t"><span>${esc(s.titulo)}</span><span>sale: ${esc(s.sale)}</span>${e && e.practicas.length ? `<span class="d-est-x">+ ${e.practicas.length} prácticas desde cero</span>` : ''}</span>${e ? '<span class="d-est-b">Entrar →</span>' : '<span class="d-est-p">próximamente <br>hoja ↗</span>'}</a>${sensei.has(s.num) ? `<a class="d-est-sensei" ${fuera(sensei.get(s.num).leccion.url)}>Teoría en Sensei: ${esc(sensei.get(s.num).leccion.titulo)} ↗</a>` : ''}`;
     }).join('');
     return `<div class="d-etapa" data-etapa="${TM.ST[i][0]}" style="--c:${COLOR_ETAPA[i]}"><div class="d-etapa-h"><i></i><b>${NOMBRE_ETAPA[i]}</b><span>${rango(i)}</span></div>${filas}</div>`;
   }).join('\n    ');
@@ -500,7 +514,7 @@ export function cuerpoPortada({ tronco, lista, mapa, hoja }) {
 <div class="d-wrap d-home d-home-est">
 <section class="d-sec" id="estaciones">
   ${titulo(`Las ${tronco.estaciones.length} estaciones`, `agrupadas en la T · ${listas} ${listas === 1 ? 'lista' : 'listas'}`)}
-  <p class="d-p">Las mismas doce, agrupadas en las seis etapas de la T. Las que ya tienen dojo se abren aquí; las demás llevan a su explicación en la cheat sheet mientras llega su mini-proyecto.</p>
+  <p class="d-p">Las mismas doce, agrupadas en las seis etapas de la T. Las que ya tienen dojo se abren aquí; las demás llevan a su explicación en la cheat sheet mientras llega su mini-proyecto. Debajo de cada una va su lección en Sensei, el curso de teoría desde cero, que explica el porqué de lo que construyes en ella; las doce ya están publicadas.</p>
   <div class="d-etapas">
     ${grupos}
   </div>

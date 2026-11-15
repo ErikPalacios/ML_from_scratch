@@ -1,0 +1,496 @@
+{
+  "nota": "Generado por apps/trueml/sync.mjs desde apps/sensei/content. No se edita a mano.",
+  "url": "https://sensei-ml.vercel.app",
+  "estaciones": [
+    {
+      "num": 1,
+      "leccion": {
+        "id": "e01-datos",
+        "titulo": "Datos y etiquetas",
+        "url": "https://sensei-ml.vercel.app/e01-datos/"
+      },
+      "requisitos": [
+        {
+          "id": "ejemplos",
+          "titulo": "Datos, ejemplos, features y etiquetas",
+          "url": "https://sensei-ml.vercel.app/ejemplos/"
+        },
+        {
+          "id": "almacenamiento",
+          "titulo": "Object storage, data lakes y warehouses",
+          "url": "https://sensei-ml.vercel.app/almacenamiento/"
+        },
+        {
+          "id": "privacidad",
+          "titulo": "Datos personales y la ley",
+          "url": "https://sensei-ml.vercel.app/privacidad/"
+        },
+        {
+          "id": "tiempo-hash",
+          "titulo": "Tiempo, hashes e identificadores",
+          "url": "https://sensei-ml.vercel.app/tiempo-hash/"
+        },
+        {
+          "id": "pruebas-ci",
+          "titulo": "Pruebas y CI/CD",
+          "url": "https://sensei-ml.vercel.app/pruebas-ci/"
+        }
+      ]
+    },
+    {
+      "num": 2,
+      "leccion": {
+        "id": "e02-versionado",
+        "titulo": "Versionado y linaje",
+        "url": "https://sensei-ml.vercel.app/e02-versionado/"
+      },
+      "requisitos": [
+        {
+          "id": "almacenamiento",
+          "titulo": "Object storage, data lakes y warehouses",
+          "url": "https://sensei-ml.vercel.app/almacenamiento/"
+        },
+        {
+          "id": "git",
+          "titulo": "Git: versiones del código",
+          "url": "https://sensei-ml.vercel.app/git/"
+        },
+        {
+          "id": "tiempo-hash",
+          "titulo": "Tiempo, hashes e identificadores",
+          "url": "https://sensei-ml.vercel.app/tiempo-hash/"
+        }
+      ]
+    },
+    {
+      "num": 3,
+      "leccion": {
+        "id": "e03-entrenamiento",
+        "titulo": "Entrenamiento y experimentos",
+        "url": "https://sensei-ml.vercel.app/e03-entrenamiento/"
+      },
+      "requisitos": [
+        {
+          "id": "aprender",
+          "titulo": "Cómo aprende un modelo",
+          "url": "https://sensei-ml.vercel.app/aprender/"
+        },
+        {
+          "id": "pytorch",
+          "titulo": "PyTorch en lo que toca a producción",
+          "url": "https://sensei-ml.vercel.app/pytorch/"
+        },
+        {
+          "id": "e02-versionado",
+          "titulo": "Versionado y linaje",
+          "url": "https://sensei-ml.vercel.app/e02-versionado/"
+        },
+        {
+          "id": "maquinas",
+          "titulo": "Máquinas, GPUs y cómo se cobran",
+          "url": "https://sensei-ml.vercel.app/maquinas/"
+        },
+        {
+          "id": "ruido",
+          "titulo": "Ruido, muestras y pruebas A/B",
+          "url": "https://sensei-ml.vercel.app/ruido/"
+        }
+      ]
+    },
+    {
+      "num": 4,
+      "leccion": {
+        "id": "e04-gate",
+        "titulo": "Gate de evaluación y registry",
+        "url": "https://sensei-ml.vercel.app/e04-gate/"
+      },
+      "requisitos": [
+        {
+          "id": "aprendio",
+          "titulo": "¿Aprendió de verdad?",
+          "url": "https://sensei-ml.vercel.app/aprendio/"
+        },
+        {
+          "id": "ruido",
+          "titulo": "Ruido, muestras y pruebas A/B",
+          "url": "https://sensei-ml.vercel.app/ruido/"
+        },
+        {
+          "id": "e02-versionado",
+          "titulo": "Versionado y linaje",
+          "url": "https://sensei-ml.vercel.app/e02-versionado/"
+        },
+        {
+          "id": "e03-entrenamiento",
+          "titulo": "Entrenamiento y experimentos",
+          "url": "https://sensei-ml.vercel.app/e03-entrenamiento/"
+        }
+      ]
+    },
+    {
+      "num": 5,
+      "leccion": {
+        "id": "e05-export",
+        "titulo": "Export, engine y paridad",
+        "url": "https://sensei-ml.vercel.app/e05-export/"
+      },
+      "requisitos": [
+        {
+          "id": "numeros-maquina",
+          "titulo": "Cómo guarda números una computadora",
+          "url": "https://sensei-ml.vercel.app/numeros-maquina/"
+        },
+        {
+          "id": "pytorch",
+          "titulo": "PyTorch en lo que toca a producción",
+          "url": "https://sensei-ml.vercel.app/pytorch/"
+        },
+        {
+          "id": "cpu-gpu",
+          "titulo": "CPU y GPU",
+          "url": "https://sensei-ml.vercel.app/cpu-gpu/"
+        },
+        {
+          "id": "formatos",
+          "titulo": "Archivos y formatos: JSON, CSV, Parquet y YAML",
+          "url": "https://sensei-ml.vercel.app/formatos/"
+        },
+        {
+          "id": "pruebas-ci",
+          "titulo": "Pruebas y CI/CD",
+          "url": "https://sensei-ml.vercel.app/pruebas-ci/"
+        },
+        {
+          "id": "e04-gate",
+          "titulo": "Gate de evaluación y registry",
+          "url": "https://sensei-ml.vercel.app/e04-gate/"
+        }
+      ]
+    },
+    {
+      "num": 6,
+      "leccion": {
+        "id": "e06-serving",
+        "titulo": "Código de serving",
+        "url": "https://sensei-ml.vercel.app/e06-serving/"
+      },
+      "requisitos": [
+        {
+          "id": "http",
+          "titulo": "HTTP: requests, respuestas y códigos",
+          "url": "https://sensei-ml.vercel.app/http/"
+        },
+        {
+          "id": "apis",
+          "titulo": "APIs: REST, JSON, gRPC y streaming",
+          "url": "https://sensei-ml.vercel.app/apis/"
+        },
+        {
+          "id": "fallas-red",
+          "titulo": "Timeouts, reintentos e idempotencia",
+          "url": "https://sensei-ml.vercel.app/fallas-red/"
+        },
+        {
+          "id": "latencia",
+          "titulo": "Qué tan rápido y cuánto: latencia y throughput",
+          "url": "https://sensei-ml.vercel.app/latencia/"
+        },
+        {
+          "id": "async",
+          "titulo": "Hacer varias cosas a la vez: async, event loop y GIL",
+          "url": "https://sensei-ml.vercel.app/async/"
+        },
+        {
+          "id": "balanceo",
+          "titulo": "Balanceadores, proxies y gateways",
+          "url": "https://sensei-ml.vercel.app/balanceo/"
+        },
+        {
+          "id": "imagenes",
+          "titulo": "Una foto, vista por un modelo",
+          "url": "https://sensei-ml.vercel.app/imagenes/"
+        },
+        {
+          "id": "config",
+          "titulo": "Configuración: YAML, variables de entorno y secretos",
+          "url": "https://sensei-ml.vercel.app/config/"
+        },
+        {
+          "id": "pruebas-ci",
+          "titulo": "Pruebas y CI/CD",
+          "url": "https://sensei-ml.vercel.app/pruebas-ci/"
+        },
+        {
+          "id": "e05-export",
+          "titulo": "Export, engine y paridad",
+          "url": "https://sensei-ml.vercel.app/e05-export/"
+        }
+      ]
+    },
+    {
+      "num": 7,
+      "leccion": {
+        "id": "e07-empaquetado",
+        "titulo": "Empaquetado con Docker",
+        "url": "https://sensei-ml.vercel.app/e07-empaquetado/"
+      },
+      "requisitos": [
+        {
+          "id": "sistema-operativo",
+          "titulo": "El sistema operativo: Linux, archivos y permisos",
+          "url": "https://sensei-ml.vercel.app/sistema-operativo/"
+        },
+        {
+          "id": "python-ecosistema",
+          "titulo": "Python, paquetes y entornos",
+          "url": "https://sensei-ml.vercel.app/python-ecosistema/"
+        },
+        {
+          "id": "programa-proceso",
+          "titulo": "Programa, proceso e hilo",
+          "url": "https://sensei-ml.vercel.app/programa-proceso/"
+        },
+        {
+          "id": "config",
+          "titulo": "Configuración: YAML, variables de entorno y secretos",
+          "url": "https://sensei-ml.vercel.app/config/"
+        },
+        {
+          "id": "e05-export",
+          "titulo": "Export, engine y paridad",
+          "url": "https://sensei-ml.vercel.app/e05-export/"
+        },
+        {
+          "id": "e06-serving",
+          "titulo": "Código de serving",
+          "url": "https://sensei-ml.vercel.app/e06-serving/"
+        }
+      ]
+    },
+    {
+      "num": 8,
+      "leccion": {
+        "id": "e08-cicd",
+        "titulo": "CI/CD y registro de imágenes",
+        "url": "https://sensei-ml.vercel.app/e08-cicd/"
+      },
+      "requisitos": [
+        {
+          "id": "pruebas-ci",
+          "titulo": "Pruebas y CI/CD",
+          "url": "https://sensei-ml.vercel.app/pruebas-ci/"
+        },
+        {
+          "id": "git",
+          "titulo": "Git: versiones del código",
+          "url": "https://sensei-ml.vercel.app/git/"
+        },
+        {
+          "id": "e07-empaquetado",
+          "titulo": "Empaquetado con Docker",
+          "url": "https://sensei-ml.vercel.app/e07-empaquetado/"
+        },
+        {
+          "id": "ataques",
+          "titulo": "Ataques y cadena de suministro",
+          "url": "https://sensei-ml.vercel.app/ataques/"
+        },
+        {
+          "id": "identidad",
+          "titulo": "Autenticación y permisos",
+          "url": "https://sensei-ml.vercel.app/identidad/"
+        },
+        {
+          "id": "e05-export",
+          "titulo": "Export, engine y paridad",
+          "url": "https://sensei-ml.vercel.app/e05-export/"
+        }
+      ]
+    },
+    {
+      "num": 9,
+      "leccion": {
+        "id": "e09-kubernetes",
+        "titulo": "Kubernetes",
+        "url": "https://sensei-ml.vercel.app/e09-kubernetes/"
+      },
+      "requisitos": [
+        {
+          "id": "maquinas",
+          "titulo": "Máquinas, GPUs y cómo se cobran",
+          "url": "https://sensei-ml.vercel.app/maquinas/"
+        },
+        {
+          "id": "sistema-operativo",
+          "titulo": "El sistema operativo: Linux, archivos y permisos",
+          "url": "https://sensei-ml.vercel.app/sistema-operativo/"
+        },
+        {
+          "id": "programa-proceso",
+          "titulo": "Programa, proceso e hilo",
+          "url": "https://sensei-ml.vercel.app/programa-proceso/"
+        },
+        {
+          "id": "balanceo",
+          "titulo": "Balanceadores, proxies y gateways",
+          "url": "https://sensei-ml.vercel.app/balanceo/"
+        },
+        {
+          "id": "regiones",
+          "titulo": "Regiones, zonas y disponibilidad",
+          "url": "https://sensei-ml.vercel.app/regiones/"
+        },
+        {
+          "id": "gestionados",
+          "titulo": "Servicios gestionados, serverless y permisos",
+          "url": "https://sensei-ml.vercel.app/gestionados/"
+        },
+        {
+          "id": "config",
+          "titulo": "Configuración: YAML, variables de entorno y secretos",
+          "url": "https://sensei-ml.vercel.app/config/"
+        },
+        {
+          "id": "e06-serving",
+          "titulo": "Código de serving",
+          "url": "https://sensei-ml.vercel.app/e06-serving/"
+        },
+        {
+          "id": "e07-empaquetado",
+          "titulo": "Empaquetado con Docker",
+          "url": "https://sensei-ml.vercel.app/e07-empaquetado/"
+        },
+        {
+          "id": "e08-cicd",
+          "titulo": "CI/CD y registro de imágenes",
+          "url": "https://sensei-ml.vercel.app/e08-cicd/"
+        }
+      ]
+    },
+    {
+      "num": 10,
+      "leccion": {
+        "id": "e10-rollout",
+        "titulo": "Rollout seguro",
+        "url": "https://sensei-ml.vercel.app/e10-rollout/"
+      },
+      "requisitos": [
+        {
+          "id": "balanceo",
+          "titulo": "Balanceadores, proxies y gateways",
+          "url": "https://sensei-ml.vercel.app/balanceo/"
+        },
+        {
+          "id": "ruido",
+          "titulo": "Ruido, muestras y pruebas A/B",
+          "url": "https://sensei-ml.vercel.app/ruido/"
+        },
+        {
+          "id": "pruebas-ci",
+          "titulo": "Pruebas y CI/CD",
+          "url": "https://sensei-ml.vercel.app/pruebas-ci/"
+        },
+        {
+          "id": "e04-gate",
+          "titulo": "Gate de evaluación y registry",
+          "url": "https://sensei-ml.vercel.app/e04-gate/"
+        },
+        {
+          "id": "e08-cicd",
+          "titulo": "CI/CD y registro de imágenes",
+          "url": "https://sensei-ml.vercel.app/e08-cicd/"
+        },
+        {
+          "id": "e09-kubernetes",
+          "titulo": "Kubernetes",
+          "url": "https://sensei-ml.vercel.app/e09-kubernetes/"
+        }
+      ]
+    },
+    {
+      "num": 11,
+      "leccion": {
+        "id": "e11-request",
+        "titulo": "La request en vivo",
+        "url": "https://sensei-ml.vercel.app/e11-request/"
+      },
+      "requisitos": [
+        {
+          "id": "percentiles",
+          "titulo": "Promedios, medianas y percentiles",
+          "url": "https://sensei-ml.vercel.app/percentiles/"
+        },
+        {
+          "id": "tiempo-hash",
+          "titulo": "Tiempo, hashes e identificadores",
+          "url": "https://sensei-ml.vercel.app/tiempo-hash/"
+        },
+        {
+          "id": "formatos",
+          "titulo": "Archivos y formatos: JSON, CSV, Parquet y YAML",
+          "url": "https://sensei-ml.vercel.app/formatos/"
+        },
+        {
+          "id": "terminal",
+          "titulo": "La terminal y la shell",
+          "url": "https://sensei-ml.vercel.app/terminal/"
+        },
+        {
+          "id": "e06-serving",
+          "titulo": "Código de serving",
+          "url": "https://sensei-ml.vercel.app/e06-serving/"
+        },
+        {
+          "id": "e09-kubernetes",
+          "titulo": "Kubernetes",
+          "url": "https://sensei-ml.vercel.app/e09-kubernetes/"
+        },
+        {
+          "id": "e10-rollout",
+          "titulo": "Rollout seguro",
+          "url": "https://sensei-ml.vercel.app/e10-rollout/"
+        }
+      ]
+    },
+    {
+      "num": 12,
+      "leccion": {
+        "id": "e12-monitoreo",
+        "titulo": "Monitoreo, drift y reentrenamiento",
+        "url": "https://sensei-ml.vercel.app/e12-monitoreo/"
+      },
+      "requisitos": [
+        {
+          "id": "e11-request",
+          "titulo": "La request en vivo",
+          "url": "https://sensei-ml.vercel.app/e11-request/"
+        },
+        {
+          "id": "probabilidad",
+          "titulo": "Probabilidad para sistemas que fallan",
+          "url": "https://sensei-ml.vercel.app/probabilidad/"
+        },
+        {
+          "id": "distribuciones",
+          "titulo": "Comparar distribuciones: cómo se mide el drift",
+          "url": "https://sensei-ml.vercel.app/distribuciones/"
+        },
+        {
+          "id": "ruido",
+          "titulo": "Ruido, muestras y pruebas A/B",
+          "url": "https://sensei-ml.vercel.app/ruido/"
+        },
+        {
+          "id": "e01-datos",
+          "titulo": "Datos y etiquetas",
+          "url": "https://sensei-ml.vercel.app/e01-datos/"
+        },
+        {
+          "id": "e10-rollout",
+          "titulo": "Rollout seguro",
+          "url": "https://sensei-ml.vercel.app/e10-rollout/"
+        }
+      ]
+    }
+  ]
+}

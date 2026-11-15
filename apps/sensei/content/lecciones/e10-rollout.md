@@ -284,7 +284,7 @@ Alba tiene dos clases de reglas. Las primeras son **topes absolutos**, los mismo
 
 | Señal | Revierte si | Ventana |
 |---|---|---|
-| Errores 5xx | > 2 × el estable, con ≥ 10,000 requests del canary | 10 min, o hasta juntar el n mínimo |
+| Errores 5xx | ≥ 2 × el estable, con ≥ 10,000 requests del canary | 10 min, o hasta juntar el n mínimo |
 | Latencia [[p99\|p99]] | > 1.2 × el estable | 10 min |
 | Baja confianza (top-1 < 0.3) | > 1.5 × el estable | 30 min |
 | [[psi\|PSI]] de las categorías que predice | > 0.1, con ≥ 5,000 predicciones, sobre ≈ 30 categorías padre | 1 h |

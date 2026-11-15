@@ -517,7 +517,7 @@ Un [[feature-store|feature store]] resuelve eso con **una sola definición** de 
 - **El offline store:** todas las versiones de cada valor, con su hora, en el lake o en el warehouse. Sirve para armar datasets de entrenamiento.
 - **El online store:** solo el último valor de cada usuario o tarjeta, en una base [[llave-valor]] como [[redis|Redis]] o DynamoDB (la de AWS), que responde en milisegundos.
 
-Un job copia, cada tanto, los valores nuevos del offline al online. A eso se le llama **materializar**. Herramientas conocidas: Feast (de código abierto), Tecton (desde 2025, parte de Databricks) y los feature stores de Databricks, SageMaker y Vertex AI.
+Un job copia, cada tanto, los valores nuevos del offline al online. A eso se le llama **materializar**. Herramientas conocidas: Feast (de código abierto), Tecton (desde 2025, parte de Databricks) y los feature stores de Databricks, SageMaker y Gemini Enterprise Agent Platform (antes Vertex AI).
 
 :::diagrama almacenamiento-features
 Arriba, el carril lento: el mismo job llena el offline store, y de ahí salen los datasets. Abajo, el rápido: el servicio lee el último valor del online store en ≈ 1 ms. La flecha «materializa» une los dos. Usa «Recorrer» para seguir un entrenamiento, una request y el backfill de una feature nueva.

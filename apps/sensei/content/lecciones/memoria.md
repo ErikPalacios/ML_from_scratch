@@ -648,8 +648,8 @@ Alba también tiene una búsqueda con *embeddings*: cada publicación se resume 
 :::cuenta Por qué los vectores de la búsqueda tienen que estar en la page cache
 Búsquedas por máquina en el pico // el pico es de 1,750 búsquedas por segundo; cada una pasa por los 4 pedazos, y cada pedazo tiene 2 copias que se reparten las búsquedas | 1,750 ÷ 2 copias | ≈ 875 por segundo
 Lecturas al azar // una por cada uno de los 200 candidatos de cada búsqueda | 875 × 200 | 175,000 por segundo
-Lo que aguanta el disco de red // el techo de EBS de esa máquina | dato de AWS | 40,000 por segundo
-Faltan | 175,000 ÷ 40,000 | ≈ 4.4 veces
+Lo que aguanta el disco de red // el techo de EBS sostenido de esa máquina; 40,000 solo en ráfagas | dato de AWS | 20,000 por segundo
+Faltan | 175,000 ÷ 20,000 | ≈ 8.8 veces
 Precalentar // leer los 51.2 GB de corrido: \(t = B/v\), si el volumen da sus 125 MiB/s ≈ 0.131 GB/s de base | 51.2 GB ÷ 0.131 GB/s ≈ 391 s | ≈ 6.5 minutos
 = Del disco no salen. Por eso la búsqueda usa máquinas de 128 GiB, donde los 51.2 GB caben en la page cache, y una copia nueva lee sus vectores de corrido antes de recibir tráfico. Un NVMe local quitaría el precalentamiento.
 :::

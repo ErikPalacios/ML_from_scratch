@@ -849,7 +849,7 @@ La segunda, mejor: un formato que no tenga nada que ejecutar. [[safetensors|Safe
 2. El encabezado, en JSON: el nombre de cada tensor, su [[dtype]], su [[shape]] y dónde empiezan y terminan sus bytes.
 3. Los bytes de todos los tensores, uno tras otro.
 
-Leerlo es `json.loads` y copiar bytes: nada se ejecuta. Además, como el encabezado dice dónde está cada tensor, se puede abrir con [[mmap]] y leer solo los que hacen falta, como viste en «Memoria, caché y disco». Desde fines de 2023, la librería `transformers` de Hugging Face guarda los modelos en safetensors por omisión, y es el formato de casi todos los modelos de su Hub. Este programa escribe uno chiquito y lo lee con lo que viene con Python:
+Leerlo es `json.loads` y copiar bytes: nada se ejecuta. Además, como el encabezado dice dónde está cada tensor, se puede abrir con [[mmap]] y leer solo los que hacen falta, como viste en «Memoria, caché y disco». Desde fines de 2023, la librería `transformers` de Hugging Face guarda los modelos en safetensors por omisión, y es el formato de la mayoría de los modelos nuevos de su Hub. Este programa escribe uno chiquito y lo lee con lo que viene con Python:
 
 ```python
 import json, struct

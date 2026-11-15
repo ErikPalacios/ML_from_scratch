@@ -685,7 +685,7 @@
      "dato": "Tamaño máximo de foto que acepta el gateway",
      "valor": "10 MB y 40 MP (JPEG, PNG, WebP)",
      "unidad": "MB",
-     "nota": "413 si pasa de 10 MB; 415 si no es imagen.",
+     "nota": "415 si el tipo no es JPEG, PNG ni WebP; 413 si pasa de 10 MB; 400 si dice ser imagen pero no se puede decodificar. Fase 16 (2026-11-15): decía «415 si no es imagen», contra http y e06-serving.",
      "lecciones": [
       "http",
       "formatos",
@@ -1142,6 +1142,16 @@
      ]
     },
     {
+     "id": "so_nodos",
+     "dato": "Sistema operativo de los nodos",
+     "valor": "Amazon Linux 2023; los nodos con GPU arrancan con la AMI acelerada de EKS (driver de NVIDIA y Container Toolkit incluidos)",
+     "unidad": "—",
+     "nota": "Fase 16 (2026-11-15): faltaba en la ficha; lo usa «El sistema operativo».",
+     "lecciones": [
+      "sistema-operativo"
+     ]
+    },
+    {
      "id": "triton_limites",
      "dato": "Triton: memoria y /dev/shm",
      "valor": "6 GiB de memoria; 1 GiB de /dev/shm; puertos 8000 (HTTP) y 8001 (gRPC)",
@@ -1445,7 +1455,7 @@
      "dato": "Receta del reentrenamiento",
      "valor": "Adam, lr 3e-4, batch 64, 8 épocas (28,754 pasos/época), semilla 17, precisión mixta, 8 workers de DataLoader",
      "unidad": "—",
-     "nota": "Parte del modelo en producción.",
+     "nota": "Parte de los pesos de ImageNet, no del modelo en producción. Fase 16 (2026-11-15): decía «Parte del modelo en producción».",
      "lecciones": [
       "aprender",
       "redes",
@@ -1467,9 +1477,9 @@
     {
      "id": "duracion_reentrena",
      "dato": "Duración y costo del reentrenamiento",
-     "valor": "≈ 3–4 h en una GPU; ≈ US$10–50; ≈ 3.6 × 10¹⁷ FLOPs",
+     "valor": "≈ 3–4 h en una GPU; ≈ US$3–4 la corrida, ≈ US$10–50 al mes; ≈ 3.6 × 10¹⁷ FLOPs",
      "unidad": "—",
-     "nota": "El fine-tune de 40 h de «Máquinas» es un ejemplo genérico, no el de Alba. Conflicto 40: la corrida es en una A10G (g5.xlarge) y cuesta ≈ US$4–5; el ≈ US$10–50 es el gasto del mes en entrenar (estaciones_modelo.entreno_costo_corrida).",
+     "nota": "El fine-tune de 40 h de «Máquinas» es un ejemplo genérico, no el de Alba. Conflicto 40: la corrida es en una A10G (g5.xlarge) y cuesta ≈ US$3–4 (fase 16: decía ≈ US$4–5); el ≈ US$10–50 es el gasto del mes en entrenar (estaciones_modelo.entreno_costo_corrida).",
      "lecciones": [
       "aprender",
       "camino-completo",
@@ -1906,7 +1916,7 @@
      "dato": "Precio de AWS KMS",
      "valor": "US$1 por llave al mes (+US$1 por la 1.ª rotación y +US$1 por la 2.ª, tope US$3) · US$0.03 por 10,000 requests, 20,000 gratis al mes",
      "unidad": "USD",
-     "nota": "Noviembre de 2026. La llave de Alba rota cada año: desde el segundo año cuesta US$3 al mes.",
+     "nota": "Noviembre de 2026. La llave de Alba rota cada año: el segundo año cuesta US$2 al mes y desde el tercero US$3. Fase 16 (2026-11-15): decía «desde el segundo año US$3».",
      "lecciones": [
       "cifrado"
      ]
@@ -2581,7 +2591,7 @@
      "dato": "Holdout sin sugerencias",
      "valor": "≈ 1 % de las cuentas de vendedor (por hash del seller_id) no ve sugerencias y elige la categoría a mano",
      "unidad": "—",
-     "nota": "Es el mismo 1 % de negocio.vendedores_sin_sugerencias. Sus labels no los influyó el modelo: sirven para medir el error real de las fuentes débiles y el valor de la sugerencia.",
+     "nota": "Es el mismo 1 % de negocio.vendedores_sin_sugerencias. Sus labels no los influyó el modelo: sirven para medir cuánto empuja la sugerencia a quien vende y cuánto vale; la exactitud de las fuentes débiles la mide la muestra al azar. Fase 16 (2026-11-15): decía que medían el error real de las fuentes débiles.",
      "lecciones": [
       "e01-datos",
       "ejemplos"
@@ -2971,7 +2981,7 @@
     {
      "id": "pipeline_mensual",
      "dato": "Pasos del pipeline mensual",
-     "valor": "validar datos → armar snapshot → fine-tune → evaluar → gate → engine en una T4 → paridad → registrar; un contenedor por paso, 2 pasos en GPU",
+     "valor": "validar datos → armar snapshot → fine-tune → evaluar → gate → engine en una T4 → paridad → registrar; un contenedor por paso, 4 pasos en GPU (fine-tune y evaluar en la A10G; engine y paridad en una T4)",
      "unidad": "—",
      "nota": "Conflicto 41: son 4 pasos con GPU en dos tipos (estaciones_modelo.pipeline_gpu).",
      "lecciones": [
@@ -3104,7 +3114,7 @@
      "dato": "Dónde se escribe un snapshot antes de auditarlo",
      "valor": "s3://ml-datos/staging/ds-2026-09-01/; se publica subiendo cada archivo a datasets/ (PUT, o subida en partes que se cierra con If-None-Match) y escribiendo snapshot.json al final: un snapshot sin tarjeta no existe",
      "unidad": "—",
-     "nota": "Escribir, auditar, publicar. Copiar (CopyObject) hacia un prefijo que exige escrituras condicionales falla siempre (doc. de AWS, nov. 2026).",
+     "nota": "Escribir, auditar, publicar. Se publica con PUT condicional, no con copias: la guía de AWS todavía dice que CopyObject hacia un prefijo que exige escrituras condicionales falla, pero desde el 29-10-2025 CopyObject acepta If-None-Match (AWS se contradice). Fase 16 (2026-11-15): decía «falla siempre».",
      "lecciones": [
       "e02-versionado"
      ]
@@ -3320,7 +3330,7 @@
      "dato": "Cómo está montado MLflow",
      "valor": "un servidor de MLflow (UI y API REST) en el cluster de Alba; metadatos en Postgres (RDS) y artefactos en s3://ml-datos/mlflow/; lo opera el equipo de ML",
      "unidad": "—",
-     "nota": "Supuesto del curso; la versión de MLflow la confirma la revisión de hechos.",
+     "nota": "Supuesto del curso.",
      "lecciones": [
       "e03-entrenamiento",
       "e04-gate"
@@ -4779,7 +4789,7 @@
     {
      "id": "canary_criterios",
      "dato": "Criterios del análisis del canary",
-     "valor": "además de promesas.rollback_auto (5xx > 0.5 % o p99 > 200 ms): 5xx > 2 × el estable con ≥ 10,000 requests del canary (10 min, o lo que tarde en juntarlas); p99 > 1.2 × el estable en 10 min; baja confianza (top-1 < 0.3) > 1.5 × el estable en 30 min; PSI > 0.1 con ≥ 5,000 predicciones en 1 h (monitoreo.drift_canary)",
+     "valor": "además de promesas.rollback_auto (5xx > 0.5 % o p99 > 200 ms): 5xx ≥ 2 × el estable con ≥ 10,000 requests del canary (10 min, o lo que tarde en juntarlas); p99 > 1.2 × el estable en 10 min; baja confianza (top-1 < 0.3) > 1.5 × el estable en 30 min; PSI > 0.1 con ≥ 5,000 predicciones en 1 h (monitoreo.drift_canary)",
      "unidad": "—",
      "nota": "Conflicto 53: rollback_auto son los topes absolutos; el canary compara además contra el estable en la misma ventana.",
      "lecciones": [

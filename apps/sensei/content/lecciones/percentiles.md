@@ -280,7 +280,7 @@ Empieza con la ventana de la cuenta. Pasa 100 requests del bucket de 50 a 100 al
 - El **SLO** (*service level objective*, «objetivo del nivel de servicio») es la meta que ese número tiene que cumplir: «p99 ≤ 200 ms», o «al menos 99 % de las requests en 200 ms o menos».
 - Si además hay un contrato con multas cuando no se cumple, se llama SLA (*service level agreement*).
 
-Un SLO completo dice **qué** se mide, **dónde**, **cuánto** y **en qué ventana**. El de latencia de Alba mide el tiempo de respuesta del lado del servidor (*server-side*), desde que el balanceador tiene la request completa hasta que sale la respuesta; pide p99 ≤ 200 ms; y se vigila en ventanas de 5 minutos, para avisar rápido, y de 30 días, para llevar la cuenta.
+Un SLO completo dice **qué** se mide, **dónde**, **cuánto** y **en qué ventana**. El de latencia de Alba mide el tiempo de respuesta del lado del servidor (*server-side*), desde que el servicio (el gateway, el programa que recibe la foto) empieza a recibir la request del balanceador, incluidos los ≈ 3 ms en que termina de llegar la foto, hasta que sale la respuesta; pide p99 ≤ 200 ms; y se vigila en ventanas de 5 minutos, para avisar rápido, y de 30 días, para llevar la cuenta.
 
 ### Dos formas de escribir la misma promesa
 

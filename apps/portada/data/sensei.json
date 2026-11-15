@@ -396,8 +396,8 @@
       "modulo": "8 · Seguridad",
       "fase": 9,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/cifrado/"
     },
     {
       "id": "identidad",
@@ -405,8 +405,8 @@
       "modulo": "8 · Seguridad",
       "fase": 9,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/identidad/"
     },
     {
       "id": "privacidad",
@@ -414,8 +414,8 @@
       "modulo": "8 · Seguridad",
       "fase": 9,
       "etapa": "datos",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/privacidad/"
     },
     {
       "id": "ataques",
@@ -423,8 +423,8 @@
       "modulo": "8 · Seguridad",
       "fase": 9,
       "etapa": "contenedor",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/ataques/"
     },
     {
       "id": "e01-datos",
@@ -432,8 +432,8 @@
       "modulo": "9 · Estaciones · Datos",
       "fase": 10,
       "etapa": "datos",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/e01-datos/"
     },
     {
       "id": "e02-versionado",
@@ -441,8 +441,8 @@
       "modulo": "9 · Estaciones · Datos",
       "fase": 10,
       "etapa": "datos",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/e02-versionado/"
     },
     {
       "id": "e03-entrenamiento",
@@ -450,8 +450,8 @@
       "modulo": "10 · Estaciones · Modelo",
       "fase": 11,
       "etapa": "modelo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/e03-entrenamiento/"
     },
     {
       "id": "e04-gate",
@@ -459,8 +459,8 @@
       "modulo": "10 · Estaciones · Modelo",
       "fase": 11,
       "etapa": "modelo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/e04-gate/"
     },
     {
       "id": "e05-export",
@@ -468,8 +468,8 @@
       "modulo": "10 · Estaciones · Modelo",
       "fase": 11,
       "etapa": "modelo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/e05-export/"
     },
     {
       "id": "e06-serving",
@@ -477,8 +477,8 @@
       "modulo": "11 · Estaciones · API",
       "fase": 12,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/e06-serving/"
     },
     {
       "id": "e07-empaquetado",
@@ -486,8 +486,8 @@
       "modulo": "12 · Estaciones · Contenedor",
       "fase": 13,
       "etapa": "contenedor",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/e07-empaquetado/"
     },
     {
       "id": "e08-cicd",
@@ -495,8 +495,8 @@
       "modulo": "12 · Estaciones · Contenedor",
       "fase": 13,
       "etapa": "contenedor",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/e08-cicd/"
     },
     {
       "id": "e09-kubernetes",
@@ -504,8 +504,8 @@
       "modulo": "13 · Estaciones · Orquestación",
       "fase": 14,
       "etapa": "orquestacion",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/e09-kubernetes/"
     },
     {
       "id": "e10-rollout",
@@ -513,8 +513,8 @@
       "modulo": "13 · Estaciones · Orquestación",
       "fase": 14,
       "etapa": "orquestacion",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/e10-rollout/"
     },
     {
       "id": "e11-request",
@@ -522,8 +522,8 @@
       "modulo": "14 · Estaciones · Monitoreo",
       "fase": 15,
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/e11-request/"
     },
     {
       "id": "e12-monitoreo",
@@ -531,8 +531,8 @@
       "modulo": "14 · Estaciones · Monitoreo",
       "fase": 15,
       "etapa": "monitoreo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://sensei-ml.vercel.app/e12-monitoreo/"
     }
   ]
 }

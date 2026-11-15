@@ -34,7 +34,7 @@
    "id": "subred",
    "termino": "Subred",
    "en": "subnet",
-   "corto": "Un pedazo del rango de una VPC que vive en una sola zona de disponibilidad. Al poner una máquina en una subred eliges su zona y el rango del que sale su IP.",
+   "corto": "Un pedazo del rango de direcciones de una [[vpc|VPC]] (tu red privada en la nube) que vive en una sola zona de disponibilidad. Al poner una máquina en una subred eliges su zona y el rango del que sale su IP.",
    "largo": "Las subredes de una [[vpc|VPC]] no se enciman y cada una cabe dentro del rango de la VPC. Cada una tiene asociada una [[tabla-rutas|tabla de rutas]], que la hace pública o privada ([[subred-privada]]). En AWS cada subred aparta 5 direcciones. En Kubernetes en AWS, cada pod toma una IP de la subred de su nodo, así que las subredes de los nodos se hacen grandes. En Google Cloud una subred es regional, no de una zona.",
    "ejemplo": "Alba parte `10.0.0.0/16` en cuatro `/20`: `10.0.0.0/20` (pública, 1a), `10.0.16.0/20` (pública, 1b), `10.0.32.0/20` (privada, 1a) y `10.0.48.0/20` (privada, 1b), con 4,091 IPs usables cada una.",
    "ver": [
@@ -78,8 +78,8 @@
    "id": "ip-publica",
    "termino": "IP pública",
    "en": "public IPv4 address",
-   "corto": "Una dirección IPv4 única en el mundo, alcanzable desde internet. En AWS cuesta ≈ US$0.005 por hora cada una (≈ US$3.65 al mes) desde 2024.",
-   "largo": "Las direcciones IPv4 son escasas (2³², ≈ 4,300 millones) y por eso se cobran, se usen o no. Solo la necesita lo que recibe conexiones de internet (un balanceador público) o lo que sale directo (un [[nat|NAT gateway]]). Los nodos de un cluster no la necesitan: van en [[subred-privada|subredes privadas]], y cada IP pública es una puerta más. Lo contrario es la [[ip-privada|IP privada]].",
+   "corto": "Una dirección IPv4 única en el mundo, alcanzable desde internet. En AWS (la nube de Amazon) cuesta ≈ US$0.005 por hora cada una (≈ US$3.65 al mes) desde 2024.",
+   "largo": "Las direcciones IPv4 son escasas (2³², ≈ 4,300 millones) y por eso se cobran, se usen o no. Solo la necesita lo que recibe conexiones de internet (un balanceador público) o lo que sale directo (un [[nat|NAT gateway]]). Los nodos de un clúster no la necesitan: van en [[subred-privada|subredes privadas]], y cada IP pública es una puerta más. Lo contrario es la [[ip-privada|IP privada]].",
    "ejemplo": "100 nodos con IP pública «por si acaso»: 100 × 0.005 × 730 ≈ US$365 al mes. Los nodos de Alba no tienen ninguna; las únicas IPs públicas son las de los 2 NAT (≈ US$7 al mes) y las del ALB.",
    "ver": [
     "ip-privada",
@@ -123,10 +123,10 @@
    "id": "nat",
    "termino": "NAT gateway",
    "en": "NAT gateway",
-   "corto": "El servicio que deja salir a internet a las máquinas de una subred privada, sin dejar que nadie de afuera entre. En AWS cobra ≈ US$0.045 por hora y ≈ US$0.045 por GB que pasa, en cualquier dirección.",
+   "corto": "El servicio que deja salir a internet a las máquinas de una subred privada, sin dejar que nadie de afuera entre. En AWS (la nube de Amazon) cobra ≈ US$0.045 por hora y ≈ US$0.045 por GB que pasa, en cualquier dirección.",
    "largo": "Hace lo mismo que el router de tu casa (NAT, *network address translation*): cambia la IP privada de cada paquete por su [[ip-publica|IP pública]] y regresa las respuestas. El NAT clásico (zonal) vive en una [[subred-privada|subred pública]] de una sola zona, y el estándar es uno por zona; desde noviembre de 2025 AWS ofrece también un NAT regional que se extiende solo a cada zona y cobra la misma hora por zona. Su cobro por GB es un [[cargo-datos-procesados|cargo por datos procesados]], y como es la salida por omisión, por inercia pasan por él S3, imágenes y pesos. Lo que debe pasar: parches y llamadas a terceros. Lo pesado va por [[vpc-endpoint|endpoints]].",
    "analogia": "Una caseta de cobro a la salida del fraccionamiento: deja salir a los vecinos y no deja entrar a extraños, pero cobra a cada coche que pasa, salga o regrese. Se rompe en que la caseta real cobra por coche; el NAT cobra por GB.",
-   "ejemplo": "c04 baja 36 TB al mes de láminas por el NAT: 36,000 × 0.045 ≈ US$1,620, 3.7 veces sus GPUs. Por un gateway endpoint de S3: US$0.",
+   "ejemplo": "Un sistema de segmentación de imágenes médicas (números supuestos del ejemplo) baja por el NAT 36 TB al mes de láminas de patología: 36,000 × 0.045 ≈ US$1,620, ≈ 3.7 veces lo que cuestan sus GPUs (≈ US$441). Por un gateway endpoint de S3: US$0.",
    "ver": [
     "subred-privada",
     "vpc-endpoint",
@@ -139,7 +139,7 @@
    "id": "cargo-datos-procesados",
    "termino": "Cargo por datos procesados",
    "en": "data processing charge",
-   "corto": "Lo que cobra un servicio de la nube por cada GB que pasa por él, aparte de sus horas, salga o no el dato de la nube. Lo cobran el NAT gateway, los endpoints privados de pago (interface endpoints) y SageMaker AI, entre otros.",
+   "corto": "Lo que cobra un servicio de la nube por cada GB que pasa por él, aparte de sus horas, salga o no el dato de la nube. Lo cobran el [[nat|NAT gateway]], los endpoints privados de pago (interface endpoints) y SageMaker AI (la plataforma de modelos de Amazon), entre otros.",
    "largo": "No es [[egress]]: se cobra aunque los datos no salgan de la nube y en cualquier dirección. Tarifas en `us-east-1`: [[nat|NAT gateway]] ≈ US$0.045 por GB; [[privatelink|interface endpoint]] ≈ US$0.01; SageMaker AI hosting ≈ US$0.016 de entrada y de salida. El [[alb|ALB]] cobra algo parecido por sus [[lcu|LCU]] (≈ US$0.008 por GB cuando ganan los bytes). Se encuentra multiplicando bytes por request × requests al mes en cada flecha.",
    "ejemplo": "Bajar una imagen de 9.2 GB por el NAT: 9.2 × 0.045 ≈ US$0.41 por arranque; 60 arranques al mes ≈ US$25.",
    "ver": [
@@ -153,7 +153,7 @@
    "id": "vpc-endpoint",
    "termino": "Endpoint de VPC",
    "en": "VPC endpoint",
-   "corto": "Un camino privado de tu VPC a un servicio del proveedor (S3, ECR…) que no pasa por internet ni por el NAT. El de tipo gateway (S3 y DynamoDB) es gratis.",
+   "corto": "Un camino privado de tu VPC a un servicio del proveedor (como S3, su almacén de objetos, o ECR, su registro de imágenes de contenedor) que no pasa por internet ni por el NAT. El de tipo gateway (S3 y DynamoDB) es gratis.",
    "largo": "Hay dos tipos. El **gateway endpoint**, solo para S3 y DynamoDB, es una regla en tus [[tabla-rutas|tablas de rutas]]: no vive en una zona y no cobra por hora ni por GB. El **interface endpoint** ([[privatelink|PrivateLink]]) pone una tarjeta de red con IP privada en tu subred y cobra ≈ US$0.01 por hora por zona y ≈ US$0.01 por GB. Para bajar imágenes de ECR sin NAT hacen falta `ecr.api`, `ecr.dkr` **y** el gateway de S3, porque las capas viven en S3. En Google Cloud: Private Google Access; en Azure: Private Endpoint.",
    "ejemplo": "Alba baja pesos, engine y logs por el gateway endpoint de S3: US$0 de red. Por el NAT, cada GB pagaría US$0.045.",
    "ver": [
@@ -182,7 +182,7 @@
    "id": "egress",
    "termino": "Egress (transferencia de salida)",
    "en": "egress",
-   "corto": "Los datos que salen de la nube hacia internet; se cobran por GB. Meter datos (ingress) no se cobra. En AWS `us-east-1`: ≈ US$0.09 por GB los primeros 10 TB del mes, con 100 GB gratis.",
+   "corto": "Los datos que salen de la nube hacia internet; se cobran por GB. Meter datos (ingress) no se cobra. En AWS (la nube de Amazon), en `us-east-1`: ≈ US$0.09 por GB los primeros 10 TB del mes, con 100 GB gratis.",
    "largo": "La tarifa va por escalones mensuales (≈ 0.09, 0.085, 0.07 y 0.05 por GB) y cada GB paga el de su tramo. La asimetría hace que sacar tus datos tenga precio: parte del [[dependencia-proveedor|lock-in]]. En sistemas que reciben fotos o video y responden poco, el egress casi no importa; duele cuando lo grande va hacia fuera (servir video, entregar datasets, cambiar de nube). Antes de decir «egress», mira en qué dirección van los bytes. Se suele confundir con el [[cargo-datos-procesados|cargo por datos procesados]] y con la [[transferencia-entre-zonas|transferencia entre zonas]].",
    "ejemplo": "Las respuestas de Alba, ≈ 1 KB × 304 M al mes ≈ 304 GB: ≈ US$18. Copiar 50 TB a otra nube: ≈ US$4.3k por copia.",
    "ver": [
@@ -197,7 +197,7 @@
    "id": "transferencia-entre-zonas",
    "termino": "Transferencia entre zonas",
    "en": "cross-AZ data transfer",
-   "corto": "Lo que cobra la nube por cada GB que va de una zona a otra de la misma región: en AWS ≈ US$0.01 al salir y US$0.01 al entrar, US$0.02 por GB cruzado. Dentro de la misma zona es gratis.",
+   "corto": "Lo que cobra la nube por cada GB que va de una zona a otra de la misma región: en AWS (la nube de Amazon) ≈ US$0.01 al salir y US$0.01 al entrar, US$0.02 por GB cruzado. Dentro de la misma zona es gratis.",
    "largo": "Existe porque las zonas son edificios distintos unidos por fibra del proveedor. La latencia extra es ≈ 1 ms, poca cosa; la razón para evitarlo es el costo, que crece con los bytes por request. El antídoto es el [[ruteo-por-zona|ruteo por zona]]. También cruza lo que no se dibuja: un NAT compartido entre zonas, las réplicas de una cola o una base de datos repartidas en zonas. En Cost Explorer aparece como `DataTransfer-Regional-Bytes`.",
    "ejemplo": "Alba sin ruteo por zona: 304 M tensores × 602,112 B ≈ 183 TB al mes; la mitad cruza: 91.5 TB × 0.02 ≈ US$1,830 al mes (≈ 90 TB y ≈ US$1,800 con meses de 30 días), más del doble de sus dos GPUs.",
    "ver": [
@@ -225,7 +225,7 @@
    "id": "alb",
    "termino": "ALB (Application Load Balancer)",
    "en": "Application Load Balancer",
-   "corto": "El balanceador gestionado de AWS que entiende HTTP: recibe las conexiones HTTPS, las descifra y reparte las requests entre copias sanas en varias zonas. Cobra por hora (≈ US$0.0225) y por LCU.",
+   "corto": "El balanceador gestionado de AWS (la nube de Amazon) que entiende HTTP: recibe las conexiones HTTPS, las descifra y reparte las requests entre copias sanas en varias zonas. Cobra por hora (≈ US$0.0225) y por [[lcu|LCU]] (su unidad de trabajo).",
    "largo": "Es un [[balanceador]] de capa 7 que vive en las subredes de varias zonas a la vez. Su cobro sorprende: además de la hora, cobra ≈ US$0.008 por [[lcu|LCU]]-hora, y cuando las requests llevan fotos en el body manda la dimensión de bytes, así que paga ≈ US$0.008 por GB que pasa. Mandar la llave de S3 en vez de los bytes baja ese cobro. En Google Cloud el equivalente es su Application Load Balancer (antes «balanceador HTTP(S)»), y en Azure, Application Gateway.",
    "ejemplo": "El ALB de Alba: ≈ 83 GB/h de fotos ≈ 83 LCU → 83.3 × 0.008 × 730 + 0.0225 × 730 ≈ US$503 al mes, ≈ 27 % de la infraestructura (más de la cuarta parte).",
    "ver": [
@@ -239,7 +239,7 @@
    "id": "lcu",
    "termino": "LCU (unidad de capacidad del balanceador)",
    "en": "Load Balancer Capacity Unit",
-   "corto": "La unidad con la que AWS mide el trabajo de un ALB en una hora. Se cobra la más alta de cuatro dimensiones; para requests con fotos, gana la de bytes: 1 LCU = 1 GB procesado por hora.",
+   "corto": "La unidad con la que AWS (la nube de Amazon) mide el trabajo de un [[alb|ALB]], su balanceador, en una hora. Se cobra la más alta de cuatro dimensiones; para requests con fotos, gana la de bytes: 1 LCU = 1 GB procesado por hora.",
    "largo": "Las cuatro dimensiones de 1 LCU: 25 conexiones nuevas por segundo, 3,000 conexiones activas por minuto, 1 GB por hora procesado hacia máquinas o IPs, y 1,000 evaluaciones de reglas por segundo. Cuesta ≈ US$0.008 por LCU-hora en `us-east-1`. Como 1 LCU = 1 GB en una hora, cuando ganan los bytes el [[alb|ALB]] cobra ≈ US$0.008 por GB. El error típico es estimar el ALB por número de requests.",
    "ejemplo": "2 TB al día ÷ 24 h ≈ 83 GB/h → ≈ 83 LCU en promedio → ≈ US$486 al mes solo de LCU.",
    "ver": [

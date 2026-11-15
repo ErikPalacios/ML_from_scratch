@@ -508,7 +508,7 @@ text{dentro del ruido si } |Δ| ≤ τ
 
 ¿Por qué tres? Si el ruido entre semillas tiene forma de [[distribucion-normal|campana]], una corrida que se aleja más de 3σ del promedio de las semillas (85.23 %) lo hace por puro azar en menos de 3 de cada 1,000 casos. Si aparece una, lo más probable es que algo **sí** cambió.
 
-Entre dos corridas sueltas, la diferencia varía un poco más, porque junta el azar de las dos: ≈ 1.4 veces σ (es \(sqrt{2}\) × σ). Así, una diferencia de más de 0.26 puntos sale por azar ≈ 4 de cada 100 veces. Por eso \(τ\) es una regla para decidir dónde mirar, no un veredicto. Y es una convención, no una ley: con solo 5 semillas, σ misma es aproximada.
+Entre dos corridas sueltas, la diferencia varía un poco más, porque junta el azar de las dos: ≈ 1.4 veces σ (es \(sqrt{2}\) × σ). Así, una diferencia de más de 0.26 puntos sale por azar ≈ 3 de cada 100 veces. Por eso \(τ\) es una regla para decidir dónde mirar, no un veredicto. Y es una convención, no una ley: con solo 5 semillas, σ misma es aproximada.
 
 :::cuenta 85.3 contra 85.1
 Referencia, \(x_A\) | la corrida con la receta de siempre | 85.3 %

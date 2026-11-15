@@ -560,3 +560,110 @@ a.tl:hover { box-shadow: 0 0 0 2px var(--accent); }
 .formula__vars dt { text-align: right; }
 .formula__vars dd { margin: 0; font: 14.5px/1.5 var(--sans); color: var(--ink-2); }
 .calc__expr .m, .calc__label .m { font-size: 1.1em; white-space: normal; }
+
+/* ================================================================ repaso: tarjetas del glosario (site/repaso.js) */
+.c-repaso { grid-column: 1 / -1; justify-self: start; display: inline-flex; align-items: center; gap: 8px; font: 600 14px/1.3 var(--sans); text-decoration: none; }
+.rp[hidden], .rp-sinjs[hidden], .rp-pregunta[hidden], .rp-sesion[hidden], .rp-fin[hidden], .rp-elegir[hidden], .rp-dorso[hidden], .rp-notas[hidden], .rp-mas[hidden], .rp-voltear[hidden], .rp-en[hidden], .rp-fin [hidden] { display: none; }
+.rp-sinjs { margin-top: 24px; padding: 18px 22px; border-radius: 18px; background: var(--blk); box-shadow: inset 4px 0 0 var(--accent); font: 16.5px/1.6 var(--sans); color: var(--ink-2); max-width: 64ch; }
+.rp { margin-top: 24px; display: flex; flex-direction: column; gap: 28px; }
+.rp-h { font: 800 22px/1.25 var(--sans); letter-spacing: -.02em; }
+.rp-h:focus { outline: none; }
+.rp-link { border: 0; background: none; padding: 6px 4px; cursor: pointer; font: 600 14px/1.3 var(--sans); color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 2px; }
+.rp-link:hover { text-decoration-color: currentColor; }
+.rp kbd { font: 600 11.5px/1 var(--mono); padding: 3px 6px; border-radius: 6px; box-shadow: inset 0 0 0 1px currentColor; opacity: .75; }
+
+/* elegir */
+.rp-elegir { display: flex; flex-direction: column; gap: 16px; }
+.rp-intro { margin-top: -6px; font: 15.5px/1.55 var(--sans); color: var(--ink-2); max-width: 64ch; }
+.rp-pregunta { font: 700 15px/1.3 var(--sans); color: var(--ink); }
+.rp-filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.rp-filtro { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; padding: 14px 16px; border-radius: 16px; background: var(--blk); cursor: pointer; }
+.rp-filtro span { display: flex; flex-direction: column; gap: 3px; }
+.rp-filtro b { font: 700 15px/1.35 var(--sans); }
+.rp-filtro small { font: 13.5px/1.45 var(--sans); color: var(--muted); }
+.rp input[type="checkbox"] { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--accent); flex: none; }
+.rp-mods-h { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.rp-mods-h .lbl { margin-right: auto; }
+.rp-mods { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 10px; align-items: start; }
+.rp-mod { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 16px; box-shadow: inset 0 0 0 1px var(--rule); min-width: 0; }
+.rp-mod__h { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; cursor: pointer; }
+.rp-mod__t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rp-mod__t b { font: 700 15px/1.35 var(--sans); }
+.rp-mod__n { font: 500 12.5px/1.4 var(--mono); color: var(--muted); }
+.rp-av { display: flex; height: 8px; border-radius: 999px; background: var(--tm-off); overflow: hidden; }
+.rp-av i { display: block; height: 100%; transition: width .2s ease; }
+.rp-av__firme { background: var(--g); }
+.rp-av__visto { background: var(--b); opacity: .55; }
+.rp-lecs > summary { display: inline-flex; align-items: center; gap: 6px; font: 600 13px/1.2 var(--sans); color: var(--accent-ink); padding: 4px 0; }
+.rp-lecs > summary .chev { transition: transform var(--dur) var(--ease); }
+.rp-lecs[open] > summary .chev { transform: rotate(90deg); }
+.rp-lecs ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rp-lecs label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 6px 4px; border-radius: 8px; font: 14px/1.4 var(--sans); color: var(--ink-2); cursor: pointer; }
+.rp-lecs label:hover { background: var(--surface-2); }
+.rp-lec__n { font: 500 12px/1 var(--mono); color: var(--muted); }
+.rp-lec__c { font: 500 12px/1.5 var(--mono); color: var(--muted); white-space: nowrap; }
+.rp-listo { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 14px 16px 18px; border-radius: 18px; background: var(--surface); box-shadow: var(--card-sh), 0 -12px 24px -18px rgba(14,21,48,.35); }
+.rp-cuenta { flex: 1 1 260px; font: 15px/1.5 var(--sans); color: var(--ink-2); }
+.btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+/* la tarjeta */
+.rp-sesion { display: flex; flex-direction: column; gap: 16px; max-width: 680px; }
+.rp-top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.rp-barra { height: 6px; border-radius: 999px; background: var(--tm-off); overflow: hidden; }
+.rp-barra i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s ease; }
+.rp-card { display: flex; flex-direction: column; gap: 18px; min-height: 260px; padding: 26px 26px 24px; border-radius: 22px; background: var(--blk); box-shadow: var(--card-sh), inset 0 4px 0 var(--y); }
+.rp-frente { display: flex; flex-direction: column; gap: 6px; }
+.rp-caja { align-self: flex-start; font: 700 10.5px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--tm-dojo); padding: 5px 8px; border-radius: 999px; background: color-mix(in srgb, var(--y) 20%, transparent); }
+.rp-t { margin-top: 6px; font: 800 clamp(26px, 4vw, 34px)/1.15 var(--sans); letter-spacing: -.03em; color: var(--ink); overflow-wrap: anywhere; text-wrap: balance; }
+.rp-en { font: 500 13.5px/1.4 var(--mono); color: var(--accent-ink); overflow-wrap: anywhere; }
+.rp-de { font: 13.5px/1.45 var(--sans); color: var(--muted); }
+.rp-dorso { display: flex; flex-direction: column; gap: 14px; padding-top: 18px; box-shadow: inset 0 1px 0 var(--rule); }
+.rp-corto { font: 600 17px/1.6 var(--sans); color: var(--ink); }
+.rp-mas > summary { display: inline-flex; align-items: center; gap: 6px; font: 700 14px/1.2 var(--sans); color: var(--accent-ink); padding: 8px 12px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--rule); }
+.rp-mas[open] > summary { background: var(--accent-soft); }
+.rp-mas > summary .chev { transition: transform var(--dur) var(--ease); }
+.rp-mas[open] > summary .chev { transform: rotate(90deg); }
+.rp-mas > div { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.rp-mas p { font: 15.5px/1.6 var(--sans); color: var(--ink-2); }
+.rp-ir { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 600 14px/1.4 var(--sans); }
+.rp-ir a { text-decoration: none; }
+.rp-acc { display: flex; flex-direction: column; gap: 10px; }
+.rp-voltear { align-self: flex-start; }
+.rp-notas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.rp-nota { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; align-items: center; text-align: left; border: 0; cursor: pointer; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); color: var(--ink); box-shadow: 0 4px 0 var(--rule-strong); transition: transform .08s ease, box-shadow .08s ease; }
+.rp-nota:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--rule-strong); }
+.rp-nota kbd { grid-row: 1 / span 2; }
+.rp-nota b { font: 700 15px/1.25 var(--sans); }
+.rp-nota small { font: 12.5px/1.3 var(--sans); color: var(--muted); }
+.rp-nota--1 { box-shadow: inset 4px 0 0 var(--o), 0 4px 0 var(--rule-strong); }
+.rp-nota--2 { box-shadow: inset 4px 0 0 var(--y), 0 4px 0 var(--rule-strong); }
+.rp-nota--3 { box-shadow: inset 4px 0 0 var(--g), 0 4px 0 var(--rule-strong); }
+.rp-teclas { font: 13px/1.5 var(--sans); color: var(--muted); }
+@media (max-width: 560px) {
+  .rp-card { padding: 20px 18px; min-height: 220px; }
+  .rp-notas { grid-template-columns: minmax(0, 1fr); }
+  .rp-teclas { display: none; }
+}
+
+/* el final de la sesión */
+.rp-fin { display: flex; flex-direction: column; gap: 16px; max-width: 680px; }
+.rp-res { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 125px), 1fr)); gap: 10px; }
+.rp-res > li { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 16px; background: var(--blk); }
+.rp-res > li > b { font: 800 30px/1 var(--sans); letter-spacing: -.02em; }
+.rp-res > li > span { font: 14px/1.4 var(--sans); color: var(--ink-2); }
+.rp-res .rp-res__h { grid-column: 1 / -1; background: none; padding: 10px 0 0; font: 700 11px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.rp-res .rp-res__mod { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; padding: 10px 14px; }
+.rp-res .rp-res__mod span:first-child { font-weight: 700; color: var(--ink); }
+.rp-res .rp-res__mod span:last-child { font: 500 12.5px/1.6 var(--mono); color: var(--muted); }
+.rp-fin__btns { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* cómo funciona */
+.rp-como { display: flex; flex-direction: column; gap: 12px; padding-top: 24px; box-shadow: inset 0 1px 0 var(--rule); }
+.rp-como > p { font: 15.5px/1.6 var(--sans); color: var(--ink-2); max-width: 70ch; }
+.rp-cajas { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.rp-cajas li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--blk); }
+.rp-cajas b { font: 700 13px/1.2 var(--sans); }
+.rp-cajas span { font: 12.5px/1.35 var(--sans); color: var(--muted); }
+@media (max-width: 560px) { .rp-cajas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.rp-borrar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font: 13.5px/1.5 var(--sans); color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .rp-av i, .rp-barra i { transition: none; } }

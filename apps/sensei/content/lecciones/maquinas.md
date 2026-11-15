@@ -546,7 +546,7 @@ Las secciones anteriores suponen que rentas GPUs completas, de NVIDIA, a una nub
 
 Si tu modelo usa 3 GB de una GPU de 80, pagar la GPU entera es caro. Hay dos maneras de compartirla.
 
-**[[mig|MIG]]** (*Multi-Instance GPU*) parte una GPU grande en hasta 7 pedazos **con aislamiento de hardware**: cada pedazo tiene su propia memoria y sus propios [[sm|SMs]] (los bloques de cómputo de la GPU), y lo que pase en uno no frena a los otros. Existe en la A100, la H100 y la H200 (y en hasta 4 pedazos en la RTX PRO 6000, una tarjeta de escritorio que vuelve al final de esta sección). Un pedazo de H100 se llama, por ejemplo, `1g.10gb`: una séptima parte del cómputo y 10 GB. Si repartes el precio de la H100 (US$6.88 por GPU-hora) entre sus 7 pedazos, cada uno cuesta ≈ 6.88 ÷ 7 ≈ US$0.98 por hora: casi el doble de una T4 completa. MIG **no existe** en la T4, la L4, la A10G ni la L40S.
+**[[mig|MIG]]** (*Multi-Instance GPU*) parte una GPU grande en hasta 7 pedazos **con aislamiento de hardware**: cada pedazo tiene su propia memoria y sus propios [[sm|SMs]] (los bloques de cómputo de la GPU), y lo que pase en uno no frena a los otros. Existe, entre otras, en la A100, la H100, la H200 y la B200 (y en hasta 4 pedazos en la RTX PRO 6000, una tarjeta de escritorio que vuelve al final de esta sección). Un pedazo de H100 se llama, por ejemplo, `1g.10gb`: una séptima parte del cómputo y 10 GB. Si repartes el precio de la H100 (US$6.88 por GPU-hora) entre sus 7 pedazos, cada uno cuesta ≈ 6.88 ÷ 7 ≈ US$0.98 por hora: casi el doble de una T4 completa. MIG **no existe** en la T4, la L4, la A10G ni la L40S.
 
 Las **[[fraccion-gpu|fracciones de GPU]]** comparten sin aislamiento:
 

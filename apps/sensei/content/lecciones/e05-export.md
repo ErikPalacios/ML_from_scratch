@@ -158,7 +158,7 @@ Desde PyTorch 2.9, `torch.onnx.export` usa por omisión otro exportador, el que 
 
 **El ONNX que pesa 0.3 MB.** El exportador nuevo guarda los pesos aparte: un `model.onnx` de ≈ 0.3 MB con el grafo y un `model.onnx.data` de ≈ 98 MB con los pesos, salvo que le pidas lo contrario. Si un paso del pipeline copia solo el `.onnx`, el siguiente no encuentra los pesos y falla, a veces mucho después. Alba, con `dynamo=False`, saca un solo archivo; si migra, el chequeo 3 lo atraparía, porque corre el archivo que de verdad se va a entregar.
 
-Y una más, que no es del exportador. **El provider que se apaga solo.** Alba corre ONNX Runtime solo en CPU, pero hay servicios que lo usan en GPU. Si corre con el provider de CUDA y un operador no está soportado ahí, ese nodo **cae a la CPU sin error**: el modelo responde bien, solo que más lento, y lo único que lo delata es la latencia. Por eso un servicio con ORT en GPU revisa qué provider tomó cada nodo, y por eso la latencia se mide con el artefacto final.
+Y una más, que no es del exportador. **El provider que se apaga solo.** Alba corre ONNX Runtime solo en CPU, pero hay servicios que lo usan en GPU. Si corre con el provider de CUDA y un operador no está soportado ahí, ese nodo **pasa sin error al siguiente provider de la lista** y, al final, a la CPU: el modelo responde bien, solo que más lento, y lo único que lo delata es la latencia. Por eso un servicio con ORT en GPU revisa qué provider tomó cada nodo, y por eso la latencia se mide con el artefacto final.
 :::
 
 ## TensorRT: del ONNX al engine {TensorRT: from ONNX to engine}

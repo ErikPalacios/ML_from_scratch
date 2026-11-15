@@ -73,7 +73,7 @@ Entrenar se hace pocas veces y tarda horas. Usar se hace millones de veces y tar
 :::
 
 :::ojo
-Cuando alguien dice «el modelo aprende de los usuarios», casi nunca es en tiempo real. El modelo que está respondiendo no cambia sus perillas con cada foto. Se juntan datos nuevos, se entrena una versión nueva aparte y, si sale mejor, reemplaza a la anterior.
+Cuando alguien dice «el modelo aprende de los usuarios», casi nunca es en tiempo real. El modelo que está respondiendo no cambia sus perillas con cada foto. Se juntan datos nuevos, se entrena una versión nueva aparte y, si no sale peor en un examen fijo, reemplaza a la anterior.
 :::
 
 ## ¿Qué significa «producción»? {What production means}
@@ -169,7 +169,7 @@ Todo el recorrido, de ida y vuelta, en una fracción de segundo.
 
 El mensaje que los servidores del marketplace le mandan a la API se llama [[request]], y lo que regresa se llama *response*. El tiempo que pasa entre una request y su response es la [[latencia]]. Alba se compromete a que 99 de cada 100 respuestas tarden menos de 200 [[ms|milisegundos]], más o menos lo que dura un parpadeo, sin contar el viaje por internet hasta el celular de Ana.
 
-Fíjate en dos detalles de esa promesa. Tiene un número que se puede medir: no dice «rápido», dice «menos de 200 ms, 99 de cada 100 veces». Y dice **dónde** se mide: del lado del servidor, desde que la request completa llega al balanceador hasta que sale la respuesta. Lo que tarda la foto en subir depende de la señal del celular de Ana, y eso nadie en el marketplace lo controla. A una promesa así, con número y con lugar donde se mide, se le llama [[slo|SLO]].
+Fíjate en dos detalles de esa promesa. Tiene un número que se puede medir: no dice «rápido», dice «menos de 200 ms, 99 de cada 100 veces». Y dice **dónde** se mide: del lado del servidor, desde que el servicio de Alba empieza a recibir la request hasta que sale la respuesta. Lo que tarda la foto en subir depende de la señal del celular de Ana, y eso nadie en el marketplace lo controla. A una promesa así, con número y con lugar donde se mide, se le llama [[slo|SLO]].
 
 ¿Y por qué «99 de cada 100» y no el promedio? Porque el promedio esconde a quienes esperan mucho. Lo ves con números en la sección extra «El presupuesto de 200 milisegundos».
 
@@ -280,7 +280,7 @@ pasan de 300 ms:   145 (ven el selector manual)
 El promedio, 61 ms, haría pensar que todo va de maravilla. Pero la request número 9,900 tarda 918 ms: la promesa de 200 ms no se cumple y 145 personas vieron el selector manual. Si cambias la semilla (`random.seed`), los números cambian: el promedio apenas se mueve, y el de «99 de cada 100» puede moverse varios cientos de milisegundos, porque depende de unas pocas requests lentas. La conclusión no cambia: siempre pasa de 200 ms.
 
 :::nota Lo que no entra en la cuenta: la subida de la foto
-El presupuesto empieza cuando la request completa llega al balanceador; la subida desde el celular de Ana queda fuera. Lo que sí se controla es cuánto pesa lo que sube: la app de Alba reduce la foto a 1024 píxeles de lado largo antes de mandarla, unos 150 a 250 KB.
+El presupuesto empieza cuando el servicio empieza a recibir la request, y cuenta los ≈ 3 ms en que la foto termina de pasar del balanceador; la subida desde el celular de Ana queda fuera. Lo que sí se controla es cuánto pesa lo que sube: la app de Alba reduce la foto a 1024 píxeles de lado largo antes de mandarla, unos 150 a 250 KB.
 :::
 
 ## Dos caminos: online y offline {Online and offline paths}
@@ -351,7 +351,7 @@ En la cadena de restaurantes, el camino online es el mostrador: un cliente pidi�
 
 De los dos caminos sale una idea que conviene llevarse: un modelo en producción no es un proyecto que se termina, es algo que se cuida.
 
-Aunque nadie toque el modelo, el mundo sí cambia: salen modelos nuevos de tenis, cambian las modas, los celulares toman fotos con otra luz. Las fotos que llegan se van pareciendo menos a las del entrenamiento y el modelo acierta un poco menos cada mes. Nadie rompió nada. El monitoreo lo detecta, se etiquetan fotos nuevas, se reentrena y la versión nueva reemplaza a la anterior. Y el ciclo vuelve a empezar.
+Aunque nadie toque el modelo, el mundo sí cambia: salen modelos nuevos de tenis, cambian las modas, los celulares toman fotos con otra luz. Las fotos que llegan se van pareciendo menos a las del entrenamiento y el modelo acierta un poco menos cada mes. Nadie rompió nada. El monitoreo lo detecta, se etiquetan fotos nuevas, se reentrena y, si no es peor en el examen, la versión nueva reemplaza a la anterior. Y el ciclo vuelve a empezar.
 
 En Alba pasa además otra cosa: el 1 de octubre el negocio agrega la categoría «bolsas». El modelo no puede sugerir «bolsas» porque esa opción ni siquiera existe entre sus respuestas, así que elige la más parecida que conoce. Eso no es drift: es un cambio en las categorías, y obliga a reentrenar antes de lo planeado.
 

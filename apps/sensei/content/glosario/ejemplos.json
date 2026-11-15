@@ -7,7 +7,7 @@
       "en": "example · sample · instance",
       "corto": "Un caso del que ya sabes la respuesta: la entrada (lo que ve el modelo) junto con su etiqueta (la respuesta correcta).",
       "largo": "Un [[modelo]] aprende de muchos ejemplos. En un [[dataset]] cada ejemplo es una fila: sus [[feature|features]] y su [[etiqueta]]. A aprender de ejemplos que ya traen su respuesta se le llama aprendizaje supervisado.",
-      "ejemplo": "La foto de los tenis de Ana junto con «Calzado › Tenis» es un ejemplo. El dataset de septiembre de Alba, el marketplace que sigue el curso, trae casi 2 millones: 1,840,211 + 92,417 = 1,932,628. En un sistema de fraude, un ejemplo es un pago con su respuesta: fue fraude o no.",
+      "ejemplo": "La foto de los tenis de Ana junto con «Calzado › Tenis» es un ejemplo. El dataset de septiembre de Alba, el marketplace que sigue el curso, trae casi 2 millones: 1,840,211 para entrenar + 92,417 para validar = 1,932,628. En un sistema de fraude, un ejemplo es un pago con su respuesta: fue fraude o no.",
       "ver": [
         "feature",
         "etiqueta",
@@ -34,7 +34,7 @@
       "termino": "Codificación",
       "en": "encoding",
       "corto": "Convertir un dato que no es un número (una categoría, un texto) en números que el modelo pueda usar, sin inventarle relaciones que no tiene.",
-      "largo": "Un modelo solo multiplica y suma, así que todo le tiene que llegar como número. Para una categoría hay varias formas: [[one-hot]] (una columna de 0 y 1 por valor), números en orden (solo si el orden existe de verdad, como las tallas chica, mediana y grande), hashing (una fórmula fija manda cada valor a una de un número fijo de casillas, útil cuando hay millones de valores) y [[embedding|embeddings]] (una lista de números aprendida para cada valor). La codificación se decide con train y se usa idéntica al servir.",
+      "largo": "Un modelo solo multiplica y suma, así que todo le tiene que llegar como número. Para una categoría hay varias formas: [[one-hot]] (una columna de 0 y 1 por valor), números en orden (solo si el orden existe de verdad, como las tallas chica, mediana y grande), hashing (una fórmula fija manda cada valor a una de un número fijo de casillas, útil cuando hay millones de valores) y [[embedding|embeddings]] (una lista de números aprendida para cada valor). La codificación se decide con los datos de entrenamiento ([[train-set|train]]) y se usa idéntica al servir.",
       "ejemplo": "El giro del comercio en un modelo de fraude: supermercado = [1, 0, 0], gasolinera = [0, 1, 0], videojuegos = [0, 0, 1]. En uno de clics en anuncios, el id de cada anuncio cae por hashing en una de 2²⁴ = 16,777,216 casillas.",
       "ver": [
         "one-hot",
@@ -63,7 +63,7 @@
       "en": "missing value · NaN",
       "corto": "Un dato que debía estar y no está: la feature quedó vacía para ese ejemplo. Antes de entrenar hay que decidir qué hacer con ella, y hacer lo mismo al servir.",
       "largo": "Tres salidas: quitar el ejemplo o la columna (fácil, pero si lo que falta no falta al azar, quitas justo un tipo de caso), rellenar o imputar (con la mediana de train o una regla del negocio, y marcar la fila con una columna «rellenado») o dejarlo como «no sé», NaN (*not a number*), para un modelo que lo sepa usar, como los de árboles de decisión con gradient boosting. Nunca rellenar con 0 si 0 significa otra cosa: «cero compras» es un dato; «no sé cuántas», otro.",
-      "ejemplo": "En fraude: si un pago llega sin el SDK que identifica al dispositivo, sus features de dispositivo valen NaN, no 0. En un pronóstico de ventas: un producto sin ventas ayer pudo haber vendido cero, estar agotado o no tener dato, y son tres cosas distintas.",
+      "ejemplo": "En fraude: si un pago llega sin el SDK (*software development kit*: el código que la app trae para identificar al dispositivo), sus features de dispositivo valen NaN, no 0. En un pronóstico de ventas: un producto sin ventas ayer pudo haber vendido cero, estar agotado o no tener dato, y son tres cosas distintas.",
       "ver": [
         "feature",
         "leakage"
@@ -106,7 +106,7 @@
       "termino": "Train",
       "en": "training set · conjunto de entrenamiento",
       "corto": "La parte del dataset con la que el modelo aprende: sus parámetros se ajustan para acertarles a estos ejemplos.",
-      "largo": "Es la parte más grande, de 70 % a 95 % según el tamaño del dataset. Que el modelo acierte aquí no prueba gran cosa: con millones de [[parametro|parámetros]] se puede aprender estas fotos de memoria. Todo lo que se calcula a partir de los datos (el promedio para escalar, la mediana para rellenar huecos) se calcula solo con train.",
+      "largo": "Es la parte más grande, de 70 % a 95 % según el tamaño del dataset. Que el modelo acierte en train no prueba gran cosa: con millones de [[parametro|parámetros]] se puede aprender estas fotos de memoria. Todo lo que se calcula a partir de los datos (el promedio para escalar, la mediana para rellenar huecos) se calcula solo con train.",
       "ver": [
         "validation-set",
         "test-set",
@@ -177,7 +177,7 @@
       "termino": "Split temporal",
       "en": "temporal split · time-based split",
       "corto": "Repartir por fecha: entrenar con lo que pasó antes de un corte y evaluar con lo que pasó después. Es obligatorio cuando el modelo va a predecir el futuro.",
-      "largo": "Un split al azar mezcla días: el modelo ve el lunes y el miércoles y lo examinas con el martes, así que interpola en vez de predecir. Con un corte, el examen se parece a producción: el modelo solo sabe lo que se sabía en esa fecha. Si las etiquetas tardan en llegar (un contracargo puede tardar meses), además hay que esperar a que maduren. Repetir el corte en varias fechas y promediar se llama backtest.",
+      "largo": "Un split al azar mezcla días: el modelo ve el lunes y el miércoles y lo examinas con el martes, así que interpola en vez de predecir. Con un corte, el examen se parece a producción: el modelo solo sabe lo que se sabía en esa fecha. Si las etiquetas tardan en llegar (un contracargo, el aviso del banco de que un pago fue fraude, puede tardar meses), además hay que esperar a que maduren. Repetir el corte en varias fechas y promediar se llama backtest.",
       "ejemplo": "Un pronóstico de ventas de supermercado entrena con las ventas hasta una fecha de corte y evalúa los 14 días siguientes, en 8 cortes semanales. La regla: si entrenas con datos hasta el 5 de enero, evalúa desde el 6.",
       "ver": [
         "split",
@@ -191,7 +191,7 @@
       "termino": "Split por grupo",
       "en": "group split · entity split",
       "corto": "Repartir por grupos completos (vendedor, cliente, cámara, paciente) en vez de por ejemplos sueltos, para que todos los ejemplos de un grupo queden del mismo lado.",
-      "largo": "Si los ejemplos de un grupo se parecen entre sí (el mismo fondo, la misma luz, el mismo cliente), repartirlos al azar deja gemelos en train y en test, y el modelo aprende a reconocer el grupo en vez de la tarea. Un truco común: calcular un hash del id del grupo y decidir con él (por ejemplo, hash mod 100 < 95 → train). Así el mismo grupo cae siempre del mismo lado, mes tras mes, sin guardar ninguna lista. El hash tiene que ser estable, como sha256 de `hashlib`, no el `hash()` de Python.",
+      "largo": "Si los ejemplos de un grupo se parecen entre sí (el mismo fondo, la misma luz, el mismo cliente), repartirlos al azar deja gemelos en train y en test, y el modelo aprende a reconocer el grupo en vez de la tarea. Un truco común: calcular un [[funcion-hash|hash]] del id del grupo (un número que sale siempre igual para el mismo id) y decidir con él (por ejemplo, hash mod 100 < 95 → train). Así el mismo grupo cae siempre del mismo lado, mes tras mes, sin guardar ninguna lista. El hash tiene que ser estable, como sha256 de `hashlib`, no el `hash()` de Python.",
       "ejemplo": "Alba, el marketplace del curso, reparte por vendedor: hash(seller_id) mod 100 < 95 va a train y el resto a validación. Un vendedor con 400 fotos sobre la misma mesa queda entero de un lado. Un sistema de patología reparte por paciente.",
       "ver": [
         "split",
@@ -204,9 +204,9 @@
       "id": "duplicado-cercano",
       "termino": "Casi duplicado",
       "en": "near-duplicate",
-      "corto": "Dos ejemplos que no son el mismo archivo pero muestran lo mismo: la misma foto recortada, vuelta a comprimir o más clara. Un hash normal no los detecta; una huella perceptual o una comparación de embeddings, sí.",
+      "corto": "Dos ejemplos que no son el mismo archivo pero muestran lo mismo: la misma foto recortada, vuelta a comprimir o más clara. Una huella exacta del archivo ([[funcion-hash|hash]]) no los detecta; hace falta comparar lo que se ve, con una huella perceptual o con [[embedding|embeddings]].",
       "largo": "Si un casi duplicado queda en train y su gemelo en test, el modelo acierta de memoria: es [[leakage]]. Para copias exactas basta un hash del archivo, como sha256, que cambia por completo si cambia un solo byte. Para casi copias se usa una huella perceptual (el average hash, pHash y parientes): se calcula sobre una versión diminuta de la imagen, en gris, y cambia poco si la imagen cambia poco. Dos fotos son casi duplicadas si sus huellas difieren en pocos bits. También se pueden comparar sus [[embedding|embeddings]] con [[similitud-coseno]].",
-      "ejemplo": "Barz y Denzler (2020) encontraron que el 3.3 % de las imágenes de test de CIFAR-10 y el 10 % de las de CIFAR-100 tenían un casi duplicado en train. En Alba, el marketplace del curso, la misma foto en tres publicaciones.",
+      "ejemplo": "Barz y Denzler (2020) encontraron que el 3.3 % de las imágenes de test de CIFAR-10 y el 10 % de las de CIFAR-100 (dos datasets públicos de fotos chiquitas) tenían un casi duplicado en train. En Alba, el marketplace del curso, la misma foto en tres publicaciones.",
       "ver": [
         "leakage",
         "split-por-grupo",
@@ -249,7 +249,7 @@
       "en": "label noise",
       "corto": "Etiquetas equivocadas dentro del dataset. Siempre hay algunas: por cansancio, por una guía ambigua o porque la fuente automática se equivoca o llega tarde.",
       "largo": "En train, el ruido le enseña cosas falsas al modelo. En evaluación es peor: el modelo «falla» donde la etiqueta estaba mal y la métrica mide parte del ruido, así que pone un techo a lo que puedes medir. Northcutt, Athalye y Mueller (2021) estimaron al menos 3.3 % de etiquetas erróneas en promedio en los test sets de 10 datasets conocidos, y ≈ 6 % en la validación de ImageNet. Lo sospechoso (donde el modelo contradice la etiqueta con mucha seguridad) se manda a revisión humana; no se borra automáticamente.",
-      "ejemplo": "En fraude en pagos, con un supuesto típico, a los 30 días solo ha llegado ≈ 60 % de los contracargos. En los pagos de hace 30 días, ≈ 4 de cada 10 fraudes todavía están etiquetados como pagos buenos; en los de la semana pasada, muchos más.",
+      "ejemplo": "En fraude en pagos, con un supuesto típico, a los 30 días solo ha llegado ≈ 60 % de los contracargos (los avisos del banco de que un pago fue fraude). En los pagos de hace 30 días, ≈ 4 de cada 10 fraudes todavía están etiquetados como pagos buenos; en los de la semana pasada, muchos más.",
       "ver": [
         "etiqueta",
         "etiquetado",
@@ -314,7 +314,7 @@
       "termino": "Golden set",
       "en": "golden set",
       "corto": "Un conjunto de evaluación de la mejor calidad: etiquetado con cuidado por personas, congelado y que jamás se usa para entrenar. Es la regla fija con la que se comparan los modelos.",
-      "largo": "Congelado quiere decir que no cambia: dos modelos de meses distintos se examinan con exactamente las mismas fotos, así que la diferencia es del modelo y no del examen. Si hay que cambiarlo (porque llegaron categorías nuevas), se hace una versión nueva y se vuelve a examinar ahí al modelo que está en producción. Cada dataset nuevo se revisa por hash contra él, para que ninguna de sus fotos se cuele al entrenamiento.",
+      "largo": "Congelado quiere decir que no cambia: dos modelos de meses distintos se examinan con exactamente las mismas fotos, así que la diferencia es del modelo y no del examen. Si hay que cambiarlo (porque llegaron categorías nuevas), se hace una versión nueva y se vuelve a examinar ahí al modelo que está en producción. Cada dataset nuevo se revisa por [[funcion-hash|hash]] (una huella de cada foto) contra él, para que ninguna de sus fotos se cuele al entrenamiento.",
       "ejemplo": "En Alba, el marketplace del curso: ≈ 50 mil imágenes, cada una etiquetada por dos personas, con al menos ≈ 50 por categoría y repartidas entre fotos de celular y de web. Cuesta ≈ US$5–10 mil, una sola vez.",
       "ver": [
         "test-set",

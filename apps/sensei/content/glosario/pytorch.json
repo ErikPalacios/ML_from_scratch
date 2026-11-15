@@ -4,7 +4,7 @@
    "id": "pytorch",
    "termino": "PyTorch",
    "en": "PyTorch",
-   "corto": "Una biblioteca de Python para hacer cuentas con tensores y entrenar redes neuronales. Es la más usada para entrenar modelos, y con ella se entrenó la ResNet-50 de Alba, el marketplace que seguimos en el curso.",
+   "corto": "Una biblioteca de Python para hacer cuentas con [[tensor|tensores]] (tablas de números) y entrenar redes neuronales. Es la más usada para entrenar modelos, y con ella se entrenó la ResNet-50 de Alba, el marketplace que seguimos en el curso.",
    "largo": "La publicó en 2016 el laboratorio de IA de Facebook (hoy Meta), y desde 2022 la cuida la PyTorch Foundation. Tiene tres partes: [[tensor|tensores]] que viven en la CPU o en la GPU (su [[device]]), [[autograd]], que calcula los gradientes solo, y los módulos de `torch.nn`, las capas ya hechas y la forma de juntarlas en un [[nn-module|modelo]]. Trabaja en modo **eager**: cada operación corre en cuanto Python llega a su línea, lo que la hace fácil de depurar, pero cada operación pasa por Python. Está hecha para entrenar: al servir hay que apagar lo que solo sirve para aprender ([[no-grad|inference_mode]] y [[modo-eval|eval]]), medir con [[sincronizacion-cuda|sincronización]] y, para ir más rápido, compilar o exportar el modelo ([[torch-compile]], [[torch-export]]). No viene con Python: se instala con `pip install torch torchvision`.",
    "ejemplo": "El MVP de Alba era un proceso de FastAPI con PyTorch adentro: daba del orden de 100 fotos por segundo por proceso en una T4, en eager, en FP32 y de una foto a la vez. La versión final exporta el modelo a un engine de TensorRT y Triton lo sirve a ≈ 1,200 fotos por segundo por T4.",
    "ver": [
@@ -19,7 +19,7 @@
    "id": "device",
    "termino": "Device",
    "en": "device",
-   "corto": "El chip en cuya memoria viven los números de un tensor: `cpu` (la RAM), `cuda` (la VRAM de una GPU de NVIDIA) o `mps` (la GPU de una Mac). Una operación necesita todos sus tensores en el mismo device.",
+   "corto": "El chip en cuya memoria viven los números de un tensor: `cpu` (la memoria [[ram|RAM]]), `cuda` (la memoria de una [[gpu|GPU]] de NVIDIA, su [[vram|VRAM]]) o `mps` (la GPU de una Mac). Una operación necesita todos sus tensores en el mismo device.",
    "largo": "Todo tensor nace en `cpu`. `cuda:0` es la primera GPU y `cuda:1`, la segunda. Para cambiar de device se usa `.to(device)`: en un tensor regresa una copia (o el mismo, si ya estaba ahí); en un modelo mueve todos sus pesos. PyTorch no copia nada por su cuenta: si el modelo está en la GPU y la foto en la CPU, truena con `Expected all tensors to be on the same device`. En un servidor, el device vive en una variable: los pesos suben a la VRAM una vez al arrancar y cada foto sube en cada request. La trampa: con `\"cuda\" if torch.cuda.is_available() else \"cpu\"`, un contenedor sin GPU arranca feliz en la CPU, decenas de veces más lento.",
    "ejemplo": "`DEVICE = \"cuda\" if torch.cuda.is_available() else \"cpu\"` es la línea típica de un servidor. En producción, si esperas una GPU, comprueba al arrancar que `torch.cuda.is_available()` dé `True` y termina el proceso si no.",
    "ver": [
@@ -36,7 +36,7 @@
    "en": "nn.Module",
    "corto": "La clase base de PyTorch para capas y modelos. Un modelo hereda de ella: en `__init__` crea sus capas y en `forward` dice cómo pasa una entrada por ellas.",
    "largo": "Una clase es un molde: dice qué datos guarda cada objeto y qué sabe hacer. Al colgar una capa del objeto (`self.conv = nn.Conv2d(…)`), el módulo la registra y sabe cuáles son sus pesos. Guarda dos tipos de tensores: **parámetros**, los pesos que ajusta el entrenamiento (con `requires_grad=True`), y **buffers**, números que necesita pero no aprende, como las estadísticas `running_mean` y `running_var` de una [[batchnorm|BatchNorm]]. Se usa llamándolo, `modelo(x)`, no con `modelo.forward(x)`: así corren también los ganchos (*hooks*) que le cuelgan otras herramientas. Tiene modo train y modo [[modo-eval|eval]], y todos sus tensores juntos forman su [[state-dict|state_dict]].",
-   "ejemplo": "El módulo chiquito de la lección, con una convolución de 3 a 8 canales, una BatchNorm y una capa final de 3 clases, tiene 267 números que se aprenden y 3 buffers: running_mean, running_var y num_batches_tracked.",
+   "ejemplo": "Un módulo chiquito, con una convolución de 3 a 8 canales, una BatchNorm y una capa final de 3 clases, tiene 267 números que se aprenden y 3 buffers: running_mean, running_var y num_batches_tracked.",
    "ver": [
     "state-dict",
     "capa",
@@ -64,7 +64,7 @@
    "id": "autograd",
    "termino": "Autograd",
    "en": "autograd · automatic differentiation",
-   "corto": "La pieza de PyTorch que calcula los gradientes sola. Cada operación con un tensor marcado para aprender (`requires_grad=True`) deja una nota de cómo se deriva, y `backward()` recorre esas notas al revés.",
+   "corto": "La pieza de PyTorch que calcula los [[gradiente|gradientes]] sola. Cada operación con un tensor marcado para aprender (`requires_grad=True`) deja una nota de cómo se deriva, y `backward()` recorre esas notas al revés.",
    "largo": "Las notas, unidas, forman una gráfica (un grafo: puntos unidos por flechas) que va de los parámetros a la pérdida y se arma sola durante el [[forward-pass|forward]]; el resultado de cada operación la lleva en su atributo `grad_fn`. `backward()` la recorre aplicando la [[regla-cadena|regla de la cadena]]: es la [[backpropagation]] hecha automática. El costo: para derivar después, muchas notas guardan sus entradas, que en una red son las activaciones de cada capa, y se quedan en memoria hasta el backward. Al responder, el backward nunca llega y esa memoria se gasta para nada: por eso se apaga con [[no-grad|no_grad o inference_mode]].",
    "ejemplo": "Con `w = 3` y `y = w·w + 2·w = 15`, `y.backward()` da `dy/dw = 2·w + 2 = 8`. En la ResNet-50 de Alba, con autograd prendido, cada foto guarda ≈ 86 MB de notas en FP32: un batch de 32 son ≈ 2.75 GB, ≈ 28 veces lo que pesan los pesos.",
    "ver": [
@@ -93,8 +93,8 @@
    "id": "dataloader",
    "termino": "DataLoader",
    "en": "DataLoader",
-   "corto": "La pieza de PyTorch que le pide ejemplos a un Dataset (la clase que sabe leer cada ejemplo) y los junta en batches, con procesos aparte (workers) que los preparan mientras la GPU trabaja.",
-   "largo": "Un `Dataset` dice cuántos ejemplos hay (`__len__`) y entrega el número i ya listo (`__getitem__`), cargándolo solo cuando se lo piden. El DataLoader arma los batches. Sus opciones importantes: `batch_size`; `shuffle=True`, que revuelve el orden en cada época (con un `generator` con [[semilla]], igual en cada corrida); `num_workers`, cuántos **procesos** preparan batches, procesos y no hilos por el [[gil|GIL]]; y `pin_memory=True`, que deja cada batch en RAM fijada para copiarlo más rápido a la GPU. Los workers pasan los batches por memoria compartida (`/dev/shm`), y Docker da solo 64 MiB ahí: con varios workers, el entrenamiento truena con un *bus error* y se arregla con `--shm-size=1g`. Con workers, el script necesita su `if __name__ == \"__main__\":`.",
+   "corto": "La pieza de PyTorch que le pide ejemplos a un Dataset (la clase que sabe leer cada ejemplo) y los junta en [[batch|batches]] (grupos), con procesos aparte (workers) que los preparan mientras la GPU trabaja.",
+   "largo": "Un `Dataset` dice cuántos ejemplos hay (`__len__`) y entrega el número i ya listo (`__getitem__`), cargándolo solo cuando se lo piden. El DataLoader arma los batches. Sus opciones importantes: `batch_size`; `shuffle=True`, que revuelve el orden en cada época (con un `generator` con [[semilla]], igual en cada corrida); `num_workers`, cuántos **procesos** preparan batches, procesos y no hilos por el [[gil|GIL]]; y `pin_memory=True`, que deja cada batch en RAM fijada para copiarlo más rápido a la GPU. Los workers pasan los batches por memoria compartida (`/dev/shm`), y Docker da solo 64 MiB ahí: con varios workers, el entrenamiento truena con un *bus error* y se arregla con `--shm-size=1g`. Con workers, el script necesita su `if __name__ == \"__main__\":` en macOS, en Windows y, desde Python 3.14, también en Linux, porque cada worker arranca un Python nuevo que vuelve a leer el archivo.",
    "ejemplo": "El entrenamiento de Alba usa batches de 64 y 8 workers: si la GPU consume ≈ 700 fotos por segundo y un worker prepara ≈ 100, hacen falta 7, y con margen 8.",
    "ver": [
     "batch",
@@ -108,10 +108,10 @@
    "id": "sincronizacion-cuda",
    "termino": "Sincronización de CUDA",
    "en": "CUDA synchronization",
-   "corto": "Hacer que la CPU espere a que la GPU termine todo el trabajo que tiene en su fila. Sin ella, un reloj alrededor de `modelo(x)` mide solo cuánto tardó la CPU en dejarle el trabajo (los kernels) en la fila.",
+   "corto": "Hacer que la CPU espere a que la GPU termine todo el trabajo que tiene en su fila. Sin ella, un reloj alrededor de `modelo(x)` mide solo cuánto tardó la CPU en dejarle el trabajo (los [[kernel-gpu|kernels]]) en la fila.",
    "largo": "La CPU deja cada [[kernel-gpu|kernel]] en una fila de la GPU y sigue con la siguiente línea sin esperar. Por eso `modelo(x)` regresa en cuanto la CPU terminó de **dejar** los kernels, no cuando la GPU los corrió. `torch.cuda.synchronize()` detiene a la CPU hasta que la fila se vacía: para medir bien se calienta primero, se sincroniza antes de arrancar el reloj y otra vez antes de pararlo, y se repite muchas veces. Hay sincronizaciones escondidas: `x.item()`, `x.cpu()`, `print(x)` o un `if` que depende de un tensor esperan a la GPU sin avisar, y un `print` a media cuenta hace más lento justo lo que querías mirar.",
-   "analogia": "Medir una pizzería con el reloj de la caja: la cajera toma la orden en 20 segundos, pero la pizza sale 15 minutos después. La cajera es la CPU, la cocina es la GPU y sincronizar es esperar a que la pizza llegue a la mesa.",
-   "ejemplo": "Con los supuestos de la lección, la CPU deja los 174 kernels de la ResNet-50 en ≈ 1.7 ms y la GPU corre el batch de 32 en ≈ 60 ms: sin sincronizar salen ≈ 18,800 fotos por segundo; de verdad, ≈ 530.",
+   "analogia": "Medir una pizzería con el reloj de la caja: la cajera toma la orden en 20 segundos, pero la pizza sale 15 minutos después. La cajera es la CPU, la cocina es la GPU y sincronizar es esperar a que la pizza llegue a la mesa. Se rompe en que la cocina de la GPU saca los pedidos de una fila estrictamente en orden, y una cajera real no deja apilados cientos de pedidos en milisegundos.",
+   "ejemplo": "Con unos supuestos de ejemplo, la CPU deja los 174 kernels de la ResNet-50 en ≈ 1.7 ms y la GPU corre el batch de 32 en ≈ 60 ms: sin sincronizar salen ≈ 18,800 fotos por segundo; de verdad, ≈ 530.",
    "ver": [
     "kernel-gpu",
     "cuda",
@@ -153,7 +153,7 @@
    "id": "torchscript",
    "termino": "TorchScript",
    "en": "TorchScript",
-   "corto": "La primera manera de sacar un modelo de PyTorch de Python, para correrlo sin tu código. Hoy va de salida: desde 2025 la documentación de PyTorch lo marca como obsoleto (*deprecated*) y pide usar torch.export.",
+   "corto": "La primera manera de sacar un modelo de PyTorch de Python, para correrlo sin tu código. Hoy va de salida: desde 2025 la documentación de PyTorch lo marca como obsoleto (*deprecated*) y pide usar [[torch-export|torch.export]].",
    "largo": "Tiene dos modos. `torch.jit.trace` corre el modelo una vez con una entrada de ejemplo y graba las operaciones que pasaron: si el `forward` tiene un `if` que depende de los datos, se graba solo el camino que se tomó y el otro desaparece sin error. `torch.jit.script` lee el código de Python y lo traduce, con todo y sus `if`. Triton todavía carga modelos de TorchScript, y el exportador viejo a ONNX (`dynamo=False`) traza con él. Con Python 3.14, PyTorch 2.15 avisa que no está soportado en esa versión y que puede fallar.",
    "ejemplo": "Con `if x.sum() > 0: return x * 2` y `return x - 100`, un trace hecho con unos positivos responde −2 a una entrada de −1; el script y el original responden −101.",
    "ver": [
@@ -169,7 +169,7 @@
    "en": "torch.export",
    "corto": "La función de PyTorch que captura un modelo completo antes de producción, o falla si no puede. Regresa un programa con la gráfica de operaciones, los pesos y las formas que pueden cambiar, como el tamaño del batch.",
    "largo": "Existe desde PyTorch 2.1 (2023). No deja pedazos sueltos en Python. Le dices qué dimensiones cambian y entre qué valores (`Dim(\"batch\", min=1, max=32)`), y fuera de ese rango el programa se niega a correr. Es el punto de partida de lo demás: `torch.onnx.export` parte de él por omisión desde PyTorch 2.9 (`dynamo=True`), y de [[onnx|ONNX]] sale el [[engine-tensorrt|engine de TensorRT]]; AOTInductor lo compila por adelantado en un archivo `.pt2` que se carga sin compilar nada. Captura el modelo tal como está: antes de exportar, `model.eval()`, o la BatchNorm se captura con las estadísticas del batch.",
-   "ejemplo": "La red chiquita de la lección se exporta con un ejemplo de batch 2 y el batch declarado de 1 a 32: un batch de 7 da lo mismo que el original y uno de 40 truena con `Guard failed: input.size()[0] <= 32`. Alba todavía exporta a ONNX con el exportador viejo (`dynamo=False`), con batch dinámico de 1 a 32, y tiene anotado el plan de pasarse a este.",
+   "ejemplo": "Una red chiquita se exporta con un ejemplo de batch 2 y el batch declarado de 1 a 32: un batch de 7 da lo mismo que el original y uno de 40 truena con `Guard failed: input.size()[0] <= 32`. Alba todavía exporta a ONNX con el exportador viejo (`dynamo=False`), con batch dinámico de 1 a 32, y tiene anotado el plan de pasarse a este.",
    "ver": [
     "onnx",
     "engine-tensorrt",
@@ -182,7 +182,7 @@
    "id": "autocast",
    "termino": "autocast",
    "en": "autocast",
-   "corto": "La herramienta de PyTorch que hace la precisión mixta: dentro de su `with`, cada operación corre en el dtype que le conviene, 16 bits donde es seguro y FP32 en lo delicado. Los pesos no cambian.",
+   "corto": "La herramienta de PyTorch para la precisión mixta (unas cuentas con números de 16 bits y otras de 32): dentro de su `with`, cada operación corre en el tipo de número (dtype) que le conviene, 16 bits donde es seguro y 32 (FP32) en lo delicado. Los pesos no cambian.",
    "largo": "Las multiplicaciones de matrices y las convoluciones van en FP16 o [[bf16|BF16]]; lo delicado, como la pérdida, se queda en FP32. Los pesos siguen en FP32 y se convierten al vuelo, operación por operación. Al servir, es la forma de correr en 16 bits sin tocar el checkpoint; la otra es `modelo.half()`, que sí convierte los pesos a FP16 y ahorra su memoria. En CPU, autocast usa BF16. Como cambia el último decimal, la [[prueba-paridad|paridad]] contra FP32 compara con tolerancia (≈ 0.01) y mira también el acuerdo del top-1.",
    "ejemplo": "Una cabeza de 500 clases con autocast en BF16 da logits a 0.007 de los de FP32 como máximo: falla `allclose` con 0.0001 y pasa con 0.05. El entrenamiento mensual de Alba usa AMP con autocast.",
    "ver": [
@@ -211,7 +211,7 @@
    "id": "torchvision",
    "termino": "torchvision",
    "en": "torchvision",
-   "corto": "La parte de PyTorch para imágenes: arquitecturas ya escritas, como resnet50, pesos entrenados con ImageNet para cada una y las transforms del preprocesamiento.",
+   "corto": "La parte de PyTorch para imágenes: arquitecturas ya escritas, como resnet50, pesos entrenados con ImageNet (un dataset público de más de un millón de fotos en 1,000 categorías) para cada una y las transforms del preprocesamiento.",
    "largo": "Cada versión de pesos sabe con qué receta se evaluó: `ResNet50_Weights.IMAGENET1K_V2.transforms()` dice cómo achicar, recortar y normalizar. La regla para servir no es usar la receta de torchvision, sino **la misma con la que entrenaste**: un [[preprocesamiento]] distinto no da error, da [[training-serving-skew]]. Se instala junto con PyTorch (`pip install torch torchvision`), y `resnet50(weights=None)` arma la arquitectura sin descargar pesos.",
    "ejemplo": "Los pesos V1 de la ResNet-50 se evaluaron con Resize(256) y dan 76.13 % de top-1; los V2, con Resize(232), 80.858 %. Alba entrena con Resize(256), así que su gateway usa Resize(256).",
    "ver": [

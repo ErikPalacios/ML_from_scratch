@@ -115,7 +115,7 @@
       "y": 37,
       "w": 20,
       "h": 8,
-      "note": "Se suben `rows.parquet` y `validation.json` al prefijo definitivo con PUT y **escritura condicional**: la política del bucket rechaza cualquier PUT sin `If-None-Match: *`, y por eso tampoco deja copiar dentro de S3."
+      "note": "Se suben `rows.parquet` y `validation.json` al prefijo definitivo con PUT y **escritura condicional**: la política del bucket rechaza cualquier PUT sin `If-None-Match: *`, y Alba no copia dentro de S3: la guía de AWS dice que la copia falla, aunque desde octubre de 2025 `CopyObject` acepta el header."
     },
     {
       "id": "tarjeta",

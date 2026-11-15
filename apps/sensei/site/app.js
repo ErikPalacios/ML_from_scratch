@@ -1,6 +1,6 @@
 /* Lo que Sensei hace en el navegador: el tema, el cajón del índice en el celular, el buscador de la barra lateral,
    «En esta página», los diagramas (con el motor de la Ronda, /diagram.js), el globo de las palabras del glosario,
-   marcar lecciones como leídas y el modo sin conexión. Todo se lee sin JavaScript: sin él, cada palabra subrayada
+   marcar lecciones como leídas, la cuenta del repaso y el modo sin conexión (el repaso mismo vive en /repaso.js). Todo se lee sin JavaScript: sin él, cada palabra subrayada
    lleva a su entrada del glosario y cada diagrama se ve como una lista de sus partes. */
 (function () {
   'use strict';
@@ -42,7 +42,19 @@
     }
   }
   pintarLeidas();
-  window.addEventListener('storage', function (e) { if (e.key === KTEMA) aplicar(getTema()); if (e.key === KLEIDAS) pintarLeidas(); });
+
+  // ------------------------------------------------------------ repaso: cuántas tarjetas tocan hoy (en la barra lateral)
+  // El avance lo escribe /repaso.js: { v: 1, c: { <id>: [caja, día en que vuelve] } }, con el día contado en días locales.
+  var KREPASO = 'sensei-repaso';
+  function pintarRepaso() {
+    var c = {}; try { c = (JSON.parse(leer(KREPASO) || '{}') || {}).c || {}; } catch (e) { c = {}; }
+    var d = new Date(), hoy = Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 864e5), n = 0;
+    for (var k in c) if (c[k] && c[k][1] <= hoy) n++;
+    $$('[data-repaso-hoy]').forEach(function (el) { el.textContent = n ? n + ' hoy' : ''; el.setAttribute('title', n ? (n === 1 ? '1 tarjeta te toca hoy en el repaso' : n + ' tarjetas te tocan hoy en el repaso') : ''); });
+  }
+  pintarRepaso();
+  window.SenseiRepaso = { pintar: pintarRepaso };
+  window.addEventListener('storage', function (e) { if (e.key === KTEMA) aplicar(getTema()); if (e.key === KLEIDAS) pintarLeidas(); if (e.key === KREPASO) pintarRepaso(); });
 
   // ------------------------------------------------------------ cajón del índice (celular)
   var side = document.getElementById('sidebar'), fondo = document.querySelector('.backdrop'), btnMenu = document.querySelector('.topbar [data-cajon="abrir"]');
@@ -177,6 +189,8 @@
   // ------------------------------------------------------------ el globo
   var datosEl = document.getElementById('g-datos'), DATOS = {};
   try { DATOS = datosEl ? JSON.parse(datosEl.textContent) : {}; } catch (e) { DATOS = {}; }
+  // /repaso.js agrega aquí los conceptos de sus tarjetas, para que sus palabras subrayadas también abran su globo
+  window.SenseiGlobo = { agregar: function (o) { for (var k in o) if (!DATOS[k]) DATOS[k] = o[k]; } };
   var pop = document.querySelector('.g-pop'), abierto = null;
   var aqui = location.pathname.replace(/index\.html$/, '');
   function liga(url, txt) { return url ? '<a href="' + url + '">' + txt + '</a>' : txt; }

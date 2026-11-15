@@ -27,6 +27,9 @@ const TRONCO = JSON.parse(readFileSync(join(ROOT, 'content', 'tronco.json'), 'ut
 // El mapa del C01, copiado de la cheat sheet «Del dato a producción» con tools/importar-mapa.mjs.
 const MAPA = JSON.parse(readFileSync(join(ROOT, 'content', 'mapa-c01.json'), 'utf8'));
 const HOJA_RECORRIDO = 'https://cheat-sheets-ml.vercel.app/recorrido/';
+// La teoría de cada estación en Sensei (lección y requisitos), generada por apps/trueml/sync.mjs.
+const SENSEI = JSON.parse(readFileSync(join(ROOT, 'content', 'sensei.json'), 'utf8'));
+const SENSEI_POR_NUM = new Map(SENSEI.estaciones.map((x) => [x.num, x]));
 const ESTACIONES = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) => f.endsWith('.json')).sort().map((f) => {
   const e = JSON.parse(readFileSync(join(ROOT, 'content', 'estaciones', f), 'utf8'));
   const errs = molde(e, f);
@@ -34,6 +37,7 @@ const ESTACIONES = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) =
   if (errs.length) fail(`${f} no cumple el molde (corre node tools/validate.mjs):\n  ${errs.join('\n  ')}`);
   e.prompt = Object.fromEntries(Object.entries(e.prompts).map(([k, p]) => [k, readFileSync(join(ROOT, p), 'utf8').trim()]));
   e.slug = `${e.caso}-${e.id}`;
+  e.sensei = e.caso === TRONCO.caso ? SENSEI_POR_NUM.get(e.num) || null : null;
   e.url = `/${e.caso}/${e.id}/`;
   // Las prácticas desde cero: cada una con su página, debajo de la de la estación.
   e.practicas = (e.practicas || []).map((rel) => {
@@ -88,7 +92,7 @@ ${body}
 function portada() {
   const lista = new Map(ESTACIONES.filter((e) => e.caso === TRONCO.caso).map((e) => [e.id, e]));
   return pagina({ path: '/', title: `${SITE_NAME} · TrueML`, desc: 'Proyectos chicos de ML engineering que construyes, rehaces y rompes en tu Mac, estación por estación del camino del dato a producción. En español, gratis.',
-    body: cuerpoPortada({ tronco: TRONCO, lista, mapa: MAPA, hoja: HOJA_RECORRIDO }) });
+    body: cuerpoPortada({ tronco: TRONCO, lista, mapa: MAPA, hoja: HOJA_RECORRIDO, sensei: SENSEI_POR_NUM }) });
 }
 
 // ---------------------------------------------------------------- kit

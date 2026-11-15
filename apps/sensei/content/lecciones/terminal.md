@@ -527,7 +527,7 @@ Dentro de un script se usan las mismas cosas de la terminal, más un par de piez
 
 ### El shebang: con qué se corre
 
-La primera línea de un script suele ser algo como `#!/usr/bin/env bash`. Es el [[shebang]] (de *sharp*, `#`, y *bang*, `!`). Cuando le pides al kernel que ejecute un archivo de texto, el kernel lee esos dos primeros caracteres, toma el resto de la línea como el programa que debe leer el archivo y lo lanza con el script como argumento.
+La primera línea de un script suele ser algo como `#!/usr/bin/env bash`. Es el [[shebang]] (de cómo se leen `#` y `!` en inglés, *hash* o *sharp* y *bang*; el origen exacto no se sabe). Cuando le pides al kernel que ejecute un archivo de texto, el kernel lee esos dos primeros caracteres, toma el resto de la línea como el programa que debe leer el archivo y lo lanza con el script como argumento.
 
 - `#!/bin/bash` pide la bash de `/bin/bash`, exactamente esa. En una Mac, esa ruta tiene una bash muy vieja, de la serie 3.2.
 - `#!/usr/bin/env bash` le pide al programa `env` que busque `bash` en el PATH. Corre la primera bash que encuentre, la que tú instalaste si está antes en la lista. Es la forma más portátil, y la más común.

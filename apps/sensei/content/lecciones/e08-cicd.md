@@ -60,7 +60,7 @@ Un *job* de CI, un trabajo del pipeline como «correr las pruebas», corre en un
 
 Un registro guarda las [[capa-imagen|capas]] de una imagen por separado, cada una con su huella (lo viste en «Empaquetado con Docker»), y una lista que dice qué capas forman cada imagen. Si dos imágenes comparten una capa, se guarda una vez; al subir, solo viajan las que el registro no tiene.
 
-Alba usa **Amazon ECR** (*Elastic Container Registry*), el registro de AWS, en `us-east-1`, la misma [[region|región]] del clúster. Tiene dos repositorios, uno por programa:
+Alba usa **Amazon ECR** (*Elastic Container Registry*), el registro de AWS, en `us-east-1`, la misma [[region|región]] del clúster. Para servir tiene dos repositorios, uno por programa (la imagen de entrenamiento vive en otro):
 
 | Repositorio | Qué guarda | Cada cuánto llega una |
 |---|---|---|
@@ -142,7 +142,7 @@ En «Empaquetado con Docker» viste los dos nombres de una imagen. El [[tag-imag
 
 ### El tag que no se mueve
 
-Un [[tag-inmutable|tag inmutable]] (*tag immutability*) es una opción del repositorio: si un tag ya existe, el registro rechaza cualquier push nuevo con ese nombre. En ECR no viene prendida; Alba la prende en los dos repositorios. Desde ese momento, `3f9c2ab` nombra un solo contenido para siempre.
+Un [[tag-inmutable|tag inmutable]] (*tag immutability*) es una opción del repositorio: si un tag ya existe, el registro rechaza cualquier push nuevo con ese nombre. En ECR no viene prendida; Alba la prende en los dos repositorios de servir. Desde ese momento, `3f9c2ab` nombra un solo contenido para siempre.
 
 ¿No bastaría con no reusar los tags? Mira qué pasa cuando alguien reconstruye. El código de abajo es un registro de juguete: guarda tags y contenidos como un registro real. El lunes se sube una imagen; el martes alguien reconstruye el mismo commit y la sube con el mismo tag. Una reconstrucción casi nunca da los mismos bytes: cambian fechas dentro de la imagen, y a veces un paquete de la base.
 

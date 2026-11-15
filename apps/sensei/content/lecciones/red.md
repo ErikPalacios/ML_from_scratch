@@ -349,7 +349,7 @@ La tabla usa dos palabras de la nube. Una [[region|región]] es un lugar del mun
 | Dos programas de la misma máquina, por localhost | Decenas de microsegundos |
 | Dos máquinas en la misma zona de la nube | Menos de 1 ms |
 | Dos zonas de la misma región de la nube | ≈ 1 a 2 ms |
-| Centro de México y Virginia, por cable | ≈ 50 ms (el mínimo físico es 30) |
+| Centro de México y Virginia, por cable | ≈ 45 a 50 ms (el mínimo físico es 30) |
 | El celular y la antena, por 4G | Unas decenas de ms, solo ese tramo |
 
 Son órdenes de magnitud, no promesas: cada red mide distinto, y lo que importa es medir la tuya.
@@ -386,7 +386,7 @@ Por eso existe [[keep-alive]]: dejar la conexión abierta después de una reques
 Pon 184 km, Querétaro, con conexión nueva y TLS: ≈ 5.5 ms. Acercarse vale más que cualquier optimización del código.
 :::
 
-En Alba, la regla se cumple en cada salto. El backend del marketplace está en la misma región que el clasificador y llama con conexiones abiertas. El gateway y Triton están en la misma zona y también reusan conexiones: su RTT es una fracción de milisegundo. Lo que no se controla es el tramo de Ana: por eso el [[slo|SLO]] de 200 ms se mide del lado del servidor, desde que la request completa llega al balanceador.
+En Alba, la regla se cumple en cada salto. El backend del marketplace está en la misma región que el clasificador y llama con conexiones abiertas. El gateway y Triton están en la misma zona y también reusan conexiones: su RTT es una fracción de milisegundo. Lo que no se controla es el tramo de Ana: por eso el [[slo|SLO]] de 200 ms se mide del lado del servidor, desde que la request llega al gateway (incluido el paso de la foto desde el balanceador).
 
 ## DNS: del nombre a la dirección {DNS: from name to address}
 
@@ -719,7 +719,7 @@ Resuélvelos con lápiz antes de abrir la solución. Los de distancia y de arran
 - Handshake de TCP y saludo de TLS: 2 de las \(k = 3\) vueltas de una conexión nueva con TLS (la tercera es la foto misma, que va abajo): 2 × 80 = **160 ms**.
 - La foto: son 2,055 paquetes, y el arranque lento pediría \(r\) = 8 vueltas (10 × (2⁸ − 1) = 2,550 ≥ 2,055): \(t_{arranque}\) = 8 × 80 = 640 ms. Pero el ancho de banda pide \(t_{ancho}\) = 8 × 3,000,000 ÷ 10,000,000 = **2.4 s**. Manda el ancho de banda.
 - Total: ≈ 160 + 2,400 ≈ **2.6 s**, más lo que tarde en volver la respuesta.
-- El SLO de Alba (p99 ≤ 200 ms) se mide del lado del servidor, desde que la request completa llega al balanceador. Estos 2.6 s dependen de la señal de Ana y de su compañía de celular, que nadie en Alba controla. Por eso, además, la app achica la foto antes de subirla: con ≈ 200 KB son 137 paquetes, \(t_{arranque}\) = 4 vueltas × 80 = 320 ms (\(t_{ancho}\) = 8 × 200,000 ÷ 10,000,000 = 0.16 s: solo 160 ms), y con los 160 ms de los saludos, ≈ 480 ms en vez de 2.6 s.
+- El SLO de Alba (p99 ≤ 200 ms) se mide del lado del servidor, desde que la request llega al gateway. Estos 2.6 s dependen de la señal de Ana y de su compañía de celular, que nadie en Alba controla. Por eso, además, la app achica la foto antes de subirla: con ≈ 200 KB son 137 paquetes, \(t_{arranque}\) = 4 vueltas × 80 = 320 ms (\(t_{ancho}\) = 8 × 200,000 ÷ 10,000,000 = 0.16 s: solo 160 ms), y con los 160 ms de los saludos, ≈ 480 ms en vez de 2.6 s.
 :::
 
 ## Lo que sigue {What comes next}

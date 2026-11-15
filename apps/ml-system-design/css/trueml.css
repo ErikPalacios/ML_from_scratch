@@ -220,3 +220,18 @@ kbd { border-radius: 6px; border-color: var(--rule-strong); }
 }
 .cx__tab[aria-selected="true"]::before { background: var(--yt); }
 .cx__btn { border-radius: 8px; }
+
+/* ------------------------------------------------------------------ Sensei: la teoría antes de cada módulo */
+.sensei-pre { margin: 4px 0 22px; padding: 14px 18px 16px; border-radius: 16px; background: var(--tm-chip); box-shadow: inset 4px 0 0 var(--g, var(--accent)); }
+.sensei-pre__k { margin: 0; display: flex; align-items: center; gap: 8px; font: 700 14px/1.35 var(--sans, inherit); color: var(--ink); }
+.sensei-pre__ico { display: flex; color: var(--muted); flex: none; }
+.sensei-pre__ico .ico { width: 16px; height: 16px; }
+.sensei-pre__txt { margin: 4px 0 10px; font-size: 14px; line-height: 1.5; color: var(--muted); }
+.sensei-pre__list { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.sensei-pre__list a { display: inline-block; padding: 5px 11px; border-radius: 999px; background: var(--surface); box-shadow: var(--card-sh);
+  font-size: 13.5px; line-height: 1.35; color: var(--ink); text-decoration: none; }
+.sensei-pre__list a:hover { box-shadow: 0 0 0 2px var(--yt); }
+.sensei-pre__list a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sensei-pre__ext { color: var(--muted); }
+.home-hero__sensei { margin-top: 10px; font-size: 14.5px; line-height: 1.5; color: var(--muted); max-width: 60ch; }
+.home-hero__sensei a { font-weight: 700; }

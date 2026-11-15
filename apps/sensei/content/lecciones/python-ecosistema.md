@@ -150,7 +150,7 @@ Lo demás se instala aparte: NumPy (arreglos de números), Pillow (imágenes), F
 
 ### PyPI: el índice público
 
-Un índice de paquetes (*package index*) es un servidor que guarda paquetes para que un instalador los baje. [[pypi|PyPI]] (*Python Package Index*, en pypi.org) es el índice público de Python: un servidor con cientos de miles de proyectos (≈ 935,000 en noviembre de 2026), cada uno con todas sus versiones y sus archivos. Cualquiera puede crear una cuenta y subir un paquete: eso lo hace enorme y también riesgoso, porque un paquete con un nombre parecido al de uno famoso puede traer código malicioso. Ese riesgo es parte de la [[cadena-suministro|cadena de suministro]], que tiene su lección más adelante.
+Un índice de paquetes (*package index*) es un servidor que guarda paquetes para que un instalador los baje. [[pypi|PyPI]] (*Python Package Index*, en pypi.org) es el índice público de Python: un servidor con cientos de miles de proyectos (≈ 940,000 en noviembre de 2026), cada uno con todas sus versiones y sus archivos. Cualquiera puede crear una cuenta y subir un paquete: eso lo hace enorme y también riesgoso, porque un paquete con un nombre parecido al de uno famoso puede traer código malicioso. Ese riesgo es parte de la [[cadena-suministro|cadena de suministro]], que tiene su lección más adelante.
 
 ### pip: el instalador
 
@@ -274,7 +274,7 @@ Las cinco partes del nombre de una wheel de NumPy. Las tres últimas son la etiq
 
 - **`py3-none-any`**: puro Python. Sirve en cualquier Python 3, cualquier sistema y cualquier chip. FastAPI es así.
 - **`cp313-cp313`**: compilada para CPython 3.13 (CPython es el intérprete normal de Python, el escrito en C). El primer `cp313` dice con qué Python; el segundo, con qué **interfaz binaria** (*ABI*, *application binary interface*): las reglas de cómo el código ya compilado se conecta con el intérprete que está corriendo, qué funciones suyas llama y cómo acomoda los datos en memoria. Esas reglas cambian entre la 3.12 y la 3.13, así que esta wheel no sirve en la 3.12.
-- **`manylinux_2_28_x86_64`**: para Linux con glibc 2.28 o más nueva en un chip x86_64. glibc es la biblioteca básica de C de casi todas las distribuciones de Linux: la que usa cualquier programa compilado para abrir archivos o pedir memoria. Las imágenes `python:3.13-slim` son Debian y tienen glibc.
+- **`manylinux_2_28_x86_64`**: para Linux con glibc 2.28 o más nueva en un chip x86_64. glibc es la biblioteca básica de C de casi todas las distribuciones de Linux: la que usa cualquier programa compilado para abrir archivos o pedir memoria. Las imágenes `python:3.13-slim` son Debian y tienen glibc. (Los nombres de esta sección están simplificados: la wheel real de NumPy para Linux lleva dos etiquetas pegadas, `manylinux_2_27_x86_64.manylinux_2_28_x86_64`.)
 - **`macosx_14_0_arm64`**: para macOS 14 o más nuevo en un chip de Apple, como el de una MacBook.
 - **`musllinux_1_2_x86_64`**: para Linux con musl, otra biblioteca de C más chica, en vez de glibc. La usa Alpine, una distribución de Linux mínima, popular en contenedores. Muchos paquetes de ML, PyTorch entre ellos, no publican estas.
 
@@ -750,7 +750,7 @@ Los paquetes salen de **canales**: el de Anaconda, la empresa que creó conda, y
 - **Sí:** cuando necesitas piezas que no son Python y pip no da, o que darían guerra compilar: una librería de mapas, un toolkit de CUDA completo para compilar, un clúster de investigación (las computadoras compartidas de un laboratorio) donde no eres [[root]] y no puedes instalar nada en el sistema.
 - **Casi nunca:** en la imagen de un servicio como el gateway. Las wheels ya traen su código compilado (PyTorch trae su CUDA), y la imagen slim con pip o uv es más chica y más simple.
 
-Una trampa clásica: mezclar `conda install` y `pip install` en el mismo entorno. conda no sabe lo que pip cambió y puede pisarlo. Si no hay otra, primero todo lo de conda y pip al final. Y revisa las licencias: según los términos de servicio de Anaconda (julio de 2025), una empresa de más de 200 personas, contando contratistas, necesita una licencia de pago para usar su canal; conda-forge es libre, y Miniforge es un instalador de conda que ya viene apuntando a él.
+Una trampa clásica: mezclar `conda install` y `pip install` en el mismo entorno. conda no sabe lo que pip cambió y puede pisarlo. Si no hay otra, primero todo lo de conda y pip al final. Y revisa las licencias: según los términos de servicio de Anaconda (desde 2020; el aviso en los instaladores llegó en julio de 2025), una empresa de más de 200 personas, contando contratistas, necesita una licencia de pago para usar su canal; conda-forge es libre, y Miniforge es un instalador de conda que ya viene apuntando a él.
 
 | Herramienta | Instala paquetes | Crea entornos | Escribe un lock | Trae lo que no es Python |
 |---|---|---|---|---|
@@ -787,7 +787,7 @@ print(bytes_tensor.__annotations__)
 {'ancho': <class 'int'>, 'alto': <class 'int'>, 'return': <class 'int'>}
 ```
 
-El 602,112 son los bytes del tensor de una foto de Alba ya preparada: 3 canales × 224 × 224 píxeles × 4 bytes de cada float32. Es una foto como la de los tenis que sube Ana, una vendedora. Pero con `"224"`, un texto, la función no se queja: `3 * "224"` repite el texto, y regresa 36 letras donde prometía un entero. Python guarda las anotaciones en `__annotations__` y **no las revisa al correr**. Son documentación.
+El 602,112 son los bytes del tensor de una foto de Alba ya preparada: 3 canales × 224 × 224 píxeles × 4 bytes de cada float32. Es una foto como la de los tenis que sube Ana, una vendedora. Pero con `"224"`, un texto, la función no se queja: `3 * "224" * 1 * 4` repite el texto 12 veces, y regresa 36 letras donde prometía un entero. Python guarda las anotaciones en `__annotations__` y **no las revisa al correr**. Son documentación.
 
 ¿Quién las revisa? Programas aparte, **antes** de correr: mypy y pyright (el que va dentro de Pylance, la extensión de Python del editor VS Code) leen tu código, siguen los tipos y avisan del error sin ejecutar nada. Con mypy, la línea de arriba daría algo como esto (es una ilustración):
 
@@ -972,7 +972,7 @@ Resuélvelos antes de abrir la solución. Los de tamaños y probabilidades se pu
 - Con `python app.py`, la carpeta del script va primero en `sys.path`: `import random` carga **tu** `random.py`. Como no tiene `randint`, sale `AttributeError: module 'random' has no attribute 'randint'`.
 - Con `python -I app.py`, la carpeta del script no entra a `sys.path`: se carga el `random` de la biblioteca estándar y funciona.
 - El arreglo de verdad no es `-I`, es renombrar tu archivo.
-? [facil] El gateway corre en Linux x86_64 con Python 3.13. ¿Cuáles de estas wheels puede usar? `pillow-12.3.0-cp313-cp313-macosx_11_0_arm64.whl`, `pillow-12.3.0-cp313-cp313-manylinux_2_28_x86_64.whl` y `starlette-1.7.0-py3-none-any.whl`.
+? [facil] El gateway corre en Linux x86_64 con Python 3.13. ¿Cuáles de estas wheels puede usar (nombres simplificados)? `pillow-12.3.0-cp313-cp313-macosx_11_0_arm64.whl`, `pillow-12.3.0-cp313-cp313-manylinux_2_28_x86_64.whl` y `starlette-1.7.0-py3-none-any.whl`.
 - La de macOS, **no**: es para una Mac con chip de Apple.
 - La `manylinux_2_28_x86_64`, **sí**: Linux con glibc 2.28 o más nueva en x86_64, compilada para CPython 3.13 (`cp313`). Debian, la base de `python:3.13-slim`, tiene glibc.
 - La de Starlette, **sí**: `py3-none-any` es puro Python y sirve en cualquier lado.

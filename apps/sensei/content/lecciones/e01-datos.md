@@ -601,7 +601,7 @@ De la llegada de cada partición al modelo nuevo: dónde se atrapa cada dato rot
 
 - **Al entrar:** cada partición nueva (un día de log, un lote de correcciones) se revisa al llegar. Si falla, va a [[cuarentena-datos|cuarentena]]: se aparta en un lugar donde nada la lee, y se avisa a su dueño. Las demás particiones siguen.
 - **El día 1, al armar el snapshot**, en tres momentos. Antes de armar, sobre los labels del mes: esquema, rango, UTC y frescura. Al armar: el corte, la regla de 30 días y los duplicados por huella. Ya armado, antes de entrenar: los dos splits, el golden, el volumen y los débiles. Aquí sí se **bloquea**: si falla, no se entrena y sigue el modelo actual.
-- **En [[serving]]** (cuando el modelo ya atiende a la gente): el servicio rechaza en la puerta lo que no es una foto válida. Responde 400 si la request está mal, 413 si pasa de 10 MB y 415 si no es una imagen ([[codigo-estado|códigos de estado]] de HTTP).
+- **En [[serving]]** (cuando el modelo ya atiende a la gente): el servicio rechaza en la puerta lo que no es una foto válida. Responde 415 si no dice ser JPEG, PNG ni WebP, 413 si pasa de 10 MB y 400 si la request está mal o la foto no se puede leer ([[codigo-estado|códigos de estado]] de HTTP).
 - **Después de entrenar:** el examen del modelo nuevo contra el actual (el *gate*), que cuenta «Gate de evaluación y registry». Si los datos se colaron rotos, aquí se nota en el modelo.
 
 La cuarentena es mejor que borrar: la partición sigue ahí para investigar, y si el dueño la corrige, se vuelve a revisar y entra. Y es mejor que dejarla pasar, porque nadie entrena con un día roto sin saberlo.

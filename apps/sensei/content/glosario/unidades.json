@@ -58,7 +58,7 @@
       "termino": "Prefijo binario (KiB, MiB, GiB)",
       "en": "binary prefix · kibi, mebi, gibi",
       "corto": "Los múltiplos de 1,024 en vez de 1,000: 1 KiB = 1,024 bytes, 1 MiB = 1,024 KiB, 1 GiB = 1,024 MiB. Llevan una i: KiB, MiB, GiB, TiB.",
-      "largo": "Las computadoras cuentan en potencias de 2, y 2¹⁰ = 1,024 se parece a mil, así que por décadas «kilobyte» quiso decir las dos cosas. En 1998 la IEC separó los nombres: KB son 1,000 bytes (decimal) y KiB, 1,024 (binario). La diferencia crece con cada prefijo: 2.4 % en kilo, 7.4 % en giga, 10 % en tera. Los discos y las redes usan decimal; la RAM, Windows, `nvidia-smi` y PyTorch, binario. En una misma cuenta se usa una sola regla.",
+      "largo": "Las computadoras cuentan en potencias de 2, y 2¹⁰ = 1,024 se parece a mil, así que por décadas «kilobyte» quiso decir las dos cosas. En 1998 la IEC (Comisión Electrotécnica Internacional) separó los nombres: KB son 1,000 bytes (decimal) y KiB, 1,024 (binario). La diferencia crece con cada prefijo: 2.4 % en kilo, 7.4 % en giga, 10 % en tera. Los discos y las redes usan decimal; la [[ram|RAM]], Windows, `nvidia-smi` (el programa que muestra la memoria de la GPU) y PyTorch, binario. En una misma cuenta se usa una sola regla.",
       "ejemplo": "Un disco de 1 TB tiene 10¹² bytes; Windows los divide entre 2³⁰ y muestra ≈ 931 «GB», que en realidad son GiB. No falta nada: es otra regla.",
       "ver": [
         "byte",
@@ -70,8 +70,8 @@
       "id": "ancho-banda",
       "termino": "Ancho de banda",
       "en": "bandwidth",
-      "corto": "Cuántos datos puede mover un canal por segundo: una red, un disco, el bus entre la CPU y la GPU. La red se mide en bits por segundo (Gb/s); la memoria y los discos, en bytes por segundo (GB/s).",
-      "largo": "El tiempo de mandar algo grande es su tamaño entre el ancho de banda, con las unidades parejas (× 8 entre bytes y bits). No es lo mismo que la [[latencia]]: el ancho de banda dice cuánto cabe por segundo; la latencia, cuánto tarda en llegar lo primero. El de la memoria de la GPU tiene su propia lección: [[ancho-banda-memoria]].",
+      "corto": "Cuántos datos puede mover un canal por segundo: una red, un disco, la conexión entre el procesador ([[cpu|CPU]]) y la [[gpu|GPU]]. La red se mide en bits por segundo (Gb/s); la memoria y los discos, en bytes por segundo (GB/s).",
+      "largo": "El tiempo de mandar algo grande es su tamaño entre el ancho de banda, con las unidades parejas (× 8 entre bytes y bits). No es lo mismo que la [[latencia]]: el ancho de banda dice cuánto cabe por segundo; la latencia, cuánto tarda en llegar lo primero. El de la memoria de la GPU tiene su propia entrada: [[ancho-banda-memoria]].",
       "analogia": "Una camioneta con 2 PB de discos que maneja 10 horas tiene un ancho de banda enorme (≈ 440 Gb/s) y una latencia pésima: el primer byte llega a las 10 horas. Se rompe en que una red manda un flujo continuo y la camioneta, todo de golpe.",
       "ejemplo": "En el pico de diseño de Alba viajan 500 × 602 KB ≈ 301 MB/s del gateway a las GPUs: ≈ 2.4 Gb/s. Por PCIe, a ≈ 16 GB/s, copiar una foto tarda ≈ 40 µs.",
       "ver": [
@@ -86,7 +86,7 @@
       "id": "throughput",
       "termino": "Throughput",
       "en": "throughput",
-      "corto": "Cuánto trabajo termina un sistema por unidad de tiempo: requests por segundo, fotos por segundo, tokens por segundo.",
+      "corto": "Cuánto trabajo termina un sistema por unidad de tiempo: [[request|requests]] por segundo, fotos por segundo, tokens por segundo.",
       "largo": "Es distinto de la [[latencia]], que es cuánto tarda una sola request: un servicio puede atender 500 por segundo aunque cada una tarde 50 ms, porque atiende muchas a la vez. Un throughput se dice con su momento (promedio o [[factor-pico|pico]]) y su lugar (el gateway trabaja por requests; la GPU, por fotos). Con el del pico se cuentan las máquinas.",
       "ejemplo": "Alba diseña su sistema para 500 req/s; una T4 sostiene ≈ 1,200 fotos por segundo, medidas con una prueba de carga. En un LLM hay dos: los tokens por segundo que ve cada persona y los de toda la flota.",
       "ver": [
@@ -100,9 +100,9 @@
       "id": "qps",
       "termino": "QPS (req/s)",
       "en": "queries per second · requests per second",
-      "corto": "Cuántas requests o consultas llegan por segundo. Es la unidad con la que se dimensiona un servicio.",
-      "largo": "Se calcula dividiendo el volumen de un día entre 86,400 segundos: 1 millón al día son ≈ 11.6 por segundo. Ese es el promedio; para dimensionar se usan el pico y el pico de diseño (ver [[factor-pico]]). «QPS» viene de los buscadores (*queries*); «req/s» dice lo mismo para cualquier API.",
-      "ejemplo": "Alba: 10,000,000 fotos ÷ 86,400 s ≈ 116 req/s de promedio, ≈ 350 en la hora pico y 500 de diseño. Un buscador con 50 M búsquedas al día: ≈ 579 de promedio y ≈ 1,740 en el pico (≈ 1,750 redondeado).",
+      "corto": "Cuántas [[request|requests]] o consultas llegan por segundo. Es la unidad con la que se calcula cuántas máquinas necesita un servicio.",
+      "largo": "Se calcula dividiendo el volumen de un día entre 86,400 segundos: 1 millón al día son ≈ 11.6 por segundo. Ese es el promedio; para dimensionar se usan el pico y el pico de diseño (ver [[factor-pico]]). «QPS» viene de los buscadores (*queries*); «req/s» dice lo mismo para cualquier [[api|API]].",
+      "ejemplo": "Alba: 10,000,000 fotos ÷ 86,400 s ≈ 116 req/s de promedio, ≈ 350 en la hora pico y 500 de diseño. Un buscador con 50 M búsquedas al día: ≈ 579 de promedio y ≈ 1,750 en el pico (3 × 579 = 1,737, redondeado).",
       "ver": [
         "throughput",
         "factor-pico"
@@ -129,7 +129,7 @@
       "en": "back-of-the-envelope estimate",
       "corto": "Una cuenta rápida con números redondos para saber el orden de magnitud de algo (requests por segundo, máquinas, bytes, dólares) antes de construirlo.",
       "largo": "Se parte de pocos datos y de supuestos dichos en voz alta, se encadenan multiplicaciones y divisiones con las unidades a la vista y se redondea. No busca exactitud: busca no equivocarse por 10 y llevar a una decisión. Lo que depende del hardware o del negocio se marca como «a medir» y se mide con una prueba de carga.",
-      "ejemplo": "La de Alba: 10 M fotos al día → 116 req/s → 350 en el pico → 500 de diseño → 2 T4 con N+1 → ≈ US$768 al mes de GPUs, y 3 GB de logs al día.",
+      "ejemplo": "La de Alba: 10 M fotos al día → 116 req/s → 350 en el pico → 500 de diseño → 2 GPUs T4, una de ellas de repuesto (N+1) → ≈ US$768 al mes de GPUs, y 3 GB de logs al día.",
       "ver": [
         "orden-magnitud",
         "factor-pico",
@@ -156,7 +156,7 @@
       "en": "percentage point · pp",
       "corto": "La resta entre dos porcentajes: de 85 % a 87 % son 2 puntos porcentuales, aunque el cambio relativo sea de 2.4 %.",
       "largo": "«Subió 2 %» y «subió 2 puntos» son cosas distintas: lo primero es multiplicar por 1.02; lo segundo, sumarle 2 al porcentaje. Con métricas y disponibilidad conviene decir los dos. Pasar de 99.9 % a 99.99 % son solo 0.09 puntos, pero la caída permitida se divide entre 10: de ≈ 43 a ≈ 4.3 minutos al mes.",
-      "ejemplo": "El gate de Alba no deja pasar un modelo que quede más de 0.3 puntos abajo del actual: si el actual saca 96 % de top-5, el nuevo pasa con 95.7 % y no con 95.6 %.",
+      "ejemplo": "El gate de Alba (el examen que un modelo nuevo tiene que pasar antes de salir) no deja pasar un modelo que quede más de 0.3 puntos abajo del actual, y se lo exige hasta al extremo de abajo de su [[intervalo-confianza|intervalo de confianza]]: si el actual saca 96 % de top-5, la raya está en 95.7 %. Leído como «0.3 % de 96», la raya quedaría en 95.712 %: otra regla.",
       "ver": [
         "estimacion"
       ],

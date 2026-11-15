@@ -26,6 +26,11 @@
     {
       "t": "Sigue a Alba",
       "d": "Cada lección aterriza el tema en Alba, la empresa del curso, con sus números a la vista. No hace falta recordar otras lecciones para entenderla."
+    },
+    {
+      "t": "Repasa con tarjetas →",
+      "d": "Cada concepto del curso es también una tarjeta: ves el término, intentas recordar qué es y la volteas. Recordar sin mirar lo fija mejor que releerlo. Las que olvidas vuelven pronto; las que sabes, en unos días.",
+      "u": "/repaso/"
     }
   ]
 }

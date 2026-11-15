@@ -35,7 +35,7 @@
    "id": "commit",
    "termino": "Commit",
    "en": "commit",
-   "corto": "Una foto guardada del proyecto: la lista de sus archivos (el árbol), el id del commit anterior (su padre), el autor, la fecha y un mensaje. Su id es el hash (SHA-1, por omisión) de todo eso, así que cambiar cualquier cosa del pasado cambia todos los ids siguientes.",
+   "corto": "Una foto guardada del proyecto: la lista de sus archivos (el árbol), el id del commit anterior (su padre), el autor, la fecha y un mensaje. Su id es el [[hash-criptografico|hash]] (SHA-1, por omisión) de todo eso, así que cambiar cualquier cosa del pasado cambia todos los ids siguientes.",
    "largo": "Git calcula el id con un [[hash-criptografico|hash criptográfico]] (SHA-1 por omisión, que se escribe con 40 caracteres hexadecimales) del texto del commit. Como ese texto incluye el id del padre, cada commit amarra toda la historia anterior: nadie puede cambiar el código de un commit y conservar su id. Se suele usar el **hash corto**, los primeros 7 caracteres (más si otro objeto empieza igual). El mismo contenido con el mismo autor, fecha, mensaje y padre da el mismo id en cualquier máquina. No es el COMMIT de una [[transaccion|transacción]] de base de datos ni el commit de un [[offset]] en una cola: los tres dicen «esto queda firme», pero son cosas distintas.",
    "ejemplo": "El commit «Sube el timeout a 0.20 s» son 213 bytes de texto; Git calcula el SHA-1 de `commit 213`, un byte en cero y esos bytes, y le salen los 40 caracteres que empiezan con 139f652. Con un carácter menos en el mensaje, el id es otro: c27a81e.",
    "ver": [
@@ -125,7 +125,7 @@
    "id": "pull-request",
    "termino": "Pull request",
    "en": "pull request · PR · merge request",
-   "corto": "Una petición, en GitHub, para unir tu rama a main: muestra el diff (las líneas que salen y las que entran), los commits, la conversación y el resultado de las pruebas, y se une con un botón cuando se aprueba. En GitLab se llama merge request.",
+   "corto": "Una petición, en GitHub, para unir tu rama a main, la rama principal: muestra el diff (las líneas que salen y las que entran), los commits, la conversación y el resultado de las pruebas, y se une con un botón cuando se aprueba. En GitLab se llama merge request.",
    "largo": "En un equipo casi nadie sube directo a main: cada cambio va en su rama, la rama se sube al [[remoto-git|remoto]] y se abre un PR. Ahí ocurre la [[revision-codigo|revisión de código]] y corren las pruebas automáticas de [[ci]]. Si piden cambios, los commits nuevos en la misma rama actualizan el PR. Una regla de protección puede exigir PR, al menos una aprobación y CI en verde antes de unir. Los PRs chicos se revisan mejor y se revierten más fácil. Con [[gitops|GitOps]], desplegar y hacer rollback también son PRs.",
    "ejemplo": "En Alba, un PR que cambia el timeout del gateway corre los 26 tests del gateway y espera la aprobación de otra persona antes de entrar a main.",
    "ver": [
@@ -140,7 +140,7 @@
    "id": "revision-codigo",
    "termino": "Revisión de código",
    "en": "code review",
-   "corto": "Que otra persona lea un cambio antes de unirlo: si hace lo que dice, si se entiende, si tiene pruebas y si mete algo que no debe. Es la última mirada humana antes de que el código llegue a main.",
+   "corto": "Que otra persona lea un cambio antes de unirlo: si hace lo que dice, si se entiende, si tiene pruebas y si mete algo que no debe. Es la última mirada humana antes de que el código llegue a main, la rama principal.",
    "largo": "Se revisa en el [[pull-request|pull request]]. Lo que se busca: casos que rompen el cambio, claridad para quien lo lea después, pruebas que cubran lo que cambió, y cosas que no deben entrar (una contraseña, un archivo de pesos, una dependencia sin razón). En ML se agrega una pregunta: ¿cambia el preprocesamiento? Si cambia en un lado y no en el otro, aparece el [[training-serving-skew]]. Lo que puede revisar una máquina (pruebas, estilo, secretos) lo revisa [[ci]], y la persona se concentra en el diseño. Un archivo CODEOWNERS dice quién debe aprobar cada carpeta.",
    "ejemplo": "Un PR de 50 líneas se revisa con calma en minutos; uno de 2,000 se aprueba sin leer de verdad.",
    "ver": [
@@ -198,7 +198,7 @@
    "id": "trunk-based",
    "termino": "Desarrollo trunk-based",
    "en": "trunk-based development",
-   "corto": "Una forma de trabajar en equipo donde todos integran a main seguido, con ramas que viven horas o uno o dos días y PRs chicos, para que main siempre esté lista para publicarse.",
+   "corto": "Una forma de trabajar en equipo donde todos integran seguido a main, la rama principal, con ramas que viven horas o uno o dos días y [[pull-request|pull requests]] (PRs) chicos, para que main siempre esté lista para publicarse.",
    "largo": "Lo que no está terminado entra apagado detrás de una [[feature-flag|feature flag]]. Su alternativa clásica es **gitflow** (Vincent Driessen, 2010), con ramas largas: main, develop, feature/, release/ y hotfix/. Gitflow sirve para software que se publica por versiones numeradas; para un servicio que se despliega varias veces al día pesa, porque las ramas largas se separan y los merges grandes traen conflictos grandes. Trunk-based va de la mano de [[ci]] y del [[pull-request|pull request]] con revisión.",
    "ejemplo": "En Alba, un cambio al timeout vive en su rama unas horas, pasa la revisión y los tests en el PR y entra a main el mismo día.",
    "ver": [
@@ -213,7 +213,7 @@
    "id": "monorepo",
    "termino": "Monorepo",
    "en": "monorepo",
-   "corto": "Un solo repositorio con varios proyectos: en Alba, el gateway, el entrenamiento, el preprocesamiento compartido y la infraestructura. La alternativa es un repositorio por proyecto.",
+   "corto": "Un solo [[repositorio]] con varios proyectos, como el servidor de un modelo, su entrenamiento, el preprocesamiento compartido y la infraestructura. La alternativa es un repositorio por proyecto.",
    "largo": "Su ventaja: un cambio que toca dos proyectos entra en un solo PR y un solo commit, y un commit describe todo el sistema. En ML eso evita el [[training-serving-skew]]: el preprocesamiento de entrenamiento y de serving cambia junto. Su costo: el repositorio crece, CI tiene que correr solo lo que cambió y los permisos son más gruesos. Con varios repositorios, cada equipo decide solo, pero hay que anotar qué versión de cada uno va con cuál. Google guarda casi todo su código en un solo repositorio, con un sistema propio en lugar de Git.",
    "ejemplo": "Si el preprocesamiento vive en el mismo repositorio que el gateway y el entrenamiento, un cambio de normalización entra a los dos con el mismo commit.",
    "ver": [
@@ -227,9 +227,9 @@
    "id": "gitops",
    "termino": "GitOps",
    "en": "GitOps",
-   "corto": "Manejar un clúster (el grupo de máquinas donde corren los programas) con un repositorio de Git: el estado deseado (qué imagen, cuántas copias) vive en Git, y un programa como Argo CD o Flux compara el clúster con el repositorio y aplica la diferencia. Desplegar es un PR y el rollback es un git revert.",
+   "corto": "Manejar un clúster (el grupo de máquinas donde corren los programas) con un repositorio de Git: el estado deseado (qué imagen, cuántas copias) vive en Git, y un programa como Argo CD o Flux compara el clúster con el repositorio y aplica la diferencia. Desplegar es juntar un [[pull-request|PR]] y volver atrás es un git revert.",
    "largo": "Los archivos del repositorio son los manifests de Kubernetes, el sistema de [[orquestacion|orquestación]] que presenta la lección «Kubernetes». Como todo pasa por Git, la historia del repositorio es la historia de producción: quién desplegó qué, cuándo y quién lo aprobó. Un cambio hecho a mano en el clúster deja a Git describiendo otra cosa (*configuration drift*), y con la sincronización automática más la autorreparación (*self-heal*, apagada por omisión) Argo CD lo revierte solo. El nombre lo puso Weaveworks en 2017; Argo CD y Flux son proyectos de la CNCF. El rollback a la versión de ayer es un revert, y la imagen de ayer ya existe: no se reconstruye.",
-   "ejemplo": "El repositorio de despliegue de Alba dice image: classifier-gateway:8d41e07; la versión truena, un `git revert` lo regresa a 3f9c2ab y Argo CD vuelve el clúster a la imagen de ayer.",
+   "ejemplo": "El repositorio de despliegue de Alba dice image: classifier-gateway:8d41e07 (con su digest); la versión truena, un `git revert` lo regresa a 3f9c2ab y Argo CD vuelve el clúster a la imagen de ayer.",
    "ver": [
     "pull-request",
     "tag-git",

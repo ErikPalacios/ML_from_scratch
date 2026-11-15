@@ -184,7 +184,7 @@ Agent Platform y Azure ML tienen casi todas las mismas piezas con otros nombres.
 
 Entrenar es un trabajo (*job*) que arranca y termina. Un job gestionado prende las máquinas, corre tu código, guarda el modelo en S3 (el [[object-storage|almacén de objetos]] de AWS) y **apaga las máquinas solo**. Cobra por segundo. Si usas máquinas [[spot]] (las sobrantes, con descuento, que te pueden quitar), el job guarda [[checkpoint|checkpoints]] y retoma donde se quedó.
 
-El [[fine-tuning|fine-tune]] mensual de Alba (volver a entrenar el modelo un poco con datos nuevos) tarda ≈ 3–4 horas en una GPU y cuesta ≈ US$10–50 como job gestionado. Nadie tiene que acordarse de apagar una GPU un viernes en la noche. Por eso Alba lo corre así: es la parte de las plataformas que casi siempre conviene.
+El [[fine-tuning|fine-tune]] mensual de Alba (volver a entrenar el modelo un poco con datos nuevos) tarda ≈ 3–4 horas en una GPU y cuesta ≈ US$3–4 por corrida como job gestionado (≈ US$10–50 al mes, con las de prueba). Nadie tiene que acordarse de apagar una GPU un viernes en la noche. Por eso Alba lo corre así: es la parte de las plataformas que casi siempre conviene.
 
 ### El endpoint gestionado
 

@@ -84,7 +84,7 @@ El caso del martes, con números de ejemplo. El viernes sale una versión nueva 
 | Capa | Lo que se ve | ¿Suena algo? |
 |---|---|---|
 | Infraestructura | nada | no |
-| Servicio | el p99 de un pod del gateway, ≈ 69 ms en el pico de diseño, y 0.1 % de 5xx: como siempre | no |
+| Servicio | el p99 de un pod del gateway, ≈ 69 ms en el pico de diseño, y 5xx en el 0.1 % del SLO | no |
 | Datos | las fotos de `mobile` bajan de ≈ 210 KB a ≈ 140 KB de mediana, en minutos | no hay alerta: se ve en el dashboard, si alguien mira |
 | Modelo | la tasa de baja confianza (las fotos en que el modelo duda: su probabilidad más alta queda abajo de 0.3) sube de 4 % a 5.5 % del total | no: la alerta pide el doble, ≈ 8 % |
 | Negocio | 6 días después, la aceptación de `mobile` (cuántas veces quien vende elige una de las sugerencias) cae de 70.1 % a 66.2 % semana contra semana | **sí**: un ticket |
@@ -295,12 +295,12 @@ El libro de SRE pone el de 6× como page. Alba lo manda a ticket porque tiene un
 
 ### Dos ventanas: la larga confirma, la corta apaga
 
-Cada alerta de burn rate mira **dos ventanas a la vez**, y dispara solo si las dos pasan el umbral: 1 hora y 5 minutos para el page, 6 horas y 30 minutos para el ticket. La corta mide siempre 1/12 de la larga, la proporción que recomienda el libro: lo bastante corta para bajar en minutos. Es una [[alerta-multiventana|alerta multiventana]] (*multiwindow, multi-burn-rate alert*).
+Cada alerta de burn rate mira **dos ventanas a la vez**, y dispara solo si las dos pasan el umbral: 1 hora y 5 minutos para el page, 6 horas y 30 minutos para el ticket. La corta mide 1/12 de la larga, la proporción que recomienda el libro, para bajar en minutos. Es una [[alerta-multiventana|alerta multiventana]] (*multiwindow, multi-burn-rate alert*).
 
 ¿Para qué dos? La ventana larga es la que **confirma**: un pico de 2 minutos no mueve el promedio de una hora, así que no despierta a nadie. Pero tiene memoria: después del arreglo, la hora siguiente sigue cargando los errores de antes, y la alerta seguiría sonando media hora con el servicio ya sano. La ventana corta es la que **apaga**: 5 minutos después del arreglo vuelve a la normalidad, y como la regla pide las dos, la alerta se calla.
 
 :::figura e12-monitoreo-multiventana
-Un incidente de ejemplo: 3 % de errores (\(β\) = 30) durante 40 minutos, con el 0.1 % normal antes y después. La ventana de 1 hora cruza 14.4× en el minuto 27 y, sola, seguiría arriba hasta el 72; la de 5 minutos baja enseguida. El page suena mientras las dos están arriba: del minuto 27 al 42.
+Un incidente de ejemplo: 3 % de errores (\(β\) = 30) durante 40 minutos, con un fondo de 0.1 % (el tope del SLO) antes y después. La ventana de 1 hora cruza 14.4× en el minuto 27 y, sola, seguiría arriba hasta el 72; la de 5 minutos baja enseguida. El page suena mientras las dos están arriba: del minuto 27 al 42.
 :::
 
 :::profundo El mismo incidente, minuto a minuto

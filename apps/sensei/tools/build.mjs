@@ -3,6 +3,8 @@
 //   index.html            inicio: el camino, tu avance, la ruta TrueML y el temario
 //   <leccion>/index.html  una página por cada content/lecciones/<id>.md que exista
 //   glosario/index.html   todos los conceptos, con buscador
+//   repaso/index.html     tarjetas del glosario con repetición espaciada (Leitner, 5 cajas); sus datos en
+//                         repaso/tarjetas.json y su lógica en site/repaso.js. Funciona sin conexión.
 //   que-sigue/index.html  «¿Qué sigue después de Sensei?»: el Dojo y la Ronda de Diseño. Es el único lugar del sitio que
 //                         los nombra (y el cierre de una lección, con su estación del Dojo); las lecciones no.
 //   indice.json           lo que busca el buscador de la barra lateral (lecciones y conceptos)
@@ -166,6 +168,7 @@ const ICO = {
   casa: '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2.5 7.5 8 3l5.5 4.5V13h-4v-3.5h-3V13h-4z"/></svg>',
   libro: '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 2.5h8.5v11H3a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM2 11.5a1 1 0 0 1 1-1h8.5"/></svg>',
   ronda: '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.8V8l2.2 1.4" stroke-linecap="round"/></svg>',
+  tarjetas: '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="2" y="5" width="9.5" height="8.5" rx="1.2"/><path d="M5 2.5h7.5a1 1 0 0 1 1 1V10"/></svg>',
   chev: '<svg class="ico chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 10.5 8 6 12.5"/></svg>',
 };
 const TEMA = `<div class="tema" role="group" aria-label="Tema">${[['auto', 'Sistema'], ['light', 'Claro'], ['dark', 'Oscuro']]
@@ -186,8 +189,8 @@ function sidebar(actual) {
       : `<li><span class="nav__item is-soon" data-buscar="${esc(l.titulo.toLowerCase())}"><span class="nav__num">${l.n}</span><span class="nav__title">${esc(l.titulo)}</span><span class="nav__mk"></span></span></li>`)).join('');
     return `<details class="nav__group"${abierto ? ' open' : ''}><summary><span class="nav__label">${m.num} · ${esc(m.titulo)}</span><span class="nav__fase${listas === m.lecciones.length ? ' is-lista' : ''}">${listas === m.lecciones.length ? 'Listo' : listas ? `${listas}/${m.lecciones.length}` : `Fase ${m.fase}`}</span></summary><ol class="nav__list">${items}</ol></details>`;
   }).join('');
-  const top = [['/', ICO.casa, 'Inicio', 'inicio'], ['/glosario/', ICO.libro, `Glosario`, 'glosario']]
-    .map(([href, ico, t, id]) => `<a class="nav__item" href="${href}"${id === actual ? ' aria-current="page"' : ''}>${ico}<span>${t}</span>${id === 'glosario' ? `<span class="nav__count">${REALES().length}</span>` : '<span></span>'}</a>`).join('');
+  const top = [['/', ICO.casa, 'Inicio', 'inicio'], ['/glosario/', ICO.libro, `Glosario`, 'glosario'], ['/repaso/', ICO.tarjetas, 'Repaso', 'repaso']]
+    .map(([href, ico, t, id]) => `<a class="nav__item" href="${href}"${id === actual ? ' aria-current="page"' : ''}>${ico}<span>${t}</span>${id === 'glosario' ? `<span class="nav__count">${REALES().length}</span>` : id === 'repaso' ? '<span class="nav__count" data-repaso-hoy></span>' : '<span></span>'}</a>`).join('');
   return `<aside class="sidebar" id="sidebar" aria-label="Índice">
   <div class="sidebar__head">${marcaLink('TrueML · teoría desde cero')}<button type="button" class="btn-ico sidebar__close" aria-label="Cerrar el índice" data-cajon="cerrar">${ICO.x}</button></div>
   <div class="side-search" role="search"><input type="search" placeholder="Buscar lecciones y conceptos…" aria-label="Buscar lecciones y conceptos" autocomplete="off" data-buscar-nav><kbd aria-hidden="true">/</kbd><ul class="side-res" hidden></ul></div>
@@ -232,7 +235,7 @@ function datosGlobos(ids) {
   return `<script type="application/json" id="g-datos">${JSON.stringify(datos).replace(/</g, '\\u003c')}</script>`;
 }
 
-function pagina({ path, title, desc, actual, contenido, toc = '', ancho = false, globos = [], diagramas = false }) {
+function pagina({ path, title, desc, actual, contenido, toc = '', ancho = false, globos = [], diagramas = false, scripts = [] }) {
   const url = SITIO.url + path;
   const og = existsSync(join(ROOT, 'site', 'og.png'));
   return `<!doctype html>
@@ -271,6 +274,7 @@ ${globo}
 ${globos.length ? datosGlobos(globos) : ''}
 ${diagramas ? '<script src="/diagram.js" defer></script>' : ''}
 <script src="/app.js" defer></script>
+${scripts.map((s) => `<script src="${s}" defer></script>`).join('\n')}
 </body>
 </html>
 `;
@@ -302,6 +306,7 @@ function paginaLeccion(l) {
   </div>
   <section class="cierre" aria-label="Al terminar">
     <button type="button" class="btn c-leida" data-leida="${l.id}" aria-pressed="false"><span class="no">Marcar como leída</span><span class="si">Leída ✓</span></button>
+    ${l.conceptos.length ? `<a class="c-repaso" href="/repaso/?l=${l.id}">${ICO.tarjetas}<span>${l.conceptos.length === 1 ? 'Repasar el concepto de esta lección con tarjetas' : `Repasar los ${l.conceptos.length} conceptos de esta lección con tarjetas`}</span></a>` : ''}
     ${siguiente ? `<a class="card${siguiente.lista ? '' : ' card--pronto'}" href="${siguiente.lista ? siguiente.url : '/#temario'}"><span class="lbl">Sigue · ${siguiente.n}</span><b>${esc(siguiente.titulo)}</b><span class="txt">${siguiente.lista ? esc(siguiente.modulo.titulo) : `Próximamente · ${esc(siguiente.modulo.titulo)} (fase ${siguiente.modulo.fase})`}</span></a>` : ''}
     ${siguiente ? '' : `<a class="card card--ronda" href="/que-sigue/"><span class="lbl">Terminaste el curso</span><b>¿Qué sigue después de Sensei?</b><span class="txt">Practicar con código y defender el diseño en una entrevista.</span></a>`}
     ${est ? `<a class="card card--dojo" href="${est.url || SITIO.dojo}"><span class="lbl">Practícalo con código</span><b>Estación ${est.num} del Dojo: ${esc(est.titulo)}</b><span class="txt">${est.lista ? 'El Dojo es la parte de TrueML donde construyes, rehaces y rompes cada pieza del sistema de Alba con Claude Code.' : 'El Dojo es la parte de TrueML donde practicas con código. Esta estación todavía no está lista.'}</span></a>` : ''}
@@ -356,7 +361,7 @@ function portada() {
 </section>
 <section class="home-sec" aria-labelledby="h-como">
   <h2 id="h-como">Cómo se lee</h2>
-  <ol class="ruta">${SITIO.como.map((x, k) => `<li><div class="card"><span class="n">${k + 1}</span><b>${esc(x.t)}</b><span class="txt">${esc(x.d)}</span></div></li>`).join('')}</ol>
+  <ol class="ruta">${SITIO.como.map((x, k) => { const tag = x.u ? 'a' : 'div'; return `<li><${tag} class="card"${x.u ? ` href="${esc(x.u)}"` : ''}><span class="n">${k + 1}</span><b>${esc(x.t)}</b><span class="txt">${esc(x.d)}</span></${tag}></li>`; }).join('')}</ol>
 </section>`;
   return pagina({ path: '/', title: `${SITIO.nombre} · la teoría del dato a producción, desde cero · TrueML`, desc: SITIO.descripcion, actual: 'inicio', contenido, ancho: true, diagramas: true, globos: [...usados] });
 }
@@ -436,17 +441,124 @@ function paginaQueSigue() {
   return pagina({ path: '/que-sigue/', title: `¿Qué sigue después de ${SITIO.nombre}? · TrueML`, desc: 'Después del curso de teoría: practicar con código en el Dojo y defender el diseño en la Ronda de Diseño ML.', actual: 'que-sigue', contenido, ancho: true });
 }
 
+// ================================================================ repaso: tarjetas del glosario
+// Cada concepto que presenta una lección publicada es una tarjeta. El frente: el término, su nombre en inglés y la
+// lección. El dorso: «corto» y, en «Ver más», «largo», la analogía y el ejemplo. El texto va ya convertido a HTML en
+// repaso/tarjetas.json; site/repaso.js lleva las cajas (Leitner) en localStorage. Sin JavaScript, la página explica qué
+// es y manda al glosario.
+function datosRepaso() {
+  const mods = [], lecs = {};
+  for (const m of TEMARIO.modulos) {
+    const ls = m.lecciones.filter((l) => l.lista);
+    if (!ls.length) continue;
+    mods.push([m.id, m.num, m.titulo, ls.map((l) => l.id)]);
+    for (const l of ls) lecs[l.id] = [l.n, l.titulo, m.id];
+  }
+  const tarjetas = [];
+  for (const l of LISTAS) for (const id of l.conceptos) {
+    const g = GLOS.get(id), f = g.leccion && POR_ID.get(g.leccion);
+    const t = { i: id, t: g.termino, l: l.id, c: R.inline(g.corto) };
+    if (g.en) t.en = g.en;
+    if (g.largo) t.lg = R.inline(g.largo);
+    if (g.analogia) t.an = R.inline(g.analogia);
+    if (g.ejemplo) t.ej = R.inline(g.ejemplo);
+    if (f && f !== l) t.f = [f.lista ? f.url : null, f.titulo, f.lista ? '' : `fase ${f.modulo.fase}`];
+    tarjetas.push(t);
+  }
+  return { modulos: mods, lecciones: lecs, tarjetas };
+}
+
+function paginaRepaso(datos) {
+  const porLec = new Map();
+  for (const t of datos.tarjetas) porLec.set(t.l, (porLec.get(t.l) || 0) + 1);
+  const mods = datos.modulos.map(([id, num, titulo, ls]) => {
+    const n = ls.reduce((a, l) => a + (porLec.get(l) || 0), 0);
+    return `<li class="rp-mod" data-mod="${id}">
+      <label class="rp-mod__h"><input type="checkbox" data-sel-mod="${id}"><span class="rp-mod__t"><b>${num} · ${esc(titulo)}</b><span class="rp-mod__n">${n} conceptos · <span data-av-txt="${id}">ninguno repasado</span></span></span></label>
+      <div class="rp-av" aria-hidden="true"><i class="rp-av__firme" data-av-firme="${id}"></i><i class="rp-av__visto" data-av-visto="${id}"></i></div>
+      <details class="rp-lecs"><summary>${ICO.chev}<span>Elegir lecciones (${ls.length})</span></summary><ul>${ls.map((l) => { const x = POR_ID.get(l); return `<li><label><input type="checkbox" data-sel-lec="${l}" data-de="${id}"><span><span class="rp-lec__n">${x.n}</span> ${esc(x.titulo)}</span><span class="rp-lec__c" data-lec-c="${l}">${porLec.get(l) || 0}</span></label></li>`; }).join('')}</ul></details>
+    </li>`;
+  }).join('\n');
+  const total = datos.tarjetas.length.toLocaleString('en-US');   // 1,025, como en el resto del curso
+  const contenido = `<header class="phead">
+  <p class="eyebrow">Práctica</p>
+  <h1 class="phead__title" id="titulo">Repaso</h1>
+  <p class="phead__en">Spaced repetition · flashcards</p>
+  <p class="phead__summary">Los ${total} conceptos del glosario, como tarjetas. Ves el término, intentas recordar qué es y volteas la tarjeta: recordar sin mirar fija un concepto mejor que releerlo. Las que olvidas vuelven pronto; las que sabes, en unos días.</p>
+</header>
+<div class="rp-sinjs" data-rp-sinjs>
+  <p>El repaso necesita JavaScript: es el que voltea las tarjetas y recuerda cuándo te toca ver cada una. Sin él, todos los conceptos están en el <a href="/glosario/">glosario</a>, con su definición, su analogía y su ejemplo.</p>
+</div>
+<div class="rp" data-rp hidden>
+  <section class="rp-elegir" data-rp-elegir aria-labelledby="h-elegir">
+    <h2 id="h-elegir" class="rp-h">Qué repasar</h2>
+    <p class="rp-intro">Marca qué quieres repasar y pulsa «Empezar el repaso». Cada sesión trae hasta 20 tarjetas.</p>
+    <div class="rp-filtros">
+      <label class="rp-filtro"><input type="checkbox" data-filtro="leidas"><span><b>Solo las lecciones que marqué como leídas</b><small>Con el botón «Marcar como leída» del final de cada lección.</small></span></label>
+      <label class="rp-filtro"><input type="checkbox" data-filtro="cuestan"><span><b>Solo las que todavía no se me quedan</b><small>Las que ya viste y siguen en las dos primeras cajas: las que no recordaste, las que te costaron y las que solo te han salido fáciles una vez.</small></span></label>
+    </div>
+    <div class="rp-mods-h"><span class="lbl">Módulos</span><button type="button" class="rp-link" data-sel="todo">Elegir todos</button><button type="button" class="rp-link" data-sel="nada">Quitar todos</button></div>
+    <ul class="rp-mods">${mods}</ul>
+    <div class="rp-listo">
+      <p class="rp-cuenta" data-rp-cuenta aria-live="polite"></p>
+      <button type="button" class="btn" data-rp-empezar>Empezar el repaso</button>
+    </div>
+  </section>
+  <section class="rp-sesion" data-rp-sesion hidden aria-labelledby="rp-pos">
+    <div class="rp-top"><h2 class="lbl" id="rp-pos" data-rp-pos>Tarjeta 1 de 20</h2><div class="rp-barra" aria-hidden="true"><i data-rp-barra></i></div><button type="button" class="rp-link" data-rp-terminar title="Lo que ya calificaste queda guardado">Terminar</button></div>
+    <div class="rp-card" data-rp-card tabindex="-1">
+      <div class="rp-frente" aria-live="polite">
+        <span class="rp-caja" data-rp-caja></span>
+        <p class="rp-t" data-rp-t></p>
+        <p class="rp-en" data-rp-en></p>
+        <p class="rp-de" data-rp-de></p>
+      </div>
+      <div class="rp-dorso" data-rp-dorso aria-live="polite" hidden>
+        <p class="rp-corto" data-rp-corto></p>
+        <details class="rp-mas" data-rp-mas><summary>${ICO.chev}<span>Ver más</span></summary><div data-rp-mas-in></div></details>
+        <p class="rp-ir" data-rp-ir></p>
+      </div>
+    </div>
+    <div class="rp-acc">
+      <button type="button" class="btn rp-voltear" data-rp-voltear>Voltear la tarjeta <kbd>Espacio</kbd></button>
+      <p class="rp-pregunta" data-rp-pregunta hidden>¿Te acordaste?</p>
+      <div class="rp-notas" data-rp-notas role="group" aria-label="¿Te acordaste?" hidden>
+        <button type="button" class="rp-nota rp-nota--1" data-nota="1"><kbd>1</kbd><b>No me acordé</b><small data-rp-cuando="1">Vuelve en esta sesión</small></button>
+        <button type="button" class="rp-nota rp-nota--2" data-nota="2"><kbd>2</kbd><b>Me costó</b><small data-rp-cuando="2"></small></button>
+        <button type="button" class="rp-nota rp-nota--3" data-nota="3"><kbd>3</kbd><b>Fácil</b><small data-rp-cuando="3"></small></button>
+      </div>
+    </div>
+    <p class="rp-teclas">Con teclado: <kbd>Espacio</kbd> voltea la tarjeta; <kbd>1</kbd>, <kbd>2</kbd> y <kbd>3</kbd> dicen qué tan bien te acordaste.</p>
+  </section>
+  <section class="rp-fin" data-rp-fin hidden aria-labelledby="h-fin">
+    <h2 id="h-fin" class="rp-h" tabindex="-1">Terminaste esta sesión</h2>
+    <ul class="rp-res" data-rp-res></ul>
+    <div class="rp-fin__btns"><button type="button" class="btn" data-rp-otra>Otra sesión</button><button type="button" class="btn btn--2" data-rp-volver>Elegir qué repasar</button></div>
+  </section>
+  <section class="rp-como" aria-labelledby="h-como-rp">
+    <h2 id="h-como-rp" class="rp-h">Cómo funciona</h2>
+    <p>Cada tarjeta vive en una de cinco cajas, y su caja dice cuándo vuelve a salir. Una tarjeta nueva entra a la caja 1. Si te salió fácil, sube una caja. Si no te acordaste, regresa a la caja 1 y la vuelves a ver antes de terminar la sesión. Si te costó, se queda en su caja y vuelve como pronto al día siguiente. Entre más alta la caja, más tarda en volver:</p>
+    <ol class="rp-cajas"><li><b>Caja 1</b><span>el mismo día</span></li><li><b>Caja 2</b><span>al día siguiente</span></li><li><b>Caja 3</b><span>en 3 días</span></li><li><b>Caja 4</b><span>en 7 días</span></li><li><b>Caja 5</b><span>en 16 días</span></li></ol>
+    <p>Así repasas más lo que olvidas y menos lo que ya sabes. Cada sesión trae hasta 20 tarjetas: primero las que te tocan hoy (las que ya viste y cuya fecha de volver ya llegó) y después nuevas, en el orden del curso. Las tarjetas «firmes» son las de las cajas 4 y 5: te salieron fáciles al menos tres veces desde la última vez que no te acordaste.</p>
+    <p class="rp-borrar"><span>Tu avance del repaso se guarda solo en este navegador.</span><button type="button" class="rp-link" data-rp-borrar>Borrar mi avance del repaso</button></p>
+  </section>
+</div>`;
+  return pagina({ path: '/repaso/', title: `Repaso · ${SITIO.nombre} · TrueML`, desc: `Los ${total} conceptos del glosario de ${SITIO.nombre} como tarjetas de repaso: las que olvidas vuelven pronto y las que sabes, en unos días. Funciona sin conexión.`,
+    actual: 'repaso', contenido, scripts: ['/repaso.js'] });
+}
+
 // ================================================================ escribir
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
-const pages = SOLO ? {} : { '/': portada(), '/glosario/': paginaGlosario(), '/que-sigue/': paginaQueSigue() };
+const REPASO = SOLO ? null : datosRepaso();
+const pages = SOLO ? {} : { '/': portada(), '/glosario/': paginaGlosario(), '/repaso/': paginaRepaso(REPASO), '/que-sigue/': paginaQueSigue() };
 for (const l of LISTAS) pages[l.url] = paginaLeccion(l);
 for (const [path, html] of Object.entries(pages)) {
   mkdirSync(join(OUT, path), { recursive: true });
   writeFileSync(join(OUT, path, 'index.html'), html);
   console.log(`[build] ${path}`);
 }
-for (const f of ['app.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) if (existsSync(join(ROOT, 'site', f))) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
+for (const f of ['app.js', 'repaso.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) if (existsSync(join(ROOT, 'site', f))) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
 copyFileSync(join(ROOT, 'vendor', 'ronda', 'diagram.js'), join(OUT, 'diagram.js'));
 const CSS = [join(ROOT, 'vendor', 'trueml', 'tokens.css'), join(ROOT, 'vendor', 'ronda', 'components.css'), join(ROOT, 'site', 'sensei.css')].map(leer).join('\n');
 writeFileSync(join(OUT, 'sensei.css'), CSS);
@@ -457,11 +569,14 @@ writeFileSync(join(OUT, 'indice.json'), JSON.stringify({
   conceptos: REALES().map((g) => ({ t: g.termino, en: g.en || '', u: `/glosario/#g-${g.id}`, c: sinMd(g.corto) })),
 }));
 
+const TARJETAS = REPASO ? JSON.stringify(REPASO) : '';
+if (REPASO) { writeFileSync(join(OUT, 'repaso', 'tarjetas.json'), TARJETAS); console.log(`[build] repaso: ${REPASO.tarjetas.length} tarjetas · tarjetas.json ${(Buffer.byteLength(TARJETAS) / 1024).toFixed(0)} KB`); }
+
 const urls = Object.keys(pages);
-const core = [...urls, '/sensei.css', '/app.js', '/diagram.js', '/indice.json', '/icon.svg', '/manifest.webmanifest'];
+const core = [...urls, '/sensei.css', '/app.js', '/diagram.js', '/indice.json', '/icon.svg', '/manifest.webmanifest', ...(REPASO ? ['/repaso.js', '/repaso/tarjetas.json'] : [])];
 const hash = createHash('sha256');
 for (const p of urls.sort()) hash.update(p).update(pages[p]);
-hash.update(CSS).update(leer(join(ROOT, 'site', 'app.js'))).update(leer(join(ROOT, 'vendor', 'ronda', 'diagram.js')));
+hash.update(CSS).update(TARJETAS).update(leer(join(ROOT, 'site', 'repaso.js'))).update(leer(join(ROOT, 'site', 'app.js'))).update(leer(join(ROOT, 'vendor', 'ronda', 'diagram.js')));
 const BUILD = hash.digest('hex').slice(0, 12);
 writeFileSync(join(OUT, 'sw.js'), leer(join(ROOT, 'site', 'sw.js')).replace("'__BUILD__';", `'${BUILD}';`).replace('= __PAGES__;', `= ${JSON.stringify(core)};`));
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITIO.url}/sitemap.xml\n`);

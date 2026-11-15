@@ -34,7 +34,7 @@
       "en": "training",
       "corto": "Mostrarle al modelo muchos ejemplos con su respuesta correcta y ajustar sus parámetros, poco a poco, para que se equivoque menos.",
       "largo": "El modelo adivina, se compara con la [[etiqueta]] correcta y mueve sus [[parametro|parámetros]] un poquito en la dirección que reduce el error. Eso se repite millones de veces. Es lento y caro, y se hace de vez en cuando, no con cada uso.",
-      "ejemplo": "En Alba el modelo se reentrena una vez al mes con las fotos nuevas del mes.",
+      "ejemplo": "En Alba el modelo se reentrena una vez al mes: parte otra vez de los pesos que la ResNet-50 aprendió con ImageNet (un dataset público de ≈ 1.28 millones de fotos) y aprende con el dataset del mes, que junta las fotos etiquetadas de meses anteriores con las que se agregaron ese mes.",
       "ver": [
         "inferencia",
         "etiqueta",
@@ -75,7 +75,7 @@
       "en": "dataset · conjunto de datos",
       "corto": "Una colección de ejemplos, guardada y ordenada, con la que se entrena o se evalúa un modelo.",
       "largo": "Cada ejemplo trae la entrada (la foto) y, casi siempre, su [[etiqueta]] (la categoría correcta). En producción no basta con tenerlo: hay que poder decir exactamente con cuál dataset se entrenó cada modelo.",
-      "ejemplo": "El dataset de un mes en Alba son las fotos de publicaciones con su categoría revisada.",
+      "ejemplo": "El dataset de septiembre de Alba son ≈ 1.93 millones de fotos con su categoría: 72 % la que eligió quien vende (filtrada), 7 % correcciones de moderación y 21 % etiquetadas a mano.",
       "ver": [
         "etiqueta",
         "entrenamiento"
@@ -139,21 +139,21 @@
       "id": "ml-engineer",
       "termino": "ML engineer",
       "en": "machine learning engineer",
-      "corto": "La persona que lleva un modelo del notebook a producción y lo mantiene funcionando: datos, entrenamiento, serving, despliegue y monitoreo.",
+      "corto": "La persona que lleva un modelo de las pruebas a producción, donde lo usa gente real, y lo mantiene funcionando: sus datos, su entrenamiento, ponerlo a responder, sacar versiones nuevas y vigilarlo.",
       "largo": "No basta con que el modelo acierte. El trabajo es que todo lo que lo rodea también funcione: que le lleguen buenos datos, que responda rápido, que no se caiga y que alguien note cuando empieza a fallar.",
       "ver": [
         "produccion",
         "pipeline"
       ],
       "leccion": "camino-completo",
-      "ejemplo": "En Alba, el ML engineer no inventa la ResNet-50: se encarga de que las fotos le lleguen bien preparadas, de que responda en menos de 200 ms, de que una versión nueva salga sin romper nada y de notar cuando empieza a fallar."
+      "ejemplo": "En Alba, el ML engineer no inventa la ResNet-50: se encarga de que las fotos le lleguen bien preparadas, de que 99 de cada 100 respuestas tarden menos de 200 ms, de que una versión nueva salga sin romper nada y de notar cuando empieza a fallar."
     },
     {
       "id": "pipeline",
       "termino": "Pipeline",
       "en": "pipeline",
       "corto": "Una cadena de pasos donde lo que sale de uno es lo que entra al siguiente, y que se puede volver a correr igual.",
-      "analogia": "Una línea de ensamblaje: cada estación hace una cosa y le pasa la pieza a la siguiente.",
+      "analogia": "Una línea de ensamblaje: cada estación hace una cosa y le pasa la pieza a la siguiente. Se rompe en que la línea hace piezas iguales sin parar; un pipeline corre de vez en cuando y cada corrida guarda con qué datos corrió, para poder repetirla.",
       "ejemplo": "El camino de Alba es un pipeline: datos → modelo → API → contenedor → orquestación → monitoreo.",
       "ver": [
         "ml-engineer"
@@ -166,7 +166,7 @@
       "termino": "Servidor",
       "en": "server",
       "corto": "Una computadora (o un programa) que se queda encendida esperando peticiones y las responde.",
-      "largo": "La palabra se usa para las dos cosas: la máquina y el programa que corre en ella esperando peticiones. En producción, los servidores no se apagan nunca y casi siempre están en la nube (computadoras que empresas como Amazon o Google rentan por hora), no en una oficina.",
+      "largo": "La palabra se usa para las dos cosas: la máquina y el programa que corre en ella esperando peticiones. En producción, los servidores se quedan encendidos todo el tiempo y muchas veces están en la nube (computadoras que empresas como Amazon o Google rentan por hora), no en una oficina.",
       "ver": [
         "request",
         "api"
@@ -186,7 +186,7 @@
         "latencia"
       ],
       "leccion": "http",
-      "largo": "Viaja por la red con un formato acordado: a qué dirección va, qué se pide y qué datos lleva (aquí, la foto). Cada request recibe su response, aunque sea un mensaje de error. Contar cuántas llegan por segundo es la forma de medir cuánto trabajo tiene un servicio."
+      "largo": "Viaja por la red con un formato acordado: a qué dirección va, qué se pide y qué datos lleva (en Alba, la foto). Cada request recibe su response, aunque sea un mensaje de error. Contar cuántas llegan por segundo es la forma de medir cuánto trabajo tiene un servicio."
     },
     {
       "id": "api",
@@ -194,7 +194,7 @@
       "en": "Application Programming Interface",
       "corto": "La «ventanilla» de un programa: lo que otros programas le pueden pedir, cómo pedírselo y qué les va a regresar.",
       "largo": "Quien la usa no necesita saber cómo funciona por dentro, solo qué pedir y en qué formato. Un modelo en producción casi siempre se usa a través de una API: le mandas una [[request]] con la foto y te regresa la categoría.",
-      "analogia": "La ventanilla de un banco: no ves la bóveda ni los sistemas de atrás, pero sabes qué trámites puedes pedir y qué papeles llevar.",
+      "analogia": "La ventanilla de un banco: no ves la bóveda ni los sistemas de atrás, pero sabes qué trámites puedes pedir y qué papeles llevar. Se rompe en que en la ventanilla te atiende una persona que puede improvisar; una API solo responde lo que está definido, y en el formato exacto.",
       "ver": [
         "request",
         "servidor",
@@ -213,7 +213,7 @@
         "inferencia"
       ],
       "leccion": "e06-serving",
-      "largo": "Es la etapa 3 del camino: un programa carga el modelo una vez, al arrancar, y desde ahí responde cada [[request]]. Lo difícil no es que responda una vez, sino que responda rápido y sin caerse, muchas veces por segundo, con la foto preparada igual que cuando se entrenó.",
+      "largo": "Es la etapa 3 del camino de un modelo a producción, después de los datos y del modelo: un programa carga el modelo una vez, al arrancar, y desde ahí responde cada [[request]]. Lo difícil no es que responda una vez, sino que responda rápido y sin caerse, muchas veces por segundo, con la foto preparada igual que cuando se entrenó.",
       "ejemplo": "En Alba, el serving es la API que recibe la foto de Ana, la prepara y se la pasa al modelo, que corre en un servidor con GPU dentro de Triton, un programa hecho para servir modelos."
     },
     {
@@ -221,8 +221,8 @@
       "termino": "Contenedor",
       "en": "container",
       "corto": "Un paquete con tu programa y todo lo que necesita para correr (la versión de Python, las librerías, los archivos), para que corra igual en cualquier máquina.",
-      "largo": "Resuelve el clásico «en mi máquina sí funciona». La herramienta más usada para crearlos es Docker. Ojo: si el modelo usa una GPU, la máquina también necesita sus drivers.",
-      "analogia": "Un contenedor de barco: no importa qué lleve adentro, tiene un tamaño estándar y cualquier puerto, grúa o barco lo puede mover.",
+      "largo": "Resuelve el clásico «en mi máquina sí funciona». La herramienta más usada para crearlos es Docker. Ojo: si el modelo usa una [[gpu|GPU]], la máquina también necesita sus [[driver|drivers]] (el programa que le permite al sistema operativo usar la tarjeta).",
+      "analogia": "Un contenedor de barco: no importa qué lleve adentro, tiene un tamaño estándar y cualquier puerto, grúa o barco lo puede mover. Se rompe en que un contenedor de software no es del todo independiente: usa partes del sistema operativo de la máquina donde corre, como los drivers de la GPU.",
       "ver": [
         "orquestacion"
       ],
@@ -278,14 +278,14 @@
       "termino": "Reentrenamiento",
       "en": "retraining",
       "corto": "Volver a entrenar el modelo con datos nuevos para que se ponga al día con lo que está pasando.",
-      "largo": "Es lo que cierra el ciclo: el [[monitoreo]] detecta que el modelo se quedó atrás, se juntan y etiquetan datos nuevos, y se entrena una versión nueva que reemplaza a la anterior solo si es mejor.",
+      "largo": "Es lo que cierra el ciclo: el [[monitoreo]] detecta que el modelo se quedó atrás, se juntan y etiquetan datos nuevos, y se entrena una versión nueva que reemplaza a la anterior solo si no es peor en el examen de evaluación.",
       "ver": [
         "drift",
         "monitoreo",
         "entrenamiento"
       ],
       "leccion": "e12-monitoreo",
-      "ejemplo": "Alba reentrena cada mes con las fotos nuevas, y antes si el monitoreo detecta drift o si el negocio agrega una categoría, como «bolsas» el 1 de octubre."
+      "ejemplo": "Alba reentrena cada mes. Una categoría nueva, como «bolsas» el 1 de octubre, obliga a adelantarlo. Si el monitoreo ve drift o que se aceptan menos sugerencias, se abre un ticket y una persona decide si se adelanta."
     },
     {
       "id": "latencia",
@@ -316,7 +316,7 @@
       "id": "camino-online",
       "termino": "Camino online",
       "en": "online path · serving path",
-      "corto": "Todo lo que pasa mientras alguien espera una respuesta: llega la request, se prepara la entrada, el modelo calcula y sale la respuesta. Su reloj son los milisegundos.",
+      "corto": "Todo lo que pasa mientras alguien espera una respuesta: llega la petición (*request*), se prepara la entrada, el modelo calcula y sale la respuesta. Su reloj son los milisegundos.",
       "largo": "Corre por cada [[request]], a cualquier hora, y si falla se nota al instante. Por eso vive con un presupuesto de [[latencia]], un tiempo máximo de espera y un [[fallback]]. Crece con el tráfico: más requests por segundo piden más copias encendidas. La pregunta que lo define: ¿alguien está esperando la respuesta?",
       "ejemplo": "En Alba: la foto de Ana entra a la API, se prepara, el modelo hace la inferencia y regresa las 5 categorías más probables. 99 de cada 100 veces, en menos de 200 ms.",
       "ver": [
