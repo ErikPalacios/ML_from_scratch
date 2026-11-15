@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" role="img" aria-labelledby="f-e09-kubernetes-throttling-t" class="f-svg" style="max-width:420px">
+<title id="f-e09-kubernetes-throttling-t">Cuatro decodes de 40 milisegundos de CPU cada uno, en dos líneas de tiempo. Sin límite de CPU, los cuatro corren en paralelo y terminan a los 40 ms. Con límite de 1 CPU, los cuatro gastan la cuota de 100 ms de CPU en los primeros 25 ms, el contenedor queda congelado 75 ms hasta que empieza el siguiente periodo a los 100 ms, y terminan a los 115 ms.</title>
+<rect class="f-card" x="10" y="10" width="340" height="310" rx="16"/>
+<text class="f-l" x="26" y="34">4 DECODES DE 40 MS DE CPU</text>
+<text class="f-t" x="26" y="60" style="font-size:14px">Sin límite</text>
+<rect class="f-b" x="60.0" y="70" width="90.00" height="11" rx="2"/>
+<rect class="f-b" x="60.0" y="85" width="90.00" height="11" rx="2"/>
+<rect class="f-b" x="60.0" y="100" width="90.00" height="11" rx="2"/>
+<rect class="f-b" x="60.0" y="115" width="90.00" height="11" rx="2"/>
+<text class="f-s" x="158" y="98" style="font-size:12px">listos a los 40 ms</text>
+<text class="f-t" x="26" y="150" style="font-size:14px">Límite de 1 CPU</text>
+<rect class="f-o" x="60.0" y="160" width="56.25" height="11" rx="2"/>
+<rect class="f-o" x="285.00" y="160" width="33.75" height="11" rx="2"/>
+<rect class="f-o" x="60.0" y="175" width="56.25" height="11" rx="2"/>
+<rect class="f-o" x="285.00" y="175" width="33.75" height="11" rx="2"/>
+<rect class="f-o" x="60.0" y="190" width="56.25" height="11" rx="2"/>
+<rect class="f-o" x="285.00" y="190" width="33.75" height="11" rx="2"/>
+<rect class="f-o" x="60.0" y="205" width="56.25" height="11" rx="2"/>
+<rect class="f-o" x="285.00" y="205" width="33.75" height="11" rx="2"/>
+<rect class="f-linea" x="118.25" y="156" width="164.75" height="64" rx="5" style="fill:none;stroke-dasharray:4 4"/>
+<text class="f-s" x="201" y="185" text-anchor="middle" style="font-size:12px">congelado</text>
+<text class="f-s" x="201" y="201" text-anchor="middle" style="font-size:12px">75 ms</text>
+<line class="f-linea" x1="60.0" y1="236" x2="330" y2="236"/>
+<line class="f-linea" x1="60.00" y1="231" x2="60.00" y2="241"/>
+<text class="f-s" x="60.00" y="256" text-anchor="middle" style="font-size:12px">0</text>
+<line class="f-linea" x1="116.25" y1="231" x2="116.25" y2="241"/>
+<text class="f-s" x="116.25" y="256" text-anchor="middle" style="font-size:12px">25</text>
+<line class="f-linea" x1="150.00" y1="231" x2="150.00" y2="241"/>
+<text class="f-s" x="150.00" y="256" text-anchor="middle" style="font-size:12px">40</text>
+<line class="f-linea" x1="285.00" y1="231" x2="285.00" y2="241"/>
+<text class="f-s" x="285.00" y="256" text-anchor="middle" style="font-size:12px">100</text>
+<line class="f-linea" x1="318.75" y1="231" x2="318.75" y2="241"/>
+<text class="f-s" x="318.75" y="256" text-anchor="middle" style="font-size:12px">115</text>
+<text class="f-s" x="330" y="272" text-anchor="end" style="font-size:12px">ms de reloj</text>
+<text class="f-s" x="26" y="292" style="font-size:12px">Cuota: 100 ms de CPU por periodo de 100 ms,</text>
+<text class="f-s" x="26" y="308" style="font-size:12px">sumando los 4 hilos. Se acaba a los 25 ms.</text>
+</svg>

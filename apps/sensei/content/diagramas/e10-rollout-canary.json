@@ -1,0 +1,409 @@
+{
+ "titulo": "El canary de la versión 15 con Argo Rollouts",
+ "width": 78,
+ "height": 57,
+ "lanes": [
+  {
+   "id": "control",
+   "label": "Git y control",
+   "kind": "neutral",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 14
+  },
+  {
+   "id": "trafico",
+   "label": "Tráfico",
+   "kind": "online",
+   "x": 0,
+   "y": 15,
+   "w": 78,
+   "h": 27
+  },
+  {
+   "id": "medicion",
+   "label": "Medición",
+   "kind": "monitor",
+   "x": 0,
+   "y": 43,
+   "w": 78,
+   "h": 14
+  }
+ ],
+ "nodes": [
+  {
+   "id": "repo",
+   "label": "alba/despliegue",
+   "sub": "template v15",
+   "kind": "store",
+   "x": 1,
+   "y": 3,
+   "w": 16,
+   "h": 8,
+   "note": "El repositorio de despliegue. El cambio del template del gateway (`TRITON_URL=triton-v15…`, `MODEL_VERSION`, los labels 15) llegó en un PR que juntó la GitHub App tras la aprobación del job `produccion`."
+  },
+  {
+   "id": "argocd",
+   "label": "Argo CD",
+   "sub": "aplica",
+   "kind": "service",
+   "x": 20,
+   "y": 3,
+   "w": 17,
+   "h": 8,
+   "note": "[[argo-cd|Argo CD]] aplica el Rollout como cualquier manifiesto. No sabe de canarios: solo hace que el clúster se parezca a Git."
+  },
+  {
+   "id": "rollouts",
+   "label": "Argo Rollouts",
+   "sub": "5 → 25 → 100",
+   "kind": "service",
+   "x": 42,
+   "y": 3,
+   "w": 17,
+   "h": 8,
+   "note": "El controlador de [[argo-rollouts|Argo Rollouts]] ve un template nuevo y ejecuta los pasos: 5 % por 4 h, 25 % por 4 h, 100 %. Sin pausa manual."
+  },
+  {
+   "id": "promover",
+   "label": "job promover",
+   "sub": "mueve champion",
+   "kind": "job",
+   "x": 63,
+   "y": 3,
+   "w": 14,
+   "h": 8,
+   "note": "Del pipeline. Espera a que el Rollout esté al 100 % y sano, y entonces mueve el alias."
+  },
+  {
+   "id": "alb",
+   "label": "ALB",
+   "sub": "pesos 95 / 5",
+   "kind": "edge",
+   "x": 1,
+   "y": 24,
+   "w": 15,
+   "h": 8,
+   "note": "Dos destinos, uno por Service, con pesos de 0 a 999. Argo Rollouts los escribe en una anotación del Ingress, y el AWS Load Balancer Controller los aplica. Cada request cae en uno al azar, en proporción: [[ruteo-por-peso|ruteo por peso]]."
+  },
+  {
+   "id": "gstable",
+   "label": "gateway-stable",
+   "sub": "release 14",
+   "kind": "service",
+   "x": 20,
+   "y": 17,
+   "w": 17,
+   "h": 8,
+   "note": "Los pods del gateway de la 14. Hablan solo con `triton-v14` y traen los labels de su modelo."
+  },
+  {
+   "id": "gcanary",
+   "label": "gateway-canary",
+   "sub": "release 15",
+   "kind": "service",
+   "x": 20,
+   "y": 31,
+   "w": 17,
+   "h": 8,
+   "note": "Los pods del gateway de la 15. Hablan solo con `triton-v15`: nunca dos modelos detrás del mismo nombre."
+  },
+  {
+   "id": "tr14",
+   "label": "triton-v14",
+   "sub": "2 pods, 2 zonas",
+   "kind": "gpu",
+   "x": 42,
+   "y": 17,
+   "w": 17,
+   "h": 8,
+   "note": "El champion, con sus dos T4, una por zona, durante todo el canary. Al llegar al 100 %, un PR lo baja a un solo pod para el bake."
+  },
+  {
+   "id": "tr15",
+   "label": "triton-v15",
+   "sub": "1 pod, desde el shadow",
+   "kind": "gpu",
+   "x": 42,
+   "y": 31,
+   "w": 17,
+   "h": 8,
+   "note": "Se desplegó antes, sin tráfico, con un solo pod (la T4 de más): el mismo que sirvió al shadow. El canary no espera los ≈ 5–13 min de un pod nuevo de Triton, y al 25 % en el pico ese pod recibe 87.5 fotos por segundo, lejos de las ≈ 1,200 de una T4."
+  },
+  {
+   "id": "prom",
+   "label": "Prometheus",
+   "sub": "por model_version",
+   "kind": "monitor",
+   "x": 20,
+   "y": 46,
+   "w": 17,
+   "h": 8,
+   "note": "El sistema que junta y guarda, cada pocos segundos, las métricas de los dos gateways (la flecha dibuja solo la del canary). Cada una lleva `model_version` como etiqueta: así se separa canary de estable en la misma consulta."
+  },
+  {
+   "id": "analysis",
+   "label": "Análisis",
+   "sub": "canary vs estable",
+   "kind": "monitor",
+   "x": 42,
+   "y": 46,
+   "w": 17,
+   "h": 8,
+   "note": "El [[analisis-canary|análisis]] consulta Prometheus: 5xx, p99, baja confianza y PSI contra el estable, en la misma ventana y con su n mínimo (el PSI lo publica cada hora un job que lee el log). Una medición mala basta para abortar."
+  },
+  {
+   "id": "registro",
+   "label": "registro",
+   "sub": "champion → 15",
+   "kind": "store",
+   "x": 63,
+   "y": 46,
+   "w": 14,
+   "h": 8,
+   "note": "El [[registro-modelos|registro de modelos]]. El alias `champion` pasa a la versión 15 solo al final."
+  }
+ ],
+ "edges": [
+  {
+   "from": "repo",
+   "to": "argocd",
+   "kind": "neutral",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "argocd",
+   "to": "rollouts",
+   "kind": "neutral",
+   "label": "aplica",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "rollouts",
+   "to": "alb",
+   "kind": "neutral",
+   "label": "pesos",
+   "fromSide": "b",
+   "toSide": "t",
+   "via": [
+    [
+     50.5,
+     13.5
+    ],
+    [
+     8.5,
+     13.5
+    ]
+   ]
+  },
+  {
+   "from": "alb",
+   "to": "gstable",
+   "kind": "online",
+   "label": "95 %",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "alb",
+   "to": "gcanary",
+   "kind": "online",
+   "label": "5 %",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "gstable",
+   "to": "tr14",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "gcanary",
+   "to": "tr15",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "gcanary",
+   "to": "prom",
+   "kind": "monitor",
+   "label": "métricas",
+   "fromSide": "b",
+   "toSide": "t"
+  },
+  {
+   "from": "prom",
+   "to": "analysis",
+   "kind": "monitor",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "analysis",
+   "to": "rollouts",
+   "kind": "monitor",
+   "label": "veredicto",
+   "fromSide": "r",
+   "toSide": "r",
+   "via": [
+    [
+     61,
+     50
+    ],
+    [
+     61,
+     7
+    ]
+   ]
+  },
+  {
+   "from": "rollouts",
+   "to": "promover",
+   "kind": "neutral",
+   "label": "100 %",
+   "fromSide": "t",
+   "toSide": "t",
+   "via": [
+    [
+     50.5,
+     1
+    ],
+    [
+     70,
+     1
+    ]
+   ]
+  },
+  {
+   "from": "promover",
+   "to": "registro",
+   "kind": "neutral",
+   "fromSide": "b",
+   "toSide": "t"
+  }
+ ],
+ "flows": [
+  {
+   "id": "promocion",
+   "label": "La promoción completa",
+   "steps": [
+    {
+     "nodes": [
+      "repo",
+      "argocd",
+      "rollouts"
+     ],
+     "edges": [
+      "repo>argocd",
+      "argocd>rollouts"
+     ],
+     "text": "El PR ya aprobado cambia el template del gateway. **Argo CD** lo aplica y **Argo Rollouts** ve un template nuevo: empieza el canary."
+    },
+    {
+     "nodes": [
+      "rollouts",
+      "alb",
+      "gcanary",
+      "tr15"
+     ],
+     "edges": [
+      "rollouts>alb",
+      "alb>gcanary",
+      "gcanary>tr15"
+     ],
+     "text": "Paso 1: `setWeight: 5`. El ALB manda el 5 % a **gateway-canary**, que habla con **triton-v15**: 17.5 requests por segundo en el pico."
+    },
+    {
+     "nodes": [
+      "gcanary",
+      "prom",
+      "analysis"
+     ],
+     "edges": [
+      "gcanary>prom",
+      "prom>analysis"
+     ],
+     "text": "Durante las 4 h, el **análisis** compara canary contra estable en cada ventana, cuando junta su n mínimo: 10,000 requests para los 5xx."
+    },
+    {
+     "nodes": [
+      "analysis",
+      "rollouts",
+      "alb"
+     ],
+     "edges": [
+      "analysis>rollouts",
+      "rollouts>alb"
+     ],
+     "text": "Todo verde: a las 4 h, Argo Rollouts sube a **25 %** (87.5 por segundo en el pico), y 4 h después a **100 %**."
+    },
+    {
+     "nodes": [
+      "rollouts",
+      "promover",
+      "registro"
+     ],
+     "edges": [
+      "rollouts>promover",
+      "promover>registro"
+     ],
+     "text": "El Rollout está al 100 % y sano. El **job promover** mueve `champion` a la versión 15. La GitHub App junta el PR que sube `triton-v15` a 2–4 pods y deja `triton-v14` con uno: empieza el bake."
+    }
+   ]
+  },
+  {
+   "id": "aborto",
+   "label": "Un aborto al 25 %",
+   "steps": [
+    {
+     "nodes": [
+      "prom",
+      "analysis"
+     ],
+     "edges": [
+      "prom>analysis"
+     ],
+     "text": "A las 15:00, la baja confianza del canary mide **1.6 ×** la del estable en 30 minutos. El límite es 1.5 ×."
+    },
+    {
+     "nodes": [
+      "analysis",
+      "rollouts"
+     ],
+     "edges": [
+      "analysis>rollouts"
+     ],
+     "text": "La medición falla, y una basta. El análisis le dice a **Argo Rollouts** que aborte."
+    },
+    {
+     "nodes": [
+      "rollouts",
+      "alb",
+      "gstable",
+      "tr14"
+     ],
+     "edges": [
+      "rollouts>alb",
+      "alb>gstable",
+      "gstable>tr14"
+     ],
+     "text": "El peso vuelve a 100 % en **gateway-stable** en segundos. Nadie despertó a nadie para eso."
+    },
+    {
+     "nodes": [
+      "repo",
+      "registro"
+     ],
+     "edges": [],
+     "text": "Git todavía pide la 15, así que la persona de guardia abre el revert en **alba/despliegue**. El **registro** no cambió: `champion` sigue en la 14."
+    }
+   ]
+  }
+ ]
+}

@@ -1119,7 +1119,7 @@
     {
      "id": "orquestador",
      "dato": "Orquestación",
-     "valor": "Kubernetes (EKS), namespace classifier, Service triton",
+     "valor": "Kubernetes (EKS), namespace classifier, Service triton-vN por release (triton-v14 hoy; conflicto 51)",
      "unidad": "—",
      "nota": "",
      "lecciones": [
@@ -3938,7 +3938,7 @@
     {
      "id": "gateway_nombre",
      "dato": "Nombre del servicio del gateway",
-     "valor": "Deployment y Service gateway en el namespace classifier, puerto 8080; el ALB apunta a las IPs de los pods y solo expone /v1/classify",
+     "valor": "Rollout gateway de Argo Rollouts (mismo template de pod que un Deployment; conflicto 52) con los Services gateway-stable y gateway-canary, en el namespace classifier, puerto 8080; el ALB apunta a las IPs de los pods y solo expone /v1/classify",
      "unidad": "—",
      "nota": "Las demás rutas no salen del cluster.",
      "lecciones": [
@@ -4560,6 +4560,424 @@
      ]
     }
    ]
+  },
+  "estaciones_orquestacion": {
+   "descripcion": "Estaciones 9 y 10: Kubernetes y el rollout seguro (fase 14)",
+   "hechos": [
+    {
+     "id": "k8s_version",
+     "dato": "Versión de Kubernetes del clúster",
+     "valor": "EKS con Kubernetes 1.35 (noviembre de 2026)",
+     "unidad": "—",
+     "nota": "Decisión del curso; el equipo sube una versión menor por año.",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "namespaces",
+     "dato": "Namespaces",
+     "valor": "classifier (producción), classifier-staging (staging), monitoring (Prometheus) y argo (Argo CD, Argo Workflows y Argo Rollouts)",
+     "unidad": "—",
+     "nota": "Decisión del curso.",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "release_par",
+     "dato": "Qué es una release",
+     "valor": "un par: gateway vN + Triton vN. Cada versión del modelo corre en su propio Deployment triton-vN con su Service triton-vN (triton-v14 para resnet50-2026-10-01); el gateway de esa release trae TRITON_URL=triton-vN.classifier.svc.cluster.local:8000 y los labels de su modelo",
+     "unidad": "—",
+     "nota": "Conflicto 51: «Service triton» de las lecciones de red y config es el nombre corto de una sola release; en producción cada release tiene el suyo.",
+     "lecciones": [
+      "e09-kubernetes",
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "objetos_k8s",
+     "dato": "Los objetos de Alba en classifier",
+     "valor": "Deployment triton-v14 (2 réplicas) + Service triton-v14 (ClusterIP; 8000 HTTP, 8001 gRPC, 8002 métricas); Rollout gateway de Argo Rollouts (un Deployment con pasos: mismo template de pod) + Services gateway-stable y gateway-canary; Ingress gateway (ALB); HPA del gateway; ScaledObject de KEDA para Triton; PodDisruptionBudget por Triton; ConfigMap classifier-labels-14",
+     "unidad": "—",
+     "nota": "Conflicto 52: el gateway es un Rollout, no un Deployment; el rolling update con maxSurge/maxUnavailable es el de Triton.",
+     "lecciones": [
+      "e09-kubernetes",
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "probes_gateway",
+     "dato": "Probes del gateway",
+     "valor": "readiness /readyz cada 5 s, timeout 2 s, 2 fallos; liveness /healthz cada 10 s, timeout 2 s, 3 fallos, initialDelaySeconds 5; /readyz pregunta a Triton con tope de 0.5 s",
+     "unidad": "s",
+     "nota": "Completa estaciones_api.readyz_probe y servicio.health_check.",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "probes_triton",
+     "dato": "Probes de Triton",
+     "valor": "startup /v2/health/ready cada 5 s × 60 fallos = 5 min para cargar el engine; readiness /v2/health/ready cada 5 s, timeout 2 s, 2 fallos (≈ 10 s para salir del Service); liveness /v2/health/live cada 10 s, timeout 2 s, 3 fallos",
+     "unidad": "s",
+     "nota": "",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "gateway_recursos",
+     "dato": "Recursos del pod del gateway",
+     "valor": "request de CPU 1 y sin límite de CPU (evita el throttling); memoria 1 GiB de request = límite; /tmp en un emptyDir de 64 Mi; readOnlyRootFilesystem, capabilities drop ALL, usuario 10001",
+     "unidad": "—",
+     "nota": "Clase de QoS Burstable (por no tener límite de CPU).",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "triton_recursos",
+     "dato": "Recursos del pod de Triton",
+     "valor": "request de CPU 2 y sin límite de CPU; memoria 6 GiB de request = límite; nvidia.com/gpu: 1 (request = límite, entero); /dev/shm en memoria de 1 GiB; usuario 1000",
+     "unidad": "—",
+     "nota": "Completa servicio.triton_limites. Clase Burstable.",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "nodos_karpenter",
+     "dato": "Cómo llegan los nodos",
+     "valor": "Karpenter con dos NodePools: gpu-t4 (solo g4dn.xlarge on-demand, AMI de EKS acelerada con el driver NVIDIA, label workload=gpu-t4, taint nvidia.com/gpu=present:NoSchedule, tope de 6 GPU, consolidación solo de nodos vacíos) y general (c6i.xlarge para el gateway y lo demás)",
+     "unidad": "—",
+     "nota": "Decisión del curso. Alba no precarga la imagen de Triton en la AMI: el pull de ≈ 2–5 min sigue (estaciones_contenedor.pull_tiempos).",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "nodo_gpu_aislamiento",
+     "dato": "Cómo se aíslan los nodos GPU",
+     "valor": "Triton lleva nodeSelector workload: gpu-t4 y tolera el taint nvidia.com/gpu=present:NoSchedule; el gateway no tiene ni uno ni otro, así que nunca cae en una T4",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "spread_zona",
+     "dato": "Reparto por zona",
+     "valor": "Triton: maxSkew 1 por topology.kubernetes.io/zone con DoNotSchedule; gateway: maxSkew 1 con ScheduleAnyway",
+     "unidad": "—",
+     "nota": "Con DoNotSchedule, si cae una zona no se pone un segundo Triton en la sana hasta que vuelva; la otra T4 carga todo (servicio.utilizacion: ≤ 70 %). Esto vale mientras los nodos de la zona caída sigan registrados (con nodeTaintsPolicy Ignore, los nodos NotReady siguen contando); Karpenter intenta lanzar en la zona caída.",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "rolling_triton",
+     "dato": "Rolling update de Triton",
+     "valor": "maxSurge 1, maxUnavailable 0; progressDeadlineSeconds 900; revisionHistoryLimit 5",
+     "unidad": "—",
+     "nota": "Para cambios dentro de una release (recursos, probes). Un pod de más = una T4 de más mientras dura.",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "hpa_gateway",
+     "dato": "HPA del gateway",
+     "valor": "CPU al 60 % del request (0.6 vCPU por pod); 3 a 12 réplicas; sube hasta +100 % cada 30 s sin ventana; baja 1 pod por minuto tras una ventana de 300 s",
+     "unidad": "%",
+     "nota": "Apunta al Rollout gateway.",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "keda_triton",
+     "dato": "Autoscaling de Triton (KEDA)",
+     "valor": "métrica de Prometheus: espera media en la cola de Triton en los últimos 2 min; objetivo 10 ms; de 2 a 4 réplicas; sube 1 pod por minuto, baja 1 pod cada 5 min tras 10 min; consulta cada 15 s",
+     "unidad": "ms",
+     "nota": "Ver espera_cola.",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "espera_cola",
+     "dato": "Espera en la cola de Triton",
+     "valor": "normal ≈ 1–3 ms (max_queue_delay de 2 ms); > 10 ms = saturación; se rechaza a los 100 ms",
+     "unidad": "ms",
+     "nota": "No confundir con presupuesto_latencia.triton_espera (≈ 5–12 ms contando el batching).",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "pdb_triton",
+     "dato": "PodDisruptionBudget de Triton",
+     "valor": "minAvailable 1: un drain, un upgrade de nodos o una consolidación no puede sacar a los dos Triton a la vez; no protege de que un nodo muera",
+     "unidad": "pods",
+     "nota": "Con un solo pod (triton-v15 en el shadow y el canary, triton-v14 en el bake), baja a minAvailable 0.",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "gateway_nodos_max",
+     "dato": "Nodos del gateway en el máximo",
+     "valor": "2 × c6i.xlarge en operación normal (caben 3 pods de 1 vCPU por nodo); con 12 pods, Karpenter sube a 4 nodos",
+     "unidad": "nodos",
+     "nota": "Completa servicio.gateway_nodos.",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "tramos_arranque_pod",
+     "dato": "Desglose de un pod nuevo de Triton",
+     "valor": "detectar ≈ 0.5–1.5 min + nodo nuevo ≈ 2–5 min + imagen ≈ 2–5 min + engine y warmup ≈ 10–60 s + readiness ≈ 5–15 s ⇒ ≈ 5–13 min",
+     "unidad": "min",
+     "nota": "El total es servicio.arranque_pod_triton.",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "ingress_alb",
+     "dato": "Ingress del gateway",
+     "valor": "clase alb del AWS Load Balancer Controller; ALB interno, target-type ip, HTTPS 443, health check /readyz, deregistration delay 30 s; solo la ruta /v1/classify",
+     "unidad": "—",
+     "nota": "Con target-type ip, un pod que falla su readiness sale del target group (conflicto 47).",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "canary_ejecuta",
+     "dato": "Quién ejecuta el canary",
+     "valor": "Argo Rollouts (lo aplica Argo CD como cualquier manifiesto): el Rollout gateway tiene los pasos, y el controlador mueve los pesos entre los target groups de gateway-stable y gateway-canary en el ALB y corre el análisis contra Prometheus",
+     "unidad": "—",
+     "nota": "Decisión del curso.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "canary_pasos",
+     "dato": "Pasos del canary",
+     "valor": "cambio del modelo: 5 % por 4 h (incluye el pico del mediodía) → 25 % por 4 h → 100 %; cambio solo de código del gateway: 5 % por 1 h → 25 % por 1 h → 100 %, sin shadow. Sin pausa manual: la aprobación es la del job produccion",
+     "unidad": "—",
+     "nota": "Decisión del curso. Al 25 %: 87.5 req/s en el pico (350 × 25 %).",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "canary_criterios",
+     "dato": "Criterios del análisis del canary",
+     "valor": "además de promesas.rollback_auto (5xx > 0.5 % o p99 > 200 ms): 5xx > 2 × el estable con ≥ 10,000 requests del canary (10 min, o lo que tarde en juntarlas); p99 > 1.2 × el estable en 10 min; baja confianza (top-1 < 0.3) > 1.5 × el estable en 30 min; PSI > 0.1 con ≥ 5,000 predicciones en 1 h (monitoreo.drift_canary)",
+     "unidad": "—",
+     "nota": "Conflicto 53: rollback_auto son los topes absolutos; el canary compara además contra el estable en la misma ventana.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "canary_n_minimo",
+     "dato": "n mínimo por decisión",
+     "valor": "≥ 10,000 requests del canary en cada decisión del criterio de 5xx (la ventana de 10 min se alarga hasta juntarlas: ≈ 9.5 min al 5 % en el pico, ≈ 2.8 h de madrugada); el PSI pide ≥ 5,000 predicciones; un criterio sin n mínimo no decide",
+     "unidad": "requests",
+     "nota": "",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "shadow_detalle",
+     "dato": "Cómo es el shadow",
+     "valor": "el gateway de la release vigente copia el 10 % de las requests (hash del request_id) al Triton del challenger, en una tarea aparte con su propio plazo y una cola acotada (si se llena, la copia se tira); la respuesta del challenger solo va al log (shadow=true, mismo request_id), nunca al usuario; un job diario une los pares",
+     "unidad": "—",
+     "nota": "≈ 1 M pares al día (10 % de trafico.requests_dia, ≈ 10 M).",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "shadow_criterios",
+     "dato": "Criterios para pasar del shadow al canary",
+     "valor": "acuerdo top-1 con el champion ≥ 90 %; p99 del challenger ≤ 1.1 × el del champion; cero crashes; ninguna de las 20 categorías más grandes con acuerdo < 85 %; se revisan a mano ≈ 300–500 desacuerdos",
+     "unidad": "—",
+     "nota": "Decisión del curso; los umbrales se fijan antes de mirar.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "bake",
+     "dato": "Bake después del 100 %",
+     "valor": "la release anterior (su gateway y su triton-vN) sigue viva 24–48 h: el Rollout gateway pone scaleDownDelaySeconds en 172,800 s (48 h; por omisión son 30 s) y triton-vN se queda con 1 pod; una T4 de más ≈ US$13 por 24 h y ≈ US$25 por 48 h (g4dn.xlarge a US$0.526/h); al terminar, un PR quita la release vieja y Argo CD la borra",
+     "unidad": "USD",
+     "nota": "Con 1 pod de triton-v15 en el shadow y el canary, la escalera completa (shadow + canary + bake) cuesta ≈ US$29–55 de T4 por release (0.526 × (24–48 + 8 + 24–48) h).",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "rollback_via",
+     "dato": "Cómo se revierte",
+     "valor": "durante el canary: Argo Rollouts aborta y devuelve el 100 % del peso al estable en segundos; durante el bake: git revert del template del gateway en el repositorio de despliegue (PR que aprueba una persona), Argo CD lo aplica en ≤ 3 min y, con rollbackWindow, el Rollout se salta los pasos y regresa a la release anterior, que sigue prendida (el cambio de peso tarda segundos; el camino completo, unos minutos); pasado el bake: además hay que revertir el PR que quitó triton-vN y volver a levantarlo, ≈ 5–20 min",
+     "unidad": "min",
+     "nota": "Meta del runbook: revertir en ≤ 5 min sin diagnosticar; confirmar en 15–30 min. Avisa a la persona de guardia, que regresa champion a la versión anterior junto con el revert. Sin rollbackWindow, Argo Rollouts trata el revert como un cambio nuevo y repite los pasos del canary.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "champion_promocion",
+     "dato": "Cuándo se mueve champion",
+     "valor": "el job promover del pipeline espera a que el Rollout llegue al 100 % sano y entonces mueve el alias champion a la versión nueva en el registry (deja el run y el digest como etiquetas); no hay una segunda aprobación: vale la del job produccion",
+     "unidad": "—",
+     "nota": "Completa estaciones_modelo.registry_orden.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "rollouts_mes",
+     "dato": "Cuántos rollouts al mes",
+     "valor": "1 de modelo al mes (el reentrenamiento: gate → shadow → canary, sin A/B); los cambios de código del gateway, varias veces por semana (solo canary); un A/B solo para cambios de arquitectura o de categorías",
+     "unidad": "—",
+     "nota": "Decisión del curso.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "triton_replicas_escalera",
+     "dato": "Pods de Triton en la escalera",
+     "valor": "shadow y canary: triton-v15 con 1 pod (la T4 de más), triton-v14 con 2; al llegar al 100 %, un PR pone triton-v15 de 2 a 4 (KEDA) y deja triton-v14 con 1 pod durante el bake; al terminar el bake, otro PR quita la 14",
+     "unidad": "pods",
+     "nota": "Decisión del curso: una sola T4 de más en toda la escalera. Mientras un Triton tiene un solo pod, su PodDisruptionBudget baja a minAvailable 0 en el mismo PR (si no, ningún drain podría vaciar su nodo); al volver a 2 pods regresa a 1.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "labels_configmap_15",
+     "dato": "ConfigMap de labels de la versión 15",
+     "valor": "classifier-labels-15",
+     "unidad": "—",
+     "nota": "Mismo patrón que estaciones_api.labels_gateway.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "rps_madrugada",
+     "dato": "Tráfico de madrugada",
+     "valor": "≈ 20 req/s (al 5 %: 1 req/s, 3,600 por hora)",
+     "unidad": "req/s",
+     "nota": "Supuesto del curso; el mismo de la calculadora de «Balanceadores».",
+     "lecciones": [
+      "e09-kubernetes",
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "tasa_5xx_estable",
+     "dato": "Tasa de 5xx del estable para diseñar el n mínimo",
+     "valor": "0.1 %: el peor caso que permite el SLO de 99.9 %, no la tasa normal",
+     "unidad": "%",
+     "nota": "Supuesto de diseño.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "congelar_hot_sale",
+     "dato": "Despliegues en el Hot Sale",
+     "valor": "se congelan esa semana; los mínimos de pods suben antes",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "campana_1750",
+     "dato": "Campaña sostenida de 5 × 350 = 1,750 req/s (ejercicio)",
+     "valor": "gateway ≈ 10.5 vCPU ≈ 18 pods (más que el tope de 12); 6 T4 para aguantar una zona caída; NodePool gpu-t4 a 8 GPU (6 + 1 surge + 1 staging) y cuota de 36 vCPU (9 × 4 con el runner de CI)",
+     "unidad": "—",
+     "nota": "Coincide con la nota de servicio.autoscaler_t4. En operación normal: NodePool 6 y cuota 28 vCPU (7 × 4).",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "labels_triton_version",
+     "dato": "Labels de los pods de cada release de Triton",
+     "valor": "app.kubernetes.io/name: triton y app.kubernetes.io/version: \"14\" (el selector del Deployment triton-v14)",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e09-kubernetes"
+     ]
+    },
+    {
+     "id": "rollback_window_gateway",
+     "dato": "rollbackWindow del Rollout gateway",
+     "valor": "revisions: 3 (la actual y las 2 anteriores; volver a una de las 2 anteriores se salta los pasos del canary)",
+     "unidad": "—",
+     "nota": "Por omisión no está puesto.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "champion_revert_bake",
+     "dato": "Quién regresa champion si se revierte en el bake",
+     "valor": "la persona de guardia, en el paso 2 del runbook, junto con el revert (el job promover ya lo había movido a la nueva)",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "psi_canary_job",
+     "dato": "De dónde salen el PSI y la baja confianza del análisis",
+     "valor": "un job calcula el PSI cada hora desde el log de cada model_version y lo publica como métrica en Prometheus; la baja confianza sale del histograma del score top-1 por model_version",
+     "unidad": "—",
+     "nota": "",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "rollback_ensayo",
+     "dato": "Ensayo del runbook",
+     "valor": "en classifier-staging, un canary con un modelo roto a propósito",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    },
+    {
+     "id": "deploy_horario_gateway",
+     "dato": "Cuándo salen los cambios del gateway",
+     "valor": "en horario de trabajo: de madrugada (≈ 20 req/s) el n mínimo de una decisión tarda ≈ 2.8 h",
+     "unidad": "—",
+     "nota": "Supuesto del curso.",
+     "lecciones": [
+      "e10-rollout"
+     ]
+    }
+   ]
   }
  },
  "conflictos": [
@@ -5004,6 +5422,31 @@
     "pruebas-ci"
    ],
    "como": "git y pruebas-ci leían como si desplegar fuera un PR que una persona revisa y aprueba, y decían que cambia solo el tag o solo el digest."
+  },
+  {
+   "n": 51,
+   "tema": "El Service de Triton",
+   "resolucion": "Cada release tiene su Deployment y su Service triton-vN (triton-v14 para resnet50-2026-10-01); el gateway de esa release apunta a su Triton. «Service triton» y triton.classifier.svc.cluster.local en las lecciones de red y config describen una sola release.",
+   "cambiar": [
+    "red",
+    "config",
+    "balanceo"
+   ],
+   "como": "Que se lea como el nombre de una release, con una frase que diga que en producción lleva la versión."
+  },
+  {
+   "n": 52,
+   "tema": "El objeto del gateway",
+   "resolucion": "El gateway es un Rollout de Argo Rollouts (mismo template de pod que un Deployment, más los pasos del canary); su HPA apunta al Rollout. Triton es un Deployment por release, con rolling update maxSurge 1 y maxUnavailable 0.",
+   "cambiar": [],
+   "como": "Las lecciones anteriores que digan «el Deployment del gateway» se leen bien en general; e09 y e10 lo dicen exacto."
+  },
+  {
+   "n": 53,
+   "tema": "Criterios del rollback del canary",
+   "resolucion": "promesas.rollback_auto (5xx > 0.5 % o p99 > 200 ms) son los topes absolutos; el análisis del canary agrega la comparación con el estable, la baja confianza y el PSI (estaciones_orquestacion.canary_criterios).",
+   "cambiar": [],
+   "como": "No cambiar rollback_auto."
   }
  ]
 }

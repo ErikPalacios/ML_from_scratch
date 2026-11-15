@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 460" role="img" aria-labelledby="f-e10-rollout-mecanismos-t" class="f-svg" style="max-width:420px">
+<title id="f-e10-rollout-mecanismos-t">Tres formas de poner la versión 15 frente al tráfico. Shadow: todas las requests van a la versión 14, que contesta al usuario, y una copia del 10 % va a la versión 15, cuya respuesta solo va al log. Canary: cada request cae en una de las dos según el peso, 95 % a la 14 y 5 % a la 15, y las dos contestan. Blue/green: todas las requests van a una sola versión, y un switch las cambia todas de golpe; la otra queda prendida con 0 %.</title>
+<defs><marker id="fe10m-a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="f-punta"/></marker></defs>
+<text class="f-l" x="14" y="28">TRES MECANISMOS, LAS MISMAS DOS VERSIONES</text>
+<rect class="f-card" x="10" y="40" width="340" height="128" rx="14"/>
+<text class="f-t" x="24" y="66" style="font-size:14px">Shadow</text>
+<text class="f-s" x="24" y="86" style="font-size:12px">El usuario recibe la 14; la 15 solo va al log.</text>
+<rect class="f-chip" x="24" y="108" width="70" height="40" rx="8"/>
+<text class="f-s" x="59" y="133" text-anchor="middle" style="font-size:12px">requests</text>
+<rect class="f-b" x="232" y="98" width="104" height="28" rx="6"/>
+<text class="f-pill-t" x="284" y="117" text-anchor="middle" style="font-size:12px">versión 14</text>
+<rect class="f-o" x="232" y="132" width="104" height="28" rx="6"/>
+<text class="f-pill-t" x="284" y="151" text-anchor="middle" style="font-size:12px">versión 15</text>
+<line class="f-flecha" x1="94" y1="122" x2="228" y2="112" marker-end="url(#fe10m-a)"/>
+<line class="f-flecha" x1="94" y1="134" x2="228" y2="146" marker-end="url(#fe10m-a)" style="stroke-dasharray:5 4"/>
+<text class="f-l" x="120" y="110">TODAS</text>
+<text class="f-l" x="120" y="160">COPIA 10 %</text>
+<rect class="f-card" x="10" y="180" width="340" height="128" rx="14"/>
+<text class="f-t" x="24" y="206" style="font-size:14px">Canary</text>
+<text class="f-s" x="24" y="226" style="font-size:12px">Cada request cae en una, según el peso.</text>
+<rect class="f-chip" x="24" y="248" width="70" height="40" rx="8"/>
+<text class="f-s" x="59" y="273" text-anchor="middle" style="font-size:12px">requests</text>
+<rect class="f-b" x="232" y="238" width="104" height="28" rx="6"/>
+<text class="f-pill-t" x="284" y="257" text-anchor="middle" style="font-size:12px">versión 14</text>
+<rect class="f-o" x="232" y="272" width="104" height="28" rx="6"/>
+<text class="f-pill-t" x="284" y="291" text-anchor="middle" style="font-size:12px">versión 15</text>
+<line class="f-flecha" x1="94" y1="262" x2="228" y2="252" marker-end="url(#fe10m-a)"/>
+<line class="f-flecha" x1="94" y1="274" x2="228" y2="286" marker-end="url(#fe10m-a)"/>
+<text class="f-l" x="120" y="250">95 %</text>
+<text class="f-l" x="120" y="300">5 %</text>
+<rect class="f-card" x="10" y="320" width="340" height="128" rx="14"/>
+<text class="f-t" x="24" y="346" style="font-size:14px">Blue/green</text>
+<text class="f-s" x="24" y="366" style="font-size:12px">Todas van a una; el switch las cambia de golpe.</text>
+<rect class="f-chip" x="24" y="388" width="70" height="40" rx="8"/>
+<text class="f-s" x="59" y="413" text-anchor="middle" style="font-size:12px">requests</text>
+<rect class="f-b" x="232" y="378" width="104" height="28" rx="6"/>
+<text class="f-pill-t" x="284" y="397" text-anchor="middle" style="font-size:12px">versión 14</text>
+<rect class="f-o" x="232" y="412" width="104" height="28" rx="6"/>
+<text class="f-pill-t" x="284" y="431" text-anchor="middle" style="font-size:12px">versión 15</text>
+<line class="f-flecha" x1="94" y1="408" x2="228" y2="426" marker-end="url(#fe10m-a)"/>
+<line class="f-linea" x1="160" y1="400" x2="228" y2="392" style="stroke-dasharray:3 4"/>
+<circle class="f-acc" cx="160" cy="412" r="9"/>
+<text class="f-l" x="120" y="440">100 %</text>
+<text class="f-l" x="176" y="390">0 %</text>
+</svg>

@@ -1,0 +1,26 @@
+{
+  "titulo": "La regla del HPA",
+  "intro": "Aplica la ecuación de la lección, \\(n_{des} = ⌈n × x ÷ x_{obj}⌉\\), con la tolerancia de 10 % y los topes. Sirve para el HPA del gateway (CPU en % del request) y para el de KEDA en Triton (espera en ms). Arranca con el pico de la cuenta del gateway.",
+  "entradas": [
+    { "id": "n", "label": "Pods que hay ahora, \\(n\\)", "min": 1, "max": 30, "paso": 1, "valor": 5 },
+    { "id": "x", "label": "Métrica ahora, \\(x\\) (% de CPU o ms de espera)", "min": 0, "max": 300, "paso": 0.5, "valor": 90 },
+    { "id": "xo", "label": "Objetivo de la métrica, \\(x_{obj}\\) (misma unidad)", "min": 1, "max": 200, "paso": 0.5, "valor": 60 },
+    { "id": "nmin", "label": "Mínimo de pods", "min": 1, "max": 30, "paso": 1, "valor": 3, "tipo": "numero" },
+    { "id": "nmax", "label": "Máximo de pods", "min": 1, "max": 60, "paso": 1, "valor": 12, "tipo": "numero" },
+    { "id": "pn", "label": "Pods que caben por nodo (gateway: 3 por c6i.xlarge)", "min": 1, "max": 20, "paso": 1, "valor": 3, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "r", "formula": "x / xo" },
+    { "id": "crudo", "formula": "ceil(n * r)" },
+    { "id": "fuera", "formula": "min(ceil(max(abs(r - 1) - 0.1 - 1e-9, 0) * 1e6), 1)" },
+    { "id": "sinTope", "formula": "fuera * crudo + (1 - fuera) * n" },
+    { "id": "des", "formula": "min(max(sinTope, nmin), max(nmax, nmin))" }
+  ],
+  "salidas": [
+    { "label": "Razón \\(x ÷ x_{obj}\\)", "formula": "r", "formato": "num", "decimales": 3, "nota": "entre 0.9 y 1.1, el HPA no se mueve" },
+    { "label": "Sin tolerancia ni topes, \\(⌈n × x ÷ x_{obj}⌉\\)", "formula": "crudo", "formato": "int" },
+    { "label": "Pods deseados, \\(n_{des}\\)", "formula": "des", "formato": "int", "nota": "con tolerancia y recortado a los topes" },
+    { "label": "Nodos para esos pods: \\(n_{des}\\) entre los pods por nodo, hacia arriba", "formula": "ceil(des / pn)", "formato": "int" }
+  ],
+  "nota": "Para KEDA en Triton: \\(n\\) = 2, \\(x\\) = 25, \\(x_{obj}\\) = 10, mínimo 2, máximo 4 y 1 pod por nodo (una T4 cada uno)."
+}

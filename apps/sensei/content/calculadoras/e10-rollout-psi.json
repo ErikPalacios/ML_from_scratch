@@ -1,0 +1,88 @@
+{
+ "titulo": "El piso de ruido del PSI del canary",
+ "intro": "El [[psi|PSI]] entre dos versiones idénticas no da 0: da su piso de ruido. La calculadora aplica \\(n = Q × w ÷ 100 × 60 × v\\), \\(n_e = Q × (100 − w) ÷ 100 × 60 × v\\) y \\(ψ_0 ≈ (K − 1) × (1/n + 1/n_e)\\). Arranca con las 500 categorías de Alba en una hora de madrugada al 5 %.",
+ "entradas": [
+  {
+   "id": "kk",
+   "label": "Categorías del PSI, \\(K\\)",
+   "min": 2,
+   "max": 500,
+   "paso": 1,
+   "valor": 500
+  },
+  {
+   "id": "q",
+   "label": "Tráfico total, \\(Q\\) (requests por segundo)",
+   "min": 1,
+   "max": 2000,
+   "paso": 1,
+   "valor": 20
+  },
+  {
+   "id": "w",
+   "label": "Peso del canary, \\(w\\) (%)",
+   "min": 0.5,
+   "max": 50,
+   "paso": 0.5,
+   "valor": 5
+  },
+  {
+   "id": "v",
+   "label": "Ventana de la medición, \\(v\\) (minutos)",
+   "min": 5,
+   "max": 1440,
+   "paso": 5,
+   "valor": 60
+  }
+ ],
+ "calculos": [
+  {
+   "id": "n",
+   "formula": "q * w / 100 * 60 * v"
+  },
+  {
+   "id": "ne",
+   "formula": "q * (100 - w) / 100 * 60 * v"
+  },
+  {
+   "id": "psi0",
+   "formula": "(kk - 1) * (1 / n + 1 / ne)"
+  }
+ ],
+ "salidas": [
+  {
+   "label": "Predicciones del canary, \\(n\\)",
+   "formula": "n",
+   "formato": "int",
+   "nota": "\\(n = Q × w ÷ 100 × 60 × v\\)"
+  },
+  {
+   "label": "Predicciones del estable, \\(n_e\\)",
+   "formula": "ne",
+   "formato": "int",
+   "nota": "\\(n_e = Q × (100 − w) ÷ 100 × 60 × v\\)"
+  },
+  {
+   "label": "Piso de ruido, \\(ψ_0\\)",
+   "formula": "psi0",
+   "formato": "num",
+   "decimales": 3,
+   "nota": "\\(ψ_0 ≈ (K − 1) × (1/n + 1/n_e)\\)"
+  },
+  {
+   "label": "Piso de ruido contra el umbral de 0.1",
+   "formula": "psi0 / 0.1",
+   "formato": "x",
+   "decimales": 2,
+   "barra": false,
+   "nota": "arriba de 1 ×, el canary se revierte por azar"
+  },
+  {
+   "label": "Predicciones del canary para que \\(ψ_0\\) quede en 0.05",
+   "formula": "ceil((kk - 1) * (1 + w / (100 - w)) / 0.05)",
+   "formato": "int",
+   "nota": "\\(n = (K − 1) × (1 + w ÷ (100 − w)) ÷ 0.05\\)"
+  }
+ ],
+ "nota": "Es una aproximación: con muchas categorías de conteo 0 o 1, el PSI real (con su colchón) sale algo menor. Alba usa \\(K\\) ≈ 30 categorías padre y exige ≥ 5,000 predicciones."
+}

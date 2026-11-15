@@ -350,7 +350,7 @@ Los health checks del balanceador fallan varias veces seguidas, y el balanceador
 2. ≈ 6 minutos
 Kubernetes tarda ≈ 50 segundos en marcar como perdido un nodo que no contesta, y luego espera, por omisión, 300 segundos más antes de dar por perdidos sus pods. Solo entonces intenta crearlos en otro lado.
 3. De 5 a 13 minutos más
-Si en la zona sana no hay una máquina libre, hay que pedirla. Un nodo con GPU tarda ≈ 5–13 minutos en servir su primera request (un rango típico): arranca la máquina, baja la imagen del contenedor, carga el modelo en la GPU y lo calienta ([[warmup-inferencia|warmup]]: unas predicciones de prueba para que las primeras requests reales no salgan lentas). Es el [[cold-start|arranque en frío]].
+Si en la zona sana no hay una máquina libre, hay que pedirla. Un nodo con GPU tarda ≈ 5–13 minutos en servir su primera request (un rango típico): arranca la máquina, baja la imagen del contenedor, carga el modelo en la GPU y lo calienta ([[warmup-inferencia|warmup]]: unas predicciones de prueba para que las primeras requests reales no salgan lentas). Es el [[cold-start|arranque en frío]]. Eso vale para lo que sí se reubica, como los gateways. El Triton de la zona caída no se recrea en la sana: la regla de reparto de Alba (`DoNotSchedule`, lección «Kubernetes») lo deja Pending, en espera de lugar, y la T4 que queda carga todo hasta que la zona vuelva.
 4. O nunca
 En una falla de zona, **todos** los clientes de esa zona piden máquinas en las otras al mismo tiempo. Puede que no haya de tu tipo: es el [[error-capacidad|error de capacidad]], que ves en la lección de máquinas.
 :::

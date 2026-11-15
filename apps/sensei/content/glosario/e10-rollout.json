@@ -1,0 +1,226 @@
+{
+ "terminos": [
+  {
+   "id": "rollout-seguro",
+   "termino": "Despliegue progresivo",
+   "en": "progressive delivery",
+   "corto": "Poner una versión nueva frente al tráfico en peldaños (sombra, una parte chica, todo), midiendo algo distinto en cada uno y regresando al anterior si un criterio falla.",
+   "largo": "Desplegar un modelo tiene tres riesgos distintos: que no funcione con datos reales, que empeore la experiencia de quien lo usa y que no mejore el producto. El despliegue progresivo separa esas preguntas y le da a cada una su peldaño: el [[shadow]] responde «¿funciona?», el [[canary]] «¿es seguro?», una [[ab-test|prueba A/B]] «¿mejora?» y el [[bake]] «¿podemos volver?». No todo cambio sube todos los peldaños: cada uno cuesta tiempo y se paga donde el riesgo lo pide. Un [[rolling-update|rolling update]] no es un despliegue progresivo de un modelo: mide salud, no calidad, y no controla el porcentaje.",
+   "analogia": "Como una receta nueva en un restaurante: la prueba la cocina, luego una mesa de confianza, luego una de cada veinte mesas, y la receta vieja se queda en el refrigerador una semana. Se rompe en que los comensales eligen platillo; las requests no eligen versión.",
+   "ejemplo": "El reentrenamiento mensual de Alba sube gate → shadow de 1–2 días → canary 5 % → 25 % → 100 % → bake de 24–48 h; un cambio de código del gateway solo hace el canary, con pasos de 1 h.",
+   "ver": [
+    "shadow",
+    "canary",
+    "bake",
+    "ab-test",
+    "rolling-update"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "shadow",
+   "termino": "Shadow (despliegue en sombra)",
+   "en": "shadow deployment",
+   "corto": "Correr la versión nueva con copias de requests reales, guardar lo que contesta y tirarlo: el usuario solo ve la respuesta de la versión actual.",
+   "largo": "También se llama *dark launch*. Mide al modelo nuevo con el tráfico de hoy (errores, latencia y cuánto cambia lo que contesta) sin arriesgar a nadie. Lo que no mide es a la gente: nadie vio sus sugerencias. La copia se hace con [[traffic-mirroring|copia de tráfico]]; corre en una tarea aparte, con su plazo y una cola acotada, y su respuesta solo va al log. Su peligro son los efectos secundarios: una copia que escribe en una base de datos, manda un correo o comparte un caché le sirve su respuesta a alguien.",
+   "analogia": "Un alumno de manejo con el volante desconectado: gira como si manejara, una cámara graba los dos volantes, y al final se compara. Se rompe en que el alumno ve el camino que eligió el instructor; en el shadow, cada foto es independiente.",
+   "ejemplo": "En Alba, el gateway de la release 14 copia el 10 % de las requests (por el hash del `request_id`) al Triton de la versión 15 durante 1–2 días: ≈ 1 M pares al día; pasa con acuerdo top-1 ≥ 90 %, p99 ≤ 1.1 × el del champion y cero crashes.",
+   "ver": [
+    "traffic-mirroring",
+    "rollout-seguro",
+    "canary",
+    "request-id"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "traffic-mirroring",
+   "termino": "Copia de tráfico",
+   "en": "traffic mirroring",
+   "corto": "El mecanismo que manda una copia de cada request (o de una muestra) a un segundo destino, cuya respuesta se descarta. Es lo que hace posible un shadow.",
+   "largo": "La copia se puede hacer en tres lugares: en el propio programa (el gateway decide y copia), en una [[service-mesh|malla de servicios]] (una capa de red que pone un programita, el *sidecar*, junto a cada servicio) o en la plataforma (un balanceador que la soporte). Donde sea, la regla es la misma: la copia no debe frenar ni cambiar la respuesta original. Por eso va en una tarea aparte, con su propio plazo y una cola acotada que tira copias si se llena. La muestra se elige con una [[asignacion-hash|asignación por hash]] para que sea repetible.",
+   "ejemplo": "El gateway de Alba calcula el SHA-256 del `request_id`, lee los primeros 8 caracteres de esa huella como un número y copia si ese número, módulo 10,000 (el residuo de dividir entre 10,000), da menos de 1,000: de 100,000 ids copia 9,955, casi el 10 %.",
+   "ver": [
+    "shadow",
+    "asignacion-hash",
+    "service-mesh"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "release-par",
+   "termino": "Release (el par gateway + Triton)",
+   "en": "release pair",
+   "corto": "En Alba, una release es un par: el gateway de una versión más el Triton de esa versión, cada uno con su nombre. Así nunca hay dos modelos detrás del mismo nombre.",
+   "largo": "Cada versión del modelo corre en su propio [[deployment-k8s|Deployment]] `triton-vN` con su [[service-k8s|Service]] `triton-vN`. El gateway de esa release trae `TRITON_URL` apuntando a ese Service, su `MODEL_VERSION` y su [[labels-json|labels.json]] (de un [[configmap|ConfigMap]] por versión, con su huella verificada al arrancar). Durante un canary conviven dos releases completas, y cada request pasa por una sola: su versión queda escrita en el log y en las métricas, y el análisis puede compararlas.",
+   "ejemplo": "La release 15 es el gateway con `TRITON_URL=triton-v15.classifier.svc.cluster.local:8000`, `MODEL_VERSION=resnet50-2026-11-01` y el ConfigMap `classifier-labels-15`, más el Deployment `triton-v15`.",
+   "ver": [
+    "canary",
+    "labels-json",
+    "service-k8s"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "canary",
+   "termino": "Canary",
+   "en": "canary release",
+   "corto": "Mandar una parte chica del tráfico real a la versión nueva, por etapas, y avanzar solo si en cada etapa se ve tan bien como la estable, comparando las dos en el mismo periodo de tiempo.",
+   "largo": "El porcentaje lo pone un proxy con [[ruteo-por-peso|pesos]] (en Alba, el [[alb|ALB]]), no el número de pods: con 2 pods estables y 1 nuevo, el reparto por pods da ≈ 33 %. El canary reparte **por request**, así que mide salud (errores, latencia, confianza) pero no el comportamiento de cada usuario, que pide una [[ab-test|prueba A/B]] por usuario. Cada etapa dura lo suficiente para juntar su [[n-minimo-canary|n mínimo]] y cubrir el pico del día, y sus [[criterio-promocion|criterios]] se escriben antes. El nombre viene de los canarios que los mineros bajaban para detectar gas.",
+   "ejemplo": "El de Alba para un modelo: 5 % por 4 h (17.5 requests por segundo en el pico), 25 % por 4 h (87.5), 100 %, sin pausa manual; lo ejecuta [[argo-rollouts|Argo Rollouts]].",
+   "ver": [
+    "ruteo-por-peso",
+    "analisis-canary",
+    "criterio-promocion",
+    "rollback-automatico",
+    "argo-rollouts"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "argo-rollouts",
+   "termino": "Argo Rollouts",
+   "en": "Argo Rollouts",
+   "corto": "Un programa que corre dentro de Kubernetes (un controlador) y agrega el objeto Rollout: el mismo template de pod que un Deployment, más los pasos de un canary o un blue/green, con análisis automático y aborto.",
+   "largo": "Los pasos son una lista (`setWeight: 5`, `pause: {duration: 4h}`…). Con `trafficRouting` escribe los pesos (qué parte del tráfico va a cada versión) en el balanceador (en AWS, en una anotación del Ingress que el AWS Load Balancer Controller aplica al ALB); sin él, reparte por número de pods. Su análisis consulta métricas (Prometheus, entre otros) y, si una medición falla, aborta y regresa el tráfico al estable. Con GitOps, [[argo-cd|Argo CD]] aplica el Rollout como cualquier manifiesto; tras un aborto, el Rollout queda abortado hasta que Git vuelva a pedir la versión estable. Apaga la versión vieja 30 s después del switch (en blue/green) o de llegar al 100 % (en canary con `trafficRouting`) si no se cambia `scaleDownDelaySeconds`. Y volver a una versión anterior ya promovida es, para él, un cambio más: corre otra vez todos los pasos, salvo que `rollbackWindow` diga cuántas revisiones recientes se saltan los pasos.",
+   "ejemplo": "El gateway de Alba es el Rollout `gateway`, en el namespace `classifier`, con los Services `gateway-stable` y `gateway-canary`, el Ingress `gateway` y el análisis `canary-vs-estable`.",
+   "ver": [
+    "canary",
+    "argo-cd",
+    "blue-green",
+    "analisis-canary"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "criterio-promocion",
+   "termino": "Criterio de promoción",
+   "en": "promotion criteria",
+   "corto": "La regla, escrita antes de empezar, que dice qué tiene que cumplir una versión en un peldaño para subir al siguiente.",
+   "largo": "Se escribe antes por la misma razón que los umbrales de un gate: si se elige después de ver los números, siempre se puede justificar lo que uno quería. Un buen criterio compara contra el estable en la misma ventana, dice su ventana y su [[n-minimo-canary|n mínimo]], y exige que las señales estén verdes durante todo el paso, no solo al final. Su espejo es el [[rollback-automatico|rollback automático]].",
+   "ejemplo": "En el shadow de Alba: acuerdo top-1 ≥ 90 %, p99 ≤ 1.1 × el del champion, cero crashes y ninguna de las 20 categorías más grandes con acuerdo < 85 %. En el canary: los cuatro criterios relativos verdes durante las 4 h de cada paso.",
+   "ver": [
+    "rollback-automatico",
+    "analisis-canary",
+    "n-minimo-canary"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "rollback-automatico",
+   "termino": "Rollback automático",
+   "en": "automated rollback",
+   "corto": "Regresar el tráfico a la versión estable sin esperar a una persona, cuando una métrica rompe un umbral escrito antes.",
+   "largo": "Existe porque revertir no puede esperar a que alguien despierte, y porque decidir con calma a las 3 de la mañana es difícil. Usa dos clases de umbrales: topes absolutos (la promesa del servicio) y comparaciones contra el estable en la misma ventana, cada una con su [[n-minimo-canary|n mínimo]] para no revertir por azar. La regla de fondo: lo automático revierte; una persona autoriza el avance.",
+   "ejemplo": "Alba revierte si el canary pasa de 0.5 % de 5xx (errores del servidor) o de 200 ms de p99. También si, contra el estable, tiene más de 2 × sus 5xx (con ≥ 10,000 requests), 1.2 × su p99 o 1.5 × su baja confianza, o si el PSI pasa de 0.1 (con ≥ 5,000 predicciones).",
+   "ver": [
+    "rollback",
+    "criterio-promocion",
+    "analisis-canary",
+    "runbook-rollback"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "analisis-canary",
+   "termino": "Análisis del canary",
+   "en": "canary analysis",
+   "corto": "La comparación automática de las métricas del canary contra las del estable en la misma ventana de tiempo, que decide si el canary sigue o se aborta.",
+   "largo": "Comparar en la misma ventana cancela el ruido del día: una campaña o la madrugada afectan a las dos versiones igual, porque los pesos reparten al azar por request. Lo que queda es la diferencia del modelo. Para eso cada métrica lleva la versión como etiqueta (`model_version`). Los topes absolutos se quedan como red, por si todo el sistema está mal. Las señales que miran **qué contesta** el modelo (la confianza, la mezcla de categorías con el [[psi|PSI]]) son las que atrapan a un modelo que se equivoca con confianza.",
+   "ejemplo": "A las 13:00, una campaña de bicicletas sube la baja confianza (la parte de fotos en que el modelo duda) de las dos versiones: estable 6.0 %, canary 8.4 %. La razón, 1.4, queda bajo el límite de 1.5: el canary sigue.",
+   "ver": [
+    "canary",
+    "criterio-promocion",
+    "psi"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "n-minimo-canary",
+   "termino": "n mínimo de un criterio",
+   "en": "minimum sample size",
+   "corto": "Cuántas requests (o predicciones) tiene que juntar el canary antes de que un criterio pueda decidir. Sin él, el azar revierte versiones buenas.",
+   "largo": "Con pocas requests, una regla relativa dispara por ruido: si el estable falla en el 0.1 % y el canary junta 600 requests, se esperan 0.6 errores, y 2 ya son «el doble». La ventana se alarga hasta juntar el n mínimo, así que de madrugada una decisión tarda horas. El n se diseña con la [[potencia|potencia]] que se quiere y con la tasa real del estable: si la tasa baja, el n tiene que subir. En un PSI, el piso de ruido es ≈ (K − 1)(1/n + 1/n_e), con K categorías, n predicciones del canary y n_e del estable, así que con muchas categorías también hace falta agrupar.",
+   "ejemplo": "Alba pide ≥ 10,000 requests por decisión para los 5xx (los errores del servidor): con \\(p_0\\) = 0.1 %, la falsa alarma por decisión baja de ≈ 6.4 % (3,480 requests) a ≈ 0.35 %. Para el PSI, ≥ 5,000 predicciones sobre ≈ 30 categorías padre.",
+   "ver": [
+    "analisis-canary",
+    "tamano-muestra",
+    "potencia",
+    "poisson",
+    "psi"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "bake",
+   "termino": "Bake time",
+   "en": "bake time",
+   "corto": "El tiempo que la versión anterior sigue prendida después de que la nueva llega al 100 %. Convierte el rollback en un cambio de ruteo.",
+   "largo": "Algunos problemas solo aparecen con todo el tráfico o con el tiempo: una categoría chica que el canary vio poco, una fuga de memoria que tarda un día. Mientras dura el bake, volver es mandar el tráfico a algo prendido y caliente: el switch tarda segundos, y en Alba el camino completo (el PR del revert y Argo CD) unos minutos; después, hay que levantarlo otra vez (en Alba, ≈ 5–20 min para Triton). Con Argo Rollouts hay que pedirlo: el ReplicaSet viejo se apaga 30 s después de llegar al 100 % si no se cambia `scaleDownDelaySeconds`, y volver a él corre otra vez todos los pasos si no se configura `rollbackWindow`. Cuesta lo que cuesten las máquinas de la versión anterior durante esas horas. Es, en el fondo, un [[blue-green|blue/green]] que se deja vivo después del canary.",
+   "analogia": "Como guardar la receta vieja en el refrigerador una semana después de cambiar el menú. Se rompe en que una receta guardada no cuesta nada; una T4 prendida cuesta cada hora.",
+   "ejemplo": "En Alba, la release 14 (su gateway y `triton-v14`) sigue viva 24–48 h: una T4 de más, ≈ US$13 por 24 h y ≈ US$25 por 48 h. Al terminar, un PR la quita.",
+   "ver": [
+    "blue-green",
+    "rollback",
+    "canary"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "blue-green",
+   "termino": "Blue/green",
+   "en": "blue/green deployment",
+   "corto": "Tener dos entornos completos, el viejo (blue) y el nuevo (green), y un switch que manda todo el tráfico a uno o al otro de golpe.",
+   "largo": "Volver es mover el switch: tan rápido como cambiar un ruteo. El costo es tener dos entornos prendidos mientras se decide. No da un porcentaje intermedio: el salto es de 0 a 100 %, así que no limita a cuántos les toca un error como lo hace un [[canary]]. Muchos sistemas combinan los dos: suben con canary y dejan el viejo vivo como blue durante el [[bake]]. En Argo Rollouts, la estrategia blue/green apaga el viejo 30 s después del switch si no se cambia `scaleDownDelaySeconds`.",
+   "ejemplo": "Unas predicciones en lote que se recalculan cada noche: se escribe `predicciones_v2` al lado de la tabla vieja, se comparan, y el cambio es mover el puntero que leen los demás.",
+   "ver": [
+    "bake",
+    "canary",
+    "rollback"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "kill-switch",
+   "termino": "Kill switch",
+   "en": "kill switch",
+   "corto": "Un interruptor de la configuración (un feature flag) que apaga una función completa mientras el programa corre, sin desplegar nada. Es el rollback más rápido: apaga la función, no la versión.",
+   "largo": "Sirve cuando el problema no es la versión nueva: si las dos versiones fallan porque algo de afuera cambió, volver a la anterior no arregla nada y apagar sí. Se prepara antes: el código tiene que saber qué hacer con la función apagada. Lo presenta, como flag, la lección de configuración ([[feature-flag|feature flag]]).",
+   "ejemplo": "En Alba, apagar las sugerencias hace que Ana vea el selector de categorías normal, como si el modelo no existiera.",
+   "ver": [
+    "feature-flag",
+    "rollback",
+    "runbook-rollback"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "runbook-rollback",
+   "termino": "Runbook de rollback",
+   "en": "rollback runbook",
+   "corto": "La receta escrita, paso a paso, de qué hace la persona de guardia cuando un despliegue sale mal: detectar, revertir sin diagnosticar, confirmar, congelar, comunicar e investigar.",
+   "largo": "Se escribe con calma para usarse con prisa, por alguien que no hizo el cambio. Su regla central es «primero revertir, después investigar»: cada minuto buscando la causa es un minuto de tráfico con la versión mala. Dice cómo se revierte en cada fase y qué pasa si revertir no arregla nada (entonces el problema no era la versión). Un runbook que nunca se ensayó no es un plan: se practica en staging.",
+   "ejemplo": "El de Alba: la máquina detecta; Marta, de guardia, revierte en ≤ 5 min (en el canary ya se revirtió solo; en el bake, un revert en `alba/despliegue`); confirma en 15–30 min; congela los despliegues del modelo; avisa; investiga con el `model_version` de cada línea de log.",
+   "ver": [
+    "rollback-automatico",
+    "rollback",
+    "kill-switch"
+   ],
+   "leccion": "e10-rollout"
+  },
+  {
+   "id": "expand-contract",
+   "termino": "Expand and contract",
+   "en": "expand and contract",
+   "corto": "Cambiar un contrato entre sistemas en tres pasos para no romper a nadie: primero los consumidores aprenden lo nuevo, después el productor lo produce, al final se borra lo viejo.",
+   "largo": "Hace falta cuando dos versiones conviven (en un canary, en un bake) y sus consumidores no se actualizan al mismo tiempo. El orden es lo importante: nadie produce algo que su consumidor todavía no entiende. Se usa igual en bases de datos (agregar una columna, escribirla, dejar de leer la vieja) y en APIs. En modelos, ayuda que la API devuelva el nombre de la categoría y nunca su posición en la salida.",
+   "ejemplo": "Para pasar de 500 a 501 categorías con «bolsas»: el backend y la app aceptan el nombre nuevo; luego la release con el modelo de 501 sube por su escalera, con A/B; al final se borra lo que solo servía para el de 500.",
+   "ver": [
+    "release-par",
+    "labels-json",
+    "versionado-api"
+   ],
+   "leccion": "e10-rollout"
+  }
+ ]
+}

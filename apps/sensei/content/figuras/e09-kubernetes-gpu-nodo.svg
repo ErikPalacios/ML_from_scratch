@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 414" role="img" aria-labelledby="f-e09-kubernetes-gpu-nodo-t" class="f-svg" style="max-width:420px">
+<title id="f-e09-kubernetes-gpu-nodo-t">Los cuatro nodos de Alba en dos zonas, us-east-1a y us-east-1b. En cada zona hay un nodo g4dn.xlarge con una T4, la etiqueta workload igual a gpu-t4 y el taint nvidia.com/gpu, con un pod de Triton adentro, que entra porque pide la etiqueta con su nodeSelector y tolera el taint. Debajo, en cada zona, un nodo c6i.xlarge con gateways. Un gateway que llega a un nodo con T4 no entra: no tiene la toleration. Hay una T4 por zona por el reparto por zona.</title>
+<rect class="f-card" x="10" y="10" width="340" height="394" rx="16"/>
+<text class="f-l" x="22" y="36">ZONA US-EAST-1A</text>
+<rect class="f-chip" x="22" y="46" width="152" height="132" rx="10"/>
+<text class="f-t" x="32" y="68" style="font-size:14px">g4dn.xlarge · T4</text>
+<text class="f-s" x="32" y="88" style="font-size:12px">label workload=gpu-t4</text>
+<rect class="f-linea" x="32" y="96" width="138" height="20" rx="4" style="fill:none;stroke-dasharray:4 3"/>
+<text class="f-s" x="38" y="110" style="font-size:12px;letter-spacing:-0.2px">taint nvidia.com/gpu</text>
+<rect class="f-dark" x="32" y="124" width="132" height="44" rx="6"/>
+<text class="f-dark-t" x="42" y="143" style="font-size:13px">Triton</text>
+<text class="f-dark-l" x="42" y="159">SELECTOR + PASE</text>
+<rect class="f-chip" x="22" y="246" width="152" height="80" rx="10"/>
+<text class="f-t" x="32" y="268" style="font-size:14px">c6i.xlarge</text>
+<rect class="f-b" x="32" y="280" width="40" height="34" rx="5"/>
+<text class="f-pill-t" x="52" y="302" text-anchor="middle" style="font-size:12px">gw</text>
+<rect class="f-b" x="78" y="280" width="40" height="34" rx="5"/>
+<text class="f-pill-t" x="98" y="302" text-anchor="middle" style="font-size:12px">gw</text>
+<text class="f-l" x="186" y="36">ZONA US-EAST-1B</text>
+<rect class="f-chip" x="186" y="46" width="152" height="132" rx="10"/>
+<text class="f-t" x="196" y="68" style="font-size:14px">g4dn.xlarge · T4</text>
+<text class="f-s" x="196" y="88" style="font-size:12px">label workload=gpu-t4</text>
+<rect class="f-linea" x="196" y="96" width="138" height="20" rx="4" style="fill:none;stroke-dasharray:4 3"/>
+<text class="f-s" x="202" y="110" style="font-size:12px;letter-spacing:-0.2px">taint nvidia.com/gpu</text>
+<rect class="f-dark" x="196" y="124" width="132" height="44" rx="6"/>
+<text class="f-dark-t" x="206" y="143" style="font-size:13px">Triton</text>
+<text class="f-dark-l" x="206" y="159">SELECTOR + PASE</text>
+<rect class="f-chip" x="186" y="246" width="152" height="80" rx="10"/>
+<text class="f-t" x="196" y="268" style="font-size:14px">c6i.xlarge</text>
+<rect class="f-b" x="196" y="280" width="40" height="34" rx="5"/>
+<text class="f-pill-t" x="216" y="302" text-anchor="middle" style="font-size:12px">gw</text>
+<rect class="f-b" x="242" y="280" width="40" height="34" rx="5"/>
+<text class="f-pill-t" x="262" y="302" text-anchor="middle" style="font-size:12px">gw</text>
+<rect class="f-b" x="288" y="280" width="40" height="34" rx="5"/>
+<text class="f-pill-t" x="308" y="302" text-anchor="middle" style="font-size:12px">gw</text>
+<rect class="f-b" x="22" y="204" width="40" height="30" rx="5"/>
+<text class="f-pill-t" x="42" y="224" text-anchor="middle" style="font-size:12px">gw</text>
+<line class="f-flecha" x1="42" y1="204" x2="42" y2="178"/>
+<circle class="f-card" cx="42" cy="192" r="8"/>
+<text class="f-t" x="42" y="197" text-anchor="middle" style="font-size:13px">✕</text>
+<text class="f-s" x="72" y="216" style="font-size:12px">sin pase:</text>
+<text class="f-s" x="72" y="231" style="font-size:12px">no entra a la T4</text>
+<text class="f-s" x="26" y="350" style="font-size:12px">Etiqueta + nodeSelector: atrae a Triton.</text>
+<text class="f-s" x="26" y="368" style="font-size:12px">Taint + toleration: solo pasa quien la tolera.</text>
+<text class="f-s" x="26" y="386" style="font-size:12px">maxSkew 1 por zona: una T4 en cada una.</text>
+</svg>

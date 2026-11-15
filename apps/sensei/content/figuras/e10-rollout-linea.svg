@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 436" role="img" aria-labelledby="f-e10-rollout-linea-t" class="f-svg" style="max-width:420px">
+<title id="f-e10-rollout-linea-t">La release 15 en el tiempo, en cinco fases. Antes: dos T4 con la versión 14. Shadow, de 1 a 2 días: dos T4 de la 14 y una de la 15, que solo recibe copias; volver no requiere nada. Canary, 8 horas: las mismas tres T4, con la 15 recibiendo del 5 al 25 % del tráfico; volver tarda segundos. Bake, de 24 a 48 horas: una T4 de la 14, que se queda prendida, y dos de la 15 con el 100 %; volver tarda minutos: el PR del revert y Argo CD, más segundos de switch. Después: dos T4 de la 15; volver tarda de 5 a 20 minutos, porque hay que levantar otra vez a la 14.</title>
+<rect class="f-b" x="18" y="16" width="12" height="12" rx="3"/><text class="f-s" x="36" y="26" style="font-size:12px">T4 con la versión 14</text>
+<rect class="f-o" x="190" y="16" width="12" height="12" rx="3"/><text class="f-s" x="208" y="26" style="font-size:12px">T4 con la versión 15</text>
+<line class="f-linea" x1="18" y1="196" x2="342" y2="196"/>
+<text class="f-t" x="50.5" y="224" text-anchor="middle" style="font-size:13px">antes</text>
+<rect class="f-b" x="30.5" y="158" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="50.5" y="176" text-anchor="middle" style="font-size:11px">T4</text>
+<rect class="f-b" x="30.5" y="124" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="50.5" y="142" text-anchor="middle" style="font-size:11px">T4</text>
+<text class="f-s" x="50.5" y="270" text-anchor="middle" style="font-size:12px">—</text>
+<text class="f-s" x="50.5" y="326" text-anchor="middle" style="font-size:12px">0 %</text>
+<text class="f-s" x="50.5" y="382" text-anchor="middle" style="font-size:12px">—</text>
+<text class="f-t" x="115.5" y="224" text-anchor="middle" style="font-size:13px">shadow</text>
+<rect class="f-b" x="95.5" y="158" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="115.5" y="176" text-anchor="middle" style="font-size:11px">T4</text>
+<rect class="f-b" x="95.5" y="124" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="115.5" y="142" text-anchor="middle" style="font-size:11px">T4</text>
+<rect class="f-o" x="95.5" y="90" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="115.5" y="108" text-anchor="middle" style="font-size:11px">T4</text>
+<text class="f-s" x="115.5" y="270" text-anchor="middle" style="font-size:12px">1–2 días</text>
+<text class="f-s" x="115.5" y="326" text-anchor="middle" style="font-size:12px">copia</text>
+<text class="f-s" x="115.5" y="382" text-anchor="middle" style="font-size:12px">nada</text>
+<text class="f-t" x="180.5" y="224" text-anchor="middle" style="font-size:13px">canary</text>
+<rect class="f-b" x="160.5" y="158" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="180.5" y="176" text-anchor="middle" style="font-size:11px">T4</text>
+<rect class="f-b" x="160.5" y="124" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="180.5" y="142" text-anchor="middle" style="font-size:11px">T4</text>
+<rect class="f-o" x="160.5" y="90" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="180.5" y="108" text-anchor="middle" style="font-size:11px">T4</text>
+<text class="f-s" x="180.5" y="270" text-anchor="middle" style="font-size:12px">8 h</text>
+<text class="f-s" x="180.5" y="326" text-anchor="middle" style="font-size:12px">5 → 25 %</text>
+<text class="f-s" x="180.5" y="382" text-anchor="middle" style="font-size:12px">segundos</text>
+<text class="f-t" x="245.5" y="224" text-anchor="middle" style="font-size:13px">bake</text>
+<rect class="f-b" x="225.5" y="158" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="245.5" y="176" text-anchor="middle" style="font-size:11px">T4</text>
+<rect class="f-o" x="225.5" y="124" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="245.5" y="142" text-anchor="middle" style="font-size:11px">T4</text>
+<rect class="f-o" x="225.5" y="90" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="245.5" y="108" text-anchor="middle" style="font-size:11px">T4</text>
+<text class="f-s" x="245.5" y="270" text-anchor="middle" style="font-size:12px">24–48 h</text>
+<text class="f-s" x="245.5" y="326" text-anchor="middle" style="font-size:12px">100 %</text>
+<text class="f-s" x="245.5" y="382" text-anchor="middle" style="font-size:12px">minutos</text>
+<text class="f-t" x="310.5" y="224" text-anchor="middle" style="font-size:13px">después</text>
+<rect class="f-o" x="290.5" y="158" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="310.5" y="176" text-anchor="middle" style="font-size:11px">T4</text>
+<rect class="f-o" x="290.5" y="124" width="40" height="28" rx="5"/>
+<text class="f-pill-t" x="310.5" y="142" text-anchor="middle" style="font-size:11px">T4</text>
+<text class="f-s" x="310.5" y="270" text-anchor="middle" style="font-size:12px">—</text>
+<text class="f-s" x="310.5" y="326" text-anchor="middle" style="font-size:12px">100 %</text>
+<text class="f-s" x="310.5" y="382" text-anchor="middle" style="font-size:12px">5–20 min</text>
+<text class="f-l" x="18" y="248">DURA</text>
+<line class="f-linea" x1="18" y1="232" x2="342" y2="232"/>
+<text class="f-l" x="18" y="304">TRÁFICO A LA 15</text>
+<line class="f-linea" x1="18" y1="288" x2="342" y2="288"/>
+<text class="f-l" x="18" y="360">VOLVER TARDA</text>
+<line class="f-linea" x1="18" y1="344" x2="342" y2="344"/>
+<text class="f-s" x="18" y="424" style="font-size:12px">Una T4 de más en tres fases: ≈ US$29–55 por release.</text>
+</svg>

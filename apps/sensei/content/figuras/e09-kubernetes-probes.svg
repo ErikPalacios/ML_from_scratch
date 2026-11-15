@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 350" role="img" aria-labelledby="f-e09-kubernetes-probes-t" class="f-svg" style="max-width:420px">
+<title id="f-e09-kubernetes-probes-t">Los primeros 90 segundos de un pod de Triton. Mientras carga el engine, la probe de arranque pregunta cada 5 segundos y falla; a los 45 segundos pasa. Desde ahí empiezan la readiness, cada 5 segundos, y la liveness, cada 10 segundos, y las dos pasan. La startup tenía hasta 60 intentos por 5 segundos, 300 segundos, para pasar. Si la readiness falla 2 veces, el pod sale del Service en unos 10 segundos sin reiniciarse.</title>
+<rect class="f-card" x="10" y="10" width="340" height="330" rx="16"/>
+<text class="f-l" x="26" y="34">UN POD DE TRITON, LOS PRIMEROS 90 S</text>
+<rect class="f-chip" x="40.0" y="46" width="144.0" height="20" rx="4"/>
+<text class="f-s" x="46" y="61" style="font-size:12px">carga el engine</text>
+<line class="f-linea" x1="184.0" y1="44" x2="184.0" y2="218" style="stroke-dasharray:3 3"/>
+<text class="f-s" x="189" y="61" style="font-size:12px">listo a los 45 s</text>
+<text class="f-s" x="26" y="86" style="font-size:13px">Startup · cada 5 s</text>
+<line class="f-linea" x1="40.0" y1="100" x2="328" y2="100"/>
+<circle class="f-o" cx="56.0" cy="100" r="5"/>
+<circle class="f-o" cx="72.0" cy="100" r="5"/>
+<circle class="f-o" cx="88.0" cy="100" r="5"/>
+<circle class="f-o" cx="104.0" cy="100" r="5"/>
+<circle class="f-o" cx="120.0" cy="100" r="5"/>
+<circle class="f-o" cx="136.0" cy="100" r="5"/>
+<circle class="f-o" cx="152.0" cy="100" r="5"/>
+<circle class="f-o" cx="168.0" cy="100" r="5"/>
+<circle class="f-g" cx="184.0" cy="100" r="5"/>
+<text class="f-s" x="26" y="136" style="font-size:13px">Readiness · cada 5 s</text>
+<line class="f-linea" x1="40.0" y1="150" x2="328" y2="150"/>
+<circle class="f-g" cx="200.0" cy="150" r="5"/>
+<circle class="f-g" cx="216.0" cy="150" r="5"/>
+<circle class="f-g" cx="232.0" cy="150" r="5"/>
+<circle class="f-g" cx="248.0" cy="150" r="5"/>
+<circle class="f-g" cx="264.0" cy="150" r="5"/>
+<circle class="f-g" cx="280.0" cy="150" r="5"/>
+<circle class="f-g" cx="296.0" cy="150" r="5"/>
+<circle class="f-g" cx="312.0" cy="150" r="5"/>
+<circle class="f-g" cx="328.0" cy="150" r="5"/>
+<text class="f-s" x="26" y="186" style="font-size:13px">Liveness · cada 10 s</text>
+<line class="f-linea" x1="40.0" y1="200" x2="328" y2="200"/>
+<circle class="f-g" cx="216.0" cy="200" r="5"/>
+<circle class="f-g" cx="248.0" cy="200" r="5"/>
+<circle class="f-g" cx="280.0" cy="200" r="5"/>
+<circle class="f-g" cx="312.0" cy="200" r="5"/>
+<line class="f-linea" x1="40.0" y1="232" x2="328" y2="232"/>
+<line class="f-linea" x1="40.0" y1="228" x2="40.0" y2="236"/>
+<text class="f-s" x="40.0" y="251" text-anchor="middle" style="font-size:12px">0</text>
+<line class="f-linea" x1="88.0" y1="228" x2="88.0" y2="236"/>
+<text class="f-s" x="88.0" y="251" text-anchor="middle" style="font-size:12px">15</text>
+<line class="f-linea" x1="136.0" y1="228" x2="136.0" y2="236"/>
+<text class="f-s" x="136.0" y="251" text-anchor="middle" style="font-size:12px">30</text>
+<line class="f-linea" x1="184.0" y1="228" x2="184.0" y2="236"/>
+<text class="f-s" x="184.0" y="251" text-anchor="middle" style="font-size:12px">45</text>
+<line class="f-linea" x1="232.0" y1="228" x2="232.0" y2="236"/>
+<text class="f-s" x="232.0" y="251" text-anchor="middle" style="font-size:12px">60</text>
+<line class="f-linea" x1="280.0" y1="228" x2="280.0" y2="236"/>
+<text class="f-s" x="280.0" y="251" text-anchor="middle" style="font-size:12px">75</text>
+<line class="f-linea" x1="328.0" y1="228" x2="328.0" y2="236"/>
+<text class="f-s" x="328.0" y="251" text-anchor="middle" style="font-size:12px">90</text>
+<text class="f-s" x="328" y="266" text-anchor="end" style="font-size:12px">segundos</text>
+<circle class="f-o" cx="32" cy="284" r="5"/><text class="f-s" x="42" y="288" style="font-size:12px">falla</text>
+<circle class="f-g" cx="92" cy="284" r="5"/><text class="f-s" x="102" y="288" style="font-size:12px">pasa</text>
+<text class="f-s" x="26" y="310" style="font-size:12px">La startup tenía hasta 60 × 5 s = 300 s.</text>
+<text class="f-s" x="26" y="328" style="font-size:12px">Readiness con 2 fallas: fuera en ≈ 10 s.</text>
+</svg>

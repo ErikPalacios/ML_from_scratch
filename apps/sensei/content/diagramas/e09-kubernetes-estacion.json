@@ -1,0 +1,342 @@
+{
+  "titulo": "De un manifiesto en Git a pods listos detrás del ALB",
+  "width": 78,
+  "height": 50,
+  "lanes": [
+    {
+      "id": "git",
+      "label": "Lo que entra",
+      "kind": "neutral",
+      "x": 0,
+      "y": 0,
+      "w": 21,
+      "h": 50
+    },
+    {
+      "id": "cp",
+      "label": "Plano de control (EKS)",
+      "kind": "neutral",
+      "x": 27,
+      "y": 0,
+      "w": 23,
+      "h": 50
+    },
+    {
+      "id": "nodos",
+      "label": "Nodos y tráfico",
+      "kind": "online",
+      "x": 56,
+      "y": 0,
+      "w": 22,
+      "h": 50
+    }
+  ],
+  "nodes": [
+    {
+      "id": "repo",
+      "label": "alba/despliegue",
+      "sub": "manifiestos + digest",
+      "kind": "store",
+      "x": 1,
+      "y": 6,
+      "w": 19,
+      "h": 8,
+      "note": "Los [[manifiesto-k8s|manifiestos]] de Alba, con la imagen de cada programa por digest. Lo escribió la estación anterior, tras la aprobación de una persona."
+    },
+    {
+      "id": "argo",
+      "label": "Argo CD",
+      "sub": "aplica en ≤ 3 min",
+      "kind": "service",
+      "x": 1,
+      "y": 22,
+      "w": 19,
+      "h": 8,
+      "note": "[[argo-cd|Argo CD]] lee `main` y aplica lo que no coincide con el clúster: [[gitops|GitOps]]. Nadie aplica a mano en producción."
+    },
+    {
+      "id": "karp",
+      "label": "Karpenter",
+      "sub": "pide máquinas",
+      "kind": "service",
+      "x": 1,
+      "y": 38,
+      "w": 19,
+      "h": 8,
+      "note": "El [[autoscaler-nodos|autoscaler de nodos]] de Alba. Ve pods Pending y lanza la máquina que les sirve: una `g4dn.xlarge` para Triton, una `c6i.xlarge` para el gateway."
+    },
+    {
+      "id": "api",
+      "label": "API server",
+      "sub": "estado deseado",
+      "kind": "service",
+      "x": 28,
+      "y": 6,
+      "w": 21,
+      "h": 8,
+      "note": "El programa central del clúster: guarda lo que dicen los manifiestos y lo que pasa de verdad. Todos los demás le preguntan y le escriben a él; [[kubectl]] también."
+    },
+    {
+      "id": "ctrl",
+      "label": "Controladores",
+      "sub": "Deployment → ReplicaSet",
+      "kind": "service",
+      "x": 28,
+      "y": 22,
+      "w": 21,
+      "h": 8,
+      "note": "Comparan sin parar el estado deseado con el real. El [[deployment-k8s|Deployment]] crea el [[replicaset|ReplicaSet]], y el ReplicaSet crea los [[pod|pods]] que falten."
+    },
+    {
+      "id": "sched",
+      "label": "Scheduler",
+      "sub": "elige el nodo",
+      "kind": "service",
+      "x": 28,
+      "y": 38,
+      "w": 21,
+      "h": 8,
+      "note": "Para cada pod sin nodo revisa lo que pide ([[resources-requests-limits|requests]]), su [[node-selector|etiqueta]], los [[taint-toleration|taints]] y la [[topology-spread|zona]]. Si ningún nodo sirve, el pod queda Pending."
+    },
+    {
+      "id": "t4",
+      "label": "Nodos g4dn ×2",
+      "sub": "kubelet + Triton",
+      "kind": "gpu",
+      "x": 57,
+      "y": 6,
+      "w": 20,
+      "h": 8,
+      "note": "Una T4 por nodo, una por zona. El kubelet baja la imagen de Triton (≈ 9.2 GB), arranca el contenedor y le hace sus [[probe|probes]]: 5 min de startup para cargar el engine."
+    },
+    {
+      "id": "cpu",
+      "label": "Nodos c6i ×2",
+      "sub": "kubelet + gateways",
+      "kind": "service",
+      "x": 57,
+      "y": 22,
+      "w": 20,
+      "h": 8,
+      "note": "De 3 a 12 gateways, 3 por nodo. Su [[readiness]] (`/readyz`) dice si pueden llegar a Triton."
+    },
+    {
+      "id": "alb",
+      "label": "ALB interno",
+      "sub": "solo pods listos",
+      "kind": "edge",
+      "x": 57,
+      "y": 38,
+      "w": 20,
+      "h": 8,
+      "note": "El [[alb|ALB]] manda cada request directo a la IP de un gateway listo. Un pod que falla su readiness sale de sus destinos en segundos, sin reiniciarse."
+    }
+  ],
+  "edges": [
+    {
+      "from": "repo",
+      "to": "argo",
+      "kind": "neutral",
+      "label": "lee main",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "argo",
+      "to": "api",
+      "kind": "neutral",
+      "label": "aplica",
+      "fromSide": "r",
+      "toSide": "l",
+      "via": [
+        [
+          24,
+          26
+        ],
+        [
+          24,
+          10
+        ]
+      ]
+    },
+    {
+      "from": "api",
+      "to": "ctrl",
+      "kind": "neutral",
+      "label": "vigila",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "ctrl",
+      "to": "sched",
+      "kind": "neutral",
+      "label": "pods sin nodo",
+      "fromSide": "b",
+      "toSide": "t"
+    },
+    {
+      "from": "sched",
+      "to": "t4",
+      "kind": "neutral",
+      "label": "asigna",
+      "fromSide": "r",
+      "toSide": "l",
+      "via": [
+        [
+          53,
+          42
+        ],
+        [
+          53,
+          10
+        ]
+      ]
+    },
+    {
+      "from": "sched",
+      "to": "cpu",
+      "kind": "neutral",
+      "fromSide": "r",
+      "toSide": "l",
+      "via": [
+        [
+          53,
+          42
+        ],
+        [
+          53,
+          26
+        ]
+      ]
+    },
+    {
+      "from": "cpu",
+      "to": "t4",
+      "kind": "online",
+      "label": "inferencia",
+      "fromSide": "t",
+      "toSide": "b"
+    },
+    {
+      "from": "alb",
+      "to": "cpu",
+      "kind": "online",
+      "label": "/v1/classify",
+      "fromSide": "t",
+      "toSide": "b"
+    },
+    {
+      "from": "sched",
+      "to": "karp",
+      "kind": "async",
+      "label": "Pending",
+      "fromSide": "l",
+      "toSide": "r"
+    }
+  ],
+  "flows": [
+    {
+      "id": "deploy",
+      "label": "Del manifiesto a los pods",
+      "steps": [
+        {
+          "nodes": [
+            "repo",
+            "argo"
+          ],
+          "edges": [
+            "repo>argo"
+          ],
+          "text": "Un pull request (PR) aprobado y unido a `main` cambia la plantilla de `triton-v14` en `alba/despliegue` (por ejemplo, su memoria). **Argo CD** lo ve en ≤ 3 min."
+        },
+        {
+          "nodes": [
+            "argo",
+            "api"
+          ],
+          "edges": [
+            "argo>api"
+          ],
+          "text": "Argo CD manda el manifiesto al **API server**: ahora el estado deseado dice la plantilla nueva."
+        },
+        {
+          "nodes": [
+            "api",
+            "ctrl"
+          ],
+          "edges": [
+            "api>ctrl"
+          ],
+          "text": "El controlador del Deployment ve la plantilla nueva y crea un **ReplicaSet** nuevo, que crea su primer pod. El viejo sigue con los suyos."
+        },
+        {
+          "nodes": [
+            "ctrl",
+            "sched",
+            "t4"
+          ],
+          "edges": [
+            "ctrl>sched",
+            "sched>t4"
+          ],
+          "text": "El **scheduler** elige un nodo con una T4 libre que cumpla lo que pide el pod. El kubelet de ese nodo baja la imagen por digest, si no la tiene, y arranca el contenedor."
+        },
+        {
+          "nodes": [
+            "t4",
+            "cpu"
+          ],
+          "edges": [
+            "cpu>t4"
+          ],
+          "text": "Cuando el pod pasa su **readiness**, entra al Service de Triton y los gateways le mandan fotos. Solo entonces el Deployment baja un pod viejo. (Un modelo nuevo no entra así, sino como otra release; el gateway cambia con los pasos de su Rollout: los dos son de «Rollout seguro».)"
+        }
+      ]
+    },
+    {
+      "id": "nocabe",
+      "label": "Un Triton que no cabe",
+      "steps": [
+        {
+          "nodes": [
+            "ctrl",
+            "sched"
+          ],
+          "edges": [
+            "ctrl>sched"
+          ],
+          "text": "KEDA pidió un tercer Triton. El ReplicaSet crea el pod; el **scheduler** no encuentra una T4 libre."
+        },
+        {
+          "nodes": [
+            "sched",
+            "karp"
+          ],
+          "edges": [
+            "sched>karp"
+          ],
+          "text": "El pod queda **Pending**, con el motivo en sus eventos: `Insufficient nvidia.com/gpu`. **Karpenter** lo ve."
+        },
+        {
+          "nodes": [
+            "karp",
+            "t4"
+          ],
+          "edges": [],
+          "text": "Karpenter lanza una `g4dn.xlarge` con la etiqueta y el taint de las T4: ≈ 2–5 min hasta que se une al clúster y anuncia su GPU."
+        },
+        {
+          "nodes": [
+            "sched",
+            "t4"
+          ],
+          "edges": [
+            "sched>t4"
+          ],
+          "text": "El scheduler pone el pod en el nodo nuevo. Faltan la imagen (≈ 2–5 min), el engine y la readiness: ≈ 5–13 min en total desde que se notó la falta."
+        }
+      ]
+    }
+  ]
+}

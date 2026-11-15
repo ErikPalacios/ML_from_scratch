@@ -1,0 +1,24 @@
+{
+  "titulo": "Cuánto frena un límite de CPU",
+  "intro": "Aplica las ecuaciones de la lección: \\(W = k × c\\), \\(Q = L × T\\), \\(j = ⌈W ÷ Q⌉ − 1\\) y \\(D = j × T + (W − j × Q)/k\\). Supone que cada hilo tiene su núcleo libre en el nodo. Arranca con los cuatro decodes de la cuenta.",
+  "entradas": [
+    { "id": "k", "label": "Hilos trabajando a la vez, \\(k\\) (decodes)", "min": 1, "max": 16, "paso": 1, "valor": 4 },
+    { "id": "c", "label": "CPU que necesita cada uno, \\(c\\), en ms", "min": 1, "max": 200, "paso": 1, "valor": 40 },
+    { "id": "L", "label": "Limit de CPU del contenedor, \\(L\\), en núcleos", "min": 0.1, "max": 8, "paso": 0.1, "valor": 1 },
+    { "id": "T", "label": "Periodo de la cuota, \\(T\\), en ms (100 en Linux)", "min": 10, "max": 1000, "paso": 10, "valor": 100, "tipo": "numero" }
+  ],
+  "calculos": [
+    { "id": "W", "formula": "k * c" },
+    { "id": "Q", "formula": "L * T" },
+    { "id": "j", "formula": "max(ceil(W / Q) - 1, 0)" },
+    { "id": "D", "formula": "j * T + (W - j * Q) / k" }
+  ],
+  "salidas": [
+    { "label": "Trabajo total, \\(W\\), en ms de CPU", "formula": "W", "formato": "num", "decimales": 0 },
+    { "label": "Cuota por periodo, \\(Q\\), en ms de CPU", "formula": "Q", "formato": "num", "decimales": 0 },
+    { "label": "Periodos agotados antes del último, \\(j\\)", "formula": "j", "formato": "int", "nota": "en cada uno, el contenedor se congela" },
+    { "label": "Duración con límite, \\(D\\), en ms", "formula": "D", "formato": "num", "decimales": 1, "nota": "\\(D = j × T + (W − j × Q)/k\\)" },
+    { "label": "Veces más lento que sin límite, \\(D ÷ c\\)", "formula": "D / c", "formato": "x", "decimales": 2, "barra": false }
+  ],
+  "nota": "Sin límite (o con \\(L ≥ k\\)), cada hilo termina en \\(c\\) ms. El freno aparece cuando \\(W\\) pasa de \\(Q\\): muchos hilos a la vez, aunque cada uno sea corto."
+}

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 522" role="img" aria-labelledby="f-e10-rollout-escalera-t" class="f-svg" style="max-width:420px">
+<title id="f-e10-rollout-escalera-t">La escalera de la versión 15 de Alba, de abajo hacia arriba. Abajo, ya hecho, el gate: ¿es al menos igual en el examen? Luego el shadow, con una copia del 10 % durante 1 a 2 días: ¿funciona con tráfico real? Luego el canary al 5 % durante 4 horas: ¿es seguro con usuarios reales? Luego el canary al 25 % durante 4 horas: ¿sigue bien con más tráfico? Arriba, el 100 % con el bake de 24 a 48 horas: ¿podemos volver si algo falla? Si un criterio falla en el shadow o en el canary, el tráfico vuelve solo a la versión 14; en el bake, vuelve con un revert que aprueba una persona.</title>
+<text class="f-l" x="14" y="32">LA ESCALERA, DE ABAJO HACIA ARRIBA</text>
+<rect class="f-off" x="14" y="386" width="332" height="72" rx="10"/>
+<text class="f-t" x="28" y="414" style="font-size:14px">Gate</text>
+<text class="f-s" x="28" y="438" style="font-size:12px">¿Es al menos igual en el examen?</text>
+<rect class="f-chip" x="274" y="398" width="62" height="22" rx="11"/>
+<text class="f-l" x="305.0" y="413" text-anchor="middle">hecho</text>
+<rect class="f-card" x="24" y="302" width="322" height="72" rx="10"/>
+<text class="f-t" x="38" y="330" style="font-size:14px">Shadow · copia del 10 %</text>
+<text class="f-s" x="38" y="354" style="font-size:12px">¿Funciona con tráfico real?</text>
+<rect class="f-chip" x="274" y="314" width="62" height="22" rx="11"/>
+<text class="f-l" x="305.0" y="329" text-anchor="middle">1–2 días</text>
+<rect class="f-card" x="34" y="218" width="312" height="72" rx="10"/>
+<text class="f-t" x="48" y="246" style="font-size:14px">Canary al 5 %</text>
+<text class="f-s" x="48" y="270" style="font-size:12px">¿Es seguro con usuarios reales?</text>
+<rect class="f-chip" x="274" y="230" width="62" height="22" rx="11"/>
+<text class="f-l" x="305.0" y="245" text-anchor="middle">4 h</text>
+<rect class="f-card" x="44" y="134" width="302" height="72" rx="10"/>
+<text class="f-t" x="58" y="162" style="font-size:14px">Canary al 25 %</text>
+<text class="f-s" x="58" y="186" style="font-size:12px">¿Sigue bien con más tráfico?</text>
+<rect class="f-chip" x="274" y="146" width="62" height="22" rx="11"/>
+<text class="f-l" x="305.0" y="161" text-anchor="middle">4 h</text>
+<rect class="f-card" x="54" y="50" width="292" height="72" rx="10"/>
+<text class="f-t" x="68" y="78" style="font-size:14px">100 % y bake</text>
+<text class="f-s" x="68" y="102" style="font-size:12px">¿Podemos volver si algo falla?</text>
+<rect class="f-chip" x="274" y="62" width="62" height="22" rx="11"/>
+<text class="f-l" x="305.0" y="77" text-anchor="middle">24–48 h</text>
+<text class="f-s" x="14" y="484" style="font-size:12px">En el shadow y el canary, si un criterio falla,</text>
+<text class="f-s" x="14" y="502" style="font-size:12px">vuelve solo a la 14; en el bake, con un revert.</text>
+</svg>

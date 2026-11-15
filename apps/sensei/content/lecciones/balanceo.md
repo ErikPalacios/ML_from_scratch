@@ -389,7 +389,7 @@ Kubernetes, el programa de [[orquestacion|orquestación]] de Alba, corre los con
 
 ### El Service: una IP que no cambia
 
-Un [[service-k8s|Service]] es un objeto de Kubernetes que le da a un grupo de pods **un nombre y una IP estables**. El gateway de Alba llama a `triton`, y el DNS del clúster lo traduce a una IP virtual, la *ClusterIP*, que no pertenece a ningún pod. El Service elige sus pods por sus etiquetas (por ejemplo, `app: triton`) y guarda la lista de sus pods, con una marca de cuáles están **listos** (los que pasan su readiness), en unos objetos llamados *EndpointSlices*. Un pod que falla su readiness queda marcado como no listo, y el reparto lo salta.
+Un [[service-k8s|Service]] es un objeto de Kubernetes que le da a un grupo de pods **un nombre y una IP estables**. El gateway de Alba llama a `triton` (`triton-v14` hoy: cada versión del modelo tiene su Service), y el DNS del clúster lo traduce a una IP virtual, la *ClusterIP*, que no pertenece a ningún pod. El Service elige sus pods por sus etiquetas (por ejemplo, `app: triton`) y guarda la lista de sus pods, con una marca de cuáles están **listos** (los que pasan su readiness), en unos objetos llamados *EndpointSlices*. Un pod que falla su readiness queda marcado como no listo, y el reparto lo salta.
 
 ¿Quién reparte? **kube-proxy**, un programa que corre en cada máquina del clúster. No recibe las requests: le escribe al [[kernel]] de Linux unas reglas para que, cada vez que alguien abre una conexión a la ClusterIP, el kernel la reescriba hacia la IP de uno de los pods listos. En su modo más común, el de iptables (el sistema de reglas de red del kernel), elige **al azar**. Y elige **por conexión**: es L4. Nunca ve una request HTTP.
 

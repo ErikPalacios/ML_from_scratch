@@ -243,6 +243,26 @@ Lo que encontraron las revisiones:
 
 Para la fase 14: mismo flujo, con las estaciones 9 y 10 (Kubernetes y rollout). Lo que la Ronda y el Dojo tienen mal de estas fases está en `.solo/fase12-13/revision/*-hechos.md`, sección «Para la Ronda» (el 503 del ALB en modo `ip` sí lo dice bien la Ronda; la forma shell, `concurrency` en la hoja de Git, `python:3.13-slim` en Debian 13, los «10 s» del Dojo sin medir).
 
+**Fase 14 (2026-11-14): ≈ 2.5 % por lección, 2 lecciones de estación.** «Kubernetes» (estación 9) y «Rollout seguro» (estación 10). La sesión empezó con la ventana de 5 horas en 50 % y la terminó en ≈ 90 %, sin esperar el reinicio. El límite semanal pasó de 53 % a ≈ 58 %. Por pieza:
+
+| Pieza | Modelo y esfuerzo | Semanal | Ventana de 5 h |
+|---|---|---|---|
+| Paquetes (≈ 10 min, 295k tokens), ficha `estaciones_orquestacion` (29 datos, conflictos 51–53), reparto y encargos | Sonnet bajo y la sesión | ≈ 1 punto | 50 → 53 % |
+| Escritores de las 2 lecciones, en paralelo (20–22 min, 298–341k tokens cada uno), más decisiones de integración | Opus, medio | ≈ 1 punto (≈ 0.5 por lección) | 53 → 62 % (≈ 4.5 por lección) |
+| Mecánica (2) y hechos (2), en tubería, más la ficha con los CORRIGE | Sonnet bajo y Opus alto | ≈ 1 punto | 62 → 71 % |
+| Claridad (2), consistencia (20 hallazgos) y aplicarla | Opus alto, Sonnet bajo y Opus medio | ≈ 2 puntos | 71 → 86 % |
+| `npm run check`, navegador, plan, commit y deploy | La sesión | < 1 punto | 86 → ≈ 90 % |
+
+Lo que encontraron las revisiones:
+- **Huecos de la ficha que decidió la integración.** Ninguna fuente decía qué autoscaler de nodos usa Alba, quién ejecuta el canary, cuánto dura cada paso ni cuántos Triton hay en cada peldaño. Ahora: Karpenter con dos NodePools (`gpu-t4` con tope de 6 GPU y `general`); Kubernetes 1.35; cada release tiene su Deployment y su Service `triton-vN` (conflicto 51, corregido en `red`, `config` y `balanceo`); el gateway es un Rollout de Argo Rollouts, que mueve los pesos del ALB y corre el análisis (conflicto 52); el canary de un modelo es 5 % por 4 h → 25 % por 4 h → 100 %, sin pausa manual; `promesas.rollback_auto` son los topes absolutos y el análisis compara además contra el estable (conflicto 53); `triton-v15` corre con 1 pod en el shadow y el canary y la 14 con 1 pod en el bake, así que la escalera cuesta ≈ US$29–55 de T4 por release.
+- **Hechos: 70 correcciones (2 graves).** Las graves, las dos del rollback en el bake: por omisión, Argo Rollouts apaga el ReplicaSet viejo 30 s después del 100 % (`scaleDownDelaySeconds`), y un `git revert` a una versión ya promovida vuelve a correr las 8 h del canary si no hay `rollbackWindow`. Ahora Alba pone 48 h y `rollbackWindow: 3`, y el rollback del bake es un revert de minutos (el switch tarda segundos). También se verificó con el código de Kubernetes y de Karpenter que `DoNotSchedule` deja Pending al segundo Triton con una zona caída, mientras sus nodos sigan registrados. De las 94 dudas de los escritores, 82 (87 %) estaban bien tal cual.
+- **Claridad: 215 cambios**, 81 de conocimiento supuesto y 34 de letras (\(h_p\) chocaba con la unidad «h», \(G\) con GiB y \(m\) con `500m`).
+- **Mecánica: 35 hallazgos**, casi todos de cuentas (la calculadora de falsa alarma daba 0.18 % y no 0.35 %; «la CPU cae a 64 %» sin origen, que con la misma carga es 56 %).
+- **Consistencia: 20 hallazgos.** Los más útiles: el n mínimo de 10,000 requests es por decisión del criterio de 5xx, no por paso (la ficha se corrigió); el conflicto 51 sin aplicar en tres lecciones; `pruebas-ci` decía que volver en el bake son segundos; `regiones` decía que el Triton de una zona caída se recrea en la sana; y el PodDisruptionBudget con `minAvailable: 1` trababa los drains cuando un Triton tiene un solo pod (ahora baja a 0 en el mismo PR).
+- Se corrigieron de paso `red`, `config`, `balanceo`, `pruebas-ci`, `regiones` y `git`. `red` (62 min), `balanceo` (64) y `regiones` (65) ya pasaban de 60 min de lo esencial antes de esta fase, como `programa-proceso` y `terminal`; siguen así.
+
+Para la fase 15: mismo flujo, con las estaciones 11 y 12 (la request en vivo y el monitoreo). Lo que la Ronda tiene mal de esta fase está en `.solo/fase14/revision/*-hechos.md`, sección «Para la Ronda» (el rollback con el bake vivo «en segundos», la trampa de los 30 s también en el canary, el Xid, la cuota de 32 vCPU del Hot Sale que son 36, «8 pods al 64 %»).
+
 **Lección aprendida: las esperas entre ventanas van en una sesión nueva y corta.** Una sesión larga gasta ≈ 2 % de la ventana por turno solo en releer su contexto. Una sesión que espera el reinicio y despierta con cada agente que termina se come la ventana sin hacer trabajo. Lo barato es cerrar la sesión larga y que una sesión nueva, con un encargo corto, haga la espera y lance la tanda siguiente.
 
 ## 5. Las fases
@@ -264,7 +284,7 @@ Las fases 2 (profundizada al estándar nuevo), 3 y 4 están publicadas desde el 
 | 11 ✓ | Estaciones · Modelo | Estaciones 3, 4 y 5 de Alba | M08, M10, M11 |
 | 12 ✓ | Estaciones · API | Estación 6 | M03, M07 |
 | 13 ✓ | Estaciones · Contenedor | Estación 7 y 8 | M05, M10 |
-| 14 | Estaciones · Orquestación | Estación 9 y 10 | M06, M11 |
+| 14 ✓ | Estaciones · Orquestación | Estación 9 y 10 | M06, M11 |
 | 15 | Estaciones · Monitoreo | Estación 11 y 12 | M03, M12 |
 | 16 | Integración | El Dojo y la Ronda enlazan desde sus propias apps a las lecciones de Sensei (Sensei solo los enlaza desde `/que-sigue/`), hay repaso con tarjetas del glosario y una revisión final de hechos | Todo |
 

@@ -1,0 +1,277 @@
+{
+ "titulo": "El shadow de la versión 15: una copia que nadie ve",
+ "width": 78,
+ "height": 52,
+ "lanes": [
+  {
+   "id": "linea",
+   "label": "Lo que ve Ana",
+   "kind": "online",
+   "x": 0,
+   "y": 0,
+   "w": 78,
+   "h": 16
+  },
+  {
+   "id": "sombra",
+   "label": "En la sombra",
+   "kind": "neutral",
+   "x": 0,
+   "y": 18,
+   "w": 78,
+   "h": 15
+  },
+  {
+   "id": "despues",
+   "label": "Después: el job diario",
+   "kind": "offline",
+   "x": 0,
+   "y": 35,
+   "w": 78,
+   "h": 17
+  }
+ ],
+ "nodes": [
+  {
+   "id": "ana",
+   "label": "Ana",
+   "sub": "sube unos tenis",
+   "kind": "client",
+   "x": 1,
+   "y": 5,
+   "w": 15,
+   "h": 8,
+   "note": "La vendedora de ejemplo. Su foto entra como una request más, con su [[request-id|request_id]]; ella nunca sabe que hubo una copia."
+  },
+  {
+   "id": "alb",
+   "label": "ALB",
+   "sub": "100 % a la 14",
+   "kind": "edge",
+   "x": 19,
+   "y": 5,
+   "w": 14,
+   "h": 8,
+   "note": "El [[alb|balanceador]] de Alba. Durante el shadow manda **todo** al gateway de la release 14: la copia no la hace él, la hace el gateway."
+  },
+  {
+   "id": "gw14",
+   "label": "gateway v14",
+   "sub": "release vigente",
+   "kind": "service",
+   "x": 37,
+   "y": 5,
+   "w": 19,
+   "h": 8,
+   "note": "Contesta como siempre y, aparte, decide por el hash del `request_id` si la request es del 10 % que se copia. La copia corre en una tarea aparte, con su propio plazo."
+  },
+  {
+   "id": "tr14",
+   "label": "triton-v14",
+   "sub": "contesta",
+   "kind": "gpu",
+   "x": 61,
+   "y": 5,
+   "w": 16,
+   "h": 8,
+   "note": "El champion, `resnet50-2026-10-01`. Su respuesta es la que ve Ana: «Calzado › Tenis», 94 %."
+  },
+  {
+   "id": "cola",
+   "label": "cola de copias",
+   "sub": "acotada",
+   "kind": "queue",
+   "x": 37,
+   "y": 22,
+   "w": 19,
+   "h": 8,
+   "note": "Si se llena, la copia se tira. Así, una sombra lenta nunca frena la respuesta de verdad."
+  },
+  {
+   "id": "tr15",
+   "label": "triton-v15",
+   "sub": "su propia T4",
+   "kind": "gpu",
+   "x": 61,
+   "y": 22,
+   "w": 16,
+   "h": 8,
+   "note": "El challenger, `resnet50-2026-11-01`, en su propia T4 (US$0.526/h). Calcula y devuelve números: no escribe en ningún lado."
+  },
+  {
+   "id": "revision",
+   "label": "revisión",
+   "sub": "300–500 a mano",
+   "kind": "human",
+   "x": 1,
+   "y": 39,
+   "w": 16,
+   "h": 8,
+   "note": "Una muestra al azar de los desacuerdos va a una persona, que dice cuál de los dos acertó. Es lo que dice **en qué** cambió el modelo."
+  },
+  {
+   "id": "job",
+   "label": "job diario",
+   "sub": "une por request_id",
+   "kind": "job",
+   "x": 20,
+   "y": 39,
+   "w": 15,
+   "h": 8,
+   "note": "Une las dos líneas de cada `request_id` y mide acuerdo top-1 (≥ 90 %), p99 (≤ 1.1 × el del champion), crashes (cero) y las 20 categorías más grandes (ninguna < 85 %)."
+  },
+  {
+   "id": "log",
+   "label": "log",
+   "sub": "shadow=true",
+   "kind": "store",
+   "x": 39,
+   "y": 39,
+   "w": 17,
+   "h": 8,
+   "note": "Una línea por respuesta del challenger, con el mismo `request_id`, `model_version: resnet50-2026-11-01` y `shadow=true`. La del champion ya estaba ahí, como siempre."
+  }
+ ],
+ "edges": [
+  {
+   "from": "ana",
+   "to": "alb",
+   "kind": "online",
+   "label": "foto",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "alb",
+   "to": "gw14",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "gw14",
+   "to": "tr14",
+   "kind": "online",
+   "fromSide": "r",
+   "toSide": "l"
+  },
+  {
+   "from": "gw14",
+   "to": "cola",
+   "kind": "async",
+   "label": "10 %",
+   "fromSide": "b",
+   "toSide": "t",
+   "dashed": true
+  },
+  {
+   "from": "cola",
+   "to": "tr15",
+   "kind": "async",
+   "fromSide": "r",
+   "toSide": "l",
+   "dashed": true
+  },
+  {
+   "from": "tr15",
+   "to": "log",
+   "kind": "async",
+   "label": "respuesta",
+   "fromSide": "b",
+   "toSide": "r",
+   "dashed": true,
+   "via": [
+    [
+     69,
+     43
+    ]
+   ]
+  },
+  {
+   "from": "log",
+   "to": "job",
+   "kind": "offline",
+   "fromSide": "l",
+   "toSide": "r"
+  },
+  {
+   "from": "job",
+   "to": "revision",
+   "kind": "offline",
+   "fromSide": "l",
+   "toSide": "r"
+  }
+ ],
+ "flows": [
+  {
+   "id": "copia",
+   "label": "Una request copiada",
+   "steps": [
+    {
+     "nodes": [
+      "ana",
+      "alb",
+      "gw14"
+     ],
+     "edges": [
+      "ana>alb",
+      "alb>gw14"
+     ],
+     "text": "Ana sube la foto de sus tenis. El **ALB** la manda, como todas, al gateway de la release 14."
+    },
+    {
+     "nodes": [
+      "gw14",
+      "tr14"
+     ],
+     "edges": [
+      "gw14>tr14"
+     ],
+     "text": "El gateway le pregunta a **triton-v14** y Ana recibe «Calzado › Tenis» con 94 %. Para ella, aquí termina todo."
+    },
+    {
+     "nodes": [
+      "gw14",
+      "cola"
+     ],
+     "edges": [
+      "gw14>cola"
+     ],
+     "text": "El hash de su `request_id` cae en el 10 %: el gateway pone una **copia** de la foto ya preparada en la cola acotada, en una tarea aparte."
+    },
+    {
+     "nodes": [
+      "cola",
+      "tr15"
+     ],
+     "edges": [
+      "cola>tr15"
+     ],
+     "text": "**triton-v15** calcula su respuesta en su propia T4. Si tardara de más, la copia se tira y nadie lo nota."
+    },
+    {
+     "nodes": [
+      "tr15",
+      "log"
+     ],
+     "edges": [
+      "tr15>log"
+     ],
+     "text": "Su respuesta va **solo al log**, con `shadow=true` y el mismo `request_id`. Nunca a Ana ni a la base de datos."
+    },
+    {
+     "nodes": [
+      "log",
+      "job",
+      "revision"
+     ],
+     "edges": [
+      "log>job",
+      "job>revision"
+     ],
+     "text": "Al día siguiente, el **job diario** une el par, lo suma al acuerdo del día (≈ 1 M pares) y, si el par discrepa, puede salir en la muestra de 300 a 500 que revisa una persona."
+    }
+   ]
+  }
+ ]
+}

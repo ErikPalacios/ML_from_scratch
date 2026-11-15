@@ -463,7 +463,7 @@ Dentro de un clúster de Kubernetes, el grupo de máquinas que maneja los pods d
 
 `triton.classifier.svc.cluster.local`
 
-Se lee igual, de derecha a izquierda: el dominio del clúster (`cluster.local`), los Services (`svc`), el *namespace* `classifier` y el Service `triton`. Ojo: un *namespace* de Kubernetes no es el namespace de red de Linux que viste arriba; es solo una carpeta para agrupar los objetos de un equipo, y `classifier` es la del clasificador de Alba. Un [[service-k8s|Service]] es un objeto de Kubernetes que pone **un nombre y una IP fijos** delante de los pods que hacen el mismo trabajo, y reparte entre ellos. El gateway lee ese nombre de una variable de su configuración, `TRITON_URL=triton.classifier.svc.cluster.local:8000`: el nombre y, después de los dos puntos, el puerto.
+Se lee igual, de derecha a izquierda: el dominio del clúster (`cluster.local`), los Services (`svc`), el *namespace* `classifier` y el Service `triton`. En producción cada versión del modelo tiene su Service (`triton-v14` hoy); aquí `triton` es el nombre corto de una sola release (una versión publicada). Ojo: un *namespace* de Kubernetes no es el namespace de red de Linux que viste arriba; es solo una carpeta para agrupar los objetos de un equipo, y `classifier` es la del clasificador de Alba. Un [[service-k8s|Service]] es un objeto de Kubernetes que pone **un nombre y una IP fijos** delante de los pods que hacen el mismo trabajo, y reparte entre ellos. El gateway lee ese nombre de una variable de su configuración, `TRITON_URL=triton.classifier.svc.cluster.local:8000`: el nombre y, después de los dos puntos, el puerto.
 
 :::profundo Por qué un nombre corto cuesta varias consultas en un pod
 Dentro de un pod, el archivo `/etc/resolv.conf` le dice al sistema a qué DNS preguntar y qué terminaciones probar. En el namespace `classifier`, la lista de terminaciones (*search*) es `classifier.svc.cluster.local`, `svc.cluster.local` y `cluster.local`, y Kubernetes pone `ndots:5`: si un nombre tiene menos de 5 puntos, se prueba primero con cada terminación. Por eso `triton` a secas funciona dentro del namespace: se vuelve `triton.classifier.svc.cluster.local` al primer intento.
@@ -615,7 +615,7 @@ Cada conexión nueva paga 1 RTT de handshake (2 con TLS), empieza mandando poco 
 
 Funciona hasta que el pod se reinicia y nace con otra IP. O hasta que Kubernetes agrega un pod nuevo que nadie conoce.
 
-**Cómo evitarlo:** hablarle a un nombre, el del Service (`triton.classifier.svc.cluster.local`), que tiene una IP fija y siempre apunta a los pods vivos. En la nube, lo mismo: nombres de DNS, no IPs escritas en la configuración.
+**Cómo evitarlo:** hablarle a un nombre, el del Service de su Triton (aquí, `triton.classifier.svc.cluster.local`; en producción lleva la versión, `triton-v14.classifier…`), que tiene una IP fija y siempre apunta a los pods vivos. En la nube, lo mismo: nombres de DNS, no IPs escritas en la configuración.
 
 ### 5. Olvidar el TTL al mover un servicio
 

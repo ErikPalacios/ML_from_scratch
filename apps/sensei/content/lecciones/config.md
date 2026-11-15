@@ -34,7 +34,7 @@ Este es el inventario del gateway de Alba:
 | `MODEL_VERSION` | Qué modelo espera encontrar | `resnet50-2026-10-01` | Con cada modelo |
 | `DB_PASSWORD` | La contraseña de una base de datos | (secreta) | Sí |
 
-`triton.classifier:8000` es el nombre corto de Triton dentro del clúster: el [[service-k8s|Service]] `triton` (la dirección fija que reparte las requests entre las copias de Triton) en el *namespace* `classifier` (la carpeta de Kubernetes que agrupa los objetos de un equipo) y su puerto 8000. En la lección de red viste el nombre completo, `triton.classifier.svc.cluster.local`; el DNS del clúster completa el corto con sus terminaciones y los dos llegan al mismo Service. La última fila es un ejemplo de esta lección: supón que el gateway anota en una base de datos cada sugerencia que Ana acepta. Sirve para hablar de contraseñas; en «En la vida real» verás que el gateway de Alba casi no tiene.
+`triton.classifier:8000` es el nombre corto de Triton dentro del clúster: el [[service-k8s|Service]] `triton` (la dirección fija que reparte las requests entre las copias de Triton; en producción hay uno por versión del modelo, `triton-v14` hoy, y aquí va el nombre corto) en el *namespace* `classifier` (la carpeta de Kubernetes que agrupa los objetos de un equipo) y su puerto 8000. En la lección de red viste el nombre completo, `triton.classifier.svc.cluster.local`; el DNS del clúster completa el corto con sus terminaciones y los dos llegan al mismo Service. La última fila es un ejemplo de esta lección: supón que el gateway anota en una base de datos cada sugerencia que Ana acepta. Sirve para hablar de contraseñas; en «En la vida real» verás que el gateway de Alba casi no tiene.
 
 ### Tres ambientes, un solo código
 
@@ -598,7 +598,7 @@ Pero el cifrado protege los discos, no a las personas. El control real es quién
 
 ### Lo que cambia y lo que no llega
 
-Si cambias `INFER_TIMEOUT_S` en el ConfigMap, los pods que ya corren no se enteran: su variable se copió al arrancar. Hay que reiniciarlos, por oleadas, con `kubectl rollout restart deployment/gateway` (`kubectl` es el comando con el que se le habla a Kubernetes). Un archivo montado, en cambio, se actualiza solo, con un retraso que suele llegar hasta alrededor de un minuto. Aun así, tu programa tiene que volver a leerlo: si lo leyó una vez al arrancar, sigue con el valor viejo.
+Si cambias `INFER_TIMEOUT_S` en el ConfigMap, los pods que ya corren no se enteran: su variable se copió al arrancar. Hay que reiniciarlos, por oleadas, con `kubectl rollout restart deployment/gateway` (`kubectl` es el comando con el que se le habla a Kubernetes; el gateway de Alba es un Rollout de Argo, lo cuenta «Rollout seguro», y ahí el equivalente es `kubectl argo rollouts restart gateway`). Un archivo montado, en cambio, se actualiza solo, con un retraso que suele llegar hasta alrededor de un minuto. Aun así, tu programa tiene que volver a leerlo: si lo leyó una vez al arrancar, sigue con el valor viejo.
 
 :::profundo Por qué tarda, y cuándo no llega nunca
 Quien escribe los archivos en el nodo es el kubelet, el agente de Kubernetes que corre en cada máquina y arranca sus pods. No vigila cada cambio al instante: revisa cada cierto tiempo (su periodo de sincronización, por omisión un minuto) y además guarda una copia de los objetos. La documentación de Kubernetes lo dice así: el retraso total puede ser ese periodo más lo que tarde en ponerse al día la copia.
@@ -946,7 +946,7 @@ Resuélvelos antes de abrir la solución. Los de rotación y reinicios se pueden
 - Lo habría evitado validar el rango al arrancar (de 0.01 a 2 segundos) y leer bien el nombre: `_S` es segundos.
 ? [medio] Cambias `INFER_TIMEOUT_S` de 0.15 a 0.2 en el ConfigMap del gateway, que llega como variable de entorno. Pasan 10 minutos y los pods siguen con 0.15. ¿Por qué? ¿Qué haces? ¿Qué cambiaría si llegara como archivo montado?
 - Una variable de entorno se copia **al arrancar** el contenedor. Los pods que ya corrían no se enteran.
-- Hay que reiniciarlos: `kubectl rollout restart deployment/gateway`. Kubernetes los cambia por oleadas y cada pod nuevo arranca con 0.2.
+- Hay que reiniciarlos: `kubectl rollout restart deployment/gateway` (con el Rollout de Argo de Alba, `kubectl argo rollouts restart gateway`). Kubernetes los cambia por oleadas y cada pod nuevo arranca con 0.2.
 - Como archivo, el kubelet lo actualizaría solo, en alrededor de un minuto. Pero el gateway tendría que volver a leer el archivo: si lo leyó una vez al arrancar, seguiría con 0.15.
 ? [medio] Un desarrollador sube por error el `.env` con la contraseña de staging, se da cuenta y lo borra en el commit siguiente, dos minutos después. El repositorio es privado. ¿Ya está? Escribe los pasos en orden.
 - No. La historia de Git guarda el commit anterior (`git show HEAD~1:.env` lo muestra), y cada copia del repositorio lo tiene. Que sea privado no ayuda si alguien roba un acceso, como en Uber.
