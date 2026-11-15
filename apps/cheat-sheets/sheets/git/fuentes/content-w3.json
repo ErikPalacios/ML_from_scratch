@@ -312,7 +312,7 @@
      }
     }
    },
-   "memo": "Cómo recordarla: <b>CI construye, git decide, el cluster copia</b>. Desplegar es un merge que cambia una línea; volver es un revert de ese merge. El environment pone a una persona en el medio y <code>concurrency</code> pone a los deploys en fila.",
+   "memo": "Cómo recordarla: <b>CI construye, git decide, el cluster copia</b>. Desplegar es un merge que cambia una línea; volver es un revert de ese merge. El environment pone a una persona en el medio y <code>concurrency</code> deja un solo deploy a la vez: si se juntan varios, solo espera el más nuevo y los demás se cancelan.",
    "trap": "Trampa: arreglar producción con <code>kubectl set image</code> o <code>kubectl rollout undo</code> cuando hay GitOps. Dura poco: con <code>selfHeal</code>, Argo CD vuelve a lo que dice git en segundos, y sin él, en el próximo sync. El rollback de verdad es un <code>git revert</code> del commit del deploy. Y nunca <code>cancel-in-progress: true</code> en un job de deploy: el job se corta a mitad de camino y nadie confirma qué quedó corriendo.",
    "lab": {
     "goal": "Simular GitOps en tu máquina (un repo bare hace de repo de manifests y main es lo que Argo CD aplicaría): desplegar con un merge, volver con un revert (de un merge commit y de un squash) y, si quieres, ver en GitHub un environment con aprobación y concurrency.",
