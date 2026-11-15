@@ -107,7 +107,7 @@
     ],
     "page": "cheatsheet-git.html",
     "pdf": "cheatsheet-git.pdf",
-    "updated": "2026-10-25",
+    "updated": "2026-11-15",
     "seo": "Cheat sheet de Git y GitHub Actions: ramas, merge, rebase, deshacer cambios, workflows de CI/CD y diagnóstico de un CI en rojo."
   },
   {

@@ -226,7 +226,7 @@
       "id": "forma-exec",
       "termino": "Forma exec y señales",
       "en": "exec form / PID 1 / SIGTERM",
-      "def": "CMD [\"uvicorn\", …] (con corchetes) hace a uvicorn el PID 1 y recibe SIGTERM. En forma shell, PID 1 es /bin/sh, que no reenvía la señal.",
+      "def": "CMD [\"uvicorn\", …] (con corchetes) hace a uvicorn el PID 1 y recibe SIGTERM. En forma shell, PID 1 es /bin/sh -c: el sh de Debian no se reemplaza por tu comando, ni con uno simple, y no reenvía la señal.",
       "analogia": "Avisarle directo a quien tiene que cerrar la tienda, en vez de dejarle el recado al guardia.",
       "importa": "docker stop y Kubernetes mandan SIGTERM y esperan (10 s y 30 s por defecto); si nadie la atiende, matan el proceso a media request.",
       "trampa": "Un script de entrada sin exec al final: el proceso real queda como hijo y no se entera."
@@ -695,7 +695,7 @@
       "comandos": [
         {
           "code": "/usr/bin/time -p docker compose stop gateway",
-          "nota": "0.47 s. En forma shell tardaría los 10 s completos: docker stop espera y luego mata.",
+          "nota": "0.63 s. En forma shell tarda 10.2 s (medido con python:3.13-slim): sh es el PID 1, no reenvía el SIGTERM, y docker stop espera los 10 s y luego mata con SIGKILL (exit 137).",
           "donde": "mac",
           "salida": " Container iris-gateway-1 Stopping \n Container iris-gateway-1 Stopped \nreal 0.63\nuser 0.05\nsys 0.03"
         },
