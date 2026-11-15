@@ -21,10 +21,12 @@ Las copias de plantilla en los worktrees de las fases siguientes son iguales byt
 4. Se corrigió lo mínimo, con el estilo de la Ronda.
 
 **Resultado.**
-- **36 se aplicaron**, en 24 archivos de contenido y código, más `reference-files.js` regenerado.
-- **29 se descartaron**: la Ronda no lo dice, ya estaba bien, o la anotación no se sostuvo.
+- **35 se aplicaron**, en 23 archivos de contenido y código, más `reference-files.js` regenerado.
+- **30 se descartaron**: la Ronda no lo dice, ya estaba bien, o la anotación no se sostuvo.
 
 Se regeneró `reference-files.js` con `npm run embed`. Pasan `npm test` (21), `npm run validate` (0 avisos), `npm run build:vercel` y `npm run smoke` (563/563). El YAML del Rollout de M11 se revisó con un parser de YAML.
+
+**Corrección posterior.** La C1 (forma shell de `CMD`) se aplicó en 3a58647 y salió en el deploy `dpl_Doc3GmeG9xDkcYRJxePH5HoVbcTp`. Luego se revirtió, porque el `sh` de Debian no hace ese exec. Está en la tabla de descartadas.
 
 **Dónde difiere de la anotación original.**
 - **RG4:** la revisión decía ≈ 60 s; con los valores del AWS Load Balancer Controller, que es lo que usa c01, son ≈ 30 s.
@@ -439,18 +441,6 @@ Se regeneró `reference-files.js` con `npm run embed`. Pasan `npm test` (21), `n
   - antes: «una foto web de 40 MP cuesta ${E('decenas de ms')} de CPU de decode»
   - después: «una foto web de 40 MP cuesta ${E('más de 100 ms')} de CPU de decode (≈ 3× los píxeles de una de 12 MP)»
 
-### C1 · fase 13 · empaquetado
-
-**Qué estaba mal:** En forma shell, el sh de Debian (dash 0.5.12) hace exec de un comando simple y la señal llega; el shell solo se queda como PID 1 con un tubo, algo después del comando, un trap o un script sin exec.
-
-**Fuente:** Código de dash 0.5.12: main.c (`evalstring(minusc, sflag ? 0 : EV_EXIT)`) y eval.c (fork solo `if (!(flags & EV_EXIT) || have_traps())`), https://git.kernel.org/pub/scm/utils/dash/dash.git/plain/src/eval.c?h=v0.5.12 · prueba local con dash: `dash -c 'sleep 5'` muere con SIGTERM (143); con `| cat` o `; true` dash se queda
-
-- `js/content/m05-contenedores.js`
-  - antes: «'En forma shell, el PID 1 es <code>/bin/sh</code> y no reenvía el SIGTERM a tu proceso. Y el kernel descarta las señales al PID 1 que no tienen handler: un script sin handler de SIGTERM ignora el aviso. En ambos casos el pod»
-  - después: «'En forma shell, Docker corre <code>/bin/sh -c "…"</code>. Con el <code>sh</code> de Debian (dash) y un comando simple, el shell se reemplaza por tu proceso y la señal llega; con un tubo (<code>\|</code>), algo después del comando, un <code>trap</code> o un script sin <code>exec</code>, el shell se queda como PID 1 y no reenvía el SIGTERM. Y el kernel descarta las señales al PID 1 que no tienen handler: un script sin handler de SIGTERM ignora el aviso. En esos casos el pod»
-- `js/content/m05-contenedores.js`
-  - antes: «# Corre como root; forma shell: /bin/sh es el PID 1 y uvicorn no recibe SIGTERM»
-  - después: «# Corre como root; forma shell: uvicorn recibe SIGTERM solo porque el sh de Debian hace exec de un comando simple (con un \| o un ; ya no)»
 
 ### K1 · fase 14 · kubernetes
 
@@ -583,6 +573,7 @@ Se regeneró `reference-files.js` con `npm run embed`. Pasan `npm test` (21), `n
 | T6 · fase 11 | Stages deprecados desde MLflow 2.9 | Correcto |
 | T7 · fase 11 | Exportar sin `eval()` rompe el ONNX en general | M8 y c01 ya dan el matiz (TorchScript pone EVAL; `dynamo=True` es default desde PyTorch 2.9) |
 | T9 · fase 11 | 24.5 M parámetros dentro del ONNX | 24,532,532 y 24,505,972 (con BN fundida) redondean igual a 24.5 M y 98 MB |
+| C1 · fase 13 | En forma shell, el `sh` de Debian hace exec de un comando simple y el SIGTERM llega | **Falsa en Debian.** El dash de upstream sí hace ese exec, pero Debian lo desactiva con el parche `0004-SHELL-Disable-sh-c-command-sh-c-exec-command-optimiza.diff` (`evalstring(minusc, 0)`), que sigue en 0.5.12-12 (trixie) y 0.5.12-2 (bookworm): https://sources.debian.org/src/dash/0.5.12-12/debian/patches/. Medido en `python:3.13-slim` con `docker stop --stop-timeout 10`: con `sh -c 'python3 s.py'` el PID 1 es `/bin/sh`, tarda 10.15 s y sale con 137 (SIGKILL); en forma exec, 0.12 s. La Ronda ya decía lo correcto. Esta corrección se aplicó por error en 3a58647 y se revirtió en el commit siguiente |
 | C2 · fase 13 | `python:3.13-slim` es Debian 13 | No aparece «bookworm» ni «Debian 12»; c06 y c07 ya dicen trixie |
 | C3 · fase 13 | `concurrency` de GitHub Actions «pone en fila» | No aparece en la Ronda (el error está en la hoja de Git, ver abajo) |
 | K2 · fase 14 | `rollout undo` con GitOps dura hasta el siguiente sync | ref-comandos ya distingue: «el próximo sync lo pisa; con auto-sync y self-heal, Argo CD lo revierte solo» |
@@ -590,8 +581,7 @@ Se regeneró `reference-files.js` con `npm run embed`. Pasan `npm test` (21), `n
 
 ## Fuera de la Ronda (no se tocaron)
 
-- **Hoja de Git** (`apps/cheat-sheets/sheets/`, §10, `memo`): «`concurrency` pone a los deploys en fila» contradice su propia nota. Con la cola por omisión solo espera el más nuevo y los demás pendientes se cancelan. Corregirla obliga a reimprimir el PDF de esa hoja.
-- **Dojo, estación 7** (`apps/taller-ai`), paso «apagado»: dice que en forma shell el SIGTERM nunca llega, y da «10 s completos» sin medirlos. Con el `sh` de Debian y un comando simple sí llega (ver C1).
+- **Hoja de Git** (`apps/cheat-sheets/sheets/`, §10, `memo`): «`concurrency` pone a los deploys en fila» contradice su propia nota. Con la cola por omisión solo espera el más nuevo y los demás pendientes se cancelan. Corregirla obliga a reimprimir el PDF de esa hoja. Ya está corregida (con el PDF) en el commit 058025e de la rama `claude/fervent-napier-18290f`, sin fusionar ni desplegar; en esa misma rama, el Dojo conserva su texto, que era el correcto, y solo agrega la medición.
 - **`reference/c01/k8s/gateway.yaml`:** el Ingress no configura ninguna acción `jwt-validation`, aunque M15 dice que el ALB de c01 valida el JWT. Falta revisar si el AWS Load Balancer Controller lo soporta por anotación.
 - **Spot de g6 y g6e:** el Spot Instance Advisor (≈ 49 % y ≈ 50 %) no cuadra con la foto de m13.spot (≈ 25 % y ≈ 1 %). No se cambió porque no se pudo confirmar cuál fuente está al día.
 - **Cuota de M13 (28 vCPU):** no cuenta el nodo GPU de reserva. Si c01 tiene uno siempre encendido (m06 dice que el NodePool «ya contaba surge y reserva»), serían 32.
