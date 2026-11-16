@@ -141,7 +141,7 @@ const THEME_JS = `<script>
   window.addEventListener('afterprint', function () { if (before) root.setAttribute('data-theme', before); else root.removeAttribute('data-theme'); before = null; });
 })();
 </script>`;
-// Barra de arriba (portada y hojas), con los colores de TrueML: la marca (la T y TrueML, a la portada de TrueML), volver
+// Barra de arriba (portada y hojas), con los colores de TrueML: la marca (la T y TrueML, a la portada de las cheat sheets), volver
 // a todas las cheat sheets, el tema y el PDF. En la portada, la marca va sola.
 const BAR_CSS = `
 body { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); position: relative; }
@@ -219,7 +219,7 @@ for (const s of SHEETS) {
   const dir = join(ROOT, 'sheets', s.id);
   for (const f of [s.page, s.pdf]) if (!existsSync(join(dir, f))) fail(`falta sheets/${s.id}/${f}`);
   s.pdfSize = statSync(join(dir, s.pdf)).size;
-  const bar = `<nav class="hub-bar" aria-label="Cheat sheets"><div class="hub-brand"><a class="hub-logo" href="https://ml-desde-cero.vercel.app" aria-label="TrueML: todas las herramientas"><span class="hub-mark" aria-hidden="true">${marcaBarra('barra')}</span><span class="hub-word">True<span>ML</span></span></a><span class="hub-sep" aria-hidden="true"></span><a class="hub-home" href="/">← Todas las cheat sheets</a></div><div class="hub-acc">${THEME_UI}<a class="hub-pdf" href="${esc(s.pdf)}">PDF <small>${mb(s.pdfSize)}</small></a></div></nav>`;
+  const bar = `<nav class="hub-bar" aria-label="Cheat sheets"><div class="hub-brand"><a class="hub-logo" href="/" aria-label="Portada de las cheat sheets"><span class="hub-mark" aria-hidden="true">${marcaBarra('barra')}</span><span class="hub-word">True<span>ML</span></span></a><span class="hub-sep" aria-hidden="true"></span><a class="hub-home" href="/">← Todas las cheat sheets</a></div><div class="hub-acc">${THEME_UI}<a class="hub-pdf" href="${esc(s.pdf)}">PDF <small>${mb(s.pdfSize)}</small></a></div></nav>`;
   let src = sinFuentes(readFileSync(join(dir, s.page), 'utf8'));
   if (s.seo) src = src.replace(/<meta name="description"[^>]*>\s*/i, ''); // la descripción corta de sheets.json manda sobre la de la página
   // la T chica con las etapas de la hoja, junto al kicker del hero: el marcador de etapa
@@ -260,7 +260,7 @@ hub = hub.replace('<!--HOJAS-->', SHEETS.map(card).join('\n'));
 // la T con etiquetas si hay espacio; sin ellas en pantallas angostas (lo decide un container query del CSS)
 hub = hub.replace('<!--MARCA-->', `<div class="t-con">${marca({ etiquetas: true, clave: 'hub', maxAltura: 'min(calc(100vh - 120px), 760px)' })}</div><div class="t-sin">${TrueMLMark.mark(true, null, 'hub-sin', '420px')}</div>`);
 const CLIENTE = readFileSync(join(ROOT, 'vendor', 'trueml', 'cliente.js'), 'utf8');
-const homeBar = `<nav class="hub-bar" aria-label="Cheat sheets"><div class="hub-brand"><a class="hub-logo" href="https://ml-desde-cero.vercel.app" aria-label="TrueML: todas las herramientas"><span class="hub-mark" aria-hidden="true">${marcaBarra('barra')}</span><span class="hub-word">True<span>ML</span></span></a><span class="hub-sep" aria-hidden="true"></span><span class="hub-home">Cheat sheets</span></div><div class="hub-acc">${THEME_UI}</div></nav>`;
+const homeBar = `<nav class="hub-bar" aria-label="Cheat sheets"><div class="hub-brand"><a class="hub-logo" href="/" aria-label="Portada de las cheat sheets"><span class="hub-mark" aria-hidden="true">${marcaBarra('barra')}</span><span class="hub-word">True<span>ML</span></span></a><span class="hub-sep" aria-hidden="true"></span><span class="hub-home">Cheat sheets</span></div><div class="hub-acc">${THEME_UI}</div></nav>`;
 hub = hub.replace(/<html([^>]*)>/i, (m, a) => `<html${a}${ATTR_TM}>`).replace(/<body[^>]*>/i, (m) => m + STRIPE);
 hub = inject(hub, 'portada', {
   head: seo('/', SITE_NAME + ' — hojas de estudio para ML engineering', 'Hojas de estudio con PDF: estimaciones, Docker, Kubernetes, Git, Triton, FastAPI, Prometheus y vLLM, con diagnosticadores y revisores en tu navegador.', hub),

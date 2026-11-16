@@ -443,8 +443,6 @@
     f.appendChild(h('div', { class: 'foot-row' }, h('span', { class: 'foot-row__label', 'aria-hidden': 'true' }, 'Tema'), seg));
     f.appendChild(h('button', { type: 'button', class: 'btn btn--sm', id: 'btn-portability', on: { click: openPortability } },
       h('span', { html: icon('database') }), 'Exportar / importar progreso'));
-    f.appendChild(h('a', { class: 'foot-tm', href: 'https://ml-desde-cero.vercel.app' },
-      h('span', { class: 'foot-tm__mark', html: tmMark(null) }), h('span', null, 'Todas las herramientas de ', h('b', null, 'True', h('span', null, 'ML')))));
     renderStatus();
   }
 

@@ -199,7 +199,6 @@ function sidebar(actual) {
   <div class="sidebar__foot">
     <div class="tema-row"><span class="lbl">Tema</span>${TEMA}</div>
     <span>Tu avance se guarda solo en este navegador.</span>
-    <a href="${SITIO.portada}">Todas las herramientas de TrueML →</a>
   </div>
 </aside>`;
 }

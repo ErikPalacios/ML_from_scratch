@@ -29,7 +29,7 @@ function barra({ ruta, volver, indice }) {
 <div class="d-stripe" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
 <header class="d-head">
   <div class="d-brand">
-    <a class="d-logo" href="${PORTADA}"><span class="d-logo-mark">${marcaNav}</span><span class="d-word">True<span>ML</span></span></a>
+    <a class="d-logo" href="/" aria-label="Portada del Dojo"><span class="d-logo-mark">${marcaNav}</span><span class="d-word">True<span>ML</span></span></a>
     <span class="d-sep" aria-hidden="true"></span>
     ${volver ? `<a class="d-dojo" href="${volver}">Dojo</a>` : '<span class="d-dojo">Dojo</span>'}
     ${ruta ? `<span class="d-ruta">${esc(ruta)}</span>` : ''}

@@ -416,3 +416,6 @@ details[open] > summary .d-mas i, .d-arreglo[open] summary i { transform: rotate
 .d-sensei-l:hover { box-shadow: 0 0 0 2px var(--g); opacity: 1; }
 .d-est-sensei { display: block; margin: -6px 0 6px 62px; padding: 2px 12px 8px 0; font: 600 12.5px/1.4 var(--sans); color: var(--tm-acc); text-decoration: none; }
 .d-est-sensei:hover { text-decoration: underline; opacity: 1; }
+
+/* el tanque de avance (piezas.js) va dentro del mismo ancho y márgenes que el resto de la página */
+.d-hero + .tm-tanque { box-sizing: border-box; width: 100%; max-width: 1280px; margin: 20px auto 0; padding: 0 clamp(16px, 5vw, 56px); }
