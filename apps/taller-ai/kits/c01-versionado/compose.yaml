@@ -1,0 +1,21 @@
+# La infraestructura del mundo: un S3 local (RustFS). `docker compose up -d` y listo.
+# En C01 real es Amazon S3: el bucket del producto (fotos) y el de ML (ml-datos), con versionado.
+name: taller-c01-versionado
+services:
+  s3:
+    image: rustfs/rustfs:1.0.4
+    ports: ["9300:9000", "9301:9001"]       # en tu Mac: 9300 = API S3 · 9301 = consola web
+    environment:                            # credenciales de prueba del dojo (solo existen en tu Mac)
+      RUSTFS_ACCESS_KEY: taller
+      RUSTFS_SECRET_KEY: taller-secreto
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes: ["s3-versionado:/data"]        # volumen con nombre: evita líos de permisos con carpetas de tu Mac
+    command: ["/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:9000/health || exit 1"]
+      interval: 5s
+      retries: 20
+volumes:
+  s3-versionado: {}

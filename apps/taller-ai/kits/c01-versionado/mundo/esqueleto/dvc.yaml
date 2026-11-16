@@ -1,0 +1,9 @@
+# El pipeline mensual como DAG (paso 6). Cada stage dice qué corre (cmd), qué lee (deps), qué parámetros de
+# params.yaml usa (params) y qué deja (outs). DVC hashea todo eso: si nada cambió, no vuelve a correr el stage.
+# Por eso cada parámetro que lee un script tiene que estar declarado en su stage.
+#
+# Los 5 stages, en orden: labels → manifest → split → validar → publicar (los pasos 1 a 5 de pipeline/).
+# verificar.py dag revisa que existan, que labels declare snapshot.corte y labels.dias_maduracion, que split
+# declare snapshot.corte y split.umbral y dependa de entrada/borrados.csv y entrada/golden.parquet, que publicar
+# declare snapshot.id, y que `dvc status` diga que todo está al día.
+stages: {}

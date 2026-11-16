@@ -1,0 +1,17 @@
+# Los parámetros del pipeline. Tu código los lee de aquí (params() de pipeline/_comun.py); no los copies en los scripts.
+# dvc.yaml dice qué paso usa cuáles: así DVC sabe qué volver a correr cuando uno cambia.
+snapshot:
+  id: ds-2026-09-01              # el snapshot de septiembre. Un contenido nuevo lleva un id nuevo: nunca se reescribe uno publicado
+  corte: '2026-10-01T00:00:00Z'  # point-in-time, en UTC: solo cuenta lo que ya existía antes de esta hora
+  padre: ds-2026-08-01           # el snapshot anterior: contra él se comparan el volumen y el split
+labels:
+  dias_maduracion: 30            # la elección de quien vende cuenta como label si nadie la corrigió en 30 días
+split:
+  umbral: 90                     # cubeta = sha256(seller_id) mod 100; cubeta < 90 → train, si no → val. No se mueve nunca
+validar:
+  volumen_min: 0.8               # el snapshot tiene entre 0.8 y 1.5 veces las filas del padre
+  volumen_max: 1.5
+  max_vendedor: 0.8              # a lo más el 80 % de los labels viene de quien vende
+entrenar:
+  snapshot: ds-2026-09-01        # con qué snapshot entrena pipeline/6_entrenar.py: siempre un id, nunca «latest»
+  semilla: 17

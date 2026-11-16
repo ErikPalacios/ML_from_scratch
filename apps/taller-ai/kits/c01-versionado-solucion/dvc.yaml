@@ -1,0 +1,27 @@
+# El pipeline mensual como DAG: cada paso dice qué lee (deps), qué parámetros usa (params) y qué deja (outs).
+# DVC hashea todo eso; si nada cambió, no vuelve a correr el paso. Por eso cada parámetro que lee un script va aquí.
+stages:
+  labels:
+    cmd: python pipeline/1_labels.py
+    deps: [pipeline/1_labels.py, pipeline/_comun.py, entrada/labels-eventos.parquet]
+    params: [snapshot.corte, labels.dias_maduracion]
+    outs: [data/labels.parquet]
+  manifest:
+    cmd: python pipeline/2_manifest.py
+    deps: [pipeline/2_manifest.py, data/labels.parquet, entrada/publicaciones.parquet]
+    outs: [data/manifest.parquet]
+  split:
+    cmd: python pipeline/3_split.py
+    deps: [pipeline/3_split.py, data/manifest.parquet, entrada/borrados.csv, entrada/golden.parquet]
+    params: [snapshot.corte, split.umbral]
+    outs: [data/rows.parquet]
+  validar:
+    cmd: python pipeline/4_validar.py
+    deps: [pipeline/4_validar.py, data/rows.parquet, entrada/categorias.json, entrada/golden.parquet]
+    params: [snapshot.id, snapshot.padre, validar]
+    outs: [data/validation.json]
+  publicar:
+    cmd: python pipeline/5_publicar.py
+    deps: [pipeline/5_publicar.py, data/rows.parquet, data/validation.json]
+    params: [snapshot.id, snapshot.padre, snapshot.corte, split.umbral]
+    outs: [data/publicado.json]

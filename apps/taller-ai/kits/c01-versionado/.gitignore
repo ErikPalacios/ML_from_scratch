@@ -1,0 +1,8 @@
+# data/ la controla DVC (sus huellas van en dvc.lock); corridas/ es el registro de corridas (en C01, MLflow).
+data/
+corridas/
+.taller/
+.venv/
+__pycache__/
+*.pyc
+.respaldo/

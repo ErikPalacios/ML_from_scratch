@@ -17,8 +17,8 @@
       "id": "versionado",
       "titulo": "Versionado y linaje",
       "etapa": "datos",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://taller-ai-engineer.vercel.app/c01/versionado/"
     },
     {
       "num": 3,

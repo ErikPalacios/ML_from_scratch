@@ -15,6 +15,10 @@ const est = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) => f.end
 const tronco = JSON.parse(readFileSync(join(ROOT, 'content', 'tronco.json'), 'utf8'));
 const P = plantillaTablero(est.map((e) => ({ ...e, slug: `${e.caso}-${e.id}`, url: `/${e.caso}/${e.id}/`, kitUrl: `/${e.caso}/${e.id}/` })), tronco);
 
+// las estaciones con taller, en el orden del tronco; los casos de prueba las buscan por id, no por posición
+const CON_TALLER = tronco.estaciones.filter((t) => est.some((e) => e.id === t.id)).map((t) => `${tronco.caso}-${t.id}`);
+const de = (doc, id) => doc.estaciones.find((x) => x.id === id);
+
 const memoria = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
 const importar = (doc, p) => { const r = opsDeProgreso(doc, p, P); const a = aplicar(doc, r.ops); assert.deepEqual(a.rejected, []); return { doc: a.project, r }; };
 
@@ -34,8 +38,9 @@ const PROGRESO = {
 };
 
 test('la plantilla trae las estaciones con taller y las demás como próximamente', () => {
-  assert.deepEqual(P.estaciones.map((e) => e.id), ['c01-datos', 'c01-empaquetado']);
-  assert.equal(P.proximas.length, tronco.estaciones.length - 2);
+  assert.deepEqual(P.estaciones.map((e) => e.id), CON_TALLER);
+  assert.ok(CON_TALLER.includes('c01-datos') && CON_TALLER.includes('c01-empaquetado'));
+  assert.equal(P.proximas.length, tronco.estaciones.length - CON_TALLER.length);
   assert.ok(P.estaciones.every((e) => e.objetivos.length && e.fallas.length && e.pasos.length));
 });
 
@@ -107,12 +112,12 @@ test('errores claros: archivo ajeno o estación sin taller', () => {
 test('cambiar una ronda desde el tablero pone la hora de inicio y de fin', () => {
   let d = nuevoTablero(P);
   d = aplicar(d, opsEstado(d, 'c01-empaquetado', 'romper-solo', 'hecha', '2026-11-15T20:00:00Z')).project;
-  const r = d.estaciones[1].rondas[3];
+  const r = de(d, 'c01-empaquetado').rondas[3];
   assert.equal(r.estado, 'hecha');
   assert.equal(r.inicio, '2026-11-15T20:00:00Z');
   assert.equal(r.fin, '2026-11-15T20:00:00Z');
   d = aplicar(d, opsEstado(d, 'c01-empaquetado', 'romper-solo', 'pendiente')).project;
-  assert.equal(d.estaciones[1].rondas[3].inicio, null);
+  assert.equal(de(d, 'c01-empaquetado').rondas[3].inicio, null);
 });
 
 test('el motor rechaza un cambio inválido y deja el resto', () => {
@@ -132,7 +137,7 @@ test('migrar suma estaciones nuevas y rondas que falten sin tocar lo tuyo', () =
   viejo.estaciones[0].rondas[0].estado = 'hecha';
   const m = migrar(viejo, P);
   assert.deepEqual(validar(m), []);
-  assert.equal(m.estaciones.length, 2);
+  assert.equal(m.estaciones.length, CON_TALLER.length);
   assert.equal(m.estaciones[0].rondas.length, 4);
   assert.equal(m.estaciones[0].rondas[0].estado, 'hecha');
 });
@@ -165,5 +170,5 @@ test('dos corridas de verificar.py en el mismo segundo entran las dos', () => {
   const p = { estacion: 'c01-empaquetado', rondas: {}, bitacora: [], verificaciones: [
     { fecha: '2026-11-15T18:58:14-06:00', pasan: ['deps'], fallan: [] }, { fecha: '2026-11-15T18:58:14-06:00', pasan: ['contexto'], fallan: [] }] };
   const { doc } = importar(nuevoTablero(P), p);
-  assert.equal(doc.estaciones[1].verificaciones.length, 2);
+  assert.equal(de(doc, 'c01-empaquetado').verificaciones.length, 2);
 });
