@@ -56,7 +56,7 @@ const WIDTHS = `(async () => {
   await wait(600);
   document.querySelector('[data-act="summary"]').click();
   await wait(300);
-  res.summary = { open: !!document.querySelector('dialog[open]'), md: (document.querySelector('dialog pre.md') || {}).textContent ? document.querySelector('dialog pre.md').textContent.slice(0, 30) : null, ...measure() };
+  res.summary = { open: !!document.querySelector('dialog[open]'), md: (document.querySelector('dialog .tm-code pre, dialog pre.md') || {}).textContent ? document.querySelector('dialog .tm-code pre, dialog pre.md').textContent.slice(0, 30) : null, ...measure() };
   return JSON.stringify(res);
 })()`;
 

@@ -4,6 +4,11 @@
    Every change goes through sync.commit(ops): it shows at once, is kept in the browser and is sent to the server. */
 import * as sync from './sync.js';
 import { esc, rich, icon, safeHref, isExternal, days, daysText, daysLevel, fmtDate, toast, dialog, confirmDlg, copyText, download, todayLocal } from './lib.js';
+
+// Commands and Markdown use TrueML's standard code block (language + Copy bar, shared colors) when codigo.js is loaded.
+const codeBlock = (text, lang, title) => (window.TrueMLCodigo
+  ? window.TrueMLCodigo.bloque({ codigo: text, lang, titulo: title })
+  : `<pre class="cmd">${esc(text)}</pre>`);
 import { mapHtml, layoutMap, initMap, stagesOf, STAGE_LABEL, tMark, T_LABELS, miniT } from './map.js';
 import { STATUS, STATUS_LABEL, VUELTA_STATUS, TRAMOS, TRAMO_LABEL, SPEED_LABEL, VAR_KINDS, progress, validateProject, isId, isVarId, nowIso } from './shared/model.mjs';
 import { evaluateProject, fmtNum, parse, varsOf } from './shared/calc.mjs';
@@ -361,8 +366,7 @@ function tabSettings(p) {
     <div class="links" style="margin-top:10px">${pat ? pat.links.map(linkHtml).join('') : ''}</div></div>
   <div class="card"><h2>${icon('terminal')} Claude Code</h2>
     <p>Claude Code sessions read and update this project with their own token (<code>API_TOKEN</code> in Vercel; locally in a git-ignored <code>.env</code>). The CLAUDE.md text is in the board's README.</p>
-    <pre class="cmd">${esc(curl)}</pre>
-    <div class="row" style="margin-top:8px"><button class="btn btn--sm" data-act="copy" data-text="${esc(curl)}">${icon('copy')} Copy</button></div>
+    ${codeBlock(curl, 'bash', 'Claude Code')}
     <p class="small" style="margin-top:8px">Step ids: ${p.steps.map((s) => `<code>${esc(s.id)}</code>`).join(' ')}</p></div>
   <div class="card"><h2>Backup</h2><p>The server keeps a copy of each version (at most one every 10 minutes, the last 30). You can also export the project as JSON.</p>
     <div class="row"><button class="btn" data-act="export-one">${icon('download')} Export project</button><button class="btn" data-act="history">${icon('clock')} Version history</button><button class="btn" data-act="import">${icon('upload')} Import JSON</button></div></div>
@@ -383,8 +387,8 @@ const LISTS = {
     view: (r) => `<div class="grow res"><span>${rich(r.name)}</span><span class="res__v">${esc(r.value)} <small>${esc(r.unit)}</small></span>${r.note || r.date ? `<span class="small" style="grid-column:1/-1">${r.date ? fmtDate(r.date) : ''}${r.note && r.date ? ' · ' : ''}${rich(r.note)}</span>` : ''}</div>` },
   commands: { title: 'Runbook', icon: 'terminal', add: 'Add command', empty: 'No commands.',
     fields: [{ k: 'code', label: 'Command', type: 'mono', req: true }, { k: 'note', label: 'Purpose', type: 'textarea' }],
-    view: (c) => `<div class="grow"><pre class="cmd">${esc(c.code)}</pre>${c.note ? `<p class="small" style="margin-top:4px">${rich(c.note)}</p>` : ''}</div>`,
-    extra: (c) => `<button class="btn btn--sm btn--icon btn--ghost" data-act="copy" data-text="${esc(c.code)}" aria-label="Copy">${icon('copy')}</button>` },
+    view: (c) => `<div class="grow">${codeBlock(c.code, '', '')}${c.note ? `<p class="small" style="margin-top:4px">${rich(c.note)}</p>` : ''}</div>`,
+  },
   files: { title: 'Artifacts & commits', icon: 'doc', add: 'Add artifact', empty: 'No artifacts.',
     fields: [{ k: 'path', label: 'Path or file', req: true, mono: true }, { k: 'ref', label: 'Commit, branch or state' }],
     view: (f) => `<div class="grow"><code>${esc(f.path)}</code>${f.ref ? ` <span class="small">${rich(f.ref)}</span>` : ''}</div>` },
@@ -775,7 +779,7 @@ function summaryDialog() {
   const md = buildSummary(cur());
   dialog({
     title: 'Resume brief',
-    body: `<p class="small">Paste it at the start of a Claude Code session. Claude Code can also read it with <code>GET /api/claude/${esc(cur().id)}</code>.</p><pre class="md">${esc(md)}</pre>`,
+    body: `<p class="small">Paste it at the start of a Claude Code session. Claude Code can also read it with <code>GET /api/claude/${esc(cur().id)}</code>.</p>${codeBlock(md, 'md', 'Markdown')}`,
     actions: [{ label: `${icon('download')} Download .md`, value: 'dl', type: 'button' }, { label: `${icon('copy')} Copy`, value: 'copy', primary: true, type: 'button' }],
     onOpen: (d) => {
       d.querySelector('[data-i="0"]').addEventListener('click', () => download(`brief-${cur().id}-${todayLocal()}.md`, md, 'text/markdown'));

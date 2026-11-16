@@ -1,7 +1,7 @@
 // Las páginas de estación con el diseño «Dojo» de TrueML (Claude Design: «Dojo Estacion 01»).
 // La T de vidrio y las etapas salen del sistema de diseño compartido (apps/trueml, copiado en vendor/trueml con
 // node apps/trueml/sync.mjs). Se dibuja al construir: la página no necesita JavaScript para verse y abre sin conexión.
-import { TrueMLMark as TM, RANGOS_C01, franja } from '../vendor/trueml/lib.mjs';
+import { TrueMLMark as TM, RANGOS_C01, franja, bloqueCodigo } from '../vendor/trueml/lib.mjs';
 
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const PORTADA = 'https://ml-desde-cero.vercel.app';
@@ -42,22 +42,37 @@ function barra({ ruta, volver, indice }) {
 
 const titulo = (h, tag) => `<div class="d-h2"><h2>${esc(h)}</h2>${tag ? `<span class="d-tag">${esc(tag)}</span>` : ''}</div>`;
 
-function codigo(code, lbl) {
-  const id = `c${++uid}`;
-  return `<div class="d-code"><div class="d-code-h"><span>${esc(lbl)}</span><button type="button" class="d-copy" data-copiar="${id}">Copiar</button></div><pre id="${id}"><code>${esc(code)}</code></pre></div>`;
+// El lenguaje de un bloque, a partir de su etiqueta (nombre del archivo, «terminal», «python»…); sin pista queda sin color.
+function lenguaDe(lbl, code) {
+  const l = String(lbl || '').toLowerCase();
+  if (['python', 'json', 'yaml', 'sql', 'bash', 'toml', 'docker', 'js'].includes(l)) return l;
+  if (/\.py$/.test(l)) return 'python';
+  if (/\.ya?ml$/.test(l)) return 'yaml';
+  if (/\.json$/.test(l)) return 'json';
+  if (/\.sql$/.test(l)) return 'sql';
+  if (/\.toml$/.test(l)) return 'toml';
+  if (/(^|\/)dockerfile/.test(l)) return 'docker';
+  if (/\.sh$/.test(l) || /^(terminal|arranque|mac)/.test(l)) return 'bash';
+  return /^\s*(\$ |docker |pip |python3? |cd |unzip )/m.test(code) ? 'bash' : '';
+}
+
+function codigo(code, lbl, forzado) {
+  const lang = forzado || lenguaDe(lbl, code);
+  return bloqueCodigo({ codigo: code, lang, titulo: lbl === lang ? '' : lbl });
 }
 
 function salida(s, lbl = 'Salida real') {
   if (s === null || s === undefined) return `<p class="d-nota">La salida depende de tu corrida.</p>`;
   if (s === '') return `<p class="d-nota">No imprime nada.</p>`;
-  return `<div class="d-salida"><div class="d-salida-h">${esc(lbl)}</div><pre><code>${esc(s)}</code></pre></div>`;
+  return bloqueCodigo({ codigo: s, salida: true, titulo: lbl === 'Salida real' ? '' : lbl });
 }
 
 const comando = (c, lbl = 'terminal') => codigo(c.code, c.donde && c.donde !== 'mac' ? c.donde : lbl) + (c.nota ? `<p class="d-nota">${c.nota}</p>` : '') + salida(c.salida);
 
+// El prompt para pegar en Claude Code: el botón del resumen lo copia entero sin abrir el bloque (mismo botón que el código).
 function prompt(texto, { boton = 'Copiar el prompt', ver = 'Ver el prompt' } = {}) {
   const id = `p${++uid}`;
-  return `<details class="d-prompt"><summary><span>${esc(ver)} <i aria-hidden="true">↓</i></span><button type="button" class="d-copy-y" data-copiar="${id}">${esc(boton)}</button></summary><pre id="${id}">${esc(texto)}</pre></details>`;
+  return `<details class="d-prompt"><summary><span>${esc(ver)} <i aria-hidden="true">↓</i></span><button type="button" class="tm-code__copy" data-tm-copiar="pre-${id}" aria-label="${esc(boton)}"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="2"/><path d="M10.5 3.5v-.5a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg><span>${esc(boton)}</span></button></summary>${bloqueCodigo({ codigo: texto, lang: '', titulo: 'prompt', id })}</details>`;
 }
 
 const chips = (ids, idx) => (ids.length ? `<div class="d-chips">${ids.map((i) => `<a href="${idx.get(i).url}">${esc(idx.get(i).termino)}</a>`).join('')}</div>` : '');
@@ -102,7 +117,7 @@ const pie = `<footer class="d-wrap d-foot">
   <p>© ${new Date().getFullYear()} Erik Palacios · Contenido bajo <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es">CC BY-NC-ND 4.0</a> · <a href="${PORTADA}">TrueML</a> · <a href="https://github.com/ErikPalacios/ML_from_scratch/issues/new">Reportar un error</a></p>
   <p>La app es la guía: no corre nada. El trabajo pasa en tu Mac, con el kit y una sesión de Claude Code. Después de la primera visita abre sin conexión.</p>
 </footer>
-<div class="d-toast" aria-live="polite" role="status"></div>`;
+`;
 
 // Índice de conceptos: los de la estación viven en su página; los de cada práctica, en la suya.
 function indiceConceptos(e, aqui) {
@@ -264,7 +279,7 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
   <div class="d-grid2">
     <p class="d-p">Con todo en verde, <code>romper.py</code> mete una falla en el mundo, la configuración o la infraestructura (nunca en lo que escribiste) y, si hace falta, deja corriendo lo que «pasó anoche». Tú empiezas por <code>verificar.py</code>.</p>
     ${codigo([['--mostrar', 'con ayuda: Claude sabe cuál es'], ['', 'solo: escondida, ni Claude la sabe'], ['--verificar', '¿ya quedó?'], ['--revelar', 'me rindo'], ['--restaurar', 'deshacer']]
-      .map(([a, c]) => `${`${py} romper.py ${a}`.padEnd(py.length + 23)}# ${c}`).join('\n'), 'romper.py')}
+      .map(([a, c]) => `${`${py} romper.py ${a}`.padEnd(py.length + 23)}# ${c}`).join('\n'), 'romper.py', 'bash')}
   </div>
   <details class="d-catalogo"><summary><span><span class="d-cat-t">Catálogo de fallas <em>(spoilers)</em></span><span class="d-txt">El catálogo de abajo trae las respuestas. Ábrelo después de romper, para repasar.</span></span><span class="d-cat-b">Abrir el catálogo</span></summary>
     <div class="d-fallas">

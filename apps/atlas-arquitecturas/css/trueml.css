@@ -219,15 +219,16 @@ a.chip:hover { background: var(--tm-chip); }
 .code__tabs { border-bottom: 0; gap: 4px; margin-bottom: 6px; }
 .code__tab { border: 0; border-radius: 999px; padding: 6px 12px; }
 .code__tab[aria-selected="true"] { background: var(--ink); color: var(--surface); }
-.code__panel, .code__tabs + .code__panel, .code__tabs ~ .code__panel {
-  --surface: #141C3A; --surface-2: var(--tm-code); --ink: var(--tm-codeink); --muted: var(--tm-codeink2);
-  --rule: rgba(255,255,255,.08); --accent-ink: #A9B7FF; --accent-soft: rgba(143,162,255,.16);
-  color: var(--ink); background: var(--tm-code); border: 0; border-radius: 16px; box-shadow: 0 0 0 1px var(--rule);
-}
-.code__bar { border-bottom-color: var(--rule); }
-.code__pre { color: var(--ink); }
-.code__copy { color: var(--ink); }
-.code__copy:hover { background: rgba(255,255,255,.08); }
+/* el panel es un .tm-code (vendor/trueml/piezas.css); aquí solo lo que es propio del atlas: pestañas, nota y el espacio */
+.code__tabs + .code__panel, .code__tabs ~ .code__panel { border-top-left-radius: 16px; }
+.code__panel { margin: 0; }
+.code__panel .code__pre { font: 400 13.5px/1.7 var(--font-mono); }
+.code__note { color: var(--tm-codeink2); border-top-color: color-mix(in srgb, var(--tm-codeink) 9%, transparent); }
+.code__note code { background: rgba(255,255,255,.08); }
+@media (max-width: 560px) { .code__panel .code__pre { font-size: 12.5px; } }
+/* el botón «Volver a TrueML» va a la derecha de la barra lateral fija (en celular, el cajón lo tapa mientras está abierto) */
+:root { --tm-dock-x: calc(var(--sidebar-w) + 16px); }
+@media (max-width: 767px) { :root { --tm-dock-x: 12px; } body:has(.sidebar.is-open) .tm-dock { display: none; } }
 
 /* ------------------------------------------------------------------ inicio: la T con la etapa Modelo encendida */
 .home-hero {
@@ -337,3 +338,4 @@ a.chip:hover { background: var(--tm-chip); }
 /* MathJax escala las fórmulas con la altura x de la fuente: con la del sistema salen un poco más anchas. Una fórmula
    en línea que no cabe en la columna de respuestas se desplaza dentro de su celda en vez de ensanchar la página. */
 .qa__v { min-width: 0; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }
+.tm-code__ico { display: inline-flex; font-style: normal; }

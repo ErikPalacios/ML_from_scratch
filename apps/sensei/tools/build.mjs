@@ -235,11 +235,11 @@ function datosGlobos(ids) {
   return `<script type="application/json" id="g-datos">${JSON.stringify(datos).replace(/</g, '\\u003c')}</script>`;
 }
 
-function pagina({ path, title, desc, actual, contenido, toc = '', ancho = false, globos = [], diagramas = false, scripts = [] }) {
+function pagina({ path, title, desc, actual, contenido, toc = '', ancho = false, globos = [], diagramas = false, scripts = [], leccion = false }) {
   const url = SITIO.url + path;
   const og = existsSync(join(ROOT, 'site', 'og.png'));
   return `<!doctype html>
-<html lang="es">
+<html lang="es" data-tm-herramienta="${esc(SITIO.nombre)}" data-tm-inicio="/" data-tm-clave="sensei" data-tm-portada="${SITIO.portada}/"${leccion ? ' data-tm-avance="#contenido .prose section.sec" data-tm-notas="#contenido .prose" data-tm-tanque-en=".phead__meta"' : ''}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -273,6 +273,8 @@ ${pie}
 ${globo}
 ${globos.length ? datosGlobos(globos) : ''}
 ${diagramas ? '<script src="/diagram.js" defer></script>' : ''}
+<script src="/codigo.js" defer></script>
+<script src="/piezas.js" defer></script>
 <script src="/app.js" defer></script>
 ${scripts.map((s) => `<script src="${s}" defer></script>`).join('\n')}
 </body>
@@ -315,7 +317,7 @@ function paginaLeccion(l) {
 </article>`;
   const toc = `<aside class="toc" aria-label="En esta página"><p class="toc__title">En esta página</p><ol class="toc__list">${secciones}</ol><div class="toc__foot">${l.n} · ${esc(mod.titulo)}<br><a href="#titulo">↑ Arriba</a></div></aside>`;
   return pagina({ path: l.url, title: `${l.titulo} · ${SITIO.nombre} · TrueML`, desc: `${m.subtitulo} ${m.pregunta}`, actual: l.id, contenido, toc,
-    globos: [...l.terminos], diagramas: l.html.includes('dg-mount') });
+    globos: [...l.terminos], diagramas: l.html.includes('dg-mount'), leccion: true });
 }
 
 // ================================================================ inicio
@@ -560,7 +562,8 @@ for (const [path, html] of Object.entries(pages)) {
 }
 for (const f of ['app.js', 'repaso.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) if (existsSync(join(ROOT, 'site', f))) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
 copyFileSync(join(ROOT, 'vendor', 'ronda', 'diagram.js'), join(OUT, 'diagram.js'));
-const CSS = [join(ROOT, 'vendor', 'trueml', 'tokens.css'), join(ROOT, 'vendor', 'ronda', 'components.css'), join(ROOT, 'site', 'sensei.css')].map(leer).join('\n');
+for (const f of ['codigo.js', 'piezas.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
+const CSS = [join(ROOT, 'vendor', 'trueml', 'tokens.css'), join(ROOT, 'vendor', 'trueml', 'piezas.css'), join(ROOT, 'vendor', 'ronda', 'components.css'), join(ROOT, 'site', 'sensei.css')].map(leer).join('\n');
 writeFileSync(join(OUT, 'sensei.css'), CSS);
 // el índice del buscador: lecciones (publicadas) y conceptos
 const sinMd = (s) => s.replace(/\[\[([a-z0-9-]+)(?:\|([^\]]+))?\]\]/g, (_, id, t) => t || GLOS.get(id).termino.toLowerCase()).replace(/[*`]/g, '');
@@ -573,10 +576,10 @@ const TARJETAS = REPASO ? JSON.stringify(REPASO) : '';
 if (REPASO) { writeFileSync(join(OUT, 'repaso', 'tarjetas.json'), TARJETAS); console.log(`[build] repaso: ${REPASO.tarjetas.length} tarjetas · tarjetas.json ${(Buffer.byteLength(TARJETAS) / 1024).toFixed(0)} KB`); }
 
 const urls = Object.keys(pages);
-const core = [...urls, '/sensei.css', '/app.js', '/diagram.js', '/indice.json', '/icon.svg', '/manifest.webmanifest', ...(REPASO ? ['/repaso.js', '/repaso/tarjetas.json'] : [])];
+const core = [...urls, '/sensei.css', '/app.js', '/codigo.js', '/piezas.js', '/diagram.js', '/indice.json', '/icon.svg', '/manifest.webmanifest', ...(REPASO ? ['/repaso.js', '/repaso/tarjetas.json'] : [])];
 const hash = createHash('sha256');
 for (const p of urls.sort()) hash.update(p).update(pages[p]);
-hash.update(CSS).update(TARJETAS).update(leer(join(ROOT, 'site', 'repaso.js'))).update(leer(join(ROOT, 'site', 'app.js'))).update(leer(join(ROOT, 'vendor', 'ronda', 'diagram.js')));
+hash.update(CSS).update(TARJETAS).update(leer(join(ROOT, 'site', 'repaso.js'))).update(leer(join(ROOT, 'site', 'app.js'))).update(leer(join(ROOT, 'vendor', 'ronda', 'diagram.js'))).update(leer(join(ROOT, 'vendor', 'trueml', 'piezas.js'))).update(leer(join(ROOT, 'vendor', 'trueml', 'codigo.js')));
 const BUILD = hash.digest('hex').slice(0, 12);
 writeFileSync(join(OUT, 'sw.js'), leer(join(ROOT, 'site', 'sw.js')).replace("'__BUILD__';", `'${BUILD}';`).replace('= __PAGES__;', `= ${JSON.stringify(core)};`));
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITIO.url}/sitemap.xml\n`);

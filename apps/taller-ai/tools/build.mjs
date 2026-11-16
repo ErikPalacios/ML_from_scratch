@@ -59,10 +59,10 @@ const ESTACIONES = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) =
 });
 
 // ---------------------------------------------------------------- piezas de HTML
-function pagina({ path, title, desc, body }) {
+function pagina({ path, title, desc, body, lectura = false }) {
   const url = SITE_URL + path;
   return `<!doctype html>
-<html lang="es">
+<html lang="es" data-tm-herramienta="Dojo" data-tm-inicio="/" data-tm-clave="dojo" data-tm-portada="https://ml-desde-cero.vercel.app/"${lectura ? ' data-tm-avance=".d-main .d-sec[id]" data-tm-notas=".d-main" data-tm-tanque-en=".d-hero"' : ''}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -82,6 +82,8 @@ function pagina({ path, title, desc, body }) {
 </head>
 <body class="dojo">
 ${body}
+<script src="/codigo.js" defer></script>
+<script src="/piezas.js" defer></script>
 <script src="/app.js" defer></script>
 </body>
 </html>
@@ -161,20 +163,20 @@ for (const e of ESTACIONES) {
   writeFileSync(join(OUT, 'kits', `${e.slug}.zip`), z);
   e.versionTxt = fecha(e.version);
   pages[e.url] = pagina({ path: e.url, title: `${e.titulo} · ${e.caso.toUpperCase()} · ${SITE_NAME}`, desc: `${e.pregunta} Un mini-proyecto para construir, rehacer y romper en tu Mac.`,
-    body: cuerpoEstacion(e, { total: TRONCO.estaciones.length, kitBytes: z.length, kb }) });
+    body: cuerpoEstacion(e, { total: TRONCO.estaciones.length, kitBytes: z.length, kb }), lectura: true });
   mkdirSync(join(OUT, e.caso, e.id), { recursive: true });
   writeFileSync(join(OUT, e.caso, e.id, 'index.html'), pages[e.url]);
   console.log(`[build] ${e.url} · kit ${kb(z.length)}`);
   if (e.kitUrl !== e.url) {
     pages[e.kitUrl] = pagina({ path: e.kitUrl, title: `Proyecto con kit · ${e.titulo} · ${SITE_NAME}`, desc: `${e.mundo.resumen.replace(/<[^>]+>/g, '')} Las cuatro rondas de la estación ${e.num} de C01.`,
-      body: cuerpoProyecto(e, { total: TRONCO.estaciones.length, kitBytes: z.length, kb }) });
+      body: cuerpoProyecto(e, { total: TRONCO.estaciones.length, kitBytes: z.length, kb }), lectura: true });
     mkdirSync(join(OUT, e.caso, e.id, 'proyecto-con-kit'), { recursive: true });
     writeFileSync(join(OUT, e.caso, e.id, 'proyecto-con-kit', 'index.html'), pages[e.kitUrl]);
     console.log(`[build] ${e.kitUrl}`);
   }
   for (const p of e.practicas) {
     pages[p.url] = pagina({ path: p.url, title: `${p.titulo} · ${e.titulo} · ${SITE_NAME}`, desc: `${p.subtitulo} Práctica desde cero de la estación ${e.num} de C01.`,
-      body: cuerpoPractica(e, p) });
+      body: cuerpoPractica(e, p), lectura: true });
     mkdirSync(join(OUT, e.caso, e.id, p.id), { recursive: true });
     writeFileSync(join(OUT, e.caso, e.id, p.id, 'index.html'), pages[p.url]);
     console.log(`[build] ${p.url}`);
@@ -183,15 +185,16 @@ for (const e of ESTACIONES) {
 pages['/'] = portada();
 writeFileSync(join(OUT, 'index.html'), pages['/']);
 for (const f of ['app.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
+for (const f of ['codigo.js', 'piezas.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
 // dojo.css = los tokens de TrueML (vendor/trueml/tokens.css, del sistema compartido) + los componentes del Dojo
-const DOJO_CSS = readFileSync(join(ROOT, 'vendor', 'trueml', 'tokens.css'), 'utf8') + '\n' + readFileSync(join(ROOT, 'site', 'dojo.css'), 'utf8');
+const DOJO_CSS = ['tokens.css', 'piezas.css'].map((f) => readFileSync(join(ROOT, 'vendor', 'trueml', f), 'utf8')).join('\n') + '\n' + readFileSync(join(ROOT, 'site', 'dojo.css'), 'utf8');
 writeFileSync(join(OUT, 'dojo.css'), DOJO_CSS);
 
 const urls = ['/', ...ESTACIONES.flatMap((e) => [e.url, ...(e.kitUrl !== e.url ? [e.kitUrl] : []), ...e.practicas.map((p) => p.url)])];
-const core = [...urls, '/dojo.css', '/app.js', '/icon.svg', '/manifest.webmanifest'];
+const core = [...urls, '/dojo.css', '/app.js', '/codigo.js', '/piezas.js', '/icon.svg', '/manifest.webmanifest'];
 const hash = createHash('sha256');
 for (const p of Object.keys(pages).sort()) hash.update(p).update(pages[p]);
-hash.update(DOJO_CSS).update(readFileSync(join(ROOT, 'site', 'app.js')));
+hash.update(DOJO_CSS).update(readFileSync(join(ROOT, 'site', 'app.js'))).update(readFileSync(join(ROOT, 'vendor', 'trueml', 'piezas.js'))).update(readFileSync(join(ROOT, 'vendor', 'trueml', 'codigo.js')));
 const BUILD = hash.digest('hex').slice(0, 12);
 writeFileSync(join(OUT, 'sw.js'), readFileSync(join(ROOT, 'site', 'sw.js'), 'utf8').replace("'__BUILD__';", `'${BUILD}';`).replace('= __PAGES__;', `= ${JSON.stringify(core)};`));
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);

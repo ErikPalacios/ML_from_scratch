@@ -6,7 +6,7 @@ const BUILD = '__BUILD__';
 const CACHE = 'hojas-' + BUILD;
 const CDN = 'hojas-cdn'; // scripts de cdnjs (js-yaml del revisor de Kubernetes): la versión va en la URL, también sobrevive
 const PAGES = __PAGES__;
-const CORE = PAGES.concat(['/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']);
+const CORE = PAGES.concat(['/piezas.js', '/codigo.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']);
 const NAV_TIMEOUT_MS = 4000; // con mala señal, después de 4 s se usa la copia guardada
 
 self.addEventListener('install', (event) => {

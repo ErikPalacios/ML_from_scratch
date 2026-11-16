@@ -209,17 +209,15 @@ kbd { border-radius: 6px; border-color: var(--rule-strong); }
 .dg.is-focusing .dg-edge:not(.is-hl) .dg-edge__flow { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .dg-e-online .dg-edge__flow { animation: none; opacity: 0; } }
 
-/* ------------------------------------------------------------------ código: siempre sobre azul marino, como en el Dojo */
+/* ------------------------------------------------------------------ código: el bloque estándar de TrueML (.tm-code, piezas.css); siempre sobre azul marino */
 .cx__box {
   --surface: #141C3A; --surface-2: var(--tm-code); --ink: var(--tm-codeink); --muted: var(--tm-codeink2);
   --rule: rgba(255,255,255,.08); --rule-strong: rgba(255,255,255,.18);
   --accent: #8FA2FF; --accent-ink: #A9B7FF; --accent-soft: rgba(143,162,255,.16);
   --ok: #5BE0B5; --ok-soft: rgba(91,224,181,.14); --bad: #FF8A5C;
-  --store: #6FD3AE; --offline: #FFC857; --monitor: #B3A8FF;
-  color: var(--ink); border: 0; border-radius: 16px; box-shadow: 0 0 0 1px var(--rule);
+  margin: 0; border: 0;
 }
-.cx__tab[aria-selected="true"]::before { background: var(--yt); }
-.cx__btn { border-radius: 8px; }
+.cx__head { margin-bottom: 12px; }
 
 /* ------------------------------------------------------------------ Sensei: la teoría antes de cada módulo */
 .sensei-pre { margin: 4px 0 22px; padding: 14px 18px 16px; border-radius: 16px; background: var(--tm-chip); box-shadow: inset 4px 0 0 var(--g, var(--accent)); }
@@ -235,3 +233,12 @@ kbd { border-radius: 6px; border-color: var(--rule-strong); }
 .sensei-pre__ext { color: var(--muted); }
 .home-hero__sensei { margin-top: 10px; font-size: 14.5px; line-height: 1.5; color: var(--muted); max-width: 60ch; }
 .home-hero__sensei a { font-weight: 700; }
+
+/* ------------------------------------------------------------------ botón «Volver a TrueML» (vendor/trueml/piezas.js) */
+/* en pantallas anchas va a la derecha de la barra lateral; el panel de notas (a la izquierda) lo tapa, así que lo esconde */
+@media (min-width: 768px) { :root { --tm-dock-x: calc(var(--sidebar-w) + 16px); } }
+html.notes-drawer-open .tm-dock { opacity: 0; pointer-events: none; }
+/* en el celular los botones del código quedan solo con el ícono (el estándar oculta todos los <span>, y el ícono también lo es) */
+@media (max-width: 560px) { .tm-code__copy .cx__icon { display: inline-flex; } }
+/* en el celular la barra «Nota · Ver notas» sube para no pelearse con «Volver a TrueML» (abajo a la izquierda) */
+@media (max-width: 767px) { .nbar { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); } }

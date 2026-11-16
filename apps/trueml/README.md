@@ -9,6 +9,8 @@ La fuente única de la marca TrueML: la T de vidrio, sus 6 etapas, los colores e
 | `lib.mjs` | Para los builds (Node): `marca()` dibuja la T con etiquetas y etapas encendidas, más `miniT()`, `franja()`, `selectorTema()`, `resumen()` y `etapaDeEstacion()`. |
 | `tokens.css` | Los colores `--tm-*` en claro y oscuro, más la franja, la T chica y el selector de tema. |
 | `cliente.js` | Lo que hace la marca en el navegador, todo con atributos `data-*`: el tema, encender etapas al pasar el cursor por una herramienta, la animación de entrada y la T fija. |
+| `piezas.css` + `piezas.js` | Las piezas de interfaz compartidas, activadas con atributos en `<html>`: el botón **«Volver a TrueML»** (`data-tm-herramienta`, `data-tm-inicio`), el **avance de lectura** con «Marcar como leída» y un tanque que se llena (`data-tm-avance`) y las **notas subrayadas** (selecciona texto, elige color, escribe la nota: `data-tm-notas`). Todo se guarda en el navegador. |
+| `codigo.js` | El formato único de los bloques de código (`.tm-code`): barra con lenguaje y botón Copiar, panel oscuro y colores de sintaxis. En builds: `bloqueCodigo()` y `resaltar()` de `lib.mjs`; en el navegador, `TrueMLCodigo`. |
 | `sync.mjs` | Copia todo a cada app y genera los datos que una app toma de otra. |
 | `iconos.mjs` | Los íconos de cada app: la T sobre azul marino con sus etapas encendidas (`icon.svg` y los PNG que la app ya tenga). Necesita Google Chrome. |
 

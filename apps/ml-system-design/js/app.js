@@ -1157,6 +1157,7 @@
       sections: S.page.sections.map((x) => ({ id: x.id, title: x.title })),
       current: () => S.currentSec,
     } : null));
+    if (MSD.Notes && MSD.Notes.refreshHighlights) safe(() => MSD.Notes.refreshHighlights());
   }
 
   function scrollToSection(r, smooth) {
@@ -1317,6 +1318,12 @@
 
     store.subscribe(onStoreChange);
     store.onStatus(() => renderStatus());
+    // Subrayados con nota (selecciona texto → color → nota): solo en páginas con secciones visibles.
+    if (MSD.Notes && MSD.Notes.initHighlights) safe(() => MSD.Notes.initHighlights({
+      root: () => (S.page && S.page.sections && S.page.sections.length ? els.page : null),
+      page: () => (S.page && S.page.sections && S.page.sections.length ? S.page.id : ''),
+      sections: () => (S.page && S.page.sections ? S.page.sections.map((x) => x.id) : []),
+    }));
     onRoute(true);
   }
 

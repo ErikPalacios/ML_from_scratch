@@ -10,6 +10,14 @@ const AQUI = dirname(fileURLToPath(import.meta.url));
 const ctx = { window: {} };
 vm.runInNewContext(readFileSync(join(AQUI, 'trueml-mark.js'), 'utf8'), ctx);
 const TM = ctx.window.TrueMLMark;
+// El formato de los bloques de código (codigo.js, el mismo que corre en el navegador).
+const ctxCodigo = {};
+vm.runInNewContext(readFileSync(join(AQUI, 'codigo.js'), 'utf8'), ctxCodigo);
+const CODIGO = ctxCodigo.TrueMLCodigo;
+/** Código resaltado como HTML (ya escapado). lang: python, bash, json, yaml, docker, js, sql, toml; si no se reconoce, texto sin color. */
+export const resaltar = (codigo, lang) => CODIGO.resaltar(codigo, lang);
+/** El bloque de código estándar de TrueML: {codigo, lang, titulo, id, salida}. `salida: true` lo pinta como la salida real de un comando. */
+export const bloqueCodigo = (o) => CODIGO.bloque(o);
 
 const DATOS = JSON.parse(readFileSync(join(AQUI, 'etapas.json'), 'utf8'));
 export const ETAPAS = DATOS.etapas;

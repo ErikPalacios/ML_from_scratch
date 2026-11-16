@@ -29,7 +29,17 @@ const mb = (bytes) => (bytes / 1e6).toFixed(1) + ' MB';
 // ---------------------------------------------------------------- TrueML
 // Los colores de la marca (vendor/trueml/tokens.css) y la capa que viste a cada hoja con ellos (site/trueml-hojas.css).
 const TOKENS = readFileSync(join(ROOT, 'vendor', 'trueml', 'tokens.css'), 'utf8');
+const PIEZAS_CSS = readFileSync(join(ROOT, 'vendor', 'trueml', 'piezas.css'), 'utf8'); // el botón «Volver a TrueML» y el bloque de código estándar
 const HOJAS_CSS = readFileSync(join(SITE, 'trueml-hojas.css'), 'utf8');
+// Los bloques de comandos de las hojas (.code) llevan el lenguaje en data-lang (pinta el puntito de la barra, como en .tm-code).
+const LENGUAJE = [[/^(bash|zsh|sh|terminal|shell)\b/i, 'bash'], [/^(python|py)\b/i, 'python'], [/^(yaml|yml)\b/i, 'yaml'], [/^json/i, 'json'], [/^(dockerfile|docker)\b/i, 'docker']];
+const conLenguaje = (html) => html.replace(/<div class="code( [^"]*)?">(<div class="code__bar[^"]*"><span class="code__lang">)([^<]*)/g, (m, cls, bar, lbl) => {
+  const l = LENGUAJE.find(([re]) => re.test(lbl.trim()));
+  return `<div class="code${cls || ''}"${l ? ` data-lang="${l[1]}"` : ''}>${bar}${lbl}`;
+});
+// El botón «Volver a TrueML» (+ «‹ Cheat sheets» en cada hoja) y el formato de código: atributos en <html> y los dos scripts.
+const ATTR_TM = ` data-tm-herramienta="Cheat sheets" data-tm-inicio="/" data-tm-portada="https://ml-desde-cero.vercel.app/"`;
+const SCRIPTS_TM = '<script src="/codigo.js" defer></script><script src="/piezas.js" defer></script>';
 // El tono de cada hoja: el color de su etapa en el número de sección, el kicker y los títulos de las tarjetas.
 // --st es el relleno, --st-on el texto encima y --st-ink el color para texto sobre la tarjeta (contraste AA).
 const TONOS = {
@@ -216,13 +226,13 @@ for (const s of SHEETS) {
   if (!/<p class="kicker">[\s\S]*?<\/p>/.test(src)) fail(`${s.id}: el hero no tiene <p class="kicker">`);
   src = src.replace(/<p class="kicker">[\s\S]*?<\/p>/, (m) => `<div class="hero__top">${m}${miniT(s.etapas)}</div>`);
   src = src.replace(/<body[^>]*>/i, (m) => m + STRIPE);
-  src = src.replace(/<html([^>]*)>/i, (m, a) => `<html${a} data-hoja="${esc(s.id)}">`); // para los ajustes de una sola hoja en trueml-hojas.css
+  src = conLenguaje(src).replace(/<html([^>]*)>/i, (m, a) => `<html${a} data-hoja="${esc(s.id)}"${ATTR_TM}>`); // para los ajustes de una sola hoja en trueml-hojas.css
   // Al imprimir mandan las medidas de la hoja: sus bloques @media print van otra vez después de la capa (que en
   // pantalla agranda rellenos y letras), y detrás los de la capa, para que los colores de TrueML sigan ganando.
   const estilos = [...src.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]).join('\n');
-  const css = '\n' + TOKENS + '\n' + HOJAS_CSS + tonoCss(s.tono) + BAR_CSS
+  const css = '\n' + TOKENS + '\n' + PIEZAS_CSS + '\n' + HOJAS_CSS + tonoCss(s.tono) + BAR_CSS
     + '\n/* imprimir: las medidas de la hoja y después los colores de TrueML */\n' + bloquesPrint(estilos) + '\n' + bloquesPrint(HOJAS_CSS) + '\n';
-  const html = inject(src, s.id, { head: seo(`/${s.id}/`, `${s.title} — ${SITE_NAME}`, s.seo || s.summary, src), css, afterWrap: bar, beforeBody: FOOT + REGISTER + THEME_JS });
+  const html = inject(src, s.id, { head: seo(`/${s.id}/`, `${s.title} — ${SITE_NAME}`, s.seo || s.summary, src), css, afterWrap: bar, beforeBody: FOOT + REGISTER + THEME_JS + SCRIPTS_TM });
   mkdirSync(join(OUT, s.id), { recursive: true });
   writeFileSync(join(OUT, s.id, 'index.html'), html);
   copyFileSync(join(dir, s.pdf), join(OUT, s.id, s.pdf));
@@ -251,10 +261,10 @@ hub = hub.replace('<!--HOJAS-->', SHEETS.map(card).join('\n'));
 hub = hub.replace('<!--MARCA-->', `<div class="t-con">${marca({ etiquetas: true, clave: 'hub', maxAltura: 'min(calc(100vh - 120px), 760px)' })}</div><div class="t-sin">${TrueMLMark.mark(true, null, 'hub-sin', '420px')}</div>`);
 const CLIENTE = readFileSync(join(ROOT, 'vendor', 'trueml', 'cliente.js'), 'utf8');
 const homeBar = `<nav class="hub-bar" aria-label="Cheat sheets"><div class="hub-brand"><a class="hub-logo" href="https://ml-desde-cero.vercel.app" aria-label="TrueML: todas las herramientas"><span class="hub-mark" aria-hidden="true">${marcaBarra('barra')}</span><span class="hub-word">True<span>ML</span></span></a><span class="hub-sep" aria-hidden="true"></span><span class="hub-home">Cheat sheets</span></div><div class="hub-acc">${THEME_UI}</div></nav>`;
-hub = hub.replace(/<body[^>]*>/i, (m) => m + STRIPE);
+hub = hub.replace(/<html([^>]*)>/i, (m, a) => `<html${a}${ATTR_TM}>`).replace(/<body[^>]*>/i, (m) => m + STRIPE);
 hub = inject(hub, 'portada', {
   head: seo('/', SITE_NAME + ' — hojas de estudio para ML engineering', 'Hojas de estudio con PDF: estimaciones, Docker, Kubernetes, Git, Triton, FastAPI, Prometheus y vLLM, con diagnosticadores y revisores en tu navegador.', hub),
-  css: '\n' + TOKENS + BAR_CSS + '\n.hub-stripe { position: absolute; top: 0; left: 0; right: 0; height: 4px; z-index: 30; }\n', afterWrap: homeBar, beforeBody: FOOT + REGISTER + THEME_JS + `<script>\n${CLIENTE}</script>`,
+  css: '\n' + TOKENS + '\n' + PIEZAS_CSS + BAR_CSS + '\n.hub-stripe { position: absolute; top: 0; left: 0; right: 0; height: 4px; z-index: 30; }\n', afterWrap: homeBar, beforeBody: FOOT + REGISTER + THEME_JS + SCRIPTS_TM + `<script>\n${CLIENTE}</script>`,
 });
 writeFileSync(join(OUT, 'index.html'), hub);
 pages['/'] = hub;
@@ -262,6 +272,7 @@ pages['/'] = hub;
 // 3 · service worker, manifest e íconos
 const order = ['/', ...SHEETS.map((s) => `/${s.id}/`)];
 const hash = createHash('sha256');
+for (const f of ['piezas.js', 'codigo.js']) hash.update(readFileSync(join(ROOT, 'vendor', 'trueml', f)));
 for (const p of order) hash.update(p).update(pages[p]);
 for (const s of SHEETS) hash.update(readFileSync(join(ROOT, 'sheets', s.id, s.pdf)));
 const build = hash.digest('hex').slice(0, 12);
@@ -272,6 +283,7 @@ for (const f of ASSETS) {
   if (!existsSync(join(SITE, f))) fail('falta site/' + f);
   copyFileSync(join(SITE, f), join(OUT, f));
 }
+for (const f of ['piezas.js', 'codigo.js']) copyFileSync(join(ROOT, 'vendor', 'trueml', f), join(OUT, f));
 console.log(`[build] dist/ listo · build ${build} · ${SHEETS.length} hojas: ${SHEETS.map((s) => s.id).join(', ')}`);
 
 // 4 · robots.txt y sitemap.xml

@@ -1186,18 +1186,11 @@ mjx-container[display="true"] { max-width: 100%; overflow-x: auto; overflow-y: h
 .paper__title { font-style: italic; }
 .paper__arxiv { font-size: .92em; }
 
-/* code: visor simple */
+/* code: visor con pestañas; el panel, la barra y el <pre> son del formato estándar (.tm-code, vendor/trueml/piezas.css; ajustes en css/trueml.css) */
 .code { margin: 0; }
 .code__tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--rule-strong); }
 .code__tab { border: 1px solid transparent; border-bottom: 0; background: transparent; padding: 6px 10px; font: 500 13px/1.2 var(--font-mono); color: var(--muted); border-radius: var(--r-1) var(--r-1) 0 0; }
 .code__tab[aria-selected="true"] { background: var(--surface-2); border-color: var(--rule-strong); color: var(--ink); }
-.code__panel { border: 1px solid var(--rule); border-radius: var(--r-2); background: var(--surface-2); }
-.code__tabs + .code__panel, .code__tabs ~ .code__panel { border-top-left-radius: 0; }
-.code__bar { display: flex; align-items: center; gap: 10px; padding: 4px 6px 4px 12px; border-bottom: 1px solid var(--rule); }
-.code__name { font-size: 12.5px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.code__lang { font: 600 11px/1 var(--font-display); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
-.code__pre { margin: 0; padding: 12px 14px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; tab-size: 4; }
-.code__pre code { background: none; border: 0; padding: 0; font-size: inherit; overflow-wrap: normal; }
 .code__note { padding: 8px 14px; border-top: 1px solid var(--rule); font-size: 13.5px; color: var(--muted); }
 
 /* cantidades sin resolver ({{…}}) y enlaces al Laboratorio */
