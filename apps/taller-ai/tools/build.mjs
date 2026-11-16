@@ -3,6 +3,7 @@
 //   index.html                    portada: el método, la línea de C01 y cómo empezar
 //   <caso>/<estacion>/index.html  una página por estación, desde content/estaciones/<caso>-<id>.json
 //   kits/<caso>-<estacion>.zip    el kit listo para usar: esqueleto en pipeline/, config.yaml, GUION.md y OBJETIVOS.md
+//   tablero/index.html            «Tu tablero»: tu avance por estación, en este navegador (tools/tablero.mjs, site/tablero/)
 //   sw.js, dojo.css, app.js…      modo sin conexión y estilos (todas las páginas usan el diseño Dojo de TrueML: tools/dojo.mjs)
 import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync, copyFileSync, existsSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -11,6 +12,7 @@ import { createHash } from 'node:crypto';
 import { estacion as molde, cruzadas, practica as moldePractica, cruzadasPractica } from './schema.mjs';
 import { zip } from './zip.mjs';
 import { cuerpoEstacion, cuerpoPractica, cuerpoPortada, cuerpoProyecto } from './dojo.mjs';
+import { plantillaTablero, cuerpoTablero } from './tablero.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'dist');
@@ -182,16 +184,25 @@ for (const e of ESTACIONES) {
 }
 pages['/'] = portada();
 writeFileSync(join(OUT, 'index.html'), pages['/']);
+// «Tu tablero»: la página, la plantilla de las estaciones con taller y sus módulos (con la copia del motor del tablero)
+pages['/tablero/'] = pagina({ path: '/tablero/', title: `Tu tablero · ${SITE_NAME}`, desc: 'Tu avance en el dojo: las cuatro rondas de cada estación, tus fallas con su tiempo y tu bitácora. Sin cuenta, guardado en tu navegador.',
+  body: cuerpoTablero(plantillaTablero(ESTACIONES, TRONCO)) });
+mkdirSync(join(OUT, 'tablero', 'motor'), { recursive: true });
+writeFileSync(join(OUT, 'tablero', 'index.html'), pages['/tablero/']);
+const MODULOS = ['modelo.mjs', 'almacen.mjs', 'tablero.mjs', 'motor/ops.mjs', 'motor/model.mjs', 'motor/calc.mjs'];
+for (const m of MODULOS) copyFileSync(join(ROOT, 'site', 'tablero', m), join(OUT, 'tablero', m));
+console.log('[build] /tablero/');
 for (const f of ['app.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) copyFileSync(join(ROOT, 'site', f), join(OUT, f));
 // dojo.css = los tokens de TrueML (vendor/trueml/tokens.css, del sistema compartido) + los componentes del Dojo
 const DOJO_CSS = readFileSync(join(ROOT, 'vendor', 'trueml', 'tokens.css'), 'utf8') + '\n' + readFileSync(join(ROOT, 'site', 'dojo.css'), 'utf8');
 writeFileSync(join(OUT, 'dojo.css'), DOJO_CSS);
 
-const urls = ['/', ...ESTACIONES.flatMap((e) => [e.url, ...(e.kitUrl !== e.url ? [e.kitUrl] : []), ...e.practicas.map((p) => p.url)])];
-const core = [...urls, '/dojo.css', '/app.js', '/icon.svg', '/manifest.webmanifest'];
+const urls = ['/', ...ESTACIONES.flatMap((e) => [e.url, ...(e.kitUrl !== e.url ? [e.kitUrl] : []), ...e.practicas.map((p) => p.url)]), '/tablero/'];
+const core = [...urls, '/dojo.css', '/app.js', '/icon.svg', '/manifest.webmanifest', ...MODULOS.map((m) => `/tablero/${m}`)];
 const hash = createHash('sha256');
 for (const p of Object.keys(pages).sort()) hash.update(p).update(pages[p]);
 hash.update(DOJO_CSS).update(readFileSync(join(ROOT, 'site', 'app.js')));
+for (const m of MODULOS) hash.update(m).update(readFileSync(join(ROOT, 'site', 'tablero', m)));
 const BUILD = hash.digest('hex').slice(0, 12);
 writeFileSync(join(OUT, 'sw.js'), readFileSync(join(ROOT, 'site', 'sw.js'), 'utf8').replace("'__BUILD__';", `'${BUILD}';`).replace('= __PAGES__;', `= ${JSON.stringify(core)};`));
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);

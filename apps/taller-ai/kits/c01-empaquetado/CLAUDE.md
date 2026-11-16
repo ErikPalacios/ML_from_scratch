@@ -18,6 +18,7 @@ Este es un mini-proyecto de práctica. Reproduce en pequeño, en una Mac sin GPU
 | `mundo/` | El reinicio, el registro de modelos del mundo y el esqueleto. | No. |
 | `GUION.md` / `OBJETIVOS.md` | El paso a paso (ronda Guiado) y solo los objetivos (ronda Solo). | No. |
 | `taller/progreso.json`, `BITACORA.md` | El registro de las rondas. | Sí, tú los mantienes (ver abajo). |
+| `taller/registro.py` | Lo usan `verificar.py` y `romper.py` para anotar en `progreso.json` sus corridas y las fallas cerradas. | No. |
 
 ## Cómo se trabaja
 
@@ -34,29 +35,34 @@ Al terminar cada paso, objetivo o falla, agrega una entrada en los dos archivos:
 `BITACORA.md`, legible en el celular:
 
 ```markdown
-## 2026-11-03 · Guiado · paso 1 (fijar dependencias)
+## 2026-11-03 10:42 · Guiado · paso 1 (fijar dependencias)
 - **Hice:** …
 - **Medí:** … (números reales que salieron)
 - **Sigue:** …
 ```
 
-`taller/progreso.json`, el que se importa en el tablero de la app. Agrega a `bitacora` y actualiza `rondas`:
+`taller/progreso.json`, el que se importa en «Tu tablero» del Dojo (la página /tablero/ de la app). Agrega a `bitacora` y actualiza `rondas`:
 
 ```json
 {
   "estacion": "c01-empaquetado",
   "rondas": {
-    "guiado":       { "estado": "en_curso", "inicio": "2026-11-03", "fin": null },
+    "guiado":       { "estado": "en_curso", "inicio": "2026-11-03T10:05:12-06:00", "fin": null },
     "solo":         { "estado": "pendiente", "inicio": null, "fin": null, "pistas": 0 },
     "romper_ayuda": { "estado": "pendiente", "fallas": [] },
     "romper_solo":  { "estado": "pendiente", "fallas": [] }
   },
   "bitacora": [
-    { "fecha": "2026-11-03", "ronda": "guiado", "paso": "deps", "hice": "…", "medi": "…", "sigue": "…" }
+    { "fecha": "2026-11-03T10:42:30-06:00", "ronda": "guiado", "paso": "deps", "hice": "…", "medi": "…", "sigue": "…" }
+  ],
+  "verificaciones": [
+    { "fecha": "2026-11-03T10:41:02-06:00", "pasan": ["mundo"], "fallan": [] }
   ]
 }
 ```
 
-- `estado` es `pendiente`, `en_curso` o `hecha`.
-- Cada falla se anota como `{ "id": "…", "minutos": 0, "pistas": 0, "rendido": false, "aprendi": "…" }`.
-- Usa la fecha real de hoy. Mantén el JSON válido: después de editarlo, corre `python -m json.tool taller/progreso.json > /dev/null`.
+- `estado` es `pendiente`, `en_curso` o `hecha`. En el tablero, `guiado` se llama «Construir con ayuda», `solo` «Construir solo», `romper_ayuda` «Romper con ayuda» y `romper_solo` «Romper solo».
+- **Fecha y hora en cada avance**, en ISO 8601 con la zona de la Mac: sácala con `date -Iseconds` (da algo como `2026-11-03T10:42:30-06:00`). Nunca solo la fecha.
+- `verificaciones` la escribe `verificar.py` solo, en cada corrida. No la edites.
+- Cada falla la anota `romper.py` al cerrarla (`--verificar` o `--revelar`): `{ "id", "inicio", "fin", "minutos", "pistas": 0, "rendido", "aprendi": "" }`, con el tiempo real. Tú solo completas `pistas` y `aprendi` en esa misma entrada (la última de su ronda); no agregues otra.
+- Mantén el JSON válido: después de editarlo, corre `python3 -m json.tool taller/progreso.json > /dev/null`.

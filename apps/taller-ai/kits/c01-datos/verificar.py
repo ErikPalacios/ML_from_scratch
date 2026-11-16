@@ -307,6 +307,9 @@ if __name__ == "__main__":
     if desconocidos:
         sys.exit(f"checks desconocidos: {desconocidos}. Hay: {', '.join(CHECKS)}")
     r = correr(pedidos)
+    from taller.registro import anotar_verificacion  # la corrida queda en taller/progreso.json, para tu tablero
+
+    anotar_verificacion({k: ok for k, (ok, _) in r.items()})
     malos = [k for k, (ok, _) in r.items() if not ok]
     print(f"\n{len(r) - len(malos)}/{len(r)} en verde" + (f" · falta: {', '.join(malos)}" if malos else ""))
     sys.exit(1 if malos else 0)

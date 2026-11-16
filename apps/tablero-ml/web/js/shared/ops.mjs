@@ -5,10 +5,13 @@
      { op: 'insert', path: ['steps', '#serving', 'results'], value: { name: 'p99', value: '41', unit: 'ms' }, index?: 0 }
      { op: 'remove', path: ['steps', '#serving', 'results', '#r-1'] }
      { op: 'move',   path: ['steps', '#serving'], index: 3 }
-   Cada op se aplica sola: si deja el proyecto inválido se descarta y se reporta, y las demás siguen. */
+   Cada op se aplica sola: si deja el proyecto inválido se descarta y se reporta, y las demás siguen.
+   El esquema es el del tablero (model.mjs) salvo que opts.schema traiga otro: { validate, fillItem, itemKind, gate }.
+   Así el tablero del Dojo (apps/taller-ai, copia en vendor/tablero) usa estas mismas ops con su propio documento. */
 import { validateProject, fillItem, ITEM_KIND, nowIso, LIMITS } from './model.mjs';
 import { evaluateProject } from './calc.mjs';
 
+const BOARD = { validate: validateProject, fillItem, itemKind: ITEM_KIND, gate: (doc, o) => gateError(doc, o) };
 const PROTECTED = new Set(['id', 'v', 'rev', 'createdAt', 'updatedAt', 'lastActivity']);
 const clone = (x) => (typeof structuredClone === 'function' ? structuredClone(x) : JSON.parse(JSON.stringify(x)));
 
@@ -79,11 +82,12 @@ function applyOne(doc, o, opts) {
       const { parent, key } = resolve(doc, path);
       const arr = parent[key];
       if (!Array.isArray(arr) || typeof key !== 'string') throw new Error('insert needs a path to a list');
-      const kind = ITEM_KIND[key];
+      const sc = opts.schema || BOARD;
+      const kind = sc.itemKind[key];
       let item = o.value;
       if (kind) {
         if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('the item must be an object');
-        item = fillItem(kind, clone(item), opts);
+        item = sc.fillItem(kind, clone(item), opts);
         if (arr.some((x) => x.id === item.id)) throw new Error(`#${item.id} already exists`);
       } else item = clone(item);
       const idx = Number.isInteger(o.index) ? Math.max(0, Math.min(arr.length, o.index)) : arr.length;
@@ -94,7 +98,7 @@ function applyOne(doc, o, opts) {
       const { parent, key } = resolve(doc, path);
       if (typeof key !== 'number') throw new Error('remove needs «#id» at the end of the path');
       const [gone] = parent.splice(key, 1);
-      if (top === 'steps' && path.length === 2 && doc.resume.nextStepId === gone.id) doc.resume.nextStepId = null;
+      if (top === 'steps' && path.length === 2 && doc.resume && doc.resume.nextStepId === gone.id) doc.resume.nextStepId = null;
       break;
     }
     case 'move': {
@@ -131,17 +135,18 @@ export function applyOps(project, ops, opts = {}) {
   const rejected = [];
   let applied = 0;
   const now = opts.now || nowIso();
+  const sc = opts.schema || BOARD;
   ops.forEach((o, index) => {
     const next = clone(doc);
     try {
       applyOne(next, o, opts);
-      const ge = gateError(next, o);
+      const ge = sc.gate(next, o);
       if (ge) throw new Error(ge);
       if (o.path[0] === 'steps' && o.path.length >= 2 && String(o.path[1]).startsWith('#')) {
         const s = next.steps.find((x) => x.id === o.path[1].slice(1));
         if (s) s.updatedAt = now;
       }
-      const errors = validateProject(next);
+      const errors = sc.validate(next);
       if (errors.length) throw new Error(errors.join('; '));
       doc = next;
       applied++;

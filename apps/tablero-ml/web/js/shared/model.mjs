@@ -173,7 +173,8 @@ function check(value, rule, path, errors) {
   }
 }
 
-function checkShape(obj, shape, path, errors) {
+// Exportada para que otro documento (el tablero del Dojo) valide con las mismas reglas.
+export function checkShape(obj, shape, path, errors) {
   if (!obj || typeof obj !== 'object' || Array.isArray(obj)) { errors.push(`${path}: must be an object`); return; }
   for (const k of Object.keys(obj)) if (!Object.hasOwn(shape, k)) errors.push(`${path}.${k}: unknown field`);
   for (const [k, rule] of Object.entries(shape)) check(obj[k], rule, `${path}.${k}`, errors);

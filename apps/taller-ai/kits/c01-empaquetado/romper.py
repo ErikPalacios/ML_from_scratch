@@ -149,6 +149,10 @@ def romper(mostrar: bool, cual: str | None) -> None:
 
 def cerrar(e: dict, falla: str, como: str) -> None:
     f = FALLAS[falla]
+    if como != "Restaurada":  # arreglada o revelada: queda en taller/progreso.json con su tiempo, para tu tablero
+        from taller.registro import anotar_falla
+
+        anotar_falla(falla, e["inicio"], e.get("mostrada", False), rendido=como == "Revelada")
     minutos = (datetime.now(timezone.utc) - datetime.fromisoformat(e["inicio"])).total_seconds() / 60
     print(f"{como}: era «{falla}» · {f['titulo']} · {minutos:.0f} min\n  {f['explica']}")
     print("  restaurando…")

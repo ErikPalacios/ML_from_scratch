@@ -238,12 +238,13 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
   <div class="d-rondas">
     <span></span><span class="d-eje">Construir</span><span class="d-eje">Romper</span>
     <span class="d-eje d-eje-v">Con ayuda</span>
-    ${ronda(1, 'Guiado', `Construyen juntos los pasos 0 a ${e.guiado.length - 1}.`, e.prompt.guiado)}
+    ${ronda(1, 'Construir con ayuda', `Con el Guiado de abajo: construyen juntos los pasos 0 a ${e.guiado.length - 1}.`, e.prompt.guiado)}
     ${ronda(3, 'Romper con ayuda', 'Una falla real; Claude te guía con preguntas.', e.prompt.romper_ayuda)}
     <span class="d-eje d-eje-v">Solo</span>
-    ${ronda(2, 'Solo', 'Rehaces todo desde el esqueleto, solo con los objetivos.', e.prompt.solo)}
+    ${ronda(2, 'Construir solo', 'Rehaces todo desde el esqueleto, solo con los objetivos de Solo.', e.prompt.solo)}
     ${ronda(4, 'Romper solo', 'Una falla escondida; nadie te da pistas.', e.prompt.romper_solo)}
   </div>
+  <p class="d-nota">Lleva la cuenta en <a href="/tablero/#est-${e.slug}">tu tablero</a>: el kit anota tu avance en <code>taller/progreso.json</code> y ahí lo importas.</p>
 </section>`,
     guiado: `<section class="d-sec" id="guiado">
   ${titulo('Guiado', 'paso a paso')}
@@ -483,7 +484,7 @@ export function cuerpoPortada({ tronco, lista, mapa, hoja, sensei = new Map() })
   <h1>Dojo de entrenamiento <span>ML engineer's</span></h1>
   <p class="d-lead">Proyectos chicos que corren en tu Mac, uno por cada estación del camino del dato a producción. Cada uno lo construyes cuatro veces: con ayuda, solo, roto con ayuda y roto solo. Con una explicación rápida de cada concepto en el momento en que lo usas.</p>
   <div class="d-pips"><div>${pips}</div><span>${listas} de ${tronco.estaciones.length} estaciones listas</span></div>
-  <div class="d-btns">${primera ? `<a class="d-btn" href="${lista.get(primera.id).url}">Empezar por la estación ${primera.num} →</a>` : ''}<a class="d-btn d-btn2" href="#mapa">Ver el mapa</a></div>
+  <div class="d-btns">${primera ? `<a class="d-btn" href="${lista.get(primera.id).url}">Empezar por la estación ${primera.num} →</a>` : ''}<a class="d-btn d-btn2" href="#mapa">Ver el mapa</a><a class="d-btn d-btn2" href="/tablero/">Tu tablero</a></div>
 </section>
 
 <div class="d-home-t">
@@ -534,9 +535,9 @@ export function cuerpoPortada({ tronco, lista, mapa, hoja, sensei = new Map() })
     ${paso('01', 'Lee antes de tocar', 'En la página de la estación: <strong>el mapa</strong> (dónde estás, qué entra y qué sale), <strong>los precálculos</strong> (las cuentas de servilleta, en C01 y en el dojo) y <strong>los conceptos exprés</strong>. Se lee en el celular, en un rato libre.')}
     ${paso('02', 'Baja el kit y levanta el mundo', 'Un .zip con una empresa ficticia que ya tiene el problema: sus datos, sus servicios en Docker, un <code>verificar.py</code> que revisa tu trabajo y un <code>romper.py</code> que mete fallas. Cinco comandos y queda arriba.')}
     ${paso('03', 'Haz las cuatro rondas', 'Copia el prompt de la ronda en la página de la estación y pégalo en Claude Code. El <code>CLAUDE.md</code> del kit pone las reglas de fondo, así que Claude sabe cuánto ayudarte en cada una.',
-      `<div class="d-rondas d-rondas-uso"><span></span><span class="d-eje">Construir</span><span class="d-eje">Romper</span><span class="d-eje d-eje-v">Con ayuda</span>${ronda(1, 'Guiado', 'Construyes el proyecto con Claude Code paso a paso. Cada paso explica el concepto que usa.')}${ronda(3, 'Romper con ayuda', 'Un script mete una falla real. La diagnostican juntos: síntoma, hipótesis, prueba, arreglo.')}<span class="d-eje d-eje-v">Solo</span>${ronda(2, 'Solo', 'Lo rehaces desde el esqueleto con los objetivos y el verificador. Claude no te da código.')}${ronda(4, 'Romper solo', 'El script esconde la falla, ni Claude la sabe. Tú la encuentras y la arreglas.')}</div>`)}
+      `<div class="d-rondas d-rondas-uso"><span></span><span class="d-eje">Construir</span><span class="d-eje">Romper</span><span class="d-eje d-eje-v">Con ayuda</span>${ronda(1, 'Construir con ayuda', 'Construyes el proyecto con Claude Code paso a paso. Cada paso explica el concepto que usa.')}${ronda(3, 'Romper con ayuda', 'Un script mete una falla real. La diagnostican juntos: síntoma, hipótesis, prueba, arreglo.')}<span class="d-eje d-eje-v">Solo</span>${ronda(2, 'Construir solo', 'Lo rehaces desde el esqueleto con los objetivos y el verificador. Claude no te da código.')}${ronda(4, 'Romper solo', 'El script esconde la falla, ni Claude la sabe. Tú la encuentras y la arreglas.')}</div>`)}
     ${paso('04', 'Repasa', 'Al final de cada página: el memo de la estación, su trampa, la lista de «listo cuando…» y cómo te lo pueden preguntar en una entrevista.')}
-    ${paso('05', 'Lleva tu registro', 'Claude anota cada ronda en <code>BITACORA.md</code> (qué hiciste, cuánto tardaste, qué pistas usaste) y en <code>taller/progreso.json</code>. Pronto vas a poder subirlo a tu tablero aquí mismo.')}
+    ${paso('05', 'Lleva tu registro', 'El kit anota tu avance en <code>taller/progreso.json</code>: <code>verificar.py</code> cada corrida, <code>romper.py</code> cada falla con su tiempo y Claude Code el estado de las rondas y tu bitácora. Lo importas en <a href="/tablero/">tu tablero</a>, que se guarda en tu navegador, sin cuenta.')}
   </div>
   <div class="d-grid2">
     <div class="d-card"><h3>Qué necesitas</h3><ul class="d-ok-lista"><li>Una Mac con Docker Desktop y unos GB libres</li><li>Python 3.11 o más nuevo</li><li>Claude Code</li></ul><p class="d-nota">Cada estación dice lo suyo en «El kit».</p></div>
@@ -546,3 +547,6 @@ export function cuerpoPortada({ tronco, lista, mapa, hoja, sensei = new Map() })
 </section>
 ${pie}`;
 }
+
+// Para «Tu tablero» (tools/tablero.mjs): la misma barra, títulos y pie que el resto del Dojo.
+export { barra, titulo, pie, etapa, COLOR_ETAPA, NOMBRE_ETAPA };
