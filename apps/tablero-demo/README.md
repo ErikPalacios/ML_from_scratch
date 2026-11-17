@@ -18,7 +18,7 @@ La misma aplicación del [tablero](../tablero-ml), sin servidor ni base de datos
 ```bash
 npm test          # arma dist/ y prueba el proyecto de ejemplo, la API del navegador y que no se cuele nada privado
 npm run build     # solo arma dist/
-npm run deploy    # arma y sube a Vercel (proyecto tablero-ml-demo)
+npm run deploy    # solo de emergencia: producción se publica sola con cada push a main (ver abajo)
 ```
 
-La primera vez: `npx vercel link --yes --project tablero-ml-demo` en esta carpeta (escribe `.vercel/`, que git ignora). La imagen para redes (`web/og.png`) sale de `npm run og` en `apps/portada`.
+**Se despliega solo (desde el 17 de noviembre de 2026):** el proyecto `tablero-ml-demo` está conectado a GitHub con *Root Directory* `apps/tablero-demo`; `vercel.json` (el build y las mismas cabeceras que `apps/tablero-ml/vercel.json`, comprobadas por una prueba) arma `dist/`. Un push a `main` que cambie esta carpeta o `apps/tablero-ml/web` publica producción. Para el deploy a mano, la primera vez: `npx vercel link --yes --project tablero-ml-demo` en esta carpeta (escribe `.vercel/`, que git ignora). La imagen para redes (`web/og.png`) sale de `npm run og` en `apps/portada`.

@@ -104,3 +104,13 @@ test('index.html is indexable, has its SEO tags and loads the demo scripts befor
   assert.ok(html.indexOf('demo-boot.js') < html.indexOf('/js/app.js'));
   assert.match(readFileSync(join(DIST, 'sitemap.xml'), 'utf8'), /<loc>https:\/\/tablero-ml-demo\.vercel\.app\/<\/loc>/);
 });
+
+// Vercel builds the demo from GitHub with apps/tablero-demo/vercel.json: same security headers as production, no API.
+test('vercel.json builds dist/ and keeps the production headers', () => {
+  const demo = JSON.parse(readFileSync(join(ROOT, 'vercel.json'), 'utf8'));
+  const prod = JSON.parse(readFileSync(join(ROOT, '..', 'tablero-ml', 'vercel.json'), 'utf8'));
+  assert.equal(demo.buildCommand, 'node tools/build.mjs');
+  assert.equal(demo.outputDirectory, 'dist');
+  assert.deepEqual(demo.headers, prod.headers, 'copy the headers from apps/tablero-ml/vercel.json');
+  assert.ok(!demo.rewrites, 'the demo has no API');
+});
