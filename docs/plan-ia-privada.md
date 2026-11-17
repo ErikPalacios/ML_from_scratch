@@ -84,12 +84,14 @@ Sigue el molde del Taller ([plan-taller-ai.md](plan-taller-ai.md), secciones 3�
 | 2 | Medir: TTFT, tokens/s y calidad con 3 cuantizaciones | Mac |
 | 3 | Servir con vLLM y aguantar carga concurrente | GPU rentada |
 | 4 | Gateway: varios modelos, autenticación y límites | Mac |
-| 5 | RAG privado: ingestión, chunking, embeddings e índice local | Mac |
-| 6 | Evals del RAG (retrieval y respuestas) y guardrails | Mac |
+| 5 | Tu RAG, al despacho: el RAG del entrenamiento RAG en el servidor, sin internet y con el modelo propio | Mac |
+| 6 | El gate con el modelo propio: el mismo golden set y guardrails para que nada salga de la red | Mac |
 | 7 | Observabilidad y fallas en producción | GPU rentada |
 | 8 | Entrega a un cliente: paquete instalable sin internet | Mac y GPU rentada |
 
 **Esta rama absorbe la rama LLM/RAG del Taller** (2026-11-12). Las 5 estaciones que el Taller tenía pensadas para LLM/RAG (ingestión y chunking, índice y embeddings, evaluación de retrieval, serving del LLM y guardrails) quedan cubiertas por las estaciones 3, 5 y 6. Así el patrón LLM/RAG (C11) se practica una sola vez, y además con serving en hardware propio. Se ahorran ≈ 3 fases.
+
+**Cambio (2026-11-17): RAG es un entrenamiento propio y las estaciones 5 y 6 se recortan.** El Dojo ahora tiene el entrenamiento RAG (caso C11, 12 estaciones en la Mac: [plan-taller-ai.md](plan-taller-ai.md), sección 12), que construye el RAG completo: ingestión, chunking, permisos, golden set, índice, retrieval, la API con citas y el gate de evals. Para no construirlo dos veces, IA Privada da por hecho ese entrenamiento: su estación 5 lleva tu RAG al servidor del despacho (sin internet, con el modelo propio) y la 6 corre el mismo gate del golden set contra ese modelo, con guardrails para que nada salga de la red. Lo de abajo sobre «absorber la rama LLM/RAG» queda como historia.
 
 **Lo que corre solo en la Mac:** las estaciones 1, 2, 4, 5 y 6 corren completas en la Mac, sin GPU rentada. De ellas, **1, 5 y 6 forman un proyecto de RAG completo**: el modelo local con su API (1), el RAG con tus documentos (5) y sus evals con guardrails (6). Así se puede hacer un RAG de punta a punta sin rentar GPU; la 2 (cuantización) y la 4 (gateway) se suman cuando quieras, y la GPU rentada solo hace falta para las estaciones 3, 7 y 8. El Dojo lo muestra en la portada («Sin rentar GPU: 1 → 5 → 6») y lo lee de `apps/taller-ai/content/ramas.json` (campo `sin_gpu`).
 
@@ -101,8 +103,8 @@ Sigue el molde del Taller ([plan-taller-ai.md](plan-taller-ai.md), secciones 3�
 | 2 · Medir y cuantizar | `cuantizacion` | Modelo | Mac |
 | 3 · Servir con vLLM bajo carga | `vllm` | API | GPU rentada |
 | 4 · Gateway de modelos | `gateway` | Orquestación | Mac |
-| 5 · RAG privado | `rag` | Datos | Mac |
-| 6 · Evals del RAG y guardrails | `evals` | Modelo | Mac |
+| 5 · Tu RAG, al despacho | `rag` | Datos | Mac |
+| 6 · El gate, con el modelo propio | `evals` | Modelo | Mac |
 | 7 · Observabilidad y fallas | `observabilidad` | Monitoreo | GPU rentada |
 | 8 · Entrega sin internet | `entrega` | Contenedor | Mac y GPU rentada |
 

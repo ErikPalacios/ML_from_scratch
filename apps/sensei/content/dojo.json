@@ -249,7 +249,7 @@
         {
           "num": 5,
           "id": "rag",
-          "titulo": "RAG privado",
+          "titulo": "Tu RAG, al despacho",
           "etapa": "datos",
           "lista": false,
           "url": null
@@ -257,7 +257,7 @@
         {
           "num": 6,
           "id": "evals",
-          "titulo": "Evals del RAG y guardrails",
+          "titulo": "El gate, con el modelo propio",
           "etapa": "modelo",
           "lista": false,
           "url": null
