@@ -514,6 +514,7 @@
     "<code>dataset-v1</code> con tag y en el remoto: <code>dvc pull</code> la recupera después de borrarla.",
     "<code>modelo-v1</code> con una ficha que nombra su dataset y su commit."
   ],
+  "arranque": {"paso": "carpeta"},
   "prompts": {
     "guiado": "content/estaciones/c01-datos/prompts/desde-cero-antes.md",
     "solo": "content/estaciones/c01-datos/prompts/desde-cero-antes-solo.md"

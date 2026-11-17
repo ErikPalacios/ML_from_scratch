@@ -2,7 +2,7 @@
 // La T de vidrio y las etapas salen del sistema de diseño compartido (apps/trueml, copiado en vendor/trueml con
 // node apps/trueml/sync.mjs). Se dibuja al construir: la página no necesita JavaScript para verse y abre sin conexión.
 import { TrueMLMark as TM, RANGOS_C01, franja, miniT, IDS } from '../vendor/trueml/lib.mjs';
-import { repartir } from './schema.mjs';
+import { repartir, repartirPractica } from './schema.mjs';
 
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const PORTADA = 'https://ml-desde-cero.vercel.app';
@@ -358,9 +358,9 @@ export const cuerpoProyecto = (e, opts) => paginaEstacion(e, opts, 'proyecto');
 export function cuerpoPractica(e, p) {
   const idx = indiceConceptos(e, p.url);
   const otra = e.practicas.filter((q) => q.id !== p.id);
-  const indice = [['escena', 'La escena'], ['precalculos', 'Precálculos'], ...(p.conceptos.length ? [['conceptos', 'Conceptos']] : []), ['pasos', 'Pasos'], ['solo', 'Hazlo solo']];
+  const indice = [];   // sin barra de anclas, como las estaciones
 
-  const precalc = p.precalculos.map((x, i) => `<article class="d-card d-pc" id="pc-${x.id}">
+  const precalc = new Map(p.precalculos.map((x, i) => [x.id, `<article class="d-card d-pc" id="pc-${x.id}">
       <div class="d-pc-h"><span class="d-num">${i + 1}</span><h3>${esc(x.pregunta)}</h3></div>
       ${chips(x.conceptos, idx)}
       <details class="d-ver"><summary>Ver la cuenta</summary><div class="d-ver-body">
@@ -372,43 +372,53 @@ export function cuerpoPractica(e, p) {
         ${x.comprueba ? comando(x.comprueba, 'terminal · compruébalo') : ''}
         ${x.confirma ? `<p class="d-nota"><b>Lo confirmas en</b> ${x.confirma}</p>` : ''}
       </div></details>
-    </article>`).join('\n    ');
+    </article>`]));
+
+  // El arranque: el paso que lo es (sus archivos, sus comandos y cómo verificar; sus salidas van en «¿Algo falló
+  // al levantar?») o, si la práctica sigue a otra, volver a esa carpeta y levantar los servicios.
+  const p1 = p.arranque?.paso ? p.pasos[0] : null;
+  const reparto = repartirPractica(p);
+  const k = new Map(p.conceptos.map((c) => [c.id, c]));
+  const paso4 = (n, t, body) => `<div class="d-card d-pc"><div class="d-pc-h"><span class="d-num">${n}</span><h3>${esc(t)}</h3></div>${body}</div>`;
+  const ctx = (t, body) => `<details class="d-ctx"><summary>${esc(t)}</summary><div class="d-ctx-b">${body}</div></details>`;
+  const antes = otra.filter((q) => q.orden < p.orden).at(-1);
+  const pasosArranque = p1 ? [
+    paso4(1, 'Escribe los archivos', `<p class="d-txt">${p1.explica}</p>${p1.codigo.map((c) => codigo(c.code, c.path || c.lang) + (c.nota ? `<p class="d-nota">${c.nota}</p>` : '')).join('')}`),
+    paso4(2, 'Levanta el entorno y los servicios', p1.comandos.map((c) => codigo(c.code, 'terminal') + (c.nota ? `<p class="d-nota">${c.nota}</p>` : '')).join('')),
+    paso4(3, 'Verifica', listo(`${p1.verifica} Ya puedes practicar.`)),
+  ] : [
+    ...(antes ? [paso4(1, 'Termina la práctica anterior', `<a class="d-btn" href="${antes.url}">${esc(antes.titulo)}</a>`)] : []),
+    ...(p.arranque?.code ? [paso4(antes ? 2 : 1, 'Levanta los servicios', codigo(p.arranque.code, 'terminal'))] : []),
+  ];
+  const fallo = p1 ? [p1.ojo ? `<div class="d-listo"><div class="d-ojo"><b>Ojo: </b>${p1.ojo}</div></div>` : '',
+    ...p1.comandos.filter((c) => c.salida).map((c) => salida(c.salida, `Salida real · ${c.code.split('\n').at(-1)}`))].join('\n      ') : '';
+  const guiado = p.pasos.filter((x) => x !== p1);
 
   return `${barra({ ruta: `/ ${e.linea.corto} · ${e.num} · desde cero`, volver: '/', indice })}
 ${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${e.linea.corto} · Estación ${e.num} · Desde cero ${p.orden} de ${e.practicas.length}`, h1: p.titulo, lead: p.subtitulo, etapaIdx: e.etapaIdx, num: e.num, tituloEstacion: e.titulo,
-    tiles: [[p.precalculos.length, 'precálculos', 'precalculos'], ...(p.conceptos.length ? [[p.conceptos.length, 'conceptos', 'conceptos']] : []), [p.pasos.length, 'pasos', 'pasos'], [p.solo.length - 1, 'objetivos', 'solo']],
-    botones: `<a class="d-btn" href="#pasos">Ir a los pasos</a><a class="d-btn d-btn2" href="#escena">Ver la escena</a>` })}
+    botones: '<a class="d-btn" href="#arranque">Empezar</a>' })}
 <main class="d-wrap d-main">
-<section class="d-sec" id="escena">
-  ${titulo('La escena', p.chips.join(' · '))}
-  ${etiquetas(p.momento, p.carpeta ? `Sin kit · ${p.carpeta}` : 'Sin kit', false)}
-  <p class="d-p">${p.escena}</p>
-  <div class="d-ojo d-cuando"><b>Cuándo pasa esto: </b>${p.cuando}</div>
-  <div class="d-grid2">
-    <div class="d-card"><h3>Necesitas</h3><ul class="d-ul">${p.requisitos.map((r) => `<li>${r}</li>`).join('')}</ul></div>
-    <div class="d-card"><h3>Terminas con</h3><ul class="d-ul">${p.resultado.map((r) => `<li>${r}</li>`).join('')}</ul></div>
-  </div>
-  <div class="d-card d-ronda"><span class="d-ronda-t"><i>Guiado · </i>Cómo se trabaja</span><span class="d-txt">Abre una sesión de Claude Code en la carpeta de la práctica y pega este prompt. Tú escribes el código; Claude explica, revisa y te hace las preguntas. Esta página es tu referencia: el código es el de la solución probada y cada salida es la que salió de verdad.</span>${prompt(p.prompt.guiado)}</div>
+<section class="d-sec" id="arranque">
+  ${titulo(`Arranca en ${pasosArranque.length} pasos`, 'lo vital')}
+  <p class="d-p"><b>Necesitas:</b> ${p.requisitos.join(' · ')}</p>
+  ${pasosArranque.join('\n  ')}
+  ${fallo ? sub('¿Algo falló al levantar?', fallo) : ''}
 </section>
 
-<section class="d-sec" id="precalculos">
-  ${titulo('Precálculos', `${p.precalculos.length} cuentas`)}
-  <p class="d-p">Haz cada cuenta antes de abrirla. Con un dataset tan chico los números son de juguete, pero las preguntas son las mismas que en ${esc(e.linea.corto)}.</p>
-  ${precalc}
-</section>
-${p.conceptos.length ? `
-<section class="d-sec" id="conceptos">
-  ${titulo('Conceptos exprés', `${p.conceptos.length} nuevos`)}
-  <p class="d-p">Los que aparecen aquí por primera vez. Los demás chips llevan a los conceptos de la estación.</p>
-  <div class="d-kgrid">
-    ${p.conceptos.map((c) => concepto(c)).join('\n    ')}
+<section class="d-sec" id="rondas">
+  ${titulo('¿Ya está corriendo? Elige cómo practicar', 'dos formas')}
+  <div class="d-grid2">
+    <div class="d-card d-ronda"><span class="d-ronda-t"><i>Guiado · </i>Cómo se trabaja</span><span class="d-txt">Abre una sesión de Claude Code en la carpeta de la práctica y pega este prompt. Tú escribes el código; Claude explica, revisa y te hace las preguntas. Esta página es tu referencia: el código es el de la solución probada y cada salida es la que salió de verdad.</span>${prompt(p.prompt.guiado)}</div>
+    <div class="d-card d-ronda"><span class="d-ronda-t"><i>Solo · </i>El prompt</span>${prompt(p.prompt.solo)}</div>
   </div>
 </section>
-` : ''}
-<section class="d-sec" id="pasos">
-  ${titulo('Pasos', `${p.pasos.length} pasos`)}
+
+<section class="d-sec" id="guiado">
+  ${titulo('Guiado', `${guiado.length} pasos`)}
+  <p class="d-p">¿Aún no levantas el ambiente? <a href="#arranque">Ve al arranque</a>.${p1 ? ` El paso ${p1.n} es el arranque.` : ''}</p>
+  <p class="d-nota"><b>Precálculos. </b>Haz cada cuenta antes de abrirla. Con un dataset tan chico los números son de juguete, pero las preguntas son las mismas que en ${esc(e.linea.corto)}. Cada uno está dentro del paso donde se usa.</p>
   <div class="d-pasos">
-    ${p.pasos.map((x, i) => paso(x, idx, i === 0)).join('\n    ')}
+    ${guiado.map((x, i) => { const r = reparto.get(x.id); return paso(x, idx, i === 0, { conceptos: r.conceptos.map((c) => k.get(c)), precalculos: r.precalculos.map((q) => precalc.get(q)) }); }).join('\n    ')}
   </div>
 </section>
 
@@ -418,8 +428,20 @@ ${p.conceptos.length ? `
   <div class="d-objs">
     ${p.solo.slice(1).map((o, i) => `<div class="d-obj"><span>${String(i + 1).padStart(2, '0')}</span><span>${o}</span></div>`).join('\n    ')}
   </div>
-  <div class="d-card d-ronda"><span class="d-ronda-t"><i>Solo · </i>El prompt</span>${prompt(p.prompt.solo)}</div>
   <div class="d-btns">${otra.map((q) => `<a class="d-btn${q.orden > p.orden ? '' : ' d-btn2'}" href="${q.url}">${q.orden > p.orden ? 'Sigue' : 'Antes'}: ${esc(q.titulo)}</a>`).join('')}${p.orden === e.practicas.length ? `<a class="d-btn" href="${e.kitUrl}">Sigue: el proyecto con kit</a>` : ''}<a class="d-btn d-btn2" href="${e.url}#ruta">Volver a la estación</a></div>
+</section>
+
+<section class="d-sec" id="contexto">
+  ${titulo('Contexto opcional', 'para consultar')}
+  ${ctx('La escena', `${etiquetas(p.momento, p.carpeta ? `Sin kit · ${p.carpeta}` : 'Sin kit', false)}
+  <p class="d-p">${p.escena}</p>
+  <div class="d-ojo d-cuando"><b>Cuándo pasa esto: </b>${p.cuando}</div>`)}
+  ${ctx('Terminas con', `<ul class="d-ul">${p.resultado.map((r) => `<li>${r}</li>`).join('')}</ul>`)}
+  ${p.conceptos.length ? ctx(`Glosario: los ${p.conceptos.length} conceptos nuevos`, `<p class="d-p">Los que aparecen aquí por primera vez. Los demás chips llevan a los conceptos de la estación.</p>
+  <div class="d-kgrid">
+    ${p.conceptos.map((c) => concepto(c)).join('\n    ')}
+  </div>`) : ''}
+  <p class="d-nota">Los demás conceptos y el repaso son de toda la estación: están en <a href="${e.url}#conceptos">su página</a>.</p>
 </section>
 </main>
 ${pie}`;

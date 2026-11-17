@@ -197,6 +197,9 @@ export const practica = obj({
   }), { min: 4 }),
   solo: arr(txt, { min: 3 }),
   prompts: obj({ guiado: txt, solo: txt }),
+  // El arranque de la página: un paso que lo es (`paso`, sale del Guiado) o los comandos para volver a levantar
+  // lo de una práctica anterior (`code`).
+  'arranque?': obj({ 'paso?': id, 'code?': txt }),
 });
 
 // `conocidos`: los ids de conceptos que una práctica puede usar (los de su estación y los de todas sus prácticas).
@@ -220,6 +223,8 @@ export function cruzadasPractica(p, conocidos, existe) {
     if (x.comprueba && typeof x.comprueba.salida !== 'string') errs.push(`${p.id}.precalculos.${x.id}: la salida de «comprueba» tiene que ser la real`);
   });
   for (const rel of Object.values(p.prompts)) if (!existe(rel)) errs.push(`${p.id}.prompts: no existe ${rel}`);
+  if (p.arranque && !!p.arranque.paso === !!p.arranque.code) errs.push(`${p.id}.arranque: lleva «paso» o «code», uno de los dos`);
+  if (p.arranque?.paso && p.pasos[0]?.id !== p.arranque.paso) errs.push(`${p.id}.arranque.paso: tiene que ser el primer paso (${p.pasos[0]?.id})`);
   return errs;
 }
 
@@ -287,6 +292,21 @@ export function repartir(e) {
   for (const x of e.precalculos.cuentas) {
     const n = Number((String(x.confirma || '').replace(/<[^>]+>/g, '').match(/paso (\d+)/i) || [])[1]);
     const g = pasos.find((p) => p.n === n) || pasos.find((p) => p.id === dondeK.get(x.conceptos[0])) || pasos[0];
+    out.get(g.id).precalculos.push(x.id);
+  }
+  return out;
+}
+
+// Lo mismo para una práctica desde cero: sus conceptos nuevos y sus precálculos, cada uno en un paso (el del
+// arranque no cuenta). Los conceptos de la estación se quedan en sus chips.
+export function repartirPractica(p) {
+  const pasos = p.pasos.filter((g) => g.id !== p.arranque?.paso);
+  const out = new Map(pasos.map((g) => [g.id, { conceptos: [], precalculos: [] }]));
+  const propios = new Set(p.conceptos.map((c) => c.id)), dondeK = new Map();
+  for (const g of pasos) for (const c of g.conceptos) if (propios.has(c) && !dondeK.has(c)) { dondeK.set(c, g.id); out.get(g.id).conceptos.push(c); }
+  for (const x of p.precalculos) {
+    const n = Number((String(x.confirma || '').replace(/<[^>]+>/g, '').match(/paso (\d+)/i) || [])[1]);
+    const g = pasos.find((q) => q.n === n) || pasos.find((q) => q.conceptos.some((c) => x.conceptos.includes(c))) || pasos[0];
     out.get(g.id).precalculos.push(x.id);
   }
   return out;

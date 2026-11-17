@@ -421,6 +421,7 @@
     "<code>modelo-v2</code> comparado con <code>modelo-v1</code> clase por clase en el mismo test.",
     "<code>modelo-v1</code> reproducido desde su tag con tu carpeta en v2."
   ],
+  "arranque": {"code": "cd ~/dojo/c01-desde-cero\ndocker compose up -d"},
   "prompts": {
     "guiado": "content/estaciones/c01-datos/prompts/desde-cero-produccion.md",
     "solo": "content/estaciones/c01-datos/prompts/desde-cero-produccion-solo.md"

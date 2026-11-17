@@ -41,7 +41,7 @@ node tools/motor.mjs   # copia el motor de apps/tablero-ml a site/tablero/motor/
 
 ### Prácticas desde cero
 
-Una estación puede traer prácticas sin kit (`practicas` en su JSON): la persona arma todo en una carpeta vacía con un dataset que se etiqueta a mano. Para cambiar una, edita el script en `kits/<caso>-desde-cero-solucion/`, corre `bash probar.sh <carpeta-vacía> <venv>` (necesita Docker y un venv con su `requirements.txt`; etiqueta por la API en lugar de clics) y copia las salidas del log a los `salida` de la práctica. El código de los pasos no se copia: sale de la solución al construir.
+Una estación puede traer prácticas sin kit (`practicas` en su JSON): la persona arma todo en una carpeta vacía con un dataset que se etiqueta a mano. Para cambiar una, edita el script en `kits/<caso>-desde-cero-solucion/`, corre `bash probar.sh <carpeta-vacía> <venv>` (necesita Docker y un venv con su `requirements.txt`; etiqueta por la API en lugar de clics) y copia las salidas del log a los `salida` de la práctica. El código de los pasos no se copia: sale de la solución al construir. La página va en el mismo orden que la de una estación: el arranque (`arranque`: el primer paso, si es el de levantar todo, o los comandos para volver a la carpeta de una práctica anterior), los prompts de Guiado y Solo, los pasos con sus conceptos nuevos y sus precálculos dentro (cerrados, los reparte `repartirPractica()`), Hazlo solo y, al final y cerrado, la escena, lo que te llevas y el glosario.
 
 ## Tu tablero
 
