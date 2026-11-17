@@ -1,7 +1,7 @@
 {
   "name": "taller-ai",
   "private": true,
-  "description": "Dojo de entrenamiento ML engineering: proyectos chicos para construir, rehacer y romper, estación por estación.",
+  "description": "Dojo de entrenamiento ML engineer's: proyectos chicos para construir, rehacer y romper, estación por estación.",
   "scripts": {
     "validate": "node tools/validate.mjs",
     "build": "node tools/build.mjs",

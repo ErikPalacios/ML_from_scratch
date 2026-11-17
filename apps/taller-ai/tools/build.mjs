@@ -15,7 +15,7 @@ import { cuerpoEstacion, cuerpoPractica, cuerpoPortada, cuerpoProyecto } from '.
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'dist');
 const SITE_URL = 'https://taller-ai-engineer.vercel.app'; // cámbiala cuando exista el proyecto o haya dominio propio
-const SITE_NAME = "Dojo de entrenamiento ML engineering";
+const SITE_NAME = "Dojo de entrenamiento ML engineer's";
 const fail = (msg) => { console.error('[build] ERROR: ' + msg); process.exit(1); };
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];

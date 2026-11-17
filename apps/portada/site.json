@@ -23,7 +23,7 @@
     {
       "id": "taller",
       "tag": "Empieza aquí · práctica",
-      "title": "Dojo de entrenamiento ML engineering",
+      "title": "Dojo de entrenamiento ML engineer's",
       "text": "Es un curso que se basa en entrenar cada paso del diseño de un sistema de ML, desde el dato hasta el monitoreo en producción. Cada estación es un mini-proyecto que construyes con Claude Code, rehaces solo y arreglas cuando se rompe.",
       "url": "https://taller-ai-engineer.vercel.app",
       "cta": "Entrar al dojo",

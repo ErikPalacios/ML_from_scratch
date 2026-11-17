@@ -1,4 +1,4 @@
-# Dojo de entrenamiento ML engineering · C01 · Estación 7: Empaquetado (Docker)
+# Dojo de entrenamiento ML engineer's · C01 · Estación 7: Empaquetado (Docker)
 
 Este es un mini-proyecto de práctica. Reproduce en pequeño, en una Mac sin GPU ni nube, la estación «Empaquetado (Docker)» del caso C01: convertir el código de serving y el modelo en imágenes que corren igual en cualquier lado. El servicio es el clasificador de Iris (gateway + model server). La persona con la que trabajas está aprendiendo; tu trabajo es que **entienda**, no que termine rápido.
 

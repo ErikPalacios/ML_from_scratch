@@ -29,7 +29,7 @@ function barra({ ruta, volver, indice }) {
 <div class="d-stripe" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
 <header class="d-head">
   <div class="d-brand">
-    <a class="d-logo" href="/" aria-label="Portada del Dojo"><span class="d-logo-mark">${marcaNav}</span><span class="d-word">Dojo<span class="d-w-m"> de entrenamiento</span> <span class="d-w-a">ML engineering</span></span></a>
+    <a class="d-logo" href="/" aria-label="Portada del Dojo"><span class="d-logo-mark">${marcaNav}</span><span class="d-word">Dojo</span></a>
     ${ruta ? '<span class="d-sep" aria-hidden="true"></span>' : ''}
     ${ruta ? `<span class="d-ruta">${esc(ruta)}</span>` : ''}
   </div>
@@ -316,7 +316,7 @@ ${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${e.caso.toUpperCa
     tiles: [[e.precalculos.cuentas.length, 'precálculos', 'precalculos'], [e.guiado.length, 'pasos', 'guiado'], [e.solo.objetivos.length, 'checks', 'solo'], [e.fallas.length, 'fallas', 'romper']],
     botones: `${kitBtn}<a class="d-btn d-btn2" href="#guiado">Ir al guiado</a>` })}
 ` : `${barra({ ruta: `/ ${e.caso.toUpperCase()} · ${e.num}`, volver: '/', indice })}
-${hero({ volver: '/', volverTxt: "Dojo de entrenamiento ML engineering", pill: `${e.caso.toUpperCase()} · Estación ${e.num} de ${total}`, h1: e.titulo, lead: e.pregunta, num: e.num, tituloEstacion: e.titulo,
+${hero({ volver: '/', volverTxt: "Dojo de entrenamiento ML engineer's", pill: `${e.caso.toUpperCase()} · Estación ${e.num} de ${total}`, h1: e.titulo, lead: e.pregunta, num: e.num, tituloEstacion: e.titulo,
     tiles: conPracticas ? [[e.practicas.length, 'desde cero', 'ruta'], [e.conceptos.length, 'conceptos', 'conceptos'], [e.precalculos.cuentas.length, 'precálculos', e.kitUrl + '#precalculos'], [e.guiado.length, 'pasos', e.kitUrl + '#guiado'], [e.fallas.length, 'fallas', e.kitUrl + '#romper']]
       : [[e.precalculos.cuentas.length, 'precálculos', 'precalculos'], [e.conceptos.length, 'conceptos', 'conceptos'], [e.guiado.length, 'pasos', 'guiado'], [e.solo.objetivos.length, 'checks', 'solo'], [e.fallas.length, 'fallas', 'romper']],
     botones: conPracticas ? `<a class="d-btn" href="#ruta">Por dónde empiezo ↓</a><a class="d-btn d-btn2" href="${e.kitUrl}">El proyecto con kit →</a>` : `${kitBtn}<a class="d-btn d-btn2" href="#guiado">Ir al guiado</a>` })}
@@ -494,7 +494,7 @@ export function cuerpoPortada({ tronco, lista, mapa, hoja, sensei = new Map() })
 <div class="d-wrap d-home">
 <section class="d-home-hero">
   <span class="d-kick">TrueML · Entrenamiento práctico</span>
-  <h1>Dojo de entrenamiento <span>ML engineering</span></h1>
+  <h1>Dojo de entrenamiento <span>ML engineer's</span></h1>
   <p class="d-lead">Proyectos chicos que corren en tu Mac, uno por cada estación del camino del dato a producción. Cada uno lo construyes cuatro veces: con ayuda, solo, roto con ayuda y roto solo. Con una explicación rápida de cada concepto en el momento en que lo usas.</p>
   <div class="d-pips"><div>${pips}</div><span>${listas} de ${tronco.estaciones.length} estaciones listas</span></div>
   <div class="d-btns">${primera ? `<a class="d-btn" href="${lista.get(primera.id).url}">Empezar por la estación ${primera.num} →</a>` : ''}<a class="d-btn d-btn2" href="#mapa">Ver el mapa</a></div>

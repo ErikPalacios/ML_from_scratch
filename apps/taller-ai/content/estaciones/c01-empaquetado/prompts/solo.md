@@ -1,4 +1,4 @@
-Estoy en el Dojo de entrenamiento ML engineering, en la estación 7 de C01, «Empaquetado (Docker)», ronda **Solo**.
+Estoy en el Dojo de entrenamiento ML engineer's, en la estación 7 de C01, «Empaquetado (Docker)», ronda **Solo**.
 
 Lee `CLAUDE.md`. **No leas `GUION.md`** y no me des código: esta ronda la escribo yo desde el esqueleto, con `OBJETIVOS.md` y los contratos de cada archivo como única guía.
 

@@ -1,4 +1,4 @@
-# Dojo de entrenamiento ML engineering · C01 · Estación 1: Datos y etiquetas
+# Dojo de entrenamiento ML engineer's · C01 · Estación 1: Datos y etiquetas
 
 Este es un mini-proyecto de práctica. Reproduce en pequeño, en una Mac sin GPU ni nube, la estación «Datos y etiquetas» del caso C01: un clasificador de categorías para las fotos de un marketplace. La persona con la que trabajas está aprendiendo; tu trabajo es que **entienda**, no que termine rápido.
 

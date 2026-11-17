@@ -1,4 +1,4 @@
-Estoy en el Dojo de entrenamiento ML engineering, estación 1 de C01, ronda **Hazlo solo** de la práctica **Antes de producción**. Ya la hice guiada; ahora la rehago desde cero en una carpeta nueva, `~/dojo/c01-desde-cero-2`, sin ver la guía.
+Estoy en el Dojo de entrenamiento ML engineer's, estación 1 de C01, ronda **Hazlo solo** de la práctica **Antes de producción**. Ya la hice guiada; ahora la rehago desde cero en una carpeta nueva, `~/dojo/c01-desde-cero-2`, sin ver la guía.
 
 Reglas:
 - **No me des código ni me digas qué escribir.** Si te pregunto, contéstame con una pregunta que me haga pensar o con el nombre del concepto.

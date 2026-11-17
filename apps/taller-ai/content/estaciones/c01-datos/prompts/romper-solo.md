@@ -1,4 +1,4 @@
-Estoy en el Dojo de entrenamiento ML engineering, en la estación 1 de C01, «Datos y etiquetas», ronda **Romper solo**.
+Estoy en el Dojo de entrenamiento ML engineer's, en la estación 1 de C01, «Datos y etiquetas», ronda **Romper solo**.
 
 Lee `CLAUDE.md`. Mi pipeline ya pasa `python verificar.py` completo.
 

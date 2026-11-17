@@ -32,8 +32,6 @@ body.dojo {
 .d-logo-mark { width: 24px; display: block; }
 .d-word { font: 800 21px/1 var(--sans); letter-spacing: -.04em; }
 .d-word span { color: var(--tm-acc); }
-.d-word .d-w-m { color: inherit; }
-.d-word .d-w-a { color: var(--tm-acc); }
 .d-sep { width: 1px; height: 22px; background: var(--tm-line); }
 .d-dojo { font: 700 15px/1 var(--sans); color: var(--tm-ink) !important; text-decoration: none; }
 .d-ruta { font: 500 13px/1 var(--mono); color: var(--tm-ink3); white-space: nowrap; }
@@ -421,8 +419,3 @@ details[open] > summary .d-mas i, .d-arreglo[open] summary i { transform: rotate
 
 /* el tanque de avance (piezas.js) va dentro del mismo ancho y márgenes que el resto de la página */
 .d-hero + .tm-tanque { box-sizing: border-box; width: 100%; max-width: 1280px; margin: 20px auto 0; padding: 0 clamp(16px, 5vw, 56px); }
-
-/* el nombre completo del Dojo en la barra: en pantallas angostas se acorta a «Dojo ML engineering» */
-.d-word { white-space: nowrap; }
-@media (max-width: 760px) { .d-word { font-size: 17px; } .d-word .d-w-m { display: none; } }
-@media (max-width: 400px) { .d-word { font-size: 15px; } }

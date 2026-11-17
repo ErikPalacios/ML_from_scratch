@@ -52,7 +52,7 @@ const destacada = DEST.map((d, k) => {
       ${franja('tm-stripe p-dojo-stripe')}
       <div class="p-dojo-body">
         <div class="p-tool-h"><span class="p-num p-num-y">${String(k).padStart(2, '0')} · ${esc(d.tag)}</span>${miniT(d.etapas)}</div>
-        <h2>${esc(d.title).replace(/ML engineering$/, '<span class="p-acc">ML engineering</span>')}</h2>
+        <h2>${esc(d.title)}</h2>
         <p>${esc(d.text)}</p>
         <div class="p-avance"><div class="p-pips${av.n > 24 ? ' p-pips--densa' : ''}" style="--n:${av.n}">${av.pips}</div><span>${esc(av.texto)}</span></div>
         <a class="p-btn p-btn-y" href="${esc(d.url)}">${esc(d.cta)} →</a>
