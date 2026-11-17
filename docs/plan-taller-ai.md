@@ -240,6 +240,6 @@ Agregado después:
   - **Lo que no cambió:** los kits, su `GUION.md` (el paso 0 sigue ahí) y los prompts.
   - **`app.js`:** un enlace a algo dentro de un colapsable cerrado (`#k-…`, `#pc-…`) lo abre.
   - **Arreglo:** la T del hero de la estación 2 decía «1 · Datos y etiquetas», porque `TM.mark` guarda cada T por etapa y la 1 y la 2 comparten «Datos». Ya tiene su propia clave.
-  - **Proyecto de más:** el primer `vercel deploy` de esta sesión creó por error un proyecto `taller-ai` (taller-ai-theta.vercel.app), porque la worktree no traía `.vercel/`. Falta decidir si se borra. Desde una worktree nueva, primero `vercel link --project taller-ai-engineer`.
+  - **Proyecto de más:** el primer `vercel deploy` de esta sesión creó por error un proyecto `taller-ai` (taller-ai-theta.vercel.app), porque la worktree no traía `.vercel/`. Se borró el mismo día, con sus 2 despliegues. Desde una worktree nueva, primero `vercel link --project taller-ai-engineer`.
 
 Siguiente: la fase 5. Haces las 4 rondas de la estación 1 con los prompts e importas tu `progreso.json` en el tablero; se ajusta lo que falle del molde (incluidos los puntos de arriba). Después, redesplegar la portada y Sensei para que enlacen la estación 2. La sincronización con cuentas sigue esperando la Fase 5 del plan de lanzamiento: el documento y las ops ya están listos para mandarse a una API.
