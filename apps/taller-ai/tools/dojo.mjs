@@ -1,7 +1,7 @@
 // Las páginas de estación con el diseño «Dojo» de TrueML (Claude Design: «Dojo Estacion 01»).
 // La T de vidrio y las etapas salen del sistema de diseño compartido (apps/trueml, copiado en vendor/trueml con
 // node apps/trueml/sync.mjs). Se dibuja al construir: la página no necesita JavaScript para verse y abre sin conexión.
-import { TrueMLMark as TM, RANGOS_C01, franja, miniT, IDS } from '../vendor/trueml/lib.mjs';
+import { TrueMLMark as TM, RANGOS_C01, franja, miniT, IDS, bloqueCodigo } from '../vendor/trueml/lib.mjs';
 import { repartir, repartirPractica } from './schema.mjs';
 
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -31,14 +31,14 @@ let uid = 0;
 const TEMA = `<div class="tema d-tema" role="group" aria-label="Tema">${[['light', 'Claro'], ['dark', 'Oscuro'], ['auto', 'Auto']]
   .map(([t, l]) => `<button type="button" data-tema="${t}" aria-pressed="false">${l}</button>`).join('')}</div>`;
 
-function barra({ ruta, volver, indice }) {
+// La marca de TrueML con la palabra Dojo lleva a la portada del Dojo; el botón «Volver a TrueML» lo pone piezas.js.
+function barra({ ruta, indice }) {
   return `<div class="d-top">
 <div class="d-stripe" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
 <header class="d-head">
   <div class="d-brand">
-    <a class="d-logo" href="${PORTADA}"><span class="d-logo-mark">${marcaNav}</span><span class="d-word">True<span>ML</span></span></a>
-    <span class="d-sep" aria-hidden="true"></span>
-    ${volver ? `<a class="d-dojo" href="${volver}">Dojo</a>` : '<span class="d-dojo">Dojo</span>'}
+    <a class="d-logo" href="/" aria-label="Portada del Dojo"><span class="d-logo-mark">${marcaNav}</span><span class="d-word">Dojo</span></a>
+    ${ruta ? '<span class="d-sep" aria-hidden="true"></span>' : ''}
     ${ruta ? `<span class="d-ruta">${esc(ruta)}</span>` : ''}
   </div>
   ${TEMA}
@@ -49,22 +49,40 @@ ${indice.length ? `<nav class="d-nav" aria-label="En esta página">${indice.map(
 
 const titulo = (h, tag) => `<div class="d-h2"><h2>${esc(h)}</h2>${tag ? `<span class="d-tag">${esc(tag)}</span>` : ''}</div>`;
 
-function codigo(code, lbl) {
-  const id = `c${++uid}`;
-  return `<div class="d-code"><div class="d-code-h"><span>${esc(lbl)}</span><button type="button" class="d-copy" data-copiar="${id}">Copiar</button></div><pre id="${id}"><code>${esc(code)}</code></pre></div>`;
+// El lenguaje de un bloque, a partir de su etiqueta (nombre del archivo, «terminal», «python»…); sin pista queda sin color.
+function lenguaDe(lbl, code) {
+  const l = String(lbl || '').toLowerCase();
+  if (['python', 'json', 'yaml', 'sql', 'bash', 'toml', 'docker', 'js'].includes(l)) return l;
+  if (/\.py$/.test(l)) return 'python';
+  if (/\.ya?ml$/.test(l)) return 'yaml';
+  if (/\.json$/.test(l)) return 'json';
+  if (/\.sql$/.test(l)) return 'sql';
+  if (/\.toml$/.test(l)) return 'toml';
+  if (/(^|\/)dockerfile/.test(l)) return 'docker';
+  if (/\.sh$/.test(l) || /^(terminal|arranque|mac)/.test(l)) return 'bash';
+  return /^\s*(\$ |docker |pip |python3? |cd |unzip )/m.test(code) ? 'bash' : '';
+}
+
+// El bloque de código estándar de TrueML (codigo.js / piezas.css): barra con lenguaje, título y copiar.
+function codigo(code, lbl, forzado) {
+  const lang = forzado || lenguaDe(lbl, code);
+  // «terminal» ya lo dice la barra (Terminal): no se repite como título
+  return bloqueCodigo({ codigo: code, lang, titulo: lbl === lang || lbl === 'terminal' ? '' : lbl });
 }
 
 function salida(s, lbl = 'Salida real') {
   if (s === null || s === undefined) return `<p class="d-nota">La salida depende de tu corrida.</p>`;
   if (s === '') return `<p class="d-nota">No imprime nada.</p>`;
-  return `<div class="d-salida"><div class="d-salida-h">${esc(lbl)}</div><pre><code>${esc(s)}</code></pre></div>`;
+  return bloqueCodigo({ codigo: s, salida: true, titulo: lbl === 'Salida real' ? '' : lbl });
 }
 
 const comando = (c, lbl = 'terminal') => codigo(c.code, c.donde && c.donde !== 'mac' ? c.donde : lbl) + (c.nota ? `<p class="d-nota">${c.nota}</p>` : '') + salida(c.salida);
 
+// El prompt para pegar en Claude Code: el botón del resumen lo copia entero sin abrir el bloque (mismo botón que el código).
+const ICO_COPIAR = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="2"/><path d="M10.5 3.5v-.5a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>';
 function prompt(texto, { boton = 'Copiar el prompt', ver = 'Ver el prompt' } = {}) {
   const id = `p${++uid}`;
-  return `<details class="d-prompt"><summary><span>${esc(ver)} <i aria-hidden="true">↓</i></span><button type="button" class="d-copy-y" data-copiar="${id}">${esc(boton)}</button></summary><pre id="${id}">${esc(texto)}</pre></details>`;
+  return `<details class="d-prompt"><summary><span>${esc(ver)} <i aria-hidden="true">↓</i></span><button type="button" class="tm-code__copy" data-tm-copiar="pre-${id}" aria-label="${esc(boton)}">${ICO_COPIAR}<span>${esc(boton)}</span></button></summary>${bloqueCodigo({ codigo: texto, lang: '', titulo: 'prompt', id })}</details>`;
 }
 
 const chips = (ids, idx) => (ids.length ? `<div class="d-chips">${ids.map((i) => `<a href="${idx.get(i).url}">${esc(idx.get(i).termino)}</a>`).join('')}</div>` : '');
@@ -303,7 +321,7 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
   <div class="d-grid2">
     <p class="d-p">Con todo en verde, <code>romper.py</code> mete una falla en el mundo, la configuración o la infraestructura (nunca en lo que escribiste) y, si hace falta, deja corriendo lo que «pasó anoche». Tú empiezas por <code>verificar.py</code>.</p>
     ${codigo([['--mostrar', 'con ayuda: Claude sabe cuál es'], ['', 'solo: escondida, ni Claude la sabe'], ['--verificar', '¿ya quedó?'], ['--revelar', 'me rindo'], ['--restaurar', 'deshacer']]
-      .map(([a, c]) => `${`${py} romper.py ${a}`.padEnd(py.length + 23)}# ${c}`).join('\n'), 'romper.py')}
+      .map(([a, c]) => `${`${py} romper.py ${a}`.padEnd(py.length + 23)}# ${c}`).join('\n'), 'romper.py', 'bash')}
   </div>
   <details class="d-catalogo"><summary><span><span class="d-cat-t">Catálogo de fallas <em>(spoilers)</em></span><span class="d-txt">El catálogo de abajo trae las respuestas. Ábrelo después de romper, para repasar.</span></span><span class="d-cat-b">Abrir el catálogo</span></summary>
     <div class="d-fallas">
@@ -339,10 +357,10 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
     : [...trabajo, S.repaso, S.contexto];
   const empezar = `<a class="d-btn" href="#${modo === 'estacion' ? 'ruta' : 'arranque'}">Empezar</a>`;
   const L = e.linea.corto, inicio = `/${e.linea.id}/`;
-  return `${modo === 'proyecto' ? `${barra({ ruta: `/ ${L} · ${e.num} · proyecto con kit`, volver: '/', indice })}
+  return `${modo === 'proyecto' ? `${barra({ ruta: `/ ${L} · ${e.num} · proyecto con kit`, indice })}
 ${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${L} · Estación ${e.num} · Proyecto con kit`, h1: 'El proyecto con kit', lead: e.mundo.resumen, etapaIdx: e.etapaIdx, num: e.num, tituloEstacion: e.titulo,
     botones: empezar })}
-` : `${barra({ ruta: `/ ${L} · ${e.num}`, volver: '/', indice })}
+` : `${barra({ ruta: `/ ${L} · ${e.num}`, indice })}
 ${hero({ volver: inicio, volverTxt: e.linea.entrenamiento, pill: `${L} · Estación ${e.num} de ${total}`, h1: e.titulo, lead: e.pregunta, etapaIdx: e.etapaIdx, num: e.num, tituloEstacion: e.titulo,
     botones: empezar })}
 `}<main class="d-wrap d-main">
@@ -394,7 +412,7 @@ export function cuerpoPractica(e, p) {
     ...p1.comandos.filter((c) => c.salida).map((c) => salida(c.salida, `Salida real · ${c.code.split('\n').at(-1)}`))].join('\n      ') : '';
   const guiado = p.pasos.filter((x) => x !== p1);
 
-  return `${barra({ ruta: `/ ${e.linea.corto} · ${e.num} · desde cero`, volver: '/', indice })}
+  return `${barra({ ruta: `/ ${e.linea.corto} · ${e.num} · desde cero`, indice })}
 ${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${e.linea.corto} · Estación ${e.num} · Desde cero ${p.orden} de ${e.practicas.length}`, h1: p.titulo, lead: p.subtitulo, etapaIdx: e.etapaIdx, num: e.num, tituloEstacion: e.titulo,
     botones: '<a class="d-btn" href="#arranque">Empezar</a>' })}
 <main class="d-wrap d-main">
@@ -626,7 +644,7 @@ export function cuerpoPortada({ tronco, lista, ramas = [] }) {
   const ronda = (n, t, d) => `<div class="d-uso-r"><span><i>${n} </i>${t}</span><span>${d}</span></div>`;
   const sinListas = ents.filter((x) => !x.listas);
 
-  return `${barra({ ruta: '', volver: '', indice })}
+  return `${barra({ ruta: '', indice })}
 <div class="d-wrap d-home">
 <section class="d-home-hero">
   <span class="d-kick">TrueML · Entrenamiento práctico</span>
@@ -690,7 +708,7 @@ export function cuerpoTronco({ tronco, lista, ramas = [], hoja, sensei = new Map
   const enlace = (s) => (lista.has(s.id) ? lista.get(s.id).url : `${hoja}#est-${s.id}`);
   const indice = [['c01', 'Qué es C01'], ['mapa', 'El mapa'], ['estaciones', 'Estaciones'], ['otros', 'Otros entrenamientos']];
   const LB = NOMBRE_ETAPA.map((n, i) => [n, rango(i)]);
-  return `${barra({ ruta: `/ ${x.nombre}`, volver: '/', indice })}
+  return `${barra({ ruta: `/ ${x.nombre}`, indice })}
 <div class="d-wrap d-home">
 <section class="d-home-hero">
   <a class="d-back" href="/#entrenamientos">← Todos los entrenamientos</a>
@@ -763,7 +781,7 @@ export function cuerpoRama(r, { tronco, listaTronco, ramas }) {
     lazoLargo: r.lazo ? r.lazo.largo : '', pendiente: 'en camino', aria: `Mapa de ${x.nombre}: ${r.estaciones.length} estaciones en un anillo, de Datos a Monitoreo` };
   const kick = x.n ? `Entrenamiento ${dos(x.n)} · ${x.codigo || r.patron_txt}` : `Próximamente · patrón ${r.patron_txt}`;
   const indice = [['caso', `Qué es ${x.codigo || 'el caso'}`], ...(conMapa ? [['mapa', 'El mapa']] : []), ['estaciones', 'Estaciones'], ['otros', 'Otros entrenamientos']];
-  return `${barra({ ruta: `/ ${x.nombre}`, volver: '/', indice })}
+  return `${barra({ ruta: `/ ${x.nombre}`, indice })}
 <div class="d-wrap d-home">
 <section class="d-home-hero">
   <a class="d-back" href="/#entrenamientos">← Todos los entrenamientos</a>

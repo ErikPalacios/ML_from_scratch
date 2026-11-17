@@ -1,5 +1,6 @@
-/* Lo poco que la app hace en el navegador: el selector de tema, los botones de copiar, la animación de la T
-   en las páginas Dojo y el modo sin conexión.
+/* Lo poco que la app hace en el navegador: el selector de tema, el aviso al copiar, la animación de la T
+   en las páginas Dojo y el modo sin conexión. Copiar, el tanque de avance y las notas vienen del sistema compartido
+   de TrueML (codigo.js y piezas.js, que cargan antes que este archivo).
    La app no corre nada del dojo: eso pasa en tu Mac. */
 (function () {
   'use strict';
@@ -13,21 +14,6 @@
   }
   aplicar(getTema());
 
-  // Copiar: el botón copia el texto del <pre> o <template> al que apunta data-copiar.
-  function copiarViejo(texto) {
-    var ta = document.createElement('textarea');
-    ta.value = texto; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select();
-    var ok = false;
-    try { ok = document.execCommand('copy'); } finally { document.body.removeChild(ta); }
-    return ok ? Promise.resolve() : Promise.reject(new Error('copy'));
-  }
-  function copiarTexto(texto) {
-    // El API moderno puede negarse (sin permiso, o fuera de https): entonces se usa el método clásico.
-    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(texto).catch(function () { return copiarViejo(texto); });
-    return copiarViejo(texto);
-  }
-
   document.addEventListener('click', function (ev) {
     var t = ev.target && ev.target.closest ? ev.target : null;
     if (!t) return;
@@ -38,30 +24,34 @@
       aplicar(tema);
       return;
     }
-    var c = t.closest('[data-copiar]');
-    if (c) {
-      if (c.closest('summary')) ev.preventDefault(); // el botón vive en el resumen: copiar no abre ni cierra
-      var src = document.getElementById(c.getAttribute('data-copiar'));
-      if (!src) return;
-      var texto = src.tagName === 'TEMPLATE' ? src.content.textContent : src.textContent;
-      var toast = document.querySelector('.d-toast');
-      if (toast) { // páginas Dojo: un aviso abajo en lugar de cambiar el botón
-        copiarTexto(texto.replace(/\n$/, '')).then(function () { avisar(toast, 'Copiado al portapapeles'); }, function () { avisar(toast, 'No se pudo copiar'); });
-        return;
-      }
-      var antes = c.textContent;
-      copiarTexto(texto.replace(/\n$/, '')).then(function () {
-        c.textContent = 'Copiado ✓'; c.classList.add('ok');
-        setTimeout(function () { c.textContent = antes; c.classList.remove('ok'); }, 1600);
-      }, function () { c.textContent = 'No se pudo copiar'; });
-    }
   });
   window.addEventListener('storage', function (e) { if (e.key === KEY) aplicar(getTema()); });
 
-  var tToast;
-  function avisar(el, txt) {
-    el.textContent = txt; el.classList.add('on');
-    clearTimeout(tToast); tToast = setTimeout(function () { el.classList.remove('on'); }, 1600);
+  // Copiar lo hace codigo.js (el botón de cada bloque y el de cada prompt). Aquí solo se avisa abajo si quedó:
+  // se mira el botón que se tocó hasta que codigo.js lo marca como copiado (is-ok) o dice que no se pudo.
+  var toast = document.querySelector('.d-toast'), tToast;
+  function avisar(txt) {
+    toast.textContent = txt; toast.classList.add('on');
+    clearTimeout(tToast); tToast = setTimeout(function () { toast.classList.remove('on'); }, 1600);
+  }
+  if (toast && window.MutationObserver) {
+    document.addEventListener('click', function (ev) {
+      var b = ev.target && ev.target.closest && ev.target.closest('[data-tm-copiar]');
+      if (!b) return;
+      var span = b.querySelector('span'), listo = false, obs;
+      function mirar() {
+        if (listo) return;
+        if (b.classList.contains('is-ok')) avisar('Copiado al portapapeles');
+        else if (span && /no se pudo/i.test(span.textContent)) avisar('No se pudo copiar');
+        else return;
+        listo = true; if (obs) obs.disconnect();
+      }
+      mirar(); // el método clásico de copiar resuelve antes de llegar aquí
+      if (listo) return;
+      obs = new MutationObserver(mirar);
+      obs.observe(b, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true, characterData: true });
+      setTimeout(function () { obs.disconnect(); }, 3000);
+    });
   }
 
   // Un enlace a algo que vive dentro de un colapsable cerrado (un concepto del glosario, un precálculo dentro de

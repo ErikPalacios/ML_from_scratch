@@ -31,9 +31,7 @@ body.dojo {
 .d-logo { display: flex; gap: 10px; align-items: center; text-decoration: none; color: var(--tm-ink) !important; }
 .d-logo-mark { width: 24px; display: block; }
 .d-word { font: 800 21px/1 var(--sans); letter-spacing: -.04em; }
-.d-word span { color: var(--tm-acc); }
 .d-sep { width: 1px; height: 22px; background: var(--tm-line); }
-.d-dojo { font: 700 15px/1 var(--sans); color: var(--tm-ink) !important; text-decoration: none; }
 .d-ruta { font: 500 13px/1 var(--mono); color: var(--tm-ink3); white-space: nowrap; }
 .d-tema { display: flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--tm-card); box-shadow: var(--tm-sh); }
 .d-tema button { border: 0; cursor: pointer; font: 600 13px/1 var(--sans); padding: 8px 12px; border-radius: 999px; background: transparent; color: var(--tm-ink2); }
@@ -128,8 +126,6 @@ body.dojo {
 .d-prompt summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 10px 10px 16px; font: 600 13px/1.2 var(--sans); color: var(--tm-codeink); }
 .d-prompt summary i { font-style: normal; display: inline-block; transition: transform .2s; }
 .d-prompt[open] summary i { transform: rotate(180deg); }
-.d-prompt pre { margin: 0; padding: 4px 16px 16px; color: var(--tm-codeink); font: 12.5px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 60vh; overflow-y: auto; }
-.d-copy-y { border: 0; cursor: pointer; font: 600 12px/1 var(--sans); padding: 8px 11px; border-radius: 8px; background: var(--yt); color: var(--navy); flex: none; }
 
 /* desde cero */
 .d-practica { text-decoration: none; color: var(--tm-ink) !important; box-shadow: var(--tm-sh), inset 4px 0 0 var(--y); }
@@ -172,17 +168,12 @@ details[open] > summary .d-mas i, .d-arreglo[open] summary i { transform: rotate
 .d-esc-dojo .d-lbl { color: var(--tm-dojo); }
 .d-decide { margin: 0; font: 14px/1.6 var(--sans); color: var(--tm-ink2); max-width: 820px; }
 
-/* código y salidas */
-.d-code { border-radius: 14px; overflow: hidden; background: var(--tm-code); min-width: 0; }
-.d-code-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 8px 4px 16px; font: 600 12px/1.2 var(--mono); color: var(--tm-codeink2); }
-.d-code-h span { overflow-wrap: anywhere; }
-.d-copy { border: 0; cursor: pointer; font: 600 12px/1 var(--sans); padding: 7px 10px; border-radius: 8px; background: rgba(255,255,255,.1); color: var(--tm-codeink); flex: none; }
-.d-code pre { margin: 0; padding: 6px 16px 16px; color: var(--tm-codeink); font: 12.5px/1.6 var(--mono); overflow-x: auto; }
-.d-code pre code { font: inherit; overflow-wrap: normal; }
-.d-salida { border-radius: 14px; box-shadow: inset 0 0 0 1px var(--tm-line); min-width: 0; }
-.d-salida-h { padding: 12px 16px 0; font: 600 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--tm-okink); }
-.d-salida pre { margin: 0; padding: 8px 16px 14px; font: 12.5px/1.55 var(--mono); color: var(--tm-ink); overflow-x: auto; }
-.d-salida pre code { font: inherit; overflow-wrap: normal; }
+/* código y salidas: el bloque estándar de TrueML (piezas.css, .tm-code); el prompt va dentro de su desplegable */
+.d-prompt .tm-code { margin: 0; border-radius: 0; box-shadow: none; }
+.d-prompt .tm-code__bar { display: none; }
+.d-prompt .tm-code pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 60vh; overflow-y: auto; padding: 4px 16px 16px; font-size: 12.5px; }
+.d-prompt .tm-code pre code { min-width: 0; }
+.d-prompt .tm-code__copy span { display: inline; }
 .d-listo { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 10px; }
 .d-ok, .d-ojo { border-radius: 14px; padding: 14px 16px; font: 14px/1.5 var(--sans); }
 .d-ok { background: var(--tm-ok); color: var(--tm-ink); }
@@ -274,7 +265,7 @@ details[open] > summary .d-mas i, .d-arreglo[open] summary i { transform: rotate
 .d-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 40; pointer-events: none; font: 700 14px/1 var(--sans); background: var(--navy); color: #fff; padding: 13px 18px; border-radius: 999px; box-shadow: 0 10px 24px -10px rgba(14,21,48,.6); transition: opacity .2s ease; opacity: 0; white-space: nowrap; }
 .d-toast.on { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .d-btn, .d-toast, .d-prompt summary i, .d-mas i { transition: none; } }
-@media (max-width: 480px) { .d-ruta { display: none; } .d-lead { font-size: 18px; } .d-h2 h2 { font-size: 28px; } .d-card { padding: 18px; } .d-pc { padding: 18px; } }
+@media (max-width: 480px) { .d-ruta, .d-sep { display: none; } .d-lead { font-size: 18px; } .d-h2 h2 { font-size: 28px; } .d-card { padding: 18px; } .d-pc { padding: 18px; } }
 
 /* ---------------------------------------------------------------- portada (Claude Design: «Dojo TrueML») */
 .d-home { padding-top: 8px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 48px 56px; align-items: start; }
@@ -607,3 +598,6 @@ div.d-est:hover { background: none; }
 .d-ctx > summary { padding: 16px 18px; font: 700 15px/1.4 var(--sans); }
 .d-ctx-b { padding: 0 18px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 #arranque .d-pc > .d-btn { align-self: flex-start; }
+
+/* el tanque de avance (piezas.js) va dentro del mismo ancho y márgenes que el resto de la página */
+.d-hero + .tm-tanque { box-sizing: border-box; width: 100%; max-width: 1280px; margin: 20px auto 0; padding: 0 clamp(16px, 5vw, 56px); }

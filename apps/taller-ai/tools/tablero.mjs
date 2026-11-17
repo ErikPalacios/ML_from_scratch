@@ -45,7 +45,7 @@ export function cuerpoTablero(plantilla) {
   const R = RONDAS;
   const datos = JSON.stringify(plantilla).replace(/</g, '\\u003c');
 
-  return `${barra({ ruta: 'Tu tablero', volver: '/', indice })}
+  return `${barra({ ruta: 'Tu tablero', indice })}
 <section class="d-wrap d-hero t-hero">
   <div class="d-hero-txt">
     <a class="d-back" href="/">← Dojo</a>
