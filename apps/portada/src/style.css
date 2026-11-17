@@ -78,8 +78,6 @@ body.tm-pagina {
   .p-cuerpo > .p-tools { grid-column: 1; grid-row: 1; }
 }
 /* entra con un fundido al llegar a la sección (video.js pone la clase; sin JS se ve directo) */
-.p-t--antes { opacity: 0; translate: 0 32px; }
-.p-t--entra { transition: opacity .7s ease, translate .7s cubic-bezier(.2,.85,.25,1); }
 .p-t { position: sticky; top: 96px; display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; }
 .p-t-marca { width: 100%; max-width: 680px; container-type: inline-size; }
 .p-t-sin { display: none; }
@@ -147,4 +145,4 @@ body.tm-pagina {
 .p-legal p { color: var(--tm-ink2); }
 .p-legal code { font: .9em var(--mono); }
 .p-legal .p-nota { font-size: 14px; color: var(--tm-ink3); }
-@media (prefers-reduced-motion: reduce) { .p-btn, .p-tool, .p-dojo, .p-t--entra { transition: none; } .p-t--antes { opacity: 1; translate: none; } }
+@media (prefers-reduced-motion: reduce) { .p-btn, .p-tool, .p-dojo { transition: none; } }

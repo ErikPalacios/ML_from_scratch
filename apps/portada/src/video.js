@@ -40,19 +40,3 @@
   dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
   dlg.querySelector('[data-p-video-cerrar]').addEventListener('click', () => dlg.close());
 })();
-
-// La T gigante vive junto a las herramientas, más abajo: entra con un fundido la primera vez que aparece en pantalla.
-(() => {
-  const t = document.querySelector('[data-p-t]');
-  if (!t || !('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const r = t.getBoundingClientRect();
-  if (r.top < innerHeight * 0.5) return; // ya se ve bien al cargar: no la escondas
-  t.classList.add('p-t--antes');
-  const io = new IntersectionObserver(([e]) => {
-    if (!e.isIntersecting) return;
-    io.disconnect();
-    t.classList.add('p-t--entra');
-    requestAnimationFrame(() => t.classList.remove('p-t--antes'));
-  }, { threshold: 0.2, rootMargin: '0px 0px -20% 0px' });
-  io.observe(t);
-})();
