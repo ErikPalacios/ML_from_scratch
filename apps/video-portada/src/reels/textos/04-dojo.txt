@@ -1,0 +1,14 @@
+Constrúyelo. Rómpelo. Arréglalo. 🥋
+
+El Dojo es la práctica de TrueML: un mapa de estaciones del dato al monitoreo (datos, modelo, API, contenedor, orquestación y monitoreo). Cada estación es un mini-proyecto:
+
+1️⃣ Lo construyes con Claude Code.
+2️⃣ Lo rehaces tú solo.
+3️⃣ Lo arreglas cuando se rompe, como pasa en producción.
+
+Las primeras estaciones ya están abiertas y vamos sumando más.
+
+Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MLOps #MLEngineering #MachineLearning #Docker #ClaudeCode #IAenEspañol #AprendeIA #Producción

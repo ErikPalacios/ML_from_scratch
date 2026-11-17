@@ -1,0 +1,13 @@
+¿Cómo lee un LLM una frase? Spoiler: no ve palabras, ve tokens. 🧩
+
+Sensei es el curso de teoría de TrueML: ML engineering desde cero, para entenderlo de verdad.
+
+✅ 59 lecciones, de lo básico a producción
+✅ Figuras que muestran cómo funciona cada cosa
+✅ Calculadoras para mover los números y ver qué pasa
+✅ Un glosario que se abre ahí mismo, sin perder el hilo
+
+Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#MachineLearning #LLM #Tokens #MLEngineering #InteligenciaArtificial #IAenEspañol #AprendeIA #CursoGratis

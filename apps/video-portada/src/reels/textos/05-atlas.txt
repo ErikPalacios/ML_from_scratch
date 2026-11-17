@@ -1,0 +1,10 @@
+¿Te piden dibujar ViT en la entrevista? Aquí está, bloque por bloque. 🧱
+
+El Atlas de Arquitecturas reúne los modelos que más salen en entrevistas: ViT, CLIP, SAM, LLMs, difusión… De cada uno tienes el diagrama, las matemáticas, las dimensiones, los parámetros y los FLOPs, con la cuenta a la vista.
+
+Pasa el cursor por un bloque y ves su forma y sus parámetros. Mira cómo una imagen se vuelve una fila de parches.
+
+Gratis · sin cuenta · en español.
+👉 Link en la bio
+
+#VisionTransformer #ComputerVision #DeepLearning #MachineLearning #EntrevistaTécnica #IAenEspañol #AprendeIA #LLM

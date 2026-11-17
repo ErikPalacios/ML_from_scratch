@@ -1,0 +1,132 @@
+{
+  "nota": "Los reels de Instagram (1080×1920, 30 fps). Cada escena dura `dur` frames (múltiplo de 15: medio segundo, un pulso a 120 BPM). `barrido` pone el barrido de seis colores al entrar a la escena. `sonido` lo lee tools/sonido-reel.mjs: `drop` (frame donde entran bombo y bajo), `hat` (donde entran los platillos) y los efectos con su frame. El reel 01 es la composición Instagram (el video completo).",
+  "barrido": 26,
+  "reels": [
+    {
+      "id": "02-transformer",
+      "escenas": [
+        { "id": "gancho", "dur": 135 },
+        { "id": "pasos", "dur": 240, "barrido": true },
+        { "id": "entrena", "dur": 195, "barrido": true },
+        { "id": "cierre", "dur": 150, "barrido": true }
+      ],
+      "portada": 110,
+      "sonido": {
+        "drop": 135, "hat": 225,
+        "eventos": [
+          { "t": "escala", "f": 4, "paso": 6 },
+          { "t": "subida", "f": 75, "a": 135 },
+          { "t": "golpe", "f": 135 },
+          { "t": "pop", "f": 175, "m": 69 }, { "t": "pop", "f": 215, "m": 72 }, { "t": "pop", "f": 255, "m": 76 }, { "t": "pop", "f": 295, "m": 79 },
+          { "t": "tic", "f": 410 },
+          { "t": "golpe", "f": 570, "g": 0.8 }, { "t": "escala", "f": 575, "paso": 5, "m": 12, "g": 0.6 }
+        ]
+      }
+    },
+    {
+      "id": "03-sensei",
+      "escenas": [
+        { "id": "gancho", "dur": 135 },
+        { "id": "calc", "dur": 210, "barrido": true },
+        { "id": "glosario", "dur": 150, "barrido": true },
+        { "id": "cifras", "dur": 120, "barrido": true },
+        { "id": "cierre", "dur": 150, "barrido": true }
+      ],
+      "portada": 100,
+      "sonido": {
+        "drop": 135, "hat": 345,
+        "eventos": [
+          { "t": "pop", "f": 2, "m": 69 }, { "t": "pop", "f": 70, "m": 76 }, { "t": "pop", "f": 82, "m": 79 },
+          { "t": "subida", "f": 90, "a": 135 },
+          { "t": "golpe", "f": 135 },
+          { "t": "tic", "f": 200 }, { "t": "tic", "f": 230 },
+          { "t": "tic", "f": 400 },
+          { "t": "golpe", "f": 495, "g": 0.6 }, { "t": "escala", "f": 505, "paso": 8, "g": 0.8 },
+          { "t": "golpe", "f": 615, "g": 0.8 }, { "t": "escala", "f": 620, "paso": 5, "m": 12, "g": 0.6 }
+        ]
+      }
+    },
+    {
+      "id": "04-dojo",
+      "escenas": [
+        { "id": "gancho", "dur": 150 },
+        { "id": "mapa", "dur": 240, "barrido": true },
+        { "id": "estacion", "dur": 210, "barrido": true },
+        { "id": "cierre", "dur": 150, "barrido": true }
+      ],
+      "portada": 120,
+      "sonido": {
+        "drop": 150, "hat": 240,
+        "eventos": [
+          { "t": "golpe", "f": 0, "g": 0.6 }, { "t": "golpe", "f": 30, "g": 0.6 }, { "t": "golpe", "f": 60, "g": 0.7 },
+          { "t": "escala", "f": 76, "paso": 7 },
+          { "t": "subida", "f": 105, "a": 150 },
+          { "t": "golpe", "f": 150 },
+          { "t": "escala", "f": 215, "paso": 20, "g": 0.7 },
+          { "t": "tic", "f": 450 }, { "t": "tic", "f": 480 }, { "t": "tic", "f": 510 },
+          { "t": "golpe", "f": 600, "g": 0.8 }, { "t": "escala", "f": 605, "paso": 5, "m": 12, "g": 0.6 }
+        ]
+      }
+    },
+    {
+      "id": "05-atlas",
+      "escenas": [
+        { "id": "gancho", "dur": 315 },
+        { "id": "parches", "dur": 225, "barrido": true },
+        { "id": "cierre", "dur": 150, "barrido": true }
+      ],
+      "portada": 100,
+      "sonido": {
+        "drop": 135, "hat": 315,
+        "eventos": [
+          { "t": "pop", "f": 2, "m": 69 }, { "t": "pop", "f": 60, "m": 76 },
+          { "t": "subida", "f": 90, "a": 135 },
+          { "t": "golpe", "f": 135 },
+          { "t": "escala", "f": 370, "paso": 10, "g": 0.7 },
+          { "t": "golpe", "f": 540, "g": 0.8 }, { "t": "escala", "f": 545, "paso": 5, "m": 12, "g": 0.6 }
+        ]
+      }
+    },
+    {
+      "id": "06-ronda",
+      "escenas": [
+        { "id": "gancho", "dur": 135 },
+        { "id": "pasos", "dur": 195, "barrido": true },
+        { "id": "ronda", "dur": 210, "barrido": true },
+        { "id": "cierre", "dur": 150, "barrido": true }
+      ],
+      "portada": 100,
+      "sonido": {
+        "drop": 135, "hat": 330,
+        "eventos": [
+          { "t": "reloj", "f": 0, "a": 135 },
+          { "t": "subida", "f": 90, "a": 135 },
+          { "t": "golpe", "f": 135 },
+          { "t": "escala7", "f": 150, "paso": 20 },
+          { "t": "tic", "f": 420 }, { "t": "tic", "f": 450 }, { "t": "tic", "f": 480 },
+          { "t": "golpe", "f": 540, "g": 0.8 }, { "t": "escala", "f": 545, "paso": 5, "m": 12, "g": 0.6 }
+        ]
+      }
+    },
+    {
+      "id": "07-hojas",
+      "escenas": [
+        { "id": "gancho", "dur": 150 },
+        { "id": "hojas", "dur": 195, "barrido": true },
+        { "id": "tablero", "dur": 195, "barrido": true },
+        { "id": "cierre", "dur": 150, "barrido": true }
+      ],
+      "portada": 125,
+      "sonido": {
+        "drop": 150, "hat": 240,
+        "eventos": [
+          { "t": "baraja", "f": 30, "paso": 8 },
+          { "t": "subida", "f": 105, "a": 150 },
+          { "t": "golpe", "f": 150 },
+          { "t": "escala", "f": 375, "paso": 12, "g": 0.6 },
+          { "t": "golpe", "f": 540, "g": 0.8 }, { "t": "escala", "f": 545, "paso": 5, "m": 12, "g": 0.6 }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+¿Quieres entender ML engineering de verdad? 🧠
+
+Esto es TrueML: herramientas gratis y en español para aprender y practicar ML engineering, de la teoría a producción.
+
+🟡 Sensei: el curso de teoría, desde cero (59 lecciones).
+🟢 Dojo: práctica por estaciones, del dato al monitoreo.
+🔵 Ronda de Diseño ML: simulador de entrevistas de ML System Design con 45 minutos en el reloj.
+🟣 Atlas de Arquitecturas, Laboratorio Transformer, 9 cheat sheets y un tablero para tus proyectos.
+
+Gratis · sin cuenta · en español.
+👉 Link en la bio: ml-desde-cero.vercel.app
+
+#MachineLearning #MLOps #MLEngineering #InteligenciaArtificial #IAenEspañol #AprendeIA #DeepLearning #Programación
