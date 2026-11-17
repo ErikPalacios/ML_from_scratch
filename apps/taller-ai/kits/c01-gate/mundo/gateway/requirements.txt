@@ -1,0 +1,4 @@
+# Las versiones de la imagen del gateway (estación 6). El entrenamiento tiene que usar la MISMA Pillow:
+# es la que decodifica el JPEG y hace el resize, así que otra versión puede dar otros números para la misma foto.
+pillow==13.0.0
+numpy==2.5.4

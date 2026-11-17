@@ -1,0 +1,17 @@
+# gate.yaml · las reglas del gate mensual de classifier. Las escribe el equipo ANTES de la corrida y cambian solo en
+# un PR propio que otra persona revisa (queda anotado en mundo/revisiones.json). Nunca después de ver un resultado.
+# Tu gate.py las lee de aquí: no copies estos números en el código.
+examen:
+  id: golden-v1                       # el golden set congelado: s3://ml-datos/golden/golden-v1/
+  manifest_sha256: 0061343ada92972b0cd41d17ccb17cdd6751e6a3a3296034ad1bae2879355ae9
+comparar_contra: [champion, hace_3_meses]   # el de hoy y el de hace 3 meses (la defensa contra la erosión)
+top1_top5:
+  margen_puntos: 2.4                  # no inferioridad pareada: Δmin ≥ −2.4 puntos. Es el ruido de un modelo solo en
+                                      # este examen: 1.96 × √(0.82 × 0.18 ÷ 1,000) × 100 ≈ 2.4 (en C01, con 50,000: 0.3)
+categorias:
+  caida_max_puntos: 5                 # una categoría está rota si su recall cae más de 5 puntos…
+  alfa: 0.05                          # …y la caída es significativa: McNemar por categoría, corregido con Holm
+slices:
+  nombres: [normal, poca_luz, chica]
+  margen_puntos: 5                    # no inferioridad pareada por slice (con ≈ 200 fotos, el ruido es ≈ 5 puntos)
+ece_max: 0.05                         # calibración del candidato: error de calibración esperado, 15 cubetas

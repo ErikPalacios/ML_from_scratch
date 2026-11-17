@@ -1,0 +1,1062 @@
+{
+  "id": "gate",
+  "patron": "sincrono",
+  "caso": "c01",
+  "num": 4,
+  "titulo": "Gate de evaluación y registry",
+  "nav": "Gate y registry",
+  "pregunta": "¿Quién decide, y con qué números, que el modelo nuevo puede reemplazar al de producción?",
+  "version": "2026-11-17",
+  "mapa": {
+    "resumen": "La estación 3 deja un <b>checkpoint candidato</b> con su corrida en MLflow. Esta decide si puede reemplazar al modelo que hoy atiende en producción (el <b>champion</b>), y no lo decide una persona viendo una gráfica: lo decide un <b>gate</b>, un paso automático del pipeline con reglas escritas antes de la corrida. El gate evalúa al candidato, al champion y al champion de hace 3 meses sobre el mismo <b>examen congelado</b> (el golden set), foto por foto. Pide que el candidato no sea peor por más de un margen (<b>no inferioridad</b>), que ninguna categoría se rompa, que ningún slice caiga y que su confianza diga la verdad. Si algo no se cumple, el pipeline se pone en rojo. Si todo pasa, el candidato queda en el <b>registry</b> como una versión nueva con el alias <code>challenger</code>. <code>champion</code> se mueve después, cuando termina el canary.",
+    "entra": [
+      "el checkpoint candidato: la corrida de MLflow que dejó la estación 3",
+      "el champion y el de hace 3 meses, por su <b>número</b> de versión (los resolvió el orquestador al arrancar)",
+      "el golden set congelado, con la huella de su manifest",
+      "las reglas del gate (<code>gate.yaml</code>), revisadas en un PR antes de la corrida"
+    ],
+    "sale": [
+      "las predicciones de los tres modelos, foto por foto (los pares)",
+      "el reporte del gate: veredicto, motivo, no inferioridad, categorías, slices y calibración, en una corrida de MLflow",
+      "si pasa: una versión nueva de <code>classifier</code> con el alias <code>challenger</code> y sus tags; si no, una corrida roja que frena el pipeline"
+    ],
+    "escala": [
+      {
+        "que": "El examen",
+        "c01": "<code>golden-v3</code>: 50,000 fotos",
+        "taller": "<code>golden-v1</code>: 1,000 fotos (las que la estación 3 dejó fuera de los snapshots), 600 normales, 210 con poca luz y 190 chicas"
+      },
+      {
+        "que": "Categorías",
+        "c01": "500; el gate revisa por separado las 100 con más tráfico",
+        "taller": "10, todas"
+      },
+      {
+        "que": "Margen de no inferioridad",
+        "c01": "0.3 puntos",
+        "taller": "2.4 puntos (el ruido de un examen de 1,000 fotos)"
+      },
+      {
+        "que": "Contra quién",
+        "c01": "el champion (v14) y el de hace 3 meses (v12)",
+        "taller": "el champion (v3, septiembre) y el de hace 3 meses (v1, julio)"
+      },
+      {
+        "que": "Dónde corre",
+        "c01": "un paso del pipeline en una GPU (evaluar) y otro en CPU (el gate)",
+        "taller": "la CPU de tu Mac: evaluar ≈ 10 s, el gate ≈ 3 s"
+      },
+      {
+        "que": "Las reglas",
+        "c01": "<code>gate.yaml</code> en el repositorio <code>ml-catalogo</code>; cambian solo en un PR revisado",
+        "taller": "<code>gate.yaml</code> en tu carpeta; sus versiones revisadas, en <code>mundo/revisiones.json</code>"
+      },
+      {
+        "que": "El registry",
+        "c01": "MLflow con Postgres y S3",
+        "taller": "MLflow en Docker, con SQLite y un volumen"
+      }
+    ],
+    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-gate"
+  },
+  "precalculos": {
+    "intro": "Antes de escribir el gate, las cuentas de servilleta: cuánto ruido tiene el examen (de ahí sale el margen), qué tan fina es la comparación foto por foto, cuánto ruido tiene una sola categoría, por qué hay que corregir cuando se hacen 10 pruebas a la vez, cuánto pesa la tabla de pares y cuánta erosión se puede colar. Cada cuenta va en las dos escalas: C01 y el dojo.",
+    "cuentas": [
+      {
+        "id": "margen",
+        "pregunta": "¿De qué tamaño es el margen de no inferioridad?",
+        "formula": "E = 1.96 × √(q × (1 − q) ÷ N) × 100, en puntos; el margen m es E redondeado",
+        "c01": {
+          "cuenta": "q = 0.85, N = 50,000: 1.96 × √(0.85 × 0.15 ÷ 50,000) × 100",
+          "valor": "≈ 0.31 → m = 0.3 puntos"
+        },
+        "taller": {
+          "cuenta": "q = 0.82, N = 1,000: 1.96 × √(0.82 × 0.18 ÷ 1,000) × 100",
+          "valor": "≈ 2.38 → m = 2.4 puntos"
+        },
+        "decide": "El margen es lo que el examen ni siquiera puede medir de un modelo solo. Perder menos que eso es perder menos de lo que se ve. Con 1,000 fotos, el dojo solo puede proteger contra pérdidas de más de ≈ 2.4 puntos; C01, con 50,000, contra 0.3. Un examen más grande es un gate más fino.",
+        "conceptos": [
+          "margen",
+          "no-inferioridad"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport math\nfor nombre, q, N in [('C01, golden de 50,000', 0.85, 50000), ('dojo, golden de 1,000', 0.82, 1000)]:\n    print(f'{nombre}: E = 1.96 × √({q} × {1 - q:.2f} ÷ {N:,}) × 100 = {196 * math.sqrt(q * (1 - q) / N):.2f} puntos')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "C01, golden de 50,000: E = 1.96 × √(0.85 × 0.15 ÷ 50,000) × 100 = 0.31 puntos\ndojo, golden de 1,000: E = 1.96 × √(0.82 × 0.18 ÷ 1,000) × 100 = 2.38 puntos"
+        }
+      },
+      {
+        "id": "pareado",
+        "pregunta": "¿Qué tan fina es la comparación foto por foto?",
+        "formula": "SE_Δ = √(b + c) ÷ N × 100, donde b + c son las fotos en que los dos modelos discrepan",
+        "c01": {
+          "cuenta": "2,100 discrepancias de 50,000: √2,100 ÷ 50,000 × 100",
+          "valor": "≈ 0.09 puntos (intervalo ± 0.18)"
+        },
+        "taller": {
+          "cuenta": "61 discrepancias de 1,000 (b = 38, c = 23): √61 ÷ 1,000 × 100",
+          "valor": "≈ 0.78 puntos (intervalo ± 1.53)"
+        },
+        "decide": "Las fotos que los dos aciertan o los dos fallan no mueven la diferencia: solo cuentan las que discrepan. Por eso la comparación pareada es más fina que el margen y el gate puede leer pérdidas más chicas que el ruido de un modelo solo.",
+        "conceptos": [
+          "pares",
+          "intervalo"
+        ],
+        "confirma": "el paso 3: contra el champion salen b = 38 y c = 23, SE = 0.78."
+      },
+      {
+        "id": "categoria",
+        "pregunta": "¿Cuánto ruido tiene el recall de una sola categoría?",
+        "formula": "E = 1.96 × √(r × (1 − r) ÷ n) × 100, con n las fotos de esa categoría",
+        "c01": {
+          "cuenta": "una de las 100 grandes, con ≈ 500 fotos y r = 0.85: 1.96 × √(0.85 × 0.15 ÷ 500) × 100",
+          "valor": "≈ 3.1 puntos"
+        },
+        "taller": {
+          "cuenta": "≈ 100 fotos por categoría y r = 0.85: 1.96 × √(0.85 × 0.15 ÷ 100) × 100",
+          "valor": "≈ 7 puntos"
+        },
+        "decide": "Una caída de 5 puntos en una categoría puede ser azar. Por eso la regla pide dos cosas: que caiga más de 5 puntos <b>y</b> que la caída sea significativa con McNemar, que usa los pares de esa categoría.",
+        "conceptos": [
+          "mcnemar"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport math\nprint(f'una categoría con 100 fotos y recall 0.85: E = 1.96 × √(0.85 × 0.15 ÷ 100) × 100 = {196 * math.sqrt(0.85 * 0.15 / 100):.1f} puntos')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "una categoría con 100 fotos y recall 0.85: E = 1.96 × √(0.85 × 0.15 ÷ 100) × 100 = 7.0 puntos"
+        }
+      },
+      {
+        "id": "holm",
+        "pregunta": "Si haces 10 pruebas a la vez, ¿cuántas falsas alarmas esperas?",
+        "formula": "P(al menos una falsa alarma) = 1 − (1 − α)^k, con k pruebas y α = 0.05",
+        "c01": {
+          "cuenta": "100 categorías: 1 − 0.95^100",
+          "valor": "≈ 99 %"
+        },
+        "taller": {
+          "cuenta": "10 categorías: 1 − 0.95^10",
+          "valor": "≈ 40 %"
+        },
+        "decide": "Sin corregir, el gate frenaría a un modelo sano casi siempre: con 10 pruebas, 4 de cada 10 meses alguna «cae» por azar. La corrección de Holm vuelve a dejar la falsa alarma del gate completo en 5 %.",
+        "conceptos": [
+          "holm"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nfor k in (10, 100):\n    print(f'{k} pruebas con α = 0.05 y ninguna diferencia real: P(al menos una falsa alarma) = 1 − 0.95^{k} = {1 - 0.95 ** k:.1%}')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "10 pruebas con α = 0.05 y ninguna diferencia real: P(al menos una falsa alarma) = 1 − 0.95^10 = 40.1%\n100 pruebas con α = 0.05 y ninguna diferencia real: P(al menos una falsa alarma) = 1 − 0.95^100 = 99.4%"
+        }
+      },
+      {
+        "id": "tabla",
+        "pregunta": "¿Cuánto pesa guardar las predicciones foto por foto?",
+        "formula": "filas = modelos × fotos; cada fila, el top-5 y la confianza",
+        "c01": {
+          "cuenta": "3 modelos × 50,000 fotos = 150,000 filas",
+          "valor": "≈ 5–10 MB en Parquet"
+        },
+        "taller": {
+          "cuenta": "1,000 fotos, una fila con las 3 columnas de cada modelo",
+          "valor": "≈ 36 kB"
+        },
+        "decide": "Guardar los pares es casi gratis, y sin ellos no hay prueba pareada, ni categorías, ni slices: solo dos promedios que no dicen en qué fotos discrepan. Se guardan siempre, con la corrida del gate.",
+        "conceptos": [
+          "pares"
+        ],
+        "confirma": "el paso 2: <code>reportes/cand-2026-10-01/pares.parquet</code> pesa ≈ 36 kB."
+      },
+      {
+        "id": "erosion",
+        "pregunta": "¿Cuánta erosión se cuela si solo comparas contra el champion?",
+        "formula": "cada mes pasa si la pérdida r cumple r + 1.96 × SE_Δ ≤ m; en 12 meses se acumulan 12 × r",
+        "c01": {
+          "cuenta": "r = 0.2 puntos al mes, SE_Δ ≈ 0.045: cada mes pasa; 12 × 0.2",
+          "valor": "2.4 puntos al año, sin un solo gate en rojo"
+        },
+        "taller": {
+          "cuenta": "m = 2.4, SE_Δ ≈ 0.78: pasa cada mes cualquier r ≤ 2.4 − 1.96 × 0.78",
+          "valor": "≈ 0.9 puntos al mes"
+        },
+        "decide": "Por eso el gate también compara contra el champion de hace 3 meses, con la misma regla: contra él se suman tres meses de pérdida, que ya no caben en el margen.",
+        "conceptos": [
+          "erosion"
+        ],
+        "confirma": "el paso 3: contra el de hace 3 meses (v1) el candidato está +9.4 puntos arriba; aquí no hubo erosión."
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "gate",
+      "termino": "Gate de evaluación",
+      "en": "evaluation gate",
+      "def": "Un paso automático del pipeline que decide si un modelo puede avanzar, con reglas escritas antes. Si no se cumplen, el pipeline se detiene.",
+      "analogia": "El examen de manejo: hay una lista de cosas que tienes que hacer bien, escrita antes de que te subas al coche, y el examinador no la cambia porque le caíste bien.",
+      "importa": "Sin gate, el modelo nuevo llega a producción porque «se ve bien» en una gráfica. Con gate, cada mes se aplica la misma regla, y el historial dice por qué pasó o no pasó cada modelo.",
+      "trampa": "Un gate que solo mira el promedio global: una categoría rota se esconde detrás de 9 que mejoraron un poco."
+    },
+    {
+      "id": "golden",
+      "termino": "Golden set (examen congelado)",
+      "en": "golden set / frozen test set",
+      "def": "Un conjunto fijo de fotos con etiquetas revisadas, que ningún entrenamiento ve y que no cambia. Se identifica por su id y por la huella (sha256) de su manifest.",
+      "analogia": "El metro patrón de París: si cada quien ajusta su metro, ya nadie mide lo mismo.",
+      "importa": "Solo con el mismo examen se pueden comparar modelos de meses distintos. Si se corrige algo, se publica <code>golden-v2</code> en un PR propio y todos se vuelven a medir con él.",
+      "trampa": "«Corregir» unas etiquetas del examen sin cambiarle el nombre: la comparación con los meses anteriores deja de valer y nadie lo nota."
+    },
+    {
+      "id": "champion",
+      "termino": "Champion y challenger",
+      "en": "champion / challenger",
+      "def": "Champion: el modelo que hoy atiende en producción. Challenger: el que pasó el gate y espera su turno (shadow y canary) para reemplazarlo.",
+      "analogia": "El campeón de box y el retador: el retador tiene que ganarse la pelea; no basta con decir que está mejor entrenado.",
+      "importa": "Los dos son alias en el registry, nombres que apuntan a una versión. Cambiar de modelo, o volver atrás, es mover un alias, no reentrenar.",
+      "trampa": "Mover champion a mano «porque ya lo probé en el notebook»: el alias se mueve, pero nadie aprobó ese modelo."
+    },
+    {
+      "id": "registry",
+      "termino": "Registro de modelos",
+      "en": "model registry",
+      "def": "El catálogo de modelos: cada versión (v1, v2…) apunta a sus archivos y nunca cambia; los alias (champion, challenger) se mueven; los tags guardan de dónde salió.",
+      "analogia": "El registro civil: cada acta tiene su número y no se reescribe; lo que cambia es quién ocupa qué puesto.",
+      "importa": "La pregunta de la guardia a las 3 de la mañana, «¿qué modelo está sirviendo y de dónde salió?», se contesta con el alias y los tags, en un minuto.",
+      "trampa": "Creer que los archivos de una corrida no cambian: en MLflow se pueden reemplazar. Por eso la versión guarda las huellas (pesos_sha256, labels_sha256)."
+    },
+    {
+      "id": "version-numero",
+      "termino": "Versión por número",
+      "en": "pinned version",
+      "def": "El gate recibe el champion como número (v3), resuelto una sola vez al arrancar, nunca como la pregunta «¿quién es champion?».",
+      "analogia": "Comparar contra «el récord de hoy» a media carrera es trampa: el récord puede cambiar mientras corres.",
+      "importa": "Si el alias se mueve a mitad de la corrida, las predicciones serían de un modelo y el veredicto contra otro. Con el número, el reporte dice exactamente contra quién se comparó.",
+      "trampa": "Registrar el veredicto de un gate que comparó contra un champion que ya no es champion: es un veredicto viejo."
+    },
+    {
+      "id": "no-inferioridad",
+      "termino": "No inferioridad",
+      "en": "non-inferiority test",
+      "def": "Pedir que el modelo nuevo no sea peor que el actual por más de un margen, con buena seguridad. No se le pide ganar.",
+      "analogia": "Un medicamento genérico más barato: no tiene que curar más que el original, solo no curar menos por más de un margen chico.",
+      "importa": "El reentrenamiento mensual busca estar al día, no ganar. Exigir «mejor de forma significativa» bloquearía casi todos los meses; exigir «≥ champion» decidiría con una moneda.",
+      "trampa": "Mirar el centro (Δ) en vez del extremo de abajo (Δmin): un Δ de −0.5 puede pasar o no según cuánto ruido haya."
+    },
+    {
+      "id": "margen",
+      "termino": "Margen de no inferioridad",
+      "en": "non-inferiority margin",
+      "def": "Cuánto se acepta que el modelo nuevo pierda contra el actual. Se fija antes, del tamaño del ruido del examen: lo que el examen ni siquiera puede medir.",
+      "analogia": "La tolerancia de una báscula: si mide de ± 100 g, no tiene caso discutir por 50.",
+      "importa": "En C01, 0.3 puntos (golden de 50,000). En el dojo, 2.4 (golden de 1,000). Es una decisión de negocio vestida de estadística: en C01, con ≈ 10 millones de fotos al día, 0.3 puntos son ≈ 30,000 primeras sugerencias equivocadas más al día.",
+      "trampa": "Elegirlo después de ver el resultado. Entonces ya no mide: justifica."
+    },
+    {
+      "id": "pares",
+      "termino": "Evaluación pareada",
+      "en": "paired evaluation",
+      "def": "Los dos modelos responden las mismas fotos y se comparan foto por foto: b = solo el nuevo acierta, c = solo el viejo acierta.",
+      "analogia": "Dos cocineros preparan los mismos 1,000 platillos; para saber quién es mejor, solo importan los platillos en que uno acertó y el otro no.",
+      "importa": "Las fotos fáciles (los dos aciertan) y las imposibles (los dos fallan) no dicen nada; solo las discrepancias. Por eso la comparación pareada es más fina que comparar dos promedios.",
+      "trampa": "Guardar solo «83.2 % vs 81.7 %»: sin los pares no hay prueba pareada, ni categorías, ni slices."
+    },
+    {
+      "id": "intervalo",
+      "termino": "Error estándar e intervalo",
+      "en": "standard error / confidence interval",
+      "def": "SE_Δ dice cuánto se movería la diferencia por azar con otras fotos. Δmin = Δ − 1.96 × SE es el extremo de abajo del intervalo de 95 %: lo peor que puede ser, con buena seguridad.",
+      "analogia": "El margen de error de una encuesta: «42 % ± 3» quiere decir que lo real está, casi seguro, entre 39 y 45.",
+      "importa": "La regla del gate es Δmin ≥ −margen. Con pocas discrepancias el intervalo es estrecho; con muchas, ancho.",
+      "trampa": "Confundir el SE de un modelo solo (el del margen) con el SE pareado (el de la diferencia): el segundo es más chico."
+    },
+    {
+      "id": "erosion",
+      "termino": "Erosión de calidad",
+      "en": "slow regression",
+      "def": "Perder un poco cada mes, siempre dentro del margen: cada comparación pasa, y la suma de un año es grande.",
+      "analogia": "La rana en el agua que se calienta despacio: ningún grado de más se nota, la suma sí.",
+      "importa": "Por eso el gate compara también contra el champion de hace 3 meses: contra él se suman tres meses de pérdida, que no caben en el margen.",
+      "trampa": "Comparar solo contra el mes anterior y creer que eso protege del largo plazo."
+    },
+    {
+      "id": "mcnemar",
+      "termino": "Prueba de McNemar",
+      "en": "McNemar's test",
+      "def": "Para dos modelos sobre las mismas fotos: si fueran igual de buenos, cada discrepancia sería un volado. La prueba da la probabilidad (p) de ver un reparto tan desigual de b y c por azar.",
+      "analogia": "Si una moneda sale 21 veces cruz y 2 águila, sospechas que está cargada: es muy raro por azar.",
+      "importa": "Separa una categoría rota (camisas: 2 contra 21) del ruido (playeras: 1 contra 4). Usa solo las discrepancias de esa categoría.",
+      "trampa": "Usarla con muy pocas discrepancias y concluir «no hay diferencia»: con 3 discrepancias, ninguna prueba puede ver nada."
+    },
+    {
+      "id": "holm",
+      "termino": "Corrección de Holm",
+      "en": "Holm–Bonferroni correction",
+      "def": "Al hacer k pruebas a la vez, ordena las p de menor a mayor y compara la primera contra α/k, la segunda contra α/(k − 1)… Así la falsa alarma de todo el conjunto queda en α.",
+      "analogia": "Si compras 10 boletos de lotería, ganar uno ya no es tan sorprendente: hay que pedir más para creer que no fue suerte.",
+      "importa": "Con 10 categorías y α = 0.05 sin corregir, ≈ 40 % de los meses alguna «cae» por azar y el gate frena a un modelo sano.",
+      "trampa": "No corregir porque «cada prueba es al 5 %»: el 5 % es por prueba, no por gate."
+    },
+    {
+      "id": "slice",
+      "termino": "Slice",
+      "en": "data slice",
+      "def": "Un pedazo del examen con algo en común: fotos con poca luz, fotos chicas, fotos del celular. Se evalúa aparte porque un promedio lo puede esconder.",
+      "analogia": "Un restaurante con 4.5 estrellas que da intoxicación los martes: el promedio no lo dice, el corte por día sí.",
+      "importa": "El candidato del proveedor no se ve tan mal en global (−1.3 puntos) y en poca luz su Δmin cae a −5.5: ahí es donde más se nota el lote malo.",
+      "trampa": "Usar el margen global en un slice chico: con 200 fotos el ruido es ≈ 5 puntos, y el gate se pondría en rojo por azar."
+    },
+    {
+      "id": "calibracion",
+      "termino": "Calibración (ECE)",
+      "en": "calibration / expected calibration error",
+      "def": "Si el modelo dice «90 % seguro», ¿acierta 9 de cada 10? El ECE agrupa las fotos por confianza y promedia la distancia entre confianza y aciertos.",
+      "analogia": "Un pronóstico del clima que dice «70 % de lluvia» y llueve 7 de cada 10 de esos días está bien calibrado.",
+      "importa": "Producto usa la confianza (por ejemplo, para pedir revisión humana debajo de un umbral). Un modelo que acierta igual pero dice «99 %» siempre rompe esa regla.",
+      "trampa": "Mirar solo la exactitud: dos modelos con el mismo top-1 pueden tener calibraciones muy distintas."
+    },
+    {
+      "id": "fuga",
+      "termino": "Fuga hacia el examen",
+      "en": "data leakage / test contamination",
+      "def": "Que fotos del examen terminen en los datos de entrenamiento. El modelo ya vio las respuestas: sale mejor en el examen sin ser mejor.",
+      "analogia": "Estudiar con el examen que te van a poner: sacas 10 y no aprendiste nada.",
+      "importa": "El gate cruza las huellas del snapshot del candidato con las del examen y se detiene si hay una sola en común. La estación 2 deja el golden set fuera por diseño.",
+      "trampa": "Celebrar un candidato que «sube 3 puntos» sin preguntar con qué datos se entrenó."
+    },
+    {
+      "id": "labels-json",
+      "termino": "labels.json: el orden es parte del modelo",
+      "en": "label map",
+      "def": "La lista que dice qué categoría es cada salida de la red: la salida 0 es «playeras», la 1 «pantalones»… Viaja con los pesos y se registra con su huella.",
+      "analogia": "Las etiquetas de los frascos de la cocina: si las revuelves, el azúcar sigue siendo azúcar, pero le pones sal al café.",
+      "importa": "Con otro orden, los números del gate salen iguales (se evalúa por índice) y el gateway muestra otra categoría. Solo se nota si se compara el labels.json, o cuando cae la aceptación.",
+      "trampa": "Ordenar las categorías alfabéticamente «para que se vea limpio»."
+    },
+    {
+      "id": "reglas-antes",
+      "termino": "Reglas escritas antes",
+      "en": "pre-registered thresholds",
+      "def": "Los umbrales del gate viven en un archivo versionado y cambian solo en un PR propio, revisado por otra persona, antes de la corrida.",
+      "analogia": "Las reglas del partido se acuerdan antes del silbatazo, no al medio tiempo cuando vas perdiendo.",
+      "importa": "Si se pueden mover después de ver el resultado, cada mes habrá un argumento razonable para aflojar, y el gate deja de medir.",
+      "trampa": "«Solo por esta vez»: el commit directo a main que afloja una regla para que salga el modelo de la semana."
+    },
+    {
+      "id": "falla-ruidosa",
+      "termino": "Fallar en rojo",
+      "en": "fail loudly",
+      "def": "Si el gate no pasa, el paso termina con error (código de salida 1, corrida FAILED) y el pipeline se detiene y avisa. Nunca devuelve «false» y deja seguir.",
+      "analogia": "Una alarma de incendio que en vez de sonar escribe una nota en un cuaderno: técnicamente detectó el fuego.",
+      "importa": "Un gate que «devuelve false» deja que los pasos siguientes se salten en silencio: la corrida queda en verde, no aparece ningún challenger y nadie se entera.",
+      "trampa": "Atrapar la excepción del gate «para que el pipeline no truene»."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae el marketplace de C01 el 1 de octubre de 2026, a las 05:00 UTC: el entrenamiento del mes ya terminó y el pipeline llega al gate. En el S3 local están las fotos, los snapshots de junio a septiembre y el examen congelado <code>golden-v1</code>. En MLflow está el historial del registro (julio, agosto y septiembre, que hoy es champion) y dos candidatos de octubre: el bueno y uno entrenado con un lote de etiquetas malo del proveedor. Tú escribes el gate: evaluar a los tres modelos foto por foto, aplicar las reglas y registrar al challenger. Todo corre con un entorno virtual de Python y dos contenedores.",
+    "trae": [
+      {
+        "que": "El S3 local y MLflow (compose.yaml)",
+        "detalle": "RustFS en el puerto 9500 (buckets <code>fotos</code> y <code>ml-datos</code>, este con versionado) y MLflow en el 5500, con su interfaz."
+      },
+      {
+        "que": "mundo/crear.py",
+        "detalle": "Crea todo en ≈ 3 minutos: baja Fashion-MNIST, sube las 10,000 fotos, publica 4 snapshots, congela <code>golden-v1</code> (1,000 fotos con su slice), entrena <code>classifier</code> v1, v2 y v3 (<code>@champion</code>) y los dos candidatos, y escribe <code>corrida.yaml</code>."
+      },
+      {
+        "que": "gate.yaml y mundo/revisiones.json",
+        "detalle": "Las reglas del gate (el examen y su huella, contra quién, el margen, categorías, slices y calibración) y el registro de sus versiones revisadas: el sustituto del historial de PR."
+      },
+      {
+        "que": "corrida.yaml",
+        "detalle": "Los parámetros de esta noche, ya resueltos: el candidato, champion = 3 y hace_3_meses = 1."
+      },
+      {
+        "que": "mundo/gateway/ y mundo/arquitectura.py",
+        "detalle": "El preprocess del gateway (el mismo de la estación 3) y la red."
+      },
+      {
+        "que": "mundo/modelos.py y mundo/s3.py",
+        "detalle": "Mirar y reparar el registro (versiones, alias, candidatos, gates, labels) y el S3 (el examen, sus versiones y restaurar una)."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "10 checks con los criterios de «listo» y 6 fallas en el mundo, la configuración o la infraestructura, nunca en lo que escribes."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "pipeline/evaluar.py",
+        "hace": "Los tres modelos por número, con sus huellas, sobre el examen congelado (sin fuga): los pares, foto por foto."
+      },
+      {
+        "archivo": "pipeline/gate.py",
+        "hace": "Las reglas revisadas: no inferioridad pareada, categorías con McNemar y Holm, slices y ECE. Si no pasa, en rojo."
+      },
+      {
+        "archivo": "pipeline/registrar.py",
+        "hace": "Solo con un gate que pasó: la versión nueva con sus tags y el alias challenger."
+      }
+    ],
+    "requisitos": [
+      "Docker Desktop corriendo, con ≈ 700 MB libres para las imágenes de RustFS y MLflow",
+      "Python 3.11 o más nuevo (se probó con 3.14.3) y ≈ 1.1 GB para el entorno virtual (PyTorch)",
+      "git (con tu nombre y correo configurados)",
+      "Internet la primera vez (los paquetes, las imágenes y Fashion-MNIST)",
+      "Los puertos 9500, 9501 y 5500 libres en tu Mac"
+    ],
+    "sustituciones": [
+      {
+        "nube": "<code>golden-v3</code>: 50,000 fotos, 500 categorías",
+        "local": "<code>golden-v1</code>: 1,000 fotos, 10 categorías",
+        "diferencia": "Las mismas reglas con otra escala: el margen sale de la misma fórmula (2.4 puntos en lugar de 0.3) y cada categoría tiene ≈ 100 fotos."
+      },
+      {
+        "nube": "El historial de PR del repositorio <code>ml-catalogo</code>",
+        "local": "<code>mundo/revisiones.json</code>",
+        "diferencia": "En C01, la rama protegida no deja subir <code>gate.yaml</code> sin revisión; aquí el gate comprueba la huella contra la lista de versiones aprobadas."
+      },
+      {
+        "nube": "Los parámetros de la corrida de Argo",
+        "local": "<code>corrida.yaml</code>",
+        "diferencia": "Los dos traen el champion ya resuelto a un número. El de verdad lo escribe el orquestador; el del dojo lo escribe <code>mundo/crear.py</code>."
+      },
+      {
+        "nube": "Registrar después de la estación 5 (paridad y latencia del engine)",
+        "local": "<code>registrar.py</code> justo después del gate",
+        "diferencia": "En el dojo no hay engine: el challenger se registra en cuanto pasa el gate. En C01, primero se construye y se prueba el engine."
+      },
+      {
+        "nube": "Evaluar en una GPU",
+        "local": "La CPU de tu Mac",
+        "diferencia": "1,000 fotos de 32×32 caben en segundos; 50,000 de 224×224 con una ResNet-50, en minutos de GPU."
+      },
+      {
+        "nube": "MLflow con Postgres y S3; Amazon S3",
+        "local": "MLflow con SQLite; RustFS en localhost:9500",
+        "diferencia": "La misma API y la misma interfaz."
+      }
+    ],
+    "arranque": "unzip c01-gate.zip && cd c01-gate\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\ndocker compose up -d --wait\npython mundo/crear.py\ngit init && git add -A && git commit -m \"kit recién descomprimido\"\npython verificar.py mundo",
+    "python": "python"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "El S3 local y MLflow arriba, el mundo creado y la carpeta como repositorio de git.",
+      "conceptos": [
+        "registry"
+      ],
+      "explica": "El mundo vive en dos servicios: el S3 local (fotos, snapshots y el examen) y MLflow (las corridas y el registro de modelos). <code>mundo/crear.py</code> los llena igual cada vez y entrena los cinco modelos del equipo, por eso tarda unos minutos. La carpeta tiene que ser un repositorio de git: el gate se niega a juzgar con reglas que no están en un commit.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
+          "nota": "Tarda unos minutos la primera vez (PyTorch pesa ≈ 1 GB). Desde aquí, cada terminal nueva necesita <code>source .venv/bin/activate</code>.",
+          "donde": "mac",
+          "salida": "\nPython 3.14.3\n1.1G"
+        },
+        {
+          "code": "docker compose up -d --wait\npython mundo/crear.py",
+          "nota": "La interfaz de MLflow queda en http://localhost:5500: ahí están las corridas del equipo y el modelo <code>classifier</code>.",
+          "donde": "mac",
+          "salida": " Container taller-c01-gate-s3-1 Healthy \n Container taller-c01-gate-mlflow-1 Healthy\n  descargando t10k-images-idx3-ubyte… (Fashion-MNIST, Zalando Research, licencia MIT)\n  descargando t10k-labels-idx1-ubyte… (Fashion-MNIST, Zalando Research, licencia MIT)\n  10000 fotos en s3://fotos/ (14.1 MB)\n  ds-2026-06-01: {'train': 3263, 'val': 717, 'total': 3980}\n  ds-2026-07-01: {'train': 4516, 'val': 999, 'total': 5515}\n  ds-2026-08-01: {'train': 5772, 'val': 1265, 'total': 7037}\n  ds-2026-09-01: {'train': 6999, 'val': 1524, 'total': 8523}\n  golden-v1: 1000 fotos {'chica': 190, 'normal': 600, 'poca_luz': 210} · manifest sha256 0061343ada92…\n  entrenando classifier v1 (2026-07) con ds-2026-06-01…\n  classifier v1 (2026-07) · val_top1 0.7559 · 21 s\n  entrenando classifier v2 (2026-08) con ds-2026-07-01…\n  classifier v2 (2026-08) · val_top1 0.8088 · 20 s\n  entrenando classifier v3 (2026-09) con ds-2026-08-01…\n  classifier v3 (2026-09) · val_top1 0.8395 · 29 s\n  entrenando el candidato cand-2026-10-01…\n  cand-2026-10-01 · val_top1 0.8675 · 32 s\n  entrenando el candidato cand-2026-10-01-proveedor…\n  cand-2026-10-01-proveedor · val_top1 0.8360 · 32 s\n✓ mundo listo: python verificar.py mundo"
+        },
+        {
+          "code": "git init && git add -A && git commit -m \"kit recién descomprimido\"\ngit log --oneline",
+          "nota": "Los ids de commit cambian en cada máquina.",
+          "donde": "mac",
+          "salida": "84a11de kit recién descomprimido"
+        },
+        {
+          "code": "python verificar.py mundo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo            S3 local (fotos, ml-datos con 4 snapshots y golden-v1) · MLflow: classifier v1–v3, @champion = v3, 2 candidatos · git\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py mundo</code> en verde: los buckets, los snapshots, el examen, <code>classifier</code> v1–v3 con <code>@champion</code>, los dos candidatos y git.",
+      "ojo": "El 5000 lo ocupa AirPlay en macOS: por eso MLflow está en el 5500 (y el S3 en 9500, para no chocar con las estaciones anteriores)."
+    },
+    {
+      "n": 1,
+      "id": "reglas",
+      "titulo": "Las reglas y los parámetros de esta noche",
+      "objetivo": "Saber, antes de escribir código, contra quién se compara, con qué examen y con qué reglas.",
+      "conceptos": [
+        "gate",
+        "champion",
+        "version-numero",
+        "golden",
+        "reglas-antes"
+      ],
+      "explica": "El gate no decide nada que no esté escrito. <code>corrida.yaml</code> trae lo que resolvió el orquestador al arrancar: el candidato y los dos modelos de referencia, <b>por número</b>. <code>gate.yaml</code> trae las reglas: el examen y la huella de su manifest, contra quién se compara y cuánto puede moverse cada cosa. Fíjate en que no dice «el top-1 debe ser 85 %»: dice contra quién y cuánto. Un número absoluto envejece; una comparación contra el que ya está sigue teniendo sentido cada mes.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "gate.yaml",
+          "code": "# gate.yaml · las reglas del gate mensual de classifier. Las escribe el equipo ANTES de la corrida y cambian solo en\n# un PR propio que otra persona revisa (queda anotado en mundo/revisiones.json). Nunca después de ver un resultado.\n# Tu gate.py las lee de aquí: no copies estos números en el código.\nexamen:\n  id: golden-v1                       # el golden set congelado: s3://ml-datos/golden/golden-v1/\n  manifest_sha256: 0061343ada92972b0cd41d17ccb17cdd6751e6a3a3296034ad1bae2879355ae9\ncomparar_contra: [champion, hace_3_meses]   # el de hoy y el de hace 3 meses (la defensa contra la erosión)\ntop1_top5:\n  margen_puntos: 2.4                  # no inferioridad pareada: Δmin ≥ −2.4 puntos. Es el ruido de un modelo solo en\n                                      # este examen: 1.96 × √(0.82 × 0.18 ÷ 1,000) × 100 ≈ 2.4 (en C01, con 50,000: 0.3)\ncategorias:\n  caida_max_puntos: 5                 # una categoría está rota si su recall cae más de 5 puntos…\n  alfa: 0.05                          # …y la caída es significativa: McNemar por categoría, corregido con Holm\nslices:\n  nombres: [normal, poca_luz, chica]\n  margen_puntos: 5                    # no inferioridad pareada por slice (con ≈ 200 fotos, el ruido es ≈ 5 puntos)\nece_max: 0.05                         # calibración del candidato: error de calibración esperado, 15 cubetas",
+          "nota": "Del equipo. Sus versiones revisadas están en <code>mundo/revisiones.json</code>: el gate comprueba que la de hoy sea una de ellas."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "grep -v \"^#\" corrida.yaml",
+          "nota": "",
+          "donde": "mac",
+          "salida": "candidato: cand-2026-10-01        # la corrida de MLflow que dejó la estación 3\nchampion: 3                     # classifier@champion al arrancar la corrida\nhace_3_meses: 1                 # el champion de julio: la defensa contra la erosión\nexamen: golden-v1               # el golden set congelado"
+        },
+        {
+          "code": "python mundo/modelos.py versiones",
+          "nota": "El historial del registro: tres meses, cada uno aprobado por su gate.",
+          "donde": "mac",
+          "salida": "v1  —            mes 2026-07 · corrida equipo-2026-07-01 · gate passed · labels.json en orden\nv2  —            mes 2026-08 · corrida equipo-2026-08-01 · gate passed · labels.json en orden\nv3  @champion    mes 2026-09 · corrida equipo-2026-09-01 · gate passed · labels.json en orden"
+        },
+        {
+          "code": "python mundo/modelos.py candidatos",
+          "nota": "Los dos candidatos de octubre están en el experimento de entrenamiento, sin registrar.",
+          "donde": "mac",
+          "salida": "FINISHED  equipo-2026-07-01            ds-2026-06-01  val_top1 0.7559  pesos 900f8ba1e607\nFINISHED  equipo-2026-08-01            ds-2026-07-01  val_top1 0.8088  pesos 6509cf6cab5e\nFINISHED  equipo-2026-09-01            ds-2026-08-01  val_top1 0.8395  pesos e858003795ba\nFINISHED  cand-2026-10-01              ds-2026-09-01  val_top1 0.8675  pesos 0e36f3a192b0\nFINISHED  cand-2026-10-01-proveedor    ds-2026-09-01  val_top1 0.8360  pesos 9abf284a1c20"
+        },
+        {
+          "code": "python mundo/s3.py golden",
+          "nota": "",
+          "donde": "mac",
+          "salida": "manifest sha256 0061343ada92972b… · gate.yaml dice 0061343ada92972b… → igual\n1000 fotos · slices {'normal': 600, 'chica': 190, 'poca_luz': 210}\npor categoría: playeras 103, pantalones 105, sueteres 82, vestidos 99, abrigos 102, sandalias 117, camisas 90, tenis 108, bolsas 99, botines 95"
+        }
+      ],
+      "verifica": "Puedes decir en voz alta: candidato <code>cand-2026-10-01</code>, contra v3 y v1, con <code>golden-v1</code> (1,000 fotos, huella <code>0061343a…</code>) y margen de 2.4 puntos.",
+      "ojo": "Las «val_top1» de <code>candidatos</code> son de la validación de cada snapshot, que cambia de mes a mes: no sirven para comparar modelos de meses distintos. Para eso es el examen congelado.",
+      "en_pagina": {
+        "conceptos": [
+          "gate",
+          "champion",
+          "version-numero",
+          "golden",
+          "reglas-antes"
+        ],
+        "precalculos": [
+          "margen"
+        ]
+      }
+    },
+    {
+      "n": 2,
+      "id": "evaluar",
+      "titulo": "Evaluar a los tres, foto por foto",
+      "objetivo": "Las predicciones del candidato, del champion y del de hace 3 meses sobre el mismo examen, comprobando cada huella.",
+      "conceptos": [
+        "pares",
+        "fuga",
+        "labels-json"
+      ],
+      "explica": "Antes de medir, se comprueba que lo que se mide es lo que se dice: el manifest del examen con la huella de <code>gate.yaml</code> y cada foto con la suya; los pesos de cada modelo con la huella de su corrida; su <code>labels.json</code> contra <code>entrada/categorias.json</code>; y que ninguna foto del examen esté en el snapshot con que se entrenó el candidato. Después, cada foto pasa por el preprocess del gateway y por los tres modelos, y se guarda por foto el top-5 y la confianza de cada uno: los <b>pares</b>.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/evaluar.py",
+          "code": "\"\"\"Paso «evaluar» del gate: el candidato, el champion y el de hace 3 meses, sobre el mismo examen, foto por foto.\n\n    python pipeline/evaluar.py                          # los parámetros de corrida.yaml\n    python pipeline/evaluar.py --candidato <corrida>    # otro candidato, con el mismo champion y el mismo examen\n\nContrato:\n- Los modelos entran por NÚMERO de versión (corrida.yaml), nunca por alias: el alias puede moverse a media corrida.\n- El examen es golden-v1: su manifest tiene que tener la huella que dice gate.yaml, y cada foto la suya. Si algo no\n  coincide, se detiene: un examen que cambió no compara nada.\n- Ninguna foto del examen puede estar en el snapshot con que se entrenó el candidato (fuga = examen contaminado).\n- Cada modelo: sus pesos tienen la huella que anotó su corrida, y su labels.json es entrada/categorias.json.\n- Las fotos pasan por el preprocess del gateway (mundo/gateway/preprocess.py), el mismo de producción.\n- Deja reportes/<candidato>/pares.parquet (una fila por foto: label, slice y, por modelo, su top-5 y su confianza)\n  y reportes/<candidato>/evaluacion.json (qué se evaluó, con sus huellas).\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport io\nimport json\nimport sys\nimport tempfile\nfrom pathlib import Path\n\nimport numpy as np\nimport torch\n\nfrom _comun import (CLASES, DATOS, EXP_ENTRENAMIENTO, FOTOS, MODELO, REPORTES, corrida, gate, huella_pesos,  # noqa: F401\n                    mlflow_cliente, s3, sha256)\nfrom mundo.arquitectura import construir_modelo\nfrom mundo.gateway.preprocess import preprocess\n\nap = argparse.ArgumentParser()\nap.add_argument(\"--candidato\")\na = ap.parse_args()\ncfg, g = corrida(), gate()\ncandidato = a.candidato or cfg[\"candidato\"]\ns = s3()\n\n# 1 · El examen, con sus huellas\nexamen = g[\"examen\"]\nif cfg[\"examen\"] != examen[\"id\"]:\n    sys.exit(f\"✗ corrida.yaml pide el examen {cfg['examen']} y gate.yaml dice {examen['id']}\")\nman_b = s.get_object(Bucket=DATOS, Key=f\"golden/{examen['id']}/manifest.json\")[\"Body\"].read()\nif sha256(man_b) != examen[\"manifest_sha256\"]:\n    sys.exit(f\"✗ el manifest de {examen['id']} cambió: su sha256 es {sha256(man_b)[:12]}… y gate.yaml congeló \"\n             f\"{examen['manifest_sha256'][:12]}…. Un examen que cambió no compara nada: no evalúo\")\nfotos = json.loads(man_b)[\"fotos\"]\nx = []\nfor f in fotos:\n    b = s.get_object(Bucket=DATOS, Key=f[\"image_key\"])[\"Body\"].read()\n    if sha256(b) != f[\"image_sha256\"]:\n        sys.exit(f\"✗ la foto {f['id']} del examen no es la que se congeló (su sha256 no coincide): no evalúo\")\n    x.append(preprocess(b))\nx = torch.from_numpy(np.stack(x))\ny = np.array([f[\"label_id\"] for f in fotos])\nprint(f\"[examen] {examen['id']}: {len(fotos)} fotos · manifest {sha256(man_b)[:12]}… = gate.yaml · cada foto con su huella\")\n\n# 2 · Los tres modelos, por número, con sus huellas\nimport mlflow  # noqa: E402\n\nc = mlflow_cliente()\nexp = c.get_experiment_by_name(EXP_ENTRENAMIENTO)\nrs = c.search_runs([exp.experiment_id], filter_string=f\"tags.corrida = '{candidato}' and attributes.status = 'FINISHED'\", max_results=1)\nif not rs:\n    sys.exit(f\"✗ no hay una corrida terminada que se llame {candidato} en {EXP_ENTRENAMIENTO}\")\nrun_cand = rs[0]\n\n\ndef cargar(run_id: str, quien: str, huella: str | None):\n    with tempfile.TemporaryDirectory() as d:\n        carpeta = Path(mlflow.artifacts.download_artifacts(run_id=run_id, artifact_path=\"modelo\", dst_path=d))\n        pesos = torch.load(carpeta / \"pesos.pt\", map_location=\"cpu\", weights_only=True)\n        labels = json.loads((carpeta / \"labels.json\").read_text())\n    if labels != CLASES:\n        sys.exit(f\"✗ el labels.json de {quien} no es entrada/categorias.json ({labels[:3]}…): la salida 0 no sería «{CLASES[0]}»\")\n    if huella_pesos(pesos) != huella:\n        sys.exit(f\"✗ los pesos de {quien} no tienen la huella que anotó su corrida: no sé qué estoy evaluando\")\n    m = construir_modelo(len(CLASES))\n    m.load_state_dict(pesos)\n    return m.eval(), huella\n\n\nmodelos = {\"candidato\": cargar(run_cand.info.run_id, candidato, run_cand.data.tags.get(\"pesos_sha256\"))}\nversiones = {\"candidato\": None}\nfor quien in (\"champion\", \"hace_3_meses\"):\n    v = str(cfg[quien])\n    if not v.isdigit():\n        sys.exit(f\"✗ corrida.yaml: {quien} = {v}. Entra como número de versión, no como alias\")\n    mv = c.get_model_version(MODELO, v)\n    modelos[quien] = cargar(mv.run_id, f\"{MODELO} v{v}\", mv.tags.get(\"pesos_sha256\"))\n    versiones[quien] = v\nprint(f\"[modelos] {candidato} · champion = v{versiones['champion']} · hace 3 meses = v{versiones['hace_3_meses']} · \"\n      \"pesos con su huella y labels.json en orden\")\n\n# 3 · Fuga: ¿alguna foto del examen está en el snapshot del candidato?\nsid = run_cand.data.tags[\"snapshot\"]\nimport pandas as pd  # noqa: E402\n\nfilas = pd.read_parquet(io.BytesIO(s.get_object(Bucket=DATOS, Key=f\"datasets/{sid}/rows.parquet\")[\"Body\"].read()))\nvistas = set(filas[\"image_sha256\"])\nfuga = sum(f[\"origen_sha256\"] in vistas or f[\"image_sha256\"] in vistas for f in fotos)\nif fuga:\n    sys.exit(f\"✗ {fuga} fotos del examen están en {sid}, el snapshot con que se entrenó {candidato}: el examen está \"\n             \"contaminado y el candidato saldría mejor de lo que es. No evalúo\")\nprint(f\"[fuga] 0 de {len(fotos)} fotos del examen están en {sid} ({len(filas):,} filas)\")\n\n# 4 · Las predicciones, foto por foto\npares = pd.DataFrame({\"id\": [f[\"id\"] for f in fotos], \"label_id\": y, \"slice\": [f[\"slice\"] for f in fotos]})\nwith torch.no_grad():\n    for quien, (m, _) in modelos.items():\n        p = torch.softmax(m(x), 1).numpy()\n        top5 = np.argsort(-p, 1, kind=\"stable\")[:, :5]\n        pares[f\"{quien}_top5\"] = top5.tolist()\n        pares[f\"{quien}_conf\"] = p.max(1)\n        print(f\"  {quien:<13} top-1 {np.mean(top5[:, 0] == y):.2%} · top-5 {np.mean((top5 == y[:, None]).any(1)):.2%}\")\n\nout = REPORTES / candidato\nout.mkdir(parents=True, exist_ok=True)\npares.to_parquet(out / \"pares.parquet\", index=False)\n(out / \"evaluacion.json\").write_text(json.dumps({\n    \"candidato\": candidato, \"candidato_run_id\": run_cand.info.run_id, \"snapshot\": sid,\n    \"champion_version\": versiones[\"champion\"], \"hace_3_meses_version\": versiones[\"hace_3_meses\"],\n    \"pesos_sha256\": {k: v[1] for k, v in modelos.items()},\n    \"examen\": examen[\"id\"], \"manifest_sha256\": sha256(man_b), \"fuga\": fuga,\n    \"pares_sha256\": sha256((out / \"pares.parquet\").read_bytes())}, ensure_ascii=False, indent=2) + \"\\n\")\nprint(f\"✓ {len(pares)} pares en reportes/{candidato}/pares.parquet\")",
+          "nota": "Cada <code>sys.exit</code> es una razón para no evaluar: un examen que cambió, unos pesos que no son los anotados, unas categorías en otro orden o una fuga."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/evaluar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "[examen] golden-v1: 1000 fotos · manifest 0061343ada92… = gate.yaml · cada foto con su huella\n[modelos] cand-2026-10-01 · champion = v3 · hace 3 meses = v1 · pesos con su huella y labels.json en orden\n[fuga] 0 de 1000 fotos del examen están en ds-2026-09-01 (8,523 filas)\n  candidato     top-1 83.20% · top-5 99.70%\n  champion      top-1 81.70% · top-5 99.50%\n  hace_3_meses  top-1 73.80% · top-5 99.00%\n✓ 1000 pares en reportes/cand-2026-10-01/pares.parquet"
+        },
+        {
+          "code": "python -c \"import pandas as pd; print(pd.read_parquet('reportes/cand-2026-10-01/pares.parquet').head(3))\"",
+          "nota": "Una fila por foto: su etiqueta, su slice y, por modelo, su top-5 y su confianza.",
+          "donde": "mac",
+          "salida": "(1000, 9) · 36 kB\n       id  label_id   slice   candidato_top5  candidato_conf    champion_top5  champion_conf hace_3_meses_top5  hace_3_meses_conf\n0  g-0001         1  normal  [1, 3, 4, 5, 2]        0.998052  [1, 3, 4, 5, 2]       0.999548   [1, 3, 5, 4, 6]           0.965537\n1  g-0002         4   chica  [6, 4, 2, 0, 8]        0.525149  [6, 4, 2, 8, 0]       0.428078   [6, 2, 4, 8, 0]           0.396477\n2  g-0003         8   chica  [8, 0, 9, 6, 2]        0.993680  [8, 9, 2, 0, 6]       0.994068   [8, 9, 4, 0, 6]           0.946153"
+        },
+        {
+          "code": "python verificar.py examen pares labels",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ examen           golden-v1: 1000 fotos · manifest 0061343ada92… = gate.yaml · 0 fotos del examen en ds-2026-09-01\n✓ pares            1000 pares · top-1 en golden-v1: candidato 83.2 %, champion v3 81.7 %, hace 3 meses v1 73.8 % · 20/20 predicciones del champion recalculadas iguales\n✓ labels           el labels.json de las 3 versiones y del candidato = entrada/categorias.json (sha 97864728052c…)\n\n3/3 en verde"
+        }
+      ],
+      "verifica": "1,000 pares; top-1 en el examen: candidato 83.20 %, champion 81.70 %, hace 3 meses 73.80 %; 20 predicciones del champion recalculadas iguales.",
+      "ojo": "Sin <code>model.eval()</code>, la BatchNorm usa las estadísticas de cada lote y las predicciones cambian según con qué otras fotos venga cada una.",
+      "en_pagina": {
+        "conceptos": [
+          "pares",
+          "fuga",
+          "labels-json"
+        ],
+        "precalculos": [
+          "tabla"
+        ]
+      }
+    },
+    {
+      "n": 3,
+      "id": "no-inferioridad",
+      "titulo": "No inferioridad pareada, con reglas revisadas",
+      "objetivo": "El candidato no es peor que v3 ni que v1 por más de 2.4 puntos, en top-1 y en top-5, y las reglas son las aprobadas.",
+      "conceptos": [
+        "no-inferioridad",
+        "margen",
+        "intervalo",
+        "erosion"
+      ],
+      "explica": "Primero, el gate comprueba sus propias reglas: <code>gate.yaml</code> en un commit y con una huella revisada. Después cuenta, contra cada modelo de <code>comparar_contra</code>, las fotos donde solo acierta el nuevo (b) y solo el otro (c): Δ = (b − c) ÷ N × 100, SE = √(b + c) ÷ N × 100 y Δmin = Δ − 1.96 × SE. Pasa si Δmin ≥ −2.4. Contra el de hace 3 meses es la misma regla: así se ataja la erosión.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/gate.py",
+          "code": "# 1 · Las reglas: revisadas y en un commit\nif git(\"status\", \"--porcelain\", \"--\", \"gate.yaml\", \"corrida.yaml\"):\n    sys.exit(\"✗ gate.yaml o corrida.yaml tienen cambios sin commit: el veredicto no podría decir con qué reglas se tomó\")\ngate_sha = sha256((RAIZ / \"gate.yaml\").read_bytes())\nif gate_sha not in {r[\"gate_yaml_sha256\"] for r in revisiones()}:\n    sys.exit(f\"✗ gate.yaml ({gate_sha[:12]}…) no es ninguna versión revisada de mundo/revisiones.json: alguien cambió las \"\n             \"reglas sin PR. No juzgo con reglas que nadie aprobó\")\n\n# 2 · Los pares de esta corrida\ncarpeta = REPORTES / candidato\nev = json.loads((carpeta / \"evaluacion.json\").read_text())\nif str(ev[\"champion_version\"]) != str(cfg[\"champion\"]) or ev[\"examen\"] != g[\"examen\"][\"id\"]:\n    sys.exit(f\"✗ los pares de {candidato} son contra champion v{ev['champion_version']} con {ev['examen']}, y esta corrida pide \"\n             f\"v{cfg['champion']} con {g['examen']['id']}: vuelve a correr evaluar.py\")\nif sha256((carpeta / \"pares.parquet\").read_bytes()) != ev[\"pares_sha256\"]:\n    sys.exit(\"✗ pares.parquet no es el que dejó evaluar.py (su huella cambió)\")\np = pd.read_parquet(carpeta / \"pares.parquet\")\ny, N = p[\"label_id\"].to_numpy(), len(p)\n\n\ndef acierta(quien: str, k: int) -> np.ndarray:\n    return np.array([t in top[:k] for t, top in zip(y, p[f\"{quien}_top5\"])])\n\n\ndef pareada(nuevo: np.ndarray, viejo: np.ndarray, margen: float) -> dict:\n    b, c, n = int((nuevo & ~viejo).sum()), int((~nuevo & viejo).sum()), len(nuevo)\n    d, se = (b - c) / n * 100, math.sqrt(b + c) / n * 100\n    return {\"b\": b, \"c\": c, \"n\": n, \"delta\": round(d, 4), \"se\": round(se, 4), \"delta_min\": round(d - 1.96 * se, 4),\n            \"pasa\": bool(d - 1.96 * se >= -margen)}\n\n\ndef mcnemar(b: int, c: int) -> float:\n    \"\"\"McNemar exacto, de dos colas: si los dos modelos fueran igual de buenos, cada discrepancia es un volado.\"\"\"\n    n = b + c\n    return 1.0 if n == 0 else min(1.0, 2 * sum(math.comb(n, i) for i in range(min(b, c) + 1)) / 2 ** n)\n\n\nmotivos, r = [], {\"candidato\": candidato, \"champion_version\": ev[\"champion_version\"],\n                  \"hace_3_meses_version\": ev[\"hace_3_meses_version\"], \"examen\": ev[\"examen\"], \"gate_yaml_sha256\": gate_sha}\n\n# 3 · No inferioridad, top-1 y top-5, contra cada modelo de comparar_contra\nm = g[\"top1_top5\"][\"margen_puntos\"]\nr[\"no_inferioridad\"] = {}\nfor ref in g[\"comparar_contra\"]:\n    for k in (1, 5):\n        x = pareada(acierta(\"candidato\", k), acierta(ref, k), m)\n        r[\"no_inferioridad\"][f\"{ref}_top{k}\"] = x\n        print(f\"[no inferioridad] vs {ref:<12} top-{k}: b {x['b']:>3} · c {x['c']:>3} · Δ {x['delta']:+.2f} · \"\n              f\"SE {x['se']:.2f} · Δmin {x['delta_min']:+.2f} {'≥' if x['pasa'] else '<'} −{m} → {'pasa' if x['pasa'] else 'NO PASA'}\")\n        if not x[\"pasa\"]:\n            motivos.append(f\"top-{k} contra {ref}: Δmin {x['delta_min']:+.2f} < −{m}\")",
+          "nota": "Las funciones <code>acierta()</code> y <code>pareada()</code> sirven también para categorías y slices."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "sed -i '' 's/margen_puntos: 2.4 /margen_puntos: 3.0 /' gate.yaml\npython pipeline/gate.py",
+          "nota": "Una prueba: mover el margen sin commit.",
+          "donde": "mac",
+          "salida": "✗ gate.yaml o corrida.yaml tienen cambios sin commit: el veredicto no podría decir con qué reglas se tomó\n[código 1]"
+        },
+        {
+          "code": "git commit -qam \"gate: margen 3.0 (prueba)\"\npython pipeline/gate.py",
+          "nota": "En un commit, pero sin revisión: tampoco.",
+          "donde": "mac",
+          "salida": "✗ gate.yaml (d4d7fc2aa33b…) no es ninguna versión revisada de mundo/revisiones.json: alguien cambió las reglas sin PR. No juzgo con reglas que nadie aprobó\n[código 1]"
+        },
+        {
+          "code": "git revert --no-edit HEAD\npython pipeline/gate.py",
+          "nota": "Con las reglas revisadas de vuelta.",
+          "donde": "mac",
+          "salida": "[no inferioridad] vs champion     top-1: b  38 · c  23 · Δ +1.50 · SE 0.78 · Δmin -0.03 ≥ −2.4 → pasa\n[no inferioridad] vs champion     top-5: b   2 · c   0 · Δ +0.20 · SE 0.14 · Δmin -0.08 ≥ −2.4 → pasa\n[no inferioridad] vs hace_3_meses top-1: b 128 · c  34 · Δ +9.40 · SE 1.27 · Δmin +6.91 ≥ −2.4 → pasa\n[no inferioridad] vs hace_3_meses top-5: b   8 · c   1 · Δ +0.70 · SE 0.30 · Δmin +0.11 ≥ −2.4 → pasa\n[categorías] la que más cae: playeras 87.4 → 84.5 (b 1 · c 4 · p de Holm 1) · rotas: ninguna\n[slice] normal    n 600 · Δ -0.50 · Δmin -2.26 → pasa\n[slice] poca_luz  n 210 · Δ +4.76 · Δmin +0.59 → pasa\n[slice] chica     n 190 · Δ +4.21 · Δmin +0.64 → pasa\n[calibración] ECE 0.0238 ≤ 0.05\n✓ PASA: cand-2026-10-01 es no inferior a v3 y a v1 · corrida gate-cand-2026-10-01"
+        },
+        {
+          "code": "python verificar.py no-inferioridad umbrales",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ no-inferioridad  vs champion: b 38 · c 23 · Δmin -0.03 · vs hace_3_meses: b 128 · c 34 · Δmin +6.91 (margen −2.4, top-5 también)\n✓ umbrales         gate.yaml = la revisión del PR #41 (2026-07-01) · sin cambios pendientes · 1 gate(s), todos con reglas revisadas\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "Contra v3: b = 38, c = 23, Δmin = -0.03 ≥ −2.4. Contra v1 pasa con holgura. Y el gate se negó a correr con un <code>gate.yaml</code> sin commit o sin revisión.",
+      "ojo": "El candidato acierta 1.5 puntos más que el champion y aun así su Δmin es -0.03: con 61 discrepancias, el examen no puede asegurar que sea mejor, solo que no es peor. Para un reentrenamiento mensual, eso basta.",
+      "en_pagina": {
+        "conceptos": [
+          "no-inferioridad",
+          "margen",
+          "intervalo",
+          "erosion"
+        ],
+        "precalculos": [
+          "pareado",
+          "erosion"
+        ]
+      }
+    },
+    {
+      "n": 4,
+      "id": "categorias",
+      "titulo": "Categorías, slices y calibración",
+      "objetivo": "Ninguna categoría rota, ningún slice abajo de su margen y la confianza del candidato calibrada.",
+      "conceptos": [
+        "mcnemar",
+        "holm",
+        "slice",
+        "calibracion"
+      ],
+      "explica": "Un promedio que no baja puede esconder una categoría rota. Por categoría, el gate pide dos cosas para declararla rota: que el recall caiga más de 5 puntos <b>y</b> que la caída sea significativa (McNemar con las discrepancias de esa categoría, corregido con Holm porque son 10 pruebas). Por slice, la misma no inferioridad pareada con un margen de 5 puntos (con ≈ 200 fotos, el ruido es de ese tamaño). Y la calibración: el ECE del candidato, con 15 cubetas de confianza, ≤ 0.05. Todo va al reporte y a una corrida de MLflow; si algo falla, la corrida queda FAILED y el proceso sale con código 1.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/gate.py",
+          "code": "# 4 · Por categoría: caída grande Y significativa (McNemar + Holm)\ncg = g[\"categorias\"]\nnuevo, viejo = acierta(\"candidato\", 1), acierta(\"champion\", 1)\ncats = []\nfor i, nombre in enumerate(CLASES):\n    s = y == i\n    b, c = int((nuevo & ~viejo & s).sum()), int((~nuevo & viejo & s).sum())\n    cats.append({\"categoria\": nombre, \"n\": int(s.sum()), \"recall_candidato\": round(nuevo[s].mean() * 100, 2),\n                 \"recall_champion\": round(viejo[s].mean() * 100, 2), \"caida\": round((viejo[s].mean() - nuevo[s].mean()) * 100, 2),\n                 \"b\": b, \"c\": c, \"p\": mcnemar(b, c)})\norden = sorted(range(len(cats)), key=lambda i: cats[i][\"p\"])      # Holm: la p más chica contra α/10, la siguiente contra α/9…\nmaximo = 0.0\nfor rango, i in enumerate(orden):\n    maximo = max(maximo, min(1.0, cats[i][\"p\"] * (len(cats) - rango)))   # p ajustada, nunca menor que la anterior\n    cats[i][\"p_holm\"] = maximo\nfor x in cats:\n    x[\"rota\"] = bool(x[\"caida\"] > cg[\"caida_max_puntos\"] and x[\"p_holm\"] < cg[\"alfa\"])\n    if x[\"rota\"]:\n        motivos.append(f\"categoría {x['categoria']}: recall {x['recall_champion']:.1f} → {x['recall_candidato']:.1f} \"\n                       f\"(−{x['caida']:.1f} puntos, p de Holm {x['p_holm']:.2g})\")\nr[\"categorias\"] = cats\npeor = max(cats, key=lambda x: x[\"caida\"])\nprint(f\"[categorías] la que más cae: {peor['categoria']} {peor['recall_champion']:.1f} → {peor['recall_candidato']:.1f} \"\n      f\"(b {peor['b']} · c {peor['c']} · p de Holm {peor['p_holm']:.2g}) · rotas: {[x['categoria'] for x in cats if x['rota']] or 'ninguna'}\")\n\n# 5 · Slices\nr[\"slices\"] = {}\nfor nombre in g[\"slices\"][\"nombres\"]:\n    s = (p[\"slice\"] == nombre).to_numpy()\n    x = pareada(nuevo[s], viejo[s], g[\"slices\"][\"margen_puntos\"])\n    r[\"slices\"][nombre] = x\n    print(f\"[slice] {nombre:<9} n {x['n']:>3} · Δ {x['delta']:+.2f} · Δmin {x['delta_min']:+.2f} → {'pasa' if x['pasa'] else 'NO PASA'}\")\n    if not x[\"pasa\"]:\n        motivos.append(f\"slice {nombre}: Δmin {x['delta_min']:+.2f} < −{g['slices']['margen_puntos']}\")\n\n# 6 · Calibración: ¿su confianza dice la verdad?\nconf = p[\"candidato_conf\"].to_numpy()\ncubeta = np.minimum((conf * 15).astype(int), 14)\nece = sum((cubeta == k).sum() / N * abs(nuevo[cubeta == k].mean() - conf[cubeta == k].mean()) for k in range(15) if (cubeta == k).any())\nr[\"ece\"] = round(float(ece), 4)\nprint(f\"[calibración] ECE {ece:.4f} {'≤' if ece <= g['ece_max'] else '>'} {g['ece_max']}\")\nif ece > g[\"ece_max\"]:\n    motivos.append(f\"ECE {ece:.4f} > {g['ece_max']}\")\n\n# 7 · El veredicto: en el reporte, en MLflow y en el código de salida\nr[\"veredicto\"], r[\"motivos\"] = (\"pasa\" if not motivos else \"no_pasa\"), motivos\nr[\"top1\"] = {q: round(acierta(q, 1).mean() * 100, 2) for q in (\"candidato\", \"champion\", \"hace_3_meses\")}\n(carpeta / \"reporte.json\").write_text(json.dumps(r, ensure_ascii=False, indent=2) + \"\\n\")\n\nimport mlflow  # noqa: E402\n\nc = mlflow_cliente()\nif not c.get_experiment_by_name(EXP_GATE):\n    c.create_experiment(EXP_GATE)\nmlflow.set_experiment(EXP_GATE)\nwith mlflow.start_run(run_name=f\"gate-{candidato}\") as run:\n    mlflow.log_params({\"candidato\": candidato, \"champion_version\": ev[\"champion_version\"], \"hace_3_meses_version\": ev[\"hace_3_meses_version\"],\n                       \"examen\": ev[\"examen\"], \"margen_puntos\": m})\n    mlflow.log_metrics({f\"delta_min_{k}\": v[\"delta_min\"] for k, v in r[\"no_inferioridad\"].items()} | {\"ece\": r[\"ece\"]} |\n                       {f\"top1_{q}\": v for q, v in r[\"top1\"].items()})\n    mlflow.set_tags({\"candidato\": candidato, \"candidato_run_id\": ev[\"candidato_run_id\"], \"champion_version\": str(ev[\"champion_version\"]),\n                     \"examen\": ev[\"examen\"], \"manifest_sha256\": ev[\"manifest_sha256\"], \"gate_yaml_sha256\": gate_sha,\n                     \"commit\": git(\"rev-parse\", \"HEAD\"), \"veredicto\": r[\"veredicto\"], \"motivo\": \"; \".join(motivos)[:4000] or \"—\"})\n    mlflow.log_artifacts(str(carpeta), \"reporte\")\n    if motivos:\n        mlflow.end_run(\"FAILED\")\nif motivos:\n    sys.exit(\"✗ NO PASA: \" + \" · \".join(motivos))\nprint(f\"✓ PASA: {candidato} es no inferior a v{ev['champion_version']} y a v{ev['hace_3_meses_version']} · corrida gate-{candidato}\")",
+          "nota": "El último bloque decide: el veredicto va al reporte, a MLflow y al código de salida. <code>sys.exit</code> con un mensaje sale con código 1."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/gate.py      # la misma corrida del paso 3",
+          "nota": "",
+          "donde": "mac",
+          "salida": "[categorías] la que más cae: playeras 87.4 → 84.5 (b 1 · c 4 · p de Holm 1) · rotas: ninguna\n[slice] normal    n 600 · Δ -0.50 · Δmin -2.26 → pasa\n[slice] poca_luz  n 210 · Δ +4.76 · Δmin +0.59 → pasa\n[slice] chica     n 190 · Δ +4.21 · Δmin +0.64 → pasa\n[calibración] ECE 0.0238 ≤ 0.05\n✓ PASA: cand-2026-10-01 es no inferior a v3 y a v1 · corrida gate-cand-2026-10-01"
+        },
+        {
+          "code": "python -c \"\nimport json\nr = json.load(open('reportes/cand-2026-10-01/reporte.json'))\nfor x in r['categorias']:\n    print(x['categoria'], x['n'], x['recall_champion'], '→', x['recall_candidato'], x['b'], x['c'], x['p'], x['p_holm'])\"",
+          "nota": "Las 10 categorías del reporte (la salida es la del script de prueba, con columnas alineadas).",
+          "donde": "mac",
+          "salida": "playeras   n 103 ·  87.4 →  84.5 · b  1 · c  4 · p 0.375 · Holm 1.000\npantalones n 105 ·  95.2 →  96.2 · b  2 · c  1 · p 1.000 · Holm 1.000\nsueteres   n  82 ·  79.3 →  76.8 · b  3 · c  5 · p 0.727 · Holm 1.000\nvestidos   n  99 ·  75.8 →  79.8 · b  5 · c  1 · p 0.219 · Holm 1.000\nabrigos    n 102 ·  65.7 →  66.7 · b  6 · c  5 · p 1.000 · Holm 1.000\nsandalias  n 117 ·  89.7 →  92.3 · b  5 · c  2 · p 0.453 · Holm 1.000\ncamisas    n  90 ·  34.4 →  47.8 · b 13 · c  1 · p 0.002 · Holm 0.018\ntenis      n 108 ·  95.4 →  96.3 · b  1 · c  0 · p 1.000 · Holm 1.000\nbolsas     n  99 ·  93.9 →  93.9 · b  1 · c  1 · p 1.000 · Holm 1.000\nbotines    n  95 ·  92.6 →  90.5 · b  1 · c  3 · p 0.625 · Holm 1.000"
+        },
+        {
+          "code": "python verificar.py categorias slices",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ categorias       10 categorías con McNemar + Holm · la que más cae: playeras (+2.9 puntos, p de Holm 1) · rotas: ninguna\n✓ slices           Δmin por slice: normal -2.26, poca_luz +0.59, chica +0.64 (margen −5) · ECE 0.0238 ≤ 0.05\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "10 categorías con McNemar y Holm, ninguna rota; los tres slices dentro de su margen; ECE ≤ 0.05.",
+      "ojo": "Camisas sube 13 puntos y su p es chica: McNemar también detecta mejoras. La regla solo frena caídas.",
+      "en_pagina": {
+        "conceptos": [
+          "mcnemar",
+          "holm",
+          "slice",
+          "calibracion"
+        ],
+        "precalculos": [
+          "categoria",
+          "holm"
+        ]
+      }
+    },
+    {
+      "n": 5,
+      "id": "frena",
+      "titulo": "El gate que frena",
+      "objetivo": "El candidato del proveedor no pasa, la corrida queda en rojo y el motivo dice por qué.",
+      "conceptos": [
+        "falla-ruidosa"
+      ],
+      "explica": "El segundo candidato de octubre se entrenó con un lote del proveedor que etiquetó como «playeras» casi la mitad de las camisas. Se evalúa con el mismo champion y el mismo examen. El gate no «devuelve false»: termina con código 1 y su corrida en MLflow queda FAILED, con el motivo. Así el orquestador no sigue a los pasos de después y la alerta de pipeline fallido avisa a alguien.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python pipeline/evaluar.py --candidato cand-2026-10-01-proveedor",
+          "nota": "",
+          "donde": "mac",
+          "salida": "[examen] golden-v1: 1000 fotos · manifest 0061343ada92… = gate.yaml · cada foto con su huella\n[modelos] cand-2026-10-01-proveedor · champion = v3 · hace 3 meses = v1 · pesos con su huella y labels.json en orden\n[fuga] 0 de 1000 fotos del examen están en ds-2026-09-01 (8,523 filas)\n  candidato     top-1 80.40% · top-5 99.70%\n  champion      top-1 81.70% · top-5 99.50%\n  hace_3_meses  top-1 73.80% · top-5 99.00%\n✓ 1000 pares en reportes/cand-2026-10-01-proveedor/pares.parquet"
+        },
+        {
+          "code": "python pipeline/gate.py --candidato cand-2026-10-01-proveedor",
+          "nota": "",
+          "donde": "mac",
+          "salida": "[no inferioridad] vs champion     top-1: b  32 · c  45 · Δ -1.30 · SE 0.88 · Δmin -3.02 < −2.4 → NO PASA\n[no inferioridad] vs champion     top-5: b   2 · c   0 · Δ +0.20 · SE 0.14 · Δmin -0.08 ≥ −2.4 → pasa\n[no inferioridad] vs hace_3_meses top-1: b 110 · c  44 · Δ +6.60 · SE 1.24 · Δmin +4.17 ≥ −2.4 → pasa\n[no inferioridad] vs hace_3_meses top-5: b   8 · c   1 · Δ +0.70 · SE 0.30 · Δmin +0.11 ≥ −2.4 → pasa\n[categorías] la que más cae: camisas 34.4 → 13.3 (b 2 · c 21 · p de Holm 0.00066) · rotas: ['camisas']\n[slice] normal    n 600 · Δ -1.83 · Δmin -3.82 → pasa\n[slice] poca_luz  n 210 · Δ -0.95 · Δmin -5.52 → NO PASA\n[slice] chica     n 190 · Δ +0.00 · Δmin -4.13 → pasa\n[calibración] ECE 0.0299 ≤ 0.05\n✗ NO PASA: top-1 contra champion: Δmin -3.02 < −2.4 · categoría camisas: recall 34.4 → 13.3 (−21.1 puntos, p de Holm 0.00066) · slice poca_luz: Δmin -5.52 < −5\n[código 1]"
+        },
+        {
+          "code": "python mundo/modelos.py gates",
+          "nota": "Abre la corrida roja en MLflow (experimento <code>c01-gate</code>): el reporte está en sus artefactos.",
+          "donde": "mac",
+          "salida": "FINISHED  17:40  cand-2026-10-01              vs v3 · pasa · —\nFAILED    17:40  cand-2026-10-01-proveedor    vs v3 · no_pasa · top-1 contra champion: Δmin -3.02 < −2.4; categoría camisas: recall 34.4 → 13.3 (−21.1 puntos, p de Holm 0.00066); slice poca_luz: Δmin -5.52 < −5"
+        },
+        {
+          "code": "python verificar.py frena",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ frena            cand-2026-10-01-proveedor: FAILED · top-1 contra champion: Δmin -3.02 < −2.4; categoría camisas: recall 34.4 → 13.3 (−21.1 puntos, p de Holm 0.00066); slice poca_luz: Δmin -5.52 < −5 · ninguna versión suya dice gate=passed\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "El gate del proveedor quedó FAILED y su motivo nombra camisas (p de Holm 0.00066), además del top-1 global y el slice de poca luz.",
+      "ojo": "Un gate que atrapa la excepción «para que el pipeline no truene» deja la corrida en verde, salta los pasos siguientes y nadie se entera de que no hubo challenger.",
+      "en_pagina": {
+        "conceptos": [
+          "falla-ruidosa"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 6,
+      "id": "registrar",
+      "titulo": "Registrar el challenger",
+      "objetivo": "El candidato que pasó, como una versión nueva de classifier con sus tags y el alias challenger; champion no se toca.",
+      "conceptos": [
+        "registry",
+        "champion",
+        "labels-json"
+      ],
+      "explica": "Registrar no es «subir el modelo»: es dejar escrito qué es y por qué pasó. <code>registrar.py</code> busca la última corrida de gate del candidato y se niega si no terminó en verde, si sus reglas no estaban revisadas, si el examen no es el de <code>gate.yaml</code> o si champion ya no es la versión contra la que se comparó (un veredicto viejo). Después crea la versión apuntando a los archivos de la corrida, con sus tags (gate, snapshot, huellas de pesos y de <code>labels.json</code>, examen, champion y Δmin) y le pone <code>challenger</code>. Correrlo dos veces no crea dos versiones.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/registrar.py",
+          "code": "\"\"\"Paso «registrar»: el candidato que pasó el gate se vuelve una versión de classifier con el alias challenger.\n\n    python pipeline/registrar.py                          # el candidato de corrida.yaml\n    python pipeline/registrar.py --candidato <corrida>\n\nContrato:\n- Solo registra si hay una corrida de gate TERMINADA (FINISHED) para ese candidato, con veredicto «pasa», contra el\n  champion de corrida.yaml, con un gate.yaml revisado y con el examen que dice gate.yaml. Si no, se detiene.\n- Si champion ya no es la versión contra la que se evaluó, el veredicto es viejo: se detiene (hay que volver a evaluar).\n- La versión apunta a los archivos de la corrida del candidato (runs:/<run_id>/modelo) y lleva sus tags: gate=passed,\n  gate_run_id, mes, snapshot, pesos_sha256, labels_sha256 (el de entrada/categorias.json), examen, champion_version,\n  y el Δmin contra el champion.\n- Mueve challenger, nunca champion: champion lo mueve el despliegue cuando termina el canary (estación 10).\n- Correrlo dos veces no crea dos versiones.\nEn C01 este paso va después de la estación 5 (paridad y latencia del engine). En el dojo no hay engine: registra aquí.\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport json\nimport sys\n\nfrom _comun import CLASES, EXP_GATE, MODELO, corrida, gate, mlflow_cliente, revisiones, sha256\n\nap = argparse.ArgumentParser()\nap.add_argument(\"--candidato\")\na = ap.parse_args()\ncfg, g = corrida(), gate()\ncandidato = a.candidato or cfg[\"candidato\"]\nc = mlflow_cliente()\n\nexp = c.get_experiment_by_name(EXP_GATE)\nrs = c.search_runs([exp.experiment_id], filter_string=f\"tags.candidato = '{candidato}'\", max_results=1,\n                   order_by=[\"attributes.start_time DESC\"]) if exp else []\nif not rs:\n    sys.exit(f\"✗ {candidato} no tiene ninguna corrida de gate: corre evaluar.py y gate.py\")\ngr = rs[0]\nt = gr.data.tags\nif gr.info.status != \"FINISHED\" or t.get(\"veredicto\") != \"pasa\":\n    sys.exit(f\"✗ el último gate de {candidato} no pasó ({gr.info.status} · {t.get('motivo', '?')}): no se registra\")\nif t.get(\"gate_yaml_sha256\") not in {r[\"gate_yaml_sha256\"] for r in revisiones()}:\n    sys.exit(\"✗ ese gate se tomó con un gate.yaml que nadie revisó: no cuenta\")\nif t.get(\"examen\") != g[\"examen\"][\"id\"] or t.get(\"manifest_sha256\") != g[\"examen\"][\"manifest_sha256\"]:\n    sys.exit(\"✗ ese gate usó otro examen que el de gate.yaml\")\nchampion = c.get_model_version_by_alias(MODELO, \"champion\").version\nif t.get(\"champion_version\") != str(cfg[\"champion\"]) or str(champion) != str(cfg[\"champion\"]):\n    sys.exit(f\"✗ el gate comparó contra v{t.get('champion_version')}, y hoy champion es v{champion}: el veredicto es viejo. \"\n             \"Vuelve a evaluar contra el champion de hoy\")\n\nrun_id = t[\"candidato_run_id\"]\ncand = c.get_run(run_id)\nya = [mv for mv in c.search_model_versions(f\"name = '{MODELO}'\") if mv.run_id == run_id]\nif ya:\n    mv = ya[0]\n    print(f\"  {candidato} ya era {MODELO} v{mv.version}\")\nelse:\n    mv = c.create_model_version(MODELO, source=f\"runs:/{run_id}/modelo\", run_id=run_id, tags={\n        \"gate\": \"passed\", \"gate_run_id\": gr.info.run_id, \"mes\": \"2026-10\", \"snapshot\": cand.data.tags[\"snapshot\"],\n        \"pesos_sha256\": cand.data.tags[\"pesos_sha256\"], \"labels_sha256\": sha256((json.dumps(CLASES, ensure_ascii=False) + \"\\n\").encode()),   # = el labels.json de la corrida\n        \"examen\": t[\"examen\"], \"champion_version\": t[\"champion_version\"],\n        \"delta_min_champion_top1\": str(gr.data.metrics[\"delta_min_champion_top1\"])})\nc.set_registered_model_alias(MODELO, \"challenger\", mv.version)\nprint(f\"✓ {MODELO} v{mv.version} @challenger · gate {gr.info.run_id[:8]} · champion sigue en v{champion}\")",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/registrar.py --candidato cand-2026-10-01-proveedor",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✗ el último gate de cand-2026-10-01-proveedor no pasó (FAILED · top-1 contra champion: Δmin -3.02 < −2.4; categoría camisas: recall 34.4 → 13.3 (−21.1 puntos, p de Holm 0.00066); slice poca_luz: Δmin -5.52 < −5): no se registra\n[código 1]"
+        },
+        {
+          "code": "python pipeline/registrar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ classifier v4 @challenger · gate 06192ef5 · champion sigue en v3"
+        },
+        {
+          "code": "python pipeline/registrar.py",
+          "nota": "Otra vez: no duplica.",
+          "donde": "mac",
+          "salida": "  cand-2026-10-01 ya era classifier v4\n✓ classifier v4 @challenger · gate 06192ef5 · champion sigue en v3"
+        },
+        {
+          "code": "python mundo/modelos.py versiones",
+          "nota": "",
+          "donde": "mac",
+          "salida": "v1  —            mes 2026-07 · corrida equipo-2026-07-01 · gate passed · labels.json en orden\nv2  —            mes 2026-08 · corrida equipo-2026-08-01 · gate passed · labels.json en orden\nv3  @champion    mes 2026-09 · corrida equipo-2026-09-01 · gate passed · labels.json en orden\nv4  @challenger  mes 2026-10 · corrida cand-2026-10-01 · gate passed · labels.json en orden"
+        },
+        {
+          "code": "python verificar.py registro",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ registro         @champion = v3 · @challenger = v4 (cand-2026-10-01, gate 06192ef5 contra v3) · labels 97864728… · todo alias apunta a una versión con gate=passed\n\n1/1 en verde"
+        },
+        {
+          "code": "python verificar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "10/10 en verde"
+        }
+      ],
+      "verifica": "<code>classifier</code> v4 <code>@challenger</code> con <code>gate=passed</code> y sus tags; <code>@champion</code> sigue en v3; los 10 checks en verde.",
+      "ojo": "Volver atrás (rollback) es mover el alias champion a la versión anterior: un comando, segundos. Por eso la versión vieja no se borra.",
+      "en_pagina": {
+        "conceptos": [
+          "registry"
+        ],
+        "precalculos": []
+      }
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Empieza con <code>python mundo/reiniciar.py --pipeline</code> y haz commit del esqueleto.",
+      "Sin <code>GUION.md</code>: solo estos objetivos y el contrato arriba de cada archivo.",
+      "Cada objetivo tiene su check; corre <code>python verificar.py &lt;check&gt;</code> cuando creas que quedó.",
+      "Las reglas no se tocan: <code>gate.yaml</code> y <code>corrida.yaml</code> se quedan como vienen."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "El S3 local y MLflow arriba, el mundo creado y la carpeta en git.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "Tu evaluación usa el examen congelado (manifest y fotos con su huella) y comprueba que no haya fuga.",
+        "check": "examen",
+        "pista": "¿Dónde dice cuál es la huella correcta del examen?"
+      },
+      {
+        "n": 3,
+        "objetivo": "Los pares de los tres modelos, por número de versión, en el orden del manifest, con las predicciones de verdad.",
+        "check": "pares"
+      },
+      {
+        "n": 4,
+        "objetivo": "Todos los labels.json (versiones y candidato) son entrada/categorias.json.",
+        "check": "labels"
+      },
+      {
+        "n": 5,
+        "objetivo": "No inferioridad pareada en top-1 y top-5 contra champion y hace 3 meses: b, c y Δmin correctos.",
+        "check": "no-inferioridad",
+        "pista": "¿Qué fotos cuentan para la diferencia?"
+      },
+      {
+        "n": 6,
+        "objetivo": "Por categoría: caída, McNemar exacto, Holm y «rota» correctos.",
+        "check": "categorias"
+      },
+      {
+        "n": 7,
+        "objetivo": "Δmin por slice y ECE del candidato.",
+        "check": "slices"
+      },
+      {
+        "n": 8,
+        "objetivo": "El gate del candidato del proveedor queda FAILED, con camisas en el motivo, y no se registra.",
+        "check": "frena",
+        "pista": "¿Qué código de salida ve el orquestador?"
+      },
+      {
+        "n": 9,
+        "objetivo": "Todos tus gates con un gate.yaml revisado, y sin cambios pendientes.",
+        "check": "umbrales"
+      },
+      {
+        "n": 10,
+        "objetivo": "El candidato bueno registrado como challenger, con sus tags; champion sigue en v3.",
+        "check": "registro"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "umbral-movido",
+      "titulo": "Reglas más flexibles, «solo por esta vez»",
+      "tipo": "config",
+      "historia": "El equipo de búsqueda necesita que el modelo del proveedor salga esta semana. Alguien de ese equipo subió un commit a gate.yaml directo a main y avisó en el canal: «ya lo destrabé».",
+      "sintoma": "<code>verificar.py</code>: ✗ umbrales         gate.yaml (24762d4eb7b2…) no es ninguna versión revisada (mundo/revisiones.json): git log -p gate.yaml",
+      "hipotesis": [
+        "Alguien cambió las reglas.",
+        "Cambió el examen.",
+        "Cambió tu gate.py."
+      ],
+      "confirma": {
+        "code": "git log -1 --format=\"%h %an · %s\" -- gate.yaml\ngit show HEAD -- gate.yaml | grep \"^[-+] \"\npython pipeline/gate.py --candidato cand-2026-10-01-proveedor",
+        "nota": "",
+        "donde": "mac",
+        "salida": "99aeff5 Equipo de búsqueda · gate: margen 4.0 y caída por categoría 25 (el modelo del proveedor tiene que salir esta semana)\n-  margen_puntos: 2.4                  # no inferioridad pareada: Δmin ≥ −2.4 puntos. Es el ruido de un modelo solo en\n+  margen_puntos: 4.0                  # no inferioridad pareada: Δmin ≥ −2.4 puntos. Es el ruido de un modelo solo en\n-  caida_max_puntos: 5                 # una categoría está rota si su recall cae más de 5 puntos…\n+  caida_max_puntos: 25                 # una categoría está rota si su recall cae más de 5 puntos…\n✗ gate.yaml (24762d4eb7b2…) no es ninguna versión revisada de mundo/revisiones.json: alguien cambió las reglas sin PR. No juzgo con reglas que nadie aprobó\n[código 1]"
+      },
+      "arreglo": "Un commit sin revisión dejó <code>margen_puntos: 4.0</code> y <code>caida_max_puntos: 25</code>: con eso, el candidato del proveedor (camisas −21 puntos) pasaría. Tu gate se niega a juzgar con reglas cuya huella no está en <code>mundo/revisiones.json</code>. Arreglo: <code>git revert --no-edit HEAD</code>. Si de verdad hay que cambiar una regla, va en un PR propio, revisado, antes de la corrida siguiente, y nunca para que pase un modelo en particular.",
+      "concepto": "reglas-antes",
+      "check": "umbrales"
+    },
+    {
+      "id": "golden-tocado",
+      "titulo": "Alguien «corrigió» el examen",
+      "tipo": "mundo",
+      "historia": "El equipo de búsqueda revisó a mano el golden set y escribió en el canal: «había 30 etiquetas mal, ya las arreglé». El modelo nuevo ahora sale mejor.",
+      "sintoma": "<code>verificar.py</code>: ✗ examen           el manifest de golden-v1 en S3 tiene sha256 3ca76bf3ca47… y gate.yaml congeló 0061343ada92…: alguien cambió el examen. python mundo/s3.py versiones golden/golden-v1/manifest.json",
+      "hipotesis": [
+        "Cambió el manifest del examen.",
+        "Cambió gate.yaml.",
+        "Cambiaron las fotos."
+      ],
+      "confirma": {
+        "code": "python mundo/s3.py golden\npython mundo/s3.py versiones golden/golden-v1/manifest.json\npython pipeline/evaluar.py",
+        "nota": "",
+        "donde": "mac",
+        "salida": "manifest sha256 3ca76bf3ca475d6e… · gate.yaml dice 0061343ada92972b… → DISTINTO\n2026-11-17 23:37:11    336503 B          version-id b1a0a269-8e78-4149-8b58-852db09d9d3d\n2026-11-17 23:40:43    336580 B  ACTUAL  version-id 996a506c-429a-44ce-983f-6e561faeb277\n✗ el manifest de golden-v1 cambió: su sha256 es 3ca76bf3ca47… y gate.yaml congeló 0061343ada92…. Un examen que cambió no compara nada: no evalúo\n[código 1]"
+      },
+      "arreglo": "El manifest de <code>golden-v1</code> tiene 30 etiquetas cambiadas y su huella ya no es la de <code>gate.yaml</code>: un examen que cambia deja de comparar con los meses anteriores. El bucket tiene versionado: <code>python mundo/s3.py restaurar golden/golden-v1/manifest.json &lt;version-id de la primera&gt;</code> devuelve el examen congelado. Si de verdad había etiquetas malas, se publica <code>golden-v2</code> en un PR propio y todos los modelos se vuelven a medir con él.",
+      "concepto": "golden",
+      "check": "examen"
+    },
+    {
+      "id": "golden-fuga",
+      "titulo": "El candidato que sube 3 puntos",
+      "tipo": "mundo",
+      "historia": "El equipo de búsqueda reentrenó el candidato «con más datos» y cambió corrida.yaml para usarlo: «sube 3 puntos en el golden, ¡va!».",
+      "sintoma": "<code>verificar.py</code>: ✗ examen           falta reportes/<candidato>/evaluacion.json: corre pipeline/evaluar.py (paso 2)",
+      "hipotesis": [
+        "El candidato se entrenó con fotos del examen.",
+        "Cambió el examen.",
+        "Cambió el champion."
+      ],
+      "confirma": {
+        "code": "git log -1 --format=\"%h %an · %s\" -- corrida.yaml\npython mundo/modelos.py candidatos | tail -1\npython mundo/s3.py tarjeta ds-2026-09-15\npython pipeline/evaluar.py",
+        "nota": "",
+        "donde": "mac",
+        "salida": "29617d3 Equipo de búsqueda · corrida: el candidato es cand-2026-10-01-r2 (reentrenado con más datos, sube 3 puntos)\nFINISHED  cand-2026-10-01-r2           ds-2026-09-15  val_top1 0.8596  pesos cc82a8452300\n  \"parent\": \"ds-2026-09-01\",\n    \"total\": 9523\n  \"nota\": \"Reconstruido a mano por el equipo de búsqueda «con todas las fotos etiquetadas que había».\"\n[examen] golden-v1: 1000 fotos · manifest 0061343ada92… = gate.yaml · cada foto con su huella\n[modelos] cand-2026-10-01-r2 · champion = v3 · hace 3 meses = v1 · pesos con su huella y labels.json en orden\n✗ 1000 fotos del examen están en ds-2026-09-15, el snapshot con que se entrenó cand-2026-10-01-r2: el examen está contaminado y el candidato saldría mejor de lo que es. No evalúo\n[código 1]"
+      },
+      "arreglo": "El candidato nuevo se entrenó con <code>ds-2026-09-15</code>, un snapshot armado a mano que trae las 1,000 fotos del examen: ya vio las respuestas. Tu <code>evaluar.py</code> cruza las huellas y se detiene. Arreglo: <code>git revert --no-edit HEAD</code> (vuelve el candidato del pipeline) y pedir que el snapshot se reconstruya con el pipeline de la estación 2, que deja fuera el golden set por diseño.",
+      "concepto": "fuga",
+      "check": "examen"
+    },
+    {
+      "id": "alias-a-mano",
+      "titulo": "Ya está en producción",
+      "tipo": "mundo",
+      "historia": "Esta mañana el equipo de búsqueda escribió: «subimos el modelo del proveedor a producción, ya lo probamos en el notebook». La aceptación de sugerencias de camisas se cayó.",
+      "sintoma": "<code>verificar.py</code>: ✗ registro         classifier@champion = v5, y la corrida de esta noche es contra v3: ¿quién lo movió? python mundo/modelos.py versiones",
+      "hipotesis": [
+        "Alguien movió champion.",
+        "Se registró una versión que nadie aprobó.",
+        "El gate dejó pasar al proveedor."
+      ],
+      "confirma": {
+        "code": "python mundo/modelos.py versiones",
+        "nota": "",
+        "donde": "mac",
+        "salida": "v1  —            mes 2026-07 · corrida equipo-2026-07-01 · gate passed · labels.json en orden\nv2  —            mes 2026-08 · corrida equipo-2026-08-01 · gate passed · labels.json en orden\nv3  —            mes 2026-09 · corrida equipo-2026-09-01 · gate passed · labels.json en orden\nv4  @challenger  mes 2026-10 · corrida cand-2026-10-01 · gate passed · labels.json en orden\nv5  @champion    mes 2026-10 · corrida cand-2026-10-01-proveedor · gate — · labels.json en orden"
+      },
+      "arreglo": "Alguien registró a mano el candidato del proveedor (sin <code>gate=passed</code>) y le movió <code>@champion</code>: eso ya es producción. El registro no impide mover un alias; la regla de que solo CD lo mueve, después del gate y del canary, es del equipo. Arreglo: <code>python mundo/modelos.py alias champion 3</code>. El rollback es mover el alias, no reentrenar. La versión mal subida se queda sin alias y sin <code>gate=passed</code>.",
+      "concepto": "champion",
+      "check": "registro"
+    },
+    {
+      "id": "labels-desordenados",
+      "titulo": "La herramienta nueva de export",
+      "tipo": "mundo",
+      "historia": "El equipo de plataforma estrenó un script que «limpia» los artefactos de las corridas. Lo corrieron sobre el candidato de octubre anoche.",
+      "sintoma": "<code>verificar.py</code>: ✗ labels           el labels.json de v4, cand-2026-10-01 no es entrada/categorias.json: la salida 0 dejaría de ser «playeras». python mundo/modelos.py versiones\n✗ registro         v4: su labels_sha256 o su labels.json no es el de entrada/categorias.json",
+      "hipotesis": [
+        "Cambió el labels.json del candidato.",
+        "Cambiaron sus pesos.",
+        "Cambió entrada/categorias.json."
+      ],
+      "confirma": {
+        "code": "python verificar.py labels\npython pipeline/evaluar.py",
+        "nota": "",
+        "donde": "mac",
+        "salida": "✗ labels           el labels.json de v4, cand-2026-10-01 no es entrada/categorias.json: la salida 0 dejaría de ser «playeras». python mundo/modelos.py versiones\n0/1 en verde · falta: labels\n[examen] golden-v1: 1000 fotos · manifest 0061343ada92… = gate.yaml · cada foto con su huella\n✗ el labels.json de cand-2026-10-01 no es entrada/categorias.json (['abrigos', 'bolsas', 'botines']…): la salida 0 no sería «playeras»\n[código 1]"
+      },
+      "arreglo": "El <code>modelo/labels.json</code> de la corrida <code>cand-2026-10-01</code> se sobrescribió en orden alfabético: los archivos de una corrida de MLflow se pueden reemplazar. Los pesos son los mismos, así que la evaluación por índice saldría igual, pero registrado así el gateway mostraría otra categoría. Por eso la versión guarda <code>labels_sha256</code>. Arreglo: <code>python mundo/modelos.py labels cand-2026-10-01</code> y otra vez <code>evaluar.py</code>.",
+      "concepto": "labels-json",
+      "check": "labels"
+    },
+    {
+      "id": "mlflow-caido",
+      "titulo": "El gate no corrió",
+      "tipo": "infra",
+      "historia": "El pipeline de anoche quedó en rojo en el paso del gate y nadie sabe si el candidato es bueno o malo.",
+      "sintoma": "<code>verificar.py</code>: casi todo falla. ✗ mundo            MLflow no responde en localhost:5500: docker compose ps (¿está arriba el servicio mlflow?)",
+      "hipotesis": [
+        "Se cayó MLflow.",
+        "Se cayó el S3.",
+        "Se borró el candidato."
+      ],
+      "confirma": {
+        "code": "docker compose ps -a --format \"{{.Service}}: {{.State}} · {{.Status}}\"\npython pipeline/evaluar.py",
+        "nota": "",
+        "donde": "mac",
+        "salida": "mlflow: exited · Exited (137) 4 seconds ago\ns3: running · Up 6 minutes (healthy)\nrequests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=5500): Max retries exceeded with url: /api/2.0/mlflow/experiments/get-by-name?experiment_name=c01-entrenamiento (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5500): Failed to establish a new connection: [Errno 61] Connection refused\"))\nmlflow.exceptions.MlflowException: API request to http://localhost:5500/api/2.0/mlflow/experiments/get-by-name failed with exception HTTPConnectionPool(host='localhost', port=5500): Max retries exceeded with url: /api/2.0/mlflow/experiments/get-by-name?experiment_name=c01-entrenamiento (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5500): Failed to establish a new connection: [Errno 61] Connection refused\"))\nreal 5.32"
+      },
+      "arreglo": "El contenedor de MLflow está detenido. Sin el registro no hay champion por número ni candidato, y el gate no puede anotar su veredicto: falla en segundos, y está bien que falle. Un gate que «pasa» porque no pudo medir es peor que uno en rojo. Arreglo: <code>docker compose up -d --wait mlflow</code>.",
+      "concepto": "falla-ruidosa",
+      "check": "mundo"
+    }
+  ],
+  "listo": [
+    "El candidato es no inferior al champion y al de hace 3 meses (Δmin ≥ −margen, en top-1 y top-5), sobre el examen congelado y sin fuga.",
+    "Ninguna categoría cae más de 5 puntos con una caída significativa (McNemar + Holm), ningún slice cae más que su margen y el ECE está en su límite.",
+    "Las reglas eran las revisadas, y el champion entró por número.",
+    "Un candidato que rompe una categoría deja la corrida en rojo, con el motivo, y no se registra.",
+    "El candidato que pasó es una versión con <code>gate=passed</code>, sus huellas y el alias <code>challenger</code>; champion no se movió.",
+    "Sabes qué versión es champion y a cuál vuelves si algo falla."
+  ],
+  "repaso": {
+    "memo": "<b>El gate decide si vale la pena probar; el canary, si se queda.</b> Reglas escritas antes (y cambiadas solo en un PR), el champion por número, el mismo examen congelado y los pares foto por foto. No inferioridad contra el champion y contra el de hace 3 meses, cada categoría y cada slice aparte, y si algo falla, en rojo. Promover y volver atrás es mover un alias.",
+    "trampa": "Mover los umbrales después de ver el resultado («el slice cayó 6, subo el límite a 7»). El gate deja de medir y empieza a justificar.",
+    "entrevista": [
+      {
+        "q": "¿Cómo decides si el modelo reentrenado puede reemplazar al de producción?",
+        "a": "Con un gate automático y reglas escritas antes: los dos modelos sobre el mismo golden set congelado, foto por foto. No inferioridad pareada (el extremo de abajo del intervalo de la diferencia ≥ −margen, con el margen del tamaño del ruido del examen), también contra el modelo de hace 3 meses por la erosión. Además, recall por categoría con McNemar y Holm, slices y calibración. Si pasa, se registra como challenger; el champion se mueve después del canary."
+      },
+      {
+        "q": "¿Por qué no inferioridad y no «que sea mejor»?",
+        "a": "Porque el reentrenamiento mensual busca estar al día, no ganar. Exigir una mejora significativa bloquearía casi todos los meses, y «≥ champion» decide con el ruido: dos modelos iguales salen uno arriba del otro la mitad de las veces. La no inferioridad acepta perder menos de lo que el examen puede medir."
+      },
+      {
+        "q": "El top-1 global subió, pero una categoría grande se rompió. ¿Cómo lo atrapas?",
+        "a": "Recall por categoría contra el champion con los pares de esa categoría: McNemar exacto con sus discrepancias, corregido con Holm porque son muchas pruebas, y además un tamaño mínimo de caída para que importe. Más slices: luz, tamaño, dispositivo."
+      },
+      {
+        "q": "¿Qué guarda la versión del registry?",
+        "a": "Apunta a los artefactos (pesos, labels.json) y lleva tags: gate=passed y la corrida del gate, snapshot, commit, huellas de pesos y de labels.json, examen, contra qué champion se comparó y sus métricas. El alias challenger. Y nunca cambia: lo que se mueve son los alias."
+      },
+      {
+        "q": "Alguien quiere aflojar un umbral porque el modelo de esta semana no pasa. ¿Qué haces?",
+        "a": "No lo muevo para este modelo. Si hay un argumento, va en un PR propio, revisado, que aplica desde la corrida siguiente, con la justificación (por ejemplo, el examen creció y el ruido bajó). Un override para una corrida concreta pide dos personas y deja un tag."
+      },
+      {
+        "q": "¿Cómo sabes que el examen no está contaminado?",
+        "a": "El golden set se congela con un manifest y su huella, se excluye de todos los snapshots por diseño, y el gate cruza las huellas de las fotos del examen con las del snapshot del candidato antes de evaluar: una sola coincidencia detiene todo."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/c01-gate/CLAUDE.md",
+    "guiado": "content/estaciones/c01-gate/prompts/guiado.md",
+    "solo": "content/estaciones/c01-gate/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/c01-gate/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/c01-gate/prompts/romper-solo.md"
+  }
+}

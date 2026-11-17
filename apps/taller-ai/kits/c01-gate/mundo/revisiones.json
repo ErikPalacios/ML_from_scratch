@@ -1,0 +1,6 @@
+{
+  "nota": "Las versiones de gate.yaml que pasaron revisión: cada una salió de un PR propio, aprobado por otra persona. En C01 esto es el historial de PR del repositorio ml-catalogo; aquí, este archivo. Lo mantiene el equipo: no se toca.",
+  "aprobadas": [
+    {"gate_yaml_sha256": "ac1d6a3cd2d533e0c6a559d3edd8a593c6be37f9158a567f92bd0932621d9906", "pr": 41, "autor": "Equipo de ML", "reviso": "Líder técnica de ML", "fecha": "2026-07-01", "motivo": "Primera versión con golden-v1 y slices; margen del ruido del examen."}
+  ]
+}

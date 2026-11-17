@@ -1,0 +1,8 @@
+# data/ es caché local (Fashion-MNIST); reportes/ lo escriben tu evaluar.py y tu gate.py; .taller/ es de romper.py.
+data/
+reportes/
+.taller/
+.venv/
+__pycache__/
+*.pyc
+.respaldo/
