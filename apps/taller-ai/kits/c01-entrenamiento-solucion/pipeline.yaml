@@ -1,0 +1,16 @@
+# El pipeline mensual como DAG. Lo ejecuta el orquestador: python mundo/orquestador.py pipeline.yaml
+# En C01 son 8 pasos (snapshot → validar → fine-tune → evaluar → gate → engine → paridad → registrar);
+# esta estación es el fine-tune, con su prueba de humo antes.
+nombre: c01-mensual
+parametros:
+  snapshot: ds-2026-09-01      # un id fijo: la caché y el linaje no pueden confundir meses
+  champion: "@champion"        # el orquestador lo resuelve UNA vez y pasa el número de versión
+pasos:
+  - id: humo                   # unos segundos de CPU que evitan gastar horas de GPU en código roto
+    comando: python pipeline/humo.py --snapshot {snapshot}
+  - id: entrenar
+    depende: [humo]
+    gpu: 1                     # pide un nodo con GPU (on-demand); se libera al terminar
+    reintentos: 2              # si se pierde el nodo, lo vuelve a lanzar con la MISMA {corrida}: reanuda del checkpoint
+    espera_s: 2                # en C01, 120 s
+    comando: python pipeline/entrenar.py --snapshot {snapshot} --champion {champion} --corrida {corrida}

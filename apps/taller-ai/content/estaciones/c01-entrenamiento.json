@@ -1,0 +1,1194 @@
+{
+  "id": "entrenamiento",
+  "patron": "sincrono",
+  "caso": "c01",
+  "num": 3,
+  "titulo": "Entrenamiento",
+  "nav": "Entrenamiento",
+  "pregunta": "¿Cómo se vuelve tu notebook de fine-tuning un job que corre solo cada mes y se puede reproducir?",
+  "version": "2026-11-17",
+  "mapa": {
+    "resumen": "La estación 2 deja el snapshot <code>ds-2026-09-01</code>. Esta lo convierte en un <b>checkpoint candidato</b> con su corrida anotada en MLflow. No es «correr un notebook»: es un <b>job</b> que lanza el orquestador cada mes en una GPU que se prende y se apaga, que arranca de los pesos del modelo en producción (el champion), que guarda su estado cada tanto para sobrevivir a la caída de su máquina y que deja escrito todo lo necesario para repetirlo: el snapshot, el commit, la receta, el entorno y la semilla. Antes de gastar GPU, una prueba de un minuto confirma que el código aprende. Y al final hay una regla para saber si una diferencia contra otra corrida es una regresión o es ruido. La estación 4 decide si el candidato es mejor.",
+    "entra": [
+      "el id del snapshot, <code>ds-2026-09-01</code>, como parámetro (nunca «el más nuevo»)",
+      "el champion: el modelo que hoy está en producción, por su número de versión en el registro",
+      "la receta del entrenamiento (<code>receta.yaml</code>) y el código, en un commit",
+      "el preprocess del gateway y su versión de Pillow (en C01, además, la imagen de entrenamiento por su digest)"
+    ],
+    "sale": [
+      "el checkpoint candidato: los pesos y su <code>labels.json</code>, como artefactos de una corrida de MLflow",
+      "la corrida en MLflow: parámetros, la curva de <code>val_top1</code> por época y los punteros (snapshot, commit, entorno, champion, receta)",
+      "checkpoints intermedios en S3, para reanudar si se cae la máquina",
+      "el ruido entre semillas medido, y una regla escrita para comparar corridas"
+    ],
+    "escala": [
+      {
+        "que": "Fotos de entrenamiento",
+        "c01": "1,840,211 de train y 92,417 de validación",
+        "taller": "6,999 de train y 1,524 de validación (las 10,000 de prueba de Fashion-MNIST, menos el golden set y lo posterior al corte)"
+      },
+      {
+        "que": "La red",
+        "c01": "ResNet-50 de torchvision, ≈ 25.6 millones de parámetros, 500 categorías",
+        "taller": "Una ResNet chica (<code>mundo/arquitectura.py</code>), 44,230 parámetros, 10 categorías"
+      },
+      {
+        "que": "Dónde corre",
+        "c01": "1 GPU A10G on-demand (g5.xlarge) en un pod de EKS, que se apaga al terminar",
+        "taller": "La CPU de tu Mac"
+      },
+      {
+        "que": "Cuánto tarda",
+        "c01": "≈ 3–4 horas",
+        "taller": "≈ 25 segundos (≈ 8.0 s por época, más cargar las fotos y evaluar)"
+      },
+      {
+        "que": "Checkpoint",
+        "c01": "≈ 300 MB (pesos + Adam) cada 15 minutos en S3",
+        "taller": "≈ 640 kB cada 25 pasos en el S3 local (RustFS)"
+      },
+      {
+        "que": "Registro",
+        "c01": "MLflow con Postgres (metadatos) y S3 (archivos)",
+        "taller": "MLflow en Docker, con SQLite y un volumen"
+      },
+      {
+        "que": "Quién lo lanza",
+        "c01": "El orquestador (Argo Workflows, Kubeflow o Airflow), cada mes",
+        "taller": "<code>mundo/orquestador.py</code>, cuando tú lo corres"
+      }
+    ],
+    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-entrenamiento"
+  },
+  "precalculos": {
+    "intro": "Antes de escribir el job, las cuentas de servilleta del entrenamiento: cuántos pasos tiene una corrida, cuánto tarda, cuánto cuesta, qué pérdida esperas al empezar, cuánto pesa un checkpoint, cada cuánto guardarlo y cuánto se puede mover una métrica por puro azar. Cada cuenta va en las dos escalas: C01 y el dojo.",
+    "cuentas": [
+      {
+        "id": "pasos",
+        "pregunta": "¿Cuántos pasos tiene una corrida?",
+        "formula": "pasos por época = fotos de train ÷ batch (redondeado hacia arriba); pasos = pasos por época × épocas",
+        "c01": {
+          "cuenta": "1,840,211 ÷ 64 = 28,754 pasos por época × 8 épocas",
+          "valor": "≈ 230,000 pasos"
+        },
+        "taller": {
+          "cuenta": "6,999 ÷ 64 = 110 pasos por época × 3 épocas",
+          "valor": "330 pasos"
+        },
+        "decide": "Los pasos son el reloj del entrenamiento: el programador del learning rate (OneCycle) necesita el total de antemano, y «cada cuántos pasos guardo un checkpoint» se mide contra ese total.",
+        "conceptos": [
+          "receta"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport math, sys; sys.path.insert(0, '.')\nfrom mundo.comun import receta, s3, tarjeta\nn, r = tarjeta(s3(), 'ds-2026-09-01')['counts']['train'], receta()\np = math.ceil(n / r['batch'])\nprint(f\\\"{n} fotos de train ÷ batch {r['batch']} = {p} pasos por época · × {r['epocas']} épocas = {p * r['epocas']} pasos\\\")\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "6999 fotos de train ÷ batch 64 = 110 pasos por época · × 3 épocas = 330 pasos"
+        }
+      },
+      {
+        "id": "tiempo",
+        "pregunta": "¿Cuánto tarda una corrida?",
+        "formula": "tiempo = fotos de train × épocas ÷ fotos por segundo",
+        "c01": {
+          "cuenta": "1,840,211 × 8 ÷ ≈ 1,000–1,400 fotos/s (una A10G con precisión mixta)",
+          "valor": "≈ 3–4 horas"
+        },
+        "taller": {
+          "cuenta": "6,999 × 3 ÷ ≈ 875 fotos/s (la CPU de tu Mac, medida en el paso 3)",
+          "valor": "≈ 24 s de entrenar, ≈ 25 s con cargar las fotos y evaluar"
+        },
+        "decide": "Horas de GPU no se gastan para descubrir un error de código: por eso va primero la prueba de humo, que cuesta segundos. Y en 4 horas la máquina se puede caer: por eso hay checkpoints.",
+        "conceptos": [
+          "job",
+          "gpu-efimera"
+        ],
+        "confirma": "el paso 3: cada época tarda ≈ 8.0 s en tu Mac."
+      },
+      {
+        "id": "costo",
+        "pregunta": "¿Cuánto cuesta una corrida?",
+        "formula": "costo = (horas de entrenar + horas de evaluar) × precio de la máquina por hora",
+        "c01": {
+          "cuenta": "(3 a 4 h + ≈ 0.25 h) × US$1.006 por hora (g5.xlarge on-demand)",
+          "valor": "≈ US$3.3–4.3 por corrida"
+        },
+        "taller": {
+          "cuenta": "≈ 1 minuto de la CPU de tu Mac",
+          "valor": "US$0"
+        },
+        "decide": "Entrenar es de lo más barato del sistema: unos pocos dólares al mes, contra cientos de dólares de las GPUs que sirven. Lo caro es una corrida que no sirve (código roto, datos equivocados) y la persona que la revisa. Ahorrar la mitad con máquinas spot no compensa la complejidad a esta escala.",
+        "conceptos": [
+          "gpu-efimera"
+        ],
+        "confirma": "el paso 6: el orquestador pide la GPU solo para el paso de entrenar, y la libera al terminar."
+      },
+      {
+        "id": "l0",
+        "pregunta": "¿Qué pérdida esperas en el primer paso, antes de aprender nada?",
+        "formula": "pérdida inicial ≈ ln(K), con K = número de categorías (la red reparte la probabilidad casi igual entre todas)",
+        "c01": {
+          "cuenta": "ln(500)",
+          "valor": "≈ 6.21"
+        },
+        "taller": {
+          "cuenta": "ln(10)",
+          "valor": "≈ 2.30"
+        },
+        "decide": "Es una revisión gratis del primer paso. Si sale mucho menor, la etiqueta se coló en la entrada. Si sale mucho mayor, algo está mal en la escala de la cabeza. Es aproximada: sirve para atrapar errores grandes.",
+        "conceptos": [
+          "perdida-inicial",
+          "prueba-humo"
+        ],
+        "comprueba": {
+          "code": "python -c \"import math; print(f'ln(500) = {math.log(500):.2f} · ln(10) = {math.log(10):.2f}')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "ln(500) = 6.21 · ln(10) = 2.30"
+        },
+        "confirma": "el paso 2: la prueba de humo arranca con pérdida 2.311."
+      },
+      {
+        "id": "peso-ckpt",
+        "pregunta": "¿Cuánto pesa un checkpoint?",
+        "formula": "pesos = parámetros × 4 bytes (float32); con Adam se guardan además 2 promedios por parámetro: ≈ parámetros × 12 bytes",
+        "c01": {
+          "cuenta": "≈ 25.6 M × 4 B = ≈ 100 MB de pesos, × 3 con Adam",
+          "valor": "≈ 300 MB"
+        },
+        "taller": {
+          "cuenta": "44,230 × 12 B, más los BatchNorm, el estado del azar y el orden de las fotos de la época",
+          "valor": "≈ 640 kB medidos"
+        },
+        "decide": "Un checkpoint no son solo los pesos: sin los promedios de Adam, el programador y el azar, reanudar es empezar otra corrida parecida. A 300 MB, escribirlo a S3 tarda unos segundos.",
+        "conceptos": [
+          "checkpoint"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport sys; sys.path.insert(0, '.')\nfrom mundo.arquitectura import construir_modelo\nn = sum(p.numel() for p in construir_modelo(10).parameters())\nprint(f'{n:,} parámetros × 4 bytes = {n * 4 / 1e3:.0f} kB de pesos · más los 2 promedios de Adam = {n * 12 / 1e3:.0f} kB')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "44,230 parámetros × 4 bytes = 177 kB de pesos · más los 2 promedios de Adam = 531 kB"
+        },
+        "confirma": "el paso 5: el checkpoint en S3 pesa 640 kB."
+      },
+      {
+        "id": "cada-cuanto",
+        "pregunta": "¿Cada cuánto guardar un checkpoint?",
+        "formula": "lo que pierdes en una caída ≤ el intervalo; lo que te cuesta = checkpoints × segundos por checkpoint",
+        "c01": {
+          "cuenta": "cada 15 min de ≈ 240 min: 16 checkpoints × ≈ 3 s (300 MB a ≈ 100 MB/s)",
+          "valor": "pierdes ≤ 15 min (≈ 6 %) y gastas ≈ 0.3 % del tiempo en guardar"
+        },
+        "taller": {
+          "cuenta": "cada 25 pasos de 330: 13 checkpoints de ≈ 640 kB",
+          "valor": "pierdes ≤ 25 pasos (≈ 8 %, ≈ 1.8 s) y guardar casi no se nota"
+        },
+        "decide": "<code>ckpt_cada_pasos: 25</code> en la receta. Guardar muy seguido frena el entrenamiento; guardar muy poco vuelve cada caída una corrida perdida. <code>verificar.py</code> pide perder a lo más el 20 %.",
+        "conceptos": [
+          "checkpoint",
+          "reanudar"
+        ],
+        "confirma": "el paso 5: una caída a los 15 s reanuda desde el paso 175."
+      },
+      {
+        "id": "ruido",
+        "pregunta": "¿Cuánto se mueve la exactitud de validación solo por qué fotos tocaron en el examen?",
+        "formula": "ε = 1.96 × √(a × (1 − a) ÷ G), con a = exactitud como fracción y G = fotos del examen (95 % de confianza)",
+        "c01": {
+          "cuenta": "1.96 × √(0.85 × 0.15 ÷ 92,417)",
+          "valor": "± 0.23 puntos"
+        },
+        "taller": {
+          "cuenta": "1.96 × √(0.85 × 0.15 ÷ 1,524)",
+          "valor": "± 1.79 puntos"
+        },
+        "decide": "Con un examen chico, una diferencia de medio punto no dice nada. Además del ruido del examen está el del entrenamiento (otra semilla, otro modelo): ese se mide entrenando varias veces, en el paso 7.",
+        "conceptos": [
+          "ruido-evaluacion",
+          "ruido-semillas"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport math\nfor nombre, a, G in [('C01, val de 92,417', 0.85, 92417), ('dojo, val de 1,524', 0.85, 1524)]:\n    print(f'{nombre}: ε = 1.96 × √({a} × {1 - a:.2f} ÷ {G:,}) = ± {196 * math.sqrt(a * (1 - a) / G):.2f} puntos')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "C01, val de 92,417: ε = 1.96 × √(0.85 × 0.15 ÷ 92,417) = ± 0.23 puntos\ndojo, val de 1,524: ε = 1.96 × √(0.85 × 0.15 ÷ 1,524) = ± 1.79 puntos"
+        },
+        "confirma": "el paso 7: entre 5 semillas, σ = 0.62 puntos."
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "job",
+      "termino": "Job de entrenamiento",
+      "en": "training job",
+      "def": "Un programa que arranca, entrena y termina solo, en una máquina que existe mientras dura, lanzado por el pipeline y no por una persona.",
+      "analogia": "Un notebook es la cocina de tu casa: pruebas, ajustas, nadie más lo repite. Un job es la receta impresa de un restaurante: cualquiera la sigue igual cada vez.",
+      "importa": "Lo que va a producción tiene que salir de algo que se puede repetir: código en un commit, datos por id y una receta escrita. Un notebook tiene celdas fuera de orden y archivos locales.",
+      "trampa": "«El mejor modelo salió de mi notebook». Si nadie lo puede repetir, no es candidato: los candidatos salen solo del pipeline."
+    },
+    {
+      "id": "receta",
+      "termino": "La receta",
+      "en": "training config",
+      "def": "El archivo con los números que deciden el entrenamiento: arranque, épocas, batch, learning rate, semilla y cada cuánto guardar. Vive en el repo y va en cada commit.",
+      "analogia": "La ficha técnica de un platillo: gramos, tiempos y temperatura. Si alguien la cambia, cambia el platillo, aunque la cocina sea la misma.",
+      "importa": "Cambiar la receta es cambiar el modelo. Por eso la corrida anota su huella (<code>receta_sha256</code>) y el código la lee del archivo, sin números copiados en los scripts.",
+      "trampa": "Probar «solo un número» editando el archivo y entrenando sin commit. El linaje diría «commit tal», y ese commit tiene otra receta."
+    },
+    {
+      "id": "skew",
+      "termino": "Training-serving skew",
+      "en": "training-serving skew",
+      "def": "Cuando el modelo ve las fotos de una forma al entrenar y de otra en producción: otro resize, otra normalización u otra versión de la librería que decodifica.",
+      "analogia": "Estudiar para el examen con lentes y presentarlo sin ellos: sabes lo mismo, pero ves distinto.",
+      "importa": "No da ningún error: la exactitud en producción sale unos puntos más baja que la de validación, y nadie sabe por qué. Se evita por construcción: el entrenamiento importa el mismo <code>preprocess.py</code> del gateway y usa la misma versión de Pillow.",
+      "trampa": "Copiar el preprocess «igualito» en el código de entrenamiento. Dos copias se separan con el tiempo; la única forma segura es importar la misma."
+    },
+    {
+      "id": "prueba-humo",
+      "termino": "Prueba de humo: sobreajustar un batch",
+      "en": "overfit one batch",
+      "def": "Entrenar una y otra vez con un solo batch de 32 fotos: un código sano las memoriza (pérdida casi cero, 32 de 32). Si no, algo está roto.",
+      "analogia": "Antes de un viaje largo, prendes el coche y das una vuelta a la cuadra. Si no arranca, no sales a carretera.",
+      "importa": "Un optimizador que no recibe los pesos, un learning rate en cero o etiquetas desalineadas no tiran el programa: corre horas y no aprende. Esta prueba lo ve en segundos, antes de pedir la GPU.",
+      "trampa": "Usar un learning rate fijo en la prueba en vez del de la receta: así no atrapa una receta rota."
+    },
+    {
+      "id": "perdida-inicial",
+      "termino": "La pérdida al empezar",
+      "en": "initial loss ≈ ln K",
+      "def": "Con pesos al azar, la red reparte la probabilidad casi igual entre las K categorías, y la entropía cruzada del primer paso sale ≈ ln(K).",
+      "analogia": "Un examen de opción múltiple contestado al azar: con 4 opciones aciertas ≈ 1 de 4. Si alguien que no estudió saca 10, vio las respuestas.",
+      "importa": "Es una revisión gratis: con 10 categorías esperas ≈ 2.30. Mucho menos sugiere que la etiqueta se coló en la entrada; mucho más, un problema en la escala de la cabeza.",
+      "trampa": "Tomarla como regla exacta. Es aproximada: sirve para errores grandes."
+    },
+    {
+      "id": "semilla",
+      "termino": "Semilla y determinismo",
+      "en": "seed, deterministic algorithms",
+      "def": "La semilla fija todo el azar del entrenamiento (pesos iniciales, orden de las fotos, augmentation). Con algoritmos deterministas, mismos ingredientes dan los mismos pesos, bit por bit.",
+      "analogia": "Barajar con la misma «mano» siempre: si sabes cómo empezó, sabes cómo termina.",
+      "importa": "En la CPU de tu Mac, dos corridas iguales dan la misma huella de pesos: así compruebas que reanudar no cambió nada. En la GPU de C01 no pasa (cuDNN y las sumas en paralelo cambian los últimos bits): ahí reproducible es «mismo resultado dentro del ruido».",
+      "trampa": "«Fijé la semilla, así que es reproducible». Hacen falta los cinco ingredientes, y en GPU ni así es bit a bit."
+    },
+    {
+      "id": "warm-start",
+      "termino": "Arrancar del champion",
+      "en": "warm start",
+      "def": "Empezar el entrenamiento con los pesos del modelo que hoy está en producción (el champion) en lugar de pesos al azar.",
+      "analogia": "Para la edición nueva de un libro no lo escribes desde cero: partes de la anterior y corriges.",
+      "importa": "El modelo ya sabe casi todo y bastan pocas épocas: es lo que hace C01 cada mes. El costo: el modelo de octubre depende también del de septiembre, así que la corrida anota de qué versión arrancó.",
+      "trampa": "Arrancar de un champion cuyas categorías están en otro orden. La salida 0 dejó de ser «playeras» y no truena nada: por eso se compara su <code>labels.json</code> antes."
+    },
+    {
+      "id": "alias-version",
+      "termino": "Alias y versión en el registro",
+      "en": "model registry alias vs version",
+      "def": "Cada modelo registrado tiene versiones con número fijo (v1, v2…) y aliases que se mueven (<code>@champion</code>). El orquestador resuelve el alias una vez y el job recibe el número.",
+      "analogia": "«El gerente» es un alias; «Ana López» es la persona. Si el gerente cambia a media junta, la junta sigue con Ana.",
+      "importa": "Si cada reintento resolviera <code>@champion</code>, un alias que se movió a media corrida mezclaría dos modelos en la misma corrida. Con el número, la corrida sabe exactamente de dónde arrancó.",
+      "trampa": "Pasar <code>@champion</code> o «latest» al job: por eso <code>entrenar.py</code> exige un número."
+    },
+    {
+      "id": "tracking",
+      "termino": "Registro de experimentos",
+      "en": "experiment tracking (MLflow)",
+      "def": "Un servidor donde cada entrenamiento deja su corrida: parámetros, métricas por época, archivos (artefactos) y etiquetas (tags) con sus punteros.",
+      "analogia": "La bitácora de un laboratorio, compartida y con buscador: qué se probó, con qué, y qué salió.",
+      "importa": "Meses después contesta «¿con qué se entrenó?» y «¿por qué este salió distinto?» sin preguntarle a nadie. En C01 es MLflow con Postgres y S3; aquí, el mismo MLflow en Docker.",
+      "trampa": "Anotar solo la métrica final. Sin la curva por época, los punteros y el archivo de pesos, la corrida no se puede auditar ni repetir."
+    },
+    {
+      "id": "cinco-ingredientes",
+      "termino": "Los cinco ingredientes",
+      "en": "reproducibility: code, data, config, environment, seed",
+      "def": "Para repetir un entrenamiento hacen falta cinco cosas fijas: el código (commit), los datos (snapshot y su huella), la receta, el entorno (en C01 el digest de la imagen) y la semilla.",
+      "analogia": "Un pastel sale igual si repites la receta, los ingredientes, el horno, el molde y el tiempo. Cambias uno y ya es otro pastel.",
+      "importa": "Cada corrida los anota como tags. Si dos corridas con la «misma receta» difieren más que el ruido, comparas sus cinco ingredientes y casi siempre aparece la diferencia.",
+      "trampa": "Entrenar con cambios sin commit: el commit anotado no es el código que corrió."
+    },
+    {
+      "id": "amp",
+      "termino": "Precisión mixta",
+      "en": "AMP, automatic mixed precision",
+      "def": "Hacer la mayoría de las cuentas en números de 16 bits en vez de 32, que la GPU procesa mucho más rápido, guardando los pesos en 32.",
+      "analogia": "Hacer las cuentas de borrador con dos decimales y pasar en limpio solo el resultado.",
+      "importa": "En la A10G de C01 casi duplica la velocidad y baja la memoria. En la CPU de tu Mac no acelera, por eso la receta del dojo trae <code>amp: false</code>.",
+      "trampa": "Prenderla sin su GradScaler en float16: los gradientes muy chicos se vuelven cero y el modelo deja de aprender sin avisar."
+    },
+    {
+      "id": "checkpoint",
+      "termino": "Checkpoint completo",
+      "en": "training checkpoint",
+      "def": "Un archivo con todo el estado del entrenamiento en un momento: pesos, estado del optimizador (los promedios de Adam), programador del learning rate, época, paso y el estado del azar.",
+      "analogia": "Guardar la partida de un videojuego: no solo dónde estás, también tu inventario y la hora del día. Si solo guardaras la posición, volverías sin nada.",
+      "importa": "Es lo que vuelve un reintento una continuación. En C01 pesa ≈ 300 MB y se guarda cada 15 minutos en S3, en una ruta con el nombre de la corrida.",
+      "trampa": "Guardar solo los pesos. Reanudar «funciona», pero sale otro modelo: Adam empieza de cero, el learning rate vuelve al inicio y el orden de las fotos cambia."
+    },
+    {
+      "id": "reanudar",
+      "termino": "Reanudar la misma corrida",
+      "en": "resume from checkpoint",
+      "def": "Cuando el job vuelve a arrancar con el mismo id de corrida, busca su checkpoint, carga todo y sigue desde el paso siguiente, en la misma corrida de MLflow.",
+      "analogia": "Retomar un libro en la página donde dejaste el separador, no en la que crees que ibas.",
+      "importa": "Una caída en la hora 3 cuesta minutos, no horas. Y en CPU puedes comprobarlo: la corrida reanudada termina con los mismos pesos, bit por bit, que una sin caída.",
+      "trampa": "Reanudar un checkpoint de otra receta u otro snapshot. Por eso el checkpoint guarda sus ingredientes y el job los compara antes de cargarlo."
+    },
+    {
+      "id": "orquestador",
+      "termino": "Orquestador de pipelines",
+      "en": "pipeline orchestrator (Argo Workflows, Kubeflow, Airflow)",
+      "def": "Un sistema que corre una receta de pasos en orden (un DAG), cada uno en su contenedor, con parámetros, reintentos e historial, por calendario o por evento.",
+      "analogia": "El supervisor de una línea de producción: arranca cada estación en orden, si una falla la repite y lo anota todo.",
+      "importa": "Tú escribes la definición (<code>pipeline.yaml</code>); él la ejecuta cada mes sin que nadie lance nada a mano. Aquí <code>mundo/orquestador.py</code> hace lo mismo en chico.",
+      "trampa": "Creer que el orquestador «arregla» un job que no reanuda: si el job no guarda checkpoints, cada reintento empieza de cero."
+    },
+    {
+      "id": "reintento",
+      "termino": "Reintentos con el mismo id",
+      "en": "retry policy",
+      "def": "Si un paso falla, el orquestador espera y lo vuelve a lanzar, hasta N veces, con los mismos parámetros y el mismo id de corrida.",
+      "analogia": "Si se cae la llamada, vuelves a marcar el mismo número; no llamas a otra persona.",
+      "importa": "Una máquina perdida, un error de red o un S3 que falla una vez no tiran el pipeline del mes. En C01: hasta 3 reintentos, 120 s entre cada uno.",
+      "trampa": "Un reintento con un id nuevo: no encuentra su checkpoint y empieza de cero, o deja dos corridas a medias en MLflow."
+    },
+    {
+      "id": "gpu-efimera",
+      "termino": "GPU que se prende y se apaga",
+      "en": "on-demand GPU node",
+      "def": "La máquina con GPU existe solo mientras dura el paso de entrenar: el orquestador la pide, el contenedor corre y se libera al terminar.",
+      "analogia": "Rentar un taladro el día que lo usas en vez de tenerlo en la casa todo el año.",
+      "importa": "Nadie deja una GPU de entrenamiento prendida «por si acaso». Las de producción (las que sirven) no se usan para entrenar: tienen trabajo y son más lentas para esto.",
+      "trampa": "Usar máquinas spot (más baratas, pero se las pueden llevar) sin checkpoints: cada interrupción es una corrida perdida."
+    },
+    {
+      "id": "ruido-semillas",
+      "termino": "Ruido entre semillas",
+      "en": "seed variance",
+      "def": "Cuánto cambia la métrica de la misma receta cuando solo cambia la semilla. Se mide entrenando varias veces y sacando la desviación estándar (σ).",
+      "analogia": "Tirar el mismo dado varias veces: no siempre sale igual, y eso no quiere decir que el dado cambió.",
+      "importa": "Con σ medida, la regla es: una diferencia de más de 3σ (τ) probablemente es real; menos que eso, es azar. Así no celebras una mejora de ruido ni detienes nada por una caída de ruido.",
+      "trampa": "Medir σ con una receta y usarla para otra: si cambias el batch, el learning rate o la red, se vuelve a medir."
+    },
+    {
+      "id": "ruido-evaluacion",
+      "termino": "Ruido del examen",
+      "en": "evaluation noise (confidence interval)",
+      "def": "Cuánto se movería la exactitud medida solo por qué fotos tocaron en la validación: ε = 1.96 × √(a(1 − a)/G).",
+      "analogia": "Una encuesta de 1,500 personas tiene más margen de error que una de 90,000.",
+      "importa": "Con 92,417 fotos de validación (C01), ε ≈ ± 0.23 puntos; con 1,524 (el dojo), ≈ ± 1.8. Una diferencia más chica que eso no se puede leer.",
+      "trampa": "Comparar dos modelos en exámenes distintos: el ruido se suma y la comparación no vale. El examen fijo es la estación 4."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae el marketplace de C01 el 1 de octubre de 2026, a las 03:00 UTC, cuando arranca el pipeline del mes. En el S3 local están las fotos (las 10,000 de prueba de Fashion-MNIST, como fotos del marketplace) y los snapshots de agosto y septiembre que dejó la estación 2. En MLflow está el champion de septiembre, ya registrado. Tú escribes el job: leer el snapshot, la prueba de humo, el entrenamiento con checkpoints y su registro, el pipeline para el orquestador y la comparación entre corridas. Todo corre con un entorno virtual de Python y dos contenedores.",
+    "trae": [
+      {
+        "que": "El S3 local y MLflow (compose.yaml)",
+        "detalle": "RustFS en el puerto 9400 (buckets <code>fotos</code>, <code>ml-datos</code> y <code>ml-ckpt</code>) y el servidor de MLflow en el 5400, con su interfaz."
+      },
+      {
+        "que": "mundo/crear.py",
+        "detalle": "Crea todo en ≈ 1 minuto: baja Fashion-MNIST (≈ 4.4 MB), sube las 10,000 fotos, publica <code>ds-2026-08-01</code> y <code>ds-2026-09-01</code> y entrena el champion de septiembre (0.8150 en validación), registrado como <code>classifier</code> v1 <code>@champion</code>."
+      },
+      {
+        "que": "mundo/gateway/",
+        "detalle": "El <code>preprocess.py</code> del gateway (la estación 6), sus versiones (<code>requirements.txt</code>) y <code>paridad.json</code>: la huella del tensor que saca el gateway para 16 fotos."
+      },
+      {
+        "que": "mundo/arquitectura.py",
+        "detalle": "La red: una ResNet chica de 44,230 parámetros. En C01 viene de torchvision; aquí, de este archivo."
+      },
+      {
+        "que": "mundo/orquestador.py",
+        "detalle": "Corre tu <code>pipeline.yaml</code> como DAG: resuelve <code>@champion</code> una vez, pide la «GPU», reintenta y anota en <code>historial/</code>. Con <code>--apagon</code> simula que se pierde la máquina."
+      },
+      {
+        "que": "mundo/modelos.py y mundo/s3.py",
+        "detalle": "Mirar y reparar el registro de modelos (versiones, aliases, corridas) y mirar el S3 (llaves, tarjetas, checkpoints)."
+      },
+      {
+        "que": "receta.yaml",
+        "detalle": "La receta del equipo: arranque desde el champion, 3 épocas, batch 64, lr 0.003, semilla 17, checkpoint cada 25 pasos."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "12 checks con los criterios de «listo» y 6 fallas en el mundo, la configuración, el entorno o la infraestructura, nunca en lo que escribes."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "pipeline/datos.py",
+        "hace": "Leer un snapshot por id, comprobando cada huella, y pasar cada foto por el preprocess del gateway."
+      },
+      {
+        "archivo": "pipeline/humo.py",
+        "hace": "La prueba de humo: memorizar 32 fotos con la receta de verdad."
+      },
+      {
+        "archivo": "pipeline/entrenar.py",
+        "hace": "El job: árbol limpio, champion por versión, semilla, checkpoints, reanudar y la corrida en MLflow."
+      },
+      {
+        "archivo": "pipeline.yaml",
+        "hace": "El pipeline como DAG para el orquestador: humo → entrenar, con GPU y reintentos."
+      },
+      {
+        "archivo": "pipeline/comparar.py",
+        "hace": "¿Regresión o ruido? Δ contra 3σ de las semillas."
+      }
+    ],
+    "requisitos": [
+      "Docker Desktop corriendo, con ≈ 700 MB libres para las imágenes de RustFS y MLflow",
+      "Python 3.11 o más nuevo (se probó con 3.14.3) y ≈ 1.1 GB para el entorno virtual (PyTorch)",
+      "git (con tu nombre y correo configurados)",
+      "Internet la primera vez (los paquetes, las imágenes y Fashion-MNIST)",
+      "Los puertos 9400, 9401 y 5400 libres en tu Mac"
+    ],
+    "sustituciones": [
+      {
+        "nube": "Una GPU A10G on-demand (g5.xlarge) en un nodo de EKS",
+        "local": "La CPU de tu Mac",
+        "diferencia": "Más lenta, pero determinista: dos corridas iguales dan los mismos pesos, bit por bit. En GPU no pasa (cuDNN), y reproducible quiere decir «dentro del ruido»."
+      },
+      {
+        "nube": "ResNet-50 de torchvision (≈ 25.6 M parámetros)",
+        "local": "La ResNet chica de <code>mundo/arquitectura.py</code> (44,230 parámetros)",
+        "diferencia": "La misma idea (tallo, bloques con atajo, cabeza), con fotos de 32×32 en vez de 224×224, para que una época tarde segundos."
+      },
+      {
+        "nube": "Argo Workflows o Kubeflow Pipelines",
+        "local": "<code>mundo/orquestador.py</code>",
+        "diferencia": "Los dos corren tu DAG con parámetros, reintentos e historial, y resuelven el alias una vez. El de verdad vive en el clúster, corre por calendario y pone cada paso en su contenedor; el del dojo corre en tu Mac cuando tú lo llamas."
+      },
+      {
+        "nube": "MLflow con Postgres y S3",
+        "local": "MLflow en Docker, con SQLite y un volumen",
+        "diferencia": "La misma API y la misma interfaz; solo cambia dónde guarda los metadatos y los archivos."
+      },
+      {
+        "nube": "Amazon S3",
+        "local": "RustFS en localhost:9400",
+        "diferencia": "La misma API. En C01, los checkpoints intermedios llevan una regla de vencimiento: el que importa queda en MLflow."
+      },
+      {
+        "nube": "El digest de la imagen de entrenamiento",
+        "local": "<code>huella_entorno()</code>: sha256 de los paquetes instalados",
+        "diferencia": "El digest fija todo el contenedor (sistema, CUDA, drivers); la huella de paquetes solo fija las versiones de Python."
+      },
+      {
+        "nube": "Precisión mixta (AMP) en la GPU",
+        "local": "<code>amp: false</code>",
+        "diferencia": "En la CPU no acelera; en la A10G casi duplica la velocidad."
+      }
+    ],
+    "arranque": "unzip c01-entrenamiento.zip && cd c01-entrenamiento\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\ndocker compose up -d --wait\npython mundo/crear.py\ngit init && git add -A && git commit -m \"kit recién descomprimido\"\npython verificar.py mundo",
+    "python": "python"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "El S3 local y MLflow arriba, el mundo creado y la carpeta como repositorio de git.",
+      "conceptos": [
+        "tracking"
+      ],
+      "explica": "El mundo vive en dos servicios: el S3 local (fotos, snapshots y checkpoints) y MLflow (el registro de corridas y de modelos). <code>mundo/crear.py</code> los llena igual cada vez: las fotos, los dos snapshots que dejó la estación 2 y el <b>champion</b>, el modelo de septiembre que hoy está en producción. La carpeta tiene que ser un repositorio de git desde el inicio: el commit es uno de los ingredientes que anota cada corrida.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
+          "nota": "Tarda unos minutos la primera vez (PyTorch pesa ≈ 1 GB). Desde aquí, cada terminal nueva necesita <code>source .venv/bin/activate</code>.",
+          "donde": "mac",
+          "salida": "\nPython 3.14.3\n1.1G"
+        },
+        {
+          "code": "docker compose up -d --wait\npython mundo/crear.py",
+          "nota": "La interfaz de MLflow queda en http://localhost:5400: ahí está la corrida del equipo y el modelo <code>classifier</code>.",
+          "donde": "mac",
+          "salida": " Container taller-c01-entrenamiento-s3-1 Waiting \n Container taller-c01-entrenamiento-s3-1 Healthy \n Container taller-c01-entrenamiento-mlflow-1 Healthy\n  descargando t10k-images-idx3-ubyte… (Fashion-MNIST, Zalando Research, licencia MIT)\n  descargando t10k-labels-idx1-ubyte… (Fashion-MNIST, Zalando Research, licencia MIT)\n  10000 fotos en s3://fotos/ (14.1 MB)\n  ds-2026-08-01: {'train': 5772, 'val': 1265, 'total': 7037} · rows_sha256 113191865d17…\n  ds-2026-09-01: {'train': 6999, 'val': 1524, 'total': 8523} · rows_sha256 42815cda6bec…\n  entrenando el champion de septiembre con ds-2026-08-01 (≈ 30 s)…\n    época 1/4 · val_top1 0.4379\n    época 2/4 · val_top1 0.3937\n    época 3/4 · val_top1 0.7968\n    época 4/4 · val_top1 0.8150\n  classifier v1 @champion · val_top1 0.8150 · 35 s\n✓ mundo listo: python verificar.py mundo"
+        },
+        {
+          "code": "git init && git add -A && git commit -m \"kit recién descomprimido\"\ngit log --oneline",
+          "nota": "Los ids de commit cambian en cada máquina.",
+          "donde": "mac",
+          "salida": "c8c3e8d kit recién descomprimido"
+        },
+        {
+          "code": "python verificar.py mundo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo        S3 local (fotos, ml-datos con ds-2026-08-01 y ds-2026-09-01, ml-ckpt) · MLflow con classifier@champion = v1 · git · torch 2.15.0\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py mundo</code> en verde: los tres buckets, los dos snapshots, <code>classifier@champion</code>, git y torch.",
+      "ojo": "El 5000 lo ocupa AirPlay en macOS: por eso MLflow está en el 5400."
+    },
+    {
+      "n": 1,
+      "id": "datos",
+      "titulo": "Leer el snapshot como lo ve el gateway",
+      "objetivo": "Del id <code>ds-2026-09-01</code> a tensores, comprobando cada huella y con el mismo preprocess que producción.",
+      "conceptos": [
+        "skew"
+      ],
+      "explica": "El entrenamiento no elige datos: lee los que dice el id. Primero la tarjeta y la huella de las filas (si alguien las reescribió, se detiene), después cada foto con su huella. Cada foto se baja una vez a <code>data/cache/</code>, con su huella como nombre: si cambiara, sería otro archivo. Y cada foto pasa por <code>preprocess()</code>, <b>importado</b> del gateway: no una copia. Al final se compara con <code>paridad.json</code>, la huella del tensor que saca el gateway de verdad, y con su versión de Pillow.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/datos.py",
+          "code": "\"\"\"Paso 1 · Leer un snapshot por su id y convertir cada foto con el preprocess del gateway.\n\nEntra:  s3://ml-datos/datasets/<id>/snapshot.json y rows.parquet   la tarjeta y las filas (las dejó la estación 2)\n        s3://fotos/<image_key>                                     cada foto\n        mundo/gateway/preprocess.py                                el preprocess único del gateway: se importa, no se copia\nSale:   cargar(id) → (train, val, tarjeta). train y val son Datos(x, y, shas):\n          x: tensor float32 [N, 3, 32, 32] · y: tensor int64 [N] · shas: la huella de cada foto, en el orden de x\n        data/cache/<sha256>.jpg                                    cada foto bajada una sola vez (se nombra por su huella)\nReglas: si la huella de las filas no coincide con la tarjeta, o la de una foto con su fila, se detiene.\n        El orden es el de rows.parquet: el mismo snapshot da siempre los mismos tensores, en el mismo orden.\n        Como script, python pipeline/datos.py <id> imprime cuántas fotos hay por split y la paridad con el gateway\n        (mundo/gateway/paridad.json y la versión de Pillow de mundo/gateway/requirements.txt).\n\"\"\"\nfrom __future__ import annotations\n\nimport io\nimport json\nimport re\nimport sys\nfrom concurrent.futures import ThreadPoolExecutor\nfrom dataclasses import dataclass\n\nimport numpy as np\nimport pandas as pd\nimport torch\nfrom _comun import DATA, DATOS, FOTOS, RAIZ, s3, sha256\nfrom mundo.gateway.preprocess import preprocess   # el del gateway, tal cual\n\nCACHE = DATA / \"cache\"\n\n\n@dataclass\nclass Datos:\n    x: torch.Tensor\n    y: torch.Tensor\n    shas: list[str]\n\n    def __len__(self) -> int:\n        return len(self.y)\n\n\ndef foto(cliente, fila) -> bytes:\n    \"\"\"Los bytes de una foto: de la caché si ya está, si no de S3. Siempre se comprueba su huella.\"\"\"\n    ruta = CACHE / f\"{fila.image_sha256}.jpg\"\n    b = ruta.read_bytes() if ruta.exists() else cliente.get_object(Bucket=FOTOS, Key=fila.image_key)[\"Body\"].read()\n    if sha256(b) != fila.image_sha256:\n        sys.exit(f\"✗ {fila.image_key}: su huella no coincide con la del snapshot. No se entrena con una foto distinta\")\n    if not ruta.exists():\n        ruta.write_bytes(b)\n    return b\n\n\ndef cargar(sid: str) -> tuple[Datos, Datos, dict]:\n    if not re.fullmatch(r\"ds-\\d{4}-\\d{2}-\\d{2}(-r\\d+)?\", sid):\n        sys.exit(f\"✗ «{sid}» no es un id de snapshot: se entrena con un id fijo, nunca con «latest»\")\n    cliente = s3()\n    try:\n        tarjeta = json.loads(cliente.get_object(Bucket=DATOS, Key=f\"datasets/{sid}/snapshot.json\")[\"Body\"].read())\n    except cliente.exceptions.NoSuchKey:\n        sys.exit(f\"✗ {sid} no tiene tarjeta: un snapshot sin tarjeta no existe\")\n    crudo = cliente.get_object(Bucket=DATOS, Key=f\"datasets/{sid}/rows.parquet\")[\"Body\"].read()\n    if sha256(crudo) != tarjeta[\"rows_sha256\"]:\n        sys.exit(f\"✗ las filas de {sid} no coinciden con su tarjeta: alguien las reescribió\")\n    filas = pd.read_parquet(io.BytesIO(crudo))\n    CACHE.mkdir(parents=True, exist_ok=True)\n    with ThreadPoolExecutor(16) as ex:\n        tensores = list(ex.map(lambda f: preprocess(foto(cliente, f)), filas.itertuples()))\n    x = torch.from_numpy(np.stack(tensores))\n    y = torch.tensor(filas[\"label_id\"].to_numpy(), dtype=torch.int64)\n    partes = {}\n    for split in (\"train\", \"val\"):\n        m = (filas[\"split\"] == split).to_numpy()\n        t = torch.from_numpy(m.copy())\n        partes[split] = Datos(x[t], y[t], filas.loc[m, \"image_sha256\"].tolist())\n    return partes[\"train\"], partes[\"val\"], tarjeta\n\n\nif __name__ == \"__main__\":\n    import PIL\n\n    sid = sys.argv[1] if len(sys.argv) > 1 else \"ds-2026-09-01\"\n    train, val, tarjeta = cargar(sid)\n    print(f\"{sid} · rows_sha256 {tarjeta['rows_sha256'][:12]}… · train {len(train)} · val {len(val)} · x {tuple(train.x.shape[1:])} {train.x.dtype}\")\n    ref = json.loads((RAIZ / \"mundo\" / \"gateway\" / \"paridad.json\").read_text())\n    todas = {h: t for d in (train, val) for h, t in zip(d.shas, d.x)}\n    iguales = sum(sha256(todas[r[\"image_sha256\"]].numpy().tobytes()) == r[\"tensor_sha256\"] for r in ref[\"fotos\"])\n    pin = re.search(r\"^pillow==(\\S+)\", (RAIZ / \"mundo\" / \"gateway\" / \"requirements.txt\").read_text(), re.M | re.I).group(1)\n    print(f\"paridad con el gateway: {iguales}/{len(ref['fotos'])} tensores idénticos · Pillow {PIL.__version__} aquí, {pin} en el gateway\")\n    if iguales < len(ref[\"fotos\"]) or PIL.__version__ != pin:\n        sys.exit(\"✗ el entrenamiento no ve las fotos como las ve el gateway (training-serving skew)\")",
+          "nota": "El orden de los tensores es el de <code>rows.parquet</code>: el mismo snapshot da siempre lo mismo, en el mismo orden. Sin eso, la semilla no bastaría para repetir una corrida."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/datos.py ds-2026-09-01",
+          "nota": "La primera vez baja las 8,523 fotos del S3.",
+          "donde": "mac",
+          "salida": "ds-2026-09-01 · rows_sha256 42815cda6bec… · train 6999 · val 1524 · x (3, 32, 32) torch.float32\nparidad con el gateway: 16/16 tensores idénticos · Pillow 13.0.0 aquí, 13.0.0 en el gateway"
+        },
+        {
+          "code": "du -sh data/cache; ls data/cache | wc -l\ntime python pipeline/datos.py ds-2026-09-01",
+          "nota": "La segunda vez lee de la caché.",
+          "donde": "mac",
+          "salida": " 33M\n8523\nparidad con el gateway: 16/16 tensores idénticos · Pillow 13.0.0 aquí, 13.0.0 en el gateway\nreal 2.50"
+        },
+        {
+          "code": "python pipeline/datos.py latest",
+          "nota": "Un nombre que cambia de contenido no se acepta.",
+          "donde": "mac",
+          "salida": "✗ «latest» no es un id de snapshot: se entrena con un id fijo, nunca con «latest»\n[código 1]"
+        },
+        {
+          "code": "python verificar.py datos paridad",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ datos        ds-2026-09-01: train 6999 · val 1524 · en el orden de rows.parquet · cargar('latest') se detiene\n✓ paridad      16/16 tensores idénticos a los del gateway · Pillow 13.0.0 en los dos\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "6,999 fotos de train y 1,524 de validación en el orden del snapshot, y los 16 tensores idénticos a los del gateway con la misma Pillow.",
+      "ojo": "Si reescribes el resize «igualito» (por ejemplo con OpenCV, o con otro filtro), la paridad falla aunque las fotos se vean iguales: los números no lo son.",
+      "en_pagina": {
+        "conceptos": [
+          "skew"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 2,
+      "id": "humo",
+      "titulo": "La prueba de humo",
+      "objetivo": "Antes de gastar GPU, comprobar en segundos que el código aprende: memorizar 32 fotos.",
+      "conceptos": [
+        "prueba-humo",
+        "perdida-inicial"
+      ],
+      "explica": "Una red con decenas de miles de parámetros y solo 32 fotos <b>tiene que</b> memorizarlas. Si no lo logra, algo está roto: el optimizador no mueve los pesos, el learning rate es cero, las etiquetas no corresponden. Ninguno de esos errores tira el programa; todos se ven aquí. De paso revisas la pérdida del primer paso contra ln(10). La prueba usa el learning rate de la receta: se prueba la receta de verdad. Y sale con código 1 si falla, para que el orquestador no siga.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/humo.py",
+          "code": "\"\"\"Paso 2 · Prueba de humo: sobreajustar un solo batch antes de gastar una hora de GPU.\n\nUso:    python pipeline/humo.py --snapshot ds-2026-09-01 [--lr X]\nEntra:  receta.yaml                    lr, weight_decay y semilla (los de la corrida de verdad: se prueba ESA receta)\n        el snapshot, con cargar() de pipeline/datos.py: las primeras 32 fotos de train, en su orden\nSale:   imprime la pérdida del primer paso junto a ln(K), y la pérdida y los aciertos al final.\n        Código de salida 0 si pasa, 1 si no (así el orquestador no sigue al entrenamiento).\nReglas: la red desde cero (pesos al azar, sin champion), sin augmentation, AdamW con el lr de la receta\n        (o el de --lr, para probar), hasta 150 pasos sobre el mismo batch.\n        Pasa si la pérdida final es menor que 0.05 y acierta las 32.\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport math\nimport sys\n\nimport torch\nimport torch.nn.functional as F\nfrom _comun import CLASES, receta\nfrom datos import cargar\nfrom mundo.arquitectura import construir_modelo\n\nap = argparse.ArgumentParser()\nap.add_argument(\"--snapshot\", required=True)\nap.add_argument(\"--lr\", type=float)\na = ap.parse_args()\nr = receta()\nlr = r[\"lr\"] if a.lr is None else a.lr\n\ntrain, _, _ = cargar(a.snapshot)\nx, y = train.x[:32], train.y[:32]\ntorch.manual_seed(r[\"semilla\"])\nmodelo = construir_modelo(len(CLASES))\nopt = torch.optim.AdamW(modelo.parameters(), lr=lr, weight_decay=r[\"weight_decay\"])\nmodelo.train()\nfor paso in range(150):\n    perdida = F.cross_entropy(modelo(x), y)\n    if paso == 0:\n        print(f\"paso 0 · pérdida {perdida.item():.3f} · ln(K) = ln({len(CLASES)}) = {math.log(len(CLASES)):.3f}\")\n    opt.zero_grad()\n    perdida.backward()\n    opt.step()\nwith torch.no_grad():\n    logits = modelo(x)\n    final, aciertos = F.cross_entropy(logits, y).item(), int((logits.argmax(1) == y).sum())\nok = final < 0.05 and aciertos == 32\nprint(f\"paso {paso + 1} · pérdida {final:.4f} · aciertos {aciertos}/32 · lr {lr} → {'✓ el código aprende' if ok else '✗ no memoriza 32 fotos: algo está roto'}\")\nsys.exit(0 if ok else 1)",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/humo.py --snapshot ds-2026-09-01",
+          "nota": "",
+          "donde": "mac",
+          "salida": "paso 0 · pérdida 2.311 · ln(K) = ln(10) = 2.303\npaso 150 · pérdida 0.0020 · aciertos 32/32 · lr 0.003 → ✓ el código aprende"
+        },
+        {
+          "code": "python pipeline/humo.py --snapshot ds-2026-09-01 --lr 0",
+          "nota": "Lo que pasaría con un optimizador que no recibe los pesos: la pérdida no se mueve.",
+          "donde": "mac",
+          "salida": "paso 0 · pérdida 2.311 · ln(K) = ln(10) = 2.303\npaso 150 · pérdida 2.3112 · aciertos 0/32 · lr 0.0 → ✗ no memoriza 32 fotos: algo está roto\n[código 1]"
+        },
+        {
+          "code": "python verificar.py humo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ humo         paso 150 · pérdida 0.0020 · aciertos 32/32 · lr 0.003 → ✓ el código aprende · con --lr 0 falla, como debe\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "Pasa con la receta (pérdida &lt; 0.05 y 32/32) y falla con <code>--lr 0</code>.",
+      "ojo": "En C01 esta prueba corre en el CI en cada commit al código de entrenamiento, además de ir antes del fine-tune en el pipeline.",
+      "en_pagina": {
+        "conceptos": [
+          "prueba-humo",
+          "perdida-inicial"
+        ],
+        "precalculos": [
+          "l0"
+        ]
+      }
+    },
+    {
+      "n": 3,
+      "id": "job",
+      "titulo": "El job: receta, semilla y MLflow",
+      "objetivo": "Entrenar con un commit limpio, arrancando del champion, y dejar la corrida completa en MLflow.",
+      "conceptos": [
+        "job",
+        "receta",
+        "semilla",
+        "tracking",
+        "cinco-ingredientes",
+        "amp"
+      ],
+      "explica": "Es el archivo grande de la estación, y se lee por bloques (los números del código). <b>1</b>: si hay cambios sin commit, se niega: la corrida diría «commit tal» y no sería cierto. <b>2</b>: MLflow y el champion antes que nada, para fallar en segundos y no después de una hora (lo ves en el paso 4). <b>3 y 4</b>: los datos, la red con la semilla y algoritmos deterministas, AdamW y el programador OneCycle. <b>5</b>: los checkpoints (paso 5). <b>6</b>: la corrida en MLflow, con sus parámetros, sus punteros (los cinco ingredientes) y una métrica por época; al final, los pesos y su <code>labels.json</code> como artefactos y la huella de los pesos. Escríbelo completo en este paso; los bloques 2 y 5 los pruebas en los pasos 4 y 5.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/entrenar.py",
+          "code": "\"\"\"Pasos 3 a 5 · El job de entrenamiento: receta + snapshot + champion → checkpoint candidato con su corrida en MLflow.\n\nUso:    python pipeline/entrenar.py --snapshot ds-2026-09-01 --champion 1 --corrida <id> [--semilla N]\nEntra:  receta.yaml                         la receta (arranque, épocas, batch, lr, semilla, ckpt_cada_pasos…)\n        el snapshot, con cargar() de pipeline/datos.py\n        classifier versión <N> en MLflow    los pesos y el labels.json del champion: una VERSIÓN (un número), nunca el alias\nSale:   s3://ml-ckpt/c01/<snapshot>/<corrida>/ultimo.pt   el estado completo, cada ckpt_cada_pasos pasos\n        una corrida en MLflow, experimento c01-entrenamiento, con run_name = corrida y el tag corrida:\n          parámetros: los de la receta (con la semilla que se usó), snapshot, champion_version y corrida\n          métricas por época (step = época, desde 0): train_loss, val_loss, val_top1\n          tags: corrida, snapshot, rows_sha256, commit, arbol_limpio, entorno_sha256, preprocess_sha256, pillow,\n                champion_version, receta_sha256, reanudado_desde_paso y, al final, pesos_sha256\n          artefactos: modelo/pesos.pt (el state_dict) y modelo/labels.json\nReglas: solo desde un commit con el árbol limpio (pipeline/, receta.yaml, pipeline.yaml).\n        Antes de gastar cómputo comprueba MLflow, el champion y los datos: si algo falta, se detiene en segundos.\n        El labels.json del champion tiene que ser igual a entrada/categorias.json; si no, se detiene.\n        Semilla y algoritmos deterministas: mismos ingredientes = mismos pesos, bit por bit (en CPU).\n        Si ya hay un checkpoint de esta corrida, reanuda desde él, en la misma corrida de MLflow, solo si es de los\n        mismos ingredientes (snapshot, receta, semilla, champion y commit); si no, se detiene.\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport io\nimport json\nimport math\nimport re\nimport sys\nimport tempfile\nimport time\nfrom pathlib import Path\n\n# _comun va antes que mlflow: ajusta sus avisos y sus reintentos al importarse\nfrom _comun import (CKPT, CLASES, EXPERIMENTO, MODELO, RAIZ, git, huella_entorno, huella_pesos, mlflow_cliente,\n                    receta, s3, sha256)\nimport mlflow\nimport PIL\nimport torch\nimport torch.nn.functional as F\nfrom datos import cargar\nfrom mundo.arquitectura import construir_modelo\n\nap = argparse.ArgumentParser()\nap.add_argument(\"--snapshot\", required=True)\nap.add_argument(\"--champion\", required=True, help=\"la versión de classifier (un número)\")\nap.add_argument(\"--corrida\", required=True, help=\"el id de esta corrida; un reintento usa el mismo\")\nap.add_argument(\"--semilla\", type=int)\na = ap.parse_args()\nif not re.fullmatch(r\"\\d+\", a.champion):\n    sys.exit(f\"✗ --champion «{a.champion}»: tiene que ser un número de versión. El alias se resuelve una vez, en el \"\n             \"orquestador; si lo resuelve cada reintento, un alias que se movió a media corrida mezcla dos modelos\")\nif not re.fullmatch(r\"[a-z0-9][a-z0-9-]*\", a.corrida):\n    sys.exit(\"✗ --corrida: minúsculas, números y guiones\")\nr = receta()\nsemilla = r[\"semilla\"] if a.semilla is None else a.semilla\n\n# 1 · El código: un commit, sin cambios a medias\ncommit = git(\"rev-parse\", \"HEAD\")\nsucio = git(\"status\", \"--porcelain\", \"--\", \"pipeline\", \"receta.yaml\", \"pipeline.yaml\")\nif not commit or sucio:\n    sys.exit(f\"✗ hay cambios sin commit ({sucio.splitlines()[0].strip() if sucio else 'no hay commits'}): \"\n             \"la corrida no podría decir con qué código y qué receta se entrenó\")\n\n# 2 · MLflow y el champion, antes de gastar cómputo\ncliente = mlflow_cliente()\ntry:\n    exp = cliente.get_experiment_by_name(EXPERIMENTO)\nexcept Exception as e:  # noqa: BLE001\n    sys.exit(f\"✗ MLflow no responde en localhost:5400 ({type(e).__name__}): sin registro no se entrena\")\ncorrida_previa = cliente.search_runs([exp.experiment_id], filter_string=f\"tags.corrida = '{a.corrida}'\")\nif corrida_previa and corrida_previa[0].info.status == \"FINISHED\":\n    sys.exit(f\"✗ la corrida {a.corrida} ya terminó: una corrida nueva lleva otro --corrida\")\nmv = cliente.get_model_version(MODELO, a.champion)\nwith tempfile.TemporaryDirectory() as d:\n    carpeta = Path(mlflow.artifacts.download_artifacts(artifact_uri=mv.source, dst_path=d))\n    labels = json.loads((carpeta / \"labels.json\").read_text())\n    pesos_champion = torch.load(carpeta / \"pesos.pt\", map_location=\"cpu\", weights_only=True)\nif labels != CLASES:\n    sys.exit(f\"✗ el labels.json de {MODELO} v{a.champion} no tiene las categorías de entrada/categorias.json en el mismo \"\n             f\"orden ({labels[:3]}… contra {CLASES[:3]}…): arrancar de ahí le enseñaría a la red otras clases\")\n\n# 3 · Los datos\ntrain, val, tarjeta = cargar(a.snapshot)\nreceta_sha = sha256((RAIZ / \"receta.yaml\").read_bytes())\ningredientes = {\"snapshot\": a.snapshot, \"rows_sha256\": tarjeta[\"rows_sha256\"], \"receta_sha256\": receta_sha,\n                \"semilla\": semilla, \"champion_version\": a.champion, \"commit\": commit}\n\n# 4 · Red, optimizador y programador, con la semilla fija\ntorch.manual_seed(semilla)\ntorch.use_deterministic_algorithms(True)\nmodelo = construir_modelo(len(CLASES))\nif r[\"arranque\"] == \"champion\":\n    modelo.load_state_dict(pesos_champion)       # estricto: si una llave no coincide, falla aquí\nB = r[\"batch\"]\npasos_epoca = math.ceil(len(train) / B)\ntotal = pasos_epoca * r[\"epocas\"]\nopt = torch.optim.AdamW(modelo.parameters(), lr=r[\"lr\"], weight_decay=r[\"weight_decay\"])\nprog = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=r[\"lr\"], total_steps=total)\ng = torch.Generator().manual_seed(semilla)      # el orden de las fotos y la augmentation salen de aquí\nepoca, i0, paso, orden, suma, n = 0, 0, 0, None, 0.0, 0\n\n# 5 · ¿Hay checkpoint de esta corrida? Entonces se sigue, no se empieza otra\nc3 = s3()\nllave = f\"c01/{a.snapshot}/{a.corrida}/ultimo.pt\"\ntry:\n    crudo = c3.get_object(Bucket=CKPT, Key=llave)[\"Body\"].read()\nexcept c3.exceptions.NoSuchKey:\n    crudo = None\nif crudo:\n    ck = torch.load(io.BytesIO(crudo), map_location=\"cpu\", weights_only=True)\n    if ck[\"ingredientes\"] != ingredientes:\n        distintos = [k for k in ingredientes if ck[\"ingredientes\"].get(k) != ingredientes[k]]\n        sys.exit(f\"✗ s3://{CKPT}/{llave} es de otros ingredientes ({', '.join(distintos)}): reanudar mezclaría dos corridas. \"\n                 \"Usa otro --corrida\")\n    modelo.load_state_dict(ck[\"modelo\"])\n    opt.load_state_dict(ck[\"optimizador\"])\n    prog.load_state_dict(ck[\"programador\"])\n    g.set_state(ck[\"generador\"])\n    torch.set_rng_state(ck[\"rng\"])\n    epoca, i0, paso, orden, suma, n = ck[\"epoca\"], ck[\"i\"], ck[\"paso\"], ck[\"orden\"], ck[\"suma\"], ck[\"n\"]\n    print(f\"reanudo {a.corrida} desde el paso {paso} de {total} (época {epoca}, batch {i0}): s3://{CKPT}/{llave}\")\ndesde = paso\n\n\ndef guardar() -> int:\n    estado = {\"modelo\": modelo.state_dict(), \"optimizador\": opt.state_dict(), \"programador\": prog.state_dict(),\n              \"generador\": g.get_state(), \"rng\": torch.get_rng_state(), \"epoca\": epoca, \"i\": i + 1, \"paso\": paso,\n              \"orden\": orden, \"suma\": suma, \"n\": n, \"ingredientes\": ingredientes}\n    b = io.BytesIO()\n    torch.save(estado, b)\n    c3.put_object(Bucket=CKPT, Key=llave, Body=b.getvalue())   # un PUT a S3 se escribe completo o no se escribe\n    return len(b.getvalue())\n\n\ndef evaluar() -> tuple[float, float]:\n    modelo.eval()\n    perdida, bien = 0.0, 0\n    with torch.no_grad():\n        for j in range(0, len(val), 512):\n            lo = modelo(val.x[j:j + 512])\n            perdida += F.cross_entropy(lo, val.y[j:j + 512], reduction=\"sum\").item()\n            bien += int((lo.argmax(1) == val.y[j:j + 512]).sum())\n    return perdida / len(val), bien / len(val)\n\n\n# 6 · La corrida en MLflow: la misma si es un reintento (corrida_previa se buscó en el bloque 2)\nmlflow.set_experiment(EXPERIMENTO)\nwith mlflow.start_run(run_id=corrida_previa[0].info.run_id if corrida_previa else None, run_name=a.corrida) as run:\n    if not corrida_previa:\n        mlflow.log_params({**r, \"semilla\": semilla, \"snapshot\": a.snapshot, \"champion_version\": a.champion, \"corrida\": a.corrida})\n        mlflow.set_tags({\"corrida\": a.corrida, \"snapshot\": a.snapshot, \"rows_sha256\": tarjeta[\"rows_sha256\"], \"commit\": commit,\n                         \"arbol_limpio\": \"true\", \"entorno_sha256\": huella_entorno(), \"pillow\": PIL.__version__,\n                         \"preprocess_sha256\": sha256((RAIZ / \"mundo\" / \"gateway\" / \"preprocess.py\").read_bytes()),\n                         \"champion_version\": a.champion, \"receta_sha256\": receta_sha})\n    mlflow.set_tag(\"reanudado_desde_paso\", desde)\n    ya = {m.step for m in cliente.get_metric_history(run.info.run_id, \"val_top1\")}\n    while epoca < r[\"epocas\"]:\n        t0, ckpts = time.time(), 0\n        if orden is None:\n            orden = torch.randperm(len(train), generator=g)\n        modelo.train()\n        for i in range(i0, pasos_epoca):\n            idx = orden[i * B:(i + 1) * B]\n            xb, yb = train.x[idx], train.y[idx]\n            voltear = torch.rand(len(idx), generator=g) < r[\"voltear\"]\n            xb = torch.where(voltear[:, None, None, None], xb.flip(3), xb)\n            with torch.autocast(\"cpu\", dtype=torch.bfloat16, enabled=bool(r[\"amp\"])):\n                perdida = F.cross_entropy(modelo(xb), yb)\n            opt.zero_grad()\n            perdida.backward()\n            opt.step()\n            prog.step()\n            paso += 1\n            suma, n = suma + perdida.item() * len(idx), n + len(idx)\n            if paso % r[\"ckpt_cada_pasos\"] == 0:\n                kb = guardar() / 1e3\n                ckpts += 1\n        val_loss, val_top1 = evaluar()\n        if epoca not in ya:\n            mlflow.log_metrics({\"train_loss\": suma / n, \"val_loss\": val_loss, \"val_top1\": val_top1}, step=epoca)\n        print(f\"época {epoca + 1}/{r['epocas']} · train_loss {suma / n:.4f} · val_loss {val_loss:.4f} · val_top1 {val_top1:.4f} · \"\n              f\"{time.time() - t0:.1f} s · {ckpts} checkpoints\" + (f\" de {kb:.0f} kB\" if ckpts else \"\"))\n        epoca, i0, orden, suma, n = epoca + 1, 0, None, 0.0, 0\n    pesos = modelo.state_dict()\n    with tempfile.TemporaryDirectory() as d:\n        torch.save(pesos, Path(d) / \"pesos.pt\")\n        (Path(d) / \"labels.json\").write_text(json.dumps(CLASES, ensure_ascii=False) + \"\\n\")\n        mlflow.log_artifacts(d, \"modelo\")\n    huella = huella_pesos(pesos)\n    mlflow.set_tag(\"pesos_sha256\", huella)\nprint(f\"✓ {a.corrida} · val_top1 {val_top1:.4f} · pesos {huella[:12]}… · run {run.info.run_id[:8]} · {a.snapshot} · \"\n      f\"champion v{a.champion} · commit {commit[:7]}\" + (f\" · reanudada desde el paso {desde}\" if desde else \"\"))",
+          "nota": "<code>--champion</code> es un número de versión; <code>--corrida</code> es el id de la corrida: un reintento usa el mismo."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/entrenar.py --snapshot ds-2026-09-01 --champion 1 --corrida a-mano-1",
+          "nota": "Primero sin commit: se niega.",
+          "donde": "mac",
+          "salida": "✗ hay cambios sin commit (M pipeline/datos.py): la corrida no podría decir con qué código y qué receta se entrenó\n[código 1]"
+        },
+        {
+          "code": "git add -A && git commit -m \"pipeline: datos, humo y entrenar\"\necho \"# una prueba\" >> receta.yaml\npython pipeline/entrenar.py --snapshot ds-2026-09-01 --champion 1 --corrida a-mano-1",
+          "nota": "Un cambio a la receta sin commit también cuenta.",
+          "donde": "mac",
+          "salida": "✗ hay cambios sin commit (M receta.yaml): la corrida no podría decir con qué código y qué receta se entrenó\n[código 1]"
+        },
+        {
+          "code": "git restore receta.yaml\npython pipeline/entrenar.py --snapshot ds-2026-09-01 --champion 1 --corrida a-mano-1",
+          "nota": "≈ 25 s. Abre la corrida en MLflow: parámetros, la curva de <code>val_top1</code>, los tags y <code>modelo/</code>.",
+          "donde": "mac",
+          "salida": "época 1/3 · train_loss 0.5836 · val_loss 0.7909 · val_top1 0.7185 · 8.0 s · 4 checkpoints de 640 kB\népoca 2/3 · train_loss 0.5641 · val_loss 0.5184 · val_top1 0.8196 · 7.8 s · 4 checkpoints de 640 kB\népoca 3/3 · train_loss 0.4664 · val_loss 0.4407 · val_top1 0.8478 · 7.5 s · 5 checkpoints de 640 kB\n✓ a-mano-1 · val_top1 0.8478 · pesos 1dd4df0969d8… · run d8370af3 · ds-2026-09-01 · champion v1 · commit edd55e2"
+        },
+        {
+          "code": "python pipeline/entrenar.py --snapshot ds-2026-09-01 --champion 1 --corrida a-mano-1",
+          "nota": "Una corrida terminada no se vuelve a escribir: una nueva lleva otro id.",
+          "donde": "mac",
+          "salida": "✗ la corrida a-mano-1 ya terminó: una corrida nueva lleva otro --corrida\n[código 1]"
+        },
+        {
+          "code": "python mundo/modelos.py corridas",
+          "nota": "",
+          "donde": "mac",
+          "salida": "FINISHED  equipo-2026-09-01      ds-2026-08-01  semilla 7   val_top1 0.8150  reanudada desde —  pesos 8bfd93e55aad\nFINISHED  a-mano-1               ds-2026-09-01  semilla 17  val_top1 0.8478  reanudada desde 0  pesos 1dd4df0969d8"
+        },
+        {
+          "code": "python verificar.py mlflow punteros limpio",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mlflow       1 corrida(s) terminada(s) · la última, a-mano-1: val_top1 por época [0.7185, 0.8196, 0.8478] · pesos y labels guardados\n✓ punteros     a-mano-1: ds-2026-09-01 (42815cda…) · commit edd55e2 · entorno 12ba9c63… · preprocess 0860ae80… · Pillow 13.0.0 · champion v1 · pesos 1dd4df09…\n✓ limpio       pipeline/, receta.yaml y pipeline.yaml sin cambios pendientes · 1 corrida(s), todas desde un commit limpio\n\n3/3 en verde"
+        }
+      ],
+      "verifica": "Una corrida terminada con la receta y el champion como parámetros, <code>val_top1</code> por época, los punteros como tags y los pesos como artefacto. Arrancó del champion (0.8150) y llegó a 0.8478.",
+      "ojo": "MLflow imprime el enlace a la corrida al terminar. Si no abre, revisa que el contenedor <code>mlflow</code> esté arriba (<code>docker compose ps</code>).",
+      "en_pagina": {
+        "conceptos": [
+          "job",
+          "receta",
+          "semilla",
+          "tracking",
+          "cinco-ingredientes",
+          "amp"
+        ],
+        "precalculos": [
+          "pasos",
+          "tiempo"
+        ]
+      }
+    },
+    {
+      "n": 4,
+      "id": "champion",
+      "titulo": "Arrancar del champion, por su número",
+      "objetivo": "Comprobar qué gana el arranque desde el champion, y por qué el job recibe una versión y no el alias.",
+      "conceptos": [
+        "warm-start",
+        "alias-version"
+      ],
+      "explica": "El bloque 2 del job baja la versión que le pasan, compara su <code>labels.json</code> con las categorías (si están en otro orden, la salida 0 dejó de ser «playeras») y carga sus pesos de forma estricta. Aquí lo pruebas: primero ves qué versiones hay, después intentas pasar el alias (se niega) y al final entrenas una vez desde cero, cambiando la receta en un commit, para comparar la curva con la de <code>a-mano-1</code>. Ese commit se deshace con <code>git revert</code>: la historia queda, la receta vuelve.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/entrenar.py",
+          "code": "# 2 · MLflow y el champion, antes de gastar cómputo\ncliente = mlflow_cliente()\ntry:\n    exp = cliente.get_experiment_by_name(EXPERIMENTO)\nexcept Exception as e:  # noqa: BLE001\n    sys.exit(f\"✗ MLflow no responde en localhost:5400 ({type(e).__name__}): sin registro no se entrena\")\ncorrida_previa = cliente.search_runs([exp.experiment_id], filter_string=f\"tags.corrida = '{a.corrida}'\")\nif corrida_previa and corrida_previa[0].info.status == \"FINISHED\":\n    sys.exit(f\"✗ la corrida {a.corrida} ya terminó: una corrida nueva lleva otro --corrida\")\nmv = cliente.get_model_version(MODELO, a.champion)\nwith tempfile.TemporaryDirectory() as d:\n    carpeta = Path(mlflow.artifacts.download_artifacts(artifact_uri=mv.source, dst_path=d))\n    labels = json.loads((carpeta / \"labels.json\").read_text())\n    pesos_champion = torch.load(carpeta / \"pesos.pt\", map_location=\"cpu\", weights_only=True)\nif labels != CLASES:\n    sys.exit(f\"✗ el labels.json de {MODELO} v{a.champion} no tiene las categorías de entrada/categorias.json en el mismo \"\n             f\"orden ({labels[:3]}… contra {CLASES[:3]}…): arrancar de ahí le enseñaría a la red otras clases\")",
+          "nota": "El bloque 2. Y en el 4, la línea que carga los pesos del champion: <code>if r[\"arranque\"] == \"champion\": modelo.load_state_dict(pesos_champion)</code>."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python mundo/modelos.py versiones",
+          "nota": "",
+          "donde": "mac",
+          "salida": "v1  @champion    corrida equipo-2026-09-01 · ds-2026-08-01 · val_top1 0.8150\n     labels.json: ['playeras', 'pantalones', 'sueteres', 'vestidos', 'abrigos', 'sandalias', 'camisas', 'tenis', 'bolsas', 'botines'] (= entrada/categorias.json)"
+        },
+        {
+          "code": "python pipeline/entrenar.py --snapshot ds-2026-09-01 --champion @champion --corrida a-mano-2",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✗ --champion «@champion»: tiene que ser un número de versión. El alias se resuelve una vez, en el orquestador; si lo resuelve cada reintento, un alias que se movió a media corrida mezcla dos modelos\n[código 1]"
+        },
+        {
+          "code": "sed -i '' 's/^arranque: champion /arranque: cero     /' receta.yaml\ngit commit -am \"receta: arranque desde cero (prueba)\"\npython pipeline/entrenar.py --snapshot ds-2026-09-01 --champion 1 --corrida desde-cero",
+          "nota": "≈ 25 s. Compara en MLflow las dos curvas de <code>val_top1</code>: <code>a-mano-1</code> contra <code>desde-cero</code>.",
+          "donde": "mac",
+          "salida": "época 1/3 · train_loss 1.5299 · val_loss 2.5455 · val_top1 0.3425 · 7.1 s · 4 checkpoints de 640 kB\népoca 2/3 · train_loss 0.7573 · val_loss 0.7500 · val_top1 0.7087 · 7.6 s · 4 checkpoints de 640 kB\népoca 3/3 · train_loss 0.6149 · val_loss 0.5718 · val_top1 0.7992 · 7.5 s · 5 checkpoints de 640 kB\n✓ desde-cero · val_top1 0.7992 · pesos 3491cabf458f… · run 1e21686c · ds-2026-09-01 · champion v1 · commit 8eb319d"
+        },
+        {
+          "code": "git revert --no-edit HEAD\ngit log --oneline -3; grep \"^arranque\" receta.yaml",
+          "nota": "",
+          "donde": "mac",
+          "salida": "dc7d2bf Revert \"receta: arranque desde cero (prueba)\"\n8eb319d receta: arranque desde cero (prueba)\nedd55e2 pipeline: datos, humo y entrenar\narranque: champion        # champion = arranca con los pesos del modelo en producción (warm start) · cero = pesos al azar"
+        },
+        {
+          "code": "python verificar.py champion",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ champion     classifier@champion = v1 con las 10 categorías en orden · a-mano-1 arrancó de v1 (0.8150) y llegó a 0.8478\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "Con las mismas 3 épocas, desde el champion llega a 0.8478 y desde cero a 0.7992. El job rechaza el alias.",
+      "ojo": "Arrancar del champion encadena los meses: el modelo de octubre depende también del de septiembre. Por eso la corrida anota <code>champion_version</code>. Hay equipos que arrancan siempre desde los pesos base para que cada modelo dependa solo de su snapshot, su commit y su imagen.",
+      "en_pagina": {
+        "conceptos": [
+          "warm-start",
+          "alias-version"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 5,
+      "id": "reanudar",
+      "titulo": "Checkpoints y una caída a media corrida",
+      "objetivo": "Matar el job a media corrida, volverlo a lanzar con el mismo id y terminar con los mismos pesos que sin caída.",
+      "conceptos": [
+        "checkpoint",
+        "reanudar"
+      ],
+      "explica": "El bloque 5 del job: cada 25 pasos guarda en <code>s3://ml-ckpt/c01/&lt;snapshot&gt;/&lt;corrida&gt;/ultimo.pt</code> <b>todo</b> el estado (pesos, Adam, programador, generador de azar, época, paso, el orden de las fotos de la época y la pérdida acumulada) y sus ingredientes. Al arrancar, si hay checkpoint de su corrida y es de los mismos ingredientes, sigue desde ahí y en la misma corrida de MLflow. Como en CPU todo es determinista, la prueba es dura: la corrida reanudada tiene que terminar con la misma huella de pesos que <code>a-mano-1</code>.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/entrenar.py",
+          "code": "# 5 · ¿Hay checkpoint de esta corrida? Entonces se sigue, no se empieza otra\nc3 = s3()\nllave = f\"c01/{a.snapshot}/{a.corrida}/ultimo.pt\"\ntry:\n    crudo = c3.get_object(Bucket=CKPT, Key=llave)[\"Body\"].read()\nexcept c3.exceptions.NoSuchKey:\n    crudo = None\nif crudo:\n    ck = torch.load(io.BytesIO(crudo), map_location=\"cpu\", weights_only=True)\n    if ck[\"ingredientes\"] != ingredientes:\n        distintos = [k for k in ingredientes if ck[\"ingredientes\"].get(k) != ingredientes[k]]\n        sys.exit(f\"✗ s3://{CKPT}/{llave} es de otros ingredientes ({', '.join(distintos)}): reanudar mezclaría dos corridas. \"\n                 \"Usa otro --corrida\")\n    modelo.load_state_dict(ck[\"modelo\"])\n    opt.load_state_dict(ck[\"optimizador\"])\n    prog.load_state_dict(ck[\"programador\"])\n    g.set_state(ck[\"generador\"])\n    torch.set_rng_state(ck[\"rng\"])\n    epoca, i0, paso, orden, suma, n = ck[\"epoca\"], ck[\"i\"], ck[\"paso\"], ck[\"orden\"], ck[\"suma\"], ck[\"n\"]\n    print(f\"reanudo {a.corrida} desde el paso {paso} de {total} (época {epoca}, batch {i0}): s3://{CKPT}/{llave}\")\ndesde = paso\n\n\ndef guardar() -> int:\n    estado = {\"modelo\": modelo.state_dict(), \"optimizador\": opt.state_dict(), \"programador\": prog.state_dict(),\n              \"generador\": g.get_state(), \"rng\": torch.get_rng_state(), \"epoca\": epoca, \"i\": i + 1, \"paso\": paso,\n              \"orden\": orden, \"suma\": suma, \"n\": n, \"ingredientes\": ingredientes}\n    b = io.BytesIO()\n    torch.save(estado, b)\n    c3.put_object(Bucket=CKPT, Key=llave, Body=b.getvalue())   # un PUT a S3 se escribe completo o no se escribe\n    return len(b.getvalue())",
+          "nota": "Y en el loop: <code>if paso % r[\"ckpt_cada_pasos\"] == 0: guardar()</code>."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python mundo/s3.py checkpoint ds-2026-09-01 a-mano-1",
+          "nota": "El último checkpoint de <code>a-mano-1</code> y lo que trae.",
+          "donde": "mac",
+          "salida": "640 kB · época 2 · paso 325 · piezas: modelo, optimizador, programador, generador, rng, epoca, i, paso, orden, suma, n, ingredientes\ningredientes: {\"snapshot\": \"ds-2026-09-01\", \"rows_sha256\": \"42815cda6becb70e16a2f227c05ad29147d5a12c1dc7254d4909f8b1bbce7ace\", \"receta_sha256\": \"b373365ae7aff1cf170266c81e354a70cb72a30b39fca5c90abbaf2377842258\", \"semilla\": 17, \"champion_version\": \"1\", \"commit\": \"edd55e24f961f5f82713aa44b2a165c2b6b3efb9\"}"
+        },
+        {
+          "code": "python pipeline/entrenar.py --snapshot ds-2026-09-01 --champion 1 --corrida con-caida & sleep 15; kill -9 $!",
+          "nota": "<code>kill -9</code> mata el proceso sin aviso, como una máquina que desaparece. Tiene que morir después de la época 1 y antes de terminar: si tu Mac es más lenta o más rápida, ajusta el 15.",
+          "donde": "mac",
+          "salida": "época 1/3 · train_loss 0.5836 · val_loss 0.7909 · val_top1 0.7185 · 7.3 s · 4 checkpoints de 640 kB\n[se perdió el nodo: kill -9 a los 15 s]"
+        },
+        {
+          "code": "python pipeline/entrenar.py --snapshot ds-2026-09-01 --champion 1 --corrida con-caida",
+          "nota": "El mismo comando, el mismo id: reanuda.",
+          "donde": "mac",
+          "salida": "reanudo con-caida desde el paso 175 de 330 (época 1, batch 65): s3://ml-ckpt/c01/ds-2026-09-01/con-caida/ultimo.pt\népoca 2/3 · train_loss 0.5641 · val_loss 0.5184 · val_top1 0.8196 · 3.3 s · 1 checkpoints de 640 kB\népoca 3/3 · train_loss 0.4664 · val_loss 0.4407 · val_top1 0.8478 · 7.6 s · 5 checkpoints de 640 kB\n✓ con-caida · val_top1 0.8478 · pesos 1dd4df0969d8… · run 4da26b36 · ds-2026-09-01 · champion v1 · commit dc7d2bf · reanudada desde el paso 175"
+        },
+        {
+          "code": "python mundo/modelos.py corridas | grep -E \"a-mano-1|con-caida\"",
+          "nota": "La misma huella de pesos: reanudar no agregó ninguna diferencia.",
+          "donde": "mac",
+          "salida": "FINISHED  a-mano-1               ds-2026-09-01  semilla 17  val_top1 0.8478  reanudada desde 0  pesos 1dd4df0969d8\nFINISHED  con-caida              ds-2026-09-01  semilla 17  val_top1 0.8478  reanudada desde 175  pesos 1dd4df0969d8"
+        },
+        {
+          "code": "python verificar.py checkpoints reanudar",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ checkpoints  s3://ml-ckpt/c01/ds-2026-09-01/con-caida/ultimo.pt: 640 kB (pesos 179 kB + Adam + azar) · paso 325 · época 2\n✓ reanudar     con-caida se reanudó en el paso 175 y terminó con los mismos pesos que a-mano-1, sin caída (1dd4df0969d8…) · checkpoint cada 25 de 330 pasos\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "<code>con-caida</code> reanudó en el paso 175 y terminó con la misma huella de pesos que <code>a-mano-1</code>.",
+      "ojo": "Si al reanudar no restauras el generador de azar o el orden de las fotos, el entrenamiento «funciona» y la huella sale distinta: es otro modelo, aunque se parezca. En GPU no puedes comprobarlo bit a bit; por eso vale tanto hacerlo aquí.",
+      "en_pagina": {
+        "conceptos": [
+          "checkpoint",
+          "reanudar"
+        ],
+        "precalculos": [
+          "peso-ckpt",
+          "cada-cuanto"
+        ]
+      }
+    },
+    {
+      "n": 6,
+      "id": "pipeline",
+      "titulo": "El pipeline en el orquestador",
+      "objetivo": "Escribir el DAG humo → entrenar y que sobreviva a la pérdida de la máquina sin que nadie haga nada.",
+      "conceptos": [
+        "orquestador",
+        "reintento",
+        "gpu-efimera"
+      ],
+      "explica": "<code>pipeline.yaml</code> es la definición: parámetros (el snapshot por id y el champion como <code>@champion</code>) y pasos con su comando. Entrenar depende de humo: si el código está roto, no se pide la GPU. Entrenar pide <code>gpu: 1</code> y tiene <code>reintentos: 2</code>. El orquestador resuelve el alias una vez, le pone a la corrida un id (<code>wf-…</code>) y se lo pasa a cada intento: por eso un reintento encuentra su checkpoint. Con <code>--apagon 15</code> se pierde la máquina a los 30 s del primer intento.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "pipeline.yaml",
+          "code": "# El pipeline mensual como DAG. Lo ejecuta el orquestador: python mundo/orquestador.py pipeline.yaml\n# En C01 son 8 pasos (snapshot → validar → fine-tune → evaluar → gate → engine → paridad → registrar);\n# esta estación es el fine-tune, con su prueba de humo antes.\nnombre: c01-mensual\nparametros:\n  snapshot: ds-2026-09-01      # un id fijo: la caché y el linaje no pueden confundir meses\n  champion: \"@champion\"        # el orquestador lo resuelve UNA vez y pasa el número de versión\npasos:\n  - id: humo                   # unos segundos de CPU que evitan gastar horas de GPU en código roto\n    comando: python pipeline/humo.py --snapshot {snapshot}\n  - id: entrenar\n    depende: [humo]\n    gpu: 1                     # pide un nodo con GPU (on-demand); se libera al terminar\n    reintentos: 2              # si se pierde el nodo, lo vuelve a lanzar con la MISMA {corrida}: reanuda del checkpoint\n    espera_s: 2                # en C01, 120 s\n    comando: python pipeline/entrenar.py --snapshot {snapshot} --champion {champion} --corrida {corrida}",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "git add -A && git commit -m \"pipeline.yaml: humo → entrenar\"\npython mundo/orquestador.py pipeline.yaml --apagon 15",
+          "nota": "≈ 1 minuto. Nadie relanzó nada: el orquestador reintentó y el job reanudó.",
+          "donde": "mac",
+          "salida": "[orquestador] c01-mensual · corrida wf-20261117-213739 · humo → entrenar\n[orquestador] champion: classifier@champion → versión 1 (queda fija para toda la corrida)\n[orquestador] humo: intento 1 de 1\n  humo │ paso 0 · pérdida 2.311 · ln(K) = ln(10) = 2.303\n  humo │ paso 150 · pérdida 0.0020 · aciertos 32/32 · lr 0.003 → ✓ el código aprende\n[orquestador] entrenar: pido 1 GPU (en tu Mac, la CPU) y lanzo el contenedor\n[orquestador] entrenar: intento 1 de 3\n  entrenar │ época 1/3 · train_loss 0.5836 · val_loss 0.7909 · val_top1 0.7185 · 7.6 s · 4 checkpoints de 640 kB\n[orquestador] entrenar: se perdió el nodo a los 15 s (simulado con --apagon); reintento en 2 s\n[orquestador] entrenar: intento 2 de 3\n  entrenar │ reanudo wf-20261117-213739 desde el paso 150 de 330 (época 1, batch 40): s3://ml-ckpt/c01/ds-2026-09-01/wf-20261117-213739/ultimo.pt\n  entrenar │ época 2/3 · train_loss 0.5641 · val_loss 0.5184 · val_top1 0.8196 · 4.1 s · 2 checkpoints de 640 kB\n  entrenar │ época 3/3 · train_loss 0.4664 · val_loss 0.4407 · val_top1 0.8478 · 7.6 s · 5 checkpoints de 640 kB\n  entrenar │ ✓ wf-20261117-213739 · val_top1 0.8478 · pesos 1dd4df0969d8… · run 5415434c · ds-2026-09-01 · champion v1 · commit 1776570 · reanudada desde el paso 150\n[orquestador] ✓ wf-20261117-213739: 2 pasos en verde · historial/wf-20261117-213739.json"
+        },
+        {
+          "code": "python -c \"\nimport json, glob\nr = json.load(open(sorted(glob.glob('historial/wf-*.json'))[-1]))\nprint('corrida:', r['corrida'], '· parámetros:', r['parametros'], '→', r['resueltos'])\nfor p in r['pasos']:\n    for i in p['intentos']:\n        print(f\\\"  {p['id']} intento {i['n']}: {i['segundos']} s · código {i['codigo']} · {i['motivo']}\\\")\"",
+          "nota": "Lo que anotó el orquestador: el alias resuelto y cada intento.",
+          "donde": "mac",
+          "salida": "corrida: wf-20261117-213739 · parámetros: {'snapshot': 'ds-2026-09-01', 'champion': '@champion'} → {'snapshot': 'ds-2026-09-01', 'champion': '1'}\n  humo intento 1: 7.6 s · código 0 · ok\n  entrenar intento 1: 15.0 s · código -9 · se perdió el nodo a los 15 s (simulado con --apagon)\n  entrenar intento 2: 15.6 s · código 0 · ok"
+        },
+        {
+          "code": "python verificar.py pipeline",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ pipeline     wf-20261117-213739: humo → entrenar · @champion → v1 · se perdió el nodo, 2 intentos, reanudó en el paso 150 · val_top1 0.8478\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "La corrida del orquestador quedó en verde: perdió la máquina, reintentó con el mismo id y reanudó en el paso 150.",
+      "ojo": "En C01 el pipeline mensual tiene ocho pasos: snapshot → validar → fine-tune → evaluar → gate → engine → paridad → registrar. Esta estación es el fine-tune; los demás llegan en las estaciones 4 y 5.",
+      "en_pagina": {
+        "conceptos": [
+          "orquestador",
+          "reintento",
+          "gpu-efimera"
+        ],
+        "precalculos": [
+          "costo"
+        ]
+      }
+    },
+    {
+      "n": 7,
+      "id": "ruido",
+      "titulo": "¿Regresión o ruido?",
+      "objetivo": "Medir el ruido entre semillas y escribir la regla que dice si una diferencia es real.",
+      "conceptos": [
+        "ruido-semillas",
+        "ruido-evaluacion"
+      ],
+      "explica": "Dos corridas de la misma receta con otra semilla no dan lo mismo. Antes de decir «salió peor», mides cuánto varía sin que nada cambie: la receta con 5 semillas. Su desviación estándar es σ, y la regla es τ = 3σ: si la diferencia |Δ| entre dos corridas pasa de τ, algo más que el azar cambió y se comparan sus ingredientes; si no, es ruido. <code>comparar.py</code> toma como semillas las corridas con los mismos ingredientes que la primera (snapshot, receta, champion y entorno) y lista lo que cambia entre las dos.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/comparar.py",
+          "code": "\"\"\"Paso 7 · ¿Regresión o ruido? Compara dos corridas contra el ruido que ya sabes que hay entre semillas.\n\nUso:    python pipeline/comparar.py <corrida A> <corrida B> [--json]\nEntra:  MLflow: las dos corridas (por su tag corrida) y las «semillas» de A: las corridas terminadas con los mismos\n        ingredientes que A (rows_sha256, receta_sha256, champion_version y entorno_sha256) y otra semilla\nSale:   Δ = val_top1(B) − val_top1(A), en puntos porcentuales; σ, la desviación estándar (con n − 1) del val_top1 de\n        las semillas, en puntos; τ = 3 × σ; el veredicto: «ruido» si |Δ| ≤ τ, «revisar» si no. Con «revisar»,\n        los ingredientes que cambian entre A y B. Con --json imprime solo un JSON con las llaves\n        a, b, delta, sigma, tau, n_semillas, veredicto, distintos.\nReglas: σ necesita al menos 3 semillas distintas; con menos, se detiene y dice cuántas faltan.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport statistics\nimport sys\n\nfrom _comun import EXPERIMENTO, mlflow_cliente\n\nINGREDIENTES = [\"snapshot\", \"rows_sha256\", \"receta_sha256\", \"champion_version\", \"entorno_sha256\", \"commit\", \"pillow\"]\nMISMA_RECETA = [\"rows_sha256\", \"receta_sha256\", \"champion_version\", \"entorno_sha256\"]\n\nargs = [x for x in sys.argv[1:] if not x.startswith(\"--\")]\nif len(args) != 2:\n    sys.exit(__doc__)\ncliente = mlflow_cliente()\nexp = cliente.get_experiment_by_name(EXPERIMENTO)\nterminadas = cliente.search_runs([exp.experiment_id], filter_string=\"attributes.status = 'FINISHED'\", max_results=500)\n\n\ndef corrida(nombre: str):\n    rs = [x for x in terminadas if x.data.tags.get(\"corrida\") == nombre]\n    if not rs:\n        sys.exit(f\"✗ no hay una corrida terminada con el tag corrida = {nombre}\")\n    return rs[0]\n\n\nA, Bc = corrida(args[0]), corrida(args[1])\nsemillas = {}\nfor x in terminadas:\n    if all(x.data.tags.get(k) == A.data.tags.get(k) for k in MISMA_RECETA):\n        semillas.setdefault(x.data.params[\"semilla\"], x.data.metrics[\"val_top1\"] * 100)   # una por semilla\nif len(semillas) < 3:\n    sys.exit(f\"✗ hay {len(semillas)} semilla(s) con la receta de {args[0]}: σ necesita al menos 3 (faltan {3 - len(semillas)})\")\nsigma = statistics.stdev(semillas.values())\ndelta = (Bc.data.metrics[\"val_top1\"] - A.data.metrics[\"val_top1\"]) * 100\ntau = 3 * sigma\nveredicto = \"ruido\" if abs(delta) <= tau else \"revisar\"\ndistintos = [k for k in INGREDIENTES if A.data.tags.get(k) != Bc.data.tags.get(k)]\nif A.data.params.get(\"semilla\") != Bc.data.params.get(\"semilla\"):\n    distintos.append(\"semilla\")\nr = {\"a\": args[0], \"b\": args[1], \"delta\": round(delta, 4), \"sigma\": round(sigma, 4), \"tau\": round(tau, 4),\n     \"n_semillas\": len(semillas), \"veredicto\": veredicto, \"distintos\": distintos}\nif \"--json\" in sys.argv:\n    print(json.dumps(r, ensure_ascii=False))\n    sys.exit(0)\nprint(f\"A {args[0]}: {A.data.metrics['val_top1'] * 100:.2f} % · B {args[1]}: {Bc.data.metrics['val_top1'] * 100:.2f} %\")\nprint(f\"Δ = {delta:+.2f} puntos · σ de {len(semillas)} semillas = {sigma:.2f} · τ = 3σ = {tau:.2f}\")\nprint(f\"→ {'ruido: |Δ| ≤ τ, la misma receta con otro azar' if veredicto == 'ruido' else 'revisar: |Δ| > τ, algo más que el azar cambió'}\"\n      f\" · cambia entre A y B: {', '.join(distintos) or 'nada'}\")",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "git add -A && git commit -m \"comparar corridas\"\npython pipeline/comparar.py a-mano-1 desde-cero",
+          "nota": "Con una sola semilla no hay σ.",
+          "donde": "mac",
+          "salida": "✗ hay 1 semilla(s) con la receta de a-mano-1: σ necesita al menos 3 (faltan 2)\n[código 1]"
+        },
+        {
+          "code": "for s in 18 19 20 21; do\n  python pipeline/entrenar.py --snapshot ds-2026-09-01 --champion 1 --corrida semilla-$s --semilla $s | grep '✓'\ndone",
+          "nota": "≈ 2 minutos: cuatro corridas más, con la semilla 17 de <code>a-mano-1</code> son cinco.",
+          "donde": "mac",
+          "salida": "✓ semilla-18 · val_top1 0.8497 · pesos e2f47aa786b7… · run 8a10446a · ds-2026-09-01 · champion v1 · commit 77de40e\n✓ semilla-19 · val_top1 0.8425 · pesos 48de69164ef5… · run 42eddd21 · ds-2026-09-01 · champion v1 · commit 77de40e\n✓ semilla-20 · val_top1 0.8465 · pesos b87cc4c2dd51… · run fa4a8570 · ds-2026-09-01 · champion v1 · commit 77de40e\n✓ semilla-21 · val_top1 0.8340 · pesos 81f5b6b6d846… · run 5058ebe9 · ds-2026-09-01 · champion v1 · commit 77de40e"
+        },
+        {
+          "code": "python pipeline/comparar.py a-mano-1 semilla-19",
+          "nota": "",
+          "donde": "mac",
+          "salida": "A a-mano-1: 84.78 % · B semilla-19: 84.25 %\nΔ = -0.52 puntos · σ de 5 semillas = 0.62 · τ = 3σ = 1.87\n→ ruido: |Δ| ≤ τ, la misma receta con otro azar · cambia entre A y B: commit, semilla"
+        },
+        {
+          "code": "python pipeline/comparar.py a-mano-1 desde-cero",
+          "nota": "Aquí sí cambió algo: la receta (y el commit).",
+          "donde": "mac",
+          "salida": "A a-mano-1: 84.78 % · B desde-cero: 79.92 %\nΔ = -4.86 puntos · σ de 5 semillas = 0.62 · τ = 3σ = 1.87\n→ revisar: |Δ| > τ, algo más que el azar cambió · cambia entre A y B: receta_sha256, commit"
+        },
+        {
+          "code": "python verificar.py ruido",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ ruido        5 semillas: 84.78, 84.97, 84.25, 84.65, 83.40 % · σ = 0.62 · τ = 1.87 · a-mano-1 vs semilla-18: Δ = +0.20 → ruido\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "5 semillas, σ = 0.62 y τ = 1.87 puntos; una semilla distinta es ruido y arrancar desde cero es «revisar».",
+      "ojo": "σ se midió con esta receta. Si cambias el batch, el learning rate o la red, se vuelve a medir. Y con un examen chico (1,524 fotos), el propio examen ya se mueve ± 1.8 puntos (el precálculo «ruido»): la comparación de verdad, foto por foto contra el champion, es de la estación 4.",
+      "en_pagina": {
+        "conceptos": [
+          "ruido-semillas",
+          "ruido-evaluacion"
+        ],
+        "precalculos": [
+          "ruido"
+        ]
+      }
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Empieza con <code>python mundo/reiniciar.py --pipeline</code> y haz commit del esqueleto.",
+      "Sin <code>GUION.md</code>: solo estos objetivos y el contrato arriba de cada archivo.",
+      "Cada objetivo tiene su check; corre <code>python verificar.py &lt;check&gt;</code> cuando creas que quedó.",
+      "Todo entrenamiento, desde un commit limpio. Cada corrida nueva lleva su propio <code>--corrida</code>."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "El S3 local y MLflow arriba, el mundo creado y la carpeta en git.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "<code>cargar(id)</code> devuelve train y val en el orden del snapshot, comprobando cada huella, y se detiene con «latest».",
+        "check": "datos"
+      },
+      {
+        "n": 3,
+        "objetivo": "Tus tensores son idénticos a los del gateway, con la misma versión de Pillow.",
+        "check": "paridad",
+        "pista": "¿Escribiste el preprocess o lo importaste?"
+      },
+      {
+        "n": 4,
+        "objetivo": "La prueba de humo pasa con la receta y falla con <code>--lr 0</code>.",
+        "check": "humo"
+      },
+      {
+        "n": 5,
+        "objetivo": "Una corrida terminada en MLflow con los parámetros de la receta, una métrica por época y los pesos con su <code>labels.json</code>.",
+        "check": "mlflow"
+      },
+      {
+        "n": 6,
+        "objetivo": "La corrida guarda sus punteros: snapshot y su huella, commit, entorno, preprocess, Pillow, champion, receta y la huella de los pesos.",
+        "check": "punteros"
+      },
+      {
+        "n": 7,
+        "objetivo": "Tu código y tu receta sin cambios pendientes, y todas tus corridas desde un commit limpio.",
+        "check": "limpio"
+      },
+      {
+        "n": 8,
+        "objetivo": "Una corrida que arrancó del champion por su número de versión, con las categorías en el mismo orden.",
+        "check": "champion"
+      },
+      {
+        "n": 9,
+        "objetivo": "El checkpoint de tu última corrida en S3, con pesos, Adam, programador, azar, época, paso e ingredientes.",
+        "check": "checkpoints",
+        "pista": "¿Qué necesitas para que el paso siguiente sea el mismo que habría sido?"
+      },
+      {
+        "n": 10,
+        "objetivo": "Una corrida que se cayó a media corrida, se reanudó y terminó con los mismos pesos que una sin caída.",
+        "check": "reanudar"
+      },
+      {
+        "n": 11,
+        "objetivo": "<code>pipeline.yaml</code>: humo → entrenar con GPU y reintentos, y una corrida del orquestador que sobrevivió a <code>--apagon</code>.",
+        "check": "pipeline",
+        "pista": "¿Qué id recibe el segundo intento?"
+      },
+      {
+        "n": 12,
+        "objetivo": "Cinco semillas de la misma receta y <code>comparar.py</code> con Δ, σ, τ = 3σ y el veredicto.",
+        "check": "ruido"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "lr-roto",
+      "titulo": "Una corrida de 4 horas que no aprendió nada",
+      "tipo": "config",
+      "historia": "El pipeline de anoche ni siquiera pidió la GPU: se detuvo en el primer paso. En el canal del equipo alguien escribió «¿quién movió algo?».",
+      "sintoma": "<code>verificar.py</code>: <code>humo</code> falla. ✗ humo         la prueba de humo no pasa con la receta: paso 0 · pérdida 2.311 · ln(K) = ln(10) = 2.303",
+      "hipotesis": [
+        "Alguien cambió la receta.",
+        "Cambió tu código de entrenamiento.",
+        "Los datos llegaron mal."
+      ],
+      "confirma": {
+        "code": "git log -1 --format=\"%h %an · %s\" -- receta.yaml\ngit show HEAD -- receta.yaml | grep \"^[-+]lr\"",
+        "nota": "",
+        "donde": "mac",
+        "salida": "8c8318d Equipo C01 · receta: lr 0.0 para probar el backbone congelado (vuelvo a ponerlo el lunes)\n-lr: 0.003                 # learning rate máximo (el programador OneCycle sube hasta aquí y luego baja)\n+lr: 0.0                 # learning rate máximo (el programador OneCycle sube hasta aquí y luego baja)"
+      },
+      "arreglo": "Un commit del equipo dejó <code>lr: 0.0</code>: con eso, AdamW no mueve ningún peso. Deshazlo con <code>git revert --no-edit HEAD</code> (la historia queda, la receta vuelve a <code>lr: 0.003</code>). La prueba de humo lo atrapó en segundos; sin ella, la corrida habría gastado la GPU completa. Congelar capas se hace con otra receta, no con lr 0.",
+      "concepto": "prueba-humo",
+      "check": "humo"
+    },
+    {
+      "id": "ckpt-espaciado",
+      "titulo": "Menos escrituras a S3",
+      "tipo": "config",
+      "historia": "Finanzas preguntó por qué el bucket de checkpoints tiene tantas escrituras. Alguien subió un cambio a la receta para «ahorrar» y avisó en el canal.",
+      "sintoma": "<code>verificar.py</code>: <code>reanudar</code> falla. ✗ reanudar     receta.yaml: ckpt_cada_pasos = 1000 con 330 pasos por corrida: una caída a media corrida perdería más del 20 % (o todo) Y si se pierde la máquina, el reintento empieza de cero.",
+      "hipotesis": [
+        "Alguien cambió cada cuánto se guarda.",
+        "El bucket de checkpoints no existe.",
+        "El reintento usa otro id de corrida."
+      ],
+      "confirma": {
+        "code": "git show HEAD -- receta.yaml | grep \"^[-+]ckpt\"\npython mundo/orquestador.py pipeline.yaml --apagon 15",
+        "nota": "",
+        "donde": "mac",
+        "salida": "-ckpt_cada_pasos: 25       # un checkpoint en S3 cada 25 pasos (≈ 1.5 s aquí; en C01, cada 15 min)\n+ckpt_cada_pasos: 1000       # un checkpoint en S3 cada 25 pasos (≈ 1.5 s aquí; en C01, cada 15 min)\n[orquestador] c01-mensual · corrida wf-20261117-214227 · humo → entrenar\n[orquestador] champion: classifier@champion → versión 1 (queda fija para toda la corrida)\n[orquestador] humo: intento 1 de 1\n  humo │ paso 0 · pérdida 2.311 · ln(K) = ln(10) = 2.303\n  humo │ paso 150 · pérdida 0.0020 · aciertos 32/32 · lr 0.003 → ✓ el código aprende\n[orquestador] entrenar: pido 1 GPU (en tu Mac, la CPU) y lanzo el contenedor\n[orquestador] entrenar: intento 1 de 3\n  entrenar │ época 1/3 · train_loss 0.5836 · val_loss 0.7909 · val_top1 0.7185 · 7.8 s · 0 checkpoints\n[orquestador] entrenar: se perdió el nodo a los 15 s (simulado con --apagon); reintento en 2 s\n[orquestador] entrenar: intento 2 de 3\n  entrenar │ época 1/3 · train_loss 0.5836 · val_loss 0.7909 · val_top1 0.7185 · 6.7 s · 0 checkpoints\n  entrenar │ época 2/3 · train_loss 0.5641 · val_loss 0.5184 · val_top1 0.8196 · 7.5 s · 0 checkpoints\n  entrenar │ época 3/3 · train_loss 0.4664 · val_loss 0.4407 · val_top1 0.8478 · 7.4 s · 0 checkpoints\n  entrenar │ ✓ wf-20261117-214227 · val_top1 0.8478 · pesos 1dd4df0969d8… · run 5dea348f · ds-2026-09-01 · champion v1 · commit b796bcb\n[orquestador] ✓ wf-20261117-214227: 2 pasos en verde · historial/wf-20261117-214227.json"
+      },
+      "arreglo": "Con <code>ckpt_cada_pasos: 1000</code> y 330 pasos por corrida nunca se guarda nada: el segundo intento no dice «reanudo» y repite todo. El ahorro es ridículo (en C01, 16 PUT de 300 MB al mes son centavos y ≈ 0.3 % del tiempo). Deshazlo con <code>git revert --no-edit HEAD</code>: vuelve <code>ckpt_cada_pasos: 25</code>, el número del precálculo.",
+      "concepto": "checkpoint",
+      "check": "reanudar"
+    },
+    {
+      "id": "champion-otro-orden",
+      "titulo": "El champion cambió de un día para otro",
+      "tipo": "mundo",
+      "historia": "El equipo de búsqueda presumió que su modelo «ya está en producción, con 86 %». El pipeline de esta noche se detuvo antes de entrenar.",
+      "sintoma": "<code>verificar.py</code>: <code>champion</code> falla. ✗ champion     classifier@champion = v2, y su labels.json trae las categorías en otro orden (['abrigos', 'bolsas', 'botines']…): arrancar de ahí le enseñaría a la red otras clases El pipeline se detiene en cada intento antes de entrenar.",
+      "hipotesis": [
+        "Alguien movió el alias champion.",
+        "El champion de siempre se borró.",
+        "Cambiaron las categorías del snapshot."
+      ],
+      "confirma": {
+        "code": "python mundo/modelos.py versiones\npython mundo/orquestador.py pipeline.yaml",
+        "nota": "",
+        "donde": "mac",
+        "salida": "v1  —            corrida equipo-2026-09-01 · ds-2026-08-01 · val_top1 0.8150\n     labels.json: ['playeras', 'pantalones', 'sueteres', 'vestidos', 'abrigos', 'sandalias', 'camisas', 'tenis', 'bolsas', 'botines'] (= entrada/categorias.json)\nv2  @champion    corrida notebook-busqueda · ds-2026-09-01 · val_top1 0.8611\n     labels.json: ['abrigos', 'bolsas', 'botines', 'camisas', 'pantalones', 'playeras', 'sandalias', 'sueteres', 'tenis', 'vestidos'] (≠ entrada/categorias.json)\n[orquestador] champion: classifier@champion → versión 2 (queda fija para toda la corrida)\n[orquestador] humo: intento 1 de 1\n[orquestador] entrenar: intento 1 de 3\n  entrenar │ ✗ el labels.json de classifier v2 no tiene las categorías de entrada/categorias.json en el mismo orden (['abrigos', 'bolsas', 'botines']… contra ['playeras', 'pantalones', 'sueteres']…): arrancar de ahí le enseñaría a la red otras clases\n[orquestador] entrenar: terminó con código 1; reintento en 2 s\n[orquestador] entrenar: intento 2 de 3\n  entrenar │ ✗ el labels.json de classifier v2 no tiene las categorías de entrada/categorias.json en el mismo orden (['abrigos', 'bolsas', 'botines']… contra ['playeras', 'pantalones', 'sueteres']…): arrancar de ahí le enseñaría a la red otras clases\n[orquestador] entrenar: terminó con código 1; reintento en 2 s\n[orquestador] entrenar: intento 3 de 3\n  entrenar │ ✗ el labels.json de classifier v2 no tiene las categorías de entrada/categorias.json en el mismo orden (['abrigos', 'bolsas', 'botines']… contra ['playeras', 'pantalones', 'sueteres']…): arrancar de ahí le enseñaría a la red otras clases\n[orquestador] ✗ wf-20261117-214440: el paso entrenar falló 3 vez/veces; la corrida queda en rojo (historial/wf-20261117-214440.json). El modelo en producción no cambia."
+      },
+      "arreglo": "Alguien registró a mano una versión nueva de <code>classifier</code> (salió de un notebook) y le movió <code>@champion</code>. Sus categorías están en orden alfabético: la salida 0 ya no es «playeras». Devuelve el alias: <code>python mundo/modelos.py alias champion 1</code>. En C01 el alias lo mueve solo el pipeline de CD, después del gate y del canary, y nadie registra modelos desde un notebook.",
+      "concepto": "alias-version",
+      "check": "champion"
+    },
+    {
+      "id": "pillow-distinto",
+      "titulo": "Serving cambió de versión de Pillow",
+      "tipo": "entorno",
+      "historia": "El equipo de serving publicó en su canal: «Fijamos Pillow 12.3.0 en el gateway por un problema con algunos JPEG». Nadie de entrenamiento lo leyó.",
+      "sintoma": "<code>verificar.py</code>: <code>paridad</code> falla. ✗ paridad      Pillow 13.0.0 en tu entorno de entrenamiento y 12.3.0 en el gateway (mundo/gateway/requirements.txt): la misma foto se podría decodificar distinto",
+      "hipotesis": [
+        "El gateway cambió una versión.",
+        "Tu preprocess cambió.",
+        "Las fotos del snapshot cambiaron."
+      ],
+      "confirma": {
+        "code": "pip show pillow | sed -n 1,2p\ngrep -i \"^pillow\" mundo/gateway/requirements.txt requirements.txt",
+        "nota": "",
+        "donde": "mac",
+        "salida": "Name: pillow\nVersion: 13.0.0\nmundo/gateway/requirements.txt:pillow==12.3.0\nrequirements.txt:pillow==13.0.0              # la misma que mundo/gateway/requirements.txt"
+      },
+      "arreglo": "El gateway fija Pillow 12.3.0 y tu entorno de entrenamiento sigue con 13.0.0. Pillow decodifica el JPEG y hace el resize: con otra versión, la misma foto puede dar otros números. Esta vez los 16 tensores salen iguales; la garantía no es que coincidan hoy, es usar la misma. Arreglo: <code>pip install pillow==12.3.0</code> y el mismo pin en <code>requirements.txt</code>, para que el entorno se pueda reconstruir. En C01, la imagen de entrenamiento toma su Pillow de la del gateway.",
+      "concepto": "skew",
+      "check": "paridad"
+    },
+    {
+      "id": "mlflow-caido",
+      "titulo": "El job murió a los dos segundos",
+      "tipo": "infra",
+      "historia": "El pipeline de anoche quedó en rojo y el entrenamiento ni siquiera empezó. La persona de guardia vio la alarma en la mañana.",
+      "sintoma": "<code>verificar.py</code>: casi todo falla. ✗ mundo        MLflow no responde en localhost:5400: docker compose ps (¿está arriba el servicio mlflow?)",
+      "hipotesis": [
+        "Se cayó MLflow.",
+        "Se cayó el S3.",
+        "Cambió la red de Docker."
+      ],
+      "confirma": {
+        "code": "docker compose ps -a --format \"{{.Service}}: {{.State}} · {{.Status}}\"\npython pipeline/entrenar.py --snapshot ds-2026-09-01 --champion 1 --corrida prueba-mlflow",
+        "nota": "",
+        "donde": "mac",
+        "salida": "mlflow: exited · Exited (137) 19 seconds ago\ns3: running · Up 14 minutes (healthy)\n✗ MLflow no responde en localhost:5400 (MlflowException): sin registro no se entrena\nreal 1.39"
+      },
+      "arreglo": "El contenedor de MLflow está detenido. El job lo comprueba antes de bajar datos o entrenar y se detiene en segundos: sin registro no se entrena, porque un modelo sin su corrida no tiene linaje. Arreglo: <code>docker compose up -d --wait mlflow</code>. En C01 MLflow lo opera plataforma; si se cae, el reintento del orquestador espera y vuelve a intentar.",
+      "concepto": "tracking",
+      "check": "mundo"
+    },
+    {
+      "id": "receta-sin-commit",
+      "titulo": "Una prueba rápida en la máquina del pipeline",
+      "tipo": "config",
+      "historia": "Alguien entró a la máquina donde corre el pipeline «para una prueba rápida» y se fue de vacaciones. El pipeline de esta noche no arrancó.",
+      "sintoma": "<code>verificar.py</code>: <code>limpio</code> falla. ✗ limpio       hay cambios sin commit en tu código o tu receta (M receta.yaml): una corrida desde aquí no podría decir con qué se entrenó. git diff para verlos",
+      "hipotesis": [
+        "Hay un cambio sin commit.",
+        "Alguien cambió la receta en un commit.",
+        "Cambió el snapshot."
+      ],
+      "confirma": {
+        "code": "git status --short\ngit diff receta.yaml | grep \"^[-+]epocas\"\npython pipeline/entrenar.py --snapshot ds-2026-09-01 --champion 1 --corrida prueba-limpio",
+        "nota": "",
+        "donde": "mac",
+        "salida": " M receta.yaml\n M taller/progreso.json\n-epocas: 3                 # pasadas completas por las fotos de train\n+epocas: 5                 # pasadas completas por las fotos de train\n✗ hay cambios sin commit (M receta.yaml): la corrida no podría decir con qué código y qué receta se entrenó\n[código 1]"
+      },
+      "arreglo": "<code>receta.yaml</code> tiene <code>epocas: 5</code> sin commit. Una corrida desde aquí diría «commit tal», y ese commit tiene 3 épocas: el linaje mentiría. Como nadie lo aprobó: <code>git restore receta.yaml</code>. Si de verdad se quiere probar 5 épocas, va en un commit con su porqué, y es otra receta: sus semillas se vuelven a medir.",
+      "concepto": "cinco-ingredientes",
+      "check": "limpio"
+    }
+  ],
+  "listo": [
+    "La corrida salió del pipeline, desde un commit limpio, no de una laptop ni de un notebook.",
+    "Antes de pedir la GPU, la prueba de humo comprobó que el código aprende con la receta de verdad.",
+    "El entrenamiento leyó el snapshot por su id, comprobó cada huella y vio las fotos igual que el gateway (mismo preprocess, misma Pillow).",
+    "Arrancó del champion por su número de versión, con las categorías en el mismo orden.",
+    "MLflow tiene los parámetros, la curva de <code>val_top1</code> por época, los pesos y los punteros: snapshot, commit, entorno, champion y receta.",
+    "Si se cae la máquina, el reintento reanuda del checkpoint con el mismo id y termina en el mismo modelo.",
+    "Hay un ruido entre semillas medido y una regla escrita para decir si una diferencia es regresión o ruido."
+  ],
+  "repaso": {
+    "memo": "<b>El notebook explora, el pipeline produce.</b> Lo que va a producción sale de un job que lanza el orquestador: lee el snapshot por id, prueba en segundos que el código aprende, arranca del champion por su número, guarda todo su estado cada tanto para reanudar con el mismo id y deja en MLflow los cinco ingredientes (código, datos, receta, entorno y semilla). Y una diferencia contra otra corrida se lee contra 3σ de las semillas antes de decir «salió peor».",
+    "trampa": "«Fijé la semilla, así que es reproducible». Sin el commit limpio, el snapshot por id, la receta y el entorno, la semilla sola no repite nada; y en GPU, cuDNN cambia los últimos bits aunque todo esté fijo. Reproducible en C01 quiere decir «mismo resultado dentro del ruido», con los cinco ingredientes anotados.",
+    "entrevista": [
+      {
+        "q": "¿Cómo conviertes un notebook de fine-tuning en algo que corre cada mes?",
+        "a": "Saco el código a un script versionado que lee la receta de un archivo en el repo y los datos por id de snapshot. Lo corre el orquestador en un contenedor fijado por digest, en una GPU que se pide para ese paso y se libera al terminar. Antes va una prueba de humo; durante, checkpoints para reanudar; y todo queda en MLflow con sus punteros. Los candidatos salen solo de ahí, desde un commit limpio."
+      },
+      {
+        "q": "El entrenamiento murió en la hora 2 de 4. ¿Qué pasa?",
+        "a": "El orquestador reintenta el paso con el mismo id de corrida. El job busca su último checkpoint en S3 (pesos, estado de Adam, programador, azar, época y paso), comprueba que sea de los mismos ingredientes y sigue desde ahí, en la misma corrida de MLflow. Con checkpoints cada 15 minutos se pierden a lo más 15 minutos. Sin checkpoints, el reintento empieza de cero y la corrida tarda el doble."
+      },
+      {
+        "q": "¿Qué guardas en un checkpoint y por qué no bastan los pesos?",
+        "a": "Pesos, los dos promedios de Adam, el programador del learning rate, época y paso, el estado de los generadores de azar (y el GradScaler si hay precisión mixta). Con solo los pesos, Adam empieza en cero, el learning rate vuelve al inicio y el orden de las fotos cambia: sale otro modelo. En la ResNet-50 son ≈ 300 MB, tres veces los pesos."
+      },
+      {
+        "q": "Dos corridas con la misma configuración dan 85.3 % y 85.1 %. ¿Hay una regresión?",
+        "a": "Primero mido el ruido: la misma receta con varias semillas, y su desviación estándar σ. Si |Δ| ≤ 3σ, es ruido: no celebro ni detengo nada. Si pasa de 3σ con la misma receta, comparo los cinco ingredientes en MLflow (snapshot y su huella, commit, digest, receta, tipo de GPU); casi siempre aparece la diferencia. Y considero el ruido del examen: con un examen chico, 0.2 puntos no se pueden leer."
+      },
+      {
+        "q": "¿Cómo evitas el training-serving skew en el preprocesamiento?",
+        "a": "Por construcción: el entrenamiento importa el mismo preprocess.py que usa el gateway, no una copia, y la imagen de entrenamiento usa la misma versión de Pillow. Lo compruebo con paridad: la huella del tensor que saca el gateway para unas fotos fijas tiene que ser igual a la del entrenamiento. Y después, la paridad end-to-end por el gateway real."
+      },
+      {
+        "q": "¿Por qué el job recibe la versión del champion y no el alias?",
+        "a": "Porque el alias se mueve. Si cada reintento resolviera @champion y alguien lo movió a media corrida, la corrida mezclaría dos modelos. El orquestador lo resuelve una vez al arrancar y pasa el número; la corrida lo anota, y el linaje dice exactamente de dónde arrancó."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/c01-entrenamiento/CLAUDE.md",
+    "guiado": "content/estaciones/c01-entrenamiento/prompts/guiado.md",
+    "solo": "content/estaciones/c01-entrenamiento/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/c01-entrenamiento/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/c01-entrenamiento/prompts/romper-solo.md"
+  }
+}

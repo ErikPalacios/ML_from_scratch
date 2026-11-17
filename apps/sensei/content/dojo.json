@@ -25,8 +25,8 @@
       "id": "entrenamiento",
       "titulo": "Entrenamiento",
       "etapa": "modelo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://taller-ai-engineer.vercel.app/c01/entrenamiento/"
     },
     {
       "num": 4,

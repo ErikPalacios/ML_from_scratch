@@ -1,0 +1,12 @@
+# La receta del entrenamiento mensual: la decide el equipo y vive en el repo, junto al código.
+# Tu código la lee (receta() de pipeline/_comun.py); no copies estos números en los scripts.
+# Cambiar la receta es un cambio de código: va en un commit, y la corrida anota su huella (receta_sha256).
+arranque: champion        # champion = arranca con los pesos del modelo en producción (warm start) · cero = pesos al azar
+epocas: 3                 # pasadas completas por las fotos de train
+batch: 64                 # fotos por paso
+lr: 0.003                 # learning rate máximo (el programador OneCycle sube hasta aquí y luego baja)
+weight_decay: 0.0001      # AdamW
+semilla: 17               # fija el orden de las fotos, la augmentation y los pesos iniciales
+voltear: 0.5              # augmentation: probabilidad de voltear cada foto de izquierda a derecha
+ckpt_cada_pasos: 25       # un checkpoint en S3 cada 25 pasos (≈ 1.5 s aquí; en C01, cada 15 min)
+amp: false                # precisión mixta: en la GPU de C01, true (float16). En la CPU de tu Mac no acelera

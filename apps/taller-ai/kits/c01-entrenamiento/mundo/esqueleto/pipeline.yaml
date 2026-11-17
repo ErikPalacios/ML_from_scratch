@@ -1,0 +1,6 @@
+# El pipeline mensual como DAG (paso 6). Lo ejecuta el orquestador: python mundo/orquestador.py pipeline.yaml
+# El formato está arriba de mundo/orquestador.py: nombre, parametros y una lista de pasos con id, comando, depende,
+# gpu, reintentos y espera_s. Los comandos pueden usar {corrida} y cualquier parámetro, como {snapshot}.
+nombre: c01-mensual
+parametros: {}
+pasos: []

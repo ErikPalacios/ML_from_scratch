@@ -1,0 +1,8 @@
+# data/ es caché local (fotos bajadas, Fashion-MNIST); historial/ lo escribe el orquestador; .taller/ es de romper.py.
+data/
+historial/
+.taller/
+.venv/
+__pycache__/
+*.pyc
+.respaldo/

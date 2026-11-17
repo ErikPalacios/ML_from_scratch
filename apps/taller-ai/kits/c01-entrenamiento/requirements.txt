@@ -1,0 +1,10 @@
+# Versiones fijadas: así el kit corre igual en tu Mac hoy y dentro de seis meses.
+# En C01, esto vive dentro de la imagen de entrenamiento, y la corrida anota su digest.
+torch==2.15.0
+mlflow-skinny==3.18.0
+boto3==1.43.123
+pandas==3.1.0
+pyarrow==26.0.0
+numpy==2.5.4
+pillow==13.0.0              # la misma que mundo/gateway/requirements.txt
+pyyaml==6.0.3

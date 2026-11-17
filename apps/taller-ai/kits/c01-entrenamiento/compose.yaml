@@ -1,0 +1,37 @@
+# La infraestructura del mundo: un S3 local (RustFS) y el servidor de MLflow. `docker compose up -d --wait` y listo.
+# En C01 real: Amazon S3 (fotos, datasets y checkpoints) y MLflow con Postgres + S3, que plataforma levanta una vez.
+name: taller-c01-entrenamiento
+services:
+  s3:
+    image: rustfs/rustfs:1.0.4
+    ports: ["9400:9000", "9401:9001"]       # en tu Mac: 9400 = API S3 · 9401 = consola web
+    environment:                            # credenciales de prueba del dojo (solo existen en tu Mac)
+      RUSTFS_ACCESS_KEY: taller
+      RUSTFS_SECRET_KEY: taller-secreto
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    volumes: ["s3-entrenamiento:/data"]
+    command: ["/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:9000/health || exit 1"]
+      interval: 5s
+      retries: 20
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.18.0
+    ports: ["5400:5000"]                    # en tu Mac: 5400 (el 5000 lo ocupa AirPlay en macOS)
+    # Metadatos (corridas, parámetros, métricas, modelos) en SQLite; archivos (pesos, labels) en un volumen.
+    # El servidor sirve los archivos él mismo (--artifacts-destination): tu código nunca toca esa carpeta.
+    # En C01: --backend-store-uri postgresql://… y --artifacts-destination s3://…
+    command: >-
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artefactos
+    volumes: ["mlflow-entrenamiento:/mlflow"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/health')\""]
+      interval: 5s
+      retries: 30
+volumes:
+  s3-entrenamiento: {}
+  mlflow-entrenamiento: {}
