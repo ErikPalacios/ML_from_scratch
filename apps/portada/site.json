@@ -8,6 +8,13 @@
   "repo": "https://github.com/ErikPalacios/ML_from_scratch",
   "issues": "https://github.com/ErikPalacios/ML_from_scratch/issues/new",
   "kicker": "6 etapas · del dato al monitoreo",
+  "video": {
+    "chico": "/video/trueml-540",
+    "grande": "/video/trueml-1080",
+    "poster": "/video/trueml-poster.jpg",
+    "alt": "Video de 80 segundos: un recorrido por las herramientas de TrueML",
+    "texto": "Un recorrido de 80 segundos por todo lo que hay. En grande, con sonido."
+  },
   "caption": "Pasa el cursor por una herramienta para ver qué etapas cubre.",
   "destacadas": [
     {

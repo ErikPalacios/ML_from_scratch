@@ -71,7 +71,26 @@ const boton = (b) => `<a class="p-btn ${b.estilo === 'primario' ? 'p-btn-b' : 'p
 // La T: con etiquetas si hay espacio, sin ellas en pantallas angostas (lo decide el CSS con un container query)
 const T = `<div class="p-t-con">${marca({ etiquetas: true, maxAltura: 'min(calc(100vh - 150px), 860px)' })}</div><div class="p-t-sin">${marca({ maxAltura: '520px' })}</div>`;
 
+// El video de la portada (apps/video-portada): chico en bucle en el hero; en grande, con controles, en un diálogo.
+const V = site.video;
+const VIDEO = V ? `    <figure class="p-video" data-p-video>
+      <div class="p-video-marco">
+        <video muted playsinline loop preload="none" poster="${esc(V.poster)}" aria-label="${esc(V.alt)}">
+          <source src="${esc(V.chico)}.webm" type="video/webm"><source src="${esc(V.chico)}.mp4" type="video/mp4">
+        </video>
+        <button class="p-video-pausa" type="button" data-p-video-pausa aria-pressed="true"><i aria-hidden="true"></i><span>Reproducir</span></button>
+        <button class="p-video-abrir" type="button" data-p-video-abrir>Ver en grande ↗</button>
+      </div>
+      <figcaption>${esc(V.texto)}</figcaption>
+    </figure>
+` : '';
+const VIDEO_DLG = V ? `<dialog class="p-video-dlg" data-p-video-dlg aria-label="${esc(V.alt)}">
+  <video controls playsinline preload="none" poster="${esc(V.poster)}"><source src="${esc(V.grande)}.mp4" type="video/mp4"></video>
+  <button class="p-video-cerrar" type="button" data-p-video-cerrar aria-label="Cerrar el video">×</button>
+</dialog>` : '';
+
 const vars = {
+  VIDEO, VIDEO_DLG,
   NAME: esc(site.name), URL: site.url, TAGLINE: esc(site.tagline), DESC: esc(site.description), AUTHOR: esc(site.author),
   REPO: site.repo, ISSUES: site.issues, YEAR: new Date().getFullYear(), DATE: today,
   JSONLD: JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebSite', name: site.name, url: site.url + '/', inLanguage: 'es',
@@ -92,6 +111,15 @@ writeFileSync(join(OUT, 'index.html'), fill(readFileSync(join(SRC, 'index.html')
 writeFileSync(join(OUT, 'privacidad', 'index.html'), fill(readFileSync(join(SRC, 'privacidad.html'), 'utf8')));
 writeFileSync(join(OUT, 'style.css'), readFileSync(join(ROOT, 'vendor', 'trueml', 'tokens.css'), 'utf8') + '\n' + readFileSync(join(SRC, 'style.css'), 'utf8'));
 copyFileSync(join(ROOT, 'vendor', 'trueml', 'cliente.js'), join(OUT, 'trueml.js'));
+copyFileSync(join(SRC, 'video.js'), join(OUT, 'video.js'));
+if (V) {
+  mkdirSync(join(OUT, 'video'), { recursive: true });
+  for (const f of [V.chico + '.webm', V.chico + '.mp4', V.grande + '.mp4', V.poster]) {
+    const src = join(SRC, f.replace(/^\//, ''));
+    if (!existsSync(src)) fail(`falta src${f} (corre npm run portada en apps/video-portada)`);
+    copyFileSync(src, join(OUT, f.replace(/^\//, '')));
+  }
+}
 for (const f of ['icon.svg', 'og.png']) {
   if (!existsSync(join(SRC, f))) fail('falta src/' + f + (f === 'og.png' ? ' (corre npm run og)' : ''));
   copyFileSync(join(SRC, f), join(OUT, f));
