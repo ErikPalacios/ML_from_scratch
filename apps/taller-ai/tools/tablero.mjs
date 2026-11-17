@@ -2,25 +2,33 @@
 // la página /tablero/. Lo que cambia con tu avance lo dibuja site/tablero/tablero.mjs en el navegador, desde el
 // tablero guardado en localStorage (site/tablero/almacen.mjs).
 import { marca } from '../vendor/trueml/lib.mjs';
-import { esc, barra, titulo, pie, etapa, COLOR_ETAPA, NOMBRE_ETAPA } from './dojo.mjs';
+import { esc, barra, titulo, pie, COLOR_ETAPA, NOMBRE_ETAPA } from './dojo.mjs';
 import { RONDAS } from '../site/tablero/modelo.mjs';
 
 const ETAPA_ID = ['datos', 'modelo', 'api', 'contenedor', 'orquestacion', 'monitoreo'];
 const sinHtml = (s) => String(s).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
-// estaciones: las del build (ya validadas, con slug, url y kitUrl); tronco: content/tronco.json
-export function plantillaTablero(estaciones, tronco) {
-  const conTaller = estaciones.filter((e) => e.caso === tronco.caso).sort((a, b) => a.num - b.num);
-  const ids = new Set(conTaller.map((e) => e.id));
+// estaciones: las del build (ya validadas y puestas en su línea con tools/lineas.mjs: slug, url, kitUrl, linea, etapaIdx)
+// lineas: LINEAS de tools/lineas.mjs (el tronco primero y después cada rama). Cada estación lleva el grupo de su línea:
+// el tablero las dibuja agrupadas, el tronco arriba y cada rama debajo. El id de cada estación en el documento es su
+// slug (c01-datos, ia-privada-rag), así que un tablero de antes sigue sirviendo tal cual: migrar() solo suma.
+export function plantillaTablero(estaciones, lineas) {
+  const orden = [...lineas.keys()];
+  const conTaller = estaciones.filter((e) => lineas.has(e.linea.id)).sort((a, b) => orden.indexOf(a.linea.id) - orden.indexOf(b.linea.id) || a.num - b.num);
+  const slugs = new Set(conTaller.map((e) => e.slug));
+  const ref = (l, num) => (l.tipo === 'rama' ? `estación ${num} de ${l.corto}` : `estación ${num}`);
   return {
+    grupos: [...lineas.values()].map((l) => ({ id: l.id, tipo: l.tipo, nombre: l.tipo === 'rama' ? `Rama ${l.corto}` : `Tronco · ${l.corto}`, total: l.total })),
     estaciones: conTaller.map((e) => ({
-      id: e.slug, num: e.num, titulo: e.titulo, etapa: ETAPA_ID[etapa(e.num)], color: COLOR_ETAPA[etapa(e.num)], nombreEtapa: NOMBRE_ETAPA[etapa(e.num)],
+      id: e.slug, grupo: e.linea.id, rama: e.linea.tipo === 'rama' ? e.linea.corto : null, ref: ref(e.linea, e.num), num: e.num, titulo: e.titulo,
+      etapa: ETAPA_ID[e.etapaIdx], color: COLOR_ETAPA[e.etapaIdx], nombreEtapa: NOMBRE_ETAPA[e.etapaIdx],
       url: e.url, rondasUrl: `${e.kitUrl}#rondas`, python: e.mundo.python || 'python',
       pasos: e.guiado.map((p) => ({ id: p.id, n: p.n, titulo: p.titulo })),
       objetivos: e.solo.objetivos.map((o) => ({ n: o.n, check: o.check, objetivo: sinHtml(o.objetivo) })),
       fallas: e.fallas.map((f) => ({ id: f.id, titulo: f.titulo })),
     })),
-    proximas: tronco.estaciones.filter((s) => !ids.has(s.id)).map((s) => ({ num: s.num, titulo: s.titulo, etapa: ETAPA_ID[etapa(s.num)], color: COLOR_ETAPA[etapa(s.num)] })),
+    proximas: [...lineas.values()].flatMap((l) => l.estaciones.filter((s) => !slugs.has(`${l.id}-${s.id}`))
+      .map((s) => ({ grupo: l.id, num: s.num, titulo: s.titulo, etapa: ETAPA_ID[s.etapa], color: COLOR_ETAPA[s.etapa] }))),
   };
 }
 
@@ -29,7 +37,8 @@ export function cuerpoTablero(plantilla) {
   // La T: solo las etapas que ya tienen taller llevan etiqueta; el navegador las enciende con lo que vas haciendo.
   const LB = ETAPA_ID.map((id) => {
     const es = plantilla.estaciones.filter((e) => e.etapa === id);
-    return es.length ? [NOMBRE_ETAPA[ETAPA_ID.indexOf(id)], es.map((e) => `${e.num} · ${e.titulo}`).join(' · ')] : null;
+    const corto = new Map(plantilla.grupos.filter((g) => g.tipo === 'rama').map((g) => [g.id, g.nombre.replace(/^Rama /, '')]));
+    return es.length ? [NOMBRE_ETAPA[ETAPA_ID.indexOf(id)], es.map((e) => `${corto.has(e.grupo) ? corto.get(e.grupo) + ' ' : ''}${e.num} · ${e.titulo}`).join(' · ')] : null;
   });
   const t = marca({ etiquetas: LB, encender: [], dim: 0.16, maxAltura: '440px', clave: 'tablero' });
   const ronda = (r, i) => `<div class="d-uso-r" style="--o:${i}"><span><i>${i + 1} </i>${esc(r.nombre)}</span><span>${esc(r.hace)}</span></div>`;
@@ -68,13 +77,14 @@ export function cuerpoTablero(plantilla) {
 
 <section class="d-wrap d-sec d-sec-sola" id="estaciones">
   ${titulo('Estaciones', `${plantilla.estaciones.length} con taller · ${plantilla.proximas.length} próximamente`)}
-  <p class="d-p">Toca el estado de una ronda para cambiarlo: la hora de inicio y de fin se anotan solas. Abajo de cada estación están los objetivos de Construir solo (con el resultado de tu último <code>verificar.py</code>), tus fallas y tu bitácora.</p>
+  <p class="d-p">Toca el estado de una ronda para cambiarlo: la hora de inicio y de fin se anotan solas. Abajo de cada estación están los objetivos de Construir solo (con el resultado de tu último <code>verificar.py</code>), tus fallas y tu bitácora. Las estaciones van agrupadas: primero el tronco C01 y después cada rama.</p>
   <p class="d-nota t-aviso" id="t-aviso" hidden></p>
   <div class="t-ests" id="t-estaciones"><noscript><p class="d-p">Tu tablero necesita JavaScript: guarda y dibuja tu avance en este navegador.</p></noscript></div>
   <div class="d-card t-prox">
     <h3>Próximamente</h3>
-    <p class="d-txt">Estas estaciones todavía no tienen kit. Cuando llegue el suyo, aparecen arriba con sus cuatro rondas, sin que pierdas nada de lo que ya llevas.</p>
-    <div class="t-prox-l">${plantilla.proximas.map((s) => `<span style="--c:${s.color}"><b>${s.num}</b>${esc(s.titulo)}</span>`).join('')}</div>
+    <p class="d-txt">Estas estaciones todavía no tienen kit. Cuando llegue el suyo, aparecen arriba en su grupo, con sus cuatro rondas, sin que pierdas nada de lo que ya llevas.</p>
+    ${plantilla.grupos.map((g) => { const ps = plantilla.proximas.filter((s) => s.grupo === g.id); return ps.length ? `<div class="t-prox-g"><span class="d-lbl">${esc(g.nombre)}</span>
+    <div class="t-prox-l">${ps.map((s) => `<span style="--c:${s.color}"><b>${s.num}</b>${esc(s.titulo)}</span>`).join('')}</div></div>` : ''; }).join('\n    ')}
   </div>
 </section>
 

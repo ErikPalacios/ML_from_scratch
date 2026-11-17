@@ -2,6 +2,7 @@
   "caso": "c01",
   "titulo": "C01 · Clasificador de categorías para un marketplace",
   "patron": "Síncrono (online)",
+  "escala": "En C01",
   "resumen": "El tronco del Dojo: las 12 estaciones del mapa «Del dato a producción», en el orden en que el caso C01 las recorre. Lo que aprendes aquí lo comparten todos los patrones.",
   "estaciones": [
     { "num": 1, "id": "datos", "titulo": "Datos y etiquetas", "sale": "labels del mes (≈ 5k humanos + débiles filtrados)" },

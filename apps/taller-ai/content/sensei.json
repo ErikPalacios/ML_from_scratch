@@ -3,6 +3,7 @@
   "url": "https://sensei-ml.vercel.app",
   "estaciones": [
     {
+      "linea": "c01",
       "num": 1,
       "leccion": {
         "id": "e01-datos",
@@ -38,6 +39,7 @@
       ]
     },
     {
+      "linea": "c01",
       "num": 2,
       "leccion": {
         "id": "e02-versionado",
@@ -63,6 +65,7 @@
       ]
     },
     {
+      "linea": "c01",
       "num": 3,
       "leccion": {
         "id": "e03-entrenamiento",
@@ -98,6 +101,7 @@
       ]
     },
     {
+      "linea": "c01",
       "num": 4,
       "leccion": {
         "id": "e04-gate",
@@ -128,6 +132,7 @@
       ]
     },
     {
+      "linea": "c01",
       "num": 5,
       "leccion": {
         "id": "e05-export",
@@ -168,6 +173,7 @@
       ]
     },
     {
+      "linea": "c01",
       "num": 6,
       "leccion": {
         "id": "e06-serving",
@@ -228,6 +234,7 @@
       ]
     },
     {
+      "linea": "c01",
       "num": 7,
       "leccion": {
         "id": "e07-empaquetado",
@@ -268,6 +275,7 @@
       ]
     },
     {
+      "linea": "c01",
       "num": 8,
       "leccion": {
         "id": "e08-cicd",
@@ -308,6 +316,7 @@
       ]
     },
     {
+      "linea": "c01",
       "num": 9,
       "leccion": {
         "id": "e09-kubernetes",
@@ -368,6 +377,7 @@
       ]
     },
     {
+      "linea": "c01",
       "num": 10,
       "leccion": {
         "id": "e10-rollout",
@@ -408,6 +418,7 @@
       ]
     },
     {
+      "linea": "c01",
       "num": 11,
       "leccion": {
         "id": "e11-request",
@@ -453,6 +464,7 @@
       ]
     },
     {
+      "linea": "c01",
       "num": 12,
       "leccion": {
         "id": "e12-monitoreo",

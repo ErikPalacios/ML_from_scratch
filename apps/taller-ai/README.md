@@ -6,9 +6,10 @@ Proyectos chicos de ML engineering que corren en una Mac, uno por cada estación
 
 | Carpeta | Qué es |
 |---|---|
-| `content/estaciones/<caso>-<id>.json` | El contenido de cada estación, con la forma que define `tools/schema.mjs`. |
+| `content/estaciones/<línea>-<id>.json` | El contenido de cada estación, con la forma que define `tools/schema.mjs`. La línea es el caso del tronco (`"caso": "c01"`) o una rama (`"rama": "ia-privada"`, con su `etapa` de la T). |
 | `content/estaciones/<caso>-<id>/prompts/` | Los prompts de las cuatro rondas. |
-| `content/tronco.json` | Las 12 estaciones de C01 con lo que sale de cada una, para la portada (la lista por etapas de la T y el mapa en anillo). |
+| `content/tronco.json` | Las 12 estaciones de C01 con lo que sale de cada una, para la portada (la lista por etapas de la T y el mapa en anillo), y la etiqueta de su escala («En C01»). |
+| `content/ramas.json` | Las ramas: por rama, su id, nombre, patrón, caso de referencia, la etiqueta de su escala, el camino sin GPU y sus estaciones (num, id, título, qué sale, etapa de la T y dónde corre). Hoy: IA Privada, 8 estaciones, todas «próximamente». `tools/lineas.mjs` junta el tronco y las ramas: URL `/<línea>/<estación>/`, slug, etapa y escala de cada estación. |
 | `content/mapa-c01.json` | El mapa vertical del C01, copiado de la cheat sheet «Del dato a producción» con `node tools/importar-mapa.mjs` (córrelo cuando cambie la hoja). La portada lo usa en el celular; en tablet y escritorio dibuja el anillo del diseño. |
 | `kits/<caso>-<id>/` | El kit que se descarga: el mundo simulado, `verificar.py`, `romper.py`, `CLAUDE.md`. El esqueleto del pipeline vive en `mundo/esqueleto/`. |
 | `kits/<caso>-<id>-solucion/` | La solución de referencia (no se publica). Sirve para probar el kit y es el código que muestra el Guiado. |
@@ -32,7 +33,7 @@ node tools/motor.mjs   # copia el motor de apps/tablero-ml a site/tablero/motor/
 ## Agregar una estación
 
 1. Escribe el kit y su solución, y córrelo de punta a punta en una carpeta limpia.
-2. Escribe `content/estaciones/<caso>-<id>.json`. Solo pon en `salida` lo que salió de verdad. Los precálculos van en las dos escalas (C01 y el dojo); cada uno se comprueba con un comando sobre el mundo recién creado o apunta al paso del Guiado que lo confirma.
+2. Escribe `content/estaciones/<línea>-<id>.json`. Solo pon en `salida` lo que salió de verdad. Los precálculos van en las dos escalas: `ref` (el caso de referencia de su línea: C01 en el tronco, el de la rama en una rama; las estaciones viejas lo llaman `c01`, y se acepta igual) y `taller` (el dojo); cada uno se comprueba con un comando sobre el mundo recién creado o apunta al paso del Guiado que lo confirma.
 3. Prueba cada falla: que su check la detecte, que su arreglo la resuelva y que `romper.py --restaurar` deje todo en verde.
 4. Revisa los hechos contra la documentación oficial.
 5. `npm run check`.

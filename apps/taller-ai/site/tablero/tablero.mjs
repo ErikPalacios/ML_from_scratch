@@ -6,6 +6,10 @@ import { crearAlmacen } from './almacen.mjs';
 
 const P = JSON.parse(document.getElementById('t-plantilla').textContent);
 const PE = new Map(P.estaciones.map((e) => [e.id, e]));
+// los grupos: el tronco y cada rama (una plantilla de antes de las ramas no trae grupos: todo es del tronco)
+const GRUPOS = P.grupos || [{ id: 'c01', tipo: 'tronco', nombre: 'Tronco · C01' }];
+const grupoDe = (pe) => pe.grupo || GRUPOS[0].id;
+const refDe = (pe) => pe.ref || `estación ${pe.num}`;
 const almacen = crearAlmacen(P);
 let T = almacen.leer();
 const $ = (id) => document.getElementById(id);
@@ -51,7 +55,7 @@ function ronda(e, r) {
   return `<div class="t-ronda" data-estado="${r.estado}" style="--o:${RONDAS.findIndex((x) => x.id === r.id)}">
     <span class="t-ronda-t">${esc(RONDA[r.id].nombre)}</span>
     <span class="t-ronda-d">${esc(RONDA[r.id].hace)}</span>
-    <div class="t-seg" role="group" aria-label="Estado de ${esc(RONDA[r.id].nombre)} en la estación ${pe.num}">${ESTADOS.map((s) =>
+    <div class="t-seg" role="group" aria-label="Estado de ${esc(RONDA[r.id].nombre)} en la ${esc(refDe(pe))}">${ESTADOS.map((s) =>
       `<button type="button" data-acc="estado" data-est="${e.id}" data-ronda="${r.id}" data-valor="${s}" aria-pressed="${r.estado === s}">${ESTADO_TXT[s]}</button>`).join('')}</div>
     ${extra.length ? `<span class="t-ronda-f">${esc(extra.join(' · '))}</span>` : ''}
   </div>`;
@@ -142,7 +146,7 @@ function estacion(e) {
   return `<article class="d-card t-est" id="est-${e.id}" style="--c:${pe.color}">
     <header class="t-est-h">
       <span class="t-num">${pe.num}</span>
-      <div class="t-est-t"><h3>${esc(pe.titulo)}</h3><span class="d-lbl">Etapa ${esc(pe.nombreEtapa)} · ${s.hechas} de 4 rondas hechas${s.ultima ? ` · ${esc(corta(s.ultima))}` : ''}</span></div>
+      <div class="t-est-t"><h3>${esc(pe.titulo)}</h3><span class="d-lbl">${pe.rama ? `${esc(pe.rama)} · ` : ''}Etapa ${esc(pe.nombreEtapa)} · ${s.hechas} de 4 rondas hechas${s.ultima ? ` · ${esc(corta(s.ultima))}` : ''}</span></div>
       <a class="t-est-a" href="${esc(pe.url)}">Abrir la estación →</a>
     </header>
     <div class="t-pips" aria-hidden="true">${e.rondas.map((r) => `<i data-estado="${r.estado}"></i>`).join('')}</div>
@@ -181,7 +185,14 @@ function encenderT() {
 
 function pintar() {
   const abiertos = new Set([...document.querySelectorAll('#t-estaciones details[open]')].map((d) => d.dataset.id));
-  $('t-estaciones').innerHTML = T.estaciones.filter((e) => PE.has(e.id)).sort((a, b) => PE.get(a.id).num - PE.get(b.id).num).map(estacion).join('');
+  // agrupadas por línea, en el orden de la plantilla (el tronco primero); dentro de cada una, por número
+  const conTaller = T.estaciones.filter((e) => PE.has(e.id));
+  $('t-estaciones').innerHTML = GRUPOS.map((g) => {
+    const es = conTaller.filter((e) => grupoDe(PE.get(e.id)) === g.id).sort((a, b) => PE.get(a.id).num - PE.get(b.id).num);
+    if (!es.length) return '';
+    const hechas = es.reduce((n, e) => n + e.rondas.filter((r) => r.estado === 'hecha').length, 0);
+    return `<div class="t-grupo" id="grupo-${esc(g.id)}"><div class="t-grupo-h"><span class="d-lbl">${g.tipo === 'rama' ? 'Rama' : 'Tronco'}</span><b>${esc(g.nombre.replace(/^(Rama |Tronco · )/, ''))}</b><span class="d-lbl">${es.length} con taller · ${hechas}/${es.length * 4} rondas</span></div>${es.map(estacion).join('')}</div>`;
+  }).join('');
   abiertos.forEach((id) => { const d = document.querySelector(`#t-estaciones details[data-id="${id}"]`); if (d) d.open = true; });
   const todas = T.estaciones.filter((e) => PE.has(e.id));
   const st = (k, v) => { const el = document.querySelector(`[data-stat="${k}"]`); if (el) el.textContent = v; };
@@ -193,7 +204,7 @@ function pintar() {
   encenderT();
   const h = $('t-hist-l');
   $('t-hist').hidden = !T.importaciones.length;
-  h.innerHTML = T.importaciones.map((i) => `<li>${esc(cuando(i.fecha))} · estación ${PE.get(i.estacion) ? PE.get(i.estacion).num : esc(i.estacion)} · ${i.nuevas} ${i.nuevas === 1 ? 'cosa nueva' : 'cosas nuevas'}, ${i.cambios} ${i.cambios === 1 ? 'cambio' : 'cambios'}</li>`).join('');
+  h.innerHTML = T.importaciones.map((i) => `<li>${esc(cuando(i.fecha))} · ${PE.get(i.estacion) ? esc(refDe(PE.get(i.estacion))) : `estación ${esc(i.estacion)}`} · ${i.nuevas} ${i.nuevas === 1 ? 'cosa nueva' : 'cosas nuevas'}, ${i.cambios} ${i.cambios === 1 ? 'cambio' : 'cambios'}</li>`).join('');
 }
 
 // ---------------------------------------------------------------- importar
@@ -224,13 +235,13 @@ export function importarTexto(texto) {
   const pe = PE.get(r.estacion);
   const avisos = r.avisos.length ? `<p class="d-nota">Ojo: ${r.avisos.map(esc).join('; ')}.</p>` : '';
   if (!r.ops.length) {
-    mostrar(`<h3>Nada nuevo</h3><p class="d-txt">Tu tablero ya tenía todo lo de este <code>progreso.json</code> de la estación ${pe.num}, ${esc(pe.titulo)}.</p>${avisos}`, 'ok');
+    mostrar(`<h3>Nada nuevo</h3><p class="d-txt">Tu tablero ya tenía todo lo de este <code>progreso.json</code> de la ${esc(refDe(pe))}, ${esc(pe.titulo)}.</p>${avisos}`, 'ok');
     return true;
   }
   if (!cambiar(r.ops)) { mostrar('<h3>No se pudo importar</h3><p class="d-txt">El archivo tiene algo que el tablero no acepta. Revisa que el JSON siga el formato del <code>CLAUDE.md</code> del kit.</p>', 'mal'); return false; }
   const e = T.estaciones.find((y) => y.id === r.estacion);
   const estados = e.rondas.map((y) => `<li><b>${esc(RONDA[y.id].nombre)}:</b> ${ESTADO_TXT[y.estado].toLowerCase()}</li>`).join('');
-  mostrar(`<h3>Listo: estación ${pe.num}, ${esc(pe.titulo)}</h3><p class="d-txt">Entraron ${r.nuevas} ${r.nuevas === 1 ? 'cosa nueva' : 'cosas nuevas'} y hubo ${r.cambios} ${r.cambios === 1 ? 'cambio' : 'cambios'}. Así quedaron las rondas:</p><ul class="t-res-l">${estados}</ul>${avisos}<p class="d-nota"><a href="#est-${esc(r.estacion)}">Ver la estación en el tablero ↑</a></p>`, 'ok');
+  mostrar(`<h3>Listo: ${esc(refDe(pe))}, ${esc(pe.titulo)}</h3><p class="d-txt">Entraron ${r.nuevas} ${r.nuevas === 1 ? 'cosa nueva' : 'cosas nuevas'} y hubo ${r.cambios} ${r.cambios === 1 ? 'cambio' : 'cambios'}. Así quedaron las rondas:</p><ul class="t-res-l">${estados}</ul>${avisos}<p class="d-nota"><a href="#est-${esc(r.estacion)}">Ver la estación en el tablero ↑</a></p>`, 'ok');
   avisar('Progreso importado');
   return true;
 }

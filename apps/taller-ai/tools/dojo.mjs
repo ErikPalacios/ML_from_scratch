@@ -1,18 +1,19 @@
 // Las páginas de estación con el diseño «Dojo» de TrueML (Claude Design: «Dojo Estacion 01»).
 // La T de vidrio y las etapas salen del sistema de diseño compartido (apps/trueml, copiado en vendor/trueml con
 // node apps/trueml/sync.mjs). Se dibuja al construir: la página no necesita JavaScript para verse y abre sin conexión.
-import { TrueMLMark as TM, RANGOS_C01, franja } from '../vendor/trueml/lib.mjs';
+import { TrueMLMark as TM, RANGOS_C01, franja, miniT, IDS } from '../vendor/trueml/lib.mjs';
 
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const PORTADA = 'https://ml-desde-cero.vercel.app';
 
-// Las 12 estaciones del C01 en las 6 etapas de la T (la agrupación del diseño).
+// Las 12 estaciones del C01 en las 6 etapas de la T (la agrupación del diseño). Solo para el tronco: una estación
+// de rama trae su etapa escrita, y a las páginas llega ya resuelta en e.etapaIdx (tools/lineas.mjs).
 const ETAPAS = RANGOS_C01;   // [[1, 2], [3, 5], [6, 6], [7, 8], [9, 10], [11, 12]], de etapas.json
 const etapa = (num) => ETAPAS.findIndex(([a, b]) => num >= a && num <= b);
 
 const marcaNav = TM.mark(true, null);
-function marcaHero(num, titulo) {
-  const i = etapa(num), clave = TM.ST[i][0];
+function marcaHero(i, num, titulo) {
+  const clave = TM.ST[i][0];
   const LB = TM.ST.map((_, j) => (j === i ? ['Estás aquí', `${num} · ${titulo}`] : null));
   // como TrueMLMark.sync(el, [etapa], .16): la etapa de la estación encendida y las demás apagadas
   return TM.mark(true, LB, 'aqui' + i, '460px')
@@ -84,7 +85,7 @@ function stats(items) {
   return `<div class="d-stats" style="--n:${items.length}">${items.map(([n, t, href]) => `<a href="${href.includes('/') ? href : '#' + href}"><b>${n}</b><span>${esc(t)}</span></a>`).join('')}</div>`;
 }
 
-function hero({ volver, volverTxt, pill, h1, lead, tiles, botones, num, tituloEstacion }) {
+function hero({ volver, volverTxt, pill, h1, lead, tiles, botones, etapaIdx, num, tituloEstacion }) {
   return `<section class="d-wrap d-hero">
   <div class="d-hero-txt">
     <a class="d-back" href="${volver}">← ${esc(volverTxt)}</a>
@@ -94,7 +95,7 @@ function hero({ volver, volverTxt, pill, h1, lead, tiles, botones, num, tituloEs
     ${stats(tiles)}
     <div class="d-btns">${botones}</div>
   </div>
-  <div class="d-hero-mark">${marcaHero(num, tituloEstacion)}</div>
+  <div class="d-hero-mark">${marcaHero(etapaIdx, num, tituloEstacion)}</div>
 </section>`;
 }
 
@@ -149,7 +150,7 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
       ${chips(x.conceptos, idx)}
       <details class="d-ver"><summary>Ver la cuenta</summary><div class="d-ver-body">
         <div class="d-escalas">
-          <div class="d-esc"><span class="d-lbl">En C01</span><span>${x.c01.cuenta}</span><strong>${x.c01.valor}</strong></div>
+          <div class="d-esc"><span class="d-lbl">${esc(e.linea.escala)}</span><span>${x.ref.cuenta}</span><strong>${x.ref.valor}</strong></div>
           <div class="d-esc d-esc-dojo"><span class="d-lbl">En el dojo</span><span>${x.taller.cuenta}</span><strong>${x.taller.valor}</strong></div>
         </div>
         <p class="d-decide"><b>Qué decides con esto. </b>${x.decide}</p>
@@ -195,7 +196,7 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
     <div class="d-io-n" aria-hidden="true"><span>→</span><b>${e.num}</b><span>→</span></div>
     <div class="d-card"><span class="d-lbl">Sale</span><ul>${e.mapa.sale.map((x) => `<li>${x}</li>`).join('')}</ul></div>
   </div>
-  <div class="d-tabla"><table><thead><tr><th></th><th>En C01</th><th class="d-th-dojo">En el dojo</th></tr></thead><tbody>${e.mapa.escala.map((r) => `<tr><th scope="row">${esc(r.que)}</th><td>${r.c01}</td><td>${r.taller}</td></tr>`).join('')}</tbody></table></div>
+  <div class="d-tabla"><table><thead><tr><th></th><th>${esc(e.linea.escala)}</th><th class="d-th-dojo">En el dojo</th></tr></thead><tbody>${e.mapa.escala.map((r) => `<tr><th scope="row">${esc(r.que)}</th><td>${r.ref}</td><td>${r.taller}</td></tr>`).join('')}</tbody></table></div>
   ${e.mapa.hoja ? `<p class="d-nota">La estación completa, con su lugar en el mapa: <a href="${esc(e.mapa.hoja)}">cheat sheet «Del dato a producción»</a>.</p>` : ''}
   ${tarjetaSensei(e.sensei, e.num)}
 </section>`,
@@ -298,12 +299,13 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
   const main = modo === 'estacion' ? [S.mapa, ruta, S.conceptos, S.repaso]
     : modo === 'proyecto' ? [S.proyecto, proyecto, S.sigue]
     : [S.mapa, S.conceptos, `<div class="d-proy">\n${S.proyecto}\n\n${proyecto}\n</div>`, S.repaso];
-  return `${modo === 'proyecto' ? `${barra({ ruta: `/ ${e.caso.toUpperCase()} · ${e.num} · proyecto con kit`, volver: '/', indice })}
-${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${e.caso.toUpperCase()} · Estación ${e.num} · Proyecto con kit`, h1: 'El proyecto con kit', lead: e.mundo.resumen, num: e.num, tituloEstacion: e.titulo,
+  const L = e.linea.corto, inicio = e.linea.tipo === 'rama' ? `/#rama-${e.linea.id}` : '/';
+  return `${modo === 'proyecto' ? `${barra({ ruta: `/ ${L} · ${e.num} · proyecto con kit`, volver: '/', indice })}
+${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${L} · Estación ${e.num} · Proyecto con kit`, h1: 'El proyecto con kit', lead: e.mundo.resumen, etapaIdx: e.etapaIdx, num: e.num, tituloEstacion: e.titulo,
     tiles: [[e.precalculos.cuentas.length, 'precálculos', 'precalculos'], [e.guiado.length, 'pasos', 'guiado'], [e.solo.objetivos.length, 'checks', 'solo'], [e.fallas.length, 'fallas', 'romper']],
     botones: `${kitBtn}<a class="d-btn d-btn2" href="#guiado">Ir al guiado</a>` })}
-` : `${barra({ ruta: `/ ${e.caso.toUpperCase()} · ${e.num}`, volver: '/', indice })}
-${hero({ volver: '/', volverTxt: "Dojo de entrenamiento ML engineer's", pill: `${e.caso.toUpperCase()} · Estación ${e.num} de ${total}`, h1: e.titulo, lead: e.pregunta, num: e.num, tituloEstacion: e.titulo,
+` : `${barra({ ruta: `/ ${L} · ${e.num}`, volver: '/', indice })}
+${hero({ volver: inicio, volverTxt: "Dojo de entrenamiento ML engineer's", pill: `${L} · Estación ${e.num} de ${total}`, h1: e.titulo, lead: e.pregunta, etapaIdx: e.etapaIdx, num: e.num, tituloEstacion: e.titulo,
     tiles: conPracticas ? [[e.practicas.length, 'desde cero', 'ruta'], [e.conceptos.length, 'conceptos', 'conceptos'], [e.precalculos.cuentas.length, 'precálculos', e.kitUrl + '#precalculos'], [e.guiado.length, 'pasos', e.kitUrl + '#guiado'], [e.fallas.length, 'fallas', e.kitUrl + '#romper']]
       : [[e.precalculos.cuentas.length, 'precálculos', 'precalculos'], [e.conceptos.length, 'conceptos', 'conceptos'], [e.guiado.length, 'pasos', 'guiado'], [e.solo.objetivos.length, 'checks', 'solo'], [e.fallas.length, 'fallas', 'romper']],
     botones: conPracticas ? `<a class="d-btn" href="#ruta">Por dónde empiezo ↓</a><a class="d-btn d-btn2" href="${e.kitUrl}">El proyecto con kit →</a>` : `${kitBtn}<a class="d-btn d-btn2" href="#guiado">Ir al guiado</a>` })}
@@ -328,7 +330,7 @@ export function cuerpoPractica(e, p) {
       <details class="d-ver"><summary>Ver la cuenta</summary><div class="d-ver-body">
         <div class="d-escalas">
           <div class="d-esc d-esc-dojo"><span class="d-lbl">En tu carpeta</span><span>${x.cuenta}</span><strong>${x.valor}</strong></div>
-          ${x.c01 ? `<div class="d-esc"><span class="d-lbl">En C01</span><span>${x.c01}</span></div>` : ''}
+          ${x.ref ? `<div class="d-esc"><span class="d-lbl">${esc(e.linea.escala)}</span><span>${x.ref}</span></div>` : ''}
         </div>
         <p class="d-decide"><b>Qué decides con esto. </b>${x.decide}</p>
         ${x.comprueba ? comando(x.comprueba, 'terminal · compruébalo') : ''}
@@ -336,8 +338,8 @@ export function cuerpoPractica(e, p) {
       </div></details>
     </article>`).join('\n    ');
 
-  return `${barra({ ruta: `/ ${e.caso.toUpperCase()} · ${e.num} · desde cero`, volver: '/', indice })}
-${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${e.caso.toUpperCase()} · Estación ${e.num} · Desde cero ${p.orden} de ${e.practicas.length}`, h1: p.titulo, lead: p.subtitulo, num: e.num, tituloEstacion: e.titulo,
+  return `${barra({ ruta: `/ ${e.linea.corto} · ${e.num} · desde cero`, volver: '/', indice })}
+${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${e.linea.corto} · Estación ${e.num} · Desde cero ${p.orden} de ${e.practicas.length}`, h1: p.titulo, lead: p.subtitulo, etapaIdx: e.etapaIdx, num: e.num, tituloEstacion: e.titulo,
     tiles: [[p.precalculos.length, 'precálculos', 'precalculos'], ...(p.conceptos.length ? [[p.conceptos.length, 'conceptos', 'conceptos']] : []), [p.pasos.length, 'pasos', 'pasos'], [p.solo.length - 1, 'objetivos', 'solo']],
     botones: `<a class="d-btn" href="#pasos">Ir a los pasos</a><a class="d-btn d-btn2" href="#escena">Ver la escena</a>` })}
 <main class="d-wrap d-main">
@@ -355,7 +357,7 @@ ${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${e.caso.toUpperCa
 
 <section class="d-sec" id="precalculos">
   ${titulo('Precálculos', `${p.precalculos.length} cuentas`)}
-  <p class="d-p">Haz cada cuenta antes de abrirla. Con un dataset tan chico los números son de juguete, pero las preguntas son las mismas que en C01.</p>
+  <p class="d-p">Haz cada cuenta antes de abrirla. Con un dataset tan chico los números son de juguete, pero las preguntas son las mismas que en ${esc(e.linea.corto)}.</p>
   ${precalc}
 </section>
 ${p.conceptos.length ? `
@@ -457,12 +459,47 @@ function metroVertical(estaciones, enlace, lista) {
   return `<div class="d-metrov">${o}<div class="mv-loop">↺ <b>Reentrenamiento</b>: de 12 vuelve a 1 · Datos</div></div>`;
 }
 
+// «Ramas»: cada rama con su caso de referencia, sus estaciones (con su etapa de la T y dónde corren) y el camino que
+// no necesita GPU rentada. Las que ya tienen taller abren su página; las demás dicen «próximamente».
+const DONDE = { mac: 'Mac', gpu: 'GPU rentada', 'mac-gpu': 'Mac y GPU rentada' };
+function seccionRamas(ramas) {
+  if (!ramas.length) return '';
+  const total = ramas.reduce((n, r) => n + r.estaciones.length, 0), listas = ramas.reduce((n, r) => n + r.lista.size, 0);
+  const tarjeta = (r) => {
+    const sinGpu = new Set(r.sin_gpu ? r.sin_gpu.estaciones : []);
+    const filas = r.estaciones.map((s) => {
+      const i = IDS.indexOf(s.etapa), e = r.lista.get(s.id);
+      const tag = `<span class="d-rama-tags"><span class="d-rama-etapa">${NOMBRE_ETAPA[i]}</span><span class="d-rama-donde d-donde-${s.donde}">${DONDE[s.donde]}</span></span>`;
+      const cuerpo = `<span class="d-est-n">${s.num}</span><span class="d-est-t"><span>${esc(s.titulo)}</span><span>sale: ${esc(s.sale)}</span>${tag}</span>${e ? '<span class="d-est-b">Entrar →</span>' : '<span class="d-est-p">próximamente</span>'}`;
+      const cls = `d-est d-rama-est${e ? ' lista' : ''}${sinGpu.has(s.num) ? ' d-rama-singpu' : ''}`;
+      return `<li style="--c:${COLOR_ETAPA[i]}">${e ? `<a class="${cls}" href="${e.url}">${cuerpo}</a>` : `<div class="${cls}">${cuerpo}</div>`}</li>`;
+    }).join('');
+    const etapasRama = [...new Set(r.estaciones.map((s) => s.etapa))];
+    return `<article class="d-card d-rama" id="rama-${r.id}">
+    <div class="d-rama-info">
+      <div class="d-rama-h"><span class="d-lbl">Rama · patrón ${esc(r.patron_txt)}</span>${miniT(etapasRama)}</div>
+      <h3>${esc(r.nombre)}</h3>
+      <p class="d-txt">${esc(r.resumen)}</p>
+      <div class="d-rama-caso"><span class="d-lbl">El caso de referencia</span><b>${esc(r.caso.nombre)}</b><span class="d-txt">${esc(r.caso.resumen)}</span><span class="d-nota">En cada estación, las cuentas van en dos escalas: «${esc(r.escala)}» y «En el dojo».</span></div>
+      ${r.sin_gpu ? `<div class="d-rama-sin"><span class="d-lbl">Sin rentar GPU</span><div class="d-rama-ruta">${r.sin_gpu.estaciones.map((n) => `<b>${n}</b>`).join('<i aria-hidden="true">→</i>')}</div><p class="d-txt">${esc(r.sin_gpu.texto)}</p></div>` : ''}
+    </div>
+    <ol class="d-rama-l" aria-label="Las ${r.estaciones.length} estaciones de ${esc(r.nombre)}">${filas}</ol>
+  </article>`;
+  };
+  return `<section class="d-wrap d-sec d-sec-sola" id="ramas">
+  ${titulo('Ramas', `${ramas.length} ${ramas.length === 1 ? 'rama' : 'ramas'} · ${total} estaciones · ${listas ? `${listas} ${listas === 1 ? 'lista' : 'listas'}` : 'próximamente'}`)}
+  <p class="d-p">Una <b>rama</b> es otro proyecto completo que sale del tronco: da por sabido lo que hiciste en C01 y trae solo las estaciones que su patrón cambia. Cada estación de rama es igual que las del tronco (un kit, las cuatro rondas y su lugar en <a href="/tablero/">tu tablero</a>), con su propia etapa de la T y su propio caso de referencia.</p>
+  ${ramas.map(tarjeta).join('\n  ')}
+</section>`;
+}
+
 // tronco: content/tronco.json · lista: Map id → estación lista (con url y prácticas) · mapa: content/mapa-c01.json
-export function cuerpoPortada({ tronco, lista, mapa, hoja, sensei = new Map() }) {
+// ramas: las de content/ramas.json, cada una con `lista` (Map id → estación con taller)
+export function cuerpoPortada({ tronco, lista, ramas = [], mapa, hoja, sensei = new Map() }) {
   const enlace = (s) => (lista.has(s.id) ? lista.get(s.id).url : `${hoja}#est-${s.id}`);
   const primera = tronco.estaciones.find((s) => lista.has(s.id));
   const listas = tronco.estaciones.filter((s) => lista.has(s.id)).length;
-  const indice = [['c01', 'Qué es C01'], ['mapa', 'El mapa'], ['estaciones', 'Estaciones'], ['como', 'Cómo se usa']];
+  const indice = [['c01', 'Qué es C01'], ['mapa', 'El mapa'], ['estaciones', 'Estaciones'], ...(ramas.length ? [['ramas', 'Ramas']] : []), ['como', 'Cómo se usa']];
   const LB = NOMBRE_ETAPA.map((n, i) => [n, rango(i)]);
   const pips = tronco.estaciones.map((s) => `<span style="background:${COLOR_ETAPA[etapa(s.num)]}${lista.has(s.id) ? '' : ';opacity:.3'}"></span>`).join('');
 
@@ -496,7 +533,7 @@ export function cuerpoPortada({ tronco, lista, mapa, hoja, sensei = new Map() })
   ${titulo('Qué es C01', 'el caso del tronco')}
   <p class="d-p">C01 es el primer caso del curso: un <strong>marketplace de segunda mano</strong> donde quien vende sube fotos al crear una publicación y el sistema le <strong>sugiere la categoría</strong>. Por dentro es un clasificador de imágenes (una ResNet-50 con 500 categorías) servido con Triton en Kubernetes, que responde unas 10 millones de fotos al día y tiene que contestar el 99 % de las veces en menos de 200 ms.</p>
   <div class="d-c01">${[['500', 'categorías'], ['≈ 10 M', 'fotos al día'], ['≤ 200 ms', 'p99'], ['top-5', 'por foto'], ['1 al mes', 'modelo nuevo']].map(([n, t]) => `<div><b>${n}</b><span>${t}</span></div>`).join('')}</div>
-  <p class="d-p">Es el tronco del dojo porque recorre las 12 estaciones completas: de las fotos etiquetadas al entrenamiento, del modelo aprobado a la imagen de Docker en el clúster, y de la request en vivo al monitoreo que pide el siguiente modelo. Los otros patrones (batch, LLM y RAG, streaming, edge…) cambian solo algunas estaciones, así que llegan después, como ramas.</p>
+  <p class="d-p">Es el tronco del dojo porque recorre las 12 estaciones completas: de las fotos etiquetadas al entrenamiento, del modelo aprobado a la imagen de Docker en el clúster, y de la request en vivo al monitoreo que pide el siguiente modelo. Los otros patrones (batch, LLM y RAG, streaming, edge…) cambian solo algunas estaciones, así que llegan después, <a href="#ramas">como ramas</a>.</p>
   <p class="d-p">En el dojo, cada estación es una versión chica de C01 que corre en tu Mac: los mismos conceptos y las mismas fallas, con otros tamaños. La estación 1, por ejemplo, usa fotos de Fashion-MNIST, 24,000 requests y un S3 local en Docker.</p>
 </section>
 </div>
@@ -528,6 +565,8 @@ export function cuerpoPortada({ tronco, lista, mapa, hoja, sensei = new Map() })
 </div>
 </div>
 
+${seccionRamas(ramas)}
+
 <section class="d-wrap d-sec d-sec-sola" id="como">
   ${titulo('Cómo se usa el dojo', 'de la lectura a romper')}
   <p class="d-p">Cada estación es un mini-proyecto con su kit. Esta app es la guía y no corre nada: el trabajo pasa en tu Mac, en la carpeta del kit, con una sesión de Claude Code abierta ahí.</p>
@@ -543,7 +582,7 @@ export function cuerpoPortada({ tronco, lista, mapa, hoja, sensei = new Map() })
     <div class="d-card"><h3>Qué necesitas</h3><ul class="d-ok-lista"><li>Una Mac con Docker Desktop y unos GB libres</li><li>Python 3.11 o más nuevo</li><li>Claude Code</li></ul><p class="d-nota">Cada estación dice lo suyo en «El kit».</p></div>
     <div class="d-orden"><h3>En qué orden</h3><p>Del 1 al 12, que es el orden en que el dato viaja en C01. Cada kit trae su propio mundo, así que una estación corre aunque no hayas terminado la anterior.</p>${primera ? `<a class="d-btn" href="${lista.get(primera.id).url}">Empezar por la estación ${primera.num}: ${esc(primera.titulo)}</a>` : ''}</div>
   </div>
-  <div class="d-card"><h3>Los otros patrones</h3><p class="d-txt">Después del tronco vienen las ramas: batch, LLM y RAG, streaming, edge, asíncrono e híbrido, cada una con su mini-proyecto y solo las estaciones que cambian.</p><div class="d-mini">${['batch', 'LLM y RAG', 'streaming', 'edge', 'asíncrono', 'híbrido'].map((x) => `<span>${x}</span>`).join('')}</div></div>
+  <div class="d-card"><h3>Los otros patrones</h3><p class="d-txt">Después del tronco vienen las ramas, cada una con su mini-proyecto y solo las estaciones que cambian. La primera es <a href="#ramas">IA Privada</a>, que incluye LLM y RAG; después, batch, streaming, edge, asíncrono e híbrido.</p><div class="d-mini">${['IA Privada · LLM y RAG', 'batch', 'streaming', 'edge', 'asíncrono', 'híbrido'].map((x) => `<span>${x}</span>`).join('')}</div></div>
 </section>
 ${pie}`;
 }

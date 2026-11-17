@@ -20,8 +20,9 @@ const DIST = join(ROOT, 'dist');
 const BC = join(ROOT, '..', 'ml-system-design', 'tools', 'browser-check.mjs');
 if (!existsSync(join(DIST, 'index.html'))) { console.error('[check] falta dist/: corre antes node tools/build.mjs'); process.exit(1); }
 const ESTACIONES = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) => f.endsWith('.json')).map((f) => JSON.parse(readFileSync(join(ROOT, 'content', 'estaciones', f), 'utf8')));
-const PAGES = ['/', ...ESTACIONES.flatMap((e) => [`/${e.caso}/${e.id}/`, ...(e.practicas?.length ? [`/${e.caso}/${e.id}/proyecto-con-kit/`] : []),
-  ...(e.practicas || []).map((rel) => `/${e.caso}/${e.id}/${JSON.parse(readFileSync(join(ROOT, rel), 'utf8')).id}/`)]), '/tablero/'];
+// /<línea>/<estación>/: la línea es el caso del tronco (c01) o la rama (tools/lineas.mjs)
+const PAGES = ['/', ...ESTACIONES.flatMap((e) => { const L = e.rama || e.caso; return [`/${L}/${e.id}/`, ...(e.practicas?.length ? [`/${L}/${e.id}/proyecto-con-kit/`] : []),
+  ...(e.practicas || []).map((rel) => `/${L}/${e.id}/${JSON.parse(readFileSync(join(ROOT, rel), 'utf8')).id}/`)]; }), '/tablero/'];
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.zip': 'application/zip', '.webmanifest': 'application/manifest+json' };
 
 let offline = false;

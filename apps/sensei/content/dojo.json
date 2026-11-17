@@ -100,5 +100,80 @@
       "lista": false,
       "url": null
     }
+  ],
+  "ramas": [
+    {
+      "id": "ia-privada",
+      "nombre": "IA Privada",
+      "patron": "LLM y RAG",
+      "url": "https://taller-ai-engineer.vercel.app/#rama-ia-privada",
+      "total": 8,
+      "estaciones": [
+        {
+          "num": 1,
+          "id": "modelo-local",
+          "titulo": "Un modelo local por API",
+          "etapa": "api",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 2,
+          "id": "cuantizacion",
+          "titulo": "Medir y cuantizar",
+          "etapa": "modelo",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 3,
+          "id": "vllm",
+          "titulo": "Servir con vLLM bajo carga",
+          "etapa": "api",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 4,
+          "id": "gateway",
+          "titulo": "Gateway de modelos",
+          "etapa": "orquestacion",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 5,
+          "id": "rag",
+          "titulo": "RAG privado",
+          "etapa": "datos",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 6,
+          "id": "evals",
+          "titulo": "Evals del RAG y guardrails",
+          "etapa": "modelo",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 7,
+          "id": "observabilidad",
+          "titulo": "Observabilidad y fallas",
+          "etapa": "monitoreo",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 8,
+          "id": "entrega",
+          "titulo": "Entrega sin internet",
+          "etapa": "contenedor",
+          "lista": false,
+          "url": null
+        }
+      ]
+    }
   ]
 }

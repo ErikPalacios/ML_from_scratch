@@ -4,8 +4,15 @@
 // Una estación = mapa + precálculos + conceptos exprés + mundo (el kit) + Guiado + Solo + fallas + listo + repaso + prompts.
 // Las salidas de los comandos solo pueden ser reales: `salida` es null hasta que el kit se corre (fase 2), y
 // entonces se llena con lo que salió, nunca con lo que «debería» salir.
+//
+// Tronco y ramas: una estación es del tronco (`caso`: "c01") o de una rama (`rama`: un id de content/ramas.json),
+// nunca de las dos. La de rama trae su `etapa` de la T; la del tronco la saca de su número (tools/lineas.mjs).
+// La escala de referencia: cada precálculo y cada fila del mapa da la cuenta en el caso de referencia de su línea
+// (`ref`) y en el dojo (`taller`). `c01` es el nombre viejo de `ref` y se sigue aceptando (las estaciones 1, 2 y 7
+// no se reescribieron): normalizar() lo copia a `ref` al construir.
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const ETAPAS = ['datos', 'modelo', 'api', 'contenedor', 'orquestacion', 'monitoreo'];   // las de vendor/trueml/etapas.json
 
 export const str = (opts = {}) => (v, p) => {
   if (typeof v !== 'string') return [`${p}: se esperaba texto`];
@@ -55,7 +62,9 @@ const codigo = obj({ lang: oneOf('python', 'sql', 'bash', 'yaml', 'json', 'markd
 export const estacion = obj({
   id,
   patron: oneOf('sincrono', 'batch', 'llm', 'streaming', 'edge', 'asincrono', 'hibrido'),
-  caso: str({ re: /^c\d\d$/ }),
+  'caso?': str({ re: /^c\d\d$/ }),               // del tronco: el caso ("c01")
+  'rama?': id,                                     // de una rama: su id en content/ramas.json
+  'etapa?': oneOf(...ETAPAS),                      // la etapa de la T; en una rama, la misma que en ramas.json
   num: int(1, 20),
   titulo: txt,
   nav: str({ max: 30 }),
@@ -65,7 +74,7 @@ export const estacion = obj({
     resumen: txt,
     entra: arr(txt, { min: 1 }),
     sale: arr(txt, { min: 1 }),
-    escala: arr(obj({ que: txt, c01: txt, taller: txt }), { min: 3 }),
+    escala: arr(obj({ que: txt, 'ref?': txt, 'c01?': txt, taller: txt }), { min: 3 }),   // ref (o c01): el caso de referencia
     'hoja?': txt,                                   // enlace a la estación en la cheat sheet del recorrido
   }),
   // Las cuentas de servilleta de la estación, antes de escribir código: la misma cuenta en C01 y en el dojo.
@@ -76,7 +85,8 @@ export const estacion = obj({
       id,
       pregunta: txt,
       formula: txt,                                 // la fórmula con palabras, sin números
-      c01: obj({ cuenta: txt, valor: txt }),
+      'ref?': obj({ cuenta: txt, valor: txt }),     // la cuenta en el caso de referencia de la línea
+      'c01?': obj({ cuenta: txt, valor: txt }),     // el nombre viejo de ref
       taller: obj({ cuenta: txt, valor: txt }),
       decide: txt,                                  // qué decides con el número
       conceptos: arr(id, { min: 1 }),
@@ -162,6 +172,7 @@ export const practica = obj({
     pregunta: txt,
     cuenta: txt,
     valor: txt,
+    'ref?': txt,                                    // la cuenta en el caso de referencia (c01: el nombre viejo)
     'c01?': txt,
     decide: txt,
     conceptos: arr(id, { min: 1 }),
@@ -200,6 +211,7 @@ export function cruzadasPractica(p, conocidos, existe) {
     });
   });
   p.precalculos.forEach((x) => {
+    if ('ref' in x && 'c01' in x) errs.push(`${p.id}.precalculos.${x.id}: lleva «ref» o «c01» (su nombre viejo), no los dos`);
     x.conceptos.forEach((c) => conocidos.has(c) || errs.push(`${p.id}.precalculos.${x.id}: concepto desconocido «${c}»`));
     if (!x.comprueba && !x.confirma) errs.push(`${p.id}.precalculos.${x.id}: necesita «comprueba» o «confirma»`);
     if (x.comprueba && typeof x.comprueba.salida !== 'string') errs.push(`${p.id}.precalculos.${x.id}: la salida de «comprueba» tiene que ser la real`);
@@ -211,6 +223,11 @@ export function cruzadasPractica(p, conocidos, existe) {
 // Reglas entre piezas que el molde solo no puede ver.
 export function cruzadas(e) {
   const errs = [];
+  if (!!e.caso === !!e.rama) errs.push('lleva «caso» (tronco) o «rama», uno de los dos');
+  if (e.rama && !e.etapa) errs.push('una estación de rama lleva su «etapa» de la T');
+  const unaRef = (x, donde) => { if (('ref' in x) === ('c01' in x)) errs.push(`${donde}: lleva «ref» (la escala de referencia) o «c01», uno de los dos`); };
+  e.mapa.escala.forEach((x, i) => unaRef(x, `mapa.escala[${i}]`));
+  e.precalculos.cuentas.forEach((x) => unaRef(x, `precalculos.${x.id}`));
   const conceptos = new Set(e.conceptos.map((c) => c.id));
   const checks = new Set(e.solo.objetivos.map((o) => o.check));
   const dup = (xs, what) => xs.filter((x, i) => xs.indexOf(x) !== i).forEach((x) => errs.push(`${what} repetido: ${x}`));
@@ -234,4 +251,14 @@ export function cruzadas(e) {
   const usados = new Set([...e.guiado.flatMap((g) => g.conceptos), ...e.fallas.map((f) => f.concepto)]);
   conceptos.forEach((c) => usados.has(c) || errs.push(`concepto «${c}» no lo usa ningún paso ni falla`));
   return errs;
+}
+
+// `c01` → `ref`: las estaciones escritas antes de las ramas usan el nombre viejo. Se corre después de validar.
+export function normalizar(e) {
+  for (const x of [...e.mapa.escala, ...e.precalculos.cuentas]) if (!('ref' in x)) x.ref = x.c01;
+  return e;
+}
+export function normalizarPractica(p) {
+  for (const x of p.precalculos) if (!('ref' in x) && 'c01' in x) x.ref = x.c01;
+  return p;
 }

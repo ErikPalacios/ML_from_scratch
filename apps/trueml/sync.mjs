@@ -21,17 +21,28 @@ const check = process.argv.includes('--check');
 const salidas = [];   // [ruta, contenido]
 for (const app of APPS) for (const f of ARCHIVOS) salidas.push([join(APPS_DIR, app, 'vendor', 'trueml', f), readFileSync(join(AQUI, f), 'utf8')]);
 
-// El avance del Dojo para la portada: qué estaciones del C01 ya tienen su página.
+// El avance del Dojo para la portada: qué estaciones del tronco C01 y de cada rama ya tienen su página.
+// Una estación es de una línea por su `caso` (el tronco) o su `rama` (content/ramas.json); su página es /<línea>/<id>/.
+// En el tronco la etapa de la T sale del número; en una rama, cada estación la trae escrita.
 const contenido = join(APPS_DIR, DOJO.carpeta, 'content');
 const tronco = JSON.parse(readFileSync(join(contenido, 'tronco.json'), 'utf8'));
-const listas = new Set(readdirSync(join(contenido, 'estaciones')).filter((f) => f.endsWith('.json'))
-  .map((f) => JSON.parse(readFileSync(join(contenido, 'estaciones', f), 'utf8'))).filter((e) => e.caso === tronco.caso).map((e) => e.id));
+const ramas = JSON.parse(readFileSync(join(contenido, 'ramas.json'), 'utf8')).ramas;
+const conPagina = readdirSync(join(contenido, 'estaciones')).filter((f) => f.endsWith('.json'))
+  .map((f) => JSON.parse(readFileSync(join(contenido, 'estaciones', f), 'utf8')));
+const listasDe = (linea) => new Set(conPagina.filter((e) => (e.rama || e.caso) === linea).map((e) => e.id));
+const listas = listasDe(tronco.caso);
 const { etapaDeEstacion } = await import('./lib.mjs');
+const estacionesDe = (linea, ests, etapa) => {
+  const ls = listasDe(linea);
+  return ests.map((s) => ({ num: s.num, id: s.id, titulo: s.titulo, etapa: etapa(s),
+    lista: ls.has(s.id), url: ls.has(s.id) ? `${DOJO.url}/${linea}/${s.id}/` : null }));
+};
 const dojo = {
   nota: `Generado por apps/trueml/sync.mjs desde apps/${DOJO.carpeta}/content. No se edita a mano.`,
   url: DOJO.url, caso: tronco.caso, total: tronco.estaciones.length,
-  estaciones: tronco.estaciones.map((s) => ({ num: s.num, id: s.id, titulo: s.titulo, etapa: etapaDeEstacion(s.num),
-    lista: listas.has(s.id), url: listas.has(s.id) ? `${DOJO.url}/${tronco.caso}/${s.id}/` : null })),
+  estaciones: estacionesDe(tronco.caso, tronco.estaciones, (s) => etapaDeEstacion(s.num)),
+  ramas: ramas.map((r) => ({ id: r.id, nombre: r.nombre, patron: r.patron_txt, url: `${DOJO.url}/#rama-${r.id}`, total: r.estaciones.length,
+    estaciones: estacionesDe(r.id, r.estaciones, (s) => s.etapa) })),
 };
 salidas.push([join(APPS_DIR, 'portada', 'data', 'dojo.json'), JSON.stringify(dojo, null, 2) + '\n']);
 // El avance de Sensei para la portada: qué lecciones del temario ya tienen su archivo (la portada lo pinta como el del Dojo).
@@ -48,8 +59,9 @@ const SENSEI = { carpeta: 'sensei', url: 'https://sensei-ml.vercel.app' };
 // La Ronda y el Dojo enlazan a su teoría en Sensei: solo lecciones que ya tienen su archivo.
 //   Ronda: por módulo m01…m15, las lecciones que conviene repasar antes (sensei/content/ronda.json, campo lecciones),
 //          como js/content/sensei.js (un script más, para que abra también con doble clic, file://).
-//   Dojo:  por estación 1–12, la lección de la estación (temario.json, campo estacion) y sus requisitos (encabezado
-//          requisitos: de su .md), como taller-ai/content/sensei.json.
+//   Dojo:  por estación 1–12 del tronco, la lección de la estación (temario.json, campo estacion) y sus requisitos
+//          (encabezado requisitos: de su .md), como taller-ai/content/sensei.json. Cada una lleva su línea (el caso
+//          del tronco): el Dojo las busca por línea y número, así una rama no choca con la estación 1 del C01.
 {
   const c = join(APPS_DIR, SENSEI.carpeta, 'content');
   const temario = JSON.parse(readFileSync(join(c, 'temario.json'), 'utf8'));
@@ -81,7 +93,7 @@ const SENSEI = { carpeta: 'sensei', url: 'https://sensei-ml.vercel.app' };
     return linea ? linea[1].split(',').map((x) => x.trim()).filter(Boolean) : [];
   };
   const estaciones = temario.modulos.flatMap((m) => m.lecciones).filter((l) => l.estacion).sort((a, b) => a.estacion - b.estacion)
-    .map((l) => existe(l.id) ? { num: l.estacion, leccion: leccion(l.id), requisitos: requisitos(l.id).filter((id) => valida(id, `${l.id}.md requisitos`)).map(leccion) } : null)
+    .map((l) => existe(l.id) ? { linea: tronco.caso, num: l.estacion, leccion: leccion(l.id), requisitos: requisitos(l.id).filter((id) => valida(id, `${l.id}.md requisitos`)).map(leccion) } : null)
     .filter(Boolean);
   salidas.push([join(APPS_DIR, DOJO.carpeta, 'content', 'sensei.json'), JSON.stringify({ nota: datosRonda.nota, url: SENSEI.url, estaciones }, null, 2) + '\n']);
 }
@@ -104,4 +116,4 @@ for (const [ruta, texto] of salidas) {
   console.log(`  escrito ${relative(APPS_DIR, ruta)}`);
 }
 if (check && malos) { console.error(`\n${malos} archivo(s) desfasados: corre node apps/trueml/sync.mjs`); process.exit(1); }
-console.log(check ? '✓ TrueML al día en todas las apps' : `✓ sync listo · ${APPS.length} apps · Dojo: ${[...listas].length} de ${dojo.total} estaciones`);
+console.log(check ? '✓ TrueML al día en todas las apps' : `✓ sync listo · ${APPS.length} apps · Dojo: ${[...listas].length} de ${dojo.total} estaciones del tronco · ${dojo.ramas.map((r) => `${r.nombre} ${r.estaciones.filter((s) => s.lista).length}/${r.total}`).join(' · ')}`);

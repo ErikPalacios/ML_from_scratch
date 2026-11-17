@@ -1,0 +1,32 @@
+{
+  "nota": "Las ramas del Dojo: proyectos que salen del tronco C01 y cambian solo algunas estaciones. Cada estación de rama trae su etapa de la T explícita (no sale de su número, como en el C01). Una estación tiene taller cuando existe content/estaciones/<rama>-<id>.json con \"rama\": \"<rama>\"; su página vive en /<rama>/<id>/. donde: mac, gpu (GPU NVIDIA rentada por horas) o mac-gpu.",
+  "ramas": [
+    {
+      "id": "ia-privada",
+      "nombre": "IA Privada",
+      "patron": "llm",
+      "patron_txt": "LLM y RAG",
+      "resumen": "Llevar un modelo open weight a una empresa y operarlo en su propio hardware: servirlo, medirlo, ponerle un gateway, un RAG con sus documentos, evals, observabilidad y la entrega sin internet. Incluye el patrón LLM y RAG, que ya no tiene rama aparte.",
+      "caso": {
+        "nombre": "Despacho de abogados",
+        "resumen": "Un despacho quiere preguntarle a sus expedientes con un LLM, sin que un solo documento salga de su red: el modelo, el índice y los logs viven en un servidor suyo."
+      },
+      "escala": "En el despacho",
+      "plan": "docs/plan-ia-privada.md",
+      "sin_gpu": {
+        "estaciones": [1, 5, 6],
+        "texto": "Un proyecto de RAG completo sin rentar GPU: el modelo local con su API (1), el RAG con tus documentos (5) y sus evals con guardrails (6) corren solo en tu Mac."
+      },
+      "estaciones": [
+        { "num": 1, "id": "modelo-local", "titulo": "Un modelo local por API", "sale": "un modelo chico que contesta por una API compatible con OpenAI", "etapa": "api", "donde": "mac" },
+        { "num": 2, "id": "cuantizacion", "titulo": "Medir y cuantizar", "sale": "TTFT, tokens/s y calidad de 3 cuantizaciones, lado a lado", "etapa": "modelo", "donde": "mac" },
+        { "num": 3, "id": "vllm", "titulo": "Servir con vLLM bajo carga", "sale": "vLLM sirviendo y su curva de usuarios contra latencia", "etapa": "api", "donde": "gpu" },
+        { "num": 4, "id": "gateway", "titulo": "Gateway de modelos", "sale": "un gateway con llaves, límites y ruteo entre modelos", "etapa": "orquestacion", "donde": "mac" },
+        { "num": 5, "id": "rag", "titulo": "RAG privado", "sale": "el índice local de los documentos (chunks y embeddings)", "etapa": "datos", "donde": "mac" },
+        { "num": 6, "id": "evals", "titulo": "Evals del RAG y guardrails", "sale": "un golden set con métricas de retrieval y de respuesta, y los guardrails", "etapa": "modelo", "donde": "mac" },
+        { "num": 7, "id": "observabilidad", "titulo": "Observabilidad y fallas", "sale": "tableros y alertas de GPU e inferencia, con su runbook", "etapa": "monitoreo", "donde": "gpu" },
+        { "num": 8, "id": "entrega", "titulo": "Entrega sin internet", "sale": "un paquete que se instala sin internet, con su prueba de humo", "etapa": "contenedor", "donde": "mac-gpu" }
+      ]
+    }
+  ]
+}

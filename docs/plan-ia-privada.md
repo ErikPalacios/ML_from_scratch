@@ -91,6 +91,23 @@ Sigue el molde del Taller ([plan-taller-ai.md](plan-taller-ai.md), secciones 3�
 
 **Esta rama absorbe la rama LLM/RAG del Taller** (2026-11-12). Las 5 estaciones que el Taller tenía pensadas para LLM/RAG (ingestión y chunking, índice y embeddings, evaluación de retrieval, serving del LLM y guardrails) quedan cubiertas por las estaciones 3, 5 y 6. Así el patrón LLM/RAG (C11) se practica una sola vez, y además con serving en hardware propio. Se ahorran ≈ 3 fases.
 
+**Lo que corre solo en la Mac:** las estaciones 1, 2, 4, 5 y 6 corren completas en la Mac, sin GPU rentada. De ellas, **1, 5 y 6 forman un proyecto de RAG completo**: el modelo local con su API (1), el RAG con tus documentos (5) y sus evals con guardrails (6). Así se puede hacer un RAG de punta a punta sin rentar GPU; la 2 (cuantización) y la 4 (gateway) se suman cuando quieras, y la GPU rentada solo hace falta para las estaciones 3, 7 y 8. El Dojo lo muestra en la portada («Sin rentar GPU: 1 → 5 → 6») y lo lee de `apps/taller-ai/content/ramas.json` (campo `sin_gpu`).
+
+**En el Dojo (2026-11-16):** la rama ya está declarada en `apps/taller-ai/content/ramas.json` con sus 8 estaciones, todas «próximamente». Cada estación trae su id, su título, lo que sale, su etapa de la T y dónde corre:
+
+| Estación | id | Etapa de la T | Dónde corre |
+|---|---|---|---|
+| 1 · Un modelo local por API | `modelo-local` | API | Mac |
+| 2 · Medir y cuantizar | `cuantizacion` | Modelo | Mac |
+| 3 · Servir con vLLM bajo carga | `vllm` | API | GPU rentada |
+| 4 · Gateway de modelos | `gateway` | Orquestación | Mac |
+| 5 · RAG privado | `rag` | Datos | Mac |
+| 6 · Evals del RAG y guardrails | `evals` | Modelo | Mac |
+| 7 · Observabilidad y fallas | `observabilidad` | Monitoreo | GPU rentada |
+| 8 · Entrega sin internet | `entrega` | Contenedor | Mac y GPU rentada |
+
+El caso de referencia de la rama es el despacho de abogados (caso 1 de la sección 5): los precálculos de cada estación van en dos escalas, «En el despacho» y «En el dojo». Cada página vive en `/ia-privada/<id>/` (por ejemplo `/ia-privada/rag/`). Para hacer una estación: su kit en `apps/taller-ai/kits/ia-privada-<id>/` y su contenido en `content/estaciones/ia-privada-<id>.json` con `"rama": "ia-privada"` y su `etapa`; el resto (portada, tablero, `sync.mjs`) la toma sola.
+
 **Hardware de práctica:** lo diario en la Mac con modelos chicos. Las estaciones 3, 7 y 8 usan una GPU NVIDIA rentada por horas, en sesiones cortas y planeadas. Cada una dice antes cuánto tiempo y costo estimado lleva, y trae un script que apaga la máquina al terminar. El proveedor y el precio se eligen en la fase de la estación 3. Comprar hardware propio se decide después de validar el negocio.
 
 ## 7. Fases

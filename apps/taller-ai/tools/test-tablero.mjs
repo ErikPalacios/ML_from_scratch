@@ -9,14 +9,24 @@ import { fileURLToPath } from 'node:url';
 import { nuevoTablero, migrar, validar, aplicar, opsDeProgreso, opsEstado, aIso, queEs, RONDAS } from '../site/tablero/modelo.mjs';
 import { crearAlmacen } from '../site/tablero/almacen.mjs';
 import { plantillaTablero } from './tablero.mjs';
+import { LINEAS, TRONCO as tronco, RAMAS, enLinea, etapaDe, cruzadasLinea, revisarRamas } from './lineas.mjs';
+import { estacion as molde, cruzadas, normalizar } from './schema.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const est = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) => f.endsWith('.json')).map((f) => JSON.parse(readFileSync(join(ROOT, 'content', 'estaciones', f), 'utf8')));
-const tronco = JSON.parse(readFileSync(join(ROOT, 'content', 'tronco.json'), 'utf8'));
-const P = plantillaTablero(est.map((e) => ({ ...e, slug: `${e.caso}-${e.id}`, url: `/${e.caso}/${e.id}/`, kitUrl: `/${e.caso}/${e.id}/` })), tronco);
+// como en el build: cada estación en su línea (slug, url, etapa de la T); kitUrl = url basta para la plantilla
+const enSuLinea = (e) => { const x = enLinea(normalizar(JSON.parse(JSON.stringify(e)))); x.kitUrl = x.url; return x; };
+const P = plantillaTablero(est.map(enSuLinea), LINEAS);
+// Una estación de rama de prueba (todavía no hay ninguna con taller): la 5 de IA Privada, «RAG privado», hecha con
+// el contenido de una del tronco. Lo que importa aquí es su línea, su número y su etapa, no su contenido.
+const IA = RAMAS.find((r) => r.id === 'ia-privada');
+const RAG = IA.estaciones.find((s) => s.num === 5);
+const deRama = (() => { const x = JSON.parse(JSON.stringify(est.find((e) => e.id === 'versionado'))); delete x.caso; return { ...x, rama: IA.id, id: RAG.id, num: RAG.num, titulo: RAG.titulo, etapa: RAG.etapa }; })();
+const PR = plantillaTablero([...est, deRama].map(enSuLinea), LINEAS);
 
 // las estaciones con taller, en el orden del tronco; los casos de prueba las buscan por id, no por posición
-const CON_TALLER = tronco.estaciones.filter((t) => est.some((e) => e.id === t.id)).map((t) => `${tronco.caso}-${t.id}`);
+const CON_TALLER = tronco.estaciones.filter((t) => est.some((e) => e.caso === tronco.caso && e.id === t.id)).map((t) => `${tronco.caso}-${t.id}`);
+const PROXIMAS = [...LINEAS.values()].reduce((n, l) => n + l.total, 0) - CON_TALLER.length;
 const de = (doc, id) => doc.estaciones.find((x) => x.id === id);
 
 const memoria = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
@@ -40,7 +50,9 @@ const PROGRESO = {
 test('la plantilla trae las estaciones con taller y las demás como próximamente', () => {
   assert.deepEqual(P.estaciones.map((e) => e.id), CON_TALLER);
   assert.ok(CON_TALLER.includes('c01-datos') && CON_TALLER.includes('c01-empaquetado'));
-  assert.equal(P.proximas.length, tronco.estaciones.length - CON_TALLER.length);
+  assert.equal(P.proximas.length, PROXIMAS);
+  assert.equal(P.proximas.filter((s) => s.grupo === tronco.caso).length, tronco.estaciones.length - CON_TALLER.length);
+  assert.equal(P.proximas.filter((s) => s.grupo === 'ia-privada').length, IA.estaciones.length, 'las 8 de IA Privada, próximamente');
   assert.ok(P.estaciones.every((e) => e.objetivos.length && e.fallas.length && e.pasos.length));
 });
 
@@ -171,4 +183,109 @@ test('dos corridas de verificar.py en el mismo segundo entran las dos', () => {
     { fecha: '2026-11-15T18:58:14-06:00', pasan: ['deps'], fallan: [] }, { fecha: '2026-11-15T18:58:14-06:00', pasan: ['contexto'], fallan: [] }] };
   const { doc } = importar(nuevoTablero(P), p);
   assert.equal(de(doc, 'c01-empaquetado').verificaciones.length, 2);
+});
+
+// ---------------------------------------------------------------- tronco y ramas
+test('ramas.json: IA Privada con sus 8 estaciones, cada una con su etapa de la T; 1, 5 y 6 corren solo en la Mac', () => {
+  assert.deepEqual(revisarRamas(), []);
+  assert.equal(IA.estaciones.length, 8);
+  assert.deepEqual(IA.sin_gpu.estaciones, [1, 5, 6]);
+  for (const n of IA.sin_gpu.estaciones) assert.equal(IA.estaciones[n - 1].donde, 'mac');
+  // los errores que atrapa
+  const mala = JSON.parse(JSON.stringify(RAMAS));
+  mala[0].estaciones[2].etapa = 'gpu';
+  mala[0].sin_gpu.estaciones.push(3);
+  const errs = revisarRamas(mala);
+  assert.ok(errs.some((x) => /etapa de la T/.test(x)) && errs.some((x) => /no corre solo en la Mac/.test(x)), errs.join('; '));
+});
+
+test('la etapa de la T: en el tronco sale del número; en una rama, de la estación', () => {
+  assert.equal(etapaDe({ caso: 'c01', id: 'empaquetado', num: 7 }), 3);   // contenedor
+  assert.equal(etapaDe({ rama: 'ia-privada', id: 'rag', num: 5 }), 0);     // datos, aunque la 5 del C01 sea modelo
+  assert.equal(etapaDe({ rama: 'ia-privada', id: 'rag', num: 5, etapa: 'datos' }), 0);
+  assert.equal(enSuLinea(deRama).url, '/ia-privada/rag/');
+  assert.equal(enSuLinea(deRama).slug, 'ia-privada-rag');
+  assert.deepEqual(cruzadasLinea(deRama), []);
+  assert.match(cruzadasLinea({ ...deRama, num: 4 }).join(), /en su línea es la 5/);
+  assert.match(cruzadasLinea({ ...deRama, rama: 'no-existe' }).join(), /no está en content\/ramas.json/);
+});
+
+test('el molde: caso o rama (uno de los dos), y c01 es el nombre viejo de ref', () => {
+  for (const e of est) {
+    assert.deepEqual([...molde(e, e.id), ...cruzadas(e)], [], `${e.id} sigue pasando el molde sin reescribirse`);
+    const n = normalizar(JSON.parse(JSON.stringify(e)));
+    for (const x of n.precalculos.cuentas) assert.deepEqual(x.ref, x.c01);
+    for (const x of n.mapa.escala) assert.equal(x.ref, x.c01);
+  }
+  assert.deepEqual([...molde(deRama, 'rama'), ...cruzadas(deRama)], []);
+  const ambas = { ...deRama, caso: 'c01' };
+  assert.match(cruzadas(ambas).join(), /«caso» \(tronco\) o «rama»/);
+  const sinEtapa = { ...deRama }; delete sinEtapa.etapa;
+  assert.match(cruzadas(sinEtapa).join(), /lleva su «etapa»/);
+  // con ref en lugar de c01 también pasa; con los dos, no
+  const conRef = JSON.parse(JSON.stringify(deRama));
+  conRef.precalculos.cuentas.forEach((x) => { x.ref = x.c01; delete x.c01; });
+  assert.deepEqual(cruzadas(conRef), []);
+  conRef.precalculos.cuentas[0].c01 = conRef.precalculos.cuentas[0].ref;
+  assert.match(cruzadas(conRef).join(), /lleva «ref»/);
+});
+
+test('la plantilla agrupa por línea: el tronco primero y después cada rama', () => {
+  assert.deepEqual(PR.grupos.map((g) => [g.id, g.tipo]), [['c01', 'tronco'], ['ia-privada', 'rama']]);
+  assert.deepEqual(PR.estaciones.map((e) => e.id), [...CON_TALLER, 'ia-privada-rag']);
+  const rag = PR.estaciones.find((e) => e.id === 'ia-privada-rag');
+  assert.equal(rag.grupo, 'ia-privada');
+  assert.equal(rag.rama, 'IA Privada');
+  assert.equal(rag.ref, 'estación 5 de IA Privada');
+  assert.equal(rag.etapa, 'datos');
+  assert.equal(rag.url, '/ia-privada/rag/');
+  assert.equal(PR.estaciones.find((e) => e.id === 'c01-datos').ref, 'estación 1');
+  assert.ok(!PR.proximas.some((s) => s.grupo === 'ia-privada' && s.num === 5), 'la 5 ya tiene taller');
+  assert.equal(PR.proximas.length, PROXIMAS - 1);
+});
+
+test('un tablero del tronco C01 se migra a la plantilla con ramas sin perder nada', () => {
+  // un tablero real de antes de las ramas: importaciones, rondas a mano, una nota y una falla anotadas en el tablero
+  let d = nuevoTablero(P);
+  ({ doc: d } = importar(d, PROGRESO));
+  d = aplicar(d, opsEstado(d, 'c01-empaquetado', 'construir-con-ayuda', 'hecha', '2026-11-15T20:00:00Z')).project;
+  d = aplicar(d, [{ op: 'insert', path: ['estaciones', '#c01-versionado', 'bitacora'], value: { id: 'b-mia', fecha: '2026-11-15T21:00:00Z', ronda: 'construir-solo', paso: '', hice: 'Manifest sin ayuda', medi: '', sigue: '', origen: 'tablero' } }]).project;
+  d = aplicar(d, [{ op: 'insert', path: ['estaciones', '#c01-datos', 'fallas'], value: { id: 'f-mia', falla: 'zona-horaria', ronda: 'romper-solo', inicio: null, fin: '2026-11-16T10:00:00Z', minutos: 40, pistas: 0, rendido: false, aprendi: 'UTC', origen: 'tablero' } }]).project;
+  assert.deepEqual(validar(d), []);
+  const antes = JSON.parse(JSON.stringify(d));
+  // así queda en localStorage: el texto JSON
+  const leido = JSON.parse(JSON.stringify(d));
+
+  const m = migrar(leido, PR);
+  assert.deepEqual(validar(m), []);
+  // todo lo del tronco, igual: cada estación (rondas con su hora, fallas, bitácora, verificaciones) y el historial
+  for (const e of antes.estaciones) assert.deepEqual(de(m, e.id), e, `${e.id} quedó igual`);
+  assert.deepEqual(m.importaciones, antes.importaciones);
+  for (const k of ['id', 'rev', 'createdAt', 'updatedAt', 'lastActivity', 'app']) assert.equal(m[k], antes[k], k);
+  // y entra la estación de la rama, vacía, al final
+  assert.equal(m.estaciones.length, antes.estaciones.length + 1);
+  assert.equal(m.estaciones.at(-1).id, 'ia-privada-rag');
+  assert.deepEqual(m.estaciones.at(-1).rondas.map((r) => r.estado), ['pendiente', 'pendiente', 'pendiente', 'pendiente']);
+  // migrar dos veces no cambia nada; un tablero sin la rama sigue leyéndose con la plantilla de antes
+  assert.deepEqual(migrar(m, PR), m);
+  assert.deepEqual(migrar(antes, P), antes);
+
+  // el progreso.json de un kit de rama entra a su estación y no toca las del tronco
+  const p = { estacion: 'ia-privada-rag', rondas: { guiado: { estado: 'en_curso', inicio: '2026-11-20T10:00:00-06:00' } }, bitacora: [] };
+  const r = opsDeProgreso(m, p, PR);
+  const { project } = aplicar(m, r.ops);
+  assert.equal(de(project, 'ia-privada-rag').rondas[0].estado, 'en_curso');
+  for (const e of antes.estaciones) assert.deepEqual(de(project, e.id), e);
+  assert.throws(() => opsDeProgreso(m, p, P), /no tiene taller/, 'con la plantilla de antes, la rama no existe');
+});
+
+test('el almacén migra al leer: un tablero guardado antes de las ramas abre con la plantilla nueva', () => {
+  const s = memoria();
+  const a = crearAlmacen(P, s);
+  a.cambiar(opsDeProgreso(a.leer(), PROGRESO, P).ops);
+  const antes = a.leer();
+  const b = crearAlmacen(PR, s).leer();
+  assert.deepEqual(validar(b), []);
+  for (const e of antes.estaciones) assert.deepEqual(de(b, e.id), e);
+  assert.ok(de(b, 'ia-privada-rag'));
 });

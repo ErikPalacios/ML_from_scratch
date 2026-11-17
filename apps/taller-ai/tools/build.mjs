@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 // Arma el sitio en dist/ (lo que sube a Vercel). Sin dependencias: corre igual en tu Mac y en Vercel.
-//   index.html                    portada: el método, la línea de C01 y cómo empezar
-//   <caso>/<estacion>/index.html  una página por estación, desde content/estaciones/<caso>-<id>.json
-//   kits/<caso>-<estacion>.zip    el kit listo para usar: esqueleto en pipeline/, config.yaml, GUION.md y OBJETIVOS.md
+//   index.html                     portada: el método, la línea de C01, las ramas y cómo empezar
+//   <linea>/<estacion>/index.html  una página por estación, desde content/estaciones/<linea>-<id>.json; la línea es el
+//                                  caso del tronco (c01) o una rama de content/ramas.json (ia-privada): tools/lineas.mjs
+//   kits/<linea>-<estacion>.zip    el kit listo para usar: esqueleto en pipeline/, config.yaml, GUION.md y OBJETIVOS.md
 //   tablero/index.html            «Tu tablero»: tu avance por estación, en este navegador (tools/tablero.mjs, site/tablero/)
 //   sw.js, dojo.css, app.js…      modo sin conexión y estilos (todas las páginas usan el diseño Dojo de TrueML: tools/dojo.mjs)
 import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync, copyFileSync, existsSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { estacion as molde, cruzadas, practica as moldePractica, cruzadasPractica } from './schema.mjs';
+import { estacion as molde, cruzadas, practica as moldePractica, cruzadasPractica, normalizar, normalizarPractica } from './schema.mjs';
+import { TRONCO, RAMAS, LINEAS, revisarRamas, cruzadasLinea, enLinea } from './lineas.mjs';
 import { zip } from './zip.mjs';
 import { cuerpoEstacion, cuerpoPractica, cuerpoPortada, cuerpoProyecto } from './dojo.mjs';
 import { plantillaTablero, cuerpoTablero } from './tablero.mjs';
@@ -25,22 +27,24 @@ const fecha = (iso) => { const [y, m, d] = iso.split('-').map(Number); return `$
 const kb = (n) => (n / 1024).toFixed(0) + ' KB';
 
 // ---------------------------------------------------------------- contenido
-const TRONCO = JSON.parse(readFileSync(join(ROOT, 'content', 'tronco.json'), 'utf8'));
+{ const errs = revisarRamas(); if (errs.length) fail(`content/ramas.json:\n  ${errs.join('\n  ')}`); }
 // El mapa del C01, copiado de la cheat sheet «Del dato a producción» con tools/importar-mapa.mjs.
 const MAPA = JSON.parse(readFileSync(join(ROOT, 'content', 'mapa-c01.json'), 'utf8'));
 const HOJA_RECORRIDO = 'https://cheat-sheets-ml.vercel.app/recorrido/';
 // La teoría de cada estación en Sensei (lección y requisitos), generada por apps/trueml/sync.mjs.
 const SENSEI = JSON.parse(readFileSync(join(ROOT, 'content', 'sensei.json'), 'utf8'));
-const SENSEI_POR_NUM = new Map(SENSEI.estaciones.map((x) => [x.num, x]));
+// por línea y número («c01:7»): hoy Sensei enlaza solo las del tronco
+const SENSEI_POR_EST = new Map(SENSEI.estaciones.map((x) => [`${x.linea || TRONCO.caso}:${x.num}`, x]));
+const SENSEI_TRONCO = new Map(SENSEI.estaciones.filter((x) => (x.linea || TRONCO.caso) === TRONCO.caso).map((x) => [x.num, x]));
 const ESTACIONES = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) => f.endsWith('.json')).sort().map((f) => {
   const e = JSON.parse(readFileSync(join(ROOT, 'content', 'estaciones', f), 'utf8'));
   const errs = molde(e, f);
   if (!errs.length) errs.push(...cruzadas(e));
+  if (!errs.length) errs.push(...cruzadasLinea(e));
   if (errs.length) fail(`${f} no cumple el molde (corre node tools/validate.mjs):\n  ${errs.join('\n  ')}`);
+  enLinea(normalizar(e));   // slug, url, línea y etapa de la T; c01 → ref
   e.prompt = Object.fromEntries(Object.entries(e.prompts).map(([k, p]) => [k, readFileSync(join(ROOT, p), 'utf8').trim()]));
-  e.slug = `${e.caso}-${e.id}`;
-  e.sensei = e.caso === TRONCO.caso ? SENSEI_POR_NUM.get(e.num) || null : null;
-  e.url = `/${e.caso}/${e.id}/`;
+  e.sensei = SENSEI_POR_EST.get(`${e.linea.id}:${e.num}`) || null;
   // Las prácticas desde cero: cada una con su página, debajo de la de la estación.
   e.practicas = (e.practicas || []).map((rel) => {
     const p = JSON.parse(readFileSync(join(ROOT, rel), 'utf8'));
@@ -53,6 +57,7 @@ const ESTACIONES = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) =
   const conocidos = new Set([...e.conceptos.map((c) => c.id), ...e.practicas.flatMap((p) => p.conceptos.map((c) => c.id))]);
   const perrs = e.practicas.flatMap((p) => cruzadasPractica(p, conocidos, (r) => existsSync(join(ROOT, r))));
   if (perrs.length) fail(`${f}: ${perrs.join('\n  ')}`);
+  e.practicas.forEach(normalizarPractica);   // c01 → ref, ya validadas
   // el código que viene de la solución probada se lee aquí, ya validado
   e.practicas.forEach((p) => p.pasos.forEach((x) => x.codigo.forEach((c) => { if (c.desde) c.code = readFileSync(join(ROOT, c.desde), 'utf8').replace(/\n$/, ''); })));
   // con prácticas, el proyecto con kit tiene su propia página; sin prácticas, vive en la de la estación
@@ -92,9 +97,10 @@ ${body}
 
 // ---------------------------------------------------------------- portada
 function portada() {
-  const lista = new Map(ESTACIONES.filter((e) => e.caso === TRONCO.caso).map((e) => [e.id, e]));
+  const deLinea = (id) => new Map(ESTACIONES.filter((e) => e.linea.id === id).map((e) => [e.id, e]));
+  const ramas = RAMAS.map((r) => ({ ...r, lista: deLinea(r.id) }));
   return pagina({ path: '/', title: `${SITE_NAME} · TrueML`, desc: 'Proyectos chicos de ML engineering que construyes, rehaces y rompes en tu Mac, estación por estación del camino del dato a producción. En español, gratis.',
-    body: cuerpoPortada({ tronco: TRONCO, lista, mapa: MAPA, hoja: HOJA_RECORRIDO, sensei: SENSEI_POR_NUM }) });
+    body: cuerpoPortada({ tronco: TRONCO, lista: deLinea(TRONCO.caso), ramas, mapa: MAPA, hoja: HOJA_RECORRIDO, sensei: SENSEI_TRONCO }) });
 }
 
 // ---------------------------------------------------------------- kit
@@ -102,12 +108,12 @@ const sinHtml = (s) => s.replace(/<b>(.*?)<\/b>/g, '**$1**').replace(/<code>(.*?
   .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
 function guion(e) {
-  const out = [`# Guion · ${e.caso.toUpperCase()} · ${e.titulo}`, '', `Ronda Guiado. ${sinHtml(e.pregunta)}`, ''];
+  const out = [`# Guion · ${e.linea.corto} · ${e.titulo}`, '', `Ronda Guiado. ${sinHtml(e.pregunta)}`, ''];
   const precalculos = () => {
     out.push('## Precálculos', '', sinHtml(e.precalculos.intro), '');
     e.precalculos.cuentas.forEach((x, i) => {
       out.push(`### ${i + 1}. ${sinHtml(x.pregunta)}`, '', `**Fórmula:** ${x.formula}`, '',
-        `- **En C01:** ${sinHtml(x.c01.cuenta)} → ${sinHtml(x.c01.valor)}`, `- **En el dojo:** ${sinHtml(x.taller.cuenta)} → ${sinHtml(x.taller.valor)}`, '',
+        `- **${e.linea.escala}:** ${sinHtml(x.ref.cuenta)} → ${sinHtml(x.ref.valor)}`, `- **En el dojo:** ${sinHtml(x.taller.cuenta)} → ${sinHtml(x.taller.valor)}`, '',
         `**Qué decides:** ${sinHtml(x.decide)}`, '');
       if (x.comprueba) out.push('```bash', x.comprueba.code, '```', ...(x.comprueba.nota ? ['', sinHtml(x.comprueba.nota)] : []), '');
       if (x.confirma) out.push(`**Lo confirmas en:** ${sinHtml(x.confirma)}`, '');
@@ -125,7 +131,7 @@ function guion(e) {
 }
 
 function objetivos(e) {
-  return [`# Objetivos · ${e.caso.toUpperCase()} · ${e.titulo}`, '', 'Ronda Solo. Sin código: cada objetivo tiene su check en verificar.py.', '',
+  return [`# Objetivos · ${e.linea.corto} · ${e.titulo}`, '', 'Ronda Solo. Sin código: cada objetivo tiene su check en verificar.py.', '',
     ...e.solo.reglas.map((r) => `- ${sinHtml(r)}`), '',
     ...e.solo.objetivos.map((o) => `${o.n}. ${sinHtml(o.objetivo)} → \`${e.mundo.python || 'python'} verificar.py ${o.check}\``), ''].join('\n');
 }
@@ -162,23 +168,24 @@ for (const e of ESTACIONES) {
   const z = zip(archivosKit(e));
   writeFileSync(join(OUT, 'kits', `${e.slug}.zip`), z);
   e.versionTxt = fecha(e.version);
-  pages[e.url] = pagina({ path: e.url, title: `${e.titulo} · ${e.caso.toUpperCase()} · ${SITE_NAME}`, desc: `${e.pregunta} Un mini-proyecto para construir, rehacer y romper en tu Mac.`,
-    body: cuerpoEstacion(e, { total: TRONCO.estaciones.length, kitBytes: z.length, kb }) });
-  mkdirSync(join(OUT, e.caso, e.id), { recursive: true });
-  writeFileSync(join(OUT, e.caso, e.id, 'index.html'), pages[e.url]);
+  pages[e.url] = pagina({ path: e.url, title: `${e.titulo} · ${e.linea.corto} · ${SITE_NAME}`, desc: `${e.pregunta} Un mini-proyecto para construir, rehacer y romper en tu Mac.`,
+    body: cuerpoEstacion(e, { total: e.linea.total, kitBytes: z.length, kb }) });
+  const dir = join(OUT, e.linea.id, e.id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'index.html'), pages[e.url]);
   console.log(`[build] ${e.url} · kit ${kb(z.length)}`);
   if (e.kitUrl !== e.url) {
-    pages[e.kitUrl] = pagina({ path: e.kitUrl, title: `Proyecto con kit · ${e.titulo} · ${SITE_NAME}`, desc: `${e.mundo.resumen.replace(/<[^>]+>/g, '')} Las cuatro rondas de la estación ${e.num} de C01.`,
-      body: cuerpoProyecto(e, { total: TRONCO.estaciones.length, kitBytes: z.length, kb }) });
-    mkdirSync(join(OUT, e.caso, e.id, 'proyecto-con-kit'), { recursive: true });
-    writeFileSync(join(OUT, e.caso, e.id, 'proyecto-con-kit', 'index.html'), pages[e.kitUrl]);
+    pages[e.kitUrl] = pagina({ path: e.kitUrl, title: `Proyecto con kit · ${e.titulo} · ${SITE_NAME}`, desc: `${e.mundo.resumen.replace(/<[^>]+>/g, '')} Las cuatro rondas de la estación ${e.num} de ${e.linea.nombre}.`,
+      body: cuerpoProyecto(e, { total: e.linea.total, kitBytes: z.length, kb }) });
+    mkdirSync(join(dir, 'proyecto-con-kit'), { recursive: true });
+    writeFileSync(join(dir, 'proyecto-con-kit', 'index.html'), pages[e.kitUrl]);
     console.log(`[build] ${e.kitUrl}`);
   }
   for (const p of e.practicas) {
-    pages[p.url] = pagina({ path: p.url, title: `${p.titulo} · ${e.titulo} · ${SITE_NAME}`, desc: `${p.subtitulo} Práctica desde cero de la estación ${e.num} de C01.`,
+    pages[p.url] = pagina({ path: p.url, title: `${p.titulo} · ${e.titulo} · ${SITE_NAME}`, desc: `${p.subtitulo} Práctica desde cero de la estación ${e.num} de ${e.linea.nombre}.`,
       body: cuerpoPractica(e, p) });
-    mkdirSync(join(OUT, e.caso, e.id, p.id), { recursive: true });
-    writeFileSync(join(OUT, e.caso, e.id, p.id, 'index.html'), pages[p.url]);
+    mkdirSync(join(dir, p.id), { recursive: true });
+    writeFileSync(join(dir, p.id, 'index.html'), pages[p.url]);
     console.log(`[build] ${p.url}`);
   }
 }
@@ -186,7 +193,7 @@ pages['/'] = portada();
 writeFileSync(join(OUT, 'index.html'), pages['/']);
 // «Tu tablero»: la página, la plantilla de las estaciones con taller y sus módulos (con la copia del motor del tablero)
 pages['/tablero/'] = pagina({ path: '/tablero/', title: `Tu tablero · ${SITE_NAME}`, desc: 'Tu avance en el dojo: las cuatro rondas de cada estación, tus fallas con su tiempo y tu bitácora. Sin cuenta, guardado en tu navegador.',
-  body: cuerpoTablero(plantillaTablero(ESTACIONES, TRONCO)) });
+  body: cuerpoTablero(plantillaTablero(ESTACIONES, LINEAS)) });
 mkdirSync(join(OUT, 'tablero', 'motor'), { recursive: true });
 writeFileSync(join(OUT, 'tablero', 'index.html'), pages['/tablero/']);
 const MODULOS = ['modelo.mjs', 'almacen.mjs', 'tablero.mjs', 'motor/ops.mjs', 'motor/model.mjs', 'motor/calc.mjs'];
