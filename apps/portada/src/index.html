@@ -39,23 +39,27 @@
 
 <main class="p-wrap p-main">
   <section class="p-hero">
-    <span class="p-kicker">{{KICKER}}</span>
-    <h1>True<span>ML</span></h1>
-    <p class="p-lead">{{TAGLINE}}</p>
-{{BOTONES}}  </section>
+    <div class="p-hero-txt">
+      <span class="p-kicker">{{KICKER}}</span>
+      <h1>True<span>ML</span></h1>
+      <p class="p-lead">{{TAGLINE}}</p>
+{{BOTONES}}    </div>
+{{VIDEO}}  </section>
 
-  <div class="p-t" data-tm-sticky>
-    <div class="p-t-marca" data-tm-escena data-caption="{{CAPTION}}">{{T}}</div>
-    <span class="p-caption" data-tm-caption aria-live="polite">{{CAPTION}}</span>
-  </div>
-
-  <section class="p-tools" id="herramientas">
-    {{DESTACADA}}
-    <h2>Las herramientas</h2>
-    <div class="p-list">
-      {{HERRAMIENTAS}}
+  <div class="p-cuerpo">
+    <div class="p-t" data-tm-sticky data-p-t>
+      <div class="p-t-marca" data-tm-escena data-caption="{{CAPTION}}">{{T}}</div>
+      <span class="p-caption" data-tm-caption aria-live="polite">{{CAPTION}}</span>
     </div>
-  </section>
+
+    <section class="p-tools" id="herramientas">
+      {{DESTACADA}}
+      <h2>Las herramientas</h2>
+      <div class="p-list">
+        {{HERRAMIENTAS}}
+      </div>
+    </section>
+  </div>
 </main>
 
 <section class="p-wrap p-sec">
@@ -80,7 +84,9 @@
   <p>© {{YEAR}} {{AUTHOR}}. El contenido se comparte bajo <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es">CC BY-NC-ND 4.0</a> (puedes compartirlo con atribución, sin uso comercial ni cambios) y el código bajo licencia MIT.</p>
   <p><a href="{{REPO}}">Código en GitHub</a> · <a href="/privacidad/">Aviso de privacidad</a></p>
 </footer>
+{{VIDEO_DLG}}
 <script src="/trueml.js" defer></script>
+<script src="/video.js" defer></script>
 <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
 <script defer src="/_vercel/insights/script.js"></script>
 </body>

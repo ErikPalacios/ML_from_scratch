@@ -1,0 +1,14 @@
+{
+  "nota": "Duración de cada escena en frames a 30 fps. Todas son múltiplo de 15 (medio segundo = un pulso a 120 BPM) para que los cortes caigan en el ritmo de la música. La usan src/Portada.tsx y tools/sonido.mjs.",
+  "escenas": [
+    { "id": "intro", "dur": 150, "barrido": false },
+    { "id": "transformer", "dur": 390, "barrido": true },
+    { "id": "atlas", "dur": 330, "barrido": false },
+    { "id": "puente", "dur": 120, "barrido": true },
+    { "id": "sensei", "dur": 420, "barrido": false },
+    { "id": "dojo", "dur": 390, "barrido": true },
+    { "id": "ademas", "dur": 300, "barrido": true },
+    { "id": "cierre", "dur": 270, "barrido": true }
+  ],
+  "barrido": 26
+}

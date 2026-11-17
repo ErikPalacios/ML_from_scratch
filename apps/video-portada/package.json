@@ -1,0 +1,28 @@
+{
+  "name": "video-portada",
+  "private": true,
+  "description": "El video de la portada de TrueML: capturas reales de las apps (Playwright) montadas en Remotion.",
+  "type": "module",
+  "scripts": {
+    "capturar": "node tools/capturar.mjs",
+    "marca": "node tools/marca.mjs",
+    "sonido": "node tools/sonido.mjs",
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Portada out/portada.mp4 --codec h264 --crf 18 --audio-codec aac --audio-bitrate 192k",
+    "instagram": "remotion render src/index.ts Instagram out/instagram.mp4 --codec h264 --crf 18 --audio-codec aac --audio-bitrate 192k",
+    "web": "node tools/web.mjs",
+    "portada": "npm run sonido && npm run render && npm run web"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.544",
+    "@remotion/transitions": "^4.0.544",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "^4.0.544"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "playwright": "^1.65.1",
+    "typescript": "^7.0.2"
+  }
+}

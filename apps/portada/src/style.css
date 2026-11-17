@@ -28,9 +28,14 @@ body.tm-pagina {
 .p-menu a.p-on { background: var(--tm-ink); color: var(--tm-bg); }
 @media (max-width: 520px) { .p-menu a { padding: 9px 11px; } .p-head-r { width: 100%; justify-content: space-between; } }
 
-/* hero + la T fija + las herramientas */
-.p-main { padding-top: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 40px 48px; align-items: start; }
-.p-hero { display: flex; flex-direction: column; align-items: flex-start; gap: 24px; padding-top: clamp(8px, 4vw, 56px); min-width: 0; }
+/* hero: el texto y el video (la pieza principal); en pantallas anchas, lado a lado con el video más grande */
+.p-main { padding-top: 8px; }
+.p-hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px 48px; align-items: center; padding-top: clamp(8px, 4vw, 56px); }
+.p-hero-txt { display: flex; flex-direction: column; align-items: flex-start; gap: 24px; min-width: 0; }
+@media (min-width: 1000px) {
+  .p-hero { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+  .p-hero h1 { font-size: clamp(72px, 8.4vw, 116px); }
+}
 .p-kicker { font: 600 12px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--tm-acc); background: var(--tm-card); padding: 9px 14px; border-radius: 999px; box-shadow: var(--tm-sh); }
 .p-hero h1 { font: 800 clamp(72px, 10vw, 128px)/.88 var(--sans); letter-spacing: -.055em; }
 .p-lead { font: 20px/1.5 var(--sans); color: var(--tm-ink2); max-width: 470px; text-wrap: pretty; }
@@ -44,7 +49,38 @@ body.tm-pagina {
 .p-btn-y { background: var(--yt); color: var(--navy) !important; box-shadow: 0 6px 0 var(--yd); margin-top: 6px; }
 .p-btn-y:active { transform: translateY(5px); box-shadow: 0 1px 0 var(--yd); }
 
-.p-t { grid-row: span 2; position: sticky; top: 96px; display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; }
+/* el video del hero: chico, en bucle y sin sonido; «Ver en grande» lo abre en un diálogo */
+.p-video { min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.p-video-marco { position: relative; border-radius: 18px; overflow: hidden; background: #0A0F22; aspect-ratio: 16 / 9; box-shadow: var(--tm-sh), 0 24px 60px -28px rgba(14,21,48,.55); }
+.p-video-marco video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.p-video figcaption { font: 500 12px/1.4 var(--mono); color: var(--tm-ink3); }
+.p-video-pausa, .p-video-abrir { position: absolute; bottom: 10px; border: 0; cursor: pointer; font: 700 13px/1 var(--sans); padding: 9px 13px; border-radius: 999px;
+  background: rgba(10,15,34,.78); color: #EEF1FB; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); display: inline-flex; gap: 8px; align-items: center; }
+.p-video-pausa { left: 10px; }
+.p-video-abrir { right: 10px; background: var(--yt); color: var(--navy); }
+.p-video-pausa:hover, .p-video-abrir:hover { transform: translateY(-1px); }
+.p-video-pausa:focus-visible, .p-video-abrir:focus-visible, .p-video-cerrar:focus-visible { outline: 3px solid var(--yt); outline-offset: 2px; }
+/* el ícono: ▶ en pausa, ❚❚ cuando corre */
+.p-video-pausa i { width: 0; height: 0; border-style: solid; border-width: 6px 0 6px 10px; border-color: transparent transparent transparent currentColor; }
+.p-video--corre .p-video-pausa i { width: 10px; height: 12px; border: 0; border-left: 3px solid currentColor; border-right: 3px solid currentColor; }
+.p-video-dlg { width: min(1280px, 94vw); max-width: none; padding: 0; border: 0; border-radius: 18px; background: #0A0F22; overflow: visible; }
+.p-video-dlg::backdrop { background: rgba(5,8,20,.82); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.p-video-dlg video { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 18px; background: #0A0F22; }
+.p-video-cerrar { position: absolute; top: -14px; right: -14px; width: 40px; height: 40px; border-radius: 50%; border: 0; cursor: pointer; font: 700 24px/1 var(--sans); background: var(--yt); color: var(--navy); }
+@media (max-width: 520px) { .p-video-cerrar { top: -48px; right: 0; } }
+
+/* la T fija junto a las herramientas: al pasar el cursor por una, se apagan las etapas que no cubre (vendor/trueml/cliente.js).
+   En una columna va arriba de la lista; en dos, a la derecha y fija mientras bajas. */
+.p-cuerpo { margin-top: clamp(48px, 7vw, 88px); display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px 48px; align-items: start; }
+@media (min-width: 1000px) {
+  .p-cuerpo { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .p-cuerpo > .p-t { grid-column: 2; grid-row: 1; }
+  .p-cuerpo > .p-tools { grid-column: 1; grid-row: 1; }
+}
+/* entra con un fundido al llegar a la sección (video.js pone la clase; sin JS se ve directo) */
+.p-t--antes { opacity: 0; translate: 0 32px; }
+.p-t--entra { transition: opacity .7s ease, translate .7s cubic-bezier(.2,.85,.25,1); }
+.p-t { position: sticky; top: 96px; display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; }
 .p-t-marca { width: 100%; max-width: 680px; container-type: inline-size; }
 .p-t-sin { display: none; }
 @container (max-width: 439px) { .p-t-con { display: none; } .p-t-sin { display: block; } }
@@ -111,4 +147,4 @@ body.tm-pagina {
 .p-legal p { color: var(--tm-ink2); }
 .p-legal code { font: .9em var(--mono); }
 .p-legal .p-nota { font-size: 14px; color: var(--tm-ink3); }
-@media (prefers-reduced-motion: reduce) { .p-btn, .p-tool, .p-dojo { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .p-btn, .p-tool, .p-dojo, .p-t--entra { transition: none; } .p-t--antes { opacity: 1; translate: none; } }
