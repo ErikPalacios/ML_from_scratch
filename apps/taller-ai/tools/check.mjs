@@ -21,7 +21,9 @@ const BC = join(ROOT, '..', 'ml-system-design', 'tools', 'browser-check.mjs');
 if (!existsSync(join(DIST, 'index.html'))) { console.error('[check] falta dist/: corre antes node tools/build.mjs'); process.exit(1); }
 const ESTACIONES = readdirSync(join(ROOT, 'content', 'estaciones')).filter((f) => f.endsWith('.json')).map((f) => JSON.parse(readFileSync(join(ROOT, 'content', 'estaciones', f), 'utf8')));
 // /<línea>/<estación>/: la línea es el caso del tronco (c01) o la rama (tools/lineas.mjs)
-const PAGES = ['/', ...ESTACIONES.flatMap((e) => { const L = e.rama || e.caso; return [`/${L}/${e.id}/`, ...(e.practicas?.length ? [`/${L}/${e.id}/proyecto-con-kit/`] : []),
+// la portada, la página de cada entrenamiento (/c01/ y una por rama) y las de cada estación
+const LINEAS_PAG = [`/${JSON.parse(readFileSync(join(ROOT, 'content', 'tronco.json'), 'utf8')).caso}/`, ...JSON.parse(readFileSync(join(ROOT, 'content', 'ramas.json'), 'utf8')).ramas.map((r) => `/${r.id}/`)];
+const PAGES = ['/', ...LINEAS_PAG, ...ESTACIONES.flatMap((e) => { const L = e.rama || e.caso; return [`/${L}/${e.id}/`, ...(e.practicas?.length ? [`/${L}/${e.id}/proyecto-con-kit/`] : []),
   ...(e.practicas || []).map((rel) => `/${L}/${e.id}/${JSON.parse(readFileSync(join(ROOT, rel), 'utf8')).id}/`)]; }), '/tablero/'];
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.zip': 'application/zip', '.webmanifest': 'application/manifest+json' };
 

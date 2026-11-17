@@ -1,12 +1,67 @@
 {
-  "nota": "Las ramas del Dojo: proyectos que salen del tronco C01 y cambian solo algunas estaciones. Cada estación de rama trae su etapa de la T explícita (no sale de su número, como en el C01). Una estación tiene taller cuando existe content/estaciones/<rama>-<id>.json con \"rama\": \"<rama>\"; su página vive en /<rama>/<id>/. donde: mac, gpu (GPU NVIDIA rentada por horas) o mac-gpu.",
+  "nota": "Las ramas del Dojo: los entrenamientos además del tronco C01 (clasificación de imágenes). Cada una es un proyecto completo con su caso de referencia; la portada las ofrece como entrenamientos y cada una tiene su página en /<rama>/. Cada estación de rama trae su etapa de la T explícita (no sale de su número, como en el C01). Una estación tiene taller cuando existe content/estaciones/<rama>-<id>.json con \"rama\": \"<rama>\"; su página vive en /<rama>/<id>/. donde: mac, gpu (GPU NVIDIA rentada por horas) o mac-gpu. Opcionales: entrenamiento (el nombre corto en la portada), frase (la de su puerta), cifras, construyes, cambia (contra clasificación), compara (las filas de «¿Cuál elijo?»), tramos y lazo (el mapa en anillo, solo con 12 estaciones).",
   "ramas": [
+    {
+      "id": "rag",
+      "nombre": "RAG",
+      "entrenamiento": "RAG",
+      "patron": "llm",
+      "patron_txt": "LLM y RAG",
+      "resumen": "Un asistente que contesta con los documentos de una empresa y cita de dónde sacó cada respuesta, respetando los permisos de cada persona. Nada se entrena: el trabajo está en la ingestión, el índice, los permisos y medir con un golden set si la respuesta es fiel a sus fuentes. Corre completo en tu Mac, con un modelo chico local.",
+      "frase": "Un asistente interno contesta con los documentos de la empresa y cita sus fuentes. Recorres las 12 estaciones de un RAG: ingestión, chunking, permisos, índice híbrido, reranker, un LLM local, la API con citas, evals y monitoreo.",
+      "caso": {
+        "codigo": "C11",
+        "nombre": "RAG empresarial",
+        "resumen": "Un asistente interno responde con los documentos de la empresa (Confluence, Drive, Jira y políticas) y cita sus fuentes, respetando los permisos de cada persona. El LLM ya existe: lo sirve la plataforma de modelos de la empresa, y el RAG es un cliente más."
+      },
+      "escala": "En C11",
+      "cifras": [
+        ["≈ 1.5 M", "documentos, cada uno con su ACL"],
+        ["≈ 25k", "preguntas al día"],
+        ["≤ 2.5 s", "primer token, p95"],
+        ["≤ 5 min", "para aplicar una revocación"],
+        ["≈ 600", "preguntas en el golden set"]
+      ],
+      "construyes": ["parsing y chunking", "embeddings", "BM25 + vectores", "reranker", "LLM local", "citas", "golden set", "permisos"],
+      "cambia": ["Nada se entrena: el trabajo es la ingestión (parsing, chunking y embeddings) y mantener el índice y los permisos al día.", "El permiso es un filtro dentro del retrieval: un chunk que la persona no puede abrir nunca llega al prompt.", "La respuesta pasa de milisegundos a segundos, con streaming de tokens y citas.", "Lo que decide si un cambio sale es el golden set: cualquier cambio de chunker, embeddings, reranker, prompt o LLM pasa por el mismo gate."],
+      "compara": {
+        "construyes": "Un asistente que contesta con tus documentos y cita de dónde sacó cada respuesta.",
+        "entrena": "Nada: el LLM y el modelo de embeddings vienen hechos.",
+        "dificil": "La ingestión (parsing, chunking, embeddings), los permisos y medir si la respuesta es fiel a sus fuentes.",
+        "request": "Segundos: el primer token en ≤ 2.5 s (p95) y la respuesta en streaming.",
+        "gate": "Un golden set contra el sistema completo: recall@8, faithfulness, citas y permisos al 100 %.",
+        "corre": "Tu Mac, con un modelo chico local. Sin rentar GPU."
+      },
+      "tramos": [
+        [1, 5, "Ingestión e índice", "minutos"],
+        [6, 8, "Respuesta", "segundos"],
+        [9, 12, "Release y operación", "días y continuo"]
+      ],
+      "lazo": {
+        "corto": "nuevo índice o prompt",
+        "largo": "<b>Sin reentrenamiento</b>: el lazo se cierra con cambios de chunking, prompt o índice que pasan el mismo gate"
+      },
+      "estaciones": [
+        { "num": 1, "id": "ingesta", "titulo": "Conectores y parsing", "sale": "el texto de cada documento, guardado por su hash, con su ACL", "etapa": "datos", "donde": "mac" },
+        { "num": 2, "id": "chunking", "titulo": "Chunking con contexto", "sale": "chunks de ≈ 400 tokens con su ruta de títulos", "etapa": "datos", "donde": "mac" },
+        { "num": 3, "id": "permisos", "titulo": "Permisos en cada chunk", "sale": "la ACL dentro del chunk y un carril rápido para revocar", "etapa": "datos", "donde": "mac" },
+        { "num": 4, "id": "golden", "titulo": "Golden set", "sale": "preguntas con su respuesta y sus fuentes, versionadas", "etapa": "datos", "donde": "mac" },
+        { "num": 5, "id": "indice", "titulo": "Embeddings e índice híbrido", "sale": "BM25 y vectores en un índice detrás de un alias", "etapa": "modelo", "donde": "mac" },
+        { "num": 6, "id": "retrieval", "titulo": "Retrieval y reranker", "sale": "el top-8 por fusión RRF y reranker, con su recall@8", "etapa": "modelo", "donde": "mac" },
+        { "num": 7, "id": "llm-local", "titulo": "Un LLM local por API", "sale": "un modelo chico que contesta por una API compatible con OpenAI", "etapa": "api", "donde": "mac" },
+        { "num": 8, "id": "rag-api", "titulo": "La API con citas", "sale": "POST /v1/ask con streaming y citas validadas", "etapa": "api", "donde": "mac" },
+        { "num": 9, "id": "gate", "titulo": "Gate de evals", "sale": "recall@8, faithfulness, citas y permisos al 100 %", "etapa": "modelo", "donde": "mac" },
+        { "num": 10, "id": "empaquetado", "titulo": "Empaquetado (Docker)", "sale": "rag-api, índice y modelo en un compose probado", "etapa": "contenedor", "donde": "mac" },
+        { "num": 11, "id": "indice-nuevo", "titulo": "Índice nuevo sin cortes", "sale": "blue/green con shadow, cambio de alias y rollback", "etapa": "orquestacion", "donde": "mac" },
+        { "num": 12, "id": "monitoreo", "titulo": "Monitoreo y probe de permisos", "sale": "alertas de ingestión, retrieval vacío y groundedness", "etapa": "monitoreo", "donde": "mac" }
+      ]
+    },
     {
       "id": "ia-privada",
       "nombre": "IA Privada",
       "patron": "llm",
       "patron_txt": "LLM y RAG",
-      "resumen": "Llevar un modelo open weight a una empresa y operarlo en su propio hardware: servirlo, medirlo, ponerle un gateway, un RAG con sus documentos, evals, observabilidad y la entrega sin internet. Incluye el patrón LLM y RAG, que ya no tiene rama aparte.",
+      "resumen": "Llevar un modelo open weight a una empresa y operarlo en su propio hardware: servirlo, medirlo, ponerle un gateway, un RAG con sus documentos, evals, observabilidad y la entrega sin internet. Da por sabido el entrenamiento RAG y le suma lo que cambia cuando el modelo vive en hardware propio.",
       "caso": {
         "nombre": "Despacho de abogados",
         "resumen": "Un despacho quiere preguntarle a sus expedientes con un LLM, sin que un solo documento salga de su red: el modelo, el índice y los logs viven en un servidor suyo."
@@ -26,7 +81,8 @@
         { "num": 6, "id": "evals", "titulo": "Evals del RAG y guardrails", "sale": "un golden set con métricas de retrieval y de respuesta, y los guardrails", "etapa": "modelo", "donde": "mac" },
         { "num": 7, "id": "observabilidad", "titulo": "Observabilidad y fallas", "sale": "tableros y alertas de GPU e inferencia, con su runbook", "etapa": "monitoreo", "donde": "gpu" },
         { "num": 8, "id": "entrega", "titulo": "Entrega sin internet", "sale": "un paquete que se instala sin internet, con su prueba de humo", "etapa": "contenedor", "donde": "mac-gpu" }
-      ]
+      ],
+      "entrenamiento": "IA Privada"
     }
   ]
 }

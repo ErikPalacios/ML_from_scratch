@@ -12,6 +12,8 @@ const leer = (f) => JSON.parse(readFileSync(join(ROOT, 'content', f), 'utf8'));
 
 export const TRONCO = leer('tronco.json');
 export const RAMAS = leer('ramas.json').ramas;
+// Las filas de «¿Cuál elijo?» en la portada: cada entrenamiento (el tronco y cada rama con `compara`) llena las mismas.
+export const COMPARA = ['construyes', 'entrena', 'dificil', 'request', 'gate', 'corre'];
 export const DONDE = { mac: 'Mac', gpu: 'GPU rentada', 'mac-gpu': 'Mac y GPU rentada' };
 
 // En el tronco, la etapa sale del número con los rangos del C01; en una rama, cada estación la trae escrita.
@@ -40,6 +42,11 @@ export function revisarRamas(ramas = RAMAS, tronco = TRONCO) {
     });
     const sids = r.estaciones.map((s) => s.id);
     sids.forEach((x, i) => sids.indexOf(x) !== i && errs.push(`${p}: estación «${x}» repetida`));
+    if (r.tramos) {
+      if (r.estaciones.length !== 12) errs.push(`${p}.tramos: el mapa en anillo necesita 12 estaciones (hay ${r.estaciones.length})`);
+      for (const t of r.tramos) if (!Array.isArray(t) || t.length !== 4 || !(t[0] <= t[1]) || (t[0] <= 5) !== (t[1] <= 5)) errs.push(`${p}.tramos: «${JSON.stringify(t)}» tiene que ser [desde, hasta, nombre, ritmo] y no cruzar de la 5 a la 6`);
+    }
+    if (r.compara) for (const c of COMPARA) if (typeof r.compara[c] !== 'string' || !r.compara[c].trim()) errs.push(`${p}.compara.${c}: falta`);
     if (r.sin_gpu) {
       for (const n of r.sin_gpu.estaciones || []) {
         const s = r.estaciones.find((x) => x.num === n);
@@ -53,9 +60,9 @@ export function revisarRamas(ramas = RAMAS, tronco = TRONCO) {
 
 // Las líneas: id → { id, tipo, corto, nombre, escala, total, estaciones: [{ num, id, titulo, sale, etapa (índice), donde? }] }
 export const LINEAS = new Map([
-  [TRONCO.caso, { id: TRONCO.caso, tipo: 'tronco', corto: TRONCO.caso.toUpperCase(), nombre: TRONCO.caso.toUpperCase(), escala: TRONCO.escala,
+  [TRONCO.caso, { id: TRONCO.caso, tipo: 'tronco', corto: TRONCO.caso.toUpperCase(), nombre: TRONCO.caso.toUpperCase(), escala: TRONCO.escala, entrenamiento: TRONCO.entrenamiento || TRONCO.caso.toUpperCase(),
     total: TRONCO.estaciones.length, estaciones: TRONCO.estaciones.map((s) => ({ ...s, etapa: etapaC01(s.num) })) }],
-  ...RAMAS.map((r) => [r.id, { id: r.id, tipo: 'rama', corto: r.nombre, nombre: `la rama ${r.nombre}`, escala: r.escala, rama: r,
+  ...RAMAS.map((r) => [r.id, { id: r.id, tipo: 'rama', corto: r.nombre, nombre: `la rama ${r.nombre}`, escala: r.escala, entrenamiento: r.entrenamiento || r.nombre, rama: r,
     total: r.estaciones.length, estaciones: r.estaciones.map((s) => ({ ...s, etapa: IDS.indexOf(s.etapa) })) }]),
 ]);
 

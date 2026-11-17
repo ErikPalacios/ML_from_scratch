@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Arma el sitio en dist/ (lo que sube a Vercel). Sin dependencias: corre igual en tu Mac y en Vercel.
-//   index.html                     portada: el método, la línea de C01, las ramas y cómo empezar
+//   index.html                     portada: el selector de entrenamientos (clasificación C01, RAG…), cuál elegir y cómo se usa
+//   c01/index.html, <rama>/index.html  la página de cada entrenamiento: su caso, su mapa y sus estaciones
 //   <linea>/<estacion>/index.html  una página por estación, desde content/estaciones/<linea>-<id>.json; la línea es el
 //                                  caso del tronco (c01) o una rama de content/ramas.json (ia-privada): tools/lineas.mjs
 //   kits/<linea>-<estacion>.zip    el kit listo para usar: esqueleto en pipeline/, config.yaml, GUION.md y OBJETIVOS.md
@@ -13,7 +14,7 @@ import { createHash } from 'node:crypto';
 import { estacion as molde, cruzadas, practica as moldePractica, cruzadasPractica, normalizar, normalizarPractica } from './schema.mjs';
 import { TRONCO, RAMAS, LINEAS, revisarRamas, cruzadasLinea, enLinea } from './lineas.mjs';
 import { zip } from './zip.mjs';
-import { cuerpoEstacion, cuerpoPractica, cuerpoPortada, cuerpoProyecto } from './dojo.mjs';
+import { cuerpoEstacion, cuerpoPractica, cuerpoPortada, cuerpoProyecto, cuerpoTronco, cuerpoRama } from './dojo.mjs';
 import { plantillaTablero, cuerpoTablero } from './tablero.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -95,12 +96,20 @@ ${body}
 `;
 }
 
-// ---------------------------------------------------------------- portada
+// ---------------------------------------------------------------- portada y entrenamientos
+const deLinea = (id) => new Map(ESTACIONES.filter((e) => e.linea.id === id).map((e) => [e.id, e]));
+const RAMAS_L = RAMAS.map((r) => ({ ...r, lista: deLinea(r.id) }));
 function portada() {
-  const deLinea = (id) => new Map(ESTACIONES.filter((e) => e.linea.id === id).map((e) => [e.id, e]));
-  const ramas = RAMAS.map((r) => ({ ...r, lista: deLinea(r.id) }));
-  return pagina({ path: '/', title: `${SITE_NAME} · TrueML`, desc: 'Proyectos chicos de ML engineering que construyes, rehaces y rompes en tu Mac, estación por estación del camino del dato a producción. En español, gratis.',
-    body: cuerpoPortada({ tronco: TRONCO, lista: deLinea(TRONCO.caso), ramas, mapa: MAPA, hoja: HOJA_RECORRIDO, sensei: SENSEI_TRONCO }) });
+  return pagina({ path: '/', title: `${SITE_NAME} · TrueML`, desc: 'Elige un entrenamiento (clasificación de imágenes o RAG) y constrúyelo de punta a punta en tu Mac, estación por estación: con ayuda, solo y rompiéndolo. En español, gratis.',
+    body: cuerpoPortada({ tronco: TRONCO, lista: deLinea(TRONCO.caso), ramas: RAMAS_L }) });
+}
+function paginaTronco() {
+  return pagina({ path: `/${TRONCO.caso}/`, title: `${TRONCO.entrenamiento} · ${TRONCO.caso.toUpperCase()} · ${SITE_NAME}`, desc: 'Un clasificador de fotos de punta a punta, del dato etiquetado al modelo en producción, en 12 estaciones que corren en tu Mac.',
+    body: cuerpoTronco({ tronco: TRONCO, lista: deLinea(TRONCO.caso), ramas: RAMAS_L, mapa: MAPA, hoja: HOJA_RECORRIDO, sensei: SENSEI_TRONCO }) });
+}
+function paginaRama(r) {
+  return pagina({ path: `/${r.id}/`, title: `${r.entrenamiento || r.nombre}${r.caso.codigo ? ' · ' + r.caso.codigo : ''} · ${SITE_NAME}`, desc: r.resumen,
+    body: cuerpoRama(r, { tronco: TRONCO, listaTronco: deLinea(TRONCO.caso), ramas: RAMAS_L }) });
 }
 
 // ---------------------------------------------------------------- kit
@@ -191,6 +200,11 @@ for (const e of ESTACIONES) {
 }
 pages['/'] = portada();
 writeFileSync(join(OUT, 'index.html'), pages['/']);
+// la página de cada entrenamiento (la carpeta ya existe si la línea tiene estaciones con dojo)
+const LINEA_URLS = [`/${TRONCO.caso}/`, ...RAMAS_L.map((r) => `/${r.id}/`)];
+pages[LINEA_URLS[0]] = paginaTronco();
+RAMAS_L.forEach((r, k) => { pages[LINEA_URLS[k + 1]] = paginaRama(r); });
+for (const u of LINEA_URLS) { mkdirSync(join(OUT, u), { recursive: true }); writeFileSync(join(OUT, u, 'index.html'), pages[u]); console.log(`[build] ${u}`); }
 // «Tu tablero»: la página, la plantilla de las estaciones con taller y sus módulos (con la copia del motor del tablero)
 pages['/tablero/'] = pagina({ path: '/tablero/', title: `Tu tablero · ${SITE_NAME}`, desc: 'Tu avance en el dojo: las cuatro rondas de cada estación, tus fallas con su tiempo y tu bitácora. Sin cuenta, guardado en tu navegador.',
   body: cuerpoTablero(plantillaTablero(ESTACIONES, LINEAS)) });
@@ -204,7 +218,7 @@ for (const f of ['app.js', 'icon.svg', 'manifest.webmanifest', 'og.png']) copyFi
 const DOJO_CSS = readFileSync(join(ROOT, 'vendor', 'trueml', 'tokens.css'), 'utf8') + '\n' + readFileSync(join(ROOT, 'site', 'dojo.css'), 'utf8');
 writeFileSync(join(OUT, 'dojo.css'), DOJO_CSS);
 
-const urls = ['/', ...ESTACIONES.flatMap((e) => [e.url, ...(e.kitUrl !== e.url ? [e.kitUrl] : []), ...e.practicas.map((p) => p.url)]), '/tablero/'];
+const urls = ['/', ...LINEA_URLS, ...ESTACIONES.flatMap((e) => [e.url, ...(e.kitUrl !== e.url ? [e.kitUrl] : []), ...e.practicas.map((p) => p.url)]), '/tablero/'];
 const core = [...urls, '/dojo.css', '/app.js', '/icon.svg', '/manifest.webmanifest', ...MODULOS.map((m) => `/tablero/${m}`)];
 const hash = createHash('sha256');
 for (const p of Object.keys(pages).sort()) hash.update(p).update(pages[p]);

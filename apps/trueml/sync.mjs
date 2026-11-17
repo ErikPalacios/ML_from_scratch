@@ -41,7 +41,7 @@ const dojo = {
   nota: `Generado por apps/trueml/sync.mjs desde apps/${DOJO.carpeta}/content. No se edita a mano.`,
   url: DOJO.url, caso: tronco.caso, total: tronco.estaciones.length,
   estaciones: estacionesDe(tronco.caso, tronco.estaciones, (s) => etapaDeEstacion(s.num)),
-  ramas: ramas.map((r) => ({ id: r.id, nombre: r.nombre, patron: r.patron_txt, url: `${DOJO.url}/#rama-${r.id}`, total: r.estaciones.length,
+  ramas: ramas.map((r) => ({ id: r.id, nombre: r.nombre, patron: r.patron_txt, url: `${DOJO.url}/${r.id}/`, total: r.estaciones.length,
     estaciones: estacionesDe(r.id, r.estaciones, (s) => s.etapa) })),
 };
 salidas.push([join(APPS_DIR, 'portada', 'data', 'dojo.json'), JSON.stringify(dojo, null, 2) + '\n']);

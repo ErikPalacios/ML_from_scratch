@@ -1,9 +1,27 @@
 {
   "caso": "c01",
+  "entrenamiento": "Clasificación de imágenes",
   "titulo": "C01 · Clasificador de categorías para un marketplace",
   "patron": "Síncrono (online)",
   "escala": "En C01",
   "resumen": "El tronco del Dojo: las 12 estaciones del mapa «Del dato a producción», en el orden en que el caso C01 las recorre. Lo que aprendes aquí lo comparten todos los patrones.",
+  "frase": "Un marketplace sugiere la categoría de cada foto que sube quien vende. Recorres las 12 estaciones del dato a producción: etiquetas, dataset versionado, entrenamiento, gate, serving con Triton, Docker, Kubernetes y monitoreo.",
+  "cifras": [
+    ["500", "categorías"],
+    ["≈ 10 M", "fotos al día"],
+    ["≤ 200 ms", "p99"],
+    ["top-5", "por foto"],
+    ["1 al mes", "modelo nuevo"]
+  ],
+  "construyes": ["Label Studio", "DVC", "S3 local", "entrenamiento", "gate", "Triton", "Docker", "monitoreo"],
+  "compara": {
+    "construyes": "Un clasificador de fotos servido por API: de las etiquetas al modelo en producción.",
+    "entrena": "Sí: una ResNet-50 con 500 categorías, y un modelo nuevo al mes.",
+    "dificil": "Las etiquetas, el linaje del dataset y que lo que sirves sea justo el modelo que aprobaste.",
+    "request": "Milisegundos: p99 ≤ 200 ms por foto.",
+    "gate": "Un examen fijo (el test set) antes de entrar al registry, y la paridad del engine con el checkpoint.",
+    "corre": "Tu Mac con Docker. Cada estación trae su propio mundo."
+  },
   "estaciones": [
     { "num": 1, "id": "datos", "titulo": "Datos y etiquetas", "sale": "labels del mes (≈ 5k humanos + débiles filtrados)" },
     { "num": 2, "id": "versionado", "titulo": "Versionado y linaje", "sale": "snapshot ds-2026-09-01 (manifest inmutable)" },

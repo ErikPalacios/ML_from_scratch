@@ -103,10 +103,115 @@
   ],
   "ramas": [
     {
+      "id": "rag",
+      "nombre": "RAG",
+      "patron": "LLM y RAG",
+      "url": "https://taller-ai-engineer.vercel.app/rag/",
+      "total": 12,
+      "estaciones": [
+        {
+          "num": 1,
+          "id": "ingesta",
+          "titulo": "Conectores y parsing",
+          "etapa": "datos",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 2,
+          "id": "chunking",
+          "titulo": "Chunking con contexto",
+          "etapa": "datos",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 3,
+          "id": "permisos",
+          "titulo": "Permisos en cada chunk",
+          "etapa": "datos",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 4,
+          "id": "golden",
+          "titulo": "Golden set",
+          "etapa": "datos",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 5,
+          "id": "indice",
+          "titulo": "Embeddings e índice híbrido",
+          "etapa": "modelo",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 6,
+          "id": "retrieval",
+          "titulo": "Retrieval y reranker",
+          "etapa": "modelo",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 7,
+          "id": "llm-local",
+          "titulo": "Un LLM local por API",
+          "etapa": "api",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 8,
+          "id": "rag-api",
+          "titulo": "La API con citas",
+          "etapa": "api",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 9,
+          "id": "gate",
+          "titulo": "Gate de evals",
+          "etapa": "modelo",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 10,
+          "id": "empaquetado",
+          "titulo": "Empaquetado (Docker)",
+          "etapa": "contenedor",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 11,
+          "id": "indice-nuevo",
+          "titulo": "Índice nuevo sin cortes",
+          "etapa": "orquestacion",
+          "lista": false,
+          "url": null
+        },
+        {
+          "num": 12,
+          "id": "monitoreo",
+          "titulo": "Monitoreo y probe de permisos",
+          "etapa": "monitoreo",
+          "lista": false,
+          "url": null
+        }
+      ]
+    },
+    {
       "id": "ia-privada",
       "nombre": "IA Privada",
       "patron": "LLM y RAG",
-      "url": "https://taller-ai-engineer.vercel.app/#rama-ia-privada",
+      "url": "https://taller-ai-engineer.vercel.app/ia-privada/",
       "total": 8,
       "estaciones": [
         {

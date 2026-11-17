@@ -193,10 +193,27 @@ test('ramas.json: IA Privada con sus 8 estaciones, cada una con su etapa de la T
   for (const n of IA.sin_gpu.estaciones) assert.equal(IA.estaciones[n - 1].donde, 'mac');
   // los errores que atrapa
   const mala = JSON.parse(JSON.stringify(RAMAS));
-  mala[0].estaciones[2].etapa = 'gpu';
-  mala[0].sin_gpu.estaciones.push(3);
+  const k = mala.findIndex((r) => r.id === 'ia-privada');
+  mala[k].estaciones[2].etapa = 'gpu';
+  mala[k].sin_gpu.estaciones.push(3);
   const errs = revisarRamas(mala);
   assert.ok(errs.some((x) => /etapa de la T/.test(x)) && errs.some((x) => /no corre solo en la Mac/.test(x)), errs.join('; '));
+});
+
+test('ramas.json: el entrenamiento RAG (C11) con 12 estaciones en la Mac, su mapa y su comparación', () => {
+  const R = RAMAS.find((r) => r.id === 'rag');
+  assert.ok(R, 'la rama rag existe');
+  assert.equal(R.caso.codigo, 'C11');
+  assert.equal(R.estaciones.length, 12);
+  assert.ok(R.estaciones.every((s) => s.donde === 'mac'), 'todo el entrenamiento corre sin GPU rentada');
+  assert.ok(R.compara && R.tramos, 'es un entrenamiento de la portada, con su mapa en anillo');
+  // los errores que atrapa: un tramo que cruza de la fila de arriba a la de abajo y una fila de la comparación vacía
+  const mala = JSON.parse(JSON.stringify(RAMAS));
+  const r = mala.find((x) => x.id === 'rag');
+  r.tramos[0] = [4, 7, 'Cruza', 'minutos'];
+  r.compara.gate = '';
+  const errs = revisarRamas(mala);
+  assert.ok(errs.some((x) => /no cruzar de la 5 a la 6/.test(x)) && errs.some((x) => /compara\.gate: falta/.test(x)), errs.join('; '));
 });
 
 test('la etapa de la T: en el tronco sale del número; en una rama, de la estación', () => {
@@ -231,7 +248,7 @@ test('el molde: caso o rama (uno de los dos), y c01 es el nombre viejo de ref', 
 });
 
 test('la plantilla agrupa por línea: el tronco primero y después cada rama', () => {
-  assert.deepEqual(PR.grupos.map((g) => [g.id, g.tipo]), [['c01', 'tronco'], ['ia-privada', 'rama']]);
+  assert.deepEqual(PR.grupos.map((g) => [g.id, g.tipo]), [['c01', 'tronco'], ...RAMAS.map((r) => [r.id, 'rama'])]);
   assert.deepEqual(PR.estaciones.map((e) => e.id), [...CON_TALLER, 'ia-privada-rag']);
   const rag = PR.estaciones.find((e) => e.id === 'ia-privada-rag');
   assert.equal(rag.grupo, 'ia-privada');
