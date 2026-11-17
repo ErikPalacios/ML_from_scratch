@@ -122,6 +122,8 @@ body.dojo {
 .d-ronda { padding: 20px; gap: 10px; }
 .d-ronda-t { font: 800 19px/1.2 var(--sans); }
 .d-ronda-t i { font: 700 14px var(--mono); color: var(--tm-acc); font-style: normal; }
+.d-ronda-ir { align-self: flex-start; text-decoration: none; padding: 4px 0; }
+.d-ronda-ir:hover { text-decoration: underline; }
 .d-prompt { border-radius: 14px; background: var(--tm-code); overflow: hidden; }
 .d-prompt summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 10px 10px 16px; font: 600 13px/1.2 var(--sans); color: var(--tm-codeink); }
 .d-prompt summary i { font-style: normal; display: inline-block; transition: transform .2s; }

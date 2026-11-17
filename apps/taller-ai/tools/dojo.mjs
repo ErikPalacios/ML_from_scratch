@@ -172,7 +172,8 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
   const indice = [];   // sin barra de anclas: la página va en orden (arranque, rondas, guiado, solo, romper…)
   const kitBtn = `<a class="d-btn" href="/kits/${e.slug}.zip" download>Bajar el kit .zip · ${kb(kitBytes)}</a>`;
 
-  const ronda = (n, t, d, p) => `<div class="d-card d-ronda"><span class="d-ronda-t"><i>${n} · </i>${esc(t)}</span><span class="d-txt">${esc(d)}</span>${prompt(p)}</div>`;
+  // Cada ronda: su prompt y un enlace a la sección de esta página donde se trabaja.
+  const ronda = (n, t, d, p, [href, ir]) => `<div class="d-card d-ronda"><span class="d-ronda-t"><i>${n} · </i>${esc(t)}</span><span class="d-txt">${esc(d)}</span>${prompt(p)}<a class="d-ir d-ronda-ir" href="${href}">${ir} ↓</a></div>`;
 
   const precalc = new Map(e.precalculos.cuentas.map((x, i) => [x.id, `<article class="d-card d-pc" id="pc-${x.id}">
       <div class="d-pc-h"><span class="d-num">${i + 1}</span><h3>${esc(x.pregunta)}</h3></div>
@@ -288,15 +289,15 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
 </section>`,
     rondas: `<section class="d-sec" id="rondas">
   ${titulo('¿Ya está corriendo? Elige cómo practicar', 'las cuatro rondas')}
-  <p class="d-p">Cada ronda se trabaja en una sesión de Claude Code abierta en la carpeta del kit. Copia el prompt de la ronda y pégalo; el <code>CLAUDE.md</code> del kit pone las reglas de fondo.</p>
+  <p class="d-p">Cada ronda se trabaja en una sesión de Claude Code abierta en la carpeta del kit. Copia el prompt de la ronda y pégalo; el enlace de cada tarjeta te lleva a su sección en esta página. El <code>CLAUDE.md</code> del kit pone las reglas de fondo.</p>
   <div class="d-rondas">
     <span></span><span class="d-eje">Construir</span><span class="d-eje">Romper</span>
     <span class="d-eje d-eje-v">Con ayuda</span>
-    ${ronda(1, 'Construir con ayuda', `Con el Guiado de abajo: construyen juntos los pasos 1 a ${e.guiado.at(-1).n}. Empieza aquí.`, e.prompt.guiado)}
-    ${ronda(3, 'Romper con ayuda', 'Una falla real; Claude te guía con preguntas.', e.prompt.romper_ayuda)}
+    ${ronda(1, 'Construir con ayuda', `Con el Guiado de abajo: construyen juntos los pasos 1 a ${e.guiado.at(-1).n}. Empieza aquí.`, e.prompt.guiado, ['#guiado', 'Ir al Guiado'])}
+    ${ronda(3, 'Romper con ayuda', 'Una falla real; Claude te guía con preguntas.', e.prompt.romper_ayuda, ['#romper', 'Ir a Romper'])}
     <span class="d-eje d-eje-v">Solo</span>
-    ${ronda(2, 'Construir solo', 'Rehaces todo desde el esqueleto, solo con los objetivos de Solo.', e.prompt.solo)}
-    ${ronda(4, 'Romper solo', 'Una falla escondida; nadie te da pistas.', e.prompt.romper_solo)}
+    ${ronda(2, 'Construir solo', 'Rehaces todo desde el esqueleto, solo con los objetivos de Solo.', e.prompt.solo, ['#solo', 'Ir a Solo'])}
+    ${ronda(4, 'Romper solo', 'Una falla escondida; nadie te da pistas.', e.prompt.romper_solo, ['#romper', 'Ir a Romper'])}
   </div>
   <p class="d-nota">Lleva la cuenta en <a href="/tablero/#est-${e.slug}">tu tablero</a>: el kit anota tu avance en <code>taller/progreso.json</code> y ahí lo importas.</p>
 </section>`,
@@ -426,8 +427,8 @@ ${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${e.linea.corto} �
 <section class="d-sec" id="rondas">
   ${titulo('¿Ya está corriendo? Elige cómo practicar', 'dos formas')}
   <div class="d-grid2">
-    <div class="d-card d-ronda"><span class="d-ronda-t"><i>Guiado · </i>Cómo se trabaja</span><span class="d-txt">Abre una sesión de Claude Code en la carpeta de la práctica y pega este prompt. Tú escribes el código; Claude explica, revisa y te hace las preguntas. Esta página es tu referencia: el código es el de la solución probada y cada salida es la que salió de verdad.</span>${prompt(p.prompt.guiado)}</div>
-    <div class="d-card d-ronda"><span class="d-ronda-t"><i>Solo · </i>El prompt</span>${prompt(p.prompt.solo)}</div>
+    <div class="d-card d-ronda"><span class="d-ronda-t"><i>Guiado · </i>Cómo se trabaja</span><span class="d-txt">Abre una sesión de Claude Code en la carpeta de la práctica y pega este prompt. Tú escribes el código; Claude explica, revisa y te hace las preguntas. Esta página es tu referencia: el código es el de la solución probada y cada salida es la que salió de verdad.</span>${prompt(p.prompt.guiado)}<a class="d-ir d-ronda-ir" href="#guiado">Ir al Guiado ↓</a></div>
+    <div class="d-card d-ronda"><span class="d-ronda-t"><i>Solo · </i>El prompt</span>${prompt(p.prompt.solo)}<a class="d-ir d-ronda-ir" href="#solo">Ir a Hazlo solo ↓</a></div>
   </div>
 </section>
 
