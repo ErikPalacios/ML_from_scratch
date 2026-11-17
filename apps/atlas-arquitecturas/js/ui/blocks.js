@@ -379,20 +379,27 @@
     }));
   };
 
-  // Código: visor simple (pestañas si hay varios archivos, botón Copiar). Sin resaltado de sintaxis.
+  // Código: visor con el formato estándar de TrueML (.tm-code de vendor/trueml/piezas.css: barra con lenguaje y Copiar,
+  // panel azul marino, colores .tk-*). Si el archivo no cargó codigo.js, queda en texto plano. Pestañas si hay varios archivos.
   let codeSeq = 0;
+  const TMC = (typeof window !== 'undefined' && window.TrueMLCodigo) || null;
   R.code = (b) => {
     const files = arr(b.files).filter((f) => f && typeof f === 'object');
     if (!files.length && typeof b.code === 'string') files.push({ name: b.title || 'código', lang: b.lang || '', code: b.code });
     const n = ++codeSeq;
     const panels = files.map((f, i) => {
       const text = typeof f.code === 'string' ? f.code : '';
-      const pre = h('pre', { class: 'code__pre', tabindex: '0' }, h('code', { class: 'no-tex' }, text || (f.src ? '(archivo de referencia no incluido: ' + f.src + ')' : '')));
-      const copy = h('button', { type: 'button', class: 'btn btn--sm btn--ghost code__copy', on: { click: () => {
-        ATLAS.dom.copyText(text, pre).then((ok) => { copy.lastChild.textContent = ok ? 'Copiado' : 'Selecciona y copia'; setTimeout(() => { copy.lastChild.textContent = 'Copiar'; }, 2000); });
-      } } }, h('span', { html: icon('copy') }), h('span', null, 'Copiar'));
-      return h('div', { class: 'code__panel', id: 'code-' + n + '-' + i, role: files.length > 1 ? 'tabpanel' : null, hidden: i > 0 },
-        h('div', { class: 'code__bar' }, h('span', { class: 'code__name mono' }, str(f.name || 'código')), f.lang ? h('span', { class: 'code__lang' }, str(f.lang)) : null, copy),
+      const shown = text || (f.src ? '(archivo de referencia no incluido: ' + f.src + ')' : '');
+      const lang = TMC ? TMC.lenguaje(f.lang) : '';
+      const codeEl = h('code', { class: 'no-tex' }, shown);
+      if (TMC && lang && text) codeEl.innerHTML = TMC.resaltar(text.replace(/^\s*\n/, '').replace(/\s+$/, ''), lang);
+      const pre = h('pre', { class: 'code__pre', tabindex: '0' }, codeEl);
+      const copy = h('button', { type: 'button', class: 'tm-code__copy code__copy', on: { click: () => {
+        ATLAS.dom.copyText(text, pre).then((ok) => { copy.lastChild.textContent = ok ? 'Copiado' : 'Selecciona y copia'; copy.classList.toggle('is-ok', !!ok); setTimeout(() => { copy.lastChild.textContent = 'Copiar'; copy.classList.remove('is-ok'); }, 2000); });
+      } } }, h('i', { class: 'tm-code__ico', html: icon('copy') }), h('span', null, 'Copiar'));
+      const nombre = TMC && lang ? ({ python: 'Python', bash: 'Terminal', json: 'JSON', yaml: 'YAML', docker: 'Dockerfile', js: 'JavaScript', sql: 'SQL', toml: 'TOML' })[lang] : (f.lang ? str(f.lang) : '');
+      return h('div', { class: 'tm-code code__panel', 'data-lang': lang || null, id: 'code-' + n + '-' + i, role: files.length > 1 ? 'tabpanel' : null, hidden: i > 0 },
+        h('div', { class: 'tm-code__bar code__bar' }, nombre ? h('span', { class: 'tm-code__lang code__lang' }, nombre) : null, h('span', { class: 'tm-code__title code__name' }, str(f.name || 'código')), copy),
         pre,
         f.note ? h('div', { class: 'code__note', html: str(f.note) }) : null);
     });

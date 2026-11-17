@@ -159,6 +159,7 @@ input:focus, select:focus, textarea:focus { outline: 3px solid color-mix(in srgb
 .item { border: 0; border-radius: 14px; background: var(--tm-bg); padding: 10px 12px; }
 .check { accent-color: var(--g); }
 .res__v { font-family: var(--mono); }
+/* fallback sin codigo.js; con él, los comandos usan .tm-code (vendor/trueml/piezas.css) */
 pre.cmd, .dlg pre.md {
   background: var(--tm-code); color: var(--tm-codeink); border: 0; border-radius: 14px; padding: 10px 14px;
   font: 13px/1.6 var(--mono); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
@@ -216,3 +217,9 @@ dialog::backdrop { background: rgba(10, 15, 34, 0.5); -webkit-backdrop-filter: b
 .tm-foot b span { color: var(--tm-acc); }
 a.chip { text-decoration: none; } a.chip:hover { box-shadow: inset 0 0 0 1px currentColor; }
 .login .kick { background: var(--tm-chip); box-shadow: none; }
+
+/* bloques de código estándar: el brief de Markdown se ajusta al ancho; en la lista del runbook, sin margen extra */
+.dlg .tm-code pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.dlg .tm-code pre code { min-width: 0; }
+.item .tm-code { margin: 4px 0 0; }
+.card .tm-code { margin: 8px 0 0; }

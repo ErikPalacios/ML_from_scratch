@@ -19,6 +19,8 @@
   const MAX_TEXT = 100000;                 // tope de texto por intento (≪ 256 KiB por documento)
   const MAX_NOTE = 4000;                   // tope de texto por nota (todas viven en un solo documento)
   const MAX_TERM = 120;                    // tope del nombre de un término propio
+  const MAX_QUOTE = 1500;                  // tope del texto subrayado de una nota subrayada
+  const MAX_CTX = 40;                      // tope del texto de contexto (antes / después) que ancla el subrayado
   const ID_RE = /^[A-Za-z0-9_\-.~:@+]{1,150}$/;   // segmento válido de ruta en la db
   const PREF_DEFAULTS = { theme: 'system', solutionRevealed: {} };
   // Tiempos (configurables solo para los tests): escritura local, pausa antes de sincronizar,
@@ -42,7 +44,7 @@
       prefs: { updatedAt: 0, values: {} },                     // values[key] = {v, at} (fusión por clave)
       checklists: { updatedAt: 0, items: {} },                 // items['c01|checklist|item'] = {on, at}
       lastLocation: { updatedAt: 0, hash: '' },
-      notes: { updatedAt: 0, items: {} },                      // items[id] = {id, kind:'note'|'term', page, section, term, text, createdAt, at, del}
+      notes: { updatedAt: 0, items: {} },                      // items[id] = {id, kind:'note'|'term', page, section, term, text, [quote, before, after, color], createdAt, at, del}
       tomb: {},                                                // intentos borrados: id → ts (evita que "resuciten" al fusionar)
       attempts: {},                                            // id → intento (borradores y terminados)
     };
@@ -77,7 +79,16 @@
     const id = typeof n.id === 'string' ? n.id : key;
     if (typeof id !== 'string' || !ID_RE.test(id) || id === '.' || id === '..') return null;
     const del = !!n.del;
-    return {
+    // Nota subrayada: además del texto, guarda lo que se subrayó (quote), un poco de contexto para volver a
+    // encontrarlo (before / after) y el color (1–5). Solo las notas de tipo 'note' pueden tenerlo.
+    const quote = !del && n.kind !== 'term' && typeof n.quote === 'string' ? n.quote.trim().slice(0, MAX_QUOTE) : '';
+    const hl = quote ? {
+      quote,
+      before: typeof n.before === 'string' ? n.before.slice(-MAX_CTX) : '',
+      after: typeof n.after === 'string' ? n.after.slice(0, MAX_CTX) : '',
+      color: typeof n.color === 'string' && /^[1-5]$/.test(n.color) ? n.color : '1',
+    } : null;
+    const out = {
       id,
       kind: n.kind === 'term' ? 'term' : 'note',
       page: typeof n.page === 'string' && PAGE_RE.test(n.page) ? n.page : '',
@@ -88,6 +99,8 @@
       at: num(n.at, 0),
       del,
     };
+    if (hl) Object.assign(out, hl);
+    return out;
   }
 
   // Normaliza cualquier objeto (localStorage, db, importación) a un estado válido; descarta lo inválido.
@@ -772,19 +785,23 @@
     state.notes.updatedAt = now();
     commit('notes', ['notes']);
   }
-  // addNote({kind, page, section, term, text}) → la nota creada, o null si está vacía.
+  // Una nota normal necesita texto; un término, su nombre; una nota subrayada ya tiene contenido (lo subrayado), con o sin texto.
+  function noteHasContent(n) { return n.kind === 'term' ? !!n.term : !!(n.text.trim() || n.quote); }
+  // addNote({kind, page, section, term, text, quote?, before?, after?, color?, id?}) → la nota creada, o null si está vacía.
   function addNote(o) {
     // createdAt estrictamente creciente: dos notas en el mismo milisegundo conservan su orden.
     let t = now();
     for (const x of Object.values(state.notes.items)) if (x.createdAt >= t) t = x.createdAt + 1;
-    const id = 'n-' + t.toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+    // `id` propio (lo usan las notas subrayadas, cuyo motor crea su id): solo si es válido y no existe ya.
+    const want = isObj(o) && typeof o.id === 'string' && ID_RE.test(o.id) && o.id !== '.' && o.id !== '..' && !state.notes.items[o.id] ? o.id : null;
+    const id = want || 'n-' + t.toString(36) + '-' + Math.random().toString(36).slice(2, 7);
     const n = sanitizeNote(Object.assign({}, isObj(o) ? o : {}, { id, createdAt: t, at: t, del: false }), id);
-    if (!n || (n.kind === 'term' ? !n.term : !n.text.trim())) return null;
+    if (!n || !noteHasContent(n)) return null;
     state.notes.items[id] = n;
     commitNotes();
     return clone(n);
   }
-  // updateNote(id, {term, text, kind}) → la nota actualizada (null si no existe o está borrada).
+  // updateNote(id, {term, text, kind, color}) → la nota actualizada (null si no existe o está borrada).
   function updateNote(id, patch) {
     const cur = state.notes.items[id];
     if (!cur || cur.del) return null;
@@ -793,9 +810,10 @@
       term: 'term' in p ? p.term : cur.term,
       text: 'text' in p ? p.text : cur.text,
       kind: 'kind' in p ? p.kind : cur.kind,
+      color: 'color' in p ? p.color : cur.color,
     }), id);
-    if (!next || (next.kind === 'term' ? !next.term : !next.text.trim())) return null;
-    if (next.term === cur.term && next.text === cur.text && next.kind === cur.kind) return clone(cur);
+    if (!next || !noteHasContent(next)) return null;
+    if (next.term === cur.term && next.text === cur.text && next.kind === cur.kind && next.color === cur.color) return clone(cur);
     next.at = Math.max(now(), cur.at + 1);
     state.notes.items[id] = next;
     commitNotes();
@@ -804,7 +822,7 @@
   function deleteNote(id) {
     const cur = state.notes.items[id];
     if (!cur || cur.del) return;
-    state.notes.items[id] = Object.assign(sanitizeNote(cur, id), { term: '', text: '', del: true, at: Math.max(now(), cur.at + 1) });
+    state.notes.items[id] = Object.assign(sanitizeNote(Object.assign({}, cur, { del: true }), id), { at: Math.max(now(), cur.at + 1) });
     commitNotes();
   }
 

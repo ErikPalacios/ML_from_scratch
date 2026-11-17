@@ -97,7 +97,8 @@ const kb = (n) => (n / 1024).toFixed(1) + ' KB';
 // (el icono no se incrusta: es un archivo de dist/, copiado desde public/)
 const leftovers = (out.match(/<(link|script)\b[^>]*\s(href|src)=["'](?!https?:|\/\/)[^"']+["'][^>]*>/gi) || []).filter((t) => !/\brel=["']icon["']/i.test(t));
 if (leftovers.length && !allowMissing) { console.error('[build] ERROR: quedan referencias locales sin incrustar:\n  ' + leftovers.join('\n  ')); process.exit(1); }
-if (/<!doctype|<html\b|<\/?head\b|<\/?body\b/i.test(artifact)) { console.error('[build] ERROR: artifact.html contiene etiquetas de documento.'); process.exit(1); }
+// (se ignora el contenido de <script>/<style>: un comentario de piezas.js que nombra <html> no es una etiqueta del documento)
+if (/<!doctype|<html\b|<\/?head\b|<\/?body\b/i.test(artifact.replace(SCRIPT_RE, '').replace(/<style\b[\s\S]*?<\/style>/gi, ''))) { console.error('[build] ERROR: artifact.html contiene etiquetas de documento.'); process.exit(1); }
 const tpos = artifact.indexOf('<title');
 if (tpos !== 0 || Buffer.byteLength(artifact.slice(0, tpos + 200)) > 8192) { console.error('[build] ERROR: <title> debe ir al principio de artifact.html.'); process.exit(1); }
 

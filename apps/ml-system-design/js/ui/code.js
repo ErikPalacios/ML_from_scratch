@@ -6,7 +6,10 @@
    Visor de código con pestañas (una por archivo), números de línea que no se
    copian, resaltado ligero por lenguaje, botón "Copiar", ajuste de líneas (pref
    'codeWrap' de MSD.store, común a todos los bloques; sin store no se recuerda) y
-   nota opcional. Los archivos con `src` se leen de MSD.files (generado por
+   nota opcional. Se ve con el diseño estándar de TrueML (.tm-code de vendor/trueml/piezas.css): panel oscuro,
+   barra con lenguaje · título · Copiar, y colores .tk-* (TrueMLCodigo.resaltar de vendor/trueml/codigo.js; los
+   lenguajes que ese módulo no conoce —pbtxt, PromQL— usan la gramática de abajo con las mismas clases .tk-*).
+   Los archivos con `src` se leen de MSD.files (generado por
    tools/embed-reference.mjs). El resaltado nunca altera el texto: solo envuelve
    fragmentos en <span>; el texto escapado concatenado es idéntico al original.
    ========================================================================== */
@@ -161,6 +164,11 @@
     },
   };
 
+  // clases de la gramática propia → clases estándar .tk-* de TrueML
+  const TK = { com: 'c', str: 's', kw: 'k', num: 'n', fn: 'f', key: 'a', dec: 'd', var: 'v', lit: 'v', sec: 'a' };
+  // lenguajes que resalta TrueMLCodigo (el resto usa la gramática de arriba)
+  const SHARED = { python: 'python', bash: 'bash', json: 'json', yaml: 'yaml', toml: 'toml', ini: 'toml', dockerfile: 'docker' };
+
   const compiled = {};
   function grammar(lang) {
     if (compiled[lang] !== undefined) return compiled[lang];
@@ -175,6 +183,9 @@
     return compiled[lang];
   }
 
+  // clave del lenguaje para el punto de color de la barra (las de piezas.css: python, bash, docker, yaml, toml, json)
+  function langKey(l) { return l === 'dockerfile' ? 'docker' : l === 'ini' ? 'toml' : l; }
+
   function normLang(lang) {
     const l = str(lang).toLowerCase().trim();
     if (LANG_NAMES[l]) return l;
@@ -182,15 +193,36 @@
   }
 
   // Tokeniza el texto completo (los strings multilínea funcionan) y lo reparte en líneas.
+  // Reparte el HTML resaltado en líneas: un token que cruza saltos de línea se cierra y se reabre en cada una.
+  function splitLines(html) {
+    const lines = [''];
+    let open = '';
+    const re = /<span class="tk-[a-z]+">|<\/span>|\n|[^<\n]+/g;
+    let m;
+    while ((m = re.exec(html))) {
+      const t = m[0];
+      if (t === '\n') { if (open) lines[lines.length - 1] += '</span>'; lines.push(open); }
+      else if (t === '</span>') { open = ''; lines[lines.length - 1] += t; }
+      else if (t.charAt(0) === '<') { open = t; lines[lines.length - 1] += t; }
+      else lines[lines.length - 1] += t;
+    }
+    return lines;
+  }
+
   function highlight(text, lang) {
     const src = str(text);
-    const g = grammar(normLang(lang));
+    const nl = normLang(lang);
+    const TC = root.TrueMLCodigo;
+    if (TC && typeof TC.resaltar === 'function' && SHARED[nl]) {
+      try { return splitLines(TC.resaltar(src, SHARED[nl])); } catch (e) { /* sigue con la gramática propia */ }
+    }
+    const g = grammar(nl);
     const lines = [''];
     const push = (cls, chunk) => {
       const parts = chunk.split('\n');
       parts.forEach((p, i) => {
         if (i > 0) lines.push('');
-        if (p) lines[lines.length - 1] += cls ? '<span class="tk-' + cls + '">' + esc(p) + '</span>' : esc(p);
+        if (p) lines[lines.length - 1] += cls ? '<span class="tk-' + (TK[cls] || cls) + '">' + esc(p) + '</span>' : esc(p);
       });
     };
     if (!g) { push(null, src); return lines; }
@@ -289,7 +321,7 @@
     const uid = 'cx' + (++seq);
     const list = (Array.isArray(files) ? files : files ? [files] : []).filter((f) => f && typeof f === 'object').map(resolveFile);
     const title = str(opts.title);
-    const fig = h('figure', { class: 'cx' + (list.length > 1 ? ' cx--tabs' : '') });
+    const fig = h('figure', { class: 'cx' + (list.length > 1 ? ' cx--tabs' : ''), 'data-tm-nonota': '' });
 
     if (title || opts.caption) {
       fig.appendChild(h('figcaption', { class: 'cx__head' }, [
@@ -303,7 +335,8 @@
       return fig;
     }
 
-    const box = h('div', { class: 'cx__box' });
+    // .tm-code: el bloque estándar de TrueML (panel oscuro); data-lang pinta el punto de color del lenguaje.
+    const box = h('div', { class: 'cx__box tm-code', 'data-lang': langKey(list[0].lang) });
     fig.appendChild(box);
     // "Ajustar" es una preferencia global (pref 'codeWrap'): vale para todos los bloques y visitas.
     const st = MSD.store;
@@ -353,6 +386,7 @@
       state.active = i;
       tabs.forEach((t, k) => { t.setAttribute('aria-selected', k === i ? 'true' : 'false'); t.tabIndex = k === i ? 0 : -1; });
       panels.forEach((p, k) => { p.hidden = k !== i; });
+      box.setAttribute('data-lang', langKey(list[i].lang));
       if (focus && tabs[i]) {
         try { tabs[i].focus(); } catch (e) { /* nada */ }
       }
@@ -369,10 +403,11 @@
 
     function buildPanel(f, i, panelId, tabId) {
       const panel = h('div', { class: 'cx__panel', id: panelId, role: tabId ? 'tabpanel' : 'group', 'aria-labelledby': tabId, 'aria-label': tabId ? null : f.name });
-      const meta = h('div', { class: 'cx__meta' });
-      const info = h('div', { class: 'cx__info' });
+      // barra estándar: lenguaje · título (archivo, líneas, ruta) · acciones
+      const meta = h('div', { class: 'cx__meta tm-code__bar' });
+      const info = h('div', { class: 'cx__info tm-code__title' });
+      meta.appendChild(h('span', { class: 'cx__lang tm-code__lang', text: LANG_NAMES[f.lang] || f.lang }));
       if (!tabId) info.appendChild(h('span', { class: 'cx__fname', text: f.name }));
-      info.appendChild(h('span', { class: 'cx__lang', text: LANG_NAMES[f.lang] || f.lang }));
       meta.appendChild(info);
 
       if (f.missing != null) {
@@ -401,19 +436,20 @@
 
       const status = h('span', { class: 'cx__status', role: 'status', 'aria-live': 'polite' });
       const copyLabel = h('span', { text: 'Copiar' });
-      const copyBtn = h('button', { type: 'button', class: 'cx__btn cx__btn--copy', 'aria-label': 'Copiar ' + f.name }, [iconCopy(), copyLabel]);
+      const copyBtn = h('button', { type: 'button', class: 'cx__btn cx__btn--copy tm-code__copy', 'aria-label': 'Copiar ' + f.name }, [iconCopy(), copyLabel]);
       let timer = null;
       copyBtn.addEventListener('click', () => {
         copyText(f.text, code).then((ok) => {
           clearTimeout(timer);
           copyBtn.classList.toggle('is-done', ok);
+          copyBtn.classList.toggle('is-ok', ok);
           status.classList.toggle('is-ok', ok);
           copyLabel.textContent = ok ? 'Copiado' : 'Copiar';
           status.textContent = ok ? 'Copiado al portapapeles.' : 'No se pudo copiar: el código quedó seleccionado; usa Ctrl+C o ⌘C.';
-          timer = setTimeout(() => { copyBtn.classList.remove('is-done'); copyLabel.textContent = 'Copiar'; status.textContent = ''; }, ok ? 1800 : 6000);
+          timer = setTimeout(() => { copyBtn.classList.remove('is-done', 'is-ok'); copyLabel.textContent = 'Copiar'; status.textContent = ''; }, ok ? 1800 : 6000);
         });
       });
-      const wrapBtn = h('button', { type: 'button', class: 'cx__btn cx__btn--wrap', 'aria-pressed': state.wrap ? 'true' : 'false', title: 'Ajustar las líneas largas al ancho', on: { click: () => { const on = !state.wrap; setWrap(on); if (st && typeof st.setPref === 'function') st.setPref('codeWrap', on); document.dispatchEvent(new CustomEvent('msd:codewrap', { detail: on })); } } }, [iconWrap(), h('span', { text: 'Ajustar' })]);
+      const wrapBtn = h('button', { type: 'button', class: 'cx__btn cx__btn--wrap tm-code__copy', 'aria-pressed': state.wrap ? 'true' : 'false', title: 'Ajustar las líneas largas al ancho', on: { click: () => { const on = !state.wrap; setWrap(on); if (st && typeof st.setPref === 'function') st.setPref('codeWrap', on); document.dispatchEvent(new CustomEvent('msd:codewrap', { detail: on })); } } }, [iconWrap(), h('span', { text: 'Ajustar' })]);
       wrapBtns.push(wrapBtn);
       meta.appendChild(h('div', { class: 'cx__actions' }, [status, wrapBtn, copyBtn]));
       panel.appendChild(meta);

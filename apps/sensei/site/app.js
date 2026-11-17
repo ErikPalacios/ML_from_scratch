@@ -42,6 +42,13 @@
     }
   }
   pintarLeidas();
+  // Cuando marcas todas las secciones de una lección como leídas (piezas.js), la lección cuenta como leída
+  document.addEventListener('tm-avance', function (ev) {
+    var d = ev.detail || {}, b = document.querySelector('[data-leida]');
+    if (!b || !d.completa) return;
+    var id = b.getAttribute('data-leida'), l = leidas();
+    if (l.indexOf(id) < 0) { l.push(id); guardar(KLEIDAS, JSON.stringify(l)); pintarLeidas(); }
+  });
 
   // ------------------------------------------------------------ repaso: cuántas tarjetas tocan hoy (en la barra lateral)
   // El avance lo escribe /repaso.js: { v: 1, c: { <id>: [caja, día en que vuelve] } }, con el día contado en días locales.

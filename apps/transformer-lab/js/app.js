@@ -1132,7 +1132,17 @@
         h('summary', null, h('span', { class: 'expl__h', text: 'Derivación y detalles' })),
         h('div', { class: 'prose', html: F(c.details) })));
     }
-    if (c.code) art.append(expSection('Pseudocódigo (estilo NumPy)', h('pre', { class: 'expl__code', text: F(c.code) })));
+    if (c.code) {
+      // el pseudocódigo va en el bloque estándar de TrueML (barra con lenguaje y Copiar, colores .tk-*); sin codigo.js, un <pre> simple
+      const pre = h('pre', { class: 'expl__code', text: F(c.code) });
+      let cuerpo = pre;
+      if (window.TrueMLCodigo) {
+        const fig = h('figure', { class: 'tm-code expl__fig', 'data-lang': 'python', 'data-titulo': 'pseudocódigo' }, pre);
+        window.TrueMLCodigo.mejorar(fig);
+        cuerpo = fig;
+      }
+      art.append(expSection('Pseudocódigo (estilo NumPy)', cuerpo));
+    }
     if (c.refs && c.refs.length && C.derivations) {
       const list = h('div', { class: 'expl__refs' });
       for (const id of c.refs) {

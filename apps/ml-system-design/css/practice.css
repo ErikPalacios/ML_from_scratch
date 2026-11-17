@@ -723,6 +723,14 @@
 .note__when { margin-left: auto; }
 .note__actions { display: inline-flex; gap: 2px; }
 .note__actions .btn { min-height: 26px; padding: 0 6px; }
+.note__quote {
+  margin: 8px 0 0; padding: 6px 10px; border-radius: 0 8px 8px 0; font-size: 14.5px; line-height: 1.5; font-style: italic;
+  overflow-wrap: anywhere; border-left: 3px solid var(--tm-n1); background: var(--tm-n1-bg);
+}
+.note__quote[data-c="2"] { border-left-color: var(--tm-n2); background: var(--tm-n2-bg); }
+.note__quote[data-c="3"] { border-left-color: var(--tm-n3); background: var(--tm-n3-bg); }
+.note__quote[data-c="4"] { border-left-color: var(--tm-n4); background: var(--tm-n4-bg); }
+.note__quote[data-c="5"] { border-left-color: var(--tm-n5); background: var(--tm-n5-bg); }
 .note__text { margin-top: 6px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.55; }
 .note__text:empty { display: none; }
 .note__confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--rule-strong); font-size: 14px; }

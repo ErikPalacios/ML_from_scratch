@@ -535,3 +535,55 @@ test('notas: se sincronizan en su propio documento de la cuenta', async () => {
   const main = db.docs.get(MAIN) || {};
   assert.ok(!('notes' in main), 'las notas no van en el documento principal');
 });
+
+test('notas subrayadas: quote/before/after/color se guardan, se limitan, sobreviven a recargar, exportar y borrar', async () => {
+  const ls = fakeStorage();
+  const env = makeEnv({ storage: ls });
+  const { store } = env;
+  // un subrayado sin texto es válido (lo subrayado es su contenido); una nota normal vacía sigue sin serlo
+  assert.strictEqual(store.addNote({ kind: 'note', page: 'm01', section: 'a', text: '' }), null);
+  const h = store.addNote({ id: 'nm3k9x', kind: 'note', page: 'm01', section: 'a', text: '', quote: ' p99 de latencia ', before: 'x'.repeat(100), after: 'y'.repeat(100), color: '3' });
+  assert.ok(h);
+  assert.strictEqual(h.id, 'nm3k9x', 'respeta el id que da el motor de subrayados');
+  assert.strictEqual(h.quote, 'p99 de latencia', 'la cita se recorta');
+  assert.strictEqual(h.before.length, 40, 'el contexto se limita');
+  assert.strictEqual(h.after.length, 40);
+  assert.strictEqual(h.color, '3');
+  // id repetido o inválido: se genera uno nuevo
+  assert.notStrictEqual(store.addNote({ id: 'nm3k9x', kind: 'note', page: 'm01', text: 'otra' }).id, 'nm3k9x');
+  assert.notStrictEqual(store.addNote({ id: '../x', kind: 'note', page: 'm01', text: 'otra' }).id, '../x');
+  // color inválido → 1; cita larga → tope; los términos nunca llevan cita
+  assert.strictEqual(store.addNote({ kind: 'note', page: 'm01', text: 't', quote: 'ab', color: '9' }).color, '1');
+  assert.strictEqual(store.addNote({ kind: 'note', page: 'm01', text: 't', quote: 'q'.repeat(2000) }).quote.length, 1500);
+  const term = store.addNote({ kind: 'term', page: 'm01', term: 'TLS', text: 'cifra', quote: 'no debe guardarse' });
+  assert.strictEqual(term.quote, undefined);
+  // editar texto y color; el subrayado se queda aunque el texto quede vacío
+  env.clock.t += 10;
+  const u = store.updateNote(h.id, { text: 'revisar con M03', color: '4' });
+  assert.strictEqual(u.text, 'revisar con M03');
+  assert.strictEqual(u.color, '4');
+  assert.strictEqual(u.quote, 'p99 de latencia');
+  env.clock.t += 10;
+  assert.strictEqual(store.updateNote(h.id, { text: '' }).quote, 'p99 de latencia', 'sin texto sigue siendo un subrayado válido');
+  // la nota normal no puede quedar vacía
+  const plain = store.addNote({ kind: 'note', page: 'm01', text: 'normal' });
+  assert.strictEqual(store.updateNote(plain.id, { text: '' }), null);
+  await env.advance(300);
+  const env2 = makeEnv({ storage: ls });
+  const back = env2.store.getNote(h.id);
+  assert.strictEqual(back.quote, 'p99 de latencia', 'sobrevive a recargar');
+  assert.strictEqual(back.color, '4');
+  // exportar → importar en otro navegador
+  const C = makeEnv({ storage: fakeStorage() });
+  assert.ok(C.store.importJSON(env.store.exportJSON()).ok);
+  assert.strictEqual(C.store.getNote(h.id).quote, 'p99 de latencia');
+  assert.strictEqual(C.store.listNotes({ page: 'm01' }).filter((n) => n.quote).length >= 2, true);
+  // borrar: queda la lápida sin cita y gana al fusionar
+  C.clock.t += 5000;
+  C.store.deleteNote(h.id);
+  const stone = JSON.parse(JSON.stringify(C.store.exportJSON() && JSON.parse(C.store.exportJSON()).state.notes.items[h.id]));
+  assert.strictEqual(stone.del, true);
+  assert.ok(!('quote' in stone) && !('color' in stone), 'la lápida no guarda la cita');
+  assert.ok(env.store.importJSON(C.store.exportJSON()).ok);
+  assert.strictEqual(env.store.getNote(h.id), null, 'el borrado gana al fusionar');
+});

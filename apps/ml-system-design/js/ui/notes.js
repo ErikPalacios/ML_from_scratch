@@ -9,6 +9,10 @@
      - termForm({onDone}): formulario para agregar un término propio (lo usa el glosario);
      - glossaryTerms() / cards() / searchItems(): tus términos en el glosario, como flashcards
        y en el buscador.
+   Subrayados: seleccionas texto en un módulo o caso, eliges un color (vendor/trueml/piezas.js, TrueMLNotas) y
+     queda subrayado con su nota. Se guardan como notas normales del store (kind 'note' + quote/before/after/color):
+     por eso aparecen en la lista de su sección, en el panel lateral y en #mis-notas, se sincronizan con la cuenta y
+     viajan en exportar / importar. initHighlights(cfg) los conecta; refreshHighlights() los vuelve a pintar.
    Todo se guarda con MSD.store (listNotes/addNote/updateNote/deleteNote): viaja con exportar /
    importar y, dentro de claude.ai, se sincroniza con la cuenta. El texto del usuario se muestra
    siempre como texto (nunca como HTML).
@@ -90,7 +94,7 @@
       const term = termIn.value.trim();
       const text = textTa.value;
       if (kind === 'term' && !term) { msg.textContent = 'Escribe el término.'; msg.hidden = false; termIn.focus(); return; }
-      if (kind === 'note' && !text.trim()) { msg.textContent = 'La nota está vacía.'; msg.hidden = false; textTa.focus(); return; }
+      if (kind === 'note' && !text.trim() && !o.allowEmpty) { msg.textContent = 'La nota está vacía.'; msg.hidden = false; textTa.focus(); return; }
       if (o.onSave({ kind, term: kind === 'term' ? term : '', text }) === false) { msg.textContent = 'No se pudo guardar.'; msg.hidden = false; }
     }
     const onKey = (e) => {
@@ -118,25 +122,27 @@
   // opts = {showWhere, onChange}
   function noteCard(n, opts) {
     const o = opts || {};
-    const card = h('article', { class: 'note note--' + n.kind, dataset: { note: n.id }, id: 'nota-' + n.id, tabindex: '-1' });
+    const card = h('article', { class: 'note note--' + n.kind + (n.quote ? ' note--hl' : ''), dataset: { note: n.id }, id: 'nota-' + n.id, tabindex: '-1' });
     function view() {
       card.innerHTML = '';
       const where = o.showWhere && n.page ? h('a', { class: 'note__where', href: noteHref(n) },
         sectionTitle(n.page, n.section) || pageLabel(n.page)) : null;
       card.appendChild(h('header', { class: 'note__head' },
-        h('span', { class: 'chip ' + (n.kind === 'term' ? 'chip--accent' : 'chip--warn') }, n.kind === 'term' ? 'Término' : 'Nota'),
+        h('span', { class: 'chip ' + (n.kind === 'term' ? 'chip--accent' : 'chip--warn') }, n.kind === 'term' ? 'Término' : n.quote ? 'Subrayado' : 'Nota'),
         n.kind === 'term' ? h('strong', { class: 'note__term' }, n.term) : null,
         where,
         h('span', { class: 'note__when muted small' }, whenText(n)),
         h('span', { class: 'note__actions' },
+          n.quote && hl && hl.page() === n.page ? h('button', { type: 'button', class: 'btn btn--sm btn--text', on: { click: () => showInText(n.id) } }, 'Ver en el texto') : null,
           h('button', { type: 'button', class: 'btn btn--sm btn--text', on: { click: edit } }, 'Editar'),
           h('button', { type: 'button', class: 'btn btn--sm btn--text note__del', on: { click: confirmDel } }, 'Borrar'))));
+      if (n.quote) card.appendChild(h('blockquote', { class: 'note__quote', dataset: { c: n.color || '1' } }, n.quote));
       card.appendChild(h('div', { class: 'note__text' }, n.text));
     }
     function edit() {
       card.innerHTML = '';
       const f = noteForm({
-        kind: n.kind, term: n.term, text: n.text, allowKind: true, submitLabel: 'Guardar cambios',
+        kind: n.kind, term: n.term, text: n.text, allowKind: !n.quote, allowEmpty: !!n.quote, submitLabel: 'Guardar cambios',
         onSave: (v) => {
           const r = store().updateNote(n.id, v);
           if (!r) return false;
@@ -190,6 +196,7 @@
       if (v.sigFn() !== v.last && !typingIn(v.el)) v.paint();
     });
     updateBar();
+    if (hl && hlSigNow() !== hlSig) refreshHighlights();
   }
   function scheduleSync() {
     if (syncQueued) return;
@@ -202,7 +209,8 @@
   function sectionBlock(pageId, sectionId) {
     const list = h('div', { class: 'notes__list' });
     const slot = h('div', { class: 'notes__form' });
-    const panel = h('div', { class: 'notes', dataset: { notesFor: pageId + '.' + sectionId } },
+    // tm-ui: el motor de subrayados ignora este panel (no se subraya ni se busca texto para marcar aquí)
+    const panel = h('div', { class: 'notes tm-ui', dataset: { notesFor: pageId + '.' + sectionId } },
       h('p', { class: 'notes__title' }, h('span', { html: icon('note') }), 'Mis notas'),
       list, slot);
     const countEl = h('span', { class: 'notes-btn__n mono' });
@@ -274,8 +282,8 @@
     return safe(() => store().listNotes(), []).map((n) => {
       const where = [pageLabel(n.page), sectionTitle(n.page, n.section)].filter(Boolean).join(' · ');
       if (n.kind === 'term') return { type: 'myterm', id: 'myterm:' + n.id, title: n.term, text: n.text.slice(0, 160), href: '#glosario.mio-' + n.id };
-      const first = n.text.trim().split('\n')[0];
-      return { type: 'note', id: 'note:' + n.id, title: first.length > 90 ? first.slice(0, 88) + '…' : first, text: (where ? where + ' · ' : '') + n.text.slice(0, 160), href: noteHref(n) };
+      const first = (n.text.trim() || n.quote || '').split('\n')[0];
+      return { type: 'note', id: 'note:' + n.id, title: first.length > 90 ? first.slice(0, 88) + '…' : first, text: (where ? where + ' · ' : '') + (n.quote ? '«' + n.quote.slice(0, 80) + '» ' : '') + n.text.slice(0, 160), href: noteHref(n) };
     });
   }
 
@@ -302,12 +310,12 @@
     wrap.appendChild(h('header', { class: 'phead' }, eb,
       h('h1', { class: 'phead__title', id: 'page-title', tabindex: '-1' }, m.title || 'Mis notas'),
       h('p', { class: 'phead__en', lang: 'en' }, m.titleEn || 'My notes'),
-      h('p', { class: 'phead__summary' }, 'Lo que fuiste anotando al leer: dudas, resúmenes y términos con tu propia definición. Agrega notas con el botón «Agregar nota» al final de cada sección. Tus términos también salen en el glosario, en el buscador y como flashcards.')));
+      h('p', { class: 'phead__summary' }, 'Lo que fuiste anotando al leer: dudas, resúmenes y términos con tu propia definición. Agrega notas con el botón «Agregar nota» al final de cada sección, o selecciona un texto mientras lees, elige un color y escribe lo que quieras recordar: queda subrayado. Tus términos también salen en el glosario, en el buscador y como flashcards.')));
 
     let filter = 'all';
     const q = h('input', { type: 'search', class: 'input', id: 'mn-q', autocomplete: 'off', spellcheck: 'false', placeholder: 'Buscar en tus notas…', 'aria-controls': 'mn-list' });
     const segBtns = {};
-    const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Mostrar' }, [['all', 'Todo'], ['note', 'Notas'], ['term', 'Términos']].map(([k, txt]) =>
+    const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Mostrar' }, [['all', 'Todo'], ['note', 'Notas'], ['mark', 'Subrayados'], ['term', 'Términos']].map(([k, txt]) =>
       (segBtns[k] = h('button', { type: 'button', 'aria-pressed': String(k === filter), on: { click: () => { filter = k; Object.keys(segBtns).forEach((x) => segBtns[x].setAttribute('aria-pressed', String(x === k))); paint(); } } }, txt))));
     const addSlot = h('div', { class: 'mynotes__add' });
     const addBtn = h('button', { type: 'button', class: 'btn btn--sm', 'aria-expanded': 'false', on: { click: () => (addSlot.firstChild ? closeAdd(true) : openAdd()) } },
@@ -345,17 +353,18 @@
       const all = store().listNotes();
       view.last = sigOf(all);
       const tokens = norm(q.value).split(/\s+/).filter(Boolean);
-      const shown = all.filter((n) => (filter === 'all' || n.kind === filter)
-        && tokens.every((t) => norm([n.term, n.text, pageLabel(n.page), sectionTitle(n.page, n.section)].join(' ')).indexOf(t) >= 0));
+      const shown = all.filter((n) => (filter === 'all' || (filter === 'mark' ? !!n.quote : filter === 'note' ? n.kind === 'note' && !n.quote : n.kind === filter))
+        && tokens.every((t) => norm([n.term, n.text, n.quote, pageLabel(n.page), sectionTitle(n.page, n.section)].join(' ')).indexOf(t) >= 0));
       list.innerHTML = '';
       const nTerms = all.filter((n) => n.kind === 'term').length;
+      const nMarks = all.filter((n) => n.quote).length;
       count.textContent = all.length
-        ? (shown.length === all.length ? '' : shown.length + ' de ') + all.length + (all.length === 1 ? ' entrada' : ' entradas') + ' · ' + plural(all.length - nTerms, 'nota', 'notas') + ' · ' + plural(nTerms, 'término', 'términos')
+        ? (shown.length === all.length ? '' : shown.length + ' de ') + all.length + (all.length === 1 ? ' entrada' : ' entradas') + ' · ' + plural(all.length - nTerms - nMarks, 'nota', 'notas') + (nMarks ? ' · ' + plural(nMarks, 'subrayado', 'subrayados') : '') + ' · ' + plural(nTerms, 'término', 'términos')
         : '';
       if (!all.length) {
         list.appendChild(h('div', { class: 'px-empty' },
           h('p', { class: 'px-empty__t' }, 'Todavía no tienes notas'),
-          h('p', { class: 'muted' }, 'Al final de cada sección hay un botón «Agregar nota». Ahí puedes escribir una duda, un resumen o un término con tu definición (p. ej. qué es TLS o un load balancer).'),
+          h('p', { class: 'muted' }, 'Al final de cada sección hay un botón «Agregar nota», y también puedes seleccionar un texto, elegir un color y subrayarlo con una nota. Ahí puedes escribir una duda, un resumen o un término con tu definición (p. ej. qué es TLS o un load balancer).'),
           h('p', null, h('a', { class: 'btn btn--primary', href: '#m01' }, 'Abrir M01'))));
         return;
       }
@@ -474,7 +483,7 @@
     if (v) v.last = sigOf(all);
     dList.innerHTML = '';
     if (!all.length) {
-      dList.appendChild(h('p', { class: 'muted ndrawer__empty' }, 'Todavía no hay notas en esta página. Usa «Agregar nota»: queda en la sección que elijas y también al final de esa sección.'));
+      dList.appendChild(h('p', { class: 'muted ndrawer__empty' }, 'Todavía no hay notas en esta página. Usa «Agregar nota»: queda en la sección que elijas y también al final de esa sección. También puedes seleccionar un texto, elegir un color y subrayarlo con una nota.'));
       return;
     }
     const onChange = (info) => paintDrawerList(info && info.focus);
@@ -530,5 +539,55 @@
     updateBar();
   }
 
-  MSD.Notes = { sectionBlock, render, termForm, glossaryTerms, cards, searchItems, pageLabel, setPage, openDrawer, closeDrawer };
+  // ------------------------------------------------------------------ subrayados (TrueMLNotas)
+  // cfg = {root() → contenedor de la página (o null si esta página no admite subrayados), page() → id de página,
+  //        sections() → ids de sus secciones}. Las notas viven en el store; el motor compartido solo dibuja el
+  //        subrayado, la barra de colores y el cuadro para editar. Su botón y panel propios no se usan (boton:false):
+  //        la barra «Nota · Ver notas» y el panel lateral de arriba muestran las mismas notas.
+  let hl = null;
+  let hlSig = '';
+  const hlList = () => (hl ? safe(() => store().listNotes({ page: hl.page() }).filter((n) => n.quote), []) : []);
+  const hlSigNow = () => hlList().map((n) => n.id + ':' + n.at + ':' + n.color).join('|');
+  const toEngine = (n) => ({
+    id: n.id, pagina: n.page, url: '#' + n.page + (n.section ? '.' + n.section : ''), color: n.color || '1',
+    cita: n.quote, antes: n.before, despues: n.after, texto: n.text, seccion: n.section, creada: n.createdAt, editada: n.at,
+  });
+  const hlAdapter = {
+    listar: () => safe(() => store().listNotes().filter((n) => n.quote).map(toEngine), []),
+    poner(e) {
+      const st = store();
+      if (st.getNote(e.id)) st.updateNote(e.id, { text: e.texto || '', color: e.color });
+      else {
+        // el motor da el id del elemento (p. ej. «m01.latencia»): la sección del store es solo la parte final
+        let sec = String(e.seccion || '');
+        const pre = e.pagina + '.';
+        if (sec.indexOf(pre) === 0) sec = sec.slice(pre.length);
+        if (hl.sections().indexOf(sec) < 0) sec = '';
+        st.addNote({ id: e.id, kind: 'note', page: e.pagina, section: sec, text: e.texto || '', quote: e.cita, before: e.antes, after: e.despues, color: e.color });
+      }
+      hlSig = hlSigNow();
+    },
+    quitar(id) { store().deleteNote(id); hlSig = hlSigNow(); },
+  };
+  function initHighlights(cfg) {
+    if (hl || !cfg || !root.TrueMLNotas || typeof root.TrueMLNotas.init !== 'function') return false;
+    hl = cfg;
+    root.TrueMLNotas.init({ raiz: () => hl.root(), clave: 'ronda', pagina: () => hl.page() || '', url: () => '#' + (hl.page() || ''), adaptador: hlAdapter, boton: false });
+    return true;
+  }
+  // Vuelve a pintar los subrayados de la página que se ve (al cambiar de ruta o cuando cambian las notas).
+  function refreshHighlights() {
+    if (!hl || !root.TrueMLNotas) return;
+    hlSig = hlSigNow();
+    safe(() => root.TrueMLNotas.aplicar());
+  }
+  function showInText(id) {
+    const m = document.querySelector('mark.tm-sub[data-id="' + id + '"]');
+    if (!m) return;
+    if (narrow()) closeDrawer(false);
+    m.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' });
+    document.querySelectorAll('mark.tm-sub[data-id="' + id + '"]').forEach((x) => { x.classList.add('is-activa'); setTimeout(() => x.classList.remove('is-activa'), 1300); });
+  }
+
+  MSD.Notes = { initHighlights, refreshHighlights, sectionBlock, render, termForm, glossaryTerms, cards, searchItems, pageLabel, setPage, openDrawer, closeDrawer };
 })(typeof window !== 'undefined' ? window : globalThis);

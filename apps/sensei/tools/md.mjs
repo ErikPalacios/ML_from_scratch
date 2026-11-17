@@ -14,6 +14,7 @@
 // secciones: [{ id, t, extra, palabras }]; cuenta: cuántos diagramas, figuras, calculadoras, cuentas y ejercicios trae.
 
 import { mate } from './mate.mjs';
+import { bloqueCodigo } from '../vendor/trueml/lib.mjs';
 
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 export const slug = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -115,8 +116,7 @@ export function crear({ glosario, diagrama, figura, calculadora, contexto = '' }
         cerrarParrafo();
         const lang = l.slice(3).trim(), code = [];
         for (i++; i < lineas.length && !lineas[i].startsWith('```'); i++) code.push(lineas[i]);
-        if (lang === 'salida') out.push(`<div class="c-salida"><span class="c-salida-h">Salida</span><pre><code>${esc(code.join('\n'))}</code></pre></div>`);
-        else out.push(`<div class="c-code"${lang ? ` data-lang="${esc(lang)}"` : ''}>${lang ? `<span class="c-code-h">${esc(lang)}</span>` : ''}<pre><code>${esc(code.join('\n'))}</code></pre></div>`);
+        out.push(bloqueCodigo({ codigo: code.join('\n'), lang: lang === 'salida' ? '' : lang, salida: lang === 'salida' }));
         continue;
       }
       m = l.match(/^(#{2,3})\s+(.+?)(?:\s+\{([^}]+)\})?(?:\s+\[(extra|esencial)\])?\s*$/);

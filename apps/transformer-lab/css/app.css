@@ -918,7 +918,7 @@ main:focus { outline: none; }
 }
 .expl__details[open] > summary::before { transform: rotate(90deg); }
 .expl__details > summary .expl__h { margin-bottom: 6px; }
-.expl__code { font-size: 12px; white-space: pre; }
+.expl__code { white-space: pre; }
 .expl__refs { display: grid; gap: 6px; }
 .ref-btn {
   display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 7px 10px;

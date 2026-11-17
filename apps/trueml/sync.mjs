@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const APPS_DIR = join(AQUI, '..');
-const ARCHIVOS = ['trueml-mark.js', 'lib.mjs', 'etapas.json', 'tokens.css', 'cliente.js'];
+const ARCHIVOS = ['trueml-mark.js', 'lib.mjs', 'etapas.json', 'tokens.css', 'cliente.js', 'codigo.js', 'piezas.js', 'piezas.css'];
 // La carpeta de cada app que se despliega (el tablero copia su web/ entera, también al demo).
 const APPS = ['taller-ai', 'portada', 'sensei', 'ml-system-design', 'atlas-arquitecturas', 'transformer-lab', 'tablero-ml/web', 'cheat-sheets'];
 const DOJO = { carpeta: 'taller-ai', url: 'https://taller-ai-engineer.vercel.app' };
