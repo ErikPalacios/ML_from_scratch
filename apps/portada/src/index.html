@@ -39,23 +39,27 @@
 
 <main class="p-wrap p-main">
   <section class="p-hero">
-    <span class="p-kicker">{{KICKER}}</span>
-    <h1>True<span>ML</span></h1>
-    <p class="p-lead">{{TAGLINE}}</p>
-{{BOTONES}}{{VIDEO}}  </section>
+    <div class="p-hero-txt">
+      <span class="p-kicker">{{KICKER}}</span>
+      <h1>True<span>ML</span></h1>
+      <p class="p-lead">{{TAGLINE}}</p>
+{{BOTONES}}    </div>
+{{VIDEO}}  </section>
 
-  <div class="p-t" data-tm-sticky>
-    <div class="p-t-marca" data-tm-escena data-caption="{{CAPTION}}">{{T}}</div>
-    <span class="p-caption" data-tm-caption aria-live="polite">{{CAPTION}}</span>
-  </div>
-
-  <section class="p-tools" id="herramientas">
-    {{DESTACADA}}
-    <h2>Las herramientas</h2>
-    <div class="p-list">
-      {{HERRAMIENTAS}}
+  <div class="p-cuerpo">
+    <div class="p-t" data-tm-sticky data-p-t>
+      <div class="p-t-marca" data-tm-escena data-caption="{{CAPTION}}">{{T}}</div>
+      <span class="p-caption" data-tm-caption aria-live="polite">{{CAPTION}}</span>
     </div>
-  </section>
+
+    <section class="p-tools" id="herramientas">
+      {{DESTACADA}}
+      <h2>Las herramientas</h2>
+      <div class="p-list">
+        {{HERRAMIENTAS}}
+      </div>
+    </section>
+  </div>
 </main>
 
 <section class="p-wrap p-sec">
