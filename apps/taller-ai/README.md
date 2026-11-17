@@ -1,4 +1,4 @@
-# Dojo de entrenamiento ML engineer's
+# Dojo de entrenamiento ML engineering
 
 Proyectos chicos de ML engineering que corren en una Mac, uno por cada estación del mapa «Del dato a producción». Cada uno se trabaja en cuatro rondas: Guiado, Solo, Romper con ayuda y Romper solo. La app es la guía (conceptos, pasos, prompts, catálogo de fallas); el trabajo pasa en el kit, con Claude Code. El plan completo está en [docs/plan-taller-ai.md](../../docs/plan-taller-ai.md).
 

@@ -74,6 +74,7 @@ body.tm-pagina {
 .p-dojo-stripe { height: 10px; }
 .p-dojo-body { padding: 26px 28px 30px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
 .p-num-y { color: var(--yt); }
+.p-dojo h2 .p-acc { color: #8FA2FF; }
 .p-dojo h2 { font: 800 clamp(30px, 3.2vw, 40px)/1.05 var(--sans); letter-spacing: -.03em; text-wrap: balance; }
 .p-dojo p { font: 16px/1.5 var(--sans); color: #C9D0EE; max-width: 540px; text-wrap: pretty; }
 .p-avance { display: flex; flex-direction: column; gap: 8px; align-self: stretch; max-width: 420px; }

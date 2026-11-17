@@ -1,4 +1,4 @@
-Estoy en el Dojo de entrenamiento ML engineer's, en la estación 1 de C01, «Datos y etiquetas», ronda **Guiado**.
+Estoy en el Dojo de entrenamiento ML engineering, en la estación 1 de C01, «Datos y etiquetas», ronda **Guiado**.
 
 Lee primero `CLAUDE.md` y `GUION.md` de esta carpeta. Vamos a construir juntos `pipeline/` siguiendo los pasos 0 a 7 de `GUION.md`, uno por uno.
 

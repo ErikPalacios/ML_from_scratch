@@ -1,4 +1,4 @@
-Estoy en el Dojo de entrenamiento ML engineer's, en la estación 7 de C01, «Empaquetado (Docker)», ronda **Romper solo**.
+Estoy en el Dojo de entrenamiento ML engineering, en la estación 7 de C01, «Empaquetado (Docker)», ronda **Romper solo**.
 
 Lee `CLAUDE.md`. Todo pasa `python3 verificar.py`.
 

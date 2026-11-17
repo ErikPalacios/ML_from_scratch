@@ -1,4 +1,4 @@
-Estoy en el Dojo de entrenamiento ML engineer's, en la estación 1 de C01, «Datos y etiquetas», ronda **Solo**.
+Estoy en el Dojo de entrenamiento ML engineering, en la estación 1 de C01, «Datos y etiquetas», ronda **Solo**.
 
 Lee `CLAUDE.md`. **No leas `GUION.md`** y no me des código: esta ronda la construyo yo desde cero, con `OBJETIVOS.md` como única guía.
 
