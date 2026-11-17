@@ -2,6 +2,7 @@
 // La T de vidrio y las etapas salen del sistema de diseño compartido (apps/trueml, copiado en vendor/trueml con
 // node apps/trueml/sync.mjs). Se dibuja al construir: la página no necesita JavaScript para verse y abre sin conexión.
 import { TrueMLMark as TM, RANGOS_C01, franja, miniT, IDS } from '../vendor/trueml/lib.mjs';
+import { repartir } from './schema.mjs';
 
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const PORTADA = 'https://ml-desde-cero.vercel.app';
@@ -12,11 +13,16 @@ const ETAPAS = RANGOS_C01;   // [[1, 2], [3, 5], [6, 6], [7, 8], [9, 10], [11, 1
 const etapa = (num) => ETAPAS.findIndex(([a, b]) => num >= a && num <= b);
 
 const marcaNav = TM.mark(true, null);
+const CLAVES = new Map();
 function marcaHero(i, num, titulo) {
   const clave = TM.ST[i][0];
   const LB = TM.ST.map((_, j) => (j === i ? ['Estás aquí', `${num} · ${titulo}`] : null));
   // como TrueMLMark.sync(el, [etapa], .16): la etapa de la estación encendida y las demás apagadas
-  return TM.mark(true, LB, 'aqui' + i, '460px')
+  // TM.mark guarda cada T por su clave: dos estaciones de la misma etapa (la 1 y la 2 son de Datos) necesitan claves
+  // distintas, o la segunda sale con la etiqueta de la primera.
+  const k = `${num}·${titulo}`;
+  if (!CLAVES.has(k)) CLAVES.set(k, CLAVES.size);
+  return TM.mark(true, LB, 'aqui' + i + (CLAVES.get(k) ? 'x' + CLAVES.get(k) : ''), '460px')
     .replace(/<g data-stage="([a-z]+)" data-dim="\.1">/g, (m, s) => (s === clave ? m : `<g data-stage="${s}" data-dim=".1" style="opacity:.16">`));
 }
 
@@ -37,7 +43,7 @@ function barra({ ruta, volver, indice }) {
   </div>
   ${TEMA}
 </header>
-<nav class="d-nav" aria-label="En esta página">${indice.map(([id, t]) => `<a href="#${id}">${esc(t)}</a>`).join('')}</nav>
+${indice.length ? `<nav class="d-nav" aria-label="En esta página">${indice.map(([id, t]) => `<a href="#${id}">${esc(t)}</a>`).join('')}</nav>` : ''}
 </div>`;
 }
 
@@ -65,19 +71,28 @@ const chips = (ids, idx) => (ids.length ? `<div class="d-chips">${ids.map((i) =>
 
 const listo = (verifica, ojo) => `<div class="d-listo"><div class="d-ok"><b>Listo cuando: </b>${verifica}</div>${ojo ? `<div class="d-ojo"><b>Ojo: </b>${ojo}</div>` : ''}</div>`;
 
-const concepto = (c) => `<details class="d-k" id="k-${c.id}"><summary>
+// Con id, la del glosario (a donde apuntan las fichas); sin id, la copia dentro de su paso del Guiado.
+const concepto = (c, conId = true) => `<details class="d-k"${conId ? ` id="k-${c.id}"` : ''}><summary>
       <span class="d-k-t">${esc(c.termino)}</span><span class="d-k-en">${esc(c.en)}</span><span class="d-k-def">${c.def}</span><span class="d-mas">Analogía, por qué importa y la trampa <i aria-hidden="true">↓</i></span>
     </summary><div class="d-k-body"><p><b>Analogía</b>${c.analogia}</p><p><b>Por qué importa</b>${c.importa}</p><p class="d-trampa"><b>Trampa</b>${c.trampa}</p></div></details>`;
 
-function paso(p, idx, abierto) {
+// Un colapsable cerrado dentro de un paso (los conceptos o los precálculos que se usan ahí) o en el arranque.
+const sub = (t, body) => `<details class="d-arreglo d-sub"><summary>${esc(t)} <i aria-hidden="true">↓</i></summary><div>${body}</div></details>`;
+
+// extra: las tarjetas que la página mete en el paso (conceptos y precálculos, cerradas) y los comandos del paso 0
+// que no son de arranque (van antes de los del paso).
+function paso(p, idx, abierto, extra = {}) {
+  const { conceptos = [], precalculos = [], cmds0 = [] } = extra;
   return `<details class="d-paso" id="paso-${p.id}"${abierto ? ' open' : ''}><summary>
       <span class="d-circ">${p.n}</span><span class="d-paso-t"><span>${esc(p.titulo)}</span><span>${p.objetivo}</span></span><span class="d-pm" aria-hidden="true"></span>
     </summary><div class="d-paso-body">
       ${chips(p.conceptos, idx)}
       <p class="d-txt">${p.explica}</p>
-      ${p.codigo.map((c) => codigo(c.code, c.path || c.lang) + (c.nota ? `<p class="d-nota">${c.nota}</p>` : '')).join('\n      ')}
+      ${cmds0.map((c) => comando(c) + '\n      ').join('')}${p.codigo.map((c) => codigo(c.code, c.path || c.lang) + (c.nota ? `<p class="d-nota">${c.nota}</p>` : '')).join('\n      ')}
       ${p.comandos.map((c) => comando(c)).join('\n      ')}
-      ${listo(p.verifica, p.ojo)}
+      ${[listo(p.verifica, p.ojo),
+    conceptos.length ? sub(conceptos.length === 1 ? 'Concepto de este paso' : 'Conceptos de este paso', `<div class="d-kgrid">${conceptos.map((c) => concepto(c, false)).join('')}</div>`) : '',
+    precalculos.length ? sub(precalculos.length === 1 ? 'Precálculo' : 'Precálculos', precalculos.join('\n')) : ''].filter(Boolean).join('\n      ')}
     </div></details>`;
 }
 
@@ -92,7 +107,7 @@ function hero({ volver, volverTxt, pill, h1, lead, tiles, botones, etapaIdx, num
     <span class="d-pill">${esc(pill)}</span>
     <h1>${esc(h1)}</h1>
     <p class="d-lead">${esc(lead)}</p>
-    ${stats(tiles)}
+    ${tiles ? stats(tiles) : ''}
     <div class="d-btns">${botones}</div>
   </div>
   <div class="d-hero-mark">${marcaHero(etapaIdx, num, tituloEstacion)}</div>
@@ -136,15 +151,12 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
   const idx = indiceConceptos(e, modo === 'proyecto' ? e.kitUrl : e.url);
   const py = e.mundo.python || 'python';   // cómo se llama Python en el kit (con venv: python; sin venv: python3)
   const conPracticas = e.practicas.length > 0;
-  const PROY = [['precalculos', 'Precálculos'], ['kit', 'Kit'], ['rondas', 'Rondas'], ['guiado', 'Guiado'], ['solo', 'Solo'], ['romper', 'Romper']];
-  const indice = modo === 'estacion' ? [['mapa', 'Mapa'], ['ruta', 'Por dónde ir'], ['conceptos', 'Conceptos'], ['repaso', 'Repaso']]
-    : modo === 'proyecto' ? [['proyecto', 'Qué es'], ...PROY]
-    : [['mapa', 'Mapa'], ['conceptos', 'Conceptos'], ['proyecto', 'Proyecto con kit'], ...PROY, ['repaso', 'Repaso']];
+  const indice = [];   // sin barra de anclas: la página va en orden (arranque, rondas, guiado, solo, romper…)
   const kitBtn = `<a class="d-btn" href="/kits/${e.slug}.zip" download>Bajar el kit .zip · ${kb(kitBytes)}</a>`;
 
   const ronda = (n, t, d, p) => `<div class="d-card d-ronda"><span class="d-ronda-t"><i>${n} · </i>${esc(t)}</span><span class="d-txt">${esc(d)}</span>${prompt(p)}</div>`;
 
-  const precalc = e.precalculos.cuentas.map((x, i) => `<article class="d-card d-pc" id="pc-${x.id}">
+  const precalc = new Map(e.precalculos.cuentas.map((x, i) => [x.id, `<article class="d-card d-pc" id="pc-${x.id}">
       <div class="d-pc-h"><span class="d-num">${i + 1}</span><h3>${esc(x.pregunta)}</h3></div>
       <code class="d-formula">${esc(x.formula)}</code>
       ${chips(x.conceptos, idx)}
@@ -157,7 +169,22 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
         ${x.comprueba ? comando(x.comprueba, 'terminal · compruébalo en el kit') : ''}
         ${x.confirma ? `<p class="d-nota"><b>Lo confirmas en</b> ${x.confirma}</p>` : ''}
       </div></details>
-    </article>`).join('\n    ');
+    </article>`]));
+
+  // El paso 0 del Guiado es el arranque: sus comandos viven en #arranque; sus salidas, notas y su «ojo», en
+  // «¿Algo falló al levantar?». Los comandos que no son de arranque (en_pagina.del_paso0) pasan a su paso.
+  const p0 = e.guiado[0], reparto = repartir(e);
+  const movidos = new Set([...reparto.values()].flatMap((r) => r.delPaso0));
+  const k = new Map(e.conceptos.map((c) => [c.id, c]));
+  const arranque = (e.mundo.arranque || `unzip ${e.slug}.zip && cd ${e.slug}\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\ndocker compose up -d\npython mundo/reiniciar.py --todo`)
+    .split('\n').filter((l) => !/verificar\.py mundo\s*$/.test(l)).join('\n');
+  const primera = (code) => code.split('\n')[0];
+  const fallo = [
+    p0.ojo ? `<div class="d-listo"><div class="d-ojo"><b>Ojo: </b>${p0.ojo}</div></div>` : '',
+    ...p0.comandos.filter((_, i) => !movidos.has(i)).map((c) => `${c.nota ? `<p class="d-nota"><code>${esc(primera(c.code))}</code> · ${c.nota}</p>` : ''}${salida(c.salida, `Salida real · ${primera(c.code)}`)}`),
+  ].join('\n      ');
+  const paso4 = (n, t, body) => `<div class="d-card d-pc"><div class="d-pc-h"><span class="d-num">${n}</span><h3>${esc(t)}</h3></div>${body}</div>`;
+  const ctx = (t, body) => `<details class="d-ctx"><summary>${esc(t)}</summary><div class="d-ctx-b">${body}</div></details>`;
 
   // Por dónde ir: las prácticas desde cero y el proyecto con kit, en orden, cada uno con su momento y si usa kit.
   const proy = e.proyecto || {};
@@ -204,42 +231,50 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
   ${titulo('Conceptos exprés', String(e.conceptos.length))}
   <p class="d-p">Una línea para entenderlo; abre la tarjeta para la analogía, por qué importa y la trampa.</p>
   <div class="d-kgrid">
-    ${e.conceptos.map(concepto).join('\n    ')}
+    ${e.conceptos.map((c) => concepto(c)).join('\n    ')}
   </div>
 </section>`,
-    proyecto: `<section class="d-sec d-proy-h" id="proyecto">
-  <span class="d-lbl">${modo === 'proyecto' ? `Camino ${e.practicas.length + 1} de ${e.practicas.length + 1} · después de las prácticas` : 'de aquí a Romper'}</span>
-  <div class="d-h2"><h2>${modo === 'proyecto' ? 'Qué es' : 'El proyecto con kit'}</h2></div>
-  ${etiquetas(proy.momento, 'Con kit · 4 rondas', true)}
-  <p class="d-p">${proy.resumen || e.mundo.resumen}</p>
-  <p class="d-nota">${modo === 'proyecto' ? `${proy.relacion || ''} Los conceptos y el repaso son de toda la estación: están en <a href="${e.url}#conceptos">su página</a>.` : 'Todo lo que sigue, hasta Romper, es de este proyecto: sus precálculos, el kit, los prompts de las cuatro rondas, el paso a paso del Guiado, los objetivos de Solo y las fallas.'}</p>
-</section>`,
-    precalculos: `<section class="d-sec" id="precalculos">
-  ${titulo('Precálculos', `${e.precalculos.cuentas.length} cuentas${conPracticas ? ' · del proyecto con kit' : ''}`)}
-  <p class="d-p">${e.precalculos.intro}</p>
-  ${precalc}
-</section>`,
-    kit: `<section class="d-sec" id="kit">
-  ${titulo('El kit', 'el mundo')}
-  <div class="d-grid2">
-    <div class="d-kit-txt"><p class="d-p">${e.mundo.resumen}</p>${kitBtn}</div>
-    ${codigo(e.mundo.arranque || `unzip ${e.slug}.zip && cd ${e.slug}\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\ndocker compose up -d\npython mundo/reiniciar.py --todo`, 'arranque')}
-  </div>
-  <div class="d-grid2">
+    // Contexto opcional: todo lo que antes iba antes del trabajo, al final y cerrado.
+    contexto: `<section class="d-sec" id="contexto">
+  ${titulo('Contexto opcional', 'para consultar')}
+  ${modo === 'proyecto' ? '' : ctx('Dónde estás en el pipeline', `<p class="d-p">${e.mapa.resumen}</p>
+  <div class="d-io">
+    <div class="d-card"><span class="d-lbl">Entra</span><ul>${e.mapa.entra.map((x) => `<li>${x}</li>`).join('')}</ul></div>
+    <div class="d-io-n" aria-hidden="true"><span>→</span><b>${e.num}</b><span>→</span></div>
+    <div class="d-card"><span class="d-lbl">Sale</span><ul>${e.mapa.sale.map((x) => `<li>${x}</li>`).join('')}</ul></div>
+  </div>`)}
+  ${ctx('El escenario del proyecto', `${etiquetas(proy.momento, 'Con kit · 4 rondas', true)}
+  <p class="d-p">${proy.resumen || e.mundo.resumen}</p>${proy.relacion ? `<p class="d-nota">${proy.relacion}</p>` : ''}
+  <p class="d-txt">${p0.explica}</p>`)}
+  ${modo === 'proyecto' ? '' : ctx(`Glosario: los ${e.conceptos.length} conceptos`, `<p class="d-p">Una línea para entenderlo; abre la tarjeta para la analogía, por qué importa y la trampa.</p>
+  <div class="d-kgrid">
+    ${e.conceptos.map((c) => concepto(c)).join('\n    ')}
+  </div>`)}
+  ${ctx('Nube real vs. local', `${modo === 'proyecto' ? '' : `<div class="d-tabla"><table><thead><tr><th></th><th>${esc(e.linea.escala)}</th><th class="d-th-dojo">En el dojo</th></tr></thead><tbody>${e.mapa.escala.map((r) => `<tr><th scope="row">${esc(r.que)}</th><td>${r.ref}</td><td>${r.taller}</td></tr>`).join('')}</tbody></table></div>`}
+  <div class="d-tabla"><table><thead><tr><th>En la nube</th><th class="d-th-dojo">En el dojo</th><th>Qué cambia</th></tr></thead><tbody>${e.mundo.sustituciones.map((r) => `<tr><th scope="row">${esc(r.nube)}</th><td>${esc(r.local)}</td><td>${r.diferencia}</td></tr>`).join('')}</tbody></table></div>`)}
+  ${ctx('Qué trae el kit y qué escribes tú', `<div class="d-grid2">
     <div class="d-card"><h3>Lo que trae <small>no lo escribes</small></h3><div class="d-lista">${e.mundo.trae.map((t) => `<p><b>${esc(t.que)}.</b> ${t.detalle}</p>`).join('')}</div></div>
     <div class="d-card"><h3>${e.id === 'datos' ? 'Tu pipeline' : 'Lo que escribes'} <small>lo escribes tú</small></h3><ol class="d-linea">${e.mundo.tu_pipeline.map((t) => `<li><code>${esc(t.archivo)}</code><span>${t.hace}</span></li>`).join('')}</ol></div>
-  </div>
-  <div class="d-card"><h3>Necesitas</h3><ul class="d-ul">${e.mundo.requisitos.map((r) => `<li>${r}</li>`).join('')}</ul></div>
-  <div class="d-tabla"><table><thead><tr><th>En la nube</th><th class="d-th-dojo">En el dojo</th><th>Qué cambia</th></tr></thead><tbody>${e.mundo.sustituciones.map((r) => `<tr><th scope="row">${esc(r.nube)}</th><td>${esc(r.local)}</td><td>${r.diferencia}</td></tr>`).join('')}</tbody></table></div>
-  <div class="d-card d-ronda"><span class="d-ronda-t">El CLAUDE.md del kit</span><span class="d-txt">Las reglas de fondo para Claude Code en la carpeta del kit. Ya viene en el .zip.</span>${prompt(e.prompt.claude_md, { boton: 'Copiar', ver: 'Ver el CLAUDE.md' })}</div>
+  </div>`)}
+  ${ctx('Reglas CLAUDE.md del kit', `<div class="d-card d-ronda"><span class="d-ronda-t">El CLAUDE.md del kit</span><span class="d-txt">Las reglas de fondo para Claude Code en la carpeta del kit. Ya viene en el .zip.</span>${prompt(e.prompt.claude_md, { boton: 'Copiar', ver: 'Ver el CLAUDE.md' })}</div>`)}
+  ${modo === 'proyecto' ? `<p class="d-nota">El mapa, los conceptos y el repaso son de toda la estación: están en <a href="${e.url}#mapa">su página</a>.</p>` : `${e.mapa.hoja ? `<p class="d-nota">La estación completa, con su lugar en el mapa: <a href="${esc(e.mapa.hoja)}">cheat sheet «Del dato a producción»</a>.</p>` : ''}
+  ${tarjetaSensei(e.sensei, e.num)}`}
+</section>`,
+    arranque: `<section class="d-sec" id="arranque">
+  ${titulo('Arranca en 3 pasos', 'lo vital')}
+  <p class="d-p"><b>Necesitas:</b> ${e.mundo.requisitos.join(' · ')}</p>
+  ${paso4(1, 'Descarga el kit', kitBtn)}
+  ${paso4(2, 'Levanta el mundo', codigo(arranque, 'arranque'))}
+  ${paso4(3, 'Verifica', codigo(`${py} verificar.py mundo`, 'terminal') + listo(`${p0.verifica} Ya puedes practicar.`))}
+  ${sub('¿Algo falló al levantar?', fallo)}
 </section>`,
     rondas: `<section class="d-sec" id="rondas">
-  ${titulo('Las cuatro rondas', 'los prompts')}
+  ${titulo('¿Ya está corriendo? Elige cómo practicar', 'las cuatro rondas')}
   <p class="d-p">Cada ronda se trabaja en una sesión de Claude Code abierta en la carpeta del kit. Copia el prompt de la ronda y pégalo; el <code>CLAUDE.md</code> del kit pone las reglas de fondo.</p>
   <div class="d-rondas">
     <span></span><span class="d-eje">Construir</span><span class="d-eje">Romper</span>
     <span class="d-eje d-eje-v">Con ayuda</span>
-    ${ronda(1, 'Construir con ayuda', `Con el Guiado de abajo: construyen juntos los pasos 0 a ${e.guiado.length - 1}.`, e.prompt.guiado)}
+    ${ronda(1, 'Construir con ayuda', `Con el Guiado de abajo: construyen juntos los pasos 1 a ${e.guiado.at(-1).n}. Empieza aquí.`, e.prompt.guiado)}
     ${ronda(3, 'Romper con ayuda', 'Una falla real; Claude te guía con preguntas.', e.prompt.romper_ayuda)}
     <span class="d-eje d-eje-v">Solo</span>
     ${ronda(2, 'Construir solo', 'Rehaces todo desde el esqueleto, solo con los objetivos de Solo.', e.prompt.solo)}
@@ -249,9 +284,11 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
 </section>`,
     guiado: `<section class="d-sec" id="guiado">
   ${titulo('Guiado', 'paso a paso')}
+  <p class="d-p">¿Aún no levantas el ambiente? <a href="#arranque">Ve al arranque</a>.</p>
   <p class="d-p">El código que ves es el de la solución de referencia, y cada salida es la que salió al correr el kit en una carpeta limpia.</p>
+  <p class="d-nota"><b>Precálculos. </b>${e.precalculos.intro} Cada uno está dentro del paso donde se usa.</p>
   <div class="d-pasos">
-    ${e.guiado.map((p, i) => paso(p, idx, i === 1)).join('\n    ')}
+    ${e.guiado.slice(1).map((p, i) => { const r = reparto.get(p.id); return paso(p, idx, i === 0, { conceptos: r.conceptos.map((c) => k.get(c)), precalculos: r.precalculos.map((x) => precalc.get(x)), cmds0: r.delPaso0.map((j) => p0.comandos[j]) }); }).join('\n    ')}
   </div>
 </section>`,
     solo: `<section class="d-sec" id="solo">
@@ -295,20 +332,19 @@ function paginaEstacion(e, { total, kitBytes, kb }, modo) {
   <div class="d-btns"><a class="d-btn" href="${e.url}#repaso">El repaso de la estación</a><a class="d-btn d-btn2" href="${e.url}#ruta">Volver a la estación</a></div>
 </section>`,
   };
-  const proyecto = [S.precalculos, S.kit, S.rondas, S.guiado, S.solo, S.romper].join('\n\n');
+  // Lo vital al frente (arranque y rondas), después el trabajo y al final el contexto, cerrado.
+  const trabajo = [S.arranque, S.rondas, S.guiado, S.solo, S.romper];
   const main = modo === 'estacion' ? [S.mapa, ruta, S.conceptos, S.repaso]
-    : modo === 'proyecto' ? [S.proyecto, proyecto, S.sigue]
-    : [S.mapa, S.conceptos, `<div class="d-proy">\n${S.proyecto}\n\n${proyecto}\n</div>`, S.repaso];
+    : modo === 'proyecto' ? [...trabajo, S.contexto, S.sigue]
+    : [...trabajo, S.repaso, S.contexto];
+  const empezar = `<a class="d-btn" href="#${modo === 'estacion' ? 'ruta' : 'arranque'}">Empezar</a>`;
   const L = e.linea.corto, inicio = e.linea.tipo === 'rama' ? `/#rama-${e.linea.id}` : '/';
   return `${modo === 'proyecto' ? `${barra({ ruta: `/ ${L} · ${e.num} · proyecto con kit`, volver: '/', indice })}
 ${hero({ volver: e.url + '#ruta', volverTxt: e.titulo, pill: `${L} · Estación ${e.num} · Proyecto con kit`, h1: 'El proyecto con kit', lead: e.mundo.resumen, etapaIdx: e.etapaIdx, num: e.num, tituloEstacion: e.titulo,
-    tiles: [[e.precalculos.cuentas.length, 'precálculos', 'precalculos'], [e.guiado.length, 'pasos', 'guiado'], [e.solo.objetivos.length, 'checks', 'solo'], [e.fallas.length, 'fallas', 'romper']],
-    botones: `${kitBtn}<a class="d-btn d-btn2" href="#guiado">Ir al guiado</a>` })}
+    botones: empezar })}
 ` : `${barra({ ruta: `/ ${L} · ${e.num}`, volver: '/', indice })}
 ${hero({ volver: inicio, volverTxt: "Dojo de entrenamiento ML engineer's", pill: `${L} · Estación ${e.num} de ${total}`, h1: e.titulo, lead: e.pregunta, etapaIdx: e.etapaIdx, num: e.num, tituloEstacion: e.titulo,
-    tiles: conPracticas ? [[e.practicas.length, 'desde cero', 'ruta'], [e.conceptos.length, 'conceptos', 'conceptos'], [e.precalculos.cuentas.length, 'precálculos', e.kitUrl + '#precalculos'], [e.guiado.length, 'pasos', e.kitUrl + '#guiado'], [e.fallas.length, 'fallas', e.kitUrl + '#romper']]
-      : [[e.precalculos.cuentas.length, 'precálculos', 'precalculos'], [e.conceptos.length, 'conceptos', 'conceptos'], [e.guiado.length, 'pasos', 'guiado'], [e.solo.objetivos.length, 'checks', 'solo'], [e.fallas.length, 'fallas', 'romper']],
-    botones: conPracticas ? `<a class="d-btn" href="#ruta">Por dónde empiezo ↓</a><a class="d-btn d-btn2" href="${e.kitUrl}">El proyecto con kit →</a>` : `${kitBtn}<a class="d-btn d-btn2" href="#guiado">Ir al guiado</a>` })}
+    botones: empezar })}
 `}<main class="d-wrap d-main">
 ${main.join('\n\n')}
 </main>
@@ -365,7 +401,7 @@ ${p.conceptos.length ? `
   ${titulo('Conceptos exprés', `${p.conceptos.length} nuevos`)}
   <p class="d-p">Los que aparecen aquí por primera vez. Los demás chips llevan a los conceptos de la estación.</p>
   <div class="d-kgrid">
-    ${p.conceptos.map(concepto).join('\n    ')}
+    ${p.conceptos.map((c) => concepto(c)).join('\n    ')}
   </div>
 </section>
 ` : ''}

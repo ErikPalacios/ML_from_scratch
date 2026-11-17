@@ -533,3 +533,10 @@ div.d-est:hover { background: none; }
 .t-grupo-h b { font: 800 22px/1.2 var(--sans); letter-spacing: -.01em; }
 .t-grupo-h .d-lbl { color: var(--tm-acc); }
 .t-prox-g { display: flex; flex-direction: column; gap: 8px; }
+
+/* página de estación en orden: colapsables dentro de los pasos y el contexto opcional al final (como .d-qa) */
+.d-sub > div { gap: 12px; }
+.d-ctx { background: var(--tm-card); border-radius: 16px; box-shadow: var(--tm-sh); min-width: 0; }
+.d-ctx > summary { padding: 16px 18px; font: 700 15px/1.4 var(--sans); }
+.d-ctx-b { padding: 0 18px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+#arranque .d-pc > .d-btn { align-self: flex-start; }

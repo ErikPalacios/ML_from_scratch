@@ -501,6 +501,7 @@
     {
       "n": 1,
       "id": "senales",
+      "en_pagina": {"conceptos": ["log-prediccion", "parquet", "join-cardinalidad", "zona-horaria"], "precalculos": ["volumen"], "del_paso0": [4]},
       "titulo": "Juntar señales",
       "objetivo": "Una tabla con una fila por request: lo que predijo el modelo, lo que eligió quien vende y la última corrección de moderación.",
       "conceptos": [
@@ -544,6 +545,7 @@
     {
       "n": 2,
       "id": "debil",
+      "en_pagina": {"conceptos": ["label-debil", "feedback-loop", "holdout"], "precalculos": ["maduracion", "holdout"]},
       "titulo": "Filtrar el label débil",
       "objetivo": "Quedarte solo con los labels gratis que tienen una señal de confianza, y apartar el holdout.",
       "conceptos": [
@@ -581,6 +583,7 @@
     {
       "n": 3,
       "id": "cola",
+      "en_pagina": {"conceptos": ["active-learning", "muestra-aleatoria", "categoria-nueva"], "precalculos": ["reparto"]},
       "titulo": "Elegir qué etiquetar",
       "objetivo": "Las 800 fotos del mes, cada una con su motivo: nueva, desacuerdo, incertidumbre o al azar.",
       "conceptos": [
@@ -624,6 +627,7 @@
     {
       "n": 4,
       "id": "copiar",
+      "en_pagina": {"conceptos": ["pii-exif", "bucket-seguro"]},
       "titulo": "Copiar solo esas fotos",
       "objetivo": "Las 800 fotos de la cola, sin metadatos, en un bucket privado que se borra solo a los 90 días.",
       "conceptos": [
@@ -671,6 +675,7 @@
     {
       "n": 5,
       "id": "proveedor",
+      "en_pagina": {"conceptos": ["guia-etiquetado", "kappa"], "precalculos": ["presupuesto", "dobles"]},
       "titulo": "Escribir la guía y mandar al proveedor",
       "objetivo": "Una guía v2 con la categoría nueva y los casos límite, y las 800 tareas en manos del proveedor (20 % dobles).",
       "conceptos": [
@@ -712,6 +717,7 @@
     {
       "n": 6,
       "id": "acuerdo",
+      "en_pagina": {"conceptos": ["adjudicacion"]},
       "titulo": "Medir el acuerdo y adjudicar",
       "objetivo": "El kappa por clase de la doble anotación y cada desacuerdo decidido por ti en Label Studio.",
       "conceptos": [
@@ -755,6 +761,7 @@
     {
       "n": 7,
       "id": "cierre",
+      "en_pagina": {"conceptos": ["golden-set"], "precalculos": ["golden"]},
       "titulo": "Cerrar el mes",
       "objetivo": "Los labels del mes, el golden set intacto y un reporte que muestra el feedback loop con números.",
       "conceptos": [

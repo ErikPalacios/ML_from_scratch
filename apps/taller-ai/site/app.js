@@ -64,6 +64,20 @@
     clearTimeout(tToast); tToast = setTimeout(function () { el.classList.remove('on'); }, 1600);
   }
 
+  // Un enlace a algo que vive dentro de un colapsable cerrado (un concepto del glosario, un precálculo dentro de
+  // su paso): se abren los colapsables que lo envuelven y se baja hasta él.
+  function abrirHasta(hash) {
+    if (!hash || hash.length < 2) return;
+    var el; try { el = document.getElementById(decodeURIComponent(hash.slice(1))); } catch (e) { return; }
+    if (!el) return;
+    var cerrado = false;
+    for (var d = el.parentElement; d; d = d.parentElement) if (d.tagName === 'DETAILS' && !d.open) { d.open = true; cerrado = true; }
+    if (el.tagName === 'DETAILS' && !el.open) { el.open = true; cerrado = true; }
+    if (cerrado) el.scrollIntoView();
+  }
+  window.addEventListener('hashchange', function () { abrirHasta(location.hash); });
+  abrirHasta(location.hash);
+
   // La T de vidrio del Dojo entra etapa por etapa (como TrueMLMark.play). Sin animación si así lo pide el sistema.
   var quieto = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   var ETAPAS = ['datos', 'modelo', 'api', 'contenedor', 'orquestacion', 'monitoreo'];

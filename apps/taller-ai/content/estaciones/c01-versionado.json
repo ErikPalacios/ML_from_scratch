@@ -468,6 +468,7 @@
     {
       "n": 1,
       "id": "labels",
+      "en_pagina": {"conceptos": ["label-evento", "point-in-time"]},
       "titulo": "Labels al corte",
       "objetivo": "Para cada foto, el label vigente al 1 de octubre a las 00:00 UTC.",
       "conceptos": [
@@ -509,6 +510,7 @@
     {
       "n": 2,
       "id": "manifest",
+      "en_pagina": {"conceptos": ["snapshot", "manifest", "huella"], "precalculos": ["peso"]},
       "titulo": "El manifest",
       "objetivo": "Una fila por label, con la llave y la huella de su foto.",
       "conceptos": [
@@ -544,6 +546,7 @@
     {
       "n": 3,
       "id": "split",
+      "en_pagina": {"conceptos": ["dedupe", "registro-borrados", "split-estable"], "precalculos": ["sorteo"]},
       "titulo": "Las filas y el split estable",
       "objetivo": "Sin borrados, sin duplicados, sin golden, y cada vendedor del mismo lado que en agosto.",
       "conceptos": [
@@ -586,6 +589,7 @@
     {
       "n": 4,
       "id": "validar",
+      "en_pagina": {"conceptos": ["contrato-datos"], "precalculos": ["volumen"]},
       "titulo": "El contrato de datos",
       "objetivo": "Auditar las filas antes de publicar: 8 reglas, y si una falla, el pipeline se detiene.",
       "conceptos": [
@@ -621,6 +625,7 @@
     {
       "n": 5,
       "id": "publicar",
+      "en_pagina": {"conceptos": ["write-audit-publish", "escritura-condicional", "versionado-bucket", "tarjeta"], "precalculos": ["costo"]},
       "titulo": "Publicar sin pisar",
       "objetivo": "El snapshot en <code>s3://ml-datos/datasets/ds-2026-09-01/</code>, escrito una sola vez, con la tarjeta al final.",
       "conceptos": [
@@ -689,6 +694,7 @@
     {
       "n": 6,
       "id": "dag",
+      "en_pagina": {"conceptos": ["dag-cache", "idempotencia"]},
       "titulo": "El pipeline como DAG",
       "objetivo": "Los pasos 1 a 5 en <code>dvc.yaml</code>: <code>dvc repro</code> corre solo lo que cambió.",
       "conceptos": [
@@ -742,6 +748,7 @@
     {
       "n": 7,
       "id": "entrenar",
+      "en_pagina": {"conceptos": ["parametro-no-carpeta", "arbol-limpio", "linaje"], "precalculos": ["huellas"]},
       "titulo": "Entrenar con linaje",
       "objetivo": "Una corrida que entrena con <code>ds-2026-09-01</code>, comprueba cada huella al leer y deja sus punteros.",
       "conceptos": [

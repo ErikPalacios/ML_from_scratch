@@ -420,6 +420,7 @@
     {
       "n": 1,
       "id": "deps",
+      "en_pagina": {"conceptos": ["deps-fijadas"]},
       "titulo": "Fijar las dependencias",
       "objetivo": "Un requirements.txt fijado por servicio: cada imagen lleva solo lo que usa.",
       "conceptos": [
@@ -466,6 +467,7 @@
     {
       "n": 2,
       "id": "contexto",
+      "en_pagina": {"conceptos": ["contexto-build"]},
       "titulo": "Lo que no viaja: .dockerignore",
       "objetivo": "Un build context chico para cada imagen.",
       "conceptos": [
@@ -506,6 +508,7 @@
     {
       "n": 3,
       "id": "gateway",
+      "en_pagina": {"conceptos": ["imagen-capas", "no-root", "escuchar-0000"], "precalculos": ["peso", "disco"]},
       "titulo": "El Dockerfile del gateway",
       "objetivo": "La imagen iris-gateway:0.1, sin root y con la caché bien ordenada.",
       "conceptos": [
@@ -555,6 +558,7 @@
     {
       "n": 4,
       "id": "cache",
+      "en_pagina": {"conceptos": ["cache-capas"], "precalculos": ["cache"]},
       "titulo": "La caché de capas",
       "objetivo": "Ver qué se rehace cuando cambias el código.",
       "conceptos": [
@@ -636,6 +640,7 @@
     {
       "n": 6,
       "id": "compose",
+      "en_pagina": {"conceptos": ["red-compose", "healthcheck", "config-entorno", "puertos-publicados"], "precalculos": ["salud"]},
       "titulo": "Los dos servicios con compose",
       "objetivo": "La pila arriba, sana y conectada por nombre.",
       "conceptos": [
@@ -685,6 +690,7 @@
     {
       "n": 7,
       "id": "apagado",
+      "en_pagina": {"conceptos": ["forma-exec"]},
       "titulo": "Apagar limpio",
       "objetivo": "Ver que el proceso recibe SIGTERM y cierra en menos de un segundo.",
       "conceptos": [
@@ -718,6 +724,7 @@
     {
       "n": 8,
       "id": "registry",
+      "en_pagina": {"conceptos": ["registry-digest", "reinicio"], "precalculos": ["push"]},
       "titulo": "Subir al registry",
       "objetivo": "Las dos imágenes en un registry local, identificadas por su digest.",
       "conceptos": [
@@ -758,6 +765,7 @@
     {
       "n": 9,
       "id": "pull",
+      "en_pagina": {"conceptos": ["pull-servidor", "plataforma"]},
       "titulo": "Bajar del registry",
       "objetivo": "Un «servidor» que no tiene ni código ni Dockerfiles baja las dos imágenes del registry y las corre.",
       "conceptos": [
@@ -836,6 +844,7 @@
     {
       "n": 10,
       "id": "volumen",
+      "en_pagina": {"conceptos": ["pesos-dentro"], "precalculos": ["pesos"]},
       "titulo": "Pesos dentro o fuera: la comparación",
       "objetivo": "La misma imagen del model server sin el modelo, corriendo con el modelo montado por un volumen, y los números de las dos opciones.",
       "conceptos": [

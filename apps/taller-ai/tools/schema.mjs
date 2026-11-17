@@ -123,6 +123,9 @@ export const estacion = obj({
     comandos: arr(comando),
     verifica: txt,                                  // cómo sabes que el paso quedó (lo mismo que revisa verificar.py)
     'ojo?': txt,                                    // la trampa típica de este paso
+    // En la página, qué tarjetas van dentro de este paso (cerradas): cada concepto y cada precálculo en un solo
+    // paso, y los comandos del paso 0 que no son de arranque (por su índice). Sin este campo, repartir() decide.
+    'en_pagina?': obj({ 'conceptos?': arr(id), 'precalculos?': arr(id), 'del_paso0?': arr(int(0, 30)) }),
   }), { min: 4 }),
   solo: obj({
     reglas: arr(txt, { min: 1 }),
@@ -250,7 +253,43 @@ export function cruzadas(e) {
   dup(e.precalculos.cuentas.map((x) => x.id), 'precálculo');
   const usados = new Set([...e.guiado.flatMap((g) => g.conceptos), ...e.fallas.map((f) => f.concepto)]);
   conceptos.forEach((c) => usados.has(c) || errs.push(`concepto «${c}» no lo usa ningún paso ni falla`));
+  // en_pagina: si un paso lo trae, todos los conceptos y precálculos quedan repartidos, cada uno en un solo paso.
+  if (e.guiado.some((g) => g.en_pagina)) {
+    const pcs = new Set(e.precalculos.cuentas.map((x) => x.id));
+    const k = e.guiado.flatMap((g) => g.en_pagina?.conceptos || []), q = e.guiado.flatMap((g) => g.en_pagina?.precalculos || []);
+    if (e.guiado[0]?.en_pagina) errs.push('guiado[0]: el paso 0 no lleva «en_pagina» (en la página es el arranque)');
+    dup(k, 'en_pagina: concepto');
+    dup(q, 'en_pagina: precálculo');
+    k.forEach((c) => conceptos.has(c) || errs.push(`en_pagina: concepto desconocido «${c}»`));
+    q.forEach((c) => pcs.has(c) || errs.push(`en_pagina: precálculo desconocido «${c}»`));
+    conceptos.forEach((c) => k.includes(c) || errs.push(`en_pagina: el concepto «${c}» no está en ningún paso`));
+    pcs.forEach((c) => q.includes(c) || errs.push(`en_pagina: el precálculo «${c}» no está en ningún paso`));
+    const p0 = e.guiado.flatMap((g) => g.en_pagina?.del_paso0 || []);
+    dup(p0, 'en_pagina: comando del paso 0');
+    p0.forEach((i) => (i < (e.guiado[0]?.comandos.length ?? 0)) || errs.push(`en_pagina: el paso 0 no tiene el comando ${i}`));
+  }
   return errs;
+}
+
+// Qué tarjetas van dentro de cada paso del Guiado en la página (el paso 0 es el arranque y no lleva ninguna).
+// Con `en_pagina` se usa tal cual. Sin él: cada concepto en el primer paso (desde el 1) que lo nombra, y cada
+// precálculo en el paso que dice su «confirma» o, si no lo dice, en el de su primer concepto.
+export function repartir(e) {
+  const pasos = e.guiado.filter((g) => g.n > 0);
+  const out = new Map(pasos.map((g) => [g.id, { conceptos: [], precalculos: [], delPaso0: [] }]));
+  if (!pasos.length) return out;
+  if (e.guiado.some((g) => g.en_pagina)) {
+    for (const g of pasos) Object.assign(out.get(g.id), { conceptos: g.en_pagina?.conceptos || [], precalculos: g.en_pagina?.precalculos || [], delPaso0: g.en_pagina?.del_paso0 || [] });
+    return out;
+  }
+  const dondeK = new Map();
+  for (const g of pasos) for (const c of g.conceptos) if (!dondeK.has(c)) { dondeK.set(c, g.id); out.get(g.id).conceptos.push(c); }
+  for (const x of e.precalculos.cuentas) {
+    const n = Number((String(x.confirma || '').replace(/<[^>]+>/g, '').match(/paso (\d+)/i) || [])[1]);
+    const g = pasos.find((p) => p.n === n) || pasos.find((p) => p.id === dondeK.get(x.conceptos[0])) || pasos[0];
+    out.get(g.id).precalculos.push(x.id);
+  }
+  return out;
 }
 
 // `c01` → `ref`: las estaciones escritas antes de las ramas usan el nombre viejo. Se corre después de validar.
