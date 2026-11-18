@@ -73,8 +73,8 @@
       "id": "kubernetes",
       "titulo": "Kubernetes",
       "etapa": "orquestacion",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://taller-ai-engineer.vercel.app/c01/kubernetes/"
     },
     {
       "num": 10,

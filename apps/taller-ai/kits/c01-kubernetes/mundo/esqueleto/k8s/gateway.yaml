@@ -1,0 +1,28 @@
+# Mientras todo esté comentado, kubectl apply -k k8s/ no crea nada de este archivo.
+# TUYO. El gateway en el clúster: un Deployment «gateway» y un Service «gateway» de tipo NodePort (puerto 8080,
+# nodePort 30901: el clúster del dojo lo publica en tu Mac como localhost:8901, el «ALB interno»).
+# Los pods llevan la etiqueta app.kubernetes.io/name: gateway.
+#
+# El contrato:
+# - Sin «replicas»: las decide el HPA (hpa.yaml).
+# - Solo en nodos workload=cpu, repartidos entre zonas si se puede (si no, que arranquen igual).
+# - Le habla a Triton por su Service: TRITON_URL=triton:8000.
+# - 1 núcleo de CPU reservado y sin techo; 1 GiB de memoria con techo igual al request.
+# - readiness en /readyz (le pregunta a Triton) y liveness en /healthz (no le pregunta a nadie).
+# - Apagado ordenado: preStop de 15 s; uvicorn drena hasta 20 s (--timeout-graceful-shutdown 20).
+# - modelo.json sale del ConfigMap classifier-modelo (kustomization.yaml), montado en /srv/servir.
+# - Al cambiar de versión, nunca menos listos de los que hay; si en 2 min no avanza, que se marque fallido.
+# - La imagen se llama solo «classifier-gateway».
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: gateway
+#   labels: {app.kubernetes.io/name: gateway}
+# spec:   # TODO
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: gateway
+#   labels: {app.kubernetes.io/name: gateway}
+# spec:   # TODO

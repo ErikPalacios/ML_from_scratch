@@ -1,0 +1,11 @@
+# Lo que nadie puede sacar a propósito (un drain, una actualización de nodos): siempre queda al menos 1 Triton.
+# Con 2 réplicas, se vacía un nodo de T4 a la vez. No protege de un nodo que muere: eso no pide permiso.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: triton
+  labels: {app.kubernetes.io/name: triton}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: triton}

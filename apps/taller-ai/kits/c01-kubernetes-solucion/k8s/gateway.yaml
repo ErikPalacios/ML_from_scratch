@@ -1,0 +1,65 @@
+# El gateway en el clúster: de 3 a 12 pods en nodos de CPU (nunca en una T4), detrás del «ALB interno».
+# En C01 es un Rollout de Argo (la estación 10) detrás de un Ingress que crea el ALB; aquí, un Deployment y un Service
+# NodePort que el clúster del dojo publica en tu Mac como localhost:8901.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels: {app.kubernetes.io/name: gateway}
+spec:                                            # sin «replicas»: las decide el HPA (hpa.yaml), de 3 a 12
+  selector:
+    matchLabels: {app.kubernetes.io/name: gateway}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  progressDeadlineSeconds: 120                   # el gateway está listo en ≈ 10 s: 2 min sin avance ya es falla
+  revisionHistoryLimit: 5
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: gateway}
+    spec:
+      nodeSelector: {workload: cpu}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway      # reparte si puede; si no, arranca igual
+          labelSelector: {matchLabels: {app.kubernetes.io/name: gateway}}
+          matchLabelKeys: [pod-template-hash]
+      terminationGracePeriodSeconds: 45          # 15 de preStop + 20 de drenado de uvicorn + 10 de margen
+      containers:
+        - name: gateway
+          image: classifier-gateway
+          env:
+            - {name: TRITON_URL, value: "triton:8000"}   # el Service de Triton, en este mismo namespace
+          ports: [{name: http, containerPort: 8080}]
+          resources:
+            requests: {cpu: "1", memory: 1Gi}    # con el request de CPU se agenda y se escala (60 % = 0.6 núcleos)
+            limits: {memory: 1Gi}
+          readinessProbe:                        # /readyz le pregunta a Triton: sin Triton, fuera del reparto
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          livenessProbe:                         # /healthz no le pregunta a nadie: solo si el proceso vive
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          lifecycle:
+            preStop: {exec: {command: ["sleep", "15"]}}
+          volumeMounts:
+            - {name: modelo, mountPath: /srv/servir, readOnly: true}   # modelo.json del ConfigMap, no el de la imagen
+      volumes:
+        - name: modelo
+          configMap: {name: classifier-modelo}   # kustomize le agrega la huella al nombre
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  labels: {app.kubernetes.io/name: gateway}
+spec:
+  type: NodePort
+  selector: {app.kubernetes.io/name: gateway}
+  ports: [{name: http, port: 8080, targetPort: http, nodePort: 30901}]

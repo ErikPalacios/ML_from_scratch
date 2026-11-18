@@ -1,0 +1,20 @@
+# Cuántos gateways: los que hagan falta para que cada uno use ≈ 60 % de su request de CPU, de 3 a 12.
+# Sube rápido (lo que trae Kubernetes por omisión) y baja despacio: 1 pod por minuto, tras 5 min de calma.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway
+  labels: {app.kubernetes.io/name: gateway}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: gateway}
+  minReplicas: 3
+  maxReplicas: 12
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 60}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies: [{type: Pods, value: 1, periodSeconds: 60}]

@@ -1,0 +1,27 @@
+# Mientras todo esté comentado, kubectl apply -k k8s/ no crea nada de este archivo.
+# TUYO. Triton en el clúster: un Deployment «triton» y un Service «triton» (puerto 8000, nombre http).
+# Los pods llevan la etiqueta app.kubernetes.io/name: triton (verificar.py los busca por ella).
+#
+# El contrato (lo revisa verificar.py; los números salen de los precálculos de la página):
+# - 2 réplicas (en C01 las decide KEDA; aquí no hay KEDA). Al cambiar de versión, nunca menos de 2 listos.
+# - Cada pod: una T4 entera (nvidia.com/gpu: 1), 2 núcleos de CPU reservados, 6 GiB de memoria con techo igual al
+#   request y sin techo de CPU. /dev/shm en memoria (1 GiB, dentro de los 6).
+# - Solo en nodos workload=gpu-t4, aguantando su taint nvidia.com/gpu=present:NoSchedule, uno por zona: mejor Pending
+#   que dos en la misma zona, también después de un cambio de versión.
+# - Las tres probes: startup (cuánto tiempo le das para cargar el engine), readiness (/v2/health/ready) y liveness
+#   (/v2/health/live).
+# - Apagado ordenado: un preStop que espera 10 s y un plazo de gracia que alcance para preStop + 30 s de drenado.
+# - La imagen se llama solo «classifier-triton»: kustomize pone el registro y el digest.
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: triton
+#   labels: {app.kubernetes.io/name: triton}
+# spec:   # TODO
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: triton
+#   labels: {app.kubernetes.io/name: triton}
+# spec:   # TODO

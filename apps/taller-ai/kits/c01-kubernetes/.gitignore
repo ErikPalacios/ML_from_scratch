@@ -1,0 +1,5 @@
+# .kube/ guarda la llave del clúster del dojo y .taller/ es de romper.py: ninguno es parte del repositorio de despliegue.
+.kube/
+.taller/
+__pycache__/
+*.pyc

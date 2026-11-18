@@ -1,0 +1,9 @@
+# Mientras todo esté comentado, kubectl apply -k k8s/ no crea nada de este archivo.
+# TUYO. Un HorizontalPodAutoscaler «gateway» (autoscaling/v2) para el Deployment gateway: de 3 a 12 pods, con el
+# objetivo de que cada uno use ≈ 60 % de su request de CPU. Bajar despacio: 1 pod por minuto, tras 5 min de calma.
+# apiVersion: autoscaling/v2
+# kind: HorizontalPodAutoscaler
+# metadata:
+#   name: gateway
+#   labels: {app.kubernetes.io/name: gateway}
+# spec:   # TODO

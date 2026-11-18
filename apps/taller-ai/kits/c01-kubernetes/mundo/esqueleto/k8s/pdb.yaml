@@ -1,0 +1,8 @@
+# Mientras todo esté comentado, kubectl apply -k k8s/ no crea nada de este archivo.
+# TUYO. Un PodDisruptionBudget «triton»: al vaciar nodos a propósito, siempre queda al menos 1 Triton.
+# apiVersion: policy/v1
+# kind: PodDisruptionBudget
+# metadata:
+#   name: triton
+#   labels: {app.kubernetes.io/name: triton}
+# spec:   # TODO

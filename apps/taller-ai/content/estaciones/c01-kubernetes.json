@@ -1,0 +1,1335 @@
+{
+  "id": "kubernetes",
+  "patron": "sincrono",
+  "caso": "c01",
+  "num": 9,
+  "titulo": "Kubernetes",
+  "nav": "Kubernetes",
+  "pregunta": "Las dos imágenes ya están en el registro, por digest. ¿Qué le dices al clúster para que Triton tenga siempre una T4 en cada zona, para que los gateways crezcan solos en un pico y para que cambiar de versión o vaciar un nodo no corte ni una foto?",
+  "version": "2026-11-18",
+  "mapa": {
+    "resumen": "La estación 8 dejó las dos imágenes en el registro, por digest, y un repositorio de despliegue que dice cuál corre. Falta lo que las convierte en un servicio que aguanta: los <b>manifiestos</b> de Kubernetes. En ellos describes lo que quieres (2 Tritons, cada uno con una T4 y en una zona distinta; de 3 a 12 gateways en nodos de CPU, detrás del balanceador) y el clúster lo hace cumplir sin parar: pone cada pod donde cabe, lo reinicia si muere, lo saca del reparto si no está listo, cambia de versión sin bajar de capacidad, protege a Triton del mantenimiento con un <b>PDB</b> y agrega gateways con el <b>HPA</b> cuando sube la CPU.",
+    "entra": [
+      "las dos imágenes por digest en el registro (<code>classifier-gateway</code> y <code>classifier-triton</code>), publicadas por el CI de la estación 8",
+      "el repositorio de despliegue (<code>k8s/</code>), con la <code>kustomization.yaml</code> donde el CI escribe los digests",
+      "un clúster con nodos de CPU y nodos con una T4, en dos zonas, que prepara el equipo de plataforma",
+      "los números de la empresa: lo que pide cada pod, cuánto tarda en arrancar y cuánto en apagarse"
+    ],
+    "sale": [
+      "2 Tritons listos, cada uno con su T4, uno por zona, con sus tres probes y su apagado ordenado",
+      "de 3 a 12 gateways en nodos de CPU detrás del balanceador, con un HPA que apunta al 60 % de su CPU",
+      "un PDB que deja vaciar un nodo de T4 a la vez, nunca los dos",
+      "cambios de versión sin perder capacidad, y una vuelta atrás que es un <code>git revert</code>"
+    ],
+    "escala": [
+      {
+        "que": "El clúster",
+        "c01": "EKS (el Kubernetes que opera AWS) 1.35 en <code>us-east-1</code>: US$0.10 la hora por el plano de control (≈ US$73 al mes); el soporte estándar de la 1.35 acaba el 27 de marzo de 2027 y después cuesta US$0.60 la hora",
+        "taller": "kind (Kubernetes dentro de Docker) con Kubernetes 1.35.5 en tu Mac: un plano de control y 6 nodos, cada uno un contenedor"
+      },
+      {
+        "que": "Los nodos de CPU",
+        "c01": "<code>c6i.xlarge</code> de 4 vCPU: 2 en un día normal y hasta 4 con Karpenter",
+        "taller": "cpu-a y cpu-b, con 4 CPU asignables cada uno (de los núcleos de tu Mac se reservan los demás); sin Karpenter"
+      },
+      {
+        "que": "Las GPU",
+        "c01": "<code>g4dn.xlarge</code> con una T4 (US$0.526 la hora), de 2 a 4 según KEDA; tope de 6 GPU",
+        "taller": "t4-a1, t4-a2, t4-b1 y t4-b2: cada uno anuncia <code>nvidia.com/gpu: 1</code>, puesto a mano; Triton corre en la CPU"
+      },
+      {
+        "que": "La entrada del tráfico",
+        "c01": "un Ingress que el AWS Load Balancer Controller convierte en un ALB interno",
+        "taller": "un Service NodePort (30901) que kind publica en tu Mac como <code>localhost:8901</code>"
+      },
+      {
+        "que": "Quién aplica los manifiestos",
+        "c01": "Argo CD, que compara el repositorio de despliegue con el clúster y aplica la diferencia",
+        "taller": "tú, con <code>kubectl apply -k k8s/</code> después de cada commit"
+      },
+      {
+        "que": "Cuántos pods",
+        "c01": "gateway: HPA de 3 a 12 al 60 % de CPU · Triton: KEDA de 2 a 4, por la espera en su fila",
+        "taller": "gateway: el mismo HPA (aunque solo caben 6) · Triton: 2 fijos, sin KEDA"
+      },
+      {
+        "que": "El arranque de Triton",
+        "c01": "engine de ≈ 10 a 60 s; startup de 5 s × 60 = 300 s; <code>progressDeadlineSeconds</code> de 900",
+        "taller": "engine de ≈ 20 s; startup de 5 s × 12 = 60 s; <code>progressDeadlineSeconds</code> de 300"
+      }
+    ],
+    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-kubernetes"
+  },
+  "precalculos": {
+    "intro": "Antes de escribir un solo manifiesto, las cuentas de servilleta: cuántos gateways caben en un nodo, cuánto tiempo le das a Triton para arrancar y para apagarse, cuántas T4 pide un cambio de versión, cuántos gateways va a pedir el HPA en un pico y cuánta CPU cuesta una foto. Cada cuenta va en las dos escalas: C01 y el dojo.",
+    "cuentas": [
+      {
+        "id": "gateways-por-nodo",
+        "pregunta": "¿Cuántos gateways caben en un nodo de CPU, y cuántos nodos hacen falta en el máximo?",
+        "formula": "por nodo = ⌊(CPU asignable del nodo − requests que ya tiene) ÷ request de CPU de un gateway⌋ · nodos = ⌈gateways ÷ por nodo⌉",
+        "c01": {
+          "cuenta": "<code>c6i.xlarge</code>: 4 vCPU, menos lo que se quedan el sistema y los pods que van en cada nodo (la red, kube-proxy): un poco menos de 4 → ⌊3.x ÷ 1⌋ = 3; con 12 gateways, ⌈12 ÷ 3⌉",
+          "valor": "3 por nodo · 4 nodos en el máximo"
+        },
+        "taller": {
+          "cuenta": "4 CPU asignables (paso 1) − 200m que ya reservan los pods del sistema en cpu-a → ⌊3.8 ÷ 1⌋; hay 2 nodos de CPU",
+          "valor": "3 por nodo · 6 gateways como mucho en todo el dojo"
+        },
+        "decide": "Que lo que decide dónde cabe un pod es su <b>request</b>, no lo que usa: un gateway en reposo usa una décima de núcleo y aun así ocupa un núcleo entero en la cuenta del scheduler. Y que en el dojo el HPA puede pedir hasta 12, pero solo caben 6: sin Karpenter, el séptimo se queda Pending. En C01, ese Pending es justo la señal con la que Karpenter pide otra <code>c6i.xlarge</code>.",
+        "conceptos": [
+          "requests-limits-qos",
+          "cluster-namespace"
+        ],
+        "comprueba": {
+          "code": "kubectl describe node dojo-k8s-worker | sed -n '/Allocated resources/,/memory/p'",
+          "nota": "Requests: lo apartado en el nodo. Limits: los techos (pueden pasar de 100 %).",
+          "donde": "mac",
+          "salida": "Allocated resources:\n  (Total limits may be over 100 percent, i.e., overcommitted.)\n  Resource           Requests    Limits\n  --------           --------    ------\n  cpu                200m (5%)   100m (2%)\n  memory             250Mi (2%)  50Mi (0%)"
+        },
+        "confirma": "el paso 4: con un gateway en cpu-a, sus requests de CPU pasan de 200m a 1200m. Y el paso 8: en el pico, 6 gateways, 3 en cada nodo de CPU, y ni uno más."
+      },
+      {
+        "id": "presupuesto-startup",
+        "pregunta": "¿Cuánto tiempo le das a Triton para arrancar antes de que el kubelet lo mate?",
+        "formula": "presupuesto = periodSeconds × failureThreshold de la startup probe; al menos 1.5 veces lo que tarda en cargar el engine (aquí, 3 veces)",
+        "c01": {
+          "cuenta": "engine de ≈ 10 a 60 s (según el equipo); startup de 5 s × 60",
+          "valor": "300 s: 5 veces el arranque más lento"
+        },
+        "taller": {
+          "cuenta": "el engine tarda ≈ 20 s (el log del paso 3); × 3 = 60 s → 5 s × 12",
+          "valor": "60 s"
+        },
+        "decide": "Cuánto aguanta un engine más lento antes de que lo maten. Sin startup, la liveness preguntaría desde el segundo 0 y reiniciaría a Triton a la mitad de la carga, una y otra vez. Con una startup justa, el primer engine un poco más grande nunca termina de arrancar: es una de las fallas de Romper.",
+        "conceptos": [
+          "probes",
+          "crashloopbackoff"
+        ],
+        "comprueba": {
+          "code": "kubectl -n classifier logs triton-5d8fc8cd9b-dds2l",
+          "nota": "De «deserializando» a «warmup»: lo que de verdad tarda en cargar el engine.",
+          "donde": "mac",
+          "salida": "I1118 06:25:23.796250 1 servidor.py] model repository: /models\nI1118 06:25:23.796356 1 servidor.py] loading: classifier\nI1118 06:25:23.827333 1 servidor.py] deserializando el engine de classifier (≈ 20 s, como TensorRT en la T4)\nI1118 06:25:43.863519 1 servidor.py] warmup de classifier: 6 corridas en 34 ms\nI1118 06:25:43.875572 1 servidor.py] successfully loaded 'classifier' version 1 (2 instancia(s) KIND_CPU, model.onnx sha256 1bdf21ad5427…)\n+------------+---------+--------+\n| Model      | Version | Status |\n+------------+---------+--------+\n| classifier | 1       | READY  |\n+------------+---------+--------+\nI1118 06:25:43.957173 1 servidor.py] Started HTTPService at 0.0.0.0:8000"
+        },
+        "confirma": "el paso 3: «Startup probe failed … connection refused» (×4) mientras carga, y el despliegue de los dos Tritons terminó en ≈ 25 s."
+      },
+      {
+        "id": "plazo-de-gracia",
+        "pregunta": "¿Cuánto plazo de gracia necesita cada pod para apagarse sin cortar fotos?",
+        "formula": "gracia ≥ preStop + drenado + margen: el plazo cuenta desde que el pod se marca «terminando», con el preStop adentro",
+        "c01": {
+          "cuenta": "Triton: 10 (preStop) + 30 (<code>--exit-timeout-secs</code>) + 20 · gateway: 15 (preStop) + 20 (el drenado de uvicorn) + 10",
+          "valor": "60 s y 45 s"
+        },
+        "taller": {
+          "cuenta": "los mismos números: Triton 10 + 30 + 20 · gateway 15 + 20 + 10",
+          "valor": "60 s y 45 s"
+        },
+        "decide": "Que el preStop dé tiempo a que el balanceador deje de mandar fotos ANTES de que llegue SIGTERM, y que la gracia alcance para todo. Si alguien sube el drenado a 40 s sin subir la gracia, el pod recibe SIGKILL a la mitad, con fotos en vuelo. El gateway espera más que Triton porque el ALB tarda más en sacarlo que el Service en sacar a Triton.",
+        "conceptos": [
+          "apagado-ordenado"
+        ],
+        "comprueba": {
+          "code": "python3 verificar.py   # la línea de apagado",
+          "nota": "verificar.py lee el preStop y la gracia de lo que corre en el clúster.",
+          "donde": "mac",
+          "salida": "✓ apagado    apagado ordenado: triton 10 + 30 < 60 s · gateway 15 + 20 < 45 s"
+        },
+        "confirma": "el paso 5: 3000 fotos durante un cambio de versión de los tres gateways, 3000 en 200: los viejos salieron del reparto antes de apagarse."
+      },
+      {
+        "id": "t4-de-sobra",
+        "pregunta": "¿Cuántas T4 hacen falta para cambiar de versión, o vaciar un nodo, sin quedarte nunca con un solo Triton?",
+        "formula": "T4 a la vez = réplicas + maxSurge; y como hay un Triton por zona, el de más tiene que caber en la zona del que se va",
+        "c01": {
+          "cuenta": "2 + 1 = 3 T4 durante el despliegue; con KEDA en 4, 4 + 1 = 5, más la de staging: tope de 6 en Karpenter. La T4 de más vive ≈ 15 min: 0.526 × 0.25",
+          "valor": "3 a 6 T4 · ≈ US$0.13 por despliegue"
+        },
+        "taller": {
+          "cuenta": "2 Tritons, uno por zona, y 2 nodos de T4 por zona: en cada zona queda una T4 libre",
+          "valor": "4 nodos de T4: el reemplazo siempre tiene dónde caer en su zona"
+        },
+        "decide": "Por qué <code>maxUnavailable: 0</code> y <code>maxSurge: 1</code> en Triton: nunca bajas de 2 listos, a cambio de una T4 de más unos minutos. Si esa T4 no aparece (en C01, AWS sin <code>g4dn.xlarge</code> libres en la zona), el pod nuevo se queda Pending y nadie toca a los viejos: el despliegue se queda a medias, sin perder nada.",
+        "conceptos": [
+          "rolling-update",
+          "topology-spread"
+        ],
+        "comprueba": {
+          "code": "kubectl -n classifier get pods -o wide -l app.kubernetes.io/name=triton",
+          "nota": "Después de vaciar dos nodos de T4, uno de cada zona.",
+          "donde": "mac",
+          "salida": "NAME                      READY   STATUS    RESTARTS   AGE   IP           NODE               NOMINATED NODE   READINESS GATES\ntriton-5d8fc8cd9b-4mx6l   1/1     Running   0          40s   10.244.2.2   dojo-k8s-worker6   <none>           <none>\ntriton-5d8fc8cd9b-fmn2x   0/1     Running   0          12s   10.244.4.2   dojo-k8s-worker3   <none>           <none>"
+        },
+        "confirma": "el paso 7: se vaciaron t4-b1 (us-east-1b) y t4-a2 (us-east-1a), y los Tritons volvieron en t4-b2 (us-east-1b) y t4-a1 (us-east-1a): la T4 libre de cada zona."
+      },
+      {
+        "id": "regla-de-tres-hpa",
+        "pregunta": "¿Cuántos gateways va a pedir el HPA en un pico?",
+        "formula": "deseados = ⌈pods ahora × CPU actual ÷ CPU objetivo⌉, con la CPU como % del request; recortado entre 3 y 12; no se mueve si la razón está a 10 % o menos de 1",
+        "c01": {
+          "cuenta": "5 pods al 90 % → ⌈5 × 90 ÷ 60⌉ = ⌈7.5⌉; ya con 8, la misma carga da 56 % (56 ÷ 60 ≈ 0.94, dentro de la tolerancia)",
+          "valor": "8 pods, y ahí se queda"
+        },
+        "taller": {
+          "cuenta": "paso 8, con 60 fotos de 12 MP por segundo: 3 pods al 101 % → ⌈3 × 101 ÷ 60⌉ = ⌈5.05⌉",
+          "valor": "6 pods; en la lectura siguiente ya eran 6"
+        },
+        "decide": "Que el HPA es una regla de tres con redondeo hacia arriba, sobre el <b>request</b>: con un request de 1 núcleo y objetivo de 60 %, quiere ≈ 0.6 núcleos por pod. Sin request no puede dividir y no hace nada. Y que sube rápido (por omisión, el doble o 4 pods más cada 15 s) y baja despacio (5 min de calma y 1 pod por minuto).",
+        "conceptos": [
+          "hpa-metrics-server"
+        ],
+        "confirma": "el paso 8: el HPA pasó de 3 a 6 gateways en el pico (justo los que caben en los dos nodos de CPU)."
+      },
+      {
+        "id": "cpu-por-foto",
+        "pregunta": "¿Cuánta CPU del gateway cuesta una foto, y por qué importa que la app la reduzca antes de subirla?",
+        "formula": "ms de CPU por foto = milinúcleos de todos los gateways ÷ fotos por segundo (1 núcleo = 1,000 m = 1,000 ms de CPU cada segundo)",
+        "c01": {
+          "cuenta": "lo que presupuesta el diseño: 5 gateways al 60 % de 1 núcleo = 3 núcleos = 3,000 ms de CPU por segundo, para el pico de 500 fotos por segundo ya reducidas por la app (≈ 200 KB): 3,000 ÷ 500",
+          "valor": "≈ 6 ms de CPU por foto"
+        },
+        "taller": {
+          "cuenta": "paso 8: 3233 m entre los gateways con 60 fotos de 12 MP (4,000 × 3,000 px, sin reducir) por segundo: 3233 ÷ 60",
+          "valor": "≈ 54 ms de CPU por foto de 12 MP"
+        },
+        "decide": "Si la app dejara de reducir las fotos, el pico de 500 por segundo pediría 500 × 54 ms = 27.0 núcleos: ⌈27.0 ÷ 0.6⌉ = 45 gateways al 60 %, contra un tope de 12. El tope del HPA no es un número al azar: sale de la foto que llega. (Los milinúcleos de <code>kubectl top</code> miden el decode en tu Mac, no en una <code>c6i</code>: la cuenta vale para comparar, no al milisegundo.)",
+        "conceptos": [
+          "hpa-metrics-server",
+          "requests-limits-qos"
+        ],
+        "confirma": "el paso 8: cada lectura de <code>kubectl top</code> da los milinúcleos de cada gateway; súmalos y divídelos entre las fotos por segundo."
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "cluster-namespace",
+      "termino": "Clúster, nodo y namespace",
+      "en": "cluster / node / control plane / kubelet / namespace",
+      "def": "Un clúster es un grupo de máquinas (nodos) que manda un plano de control. En cada nodo, el kubelet arranca lo que le toca. Un namespace es un apartado con nombre dentro del clúster: aquí, <code>classifier</code>.",
+      "analogia": "Un hotel: la recepción (el plano de control) decide qué huésped va a qué cuarto; en cada piso, una camarista (el kubelet) prepara los cuartos; y cada empresa que se hospeda tiene su ala con su nombre (el namespace).",
+      "importa": "No le dices al clúster «arranca esto en el nodo 3»: le describes lo que quieres y sus controladores comparan sin parar lo que hay con lo que pediste y corrigen la diferencia (reconciliar). Por eso todo comando lleva <code>-n classifier</code>.",
+      "trampa": "Olvidar el <code>-n classifier</code>: <code>kubectl get pods</code> mira el namespace <code>default</code>, que está vacío, y parece que no corre nada."
+    },
+    {
+      "id": "pod",
+      "termino": "Pod",
+      "en": "pod",
+      "def": "La unidad mínima que Kubernetes arranca: uno o más contenedores que comparten red (una IP) y volúmenes, y que siempre viven juntos en el mismo nodo. Aquí, un pod = un contenedor de Triton o del gateway.",
+      "analogia": "Un departamento amueblado: lo que va adentro (los contenedores) comparte la dirección y la cocina, y si se cambian, se cambian todos juntos.",
+      "importa": "Es lo que se agenda, se reinicia, recibe tráfico y se apaga. Un pod no se «arregla»: si se rompe, se reemplaza por otro con otro nombre y otra IP. Por eso nadie le habla a un pod por su IP, sino a un Service.",
+      "trampa": "Crear pods sueltos a mano: si el nodo se cae, nadie los vuelve a crear. Los pods siempre los crea un controlador (un Deployment)."
+    },
+    {
+      "id": "deployment-replicaset",
+      "termino": "Deployment y ReplicaSet",
+      "en": "Deployment / ReplicaSet",
+      "def": "Un Deployment dice «quiero N pods con esta plantilla». Crea un ReplicaSet por cada versión de la plantilla, y el ReplicaSet mantiene vivos sus N pods: si uno muere, crea otro.",
+      "analogia": "Un gerente (Deployment) con un supervisor por turno (ReplicaSet): el supervisor cuida que estén sus N empleados; al cambiar de uniforme, el gerente abre un turno nuevo y va pasando gente de uno al otro.",
+      "importa": "Cambiar la imagen, una probe o los recursos crea un ReplicaSet nuevo; el viejo se queda en 0 réplicas (<code>revisionHistoryLimit: 5</code> guarda 5). Cambiar solo el número de réplicas no crea nada nuevo.",
+      "trampa": "Escribir <code>replicas</code> en un Deployment que escala el HPA: cada <code>apply</code> regresa el número y pelea con el autoscaler. En el gateway no va."
+    },
+    {
+      "id": "kustomize-digest",
+      "termino": "kustomize y la imagen por digest",
+      "en": "kustomize / images / configMapGenerator",
+      "def": "kustomize arma <code>k8s/</code> antes de aplicarlo (<code>kubectl apply -k</code>): pone el namespace, cambia «classifier-triton» por el registro y el digest que escribió el CI y genera el ConfigMap del modelo.",
+      "analogia": "Una plantilla de carta con campos: tú escribes la carta; la secretaria (kustomize) llena el destinatario y la fecha justo antes de mandarla.",
+      "importa": "Tú nunca escribes un digest a mano: lo escribe el CI en <code>kustomization.yaml</code> y lo que aplicas es exactamente lo que se probó. El ConfigMap lleva una huella en el nombre: si cambia <code>modelo.json</code>, cambia el nombre y los pods se reemplazan.",
+      "trampa": "<code>kubectl apply -f triton.yaml</code> sin <code>-k</code>: la imagen queda como «classifier-triton» a secas (no existe: ErrImagePull) y los objetos caen en el namespace <code>default</code>."
+    },
+    {
+      "id": "requests-limits-qos",
+      "termino": "Requests, limits y clase de QoS",
+      "en": "resource requests / limits / QoS class",
+      "def": "El request es una reserva: el scheduler pone el pod solo donde cabe la suma de requests. El limit es un techo que hace cumplir el kernel. Con ambos, el pod recibe una clase: Guaranteed, Burstable o BestEffort.",
+      "analogia": "Reservar mesa en un restaurante: la reservación (request) te asegura el lugar aunque llegues tarde; el límite de consumo (limit) es lo más que te dejan pedir.",
+      "importa": "Request de CPU sí (con él se agenda y escala), límite de CPU no (solo frena); memoria con techo igual al request. Así ambos pods son Burstable. Un pod que solo pide <code>nvidia.com/gpu</code> es BestEffort: la clase solo mira CPU y memoria, y sale primero si falta memoria.",
+      "trampa": "Dimensionar con <code>kubectl top</code> en reposo: mide la mediana, y el pod muere en su peor momento."
+    },
+    {
+      "id": "throttling",
+      "termino": "Throttling de CPU",
+      "en": "CPU throttling / CFS quota",
+      "def": "Con un límite de CPU, el kernel da al contenedor una cuota por periodo de 100 ms (límite de 1 núcleo = 100 ms de CPU por periodo, sumando todos sus hilos). Si la gasta antes, lo congela hasta el siguiente periodo.",
+      "analogia": "Un plan de datos que se corta a media película: el celular sirve, la red está libre, pero tu cuota del mes ya se acabó y esperas al corte.",
+      "importa": "Con 4 decodes de 40 ms y límite de 1 núcleo, la cuota se acaba a los 25 ms y cada foto tarda 115 ms en vez de 40, con el nodo medio vacío. Por eso el gateway y Triton no llevan límite de CPU: la CPU que no usan queda para otros.",
+      "trampa": "Poner límite de CPU «por orden»: el freno aparece justo en los picos, cuando más importa la latencia, y no se ve en el uso promedio."
+    },
+    {
+      "id": "oomkilled",
+      "termino": "OOMKilled",
+      "en": "out of memory / OOMKilled / exit code 137",
+      "def": "Si un contenedor pasa su techo de memoria, el kernel lo mata en el acto con SIGKILL. Kubernetes lo reporta como <code>OOMKilled</code>, código de salida 137 (128 + 9, la señal 9), y lo vuelve a arrancar.",
+      "analogia": "Un vaso que se llena de más: la CPU de más es esperar tu turno; la memoria de más es derramarse, y no hay forma de «devolverla después».",
+      "importa": "El techo de memoria del gateway (1 GiB) sale de su peor momento: 2 decodes de fotos grandes × ≈ 320 MB + ≈ 80 MB de Python + 16 requests en vuelo × ≈ 10 MB ≈ 880 MB. Mejor que muera este pod con un error claro a que el nodo se quede sin memoria y el kernel elija a quién matar.",
+      "trampa": "Buscar el error en los logs del programa: un OOMKilled no deja mensaje; está en <code>kubectl describe pod</code>, en Last State."
+    },
+    {
+      "id": "probes",
+      "termino": "Las tres probes: startup, readiness y liveness",
+      "en": "startup / readiness / liveness probes",
+      "def": "Preguntas que el kubelet le hace al contenedor cada cierto tiempo, casi siempre un GET HTTP (200 a 399 = pasó). Startup: ¿ya arrancaste? Readiness: ¿te mando tráfico? Liveness: ¿sigues vivo, o te reinicio?",
+      "analogia": "Un empleado nuevo: la startup es su periodo de capacitación (nadie le pide resultados todavía); la readiness, si hoy puede atender clientes; la liveness, si sigue respirando.",
+      "importa": "Mientras la startup no pasa, las otras dos no corren. Si falla la readiness, el pod sale del reparto sin reiniciarse; si falla la liveness, se reinicia. Por eso la liveness pregunta solo por el propio proceso (<code>/healthz</code>, <code>/v2/health/live</code>), nunca por Triton.",
+      "trampa": "Una dependencia en la liveness: si Triton cae, se reinician todos los gateways a la vez y nada se arregla."
+    },
+    {
+      "id": "crashloopbackoff",
+      "termino": "CrashLoopBackOff e ImagePullBackOff",
+      "en": "back-off restart / image pull back-off",
+      "def": "Cuando un contenedor muere una y otra vez, el kubelet espera cada vez más antes de volver a arrancarlo: 10 s, 20 s, 40 s… hasta 5 min. Si lo que falla es bajar la imagen, la espera crece igual (ImagePullBackOff).",
+      "analogia": "Volver a marcar a alguien que no contesta: al principio a los pocos segundos, luego cada vez más espaciado, para no saturar la línea.",
+      "importa": "Es un estado, no una causa: el porqué está en <code>kubectl logs &lt;pod&gt; --previous</code> (lo que escribió antes de morir) y en Last State de <code>kubectl describe pod</code> (OOMKilled, código 1, una probe). La columna RESTARTS cuenta los intentos.",
+      "trampa": "Esperar a que «se arregle solo»: el backoff solo espacia los intentos; si la causa sigue, el pod muere igual cada vez."
+    },
+    {
+      "id": "service-endpointslice",
+      "termino": "Service y EndpointSlice",
+      "en": "Service / EndpointSlice / label selector",
+      "def": "Un Service es un nombre y una IP fijos que reparten el tráfico entre los pods que encuentra su selector (por etiquetas). La lista de pods detrás, con su IP y si están listos, vive en sus EndpointSlices.",
+      "analogia": "El conmutador de una empresa: marcas un solo número (el Service) y te pasa con quien esté disponible; la lista de extensiones activas (el EndpointSlice) se actualiza sola.",
+      "importa": "El gateway habla con <code>triton:8000</code>, no con la IP de un pod. Un pod que no pasa su readiness, o que se está apagando, sigue en el EndpointSlice pero con <code>ready=false</code>, y no recibe tráfico nuevo.",
+      "trampa": "Cambiar las etiquetas de los pods o el selector del Service sin cambiar el otro: el Service no encuentra a nadie, su EndpointSlice queda vacío y los pods sanos no reciben nada."
+    },
+    {
+      "id": "nodeport-ingress",
+      "termino": "NodePort, Ingress y el ALB",
+      "en": "Service type NodePort / Ingress / AWS Load Balancer Controller",
+      "def": "Para que el tráfico entre desde fuera del clúster: un Service NodePort abre el mismo puerto (30000 a 32767) en todos los nodos; un Ingress describe la entrada y un controlador crea el balanceador real (en AWS, un ALB).",
+      "analogia": "La entrada de un edificio: NodePort es abrir la misma puerta lateral en cada piso; un Ingress es contratar una recepción en la entrada principal que reparte a los visitantes.",
+      "importa": "En el dojo, el NodePort 30901 se publica en tu Mac como <code>localhost:8901</code>: hace de «ALB interno». En C01, el Ingress del gateway lo lee el AWS Load Balancer Controller y arma el ALB, que manda directo a la IP de cada pod listo.",
+      "trampa": "Creer que el NodePort es lo que se usa en producción en AWS: ahí la entrada es el ALB, y el preStop del gateway espera más (15 s) porque el ALB tarda más en sacarlo que un Service."
+    },
+    {
+      "id": "apagado-ordenado",
+      "termino": "Apagado ordenado",
+      "en": "graceful shutdown / preStop / SIGTERM / terminationGracePeriodSeconds",
+      "def": "Al apagar un pod: se marca «terminando» y sale del reparto, corre el <code>preStop</code>, llega SIGTERM y el programa acaba lo que tiene. Al vencer el plazo de gracia, contado desde el inicio, llega SIGKILL.",
+      "analogia": "Cerrar una tienda: primero se voltea el letrero (nadie nuevo entra), luego se espera a que el aviso llegue a todos, y al final se atiende a los que ya están adentro antes de apagar la luz.",
+      "importa": "El balanceador tarda unos segundos en enterarse de que el pod se va: el <code>preStop</code> (un <code>sleep</code>) espera eso antes de SIGTERM. Así un cambio de versión no corta fotos. Si el preStop sigue corriendo al vencer la gracia, Kubernetes da 2 s más, una sola vez.",
+      "trampa": "Sumar mal: la gracia incluye el preStop. Con preStop de 15 s, 20 s de drenado y una gracia de 30 s, el programa recibe SIGKILL a la mitad del drenado."
+    },
+    {
+      "id": "rolling-update",
+      "termino": "Rolling update",
+      "en": "RollingUpdate / maxSurge / maxUnavailable / progressDeadlineSeconds / rollout undo",
+      "def": "Cómo cambia de versión un Deployment: sube pods del ReplicaSet nuevo y baja del viejo, poco a poco. <code>maxSurge</code>: cuántos de más puede haber; <code>maxUnavailable</code>: cuántos de menos (no listos) acepta.",
+      "analogia": "Cambiar las llantas de un camión de 18 ruedas sin detenerlo: pones una de refacción, quitas una vieja, y nunca rueda con menos de las que necesita.",
+      "importa": "Con <code>maxSurge: 1</code> y <code>maxUnavailable: 0</code> nunca bajas de capacidad. <code>progressDeadlineSeconds</code> (600 por omisión) es cuánto esperar sin avance: al vencer, el Deployment marca <code>ProgressDeadlineExceeded</code> y NO regresa solo. Volver atrás es un <code>git revert</code>; <code>kubectl rollout undo</code> solo en una emergencia.",
+      "trampa": "<code>kubectl rollout undo</code> como rollback normal: el clúster corre la versión vieja pero git sigue diciendo la nueva, y el siguiente <code>apply</code> (o Argo CD) la vuelve a poner."
+    },
+    {
+      "id": "nodeselector-taints",
+      "termino": "nodeSelector, taints y tolerations",
+      "en": "nodeSelector / taint / toleration",
+      "def": "Un <code>nodeSelector</code> atrae: el pod solo va a nodos con cierta etiqueta (<code>workload: gpu-t4</code>). Un taint en el nodo repele a todos los pods; una toleration en el pod le deja entrar a pesar del taint.",
+      "analogia": "Un estudio de grabación: la etiqueta es la dirección (el músico la busca), el taint es el guardia de la puerta y la toleration es el pase. Tener el pase no te lleva al estudio: necesitas las dos cosas.",
+      "importa": "Triton lleva las dos: va solo a las T4 y aguanta su taint. El gateway no lleva toleration, así que nunca cae en una T4 (una máquina de US$0.526 la hora ocupada por un pod de CPU). Con una etiqueta mal escrita, el pod se queda Pending para siempre: ningún nodo la tiene.",
+      "trampa": "Poner solo la toleration: el pod puede caer en cualquier nodo, con o sin taint."
+    },
+    {
+      "id": "gpu-device-plugin",
+      "termino": "La GPU como recurso",
+      "en": "extended resource nvidia.com/gpu / NVIDIA device plugin",
+      "def": "Kubernetes solo sabe contar CPU, memoria y disco. El device plugin de NVIDIA (un DaemonSet: un pod en cada nodo con GPU) le avisa al kubelet cuántas GPU hay, y el nodo ofrece <code>nvidia.com/gpu: 1</code>.",
+      "analogia": "Un estacionamiento que solo cuenta cajones de auto: alguien tiene que poner el letrero «aquí hay 1 cajón para camión» para que el acomodador sepa que existe.",
+      "importa": "Se pide en enteros (1, nunca 0.5), sin compartir y sin sobreventa: dos pods no reciben la misma T4. Si el plugin falta, el nodo «no tiene GPU» y Triton se queda Pending aunque la T4 esté ahí. En el dojo el recurso se anuncia a mano y Triton corre en la CPU.",
+      "trampa": "Pedir solo la GPU y olvidar CPU y memoria: el pod queda BestEffort, sin reserva de CPU, y es el primero que sale si falta memoria."
+    },
+    {
+      "id": "topology-spread",
+      "termino": "Reparto por zona",
+      "en": "topologySpreadConstraints / maxSkew / matchLabelKeys",
+      "def": "Una regla para el scheduler: entre zonas, como mucho <code>maxSkew</code> pods de diferencia. Con <code>DoNotSchedule</code> prefiere dejar el pod Pending; con <code>ScheduleAnyway</code>, reparte si puede.",
+      "analogia": "Repartir huevos en dos canastas: si se cae una, no pierdes todos. Y prefieres esperar otra canasta a meter dos huevos en la misma.",
+      "importa": "Dos Tritons en la misma zona dejarían a la empresa sin GPU si esa zona cae; por eso <code>DoNotSchedule</code>. <code>matchLabelKeys: [pod-template-hash]</code> (beta, prendido por omisión desde 1.27) cuenta solo los pods de la misma versión; sin él, después de un cambio de versión pueden quedar dos en una zona.",
+      "trampa": "<code>DoNotSchedule</code> en el gateway: un gateway de más en la zona equivocada cuesta poco, y quedarse Pending en un pico cuesta mucho. Ahí va <code>ScheduleAnyway</code>."
+    },
+    {
+      "id": "pdb-drain",
+      "termino": "PDB, cordon y drain",
+      "en": "PodDisruptionBudget / kubectl cordon / kubectl drain",
+      "def": "<code>cordon</code> cierra un nodo a pods nuevos; <code>drain</code> además desaloja los suyos. Un PDB es el mínimo de pods que nadie saca a propósito: si un desalojo lo rompería, se rechaza y drain reintenta.",
+      "analogia": "El turno mínimo de un hospital: puedes mandar a capacitación a quien quieras, pero nunca dejar la guardia con menos de un médico.",
+      "importa": "Con 2 Tritons y <code>minAvailable: 1</code>, se vacía un nodo de T4 a la vez: el segundo drain espera a que el reemplazo del primero esté listo. El PDB solo cubre lo voluntario: un nodo que muere no pide permiso.",
+      "trampa": "<code>minAvailable: 2</code> con 2 réplicas: ningún drain avanza nunca y la actualización de nodos se traba."
+    },
+    {
+      "id": "hpa-metrics-server",
+      "termino": "HPA y metrics-server",
+      "en": "HorizontalPodAutoscaler / metrics-server",
+      "def": "El HPA mira cada 15 s una métrica (aquí, la CPU como % del request, que da metrics-server) y calcula cuántos pods deberían ser: ⌈pods × actual ÷ objetivo⌉, entre su mínimo y su máximo.",
+      "analogia": "El termostato de un salón: mide la temperatura promedio y prende o apaga ventiladores para dejarla en el objetivo; prende rápido y apaga despacio.",
+      "importa": "Por omisión sube sin esperar (el doble o 4 pods más, lo que sea mayor, cada 15 s) y baja tras 5 min de calma; el gateway baja además 1 pod por minuto. Solo agrega pods si caben: si los nodos están llenos, quedan Pending.",
+      "trampa": "Quitar el request de CPU: el HPA ya no tiene contra qué dividir, se queda en <code>&lt;unknown&gt;</code> («missing request for cpu») y no sube en el pico."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae el clúster de C01 en chico, de verdad: Kubernetes 1.35 en kind, con dos nodos de CPU y cuatro nodos que anuncian una T4, en dos zonas, con su taint; metrics-server; un registro con las imágenes que publicó el CI de la estación 8 (el gateway de hoy, el de la semana que entra y uno que no arranca; Triton con su modelo de juguete y uno con un engine más lento); y esta carpeta como el repositorio de despliegue, con lo que dejó el equipo de plataforma. Faltan tus cuatro manifiestos.",
+    "trae": [
+      {
+        "que": "mundo/crear.py y mundo/kind.yaml",
+        "detalle": "Crea todo en ≈ 68 s (≈ 3 min la primera vez, que baja ≈ 1.3 GB): el registro en <code>localhost:5900</code>, el clúster <code>dojo-k8s</code> (un plano de control y 6 nodos), sus etiquetas de zona y de tipo, las T4 con su taint, metrics-server, las imágenes y el repositorio de despliegue. La llave queda en <code>.kube/config</code>: tu <code>~/.kube/config</code> no se toca."
+      },
+      {
+        "que": "k8s/kustomization.yaml, namespace.yaml y modelo.json",
+        "detalle": "Del equipo de plataforma (y del CI, que escribe los digests): qué se aplica, el namespace <code>classifier</code> y los labels del modelo como ConfigMap. Se cambian solo con <code>mundo/publicar.py</code> o con un <code>git revert</code>."
+      },
+      {
+        "que": "mundo/publicar.py",
+        "detalle": "El último paso del CI de la estación 8: escribe el digest de una imagen publicada en <code>kustomization.yaml</code> y hace commit. No aplica nada: eso lo haces tú."
+      },
+      {
+        "que": "mundo/carga.py",
+        "detalle": "Manda fotos por el «ALB» (<code>localhost:8901</code>) a un ritmo fijo, aunque las anteriores no hayan vuelto, y cuenta lo que regresa por código HTTP, con p50 y p99. Con <code>--12mp</code>, la foto tal como sale del celular."
+      },
+      {
+        "que": "mundo/cluster.py",
+        "detalle": "<code>estado</code>: cada nodo con su apodo, zona, T4 y pods; y el registro. También apaga y prende el clúster para liberar la memoria de tu Mac."
+      },
+      {
+        "que": "gateway/, mundo/triton_dojo/ y mundo/triton/",
+        "detalle": "El gateway de la estación 6 y el Triton del dojo con su modelo de juguete, ya construidos y publicados. Aquí no se toca el código: se despliega."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "12 checks con los criterios de «listo», contra lo que corre en el clúster, y 6 fallas en el mundo, la configuración o la infraestructura, nunca en lo que escribes."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "k8s/triton.yaml",
+        "hace": "El Deployment y el Service de Triton: 2 pods con una T4 cada uno, uno por zona, sus recursos, sus tres probes, su apagado ordenado y su cambio de versión sin bajar de 2 listos."
+      },
+      {
+        "archivo": "k8s/gateway.yaml",
+        "hace": "El Deployment y el Service NodePort del gateway: en nodos de CPU, sin réplicas fijas, con su readiness y su liveness, su apagado y su plazo para cambiar de versión."
+      },
+      {
+        "archivo": "k8s/pdb.yaml",
+        "hace": "El PodDisruptionBudget de Triton: siempre queda al menos uno."
+      },
+      {
+        "archivo": "k8s/hpa.yaml",
+        "hace": "El HPA del gateway: de 3 a 12, al 60 % de su CPU, y bajando despacio."
+      }
+    ],
+    "requisitos": [
+      "Docker Desktop con al menos 6 CPU y 8 GiB de memoria (Settings → Resources)",
+      "kind y kubectl: <code>brew install kind kubectl</code> (kubectl 1.34, 1.35 o 1.36: kubectl acepta un clúster una versión menor arriba o abajo de la suya, y el clúster es 1.35)",
+      "Python 3.11 o más nuevo. No hace falta entorno virtual: todo usa la biblioteca estándar",
+      "git e Internet la primera vez (la imagen de los nodos, ≈ 1.3 GB)",
+      "Los puertos 5900 y 8901 libres en tu Mac"
+    ],
+    "sustituciones": [
+      {
+        "nube": "EKS 1.35 en dos zonas de <code>us-east-1</code>",
+        "local": "kind (Kubernetes 1.35.5 en contenedores de Docker), con zonas puestas como etiquetas",
+        "diferencia": "El mismo Kubernetes: el scheduler, los controladores, el kubelet y kubectl son los de verdad. Las zonas son etiquetas en nodos que viven en la misma Mac: «perder una zona» no apaga nada por sí solo."
+      },
+      {
+        "nube": "<code>g4dn.xlarge</code> con una T4 y el device plugin de NVIDIA",
+        "local": "nodos que anuncian <code>nvidia.com/gpu: 1</code>, puesto a mano por <code>crear.py</code>, con la misma taint",
+        "diferencia": "El scheduler reparte la «T4» igual (entera, sin compartir), pero no hay GPU: el Triton del dojo corre su modelo de juguete en la CPU y simula los ≈ 20 s de cargar el engine."
+      },
+      {
+        "nube": "Un Ingress y el AWS Load Balancer Controller, que arma el ALB interno",
+        "local": "un Service NodePort (30901), publicado como <code>localhost:8901</code>",
+        "diferencia": "Reparte entre los pods listos igual que el ALB. Lo que no está: los tiempos del ALB para dar de baja un destino (por eso el preStop del gateway, de 15 s, es de C01)."
+      },
+      {
+        "nube": "Argo CD, que aplica el repositorio de despliegue",
+        "local": "tú, con <code>kubectl apply -k k8s/</code>",
+        "diferencia": "La regla es la misma: lo que corre sale de git. Si cambias algo a mano en el clúster, nadie lo regresa hasta tu siguiente apply (Argo CD lo regresaría solo)."
+      },
+      {
+        "nube": "KEDA (Triton de 2 a 4) y Karpenter (los nodos)",
+        "local": "Triton fijo en 2 y nodos fijos",
+        "diferencia": "Sin Karpenter, un pod que no cabe se queda Pending para siempre: en C01, ese Pending trae un nodo nuevo en minutos."
+      },
+      {
+        "nube": "El gateway como Rollout de Argo (la estación 10)",
+        "local": "un Deployment",
+        "diferencia": "Aquí el cambio de versión es un rolling update que solo mira la salud de los pods; mandar el 5 % del tráfico a la versión nueva y compararla es de la estación 10."
+      },
+      {
+        "nube": "Amazon ECR",
+        "local": "<code>registry:2</code> en <code>localhost:5900</code>",
+        "diferencia": "Los nodos bajan por digest igual; sin permisos de IAM ni endpoints de VPC."
+      }
+    ],
+    "arranque": "unzip c01-kubernetes.zip && cd c01-kubernetes\npython3 mundo/crear.py\nexport KUBECONFIG=$PWD/.kube/config\npython3 verificar.py mundo",
+    "python": "python3"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "El registro, el clúster de 6 nodos con sus T4 y metrics-server arriba, las imágenes publicadas y esta carpeta como repositorio de despliegue.",
+      "conceptos": [
+        "cluster-namespace"
+      ],
+      "explica": "<code>mundo/crear.py</code> crea el registro y el clúster con kind, etiqueta los nodos con su zona y su tipo, anuncia las T4 con su taint, instala metrics-server, construye y sube las imágenes, y hace de esta carpeta un repositorio git. La llave del clúster queda en <code>.kube/config</code>: el <code>export</code> le dice a kubectl que use esa, en cada terminal nueva.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 mundo/crear.py --de-cero\nexport KUBECONFIG=$PWD/.kube/config",
+          "nota": "En una carpeta recién descomprimida basta <code>python3 mundo/crear.py</code>; <code>--de-cero</code> borra antes el clúster y el registro.",
+          "donde": "mac",
+          "salida": "· borrando el clúster y el registro\n· el registro (localhost:5900)\n· el clúster dojo-k8s: Kubernetes v1.35.5, 1 control plane + 6 nodos (≈ 1–3 min)\n· las zonas, los tipos de máquina, las T4 y su taint\n· metrics-server (la CPU de cada pod, para el HPA)\n· las imágenes: se construyen y se suben al registro (≈ 1 min la primera vez)\n· esta carpeta como el repositorio de despliegue\n✓ el mundo está listo en 68 s\n  Antes de usar kubectl en esta terminal:  export KUBECONFIG=$PWD/.kube/config"
+        },
+        {
+          "code": "python3 verificar.py mundo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo      Kubernetes con 6 nodos listos (4 con T4), el registro y metrics-server\n\n1/1 en verde"
+        },
+        {
+          "code": "git log --oneline",
+          "nota": "Esta carpeta es el repositorio de despliegue: lo que corre en el clúster sale de aquí.",
+          "donde": "mac",
+          "salida": "4440044 classifier: el repositorio de despliegue (estación 9)"
+        }
+      ],
+      "verifica": "<code>mundo</code> en verde: 6 nodos listos (4 con T4), el registro y metrics-server.",
+      "ojo": "Si <code>kubectl</code> dice <code>connection refused</code> en <code>localhost:8080</code>, falta el <code>export KUBECONFIG</code> en esa terminal. Si los nodos no arrancan, revisa que Docker Desktop tenga al menos 6 CPU y 8 GiB. Para empezar de nuevo: <code>python3 mundo/crear.py --de-cero</code> (tus <code>k8s/*.yaml</code> se quedan)."
+    },
+    {
+      "n": 1,
+      "id": "cluster",
+      "titulo": "Leer el clúster",
+      "objetivo": "Saber qué nodos hay, en qué zona, cuánto ofrece cada uno, cuáles tienen una T4 y qué los protege de pods que no son de GPU.",
+      "conceptos": [
+        "cluster-namespace",
+        "nodeselector-taints",
+        "gpu-device-plugin",
+        "requests-limits-qos"
+      ],
+      "explica": "Antes de pedir nada, mira lo que hay. Cada nodo trae etiquetas (zona, tipo, <code>workload</code>) que el scheduler usa para decidir. Lo que un nodo ofrece a los pods es su <b>Allocatable</b>, no su capacidad: de tus núcleos, cada nodo del dojo ofrece 4, como una <code>c6i.xlarge</code>. Los nodos de T4 anuncian <code>nvidia.com/gpu: 1</code> y llevan una taint. Y hay pods en cada nodo antes de los tuyos (la red, kindnet) que ya apartaron CPU.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "kubectl get nodes -L dojo/apodo,topology.kubernetes.io/zone,workload",
+          "nota": "<code>-L</code> agrega columnas con esas etiquetas. El plano de control no lleva etiquetas de zona: ahí no van tus pods.",
+          "donde": "mac",
+          "salida": "NAME                     STATUS   ROLES           AGE   VERSION   APODO   ZONE         WORKLOAD\ndojo-k8s-control-plane   Ready    control-plane   57s   v1.35.5\ndojo-k8s-worker          Ready    <none>          47s   v1.35.5   cpu-a   us-east-1a   cpu\ndojo-k8s-worker2         Ready    <none>          47s   v1.35.5   cpu-b   us-east-1b   cpu\ndojo-k8s-worker3         Ready    <none>          47s   v1.35.5   t4-a1   us-east-1a   gpu-t4\ndojo-k8s-worker4         Ready    <none>          47s   v1.35.5   t4-b1   us-east-1b   gpu-t4\ndojo-k8s-worker5         Ready    <none>          47s   v1.35.5   t4-a2   us-east-1a   gpu-t4\ndojo-k8s-worker6         Ready    <none>          47s   v1.35.5   t4-b2   us-east-1b   gpu-t4"
+        },
+        {
+          "code": "kubectl get nodes -l workload -o custom-columns='NODO:.metadata.name,CPU:.status.allocatable.cpu,MEMORIA:.status.allocatable.memory,T4:.status.allocatable.nvidia\\.com/gpu'",
+          "nota": "Lo asignable de cada nodo de trabajo: 4 CPU y ≈ 8.2 GiB; solo los de T4 ofrecen <code>nvidia.com/gpu</code>.",
+          "donde": "mac",
+          "salida": "NODO               CPU   MEMORIA     T4\ndojo-k8s-worker    4     8565176Ki   <none>\ndojo-k8s-worker2   4     8565176Ki   <none>\ndojo-k8s-worker3   4     8565176Ki   1\ndojo-k8s-worker4   4     8565176Ki   1\ndojo-k8s-worker5   4     8565176Ki   1\ndojo-k8s-worker6   4     8565176Ki   1"
+        },
+        {
+          "code": "kubectl describe node dojo-k8s-worker3 | grep -E '^Taints|nvidia.com/gpu|^  cpu|^  memory'",
+          "nota": "Arriba, Capacity (los 10 núcleos de tu Mac); abajo, Allocatable (los 4 que se ofrecen); al final, lo ya reservado. Y la taint que aleja a todo pod que no la tolere.",
+          "donde": "mac",
+          "salida": "Taints:             nvidia.com/gpu=present:NoSchedule\n  cpu:                10\n  memory:             12235192Ki\n  nvidia.com/gpu:     1\n  cpu:                4\n  memory:             8565176Ki\n  nvidia.com/gpu:     1\n  cpu                100m (2%)  100m (2%)\n  memory             50Mi (0%)  50Mi (0%)\n  nvidia.com/gpu     0          0"
+        },
+        {
+          "code": "kubectl -n kube-system get pods -o wide --no-headers -l k8s-app=kindnet",
+          "nota": "Un pod de red en cada nodo (un DaemonSet), con su request de 100m.",
+          "donde": "mac",
+          "salida": "kindnet-5fzkd   1/1   Running   0     47s   172.22.0.4   dojo-k8s-worker          <none>   <none>\nkindnet-c5v6c   1/1   Running   0     47s   172.22.0.3   dojo-k8s-worker5         <none>   <none>\nkindnet-cngc6   1/1   Running   0     47s   172.22.0.5   dojo-k8s-worker3         <none>   <none>\nkindnet-dswt4   1/1   Running   0     48s   172.22.0.7   dojo-k8s-control-plane   <none>   <none>\nkindnet-kk5tn   1/1   Running   0     47s   172.22.0.6   dojo-k8s-worker6         <none>   <none>\nkindnet-q2h5p   1/1   Running   0     47s   172.22.0.2   dojo-k8s-worker2         <none>   <none>\nkindnet-wphgn   1/1   Running   0     47s   172.22.0.8   dojo-k8s-worker4         <none>   <none>"
+        },
+        {
+          "code": "kubectl describe node dojo-k8s-worker | sed -n '/Allocated resources/,/memory/p'",
+          "nota": "",
+          "donde": "mac",
+          "salida": "Allocated resources:\n  (Total limits may be over 100 percent, i.e., overcommitted.)\n  Resource           Requests    Limits\n  --------           --------    ------\n  cpu                200m (5%)   100m (2%)\n  memory             250Mi (2%)  50Mi (0%)"
+        },
+        {
+          "code": "python3 mundo/cluster.py estado",
+          "nota": "",
+          "donde": "mac",
+          "salida": "registro localhost:5900: arriba\n\nnodo               apodo  zona        T4  estado                 pods de classifier\ndojo-k8s-worker    cpu-a  us-east-1a  0   Ready                  —\ndojo-k8s-worker2   cpu-b  us-east-1b  0   Ready                  —\ndojo-k8s-worker3   t4-a1  us-east-1a  1   Ready                  —\ndojo-k8s-worker5   t4-a2  us-east-1a  1   Ready                  —\ndojo-k8s-worker4   t4-b1  us-east-1b  1   Ready                  —\ndojo-k8s-worker6   t4-b2  us-east-1b  1   Ready                  —"
+        }
+      ],
+      "verifica": "Sabes cuántos gateways caben en un nodo de CPU y qué nodos pueden recibir a Triton.",
+      "ojo": "El scheduler no mira cuánta CPU se <b>usa</b> en el nodo: mira la suma de requests contra Allocatable. Un nodo casi sin uso puede estar «lleno».",
+      "en_pagina": {
+        "conceptos": [
+          "cluster-namespace",
+          "nodeselector-taints",
+          "gpu-device-plugin"
+        ],
+        "precalculos": [
+          "gateways-por-nodo"
+        ]
+      }
+    },
+    {
+      "n": 2,
+      "id": "triton",
+      "titulo": "Triton: dos pods, dos T4, dos zonas",
+      "objetivo": "El Deployment y el Service de Triton: 2 pods con una T4 cada uno, uno por zona, con sus recursos, y el commit que lo deja en git.",
+      "conceptos": [
+        "pod",
+        "deployment-replicaset",
+        "kustomize-digest",
+        "requests-limits-qos",
+        "nodeselector-taints",
+        "gpu-device-plugin",
+        "topology-spread"
+      ],
+      "explica": "Escribe <code>k8s/triton.yaml</code> siguiendo su contrato, por bloques: qué pide cada pod (2 núcleos, 6 GiB con techo igual, una T4, sin techo de CPU), dónde cae (las T4 con su taint, uno por zona), cómo cambia de versión (nunca menos de 2 listos) y su Service. La imagen se llama solo <code>classifier-triton</code>: kustomize pone el registro y el digest que escribió el CI. Aplica, espera a que los dos estén listos y haz commit.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "k8s/triton.yaml",
+          "code": "# Triton en el clúster: dos pods, cada uno con una T4 entera, uno por zona. Más su Service (un nombre fijo).\n# En C01 se llama triton-v14 (un par Deployment + Service por versión del modelo) y no lleva «replicas»: las decide\n# KEDA, de 2 a 4. En el dojo no hay KEDA, así que el número va aquí.\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: triton\n  labels: {app.kubernetes.io/name: triton}\nspec:\n  replicas: 2\n  selector:\n    matchLabels: {app.kubernetes.io/name: triton}\n  strategy:\n    type: RollingUpdate\n    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}   # nunca menos de 2 listos; el de más necesita una T4 libre\n  progressDeadlineSeconds: 300      # sin avance en 5 min: el despliegue se marca fallido (no se revierte solo)\n  revisionHistoryLimit: 5\n  template:\n    metadata:\n      labels: {app.kubernetes.io/name: triton}\n    spec:\n      nodeSelector: {workload: gpu-t4}           # atraer: solo nodos con T4\n      tolerations:                               # y aguantar su taint, que aleja a todos los demás\n        - {key: nvidia.com/gpu, operator: Equal, value: present, effect: NoSchedule}\n      topologySpreadConstraints:\n        - maxSkew: 1                             # entre zonas, como mucho 1 Triton de diferencia\n          topologyKey: topology.kubernetes.io/zone\n          whenUnsatisfiable: DoNotSchedule       # mejor Pending que dos en la misma zona\n          labelSelector: {matchLabels: {app.kubernetes.io/name: triton}}\n          matchLabelKeys: [pod-template-hash]    # cuenta solo los pods de la misma versión (si no, tras un cambio de versión pueden quedar dos en una zona)\n      terminationGracePeriodSeconds: 60          # 10 de preStop + 30 de drenado + 20 de margen\n      containers:\n        - name: triton\n          image: classifier-triton               # kustomize pone el registro y el digest (kustomization.yaml)\n          ports: [{name: http, containerPort: 8000}]\n          resources:\n            requests: {cpu: \"2\", memory: 6Gi, nvidia.com/gpu: \"1\"}\n            limits: {memory: 6Gi, nvidia.com/gpu: \"1\"}   # sin límite de CPU; la memoria, igual al request\n          startupProbe:                          # 5 s × 12 = 60 s para cargar el engine (tarda ≈ 20 s)\n            httpGet: {path: /v2/health/ready, port: http}\n            periodSeconds: 5\n            failureThreshold: 12\n          readinessProbe:                        # ≈ 10 s sin estar listo y sale del reparto\n            httpGet: {path: /v2/health/ready, port: http}\n            periodSeconds: 5\n            timeoutSeconds: 2\n            failureThreshold: 2\n          livenessProbe:                         # ≈ 30 s sin contestar y se reinicia; solo pregunta por el proceso\n            httpGet: {path: /v2/health/live, port: http}\n            periodSeconds: 10\n            timeoutSeconds: 2\n            failureThreshold: 3\n          lifecycle:\n            preStop: {exec: {command: [\"sleep\", \"10\"]}}   # que los gateways dejen de mandarle antes de SIGTERM\n          volumeMounts: [{name: shm, mountPath: /dev/shm}]\n      volumes:\n        - {name: shm, emptyDir: {medium: Memory, sizeLimit: 1Gi}}   # cuenta dentro de los 6 GiB\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: triton\n  labels: {app.kubernetes.io/name: triton}\nspec:\n  selector: {app.kubernetes.io/name: triton}\n  ports: [{name: http, port: 8000, targetPort: http}]",
+          "nota": "Las probes y el apagado (startup, readiness, liveness, preStop) se explican en el paso 3 y el 5; van aquí porque son del mismo pod."
+        },
+        {
+          "lang": "yaml",
+          "path": "k8s/kustomization.yaml (del equipo de plataforma; los digests los escribe el CI)",
+          "code": "# El repositorio de despliegue de classifier: lo que Argo CD aplica al namespace classifier en C01. Aquí lo aplicas\n# tú: kubectl apply -k k8s/\n# Es del equipo de plataforma; lo tuyo son los archivos de «resources» que dicen TUYO.\napiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nnamespace: classifier\nresources:\n  - namespace.yaml\n  - triton.yaml        # TUYO: Deployment + Service de Triton\n  - gateway.yaml       # TUYO: Deployment + Service del gateway\n  - pdb.yaml           # TUYO: el PodDisruptionBudget de Triton\n  - hpa.yaml           # TUYO: el HPA del gateway\nconfigMapGenerator:    # los labels y la huella del modelo que sirve el gateway (en C01: classifier-labels-14)\n  - name: classifier-modelo\n    files: [modelo.json]\n    options:\n      labels: {app.kubernetes.io/name: gateway}   # la etiqueta del gateway, como el resto de sus objetos\n# Lo escribe el CI de la estación 8 al publicar (python mundo/publicar.py …): siempre un digest, nunca un tag.\n# En tus manifiestos, la imagen se llama solo «classifier-gateway» o «classifier-triton»; kustomize pone el resto.\nimages:\n  - name: classifier-gateway\n    newName: localhost:5900/classifier-gateway\n    digest: sha256:…\n  - name: classifier-triton\n    newName: localhost:5900/classifier-triton\n    digest: sha256:…",
+          "nota": "<code>kubectl apply -k k8s/</code> arma todo esto antes de mandarlo al clúster: el namespace, las imágenes por digest y el ConfigMap con su huella."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "kubectl apply -k k8s/",
+          "nota": "El namespace ya existía (lo creó <code>crear.py</code>); el ConfigMap lleva una huella en el nombre.",
+          "donde": "mac",
+          "salida": "namespace/classifier unchanged\nconfigmap/classifier-modelo-6h6656ck9f created\nservice/triton created\ndeployment.apps/triton created"
+        },
+        {
+          "code": "time kubectl -n classifier rollout status deploy/triton --timeout=180s",
+          "nota": "",
+          "donde": "mac",
+          "salida": "Waiting for deployment \"triton\" rollout to finish: 0 out of 2 new replicas have been updated...\nWaiting for deployment \"triton\" rollout to finish: 0 of 2 updated replicas are available...\nWaiting for deployment \"triton\" rollout to finish: 1 of 2 updated replicas are available...\ndeployment \"triton\" successfully rolled out\n\nreal\t0m25.408s"
+        },
+        {
+          "code": "kubectl -n classifier get pods -o wide",
+          "nota": "Cada Triton en un nodo de T4 distinto, y en zonas distintas: mira la columna NODE contra la tabla del paso 1.",
+          "donde": "mac",
+          "salida": "NAME                      READY   STATUS    RESTARTS   AGE   IP           NODE               NOMINATED NODE   READINESS GATES\ntriton-5d8fc8cd9b-dds2l   1/1     Running   0          25s   10.244.7.2   dojo-k8s-worker4   <none>           <none>\ntriton-5d8fc8cd9b-h47zn   1/1     Running   0          25s   10.244.6.2   dojo-k8s-worker5   <none>           <none>"
+        },
+        {
+          "code": "git add k8s && git commit -qm 'triton: 2 pods con una T4 cada uno, uno por zona' && git log --oneline -1",
+          "nota": "",
+          "donde": "mac",
+          "salida": "7a66cd4 triton: 2 pods con una T4 cada uno, uno por zona"
+        }
+      ],
+      "verifica": "<code>python3 verificar.py triton recursos imagenes</code>: 2 Tritons listos, cada uno en una T4 y en su zona, con sus requests, por digest.",
+      "ojo": "Aplica siempre con <code>-k</code> (kustomize): con <code>kubectl apply -f k8s/triton.yaml</code>, la imagen se queda como «classifier-triton» a secas (ErrImagePull) y los objetos caen en el namespace <code>default</code>. Y Triton primero: los gateways le preguntan a Triton al arrancar.",
+      "en_pagina": {
+        "conceptos": [
+          "pod",
+          "deployment-replicaset",
+          "kustomize-digest",
+          "requests-limits-qos",
+          "topology-spread"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 3,
+      "id": "probes",
+      "titulo": "Las probes de Triton",
+      "objetivo": "Ver a la startup proteger la carga del engine, y saber cuánto tarda Triton en salir del reparto o en reiniciarse.",
+      "conceptos": [
+        "probes",
+        "crashloopbackoff",
+        "requests-limits-qos"
+      ],
+      "explica": "Las tres probes de Triton preguntan a sus rutas de salud: la startup y la readiness a <code>/v2/health/ready</code> («ya cargué el modelo»), la liveness a <code>/v2/health/live</code> («mi proceso contesta»). Mientras carga el engine, la startup falla (el puerto ni siquiera está abierto) y eso está bien: tiene 60 s. Cuando pasa, empiezan las otras dos. En los Events del pod se ve justo eso.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "k8s/triton.yaml (las probes)",
+          "code": "          startupProbe:                          # 5 s × 12 = 60 s para cargar el engine (tarda ≈ 20 s)\n            httpGet: {path: /v2/health/ready, port: http}\n            periodSeconds: 5\n            failureThreshold: 12\n          readinessProbe:                        # ≈ 10 s sin estar listo y sale del reparto\n            httpGet: {path: /v2/health/ready, port: http}\n            periodSeconds: 5\n            timeoutSeconds: 2\n            failureThreshold: 2\n          livenessProbe:                         # ≈ 30 s sin contestar y se reinicia; solo pregunta por el proceso\n            httpGet: {path: /v2/health/live, port: http}\n            periodSeconds: 10\n            timeoutSeconds: 2\n            failureThreshold: 3",
+          "nota": "Startup: 5 × 12 = 60 s para arrancar. Readiness: ≈ 10 s sin estar listo y sale del reparto. Liveness: ≈ 30 s sin contestar y se reinicia."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "kubectl -n classifier logs triton-5d8fc8cd9b-dds2l",
+          "nota": "De «deserializando» a «warmup»: ≈ 20 s cargando el engine. Hasta entonces el puerto 8000 no está abierto.",
+          "donde": "mac",
+          "salida": "I1118 06:25:23.796250 1 servidor.py] model repository: /models\nI1118 06:25:23.796356 1 servidor.py] loading: classifier\nI1118 06:25:23.827333 1 servidor.py] deserializando el engine de classifier (≈ 20 s, como TensorRT en la T4)\nI1118 06:25:43.863519 1 servidor.py] warmup de classifier: 6 corridas en 34 ms\nI1118 06:25:43.875572 1 servidor.py] successfully loaded 'classifier' version 1 (2 instancia(s) KIND_CPU, model.onnx sha256 1bdf21ad5427…)\n+------------+---------+--------+\n| Model      | Version | Status |\n+------------+---------+--------+\n| classifier | 1       | READY  |\n+------------+---------+--------+\nI1118 06:25:43.957173 1 servidor.py] Started HTTPService at 0.0.0.0:8000"
+        },
+        {
+          "code": "kubectl -n classifier describe pod triton-5d8fc8cd9b-dds2l | sed -n '/^Events:/,$p'",
+          "nota": "La startup falló mientras cargaba, sin pasarse de sus 12 intentos: el pod nunca se reinició.",
+          "donde": "mac",
+          "salida": "Events:\n  Type     Reason     Age               From               Message\n  ----     ------     ----              ----               -------\n  Normal   Scheduled  25s               default-scheduler  Successfully assigned classifier/triton-5d8fc8cd9b-dds2l to dojo-k8s-worker4\n  Normal   Pulling    25s               kubelet            Pulling image \"localhost:5900/classifier-triton@sha256:5841385f4a36c1cdfbc055477b24035ae49d046e6beefe52a48478e3c58c1d74\"\n  Normal   Pulled     23s               kubelet            Successfully pulled image \"localhost:5900/classifier-triton@sha256:5841385f4a36c1cdfbc055477b24035ae49d046e6beefe52a48478e3c58c1d74\" in 2.116s (2.116s including waiting). Image size: 94786366 bytes.\n  Normal   Created    23s               kubelet            Container created\n  Normal   Started    23s               kubelet            Container started\n  Warning  Unhealthy  5s (x4 over 20s)  kubelet            Startup probe failed: Get \"http://10.244.7.2:8000/v2/health/ready\": dial tcp 10.244.7.2:8000: connect: connection refused"
+        },
+        {
+          "code": "kubectl -n classifier get pod triton-5d8fc8cd9b-dds2l -o jsonpath='{.status.qosClass}{\"\\n\"}'",
+          "nota": "Burstable: tiene requests y techo de memoria, pero no techo de CPU.",
+          "donde": "mac",
+          "salida": "Burstable"
+        }
+      ],
+      "verifica": "<code>python3 verificar.py probes</code>: la startup da ≥ 1.5 veces lo que tarda el engine; el gateway (paso 4) pregunta a <code>/readyz</code> y <code>/healthz</code>.",
+      "ojo": "Los «Startup probe failed» de los primeros segundos no son un error: es la startup haciendo su trabajo. El error sería quitar la startup y subir la liveness «para que aguante»: entonces un Triton colgado tardaría minutos en reiniciarse.",
+      "en_pagina": {
+        "conceptos": [
+          "probes"
+        ],
+        "precalculos": [
+          "presupuesto-startup"
+        ]
+      }
+    },
+    {
+      "n": 4,
+      "id": "gateway",
+      "titulo": "El gateway, su Service y su HPA",
+      "objetivo": "De 3 a 12 gateways en nodos de CPU, con readiness que le pregunta a Triton y liveness que no, detrás del «ALB» en localhost:8901.",
+      "conceptos": [
+        "service-endpointslice",
+        "nodeport-ingress",
+        "requests-limits-qos",
+        "throttling",
+        "oomkilled",
+        "hpa-metrics-server"
+      ],
+      "explica": "Escribe <code>k8s/gateway.yaml</code> y <code>k8s/hpa.yaml</code>. El gateway no lleva <code>replicas</code>: las decide el HPA. Pide 1 núcleo (sin techo de CPU, para no frenarlo en un pico) y 1 GiB con techo igual (su peor momento son ≈ 880 MB). Habla con Triton por su Service, <code>triton:8000</code>. Su propio Service es NodePort: es la puerta por la que entra el tráfico al clúster del dojo.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "k8s/gateway.yaml",
+          "code": "# El gateway en el clúster: de 3 a 12 pods en nodos de CPU (nunca en una T4), detrás del «ALB interno».\n# En C01 es un Rollout de Argo (la estación 10) detrás de un Ingress que crea el ALB; aquí, un Deployment y un Service\n# NodePort que el clúster del dojo publica en tu Mac como localhost:8901.\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\n  labels: {app.kubernetes.io/name: gateway}\nspec:                                            # sin «replicas»: las decide el HPA (hpa.yaml), de 3 a 12\n  selector:\n    matchLabels: {app.kubernetes.io/name: gateway}\n  strategy:\n    type: RollingUpdate\n    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}\n  progressDeadlineSeconds: 120                   # el gateway está listo en ≈ 10 s: 2 min sin avance ya es falla\n  revisionHistoryLimit: 5\n  template:\n    metadata:\n      labels: {app.kubernetes.io/name: gateway}\n    spec:\n      nodeSelector: {workload: cpu}\n      topologySpreadConstraints:\n        - maxSkew: 1\n          topologyKey: topology.kubernetes.io/zone\n          whenUnsatisfiable: ScheduleAnyway      # reparte si puede; si no, arranca igual\n          labelSelector: {matchLabels: {app.kubernetes.io/name: gateway}}\n          matchLabelKeys: [pod-template-hash]\n      terminationGracePeriodSeconds: 45          # 15 de preStop + 20 de drenado de uvicorn + 10 de margen\n      containers:\n        - name: gateway\n          image: classifier-gateway\n          env:\n            - {name: TRITON_URL, value: \"triton:8000\"}   # el Service de Triton, en este mismo namespace\n          ports: [{name: http, containerPort: 8080}]\n          resources:\n            requests: {cpu: \"1\", memory: 1Gi}    # con el request de CPU se agenda y se escala (60 % = 0.6 núcleos)\n            limits: {memory: 1Gi}\n          readinessProbe:                        # /readyz le pregunta a Triton: sin Triton, fuera del reparto\n            httpGet: {path: /readyz, port: http}\n            periodSeconds: 5\n            timeoutSeconds: 2\n            failureThreshold: 2\n          livenessProbe:                         # /healthz no le pregunta a nadie: solo si el proceso vive\n            httpGet: {path: /healthz, port: http}\n            initialDelaySeconds: 5\n            periodSeconds: 10\n            timeoutSeconds: 2\n            failureThreshold: 3\n          lifecycle:\n            preStop: {exec: {command: [\"sleep\", \"15\"]}}\n          volumeMounts:\n            - {name: modelo, mountPath: /srv/servir, readOnly: true}   # modelo.json del ConfigMap, no el de la imagen\n      volumes:\n        - name: modelo\n          configMap: {name: classifier-modelo}   # kustomize le agrega la huella al nombre\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: gateway\n  labels: {app.kubernetes.io/name: gateway}\nspec:\n  type: NodePort\n  selector: {app.kubernetes.io/name: gateway}\n  ports: [{name: http, port: 8080, targetPort: http, nodePort: 30901}]",
+          "nota": "Sin <code>nvidia.com/gpu</code> ni toleration: nunca cae en una T4. El preStop de 15 s es el de C01, donde lo saca un ALB."
+        },
+        {
+          "lang": "yaml",
+          "path": "k8s/hpa.yaml",
+          "code": "# Cuántos gateways: los que hagan falta para que cada uno use ≈ 60 % de su request de CPU, de 3 a 12.\n# Sube rápido (lo que trae Kubernetes por omisión) y baja despacio: 1 pod por minuto, tras 5 min de calma.\napiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: gateway\n  labels: {app.kubernetes.io/name: gateway}\nspec:\n  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: gateway}\n  minReplicas: 3\n  maxReplicas: 12\n  metrics:\n    - type: Resource\n      resource:\n        name: cpu\n        target: {type: Utilization, averageUtilization: 60}\n  behavior:\n    scaleDown:\n      stabilizationWindowSeconds: 300\n      policies: [{type: Pods, value: 1, periodSeconds: 60}]",
+          "nota": "Solo se escribe cómo baja; para subir se queda lo que trae Kubernetes por omisión."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "kubectl apply -k k8s/",
+          "nota": "",
+          "donde": "mac",
+          "salida": "namespace/classifier unchanged\nconfigmap/classifier-modelo-6h6656ck9f unchanged\nservice/gateway created\nservice/triton unchanged\ndeployment.apps/gateway created\ndeployment.apps/triton unchanged\nhorizontalpodautoscaler.autoscaling/gateway created"
+        },
+        {
+          "code": "time kubectl -n classifier rollout status deploy/gateway --timeout=180s",
+          "nota": "«0 of 1»: sin <code>replicas</code>, el Deployment nace con 1; en su primera vuelta, el HPA lo sube a 3.",
+          "donde": "mac",
+          "salida": "Waiting for deployment \"gateway\" rollout to finish: 0 of 1 updated replicas are available...\ndeployment \"gateway\" successfully rolled out\n\nreal\t0m3.308s"
+        },
+        {
+          "code": "kubectl -n classifier get pods -o wide",
+          "nota": "Uno con más edad (el primero) y dos que trajo el HPA; todos en nodos de CPU.",
+          "donde": "mac",
+          "salida": "NAME                       READY   STATUS    RESTARTS   AGE   IP           NODE               NOMINATED NODE   READINESS GATES\ngateway-56f5b9fb9b-2tf9k   1/1     Running   0          8s    10.244.1.3   dojo-k8s-worker    <none>           <none>\ngateway-56f5b9fb9b-w262z   1/1     Running   0          8s    10.244.5.3   dojo-k8s-worker2   <none>           <none>\ngateway-56f5b9fb9b-w6hnt   1/1     Running   0          24s   10.244.5.2   dojo-k8s-worker2   <none>           <none>\ntriton-5d8fc8cd9b-dds2l    1/1     Running   0          49s   10.244.7.2   dojo-k8s-worker4   <none>           <none>\ntriton-5d8fc8cd9b-h47zn    1/1     Running   0          49s   10.244.6.2   dojo-k8s-worker5   <none>           <none>"
+        },
+        {
+          "code": "kubectl -n classifier get endpointslices -l kubernetes.io/service-name=gateway",
+          "nota": "Las IP de los tres gateways listos: a ellos reparte el Service.",
+          "donde": "mac",
+          "salida": "NAME            ADDRESSTYPE   PORTS   ENDPOINTS                          AGE\ngateway-fpf8v   IPv4          8080    10.244.5.2,10.244.5.3,10.244.1.3   24s"
+        },
+        {
+          "code": "curl -s -w '\\nHTTP %{http_code} en %{time_total} s\\n' -H 'Content-Type: image/jpeg' --data-binary @mundo/foto.jpg localhost:8901/v1/classify",
+          "nota": "Por el NodePort 30901, publicado como <code>localhost:8901</code>.",
+          "donde": "mac",
+          "salida": "{\"model_version\":\"juguete-2026-10-01\",\"predictions\":[{\"label\":\"botines\",\"score\":0.4378},{\"label\":\"tenis\",\"score\":0.2927},{\"label\":\"vestidos\",\"score\":0.1775},{\"label\":\"sandalias\",\"score\":0.0668},{\"label\":\"camisas\",\"score\":0.0138}],\"latency_ms\":49.4}\nHTTP 200 en 0.059375 s"
+        },
+        {
+          "code": "git add k8s && git commit -qm 'gateway: Deployment, Service y HPA' && git log --oneline -1",
+          "nota": "",
+          "donde": "mac",
+          "salida": "91a5778 gateway: Deployment, Service y HPA"
+        },
+        {
+          "code": "kubectl describe node dojo-k8s-worker | sed -n '/Allocated resources/,/memory/p'",
+          "nota": "cpu-a tenía 200m apartados; con un gateway, 1200m. Caben 2 más.",
+          "donde": "mac",
+          "salida": "Allocated resources:\n  (Total limits may be over 100 percent, i.e., overcommitted.)\n  Resource           Requests      Limits\n  --------           --------      ------\n  cpu                1200m (30%)   100m (2%)\n  memory             1274Mi (15%)  1074Mi (12%)"
+        }
+      ],
+      "verifica": "<code>python3 verificar.py gateway hpa servicio</code>: al menos 3 gateways listos en nodos de CPU, el HPA activo y 20 fotos en 200 por <code>localhost:8901</code>.",
+      "ojo": "Aplica Triton antes que los gateways: al arrancar, cada gateway le pide a Triton la metadata del modelo, y si Triton todavía no está listo, el gateway muere y se reinicia hasta que lo esté. Pasa solo, pero ensucia los RESTARTS.",
+      "en_pagina": {
+        "conceptos": [
+          "service-endpointslice",
+          "nodeport-ingress",
+          "throttling",
+          "oomkilled"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 5,
+      "id": "version-nueva",
+      "titulo": "Una versión nueva, bajo carga",
+      "objetivo": "Cambiar la imagen de los tres gateways mientras entran 40 fotos por segundo, sin que se pierda ni una.",
+      "conceptos": [
+        "rolling-update",
+        "apagado-ordenado",
+        "deployment-replicaset"
+      ],
+      "explica": "El CI publica la versión de la semana que entra: escribe su digest en <code>kustomization.yaml</code> y hace commit. En otra terminal, empieza la carga. Al aplicar, el Deployment crea un ReplicaSet nuevo y va pasando pods: con <code>maxSurge: 1</code> y <code>maxUnavailable: 0</code>, primero sube uno nuevo, espera a que esté listo, y solo entonces apaga uno viejo. El viejo sale del reparto, espera 15 s su preStop y termina lo que tenía.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 mundo/publicar.py gateway nueva",
+          "nota": "En C01, esto lo hace el último job del workflow de la estación 8.",
+          "donde": "mac",
+          "salida": "✓ commit «ci: classifier-gateway → classifier-gateway@sha256:f783bfd05e0a». Para que corra: kubectl apply -k k8s/"
+        },
+        {
+          "code": "python3 mundo/carga.py --por-segundo 40 --segundos 75 --cada 15   # en otra terminal, antes del apply",
+          "nota": "Cero errores: ni una foto cortada mientras se cambiaban los tres pods.",
+          "donde": "mac",
+          "salida": "carga: 40 fotos/s durante 75 s (3000 fotos) → http://localhost:8901/v1/classify\n  t =   15 s  200:600\n  t =   30 s  200:600\n  t =   45 s  200:600\n  t =   60 s  200:600\n3000 fotos en 75.0 s · 200: 3000\nlatencia de las 200: p50 13 ms · p99 34 ms"
+        },
+        {
+          "code": "kubectl apply -k k8s/",
+          "nota": "",
+          "donde": "mac",
+          "salida": "namespace/classifier unchanged\nconfigmap/classifier-modelo-6h6656ck9f unchanged\nservice/gateway unchanged\nservice/triton unchanged\ndeployment.apps/gateway configured\ndeployment.apps/triton unchanged\nhorizontalpodautoscaler.autoscaling/gateway unchanged"
+        },
+        {
+          "code": "time kubectl -n classifier rollout status deploy/gateway --timeout=180s",
+          "nota": "De uno en uno; «old replicas are pending termination» son los viejos esperando su preStop.",
+          "donde": "mac",
+          "salida": "Waiting for deployment \"gateway\" rollout to finish: 1 out of 3 new replicas have been updated...\nWaiting for deployment \"gateway\" rollout to finish: 1 out of 3 new replicas have been updated...\nWaiting for deployment \"gateway\" rollout to finish: 1 out of 3 new replicas have been updated...\nWaiting for deployment \"gateway\" rollout to finish: 2 out of 3 new replicas have been updated...\nWaiting for deployment \"gateway\" rollout to finish: 2 out of 3 new replicas have been updated...\nWaiting for deployment \"gateway\" rollout to finish: 2 out of 3 new replicas have been updated...\nWaiting for deployment \"gateway\" rollout to finish: 1 old replicas are pending termination...\nWaiting for deployment \"gateway\" rollout to finish: 1 old replicas are pending termination...\ndeployment \"gateway\" successfully rolled out\n\nreal\t0m5.154s"
+        },
+        {
+          "code": "kubectl -n classifier get rs -l app.kubernetes.io/name=gateway",
+          "nota": "El ReplicaSet viejo queda en 0, guardado: con él, volver atrás es instantáneo.",
+          "donde": "mac",
+          "salida": "NAME                 DESIRED   CURRENT   READY   AGE\ngateway-56f5b9fb9b   0         0         0       100s\ngateway-d76c465c6    3         3         3       70s"
+        },
+        {
+          "code": "kubectl -n classifier rollout history deploy/gateway",
+          "nota": "CHANGE-CAUSE vacío: la historia que importa es <code>git log</code>.",
+          "donde": "mac",
+          "salida": "deployment.apps/gateway\nREVISION  CHANGE-CAUSE\n1         <none>\n2         <none>"
+        }
+      ],
+      "verifica": "La carga terminó con 3000 de 3000 en 200 (p99 34 ms) y el despliegue tardó ≈ 5.2 s.",
+      "ojo": "Un rollout necesita espacio para el pod de más: si el HPA ya llenó los nodos de CPU (6 gateways en el dojo), el pod nuevo se queda Pending («Insufficient cpu») y el despliegue no avanza hasta que el HPA baje. En C01, Karpenter traería un nodo.",
+      "en_pagina": {
+        "conceptos": [
+          "rolling-update",
+          "apagado-ordenado"
+        ],
+        "precalculos": [
+          "plazo-de-gracia"
+        ]
+      }
+    },
+    {
+      "n": 6,
+      "id": "version-mala",
+      "titulo": "La versión que no arranca, y volver con git",
+      "objetivo": "Ver un despliegue atorado sin perder servicio, entender por qué, y volver a la versión buena con un git revert.",
+      "conceptos": [
+        "crashloopbackoff",
+        "rolling-update"
+      ],
+      "explica": "El CI publica una versión que pide un modelo que Triton no tiene. El pod nuevo muere al arrancar, el kubelet lo reintenta con esperas cada vez más largas (CrashLoopBackOff) y, como <code>maxUnavailable</code> es 0, nadie toca a los tres viejos: el servicio sigue en 200. A los 120 s sin avance (<code>progressDeadlineSeconds</code>), el Deployment se marca fallido, pero no regresa solo. Volver atrás es deshacer el commit en git y aplicar.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 mundo/publicar.py gateway mala",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ commit «ci: classifier-gateway → classifier-gateway@sha256:e936367161ae». Para que corra: kubectl apply -k k8s/"
+        },
+        {
+          "code": "kubectl apply -k k8s/",
+          "nota": "",
+          "donde": "mac",
+          "salida": "namespace/classifier unchanged\nconfigmap/classifier-modelo-6h6656ck9f unchanged\nservice/gateway unchanged\nservice/triton unchanged\ndeployment.apps/gateway configured\ndeployment.apps/triton unchanged\nhorizontalpodautoscaler.autoscaling/gateway unchanged"
+        },
+        {
+          "code": "time kubectl -n classifier rollout status deploy/gateway --timeout=200s",
+          "nota": "Se rinde a los ≈ 120 s: los 120 de <code>progressDeadlineSeconds</code>.",
+          "donde": "mac",
+          "salida": "Waiting for deployment \"gateway\" rollout to finish: 1 out of 3 new replicas have been updated...\nerror: deployment \"gateway\" exceeded its progress deadline\n\nreal\t2m0.436s\n[código 1]"
+        },
+        {
+          "code": "kubectl -n classifier get pods -l app.kubernetes.io/name=gateway",
+          "nota": "Uno nuevo en CrashLoopBackOff y los tres viejos atendiendo.",
+          "donde": "mac",
+          "salida": "NAME                       READY   STATUS             RESTARTS      AGE\ngateway-585c555d98-6lvfb   0/1     CrashLoopBackOff   4 (33s ago)   2m1s\ngateway-d76c465c6-4hp7l    1/1     Running            0             3m8s\ngateway-d76c465c6-8d7ll    1/1     Running            0             3m11s\ngateway-d76c465c6-dv2ck    1/1     Running            0             3m10s"
+        },
+        {
+          "code": "kubectl -n classifier logs gateway-585c555d98-6lvfb --previous | tail -5",
+          "nota": "<code>--previous</code>: lo que escribió antes de morir. El porqué está aquí, no en el estado.",
+          "donde": "mac",
+          "salida": "  File \"/srv/gateway/app/main.py\", line 124, in lifespan\n    raise RuntimeError(f\"no pude leer la metadata de '{tr['modelo']}' en Triton ({url_triton}): {e}\") from None\nRuntimeError: no pude leer la metadata de 'classifier-v5' en Triton (triton:8000): [400] Request for unknown model: 'classifier-v5' is not found\n\nERROR:    Application startup failed. Exiting."
+        },
+        {
+          "code": "kubectl -n classifier get deploy gateway -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.reason}{\"\\n\"}{end}'",
+          "nota": "Available sigue en True (hay 3 listos); Progressing en False.",
+          "donde": "mac",
+          "salida": "Available=True MinimumReplicasAvailable\nProgressing=False ProgressDeadlineExceeded"
+        },
+        {
+          "code": "curl -s -o /dev/null -w 'HTTP %{http_code}\\n' -H 'Content-Type: image/jpeg' --data-binary @mundo/foto.jpg localhost:8901/v1/classify",
+          "nota": "",
+          "donde": "mac",
+          "salida": "HTTP 200"
+        },
+        {
+          "code": "git revert --no-edit HEAD && git log --oneline -3",
+          "nota": "",
+          "donde": "mac",
+          "salida": "[main 6a9f8fc] Revert \"ci: classifier-gateway → classifier-gateway@sha256:e936367161ae\"\n Date: Wed Nov 18 00:29:27 2026 -0600\n 1 file changed, 1 insertion(+), 1 deletion(-)\n6a9f8fc Revert \"ci: classifier-gateway → classifier-gateway@sha256:e936367161ae\"\n617e172 ci: classifier-gateway → classifier-gateway@sha256:e936367161ae\n4999501 ci: classifier-gateway → classifier-gateway@sha256:f783bfd05e0a"
+        },
+        {
+          "code": "kubectl apply -k k8s/",
+          "nota": "",
+          "donde": "mac",
+          "salida": "namespace/classifier unchanged\nconfigmap/classifier-modelo-6h6656ck9f unchanged\nservice/gateway unchanged\nservice/triton unchanged\ndeployment.apps/gateway configured\ndeployment.apps/triton unchanged\nhorizontalpodautoscaler.autoscaling/gateway unchanged"
+        },
+        {
+          "code": "time kubectl -n classifier rollout status deploy/gateway --timeout=180s",
+          "nota": "Instantáneo: la plantilla vuelve a ser la del ReplicaSet que ya corría.",
+          "donde": "mac",
+          "salida": "deployment \"gateway\" successfully rolled out\n\nreal\t0m0.036s"
+        },
+        {
+          "code": "kubectl -n classifier get rs -l app.kubernetes.io/name=gateway",
+          "nota": "",
+          "donde": "mac",
+          "salida": "NAME                 DESIRED   CURRENT   READY   AGE\ngateway-56f5b9fb9b   0         0         0       3m41s\ngateway-585c555d98   0         0         0       2m1s\ngateway-d76c465c6    3         3         3       3m11s"
+        }
+      ],
+      "verifica": "<code>python3 verificar.py gateway sincronia</code>: el despliegue completo otra vez, y lo que corre es lo que dice git.",
+      "ojo": "<code>kubectl rollout undo deploy/gateway</code> también regresa en segundos, pero solo en el clúster: git sigue diciendo la versión mala y el siguiente <code>apply</code> (o Argo CD, en C01) la vuelve a poner. Úsalo solo en una emergencia, y haz el <code>git revert</code> enseguida. El check <code>estable</code> se pone en verde 2 min después del último reinicio.",
+      "en_pagina": {
+        "conceptos": [
+          "crashloopbackoff"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 7,
+      "id": "pdb",
+      "titulo": "El PDB y un mantenimiento de nodos",
+      "objetivo": "Un PDB que deja sacar un Triton a la vez, y vaciar dos nodos de T4 al mismo tiempo sin quedarte sin GPU.",
+      "conceptos": [
+        "pdb-drain",
+        "topology-spread"
+      ],
+      "explica": "Plataforma tiene que actualizar el driver de las T4: vacía los nodos con <code>kubectl drain</code>. Sin PDB, dos drains al mismo tiempo sacarían a los dos Tritons. Con <code>minAvailable: 1</code>, el primer desalojo pasa; el segundo se rechaza y <code>drain</code> reintenta cada 5 s hasta que el reemplazo del primero está listo. Cada reemplazo cae en la otra T4 de su zona.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "k8s/pdb.yaml",
+          "code": "# Lo que nadie puede sacar a propósito (un drain, una actualización de nodos): siempre queda al menos 1 Triton.\n# Con 2 réplicas, se vacía un nodo de T4 a la vez. No protege de un nodo que muere: eso no pide permiso.\napiVersion: policy/v1\nkind: PodDisruptionBudget\nmetadata:\n  name: triton\n  labels: {app.kubernetes.io/name: triton}\nspec:\n  minAvailable: 1\n  selector:\n    matchLabels: {app.kubernetes.io/name: triton}",
+          "nota": "Con 2 réplicas, 1 es el único valor que sirve: 0 no protege y 2 traba todo drain."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "kubectl apply -k k8s/",
+          "nota": "",
+          "donde": "mac",
+          "salida": "namespace/classifier unchanged\nconfigmap/classifier-modelo-6h6656ck9f unchanged\nservice/gateway unchanged\nservice/triton unchanged\ndeployment.apps/gateway unchanged\ndeployment.apps/triton unchanged\npoddisruptionbudget.policy/triton created\nhorizontalpodautoscaler.autoscaling/gateway unchanged"
+        },
+        {
+          "code": "kubectl -n classifier get pdb triton",
+          "nota": "ALLOWED DISRUPTIONS 1: con los dos sanos, se puede sacar uno.",
+          "donde": "mac",
+          "salida": "NAME     MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE\ntriton   1               N/A               1                     0s"
+        },
+        {
+          "code": "git add k8s && git commit -qm 'triton: PDB minAvailable 1' && git log --oneline -1",
+          "nota": "",
+          "donde": "mac",
+          "salida": "88134f1 triton: PDB minAvailable 1"
+        },
+        {
+          "code": "kubectl drain dojo-k8s-worker4 --ignore-daemonsets --delete-emptydir-data --timeout=150s   # una terminal",
+          "nota": "El primero (t4-b1): el PDB lo deja pasar.",
+          "donde": "mac",
+          "salida": "node/dojo-k8s-worker4 cordoned\nevicting pod classifier/triton-5d8fc8cd9b-dds2l\npod/triton-5d8fc8cd9b-dds2l evicted\nnode/dojo-k8s-worker4 drained"
+        },
+        {
+          "code": "time kubectl drain dojo-k8s-worker5 --ignore-daemonsets --delete-emptydir-data --timeout=150s 2>&1 | grep -v '^Warning'   # otra terminal, 3 s después",
+          "nota": "El segundo (t4-a2): 5 rechazos, cada 5 s, hasta que el reemplazo del primero estuvo listo.",
+          "donde": "mac",
+          "salida": "node/dojo-k8s-worker5 cordoned\nevicting pod classifier/triton-5d8fc8cd9b-h47zn\nerror when evicting pods/\"triton-5d8fc8cd9b-h47zn\" -n \"classifier\" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.\nevicting pod classifier/triton-5d8fc8cd9b-h47zn\nerror when evicting pods/\"triton-5d8fc8cd9b-h47zn\" -n \"classifier\" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.\nevicting pod classifier/triton-5d8fc8cd9b-h47zn\nerror when evicting pods/\"triton-5d8fc8cd9b-h47zn\" -n \"classifier\" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.\nevicting pod classifier/triton-5d8fc8cd9b-h47zn\nerror when evicting pods/\"triton-5d8fc8cd9b-h47zn\" -n \"classifier\" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.\nevicting pod classifier/triton-5d8fc8cd9b-h47zn\nerror when evicting pods/\"triton-5d8fc8cd9b-h47zn\" -n \"classifier\" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.\nevicting pod classifier/triton-5d8fc8cd9b-h47zn\npod/triton-5d8fc8cd9b-h47zn evicted\nnode/dojo-k8s-worker5 drained\n\nreal\t0m37.164s"
+        },
+        {
+          "code": "kubectl -n classifier get pods -o wide -l app.kubernetes.io/name=triton",
+          "nota": "Uno listo y el otro cargando su engine: nunca hubo cero.",
+          "donde": "mac",
+          "salida": "NAME                      READY   STATUS    RESTARTS   AGE   IP           NODE               NOMINATED NODE   READINESS GATES\ntriton-5d8fc8cd9b-4mx6l   1/1     Running   0          40s   10.244.2.2   dojo-k8s-worker6   <none>           <none>\ntriton-5d8fc8cd9b-fmn2x   0/1     Running   0          12s   10.244.4.2   dojo-k8s-worker3   <none>           <none>"
+        },
+        {
+          "code": "kubectl uncordon dojo-k8s-worker4 dojo-k8s-worker5",
+          "nota": "Cuando termina el mantenimiento, los nodos vuelven a recibir pods.",
+          "donde": "mac",
+          "salida": "node/dojo-k8s-worker4 uncordoned\nnode/dojo-k8s-worker5 uncordoned"
+        }
+      ],
+      "verifica": "<code>python3 verificar.py pdb triton</code>: el PDB cubre 2 Tritons y deja sacar 1; los dos listos otra vez, uno por zona.",
+      "ojo": "<code>kubectl apply</code> dice <code>poddisruptionbudget.policy/triton configured</code> cada vez, aunque no cambies nada: es una rareza de kubectl con el selector del PDB. Para saber si algo cambió de verdad: <code>kubectl diff -k k8s/</code>. Y <code>drain</code> necesita <code>--delete-emptydir-data</code> porque Triton usa un emptyDir (su <code>/dev/shm</code>): sin la bandera, se niega a sacarlo.",
+      "en_pagina": {
+        "conceptos": [
+          "pdb-drain"
+        ],
+        "precalculos": [
+          "t4-de-sobra"
+        ]
+      }
+    },
+    {
+      "n": 8,
+      "id": "pico",
+      "titulo": "El HPA en un pico",
+      "objetivo": "Ver al HPA hacer su regla de tres con fotos de 12 MP, hasta donde caben los nodos, y medir cuánta CPU cuesta una foto.",
+      "conceptos": [
+        "hpa-metrics-server",
+        "requests-limits-qos",
+        "throttling"
+      ],
+      "explica": "Una app que dejara de reducir las fotos mandaría las del celular tal cual: 12 MP, ≈ 10 veces más CPU para decodificar. Con 60 por segundo, mira cada ≈ 30 s el HPA (la CPU promedio como % del request, contra el objetivo de 60 %) y <code>kubectl top</code> (los milinúcleos de cada gateway, de metrics-server). El HPA sube de golpe, hasta donde caben los dos nodos de CPU (6); uno más se quedaría Pending.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 mundo/carga.py --por-segundo 60 --segundos 180 --cada 30 --12mp   # en otra terminal",
+          "nota": "Lo que vio el cliente: los 503 y 504 son del primer minuto, mientras llegaban los gateways nuevos.",
+          "donde": "mac",
+          "salida": "carga: 60 fotos/s durante 180 s (10800 fotos) → http://localhost:8901/v1/classify\n  t =   30 s  200:1776 503:18 504:3\n  t =   60 s  200:1751 503:47 504:2\n  t =   90 s  200:1799\n  t =  120 s  200:1800 503:1\n  t =  150 s  200:1800\n10800 fotos en 180.0 s · 200: 10716 · 503: 74 · 504: 10\nlatencia de las 200: p50 64 ms · p99 140 ms"
+        },
+        {
+          "code": "kubectl -n classifier get hpa gateway --no-headers; kubectl top pods -n classifier -l app.kubernetes.io/name=gateway --no-headers",
+          "nota": "≈ 28 s después de empezar el pico.",
+          "donde": "mac",
+          "salida": "gateway   Deployment/gateway   cpu: 4%/60%   3     12    3     17m\ngateway-d76c465c6-4hp7l   396m   71Mi\ngateway-d76c465c6-8d7ll   694m   128Mi\ngateway-d76c465c6-dv2ck   127m   188Mi"
+        },
+        {
+          "code": "kubectl -n classifier get hpa gateway --no-headers; kubectl top pods -n classifier -l app.kubernetes.io/name=gateway --no-headers",
+          "nota": "≈ 56 s después de empezar el pico.",
+          "donde": "mac",
+          "salida": "gateway   Deployment/gateway   cpu: 101%/60%   3     12    3     17m\ngateway-d76c465c6-4hp7l   1129m   168Mi\ngateway-d76c465c6-8d7ll   1026m   128Mi\ngateway-d76c465c6-dv2ck   1078m   71Mi"
+        },
+        {
+          "code": "kubectl -n classifier get hpa gateway --no-headers; kubectl top pods -n classifier -l app.kubernetes.io/name=gateway --no-headers",
+          "nota": "≈ 84 s después de empezar el pico.",
+          "donde": "mac",
+          "salida": "gateway   Deployment/gateway   cpu: 74%/60%   3     12    6     18m\ngateway-d76c465c6-2xdlr   454m   187Mi\ngateway-d76c465c6-4hp7l   524m   71Mi\ngateway-d76c465c6-7r7df   434m   189Mi\ngateway-d76c465c6-8d7ll   469m   190Mi\ngateway-d76c465c6-dv2ck   569m   71Mi\ngateway-d76c465c6-lk96m   452m   188Mi"
+        },
+        {
+          "code": "kubectl -n classifier get hpa gateway --no-headers; kubectl top pods -n classifier -l app.kubernetes.io/name=gateway --no-headers",
+          "nota": "≈ 112 s después de empezar el pico.",
+          "donde": "mac",
+          "salida": "gateway   Deployment/gateway   cpu: 50%/60%   3     12    6     18m\ngateway-d76c465c6-2xdlr   410m   187Mi\ngateway-d76c465c6-4hp7l   577m   71Mi\ngateway-d76c465c6-7r7df   436m   189Mi\ngateway-d76c465c6-8d7ll   510m   128Mi\ngateway-d76c465c6-dv2ck   679m   72Mi\ngateway-d76c465c6-lk96m   518m   189Mi"
+        },
+        {
+          "code": "kubectl -n classifier get hpa gateway --no-headers; kubectl top pods -n classifier -l app.kubernetes.io/name=gateway --no-headers",
+          "nota": "≈ 140 s después de empezar el pico.",
+          "donde": "mac",
+          "salida": "gateway   Deployment/gateway   cpu: 51%/60%   3     12    6     19m\ngateway-d76c465c6-2xdlr   423m   187Mi\ngateway-d76c465c6-4hp7l   627m   71Mi\ngateway-d76c465c6-7r7df   448m   189Mi\ngateway-d76c465c6-8d7ll   487m   128Mi\ngateway-d76c465c6-dv2ck   656m   71Mi\ngateway-d76c465c6-lk96m   471m   188Mi"
+        },
+        {
+          "code": "kubectl -n classifier get hpa gateway --no-headers; kubectl top pods -n classifier -l app.kubernetes.io/name=gateway --no-headers",
+          "nota": "≈ 168 s después de empezar el pico.",
+          "donde": "mac",
+          "salida": "gateway   Deployment/gateway   cpu: 52%/60%   3     12    6     19m\ngateway-d76c465c6-2xdlr   452m   187Mi\ngateway-d76c465c6-4hp7l   574m   71Mi\ngateway-d76c465c6-7r7df   485m   189Mi\ngateway-d76c465c6-8d7ll   542m   128Mi\ngateway-d76c465c6-dv2ck   608m   71Mi\ngateway-d76c465c6-lk96m   489m   189Mi"
+        },
+        {
+          "code": "kubectl -n classifier describe hpa gateway | sed -n '/^Events:/,$p'",
+          "nota": "«New size: 6 … above target»: la regla de tres, con su porqué. Después, «All metrics below target»: baja de uno en uno, un minuto entre cada uno (los primeros eventos son de cuando se creó el HPA).",
+          "donde": "mac",
+          "salida": "Events:\n  Type     Reason                        Age                  From                       Message\n  ----     ------                        ----                 ----                       -------\n  Normal   SuccessfulRescale             19m                  horizontal-pod-autoscaler  New size: 3; reason: Current number of replicas below Spec.MinReplicas\n  Warning  FailedGetResourceMetric       19m (x2 over 19m)    horizontal-pod-autoscaler  failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)\n  Warning  FailedComputeMetricsReplicas  19m (x2 over 19m)    horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)\n  Normal   SuccessfulRescale             5m29s                horizontal-pod-autoscaler  New size: 5; reason: All metrics below target\n  Normal   SuccessfulRescale             4m29s                horizontal-pod-autoscaler  New size: 4; reason: All metrics below target\n  Normal   SuccessfulRescale             3m29s                horizontal-pod-autoscaler  New size: 3; reason: All metrics below target\n  Normal   SuccessfulRescale             2m14s (x2 over 10m)  horizontal-pod-autoscaler  New size: 6; reason: cpu resource utilization (percentage of request) above target"
+        },
+        {
+          "code": "kubectl -n classifier get pods -o wide -l app.kubernetes.io/name=gateway",
+          "nota": "",
+          "donde": "mac",
+          "salida": "NAME                      READY   STATUS    RESTARTS   AGE     IP           NODE               NOMINATED NODE   READINESS GATES\ngateway-d76c465c6-2xdlr   1/1     Running   0          2m14s   10.244.5.8   dojo-k8s-worker2   <none>           <none>\ngateway-d76c465c6-4hp7l   1/1     Running   0          19m     10.244.1.5   dojo-k8s-worker    <none>           <none>\ngateway-d76c465c6-7r7df   1/1     Running   0          2m14s   10.244.5.9   dojo-k8s-worker2   <none>           <none>\ngateway-d76c465c6-8d7ll   1/1     Running   0          19m     10.244.1.4   dojo-k8s-worker    <none>           <none>\ngateway-d76c465c6-dv2ck   1/1     Running   0          19m     10.244.5.4   dojo-k8s-worker2   <none>           <none>\ngateway-d76c465c6-lk96m   1/1     Running   0          2m14s   10.244.1.7   dojo-k8s-worker    <none>           <none>"
+        },
+        {
+          "code": "kubectl -n classifier get events --field-selector reason=FailedScheduling | tail -3",
+          "nota": "Ninguno Pending: el HPA pidió justo los 6 que caben. Con un séptimo, aquí saldría «Insufficient cpu».",
+          "donde": "mac",
+          "salida": "No resources found in classifier namespace."
+        },
+        {
+          "code": "python3 mundo/cluster.py estado",
+          "nota": "",
+          "donde": "mac",
+          "salida": "registro localhost:5900: arriba\n\nnodo               apodo  zona        T4  estado                 pods de classifier\ndojo-k8s-worker    cpu-a  us-east-1a  0   Ready                  gateway, gateway, gateway\ndojo-k8s-worker2   cpu-b  us-east-1b  0   Ready                  gateway, gateway, gateway\ndojo-k8s-worker3   t4-a1  us-east-1a  1   Ready                  triton\ndojo-k8s-worker5   t4-a2  us-east-1a  1   Ready                  —\ndojo-k8s-worker4   t4-b1  us-east-1b  1   Ready                  —\ndojo-k8s-worker6   t4-b2  us-east-1b  1   Ready                  triton"
+        },
+        {
+          "code": "python3 verificar.py",
+          "nota": "Al final, con el pico ya pasado.",
+          "donde": "mac",
+          "salida": "✓ mundo      Kubernetes con 6 nodos listos (4 con T4), el registro y metrics-server\n✓ sincronia  lo que corre en el clúster es exactamente lo que dice k8s/ en git (kubectl diff vacío)\n✓ imagenes   gateway y Triton por digest, publicados por el CI, y el registro los sirve: classifier-gateway@sha256:f783bfd05e0a, classifier-triton@sha256:5841385f4a36\n✓ recursos   requests de CPU y memoria, techo de memoria = request, sin techo de CPU; Triton con su T4\n✓ triton     2 Tritons listos, cada uno en una T4, uno por zona (us-east-1a, us-east-1b)\n✓ gateway    6 gateways listos en nodos de CPU; 3 ReplicaSets guardados para volver atrás\n✓ probes     startup de Triton: 60 s para un engine de ≈ 20 s; sale del reparto en ≈ 10 s; gateway /readyz y /healthz\n✓ apagado    apagado ordenado: triton 10 + 30 < 60 s · gateway 15 + 20 < 45 s\n✓ pdb        el PDB cubre 2 Tritons y deja sacar 1 a la vez\n✓ hpa        HPA activo: 6 gateways, CPU al 0 % de su request (objetivo 60 %)\n✓ servicio   20 fotos por localhost:8901 → 200, top-5 de juguete-2026-10-01; p50 12 ms\n✓ estable    8 pods corriendo, ninguno Pending ni reiniciado en los últimos 2 min\n\n12/12 en verde"
+        }
+      ],
+      "verifica": "El HPA subió de 3 a 6 en cuanto la CPU pasó del 60 % (más la tolerancia de 10 %). Antes de que los gateways nuevos estuvieran listos, la carga recibió 84 respuestas 503 o 504 de 10800 (503: el gateway rechaza lo que ya no alcanza a atender; 504: a una foto se le acabó el plazo); después del primer minuto, 1. Los 12 checks en verde al final.",
+      "ojo": "Bajar es lento a propósito: el HPA espera 5 min de calma y quita 1 gateway por minuto. Mientras siga arriba, los nodos de CPU están llenos y un rolling update del gateway no tiene dónde poner su pod de más: espera a que baje (o, en C01, a que Karpenter traiga un nodo).",
+      "en_pagina": {
+        "conceptos": [
+          "hpa-metrics-server"
+        ],
+        "precalculos": [
+          "regla-de-tres-hpa",
+          "cpu-por-foto"
+        ]
+      }
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Empieza con el kit recién descomprimido en una carpeta nueva. El clúster es uno solo (<code>dojo-k8s</code>): <code>python3 mundo/crear.py --de-cero</code> lo vuelve a crear vacío.",
+      "Sin <code>GUION.md</code>: solo estos objetivos y el contrato arriba de cada archivo de <code>k8s/</code>.",
+      "Cada objetivo tiene su check; corre <code>python3 verificar.py &lt;check&gt;</code> cuando creas que quedó.",
+      "Lo que corre sale de git: <code>git commit</code> y <code>kubectl apply -k k8s/</code>. Nada de <code>kubectl edit</code>, <code>scale</code> ni <code>rollout undo</code> para que un check pase.",
+      "Las reglas de otros equipos no se tocan: <code>kustomization.yaml</code>, la taint de las T4, el tamaño de los nodos, <code>mundo/</code>."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "El clúster con sus 6 nodos listos (4 con T4), el registro y metrics-server.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "Dos Tritons listos, cada uno en un nodo con T4 y en una zona distinta; al cambiar de versión, nunca menos de 2 listos, y nunca dos en la misma zona.",
+        "check": "triton",
+        "pista": "¿Qué pasa con el reparto por zona justo después de un cambio de versión, cuando conviven pods viejos y nuevos?"
+      },
+      {
+        "n": 3,
+        "objetivo": "Cada pod pide su CPU y su memoria, con techo de memoria igual al request y sin techo de CPU; Triton con una T4 entera; el gateway sin GPU.",
+        "check": "recursos"
+      },
+      {
+        "n": 4,
+        "objetivo": "Las imágenes por digest, las que publicó el CI, y el registro las sirve.",
+        "check": "imagenes"
+      },
+      {
+        "n": 5,
+        "objetivo": "Triton con tres probes, y una startup que le da al engine al menos 1.5 veces lo que tarda en cargar; el gateway con readiness a /readyz y liveness a /healthz.",
+        "check": "probes",
+        "pista": "¿Cuánto tarda el engine? Está en el log del pod."
+      },
+      {
+        "n": 6,
+        "objetivo": "Al menos 3 gateways listos, solo en nodos de CPU, que cambian de versión sin bajar de capacidad y se rinden en minutos si no avanzan.",
+        "check": "gateway"
+      },
+      {
+        "n": 7,
+        "objetivo": "Apagado ordenado: un preStop que espera al balanceador y un plazo de gracia que alcanza para preStop, drenado y margen.",
+        "check": "apagado",
+        "pista": "¿Desde cuándo cuenta el plazo de gracia?"
+      },
+      {
+        "n": 8,
+        "objetivo": "Un PDB que deja sacar un Triton a la vez: ni cero (traba todo drain) ni los dos.",
+        "check": "pdb"
+      },
+      {
+        "n": 9,
+        "objetivo": "Un HPA del gateway de 3 a 12 al 60 % de CPU, que baja con 5 min de calma, y que puede calcular.",
+        "check": "hpa",
+        "pista": "¿Contra qué divide el HPA la CPU que mide?"
+      },
+      {
+        "n": 10,
+        "objetivo": "20 fotos por localhost:8901, todas en 200 y con su top-5.",
+        "check": "servicio"
+      },
+      {
+        "n": 11,
+        "objetivo": "Lo que corre en el clúster es exactamente lo que dice k8s/ en git.",
+        "check": "sincronia"
+      },
+      {
+        "n": 12,
+        "objetivo": "Ningún pod Pending ni reiniciado en los últimos 2 minutos.",
+        "check": "estable"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "memoria-corta",
+      "titulo": "El ajuste de FinOps",
+      "tipo": "config",
+      "historia": "El equipo de FinOps corrió su script de «right-sizing»: miró kubectl top, vio que cada gateway usa ≈ 60 MiB y ajustó los requests. Dice que ahorra 3 GiB por nodo. Producción sigue contestando.",
+      "sintoma": "<code>verificar.py</code>: ✗ recursos   gateway: el request de memoria (48Mi) no alcanza para su peor momento\n✗ gateway    gateway: el cambio de versión no ha terminado (ReplicaSetUpdated). gateway-677f497bcd-22b89 CrashLoopBackOff (último fin: OOMKilled)\n✗ estable    gateway-677f497bcd-22b89: CrashLoopBackOff",
+      "hipotesis": [
+        "Cambió la memoria del gateway en lo que se aplica.",
+        "La versión nueva del gateway usa más memoria.",
+        "El nodo se quedó sin memoria."
+      ],
+      "confirma": {
+        "code": "kubectl -n classifier get pods -l app.kubernetes.io/name=gateway\nkubectl -n classifier describe pod <el que no está listo> | grep -E -A4 'Last State|Limits' | head -12\ngit log -1 -p --format='%h %an: %s' -- k8s/kustomization.yaml | grep -E '^[0-9a-f]{7}|^\\+'",
+        "nota": "",
+        "donde": "mac",
+        "salida": "NAME                       READY   STATUS             RESTARTS     AGE\ngateway-677f497bcd-22b89   0/1     CrashLoopBackOff   3 (2s ago)   40s\ngateway-d76c465c6-4hp7l    1/1     Running            0            29m\ngateway-d76c465c6-8d7ll    1/1     Running            0            29m\ngateway-d76c465c6-dv2ck    1/1     Running            0            29m\n\n    Last State:     Terminated\n      Reason:       OOMKilled\n      Exit Code:    137\n      Started:      Wed, 18 Nov 2026 00:56:03 -0600\n      Finished:     Wed, 18 Nov 2026 00:56:03 -0600\n--\n    Limits:\n      memory:  48Mi\n    Requests:\n      cpu:      1\n      memory:   48Mi\n\n1cc4eb3 Equipo de plataforma: finops: el gateway usa ≈ 60 MiB según kubectl top; requests de memoria a la mediana\n+++ b/k8s/kustomization.yaml\n+\n+patches:              # FinOps: requests al tamaño medido (kubectl top)\n+  - target: {kind: Deployment, name: gateway}\n+    patch: |-\n+      - op: replace\n+        path: /spec/template/spec/containers/0/resources/requests/memory\n+        value: 48Mi\n+      - op: replace\n+        path: /spec/template/spec/containers/0/resources/limits/memory\n+        value: 48Mi"
+      },
+      "arreglo": "Un patch del equipo de plataforma en <code>k8s/kustomization.yaml</code> bajó la memoria del gateway a 48Mi, request y techo. <code>kubectl top</code> mide un gateway en reposo; en su peor momento usa ≈ 880 MB. El pod nuevo pasa el techo al arrancar, el kernel lo mata (OOMKilled, código 137) y queda en CrashLoopBackOff. Como <code>maxUnavailable</code> es 0, los tres viejos siguen atendiendo y el despliegue se queda a medias: nadie lo nota desde fuera. Arreglo: <code>git revert</code> de ese commit y <code>kubectl apply -k k8s/</code>. El tamaño se decide con el peor momento, no con la mediana.",
+      "concepto": "oomkilled",
+      "check": "recursos"
+    },
+    {
+      "id": "sin-requests",
+      "titulo": "Más gateways por nodo",
+      "tipo": "config",
+      "historia": "Plataforma avisa: «quitamos el request de CPU del gateway; casi no usa CPU y así caben más de 3 por nodo». El despliegue terminó bien y todo contesta.",
+      "sintoma": "<code>verificar.py</code>: ✗ recursos   gateway: falta el request de CPU (o es menor de 0.5 núcleos): sin él no se agenda bien y el HPA no tiene contra qué medir\n✗ hpa        el HPA no puede calcular: FailedGetResourceMetric the HPA was unable to compute the replica count: failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)",
+      "hipotesis": [
+        "Quitaron el request de CPU del gateway.",
+        "metrics-server no está dando números.",
+        "El HPA no apunta al Deployment correcto."
+      ],
+      "confirma": {
+        "code": "kubectl -n classifier get hpa gateway\nkubectl -n classifier describe hpa gateway | sed -n '/^Conditions:/,/^Events:/p'",
+        "nota": "",
+        "donde": "mac",
+        "salida": "NAME      REFERENCE            TARGETS              MINPODS   MAXPODS   REPLICAS   AGE\ngateway   Deployment/gateway   cpu: <unknown>/60%   3         12        3          31m\nConditions:\n  Type            Status  Reason                   Message\n  ----            ------  ------                   -------\n  AbleToScale     True    SucceededGetScale        the HPA controller was able to get the target's current scale\n  ScalingActive   False   FailedGetResourceMetric  the HPA was unable to compute the replica count: failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)\n  ScalingLimited  True    TooFewReplicas           the desired replica count is less than the minimum replica count\nEvents:"
+      },
+      "arreglo": "Un patch en <code>k8s/kustomization.yaml</code> quitó <code>requests.cpu</code> del gateway. El HPA mide la CPU como porcentaje del request: sin request no tiene contra qué dividir, se queda en <code>&lt;unknown&gt;</code> con ScalingActive=False y en el siguiente pico no sube. Además el scheduler deja de apartar CPU: en un pico se amontonan gateways en un nodo que no los aguanta. Todo contesta hoy; el problema llega con el primer pico. Arreglo: <code>git revert</code> del commit y <code>kubectl apply -k k8s/</code>. «Caben más por nodo» se resuelve con un request medido, no sin request.",
+      "concepto": "hpa-metrics-server",
+      "check": "hpa"
+    },
+    {
+      "id": "sin-endpoints",
+      "titulo": "Nombres homogéneos",
+      "tipo": "config",
+      "historia": "Plataforma está poniendo nombres homogéneos (classifier-…) en todas las etiquetas. Empezaron por los Services. La app dice que las fotos no se clasifican; los pods están todos Running y listos.",
+      "sintoma": "<code>verificar.py</code>: ✗ servicio   de 20 fotos, 20 no dieron 200 ([0]; 0 = sin respuesta). kubectl -n classifier get endpointslices -l kubernetes.io/service-name=gateway",
+      "hipotesis": [
+        "El Service ya no encuentra a los pods.",
+        "Los gateways no están listos.",
+        "Se cayó el NodePort."
+      ],
+      "confirma": {
+        "code": "kubectl -n classifier get endpointslices -l kubernetes.io/service-name=gateway\nkubectl -n classifier get svc gateway -o jsonpath='{.spec.selector}'\nkubectl -n classifier get pods -l app.kubernetes.io/name=gateway --show-labels --no-headers | head -1",
+        "nota": "",
+        "donde": "mac",
+        "salida": "NAME            ADDRESSTYPE   PORTS     ENDPOINTS   AGE\ngateway-fpf8v   IPv4          <unset>   <unset>     32m\n{\"app.kubernetes.io/name\":\"classifier-gateway\"}\ngateway-d76c465c6-kqr4m   1/1   Running   0     89s   app.kubernetes.io/name=gateway,pod-template-hash=d76c465c6,topology.kubernetes.io/region=us-east-1,topology.kubernetes.io/zone=us-east-1b"
+      },
+      "arreglo": "Un patch en <code>k8s/kustomization.yaml</code> cambió el selector del Service <code>gateway</code> a <code>app.kubernetes.io/name: classifier-gateway</code>, pero los pods siguen con la etiqueta <code>gateway</code>. El Service no encuentra a nadie, su EndpointSlice queda vacío y el NodePort no tiene a quién mandar. Los pods están sanos: el problema está en el cable, no en el programa. Arreglo: <code>git revert</code> y <code>kubectl apply -k k8s/</code>. Un cambio de etiquetas se hace en los pods y en el selector a la vez, o no se hace.",
+      "concepto": "service-endpointslice",
+      "check": "servicio"
+    },
+    {
+      "id": "arranque-lento",
+      "titulo": "El engine nuevo",
+      "tipo": "mundo",
+      "historia": "El equipo de modelos publicó un engine nuevo (juguete-2026-11-01, «más capas, mejor top-5») y el CI ya lo subió al repositorio de despliegue. Producción sigue contestando con el modelo de octubre.",
+      "sintoma": "<code>verificar.py</code>: ✗ triton     triton: el cambio de versión no ha terminado. triton-849c9b95c4-56tbc corre pero no está listo (readiness; 0 reinicios)\n✗ probes     triton: la startup da 60 s y el engine de esta imagen tarda ≈ 75 s en cargar (se pide ≥ 1.5 × 75 = 112 s)",
+      "hipotesis": [
+        "La imagen nueva de Triton tarda más en arrancar de lo que le da la startup.",
+        "No hay T4 libre para el pod nuevo.",
+        "La imagen nueva está rota."
+      ],
+      "confirma": {
+        "code": "kubectl -n classifier get pods -l app.kubernetes.io/name=triton\nkubectl -n classifier describe pod <el que no está listo> | sed -n '/^Events:/,$p' | tail -8\nkubectl -n classifier logs <el que no está listo> | head -4",
+        "nota": "",
+        "donde": "mac",
+        "salida": "NAME                      READY   STATUS    RESTARTS   AGE\ntriton-5d8fc8cd9b-fmn2x   1/1     Running   0          31m\ntriton-5d8fc8cd9b-xzwcl   1/1     Running   0          2m54s\ntriton-849c9b95c4-56tbc   0/1     Running   0          91s\n\n  ----     ------     ----                ----               -------\n  Normal   Scheduled  91s                 default-scheduler  Successfully assigned classifier/triton-849c9b95c4-56tbc to dojo-k8s-worker5\n  Normal   Pulling    90s                 kubelet            Pulling image \"localhost:5900/classifier-triton@sha256:c75c0812d11a704907777762736742e914e94183962ec8591f2a45b02cd339f8\"\n  Normal   Pulled     90s                 kubelet            Successfully pulled image \"localhost:5900/classifier-triton@sha256:c75c0812d11a704907777762736742e914e94183962ec8591f2a45b02cd339f8\" in 26ms (26ms including waiting). Image size: 94786366 bytes.\n  Normal   Created    90s                 kubelet            Container created\n  Normal   Started    90s                 kubelet            Container started\n  Warning  Unhealthy  30s (x12 over 85s)  kubelet            Startup probe failed: Get \"http://10.244.6.3:8000/v2/health/ready\": dial tcp 10.244.6.3:8000: connect: connection refused\n  Normal   Killing    30s                 kubelet            Container triton failed startup probe, will be restarted\n\nI1118 07:00:06.600311 1 servidor.py] model repository: /models\nI1118 07:00:06.600500 1 servidor.py] loading: classifier\nI1118 07:00:06.686093 1 servidor.py] deserializando el engine de classifier (≈ 75 s, como TensorRT en la T4)"
+      },
+      "arreglo": "El engine nuevo tarda ≈ 75 s en cargar y tu startup le da 60 s (5 × 12). A los 60 s el kubelet lo mata, lo vuelve a arrancar y otra vez: CrashLoopBackOff. Los dos Tritons viejos siguen sirviendo (<code>maxUnavailable: 0</code>) y el despliegue se queda a medias. Arreglo: recalcula la startup con margen (≥ 1.5 × 75 s; por ejemplo 5 × 30 = 150 s) en <code>k8s/triton.yaml</code>, commit y <code>kubectl apply -k k8s/</code>. Lo que no se hace: quitar la startup ni subir la liveness.",
+      "concepto": "probes",
+      "check": "probes"
+    },
+    {
+      "id": "zona-acordonada",
+      "titulo": "El mantenimiento de la zona b",
+      "tipo": "infra",
+      "historia": "Plataforma empezó a actualizar el driver de NVIDIA en los nodos T4 de la zona us-east-1b y se fue a comer. Producción contesta, pero el canal de alertas dice «triton: 1 de 2 listos».",
+      "sintoma": "<code>verificar.py</code>: ✗ triton     triton: 1 pod(s) listos de 2. triton-5d8fc8cd9b-xzwcl Pending: 0/7 nodes are available: 1 Insufficient cpu, 1 Insufficient memory, 1 Insufficient nvidia.com/gpu, 1 node(s) didn't match pod topology spread constraints, 1 nod\n✗ estable    triton-5d8fc8cd9b-xzwcl Pending: triton-5d8fc8cd9b-xzwcl Pending: 0/7 nodes are available: 1 Insufficient cpu, 1 Insufficient memory, 1 Insufficient nvidia.com/gpu, 1 node(s) didn't match pod topology spread constraints, 1 nod",
+      "hipotesis": [
+        "Los nodos de T4 de una zona no aceptan pods.",
+        "El reparto por zona no deja poner el reemplazo en otra zona.",
+        "Triton no arranca."
+      ],
+      "confirma": {
+        "code": "python3 mundo/cluster.py estado\nkubectl -n classifier describe pod <el Pending> | sed -n '/^Events:/,$p'",
+        "nota": "",
+        "donde": "mac",
+        "salida": "registro localhost:5900: arriba\n\nnodo               apodo  zona        T4  estado                 pods de classifier\ndojo-k8s-worker    cpu-a  us-east-1a  0   Ready                  gateway\ndojo-k8s-worker2   cpu-b  us-east-1b  0   Ready                  gateway, gateway\ndojo-k8s-worker3   t4-a1  us-east-1a  1   Ready                  triton\ndojo-k8s-worker5   t4-a2  us-east-1a  1   Ready                  —\ndojo-k8s-worker4   t4-b1  us-east-1b  1   Ready,SchedulingDisabled —\ndojo-k8s-worker6   t4-b2  us-east-1b  1   Ready,SchedulingDisabled —\nPending                                                          triton\n\nEvents:\n  Type     Reason            Age                From               Message\n  ----     ------            ----               ----               -------\n  Warning  FailedScheduling  12s (x2 over 22s)  default-scheduler  0/7 nodes are available: 1 Insufficient cpu, 1 Insufficient memory, 1 Insufficient nvidia.com/gpu, 1 node(s) didn't match pod topology spread constraints, 1 node(s) had untolerated taint(s), 2 node(s) didn't match Pod's node affinity/selector, 2 node(s) were unschedulable. no new claims to deallocate, preemption: 0/7 nodes are available: 2 No preemption victims found for incoming pod, 5 Preemption is not helpful for scheduling."
+      },
+      "arreglo": "Los dos nodos de T4 de <code>us-east-1b</code> están acordonados (SchedulingDisabled) y el de su Triton se vació; el PDB dejó sacar uno. El reemplazo no cabe en la zona b, y en la zona a no puede ir: ya hay uno allá y <code>DoNotSchedule</code> con <code>maxSkew: 1</code> prefiere Pending a dos Tritons en la misma zona. Una sola T4 carga todo el tráfico. Arreglo: confirmar con plataforma que el mantenimiento acabó y <code>kubectl uncordon</code> de los dos nodos. No se arregla quitando el reparto por zona.",
+      "concepto": "pdb-drain",
+      "check": "triton"
+    },
+    {
+      "id": "registro-caido",
+      "titulo": "El registro que nadie mira",
+      "tipo": "infra",
+      "historia": "Un nodo de CPU se recicló (imágenes borradas) y un gateway se movió. Todo lo demás sigue contestando; hay un pod que no arranca.",
+      "sintoma": "<code>verificar.py</code>: ✗ imagenes   el registro no sirve classifier-gateway@sha256:f783bfd05e0a (HTTP 0): un pod nuevo no podría bajarla",
+      "hipotesis": [
+        "El nodo no puede bajar la imagen del gateway.",
+        "La imagen ya no está en el registro.",
+        "El pod no tiene dónde caber."
+      ],
+      "confirma": {
+        "code": "kubectl -n classifier get pods -l app.kubernetes.io/name=gateway\nkubectl -n classifier describe pod <el que no arranca> | sed -n '/^Events:/,$p' | tail -6\npython3 mundo/cluster.py estado | head -1",
+        "nota": "",
+        "donde": "mac",
+        "salida": "NAME                      READY   STATUS             RESTARTS   AGE\ngateway-d76c465c6-7z4n2   0/1     ImagePullBackOff   0          21s\ngateway-d76c465c6-rgpsv   1/1     Running            0          2m52s\ngateway-d76c465c6-tr64j   1/1     Running            0          2m55s\n  Normal   Scheduled  21s               default-scheduler  Successfully assigned classifier/gateway-d76c465c6-7z4n2 to dojo-k8s-worker\n  Normal   BackOff    19s               kubelet            Back-off pulling image \"localhost:5900/classifier-gateway@sha256:f783bfd05e0aafb5ca274e3730c1650f57896436ddacdfcaa670bd0f3dc9698d\"\n  Warning  Failed     19s               kubelet            Error: ImagePullBackOff\n  Normal   Pulling    7s (x2 over 19s)  kubelet            Pulling image \"localhost:5900/classifier-gateway@sha256:f783bfd05e0aafb5ca274e3730c1650f57896436ddacdfcaa670bd0f3dc9698d\"\n  Warning  Failed     7s (x2 over 19s)  kubelet            Failed to pull image \"localhost:5900/classifier-gateway@sha256:f783bfd05e0aafb5ca274e3730c1650f57896436ddacdfcaa670bd0f3dc9698d\": failed to pull and unpack image \"localhost:5900/classifier-gateway@sha256:f783bfd05e0aafb5ca274e3730c1650f57896436ddacdfcaa670bd0f3dc9698d\": failed to resolve reference \"localhost:5900/classifier-gateway@sha256:f783bfd05e0aafb5ca274e3730c1650f57896436ddacdfcaa670bd0f3dc9698d\": failed to do request: Head \"http://dojo-k8s-registro:5000/v2/classifier-gateway/manifests/sha256:f783bfd05e0aafb5ca274e3730c1650f57896436ddacdfcaa670bd0f3dc9698d?ns=%5BREDACTED%5D\": dial tcp: lookup dojo-k8s-registro on 192.168.65.254:53: no such host\n  Warning  Failed     7s (x2 over 19s)  kubelet            Error: ErrImagePull\n\nregistro localhost:5900: apagado"
+      },
+      "arreglo": "El registro (el «ECR» del dojo) está apagado, y el nodo reciclado ya no tiene la imagen del gateway: el pod nuevo no la puede bajar (ErrImagePull, luego ImagePullBackOff, con esperas que crecen hasta 5 min). Los pods que ya corrían siguen bien: su imagen ya está en su nodo. Arreglo: <code>python3 mundo/cluster.py registro arrancar</code> y, para no esperar el backoff, <code>kubectl -n classifier delete pod &lt;el que no arranca&gt;</code> (su ReplicaSet crea otro al instante). En C01 sería un permiso de ECR o un endpoint de la VPC que se cayó.",
+      "concepto": "crashloopbackoff",
+      "check": "imagenes"
+    }
+  ],
+  "listo": [
+    "Dos Tritons listos, cada uno con su T4 y en su zona, que nunca bajan de 2 al cambiar de versión.",
+    "Cada pod pide su CPU y su memoria, con techo de memoria y sin techo de CPU; el gateway nunca cae en una T4.",
+    "Las probes protegen el arranque de Triton, sacan del reparto lo que no está listo y solo reinician un proceso muerto.",
+    "Un cambio de versión bajo carga no pierde ni una foto, y uno que no arranca no tumba nada y se deshace con un git revert.",
+    "El PDB deja vaciar un nodo de T4 a la vez, y el HPA agrega gateways en un pico y los quita despacio.",
+    "Lo que corre en el clúster es exactamente lo que dice git."
+  ],
+  "repaso": {
+    "memo": "<b>Describir, reservar, preguntar, repartir, proteger y escalar.</b> Describes lo que quieres y Kubernetes lo reconcilia sin parar. Cada pod <b>reserva</b> lo que necesita (request de CPU, memoria con techo, la T4 entera) y no lleva techo de CPU. Tres <b>probes</b>: la startup protege el arranque, la readiness decide el tráfico y la liveness solo mira el propio proceso. Triton se <b>reparte</b> uno por zona, en las T4 por etiqueta y toleration. Los cambios de versión nunca bajan de capacidad (<code>maxUnavailable: 0</code>), el apagado espera al balanceador (preStop) y el PDB <b>protege</b> del mantenimiento. El HPA <b>escala</b> el gateway por CPU sobre su request. Y todo sale de git: volver atrás es un <code>git revert</code>.",
+    "trampa": "Arreglar el clúster a mano (<code>kubectl edit</code>, <code>scale</code>, <code>rollout undo</code>) y no en git; poner límite de CPU «por orden»; o preguntar por una dependencia en la liveness. En los tres casos, el clúster hace algo distinto de lo que crees.",
+    "entrevista": [
+      {
+        "q": "Despliega un servicio de inferencia con GPU en Kubernetes. ¿Qué escribes?",
+        "a": "Un Deployment con requests de CPU y memoria (techo de memoria igual al request, sin techo de CPU) y nvidia.com/gpu: 1; nodeSelector a los nodos de GPU y toleration a su taint; reparto por zona con DoNotSchedule; startup probe que cubra la carga del modelo con margen, readiness a la salud del modelo y liveness solo al proceso; preStop y plazo de gracia que alcancen para drenar; maxSurge 1 y maxUnavailable 0; un PDB con minAvailable menor que las réplicas; y un Service. La imagen, por digest."
+      },
+      {
+        "q": "¿Requests o limits? ¿Por qué no le pones límite de CPU?",
+        "a": "El request es la reserva: con él se agenda el pod y se calcula el HPA, así que siempre va. El límite de CPU solo frena: el kernel da una cuota cada 100 ms y, si un pod con varios hilos la gasta antes, lo congela aunque el nodo tenga CPU libre (throttling), justo en los picos. La memoria sí lleva techo, igual al request: pasarse de memoria no se puede «esperar», el kernel mata el proceso (OOMKilled), y mejor ese pod que todo el nodo."
+      },
+      {
+        "q": "¿Qué diferencia hay entre readiness, liveness y startup probe?",
+        "a": "La startup pregunta si ya arrancó, y mientras no pasa las otras no corren: protege un arranque lento, como cargar un engine. La readiness decide si le mandas tráfico: si falla, el pod sale del Service sin reiniciarse. La liveness decide si se reinicia: por eso solo mira el propio proceso, nunca una dependencia; si mirara a Triton, una caída de Triton reiniciaría todos los gateways sin arreglar nada."
+      },
+      {
+        "q": "¿Cómo haces un cambio de versión sin cortar requests?",
+        "a": "maxUnavailable 0 y maxSurge 1: siempre hay un pod nuevo listo antes de apagar uno viejo, y la readiness decide cuándo está listo. Al apagar, el pod sale del reparto, un preStop espera a que el balanceador se entere y luego SIGTERM; el plazo de gracia cuenta desde el principio y tiene que alcanzar para preStop, drenado y margen. Y progressDeadlineSeconds con una alerta, porque al vencer no hay rollback automático."
+      },
+      {
+        "q": "Un pod de tu servicio está en CrashLoopBackOff. ¿Qué miras?",
+        "a": "kubectl get pods para ver RESTARTS; kubectl describe pod para Last State (OOMKilled y código 137, un código de salida, o una probe que falla) y los Events; kubectl logs --previous para lo que escribió antes de morir; y git log del repositorio de despliegue para ver qué cambió. Si es un despliegue nuevo y maxUnavailable es 0, los pods viejos siguen atendiendo mientras tanto."
+      },
+      {
+        "q": "¿Cómo escala tu gateway, y qué puede impedir que escale?",
+        "a": "Con un HPA por CPU al 60 % del request, de 3 a 12: cada 15 s calcula ⌈pods × actual ÷ objetivo⌉. Sube rápido y baja tras 5 min de calma, 1 pod por minuto. Lo frenan: un pod sin request de CPU (el HPA queda en unknown), metrics-server caído, o nodos llenos (los pods nuevos quedan Pending hasta que el autoscaler de nodos, Karpenter en EKS, trae una máquina). Para un servicio de GPU no escalaría por CPU sino por la fila de espera."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/c01-kubernetes/CLAUDE.md",
+    "guiado": "content/estaciones/c01-kubernetes/prompts/guiado.md",
+    "solo": "content/estaciones/c01-kubernetes/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/c01-kubernetes/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/c01-kubernetes/prompts/romper-solo.md"
+  }
+}
