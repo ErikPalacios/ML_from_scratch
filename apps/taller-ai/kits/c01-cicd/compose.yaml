@@ -1,0 +1,31 @@
+# La infraestructura del mundo: el ECR del dojo (un proxy con las reglas de ECR delante de registry:2) y el Triton del
+# dojo con un modelo de juguete. `docker compose up -d --wait --build` y listo.
+# En C01 real: Amazon ECR (un servicio de AWS) y Triton en pods de Kubernetes con una T4. La forja (el GitHub del
+# dojo), el runner y el GitOps son programas de mundo/ que corren en tu Mac; los gateways de staging y producción, los
+# arranca mundo/gitops.py como contenedores en esta misma red.
+name: taller-c01-cicd
+services:
+  registro:
+    image: registry:2.8.3                  # la implementación de referencia de un registro de imágenes
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"   # para que la regla de retención pueda borrar
+    volumes: ["registro-cicd:/var/lib/registry"]
+  ecr:
+    build: mundo/ecr_dojo
+    ports: ["5800:5000"]                   # en tu Mac: localhost:5800 (el 5000 lo ocupa AirPlay en macOS)
+    volumes: ["./.nube:/nube"]             # la configuración de ECR, el secreto de las credenciales y los pushes
+    depends_on: [registro]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request as u; u.urlopen('http://localhost:5000/v2/')\" 2>&1 | grep -q 401"]
+      interval: 3s
+      retries: 20
+  triton:
+    build: mundo/triton_dojo
+    ports: ["8800:8000"]                   # en tu Mac: localhost:8800; los gateways le hablan como triton:8000
+    volumes: ["./mundo/triton:/models:ro"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request as u; u.urlopen('http://localhost:8000/v2/health/ready')\""]
+      interval: 3s
+      retries: 30
+volumes:
+  registro-cicd: {}

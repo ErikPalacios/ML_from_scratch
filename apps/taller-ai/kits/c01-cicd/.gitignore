@@ -1,0 +1,11 @@
+# .forja/ es el GitHub del dojo (los repositorios, los PRs y las corridas); .nube/ es el AWS del dojo (el estado de ECR
+# y las credenciales); .taller/ es de romper.py. Ninguno es parte del repositorio classifier.
+.forja/
+.nube/
+.taller/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.respaldo/

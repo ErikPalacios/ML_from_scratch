@@ -1,0 +1,32 @@
+{
+  "nota": "Los roles de AWS del proyecto, del equipo de nube. Cambian solo con una revisión (mundo/revisiones.json). En C01: dos roles de IAM en Terraform.",
+  "roles": {
+    "gha-classifier-gateway": {
+      "arn": "arn:aws:iam::000000000000:role/gha-classifier-gateway",
+      "para": "El job que sube la imagen del gateway: solo desde main, nunca desde un PR.",
+      "trust_policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": { "Federated": "arn:aws:iam::000000000000:oidc-provider/token.actions.githubusercontent.com" },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+              "StringEquals": {
+                "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                "token.actions.githubusercontent.com:sub": "repo:dojo/classifier:ref:refs/heads/main"
+              }
+            }
+          }
+        ]
+      },
+      "permisos": { "classifier-gateway": ["bajar", "subir"] }
+    },
+    "nodos-classifier": {
+      "arn": "arn:aws:iam::000000000000:role/nodos-classifier",
+      "para": "Los nodos del clúster (aquí, mundo/gitops.py): bajan imágenes, nunca suben.",
+      "trust_policy": { "Version": "2012-10-17", "Statement": [ { "Effect": "Allow", "Principal": { "Service": "ec2.amazonaws.com" }, "Action": "sts:AssumeRole" } ] },
+      "permisos": { "classifier-gateway": ["bajar"] }
+    }
+  }
+}

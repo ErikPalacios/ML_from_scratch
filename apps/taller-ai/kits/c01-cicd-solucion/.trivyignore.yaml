@@ -1,0 +1,6 @@
+# Las excepciones del escaneo: cada una nombra el aviso, dice por qué no aplica y vence. Pasan por revisión como
+# cualquier cambio. Una vencida ya no calla nada.
+vulnerabilities:
+  - id: DOJO-2026-0121
+    statement: El gateway usa el cliente HTTP de tritonclient; el aviso es del cliente gRPC, que no se importa.
+    expired_at: 2026-12-31

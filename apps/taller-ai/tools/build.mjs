@@ -150,7 +150,7 @@ function objetivos(e) {
 
 function archivosKit(e) {
   const base = join(ROOT, 'kits', e.slug);
-  const fuera = /(^|\/)(data|\.taller|\.venv|\.respaldo|__pycache__)(\/|$)|\.pyc$|\.DS_Store$/;
+  const fuera = /(^|\/)(data|\.taller|\.venv|\.respaldo|__pycache__|\.forja|\.nube|\.pytest_cache|\.ruff_cache)(\/|$)|\.pyc$|\.DS_Store$/;
   const archivos = [];
   const recorrer = (dir) => {
     for (const n of readdirSync(dir).sort()) {

@@ -65,8 +65,8 @@
       "id": "cicd",
       "titulo": "CI/CD y registro de imágenes",
       "etapa": "contenedor",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://taller-ai-engineer.vercel.app/c01/cicd/"
     },
     {
       "num": 9,

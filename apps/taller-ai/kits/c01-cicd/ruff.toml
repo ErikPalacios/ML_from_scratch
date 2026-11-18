@@ -1,0 +1,6 @@
+# La configuración del linter (el job lint). Las reglas por omisión de ruff: errores de sintaxis, nombres sin definir,
+# imports sin usar y variables que no se usan.
+line-length = 130
+
+[lint]
+select = ["E4", "E7", "E9", "F"]

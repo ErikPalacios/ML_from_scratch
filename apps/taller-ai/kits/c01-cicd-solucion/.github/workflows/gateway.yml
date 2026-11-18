@@ -1,0 +1,76 @@
+# El workflow del gateway: en cada PR, lint y pruebas; después del merge a main, la imagen (una sola vez), staging y
+# producción (con aprobación), siempre por digest.
+name: gateway
+on:
+  pull_request:                       # en todos los PR, sin filtro de carpetas: «pruebas» es un check obligatorio
+  push:
+    branches: [main]
+permissions:
+  contents: read                      # lo mínimo para todos; el job imagen pide id-token para entrar a ECR
+env:
+  REPO: localhost:5800/classifier-gateway
+  ROL: arn:aws:iam::000000000000:role/gha-classifier-gateway
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: el PR en el resumen
+        if: github.event_name == 'pull_request'
+        env:
+          TITULO: ${{ github.event.pull_request.title }}    # texto de fuera: por variable, nunca dentro del run
+        run: |                        # en bloque: sin él, YAML corta la línea en « #» (lo toma por comentario)
+          echo "PR #${{ github.event.pull_request.number }}: $TITULO" >> "$GITHUB_STEP_SUMMARY"
+      - run: ruff check gateway
+
+  pruebas:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pytest -q
+
+  imagen:
+    needs: [lint, pruebas]
+    if: github.event_name == 'push'   # solo después del merge: en un PR, GITHUB_SHA es el merge de prueba
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write                 # el token OIDC que nube.py cambia por credenciales de ECR
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - name: build
+        run: docker build -f gateway/Dockerfile --build-arg REVISION="$GITHUB_SHA" -t "$REPO:${{ steps.tag.outputs.tag }}" .
+      - name: humo
+        run: ci/humo.sh "$REPO:${{ steps.tag.outputs.tag }}"
+      - name: escaneo
+        run: ci/escaneo.sh "$REPO:${{ steps.tag.outputs.tag }}"
+      - id: push
+        name: push
+        run: ci/push.sh "$REPO:${{ steps.tag.outputs.tag }}"
+
+  staging:
+    needs: imagen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - run: ci/desplegar.sh staging "${{ needs.imagen.outputs.digest }}"
+
+  produccion:
+    needs: [imagen, staging]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: produccion           # espera a que alguien de la lista apruebe (mundo/forja.yaml)
+    steps:
+      - uses: actions/checkout@v4
+      - run: ci/desplegar.sh produccion "${{ needs.imagen.outputs.digest }}"

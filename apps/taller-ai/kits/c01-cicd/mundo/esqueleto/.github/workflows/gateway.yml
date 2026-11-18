@@ -1,0 +1,10 @@
+# El workflow del gateway (tuyo). Lo corre la forja (mundo/forja.py) igual que GitHub Actions, desde el commit que se
+# prueba. Contrato (verificar.py lo revisa):
+# - Corre en todos los pull_request (sin filtro de carpetas: «pruebas» es un check obligatorio) y en push a main.
+# - permissions arriba: contents: read. Solo el job imagen agrega id-token: write.
+# - Jobs: lint (ruff check gateway) y pruebas (python -m pytest -q), a la vez.
+#   imagen: needs lint y pruebas; solo si el evento es push; tag = los 7 primeros caracteres de GITHUB_SHA; pasos
+#   build → humo → escaneo → push (ci/*.sh), en ese orden; outputs.digest = el digest que devolvió el push.
+#   staging: needs imagen; environment staging; ci/desplegar.sh staging con needs.imagen.outputs.digest.
+#   produccion: needs imagen y staging; environment produccion (espera aprobación); ci/desplegar.sh produccion.
+# - Ningún run pega texto de fuera (título del PR, nombre de rama) dentro de ${{ }}: va por env.

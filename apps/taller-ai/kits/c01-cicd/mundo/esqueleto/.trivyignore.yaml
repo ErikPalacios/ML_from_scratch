@@ -1,0 +1,3 @@
+# Las excepciones del escaneo (tuyas): cada una nombra el aviso (id), dice por qué no aplica (statement) y vence
+# (expired_at: AAAA-MM-DD). Pasan por revisión como cualquier cambio. Una vencida ya no calla nada.
+vulnerabilities: []

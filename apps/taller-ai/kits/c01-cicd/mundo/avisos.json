@@ -1,0 +1,14 @@
+{
+  "nota": "La base de avisos del escáner del dojo, congelada para que el resultado sea el mismo hoy y en seis meses. Los avisos son DE EJEMPLO (ids DOJO-…): no son vulnerabilidades reales de estos paquetes. Un escáner real (Trivy, Grype, Amazon Inspector) baja cada día una base con miles de CVE reales.",
+  "actualizada": "2026-10-01",
+  "avisos": [
+    { "id": "DOJO-2026-0107", "paquete": "pyyaml", "tipo": "python", "afecta": "<6.0.3", "corregida": "6.0.3", "severidad": "CRITICAL",
+      "titulo": "yaml.load sin Loader construye objetos de Python arbitrarios desde un YAML de fuera (ejemplo)" },
+    { "id": "DOJO-2026-0112", "paquete": "zlib1g", "tipo": "debian", "afecta": "*", "corregida": null, "severidad": "CRITICAL",
+      "titulo": "Desbordamiento al inflar un flujo con un diccionario preestablecido (ejemplo; sin parche todavía)" },
+    { "id": "DOJO-2026-0118", "paquete": "pip", "tipo": "python", "afecta": "<99", "corregida": "99.0", "severidad": "HIGH",
+      "titulo": "Un índice malicioso puede escribir fuera de la carpeta de instalación (ejemplo)" },
+    { "id": "DOJO-2026-0121", "paquete": "tritonclient", "tipo": "python", "afecta": "<=2.75.0", "corregida": "2.76.0", "severidad": "CRITICAL",
+      "titulo": "El cliente gRPC acepta mensajes sin límite de tamaño (ejemplo; el cliente HTTP no está afectado)" }
+  ]
+}

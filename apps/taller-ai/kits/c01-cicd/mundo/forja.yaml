@@ -1,0 +1,10 @@
+# Las reglas del repositorio dojo/classifier en la forja (el GitHub del dojo), del equipo de plataforma. Cambian solo con
+# una revisión (mundo/revisiones.json). En C01: la protección de la rama main y los environments del repositorio.
+main:
+  checks_obligatorios: [pruebas]      # un PR no se junta si el job «pruebas» no terminó en verde (skipped cuenta como verde)
+ambientes:
+  staging:
+    revisores: []                     # sin aprobación
+  produccion:
+    revisores: [revisora]             # alguien de esta lista aprueba antes de que el job corra
+    prohibir_autoaprobacion: true     # quien disparó la corrida no se aprueba a sí mismo

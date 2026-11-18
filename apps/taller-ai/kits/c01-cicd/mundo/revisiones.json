@@ -1,0 +1,14 @@
+{
+  "mundo/forja.yaml": [
+    {
+      "sha256": "70c08a5992dfb11bb2d97dfb907cc55a42d699160b7f20771580ad2828cc8718",
+      "motivo": "Protección de main y ambientes (PR #12 de plataforma)"
+    }
+  ],
+  "mundo/nube/confianza.json": [
+    {
+      "sha256": "9b16a7cac9596aa352c042f26b7b3fd4e36d1ce1a36ad020f5ce92a946ea4f15",
+      "motivo": "Roles del CI y de los nodos (PR #31 de nube)"
+    }
+  ]
+}

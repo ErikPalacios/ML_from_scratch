@@ -1,0 +1,16 @@
+{
+  "rules": [
+    {
+      "rulePriority": 1,
+      "description": "Una imagen que perdió su tag (alguien movió el tag) se borra al día",
+      "selection": { "tagStatus": "untagged", "countType": "sinceImagePushed", "countUnit": "days", "countNumber": 1 },
+      "action": { "type": "expire" }
+    },
+    {
+      "rulePriority": 2,
+      "description": "Se quedan las 30 imágenes con tag más nuevas",
+      "selection": { "tagStatus": "tagged", "tagPatternList": ["*"], "countType": "imageCountMoreThan", "countNumber": 30 },
+      "action": { "type": "expire" }
+    }
+  ]
+}

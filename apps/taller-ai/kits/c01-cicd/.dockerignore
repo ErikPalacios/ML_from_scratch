@@ -1,0 +1,7 @@
+# Solo entra a la imagen lo que el Dockerfile copia; esto evita mandarle al builder el resto (la forja, la nube, el venv).
+*
+!gateway/requirements.txt
+!gateway/app/
+!gateway.yaml
+!servir/modelo.json
+**/__pycache__

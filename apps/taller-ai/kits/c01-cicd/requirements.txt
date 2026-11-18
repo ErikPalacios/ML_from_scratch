@@ -1,0 +1,13 @@
+# Versiones fijadas: así el kit corre igual en tu Mac hoy y dentro de seis meses. Es también el «Python del runner»:
+# los jobs de la forja corren con este entorno ya instalado.
+# Lo que corre dentro de la imagen del gateway está en gateway/requirements.txt.
+fastapi==0.163.2
+uvicorn==0.54.0
+tritonclient[http]==2.75.0
+prometheus-client==0.26.0
+pillow==13.0.0
+numpy==2.5.4
+pyyaml==6.0.3
+httpx==0.28.1                 # el cliente de pruebas de FastAPI
+pytest==9.2.0
+ruff==0.17.5                  # el linter del job lint
