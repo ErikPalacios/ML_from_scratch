@@ -1,0 +1,13 @@
+{
+  "nota": "Las versiones de gateway.yaml que pasaron revisión: cada una salió de un PR propio, aprobado por otra persona. En C01 esto es el historial de PR del repositorio classifier; aquí, este archivo. Lo mantiene el equipo: no se toca.",
+  "aprobadas": [
+    {
+      "gateway_yaml_sha256": "d0f8d74570cf371899bed08aae1a81e005b720ff9fa82d32ff4dee9600403d63",
+      "pr": 51,
+      "autor": "Equipo de serving",
+      "reviso": "Líder técnica de plataforma",
+      "fecha": "2026-09-02",
+      "motivo": "Límites del gateway (10 MiB, 40 MP, 1:8, 2 decodes, 16 en vuelo) y la cadena de plazos 300 > 250 > 150 > 100 ms."
+    }
+  ]
+}

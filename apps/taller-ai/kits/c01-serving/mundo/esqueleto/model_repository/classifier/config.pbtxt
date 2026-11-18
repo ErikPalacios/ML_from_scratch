@@ -1,0 +1,12 @@
+# La configuración de classifier en el servidor de modelos (Triton). Formato de texto de protobuf. Todavía no está
+# escrita (paso 3 del GUION).
+#
+# Contrato:
+# - name "classifier" y platform "onnxruntime_onnx" (en C01: "tensorrt_plan").
+# - max_batch_size: 32, el batch más grande que acepta el engine (su tag batch_max en el registro).
+# - input y output con el nombre, el tipo y las dims del engine (servir/modelo.json), SIN el eje del batch.
+# - dynamic_batching: una ventana de espera corta (max_queue_delay_microseconds), los tamaños preferidos y una fila que
+#   rechaza (REJECT) lo que esperó más que plazos_ms.fila_triton de gateway.yaml.
+# - instance_group: dos copias del modelo, KIND_CPU (aquí no hay GPU).
+# - model_warmup: corre el modelo con un batch de ceros del tamaño máximo antes de decir «listo».
+# - version_policy: solo la versión más nueva de la carpeta.

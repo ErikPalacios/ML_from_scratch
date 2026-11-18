@@ -1,0 +1,1195 @@
+{
+  "id": "serving",
+  "patron": "sincrono",
+  "caso": "c01",
+  "num": 6,
+  "titulo": "Código de serving",
+  "nav": "Código de serving",
+  "pregunta": "El modelo ya está compilado y registrado. ¿Qué programa lo pone a responder fotos por la red, sin caerse cuando llega una foto rara, cuando sube el tráfico o cuando el servidor del modelo se traba?",
+  "version": "2026-11-17",
+  "mapa": {
+    "resumen": "La estación 5 dejó a <code>classifier</code> v4 con su <b>engine</b> y sus huellas en el registro. Falta lo que lo pone a atender: dos programas. El <b>servidor de modelos</b> (Triton) carga el engine desde una carpeta, el <b>model repository</b>, con su <code>config.pbtxt</code>, y solo convierte tensores en tensores, juntando fotos en lotes. Delante va el <b>gateway</b>, un programa en FastAPI que recibe cada foto, la revisa de lo barato a lo caro, la prepara con topes de memoria y de concurrencia, le pide los logits a Triton con un plazo que nunca pasa del que le queda, y contesta siempre con un código que dice qué pasó, dejando una línea de log y sus métricas. Con sus pruebas, que corren sin GPU.",
+    "entra": [
+      "el engine de <code>classifier</code> v4 y su <code>labels.json</code>, por número, con las huellas del registro",
+      "el preprocess compartido con el entrenamiento (el mismo código, la misma Pillow)",
+      "las reglas del gateway (<code>gateway.yaml</code>): tipos, tamaños, topes y la cadena de plazos, revisadas en un PR",
+      "el contrato con quien llama: <code>POST /v1/classify?top_k=5</code> con los bytes de la foto; la app espera 300 ms"
+    ],
+    "sale": [
+      "el model repository: <code>classifier/config.pbtxt</code> y <code>classifier/1/model.onnx</code>, la copia exacta del engine aprobado",
+      "el gateway: <code>/v1/classify</code>, <code>/healthz</code>, <code>/readyz</code> y <code>/metrics</code>, con el código de cada falla",
+      "una línea de log en JSON por request y las métricas con nombres fijos",
+      "30 pruebas con un Triton falso, que corren en segundos sin GPU"
+    ],
+    "escala": [
+      {
+        "que": "El servidor de modelos",
+        "c01": "Triton con TensorRT en una T4 por zona; <code>platform: \"tensorrt_plan\"</code>, <code>KIND_GPU</code>",
+        "taller": "el servidor del dojo (<code>mundo/triton_dojo/</code>) con ONNX Runtime en tu CPU; <code>platform: \"onnxruntime_onnx\"</code>, <code>KIND_CPU</code>. Lee el mismo <code>config.pbtxt</code> y habla el mismo protocolo HTTP"
+      },
+      {
+        "que": "El modelo",
+        "c01": "ResNet-50: <code>input</code> [3, 224, 224] → <code>logits</code> [500], batch hasta 32",
+        "taller": "MiniResNet: <code>input</code> [3, 32, 32] → <code>logits</code> [10], batch hasta 32 (engine de 181 kB)"
+      },
+      {
+        "que": "El gateway",
+        "c01": "FastAPI en 3 a 12 copias de 1 vCPU y 1 GiB, detrás del ALB",
+        "taller": "el mismo código, un proceso en tu Mac (<code>mundo/servicios.py</code>) en el puerto 8701"
+      },
+      {
+        "que": "Quién llama",
+        "c01": "la app, con su token verificado por el ALB; ≈ 500 fotos/s en el pico",
+        "taller": "<code>curl</code> y <code>verificar.py</code> (≈ 972 fotos/s con 8 a la vez)"
+      },
+      {
+        "que": "Los límites y plazos",
+        "c01": "10 MiB, 40 MP, 1:8, 2 decodes, 16 en vuelo · 300 > 250 > 150 > 100 ms",
+        "taller": "los mismos, en <code>gateway.yaml</code>"
+      },
+      {
+        "que": "Las pruebas",
+        "c01": "26 pruebas con pytest y un Triton falso, ≈ 2 min en CI",
+        "taller": "30 pruebas, ≈ 2 s"
+      }
+    ],
+    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-serving"
+  },
+  "precalculos": {
+    "intro": "Antes de escribir el gateway, las cuentas de servilleta: cuánta memoria pide una copia en el peor momento, cuántas requests caben adentro, cuánto plazo le queda a la llamada a Triton, cuántas fotos junta Triton en un lote, cuánto pesa lo que viaja por la red y cuánto log sale al día. Cada cuenta va en las dos escalas: C01 y el dojo.",
+    "cuentas": [
+      {
+        "id": "memoria",
+        "pregunta": "¿Cuánta memoria pide una copia del gateway en el peor momento?",
+        "formula": "pico = en vuelo × body máximo + decodes × píxeles máximos × 4 B × 2 copias + lo que ocupa el proceso",
+        "c01": {
+          "cuenta": "16 × 10 MiB + 2 × 40 MP × 4 B × 2 + ≈ 150 MiB",
+          "valor": "≈ 160 + 610 + 150 ≈ 920 MiB: cabe en 1 GiB"
+        },
+        "taller": {
+          "cuenta": "las mismas reglas; con 64 en vuelo y 8 decodes",
+          "valor": "≈ 920 MiB · con 64 y 8: ≈ 3,200 MiB, más del triple"
+        },
+        "decide": "Los topes salen de la memoria del peor caso, no de la CPU de hoy. Con 16 en vuelo y 2 decodes, una ráfaga de fotos de 40 MP todavía cabe en 1 GiB; con 64 y 8, el proceso muere por memoria (OOM) y se lleva a todas las requests que tenía adentro.",
+        "conceptos": [
+          "en-vuelo",
+          "semaforo"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nMiB = 2**20\nfor nombre, en_vuelo, decodes in [('C01 y el dojo (gateway.yaml)', 16, 2), ('con 64 en vuelo y 8 decodes', 64, 8)]:\n    bodies = en_vuelo * 10 * MiB\n    decode = decodes * 40_000_000 * 4 * 2\n    print(f'{nombre}: bodies {en_vuelo} × 10 MiB = {bodies / MiB:,.0f} MiB · decodes {decodes} × 40 MP × 4 B × 2 copias = {decode / MiB:,.0f} MiB · total {(bodies + decode) / MiB:,.0f} MiB + el proceso')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "C01 y el dojo (gateway.yaml): bodies 16 × 10 MiB = 160 MiB · decodes 2 × 40 MP × 4 B × 2 copias = 610 MiB · total 770 MiB + el proceso\ncon 64 en vuelo y 8 decodes: bodies 64 × 10 MiB = 640 MiB · decodes 8 × 40 MP × 4 B × 2 copias = 2,441 MiB · total 3,081 MiB + el proceso"
+        },
+        "confirma": "el paso 5: el gateway ocupa 93 MiB sin requests (C01 redondea a ≈ 150 MiB), y el check <code>reglas</code> hace la misma cuenta con <code>gateway.yaml</code>."
+      },
+      {
+        "id": "little",
+        "pregunta": "¿Cuántas requests hay adentro de una copia a la vez?",
+        "formula": "en vuelo = llegadas por segundo × lo que dura cada una (la Ley de Little)",
+        "c01": {
+          "cuenta": "100/s × 50 ms; si se alargan, 100/s × 200 ms",
+          "valor": "5 normalmente · 20 en el caso lento → tope de 16, recortado por la memoria"
+        },
+        "taller": {
+          "cuenta": "verificar manda ≈ 972/s con 8 a la vez, de ≈ 10 ms cada una",
+          "valor": "≈ 8 adentro: nunca toca el tope de 16"
+        },
+        "decide": "El tope tiene que dejar pasar el tráfico normal con margen y rechazar al instante lo que de todas formas llegaría tarde. Rechazar la 17 cuesta microsegundos; aceptarla arriesga la memoria y alarga a todas las demás.",
+        "conceptos": [
+          "en-vuelo"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nfor nombre, llegan, dura in [('C01, una copia, requests normales', 100, 0.050), ('C01, una copia, requests lentas', 100, 0.200), ('dojo, verificar responde (8 a la vez)', 800, 0.010)]:\n    print(f'{nombre}: {llegan}/s × {dura * 1000:.0f} ms = {llegan * dura:.0f} en vuelo')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "C01, una copia, requests normales: 100/s × 50 ms = 5 en vuelo\nC01, una copia, requests lentas: 100/s × 200 ms = 20 en vuelo\ndojo, verificar responde (8 a la vez): 800/s × 10 ms = 8 en vuelo"
+        },
+        "confirma": "el paso 6: el check <code>topes</code> manda 20 a la vez contra un Triton lento y entran 16."
+      },
+      {
+        "id": "plazo",
+        "pregunta": "¿Cuánto plazo recibe la llamada a Triton?",
+        "formula": "R = P − g (lo que le queda a la request) · T_e = min(T, R); si R ≤ 0, 504 sin llamar",
+        "c01": {
+          "cuenta": "P = 250, T = 150 · Ana gastó 9 ms · la subida lenta, 206 ms",
+          "valor": "Ana: 150 ms · la lenta: 44 ms"
+        },
+        "taller": {
+          "cuenta": "las mismas reglas · una subida de 240 ms",
+          "valor": "4 ms: sale con 504 aunque Triton esté sano"
+        },
+        "decide": "Con un tope fijo de 150 ms, la de la subida lenta esperaría hasta los 356 ms, cuando la app ya mostró su selector manual. Con min(T, R) contesta a los 250 ms, a tiempo.",
+        "conceptos": [
+          "cadena-plazos"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nP, T = 250, 150\nfor nombre, subir, cpu, decode in [('Ana', 3, 0, 6), ('subida lenta', 200, 0, 6), ('subida de 240 ms', 240, 0, 6)]:\n    g = subir + cpu + decode\n    print(f'{nombre}: gastado {g} ms · queda {P - g} ms · plazo de Triton min({T}, {P - g}) = {min(T, P - g)} ms')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "Ana: gastado 9 ms · queda 241 ms · plazo de Triton min(150, 241) = 150 ms\nsubida lenta: gastado 206 ms · queda 44 ms · plazo de Triton min(150, 44) = 44 ms\nsubida de 240 ms: gastado 246 ms · queda 4 ms · plazo de Triton min(150, 4) = 4 ms"
+        },
+        "confirma": "el paso 7: con Triton congelado, classify sale con 504 a los 153 ms."
+      },
+      {
+        "id": "batch",
+        "pregunta": "¿Cuántas fotos junta Triton en cada lote?",
+        "formula": "n_b = 1 + λ × v: la primera foto abre una ventana de v segundos y entran las que llegan en ella",
+        "c01": {
+          "cuenta": "250/s × 0.002 s en el pico; 500/s con una zona caída",
+          "valor": "1.5 fotos por lote · 2 con una zona caída"
+        },
+        "taller": {
+          "cuenta": "≈ 800/s × 0.002 s, con 8 clientes a la vez",
+          "valor": "≈ 2.6 fotos por lote"
+        },
+        "decide": "Con el tráfico de C01, los tamaños preferidos (16 y 32) casi nunca se alcanzan, y está bien: la ventana cuesta solo 2 ms. El lote crece solo cuando hay tráfico para llenarlo.",
+        "conceptos": [
+          "batching-dinamico"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nfor nombre, llegan in [('C01, una T4 en el pico (250/s)', 250), ('C01, una zona caída (500/s)', 500), ('dojo, verificar responde (≈ 800/s)', 800)]:\n    print(f'{nombre}: 1 + {llegan} × 0.002 = {1 + llegan * 0.002:.1f} fotos por batch')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "C01, una T4 en el pico (250/s): 1 + 250 × 0.002 = 1.5 fotos por batch\nC01, una zona caída (500/s): 1 + 500 × 0.002 = 2.0 fotos por batch\ndojo, verificar responde (≈ 800/s): 1 + 800 × 0.002 = 2.6 fotos por batch"
+        },
+        "confirma": "el paso 5: las métricas de Triton dicen 2.91 fotos por lote en promedio después de <code>verificar.py responde</code>."
+      },
+      {
+        "id": "tensor",
+        "pregunta": "¿Cuánto pesa lo que el gateway le manda a Triton?",
+        "formula": "tensor = canales × alto × ancho × 4 B (FP32), contra los bytes de la foto",
+        "c01": {
+          "cuenta": "3 × 224 × 224 × 4 B contra una foto de ≈ 215 KB",
+          "valor": "602 KB: ≈ 2.8 veces la foto"
+        },
+        "taller": {
+          "cuenta": "3 × 32 × 32 × 4 B contra la foto de tenis de 1,278 B",
+          "valor": "12 KB: ≈ 9.6 veces la foto"
+        },
+        "decide": "Por eso el gateway manda el tensor en binario (la extensión binaria de Triton) y no como una lista de números en JSON, que pesaría varias veces más. Mandar el JPEG y decodificar en Triton ahorraría red, pero pondría trabajo de CPU y bytes hostiles en la máquina cara.",
+        "conceptos": [
+          "triton"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nfor nombre, lado, foto in [('C01', 224, 214_836), ('dojo', 32, 1_278)]:\n    t = 3 * lado * lado * 4\n    print(f'{nombre}: tensor 3 × {lado} × {lado} × 4 B = {t:,} B · la foto pesa ≈ {foto:,} B · {t / foto:.1f} veces')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "C01: tensor 3 × 224 × 224 × 4 B = 602,112 B · la foto pesa ≈ 214,836 B · 2.8 veces\ndojo: tensor 3 × 32 × 32 × 4 B = 12,288 B · la foto pesa ≈ 1,278 B · 9.6 veces"
+        }
+      },
+      {
+        "id": "log",
+        "pregunta": "¿Cuánto log sale al día?",
+        "formula": "bytes al día = requests al día × bytes por línea",
+        "c01": {
+          "cuenta": "10 M requests × ≈ 300 B",
+          "valor": "≈ 3 GB al día"
+        },
+        "taller": {
+          "cuenta": "una línea real pesa 309 B",
+          "valor": "≈ 0.6 MB por cada 2,000 requests"
+        },
+        "decide": "Una línea por request, sin la foto y sin datos de quien vende, cabe de sobra. Con la foto (≈ 215 KB) serían ≈ 2 TB al día, y datos personales en el log.",
+        "conceptos": [
+          "log-estructurado"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nfor nombre, por_dia, bytes_ in [('C01', 10_000_000, 300), ('dojo, un día de verificar', 2_000, 300)]:\n    print(f'{nombre}: {por_dia:,} requests × {bytes_} B = {por_dia * bytes_ / 1e9:.3f} GB al día')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "C01: 10,000,000 requests × 300 B = 3.000 GB al día\ndojo, un día de verificar: 2,000 requests × 300 B = 0.001 GB al día"
+        },
+        "confirma": "el paso 8: la línea de la foto de tenis pesa 309 B."
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "gateway",
+      "termino": "Gateway y servidor de modelos",
+      "en": "API gateway / model server",
+      "def": "Dos programas con trabajos distintos. El gateway recibe la request, la revisa, prepara la foto en la CPU y contesta. El servidor de modelos solo convierte tensores en tensores en la GPU.",
+      "analogia": "El mesero y la cocina: el mesero toma el pedido, revisa que se pueda hacer y lo entrega; la cocina solo cocina, y nunca habla con el cliente.",
+      "importa": "Cada uno escala por su lado (gateways baratos en CPU, pocas GPUs caras), y los bytes hostiles de internet nunca llegan al proceso que tiene la GPU.",
+      "trampa": "Meter el modelo de PyTorch dentro del gateway «porque es más simple»: cada despliegue recarga el modelo y cada foto corre sola en la GPU."
+    },
+    {
+      "id": "triton",
+      "termino": "Triton Inference Server",
+      "en": "NVIDIA Triton",
+      "def": "El servidor de modelos de NVIDIA: carga modelos de una carpeta y los atiende por HTTP o gRPC con el protocolo de inferencia v2 de KServe, juntando peticiones en lotes.",
+      "analogia": "Una cocina industrial con reglas escritas para cada platillo: qué ingredientes recibe, en qué cantidad y cuántos prepara a la vez.",
+      "importa": "El gateway le habla con su cliente oficial (<code>tritonclient</code>) y le manda el tensor en binario. En el dojo, un servidor sustituto con el mismo protocolo deja usar ese mismo cliente.",
+      "trampa": "Mandar el tensor como lista de números en JSON: pesa varias veces más y se tarda en convertir."
+    },
+    {
+      "id": "model-repository",
+      "termino": "Model repository",
+      "en": "Triton model repository",
+      "def": "La carpeta de donde Triton carga los modelos: una subcarpeta por modelo, con su <code>config.pbtxt</code> y una carpeta numerada por versión con el archivo del modelo.",
+      "analogia": "El recetario de la cocina: cada platillo con su ficha y la receta de la edición vigente.",
+      "importa": "Con <code>--model-control-mode=none</code>, Triton carga lo que hay al arrancar y nada más: qué modelo corre lo dice la carpeta (en C01, la imagen). Por eso se arma desde el registro, con huellas, y nunca a mano.",
+      "trampa": "Confundir la versión de la carpeta (1/) con la del registro (v4): la de verdad va en las huellas y en el <code>model_version</code> de cada respuesta."
+    },
+    {
+      "id": "config-pbtxt",
+      "termino": "config.pbtxt",
+      "en": "Triton model configuration",
+      "def": "La configuración de un modelo en Triton, en el formato de texto de protobuf: el backend, el batch máximo, la entrada y la salida, el batching, las copias y el warmup.",
+      "analogia": "La ficha técnica de un aparato: el enchufe, el voltaje y cuántos puede atender a la vez.",
+      "importa": "Triton revisa la ficha contra el modelo y no carga si no cuadran. <code>dims</code> va sin el eje del batch cuando <code>max_batch_size</code> > 0: Triton le antepone −1.",
+      "trampa": "Poner el batch dentro de <code>dims</code> ([1, 3, 32, 32]): el modelo no carga, y con <code>--exit-on-error</code> Triton ni arranca."
+    },
+    {
+      "id": "batching-dinamico",
+      "termino": "Batching dinámico",
+      "en": "dynamic batching",
+      "def": "Triton espera un poco (aquí 2 ms) desde que llega una foto a que lleguen otras, y las corre juntas en un solo lote.",
+      "analogia": "Un elevador que espera unos segundos con la puerta abierta por si llega alguien más antes de subir.",
+      "importa": "Un lote de varias fotos cuesta casi lo mismo que una en la GPU: más fotos por segundo con la misma máquina. La espera es corta para que no se note en la latencia.",
+      "trampa": "Una ventana larga para «llenar» lotes con poco tráfico: cada foto espera y nadie gana."
+    },
+    {
+      "id": "politica-fila",
+      "termino": "Política de la fila",
+      "en": "queue policy",
+      "def": "Lo que Triton hace con una foto que esperó demasiado en su fila sin entrar al modelo: con <code>REJECT</code>, la saca y contesta error (aquí, a los 100 ms).",
+      "analogia": "Un restaurante que, en vez de dejar crecer la fila de la puerta, le avisa al que lleva mucho esperando que mejor vaya a otro lado.",
+      "importa": "Una foto que ya esperó 100 ms llegaría tarde de todas formas: correrla gasta GPU en una respuesta que nadie va a ver. Bajo sobrecarga, mejor errores rápidos que una fila que hace lentas a todas.",
+      "trampa": "Una fila sin tope: bajo carga crece sin límite y todas las respuestas llegan tarde."
+    },
+    {
+      "id": "instancias-warmup",
+      "termino": "Copias del modelo y warmup",
+      "en": "instance group / model warmup",
+      "def": "<code>instance_group</code> carga varias copias del modelo para atender lotes en paralelo. <code>model_warmup</code> corre el modelo con datos de relleno antes de decir «listo».",
+      "analogia": "Dos cocineros en la misma estufa, y prender los quemadores antes de abrir: la primera orden no paga el precalentado.",
+      "importa": "Mientras una copia corre un lote, la otra recibe el siguiente. Y las primeras corridas pagan una preparación que no se repite: mejor antes de atender que en la foto de un cliente.",
+      "trampa": "Decir «listo» antes del warmup: las primeras requests después de cada despliegue salen lentas."
+    },
+    {
+      "id": "uvicorn-asgi",
+      "termino": "uvicorn, ASGI y FastAPI",
+      "en": "ASGI server / framework",
+      "def": "uvicorn es el servidor que abre el puerto y corre el event loop; ASGI es el contrato entre servidor y aplicación; FastAPI es el armazón donde escribes tus rutas.",
+      "analogia": "El local, el reglamento de la cocina y la carta: cada uno cambia sin tocar a los otros.",
+      "importa": "Con <code>--workers 1</code>, la concurrencia sale del event loop y del threadpool; la capacidad, de más copias. Cada flag de uvicorn es una decisión (keep-alive, apagado ordenado, sin log de acceso).",
+      "trampa": "Hacer trabajo de CPU (decodificar) directo en la ruta async: congela el event loop y nadie más avanza."
+    },
+    {
+      "id": "lifespan",
+      "termino": "Lifespan",
+      "en": "lifespan events",
+      "def": "La función que corre una vez al arrancar, antes de la primera request, y una vez al apagarse.",
+      "analogia": "Abrir el local: revisar que la cocina tenga gas y que el menú corresponda antes de dejar pasar al primer cliente.",
+      "importa": "Ahí se crea UN cliente de Triton para todo el proceso y se revisa lo que no puede fallar: que los labels sean los del modelo y que Triton sirva la forma esperada. Si algo no cuadra, el proceso no arranca.",
+      "trampa": "Crear un cliente nuevo por request: cada foto abre su conexión y el pool no sirve."
+    },
+    {
+      "id": "vivo-listo",
+      "termino": "Vivo y listo",
+      "en": "liveness / readiness",
+      "def": "<code>/healthz</code> contesta «sigo vivo» sin preguntarle a nadie. <code>/readyz</code> contesta «mándame tráfico» solo si Triton dice que el modelo está listo, con un tope de tiempo.",
+      "analogia": "«¿Respiras?» contra «¿puedes atender?»: un mesero con la cocina cerrada respira, pero no debe tomar pedidos.",
+      "importa": "Si /healthz falla, Kubernetes reinicia la copia; si /readyz falla, la saca del reparto sin reiniciarla. Si /healthz preguntara por Triton, una caída de Triton reiniciaría a todos los gateways y no arreglaría nada.",
+      "trampa": "Un /readyz sin tope: con Triton trabado, la pregunta misma se queda colgada."
+    },
+    {
+      "id": "embudo",
+      "termino": "Revisar de lo barato a lo caro",
+      "en": "input validation order",
+      "def": "Las revisiones de cada foto van ordenadas por costo: el tipo (comparar un texto), el tamaño anunciado (un header), el tamaño real (leer), los píxeles (el encabezado), la forma y al final el decode.",
+      "analogia": "En la puerta de un concierto se revisa el boleto antes que la bolsa, y la bolsa antes que el detector de metales.",
+      "importa": "Una foto que falla lo barato no gasta nada en lo caro, y cada rechazo lleva su código: 415, 413 o 400. La defensa contra una bomba de descompresión (un PNG de 48 MP en negro pesa ≈ 140 KB y decodificado ocupa cientos de MB) es leer el ancho y el alto del encabezado con <code>Image.open</code>, sin decodificar, y rechazar por píxeles; <code>MAX_IMAGE_PIXELS</code> de Pillow queda de respaldo.",
+      "trampa": "Confiar en <code>Content-Length</code> (puede mentir o no venir: el corte de verdad es al leer, en pedazos), o revisar solo los bytes y creer que con eso basta."
+    },
+    {
+      "id": "semaforo",
+      "termino": "Semáforo y threadpool",
+      "en": "semaphore / threadpool",
+      "def": "El decode corre en un hilo aparte (<code>run_in_threadpool</code>) para no congelar el event loop, y un semáforo de 2 lugares deja decodificar a solo dos a la vez.",
+      "analogia": "Un probador con dos cabinas: los demás esperan afuera, y si esperan demasiado, se les dice que vuelvan luego.",
+      "importa": "Un decode de 40 MP ocupa ≈ 320 MB: con los 40 hilos que trae el threadpool por omisión, serían ≈ 13 GB. Quien espera más de 50 ms un lugar recibe 503 con <code>Retry-After</code>.",
+      "trampa": "Una fila de CPU sin tope: solo produce respuestas que llegan cuando la app ya se rindió."
+    },
+    {
+      "id": "en-vuelo",
+      "termino": "Tope de requests en vuelo",
+      "en": "max in-flight requests / load shedding",
+      "def": "Cuántas requests puede tener adentro una copia a la vez. La que llega con el tope lleno recibe 503 al instante, sin leer su body.",
+      "analogia": "El cupo de un salón: el que llega con el salón lleno no entra, y se le dice en la puerta, no después de sentarlo.",
+      "importa": "Rechazar cuesta microsegundos y protege la memoria y la latencia de las que ya están adentro. El número sale de la Ley de Little, recortado por la memoria del peor momento.",
+      "trampa": "Subir el tope porque «la CPU está al 40 %»: el tope cuida la memoria del peor caso, no la CPU de hoy."
+    },
+    {
+      "id": "cadena-plazos",
+      "termino": "La cadena de plazos",
+      "en": "deadline propagation",
+      "def": "Cada eslabón espera menos que el de afuera: la app 300 ms, el gateway 250, la llamada a Triton 150 (o lo que le quede a la request, si es menos) y la fila de Triton 100.",
+      "analogia": "Muñecas rusas de tiempo: la de adentro siempre cabe en la de afuera, así que se rinde primero y la de afuera todavía alcanza a avisar.",
+      "importa": "Así cada falla se contesta a tiempo con su código, en vez de que la app se rinda sin saber qué pasó. El plazo se corta con <code>asyncio.wait_for</code>: el <code>timeout</code> de <code>infer()</code> es otra cosa (un tiempo para la fila del servidor).",
+      "trampa": "Estirar el plazo de Triton por encima del de la request «porque a veces tarda»: la app se rinde primero y el gateway sigue esperando."
+    },
+    {
+      "id": "codigos-http",
+      "termino": "El código de cada falla",
+      "en": "HTTP status codes",
+      "def": "Los 4xx son culpa de quien llama (400, 405, 413, 415, 422) y no cuentan contra la promesa de servicio; los 5xx son del sistema (500, 503, 504). El 499, de nginx, es «quien llama se fue».",
+      "analogia": "En una paquetería: «tu caja venía rota» no es lo mismo que «se nos descompuso el camión».",
+      "importa": "Las alertas y el SLO cuentan los 5xx. Un 422 o un 499 mal clasificados como 5xx despiertan a alguien a las 3 de la mañana por un cliente que mandó mal los datos.",
+      "trampa": "Contestar 200 con un error adentro del JSON: nadie lo cuenta."
+    },
+    {
+      "id": "softmax-estable",
+      "termino": "Softmax estable y la guardia",
+      "en": "numerically stable softmax",
+      "def": "Antes de sacar la exponencial, a todos los logits se les resta el más grande: el resultado es el mismo y ninguna exponencial se desborda. Y si algún logit no es finito (NaN o infinito), 500.",
+      "analogia": "Medir alturas desde la azotea en lugar de desde el centro de la Tierra: las diferencias son las mismas y los números caben en la regla.",
+      "importa": "Un engine roto puede dar NaN. Sin la guardia, el error salta al convertir la respuesta en JSON, después de escribir el log: el log diría 200 y la app vería un 500.",
+      "trampa": "Contestar 200 con probabilidades de basura."
+    },
+    {
+      "id": "log-estructurado",
+      "termino": "Una línea de log por request",
+      "en": "structured logging",
+      "def": "Al final de cada request, pase lo que pase (un <code>finally</code>), una línea de JSON con campos fijos: request_id, quién llamó, versión del modelo, top-5, milisegundos de cada paso, tamaño, huella y código.",
+      "analogia": "El ticket de cada venta: siempre con los mismos campos, para poder sumarlos sin leerlos uno por uno.",
+      "importa": "Una máquina la filtra y la cuenta: de ahí sale el diagnóstico (¿dónde se fue el tiempo?) y, con el request_id, la unión con la publicación que la estación 1 convierte en etiquetas. Junto al log van las métricas de <code>/metrics</code> (requests por código, latencias, score top-1), con nombres fijos: las alertas las buscan por nombre, y los 4xx no entran al histograma de latencia porque un 415 tarda microsegundos.",
+      "trampa": "Meter la foto o datos de quien vende en el log (pesa terabytes y son datos personales), o renombrar una métrica y apagar una alerta sin que nadie se entere."
+    },
+    {
+      "id": "triton-falso",
+      "termino": "Pruebas con un Triton falso",
+      "en": "test double / mock",
+      "def": "Un objeto con los mismos métodos asíncronos que el cliente de Triton y las mismas excepciones, que contesta lo que la prueba le pida: logits, una demora, un error o «no listo».",
+      "analogia": "Un simulador de vuelo: se practica la falla de motor sin estrellar un avión.",
+      "importa": "Las pruebas corren en segundos en cualquier máquina, sin GPU, y cubren las fallas que en producción no se pueden provocar a voluntad. Además revisan el nombre, el tipo y la forma del tensor que saldría hacia Triton.",
+      "trampa": "Un falso que acepta cualquier cosa: un cambio que mande los canales al final ([1, 32, 32, 3]) pasaría las pruebas y fallaría en producción."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae el marketplace de C01 el 1 de octubre de 2026, a las 09:00 UTC: el gate aprobó a <code>classifier</code> v4 y la estación 5 le construyó su engine. En MLflow están v1 a v4, y v3 y v4 con <code>engine=listo</code> y sus huellas; <code>servir.yaml</code> dice qué se sirve (v4, por número). El mundo trae además un servidor de modelos con el mismo protocolo que Triton, las reglas del gateway y fotos buenas y malas para probar. Tú escribes lo que pone a v4 a atender.",
+    "trae": [
+      {
+        "que": "El S3 local y MLflow (compose.yaml)",
+        "detalle": "RustFS en el puerto 9700 (el examen y los checkpoints) y MLflow en el 5700, con su interfaz."
+      },
+      {
+        "que": "mundo/crear.py",
+        "detalle": "Crea todo en ≈ 2 minutos: baja Fashion-MNIST, congela <code>golden-v1</code>, entrena <code>classifier</code> v1 a v4 con la receta de la estación 3, construye los engines de v3 y v4 con la receta de la estación 5, y deja <code>servir.yaml</code> y <code>fotos-raras/</code>."
+      },
+      {
+        "que": "mundo/triton_dojo/",
+        "detalle": "El servidor de modelos del dojo, el sustituto de Triton: lee tu <code>config.pbtxt</code> (y se niega a cargar si no cuadra con el engine), hace batching dinámico con su fila y su plazo, carga copias con warmup y habla el protocolo HTTP de Triton, con la extensión binaria y sus métricas <code>nv_inference_*</code>."
+      },
+      {
+        "que": "mundo/servicios.py",
+        "detalle": "Arranca, para, reinicia y revisa los dos procesos (Triton en el 8700 y tu gateway en el 8701), con su log en <code>logs/</code>: lo que en C01 hace Kubernetes."
+      },
+      {
+        "que": "gateway.yaml y mundo/revisiones.json",
+        "detalle": "Las reglas del gateway (tipos, límites, cadena de plazos, Triton), y el registro de sus versiones revisadas: el sustituto del historial de PR."
+      },
+      {
+        "que": "gateway/app/preprocess.py",
+        "detalle": "El preprocess compartido con el entrenamiento, tal cual. Tu gateway lo importa: nunca lo reescribe."
+      },
+      {
+        "que": "mundo/modelos.py",
+        "detalle": "Mirar y reparar el registro: versiones, el engine de cada una, alias y su <code>labels.json</code>."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "12 checks con los criterios de «listo» y 6 fallas en el mundo, la configuración o la infraestructura, nunca en lo que escribes."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "servir/armar.py",
+        "hace": "El model repository y la ficha del modelo (<code>servir/modelo.json</code>) desde el registro: la versión por número, el engine y los labels solo si sus huellas son las del registro."
+      },
+      {
+        "archivo": "model_repository/classifier/config.pbtxt",
+        "hace": "Cómo carga y atiende Triton el modelo: backend, batch, entrada y salida, batching dinámico, fila con plazo, dos copias y warmup."
+      },
+      {
+        "archivo": "gateway/app/revision.py",
+        "hace": "La revisión de cada foto, de lo barato a lo caro, con el código de cada rechazo."
+      },
+      {
+        "archivo": "gateway/app/main.py",
+        "hace": "El gateway: lifespan, salud, métricas y classify con sus topes, su plazo, el código de cada falla y una línea de log por request."
+      },
+      {
+        "archivo": "gateway/tests/",
+        "hace": "El Triton falso y las pruebas de la tabla de códigos, los topes, la salud y el log (30 en la solución)."
+      }
+    ],
+    "requisitos": [
+      "Docker Desktop corriendo, con ≈ 700 MB libres para las imágenes de RustFS y MLflow",
+      "Python 3.11 o más nuevo (se probó con 3.14.3) y ≈ 1.2 GB para el entorno virtual (PyTorch solo para crear el mundo)",
+      "git (con tu nombre y correo configurados) y curl",
+      "Internet la primera vez (los paquetes, las imágenes y Fashion-MNIST)",
+      "Los puertos 9700, 9701, 5700, 8700 y 8701 libres en tu Mac"
+    ],
+    "sustituciones": [
+      {
+        "nube": "Triton con TensorRT en una T4 (<code>tensorrt_plan</code>, <code>KIND_GPU</code>)",
+        "local": "el servidor del dojo con ONNX Runtime en tu CPU (<code>onnxruntime_onnx</code>, <code>KIND_CPU</code>)",
+        "diferencia": "Lee el mismo formato de <code>config.pbtxt</code>, se niega a cargar igual que Triton cuando no cuadra, y habla el mismo protocolo HTTP: el gateway usa el cliente oficial <code>tritonclient</code> sin cambiar nada. Solo trae ese backend, solo HTTP y solo los campos que usa la estación."
+      },
+      {
+        "nube": "Pods en Kubernetes: 3 a 12 gateways y un Triton por zona",
+        "local": "dos procesos en tu Mac (<code>mundo/servicios.py</code>)",
+        "diferencia": "Kubernetes arranca, vigila /healthz y /readyz, y reinicia o saca del reparto. Aquí lo haces tú con <code>servicios.py</code> y lo ves con <code>estado</code>."
+      },
+      {
+        "nube": "El ConfigMap <code>classifier-labels-14</code> con <code>labels.json</code>",
+        "local": "<code>servir/modelo.json</code>, que arma <code>servir/armar.py</code>",
+        "diferencia": "Los dos traen las categorías de la versión con su huella; el gateway la revisa al arrancar."
+      },
+      {
+        "nube": "El token que verificó el ALB (<code>client_id</code>)",
+        "local": "el header <code>X-Caller-Id</code>",
+        "diferencia": "En C01 quien llama no lo puede falsificar; aquí es solo un header, para que el log tenga un <code>caller</code>."
+      },
+      {
+        "nube": "El model repository dentro de la imagen de Triton",
+        "local": "la carpeta <code>model_repository/</code> de tu kit",
+        "diferencia": "En C01 nadie puede cambiarla con el servidor andando: cambiar de modelo es cambiar de imagen. Aquí es una carpeta, y por eso una de las fallas es justo cambiarla a mano."
+      },
+      {
+        "nube": "El historial de PR del repositorio <code>classifier</code>",
+        "local": "<code>mundo/revisiones.json</code>",
+        "diferencia": "Las reglas revisadas se comprueban por su huella."
+      }
+    ],
+    "arranque": "unzip c01-serving.zip && cd c01-serving\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\ndocker compose up -d --wait\npython mundo/crear.py\ngit init && git add -A && git commit -m \"kit recién descomprimido\"\npython verificar.py mundo",
+    "python": "python"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "El S3 local y MLflow arriba, el mundo creado y la carpeta como repositorio de git.",
+      "conceptos": [
+        "gateway"
+      ],
+      "explica": "El mundo vive en dos servicios: el S3 local (el examen y los checkpoints) y MLflow (el registro de modelos). <code>mundo/crear.py</code> los llena igual cada vez: entrena los cuatro modelos del registro y construye los engines de v3 y v4, por eso tarda unos minutos. El servidor de modelos y tu gateway no van en Docker: son procesos de tu Mac que arrancas desde el paso 3.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
+          "nota": "Tarda unos minutos la primera vez (PyTorch pesa ≈ 1 GB; solo lo usa <code>mundo/crear.py</code>). Desde aquí, cada terminal nueva necesita <code>source .venv/bin/activate</code>.",
+          "donde": "mac",
+          "salida": "\nPython 3.14.3\n1.2G"
+        },
+        {
+          "code": "docker compose up -d --wait\npython mundo/crear.py",
+          "nota": "La interfaz de MLflow queda en http://localhost:5700.",
+          "donde": "mac",
+          "salida": " Container taller-c01-serving-s3-1 Healthy \n Container taller-c01-serving-mlflow-1 Healthy\n  descargando t10k-images-idx3-ubyte… (Fashion-MNIST, Zalando Research, licencia MIT)\n  descargando t10k-labels-idx1-ubyte… (Fashion-MNIST, Zalando Research, licencia MIT)\n  golden-v1: 1000 fotos · manifest sha256 0061343ada92…\n  entrenando classifier v1 (2026-07) con ds-2026-06-01…\n  classifier v1 (2026-07) · val_top1 0.7559 · 21 s\n  entrenando classifier v2 (2026-08) con ds-2026-07-01…\n  classifier v2 (2026-08) · val_top1 0.8088 · 20 s\n  entrenando classifier v3 (2026-09) con ds-2026-08-01…\n  classifier v3 (2026-09) · val_top1 0.8395 · 26 s\n  entrenando classifier v4 (2026-10) con ds-2026-09-01…\n  classifier v4 (2026-10) · val_top1 0.8675 · 31 s\n  engine de v3: engine.onnx 76ea30f48b41… · onnxruntime 1.32.0\n  engine de v4: engine.onnx 88bdea80ac92… · onnxruntime 1.32.0\n  fotos-raras/: 10 fotos de prueba\n✓ mundo listo: python verificar.py mundo"
+        },
+        {
+          "code": "git init && git add -A && git commit -m \"kit recién descomprimido\"\ngit log --oneline",
+          "nota": "Los ids de commit cambian en cada máquina.",
+          "donde": "mac",
+          "salida": "3963da1 kit recién descomprimido"
+        },
+        {
+          "code": "python verificar.py mundo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo       S3 local (golden-v1, checkpoints) · MLflow: classifier v1–v4, @champion = v3, @challenger = v4 · servir.yaml: v4 (engine listo) · fotos-raras/ · git\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py mundo</code> en verde: los buckets, el examen, <code>classifier</code> v1–v4 con v4 en <code>engine=listo</code>, <code>servir.yaml</code>, <code>fotos-raras/</code> y git.",
+      "ojo": "Los puertos de esta estación (9700, 5700, 8700 y 8701) no chocan con los de las anteriores: puedes tener varias estaciones arriba a la vez."
+    },
+    {
+      "n": 1,
+      "id": "reglas",
+      "titulo": "Qué se sirve y con qué reglas",
+      "objetivo": "Saber, antes de escribir código, qué versión se sirve, qué engine y con qué reglas atiende el gateway.",
+      "conceptos": [
+        "gateway",
+        "triton",
+        "cadena-plazos"
+      ],
+      "explica": "<code>servir.yaml</code> dice qué se sirve, por número: v4, con el nombre que verá quien llama. El registro dice que v4 pasó el gate y tiene su engine, con su huella y la versión de ONNX Runtime con que se construyó. <code>gateway.yaml</code> trae las reglas del equipo de serving: qué tipos de foto se aceptan, los límites (bytes, píxeles, proporción), los topes (decodes y requests en vuelo) y la cadena de plazos. Tu código las lee; nunca las escribe.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "gateway.yaml",
+          "code": "# Las reglas del gateway, del equipo de serving. Tu código las lee al arrancar y nunca las escribe. Cambian solo con\n# una revisión (mundo/revisiones.json guarda las huellas aprobadas). En C01: las constantes y variables de entorno\n# del Deployment del gateway, revisadas en el repositorio classifier.\ncontrato:\n  ruta: /v1/classify\n  tipos: [image/jpeg, image/png, image/webp]\n  top_k: {defecto: 5, min: 1, max: 10}   # C01: de 1 a 20, con 500 categorías; aquí hay 10\nlimites:\n  max_bytes: 10485760         # 10 MiB: el body más grande que se lee; se corta al leer, no se confía en Content-Length\n  max_pixeles: 40000000       # 40 MP, leídos del encabezado de la imagen, antes de decodificar\n  max_proporcion: 8           # el lado largo hasta 8 veces el corto\n  decodes: 2                  # decodes a la vez en un proceso (el semáforo)\n  espera_cpu_ms: 50           # lo más que una request espera un lugar de decode; después, 503\n  en_vuelo: 16                # requests adentro a la vez; la 17 recibe 503 al instante\n  memoria_mib: 1024           # la memoria de una copia del gateway (en C01: el límite del pod)\nplazos_ms:                    # cada eslabón, menor que el de afuera: el de adentro se rinde primero\n  app: 300                    # lo que espera la app antes de mostrar el selector manual de categorías\n  gateway: 250                # el plazo total de una request en el gateway\n  triton: 150                 # el tope de la llamada a Triton (o lo que le quede a la request, si es menos)\n  fila_triton: 100            # lo más que una foto espera en la fila de Triton (default_timeout_microseconds)\ntriton:\n  url: localhost:8700\n  modelo: classifier\n  conexiones: 64              # el pool de conexiones del cliente de Triton, uno por proceso\n  listo_timeout_ms: 500       # lo más que /readyz espera la respuesta de Triton",
+          "nota": "Del equipo de serving. Sus versiones revisadas están en <code>mundo/revisiones.json</code>."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "grep -v \"^#\" servir.yaml",
+          "nota": "",
+          "donde": "mac",
+          "salida": "modelo: classifier\nversion: 4                       # classifier@challenger al arrancar: el candidato de octubre, con su engine\nnombre: miniresnet-2026-10-01    # el model_version que ve quien llama (en C01: resnet50-2026-10-01)"
+        },
+        {
+          "code": "python mundo/modelos.py versiones",
+          "nota": "v3 (<code>@champion</code>) y v4 (<code>@challenger</code>) tienen <code>engine=listo</code>: los dos se pueden servir. Esta noche se arma v4; quién recibe tráfico lo decide el rollout (estación 10).",
+          "donde": "mac",
+          "salida": "v1  —            mes 2026-07 · equipo-2026-07-01 · gate passed · pesos 900f8ba1e607… · engine retirado\nv2  —            mes 2026-08 · equipo-2026-08-01 · gate passed · pesos 6509cf6cab5e… · engine retirado\nv3  @champion    mes 2026-09 · equipo-2026-09-01 · gate passed · pesos e858003795ba… · engine listo (76ea30f48b41… · fp16 · onnxruntime 1.32.0)\nv4  @challenger  mes 2026-10 · cand-2026-10-01   · gate passed · pesos 0e36f3a192b0… · engine listo (88bdea80ac92… · fp16 · onnxruntime 1.32.0)"
+        },
+        {
+          "code": "python mundo/modelos.py engine 4",
+          "nota": "",
+          "donde": "mac",
+          "salida": "  batch_max              32\n  champion_version       3\n  engine                 listo\n  engine_sha256          88bdea80ac920c546692c876b1977af2976b132e73b01bc67555307c656fd3c2\n  examen                 golden-v1\n  gate                   passed\n  gate_run_id            wf-2026-10-01-gate\n  maquina                Darwin arm64\n  onnx_sha256            ba6720d59f21048bcc140a59b1e81c913d1de4dcc1ea5075d62b319e71c5e1d7\n  onnxruntime            1.32.0\n  opset                  17\n  pesos_sha256           0e36f3a192b0c8844d73630c181f16d64c1b80d1e80d406d40a86a6ed1264cb7\n  precision              fp16\n  engine/engine.json         422 B · sha256 f85886d73b05…\n  engine/engine.onnx      181347 B · sha256 88bdea80ac92…\n  engine/model.onnx       179906 B · sha256 ba6720d59f21…"
+        },
+        {
+          "code": "python verificar.py reglas",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ reglas      gateway.yaml = la revisión del PR #51 · plazos 300 > 250 > 150 > 100 ms · peor momento ≈ 920 MiB de 1024 · sin cambios pendientes\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "Puedes decir en voz alta: sirvo <code>classifier</code> v4 como <code>miniresnet-2026-10-01</code>; acepto JPEG, PNG y WebP de hasta 10 MiB y 40 MP; 2 decodes y 16 requests a la vez; plazos 300 > 250 > 150 > 100 ms.",
+      "ojo": "El check <code>reglas</code> hace la cuenta de memoria del peor momento con los números de <code>gateway.yaml</code>: es el precálculo «memoria» hecho código.",
+      "en_pagina": {
+        "conceptos": [
+          "gateway",
+          "triton"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 2,
+      "id": "repositorio",
+      "titulo": "Armar el model repository",
+      "objetivo": "model_repository/classifier/1/model.onnx es la copia exacta del engine aprobado, y servir/modelo.json trae su versión, sus labels y sus huellas.",
+      "conceptos": [
+        "model-repository"
+      ],
+      "explica": "<code>armar.py</code> no copia «el último engine»: lee la versión de <code>servir.yaml</code>, exige <code>gate=passed</code> y <code>engine=listo</code>, baja el engine y el <code>labels.json</code> de la corrida y solo los usa si su sha256 es el del tag de la versión. Revisa que el engine se haya construido con el runtime del servidor. Lee del engine el nombre y la forma de la entrada y la salida, y deja la ficha para el gateway. El <code>config.pbtxt</code> no lo escribe: es tuyo, y va en git.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "servir/armar.py",
+          "code": "\"\"\"Paso «repositorio»: arma el model repository de Triton y la ficha del modelo para el gateway, para la versión que\ndice servir.yaml, con las huellas del registro.\n\n    python servir/armar.py\n\nContrato:\n- La versión sale de servir.yaml, por número (nunca de un alias leído al correr).\n- En el registro, esa versión tiene gate=passed y engine=listo; si no, se detiene.\n- Baja engine/engine.onnx de su corrida y solo lo usa si su sha256 es el tag engine_sha256 de la versión.\n- Baja modelo/labels.json y solo lo usa si su sha256 es el tag labels_sha256.\n- El engine se construyó con el runtime del servidor de modelos: el tag onnxruntime de la versión es la versión de\n  onnxruntime instalada (la que corre mundo/triton_dojo/). Si no, se detiene.\n- Escribe model_repository/classifier/1/model.onnx (la copia exacta del engine) y servir/modelo.json: modelo, version,\n  model_version (el nombre de servir.yaml), engine_sha256, labels, labels_sha256, y el nombre y la forma de la entrada\n  y la salida, leídos del engine. El config.pbtxt no lo escribe: es tuyo, y está en git.\n- Correrlo dos veces no cambia nada: si el repositorio ya tiene ese engine, lo dice.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport shutil\nimport sys\nimport tempfile\nfrom pathlib import Path\n\nRAIZ = Path(__file__).resolve().parent.parent\nsys.path.insert(0, str(RAIZ))\nimport onnxruntime as ort  # noqa: E402\n\nfrom mundo.comun import MODELO_JSON, REPO, mlflow_cliente, servir_yaml, sha256  # noqa: E402\n\n# 1 · Qué se sirve: un número, no un alias\ncfg = servir_yaml()\nmodelo, version = cfg[\"modelo\"], str(cfg[\"version\"])\nc = mlflow_cliente()\ntry:\n    mv = c.get_model_version(modelo, version)\nexcept Exception as e:  # noqa: BLE001\n    sys.exit(f\"✗ no pude leer {modelo} v{version} del registro ({type(e).__name__}): ¿está arriba MLflow? docker compose ps\")\nt = mv.tags\nif t.get(\"gate\") != \"passed\" or t.get(\"engine\") != \"listo\":\n    sys.exit(f\"✗ {modelo} v{version} tiene gate={t.get('gate')} y engine={t.get('engine')}: solo se sirve gate=passed y engine=listo\")\nif t.get(\"onnxruntime\") != ort.__version__:\n    sys.exit(f\"✗ el engine de v{version} se construyó con onnxruntime {t.get('onnxruntime')} y el servidor corre \"\n             f\"{ort.__version__}: un engine se sirve con el runtime que lo construyó\")\nprint(f\"  {modelo} v{version} · gate passed · engine listo ({t['engine_sha256'][:12]}… · onnxruntime {t['onnxruntime']})\")\n\n# 2 · Bajar el engine y los labels, y compararlos con las huellas del registro\nwith tempfile.TemporaryDirectory() as d:\n    eng = Path(c.download_artifacts(mv.run_id, \"engine/engine.onnx\", d))\n    lab = Path(c.download_artifacts(mv.run_id, \"modelo/labels.json\", d))\n    if sha256(eng.read_bytes()) != t[\"engine_sha256\"]:\n        sys.exit(f\"✗ engine/engine.onnx de la corrida tiene huella {sha256(eng.read_bytes())[:12]}… y v{version} dice \"\n                 f\"{t['engine_sha256'][:12]}…: no es el engine que se registró. No lo sirvo\")\n    if sha256(lab.read_bytes()) != t[\"labels_sha256\"]:\n        sys.exit(f\"✗ modelo/labels.json de la corrida tiene huella {sha256(lab.read_bytes())[:12]}… y v{version} dice \"\n                 f\"{t['labels_sha256'][:12]}…: las categorías no son las del modelo. No lo sirvo\")\n    labels = json.loads(lab.read_text())\n\n    # 3 · La entrada y la salida, leídas del engine (lo que el config.pbtxt tiene que declarar)\n    s = ort.InferenceSession(str(eng), providers=[\"CPUExecutionProvider\"])\n    i, o = s.get_inputs()[0], s.get_outputs()[0]\n    entrada = {\"nombre\": i.name, \"forma\": [d if isinstance(d, int) else -1 for d in i.shape]}\n    salida = {\"nombre\": o.name, \"forma\": [d if isinstance(d, int) else -1 for d in o.shape]}\n    if salida[\"forma\"][-1] != len(labels):\n        sys.exit(f\"✗ el engine da {salida['forma'][-1]} logits y labels.json trae {len(labels)} categorías\")\n\n    # 4 · El model repository: <modelo>/1/model.onnx, la copia exacta\n    destino = REPO / modelo / \"1\" / \"model.onnx\"\n    if destino.exists() and sha256(destino.read_bytes()) == t[\"engine_sha256\"]:\n        print(f\"  {destino.relative_to(RAIZ)} ya es el engine de v{version}: no cambio nada\")\n    else:\n        destino.parent.mkdir(parents=True, exist_ok=True)\n        shutil.copy(eng, destino)\n        print(f\"  {destino.relative_to(RAIZ)} · {destino.stat().st_size // 1000} kB · sha256 {t['engine_sha256'][:12]}…\")\n\n# 5 · La ficha del modelo para el gateway (en C01: el ConfigMap con labels.json y su huella)\nficha = {\"modelo\": modelo, \"version\": int(version), \"model_version\": cfg[\"nombre\"], \"engine_sha256\": t[\"engine_sha256\"],\n         \"labels\": labels, \"labels_sha256\": t[\"labels_sha256\"], \"entrada\": entrada, \"salida\": salida}\nMODELO_JSON.parent.mkdir(exist_ok=True)\nMODELO_JSON.write_text(json.dumps(ficha, ensure_ascii=False, indent=2) + \"\\n\")\nprint(f\"  servir/modelo.json · model_version {cfg['nombre']} · {len(labels)} labels ({t['labels_sha256'][:12]}…) · \"\n      f\"entrada {entrada['nombre']} {entrada['forma']} → salida {salida['nombre']} {salida['forma']}\")\nprint(\"✓ repositorio listo. Si Triton ya corría: python mundo/servicios.py reiniciar triton (carga solo al arrancar)\")",
+          "nota": "El engine (binario, sale del registro) no va en git: <code>.gitignore</code> ignora <code>model_repository/*/1/</code>. El <code>config.pbtxt</code> sí."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python servir/armar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "  classifier v4 · gate passed · engine listo (88bdea80ac92… · onnxruntime 1.32.0)\n  model_repository/classifier/1/model.onnx · 181 kB · sha256 88bdea80ac92…\n  servir/modelo.json · model_version miniresnet-2026-10-01 · 10 labels (97864728052c…) · entrada input [-1, 3, 32, 32] → salida logits [-1, 10]\n✓ repositorio listo. Si Triton ya corría: python mundo/servicios.py reiniciar triton (carga solo al arrancar)"
+        },
+        {
+          "code": "python servir/armar.py",
+          "nota": "Otra vez: no cambia nada.",
+          "donde": "mac",
+          "salida": "  classifier v4 · gate passed · engine listo (88bdea80ac92… · onnxruntime 1.32.0)\n  model_repository/classifier/1/model.onnx ya es el engine de v4: no cambio nada\n  servir/modelo.json · model_version miniresnet-2026-10-01 · 10 labels (97864728052c…) · entrada input [-1, 3, 32, 32] → salida logits [-1, 10]\n✓ repositorio listo. Si Triton ya corría: python mundo/servicios.py reiniciar triton (carga solo al arrancar)"
+        },
+        {
+          "code": "find model_repository servir -type f | sort\npython -m json.tool servir/modelo.json | head -12",
+          "nota": "El <code>config.pbtxt</code> todavía es el esqueleto: lo escribes en el paso 3.",
+          "donde": "mac",
+          "salida": "model_repository/classifier/1/model.onnx\nmodel_repository/classifier/config.pbtxt\nservir/armar.py\nservir/modelo.json\n{\n    \"modelo\": \"classifier\",\n    \"version\": 4,\n    \"model_version\": \"miniresnet-2026-10-01\",\n    \"engine_sha256\": \"88bdea80ac920c546692c876b1977af2976b132e73b01bc67555307c656fd3c2\",\n    \"labels\": [\n        \"playeras\",\n        \"pantalones\",\n        \"sueteres\",\n        \"vestidos\",\n        \"abrigos\",\n        \"sandalias\","
+        },
+        {
+          "code": "python verificar.py repositorio",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ repositorio classifier v4 → model_repository/classifier/1/model.onnx (88bdea80ac92… = su tag) · servir/modelo.json: miniresnet-2026-10-01, 10 labels (97864728052c… = su tag)\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>model_repository/classifier/1/model.onnx</code> con la huella del tag <code>engine_sha256</code> de v4, y <code>servir/modelo.json</code> con <code>miniresnet-2026-10-01</code>, los 10 labels en su orden y sus huellas.",
+      "ojo": "La carpeta <code>1/</code> es la versión dentro de Triton, no la del registro: la de verdad va en la ficha y en cada respuesta (<code>model_version</code>).",
+      "en_pagina": {
+        "conceptos": [
+          "model-repository"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 3,
+      "id": "config",
+      "titulo": "El config.pbtxt y Triton",
+      "objetivo": "Triton carga classifier con tu config.pbtxt: batching dinámico, fila con plazo, dos copias y warmup, y dice «listo».",
+      "conceptos": [
+        "config-pbtxt",
+        "batching-dinamico",
+        "politica-fila",
+        "instancias-warmup",
+        "triton"
+      ],
+      "explica": "El <code>config.pbtxt</code> le dice a Triton cómo atender el modelo. <code>dims</code> va sin el eje del batch (Triton le antepone −1). <code>dynamic_batching</code> espera hasta 2 ms a que lleguen más fotos y rechaza (<code>REJECT</code>) la que lleve 100 ms en la fila: el último eslabón de la cadena de plazos. <code>instance_group</code> carga dos copias y <code>model_warmup</code> las corre con ceros antes de decir «listo». Triton arranca con flags explícitos: carga solo al arrancar, no rellena lo que falta del config, y si un modelo no carga, termina.",
+      "codigo": [
+        {
+          "lang": "text",
+          "path": "model_repository/classifier/config.pbtxt",
+          "code": "# La configuración de classifier en el servidor de modelos (Triton). Formato de texto de protobuf.\n# En C01: platform \"tensorrt_plan\", [3, 224, 224] → [500] y KIND_GPU en la T4.\nname: \"classifier\"\nplatform: \"onnxruntime_onnx\"\nmax_batch_size: 32                         # el batch más grande que arma el servidor (el engine acepta hasta 32)\nversion_policy: { latest { num_versions: 1 } }\ninput  [ { name: \"input\"   data_type: TYPE_FP32  dims: [ 3, 32, 32 ] } ]   # sin el eje del batch: Triton le antepone -1\noutput [ { name: \"logits\"  data_type: TYPE_FP32  dims: [ 10 ] } ]\ndynamic_batching {\n  preferred_batch_size: [ 16, 32 ]\n  max_queue_delay_microseconds: 2000       # espera hasta 2 ms a que lleguen más fotos para correrlas juntas\n  default_queue_policy {\n    timeout_action: REJECT\n    default_timeout_microseconds: 100000   # 100 ms en la fila sin entrar al modelo: se rechaza (gateway.yaml: fila_triton)\n  }\n}\ninstance_group [ { count: 2  kind: KIND_CPU } ]   # dos copias del modelo\nmodel_warmup [ {\n  name: \"ceros\"  batch_size: 32  count: 3\n  inputs { key: \"input\"  value: { data_type: TYPE_FP32  dims: [ 3, 32, 32 ]  zero_data: true } }\n} ]",
+          "nota": "En C01: <code>platform: \"tensorrt_plan\"</code>, [3, 224, 224] → [500] y <code>KIND_GPU</code>."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "# a propósito: el batch dentro de dims, como [1, 3, 32, 32]\npython mundo/servicios.py arrancar triton",
+          "nota": "Triton revisa la ficha contra el engine y no carga; con <code>--exit-on-error=true</code>, ni arranca. Mejor así que un servidor prendido sin modelo. (Después se regresa el archivo bueno.)",
+          "donde": "mac",
+          "salida": "  $ python mundo/triton_dojo/servidor.py --model-repository=model_repository --http-port=8700 --model-control-mode=none --strict-readiness=true --exit-on-error=true --exit-timeout-secs=30 --disable-auto-complete-config\n✗ triton terminó al arrancar (código 1). Lo último de logs/triton.log:\nI model repository: ~/c01-serving/model_repository\nI loading: classifier\nE failed to load 'classifier': input 'input': model expected the shape [3, 32, 32] (sin el eje del batch: Triton le antepone -1) but the config.pbtxt says [1, 3, 32, 32]\n+------------+---------+---------------------------------------------------------------------------------------------------------------------------------------------------------+\n| Model      | Version | Status                                                                                                                                                  |\n+------------+---------+---------------------------------------------------------------------------------------------------------------------------------------------------------+\n| classifier | 1       | UNAVAILABLE: input 'input': model expected the shape [3, 32, 32] (sin el eje del batch: Triton le antepone -1) but the config.pbtxt says [1, 3, 32, 32] |\n+------------+---------+---------------------------------------------------------------------------------------------------------------------------------------------------------+\nE exiting: one or more models failed to load (--exit-on-error=true)"
+        },
+        {
+          "code": "python mundo/servicios.py arrancar triton",
+          "nota": "",
+          "donde": "mac",
+          "salida": "  $ python mundo/triton_dojo/servidor.py --model-repository=model_repository --http-port=8700 --model-control-mode=none --strict-readiness=true --exit-on-error=true --exit-timeout-secs=30 --disable-auto-complete-config\n✓ triton listo en 0.4 s (PID 5216) · log: logs/triton.log"
+        },
+        {
+          "code": "cat logs/triton.log",
+          "nota": "La huella del engine que cargó queda en el log: es lo que revisa el check <code>triton</code>.",
+          "donde": "mac",
+          "salida": "loading: classifier\nwarmup de classifier: 6 corridas en 84 ms\nsuccessfully loaded 'classifier' version 1 (2 instancia(s) KIND_CPU, model.onnx sha256 88bdea80ac92…)\n+------------+---------+--------+\n| Model      | Version | Status |\n+------------+---------+--------+\n| classifier | 1       | READY  |\n+------------+---------+--------+"
+        },
+        {
+          "code": "curl -s localhost:8700/v2/models/classifier\ncurl -s -o /dev/null -w \"/v2/health/ready → %{http_code}\\n\" localhost:8700/v2/health/ready",
+          "nota": "",
+          "donde": "mac",
+          "salida": "{\"name\":\"classifier\",\"versions\":[\"1\"],\"platform\":\"onnxruntime_onnx\",\"inputs\":[{\"name\":\"input\",\"datatype\":\"FP32\",\"shape\":[-1,3,32,32]}],\"outputs\":[{\"name\":\"logits\",\"datatype\":\"FP32\",\"shape\":[-1,10]}]}\n/v2/health/ready → 200"
+        },
+        {
+          "code": "python verificar.py config triton",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ config      onnxruntime_onnx · batch hasta 32 · input [3, 32, 32] → logits [10] · ventana 2000 µs · fila REJECT a los 100 ms · 2 copias · warmup · en git\n✓ triton      PID 5216 · listo · classifier versión 1 con el engine 88bdea80ac92… · su config = la de disco\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "Triton (el del dojo) en el puerto 8700, listo, con <code>classifier</code> cargado desde el engine aprobado: entrada <code>[-1, 3, 32, 32]</code>, salida <code>[-1, 10]</code>, y la configuración que sirve es la de tu disco.",
+      "ojo": "Triton carga solo al arrancar (<code>--model-control-mode=none</code>): si cambias el <code>config.pbtxt</code> o el engine, <code>python mundo/servicios.py reiniciar triton</code>. El check <code>triton</code> avisa si corre con otra configuración que la de disco.",
+      "en_pagina": {
+        "conceptos": [
+          "config-pbtxt",
+          "batching-dinamico",
+          "politica-fila",
+          "instancias-warmup"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 4,
+      "id": "revision",
+      "titulo": "Revisar cada foto, de lo barato a lo caro",
+      "objetivo": "revision.py rechaza cada foto mala con su código antes de gastar en ella, y prepara las buenas con el preprocess compartido.",
+      "conceptos": [
+        "embudo"
+      ],
+      "explica": "Siete revisiones, en orden de costo: el tipo (415), el <code>Content-Length</code> (413 sin leer el body), el tamaño real al leer en pedazos (413), el body vacío (400), los píxeles leídos del encabezado (413, sin decodificar), la proporción (400) y al final el decode (400 si está corrupta o cortada). Lo bueno pasa por <code>preprocess.py</code>, el mismo del entrenamiento: endereza por EXIF, convierte a RGB, redimensiona, recorta y normaliza.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "gateway/app/revision.py",
+          "code": "\"\"\"La revisión de cada foto, de lo más barato a lo más caro. Cada rechazo lleva su código HTTP.\n\nContrato:\n- Rechazo(codigo, motivo): la excepción de todo lo que se rechaza; el gateway la convierte en la respuesta.\n- revisar_tipo(content_type, tipos): 415 si no es uno de los tipos de gateway.yaml (ignora «; charset=…»).\n- revisar_largo(content_length, max_bytes): 413 si el header Content-Length dice más que max_bytes, sin leer el body.\n  Si el header no viene, no decide nada.\n- leer_body(request, max_bytes): lee el body en pedazos y corta con 413 en cuanto pasa de max_bytes (el header puede\n  mentir o no venir). Si quien llama se va a media subida, deja pasar ClientDisconnect (el gateway contesta 499).\n- revisar_imagen(data, max_pixeles, max_proporcion): 400 si está vacía; abre SOLO el encabezado (Image.open no\n  decodifica los píxeles) y da 400 si Pillow no la reconoce, 413 si ancho × alto pasa de max_pixeles y 400 si el lado\n  largo pasa de max_proporcion veces el corto. Devuelve (ancho, alto).\n- preparar(data): el decode y el preprocess del paquete compartido (preprocess.py, el mismo del entrenamiento). Si el\n  archivo está corrupto o cortado, 400. Devuelve float32 [3, 32, 32].\n- Image.MAX_IMAGE_PIXELS se fija en max_pixeles al arrancar: la red propia de Pillow, de respaldo.\n\"\"\"\nfrom __future__ import annotations\n\nimport io\n\nimport numpy as np\nfrom PIL import Image, UnidentifiedImageError\n\nfrom . import preprocess\n\n\nclass Rechazo(Exception):\n    def __init__(self, codigo: int, motivo: str, reintentar: bool = False):\n        super().__init__(motivo)\n        self.codigo, self.motivo, self.reintentar = codigo, motivo, reintentar\n\n\ndef revisar_tipo(content_type: str | None, tipos: list[str]) -> str:\n    tipo = (content_type or \"\").split(\";\")[0].strip().lower()\n    if tipo not in tipos:\n        raise Rechazo(415, f\"tipo {tipo or '(sin Content-Type)'}: solo {', '.join(tipos)}\")\n    return tipo\n\n\ndef revisar_largo(content_length: str | None, max_bytes: int) -> None:\n    if content_length is None:\n        return\n    try:\n        n = int(content_length)\n    except ValueError:\n        raise Rechazo(400, f\"Content-Length no es un número: {content_length!r}\") from None\n    if n > max_bytes:\n        raise Rechazo(413, f\"Content-Length {n} B: el máximo es {max_bytes} B\")\n\n\nasync def leer_body(request, max_bytes: int) -> bytes:\n    partes, n = [], 0\n    async for trozo in request.stream():\n        n += len(trozo)\n        if n > max_bytes:\n            raise Rechazo(413, f\"el body pasa de {max_bytes} B (se cortó al leer)\")\n        partes.append(trozo)\n    return b\"\".join(partes)\n\n\ndef revisar_imagen(data: bytes, max_pixeles: int, max_proporcion: float) -> tuple[int, int]:\n    if not data:\n        raise Rechazo(400, \"body vacío\")\n    try:\n        with Image.open(io.BytesIO(data)) as im:     # solo el encabezado: el ancho y el alto, sin decodificar\n            w, h = im.size\n    except Image.DecompressionBombError:\n        raise Rechazo(413, f\"más de {max_pixeles:,} píxeles (Pillow)\") from None\n    except (UnidentifiedImageError, OSError, ValueError):\n        raise Rechazo(400, \"no es una imagen que se pueda leer\") from None\n    if w * h > max_pixeles:\n        raise Rechazo(413, f\"{w} × {h} = {w * h:,} píxeles: el máximo es {max_pixeles:,}\")\n    if max(w, h) > max_proporcion * min(w, h):\n        raise Rechazo(400, f\"{w} × {h}: el lado largo pasa de {max_proporcion:g} veces el corto\")\n    return w, h\n\n\ndef preparar(data: bytes) -> np.ndarray:\n    try:\n        return preprocess.preprocess(data)\n    except (OSError, ValueError, SyntaxError, Image.DecompressionBombError) as e:\n        raise Rechazo(400, f\"no se pudo decodificar la imagen ({type(e).__name__})\") from None",
+          "nota": "<code>Image.open</code> lee solo el encabezado: por eso el PNG de 48 MP se rechaza sin gastar los cientos de MB de su decode."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python -c \"…revisa cada foto de fotos-raras/ con revision.py…\"",
+          "nota": "Sin servidor todavía: solo las funciones. La foto girada da el mismo tensor de [3, 32, 32] porque el preprocess la endereza.",
+          "donde": "mac",
+          "salida": "tenis.jpg           1,278 B · 56 × 56 → tensor [3, 32, 32]\ntenis.webp            548 B · 56 × 56 → tensor [3, 32, 32]\ntenis-girada.jpg    1,323 B · 56 × 56 → tensor [3, 32, 32]\ndocumento.pdf          77 B → 415 tipo application/pdf: solo image/jpeg, image/png, image/webp\nvacia.jpg               0 B → 400 body vacío\ngigante.png       139,857 B → 413 8000 × 6000 = 48,000,000 píxeles: el máximo es 40,000,000\ntira.png              166 B → 400 1 × 4000: el lado largo pasa de 8 veces el corto\ncorrupta.jpg        2,020 B → 400 no es una imagen que se pueda leer\ncortada.jpg           639 B → 400 no se pudo decodificar la imagen (OSError)"
+        }
+      ],
+      "verifica": "Las fotos buenas salen como tensor [3, 32, 32]; el PDF da 415, el PNG de 48 MP 413, y la vacía, la tira, la corrupta y la cortada 400.",
+      "ojo": "El paso de bytes al leer existe porque el header puede mentir o no venir: lo prueba el check <code>rechazos</code> mandando 11 MiB sin <code>Content-Length</code>.",
+      "en_pagina": {
+        "conceptos": [
+          "embudo"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 5,
+      "id": "classify",
+      "titulo": "El gateway: arranque, salud y classify",
+      "objetivo": "El gateway arranca solo si todo cuadra, contesta /healthz y /readyz, y classify responde lo mismo que el engine aprobado.",
+      "conceptos": [
+        "uvicorn-asgi",
+        "lifespan",
+        "vivo-listo",
+        "softmax-estable",
+        "triton"
+      ],
+      "explica": "<code>crear_app()</code> lee las reglas y revisa la cadena de plazos. El lifespan lee la ficha (y la huella de sus labels), crea UN cliente de Triton con su pool de conexiones, le pide la metadata del modelo y revisa que la entrada, la salida y el número de logits sean los de la ficha: si no, no arranca. <code>classify</code> revisa, decodifica en un hilo con el semáforo, llama a Triton con plazo y el tensor en binario, aplica el softmax estable con su guardia y contesta con <code>model_version</code>, las predicciones y <code>X-Request-ID</code>.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "gateway/app/main.py",
+          "code": "\"\"\"El gateway de classifier: recibe la foto, la revisa, la prepara, le pide los logits a Triton con plazo y contesta.\n\n    python mundo/servicios.py arrancar gateway       # uvicorn app.main:app --app-dir gateway --port 8701 --workers 1 …\n\nContrato:\n- crear_app(triton=None, reglas=None, modelo=None) devuelve la app; `app = crear_app()` es la que corre uvicorn.\n  Las pruebas le pasan un Triton falso, sus reglas y su ficha del modelo.\n- Las reglas salen de gateway.yaml (al crear la app). Si la cadena de plazos no va de mayor a menor\n  (app > gateway > triton > fila_triton), no arranca.\n- El lifespan, una vez y antes de atender: lee servir/modelo.json y revisa la huella de sus labels; crea UN cliente de\n  Triton para todo el proceso (tritonclient.http.aio, con el pool de gateway.yaml); le pide a Triton la metadata del\n  modelo y revisa que la entrada y la salida sean las de la ficha y que haya tantos logits como labels. Si algo no\n  cuadra, el proceso no arranca. Al apagarse, cierra el cliente.\n- GET /healthz: {\"status\": \"ok\"} si el proceso responde. No le pregunta a nadie más.\n- GET /readyz: 200 si Triton dice que el modelo está listo dentro de listo_timeout_ms; si no, 503.\n- GET /metrics: las métricas de Prometheus, con estos nombres (las alertas los buscan así):\n  classifier_requests_total{code, source, model_version}, classifier_request_seconds (sin los 4xx),\n  classifier_preprocess_seconds, classifier_inference_seconds, classifier_top1_score, classifier_image_bytes y\n  classifier_requests_in_flight.\n- POST /v1/classify?top_k=N (N de gateway.yaml; fuera de rango, 422 de FastAPI), con los bytes de la foto:\n  · request_id del header X-Request-ID o uno nuevo; X-Client-Source (mobile, web, internal u other) solo para métricas;\n    X-Caller-Id (en C01 sale del token que verificó el ALB).\n  · La 17 en vuelo (en_vuelo de gateway.yaml) recibe 503 + Retry-After: 1 al instante, sin leer el body.\n  · La revisión de revision.py, en orden: 415, 413 por header, 413 al leer, 400 vacía, 413 por píxeles, 400 por forma.\n  · El decode, en un hilo, con un semáforo de `decodes` lugares; quien espera más de espera_cpu_ms recibe 503 +\n    Retry-After: 1. Si el decode falla, 400.\n  · Triton con plazo min(triton, lo que le queda a la request de su plazo gateway); si ya no queda, 504 sin llamar.\n    Se corta con asyncio.wait_for (el `timeout` de infer() es otra cosa: un tiempo para la fila del servidor).\n    Triton no contesta a tiempo: 504. Sin conexión: 503 + Retry-After: 1. Triton contesta con error: 503. Sin reintentos.\n  · Logits no finitos: 500, nunca un 200 con basura. Softmax estable (restando el máximo), top_k y labels.\n  · 200: {\"model_version\", \"predictions\": [{\"label\", \"score\" (4 decimales)}], \"latency_ms\"}.\n  · Quien llama se fue a media subida: 499.\n- Toda respuesta lleva X-Request-ID (también los errores, el 422 y el 405).\n- Una línea de JSON por request en stdout (en un finally), también para el 422, el 499 y el 405: request_id, caller,\n  source, model_version, top5 [[índice, score]], ms {pre, triton, post, total}, bytes, sha256 (12 caracteres), status y,\n  si falló, error. Nunca la foto.\n\"\"\"\nfrom __future__ import annotations\n\nimport asyncio\nimport hashlib\nimport json\nimport sys\nimport time\nimport uuid\nimport warnings\nfrom contextlib import asynccontextmanager\nfrom pathlib import Path\n\nimport aiohttp\nimport numpy as np\nimport yaml\nfrom fastapi import FastAPI, Query, Request\nfrom fastapi.exceptions import RequestValidationError\nfrom fastapi.responses import JSONResponse, Response\nfrom prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Gauge, Histogram, generate_latest\nfrom starlette.concurrency import run_in_threadpool\nfrom starlette.exceptions import HTTPException as StarletteHTTPException\nfrom starlette.requests import ClientDisconnect\nfrom tritonclient.http.aio import InferenceServerClient, InferInput, InferRequestedOutput\nfrom tritonclient.utils import InferenceServerException\n\nfrom .revision import Rechazo, leer_body, preparar, revisar_imagen, revisar_largo, revisar_tipo\n\nRAIZ = Path(__file__).resolve().parents[2]\nFUENTES = {\"mobile\", \"web\", \"internal\", \"other\"}\n\n\ndef leer_reglas(p: Path = RAIZ / \"gateway.yaml\") -> dict:\n    r = yaml.safe_load(p.read_text())\n    pl = r[\"plazos_ms\"]\n    if not pl[\"app\"] > pl[\"gateway\"] > pl[\"triton\"] > pl[\"fila_triton\"] > 0:\n        raise RuntimeError(f\"gateway.yaml: la cadena de plazos tiene que bajar (app > gateway > triton > fila_triton) \"\n                           f\"y es {pl['app']} > {pl['gateway']} > {pl['triton']} > {pl['fila_triton']}\")\n    return r\n\n\ndef leer_modelo(p: Path = RAIZ / \"servir\" / \"modelo.json\") -> dict:\n    if not p.exists():\n        raise RuntimeError(\"falta servir/modelo.json: python servir/armar.py\")\n    m = json.loads(p.read_text())\n    huella = hashlib.sha256((json.dumps(m[\"labels\"], ensure_ascii=False) + \"\\n\").encode()).hexdigest()\n    if huella != m[\"labels_sha256\"]:\n        raise RuntimeError(f\"servir/modelo.json: los labels tienen huella {huella[:12]}… y la ficha dice {m['labels_sha256'][:12]}…\")\n    return m\n\n\ndef metricas(registro: CollectorRegistry) -> dict:\n    ms = (0.005, 0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.5, 1.0)\n    return {\n        \"requests\": Counter(\"classifier_requests_total\", \"Requests por código, fuente y versión del modelo\",\n                            [\"code\", \"source\", \"model_version\"], registry=registro),\n        \"latencia\": Histogram(\"classifier_request_seconds\", \"Latencia total (sin los 4xx)\", buckets=ms, registry=registro),\n        \"pre\": Histogram(\"classifier_preprocess_seconds\", \"Decode y preprocess\", buckets=ms, registry=registro),\n        \"inferencia\": Histogram(\"classifier_inference_seconds\", \"La llamada a Triton\", buckets=ms, registry=registro),\n        \"top1\": Histogram(\"classifier_top1_score\", \"El score de la primera sugerencia\",\n                          buckets=(0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99), registry=registro),\n        \"bytes\": Histogram(\"classifier_image_bytes\", \"Tamaño de la foto\",\n                           buckets=(1e3, 1e4, 1e5, 3e5, 1e6, 3e6, 1e7), registry=registro),\n        \"en_vuelo\": Gauge(\"classifier_requests_in_flight\", \"Requests adentro ahora\", registry=registro),\n    }\n\n\ndef crear_app(triton=None, reglas: dict | None = None, modelo: dict | None = None) -> FastAPI:\n    r = reglas or leer_reglas()\n    lim, pl, tr, ct = r[\"limites\"], r[\"plazos_ms\"], r[\"triton\"], r[\"contrato\"]\n    from PIL import Image\n\n    Image.MAX_IMAGE_PIXELS = lim[\"max_pixeles\"]          # la red de Pillow: avisa arriba de esto, se niega arriba del doble\n    warnings.simplefilter(\"ignore\", Image.DecompressionBombWarning)   # el aviso sobra: el paso de píxeles ya dio 413\n\n    @asynccontextmanager\n    async def lifespan(app: FastAPI):\n        m = modelo or leer_modelo()\n        cliente = triton or InferenceServerClient(url=tr[\"url\"], conn_limit=tr[\"conexiones\"])\n        try:\n            meta = await cliente.get_model_metadata(tr[\"modelo\"])\n        except Exception as e:  # noqa: BLE001\n            await cliente.close()\n            raise RuntimeError(f\"no pude leer la metadata de '{tr['modelo']}' en Triton ({tr['url']}): {e}\") from None\n        ent, sal = meta[\"inputs\"][0], meta[\"outputs\"][0]\n        if ent[\"name\"] != m[\"entrada\"][\"nombre\"] or ent[\"shape\"] != m[\"entrada\"][\"forma\"] or sal[\"name\"] != m[\"salida\"][\"nombre\"]:\n            await cliente.close()\n            raise RuntimeError(f\"Triton sirve {ent['name']} {ent['shape']} → {sal['name']} y la ficha dice \"\n                               f\"{m['entrada']['nombre']} {m['entrada']['forma']} → {m['salida']['nombre']}\")\n        if sal[\"shape\"][-1] != len(m[\"labels\"]):\n            await cliente.close()\n            raise RuntimeError(f\"el modelo da {sal['shape'][-1]} logits y hay {len(m['labels'])} labels\")\n        app.state.modelo, app.state.triton = m, cliente\n        app.state.cpu = asyncio.Semaphore(lim[\"decodes\"])\n        app.state.en_vuelo = 0\n        print(f\"gateway listo · {m['model_version']} · {len(m['labels'])} labels · Triton {tr['url']}\", file=sys.stderr, flush=True)\n        yield\n        await cliente.close()\n\n    app = FastAPI(lifespan=lifespan, title=\"classifier gateway\")\n    registro = CollectorRegistry()                       # uno por app: las pruebas crean varias en el mismo proceso\n    mt = metricas(registro)\n\n    def anotar(ev: dict, status: int, fuente: str, version: str, t0: float) -> None:\n        ev[\"status\"] = status\n        ev.setdefault(\"ms\", {})[\"total\"] = round((time.monotonic() - t0) * 1000, 1)\n        print(json.dumps(ev, ensure_ascii=False), flush=True)\n        mt[\"requests\"].labels(str(status), fuente, version).inc()\n        if not 400 <= status < 500:                          # un 415 tarda microsegundos: no baja el p99 de nadie\n            mt[\"latencia\"].observe(time.monotonic() - t0)\n\n    def contexto(request: Request) -> tuple[str, dict, str]:\n        rid = request.headers.get(\"x-request-id\") or uuid.uuid4().hex\n        fuente = request.headers.get(\"x-client-source\", \"other\")\n        fuente = fuente if fuente in FUENTES else \"other\"\n        version = getattr(request.app.state, \"modelo\", {}).get(\"model_version\", \"?\")\n        ev = {\"request_id\": rid, \"caller\": request.headers.get(\"x-caller-id\", \"desconocido\"), \"source\": fuente,\n              \"model_version\": version}\n        return rid, ev, fuente\n\n    @app.exception_handler(RequestValidationError)\n    async def invalida(request: Request, exc: RequestValidationError):        # el 422 pasa antes de classify\n        t0 = time.monotonic()\n        rid, ev, fuente = contexto(request)\n        ev[\"error\"] = \"; \".join(f\"{'.'.join(map(str, e['loc']))}: {e['msg']}\" for e in exc.errors())\n        anotar(ev, 422, fuente, ev[\"model_version\"], t0)\n        return JSONResponse({\"error\": ev[\"error\"], \"request_id\": rid}, 422, headers={\"X-Request-ID\": rid})\n\n    @app.exception_handler(StarletteHTTPException)\n    async def http_error(request: Request, exc: StarletteHTTPException):      # 404, 405\n        t0 = time.monotonic()\n        rid, ev, fuente = contexto(request)\n        ev[\"error\"] = str(exc.detail)\n        anotar(ev, exc.status_code, fuente, ev[\"model_version\"], t0)\n        return JSONResponse({\"error\": exc.detail, \"request_id\": rid}, exc.status_code,\n                            headers={\"X-Request-ID\": rid, **(exc.headers or {})})\n\n    @app.get(\"/healthz\")\n    async def healthz():\n        return {\"status\": \"ok\"}\n\n    @app.get(\"/readyz\")\n    async def readyz(request: Request):\n        try:\n            listo = await asyncio.wait_for(request.app.state.triton.is_model_ready(tr[\"modelo\"]), tr[\"listo_timeout_ms\"] / 1000)\n        except Exception:  # noqa: BLE001 — sin respuesta a tiempo o sin conexión: no listo\n            listo = False\n        return JSONResponse({\"status\": \"ready\" if listo else \"not ready\"}, 200 if listo else 503)\n\n    @app.get(\"/metrics\")\n    async def metrics():\n        return Response(generate_latest(registro), media_type=CONTENT_TYPE_LATEST)\n\n    @app.post(ct[\"ruta\"])\n    async def classify(request: Request,\n                       top_k: int = Query(ct[\"top_k\"][\"defecto\"], ge=ct[\"top_k\"][\"min\"], le=ct[\"top_k\"][\"max\"])):\n        t0 = time.monotonic()\n        st = request.app.state\n        rid, ev, fuente = contexto(request)\n        version = st.modelo[\"model_version\"]\n        hdr = {\"X-Request-ID\": rid}\n        ms = ev[\"ms\"] = {}\n        if st.en_vuelo >= lim[\"en_vuelo\"]:                   # load shedding: rechazar cuesta microsegundos\n            ev[\"error\"] = f\"{lim['en_vuelo']} requests en vuelo\"\n            anotar(ev, 503, fuente, version, t0)\n            return JSONResponse({\"error\": ev[\"error\"], \"request_id\": rid}, 503, headers={**hdr, \"Retry-After\": \"1\"})\n        st.en_vuelo += 1\n        mt[\"en_vuelo\"].inc()\n        status = 500\n        try:\n            revisar_tipo(request.headers.get(\"content-type\"), ct[\"tipos\"])\n            revisar_largo(request.headers.get(\"content-length\"), lim[\"max_bytes\"])\n            data = await leer_body(request, lim[\"max_bytes\"])\n            ev[\"bytes\"], ev[\"sha256\"] = len(data), hashlib.sha256(data).hexdigest()[:12]\n            mt[\"bytes\"].observe(len(data))\n            revisar_imagen(data, lim[\"max_pixeles\"], lim[\"max_proporcion\"])\n            try:\n                await asyncio.wait_for(st.cpu.acquire(), lim[\"espera_cpu_ms\"] / 1000)\n            except TimeoutError:\n                raise Rechazo(503, f\"sin lugar de decode en {lim['espera_cpu_ms']} ms\", reintentar=True) from None\n            try:\n                t = time.monotonic()\n                x = await run_in_threadpool(preparar, data)      # en un hilo: el event loop sigue atendiendo\n                ms[\"pre\"] = round((time.monotonic() - t) * 1000, 1)\n                mt[\"pre\"].observe(time.monotonic() - t)\n            finally:\n                st.cpu.release()\n            queda = pl[\"gateway\"] / 1000 - (time.monotonic() - t0)\n            if queda <= 0:\n                raise Rechazo(504, f\"se acabó el plazo de {pl['gateway']} ms antes de llamar a Triton\")\n            plazo = min(pl[\"triton\"] / 1000, queda)\n            entrada = InferInput(st.modelo[\"entrada\"][\"nombre\"], [1, *x.shape], \"FP32\")\n            entrada.set_data_from_numpy(x[None], binary_data=True)\n            salida = st.modelo[\"salida\"][\"nombre\"]\n            t = time.monotonic()\n            try:\n                res = await asyncio.wait_for(\n                    st.triton.infer(tr[\"modelo\"], [entrada], outputs=[InferRequestedOutput(salida, binary_data=True)],\n                                    request_id=rid), plazo)\n            except TimeoutError:\n                raise Rechazo(504, f\"Triton no contestó en {plazo * 1000:.0f} ms\") from None\n            except InferenceServerException as e:\n                raise Rechazo(503, f\"Triton: {e.message()}\") from None\n            except (aiohttp.ClientError, OSError) as e:\n                raise Rechazo(503, f\"sin conexión con Triton ({type(e).__name__})\", reintentar=True) from None\n            finally:\n                ms[\"triton\"] = round((time.monotonic() - t) * 1000, 1)\n            mt[\"inferencia\"].observe(time.monotonic() - t)\n            t = time.monotonic()\n            z = res.as_numpy(salida)[0].astype(np.float64)\n            if not np.all(np.isfinite(z)):\n                raise Rechazo(500, \"logits no finitos\")\n            e = np.exp(z - z.max())                               # softmax estable: restar el máximo no cambia nada\n            p = e / e.sum()\n            orden = np.argsort(-p, kind=\"stable\")\n            labels = st.modelo[\"labels\"]\n            ev[\"top5\"] = [[int(i), round(float(p[i]), 4)] for i in orden[:5]]\n            mt[\"top1\"].observe(float(p[orden[0]]))\n            ms[\"post\"] = round((time.monotonic() - t) * 1000, 1)\n            status = 200\n            return JSONResponse({\"model_version\": version,\n                                 \"predictions\": [{\"label\": labels[i], \"score\": round(float(p[i]), 4)} for i in orden[:top_k]],\n                                 \"latency_ms\": round((time.monotonic() - t0) * 1000, 1)}, headers=hdr)\n        except Rechazo as e:\n            status, ev[\"error\"] = e.codigo, e.motivo\n            return JSONResponse({\"error\": e.motivo, \"request_id\": rid}, e.codigo,\n                                headers={**hdr, **({\"Retry-After\": \"1\"} if e.reintentar else {})})\n        except ClientDisconnect:\n            status, ev[\"error\"] = 499, \"quien llama cerró la conexión a media subida\"\n            return Response(status_code=499, headers=hdr)\n        except Exception as e:  # noqa: BLE001 — un error del propio código: 500, y que quede en el log\n            status, ev[\"error\"] = 500, f\"{type(e).__name__}: {str(e)[:200]}\"\n            return JSONResponse({\"error\": \"error interno\", \"request_id\": rid}, 500, headers=hdr)\n        finally:\n            st.en_vuelo -= 1\n            mt[\"en_vuelo\"].dec()\n            anotar(ev, status, fuente, version, t0)\n\n    return app\n\n\napp = crear_app()",
+          "nota": "<code>crear_app(triton=…, reglas=…, modelo=…)</code> existe para las pruebas: les deja pasar un Triton falso."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python mundo/servicios.py arrancar gateway",
+          "nota": "",
+          "donde": "mac",
+          "salida": "  $ python -m uvicorn app.main:app --app-dir gateway --host 127.0.0.1 --port 8701 --workers 1 --timeout-keep-alive 75 --timeout-graceful-shutdown 20 --no-access-log\n✓ gateway listo en 6.2 s (PID 5266) · log: logs/gateway.log"
+        },
+        {
+          "code": "python mundo/servicios.py estado",
+          "nota": "",
+          "donde": "mac",
+          "salida": "triton   PID 5216 · ps Ss · /v2/health/live 200 · /v2/health/ready 200\ngateway  PID 5266 · ps Ss · /healthz 200 · /readyz 200"
+        },
+        {
+          "code": "curl -s -i -X POST \"localhost:8701/v1/classify?top_k=3\" \\\n  -H \"Content-Type: image/jpeg\" -H \"X-Request-ID: ana-0001\" -H \"X-Client-Source: mobile\" \\\n  --data-binary @fotos-raras/tenis.jpg",
+          "nota": "",
+          "donde": "mac",
+          "salida": "HTTP/1.1 200 OK\nx-request-id: ana-0001\ncontent-length: 180\ncontent-type: application/json\n\n{\"model_version\":\"miniresnet-2026-10-01\",\"predictions\":[{\"label\":\"tenis\",\"score\":0.9559},{\"label\":\"sandalias\",\"score\":0.0371},{\"label\":\"botines\",\"score\":0.0056}],\"latency_ms\":20.7}"
+        },
+        {
+          "code": "curl -s localhost:8701/healthz\ncurl -s localhost:8701/readyz",
+          "nota": "",
+          "donde": "mac",
+          "salida": "{\"status\":\"ok\"}  ← /healthz 200\n{\"status\":\"ready\"}  ← /readyz 200"
+        },
+        {
+          "code": "python verificar.py salud responde",
+          "nota": "<code>responde</code> manda 200 fotos del examen por HTTP y compara cada top-1 con el engine aprobado corrido aquí mismo.",
+          "donde": "mac",
+          "salida": "✓ salud       /healthz {\"status\": \"ok\"} · /readyz 200 · /metrics con sus 6 nombres\n✓ responde    200 fotos del examen por HTTP: 200, el mismo top-1 que el engine aprobado (score ± 0.0000) · miniresnet-2026-10-01 · X-Request-ID · top_k 1/3/10 · 972 fotos/s con 8 a la vez\n\n2/2 en verde"
+        },
+        {
+          "code": "curl -s localhost:8700/metrics | grep -E \"^nv_inference_(count|exec_count)\"",
+          "nota": "Las métricas de Triton: cuántas fotos y en cuántos lotes. Es el precálculo «batch» medido.",
+          "donde": "mac",
+          "salida": "nv_inference_count{model=\"classifier\",version=\"1\"} 204\nnv_inference_exec_count{model=\"classifier\",version=\"1\"} 70\n204 fotos en 70 batches: 2.91 fotos por batch en promedio"
+        },
+        {
+          "code": "ps -o rss= -p $(cat logs/gateway.pid)",
+          "nota": "",
+          "donde": "mac",
+          "salida": "el gateway ocupa 93 MiB (RSS) sin requests"
+        }
+      ],
+      "verifica": "<code>/healthz</code> y <code>/readyz</code> en 200, las 6 métricas en <code>/metrics</code>, y 200 fotos del examen por HTTP con el mismo top-1 que el engine aprobado (≈ 972 fotos/s con 8 a la vez).",
+      "ojo": "La primera foto de cada formato tarda más (Pillow carga su decodificador la primera vez): por eso C01 calienta también el gateway antes de decir «listo».",
+      "en_pagina": {
+        "conceptos": [
+          "uvicorn-asgi",
+          "lifespan",
+          "vivo-listo",
+          "softmax-estable"
+        ],
+        "precalculos": [
+          "batch",
+          "tensor"
+        ]
+      }
+    },
+    {
+      "n": 6,
+      "id": "codigos",
+      "titulo": "El código de cada falla y los topes",
+      "objetivo": "Cada foto mala sale con su código, la 17 en vuelo recibe 503 al instante, y cada falla de Triton tiene su respuesta.",
+      "conceptos": [
+        "codigos-http",
+        "semaforo",
+        "en-vuelo"
+      ],
+      "explica": "Con el gateway arriba, la tabla de códigos se prueba de verdad: cada foto rara con su código, el 422 de <code>top_k</code> fuera de rango (que FastAPI decide antes de <code>classify</code>, por eso lleva su propio manejador para dejar log), el 405 y el 499 de quien se va a media subida. Los topes y las fallas de Triton (lento, con error, caído, NaN) no se pueden provocar a voluntad con el servidor real: el check <code>topes</code> corre tu gateway dentro de su proceso con un Triton falso.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "for f in \"tenis.png image/png\" \"documento.pdf application/pdf\" …; do\n  curl -s -X POST localhost:8701/v1/classify -H \"Content-Type: $2\" --data-binary @fotos-raras/$1\ndone",
+          "nota": "",
+          "donde": "mac",
+          "salida": "tenis.png      → {\"model_version\":\"miniresnet-2026-10-01\",\"predictions\":[{\"label\":\"tenis\",\"score\":0.9559},{\"label\":\"sandalias\",\"score\":0.0371},{\"label\":\"botines\",\"score\":0.0056},{\"label\":\"bolsas\",\"score\":0.0006},{\"label\":\"abrigos\",\"score\":0.0004}],\"latency_ms\":4.8}  [200]\ndocumento.pdf  → {\"error\":\"tipo application/pdf: solo image/jpeg, image/png, image/webp\",\"request_id\":\"9f30bd3f88004592b0bf6059e1e4953b\"}  [415]\nvacia.jpg      → {\"error\":\"body vacío\",\"request_id\":\"905f13b9bcbd4cfbbf7d585973422516\"}  [400]\ngigante.png    → {\"error\":\"8000 × 6000 = 48,000,000 píxeles: el máximo es 40,000,000\",\"request_id\":\"a3b2fe4dff824b7c817a988f0127743c\"}  [413]\ntira.png       → {\"error\":\"1 × 4000: el lado largo pasa de 8 veces el corto\",\"request_id\":\"7b0b93d575ea4f789027c1ec91211fe6\"}  [400]\ncorrupta.jpg   → {\"error\":\"no es una imagen que se pueda leer\",\"request_id\":\"f49e30b98281425da02effc8f06b3f3f\"}  [400]\ncortada.jpg    → {\"error\":\"no se pudo decodificar la imagen (OSError)\",\"request_id\":\"9c7e029eacf74616b795e5fb4d2e6d58\"}  [400]\ntop_k=50       → {\"error\":\"query.top_k: Input should be less than or equal to 10\",\"request_id\":\"a44b5b08694749099b58934e36608cda\"}  [422]\nGET            → {\"error\":\"Method Not Allowed\",\"request_id\":\"c5691e687bbb458b8d2b43d86ccd776f\"}  [405]"
+        },
+        {
+          "code": "python verificar.py rechazos topes",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ rechazos    200 ×4 (jpeg, png, webp, girada) · 415 pdf · 400 vacía, tira, corrupta, cortada · 413 por píxeles, por header y al leer · 422 · 405 · 499 en el log\n✓ topes       la 17 en vuelo → 503 al instante · Triton lento → 504 a los ≈ 150 ms · con error → 503 · caído → 503 + Retry-After · NaN → 500 · /readyz ≤ 0.5 s · /healthz no pregunta\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "200 en JPEG, PNG, WebP y la girada; 415, 413 (header, al leer y por píxeles), 400, 422, 405 y 499 en el log; la 17 en vuelo con 503 y <code>Retry-After: 1</code>; Triton lento 504, con error 503, caído 503 con <code>Retry-After</code>, NaN 500.",
+      "ojo": "Sin reintentos: con Triton sobrecargado, un segundo intento suma trabajo justo cuando ya sobra. La app tiene su plan B (el selector manual).",
+      "en_pagina": {
+        "conceptos": [
+          "codigos-http",
+          "semaforo",
+          "en-vuelo"
+        ],
+        "precalculos": [
+          "memoria",
+          "little"
+        ]
+      }
+    },
+    {
+      "n": 7,
+      "id": "plazos",
+      "titulo": "Los plazos, con Triton congelado",
+      "objetivo": "Con Triton congelado de verdad, classify sale con 504 a los ≈ 150 ms, /readyz con 503 y /healthz sigue en 200.",
+      "conceptos": [
+        "cadena-plazos",
+        "vivo-listo"
+      ],
+      "explica": "<code>kill -STOP</code> congela el proceso de Triton: acepta conexiones pero no contesta, como una GPU trabada. El gateway corta la llamada con <code>asyncio.wait_for</code> a los 150 ms (o a lo que le quede a la request) y contesta 504; <code>/readyz</code> pregunta con su propio tope y dice 503 (Kubernetes sacaría esta copia del reparto); <code>/healthz</code> no le pregunta a nadie y sigue en 200 (reiniciar el gateway no arreglaría a Triton).",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "kill -STOP $(cat logs/triton.pid)\ncurl -s -o /dev/null -w \"classify → %{http_code} en %{time_total} s\\n\" -X POST localhost:8701/v1/classify \\\n  -H \"Content-Type: image/jpeg\" --data-binary @fotos-raras/tenis.jpg\ncurl -s localhost:8701/readyz\ncurl -s localhost:8701/healthz\npython mundo/servicios.py estado\nkill -CONT $(cat logs/triton.pid)",
+          "nota": "<code>ps</code> dice <code>T</code>: el proceso está detenido por una señal. <code>kill -CONT</code> lo despierta.",
+          "donde": "mac",
+          "salida": "classify → 504 en 0.152906 s\n{\"status\":\"not ready\"} ← /readyz 503 en 0.502958 s\n{\"status\":\"ok\"} ← /healthz 200\ntriton   PID 5216 · ps Ts (congelado: SIGSTOP) · /v2/health/live sin respuesta en 1 s · /v2/health/ready sin respuesta en 1 s\ngateway  PID 5266 · ps Ss · /healthz 200 · /readyz 503"
+        },
+        {
+          "code": "grep '\"status\": 504' logs/gateway.log | tail -1",
+          "nota": "<code>ms.triton</code> dice dónde se fue el tiempo.",
+          "donde": "mac",
+          "salida": "{\"request_id\": \"27103dce61b540b39dd85dc780770922\", \"caller\": \"desconocido\", \"source\": \"other\", \"model_version\": \"miniresnet-2026-10-01\", \"ms\": {\"pre\": 0.5, \"triton\": 150.8, \"total\": 151.5}, \"bytes\": 1278, \"sha256\": \"a3620aaeb761\", \"error\": \"Triton no contestó en 150 ms\", \"status\": 504}"
+        },
+        {
+          "code": "python verificar.py plazos",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ plazos      Triton congelado 2 s: classify 504 a los 154 ms · /readyz 503 en 504 ms · /healthz 200 · al despertar, 200\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "504 a los ≈ 153 ms, <code>/readyz</code> 503 dentro de su medio segundo, <code>/healthz</code> 200, y al despertar a Triton todo vuelve a 200.",
+      "ojo": "El parámetro <code>timeout</code> de <code>infer()</code> no es un plazo del cliente: es un tiempo que se le pide a la fila de Triton. Con una red cortada, solo <code>asyncio.wait_for</code> corta a tiempo.",
+      "en_pagina": {
+        "conceptos": [
+          "cadena-plazos"
+        ],
+        "precalculos": [
+          "plazo"
+        ]
+      }
+    },
+    {
+      "n": 8,
+      "id": "log",
+      "titulo": "El log, las métricas y las pruebas",
+      "objetivo": "Una línea de JSON por request (también el 422 y el 499), las métricas con sus nombres y sin los 4xx en la latencia, y las pruebas en verde sin Triton.",
+      "conceptos": [
+        "log-estructurado",
+        "triton-falso"
+      ],
+      "explica": "La línea de log se escribe en un <code>finally</code>: sale pase lo que pase, con el mismo request_id de la respuesta. Las métricas viven en un registro por app. Las pruebas usan un Triton falso con los mismos métodos y excepciones que el real, que además revisa el nombre, el tipo y la forma del tensor; cubren cada fila de la tabla de códigos, los topes, el plazo, la salud y el log.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "gateway/tests/conftest.py",
+          "code": "\"\"\"Lo que comparten las pruebas: un Triton falso, las reglas, la ficha del modelo y fotos hechas al vuelo.\n\nContrato:\n- TritonFalso tiene los mismos métodos asíncronos que el cliente real (get_model_metadata, is_model_ready, infer,\n  close) y lanza las mismas excepciones, pero contesta lo que la prueba le pida: logits, una demora, un error, «no\n  listo». Además revisa el nombre, el tipo y la forma del tensor que le mandan, como lo haría Triton.\n- No abre ningún puerto: las pruebas corren sin Triton, sin GPU y sin red, en segundos.\n\"\"\"\nfrom __future__ import annotations\n\nimport asyncio\nimport io\nimport json\nimport struct\nimport zlib\n\nimport numpy as np\nimport pytest\nfrom PIL import Image\nfrom tritonclient.utils import InferenceServerException\n\nfrom app.main import leer_reglas\n\nLABELS = [\"playeras\", \"pantalones\", \"sueteres\", \"vestidos\", \"abrigos\",\n          \"sandalias\", \"camisas\", \"tenis\", \"bolsas\", \"botines\"]\n\n\nclass Resultado:\n    def __init__(self, y: np.ndarray):\n        self.y = y\n\n    def as_numpy(self, nombre: str) -> np.ndarray:\n        return self.y\n\n\nclass TritonFalso:\n    def __init__(self, logits=None, demora: float = 0.0, error: Exception | None = None, listo: bool = True,\n                 demora_listo: float = 0.0, n_logits: int = 10):\n        self.logits = np.array(logits if logits is not None else [0.5, 0.1, 0.2, 0.0, 0.3, 1.0, 0.4, 3.0, 0.2, 2.0], np.float32)\n        self.demora, self.error, self.listo, self.demora_listo, self.n = demora, error, listo, demora_listo, n_logits\n        self.vistos: list[tuple] = []\n        self.cerrado = False\n\n    async def get_model_metadata(self, nombre):\n        return {\"name\": nombre, \"versions\": [\"1\"], \"platform\": \"onnxruntime_onnx\",\n                \"inputs\": [{\"name\": \"input\", \"datatype\": \"FP32\", \"shape\": [-1, 3, 32, 32]}],\n                \"outputs\": [{\"name\": \"logits\", \"datatype\": \"FP32\", \"shape\": [-1, self.n]}]}\n\n    async def is_model_ready(self, nombre):\n        await asyncio.sleep(self.demora_listo)\n        return self.listo\n\n    async def infer(self, model_name, inputs, outputs=None, request_id=\"\", **kw):\n        e = inputs[0]\n        self.vistos.append((e.name(), e.datatype(), list(e.shape()), request_id))\n        if e.name() != \"input\" or e.datatype() != \"FP32\" or list(e.shape())[1:] != [3, 32, 32]:\n            raise InferenceServerException(f\"unexpected shape for input '{e.name()}': {e.shape()}\", status=\"400\")\n        if self.demora:\n            await asyncio.sleep(self.demora)\n        if self.error:\n            raise self.error\n        return Resultado(np.tile(self.logits, (list(e.shape())[0], 1)))\n\n    async def close(self):\n        self.cerrado = True\n\n\n@pytest.fixture\ndef reglas():\n    return leer_reglas()\n\n\n@pytest.fixture\ndef modelo():\n    s = json.dumps(LABELS, ensure_ascii=False) + \"\\n\"\n    import hashlib\n\n    return {\"modelo\": \"classifier\", \"version\": 4, \"model_version\": \"miniresnet-2026-10-01\", \"engine_sha256\": \"0\" * 64,\n            \"labels\": LABELS, \"labels_sha256\": hashlib.sha256(s.encode()).hexdigest(),\n            \"entrada\": {\"nombre\": \"input\", \"forma\": [-1, 3, 32, 32]}, \"salida\": {\"nombre\": \"logits\", \"forma\": [-1, 10]}}\n\n\ndef foto(formato: str = \"JPEG\", lado: tuple[int, int] = (56, 56)) -> bytes:\n    b = io.BytesIO()\n    Image.new(\"RGB\", lado, (120, 80, 40)).save(b, formato)\n    return b.getvalue()\n\n\ndef png_solo_encabezado(ancho: int, alto: int) -> bytes:\n    \"\"\"Un PNG que dice medir ancho × alto y casi no trae píxeles: pesa ≈ 60 B. Image.open lo abre (lee el encabezado).\"\"\"\n    def trozo(tipo, datos):\n        return struct.pack(\">I\", len(datos)) + tipo + datos + struct.pack(\">I\", zlib.crc32(tipo + datos))\n    return (b\"\\x89PNG\\r\\n\\x1a\\n\" + trozo(b\"IHDR\", struct.pack(\">IIBBBBB\", ancho, alto, 8, 2, 0, 0, 0))\n            + trozo(b\"IDAT\", zlib.compress(b\"\\x00\" * 16)) + trozo(b\"IEND\", b\"\"))",
+          "nota": "El PNG que «mide» 8,000 × 6,000 y pesa ≈ 60 B prueba el 413 por píxeles sin gastar memoria."
+        },
+        {
+          "lang": "python",
+          "path": "gateway/tests/test_gateway.py",
+          "code": "\"\"\"Las pruebas del gateway: la tabla de códigos, los topes, el plazo, la salud, el log y las métricas.\n\n    python -m pytest -q          # desde la carpeta del kit; ≈ 5 s, sin Triton\n\nContrato:\n- Cada fila de la tabla de códigos tiene al menos una prueba: 200, 400, 405, 413 (header, al leer y por píxeles),\n  415, 422, 499, 500, 503 (en vuelo, Triton con error, sin conexión) y 504.\n- Revisan lo que le llega a Triton (nombre, tipo y forma del tensor) y lo que sale en el log y en /metrics.\n- Ninguna necesita Triton ni red: usan TritonFalso (conftest.py).\n\"\"\"\nfrom __future__ import annotations\n\nimport asyncio\nimport json\nimport time\n\nimport aiohttp\nimport httpx\nimport numpy as np\nimport pytest\nfrom fastapi.testclient import TestClient\nfrom tritonclient.utils import InferenceServerException\n\nfrom app.main import crear_app, leer_reglas\nfrom conftest import TritonFalso, foto, png_solo_encabezado\n\nJPEG = {\"Content-Type\": \"image/jpeg\"}\n\n\ndef cliente(reglas, modelo, **kw):\n    t = TritonFalso(**kw)\n    return TestClient(crear_app(triton=t, reglas=reglas, modelo=modelo)), t\n\n\ndef lineas(capsys) -> list[dict]:\n    return [json.loads(x) for x in capsys.readouterr().out.splitlines() if x.startswith(\"{\")]\n\n\n# ---------------------------------------------------------------- 200\ndef test_200_top5_con_su_contrato(reglas, modelo, capsys):\n    c, t = cliente(reglas, modelo)\n    with c:\n        r = c.post(\"/v1/classify\", content=foto(), headers={**JPEG, \"X-Request-ID\": \"abc123\", \"X-Client-Source\": \"mobile\"})\n    assert r.status_code == 200\n    cuerpo = r.json()\n    assert cuerpo[\"model_version\"] == \"miniresnet-2026-10-01\"\n    assert [p[\"label\"] for p in cuerpo[\"predictions\"]] == [\"tenis\", \"botines\", \"sandalias\", \"playeras\", \"camisas\"]\n    assert abs(cuerpo[\"predictions\"][0][\"score\"] - 0.512) < 1e-4\n    assert r.headers[\"X-Request-ID\"] == \"abc123\"\n    assert t.vistos == [(\"input\", \"FP32\", [1, 3, 32, 32], \"abc123\")]      # lo que le llega a Triton\n    (ln,) = lineas(capsys)\n    assert ln[\"status\"] == 200 and ln[\"source\"] == \"mobile\" and ln[\"top5\"][0] == [7, 0.512]\n    assert set(ln[\"ms\"]) == {\"pre\", \"triton\", \"post\", \"total\"} and len(ln[\"sha256\"]) == 12\n\n\n@pytest.mark.parametrize(\"k\", [1, 3, 10])\ndef test_top_k(reglas, modelo, k):\n    c, _ = cliente(reglas, modelo)\n    with c:\n        p = c.post(f\"/v1/classify?top_k={k}\", content=foto(), headers=JPEG).json()[\"predictions\"]\n    assert len(p) == k and [x[\"score\"] for x in p] == sorted((x[\"score\"] for x in p), reverse=True)\n\n\n@pytest.mark.parametrize(\"formato,tipo\", [(\"PNG\", \"image/png\"), (\"WEBP\", \"image/webp\")])\ndef test_200_png_y_webp(reglas, modelo, formato, tipo):\n    c, _ = cliente(reglas, modelo)\n    with c:\n        assert c.post(\"/v1/classify\", content=foto(formato), headers={\"Content-Type\": tipo}).status_code == 200\n\n\ndef test_request_id_nuevo_si_no_viene(reglas, modelo):\n    c, _ = cliente(reglas, modelo)\n    with c:\n        a = c.post(\"/v1/classify\", content=foto(), headers=JPEG).headers[\"X-Request-ID\"]\n        b = c.post(\"/v1/classify\", content=foto(), headers=JPEG).headers[\"X-Request-ID\"]\n    assert a and b and a != b\n\n\ndef test_softmax_estable_con_logits_enormes(reglas, modelo):\n    c, _ = cliente(reglas, modelo, logits=[1000.0 + x for x in [0.5, 0.1, 0.2, 0.0, 0.3, 1.0, 0.4, 3.0, 0.2, 2.0]])\n    with c:\n        r = c.post(\"/v1/classify\", content=foto(), headers=JPEG)\n    assert r.status_code == 200 and abs(r.json()[\"predictions\"][0][\"score\"] - 0.512) < 1e-4\n\n\n# ---------------------------------------------------------------- 4xx\n@pytest.mark.parametrize(\"cuerpo,headers,codigo\", [\n    (b\"%PDF-1.4\", {\"Content-Type\": \"application/pdf\"}, 415),\n    (b\"x\" * (10 * 1024 * 1024 + 1), JPEG, 413),            # el Content-Length lo delata\n    (b\"\", JPEG, 400),\n    (png_solo_encabezado(8000, 6000), {\"Content-Type\": \"image/png\"}, 413),   # 48 MP en ≈ 60 B\n    (png_solo_encabezado(1, 4000), {\"Content-Type\": \"image/png\"}, 400),      # más alargada que 1:8\n    (foto()[:20] + bytes(2000), JPEG, 400),                 # corrupta\n    (foto()[: len(foto()) // 2], JPEG, 400),                # cortada\n])\ndef test_rechazos(reglas, modelo, capsys, cuerpo, headers, codigo):\n    c, t = cliente(reglas, modelo)\n    with c:\n        r = c.post(\"/v1/classify\", content=cuerpo, headers=headers)\n    assert r.status_code == codigo and r.headers[\"X-Request-ID\"]\n    assert t.vistos == []                                    # nada de eso llega a Triton\n    assert lineas(capsys)[-1][\"status\"] == codigo\n\n\ndef test_413_sin_content_length_se_corta_al_leer(reglas, modelo):\n    def trozos():\n        for _ in range(11):\n            yield b\"x\" * (1024 * 1024)\n    c, _ = cliente(reglas, modelo)\n    with c:\n        r = c.post(\"/v1/classify\", content=trozos(), headers=JPEG)    # un generador: va sin Content-Length\n    assert r.status_code == 413\n\n\ndef test_422_top_k_fuera_de_rango_deja_su_linea(reglas, modelo, capsys):\n    c, _ = cliente(reglas, modelo)\n    with c:\n        r = c.post(\"/v1/classify?top_k=50\", content=foto(), headers=JPEG)\n    assert r.status_code == 422 and r.headers[\"X-Request-ID\"]\n    assert lineas(capsys)[-1][\"status\"] == 422\n\n\ndef test_405_get(reglas, modelo, capsys):\n    c, _ = cliente(reglas, modelo)\n    with c:\n        r = c.get(\"/v1/classify\")\n    assert r.status_code == 405 and r.headers[\"X-Request-ID\"]\n    assert lineas(capsys)[-1][\"status\"] == 405\n\n\ndef test_499_quien_llama_se_va(reglas, modelo, capsys):\n    app = crear_app(triton=TritonFalso(), reglas=reglas, modelo=modelo)\n    enviados = []\n\n    async def correr():\n        mensajes = iter([{\"type\": \"http.request\", \"body\": b\"\\xff\\xd8\" + b\"x\" * 100, \"more_body\": True},\n                         {\"type\": \"http.disconnect\"}])\n\n        async def recibir():\n            return next(mensajes)\n\n        async def enviar(m):\n            enviados.append(m)\n\n        alcance = {\"type\": \"http\", \"asgi\": {\"version\": \"3.0\"}, \"http_version\": \"1.1\", \"method\": \"POST\", \"scheme\": \"http\",\n                   \"path\": \"/v1/classify\", \"raw_path\": b\"/v1/classify\", \"query_string\": b\"\", \"root_path\": \"\",\n                   \"headers\": [(b\"content-type\", b\"image/jpeg\"), (b\"content-length\", b\"5000\")],\n                   \"client\": (\"127.0.0.1\", 1), \"server\": (\"127.0.0.1\", 8701)}\n        async with app.router.lifespan_context(app):\n            await app(alcance, recibir, enviar)\n\n    asyncio.run(correr())\n    assert lineas(capsys)[-1][\"status\"] == 499\n\n\n# ---------------------------------------------------------------- 5xx\ndef test_500_logits_no_finitos(reglas, modelo, capsys):\n    c, _ = cliente(reglas, modelo, logits=[float(\"nan\")] + [0.0] * 9)\n    with c:\n        r = c.post(\"/v1/classify\", content=foto(), headers=JPEG)\n    assert r.status_code == 500\n    assert lineas(capsys)[-1][\"status\"] == 500                # el log dice lo mismo que la respuesta\n\n\ndef test_503_triton_con_error(reglas, modelo):\n    c, _ = cliente(reglas, modelo, error=InferenceServerException(\"Request timeout expired\", status=\"503\"))\n    with c:\n        assert c.post(\"/v1/classify\", content=foto(), headers=JPEG).status_code == 503\n\n\ndef test_503_sin_conexion_con_retry_after(reglas, modelo):\n    c, _ = cliente(reglas, modelo, error=aiohttp.ClientConnectionError(\"Connection refused\"))\n    with c:\n        r = c.post(\"/v1/classify\", content=foto(), headers=JPEG)\n    assert r.status_code == 503 and r.headers[\"Retry-After\"] == \"1\"\n\n\ndef test_504_triton_lento_se_corta_a_los_150_ms(reglas, modelo):\n    c, _ = cliente(reglas, modelo, demora=2.0)\n    with c:\n        t = time.monotonic()\n        r = c.post(\"/v1/classify\", content=foto(), headers=JPEG)\n        dt = time.monotonic() - t\n    assert r.status_code == 504 and 0.14 < dt < 0.4\n\n\ndef test_503_la_17_en_vuelo(reglas, modelo):\n    app = crear_app(triton=TritonFalso(demora=0.1), reglas=reglas, modelo=modelo)\n\n    async def correr():\n        async with app.router.lifespan_context(app):\n            transporte = httpx.ASGITransport(app=app)\n            async with httpx.AsyncClient(transport=transporte, base_url=\"http://gw\") as c:\n                rs = await asyncio.gather(*(c.post(\"/v1/classify\", content=foto(), headers=JPEG) for _ in range(20)))\n        return [r.status_code for r in rs], [r.headers.get(\"Retry-After\") for r in rs if r.status_code == 503]\n\n    codigos, retry = asyncio.run(correr())\n    assert sorted(codigos) == [200] * 16 + [503] * 4 and retry == [\"1\"] * 4\n\n\n# ---------------------------------------------------------------- salud, arranque, métricas\ndef test_healthz_no_pregunta_a_triton_y_readyz_si(reglas, modelo):\n    c, _ = cliente(reglas, modelo, listo=False)\n    with c:\n        assert c.get(\"/healthz\").status_code == 200\n        assert c.get(\"/readyz\").status_code == 503\n\n\ndef test_readyz_no_espera_mas_de_medio_segundo(reglas, modelo):\n    c, _ = cliente(reglas, modelo, demora_listo=5.0)\n    with c:\n        t = time.monotonic()\n        assert c.get(\"/readyz\").status_code == 503\n        assert time.monotonic() - t < 1.0\n\n\ndef test_no_arranca_si_los_labels_no_son_los_del_modelo(reglas, modelo):\n    with pytest.raises(RuntimeError, match=\"logits\"):\n        with TestClient(crear_app(triton=TritonFalso(n_logits=9), reglas=reglas, modelo=modelo)):\n            pass\n\n\ndef test_no_arranca_con_la_cadena_de_plazos_al_reves(tmp_path):\n    from pathlib import Path\n\n    import yaml\n\n    r = yaml.safe_load((Path(__file__).resolve().parents[2] / \"gateway.yaml\").read_text())\n    r[\"plazos_ms\"][\"triton\"] = 400\n    p = tmp_path / \"gateway.yaml\"\n    p.write_text(yaml.safe_dump(r))\n    with pytest.raises(RuntimeError, match=\"plazos\"):\n        leer_reglas(p)\n\n\ndef test_metricas_con_sus_nombres_y_sin_4xx_en_la_latencia(reglas, modelo):\n    c, _ = cliente(reglas, modelo)\n    with c:\n        c.post(\"/v1/classify\", content=foto(), headers=JPEG)\n        for _ in range(3):\n            c.post(\"/v1/classify\", content=b\"%PDF\", headers={\"Content-Type\": \"application/pdf\"})\n        m = c.get(\"/metrics\").text\n    for nombre in (\"classifier_requests_total\", \"classifier_request_seconds\", \"classifier_preprocess_seconds\",\n                   \"classifier_inference_seconds\", \"classifier_top1_score\", \"classifier_image_bytes\"):\n        assert nombre in m\n    assert 'classifier_requests_total{code=\"415\",model_version=\"miniresnet-2026-10-01\",source=\"other\"} 3.0' in m\n    assert \"classifier_request_seconds_count 1.0\" in m       # solo el 200\n\n\ndef test_el_log_nunca_lleva_la_foto(reglas, modelo, capsys):\n    c, _ = cliente(reglas, modelo)\n    with c:\n        c.post(\"/v1/classify\", content=foto(), headers=JPEG)\n    (ln,) = lineas(capsys)\n    assert len(json.dumps(ln)) < 400 and \"data\" not in ln\n    assert np.isclose(sum(s for _, s in ln[\"top5\"]), 0.512 + 0.1883 + 0.0693 + 0.042 + 0.038, atol=1e-3)",
+          "nota": "La del 499 llama a la aplicación ASGI directamente: el cliente de pruebas siempre entrega el body completo y no sabe cortar una subida."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "grep '\"request_id\": \"ana-0001\"' logs/gateway.log | python -m json.tool",
+          "nota": "",
+          "donde": "mac",
+          "salida": "{\n    \"request_id\": \"ana-0001\",\n    \"caller\": \"desconocido\",\n    \"source\": \"mobile\",\n    \"model_version\": \"miniresnet-2026-10-01\",\n    \"ms\": {\n        \"pre\": 11.7,\n        \"triton\": 4.7,\n        \"post\": 0.1,\n        \"total\": 20.7\n    },\n    \"bytes\": 1278,\n    \"sha256\": \"a3620aaeb761\",\n    \"top5\": [\n        [\n            7,\n            0.9559\n        ],\n        [\n            5,\n            0.0371\n        ],\n        [\n            9,\n            0.0056\n        ],\n        [\n            8,\n            0.0006\n        ],\n        [\n            4,\n            0.0004\n        ]\n    ],\n    \"status\": 200\n}\n309 B en una línea"
+        },
+        {
+          "code": "curl -s localhost:8701/metrics | grep -E \"^classifier_requests_total|^classifier_request_seconds_(count|sum)\"",
+          "nota": "Los 4xx cuentan en <code>classifier_requests_total</code> pero no en la latencia.",
+          "donde": "mac",
+          "salida": "classifier_requests_total{code=\"200\",model_version=\"miniresnet-2026-10-01\",source=\"mobile\"} 1.0\nclassifier_requests_total{code=\"200\",model_version=\"miniresnet-2026-10-01\",source=\"other\"} 209.0\nclassifier_requests_total{code=\"415\",model_version=\"miniresnet-2026-10-01\",source=\"other\"} 2.0\nclassifier_requests_total{code=\"400\",model_version=\"miniresnet-2026-10-01\",source=\"other\"} 8.0\nclassifier_requests_total{code=\"413\",model_version=\"miniresnet-2026-10-01\",source=\"other\"} 4.0\nclassifier_requests_total{code=\"422\",model_version=\"miniresnet-2026-10-01\",source=\"other\"} 2.0\nclassifier_requests_total{code=\"405\",model_version=\"miniresnet-2026-10-01\",source=\"other\"} 2.0\nclassifier_requests_total{code=\"499\",model_version=\"miniresnet-2026-10-01\",source=\"other\"} 1.0\nclassifier_requests_total{code=\"504\",model_version=\"miniresnet-2026-10-01\",source=\"other\"} 2.0\nclassifier_request_seconds_count 212.0\nclassifier_request_seconds_sum 1.671098622129648"
+        },
+        {
+          "code": "python -m pytest -q",
+          "nota": "",
+          "donde": "mac",
+          "salida": "30 passed in 1.13s\nreal 2.11"
+        },
+        {
+          "code": "python verificar.py log pruebas",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ log         una línea de JSON por request (también el 422), con request_id, caller, source, model_version, ms y status; sin la foto · la latencia sin los 4xx\n✓ pruebas     30 pruebas en 2.1 s, sin Triton\n\n2/2 en verde"
+        },
+        {
+          "code": "python verificar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "12/12 en verde"
+        }
+      ],
+      "verifica": "Una línea de 309 B por request, sin la foto; las métricas con sus nombres; 30 pruebas en ≈ 2 s sin Triton; los 12 checks en verde.",
+      "ojo": "De esta línea de log sale lo que la estación 1 convierte en etiquetas, y lo que mira el monitoreo (estación 12): el request_id es la llave de unión.",
+      "en_pagina": {
+        "conceptos": [
+          "log-estructurado",
+          "triton-falso"
+        ],
+        "precalculos": [
+          "log"
+        ]
+      }
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Empieza con <code>python mundo/reiniciar.py --serving</code> y haz commit del esqueleto.",
+      "Sin <code>GUION.md</code>: solo estos objetivos y el contrato arriba de cada archivo.",
+      "Cada objetivo tiene su check; corre <code>python verificar.py &lt;check&gt;</code> cuando creas que quedó.",
+      "Las reglas no se tocan: <code>gateway.yaml</code>, <code>servir.yaml</code>, <code>gateway/app/preprocess.py</code> y <code>mundo/</code> se quedan como vienen."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "El S3 local y MLflow arriba, el mundo creado y la carpeta en git.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "Trabajas con las reglas revisadas del gateway, en un commit y sin cambios pendientes.",
+        "check": "reglas"
+      },
+      {
+        "n": 3,
+        "objetivo": "El model repository tiene la copia exacta del engine aprobado de la versión de servir.yaml, y la ficha del modelo trae su versión, sus labels y sus huellas.",
+        "check": "repositorio",
+        "pista": "¿Contra qué compruebas que el archivo que bajaste es el que se aprobó?"
+      },
+      {
+        "n": 4,
+        "objetivo": "El config.pbtxt cuadra con el engine y trae batching dinámico, una fila que rechaza a tiempo, dos copias y warmup; está en git.",
+        "check": "config",
+        "pista": "¿Las dims llevan el eje del batch?"
+      },
+      {
+        "n": 5,
+        "objetivo": "Triton corre, dice «listo» y cargó el engine aprobado con la configuración de tu disco.",
+        "check": "triton"
+      },
+      {
+        "n": 6,
+        "objetivo": "El gateway contesta /healthz sin preguntarle a nadie, /readyz según Triton, y /metrics con sus nombres.",
+        "check": "salud"
+      },
+      {
+        "n": 7,
+        "objetivo": "Las fotos del examen por HTTP dan el mismo top-1 que el engine aprobado, con model_version y X-Request-ID.",
+        "check": "responde"
+      },
+      {
+        "n": 8,
+        "objetivo": "Cada foto mala sale con su código, incluidos el 413 sin Content-Length, el 422, el 405 y el 499 en el log.",
+        "check": "rechazos",
+        "pista": "¿Qué pasa si el header no dice el tamaño, o miente?"
+      },
+      {
+        "n": 9,
+        "objetivo": "La 17 en vuelo recibe 503 al instante; Triton lento, con error, caído o con NaN tiene su código; /readyz no espera de más.",
+        "check": "topes"
+      },
+      {
+        "n": 10,
+        "objetivo": "Con Triton congelado, classify sale con 504 a tiempo y /healthz sigue vivo.",
+        "check": "plazos",
+        "pista": "¿Quién corta la llamada: el timeout de infer() o tú?"
+      },
+      {
+        "n": 11,
+        "objetivo": "Una línea de JSON por request (también el 422) y la latencia sin los 4xx.",
+        "check": "log"
+      },
+      {
+        "n": 12,
+        "objetivo": "Al menos 15 pruebas en verde, sin Triton.",
+        "check": "pruebas"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "plazos-invertidos",
+      "titulo": "Más plazo para Triton",
+      "tipo": "config",
+      "historia": "En la hora pico hubo una ráfaga de 504. El equipo de plataforma subió un commit a gateway.yaml directo a main y redesplegó el gateway: «le dimos más plazo a Triton, ya no debería cortar».",
+      "sintoma": "<code>verificar.py</code>: ✗ reglas      gateway.yaml (7c6ed8d6ca07…) no es ninguna versión revisada (mundo/revisiones.json): git log -p gateway.yaml · la cadena de plazos no baja: 300 > 250 > 400 > 100\n✗ salud       tu gateway no responde en localhost:8701: python mundo/servicios.py estado (y logs/gateway.log)",
+      "hipotesis": [
+        "Alguien cambió las reglas del gateway.",
+        "Se cayó Triton.",
+        "Se cayó el gateway por otra cosa."
+      ],
+      "confirma": {
+        "code": "git log -1 --format=\"%h %an · %s\" -- gateway.yaml\ngit show HEAD -- gateway.yaml | grep \"^[-+] \"\npython mundo/servicios.py estado\ntail -3 logs/gateway.log",
+        "nota": "",
+        "donde": "mac",
+        "salida": "1bec28f Equipo de plataforma · gateway: más plazo para Triton (400 ms): en la hora pico vimos 504 de más\n-  triton: 150                 # el tope de la llamada a Triton (o lo que le quede a la request, si es menos)\n+  triton: 400                 # el tope de la llamada a Triton (o lo que le quede a la request, si es menos)\ntriton   PID 5216 · ps Ss · /v2/health/live 200 · /v2/health/ready 200\ngateway  no corre\n    raise RuntimeError(f\"gateway.yaml: la cadena de plazos tiene que bajar (app > gateway > triton > fila_triton) \"\n                       f\"y es {pl['app']} > {pl['gateway']} > {pl['triton']} > {pl['fila_triton']}\")\nRuntimeError: gateway.yaml: la cadena de plazos tiene que bajar (app > gateway > triton > fila_triton) y es 300 > 250 > 400 > 100"
+      },
+      "arreglo": "Un commit sin revisión dejó <code>plazos_ms.triton: 400</code>: la llamada a Triton podría esperar más que la request entera y que la app. La app se rendiría primero mientras el gateway sigue esperando: más 504, no menos. Tu gateway se niega a arrancar con la cadena al revés, y está bien. Arreglo: <code>git revert --no-edit HEAD</code> y <code>python mundo/servicios.py arrancar gateway</code>. Los 504 de la hora pico se investigan con <code>ms.triton</code> del log y las métricas de Triton, no estirando el plazo.",
+      "concepto": "cadena-plazos",
+      "check": "reglas"
+    },
+    {
+      "id": "limites-flojos",
+      "titulo": "Más throughput",
+      "tipo": "config",
+      "historia": "El equipo de plataforma vio la CPU del gateway al 40 % y subió un commit: «64 en vuelo y 8 decodes a la vez; así aprovechamos la máquina». Redesplegaron el gateway y todo responde.",
+      "sintoma": "<code>verificar.py</code>: ✗ reglas      gateway.yaml (969fc1a5ffc9…) no es ninguna versión revisada (mundo/revisiones.json): git log -p gateway.yaml · en el peor momento una copia ocuparía ≈ 3,231 MiB y tiene 1024\n✗ pruebas     pytest no pasa: 1 failed, 29 passed in 1.14s",
+      "hipotesis": [
+        "Alguien cambió los topes.",
+        "Las pruebas están mal.",
+        "El gateway se volvió lento."
+      ],
+      "confirma": {
+        "code": "git log -1 --format=\"%h %an · %s\" -- gateway.yaml\ngit show HEAD -- gateway.yaml | grep \"^[-+] \"\npython verificar.py reglas",
+        "nota": "",
+        "donde": "mac",
+        "salida": "1cc9e26 Equipo de plataforma · gateway: más throughput (64 en vuelo y 8 decodes a la vez); la CPU estaba al 40 %\n-  decodes: 2                  # decodes a la vez en un proceso (el semáforo)\n+  decodes: 8                  # decodes a la vez en un proceso (el semáforo)\n-  en_vuelo: 16                # requests adentro a la vez; la 17 recibe 503 al instante\n+  en_vuelo: 64                # requests adentro a la vez; la 17 recibe 503 al instante\n✗ reglas      gateway.yaml (969fc1a5ffc9…) no es ninguna versión revisada (mundo/revisiones.json): git log -p gateway.yaml · en el peor momento una copia ocuparía ≈ 3,231 MiB y tiene 1024\nTraceback (most recent call last):\n  File \"~/c01-serving/verificar.py\", line 616, in <module>\n    print(f\"\\n{len(r) - len(malos)}/{len(r)} en verde\" + (f\" · falta: {', '.join(malos)}\" if malos else \"\"))\n    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nBrokenPipeError: [Errno 32] Broken pipe"
+      },
+      "arreglo": "<code>en_vuelo: 64</code> y <code>decodes: 8</code>, sin revisión. Hoy todo responde porque llegan fotos normales; el problema es el peor momento: 64 bodies de 10 MiB y 8 decodes de 40 MP son ≈ 3 GiB en una copia de 1 GiB. La primera ráfaga de fotos grandes mata al proceso por memoria y con él a las 63 requests que tenía adentro. Arreglo: <code>git revert --no-edit HEAD</code> y <code>python mundo/servicios.py reiniciar gateway</code>. Si falta throughput, se agregan copias (estación 9), no lugares en una.",
+      "concepto": "en-vuelo",
+      "check": "reglas"
+    },
+    {
+      "id": "modelo-equivocado",
+      "titulo": "El hotfix de septiembre",
+      "tipo": "mundo",
+      "historia": "Alguien de plataforma escribió en el canal: «el modelo de octubre daba resultados raros en mi prueba, puse el de septiembre en el repositorio mientras y reinicié Triton». Todo responde 200.",
+      "sintoma": "<code>verificar.py</code>: ✗ repositorio model_repository/classifier/1/model.onnx tiene huella 76ea30f48b41… y v4 dice 88bdea80ac92…: no es el engine aprobado\n✗ triton      Triton cargó el engine 76ea30f48b41… y el aprobado es 88bdea80ac92…: python servir/armar.py y python mundo/servicios.py reiniciar triton\n✗ responde    13 de 200 fotos tienen otro top-1 que el engine aprobado (la primera: g-0023): lo que sirves no es el modelo aprobado o no lo preparas igual",
+      "hipotesis": [
+        "Cambió el engine que carga Triton.",
+        "Cambió el preprocess.",
+        "Cambiaron los labels."
+      ],
+      "confirma": {
+        "code": "shasum -a 256 model_repository/classifier/1/model.onnx | cut -c1-12\ngrep \"successfully loaded\" logs/triton.log\npython mundo/modelos.py engine 4 | grep engine_sha256",
+        "nota": "",
+        "donde": "mac",
+        "salida": "76ea30f48b41\nsuccessfully loaded 'classifier' version 1 (2 instancia(s) KIND_CPU, model.onnx sha256 76ea30f48b41…)\n  engine_sha256          88bdea80ac920c546692c876b1977af2976b132e73b01bc67555307c656fd3c2"
+      },
+      "arreglo": "El <code>model.onnx</code> del repositorio es el engine de v3, copiado a mano, y Triton lo cargó al reiniciar. El gateway sigue diciendo <code>miniresnet-2026-10-01</code>: cada respuesta afirma ser un modelo que no es, con código 200. Lo delatan las huellas: la del archivo, la que Triton anota en su log y el tag de v4. Arreglo: <code>python servir/armar.py</code> (vuelve a bajar el engine aprobado y compara su huella) y <code>python mundo/servicios.py reiniciar triton</code>. En C01 el model repository va dentro de la imagen de Triton: nadie lo cambia «mientras».",
+      "concepto": "model-repository",
+      "check": "repositorio"
+    },
+    {
+      "id": "labels-desordenados",
+      "titulo": "Las categorías en orden",
+      "tipo": "mundo",
+      "historia": "Un script de limpieza de plataforma «normalizó» los artefactos del registro: «dejamos los labels.json en orden alfabético, como en los demás modelos». El gateway sigue respondiendo bien.",
+      "sintoma": "<code>verificar.py</code>: ✗ repositorio el labels.json de v4 en el registro no tiene la huella de su tag labels_sha256: python mundo/modelos.py labels 4",
+      "hipotesis": [
+        "Cambiaron los labels en el registro.",
+        "Cambió el engine.",
+        "Cambió tu ficha del modelo."
+      ],
+      "confirma": {
+        "code": "python servir/armar.py\npython mundo/modelos.py labels 4",
+        "nota": "",
+        "donde": "mac",
+        "salida": "  classifier v4 · gate passed · engine listo (88bdea80ac92… · onnxruntime 1.32.0)\n✗ modelo/labels.json de la corrida tiene huella d4c157898500… y v4 dice 97864728052c…: las categorías no son las del modelo. No lo sirvo\n  modelo/labels.json  [\"abrigos\", \"bolsas\", \"botines\", \"camisas\", \"pantalones\", \"playeras\", \"sandalias\", \"sueteres\", \"tenis\", \"vestidos\"]\n  sha256 d4c157898500… · tag labels_sha256 97864728052c… · NO COINCIDEN"
+      },
+      "arreglo": "El <code>labels.json</code> de la corrida de v4 quedó en orden alfabético: los artefactos de una corrida se pueden reemplazar. El gateway responde bien porque su ficha se armó antes; el daño llegaría con el próximo armado: <code>abrigos</code> sería la posición 0 y cada respuesta diría otra categoría con buena confianza y código 200. Tu <code>armar.py</code> compara la huella con el tag <code>labels_sha256</code> y se niega. Arreglo: <code>python mundo/modelos.py reparar-labels 4</code> y <code>python servir/armar.py</code>.",
+      "concepto": "model-repository",
+      "check": "repositorio"
+    },
+    {
+      "id": "triton-trabado",
+      "titulo": "El servidor que no contesta",
+      "tipo": "infra",
+      "historia": "Desde hace unos minutos, todas las fotos salen con 504. El gateway está vivo: su /healthz contesta 200.",
+      "sintoma": "<code>verificar.py</code>: ✗ triton      Triton no dice «listo» (/v2/health/ready → sin respuesta en 1 s): python mundo/servicios.py estado\n✗ salud       /readyz → 503: Triton no está listo o tu gateway no lo sabe preguntar (python mundo/servicios.py estado)\n✗ responde    200 de 200 fotos del examen no dieron 200 (la primera: g-0001 → 504)",
+      "hipotesis": [
+        "Triton está trabado.",
+        "El gateway está trabado.",
+        "La red está lenta."
+      ],
+      "confirma": {
+        "code": "python mundo/servicios.py estado\ngrep '\"status\": 504' logs/gateway.log | tail -1",
+        "nota": "",
+        "donde": "mac",
+        "salida": "triton   PID 5923 · ps Ts (congelado: SIGSTOP) · /v2/health/live sin respuesta en 1 s · /v2/health/ready sin respuesta en 1 s\ngateway  PID 5740 · ps Ss · /healthz 200 · /readyz 503\n{\"request_id\": \"verificar-log-200-362318\", \"caller\": \"verificar\", \"source\": \"other\", \"model_version\": \"miniresnet-2026-10-01\", \"ms\": {\"pre\": 0.8, \"triton\": 151.6, \"total\": 152.9}, \"bytes\": 1278, \"sha256\": \"a3620aaeb761\","
+      },
+      "arreglo": "El proceso de Triton está congelado (SIGSTOP; en C01 sería una GPU o un driver colgados): acepta conexiones pero no contesta. Tu gateway hace lo correcto: corta cada llamada a los 150 ms con 504, <code>/readyz</code> dice 503 (Kubernetes sacaría la copia del reparto) y <code>/healthz</code> sigue en 200 (reiniciar el gateway no arreglaría nada). Arreglo: <code>python mundo/servicios.py reiniciar triton</code>. En C01, el liveness probe de Triton lo reinicia solo.",
+      "concepto": "vivo-listo",
+      "check": "triton"
+    },
+    {
+      "id": "mlflow-caido",
+      "titulo": "El registro no contesta",
+      "tipo": "infra",
+      "historia": "El canal de plataforma avisa que MLflow está en mantenimiento. Alguien pregunta: «¿se cayó también el clasificador?».",
+      "sintoma": "<code>verificar.py</code>: ✗ mundo       MLflow no responde en localhost:5700: docker compose ps (¿está arriba el servicio mlflow?)\n✗ repositorio MLflow no responde en localhost:5700: docker compose ps (¿está arriba el servicio mlflow?)\n10/12 en verde · falta: mundo, repositorio",
+      "hipotesis": [
+        "Se cayó MLflow.",
+        "Se cayó el clasificador.",
+        "Se cayó el S3."
+      ],
+      "confirma": {
+        "code": "docker compose ps -a --format \"{{.Service}}: {{.State}} · {{.Status}}\"\ncurl -s -o /dev/null -w \"classify → %{http_code}\\n\" -X POST localhost:8701/v1/classify \\\n  -H \"Content-Type: image/jpeg\" --data-binary @fotos-raras/tenis.jpg\npython servir/armar.py",
+        "nota": "",
+        "donde": "mac",
+        "salida": "mlflow: exited · Exited (137) 7 seconds ago\ns3: running · Up 6 minutes (healthy)\nclassify → 200\n✗ no pude leer classifier v4 del registro (MlflowException): ¿está arriba MLflow? docker compose ps\n[código 1]"
+      },
+      "arreglo": "MLflow está detenido, y el clasificador NO se cayó: Triton y el gateway ya tienen todo lo que necesitan (el engine en el repositorio y la ficha con sus labels), y siguen respondiendo 200. Lo que no se puede es armar un repositorio nuevo: <code>armar.py</code> falla en segundos, y está bien que falle. Servir no depende del registro en cada request; desplegar, sí. Arreglo: <code>docker compose up -d --wait mlflow</code>.",
+      "concepto": "gateway",
+      "check": "mundo"
+    }
+  ],
+  "listo": [
+    "El model repository tiene la copia exacta del engine aprobado, por número y con su huella, y la ficha del gateway trae sus labels con su huella.",
+    "El config.pbtxt cuadra con el engine, junta lotes con una ventana corta, rechaza lo que esperó demasiado, carga dos copias y se calienta antes de decir «listo».",
+    "El gateway revisa cada foto de lo barato a lo caro y contesta cada falla con su código, también las que pasan antes o fuera de classify.",
+    "Los topes salen de la memoria del peor momento, y la cadena de plazos baja de la app a la fila de Triton.",
+    "Cada request deja una línea de JSON y sus métricas, con nombres fijos y sin los 4xx en la latencia.",
+    "Las pruebas cubren la tabla de códigos con un Triton falso y corren en segundos sin GPU."
+  ],
+  "repaso": {
+    "memo": "<b>Servir un modelo no es llamarlo: es protegerlo.</b> Triton carga el engine aprobado con su <code>config.pbtxt</code> (batching con ventana corta, fila que rechaza, copias y warmup). El gateway revisa de lo barato a lo caro, decodifica en un hilo con semáforo, rechaza la 17 en vuelo al instante, le da a Triton min(150, lo que queda) y contesta siempre con un código que dice qué pasó, con una línea de log y sus métricas.",
+    "trampa": "Estirar un plazo o subir un tope porque «hoy no alcanza»: los plazos tienen que bajar de afuera hacia adentro y los topes salen de la memoria del peor caso, no de la CPU de hoy.",
+    "entrevista": [
+      {
+        "q": "Diseña el servicio que sirve un clasificador de imágenes con p99 ≤ 200 ms.",
+        "a": "Un gateway en FastAPI en CPU, varias copias, delante de Triton en GPU. El gateway revisa la foto de lo barato a lo caro, decodifica en un threadpool con semáforo, tiene un tope de requests en vuelo, y llama a Triton con el tensor en binario y un plazo que es el mínimo entre su tope y lo que le queda a la request. Triton con batching dinámico de pocos ms, fila con timeout, dos instancias por GPU y warmup. /healthz sin dependencias, /readyz que pregunta a Triton, una línea de log por request y métricas con nombres fijos."
+      },
+      {
+        "q": "¿Por qué separar gateway y servidor de modelos?",
+        "a": "Escalan distinto: los gateways son CPU barata y muchas copias; las GPUs son caras y pocas. El decode y la validación de bytes hostiles se quedan fuera del proceso con la GPU. Y Triton hace batching dinámico, que un proceso de FastAPI con el modelo adentro no hace."
+      },
+      {
+        "q": "¿Qué pasa si Triton se traba?",
+        "a": "Cada llamada se corta por el plazo con 504; /readyz pregunta a Triton con su propio tope y dice 503, así Kubernetes saca esa copia del reparto sin reiniciarla; /healthz no pregunta a nadie y sigue en 200, porque reiniciar gateways no arregla a Triton. Sin reintentos, para no sumar carga a un sistema que ya no puede."
+      },
+      {
+        "q": "¿Cómo eliges el tope de requests en vuelo?",
+        "a": "Con la Ley de Little: llegadas por segundo por lo que dura cada una, en el caso normal y en el lento. Y lo recorto por la memoria del peor momento: cada request en vuelo puede traer un body del máximo y cada decode puede ser de una foto enorme. Lo que sobra recibe 503 al instante."
+      },
+      {
+        "q": "¿Qué es una bomba de descompresión y cómo te defiendes?",
+        "a": "Una imagen que pesa poco comprimida y muchísimo decodificada. Leo el ancho y el alto del encabezado sin decodificar (Image.open) y rechazo por píxeles antes del decode, además de la red de Pillow (MAX_IMAGE_PIXELS) y un semáforo que limita cuántos decodes caben a la vez."
+      },
+      {
+        "q": "¿Cómo pruebas el gateway sin GPU?",
+        "a": "Con un Triton falso que tiene los mismos métodos asíncronos y las mismas excepciones que el cliente real, y que revisa el nombre, el tipo y la forma del tensor que le mandan. Así cubro cada fila de la tabla de códigos (incluidos 499, 500 con NaN, 503 y 504) en segundos, en cualquier máquina."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/c01-serving/CLAUDE.md",
+    "guiado": "content/estaciones/c01-serving/prompts/guiado.md",
+    "solo": "content/estaciones/c01-serving/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/c01-serving/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/c01-serving/prompts/romper-solo.md"
+  }
+}

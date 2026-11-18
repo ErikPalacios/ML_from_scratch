@@ -1,0 +1,14 @@
+# data/ es caché local (Fashion-MNIST); fotos-raras/ la crea mundo/crear.py; logs/ la escriben Triton y tu gateway;
+# el engine dentro del model repository y servir/modelo.json los deja servir/armar.py (salen del registro, no de git);
+# .taller/ es de romper.py.
+data/
+fotos-raras/
+logs/
+model_repository/*/[0-9]*/
+servir/modelo.json
+.taller/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.respaldo/

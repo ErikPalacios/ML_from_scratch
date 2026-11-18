@@ -1,0 +1,18 @@
+# Versiones fijadas: así el kit corre igual en tu Mac hoy y dentro de seis meses.
+# Lo del gateway va también en gateway/requirements.txt (la imagen del gateway de la estación 7).
+fastapi==0.163.2
+uvicorn==0.54.0
+tritonclient[http]==2.75.0    # el cliente oficial de Triton (HTTP); habla igual con el servidor del dojo
+prometheus-client==0.26.0
+pillow==13.0.0                # la misma con que se entrenó (el preprocess decide con ella cómo decodificar)
+numpy==2.5.4
+pyyaml==6.0.3
+httpx==0.28.1                 # el cliente de pruebas de FastAPI
+pytest==9.2.0
+# El mundo: el servidor de modelos del dojo, el registro y el S3
+onnxruntime==1.32.0           # el runtime del servidor de modelos: la versión con que la estación 5 construyó el engine
+torch==2.15.0                 # solo lo usa mundo/crear.py (entrenar los modelos del equipo y exportar sus engines)
+onnx==1.23.2
+mlflow-skinny==3.18.0
+boto3==1.43.123
+pandas==3.1.0                 # solo lo usa mundo/crear.py

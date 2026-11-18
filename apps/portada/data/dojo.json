@@ -49,8 +49,8 @@
       "id": "serving",
       "titulo": "Código de serving",
       "etapa": "api",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://taller-ai-engineer.vercel.app/c01/serving/"
     },
     {
       "num": 7,
