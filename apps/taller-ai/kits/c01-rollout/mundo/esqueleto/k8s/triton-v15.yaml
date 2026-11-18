@@ -1,0 +1,11 @@
+# TUYO (paso 2). El Triton de la versión 15 (resnet50-2026-11-01, @challenger), desplegado ANTES de que nadie le mande
+# tráfico: primero lo usa la sombra y después el canary.
+#
+# Contrato (lo revisa verificar.py par):
+# - Un Deployment triton-v15 con UN solo pod (la T4 de más), mismas reglas que triton-v14 (T4, toleration, zonas,
+#   probes, preStop, gracia), etiquetas app.kubernetes.io/name: triton y classifier/modelo: "15", y la imagen
+#   classifier-triton-v15 (kustomize pone el digest).
+# - Un Service triton-v15 que ve solo los pods de la 15.
+# - Un PodDisruptionBudget triton-v15 con minAvailable: 0 mientras tenga un solo pod (con 1 de 1, minAvailable: 1
+#   haría que ningún drain pudiera sacarlo).
+# Mientras el archivo sea solo comentarios, kustomize lo acepta y no crea nada.

@@ -81,8 +81,8 @@
       "id": "rollout",
       "titulo": "Rollout seguro",
       "etapa": "orquestacion",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://taller-ai-engineer.vercel.app/c01/rollout/"
     },
     {
       "num": 11,

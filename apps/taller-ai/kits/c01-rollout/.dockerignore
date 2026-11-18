@@ -1,0 +1,7 @@
+# Solo entra a la imagen del gateway lo que su Dockerfile copia.
+*
+!gateway/requirements.txt
+!gateway/app/
+!gateway.yaml
+!servir/modelo.json
+**/__pycache__

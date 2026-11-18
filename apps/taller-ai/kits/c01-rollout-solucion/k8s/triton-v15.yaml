@@ -1,0 +1,76 @@
+# Triton de la versión 15 (resnet50-2026-11-01, @challenger): desplegado ANTES de que nadie le mande tráfico. Lo
+# llaman la sombra (los gateways de la 14 copian el 10 % de las fotos) y, después, los pods canary del gateway de la
+# release 15. Mismas reglas que triton-v14: lo único distinto es la versión y que empieza con un solo pod.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton-v15
+  labels: {app.kubernetes.io/name: triton, classifier/modelo: "15"}
+spec:
+  replicas: 1                                    # la T4 de más: la sombra y el canary; al terminar el bake, 2
+  selector:
+    matchLabels: {app.kubernetes.io/name: triton, classifier/modelo: "15"}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}   # nunca menos de 2 listos; el de más necesita una T4 libre
+  progressDeadlineSeconds: 300      # sin avance en 5 min: el despliegue se marca fallido (no se revierte solo)
+  revisionHistoryLimit: 5
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: triton, classifier/modelo: "15"}
+    spec:
+      nodeSelector: {workload: gpu-t4}           # atraer: solo nodos con T4
+      tolerations:                               # y aguantar su taint, que aleja a todos los demás
+        - {key: nvidia.com/gpu, operator: Equal, value: present, effect: NoSchedule}
+      topologySpreadConstraints:
+        - maxSkew: 1                             # entre zonas, como mucho 1 Triton de diferencia
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule       # mejor Pending que dos en la misma zona
+          labelSelector: {matchLabels: {app.kubernetes.io/name: triton, classifier/modelo: "15"}}
+          matchLabelKeys: [pod-template-hash]    # cuenta solo los pods de la misma versión (si no, tras un cambio de versión pueden quedar dos en una zona)
+      terminationGracePeriodSeconds: 60          # 10 de preStop + 30 de drenado + 20 de margen
+      containers:
+        - name: triton-v15
+          image: classifier-triton-v15           # kustomize pone el registro y el digest (kustomization.yaml)
+          ports: [{name: http, containerPort: 8000}]
+          resources:
+            requests: {cpu: "2", memory: 6Gi, nvidia.com/gpu: "1"}
+            limits: {memory: 6Gi, nvidia.com/gpu: "1"}   # sin límite de CPU; la memoria, igual al request
+          startupProbe:                          # 5 s × 12 = 60 s para cargar el engine (tarda ≈ 20 s)
+            httpGet: {path: /v2/health/ready, port: http}
+            periodSeconds: 5
+            failureThreshold: 12
+          readinessProbe:                        # ≈ 10 s sin estar listo y sale del reparto
+            httpGet: {path: /v2/health/ready, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          livenessProbe:                         # ≈ 30 s sin contestar y se reinicia; solo pregunta por el proceso
+            httpGet: {path: /v2/health/live, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          lifecycle:
+            preStop: {exec: {command: ["sleep", "10"]}}   # que los gateways dejen de mandarle antes de SIGTERM
+          volumeMounts: [{name: shm, mountPath: /dev/shm}]
+      volumes:
+        - {name: shm, emptyDir: {medium: Memory, sizeLimit: 1Gi}}   # cuenta dentro de los 6 GiB
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: triton-v15
+  labels: {app.kubernetes.io/name: triton, classifier/modelo: "15"}
+spec:
+  selector: {app.kubernetes.io/name: triton, classifier/modelo: "15"}
+  ports: [{name: http, port: 8000, targetPort: http}]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: triton-v15
+  labels: {app.kubernetes.io/name: triton, classifier/modelo: "15"}
+spec:
+  minAvailable: 0                                # con 1 de 1, minAvailable: 1 bloquearía todo drain; con 2 pods, 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: triton, classifier/modelo: "15"}

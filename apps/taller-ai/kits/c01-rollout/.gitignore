@@ -1,0 +1,9 @@
+# .kube/ guarda la llave del clúster del dojo y .taller/ es de romper.py: ninguno es parte del repositorio de despliegue.
+# Tu registro (taller/progreso.json y BITACORA.md) tampoco: verificar.py escribe en él en cada corrida, y un árbol con
+# cambios sin commit bloquea el git revert del rollback.
+.kube/
+.taller/
+taller/progreso.json
+BITACORA.md
+__pycache__/
+*.pyc

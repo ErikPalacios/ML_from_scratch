@@ -1,0 +1,9 @@
+{
+  "nota": "Los umbrales del shadow, escritos ANTES de mirar (como los del gate). Los lee sombra/reporte.py. En C01, los mismos números menos el p99: C01 pide ≤ 1.1 × el del champion; en tu Mac, dos pods de Triton en el mismo procesador difieren más que eso por puro ruido (se midió 1.1–1.34 ×), así que el dojo pide ≤ 1.5 ×.",
+  "acuerdo_top1_min": 0.90,
+  "p99_max_vs_champion": 1.5,
+  "caidas_max": 0,
+  "categorias_grandes": 5,
+  "acuerdo_por_categoria_min": 0.85,
+  "pares_min": 1000
+}

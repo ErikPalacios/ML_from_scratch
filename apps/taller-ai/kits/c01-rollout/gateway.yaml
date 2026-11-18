@@ -1,0 +1,29 @@
+# Las reglas del gateway, del equipo de serving. Tu código las lee al arrancar y nunca las escribe. Cambian solo con
+# una revisión (mundo/revisiones.json guarda las huellas aprobadas). En C01: las constantes y variables de entorno
+# del Deployment del gateway, revisadas en el repositorio classifier. En la estación 8 viaja dentro de la imagen.
+contrato:
+  ruta: /v1/classify
+  tipos: [image/jpeg, image/png, image/webp]
+  top_k: {defecto: 5, min: 1, max: 10}   # C01: de 1 a 20, con 500 categorías; aquí hay 10
+limites:
+  max_bytes: 10485760         # 10 MiB: el body más grande que se lee; se corta al leer, no se confía en Content-Length
+  max_pixeles: 40000000       # 40 MP, leídos del encabezado de la imagen, antes de decodificar
+  max_proporcion: 8           # el lado largo hasta 8 veces el corto
+  decodes: 2                  # decodes a la vez en un proceso (el semáforo)
+  espera_cpu_ms: 50           # lo más que una request espera un lugar de decode; después, 503
+  en_vuelo: 16                # requests adentro a la vez; la 17 recibe 503 al instante
+  memoria_mib: 1024           # la memoria de una copia del gateway (en C01: el límite del pod)
+plazos_ms:                    # cada eslabón, menor que el de afuera: el de adentro se rinde primero
+  app: 300                    # lo que espera la app antes de mostrar el selector manual de categorías
+  gateway: 250                # el plazo total de una request en el gateway
+  triton: 150                 # el tope de la llamada a Triton (o lo que le quede a la request, si es menos)
+  fila_triton: 100            # lo más que una foto espera en la fila de Triton (default_timeout_microseconds)
+sombra:                       # estación 10: la copia al challenger (la usa gateway/app/sombra.py)
+  cola: 64                    # lugares en la fila de copias; si está llena, la copia se tira (nunca espera el usuario)
+  plazo_ms: 150               # lo más que se espera al Triton de la sombra por copia; después, se tira
+  trabajadores: 2             # tareas que vacían la fila (cada una, una copia a la vez)
+triton:
+  url: localhost:8800        # en tu Mac. Dentro de la red del mundo, cada ambiente pone TRITON_URL=triton:8000
+  modelo: classifier
+  conexiones: 64              # el pool de conexiones del cliente de Triton, uno por proceso
+  listo_timeout_ms: 500       # lo más que /readyz espera la respuesta de Triton

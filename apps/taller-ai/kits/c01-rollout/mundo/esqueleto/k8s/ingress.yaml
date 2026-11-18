@@ -1,0 +1,25 @@
+# La entrada de afuera al gateway: el Ingress «gateway». En C01, el AWS Load Balancer Controller lo traduce a la
+# configuración del ALB; aquí lo lee el «ALB» del dojo (namespace dojo-alb) cada segundo, con las mismas reglas:
+# - backend con un puerto normal (number: 8080): todo el tráfico a ese Service;
+# - backend con el puerto llamado «use-annotation»: reparte con los pesos de la anotación
+#   alb.ingress.kubernetes.io/actions.<nombre del backend>, la que escribe Argo Rollouts en cada setWeight.
+# Es tuyo: en el paso 5 lo cambias para que Argo Rollouts reparta.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway
+  labels: {app.kubernetes.io/name: gateway}
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal          # en C01: el ALB interno; aquí no hace nada
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port: {number: 8080}

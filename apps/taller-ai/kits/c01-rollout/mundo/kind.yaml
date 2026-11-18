@@ -1,0 +1,60 @@
+# El clúster del dojo: Kubernetes 1.35 de verdad (kind = Kubernetes in Docker: cada nodo es un contenedor). Lo crea
+# mundo/crear.py con kindest/node:v1.35.5; no se toca. En C01: EKS 1.35 con nodos c6i.xlarge (gateway) y g4dn.xlarge
+# (una T4 cada uno, para Triton) en dos zonas. Aquí, seis nodos de trabajo en tu Mac:
+#   cpu-a, cpu-b          4 vCPU y ≈ 8 GiB asignables cada uno, como una c6i.xlarge
+#   t4-a1, t4-b1, t4-a2, t4-b2   cada uno anuncia una «T4» (nvidia.com/gpu: 1) y tiene la taint de las GPU
+# Las etiquetas (zona, tipo, workload), la taint y la GPU las pone crear.py después de crear el clúster.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: dojo-rollout
+containerdConfigPatches:          # cada nodo busca en /etc/containerd/certs.d cómo llegar a localhost:5910 (el registro)
+- |-
+  [plugins."io.containerd.grpc.v1.cri".registry]
+    config_path = "/etc/containerd/certs.d"
+nodes:
+- role: control-plane
+  extraPortMappings:              # el «ALB» del dojo (NodePort 30910) y Prometheus (30911), en tu Mac
+  - {containerPort: 30910, hostPort: 8910, listenAddress: "127.0.0.1"}
+  - {containerPort: 30911, hostPort: 9910, listenAddress: "127.0.0.1"}
+- role: worker                    # cpu-a (c6i.xlarge)
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        system-reserved: "cpu=6,memory=3584Mi"   # tu Mac tiene 10 núcleos: se reservan 6 y quedan 4, como en AWS
+- role: worker                    # cpu-b (c6i.xlarge)
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        system-reserved: "cpu=6,memory=3584Mi"   # tu Mac tiene 10 núcleos: se reservan 6 y quedan 4, como en AWS
+- role: worker                    # t4-a1 (g4dn.xlarge)
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        system-reserved: "cpu=6,memory=3584Mi"   # tu Mac tiene 10 núcleos: se reservan 6 y quedan 4, como en AWS
+- role: worker                    # t4-b1 (g4dn.xlarge)
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        system-reserved: "cpu=6,memory=3584Mi"   # tu Mac tiene 10 núcleos: se reservan 6 y quedan 4, como en AWS
+- role: worker                    # t4-a2 (g4dn.xlarge)
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        system-reserved: "cpu=6,memory=3584Mi"   # tu Mac tiene 10 núcleos: se reservan 6 y quedan 4, como en AWS
+- role: worker                    # t4-b2 (g4dn.xlarge)
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        system-reserved: "cpu=6,memory=3584Mi"   # tu Mac tiene 10 núcleos: se reservan 6 y quedan 4, como en AWS

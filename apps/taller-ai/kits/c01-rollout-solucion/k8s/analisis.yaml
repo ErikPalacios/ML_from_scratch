@@ -1,0 +1,120 @@
+# El AnalysisTemplate «canary-vs-estable» (paso 6): las reglas del canary, escritas antes de empezar. El Rollout lo
+# corre de fondo durante todo el canary. Si una métrica falla, Argo Rollouts aborta: el peso vuelve al estable en
+# segundos y nadie tuvo que despertar.
+# Cada consulta compara canary contra estable EN LA MISMA VENTANA (los dos ven la misma mezcla de fotos) y devuelve
+# -1 mientras el canary no junta su n mínimo: con -1 no se cumple ni la condición de éxito ni la de falla, y la medición
+# sale «inconclusa» (no decide). Los números son los de la escala del dojo; los precálculos dicen de dónde salen.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: canary-vs-estable
+  labels: {app.kubernetes.io/name: gateway}
+spec:
+  args:
+    - name: canary-hash
+    - name: stable-hash
+  metrics:
+    - name: errores-relativo                     # 5xx del canary ≥ 2 × los del estable (piso: el 0.1 % de la promesa)
+      initialDelay: 2m                           # ≈ el tiempo de juntar 200 requests al 5 %
+      interval: 1m
+      inconclusiveLimit: 2
+      successCondition: result[0] >= 0 && result[0] < 2
+      failureCondition: result[0] >= 2
+      provider:
+        prometheus:
+          address: http://prometheus.monitoreo.svc.cluster.local:9090
+          query: |
+            (
+              (sum(increase(classifier_requests_total{hash="{{args.canary-hash}}",code=~"5.."}[2m])) or vector(0))
+                / sum(increase(classifier_requests_total{hash="{{args.canary-hash}}"}[2m]))
+            ) / clamp_min(
+              (sum(increase(classifier_requests_total{hash="{{args.stable-hash}}",code=~"5.."}[2m])) or vector(0))
+                / sum(increase(classifier_requests_total{hash="{{args.stable-hash}}"}[2m])), 0.001)
+            and on() sum(increase(classifier_requests_total{hash="{{args.canary-hash}}"}[2m])) >= 200
+            or on() vector(-1)
+    - name: errores-tope                         # la promesa: el canary nunca pasa de 0.5 % de 5xx
+      initialDelay: 2m
+      interval: 1m
+      inconclusiveLimit: 2
+      successCondition: result[0] >= 0 && result[0] < 0.005
+      failureCondition: result[0] >= 0.005
+      provider:
+        prometheus:
+          address: http://prometheus.monitoreo.svc.cluster.local:9090
+          query: |
+            (sum(increase(classifier_requests_total{hash="{{args.canary-hash}}",code=~"5.."}[2m])) or vector(0))
+              / sum(increase(classifier_requests_total{hash="{{args.canary-hash}}"}[2m]))
+            and on() sum(increase(classifier_requests_total{hash="{{args.canary-hash}}"}[2m])) >= 200
+            or on() vector(-1)
+    - name: p99-relativo                         # el p99 del canary no pasa de 1.2 × el del estable (n ≥ 500: decide en el 25 %)
+      # Piso de 50 ms para el estable: abajo de eso, las cubetas del histograma (5–10, 10–20 ms) no distinguen 10 de 16 ms
+      # y la razón es puro ruido (se midió 1.64 × en un canary bueno); un usuario tampoco nota la diferencia.
+      initialDelay: 4m
+      interval: 1m
+      inconclusiveLimit: 2
+      successCondition: result[0] >= 0 && result[0] <= 1.2
+      failureCondition: result[0] > 1.2
+      provider:
+        prometheus:
+          address: http://prometheus.monitoreo.svc.cluster.local:9090
+          query: |
+            histogram_quantile(0.99, sum by (le) (rate(classifier_request_seconds_bucket{hash="{{args.canary-hash}}"}[4m])))
+              / clamp_min(histogram_quantile(0.99, sum by (le) (rate(classifier_request_seconds_bucket{hash="{{args.stable-hash}}"}[4m]))), 0.05)
+            and on() sum(increase(classifier_request_seconds_count{hash="{{args.canary-hash}}"}[4m])) >= 500
+            or on() vector(-1)
+    - name: p99-tope                             # la promesa: p99 ≤ 200 ms
+      initialDelay: 4m
+      interval: 1m
+      inconclusiveLimit: 2
+      successCondition: result[0] >= 0 && result[0] <= 0.2
+      failureCondition: result[0] > 0.2
+      provider:
+        prometheus:
+          address: http://prometheus.monitoreo.svc.cluster.local:9090
+          query: |
+            histogram_quantile(0.99, sum by (le) (rate(classifier_request_seconds_bucket{hash="{{args.canary-hash}}"}[4m])))
+            and on() sum(increase(classifier_request_seconds_count{hash="{{args.canary-hash}}"}[4m])) >= 500
+            or on() vector(-1)
+    - name: baja-confianza                       # fotos con top-1 < 0.3: el canary no pasa de 1.5 × el estable
+      initialDelay: 3m
+      interval: 1m
+      inconclusiveLimit: 2
+      successCondition: result[0] >= 0 && result[0] <= 1.5
+      failureCondition: result[0] > 1.5
+      provider:
+        prometheus:
+          address: http://prometheus.monitoreo.svc.cluster.local:9090
+          query: |
+            (
+              sum(increase(classifier_top1_score_bucket{hash="{{args.canary-hash}}",le="0.3"}[3m]))
+                / sum(increase(classifier_top1_score_count{hash="{{args.canary-hash}}"}[3m]))
+            ) / clamp_min(
+              sum(increase(classifier_top1_score_bucket{hash="{{args.stable-hash}}",le="0.3"}[3m]))
+                / sum(increase(classifier_top1_score_count{hash="{{args.stable-hash}}"}[3m])), 0.01)
+            and on() sum(increase(classifier_top1_score_count{hash="{{args.canary-hash}}"}[3m])) >= 300
+            or on() vector(-1)
+    - name: psi                                  # cuánto cambió la mezcla de categorías que predice: ≤ 0.1
+      initialDelay: 3m
+      interval: 1m
+      inconclusiveLimit: 2
+      successCondition: result[0] >= 0 && result[0] <= 0.1
+      failureCondition: result[0] > 0.1
+      provider:
+        prometheus:
+          address: http://prometheus.monitoreo.svc.cluster.local:9090
+          query: |
+            sum(
+              (
+                clamp_min(sum by (label) (increase(classifier_top1_label_total{hash="{{args.canary-hash}}"}[3m]))
+                  / scalar(sum(increase(classifier_top1_label_total{hash="{{args.canary-hash}}"}[3m]))), 0.001)
+                - clamp_min(sum by (label) (increase(classifier_top1_label_total{hash="{{args.stable-hash}}"}[3m]))
+                  / scalar(sum(increase(classifier_top1_label_total{hash="{{args.stable-hash}}"}[3m]))), 0.001)
+              ) * ln(
+                clamp_min(sum by (label) (increase(classifier_top1_label_total{hash="{{args.canary-hash}}"}[3m]))
+                  / scalar(sum(increase(classifier_top1_label_total{hash="{{args.canary-hash}}"}[3m]))), 0.001)
+                / clamp_min(sum by (label) (increase(classifier_top1_label_total{hash="{{args.stable-hash}}"}[3m]))
+                  / scalar(sum(increase(classifier_top1_label_total{hash="{{args.stable-hash}}"}[3m]))), 0.001)
+              )
+            )
+            and on() sum(increase(classifier_top1_label_total{hash="{{args.canary-hash}}"}[3m])) >= 300
+            or on() vector(-1)

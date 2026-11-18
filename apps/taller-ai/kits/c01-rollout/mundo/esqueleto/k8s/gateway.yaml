@@ -1,0 +1,66 @@
+# El gateway de la release 14: lo que dejó la estación 9 (un Deployment), ahora con 3 réplicas fijas (sin HPA en esta
+# estación) y detrás del Ingress (ingress.yaml) en lugar de un NodePort. Es tuyo: en el paso 5 se vuelve un Rollout.
+# Lo que hace de él la release 14: TRITON_URL apunta a triton-v14 y su modelo.json (los labels y la versión) sale del
+# ConfigMap classifier-modelo-14. La etiqueta classifier/modelo la lee Prometheus.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels: {app.kubernetes.io/name: gateway}
+spec:
+  replicas: 3
+  selector:
+    matchLabels: {app.kubernetes.io/name: gateway}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  progressDeadlineSeconds: 120                   # el gateway está listo en ≈ 10 s: 2 min sin avance ya es falla
+  revisionHistoryLimit: 5
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: gateway, classifier/modelo: "14"}
+    spec:
+      nodeSelector: {workload: cpu}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway      # reparte si puede; si no, arranca igual
+          labelSelector: {matchLabels: {app.kubernetes.io/name: gateway}}
+          matchLabelKeys: [pod-template-hash]
+      terminationGracePeriodSeconds: 45          # 15 de preStop + 20 de drenado de uvicorn + 10 de margen
+      containers:
+        - name: gateway
+          image: classifier-gateway
+          env:
+            - {name: TRITON_URL, value: "triton-v14:8000"}   # el Triton de SU versión, y solo ese
+          ports: [{name: http, containerPort: 8080}]
+          resources:
+            requests: {cpu: 500m, memory: 1Gi}   # medio núcleo: caben la release estable, el canary y la anterior en el bake
+            limits: {memory: 1Gi}
+          readinessProbe:                        # /readyz le pregunta a Triton: sin Triton, fuera del reparto
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
+          livenessProbe:                         # /healthz no le pregunta a nadie: solo si el proceso vive
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          lifecycle:
+            preStop: {exec: {command: ["sleep", "15"]}}
+          volumeMounts:
+            - {name: modelo, mountPath: /srv/servir, readOnly: true}   # modelo.json del ConfigMap, no el de la imagen
+      volumes:
+        - name: modelo
+          configMap: {name: classifier-modelo-14}   # los labels y la versión de la 14
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  labels: {app.kubernetes.io/name: gateway}
+spec:
+  selector: {app.kubernetes.io/name: gateway}
+  ports: [{name: http, port: 8080, targetPort: http}]

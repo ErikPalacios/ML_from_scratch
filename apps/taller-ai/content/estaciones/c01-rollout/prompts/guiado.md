@@ -1,0 +1,15 @@
+Estoy en el Dojo de entrenamiento ML engineer's, en la estación 10 de C01, «Rollout seguro», ronda **Construir con ayuda**.
+
+Lee primero `CLAUDE.md` y `GUION.md` de esta carpeta. Vamos a llevar juntos la versión 15 (@challenger) de la sombra al 100 % del tráfico, siguiendo los pasos 0 a 9 de `GUION.md`: leer el mundo (quién reparte el tráfico y qué métricas hay); `triton-v15` sin tráfico; la sombra en el gateway (`gateway/app/sombra.py`) y su reporte (`sombra/reporte.py`); el gateway como Rollout de Argo con el Ingress que reparte por pesos; el análisis contra el estable (`k8s/analisis.yaml`); el ensayo con un modelo roto que el canary aborta solo; el canary de la release 15; y promover @champion (`ci/promover.py`), el bake, volver con un `git revert` y el `RUNBOOK.md`.
+
+Entre el paso 0 y el 1, `GUION.md` trae los «Precálculos»: las cuentas de servilleta de la estación (pares de la sombra, minutos para juntar el n mínimo, falsa alarma sin n mínimo, ruido del PSI, daño por fase, costo de la escalera). Pídeme que haga cada cuenta yo primero, corrígeme y después dime qué comando o qué paso la confirma.
+
+En cada paso:
+1. Dime el objetivo en una línea y explícame los conceptos que usa desde cero, rápido, con una analogía y con el término en inglés. Doy por sabido Python, PyTorch y lo de la estación 9 (pods, Deployments, Services, probes, PDB), no Argo Rollouts ni la estadística del canary.
+2. Escribe conmigo el archivo del paso, por bloques y con el porqué de cada línea. No me pegues el archivo entero de golpe. El contrato de arriba de cada archivo manda.
+3. Dime qué comando correr y espera a que te pegue la salida. Los que cambian algo (`kubectl apply`, `kubectl delete`, `kubectl argo rollouts abort|promote|retry`, `mundo/publicar.py`, `mundo/ensayo.py`, `mundo/modelos.py alias`, `ci/promover.py`, `mundo/carga.py`, `git commit`, `git revert`) no los corras tú sin decírmelo antes. Un canary necesita carga en otra terminal: recuérdamelo.
+4. Corre `python3 verificar.py <checks del paso>` y explícame el resultado. Mira conmigo, en este orden: `kubectl argo rollouts -n classifier get rollout gateway`, `kubectl -n classifier get analysisrun` y `describe analysisrun <nombre>` (qué métrica, qué valor), el peso que aplica el ALB, Prometheus en http://localhost:9910, `python3 mundo/modelos.py ver` y `git log --oneline`.
+5. Cuando algo del dojo sea distinto de C01 (los minutos en lugar de horas, el n mínimo de 200–500 en lugar de 10,000, el p99 de la sombra a 1.5 × en lugar de 1.1 ×, el ALB del dojo, el PSI en PromQL), dímelo en una línea.
+6. Anota el paso en la bitácora (sección «Bitácora» de `CLAUDE.md`) con lo que hice, lo que medí y lo que sigue.
+
+Recuerda que cada terminal nueva necesita `export KUBECONFIG=$PWD/.kube/config`, y que lo que corre sale de git: commit y `kubectl apply -k k8s/`; volver es un `git revert`, nunca `kubectl argo rollouts undo`. Si algo falla, no lo arregles en silencio: muéstrame el error, dime tu hipótesis y arreglémoslo juntos. Al final, corre `python3 verificar.py` completo y cierra la ronda en `taller/progreso.json`.

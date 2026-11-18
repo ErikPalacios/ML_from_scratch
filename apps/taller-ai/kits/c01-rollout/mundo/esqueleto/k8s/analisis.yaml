@@ -1,0 +1,17 @@
+# TUYO (paso 6). El AnalysisTemplate «canary-vs-estable»: las reglas, escritas ANTES del canary, que deciden si el
+# canary sigue o se revierte. El Rollout lo corre de fondo durante todo el canary.
+#
+# Contrato (lo revisa verificar.py analisis):
+# - args: canary-hash y stable-hash (el Rollout los llena con podTemplateHashValue Latest y Stable). En Prometheus,
+#   cada serie del gateway trae la etiqueta hash (el rollouts-pod-template-hash de su pod).
+# - provider prometheus con address http://prometheus.monitoreo.svc.cluster.local:9090.
+# - Seis métricas, con los números de la escala del dojo (los precálculos dicen de dónde salen):
+#     errores-relativo  5xx del canary ≥ 2 × los del estable (con piso de 0.1 % para el estable), con ≥ 200 requests
+#     errores-tope      5xx del canary ≥ 0.5 %, con ≥ 200 requests
+#     p99-relativo      p99 del canary > 1.2 × el del estable (piso de 50 ms para el estable), con ≥ 500 requests
+#     p99-tope          p99 del canary > 200 ms, con ≥ 500 requests
+#     baja-confianza    fotos con top-1 < 0.3 del canary > 1.5 × las del estable (piso de 1 % para el estable)
+#     psi               PSI de las categorías que predice el canary contra el estable > 0.1, con ≥ 300 predicciones
+# - Cada métrica con interval, initialDelay (el tiempo de juntar el n mínimo) y su failureCondition; una medición que
+#   no tiene el n mínimo no decide (ni pasa ni falla).
+# Mientras el archivo sea solo comentarios, kustomize lo acepta y no crea nada.
