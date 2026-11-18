@@ -1,0 +1,12 @@
+# Versiones fijadas: así el kit corre igual en tu Mac hoy y dentro de seis meses.
+# En C01, esto vive dentro de la imagen del runner de CI con la T4, y el build anota su digest.
+torch==2.15.0
+onnx==1.23.2
+onnxscript==0.7.2           # solo para probar el exportador nuevo (dynamo=True) en el paso 2
+onnxruntime==1.32.0         # la misma que mundo/servidor/requirements.txt: el engine se construye con el runtime que lo va a servir
+mlflow-skinny==3.18.0
+boto3==1.43.123
+pandas==3.1.0               # solo lo usa mundo/crear.py
+numpy==2.5.4
+pillow==13.0.0              # la misma que mundo/gateway/requirements.txt
+pyyaml==6.0.3

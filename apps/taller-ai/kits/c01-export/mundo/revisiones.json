@@ -1,0 +1,6 @@
+{
+  "nota": "Las versiones de engine.yaml que pasaron revisión: cada una salió de un PR propio, aprobado por otra persona. En C01 esto es el historial de PR del repositorio ml-catalogo; aquí, este archivo. Lo mantiene el equipo: no se toca.",
+  "aprobadas": [
+    {"engine_yaml_sha256": "a5555c7b955c0739adc7af843a156b73ef767f1b6d5a0613eb6ecd246465c8a2", "pr": 44, "autor": "Equipo de ML", "reviso": "Líder técnica de ML", "fecha": "2026-08-20", "motivo": "Receta del engine FP16 con opset 17 fijo; paridad sobre golden-v1 y gate de latencia contra el champion a dos tasas."}
+  ]
+}

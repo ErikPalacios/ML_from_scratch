@@ -1,0 +1,7 @@
+# El contrato del modelo con el servidor: cómo se llaman, qué tipo y qué forma tienen la entrada y la salida, y el
+# batch más grande que el servidor va a juntar. Es del equipo de serving (estación 6). En C01: el config.pbtxt de
+# Triton en el model repository (classifier/config.pbtxt).
+nombre: classifier
+max_batch_size: 32
+entrada: {nombre: input, tipo: float32, forma: [3, 32, 32]}     # una foto ya preprocesada por el gateway
+salida: {nombre: logits, tipo: float32, forma: [10]}             # un logit por categoría, en el orden de labels.json

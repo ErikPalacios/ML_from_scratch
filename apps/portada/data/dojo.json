@@ -41,8 +41,8 @@
       "id": "export",
       "titulo": "Export, engine y paridad",
       "etapa": "modelo",
-      "lista": false,
-      "url": null
+      "lista": true,
+      "url": "https://taller-ai-engineer.vercel.app/c01/export/"
     },
     {
       "num": 6,

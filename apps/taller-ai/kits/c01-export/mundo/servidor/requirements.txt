@@ -1,0 +1,4 @@
+# La imagen del servidor de modelos (estaciones 6 y 7): lo que corre el engine en producción.
+# El engine se construye con ESTE runtime y en ESTA máquina; si cambia el runtime, se reconstruye el engine
+# en el mismo PR. En C01: la release de NGC de Triton (por ejemplo 25.08), que fija la versión de TensorRT.
+onnxruntime==1.32.0

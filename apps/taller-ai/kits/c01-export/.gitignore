@@ -1,0 +1,9 @@
+# data/ es caché local (Fashion-MNIST); artefactos/ lo escriben tu exportar.py, construir.py, paridad.py y latencia.py;
+# .taller/ es de romper.py.
+data/
+artefactos/
+.taller/
+.venv/
+__pycache__/
+*.pyc
+.respaldo/

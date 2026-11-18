@@ -1,0 +1,24 @@
+# engine.yaml · la receta del export y del engine de classifier, y los umbrales de la paridad y la latencia.
+# Las escribe el equipo ANTES de la corrida y cambian solo en un PR propio que otra persona revisa (queda anotado en
+# mundo/revisiones.json). Tus pasos la leen de aquí: no copies estos números en el código.
+export:
+  opset: 17                       # la versión de los operadores ONNX; se fija y se LEE del archivo después de exportar
+  exportador: clasico             # torch.onnx.export(dynamo=False): traza el modelo una vez (el nuevo es otro PR)
+  batch_max: 32                   # el eje 0 es dinámico; se prueba en las dos orillas: batch 1 y batch_max
+  fotos_paridad: 512              # paridad del export (FP32 contra FP32), con fotos del golden set
+  d_max: 0.001                    # FP32 contra FP32: los logits solo pueden diferir en los últimos decimales
+engine:
+  precision: fp16                 # pesos en FP16 (en C01, TensorRT con --fp16 en la T4)
+  optimizacion: todas             # ORT_ENABLE_ALL: fusiona capas y elige el formato para ESTA máquina
+  calibracion: cal-2026-09        # solo para int8: fotos de train, nunca del examen
+paridad:
+  examen: golden-v1               # las 1,000 fotos del examen congelado del gate
+  manifest_sha256: 0061343ada92972b0cd41d17ccb17cdd6751e6a3a3296034ad1bae2879355ae9
+  a1_min: 0.995                   # acuerdo top-1 contra PyTorch FP32 (a lo más 5 fotos de 1,000 cambian)
+  o5_min: 0.99                    # solapamiento top-5
+  d_max: 0.5                      # diferencia máxima de logits (un FP16 sano ≈ 0.01; uno roto, 1 o más)
+latencia:
+  tasas: [600, 1200]              # peticiones por segundo: el pico de diseño y el doble (una zona caída)
+  peticiones: 2000                # por tasa, por ronda
+  rondas: 5                       # champion y challenger alternados; se queda la mediana de los 5 p99
+  holgura: 0.15                   # p99 del challenger ≤ (1 + holgura) × p99 del champion (en C01, 0.10: ver el precálculo)

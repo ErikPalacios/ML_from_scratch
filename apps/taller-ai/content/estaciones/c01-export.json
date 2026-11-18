@@ -1,0 +1,1045 @@
+{
+  "id": "export",
+  "patron": "sincrono",
+  "caso": "c01",
+  "num": 5,
+  "titulo": "Export, engine y paridad",
+  "nav": "Export y engine",
+  "pregunta": "El gate aprobó un modelo, pero lo que se sirve es otro archivo, con otros números por dentro. ¿Cómo lo fabricas y cómo sabes que responde lo mismo y no es más lento?",
+  "version": "2026-11-17",
+  "mapa": {
+    "resumen": "La estación 4 dejó a <code>classifier</code> v4 aprobado y con el alias <code>challenger</code>. Pero el servidor no corre ese checkpoint de PyTorch: corre un <b>engine</b>, el mismo modelo compilado para la máquina y el runtime que lo van a servir, con los pesos en menos bits. Esta estación lo fabrica en dos pasos (primero un <b>ONNX</b>, el modelo como archivo neutral, y después el engine) y lo examina dos veces: que responda lo mismo que el checkpoint que aprobó el gate (<b>paridad</b>) y que no sea más lento que el engine que hoy sirve producción (<b>gate de latencia</b>). Solo con las dos en verde queda en el registro, con las huellas de todo lo que se usó para fabricarlo. Si cualquiera falla, no se registra nada y el champion sigue atendiendo.",
+    "entra": [
+      "el checkpoint aprobado: <code>classifier</code> v4, por número, con la huella de sus pesos",
+      "la receta y los umbrales (<code>engine.yaml</code>), revisados en un PR antes de la corrida",
+      "el contrato del servidor (nombres, tipos y formas, el batch más grande) y la versión de su runtime",
+      "el golden set congelado, y el engine del champion como referencia de latencia"
+    ],
+    "sale": [
+      "<code>model.onnx</code>: la entrega neutral, revisada con tres chequeos",
+      "<code>engine.onnx</code>: lo que de verdad corre el servidor, atado a esta máquina y a este runtime",
+      "los reportes de paridad y de latencia, y las huellas del build",
+      "la versión v4 con <code>engine=listo</code>, sus archivos y sus tags; ningún alias se mueve"
+    ],
+    "escala": [
+      {
+        "que": "El modelo",
+        "c01": "ResNet-50, ≈ 24.5 M de parámetros (≈ 98 MB en FP32)",
+        "taller": "MiniResNet, 44,230 parámetros (≈ 180 kB en ONNX FP32)"
+      },
+      {
+        "que": "El engine",
+        "c01": "<code>model.plan</code> de TensorRT, FP16, compilado en una T4",
+        "taller": "<code>engine.onnx</code> de ONNX Runtime: pesos en FP16 y el grafo optimizado para la CPU de tu Mac"
+      },
+      {
+        "que": "El contrato con el servidor",
+        "c01": "<code>config.pbtxt</code> de Triton: <code>input</code> [3, 224, 224] → <code>logits</code> [500], batch hasta 16",
+        "taller": "<code>mundo/servidor/classifier.yaml</code>: <code>input</code> [3, 32, 32] → <code>logits</code> [10], batch hasta 32"
+      },
+      {
+        "que": "El examen de paridad",
+        "c01": "≈ 10,000 fotos del golden set, contra Triton en la T4",
+        "taller": "las 1,000 de <code>golden-v1</code>, contra el engine abierto como lo abre el servidor"
+      },
+      {
+        "que": "La latencia",
+        "c01": "<code>perf_analyzer</code> contra Triton a 250 y 500 peticiones/s; holgura 10 %",
+        "taller": "carga abierta dentro del proceso a 600 y 1,200 peticiones/s; holgura 15 %"
+      },
+      {
+        "que": "Dónde corre",
+        "c01": "un runner de CI con una T4 (g4dn.xlarge), ≈ 20–30 min",
+        "taller": "la CPU de tu Mac: ≈ 15 s todo menos la latencia (≈ 53 s)"
+      }
+    ],
+    "hoja": "https://cheat-sheets-ml.vercel.app/recorrido/#est-export"
+  },
+  "precalculos": {
+    "intro": "Antes de exportar, las cuentas de servilleta: cuánto pesa el modelo en cada formato, cuánto se mueve un número al pasarlo a FP16, de qué tamaño tiene que ser el examen para separar un engine sano de uno roto, qué tanto de la máquina usa la prueba de latencia y por qué la holgura del dojo es 15 % y no 10 %. Cada cuenta va en las dos escalas: C01 y el dojo.",
+    "cuentas": [
+      {
+        "id": "pesos",
+        "pregunta": "¿Cuánto pesa el modelo en FP32 y en FP16?",
+        "formula": "tamaño = parámetros × bytes por número (FP32: 4 B; FP16: 2 B)",
+        "c01": {
+          "cuenta": "24.5 M × 4 B y × 2 B",
+          "valor": "≈ 98 MB en FP32 · ≈ 49 MB en FP16"
+        },
+        "taller": {
+          "cuenta": "44,230 × 4 B y × 2 B",
+          "valor": "≈ 177 kB en FP32 · ≈ 88 kB en FP16"
+        },
+        "decide": "FP16 parte el archivo a la mitad, y en una GPU también acelera las cuentas. El dojo solo aprovecha lo primero: en la CPU de tu Mac, ONNX Runtime vuelve los pesos a FP32 para hacer las cuentas.",
+        "conceptos": [
+          "fp16",
+          "engine"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nfrom mundo.arquitectura import construir_modelo\nn = sum(p.numel() for p in construir_modelo(10).parameters())\nfor nombre, p in [('C01, ResNet-50', 24_500_000), ('dojo, MiniResNet', n)]:\n    print(f'{nombre}: {p:,} parámetros × 4 B = {p * 4 / 1e6:.3f} MB en FP32 · × 2 B = {p * 2 / 1e6:.3f} MB en FP16')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "C01, ResNet-50: 24,500,000 parámetros × 4 B = 98.000 MB en FP32 · × 2 B = 49.000 MB en FP16\ndojo, MiniResNet: 44,230 parámetros × 4 B = 0.177 MB en FP32 · × 2 B = 0.088 MB en FP16"
+        },
+        "confirma": "el paso 3: el ONNX FP32 pesa 180 kB y el FP16, 94 kB."
+      },
+      {
+        "id": "redondeo",
+        "pregunta": "¿Cuánto se mueve un logit al pasar los pesos a FP16?",
+        "formula": "FP16 guarda 10 bits de mantisa: entre 2 y 4, los números van de 2⁻⁹ ≈ 0.002 en 0.002; cada peso se mueve a lo más ≈ 0.05 % de su valor",
+        "c01": {
+          "cuenta": "logits de ≈ 10, con 50 capas que suman errores chicos",
+          "valor": "d ≈ 0.01 en un FP16 sano; 1 o más en uno roto"
+        },
+        "taller": {
+          "cuenta": "logits de ≈ 10, 9 convoluciones con pesos redondeados",
+          "valor": "d del orden de 0.01"
+        },
+        "decide": "El umbral d ≤ 0.5 queda muy arriba de un FP16 sano y muy abajo de uno roto: no da falsas alarmas. Y un empate de 0.001 entre dos categorías puede deshacerse: por eso a1 no se pide del 100 %.",
+        "conceptos": [
+          "fp16",
+          "tres-numeros"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport numpy as np\nfor x in (1.0, 2.3, 10.0):\n    print(f'cerca de {x}: el siguiente FP16 está a {float(np.spacing(np.float16(x))):.5f}')\nprint('2.301 y 2.300 en FP16:', float(np.float16(2.301)), float(np.float16(2.300)), '· el mayor FP16:', float(np.finfo(np.float16).max))\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "cerca de 1.0: el siguiente FP16 está a 0.00098\ncerca de 2.3: el siguiente FP16 está a 0.00195\ncerca de 10.0: el siguiente FP16 está a 0.00781\n2.301 y 2.300 en FP16: 2.30078125 2.30078125 · el mayor FP16: 65504.0"
+        },
+        "confirma": "el paso 4: el engine FP16 da d = 0.0130 sobre las 1,000 fotos."
+      },
+      {
+        "id": "examen",
+        "pregunta": "¿Con cuántas fotos el examen separa un engine sano de uno roto?",
+        "formula": "L = (1 − a_min) × N cambios permitidos; un engine que cambia una fracción f espera N × f, con σ = √(N × f × (1 − f)); margen D = (L − N × f) ÷ σ",
+        "c01": {
+          "cuenta": "N = 10,000, L = 50: sano (f = 0.2 %) espera 20, σ ≈ 4.5; roto (f = 1 %) espera 100, σ ≈ 9.9",
+          "valor": "D ≈ +6.7 el sano · ≈ −5.0 el roto"
+        },
+        "taller": {
+          "cuenta": "N = 1,000, L = 5: sano espera 2, σ ≈ 1.4; roto espera 10, σ ≈ 3.1",
+          "valor": "D ≈ +2.1 el sano · ≈ −1.6 el roto"
+        },
+        "decide": "Con 1,000 fotos el examen todavía separa, pero con poco margen: un engine con un bug chico podría pasar por suerte. Por eso C01 usa 10,000. Con las 512 del chequeo del export no alcanzaría para FP16, y no hace falta: FP32 contra FP32 no cambia ninguna respuesta.",
+        "conceptos": [
+          "examen-ruido",
+          "tres-numeros"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nimport math\nfor nombre, N in [('C01, 10,000 fotos', 10000), ('dojo, golden-v1', 1000), ('chequeo del export', 512)]:\n    L = (1 - 0.995) * N\n    for f in (0.002, 0.01):\n        s = math.sqrt(N * f * (1 - f))\n        print(f'{nombre}: L = {L:.1f} · f = {f:.1%}: espera {N * f:.1f} cambios, σ = {s:.2f}, D = {(L - N * f) / s:+.1f}')\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "C01, 10,000 fotos: L = 50.0 · f = 0.2%: espera 20.0 cambios, σ = 4.47, D = +6.7\nC01, 10,000 fotos: L = 50.0 · f = 1.0%: espera 100.0 cambios, σ = 9.95, D = -5.0\ndojo, golden-v1: L = 5.0 · f = 0.2%: espera 2.0 cambios, σ = 1.41, D = +2.1\ndojo, golden-v1: L = 5.0 · f = 1.0%: espera 10.0 cambios, σ = 3.15, D = -1.6\nchequeo del export: L = 2.6 · f = 0.2%: espera 1.0 cambios, σ = 1.01, D = +1.5\nchequeo del export: L = 2.6 · f = 1.0%: espera 5.1 cambios, σ = 2.25, D = -1.1"
+        }
+      },
+      {
+        "id": "uso",
+        "pregunta": "¿Qué tanto de la máquina usa la prueba de latencia?",
+        "formula": "ρ = λ ÷ X: la tasa de la prueba entre el máximo de fotos por segundo",
+        "c01": {
+          "cuenta": "una T4 da X ≈ 1,200 fotos/s: 250 ÷ 1,200 y 500 ÷ 1,200",
+          "valor": "ρ ≈ 21 % y ≈ 42 %"
+        },
+        "taller": {
+          "cuenta": "un hilo de tu Mac da X ≈ 2,425 fotos/s: 600 ÷ 2,425 y 1,200 ÷ 2,425",
+          "valor": "ρ ≈ 25% y ≈ 49%"
+        },
+        "decide": "Se mide a dos cargas porque la cola de la latencia crece más rápido que el centro cuando la fila se llena. El dojo elige sus tasas para quedar en el mismo lugar de la curva que C01: un cuarto y la mitad de la máquina.",
+        "conceptos": [
+          "carga-abierta",
+          "gate-latencia"
+        ],
+        "comprueba": {
+          "code": "python -c \"\nfor nombre, X, tasas in [('C01, una T4 con el engine FP16', 1200, (250, 500)), ('dojo, un hilo de tu Mac', 2390, (600, 1200))]:\n    print(nombre + ': ' + ' · '.join(f'{t}/s → ρ = {t / X:.0%}' for t in tasas))\"",
+          "nota": "",
+          "donde": "mac",
+          "salida": "C01, una T4 con el engine FP16: 250/s → ρ = 21% · 500/s → ρ = 42%\ndojo, un hilo de tu Mac: 600/s → ρ = 25% · 1200/s → ρ = 50%"
+        },
+        "confirma": "el paso 5: latencia.py mide el máximo antes de empezar (2,425 fotos/s el challenger)."
+      },
+      {
+        "id": "holgura",
+        "pregunta": "¿Por qué la holgura del dojo es 15 % y no 10 %?",
+        "formula": "la holgura tiene que quedar arriba del ruido de medir dos veces lo mismo: dos engines de la misma red, medidos igual",
+        "c01": {
+          "cuenta": "runner dedicado con su T4 y perf_analyzer con miles de peticiones: el ruido entre corridas es de pocos %",
+          "valor": "holgura 10 %"
+        },
+        "taller": {
+          "cuenta": "tu Mac, con otras cosas abiertas: dos engines de la misma red, medidos igual, se separaron hasta ≈ 8 % al probar el kit",
+          "valor": "holgura 15 %, con la mediana de 5 rondas alternadas"
+        },
+        "decide": "Una holgura más chica que el ruido frenaría engines sanos por suerte; una mucho más grande dejaría pasar engines lentos. Por eso el gate compara contra el champion medido igual, en la misma máquina y en rondas alternadas: lo que no es el modelo se cancela.",
+        "conceptos": [
+          "gate-latencia"
+        ],
+        "confirma": "el paso 5: con la misma red, el challenger queda a +2.2% del champion a 600/s y a +1.3% a 1,200/s."
+      }
+    ]
+  },
+  "conceptos": [
+    {
+      "id": "export",
+      "termino": "Export",
+      "en": "model export",
+      "def": "Convertir el modelo de PyTorch (código + pesos) en un archivo que solo describe las cuentas: qué operaciones, en qué orden y con qué pesos.",
+      "analogia": "Pasar una receta que vive en la cabeza de un chef a una tarjeta escrita: cualquier cocina la puede seguir sin el chef.",
+      "importa": "El servidor no necesita Python ni el código de entrenamiento, y no abre un pickle (abrir un pickle puede correr código). Necesita un archivo que diga qué cuentas hacer.",
+      "trampa": "Exportar en modo train: la BatchNorm usa las estadísticas de cada lote y el archivo es otro modelo."
+    },
+    {
+      "id": "onnx",
+      "termino": "ONNX",
+      "en": "Open Neural Network Exchange",
+      "def": "Un formato abierto para modelos: un grafo de operadores estándar (Conv, Relu, Gemm…) con sus pesos y una firma: nombres, tipos y formas de la entrada y la salida.",
+      "analogia": "El PDF de los modelos: lo genera una herramienta y lo leen muchas otras.",
+      "importa": "Es la entrega entre entrenamiento y serving. De él sale el engine (TensorRT en C01, ONNX Runtime en el dojo), y sirve para comparar en CPU antes de gastar GPU.",
+      "trampa": "Creer que un ONNX válido es un ONNX correcto: el checker revisa que el grafo esté bien formado, no que responda lo mismo."
+    },
+    {
+      "id": "opset",
+      "termino": "Opset",
+      "en": "operator set version",
+      "def": "La versión del conjunto de operadores que usa un archivo ONNX. Cada archivo la declara, y quien lo lee tiene que conocerla.",
+      "analogia": "La edición de un diccionario: la misma palabra puede cambiar de significado entre ediciones.",
+      "importa": "El opset es parte del contrato: si el runtime no lo conoce, no carga; si cambia sin que nadie lo pida, un operador puede significar otra cosa. Se fija en la receta y se lee del archivo después de exportar.",
+      "trampa": "Confiar en el parámetro que pasaste: el exportador nuevo de PyTorch, al pedirle 17, deja el archivo en 18 con solo un aviso."
+    },
+    {
+      "id": "eje-batch",
+      "termino": "Eje de batch dinámico",
+      "en": "dynamic batch axis",
+      "def": "Declarar que la dimensión 0 de la entrada y de la salida tiene un nombre («batch») en vez de un número: el archivo acepta 1 foto o varias juntas.",
+      "analogia": "Una charola con espacios ajustables en vez de una con exactamente 4 huecos.",
+      "importa": "El servidor junta peticiones en un lote (batching dinámico). Si el archivo solo acepta batch 1, eso no funciona. Por eso el chequeo prueba las dos orillas: batch 1 y el máximo.",
+      "trampa": "Probar solo con batch 1: un eje fijo por error pasa esa prueba y truena con el primer lote en producción."
+    },
+    {
+      "id": "exportador",
+      "termino": "Exportador clásico y exportador nuevo",
+      "en": "TorchScript-based exporter / dynamo exporter",
+      "def": "El clásico (dynamo=False) corre el modelo una vez y graba las operaciones que pasaron (trazar). El nuevo (dynamo=True, el de omisión desde PyTorch 2.9) lo captura con torch.export.",
+      "analogia": "Grabar a alguien cocinando una vez contra copiar su libreta: casi siempre sale la misma receta, pero no siempre escrita igual.",
+      "importa": "Cambiar de exportador cambia el archivo (aquí, de 180 kB a 48 kB y de opset 17 a 18). Es un cambio aparte, con su propia paridad, nunca de pasada.",
+      "trampa": "Actualizar PyTorch y que el exportador por omisión cambie sin que nadie lo note."
+    },
+    {
+      "id": "engine",
+      "termino": "Engine",
+      "en": "inference engine",
+      "def": "El modelo ya compilado para una máquina y un runtime concretos: capas fusionadas, el formato de memoria que más le conviene a ese chip y, casi siempre, menos bits por número.",
+      "analogia": "Una traducción hecha para un público concreto: dice lo mismo, con las palabras que ese público lee más rápido.",
+      "importa": "Es lo que de verdad atiende a la gente. En C01, un model.plan de TensorRT en FP16 en la T4; en el dojo, un engine.onnx de ONNX Runtime para la CPU de tu Mac.",
+      "trampa": "Tratarlo como un archivo portátil: un engine de otra GPU o de otra versión del runtime no carga, o carga y da otros números."
+    },
+    {
+      "id": "fp16",
+      "termino": "FP16",
+      "en": "half precision",
+      "def": "Números de 16 bits: la mitad de memoria que FP32, con 3 a 4 cifras significativas y un máximo de 65,504.",
+      "analogia": "Medir con una regla de milímetros en vez de una de décimas de milímetro: casi siempre basta, y pesa la mitad.",
+      "importa": "Parte el modelo a la mitad y, en una GPU, acelera las cuentas. Mueve los logits ≈ 0.01: casi ninguna respuesta cambia, salvo las casi empatadas.",
+      "trampa": "Una capa cuyos números pasan de 65,504 se vuelve infinito: ese engine ya no es el modelo, y solo la paridad lo delata."
+    },
+    {
+      "id": "int8",
+      "termino": "INT8 y calibración",
+      "en": "INT8 quantization / calibration",
+      "def": "Guardar y calcular con enteros de 8 bits. Cada capa necesita una escala, que se elige viendo cómo se mueven sus números con fotos de ejemplo: la calibración.",
+      "analogia": "Describir colores con solo 256 tonos: hay que elegir bien qué rango cubren, mirando fotos de verdad.",
+      "importa": "Es más chico y más rápido (aquí, 64 kB y casi el doble de fotos por segundo), pero mueve mucho más los números. Con una red que no se entrenó pensando en int8, la paridad puede no pasar.",
+      "trampa": "Calibrar con el golden set: es otra forma de verle las respuestas al examen."
+    },
+    {
+      "id": "guardia-build",
+      "termino": "La guardia del build",
+      "en": "build guard / pinned runtime",
+      "def": "Construir el engine con exactamente el runtime que lo va a servir, en ese tipo de máquina, y anotar los dos en sus huellas. Si no coinciden, el build se detiene.",
+      "analogia": "Una llave hecha para una cerradura: puede entrar en otra parecida y no girar.",
+      "importa": "En C01, el .plan va atado a la compute capability de la T4 y a la release de NGC de Triton. Una actualización del servidor va en el mismo PR que reconstruye y vuelve a medir el engine.",
+      "trampa": "«Es la misma API»: el engine probablemente carga con otro runtime, y por eso nadie nota que nunca se midió con él."
+    },
+    {
+      "id": "contrato",
+      "termino": "Contrato con el servidor",
+      "en": "model configuration / signature",
+      "def": "Cómo espera el servidor al modelo: el nombre, el tipo y la forma de la entrada y de la salida, y el batch más grande que va a juntar.",
+      "analogia": "El enchufe y el voltaje: un aparato perfecto con otra clavija no se puede conectar.",
+      "importa": "En C01 es el config.pbtxt de Triton. Si el engine no lo cumple, el servidor no carga el modelo o rechaza cada petición: se revisa antes de registrar, no en el despliegue.",
+      "trampa": "Cambiar el contrato del lado del servidor sin reconstruir el engine en el mismo cambio."
+    },
+    {
+      "id": "paridad",
+      "termino": "Paridad del engine",
+      "en": "engine parity",
+      "def": "Comparar, foto por foto, lo que responde el engine con lo que responde el checkpoint aprobado en PyTorch FP32. No mide si el modelo es bueno: mide si es el mismo.",
+      "analogia": "La prueba de imprenta: antes de imprimir 10,000 libros se revisa que el impreso diga lo que dice el original.",
+      "importa": "Sin ella, lo que midió el gate (por categoría y por pedazo) no vale para lo que se sirve. Con ella, el gate aprobó el modelo y la paridad dice que lo servido es ese modelo.",
+      "trampa": "Confundirla con la prueba de paridad del preprocesamiento (misma foto, mismos números en entrenamiento y serving): son dos exámenes distintos con el mismo apellido."
+    },
+    {
+      "id": "tres-numeros",
+      "termino": "Acuerdo top-1, solapamiento top-5 y diferencia máxima",
+      "en": "top-1 agreement / top-5 overlap / max logit diff",
+      "def": "a1: fracción de fotos con la misma primera categoría. o5: fracción promedio de las 5 sugerencias que coinciden. d: la mayor diferencia entre un logit de la referencia y el del engine.",
+      "analogia": "Dos traducciones: ¿dicen lo mismo en el título (a1), en el resumen (o5), y cuál es la palabra que más se aleja (d)?",
+      "importa": "a1 es lo que ve quien vende; o5, las sugerencias de abajo; d delata un bug antes de que cambie una respuesta. Umbrales: a1 ≥ 99.5 %, o5 ≥ 99 %, d ≤ 0.5.",
+      "trampa": "Mirar solo a1: un engine con una capa desbordada puede acertar casi todo el top-1 con logits deformes, y d lo atrapa."
+    },
+    {
+      "id": "examen-ruido",
+      "termino": "El ruido del examen",
+      "en": "test-set size and noise",
+      "def": "Cuántas respuestas cambia un engine sano es un volado repetido N veces: alrededor de N × f, a veces más, a veces menos. El examen necesita lugar para eso sin confundirlo con un bug.",
+      "analogia": "Una báscula que oscila ± 50 g no sirve para decidir si un paquete pesa 1,010 o 1,000 g.",
+      "importa": "Con pocas fotos, el examen reprueba engines sanos por mala suerte y deja pasar rotos por buena. Con miles, los separa con varias desviaciones de margen.",
+      "trampa": "Bajar el examen a unas cuantas fotos «para que corra más rápido»."
+    },
+    {
+      "id": "gate-latencia",
+      "termino": "Gate de latencia",
+      "en": "latency regression gate",
+      "def": "El p99 del engine nuevo, medido como lo vería un cliente, no puede pasar de (1 + holgura) × el p99 del champion medido igual, a cada tasa de la prueba.",
+      "analogia": "Un corredor nuevo para el relevo: no tiene que ganar, pero no puede ser mucho más lento que el que ya corre, en la misma pista y el mismo día.",
+      "importa": "Cada mes el engine se construye de nuevo: el build pudo elegir otras tácticas o cambiar la release. Comparar contra el champion, y no contra un número fijo, cancela todo lo que no es el modelo.",
+      "trampa": "Pasar por default cuando no hay referencia: sin el engine del champion no hay gate, y el paso tiene que fallar."
+    },
+    {
+      "id": "carga-abierta",
+      "termino": "Carga abierta",
+      "en": "open-loop load",
+      "def": "Las peticiones llegan a su hora, aunque la anterior no haya terminado; la latencia de cada una cuenta desde que llegó, con la espera en la fila incluida.",
+      "analogia": "Los clientes de un banco llegan cuando llegan, no cuando el cajero se desocupa.",
+      "importa": "Así llega el tráfico real. Una carga cerrada (mandar la siguiente cuando vuelve la anterior) nunca forma fila y esconde la cola de la latencia.",
+      "trampa": "Medir latencia mandando una petición tras otra y llamar a eso «el p99 del servidor»."
+    },
+    {
+      "id": "huellas",
+      "termino": "Huellas del build y build reproducible",
+      "en": "build provenance / reproducible build",
+      "def": "Guardar con la versión el sha256 de cada archivo (pesos, ONNX, engine, receta), con qué runtime y en qué máquina. Con lo mismo, el build da el mismo archivo byte por byte.",
+      "analogia": "El número de lote de un medicamento: dice de qué ingredientes y de qué línea salió cada caja.",
+      "importa": "La guardia de las 3 de la mañana pregunta «¿qué engine sirve y de qué salió?». Y si alguien sobrescribe un archivo, la huella lo delata y el build reproducible permite rehacerlo idéntico.",
+      "trampa": "Registrar el engine sin las huellas de su ONNX y de sus pesos: después nadie puede probar de qué checkpoint salió."
+    }
+  ],
+  "mundo": {
+    "resumen": "El kit trae el marketplace de C01 el 1 de octubre de 2026, a las 07:00 UTC: el gate de la estación 4 aprobó al candidato de octubre y lo dejó como <code>classifier</code> v4 con el alias <code>challenger</code> y <code>engine=pendiente</code>. En el S3 local están el examen congelado <code>golden-v1</code>, el set de calibración y los checkpoints; en MLflow, el registro de v1 a v4, y v3 (<code>@champion</code>) con el engine que hoy sirve producción. Tú fabricas el engine de v4, lo examinas y lo registras.",
+    "trae": [
+      {
+        "que": "El S3 local y MLflow (compose.yaml)",
+        "detalle": "RustFS en el puerto 9600 (buckets <code>ml-datos</code> y <code>ml-ckpt</code>, los dos con versionado) y MLflow en el 5600, con su interfaz."
+      },
+      {
+        "que": "mundo/crear.py",
+        "detalle": "Crea todo en ≈ 2 minutos: baja Fashion-MNIST, congela <code>golden-v1</code> (el mismo examen de la estación 4), publica el set de calibración <code>cal-2026-09</code>, entrena <code>classifier</code> v1 a v4 con la receta de la estación 3, guarda sus checkpoints y construye el engine del champion."
+      },
+      {
+        "que": "engine.yaml y mundo/revisiones.json",
+        "detalle": "La receta (opset, exportador, precisión, optimización, calibración) y los umbrales de paridad y latencia, y el registro de sus versiones revisadas: el sustituto del historial de PR."
+      },
+      {
+        "que": "mundo/servidor/",
+        "detalle": "Lo que el servidor de modelos espera: <code>classifier.yaml</code> (el contrato, como el config.pbtxt de Triton) y <code>requirements.txt</code> (su versión de onnxruntime, como la release de Triton)."
+      },
+      {
+        "que": "corrida.yaml",
+        "detalle": "Los parámetros de esta noche, ya resueltos: challenger = 4 y champion = 3."
+      },
+      {
+        "que": "mundo/modelos.py y mundo/s3.py",
+        "detalle": "Mirar y reparar el registro (versiones, el engine de cada una, alias, pesos desde su checkpoint, reconstruir un engine) y el S3 (el examen, la calibración, versiones)."
+      },
+      {
+        "que": "verificar.py y romper.py",
+        "detalle": "10 checks con los criterios de «listo» y 6 fallas en el mundo, la configuración o la infraestructura, nunca en lo que escribes."
+      }
+    ],
+    "tu_pipeline": [
+      {
+        "archivo": "pipeline/exportar.py",
+        "hace": "El checkpoint de v4, por número y con su huella, a ONNX con opset fijo y batch dinámico, y los tres chequeos: checker, opset leído del archivo y FP32 contra FP32 en batch 1 y 32."
+      },
+      {
+        "archivo": "pipeline/construir.py",
+        "hace": "La guardia del build (el runtime del servidor), los pesos a FP16 (o int8 calibrado) y el grafo optimizado para esta máquina: engine.onnx con sus huellas."
+      },
+      {
+        "archivo": "pipeline/paridad.py",
+        "hace": "El contrato con el servidor y los tres números contra PyTorch FP32 sobre las 1,000 fotos del examen. Si no pasa, en rojo."
+      },
+      {
+        "archivo": "pipeline/latencia.py",
+        "hace": "Carga abierta a dos tasas, champion y challenger alternados, la mediana de los p99 y la regla de la holgura. Sin el engine del champion, en rojo."
+      },
+      {
+        "archivo": "pipeline/registrar.py",
+        "hace": "Solo con todo en verde y del mismo engine: los archivos y las huellas en la versión v4, engine=listo. Ningún alias se mueve."
+      }
+    ],
+    "requisitos": [
+      "Docker Desktop corriendo, con ≈ 700 MB libres para las imágenes de RustFS y MLflow",
+      "Python 3.11 o más nuevo (se probó con 3.14.3) y ≈ 1.2 GB para el entorno virtual (PyTorch y ONNX Runtime)",
+      "Una Mac con Apple Silicon (el engine se optimiza para la máquina donde se construye)",
+      "git (con tu nombre y correo configurados)",
+      "Internet la primera vez (los paquetes, las imágenes y Fashion-MNIST)",
+      "Los puertos 9600, 9601 y 5600 libres en tu Mac"
+    ],
+    "sustituciones": [
+      {
+        "nube": "TensorRT en una T4: <code>model.plan</code> en FP16",
+        "local": "ONNX Runtime en la CPU de tu Mac: <code>engine.onnx</code> con pesos FP16",
+        "diferencia": "Los dos fusionan capas, eligen el formato para su chip y quedan atados a él y a su versión. TensorRT hace las cuentas en FP16 en la GPU; ONNX Runtime en la CPU guarda los pesos en FP16 y los vuelve a FP32 para calcular. El redondeo de los pesos mueve los logits del mismo orden (≈ 0.01)."
+      },
+      {
+        "nube": "El config.pbtxt de Triton en el model repository",
+        "local": "<code>mundo/servidor/classifier.yaml</code>",
+        "diferencia": "Los dos dicen nombres, tipos, formas y el batch más grande. Triton se niega a cargar un modelo que no cumple; aquí lo revisan paridad.py y verificar.py."
+      },
+      {
+        "nube": "La release de NGC de Triton (fija la versión de TensorRT)",
+        "local": "<code>mundo/servidor/requirements.txt</code> (fija onnxruntime)",
+        "diferencia": "Con TensorRT, un engine de otra versión no carga; con ONNX Runtime, probablemente sí, y por eso la guardia del build tiene que revisarlo a propósito."
+      },
+      {
+        "nube": "<code>perf_analyzer</code> contra Triton en la T4, 250 y 500 peticiones/s, holgura 10 %",
+        "local": "<code>latencia.py</code>: carga abierta dentro del proceso, 600 y 1,200 peticiones/s, holgura 15 %",
+        "diferencia": "La misma regla contra el champion, sin red ni servidor de por medio. Las tasas quedan en el mismo uso de la máquina (≈ 25 y 50 %); la holgura es más grande porque tu Mac mide con más ruido que un runner dedicado."
+      },
+      {
+        "nube": "≈ 10,000 fotos del golden set para la paridad",
+        "local": "las 1,000 de <code>golden-v1</code>",
+        "diferencia": "El mismo umbral (99.5 %) deja 5 cambios en lugar de 50: el examen separa con menos margen (lo calcula el precálculo «examen»)."
+      },
+      {
+        "nube": "El historial de PR de <code>ml-catalogo</code>; los parámetros de Argo",
+        "local": "<code>mundo/revisiones.json</code>; <code>corrida.yaml</code>",
+        "diferencia": "La receta revisada se comprueba por su huella; las versiones llegan ya resueltas a números."
+      },
+      {
+        "nube": "MLflow con Postgres y S3; Amazon S3",
+        "local": "MLflow con SQLite; RustFS en localhost:9600",
+        "diferencia": "La misma API y la misma interfaz."
+      }
+    ],
+    "arranque": "unzip c01-export.zip && cd c01-export\npython3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\ndocker compose up -d --wait\npython mundo/crear.py\ngit init && git add -A && git commit -m \"kit recién descomprimido\"\npython verificar.py mundo",
+    "python": "python"
+  },
+  "guiado": [
+    {
+      "n": 0,
+      "id": "mundo",
+      "titulo": "Levantar el mundo",
+      "objetivo": "El S3 local y MLflow arriba, el mundo creado y la carpeta como repositorio de git.",
+      "conceptos": [
+        "engine"
+      ],
+      "explica": "El mundo vive en dos servicios: el S3 local (el examen, la calibración y los checkpoints) y MLflow (el registro de modelos). <code>mundo/crear.py</code> los llena igual cada vez: entrena los cuatro modelos del registro con la receta de la estación 3 y construye el engine del champion, por eso tarda unos minutos.",
+      "codigo": [],
+      "comandos": [
+        {
+          "code": "python3 -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt",
+          "nota": "Tarda unos minutos la primera vez (PyTorch pesa ≈ 1 GB). Desde aquí, cada terminal nueva necesita <code>source .venv/bin/activate</code>.",
+          "donde": "mac",
+          "salida": "\nPython 3.14.3\n1.1G"
+        },
+        {
+          "code": "docker compose up -d --wait\npython mundo/crear.py",
+          "nota": "La interfaz de MLflow queda en http://localhost:5600: ahí están las corridas y el modelo <code>classifier</code>.",
+          "donde": "mac",
+          "salida": " Container taller-c01-export-s3-1 Healthy \n Container taller-c01-export-mlflow-1 Healthy\n  descargando t10k-images-idx3-ubyte… (Fashion-MNIST, Zalando Research, licencia MIT)\n  descargando t10k-labels-idx1-ubyte… (Fashion-MNIST, Zalando Research, licencia MIT)\n  golden-v1: 1000 fotos · manifest sha256 0061343ada92…\n  cal-2026-09: 256 fotos de train de ds-2026-09-01\n  entrenando classifier v1 (2026-07) con ds-2026-06-01…\n  classifier v1 (2026-07) · val_top1 0.7559 · 23 s\n  entrenando classifier v2 (2026-08) con ds-2026-07-01…\n  classifier v2 (2026-08) · val_top1 0.8088 · 23 s\n  entrenando classifier v3 (2026-09) con ds-2026-08-01…\n  classifier v3 (2026-09) · val_top1 0.8395 · 28 s\n  entrenando classifier v4 (2026-10) con ds-2026-09-01…\n  classifier v4 (2026-10) · val_top1 0.8675 · 34 s\n  engine del champion (v3): engine.onnx 76ea30f48b41… · onnxruntime 1.32.0\n✓ mundo listo: python verificar.py mundo"
+        },
+        {
+          "code": "git init && git add -A && git commit -m \"kit recién descomprimido\"\ngit log --oneline",
+          "nota": "Los ids de commit cambian en cada máquina.",
+          "donde": "mac",
+          "salida": "6114f2c kit recién descomprimido"
+        },
+        {
+          "code": "python verificar.py mundo",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ mundo     S3 local (golden-v1, cal-2026-09, checkpoints) · MLflow: classifier v1–v4, @champion = v3 con su engine, @challenger = v4 · git\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "<code>verificar.py mundo</code> en verde: los buckets, el examen, la calibración, <code>classifier</code> v1–v4 con <code>@champion</code> = v3 (con su engine) y <code>@challenger</code> = v4, y git.",
+      "ojo": "El 5000 lo ocupa AirPlay en macOS: por eso MLflow está en el 5600 (y el S3 en 9600, para no chocar con las estaciones anteriores)."
+    },
+    {
+      "n": 1,
+      "id": "reglas",
+      "titulo": "Qué se va a servir y con qué reglas",
+      "objetivo": "Saber, antes de escribir código, qué versión se exporta, contra qué engine se compara, qué espera el servidor y cuáles son los umbrales.",
+      "conceptos": [
+        "engine",
+        "contrato",
+        "guardia-build"
+      ],
+      "explica": "La estación no decide si el modelo es bueno: eso ya lo decidió el gate. Decide dos cosas: si lo que se va a servir <b>es</b> ese modelo y si <b>cabe en el tiempo</b>. <code>corrida.yaml</code> trae las versiones por número; <code>engine.yaml</code>, la receta y los umbrales, revisados antes; y <code>mundo/servidor/</code>, lo que el servidor espera: el contrato y su versión del runtime. El engine del champion (v3) ya está en MLflow con su huella: es la referencia de la latencia.",
+      "codigo": [
+        {
+          "lang": "yaml",
+          "path": "engine.yaml",
+          "code": "# engine.yaml · la receta del export y del engine de classifier, y los umbrales de la paridad y la latencia.\n# Las escribe el equipo ANTES de la corrida y cambian solo en un PR propio que otra persona revisa (queda anotado en\n# mundo/revisiones.json). Tus pasos la leen de aquí: no copies estos números en el código.\nexport:\n  opset: 17                       # la versión de los operadores ONNX; se fija y se LEE del archivo después de exportar\n  exportador: clasico             # torch.onnx.export(dynamo=False): traza el modelo una vez (el nuevo es otro PR)\n  batch_max: 32                   # el eje 0 es dinámico; se prueba en las dos orillas: batch 1 y batch_max\n  fotos_paridad: 512              # paridad del export (FP32 contra FP32), con fotos del golden set\n  d_max: 0.001                    # FP32 contra FP32: los logits solo pueden diferir en los últimos decimales\nengine:\n  precision: fp16                 # pesos en FP16 (en C01, TensorRT con --fp16 en la T4)\n  optimizacion: todas             # ORT_ENABLE_ALL: fusiona capas y elige el formato para ESTA máquina\n  calibracion: cal-2026-09        # solo para int8: fotos de train, nunca del examen\nparidad:\n  examen: golden-v1               # las 1,000 fotos del examen congelado del gate\n  manifest_sha256: 0061343ada92972b0cd41d17ccb17cdd6751e6a3a3296034ad1bae2879355ae9\n  a1_min: 0.995                   # acuerdo top-1 contra PyTorch FP32 (a lo más 5 fotos de 1,000 cambian)\n  o5_min: 0.99                    # solapamiento top-5\n  d_max: 0.5                      # diferencia máxima de logits (un FP16 sano ≈ 0.01; uno roto, 1 o más)\nlatencia:\n  tasas: [600, 1200]              # peticiones por segundo: el pico de diseño y el doble (una zona caída)\n  peticiones: 2000                # por tasa, por ronda\n  rondas: 5                       # champion y challenger alternados; se queda la mediana de los 5 p99\n  holgura: 0.15                   # p99 del challenger ≤ (1 + holgura) × p99 del champion (en C01, 0.10: ver el precálculo)",
+          "nota": "Del equipo. Sus versiones revisadas están en <code>mundo/revisiones.json</code>: cada paso comprueba que la de hoy sea una de ellas."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "grep -v \"^#\" corrida.yaml",
+          "nota": "",
+          "donde": "mac",
+          "salida": "challenger: 4                   # classifier@challenger al arrancar: el candidato que aprobó el gate\nchampion: 3                     # classifier@champion: el que sirve hoy (su engine es la referencia de latencia)\nexamen: golden-v1               # el golden set congelado"
+        },
+        {
+          "code": "python mundo/modelos.py versiones",
+          "nota": "v4 tiene <code>gate=passed</code> pero <code>engine=pendiente</code>: eso es lo que esta estación completa.",
+          "donde": "mac",
+          "salida": "v1  —            mes 2026-07 · equipo-2026-07-01 · gate passed · pesos 900f8ba1e607… · engine retirado\nv2  —            mes 2026-08 · equipo-2026-08-01 · gate passed · pesos 6509cf6cab5e… · engine retirado\nv3  @champion    mes 2026-09 · equipo-2026-09-01 · gate passed · pesos e858003795ba… · engine listo (76ea30f48b41… · fp16 · onnxruntime 1.32.0)\nv4  @challenger  mes 2026-10 · cand-2026-10-01   · gate passed · pesos 0e36f3a192b0… · engine pendiente"
+        },
+        {
+          "code": "python mundo/modelos.py engine 3",
+          "nota": "El engine que hoy sirve producción, con sus huellas. Es lo que vas a fabricar para v4.",
+          "donde": "mac",
+          "salida": "  engine                 listo\n  engine_sha256          76ea30f48b41b2bfb5f7e1994a22a7ff651ab65a1d5e8709eb5e087234aca62e\n  gate                   passed\n  maquina                Darwin arm64\n  onnx_sha256            5f9704ae8d2905e4c30c329bb38854302ecfb7939f7dd8442012ddf49a070468\n  onnxruntime            1.32.0\n  opset                  17\n  pesos_sha256           e858003795baa74406aed45d3f9dc0b3d9a048deb2bccf1e145323770de11c07\n  precision              fp16\n  engine/engine.json         422 B · sha256 4a284937afc5…\n  engine/engine.onnx      181347 B · sha256 76ea30f48b41…\n  engine/model.onnx       179906 B · sha256 5f9704ae8d29…"
+        },
+        {
+          "code": "grep -v \"^#\" mundo/servidor/classifier.yaml\ngrep -v \"^#\" mundo/servidor/requirements.txt",
+          "nota": "",
+          "donde": "mac",
+          "salida": "nombre: classifier\nmax_batch_size: 32\nentrada: {nombre: input, tipo: float32, forma: [3, 32, 32]}     # una foto ya preprocesada por el gateway\nsalida: {nombre: logits, tipo: float32, forma: [10]}             # un logit por categoría, en el orden de labels.json\nonnxruntime==1.32.0"
+        }
+      ],
+      "verifica": "Puedes decir en voz alta: exporto v4 con opset 17 a un engine FP16, construido con onnxruntime 1.32.0; el servidor espera <code>input</code> [batch, 3, 32, 32] → <code>logits</code> [batch, 10] y lotes de hasta 32; paridad a1 ≥ 99.5 %; latencia ≤ 1.15 × la del engine de v3.",
+      "ojo": "«Paridad no es calidad»: una paridad de 100 % dice que el engine se porta como el checkpoint, no que el checkpoint sea bueno. Eso lo dijo el gate.",
+      "en_pagina": {
+        "conceptos": [
+          "contrato",
+          "guardia-build"
+        ],
+        "precalculos": [
+          "uso"
+        ]
+      }
+    },
+    {
+      "n": 2,
+      "id": "exportar",
+      "titulo": "Exportar a ONNX, con tres chequeos",
+      "objetivo": "El checkpoint de v4 como model.onnx: opset 17 leído del archivo, batch dinámico y las mismas respuestas que PyTorch en FP32.",
+      "conceptos": [
+        "export",
+        "onnx",
+        "opset",
+        "eje-batch",
+        "exportador"
+      ],
+      "explica": "Antes de exportar se comprueba que lo que se exporta es lo que aprobó el gate: la versión por número, <code>gate=passed</code>, su <code>labels.json</code> y la huella de sus pesos contra el tag de la versión. El export va en <code>eval()</code>, con los nombres del contrato y el eje 0 dinámico. Después, tres chequeos: <code>onnx.checker</code> con <code>full_check</code> (el grafo está bien formado), el opset <b>escrito en el archivo</b> (no el que pediste) y ONNX Runtime contra PyTorch, FP32 contra FP32, en batch 1 y en batch 32: las dos orillas de la firma. FP32 contra FP32 solo puede diferir en los últimos decimales.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/exportar.py",
+          "code": "\"\"\"Paso «exportar»: el checkpoint que aprobó el gate se vuelve un archivo ONNX, y se revisa ahí mismo con tres chequeos.\n\n    python pipeline/exportar.py                          # el challenger de corrida.yaml\n    python pipeline/exportar.py --exportador dynamo      # una prueba con el exportador nuevo (va a artefactos/v4-dynamo/)\n\nContrato:\n- engine.yaml está en un commit y su sha256 es una de las revisiones aprobadas (mundo/revisiones.json). Si no, se detiene.\n- La versión es la de corrida.yaml, por número. Tiene que decir gate=passed, su labels.json tiene que ser\n  entrada/categorias.json y la huella de sus pesos tiene que ser su tag pesos_sha256. Si algo no cuadra, se detiene.\n- El modelo se exporta en eval(), con el opset de engine.yaml, la entrada y la salida con los nombres del contrato del\n  servidor (mundo/servidor/classifier.yaml) y el eje 0 (batch) dinámico.\n- Tres chequeos, y si uno falla, código 1: (1) onnx.checker con full_check; (2) el opset ESCRITO en el archivo es el\n  pedido; (3) ONNX Runtime contra PyTorch, FP32 contra FP32, con las primeras fotos_paridad fotos del golden set\n  (manifest con su huella), en batch 1 y en batch_max: mismo top-1 en todas y diferencia máxima ≤ export.d_max.\n- Deja artefactos/v<N>/model.onnx y export.json (versión, huellas, opset, exportador y los dos chequeos de paridad).\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport io\nimport json\nimport logging\nimport sys\nimport warnings\n\nimport numpy as np\nimport onnx\nimport torch\nfrom _comun import (CLASES, MODELO, RAIZ, bajar, carpeta, contrato, corrida, escribir_json, git, huella_pesos, manifest,\n                    mlflow_cliente, receta, revisiones, s3, sesion, sha256, sha_archivo, tensores)\n\nfrom mundo.arquitectura import construir_modelo\n\nap = argparse.ArgumentParser()\nap.add_argument(\"--exportador\", choices=[\"clasico\", \"dynamo\"])\na = ap.parse_args()\n\n# 1 · La receta: revisada y en un commit\nr, cfg, firma = receta(), corrida(), contrato()\nreceta_sha = sha256((RAIZ / \"engine.yaml\").read_bytes())\nif git(\"status\", \"--porcelain\", \"--\", \"engine.yaml\"):\n    sys.exit(\"✗ engine.yaml tiene cambios sin commit: la receta de un artefacto que se va a servir tiene que estar en git\")\nif receta_sha not in {x[\"engine_yaml_sha256\"] for x in revisiones()}:\n    sys.exit(f\"✗ engine.yaml ({receta_sha[:12]}…) no es ninguna versión revisada (mundo/revisiones.json): git log -p engine.yaml\")\nexportador = a.exportador or r[\"export\"][\"exportador\"]\nversion = cfg[\"challenger\"]\n\n# 2 · La versión aprobada, por número, con sus huellas\nc = mlflow_cliente()\nmv = c.get_model_version(MODELO, str(version))\nif mv.tags.get(\"gate\") != \"passed\":\n    sys.exit(f\"✗ {MODELO} v{version} no tiene gate=passed: nadie aprobó ese modelo\")\nif json.loads(bajar(mv.run_id, \"modelo/labels.json\")) != CLASES:\n    sys.exit(f\"✗ el labels.json de v{version} no es entrada/categorias.json: la salida 0 dejaría de ser «{CLASES[0]}»\")\npesos = torch.load(io.BytesIO(bajar(mv.run_id, \"modelo/pesos.pt\")), map_location=\"cpu\", weights_only=True)\nhuella = huella_pesos(pesos)\nif huella != mv.tags.get(\"pesos_sha256\"):\n    sys.exit(f\"✗ los pesos de v{version} tienen huella {huella[:12]}… y la versión dice {mv.tags.get('pesos_sha256', '?')[:12]}…: \"\n             \"no es el modelo que aprobó el gate\")\nprint(f\"  {MODELO} v{version} · gate=passed · pesos {huella[:12]}… = el tag de la versión · labels.json en orden\")\n\n# 3 · Exportar, en eval()\nmodelo = construir_modelo(len(CLASES))\nmodelo.load_state_dict(pesos)\nmodelo.eval()\ndestino = carpeta(version, None if exportador == r[\"export\"][\"exportador\"] else exportador)\nruta = destino / \"model.onnx\"\nent, sal = firma[\"entrada\"][\"nombre\"], firma[\"salida\"][\"nombre\"]\nfor nombre in (\"onnxscript\", \"torch.onnx._internal.exporter._registration\"):   # ruido del exportador nuevo\n    logging.getLogger(nombre).setLevel(logging.CRITICAL)\nwith warnings.catch_warnings():\n    warnings.simplefilter(\"ignore\")\n    torch.onnx.export(modelo, (torch.zeros(1, *firma[\"entrada\"][\"forma\"]),), str(ruta), dynamo=exportador == \"dynamo\",\n                      opset_version=r[\"export\"][\"opset\"], input_names=[ent], output_names=[sal],\n                      dynamic_axes={ent: {0: \"batch\"}, sal: {0: \"batch\"}})\nm = onnx.load(str(ruta))\nforma = lambda v: [d.dim_param or d.dim_value for d in v.type.tensor_type.shape.dim]   # noqa: E731\nprint(f\"[export] opset={next(o.version for o in m.opset_import if o.domain in ('', 'ai.onnx'))} \"\n      f\"input={m.graph.input[0].name}{forma(m.graph.input[0])} output={m.graph.output[0].name}{forma(m.graph.output[0])} · \"\n      f\"{ruta.stat().st_size / 1e3:.0f} kB · exportador {exportador}\")\n\n# 4 · Los tres chequeos\nonnx.checker.check_model(m, full_check=True)\nprint(\"  1 · onnx.checker (full_check): el grafo es válido\")\nopset = next(o.version for o in m.opset_import if o.domain in (\"\", \"ai.onnx\"))\nif opset != r[\"export\"][\"opset\"]:\n    sys.exit(f\"✗ 2 · se pidió opset {r['export']['opset']} y el archivo dice opset {opset}: el contrato cambió sin que nadie lo pidiera\")\nprint(f\"  2 · el archivo dice opset {opset}, el que pide engine.yaml\")\ns = s3()\nb, fotos = manifest(s, f\"golden/{r['paridad']['examen']}/manifest.json\")\nif sha256(b) != r[\"paridad\"][\"manifest_sha256\"]:\n    sys.exit(\"✗ el manifest del golden set no es el que congeló engine.yaml\")\nx = tensores(s, fotos[:r[\"export\"][\"fotos_paridad\"]])\nwith torch.no_grad():\n    ref = modelo(torch.from_numpy(x)).numpy()\nses = sesion(ruta)\nchequeos = {}\nfor lote in (1, r[\"export\"][\"batch_max\"]):\n    out = np.concatenate([ses.run(None, {ent: x[i:i + lote]})[0] for i in range(0, len(x), lote)])\n    iguales = int((out.argmax(1) == ref.argmax(1)).sum())\n    d = float(np.abs(out - ref).max())\n    chequeos[f\"batch_{lote}\"] = {\"fotos\": len(x), \"top1_iguales\": iguales, \"d\": d}\n    print(f\"  3 · ONNX Runtime vs PyTorch (FP32), batch {lote:>2}: top-1 igual en {iguales}/{len(x)} · diferencia máxima {d:.2e}\")\n    if iguales != len(x) or d > r[\"export\"][\"d_max\"]:\n        sys.exit(f\"✗ el export no responde como el checkpoint en batch {lote} (FP32 contra FP32 solo puede diferir en los \"\n                 f\"últimos decimales, ≤ {r['export']['d_max']}): revisa eval(), el opset y el exportador\")\n\nescribir_json(destino / \"export.json\", {\n    \"version\": str(version), \"pesos_sha256\": huella, \"onnx_sha256\": sha_archivo(ruta), \"opset\": opset,\n    \"exportador\": exportador, \"torch\": torch.__version__, \"onnx\": onnx.__version__, \"engine_yaml_sha256\": receta_sha,\n    \"examen\": r[\"paridad\"][\"examen\"], \"paridad_fp32\": chequeos})\nprint(f\"✓ {destino.name}/model.onnx · sha256 {sha_archivo(ruta)[:12]}… · los tres chequeos en verde\")",
+          "nota": "Cada <code>sys.exit</code> es una razón para no seguir: una receta sin revisar, unos pesos que no son los aprobados, un opset que cambió o un archivo que no responde como el checkpoint."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/exportar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "  classifier v4 · gate=passed · pesos 0e36f3a192b0… = el tag de la versión · labels.json en orden\n[export] opset=17 input=input['batch', 3, 32, 32] output=logits['batch', 10] · 180 kB · exportador clasico\n  1 · onnx.checker (full_check): el grafo es válido\n  2 · el archivo dice opset 17, el que pide engine.yaml\n  3 · ONNX Runtime vs PyTorch (FP32), batch  1: top-1 igual en 512/512 · diferencia máxima 1.19e-05\n  3 · ONNX Runtime vs PyTorch (FP32), batch 32: top-1 igual en 512/512 · diferencia máxima 1.19e-05\n✓ v4/model.onnx · sha256 ba6720d59f21… · los tres chequeos en verde"
+        },
+        {
+          "code": "python pipeline/exportar.py --exportador dynamo     # una prueba: va a artefactos/v4-dynamo/",
+          "nota": "El exportador nuevo, el de omisión desde PyTorch 2.9. Pediste opset 17 y el archivo dice 18: sin el chequeo 2, ese cambio de contrato pasaría con un aviso que nadie lee.",
+          "donde": "mac",
+          "salida": "  classifier v4 · gate=passed · pesos 0e36f3a192b0… = el tag de la versión · labels.json en orden\n[aviso de PyTorch] Setting ONNX exporter to use operator set version 18 because the requested opset_version 17 is a lower version than we have implementations for. Automatic version conversion will be performed, which may not be successful at converting to the requested version. If version conversion is unsuccessful, the opset version of the exported model will be kept at 18. Please consider setting opset_version >=18 to leverage latest ONNX features\n[export] opset=18 input=input['batch', 3, 32, 32] output=logits['batch', 10] · 48 kB · exportador dynamo\n  1 · onnx.checker (full_check): el grafo es válido\n✗ 2 · se pidió opset 17 y el archivo dice opset 18: el contrato cambió sin que nadie lo pidiera\n[código 1]"
+        },
+        {
+          "code": "python verificar.py receta pesos export",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ receta    engine.yaml = la revisión del PR #44 (2026-08-20): opset 17, fp16, a1 ≥ 99.5%, holgura 15% · sin cambios pendientes\n✓ pesos     v4: gate=passed · pesos 0e36f3a192b0… = su tag = los que exportaste · labels.json en orden\n✓ export    model.onnx ba6720d59f21… · opset 17 · input[batch, …] · batch 1, 7 y 32 con el mismo top-1 que PyTorch · diferencia 1.1e-05\n\n3/3 en verde"
+        }
+      ],
+      "verifica": "<code>artefactos/v4/model.onnx</code> con opset 17, entrada <code>input['batch', 3, 32, 32]</code> y las mismas 512 respuestas que PyTorch en batch 1 y 32 (diferencia máxima 1.19e-05).",
+      "ojo": "El exportador nuevo dejó un archivo de 48 kB en lugar de 180: otro grafo. Puede que responda igual, pero cambiar de exportador es un PR aparte con su propia paridad.",
+      "en_pagina": {
+        "conceptos": [
+          "export",
+          "onnx",
+          "opset",
+          "eje-batch",
+          "exportador"
+        ],
+        "precalculos": []
+      }
+    },
+    {
+      "n": 3,
+      "id": "construir",
+      "titulo": "Construir el engine",
+      "objetivo": "Del model.onnx que pasó sus chequeos a engine.onnx en FP16, construido con el runtime del servidor, para esta máquina, con sus huellas.",
+      "conceptos": [
+        "engine",
+        "fp16",
+        "guardia-build",
+        "huellas"
+      ],
+      "explica": "Primero la guardia: el onnxruntime con que construyes tiene que ser el del servidor; si no, el build se detiene. Después, los pesos a FP16 dejando la entrada y la salida en FP32 (lo que pide el contrato). Al final, ONNX Runtime optimiza el grafo para esta máquina (fusiona cada Conv con su ReLU, elige el formato de memoria) y guarda el resultado: ese archivo es el engine. ONNX Runtime mismo avisa que el archivo optimizado solo debe usarse en el mismo entorno. Las huellas (pesos, ONNX, engine, receta), el runtime y la CPU quedan en <code>engine.json</code>.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/construir.py",
+          "code": "\"\"\"Paso «construir»: del model.onnx que pasó sus tres chequeos al engine que va a correr el servidor, atado a esta\nmáquina y a este runtime, con sus huellas.\n\n    python pipeline/construir.py                     # la precisión de engine.yaml (fp16)\n    python pipeline/construir.py --precision int8    # una prueba: int8 calibrado (va a artefactos/v4-int8/)\n\nContrato:\n- engine.yaml revisado y en un commit (como en exportar.py).\n- Parte de artefactos/v<N>/model.onnx, y solo si su sha256 es el de export.json: el ONNX que pasó los tres chequeos.\n- La guardia del build: el onnxruntime con que construyes tiene que ser el que corre el servidor\n  (mundo/servidor/requirements.txt). Si no, se detiene: un engine se construye con el runtime que lo va a servir.\n- fp16: los pesos a FP16, con la entrada y la salida en FP32 (como pide el contrato del servidor).\n  int8: cuantización estática, calibrada con el set de engine.yaml (fotos de train, con su manifest); nunca con el examen.\n- Optimiza el grafo con ONNX Runtime (nivel de engine.yaml) y guarda el resultado: ese archivo es el engine.\n- Deja engine.onnx y engine.json: versión, huellas (pesos, onnx, engine, receta), precisión, opset, batch_max,\n  onnxruntime, máquina y CPU.\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport os\nimport platform\nimport sys\nimport tempfile\nimport time\nfrom collections import Counter\nfrom pathlib import Path\n\nimport onnx\nimport onnxruntime as ort\nfrom _comun import (DATOS, RAIZ, carpeta, corrida, escribir_json, git, leer_json, manifest, receta, revisiones,\n                    runtime_servidor, s3, sha256, sha_archivo, tensores)\n\nap = argparse.ArgumentParser()\nap.add_argument(\"--precision\", choices=[\"fp16\", \"int8\"])\na = ap.parse_args()\n\n# 1 · La receta y el ONNX que pasó sus chequeos\nr, cfg = receta(), corrida()\nreceta_sha = sha256((RAIZ / \"engine.yaml\").read_bytes())\nif git(\"status\", \"--porcelain\", \"--\", \"engine.yaml\") or receta_sha not in {x[\"engine_yaml_sha256\"] for x in revisiones()}:\n    sys.exit(\"✗ engine.yaml no es una versión revisada y en un commit: git status, git log -p engine.yaml\")\nversion = cfg[\"challenger\"]\nprecision = a.precision or r[\"engine\"][\"precision\"]\norigen = carpeta(version)\nexp = leer_json(origen / \"export.json\")\nif not exp or not (origen / \"model.onnx\").exists():\n    sys.exit(f\"✗ falta artefactos/v{version}/model.onnx con su export.json: corre pipeline/exportar.py\")\nif sha_archivo(origen / \"model.onnx\") != exp[\"onnx_sha256\"]:\n    sys.exit(\"✗ model.onnx no es el que pasó los tres chequeos (su sha256 no es el de export.json): vuelve a exportar\")\n\n# 2 · La guardia del build: el runtime del servidor\nif ort.__version__ != runtime_servidor():\n    sys.exit(f\"✗ construyes con onnxruntime {ort.__version__} y el servidor corre {runtime_servidor()} \"\n             \"(mundo/servidor/requirements.txt): un engine se construye con el runtime que lo va a servir\")\ndestino = carpeta(version, None if precision == r[\"engine\"][\"precision\"] else precision)\nt0 = time.time()\n\n# 3 · Bajar la precisión\nwith tempfile.TemporaryDirectory() as d:\n    intermedio = Path(d) / f\"{precision}.onnx\"\n    if precision == \"fp16\":\n        from onnxruntime.transformers import float16\n\n        onnx.save(float16.convert_float_to_float16(onnx.load(str(origen / \"model.onnx\")), keep_io_types=True), str(intermedio))\n    else:\n        from onnxruntime.quantization import CalibrationDataReader, quantize_static\n\n        s = s3()\n        _, fotos = manifest(s, f\"calibracion/{r['engine']['calibracion']}/manifest.json\")\n        x = tensores(s, fotos)\n\n        class Lector(CalibrationDataReader):\n            def __init__(self):\n                self.it = iter([{\"input\": x[i:i + 1]} for i in range(len(x))])\n\n            def get_next(self):\n                return next(self.it, None)\n\n        quantize_static(str(origen / \"model.onnx\"), str(intermedio), Lector())\n        print(f\"  int8 calibrado con {len(x)} fotos de {r['engine']['calibracion']} (s3://{DATOS}/calibracion/…)\")\n    pesos = Counter(onnx.TensorProto.DataType.Name(t.data_type) for t in onnx.load(str(intermedio)).graph.initializer)\n    print(f\"  {precision}: {intermedio.stat().st_size / 1e3:.0f} kB (el ONNX FP32 pesa {(origen / 'model.onnx').stat().st_size / 1e3:.0f} kB) · \"\n          f\"pesos {dict(pesos)}\")\n\n    # 4 · Optimizar para esta máquina y guardar: eso es el engine\n    so = ort.SessionOptions()\n    so.graph_optimization_level = {\"todas\": ort.GraphOptimizationLevel.ORT_ENABLE_ALL,\n                                   \"extendidas\": ort.GraphOptimizationLevel.ORT_ENABLE_EXTENDED}[r[\"engine\"][\"optimizacion\"]]\n    so.optimized_model_filepath = str(destino / \"engine.onnx\")\n    ort.InferenceSession(str(intermedio), so, providers=[\"CPUExecutionProvider\"])\n\ng = onnx.load(str(destino / \"engine.onnx\")).graph\nprint(f\"  engine.onnx: {(destino / 'engine.onnx').stat().st_size / 1e3:.0f} kB · {len(g.node)} nodos \"\n      f\"{dict(Counter(n.op_type for n in g.node).most_common(4))} · {time.time() - t0:.1f} s\")\ninfo = {\"version\": str(version), \"precision\": precision, \"optimizacion\": r[\"engine\"][\"optimizacion\"],\n        \"pesos_sha256\": exp[\"pesos_sha256\"], \"onnx_sha256\": exp[\"onnx_sha256\"], \"engine_sha256\": sha_archivo(destino / \"engine.onnx\"),\n        \"engine_yaml_sha256\": receta_sha, \"opset\": exp[\"opset\"], \"batch_max\": r[\"export\"][\"batch_max\"],\n        \"onnxruntime\": ort.__version__, \"maquina\": f\"{platform.system()} {platform.machine()}\",\n        \"cpu\": os.popen(\"sysctl -n machdep.cpu.brand_string 2>/dev/null\").read().strip() or platform.processor()}\nescribir_json(destino / \"engine.json\", info)\nprint(f\"✓ {destino.name}/engine.onnx · sha256 {info['engine_sha256'][:12]}… · onnxruntime {info['onnxruntime']} · {info['cpu']}\")",
+          "nota": "La rama int8 se usa en el paso 4, como prueba."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/construir.py",
+          "nota": "El aviso de ONNX Runtime es real y es la idea del paso: un engine es para la máquina y el runtime donde se construyó.",
+          "donde": "mac",
+          "salida": "  fp16: 94 kB (el ONNX FP32 pesa 180 kB) · pesos {'FLOAT16': 20}\n[W:onnxruntime:, inference_session.cc:3368 operator()] Serializing optimized model with Graph Optimization level greater than ORT_ENABLE_EXTENDED and the NchwcTransformer enabled. The generated model may contain hardware specific optimizations, and should only be used in the same environment the model was optimized in.\n  engine.onnx: 181 kB · 14 nodos {'FusedConv': 7, 'Conv': 2, 'Cast': 2, 'GlobalAveragePool': 1} · 0.0 s\n✓ v4/engine.onnx · sha256 88bdea80ac92… · onnxruntime 1.32.0 · Apple M4"
+        },
+        {
+          "code": "ls -l artefactos/v4/*.onnx\npython -c \"…cuenta los operadores de model.onnx y de engine.onnx…\"",
+          "nota": "Las 9 convoluciones y 7 ReLU del ONNX quedaron en 7 FusedConv + 2 Conv. Los 2 Cast pasan la entrada a FP16 y la salida a FP32. En la CPU, los pesos FP16 se volvieron FP32 al optimizar (ya redondeados): por eso engine.onnx pesa casi lo mismo que el ONNX FP32.",
+          "donde": "mac",
+          "salida": "181347 artefactos/v4/engine.onnx\n179906 artefactos/v4/model.onnx\nartefactos/v4/model.onnx {'Conv': 9, 'Relu': 7, 'Add': 3, 'GlobalAveragePool': 1, 'Flatten': 1, 'Gemm': 1}\nartefactos/v4/engine.onnx {'FusedConv': 7, 'Conv': 2, 'GlobalAveragePool': 1, 'Cast': 2, 'Flatten': 1, 'Gemm': 1}"
+        },
+        {
+          "code": "python verificar.py engine firma",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ engine    engine.onnx 88bdea80ac92… · fp16 · desde model.onnx ba6720d59f21… · onnxruntime 1.32.0 = el del servidor · Darwin arm64 (Apple M4)\n✓ firma     input float32 ['batch', 3, 32, 32] → logits float32 ['batch', 10] · 32 fotos juntas = mundo/servidor/classifier.yaml\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "<code>engine.onnx</code> con su <code>engine.json</code>: sale del model.onnx que pasó los chequeos, FP16, onnxruntime 1.32.0 (el del servidor), Darwin arm64; y su firma cumple <code>mundo/servidor/classifier.yaml</code> con 32 fotos juntas.",
+      "ojo": "En C01, el build va en el runner de CI con la misma T4 que producción, nunca al arrancar el servidor: compilar un engine tarda minutos y no se hace con tráfico esperando.",
+      "en_pagina": {
+        "conceptos": [
+          "engine",
+          "fp16",
+          "huellas"
+        ],
+        "precalculos": [
+          "pesos",
+          "redondeo"
+        ]
+      }
+    },
+    {
+      "n": 4,
+      "id": "paridad",
+      "titulo": "La paridad, y el engine que no pasa",
+      "objetivo": "El engine FP16 responde lo mismo que PyTorch FP32 en las 1,000 fotos del examen; uno int8, más chico y más rápido, no.",
+      "conceptos": [
+        "paridad",
+        "tres-numeros",
+        "examen-ruido",
+        "int8",
+        "contrato"
+      ],
+      "explica": "La referencia es el checkpoint aprobado, en PyTorch FP32 y en <code>eval()</code>. El candidato es el engine, abierto como lo abre el servidor, después de revisar el contrato. Los dos responden las 1,000 fotos de <code>golden-v1</code> y se calculan tres números: a1 (misma primera categoría), o5 (cuántas de las 5 sugerencias coinciden) y d (la mayor diferencia entre logits). Después, la prueba: un engine int8 calibrado con fotos de train (nunca del examen) es más chico y más rápido, pero ¿es el mismo modelo?",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/paridad.py",
+          "code": "\"\"\"Paso «paridad»: ¿el engine que se va a servir responde lo mismo que el checkpoint que aprobó el gate?\n\n    python pipeline/paridad.py                 # el engine de artefactos/v4/\n    python pipeline/paridad.py --prueba int8   # el de artefactos/v4-int8/\n\nContrato:\n- engine.yaml revisado y en un commit. El engine.onnx tiene que ser el de su engine.json (misma huella), construido con\n  el runtime del servidor.\n- El contrato con el servidor (mundo/servidor/classifier.yaml): una entrada con ese nombre, float32, forma\n  [batch, 3, 32, 32] con el batch variable; una salida con ese nombre, [batch, 10]; y el engine acepta hasta\n  max_batch_size fotos juntas. Si no cuadra, se detiene: el servidor no podría cargarlo.\n- La referencia es PyTorch FP32 en eval(), con los pesos de la versión (huella = la de engine.json).\n- El examen es el golden set completo de engine.yaml (manifest con su huella). El engine corre en lotes de max_batch_size.\n- Tres números contra los umbrales de engine.yaml: a1 (acuerdo top-1), o5 (solapamiento top-5) y d (diferencia\n  máxima de logits). Si alguno no pasa, código 1 y el motivo.\n- Deja paridad.json: los tres números, los umbrales, pasa, el motivo y las fotos que cambiaron de top-1.\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport io\nimport sys\n\nimport numpy as np\nimport torch\nfrom _comun import (CLASES, MODELO, RAIZ, bajar, carpeta, contrato, corrida, escribir_json, git, huella_pesos, leer_json,\n                    manifest, mlflow_cliente, receta, revisiones, runtime_servidor, s3, sesion, sha256, sha_archivo, tensores)\n\nfrom mundo.arquitectura import construir_modelo\n\nap = argparse.ArgumentParser()\nap.add_argument(\"--prueba\")\na = ap.parse_args()\n\n# 1 · La receta y el engine, con sus huellas\nr, cfg, firma = receta(), corrida(), contrato()\nreceta_sha = sha256((RAIZ / \"engine.yaml\").read_bytes())\nif git(\"status\", \"--porcelain\", \"--\", \"engine.yaml\") or receta_sha not in {x[\"engine_yaml_sha256\"] for x in revisiones()}:\n    sys.exit(\"✗ engine.yaml no es una versión revisada y en un commit: git status, git log -p engine.yaml\")\nversion = cfg[\"challenger\"]\nd_ = carpeta(version, a.prueba)\ninfo = leer_json(d_ / \"engine.json\")\nif not info or not (d_ / \"engine.onnx\").exists():\n    sys.exit(f\"✗ falta {d_.name}/engine.onnx con su engine.json: corre pipeline/construir.py\")\nif sha_archivo(d_ / \"engine.onnx\") != info[\"engine_sha256\"]:\n    sys.exit(\"✗ engine.onnx no es el de engine.json (otra huella): vuelve a construirlo\")\nif info[\"onnxruntime\"] != runtime_servidor():\n    sys.exit(f\"✗ el engine se construyó con onnxruntime {info['onnxruntime']} y el servidor corre {runtime_servidor()}: reconstrúyelo\")\n\n# 2 · El contrato con el servidor\nses = sesion(d_ / \"engine.onnx\")\ne, o = ses.get_inputs(), ses.get_outputs()\nesperado = f\"{firma['entrada']['nombre']} float32 [batch, {', '.join(map(str, firma['entrada']['forma']))}] → \" \\\n           f\"{firma['salida']['nombre']} float32 [batch, {', '.join(map(str, firma['salida']['forma']))}]\"\ntiene = f\"{e[0].name} {e[0].type} {e[0].shape} → {o[0].name} {o[0].type} {o[0].shape}\"\nif (len(e), len(o)) != (1, 1) or e[0].name != firma[\"entrada\"][\"nombre\"] or o[0].name != firma[\"salida\"][\"nombre\"] \\\n        or e[0].type != \"tensor(float)\" or o[0].type != \"tensor(float)\" or not isinstance(e[0].shape[0], str) \\\n        or e[0].shape[1:] != firma[\"entrada\"][\"forma\"] or o[0].shape[1:] != firma[\"salida\"][\"forma\"] \\\n        or info[\"batch_max\"] < firma[\"max_batch_size\"]:\n    sys.exit(f\"✗ el engine no cumple el contrato del servidor (mundo/servidor/classifier.yaml)\\n  espera: {esperado} · \"\n             f\"hasta {firma['max_batch_size']} fotos\\n  tiene:  {tiene} · batch_max {info['batch_max']}\")\nprint(f\"  contrato: {tiene} · batch hasta {firma['max_batch_size']} = mundo/servidor/classifier.yaml\")\n\n# 3 · La referencia: PyTorch FP32 con los pesos de la versión\nc = mlflow_cliente()\nmv = c.get_model_version(MODELO, str(version))\npesos = torch.load(io.BytesIO(bajar(mv.run_id, \"modelo/pesos.pt\")), map_location=\"cpu\", weights_only=True)\nif huella_pesos(pesos) != info[\"pesos_sha256\"] or info[\"pesos_sha256\"] != mv.tags.get(\"pesos_sha256\"):\n    sys.exit(f\"✗ los pesos de v{version} no son los que se exportaron (otra huella)\")\nmodelo = construir_modelo(len(CLASES))\nmodelo.load_state_dict(pesos)\nmodelo.eval()\n\n# 4 · El examen completo, en los dos\ns = s3()\nb, fotos = manifest(s, f\"golden/{r['paridad']['examen']}/manifest.json\")\nif sha256(b) != r[\"paridad\"][\"manifest_sha256\"]:\n    sys.exit(\"✗ el manifest del golden set no es el que congeló engine.yaml\")\nx = tensores(s, fotos)\nwith torch.no_grad():\n    ref = modelo(torch.from_numpy(x)).numpy()\nlote = firma[\"max_batch_size\"]\neng = np.concatenate([ses.run(None, {e[0].name: x[i:i + lote]})[0] for i in range(0, len(x), lote)])\n\n# 5 · Los tres números\nN = len(x)\nigual = ref.argmax(1) == eng.argmax(1)\na1 = float(igual.mean())\nt5r, t5e = np.argsort(-ref, 1)[:, :5], np.argsort(-eng, 1)[:, :5]\no5 = float(np.mean([len(set(p) & set(q)) / 5 for p, q in zip(t5r, t5e)]))\nd = float(np.abs(ref - eng).max())\np = r[\"paridad\"]\nmotivos = [m for m, mal in ((f\"acuerdo top-1 {a1:.1%} < {p['a1_min']:.1%}\", a1 < p[\"a1_min\"]),\n                            (f\"solapamiento top-5 {o5:.2%} < {p['o5_min']:.0%}\", o5 < p[\"o5_min\"]),\n                            (f\"diferencia máxima de logits {d:.3f} > {p['d_max']}\", d > p[\"d_max\"])) if mal]\nordenados = np.sort(ref, 1)\ncambios = [{\"id\": fotos[i][\"id\"], \"ref\": CLASES[int(ref[i].argmax())], \"engine\": CLASES[int(eng[i].argmax())],\n            \"margen_ref\": round(float(ordenados[i, -1] - ordenados[i, -2]), 4)} for i in np.flatnonzero(~igual)]\nprint(f\"  examen {r['paridad']['examen']}: {N} fotos · engine {info['precision']} vs PyTorch FP32\")\nprint(f\"  a1 = {a1:.1%} ({int(igual.sum())}/{N}, cambian {N - int(igual.sum())}; el límite deja {int(round((1 - p['a1_min']) * N))}) · \"\n      f\"o5 = {o5:.2%} · d = {d:.4f}\")\nfor x_ in cambios[:5]:\n    print(f\"    {x_['id']}: {x_['ref']} → {x_['engine']} (margen en FP32 entre los dos primeros logits: {x_['margen_ref']})\")\nescribir_json(d_ / \"paridad.json\", {\n    \"version\": str(version), \"engine_sha256\": info[\"engine_sha256\"], \"precision\": info[\"precision\"],\n    \"examen\": r[\"paridad\"][\"examen\"], \"manifest_sha256\": r[\"paridad\"][\"manifest_sha256\"], \"engine_yaml_sha256\": receta_sha,\n    \"n\": N, \"a1\": a1, \"o5\": o5, \"d\": d, \"umbrales\": p, \"pasa\": not motivos, \"motivo\": \"; \".join(motivos), \"cambios\": cambios})\nif motivos:\n    sys.exit(f\"✗ paridad: NO pasa · {'; '.join(motivos)}. El engine no es el modelo que aprobó el gate: no se registra\")\nprint(f\"✓ paridad: pasa · a1 {a1:.1%} ≥ {p['a1_min']:.1%} · o5 {o5:.2%} ≥ {p['o5_min']:.0%} · d {d:.4f} ≤ {p['d_max']}\")",
+          "nota": "Las fotos que cambian se guardan con el margen que tenían en FP32: un engine sano solo cambia las casi empatadas."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/paridad.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "  contrato: input tensor(float) ['batch', 3, 32, 32] → logits tensor(float) ['batch', 10] · batch hasta 32 = mundo/servidor/classifier.yaml\n  examen golden-v1: 1000 fotos · engine fp16 vs PyTorch FP32\n  a1 = 100.0% (1000/1000, cambian 0; el límite deja 5) · o5 = 99.98% · d = 0.0130\n✓ paridad: pasa · a1 100.0% ≥ 99.5% · o5 99.98% ≥ 99% · d 0.0130 ≤ 0.5"
+        },
+        {
+          "code": "python pipeline/construir.py --precision int8",
+          "nota": "",
+          "donde": "mac",
+          "salida": "WARNING:root:Please consider to run pre-processing before quantization. Refer to example: https://github.com/microsoft/onnxruntime-inference-examples/blob/main/quantization/image_classification/cpu/ReadMe.md \nWARNING:root:Please consider pre-processing before quantization. See https://github.com/microsoft/onnxruntime-inference-examples/blob/main/quantization/image_classification/cpu/ReadMe.md \n  int8 calibrado con 256 fotos de cal-2026-09 (s3://ml-datos/calibracion/…)\n  int8: 64 kB (el ONNX FP32 pesa 180 kB) · pesos {'INT8': 35, 'FLOAT': 35, 'INT32': 20}\n  engine.onnx: 56 kB · 19 nodos {'QLinearConv': 9, 'QLinearAdd': 3, 'Transpose': 2, 'QuantizeLinear': 1} · 0.6 s\n✓ v4-int8/engine.onnx · sha256 71931ab8a75e… · onnxruntime 1.32.0 · Apple M4"
+        },
+        {
+          "code": "python pipeline/paridad.py --prueba int8",
+          "nota": "Termina con código 1: en el pipeline, el paso se pone en rojo y no sigue.",
+          "donde": "mac",
+          "salida": "  contrato: input tensor(float) ['batch', 3, 32, 32] → logits tensor(float) ['batch', 10] · batch hasta 32 = mundo/servidor/classifier.yaml\n  examen golden-v1: 1000 fotos · engine int8 vs PyTorch FP32\n  a1 = 98.9% (989/1000, cambian 11; el límite deja 5) · o5 = 99.24% · d = 0.8802\n    g-0130: abrigos → vestidos (margen en FP32 entre los dos primeros logits: 0.0108)\n    g-0143: abrigos → sueteres (margen en FP32 entre los dos primeros logits: 0.0057)\n    g-0245: tenis → botines (margen en FP32 entre los dos primeros logits: 0.0169)\n    g-0314: bolsas → sandalias (margen en FP32 entre los dos primeros logits: 0.148)\n    g-0375: tenis → sandalias (margen en FP32 entre los dos primeros logits: 0.1093)\n✗ paridad: NO pasa · acuerdo top-1 98.9% < 99.5%; diferencia máxima de logits 0.880 > 0.5. El engine no es el modelo que aprobó el gate: no se registra\n[código 1]"
+        },
+        {
+          "code": "python verificar.py paridad frena",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ paridad   golden-v1 completo: a1 100.0% · o5 99.98% · d 0.0130 (recalculados) · umbrales 99.5% / 99% / 0.5\n✓ frena     int8: a1 98.9% · o5 99.24% · d 0.880 → NO pasa (acuerdo top-1 98.9% < 99.5%; diferencia máxima de logits 0.880 > 0.5) · no se registró\n\n2/2 en verde"
+        }
+      ],
+      "verifica": "FP16: a1 = 100.0 %, o5 = 99.98 %, d = 0.0130: pasa. Int8: a1 = 98.9 % (11 de 1,000 cambian, el límite deja 5) y d = 0.8802: no pasa, y no se registra.",
+      "ojo": "Varias fotos que el int8 cambió tenían un margen de 0.01 o menos en FP32: eran casi empates. Pero también cambió fotos con margen de 0.1, y d pasó de 0.5. No es redondeo: es otro modelo. Si de verdad conviene int8, va en su propio PR, quizás con un modelo entrenado para int8.",
+      "en_pagina": {
+        "conceptos": [
+          "paridad",
+          "tres-numeros",
+          "examen-ruido",
+          "int8"
+        ],
+        "precalculos": [
+          "examen"
+        ]
+      }
+    },
+    {
+      "n": 5,
+      "id": "latencia",
+      "titulo": "El gate de latencia",
+      "objetivo": "El p99 del engine nuevo no pasa de 1.15 × el del engine del champion, a 600 y a 1,200 peticiones por segundo.",
+      "conceptos": [
+        "gate-latencia",
+        "carga-abierta"
+      ],
+      "explica": "Primero, la referencia: el engine de v3 desde MLflow, con su huella contra el tag de la versión. Sin él no hay gate. Después, la carga abierta: las peticiones llegan a su hora (Poisson, con la misma semilla para los dos) aunque la anterior no haya terminado, y cada latencia cuenta desde que llegó, con la fila. A cada tasa, cinco rondas alternadas (champion, challenger, champion…): se queda la mediana de los cinco p99 de cada uno, para que una ronda con ruido no decida.",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/latencia.py",
+          "code": "\"\"\"Paso «latencia»: ¿el engine nuevo no se volvió más lento que el que hoy sirve producción?\n\n    python pipeline/latencia.py\n\nContrato:\n- engine.yaml revisado y en un commit. El engine del challenger es el de artefactos/v<N>/ (huella = engine.json) y ya\n  pasó la paridad (paridad.json con pasa y la misma huella). Si no, se detiene: medir un engine que no es el modelo no\n  sirve de nada.\n- La referencia es el engine del champion, el de corrida.yaml, por número: el que guarda su versión en MLflow\n  (engine/engine.onnx), con la huella de su tag engine_sha256. Si no está o no cuadra, se detiene: sin referencia no\n  hay gate (nunca «pasa» por default).\n- Los dos se abren igual (como el servidor) y se miden en la misma máquina, a cada tasa de engine.yaml, con carga\n  abierta: las peticiones llegan a su hora (Poisson con semilla fija, la misma para los dos) aunque la anterior no haya\n  terminado. La latencia de cada una es desde que llegó hasta que tuvo respuesta (incluye la espera en la fila).\n- Por tasa: rondas alternadas (champion, challenger, champion…); el p99 de cada ronda y la mediana de las rondas.\n- La regla, a cada tasa: p99 del challenger ≤ (1 + holgura) × p99 del champion. Si no, código 1 y el motivo.\n- Deja latencia.json: por tasa, los p99 de cada ronda, las medianas, el límite y pasa; y el máximo de fotos por\n  segundo de cada engine.\n\"\"\"\nfrom __future__ import annotations\n\nimport math\nimport statistics\nimport sys\nimport tempfile\nimport time\nfrom pathlib import Path\n\nimport numpy as np\nfrom _comun import (MODELO, RAIZ, bajar, carpeta, corrida, escribir_json, git, leer_json, mlflow_cliente, receta,\n                    revisiones, sesion, sha256, sha_archivo)\n\n# 1 · La receta, el challenger (con su paridad) y el champion (por número, con su huella)\nr, cfg = receta(), corrida()\nreceta_sha = sha256((RAIZ / \"engine.yaml\").read_bytes())\nif git(\"status\", \"--porcelain\", \"--\", \"engine.yaml\") or receta_sha not in {x[\"engine_yaml_sha256\"] for x in revisiones()}:\n    sys.exit(\"✗ engine.yaml no es una versión revisada y en un commit: git status, git log -p engine.yaml\")\nd_ = carpeta(cfg[\"challenger\"])\ninfo, par = leer_json(d_ / \"engine.json\"), leer_json(d_ / \"paridad.json\")\nif not info or sha_archivo(d_ / \"engine.onnx\") != info[\"engine_sha256\"]:\n    sys.exit(\"✗ falta el engine del challenger con su engine.json: corre pipeline/construir.py\")\nif not par or not par[\"pasa\"] or par[\"engine_sha256\"] != info[\"engine_sha256\"]:\n    sys.exit(\"✗ ese engine no tiene una paridad que pasó: corre pipeline/paridad.py (y si no pasa, no se mide)\")\nc = mlflow_cliente()\nv_ch = c.get_model_version(MODELO, str(cfg[\"champion\"]))\nesperada = v_ch.tags.get(\"engine_sha256\")\ntry:\n    champ = bajar(v_ch.run_id, \"engine/engine.onnx\")\nexcept Exception:  # noqa: BLE001\n    champ = b\"\"\nif not esperada or sha256(champ) != esperada:\n    sys.exit(f\"✗ el engine del champion (v{cfg['champion']}) no está en MLflow o no es el de su tag engine_sha256 \"\n             f\"({sha256(champ)[:12] if champ else 'no hay archivo'}… vs {(esperada or '?')[:12]}…): sin la referencia de \"\n             \"producción no hay gate de latencia\")\ntmp = Path(tempfile.mkdtemp()) / \"champion.onnx\"\ntmp.write_bytes(champ)\nengines = {\"champion\": sesion(tmp), \"challenger\": sesion(d_ / \"engine.onnx\")}\n\n# 2 · Cómo se mide: carga abierta a una tasa fija, una petición = una foto\nx = np.random.default_rng(0).standard_normal((256, 3, 32, 32)).astype(np.float32)   # la latencia no depende de la foto\nfor s in engines.values():   # calentar: las primeras corridas pagan cargas y cachés\n    for i in range(300):\n        s.run(None, {\"input\": x[i % 256:i % 256 + 1]})\n\n\ndef p99(s, tasa: float, n: int, semilla: int) -> float:\n    llegadas = np.cumsum(np.random.default_rng(semilla).exponential(1 / tasa, n))   # Poisson: a veces llegan juntas\n    t0, lat = time.perf_counter() + 0.005, []\n    for i in range(n):\n        llega = t0 + llegadas[i]\n        while time.perf_counter() < llega:          # espera activa: la petición llega a su hora, no antes\n            pass\n        s.run(None, {\"input\": x[i % 256:i % 256 + 1]})\n        lat.append((time.perf_counter() - llega) * 1000)   # desde que llegó: incluye la fila\n    lat.sort()\n    return lat[math.ceil(0.99 * n) - 1]                  # rango más cercano: la latencia número ⌈0.99·n⌉\n\n\ndef maximo(s, n: int = 3000) -> float:\n    t = time.perf_counter()\n    for i in range(n):\n        s.run(None, {\"input\": x[i % 256:i % 256 + 1]})\n    return n / (time.perf_counter() - t)\n\n\nL = r[\"latencia\"]\nX = {k: maximo(s) for k, s in engines.items()}\nprint(f\"  máximo, una foto a la vez: champion {X['champion']:,.0f} fotos/s · challenger {X['challenger']:,.0f} fotos/s\")\ntasas, motivos = {}, []\nfor tasa in L[\"tasas\"]:\n    rondas = {\"champion\": [], \"challenger\": []}\n    for k in range(L[\"rondas\"]):\n        for quien in (\"champion\", \"challenger\"):\n            rondas[quien].append(p99(engines[quien], tasa, L[\"peticiones\"], semilla=1000 * tasa + k))\n    t_c, t_n = statistics.median(rondas[\"champion\"]), statistics.median(rondas[\"challenger\"])\n    limite = (1 + L[\"holgura\"]) * t_c\n    pasa = bool(t_n <= limite)\n    tasas[str(tasa)] = {\"rondas_champion\": rondas[\"champion\"], \"rondas_challenger\": rondas[\"challenger\"], \"p99_champion\": t_c,\n                        \"p99_challenger\": t_n, \"limite\": limite, \"uso\": tasa / X[\"challenger\"], \"pasa\": pasa}\n    print(f\"  {tasa:>5} peticiones/s (uso ≈ {tasa / X['challenger']:.0%}) · p99 champion {t_c:.3f} ms · challenger {t_n:.3f} ms · \"\n          f\"límite {limite:.3f} ms · {'pasa' if pasa else 'NO pasa'}\")\n    if not pasa:\n        motivos.append(f\"a {tasa}/s el p99 del challenger ({t_n:.3f} ms) pasa del límite ({limite:.3f} ms)\")\n\nescribir_json(d_ / \"latencia.json\", {\n    \"version\": str(cfg[\"challenger\"]), \"engine_sha256\": info[\"engine_sha256\"], \"champion_version\": str(cfg[\"champion\"]),\n    \"champion_engine_sha256\": esperada, \"engine_yaml_sha256\": receta_sha, \"holgura\": L[\"holgura\"], \"peticiones\": L[\"peticiones\"],\n    \"rondas\": L[\"rondas\"], \"maximo_fotos_s\": X, \"tasas\": tasas, \"pasa\": not motivos, \"motivo\": \"; \".join(motivos)})\nif motivos:\n    sys.exit(f\"✗ latencia: NO pasa · {'; '.join(motivos)}\")\nprint(f\"✓ latencia: pasa a las {len(L['tasas'])} tasas (holgura {L['holgura']:.0%} sobre el champion v{cfg['champion']})\")",
+          "nota": "La espera activa (<code>while … pass</code>) hace que cada petición llegue a su hora con precisión de microsegundos; un <code>sleep</code> se despierta tarde."
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/latencia.py",
+          "nota": "No corras nada pesado mientras mide: tu Mac es el runner.",
+          "donde": "mac",
+          "salida": "  máximo, una foto a la vez: champion 2,428 fotos/s · challenger 2,425 fotos/s\n    600 peticiones/s (uso ≈ 25%) · p99 champion 1.092 ms · challenger 1.116 ms · límite 1.256 ms · pasa\n   1200 peticiones/s (uso ≈ 49%) · p99 champion 1.937 ms · challenger 1.963 ms · límite 2.228 ms · pasa\n✓ latencia: pasa a las 2 tasas (holgura 15% sobre el champion v3)\nreal 53.80"
+        },
+        {
+          "code": "python -c \"…los p99 de cada ronda…\"",
+          "nota": "Entre rondas del mismo engine, el p99 se mueve varios %: por eso la mediana, y por eso la holgura de 15 %.",
+          "donde": "mac",
+          "salida": "600 /s · champion [1.086, 1.092, 1.059, 1.097, 1.121] · challenger [1.15, 1.098, 1.052, 1.127, 1.116]\n1200 /s · champion [1.827, 1.937, 1.591, 2.111, 1.994] · challenger [1.751, 1.963, 1.602, 3.295, 1.988]"
+        },
+        {
+          "code": "python verificar.py latencia",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ latencia  600/s: 1.12 ms vs 1.09 ms (límite 1.26) · 1200/s: 1.96 ms vs 1.94 ms (límite 2.23) · contra el engine del champion 76ea30f48b41…\n\n1/1 en verde"
+        }
+      ],
+      "verifica": "A 600/s: 1.116 ms contra 1.092 (límite 1.256). A 1,200/s: 1.963 ms contra 1.937 (límite 2.228). Pasa a las dos, contra el engine del champion con su huella.",
+      "ojo": "A 1,200/s el p99 casi se duplica aunque cada foto tarda lo mismo: la mitad de la máquina ocupada ya forma fila. Por eso se mide a dos cargas: un engine puede empatar a media carga y quedarse atrás con la carga doble.",
+      "en_pagina": {
+        "conceptos": [
+          "gate-latencia",
+          "carga-abierta"
+        ],
+        "precalculos": [
+          "holgura"
+        ]
+      }
+    },
+    {
+      "n": 6,
+      "id": "registrar",
+      "titulo": "Huellas y registro",
+      "objetivo": "v4 con engine=listo, sus archivos en MLflow y las huellas de todo lo que se usó; ningún alias se mueve.",
+      "conceptos": [
+        "huellas",
+        "guardia-build"
+      ],
+      "explica": "Registrar no es «subir el engine»: es dejar escrito qué es y por qué se puede servir. <code>registrar.py</code> exige que los cuatro reportes sean del mismo engine (la huella del archivo) y de la misma receta, que la paridad y la latencia hayan pasado, que el runtime sea el del servidor y que los alias sigan donde los dejó el orquestador. Sube <code>model.onnx</code>, <code>engine.onnx</code> y los reportes a la corrida de v4 y pone los tags. <code>engine=listo</code> va al final: si algo falla a la mitad, la versión sigue «pendiente».",
+      "codigo": [
+        {
+          "lang": "python",
+          "path": "pipeline/registrar.py",
+          "code": "\"\"\"Paso «registrar»: el engine que pasó la paridad y la latencia queda en la versión del registro, con sus huellas.\n\n    python pipeline/registrar.py\n\nContrato:\n- engine.yaml revisado y en un commit. Los cuatro reportes de artefactos/v<N>/ (export, engine, paridad y latencia)\n  son del MISMO engine (la misma huella, que es la del archivo) y de la misma receta; la paridad y la latencia pasaron;\n  el engine se construyó con el runtime del servidor. Si algo no cuadra, se detiene y no registra nada.\n- La versión es la de corrida.yaml, y los alias siguen donde los dejó el orquestador: challenger = esa versión y\n  champion = el de corrida.yaml. Si alguien los movió, se detiene.\n- Sube model.onnx, engine.onnx y los cuatro reportes a la corrida de la versión (artefactos engine/) y le pone sus\n  tags: engine=listo, las huellas (onnx, engine, receta), onnxruntime, máquina, precisión, opset, los tres números de\n  la paridad y el p99 de cada tasa.\n- No mueve ningún alias: el despliegue (estaciones 8 a 10) toma el challenger desde aquí.\n- Correrlo dos veces no cambia nada. Si la versión ya tiene OTRO engine, se detiene: el engine de una versión no cambia.\n\"\"\"\nfrom __future__ import annotations\n\nimport sys\n\nfrom _comun import (MODELO, RAIZ, carpeta, corrida, git, leer_json, mlflow_cliente, receta, revisiones, runtime_servidor,\n                    sha256, sha_archivo)\n\nr, cfg = receta(), corrida()\nreceta_sha = sha256((RAIZ / \"engine.yaml\").read_bytes())\nif git(\"status\", \"--porcelain\", \"--\", \"engine.yaml\") or receta_sha not in {x[\"engine_yaml_sha256\"] for x in revisiones()}:\n    sys.exit(\"✗ engine.yaml no es una versión revisada y en un commit: git status, git log -p engine.yaml\")\nversion = str(cfg[\"challenger\"])\nd_ = carpeta(version)\nrep = {k: leer_json(d_ / f\"{k}.json\") for k in (\"export\", \"engine\", \"paridad\", \"latencia\")}\nfaltan = [k for k, v in rep.items() if not v]\nif faltan or not (d_ / \"engine.onnx\").exists():\n    sys.exit(f\"✗ faltan reportes en artefactos/v{version}/: {faltan or ['engine.onnx']}. Corre los pasos anteriores\")\ne = rep[\"engine\"]\nif sha_archivo(d_ / \"engine.onnx\") != e[\"engine_sha256\"] or sha_archivo(d_ / \"model.onnx\") != rep[\"export\"][\"onnx_sha256\"]:\n    sys.exit(\"✗ engine.onnx o model.onnx no son los de sus reportes (otra huella): vuelve a construir y a medir\")\nif {rep[\"paridad\"][\"engine_sha256\"], rep[\"latencia\"][\"engine_sha256\"]} != {e[\"engine_sha256\"]} or e[\"onnx_sha256\"] != rep[\"export\"][\"onnx_sha256\"]:\n    sys.exit(\"✗ la paridad o la latencia son de otro engine: vuelve a medir el de hoy\")\nif {x[\"engine_yaml_sha256\"] for x in rep.values()} != {receta_sha}:\n    sys.exit(\"✗ algún reporte se hizo con otra versión de engine.yaml\")\nif not rep[\"paridad\"][\"pasa\"] or not rep[\"latencia\"][\"pasa\"]:\n    sys.exit(f\"✗ no pasó: paridad {rep['paridad']['motivo'] or 'pasa'} · latencia {rep['latencia']['motivo'] or 'pasa'}\")\nif e[\"onnxruntime\"] != runtime_servidor():\n    sys.exit(f\"✗ el engine es de onnxruntime {e['onnxruntime']} y el servidor corre {runtime_servidor()}: reconstrúyelo\")\n\nc = mlflow_cliente()\naliases = c.get_registered_model(MODELO).aliases\nif str(aliases.get(\"challenger\")) != version or str(aliases.get(\"champion\")) != str(cfg[\"champion\"]):\n    sys.exit(f\"✗ los alias se movieron: @challenger = v{aliases.get('challenger')} y @champion = v{aliases.get('champion')}; \"\n             f\"la corrida es de v{version} contra v{cfg['champion']}. python mundo/modelos.py versiones\")\nmv = c.get_model_version(MODELO, version)\nya = mv.tags.get(\"engine_sha256\")\nif ya == e[\"engine_sha256\"]:\n    print(f\"  v{version} ya tiene este engine ({ya[:12]}…): nada que hacer\")\nelif ya:\n    sys.exit(f\"✗ v{version} ya tiene otro engine ({ya[:12]}…): el engine de una versión no cambia\")\nelse:\n    for f in (\"model.onnx\", \"engine.onnx\", \"export.json\", \"engine.json\", \"paridad.json\", \"latencia.json\"):\n        c.log_artifact(mv.run_id, str(d_ / f), \"engine\")\n    tags = {\"engine_sha256\": e[\"engine_sha256\"], \"onnx_sha256\": e[\"onnx_sha256\"], \"engine_yaml_sha256\": receta_sha,\n            \"onnxruntime\": e[\"onnxruntime\"], \"maquina\": e[\"maquina\"], \"precision\": e[\"precision\"], \"opset\": str(e[\"opset\"]),\n            \"paridad_a1\": f\"{rep['paridad']['a1']:.4f}\", \"paridad_o5\": f\"{rep['paridad']['o5']:.4f}\",\n            \"paridad_d\": f\"{rep['paridad']['d']:.4f}\",\n            **{f\"latencia_p99_{t}\": f\"{x['p99_challenger']:.3f}\" for t, x in rep[\"latencia\"][\"tasas\"].items()},\n            \"engine\": \"listo\"}                      # al final: si algo de arriba falla, la versión sigue «pendiente»\n    for k, v in tags.items():\n        c.set_model_version_tag(MODELO, version, k, v)\n    print(f\"  v{version}: 6 archivos en engine/ y {len(tags)} tags\")\nprint(f\"✓ {MODELO} v{version} @challenger · engine {e['engine_sha256'][:12]}… · paridad a1 {rep['paridad']['a1']:.1%} · \"\n      f\"latencia \" + \", \".join(f\"{t}/s {x['p99_challenger']:.2f} ms\" for t, x in rep[\"latencia\"][\"tasas\"].items()) +\n      f\" · champion sigue en v{cfg['champion']}\")",
+          "nota": ""
+        }
+      ],
+      "comandos": [
+        {
+          "code": "python pipeline/registrar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "  v4: 6 archivos en engine/ y 13 tags\n✓ classifier v4 @challenger · engine 88bdea80ac92… · paridad a1 100.0% · latencia 600/s 1.12 ms, 1200/s 1.96 ms · champion sigue en v3"
+        },
+        {
+          "code": "python pipeline/registrar.py",
+          "nota": "Otra vez: no cambia nada.",
+          "donde": "mac",
+          "salida": "  v4 ya tiene este engine (88bdea80ac92…): nada que hacer\n✓ classifier v4 @challenger · engine 88bdea80ac92… · paridad a1 100.0% · latencia 600/s 1.12 ms, 1200/s 1.96 ms · champion sigue en v3"
+        },
+        {
+          "code": "python mundo/modelos.py versiones",
+          "nota": "",
+          "donde": "mac",
+          "salida": "v1  —            mes 2026-07 · equipo-2026-07-01 · gate passed · pesos 900f8ba1e607… · engine retirado\nv2  —            mes 2026-08 · equipo-2026-08-01 · gate passed · pesos 6509cf6cab5e… · engine retirado\nv3  @champion    mes 2026-09 · equipo-2026-09-01 · gate passed · pesos e858003795ba… · engine listo (76ea30f48b41… · fp16 · onnxruntime 1.32.0)\nv4  @challenger  mes 2026-10 · cand-2026-10-01   · gate passed · pesos 0e36f3a192b0… · engine listo (88bdea80ac92… · fp16 · onnxruntime 1.32.0)"
+        },
+        {
+          "code": "python mundo/modelos.py engine 4",
+          "nota": "Ábrelo también en MLflow: la versión 4 de <code>classifier</code>, sus tags y la carpeta <code>engine/</code> de su corrida.",
+          "donde": "mac",
+          "salida": "  champion_version       3\n  engine                 listo\n  engine_sha256          88bdea80ac920c546692c876b1977af2976b132e73b01bc67555307c656fd3c2\n  engine_yaml_sha256     a5555c7b955c0739adc7af843a156b73ef767f1b6d5a0613eb6ecd246465c8a2\n  examen                 golden-v1\n  gate                   passed\n  gate_run_id            wf-2026-10-01-gate\n  latencia_p99_1200      1.963\n  latencia_p99_600       1.116\n  maquina                Darwin arm64\n  onnx_sha256            ba6720d59f21048bcc140a59b1e81c913d1de4dcc1ea5075d62b319e71c5e1d7\n  onnxruntime            1.32.0\n  opset                  17\n  paridad_a1             1.0000\n  paridad_d              0.0130\n  paridad_o5             0.9998\n  pesos_sha256           0e36f3a192b0c8844d73630c181f16d64c1b80d1e80d406d40a86a6ed1264cb7\n  precision              fp16\n  engine/engine.json         532 B · sha256 a7a3a1f0abd8…\n  engine/engine.onnx      181347 B · sha256 88bdea80ac92…\n  engine/export.json         627 B · sha256 a65b16c351ad…\n  engine/latencia.json      1603 B · sha256 121f2cf52a48…\n  engine/model.onnx       179906 B · sha256 ba6720d59f21…\n  engine/paridad.json        666 B · sha256 01f6c1d97226…"
+        },
+        {
+          "code": "python verificar.py registro",
+          "nota": "",
+          "donde": "mac",
+          "salida": "✓ registro  v4 @challenger · engine=listo · engine 88bdea80ac92… (el archivo en MLflow = el tag) · fp16 · onnxruntime 1.32.0 · paridad a1 100.0% · @champion sigue en v3\n\n1/1 en verde"
+        },
+        {
+          "code": "python verificar.py",
+          "nota": "",
+          "donde": "mac",
+          "salida": "10/10 en verde"
+        }
+      ],
+      "verifica": "<code>classifier</code> v4 <code>@challenger</code> con <code>engine=listo</code>, la huella de su engine (el archivo en MLflow = el tag), FP16, onnxruntime 1.32.0 y los números de paridad y latencia; <code>@champion</code> sigue en v3; los 10 checks en verde.",
+      "ojo": "Desde aquí, el despliegue (estaciones 8 a 10) toma el engine de la versión, no de tu carpeta: si alguien reemplaza el archivo, la huella lo delata.",
+      "en_pagina": {
+        "conceptos": [],
+        "precalculos": []
+      }
+    }
+  ],
+  "solo": {
+    "reglas": [
+      "Empieza con <code>python mundo/reiniciar.py --pipeline</code> y haz commit del esqueleto.",
+      "Sin <code>GUION.md</code>: solo estos objetivos y el contrato arriba de cada archivo.",
+      "Cada objetivo tiene su check; corre <code>python verificar.py &lt;check&gt;</code> cuando creas que quedó.",
+      "Las reglas no se tocan: <code>engine.yaml</code>, <code>corrida.yaml</code> y <code>mundo/servidor/</code> se quedan como vienen."
+    ],
+    "objetivos": [
+      {
+        "n": 1,
+        "objetivo": "El S3 local y MLflow arriba, el mundo creado y la carpeta en git.",
+        "check": "mundo"
+      },
+      {
+        "n": 2,
+        "objetivo": "Trabajas con la receta revisada, en un commit y sin cambios pendientes.",
+        "check": "receta",
+        "pista": "¿Dónde dice cuáles versiones de engine.yaml están aprobadas?"
+      },
+      {
+        "n": 3,
+        "objetivo": "Exportas los pesos que aprobó el gate: los de v4, con su huella.",
+        "check": "pesos"
+      },
+      {
+        "n": 4,
+        "objetivo": "model.onnx con el opset de la receta (leído del archivo), batch dinámico y las mismas respuestas que PyTorch en FP32 en batch 1 y 32.",
+        "check": "export",
+        "pista": "¿Qué dos tamaños de lote son las orillas de lo que promete la firma?"
+      },
+      {
+        "n": 5,
+        "objetivo": "engine.onnx en FP16, desde ese model.onnx, construido con el runtime del servidor en esta máquina, con sus huellas.",
+        "check": "engine"
+      },
+      {
+        "n": 6,
+        "objetivo": "El engine cumple el contrato del servidor: nombres, tipos, formas y el batch más grande.",
+        "check": "firma"
+      },
+      {
+        "n": 7,
+        "objetivo": "La paridad del engine FP16 sobre las 1,000 fotos: a1, o5 y d correctos, y pasa.",
+        "check": "paridad"
+      },
+      {
+        "n": 8,
+        "objetivo": "Un engine int8 calibrado con fotos de train queda como NO pasa en su paridad, y no se registra.",
+        "check": "frena",
+        "pista": "¿Con qué fotos se calibra, y con cuáles nunca?"
+      },
+      {
+        "n": 9,
+        "objetivo": "El gate de latencia contra el engine del champion (con su huella), a las dos tasas, con rondas alternadas.",
+        "check": "latencia",
+        "pista": "¿Desde qué momento cuenta la latencia de una petición que llegó mientras otra se atendía?"
+      },
+      {
+        "n": 10,
+        "objetivo": "v4 con engine=listo, sus archivos y sus huellas en MLflow; ningún alias se movió.",
+        "check": "registro"
+      }
+    ]
+  },
+  "fallas": [
+    {
+      "id": "receta-sin-revisar",
+      "titulo": "El engine 2× más rápido",
+      "tipo": "config",
+      "historia": "El equipo de plataforma midió que un engine int8 sirve el doble de fotos por segundo. Subieron un commit a engine.yaml directo a main: «ya quedó, la paridad pasa con los umbrales nuevos».",
+      "sintoma": "<code>verificar.py</code>: ✗ receta    engine.yaml (db5a3d0ca3c9…) no es ninguna versión revisada (mundo/revisiones.json): git log -p engine.yaml\n✗ engine    el engine es fp16; engine.yaml pide int8",
+      "hipotesis": [
+        "Alguien cambió la receta.",
+        "Cambió el engine.",
+        "Cambió el examen."
+      ],
+      "confirma": {
+        "code": "git log -1 --format=\"%h %an · %s\" -- engine.yaml\ngit show HEAD -- engine.yaml | grep \"^[-+] \"\npython pipeline/paridad.py",
+        "nota": "",
+        "donde": "mac",
+        "salida": "d7ce2de Equipo de plataforma · engine: int8 (2× más rápido) y umbrales de paridad realistas para int8\n-  d_max: 0.001                    # FP32 contra FP32: los logits solo pueden diferir en los últimos decimales\n+  d_max: 1.0                    # FP32 contra FP32: los logits solo pueden diferir en los últimos decimales\n-  precision: fp16                 # pesos en FP16 (en C01, TensorRT con --fp16 en la T4)\n+  precision: int8                 # pesos en FP16 (en C01, TensorRT con --fp16 en la T4)\n-  a1_min: 0.995                   # acuerdo top-1 contra PyTorch FP32 (a lo más 5 fotos de 1,000 cambian)\n+  a1_min: 0.98                   # acuerdo top-1 contra PyTorch FP32 (a lo más 5 fotos de 1,000 cambian)\n✗ engine.yaml no es una versión revisada y en un commit: git status, git log -p engine.yaml\n[código 1]"
+      },
+      "arreglo": "Un commit sin revisión dejó <code>precision: int8</code>, <code>a1_min: 0.98</code> y <code>d_max: 1.0</code>: con eso, el engine int8 del paso 4 pasaría. Es aflojar el examen hasta que el artefacto pase. Tus pasos se niegan a trabajar con una receta cuya huella no está en <code>mundo/revisiones.json</code>. Arreglo: <code>git revert --no-edit HEAD</code>. Si de verdad conviene int8, va en un PR propio, con su calibración y la paridad con los umbrales de siempre.",
+      "concepto": "huellas",
+      "check": "receta"
+    },
+    {
+      "id": "pesos-cambiados",
+      "titulo": "El checkpoint «que sí funcionaba»",
+      "tipo": "mundo",
+      "historia": "Alguien del equipo de plataforma escribió en el canal: «los pesos de v4 se veían raros en mi notebook, les puse el último checkpoint que funcionaba».",
+      "sintoma": "<code>verificar.py</code>: ✗ pesos     los pesos de v4 en MLflow tienen huella e858003795ba… y la versión dice 0e36f3a192b0…: alguien reemplazó el archivo. python mundo/modelos.py versiones",
+      "hipotesis": [
+        "Cambiaron los pesos de v4 en MLflow.",
+        "Cambió el engine.",
+        "Cambió el examen."
+      ],
+      "confirma": {
+        "code": "python verificar.py pesos\npython pipeline/exportar.py",
+        "nota": "",
+        "donde": "mac",
+        "salida": "✗ pesos     los pesos de v4 en MLflow tienen huella e858003795ba… y la versión dice 0e36f3a192b0…: alguien reemplazó el archivo. python mundo/modelos.py versiones\n0/1 en verde · falta: pesos\n✗ los pesos de v4 tienen huella e858003795ba… y la versión dice 0e36f3a192b0…: no es el modelo que aprobó el gate\n[código 1]"
+      },
+      "arreglo": "El <code>modelo/pesos.pt</code> de la corrida de v4 ahora son los pesos de v3: los artefactos de una corrida de MLflow se pueden reemplazar. La versión guarda <code>pesos_sha256</code> desde el gate, y la huella ya no cuadra: exportar así sería servir un modelo que nadie aprobó con el nombre de otro. Arreglo: <code>python mundo/modelos.py pesos 4</code>, que vuelve a subir el checkpoint original desde <code>s3://ml-ckpt</code> después de comprobar su huella. El engine que ya registraste sigue siendo el bueno.",
+      "concepto": "huellas",
+      "check": "pesos"
+    },
+    {
+      "id": "runtime-distinto",
+      "titulo": "La imagen base nueva",
+      "tipo": "config",
+      "historia": "El equipo de serving actualizó la imagen del servidor a la release de este mes y avisó: «sin cambios para ustedes, es la misma API».",
+      "sintoma": "<code>verificar.py</code>: ✗ engine    el engine se construyó con onnxruntime 1.32.0 y el servidor corre 1.31.1 (mundo/servidor/requirements.txt): git log -p mundo/servidor/requirements.txt",
+      "hipotesis": [
+        "Cambió el runtime del servidor.",
+        "Cambió tu entorno.",
+        "Cambió el engine."
+      ],
+      "confirma": {
+        "code": "git log -1 --format=\"%h %an · %s\" -- mundo/servidor/requirements.txt\ngit show HEAD -- mundo/servidor/requirements.txt | grep \"^[-+]onnx\"\npython pipeline/registrar.py",
+        "nota": "",
+        "donde": "mac",
+        "salida": "263a74c Equipo de serving · servidor: imagen base nueva (onnxruntime 1.31.1, la que trae la release de este mes)\n-onnxruntime==1.32.0\n+onnxruntime==1.31.1\n✗ el engine es de onnxruntime 1.32.0 y el servidor corre 1.31.1: reconstrúyelo\n[código 1]"
+      },
+      "arreglo": "El servidor ahora fija <code>onnxruntime==1.31.1</code> y el engine de v4 se construyó y se midió con 1.32.0. Con TensorRT, un engine de otra versión ni siquiera carga; aquí probablemente cargaría, y ese es el problema: nadie midió su paridad ni su latencia con ese runtime. Arreglo: <code>git revert --no-edit HEAD</code>, y que una actualización del runtime vaya en el mismo PR que reconstruye y vuelve a medir el engine.",
+      "concepto": "guardia-build",
+      "check": "engine"
+    },
+    {
+      "id": "engine-champion-cambiado",
+      "titulo": "El champion más rápido del mundo",
+      "tipo": "mundo",
+      "historia": "Alguien de plataforma «comparó velocidades» con el engine del champion esta mañana. Desde entonces, el gate de latencia dice que el modelo nuevo es más del doble de lento.",
+      "sintoma": "<code>verificar.py</code>: ✗ latencia  el engine del champion (v3) en MLflow tiene huella d89252656771… y su tag dice 76ea30f48b41…: la referencia de la latencia no es la de producción. python mundo/modelos.py engine 3",
+      "hipotesis": [
+        "Cambió el engine del champion.",
+        "Tu engine se volvió lento.",
+        "La máquina está ocupada."
+      ],
+      "confirma": {
+        "code": "python mundo/modelos.py engine 3 | grep -E \"engine_sha256|engine/engine.onnx\"\npython pipeline/latencia.py",
+        "nota": "",
+        "donde": "mac",
+        "salida": "  engine_sha256          76ea30f48b41b2bfb5f7e1994a22a7ff651ab65a1d5e8709eb5e087234aca62e\n  engine/engine.onnx       64088 B · sha256 d89252656771…\n✗ el engine del champion (v3) no está en MLflow o no es el de su tag engine_sha256 (d89252656771… vs 76ea30f48b41…): sin la referencia de producción no hay gate de latencia\n[código 1]"
+      },
+      "arreglo": "El <code>engine/engine.onnx</code> de v3 en MLflow es ahora un engine int8 que alguien subió encima del de producción. Contra esa referencia, cualquier engine FP16 sale «lento»: el gate fallaría por la razón equivocada (o pasaría a uno malo contra una referencia mala). Tu <code>latencia.py</code> compara su huella con el tag <code>engine_sha256</code> de v3 y se detiene. Arreglo: <code>python mundo/modelos.py reconstruir-engine 3</code>: la misma receta, con los mismos pesos y las mismas versiones en la misma máquina, da el mismo archivo byte por byte, y solo se sube si su huella es la del tag.",
+      "concepto": "huellas",
+      "check": "latencia"
+    },
+    {
+      "id": "firma-cambiada",
+      "titulo": "Como en los demás modelos",
+      "tipo": "config",
+      "historia": "El equipo de serving estandarizó la configuración de todos los modelos del servidor: «lotes de hasta 64 y la entrada se llama images, como en los demás».",
+      "sintoma": "<code>verificar.py</code>: ✗ firma     el engine tiene entrada «input» y salida «logits»; el servidor espera «images» y «logits» (mundo/servidor/classifier.yaml): git log -p mundo/servidor/classifier.yaml",
+      "hipotesis": [
+        "Cambió el contrato del servidor.",
+        "Cambió tu engine.",
+        "Cambió el exportador."
+      ],
+      "confirma": {
+        "code": "git log -1 --format=\"%h %an · %s\" -- mundo/servidor/classifier.yaml\ngit show HEAD -- mundo/servidor/classifier.yaml | grep \"^[-+][a-z]\"\npython pipeline/paridad.py",
+        "nota": "",
+        "donde": "mac",
+        "salida": "35d69c0 Equipo de serving · servidor: lotes de hasta 64 y la entrada se llama images, como en los demás modelos\n-max_batch_size: 32\n-entrada: {nombre: input, tipo: float32, forma: [3, 32, 32]}     # una foto ya preprocesada por el gateway\n+max_batch_size: 64\n+entrada: {nombre: images, tipo: float32, forma: [3, 32, 32]}     # una foto ya preprocesada por el gateway\n✗ el engine no cumple el contrato del servidor (mundo/servidor/classifier.yaml)\n  espera: images float32 [batch, 3, 32, 32] → logits float32 [batch, 10] · hasta 64 fotos\n  tiene:  input tensor(float) ['batch', 3, 32, 32] → logits tensor(float) ['batch', 10] · batch_max 32\n[código 1]"
+      },
+      "arreglo": "<code>mundo/servidor/classifier.yaml</code> ahora espera una entrada <code>images</code> y lotes de hasta 64; el engine tiene <code>input</code> y se construyó para lotes de hasta 32. En producción, el servidor no cargaría el modelo o rechazaría cada petición. Arreglo: <code>git revert --no-edit HEAD</code>; si serving de verdad necesita otro nombre o lotes más grandes, va en el mismo PR que exporta, reconstruye y vuelve a medir el engine con ese contrato.",
+      "concepto": "contrato",
+      "check": "firma"
+    },
+    {
+      "id": "mlflow-caido",
+      "titulo": "El paso del engine no corrió",
+      "tipo": "infra",
+      "historia": "El pipeline de anoche quedó en rojo en la estación del engine y el challenger sigue con engine=pendiente.",
+      "sintoma": "<code>verificar.py</code>: casi todo falla. ✗ mundo     MLflow no responde en localhost:5600: docker compose ps (¿está arriba el servicio mlflow?)",
+      "hipotesis": [
+        "Se cayó MLflow.",
+        "Se cayó el S3.",
+        "Se borró la versión."
+      ],
+      "confirma": {
+        "code": "docker compose ps -a --format \"{{.Service}}: {{.State}} · {{.Status}}\"\npython pipeline/exportar.py",
+        "nota": "",
+        "donde": "mac",
+        "salida": "mlflow: exited · Exited (137) 2 seconds ago\ns3: running · Up 6 minutes (healthy)\nrequests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=5600): Max retries exceeded with url: /api/2.0/mlflow/model-versions/get?name=classifier&version=4 (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5600): Failed to establish a new connection: [Errno 61] Connection refused\"))\nmlflow.exceptions.MlflowException: API request to http://localhost:5600/api/2.0/mlflow/model-versions/get failed with exception HTTPConnectionPool(host='localhost', port=5600): Max retries exceeded with url: /api/2.0/mlflow/model-versions/get?name=classifier&version=4 (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5600): Failed to establish a new connection: [Errno 61] Connection refused\"))\nreal 2.46"
+      },
+      "arreglo": "El contenedor de MLflow está detenido. Sin el registro no hay pesos de la versión, ni engine del champion para comparar, ni dónde registrar: tus pasos fallan en segundos, y está bien que fallen. Un paso que «pasa» porque no pudo medir es peor que uno en rojo. Arreglo: <code>docker compose up -d --wait mlflow</code> y <code>python verificar.py</code>. En C01, MLflow lo opera plataforma; si se cae, el orquestador reintenta el paso.",
+      "concepto": "gate-latencia",
+      "check": "mundo"
+    }
+  ],
+  "listo": [
+    "model.onnx sale de los pesos que aprobó el gate (con su huella), con el opset de la receta leído del archivo, batch dinámico y las mismas respuestas que PyTorch en FP32.",
+    "engine.onnx se construyó con el runtime del servidor, en esta máquina, desde ese model.onnx, y cumple el contrato del servidor.",
+    "La paridad del engine sobre el examen congelado pasa los tres umbrales; un engine que no los pasa deja el paso en rojo y no se registra.",
+    "El p99 del engine nuevo cabe en la holgura contra el engine del champion, a las dos tasas, medido igual.",
+    "La versión tiene engine=listo, sus archivos y las huellas de todo; ningún alias se movió.",
+    "Sabes de qué pesos, con qué receta, con qué runtime y en qué máquina salió el engine que se va a servir."
+  ],
+  "repaso": {
+    "memo": "<b>El gate aprueba un modelo; esta estación prueba que lo que se sirve es ese modelo.</b> Export a ONNX con opset fijo y batch dinámico, y tres chequeos (checker, opset leído del archivo, FP32 contra FP32 en batch 1 y el máximo). Engine con el runtime del servidor, para su máquina. Paridad con tres números sobre miles de fotos, latencia contra el champion medido igual, y las huellas de todo en el registro.",
+    "trampa": "Aflojar los umbrales de paridad porque el engine nuevo es más rápido. Más rápido y distinto no es una mejora: es otro modelo que nadie aprobó.",
+    "entrevista": [
+      {
+        "q": "¿Cómo pasas un modelo de PyTorch a producción en GPU?",
+        "a": "Lo exporto a ONNX en eval(), con opset fijo y el eje de batch dinámico, y lo reviso: onnx.checker, el opset leído del archivo y ONNX Runtime contra PyTorch FP32 en batch 1 y el máximo. Después construyo el engine de TensorRT en FP16 en la misma GPU y la misma release de Triton que producción, en CI. Paridad del engine en Triton contra PyTorch FP32 con miles de fotos, gate de latencia con perf_analyzer contra el champion, y registro con las huellas."
+      },
+      {
+        "q": "¿Cómo sabes que el engine FP16 es el mismo modelo?",
+        "a": "Paridad foto por foto contra el checkpoint en FP32 sobre el golden set: acuerdo top-1 (≥ 99.5 %), solapamiento top-5 (≥ 99 %) y diferencia máxima de logits (≤ 0.5; un FP16 sano da ≈ 0.01). Con un examen grande, para que los pocos cambios de fotos casi empatadas no se confundan con un bug."
+      },
+      {
+        "q": "Tu engine FP16 da 97 % de acuerdo top-1. ¿Qué haces?",
+        "a": "No es redondeo, es un bug. Parto el camino: corro el mismo examen con el ONNX en ONNX Runtime en FP32. Si ahí ya da 97 %, el problema es el export (eval(), opset, exportador). Si el ONNX da ≈ 100 %, es el build: busco la capa que se desborda en FP16 comparando salidas intermedias y la dejo en FP32. Mientras, nada se registra."
+      },
+      {
+        "q": "¿Por qué el engine se construye en CI y no al arrancar el servidor?",
+        "a": "Porque va atado a la GPU (compute capability) y a la versión de TensorRT, tarda minutos y tiene que pasar paridad y latencia antes de servir. Se construye una vez en un runner con la misma GPU y la misma release, se le sacan huellas y se mete en la imagen. El servidor solo lo carga."
+      },
+      {
+        "q": "¿Cómo haces un gate de latencia que no dé falsas alarmas?",
+        "a": "Comparo contra el champion medido igual, en la misma máquina y con la misma herramienta, en vez de contra un número fijo; con carga abierta a tasas fijas (el pico y el doble), mirando el p99, y con varias rondas alternadas. La holgura queda arriba del ruido de medir dos veces lo mismo."
+      },
+      {
+        "q": "¿Por qué no servir directamente el checkpoint de PyTorch?",
+        "a": "Porque el servidor no necesita Python ni el código de entrenamiento, un pickle puede correr código al abrirse, y un engine compilado en FP16 es varias veces más rápido en la misma GPU. El costo es que el engine es otro archivo con otros números: por eso la paridad."
+      }
+    ]
+  },
+  "prompts": {
+    "claude_md": "kits/c01-export/CLAUDE.md",
+    "guiado": "content/estaciones/c01-export/prompts/guiado.md",
+    "solo": "content/estaciones/c01-export/prompts/solo.md",
+    "romper_ayuda": "content/estaciones/c01-export/prompts/romper-ayuda.md",
+    "romper_solo": "content/estaciones/c01-export/prompts/romper-solo.md"
+  }
+}
