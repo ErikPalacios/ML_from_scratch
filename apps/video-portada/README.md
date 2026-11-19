@@ -51,6 +51,8 @@ usar otro.
 
 ## Reels de Instagram (`src/reels/`)
 
+> Para hacer piezas nuevas de Instagram (reels, carruseles, textos), empieza por [`INSTAGRAM.md`](INSTAGRAM.md).
+
 Siete reels verticales (1080×1920) para abrir la cuenta. Hay uno por herramienta, más el recorrido completo:
 
 | # | Reel | Gancho | Duración |
