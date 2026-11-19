@@ -1015,7 +1015,7 @@
             "expect": "El paso RUN pip install … aparece seguido de CACHED y no hay Collecting: solo se rehízo COPY . . al final."
           },
           {
-            "cmd": "dd if=/dev/urandom of=checkpoint.pt bs=1m count=200\ndocker build --progress=plain -t lab-cache:bien . 2>&1 | grep 'transferring context'\ndocker images lab-cache",
+            "cmd": "dd if=/dev/urandom of=checkpoint.pt bs=1048576 count=200\ndocker build --progress=plain -t lab-cache:bien . 2>&1 | grep 'transferring context'\ndocker images lab-cache",
             "expect": "transferring context de unos 200 MB, y lab-cache:bien unos 200 MB más pesada que lab-cache:mal: COPY . . metió el checkpoint en la imagen. En Docker 29 míralo en CONTENT SIZE; DISK USAGE suma además la copia descomprimida (los datos aleatorios no se comprimen)."
           },
           {

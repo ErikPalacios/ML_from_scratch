@@ -1420,7 +1420,7 @@
             "expect": "healthy fallos_seguidos=0. Con -f '{{json .State.Health}}' ves además la salida de los últimos chequeos: lo primero que miras cuando un healthcheck falla y no sabes por qué."
           },
           {
-            "cmd": "sed -i '' 's#localhost:8000#localhost:9999#' compose.yaml\ndocker compose up -d --force-recreate",
+            "cmd": "perl -pi -e 's#localhost:8000#localhost:9999#' compose.yaml\ndocker compose up -d --force-recreate",
             "expect": "Opcional, el caso unhealthy: el chequeo apunta a un puerto vacío. A los ≈ 34 s (30 de start_period + 2 chequeos más, cada 2 s), up falla con dependency failed to start: container lab-compose-db-1 is unhealthy, y api no arranca."
           }
         ],

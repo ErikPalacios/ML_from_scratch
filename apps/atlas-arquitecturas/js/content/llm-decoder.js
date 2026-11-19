@@ -542,7 +542,7 @@
             { q: 'Pasas a MQA (1 cabeza de K/V). ¿Por qué factor cambian los MACs totales?', change: { nKV: 1 }, ask: 'macs',
               explain: 'Casi nada: QKᵀ y A·V tienen las mismas 32 cabezas de query; solo bajan las proyecciones de K y V. MQA ahorra memoria, no cómputo.' },
             { q: R`El prompt pasa de ${cf('T')} a 8192 tokens (×4). ¿Por qué factor cambian los MACs totales?`, change: { T: 8192 }, ask: 'macs',
-              explain: 'Algo más de ×4: las lineales escalan con T (×4) y QKᵀ y A·V con T² (×16); con T chico frente a T* ≈ 6.5·D dominan las lineales, pero a 8192 tokens la parte T² ya pesa.' },
+              explain: 'Algo más de ×4: las lineales escalan con T (×4) y QKᵀ y A·V con T² (×16); con T chico frente a T* ≈ 6.5·D (lineales de los bloques; ≈ 7·D si cuentas también la LM head) dominan las lineales, pero a 8192 tokens la parte T² ya pesa.' },
             { q: 'Mismo cambio, 8192 tokens. ¿Por qué factor cambian los parámetros?', change: { T: 8192 }, ask: 'params',
               explain: 'Nada: RoPE no tiene tabla de posiciones; los pesos no dependen del largo.' },
           ] },

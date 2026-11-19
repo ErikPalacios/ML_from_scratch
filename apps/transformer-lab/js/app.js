@@ -601,7 +601,7 @@
       }
       const fl = $('step-flops');
       fl.textContent = '';
-      fl.append(h('span', { class: 'mono', text: detail + fmtInt(st.flops) }), h('span', { class: 'step-flops__u', text: 'productos (mult. + suma)' }));
+      fl.append(h('span', { class: 'mono', text: detail + fmtInt(st.flops) }), h('span', { class: 'step-flops__u', text: 'productos (cada uno: 1 mult. + 1 suma ≈ 2 FLOP)' }));
       fl.title = detail + fmtInt(st.flops) + ' multiplicaciones y sumas: una por cada término de cada producto escalar';
       fw.hidden = false;
     } else fw.hidden = true;
